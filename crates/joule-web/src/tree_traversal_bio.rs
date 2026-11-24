@@ -94,7 +94,10 @@ pub struct TraversalTree {
 
 impl TraversalTree {
     pub fn new() -> Self {
-        Self { nodes: Vec::new(), root: None }
+        Self {
+            nodes: Vec::new(),
+            root: None,
+        }
     }
 
     pub fn add_node(&mut self, label: Option<&str>, branch_length: f64) -> usize {
@@ -241,7 +244,9 @@ impl TraversalTree {
         let mut cur = a;
         while cur != ancestor {
             path_a.push(cur);
-            cur = self.nodes[cur].parent.ok_or(TraversalError::NodeNotFound(cur))?;
+            cur = self.nodes[cur]
+                .parent
+                .ok_or(TraversalError::NodeNotFound(cur))?;
         }
         path_a.push(ancestor);
 
@@ -249,7 +254,9 @@ impl TraversalTree {
         cur = b;
         while cur != ancestor {
             path_b.push(cur);
-            cur = self.nodes[cur].parent.ok_or(TraversalError::NodeNotFound(cur))?;
+            cur = self.nodes[cur]
+                .parent
+                .ok_or(TraversalError::NodeNotFound(cur))?;
         }
         path_b.reverse();
         path_a.extend(path_b);
@@ -290,7 +297,11 @@ impl TraversalTree {
     /// Maximum depth (tree height).
     pub fn height(&self) -> Result<usize, TraversalError> {
         let depths = self.compute_depths()?;
-        depths.values().max().copied().ok_or(TraversalError::EmptyTree)
+        depths
+            .values()
+            .max()
+            .copied()
+            .ok_or(TraversalError::EmptyTree)
     }
 
     // ── Leaf set under a node ───────────────────────────────────
@@ -552,7 +563,10 @@ mod tests {
 
     #[test]
     fn test_error_no_root() {
-        let t = TraversalTree { nodes: Vec::new(), root: None };
+        let t = TraversalTree {
+            nodes: Vec::new(),
+            root: None,
+        };
         assert!(t.preorder().is_err());
     }
 }

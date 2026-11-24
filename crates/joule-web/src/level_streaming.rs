@@ -297,7 +297,8 @@ impl LevelStreaming {
         }
         if let Some(lvl) = self.levels.get_mut(id) {
             lvl.state = StreamingState::Loading;
-            self.events.push(StreamingEvent::LoadRequested(id.to_string()));
+            self.events
+                .push(StreamingEvent::LoadRequested(id.to_string()));
         }
     }
 
@@ -328,7 +329,8 @@ impl LevelStreaming {
     fn make_visible(&mut self, id: &str) {
         if let Some(lvl) = self.levels.get_mut(id) {
             lvl.state = StreamingState::LoadedVisible;
-            self.events.push(StreamingEvent::MadeVisible(id.to_string()));
+            self.events
+                .push(StreamingEvent::MadeVisible(id.to_string()));
         }
     }
 
@@ -347,7 +349,8 @@ impl LevelStreaming {
                 lvl.saved_data = None;
             }
             lvl.state = StreamingState::Unloaded;
-            self.events.push(StreamingEvent::UnloadComplete(id.to_string()));
+            self.events
+                .push(StreamingEvent::UnloadComplete(id.to_string()));
         }
     }
 
@@ -549,7 +552,10 @@ mod tests {
         let mut mgr = LevelStreaming::new(1_000_000);
         mgr.register(make_level("town", 0.0, 0.0, 100_000));
         let evts = mgr.update_player(25.0, 50.0, 25.0);
-        assert!(evts.iter().any(|e| matches!(e, StreamingEvent::LoadRequested(id) if id == "town")));
+        assert!(
+            evts.iter()
+                .any(|e| matches!(e, StreamingEvent::LoadRequested(id) if id == "town"))
+        );
         assert_eq!(mgr.level_state("town"), Some(StreamingState::Loading));
     }
 
@@ -570,7 +576,10 @@ mod tests {
         mgr.update_player(25.0, 50.0, 25.0);
         mgr.finish_load("town");
         let evts = mgr.update_player(25.0, 50.0, 25.0);
-        assert!(evts.iter().any(|e| matches!(e, StreamingEvent::MadeVisible(id) if id == "town")));
+        assert!(
+            evts.iter()
+                .any(|e| matches!(e, StreamingEvent::MadeVisible(id) if id == "town"))
+        );
     }
 
     #[test]
@@ -581,7 +590,10 @@ mod tests {
         mgr.finish_load("town");
         mgr.update_player(25.0, 50.0, 25.0); // made visible
         let evts = mgr.update_player(999.0, 50.0, 999.0); // leave
-        assert!(evts.iter().any(|e| matches!(e, StreamingEvent::MadeHidden(id) if id == "town")));
+        assert!(
+            evts.iter()
+                .any(|e| matches!(e, StreamingEvent::MadeHidden(id) if id == "town"))
+        );
     }
 
     #[test]
@@ -594,7 +606,9 @@ mod tests {
         // Now trying to load b should trigger budget exceeded.
         let evts = mgr.update_player(25.0, 50.0, 25.0);
         // b should still be requested after evicting a.
-        let has_budget_exceeded = evts.iter().any(|e| matches!(e, StreamingEvent::MemoryBudgetExceeded { .. }));
+        let has_budget_exceeded = evts
+            .iter()
+            .any(|e| matches!(e, StreamingEvent::MemoryBudgetExceeded { .. }));
         assert!(has_budget_exceeded);
     }
 

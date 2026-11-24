@@ -74,12 +74,18 @@ impl ChoroplethConfig {
 }
 
 impl Default for ChoroplethConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for ChoroplethConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ChoroplethConfig(num_classes={0}, color_scheme={1}, missing_color={2}, reverse_colors={3})", self.num_classes, self.color_scheme, self.missing_color, self.reverse_colors)
+        write!(
+            f,
+            "ChoroplethConfig(num_classes={0}, color_scheme={1}, missing_color={2}, reverse_colors={3})",
+            self.num_classes, self.color_scheme, self.missing_color, self.reverse_colors
+        )
     }
 }
 
@@ -95,7 +101,10 @@ pub struct Choropleth {
 impl Choropleth {
     pub fn new(config: ChoroplethConfig) -> Result<Self, ChoroplethError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -107,33 +116,47 @@ impl Choropleth {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &ChoroplethConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &ChoroplethConfig {
+        &self.config
+    }
 
     /// Classify values into color bins.
     pub fn classify(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Get color for a value.
     pub fn color_for_value(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Generate legend entries.
     pub fn legend_entries(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -145,7 +168,9 @@ impl Choropleth {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -157,7 +182,11 @@ impl Choropleth {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -230,7 +259,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = Choropleth::new(ChoroplethConfig::new()).unwrap()
+        let e = Choropleth::new(ChoroplethConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -246,7 +276,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = Choropleth::new(ChoroplethConfig::new()).unwrap()
+        let e = Choropleth::new(ChoroplethConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("Choropleth"));
@@ -254,7 +285,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = Choropleth::new(ChoroplethConfig::new()).unwrap()
+        let e = Choropleth::new(ChoroplethConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -265,7 +297,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = Choropleth::new(ChoroplethConfig::new()).unwrap()
+        let e = Choropleth::new(ChoroplethConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -273,7 +306,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = Choropleth::new(ChoroplethConfig::new()).unwrap()
+        let e = Choropleth::new(ChoroplethConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -290,7 +324,8 @@ mod tests {
 
     #[test]
     fn test_classify() {
-        let e = Choropleth::new(ChoroplethConfig::new()).unwrap()
+        let e = Choropleth::new(ChoroplethConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.classify();
         assert!(!result.is_empty());
@@ -298,7 +333,8 @@ mod tests {
 
     #[test]
     fn test_color_for_value() {
-        let e = Choropleth::new(ChoroplethConfig::new()).unwrap()
+        let e = Choropleth::new(ChoroplethConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.color_for_value();
         assert!(!result.is_empty());
@@ -306,7 +342,8 @@ mod tests {
 
     #[test]
     fn test_legend_entries() {
-        let e = Choropleth::new(ChoroplethConfig::new()).unwrap()
+        let e = Choropleth::new(ChoroplethConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.legend_entries();
         assert!(!result.is_empty());

@@ -20,7 +20,11 @@ impl SsrVec3 {
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn length(&self) -> f64 {
@@ -32,7 +36,11 @@ impl SsrVec3 {
         if len < 1e-10 {
             Self::zero()
         } else {
-            Self { x: self.x / len, y: self.y / len, z: self.z / len }
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+                z: self.z / len,
+            }
         }
     }
 
@@ -41,15 +49,27 @@ impl SsrVec3 {
     }
 
     pub fn add(&self, other: &Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y, z: self.z + other.z }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
     }
 
     pub fn sub(&self, other: &Self) -> Self {
-        Self { x: self.x - other.x, y: self.y - other.y, z: self.z - other.z }
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+            z: self.z - other.z,
+        }
     }
 
     pub fn scale(&self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     /// Reflect this vector across a surface normal.
@@ -77,11 +97,19 @@ impl SsrColor {
     }
 
     pub fn black() -> Self {
-        Self { r: 0.0, g: 0.0, b: 0.0 }
+        Self {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+        }
     }
 
     pub fn scale(&self, s: f64) -> Self {
-        Self { r: self.r * s, g: self.g * s, b: self.b * s }
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
     }
 
     pub fn add(&self, other: &Self) -> Self {
@@ -195,15 +223,29 @@ impl SsrDepthBuffer {
                     let sx = x * 2;
                     let sy = y * 2;
                     let d00 = current.get(sx.min(current.width - 1), sy.min(current.height - 1));
-                    let d10 = if sx + 1 < current.width { current.get(sx + 1, sy.min(current.height - 1)) } else { d00 };
-                    let d01 = if sy + 1 < current.height { current.get(sx.min(current.width - 1), sy + 1) } else { d00 };
-                    let d11 = if sx + 1 < current.width && sy + 1 < current.height { current.get(sx + 1, sy + 1) } else { d00 };
+                    let d10 = if sx + 1 < current.width {
+                        current.get(sx + 1, sy.min(current.height - 1))
+                    } else {
+                        d00
+                    };
+                    let d01 = if sy + 1 < current.height {
+                        current.get(sx.min(current.width - 1), sy + 1)
+                    } else {
+                        d00
+                    };
+                    let d11 = if sx + 1 < current.width && sy + 1 < current.height {
+                        current.get(sx + 1, sy + 1)
+                    } else {
+                        d00
+                    };
                     mip.set(x, y, d00.min(d10).min(d01).min(d11));
                 }
             }
             chain.push(mip.clone());
             current = mip;
-            if w <= 1 && h <= 1 { break; }
+            if w <= 1 && h <= 1 {
+                break;
+            }
         }
         chain
     }
@@ -265,7 +307,11 @@ impl RoughnessBuffer {
 #[derive(Clone, Debug, PartialEq)]
 pub enum RayResult {
     /// Ray hit a surface at the given screen coordinates.
-    Hit { screen_x: f64, screen_y: f64, confidence: f64 },
+    Hit {
+        screen_x: f64,
+        screen_y: f64,
+        confidence: f64,
+    },
     /// Ray missed (left screen or exceeded max steps).
     Miss,
 }
@@ -328,15 +374,27 @@ pub fn fresnel_schlick(cos_theta: f64, f0: f64) -> f64 {
 }
 
 /// Compute screen-edge fade factor.
-pub fn edge_fade_factor(screen_x: f64, screen_y: f64, width: f64, height: f64, fade_dist: f64) -> f64 {
+pub fn edge_fade_factor(
+    screen_x: f64,
+    screen_y: f64,
+    width: f64,
+    height: f64,
+    fade_dist: f64,
+) -> f64 {
     if fade_dist <= 0.0 {
         return 1.0;
     }
     let nx = screen_x / width;
     let ny = screen_y / height;
 
-    let fade_x = (nx / fade_dist).min((1.0 - nx) / fade_dist).min(1.0).max(0.0);
-    let fade_y = (ny / fade_dist).min((1.0 - ny) / fade_dist).min(1.0).max(0.0);
+    let fade_x = (nx / fade_dist)
+        .min((1.0 - nx) / fade_dist)
+        .min(1.0)
+        .max(0.0);
+    let fade_y = (ny / fade_dist)
+        .min((1.0 - ny) / fade_dist)
+        .min(1.0)
+        .max(0.0);
 
     fade_x * fade_y
 }
@@ -397,7 +455,8 @@ pub fn ray_march(
     let mut ray_y = start_screen.1;
     let mut ray_depth = start_depth;
 
-    let dir_len = (direction_screen.0 * direction_screen.0 + direction_screen.1 * direction_screen.1).sqrt();
+    let dir_len =
+        (direction_screen.0 * direction_screen.0 + direction_screen.1 * direction_screen.1).sqrt();
     if dir_len < 1e-10 {
         return RayResult::Miss;
     }
@@ -502,7 +561,8 @@ fn ssr_pixel(
     let reflect_dir = view_dir.reflect(normal).normalized();
 
     // Project reflection endpoint to screen space
-    let far_point = view_pos.add(&reflect_dir.scale(config.step_size * config.max_steps as f64 * 0.1));
+    let far_point =
+        view_pos.add(&reflect_dir.scale(config.step_size * config.max_steps as f64 * 0.1));
     let (start_sx, start_sy, _) = view_to_screen(&view_pos, w, h, fov_y, aspect);
     let (end_sx, end_sy, end_z) = view_to_screen(&far_point, w, h, fov_y, aspect);
 
@@ -525,7 +585,11 @@ fn ssr_pixel(
     let fresnel = fresnel_schlick(cos_theta, config.fresnel_f0);
 
     match result {
-        RayResult::Hit { screen_x, screen_y, confidence } => {
+        RayResult::Hit {
+            screen_x,
+            screen_y,
+            confidence,
+        } => {
             let reflected_color = color_buf.sample_bilinear(screen_x, screen_y);
             let edge_fade = edge_fade_factor(screen_x, screen_y, w, h, config.edge_fade);
             let roughness_fade = 1.0 - roughness / config.max_roughness.max(1e-10);
@@ -558,7 +622,15 @@ pub fn apply_ssr(
     for y in 0..h {
         for x in 0..w {
             let c = ssr_pixel(
-                x, y, color_buf, depth_buf, normal_buf, roughness_buf, config, fov_y, aspect,
+                x,
+                y,
+                color_buf,
+                depth_buf,
+                normal_buf,
+                roughness_buf,
+                config,
+                fov_y,
+                aspect,
             );
             out.set(x, y, c);
         }
@@ -608,11 +680,13 @@ pub fn compute_ssr_stats(
                 continue;
             }
 
-            let view_pos = screen_to_view(x as f64 + 0.5, y as f64 + 0.5, depth, fw, fh, fov_y, aspect);
+            let view_pos =
+                screen_to_view(x as f64 + 0.5, y as f64 + 0.5, depth, fw, fh, fov_y, aspect);
             let normal = normal_buf.get(x, y);
             let view_dir = view_pos.normalized();
             let reflect_dir = view_dir.reflect(normal).normalized();
-            let far_point = view_pos.add(&reflect_dir.scale(config.step_size * config.max_steps as f64 * 0.1));
+            let far_point =
+                view_pos.add(&reflect_dir.scale(config.step_size * config.max_steps as f64 * 0.1));
 
             let (start_sx, start_sy, _) = view_to_screen(&view_pos, fw, fh, fov_y, aspect);
             let (end_sx, end_sy, _) = view_to_screen(&far_point, fw, fh, fov_y, aspect);
@@ -643,7 +717,11 @@ pub fn compute_ssr_stats(
         reflective_pixels: reflective,
         hit_count: hits,
         miss_count: misses,
-        avg_confidence: if hits > 0 { confidence_sum / hits as f64 } else { 0.0 },
+        avg_confidence: if hits > 0 {
+            confidence_sum / hits as f64
+        } else {
+            0.0
+        },
     }
 }
 
@@ -784,7 +862,11 @@ mod tests {
         };
         let result = ray_march((4.0, 8.0), (1.0, 0.0), 0.45, 0.001, &depth, &config);
         match result {
-            RayResult::Hit { screen_x, confidence, .. } => {
+            RayResult::Hit {
+                screen_x,
+                confidence,
+                ..
+            } => {
                 assert!(screen_x >= 9.0);
                 assert!(confidence > 0.0);
             }

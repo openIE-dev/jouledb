@@ -254,7 +254,9 @@ impl CallGraph {
         results.sort_by(|a, b| {
             let a_total = a.fan_in + a.fan_out;
             let b_total = b.fan_in + b.fan_out;
-            b_total.cmp(&a_total).then_with(|| a.function_name.cmp(&b.function_name))
+            b_total
+                .cmp(&a_total)
+                .then_with(|| a.function_name.cmp(&b.function_name))
         });
         results
     }
@@ -453,14 +455,22 @@ impl CallGraph {
     /// Return functions sorted by total time descending.
     pub fn functions_by_time(&self) -> Vec<&FunctionNode> {
         let mut funcs: Vec<&FunctionNode> = self.nodes.values().collect();
-        funcs.sort_by(|a, b| b.total_time_us.cmp(&a.total_time_us).then_with(|| a.name.cmp(&b.name)));
+        funcs.sort_by(|a, b| {
+            b.total_time_us
+                .cmp(&a.total_time_us)
+                .then_with(|| a.name.cmp(&b.name))
+        });
         funcs
     }
 
     /// Return functions sorted by call count descending.
     pub fn functions_by_calls(&self) -> Vec<&FunctionNode> {
         let mut funcs: Vec<&FunctionNode> = self.nodes.values().collect();
-        funcs.sort_by(|a, b| b.call_count.cmp(&a.call_count).then_with(|| a.name.cmp(&b.name)));
+        funcs.sort_by(|a, b| {
+            b.call_count
+                .cmp(&a.call_count)
+                .then_with(|| a.name.cmp(&b.name))
+        });
         funcs
     }
 }

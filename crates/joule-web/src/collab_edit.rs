@@ -148,7 +148,9 @@ impl fmt::Display for Operation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Op[")?;
         for (i, c) in self.components.iter().enumerate() {
-            if i > 0 { write!(f, ", ")?; }
+            if i > 0 {
+                write!(f, ", ")?;
+            }
             match c {
                 OpComponent::Retain(n) => write!(f, "retain({})", n)?,
                 OpComponent::Insert(s) => write!(f, "insert({:?})", s)?,
@@ -174,8 +176,9 @@ pub enum OtError {
 impl fmt::Display for OtError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::LengthMismatch { expected, actual } =>
-                write!(f, "length mismatch: expected {}, got {}", expected, actual),
+            Self::LengthMismatch { expected, actual } => {
+                write!(f, "length mismatch: expected {}, got {}", expected, actual)
+            }
             Self::RetainPastEnd => write!(f, "retain past end of document"),
             Self::DeletePastEnd => write!(f, "delete past end of document"),
             Self::IncompatibleOperations => write!(f, "operations have incompatible base lengths"),
@@ -433,9 +436,16 @@ fn build_op_from_comps(comps: Vec<OpComponent>, base_len: usize) -> Operation {
     let mut produced = 0usize;
     for c in &comps {
         match c {
-            OpComponent::Retain(n) => { consumed += n; produced += n; }
-            OpComponent::Insert(s) => { produced += s.len(); }
-            OpComponent::Delete(n) => { consumed += n; }
+            OpComponent::Retain(n) => {
+                consumed += n;
+                produced += n;
+            }
+            OpComponent::Insert(s) => {
+                produced += s.len();
+            }
+            OpComponent::Delete(n) => {
+                consumed += n;
+            }
         }
     }
     Operation {
@@ -455,7 +465,11 @@ struct ComponentIter {
 
 impl ComponentIter {
     fn new(components: &[OpComponent]) -> Self {
-        Self { components: components.to_vec(), index: 0, offset: 0 }
+        Self {
+            components: components.to_vec(),
+            index: 0,
+            offset: 0,
+        }
     }
 
     fn peek(&self) -> Option<&OpComponent> {
@@ -643,7 +657,9 @@ impl OtServer {
     /// Returns the transformed operation to broadcast to other clients.
     pub fn receive(&mut self, client_rev: u64, mut op: Operation) -> Result<Operation, OtError> {
         if client_rev > self.revision {
-            return Err(OtError::InvalidState("client revision ahead of server".into()));
+            return Err(OtError::InvalidState(
+                "client revision ahead of server".into(),
+            ));
         }
 
         // Transform against all operations since client's revision
@@ -739,7 +755,13 @@ mod tests {
     fn apply_length_mismatch() {
         let op = Operation::new(5).retain(5);
         let err = op.apply("hi").unwrap_err();
-        assert!(matches!(err, OtError::LengthMismatch { expected: 5, actual: 2 }));
+        assert!(matches!(
+            err,
+            OtError::LengthMismatch {
+                expected: 5,
+                actual: 2
+            }
+        ));
     }
 
     #[test]
@@ -942,10 +964,25 @@ mod tests {
 
     #[test]
     fn error_display() {
-        assert!(OtError::RetainPastEnd.to_string().contains("retain past end"));
-        assert!(OtError::DeletePastEnd.to_string().contains("delete past end"));
-        assert!(OtError::IncompatibleOperations.to_string().contains("incompatible"));
-        let lm = OtError::LengthMismatch { expected: 5, actual: 3 };
+        assert!(
+            OtError::RetainPastEnd
+                .to_string()
+                .contains("retain past end")
+        );
+        assert!(
+            OtError::DeletePastEnd
+                .to_string()
+                .contains("delete past end")
+        );
+        assert!(
+            OtError::IncompatibleOperations
+                .to_string()
+                .contains("incompatible")
+        );
+        let lm = OtError::LengthMismatch {
+            expected: 5,
+            actual: 3,
+        };
         assert!(lm.to_string().contains("5"));
     }
 }

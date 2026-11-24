@@ -109,10 +109,10 @@ impl FrameFlags {
 /// HTTP/2 frame header (9 bytes).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FrameHeader {
-    pub length: u32,      // 24 bits
+    pub length: u32, // 24 bits
     pub frame_type: FrameType,
     pub flags: FrameFlags,
-    pub stream_id: u32,   // 31 bits (MSB reserved)
+    pub stream_id: u32, // 31 bits (MSB reserved)
 }
 
 impl FrameHeader {
@@ -135,11 +135,18 @@ impl FrameHeader {
         let length = ((buf[0] as u32) << 16) | ((buf[1] as u32) << 8) | (buf[2] as u32);
         let frame_type = FrameType::from_u8(buf[3]);
         let flags = FrameFlags(buf[4]);
-        let stream_id =
-            ((buf[5] as u32) << 24) | ((buf[6] as u32) << 16) | ((buf[7] as u32) << 8) | (buf[8] as u32);
+        let stream_id = ((buf[5] as u32) << 24)
+            | ((buf[6] as u32) << 16)
+            | ((buf[7] as u32) << 8)
+            | (buf[8] as u32);
         let stream_id = stream_id & 0x7FFF_FFFF;
 
-        Some(Self { length, frame_type, flags, stream_id })
+        Some(Self {
+            length,
+            frame_type,
+            flags,
+            stream_id,
+        })
     }
 
     /// Serialize to 9 bytes.
@@ -291,7 +298,14 @@ impl StreamTracker {
     pub fn active_count(&self) -> usize {
         self.streams
             .values()
-            .filter(|s| matches!(s, StreamState::Open | StreamState::HalfClosedLocal | StreamState::HalfClosedRemote))
+            .filter(|s| {
+                matches!(
+                    s,
+                    StreamState::Open
+                        | StreamState::HalfClosedLocal
+                        | StreamState::HalfClosedRemote
+                )
+            })
             .count()
     }
 }
@@ -395,7 +409,8 @@ impl HpackDynamicTable {
         }
 
         if size <= self.max_size {
-            self.entries.insert(0, (name.to_string(), value.to_string()));
+            self.entries
+                .insert(0, (name.to_string(), value.to_string()));
             self.current_size += size;
         }
     }
@@ -614,7 +629,10 @@ mod tests {
         assert_eq!(dt.get(0), Some(("custom-header", "value1")));
 
         // Insert enough to evict.
-        dt.insert("another-long-header-name", "another-long-value-here-to-fill-the-table");
+        dt.insert(
+            "another-long-header-name",
+            "another-long-value-here-to-fill-the-table",
+        );
         // The first entry should have been evicted.
         assert!(dt.len() <= 2);
     }

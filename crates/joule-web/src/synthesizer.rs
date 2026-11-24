@@ -33,7 +33,11 @@ pub fn generate_waveform(
         let sample = match waveform {
             Waveform::Sine => (2.0 * PI * *phase).sin(),
             Waveform::Square => {
-                if *phase < 0.5 { 1.0 } else { -1.0 }
+                if *phase < 0.5 {
+                    1.0
+                } else {
+                    -1.0
+                }
             }
             Waveform::Sawtooth => 2.0 * *phase - 1.0,
             Waveform::Triangle => {
@@ -185,8 +189,7 @@ impl EnvelopeState {
                     self.stage = EnvelopeStage::Sustain;
                 } else {
                     let progress = (self.time_in_stage / envelope.decay).min(1.0);
-                    self.current_level =
-                        1.0 - progress * (1.0 - envelope.sustain_level);
+                    self.current_level = 1.0 - progress * (1.0 - envelope.sustain_level);
                     self.time_in_stage += dt;
                     if progress >= 1.0 {
                         self.current_level = envelope.sustain_level;
@@ -335,7 +338,8 @@ impl VoiceAllocator {
         }
 
         // Remove fully-off voices
-        self.voices.retain(|v| v.envelope_state.stage() != EnvelopeStage::Off);
+        self.voices
+            .retain(|v| v.envelope_state.stage() != EnvelopeStage::Off);
 
         output
     }
@@ -370,8 +374,13 @@ impl Lfo {
 
     /// Generate `num_samples` of modulation signal (bipolar, scaled by depth).
     pub fn generate(&mut self, num_samples: usize) -> Vec<f32> {
-        let mut samples =
-            generate_waveform(self.waveform, self.rate, self.sample_rate, num_samples, &mut self.phase);
+        let mut samples = generate_waveform(
+            self.waveform,
+            self.rate,
+            self.sample_rate,
+            num_samples,
+            &mut self.phase,
+        );
         for s in &mut samples {
             *s *= self.depth as f32;
         }
@@ -379,11 +388,7 @@ impl Lfo {
     }
 
     /// Apply LFO modulation to a frequency, returning modulated frequency per sample.
-    pub fn modulate_frequency(
-        &mut self,
-        base_freq: f64,
-        num_samples: usize,
-    ) -> Vec<f64> {
+    pub fn modulate_frequency(&mut self, base_freq: f64, num_samples: usize) -> Vec<f64> {
         let lfo_samples = self.generate(num_samples);
         lfo_samples
             .iter()
@@ -413,8 +418,8 @@ mod tests {
         let mut phase = 0.0;
         let samples = generate_waveform(Waveform::Square, 1.0, 4.0, 4, &mut phase);
         // At sample_rate=4, freq=1: phase goes 0.0, 0.25, 0.5, 0.75
-        assert_eq!(samples[0], 1.0);  // phase 0.0 < 0.5
-        assert_eq!(samples[1], 1.0);  // phase 0.25 < 0.5
+        assert_eq!(samples[0], 1.0); // phase 0.0 < 0.5
+        assert_eq!(samples[1], 1.0); // phase 0.25 < 0.5
         assert_eq!(samples[2], -1.0); // phase 0.5 >= 0.5
         assert_eq!(samples[3], -1.0); // phase 0.75 >= 0.5
     }

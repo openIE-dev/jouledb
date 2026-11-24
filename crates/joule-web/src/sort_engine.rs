@@ -23,7 +23,9 @@ pub enum NullPosition {
 }
 
 impl Default for NullPosition {
-    fn default() -> Self { NullPosition::Last }
+    fn default() -> Self {
+        NullPosition::Last
+    }
 }
 
 // ── SortSpec ────────────────────────────────────────────────────
@@ -37,11 +39,17 @@ pub struct SortSpec {
 
 impl SortSpec {
     pub fn asc(field: impl Into<String>) -> Self {
-        Self { field: field.into(), direction: SortDirection::Asc }
+        Self {
+            field: field.into(),
+            direction: SortDirection::Asc,
+        }
     }
 
     pub fn desc(field: impl Into<String>) -> Self {
-        Self { field: field.into(), direction: SortDirection::Desc }
+        Self {
+            field: field.into(),
+            direction: SortDirection::Desc,
+        }
     }
 }
 
@@ -126,11 +134,7 @@ impl SortEngine {
         indices
     }
 
-    fn compare_rows(
-        &self,
-        a: &HashMap<String, String>,
-        b: &HashMap<String, String>,
-    ) -> Ordering {
+    fn compare_rows(&self, a: &HashMap<String, String>, b: &HashMap<String, String>) -> Ordering {
         for spec in &self.specs {
             let va = a.get(&spec.field).map(|s| s.as_str()).unwrap_or("");
             let vb = b.get(&spec.field).map(|s| s.as_str()).unwrap_or("");
@@ -260,10 +264,7 @@ mod tests {
     use super::*;
 
     fn make_row(name: &str, age: &str) -> HashMap<String, String> {
-        HashMap::from([
-            ("name".into(), name.into()),
-            ("age".into(), age.into()),
-        ])
+        HashMap::from([("name".into(), name.into()), ("age".into(), age.into())])
     }
 
     #[test]
@@ -334,10 +335,7 @@ mod tests {
         let mut engine = SortEngine::new();
         engine.case_insensitive = true;
         engine.add(SortSpec::asc("name"));
-        let mut rows = vec![
-            make_row("banana", ""),
-            make_row("Apple", ""),
-        ];
+        let mut rows = vec![make_row("banana", ""), make_row("Apple", "")];
         engine.sort(&mut rows);
         assert_eq!(rows[0]["name"], "Apple");
     }
@@ -347,11 +345,7 @@ mod tests {
         let mut engine = SortEngine::new();
         engine.null_position = NullPosition::Last;
         engine.add(SortSpec::asc("name"));
-        let mut rows = vec![
-            make_row("", ""),
-            make_row("Alice", ""),
-            make_row("Bob", ""),
-        ];
+        let mut rows = vec![make_row("", ""), make_row("Alice", ""), make_row("Bob", "")];
         engine.sort(&mut rows);
         assert_eq!(rows[0]["name"], "Alice");
         assert_eq!(rows[2]["name"], "");
@@ -362,11 +356,7 @@ mod tests {
         let mut engine = SortEngine::new();
         engine.null_position = NullPosition::First;
         engine.add(SortSpec::asc("name"));
-        let mut rows = vec![
-            make_row("Alice", ""),
-            make_row("", ""),
-            make_row("Bob", ""),
-        ];
+        let mut rows = vec![make_row("Alice", ""), make_row("", ""), make_row("Bob", "")];
         engine.sort(&mut rows);
         assert_eq!(rows[0]["name"], "");
         assert_eq!(rows[1]["name"], "Alice");
@@ -438,11 +428,7 @@ mod tests {
     fn numeric_sort() {
         let mut engine = SortEngine::new();
         engine.add(SortSpec::asc("age"));
-        let mut rows = vec![
-            make_row("", "100"),
-            make_row("", "20"),
-            make_row("", "3"),
-        ];
+        let mut rows = vec![make_row("", "100"), make_row("", "20"), make_row("", "3")];
         engine.sort(&mut rows);
         assert_eq!(rows[0]["age"], "3");
         assert_eq!(rows[1]["age"], "20");

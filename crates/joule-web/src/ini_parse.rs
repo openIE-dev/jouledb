@@ -183,7 +183,8 @@ impl IniDocument {
     pub fn section_or_create(&mut self, name: &str) -> &mut IniSection {
         if !self.sections.contains_key(name) {
             self.section_order.push(name.to_string());
-            self.sections.insert(name.to_string(), IniSection::new(name));
+            self.sections
+                .insert(name.to_string(), IniSection::new(name));
         }
         self.sections.get_mut(name).unwrap()
     }
@@ -229,9 +230,13 @@ impl IniDocument {
     /// Perform `${section:key}` interpolation on all values.
     pub fn interpolate(&mut self) -> Result<(), IniError> {
         // Collect all (section, key, raw_value) triples.
-        let entries: Vec<(String, String, String)> = self.sections.iter()
+        let entries: Vec<(String, String, String)> = self
+            .sections
+            .iter()
             .flat_map(|(sname, sec)| {
-                sec.entries.iter().map(move |(k, v)| (sname.clone(), k.clone(), v.clone()))
+                sec.entries
+                    .iter()
+                    .map(move |(k, v)| (sname.clone(), k.clone(), v.clone()))
             })
             .collect();
 
@@ -244,7 +249,12 @@ impl IniDocument {
         Ok(())
     }
 
-    fn resolve_value(&self, value: &str, current_section: &str, visited: &mut Vec<(String, String)>) -> Result<String, IniError> {
+    fn resolve_value(
+        &self,
+        value: &str,
+        current_section: &str,
+        visited: &mut Vec<(String, String)>,
+    ) -> Result<String, IniError> {
         let mut result = String::new();
         let chars: Vec<char> = value.chars().collect();
         let mut i = 0;
@@ -260,14 +270,18 @@ impl IniDocument {
                     };
                     let pair = (ref_sec.to_string(), ref_key.to_string());
                     if visited.contains(&pair) {
-                        return Err(IniError::CircularInterpolation(ref_sec.to_string(), ref_key.to_string()));
+                        return Err(IniError::CircularInterpolation(
+                            ref_sec.to_string(),
+                            ref_key.to_string(),
+                        ));
                     }
                     visited.push(pair);
-                    let ref_val = self.get(ref_sec, ref_key)
-                        .ok_or_else(|| IniError::UnresolvedReference {
+                    let ref_val = self.get(ref_sec, ref_key).ok_or_else(|| {
+                        IniError::UnresolvedReference {
                             section: ref_sec.to_string(),
                             key: ref_key.to_string(),
-                        })?;
+                        }
+                    })?;
                     let resolved = self.resolve_value(ref_val, ref_sec, visited)?;
                     visited.pop();
                     result.push_str(&resolved);
@@ -388,7 +402,10 @@ pub fn parse_with(input: &str, config: &IniConfig) -> Result<IniDocument, IniErr
                 }
                 sn
             } else {
-                return Err(IniError::KeyOutsideSection { key, line: line_num });
+                return Err(IniError::KeyOutsideSection {
+                    key,
+                    line: line_num,
+                });
             };
 
             if let Some(sec) = doc.sections.get_mut(&sec_name) {
@@ -498,7 +515,10 @@ mod tests {
 
     #[test]
     fn test_global_keys_disallowed() {
-        let config = IniConfig { allow_global_keys: false, ..Default::default() };
+        let config = IniConfig {
+            allow_global_keys: false,
+            ..Default::default()
+        };
         let ini = "key = value";
         let result = parse_with(ini, &config);
         assert!(result.is_err());
@@ -507,7 +527,10 @@ mod tests {
     #[test]
     fn test_inheritance() {
         let ini = "[base]\ncolor = red\nsize = 10\n\n[child : base]\nsize = 20";
-        let config = IniConfig { interpolation: false, ..Default::default() };
+        let config = IniConfig {
+            interpolation: false,
+            ..Default::default()
+        };
         let doc = parse_with(ini, &config).unwrap();
         assert_eq!(doc.get_inherited("child", "color"), Some("red"));
         assert_eq!(doc.get_inherited("child", "size"), Some("20"));
@@ -537,7 +560,11 @@ mod tests {
 
     #[test]
     fn test_duplicate_section_error() {
-        let config = IniConfig { allow_duplicate_sections: false, interpolation: false, ..Default::default() };
+        let config = IniConfig {
+            allow_duplicate_sections: false,
+            interpolation: false,
+            ..Default::default()
+        };
         let ini = "[server]\nhost = a\n\n[server]\nport = 80";
         let result = parse_with(ini, &config);
         assert!(result.is_err());
@@ -546,7 +573,10 @@ mod tests {
     #[test]
     fn test_write_roundtrip() {
         let ini = "[database]\nhost = localhost\nport = 5432\n";
-        let config = IniConfig { interpolation: false, ..Default::default() };
+        let config = IniConfig {
+            interpolation: false,
+            ..Default::default()
+        };
         let doc = parse_with(ini, &config).unwrap();
         let output = write(&doc);
         assert!(output.contains("[database]"));
@@ -586,7 +616,10 @@ mod tests {
     #[test]
     fn test_section_keys_iter() {
         let ini = "[s]\na = 1\nb = 2\nc = 3";
-        let config = IniConfig { interpolation: false, ..Default::default() };
+        let config = IniConfig {
+            interpolation: false,
+            ..Default::default()
+        };
         let doc = parse_with(ini, &config).unwrap();
         let keys: Vec<&str> = doc.section("s").unwrap().keys().collect();
         assert_eq!(keys, vec!["a", "b", "c"]);
@@ -601,7 +634,10 @@ mod tests {
     #[test]
     fn test_whitespace_around_delimiter() {
         let ini = "[s]\n  key  =  value  ";
-        let config = IniConfig { interpolation: false, ..Default::default() };
+        let config = IniConfig {
+            interpolation: false,
+            ..Default::default()
+        };
         let doc = parse_with(ini, &config).unwrap();
         assert_eq!(doc.get("s", "key"), Some("value"));
     }

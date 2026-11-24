@@ -16,9 +16,15 @@ pub fn generate_boundary(seed: u64) -> String {
     let mut h = seed;
     let mut chars = Vec::with_capacity(24);
     for _ in 0..24 {
-        h = h.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        h = h
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let idx = ((h >> 33) % 36) as u8;
-        let c = if idx < 10 { b'0' + idx } else { b'a' + idx - 10 };
+        let c = if idx < 10 {
+            b'0' + idx
+        } else {
+            b'a' + idx - 10
+        };
         chars.push(c);
     }
     let boundary = String::from_utf8(chars).unwrap_or_else(|_| "boundary000".into());
@@ -30,7 +36,9 @@ pub fn validate_boundary(boundary: &str) -> bool {
     if boundary.is_empty() || boundary.len() > 70 {
         return false;
     }
-    boundary.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_'.+:=()/, ".contains(&b))
+    boundary
+        .bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b"-_'.+:=()/, ".contains(&b))
 }
 
 // ── Content-Disposition ───────────────────────────────────────────
@@ -63,7 +71,9 @@ impl ContentDisposition {
     /// Parse from header value string.
     pub fn parse(header: &str) -> Option<Self> {
         let parts: Vec<&str> = header.split(';').map(|s| s.trim()).collect();
-        if parts.is_empty() { return None; }
+        if parts.is_empty() {
+            return None;
+        }
         let disposition_type = parts[0].to_lowercase();
         let mut name = None;
         let mut filename = None;
@@ -74,7 +84,11 @@ impl ContentDisposition {
                 filename = Some(unquote(val));
             }
         }
-        Some(Self { disposition_type, name, filename })
+        Some(Self {
+            disposition_type,
+            name,
+            filename,
+        })
     }
 
     /// Format as header value.
@@ -110,7 +124,10 @@ pub struct Part {
 
 impl Part {
     pub fn new() -> Self {
-        Self { headers: BTreeMap::new(), body: Vec::new() }
+        Self {
+            headers: BTreeMap::new(),
+            body: Vec::new(),
+        }
     }
 
     /// Create a text field part.
@@ -120,7 +137,10 @@ impl Part {
             "content-disposition".into(),
             ContentDisposition::form_data(name).to_header(),
         );
-        Self { headers, body: value.as_bytes().to_vec() }
+        Self {
+            headers,
+            body: value.as_bytes().to_vec(),
+        }
     }
 
     /// Create a file part.
@@ -131,12 +151,16 @@ impl Part {
             ContentDisposition::file(name, filename).to_header(),
         );
         headers.insert("content-type".into(), content_type.into());
-        Self { headers, body: data.to_vec() }
+        Self {
+            headers,
+            body: data.to_vec(),
+        }
     }
 
     /// Get the Content-Disposition, if present.
     pub fn content_disposition(&self) -> Option<ContentDisposition> {
-        self.headers.get("content-disposition")
+        self.headers
+            .get("content-disposition")
             .and_then(|v| ContentDisposition::parse(v))
     }
 
@@ -167,7 +191,9 @@ impl Part {
 }
 
 impl Default for Part {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Encoder ───────────────────────────────────────────────────────
@@ -180,7 +206,10 @@ pub struct MultipartEncoder {
 
 impl MultipartEncoder {
     pub fn new(boundary: &str) -> Self {
-        Self { boundary: boundary.into(), parts: Vec::new() }
+        Self {
+            boundary: boundary.into(),
+            parts: Vec::new(),
+        }
     }
 
     pub fn add_part(&mut self, part: Part) {
@@ -373,7 +402,9 @@ impl MultipartParser {
 }
 
 fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    if needle.is_empty() { return Some(0); }
+    if needle.is_empty() {
+        return Some(0);
+    }
     haystack.windows(needle.len()).position(|w| w == needle)
 }
 
@@ -404,7 +435,9 @@ pub fn extract_boundary(content_type: &str) -> Option<String> {
 
 /// Find a part by field name in a list of parts.
 pub fn find_field<'a>(parts: &'a [Part], name: &str) -> Option<&'a Part> {
-    parts.iter().find(|p| p.field_name().as_deref() == Some(name))
+    parts
+        .iter()
+        .find(|p| p.field_name().as_deref() == Some(name))
 }
 
 /// Extract all file parts (those with a filename).
@@ -444,7 +477,10 @@ mod tests {
     #[test]
     fn content_disposition_file() {
         let cd = ContentDisposition::file("avatar", "photo.jpg");
-        assert_eq!(cd.to_header(), r#"form-data; name="avatar"; filename="photo.jpg""#);
+        assert_eq!(
+            cd.to_header(),
+            r#"form-data; name="avatar"; filename="photo.jpg""#
+        );
     }
 
     #[test]
@@ -457,7 +493,8 @@ mod tests {
 
     #[test]
     fn content_disposition_parse_file() {
-        let cd = ContentDisposition::parse(r#"form-data; name="file"; filename="test.txt""#).unwrap();
+        let cd =
+            ContentDisposition::parse(r#"form-data; name="file"; filename="test.txt""#).unwrap();
         assert_eq!(cd.name.as_deref(), Some("file"));
         assert_eq!(cd.filename.as_deref(), Some("test.txt"));
     }
@@ -499,7 +536,12 @@ mod tests {
     fn encoder_with_file() {
         let mut enc = MultipartEncoder::new("myboundary");
         enc.add_part(Part::text_field("title", "My Doc"));
-        enc.add_part(Part::file_field("file", "data.bin", "application/octet-stream", &[0xDE, 0xAD]));
+        enc.add_part(Part::file_field(
+            "file",
+            "data.bin",
+            "application/octet-stream",
+            &[0xDE, 0xAD],
+        ));
 
         let bytes = enc.encode();
         assert!(!bytes.is_empty());
@@ -528,7 +570,12 @@ mod tests {
     fn parser_with_file() {
         let mut enc = MultipartEncoder::new("FILEBND");
         enc.add_part(Part::text_field("name", "test"));
-        enc.add_part(Part::file_field("upload", "test.txt", "text/plain", b"file content here"));
+        enc.add_part(Part::file_field(
+            "upload",
+            "test.txt",
+            "text/plain",
+            b"file content here",
+        ));
         let encoded = enc.encode();
 
         let mut parser = MultipartParser::new("FILEBND");
@@ -642,7 +689,12 @@ mod tests {
         let mut enc = MultipartEncoder::new(boundary);
         enc.add_part(Part::text_field("first", "alpha"));
         enc.add_part(Part::text_field("second", "beta"));
-        enc.add_part(Part::file_field("file", "data.bin", "application/octet-stream", &[1, 2, 3, 4]));
+        enc.add_part(Part::file_field(
+            "file",
+            "data.bin",
+            "application/octet-stream",
+            &[1, 2, 3, 4],
+        ));
         let encoded = enc.encode();
 
         let mut parser = MultipartParser::new(boundary);
@@ -659,7 +711,12 @@ mod tests {
         let binary_data: Vec<u8> = (0u8..=255).collect();
         let boundary = "BINTEST";
         let mut enc = MultipartEncoder::new(boundary);
-        enc.add_part(Part::file_field("bin", "data.bin", "application/octet-stream", &binary_data));
+        enc.add_part(Part::file_field(
+            "bin",
+            "data.bin",
+            "application/octet-stream",
+            &binary_data,
+        ));
         let encoded = enc.encode();
 
         let mut parser = MultipartParser::new(boundary);

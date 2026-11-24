@@ -175,7 +175,10 @@ fn merge_inner(
                     result.insert(key.clone(), merged);
                 } else {
                     result.insert(key.clone(), src_val.clone());
-                    log.push(MergeEntry { path: child_path, action: MergeAction::Added });
+                    log.push(MergeEntry {
+                        path: child_path,
+                        action: MergeAction::Added,
+                    });
                 }
             }
             Ok(Value::Object(result))
@@ -185,13 +188,19 @@ fn merge_inner(
             let strategy = options.array_strategy_for(path);
             match strategy {
                 ArrayStrategy::Replace => {
-                    log.push(MergeEntry { path: path.to_string(), action: MergeAction::Replaced });
+                    log.push(MergeEntry {
+                        path: path.to_string(),
+                        action: MergeAction::Replaced,
+                    });
                     Ok(source.clone())
                 }
                 ArrayStrategy::Append => {
                     let mut combined = tgt_arr.clone();
                     combined.extend(src_arr.iter().cloned());
-                    log.push(MergeEntry { path: path.to_string(), action: MergeAction::Appended });
+                    log.push(MergeEntry {
+                        path: path.to_string(),
+                        action: MergeAction::Appended,
+                    });
                     Ok(Value::Array(combined))
                 }
                 ArrayStrategy::MergeByIndex => {
@@ -207,12 +216,18 @@ fn merge_inner(
                             (Some(t), None) => merged.push(t.clone()),
                             (None, Some(s)) => {
                                 merged.push(s.clone());
-                                log.push(MergeEntry { path: child_path, action: MergeAction::Added });
+                                log.push(MergeEntry {
+                                    path: child_path,
+                                    action: MergeAction::Added,
+                                });
                             }
                             (None, None) => break,
                         }
                     }
-                    log.push(MergeEntry { path: path.to_string(), action: MergeAction::MergedByIndex });
+                    log.push(MergeEntry {
+                        path: path.to_string(),
+                        action: MergeAction::MergedByIndex,
+                    });
                     Ok(Value::Array(merged))
                 }
             }
@@ -224,22 +239,23 @@ fn merge_inner(
             } else {
                 match options.conflict_policy {
                     ConflictPolicy::LastWins => {
-                        log.push(MergeEntry { path: path.to_string(), action: MergeAction::Replaced });
+                        log.push(MergeEntry {
+                            path: path.to_string(),
+                            action: MergeAction::Replaced,
+                        });
                         Ok(source.clone())
                     }
                     ConflictPolicy::FirstWins => {
-                        log.push(MergeEntry { path: path.to_string(), action: MergeAction::Kept });
+                        log.push(MergeEntry {
+                            path: path.to_string(),
+                            action: MergeAction::Kept,
+                        });
                         Ok(target.clone())
                     }
-                    ConflictPolicy::Error => {
-                        Err(MergeError {
-                            path: path.to_string(),
-                            message: format!(
-                                "conflict: target={}, source={}",
-                                target, source
-                            ),
-                        })
-                    }
+                    ConflictPolicy::Error => Err(MergeError {
+                        path: path.to_string(),
+                        message: format!("conflict: target={}, source={}", target, source),
+                    }),
                 }
             }
         }
@@ -335,12 +351,12 @@ fn diff_inner(left: &Value, right: &Value, path: &str, out: &mut Vec<DiffEntry>)
 // ── Multi-merge ─────────────────────────────────────────────────
 
 /// Merge multiple configs in order (first is base, each subsequent overlays).
-pub fn merge_many(
-    configs: &[Value],
-    options: &MergeOptions,
-) -> Result<MergeResult, MergeError> {
+pub fn merge_many(configs: &[Value], options: &MergeOptions) -> Result<MergeResult, MergeError> {
     if configs.is_empty() {
-        return Ok(MergeResult { value: Value::Null, log: Vec::new() });
+        return Ok(MergeResult {
+            value: Value::Null,
+            log: Vec::new(),
+        });
     }
     let mut result = configs[0].clone();
     let mut all_log = Vec::new();
@@ -349,7 +365,10 @@ pub fn merge_many(
         result = mr.value;
         all_log.extend(mr.log);
     }
-    Ok(MergeResult { value: result, log: all_log })
+    Ok(MergeResult {
+        value: result,
+        log: all_log,
+    })
 }
 
 // ── Tests ───────────────────────────────────────────────────────
@@ -372,7 +391,10 @@ mod tests {
         let a = json!({"server": {"host": "localhost", "port": 3000}});
         let b = json!({"server": {"port": 8080}});
         let r = merge(&a, &b, &MergeOptions::new()).unwrap();
-        assert_eq!(r.value, json!({"server": {"host": "localhost", "port": 8080}}));
+        assert_eq!(
+            r.value,
+            json!({"server": {"host": "localhost", "port": 8080}})
+        );
     }
 
     #[test]
@@ -521,11 +543,7 @@ mod tests {
 
     #[test]
     fn merge_many_three_configs() {
-        let configs = vec![
-            json!({"a": 1}),
-            json!({"b": 2}),
-            json!({"c": 3}),
-        ];
+        let configs = vec![json!({"a": 1}), json!({"b": 2}), json!({"c": 3})];
         let r = merge_many(&configs, &MergeOptions::new()).unwrap();
         assert_eq!(r.value, json!({"a": 1, "b": 2, "c": 3}));
     }
@@ -555,7 +573,10 @@ mod tests {
 
     #[test]
     fn merge_error_display() {
-        let e = MergeError { path: "$.x".into(), message: "conflict".into() };
+        let e = MergeError {
+            path: "$.x".into(),
+            message: "conflict".into(),
+        };
         let s = format!("{}", e);
         assert!(s.contains("$.x"));
         assert!(s.contains("conflict"));

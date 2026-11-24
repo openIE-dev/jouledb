@@ -233,22 +233,19 @@ impl Expander {
 
         for source in sources {
             match self.expand(query, core, *source) {
-                Ok(result) => {
-                    match &best_result {
-                        None => best_result = Some(result),
-                        Some(prev) if result.triples_added > prev.triples_added => {
-                            best_result = Some(result);
-                        }
-                        _ => {}
+                Ok(result) => match &best_result {
+                    None => best_result = Some(result),
+                    Some(prev) if result.triples_added > prev.triples_added => {
+                        best_result = Some(result);
                     }
-                }
+                    _ => {}
+                },
                 Err(e) => last_error = Some(e),
             }
         }
 
-        best_result.ok_or_else(|| {
-            last_error.unwrap_or(ExpansionError::NoResults(query.to_string()))
-        })
+        best_result
+            .ok_or_else(|| last_error.unwrap_or(ExpansionError::NoResults(query.to_string())))
     }
 
     /// Total expansions performed.
@@ -301,11 +298,7 @@ impl TextSource {
         // Pattern: "X is Y" → (X, HasProperty, Y)
         for window in words.windows(3) {
             if window[1] == "is" && window[2] != "a" && window[2] != "an" {
-                triples.push(Triple::new(
-                    window[0],
-                    RelationType::HasProperty,
-                    window[2],
-                ));
+                triples.push(Triple::new(window[0], RelationType::HasProperty, window[2]));
             }
         }
 
@@ -353,9 +346,7 @@ impl KnowledgeSource for TextSource {
         for text in &self.texts {
             let lower = text.to_lowercase();
             // Check if any query word appears in this text
-            let relevant = query_words
-                .iter()
-                .any(|w| w.len() > 2 && lower.contains(w));
+            let relevant = query_words.iter().any(|w| w.len() > 2 && lower.contains(w));
 
             if relevant {
                 relevant_text.push_str(text);
@@ -433,8 +424,8 @@ impl KnowledgeSource for WebSearchSource {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::ingest::ConceptNetParser;
+    use super::*;
 
     #[test]
     fn test_text_source_extract() {
@@ -563,7 +554,10 @@ mod tests {
 
         // Now "whale" should be queryable
         let whale_now = core.query_concept("whale");
-        assert!(whale_now.is_some(), "whale should be in core after expansion");
+        assert!(
+            whale_now.is_some(),
+            "whale should be in core after expansion"
+        );
 
         // And it should be related to mammal
         let relatedness = core.relatedness("whale", "mammal");

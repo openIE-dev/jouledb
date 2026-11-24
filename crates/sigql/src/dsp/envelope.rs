@@ -1,12 +1,17 @@
 //! Envelope extraction and Hilbert transform
 
-
-#[cfg(not(feature = "std"))]
-use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 use super::{DspError, DspOperation, DspResult};
 use crate::types::{DynSignal, SampleRate};
-use num_complex::Complex64;
+#[cfg(not(feature = "std"))]
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use core::f64::consts::PI;
+use num_complex::Complex64;
 
 /// Hilbert transform implementation
 pub struct HilbertTransform {

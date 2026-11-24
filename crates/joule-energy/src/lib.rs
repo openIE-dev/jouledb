@@ -30,11 +30,10 @@ pub mod tag;
 
 // Re-export the hardware layer so consumers only need one dependency.
 pub use joule_db_energy as hw;
-pub use joule_db_energy::{
-    ComputeRouter, EnergyBudget, EnergySnapshot, ExecutionHint,
-    HardwareAdvisor, OperationEnergyTracker, RoutingDecision, ThermalState,
-    detect_platform, PlatformInfo,
-};
 #[cfg(not(target_arch = "wasm32"))]
 pub use joule_db_energy::EnergyMonitor;
 pub use joule_db_energy::tracker::{AlgorithmType, DeviceTarget, OperationType};
+pub use joule_db_energy::{
+    ComputeRouter, EnergyBudget, EnergySnapshot, ExecutionHint, HardwareAdvisor,
+    OperationEnergyTracker, PlatformInfo, RoutingDecision, ThermalState, detect_platform,
+};

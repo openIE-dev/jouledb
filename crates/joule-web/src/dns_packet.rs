@@ -415,7 +415,10 @@ pub enum RecordData {
     A([u8; 4]),
     AAAA([u8; 16]),
     CNAME(String),
-    MX { preference: u16, exchange: String },
+    MX {
+        preference: u16,
+        exchange: String,
+    },
     NS(String),
     TXT(Vec<String>),
     SOA {
@@ -458,7 +461,12 @@ impl ResourceRecord {
         }
         let rtype = u16::from_be_bytes([packet[pos], packet[pos + 1]]);
         let rclass = u16::from_be_bytes([packet[pos + 2], packet[pos + 3]]);
-        let ttl = u32::from_be_bytes([packet[pos + 4], packet[pos + 5], packet[pos + 6], packet[pos + 7]]);
+        let ttl = u32::from_be_bytes([
+            packet[pos + 4],
+            packet[pos + 5],
+            packet[pos + 6],
+            packet[pos + 7],
+        ]);
         let rdlength = u16::from_be_bytes([packet[pos + 8], packet[pos + 9]]) as usize;
         pos += 10;
         if pos + rdlength > packet.len() {
@@ -497,7 +505,10 @@ impl ResourceRecord {
             RecordData::CNAME(name) | RecordData::NS(name) | RecordData::PTR(name) => {
                 encode_name(name)
             }
-            RecordData::MX { preference, exchange } => {
+            RecordData::MX {
+                preference,
+                exchange,
+            } => {
                 let mut buf = preference.to_be_bytes().to_vec();
                 buf.extend(encode_name(exchange)?);
                 Ok(buf)
@@ -514,7 +525,15 @@ impl ResourceRecord {
                 }
                 Ok(buf)
             }
-            RecordData::SOA { mname, rname, serial, refresh, retry, expire, minimum } => {
+            RecordData::SOA {
+                mname,
+                rname,
+                serial,
+                refresh,
+                retry,
+                expire,
+                minimum,
+            } => {
                 let mut buf = encode_name(mname)?;
                 buf.extend(encode_name(rname)?);
                 buf.extend_from_slice(&serial.to_be_bytes());
@@ -524,7 +543,12 @@ impl ResourceRecord {
                 buf.extend_from_slice(&minimum.to_be_bytes());
                 Ok(buf)
             }
-            RecordData::SRV { priority, weight, port, target } => {
+            RecordData::SRV {
+                priority,
+                weight,
+                port,
+                target,
+            } => {
                 let mut buf = priority.to_be_bytes().to_vec();
                 buf.extend_from_slice(&weight.to_be_bytes());
                 buf.extend_from_slice(&port.to_be_bytes());
@@ -545,7 +569,9 @@ fn parse_rdata(
     match rtype {
         RecordType::A => {
             if rdlength != 4 {
-                return Err(DnsError::InvalidRecordData("A record must be 4 bytes".into()));
+                return Err(DnsError::InvalidRecordData(
+                    "A record must be 4 bytes".into(),
+                ));
             }
             let mut ip = [0u8; 4];
             ip.copy_from_slice(&packet[offset..offset + 4]);
@@ -553,7 +579,9 @@ fn parse_rdata(
         }
         RecordType::AAAA => {
             if rdlength != 16 {
-                return Err(DnsError::InvalidRecordData("AAAA record must be 16 bytes".into()));
+                return Err(DnsError::InvalidRecordData(
+                    "AAAA record must be 16 bytes".into(),
+                ));
             }
             let mut ip = [0u8; 16];
             ip.copy_from_slice(&packet[offset..offset + 16]);
@@ -577,7 +605,10 @@ fn parse_rdata(
             }
             let pref = u16::from_be_bytes([packet[offset], packet[offset + 1]]);
             let (exchange, _) = read_name(packet, offset + 2)?;
-            Ok(RecordData::MX { preference: pref, exchange })
+            Ok(RecordData::MX {
+                preference: pref,
+                exchange,
+            })
         }
         RecordType::TXT => {
             let mut strings = Vec::new();
@@ -603,12 +634,45 @@ fn parse_rdata(
             if pos2 + 20 > packet.len() {
                 return Err(DnsError::UnexpectedEof);
             }
-            let serial = u32::from_be_bytes([packet[pos2], packet[pos2 + 1], packet[pos2 + 2], packet[pos2 + 3]]);
-            let refresh = u32::from_be_bytes([packet[pos2 + 4], packet[pos2 + 5], packet[pos2 + 6], packet[pos2 + 7]]);
-            let retry = u32::from_be_bytes([packet[pos2 + 8], packet[pos2 + 9], packet[pos2 + 10], packet[pos2 + 11]]);
-            let expire = u32::from_be_bytes([packet[pos2 + 12], packet[pos2 + 13], packet[pos2 + 14], packet[pos2 + 15]]);
-            let minimum = u32::from_be_bytes([packet[pos2 + 16], packet[pos2 + 17], packet[pos2 + 18], packet[pos2 + 19]]);
-            Ok(RecordData::SOA { mname, rname, serial, refresh, retry, expire, minimum })
+            let serial = u32::from_be_bytes([
+                packet[pos2],
+                packet[pos2 + 1],
+                packet[pos2 + 2],
+                packet[pos2 + 3],
+            ]);
+            let refresh = u32::from_be_bytes([
+                packet[pos2 + 4],
+                packet[pos2 + 5],
+                packet[pos2 + 6],
+                packet[pos2 + 7],
+            ]);
+            let retry = u32::from_be_bytes([
+                packet[pos2 + 8],
+                packet[pos2 + 9],
+                packet[pos2 + 10],
+                packet[pos2 + 11],
+            ]);
+            let expire = u32::from_be_bytes([
+                packet[pos2 + 12],
+                packet[pos2 + 13],
+                packet[pos2 + 14],
+                packet[pos2 + 15],
+            ]);
+            let minimum = u32::from_be_bytes([
+                packet[pos2 + 16],
+                packet[pos2 + 17],
+                packet[pos2 + 18],
+                packet[pos2 + 19],
+            ]);
+            Ok(RecordData::SOA {
+                mname,
+                rname,
+                serial,
+                refresh,
+                retry,
+                expire,
+                minimum,
+            })
         }
         RecordType::SRV => {
             if rdlength < 7 {
@@ -618,11 +682,16 @@ fn parse_rdata(
             let weight = u16::from_be_bytes([packet[offset + 2], packet[offset + 3]]);
             let port = u16::from_be_bytes([packet[offset + 4], packet[offset + 5]]);
             let (target, _) = read_name(packet, offset + 6)?;
-            Ok(RecordData::SRV { priority, weight, port, target })
+            Ok(RecordData::SRV {
+                priority,
+                weight,
+                port,
+                target,
+            })
         }
-        RecordType::Other(_) => {
-            Ok(RecordData::Unknown(packet[offset..offset + rdlength].to_vec()))
-        }
+        RecordType::Other(_) => Ok(RecordData::Unknown(
+            packet[offset..offset + rdlength].to_vec(),
+        )),
     }
 }
 
@@ -672,7 +741,13 @@ impl DnsPacket {
             offset = next;
         }
 
-        Ok(Self { header, questions, answers, authorities, additionals })
+        Ok(Self {
+            header,
+            questions,
+            answers,
+            authorities,
+            additionals,
+        })
     }
 
     /// Serialize to wire format.
@@ -834,7 +909,10 @@ mod tests {
 
     #[test]
     fn header_too_short() {
-        assert_eq!(DnsHeader::parse(&[0; 5]).unwrap_err(), DnsError::PacketTooShort);
+        assert_eq!(
+            DnsHeader::parse(&[0; 5]).unwrap_err(),
+            DnsError::PacketTooShort
+        );
     }
 
     #[test]
@@ -868,7 +946,10 @@ mod tests {
     fn label_too_long() {
         let long_label = "a".repeat(64);
         let name = format!("{long_label}.com");
-        assert!(matches!(encode_name(&name), Err(DnsError::LabelTooLong(64))));
+        assert!(matches!(
+            encode_name(&name),
+            Err(DnsError::LabelTooLong(64))
+        ));
     }
 
     #[test]
@@ -918,7 +999,10 @@ mod tests {
             record_type: RecordType::MX,
             record_class: RecordClass::IN,
             ttl: 3600,
-            data: RecordData::MX { preference: 10, exchange: "smtp.mail.com".to_string() },
+            data: RecordData::MX {
+                preference: 10,
+                exchange: "smtp.mail.com".to_string(),
+            },
         };
         let bytes = rr.to_bytes().unwrap();
         let (parsed, _) = ResourceRecord::parse(&bytes, 0).unwrap();
@@ -1005,7 +1089,10 @@ mod tests {
 
     #[test]
     fn rcode_roundtrip() {
-        assert_eq!(Rcode::from_bits(Rcode::NameError.to_bits()), Rcode::NameError);
+        assert_eq!(
+            Rcode::from_bits(Rcode::NameError.to_bits()),
+            Rcode::NameError
+        );
         assert_eq!(Rcode::from_bits(Rcode::Refused.to_bits()), Rcode::Refused);
     }
 }

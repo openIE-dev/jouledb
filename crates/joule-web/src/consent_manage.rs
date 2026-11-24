@@ -74,12 +74,18 @@ impl ConsentManageConfig {
 }
 
 impl Default for ConsentManageConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for ConsentManageConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ConsentManageConfig(consent_type={0}, granular={1}, expiry_days={2}, opt_in_default={3})", self.consent_type, self.granular, self.expiry_days, self.opt_in_default)
+        write!(
+            f,
+            "ConsentManageConfig(consent_type={0}, granular={1}, expiry_days={2}, opt_in_default={3})",
+            self.consent_type, self.granular, self.expiry_days, self.opt_in_default
+        )
     }
 }
 
@@ -95,7 +101,10 @@ pub struct ConsentManage {
 impl ConsentManage {
     pub fn new(config: ConsentManageConfig) -> Result<Self, ConsentManageError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -107,9 +116,15 @@ impl ConsentManage {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &ConsentManageConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &ConsentManageConfig {
+        &self.config
+    }
 
     /// Record consent directive.
     pub fn record_consent(&self) -> bool {
@@ -123,12 +138,18 @@ impl ConsentManage {
 
     /// Generate consent summary.
     pub fn consent_summary(&self) -> String {
-        format!("{}: {} records", stringify!(consent_summary), self.data.len())
+        format!(
+            "{}: {} records",
+            stringify!(consent_summary),
+            self.data.len()
+        )
     }
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -140,7 +161,9 @@ impl ConsentManage {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -152,7 +175,11 @@ impl ConsentManage {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -225,7 +252,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = ConsentManage::new(ConsentManageConfig::new()).unwrap()
+        let e = ConsentManage::new(ConsentManageConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -241,7 +269,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = ConsentManage::new(ConsentManageConfig::new()).unwrap()
+        let e = ConsentManage::new(ConsentManageConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("ConsentManage"));
@@ -249,7 +278,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = ConsentManage::new(ConsentManageConfig::new()).unwrap()
+        let e = ConsentManage::new(ConsentManageConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -260,7 +290,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = ConsentManage::new(ConsentManageConfig::new()).unwrap()
+        let e = ConsentManage::new(ConsentManageConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -268,7 +299,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = ConsentManage::new(ConsentManageConfig::new()).unwrap()
+        let e = ConsentManage::new(ConsentManageConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -285,7 +317,8 @@ mod tests {
 
     #[test]
     fn test_record_consent() {
-        let e = ConsentManage::new(ConsentManageConfig::new()).unwrap()
+        let e = ConsentManage::new(ConsentManageConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.record_consent();
         assert!(result);
@@ -293,7 +326,8 @@ mod tests {
 
     #[test]
     fn test_is_consented() {
-        let e = ConsentManage::new(ConsentManageConfig::new()).unwrap()
+        let e = ConsentManage::new(ConsentManageConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.is_consented();
         assert!(result);
@@ -301,7 +335,8 @@ mod tests {
 
     #[test]
     fn test_consent_summary() {
-        let e = ConsentManage::new(ConsentManageConfig::new()).unwrap()
+        let e = ConsentManage::new(ConsentManageConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.consent_summary();
         assert!(!result.is_empty());

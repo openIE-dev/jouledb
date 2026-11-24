@@ -1481,7 +1481,11 @@ impl SqlParser {
     /// so it does not enlarge that frame, which recurses once per nesting
     /// level (see MAX_EXPRESSION_DEPTH).
     #[inline(never)]
-    fn parse_qualified_call(&mut self, schema: String, func: String) -> Result<Expression, QueryError> {
+    fn parse_qualified_call(
+        &mut self,
+        schema: String,
+        func: String,
+    ) -> Result<Expression, QueryError> {
         self.advance();
         let mut args = Vec::new();
         if *self.peek() != Token::RParen {
@@ -1495,7 +1499,10 @@ impl SqlParser {
             }
         }
         self.expect(Token::RParen)?;
-        Ok(Expression::Function { name: format!("{schema}.{func}"), args })
+        Ok(Expression::Function {
+            name: format!("{schema}.{func}"),
+            args,
+        })
     }
 
     /// Create new parser
@@ -1727,7 +1734,9 @@ impl SqlParser {
                     Token::Union => {
                         self.advance();
                         let all = *self.peek() == Token::All;
-                        if all { self.advance(); }
+                        if all {
+                            self.advance();
+                        }
                         // RHS may also be parenthesized
                         let rhs = if *self.peek() == Token::LParen {
                             self.advance();
@@ -1738,14 +1747,20 @@ impl SqlParser {
                             self.parse_select_with_ctes(Vec::new())?
                         };
                         Some(SetOp {
-                            op_type: if all { SetOperationType::UnionAll } else { SetOperationType::Union },
+                            op_type: if all {
+                                SetOperationType::UnionAll
+                            } else {
+                                SetOperationType::Union
+                            },
                             query: Box::new(rhs),
                         })
                     }
                     Token::Except => {
                         self.advance();
                         let all = *self.peek() == Token::All;
-                        if all { self.advance(); }
+                        if all {
+                            self.advance();
+                        }
                         let rhs = if *self.peek() == Token::LParen {
                             self.advance();
                             let q = self.parse_select_with_ctes(Vec::new())?;
@@ -1755,14 +1770,20 @@ impl SqlParser {
                             self.parse_select_with_ctes(Vec::new())?
                         };
                         Some(SetOp {
-                            op_type: if all { SetOperationType::ExceptAll } else { SetOperationType::Except },
+                            op_type: if all {
+                                SetOperationType::ExceptAll
+                            } else {
+                                SetOperationType::Except
+                            },
                             query: Box::new(rhs),
                         })
                     }
                     Token::Intersect => {
                         self.advance();
                         let all = *self.peek() == Token::All;
-                        if all { self.advance(); }
+                        if all {
+                            self.advance();
+                        }
                         let rhs = if *self.peek() == Token::LParen {
                             self.advance();
                             let q = self.parse_select_with_ctes(Vec::new())?;
@@ -1772,7 +1793,11 @@ impl SqlParser {
                             self.parse_select_with_ctes(Vec::new())?
                         };
                         Some(SetOp {
-                            op_type: if all { SetOperationType::IntersectAll } else { SetOperationType::Intersect },
+                            op_type: if all {
+                                SetOperationType::IntersectAll
+                            } else {
+                                SetOperationType::Intersect
+                            },
                             query: Box::new(rhs),
                         })
                     }
@@ -1793,14 +1818,24 @@ impl SqlParser {
                     self.advance();
                     match self.advance() {
                         Token::Integer(n) => query.limit = Some(n as usize),
-                        t => return Err(QueryError::ParseError(format!("Expected integer after LIMIT, got {:?}", t))),
+                        t => {
+                            return Err(QueryError::ParseError(format!(
+                                "Expected integer after LIMIT, got {:?}",
+                                t
+                            )));
+                        }
                     }
                 }
                 if *self.peek() == Token::Offset {
                     self.advance();
                     match self.advance() {
                         Token::Integer(n) => query.offset = Some(n as usize),
-                        t => return Err(QueryError::ParseError(format!("Expected integer after OFFSET, got {:?}", t))),
+                        t => {
+                            return Err(QueryError::ParseError(format!(
+                                "Expected integer after OFFSET, got {:?}",
+                                t
+                            )));
+                        }
                     }
                 }
 
@@ -2302,7 +2337,9 @@ impl SqlParser {
             self.advance(); // consume FETCH
             // Accept FIRST or NEXT (both mean the same thing)
             match self.peek() {
-                Token::Identifier(s) if s.eq_ignore_ascii_case("FIRST") || s.eq_ignore_ascii_case("NEXT") => {
+                Token::Identifier(s)
+                    if s.eq_ignore_ascii_case("FIRST") || s.eq_ignore_ascii_case("NEXT") =>
+                {
                     self.advance();
                 }
                 _ => {} // FETCH N ROWS ONLY is also acceptable
@@ -2971,7 +3008,8 @@ impl SqlParser {
         // The red zone must cover one full nesting level: in debug builds the
         // nine frames between two parse_expression calls can exceed 64 KB,
         // which let CI's 2 MB test threads overflow before stacker grew.
-        let result = stacker::maybe_grow(256 * 1024, 2 * 1024 * 1024, || self.parse_or_expression());
+        let result =
+            stacker::maybe_grow(256 * 1024, 2 * 1024 * 1024, || self.parse_or_expression());
         self.expression_depth -= 1;
         result
     }
@@ -3417,7 +3455,9 @@ impl SqlParser {
             Token::Null => Ok(Expression::Literal(Value::Null)),
             Token::Parameter(n) => Ok(Expression::Parameter(n)),
             Token::NamedParam(name) => Ok(Expression::NamedParameter(name)),
-            Token::Identifier(name) if name.eq_ignore_ascii_case("ARRAY") && *self.peek() == Token::LBracket => {
+            Token::Identifier(name)
+                if name.eq_ignore_ascii_case("ARRAY") && *self.peek() == Token::LBracket =>
+            {
                 // ARRAY[expr, expr, ...] constructor
                 self.advance(); // consume [
                 let mut elements = Vec::new();
@@ -3468,8 +3508,7 @@ impl SqlParser {
                             let filter_cond = self.parse_expression()?;
                             self.expect(Token::RParen)?;
                             let is_count_star = args.is_empty()
-                                || (args.len() == 1
-                                    && matches!(args[0], Expression::Wildcard));
+                                || (args.len() == 1 && matches!(args[0], Expression::Wildcard));
                             if is_count_star {
                                 // COUNT(*) FILTER → SUM(CASE WHEN c THEN 1 ELSE 0 END)
                                 let case_expr = Expression::Case {
@@ -3478,9 +3517,7 @@ impl SqlParser {
                                         filter_cond,
                                         Expression::Literal(Value::Int(1)),
                                     )],
-                                    else_clause: Some(Box::new(Expression::Literal(
-                                        Value::Int(0),
-                                    ))),
+                                    else_clause: Some(Box::new(Expression::Literal(Value::Int(0)))),
                                 };
                                 (vec![case_expr], "SUM".to_string())
                             } else {
@@ -5119,16 +5156,14 @@ mod tests {
             .parse("SELECT SUM(amount) FILTER (WHERE active = true) FROM t")
             .unwrap();
         match &stmt {
-            SqlStatement::Select(q) => {
-                match &q.columns[0].expr {
-                    Expression::Function { name, args } => {
-                        assert_eq!(name, "SUM");
-                        assert_eq!(args.len(), 1);
-                        assert!(matches!(&args[0], Expression::Case { .. }));
-                    }
-                    other => panic!("Expected Function, got {:?}", other),
+            SqlStatement::Select(q) => match &q.columns[0].expr {
+                Expression::Function { name, args } => {
+                    assert_eq!(name, "SUM");
+                    assert_eq!(args.len(), 1);
+                    assert!(matches!(&args[0], Expression::Case { .. }));
                 }
-            }
+                other => panic!("Expected Function, got {:?}", other),
+            },
             _ => panic!("Expected SELECT"),
         }
     }
@@ -5149,9 +5184,7 @@ mod tests {
         }
 
         // Multiple rows
-        let stmt = parser
-            .parse("VALUES (1, 'a'), (2, 'b'), (3, 'c')")
-            .unwrap();
+        let stmt = parser.parse("VALUES (1, 'a'), (2, 'b'), (3, 'c')").unwrap();
         match &stmt {
             SqlStatement::Select(q) => {
                 assert_eq!(q.columns.len(), 2);

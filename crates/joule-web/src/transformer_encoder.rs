@@ -20,7 +20,11 @@ pub struct Mat {
 
 impl Mat {
     pub fn zeros(rows: usize, cols: usize) -> Self {
-        Self { rows, cols, data: vec![0.0; rows * cols] }
+        Self {
+            rows,
+            cols,
+            data: vec![0.0; rows * cols],
+        }
     }
 
     pub fn from_data(rows: usize, cols: usize, data: Vec<f64>) -> Self {
@@ -67,10 +71,17 @@ impl Mat {
     pub fn add(&self, other: &Mat) -> Mat {
         assert_eq!(self.rows, other.rows);
         assert_eq!(self.cols, other.cols);
-        let data: Vec<f64> = self.data.iter().zip(other.data.iter())
+        let data: Vec<f64> = self
+            .data
+            .iter()
+            .zip(other.data.iter())
             .map(|(a, b)| a + b)
             .collect();
-        Mat { rows: self.rows, cols: self.cols, data }
+        Mat {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        }
     }
 
     /// L2 norm of the entire matrix (Frobenius norm).
@@ -99,11 +110,16 @@ impl Linear {
         let mut data = Vec::with_capacity(out_f * in_f);
         let mut state = seed;
         for _ in 0..(out_f * in_f) {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let u = (state >> 33) as f64 / (1u64 << 31) as f64;
             data.push(u * 2.0 * limit - limit);
         }
-        Self { weight: Mat::from_data(out_f, in_f, data), bias: vec![0.0; out_f] }
+        Self {
+            weight: Mat::from_data(out_f, in_f, data),
+            bias: vec![0.0; out_f],
+        }
     }
 
     fn forward(&self, input: &Mat) -> Mat {
@@ -131,7 +147,12 @@ struct LayerNorm {
 
 impl LayerNorm {
     fn new(dim: usize) -> Self {
-        Self { gamma: vec![1.0; dim], beta: vec![0.0; dim], eps: 1e-5, dim }
+        Self {
+            gamma: vec![1.0; dim],
+            beta: vec![0.0; dim],
+            eps: 1e-5,
+            dim,
+        }
     }
 
     fn forward(&self, input: &Mat) -> Mat {
@@ -184,11 +205,9 @@ fn erf_approx(x: f64) -> f64 {
     let sign = if x >= 0.0 { 1.0 } else { -1.0 };
     let a = x.abs();
     let t = 1.0 / (1.0 + 0.3275911 * a);
-    let poly = t * (0.254829592
-        + t * (-0.284496736
-        + t * (1.421413741
-        + t * (-1.453152027
-        + t * 1.061405429))));
+    let poly = t
+        * (0.254829592
+            + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
     sign * (1.0 - poly * (-a * a).exp())
 }
 
@@ -430,12 +449,20 @@ impl TransformerEncoder {
         } else {
             None
         };
-        Self { config, layers, final_norm, layer_norms_history: Vec::new() }
+        Self {
+            config,
+            layers,
+            final_norm,
+            layer_norms_history: Vec::new(),
+        }
     }
 
     /// Forward pass: (seq_len, d_model) -> (seq_len, d_model).
     pub fn forward(&mut self, input: &Mat) -> Mat {
-        assert_eq!(input.cols, self.config.d_model, "input dim must match d_model");
+        assert_eq!(
+            input.cols, self.config.d_model,
+            "input dim must match d_model"
+        );
         let mut hidden = input.clone();
         let mut norms = Vec::with_capacity(self.config.num_layers);
 
@@ -530,24 +557,26 @@ impl LayerSummary {
         let mut summaries = Vec::new();
         for (i, &norm) in norms.iter().enumerate() {
             let weights = encoder.layer_attention_weights(i);
-            let mean_entropy = weights.map(|ws| {
-                let mut total = 0.0;
-                let mut count = 0;
-                for w in ws {
-                    for r in 0..w.rows {
-                        let mut h = 0.0;
-                        for c in 0..w.cols {
-                            let p = w.get(r, c);
-                            if p > 1e-12 {
-                                h -= p * p.ln();
+            let mean_entropy = weights
+                .map(|ws| {
+                    let mut total = 0.0;
+                    let mut count = 0;
+                    for w in ws {
+                        for r in 0..w.rows {
+                            let mut h = 0.0;
+                            for c in 0..w.cols {
+                                let p = w.get(r, c);
+                                if p > 1e-12 {
+                                    h -= p * p.ln();
+                                }
                             }
+                            total += h;
+                            count += 1;
                         }
-                        total += h;
-                        count += 1;
                     }
-                }
-                if count > 0 { total / count as f64 } else { 0.0 }
-            }).unwrap_or(0.0);
+                    if count > 0 { total / count as f64 } else { 0.0 }
+                })
+                .unwrap_or(0.0);
 
             summaries.push(LayerSummary {
                 layer_index: i,

@@ -57,7 +57,9 @@ pub struct Encoder {
 }
 
 impl Encoder {
-    pub fn new() -> Self { Self { buf: Vec::new() } }
+    pub fn new() -> Self {
+        Self { buf: Vec::new() }
+    }
 
     pub fn encode(&mut self, val: &Value) {
         match val {
@@ -66,17 +68,28 @@ impl Encoder {
             Value::Bool(true) => self.buf.push(0xc3),
             Value::UInt(n) => self.encode_uint(*n),
             Value::Int(n) => self.encode_int(*n),
-            Value::F32(v) => { self.buf.push(0xca); self.buf.extend_from_slice(&v.to_be_bytes()); }
-            Value::F64(v) => { self.buf.push(0xcb); self.buf.extend_from_slice(&v.to_be_bytes()); }
+            Value::F32(v) => {
+                self.buf.push(0xca);
+                self.buf.extend_from_slice(&v.to_be_bytes());
+            }
+            Value::F64(v) => {
+                self.buf.push(0xcb);
+                self.buf.extend_from_slice(&v.to_be_bytes());
+            }
             Value::Str(s) => self.encode_str(s),
             Value::Bin(b) => self.encode_bin(b),
             Value::Array(arr) => {
                 self.encode_array_hdr(arr.len());
-                for v in arr { self.encode(v); }
+                for v in arr {
+                    self.encode(v);
+                }
             }
             Value::MsgMap(entries) => {
                 self.encode_map_hdr(entries.len());
-                for (k, v) in entries { self.encode(k); self.encode(v); }
+                for (k, v) in entries {
+                    self.encode(k);
+                    self.encode(v);
+                }
             }
             Value::Ext(type_id, data) => self.encode_ext(*type_id, data),
         }
@@ -86,13 +99,17 @@ impl Encoder {
         if n <= 127 {
             self.buf.push(n as u8);
         } else if n <= u8::MAX as u64 {
-            self.buf.push(0xcc); self.buf.push(n as u8);
+            self.buf.push(0xcc);
+            self.buf.push(n as u8);
         } else if n <= u16::MAX as u64 {
-            self.buf.push(0xcd); self.buf.extend_from_slice(&(n as u16).to_be_bytes());
+            self.buf.push(0xcd);
+            self.buf.extend_from_slice(&(n as u16).to_be_bytes());
         } else if n <= u32::MAX as u64 {
-            self.buf.push(0xce); self.buf.extend_from_slice(&(n as u32).to_be_bytes());
+            self.buf.push(0xce);
+            self.buf.extend_from_slice(&(n as u32).to_be_bytes());
         } else {
-            self.buf.push(0xcf); self.buf.extend_from_slice(&n.to_be_bytes());
+            self.buf.push(0xcf);
+            self.buf.extend_from_slice(&n.to_be_bytes());
         }
     }
 
@@ -102,13 +119,17 @@ impl Encoder {
         } else if n >= -32 {
             self.buf.push(n as u8); // negative fixint
         } else if n >= i8::MIN as i64 {
-            self.buf.push(0xd0); self.buf.push(n as i8 as u8);
+            self.buf.push(0xd0);
+            self.buf.push(n as i8 as u8);
         } else if n >= i16::MIN as i64 {
-            self.buf.push(0xd1); self.buf.extend_from_slice(&(n as i16).to_be_bytes());
+            self.buf.push(0xd1);
+            self.buf.extend_from_slice(&(n as i16).to_be_bytes());
         } else if n >= i32::MIN as i64 {
-            self.buf.push(0xd2); self.buf.extend_from_slice(&(n as i32).to_be_bytes());
+            self.buf.push(0xd2);
+            self.buf.extend_from_slice(&(n as i32).to_be_bytes());
         } else {
-            self.buf.push(0xd3); self.buf.extend_from_slice(&n.to_be_bytes());
+            self.buf.push(0xd3);
+            self.buf.extend_from_slice(&n.to_be_bytes());
         }
     }
 
@@ -117,11 +138,14 @@ impl Encoder {
         if len <= 31 {
             self.buf.push(0xa0 | len as u8);
         } else if len <= u8::MAX as usize {
-            self.buf.push(0xd9); self.buf.push(len as u8);
+            self.buf.push(0xd9);
+            self.buf.push(len as u8);
         } else if len <= u16::MAX as usize {
-            self.buf.push(0xda); self.buf.extend_from_slice(&(len as u16).to_be_bytes());
+            self.buf.push(0xda);
+            self.buf.extend_from_slice(&(len as u16).to_be_bytes());
         } else {
-            self.buf.push(0xdb); self.buf.extend_from_slice(&(len as u32).to_be_bytes());
+            self.buf.push(0xdb);
+            self.buf.extend_from_slice(&(len as u32).to_be_bytes());
         }
         self.buf.extend_from_slice(s.as_bytes());
     }
@@ -129,11 +153,14 @@ impl Encoder {
     fn encode_bin(&mut self, b: &[u8]) {
         let len = b.len();
         if len <= u8::MAX as usize {
-            self.buf.push(0xc4); self.buf.push(len as u8);
+            self.buf.push(0xc4);
+            self.buf.push(len as u8);
         } else if len <= u16::MAX as usize {
-            self.buf.push(0xc5); self.buf.extend_from_slice(&(len as u16).to_be_bytes());
+            self.buf.push(0xc5);
+            self.buf.extend_from_slice(&(len as u16).to_be_bytes());
         } else {
-            self.buf.push(0xc6); self.buf.extend_from_slice(&(len as u32).to_be_bytes());
+            self.buf.push(0xc6);
+            self.buf.extend_from_slice(&(len as u32).to_be_bytes());
         }
         self.buf.extend_from_slice(b);
     }
@@ -142,9 +169,11 @@ impl Encoder {
         if len <= 15 {
             self.buf.push(0x90 | len as u8);
         } else if len <= u16::MAX as usize {
-            self.buf.push(0xdc); self.buf.extend_from_slice(&(len as u16).to_be_bytes());
+            self.buf.push(0xdc);
+            self.buf.extend_from_slice(&(len as u16).to_be_bytes());
         } else {
-            self.buf.push(0xdd); self.buf.extend_from_slice(&(len as u32).to_be_bytes());
+            self.buf.push(0xdd);
+            self.buf.extend_from_slice(&(len as u32).to_be_bytes());
         }
     }
 
@@ -152,9 +181,11 @@ impl Encoder {
         if len <= 15 {
             self.buf.push(0x80 | len as u8);
         } else if len <= u16::MAX as usize {
-            self.buf.push(0xde); self.buf.extend_from_slice(&(len as u16).to_be_bytes());
+            self.buf.push(0xde);
+            self.buf.extend_from_slice(&(len as u16).to_be_bytes());
         } else {
-            self.buf.push(0xdf); self.buf.extend_from_slice(&(len as u32).to_be_bytes());
+            self.buf.push(0xdf);
+            self.buf.extend_from_slice(&(len as u32).to_be_bytes());
         }
     }
 
@@ -166,15 +197,26 @@ impl Encoder {
             4 => self.buf.push(0xd6),
             8 => self.buf.push(0xd7),
             16 => self.buf.push(0xd8),
-            _ if len <= u8::MAX as usize => { self.buf.push(0xc7); self.buf.push(len as u8); }
-            _ if len <= u16::MAX as usize => { self.buf.push(0xc8); self.buf.extend_from_slice(&(len as u16).to_be_bytes()); }
-            _ => { self.buf.push(0xc9); self.buf.extend_from_slice(&(len as u32).to_be_bytes()); }
+            _ if len <= u8::MAX as usize => {
+                self.buf.push(0xc7);
+                self.buf.push(len as u8);
+            }
+            _ if len <= u16::MAX as usize => {
+                self.buf.push(0xc8);
+                self.buf.extend_from_slice(&(len as u16).to_be_bytes());
+            }
+            _ => {
+                self.buf.push(0xc9);
+                self.buf.extend_from_slice(&(len as u32).to_be_bytes());
+            }
         }
         self.buf.push(type_id as u8);
         self.buf.extend_from_slice(data);
     }
 
-    pub fn finish(self) -> Vec<u8> { self.buf }
+    pub fn finish(self) -> Vec<u8> {
+        self.buf
+    }
 }
 
 // ── Decoder ─────────────────────────────────────────────────────────────────
@@ -186,31 +228,51 @@ pub struct Decoder<'a> {
 }
 
 impl<'a> Decoder<'a> {
-    pub fn new(data: &'a [u8]) -> Self { Self { data, pos: 0, depth: 0 } }
+    pub fn new(data: &'a [u8]) -> Self {
+        Self {
+            data,
+            pos: 0,
+            depth: 0,
+        }
+    }
 
     fn read_u8(&mut self) -> Result<u8, MsgPackError> {
-        if self.pos >= self.data.len() { return Err(MsgPackError::UnexpectedEof); }
-        let b = self.data[self.pos]; self.pos += 1; Ok(b)
+        if self.pos >= self.data.len() {
+            return Err(MsgPackError::UnexpectedEof);
+        }
+        let b = self.data[self.pos];
+        self.pos += 1;
+        Ok(b)
     }
 
     fn read_bytes(&mut self, n: usize) -> Result<&'a [u8], MsgPackError> {
-        if self.pos + n > self.data.len() { return Err(MsgPackError::UnexpectedEof); }
-        let s = &self.data[self.pos..self.pos + n]; self.pos += n; Ok(s)
+        if self.pos + n > self.data.len() {
+            return Err(MsgPackError::UnexpectedEof);
+        }
+        let s = &self.data[self.pos..self.pos + n];
+        self.pos += n;
+        Ok(s)
     }
 
     fn read_u16(&mut self) -> Result<u16, MsgPackError> {
-        let b = self.read_bytes(2)?; Ok(u16::from_be_bytes([b[0], b[1]]))
+        let b = self.read_bytes(2)?;
+        Ok(u16::from_be_bytes([b[0], b[1]]))
     }
     fn read_u32(&mut self) -> Result<u32, MsgPackError> {
-        let b = self.read_bytes(4)?; Ok(u32::from_be_bytes([b[0], b[1], b[2], b[3]]))
+        let b = self.read_bytes(4)?;
+        Ok(u32::from_be_bytes([b[0], b[1], b[2], b[3]]))
     }
     fn read_u64(&mut self) -> Result<u64, MsgPackError> {
         let b = self.read_bytes(8)?;
-        Ok(u64::from_be_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]))
+        Ok(u64::from_be_bytes([
+            b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
+        ]))
     }
 
     pub fn decode(&mut self) -> Result<Value, MsgPackError> {
-        if self.depth > 128 { return Err(MsgPackError::NestingTooDeep); }
+        if self.depth > 128 {
+            return Err(MsgPackError::NestingTooDeep);
+        }
         let byte = self.read_u8()?;
         match byte {
             0x00..=0x7f => Ok(Value::UInt(byte as u64)),
@@ -220,19 +282,42 @@ impl<'a> Decoder<'a> {
             0xc0 => Ok(Value::Nil),
             0xc2 => Ok(Value::Bool(false)),
             0xc3 => Ok(Value::Bool(true)),
-            0xc4 => { let n = self.read_u8()? as usize; Ok(Value::Bin(self.read_bytes(n)?.to_vec())) }
-            0xc5 => { let n = self.read_u16()? as usize; Ok(Value::Bin(self.read_bytes(n)?.to_vec())) }
-            0xc6 => { let n = self.read_u32()? as usize; Ok(Value::Bin(self.read_bytes(n)?.to_vec())) }
-            0xc7 => { let n = self.read_u8()? as usize; let t = self.read_u8()? as i8; Ok(Value::Ext(t, self.read_bytes(n)?.to_vec())) }
-            0xc8 => { let n = self.read_u16()? as usize; let t = self.read_u8()? as i8; Ok(Value::Ext(t, self.read_bytes(n)?.to_vec())) }
-            0xc9 => { let n = self.read_u32()? as usize; let t = self.read_u8()? as i8; Ok(Value::Ext(t, self.read_bytes(n)?.to_vec())) }
+            0xc4 => {
+                let n = self.read_u8()? as usize;
+                Ok(Value::Bin(self.read_bytes(n)?.to_vec()))
+            }
+            0xc5 => {
+                let n = self.read_u16()? as usize;
+                Ok(Value::Bin(self.read_bytes(n)?.to_vec()))
+            }
+            0xc6 => {
+                let n = self.read_u32()? as usize;
+                Ok(Value::Bin(self.read_bytes(n)?.to_vec()))
+            }
+            0xc7 => {
+                let n = self.read_u8()? as usize;
+                let t = self.read_u8()? as i8;
+                Ok(Value::Ext(t, self.read_bytes(n)?.to_vec()))
+            }
+            0xc8 => {
+                let n = self.read_u16()? as usize;
+                let t = self.read_u8()? as i8;
+                Ok(Value::Ext(t, self.read_bytes(n)?.to_vec()))
+            }
+            0xc9 => {
+                let n = self.read_u32()? as usize;
+                let t = self.read_u8()? as i8;
+                Ok(Value::Ext(t, self.read_bytes(n)?.to_vec()))
+            }
             0xca => {
                 let b = self.read_bytes(4)?;
                 Ok(Value::F32(f32::from_be_bytes([b[0], b[1], b[2], b[3]])))
             }
             0xcb => {
                 let b = self.read_bytes(8)?;
-                Ok(Value::F64(f64::from_be_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]])))
+                Ok(Value::F64(f64::from_be_bytes([
+                    b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
+                ])))
             }
             0xcc => Ok(Value::UInt(self.read_u8()? as u64)),
             0xcd => Ok(Value::UInt(self.read_u16()? as u64)),
@@ -242,18 +327,54 @@ impl<'a> Decoder<'a> {
             0xd1 => Ok(Value::Int(self.read_u16()? as i16 as i64)),
             0xd2 => Ok(Value::Int(self.read_u32()? as i32 as i64)),
             0xd3 => Ok(Value::Int(self.read_u64()? as i64)),
-            0xd4 => { let t = self.read_u8()? as i8; Ok(Value::Ext(t, self.read_bytes(1)?.to_vec())) }
-            0xd5 => { let t = self.read_u8()? as i8; Ok(Value::Ext(t, self.read_bytes(2)?.to_vec())) }
-            0xd6 => { let t = self.read_u8()? as i8; Ok(Value::Ext(t, self.read_bytes(4)?.to_vec())) }
-            0xd7 => { let t = self.read_u8()? as i8; Ok(Value::Ext(t, self.read_bytes(8)?.to_vec())) }
-            0xd8 => { let t = self.read_u8()? as i8; Ok(Value::Ext(t, self.read_bytes(16)?.to_vec())) }
-            0xd9 => { let n = self.read_u8()? as usize; self.decode_str(n) }
-            0xda => { let n = self.read_u16()? as usize; self.decode_str(n) }
-            0xdb => { let n = self.read_u32()? as usize; self.decode_str(n) }
-            0xdc => { let n = self.read_u16()? as usize; self.decode_array(n) }
-            0xdd => { let n = self.read_u32()? as usize; self.decode_array(n) }
-            0xde => { let n = self.read_u16()? as usize; self.decode_map(n) }
-            0xdf => { let n = self.read_u32()? as usize; self.decode_map(n) }
+            0xd4 => {
+                let t = self.read_u8()? as i8;
+                Ok(Value::Ext(t, self.read_bytes(1)?.to_vec()))
+            }
+            0xd5 => {
+                let t = self.read_u8()? as i8;
+                Ok(Value::Ext(t, self.read_bytes(2)?.to_vec()))
+            }
+            0xd6 => {
+                let t = self.read_u8()? as i8;
+                Ok(Value::Ext(t, self.read_bytes(4)?.to_vec()))
+            }
+            0xd7 => {
+                let t = self.read_u8()? as i8;
+                Ok(Value::Ext(t, self.read_bytes(8)?.to_vec()))
+            }
+            0xd8 => {
+                let t = self.read_u8()? as i8;
+                Ok(Value::Ext(t, self.read_bytes(16)?.to_vec()))
+            }
+            0xd9 => {
+                let n = self.read_u8()? as usize;
+                self.decode_str(n)
+            }
+            0xda => {
+                let n = self.read_u16()? as usize;
+                self.decode_str(n)
+            }
+            0xdb => {
+                let n = self.read_u32()? as usize;
+                self.decode_str(n)
+            }
+            0xdc => {
+                let n = self.read_u16()? as usize;
+                self.decode_array(n)
+            }
+            0xdd => {
+                let n = self.read_u32()? as usize;
+                self.decode_array(n)
+            }
+            0xde => {
+                let n = self.read_u16()? as usize;
+                self.decode_map(n)
+            }
+            0xdf => {
+                let n = self.read_u32()? as usize;
+                self.decode_map(n)
+            }
             0xe0..=0xff => Ok(Value::Int(byte as i8 as i64)),
             other => Err(MsgPackError::InvalidFormat(other)),
         }
@@ -268,7 +389,9 @@ impl<'a> Decoder<'a> {
     fn decode_array(&mut self, len: usize) -> Result<Value, MsgPackError> {
         self.depth += 1;
         let mut arr = Vec::with_capacity(len);
-        for _ in 0..len { arr.push(self.decode()?); }
+        for _ in 0..len {
+            arr.push(self.decode()?);
+        }
         self.depth -= 1;
         Ok(Value::Array(arr))
     }
@@ -276,18 +399,26 @@ impl<'a> Decoder<'a> {
     fn decode_map(&mut self, len: usize) -> Result<Value, MsgPackError> {
         self.depth += 1;
         let mut entries = Vec::with_capacity(len);
-        for _ in 0..len { let k = self.decode()?; let v = self.decode()?; entries.push((k, v)); }
+        for _ in 0..len {
+            let k = self.decode()?;
+            let v = self.decode()?;
+            entries.push((k, v));
+        }
         self.depth -= 1;
         Ok(Value::MsgMap(entries))
     }
 
-    pub fn position(&self) -> usize { self.pos }
+    pub fn position(&self) -> usize {
+        self.pos
+    }
 }
 
 // ── Convenience ─────────────────────────────────────────────────────────────
 
 pub fn encode(val: &Value) -> Vec<u8> {
-    let mut enc = Encoder::new(); enc.encode(val); enc.finish()
+    let mut enc = Encoder::new();
+    enc.encode(val);
+    enc.finish()
 }
 
 pub fn decode(data: &[u8]) -> Result<Value, MsgPackError> {
@@ -302,7 +433,11 @@ pub fn from_json(jv: &serde_json::Value) -> Value {
         serde_json::Value::Bool(b) => Value::Bool(*b),
         serde_json::Value::Number(n) => {
             if let Some(i) = n.as_i64() {
-                if i >= 0 { Value::UInt(i as u64) } else { Value::Int(i) }
+                if i >= 0 {
+                    Value::UInt(i as u64)
+                } else {
+                    Value::Int(i)
+                }
             } else if let Some(u) = n.as_u64() {
                 Value::UInt(u)
             } else {
@@ -311,9 +446,11 @@ pub fn from_json(jv: &serde_json::Value) -> Value {
         }
         serde_json::Value::String(s) => Value::Str(s.clone()),
         serde_json::Value::Array(arr) => Value::Array(arr.iter().map(from_json).collect()),
-        serde_json::Value::Object(map) => {
-            Value::MsgMap(map.iter().map(|(k, v)| (Value::Str(k.clone()), from_json(v))).collect())
-        }
+        serde_json::Value::Object(map) => Value::MsgMap(
+            map.iter()
+                .map(|(k, v)| (Value::Str(k.clone()), from_json(v)))
+                .collect(),
+        ),
     }
 }
 
@@ -360,7 +497,9 @@ mod tests {
     }
 
     #[test]
-    fn nil_roundtrip() { assert_eq!(roundtrip(&Value::Nil), Value::Nil); }
+    fn nil_roundtrip() {
+        assert_eq!(roundtrip(&Value::Nil), Value::Nil);
+    }
 
     #[test]
     fn bool_roundtrip() {
@@ -419,7 +558,12 @@ mod tests {
 
     #[test]
     fn array_roundtrip() {
-        let val = Value::Array(vec![Value::UInt(1), Value::Str("two".into()), Value::Bool(true), Value::Nil]);
+        let val = Value::Array(vec![
+            Value::UInt(1),
+            Value::Str("two".into()),
+            Value::Bool(true),
+            Value::Nil,
+        ]);
         assert_eq!(roundtrip(&val), val);
     }
 
@@ -463,11 +607,13 @@ mod tests {
 
     #[test]
     fn nested_structures() {
-        let val = Value::MsgMap(vec![
-            (Value::Str("outer".into()), Value::MsgMap(vec![
-                (Value::Str("inner".into()), Value::Array(vec![Value::UInt(1), Value::UInt(2)])),
-            ])),
-        ]);
+        let val = Value::MsgMap(vec![(
+            Value::Str("outer".into()),
+            Value::MsgMap(vec![(
+                Value::Str("inner".into()),
+                Value::Array(vec![Value::UInt(1), Value::UInt(2)]),
+            )]),
+        )]);
         assert_eq!(roundtrip(&val), val);
     }
 
@@ -475,7 +621,10 @@ mod tests {
     fn empty_containers() {
         assert_eq!(roundtrip(&Value::Array(vec![])), Value::Array(vec![]));
         assert_eq!(roundtrip(&Value::MsgMap(vec![])), Value::MsgMap(vec![]));
-        assert_eq!(roundtrip(&Value::Str(String::new())), Value::Str(String::new()));
+        assert_eq!(
+            roundtrip(&Value::Str(String::new())),
+            Value::Str(String::new())
+        );
         assert_eq!(roundtrip(&Value::Bin(vec![])), Value::Bin(vec![]));
     }
 
@@ -501,8 +650,14 @@ mod tests {
 
     #[test]
     fn error_display() {
-        assert_eq!(format!("{}", MsgPackError::UnexpectedEof), "unexpected end of input");
-        assert_eq!(format!("{}", MsgPackError::InvalidFormat(0xFF)), "invalid format byte: 0xff");
+        assert_eq!(
+            format!("{}", MsgPackError::UnexpectedEof),
+            "unexpected end of input"
+        );
+        assert_eq!(
+            format!("{}", MsgPackError::InvalidFormat(0xFF)),
+            "invalid format byte: 0xff"
+        );
     }
 
     #[test]

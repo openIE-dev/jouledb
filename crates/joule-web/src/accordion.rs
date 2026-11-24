@@ -35,10 +35,18 @@ pub struct Accordion {
 
 impl Accordion {
     pub fn new(mode: AccordionMode) -> Self {
-        Self { items: Vec::new(), mode }
+        Self {
+            items: Vec::new(),
+            mode,
+        }
     }
 
-    pub fn add_item(&mut self, id: impl Into<String>, title: impl Into<String>, content: impl Into<String>) {
+    pub fn add_item(
+        &mut self,
+        id: impl Into<String>,
+        title: impl Into<String>,
+        content: impl Into<String>,
+    ) {
         self.items.push(AccordionItem {
             id: id.into(),
             title: title.into(),
@@ -49,20 +57,32 @@ impl Accordion {
     }
 
     pub fn toggle(&mut self, id: &str) {
-        let Some(pos) = self.items.iter().position(|i| i.id == id) else { return };
-        if self.items[pos].disabled { return; }
+        let Some(pos) = self.items.iter().position(|i| i.id == id) else {
+            return;
+        };
+        if self.items[pos].disabled {
+            return;
+        }
         let currently_expanded = self.items[pos].expanded;
         if self.mode == AccordionMode::Single && !currently_expanded {
-            for item in &mut self.items { item.expanded = false; }
+            for item in &mut self.items {
+                item.expanded = false;
+            }
         }
         self.items[pos].expanded = !currently_expanded;
     }
 
     pub fn expand(&mut self, id: &str) {
-        let Some(pos) = self.items.iter().position(|i| i.id == id) else { return };
-        if self.items[pos].disabled { return; }
+        let Some(pos) = self.items.iter().position(|i| i.id == id) else {
+            return;
+        };
+        if self.items[pos].disabled {
+            return;
+        }
         if self.mode == AccordionMode::Single {
-            for item in &mut self.items { item.expanded = false; }
+            for item in &mut self.items {
+                item.expanded = false;
+            }
         }
         self.items[pos].expanded = true;
     }
@@ -77,7 +97,9 @@ impl Accordion {
         match self.mode {
             AccordionMode::Multiple => {
                 for item in &mut self.items {
-                    if !item.disabled { item.expanded = true; }
+                    if !item.disabled {
+                        item.expanded = true;
+                    }
                 }
             }
             AccordionMode::Single => {
@@ -95,18 +117,26 @@ impl Accordion {
     }
 
     pub fn collapse_all(&mut self) {
-        for item in &mut self.items { item.expanded = false; }
+        for item in &mut self.items {
+            item.expanded = false;
+        }
     }
 
     pub fn expanded_ids(&self) -> Vec<&str> {
-        self.items.iter().filter(|i| i.expanded).map(|i| i.id.as_str()).collect()
+        self.items
+            .iter()
+            .filter(|i| i.expanded)
+            .map(|i| i.id.as_str())
+            .collect()
     }
 
     pub fn is_expanded(&self, id: &str) -> bool {
         self.items.iter().any(|i| i.id == id && i.expanded)
     }
 
-    pub fn item_count(&self) -> usize { self.items.len() }
+    pub fn item_count(&self) -> usize {
+        self.items.len()
+    }
 
     pub fn remove_item(&mut self, id: &str) -> bool {
         let before = self.items.len();
@@ -117,11 +147,15 @@ impl Accordion {
     pub fn set_disabled(&mut self, id: &str, disabled: bool) {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
             item.disabled = disabled;
-            if disabled { item.expanded = false; }
+            if disabled {
+                item.expanded = false;
+            }
         }
     }
 
-    pub fn items(&self) -> &[AccordionItem] { &self.items }
+    pub fn items(&self) -> &[AccordionItem] {
+        &self.items
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────

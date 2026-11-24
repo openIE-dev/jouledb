@@ -91,7 +91,11 @@ pub trait PlatformConnector: Send + Sync {
     fn check_status(&self, external_id: &str) -> Result<SyncStatus, String>;
 
     /// Upload/publish content to the platform.
-    fn publish(&self, content_id: &str, metadata: &HashMap<String, String>) -> Result<String, String>;
+    fn publish(
+        &self,
+        content_id: &str,
+        metadata: &HashMap<String, String>,
+    ) -> Result<String, String>;
 
     /// Retrieve metrics for published content.
     fn get_metrics(&self, external_id: &str) -> Result<PlatformMetrics, String>;
@@ -160,7 +164,9 @@ impl PlatformManager {
                 total.shares += m.shares;
                 total.comments += m.comments;
                 total.watch_time_hours += m.watch_time_hours;
-                if let (Some(total_rev), Some(rev)) = (&mut total.revenue_microcents, m.revenue_microcents) {
+                if let (Some(total_rev), Some(rev)) =
+                    (&mut total.revenue_microcents, m.revenue_microcents)
+                {
                     *total_rev += rev;
                 }
             }
@@ -188,37 +194,43 @@ mod tests {
     fn test_platform_manager() {
         let mut mgr = PlatformManager::new();
 
-        mgr.update_status("video_1", SyncStatus {
-            platform: PlatformType::YouTube,
-            external_id: Some("yt_abc123".into()),
-            status: DistributionStatus::Active,
-            last_synced_ms: 1000,
-            error: None,
-            metrics: Some(PlatformMetrics {
-                views: 10000,
-                likes: 500,
-                shares: 50,
-                comments: 100,
-                watch_time_hours: 500.0,
-                revenue_microcents: Some(50_000_000),
-            }),
-        });
+        mgr.update_status(
+            "video_1",
+            SyncStatus {
+                platform: PlatformType::YouTube,
+                external_id: Some("yt_abc123".into()),
+                status: DistributionStatus::Active,
+                last_synced_ms: 1000,
+                error: None,
+                metrics: Some(PlatformMetrics {
+                    views: 10000,
+                    likes: 500,
+                    shares: 50,
+                    comments: 100,
+                    watch_time_hours: 500.0,
+                    revenue_microcents: Some(50_000_000),
+                }),
+            },
+        );
 
-        mgr.update_status("video_1", SyncStatus {
-            platform: PlatformType::TikTok,
-            external_id: Some("tt_xyz789".into()),
-            status: DistributionStatus::Active,
-            last_synced_ms: 1000,
-            error: None,
-            metrics: Some(PlatformMetrics {
-                views: 50000,
-                likes: 5000,
-                shares: 2000,
-                comments: 300,
-                watch_time_hours: 200.0,
-                revenue_microcents: None,
-            }),
-        });
+        mgr.update_status(
+            "video_1",
+            SyncStatus {
+                platform: PlatformType::TikTok,
+                external_id: Some("tt_xyz789".into()),
+                status: DistributionStatus::Active,
+                last_synced_ms: 1000,
+                error: None,
+                metrics: Some(PlatformMetrics {
+                    views: 50000,
+                    likes: 5000,
+                    shares: 2000,
+                    comments: 300,
+                    watch_time_hours: 200.0,
+                    revenue_microcents: None,
+                }),
+            },
+        );
 
         let platforms = mgr.content_platforms("video_1");
         assert_eq!(platforms.len(), 2);

@@ -12,12 +12,12 @@ use std::fmt;
 /// Font weight.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FontWeight {
-    Thin,       // 100
-    Light,      // 300
-    Normal,     // 400
-    Medium,     // 500
-    Bold,       // 700
-    Black,      // 900
+    Thin,   // 100
+    Light,  // 300
+    Normal, // 400
+    Medium, // 500
+    Bold,   // 700
+    Black,  // 900
 }
 
 impl FontWeight {
@@ -117,8 +117,16 @@ impl TextMetrics {
 /// ~0.6 × font size for monospace.
 pub fn measure_text(text: &str, font: &FontSpec) -> TextMetrics {
     let avg_char_width = font.size * 0.6;
-    let bold_factor = if font.weight.numeric() >= 700 { 1.05 } else { 1.0 };
-    let italic_factor = if font.style == FontStyle::Italic { 1.02 } else { 1.0 };
+    let bold_factor = if font.weight.numeric() >= 700 {
+        1.05
+    } else {
+        1.0
+    };
+    let italic_factor = if font.style == FontStyle::Italic {
+        1.02
+    } else {
+        1.0
+    };
 
     let width: f64 = text
         .chars()
@@ -411,7 +419,10 @@ mod tests {
     #[test]
     fn test_bold_wider() {
         let normal = measure_text("test", &FontSpec::new("sans", 16.0));
-        let bold = measure_text("test", &FontSpec::new("sans", 16.0).with_weight(FontWeight::Bold));
+        let bold = measure_text(
+            "test",
+            &FontSpec::new("sans", 16.0).with_weight(FontWeight::Bold),
+        );
         assert!(bold.width > normal.width);
     }
 
@@ -438,7 +449,14 @@ mod tests {
 
     #[test]
     fn test_wrap_text_single_line() {
-        let lines = wrap_text("hello world", &test_font(), 1000.0, 0.0, 0.0, TextAlign::Start);
+        let lines = wrap_text(
+            "hello world",
+            &test_font(),
+            1000.0,
+            0.0,
+            0.0,
+            TextAlign::Start,
+        );
         assert_eq!(lines.len(), 1);
     }
 
@@ -487,7 +505,12 @@ mod tests {
     #[test]
     fn test_text_on_curved_path() {
         let path = vec![(0.0, 0.0), (50.0, 0.0), (50.0, 50.0)];
-        let glyphs = text_on_path("ABC", &path, &test_font().with_weight(FontWeight::Normal), 0.0);
+        let glyphs = text_on_path(
+            "ABC",
+            &path,
+            &test_font().with_weight(FontWeight::Normal),
+            0.0,
+        );
         assert!(!glyphs.is_empty());
     }
 

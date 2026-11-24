@@ -56,7 +56,10 @@ pub struct RpcError {
 
 impl RpcError {
     pub fn new(code: RpcCode, message: impl Into<String>) -> Self {
-        Self { code, message: message.into() }
+        Self {
+            code,
+            message: message.into(),
+        }
     }
 }
 
@@ -75,15 +78,23 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    pub fn new() -> Self { Self { entries: Vec::new() } }
+    pub fn new() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
 
     pub fn insert(&mut self, key: impl Into<String>, value: impl Into<String>) {
-        self.entries.push((key.into().to_ascii_lowercase(), value.into()));
+        self.entries
+            .push((key.into().to_ascii_lowercase(), value.into()));
     }
 
     pub fn get(&self, key: &str) -> Option<&str> {
         let k = key.to_ascii_lowercase();
-        self.entries.iter().find(|(ek, _)| *ek == k).map(|(_, v)| v.as_str())
+        self.entries
+            .iter()
+            .find(|(ek, _)| *ek == k)
+            .map(|(_, v)| v.as_str())
     }
 
     pub fn remove(&mut self, key: &str) {
@@ -108,7 +119,12 @@ pub struct RpcRequest {
 
 impl RpcRequest {
     pub fn new(path: impl Into<String>, body: Vec<u8>) -> Self {
-        Self { path: path.into(), body, metadata: Metadata::new(), deadline_ms: 0 }
+        Self {
+            path: path.into(),
+            body,
+            metadata: Metadata::new(),
+            deadline_ms: 0,
+        }
     }
 }
 
@@ -123,14 +139,26 @@ pub struct RpcResponse {
 
 impl RpcResponse {
     pub fn ok(body: Vec<u8>) -> Self {
-        Self { body, code: RpcCode::Ok, message: String::new(), metadata: Metadata::new() }
+        Self {
+            body,
+            code: RpcCode::Ok,
+            message: String::new(),
+            metadata: Metadata::new(),
+        }
     }
 
     pub fn error(err: &RpcError) -> Self {
-        Self { body: Vec::new(), code: err.code, message: err.message.clone(), metadata: Metadata::new() }
+        Self {
+            body: Vec::new(),
+            code: err.code,
+            message: err.message.clone(),
+            metadata: Metadata::new(),
+        }
     }
 
-    pub fn is_ok(&self) -> bool { matches!(self.code, RpcCode::Ok) }
+    pub fn is_ok(&self) -> bool {
+        matches!(self.code, RpcCode::Ok)
+    }
 }
 
 // ── Interceptor Trait ────────────────────────────────────────
@@ -170,7 +198,10 @@ impl fmt::Debug for InterceptorChain {
 
 impl InterceptorChain {
     pub fn new(handler: HandlerFn) -> Self {
-        Self { interceptors: Vec::new(), handler }
+        Self {
+            interceptors: Vec::new(),
+            handler,
+        }
     }
 
     /// Add an interceptor to the front of the chain.
@@ -192,7 +223,11 @@ impl InterceptorChain {
         self.execute_from(0, request)
     }
 
-    fn execute_from(&self, index: usize, request: &mut RpcRequest) -> Result<RpcResponse, RpcError> {
+    fn execute_from(
+        &self,
+        index: usize,
+        request: &mut RpcRequest,
+    ) -> Result<RpcResponse, RpcError> {
         if index >= self.interceptors.len() {
             return (self.handler)(request);
         }
@@ -256,7 +291,9 @@ pub struct LogEntry {
 
 impl LoggingInterceptor {
     pub fn new() -> Self {
-        Self { log: std::cell::RefCell::new(Vec::new()) }
+        Self {
+            log: std::cell::RefCell::new(Vec::new()),
+        }
     }
 
     /// Get logged entries.
@@ -303,7 +340,9 @@ impl Interceptor for LoggingInterceptor {
         }
     }
 
-    fn name(&self) -> &str { "logging" }
+    fn name(&self) -> &str {
+        "logging"
+    }
 }
 
 // ── Auth Interceptor ─────────────────────────────────────────
@@ -319,7 +358,10 @@ pub struct AuthInterceptor {
 
 impl AuthInterceptor {
     pub fn new(valid_tokens: Vec<String>) -> Self {
-        Self { valid_tokens, header_key: "authorization".to_string() }
+        Self {
+            valid_tokens,
+            header_key: "authorization".to_string(),
+        }
     }
 
     /// Set a custom header key.
@@ -342,18 +384,26 @@ impl Interceptor for AuthInterceptor {
     ) -> Result<RpcResponse, RpcError> {
         let token = request.metadata.get(&self.header_key);
         match token {
-            None => Err(RpcError::new(RpcCode::Unauthenticated, "missing auth token")),
+            None => Err(RpcError::new(
+                RpcCode::Unauthenticated,
+                "missing auth token",
+            )),
             Some(t) => {
                 if self.valid_tokens.iter().any(|vt| vt == t) {
                     next(request)
                 } else {
-                    Err(RpcError::new(RpcCode::PermissionDenied, "invalid auth token"))
+                    Err(RpcError::new(
+                        RpcCode::PermissionDenied,
+                        "invalid auth token",
+                    ))
                 }
             }
         }
     }
 
-    fn name(&self) -> &str { "auth" }
+    fn name(&self) -> &str {
+        "auth"
+    }
 }
 
 // ── Retry Interceptor ────────────────────────────────────────
@@ -412,7 +462,9 @@ impl Interceptor for RetryInterceptor {
         Err(last_err.unwrap_or_else(|| RpcError::new(RpcCode::Internal, "retry exhausted")))
     }
 
-    fn name(&self) -> &str { "retry" }
+    fn name(&self) -> &str {
+        "retry"
+    }
 }
 
 // ── Timeout Interceptor ──────────────────────────────────────
@@ -428,7 +480,10 @@ pub struct TimeoutInterceptor {
 
 impl TimeoutInterceptor {
     pub fn new(default_timeout_ms: u64) -> Self {
-        Self { default_timeout_ms, current_time_ms: 0 }
+        Self {
+            default_timeout_ms,
+            current_time_ms: 0,
+        }
     }
 
     /// Set the simulated current time.
@@ -451,13 +506,18 @@ impl Interceptor for TimeoutInterceptor {
 
         // Check if deadline already exceeded.
         if self.current_time_ms >= request.deadline_ms {
-            return Err(RpcError::new(RpcCode::DeadlineExceeded, "deadline exceeded before call"));
+            return Err(RpcError::new(
+                RpcCode::DeadlineExceeded,
+                "deadline exceeded before call",
+            ));
         }
 
         next(request)
     }
 
-    fn name(&self) -> &str { "timeout" }
+    fn name(&self) -> &str {
+        "timeout"
+    }
 }
 
 // ── Metrics Interceptor ──────────────────────────────────────
@@ -484,7 +544,9 @@ pub struct MetricsData {
 
 impl MetricsInterceptor {
     pub fn new() -> Self {
-        Self { metrics: std::cell::RefCell::new(MetricsData::default()) }
+        Self {
+            metrics: std::cell::RefCell::new(MetricsData::default()),
+        }
     }
 
     /// Get a snapshot of the metrics.
@@ -531,7 +593,9 @@ impl Interceptor for MetricsInterceptor {
         }
     }
 
-    fn name(&self) -> &str { "metrics" }
+    fn name(&self) -> &str {
+        "metrics"
+    }
 }
 
 // ── Error Mapping Interceptor ────────────────────────────────
@@ -544,7 +608,9 @@ pub struct ErrorMappingInterceptor {
 
 impl ErrorMappingInterceptor {
     pub fn new() -> Self {
-        Self { mappings: HashMap::new() }
+        Self {
+            mappings: HashMap::new(),
+        }
     }
 
     /// Add a mapping from one code to another.
@@ -577,7 +643,9 @@ impl Interceptor for ErrorMappingInterceptor {
         }
     }
 
-    fn name(&self) -> &str { "error_mapping" }
+    fn name(&self) -> &str {
+        "error_mapping"
+    }
 }
 
 // ── Metadata Interceptor ─────────────────────────────────────
@@ -590,7 +658,9 @@ pub struct MetadataInterceptor {
 
 impl MetadataInterceptor {
     pub fn new() -> Self {
-        Self { entries: Vec::new() }
+        Self {
+            entries: Vec::new(),
+        }
     }
 
     /// Add a metadata entry to inject.
@@ -620,7 +690,9 @@ impl Interceptor for MetadataInterceptor {
         next(request)
     }
 
-    fn name(&self) -> &str { "metadata" }
+    fn name(&self) -> &str {
+        "metadata"
+    }
 }
 
 // ── Rate Limit Interceptor ───────────────────────────────────
@@ -634,7 +706,10 @@ pub struct RateLimitInterceptor {
 
 impl RateLimitInterceptor {
     pub fn new(max_calls: u64) -> Self {
-        Self { max_calls, call_count: std::cell::RefCell::new(0) }
+        Self {
+            max_calls,
+            call_count: std::cell::RefCell::new(0),
+        }
     }
 
     /// Current call count.
@@ -656,13 +731,18 @@ impl Interceptor for RateLimitInterceptor {
     ) -> Result<RpcResponse, RpcError> {
         let current = *self.call_count.borrow();
         if current >= self.max_calls {
-            return Err(RpcError::new(RpcCode::ResourceExhausted, "rate limit exceeded"));
+            return Err(RpcError::new(
+                RpcCode::ResourceExhausted,
+                "rate limit exceeded",
+            ));
         }
         *self.call_count.borrow_mut() += 1;
         next(request)
     }
 
-    fn name(&self) -> &str { "rate_limit" }
+    fn name(&self) -> &str {
+        "rate_limit"
+    }
 }
 
 // ── Middleware Builder ────────────────────────────────────────
@@ -674,7 +754,9 @@ pub struct MiddlewareBuilder {
 
 impl MiddlewareBuilder {
     pub fn new() -> Self {
-        Self { interceptors: Vec::new() }
+        Self {
+            interceptors: Vec::new(),
+        }
     }
 
     /// Add an interceptor.
@@ -812,8 +894,7 @@ mod tests {
 
     #[test]
     fn auth_interceptor_custom_header() {
-        let auth = AuthInterceptor::new(vec!["token123".to_string()])
-            .with_header("x-api-key");
+        let auth = AuthInterceptor::new(vec!["token123".to_string()]).with_header("x-api-key");
         let mut req = RpcRequest::new("/svc/m", vec![]);
         req.metadata.insert("x-api-key", "token123");
         let resp = auth.intercept(&mut req, &|r| ok_handler(r)).unwrap();
@@ -833,7 +914,9 @@ mod tests {
     fn retry_interceptor_retries_unavailable() {
         let retry = RetryInterceptor::new(3);
         let mut req = RpcRequest::new("/svc/m", vec![]);
-        let err = retry.intercept(&mut req, &|r| unavailable_handler(r)).unwrap_err();
+        let err = retry
+            .intercept(&mut req, &|r| unavailable_handler(r))
+            .unwrap_err();
         assert_eq!(err.code, RpcCode::Unavailable);
         assert_eq!(retry.total_attempts(), 3);
     }
@@ -842,7 +925,9 @@ mod tests {
     fn retry_interceptor_no_retry_on_non_retryable() {
         let retry = RetryInterceptor::new(3);
         let mut req = RpcRequest::new("/svc/m", vec![]);
-        let err = retry.intercept(&mut req, &|r| error_handler(r)).unwrap_err();
+        let err = retry
+            .intercept(&mut req, &|r| error_handler(r))
+            .unwrap_err();
         assert_eq!(err.code, RpcCode::Internal);
         assert_eq!(retry.total_attempts(), 1); // No retry for Internal
     }
@@ -891,19 +976,21 @@ mod tests {
 
     #[test]
     fn error_mapping_interceptor() {
-        let mapper = ErrorMappingInterceptor::new()
-            .map_code(RpcCode::Internal, RpcCode::Unknown);
+        let mapper = ErrorMappingInterceptor::new().map_code(RpcCode::Internal, RpcCode::Unknown);
         let mut req = RpcRequest::new("/svc/m", vec![]);
-        let err = mapper.intercept(&mut req, &|r| error_handler(r)).unwrap_err();
+        let err = mapper
+            .intercept(&mut req, &|r| error_handler(r))
+            .unwrap_err();
         assert_eq!(err.code, RpcCode::Unknown);
     }
 
     #[test]
     fn error_mapping_no_match() {
-        let mapper = ErrorMappingInterceptor::new()
-            .map_code(RpcCode::NotFound, RpcCode::Unknown);
+        let mapper = ErrorMappingInterceptor::new().map_code(RpcCode::NotFound, RpcCode::Unknown);
         let mut req = RpcRequest::new("/svc/m", vec![]);
-        let err = mapper.intercept(&mut req, &|r| error_handler(r)).unwrap_err();
+        let err = mapper
+            .intercept(&mut req, &|r| error_handler(r))
+            .unwrap_err();
         assert_eq!(err.code, RpcCode::Internal); // unchanged
     }
 
@@ -965,9 +1052,7 @@ mod tests {
 
     #[test]
     fn chain_execute_with_interceptors() {
-        let chain = MiddlewareBuilder::new()
-            .with_logging()
-            .build(ok_handler);
+        let chain = MiddlewareBuilder::new().with_logging().build(ok_handler);
         let mut req = RpcRequest::new("/svc/echo", vec![42]);
         let resp = chain.execute(&mut req).unwrap();
         assert_eq!(resp.body, vec![42]);
@@ -1010,10 +1095,11 @@ mod tests {
 
     #[test]
     fn retry_with_custom_codes() {
-        let retry = RetryInterceptor::new(2)
-            .with_retryable_codes(vec![RpcCode::Internal]);
+        let retry = RetryInterceptor::new(2).with_retryable_codes(vec![RpcCode::Internal]);
         let mut req = RpcRequest::new("/svc/m", vec![]);
-        let err = retry.intercept(&mut req, &|r| error_handler(r)).unwrap_err();
+        let err = retry
+            .intercept(&mut req, &|r| error_handler(r))
+            .unwrap_err();
         assert_eq!(err.code, RpcCode::Internal);
         assert_eq!(retry.total_attempts(), 2);
     }

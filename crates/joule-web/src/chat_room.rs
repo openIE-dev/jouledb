@@ -239,7 +239,14 @@ impl ChatRoom {
     }
 
     pub fn recent_messages(&self, n: usize) -> Vec<&ChatMessage> {
-        self.history.iter().rev().take(n).collect::<Vec<_>>().into_iter().rev().collect()
+        self.history
+            .iter()
+            .rev()
+            .take(n)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect()
     }
 
     pub fn is_muted(&self, user_id: &str) -> bool {
@@ -289,7 +296,9 @@ pub struct RoomManager {
 
 impl RoomManager {
     pub fn new() -> Self {
-        Self { rooms: HashMap::new() }
+        Self {
+            rooms: HashMap::new(),
+        }
     }
 
     pub fn create_room(
@@ -302,12 +311,17 @@ impl RoomManager {
         if self.rooms.contains_key(id) {
             return Err(ChatRoomError::DuplicateRoom(id.to_string()));
         }
-        self.rooms.insert(id.to_string(), ChatRoom::new(id, name, max_members, history_capacity));
+        self.rooms.insert(
+            id.to_string(),
+            ChatRoom::new(id, name, max_members, history_capacity),
+        );
         Ok(())
     }
 
     pub fn destroy_room(&mut self, id: &str) -> Result<ChatRoom, ChatRoomError> {
-        self.rooms.remove(id).ok_or_else(|| ChatRoomError::RoomNotFound(id.to_string()))
+        self.rooms
+            .remove(id)
+            .ok_or_else(|| ChatRoomError::RoomNotFound(id.to_string()))
     }
 
     pub fn get_room(&self, id: &str) -> Option<&ChatRoom> {

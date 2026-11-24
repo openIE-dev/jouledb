@@ -12,22 +12,45 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq)]
 pub enum MdAstNode {
     Document(Vec<MdAstNode>),
-    Heading { level: u8, children: Vec<MdAstNode> },
+    Heading {
+        level: u8,
+        children: Vec<MdAstNode>,
+    },
     Paragraph(Vec<MdAstNode>),
     BlockQuote(Vec<MdAstNode>),
-    CodeBlock { language: Option<String>, code: String },
+    CodeBlock {
+        language: Option<String>,
+        code: String,
+    },
     UnorderedList(Vec<MdAstNode>),
-    OrderedList { start: u32, items: Vec<MdAstNode> },
-    ListItem { checked: Option<bool>, children: Vec<MdAstNode> },
+    OrderedList {
+        start: u32,
+        items: Vec<MdAstNode>,
+    },
+    ListItem {
+        checked: Option<bool>,
+        children: Vec<MdAstNode>,
+    },
     ThematicBreak,
-    Table { headers: Vec<MdAstNode>, alignments: Vec<Align>, rows: Vec<Vec<MdAstNode>> },
+    Table {
+        headers: Vec<MdAstNode>,
+        alignments: Vec<Align>,
+        rows: Vec<Vec<MdAstNode>>,
+    },
     // Inline
     Text(String),
     Bold(Vec<MdAstNode>),
     Italic(Vec<MdAstNode>),
     Code(String),
-    Link { url: String, title: Option<String>, children: Vec<MdAstNode> },
-    Image { url: String, alt: String },
+    Link {
+        url: String,
+        title: Option<String>,
+        children: Vec<MdAstNode>,
+    },
+    Image {
+        url: String,
+        alt: String,
+    },
     LineBreak,
 }
 
@@ -81,16 +104,25 @@ fn parse_blocks(lines: &[&str]) -> Vec<MdAstNode> {
         if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
             let fence_char = if trimmed.starts_with("```") { '`' } else { '~' };
             let lang = trimmed.trim_start_matches(fence_char).trim();
-            let language = if lang.is_empty() { None } else { Some(lang.to_string()) };
+            let language = if lang.is_empty() {
+                None
+            } else {
+                Some(lang.to_string())
+            };
             let mut code = String::new();
             i += 1;
             while i < lines.len() {
                 let cl = lines[i];
-                if cl.trim().starts_with(fence_char) && cl.trim().chars().all(|c| c == fence_char) && cl.trim().len() >= 3 {
+                if cl.trim().starts_with(fence_char)
+                    && cl.trim().chars().all(|c| c == fence_char)
+                    && cl.trim().len() >= 3
+                {
                     i += 1;
                     break;
                 }
-                if !code.is_empty() { code.push('\n'); }
+                if !code.is_empty() {
+                    code.push('\n');
+                }
                 code.push_str(cl);
                 i += 1;
             }
@@ -153,7 +185,11 @@ fn parse_blocks(lines: &[&str]) -> Vec<MdAstNode> {
                         start = num;
                         first = false;
                     }
-                    let after_dot = il.find('.').map(|p| &il[p + 1..]).unwrap_or("").trim_start();
+                    let after_dot = il
+                        .find('.')
+                        .map(|p| &il[p + 1..])
+                        .unwrap_or("")
+                        .trim_start();
                     items.push(MdAstNode::ListItem {
                         checked: None,
                         children: vec![MdAstNode::Paragraph(parse_inline(after_dot))],
@@ -177,16 +213,26 @@ fn parse_blocks(lines: &[&str]) -> Vec<MdAstNode> {
             i += 2;
             while i < lines.len() {
                 let rl = lines[i].trim();
-                if rl.is_empty() || !rl.contains('|') { break; }
-                rows.push(parse_table_row(rl).into_iter().map(|c| {
-                    MdAstNode::Paragraph(parse_inline(&c))
-                }).collect());
+                if rl.is_empty() || !rl.contains('|') {
+                    break;
+                }
+                rows.push(
+                    parse_table_row(rl)
+                        .into_iter()
+                        .map(|c| MdAstNode::Paragraph(parse_inline(&c)))
+                        .collect(),
+                );
                 i += 1;
             }
-            let header_nodes: Vec<MdAstNode> = header_cells.into_iter().map(|c| {
-                MdAstNode::Paragraph(parse_inline(&c))
-            }).collect();
-            nodes.push(MdAstNode::Table { headers: header_nodes, alignments, rows });
+            let header_nodes: Vec<MdAstNode> = header_cells
+                .into_iter()
+                .map(|c| MdAstNode::Paragraph(parse_inline(&c)))
+                .collect();
+            nodes.push(MdAstNode::Table {
+                headers: header_nodes,
+                alignments,
+                rows,
+            });
             continue;
         }
 
@@ -194,11 +240,25 @@ fn parse_blocks(lines: &[&str]) -> Vec<MdAstNode> {
         let mut para_lines = Vec::new();
         while i < lines.len() {
             let pl = lines[i].trim();
-            if pl.is_empty() { break; }
-            if pl.starts_with('#') || is_thematic_break(pl) || pl.starts_with("```") || pl.starts_with("~~~") { break; }
-            if is_unordered_list_item(pl) { break; }
-            if parse_ordered_list_marker(pl).is_some() { break; }
-            if pl.starts_with('>') { break; }
+            if pl.is_empty() {
+                break;
+            }
+            if pl.starts_with('#')
+                || is_thematic_break(pl)
+                || pl.starts_with("```")
+                || pl.starts_with("~~~")
+            {
+                break;
+            }
+            if is_unordered_list_item(pl) {
+                break;
+            }
+            if parse_ordered_list_marker(pl).is_some() {
+                break;
+            }
+            if pl.starts_with('>') {
+                break;
+            }
             para_lines.push(pl);
             i += 1;
         }
@@ -211,15 +271,21 @@ fn parse_blocks(lines: &[&str]) -> Vec<MdAstNode> {
 
 fn is_thematic_break(s: &str) -> bool {
     let chars: Vec<char> = s.chars().filter(|c| !c.is_whitespace()).collect();
-    if chars.len() < 3 { return false; }
+    if chars.len() < 3 {
+        return false;
+    }
     let first = chars[0];
     (first == '-' || first == '*' || first == '_') && chars.iter().all(|c| *c == first)
 }
 
 fn parse_atx_heading(s: &str) -> Option<MdAstNode> {
-    if !s.starts_with('#') { return None; }
+    if !s.starts_with('#') {
+        return None;
+    }
     let level = s.chars().take_while(|c| *c == '#').count();
-    if level > 6 { return None; }
+    if level > 6 {
+        return None;
+    }
     let rest = s[level..].trim();
     // Remove trailing #s
     let text = rest.trim_end_matches('#').trim();
@@ -235,10 +301,16 @@ fn is_unordered_list_item(s: &str) -> bool {
 
 fn parse_ordered_list_marker(s: &str) -> Option<u32> {
     let dot_pos = s.find('.')?;
-    if dot_pos == 0 { return None; }
+    if dot_pos == 0 {
+        return None;
+    }
     let num_str = &s[..dot_pos];
-    if !num_str.chars().all(|c| c.is_ascii_digit()) { return None; }
-    if dot_pos + 1 >= s.len() || s.as_bytes()[dot_pos + 1] != b' ' { return None; }
+    if !num_str.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    if dot_pos + 1 >= s.len() || s.as_bytes()[dot_pos + 1] != b' ' {
+        return None;
+    }
     num_str.parse().ok()
 }
 
@@ -255,10 +327,14 @@ fn parse_task_checkbox(s: &str) -> (Option<bool>, &str) {
 
 fn is_table_separator(s: &str) -> bool {
     let s = s.trim().trim_start_matches('|').trim_end_matches('|');
-    if s.is_empty() { return false; }
+    if s.is_empty() {
+        return false;
+    }
     s.split('|').all(|cell| {
         let c = cell.trim();
-        if c.is_empty() { return true; }
+        if c.is_empty() {
+            return true;
+        }
         let c = c.trim_start_matches(':').trim_end_matches(':');
         !c.is_empty() && c.chars().all(|ch| ch == '-')
     })
@@ -266,17 +342,19 @@ fn is_table_separator(s: &str) -> bool {
 
 fn parse_alignments(s: &str) -> Vec<Align> {
     let s = s.trim().trim_start_matches('|').trim_end_matches('|');
-    s.split('|').map(|cell| {
-        let c = cell.trim();
-        let left = c.starts_with(':');
-        let right = c.ends_with(':');
-        match (left, right) {
-            (true, true) => Align::Center,
-            (true, false) => Align::Left,
-            (false, true) => Align::Right,
-            (false, false) => Align::None,
-        }
-    }).collect()
+    s.split('|')
+        .map(|cell| {
+            let c = cell.trim();
+            let left = c.starts_with(':');
+            let right = c.ends_with(':');
+            match (left, right) {
+                (true, true) => Align::Center,
+                (true, false) => Align::Left,
+                (false, true) => Align::Right,
+                (false, false) => Align::None,
+            }
+        })
+        .collect()
 }
 
 fn parse_table_row(s: &str) -> Vec<String> {
@@ -301,7 +379,10 @@ fn parse_inline(input: &str) -> Vec<MdAstNode> {
         }
 
         // Bold (**...**) or (__...__)
-        if i + 1 < chars.len() && ((chars[i] == '*' && chars[i + 1] == '*') || (chars[i] == '_' && chars[i + 1] == '_')) {
+        if i + 1 < chars.len()
+            && ((chars[i] == '*' && chars[i + 1] == '*')
+                || (chars[i] == '_' && chars[i + 1] == '_'))
+        {
             let marker = chars[i];
             if let Some(end) = find_closing_double(&chars, i + 2, marker) {
                 flush_text(&mut text_buf, &mut nodes);
@@ -377,7 +458,10 @@ fn find_closing_double(chars: &[char], start: usize, marker: char) -> Option<usi
     let mut last = None;
     let mut i = start;
     while i + 1 < chars.len() {
-        if chars[i] == '\\' { i += 2; continue; }
+        if chars[i] == '\\' {
+            i += 2;
+            continue;
+        }
         if chars[i] == marker && chars[i + 1] == marker {
             last = Some(i);
         }
@@ -389,7 +473,10 @@ fn find_closing_double(chars: &[char], start: usize, marker: char) -> Option<usi
 fn find_closing_single(chars: &[char], start: usize, marker: char) -> Option<usize> {
     let mut i = start;
     while i < chars.len() {
-        if chars[i] == '\\' { i += 2; continue; }
+        if chars[i] == '\\' {
+            i += 2;
+            continue;
+        }
         if chars[i] == marker {
             return Some(i);
         }
@@ -407,7 +494,9 @@ fn parse_link_or_image(chars: &[char], start: usize) -> Option<(String, String, 
     let bracket_end = find_char(chars, start + 1, ']')?;
     let text: String = chars[start + 1..bracket_end].iter().collect();
     let paren_start = bracket_end + 1;
-    if paren_start >= chars.len() || chars[paren_start] != '(' { return None; }
+    if paren_start >= chars.len() || chars[paren_start] != '(' {
+        return None;
+    }
     let paren_end = find_char(chars, paren_start + 1, ')')?;
     let url: String = chars[paren_start + 1..paren_end].iter().collect();
     Some((text, url, paren_end + 1))
@@ -458,7 +547,10 @@ fn render_html(node: &MdAstNode, out: &mut String) {
         }
         MdAstNode::CodeBlock { language, code } => {
             if let Some(lang) = language {
-                out.push_str(&format!("<pre><code class=\"language-{}\">", escape_html_text(lang)));
+                out.push_str(&format!(
+                    "<pre><code class=\"language-{}\">",
+                    escape_html_text(lang)
+                ));
             } else {
                 out.push_str("<pre><code>");
             }
@@ -500,7 +592,11 @@ fn render_html(node: &MdAstNode, out: &mut String) {
         MdAstNode::ThematicBreak => {
             out.push_str("<hr>");
         }
-        MdAstNode::Table { headers, alignments, rows } => {
+        MdAstNode::Table {
+            headers,
+            alignments,
+            rows,
+        } => {
             out.push_str("<table><thead><tr>");
             for (i, header) in headers.iter().enumerate() {
                 let align = alignments.get(i).copied().unwrap_or(Align::None);
@@ -553,7 +649,11 @@ fn render_html(node: &MdAstNode, out: &mut String) {
             out.push_str("</a>");
         }
         MdAstNode::Image { url, alt } => {
-            out.push_str(&format!("<img src=\"{}\" alt=\"{}\">", escape_html_text(url), escape_html_text(alt)));
+            out.push_str(&format!(
+                "<img src=\"{}\" alt=\"{}\">",
+                escape_html_text(url),
+                escape_html_text(alt)
+            ));
         }
         MdAstNode::LineBreak => {
             out.push_str("<br>");
@@ -572,9 +672,9 @@ fn align_style(align: Align) -> String {
 
 fn escape_html_text(s: &str) -> String {
     s.replace('&', "&amp;")
-     .replace('<', "&lt;")
-     .replace('>', "&gt;")
-     .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 impl fmt::Display for MdAstNode {

@@ -44,7 +44,12 @@ impl TemporalField {
     }
 
     /// Create a territory-restricted field.
-    pub fn territorial(value: Value, valid_from: u64, valid_to: u64, territories: Vec<String>) -> Self {
+    pub fn territorial(
+        value: Value,
+        valid_from: u64,
+        valid_to: u64,
+        territories: Vec<String>,
+    ) -> Self {
         Self {
             value,
             valid_from,
@@ -78,12 +83,7 @@ impl TemporalStore {
     }
 
     /// Set a temporal field value.
-    pub fn set(
-        &mut self,
-        record_id: RecordId,
-        field: &str,
-        temporal: TemporalField,
-    ) {
+    pub fn set(&mut self, record_id: RecordId, field: &str, temporal: TemporalField) {
         self.fields
             .entry((record_id, field.to_string()))
             .or_default()
@@ -112,12 +112,7 @@ impl TemporalStore {
 
     /// Check if a content item can be streamed in a territory at a given time.
     /// Convenience wrapper for rights management.
-    pub fn can_stream(
-        &self,
-        content_id: RecordId,
-        territory: &str,
-        at: u64,
-    ) -> bool {
+    pub fn can_stream(&self, content_id: RecordId, territory: &str, at: u64) -> bool {
         self.query_valid_at(content_id, "streaming_rights", at, Some(territory))
             .map(|v| match v {
                 Value::Bool(b) => *b,
@@ -128,11 +123,7 @@ impl TemporalStore {
     }
 
     /// Get all active licenses for a content item.
-    pub fn active_licenses(
-        &self,
-        content_id: RecordId,
-        at: u64,
-    ) -> Vec<(&str, &TemporalField)> {
+    pub fn active_licenses(&self, content_id: RecordId, at: u64) -> Vec<(&str, &TemporalField)> {
         self.fields
             .iter()
             .filter(|((rid, _), _)| *rid == content_id)
@@ -206,8 +197,16 @@ mod tests {
         let mut store = TemporalStore::new();
         let now = 1735689600000u64; // 2025-01-01
 
-        store.set(1, "streaming_rights", TemporalField::bounded(Value::Bool(true), 0, u64::MAX));
-        store.set(1, "download_rights", TemporalField::bounded(Value::Bool(false), 0, u64::MAX));
+        store.set(
+            1,
+            "streaming_rights",
+            TemporalField::bounded(Value::Bool(true), 0, u64::MAX),
+        );
+        store.set(
+            1,
+            "download_rights",
+            TemporalField::bounded(Value::Bool(false), 0, u64::MAX),
+        );
 
         let licenses = store.active_licenses(1, now);
         assert_eq!(licenses.len(), 2);

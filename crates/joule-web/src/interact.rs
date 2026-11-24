@@ -48,8 +48,11 @@ pub fn tooltip_defs(id: &str, config: &TooltipConfig) -> String {
          <rect rx=\"{:.0}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"0.5\"/>\
          <text fill=\"{}\" font-size=\"{:.0}\" dominant-baseline=\"middle\"/>\
          </g>",
-        config.border_radius, config.bg_color, config.border_color,
-        config.text_color, config.font_size,
+        config.border_radius,
+        config.bg_color,
+        config.border_color,
+        config.text_color,
+        config.font_size,
     )
 }
 
@@ -62,7 +65,9 @@ pub fn with_tooltip(element_svg: &str, label: &str, x: f64, y: f64) -> String {
             &format!(
                 " data-tooltip=\"{}\" data-tx=\"{:.1}\" data-ty=\"{:.1}\" \
                  class=\"tooltip-target\"/>",
-                html_escape(label), x, y
+                html_escape(label),
+                x,
+                y
             ),
         )
     } else {
@@ -97,37 +102,53 @@ impl Default for CrosshairConfig {
 /// Generate crosshair overlay elements (hidden, positioned by runtime).
 pub fn crosshair_overlay(
     id: &str,
-    plot_x: f64, plot_y: f64, plot_w: f64, plot_h: f64,
+    plot_x: f64,
+    plot_y: f64,
+    plot_w: f64,
+    plot_h: f64,
     config: &CrosshairConfig,
 ) -> String {
     let mut s = String::new();
-    let _ = write!(s,
+    let _ = write!(
+        s,
         "<g id=\"{id}-crosshair\" visibility=\"hidden\" pointer-events=\"none\">\
          <line id=\"{id}-xhair-v\" x1=\"0\" y1=\"{plot_y:.1}\" x2=\"0\" y2=\"{:.1}\" \
                stroke=\"{}\" stroke-width=\"{}\" stroke-dasharray=\"{}\"/>\
          <line id=\"{id}-xhair-h\" x1=\"{plot_x:.1}\" y1=\"0\" x2=\"{:.1}\" y2=\"0\" \
                stroke=\"{}\" stroke-width=\"{}\" stroke-dasharray=\"{}\"/>",
-        plot_y + plot_h, config.color, config.width, config.dash,
-        plot_x + plot_w, config.color, config.width, config.dash,
+        plot_y + plot_h,
+        config.color,
+        config.width,
+        config.dash,
+        plot_x + plot_w,
+        config.color,
+        config.width,
+        config.dash,
     );
 
     if config.show_x_label {
-        let _ = write!(s,
+        let _ = write!(
+            s,
             "<rect id=\"{id}-xlabel-bg\" x=\"0\" y=\"{:.1}\" width=\"60\" height=\"16\" \
                    rx=\"2\" fill=\"{}\" opacity=\"0.9\"/>\
              <text id=\"{id}-xlabel\" x=\"0\" y=\"{:.1}\" text-anchor=\"middle\" \
                    font-size=\"9\" fill=\"white\"/>",
-            plot_y + plot_h + 1.0, config.color, plot_y + plot_h + 12.0,
+            plot_y + plot_h + 1.0,
+            config.color,
+            plot_y + plot_h + 12.0,
         );
     }
 
     if config.show_y_label {
-        let _ = write!(s,
+        let _ = write!(
+            s,
             "<rect id=\"{id}-ylabel-bg\" x=\"{:.1}\" y=\"0\" width=\"40\" height=\"14\" \
                    rx=\"2\" fill=\"{}\" opacity=\"0.9\"/>\
              <text id=\"{id}-ylabel\" x=\"{:.1}\" y=\"0\" text-anchor=\"end\" \
                    font-size=\"9\" fill=\"white\" dominant-baseline=\"middle\"/>",
-            plot_x - 42.0, config.color, plot_x - 4.0,
+            plot_x - 42.0,
+            config.color,
+            plot_x - 4.0,
         );
     }
 
@@ -148,7 +169,12 @@ pub struct ViewTransform {
 
 impl Default for ViewTransform {
     fn default() -> Self {
-        Self { scale_x: 1.0, scale_y: 1.0, translate_x: 0.0, translate_y: 0.0 }
+        Self {
+            scale_x: 1.0,
+            scale_y: 1.0,
+            translate_x: 0.0,
+            translate_y: 0.0,
+        }
     }
 }
 
@@ -185,12 +211,18 @@ impl ViewTransform {
 
     /// Transform a data coordinate to screen coordinate.
     pub fn apply(&self, x: f64, y: f64) -> (f64, f64) {
-        (x * self.scale_x + self.translate_x, y * self.scale_y + self.translate_y)
+        (
+            x * self.scale_x + self.translate_x,
+            y * self.scale_y + self.translate_y,
+        )
     }
 
     /// Inverse: screen coordinate to data coordinate.
     pub fn invert(&self, sx: f64, sy: f64) -> (f64, f64) {
-        ((sx - self.translate_x) / self.scale_x, (sy - self.translate_y) / self.scale_y)
+        (
+            (sx - self.translate_x) / self.scale_x,
+            (sy - self.translate_y) / self.scale_y,
+        )
     }
 }
 
@@ -216,27 +248,42 @@ pub struct BrushSelection {
 
 impl BrushSelection {
     pub fn new() -> Self {
-        Self { x0: 0.0, y0: 0.0, x1: 0.0, y1: 0.0 }
+        Self {
+            x0: 0.0,
+            y0: 0.0,
+            x1: 0.0,
+            y1: 0.0,
+        }
     }
 
-    pub fn width(&self) -> f64 { (self.x1 - self.x0).abs() }
-    pub fn height(&self) -> f64 { (self.y1 - self.y0).abs() }
-    pub fn left(&self) -> f64 { self.x0.min(self.x1) }
-    pub fn top(&self) -> f64 { self.y0.min(self.y1) }
+    pub fn width(&self) -> f64 {
+        (self.x1 - self.x0).abs()
+    }
+    pub fn height(&self) -> f64 {
+        (self.y1 - self.y0).abs()
+    }
+    pub fn left(&self) -> f64 {
+        self.x0.min(self.x1)
+    }
+    pub fn top(&self) -> f64 {
+        self.y0.min(self.y1)
+    }
 
     /// Check if a point is inside the selection.
     pub fn contains(&self, x: f64, y: f64) -> bool {
-        x >= self.left() && x <= self.left() + self.width()
-            && y >= self.top() && y <= self.top() + self.height()
+        x >= self.left()
+            && x <= self.left() + self.width()
+            && y >= self.top()
+            && y <= self.top() + self.height()
     }
 }
 
 /// Brush selection mode.
 #[derive(Debug, Clone, Copy)]
 pub enum BrushMode {
-    XY,    // 2D rectangle
-    X,     // horizontal only
-    Y,     // vertical only
+    XY, // 2D rectangle
+    X,  // horizontal only
+    Y,  // vertical only
 }
 
 /// Generate brush overlay elements.
@@ -268,12 +315,18 @@ pub struct LinkedSelection {
 
 impl LinkedSelection {
     pub fn new(group: &str) -> Self {
-        Self { group: group.into(), selected_indices: vec![] }
+        Self {
+            group: group.into(),
+            selected_indices: vec![],
+        }
     }
 
     /// Generate data attributes for linked selection.
     pub fn link_attr(&self, index: usize) -> String {
-        format!("data-link-group=\"{}\" data-link-idx=\"{}\"", self.group, index)
+        format!(
+            "data-link-group=\"{}\" data-link-idx=\"{}\"",
+            self.group, index
+        )
     }
 }
 
@@ -300,7 +353,14 @@ pub fn make_interactive(
     }
 
     if features.crosshair {
-        extras.push_str(&crosshair_overlay(id, plot_x, plot_y, plot_w, plot_h, &CrosshairConfig::default()));
+        extras.push_str(&crosshair_overlay(
+            id,
+            plot_x,
+            plot_y,
+            plot_w,
+            plot_h,
+            &CrosshairConfig::default(),
+        ));
     }
 
     if features.zoom_pan {
@@ -308,7 +368,14 @@ pub fn make_interactive(
     }
 
     if features.brush {
-        extras.push_str(&brush_overlay(id, plot_x, plot_y, plot_w, plot_h, features.brush_mode));
+        extras.push_str(&brush_overlay(
+            id,
+            plot_x,
+            plot_y,
+            plot_w,
+            plot_h,
+            features.brush_mode,
+        ));
     }
 
     svg.insert_str(insert_pos, &extras);
@@ -340,7 +407,10 @@ impl Default for InteractiveFeatures {
 // ── Helpers ────────────────────────────────────────────────────────
 
 fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 #[cfg(test)]
@@ -401,7 +471,10 @@ mod tests {
     #[test]
     fn brush_contains() {
         let mut b = BrushSelection::new();
-        b.x0 = 10.0; b.y0 = 10.0; b.x1 = 50.0; b.y1 = 50.0;
+        b.x0 = 10.0;
+        b.y0 = 10.0;
+        b.x1 = 50.0;
+        b.y1 = 50.0;
         assert!(b.contains(30.0, 30.0));
         assert!(!b.contains(5.0, 30.0));
         assert!(!b.contains(30.0, 55.0));
@@ -417,7 +490,15 @@ mod tests {
     #[test]
     fn make_interactive_adds_layers() {
         let chart = "<svg width=\"600\" height=\"400\"><rect/></svg>";
-        let result = make_interactive(chart, "test", 50.0, 30.0, 500.0, 340.0, &InteractiveFeatures::default());
+        let result = make_interactive(
+            chart,
+            "test",
+            50.0,
+            30.0,
+            500.0,
+            340.0,
+            &InteractiveFeatures::default(),
+        );
         assert!(result.contains("tooltip"));
         assert!(result.contains("crosshair"));
         assert!(result.contains("zoom-pan-area"));

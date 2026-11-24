@@ -42,12 +42,7 @@ pub struct LayoutOverlay {
 }
 
 impl LayoutOverlay {
-    pub fn from_content(
-        content: Rect,
-        padding: f64,
-        border: f64,
-        margin: f64,
-    ) -> Self {
+    pub fn from_content(content: Rect, padding: f64, border: f64, margin: f64) -> Self {
         let padding_box = Rect::new(
             content.x - padding,
             content.y - padding,
@@ -259,12 +254,7 @@ impl InspectorNode {
     }
 
     /// Edit an attribute on a node at the given path.
-    pub fn edit_attribute(
-        &mut self,
-        path: &TreePath,
-        key: &str,
-        value: &str,
-    ) -> bool {
+    pub fn edit_attribute(&mut self, path: &TreePath, key: &str, value: &str) -> bool {
         if let Some(node) = self.select_mut(path) {
             node.attributes.insert(key.to_string(), value.to_string());
             true
@@ -274,12 +264,7 @@ impl InspectorNode {
     }
 
     /// Edit a computed style on a node at the given path.
-    pub fn edit_style(
-        &mut self,
-        path: &TreePath,
-        prop: &str,
-        value: &str,
-    ) -> bool {
+    pub fn edit_style(&mut self, path: &TreePath, prop: &str, value: &str) -> bool {
         if let Some(node) = self.select_mut(path) {
             node.styles_computed
                 .insert(prop.to_string(), value.to_string());

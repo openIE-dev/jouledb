@@ -18,7 +18,13 @@ pub struct BoundingBox {
 
 impl BoundingBox {
     pub fn new(x: f64, y: f64, w: f64, h: f64, confidence: f64) -> Self {
-        Self { x, y, w, h, confidence }
+        Self {
+            x,
+            y,
+            w,
+            h,
+            confidence,
+        }
     }
 
     /// Area of the box.
@@ -85,7 +91,13 @@ impl FaceLandmarks {
         left_mouth: Landmark,
         right_mouth: Landmark,
     ) -> Self {
-        Self { left_eye, right_eye, nose, left_mouth, right_mouth }
+        Self {
+            left_eye,
+            right_eye,
+            nose,
+            left_mouth,
+            right_mouth,
+        }
     }
 
     /// Inter-ocular distance.
@@ -95,7 +107,13 @@ impl FaceLandmarks {
 
     /// All 5 landmarks as an array.
     pub fn as_array(&self) -> [Landmark; 5] {
-        [self.left_eye, self.right_eye, self.nose, self.left_mouth, self.right_mouth]
+        [
+            self.left_eye,
+            self.right_eye,
+            self.nose,
+            self.left_mouth,
+            self.right_mouth,
+        ]
     }
 }
 

@@ -17,9 +17,15 @@ pub enum TypeRef {
 }
 
 impl TypeRef {
-    pub fn named(name: &str) -> Self { Self::Named(name.into()) }
-    pub fn non_null(inner: TypeRef) -> Self { Self::NonNull(Box::new(inner)) }
-    pub fn list(inner: TypeRef) -> Self { Self::List(Box::new(inner)) }
+    pub fn named(name: &str) -> Self {
+        Self::Named(name.into())
+    }
+    pub fn non_null(inner: TypeRef) -> Self {
+        Self::NonNull(Box::new(inner))
+    }
+    pub fn list(inner: TypeRef) -> Self {
+        Self::List(Box::new(inner))
+    }
 
     /// Shorthand for `String!`.
     pub fn non_null_named(name: &str) -> Self {
@@ -28,9 +34,9 @@ impl TypeRef {
 
     /// Shorthand for `[T!]!`.
     pub fn non_null_list_of_non_null(name: &str) -> Self {
-        Self::NonNull(Box::new(Self::List(Box::new(
-            Self::NonNull(Box::new(Self::Named(name.into())))
-        ))))
+        Self::NonNull(Box::new(Self::List(Box::new(Self::NonNull(Box::new(
+            Self::Named(name.into()),
+        ))))))
     }
 
     /// The innermost named type.
@@ -41,8 +47,12 @@ impl TypeRef {
         }
     }
 
-    pub fn is_non_null(&self) -> bool { matches!(self, Self::NonNull(_)) }
-    pub fn is_list(&self) -> bool { matches!(self, Self::List(_)) }
+    pub fn is_non_null(&self) -> bool {
+        matches!(self, Self::NonNull(_))
+    }
+    pub fn is_list(&self) -> bool {
+        matches!(self, Self::List(_))
+    }
 }
 
 impl fmt::Display for TypeRef {
@@ -68,15 +78,22 @@ pub struct InputValue {
 
 impl InputValue {
     pub fn new(name: &str, type_ref: TypeRef) -> Self {
-        Self { name: name.into(), type_ref, description: None, default_value: None }
+        Self {
+            name: name.into(),
+            type_ref,
+            description: None,
+            default_value: None,
+        }
     }
 
     pub fn with_description(mut self, desc: &str) -> Self {
-        self.description = Some(desc.into()); self
+        self.description = Some(desc.into());
+        self
     }
 
     pub fn with_default(mut self, val: &str) -> Self {
-        self.default_value = Some(val.into()); self
+        self.default_value = Some(val.into());
+        self
     }
 }
 
@@ -96,17 +113,23 @@ pub struct Field {
 impl Field {
     pub fn new(name: &str, type_ref: TypeRef) -> Self {
         Self {
-            name: name.into(), type_ref, description: None,
-            arguments: Vec::new(), is_deprecated: false, deprecation_reason: None,
+            name: name.into(),
+            type_ref,
+            description: None,
+            arguments: Vec::new(),
+            is_deprecated: false,
+            deprecation_reason: None,
         }
     }
 
     pub fn with_description(mut self, desc: &str) -> Self {
-        self.description = Some(desc.into()); self
+        self.description = Some(desc.into());
+        self
     }
 
     pub fn with_arg(mut self, arg: InputValue) -> Self {
-        self.arguments.push(arg); self
+        self.arguments.push(arg);
+        self
     }
 
     pub fn deprecated(mut self, reason: &str) -> Self {
@@ -129,11 +152,17 @@ pub struct EnumValue {
 
 impl EnumValue {
     pub fn new(name: &str) -> Self {
-        Self { name: name.into(), description: None, is_deprecated: false, deprecation_reason: None }
+        Self {
+            name: name.into(),
+            description: None,
+            is_deprecated: false,
+            deprecation_reason: None,
+        }
     }
 
     pub fn with_description(mut self, desc: &str) -> Self {
-        self.description = Some(desc.into()); self
+        self.description = Some(desc.into());
+        self
     }
 
     pub fn deprecated(mut self, reason: &str) -> Self {
@@ -148,10 +177,24 @@ impl EnumValue {
 /// Where a directive can be applied.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DirectiveLocation {
-    Query, Mutation, Subscription, Field, FragmentDefinition,
-    FragmentSpread, InlineFragment, Schema, Scalar, Object,
-    FieldDefinition, ArgumentDefinition, Interface, Union,
-    Enum, EnumValue, InputObject, InputFieldDefinition,
+    Query,
+    Mutation,
+    Subscription,
+    Field,
+    FragmentDefinition,
+    FragmentSpread,
+    InlineFragment,
+    Schema,
+    Scalar,
+    Object,
+    FieldDefinition,
+    ArgumentDefinition,
+    Interface,
+    Union,
+    Enum,
+    EnumValue,
+    InputObject,
+    InputFieldDefinition,
 }
 
 impl fmt::Display for DirectiveLocation {
@@ -192,18 +235,22 @@ pub struct Directive {
 impl Directive {
     pub fn new(name: &str) -> Self {
         Self {
-            name: name.into(), description: None,
-            locations: Vec::new(), arguments: Vec::new(),
+            name: name.into(),
+            description: None,
+            locations: Vec::new(),
+            arguments: Vec::new(),
             is_repeatable: false,
         }
     }
 
     pub fn with_location(mut self, loc: DirectiveLocation) -> Self {
-        self.locations.push(loc); self
+        self.locations.push(loc);
+        self
     }
 
     pub fn with_arg(mut self, arg: InputValue) -> Self {
-        self.arguments.push(arg); self
+        self.arguments.push(arg);
+        self
     }
 }
 
@@ -247,9 +294,12 @@ pub enum TypeDef {
 impl TypeDef {
     pub fn name(&self) -> &str {
         match self {
-            Self::Scalar { name, .. } | Self::Object { name, .. }
-            | Self::Interface { name, .. } | Self::Union { name, .. }
-            | Self::Enum { name, .. } | Self::InputObject { name, .. } => name,
+            Self::Scalar { name, .. }
+            | Self::Object { name, .. }
+            | Self::Interface { name, .. }
+            | Self::Union { name, .. }
+            | Self::Enum { name, .. }
+            | Self::InputObject { name, .. } => name,
         }
     }
 
@@ -288,30 +338,44 @@ impl Default for GraphQLSchema {
         };
         // Add built-in scalar types
         for name in &["String", "Int", "Float", "Boolean", "ID"] {
-            schema.types.insert(name.to_string(), TypeDef::Scalar {
-                name: name.to_string(),
-                description: Some(format!("Built-in {name} scalar")),
-            });
+            schema.types.insert(
+                name.to_string(),
+                TypeDef::Scalar {
+                    name: name.to_string(),
+                    description: Some(format!("Built-in {name} scalar")),
+                },
+            );
         }
         // Add built-in directives
         schema.directives.push(Directive {
             name: "skip".into(),
             description: Some("Skip this field if argument is true".into()),
-            locations: vec![DirectiveLocation::Field, DirectiveLocation::FragmentSpread, DirectiveLocation::InlineFragment],
+            locations: vec![
+                DirectiveLocation::Field,
+                DirectiveLocation::FragmentSpread,
+                DirectiveLocation::InlineFragment,
+            ],
             arguments: vec![InputValue::new("if", TypeRef::non_null_named("Boolean"))],
             is_repeatable: false,
         });
         schema.directives.push(Directive {
             name: "include".into(),
             description: Some("Include this field if argument is true".into()),
-            locations: vec![DirectiveLocation::Field, DirectiveLocation::FragmentSpread, DirectiveLocation::InlineFragment],
+            locations: vec![
+                DirectiveLocation::Field,
+                DirectiveLocation::FragmentSpread,
+                DirectiveLocation::InlineFragment,
+            ],
             arguments: vec![InputValue::new("if", TypeRef::non_null_named("Boolean"))],
             is_repeatable: false,
         });
         schema.directives.push(Directive {
             name: "deprecated".into(),
             description: Some("Marks an element as deprecated".into()),
-            locations: vec![DirectiveLocation::FieldDefinition, DirectiveLocation::EnumValue],
+            locations: vec![
+                DirectiveLocation::FieldDefinition,
+                DirectiveLocation::EnumValue,
+            ],
             arguments: vec![
                 InputValue::new("reason", TypeRef::named("String"))
                     .with_default("\"No longer supported\""),
@@ -323,19 +387,31 @@ impl Default for GraphQLSchema {
 }
 
 impl GraphQLSchema {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn add_type(&mut self, td: TypeDef) {
         self.types.insert(td.name().to_string(), td);
     }
 
-    pub fn set_query(&mut self, name: &str) { self.query_type = Some(name.into()); }
-    pub fn set_mutation(&mut self, name: &str) { self.mutation_type = Some(name.into()); }
-    pub fn set_subscription(&mut self, name: &str) { self.subscription_type = Some(name.into()); }
+    pub fn set_query(&mut self, name: &str) {
+        self.query_type = Some(name.into());
+    }
+    pub fn set_mutation(&mut self, name: &str) {
+        self.mutation_type = Some(name.into());
+    }
+    pub fn set_subscription(&mut self, name: &str) {
+        self.subscription_type = Some(name.into());
+    }
 
-    pub fn add_directive(&mut self, d: Directive) { self.directives.push(d); }
+    pub fn add_directive(&mut self, d: Directive) {
+        self.directives.push(d);
+    }
 
-    pub fn get_type(&self, name: &str) -> Option<&TypeDef> { self.types.get(name) }
+    pub fn get_type(&self, name: &str) -> Option<&TypeDef> {
+        self.types.get(name)
+    }
 
     /// Validate the schema. Returns a list of error strings.
     pub fn validate(&self) -> Vec<String> {
@@ -359,11 +435,21 @@ impl GraphQLSchema {
         // Check all type references resolve
         for td in self.types.values() {
             match td {
-                TypeDef::Object { name, fields, interfaces, .. } => {
+                TypeDef::Object {
+                    name,
+                    fields,
+                    interfaces,
+                    ..
+                } => {
                     for field in fields {
                         self.check_type_ref(&field.type_ref, name, &field.name, &mut errors);
                         for arg in &field.arguments {
-                            self.check_type_ref(&arg.type_ref, name, &format!("{}.{}", field.name, arg.name), &mut errors);
+                            self.check_type_ref(
+                                &arg.type_ref,
+                                name,
+                                &format!("{}.{}", field.name, arg.name),
+                                &mut errors,
+                            );
                         }
                     }
                     for iface in interfaces {
@@ -437,14 +523,18 @@ impl GraphQLSchema {
         // Types (skip built-in scalars)
         let builtins = ["String", "Int", "Float", "Boolean", "ID"];
         for td in self.types.values() {
-            if builtins.contains(&td.name()) { continue; }
+            if builtins.contains(&td.name()) {
+                continue;
+            }
             self.write_type_sdl(td, &mut out);
             out.push('\n');
         }
         // Custom directives (skip built-ins)
         let builtin_directives = ["skip", "include", "deprecated"];
         for d in &self.directives {
-            if builtin_directives.contains(&d.name.as_str()) { continue; }
+            if builtin_directives.contains(&d.name.as_str()) {
+                continue;
+            }
             self.write_directive_sdl(d, &mut out);
             out.push('\n');
         }
@@ -459,7 +549,12 @@ impl GraphQLSchema {
                 }
                 out.push_str(&format!("scalar {name}\n"));
             }
-            TypeDef::Object { name, description, fields, interfaces } => {
+            TypeDef::Object {
+                name,
+                description,
+                fields,
+                interfaces,
+            } => {
                 if let Some(d) = description {
                     out.push_str(&format!("\"{d}\"\n"));
                 }
@@ -469,24 +564,40 @@ impl GraphQLSchema {
                     out.push_str(&interfaces.join(" & "));
                 }
                 out.push_str(" {\n");
-                for f in fields { self.write_field_sdl(f, out); }
+                for f in fields {
+                    self.write_field_sdl(f, out);
+                }
                 out.push_str("}\n");
             }
-            TypeDef::Interface { name, description, fields } => {
+            TypeDef::Interface {
+                name,
+                description,
+                fields,
+            } => {
                 if let Some(d) = description {
                     out.push_str(&format!("\"{d}\"\n"));
                 }
                 out.push_str(&format!("interface {name} {{\n"));
-                for f in fields { self.write_field_sdl(f, out); }
+                for f in fields {
+                    self.write_field_sdl(f, out);
+                }
                 out.push_str("}\n");
             }
-            TypeDef::Union { name, description, members } => {
+            TypeDef::Union {
+                name,
+                description,
+                members,
+            } => {
                 if let Some(d) = description {
                     out.push_str(&format!("\"{d}\"\n"));
                 }
                 out.push_str(&format!("union {name} = {}\n", members.join(" | ")));
             }
-            TypeDef::Enum { name, description, values } => {
+            TypeDef::Enum {
+                name,
+                description,
+                values,
+            } => {
                 if let Some(d) = description {
                     out.push_str(&format!("\"{d}\"\n"));
                 }
@@ -504,7 +615,11 @@ impl GraphQLSchema {
                 }
                 out.push_str("}\n");
             }
-            TypeDef::InputObject { name, description, fields } => {
+            TypeDef::InputObject {
+                name,
+                description,
+                fields,
+            } => {
                 if let Some(d) = description {
                     out.push_str(&format!("\"{d}\"\n"));
                 }
@@ -525,13 +640,17 @@ impl GraphQLSchema {
         out.push_str(&format!("  {}", f.name));
         if !f.arguments.is_empty() {
             out.push('(');
-            let args: Vec<String> = f.arguments.iter().map(|a| {
-                let mut s = format!("{}: {}", a.name, a.type_ref);
-                if let Some(ref dv) = a.default_value {
-                    s.push_str(&format!(" = {dv}"));
-                }
-                s
-            }).collect();
+            let args: Vec<String> = f
+                .arguments
+                .iter()
+                .map(|a| {
+                    let mut s = format!("{}: {}", a.name, a.type_ref);
+                    if let Some(ref dv) = a.default_value {
+                        s.push_str(&format!(" = {dv}"));
+                    }
+                    s
+                })
+                .collect();
             out.push_str(&args.join(", "));
             out.push(')');
         }
@@ -551,13 +670,17 @@ impl GraphQLSchema {
         out.push_str(&d.name);
         if !d.arguments.is_empty() {
             out.push('(');
-            let args: Vec<String> = d.arguments.iter().map(|a| {
-                format!("{}: {}", a.name, a.type_ref)
-            }).collect();
+            let args: Vec<String> = d
+                .arguments
+                .iter()
+                .map(|a| format!("{}: {}", a.name, a.type_ref))
+                .collect();
             out.push_str(&args.join(", "));
             out.push(')');
         }
-        if d.is_repeatable { out.push_str(" repeatable"); }
+        if d.is_repeatable {
+            out.push_str(" repeatable");
+        }
         out.push_str(" on ");
         let locs: Vec<String> = d.locations.iter().map(|l| l.to_string()).collect();
         out.push_str(&locs.join(" | "));
@@ -584,20 +707,28 @@ impl GraphQLSchema {
             m.insert("mutationType".into(), serde_json::Value::Null);
         }
         // types
-        let types_arr: Vec<serde_json::Value> = self.types.values()
+        let types_arr: Vec<serde_json::Value> = self
+            .types
+            .values()
             .map(|td| self.introspect_type(td))
             .collect();
         m.insert("types".into(), serde_json::Value::Array(types_arr));
         // directives
-        let dirs: Vec<serde_json::Value> = self.directives.iter()
+        let dirs: Vec<serde_json::Value> = self
+            .directives
+            .iter()
             .map(|d| {
                 let mut dm = serde_json::Map::new();
                 dm.insert("name".into(), serde_json::Value::String(d.name.clone()));
-                let locs: Vec<serde_json::Value> = d.locations.iter()
-                    .map(|l| serde_json::Value::String(l.to_string())).collect();
+                let locs: Vec<serde_json::Value> = d
+                    .locations
+                    .iter()
+                    .map(|l| serde_json::Value::String(l.to_string()))
+                    .collect();
                 dm.insert("locations".into(), serde_json::Value::Array(locs));
                 serde_json::Value::Object(dm)
-            }).collect();
+            })
+            .collect();
         m.insert("directives".into(), serde_json::Value::Array(dirs));
         serde_json::Value::Object(m)
     }
@@ -607,33 +738,52 @@ impl GraphQLSchema {
         m.insert("kind".into(), serde_json::Value::String(td.kind().into()));
         m.insert("name".into(), serde_json::Value::String(td.name().into()));
         match td {
-            TypeDef::Object { fields, interfaces, .. } => {
-                let fields_arr: Vec<serde_json::Value> = fields.iter()
+            TypeDef::Object {
+                fields, interfaces, ..
+            } => {
+                let fields_arr: Vec<serde_json::Value> = fields
+                    .iter()
                     .map(|f| {
                         let mut fm = serde_json::Map::new();
                         fm.insert("name".into(), serde_json::Value::String(f.name.clone()));
-                        fm.insert("type".into(), serde_json::Value::String(f.type_ref.to_string()));
-                        fm.insert("isDeprecated".into(), serde_json::Value::Bool(f.is_deprecated));
+                        fm.insert(
+                            "type".into(),
+                            serde_json::Value::String(f.type_ref.to_string()),
+                        );
+                        fm.insert(
+                            "isDeprecated".into(),
+                            serde_json::Value::Bool(f.is_deprecated),
+                        );
                         serde_json::Value::Object(fm)
-                    }).collect();
+                    })
+                    .collect();
                 m.insert("fields".into(), serde_json::Value::Array(fields_arr));
-                let ifaces: Vec<serde_json::Value> = interfaces.iter()
-                    .map(|i| serde_json::Value::String(i.clone())).collect();
+                let ifaces: Vec<serde_json::Value> = interfaces
+                    .iter()
+                    .map(|i| serde_json::Value::String(i.clone()))
+                    .collect();
                 m.insert("interfaces".into(), serde_json::Value::Array(ifaces));
             }
             TypeDef::Enum { values, .. } => {
-                let vals: Vec<serde_json::Value> = values.iter()
+                let vals: Vec<serde_json::Value> = values
+                    .iter()
                     .map(|v| {
                         let mut vm = serde_json::Map::new();
                         vm.insert("name".into(), serde_json::Value::String(v.name.clone()));
-                        vm.insert("isDeprecated".into(), serde_json::Value::Bool(v.is_deprecated));
+                        vm.insert(
+                            "isDeprecated".into(),
+                            serde_json::Value::Bool(v.is_deprecated),
+                        );
                         serde_json::Value::Object(vm)
-                    }).collect();
+                    })
+                    .collect();
                 m.insert("enumValues".into(), serde_json::Value::Array(vals));
             }
             TypeDef::Union { members, .. } => {
-                let mbrs: Vec<serde_json::Value> = members.iter()
-                    .map(|mm| serde_json::Value::String(mm.clone())).collect();
+                let mbrs: Vec<serde_json::Value> = members
+                    .iter()
+                    .map(|mm| serde_json::Value::String(mm.clone()))
+                    .collect();
                 m.insert("possibleTypes".into(), serde_json::Value::Array(mbrs));
             }
             _ => {}
@@ -653,7 +803,10 @@ mod tests {
         assert_eq!(TypeRef::named("String").to_string(), "String");
         assert_eq!(TypeRef::non_null_named("String").to_string(), "String!");
         assert_eq!(TypeRef::list(TypeRef::named("Int")).to_string(), "[Int]");
-        assert_eq!(TypeRef::non_null_list_of_non_null("User").to_string(), "[User!]!");
+        assert_eq!(
+            TypeRef::non_null_list_of_non_null("User").to_string(),
+            "[User!]!"
+        );
     }
 
     #[test]
@@ -738,9 +891,7 @@ mod tests {
         schema.add_type(TypeDef::Object {
             name: "Query".into(),
             description: None,
-            fields: vec![
-                Field::new("hello", TypeRef::non_null_named("String")),
-            ],
+            fields: vec![Field::new("hello", TypeRef::non_null_named("String"))],
             interfaces: Vec::new(),
         });
         schema.set_query("Query");
@@ -762,9 +913,7 @@ mod tests {
         schema.add_type(TypeDef::Object {
             name: "Query".into(),
             description: None,
-            fields: vec![
-                Field::new("user", TypeRef::named("User")),
-            ],
+            fields: vec![Field::new("user", TypeRef::named("User"))],
             interfaces: Vec::new(),
         });
         schema.set_query("Query");
@@ -834,9 +983,7 @@ mod tests {
         schema.add_type(TypeDef::Object {
             name: "Query".into(),
             description: None,
-            fields: vec![
-                Field::new("hello", TypeRef::non_null_named("String")),
-            ],
+            fields: vec![Field::new("hello", TypeRef::non_null_named("String"))],
             interfaces: Vec::new(),
         });
         schema.set_query("Query");
@@ -982,12 +1129,60 @@ mod tests {
 
     #[test]
     fn typedef_kind() {
-        assert_eq!(TypeDef::Scalar { name: "X".into(), description: None }.kind(), "SCALAR");
-        assert_eq!(TypeDef::Object { name: "X".into(), description: None, fields: vec![], interfaces: vec![] }.kind(), "OBJECT");
-        assert_eq!(TypeDef::Interface { name: "X".into(), description: None, fields: vec![] }.kind(), "INTERFACE");
-        assert_eq!(TypeDef::Union { name: "X".into(), description: None, members: vec![] }.kind(), "UNION");
-        assert_eq!(TypeDef::Enum { name: "X".into(), description: None, values: vec![] }.kind(), "ENUM");
-        assert_eq!(TypeDef::InputObject { name: "X".into(), description: None, fields: vec![] }.kind(), "INPUT_OBJECT");
+        assert_eq!(
+            TypeDef::Scalar {
+                name: "X".into(),
+                description: None
+            }
+            .kind(),
+            "SCALAR"
+        );
+        assert_eq!(
+            TypeDef::Object {
+                name: "X".into(),
+                description: None,
+                fields: vec![],
+                interfaces: vec![]
+            }
+            .kind(),
+            "OBJECT"
+        );
+        assert_eq!(
+            TypeDef::Interface {
+                name: "X".into(),
+                description: None,
+                fields: vec![]
+            }
+            .kind(),
+            "INTERFACE"
+        );
+        assert_eq!(
+            TypeDef::Union {
+                name: "X".into(),
+                description: None,
+                members: vec![]
+            }
+            .kind(),
+            "UNION"
+        );
+        assert_eq!(
+            TypeDef::Enum {
+                name: "X".into(),
+                description: None,
+                values: vec![]
+            }
+            .kind(),
+            "ENUM"
+        );
+        assert_eq!(
+            TypeDef::InputObject {
+                name: "X".into(),
+                description: None,
+                fields: vec![]
+            }
+            .kind(),
+            "INPUT_OBJECT"
+        );
     }
 
     #[test]
@@ -1002,7 +1197,10 @@ mod tests {
     #[test]
     fn directive_location_display() {
         assert_eq!(DirectiveLocation::Query.to_string(), "QUERY");
-        assert_eq!(DirectiveLocation::FieldDefinition.to_string(), "FIELD_DEFINITION");
+        assert_eq!(
+            DirectiveLocation::FieldDefinition.to_string(),
+            "FIELD_DEFINITION"
+        );
         assert_eq!(DirectiveLocation::InputObject.to_string(), "INPUT_OBJECT");
     }
 
@@ -1023,8 +1221,14 @@ mod tests {
         schema.add_directive(Directive {
             name: "auth".into(),
             description: None,
-            locations: vec![DirectiveLocation::FieldDefinition, DirectiveLocation::Object],
-            arguments: vec![InputValue::new("requires", TypeRef::non_null_named("String"))],
+            locations: vec![
+                DirectiveLocation::FieldDefinition,
+                DirectiveLocation::Object,
+            ],
+            arguments: vec![InputValue::new(
+                "requires",
+                TypeRef::non_null_named("String"),
+            )],
             is_repeatable: false,
         });
         let sdl = schema.to_sdl();

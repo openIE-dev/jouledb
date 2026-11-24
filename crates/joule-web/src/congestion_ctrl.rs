@@ -336,12 +336,12 @@ impl CongestionWindow {
     /// Process a duplicate ack (may trigger fast retransmit).
     pub fn on_dup_ack(&mut self) {
         self.dup_ack_count += 1;
-        if self.dup_ack_count >= self.config.dup_ack_threshold
-            && self.phase != Phase::FastRecovery
+        if self.dup_ack_count >= self.config.dup_ack_threshold && self.phase != Phase::FastRecovery
         {
             // Fast retransmit.
             self.stats.fast_retransmits += 1;
-            self.ssthresh = ((self.cwnd as f64 * self.config.beta) as u32).max(self.config.min_cwnd);
+            self.ssthresh =
+                ((self.cwnd as f64 * self.config.beta) as u32).max(self.config.min_cwnd);
             self.cwnd = self.ssthresh + self.config.dup_ack_threshold;
             self.phase = Phase::FastRecovery;
             self.record_cwnd();
@@ -471,11 +471,7 @@ impl fmt::Display for CongestionWindow {
         write!(
             f,
             "CongestionWindow(algo={}, phase={}, cwnd={}, ssthresh={}, rtt={:.1})",
-            self.config.algorithm,
-            self.phase,
-            self.cwnd,
-            self.ssthresh,
-            self.current_rtt,
+            self.config.algorithm, self.phase, self.cwnd, self.ssthresh, self.current_rtt,
         )
     }
 }

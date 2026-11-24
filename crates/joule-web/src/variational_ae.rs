@@ -25,19 +25,37 @@ impl VaeActivation {
             VaeActivation::ReLU => x.max(0.0),
             VaeActivation::Tanh => x.tanh(),
             VaeActivation::Sigmoid => 1.0 / (1.0 + (-x).exp()),
-            VaeActivation::ELU(alpha) => if x >= 0.0 { x } else { alpha * (x.exp() - 1.0) },
+            VaeActivation::ELU(alpha) => {
+                if x >= 0.0 {
+                    x
+                } else {
+                    alpha * (x.exp() - 1.0)
+                }
+            }
         }
     }
 
     pub fn derivative(&self, x: f64) -> f64 {
         match self {
-            VaeActivation::ReLU => if x > 0.0 { 1.0 } else { 0.0 },
+            VaeActivation::ReLU => {
+                if x > 0.0 {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
             VaeActivation::Tanh => 1.0 - x.tanh().powi(2),
             VaeActivation::Sigmoid => {
                 let s = self.forward(x);
                 s * (1.0 - s)
             }
-            VaeActivation::ELU(alpha) => if x >= 0.0 { 1.0 } else { alpha * x.exp() },
+            VaeActivation::ELU(alpha) => {
+                if x >= 0.0 {
+                    1.0
+                } else {
+                    alpha * x.exp()
+                }
+            }
         }
     }
 }
@@ -67,7 +85,10 @@ impl Lcg {
     }
 
     fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.state
     }
 
@@ -94,19 +115,36 @@ struct DenseLayer {
 }
 
 impl DenseLayer {
-    fn new(input_dim: usize, output_dim: usize, activation: Option<VaeActivation>, rng: &mut Lcg) -> Self {
+    fn new(
+        input_dim: usize,
+        output_dim: usize,
+        activation: Option<VaeActivation>,
+        rng: &mut Lcg,
+    ) -> Self {
         let scale = (2.0 / (input_dim + output_dim) as f64).sqrt();
         let weights = (0..output_dim)
-            .map(|_| (0..input_dim).map(|_| rng.standard_normal() * scale).collect())
+            .map(|_| {
+                (0..input_dim)
+                    .map(|_| rng.standard_normal() * scale)
+                    .collect()
+            })
             .collect();
         let biases = vec![0.0; output_dim];
-        Self { weights, biases, activation }
+        Self {
+            weights,
+            biases,
+            activation,
+        }
     }
 
     fn forward(&self, input: &[f64]) -> Vec<f64> {
         (0..self.biases.len())
             .map(|j| {
-                let z: f64 = self.weights[j].iter().zip(input).map(|(w, x)| w * x).sum::<f64>()
+                let z: f64 = self.weights[j]
+                    .iter()
+                    .zip(input)
+                    .map(|(w, x)| w * x)
+                    .sum::<f64>()
                     + self.biases[j];
                 match &self.activation {
                     Some(act) => act.forward(z),
@@ -123,15 +161,19 @@ impl DenseLayer {
 /// KL = -0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
 pub fn kl_divergence_standard_normal(mu: &[f64], log_var: &[f64]) -> f64 {
     assert_eq!(mu.len(), log_var.len());
-    -0.5 * mu.iter().zip(log_var.iter())
+    -0.5 * mu
+        .iter()
+        .zip(log_var.iter())
         .map(|(m, lv)| 1.0 + lv - m.powi(2) - lv.exp())
         .sum::<f64>()
 }
 
 /// KL divergence between two diagonal Gaussians.
 pub fn kl_divergence_gaussians(
-    mu1: &[f64], log_var1: &[f64],
-    mu2: &[f64], log_var2: &[f64],
+    mu1: &[f64],
+    log_var1: &[f64],
+    mu2: &[f64],
+    log_var2: &[f64],
 ) -> f64 {
     assert_eq!(mu1.len(), mu2.len());
     let d = mu1.len();
@@ -148,7 +190,8 @@ pub fn kl_divergence_gaussians(
 
 /// Reparameterization trick: z = mu + sigma * epsilon, epsilon ~ N(0,1).
 pub fn reparameterize(mu: &[f64], log_var: &[f64], rng: &mut Lcg) -> Vec<f64> {
-    mu.iter().zip(log_var.iter())
+    mu.iter()
+        .zip(log_var.iter())
         .map(|(m, lv)| {
             let sigma = (lv / 2.0).exp();
             let eps = rng.standard_normal();
@@ -261,7 +304,12 @@ impl Vae {
         let mut encoder_layers = Vec::new();
         let mut prev_dim = config.input_dim;
         for &hidden_dim in &config.hidden_layers {
-            encoder_layers.push(DenseLayer::new(prev_dim, hidden_dim, Some(config.activation), &mut rng));
+            encoder_layers.push(DenseLayer::new(
+                prev_dim,
+                hidden_dim,
+                Some(config.activation),
+                &mut rng,
+            ));
             prev_dim = hidden_dim;
         }
         let mu_layer = DenseLayer::new(prev_dim, config.latent_dim, None, &mut rng);
@@ -271,10 +319,20 @@ impl Vae {
         let mut decoder_layers = Vec::new();
         prev_dim = config.latent_dim;
         for &hidden_dim in config.hidden_layers.iter().rev() {
-            decoder_layers.push(DenseLayer::new(prev_dim, hidden_dim, Some(config.activation), &mut rng));
+            decoder_layers.push(DenseLayer::new(
+                prev_dim,
+                hidden_dim,
+                Some(config.activation),
+                &mut rng,
+            ));
             prev_dim = hidden_dim;
         }
-        decoder_layers.push(DenseLayer::new(prev_dim, config.input_dim, Some(VaeActivation::Sigmoid), &mut rng));
+        decoder_layers.push(DenseLayer::new(
+            prev_dim,
+            config.input_dim,
+            Some(VaeActivation::Sigmoid),
+            &mut rng,
+        ));
 
         Self {
             encoder_layers,
@@ -331,11 +389,20 @@ impl Vae {
     }
 
     /// Compute ELBO for a single sample (lower is better for loss = -ELBO).
-    pub fn compute_elbo(&self, input: &[f64], recon: &[f64], mu: &[f64], log_var: &[f64]) -> (f64, f64, f64) {
+    pub fn compute_elbo(
+        &self,
+        input: &[f64],
+        recon: &[f64],
+        mu: &[f64],
+        log_var: &[f64],
+    ) -> (f64, f64, f64) {
         let n = input.len() as f64;
-        let recon_loss: f64 = input.iter().zip(recon.iter())
+        let recon_loss: f64 = input
+            .iter()
+            .zip(recon.iter())
             .map(|(x, r)| (x - r).powi(2))
-            .sum::<f64>() / n;
+            .sum::<f64>()
+            / n;
 
         let kl = kl_divergence_standard_normal(mu, log_var);
         let beta = self.current_kl_weight();
@@ -346,7 +413,13 @@ impl Vae {
     /// Train for one epoch on the given data.
     pub fn train_epoch(&mut self, data: &[Vec<f64>]) -> ElboRecord {
         if data.is_empty() {
-            return ElboRecord { epoch: self.epoch, reconstruction_loss: 0.0, kl_loss: 0.0, elbo: 0.0, kl_weight: 0.0 };
+            return ElboRecord {
+                epoch: self.epoch,
+                reconstruction_loss: 0.0,
+                kl_loss: 0.0,
+                elbo: 0.0,
+                kl_weight: 0.0,
+            };
         }
 
         let mut total_recon = 0.0;
@@ -411,9 +484,8 @@ impl Vae {
 
     /// Total parameter count.
     pub fn param_count(&self) -> usize {
-        let layer_params = |l: &DenseLayer| -> usize {
-            l.weights.len() * l.weights[0].len() + l.biases.len()
-        };
+        let layer_params =
+            |l: &DenseLayer| -> usize { l.weights.len() * l.weights[0].len() + l.biases.len() };
         let enc: usize = self.encoder_layers.iter().map(layer_params).sum();
         let mu_params = layer_params(&self.mu_layer);
         let lv_params = layer_params(&self.log_var_layer);

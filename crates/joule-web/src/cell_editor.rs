@@ -63,11 +63,17 @@ pub struct ValidationResult {
 
 impl ValidationResult {
     pub fn ok() -> Self {
-        Self { valid: true, messages: Vec::new() }
+        Self {
+            valid: true,
+            messages: Vec::new(),
+        }
     }
 
     pub fn fail(msg: impl Into<String>) -> Self {
-        Self { valid: false, messages: vec![msg.into()] }
+        Self {
+            valid: false,
+            messages: vec![msg.into()],
+        }
     }
 }
 
@@ -272,7 +278,11 @@ impl CellEditorManager {
         if self.editable_columns.is_empty() || self.row_order.is_empty() {
             return None;
         }
-        let col_idx = self.editable_columns.iter().position(|c| c == column_id).unwrap_or(0);
+        let col_idx = self
+            .editable_columns
+            .iter()
+            .position(|c| c == column_id)
+            .unwrap_or(0);
         let row_idx = self.row_order.iter().position(|r| r == row_id).unwrap_or(0);
 
         let next_col = col_idx + 1;
@@ -300,7 +310,11 @@ impl CellEditorManager {
         if self.editable_columns.is_empty() || self.row_order.is_empty() {
             return None;
         }
-        let col_idx = self.editable_columns.iter().position(|c| c == column_id).unwrap_or(0);
+        let col_idx = self
+            .editable_columns
+            .iter()
+            .position(|c| c == column_id)
+            .unwrap_or(0);
         let row_idx = self.row_order.iter().position(|r| r == row_id).unwrap_or(0);
 
         if col_idx > 0 {

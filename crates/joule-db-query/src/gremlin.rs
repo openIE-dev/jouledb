@@ -372,7 +372,8 @@ impl GremlinParser {
             }
             _ => {
                 return Err(QueryError::ParseError(format!(
-                    "unknown Gremlin step: {}", name
+                    "unknown Gremlin step: {}",
+                    name
                 )));
             }
         };
@@ -409,18 +410,32 @@ impl GremlinParser {
 
     fn parse_string_arg(&mut self) -> QueryResult<String> {
         self.skip_ws();
-        let quote = self.cur().ok_or_else(|| {
-            QueryError::ParseError("expected string".to_string())
-        })?;
+        let quote = self
+            .cur()
+            .ok_or_else(|| QueryError::ParseError("expected string".to_string()))?;
         if quote != '"' && quote != '\'' {
-            return Err(QueryError::ParseError(format!("expected quote, got {:?}", quote)));
+            return Err(QueryError::ParseError(format!(
+                "expected quote, got {:?}",
+                quote
+            )));
         }
         self.advance(1);
         let mut s = String::new();
         while let Some(c) = self.cur() {
-            if c == quote { self.advance(1); return Ok(s); }
-            if c == '\\' { self.advance(1); if let Some(e) = self.cur() { s.push(e); self.advance(1); } }
-            else { s.push(c); self.advance(1); }
+            if c == quote {
+                self.advance(1);
+                return Ok(s);
+            }
+            if c == '\\' {
+                self.advance(1);
+                if let Some(e) = self.cur() {
+                    s.push(e);
+                    self.advance(1);
+                }
+            } else {
+                s.push(c);
+                self.advance(1);
+            }
         }
         Ok(s)
     }
@@ -440,33 +455,51 @@ impl GremlinParser {
         while self.peek('"') || self.peek('\'') {
             args.push(self.parse_string_arg()?);
             self.skip_ws();
-            if self.peek(',') { self.advance(1); self.skip_ws(); }
+            if self.peek(',') {
+                self.advance(1);
+                self.skip_ws();
+            }
         }
         Ok(args)
     }
 
     fn parse_int_arg(&mut self) -> QueryResult<i64> {
         let s = self.read_number_str();
-        s.parse().map_err(|_| QueryError::ParseError(format!("invalid integer: {}", s)))
+        s.parse()
+            .map_err(|_| QueryError::ParseError(format!("invalid integer: {}", s)))
     }
 
     // --- Helpers ---
 
     fn skip_ws(&mut self) {
         while let Some(c) = self.cur() {
-            if c.is_whitespace() { self.advance(1); } else { break; }
+            if c.is_whitespace() {
+                self.advance(1);
+            } else {
+                break;
+            }
         }
     }
 
-    fn cur(&self) -> Option<char> { self.input.get(self.pos).copied() }
-    fn peek(&self, c: char) -> bool { self.cur() == Some(c) }
-    fn advance(&mut self, n: usize) { self.pos += n; }
+    fn cur(&self) -> Option<char> {
+        self.input.get(self.pos).copied()
+    }
+    fn peek(&self, c: char) -> bool {
+        self.cur() == Some(c)
+    }
+    fn advance(&mut self, n: usize) {
+        self.pos += n;
+    }
 
     fn peek_kw(&self, kw: &str) -> bool {
         let chars: Vec<char> = kw.chars().collect();
-        if self.pos + chars.len() > self.input.len() { return false; }
+        if self.pos + chars.len() > self.input.len() {
+            return false;
+        }
         for (i, c) in chars.iter().enumerate() {
-            if self.input[self.pos + i] != *c { return false; }
+            if self.input[self.pos + i] != *c {
+                return false;
+            }
         }
         true
     }
@@ -479,10 +512,15 @@ impl GremlinParser {
     }
 
     fn expect_char(&mut self, c: char) -> QueryResult<()> {
-        if self.cur() == Some(c) { self.advance(1); Ok(()) }
-        else {
+        if self.cur() == Some(c) {
+            self.advance(1);
+            Ok(())
+        } else {
             Err(QueryError::ParseError(format!(
-                "expected '{}' at pos {}, got {:?}", c, self.pos, self.cur()
+                "expected '{}' at pos {}, got {:?}",
+                c,
+                self.pos,
+                self.cur()
             )))
         }
     }
@@ -490,18 +528,29 @@ impl GremlinParser {
     fn read_ident(&mut self) -> String {
         let mut s = String::new();
         while let Some(c) = self.cur() {
-            if c.is_alphanumeric() || c == '_' { s.push(c); self.advance(1); }
-            else { break; }
+            if c.is_alphanumeric() || c == '_' {
+                s.push(c);
+                self.advance(1);
+            } else {
+                break;
+            }
         }
         s
     }
 
     fn read_number_str(&mut self) -> String {
         let mut s = String::new();
-        if self.peek('-') { s.push('-'); self.advance(1); }
+        if self.peek('-') {
+            s.push('-');
+            self.advance(1);
+        }
         while let Some(c) = self.cur() {
-            if c.is_ascii_digit() || c == '.' { s.push(c); self.advance(1); }
-            else { break; }
+            if c.is_ascii_digit() || c == '.' {
+                s.push(c);
+                self.advance(1);
+            } else {
+                break;
+            }
         }
         s
     }
@@ -527,7 +576,10 @@ mod tests {
     fn test_parse_v_with_id() {
         let mut p = GremlinParser::new();
         let q = p.parse("g.V(1)").unwrap();
-        assert!(matches!(q.source, GremlinSource::V(Some(GremlinValue::Integer(1)))));
+        assert!(matches!(
+            q.source,
+            GremlinSource::V(Some(GremlinValue::Integer(1)))
+        ));
     }
 
     #[test]
@@ -563,7 +615,9 @@ mod tests {
     #[test]
     fn test_parse_chain() {
         let mut p = GremlinParser::new();
-        let q = p.parse(r#"g.V().has("name", "Alice").out("knows").values("name")"#).unwrap();
+        let q = p
+            .parse(r#"g.V().has("name", "Alice").out("knows").values("name")"#)
+            .unwrap();
         assert_eq!(q.steps.len(), 3);
         assert!(matches!(&q.steps[0], GremlinStep::Has(..)));
         assert!(matches!(&q.steps[1], GremlinStep::Out(..)));
@@ -581,7 +635,9 @@ mod tests {
     #[test]
     fn test_parse_add_v() {
         let mut p = GremlinParser::new();
-        let q = p.parse(r#"g.addV("person").property("name", "Dave")"#).unwrap();
+        let q = p
+            .parse(r#"g.addV("person").property("name", "Dave")"#)
+            .unwrap();
         assert!(matches!(&q.source, GremlinSource::AddV(s) if s == "person"));
         assert_eq!(q.steps.len(), 1);
         match &q.steps[0] {

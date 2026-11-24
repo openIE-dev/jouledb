@@ -82,11 +82,7 @@ impl EnergyContext {
     /// energy when dropped or finished.
     ///
     /// If tracking is disabled, returns `None` — caller just runs the op.
-    pub fn begin_op(
-        &mut self,
-        task_type: ProductivityTaskType,
-        label: &str,
-    ) -> Option<OpGuard> {
+    pub fn begin_op(&mut self, task_type: ProductivityTaskType, label: &str) -> Option<OpGuard> {
         if !self.enabled {
             return None;
         }
@@ -184,9 +180,7 @@ impl EnergyContext {
     }
 
     /// Energy breakdown by task type.
-    pub fn energy_by_task_type(
-        &self,
-    ) -> std::collections::HashMap<ProductivityTaskType, f64> {
+    pub fn energy_by_task_type(&self) -> std::collections::HashMap<ProductivityTaskType, f64> {
         self.log.by_task_type()
     }
 

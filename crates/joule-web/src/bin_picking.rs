@@ -55,7 +55,11 @@ impl Point3 {
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn distance_to(self, other: Self) -> f64 {
@@ -66,15 +70,27 @@ impl Point3 {
     }
 
     pub fn add(self, other: Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y, z: self.z + other.z }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
     }
 
     pub fn sub(self, other: Self) -> Self {
-        Self { x: self.x - other.x, y: self.y - other.y, z: self.z - other.z }
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+            z: self.z - other.z,
+        }
     }
 
     pub fn scale(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn dot(self, other: Self) -> f64 {
@@ -95,7 +111,11 @@ impl Point3 {
 
     pub fn normalized(self) -> Option<Self> {
         let n = self.norm();
-        if n < 1e-12 { None } else { Some(self.scale(1.0 / n)) }
+        if n < 1e-12 {
+            None
+        } else {
+            Some(self.scale(1.0 / n))
+        }
     }
 }
 
@@ -160,8 +180,16 @@ impl AABB {
     /// Expand this AABB by a margin.
     pub fn expand(&self, margin: f64) -> Self {
         Self {
-            min: Point3::new(self.min.x - margin, self.min.y - margin, self.min.z - margin),
-            max: Point3::new(self.max.x + margin, self.max.y + margin, self.max.z + margin),
+            min: Point3::new(
+                self.min.x - margin,
+                self.min.y - margin,
+                self.min.z - margin,
+            ),
+            max: Point3::new(
+                self.max.x + margin,
+                self.max.y + margin,
+                self.max.z + margin,
+            ),
         }
     }
 
@@ -192,7 +220,9 @@ impl fmt::Display for AABB {
 /// Returns the centroid of each occupied voxel.
 pub fn voxel_downsample(points: &[Point3], voxel_size: f64) -> Result<Vec<Point3>, BinPickError> {
     if voxel_size <= 0.0 {
-        return Err(BinPickError::InvalidInput("voxel size must be positive".into()));
+        return Err(BinPickError::InvalidInput(
+            "voxel size must be positive".into(),
+        ));
     }
     if points.is_empty() {
         return Ok(Vec::new());
@@ -288,10 +318,7 @@ impl SegmentConfig {
 }
 
 /// Segment a point cloud into clusters using region growing.
-pub fn segment_objects(
-    points: &[Point3],
-    config: &SegmentConfig,
-) -> Vec<ObjectCluster> {
+pub fn segment_objects(points: &[Point3], config: &SegmentConfig) -> Vec<ObjectCluster> {
     let n = points.len();
     if n == 0 {
         return Vec::new();
@@ -334,12 +361,18 @@ pub fn segment_objects(
 
         if indices.len() >= config.min_cluster_size {
             let centroid = {
-                let sum = indices.iter().fold(Point3::zero(), |acc, &i| acc.add(points[i]));
+                let sum = indices
+                    .iter()
+                    .fold(Point3::zero(), |acc, &i| acc.add(points[i]));
                 sum.scale(1.0 / indices.len() as f64)
             };
             let cluster_points: Vec<Point3> = indices.iter().map(|i| points[*i]).collect();
             let bbox = AABB::from_points(&cluster_points).unwrap();
-            clusters.push(ObjectCluster { indices, centroid, bbox });
+            clusters.push(ObjectCluster {
+                indices,
+                centroid,
+                bbox,
+            });
         }
     }
     clusters
@@ -380,7 +413,9 @@ impl fmt::Display for ObjectPose {
 /// Estimate the 6-DOF pose of an object cluster via PCA.
 pub fn estimate_pose(points: &[Point3]) -> Result<ObjectPose, BinPickError> {
     if points.len() < 3 {
-        return Err(BinPickError::InvalidInput("need >= 3 points for PCA".into()));
+        return Err(BinPickError::InvalidInput(
+            "need >= 3 points for PCA".into(),
+        ));
     }
     let n = points.len() as f64;
     let centroid = {
@@ -419,7 +454,12 @@ pub fn estimate_pose(points: &[Point3]) -> Result<ObjectPose, BinPickError> {
         Point3::new(eigenvectors[0][2], eigenvectors[1][2], eigenvectors[2][2]),
     ];
 
-    Ok(ObjectPose { centroid, axes, eigenvalues, elongation })
+    Ok(ObjectPose {
+        centroid,
+        axes,
+        eigenvalues,
+        elongation,
+    })
 }
 
 /// Jacobi eigendecomposition for a 3x3 symmetric matrix.
@@ -484,9 +524,15 @@ fn jacobi_3x3(a: &[[f64; 3]; 3]) -> Result<([f64; 3], [[f64; 3]; 3]), BinPickErr
     let mut evals = [m[0][0], m[1][1], m[2][2]];
     let mut order = [0usize, 1, 2];
     // Sort descending
-    if evals[order[0]] < evals[order[1]] { order.swap(0, 1); }
-    if evals[order[0]] < evals[order[2]] { order.swap(0, 2); }
-    if evals[order[1]] < evals[order[2]] { order.swap(1, 2); }
+    if evals[order[0]] < evals[order[1]] {
+        order.swap(0, 1);
+    }
+    if evals[order[0]] < evals[order[2]] {
+        order.swap(0, 2);
+    }
+    if evals[order[1]] < evals[order[2]] {
+        order.swap(1, 2);
+    }
 
     let sorted_evals = [evals[order[0]], evals[order[1]], evals[order[2]]];
     let mut sorted_v = [[0.0f64; 3]; 3];
@@ -567,10 +613,7 @@ impl Default for BinPickConfig {
             voxel_size: 0.005,
             segment_config: SegmentConfig::default(),
             collision_margin: 0.005,
-            bin_bounds: AABB::new(
-                Point3::new(-0.3, -0.2, 0.0),
-                Point3::new(0.3, 0.2, 0.15),
-            ),
+            bin_bounds: AABB::new(Point3::new(-0.3, -0.2, 0.0), Point3::new(0.3, 0.2, 0.15)),
             max_gripper_width: 0.08,
         }
     }
@@ -663,15 +706,18 @@ impl BinPicker {
                 / (self.config.bin_bounds.max.z - self.config.bin_bounds.min.z + 1e-10);
             let clearance = self.check_clearance(&grasp_pos, bbox);
 
-            let mut candidate = GraspCandidate::new(grasp_pos, approach, self.config.max_gripper_width)
-                .with_score(height_score * 0.6 + clearance * 0.4);
+            let mut candidate =
+                GraspCandidate::new(grasp_pos, approach, self.config.max_gripper_width)
+                    .with_score(height_score * 0.6 + clearance * 0.4);
             candidate.collision_free = clearance > 0.0;
             candidates.push(candidate);
         }
 
         // Sort by score descending
         candidates.sort_by(|a, b| {
-            b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal)
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
         candidates
     }
@@ -827,8 +873,8 @@ mod tests {
 
     #[test]
     fn test_grasp_candidate_with_score() {
-        let g = GraspCandidate::new(Point3::zero(), Point3::new(0.0, 0.0, -1.0), 0.08)
-            .with_score(0.9);
+        let g =
+            GraspCandidate::new(Point3::zero(), Point3::new(0.0, 0.0, -1.0), 0.08).with_score(0.9);
         assert!((g.score - 0.9).abs() < 1e-10);
     }
 

@@ -10,7 +10,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -103,7 +105,10 @@ impl Default for PsoConfig {
             dimensions: 5,
             c1: 2.0,
             c2: 2.0,
-            inertia: InertiaWeight::LinearDecrease { w_max: 0.9, w_min: 0.4 },
+            inertia: InertiaWeight::LinearDecrease {
+                w_max: 0.9,
+                w_min: 0.4,
+            },
             topology: Topology::Global,
             max_iterations: 200,
             position_bounds: (-10.0, 10.0),
@@ -162,11 +167,15 @@ impl ParticleSwarm {
         self.global_best_fitness = f64::NEG_INFINITY;
 
         for _ in 0..self.config.swarm_size {
-            let pos: Vec<f64> = (0..dims).map(|_| lo + self.rng.next_f64() * (hi - lo)).collect();
-            let vel: Vec<f64> = (0..dims).map(|_| {
-                let range = hi - lo;
-                (self.rng.next_f64() - 0.5) * range * 0.1
-            }).collect();
+            let pos: Vec<f64> = (0..dims)
+                .map(|_| lo + self.rng.next_f64() * (hi - lo))
+                .collect();
+            let vel: Vec<f64> = (0..dims)
+                .map(|_| {
+                    let range = hi - lo;
+                    (self.rng.next_f64() - 0.5) * range * 0.1
+                })
+                .collect();
             let mut p = Particle::new(pos, dims);
             p.velocity = vel;
             self.particles.push(p);
@@ -274,18 +283,19 @@ impl ParticleSwarm {
         let dims = self.config.dimensions;
 
         // Collect neighborhood bests first (to avoid borrow issues)
-        let nbest: Vec<Vec<f64>> = (0..n)
-            .map(|i| self.neighborhood_best(i).to_vec())
-            .collect();
+        let nbest: Vec<Vec<f64>> = (0..n).map(|i| self.neighborhood_best(i).to_vec()).collect();
 
         for i in 0..n {
             let r1 = self.rng.next_f64();
             let r2 = self.rng.next_f64();
 
             for d in 0..dims {
-                let cognitive = c1 * r1 * (self.particles[i].personal_best_position[d] - self.particles[i].position[d]);
+                let cognitive = c1
+                    * r1
+                    * (self.particles[i].personal_best_position[d] - self.particles[i].position[d]);
                 let social = c2 * r2 * (nbest[i][d] - self.particles[i].position[d]);
-                self.particles[i].velocity[d] = w * self.particles[i].velocity[d] + cognitive + social;
+                self.particles[i].velocity[d] =
+                    w * self.particles[i].velocity[d] + cognitive + social;
 
                 // Velocity clamping
                 self.particles[i].velocity[d] = self.particles[i].velocity[d].clamp(-v_max, v_max);
@@ -382,10 +392,19 @@ impl ParticleSwarm {
             *c /= n;
         }
 
-        let avg_dist: f64 = self.particles.iter().map(|p| {
-            p.position.iter().zip(centroid.iter())
-                .map(|(a, b)| (a - b).powi(2)).sum::<f64>().sqrt()
-        }).sum::<f64>() / n;
+        let avg_dist: f64 = self
+            .particles
+            .iter()
+            .map(|p| {
+                p.position
+                    .iter()
+                    .zip(centroid.iter())
+                    .map(|(a, b)| (a - b).powi(2))
+                    .sum::<f64>()
+                    .sqrt()
+            })
+            .sum::<f64>()
+            / n;
 
         avg_dist
     }
@@ -393,9 +412,11 @@ impl ParticleSwarm {
     /// Average velocity magnitude.
     pub fn average_velocity(&self) -> f64 {
         let n = self.particles.len() as f64;
-        self.particles.iter().map(|p| {
-            p.velocity.iter().map(|v| v * v).sum::<f64>().sqrt()
-        }).sum::<f64>() / n
+        self.particles
+            .iter()
+            .map(|p| p.velocity.iter().map(|v| v * v).sum::<f64>().sqrt())
+            .sum::<f64>()
+            / n
     }
 }
 
@@ -413,7 +434,10 @@ mod tests {
     /// Rastrigin-like (inverted, max at origin).
     fn neg_rastrigin(x: &[f64]) -> f64 {
         let n = x.len() as f64;
-        let sum: f64 = x.iter().map(|xi| xi * xi - 10.0 * (2.0 * std::f64::consts::PI * xi).cos()).sum();
+        let sum: f64 = x
+            .iter()
+            .map(|xi| xi * xi - 10.0 * (2.0 * std::f64::consts::PI * xi).cos())
+            .sum();
         -(10.0 * n + sum)
     }
 
@@ -436,7 +460,11 @@ mod tests {
 
     #[test]
     fn test_initialize_swarm() {
-        let config = PsoConfig { swarm_size: 20, dimensions: 3, ..Default::default() };
+        let config = PsoConfig {
+            swarm_size: 20,
+            dimensions: 3,
+            ..Default::default()
+        };
         let mut pso = ParticleSwarm::new(config);
         pso.initialize();
         assert_eq!(pso.particles().len(), 20);
@@ -450,7 +478,11 @@ mod tests {
 
     #[test]
     fn test_evaluate_updates_pbest() {
-        let config = PsoConfig { swarm_size: 10, dimensions: 2, ..Default::default() };
+        let config = PsoConfig {
+            swarm_size: 10,
+            dimensions: 2,
+            ..Default::default()
+        };
         let mut pso = ParticleSwarm::new(config);
         pso.initialize();
         pso.evaluate(&neg_sphere);
@@ -461,7 +493,11 @@ mod tests {
 
     #[test]
     fn test_evaluate_updates_gbest() {
-        let config = PsoConfig { swarm_size: 10, dimensions: 2, ..Default::default() };
+        let config = PsoConfig {
+            swarm_size: 10,
+            dimensions: 2,
+            ..Default::default()
+        };
         let mut pso = ParticleSwarm::new(config);
         pso.initialize();
         pso.evaluate(&neg_sphere);
@@ -470,7 +506,11 @@ mod tests {
 
     #[test]
     fn test_step_increases_iteration() {
-        let config = PsoConfig { swarm_size: 10, dimensions: 2, ..Default::default() };
+        let config = PsoConfig {
+            swarm_size: 10,
+            dimensions: 2,
+            ..Default::default()
+        };
         let mut pso = ParticleSwarm::new(config);
         pso.initialize();
         pso.evaluate(&neg_sphere);
@@ -481,7 +521,12 @@ mod tests {
 
     #[test]
     fn test_monotonic_gbest() {
-        let config = PsoConfig { swarm_size: 20, dimensions: 3, max_iterations: 30, ..Default::default() };
+        let config = PsoConfig {
+            swarm_size: 20,
+            dimensions: 3,
+            max_iterations: 30,
+            ..Default::default()
+        };
         let mut pso = ParticleSwarm::new(config);
         pso.initialize();
         pso.evaluate(&neg_sphere);
@@ -505,7 +550,11 @@ mod tests {
         let mut pso = ParticleSwarm::new(config);
         pso.initialize();
         let result = pso.run(&neg_sphere);
-        assert!(result.best_fitness > -1.0, "Expected near-zero, got {}", result.best_fitness);
+        assert!(
+            result.best_fitness > -1.0,
+            "Expected near-zero, got {}",
+            result.best_fitness
+        );
     }
 
     #[test]
@@ -598,7 +647,10 @@ mod tests {
         let config = PsoConfig {
             swarm_size: 15,
             dimensions: 2,
-            inertia: InertiaWeight::Adaptive { w_max: 0.9, w_min: 0.4 },
+            inertia: InertiaWeight::Adaptive {
+                w_max: 0.9,
+                w_min: 0.4,
+            },
             max_iterations: 30,
             ..Default::default()
         };
@@ -633,7 +685,11 @@ mod tests {
 
     #[test]
     fn test_diversity_positive() {
-        let config = PsoConfig { swarm_size: 10, dimensions: 3, ..Default::default() };
+        let config = PsoConfig {
+            swarm_size: 10,
+            dimensions: 3,
+            ..Default::default()
+        };
         let mut pso = ParticleSwarm::new(config);
         pso.initialize();
         assert!(pso.diversity() > 0.0);
@@ -641,7 +697,11 @@ mod tests {
 
     #[test]
     fn test_average_velocity() {
-        let config = PsoConfig { swarm_size: 10, dimensions: 3, ..Default::default() };
+        let config = PsoConfig {
+            swarm_size: 10,
+            dimensions: 3,
+            ..Default::default()
+        };
         let mut pso = ParticleSwarm::new(config);
         pso.initialize();
         pso.evaluate(&neg_sphere);
@@ -651,7 +711,11 @@ mod tests {
 
     #[test]
     fn test_fitness_history_grows() {
-        let config = PsoConfig { swarm_size: 10, dimensions: 2, ..Default::default() };
+        let config = PsoConfig {
+            swarm_size: 10,
+            dimensions: 2,
+            ..Default::default()
+        };
         let mut pso = ParticleSwarm::new(config);
         pso.initialize();
         pso.evaluate(&neg_sphere);
@@ -663,7 +727,12 @@ mod tests {
 
     #[test]
     fn test_result_has_correct_dimensions() {
-        let config = PsoConfig { swarm_size: 10, dimensions: 4, max_iterations: 10, ..Default::default() };
+        let config = PsoConfig {
+            swarm_size: 10,
+            dimensions: 4,
+            max_iterations: 10,
+            ..Default::default()
+        };
         let mut pso = ParticleSwarm::new(config);
         pso.initialize();
         let result = pso.run(&neg_sphere);

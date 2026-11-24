@@ -18,7 +18,11 @@ pub struct Mat {
 
 impl Mat {
     pub fn zeros(rows: usize, cols: usize) -> Self {
-        Self { rows, cols, data: vec![0.0; rows * cols] }
+        Self {
+            rows,
+            cols,
+            data: vec![0.0; rows * cols],
+        }
     }
 
     pub fn identity(n: usize) -> Self {
@@ -45,7 +49,9 @@ impl Mat {
         for i in 0..self.rows {
             for k in 0..self.cols {
                 let a = self.get(i, k);
-                if a == 0.0 { continue; }
+                if a == 0.0 {
+                    continue;
+                }
                 for j in 0..other.cols {
                     let cur = out.get(i, j);
                     out.set(i, j, cur + a * other.get(k, j));
@@ -68,20 +74,42 @@ impl Mat {
     pub fn add(&self, other: &Mat) -> Mat {
         assert_eq!(self.rows, other.rows);
         assert_eq!(self.cols, other.cols);
-        let data: Vec<f64> = self.data.iter().zip(&other.data).map(|(a, b)| a + b).collect();
-        Mat { rows: self.rows, cols: self.cols, data }
+        let data: Vec<f64> = self
+            .data
+            .iter()
+            .zip(&other.data)
+            .map(|(a, b)| a + b)
+            .collect();
+        Mat {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        }
     }
 
     pub fn sub(&self, other: &Mat) -> Mat {
         assert_eq!(self.rows, other.rows);
         assert_eq!(self.cols, other.cols);
-        let data: Vec<f64> = self.data.iter().zip(&other.data).map(|(a, b)| a - b).collect();
-        Mat { rows: self.rows, cols: self.cols, data }
+        let data: Vec<f64> = self
+            .data
+            .iter()
+            .zip(&other.data)
+            .map(|(a, b)| a - b)
+            .collect();
+        Mat {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        }
     }
 
     pub fn scale(&self, s: f64) -> Mat {
         let data: Vec<f64> = self.data.iter().map(|v| v * s).collect();
-        Mat { rows: self.rows, cols: self.cols, data }
+        Mat {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        }
     }
 
     /// 2×2 inverse (for innovation covariance).
@@ -93,7 +121,9 @@ impl Mat {
         let c = self.get(1, 0);
         let d = self.get(1, 1);
         let det = a * d - b * c;
-        if det.abs() < 1e-15 { return None; }
+        if det.abs() < 1e-15 {
+            return None;
+        }
         let inv_det = 1.0 / det;
         let mut out = Mat::zeros(2, 2);
         out.set(0, 0, d * inv_det);
@@ -116,20 +146,32 @@ pub struct Pose2D {
 
 impl Pose2D {
     pub fn new(x: f64, y: f64, theta: f64) -> Self {
-        Self { x, y, theta: normalize_angle(theta) }
+        Self {
+            x,
+            y,
+            theta: normalize_angle(theta),
+        }
     }
 }
 
 impl fmt::Display for Pose2D {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Pose2D({:.3}, {:.3}, {:.4} rad)", self.x, self.y, self.theta)
+        write!(
+            f,
+            "Pose2D({:.3}, {:.3}, {:.4} rad)",
+            self.x, self.y, self.theta
+        )
     }
 }
 
 fn normalize_angle(a: f64) -> f64 {
     let mut a = a % (2.0 * std::f64::consts::PI);
-    if a > std::f64::consts::PI { a -= 2.0 * std::f64::consts::PI; }
-    if a < -std::f64::consts::PI { a += 2.0 * std::f64::consts::PI; }
+    if a > std::f64::consts::PI {
+        a -= 2.0 * std::f64::consts::PI;
+    }
+    if a < -std::f64::consts::PI {
+        a += 2.0 * std::f64::consts::PI;
+    }
     a
 }
 
@@ -181,7 +223,9 @@ impl Default for EkfSlamConfig {
 }
 
 impl EkfSlamConfig {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn with_motion_noise(mut self, noise: [f64; 3]) -> Self {
         self.motion_noise = noise;
@@ -224,7 +268,13 @@ impl EkfSlam {
     pub fn new(pose: Pose2D, config: EkfSlamConfig) -> Self {
         let state = vec![pose.x, pose.y, pose.theta];
         let cov = Mat::identity(3).scale(0.001);
-        Self { state, cov, num_landmarks: 0, landmark_ids: Vec::new(), config }
+        Self {
+            state,
+            cov,
+            num_landmarks: 0,
+            landmark_ids: Vec::new(),
+            config,
+        }
     }
 
     /// Current robot pose.
@@ -233,7 +283,9 @@ impl EkfSlam {
     }
 
     /// State dimension.
-    pub fn dim(&self) -> usize { 3 + 2 * self.num_landmarks }
+    pub fn dim(&self) -> usize {
+        3 + 2 * self.num_landmarks
+    }
 
     /// Get landmark position by slot index (0-based).
     pub fn landmark_position(&self, idx: usize) -> (f64, f64) {
@@ -496,8 +548,16 @@ mod tests {
 
     #[test]
     fn test_mat_multiply() {
-        let a = Mat { rows: 2, cols: 2, data: vec![1.0, 2.0, 3.0, 4.0] };
-        let b = Mat { rows: 2, cols: 2, data: vec![5.0, 6.0, 7.0, 8.0] };
+        let a = Mat {
+            rows: 2,
+            cols: 2,
+            data: vec![1.0, 2.0, 3.0, 4.0],
+        };
+        let b = Mat {
+            rows: 2,
+            cols: 2,
+            data: vec![5.0, 6.0, 7.0, 8.0],
+        };
         let c = a.mul(&b);
         assert_eq!(c.get(0, 0), 19.0);
         assert_eq!(c.get(1, 1), 50.0);
@@ -505,7 +565,11 @@ mod tests {
 
     #[test]
     fn test_mat_transpose() {
-        let m = Mat { rows: 2, cols: 3, data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0] };
+        let m = Mat {
+            rows: 2,
+            cols: 3,
+            data: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        };
         let t = m.transpose();
         assert_eq!(t.rows, 3);
         assert_eq!(t.cols, 2);
@@ -514,7 +578,11 @@ mod tests {
 
     #[test]
     fn test_mat_inv2x2() {
-        let m = Mat { rows: 2, cols: 2, data: vec![4.0, 7.0, 2.0, 6.0] };
+        let m = Mat {
+            rows: 2,
+            cols: 2,
+            data: vec![4.0, 7.0, 2.0, 6.0],
+        };
         let inv = m.inv2x2().unwrap();
         let product = m.mul(&inv);
         assert!((product.get(0, 0) - 1.0).abs() < 1e-10);
@@ -564,7 +632,10 @@ mod tests {
     #[test]
     fn test_add_landmark() {
         let mut slam = default_slam();
-        let obs = Observation { range: 5.0, bearing: 0.0 };
+        let obs = Observation {
+            range: 5.0,
+            bearing: 0.0,
+        };
         let slot = slam.add_landmark(&obs, 42);
         assert_eq!(slot, 0);
         assert_eq!(slam.num_landmarks, 1);
@@ -577,7 +648,10 @@ mod tests {
     #[test]
     fn test_find_landmark() {
         let mut slam = default_slam();
-        let obs = Observation { range: 5.0, bearing: 0.0 };
+        let obs = Observation {
+            range: 5.0,
+            bearing: 0.0,
+        };
         slam.add_landmark(&obs, 10);
         slam.add_landmark(&obs, 20);
         assert_eq!(slam.find_landmark(20), Some(1));
@@ -587,7 +661,10 @@ mod tests {
     #[test]
     fn test_mahalanobis_distance() {
         let mut slam = default_slam();
-        let obs = Observation { range: 5.0, bearing: 0.0 };
+        let obs = Observation {
+            range: 5.0,
+            bearing: 0.0,
+        };
         slam.add_landmark(&obs, 1);
         // Same observation should yield small distance
         let d = slam.mahalanobis_distance(&obs, 0);
@@ -597,14 +674,20 @@ mod tests {
     #[test]
     fn test_data_association_new() {
         let slam = default_slam();
-        let obs = Observation { range: 5.0, bearing: 0.0 };
+        let obs = Observation {
+            range: 5.0,
+            bearing: 0.0,
+        };
         assert!(slam.associate(&obs).is_none());
     }
 
     #[test]
     fn test_update_reduces_covariance() {
         let mut slam = default_slam();
-        let obs = Observation { range: 5.0, bearing: 0.0 };
+        let obs = Observation {
+            range: 5.0,
+            bearing: 0.0,
+        };
         slam.add_landmark(&obs, 1);
         let cov_before = slam.cov.get(3, 3);
         slam.update(&obs, 0);
@@ -615,7 +698,10 @@ mod tests {
     #[test]
     fn test_process_observation_new_landmark() {
         let mut slam = default_slam();
-        let obs = Observation { range: 3.0, bearing: 0.5 };
+        let obs = Observation {
+            range: 3.0,
+            bearing: 0.5,
+        };
         slam.process_observation(&obs, 7);
         assert_eq!(slam.num_landmarks, 1);
     }
@@ -623,7 +709,10 @@ mod tests {
     #[test]
     fn test_process_observation_known_landmark() {
         let mut slam = default_slam();
-        let obs = Observation { range: 3.0, bearing: 0.5 };
+        let obs = Observation {
+            range: 3.0,
+            bearing: 0.5,
+        };
         slam.process_observation(&obs, 7);
         slam.process_observation(&obs, 7);
         // Still one landmark
@@ -633,8 +722,20 @@ mod tests {
     #[test]
     fn test_landmarks_list() {
         let mut slam = default_slam();
-        slam.add_landmark(&Observation { range: 3.0, bearing: 0.0 }, 10);
-        slam.add_landmark(&Observation { range: 5.0, bearing: 1.0 }, 20);
+        slam.add_landmark(
+            &Observation {
+                range: 3.0,
+                bearing: 0.0,
+            },
+            10,
+        );
+        slam.add_landmark(
+            &Observation {
+                range: 5.0,
+                bearing: 1.0,
+            },
+            20,
+        );
         let lms = slam.landmarks();
         assert_eq!(lms.len(), 2);
         assert_eq!(lms[0].0, 10);

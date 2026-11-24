@@ -23,7 +23,11 @@ impl Rgb {
 
     /// From 8-bit sRGB values.
     pub fn from_u8(r: u8, g: u8, b: u8) -> Self {
-        Self { r: r as f64 / 255.0, g: g as f64 / 255.0, b: b as f64 / 255.0 }
+        Self {
+            r: r as f64 / 255.0,
+            g: g as f64 / 255.0,
+            b: b as f64 / 255.0,
+        }
     }
 
     /// To 8-bit sRGB values.
@@ -89,11 +93,17 @@ pub fn rgb_to_hsl(c: Rgb) -> Hsl {
     }
 
     let d = max - min;
-    let s = if l > 0.5 { d / (2.0 - max - min) } else { d / (max + min) };
+    let s = if l > 0.5 {
+        d / (2.0 - max - min)
+    } else {
+        d / (max + min)
+    };
 
     let h = if (max - c.r).abs() < 1e-10 {
         let mut h = (c.g - c.b) / d;
-        if c.g < c.b { h += 6.0; }
+        if c.g < c.b {
+            h += 6.0;
+        }
         h
     } else if (max - c.g).abs() < 1e-10 {
         (c.b - c.r) / d + 2.0
@@ -109,7 +119,11 @@ pub fn hsl_to_rgb(c: Hsl) -> Rgb {
         return Rgb::new(c.l, c.l, c.l);
     }
 
-    let q = if c.l < 0.5 { c.l * (1.0 + c.s) } else { c.l + c.s - c.l * c.s };
+    let q = if c.l < 0.5 {
+        c.l * (1.0 + c.s)
+    } else {
+        c.l + c.s - c.l * c.s
+    };
     let p = 2.0 * c.l - q;
     let h = c.h / 360.0;
 
@@ -149,7 +163,9 @@ pub fn rgb_to_hsv(c: Rgb) -> Hsv {
 
     let h = if (max - c.r).abs() < 1e-10 {
         let mut h = (c.g - c.b) / d;
-        if c.g < c.b { h += 6.0; }
+        if c.g < c.b {
+            h += 6.0;
+        }
         h
     } else if (max - c.g).abs() < 1e-10 {
         (c.b - c.r) / d + 2.0
@@ -187,7 +203,12 @@ pub fn hsv_to_rgb(c: Hsv) -> Rgb {
 pub fn rgb_to_cmyk(c: Rgb) -> Cmyk {
     let k = 1.0 - c.r.max(c.g).max(c.b);
     if k >= 1.0 - 1e-10 {
-        return Cmyk { c: 0.0, m: 0.0, y: 0.0, k: 1.0 };
+        return Cmyk {
+            c: 0.0,
+            m: 0.0,
+            y: 0.0,
+            k: 1.0,
+        };
     }
     Cmyk {
         c: (1.0 - c.r - k) / (1.0 - k),
@@ -227,12 +248,20 @@ pub fn linear_to_srgb(v: f64) -> f64 {
 
 /// Convert sRGB Rgb to linear Rgb.
 pub fn rgb_srgb_to_linear(c: Rgb) -> Rgb {
-    Rgb::new(srgb_to_linear(c.r), srgb_to_linear(c.g), srgb_to_linear(c.b))
+    Rgb::new(
+        srgb_to_linear(c.r),
+        srgb_to_linear(c.g),
+        srgb_to_linear(c.b),
+    )
 }
 
 /// Convert linear Rgb to sRGB Rgb.
 pub fn rgb_linear_to_srgb(c: Rgb) -> Rgb {
-    Rgb::new(linear_to_srgb(c.r), linear_to_srgb(c.g), linear_to_srgb(c.b))
+    Rgb::new(
+        linear_to_srgb(c.r),
+        linear_to_srgb(c.g),
+        linear_to_srgb(c.b),
+    )
 }
 
 // ── RGB ↔ XYZ (D65 illuminant) ──────────────────────────────────

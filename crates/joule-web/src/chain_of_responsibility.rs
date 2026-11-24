@@ -212,7 +212,8 @@ impl HandlerChain {
 
     /// Sort handlers by priority (highest first).
     pub fn sort_by_priority(&mut self) {
-        self.handlers.sort_by(|a, b| b.meta().priority.cmp(&a.meta().priority));
+        self.handlers
+            .sort_by(|a, b| b.meta().priority.cmp(&a.meta().priority));
     }
 
     /// Metadata for all handlers, in chain order.
@@ -297,9 +298,7 @@ mod tests {
         FnHandler::new(
             HandlerMeta::new("logger").with_priority(10),
             vec!["log".to_string()],
-            |req| {
-                HandleResult::Handled(Value::String(format!("logged: {}", req.payload)))
-            },
+            |req| HandleResult::Handled(Value::String(format!("logged: {}", req.payload))),
         )
     }
 
@@ -318,11 +317,9 @@ mod tests {
     }
 
     fn skip_handler() -> FnHandler {
-        FnHandler::new(
-            HandlerMeta::new("skipper").with_priority(5),
-            vec![],
-            |_| HandleResult::Skip,
-        )
+        FnHandler::new(HandlerMeta::new("skipper").with_priority(5), vec![], |_| {
+            HandleResult::Skip
+        })
     }
 
     #[test]
@@ -463,9 +460,9 @@ mod tests {
     #[test]
     fn sort_by_priority() {
         let mut chain = HandlerChain::new();
-        chain.add_handler(Box::new(skip_handler()));   // priority 5
-        chain.add_handler(Box::new(auth_handler()));    // priority 20
-        chain.add_handler(Box::new(log_handler()));     // priority 10
+        chain.add_handler(Box::new(skip_handler())); // priority 5
+        chain.add_handler(Box::new(auth_handler())); // priority 20
+        chain.add_handler(Box::new(log_handler())); // priority 10
 
         chain.sort_by_priority();
         let meta = chain.handler_metadata();

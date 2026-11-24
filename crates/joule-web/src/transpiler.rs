@@ -186,7 +186,10 @@ fn extract_arrow_params(before: &str) -> Option<ArrowParams> {
         .map(|p| p + 1)
         .unwrap_or(0);
     let ident = &trimmed[last_token_start..];
-    if !ident.is_empty() && ident.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
+    if !ident.is_empty()
+        && ident
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
     {
         let raw_len = before.len() - last_token_start;
         return Some(ArrowParams {
@@ -308,9 +311,7 @@ impl TransformRule for OptionalChainingTransform {
                 break;
             }
 
-            let replacement = format!(
-                "{ident} != null ? {ident}.{prop} : undefined"
-            );
+            let replacement = format!("{ident} != null ? {ident}.{prop} : undefined");
             result = format!(
                 "{}{}{}",
                 &result[..ident_start],
@@ -348,7 +349,14 @@ impl TransformRule for NullishCoalescingTransform {
 
             // Extract right operand (next identifier/expression/literal)
             let right_end = after
-                .find(|c: char| !c.is_ascii_alphanumeric() && c != '_' && c != '$' && c != '.' && c != '"' && c != '\'')
+                .find(|c: char| {
+                    !c.is_ascii_alphanumeric()
+                        && c != '_'
+                        && c != '$'
+                        && c != '.'
+                        && c != '"'
+                        && c != '\''
+                })
                 .unwrap_or(after.len());
             let right = &after[..right_end];
 
@@ -425,7 +433,11 @@ impl DestructuringTransform {
         }
         let rhs = after_brace[1..].trim_start().trim_end_matches(';').trim();
 
-        let props: Vec<&str> = props_str.split(',').map(|p| p.trim()).filter(|p| !p.is_empty()).collect();
+        let props: Vec<&str> = props_str
+            .split(',')
+            .map(|p| p.trim())
+            .filter(|p| !p.is_empty())
+            .collect();
 
         let mut lines = Vec::new();
         for prop in &props {

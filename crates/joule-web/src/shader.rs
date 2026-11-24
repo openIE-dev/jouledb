@@ -117,16 +117,20 @@ impl ShaderSource {
         let mut result = Vec::new();
         for line in self.source_code.lines() {
             let trimmed = line.trim();
-            if trimmed.starts_with("varying ") || trimmed.starts_with("out ") || trimmed.starts_with("in ") {
-                let parts: Vec<&str> = trimmed
-                    .trim_end_matches(';')
-                    .split_whitespace()
-                    .collect();
+            if trimmed.starts_with("varying ")
+                || trimmed.starts_with("out ")
+                || trimmed.starts_with("in ")
+            {
+                let parts: Vec<&str> = trimmed.trim_end_matches(';').split_whitespace().collect();
                 if parts.len() >= 3 {
                     let qualifier = parts[0].to_string();
                     let var_type = parts[1].to_string();
                     let name = parts[2].to_string();
-                    result.push(VaryingDecl { qualifier, var_type, name });
+                    result.push(VaryingDecl {
+                        qualifier,
+                        var_type,
+                        name,
+                    });
                 }
             }
         }
@@ -139,10 +143,7 @@ impl ShaderSource {
         for line in self.source_code.lines() {
             let trimmed = line.trim();
             if trimmed.starts_with("uniform ") {
-                let parts: Vec<&str> = trimmed
-                    .trim_end_matches(';')
-                    .split_whitespace()
-                    .collect();
+                let parts: Vec<&str> = trimmed.trim_end_matches(';').split_whitespace().collect();
                 if parts.len() >= 3 {
                     result.push((parts[1].to_string(), parts[2].to_string()));
                 }
@@ -186,8 +187,14 @@ impl fmt::Display for ShaderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingMain(t) => write!(f, "{t} shader missing void main()"),
-            Self::VaryingMismatch { name, vertex_type, fragment_type } =>
-                write!(f, "varying '{name}' type mismatch: vertex={vertex_type:?} fragment={fragment_type:?}"),
+            Self::VaryingMismatch {
+                name,
+                vertex_type,
+                fragment_type,
+            } => write!(
+                f,
+                "varying '{name}' type mismatch: vertex={vertex_type:?} fragment={fragment_type:?}"
+            ),
             Self::PreprocessorError(msg) => write!(f, "preprocessor error: {msg}"),
         }
     }
@@ -226,12 +233,14 @@ impl ShaderProgram {
         let f_varyings = self.fragment.varyings();
 
         // Build maps of outputs from vertex and inputs to fragment
-        let v_out: HashMap<&str, &str> = v_varyings.iter()
+        let v_out: HashMap<&str, &str> = v_varyings
+            .iter()
             .filter(|v| v.qualifier == "varying" || v.qualifier == "out")
             .map(|v| (v.name.as_str(), v.var_type.as_str()))
             .collect();
 
-        let f_in: HashMap<&str, &str> = f_varyings.iter()
+        let f_in: HashMap<&str, &str> = f_varyings
+            .iter()
             .filter(|v| v.qualifier == "varying" || v.qualifier == "in")
             .map(|v| (v.name.as_str(), v.var_type.as_str()))
             .collect();
@@ -333,7 +342,10 @@ impl GlslPreprocessor {
             if trimmed.starts_with("#ifdef ") {
                 let name = trimmed.strip_prefix("#ifdef ").unwrap().trim();
                 let active = defines.contains_key(name);
-                ifdef_stack.push(IfDefState { active, else_seen: false });
+                ifdef_stack.push(IfDefState {
+                    active,
+                    else_seen: false,
+                });
                 continue;
             }
 
@@ -341,7 +353,10 @@ impl GlslPreprocessor {
             if trimmed.starts_with("#ifndef ") {
                 let name = trimmed.strip_prefix("#ifndef ").unwrap().trim();
                 let active = !defines.contains_key(name);
-                ifdef_stack.push(IfDefState { active, else_seen: false });
+                ifdef_stack.push(IfDefState {
+                    active,
+                    else_seen: false,
+                });
                 continue;
             }
 
@@ -351,7 +366,9 @@ impl GlslPreprocessor {
                     state.active = !state.active;
                     state.else_seen = true;
                 } else {
-                    return Err(ShaderError::PreprocessorError("#else without #ifdef".into()));
+                    return Err(ShaderError::PreprocessorError(
+                        "#else without #ifdef".into(),
+                    ));
                 }
                 continue;
             }
@@ -359,7 +376,9 @@ impl GlslPreprocessor {
             // #endif
             if trimmed == "#endif" {
                 if ifdef_stack.pop().is_none() {
-                    return Err(ShaderError::PreprocessorError("#endif without #ifdef".into()));
+                    return Err(ShaderError::PreprocessorError(
+                        "#endif without #ifdef".into(),
+                    ));
                 }
                 continue;
             }
@@ -375,9 +394,9 @@ impl GlslPreprocessor {
                             output.push('\n');
                         }
                         None => {
-                            return Err(ShaderError::PreprocessorError(
-                                format!("include not found: {path}")
-                            ));
+                            return Err(ShaderError::PreprocessorError(format!(
+                                "include not found: {path}"
+                            )));
                         }
                     }
                 }
@@ -531,19 +550,16 @@ mod tests {
         let prog = ShaderProgram::new(vs, fs);
         let errors = prog.validate();
         assert_eq!(errors.len(), 1);
-        assert!(matches!(errors[0], ShaderError::MissingMain(ShaderType::Vertex)));
+        assert!(matches!(
+            errors[0],
+            ShaderError::MissingMain(ShaderType::Vertex)
+        ));
     }
 
     #[test]
     fn validate_varying_mismatch() {
-        let vs = ShaderSource::new(
-            "out vec3 vColor;\nvoid main() {}",
-            ShaderType::Vertex,
-        );
-        let fs = ShaderSource::new(
-            "in vec4 vColor;\nvoid main() {}",
-            ShaderType::Fragment,
-        );
+        let vs = ShaderSource::new("out vec3 vColor;\nvoid main() {}", ShaderType::Vertex);
+        let fs = ShaderSource::new("in vec4 vColor;\nvoid main() {}", ShaderType::Fragment);
         let prog = ShaderProgram::new(vs, fs);
         let errors = prog.validate();
         assert_eq!(errors.len(), 1);
@@ -556,15 +572,14 @@ mod tests {
     #[test]
     fn validate_missing_varying() {
         let vs = ShaderSource::new("void main() {}", ShaderType::Vertex);
-        let fs = ShaderSource::new(
-            "in vec2 vUv;\nvoid main() {}",
-            ShaderType::Fragment,
-        );
+        let fs = ShaderSource::new("in vec2 vUv;\nvoid main() {}", ShaderType::Fragment);
         let prog = ShaderProgram::new(vs, fs);
         let errors = prog.validate();
         assert_eq!(errors.len(), 1);
         match &errors[0] {
-            ShaderError::VaryingMismatch { name, vertex_type, .. } => {
+            ShaderError::VaryingMismatch {
+                name, vertex_type, ..
+            } => {
                 assert_eq!(name, "vUv");
                 assert!(vertex_type.is_none());
             }
@@ -574,11 +589,10 @@ mod tests {
 
     #[test]
     fn set_uniform_value() {
-        let mut prog = ShaderProgram::new(simple_vertex(), simple_fragment())
-            .with_uniforms(vec![
-                Uniform::new("uTime", UniformType::Float),
-                Uniform::new("uResolution", UniformType::Vec2),
-            ]);
+        let mut prog = ShaderProgram::new(simple_vertex(), simple_fragment()).with_uniforms(vec![
+            Uniform::new("uTime", UniformType::Float),
+            Uniform::new("uResolution", UniformType::Vec2),
+        ]);
         assert!(prog.set_uniform("uTime", UniformValue::Float(1.5)));
         assert!(!prog.set_uniform("uNonexistent", UniformValue::Float(0.0)));
         assert_eq!(prog.uniforms[0].value, Some(UniformValue::Float(1.5)));

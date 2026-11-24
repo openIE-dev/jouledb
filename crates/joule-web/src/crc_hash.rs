@@ -32,7 +32,10 @@ pub struct Crc32 {
 
 impl Crc32 {
     pub fn new() -> Self {
-        Self { crc: 0xFFFFFFFF, table: crc32_table() }
+        Self {
+            crc: 0xFFFFFFFF,
+            table: crc32_table(),
+        }
     }
 
     pub fn update(&mut self, data: &[u8]) {
@@ -86,7 +89,10 @@ pub struct Crc32c {
 
 impl Crc32c {
     pub fn new() -> Self {
-        Self { crc: 0xFFFFFFFF, table: crc32c_table() }
+        Self {
+            crc: 0xFFFFFFFF,
+            table: crc32c_table(),
+        }
     }
 
     pub fn update(&mut self, data: &[u8]) {
@@ -247,7 +253,10 @@ pub fn fnv1a_64(data: &[u8]) -> u64 {
 pub fn djb2(data: &[u8]) -> u32 {
     let mut hash: u32 = 5381;
     for &byte in data {
-        hash = hash.wrapping_shl(5).wrapping_add(hash).wrapping_add(byte as u32);
+        hash = hash
+            .wrapping_shl(5)
+            .wrapping_add(hash)
+            .wrapping_add(byte as u32);
     }
     hash
 }
@@ -282,7 +291,9 @@ pub struct Fnv1a32 {
 }
 
 impl Fnv1a32 {
-    pub fn new() -> Self { Self { hash: FNV32_OFFSET } }
+    pub fn new() -> Self {
+        Self { hash: FNV32_OFFSET }
+    }
 }
 
 impl StreamingHash for Fnv1a32 {
@@ -295,9 +306,13 @@ impl StreamingHash for Fnv1a32 {
         }
     }
 
-    fn finalize(&self) -> u32 { self.hash }
+    fn finalize(&self) -> u32 {
+        self.hash
+    }
 
-    fn reset(&mut self) { self.hash = FNV32_OFFSET; }
+    fn reset(&mut self) {
+        self.hash = FNV32_OFFSET;
+    }
 }
 
 /// FNV-1a 64-bit streaming hasher.
@@ -306,7 +321,9 @@ pub struct Fnv1a64 {
 }
 
 impl Fnv1a64 {
-    pub fn new() -> Self { Self { hash: FNV64_OFFSET } }
+    pub fn new() -> Self {
+        Self { hash: FNV64_OFFSET }
+    }
 }
 
 impl StreamingHash for Fnv1a64 {
@@ -319,9 +336,13 @@ impl StreamingHash for Fnv1a64 {
         }
     }
 
-    fn finalize(&self) -> u64 { self.hash }
+    fn finalize(&self) -> u64 {
+        self.hash
+    }
 
-    fn reset(&mut self) { self.hash = FNV64_OFFSET; }
+    fn reset(&mut self) {
+        self.hash = FNV64_OFFSET;
+    }
 }
 
 // ── Tests ────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 //! D3-style scales: Linear, Log, Pow, Band, Ordinal, Time.
 //! Ticks generation, invert, clamp.
 
-use chrono::{DateTime, Utc, TimeDelta};
+use chrono::{DateTime, TimeDelta, Utc};
 
 // ── Scale Trait ─────────────────────────────────────────────────
 
@@ -29,7 +29,11 @@ pub struct LinearScale {
 
 impl LinearScale {
     pub fn new(domain: (f64, f64), range: (f64, f64)) -> Self {
-        Self { domain, range, clamp: false }
+        Self {
+            domain,
+            range,
+            clamp: false,
+        }
     }
 
     pub fn with_clamp(mut self, clamp: bool) -> Self {
@@ -84,7 +88,12 @@ pub struct LogScale {
 
 impl LogScale {
     pub fn new(domain: (f64, f64), range: (f64, f64)) -> Self {
-        Self { domain, range, base: 10.0, clamp: false }
+        Self {
+            domain,
+            range,
+            base: 10.0,
+            clamp: false,
+        }
     }
 
     pub fn with_base(mut self, base: f64) -> Self {
@@ -163,7 +172,12 @@ pub struct PowScale {
 
 impl PowScale {
     pub fn new(domain: (f64, f64), range: (f64, f64), exponent: f64) -> Self {
-        Self { domain, range, exponent, clamp: false }
+        Self {
+            domain,
+            range,
+            exponent,
+            clamp: false,
+        }
     }
 
     pub fn with_clamp(mut self, clamp: bool) -> Self {
@@ -252,7 +266,9 @@ impl BandScale {
             return 0.0;
         }
         let total = (self.range.1 - self.range.0).abs();
-        let step = total / (n as f64 + self.padding_outer * 2.0 - self.padding_inner + self.padding_inner * n as f64);
+        let step = total
+            / (n as f64 + self.padding_outer * 2.0 - self.padding_inner
+                + self.padding_inner * n as f64);
         step * (1.0 - self.padding_inner)
     }
 
@@ -263,7 +279,9 @@ impl BandScale {
             return 0.0;
         }
         let total = (self.range.1 - self.range.0).abs();
-        total / (n as f64 + self.padding_outer * 2.0 - self.padding_inner + self.padding_inner * n as f64)
+        total
+            / (n as f64 + self.padding_outer * 2.0 - self.padding_inner
+                + self.padding_inner * n as f64)
     }
 
     /// Get the start position for a domain value.
@@ -315,7 +333,11 @@ pub struct TimeScale {
 
 impl TimeScale {
     pub fn new(domain: (DateTime<Utc>, DateTime<Utc>), range: (f64, f64)) -> Self {
-        Self { domain, range, clamp: false }
+        Self {
+            domain,
+            range,
+            clamp: false,
+        }
     }
 
     pub fn with_clamp(mut self, clamp: bool) -> Self {
@@ -383,7 +405,11 @@ impl TimeScale {
 /// Generate nice round tick values for a range.
 pub fn nice_ticks(start: f64, stop: f64, count: usize) -> Vec<f64> {
     if count == 0 || start == stop {
-        return if start == stop { vec![start] } else { Vec::new() };
+        return if start == stop {
+            vec![start]
+        } else {
+            Vec::new()
+        };
     }
     let step = nice_step(start, stop, count);
     if step <= 0.0 || !step.is_finite() {
@@ -476,10 +502,7 @@ mod tests {
 
     #[test]
     fn test_band_scale() {
-        let s = BandScale::new(
-            vec!["A".into(), "B".into(), "C".into()],
-            (0.0, 300.0),
-        );
+        let s = BandScale::new(vec!["A".into(), "B".into(), "C".into()], (0.0, 300.0));
         assert!((s.bandwidth() - 100.0).abs() < 0.01);
         assert!((s.scale("A").unwrap() - 0.0).abs() < 0.01);
         assert!((s.scale("B").unwrap() - 100.0).abs() < 0.01);
@@ -488,10 +511,7 @@ mod tests {
 
     #[test]
     fn test_band_scale_with_padding() {
-        let s = BandScale::new(
-            vec!["X".into(), "Y".into()],
-            (0.0, 200.0),
-        ).with_padding(0.2, 0.1);
+        let s = BandScale::new(vec!["X".into(), "Y".into()], (0.0, 200.0)).with_padding(0.2, 0.1);
         assert!(s.bandwidth() > 0.0);
         assert!(s.step() > s.bandwidth());
     }

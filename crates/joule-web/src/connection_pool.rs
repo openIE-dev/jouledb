@@ -76,9 +76,7 @@ impl PoolConfig {
             ));
         }
         if self.max_size == 0 {
-            return Err(PoolError::InvalidConfig(
-                "max_size must be > 0".into(),
-            ));
+            return Err(PoolError::InvalidConfig("max_size must be > 0".into()));
         }
         Ok(())
     }

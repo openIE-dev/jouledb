@@ -292,7 +292,10 @@ impl RegionSelector {
     }
 
     /// Select best region for a group of players (minimize total latency).
-    pub fn select_for_group(&self, players: &[PlayerPings]) -> Result<SelectionResult, RegionError> {
+    pub fn select_for_group(
+        &self,
+        players: &[PlayerPings],
+    ) -> Result<SelectionResult, RegionError> {
         let available = self.available_regions();
         if available.is_empty() {
             return Err(RegionError::NoRegionsAvailable);
@@ -341,7 +344,11 @@ impl RegionSelector {
     }
 
     /// Failover: return next-best region if primary is down.
-    pub fn failover(&self, current_id: &str, player: &PlayerPings) -> Result<SelectionResult, RegionError> {
+    pub fn failover(
+        &self,
+        current_id: &str,
+        player: &PlayerPings,
+    ) -> Result<SelectionResult, RegionError> {
         let available: Vec<&Region> = self
             .regions
             .values()
@@ -450,9 +457,12 @@ mod tests {
 
     fn setup() -> RegionSelector {
         let mut sel = RegionSelector::new();
-        sel.add_region(Region::new("us-east", "US East", 39.0, -77.0, 1000)).unwrap();
-        sel.add_region(Region::new("us-west", "US West", 37.0, -122.0, 1000)).unwrap();
-        sel.add_region(Region::new("eu-west", "EU West", 51.0, -0.1, 1000)).unwrap();
+        sel.add_region(Region::new("us-east", "US East", 39.0, -77.0, 1000))
+            .unwrap();
+        sel.add_region(Region::new("us-west", "US West", 37.0, -122.0, 1000))
+            .unwrap();
+        sel.add_region(Region::new("eu-west", "EU West", 51.0, -0.1, 1000))
+            .unwrap();
         sel
     }
 
@@ -491,8 +501,12 @@ mod tests {
     #[test]
     fn group_selection() {
         let sel = setup();
-        let p1 = PlayerPings::new("a").with_ping("us-east", 20.0).with_ping("us-west", 80.0);
-        let p2 = PlayerPings::new("b").with_ping("us-east", 30.0).with_ping("us-west", 70.0);
+        let p1 = PlayerPings::new("a")
+            .with_ping("us-east", 20.0)
+            .with_ping("us-west", 80.0);
+        let p2 = PlayerPings::new("b")
+            .with_ping("us-east", 30.0)
+            .with_ping("us-west", 70.0);
         let result = sel.select_for_group(&[p1, p2]).unwrap();
         assert_eq!(result.region_id, "us-east");
     }
@@ -528,8 +542,10 @@ mod tests {
     #[test]
     fn load_balancing_effect() {
         let mut sel = RegionSelector::new().with_weights(0.5, 0.5);
-        sel.add_region(Region::new("r1", "R1", 0.0, 0.0, 100)).unwrap();
-        sel.add_region(Region::new("r2", "R2", 0.0, 0.0, 100)).unwrap();
+        sel.add_region(Region::new("r1", "R1", 0.0, 0.0, 100))
+            .unwrap();
+        sel.add_region(Region::new("r2", "R2", 0.0, 0.0, 100))
+            .unwrap();
         sel.get_region_mut("r1").unwrap().current_load = 95;
         let player = PlayerPings::new("a")
             .with_ping("r1", 10.0)
@@ -590,7 +606,9 @@ mod tests {
     #[test]
     fn duplicate_region_error() {
         let mut sel = setup();
-        let err = sel.add_region(Region::new("us-east", "dup", 0.0, 0.0, 1)).unwrap_err();
+        let err = sel
+            .add_region(Region::new("us-east", "dup", 0.0, 0.0, 1))
+            .unwrap_err();
         assert!(matches!(err, RegionError::DuplicateRegion(_)));
     }
 

@@ -5,8 +5,8 @@
 //! extension rules, and collar logic. Supports call auctions with multiple
 //! phases: order entry, price determination, and allocation.
 
-use std::fmt;
 use std::collections::VecDeque;
+use std::fmt;
 
 // ── Core Types ──
 
@@ -131,8 +131,12 @@ impl AuctionOrder {
 
     /// Whether this order is eligible at a given auction price.
     pub fn eligible_at(&self, price: f64) -> bool {
-        if !self.is_active || self.remaining() < 1e-12 { return false; }
-        if self.is_market { return true; }
+        if !self.is_active || self.remaining() < 1e-12 {
+            return false;
+        }
+        if self.is_market {
+            return true;
+        }
         match self.side {
             AuctionSide::Buy => price <= self.limit_price,
             AuctionSide::Sell => price >= self.limit_price,
@@ -146,8 +150,7 @@ impl fmt::Display for AuctionOrder {
         write!(
             f,
             "AuctionOrder(#{} {} {} {} qty={:.2} limit={:.2})",
-            self.id, ptype, self.side, self.symbol,
-            self.quantity, self.limit_price,
+            self.id, ptype, self.side, self.symbol, self.quantity, self.limit_price,
         )
     }
 }
@@ -200,8 +203,10 @@ impl fmt::Display for IndicativeData {
         write!(
             f,
             "Indicative(price={:.4} vol={:.2} imbal={:.2} imbal%={:.1}%)",
-            self.indicative_price, self.indicative_volume,
-            self.imbalance, self.imbalance_pct(),
+            self.indicative_price,
+            self.indicative_volume,
+            self.imbalance,
+            self.imbalance_pct(),
         )
     }
 }
@@ -268,8 +273,11 @@ impl fmt::Display for AuctionResult {
         write!(
             f,
             "AuctionResult({} price={:.4} vol={:.2} fills={} extended={})",
-            self.auction_type, self.auction_price, self.total_volume,
-            self.fills.len(), self.was_extended,
+            self.auction_type,
+            self.auction_price,
+            self.total_volume,
+            self.fills.len(),
+            self.was_extended,
         )
     }
 }
@@ -326,8 +334,10 @@ impl fmt::Display for CollarConfig {
         write!(
             f,
             "Collar(ref={:.2} [{:.2},{:.2}] max_ext={})",
-            self.reference_price, self.lower_limit(),
-            self.upper_limit(), self.max_extensions,
+            self.reference_price,
+            self.lower_limit(),
+            self.upper_limit(),
+            self.max_extensions,
         )
     }
 }
@@ -502,19 +512,26 @@ impl AuctionMarket {
             AuctionSide::Sell => &mut self.sells,
         };
 
-        let eligible_qty: f64 = orders.iter()
+        let eligible_qty: f64 = orders
+            .iter()
             .filter(|o| o.eligible_at(price))
             .map(|o| o.remaining())
             .sum();
 
-        if eligible_qty < 1e-12 { return; }
+        if eligible_qty < 1e-12 {
+            return;
+        }
         let mut left = total;
 
         for order in orders.iter_mut() {
-            if !order.eligible_at(price) || left < 1e-12 { continue; }
+            if !order.eligible_at(price) || left < 1e-12 {
+                continue;
+            }
             let share = order.remaining() / eligible_qty;
             let alloc = (total * share).min(order.remaining()).min(left);
-            if alloc < 1e-12 { continue; }
+            if alloc < 1e-12 {
+                continue;
+            }
             order.filled_quantity += alloc;
             left -= alloc;
             fills.push(AuctionFill {
@@ -531,7 +548,8 @@ impl AuctionMarket {
             AuctionSide::Buy => &self.buys,
             AuctionSide::Sell => &self.sells,
         };
-        orders.iter()
+        orders
+            .iter()
             .filter(|o| o.eligible_at(price))
             .map(|o| o.remaining())
             .sum()
@@ -550,15 +568,27 @@ impl AuctionMarket {
     }
 
     pub fn buy_interest(&self) -> f64 {
-        self.buys.iter().filter(|o| o.is_active).map(|o| o.remaining()).sum()
+        self.buys
+            .iter()
+            .filter(|o| o.is_active)
+            .map(|o| o.remaining())
+            .sum()
     }
 
     pub fn sell_interest(&self) -> f64 {
-        self.sells.iter().filter(|o| o.is_active).map(|o| o.remaining()).sum()
+        self.sells
+            .iter()
+            .filter(|o| o.is_active)
+            .map(|o| o.remaining())
+            .sum()
     }
 
     pub fn order_count(&self) -> usize {
-        self.buys.iter().chain(self.sells.iter()).filter(|o| o.is_active).count()
+        self.buys
+            .iter()
+            .chain(self.sells.iter())
+            .filter(|o| o.is_active)
+            .count()
     }
 
     /// Reset for a new auction session.
@@ -575,8 +605,12 @@ impl fmt::Display for AuctionMarket {
         write!(
             f,
             "AuctionMarket({} {} phase={} buys={:.0} sells={:.0} ext={})",
-            self.symbol, self.auction_type, self.phase,
-            self.buy_interest(), self.sell_interest(), self.extensions,
+            self.symbol,
+            self.auction_type,
+            self.phase,
+            self.buy_interest(),
+            self.sell_interest(),
+            self.extensions,
         )
     }
 }
@@ -601,8 +635,20 @@ mod tests {
     #[test]
     fn test_simple_auction() {
         let mut m = market();
-        m.submit(AuctionOrder::limit(1, "AAPL", AuctionSide::Buy, 100.0, 150.0));
-        m.submit(AuctionOrder::limit(2, "AAPL", AuctionSide::Sell, 100.0, 150.0));
+        m.submit(AuctionOrder::limit(
+            1,
+            "AAPL",
+            AuctionSide::Buy,
+            100.0,
+            150.0,
+        ));
+        m.submit(AuctionOrder::limit(
+            2,
+            "AAPL",
+            AuctionSide::Sell,
+            100.0,
+            150.0,
+        ));
         let result = m.execute(0).unwrap();
         assert!((result.auction_price - 150.0).abs() < 1e-9);
         assert!((result.total_volume - 100.0).abs() < 1e-9);
@@ -611,10 +657,34 @@ mod tests {
     #[test]
     fn test_price_maximises_volume() {
         let mut m = market();
-        m.submit(AuctionOrder::limit(1, "AAPL", AuctionSide::Buy, 100.0, 152.0));
-        m.submit(AuctionOrder::limit(2, "AAPL", AuctionSide::Buy, 50.0, 150.0));
-        m.submit(AuctionOrder::limit(3, "AAPL", AuctionSide::Sell, 120.0, 150.0));
-        m.submit(AuctionOrder::limit(4, "AAPL", AuctionSide::Sell, 30.0, 152.0));
+        m.submit(AuctionOrder::limit(
+            1,
+            "AAPL",
+            AuctionSide::Buy,
+            100.0,
+            152.0,
+        ));
+        m.submit(AuctionOrder::limit(
+            2,
+            "AAPL",
+            AuctionSide::Buy,
+            50.0,
+            150.0,
+        ));
+        m.submit(AuctionOrder::limit(
+            3,
+            "AAPL",
+            AuctionSide::Sell,
+            120.0,
+            150.0,
+        ));
+        m.submit(AuctionOrder::limit(
+            4,
+            "AAPL",
+            AuctionSide::Sell,
+            30.0,
+            152.0,
+        ));
         let result = m.execute(0).unwrap();
         // At 150: buy=150, sell=150 → matched 150.
         // At 152: buy=100, sell=150 → matched 100.
@@ -626,7 +696,13 @@ mod tests {
     fn test_market_orders_always_eligible() {
         let mut m = market();
         m.submit(AuctionOrder::market(1, "AAPL", AuctionSide::Buy, 100.0));
-        m.submit(AuctionOrder::limit(2, "AAPL", AuctionSide::Sell, 100.0, 155.0));
+        m.submit(AuctionOrder::limit(
+            2,
+            "AAPL",
+            AuctionSide::Sell,
+            100.0,
+            155.0,
+        ));
         let result = m.execute(0).unwrap();
         assert!((result.auction_price - 155.0).abs() < 1e-9);
     }
@@ -634,8 +710,20 @@ mod tests {
     #[test]
     fn test_imbalanced_auction() {
         let mut m = market();
-        m.submit(AuctionOrder::limit(1, "AAPL", AuctionSide::Buy, 200.0, 150.0));
-        m.submit(AuctionOrder::limit(2, "AAPL", AuctionSide::Sell, 100.0, 150.0));
+        m.submit(AuctionOrder::limit(
+            1,
+            "AAPL",
+            AuctionSide::Buy,
+            200.0,
+            150.0,
+        ));
+        m.submit(AuctionOrder::limit(
+            2,
+            "AAPL",
+            AuctionSide::Sell,
+            100.0,
+            150.0,
+        ));
         let result = m.execute(0).unwrap();
         assert!((result.total_volume - 100.0).abs() < 1e-9);
         assert!((result.buy_surplus - 100.0).abs() < 1e-9);
@@ -644,8 +732,20 @@ mod tests {
     #[test]
     fn test_indicative_data() {
         let mut m = market();
-        m.submit(AuctionOrder::limit(1, "AAPL", AuctionSide::Buy, 100.0, 150.0));
-        m.submit(AuctionOrder::limit(2, "AAPL", AuctionSide::Sell, 80.0, 150.0));
+        m.submit(AuctionOrder::limit(
+            1,
+            "AAPL",
+            AuctionSide::Buy,
+            100.0,
+            150.0,
+        ));
+        m.submit(AuctionOrder::limit(
+            2,
+            "AAPL",
+            AuctionSide::Sell,
+            80.0,
+            150.0,
+        ));
         let ind = m.indicative();
         assert!((ind.indicative_price - 150.0).abs() < 1e-9);
         assert!((ind.indicative_volume - 80.0).abs() < 1e-9);
@@ -654,8 +754,20 @@ mod tests {
     #[test]
     fn test_indicative_imbalance() {
         let mut m = market();
-        m.submit(AuctionOrder::limit(1, "AAPL", AuctionSide::Buy, 200.0, 150.0));
-        m.submit(AuctionOrder::limit(2, "AAPL", AuctionSide::Sell, 100.0, 150.0));
+        m.submit(AuctionOrder::limit(
+            1,
+            "AAPL",
+            AuctionSide::Buy,
+            200.0,
+            150.0,
+        ));
+        m.submit(AuctionOrder::limit(
+            2,
+            "AAPL",
+            AuctionSide::Sell,
+            100.0,
+            150.0,
+        ));
         let ind = m.indicative();
         assert!((ind.imbalance - 100.0).abs() < 1e-9);
         assert_eq!(ind.imbalance_side, Some(AuctionSide::Buy));
@@ -666,8 +778,20 @@ mod tests {
         let collar = CollarConfig::new(100.0, 5.0);
         let mut m = AuctionMarket::new("AAPL", AuctionType::Opening).with_collar(collar);
         // These prices are outside the 95-105 collar.
-        m.submit(AuctionOrder::limit(1, "AAPL", AuctionSide::Buy, 100.0, 120.0));
-        m.submit(AuctionOrder::limit(2, "AAPL", AuctionSide::Sell, 100.0, 120.0));
+        m.submit(AuctionOrder::limit(
+            1,
+            "AAPL",
+            AuctionSide::Buy,
+            100.0,
+            120.0,
+        ));
+        m.submit(AuctionOrder::limit(
+            2,
+            "AAPL",
+            AuctionSide::Sell,
+            100.0,
+            120.0,
+        ));
         let result = m.execute(0);
         assert!(result.is_none());
         assert_eq!(m.phase, AuctionPhase::Extended);
@@ -692,7 +816,13 @@ mod tests {
     #[test]
     fn test_cancel() {
         let mut m = market();
-        m.submit(AuctionOrder::limit(1, "AAPL", AuctionSide::Buy, 100.0, 150.0));
+        m.submit(AuctionOrder::limit(
+            1,
+            "AAPL",
+            AuctionSide::Buy,
+            100.0,
+            150.0,
+        ));
         assert!(m.cancel(1));
         assert_eq!(m.order_count(), 0);
     }
@@ -707,7 +837,13 @@ mod tests {
     #[test]
     fn test_reset() {
         let mut m = market();
-        m.submit(AuctionOrder::limit(1, "AAPL", AuctionSide::Buy, 100.0, 150.0));
+        m.submit(AuctionOrder::limit(
+            1,
+            "AAPL",
+            AuctionSide::Buy,
+            100.0,
+            150.0,
+        ));
         m.execute(0);
         m.reset();
         assert_eq!(m.phase, AuctionPhase::OrderEntry);
@@ -757,7 +893,10 @@ mod tests {
     #[test]
     fn test_auction_fill_notional() {
         let f = AuctionFill {
-            order_id: 1, side: AuctionSide::Buy, price: 150.0, quantity: 100.0,
+            order_id: 1,
+            side: AuctionSide::Buy,
+            price: 150.0,
+            quantity: 100.0,
         };
         assert!((f.notional() - 15000.0).abs() < 1e-9);
     }

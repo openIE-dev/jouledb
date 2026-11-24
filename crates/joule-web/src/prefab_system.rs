@@ -212,7 +212,11 @@ impl Prefab {
                 ));
             }
             out.push_str("      }\n");
-            let comma = if i + 1 < self.components.len() { "," } else { "" };
+            let comma = if i + 1 < self.components.len() {
+                ","
+            } else {
+                ""
+            };
             out.push_str(&format!("    }}{comma}\n"));
         }
         out.push_str("  ],\n");
@@ -800,7 +804,11 @@ mod tests {
             &[("hp".to_string(), PropValue::Int(999))],
         );
         let diffs = lib.diff(&inst);
-        assert!(diffs.iter().any(|d| matches!(d, PrefabDiff::PropertyChanged { key, .. } if key == "hp")));
+        assert!(
+            diffs
+                .iter()
+                .any(|d| matches!(d, PrefabDiff::PropertyChanged { key, .. } if key == "hp"))
+        );
     }
 
     #[test]
@@ -810,9 +818,11 @@ mod tests {
         let mut inst = lib.instantiate("A").unwrap();
         inst.components.push(Component::new("Armor"));
         let diffs = lib.diff(&inst);
-        assert!(diffs
-            .iter()
-            .any(|d| matches!(d, PrefabDiff::ComponentAdded(n) if n == "Armor")));
+        assert!(
+            diffs
+                .iter()
+                .any(|d| matches!(d, PrefabDiff::ComponentAdded(n) if n == "Armor"))
+        );
     }
 
     #[test]
@@ -826,9 +836,11 @@ mod tests {
         let mut inst = lib.instantiate("A").unwrap();
         inst.components.retain(|c| c.name != "Transform");
         let diffs = lib.diff(&inst);
-        assert!(diffs
-            .iter()
-            .any(|d| matches!(d, PrefabDiff::ComponentRemoved(n) if n == "Transform")));
+        assert!(
+            diffs
+                .iter()
+                .any(|d| matches!(d, PrefabDiff::ComponentRemoved(n) if n == "Transform"))
+        );
     }
 
     #[test]

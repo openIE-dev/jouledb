@@ -512,8 +512,8 @@ mod tests {
 
     #[test]
     fn test_to_map() {
-        let err = ChainedError::new(ErrorKind::NotFound, "page not found")
-            .with_context("path", "/foo");
+        let err =
+            ChainedError::new(ErrorKind::NotFound, "page not found").with_context("path", "/foo");
         let map = err.to_map();
         assert_eq!(map.get("message").unwrap(), "page not found");
         assert_eq!(map.get("kind").unwrap(), "not_found");

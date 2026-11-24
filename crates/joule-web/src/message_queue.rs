@@ -298,12 +298,16 @@ impl MessageQueue {
         if self.seen_ids.contains(&msg.id) {
             return Err(MqError::DuplicateMessage(msg.id));
         }
-        let current = self.messages.values().filter(|m| {
-            matches!(
-                m.status,
-                MessageStatus::Pending | MessageStatus::Delayed | MessageStatus::Delivered
-            )
-        }).count();
+        let current = self
+            .messages
+            .values()
+            .filter(|m| {
+                matches!(
+                    m.status,
+                    MessageStatus::Pending | MessageStatus::Delayed | MessageStatus::Delivered
+                )
+            })
+            .count();
         if let Some(limit) = self.max_size {
             if current >= limit {
                 return Err(MqError::QueueFull {
@@ -334,10 +338,7 @@ impl MessageQueue {
         let mut expired_ids = Vec::new();
         for msg in self.messages.values_mut() {
             if msg.is_expired(now)
-                && matches!(
-                    msg.status,
-                    MessageStatus::Pending | MessageStatus::Delayed
-                )
+                && matches!(msg.status, MessageStatus::Pending | MessageStatus::Delayed)
             {
                 msg.status = MessageStatus::Expired;
                 expired_ids.push(msg.id.clone());
@@ -546,13 +547,15 @@ impl MessageQueue {
 
     /// Count of messages in a given status.
     pub fn count_by_status(&self, status: MessageStatus) -> usize {
-        self.messages.values().filter(|m| m.status == status).count()
+        self.messages
+            .values()
+            .filter(|m| m.status == status)
+            .count()
     }
 
     /// Number of pending messages across all priorities.
     pub fn pending_count(&self) -> usize {
-        self.count_by_status(MessageStatus::Pending)
-            + self.count_by_status(MessageStatus::Delayed)
+        self.count_by_status(MessageStatus::Pending) + self.count_by_status(MessageStatus::Delayed)
     }
 
     /// Total messages tracked (all statuses).
@@ -586,9 +589,12 @@ mod tests {
     #[test]
     fn test_priority_ordering() {
         let mut q = make_queue();
-        q.enqueue(Message::new("low", "a").with_priority(Priority::LOW)).unwrap();
-        q.enqueue(Message::new("high", "b").with_priority(Priority::HIGH)).unwrap();
-        q.enqueue(Message::new("crit", "c").with_priority(Priority::CRITICAL)).unwrap();
+        q.enqueue(Message::new("low", "a").with_priority(Priority::LOW))
+            .unwrap();
+        q.enqueue(Message::new("high", "b").with_priority(Priority::HIGH))
+            .unwrap();
+        q.enqueue(Message::new("crit", "c").with_priority(Priority::CRITICAL))
+            .unwrap();
         assert_eq!(q.dequeue().unwrap().id, "crit");
         assert_eq!(q.dequeue().unwrap().id, "high");
         assert_eq!(q.dequeue().unwrap().id, "low");
@@ -622,7 +628,8 @@ mod tests {
     #[test]
     fn test_nack_retries() {
         let mut q = make_queue();
-        q.enqueue(Message::new("m1", "data").with_max_attempts(3)).unwrap();
+        q.enqueue(Message::new("m1", "data").with_max_attempts(3))
+            .unwrap();
         // First delivery.
         let _m = q.dequeue().unwrap();
         let requeued = q.nack("m1").unwrap();
@@ -635,7 +642,8 @@ mod tests {
     #[test]
     fn test_nack_dead_letters_after_max_attempts() {
         let mut q = make_queue();
-        q.enqueue(Message::new("m1", "payload").with_max_attempts(2)).unwrap();
+        q.enqueue(Message::new("m1", "payload").with_max_attempts(2))
+            .unwrap();
         // Attempt 1.
         q.dequeue().unwrap();
         q.nack("m1").unwrap();
@@ -661,7 +669,8 @@ mod tests {
     #[test]
     fn test_delayed_message() {
         let mut q = make_queue();
-        q.enqueue(Message::new("m1", "delayed").with_delay(500)).unwrap();
+        q.enqueue(Message::new("m1", "delayed").with_delay(500))
+            .unwrap();
         // Not eligible yet.
         assert!(q.dequeue().is_none());
         q.advance_time(500);
@@ -745,7 +754,8 @@ mod tests {
     #[test]
     fn test_pop_dead_letter() {
         let mut q = make_queue();
-        q.enqueue(Message::new("m1", "payload").with_max_attempts(1)).unwrap();
+        q.enqueue(Message::new("m1", "payload").with_max_attempts(1))
+            .unwrap();
         q.dequeue().unwrap();
         q.nack("m1").unwrap();
         let dl = q.pop_dead_letter().unwrap();
@@ -758,7 +768,8 @@ mod tests {
         let mut q = make_queue();
         for i in 0..3 {
             let id = format!("m{i}");
-            q.enqueue(Message::new(id, "p").with_max_attempts(1)).unwrap();
+            q.enqueue(Message::new(id, "p").with_max_attempts(1))
+                .unwrap();
             let msg = q.dequeue().unwrap();
             q.nack(&msg.id).unwrap();
         }
@@ -781,12 +792,8 @@ mod tests {
     #[test]
     fn test_delayed_not_expired_before_eligible() {
         let mut q = make_queue();
-        q.enqueue(
-            Message::new("m1", "data")
-                .with_delay(200)
-                .with_ttl(500),
-        )
-        .unwrap();
+        q.enqueue(Message::new("m1", "data").with_delay(200).with_ttl(500))
+            .unwrap();
         q.advance_time(100);
         // Not yet eligible, should not dequeue.
         assert!(q.dequeue().is_none());

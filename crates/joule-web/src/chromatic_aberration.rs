@@ -20,11 +20,19 @@ impl CaPixel {
     }
 
     pub fn black() -> Self {
-        Self { r: 0.0, g: 0.0, b: 0.0 }
+        Self {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+        }
     }
 
     pub fn scale(&self, s: f64) -> Self {
-        Self { r: self.r * s, g: self.g * s, b: self.b * s }
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
     }
 
     pub fn add(&self, other: &Self) -> Self {
@@ -226,7 +234,11 @@ impl Default for CaConfig {
 
 impl fmt::Display for CaConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CaConfig(intensity={:.2}, mode={})", self.intensity, self.mode)
+        write!(
+            f,
+            "CaConfig(intensity={:.2}, mode={})",
+            self.intensity, self.mode
+        )
     }
 }
 
@@ -238,7 +250,13 @@ pub fn radial_distance(x: usize, y: usize, width: usize, height: usize, center: 
 }
 
 /// Compute radial direction from center.
-pub fn radial_direction(x: usize, y: usize, width: usize, height: usize, center: (f64, f64)) -> (f64, f64) {
+pub fn radial_direction(
+    x: usize,
+    y: usize,
+    width: usize,
+    height: usize,
+    center: (f64, f64),
+) -> (f64, f64) {
     let nx = (x as f64 + 0.5) / width as f64 - center.0;
     let ny = (y as f64 + 0.5) / height as f64 - center.1;
     let len = (nx * nx + ny * ny).sqrt();
@@ -291,7 +309,11 @@ pub fn apply_ca_fast(src: &CaBuffer, config: &CaConfig, depth: Option<&CaDepthBu
     let h = src.height;
     let mut out = CaBuffer::new(w, h);
 
-    let offsets = [config.channel_offsets.0, config.channel_offsets.1, config.channel_offsets.2];
+    let offsets = [
+        config.channel_offsets.0,
+        config.channel_offsets.1,
+        config.channel_offsets.2,
+    ];
 
     for y in 0..h {
         for x in 0..w {
@@ -307,9 +329,8 @@ pub fn apply_ca_fast(src: &CaBuffer, config: &CaConfig, depth: Option<&CaDepthBu
 
             let mut channels = [0.0_f64; 3];
             for ch in 0..3 {
-                let (uv_dx, uv_dy) = compute_channel_uv_offset(
-                    x, y, w, h, config, offsets[ch], depth_factor,
-                );
+                let (uv_dx, uv_dy) =
+                    compute_channel_uv_offset(x, y, w, h, config, offsets[ch], depth_factor);
                 let sx = x as f64 + uv_dx;
                 let sy = y as f64 + uv_dy;
                 channels[ch] = src.sample_channel_bilinear(sx, sy, ch);
@@ -384,9 +405,8 @@ pub fn apply_ca_spectral(
                 let offset = spectral_offset(bin, bins);
                 let (wr, wg, wb) = spectral_to_rgb(bin, bins);
 
-                let (uv_dx, uv_dy) = compute_channel_uv_offset(
-                    x, y, w, h, config, offset, depth_factor,
-                );
+                let (uv_dx, uv_dy) =
+                    compute_channel_uv_offset(x, y, w, h, config, offset, depth_factor);
                 let sx = x as f64 + uv_dx;
                 let sy = y as f64 + uv_dy;
 
@@ -489,7 +509,11 @@ mod tests {
 
     #[test]
     fn test_distortion_none() {
-        assert!(approx_eq(apply_distortion(0.5, &DistortionModel::None), 0.5, 1e-10));
+        assert!(approx_eq(
+            apply_distortion(0.5, &DistortionModel::None),
+            0.5,
+            1e-10
+        ));
     }
 
     #[test]
@@ -531,7 +555,10 @@ mod tests {
     #[test]
     fn test_apply_ca_zero_intensity() {
         let buf = CaBuffer::new(8, 8);
-        let config = CaConfig { intensity: 0.0, ..Default::default() };
+        let config = CaConfig {
+            intensity: 0.0,
+            ..Default::default()
+        };
         let result = apply_chromatic_aberration(&buf, &config, None);
         // Zero intensity returns input
         let px = result.get(4, 4);

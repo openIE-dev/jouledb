@@ -60,11 +60,7 @@ impl AttentionSDM {
     /// Write a key-value pair into the attention memory.
     ///
     /// Equivalent to adding a row to the Key and Value matrices in attention.
-    pub fn write_kv(
-        &self,
-        key: &SDMAddress,
-        value: &[i8],
-    ) -> Result<u32, SDMError> {
+    pub fn write_kv(&self, key: &SDMAddress, value: &[i8]) -> Result<u32, SDMError> {
         self.sdm.write(key, value)
     }
 
@@ -132,10 +128,7 @@ impl AttentionSDM {
     /// # Arguments
     /// * `queries` - One query per head
     pub fn multi_head_read(&self, queries: &[SDMAddress]) -> Vec<Vec<f64>> {
-        queries
-            .iter()
-            .map(|q| self.attention_read(q))
-            .collect()
+        queries.iter().map(|q| self.attention_read(q)).collect()
     }
 
     /// Get the underlying SDM (for direct access when attention semantics aren't needed).
@@ -156,7 +149,9 @@ mod tests {
 
         // Write a key-value pair
         let key = SDMAddress::from_data(b"test_key", dim);
-        let value: Vec<i8> = (0..data_size).map(|i| if i % 2 == 0 { 1 } else { -1 }).collect();
+        let value: Vec<i8> = (0..data_size)
+            .map(|i| if i % 2 == 0 { 1 } else { -1 })
+            .collect();
         attn.write_kv(&key, &value).unwrap();
 
         // Read with the same key — should recover the written pattern
@@ -165,9 +160,19 @@ mod tests {
         // Output should have the same sign pattern as the written value
         for (i, &v) in value.iter().enumerate() {
             if v > 0 {
-                assert!(output[i] > 0.0, "Expected positive at index {}, got {}", i, output[i]);
+                assert!(
+                    output[i] > 0.0,
+                    "Expected positive at index {}, got {}",
+                    i,
+                    output[i]
+                );
             } else {
-                assert!(output[i] < 0.0, "Expected negative at index {}, got {}", i, output[i]);
+                assert!(
+                    output[i] < 0.0,
+                    "Expected negative at index {}, got {}",
+                    i,
+                    output[i]
+                );
             }
         }
     }

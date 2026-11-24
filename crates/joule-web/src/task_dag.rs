@@ -164,11 +164,7 @@ impl TaskDag {
     }
 
     /// Add a dependency: `task_id` depends on `depends_on_id` (depends_on must complete first).
-    pub fn add_dependency(
-        &mut self,
-        task_id: &str,
-        depends_on_id: &str,
-    ) -> Result<(), DagError> {
+    pub fn add_dependency(&mut self, task_id: &str, depends_on_id: &str) -> Result<(), DagError> {
         if task_id == depends_on_id {
             return Err(DagError::SelfLoop(task_id.to_string()));
         }
@@ -266,10 +262,7 @@ impl TaskDag {
     pub fn topological_sort(&self) -> Option<Vec<String>> {
         let mut in_degree: HashMap<String, usize> = HashMap::new();
         for id in self.nodes.keys() {
-            in_degree.insert(
-                id.clone(),
-                self.dependencies.get(id).map_or(0, |s| s.len()),
-            );
+            in_degree.insert(id.clone(), self.dependencies.get(id).map_or(0, |s| s.len()));
         }
 
         let mut queue: VecDeque<String> = VecDeque::new();
@@ -459,11 +452,7 @@ impl TaskDag {
         let mut leaves: Vec<String> = self
             .nodes
             .keys()
-            .filter(|id| {
-                self.dependents
-                    .get(*id)
-                    .map_or(true, |s| s.is_empty())
-            })
+            .filter(|id| self.dependents.get(*id).map_or(true, |s| s.is_empty()))
             .cloned()
             .collect();
         leaves.sort();
@@ -475,11 +464,7 @@ impl TaskDag {
         let mut roots: Vec<String> = self
             .nodes
             .keys()
-            .filter(|id| {
-                self.dependencies
-                    .get(*id)
-                    .map_or(true, |s| s.is_empty())
-            })
+            .filter(|id| self.dependencies.get(*id).map_or(true, |s| s.is_empty()))
             .cloned()
             .collect();
         roots.sort();

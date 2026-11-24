@@ -45,7 +45,13 @@ impl Variant {
 
 impl fmt::Display for Variant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}(w={:.2}{})", self.name, self.weight, if self.is_control { ",ctrl" } else { "" })
+        write!(
+            f,
+            "{}(w={:.2}{})",
+            self.name,
+            self.weight,
+            if self.is_control { ",ctrl" } else { "" }
+        )
     }
 }
 
@@ -101,10 +107,22 @@ impl Experiment {
         }
     }
 
-    pub fn description(mut self, d: impl Into<String>) -> Self { self.description = Some(d.into()); self }
-    pub fn status(mut self, s: ExperimentStatus) -> Self { self.status = s; self }
-    pub fn traffic_fraction(mut self, f: f64) -> Self { self.traffic_fraction = f.clamp(0.0, 1.0); self }
-    pub fn salt(mut self, s: impl Into<String>) -> Self { self.salt = s.into(); self }
+    pub fn description(mut self, d: impl Into<String>) -> Self {
+        self.description = Some(d.into());
+        self
+    }
+    pub fn status(mut self, s: ExperimentStatus) -> Self {
+        self.status = s;
+        self
+    }
+    pub fn traffic_fraction(mut self, f: f64) -> Self {
+        self.traffic_fraction = f.clamp(0.0, 1.0);
+        self
+    }
+    pub fn salt(mut self, s: impl Into<String>) -> Self {
+        self.salt = s.into();
+        self
+    }
 
     pub fn add_variant(mut self, v: Variant) -> Self {
         self.variants.push(v);
@@ -129,13 +147,17 @@ impl Experiment {
     /// Normalized weights (each variant's fraction of total).
     pub fn normalized_weights(&self) -> Vec<f64> {
         let total = self.total_weight();
-        if total <= 0.0 { return vec![]; }
+        if total <= 0.0 {
+            return vec![];
+        }
         self.variants.iter().map(|v| v.weight / total).collect()
     }
 
     /// Assign a variant to a user using deterministic hashing.
     pub fn assign(&self, user_id: &str) -> Option<&Variant> {
-        if !self.is_active() { return None; }
+        if !self.is_active() {
+            return None;
+        }
 
         let hash = hash_assignment(&self.salt, user_id);
         let bucket = (hash % 10_000) as f64 / 10_000.0;
@@ -150,7 +172,9 @@ impl Experiment {
 
         // Weighted variant selection
         let total = self.total_weight();
-        if total <= 0.0 { return None; }
+        if total <= 0.0 {
+            return None;
+        }
 
         let mut cumulative = 0.0;
         for variant in &self.variants {
@@ -188,7 +212,9 @@ impl Experiment {
     }
 
     /// Number of variants.
-    pub fn variant_count(&self) -> usize { self.variants.len() }
+    pub fn variant_count(&self) -> usize {
+        self.variants.len()
+    }
 }
 
 // ── Hashing ──────────────────────────────────────────────────────
@@ -197,7 +223,11 @@ impl Experiment {
 /// Uses a simple FNV-1a-like hash. Same (salt, user_id) always produces the same result.
 pub fn hash_assignment(salt: &str, user_id: &str) -> u64 {
     let mut h: u64 = 0xcbf29ce484222325;
-    for b in salt.bytes().chain(b":".iter().copied()).chain(user_id.bytes()) {
+    for b in salt
+        .bytes()
+        .chain(b":".iter().copied())
+        .chain(user_id.bytes())
+    {
         h ^= b as u64;
         h = h.wrapping_mul(0x100000001b3);
     }
@@ -233,7 +263,11 @@ impl FeatureFlag {
         }
     }
 
-    pub fn with_experiment(mut self, exp_id: impl Into<String>, variant: impl Into<String>) -> Self {
+    pub fn with_experiment(
+        mut self,
+        exp_id: impl Into<String>,
+        variant: impl Into<String>,
+    ) -> Self {
         self.experiment_id = Some(exp_id.into());
         self.enabled_variant = Some(variant.into());
         self
@@ -317,19 +351,27 @@ impl VariantResult {
 
     /// Conversion rate (for binary metrics).
     pub fn conversion_rate(&self) -> f64 {
-        if self.sample_size == 0 { 0.0 }
-        else { self.conversions as f64 / self.sample_size as f64 }
+        if self.sample_size == 0 {
+            0.0
+        } else {
+            self.conversions as f64 / self.sample_size as f64
+        }
     }
 
     /// Mean value (for continuous metrics).
     pub fn mean(&self) -> f64 {
-        if self.sample_size == 0 { 0.0 }
-        else { self.sum_value / self.sample_size as f64 }
+        if self.sample_size == 0 {
+            0.0
+        } else {
+            self.sum_value / self.sample_size as f64
+        }
     }
 
     /// Variance (for continuous metrics).
     pub fn variance(&self) -> f64 {
-        if self.sample_size < 2 { return 0.0; }
+        if self.sample_size < 2 {
+            return 0.0;
+        }
         let n = self.sample_size as f64;
         (self.sum_sq_value / n) - (self.sum_value / n).powi(2)
     }
@@ -341,7 +383,9 @@ impl VariantResult {
 
     /// Standard error of the mean.
     pub fn std_error(&self) -> f64 {
-        if self.sample_size == 0 { return 0.0; }
+        if self.sample_size == 0 {
+            return 0.0;
+        }
         self.std_dev() / (self.sample_size as f64).sqrt()
     }
 }
@@ -361,8 +405,11 @@ pub struct SignificanceResult {
 impl fmt::Display for SignificanceResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "z={:.3}, p~{:.4}, lift={:.2}%, sig={}",
-            self.z_score, self.p_value_approx, self.lift * 100.0,
+            f,
+            "z={:.3}, p~{:.4}, lift={:.2}%, sig={}",
+            self.z_score,
+            self.p_value_approx,
+            self.lift * 100.0,
             if self.is_significant { "yes" } else { "no" }
         )
     }
@@ -422,7 +469,11 @@ pub fn significance_test_means(
     let n1 = control.sample_size as f64;
     let n2 = treatment.sample_size as f64;
 
-    let lift = if m1.abs() > 1e-15 { (m2 - m1) / m1 } else { 0.0 };
+    let lift = if m1.abs() > 1e-15 {
+        (m2 - m1) / m1
+    } else {
+        0.0
+    };
 
     if n1 < 2.0 || n2 < 2.0 {
         return SignificanceResult {
@@ -461,7 +512,9 @@ pub fn required_sample_size(
     let z_beta = z_critical(power);
     let numerator = (z_alpha + z_beta).powi(2) * (p1 * (1.0 - p1) + p2 * (1.0 - p2));
     let denominator = (p2 - p1).powi(2);
-    if denominator <= 0.0 { return 0; }
+    if denominator <= 0.0 {
+        return 0;
+    }
     (numerator / denominator).ceil() as u64
 }
 
@@ -469,13 +522,21 @@ pub fn required_sample_size(
 
 /// Approximate z critical value for common confidence levels.
 fn z_critical(confidence: f64) -> f64 {
-    if confidence >= 0.999 { 3.291 }
-    else if confidence >= 0.99 { 2.576 }
-    else if confidence >= 0.975 { 2.241 }
-    else if confidence >= 0.95 { 1.960 }
-    else if confidence >= 0.90 { 1.645 }
-    else if confidence >= 0.80 { 1.282 }
-    else { 1.0 }
+    if confidence >= 0.999 {
+        3.291
+    } else if confidence >= 0.99 {
+        2.576
+    } else if confidence >= 0.975 {
+        2.241
+    } else if confidence >= 0.95 {
+        1.960
+    } else if confidence >= 0.90 {
+        1.645
+    } else if confidence >= 0.80 {
+        1.282
+    } else {
+        1.0
+    }
 }
 
 /// Approximate two-tailed p-value from z-score.
@@ -484,12 +545,10 @@ fn two_tail_p_value(z: f64) -> f64 {
     let az = z.abs();
     let t = 1.0 / (1.0 + 0.2316419 * az);
     let d = 0.3989422804014327; // 1/sqrt(2*pi)
-    let p_one_tail = d * (-az * az / 2.0).exp()
+    let p_one_tail = d
+        * (-az * az / 2.0).exp()
         * (t * (0.319381530
-            + t * (-0.356563782
-                + t * (1.781477937
-                    + t * (-1.821255978
-                        + t * 1.330274429)))));
+            + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429)))));
     (2.0 * p_one_tail).clamp(0.0, 1.0)
 }
 
@@ -611,8 +670,7 @@ mod tests {
 
     #[test]
     fn test_experiment_validate() {
-        let exp = Experiment::new("e", "test")
-            .add_variant(Variant::new("only-one", 1.0));
+        let exp = Experiment::new("e", "test").add_variant(Variant::new("only-one", 1.0));
         let issues = exp.validate();
         assert!(issues.iter().any(|i| i.contains("at least 2")));
         assert!(issues.iter().any(|i| i.contains("no control")));
@@ -671,8 +729,7 @@ mod tests {
 
     #[test]
     fn test_feature_flag_override() {
-        let flag = FeatureFlag::new("beta", false)
-            .add_override("vip-user", true);
+        let flag = FeatureFlag::new("beta", false).add_override("vip-user", true);
 
         assert!(flag.is_enabled("vip-user", None));
         assert!(!flag.is_enabled("regular-user", None));
@@ -680,8 +737,7 @@ mod tests {
 
     #[test]
     fn test_feature_flag_experiment() {
-        let flag = FeatureFlag::new("new-checkout", false)
-            .with_experiment("exp-1", "treatment");
+        let flag = FeatureFlag::new("new-checkout", false).with_experiment("exp-1", "treatment");
 
         assert!(flag.is_enabled("user-1", Some("treatment")));
         assert!(!flag.is_enabled("user-2", Some("control")));
@@ -738,8 +794,12 @@ mod tests {
         let mut treatment = VariantResult::new("treatment");
 
         // Control: 10% conversion, Treatment: 20%
-        for i in 0..1000 { control.record_conversion(i < 100); }
-        for i in 0..1000 { treatment.record_conversion(i < 200); }
+        for i in 0..1000 {
+            control.record_conversion(i < 100);
+        }
+        for i in 0..1000 {
+            treatment.record_conversion(i < 200);
+        }
 
         let result = significance_test_proportions(&control, &treatment, 0.95);
         assert!(result.is_significant);
@@ -752,8 +812,12 @@ mod tests {
         let mut treatment = VariantResult::new("treatment");
 
         // Both ~50% conversion (small sample)
-        for i in 0..20 { control.record_conversion(i < 10); }
-        for i in 0..20 { treatment.record_conversion(i < 10); }
+        for i in 0..20 {
+            control.record_conversion(i < 10);
+        }
+        for i in 0..20 {
+            treatment.record_conversion(i < 10);
+        }
 
         let result = significance_test_proportions(&control, &treatment, 0.95);
         assert!(!result.is_significant);
@@ -776,7 +840,7 @@ mod tests {
         // Use values with variance so the z-test can detect significance.
         // Control mean ~10, treatment mean ~15, both with std dev ~2.
         for i in 0..500 {
-            control.record_value(8.0 + (i % 5) as f64);   // values 8..12, mean=10
+            control.record_value(8.0 + (i % 5) as f64); // values 8..12, mean=10
         }
         for i in 0..500 {
             treatment.record_value(13.0 + (i % 5) as f64); // values 13..17, mean=15

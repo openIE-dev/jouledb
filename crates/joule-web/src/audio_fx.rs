@@ -270,10 +270,7 @@ impl Reverb {
             (1491.0 * scale) as usize,
             (1422.0 * scale) as usize,
         ];
-        let allpass_delays = [
-            (225.0 * scale) as usize,
-            (556.0 * scale) as usize,
-        ];
+        let allpass_delays = [(225.0 * scale) as usize, (556.0 * scale) as usize];
 
         Self {
             combs: [
@@ -491,7 +488,10 @@ mod tests {
         let input_energy: f32 = samples.iter().map(|s| s * s).sum();
         lpf.process(&mut samples);
         let output_energy: f32 = samples.iter().map(|s| s * s).sum();
-        assert!(output_energy < input_energy * 0.5, "LPF should attenuate high frequencies");
+        assert!(
+            output_energy < input_energy * 0.5,
+            "LPF should attenuate high frequencies"
+        );
     }
 
     #[test]

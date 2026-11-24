@@ -251,7 +251,10 @@ impl fmt::Display for BenchmarkComparison {
 }
 
 /// Compare two benchmark results.
-pub fn compare_results(baseline: &BenchmarkResult, candidate: &BenchmarkResult) -> BenchmarkComparison {
+pub fn compare_results(
+    baseline: &BenchmarkResult,
+    candidate: &BenchmarkResult,
+) -> BenchmarkComparison {
     let change_pct = if baseline.mean_ns == 0.0 {
         0.0
     } else {

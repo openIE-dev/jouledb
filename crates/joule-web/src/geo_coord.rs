@@ -19,8 +19,7 @@ pub const WGS84_F: f64 = 1.0 / 298.257_223_563;
 pub const WGS84_E2: f64 = 2.0 * WGS84_F - WGS84_F * WGS84_F;
 
 /// WGS84 second eccentricity squared  e'² = (a²-b²)/b².
-pub const WGS84_EP2: f64 =
-    (WGS84_A * WGS84_A - WGS84_B * WGS84_B) / (WGS84_B * WGS84_B);
+pub const WGS84_EP2: f64 = (WGS84_A * WGS84_A - WGS84_B * WGS84_B) / (WGS84_B * WGS84_B);
 
 // ── Error ──────────────────────────────────────────────────────
 
@@ -66,7 +65,11 @@ impl GeoCoord {
     pub fn new(lat: f64, lon: f64) -> Result<Self, CoordError> {
         validate_lat(lat)?;
         validate_lon(lon)?;
-        Ok(Self { lat, lon, alt: None })
+        Ok(Self {
+            lat,
+            lon,
+            alt: None,
+        })
     }
 
     /// Create with altitude.
@@ -201,7 +204,13 @@ pub struct Dms {
 
 impl fmt::Display for Dms {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}°{:02}'{:06.3}\"", self.degrees.abs(), self.minutes, self.seconds)
+        write!(
+            f,
+            "{}°{:02}'{:06.3}\"",
+            self.degrees.abs(),
+            self.minutes,
+            self.seconds
+        )
     }
 }
 
@@ -216,7 +225,11 @@ pub struct DmsCoord {
 
 impl fmt::Display for DmsCoord {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}, {} {}", self.lat, self.lat_hem, self.lon, self.lon_hem)
+        write!(
+            f,
+            "{} {}, {} {}",
+            self.lat, self.lat_hem, self.lon, self.lon_hem
+        )
     }
 }
 
@@ -387,8 +400,8 @@ pub fn angular_distance(c1: &GeoCoord, c2: &GeoCoord) -> f64 {
     let cos2 = lat2.cos();
     let sin1 = lat1.sin();
     let sin2 = lat2.sin();
-    let num = ((cos2 * dlon.sin()).powi(2) + (cos1 * sin2 - sin1 * cos2 * dlon.cos()).powi(2))
-        .sqrt();
+    let num =
+        ((cos2 * dlon.sin()).powi(2) + (cos1 * sin2 - sin1 * cos2 * dlon.cos()).powi(2)).sqrt();
     let den = sin1 * sin2 + cos1 * cos2 * dlon.cos();
     num.atan2(den)
 }

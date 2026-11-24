@@ -32,23 +32,51 @@ pub trait Scalar:
 }
 
 impl Scalar for f64 {
-    fn zero() -> Self { 0.0 }
-    fn one() -> Self { 1.0 }
-    fn abs(self) -> Self { f64::abs(self) }
-    fn sqrt(self) -> Self { f64::sqrt(self) }
-    fn from_f64(v: f64) -> Self { v }
-    fn to_f64(self) -> f64 { self }
-    fn epsilon() -> Self { 1e-12 }
+    fn zero() -> Self {
+        0.0
+    }
+    fn one() -> Self {
+        1.0
+    }
+    fn abs(self) -> Self {
+        f64::abs(self)
+    }
+    fn sqrt(self) -> Self {
+        f64::sqrt(self)
+    }
+    fn from_f64(v: f64) -> Self {
+        v
+    }
+    fn to_f64(self) -> f64 {
+        self
+    }
+    fn epsilon() -> Self {
+        1e-12
+    }
 }
 
 impl Scalar for f32 {
-    fn zero() -> Self { 0.0 }
-    fn one() -> Self { 1.0 }
-    fn abs(self) -> Self { f32::abs(self) }
-    fn sqrt(self) -> Self { f32::sqrt(self) }
-    fn from_f64(v: f64) -> Self { v as f32 }
-    fn to_f64(self) -> f64 { self as f64 }
-    fn epsilon() -> Self { 1e-6 }
+    fn zero() -> Self {
+        0.0
+    }
+    fn one() -> Self {
+        1.0
+    }
+    fn abs(self) -> Self {
+        f32::abs(self)
+    }
+    fn sqrt(self) -> Self {
+        f32::sqrt(self)
+    }
+    fn from_f64(v: f64) -> Self {
+        v as f32
+    }
+    fn to_f64(self) -> f64 {
+        self as f64
+    }
+    fn epsilon() -> Self {
+        1e-6
+    }
 }
 
 // ── Matrix ────────────────────────────────────────────────────
@@ -92,7 +120,11 @@ impl<T: Scalar> Matrix<T> {
             assert_eq!(row.len(), ncols, "All rows must have equal length");
             data.extend_from_slice(row);
         }
-        Self { rows: nrows, cols: ncols, data }
+        Self {
+            rows: nrows,
+            cols: ncols,
+            data,
+        }
     }
 
     /// Create from a flat vec in row-major order.
@@ -131,31 +163,52 @@ impl<T: Scalar> Matrix<T> {
     pub fn add(&self, other: &Self) -> Self {
         assert_eq!(self.rows, other.rows);
         assert_eq!(self.cols, other.cols);
-        let data: Vec<T> = self.data.iter().zip(other.data.iter())
+        let data: Vec<T> = self
+            .data
+            .iter()
+            .zip(other.data.iter())
             .map(|(a, b)| *a + *b)
             .collect();
-        Self { rows: self.rows, cols: self.cols, data }
+        Self {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        }
     }
 
     /// Matrix subtraction.
     pub fn sub(&self, other: &Self) -> Self {
         assert_eq!(self.rows, other.rows);
         assert_eq!(self.cols, other.cols);
-        let data: Vec<T> = self.data.iter().zip(other.data.iter())
+        let data: Vec<T> = self
+            .data
+            .iter()
+            .zip(other.data.iter())
             .map(|(a, b)| *a - *b)
             .collect();
-        Self { rows: self.rows, cols: self.cols, data }
+        Self {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        }
     }
 
     /// Scalar multiplication.
     pub fn scale(&self, s: T) -> Self {
         let data: Vec<T> = self.data.iter().map(|v| *v * s).collect();
-        Self { rows: self.rows, cols: self.cols, data }
+        Self {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        }
     }
 
     /// Matrix multiplication.
     pub fn mul(&self, other: &Self) -> Self {
-        assert_eq!(self.cols, other.rows, "Incompatible dimensions for multiplication");
+        assert_eq!(
+            self.cols, other.rows,
+            "Incompatible dimensions for multiplication"
+        );
         let mut result = Self::zeros(self.rows, other.cols);
         for i in 0..self.rows {
             for k in 0..self.cols {
@@ -364,7 +417,9 @@ impl<T: Scalar> Matrix<T> {
         }
 
         // Start with a random-ish vector
-        let mut b: Vec<T> = (0..n).map(|i| T::from_f64((i as f64 + 1.0) / n as f64)).collect();
+        let mut b: Vec<T> = (0..n)
+            .map(|i| T::from_f64((i as f64 + 1.0) / n as f64))
+            .collect();
 
         let mut eigenvalue = T::zero();
 
@@ -415,7 +470,9 @@ impl<T: Scalar> Matrix<T> {
 
     /// Extract a column as a vector.
     pub fn col(&self, c: usize) -> Vec<T> {
-        (0..self.rows).map(|r| self.data[r * self.cols + c]).collect()
+        (0..self.rows)
+            .map(|r| self.data[r * self.cols + c])
+            .collect()
     }
 
     /// Submatrix: remove row `skip_row` and column `skip_col`.
@@ -423,13 +480,21 @@ impl<T: Scalar> Matrix<T> {
         assert!(self.rows > 0 && self.cols > 0);
         let mut data = Vec::with_capacity((self.rows - 1) * (self.cols - 1));
         for r in 0..self.rows {
-            if r == skip_row { continue; }
+            if r == skip_row {
+                continue;
+            }
             for c in 0..self.cols {
-                if c == skip_col { continue; }
+                if c == skip_col {
+                    continue;
+                }
                 data.push(self.data[r * self.cols + c]);
             }
         }
-        Self { rows: self.rows - 1, cols: self.cols - 1, data }
+        Self {
+            rows: self.rows - 1,
+            cols: self.cols - 1,
+            data,
+        }
     }
 
     /// Element-wise comparison within tolerance.
@@ -437,7 +502,9 @@ impl<T: Scalar> Matrix<T> {
         if self.rows != other.rows || self.cols != other.cols {
             return false;
         }
-        self.data.iter().zip(other.data.iter())
+        self.data
+            .iter()
+            .zip(other.data.iter())
             .all(|(a, b)| (a.to_f64() - b.to_f64()).abs() < tol)
     }
 }
@@ -447,7 +514,9 @@ impl<T: Scalar> fmt::Display for Matrix<T> {
         for r in 0..self.rows {
             write!(f, "[")?;
             for c in 0..self.cols {
-                if c > 0 { write!(f, ", ")?; }
+                if c > 0 {
+                    write!(f, ", ")?;
+                }
                 write!(f, "{}", self.data[r * self.cols + c])?;
             }
             writeln!(f, "]")?;
@@ -547,22 +616,14 @@ mod tests {
 
     #[test]
     fn determinant_3x3() {
-        let m = Matrix::from_vec(3, 3, vec![
-            6.0, 1.0, 1.0,
-            4.0, -2.0, 5.0,
-            2.0, 8.0, 7.0,
-        ]);
+        let m = Matrix::from_vec(3, 3, vec![6.0, 1.0, 1.0, 4.0, -2.0, 5.0, 2.0, 8.0, 7.0]);
         let d = m.determinant();
         assert!((d - (-306.0)).abs() < 1e-8);
     }
 
     #[test]
     fn lu_decomposition() {
-        let a = Matrix::from_vec(3, 3, vec![
-            2.0, 1.0, 1.0,
-            4.0, 3.0, 3.0,
-            8.0, 7.0, 9.0,
-        ]);
+        let a = Matrix::from_vec(3, 3, vec![2.0, 1.0, 1.0, 4.0, 3.0, 3.0, 8.0, 7.0, 9.0]);
         let (l, u, perm) = a.lu();
         // Verify L*U = P*A
         let lu = l.mul(&u);
@@ -588,11 +649,7 @@ mod tests {
 
     #[test]
     fn inverse_3x3() {
-        let m = Matrix::from_vec(3, 3, vec![
-            1.0, 2.0, 3.0,
-            0.0, 1.0, 4.0,
-            5.0, 6.0, 0.0,
-        ]);
+        let m = Matrix::from_vec(3, 3, vec![1.0, 2.0, 3.0, 0.0, 1.0, 4.0, 5.0, 6.0, 0.0]);
         let inv = m.inverse().unwrap();
         let product = m.mul(&inv);
         let id = Matrix::<f64>::identity(3);
@@ -607,11 +664,7 @@ mod tests {
 
     #[test]
     fn trace() {
-        let m = Matrix::from_vec(3, 3, vec![
-            1.0, 0.0, 0.0,
-            0.0, 5.0, 0.0,
-            0.0, 0.0, 9.0,
-        ]);
+        let m = Matrix::from_vec(3, 3, vec![1.0, 0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 9.0]);
         assert_eq!(m.trace(), 15.0);
     }
 
@@ -639,11 +692,7 @@ mod tests {
 
     #[test]
     fn minor_matrix() {
-        let m = Matrix::from_vec(3, 3, vec![
-            1.0, 2.0, 3.0,
-            4.0, 5.0, 6.0,
-            7.0, 8.0, 9.0,
-        ]);
+        let m = Matrix::from_vec(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
         let sub = m.minor(0, 0);
         assert_eq!(sub.rows, 2);
         assert_eq!(sub.get(0, 0), 5.0);

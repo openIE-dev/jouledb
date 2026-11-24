@@ -44,14 +44,29 @@ pub enum CallOutcome {
 /// Events emitted by the circuit breaker.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BreakerEvent {
-    StateChanged { from: BreakerState, to: BreakerState, timestamp_ms: u64 },
-    CallSucceeded { duration_ms: u64 },
-    CallFailed { duration_ms: u64 },
-    CallTimedOut { duration_ms: u64 },
+    StateChanged {
+        from: BreakerState,
+        to: BreakerState,
+        timestamp_ms: u64,
+    },
+    CallSucceeded {
+        duration_ms: u64,
+    },
+    CallFailed {
+        duration_ms: u64,
+    },
+    CallTimedOut {
+        duration_ms: u64,
+    },
     CallRejected,
     FallbackExecuted,
-    ThresholdReached { failure_rate: f64, threshold: f64 },
-    RecoverySucceeded { consecutive_successes: u32 },
+    ThresholdReached {
+        failure_rate: f64,
+        threshold: f64,
+    },
+    RecoverySucceeded {
+        consecutive_successes: u32,
+    },
 }
 
 // ── Config ────────────────────────────────────────────────────
@@ -163,7 +178,10 @@ impl SlidingWindow {
     }
 
     fn failure_count(&self) -> usize {
-        self.outcomes.iter().filter(|o| matches!(o, CallOutcome::Failure | CallOutcome::Timeout)).count()
+        self.outcomes
+            .iter()
+            .filter(|o| matches!(o, CallOutcome::Failure | CallOutcome::Timeout))
+            .count()
     }
 
     fn failure_rate(&self) -> f64 {
@@ -270,7 +288,10 @@ impl CircuitBreakerAdv {
     pub fn record_success(&mut self, duration_ms: u64, now_ms: u64) {
         self.metrics.total_calls += 1;
         self.metrics.successful_calls += 1;
-        self.metrics.total_call_duration_ms = self.metrics.total_call_duration_ms.saturating_add(duration_ms);
+        self.metrics.total_call_duration_ms = self
+            .metrics
+            .total_call_duration_ms
+            .saturating_add(duration_ms);
         self.emit(BreakerEvent::CallSucceeded { duration_ms });
 
         match self.state {
@@ -297,7 +318,10 @@ impl CircuitBreakerAdv {
     pub fn record_failure(&mut self, duration_ms: u64, now_ms: u64) {
         self.metrics.total_calls += 1;
         self.metrics.failed_calls += 1;
-        self.metrics.total_call_duration_ms = self.metrics.total_call_duration_ms.saturating_add(duration_ms);
+        self.metrics.total_call_duration_ms = self
+            .metrics
+            .total_call_duration_ms
+            .saturating_add(duration_ms);
         self.emit(BreakerEvent::CallFailed { duration_ms });
 
         match self.state {
@@ -319,7 +343,10 @@ impl CircuitBreakerAdv {
     pub fn record_timeout(&mut self, duration_ms: u64, now_ms: u64) {
         self.metrics.total_calls += 1;
         self.metrics.timed_out_calls += 1;
-        self.metrics.total_call_duration_ms = self.metrics.total_call_duration_ms.saturating_add(duration_ms);
+        self.metrics.total_call_duration_ms = self
+            .metrics
+            .total_call_duration_ms
+            .saturating_add(duration_ms);
         self.emit(BreakerEvent::CallTimedOut { duration_ms });
 
         if self.config.timeout_is_failure {
@@ -346,12 +373,7 @@ impl CircuitBreakerAdv {
 
     /// Execute with the circuit breaker, using a fallback if rejected.
     /// Returns the outcome and whether the fallback was used.
-    pub fn execute<T, F, G>(
-        &mut self,
-        now_ms: u64,
-        primary: F,
-        fallback: G,
-    ) -> (T, bool)
+    pub fn execute<T, F, G>(&mut self, now_ms: u64, primary: F, fallback: G) -> (T, bool)
     where
         F: FnOnce() -> Result<T, T>,
         G: FnOnce() -> T,
@@ -415,7 +437,11 @@ impl CircuitBreakerAdv {
             }
         }
 
-        self.emit(BreakerEvent::StateChanged { from: old, to: new_state, timestamp_ms: now_ms });
+        self.emit(BreakerEvent::StateChanged {
+            from: old,
+            to: new_state,
+            timestamp_ms: now_ms,
+        });
     }
 
     fn update_failure_rate(&mut self) {
@@ -726,7 +752,9 @@ mod tests {
         let events = cb.drain_events();
         assert!(!events.is_empty());
         // Should include failure events and state change.
-        let has_state_change = events.iter().any(|e| matches!(e, BreakerEvent::StateChanged { .. }));
+        let has_state_change = events
+            .iter()
+            .any(|e| matches!(e, BreakerEvent::StateChanged { .. }));
         assert!(has_state_change);
     }
 

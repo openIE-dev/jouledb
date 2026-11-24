@@ -92,7 +92,10 @@ impl RpcCode {
 
     /// Whether this code is retryable by default.
     pub fn is_retryable(self) -> bool {
-        matches!(self, Self::Unavailable | Self::ResourceExhausted | Self::Aborted)
+        matches!(
+            self,
+            Self::Unavailable | Self::ResourceExhausted | Self::Aborted
+        )
     }
 }
 
@@ -166,7 +169,10 @@ impl RpcError {
 
     /// Add an error detail.
     pub fn with_detail(mut self, type_url: impl Into<String>, value: Vec<u8>) -> Self {
-        self.details.push(ErrorDetail { type_url: type_url.into(), value });
+        self.details.push(ErrorDetail {
+            type_url: type_url.into(),
+            value,
+        });
         self
     }
 
@@ -195,7 +201,9 @@ pub struct Metadata {
 
 impl Metadata {
     pub fn new() -> Self {
-        Self { entries: Vec::new() }
+        Self {
+            entries: Vec::new(),
+        }
     }
 
     /// Insert a text value.
@@ -239,7 +247,8 @@ impl Metadata {
     /// Get all values for a key (text).
     pub fn get_all(&self, key: &str) -> Vec<&str> {
         let key_lower = key.to_ascii_lowercase();
-        self.entries.iter()
+        self.entries
+            .iter()
             .filter(|(k, _)| *k == key_lower)
             .filter_map(|(_, v)| std::str::from_utf8(v).ok())
             .collect()
@@ -373,7 +382,10 @@ impl MethodDef {
     pub fn invoke(&self, request: &[u8], ctx: &RpcContext) -> Result<Vec<u8>, RpcError> {
         match self.handler {
             Some(h) => h(request, ctx),
-            None => Err(RpcError::unimplemented(format!("method {} has no handler", self.name))),
+            None => Err(RpcError::unimplemented(format!(
+                "method {} has no handler",
+                self.name
+            ))),
         }
     }
 
@@ -545,7 +557,9 @@ pub struct ServiceRouter {
 
 impl ServiceRouter {
     pub fn new() -> Self {
-        Self { services: Vec::new() }
+        Self {
+            services: Vec::new(),
+        }
     }
 
     /// Register a service.
@@ -564,7 +578,12 @@ impl ServiceRouter {
     }
 
     /// Handle a call: route + invoke handler.
-    pub fn handle(&self, path: &str, request: &[u8], ctx: &RpcContext) -> Result<Vec<u8>, RpcError> {
+    pub fn handle(
+        &self,
+        path: &str,
+        request: &[u8],
+        ctx: &RpcContext,
+    ) -> Result<Vec<u8>, RpcError> {
         if ctx.cancelled {
             return Err(RpcError::cancelled("call cancelled"));
         }
@@ -741,8 +760,7 @@ mod tests {
 
     #[test]
     fn rpc_error_with_detail() {
-        let e = RpcError::internal("fail")
-            .with_detail("type.googleapis.com/Error", vec![1, 2, 3]);
+        let e = RpcError::internal("fail").with_detail("type.googleapis.com/Error", vec![1, 2, 3]);
         assert_eq!(e.details.len(), 1);
         assert_eq!(e.details[0].type_url, "type.googleapis.com/Error");
     }
@@ -815,16 +833,16 @@ mod tests {
 
     #[test]
     fn method_def_basic() {
-        let method = MethodDef::new("SayHello", "HelloRequest", "HelloReply")
-            .with_handler(echo_handler);
+        let method =
+            MethodDef::new("SayHello", "HelloRequest", "HelloReply").with_handler(echo_handler);
         assert!(method.has_handler());
         assert_eq!(method.streaming, StreamingMode::Unary);
     }
 
     #[test]
     fn method_def_streaming() {
-        let method = MethodDef::new("Chat", "Msg", "Msg")
-            .with_streaming(StreamingMode::BidiStreaming);
+        let method =
+            MethodDef::new("Chat", "Msg", "Msg").with_streaming(StreamingMode::BidiStreaming);
         assert_eq!(method.streaming, StreamingMode::BidiStreaming);
     }
 
@@ -889,10 +907,15 @@ mod tests {
     #[test]
     fn service_def_basic() {
         let mut svc = ServiceDef::new("Greeter").with_package("example.v1");
-        svc.add_method(MethodDef::new("SayHello", "HelloRequest", "HelloReply").with_handler(echo_handler));
+        svc.add_method(
+            MethodDef::new("SayHello", "HelloRequest", "HelloReply").with_handler(echo_handler),
+        );
         assert_eq!(svc.method_count(), 1);
         assert!(svc.method("SayHello").is_some());
-        assert_eq!(svc.method("SayHello").unwrap().full_path, "/example.v1.Greeter/SayHello");
+        assert_eq!(
+            svc.method("SayHello").unwrap().full_path,
+            "/example.v1.Greeter/SayHello"
+        );
     }
 
     #[test]

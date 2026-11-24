@@ -488,9 +488,7 @@ mod tests {
         engine
             .add_permission(Permission::new("users", "manage"))
             .unwrap();
-        engine
-            .add_permission(Permission::new("*", "*"))
-            .unwrap();
+        engine.add_permission(Permission::new("*", "*")).unwrap();
 
         // Roles
         let viewer = Role::new("viewer", "Viewer", "Read-only access");
@@ -511,9 +509,7 @@ mod tests {
         engine
             .grant_permission_to_role("editor", "docs:write")
             .unwrap();
-        engine
-            .grant_permission_to_role("admin", "*:*")
-            .unwrap();
+        engine.grant_permission_to_role("admin", "*:*").unwrap();
 
         // Hierarchy: editor inherits from viewer (redundant here but tests inheritance)
         engine
@@ -562,9 +558,7 @@ mod tests {
     #[test]
     fn test_duplicate_role() {
         let mut engine = RbacEngine::new();
-        engine
-            .add_role(Role::new("admin", "Admin", ""))
-            .unwrap();
+        engine.add_role(Role::new("admin", "Admin", "")).unwrap();
         let err = engine
             .add_role(Role::new("admin", "Admin2", ""))
             .unwrap_err();
@@ -625,12 +619,8 @@ mod tests {
         engine.add_role(Role::new("b", "B", "")).unwrap();
         engine.add_role(Role::new("c", "C", "")).unwrap();
 
-        engine
-            .set_role_parents("b", vec!["a".to_string()])
-            .unwrap();
-        engine
-            .set_role_parents("c", vec!["b".to_string()])
-            .unwrap();
+        engine.set_role_parents("b", vec!["a".to_string()]).unwrap();
+        engine.set_role_parents("c", vec!["b".to_string()]).unwrap();
 
         // a -> b -> c -> a would be a cycle
         let err = engine
@@ -866,9 +856,7 @@ mod tests {
     #[test]
     fn test_set_parents_unknown_role() {
         let mut engine = RbacEngine::new();
-        let err = engine
-            .set_role_parents("ghost", vec![])
-            .unwrap_err();
+        let err = engine.set_role_parents("ghost", vec![]).unwrap_err();
         assert_eq!(err, RbacError::RoleNotFound("ghost".to_string()));
     }
 

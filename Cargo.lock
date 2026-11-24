@@ -3832,7 +3832,7 @@ checksum = "8bb03732005da905c88227371639bf1ad885cc712789c011c31c5fb3ab3ccf02"
 
 [[package]]
 name = "inv-auth"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -3861,7 +3861,7 @@ dependencies = [
 
 [[package]]
 name = "inv-crypto"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "aws-lc-rs",
  "base32",
@@ -3890,7 +3890,7 @@ dependencies = [
 
 [[package]]
 name = "inv-energy"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3928,7 +3928,7 @@ version = "0.2.3"
 
 [[package]]
 name = "inv-identity"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "chrono",
  "ed25519-dalek",
@@ -3952,7 +3952,7 @@ dependencies = [
 
 [[package]]
 name = "inv-pqcrypto"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "ed25519-dalek",
  "fips204",
@@ -3970,7 +3970,7 @@ dependencies = [
 
 [[package]]
 name = "inv-telemetry"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "chrono",
  "dashmap",
@@ -3983,7 +3983,7 @@ dependencies = [
 
 [[package]]
 name = "inv-vm-core"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "base32",
  "bytes",
@@ -4132,7 +4132,7 @@ dependencies = [
 
 [[package]]
 name = "joule-ane-rt"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "block2",
  "half",
@@ -4170,7 +4170,7 @@ dependencies = [
 
 [[package]]
 name = "joule-db-branch"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "chrono",
  "flate2",
@@ -4185,7 +4185,7 @@ dependencies = [
 
 [[package]]
 name = "joule-db-browser"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -4235,7 +4235,7 @@ dependencies = [
 
 [[package]]
 name = "joule-db-core"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "aes-gcm",
  "dashmap",
@@ -4251,7 +4251,7 @@ dependencies = [
 
 [[package]]
 name = "joule-db-crdt"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "serde",
  "serde_json",
@@ -4260,7 +4260,7 @@ dependencies = [
 
 [[package]]
 name = "joule-db-domains"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "bincode",
  "criterion",
@@ -4286,7 +4286,7 @@ dependencies = [
 
 [[package]]
 name = "joule-db-energy"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "battery",
  "chrono",
@@ -4315,7 +4315,7 @@ dependencies = [
 
 [[package]]
 name = "joule-db-gpu"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "bytemuck",
  "joule-db-core",
@@ -4329,7 +4329,7 @@ dependencies = [
 
 [[package]]
 name = "joule-db-hdc"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "bytemuck",
  "criterion",
@@ -4347,7 +4347,7 @@ dependencies = [
 
 [[package]]
 name = "joule-db-langgraph"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "chrono",
  "joule-db-amorphic",
@@ -4361,7 +4361,7 @@ dependencies = [
 
 [[package]]
 name = "joule-db-ledger"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "axum",
  "chrono",
@@ -4378,7 +4378,7 @@ dependencies = [
 
 [[package]]
 name = "joule-db-local"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "crc32fast",
  "fs2",
@@ -4431,7 +4431,7 @@ dependencies = [
 
 [[package]]
 name = "joule-db-server"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "anyhow",
  "arrow 58.4.0",
@@ -4523,14 +4523,14 @@ dependencies = [
 
 [[package]]
 name = "joule-db-ternary"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "joule-db-viz"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "serde",
  "serde_json",
@@ -4540,7 +4540,7 @@ dependencies = [
 
 [[package]]
 name = "joule-db-weights"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "joule-db-core",
  "memmap2",
@@ -4553,7 +4553,7 @@ dependencies = [
 
 [[package]]
 name = "joule-energy"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "chrono",
  "joule-db-energy",
@@ -4566,7 +4566,7 @@ dependencies = [
 
 [[package]]
 name = "joule-energy-rt"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "core-foundation 0.10.1",
  "core-foundation-sys 0.8.7",
@@ -4577,7 +4577,7 @@ dependencies = [
 
 [[package]]
 name = "joule-metal-rt"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "metal",
  "thiserror 2.0.21",
@@ -4585,7 +4585,7 @@ dependencies = [
 
 [[package]]
 name = "joule-runtime"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "anyhow",
  "axum",
@@ -4608,7 +4608,7 @@ dependencies = [
 
 [[package]]
 name = "joule-web"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "chrono",
  "joule-energy",
@@ -4621,7 +4621,7 @@ dependencies = [
 
 [[package]]
 name = "jouledb-cli"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "anyhow",
  "chrono",

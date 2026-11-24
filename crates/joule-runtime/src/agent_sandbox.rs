@@ -17,9 +17,7 @@
 //!             → Agent returns to pool
 //! ```
 
-use crate::agent_lifecycle::{
-    AgentFindings, AgentPhase, Anomaly, AnomalyCategory, ManagedAgent,
-};
+use crate::agent_lifecycle::{AgentFindings, AgentPhase, Anomaly, AnomalyCategory, ManagedAgent};
 use crate::attestation::SignedEnergyReceipt;
 use crate::contract::{
     ContractError, ContractProposal, ContractResponse, ExtensionRequest, ExtensionResponse,
@@ -76,10 +74,7 @@ pub struct AgentSandbox {
 
 impl AgentSandbox {
     /// Create a new agent sandbox.
-    pub fn new(
-        agent_id: String,
-        config: AgentSandboxConfig,
-    ) -> Result<Self, RuntimeError> {
+    pub fn new(agent_id: String, config: AgentSandboxConfig) -> Result<Self, RuntimeError> {
         let sandbox = Sandbox::new(config.sandbox.clone())?;
         let agent = ManagedAgent::new(agent_id);
         let trace = TraceAnalyzer::new(config.trace.clone());
@@ -95,10 +90,7 @@ impl AgentSandbox {
     // --- Contract negotiation ---
 
     /// Propose a contract to the agent.
-    pub fn propose_contract(
-        &mut self,
-        proposal: ContractProposal,
-    ) -> Result<(), ContractError> {
+    pub fn propose_contract(&mut self, proposal: ContractProposal) -> Result<(), ContractError> {
         self.agent.propose(proposal)
     }
 
@@ -216,11 +208,7 @@ impl AgentSandbox {
 
     /// Force-recall the agent (budget exceeded, timeout, anomaly).
     /// Stops the sandbox and produces a result with the recall reason.
-    pub fn recall(
-        mut self,
-        reason: &str,
-        target_pid: Option<u32>,
-    ) -> AgentSandboxResult {
+    pub fn recall(mut self, reason: &str, target_pid: Option<u32>) -> AgentSandboxResult {
         // Get trace summary and build anomaly report
         let trace_summary = self.trace.summary();
         let diagnosis = self.trace.diagnose();
@@ -471,7 +459,10 @@ mod tests {
 
         let result = asb.recall("energy budget exceeded", None);
         assert!(result.was_recalled());
-        assert_eq!(result.recall_reason.as_deref(), Some("energy budget exceeded"));
+        assert_eq!(
+            result.recall_reason.as_deref(),
+            Some("energy budget exceeded")
+        );
         assert!(result.findings.is_some());
         let findings = result.findings.unwrap();
         assert!(!findings.scope_completed);
@@ -511,10 +502,7 @@ mod tests {
                 saw_recommendation = true;
             }
         }
-        assert!(
-            saw_recommendation,
-            "expected anomaly recall recommendation"
-        );
+        assert!(saw_recommendation, "expected anomaly recall recommendation");
     }
 
     #[test]

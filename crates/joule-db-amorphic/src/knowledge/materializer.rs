@@ -176,7 +176,11 @@ impl Materializer {
         self.metrics.total += 1;
 
         let entropy = self.classify_entropy(input);
-        *self.metrics.by_entropy.entry(format!("{:?}", entropy)).or_insert(0) += 1;
+        *self
+            .metrics
+            .by_entropy
+            .entry(format!("{:?}", entropy))
+            .or_insert(0) += 1;
 
         // 1. CACHE
         let cache_key = input.to_lowercase();
@@ -233,9 +237,14 @@ impl Materializer {
             let matches = resolver.resolve(&keywords, None);
             if let Some(best) = matches.first() {
                 if best.score > 0.5 {
-                    let answer = format!("Pattern: {} (score: {:.2})", best.pattern_name, best.score);
+                    let answer =
+                        format!("Pattern: {} (score: {:.2})", best.pattern_name, best.score);
                     self.cache.insert(cache_key.clone(), answer.clone());
-                    *self.metrics.by_source.entry("pattern_lang".into()).or_insert(0) += 1;
+                    *self
+                        .metrics
+                        .by_source
+                        .entry("pattern_lang".into())
+                        .or_insert(0) += 1;
                     // 10 nJ actual cost — trie walk + score calc on commodity arch.
                     let actual_pj = 10_000u64;
                     return MaterializeResult {
@@ -262,7 +271,8 @@ impl Materializer {
             .as_mut()
             .and_then(|tier| tier.dispatch_string(input));
         if let Some(resolution) = attractor_resolution {
-            self.cache.insert(cache_key.clone(), resolution.output.clone());
+            self.cache
+                .insert(cache_key.clone(), resolution.output.clone());
             self.metrics.total_energy += resolution.energy_joules;
             *self
                 .metrics
@@ -274,9 +284,7 @@ impl Materializer {
             // Use it as both actual and native floor — the attractor tier
             // already computes the silicon-optimal cost.
             let actual_pj = (resolution.energy_joules * 1e12) as u64;
-            let native_floor_pj = resolution
-                .native_floor_pj
-                .unwrap_or(actual_pj);
+            let native_floor_pj = resolution.native_floor_pj.unwrap_or(actual_pj);
             return MaterializeResult {
                 output: resolution.output,
                 source: Source::Attractor,
@@ -323,7 +331,11 @@ impl Materializer {
         // skills so an explicit skill still wins, and before the neural tier.
         if let Some(answer) = eval_arithmetic_expr(input) {
             self.cache.insert(cache_key.clone(), answer.clone());
-            *self.metrics.by_source.entry("pattern_lang".into()).or_insert(0) += 1;
+            *self
+                .metrics
+                .by_source
+                .entry("pattern_lang".into())
+                .or_insert(0) += 1;
             let actual_pj = 1_000u64;
             return MaterializeResult {
                 output: answer,
@@ -375,22 +387,30 @@ impl Materializer {
             || lower.starts_with("define ")
             || lower.contains("capital of")
             || lower.chars().any(|c| c.is_ascii_digit())
-                && (lower.contains('+') || lower.contains('-') || lower.contains('*') || lower.contains('/'))
+                && (lower.contains('+')
+                    || lower.contains('-')
+                    || lower.contains('*')
+                    || lower.contains('/'))
         {
             return EntropyLevel::Zero;
         }
 
         // LOW: deterministic tools (sorting, searching, algorithm lookup)
-        if lower.contains("sort") || lower.contains("search") || lower.contains("find")
-            || lower.contains("calculate") || lower.contains("convert")
+        if lower.contains("sort")
+            || lower.contains("search")
+            || lower.contains("find")
+            || lower.contains("calculate")
+            || lower.contains("convert")
         {
             return EntropyLevel::Low;
         }
 
         // MEDIUM: structural reasoning (comparison, analogy, contrast)
         if lower.contains("how") && (lower.contains("related") || lower.contains("similar"))
-            || lower.contains("compare") || lower.contains("vs")
-            || lower.contains("contrast") || lower.contains("analogy")
+            || lower.contains("compare")
+            || lower.contains("vs")
+            || lower.contains("contrast")
+            || lower.contains("analogy")
         {
             return EntropyLevel::Medium;
         }
@@ -409,7 +429,6 @@ impl Materializer {
         self.cache.len()
     }
 }
-
 
 /// Evaluate the first `a <op> b` triple in `input`.
 ///
@@ -500,16 +519,28 @@ mod tests {
     #[test]
     fn test_entropy_classification() {
         let m = Materializer::new();
-        assert_eq!(m.classify_entropy("What is the capital of France?"), EntropyLevel::Zero);
+        assert_eq!(
+            m.classify_entropy("What is the capital of France?"),
+            EntropyLevel::Zero
+        );
         assert_eq!(m.classify_entropy("sort this array"), EntropyLevel::Low);
-        assert_eq!(m.classify_entropy("How are cancer and war related?"), EntropyLevel::Medium);
-        assert_eq!(m.classify_entropy("Write me a poem about the ocean"), EntropyLevel::High);
+        assert_eq!(
+            m.classify_entropy("How are cancer and war related?"),
+            EntropyLevel::Medium
+        );
+        assert_eq!(
+            m.classify_entropy("Write me a poem about the ocean"),
+            EntropyLevel::High
+        );
     }
 
     #[test]
     fn test_promotion() {
         let mut m = Materializer::new();
-        m.promote_to_skill("what is gravity", "Gravity is the force of attraction between masses");
+        m.promote_to_skill(
+            "what is gravity",
+            "Gravity is the force of attraction between masses",
+        );
         assert_eq!(m.metrics.promotions, 1);
 
         // Now it should be cached
@@ -594,13 +625,20 @@ mod tests {
         assert_eq!(r2.output, "Paris");
 
         let r3 = m.materialize("What is cancer?");
-        assert!(r3.output.contains("cancer"), "should find cancer: {}", r3.output);
+        assert!(
+            r3.output.contains("cancer"),
+            "should find cancer: {}",
+            r3.output
+        );
 
         let r4 = m.materialize("Write poetry about stars");
         assert_eq!(r4.source, Source::Neural); // Falls through
 
-        assert!(m.metrics.pct_avoided_neural() >= 75.0,
-            "should avoid neural 75%+: {:.1}%", m.metrics.pct_avoided_neural());
+        assert!(
+            m.metrics.pct_avoided_neural() >= 75.0,
+            "should avoid neural 75%+: {:.1}%",
+            m.metrics.pct_avoided_neural()
+        );
     }
 
     // ── Energy receipt integration tests ─────────────────────────────
@@ -613,7 +651,11 @@ mod tests {
         assert_eq!(r.source, Source::Cache);
         assert_eq!(r.receipt.tier, Source::Cache);
         // Cache hit should be cheap (< 1 nJ) on commodity arch.
-        assert!(r.receipt.actual_pj < 1_000, "cache receipt too expensive: {}", r.receipt.actual_pj);
+        assert!(
+            r.receipt.actual_pj < 1_000,
+            "cache receipt too expensive: {}",
+            r.receipt.actual_pj
+        );
         // Savings vs LLM should be astronomical for a cache hit.
         assert!(r.receipt.savings_vs_llm() > 1e6);
     }
@@ -670,7 +712,11 @@ mod tests {
         let r = m.materialize("test");
         let s = r.receipt.format_compact();
         assert!(s.contains("cache"), "compact should name tier: {}", s);
-        assert!(s.contains("pJ") || s.contains("nJ"), "compact should show energy: {}", s);
+        assert!(
+            s.contains("pJ") || s.contains("nJ"),
+            "compact should show energy: {}",
+            s
+        );
         assert!(s.contains("vs LLM"), "compact should show savings: {}", s);
     }
 

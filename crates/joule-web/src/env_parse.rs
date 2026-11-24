@@ -30,7 +30,11 @@ impl std::fmt::Display for EnvParseError {
             }
             EnvParseError::MissingRequired(k) => write!(f, "required variable missing: {}", k),
             EnvParseError::UndefinedVariable { key, referenced } => {
-                write!(f, "variable '{}' references undefined '{}'", key, referenced)
+                write!(
+                    f,
+                    "variable '{}' references undefined '{}'",
+                    key, referenced
+                )
             }
             EnvParseError::CoercionError { key, target_type } => {
                 write!(f, "cannot coerce '{}' to {}", key, target_type)
@@ -132,10 +136,12 @@ impl EnvParser {
             }
 
             // Find the `=` separator.
-            let eq_pos = trimmed.find('=').ok_or_else(|| EnvParseError::SyntaxError {
-                line: line_num,
-                message: "expected KEY=VALUE".into(),
-            })?;
+            let eq_pos = trimmed
+                .find('=')
+                .ok_or_else(|| EnvParseError::SyntaxError {
+                    line: line_num,
+                    message: "expected KEY=VALUE".into(),
+                })?;
 
             let key = trimmed[..eq_pos].trim();
             if key.is_empty() {
@@ -204,12 +210,18 @@ impl EnvParser {
 
     /// Get value or default string.
     pub fn get_or(&self, key: &str, default: &str) -> String {
-        self.vars.get(key).cloned().unwrap_or_else(|| default.to_string())
+        self.vars
+            .get(key)
+            .cloned()
+            .unwrap_or_else(|| default.to_string())
     }
 
     /// Get as int with explicit coercion.
     pub fn get_int(&self, key: &str) -> Result<i64, EnvParseError> {
-        let s = self.vars.get(key).ok_or_else(|| EnvParseError::MissingRequired(key.into()))?;
+        let s = self
+            .vars
+            .get(key)
+            .ok_or_else(|| EnvParseError::MissingRequired(key.into()))?;
         s.parse::<i64>().map_err(|_| EnvParseError::CoercionError {
             key: key.into(),
             target_type: "int".into(),
@@ -218,7 +230,10 @@ impl EnvParser {
 
     /// Get as bool with explicit coercion.
     pub fn get_bool(&self, key: &str) -> Result<bool, EnvParseError> {
-        let s = self.vars.get(key).ok_or_else(|| EnvParseError::MissingRequired(key.into()))?;
+        let s = self
+            .vars
+            .get(key)
+            .ok_or_else(|| EnvParseError::MissingRequired(key.into()))?;
         match s.to_lowercase().as_str() {
             "true" | "1" | "yes" | "on" => Ok(true),
             "false" | "0" | "no" | "off" => Ok(false),
@@ -321,9 +336,7 @@ impl Default for EnvParser {
 /// Strip matching quotes from a value.
 fn unquote(s: &str) -> String {
     if s.len() >= 2 {
-        if (s.starts_with('"') && s.ends_with('"'))
-            || (s.starts_with('\'') && s.ends_with('\''))
-        {
+        if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
             let inner = &s[1..s.len() - 1];
             // Handle escape sequences in double-quoted strings.
             if s.starts_with('"') {
@@ -543,6 +556,9 @@ mod tests {
     #[test]
     fn coercion_error_on_bad_int() {
         let p = parse_str("X=not_a_number");
-        assert!(matches!(p.get_int("X"), Err(EnvParseError::CoercionError { .. })));
+        assert!(matches!(
+            p.get_int("X"),
+            Err(EnvParseError::CoercionError { .. })
+        ));
     }
 }

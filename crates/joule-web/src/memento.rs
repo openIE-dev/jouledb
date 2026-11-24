@@ -81,12 +81,7 @@ pub fn diff_mementos(a: &Memento, b: &Memento) -> MementoDiff {
     let mut changes = Vec::new();
 
     // Collect all keys from both sides (sorted for determinism).
-    let mut all_keys: Vec<String> = a
-        .state
-        .keys()
-        .chain(b.state.keys())
-        .cloned()
-        .collect();
+    let mut all_keys: Vec<String> = a.state.keys().chain(b.state.keys()).cloned().collect();
     all_keys.sort();
     all_keys.dedup();
 
@@ -552,8 +547,16 @@ mod tests {
 
         let d = diff_mementos(&m1, &m2);
         assert_eq!(d.change_count(), 2);
-        assert!(d.changes.iter().any(|c| matches!(c, FieldChange::Removed { key, .. } if key == "a")));
-        assert!(d.changes.iter().any(|c| matches!(c, FieldChange::Added { key, .. } if key == "b")));
+        assert!(
+            d.changes
+                .iter()
+                .any(|c| matches!(c, FieldChange::Removed { key, .. } if key == "a"))
+        );
+        assert!(
+            d.changes
+                .iter()
+                .any(|c| matches!(c, FieldChange::Added { key, .. } if key == "b"))
+        );
     }
 
     #[test]

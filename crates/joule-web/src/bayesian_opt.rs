@@ -11,7 +11,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -49,14 +51,23 @@ impl Kernel {
     /// Evaluate the kernel between two points.
     pub fn evaluate(&self, x1: &[f64], x2: &[f64]) -> f64 {
         match self {
-            Self::Rbf { length_scale, variance } => {
-                let sq_dist: f64 = x1.iter().zip(x2.iter())
-                    .map(|(a, b)| (a - b).powi(2)).sum();
+            Self::Rbf {
+                length_scale,
+                variance,
+            } => {
+                let sq_dist: f64 = x1.iter().zip(x2.iter()).map(|(a, b)| (a - b).powi(2)).sum();
                 variance * (-sq_dist / (2.0 * length_scale * length_scale)).exp()
             }
-            Self::Matern52 { length_scale, variance } => {
-                let dist: f64 = x1.iter().zip(x2.iter())
-                    .map(|(a, b)| (a - b).powi(2)).sum::<f64>().sqrt();
+            Self::Matern52 {
+                length_scale,
+                variance,
+            } => {
+                let dist: f64 = x1
+                    .iter()
+                    .zip(x2.iter())
+                    .map(|(a, b)| (a - b).powi(2))
+                    .sum::<f64>()
+                    .sqrt();
                 let r = (5.0_f64).sqrt() * dist / length_scale;
                 variance * (1.0 + r + r * r / 3.0) * (-r).exp()
             }
@@ -174,7 +185,9 @@ impl GaussianProcess {
     /// Fit the GP (compute Cholesky and alpha vector).
     pub fn fit(&mut self) {
         let n = self.x_train.len();
-        if n == 0 { return; }
+        if n == 0 {
+            return;
+        }
 
         // Build kernel (Gram) matrix
         let mut k = vec![vec![0.0; n]; n];
@@ -207,10 +220,16 @@ impl GaussianProcess {
         };
 
         // k* vector
-        let k_star: Vec<f64> = (0..n).map(|i| self.kernel.evaluate(x, &self.x_train[i])).collect();
+        let k_star: Vec<f64> = (0..n)
+            .map(|i| self.kernel.evaluate(x, &self.x_train[i]))
+            .collect();
 
         // Mean: k*^T × alpha
-        let mean: f64 = k_star.iter().zip(self.alpha.iter()).map(|(k, a)| k * a).sum();
+        let mean: f64 = k_star
+            .iter()
+            .zip(self.alpha.iter())
+            .map(|(k, a)| k * a)
+            .sum();
 
         // Variance: k(x,x) - v^T v where v = L^{-1} k*
         let v = forward_solve(l, &k_star);
@@ -270,11 +289,9 @@ fn erf(x: f64) -> f64 {
     let sign = if x >= 0.0 { 1.0 } else { -1.0 };
     let x = x.abs();
     let t = 1.0 / (1.0 + 0.3275911 * x);
-    let poly = t * (0.254829592
-        + t * (-0.284496736
-            + t * (1.421413741
-                + t * (-1.453152027
-                    + t * 1.061405429))));
+    let poly = t
+        * (0.254829592
+            + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
     sign * (1.0 - poly * (-x * x).exp())
 }
 
@@ -323,7 +340,10 @@ impl Default for BoConfig {
         Self {
             dimensions: 2,
             bounds: vec![(-5.0, 5.0); 2],
-            kernel: Kernel::Rbf { length_scale: 1.0, variance: 1.0 },
+            kernel: Kernel::Rbf {
+                length_scale: 1.0,
+                variance: 1.0,
+            },
             noise_variance: 1e-4,
             acquisition: Acquisition::ExpectedImprovement,
             initial_samples: 5,
@@ -364,9 +384,11 @@ impl BayesianOptimizer {
     }
 
     fn random_point(&mut self) -> Vec<f64> {
-        self.config.bounds.iter().map(|&(lo, hi)| {
-            lo + self.rng.next_f64() * (hi - lo)
-        }).collect()
+        self.config
+            .bounds
+            .iter()
+            .map(|&(lo, hi)| lo + self.rng.next_f64() * (hi - lo))
+            .collect()
     }
 
     /// Perform initial random sampling.
@@ -415,7 +437,10 @@ impl BayesianOptimizer {
             self.step(obj_fn);
         }
 
-        let best_idx = self.gp.y_train().iter()
+        let best_idx = self
+            .gp
+            .y_train()
+            .iter()
             .enumerate()
             .min_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(i, _)| i)
@@ -431,10 +456,14 @@ impl BayesianOptimizer {
     }
 
     /// Get the GP model.
-    pub fn gp(&self) -> &GaussianProcess { &self.gp }
+    pub fn gp(&self) -> &GaussianProcess {
+        &self.gp
+    }
 
     /// Get current iteration.
-    pub fn iteration(&self) -> usize { self.iteration }
+    pub fn iteration(&self) -> usize {
+        self.iteration
+    }
 }
 
 // ── Tests ────────────────────────────────────────────────────────
@@ -461,14 +490,20 @@ mod tests {
 
     #[test]
     fn test_rbf_kernel_same_point() {
-        let k = Kernel::Rbf { length_scale: 1.0, variance: 1.0 };
+        let k = Kernel::Rbf {
+            length_scale: 1.0,
+            variance: 1.0,
+        };
         let x = vec![1.0, 2.0];
         assert!((k.evaluate(&x, &x) - 1.0).abs() < 1e-10);
     }
 
     #[test]
     fn test_rbf_kernel_different_points() {
-        let k = Kernel::Rbf { length_scale: 1.0, variance: 1.0 };
+        let k = Kernel::Rbf {
+            length_scale: 1.0,
+            variance: 1.0,
+        };
         let x1 = vec![0.0, 0.0];
         let x2 = vec![1.0, 0.0];
         let val = k.evaluate(&x1, &x2);
@@ -477,7 +512,10 @@ mod tests {
 
     #[test]
     fn test_rbf_kernel_symmetry() {
-        let k = Kernel::Rbf { length_scale: 1.0, variance: 1.0 };
+        let k = Kernel::Rbf {
+            length_scale: 1.0,
+            variance: 1.0,
+        };
         let x1 = vec![1.0, 2.0];
         let x2 = vec![3.0, 4.0];
         assert!((k.evaluate(&x1, &x2) - k.evaluate(&x2, &x1)).abs() < 1e-15);
@@ -485,7 +523,10 @@ mod tests {
 
     #[test]
     fn test_matern52_same_point() {
-        let k = Kernel::Matern52 { length_scale: 1.0, variance: 1.0 };
+        let k = Kernel::Matern52 {
+            length_scale: 1.0,
+            variance: 1.0,
+        };
         let x = vec![1.0, 2.0];
         assert!((k.evaluate(&x, &x) - 1.0).abs() < 1e-10);
     }
@@ -501,7 +542,13 @@ mod tests {
 
     #[test]
     fn test_gp_no_data() {
-        let gp = GaussianProcess::new(Kernel::Rbf { length_scale: 1.0, variance: 1.0 }, 1e-4);
+        let gp = GaussianProcess::new(
+            Kernel::Rbf {
+                length_scale: 1.0,
+                variance: 1.0,
+            },
+            1e-4,
+        );
         let (mean, var) = gp.predict(&[0.0, 0.0]);
         assert!((mean - 0.0).abs() < 1e-10);
         assert!(var > 0.0);
@@ -509,7 +556,13 @@ mod tests {
 
     #[test]
     fn test_gp_single_observation() {
-        let mut gp = GaussianProcess::new(Kernel::Rbf { length_scale: 1.0, variance: 1.0 }, 1e-4);
+        let mut gp = GaussianProcess::new(
+            Kernel::Rbf {
+                length_scale: 1.0,
+                variance: 1.0,
+            },
+            1e-4,
+        );
         gp.add_observation(vec![0.0], 5.0);
         gp.fit();
         let (mean, var) = gp.predict(&[0.0]);
@@ -519,7 +572,13 @@ mod tests {
 
     #[test]
     fn test_gp_uncertainty_increases_with_distance() {
-        let mut gp = GaussianProcess::new(Kernel::Rbf { length_scale: 1.0, variance: 1.0 }, 1e-4);
+        let mut gp = GaussianProcess::new(
+            Kernel::Rbf {
+                length_scale: 1.0,
+                variance: 1.0,
+            },
+            1e-4,
+        );
         gp.add_observation(vec![0.0], 1.0);
         gp.fit();
         let (_, var_near) = gp.predict(&[0.1]);
@@ -529,7 +588,13 @@ mod tests {
 
     #[test]
     fn test_gp_multiple_observations() {
-        let mut gp = GaussianProcess::new(Kernel::Rbf { length_scale: 1.0, variance: 1e-4 }, 1e-4);
+        let mut gp = GaussianProcess::new(
+            Kernel::Rbf {
+                length_scale: 1.0,
+                variance: 1e-4,
+            },
+            1e-4,
+        );
         gp.add_observation(vec![0.0], 0.0);
         gp.add_observation(vec![1.0], 1.0);
         gp.add_observation(vec![2.0], 4.0);
@@ -541,7 +606,13 @@ mod tests {
 
     #[test]
     fn test_gp_best_observed() {
-        let mut gp = GaussianProcess::new(Kernel::Rbf { length_scale: 1.0, variance: 1.0 }, 1e-4);
+        let mut gp = GaussianProcess::new(
+            Kernel::Rbf {
+                length_scale: 1.0,
+                variance: 1.0,
+            },
+            1e-4,
+        );
         gp.add_observation(vec![0.0], 5.0);
         gp.add_observation(vec![1.0], 2.0);
         gp.add_observation(vec![2.0], 8.0);
@@ -683,7 +754,10 @@ mod tests {
         let config = BoConfig {
             dimensions: 1,
             bounds: vec![(-3.0, 3.0)],
-            kernel: Kernel::Matern52 { length_scale: 1.0, variance: 1.0 },
+            kernel: Kernel::Matern52 {
+                length_scale: 1.0,
+                variance: 1.0,
+            },
             initial_samples: 5,
             max_iterations: 10,
             ..Default::default()

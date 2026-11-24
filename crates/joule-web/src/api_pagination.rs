@@ -183,7 +183,9 @@ pub fn paginate_page<T: Clone>(
         });
     }
     if page == 0 {
-        return Err(PaginationError::InvalidPage("page must be >= 1".to_string()));
+        return Err(PaginationError::InvalidPage(
+            "page must be >= 1".to_string(),
+        ));
     }
 
     let meta = PageMeta::compute(data.len(), page, per_page);
@@ -410,7 +412,11 @@ pub fn paginate_keyset(
     let last_key = items.last().map(|(k, _)| k.clone());
     let has_more = end_idx < indices.len();
 
-    KeysetResponse { items, last_key, has_more }
+    KeysetResponse {
+        items,
+        last_key,
+        has_more,
+    }
 }
 
 // ── Link Headers (RFC 8288) ─────────────────────────────────────
@@ -434,14 +440,21 @@ impl LinkHeaders {
 
         // Last page.
         links.push((
-            format!("{base_url}?page={}&per_page={}", meta.total_pages, meta.per_page),
+            format!(
+                "{base_url}?page={}&per_page={}",
+                meta.total_pages, meta.per_page
+            ),
             "last".to_string(),
         ));
 
         // Next page.
         if meta.has_next {
             links.push((
-                format!("{base_url}?page={}&per_page={}", meta.page + 1, meta.per_page),
+                format!(
+                    "{base_url}?page={}&per_page={}",
+                    meta.page + 1,
+                    meta.per_page
+                ),
                 "next".to_string(),
             ));
         }
@@ -449,7 +462,11 @@ impl LinkHeaders {
         // Previous page.
         if meta.has_prev {
             links.push((
-                format!("{base_url}?page={}&per_page={}", meta.page - 1, meta.per_page),
+                format!(
+                    "{base_url}?page={}&per_page={}",
+                    meta.page - 1,
+                    meta.per_page
+                ),
                 "prev".to_string(),
             ));
         }
@@ -458,11 +475,7 @@ impl LinkHeaders {
     }
 
     /// Create link headers for cursor-based pagination.
-    pub fn for_cursor(
-        base_url: &str,
-        page_info: &CursorPageInfo,
-        first: usize,
-    ) -> Self {
+    pub fn for_cursor(base_url: &str, page_info: &CursorPageInfo, first: usize) -> Self {
         let mut links = Vec::new();
 
         if page_info.has_next_page {
@@ -769,9 +782,13 @@ mod tests {
     #[test]
     fn test_keyset_pagination_ascending() {
         let keys: Vec<String> = vec!["c", "a", "d", "b", "e"]
-            .iter().map(|s| s.to_string()).collect();
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         let data: Vec<String> = vec!["C", "A", "D", "B", "E"]
-            .iter().map(|s| s.to_string()).collect();
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
 
         let resp = paginate_keyset(&keys, &data, None, 3, true);
         assert_eq!(resp.items.len(), 3);
@@ -783,7 +800,9 @@ mod tests {
     #[test]
     fn test_keyset_pagination_with_after() {
         let keys: Vec<String> = vec!["a", "b", "c", "d", "e"]
-            .iter().map(|s| s.to_string()).collect();
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         let data: Vec<String> = keys.clone();
 
         let resp = paginate_keyset(&keys, &data, Some("c"), 2, true);
@@ -849,8 +868,7 @@ mod tests {
 
     #[test]
     fn test_sort_stability() {
-        let sort = SortSpec::new()
-            .add("name", true, false);
+        let sort = SortSpec::new().add("name", true, false);
         assert!(!sort.is_stable());
 
         let stable = sort.ensure_stable("id");
@@ -860,8 +878,7 @@ mod tests {
 
     #[test]
     fn test_sort_already_stable() {
-        let sort = SortSpec::new()
-            .add("id", true, true);
+        let sort = SortSpec::new().add("id", true, true);
         assert!(sort.is_stable());
 
         let still = sort.ensure_stable("id");
@@ -871,7 +888,10 @@ mod tests {
 
     #[test]
     fn test_error_display() {
-        let err = PaginationError::InvalidPageSize { requested: 500, max: 100 };
+        let err = PaginationError::InvalidPageSize {
+            requested: 500,
+            max: 100,
+        };
         assert!(err.to_string().contains("500"));
         assert!(err.to_string().contains("100"));
     }

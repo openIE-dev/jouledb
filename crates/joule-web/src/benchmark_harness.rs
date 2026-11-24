@@ -69,9 +69,23 @@ pub fn compute_stats(measurements: &[Measurement]) -> Stats {
     let iqr = q3 - q1;
     let lo_fence = q1 - 1.5 * iqr;
     let hi_fence = q3 + 1.5 * iqr;
-    let outlier_count = vals.iter().filter(|v| **v < lo_fence || **v > hi_fence).count();
+    let outlier_count = vals
+        .iter()
+        .filter(|v| **v < lo_fence || **v > hi_fence)
+        .count();
 
-    Stats { count, mean, median, stddev, min, max, p95, p99, iqr, outlier_count }
+    Stats {
+        count,
+        mean,
+        median,
+        stddev,
+        min,
+        max,
+        p95,
+        p99,
+        iqr,
+        outlier_count,
+    }
 }
 
 /// Remove outliers (beyond 1.5*IQR fences) from measurements.
@@ -83,7 +97,11 @@ pub fn remove_outliers(measurements: &[Measurement]) -> Vec<Measurement> {
     let iqr = q3 - q1;
     let lo = q1 - 1.5 * iqr;
     let hi = q3 + 1.5 * iqr;
-    measurements.iter().filter(|m| m.nanos >= lo && m.nanos <= hi).copied().collect()
+    measurements
+        .iter()
+        .filter(|m| m.nanos >= lo && m.nanos <= hi)
+        .copied()
+        .collect()
 }
 
 // ── Benchmark definition ────────────────────────────────────────────
@@ -107,9 +125,18 @@ impl BenchConfig {
         }
     }
 
-    pub fn warmup(mut self, n: usize) -> Self { self.warmup_iterations = n; self }
-    pub fn iterations(mut self, n: usize) -> Self { self.iterations = n; self }
-    pub fn keep_outliers(mut self) -> Self { self.outlier_removal = false; self }
+    pub fn warmup(mut self, n: usize) -> Self {
+        self.warmup_iterations = n;
+        self
+    }
+    pub fn iterations(mut self, n: usize) -> Self {
+        self.iterations = n;
+        self
+    }
+    pub fn keep_outliers(mut self) -> Self {
+        self.outlier_removal = false;
+        self
+    }
 }
 
 /// Result of a single benchmark run.
@@ -195,7 +222,9 @@ pub struct BenchSuite {
 }
 
 impl BenchSuite {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn add_result(&mut self, result: BenchResult) {
         self.results.push(result);
@@ -216,7 +245,10 @@ impl BenchSuite {
             out.push_str(&format!("\n{}\n", r.name));
             out.push_str(&"-".repeat(40));
             out.push('\n');
-            out.push_str(&format!("  iterations: {} (warmup: {})\n", r.config.iterations, r.config.warmup_iterations));
+            out.push_str(&format!(
+                "  iterations: {} (warmup: {})\n",
+                r.config.iterations, r.config.warmup_iterations
+            ));
             out.push_str(&format!("  mean:   {:.2} ns\n", r.stats.mean));
             out.push_str(&format!("  median: {:.2} ns\n", r.stats.median));
             out.push_str(&format!("  stddev: {:.2} ns\n", r.stats.stddev));
@@ -228,7 +260,8 @@ impl BenchSuite {
 
             if let Some(baseline) = self.baselines.get(&r.name) {
                 let cmp = compare(baseline, r, 5.0);
-                out.push_str(&format!("  vs baseline: {:.2}x {}\n",
+                out.push_str(&format!(
+                    "  vs baseline: {:.2}x {}\n",
                     cmp.speedup,
                     if cmp.regression { "REGRESSION" } else { "OK" }
                 ));
@@ -327,7 +360,10 @@ mod tests {
 
     #[test]
     fn run_bench_no_outlier_removal() {
-        let config = BenchConfig::new("no_clean").warmup(0).iterations(10).keep_outliers();
+        let config = BenchConfig::new("no_clean")
+            .warmup(0)
+            .iterations(10)
+            .keep_outliers();
         let result = run_bench(config, |i| if i == 5 { 99999.0 } else { 100.0 });
         assert_eq!(result.cleaned_measurements.len(), 10);
     }
@@ -410,7 +446,9 @@ mod tests {
     #[test]
     fn iqr_calculation() {
         let m: Vec<Measurement> = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
-            .into_iter().map(|n| Measurement { nanos: n }).collect();
+            .into_iter()
+            .map(|n| Measurement { nanos: n })
+            .collect();
         let s = compute_stats(&m);
         // Q1=2.75, Q3=6.25, IQR=3.5
         assert!(approx_eq(s.iqr, 3.5, 0.01));
@@ -418,7 +456,10 @@ mod tests {
 
     #[test]
     fn bench_config_builder() {
-        let c = BenchConfig::new("test").warmup(5).iterations(50).keep_outliers();
+        let c = BenchConfig::new("test")
+            .warmup(5)
+            .iterations(50)
+            .keep_outliers();
         assert_eq!(c.name, "test");
         assert_eq!(c.warmup_iterations, 5);
         assert_eq!(c.iterations, 50);

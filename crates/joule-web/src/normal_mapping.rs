@@ -17,9 +17,21 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
-    pub const UP: Self = Self { x: 0.0, y: 1.0, z: 0.0 };
-    pub const FORWARD: Self = Self { x: 0.0, y: 0.0, z: 1.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub const UP: Self = Self {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    };
+    pub const FORWARD: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 1.0,
+    };
 
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
@@ -46,19 +58,35 @@ impl Vec3 {
         if len < 1e-10 {
             return Self::ZERO;
         }
-        Self { x: self.x / len, y: self.y / len, z: self.z / len }
+        Self {
+            x: self.x / len,
+            y: self.y / len,
+            z: self.z / len,
+        }
     }
 
     pub fn scale(self, s: f32) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn add(self, other: Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y, z: self.z + other.z }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
     }
 
     pub fn sub(self, other: Self) -> Self {
-        Self { x: self.x - other.x, y: self.y - other.y, z: self.z - other.z }
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+            z: self.z - other.z,
+        }
     }
 }
 
@@ -82,7 +110,10 @@ impl Vec2 {
     }
 
     pub fn sub(self, other: Self) -> Self {
-        Self { x: self.x - other.x, y: self.y - other.y }
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
     }
 }
 
@@ -109,19 +140,34 @@ impl TbnMatrix {
     pub fn from_normal(normal: Vec3) -> Self {
         let n = normal.normalize();
         // Choose a vector not parallel to n.
-        let up = if n.y.abs() < 0.999 { Vec3::UP } else { Vec3::FORWARD };
+        let up = if n.y.abs() < 0.999 {
+            Vec3::UP
+        } else {
+            Vec3::FORWARD
+        };
         let tangent = up.cross(n).normalize();
         let bitangent = n.cross(tangent).normalize();
-        Self { tangent, bitangent, normal: n }
+        Self {
+            tangent,
+            bitangent,
+            normal: n,
+        }
     }
 
     /// Transform tangent-space normal to world space.
     pub fn transform(&self, ts_normal: Vec3) -> Vec3 {
         Vec3::new(
-            self.tangent.x * ts_normal.x + self.bitangent.x * ts_normal.y + self.normal.x * ts_normal.z,
-            self.tangent.y * ts_normal.x + self.bitangent.y * ts_normal.y + self.normal.y * ts_normal.z,
-            self.tangent.z * ts_normal.x + self.bitangent.z * ts_normal.y + self.normal.z * ts_normal.z,
-        ).normalize()
+            self.tangent.x * ts_normal.x
+                + self.bitangent.x * ts_normal.y
+                + self.normal.x * ts_normal.z,
+            self.tangent.y * ts_normal.x
+                + self.bitangent.y * ts_normal.y
+                + self.normal.y * ts_normal.z,
+            self.tangent.z * ts_normal.x
+                + self.bitangent.z * ts_normal.y
+                + self.normal.z * ts_normal.z,
+        )
+        .normalize()
     }
 }
 
@@ -138,14 +184,22 @@ pub struct TriangleVertex {
 /// Compute tangent and bitangent for a triangle (Lengyel's method).
 ///
 /// Returns (tangent, bitangent) averaged and orthogonalised against `normal`.
-pub fn compute_tangent(v0: &TriangleVertex, v1: &TriangleVertex, v2: &TriangleVertex) -> (Vec3, Vec3) {
+pub fn compute_tangent(
+    v0: &TriangleVertex,
+    v1: &TriangleVertex,
+    v2: &TriangleVertex,
+) -> (Vec3, Vec3) {
     let edge1 = v1.position.sub(v0.position);
     let edge2 = v2.position.sub(v0.position);
     let duv1 = v1.uv.sub(v0.uv);
     let duv2 = v2.uv.sub(v0.uv);
 
     let denom = duv1.x * duv2.y - duv2.x * duv1.y;
-    let r = if denom.abs() < 1e-10 { 1.0 } else { 1.0 / denom };
+    let r = if denom.abs() < 1e-10 {
+        1.0
+    } else {
+        1.0 / denom
+    };
 
     let tangent = Vec3::new(
         (duv2.y * edge1.x - duv1.y * edge2.x) * r,
@@ -165,7 +219,11 @@ pub fn compute_tangent(v0: &TriangleVertex, v1: &TriangleVertex, v2: &TriangleVe
 
     // Calculate handedness and fix bitangent.
     let cross = n.cross(t);
-    let handedness = if cross.dot(bitangent) < 0.0 { -1.0 } else { 1.0 };
+    let handedness = if cross.dot(bitangent) < 0.0 {
+        -1.0
+    } else {
+        1.0
+    };
     let b = cross.scale(handedness);
 
     (t, b)
@@ -187,13 +245,21 @@ impl HeightMap {
         if data.len() != expected {
             return Err(format!("expected {} samples, got {}", expected, data.len()));
         }
-        Ok(Self { width, height, data })
+        Ok(Self {
+            width,
+            height,
+            data,
+        })
     }
 
     /// Flat (all zero) height map.
     pub fn flat(width: u32, height: u32) -> Self {
         let count = (width as usize) * (height as usize);
-        Self { width, height, data: vec![0.0; count] }
+        Self {
+            width,
+            height,
+            data: vec![0.0; count],
+        }
     }
 
     pub fn get(&self, x: u32, y: u32) -> f32 {
@@ -265,11 +331,7 @@ pub fn blend_normals(base: Vec3, detail: Vec3, method: BlendMethod, weight: f32)
         }
         BlendMethod::Udn => {
             // Partial derivative addition — drop detail.z, reconstruct.
-            Vec3::new(
-                base.x + detail.x * w,
-                base.y + detail.y * w,
-                base.z,
-            ).normalize()
+            Vec3::new(base.x + detail.x * w, base.y + detail.y * w, base.z).normalize()
         }
         BlendMethod::Rnm => {
             // Reoriented Normal Mapping.
@@ -280,11 +342,7 @@ pub fn blend_normals(base: Vec3, detail: Vec3, method: BlendMethod, weight: f32)
             let u = Vec3::new(-detail.x * w, -detail.y * w, detail.z);
             let d = t.dot(u);
             let tz = if t.z.abs() < 1e-10 { 1e-10 } else { t.z };
-            Vec3::new(
-                t.x * d / tz - u.x,
-                t.y * d / tz - u.y,
-                t.z * d / tz - u.z,
-            ).normalize()
+            Vec3::new(t.x * d / tz - u.x, t.y * d / tz - u.y, t.z * d / tz - u.z).normalize()
         }
     }
 }
@@ -298,17 +356,14 @@ pub fn scale_normal_strength(normal: Vec3, strength: f32) -> Vec3 {
         normal.x * strength,
         normal.y * strength,
         normal.z, // keep Z component unchanged
-    ).normalize()
+    )
+    .normalize()
 }
 
 /// Decode a packed normal map texel (0..255 → -1..1 range).
 pub fn decode_normal(r: u8, g: u8, b: u8) -> Vec3 {
     let from_byte = |v: u8| -> f32 { (v as f32 - 128.0) / 127.0 };
-    Vec3::new(
-        from_byte(r),
-        from_byte(g),
-        from_byte(b),
-    ).normalize()
+    Vec3::new(from_byte(r), from_byte(g), from_byte(b)).normalize()
 }
 
 /// Encode a tangent-space normal to packed 0..255 range.

@@ -211,7 +211,10 @@ impl SelectBuilder {
         let mut sql = format!("SELECT {cols} FROM {table}");
 
         for j in &self.joins {
-            sql.push_str(&format!(" {} {} ON {}", j.join_type, j.table, j.on_condition));
+            sql.push_str(&format!(
+                " {} {} ON {}",
+                j.join_type, j.table, j.on_condition
+            ));
         }
 
         if !self.where_clauses.is_empty() {
@@ -592,9 +595,7 @@ mod tests {
 
     #[test]
     fn subquery_in_where() {
-        let inner = SelectBuilder::new()
-            .select(&["id"])
-            .from("admins");
+        let inner = SelectBuilder::new().select(&["id"]).from("admins");
         let sub = subquery(inner).unwrap();
         let (sql, _) = SelectBuilder::new()
             .select(&["*"])

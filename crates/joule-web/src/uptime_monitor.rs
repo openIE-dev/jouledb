@@ -545,9 +545,7 @@ pub struct UptimeMonitor {
 
 impl UptimeMonitor {
     pub fn new() -> Self {
-        Self {
-            checks: Vec::new(),
-        }
+        Self { checks: Vec::new() }
     }
 
     pub fn add_check(&mut self, check: UptimeCheck) -> String {
@@ -666,8 +664,7 @@ mod tests {
 
     #[test]
     fn test_alert_on_consecutive_failures() {
-        let mut check =
-            make_http_check("api").with_alert_config(AlertConfig::new(3));
+        let mut check = make_http_check("api").with_alert_config(AlertConfig::new(3));
         check.record_result(CheckResult::down("err"));
         check.record_result(CheckResult::down("err"));
         let alert = check.record_result(CheckResult::down("err"));
@@ -741,9 +738,8 @@ mod tests {
 
     #[test]
     fn test_degraded_by_latency() {
-        let mut check = make_http_check("api").with_alert_config(
-            AlertConfig::new(3).with_degraded_latency(100.0),
-        );
+        let mut check = make_http_check("api")
+            .with_alert_config(AlertConfig::new(3).with_degraded_latency(100.0));
         check.record_result(CheckResult::up(500.0));
         assert_eq!(check.current_status, EndpointStatus::Degraded);
     }

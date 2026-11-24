@@ -1599,6 +1599,10 @@ pub fn synapse_router(runtime: Arc<SynapseServerRuntime>) -> Router {
             post(handle_littlebit_calibrate),
         )
         .route(
+            "/api/v1/synapse/bench/rank_sweep",
+            post(handle_littlebit_rank_sweep),
+        )
+        .route(
             "/api/v1/synapse/titans/observe",
             post(handle_titans_observe),
         )
@@ -3782,6 +3786,99 @@ async fn handle_harness_rewind(
                 Json(serde_json::json!({ "rewound": true, "checkpoint": ckpt })),
             )
         }
+        Err(e) => bad_request(e),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct RankSweepBenchReq {
+    #[serde(default)]
+    safetensors_path: Option<String>,
+    #[serde(default = "default_sweep_tensor_filter")]
+    tensor_filter: String,
+    #[serde(default = "default_sweep_max_rows")]
+    max_rows_cap: usize,
+    #[serde(default = "default_sweep_dim")]
+    rows: usize,
+    #[serde(default = "default_sweep_dim")]
+    cols: usize,
+    #[serde(default = "default_sweep_ranks")]
+    ranks: Vec<usize>,
+    #[serde(default = "default_sweep_outliers")]
+    max_outliers: usize,
+    #[serde(default = "default_sweep_samples")]
+    calib_samples: usize,
+    #[serde(default = "default_sweep_samples")]
+    eval_samples: usize,
+    #[serde(default = "default_sweep_svf_iters")]
+    svf_sweeps: usize,
+}
+
+fn default_sweep_tensor_filter() -> String {
+    "q_proj".to_string()
+}
+fn default_sweep_max_rows() -> usize {
+    2048
+}
+fn default_sweep_dim() -> usize {
+    512
+}
+fn default_sweep_ranks() -> Vec<usize> {
+    vec![8, 32, 64, 128]
+}
+fn default_sweep_outliers() -> usize {
+    32
+}
+fn default_sweep_samples() -> usize {
+    24
+}
+fn default_sweep_svf_iters() -> usize {
+    6
+}
+
+async fn handle_littlebit_rank_sweep(Json(req): Json<RankSweepBenchReq>) -> impl IntoResponse {
+    use joule_db_weights::rank_sweep_bench::{
+        evaluate_matrix_rank_sweep, evaluate_safetensors_layer_rank_sweep,
+        generate_synthetic_transformer_matrix,
+    };
+
+    let res = if let Some(ref p_str) = req.safetensors_path {
+        evaluate_safetensors_layer_rank_sweep(
+            std::path::Path::new(p_str),
+            &req.tensor_filter,
+            req.max_rows_cap,
+            &req.ranks,
+            req.max_outliers,
+            req.calib_samples,
+            req.eval_samples,
+            req.svf_sweeps,
+        )
+    } else {
+        let r = req.rows.clamp(16, 4096);
+        let c = req.cols.clamp(16, 4096);
+        let dense = generate_synthetic_transformer_matrix(r, c, 0x2026_0209);
+        evaluate_matrix_rank_sweep(
+            &req.tensor_filter,
+            "SYNTH_BF16",
+            &dense,
+            r,
+            c,
+            &req.ranks,
+            req.max_outliers,
+            req.calib_samples,
+            req.eval_samples,
+            req.svf_sweeps,
+        )
+    };
+
+    match res {
+        Ok(report) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "report": report,
+            })),
+        ),
         Err(e) => bad_request(e),
     }
 }

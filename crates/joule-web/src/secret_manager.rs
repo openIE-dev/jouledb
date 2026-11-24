@@ -175,20 +175,24 @@ impl SecretManager {
         }
 
         let salt = Uuid::new_v4().to_string();
-        let obfuscation_key = derive_key(&self.master_key, salt.as_bytes(), plaintext.len().max(16));
+        let obfuscation_key =
+            derive_key(&self.master_key, salt.as_bytes(), plaintext.len().max(16));
         let ciphertext = xor_apply(plaintext, &obfuscation_key);
 
         let now = Utc::now();
         let expires_at = ttl_seconds.map(|secs| now + chrono::Duration::seconds(secs));
 
-        self.secrets.insert(key.clone(), SecretEntry {
-            ciphertext,
-            obfuscation_key,
-            created_at: now,
-            expires_at,
-            version: 1,
-            tags: HashMap::new(),
-        });
+        self.secrets.insert(
+            key.clone(),
+            SecretEntry {
+                ciphertext,
+                obfuscation_key,
+                created_at: now,
+                expires_at,
+                version: 1,
+                tags: HashMap::new(),
+            },
+        );
         self.audit(AuditAction::Write, &key, actor, true);
         Ok(())
     }
@@ -198,7 +202,9 @@ impl SecretManager {
         if self.sealed {
             return Err(SecretError::VaultSealed);
         }
-        let entry = self.secrets.get(key)
+        let entry = self
+            .secrets
+            .get(key)
             .ok_or_else(|| SecretError::NotFound(key.into()))?;
 
         if let Some(exp) = entry.expires_at {
@@ -237,11 +243,17 @@ impl SecretManager {
         if self.sealed {
             return Err(SecretError::VaultSealed);
         }
-        let entry = self.secrets.get_mut(key)
+        let entry = self
+            .secrets
+            .get_mut(key)
             .ok_or_else(|| SecretError::NotFound(key.into()))?;
 
         let salt = Uuid::new_v4().to_string();
-        let new_key = derive_key(&self.master_key, salt.as_bytes(), new_plaintext.len().max(16));
+        let new_key = derive_key(
+            &self.master_key,
+            salt.as_bytes(),
+            new_plaintext.len().max(16),
+        );
         entry.ciphertext = xor_apply(new_plaintext, &new_key);
         entry.obfuscation_key = new_key;
         entry.version += 1;
@@ -258,7 +270,9 @@ impl SecretManager {
 
     /// Set a metadata tag on a secret.
     pub fn set_tag(&mut self, key: &str, tag_key: &str, tag_val: &str) -> Result<(), SecretError> {
-        let entry = self.secrets.get_mut(key)
+        let entry = self
+            .secrets
+            .get_mut(key)
             .ok_or_else(|| SecretError::NotFound(key.into()))?;
         entry.tags.insert(tag_key.to_string(), tag_val.to_string());
         Ok(())
@@ -266,7 +280,8 @@ impl SecretManager {
 
     /// Get a metadata tag.
     pub fn get_tag(&self, key: &str, tag_key: &str) -> Option<&str> {
-        self.secrets.get(key)
+        self.secrets
+            .get(key)
             .and_then(|e| e.tags.get(tag_key))
             .map(|s| s.as_str())
     }
@@ -352,14 +367,20 @@ mod tests {
     #[test]
     fn get_not_found() {
         let mut v = vault();
-        assert!(matches!(v.get("nope", "admin"), Err(SecretError::NotFound(_))));
+        assert!(matches!(
+            v.get("nope", "admin"),
+            Err(SecretError::NotFound(_))
+        ));
     }
 
     #[test]
     fn duplicate_key_rejected() {
         let mut v = vault();
         v.put("k", b"v1", "admin", None).unwrap();
-        assert!(matches!(v.put("k", b"v2", "admin", None), Err(SecretError::AlreadyExists(_))));
+        assert!(matches!(
+            v.put("k", b"v2", "admin", None),
+            Err(SecretError::AlreadyExists(_))
+        ));
     }
 
     #[test]
@@ -373,7 +394,10 @@ mod tests {
     #[test]
     fn delete_nonexistent() {
         let mut v = vault();
-        assert!(matches!(v.delete("nope", "admin"), Err(SecretError::NotFound(_))));
+        assert!(matches!(
+            v.delete("nope", "admin"),
+            Err(SecretError::NotFound(_))
+        ));
     }
 
     #[test]
@@ -404,15 +428,22 @@ mod tests {
         v.seal("admin");
         assert!(v.is_sealed());
         assert!(matches!(v.get("k", "admin"), Err(SecretError::VaultSealed)));
-        assert!(matches!(v.put("k2", b"v", "admin", None), Err(SecretError::VaultSealed)));
-        assert!(matches!(v.delete("k", "admin"), Err(SecretError::VaultSealed)));
+        assert!(matches!(
+            v.put("k2", b"v", "admin", None),
+            Err(SecretError::VaultSealed)
+        ));
+        assert!(matches!(
+            v.delete("k", "admin"),
+            Err(SecretError::VaultSealed)
+        ));
     }
 
     #[test]
     fn unseal_with_correct_key() {
         let mut v = vault();
         v.seal("admin");
-        v.unseal(b"master-key-32-bytes-for-testing!", "admin").unwrap();
+        v.unseal(b"master-key-32-bytes-for-testing!", "admin")
+            .unwrap();
         assert!(!v.is_sealed());
     }
 

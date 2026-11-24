@@ -51,7 +51,7 @@ pub struct VideoEssence {
     pub width: u32,
     pub height: u32,
     pub frame_rate: f64,
-    pub color_depth: u8,       // 8, 10, 12
+    pub color_depth: u8,        // 8, 10, 12
     pub color_sampling: String, // "YCbCr-4:2:2", "RGB", etc.
     pub interlaced: bool,
     /// Bandwidth in Mbps (uncompressed video is huge)
@@ -76,9 +76,17 @@ pub struct St2110Stream {
 impl St2110Stream {
     /// Create from SDP (Session Description Protocol) attributes.
     pub fn from_sdp(stream_id: &str, sdp: &HashMap<String, String>) -> Self {
-        let stream_type = if sdp.get("media").map(|m| m.starts_with("video")).unwrap_or(false) {
+        let stream_type = if sdp
+            .get("media")
+            .map(|m| m.starts_with("video"))
+            .unwrap_or(false)
+        {
             St2110Type::Video
-        } else if sdp.get("media").map(|m| m.starts_with("audio")).unwrap_or(false) {
+        } else if sdp
+            .get("media")
+            .map(|m| m.starts_with("audio"))
+            .unwrap_or(false)
+        {
             St2110Type::Audio
         } else {
             St2110Type::Ancillary
@@ -90,7 +98,10 @@ impl St2110Stream {
                 stream_type,
                 source_address: sdp.get("source").cloned().unwrap_or_default(),
                 dest_address: sdp.get("connection").cloned().unwrap_or_default(),
-                payload_type: sdp.get("rtpmap").and_then(|r| r.split_whitespace().next()?.parse().ok()).unwrap_or(96),
+                payload_type: sdp
+                    .get("rtpmap")
+                    .and_then(|r| r.split_whitespace().next()?.parse().ok())
+                    .unwrap_or(96),
                 sampling_rate: 0,
                 video: None,
                 audio: None,
@@ -108,7 +119,8 @@ impl St2110Stream {
         frame_rate: f64,
         color_depth: u8,
     ) -> Self {
-        let bandwidth = width as f64 * height as f64 * frame_rate * color_depth as f64 * 2.0 / 1_000_000.0; // rough Mbps
+        let bandwidth =
+            width as f64 * height as f64 * frame_rate * color_depth as f64 * 2.0 / 1_000_000.0; // rough Mbps
         Self {
             metadata: EssenceMetadata {
                 stream_id: stream_id.to_string(),
@@ -162,8 +174,14 @@ impl St2110Stream {
         let mut fields = HashMap::new();
 
         fields.insert("name".into(), Value::String(m.stream_id.clone()));
-        fields.insert("stream_type".into(), Value::String(format!("{:?}", m.stream_type)));
-        fields.insert("source_address".into(), Value::String(m.source_address.clone()));
+        fields.insert(
+            "stream_type".into(),
+            Value::String(format!("{:?}", m.stream_type)),
+        );
+        fields.insert(
+            "source_address".into(),
+            Value::String(m.source_address.clone()),
+        );
         fields.insert("dest_address".into(), Value::String(m.dest_address.clone()));
         fields.insert("payload_type".into(), Value::Int(m.payload_type as i64));
         fields.insert("_source_format".into(), Value::String("ST2110".into()));
@@ -198,7 +216,10 @@ mod tests {
 
         assert_eq!(fields.get("width"), Some(&Value::Int(1920)));
         assert_eq!(fields.get("height"), Some(&Value::Int(1080)));
-        assert_eq!(fields.get("_source_format"), Some(&Value::String("ST2110".into())));
+        assert_eq!(
+            fields.get("_source_format"),
+            Some(&Value::String("ST2110".into()))
+        );
 
         if let Some(Value::Float(bw)) = fields.get("bandwidth_mbps") {
             assert!(*bw > 1000.0); // Uncompressed 1080p60 is ~2.4 Gbps
@@ -212,6 +233,9 @@ mod tests {
 
         assert_eq!(fields.get("audio_channels"), Some(&Value::Int(8)));
         assert_eq!(fields.get("audio_sample_rate"), Some(&Value::Int(48000)));
-        assert_eq!(fields.get("stream_type"), Some(&Value::String("Audio".into())));
+        assert_eq!(
+            fields.get("stream_type"),
+            Some(&Value::String("Audio".into()))
+        );
     }
 }

@@ -15,15 +15,25 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CommandHandlerError {
     /// Command validation failed.
-    ValidationFailed { command_type: String, reasons: Vec<String> },
+    ValidationFailed {
+        command_type: String,
+        reasons: Vec<String>,
+    },
     /// Aggregate not found.
     AggregateNotFound { aggregate_id: String },
     /// Version conflict during command execution.
-    VersionConflict { aggregate_id: String, expected: u64, actual: u64 },
+    VersionConflict {
+        aggregate_id: String,
+        expected: u64,
+        actual: u64,
+    },
     /// Max retries exceeded.
     MaxRetriesExceeded { aggregate_id: String, retries: u32 },
     /// Command execution error.
-    ExecutionError { command_type: String, reason: String },
+    ExecutionError {
+        command_type: String,
+        reason: String,
+    },
     /// Handler not registered.
     HandlerNotRegistered(String),
     /// Aggregate already exists.
@@ -35,22 +45,39 @@ pub enum CommandHandlerError {
 impl std::fmt::Display for CommandHandlerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::ValidationFailed { command_type, reasons } => {
-                write!(f, "validation failed for {command_type}: {}", reasons.join(", "))
+            Self::ValidationFailed {
+                command_type,
+                reasons,
+            } => {
+                write!(
+                    f,
+                    "validation failed for {command_type}: {}",
+                    reasons.join(", ")
+                )
             }
             Self::AggregateNotFound { aggregate_id } => {
                 write!(f, "aggregate not found: {aggregate_id}")
             }
-            Self::VersionConflict { aggregate_id, expected, actual } => {
+            Self::VersionConflict {
+                aggregate_id,
+                expected,
+                actual,
+            } => {
                 write!(
                     f,
                     "version conflict for {aggregate_id}: expected {expected}, got {actual}"
                 )
             }
-            Self::MaxRetriesExceeded { aggregate_id, retries } => {
+            Self::MaxRetriesExceeded {
+                aggregate_id,
+                retries,
+            } => {
                 write!(f, "max retries ({retries}) exceeded for {aggregate_id}")
             }
-            Self::ExecutionError { command_type, reason } => {
+            Self::ExecutionError {
+                command_type,
+                reason,
+            } => {
                 write!(f, "execution error for {command_type}: {reason}")
             }
             Self::HandlerNotRegistered(cmd) => {
@@ -89,7 +116,12 @@ impl Command {
         let ct = command_type.into();
         let aid = aggregate_id.into();
         Self {
-            command_id: format!("{}-{}-{}", ct, aid, Utc::now().timestamp_nanos_opt().unwrap_or(0)),
+            command_id: format!(
+                "{}-{}-{}",
+                ct,
+                aid,
+                Utc::now().timestamp_nanos_opt().unwrap_or(0)
+            ),
             command_type: ct,
             aggregate_id: aid,
             data,
@@ -141,10 +173,7 @@ pub struct ValidationRule {
 }
 
 impl ValidationRule {
-    pub fn new(
-        name: impl Into<String>,
-        validate_fn: fn(&Command) -> Result<(), String>,
-    ) -> Self {
+    pub fn new(name: impl Into<String>, validate_fn: fn(&Command) -> Result<(), String>) -> Self {
         Self {
             name: name.into(),
             validate_fn,
@@ -200,8 +229,10 @@ impl AggregateState {
 pub struct HandlerDefinition {
     pub command_type: String,
     /// Handler function: takes aggregate state + command data, returns events or error.
-    handler_fn: fn(&AggregateState, &HashMap<String, String>)
-        -> Result<Vec<(String, HashMap<String, String>)>, String>,
+    handler_fn: fn(
+        &AggregateState,
+        &HashMap<String, String>,
+    ) -> Result<Vec<(String, HashMap<String, String>)>, String>,
     /// Validation rules specific to this handler.
     validations: Vec<ValidationRule>,
 }
@@ -319,7 +350,11 @@ impl CommandPipeline {
     }
 
     /// Validate a command.
-    fn validate(&self, command: &Command, handler: &HandlerDefinition) -> Result<(), CommandHandlerError> {
+    fn validate(
+        &self,
+        command: &Command,
+        handler: &HandlerDefinition,
+    ) -> Result<(), CommandHandlerError> {
         let mut errors = Vec::new();
 
         // Run global validations.
@@ -494,7 +529,10 @@ impl CommandPipeline {
 
     /// Count audit entries by outcome.
     pub fn audit_count_by_outcome(&self, outcome: AuditOutcome) -> usize {
-        self.audit_log.iter().filter(|e| e.outcome == outcome).count()
+        self.audit_log
+            .iter()
+            .filter(|e| e.outcome == outcome)
+            .count()
     }
 
     /// Clear the audit log.
@@ -593,7 +631,9 @@ mod tests {
     #[test]
     fn test_execute_updates_aggregate() {
         let mut pipeline = build_pipeline();
-        pipeline.execute(&make_command("CreateUser", "user-1", &[("name", "Alice")])).unwrap();
+        pipeline
+            .execute(&make_command("CreateUser", "user-1", &[("name", "Alice")]))
+            .unwrap();
         let result = pipeline
             .execute(&make_command("UpdateUser", "user-1", &[("name", "Alicia")]))
             .unwrap();
@@ -664,15 +704,17 @@ mod tests {
         let mut pipeline = build_pipeline().with_max_retries(2);
 
         // Store aggregate at version 5.
-        let agg = AggregateState::new("user-1")
-            .with_state(HashMap::new(), 5);
+        let agg = AggregateState::new("user-1").with_state(HashMap::new(), 5);
         pipeline.store_aggregate(agg);
 
         // Command expects version 3, but actual is 5.
-        let cmd = make_command("UpdateUser", "user-1", &[("name", "Alice")])
-            .with_expected_version(3);
+        let cmd =
+            make_command("UpdateUser", "user-1", &[("name", "Alice")]).with_expected_version(3);
         let err = pipeline.execute(&cmd).unwrap_err();
-        assert!(matches!(err, CommandHandlerError::MaxRetriesExceeded { .. }));
+        assert!(matches!(
+            err,
+            CommandHandlerError::MaxRetriesExceeded { .. }
+        ));
     }
 
     #[test]
@@ -682,8 +724,7 @@ mod tests {
             .execute(&make_command("CreateUser", "user-1", &[("name", "Alice")]))
             .unwrap();
 
-        let cmd = make_command("UpdateUser", "user-1", &[("name", "Bob")])
-            .with_expected_version(1);
+        let cmd = make_command("UpdateUser", "user-1", &[("name", "Bob")]).with_expected_version(1);
         let result = pipeline.execute(&cmd).unwrap();
         assert_eq!(result.new_version, 2);
     }
@@ -710,15 +751,22 @@ mod tests {
     #[test]
     fn test_audit_log_validation_failure() {
         let mut pipeline = build_pipeline();
-        pipeline.add_global_validation(ValidationRule::new("always_fail", |_| Err("nope".to_string())));
+        pipeline.add_global_validation(ValidationRule::new("always_fail", |_| {
+            Err("nope".to_string())
+        }));
         let _ = pipeline.execute(&make_command("CreateUser", "u1", &[("name", "A")]));
-        assert_eq!(pipeline.audit_count_by_outcome(AuditOutcome::ValidationFailed), 1);
+        assert_eq!(
+            pipeline.audit_count_by_outcome(AuditOutcome::ValidationFailed),
+            1
+        );
     }
 
     #[test]
     fn test_audit_log_clear() {
         let mut pipeline = build_pipeline();
-        pipeline.execute(&make_command("CreateUser", "u1", &[("name", "Alice")])).unwrap();
+        pipeline
+            .execute(&make_command("CreateUser", "u1", &[("name", "Alice")]))
+            .unwrap();
         assert_eq!(pipeline.audit_log_size(), 1);
         pipeline.clear_audit_log();
         assert_eq!(pipeline.audit_log_size(), 0);
@@ -729,8 +777,14 @@ mod tests {
         let cmd = make_command("CreateUser", "u1", &[("name", "Alice")])
             .with_metadata("user_id", "admin")
             .with_metadata("ip", "127.0.0.1");
-        assert_eq!(cmd.metadata.get("user_id").map(|s| s.as_str()), Some("admin"));
-        assert_eq!(cmd.metadata.get("ip").map(|s| s.as_str()), Some("127.0.0.1"));
+        assert_eq!(
+            cmd.metadata.get("user_id").map(|s| s.as_str()),
+            Some("admin")
+        );
+        assert_eq!(
+            cmd.metadata.get("ip").map(|s| s.as_str()),
+            Some("127.0.0.1")
+        );
     }
 
     #[test]
@@ -778,7 +832,11 @@ mod tests {
         }));
 
         let result = pipeline
-            .execute(&make_command("PlaceOrder", "order-1", &[("order_id", "ORD-42")]))
+            .execute(&make_command(
+                "PlaceOrder",
+                "order-1",
+                &[("order_id", "ORD-42")],
+            ))
             .unwrap();
         assert_eq!(result.events_produced.len(), 2);
         assert_eq!(result.new_version, 2);
@@ -814,8 +872,7 @@ mod tests {
         let agg = AggregateState::new("u1").with_state(HashMap::new(), 5);
         pipeline.store_aggregate(agg);
 
-        let cmd = make_command("UpdateUser", "u1", &[("name", "X")])
-            .with_expected_version(3);
+        let cmd = make_command("UpdateUser", "u1", &[("name", "X")]).with_expected_version(3);
         let _ = pipeline.execute(&cmd);
 
         let retry_count = pipeline.audit_count_by_outcome(AuditOutcome::ConflictRetried);

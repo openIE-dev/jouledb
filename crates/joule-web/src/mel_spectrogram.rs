@@ -27,48 +27,90 @@ struct Cpx {
 }
 
 impl Cpx {
-    fn new(re: f64, im: f64) -> Self { Self { re, im } }
-    fn zero() -> Self { Self { re: 0.0, im: 0.0 } }
-    fn from_polar(mag: f64, phase: f64) -> Self {
-        Self { re: mag * phase.cos(), im: mag * phase.sin() }
+    fn new(re: f64, im: f64) -> Self {
+        Self { re, im }
     }
-    fn mag_sq(&self) -> f64 { self.re * self.re + self.im * self.im }
+    fn zero() -> Self {
+        Self { re: 0.0, im: 0.0 }
+    }
+    fn from_polar(mag: f64, phase: f64) -> Self {
+        Self {
+            re: mag * phase.cos(),
+            im: mag * phase.sin(),
+        }
+    }
+    fn mag_sq(&self) -> f64 {
+        self.re * self.re + self.im * self.im
+    }
 }
 
 impl std::ops::Add for Cpx {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { re: self.re + r.re, im: self.im + r.im } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            re: self.re + r.re,
+            im: self.im + r.im,
+        }
+    }
 }
 impl std::ops::Sub for Cpx {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { re: self.re - r.re, im: self.im - r.im } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            re: self.re - r.re,
+            im: self.im - r.im,
+        }
+    }
 }
 impl std::ops::Mul for Cpx {
     type Output = Self;
     fn mul(self, r: Self) -> Self {
-        Self { re: self.re * r.re - self.im * r.im, im: self.re * r.im + self.im * r.re }
+        Self {
+            re: self.re * r.re - self.im * r.im,
+            im: self.re * r.im + self.im * r.re,
+        }
     }
 }
 impl std::ops::Mul<f64> for Cpx {
     type Output = Self;
-    fn mul(self, r: f64) -> Self { Self { re: self.re * r, im: self.im * r } }
+    fn mul(self, r: f64) -> Self {
+        Self {
+            re: self.re * r,
+            im: self.im * r,
+        }
+    }
 }
 
 fn next_pow2(n: usize) -> usize {
-    let mut p = 1; while p < n { p <<= 1; } p
+    let mut p = 1;
+    while p < n {
+        p <<= 1;
+    }
+    p
 }
 
 fn bit_rev(i: usize, bits: u32) -> usize {
-    let mut r = 0; let mut v = i;
-    for _ in 0..bits { r = (r << 1) | (v & 1); v >>= 1; }
+    let mut r = 0;
+    let mut v = i;
+    for _ in 0..bits {
+        r = (r << 1) | (v & 1);
+        v >>= 1;
+    }
     r
 }
 
 fn fft_forward(data: &mut [Cpx]) {
     let n = data.len();
-    if n <= 1 { return; }
+    if n <= 1 {
+        return;
+    }
     let log2n = (n as f64).log2() as u32;
-    for i in 0..n { let j = bit_rev(i, log2n); if i < j { data.swap(i, j); } }
+    for i in 0..n {
+        let j = bit_rev(i, log2n);
+        if i < j {
+            data.swap(i, j);
+        }
+    }
     let mut len = 2;
     while len <= n {
         let half = len / 2;
@@ -284,7 +326,10 @@ pub fn mel_spectrogram(signal: &[f64], config: &MelConfig) -> Result<Vec<Vec<f64
     }
     let filters = build_mel_filter_bank(config)?;
     let frames = compute_frames(signal, config);
-    Ok(frames.iter().map(|ps| apply_mel_filters(ps, &filters)).collect())
+    Ok(frames
+        .iter()
+        .map(|ps| apply_mel_filters(ps, &filters))
+        .collect())
 }
 
 /// Compute log-mel spectrogram (log of mel energies).
@@ -471,9 +516,7 @@ mod tests {
 
     #[test]
     fn test_mel_spectrogram_dimensions() {
-        let config = MelConfig::new(8000.0, 64)
-            .with_n_mels(10)
-            .with_hop_size(16);
+        let config = MelConfig::new(8000.0, 64).with_n_mels(10).with_hop_size(16);
         let signal: Vec<f64> = (0..256).map(|i| (i as f64 * 0.01).sin()).collect();
         let spec = mel_spectrogram(&signal, &config).unwrap();
         // Number of frames = (256 - 64) / 16 + 1 = 13
@@ -492,9 +535,7 @@ mod tests {
 
     #[test]
     fn test_log_mel_finite() {
-        let config = MelConfig::new(8000.0, 64)
-            .with_n_mels(8)
-            .with_hop_size(16);
+        let config = MelConfig::new(8000.0, 64).with_n_mels(8).with_hop_size(16);
         let signal: Vec<f64> = (0..128).map(|i| (i as f64 * 0.05).sin()).collect();
         let lm = log_mel_spectrogram(&signal, &config).unwrap();
         for row in &lm {
@@ -612,9 +653,6 @@ mod tests {
         // Parseval: sum(|X[k]|^2) = N * sum(|x[n]|^2)
         let freq_energy: f64 = ps[0] + 2.0 * ps[1..4].iter().sum::<f64>() + ps[4];
         let ratio = freq_energy / (8.0 * time_energy);
-        assert!(
-            (ratio - 1.0).abs() < 0.1,
-            "Parseval ratio: {ratio}"
-        );
+        assert!((ratio - 1.0).abs() < 0.1, "Parseval ratio: {ratio}");
     }
 }

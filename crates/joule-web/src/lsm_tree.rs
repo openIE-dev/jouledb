@@ -52,7 +52,9 @@ impl LsmBloomFilter {
         let ln2 = std::f64::consts::LN_2;
         let m = (-(capacity as f64 * fp_rate.ln()) / (ln2 * ln2)).ceil() as usize;
         let bit_count = m.max(8);
-        let k = ((bit_count as f64 / capacity.max(1) as f64) * ln2).ceil().max(1.0) as usize;
+        let k = ((bit_count as f64 / capacity.max(1) as f64) * ln2)
+            .ceil()
+            .max(1.0) as usize;
         Self {
             bits: vec![false; bit_count],
             hash_count: k,
@@ -577,13 +579,7 @@ impl LsmTree {
         let entries = self.memtable.drain();
         let id = self.next_table_id;
         self.next_table_id += 1;
-        let sstable = SsTable::from_entries(
-            id,
-            entries
-                .into_iter()
-                .map(|(k, e)| (k, e))
-                .collect(),
-        );
+        let sstable = SsTable::from_entries(id, entries.into_iter().map(|(k, e)| (k, e)).collect());
         if !self.levels.is_empty() {
             self.levels[0].push(sstable);
         }
@@ -618,16 +614,14 @@ impl LsmTree {
         let tables = std::mem::take(&mut self.levels[level]);
         let mut merged: Vec<(Vec<u8>, SsTableEntry)> = Vec::new();
         for table in &tables {
-            let table_entries: Vec<(Vec<u8>, SsTableEntry)> =
-                table.iter().cloned().collect();
+            let table_entries: Vec<(Vec<u8>, SsTableEntry)> = table.iter().cloned().collect();
             merged = merge_sorted_runs(&merged, &table_entries);
         }
 
         // Also merge with existing tables at level + 1.
         let next_tables = std::mem::take(&mut self.levels[level + 1]);
         for table in &next_tables {
-            let table_entries: Vec<(Vec<u8>, SsTableEntry)> =
-                table.iter().cloned().collect();
+            let table_entries: Vec<(Vec<u8>, SsTableEntry)> = table.iter().cloned().collect();
             merged = merge_sorted_runs(&merged, &table_entries);
         }
 
@@ -756,7 +750,10 @@ mod tests {
             }
         }
         // With a 0.1% FP rate on 100 items, we expect very few.
-        assert!(false_positives < 50, "too many false positives: {false_positives}");
+        assert!(
+            false_positives < 50,
+            "too many false positives: {false_positives}"
+        );
     }
 
     #[test]
@@ -824,9 +821,27 @@ mod tests {
     #[test]
     fn sstable_build_and_get() {
         let entries = vec![
-            (b"a".to_vec(), MemEntry { value: Some(b"1".to_vec()), seq: 1 }),
-            (b"b".to_vec(), MemEntry { value: Some(b"2".to_vec()), seq: 2 }),
-            (b"c".to_vec(), MemEntry { value: Some(b"3".to_vec()), seq: 3 }),
+            (
+                b"a".to_vec(),
+                MemEntry {
+                    value: Some(b"1".to_vec()),
+                    seq: 1,
+                },
+            ),
+            (
+                b"b".to_vec(),
+                MemEntry {
+                    value: Some(b"2".to_vec()),
+                    seq: 2,
+                },
+            ),
+            (
+                b"c".to_vec(),
+                MemEntry {
+                    value: Some(b"3".to_vec()),
+                    seq: 3,
+                },
+            ),
         ];
         let sst = SsTable::from_entries(1, entries);
         assert_eq!(sst.len(), 3);
@@ -837,9 +852,13 @@ mod tests {
 
     #[test]
     fn sstable_miss_uses_bloom() {
-        let entries = vec![
-            (b"alpha".to_vec(), MemEntry { value: Some(b"1".to_vec()), seq: 1 }),
-        ];
+        let entries = vec![(
+            b"alpha".to_vec(),
+            MemEntry {
+                value: Some(b"1".to_vec()),
+                seq: 1,
+            },
+        )];
         let sst = SsTable::from_entries(1, entries);
         assert!(sst.get(b"beta").is_none());
     }
@@ -847,10 +866,34 @@ mod tests {
     #[test]
     fn sstable_range_scan() {
         let entries = vec![
-            (b"a".to_vec(), MemEntry { value: Some(b"1".to_vec()), seq: 1 }),
-            (b"b".to_vec(), MemEntry { value: Some(b"2".to_vec()), seq: 2 }),
-            (b"c".to_vec(), MemEntry { value: Some(b"3".to_vec()), seq: 3 }),
-            (b"d".to_vec(), MemEntry { value: Some(b"4".to_vec()), seq: 4 }),
+            (
+                b"a".to_vec(),
+                MemEntry {
+                    value: Some(b"1".to_vec()),
+                    seq: 1,
+                },
+            ),
+            (
+                b"b".to_vec(),
+                MemEntry {
+                    value: Some(b"2".to_vec()),
+                    seq: 2,
+                },
+            ),
+            (
+                b"c".to_vec(),
+                MemEntry {
+                    value: Some(b"3".to_vec()),
+                    seq: 3,
+                },
+            ),
+            (
+                b"d".to_vec(),
+                MemEntry {
+                    value: Some(b"4".to_vec()),
+                    seq: 4,
+                },
+            ),
         ];
         let sst = SsTable::from_entries(1, entries);
         let range = sst.range(b"b", b"d");
@@ -860,8 +903,20 @@ mod tests {
     #[test]
     fn sstable_min_max_keys() {
         let entries = vec![
-            (b"apple".to_vec(), MemEntry { value: Some(b"1".to_vec()), seq: 1 }),
-            (b"orange".to_vec(), MemEntry { value: Some(b"2".to_vec()), seq: 2 }),
+            (
+                b"apple".to_vec(),
+                MemEntry {
+                    value: Some(b"1".to_vec()),
+                    seq: 1,
+                },
+            ),
+            (
+                b"orange".to_vec(),
+                MemEntry {
+                    value: Some(b"2".to_vec()),
+                    seq: 2,
+                },
+            ),
         ];
         let sst = SsTable::from_entries(1, entries);
         assert_eq!(sst.min_key(), Some(b"apple".as_slice()));
@@ -871,26 +926,61 @@ mod tests {
     #[test]
     fn merge_sorted_runs_basic() {
         let a = vec![
-            (b"a".to_vec(), SsTableEntry { value: Some(b"1".to_vec()), seq: 1 }),
-            (b"c".to_vec(), SsTableEntry { value: Some(b"3".to_vec()), seq: 3 }),
+            (
+                b"a".to_vec(),
+                SsTableEntry {
+                    value: Some(b"1".to_vec()),
+                    seq: 1,
+                },
+            ),
+            (
+                b"c".to_vec(),
+                SsTableEntry {
+                    value: Some(b"3".to_vec()),
+                    seq: 3,
+                },
+            ),
         ];
         let b = vec![
-            (b"b".to_vec(), SsTableEntry { value: Some(b"2".to_vec()), seq: 2 }),
-            (b"d".to_vec(), SsTableEntry { value: Some(b"4".to_vec()), seq: 4 }),
+            (
+                b"b".to_vec(),
+                SsTableEntry {
+                    value: Some(b"2".to_vec()),
+                    seq: 2,
+                },
+            ),
+            (
+                b"d".to_vec(),
+                SsTableEntry {
+                    value: Some(b"4".to_vec()),
+                    seq: 4,
+                },
+            ),
         ];
         let merged = merge_sorted_runs(&a, &b);
         let keys: Vec<_> = merged.iter().map(|(k, _)| k.clone()).collect();
-        assert_eq!(keys, vec![b"a".to_vec(), b"b".to_vec(), b"c".to_vec(), b"d".to_vec()]);
+        assert_eq!(
+            keys,
+            vec![b"a".to_vec(), b"b".to_vec(), b"c".to_vec(), b"d".to_vec()]
+        );
     }
 
     #[test]
     fn merge_sorted_runs_duplicate_key_higher_seq_wins() {
-        let a = vec![
-            (b"k".to_vec(), SsTableEntry { value: Some(b"old".to_vec()), seq: 1 }),
-        ];
-        let b = vec![
-            (b"k".to_vec(), SsTableEntry { value: Some(b"new".to_vec()), seq: 5 }),
-        ];
+        let a = vec![(
+            b"k".to_vec(),
+            SsTableEntry {
+                value: Some(b"old".to_vec()),
+                seq: 1,
+            },
+        )];
+        let b = vec![(
+            b"k".to_vec(),
+            SsTableEntry {
+                value: Some(b"new".to_vec()),
+                seq: 5,
+            },
+        )];
         let merged = merge_sorted_runs(&a, &b);
         assert_eq!(merged.len(), 1);
         assert_eq!(merged[0].1.value.as_deref(), Some(b"new".as_slice()));
@@ -1017,9 +1107,27 @@ mod tests {
     #[test]
     fn sstable_seq_range() {
         let entries = vec![
-            (b"a".to_vec(), MemEntry { value: Some(b"1".to_vec()), seq: 5 }),
-            (b"b".to_vec(), MemEntry { value: Some(b"2".to_vec()), seq: 10 }),
-            (b"c".to_vec(), MemEntry { value: Some(b"3".to_vec()), seq: 7 }),
+            (
+                b"a".to_vec(),
+                MemEntry {
+                    value: Some(b"1".to_vec()),
+                    seq: 5,
+                },
+            ),
+            (
+                b"b".to_vec(),
+                MemEntry {
+                    value: Some(b"2".to_vec()),
+                    seq: 10,
+                },
+            ),
+            (
+                b"c".to_vec(),
+                MemEntry {
+                    value: Some(b"3".to_vec()),
+                    seq: 7,
+                },
+            ),
         ];
         let sst = SsTable::from_entries(1, entries);
         assert_eq!(sst.seq_range(), (5, 10));

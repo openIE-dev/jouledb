@@ -19,7 +19,11 @@ pub struct Sample {
 
 impl Sample {
     pub fn new(features: Vec<f64>) -> Self {
-        Self { features, label: None, weight: 1.0 }
+        Self {
+            features,
+            label: None,
+            weight: 1.0,
+        }
     }
 
     pub fn with_label(mut self, label: usize) -> Self {
@@ -39,7 +43,13 @@ impl Sample {
 
 impl fmt::Display for Sample {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Sample(dim={}, label={:?}, w={:.3})", self.dim(), self.label, self.weight)
+        write!(
+            f,
+            "Sample(dim={}, label={:?}, w={:.3})",
+            self.dim(),
+            self.label,
+            self.weight
+        )
     }
 }
 
@@ -60,7 +70,11 @@ impl SplitRatio {
 
     /// Standard 80/10/10 split.
     pub fn default_split() -> Self {
-        Self { train: 0.8, val: 0.1, test: 0.1 }
+        Self {
+            train: 0.8,
+            val: 0.1,
+            test: 0.1,
+        }
     }
 
     pub fn is_valid(&self) -> bool {
@@ -71,8 +85,13 @@ impl SplitRatio {
 
 impl fmt::Display for SplitRatio {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Split(train={:.0}%, val={:.0}%, test={:.0}%)",
-               self.train * 100.0, self.val * 100.0, self.test * 100.0)
+        write!(
+            f,
+            "Split(train={:.0}%, val={:.0}%, test={:.0}%)",
+            self.train * 100.0,
+            self.val * 100.0,
+            self.test * 100.0
+        )
     }
 }
 
@@ -86,7 +105,9 @@ pub struct Dataset {
 
 impl Dataset {
     pub fn new() -> Self {
-        Self { samples: Vec::new() }
+        Self {
+            samples: Vec::new(),
+        }
     }
 
     pub fn from_samples(samples: Vec<Sample>) -> Self {
@@ -124,7 +145,9 @@ impl Dataset {
         }
         let mut state = seed.wrapping_add(1);
         for i in (1..n).rev() {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let j = (state >> 33) as usize % (i + 1);
             self.samples.swap(i, j);
         }
@@ -326,8 +349,14 @@ impl DataLoader {
 
 impl fmt::Display for DataLoader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "DataLoader(n={}, bs={}, shuffle={}, epochs={})",
-               self.dataset.len(), self.batch_size, self.shuffle_each_epoch, self.epoch)
+        write!(
+            f,
+            "DataLoader(n={}, bs={}, shuffle={}, epochs={})",
+            self.dataset.len(),
+            self.batch_size,
+            self.shuffle_each_epoch,
+            self.epoch
+        )
     }
 }
 
@@ -343,7 +372,11 @@ pub struct WeightedSampler {
 
 impl WeightedSampler {
     pub fn new(weights: Vec<f64>, num_samples: usize) -> Self {
-        Self { weights, num_samples, replacement: true }
+        Self {
+            weights,
+            num_samples,
+            replacement: true,
+        }
     }
 
     pub fn with_replacement(mut self, replacement: bool) -> Self {
@@ -385,7 +418,9 @@ impl WeightedSampler {
         let mut indices = Vec::with_capacity(self.num_samples);
         let mut used = Vec::new();
         for _ in 0..self.num_samples {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let r = (state >> 11) as f64 / (1u64 << 53) as f64;
             let idx = cdf.partition_point(|c| *c < r).min(cdf.len() - 1);
             if !self.replacement && used.contains(&idx) {
@@ -402,8 +437,13 @@ impl WeightedSampler {
 
 impl fmt::Display for WeightedSampler {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "WeightedSampler(n_weights={}, n_samples={}, replace={})",
-               self.weights.len(), self.num_samples, self.replacement)
+        write!(
+            f,
+            "WeightedSampler(n_weights={}, n_samples={}, replace={})",
+            self.weights.len(),
+            self.num_samples,
+            self.replacement
+        )
     }
 }
 
@@ -417,10 +457,7 @@ mod tests {
         let mut samples = Vec::new();
         for i in 0..n {
             let label = i % n_classes;
-            samples.push(
-                Sample::new(vec![i as f64, (i * 2) as f64])
-                    .with_label(label),
-            );
+            samples.push(Sample::new(vec![i as f64, (i * 2) as f64]).with_label(label));
         }
         Dataset::from_samples(samples)
     }

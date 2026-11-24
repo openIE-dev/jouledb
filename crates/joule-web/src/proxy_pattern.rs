@@ -219,7 +219,10 @@ impl Service for ProtectionProxy {
             self.inner.call(request)
         } else {
             self.denied_count += 1;
-            ServiceResponse::error(403, format!("access denied for role: {}", self.current_role))
+            ServiceResponse::error(
+                403,
+                format!("access denied for role: {}", self.current_role),
+            )
         }
     }
 
@@ -562,11 +565,8 @@ mod tests {
 
     #[test]
     fn protection_proxy_denied() {
-        let mut pp = ProtectionProxy::new(
-            Box::new(EchoService),
-            vec!["admin".to_string()],
-            "guest",
-        );
+        let mut pp =
+            ProtectionProxy::new(Box::new(EchoService), vec!["admin".to_string()], "guest");
         let resp = pp.call(&req("GET", "secret"));
         assert_eq!(resp.status, 403);
         assert_eq!(pp.denied_count(), 1);
@@ -574,11 +574,8 @@ mod tests {
 
     #[test]
     fn protection_proxy_role_change() {
-        let mut pp = ProtectionProxy::new(
-            Box::new(EchoService),
-            vec!["admin".to_string()],
-            "guest",
-        );
+        let mut pp =
+            ProtectionProxy::new(Box::new(EchoService), vec!["admin".to_string()], "guest");
         assert_eq!(pp.current_role(), "guest");
         pp.set_role("admin");
         assert_eq!(pp.current_role(), "admin");

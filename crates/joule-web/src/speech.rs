@@ -363,7 +363,10 @@ mod tests {
 
     #[test]
     fn utterance_clamping() {
-        let u = SpeechUtterance::new("test").rate(100.0).pitch(-5.0).volume(99.0);
+        let u = SpeechUtterance::new("test")
+            .rate(100.0)
+            .pitch(-5.0)
+            .volume(99.0);
         assert_eq!(u.rate, 10.0);
         assert_eq!(u.pitch, 0.0);
         assert_eq!(u.volume, 1.0);

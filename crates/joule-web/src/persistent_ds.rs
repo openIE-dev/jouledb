@@ -162,8 +162,7 @@ impl<T: Clone> PersistentVec<T> {
                 } else {
                     let last_idx = new_children.len().saturating_sub(1);
                     if let Some(Some(child)) = new_children.get(last_idx) {
-                        let new_child =
-                            Self::push_tail(level - BITS, child, tail_node);
+                        let new_child = Self::push_tail(level - BITS, child, tail_node);
                         new_children[last_idx] = Some(new_child);
                     } else {
                         let new_child = Self::new_path(level - BITS, tail_node);
@@ -260,7 +259,10 @@ impl<T: Clone> PersistentVec<T> {
 
     /// Iterator over elements.
     pub fn iter(&self) -> PersistentVecIter<'_, T> {
-        PersistentVecIter { vec: self, index: 0 }
+        PersistentVecIter {
+            vec: self,
+            index: 0,
+        }
     }
 }
 
@@ -366,7 +368,11 @@ impl<K: Hash + Eq + Clone, V: Clone> PersistentMap<K, V> {
         match node {
             HamtNode::Empty => None,
             HamtNode::Leaf(h, k, v) => {
-                if *h == hash && k == key { Some(v) } else { None }
+                if *h == hash && k == key {
+                    Some(v)
+                } else {
+                    None
+                }
             }
             HamtNode::Collision(h, entries) => {
                 if *h != hash {
@@ -419,8 +425,7 @@ impl<K: Hash + Eq + Clone, V: Clone> PersistentMap<K, V> {
                     // Different hashes — expand into internal node.
                     let mut internal = HamtNode::Internal(0, Vec::new());
                     // Re-insert the existing leaf and the new entry.
-                    let (int2, _) =
-                        Self::insert_in(&internal, *h, k.clone(), _v.clone(), shift);
+                    let (int2, _) = Self::insert_in(&internal, *h, k.clone(), _v.clone(), shift);
                     internal = int2;
                     let (int3, _) = Self::insert_in(&internal, hash, key, value, shift);
                     (int3, true)
@@ -480,12 +485,7 @@ impl<K: Hash + Eq + Clone, V: Clone> PersistentMap<K, V> {
         }
     }
 
-    fn remove_in(
-        node: &HamtNode<K, V>,
-        hash: u64,
-        key: &K,
-        shift: u32,
-    ) -> (HamtNode<K, V>, bool) {
+    fn remove_in(node: &HamtNode<K, V>, hash: u64, key: &K, shift: u32) -> (HamtNode<K, V>, bool) {
         match node {
             HamtNode::Empty => (HamtNode::Empty, false),
             HamtNode::Leaf(h, k, _) => {
@@ -607,9 +607,7 @@ impl<K: Hash + Eq + Clone, V: Clone> Default for PersistentMap<K, V> {
     }
 }
 
-impl<K: Hash + Eq + Clone + fmt::Debug, V: Clone + fmt::Debug> fmt::Debug
-    for PersistentMap<K, V>
-{
+impl<K: Hash + Eq + Clone + fmt::Debug, V: Clone + fmt::Debug> fmt::Debug for PersistentMap<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let entries = self.entries();
         f.debug_map()
@@ -855,9 +853,7 @@ mod tests {
 
     #[test]
     fn pmap_remove() {
-        let m = PersistentMap::new()
-            .insert("a", 1)
-            .insert("b", 2);
+        let m = PersistentMap::new().insert("a", 1).insert("b", 2);
         let m2 = m.remove(&"a");
         assert_eq!(m.len(), 2);
         assert_eq!(m2.len(), 1);
@@ -893,9 +889,7 @@ mod tests {
 
     #[test]
     fn pmap_entries_keys_values() {
-        let m = PersistentMap::new()
-            .insert(1, "a")
-            .insert(2, "b");
+        let m = PersistentMap::new().insert(1, "a").insert(2, "b");
         let entries = m.entries();
         assert_eq!(entries.len(), 2);
         let mut keys = m.keys();

@@ -88,7 +88,9 @@ pub struct ConfigWatcher {
 
 impl ConfigWatcher {
     pub fn new() -> Self {
-        Self { files: HashMap::new() }
+        Self {
+            files: HashMap::new(),
+        }
     }
 
     /// Register a new watch.
@@ -96,25 +98,23 @@ impl ConfigWatcher {
     /// - `id`: unique identifier for this config source.
     /// - `debounce_ms`: minimum interval between reloads.
     /// - `max_snapshots`: how many old versions to retain for rollback.
-    pub fn watch(
-        &mut self,
-        id: impl Into<String>,
-        debounce_ms: u64,
-        max_snapshots: usize,
-    ) {
+    pub fn watch(&mut self, id: impl Into<String>, debounce_ms: u64, max_snapshots: usize) {
         let id = id.into();
-        self.files.insert(id.clone(), WatchedFile {
-            id,
-            current_hash: 0,
-            current_content: String::new(),
-            version: 0,
-            debounce_ms,
-            last_reload_ms: 0,
-            status: WatchStatus::Pending,
-            history: Vec::new(),
-            snapshots: Vec::new(),
-            max_snapshots,
-        });
+        self.files.insert(
+            id.clone(),
+            WatchedFile {
+                id,
+                current_hash: 0,
+                current_content: String::new(),
+                version: 0,
+                debounce_ms,
+                last_reload_ms: 0,
+                status: WatchStatus::Pending,
+                history: Vec::new(),
+                snapshots: Vec::new(),
+                max_snapshots,
+            },
+        );
     }
 
     /// Remove a watch.
@@ -126,12 +126,7 @@ impl ConfigWatcher {
     ///
     /// Returns `true` if the content was accepted (changed and debounce
     /// window passed), `false` otherwise.
-    pub fn poll(
-        &mut self,
-        id: &str,
-        content: &str,
-        now_ms: u64,
-    ) -> bool {
+    pub fn poll(&mut self, id: &str, content: &str, now_ms: u64) -> bool {
         let file = match self.files.get_mut(id) {
             Some(f) => f,
             None => return false,
@@ -222,7 +217,10 @@ impl ConfigWatcher {
     /// Roll back to a specific version. Returns the restored content or None.
     pub fn rollback(&mut self, id: &str, target_version: u64, now_ms: u64) -> Option<String> {
         let file = self.files.get_mut(id)?;
-        let idx = file.snapshots.iter().position(|s| s.version == target_version)?;
+        let idx = file
+            .snapshots
+            .iter()
+            .position(|s| s.version == target_version)?;
         let snapshot = file.snapshots.remove(idx);
 
         // Record the rollback as a change.

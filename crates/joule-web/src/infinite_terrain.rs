@@ -70,11 +70,17 @@ impl fmt::Display for Biome {
 /// Simple integer hash for deterministic noise.
 fn hash_2d(seed: u64, x: i32, z: i32) -> u64 {
     let mut h = seed;
-    h = h.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    h = h
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(1442695040888963407);
     h ^= x as u64;
-    h = h.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    h = h
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(1442695040888963407);
     h ^= z as u64;
-    h = h.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    h = h
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(1442695040888963407);
     h
 }
 
@@ -296,7 +302,10 @@ impl InfiniteTerrain {
     /// Process next pending task from the queue: generate the chunk.
     /// Returns the coord of the generated chunk, or None if queue is empty.
     pub fn process_next(&mut self) -> Option<TerrainCoord> {
-        let idx = self.task_queue.iter().position(|t| t.state == TaskState::Pending);
+        let idx = self
+            .task_queue
+            .iter()
+            .position(|t| t.state == TaskState::Pending);
         let idx = idx?;
         self.task_queue[idx].state = TaskState::InProgress;
         let coord = self.task_queue[idx].coord;
@@ -378,7 +387,10 @@ impl InfiniteTerrain {
 
     /// Total vertices across all loaded chunks.
     pub fn total_vertices(&self) -> usize {
-        self.chunks.values().map(|c| c.heightmap.vertex_count()).sum()
+        self.chunks
+            .values()
+            .map(|c| c.heightmap.vertex_count())
+            .sum()
     }
 
     /// Total chunks generated since creation.
@@ -469,7 +481,10 @@ mod tests {
     fn octave_noise_range() {
         for x in -20..20 {
             let v = octave_noise(42, x, 0, 4);
-            assert!(v >= 0.0 && v <= 1.0 + 1e-9, "octave_noise out of range: {v}");
+            assert!(
+                v >= 0.0 && v <= 1.0 + 1e-9,
+                "octave_noise out of range: {v}"
+            );
         }
     }
 

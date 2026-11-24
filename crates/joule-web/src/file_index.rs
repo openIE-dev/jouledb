@@ -117,15 +117,33 @@ impl Permissions {
     /// Encode as a 9-bit octal-like value.
     pub fn to_bits(&self) -> u16 {
         let mut bits = 0u16;
-        if self.owner_read { bits |= 0o400; }
-        if self.owner_write { bits |= 0o200; }
-        if self.owner_exec { bits |= 0o100; }
-        if self.group_read { bits |= 0o040; }
-        if self.group_write { bits |= 0o020; }
-        if self.group_exec { bits |= 0o010; }
-        if self.other_read { bits |= 0o004; }
-        if self.other_write { bits |= 0o002; }
-        if self.other_exec { bits |= 0o001; }
+        if self.owner_read {
+            bits |= 0o400;
+        }
+        if self.owner_write {
+            bits |= 0o200;
+        }
+        if self.owner_exec {
+            bits |= 0o100;
+        }
+        if self.group_read {
+            bits |= 0o040;
+        }
+        if self.group_write {
+            bits |= 0o020;
+        }
+        if self.group_exec {
+            bits |= 0o010;
+        }
+        if self.other_read {
+            bits |= 0o004;
+        }
+        if self.other_write {
+            bits |= 0o002;
+        }
+        if self.other_exec {
+            bits |= 0o001;
+        }
         bits
     }
 

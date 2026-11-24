@@ -199,9 +199,9 @@ impl ConsistencyRule {
             ConsistencyCheck::Contains(sub) => {
                 value.as_str().map_or(false, |s| s.contains(sub.as_str()))
             }
-            ConsistencyCheck::StartsWith(pre) => {
-                value.as_str().map_or(false, |s| s.starts_with(pre.as_str()))
-            }
+            ConsistencyCheck::StartsWith(pre) => value
+                .as_str()
+                .map_or(false, |s| s.starts_with(pre.as_str())),
             ConsistencyCheck::EndsWith(suf) => {
                 value.as_str().map_or(false, |s| s.ends_with(suf.as_str()))
             }
@@ -350,10 +350,7 @@ impl DataQualityEngine {
             .map(|field| {
                 let null_count = data
                     .iter()
-                    .filter(|row| {
-                        row.get(field.as_str())
-                            .map_or(true, |v| v.is_null())
-                    })
+                    .filter(|row| row.get(field.as_str()).map_or(true, |v| v.is_null()))
                     .count();
 
                 let non_null = total.saturating_sub(null_count);
@@ -416,11 +413,7 @@ impl DataQualityEngine {
     }
 
     /// Evaluate freshness.
-    pub fn freshness(
-        &self,
-        data: &[Row],
-        config: &FreshnessConfig,
-    ) -> FreshnessResult {
+    pub fn freshness(&self, data: &[Row], config: &FreshnessConfig) -> FreshnessResult {
         let mut valid_timestamps = 0usize;
         let mut invalid_timestamps = 0usize;
         let mut newest_epoch = 0u64;
@@ -468,20 +461,15 @@ impl DataQualityEngine {
 
     /// Compute an accuracy score based on a reference dataset.
     /// Compares fields between data and reference, matching by index.
-    pub fn accuracy(
-        &self,
-        data: &[Row],
-        reference: &[Row],
-        fields: &[String],
-    ) -> DimensionScore {
+    pub fn accuracy(&self, data: &[Row], reference: &[Row], fields: &[String]) -> DimensionScore {
         let count = data.len().min(reference.len());
         let threshold = self.thresholds.get("accuracy").copied().unwrap_or(0.9);
         let mut passed = 0;
 
         for i in 0..count {
-            let all_match = fields.iter().all(|field| {
-                data[i].get(field) == reference[i].get(field)
-            });
+            let all_match = fields
+                .iter()
+                .all(|field| data[i].get(field) == reference[i].get(field));
             if all_match {
                 passed += 1;
             }
@@ -511,8 +499,7 @@ impl DataQualityEngine {
         let avg_completeness = if field_quality.is_empty() {
             1.0
         } else {
-            field_quality.iter().map(|f| f.completeness).sum::<f64>()
-                / field_quality.len() as f64
+            field_quality.iter().map(|f| f.completeness).sum::<f64>() / field_quality.len() as f64
         };
         let comp_passed = field_quality
             .iter()
@@ -533,8 +520,7 @@ impl DataQualityEngine {
         let avg_uniqueness = if field_quality.is_empty() {
             1.0
         } else {
-            field_quality.iter().map(|f| f.uniqueness).sum::<f64>()
-                / field_quality.len() as f64
+            field_quality.iter().map(|f| f.uniqueness).sum::<f64>() / field_quality.len() as f64
         };
         dimensions.push(DimensionScore {
             name: "uniqueness".into(),
@@ -619,7 +605,10 @@ mod tests {
     use super::*;
 
     fn row(pairs: &[(&str, serde_json::Value)]) -> Row {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.clone())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
     }
 
     fn sample_data() -> Vec<Row> {
@@ -708,11 +697,7 @@ mod tests {
     #[test]
     fn consistency_contains() {
         let mut engine = DataQualityEngine::new();
-        engine.add_consistency_rule(ConsistencyRule::contains(
-            "email_format",
-            "email",
-            "@",
-        ));
+        engine.add_consistency_rule(ConsistencyRule::contains("email_format", "email", "@"));
 
         let data = sample_data();
         let scores = engine.consistency(&data);
@@ -724,11 +709,7 @@ mod tests {
     #[test]
     fn consistency_starts_with() {
         let mut engine = DataQualityEngine::new();
-        engine.add_consistency_rule(ConsistencyRule::starts_with(
-            "prefix_check",
-            "code",
-            "US-",
-        ));
+        engine.add_consistency_rule(ConsistencyRule::starts_with("prefix_check", "code", "US-"));
 
         let data = vec![
             row(&[("code", serde_json::json!("US-001"))]),
@@ -744,12 +725,7 @@ mod tests {
     #[test]
     fn consistency_length_range() {
         let mut engine = DataQualityEngine::new();
-        engine.add_consistency_rule(ConsistencyRule::length_range(
-            "zip_len",
-            "zip",
-            5,
-            5,
-        ));
+        engine.add_consistency_rule(ConsistencyRule::length_range("zip_len", "zip", 5, 5));
 
         let data = vec![
             row(&[("zip", serde_json::json!("10001"))]),
@@ -780,9 +756,7 @@ mod tests {
     #[test]
     fn freshness_stale() {
         let engine = DataQualityEngine::new();
-        let data = vec![
-            row(&[("ts", serde_json::json!(100))]),
-        ];
+        let data = vec![row(&[("ts", serde_json::json!(100))])];
         let config = FreshnessConfig {
             timestamp_field: "ts".into(),
             max_age_seconds: 50,
@@ -870,9 +844,11 @@ mod tests {
     fn trend_tracking() {
         let mut engine = DataQualityEngine::new();
         let data1 = sample_data();
-        let data2 = vec![
-            row(&[("name", serde_json::json!("Alice")), ("email", serde_json::json!("a@b.com")), ("age", serde_json::json!(30))]),
-        ];
+        let data2 = vec![row(&[
+            ("name", serde_json::json!("Alice")),
+            ("email", serde_json::json!("a@b.com")),
+            ("age", serde_json::json!(30)),
+        ])];
 
         engine.report_card(&data1, "2026-01-01").unwrap();
         engine.report_card(&data2, "2026-02-01").unwrap();
@@ -901,11 +877,7 @@ mod tests {
         }
 
         let mut engine = DataQualityEngine::new();
-        engine.add_consistency_rule(ConsistencyRule::custom(
-            "positive_age",
-            "age",
-            is_positive,
-        ));
+        engine.add_consistency_rule(ConsistencyRule::custom("positive_age", "age", is_positive));
 
         let data = vec![
             row(&[("age", serde_json::json!(25))]),

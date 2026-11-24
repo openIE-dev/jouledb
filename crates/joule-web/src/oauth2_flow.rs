@@ -21,7 +21,10 @@ pub enum OAuth2Error {
     /// Authorization code not found or expired.
     InvalidAuthCode(String),
     /// Token expired.
-    TokenExpired { token_id: String, expired_at_ms: u64 },
+    TokenExpired {
+        token_id: String,
+        expired_at_ms: u64,
+    },
     /// Invalid scope requested.
     InvalidScope(String),
     /// PKCE verification failed.
@@ -42,7 +45,10 @@ impl fmt::Display for OAuth2Error {
             Self::InvalidClient(id) => write!(f, "invalid client: {id}"),
             Self::InvalidGrant(g) => write!(f, "invalid grant type: {g}"),
             Self::InvalidAuthCode(c) => write!(f, "invalid auth code: {c}"),
-            Self::TokenExpired { token_id, expired_at_ms } => {
+            Self::TokenExpired {
+                token_id,
+                expired_at_ms,
+            } => {
                 write!(f, "token {token_id} expired at {expired_at_ms}")
             }
             Self::InvalidScope(s) => write!(f, "invalid scope: {s}"),
@@ -52,7 +58,10 @@ impl fmt::Display for OAuth2Error {
             }
             Self::InvalidRefreshToken(t) => write!(f, "invalid refresh token: {t}"),
             Self::RedirectMismatch { expected, actual } => {
-                write!(f, "redirect URI mismatch: expected {expected}, got {actual}")
+                write!(
+                    f,
+                    "redirect URI mismatch: expected {expected}, got {actual}"
+                )
             }
             Self::MissingParameter(p) => write!(f, "missing parameter: {p}"),
         }
@@ -106,7 +115,9 @@ pub struct ScopeSet {
 
 impl ScopeSet {
     pub fn new() -> Self {
-        Self { scopes: HashSet::new() }
+        Self {
+            scopes: HashSet::new(),
+        }
     }
 
     pub fn from_space_delimited(s: &str) -> Self {
@@ -139,7 +150,11 @@ impl ScopeSet {
     pub fn to_space_delimited(&self) -> String {
         let mut sorted: Vec<&String> = self.scopes.iter().collect();
         sorted.sort();
-        sorted.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(" ")
+        sorted
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 
     pub fn len(&self) -> usize {
@@ -216,7 +231,9 @@ fn simple_sha256_hash(data: &[u8]) -> [u8; 32] {
     ];
     for (i, &byte) in data.iter().enumerate() {
         let idx = i % 4;
-        state[idx] = state[idx].wrapping_mul(6364136223846793005).wrapping_add(byte as u64);
+        state[idx] = state[idx]
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(byte as u64);
         state[(idx + 1) % 4] ^= state[idx].rotate_left(13);
         state[(idx + 2) % 4] = state[(idx + 2) % 4].wrapping_add(state[idx] >> 7);
     }
@@ -454,8 +471,13 @@ impl OAuth2Server {
             )));
         }
 
-        if !client.allowed_grants.contains(&GrantType::AuthorizationCode) {
-            return Err(OAuth2Error::InvalidGrant("authorization_code not allowed".into()));
+        if !client
+            .allowed_grants
+            .contains(&GrantType::AuthorizationCode)
+        {
+            return Err(OAuth2Error::InvalidGrant(
+                "authorization_code not allowed".into(),
+            ));
         }
 
         if !client.redirect_uris.contains(&req.redirect_uri) {
@@ -526,8 +548,8 @@ impl OAuth2Server {
 
         // PKCE verification
         if let Some(challenge) = &auth_code.pkce_challenge {
-            let verifier = code_verifier
-                .ok_or(OAuth2Error::MissingParameter("code_verifier".into()))?;
+            let verifier =
+                code_verifier.ok_or(OAuth2Error::MissingParameter("code_verifier".into()))?;
             let method = auth_code.pkce_method.unwrap_or(PkceMethod::Plain);
             if !verify_pkce(verifier, challenge, method) {
                 return Err(OAuth2Error::PkceVerificationFailed);
@@ -563,8 +585,13 @@ impl OAuth2Server {
             return Err(OAuth2Error::InvalidClient("bad credentials".into()));
         }
 
-        if !client.allowed_grants.contains(&GrantType::ClientCredentials) {
-            return Err(OAuth2Error::InvalidGrant("client_credentials not allowed".into()));
+        if !client
+            .allowed_grants
+            .contains(&GrantType::ClientCredentials)
+        {
+            return Err(OAuth2Error::InvalidGrant(
+                "client_credentials not allowed".into(),
+            ));
         }
 
         let requested = ScopeSet::from_space_delimited(scope);
@@ -638,7 +665,11 @@ impl OAuth2Server {
 
         // Update rotation count on new refresh token
         if let Some(new_rt_str) = &resp.refresh_token {
-            if let Some(new_rt) = self.refresh_tokens.values_mut().find(|rt| rt.refresh_token == *new_rt_str) {
+            if let Some(new_rt) = self
+                .refresh_tokens
+                .values_mut()
+                .find(|rt| rt.refresh_token == *new_rt_str)
+            {
                 new_rt.rotation_count = rotation;
             }
         }
@@ -674,7 +705,11 @@ impl OAuth2Server {
 
     /// Revoke an access token.
     pub fn revoke_access_token(&mut self, token_str: &str) -> bool {
-        if let Some(at) = self.access_tokens.values_mut().find(|at| at.access_token == token_str) {
+        if let Some(at) = self
+            .access_tokens
+            .values_mut()
+            .find(|at| at.access_token == token_str)
+        {
             at.revoked = true;
             return true;
         }
@@ -852,20 +887,35 @@ mod tests {
         let challenge = generate_pkce_challenge("my_verifier", PkceMethod::Plain);
         assert_eq!(challenge.verifier, "my_verifier");
         assert_eq!(challenge.challenge, "my_verifier");
-        assert!(verify_pkce("my_verifier", &challenge.challenge, PkceMethod::Plain));
-        assert!(!verify_pkce("wrong", &challenge.challenge, PkceMethod::Plain));
+        assert!(verify_pkce(
+            "my_verifier",
+            &challenge.challenge,
+            PkceMethod::Plain
+        ));
+        assert!(!verify_pkce(
+            "wrong",
+            &challenge.challenge,
+            PkceMethod::Plain
+        ));
     }
 
     #[test]
     fn test_pkce_s256() {
-        let challenge = generate_pkce_challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk", PkceMethod::S256);
+        let challenge = generate_pkce_challenge(
+            "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+            PkceMethod::S256,
+        );
         assert_ne!(challenge.challenge, challenge.verifier);
         assert!(verify_pkce(
             "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
             &challenge.challenge,
             PkceMethod::S256,
         ));
-        assert!(!verify_pkce("wrong_verifier", &challenge.challenge, PkceMethod::S256));
+        assert!(!verify_pkce(
+            "wrong_verifier",
+            &challenge.challenge,
+            PkceMethod::S256
+        ));
     }
 
     #[test]

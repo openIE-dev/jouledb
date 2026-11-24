@@ -42,7 +42,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -547,7 +549,11 @@ impl SwarmSimulation {
             return 0.0;
         }
         let (cx, cy) = self.centroid();
-        let sum: f64 = self.agents.iter().map(|a| a.distance_to_point(cx, cy)).sum();
+        let sum: f64 = self
+            .agents
+            .iter()
+            .map(|a| a.distance_to_point(cx, cy))
+            .sum();
         sum / self.agents.len() as f64
     }
 
@@ -686,7 +692,9 @@ mod tests {
 
     #[test]
     fn test_pheromone_evaporation() {
-        let mut grid = PheromoneGrid::new(10, 10, 1.0).with_evaporation(0.5).with_diffusion(0.0);
+        let mut grid = PheromoneGrid::new(10, 10, 1.0)
+            .with_evaporation(0.5)
+            .with_diffusion(0.0);
         grid.deposit(5.5, 5.5, 100.0);
         let before = grid.total();
         grid.update();
@@ -703,7 +711,9 @@ mod tests {
 
     #[test]
     fn test_pheromone_gradient() {
-        let mut grid = PheromoneGrid::new(20, 20, 1.0).with_evaporation(0.0).with_diffusion(0.0);
+        let mut grid = PheromoneGrid::new(20, 20, 1.0)
+            .with_evaporation(0.0)
+            .with_diffusion(0.0);
         // Deposit at cell (15,10); gradient reads cells at +/- cell_size
         // Query from (14.5,10.5): dx_pos reads cell(15,10)=100, dx_neg reads cell(13,10)=0
         grid.deposit(15.5, 10.5, 100.0);
@@ -831,14 +841,24 @@ mod tests {
     #[test]
     fn test_separation_behavior() {
         let mut sim = SwarmSimulation::new(100.0, 100.0)
-            .with_rules(InteractionRules::new()
-                .with_separation(10.0, 5.0)
-                .with_cohesion(0.0)
-                .with_alignment(0.0)
-                .with_noise(0.0))
+            .with_rules(
+                InteractionRules::new()
+                    .with_separation(10.0, 5.0)
+                    .with_cohesion(0.0)
+                    .with_alignment(0.0)
+                    .with_noise(0.0),
+            )
             .with_wrap(false);
-        sim.add_agent(SwarmAgent::new(1, 50.0, 50.0).with_max_speed(10.0).with_sensor_range(20.0));
-        sim.add_agent(SwarmAgent::new(2, 51.0, 50.0).with_max_speed(10.0).with_sensor_range(20.0));
+        sim.add_agent(
+            SwarmAgent::new(1, 50.0, 50.0)
+                .with_max_speed(10.0)
+                .with_sensor_range(20.0),
+        );
+        sim.add_agent(
+            SwarmAgent::new(2, 51.0, 50.0)
+                .with_max_speed(10.0)
+                .with_sensor_range(20.0),
+        );
         let d0 = sim.agents[0].distance_to(&sim.agents[1]);
         for _ in 0..20 {
             sim.step(0.1);

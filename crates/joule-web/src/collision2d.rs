@@ -44,27 +44,45 @@ impl Vec2 {
         if len < 1e-12 {
             return Self::zero();
         }
-        Self { x: self.x / len, y: self.y / len }
+        Self {
+            x: self.x / len,
+            y: self.y / len,
+        }
     }
 
     pub fn perpendicular(self) -> Self {
-        Self { x: -self.y, y: self.x }
+        Self {
+            x: -self.y,
+            y: self.x,
+        }
     }
 
     pub fn add(self, o: Self) -> Self {
-        Self { x: self.x + o.x, y: self.y + o.y }
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+        }
     }
 
     pub fn sub(self, o: Self) -> Self {
-        Self { x: self.x - o.x, y: self.y - o.y }
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+        }
     }
 
     pub fn scale(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
     }
 
     pub fn negate(self) -> Self {
-        Self { x: -self.x, y: -self.y }
+        Self {
+            x: -self.x,
+            y: -self.y,
+        }
     }
 
     pub fn lerp(self, other: Self, t: f64) -> Self {
@@ -96,15 +114,30 @@ impl Default for Vec2 {
 /// 2D collision shape.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Shape2D {
-    Circle { center: Vec2, radius: f64 },
-    AABB { min: Vec2, max: Vec2 },
-    OBB { center: Vec2, half_extents: Vec2, angle: f64 },
-    Polygon { vertices: Vec<Vec2> },
+    Circle {
+        center: Vec2,
+        radius: f64,
+    },
+    AABB {
+        min: Vec2,
+        max: Vec2,
+    },
+    OBB {
+        center: Vec2,
+        half_extents: Vec2,
+        angle: f64,
+    },
+    Polygon {
+        vertices: Vec<Vec2>,
+    },
 }
 
 impl Shape2D {
     pub fn circle(cx: f64, cy: f64, radius: f64) -> Self {
-        Self::Circle { center: Vec2::new(cx, cy), radius }
+        Self::Circle {
+            center: Vec2::new(cx, cy),
+            radius,
+        }
     }
 
     pub fn aabb(min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> Self {
@@ -134,7 +167,11 @@ impl Shape2D {
                 Vec2::new(center.x + radius, center.y + radius),
             ),
             Shape2D::AABB { min, max } => (*min, *max),
-            Shape2D::OBB { center, half_extents, angle } => {
+            Shape2D::OBB {
+                center,
+                half_extents,
+                angle,
+            } => {
                 let cos_a = angle.cos().abs();
                 let sin_a = angle.sin().abs();
                 let hx = half_extents.x * cos_a + half_extents.y * sin_a;
@@ -169,7 +206,11 @@ impl Shape2D {
                 min: min.add(offset),
                 max: max.add(offset),
             },
-            Shape2D::OBB { center, half_extents, angle } => Shape2D::OBB {
+            Shape2D::OBB {
+                center,
+                half_extents,
+                angle,
+            } => Shape2D::OBB {
                 center: center.add(offset),
                 half_extents: *half_extents,
                 angle: *angle,
@@ -206,7 +247,11 @@ pub struct CollisionManifold {
 
 impl CollisionManifold {
     pub fn new(contacts: Vec<Vec2>, normal: Vec2, depth: f64) -> Self {
-        Self { contacts, normal, depth }
+        Self {
+            contacts,
+            normal,
+            depth,
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -238,7 +283,10 @@ pub struct Ray {
 
 impl Ray {
     pub fn new(origin: Vec2, direction: Vec2) -> Self {
-        Self { origin, direction: direction.normalized() }
+        Self {
+            origin,
+            direction: direction.normalized(),
+        }
     }
 
     pub fn point_at(&self, t: f64) -> Vec2 {
@@ -262,12 +310,10 @@ pub fn test_collision(a: &Shape2D, b: &Shape2D) -> Option<Contact> {
         (Shape2D::Circle { .. }, Shape2D::Circle { .. }) => circle_vs_circle(a, b),
         (Shape2D::AABB { .. }, Shape2D::AABB { .. }) => aabb_vs_aabb(a, b),
         (Shape2D::Circle { .. }, Shape2D::AABB { .. }) => circle_vs_aabb(a, b),
-        (Shape2D::AABB { .. }, Shape2D::Circle { .. }) => {
-            circle_vs_aabb(b, a).map(|c| Contact {
-                normal: c.normal.negate(),
-                ..c
-            })
-        }
+        (Shape2D::AABB { .. }, Shape2D::Circle { .. }) => circle_vs_aabb(b, a).map(|c| Contact {
+            normal: c.normal.negate(),
+            ..c
+        }),
         (Shape2D::Polygon { .. }, Shape2D::Polygon { .. }) => sat_polygons(a, b),
         (Shape2D::Circle { .. }, Shape2D::Polygon { .. }) => circle_vs_polygon(a, b),
         (Shape2D::Polygon { .. }, Shape2D::Circle { .. }) => {
@@ -303,8 +349,16 @@ pub fn test_collision(a: &Shape2D, b: &Shape2D) -> Option<Contact> {
 /// Compute a full collision manifold between two shapes.
 pub fn compute_manifold(a: &Shape2D, b: &Shape2D) -> Option<CollisionManifold> {
     match (a, b) {
-        (Shape2D::Circle { center: ca, radius: ra },
-         Shape2D::Circle { center: cb, radius: rb }) => {
+        (
+            Shape2D::Circle {
+                center: ca,
+                radius: ra,
+            },
+            Shape2D::Circle {
+                center: cb,
+                radius: rb,
+            },
+        ) => {
             let diff = cb.sub(*ca);
             let dist = diff.length();
             let sum_r = ra + rb;
@@ -320,8 +374,16 @@ pub fn compute_manifold(a: &Shape2D, b: &Shape2D) -> Option<CollisionManifold> {
             let contact = ca.add(normal.scale(*ra - depth * 0.5));
             Some(CollisionManifold::new(vec![contact], normal, depth))
         }
-        (Shape2D::AABB { min: a_min, max: a_max },
-         Shape2D::AABB { min: b_min, max: b_max }) => {
+        (
+            Shape2D::AABB {
+                min: a_min,
+                max: a_max,
+            },
+            Shape2D::AABB {
+                min: b_min,
+                max: b_max,
+            },
+        ) => {
             let overlap_x = a_max.x.min(b_max.x) - a_min.x.max(b_min.x);
             let overlap_y = a_max.y.min(b_max.y) - a_min.y.max(b_min.y);
             if overlap_x <= 0.0 || overlap_y <= 0.0 {
@@ -358,28 +420,42 @@ pub fn compute_manifold(a: &Shape2D, b: &Shape2D) -> Option<CollisionManifold> {
         }
         _ => {
             // Fall back to single-contact test
-            test_collision(a, b).map(|c| {
-                CollisionManifold::new(vec![c.point], c.normal, c.penetration)
-            })
+            test_collision(a, b)
+                .map(|c| CollisionManifold::new(vec![c.point], c.normal, c.penetration))
         }
     }
 }
 
 fn circle_vs_circle(a: &Shape2D, b: &Shape2D) -> Option<Contact> {
     if let (
-        Shape2D::Circle { center: ca, radius: ra },
-        Shape2D::Circle { center: cb, radius: rb },
-    ) = (a, b) {
+        Shape2D::Circle {
+            center: ca,
+            radius: ra,
+        },
+        Shape2D::Circle {
+            center: cb,
+            radius: rb,
+        },
+    ) = (a, b)
+    {
         let diff = cb.sub(*ca);
         let dist = diff.length();
         let sum_r = ra + rb;
         if dist >= sum_r {
             return None;
         }
-        let normal = if dist < 1e-12 { Vec2::new(1.0, 0.0) } else { diff.normalized() };
+        let normal = if dist < 1e-12 {
+            Vec2::new(1.0, 0.0)
+        } else {
+            diff.normalized()
+        };
         let pen = sum_r - dist;
         let point = ca.add(normal.scale(*ra - pen * 0.5));
-        Some(Contact { point, normal, penetration: pen })
+        Some(Contact {
+            point,
+            normal,
+            penetration: pen,
+        })
     } else {
         None
     }
@@ -387,9 +463,16 @@ fn circle_vs_circle(a: &Shape2D, b: &Shape2D) -> Option<Contact> {
 
 fn aabb_vs_aabb(a: &Shape2D, b: &Shape2D) -> Option<Contact> {
     if let (
-        Shape2D::AABB { min: a_min, max: a_max },
-        Shape2D::AABB { min: b_min, max: b_max },
-    ) = (a, b) {
+        Shape2D::AABB {
+            min: a_min,
+            max: a_max,
+        },
+        Shape2D::AABB {
+            min: b_min,
+            max: b_max,
+        },
+    ) = (a, b)
+    {
         let overlap_x = a_max.x.min(b_max.x) - a_min.x.max(b_min.x);
         let overlap_y = a_max.y.min(b_max.y) - a_min.y.max(b_min.y);
         if overlap_x <= 0.0 || overlap_y <= 0.0 {
@@ -410,21 +493,19 @@ fn aabb_vs_aabb(a: &Shape2D, b: &Shape2D) -> Option<Contact> {
             a_min.x.max(b_min.x) + overlap_x * 0.5,
             a_min.y.max(b_min.y) + overlap_y * 0.5,
         );
-        Some(Contact { point, normal, penetration })
+        Some(Contact {
+            point,
+            normal,
+            penetration,
+        })
     } else {
         None
     }
 }
 
 fn circle_vs_aabb(circle: &Shape2D, aabb: &Shape2D) -> Option<Contact> {
-    if let (
-        Shape2D::Circle { center, radius },
-        Shape2D::AABB { min, max },
-    ) = (circle, aabb) {
-        let closest = Vec2::new(
-            center.x.clamp(min.x, max.x),
-            center.y.clamp(min.y, max.y),
-        );
+    if let (Shape2D::Circle { center, radius }, Shape2D::AABB { min, max }) = (circle, aabb) {
+        let closest = Vec2::new(center.x.clamp(min.x, max.x), center.y.clamp(min.y, max.y));
         let diff = center.sub(closest);
         let dist_sq = diff.length_sq();
         if dist_sq >= radius * radius {
@@ -437,26 +518,32 @@ fn circle_vs_aabb(circle: &Shape2D, aabb: &Shape2D) -> Option<Contact> {
             let dt = center.y - min.y;
             let db = max.y - center.y;
             let m = dl.min(dr).min(dt).min(db);
-            if (m - dl).abs() < 1e-12 { Vec2::new(-1.0, 0.0) }
-            else if (m - dr).abs() < 1e-12 { Vec2::new(1.0, 0.0) }
-            else if (m - dt).abs() < 1e-12 { Vec2::new(0.0, -1.0) }
-            else { Vec2::new(0.0, 1.0) }
+            if (m - dl).abs() < 1e-12 {
+                Vec2::new(-1.0, 0.0)
+            } else if (m - dr).abs() < 1e-12 {
+                Vec2::new(1.0, 0.0)
+            } else if (m - dt).abs() < 1e-12 {
+                Vec2::new(0.0, -1.0)
+            } else {
+                Vec2::new(0.0, 1.0)
+            }
         } else {
             diff.normalized()
         };
         let pen = radius - dist;
         let point = center.sub(normal.scale(*radius));
-        Some(Contact { point, normal, penetration: pen })
+        Some(Contact {
+            point,
+            normal,
+            penetration: pen,
+        })
     } else {
         None
     }
 }
 
 fn circle_vs_polygon(circle: &Shape2D, polygon: &Shape2D) -> Option<Contact> {
-    if let (
-        Shape2D::Circle { center, radius },
-        Shape2D::Polygon { vertices },
-    ) = (circle, polygon) {
+    if let (Shape2D::Circle { center, radius }, Shape2D::Polygon { vertices }) = (circle, polygon) {
         if vertices.len() < 3 {
             return None;
         }
@@ -497,10 +584,7 @@ fn circle_vs_polygon(circle: &Shape2D, polygon: &Shape2D) -> Option<Contact> {
 
 /// SAT collision test for convex polygons.
 fn sat_polygons(a: &Shape2D, b: &Shape2D) -> Option<Contact> {
-    if let (
-        Shape2D::Polygon { vertices: va },
-        Shape2D::Polygon { vertices: vb },
-    ) = (a, b) {
+    if let (Shape2D::Polygon { vertices: va }, Shape2D::Polygon { vertices: vb }) = (a, b) {
         if va.len() < 3 || vb.len() < 3 {
             return None;
         }
@@ -531,7 +615,11 @@ fn sat_polygons(a: &Shape2D, b: &Shape2D) -> Option<Contact> {
             best_normal = best_normal.negate();
         }
         let point = ca.add(cb).scale(0.5);
-        Some(Contact { point, normal: best_normal, penetration: min_pen })
+        Some(Contact {
+            point,
+            normal: best_normal,
+            penetration: min_pen,
+        })
     } else {
         None
     }
@@ -567,18 +655,27 @@ fn aabb_to_polygon(min: Vec2, max: Vec2) -> Vec<Vec2> {
 fn shape_to_polygon(shape: &Shape2D) -> Option<Vec<Vec2>> {
     match shape {
         Shape2D::AABB { min, max } => Some(aabb_to_polygon(*min, *max)),
-        Shape2D::OBB { center, half_extents, angle } => {
+        Shape2D::OBB {
+            center,
+            half_extents,
+            angle,
+        } => {
             let cos_a = angle.cos();
             let sin_a = angle.sin();
             let hx = half_extents.x;
             let hy = half_extents.y;
             let corners = [(-hx, -hy), (hx, -hy), (hx, hy), (-hx, hy)];
-            Some(corners.iter().map(|(lx, ly)| {
-                Vec2::new(
-                    center.x + lx * cos_a - ly * sin_a,
-                    center.y + lx * sin_a + ly * cos_a,
-                )
-            }).collect())
+            Some(
+                corners
+                    .iter()
+                    .map(|(lx, ly)| {
+                        Vec2::new(
+                            center.x + lx * cos_a - ly * sin_a,
+                            center.y + lx * sin_a + ly * cos_a,
+                        )
+                    })
+                    .collect(),
+            )
         }
         Shape2D::Polygon { vertices } => Some(vertices.clone()),
         _ => None,
@@ -590,14 +687,15 @@ fn shape_to_polygon(shape: &Shape2D) -> Option<Vec<Vec2>> {
 /// Test if a point is inside a shape.
 pub fn point_in_shape(point: Vec2, shape: &Shape2D) -> bool {
     match shape {
-        Shape2D::Circle { center, radius } => {
-            point.sub(*center).length_sq() <= radius * radius
-        }
+        Shape2D::Circle { center, radius } => point.sub(*center).length_sq() <= radius * radius,
         Shape2D::AABB { min, max } => {
-            point.x >= min.x && point.x <= max.x &&
-            point.y >= min.y && point.y <= max.y
+            point.x >= min.x && point.x <= max.x && point.y >= min.y && point.y <= max.y
         }
-        Shape2D::OBB { center, half_extents, angle } => {
+        Shape2D::OBB {
+            center,
+            half_extents,
+            angle,
+        } => {
             let d = point.sub(*center);
             let cos_a = angle.cos();
             let sin_a = angle.sin();
@@ -723,23 +821,41 @@ fn ray_vs_circle(ray: &Ray, center: Vec2, radius: f64) -> Option<RayHit> {
     let sqrt_d = disc.sqrt();
     let t1 = (-b - sqrt_d) / (2.0 * a);
     let t2 = (-b + sqrt_d) / (2.0 * a);
-    let t = if t1 >= 0.0 { t1 } else if t2 >= 0.0 { t2 } else { return None };
+    let t = if t1 >= 0.0 {
+        t1
+    } else if t2 >= 0.0 {
+        t2
+    } else {
+        return None;
+    };
     let point = ray.point_at(t);
     let normal = point.sub(center).normalized();
     Some(RayHit { t, point, normal })
 }
 
 fn ray_vs_aabb(ray: &Ray, min: Vec2, max: Vec2) -> Option<RayHit> {
-    let inv_dx = if ray.direction.x.abs() < 1e-12 { f64::INFINITY } else { 1.0 / ray.direction.x };
-    let inv_dy = if ray.direction.y.abs() < 1e-12 { f64::INFINITY } else { 1.0 / ray.direction.y };
+    let inv_dx = if ray.direction.x.abs() < 1e-12 {
+        f64::INFINITY
+    } else {
+        1.0 / ray.direction.x
+    };
+    let inv_dy = if ray.direction.y.abs() < 1e-12 {
+        f64::INFINITY
+    } else {
+        1.0 / ray.direction.y
+    };
 
     let mut t_min_x = (min.x - ray.origin.x) * inv_dx;
     let mut t_max_x = (max.x - ray.origin.x) * inv_dx;
-    if t_min_x > t_max_x { std::mem::swap(&mut t_min_x, &mut t_max_x); }
+    if t_min_x > t_max_x {
+        std::mem::swap(&mut t_min_x, &mut t_max_x);
+    }
 
     let mut t_min_y = (min.y - ray.origin.y) * inv_dy;
     let mut t_max_y = (max.y - ray.origin.y) * inv_dy;
-    if t_min_y > t_max_y { std::mem::swap(&mut t_min_y, &mut t_max_y); }
+    if t_min_y > t_max_y {
+        std::mem::swap(&mut t_min_y, &mut t_max_y);
+    }
 
     if t_min_x > t_max_y || t_min_y > t_max_x {
         return None;
@@ -788,7 +904,11 @@ fn ray_vs_polygon(ray: &Ray, vertices: &[Vec2]) -> Option<RayHit> {
         }
         let normal = if denom < 0.0 { edge_n } else { edge_n.negate() };
         if best.is_none() || t < best.as_ref().unwrap().t {
-            best = Some(RayHit { t, point: hit, normal });
+            best = Some(RayHit {
+                t,
+                point: hit,
+                normal,
+            });
         }
     }
     best
@@ -924,12 +1044,16 @@ mod tests {
     #[test]
     fn sat_polygon_collision() {
         let a = Shape2D::polygon(vec![
-            Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0),
-            Vec2::new(10.0, 10.0), Vec2::new(0.0, 10.0),
+            Vec2::new(0.0, 0.0),
+            Vec2::new(10.0, 0.0),
+            Vec2::new(10.0, 10.0),
+            Vec2::new(0.0, 10.0),
         ]);
         let b = Shape2D::polygon(vec![
-            Vec2::new(8.0, 0.0), Vec2::new(18.0, 0.0),
-            Vec2::new(18.0, 10.0), Vec2::new(8.0, 10.0),
+            Vec2::new(8.0, 0.0),
+            Vec2::new(18.0, 0.0),
+            Vec2::new(18.0, 10.0),
+            Vec2::new(8.0, 10.0),
         ]);
         let c = test_collision(&a, &b).unwrap();
         assert!(approx(c.penetration, 2.0));
@@ -938,12 +1062,16 @@ mod tests {
     #[test]
     fn sat_polygon_no_collision() {
         let a = Shape2D::polygon(vec![
-            Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0),
-            Vec2::new(10.0, 10.0), Vec2::new(0.0, 10.0),
+            Vec2::new(0.0, 0.0),
+            Vec2::new(10.0, 0.0),
+            Vec2::new(10.0, 10.0),
+            Vec2::new(0.0, 10.0),
         ]);
         let b = Shape2D::polygon(vec![
-            Vec2::new(20.0, 0.0), Vec2::new(30.0, 0.0),
-            Vec2::new(30.0, 10.0), Vec2::new(20.0, 10.0),
+            Vec2::new(20.0, 0.0),
+            Vec2::new(30.0, 0.0),
+            Vec2::new(30.0, 10.0),
+            Vec2::new(20.0, 10.0),
         ]);
         assert!(test_collision(&a, &b).is_none());
     }
@@ -966,8 +1094,10 @@ mod tests {
     #[test]
     fn point_in_polygon_test() {
         let s = Shape2D::polygon(vec![
-            Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0),
-            Vec2::new(10.0, 10.0), Vec2::new(0.0, 10.0),
+            Vec2::new(0.0, 0.0),
+            Vec2::new(10.0, 0.0),
+            Vec2::new(10.0, 10.0),
+            Vec2::new(0.0, 10.0),
         ]);
         assert!(point_in_shape(Vec2::new(5.0, 5.0), &s));
         assert!(!point_in_shape(Vec2::new(15.0, 5.0), &s));
@@ -1127,8 +1257,10 @@ mod tests {
     fn circle_polygon_collision() {
         let c = Shape2D::circle(0.0, 5.0, 3.0);
         let p = Shape2D::polygon(vec![
-            Vec2::new(2.0, 0.0), Vec2::new(10.0, 0.0),
-            Vec2::new(10.0, 10.0), Vec2::new(2.0, 10.0),
+            Vec2::new(2.0, 0.0),
+            Vec2::new(10.0, 0.0),
+            Vec2::new(10.0, 10.0),
+            Vec2::new(2.0, 10.0),
         ]);
         let ct = test_collision(&c, &p).unwrap();
         assert!(ct.penetration > 0.0);
@@ -1147,12 +1279,16 @@ mod tests {
     #[test]
     fn manifold_polygon_fallback() {
         let a = Shape2D::polygon(vec![
-            Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0),
-            Vec2::new(10.0, 10.0), Vec2::new(0.0, 10.0),
+            Vec2::new(0.0, 0.0),
+            Vec2::new(10.0, 0.0),
+            Vec2::new(10.0, 10.0),
+            Vec2::new(0.0, 10.0),
         ]);
         let b = Shape2D::polygon(vec![
-            Vec2::new(8.0, 0.0), Vec2::new(18.0, 0.0),
-            Vec2::new(18.0, 10.0), Vec2::new(8.0, 10.0),
+            Vec2::new(8.0, 0.0),
+            Vec2::new(18.0, 0.0),
+            Vec2::new(18.0, 10.0),
+            Vec2::new(8.0, 10.0),
         ]);
         let m = compute_manifold(&a, &b).unwrap();
         assert!(!m.is_empty());

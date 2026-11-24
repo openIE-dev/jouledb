@@ -14,7 +14,11 @@ pub enum NftError {
     /// Token not found.
     TokenNotFound(u64),
     /// Not the owner of the token.
-    NotOwner { token_id: u64, caller: String, owner: String },
+    NotOwner {
+        token_id: u64,
+        caller: String,
+        owner: String,
+    },
     /// Collection not found.
     CollectionNotFound(String),
     /// Duplicate collection.
@@ -31,7 +35,11 @@ impl fmt::Display for NftError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::TokenNotFound(id) => write!(f, "token not found: {id}"),
-            Self::NotOwner { token_id, caller, owner } => {
+            Self::NotOwner {
+                token_id,
+                caller,
+                owner,
+            } => {
                 write!(f, "token {token_id}: caller {caller} is not owner {owner}")
             }
             Self::CollectionNotFound(name) => write!(f, "collection not found: {name}"),
@@ -93,7 +101,11 @@ impl NftMetadata {
         self
     }
 
-    pub fn with_attribute(mut self, trait_type: impl Into<String>, value: impl Into<String>) -> Self {
+    pub fn with_attribute(
+        mut self,
+        trait_type: impl Into<String>,
+        value: impl Into<String>,
+    ) -> Self {
         self.attributes.push(NftAttribute::new(trait_type, value));
         self
     }
@@ -459,8 +471,8 @@ mod tests {
 
     fn setup_registry() -> NftRegistry {
         let mut reg = NftRegistry::new();
-        let collection = Collection::new("CryptoPunks", "PUNK", "creator1")
-            .with_description("Test collection");
+        let collection =
+            Collection::new("CryptoPunks", "PUNK", "creator1").with_description("Test collection");
         reg.create_collection(collection).unwrap();
         reg
     }
@@ -476,8 +488,13 @@ mod tests {
     #[test]
     fn test_duplicate_collection_error() {
         let mut reg = setup_registry();
-        let err = reg.create_collection(Collection::new("CryptoPunks", "X", "y")).unwrap_err();
-        assert_eq!(err, NftError::DuplicateCollection("CryptoPunks".to_string()));
+        let err = reg
+            .create_collection(Collection::new("CryptoPunks", "X", "y"))
+            .unwrap_err();
+        assert_eq!(
+            err,
+            NftError::DuplicateCollection("CryptoPunks".to_string())
+        );
     }
 
     #[test]
@@ -494,7 +511,8 @@ mod tests {
     fn test_mint_with_specific_id() {
         let mut reg = setup_registry();
         let meta = NftMetadata::new("Punk #42", "Custom ID");
-        reg.mint_with_id(42, "CryptoPunks", "bob", meta, 1000).unwrap();
+        reg.mint_with_id(42, "CryptoPunks", "bob", meta, 1000)
+            .unwrap();
         assert_eq!(reg.owner_of(42).unwrap(), "bob");
     }
 
@@ -502,8 +520,11 @@ mod tests {
     fn test_duplicate_token_id_error() {
         let mut reg = setup_registry();
         let meta = NftMetadata::new("A", "B");
-        reg.mint_with_id(1, "CryptoPunks", "alice", meta.clone(), 100).unwrap();
-        let err = reg.mint_with_id(1, "CryptoPunks", "bob", meta, 200).unwrap_err();
+        reg.mint_with_id(1, "CryptoPunks", "alice", meta.clone(), 100)
+            .unwrap();
+        let err = reg
+            .mint_with_id(1, "CryptoPunks", "bob", meta, 200)
+            .unwrap_err();
         assert_eq!(err, NftError::DuplicateToken(1));
     }
 
@@ -600,13 +621,15 @@ mod tests {
             .with_attribute("rarity", "legendary")
             .with_attribute("color", "gold");
         assert_eq!(meta.attributes.len(), 2);
-        assert_eq!(meta.image_uri.as_deref(), Some("https://example.com/img.png"));
+        assert_eq!(
+            meta.image_uri.as_deref(),
+            Some("https://example.com/img.png")
+        );
     }
 
     #[test]
     fn test_collection_with_max_supply() {
-        let col = Collection::new("Limited", "LMT", "creator")
-            .with_max_supply(100);
+        let col = Collection::new("Limited", "LMT", "creator").with_max_supply(100);
         assert_eq!(col.max_supply, Some(100));
         assert_eq!(col.supply(), 0);
     }
@@ -615,8 +638,10 @@ mod tests {
     fn test_all_token_ids_sorted() {
         let mut reg = setup_registry();
         let meta = NftMetadata::new("T", "D");
-        reg.mint_with_id(5, "CryptoPunks", "a", meta.clone(), 100).unwrap();
-        reg.mint_with_id(2, "CryptoPunks", "b", meta.clone(), 100).unwrap();
+        reg.mint_with_id(5, "CryptoPunks", "a", meta.clone(), 100)
+            .unwrap();
+        reg.mint_with_id(2, "CryptoPunks", "b", meta.clone(), 100)
+            .unwrap();
         reg.mint_with_id(8, "CryptoPunks", "c", meta, 100).unwrap();
         assert_eq!(reg.all_token_ids(), vec![2, 5, 8]);
     }

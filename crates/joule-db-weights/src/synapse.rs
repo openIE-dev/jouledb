@@ -1362,25 +1362,26 @@ impl LittleBitSVFTensor {
             }
         }
 
-        let u_norm_sq: f64 = self
-            .row_scale
-            .iter()
-            .map(|&rs| (rs as f64) * (rs as f64))
-            .sum();
-
-        // Alternating Gauss-Seidel Coordinate-Ridge over `latent_scale` + exact per-row gain over real activations!
+        // Alternating Gauss-Seidel Coordinate-Ridge over `latent_scale` + Empirical-Bayes-shrunk
+        // per-row gain over real activations (recomputing `u_norm_sq` each sweep so `d_sigma` stays exact!).
+        let sample_shrink = (3.0 / (num_samples as f64)).clamp(0.01, 0.5);
         for _ in 0..n_sweeps {
+            let u_norm_sq: f64 = self
+                .row_scale
+                .iter()
+                .map(|&rs| (rs as f64) * (rs as f64))
+                .sum();
             for k in 0..self.rank {
                 let kw = k / 64;
                 let kmask = 1u64 << (k % 64);
                 let mut num = 0.0f64;
-                let mut den = lam;
+                let mut energy_k = 0.0f64;
                 for s in 0..num_samples {
                     let vpk = v_proj[s * self.rank + k] as f64;
                     if vpk.abs() < 1e-12 {
                         continue;
                     }
-                    den += u_norm_sq * vpk * vpk;
+                    energy_k += u_norm_sq * vpk * vpk;
                     let yt_s = &y_target_base[s * self.rows..(s + 1) * self.rows];
                     let yh_s = &y_hat[s * self.rows..(s + 1) * self.rows];
                     let mut u_dot_res = 0.0f64;
@@ -1395,7 +1396,10 @@ impl LittleBitSVFTensor {
                     }
                     num += vpk * u_dot_res;
                 }
-                let d_sigma = (num / den.max(1e-12)) as f32;
+                let eff_den = energy_k
+                    * (1.0 + sample_shrink * ((self.rank as f64) / (self.rows as f64)).min(1.0))
+                    + lam;
+                let d_sigma = (num / eff_den.max(1e-12)) as f32;
                 let new_sig = (self.latent_scale[k] + d_sigma).clamp(-64.0, 64.0);
                 let applied = new_sig - self.latent_scale[k];
                 if applied.abs() > 1e-9 {
@@ -1415,7 +1419,7 @@ impl LittleBitSVFTensor {
                 }
             }
 
-            // Per-row activation-weighted Cauchy-Schwarz optimal gain update
+            // Per-row activation-weighted Cauchy-Schwarz optimal gain update with prior shrinkage toward `1.0`
             for i in 0..self.rows {
                 let mut dot_num = 0.0f64;
                 let mut norm_den = 0.0f64;
@@ -1426,7 +1430,8 @@ impl LittleBitSVFTensor {
                     norm_den += yh * yh;
                 }
                 if norm_den > 1e-12 && dot_num > 0.0 {
-                    let alpha = (dot_num / norm_den).clamp(0.25, 4.0) as f32;
+                    let prior = norm_den * sample_shrink;
+                    let alpha = ((dot_num + prior) / (norm_den + prior)).clamp(0.25, 4.0) as f32;
                     self.row_scale[i] *= alpha;
                     for s in 0..num_samples {
                         y_hat[s * self.rows + i] *= alpha;

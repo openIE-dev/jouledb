@@ -74,12 +74,18 @@ impl CrsRegistryConfig {
 }
 
 impl Default for CrsRegistryConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for CrsRegistryConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CrsRegistryConfig(capacity={0}, include_deprecated={1}, strict_bounds={2}, default_epsg={3})", self.capacity, self.include_deprecated, self.strict_bounds, self.default_epsg)
+        write!(
+            f,
+            "CrsRegistryConfig(capacity={0}, include_deprecated={1}, strict_bounds={2}, default_epsg={3})",
+            self.capacity, self.include_deprecated, self.strict_bounds, self.default_epsg
+        )
     }
 }
 
@@ -95,7 +101,10 @@ pub struct CrsRegistry {
 impl CrsRegistry {
     pub fn new(config: CrsRegistryConfig) -> Result<Self, CrsRegistryError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -107,9 +116,15 @@ impl CrsRegistry {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &CrsRegistryConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &CrsRegistryConfig {
+        &self.config
+    }
 
     /// Look up CRS by EPSG code.
     pub fn lookup(&self) -> String {
@@ -118,7 +133,9 @@ impl CrsRegistry {
 
     /// Geographic bounds of CRS.
     pub fn bounds(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
@@ -130,7 +147,9 @@ impl CrsRegistry {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -142,7 +161,9 @@ impl CrsRegistry {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -154,7 +175,11 @@ impl CrsRegistry {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -227,7 +252,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = CrsRegistry::new(CrsRegistryConfig::new()).unwrap()
+        let e = CrsRegistry::new(CrsRegistryConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -243,7 +269,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = CrsRegistry::new(CrsRegistryConfig::new()).unwrap()
+        let e = CrsRegistry::new(CrsRegistryConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("CrsRegistry"));
@@ -251,7 +278,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = CrsRegistry::new(CrsRegistryConfig::new()).unwrap()
+        let e = CrsRegistry::new(CrsRegistryConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -262,7 +290,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = CrsRegistry::new(CrsRegistryConfig::new()).unwrap()
+        let e = CrsRegistry::new(CrsRegistryConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -270,7 +299,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = CrsRegistry::new(CrsRegistryConfig::new()).unwrap()
+        let e = CrsRegistry::new(CrsRegistryConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -287,7 +317,8 @@ mod tests {
 
     #[test]
     fn test_lookup() {
-        let e = CrsRegistry::new(CrsRegistryConfig::new()).unwrap()
+        let e = CrsRegistry::new(CrsRegistryConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.lookup();
         assert!(!result.is_empty());
@@ -295,7 +326,8 @@ mod tests {
 
     #[test]
     fn test_bounds() {
-        let e = CrsRegistry::new(CrsRegistryConfig::new()).unwrap()
+        let e = CrsRegistry::new(CrsRegistryConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.bounds();
         assert!(!result.is_empty());
@@ -303,7 +335,8 @@ mod tests {
 
     #[test]
     fn test_is_projected() {
-        let e = CrsRegistry::new(CrsRegistryConfig::new()).unwrap()
+        let e = CrsRegistry::new(CrsRegistryConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.is_projected();
         assert!(result);

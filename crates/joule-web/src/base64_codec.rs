@@ -44,10 +44,22 @@ pub struct Config {
 }
 
 impl Config {
-    pub const STANDARD: Self = Self { variant: Variant::Standard, padding: Padding::Pad };
-    pub const STANDARD_NO_PAD: Self = Self { variant: Variant::Standard, padding: Padding::NoPad };
-    pub const URL_SAFE: Self = Self { variant: Variant::UrlSafe, padding: Padding::Pad };
-    pub const URL_SAFE_NO_PAD: Self = Self { variant: Variant::UrlSafe, padding: Padding::NoPad };
+    pub const STANDARD: Self = Self {
+        variant: Variant::Standard,
+        padding: Padding::Pad,
+    };
+    pub const STANDARD_NO_PAD: Self = Self {
+        variant: Variant::Standard,
+        padding: Padding::NoPad,
+    };
+    pub const URL_SAFE: Self = Self {
+        variant: Variant::UrlSafe,
+        padding: Padding::Pad,
+    };
+    pub const URL_SAFE_NO_PAD: Self = Self {
+        variant: Variant::UrlSafe,
+        padding: Padding::NoPad,
+    };
 
     fn alphabet(&self) -> &'static [u8; 64] {
         match self.variant {
@@ -124,7 +136,10 @@ impl std::fmt::Display for DecodeError {
 pub fn decode(encoded: &str, config: Config) -> Result<Vec<u8>, DecodeError> {
     let table = decode_table(config.alphabet());
     // Strip whitespace and padding
-    let input: Vec<u8> = encoded.bytes().filter(|b| *b != b'\n' && *b != b'\r' && *b != b' ').collect();
+    let input: Vec<u8> = encoded
+        .bytes()
+        .filter(|b| *b != b'\n' && *b != b'\r' && *b != b' ')
+        .collect();
 
     // Find where padding starts
     let pad_start = input.iter().position(|b| *b == b'=').unwrap_or(input.len());
@@ -143,8 +158,10 @@ pub fn decode(encoded: &str, config: Config) -> Result<Vec<u8>, DecodeError> {
         buf_len += 1;
 
         if buf_len == 4 {
-            let n = (buf[0] as u32) << 18 | (buf[1] as u32) << 12
-                  | (buf[2] as u32) << 6 | (buf[3] as u32);
+            let n = (buf[0] as u32) << 18
+                | (buf[1] as u32) << 12
+                | (buf[2] as u32) << 6
+                | (buf[3] as u32);
             out.push((n >> 16) as u8);
             out.push((n >> 8) as u8);
             out.push(n as u8);
@@ -194,7 +211,9 @@ pub fn encode_chunked(data: &[u8], config: Config, line_len: usize) -> String {
     let encoded = encode(data, config);
     let mut out = String::with_capacity(encoded.len() + encoded.len() / line_len * 2);
     for (i, ch) in encoded.chars().enumerate() {
-        if i > 0 && i % line_len == 0 { out.push('\n'); }
+        if i > 0 && i % line_len == 0 {
+            out.push('\n');
+        }
         out.push(ch);
     }
     out
@@ -211,7 +230,11 @@ pub struct StreamEncoder {
 
 impl StreamEncoder {
     pub fn new(config: Config) -> Self {
-        Self { config, buffer: Vec::new(), output: String::new() }
+        Self {
+            config,
+            buffer: Vec::new(),
+            output: String::new(),
+        }
     }
 
     /// Feed more bytes.
@@ -222,7 +245,10 @@ impl StreamEncoder {
         if complete > 0 {
             let chunk: Vec<u8> = self.buffer.drain(..complete).collect();
             // Encode without padding for intermediate chunks
-            let cfg = Config { padding: Padding::NoPad, ..self.config };
+            let cfg = Config {
+                padding: Padding::NoPad,
+                ..self.config
+            };
             self.output.push_str(&encode(&chunk, cfg));
         }
     }
@@ -247,7 +273,11 @@ pub struct StreamDecoder {
 
 impl StreamDecoder {
     pub fn new(config: Config) -> Self {
-        Self { config, buffer: String::new(), output: Vec::new() }
+        Self {
+            config,
+            buffer: String::new(),
+            output: Vec::new(),
+        }
     }
 
     pub fn update(&mut self, data: &str) -> Result<(), DecodeError> {
@@ -278,7 +308,9 @@ impl StreamDecoder {
 pub fn constant_time_eq(a: &str, b: &str) -> bool {
     let a_bytes = a.as_bytes();
     let b_bytes = b.as_bytes();
-    if a_bytes.len() != b_bytes.len() { return false; }
+    if a_bytes.len() != b_bytes.len() {
+        return false;
+    }
     let mut result: u8 = 0;
     for (x, y) in a_bytes.iter().zip(b_bytes.iter()) {
         result |= x ^ y;
@@ -354,7 +386,8 @@ mod tests {
 
     #[test]
     fn test_chunked() {
-        let data = b"The quick brown fox jumps over the lazy dog and more text to exceed the line limit";
+        let data =
+            b"The quick brown fox jumps over the lazy dog and more text to exceed the line limit";
         let chunked = encode_chunked(data, Config::STANDARD, 20);
         assert!(chunked.contains('\n'));
         // Remove newlines and decode

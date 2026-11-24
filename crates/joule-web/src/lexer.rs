@@ -22,7 +22,12 @@ pub struct Span {
 
 impl Span {
     pub fn new(start: usize, end: usize, line: usize, col: usize) -> Self {
-        Self { start, end, line, col }
+        Self {
+            start,
+            end,
+            line,
+            col,
+        }
     }
 
     /// Return the length of the span in bytes.
@@ -179,22 +184,21 @@ pub struct LexerConfig {
 impl Default for LexerConfig {
     fn default() -> Self {
         let keywords: HashSet<String> = [
-            "let", "fn", "if", "else", "while", "for", "return", "true", "false",
-            "struct", "enum", "match", "break", "continue", "const", "mut",
+            "let", "fn", "if", "else", "while", "for", "return", "true", "false", "struct", "enum",
+            "match", "break", "continue", "const", "mut",
         ]
         .iter()
         .map(|s| (*s).to_string())
         .collect();
 
         let mut ops = vec![
-            "==", "!=", "<=", ">=", "&&", "||", "->", "=>", "::", "..", "<<", ">>",
-            "+=", "-=", "*=", "/=",
+            "==", "!=", "<=", ">=", "&&", "||", "->", "=>", "::", "..", "<<", ">>", "+=", "-=",
+            "*=", "/=",
         ];
         ops.sort_by(|a, b| b.len().cmp(&a.len()));
         let operators: Vec<String> = ops.into_iter().map(String::from).collect();
 
-        let single_operators: HashSet<char> =
-            "+-*/%=<>!&|^~?.,:;(){}[]@".chars().collect();
+        let single_operators: HashSet<char> = "+-*/%=<>!&|^~?.,:;(){}[]@".chars().collect();
 
         Self {
             keywords,
@@ -480,9 +484,9 @@ impl Lexer {
         loop {
             match self.current() {
                 None => {
-                    return Err(LexError::UnterminatedString(self.make_span(
-                        start, start_line, start_col,
-                    )));
+                    return Err(LexError::UnterminatedString(
+                        self.make_span(start, start_line, start_col),
+                    ));
                 }
                 Some(c) if c == quote => {
                     raw.push(c);
@@ -494,9 +498,9 @@ impl Lexer {
                     self.advance_char();
                     match self.current() {
                         None => {
-                            return Err(LexError::UnterminatedString(self.make_span(
-                                start, start_line, start_col,
-                            )));
+                            return Err(LexError::UnterminatedString(
+                                self.make_span(start, start_line, start_col),
+                            ));
                         }
                         Some(esc) => {
                             raw.push(esc);
@@ -571,23 +575,41 @@ impl Lexer {
         self.advance_char(); // consume '
         let ch = match self.current() {
             None => {
-                return Err(LexError::UnterminatedChar(self.make_span(
-                    start, start_line, start_col,
-                )));
+                return Err(LexError::UnterminatedChar(
+                    self.make_span(start, start_line, start_col),
+                ));
             }
             Some('\\') => {
                 self.advance_char();
                 match self.current() {
-                    Some('n') => { self.advance_char(); '\n' }
-                    Some('t') => { self.advance_char(); '\t' }
-                    Some('r') => { self.advance_char(); '\r' }
-                    Some('\\') => { self.advance_char(); '\\' }
-                    Some('0') => { self.advance_char(); '\0' }
-                    Some('\'') => { self.advance_char(); '\'' }
+                    Some('n') => {
+                        self.advance_char();
+                        '\n'
+                    }
+                    Some('t') => {
+                        self.advance_char();
+                        '\t'
+                    }
+                    Some('r') => {
+                        self.advance_char();
+                        '\r'
+                    }
+                    Some('\\') => {
+                        self.advance_char();
+                        '\\'
+                    }
+                    Some('0') => {
+                        self.advance_char();
+                        '\0'
+                    }
+                    Some('\'') => {
+                        self.advance_char();
+                        '\''
+                    }
                     _ => {
-                        return Err(LexError::UnterminatedChar(self.make_span(
-                            start, start_line, start_col,
-                        )));
+                        return Err(LexError::UnterminatedChar(
+                            self.make_span(start, start_line, start_col),
+                        ));
                     }
                 }
             }
@@ -597,9 +619,9 @@ impl Lexer {
             }
         };
         if self.current() != Some('\'') {
-            return Err(LexError::UnterminatedChar(self.make_span(
-                start, start_line, start_col,
-            )));
+            return Err(LexError::UnterminatedChar(
+                self.make_span(start, start_line, start_col),
+            ));
         }
         self.advance_char(); // consume closing '
         let span = self.make_span(start, start_line, start_col);
@@ -630,17 +652,33 @@ impl Lexer {
         // Check booleans
         if self.config.bool_literals {
             if buf == "true" {
-                return Token { kind: TokenKind::Bool(true), span, lexeme: buf };
+                return Token {
+                    kind: TokenKind::Bool(true),
+                    span,
+                    lexeme: buf,
+                };
             }
             if buf == "false" {
-                return Token { kind: TokenKind::Bool(false), span, lexeme: buf };
+                return Token {
+                    kind: TokenKind::Bool(false),
+                    span,
+                    lexeme: buf,
+                };
             }
         }
 
         if self.config.keywords.contains(&buf) {
-            Token { kind: TokenKind::Keyword(buf.clone()), span, lexeme: buf }
+            Token {
+                kind: TokenKind::Keyword(buf.clone()),
+                span,
+                lexeme: buf,
+            }
         } else {
-            Token { kind: TokenKind::Ident(buf.clone()), span, lexeme: buf }
+            Token {
+                kind: TokenKind::Ident(buf.clone()),
+                span,
+                lexeme: buf,
+            }
         }
     }
 
@@ -682,7 +720,10 @@ impl Lexer {
         }
 
         let c = self.current().unwrap_or('\0');
-        Err(LexError::UnexpectedChar(c, self.make_span(start, start_line, start_col)))
+        Err(LexError::UnexpectedChar(
+            c,
+            self.make_span(start, start_line, start_col),
+        ))
     }
 
     // ── Public API ──────────────────────────────────────────────────────

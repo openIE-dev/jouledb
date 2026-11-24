@@ -129,24 +129,24 @@ fn canonical_composition() -> HashMap<(char, char), char> {
 fn compatibility_decomposition() -> HashMap<char, Vec<char>> {
     let mut map = HashMap::new();
     let entries: &[(char, &[char])] = &[
-        ('\u{00A0}', &[' ']),               // NBSP -> space
-        ('\u{00B2}', &['2']),               // ²
-        ('\u{00B3}', &['3']),               // ³
-        ('\u{00B9}', &['1']),               // ¹
-        ('\u{00BC}', &['1', '/', '4']),     // ¼
-        ('\u{00BD}', &['1', '/', '2']),     // ½
-        ('\u{00BE}', &['3', '/', '4']),     // ¾
-        ('\u{2002}', &[' ']),               // EN SPACE
-        ('\u{2003}', &[' ']),               // EM SPACE
-        ('\u{2010}', &['-']),               // HYPHEN
-        ('\u{2011}', &['-']),               // NON-BREAKING HYPHEN
-        ('\u{2013}', &['-']),               // EN DASH (compat)
-        ('\u{2018}', &['\'']),              // LEFT SINGLE QUOTE
-        ('\u{2019}', &['\'']),              // RIGHT SINGLE QUOTE
-        ('\u{201C}', &['"']),               // LEFT DOUBLE QUOTE
-        ('\u{201D}', &['"']),               // RIGHT DOUBLE QUOTE
-        ('\u{FB01}', &['f', 'i']),          // fi ligature
-        ('\u{FB02}', &['f', 'l']),          // fl ligature
+        ('\u{00A0}', &[' ']),           // NBSP -> space
+        ('\u{00B2}', &['2']),           // ²
+        ('\u{00B3}', &['3']),           // ³
+        ('\u{00B9}', &['1']),           // ¹
+        ('\u{00BC}', &['1', '/', '4']), // ¼
+        ('\u{00BD}', &['1', '/', '2']), // ½
+        ('\u{00BE}', &['3', '/', '4']), // ¾
+        ('\u{2002}', &[' ']),           // EN SPACE
+        ('\u{2003}', &[' ']),           // EM SPACE
+        ('\u{2010}', &['-']),           // HYPHEN
+        ('\u{2011}', &['-']),           // NON-BREAKING HYPHEN
+        ('\u{2013}', &['-']),           // EN DASH (compat)
+        ('\u{2018}', &['\'']),          // LEFT SINGLE QUOTE
+        ('\u{2019}', &['\'']),          // RIGHT SINGLE QUOTE
+        ('\u{201C}', &['"']),           // LEFT DOUBLE QUOTE
+        ('\u{201D}', &['"']),           // RIGHT DOUBLE QUOTE
+        ('\u{FB01}', &['f', 'i']),      // fi ligature
+        ('\u{FB02}', &['f', 'l']),      // fl ligature
     ];
     for (ch, decomp) in entries {
         map.insert(*ch, decomp.to_vec());
@@ -176,10 +176,7 @@ fn hangul_decompose(s: u32) -> Option<Vec<char>> {
     let v = HANGUL_V_BASE + (s_index % HANGUL_N_COUNT) / HANGUL_T_COUNT;
     let t = s_index % HANGUL_T_COUNT;
 
-    let mut result = vec![
-        char::from_u32(l).unwrap(),
-        char::from_u32(v).unwrap(),
-    ];
+    let mut result = vec![char::from_u32(l).unwrap(), char::from_u32(v).unwrap()];
     if t > 0 {
         result.push(char::from_u32(HANGUL_T_BASE + t).unwrap());
     }
@@ -204,9 +201,7 @@ fn hangul_compose(a: char, b: char) -> Option<char> {
     // LV + T -> LVT
     if a >= HANGUL_S_BASE && a < HANGUL_S_BASE + HANGUL_S_COUNT {
         let s_index = a - HANGUL_S_BASE;
-        if s_index % HANGUL_T_COUNT == 0
-            && b > HANGUL_T_BASE
-            && b < HANGUL_T_BASE + HANGUL_T_COUNT
+        if s_index % HANGUL_T_COUNT == 0 && b > HANGUL_T_BASE && b < HANGUL_T_BASE + HANGUL_T_COUNT
         {
             let t_index = b - HANGUL_T_BASE;
             return char::from_u32(a + t_index);

@@ -26,7 +26,11 @@ impl fmt::Display for CraftingError {
         match self {
             Self::RecipeNotFound(id) => write!(f, "recipe not found: {id}"),
             Self::RecipeNotDiscovered(id) => write!(f, "recipe not yet discovered: {id}"),
-            Self::MissingIngredient { item_id, have, need } => {
+            Self::MissingIngredient {
+                item_id,
+                have,
+                need,
+            } => {
                 write!(f, "need {need} of item {item_id}, have {have}")
             }
             Self::SkillTooLow { skill, have, need } => {
@@ -51,7 +55,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -141,21 +147,34 @@ impl Recipe {
     }
 
     pub fn with_ingredient(mut self, item_id: u64, qty: u32) -> Self {
-        self.ingredients.push(Ingredient { item_id, quantity: qty });
+        self.ingredients.push(Ingredient {
+            item_id,
+            quantity: qty,
+        });
         self
     }
 
     pub fn with_output(mut self, item_id: u64, qty: u32) -> Self {
-        self.outputs.push(CraftOutput { item_id, quantity: qty });
+        self.outputs.push(CraftOutput {
+            item_id,
+            quantity: qty,
+        });
         self
     }
 
     pub fn with_byproduct(mut self, item_id: u64, qty: u32, chance: f64) -> Self {
-        self.byproducts.push(Byproduct { item_id, quantity: qty, chance: chance.clamp(0.0, 1.0) });
+        self.byproducts.push(Byproduct {
+            item_id,
+            quantity: qty,
+            chance: chance.clamp(0.0, 1.0),
+        });
         self
     }
 
-    pub fn with_duration(mut self, ms: u64) -> Self { self.duration_ms = ms; self }
+    pub fn with_duration(mut self, ms: u64) -> Self {
+        self.duration_ms = ms;
+        self
+    }
 
     pub fn with_success_rate(mut self, rate: f64) -> Self {
         self.base_success_rate = rate.clamp(0.0, 1.0);
@@ -163,7 +182,10 @@ impl Recipe {
     }
 
     pub fn with_skill_req(mut self, skill: &str, level: u32) -> Self {
-        self.skill_requirements.push(SkillReq { skill_name: skill.to_string(), level });
+        self.skill_requirements.push(SkillReq {
+            skill_name: skill.to_string(),
+            level,
+        });
         self
     }
 
@@ -247,10 +269,18 @@ impl CraftingSystem {
         let mut newly_discovered = Vec::new();
         let recipe_ids: Vec<u64> = self.recipes.keys().copied().collect();
         for rid in recipe_ids {
-            if self.is_discovered(rid) { continue; }
+            if self.is_discovered(rid) {
+                continue;
+            }
             let recipe = &self.recipes[&rid];
-            if recipe.discovery_items.is_empty() { continue; }
-            if recipe.discovery_items.iter().all(|item| possessed_items.contains(item)) {
+            if recipe.discovery_items.is_empty() {
+                continue;
+            }
+            if recipe
+                .discovery_items
+                .iter()
+                .all(|item| possessed_items.contains(item))
+            {
                 self.discovered.insert(rid, true);
                 newly_discovered.push(rid);
             }
@@ -263,7 +293,9 @@ impl CraftingSystem {
     }
 
     pub fn recipes_by_category(&self, cat: CraftCategory) -> Vec<&Recipe> {
-        let mut results: Vec<&Recipe> = self.recipes.values()
+        let mut results: Vec<&Recipe> = self
+            .recipes
+            .values()
             .filter(|r| r.category == cat)
             .collect();
         results.sort_by_key(|r| r.id);
@@ -271,7 +303,9 @@ impl CraftingSystem {
     }
 
     pub fn discovered_recipes(&self) -> Vec<&Recipe> {
-        let mut results: Vec<&Recipe> = self.recipes.values()
+        let mut results: Vec<&Recipe> = self
+            .recipes
+            .values()
             .filter(|r| self.is_discovered(r.id))
             .collect();
         results.sort_by_key(|r| r.id);
@@ -285,7 +319,9 @@ impl CraftingSystem {
         inventory: &HashMap<u64, u32>,
         skills: &HashMap<String, u32>,
     ) -> Result<(), CraftingError> {
-        let recipe = self.recipes.get(&recipe_id)
+        let recipe = self
+            .recipes
+            .get(&recipe_id)
             .ok_or(CraftingError::RecipeNotFound(recipe_id))?;
         if !self.is_discovered(recipe_id) {
             return Err(CraftingError::RecipeNotDiscovered(recipe_id));
@@ -294,7 +330,9 @@ impl CraftingSystem {
             let have = skills.get(&req.skill_name).copied().unwrap_or(0);
             if have < req.level {
                 return Err(CraftingError::SkillTooLow {
-                    skill: req.skill_name.clone(), have, need: req.level,
+                    skill: req.skill_name.clone(),
+                    have,
+                    need: req.level,
                 });
             }
         }
@@ -302,7 +340,9 @@ impl CraftingSystem {
             let have = inventory.get(&ing.item_id).copied().unwrap_or(0);
             if have < ing.quantity {
                 return Err(CraftingError::MissingIngredient {
-                    item_id: ing.item_id, have, need: ing.quantity,
+                    item_id: ing.item_id,
+                    have,
+                    need: ing.quantity,
                 });
             }
         }
@@ -334,7 +374,8 @@ impl CraftingSystem {
             let have = skills.get(&req.skill_name).copied().unwrap_or(0);
             if have > req.level {
                 let bonus_levels = have - req.level;
-                success_rate = (success_rate + bonus_levels as f64 * recipe.skill_bonus_per_level).min(1.0);
+                success_rate =
+                    (success_rate + bonus_levels as f64 * recipe.skill_bonus_per_level).min(1.0);
             }
         }
 
@@ -359,7 +400,10 @@ impl CraftingSystem {
                 let bp_roll = self.rng.next_f64();
                 if bp_roll < bp.chance {
                     *inventory.entry(bp.item_id).or_insert(0) += bp.quantity;
-                    result.byproducts.push(CraftOutput { item_id: bp.item_id, quantity: bp.quantity });
+                    result.byproducts.push(CraftOutput {
+                        item_id: bp.item_id,
+                        quantity: bp.quantity,
+                    });
                 }
             }
         }
@@ -368,10 +412,18 @@ impl CraftingSystem {
     }
 
     /// Queue a craft job.
-    pub fn queue_craft(&mut self, recipe_id: u64, current_time_ms: u64, inventory: &HashMap<u64, u32>, skills: &HashMap<String, u32>) -> Result<&QueueEntry, CraftingError> {
+    pub fn queue_craft(
+        &mut self,
+        recipe_id: u64,
+        current_time_ms: u64,
+        inventory: &HashMap<u64, u32>,
+        skills: &HashMap<String, u32>,
+    ) -> Result<&QueueEntry, CraftingError> {
         self.can_craft(recipe_id, inventory, skills)?;
         if self.queue.len() >= self.max_queue {
-            return Err(CraftingError::QueueFull { max: self.max_queue });
+            return Err(CraftingError::QueueFull {
+                max: self.max_queue,
+            });
         }
         let recipe = &self.recipes[&recipe_id];
         let start = if let Some(last) = self.queue.last() {
@@ -390,18 +442,30 @@ impl CraftingSystem {
 
     /// Check and collect completed queue items.
     pub fn collect_completed(&mut self, current_time_ms: u64) -> Vec<QueueEntry> {
-        let (done, pending): (Vec<QueueEntry>, Vec<QueueEntry>) = self.queue
+        let (done, pending): (Vec<QueueEntry>, Vec<QueueEntry>) = self
+            .queue
             .drain(..)
             .partition(|e| current_time_ms >= e.end_time_ms);
         self.queue = pending;
         done
     }
 
-    pub fn queue_len(&self) -> usize { self.queue.len() }
-    pub fn queue_entries(&self) -> &[QueueEntry] { &self.queue }
+    pub fn queue_len(&self) -> usize {
+        self.queue.len()
+    }
+    pub fn queue_entries(&self) -> &[QueueEntry] {
+        &self.queue
+    }
 
     /// Queue multiple of the same recipe.
-    pub fn auto_craft(&mut self, recipe_id: u64, count: u32, current_time_ms: u64, inventory: &HashMap<u64, u32>, skills: &HashMap<String, u32>) -> Result<u32, CraftingError> {
+    pub fn auto_craft(
+        &mut self,
+        recipe_id: u64,
+        count: u32,
+        current_time_ms: u64,
+        inventory: &HashMap<u64, u32>,
+        skills: &HashMap<String, u32>,
+    ) -> Result<u32, CraftingError> {
         // Verify recipe exists and is discovered, and skills met
         self.can_craft(recipe_id, inventory, skills)?;
         let recipe = self.recipes[&recipe_id].clone();
@@ -414,7 +478,9 @@ impl CraftingSystem {
         }
         let to_queue = count.min(max_craftable);
         for _ in 0..to_queue {
-            if self.queue.len() >= self.max_queue { break; }
+            if self.queue.len() >= self.max_queue {
+                break;
+            }
             let start = if let Some(last) = self.queue.last() {
                 last.end_time_ms
             } else {
@@ -441,7 +507,7 @@ mod tests {
         Recipe::new(1, "Iron Sword", CraftCategory::Blacksmithing)
             .with_ingredient(100, 3) // 3 iron ingots
             .with_ingredient(101, 1) // 1 leather strip
-            .with_output(200, 1)     // 1 iron sword
+            .with_output(200, 1) // 1 iron sword
             .with_duration(5000)
     }
 
@@ -463,9 +529,9 @@ mod tests {
         sys.discover_recipe(2).unwrap();
         let mut inv = HashMap::new();
         inv.insert(100, 10); // 10 iron ingots
-        inv.insert(101, 5);  // 5 leather strips
-        inv.insert(110, 8);  // 8 herbs
-        inv.insert(111, 4);  // 4 water
+        inv.insert(101, 5); // 5 leather strips
+        inv.insert(110, 8); // 8 herbs
+        inv.insert(111, 4); // 4 water
         let mut skills = HashMap::new();
         skills.insert("blacksmithing".to_string(), 5);
         skills.insert("alchemy".to_string(), 5);

@@ -24,7 +24,10 @@ const PI: f64 = std::f64::consts::PI;
 pub enum BsError {
     NegativeInput(String),
     ZeroExpiry,
-    ConvergenceFailure { iterations: usize, last_estimate: f64 },
+    ConvergenceFailure {
+        iterations: usize,
+        last_estimate: f64,
+    },
     InvalidVolSurface(String),
 }
 
@@ -33,8 +36,14 @@ impl fmt::Display for BsError {
         match self {
             Self::NegativeInput(s) => write!(f, "negative input: {s}"),
             Self::ZeroExpiry => write!(f, "time to expiry is zero"),
-            Self::ConvergenceFailure { iterations, last_estimate } => {
-                write!(f, "IV did not converge after {iterations} iters (last σ={last_estimate:.6})")
+            Self::ConvergenceFailure {
+                iterations,
+                last_estimate,
+            } => {
+                write!(
+                    f,
+                    "IV did not converge after {iterations} iters (last σ={last_estimate:.6})"
+                )
             }
             Self::InvalidVolSurface(s) => write!(f, "invalid vol surface: {s}"),
         }
@@ -126,7 +135,14 @@ pub struct BsModel {
 
 impl BsModel {
     pub fn new(spot: f64, strike: f64, rate: f64, volatility: f64, expiry: f64) -> Self {
-        Self { spot, strike, rate, volatility, expiry, dividend_yield: 0.0 }
+        Self {
+            spot,
+            strike,
+            rate,
+            volatility,
+            expiry,
+            dividend_yield: 0.0,
+        }
     }
 
     pub fn with_dividend_yield(mut self, q: f64) -> Self {
@@ -157,12 +173,8 @@ impl BsModel {
         let df = (-self.rate * self.expiry).exp();
         let qf = (-self.dividend_yield * self.expiry).exp();
         let price = match kind {
-            OptionKind::Call => {
-                self.spot * qf * norm_cdf(d1) - self.strike * df * norm_cdf(d2)
-            }
-            OptionKind::Put => {
-                self.strike * df * norm_cdf(-d2) - self.spot * qf * norm_cdf(-d1)
-            }
+            OptionKind::Call => self.spot * qf * norm_cdf(d1) - self.strike * df * norm_cdf(d2),
+            OptionKind::Put => self.strike * df * norm_cdf(-d2) - self.spot * qf * norm_cdf(-d1),
         };
         Ok(price)
     }
@@ -194,17 +206,14 @@ impl BsModel {
 
         let gamma = qf * norm_pdf(d1) / (self.spot * self.volatility * sqrt_t);
 
-        let common_theta =
-            -(self.spot * qf * norm_pdf(d1) * self.volatility) / (2.0 * sqrt_t);
+        let common_theta = -(self.spot * qf * norm_pdf(d1) * self.volatility) / (2.0 * sqrt_t);
         let theta = match kind {
             OptionKind::Call => {
-                common_theta
-                    - self.rate * self.strike * df * norm_cdf(d2)
+                common_theta - self.rate * self.strike * df * norm_cdf(d2)
                     + self.dividend_yield * self.spot * qf * norm_cdf(d1)
             }
             OptionKind::Put => {
-                common_theta
-                    + self.rate * self.strike * df * norm_cdf(-d2)
+                common_theta + self.rate * self.strike * df * norm_cdf(-d2)
                     - self.dividend_yield * self.spot * qf * norm_cdf(-d1)
             }
         };
@@ -216,7 +225,13 @@ impl BsModel {
             OptionKind::Put => -self.strike * self.expiry * df * norm_cdf(-d2),
         };
 
-        Ok(Greeks { delta, gamma, theta, vega, rho })
+        Ok(Greeks {
+            delta,
+            gamma,
+            theta,
+            vega,
+            rho,
+        })
     }
 
     // ── Validation ────────────────────────────────────────────────
@@ -268,7 +283,10 @@ pub fn implied_volatility(
         let greeks = model.greeks(kind)?;
         let vega = greeks.vega;
         if vega.abs() < 1e-14 {
-            return Err(BsError::ConvergenceFailure { iterations: i, last_estimate: sigma });
+            return Err(BsError::ConvergenceFailure {
+                iterations: i,
+                last_estimate: sigma,
+            });
         }
         let diff = price - market_price;
         if diff.abs() < tol {
@@ -279,7 +297,10 @@ pub fn implied_volatility(
             sigma = 1e-6;
         }
     }
-    Err(BsError::ConvergenceFailure { iterations: max_iters, last_estimate: sigma })
+    Err(BsError::ConvergenceFailure {
+        iterations: max_iters,
+        last_estimate: sigma,
+    })
 }
 
 // ── Volatility surface ────────────────────────────────────────────
@@ -294,7 +315,11 @@ pub struct VolSurfacePoint {
 
 impl fmt::Display for VolSurfacePoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(K={:.2}, T={:.4}, σ={:.4})", self.strike, self.expiry, self.vol)
+        write!(
+            f,
+            "(K={:.2}, T={:.4}, σ={:.4})",
+            self.strike, self.expiry, self.vol
+        )
     }
 }
 
@@ -310,12 +335,20 @@ impl VolSurface {
     }
 
     pub fn with_point(mut self, strike: f64, expiry: f64, vol: f64) -> Self {
-        self.points.push(VolSurfacePoint { strike, expiry, vol });
+        self.points.push(VolSurfacePoint {
+            strike,
+            expiry,
+            vol,
+        });
         self
     }
 
     pub fn add_point(&mut self, strike: f64, expiry: f64, vol: f64) {
-        self.points.push(VolSurfacePoint { strike, expiry, vol });
+        self.points.push(VolSurfacePoint {
+            strike,
+            expiry,
+            vol,
+        });
     }
 
     /// Bilinear interpolation on the nearest four surrounding points.
@@ -349,8 +382,16 @@ impl VolSurface {
         let v10 = self.lookup(k1, t0);
         let v11 = self.lookup(k1, t1);
 
-        let dk = if (k1 - k0).abs() < 1e-12 { 0.5 } else { (strike - k0) / (k1 - k0) };
-        let dt = if (t1 - t0).abs() < 1e-12 { 0.5 } else { (expiry - t0) / (t1 - t0) };
+        let dk = if (k1 - k0).abs() < 1e-12 {
+            0.5
+        } else {
+            (strike - k0) / (k1 - k0)
+        };
+        let dt = if (t1 - t0).abs() < 1e-12 {
+            0.5
+        } else {
+            (expiry - t0) / (t1 - t0)
+        };
 
         let dk = dk.clamp(0.0, 1.0);
         let dt = dt.clamp(0.0, 1.0);
@@ -453,14 +494,22 @@ mod tests {
     fn test_delta_call_range() {
         let m = BsModel::new(100.0, 100.0, 0.05, 0.20, 1.0);
         let g = m.greeks(OptionKind::Call).unwrap();
-        assert!(g.delta > 0.0 && g.delta < 1.0, "call delta in (0,1), got {}", g.delta);
+        assert!(
+            g.delta > 0.0 && g.delta < 1.0,
+            "call delta in (0,1), got {}",
+            g.delta
+        );
     }
 
     #[test]
     fn test_delta_put_range() {
         let m = BsModel::new(100.0, 100.0, 0.05, 0.20, 1.0);
         let g = m.greeks(OptionKind::Put).unwrap();
-        assert!(g.delta > -1.0 && g.delta < 0.0, "put delta in (-1,0), got {}", g.delta);
+        assert!(
+            g.delta > -1.0 && g.delta < 0.0,
+            "put delta in (-1,0), got {}",
+            g.delta
+        );
     }
 
     #[test]
@@ -488,8 +537,8 @@ mod tests {
     fn test_implied_vol_roundtrip() {
         let m = BsModel::new(100.0, 100.0, 0.05, 0.25, 1.0);
         let c = m.price(OptionKind::Call).unwrap();
-        let iv = implied_volatility(c, 100.0, 100.0, 0.05, 1.0, OptionKind::Call, 100, 1e-8)
-            .unwrap();
+        let iv =
+            implied_volatility(c, 100.0, 100.0, 0.05, 1.0, OptionKind::Call, 100, 1e-8).unwrap();
         assert!(approx(iv, 0.25, 1e-6), "IV roundtrip: got {iv}");
     }
 
@@ -497,8 +546,7 @@ mod tests {
     fn test_iv_put_roundtrip() {
         let m = BsModel::new(100.0, 90.0, 0.03, 0.35, 0.5);
         let p = m.price(OptionKind::Put).unwrap();
-        let iv = implied_volatility(p, 100.0, 90.0, 0.03, 0.5, OptionKind::Put, 100, 1e-8)
-            .unwrap();
+        let iv = implied_volatility(p, 100.0, 90.0, 0.03, 0.5, OptionKind::Put, 100, 1e-8).unwrap();
         assert!(approx(iv, 0.35, 1e-5), "IV put roundtrip: got {iv}");
     }
 
@@ -549,7 +597,13 @@ mod tests {
 
     #[test]
     fn test_greeks_display() {
-        let g = Greeks { delta: 0.5, gamma: 0.02, theta: -5.0, vega: 38.0, rho: 40.0 };
+        let g = Greeks {
+            delta: 0.5,
+            gamma: 0.02,
+            theta: -5.0,
+            vega: 38.0,
+            rho: 40.0,
+        };
         let s = format!("{g}");
         assert!(s.contains("Δ="));
     }

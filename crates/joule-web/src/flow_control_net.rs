@@ -32,14 +32,26 @@ impl fmt::Display for FlowControlError {
         match self {
             Self::StreamNotFound(id) => write!(f, "stream not found: {id}"),
             Self::DuplicateStream(id) => write!(f, "duplicate stream: {id}"),
-            Self::SendWindowExhausted { stream_id, available } => {
-                write!(f, "send window exhausted on stream {stream_id} (avail={available})")
+            Self::SendWindowExhausted {
+                stream_id,
+                available,
+            } => {
+                write!(
+                    f,
+                    "send window exhausted on stream {stream_id} (avail={available})"
+                )
             }
             Self::ConnectionWindowExhausted { available } => {
                 write!(f, "connection send window exhausted (avail={available})")
             }
-            Self::ReceiveBufferOverflow { stream_id, capacity } => {
-                write!(f, "receive buffer overflow on stream {stream_id} (cap={capacity})")
+            Self::ReceiveBufferOverflow {
+                stream_id,
+                capacity,
+            } => {
+                write!(
+                    f,
+                    "receive buffer overflow on stream {stream_id} (cap={capacity})"
+                )
             }
             Self::ZeroWindowStall(id) => write!(f, "zero window stall on stream {id}"),
         }
@@ -60,12 +72,18 @@ pub struct WindowUpdate {
 impl WindowUpdate {
     /// Create a stream-level window update.
     pub fn stream(stream_id: u64, increment: u64) -> Self {
-        Self { stream_id: Some(stream_id), increment }
+        Self {
+            stream_id: Some(stream_id),
+            increment,
+        }
     }
 
     /// Create a connection-level window update.
     pub fn connection(increment: u64) -> Self {
-        Self { stream_id: None, increment }
+        Self {
+            stream_id: None,
+            increment,
+        }
     }
 
     /// Whether this is a connection-level update.
@@ -124,10 +142,7 @@ impl fmt::Display for FlowStats {
         write!(
             f,
             "sent={}B recv={}B updates_sent={} stalls={}",
-            self.bytes_sent,
-            self.bytes_received,
-            self.window_updates_sent,
-            self.stalls,
+            self.bytes_sent, self.bytes_received, self.window_updates_sent, self.stalls,
         )
     }
 }
@@ -271,7 +286,8 @@ impl FlowController {
 
     /// Unregister a stream.
     pub fn unregister_stream(&mut self, stream_id: u64) -> Result<(), FlowControlError> {
-        self.streams.remove(&stream_id)
+        self.streams
+            .remove(&stream_id)
             .ok_or(FlowControlError::StreamNotFound(stream_id))?;
         Ok(())
     }
@@ -285,7 +301,9 @@ impl FlowController {
             });
         }
 
-        let sw = self.streams.get_mut(&stream_id)
+        let sw = self
+            .streams
+            .get_mut(&stream_id)
             .ok_or(FlowControlError::StreamNotFound(stream_id))?;
 
         // Check stream window.
@@ -311,7 +329,9 @@ impl FlowController {
 
     /// Record data being received on a stream. Fills receive buffer.
     pub fn on_receive(&mut self, stream_id: u64, bytes: u64) -> Result<(), FlowControlError> {
-        let sw = self.streams.get_mut(&stream_id)
+        let sw = self
+            .streams
+            .get_mut(&stream_id)
             .ok_or(FlowControlError::StreamNotFound(stream_id))?;
 
         if bytes > sw.recv_window {
@@ -330,9 +350,15 @@ impl FlowController {
     }
 
     /// Consume buffered data and potentially generate window updates.
-    pub fn consume(&mut self, stream_id: u64, bytes: u64) -> Result<Vec<WindowUpdate>, FlowControlError> {
+    pub fn consume(
+        &mut self,
+        stream_id: u64,
+        bytes: u64,
+    ) -> Result<Vec<WindowUpdate>, FlowControlError> {
         let config = &self.config;
-        let sw = self.streams.get_mut(&stream_id)
+        let sw = self
+            .streams
+            .get_mut(&stream_id)
             .ok_or(FlowControlError::StreamNotFound(stream_id))?;
 
         let actual = bytes.min(sw.bytes_buffered);
@@ -359,7 +385,8 @@ impl FlowController {
         if config.auto_tune && sw.throughput_samples >= config.auto_tune_threshold {
             let avg_throughput = sw.throughput_bytes / sw.throughput_samples as u64;
             if avg_throughput > sw.initial_recv_window / 2 {
-                let new_window = ((sw.initial_recv_window as f64 * config.auto_tune_multiplier) as u64)
+                let new_window = ((sw.initial_recv_window as f64 * config.auto_tune_multiplier)
+                    as u64)
                     .min(config.max_window);
                 if new_window > sw.initial_recv_window {
                     let increment = new_window - sw.initial_recv_window;
@@ -382,7 +409,9 @@ impl FlowController {
         self.stats.window_updates_received += 1;
         match update.stream_id {
             Some(stream_id) => {
-                let sw = self.streams.get_mut(&stream_id)
+                let sw = self
+                    .streams
+                    .get_mut(&stream_id)
                     .ok_or(FlowControlError::StreamNotFound(stream_id))?;
                 sw.send_window = sw.send_window.saturating_add(update.increment);
                 if sw.stalled && sw.send_window > 0 {
@@ -399,28 +428,36 @@ impl FlowController {
 
     /// Get backpressure status for a stream.
     pub fn backpressure(&self, stream_id: u64) -> Result<BackpressureStatus, FlowControlError> {
-        let sw = self.streams.get(&stream_id)
+        let sw = self
+            .streams
+            .get(&stream_id)
             .ok_or(FlowControlError::StreamNotFound(stream_id))?;
         Ok(sw.backpressure())
     }
 
     /// Check if a stream has a zero-window stall.
     pub fn is_stalled(&self, stream_id: u64) -> Result<bool, FlowControlError> {
-        let sw = self.streams.get(&stream_id)
+        let sw = self
+            .streams
+            .get(&stream_id)
             .ok_or(FlowControlError::StreamNotFound(stream_id))?;
         Ok(sw.stalled)
     }
 
     /// Get stream send window.
     pub fn stream_send_window(&self, stream_id: u64) -> Result<u64, FlowControlError> {
-        let sw = self.streams.get(&stream_id)
+        let sw = self
+            .streams
+            .get(&stream_id)
             .ok_or(FlowControlError::StreamNotFound(stream_id))?;
         Ok(sw.send_window)
     }
 
     /// Get stream receive window.
     pub fn stream_recv_window(&self, stream_id: u64) -> Result<u64, FlowControlError> {
-        let sw = self.streams.get(&stream_id)
+        let sw = self
+            .streams
+            .get(&stream_id)
             .ok_or(FlowControlError::StreamNotFound(stream_id))?;
         Ok(sw.recv_window)
     }
@@ -512,7 +549,10 @@ mod tests {
         let mut fc = FlowController::new(config);
         fc.register_stream(1).unwrap();
         let err = fc.on_send(1, 200).unwrap_err();
-        assert!(matches!(err, FlowControlError::ConnectionWindowExhausted { .. }));
+        assert!(matches!(
+            err,
+            FlowControlError::ConnectionWindowExhausted { .. }
+        ));
     }
 
     #[test]
@@ -530,7 +570,10 @@ mod tests {
         let mut fc = FlowController::new(config);
         fc.register_stream(1).unwrap();
         let err = fc.on_receive(1, 200).unwrap_err();
-        assert!(matches!(err, FlowControlError::ReceiveBufferOverflow { .. }));
+        assert!(matches!(
+            err,
+            FlowControlError::ReceiveBufferOverflow { .. }
+        ));
     }
 
     #[test]
@@ -552,7 +595,8 @@ mod tests {
         fc.register_stream(1).unwrap();
         fc.on_send(1, 80).unwrap();
         assert_eq!(fc.stream_send_window(1).unwrap(), 20);
-        fc.apply_window_update(&WindowUpdate::stream(1, 50)).unwrap();
+        fc.apply_window_update(&WindowUpdate::stream(1, 50))
+            .unwrap();
         assert_eq!(fc.stream_send_window(1).unwrap(), 70);
     }
 
@@ -562,7 +606,8 @@ mod tests {
         let mut fc = FlowController::new(config);
         fc.register_stream(1).unwrap();
         fc.on_send(1, 500).unwrap();
-        fc.apply_window_update(&WindowUpdate::connection(300)).unwrap();
+        fc.apply_window_update(&WindowUpdate::connection(300))
+            .unwrap();
         assert_eq!(fc.connection_send_window(), 800);
     }
 
@@ -583,7 +628,8 @@ mod tests {
         fc.register_stream(1).unwrap();
         fc.on_send(1, 100).unwrap();
         assert!(fc.is_stalled(1).unwrap());
-        fc.apply_window_update(&WindowUpdate::stream(1, 50)).unwrap();
+        fc.apply_window_update(&WindowUpdate::stream(1, 50))
+            .unwrap();
         assert!(!fc.is_stalled(1).unwrap());
     }
 

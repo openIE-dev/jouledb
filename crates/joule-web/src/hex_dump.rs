@@ -351,9 +351,7 @@ pub fn reverse_hex_dump(input: &str) -> Result<Vec<u8>, HexDumpError> {
         let hex_part = extract_hex_portion(line, line_num)?;
         for token in hex_part.split_whitespace() {
             // Skip tokens that aren't valid hex pairs.
-            if token.len() == 2
-                && token.bytes().all(|b| b.is_ascii_hexdigit())
-            {
+            if token.len() == 2 && token.bytes().all(|b| b.is_ascii_hexdigit()) {
                 let hi = parse_hex_digit(token.as_bytes()[0], line_num)?;
                 let lo = parse_hex_digit(token.as_bytes()[1], line_num)?;
                 result.push((hi << 4) | lo);
@@ -419,10 +417,7 @@ pub fn hex_diff(a: &[u8], b: &[u8], bytes_per_line: usize) -> String {
         let a_hex = format_chunk_hex(a_chunk, bpl);
         let b_hex = format_chunk_hex(b_chunk, bpl);
 
-        lines.push(format!(
-            "{marker}{:08x}  {a_hex}  |  {b_hex}",
-            start,
-        ));
+        lines.push(format!("{marker}{:08x}  {a_hex}  |  {b_hex}", start,));
     }
     lines.join("\n")
 }
@@ -472,7 +467,7 @@ mod tests {
     fn canonical_dump_hello() {
         let dump = hex_dump(b"Hello, World!");
         assert!(dump.contains("00000000"));
-        assert!(dump.contains("48"));  // 'H'
+        assert!(dump.contains("48")); // 'H'
         assert!(dump.contains("|Hello, World!|"));
     }
 

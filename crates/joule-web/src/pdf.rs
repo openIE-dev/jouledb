@@ -181,10 +181,7 @@ impl PdfDocument {
         );
 
         // obj 3 — Font
-        obj!(
-            3,
-            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
-        );
+        obj!(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
 
         // obj 4 — Info
         let mut info = String::from("<< ");
@@ -324,11 +321,32 @@ fn build_page_stream(page: &PdfPage) -> String {
                 let _ = write!(
                     s,
                     "{:.2} {:.2} m {:.2} {:.2} {:.2} {:.2} {:.2} {:.2} c {:.2} {:.2} {:.2} {:.2} {:.2} {:.2} c {:.2} {:.2} {:.2} {:.2} {:.2} {:.2} c {:.2} {:.2} {:.2} {:.2} {:.2} {:.2} c {}\n",
-                    cx + r, *cy,
-                    cx + r, cy + kr, cx + kr, cy + r, *cx, cy + r,
-                    cx - kr, cy + r, cx - r, cy + kr, cx - r, *cy,
-                    cx - r, cy - kr, cx - kr, cy - r, *cx, cy - r,
-                    cx + kr, cy - r, cx + r, cy - kr, cx + r, *cy,
+                    cx + r,
+                    *cy,
+                    cx + r,
+                    cy + kr,
+                    cx + kr,
+                    cy + r,
+                    *cx,
+                    cy + r,
+                    cx - kr,
+                    cy + r,
+                    cx - r,
+                    cy + kr,
+                    cx - r,
+                    *cy,
+                    cx - r,
+                    cy - kr,
+                    cx - kr,
+                    cy - r,
+                    *cx,
+                    cy - r,
+                    cx + kr,
+                    cy - r,
+                    cx + r,
+                    cy - kr,
+                    cx + r,
+                    *cy,
                     op
                 );
             }

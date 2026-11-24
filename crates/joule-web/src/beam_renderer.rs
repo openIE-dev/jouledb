@@ -10,8 +10,16 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
-    pub const UP: Self = Self { x: 0.0, y: 1.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub const UP: Self = Self {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    };
 
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
@@ -23,7 +31,15 @@ impl Vec3 {
 
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-10 { Self::ZERO } else { Self { x: self.x / l, y: self.y / l, z: self.z / l } }
+        if l < 1e-10 {
+            Self::ZERO
+        } else {
+            Self {
+                x: self.x / l,
+                y: self.y / l,
+                z: self.z / l,
+            }
+        }
     }
 
     pub fn cross(self, o: Self) -> Self {
@@ -49,19 +65,43 @@ impl Vec3 {
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 impl std::ops::Mul<f32> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f32) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f32) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 impl std::ops::Neg for Vec3 {
     type Output = Self;
-    fn neg(self) -> Self { Self { x: -self.x, y: -self.y, z: -self.z } }
+    fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
 }
 
 /// 2D UV coordinate.
@@ -72,7 +112,9 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f32, y: f32) -> Self { Self { x, y } }
+    pub fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
 }
 
 /// RGBA color.
@@ -85,7 +127,12 @@ pub struct Color {
 }
 
 impl Color {
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+        a: 1.0,
+    };
 
     pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }
@@ -109,23 +156,37 @@ pub struct WidthProfile {
 
 impl WidthProfile {
     pub fn constant(w: f32) -> Self {
-        Self { keys: vec![(0.0, w), (1.0, w)] }
+        Self {
+            keys: vec![(0.0, w), (1.0, w)],
+        }
     }
 
     pub fn tapered(center: f32) -> Self {
-        Self { keys: vec![(0.0, 0.0), (0.5, center), (1.0, 0.0)] }
+        Self {
+            keys: vec![(0.0, 0.0), (0.5, center), (1.0, 0.0)],
+        }
     }
 
     pub fn sample(&self, t: f32) -> f32 {
-        if self.keys.is_empty() { return 1.0; }
-        if self.keys.len() == 1 || t <= self.keys[0].0 { return self.keys[0].1; }
+        if self.keys.is_empty() {
+            return 1.0;
+        }
+        if self.keys.len() == 1 || t <= self.keys[0].0 {
+            return self.keys[0].1;
+        }
         let last = self.keys.len() - 1;
-        if t >= self.keys[last].0 { return self.keys[last].1; }
+        if t >= self.keys[last].0 {
+            return self.keys[last].1;
+        }
         for i in 0..last {
             let (t0, v0) = self.keys[i];
             let (t1, v1) = self.keys[i + 1];
             if t >= t0 && t <= t1 {
-                let f = if (t1 - t0).abs() < 1e-9 { 0.0 } else { (t - t0) / (t1 - t0) };
+                let f = if (t1 - t0).abs() < 1e-9 {
+                    0.0
+                } else {
+                    (t - t0) / (t1 - t0)
+                };
                 return v0 + (v1 - v0) * f;
             }
         }
@@ -217,10 +278,22 @@ fn hash_float(seed: u32) -> f32 {
 }
 
 /// Generate lightning points via recursive midpoint displacement.
-fn generate_lightning(start: Vec3, end: Vec3, subdivisions: u32, displacement: f32, seed: u32) -> Vec<BeamPoint> {
+fn generate_lightning(
+    start: Vec3,
+    end: Vec3,
+    subdivisions: u32,
+    displacement: f32,
+    seed: u32,
+) -> Vec<BeamPoint> {
     let mut points = vec![
-        BeamPoint { position: start, t: 0.0 },
-        BeamPoint { position: end, t: 1.0 },
+        BeamPoint {
+            position: start,
+            t: 0.0,
+        },
+        BeamPoint {
+            position: end,
+            t: 1.0,
+        },
     ];
 
     let beam_dir = (end - start).normalized();
@@ -239,8 +312,8 @@ fn generate_lightning(start: Vec3, end: Vec3, subdivisions: u32, displacement: f
             let mid_pos = points[i].position.lerp(points[i + 1].position, 0.5);
             let mid_t = (points[i].t + points[i + 1].t) * 0.5;
             let s = seed.wrapping_add(level * 1000 + i as u32);
-            let offset = perp1 * (hash_float(s) * disp)
-                + perp2 * (hash_float(s.wrapping_add(7919)) * disp);
+            let offset =
+                perp1 * (hash_float(s) * disp) + perp2 * (hash_float(s.wrapping_add(7919)) * disp);
             new_points.push(BeamPoint {
                 position: mid_pos + offset,
                 t: mid_t,
@@ -305,7 +378,10 @@ impl Beam {
                 (0..=segments)
                     .map(|i| {
                         let t = i as f32 / segments as f32;
-                        BeamPoint { position: start.lerp(end, t), t }
+                        BeamPoint {
+                            position: start.lerp(end, t),
+                            t,
+                        }
                     })
                     .collect()
             }
@@ -321,9 +397,11 @@ impl Beam {
                     })
                     .collect()
             }
-            BeamType::Lightning { subdivisions, displacement, seed } => {
-                generate_lightning(start, end, *subdivisions, *displacement, *seed)
-            }
+            BeamType::Lightning {
+                subdivisions,
+                displacement,
+                seed,
+            } => generate_lightning(start, end, *subdivisions, *displacement, *seed),
         };
     }
 
@@ -331,11 +409,17 @@ impl Beam {
     pub fn update(&mut self, dt: f32) {
         self.time += dt;
         // For lightning, regenerate with time-based seed variation
-        if let BeamType::Lightning { subdivisions, displacement, seed } = &self.config.beam_type {
+        if let BeamType::Lightning {
+            subdivisions,
+            displacement,
+            seed,
+        } = &self.config.beam_type
+        {
             let animated_seed = seed.wrapping_add((self.time * 10.0) as u32);
             let start = self.start;
             let end = self.effective_end();
-            self.cached_points = generate_lightning(start, end, *subdivisions, *displacement, animated_seed);
+            self.cached_points =
+                generate_lightning(start, end, *subdivisions, *displacement, animated_seed);
         }
     }
 
@@ -464,11 +548,7 @@ mod tests {
 
     #[test]
     fn test_straight_beam_points() {
-        let beam = Beam::new(
-            Vec3::ZERO,
-            Vec3::new(10.0, 0.0, 0.0),
-            BeamConfig::default(),
-        );
+        let beam = Beam::new(Vec3::ZERO, Vec3::new(10.0, 0.0, 0.0), BeamConfig::default());
         assert!(beam.point_count() >= 2);
         let first = beam.points()[0].position;
         assert!((first.x).abs() < 1e-5);
@@ -533,11 +613,7 @@ mod tests {
 
     #[test]
     fn test_beam_collision_shortens() {
-        let mut beam = Beam::new(
-            Vec3::ZERO,
-            Vec3::new(10.0, 0.0, 0.0),
-            BeamConfig::default(),
-        );
+        let mut beam = Beam::new(Vec3::ZERO, Vec3::new(10.0, 0.0, 0.0), BeamConfig::default());
         beam.set_collision(Some(Vec3::new(5.0, 0.0, 0.0)));
         let eff_end = beam.effective_end();
         assert!((eff_end.x - 5.0).abs() < 1e-5);
@@ -546,11 +622,7 @@ mod tests {
 
     #[test]
     fn test_beam_no_collision() {
-        let beam = Beam::new(
-            Vec3::ZERO,
-            Vec3::new(10.0, 0.0, 0.0),
-            BeamConfig::default(),
-        );
+        let beam = Beam::new(Vec3::ZERO, Vec3::new(10.0, 0.0, 0.0), BeamConfig::default());
         assert!(beam.collision_point.is_none());
         assert!((beam.beam_length() - 10.0).abs() < 1e-4);
     }
@@ -649,10 +721,7 @@ mod tests {
 
     #[test]
     fn test_beam_chain_total_length() {
-        let waypoints = vec![
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(3.0, 4.0, 0.0),
-        ];
+        let waypoints = vec![Vec3::new(0.0, 0.0, 0.0), Vec3::new(3.0, 4.0, 0.0)];
         let chain = BeamChain::from_waypoints(&waypoints, BeamConfig::default());
         assert!((chain.total_length() - 5.0).abs() < 1e-4);
     }

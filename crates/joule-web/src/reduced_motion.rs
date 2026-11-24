@@ -92,7 +92,10 @@ pub struct MotionBudget {
 
 impl MotionBudget {
     pub fn new(max_ms: u64) -> Self {
-        Self { max_ms, consumed_ms: 0 }
+        Self {
+            max_ms,
+            consumed_ms: 0,
+        }
     }
 
     /// Try to consume duration. Returns true if within budget.
@@ -276,7 +279,8 @@ impl MotionPolicy {
            transition-duration: 0.01ms !important;\n    \
            scroll-behavior: auto !important;\n  \
          }\n\
-         }".into()
+         }"
+        .into()
     }
 }
 

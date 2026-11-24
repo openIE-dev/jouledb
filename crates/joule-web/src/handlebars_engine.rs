@@ -72,10 +72,7 @@ enum HbExpr {
     NumberLiteral(f64),
     BoolLiteral(bool),
     NullLiteral,
-    SubExpression {
-        helper: String,
-        args: Vec<HbExpr>,
-    },
+    SubExpression { helper: String, args: Vec<HbExpr> },
 }
 
 // ── Context ─────────────────────────────────────────────────────
@@ -601,8 +598,7 @@ impl HandlebarsEngine {
                     body,
                     inverse,
                 } => {
-                    let rendered =
-                        self.render_block(helper, args, hash, body, inverse, ctx)?;
+                    let rendered = self.render_block(helper, args, hash, body, inverse, ctx)?;
                     out.push_str(&rendered);
                 }
                 HbNode::Partial { name, context } => {
@@ -667,14 +663,8 @@ impl HandlebarsEngine {
                     for (i, item) in items.iter().enumerate() {
                         let mut bp = HashMap::new();
                         bp.insert("@index".to_string(), Value::Number(i.into()));
-                        bp.insert(
-                            "@first".to_string(),
-                            Value::Bool(i == 0),
-                        );
-                        bp.insert(
-                            "@last".to_string(),
-                            Value::Bool(i == len - 1),
-                        );
+                        bp.insert("@first".to_string(), Value::Bool(i == 0));
+                        bp.insert("@last".to_string(), Value::Bool(i == len - 1));
                         ctx.push(item);
                         ctx.push_block_params(bp);
                         let rendered = self.render_nodes(body, ctx)?;
@@ -686,24 +676,16 @@ impl HandlebarsEngine {
                     if map.is_empty() {
                         return self.render_nodes(inverse, ctx);
                     }
-                    let mut entries: Vec<(String, Value)> = map
-                        .iter()
-                        .map(|(k, v)| (k.clone(), v.clone()))
-                        .collect();
+                    let mut entries: Vec<(String, Value)> =
+                        map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
                     entries.sort_by(|a, b| a.0.cmp(&b.0));
                     let len = entries.len();
                     for (i, (key, item)) in entries.iter().enumerate() {
                         let mut bp = HashMap::new();
-                        bp.insert(
-                            "@key".to_string(),
-                            Value::String(key.clone()),
-                        );
+                        bp.insert("@key".to_string(), Value::String(key.clone()));
                         bp.insert("@index".to_string(), Value::Number(i.into()));
                         bp.insert("@first".to_string(), Value::Bool(i == 0));
-                        bp.insert(
-                            "@last".to_string(),
-                            Value::Bool(i == len - 1),
-                        );
+                        bp.insert("@last".to_string(), Value::Bool(i == len - 1));
                         ctx.push(item);
                         ctx.push_block_params(bp);
                         let rendered = self.render_nodes(body, ctx)?;
@@ -765,7 +747,12 @@ impl HandlebarsEngine {
                         .collect();
                     let body_str = self.render_nodes(body, ctx)?;
                     let inverse_str = self.render_nodes(inverse, ctx)?;
-                    Ok(helper_fn(&resolved_args, &resolved_hash, &body_str, &inverse_str))
+                    Ok(helper_fn(
+                        &resolved_args,
+                        &resolved_hash,
+                        &body_str,
+                        &inverse_str,
+                    ))
                 } else {
                     // Treat as a section (context push).
                     let val = ctx.resolve_expr(&HbExpr::Path(
@@ -967,10 +954,7 @@ mod tests {
     fn test_custom_helper() {
         let mut engine = HandlebarsEngine::new();
         engine.register_helper("shout", |args, _hash, _body, _inv| {
-            let text = args
-                .first()
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let text = args.first().and_then(|v| v.as_str()).unwrap_or("");
             text.to_uppercase()
         });
         let result = engine

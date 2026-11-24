@@ -40,10 +40,12 @@ pub fn levenshtein(a: &str, b: &str) -> usize {
     for i in 1..=n {
         curr[0] = i;
         for j in 1..=m {
-            let cost = if a_chars[i - 1] == b_chars[j - 1] { 0 } else { 1 };
-            curr[j] = (prev[j] + 1)
-                .min(curr[j - 1] + 1)
-                .min(prev[j - 1] + cost);
+            let cost = if a_chars[i - 1] == b_chars[j - 1] {
+                0
+            } else {
+                1
+            };
+            curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
         }
         std::mem::swap(&mut prev, &mut curr);
     }
@@ -256,10 +258,7 @@ impl SpellChecker {
     /// Add words from text (split on whitespace).
     pub fn add_text(&mut self, text: &str) {
         for word in text.split_whitespace() {
-            let cleaned: String = word
-                .chars()
-                .filter(|c| c.is_alphanumeric())
-                .collect();
+            let cleaned: String = word.chars().filter(|c| c.is_alphanumeric()).collect();
             if !cleaned.is_empty() {
                 self.add_word(&cleaned, 1);
             }
@@ -331,14 +330,17 @@ impl SpellChecker {
         }
 
         // Rank: lower is better.
-        let max_freq = suggestions.iter().map(|s| s.frequency).max().unwrap_or(1).max(1);
+        let max_freq = suggestions
+            .iter()
+            .map(|s| s.frequency)
+            .max()
+            .unwrap_or(1)
+            .max(1);
         for s in &mut suggestions {
             let freq_factor = 1.0 - (s.frequency as f64 / max_freq as f64);
             let phon_bonus = if s.phonetic_match { -0.5 } else { 0.0 };
-            s.rank_score = (s.edit_distance as f64) * 2.0
-                + s.keyboard_score
-                + freq_factor
-                + phon_bonus;
+            s.rank_score =
+                (s.edit_distance as f64) * 2.0 + s.keyboard_score + freq_factor + phon_bonus;
         }
 
         suggestions.sort_by(|a, b| {
@@ -356,10 +358,7 @@ impl SpellChecker {
         let mut suggestions = self.suggest(word);
 
         // Boost suggestions that share a phonetic code with any context word.
-        let context_codes: HashSet<String> = context_words
-            .iter()
-            .map(|w| soundex(w))
-            .collect();
+        let context_codes: HashSet<String> = context_words.iter().map(|w| soundex(w)).collect();
 
         for s in &mut suggestions {
             let code = soundex(&s.word);
@@ -380,10 +379,7 @@ impl SpellChecker {
     pub fn check_text(&self, text: &str) -> Vec<(String, Vec<Suggestion>)> {
         let mut results = Vec::new();
         for word in text.split_whitespace() {
-            let cleaned: String = word
-                .chars()
-                .filter(|c| c.is_alphanumeric())
-                .collect();
+            let cleaned: String = word.chars().filter(|c| c.is_alphanumeric()).collect();
             if cleaned.is_empty() {
                 continue;
             }
@@ -416,11 +412,30 @@ mod tests {
     use super::*;
 
     fn build_checker() -> SpellChecker {
-        let mut sc = SpellChecker::new().with_max_distance(2).with_max_suggestions(5);
+        let mut sc = SpellChecker::new()
+            .with_max_distance(2)
+            .with_max_suggestions(5);
         sc.add_words(&[
-            "the", "quick", "brown", "fox", "jumps", "over", "lazy", "dog",
-            "cat", "hello", "world", "rust", "programming", "language",
-            "search", "engine", "spell", "check", "correct", "dictionary",
+            "the",
+            "quick",
+            "brown",
+            "fox",
+            "jumps",
+            "over",
+            "lazy",
+            "dog",
+            "cat",
+            "hello",
+            "world",
+            "rust",
+            "programming",
+            "language",
+            "search",
+            "engine",
+            "spell",
+            "check",
+            "correct",
+            "dictionary",
         ]);
         // Boost some frequencies.
         sc.add_word("the", 100);
@@ -520,7 +535,10 @@ mod tests {
         let sc = build_checker();
         let sugs = sc.suggest("hello");
         // Should not suggest the same word as a correction
-        assert!(sugs.iter().all(|s| s.word != "hello" || s.edit_distance > 0));
+        assert!(
+            sugs.iter()
+                .all(|s| s.word != "hello" || s.edit_distance > 0)
+        );
     }
 
     #[test]

@@ -73,7 +73,11 @@ pub struct StatusChange {
 
 impl fmt::Display for StatusChange {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {} -> {} at {}", self.user_id, self.old_status, self.new_status, self.timestamp)
+        write!(
+            f,
+            "{}: {} -> {} at {}",
+            self.user_id, self.old_status, self.new_status, self.timestamp
+        )
     }
 }
 
@@ -173,7 +177,9 @@ impl PresenceManager {
     }
 
     pub fn connect(&mut self, user_id: &str, timestamp: u64) -> &UserPresence {
-        self.users.entry(user_id.to_string()).or_insert_with(|| UserPresence::new(user_id, timestamp));
+        self.users
+            .entry(user_id.to_string())
+            .or_insert_with(|| UserPresence::new(user_id, timestamp));
         self.users.get(user_id).unwrap()
     }
 
@@ -195,8 +201,16 @@ impl PresenceManager {
         None
     }
 
-    pub fn set_status(&mut self, user_id: &str, status: PresenceStatus, timestamp: u64) -> Result<StatusChange, PresenceError> {
-        let presence = self.users.get_mut(user_id).ok_or_else(|| PresenceError::UserNotFound(user_id.to_string()))?;
+    pub fn set_status(
+        &mut self,
+        user_id: &str,
+        status: PresenceStatus,
+        timestamp: u64,
+    ) -> Result<StatusChange, PresenceError> {
+        let presence = self
+            .users
+            .get_mut(user_id)
+            .ok_or_else(|| PresenceError::UserNotFound(user_id.to_string()))?;
         let old = presence.status;
         presence.status = status;
         presence.last_activity = timestamp;
@@ -211,13 +225,23 @@ impl PresenceManager {
     }
 
     pub fn set_custom_message(&mut self, user_id: &str, msg: &str) -> Result<(), PresenceError> {
-        let presence = self.users.get_mut(user_id).ok_or_else(|| PresenceError::UserNotFound(user_id.to_string()))?;
+        let presence = self
+            .users
+            .get_mut(user_id)
+            .ok_or_else(|| PresenceError::UserNotFound(user_id.to_string()))?;
         presence.custom_message = Some(msg.to_string());
         Ok(())
     }
 
-    pub fn heartbeat(&mut self, user_id: &str, timestamp: u64) -> Result<Option<StatusChange>, PresenceError> {
-        let presence = self.users.get_mut(user_id).ok_or_else(|| PresenceError::UserNotFound(user_id.to_string()))?;
+    pub fn heartbeat(
+        &mut self,
+        user_id: &str,
+        timestamp: u64,
+    ) -> Result<Option<StatusChange>, PresenceError> {
+        let presence = self
+            .users
+            .get_mut(user_id)
+            .ok_or_else(|| PresenceError::UserNotFound(user_id.to_string()))?;
         presence.last_activity = timestamp;
         if presence.status == PresenceStatus::Away {
             let old = presence.status;
@@ -238,7 +262,9 @@ impl PresenceManager {
     pub fn tick_auto_away(&mut self, now: u64) -> Vec<StatusChange> {
         let mut changes = Vec::new();
         for presence in self.users.values_mut() {
-            if presence.status == PresenceStatus::Online && presence.idle_duration(now) >= self.auto_away_timeout {
+            if presence.status == PresenceStatus::Online
+                && presence.idle_duration(now) >= self.auto_away_timeout
+            {
                 let change = StatusChange {
                     user_id: presence.user_id.clone(),
                     old_status: PresenceStatus::Online,
@@ -270,7 +296,10 @@ impl PresenceManager {
     }
 
     pub fn unsubscribe(&mut self, watcher: &str, target: &str) -> Result<(), PresenceError> {
-        let subs = self.subscriptions.get_mut(watcher).ok_or_else(|| PresenceError::NotSubscribed(target.to_string()))?;
+        let subs = self
+            .subscriptions
+            .get_mut(watcher)
+            .ok_or_else(|| PresenceError::NotSubscribed(target.to_string()))?;
         if !subs.remove(target) {
             return Err(PresenceError::NotSubscribed(target.to_string()));
         }
@@ -282,12 +311,17 @@ impl PresenceManager {
             return Vec::new();
         };
         subs.iter()
-            .filter_map(|uid| self.users.get(uid).map(|p| (uid.as_str(), p.apparent_status())))
+            .filter_map(|uid| {
+                self.users
+                    .get(uid)
+                    .map(|p| (uid.as_str(), p.apparent_status()))
+            })
             .collect()
     }
 
     pub fn bulk_presence<'a>(&self, user_ids: &[&'a str]) -> Vec<(&'a str, PresenceStatus)> {
-        user_ids.iter()
+        user_ids
+            .iter()
             .filter_map(|uid| self.users.get(*uid).map(|p| (*uid, p.apparent_status())))
             .collect()
     }
@@ -315,7 +349,8 @@ impl PresenceManager {
     }
 
     pub fn online_users(&self) -> Vec<&str> {
-        self.users.values()
+        self.users
+            .values()
             .filter(|p| p.status.is_visible())
             .map(|p| p.user_id.as_str())
             .collect()
@@ -367,8 +402,12 @@ mod tests {
     fn test_invisible_appears_offline() {
         let mut m = mgr();
         m.connect("alice", 1000);
-        m.set_status("alice", PresenceStatus::Invisible, 1001).unwrap();
-        assert_eq!(m.get_apparent_status("alice"), Some(PresenceStatus::Offline));
+        m.set_status("alice", PresenceStatus::Invisible, 1001)
+            .unwrap();
+        assert_eq!(
+            m.get_apparent_status("alice"),
+            Some(PresenceStatus::Offline)
+        );
     }
 
     #[test]
@@ -376,7 +415,10 @@ mod tests {
         let mut m = mgr();
         m.connect("alice", 1000);
         m.set_custom_message("alice", "Playing Rust").unwrap();
-        assert_eq!(m.get_presence("alice").unwrap().custom_message.as_deref(), Some("Playing Rust"));
+        assert_eq!(
+            m.get_presence("alice").unwrap().custom_message.as_deref(),
+            Some("Playing Rust")
+        );
     }
 
     #[test]
@@ -403,7 +445,10 @@ mod tests {
         m.tick_auto_away(1500);
         let change = m.heartbeat("alice", 1600).unwrap();
         assert!(change.is_some());
-        assert_eq!(m.get_presence("alice").unwrap().status, PresenceStatus::Online);
+        assert_eq!(
+            m.get_presence("alice").unwrap().status,
+            PresenceStatus::Online
+        );
     }
 
     #[test]
@@ -461,7 +506,8 @@ mod tests {
         let mut m = mgr();
         m.connect("alice", 1000);
         m.connect("bob", 1000);
-        m.set_status("bob", PresenceStatus::Invisible, 1001).unwrap();
+        m.set_status("bob", PresenceStatus::Invisible, 1001)
+            .unwrap();
         let online = m.online_users();
         assert_eq!(online.len(), 1);
         assert!(online.contains(&"alice"));
@@ -481,7 +527,10 @@ mod tests {
     fn test_session_duration() {
         let mut m = mgr();
         m.connect("alice", 1000);
-        assert_eq!(m.get_presence("alice").unwrap().session_duration(2000), 1000);
+        assert_eq!(
+            m.get_presence("alice").unwrap().session_duration(2000),
+            1000
+        );
     }
 
     #[test]

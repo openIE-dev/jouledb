@@ -5,8 +5,8 @@
 //! Pure-Rust isochrone engine for computing reachability areas from a given
 //! origin on a weighted graph, with configurable travel budgets and modes.
 
-use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::fmt;
 
 // ── Errors ──────────────────────────────────────────────────────
@@ -38,14 +38,20 @@ impl std::error::Error for IsochroneError {}
 pub enum TravelMode {
     Drive,
     Walk,
-    DriveAndWalk { drive_budget_s: f64, walk_budget_s: f64 },
+    DriveAndWalk {
+        drive_budget_s: f64,
+        walk_budget_s: f64,
+    },
 }
 
 impl TravelMode {
     pub fn total_budget_s(&self, cfg: &IsochroneConfig) -> f64 {
         match self {
             Self::Drive | Self::Walk => cfg.budget,
-            Self::DriveAndWalk { drive_budget_s, walk_budget_s } => drive_budget_s + walk_budget_s,
+            Self::DriveAndWalk {
+                drive_budget_s,
+                walk_budget_s,
+            } => drive_budget_s + walk_budget_s,
         }
     }
 }
@@ -92,24 +98,49 @@ pub struct IsochroneConfig {
 impl IsochroneConfig {
     pub fn new(budget: f64) -> Self {
         Self {
-            budget, budget_type: BudgetType::Time, mode: TravelMode::Drive,
-            walk_speed_ms: 1.4, drive_speed_ms: 13.9, incremental_steps: 1,
+            budget,
+            budget_type: BudgetType::Time,
+            mode: TravelMode::Drive,
+            walk_speed_ms: 1.4,
+            drive_speed_ms: 13.9,
+            incremental_steps: 1,
         }
     }
-    pub fn with_budget_type(mut self, t: BudgetType) -> Self { self.budget_type = t; self }
-    pub fn with_mode(mut self, m: TravelMode) -> Self { self.mode = m; self }
-    pub fn with_walk_speed(mut self, s: f64) -> Self { self.walk_speed_ms = s; self }
-    pub fn with_drive_speed(mut self, s: f64) -> Self { self.drive_speed_ms = s; self }
-    pub fn with_incremental_steps(mut self, n: usize) -> Self { self.incremental_steps = n.max(1); self }
+    pub fn with_budget_type(mut self, t: BudgetType) -> Self {
+        self.budget_type = t;
+        self
+    }
+    pub fn with_mode(mut self, m: TravelMode) -> Self {
+        self.mode = m;
+        self
+    }
+    pub fn with_walk_speed(mut self, s: f64) -> Self {
+        self.walk_speed_ms = s;
+        self
+    }
+    pub fn with_drive_speed(mut self, s: f64) -> Self {
+        self.drive_speed_ms = s;
+        self
+    }
+    pub fn with_incremental_steps(mut self, n: usize) -> Self {
+        self.incremental_steps = n.max(1);
+        self
+    }
 }
 
 impl Default for IsochroneConfig {
-    fn default() -> Self { Self::new(600.0) }
+    fn default() -> Self {
+        Self::new(600.0)
+    }
 }
 
 impl fmt::Display for IsochroneConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "IsoCfg(budget={:.0} type={} mode={})", self.budget, self.budget_type, self.mode)
+        write!(
+            f,
+            "IsoCfg(budget={:.0} type={} mode={})",
+            self.budget, self.budget_type, self.mode
+        )
     }
 }
 
@@ -123,7 +154,9 @@ pub struct IsoNode {
 }
 
 impl IsoNode {
-    pub fn new(id: u64, lat: f64, lon: f64) -> Self { Self { id, lat, lon } }
+    pub fn new(id: u64, lat: f64, lon: f64) -> Self {
+        Self { id, lat, lon }
+    }
 }
 
 impl fmt::Display for IsoNode {
@@ -145,21 +178,28 @@ pub struct IsoEdge {
 // ── Priority-queue entry ────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
-struct QEntry { cost: f64, node: u64 }
+struct QEntry {
+    cost: f64,
+    node: u64,
+}
 impl Eq for QEntry {}
 impl Ord for QEntry {
     fn cmp(&self, other: &Self) -> Ordering {
-        other.cost.partial_cmp(&self.cost).unwrap_or(Ordering::Equal)
+        other
+            .cost
+            .partial_cmp(&self.cost)
+            .unwrap_or(Ordering::Equal)
     }
 }
 impl PartialOrd for QEntry {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 // ── Isochrone result ────────────────────────────────────────────
 
-#[derive(Debug, Clone)]
-#[derive(PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct IsochroneResult {
     pub reachable: Vec<(u64, f64)>,
     pub hull: Vec<(f64, f64)>,
@@ -167,13 +207,22 @@ pub struct IsochroneResult {
 }
 
 impl IsochroneResult {
-    pub fn reachable_count(&self) -> usize { self.reachable.len() }
-    pub fn hull_vertices(&self) -> usize { self.hull.len() }
+    pub fn reachable_count(&self) -> usize {
+        self.reachable.len()
+    }
+    pub fn hull_vertices(&self) -> usize {
+        self.hull.len()
+    }
 }
 
 impl fmt::Display for IsochroneResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Isochrone(reachable={} hull_pts={})", self.reachable_count(), self.hull_vertices())
+        write!(
+            f,
+            "Isochrone(reachable={} hull_pts={})",
+            self.reachable_count(),
+            self.hull_vertices()
+        )
     }
 }
 
@@ -186,7 +235,12 @@ pub struct IsochroneGraph {
 }
 
 impl IsochroneGraph {
-    pub fn new() -> Self { Self { nodes: HashMap::new(), adj: HashMap::new() } }
+    pub fn new() -> Self {
+        Self {
+            nodes: HashMap::new(),
+            adj: HashMap::new(),
+        }
+    }
 
     pub fn add_node(&mut self, n: IsoNode) {
         self.nodes.insert(n.id, n);
@@ -194,11 +248,23 @@ impl IsochroneGraph {
     }
 
     pub fn add_edge(&mut self, from: u64, to: u64, time_s: f64, distance_m: f64, walkable: bool) {
-        self.adj.entry(from).or_default().push(IsoEdge { to, time_s, distance_m, walkable });
-        self.adj.entry(to).or_default().push(IsoEdge { to: from, time_s, distance_m, walkable });
+        self.adj.entry(from).or_default().push(IsoEdge {
+            to,
+            time_s,
+            distance_m,
+            walkable,
+        });
+        self.adj.entry(to).or_default().push(IsoEdge {
+            to: from,
+            time_s,
+            distance_m,
+            walkable,
+        });
     }
 
-    pub fn node_count(&self) -> usize { self.nodes.len() }
+    pub fn node_count(&self) -> usize {
+        self.nodes.len()
+    }
 
     fn edge_cost(e: &IsoEdge, budget_type: BudgetType) -> f64 {
         match budget_type {
@@ -208,12 +274,18 @@ impl IsochroneGraph {
     }
 
     /// Compute reachable nodes within budget.
-    pub fn compute(&self, origin: u64, config: &IsochroneConfig) -> Result<IsochroneResult, IsochroneError> {
+    pub fn compute(
+        &self,
+        origin: u64,
+        config: &IsochroneConfig,
+    ) -> Result<IsochroneResult, IsochroneError> {
         if !self.nodes.contains_key(&origin) {
             return Err(IsochroneError::NodeNotFound(origin));
         }
         if config.budget <= 0.0 {
-            return Err(IsochroneError::InvalidBudget("budget must be positive".into()));
+            return Err(IsochroneError::InvalidBudget(
+                "budget must be positive".into(),
+            ));
         }
 
         let reachable = self.expand(origin, config.budget, config.budget_type, &config.mode)?;
@@ -223,11 +295,19 @@ impl IsochroneGraph {
 
         let hull = self.concave_hull(&reachable);
 
-        Ok(IsochroneResult { reachable, hull, budget_used: config.budget })
+        Ok(IsochroneResult {
+            reachable,
+            hull,
+            budget_used: config.budget,
+        })
     }
 
     /// Compute incremental isochrones at equal budget fractions.
-    pub fn compute_incremental(&self, origin: u64, config: &IsochroneConfig) -> Result<Vec<IsochroneResult>, IsochroneError> {
+    pub fn compute_incremental(
+        &self,
+        origin: u64,
+        config: &IsochroneConfig,
+    ) -> Result<Vec<IsochroneResult>, IsochroneError> {
         let steps = config.incremental_steps.max(1);
         let step_size = config.budget / steps as f64;
         let mut results = Vec::with_capacity(steps);
@@ -235,57 +315,95 @@ impl IsochroneGraph {
             let budget = step_size * i as f64;
             let reachable = self.expand(origin, budget, config.budget_type, &config.mode)?;
             let hull = self.concave_hull(&reachable);
-            results.push(IsochroneResult { reachable, hull, budget_used: budget });
+            results.push(IsochroneResult {
+                reachable,
+                hull,
+                budget_used: budget,
+            });
         }
         Ok(results)
     }
 
-    fn expand(&self, origin: u64, budget: f64, bt: BudgetType, mode: &TravelMode) -> Result<Vec<(u64, f64)>, IsochroneError> {
+    fn expand(
+        &self,
+        origin: u64,
+        budget: f64,
+        bt: BudgetType,
+        mode: &TravelMode,
+    ) -> Result<Vec<(u64, f64)>, IsochroneError> {
         let mut dist: HashMap<u64, f64> = HashMap::new();
         let mut heap = BinaryHeap::new();
         dist.insert(origin, 0.0);
-        heap.push(QEntry { cost: 0.0, node: origin });
+        heap.push(QEntry {
+            cost: 0.0,
+            node: origin,
+        });
 
         let walk_only = matches!(mode, TravelMode::Walk);
 
         while let Some(QEntry { cost, node }) = heap.pop() {
-            if cost > *dist.get(&node).unwrap_or(&f64::INFINITY) { continue; }
+            if cost > *dist.get(&node).unwrap_or(&f64::INFINITY) {
+                continue;
+            }
             if let Some(edges) = self.adj.get(&node) {
                 for e in edges {
-                    if walk_only && !e.walkable { continue; }
+                    if walk_only && !e.walkable {
+                        continue;
+                    }
                     let ec = Self::edge_cost(e, bt);
                     let nc = cost + ec;
                     if nc <= budget && nc < *dist.get(&e.to).unwrap_or(&f64::INFINITY) {
                         dist.insert(e.to, nc);
-                        heap.push(QEntry { cost: nc, node: e.to });
+                        heap.push(QEntry {
+                            cost: nc,
+                            node: e.to,
+                        });
                     }
                 }
             }
         }
 
         // Multi-modal: extend walk from each driving-reachable node
-        if let TravelMode::DriveAndWalk { drive_budget_s, walk_budget_s } = mode {
+        if let TravelMode::DriveAndWalk {
+            drive_budget_s,
+            walk_budget_s,
+        } = mode
+        {
             let drive_set: Vec<(u64, f64)> = dist.iter().map(|(&k, &v)| (k, v)).collect();
             for (node, dcost) in &drive_set {
-                if *dcost > *drive_budget_s { continue; }
+                if *dcost > *drive_budget_s {
+                    continue;
+                }
                 let mut walk_heap = BinaryHeap::new();
-                walk_heap.push(QEntry { cost: 0.0, node: *node });
+                walk_heap.push(QEntry {
+                    cost: 0.0,
+                    node: *node,
+                });
                 let mut wdist: HashMap<u64, f64> = HashMap::new();
                 wdist.insert(*node, 0.0);
                 while let Some(QEntry { cost, node: wn }) = walk_heap.pop() {
-                    if cost > *wdist.get(&wn).unwrap_or(&f64::INFINITY) { continue; }
+                    if cost > *wdist.get(&wn).unwrap_or(&f64::INFINITY) {
+                        continue;
+                    }
                     if let Some(edges) = self.adj.get(&wn) {
                         for e in edges {
-                            if !e.walkable { continue; }
+                            if !e.walkable {
+                                continue;
+                            }
                             let ec = Self::edge_cost(e, bt);
                             let nc = cost + ec;
-                            if nc <= *walk_budget_s && nc < *wdist.get(&e.to).unwrap_or(&f64::INFINITY) {
+                            if nc <= *walk_budget_s
+                                && nc < *wdist.get(&e.to).unwrap_or(&f64::INFINITY)
+                            {
                                 let total = dcost + nc;
                                 if total < *dist.get(&e.to).unwrap_or(&f64::INFINITY) {
                                     dist.insert(e.to, total);
                                 }
                                 wdist.insert(e.to, nc);
-                                walk_heap.push(QEntry { cost: nc, node: e.to });
+                                walk_heap.push(QEntry {
+                                    cost: nc,
+                                    node: e.to,
+                                });
                             }
                         }
                     }
@@ -300,13 +418,17 @@ impl IsochroneGraph {
 
     /// Concave hull approximation: sorted by angle from centroid.
     fn concave_hull(&self, reachable: &[(u64, f64)]) -> Vec<(f64, f64)> {
-        let pts: Vec<(f64, f64)> = reachable.iter()
+        let pts: Vec<(f64, f64)> = reachable
+            .iter()
             .filter_map(|(id, _)| self.nodes.get(id).map(|n| (n.lat, n.lon)))
             .collect();
-        if pts.len() < 3 { return pts; }
+        if pts.len() < 3 {
+            return pts;
+        }
         let cx = pts.iter().map(|p| p.0).sum::<f64>() / pts.len() as f64;
         let cy = pts.iter().map(|p| p.1).sum::<f64>() / pts.len() as f64;
-        let mut angles: Vec<(f64, f64, f64)> = pts.iter()
+        let mut angles: Vec<(f64, f64, f64)> = pts
+            .iter()
             .map(|&(x, y)| ((y - cy).atan2(x - cx), x, y))
             .collect();
         angles.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
@@ -363,8 +485,12 @@ mod tests {
         for r in 0..3u64 {
             for c in 0..3u64 {
                 let id = r * 3 + c;
-                if c < 2 { g.add_edge(id, id + 1, 10.0, 100.0, true); }
-                if r < 2 { g.add_edge(id, id + 3, 10.0, 100.0, true); }
+                if c < 2 {
+                    g.add_edge(id, id + 1, 10.0, 100.0, true);
+                }
+                if r < 2 {
+                    g.add_edge(id, id + 3, 10.0, 100.0, true);
+                }
             }
         }
         g
@@ -430,7 +556,10 @@ mod tests {
     #[test]
     fn test_multimodal() {
         let g = make_graph();
-        let mode = TravelMode::DriveAndWalk { drive_budget_s: 20.0, walk_budget_s: 15.0 };
+        let mode = TravelMode::DriveAndWalk {
+            drive_budget_s: 20.0,
+            walk_budget_s: 15.0,
+        };
         let cfg = IsochroneConfig::new(35.0).with_mode(mode);
         let r = g.compute(0, &cfg).unwrap();
         assert!(r.reachable_count() >= 3);
@@ -464,7 +593,11 @@ mod tests {
 
     #[test]
     fn test_result_display() {
-        let r = IsochroneResult { reachable: vec![(0, 0.0), (1, 10.0)], hull: vec![], budget_used: 100.0 };
+        let r = IsochroneResult {
+            reachable: vec![(0, 0.0), (1, 10.0)],
+            hull: vec![],
+            budget_used: 100.0,
+        };
         assert!(format!("{r}").contains("Isochrone"));
     }
 
@@ -495,8 +628,18 @@ mod tests {
         g.add_node(IsoNode::new(0, 0.0, 0.0));
         g.add_node(IsoNode::new(1, 1.0, 0.0));
         // edge is not walkable
-        g.adj.entry(0).or_default().push(IsoEdge { to: 1, time_s: 5.0, distance_m: 50.0, walkable: false });
-        g.adj.entry(1).or_default().push(IsoEdge { to: 0, time_s: 5.0, distance_m: 50.0, walkable: false });
+        g.adj.entry(0).or_default().push(IsoEdge {
+            to: 1,
+            time_s: 5.0,
+            distance_m: 50.0,
+            walkable: false,
+        });
+        g.adj.entry(1).or_default().push(IsoEdge {
+            to: 0,
+            time_s: 5.0,
+            distance_m: 50.0,
+            walkable: false,
+        });
         let cfg = IsochroneConfig::new(100.0).with_mode(TravelMode::Walk);
         let r = g.compute(0, &cfg).unwrap();
         assert_eq!(r.reachable_count(), 1); // only origin
@@ -504,7 +647,10 @@ mod tests {
 
     #[test]
     fn test_total_budget_multimodal() {
-        let mode = TravelMode::DriveAndWalk { drive_budget_s: 300.0, walk_budget_s: 100.0 };
+        let mode = TravelMode::DriveAndWalk {
+            drive_budget_s: 300.0,
+            walk_budget_s: 100.0,
+        };
         let cfg = IsochroneConfig::new(400.0);
         assert!((mode.total_budget_s(&cfg) - 400.0).abs() < 1e-9);
     }

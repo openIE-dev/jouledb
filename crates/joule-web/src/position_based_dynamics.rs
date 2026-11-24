@@ -44,20 +44,38 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
 
     pub fn add(self, o: Self) -> Self {
-        Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z }
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
     }
 
     pub fn sub(self, o: Self) -> Self {
-        Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z }
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
     }
 
     pub fn scale(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn dot(self, o: Self) -> f64 {
@@ -82,7 +100,11 @@ impl Vec3 {
 
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-12 { Self::ZERO } else { self.scale(1.0 / l) }
+        if l < 1e-12 {
+            Self::ZERO
+        } else {
+            self.scale(1.0 / l)
+        }
     }
 }
 
@@ -147,10 +169,7 @@ pub enum Constraint {
         compliance: f64,
     },
     /// Collision with ground plane at y = level.
-    GroundPlane {
-        particle: usize,
-        level: f64,
-    },
+    GroundPlane { particle: usize, level: f64 },
     /// Collision with sphere.
     SphereCollision {
         particle: usize,
@@ -206,13 +225,29 @@ impl PbdSolver {
         b: usize,
         compliance: f64,
     ) -> Result<usize, PbdError> {
-        if a == b { return Err(PbdError::SelfConstraint(a)); }
-        if a >= self.particles.len() { return Err(PbdError::ParticleNotFound(a)); }
-        if b >= self.particles.len() { return Err(PbdError::ParticleNotFound(b)); }
-        if compliance < 0.0 { return Err(PbdError::InvalidCompliance); }
-        let rest = self.particles[a].position.sub(self.particles[b].position).length();
+        if a == b {
+            return Err(PbdError::SelfConstraint(a));
+        }
+        if a >= self.particles.len() {
+            return Err(PbdError::ParticleNotFound(a));
+        }
+        if b >= self.particles.len() {
+            return Err(PbdError::ParticleNotFound(b));
+        }
+        if compliance < 0.0 {
+            return Err(PbdError::InvalidCompliance);
+        }
+        let rest = self.particles[a]
+            .position
+            .sub(self.particles[b].position)
+            .length();
         let idx = self.constraints.len();
-        self.constraints.push(Constraint::Distance { a, b, rest_length: rest, compliance });
+        self.constraints.push(Constraint::Distance {
+            a,
+            b,
+            rest_length: rest,
+            compliance,
+        });
         Ok(idx)
     }
 
@@ -223,13 +258,24 @@ impl PbdSolver {
         rest_length: f64,
         compliance: f64,
     ) -> Result<usize, PbdError> {
-        if a == b { return Err(PbdError::SelfConstraint(a)); }
-        if a >= self.particles.len() { return Err(PbdError::ParticleNotFound(a)); }
-        if b >= self.particles.len() { return Err(PbdError::ParticleNotFound(b)); }
-        if compliance < 0.0 { return Err(PbdError::InvalidCompliance); }
+        if a == b {
+            return Err(PbdError::SelfConstraint(a));
+        }
+        if a >= self.particles.len() {
+            return Err(PbdError::ParticleNotFound(a));
+        }
+        if b >= self.particles.len() {
+            return Err(PbdError::ParticleNotFound(b));
+        }
+        if compliance < 0.0 {
+            return Err(PbdError::InvalidCompliance);
+        }
         let idx = self.constraints.len();
         self.constraints.push(Constraint::Distance {
-            a, b, rest_length: rest_length.abs(), compliance,
+            a,
+            b,
+            rest_length: rest_length.abs(),
+            compliance,
         });
         Ok(idx)
     }
@@ -243,14 +289,22 @@ impl PbdSolver {
         compliance: f64,
     ) -> Result<usize, PbdError> {
         for &p in &[p0, p1, p2, p3] {
-            if p >= self.particles.len() { return Err(PbdError::ParticleNotFound(p)); }
+            if p >= self.particles.len() {
+                return Err(PbdError::ParticleNotFound(p));
+            }
         }
-        if compliance < 0.0 { return Err(PbdError::InvalidCompliance); }
+        if compliance < 0.0 {
+            return Err(PbdError::InvalidCompliance);
+        }
 
         // Compute rest angle between triangles (p0,p1,p2) and (p1,p2,p3)
-        let n1 = self.particles[p1].position.sub(self.particles[p0].position)
+        let n1 = self.particles[p1]
+            .position
+            .sub(self.particles[p0].position)
             .cross(self.particles[p2].position.sub(self.particles[p0].position));
-        let n2 = self.particles[p1].position.sub(self.particles[p3].position)
+        let n2 = self.particles[p1]
+            .position
+            .sub(self.particles[p3].position)
             .cross(self.particles[p2].position.sub(self.particles[p3].position));
         let l1 = n1.length();
         let l2 = n2.length();
@@ -262,7 +316,14 @@ impl PbdSolver {
         };
 
         let idx = self.constraints.len();
-        self.constraints.push(Constraint::Bending { p0, p1, p2, p3, rest_angle, compliance });
+        self.constraints.push(Constraint::Bending {
+            p0,
+            p1,
+            p2,
+            p3,
+            rest_angle,
+            compliance,
+        });
         Ok(idx)
     }
 
@@ -272,9 +333,13 @@ impl PbdSolver {
         compliance: f64,
     ) -> Result<usize, PbdError> {
         for &n in &nodes {
-            if n >= self.particles.len() { return Err(PbdError::ParticleNotFound(n)); }
+            if n >= self.particles.len() {
+                return Err(PbdError::ParticleNotFound(n));
+            }
         }
-        if compliance < 0.0 { return Err(PbdError::InvalidCompliance); }
+        if compliance < 0.0 {
+            return Err(PbdError::InvalidCompliance);
+        }
 
         let p = &self.particles;
         let e1 = p[nodes[1]].position.sub(p[nodes[0]].position);
@@ -283,14 +348,21 @@ impl PbdSolver {
         let rest_volume = e1.dot(e2.cross(e3)) / 6.0;
 
         let idx = self.constraints.len();
-        self.constraints.push(Constraint::Volume { nodes, rest_volume, compliance });
+        self.constraints.push(Constraint::Volume {
+            nodes,
+            rest_volume,
+            compliance,
+        });
         Ok(idx)
     }
 
     pub fn add_ground_plane(&mut self, particle: usize, level: f64) -> Result<usize, PbdError> {
-        if particle >= self.particles.len() { return Err(PbdError::ParticleNotFound(particle)); }
+        if particle >= self.particles.len() {
+            return Err(PbdError::ParticleNotFound(particle));
+        }
         let idx = self.constraints.len();
-        self.constraints.push(Constraint::GroundPlane { particle, level });
+        self.constraints
+            .push(Constraint::GroundPlane { particle, level });
         Ok(idx)
     }
 
@@ -300,10 +372,18 @@ impl PbdSolver {
         center: Vec3,
         radius: f64,
     ) -> Result<usize, PbdError> {
-        if particle >= self.particles.len() { return Err(PbdError::ParticleNotFound(particle)); }
-        if radius <= 0.0 { return Err(PbdError::InvalidRadius); }
+        if particle >= self.particles.len() {
+            return Err(PbdError::ParticleNotFound(particle));
+        }
+        if radius <= 0.0 {
+            return Err(PbdError::InvalidRadius);
+        }
         let idx = self.constraints.len();
-        self.constraints.push(Constraint::SphereCollision { particle, center, radius });
+        self.constraints.push(Constraint::SphereCollision {
+            particle,
+            center,
+            radius,
+        });
         Ok(idx)
     }
 
@@ -317,46 +397,79 @@ impl PbdSolver {
         };
 
         match self.constraints[ci].clone() {
-            Constraint::Distance { a, b, rest_length, .. } => {
+            Constraint::Distance {
+                a, b, rest_length, ..
+            } => {
                 let diff = self.particles[a].predicted.sub(self.particles[b].predicted);
                 let dist = diff.length();
-                if dist < 1e-12 { return; }
+                if dist < 1e-12 {
+                    return;
+                }
                 let w_sum = self.particles[a].inv_mass + self.particles[b].inv_mass;
-                if w_sum < 1e-12 { return; }
+                if w_sum < 1e-12 {
+                    return;
+                }
                 let c_val = dist - rest_length;
                 let lambda = -c_val / (w_sum + alpha);
                 let correction = diff.scale(lambda / dist);
 
-                self.particles[a].predicted = self.particles[a].predicted.add(
-                    correction.scale(self.particles[a].inv_mass),
-                );
-                self.particles[b].predicted = self.particles[b].predicted.sub(
-                    correction.scale(self.particles[b].inv_mass),
-                );
+                self.particles[a].predicted = self.particles[a]
+                    .predicted
+                    .add(correction.scale(self.particles[a].inv_mass));
+                self.particles[b].predicted = self.particles[b]
+                    .predicted
+                    .sub(correction.scale(self.particles[b].inv_mass));
             }
-            Constraint::Bending { p0, p1, p2, p3, rest_angle, .. } => {
-                let n1 = self.particles[p1].predicted.sub(self.particles[p0].predicted)
-                    .cross(self.particles[p2].predicted.sub(self.particles[p0].predicted));
-                let n2 = self.particles[p1].predicted.sub(self.particles[p3].predicted)
-                    .cross(self.particles[p2].predicted.sub(self.particles[p3].predicted));
+            Constraint::Bending {
+                p0,
+                p1,
+                p2,
+                p3,
+                rest_angle,
+                ..
+            } => {
+                let n1 = self.particles[p1]
+                    .predicted
+                    .sub(self.particles[p0].predicted)
+                    .cross(
+                        self.particles[p2]
+                            .predicted
+                            .sub(self.particles[p0].predicted),
+                    );
+                let n2 = self.particles[p1]
+                    .predicted
+                    .sub(self.particles[p3].predicted)
+                    .cross(
+                        self.particles[p2]
+                            .predicted
+                            .sub(self.particles[p3].predicted),
+                    );
                 let l1 = n1.length();
                 let l2 = n2.length();
-                if l1 < 1e-12 || l2 < 1e-12 { return; }
+                if l1 < 1e-12 || l2 < 1e-12 {
+                    return;
+                }
                 let cos_a = (n1.dot(n2) / (l1 * l2)).clamp(-1.0, 1.0);
                 let current_angle = cos_a.acos();
                 let c_val = current_angle - rest_angle;
-                if c_val.abs() < 1e-10 { return; }
+                if c_val.abs() < 1e-10 {
+                    return;
+                }
 
                 // Simple approach: push p3 along the normal direction
                 let correction_dir = n2.normalized();
                 let w3 = self.particles[p3].inv_mass;
-                if w3 < 1e-12 { return; }
+                if w3 < 1e-12 {
+                    return;
+                }
                 let scale = -c_val * 0.1 / (w3 + alpha);
-                self.particles[p3].predicted = self.particles[p3].predicted.add(
-                    correction_dir.scale(scale * w3),
-                );
+                self.particles[p3].predicted = self.particles[p3]
+                    .predicted
+                    .add(correction_dir.scale(scale * w3));
             }
-            Constraint::Volume { nodes, rest_volume, .. } => {
+            Constraint::Volume {
+                nodes, rest_volume, ..
+            } => {
                 let p0 = self.particles[nodes[0]].predicted;
                 let p1 = self.particles[nodes[1]].predicted;
                 let p2 = self.particles[nodes[2]].predicted;
@@ -367,7 +480,9 @@ impl PbdSolver {
                 let e3 = p3.sub(p0);
                 let vol = e1.dot(e2.cross(e3)) / 6.0;
                 let c_val = vol - rest_volume;
-                if c_val.abs() < 1e-12 { return; }
+                if c_val.abs() < 1e-12 {
+                    return;
+                }
 
                 // Gradients (simplified: push nodes along face normals)
                 let g1 = e2.cross(e3).scale(1.0 / 6.0);
@@ -380,27 +495,38 @@ impl PbdSolver {
                 for k in 0..4 {
                     w_sum += self.particles[nodes[k]].inv_mass * grads[k].length_sq();
                 }
-                if w_sum < 1e-12 { return; }
+                if w_sum < 1e-12 {
+                    return;
+                }
 
                 let lambda = -c_val / (w_sum + alpha);
                 for k in 0..4 {
                     let w = self.particles[nodes[k]].inv_mass;
-                    self.particles[nodes[k]].predicted = self.particles[nodes[k]].predicted.add(
-                        grads[k].scale(lambda * w),
-                    );
+                    self.particles[nodes[k]].predicted = self.particles[nodes[k]]
+                        .predicted
+                        .add(grads[k].scale(lambda * w));
                 }
             }
             Constraint::GroundPlane { particle, level } => {
-                if self.particles[particle].predicted.y < level && self.particles[particle].inv_mass > 0.0 {
+                if self.particles[particle].predicted.y < level
+                    && self.particles[particle].inv_mass > 0.0
+                {
                     self.particles[particle].predicted.y = level;
                 }
             }
-            Constraint::SphereCollision { particle, center, radius } => {
-                if self.particles[particle].inv_mass <= 0.0 { return; }
+            Constraint::SphereCollision {
+                particle,
+                center,
+                radius,
+            } => {
+                if self.particles[particle].inv_mass <= 0.0 {
+                    return;
+                }
                 let diff = self.particles[particle].predicted.sub(center);
                 let dist = diff.length();
                 if dist < radius && dist > 1e-12 {
-                    self.particles[particle].predicted = center.add(diff.normalized().scale(radius));
+                    self.particles[particle].predicted =
+                        center.add(diff.normalized().scale(radius));
                 }
             }
         }
@@ -447,7 +573,8 @@ impl PbdSolver {
     }
 
     pub fn kinetic_energy(&self) -> f64 {
-        self.particles.iter()
+        self.particles
+            .iter()
             .filter(|p| p.inv_mass > 0.0)
             .map(|p| 0.5 * (1.0 / p.inv_mass) * p.velocity.length_sq())
             .sum()
@@ -457,11 +584,19 @@ impl PbdSolver {
         let mut total_m = 0.0;
         let mut weighted = Vec3::ZERO;
         for p in &self.particles {
-            let m = if p.inv_mass > 0.0 { 1.0 / p.inv_mass } else { 0.0 };
+            let m = if p.inv_mass > 0.0 {
+                1.0 / p.inv_mass
+            } else {
+                0.0
+            };
             total_m += m;
             weighted = weighted.add(p.position.scale(m));
         }
-        if total_m < 1e-12 { Vec3::ZERO } else { weighted.scale(1.0 / total_m) }
+        if total_m < 1e-12 {
+            Vec3::ZERO
+        } else {
+            weighted.scale(1.0 / total_m)
+        }
     }
 
     pub fn particle_count(&self) -> usize {
@@ -475,14 +610,22 @@ impl PbdSolver {
     pub fn max_stretch(&self) -> f64 {
         let mut max_s = 0.0f64;
         for c in &self.constraints {
-            if let Constraint::Distance { a, b, rest_length, .. } = c {
-                let dist = self.particles[*a].position.sub(self.particles[*b].position).length();
+            if let Constraint::Distance {
+                a, b, rest_length, ..
+            } = c
+            {
+                let dist = self.particles[*a]
+                    .position
+                    .sub(self.particles[*b].position)
+                    .length();
                 let stretch = if *rest_length > 1e-12 {
                     (dist - rest_length).abs() / rest_length
                 } else {
                     0.0
                 };
-                if stretch > max_s { max_s = stretch; }
+                if stretch > max_s {
+                    max_s = stretch;
+                }
             }
         }
         max_s
@@ -576,7 +719,10 @@ mod tests {
         for _ in 0..50 {
             solver.step(0.01).unwrap();
         }
-        let dist = solver.particles[a].position.sub(solver.particles[b].position).length();
+        let dist = solver.particles[a]
+            .position
+            .sub(solver.particles[b].position)
+            .length();
         assert!(approx(dist, 1.0, 0.2)); // should converge toward rest length
     }
 
@@ -659,7 +805,8 @@ mod tests {
             10,
             0.1,
             0.0,
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(rope.particle_count(), 11);
         assert_eq!(rope.constraint_count(), 10);
         assert!(rope.particles[0].is_fixed());
@@ -673,7 +820,8 @@ mod tests {
             5,
             0.5,
             0.0,
-        ).unwrap();
+        )
+        .unwrap();
         // Unfix the end
         for _ in 0..100 {
             rope.step(0.01).unwrap();
@@ -706,8 +854,14 @@ mod tests {
             solver_soft.step(0.01).unwrap();
         }
 
-        let d_stiff = solver_stiff.particles[0].position.sub(solver_stiff.particles[1].position).length();
-        let d_soft = solver_soft.particles[0].position.sub(solver_soft.particles[1].position).length();
+        let d_stiff = solver_stiff.particles[0]
+            .position
+            .sub(solver_stiff.particles[1].position)
+            .length();
+        let d_soft = solver_soft.particles[0]
+            .position
+            .sub(solver_soft.particles[1].position)
+            .length();
         // Stiff should be closer to rest length (1.0) than soft
         assert!((d_stiff - 1.0).abs() <= (d_soft - 1.0).abs() + 0.5);
     }

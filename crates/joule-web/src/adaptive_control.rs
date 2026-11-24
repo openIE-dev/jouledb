@@ -109,11 +109,7 @@ pub struct MitRuleMrac {
 
 impl MitRuleMrac {
     /// Create MIT-rule MRAC.
-    pub fn new(
-        model: ReferenceModel,
-        gamma_r: f64,
-        gamma_y: f64,
-    ) -> Result<Self, AdaptiveError> {
+    pub fn new(model: ReferenceModel, gamma_r: f64, gamma_y: f64) -> Result<Self, AdaptiveError> {
         if gamma_r < 0.0 || gamma_y < 0.0 {
             return Err(AdaptiveError::InvalidParameter("gamma must be >= 0".into()));
         }
@@ -282,7 +278,9 @@ impl RecursiveLeastSquares {
     pub fn update(&mut self, phi: &[f64], y: f64) -> Result<f64, AdaptiveError> {
         if phi.len() != self.n {
             return Err(AdaptiveError::DimensionMismatch(format!(
-                "expected {} regressors, got {}", self.n, phi.len()
+                "expected {} regressors, got {}",
+                self.n,
+                phi.len()
             )));
         }
 
@@ -481,8 +479,7 @@ impl SelfTuningRegulator {
         // Closed-loop: y[k+1] = desired_pole * y[k] + (1 - desired_pole) * setpoint.
         // u = (1/b0_hat) * ((desired_pole - a1_hat) * y + (1 - desired_pole) * setpoint)
         let u = if b0_hat.abs() > 1e-6 {
-            ((self.desired_pole - a1_hat) * y + (1.0 - self.desired_pole) * setpoint)
-                / b0_hat
+            ((self.desired_pole - a1_hat) * y + (1.0 - self.desired_pole) * setpoint) / b0_hat
         } else {
             // b0 estimate too small — use simple proportional.
             setpoint - y
@@ -657,8 +654,18 @@ mod tests {
     #[test]
     fn test_gain_scheduler_creation() {
         let entries = vec![
-            GainScheduleEntry { operating_point: 0.0, kp: 1.0, ki: 0.1, kd: 0.01 },
-            GainScheduleEntry { operating_point: 10.0, kp: 5.0, ki: 0.5, kd: 0.05 },
+            GainScheduleEntry {
+                operating_point: 0.0,
+                kp: 1.0,
+                ki: 0.1,
+                kd: 0.01,
+            },
+            GainScheduleEntry {
+                operating_point: 10.0,
+                kp: 5.0,
+                ki: 0.5,
+                kd: 0.05,
+            },
         ];
         let gs = GainScheduler::new(entries).unwrap();
         assert_eq!(gs.entries.len(), 2);
@@ -666,17 +673,30 @@ mod tests {
 
     #[test]
     fn test_gain_scheduler_insufficient_entries() {
-        let entries = vec![
-            GainScheduleEntry { operating_point: 0.0, kp: 1.0, ki: 0.1, kd: 0.01 },
-        ];
+        let entries = vec![GainScheduleEntry {
+            operating_point: 0.0,
+            kp: 1.0,
+            ki: 0.1,
+            kd: 0.01,
+        }];
         assert!(GainScheduler::new(entries).is_err());
     }
 
     #[test]
     fn test_gain_scheduler_interpolation() {
         let entries = vec![
-            GainScheduleEntry { operating_point: 0.0, kp: 1.0, ki: 0.1, kd: 0.01 },
-            GainScheduleEntry { operating_point: 10.0, kp: 5.0, ki: 0.5, kd: 0.05 },
+            GainScheduleEntry {
+                operating_point: 0.0,
+                kp: 1.0,
+                ki: 0.1,
+                kd: 0.01,
+            },
+            GainScheduleEntry {
+                operating_point: 10.0,
+                kp: 5.0,
+                ki: 0.5,
+                kd: 0.05,
+            },
         ];
         let gs = GainScheduler::new(entries).unwrap();
         let (kp, ki, kd) = gs.gains(5.0);
@@ -688,8 +708,18 @@ mod tests {
     #[test]
     fn test_gain_scheduler_clamp_low() {
         let entries = vec![
-            GainScheduleEntry { operating_point: 0.0, kp: 1.0, ki: 0.1, kd: 0.01 },
-            GainScheduleEntry { operating_point: 10.0, kp: 5.0, ki: 0.5, kd: 0.05 },
+            GainScheduleEntry {
+                operating_point: 0.0,
+                kp: 1.0,
+                ki: 0.1,
+                kd: 0.01,
+            },
+            GainScheduleEntry {
+                operating_point: 10.0,
+                kp: 5.0,
+                ki: 0.5,
+                kd: 0.05,
+            },
         ];
         let gs = GainScheduler::new(entries).unwrap();
         let (kp, _, _) = gs.gains(-5.0);
@@ -699,8 +729,18 @@ mod tests {
     #[test]
     fn test_gain_scheduler_clamp_high() {
         let entries = vec![
-            GainScheduleEntry { operating_point: 0.0, kp: 1.0, ki: 0.1, kd: 0.01 },
-            GainScheduleEntry { operating_point: 10.0, kp: 5.0, ki: 0.5, kd: 0.05 },
+            GainScheduleEntry {
+                operating_point: 0.0,
+                kp: 1.0,
+                ki: 0.1,
+                kd: 0.01,
+            },
+            GainScheduleEntry {
+                operating_point: 10.0,
+                kp: 5.0,
+                ki: 0.5,
+                kd: 0.05,
+            },
         ];
         let gs = GainScheduler::new(entries).unwrap();
         let (kp, _, _) = gs.gains(20.0);
@@ -774,9 +814,24 @@ mod tests {
     #[test]
     fn test_gain_scheduler_three_points() {
         let entries = vec![
-            GainScheduleEntry { operating_point: 0.0, kp: 1.0, ki: 0.0, kd: 0.0 },
-            GainScheduleEntry { operating_point: 5.0, kp: 3.0, ki: 0.0, kd: 0.0 },
-            GainScheduleEntry { operating_point: 10.0, kp: 10.0, ki: 0.0, kd: 0.0 },
+            GainScheduleEntry {
+                operating_point: 0.0,
+                kp: 1.0,
+                ki: 0.0,
+                kd: 0.0,
+            },
+            GainScheduleEntry {
+                operating_point: 5.0,
+                kp: 3.0,
+                ki: 0.0,
+                kd: 0.0,
+            },
+            GainScheduleEntry {
+                operating_point: 10.0,
+                kp: 10.0,
+                ki: 0.0,
+                kd: 0.0,
+            },
         ];
         let gs = GainScheduler::new(entries).unwrap();
         let (kp, _, _) = gs.gains(7.5);

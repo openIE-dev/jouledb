@@ -112,16 +112,19 @@ impl AdmittanceController1D {
 
         // Virtual dynamics: M*a + B*v + K*x = F_ext
         // a = (F_ext - B*v - K*x) / M
-        self.acceleration = (force_ext
-            - self.damping * self.velocity_cmd
-            - self.stiffness * self.position_cmd)
-            / self.inertia;
+        self.acceleration =
+            (force_ext - self.damping * self.velocity_cmd - self.stiffness * self.position_cmd)
+                / self.inertia;
 
         self.velocity_cmd += self.acceleration * dt;
-        self.velocity_cmd = self.velocity_cmd.clamp(-self.max_velocity, self.max_velocity);
+        self.velocity_cmd = self
+            .velocity_cmd
+            .clamp(-self.max_velocity, self.max_velocity);
 
         self.position_cmd += self.velocity_cmd * dt;
-        self.position_cmd = self.position_cmd.clamp(-self.max_position, self.max_position);
+        self.position_cmd = self
+            .position_cmd
+            .clamp(-self.max_position, self.max_position);
 
         (self.velocity_cmd, self.position_cmd)
     }
@@ -215,7 +218,10 @@ impl AdmittanceControllerND {
         let axes: Result<Vec<_>, _> = (0..n)
             .map(|i| AdmittanceController1D::new(inertias[i], dampings[i], stiffnesses[i]))
             .collect();
-        Ok(Self { ndof: n, axes: axes? })
+        Ok(Self {
+            ndof: n,
+            axes: axes?,
+        })
     }
 
     /// Builder: set velocity limits for all axes.
@@ -229,11 +235,7 @@ impl AdmittanceControllerND {
     }
 
     /// Update all axes with measured forces. Returns velocity commands.
-    pub fn update(
-        &mut self,
-        forces: &[f64],
-        dt: f64,
-    ) -> Result<Vec<f64>, AdmittanceError> {
+    pub fn update(&mut self, forces: &[f64], dt: f64) -> Result<Vec<f64>, AdmittanceError> {
         if forces.len() != self.ndof {
             return Err(AdmittanceError::DimensionMismatch {
                 expected: self.ndof,
@@ -500,11 +502,7 @@ impl DeadZone {
         let mag = force.abs();
         if self.transition < 1e-12 {
             // Hard cutoff.
-            if mag <= self.threshold {
-                0.0
-            } else {
-                force
-            }
+            if mag <= self.threshold { 0.0 } else { force }
         } else {
             // Smooth transition.
             if mag <= self.threshold {
@@ -658,7 +656,10 @@ mod tests {
                 max_output = max_output.max(out.abs());
             }
         }
-        assert!(max_output < 0.1, "high-freq should be attenuated: {max_output}");
+        assert!(
+            max_output < 0.1,
+            "high-freq should be attenuated: {max_output}"
+        );
     }
 
     #[test]

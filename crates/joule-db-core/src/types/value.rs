@@ -306,9 +306,11 @@ impl Value {
             tags::VECTOR => {
                 let len = read_u32(bytes, cursor)? as usize;
                 let remaining = bytes.len().saturating_sub(*cursor);
-                let byte_len = len.checked_mul(4).ok_or_else(|| CodecError::InvalidFormat {
-                    reason: "vector length overflow".into(),
-                })?;
+                let byte_len = len
+                    .checked_mul(4)
+                    .ok_or_else(|| CodecError::InvalidFormat {
+                        reason: "vector length overflow".into(),
+                    })?;
                 if byte_len > remaining {
                     return Err(CodecError::UnexpectedEof {
                         expected: byte_len,

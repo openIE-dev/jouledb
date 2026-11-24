@@ -27,71 +27,183 @@ pub struct LocaleData {
     pub list_disjunction: &'static str,
 }
 
-const EN_MONTHS_SHORT: [&str; 12] = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const EN_MONTHS_LONG: [&str; 12] = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const EN_WEEKDAYS_SHORT: [&str; 7] = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-const EN_WEEKDAYS_LONG: [&str; 7] = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const EN_MONTHS_SHORT: [&str; 12] = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+const EN_MONTHS_LONG: [&str; 12] = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+];
+const EN_WEEKDAYS_SHORT: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const EN_WEEKDAYS_LONG: [&str; 7] = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+];
 
-const DE_MONTHS_SHORT: [&str; 12] = ["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
-const DE_MONTHS_LONG: [&str; 12] = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
-const DE_WEEKDAYS_SHORT: [&str; 7] = ["So","Mo","Di","Mi","Do","Fr","Sa"];
-const DE_WEEKDAYS_LONG: [&str; 7] = ["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
+const DE_MONTHS_SHORT: [&str; 12] = [
+    "Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez",
+];
+const DE_MONTHS_LONG: [&str; 12] = [
+    "Januar",
+    "Februar",
+    "März",
+    "April",
+    "Mai",
+    "Juni",
+    "Juli",
+    "August",
+    "September",
+    "Oktober",
+    "November",
+    "Dezember",
+];
+const DE_WEEKDAYS_SHORT: [&str; 7] = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+const DE_WEEKDAYS_LONG: [&str; 7] = [
+    "Sonntag",
+    "Montag",
+    "Dienstag",
+    "Mittwoch",
+    "Donnerstag",
+    "Freitag",
+    "Samstag",
+];
 
-const FR_MONTHS_SHORT: [&str; 12] = ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
-const FR_MONTHS_LONG: [&str; 12] = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
-const FR_WEEKDAYS_SHORT: [&str; 7] = ["dim.","lun.","mar.","mer.","jeu.","ven.","sam."];
-const FR_WEEKDAYS_LONG: [&str; 7] = ["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
+const FR_MONTHS_SHORT: [&str; 12] = [
+    "janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.",
+    "déc.",
+];
+const FR_MONTHS_LONG: [&str; 12] = [
+    "janvier",
+    "février",
+    "mars",
+    "avril",
+    "mai",
+    "juin",
+    "juillet",
+    "août",
+    "septembre",
+    "octobre",
+    "novembre",
+    "décembre",
+];
+const FR_WEEKDAYS_SHORT: [&str; 7] = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
+const FR_WEEKDAYS_LONG: [&str; 7] = [
+    "dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi",
+];
 
-const JA_MONTHS_SHORT: [&str; 12] = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
-const JA_MONTHS_LONG: [&str; 12] = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
-const JA_WEEKDAYS_SHORT: [&str; 7] = ["日","月","火","水","木","金","土"];
-const JA_WEEKDAYS_LONG: [&str; 7] = ["日曜日","月曜日","火曜日","水曜日","木曜日","金曜日","土曜日"];
+const JA_MONTHS_SHORT: [&str; 12] = [
+    "1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月",
+];
+const JA_MONTHS_LONG: [&str; 12] = [
+    "1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月",
+];
+const JA_WEEKDAYS_SHORT: [&str; 7] = ["日", "月", "火", "水", "木", "金", "土"];
+const JA_WEEKDAYS_LONG: [&str; 7] = [
+    "日曜日",
+    "月曜日",
+    "火曜日",
+    "水曜日",
+    "木曜日",
+    "金曜日",
+    "土曜日",
+];
 
 fn locale_data_en() -> LocaleData {
     LocaleData {
-        decimal_sep: '.', grouping_sep: ',', grouping_size: 3,
-        currency_symbol: "$", currency_code: "USD", currency_prefix: true,
+        decimal_sep: '.',
+        grouping_sep: ',',
+        grouping_size: 3,
+        currency_symbol: "$",
+        currency_code: "USD",
+        currency_prefix: true,
         percent_suffix: "%",
-        months_short: EN_MONTHS_SHORT, months_long: EN_MONTHS_LONG,
-        weekdays_short: EN_WEEKDAYS_SHORT, weekdays_long: EN_WEEKDAYS_LONG,
-        date_short: "M/d/yyyy", date_medium: "MMM d, yyyy", date_long: "MMMM d, yyyy",
-        list_conjunction: "and", list_disjunction: "or",
+        months_short: EN_MONTHS_SHORT,
+        months_long: EN_MONTHS_LONG,
+        weekdays_short: EN_WEEKDAYS_SHORT,
+        weekdays_long: EN_WEEKDAYS_LONG,
+        date_short: "M/d/yyyy",
+        date_medium: "MMM d, yyyy",
+        date_long: "MMMM d, yyyy",
+        list_conjunction: "and",
+        list_disjunction: "or",
     }
 }
 
 fn locale_data_de() -> LocaleData {
     LocaleData {
-        decimal_sep: ',', grouping_sep: '.', grouping_size: 3,
-        currency_symbol: "€", currency_code: "EUR", currency_prefix: false,
+        decimal_sep: ',',
+        grouping_sep: '.',
+        grouping_size: 3,
+        currency_symbol: "€",
+        currency_code: "EUR",
+        currency_prefix: false,
         percent_suffix: " %",
-        months_short: DE_MONTHS_SHORT, months_long: DE_MONTHS_LONG,
-        weekdays_short: DE_WEEKDAYS_SHORT, weekdays_long: DE_WEEKDAYS_LONG,
-        date_short: "dd.MM.yyyy", date_medium: "dd. MMM yyyy", date_long: "d. MMMM yyyy",
-        list_conjunction: "und", list_disjunction: "oder",
+        months_short: DE_MONTHS_SHORT,
+        months_long: DE_MONTHS_LONG,
+        weekdays_short: DE_WEEKDAYS_SHORT,
+        weekdays_long: DE_WEEKDAYS_LONG,
+        date_short: "dd.MM.yyyy",
+        date_medium: "dd. MMM yyyy",
+        date_long: "d. MMMM yyyy",
+        list_conjunction: "und",
+        list_disjunction: "oder",
     }
 }
 
 fn locale_data_fr() -> LocaleData {
     LocaleData {
-        decimal_sep: ',', grouping_sep: '\u{202f}', grouping_size: 3,
-        currency_symbol: "€", currency_code: "EUR", currency_prefix: false,
+        decimal_sep: ',',
+        grouping_sep: '\u{202f}',
+        grouping_size: 3,
+        currency_symbol: "€",
+        currency_code: "EUR",
+        currency_prefix: false,
         percent_suffix: " %",
-        months_short: FR_MONTHS_SHORT, months_long: FR_MONTHS_LONG,
-        weekdays_short: FR_WEEKDAYS_SHORT, weekdays_long: FR_WEEKDAYS_LONG,
-        date_short: "dd/MM/yyyy", date_medium: "d MMM yyyy", date_long: "d MMMM yyyy",
-        list_conjunction: "et", list_disjunction: "ou",
+        months_short: FR_MONTHS_SHORT,
+        months_long: FR_MONTHS_LONG,
+        weekdays_short: FR_WEEKDAYS_SHORT,
+        weekdays_long: FR_WEEKDAYS_LONG,
+        date_short: "dd/MM/yyyy",
+        date_medium: "d MMM yyyy",
+        date_long: "d MMMM yyyy",
+        list_conjunction: "et",
+        list_disjunction: "ou",
     }
 }
 
 fn locale_data_ja() -> LocaleData {
     LocaleData {
-        decimal_sep: '.', grouping_sep: ',', grouping_size: 3,
-        currency_symbol: "¥", currency_code: "JPY", currency_prefix: true,
+        decimal_sep: '.',
+        grouping_sep: ',',
+        grouping_size: 3,
+        currency_symbol: "¥",
+        currency_code: "JPY",
+        currency_prefix: true,
         percent_suffix: "%",
-        months_short: JA_MONTHS_SHORT, months_long: JA_MONTHS_LONG,
-        weekdays_short: JA_WEEKDAYS_SHORT, weekdays_long: JA_WEEKDAYS_LONG,
-        date_short: "yyyy/MM/dd", date_medium: "yyyy年M月d日", date_long: "yyyy年M月d日",
-        list_conjunction: "、", list_disjunction: "または",
+        months_short: JA_MONTHS_SHORT,
+        months_long: JA_MONTHS_LONG,
+        weekdays_short: JA_WEEKDAYS_SHORT,
+        weekdays_long: JA_WEEKDAYS_LONG,
+        date_short: "yyyy/MM/dd",
+        date_medium: "yyyy年M月d日",
+        date_long: "yyyy年M月d日",
+        list_conjunction: "、",
+        list_disjunction: "または",
     }
 }
 
@@ -131,12 +243,16 @@ pub fn format_number(n: f64, decimals: Option<usize>, data: &LocaleData) -> Stri
 
 fn format_int_grouped(n: u64, sep: char, group_size: usize) -> String {
     let s = n.to_string();
-    if s.len() <= group_size { return s; }
+    if s.len() <= group_size {
+        return s;
+    }
     let bytes = s.as_bytes();
     let len = bytes.len();
     let mut result = String::with_capacity(len + len / group_size);
     for (i, &b) in bytes.iter().enumerate() {
-        if i > 0 && (len - i) % group_size == 0 { result.push(sep); }
+        if i > 0 && (len - i) % group_size == 0 {
+            result.push(sep);
+        }
         result.push(b as char);
     }
     result
@@ -161,7 +277,12 @@ pub fn format_currency(n: f64, data: &LocaleData) -> String {
 }
 
 /// Format a currency value with explicit symbol.
-pub fn format_currency_with_symbol(n: f64, symbol: &str, prefix: bool, data: &LocaleData) -> String {
+pub fn format_currency_with_symbol(
+    n: f64,
+    symbol: &str,
+    prefix: bool,
+    data: &LocaleData,
+) -> String {
     let formatted = format_number(n.abs(), Some(2), data);
     let sign = if n < 0.0 { "-" } else { "" };
     if prefix {
@@ -188,7 +309,15 @@ pub struct SimpleDate {
 impl SimpleDate {
     pub fn new(year: i32, month: u32, day: u32) -> Self {
         let weekday = zellers_weekday(year, month, day);
-        Self { year, month, day, weekday, hour: 0, minute: 0, second: 0 }
+        Self {
+            year,
+            month,
+            day,
+            weekday,
+            hour: 0,
+            minute: 0,
+            second: 0,
+        }
     }
 
     pub fn with_time(mut self, hour: u32, minute: u32, second: u32) -> Self {
@@ -201,7 +330,11 @@ impl SimpleDate {
 
 /// Zeller's congruence -> 0=Sun, 1=Mon, ..., 6=Sat.
 fn zellers_weekday(year: i32, month: u32, day: u32) -> u32 {
-    let (y, m) = if month <= 2 { (year - 1, month + 12) } else { (year, month) };
+    let (y, m) = if month <= 2 {
+        (year - 1, month + 12)
+    } else {
+        (year, month)
+    };
     let q = day as i32;
     let k = y % 100;
     let j = y / 100;
@@ -212,7 +345,11 @@ fn zellers_weekday(year: i32, month: u32, day: u32) -> u32 {
 
 /// Date formatting style.
 #[derive(Debug, Clone, PartialEq)]
-pub enum DateStyle { Short, Medium, Long }
+pub enum DateStyle {
+    Short,
+    Medium,
+    Long,
+}
 
 /// Format a date with locale data.
 pub fn format_date(date: &SimpleDate, style: &DateStyle, data: &LocaleData) -> String {
@@ -245,8 +382,14 @@ fn apply_date_pattern(date: &SimpleDate, pattern: &str, data: &LocaleData) -> St
     result = result.replace('d', &format!("{}", date.day));
     // Resolve placeholders last.
     result = result.replace("\x01\x02\x03\x04", &format!("{}", date.year));
-    result = result.replace("\x01\x02\x03\x05", data.months_long[date.month as usize - 1]);
-    result = result.replace("\x01\x02\x03\x06", data.months_short[date.month as usize - 1]);
+    result = result.replace(
+        "\x01\x02\x03\x05",
+        data.months_long[date.month as usize - 1],
+    );
+    result = result.replace(
+        "\x01\x02\x03\x06",
+        data.months_short[date.month as usize - 1],
+    );
     result
 }
 
@@ -254,7 +397,15 @@ fn apply_date_pattern(date: &SimpleDate, pattern: &str, data: &LocaleData) -> St
 
 /// Relative time unit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RelativeTimeUnit { Second, Minute, Hour, Day, Week, Month, Year }
+pub enum RelativeTimeUnit {
+    Second,
+    Minute,
+    Hour,
+    Day,
+    Week,
+    Month,
+    Year,
+}
 
 /// Format a relative time value (e.g., "3 days ago", "in 2 hours").
 pub fn format_relative_time(value: i64, unit: RelativeTimeUnit, lang: &str) -> String {
@@ -267,56 +418,89 @@ pub fn format_relative_time(value: i64, unit: RelativeTimeUnit, lang: &str) -> S
     let abs_val = value.unsigned_abs();
     match primary {
         "de" => {
-            if value > 0 { format!("in {abs_val} {unit_str}") }
-            else if value < 0 { format!("vor {abs_val} {unit_str}") }
-            else { format!("jetzt") }
+            if value > 0 {
+                format!("in {abs_val} {unit_str}")
+            } else if value < 0 {
+                format!("vor {abs_val} {unit_str}")
+            } else {
+                format!("jetzt")
+            }
         }
         "fr" => {
-            if value > 0 { format!("dans {abs_val} {unit_str}") }
-            else if value < 0 { format!("il y a {abs_val} {unit_str}") }
-            else { format!("maintenant") }
+            if value > 0 {
+                format!("dans {abs_val} {unit_str}")
+            } else if value < 0 {
+                format!("il y a {abs_val} {unit_str}")
+            } else {
+                format!("maintenant")
+            }
         }
         _ => {
-            if value > 0 { format!("in {abs_val} {unit_str}") }
-            else if value < 0 { format!("{abs_val} {unit_str} ago") }
-            else { format!("now") }
+            if value > 0 {
+                format!("in {abs_val} {unit_str}")
+            } else if value < 0 {
+                format!("{abs_val} {unit_str} ago")
+            } else {
+                format!("now")
+            }
         }
     }
 }
 
 fn relative_time_unit_en(unit: RelativeTimeUnit, n: u64) -> &'static str {
     match (unit, n == 1) {
-        (RelativeTimeUnit::Second, true) => "second", (RelativeTimeUnit::Second, false) => "seconds",
-        (RelativeTimeUnit::Minute, true) => "minute", (RelativeTimeUnit::Minute, false) => "minutes",
-        (RelativeTimeUnit::Hour, true) => "hour", (RelativeTimeUnit::Hour, false) => "hours",
-        (RelativeTimeUnit::Day, true) => "day", (RelativeTimeUnit::Day, false) => "days",
-        (RelativeTimeUnit::Week, true) => "week", (RelativeTimeUnit::Week, false) => "weeks",
-        (RelativeTimeUnit::Month, true) => "month", (RelativeTimeUnit::Month, false) => "months",
-        (RelativeTimeUnit::Year, true) => "year", (RelativeTimeUnit::Year, false) => "years",
+        (RelativeTimeUnit::Second, true) => "second",
+        (RelativeTimeUnit::Second, false) => "seconds",
+        (RelativeTimeUnit::Minute, true) => "minute",
+        (RelativeTimeUnit::Minute, false) => "minutes",
+        (RelativeTimeUnit::Hour, true) => "hour",
+        (RelativeTimeUnit::Hour, false) => "hours",
+        (RelativeTimeUnit::Day, true) => "day",
+        (RelativeTimeUnit::Day, false) => "days",
+        (RelativeTimeUnit::Week, true) => "week",
+        (RelativeTimeUnit::Week, false) => "weeks",
+        (RelativeTimeUnit::Month, true) => "month",
+        (RelativeTimeUnit::Month, false) => "months",
+        (RelativeTimeUnit::Year, true) => "year",
+        (RelativeTimeUnit::Year, false) => "years",
     }
 }
 
 fn relative_time_unit_de(unit: RelativeTimeUnit, n: u64) -> &'static str {
     match (unit, n == 1) {
-        (RelativeTimeUnit::Second, true) => "Sekunde", (RelativeTimeUnit::Second, false) => "Sekunden",
-        (RelativeTimeUnit::Minute, true) => "Minute", (RelativeTimeUnit::Minute, false) => "Minuten",
-        (RelativeTimeUnit::Hour, true) => "Stunde", (RelativeTimeUnit::Hour, false) => "Stunden",
-        (RelativeTimeUnit::Day, true) => "Tag", (RelativeTimeUnit::Day, false) => "Tagen",
-        (RelativeTimeUnit::Week, true) => "Woche", (RelativeTimeUnit::Week, false) => "Wochen",
-        (RelativeTimeUnit::Month, true) => "Monat", (RelativeTimeUnit::Month, false) => "Monaten",
-        (RelativeTimeUnit::Year, true) => "Jahr", (RelativeTimeUnit::Year, false) => "Jahren",
+        (RelativeTimeUnit::Second, true) => "Sekunde",
+        (RelativeTimeUnit::Second, false) => "Sekunden",
+        (RelativeTimeUnit::Minute, true) => "Minute",
+        (RelativeTimeUnit::Minute, false) => "Minuten",
+        (RelativeTimeUnit::Hour, true) => "Stunde",
+        (RelativeTimeUnit::Hour, false) => "Stunden",
+        (RelativeTimeUnit::Day, true) => "Tag",
+        (RelativeTimeUnit::Day, false) => "Tagen",
+        (RelativeTimeUnit::Week, true) => "Woche",
+        (RelativeTimeUnit::Week, false) => "Wochen",
+        (RelativeTimeUnit::Month, true) => "Monat",
+        (RelativeTimeUnit::Month, false) => "Monaten",
+        (RelativeTimeUnit::Year, true) => "Jahr",
+        (RelativeTimeUnit::Year, false) => "Jahren",
     }
 }
 
 fn relative_time_unit_fr(unit: RelativeTimeUnit, n: u64) -> &'static str {
     match (unit, n <= 1) {
-        (RelativeTimeUnit::Second, true) => "seconde", (RelativeTimeUnit::Second, false) => "secondes",
-        (RelativeTimeUnit::Minute, true) => "minute", (RelativeTimeUnit::Minute, false) => "minutes",
-        (RelativeTimeUnit::Hour, true) => "heure", (RelativeTimeUnit::Hour, false) => "heures",
-        (RelativeTimeUnit::Day, true) => "jour", (RelativeTimeUnit::Day, false) => "jours",
-        (RelativeTimeUnit::Week, true) => "semaine", (RelativeTimeUnit::Week, false) => "semaines",
-        (RelativeTimeUnit::Month, true) => "mois", (RelativeTimeUnit::Month, false) => "mois",
-        (RelativeTimeUnit::Year, true) => "an", (RelativeTimeUnit::Year, false) => "ans",
+        (RelativeTimeUnit::Second, true) => "seconde",
+        (RelativeTimeUnit::Second, false) => "secondes",
+        (RelativeTimeUnit::Minute, true) => "minute",
+        (RelativeTimeUnit::Minute, false) => "minutes",
+        (RelativeTimeUnit::Hour, true) => "heure",
+        (RelativeTimeUnit::Hour, false) => "heures",
+        (RelativeTimeUnit::Day, true) => "jour",
+        (RelativeTimeUnit::Day, false) => "jours",
+        (RelativeTimeUnit::Week, true) => "semaine",
+        (RelativeTimeUnit::Week, false) => "semaines",
+        (RelativeTimeUnit::Month, true) => "mois",
+        (RelativeTimeUnit::Month, false) => "mois",
+        (RelativeTimeUnit::Year, true) => "an",
+        (RelativeTimeUnit::Year, false) => "ans",
     }
 }
 
@@ -324,7 +508,10 @@ fn relative_time_unit_fr(unit: RelativeTimeUnit, n: u64) -> &'static str {
 
 /// List format type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ListType { Conjunction, Disjunction }
+pub enum ListType {
+    Conjunction,
+    Disjunction,
+}
 
 /// Format a list of items with locale-appropriate conjunctions.
 pub fn format_list(items: &[&str], list_type: ListType, data: &LocaleData) -> String {
@@ -357,7 +544,9 @@ pub fn collation_sort(items: &mut [String], _lang: &str) {
 
 /// Generate a collation key for a string (lowercase + basic accent folding).
 pub fn collation_key(s: &str) -> String {
-    s.chars().map(|c| fold_accent(c).to_ascii_lowercase()).collect()
+    s.chars()
+        .map(|c| fold_accent(c).to_ascii_lowercase())
+        .collect()
 }
 
 fn fold_accent(c: char) -> char {
@@ -408,14 +597,26 @@ fn compact_suffix(lang: &str, magnitude: &str) -> &'static str {
 }
 
 fn format_number_simple(n: f64) -> String {
-    if n == n.trunc() { format!("{}", n as i64) } else { format!("{:.1}", n) }
+    if n == n.trunc() {
+        format!("{}", n as i64)
+    } else {
+        format!("{:.1}", n)
+    }
 }
 
 // ── Unit Formatting ─────────────────────────────────────────────
 
 /// Common measurement units.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MeasureUnit { Meter, Kilometer, Kilogram, Gram, Liter, Celsius, Fahrenheit }
+pub enum MeasureUnit {
+    Meter,
+    Kilometer,
+    Kilogram,
+    Gram,
+    Liter,
+    Celsius,
+    Fahrenheit,
+}
 
 /// Format a value with a unit.
 pub fn format_unit(value: f64, unit: MeasureUnit, lang: &str) -> String {
@@ -505,7 +706,10 @@ mod tests {
     #[test]
     fn currency_custom_symbol() {
         let data = get_locale_data("en");
-        assert_eq!(format_currency_with_symbol(50.0, "£", true, &data), "£50.00");
+        assert_eq!(
+            format_currency_with_symbol(50.0, "£", true, &data),
+            "£50.00"
+        );
     }
 
     #[test]
@@ -545,45 +749,72 @@ mod tests {
 
     #[test]
     fn relative_time_en_past() {
-        assert_eq!(format_relative_time(-3, RelativeTimeUnit::Day, "en"), "3 days ago");
+        assert_eq!(
+            format_relative_time(-3, RelativeTimeUnit::Day, "en"),
+            "3 days ago"
+        );
     }
 
     #[test]
     fn relative_time_en_future() {
-        assert_eq!(format_relative_time(2, RelativeTimeUnit::Hour, "en"), "in 2 hours");
+        assert_eq!(
+            format_relative_time(2, RelativeTimeUnit::Hour, "en"),
+            "in 2 hours"
+        );
     }
 
     #[test]
     fn relative_time_en_now() {
-        assert_eq!(format_relative_time(0, RelativeTimeUnit::Second, "en"), "now");
+        assert_eq!(
+            format_relative_time(0, RelativeTimeUnit::Second, "en"),
+            "now"
+        );
     }
 
     #[test]
     fn relative_time_en_singular() {
-        assert_eq!(format_relative_time(-1, RelativeTimeUnit::Day, "en"), "1 day ago");
+        assert_eq!(
+            format_relative_time(-1, RelativeTimeUnit::Day, "en"),
+            "1 day ago"
+        );
     }
 
     #[test]
     fn relative_time_de() {
-        assert_eq!(format_relative_time(-5, RelativeTimeUnit::Minute, "de"), "vor 5 Minuten");
-        assert_eq!(format_relative_time(1, RelativeTimeUnit::Hour, "de"), "in 1 Stunde");
+        assert_eq!(
+            format_relative_time(-5, RelativeTimeUnit::Minute, "de"),
+            "vor 5 Minuten"
+        );
+        assert_eq!(
+            format_relative_time(1, RelativeTimeUnit::Hour, "de"),
+            "in 1 Stunde"
+        );
     }
 
     #[test]
     fn relative_time_fr() {
-        assert_eq!(format_relative_time(-2, RelativeTimeUnit::Year, "fr"), "il y a 2 ans");
+        assert_eq!(
+            format_relative_time(-2, RelativeTimeUnit::Year, "fr"),
+            "il y a 2 ans"
+        );
     }
 
     #[test]
     fn list_conjunction_en() {
         let data = get_locale_data("en");
-        assert_eq!(format_list(&["a", "b", "c"], ListType::Conjunction, &data), "a, b, and c");
+        assert_eq!(
+            format_list(&["a", "b", "c"], ListType::Conjunction, &data),
+            "a, b, and c"
+        );
     }
 
     #[test]
     fn list_disjunction_en() {
         let data = get_locale_data("en");
-        assert_eq!(format_list(&["a", "b"], ListType::Disjunction, &data), "a or b");
+        assert_eq!(
+            format_list(&["a", "b"], ListType::Disjunction, &data),
+            "a or b"
+        );
     }
 
     #[test]
@@ -601,7 +832,10 @@ mod tests {
     #[test]
     fn list_de() {
         let data = get_locale_data("de");
-        assert_eq!(format_list(&["Apfel", "Birne", "Kirsche"], ListType::Conjunction, &data), "Apfel, Birne, und Kirsche");
+        assert_eq!(
+            format_list(&["Apfel", "Birne", "Kirsche"], ListType::Conjunction, &data),
+            "Apfel, Birne, und Kirsche"
+        );
     }
 
     #[test]

@@ -34,7 +34,9 @@ impl Rng {
     }
 
     fn next_u64(&mut self) -> u64 {
-        let result = (self.state[1].wrapping_mul(5)).rotate_left(7).wrapping_mul(9);
+        let result = (self.state[1].wrapping_mul(5))
+            .rotate_left(7)
+            .wrapping_mul(9);
         let t = self.state[1] << 17;
         self.state[2] ^= self.state[0];
         self.state[3] ^= self.state[1];
@@ -325,12 +327,7 @@ impl AntitheticVariates {
     }
 
     /// Estimate E[f(S_T)] using antithetic variates.
-    pub fn estimate(
-        &mut self,
-        s0: f64,
-        n_pairs: usize,
-        payoff: &dyn Fn(f64) -> f64,
-    ) -> McEstimate {
+    pub fn estimate(&mut self, s0: f64, n_pairs: usize, payoff: &dyn Fn(f64) -> f64) -> McEstimate {
         let pairs = self.generate_pairs(s0, n_pairs);
         let estimates: Vec<f64> = pairs
             .iter()
@@ -373,12 +370,7 @@ impl ControlVariates {
 
     /// Estimate using geometric average as control variate.
     /// `payoff` maps terminal price to payoff.
-    pub fn estimate(
-        &mut self,
-        s0: f64,
-        n_paths: usize,
-        payoff: &dyn Fn(f64) -> f64,
-    ) -> McEstimate {
+    pub fn estimate(&mut self, s0: f64, n_paths: usize, payoff: &dyn Fn(f64) -> f64) -> McEstimate {
         let dt = self.config.dt;
         let mu = self.config.drift;
         let sigma = self.config.volatility;
@@ -425,7 +417,10 @@ impl ControlVariates {
 
         let adj_mean = adjusted.iter().sum::<f64>() / n;
         let adj_var = if adjusted.len() > 1 {
-            let ss: f64 = adjusted.iter().map(|x| (x - adj_mean) * (x - adj_mean)).sum();
+            let ss: f64 = adjusted
+                .iter()
+                .map(|x| (x - adj_mean) * (x - adj_mean))
+                .sum();
             ss / (adjusted.len() - 1) as f64
         } else {
             0.0
@@ -458,7 +453,10 @@ pub struct McEstimate {
 impl McEstimate {
     /// 95% confidence interval.
     pub fn confidence_interval_95(&self) -> (f64, f64) {
-        (self.mean - 1.96 * self.std_error, self.mean + 1.96 * self.std_error)
+        (
+            self.mean - 1.96 * self.std_error,
+            self.mean + 1.96 * self.std_error,
+        )
     }
 
     /// Relative error (coefficient of variation of the mean).
@@ -527,8 +525,7 @@ impl ConvergenceDiag {
         if first.std_error < 1e-15 || n_first < 1.0 || n_last <= n_first {
             return 0.0;
         }
-        (first.std_error / last.std_error.max(1e-15)).ln()
-            / (n_last / n_first).ln()
+        (first.std_error / last.std_error.max(1e-15)).ln() / (n_last / n_first).ln()
     }
 
     /// Number of recorded checkpoints.
@@ -720,8 +717,22 @@ mod tests {
     #[test]
     fn test_convergence_recording() {
         let mut diag = ConvergenceDiag::new();
-        diag.record(100, McEstimate { mean: 10.5, std_error: 0.5, n_samples: 100 });
-        diag.record(1000, McEstimate { mean: 10.1, std_error: 0.05, n_samples: 1000 });
+        diag.record(
+            100,
+            McEstimate {
+                mean: 10.5,
+                std_error: 0.5,
+                n_samples: 100,
+            },
+        );
+        diag.record(
+            1000,
+            McEstimate {
+                mean: 10.1,
+                std_error: 0.05,
+                n_samples: 1000,
+            },
+        );
         assert_eq!(diag.checkpoint_count(), 2);
         assert!(diag.convergence_rate() > 0.0);
     }
@@ -729,8 +740,22 @@ mod tests {
     #[test]
     fn test_convergence_converged() {
         let mut diag = ConvergenceDiag::new();
-        diag.record(100, McEstimate { mean: 10.001, std_error: 0.001, n_samples: 100 });
-        diag.record(1000, McEstimate { mean: 10.0005, std_error: 0.0005, n_samples: 1000 });
+        diag.record(
+            100,
+            McEstimate {
+                mean: 10.001,
+                std_error: 0.001,
+                n_samples: 100,
+            },
+        );
+        diag.record(
+            1000,
+            McEstimate {
+                mean: 10.0005,
+                std_error: 0.0005,
+                n_samples: 1000,
+            },
+        );
         assert!(diag.has_converged(0.01));
     }
 
@@ -740,7 +765,11 @@ mod tests {
         let gbm = GbmPath::new(cfg);
         assert!(format!("{gbm}").contains("GBM"));
 
-        let est = McEstimate { mean: 1.0, std_error: 0.1, n_samples: 100 };
+        let est = McEstimate {
+            mean: 1.0,
+            std_error: 0.1,
+            n_samples: 100,
+        };
         assert!(format!("{est}").contains("MC"));
 
         let diag = ConvergenceDiag::new();

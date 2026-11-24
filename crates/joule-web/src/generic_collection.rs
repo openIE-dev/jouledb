@@ -308,7 +308,10 @@ impl<T: Ord> SortedCollection for SortedVec<T> {
     }
 
     fn range(&self, low: &T, high: &T) -> Vec<&T> {
-        self.items.iter().filter(|x| *x >= low && *x <= high).collect()
+        self.items
+            .iter()
+            .filter(|x| *x >= low && *x <= high)
+            .collect()
     }
 }
 
@@ -323,12 +326,16 @@ pub struct UniqueSet<T: Ord> {
 impl<T: Ord> UniqueSet<T> {
     /// Create an empty unique set.
     pub fn new() -> Self {
-        Self { items: BTreeSet::new() }
+        Self {
+            items: BTreeSet::new(),
+        }
     }
 
     /// Create from an iterator, deduplicating.
     pub fn from_iter(iter: impl IntoIterator<Item = T>) -> Self {
-        Self { items: iter.into_iter().collect() }
+        Self {
+            items: iter.into_iter().collect(),
+        }
     }
 }
 
@@ -406,18 +413,12 @@ impl<'a, C: Collection> FilteredCollection<'a, C> {
 }
 
 /// Map items from a collection, producing a new Vec.
-pub fn map_collection<C: Collection, U>(
-    source: &C,
-    f: impl Fn(&C::Item) -> U,
-) -> Vec<U> {
+pub fn map_collection<C: Collection, U>(source: &C, f: impl Fn(&C::Item) -> U) -> Vec<U> {
     source.iter().map(|x| f(x)).collect()
 }
 
 /// Chain two collections into a Vec of references.
-pub fn chain_collections<'a, A, B>(
-    a: &'a A,
-    b: &'a B,
-) -> Vec<&'a A::Item>
+pub fn chain_collections<'a, A, B>(a: &'a A, b: &'a B) -> Vec<&'a A::Item>
 where
     A: Collection,
     B: Collection<Item = A::Item>,
@@ -469,7 +470,15 @@ pub fn compute_stats(values: &[f64]) -> Option<CollectionStats> {
     let variance = values.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / count as f64;
     let std_dev = variance.sqrt();
 
-    Some(CollectionStats { count, sum, min, max, mean, variance, std_dev })
+    Some(CollectionStats {
+        count,
+        sum,
+        min,
+        max,
+        mean,
+        variance,
+        std_dev,
+    })
 }
 
 /// Compute the median of a slice.
@@ -510,10 +519,7 @@ pub fn distinct<T: Eq + Hash + Clone>(items: &[T]) -> Vec<T> {
 }
 
 /// Group elements by a key function.
-pub fn group_by<T, K: Eq + Hash>(
-    items: &[T],
-    key_fn: impl Fn(&T) -> K,
-) -> Vec<(K, Vec<&T>)> {
+pub fn group_by<T, K: Eq + Hash>(items: &[T], key_fn: impl Fn(&T) -> K) -> Vec<(K, Vec<&T>)> {
     // Use a Vec of (K, Vec<&T>) to preserve insertion order.
     let mut groups: Vec<(K, Vec<&T>)> = Vec::new();
     for item in items {

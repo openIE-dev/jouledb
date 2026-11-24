@@ -53,7 +53,12 @@ impl Color {
         Self { r, g, b, a }
     }
     pub fn white() -> Self {
-        Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }
+        Self {
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+            a: 1.0,
+        }
     }
     pub fn lerp(&self, other: &Color, t: f32) -> Color {
         let t = t.clamp(0.0, 1.0);
@@ -209,7 +214,10 @@ impl WeatherParams {
         let lr = |a: f32, b: f32| a + (b - a) * t;
         WeatherParams {
             cloud_coverage: lr(self.cloud_coverage, other.cloud_coverage),
-            precipitation_intensity: lr(self.precipitation_intensity, other.precipitation_intensity),
+            precipitation_intensity: lr(
+                self.precipitation_intensity,
+                other.precipitation_intensity,
+            ),
             fog_density: lr(self.fog_density, other.fog_density),
             fog_height: lr(self.fog_height, other.fog_height),
             wind_strength: lr(self.wind_strength, other.wind_strength),
@@ -298,7 +306,15 @@ impl ParticleEmitter {
     }
 
     /// Emit new particles and update existing ones.
-    pub fn update(&mut self, dt: f32, wind: &Vec3, gravity: f32, velocity_base: Vec3, particle_size: f32, lifetime: f32) {
+    pub fn update(
+        &mut self,
+        dt: f32,
+        wind: &Vec3,
+        gravity: f32,
+        velocity_base: Vec3,
+        particle_size: f32,
+        lifetime: f32,
+    ) {
         // Update existing
         for p in &mut self.particles {
             if p.alive() {
@@ -324,17 +340,17 @@ impl ParticleEmitter {
             if self.particles.len() >= self.max_particles {
                 break;
             }
-            let frac = if to_emit > 1 { i as f32 / (to_emit - 1) as f32 } else { 0.5 };
+            let frac = if to_emit > 1 {
+                i as f32 / (to_emit - 1) as f32
+            } else {
+                0.5
+            };
             let hash_val = ((frac * 12345.6789).sin() * 43758.5453).fract();
             let hash_val2 = ((frac * 98765.4321 + 0.5).sin() * 23421.6312).fract();
             let px = self.bounds_min.x + hash_val.abs() * range_x;
             let pz = self.bounds_min.z + hash_val2.abs() * range_z;
             let py = self.bounds_max.y;
-            let vel_jitter = Vec3::new(
-                (hash_val - 0.5) * 0.5,
-                0.0,
-                (hash_val2 - 0.5) * 0.5,
-            );
+            let vel_jitter = Vec3::new((hash_val - 0.5) * 0.5, 0.0, (hash_val2 - 0.5) * 0.5);
             let vel = velocity_base.add(&vel_jitter);
             self.particles.push(Particle::new(
                 Vec3::new(px, py, pz),
@@ -359,7 +375,12 @@ pub struct Splash {
 
 impl Splash {
     pub fn new(position: Vec3, max_age: f32, radius: f32) -> Self {
-        Self { position, age: 0.0, max_age, radius }
+        Self {
+            position,
+            age: 0.0,
+            max_age,
+            radius,
+        }
     }
 
     pub fn alive(&self) -> bool {
@@ -767,7 +788,12 @@ mod tests {
 
     #[test]
     fn particle_creation_and_update() {
-        let mut p = Particle::new(Vec3::new(0.0, 100.0, 0.0), Vec3::new(0.0, -5.0, 0.0), 2.0, 0.01);
+        let mut p = Particle::new(
+            Vec3::new(0.0, 100.0, 0.0),
+            Vec3::new(0.0, -5.0, 0.0),
+            2.0,
+            0.01,
+        );
         assert!(p.alive());
         p.update(0.5, &Vec3::new(0.0, 0.0, 0.0), 9.8);
         assert!(p.position.y < 100.0);
@@ -776,14 +802,24 @@ mod tests {
 
     #[test]
     fn particle_lifetime_expires() {
-        let mut p = Particle::new(Vec3::new(0.0, 10.0, 0.0), Vec3::new(0.0, -1.0, 0.0), 1.0, 0.01);
+        let mut p = Particle::new(
+            Vec3::new(0.0, 10.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            1.0,
+            0.01,
+        );
         p.update(1.5, &Vec3::new(0.0, 0.0, 0.0), 0.0);
         assert!(!p.alive());
     }
 
     #[test]
     fn particle_alpha() {
-        let p = Particle::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), 2.0, 0.01);
+        let p = Particle::new(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 0.0),
+            2.0,
+            0.01,
+        );
         assert!(approx(p.alpha(), 1.0, 1e-6));
     }
 

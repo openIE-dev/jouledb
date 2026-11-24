@@ -29,15 +29,24 @@ pub enum ThrottleError {
 impl fmt::Display for ThrottleError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InsufficientTokens { requested, available } => {
-                write!(f, "insufficient tokens: requested={requested}, available={available}")
+            Self::InsufficientTokens {
+                requested,
+                available,
+            } => {
+                write!(
+                    f,
+                    "insufficient tokens: requested={requested}, available={available}"
+                )
             }
             Self::ChannelNotFound(ch) => write!(f, "channel not found: {ch}"),
             Self::DuplicateChannel(ch) => write!(f, "duplicate channel: {ch}"),
             Self::Dropped { bytes, reason } => {
                 write!(f, "dropped {bytes}B: {reason}")
             }
-            Self::Backpressure { channel, queue_size } => {
+            Self::Backpressure {
+                channel,
+                queue_size,
+            } => {
                 write!(f, "backpressure on '{channel}': queue={queue_size}")
             }
         }
@@ -264,21 +273,26 @@ impl BandwidthThrottle {
         if self.channels.contains_key(&n) {
             return Err(ThrottleError::DuplicateChannel(n));
         }
-        self.channels.insert(n.clone(), Channel {
-            name: n,
-            bucket: TokenBucket::new(bytes_per_sec, bytes_per_sec),
-            priority,
-            bytes_sent: 0,
-            bytes_dropped: 0,
-            queue_size: 0,
-            backpressure_threshold: bytes_per_sec * 2,
-        });
+        self.channels.insert(
+            n.clone(),
+            Channel {
+                name: n,
+                bucket: TokenBucket::new(bytes_per_sec, bytes_per_sec),
+                priority,
+                bytes_sent: 0,
+                bytes_dropped: 0,
+                queue_size: 0,
+                backpressure_threshold: bytes_per_sec * 2,
+            },
+        );
         Ok(())
     }
 
     /// Remove a channel.
     pub fn remove_channel(&mut self, name: &str) -> Result<(), ThrottleError> {
-        self.channels.remove(name).ok_or_else(|| ThrottleError::ChannelNotFound(name.to_string()))?;
+        self.channels
+            .remove(name)
+            .ok_or_else(|| ThrottleError::ChannelNotFound(name.to_string()))?;
         Ok(())
     }
 
@@ -300,7 +314,9 @@ impl BandwidthThrottle {
         }
 
         // Check channel budget.
-        let ch = self.channels.get_mut(channel)
+        let ch = self
+            .channels
+            .get_mut(channel)
             .ok_or_else(|| ThrottleError::ChannelNotFound(channel.to_string()))?;
 
         if let Err(_e) = ch.bucket.try_consume(bytes) {
@@ -379,7 +395,9 @@ impl BandwidthThrottle {
 
     /// Enqueue bytes on a channel (for backpressure tracking).
     pub fn enqueue(&mut self, channel: &str, bytes: usize) -> Result<(), ThrottleError> {
-        let ch = self.channels.get_mut(channel)
+        let ch = self
+            .channels
+            .get_mut(channel)
             .ok_or_else(|| ThrottleError::ChannelNotFound(channel.to_string()))?;
         ch.queue_size += bytes;
         if ch.queue_size > ch.backpressure_threshold {
@@ -394,7 +412,9 @@ impl BandwidthThrottle {
 
     /// Dequeue bytes from a channel.
     pub fn dequeue(&mut self, channel: &str, bytes: usize) -> Result<(), ThrottleError> {
-        let ch = self.channels.get_mut(channel)
+        let ch = self
+            .channels
+            .get_mut(channel)
             .ok_or_else(|| ThrottleError::ChannelNotFound(channel.to_string()))?;
         ch.queue_size = ch.queue_size.saturating_sub(bytes);
         Ok(())
@@ -412,7 +432,9 @@ impl BandwidthThrottle {
 
     /// Get channel stats: (bytes_sent, bytes_dropped).
     pub fn channel_stats(&self, name: &str) -> Option<(u64, u64)> {
-        self.channels.get(name).map(|ch| (ch.bytes_sent, ch.bytes_dropped))
+        self.channels
+            .get(name)
+            .map(|ch| (ch.bytes_sent, ch.bytes_dropped))
     }
 
     /// Global available tokens.
@@ -449,7 +471,10 @@ mod tests {
     #[test]
     fn token_bucket_overflow_rejected() {
         let mut tb = TokenBucket::new(100, 100);
-        assert!(matches!(tb.try_consume(200), Err(ThrottleError::InsufficientTokens { .. })));
+        assert!(matches!(
+            tb.try_consume(200),
+            Err(ThrottleError::InsufficientTokens { .. })
+        ));
     }
 
     #[test]
@@ -521,14 +546,20 @@ mod tests {
     #[test]
     fn throttle_send_unknown_channel() {
         let mut t = BandwidthThrottle::new(10000);
-        assert!(matches!(t.send("nope", 100), Err(ThrottleError::ChannelNotFound(_))));
+        assert!(matches!(
+            t.send("nope", 100),
+            Err(ThrottleError::ChannelNotFound(_))
+        ));
     }
 
     #[test]
     fn throttle_send_exceeds_budget() {
         let mut t = BandwidthThrottle::new(100);
         t.add_channel("data", 5000, Priority::Important).unwrap();
-        assert!(matches!(t.send("data", 200), Err(ThrottleError::InsufficientTokens { .. })));
+        assert!(matches!(
+            t.send("data", 200),
+            Err(ThrottleError::InsufficientTokens { .. })
+        ));
         assert_eq!(t.stats.total_throttled, 1);
     }
 
@@ -567,7 +598,10 @@ mod tests {
         t.add_channel("ch", 100, Priority::Important).unwrap();
         // Enqueue until backpressure (threshold = 200).
         assert!(t.enqueue("ch", 100).is_ok());
-        assert!(matches!(t.enqueue("ch", 200), Err(ThrottleError::Backpressure { .. })));
+        assert!(matches!(
+            t.enqueue("ch", 200),
+            Err(ThrottleError::Backpressure { .. })
+        ));
     }
 
     #[test]

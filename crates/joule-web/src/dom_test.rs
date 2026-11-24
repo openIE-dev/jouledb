@@ -133,9 +133,16 @@ impl Screen {
         }
     }
 
-    fn collect_by_attr<'a>(node: &'a VNode, attr_key: &str, attr_val: &str, out: &mut Vec<&'a VNode>) {
+    fn collect_by_attr<'a>(
+        node: &'a VNode,
+        attr_key: &str,
+        attr_val: &str,
+        out: &mut Vec<&'a VNode>,
+    ) {
         match node {
-            VNode::Element { attrs, children, .. } => {
+            VNode::Element {
+                attrs, children, ..
+            } => {
                 if attrs.get(attr_key).map(|v| v.as_str()) == Some(attr_val) {
                     out.push(node);
                 }
@@ -175,9 +182,11 @@ impl Screen {
     fn extract_text(node: &VNode) -> String {
         match node {
             VNode::Text(t) => t.clone(),
-            VNode::Element { children, .. } | VNode::Fragment(children) => {
-                children.iter().map(Self::extract_text).collect::<Vec<_>>().join("")
-            }
+            VNode::Element { children, .. } | VNode::Fragment(children) => children
+                .iter()
+                .map(Self::extract_text)
+                .collect::<Vec<_>>()
+                .join(""),
             VNode::Empty => String::new(),
         }
     }
@@ -191,7 +200,12 @@ impl Screen {
             VNode::Empty => {
                 let _ = fmt::write(buf, format_args!("{pad}<empty />\n"));
             }
-            VNode::Element { tag, attrs, children, .. } => {
+            VNode::Element {
+                tag,
+                attrs,
+                children,
+                ..
+            } => {
                 let _ = fmt::write(buf, format_args!("{pad}<{tag}"));
                 let mut sorted_attrs: Vec<_> = attrs.iter().collect();
                 sorted_attrs.sort_by_key(|(k, _)| k.as_str());
@@ -287,7 +301,9 @@ pub struct EventLog {
 
 impl EventLog {
     pub fn new() -> Self {
-        Self { entries: Vec::new() }
+        Self {
+            entries: Vec::new(),
+        }
     }
 
     /// Record an event against a target identifier.
@@ -471,8 +487,7 @@ mod tests {
     fn test_renderer_state_updates_tree() {
         let mut renderer = TestRenderer::new(|state| {
             let text = state.get("name").map(|s| s.as_str()).unwrap_or("Anonymous");
-            VNode::element("div")
-                .child(VNode::element("span").child(VNode::text(text)))
+            VNode::element("div").child(VNode::element("span").child(VNode::text(text)))
         });
 
         let screen = renderer.render();
@@ -488,8 +503,7 @@ mod tests {
     fn fire_click_updates_state_and_logs() {
         let mut renderer = TestRenderer::new(|state| {
             let count = state.get("count").map(|s| s.as_str()).unwrap_or("0");
-            VNode::element("div")
-                .child(VNode::element("span").child(VNode::text(count)))
+            VNode::element("div").child(VNode::element("span").child(VNode::text(count)))
         });
 
         let mut log = EventLog::new();
@@ -510,7 +524,13 @@ mod tests {
         });
 
         let mut log = EventLog::new();
-        fire_input(&mut renderer, &mut log, "email-field", "test@example.com", "email");
+        fire_input(
+            &mut renderer,
+            &mut log,
+            "email-field",
+            "test@example.com",
+            "email",
+        );
 
         assert_eq!(renderer.get_state("email"), Some("test@example.com"));
         assert_eq!(log.entries().len(), 1);
@@ -519,9 +539,11 @@ mod tests {
     #[test]
     fn fire_submit_logs_and_updates() {
         let mut renderer = TestRenderer::new(|state| {
-            let submitted = state.get("submitted").map(|s| s.as_str()).unwrap_or("false");
-            VNode::element("div")
-                .child(VNode::text(submitted))
+            let submitted = state
+                .get("submitted")
+                .map(|s| s.as_str())
+                .unwrap_or("false");
+            VNode::element("div").child(VNode::text(submitted))
         });
 
         let mut log = EventLog::new();
@@ -535,7 +557,13 @@ mod tests {
     #[test]
     fn wait_for_succeeds() {
         let mut counter = 0u32;
-        let result = wait_for(|| { counter += 1; counter >= 3 }, 10);
+        let result = wait_for(
+            || {
+                counter += 1;
+                counter >= 3
+            },
+            10,
+        );
         assert!(result);
         assert_eq!(counter, 3);
     }

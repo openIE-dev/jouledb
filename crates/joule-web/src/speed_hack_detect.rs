@@ -45,7 +45,11 @@ impl Vec3 {
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn distance_to(&self, other: &Vec3) -> f64 {
@@ -80,7 +84,12 @@ pub struct PlayerMovement {
 
 impl PlayerMovement {
     pub fn new(player_id: u64, position: Vec3, velocity: Vec3, timestamp: u64) -> Self {
-        Self { player_id, position, velocity, timestamp }
+        Self {
+            player_id,
+            position,
+            velocity,
+            timestamp,
+        }
     }
 
     pub fn speed(&self) -> f64 {
@@ -159,8 +168,12 @@ impl fmt::Display for Violation {
         write!(
             f,
             "[t={}] player={} {} measured={:.2} threshold={:.2} conf={:.2}",
-            self.timestamp, self.player_id, self.violation_type,
-            self.measured_value, self.threshold, self.confidence
+            self.timestamp,
+            self.player_id,
+            self.violation_type,
+            self.measured_value,
+            self.threshold,
+            self.confidence
         )
     }
 }
@@ -471,7 +484,11 @@ mod tests {
         let mut det = SpeedDetector::new(cfg);
         det.submit_movement(mov(1, 0.0, 0.0, 0.0, 0));
         let violations = det.submit_movement(mov(1, 50.0, 0.0, 0.0, 1));
-        assert!(violations.iter().any(|v| v.violation_type == ViolationType::ExcessiveSpeed));
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.violation_type == ViolationType::ExcessiveSpeed)
+        );
     }
 
     #[test]
@@ -480,7 +497,11 @@ mod tests {
         let mut det = SpeedDetector::new(cfg);
         det.submit_movement(mov(1, 0.0, 0.0, 0.0, 0));
         let violations = det.submit_movement(mov(1, 200.0, 200.0, 0.0, 1));
-        assert!(violations.iter().any(|v| v.violation_type == ViolationType::Teleportation));
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.violation_type == ViolationType::Teleportation)
+        );
     }
 
     #[test]
@@ -493,7 +514,11 @@ mod tests {
         det.submit_movement(mov(1, 1.0, 0.0, 0.0, 1));
         det.submit_movement(mov(1, 2.0, 0.0, 0.0, 2));
         let violations = det.submit_movement(mov(1, 100.0, 0.0, 0.0, 3));
-        assert!(violations.iter().any(|v| v.violation_type == ViolationType::ExcessiveAcceleration));
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.violation_type == ViolationType::ExcessiveAcceleration)
+        );
     }
 
     #[test]
@@ -612,6 +637,10 @@ mod tests {
         }
         // Straight-line movement should have high smoothness, no violations
         let violations = det.player_violations(1).unwrap();
-        assert!(violations.iter().all(|v| v.violation_type != ViolationType::LowSmoothness));
+        assert!(
+            violations
+                .iter()
+                .all(|v| v.violation_type != ViolationType::LowSmoothness)
+        );
     }
 }

@@ -66,25 +66,92 @@ impl Rng {
 // ── Word Lists ───────────────────────────────────────────────────
 
 const FIRST_NAMES: &[&str] = &[
-    "James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael",
-    "Linda", "David", "Elizabeth", "William", "Barbara", "Richard", "Susan",
-    "Joseph", "Jessica", "Thomas", "Sarah", "Charles", "Karen", "Alice",
-    "Bob", "Carol", "Daniel", "Emma", "Frank", "Grace", "Henry", "Iris",
+    "James",
+    "Mary",
+    "Robert",
+    "Patricia",
+    "John",
+    "Jennifer",
+    "Michael",
+    "Linda",
+    "David",
+    "Elizabeth",
+    "William",
+    "Barbara",
+    "Richard",
+    "Susan",
+    "Joseph",
+    "Jessica",
+    "Thomas",
+    "Sarah",
+    "Charles",
+    "Karen",
+    "Alice",
+    "Bob",
+    "Carol",
+    "Daniel",
+    "Emma",
+    "Frank",
+    "Grace",
+    "Henry",
+    "Iris",
     "Julia",
 ];
 
 const LAST_NAMES: &[&str] = &[
-    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller",
-    "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez",
-    "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin",
-    "Lee", "Perez", "Thompson", "White", "Harris", "Sanchez", "Clark",
-    "Ramirez", "Lewis", "Robinson",
+    "Smith",
+    "Johnson",
+    "Williams",
+    "Brown",
+    "Jones",
+    "Garcia",
+    "Miller",
+    "Davis",
+    "Rodriguez",
+    "Martinez",
+    "Hernandez",
+    "Lopez",
+    "Gonzalez",
+    "Wilson",
+    "Anderson",
+    "Thomas",
+    "Taylor",
+    "Moore",
+    "Jackson",
+    "Martin",
+    "Lee",
+    "Perez",
+    "Thompson",
+    "White",
+    "Harris",
+    "Sanchez",
+    "Clark",
+    "Ramirez",
+    "Lewis",
+    "Robinson",
 ];
 
 const STREET_NAMES: &[&str] = &[
-    "Main", "Oak", "Elm", "Maple", "Cedar", "Pine", "Walnut", "Park",
-    "Lake", "Hill", "Washington", "Lincoln", "Forest", "Spring", "River",
-    "Valley", "Bridge", "Harbor", "Sunset", "Highland",
+    "Main",
+    "Oak",
+    "Elm",
+    "Maple",
+    "Cedar",
+    "Pine",
+    "Walnut",
+    "Park",
+    "Lake",
+    "Hill",
+    "Washington",
+    "Lincoln",
+    "Forest",
+    "Spring",
+    "River",
+    "Valley",
+    "Bridge",
+    "Harbor",
+    "Sunset",
+    "Highland",
 ];
 
 const STREET_SUFFIXES: &[&str] = &[
@@ -92,42 +159,112 @@ const STREET_SUFFIXES: &[&str] = &[
 ];
 
 const CITIES: &[&str] = &[
-    "New York", "Los Angeles", "Chicago", "Houston", "Phoenix", "Philadelphia",
-    "San Antonio", "San Diego", "Dallas", "San Jose", "Austin", "Jacksonville",
-    "Fort Worth", "Columbus", "Charlotte", "Indianapolis", "Denver",
-    "Seattle", "Nashville", "Portland",
+    "New York",
+    "Los Angeles",
+    "Chicago",
+    "Houston",
+    "Phoenix",
+    "Philadelphia",
+    "San Antonio",
+    "San Diego",
+    "Dallas",
+    "San Jose",
+    "Austin",
+    "Jacksonville",
+    "Fort Worth",
+    "Columbus",
+    "Charlotte",
+    "Indianapolis",
+    "Denver",
+    "Seattle",
+    "Nashville",
+    "Portland",
 ];
 
 const STATES: &[&str] = &[
-    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
-    "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
-    "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
-    "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
-    "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS",
+    "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY",
+    "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV",
+    "WI", "WY",
 ];
 
 const DOMAINS: &[&str] = &[
-    "example.com", "test.org", "demo.net", "sample.io", "mock.dev",
-    "fake.co", "testmail.com", "mailtest.org",
+    "example.com",
+    "test.org",
+    "demo.net",
+    "sample.io",
+    "mock.dev",
+    "fake.co",
+    "testmail.com",
+    "mailtest.org",
 ];
 
-const TLDS: &[&str] = &[
-    "com", "org", "net", "io", "dev", "co", "app", "tech",
-];
+const TLDS: &[&str] = &["com", "org", "net", "io", "dev", "co", "app", "tech"];
 
 const LOREM_WORDS: &[&str] = &[
-    "lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing",
-    "elit", "sed", "do", "eiusmod", "tempor", "incididunt", "ut", "labore",
-    "et", "dolore", "magna", "aliqua", "enim", "ad", "minim", "veniam",
-    "quis", "nostrud", "exercitation", "ullamco", "laboris", "nisi",
-    "aliquip", "ex", "ea", "commodo", "consequat", "duis", "aute", "irure",
-    "in", "reprehenderit", "voluptate", "velit", "esse", "cillum", "fugiat",
-    "nulla", "pariatur", "excepteur", "sint", "occaecat", "cupidatat",
+    "lorem",
+    "ipsum",
+    "dolor",
+    "sit",
+    "amet",
+    "consectetur",
+    "adipiscing",
+    "elit",
+    "sed",
+    "do",
+    "eiusmod",
+    "tempor",
+    "incididunt",
+    "ut",
+    "labore",
+    "et",
+    "dolore",
+    "magna",
+    "aliqua",
+    "enim",
+    "ad",
+    "minim",
+    "veniam",
+    "quis",
+    "nostrud",
+    "exercitation",
+    "ullamco",
+    "laboris",
+    "nisi",
+    "aliquip",
+    "ex",
+    "ea",
+    "commodo",
+    "consequat",
+    "duis",
+    "aute",
+    "irure",
+    "in",
+    "reprehenderit",
+    "voluptate",
+    "velit",
+    "esse",
+    "cillum",
+    "fugiat",
+    "nulla",
+    "pariatur",
+    "excepteur",
+    "sint",
+    "occaecat",
+    "cupidatat",
 ];
 
 const COMPANY_SUFFIXES: &[&str] = &[
-    "Inc", "LLC", "Corp", "Ltd", "Group", "Solutions", "Technologies",
-    "Systems", "Partners", "Associates",
+    "Inc",
+    "LLC",
+    "Corp",
+    "Ltd",
+    "Group",
+    "Solutions",
+    "Technologies",
+    "Systems",
+    "Partners",
+    "Associates",
 ];
 
 // ── DataGen ──────────────────────────────────────────────────────
@@ -189,7 +326,11 @@ impl DataGen {
     pub fn email_for(&mut self, first: &str, last: &str) -> String {
         let domain = self.rng.pick(DOMAINS);
         let num = self.rng.next_u32_range(1, 99);
-        format!("{}.{}{num}@{domain}", first.to_lowercase(), last.to_lowercase())
+        format!(
+            "{}.{}{num}@{domain}",
+            first.to_lowercase(),
+            last.to_lowercase()
+        )
     }
 
     // ── Address ──────────────────────────────────────────────────
@@ -528,9 +669,7 @@ impl PersonBuilder {
     pub fn build(self, dg: &mut DataGen) -> Person {
         let first = self.first_name.unwrap_or_else(|| dg.first_name());
         let last = self.last_name.unwrap_or_else(|| dg.last_name());
-        let email = self.email.unwrap_or_else(|| {
-            dg.email_for(&first, &last)
-        });
+        let email = self.email.unwrap_or_else(|| dg.email_for(&first, &last));
         let phone = self.phone.unwrap_or_else(|| dg.phone());
         let address = self.address.unwrap_or_else(|| dg.full_address());
 
@@ -766,9 +905,7 @@ mod tests {
     #[test]
     fn person_builder() {
         let mut dg = DataGen::new(42);
-        let person = PersonBuilder::new()
-            .with_first_name("Alice")
-            .build(&mut dg);
+        let person = PersonBuilder::new().with_first_name("Alice").build(&mut dg);
         assert_eq!(person.first_name, "Alice");
         assert!(!person.last_name.is_empty());
         assert!(person.email.contains("alice"));

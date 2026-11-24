@@ -74,12 +74,18 @@ impl SignalDetectConfig {
 }
 
 impl Default for SignalDetectConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for SignalDetectConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SignalDetectConfig(short_period={0}, long_period={1}, signal_period={2}, rsi_period={3})", self.short_period, self.long_period, self.signal_period, self.rsi_period)
+        write!(
+            f,
+            "SignalDetectConfig(short_period={0}, long_period={1}, signal_period={2}, rsi_period={3})",
+            self.short_period, self.long_period, self.signal_period, self.rsi_period
+        )
     }
 }
 
@@ -110,7 +116,10 @@ pub struct SignalDetect {
 impl SignalDetect {
     pub fn new(config: SignalDetectConfig) -> Result<Self, SignalDetectError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -122,19 +131,34 @@ impl SignalDetect {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &SignalDetectConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &SignalDetectConfig {
+        &self.config
+    }
 
     /// Moving average crossover signal.
     pub fn ma_crossover(&self) -> Signal {
-        let v = if self.data.is_empty() { 0.0 } else { self.data[0] };
-        Signal { value: v, label: stringify!(ma_crossover).into() }
+        let v = if self.data.is_empty() {
+            0.0
+        } else {
+            self.data[0]
+        };
+        Signal {
+            value: v,
+            label: stringify!(ma_crossover).into(),
+        }
     }
 
     /// Relative strength index.
     pub fn rsi(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -144,7 +168,9 @@ impl SignalDetect {
 
     /// MACD line and signal.
     pub fn macd(&self) -> (f64, f64) {
-        if self.data.len() < 2 { return (0.0, 0.0); }
+        if self.data.len() < 2 {
+            return (0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         (sum / n, sum)
@@ -152,7 +178,9 @@ impl SignalDetect {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -164,7 +192,9 @@ impl SignalDetect {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -176,7 +206,11 @@ impl SignalDetect {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -249,7 +283,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = SignalDetect::new(SignalDetectConfig::new()).unwrap()
+        let e = SignalDetect::new(SignalDetectConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -265,7 +300,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = SignalDetect::new(SignalDetectConfig::new()).unwrap()
+        let e = SignalDetect::new(SignalDetectConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("SignalDetect"));
@@ -273,7 +309,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = SignalDetect::new(SignalDetectConfig::new()).unwrap()
+        let e = SignalDetect::new(SignalDetectConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -284,7 +321,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = SignalDetect::new(SignalDetectConfig::new()).unwrap()
+        let e = SignalDetect::new(SignalDetectConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -292,7 +330,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = SignalDetect::new(SignalDetectConfig::new()).unwrap()
+        let e = SignalDetect::new(SignalDetectConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -309,7 +348,8 @@ mod tests {
 
     #[test]
     fn test_ma_crossover() {
-        let e = SignalDetect::new(SignalDetectConfig::new()).unwrap()
+        let e = SignalDetect::new(SignalDetectConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.ma_crossover();
         assert!(result.value.is_finite());
@@ -317,7 +357,8 @@ mod tests {
 
     #[test]
     fn test_rsi() {
-        let e = SignalDetect::new(SignalDetectConfig::new()).unwrap()
+        let e = SignalDetect::new(SignalDetectConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.rsi();
         assert!(result.is_finite());
@@ -325,7 +366,8 @@ mod tests {
 
     #[test]
     fn test_macd() {
-        let e = SignalDetect::new(SignalDetectConfig::new()).unwrap()
+        let e = SignalDetect::new(SignalDetectConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (a, b) = e.macd();
         assert!(a.is_finite());

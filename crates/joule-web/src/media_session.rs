@@ -24,7 +24,11 @@ pub struct MediaMetadata {
 }
 
 impl MediaMetadata {
-    pub fn new(title: impl Into<String>, artist: impl Into<String>, album: impl Into<String>) -> Self {
+    pub fn new(
+        title: impl Into<String>,
+        artist: impl Into<String>,
+        album: impl Into<String>,
+    ) -> Self {
         Self {
             title: title.into(),
             artist: artist.into(),
@@ -34,7 +38,12 @@ impl MediaMetadata {
     }
 
     /// Add an artwork image.
-    pub fn with_artwork(mut self, src: impl Into<String>, sizes: Option<&str>, image_type: Option<&str>) -> Self {
+    pub fn with_artwork(
+        mut self,
+        src: impl Into<String>,
+        sizes: Option<&str>,
+        image_type: Option<&str>,
+    ) -> Self {
         self.artwork.push(MediaImage {
             src: src.into(),
             sizes: sizes.map(|s| s.to_string()),
@@ -239,8 +248,11 @@ mod tests {
 
     #[test]
     fn create_metadata() {
-        let m = MediaMetadata::new("Song", "Artist", "Album")
-            .with_artwork("https://example.com/art.jpg", Some("512x512"), Some("image/jpeg"));
+        let m = MediaMetadata::new("Song", "Artist", "Album").with_artwork(
+            "https://example.com/art.jpg",
+            Some("512x512"),
+            Some("image/jpeg"),
+        );
         assert_eq!(m.title, "Song");
         assert_eq!(m.artwork.len(), 1);
         assert_eq!(m.artwork[0].sizes.as_deref(), Some("512x512"));

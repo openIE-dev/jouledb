@@ -186,7 +186,9 @@ impl Membership {
         let tick = self.current_tick;
 
         // Check pending pings for timeouts.
-        let timed_out: Vec<u64> = self.pending_pings.iter()
+        let timed_out: Vec<u64> = self
+            .pending_pings
+            .iter()
             .filter(|(_, (_, send_tick))| tick - send_tick >= self.ping_timeout)
             .map(|(seq, _)| *seq)
             .collect();
@@ -211,7 +213,9 @@ impl Membership {
 
         // Check suspicion timeouts.
         let suspect_timeout = self.suspicion_timeout;
-        let dead_nodes: Vec<String> = self.members.values()
+        let dead_nodes: Vec<String> = self
+            .members
+            .values()
             .filter(|m| m.state == MemberState::Suspect)
             .filter(|m| {
                 m.suspicion_start_tick
@@ -286,7 +290,8 @@ impl Membership {
     pub fn ping(&mut self, target: &str) -> MembershipMessage {
         self.ping_seq += 1;
         let seq = self.ping_seq;
-        self.pending_pings.insert(seq, (target.to_string(), self.current_tick));
+        self.pending_pings
+            .insert(seq, (target.to_string(), self.current_tick));
         MembershipMessage::Ping {
             from: self.node_id.clone(),
             to: target.to_string(),
@@ -320,11 +325,11 @@ impl Membership {
     /// Picks up to `indirect_probe_count` relay nodes.
     pub fn indirect_probe(&mut self, target: &str) -> Vec<MembershipMessage> {
         let self_id = self.node_id.clone();
-        let relays: Vec<String> = self.members.values()
+        let relays: Vec<String> = self
+            .members
+            .values()
             .filter(|m| {
-                m.state == MemberState::Alive
-                    && m.node_id != self_id
-                    && m.node_id != target
+                m.state == MemberState::Alive && m.node_id != self_id && m.node_id != target
             })
             .take(self.indirect_probe_count)
             .map(|m| m.node_id.clone())
@@ -354,7 +359,9 @@ impl Membership {
                     member.state = MemberState::Alive;
                     member.incarnation = incarnation;
                     member.suspicion_start_tick = None;
-                } else if incarnation > member.incarnation || state_priority(state) >= state_priority(member.state) {
+                } else if incarnation > member.incarnation
+                    || state_priority(state) >= state_priority(member.state)
+                {
                     member.state = state;
                     member.incarnation = incarnation;
                     if state != MemberState::Suspect {
@@ -394,7 +401,9 @@ impl Membership {
 
     /// Get all alive members (sorted by node_id for determinism).
     pub fn alive_members(&self) -> Vec<&Member> {
-        let mut members: Vec<&Member> = self.members.values()
+        let mut members: Vec<&Member> = self
+            .members
+            .values()
             .filter(|m| m.state == MemberState::Alive)
             .collect();
         members.sort_by(|a, b| a.node_id.cmp(&b.node_id));
@@ -403,9 +412,8 @@ impl Membership {
 
     /// Get all members in a specific state.
     pub fn members_in_state(&self, state: MemberState) -> Vec<&Member> {
-        let mut members: Vec<&Member> = self.members.values()
-            .filter(|m| m.state == state)
-            .collect();
+        let mut members: Vec<&Member> =
+            self.members.values().filter(|m| m.state == state).collect();
         members.sort_by(|a, b| a.node_id.cmp(&b.node_id));
         members
     }
@@ -418,7 +426,9 @@ impl Membership {
     /// Detect potential split-brain: if the number of alive members is less
     /// than half of total known members, we may have a split-brain.
     pub fn detect_split_brain(&self) -> bool {
-        let alive = self.members.values()
+        let alive = self
+            .members
+            .values()
             .filter(|m| m.state == MemberState::Alive)
             .count();
         let total = self.members.len();
@@ -563,10 +573,15 @@ mod tests {
         let msgs = m.tick(); // suspicion timeout -> dead.
         let member = m.get_member("n2").unwrap();
         assert_eq!(member.state, MemberState::Dead);
-        let has_dead_update = msgs.iter().any(|msg| matches!(
-            msg,
-            MembershipMessage::StateUpdate { state: MemberState::Dead, .. }
-        ));
+        let has_dead_update = msgs.iter().any(|msg| {
+            matches!(
+                msg,
+                MembershipMessage::StateUpdate {
+                    state: MemberState::Dead,
+                    ..
+                }
+            )
+        });
         assert!(has_dead_update);
     }
 
@@ -594,7 +609,9 @@ mod tests {
         let msg = m.refute_suspicion();
         assert_eq!(m.incarnation(), 1);
         match msg {
-            MembershipMessage::StateUpdate { incarnation, state, .. } => {
+            MembershipMessage::StateUpdate {
+                incarnation, state, ..
+            } => {
                 assert_eq!(incarnation, 1);
                 assert_eq!(state, MemberState::Alive);
             }

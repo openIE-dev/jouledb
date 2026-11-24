@@ -75,7 +75,11 @@ pub struct DhtEntry {
 
 impl DhtEntry {
     pub fn new(id: NodeId, address: impl Into<String>, last_seen: u64) -> Self {
-        Self { id, address: address.into(), last_seen }
+        Self {
+            id,
+            address: address.into(),
+            last_seen,
+        }
     }
 }
 
@@ -90,7 +94,10 @@ pub struct KBucket {
 
 impl KBucket {
     pub fn new(k: usize) -> Self {
-        Self { entries: Vec::new(), k }
+        Self {
+            entries: Vec::new(),
+            k,
+        }
     }
 
     /// Number of entries in this bucket.
@@ -158,7 +165,11 @@ pub struct DhtConfig {
 
 impl Default for DhtConfig {
     fn default() -> Self {
-        Self { k: 20, alpha: 3, value_ttl: 3600 }
+        Self {
+            k: 20,
+            alpha: 3,
+            value_ttl: 3600,
+        }
     }
 }
 
@@ -231,11 +242,7 @@ impl DhtNode {
 
     /// Find the `count` closest nodes to a target from the local routing table.
     pub fn find_closest(&self, target: &NodeId, count: usize) -> Vec<&DhtEntry> {
-        let mut all: Vec<&DhtEntry> = self
-            .buckets
-            .iter()
-            .flat_map(|b| b.entries())
-            .collect();
+        let mut all: Vec<&DhtEntry> = self.buckets.iter().flat_map(|b| b.entries()).collect();
         all.sort_by(|a, b| {
             let da = a.id.distance(target);
             let db = b.id.distance(target);
@@ -348,7 +355,7 @@ mod tests {
     fn test_is_closer() {
         let target = nid(10);
         let close = nid(11); // dist = 1
-        let far = nid(0);   // dist = 10
+        let far = nid(0); // dist = 10
         assert!(close.is_closer(&target, &far));
     }
 
@@ -440,7 +447,10 @@ mod tests {
 
     #[test]
     fn test_dht_retrieve_expired() {
-        let config = DhtConfig { value_ttl: 10, ..Default::default() };
+        let config = DhtConfig {
+            value_ttl: 10,
+            ..Default::default()
+        };
         let mut node = DhtNode::new(nid(0), "localhost").with_config(config);
         node.tick(0);
         node.store(nid(1), b"data".to_vec());
@@ -450,7 +460,10 @@ mod tests {
 
     #[test]
     fn test_dht_expire_values() {
-        let config = DhtConfig { value_ttl: 5, ..Default::default() };
+        let config = DhtConfig {
+            value_ttl: 5,
+            ..Default::default()
+        };
         let mut node = DhtNode::new(nid(0), "localhost").with_config(config);
         node.tick(0);
         node.store(nid(1), b"a".to_vec());
@@ -471,7 +484,11 @@ mod tests {
 
     #[test]
     fn test_dht_config() {
-        let config = DhtConfig { k: 10, alpha: 5, value_ttl: 100 };
+        let config = DhtConfig {
+            k: 10,
+            alpha: 5,
+            value_ttl: 100,
+        };
         let node = DhtNode::new(nid(0), "localhost").with_config(config);
         assert_eq!(node.config().k, 10);
         assert_eq!(node.config().alpha, 5);

@@ -57,7 +57,11 @@ impl BackboneDihedral {
 
 impl fmt::Display for BackboneDihedral {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Res {} φ={:.1}° ψ={:.1}°", self.residue, self.phi, self.psi)
+        write!(
+            f,
+            "Res {} φ={:.1}° ψ={:.1}°",
+            self.residue, self.phi, self.psi
+        )
     }
 }
 
@@ -81,13 +85,21 @@ impl Contact {
 
     /// True if this is a long-range contact (sequence separation >= 12).
     pub fn is_long_range(&self) -> bool {
-        let sep = if self.i > self.j { self.i - self.j } else { self.j - self.i };
+        let sep = if self.i > self.j {
+            self.i - self.j
+        } else {
+            self.j - self.i
+        };
         sep >= 12
     }
 
     /// Sequence separation between the two residues.
     pub fn sequence_separation(&self) -> usize {
-        if self.i > self.j { self.i - self.j } else { self.j - self.i }
+        if self.i > self.j {
+            self.i - self.j
+        } else {
+            self.j - self.i
+        }
     }
 }
 
@@ -134,7 +146,12 @@ impl ContactMap {
             }
         }
 
-        Self { size: n, threshold, contacts, matrix }
+        Self {
+            size: n,
+            threshold,
+            contacts,
+            matrix,
+        }
     }
 
     /// Number of residues.
@@ -231,12 +248,26 @@ pub struct ContactEnergy {
 impl ContactEnergy {
     /// Default Miyazawa-Jernigan-like contact energies.
     pub fn default_potential() -> Self {
-        Self { hh: -3.0, hp: -1.0, hc: -1.5, pp: -1.0, pc: -2.0, cc: -4.0 }
+        Self {
+            hh: -3.0,
+            hp: -1.0,
+            hc: -1.5,
+            pp: -1.0,
+            pc: -2.0,
+            cc: -4.0,
+        }
     }
 
     /// Custom contact energy potential.
     pub fn new(hh: f64, hp: f64, hc: f64, pp: f64, pc: f64, cc: f64) -> Self {
-        Self { hh, hp, hc, pp, pc, cc }
+        Self {
+            hh,
+            hp,
+            hc,
+            pp,
+            pc,
+            cc,
+        }
     }
 
     /// Get interaction energy between two residue types.
@@ -254,19 +285,26 @@ impl ContactEnergy {
 
     /// Total energy of a conformation given contacts and residue types.
     pub fn total_energy(&self, contacts: &[Contact], types: &[ResidueType]) -> f64 {
-        contacts.iter().map(|c| {
-            if c.i < types.len() && c.j < types.len() {
-                self.energy(types[c.i], types[c.j])
-            } else {
-                0.0
-            }
-        }).sum()
+        contacts
+            .iter()
+            .map(|c| {
+                if c.i < types.len() && c.j < types.len() {
+                    self.energy(types[c.i], types[c.j])
+                } else {
+                    0.0
+                }
+            })
+            .sum()
     }
 }
 
 impl fmt::Display for ContactEnergy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ContactEnergy(HH={:.1}, HP={:.1}, CC={:.1})", self.hh, self.hp, self.cc)
+        write!(
+            f,
+            "ContactEnergy(HH={:.1}, HP={:.1}, CC={:.1})",
+            self.hh, self.hp, self.cc
+        )
     }
 }
 
@@ -283,13 +321,20 @@ pub struct LandscapePoint {
 
 impl LandscapePoint {
     pub fn new(reaction_coord: f64, free_energy: f64) -> Self {
-        Self { reaction_coord, free_energy }
+        Self {
+            reaction_coord,
+            free_energy,
+        }
     }
 }
 
 impl fmt::Display for LandscapePoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({:.3}, {:.2} kcal/mol)", self.reaction_coord, self.free_energy)
+        write!(
+            f,
+            "({:.3}, {:.2} kcal/mol)",
+            self.reaction_coord, self.free_energy
+        )
     }
 }
 
@@ -373,9 +418,8 @@ impl FoldingLandscape {
         // Polynomial that passes through unfolded (q=0), barrier (q~0.5), native (q=1)
         let a = 4.0 * (self.barrier_height - 0.5 * (self.native_energy + self.unfolded_energy));
         let linear = self.native_energy - self.unfolded_energy;
-        self.unfolded_energy + a * q * q * (1.0 - q) * (1.0 - q)
-            / 0.0625_f64.max(0.0001)
-            * 0.0625
+        self.unfolded_energy
+            + a * q * q * (1.0 - q) * (1.0 - q) / 0.0625_f64.max(0.0001) * 0.0625
             + linear * q
     }
 
@@ -548,7 +592,11 @@ mod tests {
     #[test]
     fn test_contact_energy_hh() {
         let ce = ContactEnergy::default_potential();
-        assert!(approx(ce.energy(ResidueType::Hydrophobic, ResidueType::Hydrophobic), -3.0, 1e-10));
+        assert!(approx(
+            ce.energy(ResidueType::Hydrophobic, ResidueType::Hydrophobic),
+            -3.0,
+            1e-10
+        ));
     }
 
     #[test]

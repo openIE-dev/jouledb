@@ -23,7 +23,9 @@ use std::time::Instant;
 
 use super::awareness::{Action, Awareness, SensorState};
 use super::concept::KNOWLEDGE_DIM;
-use super::grounded::{encode_audio_frame, encode_numeric, encode_sensor, encode_structured, Modality};
+use super::grounded::{
+    Modality, encode_audio_frame, encode_numeric, encode_sensor, encode_structured,
+};
 use super::live::{AskResult, LiveIntelligence, ReadResult};
 use super::negative::NegativeKnowledge;
 use super::oracle::{Oracle, OracleBackend};
@@ -85,7 +87,13 @@ impl Runtime {
 
     /// Feed a sensor reading. The full loop:
     /// Awareness detects delta → LiveIntelligence reads → cache → reflect.
-    pub fn sense(&mut self, channel: &str, value: BinaryHV, label: &str, timestamp_ms: u64) -> SenseResult {
+    pub fn sense(
+        &mut self,
+        channel: &str,
+        value: BinaryHV,
+        label: &str,
+        timestamp_ms: u64,
+    ) -> SenseResult {
         self.total_ops += 1;
 
         // Awareness: detect delta
@@ -139,19 +147,37 @@ impl Runtime {
     }
 
     /// Feed numeric sensor data.
-    pub fn sense_numeric(&mut self, channel: &str, readings: &[f32], label: &str, timestamp_ms: u64) -> SenseResult {
+    pub fn sense_numeric(
+        &mut self,
+        channel: &str,
+        readings: &[f32],
+        label: &str,
+        timestamp_ms: u64,
+    ) -> SenseResult {
         let hv = encode_sensor(readings, self.dim);
         self.sense(channel, hv, label, timestamp_ms)
     }
 
     /// Feed audio features (MFCC).
-    pub fn sense_audio(&mut self, channel: &str, mfcc: &[f32], label: &str, timestamp_ms: u64) -> SenseResult {
+    pub fn sense_audio(
+        &mut self,
+        channel: &str,
+        mfcc: &[f32],
+        label: &str,
+        timestamp_ms: u64,
+    ) -> SenseResult {
         let hv = encode_audio_frame(mfcc, self.dim);
         self.sense(channel, hv, label, timestamp_ms)
     }
 
     /// Feed structured data.
-    pub fn sense_structured(&mut self, channel: &str, fields: &[(&str, &str)], label: &str, timestamp_ms: u64) -> SenseResult {
+    pub fn sense_structured(
+        &mut self,
+        channel: &str,
+        fields: &[(&str, &str)],
+        label: &str,
+        timestamp_ms: u64,
+    ) -> SenseResult {
         let hv = encode_structured(fields, self.dim, 0);
         self.sense(channel, hv, label, timestamp_ms)
     }
@@ -403,7 +429,12 @@ mod tests {
 
         // Sense temperature
         rt.sense_numeric("temperature", &[22.5, 65.0], "room: 22.5C, 65% humidity", 0);
-        rt.sense_numeric("temperature", &[23.1, 64.0], "room: 23.1C, 64% humidity", 5000);
+        rt.sense_numeric(
+            "temperature",
+            &[23.1, 64.0],
+            "room: 23.1C, 64% humidity",
+            5000,
+        );
 
         // Record negative fact
         rt.record_negation("whale", "fish");

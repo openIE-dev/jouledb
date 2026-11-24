@@ -25,12 +25,7 @@ pub struct FeedItem {
 }
 
 impl FeedItem {
-    pub fn new(
-        actor_id: &str,
-        verb: &str,
-        object_type: &str,
-        object_id: &str,
-    ) -> Self {
+    pub fn new(actor_id: &str, verb: &str, object_type: &str, object_id: &str) -> Self {
         Self {
             id: Uuid::new_v4(),
             actor_id: actor_id.to_string(),
@@ -85,7 +80,11 @@ impl AggregatedActivity {
         let first_name = actor_name_fn(&self.actor_ids[0]);
         let others = self.count - 1;
         if others == 0 {
-            format!("{first_name} {verb} your {obj}", verb = self.verb, obj = self.object_type)
+            format!(
+                "{first_name} {verb} your {obj}",
+                verb = self.verb,
+                obj = self.object_type
+            )
         } else if others == 1 {
             format!(
                 "{first_name} and 1 other {verb} your {obj}",
@@ -211,10 +210,7 @@ impl Feed {
     pub fn aggregate(&self) -> Vec<AggregatedActivity> {
         let mut groups: HashMap<String, Vec<&FeedItem>> = HashMap::new();
         for item in &self.items {
-            groups
-                .entry(item.aggregation_key())
-                .or_default()
-                .push(item);
+            groups.entry(item.aggregation_key()).or_default().push(item);
         }
 
         let mut aggregated: Vec<AggregatedActivity> = groups
@@ -270,10 +266,7 @@ impl FanOutManager {
     /// Fan out an activity to a list of follower user_ids.
     pub fn fan_out(&mut self, item: &FeedItem, follower_ids: &[&str]) {
         for uid in follower_ids {
-            let feed = self
-                .feeds
-                .entry(uid.to_string())
-                .or_insert_with(Feed::new);
+            let feed = self.feeds.entry(uid.to_string()).or_insert_with(Feed::new);
             feed.add(item.clone());
         }
     }
@@ -300,7 +293,9 @@ mod tests {
     fn test_add_and_order() {
         let mut feed = Feed::new();
         let now = Utc::now();
-        feed.add(FeedItem::new("alice", "liked", "post", "p1").with_timestamp(now - TimeDelta::hours(1)));
+        feed.add(
+            FeedItem::new("alice", "liked", "post", "p1").with_timestamp(now - TimeDelta::hours(1)),
+        );
         feed.add(FeedItem::new("bob", "liked", "post", "p2").with_timestamp(now));
         assert_eq!(feed.len(), 2);
         assert_eq!(feed.all()[0].actor_id, "bob"); // newest first
@@ -433,8 +428,7 @@ mod tests {
 
     #[test]
     fn test_target_id() {
-        let item = FeedItem::new("alice", "shared", "post", "p1")
-            .with_target("group1");
+        let item = FeedItem::new("alice", "shared", "post", "p1").with_target("group1");
         assert_eq!(item.target_id.as_deref(), Some("group1"));
     }
 

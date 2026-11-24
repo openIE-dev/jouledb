@@ -215,7 +215,11 @@ impl MediaQuery {
         let type_str = self.media_type.map(|t| t.to_string());
 
         if self.features.is_empty() {
-            let prefix = if matches!(self.combinator, MediaCombinator::Not) { "not " } else { "" };
+            let prefix = if matches!(self.combinator, MediaCombinator::Not) {
+                "not "
+            } else {
+                ""
+            };
             return match type_str {
                 Some(t) => format!("@media {prefix}{t}"),
                 None => format!("@media {prefix}all"),
@@ -236,11 +240,9 @@ impl MediaQuery {
                 // CSS `or` in media queries uses comma separation.
                 let parts: Vec<String> = features_css
                     .iter()
-                    .map(|f| {
-                        match &type_str {
-                            Some(t) => format!("{t} and {f}"),
-                            None => f.clone(),
-                        }
+                    .map(|f| match &type_str {
+                        Some(t) => format!("{t} and {f}"),
+                        None => f.clone(),
                     })
                     .collect();
                 format!("@media {}", parts.join(", "))
@@ -537,8 +539,7 @@ mod tests {
 
     #[test]
     fn test_evaluate_dark_mode() {
-        let state = ViewportState::desktop(1920.0, 1080.0)
-            .with_color_scheme(ColorScheme::Dark);
+        let state = ViewportState::desktop(1920.0, 1080.0).with_color_scheme(ColorScheme::Dark);
         assert!(state.matches(&dark_mode()));
 
         let light = ViewportState::desktop(1920.0, 1080.0);
@@ -547,8 +548,7 @@ mod tests {
 
     #[test]
     fn test_evaluate_reduced_motion() {
-        let state = ViewportState::desktop(1920.0, 1080.0)
-            .with_reduced_motion(true);
+        let state = ViewportState::desktop(1920.0, 1080.0).with_reduced_motion(true);
         assert!(state.matches(&reduced_motion()));
     }
 

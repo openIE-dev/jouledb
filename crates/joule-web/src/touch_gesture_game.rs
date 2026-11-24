@@ -30,8 +30,11 @@ pub struct TouchPoint {
 impl TouchPoint {
     fn new(id: u64, x: f64, y: f64, time_ms: f64) -> Self {
         Self {
-            id, x, y,
-            start_x: x, start_y: y,
+            id,
+            x,
+            y,
+            start_x: x,
+            start_y: y,
             start_time_ms: time_ms,
             last_time_ms: time_ms,
             active: true,
@@ -67,13 +70,43 @@ pub enum SwipeDirection {
 /// A recognized gesture.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Gesture {
-    Tap { x: f64, y: f64 },
-    DoubleTap { x: f64, y: f64 },
-    LongPress { x: f64, y: f64, duration_ms: f64 },
-    Swipe { direction: SwipeDirection, velocity: f64, start_x: f64, start_y: f64, end_x: f64, end_y: f64 },
-    Pinch { scale_factor: f64, center_x: f64, center_y: f64 },
-    Rotate { angle_delta: f64, center_x: f64, center_y: f64 },
-    Pan { dx: f64, dy: f64, x: f64, y: f64 },
+    Tap {
+        x: f64,
+        y: f64,
+    },
+    DoubleTap {
+        x: f64,
+        y: f64,
+    },
+    LongPress {
+        x: f64,
+        y: f64,
+        duration_ms: f64,
+    },
+    Swipe {
+        direction: SwipeDirection,
+        velocity: f64,
+        start_x: f64,
+        start_y: f64,
+        end_x: f64,
+        end_y: f64,
+    },
+    Pinch {
+        scale_factor: f64,
+        center_x: f64,
+        center_y: f64,
+    },
+    Rotate {
+        angle_delta: f64,
+        center_x: f64,
+        center_y: f64,
+    },
+    Pan {
+        dx: f64,
+        dy: f64,
+        x: f64,
+        y: f64,
+    },
 }
 
 // ── Gesture State ───────────────────────────────────────────────
@@ -219,7 +252,8 @@ impl TouchTracker {
                 self.gestures.push(Gesture::Pan {
                     dx: x - prev_x,
                     dy: y - prev_y,
-                    x, y,
+                    x,
+                    y,
                 });
             } else if active_count >= 2 {
                 self.recognize_pinch_rotate();
@@ -232,13 +266,21 @@ impl TouchTracker {
         let touch_data = if let Some(tp) = self.touches.get_mut(&id) {
             tp.last_time_ms = time_ms;
             tp.active = false;
-            Some((tp.start_x, tp.start_y, tp.x, tp.y,
-                  tp.distance_from_start(), tp.duration_ms(), tp.start_time_ms))
+            Some((
+                tp.start_x,
+                tp.start_y,
+                tp.x,
+                tp.y,
+                tp.distance_from_start(),
+                tp.duration_ms(),
+                tp.start_time_ms,
+            ))
         } else {
             None
         };
 
-        if let Some((start_x, start_y, end_x, end_y, distance, duration, _start_time)) = touch_data {
+        if let Some((start_x, start_y, end_x, end_y, distance, duration, _start_time)) = touch_data
+        {
             match self.phase {
                 GesturePhase::TouchDown => {
                     // Potential tap
@@ -247,9 +289,15 @@ impl TouchTracker {
                     {
                         // Check for double-tap
                         let dt = time_ms - self.last_tap_time_ms;
-                        let tap_distance = ((end_x - self.last_tap_x).powi(2) + (end_y - self.last_tap_y).powi(2)).sqrt();
-                        if dt <= self.config.double_tap_interval_ms && tap_distance <= self.config.tap_max_distance * 2.0 && self.last_tap_time_ms > 0.0 {
-                            self.gestures.push(Gesture::DoubleTap { x: end_x, y: end_y });
+                        let tap_distance = ((end_x - self.last_tap_x).powi(2)
+                            + (end_y - self.last_tap_y).powi(2))
+                        .sqrt();
+                        if dt <= self.config.double_tap_interval_ms
+                            && tap_distance <= self.config.tap_max_distance * 2.0
+                            && self.last_tap_time_ms > 0.0
+                        {
+                            self.gestures
+                                .push(Gesture::DoubleTap { x: end_x, y: end_y });
                             self.last_tap_time_ms = 0.0;
                         } else {
                             self.gestures.push(Gesture::Tap { x: end_x, y: end_y });
@@ -261,7 +309,8 @@ impl TouchTracker {
                         && distance <= self.config.tap_max_distance
                     {
                         self.gestures.push(Gesture::LongPress {
-                            x: end_x, y: end_y,
+                            x: end_x,
+                            y: end_y,
                             duration_ms: duration,
                         });
                     }
@@ -269,18 +318,34 @@ impl TouchTracker {
                 GesturePhase::Moving => {
                     // Potential swipe
                     if distance >= self.config.swipe_min_distance {
-                        let velocity = if duration > 0.0 { distance / duration } else { 0.0 };
+                        let velocity = if duration > 0.0 {
+                            distance / duration
+                        } else {
+                            0.0
+                        };
                         if velocity >= self.config.swipe_min_velocity {
                             let dx = end_x - start_x;
                             let dy = end_y - start_y;
                             let direction = if dx.abs() > dy.abs() {
-                                if dx > 0.0 { SwipeDirection::Right } else { SwipeDirection::Left }
+                                if dx > 0.0 {
+                                    SwipeDirection::Right
+                                } else {
+                                    SwipeDirection::Left
+                                }
                             } else {
-                                if dy > 0.0 { SwipeDirection::Down } else { SwipeDirection::Up }
+                                if dy > 0.0 {
+                                    SwipeDirection::Down
+                                } else {
+                                    SwipeDirection::Up
+                                }
                             };
                             self.gestures.push(Gesture::Swipe {
-                                direction, velocity,
-                                start_x, start_y, end_x, end_y,
+                                direction,
+                                velocity,
+                                start_x,
+                                start_y,
+                                end_x,
+                                end_y,
                             });
                         }
                     }
@@ -308,7 +373,8 @@ impl TouchTracker {
                 && self.phase == GesturePhase::TouchDown
             {
                 long_presses.push(Gesture::LongPress {
-                    x: tp.x, y: tp.y,
+                    x: tp.x,
+                    y: tp.y,
                     duration_ms: current_time_ms - tp.start_time_ms,
                 });
             }
@@ -320,7 +386,9 @@ impl TouchTracker {
 
     fn recognize_pinch_rotate(&mut self) {
         let active: Vec<&TouchPoint> = self.touches.values().filter(|t| t.active).collect();
-        if active.len() < 2 { return; }
+        if active.len() < 2 {
+            return;
+        }
 
         let t1 = active[0];
         let t2 = active[1];
@@ -337,7 +405,8 @@ impl TouchTracker {
                 let scale = distance / prev_dist;
                 self.gestures.push(Gesture::Pinch {
                     scale_factor: scale,
-                    center_x, center_y,
+                    center_x,
+                    center_y,
                 });
             }
         }
@@ -348,12 +417,17 @@ impl TouchTracker {
         if let Some(prev_angle) = self.prev_rotation_angle {
             let mut delta = angle - prev_angle;
             // Normalize to -PI..PI
-            while delta > std::f64::consts::PI { delta -= 2.0 * std::f64::consts::PI; }
-            while delta < -std::f64::consts::PI { delta += 2.0 * std::f64::consts::PI; }
+            while delta > std::f64::consts::PI {
+                delta -= 2.0 * std::f64::consts::PI;
+            }
+            while delta < -std::f64::consts::PI {
+                delta += 2.0 * std::f64::consts::PI;
+            }
             if delta.abs() > 1e-9 {
                 self.gestures.push(Gesture::Rotate {
                     angle_delta: delta,
-                    center_x, center_y,
+                    center_x,
+                    center_y,
                 });
             }
         }
@@ -419,7 +493,9 @@ mod tests {
         // Second tap
         t.touch_start(2, 102.0, 102.0, 200.0);
         t.touch_end(2, 300.0);
-        let double_taps: Vec<_> = t.gestures().iter()
+        let double_taps: Vec<_> = t
+            .gestures()
+            .iter()
             .filter(|g| matches!(g, Gesture::DoubleTap { .. }))
             .collect();
         assert_eq!(double_taps.len(), 1);
@@ -431,7 +507,9 @@ mod tests {
         t.begin_frame();
         t.touch_start(1, 50.0, 50.0, 0.0);
         t.touch_end(1, 600.0); // 600ms > 500ms threshold
-        let lp: Vec<_> = t.gestures().iter()
+        let lp: Vec<_> = t
+            .gestures()
+            .iter()
             .filter(|g| matches!(g, Gesture::LongPress { .. }))
             .collect();
         assert_eq!(lp.len(), 1);
@@ -443,7 +521,9 @@ mod tests {
         t.begin_frame();
         t.touch_start(1, 50.0, 50.0, 0.0);
         t.check_long_press(600.0);
-        let lp: Vec<_> = t.gestures().iter()
+        let lp: Vec<_> = t
+            .gestures()
+            .iter()
             .filter(|g| matches!(g, Gesture::LongPress { .. }))
             .collect();
         assert_eq!(lp.len(), 1);
@@ -457,7 +537,9 @@ mod tests {
         t.touch_move(1, 40.0, 100.0, 50.0);
         t.touch_move(1, 80.0, 100.0, 100.0);
         t.touch_end(1, 150.0); // distance=70, velocity=70/150≈0.47>0.3
-        let swipes: Vec<_> = t.gestures().iter()
+        let swipes: Vec<_> = t
+            .gestures()
+            .iter()
             .filter(|g| matches!(g, Gesture::Swipe { .. }))
             .collect();
         assert_eq!(swipes.len(), 1);
@@ -474,7 +556,9 @@ mod tests {
         t.touch_start(1, 100.0, 200.0, 0.0);
         t.touch_move(1, 100.0, 100.0, 100.0);
         t.touch_end(1, 150.0); // dy=-100, distance=100, velocity=100/150≈0.67
-        let swipes: Vec<_> = t.gestures().iter()
+        let swipes: Vec<_> = t
+            .gestures()
+            .iter()
             .filter(|g| matches!(g, Gesture::Swipe { .. }))
             .collect();
         assert_eq!(swipes.len(), 1);
@@ -490,7 +574,9 @@ mod tests {
         t.begin_frame();
         t.touch_start(1, 100.0, 100.0, 0.0);
         t.touch_move(1, 120.0, 105.0, 50.0);
-        let pans: Vec<_> = t.gestures().iter()
+        let pans: Vec<_> = t
+            .gestures()
+            .iter()
             .filter(|g| matches!(g, Gesture::Pan { .. }))
             .collect();
         assert_eq!(pans.len(), 1);
@@ -512,7 +598,9 @@ mod tests {
         // Move them apart
         t.touch_move(1, 50.0, 100.0, 50.0);
         t.touch_move(2, 250.0, 100.0, 50.0);
-        let pinches: Vec<_> = t.gestures().iter()
+        let pinches: Vec<_> = t
+            .gestures()
+            .iter()
             .filter(|g| matches!(g, Gesture::Pinch { .. }))
             .collect();
         assert!(!pinches.is_empty());
@@ -534,7 +622,9 @@ mod tests {
         t.touch_move(2, 200.0, 95.0, 25.0);
         // Second move produces a detectable rotation
         t.touch_move(2, 200.0, 50.0, 50.0);
-        let rotations: Vec<_> = t.gestures().iter()
+        let rotations: Vec<_> = t
+            .gestures()
+            .iter()
             .filter(|g| matches!(g, Gesture::Rotate { .. }))
             .collect();
         assert!(!rotations.is_empty());
@@ -589,7 +679,9 @@ mod tests {
         t.touch_start(1, 100.0, 100.0, 0.0);
         t.touch_move(1, 120.0, 100.0, 50.0);
         t.touch_end(1, 80.0); // distance=20, below default 50
-        let swipes: Vec<_> = t.gestures().iter()
+        let swipes: Vec<_> = t
+            .gestures()
+            .iter()
             .filter(|g| matches!(g, Gesture::Swipe { .. }))
             .collect();
         assert!(swipes.is_empty());
@@ -604,7 +696,9 @@ mod tests {
         // Wait too long
         t.touch_start(2, 100.0, 100.0, 500.0);
         t.touch_end(2, 600.0);
-        let double_taps: Vec<_> = t.gestures().iter()
+        let double_taps: Vec<_> = t
+            .gestures()
+            .iter()
             .filter(|g| matches!(g, Gesture::DoubleTap { .. }))
             .collect();
         assert!(double_taps.is_empty());
@@ -638,7 +732,9 @@ mod tests {
         t.touch_start(1, 200.0, 100.0, 0.0);
         t.touch_move(1, 100.0, 100.0, 100.0);
         t.touch_end(1, 150.0);
-        let swipes: Vec<_> = t.gestures().iter()
+        let swipes: Vec<_> = t
+            .gestures()
+            .iter()
             .filter(|g| matches!(g, Gesture::Swipe { .. }))
             .collect();
         assert_eq!(swipes.len(), 1);

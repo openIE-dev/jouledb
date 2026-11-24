@@ -54,11 +54,8 @@ impl BpeTokenizer {
         let mut word_freqs: HashMap<Vec<String>, u32> = HashMap::new();
         for text in corpus {
             for word in text.split_whitespace() {
-                let chars: Vec<String> = word
-                    .to_lowercase()
-                    .chars()
-                    .map(|c| c.to_string())
-                    .collect();
+                let chars: Vec<String> =
+                    word.to_lowercase().chars().map(|c| c.to_string()).collect();
                 if !chars.is_empty() {
                     *word_freqs.entry(chars).or_insert(0) += 1;
                 }
@@ -93,10 +90,7 @@ impl BpeTokenizer {
             }
 
             // Find most frequent pair
-            let best_pair = match pair_freqs
-                .iter()
-                .max_by_key(|(_, freq)| *freq)
-            {
+            let best_pair = match pair_freqs.iter().max_by_key(|(_, freq)| *freq) {
                 Some((pair, freq)) if *freq >= 2 => pair.clone(),
                 _ => break, // No pairs with frequency ≥ 2
             };
@@ -128,11 +122,7 @@ impl BpeTokenizer {
 
     /// Tokenize a single word.
     fn tokenize_word(&self, word: &str) -> Vec<u32> {
-        let mut tokens: Vec<String> = word
-            .to_lowercase()
-            .chars()
-            .map(|c| c.to_string())
-            .collect();
+        let mut tokens: Vec<String> = word.to_lowercase().chars().map(|c| c.to_string()).collect();
 
         // Apply merges in order
         for ((a, b), merged) in &self.merges {
@@ -213,12 +203,7 @@ impl BpeTokenizer {
         }
     }
 
-    fn apply_merge(
-        &self,
-        tokens: &[String],
-        pair: &(String, String),
-        merged: &str,
-    ) -> Vec<String> {
+    fn apply_merge(&self, tokens: &[String], pair: &(String, String), merged: &str) -> Vec<String> {
         let mut result = Vec::with_capacity(tokens.len());
         let mut i = 0;
         while i < tokens.len() {
@@ -310,7 +295,11 @@ mod tests {
         // "the" should be a single token after enough merges
         let ids = tok.tokenize("the");
         // With enough merges, common words become 1-2 tokens
-        assert!(ids.len() <= 3, "common word should merge: {} tokens", ids.len());
+        assert!(
+            ids.len() <= 3,
+            "common word should merge: {} tokens",
+            ids.len()
+        );
     }
 
     #[test]

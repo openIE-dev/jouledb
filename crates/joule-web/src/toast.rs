@@ -3,8 +3,8 @@
 //! Replaces react-toastify, notistack, and Sonner with a pure-Rust
 //! manager that tracks visibility, expiration, and queue ordering.
 
+use chrono::{DateTime, TimeDelta, Utc};
 use std::collections::VecDeque;
-use chrono::{DateTime, Utc, TimeDelta};
 use uuid::Uuid;
 
 // ── Types ───────────────────────────────────────────────────────
@@ -207,7 +207,9 @@ impl ToastManager {
 }
 
 impl Default for ToastManager {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────

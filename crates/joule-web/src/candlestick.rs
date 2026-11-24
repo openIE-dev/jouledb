@@ -90,8 +90,7 @@ pub fn bollinger_bands(values: &[f64], period: usize, num_std: f64) -> Vec<Bolli
         .enumerate()
         .map(|(i, &mean)| {
             let window = &values[i..i + period];
-            let variance =
-                window.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / period as f64;
+            let variance = window.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / period as f64;
             let std_dev = variance.sqrt();
             BollingerBand {
                 middle: mean,
@@ -301,34 +300,97 @@ mod tests {
 
     fn sample_candles() -> Vec<Candle> {
         vec![
-            Candle { timestamp: 1, open: 100.0, high: 110.0, low: 95.0, close: 105.0, volume: 1000.0 },
-            Candle { timestamp: 2, open: 105.0, high: 115.0, low: 100.0, close: 102.0, volume: 1500.0 },
-            Candle { timestamp: 3, open: 102.0, high: 108.0, low: 98.0, close: 107.0, volume: 1200.0 },
-            Candle { timestamp: 4, open: 107.0, high: 120.0, low: 105.0, close: 118.0, volume: 2000.0 },
-            Candle { timestamp: 5, open: 118.0, high: 125.0, low: 112.0, close: 115.0, volume: 1800.0 },
+            Candle {
+                timestamp: 1,
+                open: 100.0,
+                high: 110.0,
+                low: 95.0,
+                close: 105.0,
+                volume: 1000.0,
+            },
+            Candle {
+                timestamp: 2,
+                open: 105.0,
+                high: 115.0,
+                low: 100.0,
+                close: 102.0,
+                volume: 1500.0,
+            },
+            Candle {
+                timestamp: 3,
+                open: 102.0,
+                high: 108.0,
+                low: 98.0,
+                close: 107.0,
+                volume: 1200.0,
+            },
+            Candle {
+                timestamp: 4,
+                open: 107.0,
+                high: 120.0,
+                low: 105.0,
+                close: 118.0,
+                volume: 2000.0,
+            },
+            Candle {
+                timestamp: 5,
+                open: 118.0,
+                high: 125.0,
+                low: 112.0,
+                close: 115.0,
+                volume: 1800.0,
+            },
         ]
     }
 
     #[test]
     fn bullish_bearish() {
-        let c = Candle { timestamp: 0, open: 100.0, high: 110.0, low: 90.0, close: 105.0, volume: 0.0 };
+        let c = Candle {
+            timestamp: 0,
+            open: 100.0,
+            high: 110.0,
+            low: 90.0,
+            close: 105.0,
+            volume: 0.0,
+        };
         assert!(c.is_bullish());
         assert!(!c.is_bearish());
 
-        let c2 = Candle { timestamp: 0, open: 105.0, high: 110.0, low: 90.0, close: 100.0, volume: 0.0 };
+        let c2 = Candle {
+            timestamp: 0,
+            open: 105.0,
+            high: 110.0,
+            low: 90.0,
+            close: 100.0,
+            volume: 0.0,
+        };
         assert!(!c2.is_bullish());
         assert!(c2.is_bearish());
     }
 
     #[test]
     fn candle_body_height() {
-        let c = Candle { timestamp: 0, open: 100.0, high: 110.0, low: 90.0, close: 108.0, volume: 0.0 };
+        let c = Candle {
+            timestamp: 0,
+            open: 100.0,
+            high: 110.0,
+            low: 90.0,
+            close: 108.0,
+            volume: 0.0,
+        };
         assert!((c.body_height() - 8.0).abs() < 1e-9);
     }
 
     #[test]
     fn candle_range() {
-        let c = Candle { timestamp: 0, open: 100.0, high: 110.0, low: 90.0, close: 105.0, volume: 0.0 };
+        let c = Candle {
+            timestamp: 0,
+            open: 100.0,
+            high: 110.0,
+            low: 90.0,
+            close: 105.0,
+            volume: 0.0,
+        };
         assert!((c.range() - 20.0).abs() < 1e-9);
     }
 
@@ -409,7 +471,9 @@ mod tests {
 
     #[test]
     fn macd_output_length() {
-        let closes: Vec<f64> = (0..50).map(|i| 100.0 + (i as f64 * 0.1).sin() * 10.0).collect();
+        let closes: Vec<f64> = (0..50)
+            .map(|i| 100.0 + (i as f64 * 0.1).sin() * 10.0)
+            .collect();
         let result = macd(&closes, 12, 26, 9);
         assert_eq!(result.len(), 50);
     }

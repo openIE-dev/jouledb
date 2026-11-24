@@ -33,7 +33,13 @@ impl DenseActivation {
     pub fn derivative(&self, output: f64) -> f64 {
         match self {
             Self::None => 1.0,
-            Self::Relu => if output > 0.0 { 1.0 } else { 0.0 },
+            Self::Relu => {
+                if output > 0.0 {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
             Self::Sigmoid => output * (1.0 - output),
             Self::Tanh => 1.0 - output * output,
         }
@@ -75,11 +81,16 @@ struct Lcg {
 
 impl Lcg {
     fn new(seed: u64) -> Self {
-        Self { state: seed.wrapping_add(1) }
+        Self {
+            state: seed.wrapping_add(1),
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.state
     }
 
@@ -158,14 +169,18 @@ impl DenseLayer {
             }
             WeightInit::XavierUniform => {
                 let bound = 1.0 / fan_in.sqrt();
-                self.weights.iter_mut().for_each(|w| *w = rng.uniform(bound));
+                self.weights
+                    .iter_mut()
+                    .for_each(|w| *w = rng.uniform(bound));
             }
             WeightInit::Constant(c) => {
                 self.weights.iter_mut().for_each(|w| *w = c);
             }
             WeightInit::HeUniform => {
                 let bound = (2.0 / fan_in).sqrt();
-                self.weights.iter_mut().for_each(|w| *w = rng.uniform(bound));
+                self.weights
+                    .iter_mut()
+                    .for_each(|w| *w = rng.uniform(bound));
             }
         }
         self
@@ -174,7 +189,11 @@ impl DenseLayer {
     /// Total number of trainable parameters.
     pub fn param_count(&self) -> usize {
         let w = self.in_features * self.out_features;
-        if self.use_bias { w + self.out_features } else { w }
+        if self.use_bias {
+            w + self.out_features
+        } else {
+            w
+        }
     }
 
     /// Forward pass for a single sample.
@@ -282,7 +301,8 @@ impl DenseLayer {
         assert!(params.len() >= w_count);
         self.weights.copy_from_slice(&params[..w_count]);
         if self.use_bias && params.len() >= w_count + self.out_features {
-            self.biases.copy_from_slice(&params[w_count..w_count + self.out_features]);
+            self.biases
+                .copy_from_slice(&params[w_count..w_count + self.out_features]);
         }
     }
 }
@@ -313,8 +333,7 @@ pub struct TwoLayerMlp {
 impl TwoLayerMlp {
     pub fn new(input_dim: usize, hidden_dim: usize, output_dim: usize) -> Self {
         Self {
-            hidden: DenseLayer::new(input_dim, hidden_dim)
-                .with_activation(DenseActivation::Relu),
+            hidden: DenseLayer::new(input_dim, hidden_dim).with_activation(DenseActivation::Relu),
             output: DenseLayer::new(hidden_dim, output_dim),
         }
     }
@@ -430,8 +449,7 @@ mod tests {
 
     #[test]
     fn test_sgd_update_changes_weights() {
-        let mut layer = DenseLayer::new(2, 1)
-            .with_init(WeightInit::Constant(1.0), 0);
+        let mut layer = DenseLayer::new(2, 1).with_init(WeightInit::Constant(1.0), 0);
         let gw = vec![0.1, 0.2];
         let gb = vec![0.05];
         layer.sgd_update(&gw, &gb, 1.0);
@@ -441,8 +459,7 @@ mod tests {
 
     #[test]
     fn test_weight_l2_norm() {
-        let layer = DenseLayer::new(2, 1)
-            .with_init(WeightInit::Constant(3.0), 0);
+        let layer = DenseLayer::new(2, 1).with_init(WeightInit::Constant(3.0), 0);
         let norm = layer.weight_l2_norm();
         // sqrt(3^2 + 3^2) = sqrt(18)
         assert!((norm - (18.0_f64).sqrt()).abs() < 1e-10);
@@ -503,8 +520,7 @@ mod tests {
 
     #[test]
     fn test_backward_zero_gradient() {
-        let mut layer = DenseLayer::new(3, 2)
-            .with_init(WeightInit::Constant(1.0), 0);
+        let mut layer = DenseLayer::new(3, 2).with_init(WeightInit::Constant(1.0), 0);
         layer.forward(&[1.0, 2.0, 3.0]);
         let mut gw = vec![0.0; 6];
         let mut gb = vec![0.0; 2];

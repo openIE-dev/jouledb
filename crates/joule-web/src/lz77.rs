@@ -286,10 +286,16 @@ pub fn deserialize_tokens(data: &[u8]) -> Result<Vec<Token>, Lz77Error> {
                     break;
                 }
                 let offset = u32::from_le_bytes([
-                    data[pos + 1], data[pos + 2], data[pos + 3], data[pos + 4],
+                    data[pos + 1],
+                    data[pos + 2],
+                    data[pos + 3],
+                    data[pos + 4],
                 ]) as usize;
                 let length = u32::from_le_bytes([
-                    data[pos + 5], data[pos + 6], data[pos + 7], data[pos + 8],
+                    data[pos + 5],
+                    data[pos + 6],
+                    data[pos + 7],
+                    data[pos + 8],
                 ]) as usize;
                 tokens.push(Token::Match { offset, length });
                 pos += 9;
@@ -401,7 +407,10 @@ mod tests {
 
     #[test]
     fn invalid_back_reference() {
-        let tokens = vec![Token::Match { offset: 10, length: 5 }];
+        let tokens = vec![Token::Match {
+            offset: 10,
+            length: 5,
+        }];
         let result = decode(&tokens);
         assert!(result.is_err());
     }
@@ -411,7 +420,10 @@ mod tests {
         // A match where the copied region overlaps the source.
         let tokens = vec![
             Token::Literal(b'a'),
-            Token::Match { offset: 1, length: 10 },
+            Token::Match {
+                offset: 1,
+                length: 10,
+            },
         ];
         let decoded = decode(&tokens).unwrap();
         assert_eq!(decoded, vec![b'a'; 11]);
@@ -422,7 +434,10 @@ mod tests {
         let tokens = vec![
             Token::Literal(b'a'),
             Token::Literal(b'b'),
-            Token::Match { offset: 2, length: 3 },
+            Token::Match {
+                offset: 2,
+                length: 3,
+            },
         ];
         let (lits, matches) = token_stats(&tokens);
         assert_eq!(lits, 2);

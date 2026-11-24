@@ -11,8 +11,8 @@ mod algorithms;
 mod algorithms_ext;
 pub use algorithms::{CentralityMeasures, CommunityResult, PageRankResult};
 pub use algorithms_ext::{
-    DijkstraResult, KCoreResult, KShortestResult, LabelPropResult, LinkScore,
-    SccResult, TriangleResult,
+    DijkstraResult, KCoreResult, KShortestResult, LabelPropResult, LinkScore, SccResult,
+    TriangleResult,
 };
 
 use serde::{Deserialize, Serialize};

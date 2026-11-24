@@ -62,7 +62,11 @@ impl Position {
     }
 
     pub fn offset(self, dx: f64, dy: f64, dz: f64) -> Self {
-        Self { x: self.x + dx, y: self.y + dy, z: self.z + dz }
+        Self {
+            x: self.x + dx,
+            y: self.y + dy,
+            z: self.z + dz,
+        }
     }
 }
 
@@ -83,7 +87,12 @@ pub struct Orientation {
 
 impl Orientation {
     pub fn identity() -> Self {
-        Self { w: 1.0, x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            w: 1.0,
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn from_axis_angle(ax: f64, ay: f64, az: f64, angle: f64) -> Self {
@@ -93,7 +102,12 @@ impl Orientation {
         }
         let half = angle * 0.5;
         let s = half.sin() / norm;
-        Self { w: half.cos(), x: ax * s, y: ay * s, z: az * s }
+        Self {
+            w: half.cos(),
+            x: ax * s,
+            y: ay * s,
+            z: az * s,
+        }
     }
 
     pub fn normalize(self) -> Self {
@@ -101,7 +115,12 @@ impl Orientation {
         if n < 1e-12 {
             return Self::identity();
         }
-        Self { w: self.w / n, x: self.x / n, y: self.y / n, z: self.z / n }
+        Self {
+            w: self.w / n,
+            x: self.x / n,
+            y: self.y / n,
+            z: self.z / n,
+        }
     }
 
     /// Spherical linear interpolation.
@@ -109,7 +128,12 @@ impl Orientation {
         let mut dot = self.w * other.w + self.x * other.x + self.y * other.y + self.z * other.z;
         let other = if dot < 0.0 {
             dot = -dot;
-            Self { w: -other.w, x: -other.x, y: -other.y, z: -other.z }
+            Self {
+                w: -other.w,
+                x: -other.x,
+                y: -other.y,
+                z: -other.z,
+            }
         } else {
             other
         };
@@ -138,7 +162,11 @@ impl Orientation {
 
 impl fmt::Display for Orientation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "q({:.4}, {:.4}, {:.4}, {:.4})", self.w, self.x, self.y, self.z)
+        write!(
+            f,
+            "q({:.4}, {:.4}, {:.4}, {:.4})",
+            self.w, self.x, self.y, self.z
+        )
     }
 }
 
@@ -151,11 +179,17 @@ pub struct Pose {
 
 impl Pose {
     pub fn new(position: Position, orientation: Orientation) -> Self {
-        Self { position, orientation }
+        Self {
+            position,
+            orientation,
+        }
     }
 
     pub fn from_xyz(x: f64, y: f64, z: f64) -> Self {
-        Self { position: Position::new(x, y, z), orientation: Orientation::identity() }
+        Self {
+            position: Position::new(x, y, z),
+            orientation: Orientation::identity(),
+        }
     }
 
     /// Linear interpolation of position with slerp of orientation.
@@ -336,16 +370,15 @@ pub fn generate_waypoints(
     obstacles: &[AABB],
 ) -> Result<Vec<Pose>, PickPlaceError> {
     if num_segments == 0 {
-        return Err(PickPlaceError::InvalidConfig("num_segments must be > 0".into()));
+        return Err(PickPlaceError::InvalidConfig(
+            "num_segments must be > 0".into(),
+        ));
     }
     let via_start = Pose::new(
         start.position.offset(0.0, 0.0, lift_height),
         start.orientation,
     );
-    let via_end = Pose::new(
-        end.position.offset(0.0, 0.0, lift_height),
-        end.orientation,
-    );
+    let via_end = Pose::new(end.position.offset(0.0, 0.0, lift_height), end.orientation);
 
     let mut waypoints = Vec::with_capacity(num_segments + 3);
     waypoints.push(start);
@@ -361,9 +394,10 @@ pub fn generate_waypoints(
     for wp in &waypoints {
         for obs in obstacles {
             if obs.contains(wp.position, 0.01) {
-                return Err(PickPlaceError::Collision(
-                    format!("waypoint {} inside obstacle {obs}", wp.position),
-                ));
+                return Err(PickPlaceError::Collision(format!(
+                    "waypoint {} inside obstacle {obs}",
+                    wp.position
+                )));
             }
         }
     }
@@ -467,16 +501,19 @@ impl PickPlaceController {
     pub fn advance(&mut self) -> Result<Phase, PickPlaceError> {
         let successors = self.phase.successors();
         if successors.is_empty() {
-            return Err(PickPlaceError::InvalidTransition(
-                format!("no successor for {}", self.phase),
-            ));
+            return Err(PickPlaceError::InvalidTransition(format!(
+                "no successor for {}",
+                self.phase
+            )));
         }
         let next = successors[0];
         // Update state based on the phase transition
         match next {
             Phase::Approach => {
                 self.current_pose = Pose::new(
-                    self.pick_pose.position.offset(0.0, 0.0, self.config.approach_offset),
+                    self.pick_pose
+                        .position
+                        .offset(0.0, 0.0, self.config.approach_offset),
                     self.pick_pose.orientation,
                 );
             }
@@ -488,13 +525,17 @@ impl PickPlaceController {
             }
             Phase::Lift => {
                 self.current_pose = Pose::new(
-                    self.pick_pose.position.offset(0.0, 0.0, self.config.lift_height),
+                    self.pick_pose
+                        .position
+                        .offset(0.0, 0.0, self.config.lift_height),
                     self.pick_pose.orientation,
                 );
             }
             Phase::Transit | Phase::PrePlace => {
                 self.current_pose = Pose::new(
-                    self.place_pose.position.offset(0.0, 0.0, self.config.lift_height),
+                    self.place_pose
+                        .position
+                        .offset(0.0, 0.0, self.config.lift_height),
                     self.place_pose.orientation,
                 );
             }
@@ -506,7 +547,9 @@ impl PickPlaceController {
             }
             Phase::Retreat => {
                 self.current_pose = Pose::new(
-                    self.place_pose.position.offset(0.0, 0.0, self.config.retreat_offset),
+                    self.place_pose
+                        .position
+                        .offset(0.0, 0.0, self.config.retreat_offset),
                     self.place_pose.orientation,
                 );
             }
@@ -528,7 +571,10 @@ impl PickPlaceController {
 
     /// Compute the estimated cycle time in seconds.
     pub fn estimated_cycle_time(&self) -> f64 {
-        let pick_to_place = self.pick_pose.position.distance_to(self.place_pose.position);
+        let pick_to_place = self
+            .pick_pose
+            .position
+            .distance_to(self.place_pose.position);
         let approach_time = self.config.approach_offset / self.config.max_velocity;
         let lift_time = self.config.lift_height / self.config.max_velocity;
         let transit_time = pick_to_place / self.config.max_velocity;
@@ -545,7 +591,11 @@ impl fmt::Display for PickPlaceController {
             f,
             "PickPlace(phase={}, gripper={}, pos={})",
             self.phase,
-            if self.gripper_closed { "closed" } else { "open" },
+            if self.gripper_closed {
+                "closed"
+            } else {
+                "open"
+            },
             self.current_pose.position
         )
     }

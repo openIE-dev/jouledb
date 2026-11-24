@@ -42,12 +42,28 @@ impl fmt::Display for RecordType {
 /// A DNS record.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DnsRecord {
-    A { address: [u8; 4] },
-    Aaaa { address: [u16; 8] },
-    Cname { target: String },
-    Mx { priority: u16, exchange: String },
-    Txt { text: String },
-    Srv { priority: u16, weight: u16, port: u16, target: String },
+    A {
+        address: [u8; 4],
+    },
+    Aaaa {
+        address: [u16; 8],
+    },
+    Cname {
+        target: String,
+    },
+    Mx {
+        priority: u16,
+        exchange: String,
+    },
+    Txt {
+        text: String,
+    },
+    Srv {
+        priority: u16,
+        weight: u16,
+        port: u16,
+        target: String,
+    },
 }
 
 impl DnsRecord {
@@ -63,7 +79,9 @@ impl DnsRecord {
     }
 
     pub fn a(a: u8, b: u8, c: u8, d: u8) -> Self {
-        Self::A { address: [a, b, c, d] }
+        Self::A {
+            address: [a, b, c, d],
+        }
     }
 
     pub fn aaaa(segments: [u16; 8]) -> Self {
@@ -71,25 +89,40 @@ impl DnsRecord {
     }
 
     pub fn cname(target: &str) -> Self {
-        Self::Cname { target: target.to_string() }
+        Self::Cname {
+            target: target.to_string(),
+        }
     }
 
     pub fn mx(priority: u16, exchange: &str) -> Self {
-        Self::Mx { priority, exchange: exchange.to_string() }
+        Self::Mx {
+            priority,
+            exchange: exchange.to_string(),
+        }
     }
 
     pub fn txt(text: &str) -> Self {
-        Self::Txt { text: text.to_string() }
+        Self::Txt {
+            text: text.to_string(),
+        }
     }
 
     pub fn srv(priority: u16, weight: u16, port: u16, target: &str) -> Self {
-        Self::Srv { priority, weight, port, target: target.to_string() }
+        Self::Srv {
+            priority,
+            weight,
+            port,
+            target: target.to_string(),
+        }
     }
 
     /// Format an A record as dotted-quad.
     pub fn a_str(&self) -> Option<String> {
         if let Self::A { address } = self {
-            Some(format!("{}.{}.{}.{}", address[0], address[1], address[2], address[3]))
+            Some(format!(
+                "{}.{}.{}.{}",
+                address[0], address[1], address[2], address[3]
+            ))
         } else {
             None
         }
@@ -153,7 +186,8 @@ impl DnsCache {
         now_epoch_s: u64,
     ) {
         let key = (name.to_ascii_lowercase(), rtype.as_str().to_string());
-        self.entries.insert(key, CacheEntry::new(records, ttl, now_epoch_s));
+        self.entries
+            .insert(key, CacheEntry::new(records, ttl, now_epoch_s));
     }
 
     pub fn lookup(
@@ -195,9 +229,12 @@ pub fn select_srv(records: &[DnsRecord], seed: u64) -> Option<(String, u16)> {
     let mut srvs: Vec<(u16, u16, u16, &str)> = records
         .iter()
         .filter_map(|r| match r {
-            DnsRecord::Srv { priority, weight, port, target } => {
-                Some((*priority, *weight, *port, target.as_str()))
-            }
+            DnsRecord::Srv {
+                priority,
+                weight,
+                port,
+                target,
+            } => Some((*priority, *weight, *port, target.as_str())),
             _ => None,
         })
         .collect();

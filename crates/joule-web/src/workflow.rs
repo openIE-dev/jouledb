@@ -22,7 +22,10 @@ pub enum WorkflowError {
     /// Step already exists.
     DuplicateStep(String),
     /// Invalid state transition.
-    InvalidTransition { from: WorkflowStatus, to: WorkflowStatus },
+    InvalidTransition {
+        from: WorkflowStatus,
+        to: WorkflowStatus,
+    },
     /// Dependency not met.
     DependencyNotMet { step: String, depends_on: String },
     /// Step timed out.
@@ -44,7 +47,10 @@ impl std::fmt::Display for WorkflowError {
                 write!(f, "invalid transition from {from:?} to {to:?}")
             }
             Self::DependencyNotMet { step, depends_on } => {
-                write!(f, "step {step} depends on {depends_on} which is not completed")
+                write!(
+                    f,
+                    "step {step} depends on {depends_on} which is not completed"
+                )
             }
             Self::StepTimeout { step, timeout_ms } => {
                 write!(f, "step {step} timed out after {timeout_ms}ms")
@@ -134,7 +140,11 @@ pub enum Condition {
     /// True when a specific step failed.
     StepFailed(String),
     /// True when an output key equals a value.
-    OutputEquals { step_id: String, key: String, value: String },
+    OutputEquals {
+        step_id: String,
+        key: String,
+        value: String,
+    },
     /// All conditions must be true.
     All(Vec<Condition>),
     /// Any condition must be true.
@@ -239,15 +249,33 @@ pub struct HistoryEntry {
 pub enum HistoryEvent {
     WorkflowStarted,
     WorkflowCompleted,
-    WorkflowFailed { error: String },
+    WorkflowFailed {
+        error: String,
+    },
     WorkflowCancelled,
     WorkflowPaused,
     WorkflowResumed,
-    StepStarted { step_id: String, attempt: u32 },
-    StepCompleted { step_id: String, attempt: u32 },
-    StepFailed { step_id: String, attempt: u32, error: String },
-    StepSkipped { step_id: String, reason: String },
-    StepTimedOut { step_id: String, attempt: u32 },
+    StepStarted {
+        step_id: String,
+        attempt: u32,
+    },
+    StepCompleted {
+        step_id: String,
+        attempt: u32,
+    },
+    StepFailed {
+        step_id: String,
+        attempt: u32,
+        error: String,
+    },
+    StepSkipped {
+        step_id: String,
+        reason: String,
+    },
+    StepTimedOut {
+        step_id: String,
+        attempt: u32,
+    },
 }
 
 // ── Workflow Definition ─────────────────────────────────────────
@@ -461,12 +489,15 @@ impl WorkflowInstance {
 
     /// Start a step.
     pub fn start_step(&mut self, step_id: &str, attempt: u32) -> Result<(), WorkflowError> {
-        let status = self.step_statuses.get(step_id)
+        let status = self
+            .step_statuses
+            .get(step_id)
             .ok_or_else(|| WorkflowError::StepNotFound(step_id.to_string()))?;
         if *status != StepStatus::Pending && *status != StepStatus::Failed {
             return Ok(());
         }
-        self.step_statuses.insert(step_id.to_string(), StepStatus::Running);
+        self.step_statuses
+            .insert(step_id.to_string(), StepStatus::Running);
         let exec = StepExecution {
             step_id: step_id.to_string(),
             attempt,
@@ -495,7 +526,8 @@ impl WorkflowInstance {
         self.step_statuses
             .get(step_id)
             .ok_or_else(|| WorkflowError::StepNotFound(step_id.to_string()))?;
-        self.step_statuses.insert(step_id.to_string(), StepStatus::Completed);
+        self.step_statuses
+            .insert(step_id.to_string(), StepStatus::Completed);
         // Update execution record.
         for exec in self.step_executions.iter_mut().rev() {
             if exec.step_id == step_id && exec.attempt == attempt {
@@ -526,7 +558,8 @@ impl WorkflowInstance {
         self.step_statuses
             .get(step_id)
             .ok_or_else(|| WorkflowError::StepNotFound(step_id.to_string()))?;
-        self.step_statuses.insert(step_id.to_string(), StepStatus::Failed);
+        self.step_statuses
+            .insert(step_id.to_string(), StepStatus::Failed);
         for exec in self.step_executions.iter_mut().rev() {
             if exec.step_id == step_id && exec.attempt == attempt {
                 exec.status = StepStatus::Failed;
@@ -548,7 +581,8 @@ impl WorkflowInstance {
         self.step_statuses
             .get(step_id)
             .ok_or_else(|| WorkflowError::StepNotFound(step_id.to_string()))?;
-        self.step_statuses.insert(step_id.to_string(), StepStatus::Skipped);
+        self.step_statuses
+            .insert(step_id.to_string(), StepStatus::Skipped);
         self.record(HistoryEvent::StepSkipped {
             step_id: step_id.to_string(),
             reason: reason.to_string(),
@@ -559,16 +593,20 @@ impl WorkflowInstance {
     /// Check whether all steps are terminal (completed/skipped/failed).
     pub fn is_terminal(&self) -> bool {
         self.step_statuses.values().all(|s| {
-            matches!(s, StepStatus::Completed | StepStatus::Skipped | StepStatus::Failed)
+            matches!(
+                s,
+                StepStatus::Completed | StepStatus::Skipped | StepStatus::Failed
+            )
         })
     }
 
     /// Mark workflow as completed if all steps are terminal.
     pub fn try_complete(&mut self) -> bool {
         if self.is_terminal() {
-            let all_ok = self.step_statuses.values().all(|s| {
-                matches!(s, StepStatus::Completed | StepStatus::Skipped)
-            });
+            let all_ok = self
+                .step_statuses
+                .values()
+                .all(|s| matches!(s, StepStatus::Completed | StepStatus::Skipped));
             if all_ok {
                 self.status = WorkflowStatus::Completed;
                 self.completed_at = Some(Utc::now());
@@ -616,12 +654,12 @@ pub fn evaluate_condition(cond: &Condition, instance: &WorkflowInstance) -> bool
         Condition::StepCompleted(id) => {
             instance.step_statuses.get(id) == Some(&StepStatus::Completed)
         }
-        Condition::StepFailed(id) => {
-            instance.step_statuses.get(id) == Some(&StepStatus::Failed)
-        }
-        Condition::OutputEquals { step_id: _, key, value } => {
-            instance.context.get(key).map_or(false, |v| v == value)
-        }
+        Condition::StepFailed(id) => instance.step_statuses.get(id) == Some(&StepStatus::Failed),
+        Condition::OutputEquals {
+            step_id: _,
+            key,
+            value,
+        } => instance.context.get(key).map_or(false, |v| v == value),
         Condition::All(conds) => conds.iter().all(|c| evaluate_condition(c, instance)),
         Condition::Any(conds) => conds.iter().any(|c| evaluate_condition(c, instance)),
     }
@@ -654,7 +692,9 @@ impl WorkflowRegistry {
         definition_id: &str,
         instance_id: impl Into<String>,
     ) -> Result<&WorkflowInstance, WorkflowError> {
-        let def = self.definitions.get(definition_id)
+        let def = self
+            .definitions
+            .get(definition_id)
             .ok_or_else(|| WorkflowError::WorkflowNotFound(definition_id.to_string()))?;
         let inst = WorkflowInstance::new(instance_id, def);
         let iid = inst.instance_id.clone();
@@ -671,15 +711,17 @@ impl WorkflowRegistry {
 
     /// Serialize workflow state to JSON.
     pub fn persist_instance(&self, id: &str) -> Result<String, WorkflowError> {
-        let inst = self.instances.get(id)
+        let inst = self
+            .instances
+            .get(id)
             .ok_or_else(|| WorkflowError::WorkflowNotFound(id.to_string()))?;
         Ok(serde_json::to_string_pretty(inst).unwrap_or_default())
     }
 
     /// Restore workflow state from JSON.
     pub fn restore_instance(&mut self, json: &str) -> Result<String, WorkflowError> {
-        let inst: WorkflowInstance =
-            serde_json::from_str(json).map_err(|_| WorkflowError::WorkflowNotFound("parse error".to_string()))?;
+        let inst: WorkflowInstance = serde_json::from_str(json)
+            .map_err(|_| WorkflowError::WorkflowNotFound("parse error".to_string()))?;
         let id = inst.instance_id.clone();
         self.instances.insert(id.clone(), inst);
         Ok(id)
@@ -694,18 +736,16 @@ mod tests {
 
     fn sample_def() -> WorkflowDefinition {
         let mut def = WorkflowDefinition::new("wf-1", "Order Processing");
-        def.add_step(StepDefinition::new("validate", "Validate Order")).unwrap();
+        def.add_step(StepDefinition::new("validate", "Validate Order"))
+            .unwrap();
         def.add_step(
             StepDefinition::new("charge", "Charge Payment")
                 .with_dependency("validate")
                 .with_timeout_ms(5000),
         )
         .unwrap();
-        def.add_step(
-            StepDefinition::new("ship", "Ship Items")
-                .with_dependency("charge"),
-        )
-        .unwrap();
+        def.add_step(StepDefinition::new("ship", "Ship Items").with_dependency("charge"))
+            .unwrap();
         def
     }
 
@@ -738,9 +778,14 @@ mod tests {
     #[test]
     fn test_circular_dependency_detected() {
         let mut def = WorkflowDefinition::new("w", "W");
-        def.add_step(StepDefinition::new("a", "A").with_dependency("b")).unwrap();
-        def.add_step(StepDefinition::new("b", "B").with_dependency("a")).unwrap();
-        assert!(matches!(def.validate(), Err(WorkflowError::CircularDependency { .. })));
+        def.add_step(StepDefinition::new("a", "A").with_dependency("b"))
+            .unwrap();
+        def.add_step(StepDefinition::new("b", "B").with_dependency("a"))
+            .unwrap();
+        assert!(matches!(
+            def.validate(),
+            Err(WorkflowError::CircularDependency { .. })
+        ));
     }
 
     #[test]
@@ -824,10 +869,16 @@ mod tests {
         let mut inst = WorkflowInstance::new("inst-1", &def);
         inst.start().unwrap();
 
-        assert!(!evaluate_condition(&Condition::StepCompleted("validate".into()), &inst));
+        assert!(!evaluate_condition(
+            &Condition::StepCompleted("validate".into()),
+            &inst
+        ));
         inst.start_step("validate", 1).unwrap();
         inst.complete_step("validate", 1, HashMap::new()).unwrap();
-        assert!(evaluate_condition(&Condition::StepCompleted("validate".into()), &inst));
+        assert!(evaluate_condition(
+            &Condition::StepCompleted("validate".into()),
+            &inst
+        ));
         assert!(evaluate_condition(&Condition::Always, &inst));
     }
 
@@ -880,6 +931,9 @@ mod tests {
         inst.start_step("validate", 1).unwrap();
         inst.complete_step("validate", 1, HashMap::new()).unwrap();
         assert!(inst.history.len() >= 3);
-        assert!(matches!(inst.history[0].event, HistoryEvent::WorkflowStarted));
+        assert!(matches!(
+            inst.history[0].event,
+            HistoryEvent::WorkflowStarted
+        ));
     }
 }

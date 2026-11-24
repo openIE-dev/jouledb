@@ -11,7 +11,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -76,7 +78,10 @@ pub struct Individual {
 
 impl Individual {
     pub fn new(chromosome: Chromosome) -> Self {
-        Self { chromosome, fitness: f64::NEG_INFINITY }
+        Self {
+            chromosome,
+            fitness: f64::NEG_INFINITY,
+        }
     }
 }
 
@@ -211,7 +216,8 @@ impl GeneticAlgorithm {
             let genes: Vec<f64> = (0..self.config.chromosome_length)
                 .map(|_| lo + self.rng.next_f64() * (hi - lo))
                 .collect();
-            self.population.push(Individual::new(Chromosome::RealValued(genes)));
+            self.population
+                .push(Individual::new(Chromosome::RealValued(genes)));
         }
     }
 
@@ -222,7 +228,8 @@ impl GeneticAlgorithm {
             let bits: Vec<bool> = (0..self.config.chromosome_length)
                 .map(|_| self.rng.next_f64() < 0.5)
                 .collect();
-            self.population.push(Individual::new(Chromosome::Binary(bits)));
+            self.population
+                .push(Individual::new(Chromosome::Binary(bits)));
         }
     }
 
@@ -235,7 +242,11 @@ impl GeneticAlgorithm {
 
     /// Get the best individual in the current population.
     pub fn best(&self) -> Option<&Individual> {
-        self.population.iter().max_by(|a, b| a.fitness.partial_cmp(&b.fitness).unwrap_or(std::cmp::Ordering::Equal))
+        self.population.iter().max_by(|a, b| {
+            a.fitness
+                .partial_cmp(&b.fitness)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     }
 
     /// Get current generation number.
@@ -271,8 +282,16 @@ impl GeneticAlgorithm {
     }
 
     fn roulette_select(&mut self) -> Individual {
-        let min_fit = self.population.iter().map(|i| i.fitness).fold(f64::INFINITY, f64::min);
-        let shifted: Vec<f64> = self.population.iter().map(|i| i.fitness - min_fit + 1e-10).collect();
+        let min_fit = self
+            .population
+            .iter()
+            .map(|i| i.fitness)
+            .fold(f64::INFINITY, f64::min);
+        let shifted: Vec<f64> = self
+            .population
+            .iter()
+            .map(|i| i.fitness - min_fit + 1e-10)
+            .collect();
         let total: f64 = shifted.iter().sum();
         let mut spin = self.rng.next_f64() * total;
         for (i, s) in shifted.iter().enumerate() {
@@ -288,7 +307,9 @@ impl GeneticAlgorithm {
         let n = self.population.len();
         let mut indices: Vec<usize> = (0..n).collect();
         indices.sort_by(|&a, &b| {
-            self.population[a].fitness.partial_cmp(&self.population[b].fitness)
+            self.population[a]
+                .fitness
+                .partial_cmp(&self.population[b].fitness)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
         let total_rank: usize = n * (n + 1) / 2;
@@ -312,11 +333,17 @@ impl GeneticAlgorithm {
         match (&p1.chromosome, &p2.chromosome) {
             (Chromosome::RealValued(g1), Chromosome::RealValued(g2)) => {
                 let (c1, c2) = self.crossover_real(g1, g2);
-                (Individual::new(Chromosome::RealValued(c1)), Individual::new(Chromosome::RealValued(c2)))
+                (
+                    Individual::new(Chromosome::RealValued(c1)),
+                    Individual::new(Chromosome::RealValued(c2)),
+                )
             }
             (Chromosome::Binary(g1), Chromosome::Binary(g2)) => {
                 let (c1, c2) = self.crossover_binary(g1, g2);
-                (Individual::new(Chromosome::Binary(c1)), Individual::new(Chromosome::Binary(c2)))
+                (
+                    Individual::new(Chromosome::Binary(c1)),
+                    Individual::new(Chromosome::Binary(c2)),
+                )
             }
             _ => (p1.clone(), p2.clone()),
         }
@@ -334,7 +361,9 @@ impl GeneticAlgorithm {
             Crossover::TwoPoint => {
                 let mut a = self.rng.next_usize(n.max(1));
                 let mut b = self.rng.next_usize(n.max(1));
-                if a > b { std::mem::swap(&mut a, &mut b); }
+                if a > b {
+                    std::mem::swap(&mut a, &mut b);
+                }
                 let mut c1 = g1.to_vec();
                 let mut c2 = g2.to_vec();
                 for i in a..b {
@@ -386,7 +415,9 @@ impl GeneticAlgorithm {
             Crossover::TwoPoint => {
                 let mut a = self.rng.next_usize(n.max(1));
                 let mut b = self.rng.next_usize(n.max(1));
-                if a > b { std::mem::swap(&mut a, &mut b); }
+                if a > b {
+                    std::mem::swap(&mut a, &mut b);
+                }
                 let mut c1 = g1.to_vec();
                 let mut c2 = g2.to_vec();
                 for i in a..b {
@@ -456,11 +487,17 @@ impl GeneticAlgorithm {
     /// Run one generation of the GA.
     pub fn step<F: Fn(&Chromosome) -> f64>(&mut self, fitness_fn: &F) {
         // Sort for elitism
-        self.population.sort_by(|a, b| b.fitness.partial_cmp(&a.fitness).unwrap_or(std::cmp::Ordering::Equal));
+        self.population.sort_by(|a, b| {
+            b.fitness
+                .partial_cmp(&a.fitness)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         match self.config.model {
             GenerationalModel::Generational => self.step_generational(fitness_fn),
-            GenerationalModel::SteadyState(replacements) => self.step_steady_state(fitness_fn, replacements),
+            GenerationalModel::SteadyState(replacements) => {
+                self.step_steady_state(fitness_fn, replacements)
+            }
         }
 
         // Track best fitness
@@ -497,7 +534,11 @@ impl GeneticAlgorithm {
         self.population = new_pop;
     }
 
-    fn step_steady_state<F: Fn(&Chromosome) -> f64>(&mut self, fitness_fn: &F, replacements: usize) {
+    fn step_steady_state<F: Fn(&Chromosome) -> f64>(
+        &mut self,
+        fitness_fn: &F,
+        replacements: usize,
+    ) {
         for _ in 0..replacements {
             let p1 = self.select_one();
             let p2 = self.select_one();
@@ -506,8 +547,15 @@ impl GeneticAlgorithm {
             c1.fitness = fitness_fn(&c1.chromosome);
 
             // Replace worst
-            if let Some(worst_idx) = self.population.iter().enumerate()
-                .min_by(|(_, a), (_, b)| a.fitness.partial_cmp(&b.fitness).unwrap_or(std::cmp::Ordering::Equal))
+            if let Some(worst_idx) = self
+                .population
+                .iter()
+                .enumerate()
+                .min_by(|(_, a), (_, b)| {
+                    a.fitness
+                        .partial_cmp(&b.fitness)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
                 .map(|(i, _)| i)
             {
                 if c1.fitness > self.population[worst_idx].fitness {
@@ -560,23 +608,41 @@ impl GeneticAlgorithm {
 
     /// Get diversity (average pairwise distance for real-valued populations).
     pub fn diversity(&self) -> f64 {
-        let reals: Vec<&Vec<f64>> = self.population.iter().filter_map(|ind| {
-            if let Chromosome::RealValued(g) = &ind.chromosome { Some(g) } else { None }
-        }).collect();
+        let reals: Vec<&Vec<f64>> = self
+            .population
+            .iter()
+            .filter_map(|ind| {
+                if let Chromosome::RealValued(g) = &ind.chromosome {
+                    Some(g)
+                } else {
+                    None
+                }
+            })
+            .collect();
 
-        if reals.len() < 2 { return 0.0; }
+        if reals.len() < 2 {
+            return 0.0;
+        }
 
         let mut total = 0.0;
         let mut count = 0usize;
         for i in 0..reals.len() {
             for j in (i + 1)..reals.len() {
-                let dist: f64 = reals[i].iter().zip(reals[j].iter())
-                    .map(|(a, b)| (a - b).powi(2)).sum::<f64>().sqrt();
+                let dist: f64 = reals[i]
+                    .iter()
+                    .zip(reals[j].iter())
+                    .map(|(a, b)| (a - b).powi(2))
+                    .sum::<f64>()
+                    .sqrt();
                 total += dist;
                 count += 1;
             }
         }
-        if count == 0 { 0.0 } else { total / count as f64 }
+        if count == 0 {
+            0.0
+        } else {
+            total / count as f64
+        }
     }
 
     /// Population statistics.
@@ -587,7 +653,13 @@ impl GeneticAlgorithm {
         let var = fits.iter().map(|f| (f - mean).powi(2)).sum::<f64>() / n;
         let best = fits.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         let worst = fits.iter().copied().fold(f64::INFINITY, f64::min);
-        PopulationStats { mean, variance: var, best, worst, size: fits.len() }
+        PopulationStats {
+            mean,
+            variance: var,
+            best,
+            worst,
+            size: fits.len(),
+        }
     }
 }
 
@@ -609,9 +681,7 @@ mod tests {
 
     fn sphere_fitness(c: &Chromosome) -> f64 {
         match c {
-            Chromosome::RealValued(genes) => {
-                -genes.iter().map(|x| x * x).sum::<f64>()
-            }
+            Chromosome::RealValued(genes) => -genes.iter().map(|x| x * x).sum::<f64>(),
             _ => 0.0,
         }
     }
@@ -639,7 +709,11 @@ mod tests {
 
     #[test]
     fn test_initialize_real() {
-        let config = GaConfig { population_size: 20, chromosome_length: 5, ..Default::default() };
+        let config = GaConfig {
+            population_size: 20,
+            chromosome_length: 5,
+            ..Default::default()
+        };
         let mut ga = GeneticAlgorithm::new(config);
         ga.initialize_real();
         assert_eq!(ga.population().len(), 20);
@@ -650,7 +724,11 @@ mod tests {
 
     #[test]
     fn test_initialize_binary() {
-        let config = GaConfig { population_size: 15, chromosome_length: 8, ..Default::default() };
+        let config = GaConfig {
+            population_size: 15,
+            chromosome_length: 8,
+            ..Default::default()
+        };
         let mut ga = GeneticAlgorithm::new(config);
         ga.initialize_binary();
         assert_eq!(ga.population().len(), 15);
@@ -665,7 +743,11 @@ mod tests {
 
     #[test]
     fn test_evaluate() {
-        let config = GaConfig { population_size: 10, chromosome_length: 3, ..Default::default() };
+        let config = GaConfig {
+            population_size: 10,
+            chromosome_length: 3,
+            ..Default::default()
+        };
         let mut ga = GeneticAlgorithm::new(config);
         ga.initialize_real();
         ga.evaluate(&sphere_fitness);
@@ -676,7 +758,11 @@ mod tests {
 
     #[test]
     fn test_best_individual() {
-        let config = GaConfig { population_size: 10, chromosome_length: 3, ..Default::default() };
+        let config = GaConfig {
+            population_size: 10,
+            chromosome_length: 3,
+            ..Default::default()
+        };
         let mut ga = GeneticAlgorithm::new(config);
         ga.initialize_real();
         ga.evaluate(&sphere_fitness);
@@ -892,7 +978,11 @@ mod tests {
 
     #[test]
     fn test_population_stats() {
-        let config = GaConfig { population_size: 20, chromosome_length: 3, ..Default::default() };
+        let config = GaConfig {
+            population_size: 20,
+            chromosome_length: 3,
+            ..Default::default()
+        };
         let mut ga = GeneticAlgorithm::new(config);
         ga.initialize_real();
         ga.evaluate(&sphere_fitness);
@@ -906,7 +996,11 @@ mod tests {
 
     #[test]
     fn test_diversity() {
-        let config = GaConfig { population_size: 10, chromosome_length: 3, ..Default::default() };
+        let config = GaConfig {
+            population_size: 10,
+            chromosome_length: 3,
+            ..Default::default()
+        };
         let mut ga = GeneticAlgorithm::new(config);
         ga.initialize_real();
         let div = ga.diversity();
@@ -960,7 +1054,11 @@ mod tests {
 
     #[test]
     fn test_generation_counter() {
-        let config = GaConfig { population_size: 10, chromosome_length: 3, ..Default::default() };
+        let config = GaConfig {
+            population_size: 10,
+            chromosome_length: 3,
+            ..Default::default()
+        };
         let mut ga = GeneticAlgorithm::new(config);
         ga.initialize_real();
         ga.evaluate(&sphere_fitness);

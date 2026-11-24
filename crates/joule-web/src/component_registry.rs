@@ -145,7 +145,10 @@ impl ComponentRegistry {
     /// Number of entities that have a specific component type.
     pub fn count<C: Component>(&self) -> usize {
         let tid = TypeId::of::<C>();
-        self.columns.get(&tid).map(|col| col.data.len()).unwrap_or(0)
+        self.columns
+            .get(&tid)
+            .map(|col| col.data.len())
+            .unwrap_or(0)
     }
 
     /// Get all entity IDs that have a specific component type.

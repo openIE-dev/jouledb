@@ -50,22 +50,39 @@ pub struct StreamMessage {
 
 impl StreamMessage {
     pub fn new(stream_id: u64, sequence: u64, payload: Vec<u8>) -> Self {
-        Self { stream_id, sequence, payload, is_final: false }
+        Self {
+            stream_id,
+            sequence,
+            payload,
+            is_final: false,
+        }
     }
 
     pub fn final_msg(stream_id: u64, sequence: u64, payload: Vec<u8>) -> Self {
-        Self { stream_id, sequence, payload, is_final: true }
+        Self {
+            stream_id,
+            sequence,
+            payload,
+            is_final: true,
+        }
     }
 
     /// Payload size in bytes.
-    pub fn payload_size(&self) -> usize { self.payload.len() }
+    pub fn payload_size(&self) -> usize {
+        self.payload.len()
+    }
 }
 
 impl fmt::Display for StreamMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Stream[id={}, seq={}, {}B{}]",
-            self.stream_id, self.sequence, self.payload.len(),
-            if self.is_final { ", FINAL" } else { "" })
+        write!(
+            f,
+            "Stream[id={}, seq={}, {}B{}]",
+            self.stream_id,
+            self.sequence,
+            self.payload.len(),
+            if self.is_final { ", FINAL" } else { "" }
+        )
     }
 }
 
@@ -96,10 +113,23 @@ pub enum StreamError {
     StreamNotFound(u64),
     StreamClosed(u64),
     StreamCancelled(u64),
-    MaxStreamsExceeded { limit: usize },
-    WindowExhausted { stream_id: u64, window: u64 },
-    SequenceGap { stream_id: u64, expected: u64, got: u64 },
-    InvalidState { stream_id: u64, state: StreamState, action: String },
+    MaxStreamsExceeded {
+        limit: usize,
+    },
+    WindowExhausted {
+        stream_id: u64,
+        window: u64,
+    },
+    SequenceGap {
+        stream_id: u64,
+        expected: u64,
+        got: u64,
+    },
+    InvalidState {
+        stream_id: u64,
+        state: StreamState,
+        action: String,
+    },
 }
 
 impl fmt::Display for StreamError {
@@ -108,14 +138,26 @@ impl fmt::Display for StreamError {
             Self::StreamNotFound(id) => write!(f, "stream {id} not found"),
             Self::StreamClosed(id) => write!(f, "stream {id} is closed"),
             Self::StreamCancelled(id) => write!(f, "stream {id} was cancelled"),
-            Self::MaxStreamsExceeded { limit } =>
-                write!(f, "max concurrent streams exceeded ({limit})"),
-            Self::WindowExhausted { stream_id, window } =>
-                write!(f, "stream {stream_id} flow control window exhausted ({window})"),
-            Self::SequenceGap { stream_id, expected, got } =>
-                write!(f, "stream {stream_id} sequence gap: expected {expected}, got {got}"),
-            Self::InvalidState { stream_id, state, action } =>
-                write!(f, "stream {stream_id} invalid state {state} for {action}"),
+            Self::MaxStreamsExceeded { limit } => {
+                write!(f, "max concurrent streams exceeded ({limit})")
+            }
+            Self::WindowExhausted { stream_id, window } => write!(
+                f,
+                "stream {stream_id} flow control window exhausted ({window})"
+            ),
+            Self::SequenceGap {
+                stream_id,
+                expected,
+                got,
+            } => write!(
+                f,
+                "stream {stream_id} sequence gap: expected {expected}, got {got}"
+            ),
+            Self::InvalidState {
+                stream_id,
+                state,
+                action,
+            } => write!(f, "stream {stream_id} invalid state {state} for {action}"),
         }
     }
 }
@@ -132,8 +174,12 @@ pub struct StreamStats {
 }
 
 impl StreamStats {
-    pub fn total_messages(&self) -> u64 { self.messages_sent + self.messages_received }
-    pub fn total_bytes(&self) -> u64 { self.bytes_sent + self.bytes_received }
+    pub fn total_messages(&self) -> u64 {
+        self.messages_sent + self.messages_received
+    }
+    pub fn total_bytes(&self) -> u64 {
+        self.bytes_sent + self.bytes_received
+    }
 }
 
 // ── Stream Entry ───────────────────────────────────────────────
@@ -183,35 +229,47 @@ impl StreamManager {
     pub fn open(&mut self, direction: StreamDirection, now_ms: u64) -> Result<u64, StreamError> {
         let active = self.active_count();
         if active >= self.max_concurrent {
-            return Err(StreamError::MaxStreamsExceeded { limit: self.max_concurrent });
+            return Err(StreamError::MaxStreamsExceeded {
+                limit: self.max_concurrent,
+            });
         }
         let id = self.next_stream_id;
         self.next_stream_id += 1;
-        self.streams.insert(id, StreamEntry {
-            state: StreamState::Open,
-            direction,
-            next_send_seq: 0,
-            next_recv_seq: 0,
-            send_window: self.default_window,
-            recv_window: self.default_window,
-            initial_window: self.default_window,
-            stats: StreamStats::default(),
-            created_at_ms: now_ms,
-        });
+        self.streams.insert(
+            id,
+            StreamEntry {
+                state: StreamState::Open,
+                direction,
+                next_send_seq: 0,
+                next_recv_seq: 0,
+                send_window: self.default_window,
+                recv_window: self.default_window,
+                initial_window: self.default_window,
+                stats: StreamStats::default(),
+                created_at_ms: now_ms,
+            },
+        );
         self.total_streams_created += 1;
         Ok(id)
     }
 
     /// Send a message on a stream. Returns the produced [`StreamMessage`].
-    pub fn send(&mut self, stream_id: u64, payload: Vec<u8>, is_final: bool) -> Result<StreamMessage, StreamError> {
-        let entry = self.streams.get_mut(&stream_id)
+    pub fn send(
+        &mut self,
+        stream_id: u64,
+        payload: Vec<u8>,
+        is_final: bool,
+    ) -> Result<StreamMessage, StreamError> {
+        let entry = self
+            .streams
+            .get_mut(&stream_id)
             .ok_or(StreamError::StreamNotFound(stream_id))?;
         match entry.state {
             StreamState::Open | StreamState::HalfClosedRemote => {}
-            StreamState::HalfClosedLocal | StreamState::Closed =>
-                return Err(StreamError::StreamClosed(stream_id)),
-            StreamState::Cancelled =>
-                return Err(StreamError::StreamCancelled(stream_id)),
+            StreamState::HalfClosedLocal | StreamState::Closed => {
+                return Err(StreamError::StreamClosed(stream_id));
+            }
+            StreamState::Cancelled => return Err(StreamError::StreamCancelled(stream_id)),
         }
         let payload_len = payload.len() as u64;
         if payload_len > entry.send_window {
@@ -244,14 +302,16 @@ impl StreamManager {
 
     /// Receive (process) an incoming stream message.
     pub fn receive(&mut self, msg: &StreamMessage) -> Result<(), StreamError> {
-        let entry = self.streams.get_mut(&msg.stream_id)
+        let entry = self
+            .streams
+            .get_mut(&msg.stream_id)
             .ok_or(StreamError::StreamNotFound(msg.stream_id))?;
         match entry.state {
             StreamState::Open | StreamState::HalfClosedLocal => {}
-            StreamState::HalfClosedRemote | StreamState::Closed =>
-                return Err(StreamError::StreamClosed(msg.stream_id)),
-            StreamState::Cancelled =>
-                return Err(StreamError::StreamCancelled(msg.stream_id)),
+            StreamState::HalfClosedRemote | StreamState::Closed => {
+                return Err(StreamError::StreamClosed(msg.stream_id));
+            }
+            StreamState::Cancelled => return Err(StreamError::StreamCancelled(msg.stream_id)),
         }
         if msg.sequence != entry.next_recv_seq {
             return Err(StreamError::SequenceGap {
@@ -279,7 +339,9 @@ impl StreamManager {
 
     /// Cancel a stream.
     pub fn cancel(&mut self, stream_id: u64) -> Result<(), StreamError> {
-        let entry = self.streams.get_mut(&stream_id)
+        let entry = self
+            .streams
+            .get_mut(&stream_id)
             .ok_or(StreamError::StreamNotFound(stream_id))?;
         if entry.state == StreamState::Closed || entry.state == StreamState::Cancelled {
             return Err(StreamError::StreamClosed(stream_id));
@@ -290,8 +352,14 @@ impl StreamManager {
     }
 
     /// Replenish the send window for a stream (e.g., after receiving a WINDOW_UPDATE).
-    pub fn update_send_window(&mut self, stream_id: u64, increment: u64) -> Result<(), StreamError> {
-        let entry = self.streams.get_mut(&stream_id)
+    pub fn update_send_window(
+        &mut self,
+        stream_id: u64,
+        increment: u64,
+    ) -> Result<(), StreamError> {
+        let entry = self
+            .streams
+            .get_mut(&stream_id)
             .ok_or(StreamError::StreamNotFound(stream_id))?;
         entry.send_window += increment;
         Ok(())
@@ -309,19 +377,27 @@ impl StreamManager {
 
     /// Number of active (non-closed, non-cancelled) streams.
     pub fn active_count(&self) -> usize {
-        self.streams.values().filter(|e| {
-            e.state != StreamState::Closed && e.state != StreamState::Cancelled
-        }).count()
+        self.streams
+            .values()
+            .filter(|e| e.state != StreamState::Closed && e.state != StreamState::Cancelled)
+            .count()
     }
 
     /// Total streams ever created.
-    pub fn total_created(&self) -> u64 { self.total_streams_created }
-    pub fn total_completed(&self) -> u64 { self.total_streams_completed }
-    pub fn total_cancelled(&self) -> u64 { self.total_streams_cancelled }
+    pub fn total_created(&self) -> u64 {
+        self.total_streams_created
+    }
+    pub fn total_completed(&self) -> u64 {
+        self.total_streams_completed
+    }
+    pub fn total_cancelled(&self) -> u64 {
+        self.total_streams_cancelled
+    }
 
     /// List all active stream IDs.
     pub fn active_stream_ids(&self) -> Vec<u64> {
-        self.streams.iter()
+        self.streams
+            .iter()
             .filter(|(_, e)| e.state != StreamState::Closed && e.state != StreamState::Cancelled)
             .map(|(&id, _)| id)
             .collect()
@@ -330,9 +406,8 @@ impl StreamManager {
     /// Remove all closed/cancelled streams from tracking.
     pub fn gc(&mut self) -> usize {
         let before = self.streams.len();
-        self.streams.retain(|_, e| {
-            e.state != StreamState::Closed && e.state != StreamState::Cancelled
-        });
+        self.streams
+            .retain(|_, e| e.state != StreamState::Closed && e.state != StreamState::Cancelled);
         before - self.streams.len()
     }
 }

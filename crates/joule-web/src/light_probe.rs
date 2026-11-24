@@ -18,19 +18,55 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
-    pub fn length(self) -> f64 { self.dot(self).sqrt() }
-    pub fn length_sq(self) -> f64 { self.dot(self) }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z } }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
+    pub fn length(self) -> f64 {
+        self.dot(self).sqrt()
+    }
+    pub fn length_sq(self) -> f64 {
+        self.dot(self)
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-12 { return Self::ZERO; }
-        Self { x: self.x / l, y: self.y / l, z: self.z / l }
+        if l < 1e-12 {
+            return Self::ZERO;
+        }
+        Self {
+            x: self.x / l,
+            y: self.y / l,
+            z: self.z / l,
+        }
     }
 }
 
@@ -43,12 +79,34 @@ pub struct Color {
 }
 
 impl Color {
-    pub const BLACK: Self = Self { r: 0.0, g: 0.0, b: 0.0 };
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0 };
+    pub const BLACK: Self = Self {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+    };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+    };
 
-    pub fn new(r: f64, g: f64, b: f64) -> Self { Self { r, g, b } }
-    pub fn scale(self, s: f64) -> Self { Self { r: self.r * s, g: self.g * s, b: self.b * s } }
-    pub fn add(self, o: Self) -> Self { Self { r: self.r + o.r, g: self.g + o.g, b: self.b + o.b } }
+    pub fn new(r: f64, g: f64, b: f64) -> Self {
+        Self { r, g, b }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            r: self.r + o.r,
+            g: self.g + o.g,
+            b: self.b + o.b,
+        }
+    }
 }
 
 // ── Spherical Harmonics (L2) ───────────────────────────────────
@@ -62,11 +120,11 @@ pub fn sh_basis_l2(dir: Vec3) -> [f64; SH_L2_COEFF_COUNT] {
     let (x, y, z) = (dir.x, dir.y, dir.z);
     [
         // Band 0
-        0.282094791773878,                       // Y_0^0
+        0.282094791773878, // Y_0^0
         // Band 1
-        0.488602511902920 * y,                   // Y_1^{-1}
-        0.488602511902920 * z,                   // Y_1^0
-        0.488602511902920 * x,                   // Y_1^1
+        0.488602511902920 * y, // Y_1^{-1}
+        0.488602511902920 * z, // Y_1^0
+        0.488602511902920 * x, // Y_1^1
         // Band 2
         1.092548430592079 * x * y,               // Y_2^{-2}
         1.092548430592079 * y * z,               // Y_2^{-1}
@@ -83,7 +141,11 @@ pub struct ShCoeffs {
 }
 
 impl ShCoeffs {
-    pub fn zero() -> Self { Self { coeffs: [0.0; SH_L2_COEFF_COUNT] } }
+    pub fn zero() -> Self {
+        Self {
+            coeffs: [0.0; SH_L2_COEFF_COUNT],
+        }
+    }
 
     /// Evaluate the SH for a given direction.
     pub fn evaluate(&self, dir: Vec3) -> f64 {
@@ -105,7 +167,9 @@ impl ShCoeffs {
 
     /// Scale all coefficients.
     pub fn scale(&mut self, s: f64) {
-        for c in &mut self.coeffs { *c *= s; }
+        for c in &mut self.coeffs {
+            *c *= s;
+        }
     }
 
     /// Add another set of coefficients (weighted).
@@ -167,7 +231,9 @@ impl LightProbe {
 
                     let dir = cubemap_direction(face_idx, u, v);
                     let d = dir.length();
-                    if d < 1e-12 { continue; }
+                    if d < 1e-12 {
+                        continue;
+                    }
                     let dir = dir.normalized();
 
                     // Solid angle weight: accounts for cubemap texel distortion.
@@ -206,7 +272,9 @@ impl LightProbe {
 
     /// Deserialize from a flat f64 slice. Returns None if wrong length.
     pub fn deserialize(data: &[f64]) -> Option<Self> {
-        if data.len() < 30 { return None; }
+        if data.len() < 30 {
+            return None;
+        }
         let mut probe = Self::new(Vec3::new(data[0], data[1], data[2]));
         probe.sh_r.coeffs.copy_from_slice(&data[3..12]);
         probe.sh_g.coeffs.copy_from_slice(&data[12..21]);
@@ -218,12 +286,12 @@ impl LightProbe {
 /// Map cubemap face + UV to direction vector.
 fn cubemap_direction(face: usize, u: f64, v: f64) -> Vec3 {
     match face {
-        0 => Vec3::new(1.0, -v, -u),   // +X
-        1 => Vec3::new(-1.0, -v, u),   // -X
-        2 => Vec3::new(u, 1.0, v),     // +Y
-        3 => Vec3::new(u, -1.0, -v),   // -Y
-        4 => Vec3::new(u, -v, 1.0),    // +Z
-        5 => Vec3::new(-u, -v, -1.0),  // -Z
+        0 => Vec3::new(1.0, -v, -u),  // +X
+        1 => Vec3::new(-1.0, -v, u),  // -X
+        2 => Vec3::new(u, 1.0, v),    // +Y
+        3 => Vec3::new(u, -1.0, -v),  // -Y
+        4 => Vec3::new(u, -v, 1.0),   // +Z
+        5 => Vec3::new(-u, -v, -1.0), // -Z
         _ => Vec3::ZERO,
     }
 }
@@ -238,8 +306,12 @@ pub struct AABB {
 }
 
 impl AABB {
-    pub fn new(min: Vec3, max: Vec3) -> Self { Self { min, max } }
-    pub fn extent(&self) -> Vec3 { self.max.sub(self.min) }
+    pub fn new(min: Vec3, max: Vec3) -> Self {
+        Self { min, max }
+    }
+    pub fn extent(&self) -> Vec3 {
+        self.max.sub(self.min)
+    }
 }
 
 /// A 3D grid of light probes for spatial interpolation.
@@ -260,9 +332,21 @@ impl ProbeGrid {
     pub fn new(bounds: AABB, res_x: u32, res_y: u32, res_z: u32) -> Self {
         let count = (res_x * res_y * res_z) as usize;
         let extent = bounds.extent();
-        let dx = if res_x > 1 { extent.x / (res_x - 1) as f64 } else { 0.0 };
-        let dy = if res_y > 1 { extent.y / (res_y - 1) as f64 } else { 0.0 };
-        let dz = if res_z > 1 { extent.z / (res_z - 1) as f64 } else { 0.0 };
+        let dx = if res_x > 1 {
+            extent.x / (res_x - 1) as f64
+        } else {
+            0.0
+        };
+        let dy = if res_y > 1 {
+            extent.y / (res_y - 1) as f64
+        } else {
+            0.0
+        };
+        let dz = if res_z > 1 {
+            extent.z / (res_z - 1) as f64
+        } else {
+            0.0
+        };
 
         let mut probes = Vec::with_capacity(count);
         for iz in 0..res_z {
@@ -277,11 +361,19 @@ impl ProbeGrid {
                 }
             }
         }
-        Self { bounds, res_x, res_y, res_z, probes }
+        Self {
+            bounds,
+            res_x,
+            res_y,
+            res_z,
+            probes,
+        }
     }
 
     /// Total number of probes.
-    pub fn count(&self) -> usize { self.probes.len() }
+    pub fn count(&self) -> usize {
+        self.probes.len()
+    }
 
     /// Index from 3D coordinates.
     pub fn index(&self, ix: u32, iy: u32, iz: u32) -> usize {
@@ -290,13 +382,17 @@ impl ProbeGrid {
 
     /// Get a probe by grid coordinates.
     pub fn get(&self, ix: u32, iy: u32, iz: u32) -> Option<&LightProbe> {
-        if ix >= self.res_x || iy >= self.res_y || iz >= self.res_z { return None; }
+        if ix >= self.res_x || iy >= self.res_y || iz >= self.res_z {
+            return None;
+        }
         self.probes.get(self.index(ix, iy, iz))
     }
 
     /// Get a mutable probe by grid coordinates.
     pub fn get_mut(&mut self, ix: u32, iy: u32, iz: u32) -> Option<&mut LightProbe> {
-        if ix >= self.res_x || iy >= self.res_y || iz >= self.res_z { return None; }
+        if ix >= self.res_x || iy >= self.res_y || iz >= self.res_z {
+            return None;
+        }
         let idx = self.index(ix, iy, iz);
         self.probes.get_mut(idx)
     }
@@ -308,14 +404,23 @@ impl ProbeGrid {
 
         // Normalized position within the grid.
         let nx = if extent.x > 1e-12 {
-            ((world_pos.x - self.bounds.min.x) / extent.x * (self.res_x - 1).max(1) as f64).clamp(0.0, (self.res_x - 1) as f64)
-        } else { 0.0 };
+            ((world_pos.x - self.bounds.min.x) / extent.x * (self.res_x - 1).max(1) as f64)
+                .clamp(0.0, (self.res_x - 1) as f64)
+        } else {
+            0.0
+        };
         let ny = if extent.y > 1e-12 {
-            ((world_pos.y - self.bounds.min.y) / extent.y * (self.res_y - 1).max(1) as f64).clamp(0.0, (self.res_y - 1) as f64)
-        } else { 0.0 };
+            ((world_pos.y - self.bounds.min.y) / extent.y * (self.res_y - 1).max(1) as f64)
+                .clamp(0.0, (self.res_y - 1) as f64)
+        } else {
+            0.0
+        };
         let nz = if extent.z > 1e-12 {
-            ((world_pos.z - self.bounds.min.z) / extent.z * (self.res_z - 1).max(1) as f64).clamp(0.0, (self.res_z - 1) as f64)
-        } else { 0.0 };
+            ((world_pos.z - self.bounds.min.z) / extent.z * (self.res_z - 1).max(1) as f64)
+                .clamp(0.0, (self.res_z - 1) as f64)
+        } else {
+            0.0
+        };
 
         let ix0 = (nx.floor() as u32).min(self.res_x.saturating_sub(1));
         let iy0 = (ny.floor() as u32).min(self.res_y.saturating_sub(1));
@@ -366,7 +471,9 @@ mod tests {
 
     const EPS: f64 = 1e-5;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
     fn color_approx(a: Color, b: Color) -> bool {
         approx(a.r, b.r) && approx(a.g, b.g) && approx(a.b, b.b)
     }
@@ -412,7 +519,11 @@ mod tests {
         // For a constant environment, band-0 should dominate.
         let v = c.evaluate(Vec3::new(0.0, 0.0, 1.0));
         // Should be approximately 1.0 (constant radiance).
-        assert!(v > 0.5, "constant environment should produce positive evaluation, got {}", v);
+        assert!(
+            v > 0.5,
+            "constant environment should produce positive evaluation, got {}",
+            v
+        );
     }
 
     #[test]
@@ -474,19 +585,13 @@ mod tests {
 
     #[test]
     fn probe_grid_count() {
-        let grid = ProbeGrid::new(
-            AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)),
-            3, 3, 3,
-        );
+        let grid = ProbeGrid::new(AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)), 3, 3, 3);
         assert_eq!(grid.count(), 27);
     }
 
     #[test]
     fn probe_grid_positions() {
-        let grid = ProbeGrid::new(
-            AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)),
-            2, 2, 2,
-        );
+        let grid = ProbeGrid::new(AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)), 2, 2, 2);
         let p = grid.get(0, 0, 0).unwrap();
         assert!(approx(p.position.x, 0.0));
         let p = grid.get(1, 1, 1).unwrap();
@@ -495,19 +600,13 @@ mod tests {
 
     #[test]
     fn probe_grid_get_out_of_bounds() {
-        let grid = ProbeGrid::new(
-            AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)),
-            2, 2, 2,
-        );
+        let grid = ProbeGrid::new(AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)), 2, 2, 2);
         assert!(grid.get(5, 0, 0).is_none());
     }
 
     #[test]
     fn probe_grid_sample_at_probe_position() {
-        let mut grid = ProbeGrid::new(
-            AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)),
-            2, 2, 2,
-        );
+        let mut grid = ProbeGrid::new(AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)), 2, 2, 2);
         // Set a constant SH on all probes (band-0 only).
         let band0_value = 1.0 / 0.282094791773878; // normalize so evaluate gives ~1.0
         for p in &mut grid.probes {
@@ -519,10 +618,7 @@ mod tests {
 
     #[test]
     fn probe_grid_sample_clamped_outside() {
-        let grid = ProbeGrid::new(
-            AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)),
-            2, 2, 2,
-        );
+        let grid = ProbeGrid::new(AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)), 2, 2, 2);
         // Sampling outside bounds should clamp, not crash.
         let _c = grid.sample(Vec3::new(-100.0, -100.0, -100.0), Vec3::new(0.0, 1.0, 0.0));
     }
@@ -552,8 +648,12 @@ mod tests {
         let face_size = 4u32;
         let white = vec![Color::WHITE; (face_size * face_size) as usize];
         let faces = [
-            white.clone(), white.clone(), white.clone(),
-            white.clone(), white.clone(), white.clone(),
+            white.clone(),
+            white.clone(),
+            white.clone(),
+            white.clone(),
+            white.clone(),
+            white.clone(),
         ];
         probe.project_cubemap(&faces, face_size);
         // After projecting uniform white, band-0 should be significant.
@@ -565,10 +665,7 @@ mod tests {
 
     #[test]
     fn probe_grid_get_mut() {
-        let mut grid = ProbeGrid::new(
-            AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)),
-            2, 2, 2,
-        );
+        let mut grid = ProbeGrid::new(AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)), 2, 2, 2);
         let p = grid.get_mut(0, 0, 0).unwrap();
         p.sh_r.coeffs[0] = 42.0;
         assert!(approx(grid.get(0, 0, 0).unwrap().sh_r.coeffs[0], 42.0));

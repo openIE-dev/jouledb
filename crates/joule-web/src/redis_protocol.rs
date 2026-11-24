@@ -92,9 +92,7 @@ impl RespValue {
 
     /// Convenience: create a command array.
     pub fn command(parts: &[&str]) -> Self {
-        Self::Array(Some(
-            parts.iter().map(|s| Self::bulk(s)).collect(),
-        ))
+        Self::Array(Some(parts.iter().map(|s| Self::bulk(s)).collect()))
     }
 
     /// Try to extract as a string.
@@ -277,7 +275,9 @@ fn parse_error(data: &[u8]) -> Result<(RespValue, usize), RespError> {
 fn parse_integer(data: &[u8]) -> Result<(RespValue, usize), RespError> {
     let (line, end) = read_line(data, 1)?;
     let s = std::str::from_utf8(line).map_err(|_| RespError::InvalidInteger("not utf8".into()))?;
-    let n: i64 = s.parse().map_err(|_| RespError::InvalidInteger(s.to_string()))?;
+    let n: i64 = s
+        .parse()
+        .map_err(|_| RespError::InvalidInteger(s.to_string()))?;
     Ok((RespValue::Integer(n), end))
 }
 
@@ -303,7 +303,9 @@ fn parse_bulk_string(data: &[u8]) -> Result<(RespValue, usize), RespError> {
 fn parse_array(data: &[u8]) -> Result<(RespValue, usize), RespError> {
     let (line, mut offset) = read_line(data, 1)?;
     let s = std::str::from_utf8(line).map_err(|_| RespError::InvalidInteger("not utf8".into()))?;
-    let count: i64 = s.parse().map_err(|_| RespError::InvalidInteger(s.to_string()))?;
+    let count: i64 = s
+        .parse()
+        .map_err(|_| RespError::InvalidInteger(s.to_string()))?;
     if count < 0 {
         return Ok((RespValue::Array(None), offset));
     }
@@ -330,7 +332,9 @@ fn parse_boolean(data: &[u8]) -> Result<(RespValue, usize), RespError> {
 fn parse_double(data: &[u8]) -> Result<(RespValue, usize), RespError> {
     let (line, end) = read_line(data, 1)?;
     let s = std::str::from_utf8(line).map_err(|_| RespError::InvalidDouble("not utf8".into()))?;
-    let d: f64 = s.parse().map_err(|_| RespError::InvalidDouble(s.to_string()))?;
+    let d: f64 = s
+        .parse()
+        .map_err(|_| RespError::InvalidDouble(s.to_string()))?;
     Ok((RespValue::Double(d), end))
 }
 
@@ -343,7 +347,9 @@ fn parse_big_number(data: &[u8]) -> Result<(RespValue, usize), RespError> {
 fn parse_map(data: &[u8]) -> Result<(RespValue, usize), RespError> {
     let (line, mut offset) = read_line(data, 1)?;
     let s = std::str::from_utf8(line).map_err(|_| RespError::InvalidInteger("not utf8".into()))?;
-    let count: usize = s.parse().map_err(|_| RespError::InvalidInteger(s.to_string()))?;
+    let count: usize = s
+        .parse()
+        .map_err(|_| RespError::InvalidInteger(s.to_string()))?;
     let mut entries = Vec::with_capacity(count);
     for _ in 0..count {
         let (key, kc) = parse_resp(&data[offset..])?;
@@ -358,7 +364,9 @@ fn parse_map(data: &[u8]) -> Result<(RespValue, usize), RespError> {
 fn parse_set(data: &[u8]) -> Result<(RespValue, usize), RespError> {
     let (line, mut offset) = read_line(data, 1)?;
     let s = std::str::from_utf8(line).map_err(|_| RespError::InvalidInteger("not utf8".into()))?;
-    let count: usize = s.parse().map_err(|_| RespError::InvalidInteger(s.to_string()))?;
+    let count: usize = s
+        .parse()
+        .map_err(|_| RespError::InvalidInteger(s.to_string()))?;
     let mut items = Vec::with_capacity(count);
     for _ in 0..count {
         let (val, consumed) = parse_resp(&data[offset..])?;
@@ -388,7 +396,13 @@ fn parse_verbatim(data: &[u8]) -> Result<(RespValue, usize), RespError> {
     }
     let encoding = content[..3].to_string();
     let text = content[4..].to_string();
-    Ok((RespValue::VerbatimString { encoding, data: text }, after_line + len + 2))
+    Ok((
+        RespValue::VerbatimString {
+            encoding,
+            data: text,
+        },
+        after_line + len + 2,
+    ))
 }
 
 // ── Inline Command Parser ───────────────────────────────────
@@ -509,10 +523,7 @@ mod tests {
     fn nested_array() {
         let val = RespValue::Array(Some(vec![
             RespValue::Integer(1),
-            RespValue::Array(Some(vec![
-                RespValue::Integer(2),
-                RespValue::Integer(3),
-            ])),
+            RespValue::Array(Some(vec![RespValue::Integer(2), RespValue::Integer(3)])),
         ]));
         let bytes = val.to_bytes();
         let (parsed, _) = parse_resp(&bytes).unwrap();

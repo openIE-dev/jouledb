@@ -301,7 +301,12 @@ pub fn cpu_dot_scores(queries: &[i8], memory: &[i8], d: usize) -> Vec<i32> {
         let q = &queries[i * d..(i + 1) * d];
         for j in 0..k {
             let m = &memory[j * d..(j + 1) * d];
-            out.push(q.iter().zip(m).map(|(a, b)| i32::from(*a) * i32::from(*b)).sum());
+            out.push(
+                q.iter()
+                    .zip(m)
+                    .map(|(a, b)| i32::from(*a) * i32::from(*b))
+                    .sum(),
+            );
         }
     }
     out
@@ -394,8 +399,13 @@ pub fn hdc_similarity_auto(
         },
     );
     // Setup paid by either attempt in this call belongs to this call.
-    let first_setup = first.as_ref().map(|r| (r.setup_s, r.setup_performed, r.compile_s)).ok();
-    let merge = |mut run: HdcRun, other: Option<(f64, bool, f64)>, attempts: Vec<(Layout, PlannedDevice)>| {
+    let first_setup = first
+        .as_ref()
+        .map(|r| (r.setup_s, r.setup_performed, r.compile_s))
+        .ok();
+    let merge = |mut run: HdcRun,
+                 other: Option<(f64, bool, f64)>,
+                 attempts: Vec<(Layout, PlannedDevice)>| {
         if let Some((s, p, c)) = other {
             run.setup_s += s;
             run.setup_performed |= p;
@@ -408,7 +418,9 @@ pub fn hdc_similarity_auto(
         (Ok(a), Ok(b)) => {
             let mut attempts = a.attempts.clone();
             attempts.extend(b.attempts.iter().copied());
-            if b.placement.similarity_on_neural_engine() || !a.placement.similarity_on_neural_engine() {
+            if b.placement.similarity_on_neural_engine()
+                || !a.placement.similarity_on_neural_engine()
+            {
                 Ok(merge(b, first_setup, attempts))
             } else {
                 let b_setup = Some((b.setup_s, b.setup_performed, b.compile_s));
@@ -438,9 +450,18 @@ mod tests {
 
     #[test]
     fn validate_rejects_non_bipolar_and_bad_shapes() {
-        assert!(matches!(validate(&[1, 0], &[1, 1], 2), Err(AneError::InvalidInput(_))));
-        assert!(matches!(validate(&[1, 1, 1], &[1, 1], 2), Err(AneError::InvalidInput(_))));
-        assert!(matches!(validate(&[], &[1, 1], 2), Err(AneError::InvalidInput(_))));
+        assert!(matches!(
+            validate(&[1, 0], &[1, 1], 2),
+            Err(AneError::InvalidInput(_))
+        ));
+        assert!(matches!(
+            validate(&[1, 1, 1], &[1, 1], 2),
+            Err(AneError::InvalidInput(_))
+        ));
+        assert!(matches!(
+            validate(&[], &[1, 1], 2),
+            Err(AneError::InvalidInput(_))
+        ));
         assert_eq!(validate(&[1, -1, 1, 1], &[1, 1], 2).ok(), Some((2, 1)));
     }
 

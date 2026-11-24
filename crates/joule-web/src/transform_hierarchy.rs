@@ -16,15 +16,61 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0, z: 0.0 } }
-    pub fn one() -> Self { Self { x: 1.0, y: 1.0, z: 1.0 } }
-    pub fn up() -> Self { Self { x: 0.0, y: 1.0, z: 0.0 } }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z } }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
-    pub fn mul_comp(self, o: Self) -> Self { Self { x: self.x * o.x, y: self.y * o.y, z: self.z * o.z } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+    pub fn one() -> Self {
+        Self {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        }
+    }
+    pub fn up() -> Self {
+        Self {
+            x: 0.0,
+            y: 1.0,
+            z: 0.0,
+        }
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
+    pub fn mul_comp(self, o: Self) -> Self {
+        Self {
+            x: self.x * o.x,
+            y: self.y * o.y,
+            z: self.z * o.z,
+        }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
     pub fn cross(self, o: Self) -> Self {
         Self {
             x: self.y * o.z - self.z * o.y,
@@ -32,10 +78,16 @@ impl Vec3 {
             z: self.x * o.y - self.y * o.x,
         }
     }
-    pub fn length(self) -> f64 { self.dot(self).sqrt() }
+    pub fn length(self) -> f64 {
+        self.dot(self).sqrt()
+    }
     pub fn normalized(self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { self.scale(1.0 / len) }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            self.scale(1.0 / len)
+        }
     }
 }
 
@@ -50,13 +102,25 @@ pub struct Quaternion {
 }
 
 impl Quaternion {
-    pub fn identity() -> Self { Self { x: 0.0, y: 0.0, z: 0.0, w: 1.0 } }
+    pub fn identity() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 1.0,
+        }
+    }
 
     pub fn from_axis_angle(axis: Vec3, angle_rad: f64) -> Self {
         let half = angle_rad * 0.5;
         let s = half.sin();
         let a = axis.normalized();
-        Self { x: a.x * s, y: a.y * s, z: a.z * s, w: half.cos() }
+        Self {
+            x: a.x * s,
+            y: a.y * s,
+            z: a.z * s,
+            w: half.cos(),
+        }
     }
 
     pub fn length(self) -> f64 {
@@ -65,11 +129,26 @@ impl Quaternion {
 
     pub fn normalized(self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::identity() }
-        else { Self { x: self.x / len, y: self.y / len, z: self.z / len, w: self.w / len } }
+        if len < 1e-12 {
+            Self::identity()
+        } else {
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+                z: self.z / len,
+                w: self.w / len,
+            }
+        }
     }
 
-    pub fn conjugate(self) -> Self { Self { x: -self.x, y: -self.y, z: -self.z, w: self.w } }
+    pub fn conjugate(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+            w: self.w,
+        }
+    }
 
     pub fn mul(self, o: Self) -> Self {
         Self {
@@ -81,22 +160,35 @@ impl Quaternion {
     }
 
     pub fn rotate_vec3(self, v: Vec3) -> Vec3 {
-        let q_vec = Quaternion { x: v.x, y: v.y, z: v.z, w: 0.0 };
+        let q_vec = Quaternion {
+            x: v.x,
+            y: v.y,
+            z: v.z,
+            w: 0.0,
+        };
         let result = self.mul(q_vec).mul(self.conjugate());
         Vec3::new(result.x, result.y, result.z)
     }
 
     pub fn to_matrix(self) -> Mat4 {
         let q = self.normalized();
-        let xx = q.x * q.x; let yy = q.y * q.y; let zz = q.z * q.z;
-        let xy = q.x * q.y; let xz = q.x * q.z; let yz = q.y * q.z;
-        let wx = q.w * q.x; let wy = q.w * q.y; let wz = q.w * q.z;
-        Mat4 { m: [
-            [1.0 - 2.0*(yy+zz), 2.0*(xy-wz),       2.0*(xz+wy),       0.0],
-            [2.0*(xy+wz),       1.0 - 2.0*(xx+zz), 2.0*(yz-wx),       0.0],
-            [2.0*(xz-wy),       2.0*(yz+wx),       1.0 - 2.0*(xx+yy), 0.0],
-            [0.0,               0.0,               0.0,               1.0],
-        ]}
+        let xx = q.x * q.x;
+        let yy = q.y * q.y;
+        let zz = q.z * q.z;
+        let xy = q.x * q.y;
+        let xz = q.x * q.z;
+        let yz = q.y * q.z;
+        let wx = q.w * q.x;
+        let wy = q.w * q.y;
+        let wz = q.w * q.z;
+        Mat4 {
+            m: [
+                [1.0 - 2.0 * (yy + zz), 2.0 * (xy - wz), 2.0 * (xz + wy), 0.0],
+                [2.0 * (xy + wz), 1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx), 0.0],
+                [2.0 * (xz - wy), 2.0 * (yz + wx), 1.0 - 2.0 * (xx + yy), 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+        }
     }
 
     /// Extract Euler angles (XYZ order) from quaternion.
@@ -127,12 +219,14 @@ pub struct Mat4 {
 
 impl Mat4 {
     pub fn identity() -> Self {
-        Self { m: [
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ]}
+        Self {
+            m: [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+        }
     }
 
     pub fn translation(v: Vec3) -> Self {
@@ -165,9 +259,9 @@ impl Mat4 {
 
     pub fn transform_point(self, v: Vec3) -> Vec3 {
         Vec3::new(
-            self.m[0][0]*v.x + self.m[0][1]*v.y + self.m[0][2]*v.z + self.m[0][3],
-            self.m[1][0]*v.x + self.m[1][1]*v.y + self.m[1][2]*v.z + self.m[1][3],
-            self.m[2][0]*v.x + self.m[2][1]*v.y + self.m[2][2]*v.z + self.m[2][3],
+            self.m[0][0] * v.x + self.m[0][1] * v.y + self.m[0][2] * v.z + self.m[0][3],
+            self.m[1][0] * v.x + self.m[1][1] * v.y + self.m[1][2] * v.z + self.m[1][3],
+            self.m[2][0] * v.x + self.m[2][1] * v.y + self.m[2][2] * v.z + self.m[2][3],
         )
     }
 
@@ -182,30 +276,58 @@ impl Mat4 {
         let isx = if sx > 1e-12 { 1.0 / sx } else { 0.0 };
         let isy = if sy > 1e-12 { 1.0 / sy } else { 0.0 };
         let isz = if sz > 1e-12 { 1.0 / sz } else { 0.0 };
-        let r00 = self.m[0][0] * isx; let r10 = self.m[1][0] * isx; let r20 = self.m[2][0] * isx;
-        let r01 = self.m[0][1] * isy; let r11 = self.m[1][1] * isy; let r21 = self.m[2][1] * isy;
-        let r02 = self.m[0][2] * isz; let r12 = self.m[1][2] * isz; let r22 = self.m[2][2] * isz;
+        let r00 = self.m[0][0] * isx;
+        let r10 = self.m[1][0] * isx;
+        let r20 = self.m[2][0] * isx;
+        let r01 = self.m[0][1] * isy;
+        let r11 = self.m[1][1] * isy;
+        let r21 = self.m[2][1] * isy;
+        let r02 = self.m[0][2] * isz;
+        let r12 = self.m[1][2] * isz;
+        let r22 = self.m[2][2] * isz;
         // Shepperd's method for quaternion from rotation matrix
         let trace = r00 + r11 + r22;
         let q = if trace > 0.0 {
             let s = (trace + 1.0).sqrt() * 2.0;
-            Quaternion { w: 0.25 * s, x: (r21 - r12) / s, y: (r02 - r20) / s, z: (r10 - r01) / s }
+            Quaternion {
+                w: 0.25 * s,
+                x: (r21 - r12) / s,
+                y: (r02 - r20) / s,
+                z: (r10 - r01) / s,
+            }
         } else if r00 > r11 && r00 > r22 {
             let s = (1.0 + r00 - r11 - r22).sqrt() * 2.0;
-            Quaternion { w: (r21 - r12) / s, x: 0.25 * s, y: (r01 + r10) / s, z: (r02 + r20) / s }
+            Quaternion {
+                w: (r21 - r12) / s,
+                x: 0.25 * s,
+                y: (r01 + r10) / s,
+                z: (r02 + r20) / s,
+            }
         } else if r11 > r22 {
             let s = (1.0 + r11 - r00 - r22).sqrt() * 2.0;
-            Quaternion { w: (r02 - r20) / s, x: (r01 + r10) / s, y: 0.25 * s, z: (r12 + r21) / s }
+            Quaternion {
+                w: (r02 - r20) / s,
+                x: (r01 + r10) / s,
+                y: 0.25 * s,
+                z: (r12 + r21) / s,
+            }
         } else {
             let s = (1.0 + r22 - r00 - r11).sqrt() * 2.0;
-            Quaternion { w: (r10 - r01) / s, x: (r02 + r20) / s, y: (r12 + r21) / s, z: 0.25 * s }
+            Quaternion {
+                w: (r10 - r01) / s,
+                x: (r02 + r20) / s,
+                y: (r12 + r21) / s,
+                z: 0.25 * s,
+            }
         };
         (translation, q.normalized(), scale)
     }
 
     /// Build a TRS matrix from components.
     pub fn from_trs(t: Vec3, r: Quaternion, s: Vec3) -> Self {
-        Mat4::translation(t).mul(r.to_matrix()).mul(Mat4::scaling(s))
+        Mat4::translation(t)
+            .mul(r.to_matrix())
+            .mul(Mat4::scaling(s))
     }
 
     /// Build a look-at matrix (right-handed).
@@ -214,9 +336,15 @@ impl Mat4 {
         let right = forward.cross(up_hint).normalized();
         let up = right.cross(forward);
         let mut m = Self::identity();
-        m.m[0][0] = right.x;   m.m[0][1] = right.y;   m.m[0][2] = right.z;
-        m.m[1][0] = up.x;      m.m[1][1] = up.y;      m.m[1][2] = up.z;
-        m.m[2][0] = -forward.x; m.m[2][1] = -forward.y; m.m[2][2] = -forward.z;
+        m.m[0][0] = right.x;
+        m.m[0][1] = right.y;
+        m.m[0][2] = right.z;
+        m.m[1][0] = up.x;
+        m.m[1][1] = up.y;
+        m.m[1][2] = up.z;
+        m.m[2][0] = -forward.x;
+        m.m[2][1] = -forward.y;
+        m.m[2][2] = -forward.z;
         m.m[0][3] = -right.dot(eye);
         m.m[1][3] = -up.dot(eye);
         m.m[2][3] = forward.dot(eye);
@@ -235,7 +363,11 @@ pub struct Transform {
 
 impl Transform {
     pub fn new() -> Self {
-        Self { position: Vec3::zero(), rotation: Quaternion::identity(), local_scale: Vec3::one() }
+        Self {
+            position: Vec3::zero(),
+            rotation: Quaternion::identity(),
+            local_scale: Vec3::one(),
+        }
     }
 
     pub fn local_matrix(&self) -> Mat4 {
@@ -257,17 +389,23 @@ impl Transform {
 
     pub fn look_at(&mut self, target: Vec3, up: Vec3) {
         let forward = target.sub(self.position).normalized();
-        if forward.length() < 1e-9 { return; }
+        if forward.length() < 1e-9 {
+            return;
+        }
         let right = forward.cross(up).normalized();
-        if right.length() < 1e-9 { return; }
+        if right.length() < 1e-9 {
+            return;
+        }
         let corrected_up = right.cross(forward);
         // Build rotation matrix and extract quaternion
-        let mat = Mat4 { m: [
-            [right.x,    right.y,    right.z,    0.0],
-            [corrected_up.x, corrected_up.y, corrected_up.z, 0.0],
-            [-forward.x, -forward.y, -forward.z, 0.0],
-            [0.0,        0.0,        0.0,        1.0],
-        ]};
+        let mat = Mat4 {
+            m: [
+                [right.x, right.y, right.z, 0.0],
+                [corrected_up.x, corrected_up.y, corrected_up.z, 0.0],
+                [-forward.x, -forward.y, -forward.z, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+        };
         let (_, q, _) = mat.decompose();
         self.rotation = q;
     }
@@ -295,7 +433,9 @@ pub struct TransformHierarchy {
 }
 
 impl TransformHierarchy {
-    pub fn new() -> Self { Self { nodes: Vec::new() } }
+    pub fn new() -> Self {
+        Self { nodes: Vec::new() }
+    }
 
     pub fn create_node(&mut self, name: &str) -> NodeId {
         let id = self.nodes.len();
@@ -328,20 +468,32 @@ impl TransformHierarchy {
         self.mark_dirty(node);
     }
 
-    pub fn transform(&self, node: NodeId) -> &Transform { &self.nodes[node].transform }
+    pub fn transform(&self, node: NodeId) -> &Transform {
+        &self.nodes[node].transform
+    }
 
     pub fn transform_mut(&mut self, node: NodeId) -> &mut Transform {
         self.mark_dirty(node);
         &mut self.nodes[node].transform
     }
 
-    pub fn name(&self, node: NodeId) -> &str { &self.nodes[node].name }
-    pub fn parent(&self, node: NodeId) -> Option<NodeId> { self.nodes[node].parent }
-    pub fn children(&self, node: NodeId) -> &[NodeId] { &self.nodes[node].children }
-    pub fn node_count(&self) -> usize { self.nodes.len() }
+    pub fn name(&self, node: NodeId) -> &str {
+        &self.nodes[node].name
+    }
+    pub fn parent(&self, node: NodeId) -> Option<NodeId> {
+        self.nodes[node].parent
+    }
+    pub fn children(&self, node: NodeId) -> &[NodeId] {
+        &self.nodes[node].children
+    }
+    pub fn node_count(&self) -> usize {
+        self.nodes.len()
+    }
 
     fn mark_dirty(&mut self, node: NodeId) {
-        if self.nodes[node].dirty { return; }
+        if self.nodes[node].dirty {
+            return;
+        }
         self.nodes[node].dirty = true;
         let children: Vec<NodeId> = self.nodes[node].children.clone();
         for child in children {
@@ -372,7 +524,9 @@ impl TransformHierarchy {
         }
     }
 
-    pub fn world_matrix(&self, node: NodeId) -> Mat4 { self.nodes[node].world_matrix }
+    pub fn world_matrix(&self, node: NodeId) -> Mat4 {
+        self.nodes[node].world_matrix
+    }
 
     /// Get world-space position of a node.
     pub fn world_position(&self, node: NodeId) -> Vec3 {
@@ -414,7 +568,9 @@ impl TransformHierarchy {
 
     /// Find all root nodes (nodes with no parent).
     pub fn roots(&self) -> Vec<NodeId> {
-        (0..self.nodes.len()).filter(|i| self.nodes[*i].parent.is_none()).collect()
+        (0..self.nodes.len())
+            .filter(|i| self.nodes[*i].parent.is_none())
+            .collect()
     }
 
     /// Depth of a node in the hierarchy.
@@ -436,7 +592,9 @@ mod tests {
     use super::*;
     use std::f64::consts::FRAC_PI_2;
 
-    fn approx(a: f64, b: f64, eps: f64) -> bool { (a - b).abs() < eps }
+    fn approx(a: f64, b: f64, eps: f64) -> bool {
+        (a - b).abs() < eps
+    }
     fn v3_approx(a: Vec3, b: Vec3, eps: f64) -> bool {
         approx(a.x, b.x, eps) && approx(a.y, b.y, eps) && approx(a.z, b.z, eps)
     }
@@ -614,11 +772,7 @@ mod tests {
 
     #[test]
     fn test_look_at_matrix() {
-        let m = Mat4::look_at(
-            Vec3::new(0.0, 0.0, 5.0),
-            Vec3::zero(),
-            Vec3::up(),
-        );
+        let m = Mat4::look_at(Vec3::new(0.0, 0.0, 5.0), Vec3::zero(), Vec3::up());
         let p = m.transform_point(Vec3::zero());
         // RH view: objects in front of camera have negative z in view space
         assert!(approx(p.z, -5.0, 1e-9));

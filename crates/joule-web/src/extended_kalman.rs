@@ -78,7 +78,10 @@ pub struct Mat {
 
 impl Mat {
     pub fn zeros(n: usize) -> Self {
-        Self { n, data: vec![0.0; n * n] }
+        Self {
+            n,
+            data: vec![0.0; n * n],
+        }
     }
 
     pub fn identity(n: usize) -> Self {
@@ -99,7 +102,11 @@ impl Mat {
 
     /// Rectangular matrix (rows x cols).
     pub fn zeros_rect(rows: usize, cols: usize) -> MatRect {
-        MatRect { rows, cols, data: vec![0.0; rows * cols] }
+        MatRect {
+            rows,
+            cols,
+            data: vec![0.0; rows * cols],
+        }
     }
 
     pub fn transpose(&self) -> Self {
@@ -141,12 +148,22 @@ impl Mat {
     }
 
     pub fn add(&self, other: &Mat) -> Mat {
-        let data: Vec<f64> = self.data.iter().zip(&other.data).map(|(a, b)| a + b).collect();
+        let data: Vec<f64> = self
+            .data
+            .iter()
+            .zip(&other.data)
+            .map(|(a, b)| a + b)
+            .collect();
         Mat { n: self.n, data }
     }
 
     pub fn sub(&self, other: &Mat) -> Mat {
-        let data: Vec<f64> = self.data.iter().zip(&other.data).map(|(a, b)| a - b).collect();
+        let data: Vec<f64> = self
+            .data
+            .iter()
+            .zip(&other.data)
+            .map(|(a, b)| a - b)
+            .collect();
         Mat { n: self.n, data }
     }
 
@@ -218,7 +235,9 @@ impl Mat {
                 aug[col * 2 * n + j] /= pivot;
             }
             for row in 0..n {
-                if row == col { continue; }
+                if row == col {
+                    continue;
+                }
                 let factor = aug[row * 2 * n + col];
                 for j in 0..2 * n {
                     aug[row * 2 * n + j] -= factor * aug[col * 2 * n + j];
@@ -279,7 +298,11 @@ impl MatRect {
 
     /// Transpose: (m x n) -> (n x m).
     pub fn transpose(&self) -> MatRect {
-        let mut t = MatRect { rows: self.cols, cols: self.rows, data: vec![0.0; self.rows * self.cols] };
+        let mut t = MatRect {
+            rows: self.cols,
+            cols: self.rows,
+            data: vec![0.0; self.rows * self.cols],
+        };
         for r in 0..self.rows {
             for c in 0..self.cols {
                 t.set(c, r, self.get(r, c));
@@ -290,7 +313,11 @@ impl MatRect {
 
     /// (m x n) * (n x n) -> (m x n)  (right-multiply by square matrix).
     pub fn mul_sq(&self, sq: &Mat) -> MatRect {
-        let mut result = MatRect { rows: self.rows, cols: self.cols, data: vec![0.0; self.rows * self.cols] };
+        let mut result = MatRect {
+            rows: self.rows,
+            cols: self.cols,
+            data: vec![0.0; self.rows * self.cols],
+        };
         for i in 0..self.rows {
             for j in 0..self.cols {
                 let mut sum = 0.0;
@@ -325,7 +352,11 @@ impl MatRect {
     pub fn sq_mul_rect_t(sq: &Mat, rect: &MatRect) -> MatRect {
         // sq is (n x n), rect is (m x n), rect' is (n x m), result is (n x m)
         let rt = rect.transpose();
-        let mut result = MatRect { rows: sq.n, cols: rt.cols, data: vec![0.0; sq.n * rt.cols] };
+        let mut result = MatRect {
+            rows: sq.n,
+            cols: rt.cols,
+            data: vec![0.0; sq.n * rt.cols],
+        };
         for i in 0..sq.n {
             for j in 0..rt.cols {
                 let mut sum = 0.0;
@@ -342,15 +373,15 @@ impl MatRect {
 // ── Numerical Jacobian ──────────────────────────────────────────
 
 /// Compute numerical Jacobian of f(x) using central differences.
-pub fn numerical_jacobian(
-    f: &dyn Fn(&Vec64) -> Vec64,
-    x: &Vec64,
-    eps: f64,
-) -> MatRect {
+pub fn numerical_jacobian(f: &dyn Fn(&Vec64) -> Vec64, x: &Vec64, eps: f64) -> MatRect {
     let y0 = f(x);
     let m = y0.len();
     let n = x.len();
-    let mut jac = MatRect { rows: m, cols: n, data: vec![0.0; m * n] };
+    let mut jac = MatRect {
+        rows: m,
+        cols: n,
+        data: vec![0.0; m * n],
+    };
     for j in 0..n {
         let mut x_plus = x.clone();
         let mut x_minus = x.clone();
@@ -390,7 +421,9 @@ impl ExtendedKalmanFilter {
     /// Create an EKF with given dimensions.
     pub fn new(n: usize, m: usize) -> Result<Self, EkfError> {
         if n == 0 || m == 0 {
-            return Err(EkfError::InvalidConfig("dimensions must be positive".into()));
+            return Err(EkfError::InvalidConfig(
+                "dimensions must be positive".into(),
+            ));
         }
         Ok(Self {
             n,
@@ -418,7 +451,10 @@ impl ExtendedKalmanFilter {
 
         // Convert Jacobian (n x n) to Mat for P update.
         if jac.rows != self.n || jac.cols != self.n {
-            return Err(EkfError::DimensionMismatch { expected: self.n, got: jac.rows });
+            return Err(EkfError::DimensionMismatch {
+                expected: self.n,
+                got: jac.rows,
+            });
         }
         // P = F * P * F' + Q
         // F is jac as MatRect(n x n), P is Mat(n x n).
@@ -584,7 +620,11 @@ pub fn weighted_cross_covariance(
 ) -> MatRect {
     let nx = x_mean.len();
     let nz = z_mean.len();
-    let mut cc = MatRect { rows: nx, cols: nz, data: vec![0.0; nx * nz] };
+    let mut cc = MatRect {
+        rows: nx,
+        cols: nz,
+        data: vec![0.0; nx * nz],
+    };
     for ((xp, zp), &w) in x_points.iter().zip(z_points).zip(weights) {
         let dx = xp.sub(x_mean);
         let dz = zp.sub(z_mean);
@@ -615,12 +655,16 @@ pub fn range_bearing_jacobian(x: &Vec64) -> MatRect {
     let r = (px * px + py * py).sqrt();
     let r2 = px * px + py * py;
     let n = x.len();
-    let mut jac = MatRect { rows: 2, cols: n, data: vec![0.0; 2 * n] };
+    let mut jac = MatRect {
+        rows: 2,
+        cols: n,
+        data: vec![0.0; 2 * n],
+    };
     if r > 1e-12 {
-        jac.set(0, 0, px / r);   // dr/dx
-        jac.set(0, 1, py / r);   // dr/dy
+        jac.set(0, 0, px / r); // dr/dx
+        jac.set(0, 1, py / r); // dr/dy
         jac.set(1, 0, -py / r2); // dbearing/dx
-        jac.set(1, 1, px / r2);  // dbearing/dy
+        jac.set(1, 1, px / r2); // dbearing/dy
     }
     jac
 }
@@ -649,7 +693,10 @@ mod tests {
 
     #[test]
     fn test_cholesky_2x2() {
-        let m = Mat { n: 2, data: vec![4.0, 2.0, 2.0, 3.0] };
+        let m = Mat {
+            n: 2,
+            data: vec![4.0, 2.0, 2.0, 3.0],
+        };
         let l = m.cholesky().unwrap();
         let lt = l.transpose();
         let product = l.mul(&lt);
@@ -663,7 +710,10 @@ mod tests {
     #[test]
     fn test_cholesky_3x3() {
         // Positive definite.
-        let m = Mat { n: 3, data: vec![4.0, 2.0, 1.0, 2.0, 5.0, 3.0, 1.0, 3.0, 6.0] };
+        let m = Mat {
+            n: 3,
+            data: vec![4.0, 2.0, 1.0, 2.0, 5.0, 3.0, 1.0, 3.0, 6.0],
+        };
         let l = m.cholesky().unwrap();
         let lt = l.transpose();
         let product = l.mul(&lt);
@@ -676,7 +726,10 @@ mod tests {
 
     #[test]
     fn test_cholesky_not_pd() {
-        let m = Mat { n: 2, data: vec![-1.0, 0.0, 0.0, 1.0] };
+        let m = Mat {
+            n: 2,
+            data: vec![-1.0, 0.0, 0.0, 1.0],
+        };
         assert!(m.cholesky().is_err());
     }
 
@@ -757,7 +810,13 @@ mod tests {
 
     #[test]
     fn test_sigma_points_count() {
-        let config = UkfConfig { n: 3, m: 2, alpha: 1e-3, kappa: 0.0, beta: 2.0 };
+        let config = UkfConfig {
+            n: 3,
+            m: 2,
+            alpha: 1e-3,
+            kappa: 0.0,
+            beta: 2.0,
+        };
         let x = Vec64(vec![1.0, 2.0, 3.0]);
         let p = Mat::identity(3);
         let pts = sigma_points(&x, &p, &config).unwrap();
@@ -766,9 +825,18 @@ mod tests {
 
     #[test]
     fn test_sigma_points_mean_recovers_state() {
-        let config = UkfConfig { n: 2, m: 1, alpha: 1.0, kappa: 0.0, beta: 2.0 };
+        let config = UkfConfig {
+            n: 2,
+            m: 1,
+            alpha: 1.0,
+            kappa: 0.0,
+            beta: 2.0,
+        };
         let x = Vec64(vec![5.0, 10.0]);
-        let p = Mat { n: 2, data: vec![1.0, 0.0, 0.0, 1.0] };
+        let p = Mat {
+            n: 2,
+            data: vec![1.0, 0.0, 0.0, 1.0],
+        };
         let pts = sigma_points(&x, &p, &config).unwrap();
         let w = config.weights_mean();
         let mean = weighted_mean(&pts, &w);
@@ -778,7 +846,13 @@ mod tests {
 
     #[test]
     fn test_weighted_covariance_identity() {
-        let config = UkfConfig { n: 2, m: 1, alpha: 1.0, kappa: 0.0, beta: 2.0 };
+        let config = UkfConfig {
+            n: 2,
+            m: 1,
+            alpha: 1.0,
+            kappa: 0.0,
+            beta: 2.0,
+        };
         let x = Vec64(vec![0.0, 0.0]);
         let p = Mat::identity(2);
         let pts = sigma_points(&x, &p, &config).unwrap();
@@ -793,7 +867,10 @@ mod tests {
 
     #[test]
     fn test_mat_inverse() {
-        let m = Mat { n: 2, data: vec![4.0, 7.0, 2.0, 6.0] };
+        let m = Mat {
+            n: 2,
+            data: vec![4.0, 7.0, 2.0, 6.0],
+        };
         let inv = m.inverse().unwrap();
         let product = m.mul(&inv);
         assert!(approx(product.get(0, 0), 1.0, 1e-8));
@@ -830,7 +907,13 @@ mod tests {
 
     #[test]
     fn test_ukf_weights_sum_to_one() {
-        let config = UkfConfig { n: 3, m: 2, alpha: 1e-3, kappa: 0.0, beta: 2.0 };
+        let config = UkfConfig {
+            n: 3,
+            m: 2,
+            alpha: 1e-3,
+            kappa: 0.0,
+            beta: 2.0,
+        };
         let wm = config.weights_mean();
         let sum: f64 = wm.iter().sum();
         assert!(approx(sum, 1.0, 1e-8));
@@ -850,7 +933,8 @@ mod tests {
         for _ in 0..50 {
             ekf.predict(&f_identity, None).unwrap();
             let z = range_bearing(&true_pos);
-            ekf.update(&z, &range_bearing, Some(&range_bearing_jacobian)).unwrap();
+            ekf.update(&z, &range_bearing, Some(&range_bearing_jacobian))
+                .unwrap();
         }
 
         // Should converge near true position.

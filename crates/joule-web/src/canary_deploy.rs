@@ -163,13 +163,11 @@ impl RollbackRule {
                     canary.avg_latency_us() > base_lat * (1.0 + factor)
                 }
             }
-            Self::CustomMetricThreshold { metric, max_value } => {
-                canary
-                    .custom
-                    .get(metric)
-                    .map(|v| *v > *max_value)
-                    .unwrap_or(false)
-            }
+            Self::CustomMetricThreshold { metric, max_value } => canary
+                .custom
+                .get(metric)
+                .map(|v| *v > *max_value)
+                .unwrap_or(false),
         }
     }
 }

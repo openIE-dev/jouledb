@@ -53,35 +53,64 @@ impl BBox {
     }
 
     pub fn from_point(coords: &[f64]) -> Self {
-        Self { min: coords.to_vec(), max: coords.to_vec() }
+        Self {
+            min: coords.to_vec(),
+            max: coords.to_vec(),
+        }
     }
 
     pub fn area(&self) -> f64 {
-        self.min.iter().zip(self.max.iter()).fold(1.0, |a, (lo, hi)| a * (hi - lo).max(0.0))
+        self.min
+            .iter()
+            .zip(self.max.iter())
+            .fold(1.0, |a, (lo, hi)| a * (hi - lo).max(0.0))
     }
 
     pub fn margin(&self) -> f64 {
-        self.min.iter().zip(self.max.iter()).map(|(lo, hi)| (hi - lo).max(0.0)).sum()
+        self.min
+            .iter()
+            .zip(self.max.iter())
+            .map(|(lo, hi)| (hi - lo).max(0.0))
+            .sum()
     }
 
     pub fn center(&self) -> Vec<f64> {
-        self.min.iter().zip(self.max.iter()).map(|(lo, hi)| (lo + hi) * 0.5).collect()
+        self.min
+            .iter()
+            .zip(self.max.iter())
+            .map(|(lo, hi)| (lo + hi) * 0.5)
+            .collect()
     }
 
     pub fn contains_point(&self, p: &[f64]) -> bool {
-        self.min.iter().zip(self.max.iter()).zip(p.iter())
+        self.min
+            .iter()
+            .zip(self.max.iter())
+            .zip(p.iter())
             .all(|((lo, hi), v)| *v >= *lo && *v <= *hi)
     }
 
     pub fn intersects(&self, other: &BBox) -> bool {
-        self.min.iter().zip(self.max.iter())
+        self.min
+            .iter()
+            .zip(self.max.iter())
             .zip(other.min.iter().zip(other.max.iter()))
             .all(|((a_lo, a_hi), (b_lo, b_hi))| a_lo <= b_hi && b_lo <= a_hi)
     }
 
     pub fn merge(&self, other: &BBox) -> BBox {
-        let min: Vec<f64> = self.min.iter().zip(other.min.iter()).map(|(a, b)| a.min(*b)).collect();
-        let max: Vec<f64> = self.max.iter().zip(other.max.iter()).map(|(a, b)| a.max(*b)).collect();
+        let min: Vec<f64> = self
+            .min
+            .iter()
+            .zip(other.min.iter())
+            .map(|(a, b)| a.min(*b))
+            .collect();
+        let max: Vec<f64> = self
+            .max
+            .iter()
+            .zip(other.max.iter())
+            .map(|(a, b)| a.max(*b))
+            .collect();
         BBox { min, max }
     }
 
@@ -90,11 +119,18 @@ impl BBox {
     }
 
     pub fn distance_sq_to_point(&self, p: &[f64]) -> f64 {
-        self.min.iter().zip(self.max.iter()).zip(p.iter())
+        self.min
+            .iter()
+            .zip(self.max.iter())
+            .zip(p.iter())
             .map(|((lo, hi), v)| {
-                if *v < *lo { (lo - v) * (lo - v) }
-                else if *v > *hi { (v - hi) * (v - hi) }
-                else { 0.0 }
+                if *v < *lo {
+                    (lo - v) * (lo - v)
+                } else if *v > *hi {
+                    (v - hi) * (v - hi)
+                } else {
+                    0.0
+                }
             })
             .sum()
     }
@@ -143,19 +179,32 @@ impl RTreeConfig {
         }
     }
 
-    pub fn with_min_children(mut self, m: usize) -> Self { self.min_children = m; self }
-    pub fn with_max_children(mut self, m: usize) -> Self { self.max_children = m; self }
-    pub fn with_split_strategy(mut self, s: SplitStrategy) -> Self { self.split_strategy = s; self }
+    pub fn with_min_children(mut self, m: usize) -> Self {
+        self.min_children = m;
+        self
+    }
+    pub fn with_max_children(mut self, m: usize) -> Self {
+        self.max_children = m;
+        self
+    }
+    pub fn with_split_strategy(mut self, s: SplitStrategy) -> Self {
+        self.split_strategy = s;
+        self
+    }
 
     pub fn validate(&self) -> Result<(), RTreeError> {
         if self.dimensions == 0 {
             return Err(RTreeError::InvalidConfig("dimensions must be > 0".into()));
         }
         if self.min_children < 1 {
-            return Err(RTreeError::InvalidConfig("min_children must be >= 1".into()));
+            return Err(RTreeError::InvalidConfig(
+                "min_children must be >= 1".into(),
+            ));
         }
         if self.max_children < 2 * self.min_children {
-            return Err(RTreeError::InvalidConfig("max_children must be >= 2 * min_children".into()));
+            return Err(RTreeError::InvalidConfig(
+                "max_children must be >= 2 * min_children".into(),
+            ));
         }
         Ok(())
     }
@@ -163,7 +212,11 @@ impl RTreeConfig {
 
 impl fmt::Display for RTreeConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RTreeConfig({}D, {}-{}, {:?})", self.dimensions, self.min_children, self.max_children, self.split_strategy)
+        write!(
+            f,
+            "RTreeConfig({}D, {}-{}, {:?})",
+            self.dimensions, self.min_children, self.max_children, self.split_strategy
+        )
     }
 }
 
@@ -204,13 +257,24 @@ impl RTree {
         let dims = config.dimensions;
         let root_node = Node {
             bbox: BBox::new(vec![f64::INFINITY; dims], vec![f64::NEG_INFINITY; dims]),
-            kind: NodeKind::Leaf { entries: Vec::new() },
+            kind: NodeKind::Leaf {
+                entries: Vec::new(),
+            },
         };
-        Ok(Self { config, nodes: vec![root_node], root: 0, entry_count: 0 })
+        Ok(Self {
+            config,
+            nodes: vec![root_node],
+            root: 0,
+            entry_count: 0,
+        })
     }
 
-    pub fn len(&self) -> usize { self.entry_count }
-    pub fn is_empty(&self) -> bool { self.entry_count == 0 }
+    pub fn len(&self) -> usize {
+        self.entry_count
+    }
+    pub fn is_empty(&self) -> bool {
+        self.entry_count == 0
+    }
 
     /// Insert an entry.
     pub fn insert(&mut self, entry: Entry) -> Result<(), RTreeError> {
@@ -230,11 +294,15 @@ impl RTree {
         match &self.nodes[node_idx].kind {
             NodeKind::Leaf { .. } => node_idx,
             NodeKind::Internal { children } => {
-                let best = children.iter().copied().min_by(|&a, &b| {
-                    let ea = self.nodes[a].bbox.enlargement(bbox);
-                    let eb = self.nodes[b].bbox.enlargement(bbox);
-                    ea.partial_cmp(&eb).unwrap_or(std::cmp::Ordering::Equal)
-                }).unwrap();
+                let best = children
+                    .iter()
+                    .copied()
+                    .min_by(|&a, &b| {
+                        let ea = self.nodes[a].bbox.enlargement(bbox);
+                        let eb = self.nodes[b].bbox.enlargement(bbox);
+                        ea.partial_cmp(&eb).unwrap_or(std::cmp::Ordering::Equal)
+                    })
+                    .unwrap();
                 self.choose_leaf(best, bbox)
             }
         }
@@ -269,19 +337,33 @@ impl RTree {
         };
         if node_idx == self.root {
             let left_idx = self.nodes.len();
-            self.nodes.push(Node { bbox: left_bb, kind: left_kind });
+            self.nodes.push(Node {
+                bbox: left_bb,
+                kind: left_kind,
+            });
             let right_idx = self.nodes.len();
-            self.nodes.push(Node { bbox: right_bb, kind: right_kind });
+            self.nodes.push(Node {
+                bbox: right_bb,
+                kind: right_kind,
+            });
             let dims = self.config.dimensions;
             self.nodes[self.root] = Node {
                 bbox: self.nodes[left_idx].bbox.merge(&self.nodes[right_idx].bbox),
-                kind: NodeKind::Internal { children: vec![left_idx, right_idx] },
+                kind: NodeKind::Internal {
+                    children: vec![left_idx, right_idx],
+                },
             };
             let _ = dims;
         } else {
-            self.nodes[node_idx] = Node { bbox: left_bb, kind: left_kind };
+            self.nodes[node_idx] = Node {
+                bbox: left_bb,
+                kind: left_kind,
+            };
             let right_idx = self.nodes.len();
-            self.nodes.push(Node { bbox: right_bb, kind: right_kind });
+            self.nodes.push(Node {
+                bbox: right_bb,
+                kind: right_kind,
+            });
             // Propagate to parent — simplified: update root children
             if let NodeKind::Internal { children } = &mut self.nodes[self.root].kind {
                 if !children.contains(&right_idx) {
@@ -309,7 +391,13 @@ impl RTree {
         let mut min = vec![f64::INFINITY; dims];
         let mut max = vec![f64::NEG_INFINITY; dims];
         for &c in children {
-            for (i, (lo, hi)) in self.nodes[c].bbox.min.iter().zip(self.nodes[c].bbox.max.iter()).enumerate() {
+            for (i, (lo, hi)) in self.nodes[c]
+                .bbox
+                .min
+                .iter()
+                .zip(self.nodes[c].bbox.max.iter())
+                .enumerate()
+            {
                 min[i] = min[i].min(*lo);
                 max[i] = max[i].max(*hi);
             }
@@ -325,7 +413,12 @@ impl RTree {
                 let right = entries[mid..].to_vec();
                 let lbb = Self::compute_bbox_for_entries(&left);
                 let rbb = Self::compute_bbox_for_entries(&right);
-                (NodeKind::Leaf { entries: left }, NodeKind::Leaf { entries: right }, lbb, rbb)
+                (
+                    NodeKind::Leaf { entries: left },
+                    NodeKind::Leaf { entries: right },
+                    lbb,
+                    rbb,
+                )
             }
             NodeKind::Internal { children } => {
                 let mid = children.len() / 2;
@@ -333,7 +426,12 @@ impl RTree {
                 let right = children[mid..].to_vec();
                 let lbb = self.compute_bbox_for_children(&left);
                 let rbb = self.compute_bbox_for_children(&right);
-                (NodeKind::Internal { children: left }, NodeKind::Internal { children: right }, lbb, rbb)
+                (
+                    NodeKind::Internal { children: left },
+                    NodeKind::Internal { children: right },
+                    lbb,
+                    rbb,
+                )
             }
         }
     }
@@ -347,7 +445,9 @@ impl RTree {
                 let mut left_bb = entries[s1].bbox.clone();
                 let mut right_bb = entries[s2].bbox.clone();
                 for (i, e) in entries.iter().enumerate() {
-                    if i == s1 || i == s2 { continue; }
+                    if i == s1 || i == s2 {
+                        continue;
+                    }
                     let el = left_bb.enlargement(&e.bbox);
                     let er = right_bb.enlargement(&e.bbox);
                     if el < er || (el == er && left.len() <= right.len()) {
@@ -358,7 +458,12 @@ impl RTree {
                         right.push(e.clone());
                     }
                 }
-                (NodeKind::Leaf { entries: left }, NodeKind::Leaf { entries: right }, left_bb, right_bb)
+                (
+                    NodeKind::Leaf { entries: left },
+                    NodeKind::Leaf { entries: right },
+                    left_bb,
+                    right_bb,
+                )
             }
             NodeKind::Internal { children } => {
                 let mid = children.len() / 2;
@@ -366,7 +471,12 @@ impl RTree {
                 let right = children[mid..].to_vec();
                 let lbb = self.compute_bbox_for_children(&left);
                 let rbb = self.compute_bbox_for_children(&right);
-                (NodeKind::Internal { children: left }, NodeKind::Internal { children: right }, lbb, rbb)
+                (
+                    NodeKind::Internal { children: left },
+                    NodeKind::Internal { children: right },
+                    lbb,
+                    rbb,
+                )
             }
         }
     }
@@ -442,7 +552,8 @@ impl RTree {
                 }
             }
             NodeKind::Internal { children } => {
-                let mut ordered: Vec<(usize, f64)> = children.iter()
+                let mut ordered: Vec<(usize, f64)> = children
+                    .iter()
                     .map(|c| (*c, self.nodes[*c].bbox.distance_sq_to_point(point)))
                     .collect();
                 ordered.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
@@ -497,7 +608,8 @@ impl RTree {
             ca.partial_cmp(&cb).unwrap_or(std::cmp::Ordering::Equal)
         });
         // Within slices of sqrt(n/M), sort by second dimension
-        let slice_size = ((entries.len() as f64 / max_c as f64).sqrt().ceil() as usize).max(1) * max_c;
+        let slice_size =
+            ((entries.len() as f64 / max_c as f64).sqrt().ceil() as usize).max(1) * max_c;
         for chunk in entries.chunks_mut(slice_size) {
             let dim = if dims > 1 { 1 } else { 0 };
             chunk.sort_by(|a, b| {
@@ -516,7 +628,12 @@ impl RTree {
 
 impl fmt::Display for RTree {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RTree(entries={}, nodes={})", self.entry_count, self.nodes.len())
+        write!(
+            f,
+            "RTree(entries={}, nodes={})",
+            self.entry_count,
+            self.nodes.len()
+        )
     }
 }
 
@@ -527,11 +644,17 @@ mod tests {
     use super::*;
 
     fn pt_entry(x: f64, y: f64, id: u64) -> Entry {
-        Entry { bbox: BBox::from_point(&[x, y]), id }
+        Entry {
+            bbox: BBox::from_point(&[x, y]),
+            id,
+        }
     }
 
     fn rect_entry(x0: f64, y0: f64, x1: f64, y1: f64, id: u64) -> Entry {
-        Entry { bbox: BBox::new(vec![x0, y0], vec![x1, y1]), id }
+        Entry {
+            bbox: BBox::new(vec![x0, y0], vec![x1, y1]),
+            id,
+        }
     }
 
     #[test]
@@ -575,7 +698,13 @@ mod tests {
     #[test]
     fn test_config_validation() {
         assert!(RTreeConfig::new(0).validate().is_err());
-        assert!(RTreeConfig::new(2).with_min_children(5).with_max_children(4).validate().is_err());
+        assert!(
+            RTreeConfig::new(2)
+                .with_min_children(5)
+                .with_max_children(4)
+                .validate()
+                .is_err()
+        );
         assert!(RTreeConfig::new(2).validate().is_ok());
     }
 
@@ -636,13 +765,18 @@ mod tests {
     #[test]
     fn test_dimension_mismatch() {
         let mut tree = RTree::new(RTreeConfig::new(2)).unwrap();
-        let entry = Entry { bbox: BBox::from_point(&[1.0, 2.0, 3.0]), id: 1 };
+        let entry = Entry {
+            bbox: BBox::from_point(&[1.0, 2.0, 3.0]),
+            id: 1,
+        };
         assert!(tree.insert(entry).is_err());
     }
 
     #[test]
     fn test_bulk_load() {
-        let entries: Vec<Entry> = (0..50).map(|i| pt_entry(i as f64, i as f64 * 0.5, i)).collect();
+        let entries: Vec<Entry> = (0..50)
+            .map(|i| pt_entry(i as f64, i as f64 * 0.5, i))
+            .collect();
         let tree = RTree::bulk_load(RTreeConfig::new(2), entries).unwrap();
         assert_eq!(tree.len(), 50);
     }
@@ -655,7 +789,9 @@ mod tests {
 
     #[test]
     fn test_linear_split_strategy() {
-        let config = RTreeConfig::new(2).with_max_children(4).with_split_strategy(SplitStrategy::Linear);
+        let config = RTreeConfig::new(2)
+            .with_max_children(4)
+            .with_split_strategy(SplitStrategy::Linear);
         let mut tree = RTree::new(config).unwrap();
         for i in 0..20 {
             tree.insert(pt_entry(i as f64, i as f64, i)).unwrap();
@@ -665,7 +801,9 @@ mod tests {
 
     #[test]
     fn test_quadratic_split_strategy() {
-        let config = RTreeConfig::new(2).with_max_children(4).with_split_strategy(SplitStrategy::Quadratic);
+        let config = RTreeConfig::new(2)
+            .with_max_children(4)
+            .with_split_strategy(SplitStrategy::Quadratic);
         let mut tree = RTree::new(config).unwrap();
         for i in 0..20 {
             tree.insert(pt_entry(i as f64, i as f64, i)).unwrap();
@@ -684,8 +822,16 @@ mod tests {
     #[test]
     fn test_3d_tree() {
         let mut tree = RTree::new(RTreeConfig::new(3)).unwrap();
-        tree.insert(Entry { bbox: BBox::from_point(&[1.0, 2.0, 3.0]), id: 1 }).unwrap();
-        tree.insert(Entry { bbox: BBox::from_point(&[4.0, 5.0, 6.0]), id: 2 }).unwrap();
+        tree.insert(Entry {
+            bbox: BBox::from_point(&[1.0, 2.0, 3.0]),
+            id: 1,
+        })
+        .unwrap();
+        tree.insert(Entry {
+            bbox: BBox::from_point(&[4.0, 5.0, 6.0]),
+            id: 2,
+        })
+        .unwrap();
         let results = tree.search(&BBox::new(vec![0.0, 0.0, 0.0], vec![3.0, 3.0, 4.0]));
         assert!(results.contains(&1));
     }

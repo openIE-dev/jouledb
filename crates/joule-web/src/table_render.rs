@@ -58,36 +58,51 @@ impl BorderStyle {
     /// ASCII borders: `+--+`.
     pub fn ascii() -> Self {
         Self {
-            top_left: "+", top_right: "+",
-            bottom_left: "+", bottom_right: "+",
-            horizontal: "-", vertical: "|",
+            top_left: "+",
+            top_right: "+",
+            bottom_left: "+",
+            bottom_right: "+",
+            horizontal: "-",
+            vertical: "|",
             cross: "+",
-            top_tee: "+", bottom_tee: "+",
-            left_tee: "+", right_tee: "+",
+            top_tee: "+",
+            bottom_tee: "+",
+            left_tee: "+",
+            right_tee: "+",
         }
     }
 
     /// Unicode single-line borders.
     pub fn unicode() -> Self {
         Self {
-            top_left: "┌", top_right: "┐",
-            bottom_left: "└", bottom_right: "┘",
-            horizontal: "─", vertical: "│",
+            top_left: "┌",
+            top_right: "┐",
+            bottom_left: "└",
+            bottom_right: "┘",
+            horizontal: "─",
+            vertical: "│",
             cross: "┼",
-            top_tee: "┬", bottom_tee: "┴",
-            left_tee: "├", right_tee: "┤",
+            top_tee: "┬",
+            bottom_tee: "┴",
+            left_tee: "├",
+            right_tee: "┤",
         }
     }
 
     /// Unicode double-line borders.
     pub fn double() -> Self {
         Self {
-            top_left: "╔", top_right: "╗",
-            bottom_left: "╚", bottom_right: "╝",
-            horizontal: "═", vertical: "║",
+            top_left: "╔",
+            top_right: "╗",
+            bottom_left: "╚",
+            bottom_right: "╝",
+            horizontal: "═",
+            vertical: "║",
             cross: "╬",
-            top_tee: "╦", bottom_tee: "╩",
-            left_tee: "╠", right_tee: "╣",
+            top_tee: "╦",
+            bottom_tee: "╩",
+            left_tee: "╠",
+            right_tee: "╣",
         }
     }
 }
@@ -185,7 +200,9 @@ impl Column {
 
 /// Wrap text to fit within `max_width`, returning lines.
 pub fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
-    if max_width == 0 { return vec![text.to_string()]; }
+    if max_width == 0 {
+        return vec![text.to_string()];
+    }
     let mut lines = Vec::new();
     let mut current = String::new();
 
@@ -264,7 +281,9 @@ impl Table {
 
     /// Compute effective column widths.
     fn column_widths(&self) -> Vec<usize> {
-        let mut widths: Vec<usize> = self.columns.iter()
+        let mut widths: Vec<usize> = self
+            .columns
+            .iter()
             .map(|c| c.header.chars().count().max(c.min_width))
             .collect();
 
@@ -292,7 +311,14 @@ impl Table {
     }
 
     /// Render a horizontal separator line.
-    fn render_separator(&self, widths: &[usize], left: &str, mid: &str, right: &str, h: &str) -> String {
+    fn render_separator(
+        &self,
+        widths: &[usize],
+        left: &str,
+        mid: &str,
+        right: &str,
+        h: &str,
+    ) -> String {
         let mut line = left.to_string();
         for (i, &w) in widths.iter().enumerate() {
             let pad = self.columns.get(i).map(|c| c.padding).unwrap_or(1);
@@ -318,19 +344,26 @@ impl Table {
                 let end = (col_idx + cell.colspan).min(widths.len());
                 let sum: usize = widths[col_idx..end].iter().sum();
                 let sep_count = cell.colspan.saturating_sub(1);
-                let pad_extra: usize = self.columns[col_idx..end].iter()
+                let pad_extra: usize = self.columns[col_idx..end]
+                    .iter()
                     .map(|c| c.padding * 2)
                     .sum::<usize>();
-                sum + sep_count + pad_extra.saturating_sub(
-                    self.columns.get(col_idx).map(|c| c.padding * 2).unwrap_or(2)
-                )
+                sum + sep_count
+                    + pad_extra.saturating_sub(
+                        self.columns
+                            .get(col_idx)
+                            .map(|c| c.padding * 2)
+                            .unwrap_or(2),
+                    )
             } else if col_idx < widths.len() {
                 widths[col_idx]
             } else {
                 10
             };
 
-            let max_w = self.columns.get(col_idx)
+            let max_w = self
+                .columns
+                .get(col_idx)
                 .and_then(|c| c.max_width)
                 .unwrap_or(w);
             let lines = wrap_text(&cell.content, max_w.max(1));
@@ -349,9 +382,9 @@ impl Table {
             for (lines, cell, w) in &wrapped {
                 let pad = self.columns.get(ci).map(|c| c.padding).unwrap_or(1);
                 let text = lines.get(line_idx).map(|s| s.as_str()).unwrap_or("");
-                let align = cell.align.unwrap_or(
-                    self.columns.get(ci).map(|c| c.align).unwrap_or(Align::Left)
-                );
+                let align = cell
+                    .align
+                    .unwrap_or(self.columns.get(ci).map(|c| c.align).unwrap_or(Align::Left));
                 let padded = align.pad(text, *w);
                 let content = cell.render_content(&padded);
                 line.push_str(&" ".repeat(pad));
@@ -376,12 +409,18 @@ impl Table {
         if let Some(border) = &self.border {
             // Top border.
             out.push_str(&self.render_separator(
-                &widths, border.top_left, border.top_tee, border.top_right, border.horizontal
+                &widths,
+                border.top_left,
+                border.top_tee,
+                border.top_right,
+                border.horizontal,
             ));
             out.push('\n');
 
             // Header row.
-            let header_cells: Vec<Cell> = self.columns.iter()
+            let header_cells: Vec<Cell> = self
+                .columns
+                .iter()
                 .map(|c| Cell::new(&c.header).with_align(c.align))
                 .collect();
             for line in self.render_row(&header_cells, &widths) {
@@ -392,7 +431,11 @@ impl Table {
             // Header separator.
             if self.header_separator {
                 out.push_str(&self.render_separator(
-                    &widths, border.left_tee, border.cross, border.right_tee, border.horizontal
+                    &widths,
+                    border.left_tee,
+                    border.cross,
+                    border.right_tee,
+                    border.horizontal,
                 ));
                 out.push('\n');
             }
@@ -405,7 +448,11 @@ impl Table {
                 }
                 if self.row_separator && i + 1 < self.rows.len() {
                     out.push_str(&self.render_separator(
-                        &widths, border.left_tee, border.cross, border.right_tee, border.horizontal
+                        &widths,
+                        border.left_tee,
+                        border.cross,
+                        border.right_tee,
+                        border.horizontal,
                     ));
                     out.push('\n');
                 }
@@ -413,12 +460,18 @@ impl Table {
 
             // Bottom border.
             out.push_str(&self.render_separator(
-                &widths, border.bottom_left, border.bottom_tee, border.bottom_right, border.horizontal
+                &widths,
+                border.bottom_left,
+                border.bottom_tee,
+                border.bottom_right,
+                border.horizontal,
             ));
             out.push('\n');
         } else {
             // No border — space-separated.
-            let header_cells: Vec<Cell> = self.columns.iter()
+            let header_cells: Vec<Cell> = self
+                .columns
+                .iter()
                 .map(|c| Cell::new(&c.header).with_align(c.align))
                 .collect();
             for line in self.render_row(&header_cells, &widths) {
@@ -560,7 +613,8 @@ mod tests {
         t.add_row(vec![Cell::new("b")]);
         let out = t.render();
         // Should have separator lines between rows.
-        let separator_count = out.lines()
+        let separator_count = out
+            .lines()
             .filter(|l| l.starts_with('+') && l.ends_with('+'))
             .count();
         assert!(separator_count >= 3); // top + header-sep + row-sep + bottom = 4

@@ -19,9 +19,24 @@ pub struct Pixel {
 }
 
 impl Pixel {
-    pub const WHITE: Self = Self { r: 255, g: 255, b: 255, a: 255 };
-    pub const BLACK: Self = Self { r: 0, g: 0, b: 0, a: 255 };
-    pub const TRANSPARENT: Self = Self { r: 0, g: 0, b: 0, a: 0 };
+    pub const WHITE: Self = Self {
+        r: 255,
+        g: 255,
+        b: 255,
+        a: 255,
+    };
+    pub const BLACK: Self = Self {
+        r: 0,
+        g: 0,
+        b: 0,
+        a: 255,
+    };
+    pub const TRANSPARENT: Self = Self {
+        r: 0,
+        g: 0,
+        b: 0,
+        a: 0,
+    };
 
     pub fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self { r, g, b, a }
@@ -96,7 +111,12 @@ pub struct SamplerState {
 
 impl SamplerState {
     pub fn new(filter: FilterMode, wrap: WrapMode) -> Self {
-        Self { filter, wrap_u: wrap, wrap_v: wrap, border_color: [0.0, 0.0, 0.0, 1.0] }
+        Self {
+            filter,
+            wrap_u: wrap,
+            wrap_v: wrap,
+            border_color: [0.0, 0.0, 0.0, 1.0],
+        }
     }
 
     pub fn with_border(mut self, color: [f32; 4]) -> Self {
@@ -134,15 +154,29 @@ impl Texture2D {
     pub fn new(width: u32, height: u32, pixels: Vec<Pixel>) -> Result<Self, String> {
         let expected = (width as usize) * (height as usize);
         if pixels.len() != expected {
-            return Err(format!("expected {} pixels, got {}", expected, pixels.len()));
+            return Err(format!(
+                "expected {} pixels, got {}",
+                expected,
+                pixels.len()
+            ));
         }
-        Ok(Self { width, height, pixels, mip_chain: Vec::new() })
+        Ok(Self {
+            width,
+            height,
+            pixels,
+            mip_chain: Vec::new(),
+        })
     }
 
     /// Solid color texture.
     pub fn solid(width: u32, height: u32, color: Pixel) -> Self {
         let count = (width as usize) * (height as usize);
-        Self { width, height, pixels: vec![color; count], mip_chain: Vec::new() }
+        Self {
+            width,
+            height,
+            pixels: vec![color; count],
+            mip_chain: Vec::new(),
+        }
     }
 
     /// Checkerboard pattern (useful for testing).
@@ -154,10 +188,19 @@ impl Texture2D {
                 let cell_size = cell.max(1);
                 let cx = x / cell_size;
                 let cy = y / cell_size;
-                if (cx + cy) % 2 == 0 { pixels.push(a); } else { pixels.push(b); }
+                if (cx + cy) % 2 == 0 {
+                    pixels.push(a);
+                } else {
+                    pixels.push(b);
+                }
             }
         }
-        Self { width, height, pixels, mip_chain: Vec::new() }
+        Self {
+            width,
+            height,
+            pixels,
+            mip_chain: Vec::new(),
+        }
     }
 
     pub fn pixel_count(&self) -> usize {
@@ -261,7 +304,11 @@ impl Texture2D {
                 }
             }
 
-            self.mip_chain.push(MipLevel { width: new_w, height: new_h, pixels: new_pixels.clone() });
+            self.mip_chain.push(MipLevel {
+                width: new_w,
+                height: new_h,
+                pixels: new_pixels.clone(),
+            });
             prev_w = new_w;
             prev_h = new_h;
             prev_pixels = new_pixels;
@@ -360,7 +407,13 @@ fn lerp4(a: [f32; 4], b: [f32; 4], t: f32) -> [f32; 4] {
 
 impl fmt::Display for Texture2D {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Texture2D({}x{}, {} mips)", self.width, self.height, self.mip_chain.len())
+        write!(
+            f,
+            "Texture2D({}x{}, {} mips)",
+            self.width,
+            self.height,
+            self.mip_chain.len()
+        )
     }
 }
 
@@ -504,10 +557,7 @@ mod tests {
     #[test]
     fn test_mipmap_averaging() {
         // 2x2 texture: top row white, bottom row black.
-        let pixels = vec![
-            Pixel::WHITE, Pixel::WHITE,
-            Pixel::BLACK, Pixel::BLACK,
-        ];
+        let pixels = vec![Pixel::WHITE, Pixel::WHITE, Pixel::BLACK, Pixel::BLACK];
         let mut t = Texture2D::new(2, 2, pixels).unwrap();
         t.generate_mipmaps();
         assert_eq!(t.mip_count(), 1);

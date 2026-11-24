@@ -38,9 +38,7 @@ impl Enzyme {
     /// given the following residue `next`.
     pub fn cleaves_after(&self, aa: char, next: Option<char>) -> bool {
         match self {
-            Self::Trypsin => {
-                (aa == 'K' || aa == 'R') && next != Some('P')
-            }
+            Self::Trypsin => (aa == 'K' || aa == 'R') && next != Some('P'),
             Self::TrypsinP => aa == 'K' || aa == 'R',
             Self::Chymotrypsin => {
                 (aa == 'F' || aa == 'W' || aa == 'Y' || aa == 'L') && next != Some('P')
@@ -331,7 +329,11 @@ pub fn count_internal_cleavages(peptide: &str, enzyme: Enzyme) -> usize {
     let mut count = 0;
     // Don't count the C-terminal cleavage site.
     for i in 0..chars.len() - 1 {
-        let next = if i + 1 < chars.len() { Some(chars[i + 1]) } else { None };
+        let next = if i + 1 < chars.len() {
+            Some(chars[i + 1])
+        } else {
+            None
+        };
         if enzyme.cleaves_after(chars[i], next) {
             count += 1;
         }

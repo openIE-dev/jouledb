@@ -83,8 +83,11 @@ impl fmt::Display for MeshHealth {
         write!(
             f,
             "MeshHealth(nodes={}, edges={}, components={}, connected={}, avg_deg={:.1})",
-            self.node_count, self.edge_count, self.connected_components,
-            self.is_connected, self.avg_degree,
+            self.node_count,
+            self.edge_count,
+            self.connected_components,
+            self.is_connected,
+            self.avg_degree,
         )
     }
 }
@@ -154,18 +157,36 @@ impl MeshNetwork {
         if already {
             return false;
         }
-        self.nodes.get_mut(a).unwrap().neighbors.insert(b.to_string());
-        self.nodes.get_mut(b).unwrap().neighbors.insert(a.to_string());
-        self.events.push(TopologyEvent::EdgeAdded(a.to_string(), b.to_string()));
+        self.nodes
+            .get_mut(a)
+            .unwrap()
+            .neighbors
+            .insert(b.to_string());
+        self.nodes
+            .get_mut(b)
+            .unwrap()
+            .neighbors
+            .insert(a.to_string());
+        self.events
+            .push(TopologyEvent::EdgeAdded(a.to_string(), b.to_string()));
         true
     }
 
     /// Remove an edge.
     pub fn remove_edge(&mut self, a: &str, b: &str) -> bool {
-        let removed_a = self.nodes.get_mut(a).map(|n| n.neighbors.remove(b)).unwrap_or(false);
-        let removed_b = self.nodes.get_mut(b).map(|n| n.neighbors.remove(a)).unwrap_or(false);
+        let removed_a = self
+            .nodes
+            .get_mut(a)
+            .map(|n| n.neighbors.remove(b))
+            .unwrap_or(false);
+        let removed_b = self
+            .nodes
+            .get_mut(b)
+            .map(|n| n.neighbors.remove(a))
+            .unwrap_or(false);
         if removed_a || removed_b {
-            self.events.push(TopologyEvent::EdgeRemoved(a.to_string(), b.to_string()));
+            self.events
+                .push(TopologyEvent::EdgeRemoved(a.to_string(), b.to_string()));
             true
         } else {
             false
@@ -276,7 +297,11 @@ impl MeshNetwork {
             .cloned()
             .collect();
 
-        BroadcastResult { reached, unreached, total_messages }
+        BroadcastResult {
+            reached,
+            unreached,
+            total_messages,
+        }
     }
 
     /// Compute mesh diameter (longest shortest path) for the largest component.

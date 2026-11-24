@@ -232,11 +232,11 @@ pub use sql::{
 
 // WAL-based durable storage module (requires "durable" feature)
 #[cfg(feature = "durable")]
+pub mod column_batch;
+#[cfg(feature = "durable")]
 pub mod durable;
 #[cfg(feature = "durable")]
 pub mod wal_codec;
-#[cfg(feature = "durable")]
-pub mod column_batch;
 #[cfg(feature = "durable")]
 pub use durable::DurableAmorphicStore;
 
@@ -821,10 +821,7 @@ impl ShardedValueIndex {
     fn shard_of(h: u64) -> usize {
         (h >> 58) as usize % VI_SHARDS
     }
-    pub(crate) fn entry(
-        &mut self,
-        h: u64,
-    ) -> std::collections::hash_map::Entry<'_, u64, ValueIds> {
+    pub(crate) fn entry(&mut self, h: u64) -> std::collections::hash_map::Entry<'_, u64, ValueIds> {
         self.shards[Self::shard_of(h)].entry(h)
     }
     pub(crate) fn get(&self, h: &u64) -> Option<&ValueIds> {
@@ -1257,8 +1254,17 @@ impl AmorphicStore {
         // one pass per row chunk in parallel: each row's map is walked once
         // and scattered to its field's lists (no per-field hash lookups);
         // chunks are then concatenated in id order per field.
-        type Gather<'a> = (&'a str, Vec<RecordId>, Vec<(OrderedFloat, RecordId)>, Vec<(RecordId, f64)>);
-        type Part = (Vec<RecordId>, Vec<(OrderedFloat, RecordId)>, Vec<(RecordId, f64)>);
+        type Gather<'a> = (
+            &'a str,
+            Vec<RecordId>,
+            Vec<(OrderedFloat, RecordId)>,
+            Vec<(RecordId, f64)>,
+        );
+        type Part = (
+            Vec<RecordId>,
+            Vec<(OrderedFloat, RecordId)>,
+            Vec<(RecordId, f64)>,
+        );
         let nf = names.len();
         let parts: Vec<Vec<Part>> = rows
             .par_chunks(8192)
@@ -1270,11 +1276,7 @@ impl AmorphicStore {
                     let mut hint = 0usize;
                     for (k, value) in fields {
                         let k = k.as_str();
-                        let c = if names[hint] == k {
-                            hint
-                        } else {
-                            name_pos[k]
-                        };
+                        let c = if names[hint] == k { hint } else { name_pos[k] };
                         hint = if c + 1 < nf { c + 1 } else { 0 };
                         let o = &mut out[c];
                         o.0.push(*id);
@@ -1417,7 +1419,9 @@ impl AmorphicStore {
                                 }
                             });
                             // name map: only when the batch has such a field
-                            if by_field_ref.contains_key("name") || by_field_ref.contains_key("_name") {
+                            if by_field_ref.contains_key("name")
+                                || by_field_ref.contains_key("_name")
+                            {
                                 for (id, fields) in rows_ref.iter() {
                                     for (field, value) in fields.iter() {
                                         if field == "name" || field == "_name" {
@@ -1479,7 +1483,11 @@ impl AmorphicStore {
             self.records.insert(rec.id, rec);
         }
         if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
-            let (pf, vi, wal): (std::time::Duration, std::time::Duration, std::time::Duration) = branch_t;
+            let (pf, vi, wal): (
+                std::time::Duration,
+                std::time::Duration,
+                std::time::Duration,
+            ) = branch_t;
             eprintln!(
                 "apply indexes+wal={:?} (pre={t_pre:?} [reserve={t_res:?} gather={t_gather:?}] per-field={pf:?} value_index={vi:?} wal={wal:?}) shells={:?} records_insert={:?}",
                 t_shell - t_start,
@@ -1580,7 +1588,9 @@ impl AmorphicStore {
                     break;
                 }
                 out.par_extend(slice.par_iter().map(|id| match self.records.get(id) {
-                    Some(r) if r.fields.len() <= MAX_FIELDS_WARNING => self.encode_record_pure(&r.fields),
+                    Some(r) if r.fields.len() <= MAX_FIELDS_WARNING => {
+                        self.encode_record_pure(&r.fields)
+                    }
                     _ => None,
                 }));
             }
@@ -1593,7 +1603,11 @@ impl AmorphicStore {
 
     /// Phase 2: apply a plan if the deferred queue still starts with its ids
     /// (otherwise nothing is applied and false is returned).
-    pub fn apply_catch_up_plan(&mut self, ids: Vec<RecordId>, holos: Vec<Option<BinaryHV>>) -> bool {
+    pub fn apply_catch_up_plan(
+        &mut self,
+        ids: Vec<RecordId>,
+        holos: Vec<Option<BinaryHV>>,
+    ) -> bool {
         if ids.is_empty() || !self.deferred.iter().take(ids.len()).eq(ids.iter()) {
             return false;
         }
@@ -3843,7 +3857,11 @@ mod tests {
         }
         assert_eq!(b.pending_holograms(), 0);
         for id in 1..=3000u64 {
-            assert_eq!(a.get(id).unwrap().hologram.as_words(), b.get(id).unwrap().hologram.as_words(), "id {id}");
+            assert_eq!(
+                a.get(id).unwrap().hologram.as_words(),
+                b.get(id).unwrap().hologram.as_words(),
+                "id {id}"
+            );
         }
         // a stale plan (queue moved on) is refused
         let mut c = mk();

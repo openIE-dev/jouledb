@@ -2007,7 +2007,9 @@ pub fn eval_scalar_function(
                                     .collect()
                             } else {
                                 vec![Value::String(
-                                    caps.get(0).map(|m| m.as_str().to_string()).unwrap_or_default(),
+                                    caps.get(0)
+                                        .map(|m| m.as_str().to_string())
+                                        .unwrap_or_default(),
                                 )]
                             };
                             return Ok(Value::Array(matches));
@@ -2152,7 +2154,9 @@ pub fn eval_scalar_function(
                     let fa = as_f64(a);
                     let fb = as_f64(b);
                     match (fa, fb) {
-                        (Some(x), Some(y)) => x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal),
+                        (Some(x), Some(y)) => {
+                            x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal)
+                        }
                         _ => {
                             let sa = match a {
                                 Value::String(s) => s.clone(),
@@ -2239,7 +2243,11 @@ pub fn eval_scalar_function(
             if path.is_empty() {
                 return Ok(Value::Null);
             }
-            fn set_at_path_json(json: &mut serde_json::Value, path: &[String], val: serde_json::Value) {
+            fn set_at_path_json(
+                json: &mut serde_json::Value,
+                path: &[String],
+                val: serde_json::Value,
+            ) {
                 if path.len() == 1 {
                     match json {
                         serde_json::Value::Object(map) => {
@@ -2562,11 +2570,11 @@ pub fn eval_scalar_function(
         // These are cheap function calls (picojoules) — the cascade
         // picks them before LLM. Backed by the Point3/Bbox3 types in
         // joule_db_core::types::spatial.
-
         "ST_DISTANCE3D" => {
             // Euclidean distance between two POINT3 values.
             if args.len() >= 2 {
-                if let (Some(a), Some(b)) = (parse_point3_arg(&args[0]), parse_point3_arg(&args[1])) {
+                if let (Some(a), Some(b)) = (parse_point3_arg(&args[0]), parse_point3_arg(&args[1]))
+                {
                     let dx = a.x - b.x;
                     let dy = a.y - b.y;
                     let dz = a.z - b.z;
@@ -2578,7 +2586,8 @@ pub fn eval_scalar_function(
         "ST_DWITHIN3D" => {
             // True if two POINT3 values are within `dist` of each other.
             if args.len() >= 3 {
-                if let (Some(a), Some(b)) = (parse_point3_arg(&args[0]), parse_point3_arg(&args[1])) {
+                if let (Some(a), Some(b)) = (parse_point3_arg(&args[0]), parse_point3_arg(&args[1]))
+                {
                     let dist = match &args[2] {
                         Value::Float(f) => *f,
                         Value::Int(i) => *i as f64,
@@ -2595,7 +2604,9 @@ pub fn eval_scalar_function(
         "ST_CONTAINS3D" => {
             // True if BBOX3 `a` fully contains POINT3 `b`.
             if args.len() >= 2 {
-                if let (Some(bbox), Some(pt)) = (parse_bbox3_arg(&args[0]), parse_point3_arg(&args[1])) {
+                if let (Some(bbox), Some(pt)) =
+                    (parse_bbox3_arg(&args[0]), parse_point3_arg(&args[1]))
+                {
                     return Ok(Value::Bool(bbox.contains(pt)));
                 }
             }
@@ -2604,7 +2615,9 @@ pub fn eval_scalar_function(
         "ST_WITHIN3D" => {
             // True if POINT3 `a` is inside BBOX3 `b`.
             if args.len() >= 2 {
-                if let (Some(pt), Some(bbox)) = (parse_point3_arg(&args[0]), parse_bbox3_arg(&args[1])) {
+                if let (Some(pt), Some(bbox)) =
+                    (parse_point3_arg(&args[0]), parse_bbox3_arg(&args[1]))
+                {
                     return Ok(Value::Bool(bbox.contains(pt)));
                 }
             }
@@ -2640,9 +2653,21 @@ pub fn eval_scalar_function(
         "ST_MAKEPOINT3D" => {
             // ST_MAKEPOINT3D(x, y, z) → 'POINT3(x y z)'
             if args.len() >= 3 {
-                let x = match &args[0] { Value::Float(f) => Some(*f), Value::Int(i) => Some(*i as f64), _ => None };
-                let y = match &args[1] { Value::Float(f) => Some(*f), Value::Int(i) => Some(*i as f64), _ => None };
-                let z = match &args[2] { Value::Float(f) => Some(*f), Value::Int(i) => Some(*i as f64), _ => None };
+                let x = match &args[0] {
+                    Value::Float(f) => Some(*f),
+                    Value::Int(i) => Some(*i as f64),
+                    _ => None,
+                };
+                let y = match &args[1] {
+                    Value::Float(f) => Some(*f),
+                    Value::Int(i) => Some(*i as f64),
+                    _ => None,
+                };
+                let z = match &args[2] {
+                    Value::Float(f) => Some(*f),
+                    Value::Int(i) => Some(*i as f64),
+                    _ => None,
+                };
                 if let (Some(x), Some(y), Some(z)) = (x, y, z) {
                     return Ok(Value::String(format!("POINT3({} {} {})", x, y, z)));
                 }
@@ -2652,13 +2677,19 @@ pub fn eval_scalar_function(
         "ST_MAKEBBOX3D" => {
             // ST_MAKEBBOX3D(x1, y1, z1, x2, y2, z2) → 'BBOX3(x1 y1 z1, x2 y2 z2)'
             if args.len() >= 6 {
-                let coords: Vec<Option<f64>> = args[..6].iter().map(|a| match a {
-                    Value::Float(f) => Some(*f), Value::Int(i) => Some(*i as f64), _ => None
-                }).collect();
+                let coords: Vec<Option<f64>> = args[..6]
+                    .iter()
+                    .map(|a| match a {
+                        Value::Float(f) => Some(*f),
+                        Value::Int(i) => Some(*i as f64),
+                        _ => None,
+                    })
+                    .collect();
                 if coords.iter().all(|c| c.is_some()) {
                     let c: Vec<f64> = coords.into_iter().map(|c| c.unwrap()).collect();
                     return Ok(Value::String(format!(
-                        "BBOX3({} {} {}, {} {} {})", c[0], c[1], c[2], c[3], c[4], c[5]
+                        "BBOX3({} {} {}, {} {} {})",
+                        c[0], c[1], c[2], c[3], c[4], c[5]
                     )));
                 }
             }
@@ -3230,7 +3261,12 @@ mod tests {
         let a = Value::String("POINT3(0 0 0)".into());
         let b = Value::String("POINT3(1 1 1)".into());
         // sqrt(3) ≈ 1.732 — within 2.0 but not 1.0.
-        let r1 = eval_scalar_function("ST_DWITHIN3D", &[a.clone(), b.clone(), Value::Float(2.0)], None).unwrap();
+        let r1 = eval_scalar_function(
+            "ST_DWITHIN3D",
+            &[a.clone(), b.clone(), Value::Float(2.0)],
+            None,
+        )
+        .unwrap();
         assert_eq!(r1, Value::Bool(true));
         let r2 = eval_scalar_function("ST_DWITHIN3D", &[a, b, Value::Float(1.0)], None).unwrap();
         assert_eq!(r2, Value::Bool(false));
@@ -3269,23 +3305,46 @@ mod tests {
     #[test]
     fn test_st_xyz3d() {
         let pt = Value::String("POINT3(1.5 2.5 3.5)".into());
-        assert_eq!(eval_scalar_function("ST_X3D", &[pt.clone()], None).unwrap(), Value::Float(1.5));
-        assert_eq!(eval_scalar_function("ST_Y3D", &[pt.clone()], None).unwrap(), Value::Float(2.5));
-        assert_eq!(eval_scalar_function("ST_Z3D", &[pt], None).unwrap(), Value::Float(3.5));
+        assert_eq!(
+            eval_scalar_function("ST_X3D", &[pt.clone()], None).unwrap(),
+            Value::Float(1.5)
+        );
+        assert_eq!(
+            eval_scalar_function("ST_Y3D", &[pt.clone()], None).unwrap(),
+            Value::Float(2.5)
+        );
+        assert_eq!(
+            eval_scalar_function("ST_Z3D", &[pt], None).unwrap(),
+            Value::Float(3.5)
+        );
     }
 
     #[test]
     fn test_st_makepoint3d() {
-        let r = eval_scalar_function("ST_MAKEPOINT3D", &[Value::Float(1.0), Value::Float(2.0), Value::Float(3.0)], None).unwrap();
+        let r = eval_scalar_function(
+            "ST_MAKEPOINT3D",
+            &[Value::Float(1.0), Value::Float(2.0), Value::Float(3.0)],
+            None,
+        )
+        .unwrap();
         assert_eq!(r, Value::String("POINT3(1 2 3)".into()));
     }
 
     #[test]
     fn test_st_makebbox3d() {
-        let r = eval_scalar_function("ST_MAKEBBOX3D", &[
-            Value::Float(0.0), Value::Float(0.0), Value::Float(0.0),
-            Value::Float(10.0), Value::Float(10.0), Value::Float(10.0),
-        ], None).unwrap();
+        let r = eval_scalar_function(
+            "ST_MAKEBBOX3D",
+            &[
+                Value::Float(0.0),
+                Value::Float(0.0),
+                Value::Float(0.0),
+                Value::Float(10.0),
+                Value::Float(10.0),
+                Value::Float(10.0),
+            ],
+            None,
+        )
+        .unwrap();
         assert_eq!(r, Value::String("BBOX3(0 0 0, 10 10 10)".into()));
     }
 

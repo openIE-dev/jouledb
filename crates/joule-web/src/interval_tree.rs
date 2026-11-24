@@ -152,11 +152,7 @@ impl IntervalTree {
         result
     }
 
-    fn query_overlap_node(
-        node: &Option<Box<Node>>,
-        query: &Interval,
-        result: &mut Vec<Interval>,
-    ) {
+    fn query_overlap_node(node: &Option<Box<Node>>, query: &Interval, result: &mut Vec<Interval>) {
         if let Some(n) = node {
             if n.max_high < query.low {
                 return;
@@ -184,10 +180,7 @@ impl IntervalTree {
         found
     }
 
-    fn delete_node(
-        node: Option<Box<Node>>,
-        target: &Interval,
-    ) -> (Option<Box<Node>>, bool) {
+    fn delete_node(node: Option<Box<Node>>, target: &Interval) -> (Option<Box<Node>>, bool) {
         match node {
             None => (None, false),
             Some(mut n) => {
@@ -418,15 +411,19 @@ mod tests {
             Interval::new(15, 18),
         ];
         let merged = merge_intervals(&intervals);
-        assert_eq!(merged, vec![Interval::new(1, 6), Interval::new(8, 10), Interval::new(15, 18)]);
+        assert_eq!(
+            merged,
+            vec![
+                Interval::new(1, 6),
+                Interval::new(8, 10),
+                Interval::new(15, 18)
+            ]
+        );
     }
 
     #[test]
     fn test_merge_adjacent() {
-        let intervals = vec![
-            Interval::new(1, 5),
-            Interval::new(6, 10),
-        ];
+        let intervals = vec![Interval::new(1, 5), Interval::new(6, 10)];
         let merged = merge_intervals(&intervals);
         assert_eq!(merged, vec![Interval::new(1, 10)]);
     }

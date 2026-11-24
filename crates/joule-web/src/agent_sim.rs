@@ -18,7 +18,12 @@ pub enum AgentSimError {
     /// Agent not found.
     AgentNotFound(u64),
     /// Position out of bounds.
-    OutOfBounds { x: usize, y: usize, width: usize, height: usize },
+    OutOfBounds {
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    },
     /// Duplicate agent ID.
     DuplicateAgent(u64),
 }
@@ -28,7 +33,12 @@ impl fmt::Display for AgentSimError {
         match self {
             Self::ZeroDimension => write!(f, "grid dimensions must be non-zero"),
             Self::AgentNotFound(id) => write!(f, "agent not found: {id}"),
-            Self::OutOfBounds { x, y, width, height } => {
+            Self::OutOfBounds {
+                x,
+                y,
+                width,
+                height,
+            } => {
                 write!(f, "({x}, {y}) out of bounds for {width}x{height} grid")
             }
             Self::DuplicateAgent(id) => write!(f, "duplicate agent: {id}"),
@@ -47,7 +57,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -64,7 +76,9 @@ impl Rng {
     }
 
     fn next_usize(&mut self, max: usize) -> usize {
-        if max == 0 { return 0; }
+        if max == 0 {
+            return 0;
+        }
         (self.next_u64() % max as u64) as usize
     }
 }
@@ -104,9 +118,14 @@ impl Direction {
     /// All 8 movement directions (no Stay).
     pub fn all_moves() -> &'static [Direction] {
         &[
-            Direction::North, Direction::South, Direction::East, Direction::West,
-            Direction::NorthEast, Direction::NorthWest,
-            Direction::SouthEast, Direction::SouthWest,
+            Direction::North,
+            Direction::South,
+            Direction::East,
+            Direction::West,
+            Direction::NorthEast,
+            Direction::NorthWest,
+            Direction::SouthEast,
+            Direction::SouthWest,
         ]
     }
 
@@ -148,7 +167,9 @@ impl Agent {
     /// Create a new prey agent.
     pub fn prey(id: u64, x: usize, y: usize) -> Self {
         Self {
-            id, x, y,
+            id,
+            x,
+            y,
             species: Species::Prey,
             state: AgentState::Alive,
             energy: 10.0,
@@ -163,7 +184,9 @@ impl Agent {
     /// Create a new predator agent.
     pub fn predator(id: u64, x: usize, y: usize) -> Self {
         Self {
-            id, x, y,
+            id,
+            x,
+            y,
             species: Species::Predator,
             state: AgentState::Alive,
             energy: 20.0,
@@ -323,14 +346,19 @@ impl Simulation {
     }
 
     /// Current step.
-    pub fn step_count(&self) -> u64 { self.step_count }
+    pub fn step_count(&self) -> u64 {
+        self.step_count
+    }
 
     /// All agents (including dead).
-    pub fn agents(&self) -> &[Agent] { &self.agents }
+    pub fn agents(&self) -> &[Agent] {
+        &self.agents
+    }
 
     /// Count of living agents of a given species.
     pub fn count_species(&self, species: Species) -> usize {
-        self.agents.iter()
+        self.agents
+            .iter()
             .filter(|a| a.species == species && a.is_alive())
             .count()
     }
@@ -341,7 +369,9 @@ impl Simulation {
     }
 
     /// History of stats snapshots.
-    pub fn history(&self) -> &[SimStats] { &self.history }
+    pub fn history(&self) -> &[SimStats] {
+        &self.history
+    }
 
     /// Get a specific agent by ID.
     pub fn get_agent(&self, id: u64) -> Option<&Agent> {
@@ -352,16 +382,20 @@ impl Simulation {
     fn record_stats(&mut self) {
         let prey_count = self.count_species(Species::Prey);
         let predator_count = self.count_species(Species::Predator);
-        let total_prey_energy: f64 = self.agents.iter()
+        let total_prey_energy: f64 = self
+            .agents
+            .iter()
             .filter(|a| a.species == Species::Prey && a.is_alive())
             .map(|a| a.energy)
             .sum();
-        let total_predator_energy: f64 = self.agents.iter()
+        let total_predator_energy: f64 = self
+            .agents
+            .iter()
             .filter(|a| a.species == Species::Predator && a.is_alive())
             .map(|a| a.energy)
             .sum();
-        let average_resource = self.env.resources.iter().sum::<f64>()
-            / self.env.resources.len() as f64;
+        let average_resource =
+            self.env.resources.iter().sum::<f64>() / self.env.resources.len() as f64;
 
         self.history.push(SimStats {
             step: self.step_count,
@@ -390,10 +424,9 @@ impl Simulation {
             let dir_idx = self.rng.next_usize(dirs.len());
             let dir = dirs[dir_idx];
             let (dx, dy) = dir.offset();
-            let (nx, ny) = self.env.wrap(
-                self.agents[i].x as i32 + dx,
-                self.agents[i].y as i32 + dy,
-            );
+            let (nx, ny) = self
+                .env
+                .wrap(self.agents[i].x as i32 + dx, self.agents[i].y as i32 + dy);
             self.agents[i].x = nx;
             self.agents[i].y = ny;
 
@@ -435,8 +468,8 @@ impl Simulation {
             if let Some(prey_list) = prey_at.get_mut(&pos) {
                 if let Some(prey_idx) = prey_list.pop() {
                     self.agents[prey_idx].state = AgentState::Dead;
-                    self.agents[i].energy = (self.agents[i].energy + hunt_energy)
-                        .min(self.agents[i].max_energy);
+                    self.agents[i].energy =
+                        (self.agents[i].energy + hunt_energy).min(self.agents[i].max_energy);
                 }
             }
         }
@@ -449,10 +482,9 @@ impl Simulation {
             }
             if self.agents[i].energy >= self.agents[i].reproduction_threshold {
                 self.agents[i].energy /= 2.0;
-                let (nx, ny) = self.env.wrap(
-                    self.agents[i].x as i32 + 1,
-                    self.agents[i].y as i32,
-                );
+                let (nx, ny) = self
+                    .env
+                    .wrap(self.agents[i].x as i32 + 1, self.agents[i].y as i32);
                 let mut child = match self.agents[i].species {
                     Species::Prey => Agent::prey(0, nx, ny),
                     Species::Predator => Agent::predator(0, nx, ny),
@@ -486,14 +518,17 @@ impl Simulation {
 
     /// Agents at a specific position.
     pub fn agents_at(&self, x: usize, y: usize) -> Vec<&Agent> {
-        self.agents.iter()
+        self.agents
+            .iter()
             .filter(|a| a.x == x && a.y == y && a.is_alive())
             .collect()
     }
 
     /// Average energy of living agents by species.
     pub fn average_energy(&self, species: Species) -> Option<f64> {
-        let living: Vec<f64> = self.agents.iter()
+        let living: Vec<f64> = self
+            .agents
+            .iter()
             .filter(|a| a.species == species && a.is_alive())
             .map(|a| a.energy)
             .collect();

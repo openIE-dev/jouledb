@@ -70,25 +70,37 @@ impl ToolpathContourConfig {
 
     pub fn validate(&self) -> Result<(), ToolpathContourError> {
         if self.tool_diameter.is_nan() {
-            return Err(ToolpathContourError::InvalidConfig("tool_diameter is NaN".into()));
+            return Err(ToolpathContourError::InvalidConfig(
+                "tool_diameter is NaN".into(),
+            ));
         }
         if self.stepover_pct.is_nan() {
-            return Err(ToolpathContourError::InvalidConfig("stepover_pct is NaN".into()));
+            return Err(ToolpathContourError::InvalidConfig(
+                "stepover_pct is NaN".into(),
+            ));
         }
         if self.feed_rate.is_nan() {
-            return Err(ToolpathContourError::InvalidConfig("feed_rate is NaN".into()));
+            return Err(ToolpathContourError::InvalidConfig(
+                "feed_rate is NaN".into(),
+            ));
         }
         Ok(())
     }
 }
 
 impl Default for ToolpathContourConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for ToolpathContourConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ToolpathContourConfig(tool_diameter={0:.4}, stepover_pct={1:.4}, feed_rate={2:.4}, climb_milling={3})", self.tool_diameter, self.stepover_pct, self.feed_rate, self.climb_milling)
+        write!(
+            f,
+            "ToolpathContourConfig(tool_diameter={0:.4}, stepover_pct={1:.4}, feed_rate={2:.4}, climb_milling={3})",
+            self.tool_diameter, self.stepover_pct, self.feed_rate, self.climb_milling
+        )
     }
 }
 
@@ -104,7 +116,10 @@ pub struct ToolpathContour {
 impl ToolpathContour {
     pub fn new(config: ToolpathContourConfig) -> Result<Self, ToolpathContourError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -116,26 +131,38 @@ impl ToolpathContour {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &ToolpathContourConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &ToolpathContourConfig {
+        &self.config
+    }
 
     /// Generate contour toolpath.
     pub fn generate_contour(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Generate lead-in arc.
     pub fn lead_in_arc(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Estimate machining time.
     pub fn machining_time(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -145,7 +172,9 @@ impl ToolpathContour {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -157,7 +186,9 @@ impl ToolpathContour {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -169,7 +200,11 @@ impl ToolpathContour {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -242,7 +277,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = ToolpathContour::new(ToolpathContourConfig::new()).unwrap()
+        let e = ToolpathContour::new(ToolpathContourConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -258,7 +294,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = ToolpathContour::new(ToolpathContourConfig::new()).unwrap()
+        let e = ToolpathContour::new(ToolpathContourConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("ToolpathContour"));
@@ -266,7 +303,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = ToolpathContour::new(ToolpathContourConfig::new()).unwrap()
+        let e = ToolpathContour::new(ToolpathContourConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -277,7 +315,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = ToolpathContour::new(ToolpathContourConfig::new()).unwrap()
+        let e = ToolpathContour::new(ToolpathContourConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -285,7 +324,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = ToolpathContour::new(ToolpathContourConfig::new()).unwrap()
+        let e = ToolpathContour::new(ToolpathContourConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -302,7 +342,8 @@ mod tests {
 
     #[test]
     fn test_generate_contour() {
-        let e = ToolpathContour::new(ToolpathContourConfig::new()).unwrap()
+        let e = ToolpathContour::new(ToolpathContourConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.generate_contour();
         assert!(!result.is_empty());
@@ -310,7 +351,8 @@ mod tests {
 
     #[test]
     fn test_lead_in_arc() {
-        let e = ToolpathContour::new(ToolpathContourConfig::new()).unwrap()
+        let e = ToolpathContour::new(ToolpathContourConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.lead_in_arc();
         assert!(!result.is_empty());
@@ -318,7 +360,8 @@ mod tests {
 
     #[test]
     fn test_machining_time() {
-        let e = ToolpathContour::new(ToolpathContourConfig::new()).unwrap()
+        let e = ToolpathContour::new(ToolpathContourConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.machining_time();
         assert!(result.is_finite());

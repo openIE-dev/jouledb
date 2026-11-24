@@ -20,21 +20,61 @@ pub struct SanitizeConfig {
 impl Default for SanitizeConfig {
     fn default() -> Self {
         let tags: &[&str] = &[
-            "p", "br", "b", "i", "u", "em", "strong", "a", "ul", "ol", "li",
-            "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "code", "pre",
-            "span", "div", "img", "table", "thead", "tbody", "tr", "td", "th",
-            "hr", "sub", "sup", "small", "mark", "del", "ins", "abbr",
-            "details", "summary",
+            "p",
+            "br",
+            "b",
+            "i",
+            "u",
+            "em",
+            "strong",
+            "a",
+            "ul",
+            "ol",
+            "li",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            "blockquote",
+            "code",
+            "pre",
+            "span",
+            "div",
+            "img",
+            "table",
+            "thead",
+            "tbody",
+            "tr",
+            "td",
+            "th",
+            "hr",
+            "sub",
+            "sup",
+            "small",
+            "mark",
+            "del",
+            "ins",
+            "abbr",
+            "details",
+            "summary",
         ];
 
         let mut allowed_attrs: HashMap<String, HashSet<String>> = HashMap::new();
         allowed_attrs.insert(
             "a".into(),
-            ["href", "title", "target", "rel"].iter().map(|s| (*s).into()).collect(),
+            ["href", "title", "target", "rel"]
+                .iter()
+                .map(|s| (*s).into())
+                .collect(),
         );
         allowed_attrs.insert(
             "img".into(),
-            ["src", "alt", "title", "width", "height"].iter().map(|s| (*s).into()).collect(),
+            ["src", "alt", "title", "width", "height"]
+                .iter()
+                .map(|s| (*s).into())
+                .collect(),
         );
         allowed_attrs.insert(
             "td".into(),
@@ -49,8 +89,10 @@ impl Default for SanitizeConfig {
             ["class", "id"].iter().map(|s| (*s).into()).collect(),
         );
 
-        let protocols: HashSet<String> =
-            ["http", "https", "mailto"].iter().map(|s| (*s).into()).collect();
+        let protocols: HashSet<String> = ["http", "https", "mailto"]
+            .iter()
+            .map(|s| (*s).into())
+            .collect();
 
         Self {
             allowed_tags: tags.iter().map(|s| (*s).into()).collect(),
@@ -122,8 +164,8 @@ impl SanitizeConfig {
 // ── Self-closing tags ───────────────────────────────────────────
 
 const VOID_ELEMENTS: &[&str] = &[
-    "br", "hr", "img", "input", "meta", "link", "area", "base", "col",
-    "embed", "source", "track", "wbr",
+    "br", "hr", "img", "input", "meta", "link", "area", "base", "col", "embed", "source", "track",
+    "wbr",
 ];
 
 fn is_void_element(tag: &str) -> bool {

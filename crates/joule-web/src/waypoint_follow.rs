@@ -48,7 +48,11 @@ pub struct Waypoint {
 
 impl Waypoint {
     pub fn new(x: f64, y: f64) -> Self {
-        Self { x, y, target_speed: None }
+        Self {
+            x,
+            y,
+            target_speed: None,
+        }
     }
 
     pub fn with_speed(mut self, speed: f64) -> Self {
@@ -233,9 +237,17 @@ impl PurePursuit {
         let local_y = -dx * state.theta.sin() + dy * state.theta.cos();
 
         let l_sq = local_x * local_x + local_y * local_y;
-        let curvature = if l_sq > 1e-9 { 2.0 * local_y / l_sq } else { 0.0 };
+        let curvature = if l_sq > 1e-9 {
+            2.0 * local_y / l_sq
+        } else {
+            0.0
+        };
 
-        Ok(SteeringOutput { curvature, cross_track_error: cte, closest_idx: closest })
+        Ok(SteeringOutput {
+            curvature,
+            cross_track_error: cte,
+            closest_idx: closest,
+        })
     }
 
     fn find_closest(&self, state: VehicleState, path: &[Waypoint]) -> usize {
@@ -365,7 +377,11 @@ impl StanleyController {
         // Approximate curvature from steering angle assuming unit wheelbase.
         let curvature = steer.tan();
 
-        Ok(SteeringOutput { curvature, cross_track_error: cte, closest_idx: closest })
+        Ok(SteeringOutput {
+            curvature,
+            cross_track_error: cte,
+            closest_idx: closest,
+        })
     }
 
     fn find_closest(&self, state: VehicleState, path: &[Waypoint]) -> usize {
@@ -415,7 +431,11 @@ impl StanleyController {
 
 impl fmt::Display for StanleyController {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Stanley(k={:.2}, max_steer={:.2})", self.gain_k, self.max_steer)
+        write!(
+            f,
+            "Stanley(k={:.2}, max_steer={:.2})",
+            self.gain_k, self.max_steer
+        )
     }
 }
 
@@ -434,7 +454,11 @@ pub struct CarrotChaser {
 
 impl CarrotChaser {
     pub fn new(carrot_dist: f64) -> Self {
-        Self { carrot_dist: carrot_dist.max(0.1), goal_tolerance: 0.5, angular_gain: 1.0 }
+        Self {
+            carrot_dist: carrot_dist.max(0.1),
+            goal_tolerance: 0.5,
+            angular_gain: 1.0,
+        }
     }
 
     pub fn with_goal_tolerance(mut self, tol: f64) -> Self {
@@ -507,7 +531,11 @@ impl CarrotChaser {
 
 impl fmt::Display for CarrotChaser {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CarrotChaser(d={:.2}, k={:.2})", self.carrot_dist, self.angular_gain)
+        write!(
+            f,
+            "CarrotChaser(d={:.2}, k={:.2})",
+            self.carrot_dist, self.angular_gain
+        )
     }
 }
 
@@ -644,19 +672,31 @@ mod tests {
 
     #[test]
     fn test_steering_output_angular_vel() {
-        let out = SteeringOutput { curvature: 0.5, cross_track_error: 0.0, closest_idx: 0 };
+        let out = SteeringOutput {
+            curvature: 0.5,
+            cross_track_error: 0.0,
+            closest_idx: 0,
+        };
         assert!((out.angular_velocity(2.0) - 1.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_steering_output_ackermann() {
-        let out = SteeringOutput { curvature: 0.0, cross_track_error: 0.0, closest_idx: 0 };
+        let out = SteeringOutput {
+            curvature: 0.0,
+            cross_track_error: 0.0,
+            closest_idx: 0,
+        };
         assert!((out.steering_angle(2.5) - 0.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_steering_display() {
-        let out = SteeringOutput { curvature: 0.123, cross_track_error: 0.456, closest_idx: 5 };
+        let out = SteeringOutput {
+            curvature: 0.123,
+            cross_track_error: 0.456,
+            closest_idx: 5,
+        };
         let s = format!("{out}");
         assert!(s.contains("0.1230"));
     }

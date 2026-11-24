@@ -171,14 +171,8 @@ pub fn sdf_cross(p: Vec2, arm_length: f32, arm_width: f32) -> f32 {
     let half_w = arm_width * 0.5;
     let pa = p.abs();
     // Union of horizontal and vertical bars
-    let h_bar = sdf_box(
-        Vec2::new(pa.x, pa.y),
-        Vec2::new(arm_length, half_w),
-    );
-    let v_bar = sdf_box(
-        Vec2::new(pa.x, pa.y),
-        Vec2::new(half_w, arm_length),
-    );
+    let h_bar = sdf_box(Vec2::new(pa.x, pa.y), Vec2::new(arm_length, half_w));
+    let v_bar = sdf_box(Vec2::new(pa.x, pa.y), Vec2::new(half_w, arm_length));
     h_bar.min(v_bar)
 }
 
@@ -355,7 +349,11 @@ mod tests {
 
     #[test]
     fn test_sdf_segment() {
-        let d = sdf_segment(Vec2::new(0.0, 5.0), Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0));
+        let d = sdf_segment(
+            Vec2::new(0.0, 5.0),
+            Vec2::new(0.0, 0.0),
+            Vec2::new(10.0, 0.0),
+        );
         assert!((d - 5.0).abs() < 1e-4);
     }
 

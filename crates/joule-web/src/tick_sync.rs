@@ -104,7 +104,11 @@ impl TickClock {
 
 impl fmt::Display for TickClock {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TickClock(tick={}, rate={:.0}Hz, speed={:.2}x)", self.tick, self.tick_rate, self.speed_multiplier)
+        write!(
+            f,
+            "TickClock(tick={}, rate={:.0}Hz, speed={:.2}x)",
+            self.tick, self.tick_rate, self.speed_multiplier
+        )
     }
 }
 
@@ -120,7 +124,11 @@ pub struct RttTracker {
 
 impl RttTracker {
     pub fn new(max_samples: usize) -> Self {
-        Self { samples: VecDeque::with_capacity(max_samples), max_samples, total: 0.0 }
+        Self {
+            samples: VecDeque::with_capacity(max_samples),
+            max_samples,
+            total: 0.0,
+        }
     }
 
     pub fn record(&mut self, rtt: f64) {
@@ -151,8 +159,8 @@ impl RttTracker {
 
     pub fn jitter(&self) -> Option<f64> {
         let avg = self.average()?;
-        let variance = self.samples.iter().map(|s| (s - avg).powi(2)).sum::<f64>()
-            / self.samples.len() as f64;
+        let variance =
+            self.samples.iter().map(|s| (s - avg).powi(2)).sum::<f64>() / self.samples.len() as f64;
         Some(variance.sqrt())
     }
 
@@ -177,7 +185,10 @@ pub struct DriftDetector {
 
 impl DriftDetector {
     pub fn new(max_history: usize) -> Self {
-        Self { drift_history: VecDeque::with_capacity(max_history), max_history }
+        Self {
+            drift_history: VecDeque::with_capacity(max_history),
+            max_history,
+        }
     }
 
     /// Record a drift measurement (local_tick - expected_tick).
@@ -202,8 +213,7 @@ impl DriftDetector {
             return 0.0;
         }
         let n = self.drift_history.len();
-        let first_half: f64 =
-            self.drift_history.iter().take(n / 2).sum::<f64>() / (n / 2) as f64;
+        let first_half: f64 = self.drift_history.iter().take(n / 2).sum::<f64>() / (n / 2) as f64;
         let second_half: f64 =
             self.drift_history.iter().skip(n / 2).sum::<f64>() / (n - n / 2) as f64;
         second_half - first_half
@@ -228,8 +238,11 @@ impl fmt::Display for SyncMetrics {
         write!(
             f,
             "Syncs: {}, Corrections: {}, MaxDrift: {:.2}, Speedups: {}, Slowdowns: {}",
-            self.sync_count, self.total_corrections, self.max_drift_observed,
-            self.speedup_periods, self.slowdown_periods
+            self.sync_count,
+            self.total_corrections,
+            self.max_drift_observed,
+            self.speedup_periods,
+            self.slowdown_periods
         )
     }
 }
@@ -349,12 +362,16 @@ impl TickSync {
             self.metrics.total_corrections += 1;
             if drift > 0.0 {
                 // Running ahead — slow down.
-                let slowdown = 1.0 - self.config.speed_adjust_factor * (abs_drift / self.config.max_drift_tolerance);
+                let slowdown = 1.0
+                    - self.config.speed_adjust_factor
+                        * (abs_drift / self.config.max_drift_tolerance);
                 self.clock.set_speed_multiplier(slowdown.max(0.5));
                 self.metrics.slowdown_periods += 1;
             } else {
                 // Running behind — speed up.
-                let speedup = 1.0 + self.config.speed_adjust_factor * (abs_drift / self.config.max_drift_tolerance);
+                let speedup = 1.0
+                    + self.config.speed_adjust_factor
+                        * (abs_drift / self.config.max_drift_tolerance);
                 self.clock.set_speed_multiplier(speedup.min(2.0));
                 self.metrics.speedup_periods += 1;
             }
@@ -536,23 +553,35 @@ mod tests {
 
     #[test]
     fn tick_sync_speed_adjustment_ahead() {
-        let config = TickSyncConfig::new(60.0).with_max_drift(2.0).with_hard_reset_threshold(1000.0);
+        let config = TickSyncConfig::new(60.0)
+            .with_max_drift(2.0)
+            .with_hard_reset_threshold(1000.0);
         let mut sync = TickSync::new(config);
         // Advance far ahead of server.
         for _ in 0..120 {
             sync.advance(1.0 / 60.0);
         }
         sync.on_server_tick(10, 0.010); // server way behind, drift > tolerance
-        assert!(sync.speed_multiplier() < 1.0, "multiplier={}", sync.speed_multiplier());
+        assert!(
+            sync.speed_multiplier() < 1.0,
+            "multiplier={}",
+            sync.speed_multiplier()
+        );
     }
 
     #[test]
     fn tick_sync_speed_adjustment_behind() {
-        let config = TickSyncConfig::new(60.0).with_max_drift(2.0).with_hard_reset_threshold(1000.0);
+        let config = TickSyncConfig::new(60.0)
+            .with_max_drift(2.0)
+            .with_hard_reset_threshold(1000.0);
         let mut sync = TickSync::new(config);
         // Don't advance, but server is ahead — drift is negative (behind).
         sync.on_server_tick(100, 0.010);
-        assert!(sync.speed_multiplier() > 1.0, "multiplier={}", sync.speed_multiplier());
+        assert!(
+            sync.speed_multiplier() > 1.0,
+            "multiplier={}",
+            sync.speed_multiplier()
+        );
     }
 
     #[test]

@@ -17,7 +17,9 @@ pub struct ValueNoise {
 
 impl fmt::Debug for ValueNoise {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ValueNoise").field("seed", &self.seed).finish()
+        f.debug_struct("ValueNoise")
+            .field("seed", &self.seed)
+            .finish()
     }
 }
 
@@ -336,7 +338,10 @@ mod tests {
             let x = i as f64 * 0.17 - 15.0;
             let y = i as f64 * 0.31 - 20.0;
             let v = n.sample2d(x, y);
-            assert!(v >= -1.0 - 1e-6 && v <= 1.0 + 1e-6, "value out of range: {v}");
+            assert!(
+                v >= -1.0 - 1e-6 && v <= 1.0 + 1e-6,
+                "value out of range: {v}"
+            );
         }
     }
 
@@ -452,16 +457,14 @@ mod tests {
 
     #[test]
     fn test_with_config() {
-        let fbm = FractalBrownian::new(42)
-            .with_config(FractalConfig::new(4, 2.5, 0.3));
+        let fbm = FractalBrownian::new(42).with_config(FractalConfig::new(4, 2.5, 0.3));
         assert_eq!(fbm.config().octaves, 4);
         assert!((fbm.config().lacunarity - 2.5).abs() < 1e-12);
     }
 
     #[test]
     fn test_single_octave_equals_noise() {
-        let fbm = FractalBrownian::new(42)
-            .with_config(FractalConfig::new(1, 2.0, 0.5));
+        let fbm = FractalBrownian::new(42).with_config(FractalConfig::new(1, 2.0, 0.5));
         let vn = ValueNoise::new(42);
         let fbm_val = fbm.fbm2d(1.5, 2.5);
         let noise_val = vn.sample2d(1.5, 2.5);
@@ -510,7 +513,9 @@ mod tests {
         let base = fbm.fbm2d(0.5, 0.5);
         for i in 1..20 {
             let v = fbm.fbm2d(0.5 + i as f64 * 0.7, 0.5 + i as f64 * 0.3);
-            if (v - base).abs() > 1e-6 { distinct += 1; }
+            if (v - base).abs() > 1e-6 {
+                distinct += 1;
+            }
         }
         assert!(distinct > 10);
     }

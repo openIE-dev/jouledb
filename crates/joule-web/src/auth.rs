@@ -88,8 +88,7 @@ fn base64_encode_standard(input: &[u8]) -> String {
     let mut out = String::new();
     let mut i = 0;
     while i + 2 < input.len() {
-        let n =
-            ((input[i] as u32) << 16) | ((input[i + 1] as u32) << 8) | (input[i + 2] as u32);
+        let n = ((input[i] as u32) << 16) | ((input[i + 1] as u32) << 8) | (input[i + 2] as u32);
         out.push(CHARS[((n >> 18) & 0x3f) as usize] as char);
         out.push(CHARS[((n >> 12) & 0x3f) as usize] as char);
         out.push(CHARS[((n >> 6) & 0x3f) as usize] as char);
@@ -230,15 +229,16 @@ impl OAuth2Flow {
             url.push_str(&format!("&scope={}", url_encode(&config.scopes.join(" "))));
         }
 
-        let (code_verifier, nonce) =
-            if config.code_challenge_method.as_deref() == Some("S256") {
-                let verifier = generate_code_verifier();
-                let challenge = generate_code_challenge(&verifier);
-                url.push_str(&format!("&code_challenge={challenge}&code_challenge_method=S256"));
-                (Some(verifier), None)
-            } else {
-                (None, None)
-            };
+        let (code_verifier, nonce) = if config.code_challenge_method.as_deref() == Some("S256") {
+            let verifier = generate_code_verifier();
+            let challenge = generate_code_challenge(&verifier);
+            url.push_str(&format!(
+                "&code_challenge={challenge}&code_challenge_method=S256"
+            ));
+            (Some(verifier), None)
+        } else {
+            (None, None)
+        };
 
         let oauth_state = OAuth2State {
             state: state_token,
@@ -362,8 +362,8 @@ pub fn decode_jwt(token: &str) -> Result<(JwtHeader, JwtPayload), AuthError> {
     let payload_bytes = base64url_decode(parts[1])?;
     let payload_json =
         String::from_utf8(payload_bytes).map_err(|e| AuthError::JsonParseError(e.to_string()))?;
-    let claims: HashMap<String, serde_json::Value> =
-        serde_json::from_str(&payload_json).map_err(|e| AuthError::JsonParseError(e.to_string()))?;
+    let claims: HashMap<String, serde_json::Value> = serde_json::from_str(&payload_json)
+        .map_err(|e| AuthError::JsonParseError(e.to_string()))?;
 
     Ok((header, JwtPayload { claims }))
 }

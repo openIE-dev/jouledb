@@ -46,7 +46,11 @@ pub enum MaskStrategy {
     /// Replace entirely with a fixed string (default: "***").
     Full { replacement: String },
     /// Show first N and last M characters, mask the rest.
-    Partial { show_first: usize, show_last: usize, mask_char: char },
+    Partial {
+        show_first: usize,
+        show_last: usize,
+        mask_char: char,
+    },
     /// Replace with a deterministic hash (first 16 hex chars of a simple hash).
     Hash,
     /// Replace with a random-looking token that maps to the original (deterministic from value).
@@ -63,7 +67,9 @@ pub enum MaskStrategy {
 
 impl Default for MaskStrategy {
     fn default() -> Self {
-        Self::Full { replacement: "***".to_string() }
+        Self::Full {
+            replacement: "***".to_string(),
+        }
     }
 }
 
@@ -72,7 +78,11 @@ impl MaskStrategy {
     pub fn apply(&self, value: &str) -> MaskResult {
         match self {
             Self::Full { replacement } => MaskResult::Replaced(replacement.clone()),
-            Self::Partial { show_first, show_last, mask_char } => {
+            Self::Partial {
+                show_first,
+                show_last,
+                mask_char,
+            } => {
                 let chars: Vec<char> = value.chars().collect();
                 let len = chars.len();
                 let first = *show_first;
@@ -180,9 +190,7 @@ impl PiiCategory {
         // Phone: starts with + and has 10-15 digits, or 10 digits with dashes/parens
         let phone_digits: String = trimmed.chars().filter(|c| c.is_ascii_digit()).collect();
         if (10..=15).contains(&phone_digits.len())
-            && (trimmed.starts_with('+')
-                || trimmed.starts_with('(')
-                || phone_digits.len() == 10)
+            && (trimmed.starts_with('+') || trimmed.starts_with('(') || phone_digits.len() == 10)
             && !detected.contains(&PiiCategory::CreditCard)
         {
             detected.push(PiiCategory::Phone);
@@ -320,7 +328,9 @@ impl MaskingEngine {
             rules: Vec::new(),
             audit_log: Vec::new(),
             auto_detect_pii: false,
-            default_pii_strategy: MaskStrategy::Full { replacement: "[REDACTED]".to_string() },
+            default_pii_strategy: MaskStrategy::Full {
+                replacement: "[REDACTED]".to_string(),
+            },
         }
     }
 
@@ -354,19 +364,19 @@ impl MaskingEngine {
     }
 
     /// Mask a JSON value in-place based on rules and the caller's role.
-    pub fn mask_value(
-        &mut self,
-        value: &mut Value,
-        caller_role: &str,
-        timestamp_ms: u64,
-    ) {
+    pub fn mask_value(&mut self, value: &mut Value, caller_role: &str, timestamp_ms: u64) {
         // Collect rules and their data to avoid borrow issues.
         let rule_data: Vec<(String, String, MaskStrategy, bool)> = self
             .rules
             .iter()
             .map(|r| {
                 let exempt = r.is_exempt(caller_role);
-                (r.id.clone(), r.field_path.clone(), r.strategy.clone(), exempt)
+                (
+                    r.id.clone(),
+                    r.field_path.clone(),
+                    r.strategy.clone(),
+                    exempt,
+                )
             })
             .collect();
 
@@ -529,19 +539,32 @@ mod tests {
 
     #[test]
     fn test_full_mask() {
-        let s = MaskStrategy::Full { replacement: "***".to_string() };
+        let s = MaskStrategy::Full {
+            replacement: "***".to_string(),
+        };
         assert_eq!(s.apply("hello"), MaskResult::Replaced("***".to_string()));
     }
 
     #[test]
     fn test_partial_mask() {
-        let s = MaskStrategy::Partial { show_first: 2, show_last: 2, mask_char: '*' };
-        assert_eq!(s.apply("abcdefgh"), MaskResult::Replaced("ab****gh".to_string()));
+        let s = MaskStrategy::Partial {
+            show_first: 2,
+            show_last: 2,
+            mask_char: '*',
+        };
+        assert_eq!(
+            s.apply("abcdefgh"),
+            MaskResult::Replaced("ab****gh".to_string())
+        );
     }
 
     #[test]
     fn test_partial_mask_short_value() {
-        let s = MaskStrategy::Partial { show_first: 3, show_last: 3, mask_char: '*' };
+        let s = MaskStrategy::Partial {
+            show_first: 3,
+            show_last: 3,
+            mask_char: '*',
+        };
         assert_eq!(s.apply("abc"), MaskResult::Replaced("***".to_string()));
     }
 
@@ -559,7 +582,9 @@ mod tests {
 
     #[test]
     fn test_tokenize_mask() {
-        let s = MaskStrategy::Tokenize { prefix: "tok_".to_string() };
+        let s = MaskStrategy::Tokenize {
+            prefix: "tok_".to_string(),
+        };
         let r = s.apply("sensitive-data");
         match r {
             MaskResult::Replaced(t) => assert!(t.starts_with("tok_")),
@@ -579,14 +604,19 @@ mod tests {
 
     #[test]
     fn test_constant_mask() {
-        let s = MaskStrategy::Constant { value: "N/A".to_string() };
+        let s = MaskStrategy::Constant {
+            value: "N/A".to_string(),
+        };
         assert_eq!(s.apply("secret"), MaskResult::Replaced("N/A".to_string()));
     }
 
     #[test]
     fn test_truncate_mask() {
         let s = MaskStrategy::TruncateAfter { keep: 4 };
-        assert_eq!(s.apply("abcdefgh"), MaskResult::Replaced("abcd".to_string()));
+        assert_eq!(
+            s.apply("abcdefgh"),
+            MaskResult::Replaced("abcd".to_string())
+        );
     }
 
     #[test]
@@ -627,7 +657,9 @@ mod tests {
             .add_rule(MaskingRule::new(
                 "mask-email",
                 "user.email",
-                MaskStrategy::Full { replacement: "[MASKED]".to_string() },
+                MaskStrategy::Full {
+                    replacement: "[MASKED]".to_string(),
+                },
             ))
             .unwrap();
 
@@ -650,7 +682,9 @@ mod tests {
                 MaskingRule::new(
                     "mask-email",
                     "email",
-                    MaskStrategy::Full { replacement: "[MASKED]".to_string() },
+                    MaskStrategy::Full {
+                        replacement: "[MASKED]".to_string(),
+                    },
                 )
                 .with_exempt_role("admin"),
             )
@@ -717,7 +751,9 @@ mod tests {
             .add_rule(MaskingRule::new(
                 "r1",
                 "email",
-                MaskStrategy::Full { replacement: "***".to_string() },
+                MaskStrategy::Full {
+                    replacement: "***".to_string(),
+                },
             ))
             .unwrap();
         let mut val = json!({"email": "test@test.com"});
@@ -733,10 +769,7 @@ mod tests {
     fn test_audit_log_exempt() {
         let mut engine = MaskingEngine::new();
         engine
-            .add_rule(
-                MaskingRule::new("r1", "email", MaskStrategy::Null)
-                    .with_exempt_role("admin"),
-            )
+            .add_rule(MaskingRule::new("r1", "email", MaskStrategy::Null).with_exempt_role("admin"))
             .unwrap();
         let mut val = json!({"email": "a@b.com"});
         engine.mask_value(&mut val, "admin", 1000);
@@ -765,7 +798,9 @@ mod tests {
             .add_rule(MaskingRule::new(
                 "r1",
                 "a.b.c",
-                MaskStrategy::Full { replacement: "X".to_string() },
+                MaskStrategy::Full {
+                    replacement: "X".to_string(),
+                },
             ))
             .unwrap();
         let mut val = json!({"a": {"b": {"c": "secret", "d": "visible"}}});
@@ -807,7 +842,9 @@ mod tests {
             .add_rule(MaskingRule::new(
                 "r1",
                 "nonexistent",
-                MaskStrategy::Full { replacement: "X".to_string() },
+                MaskStrategy::Full {
+                    replacement: "X".to_string(),
+                },
             ))
             .unwrap();
         let mut val = json!({"other": "data"});

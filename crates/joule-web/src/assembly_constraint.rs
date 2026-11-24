@@ -21,8 +21,12 @@ impl fmt::Display for AssemblyConstraintError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidConfig(msg) => write!(f, "AssemblyConstraint: invalid config: {msg}"),
-            Self::ComputationFailed(msg) => write!(f, "AssemblyConstraint: computation failed: {msg}"),
-            Self::InsufficientData(msg) => write!(f, "AssemblyConstraint: insufficient data: {msg}"),
+            Self::ComputationFailed(msg) => {
+                write!(f, "AssemblyConstraint: computation failed: {msg}")
+            }
+            Self::InsufficientData(msg) => {
+                write!(f, "AssemblyConstraint: insufficient data: {msg}")
+            }
         }
     }
 }
@@ -70,22 +74,32 @@ impl AssemblyConstraintConfig {
 
     pub fn validate(&self) -> Result<(), AssemblyConstraintError> {
         if self.tolerance.is_nan() {
-            return Err(AssemblyConstraintError::InvalidConfig("tolerance is NaN".into()));
+            return Err(AssemblyConstraintError::InvalidConfig(
+                "tolerance is NaN".into(),
+            ));
         }
         if self.damping.is_nan() {
-            return Err(AssemblyConstraintError::InvalidConfig("damping is NaN".into()));
+            return Err(AssemblyConstraintError::InvalidConfig(
+                "damping is NaN".into(),
+            ));
         }
         Ok(())
     }
 }
 
 impl Default for AssemblyConstraintConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for AssemblyConstraintConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "AssemblyConstraintConfig(max_constraints={0}, tolerance={1:.4}, max_iterations={2}, damping={3:.4})", self.max_constraints, self.tolerance, self.max_iterations, self.damping)
+        write!(
+            f,
+            "AssemblyConstraintConfig(max_constraints={0}, tolerance={1:.4}, max_iterations={2}, damping={3:.4})",
+            self.max_constraints, self.tolerance, self.max_iterations, self.damping
+        )
     }
 }
 
@@ -101,7 +115,10 @@ pub struct AssemblyConstraint {
 impl AssemblyConstraint {
     pub fn new(config: AssemblyConstraintConfig) -> Result<Self, AssemblyConstraintError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -113,9 +130,15 @@ impl AssemblyConstraint {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &AssemblyConstraintConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &AssemblyConstraintConfig {
+        &self.config
+    }
 
     /// Add mate constraint.
     pub fn add_mate(&self) -> bool {
@@ -134,7 +157,9 @@ impl AssemblyConstraint {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -146,7 +171,9 @@ impl AssemblyConstraint {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -158,7 +185,11 @@ impl AssemblyConstraint {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -231,7 +262,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = AssemblyConstraint::new(AssemblyConstraintConfig::new()).unwrap()
+        let e = AssemblyConstraint::new(AssemblyConstraintConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -247,7 +279,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = AssemblyConstraint::new(AssemblyConstraintConfig::new()).unwrap()
+        let e = AssemblyConstraint::new(AssemblyConstraintConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("AssemblyConstraint"));
@@ -255,7 +288,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = AssemblyConstraint::new(AssemblyConstraintConfig::new()).unwrap()
+        let e = AssemblyConstraint::new(AssemblyConstraintConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -266,7 +300,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = AssemblyConstraint::new(AssemblyConstraintConfig::new()).unwrap()
+        let e = AssemblyConstraint::new(AssemblyConstraintConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -274,7 +309,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = AssemblyConstraint::new(AssemblyConstraintConfig::new()).unwrap()
+        let e = AssemblyConstraint::new(AssemblyConstraintConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -291,7 +327,8 @@ mod tests {
 
     #[test]
     fn test_add_mate() {
-        let e = AssemblyConstraint::new(AssemblyConstraintConfig::new()).unwrap()
+        let e = AssemblyConstraint::new(AssemblyConstraintConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.add_mate();
         assert!(result);
@@ -299,7 +336,8 @@ mod tests {
 
     #[test]
     fn test_solve_all() {
-        let e = AssemblyConstraint::new(AssemblyConstraintConfig::new()).unwrap()
+        let e = AssemblyConstraint::new(AssemblyConstraintConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.solve_all();
         assert!(result);
@@ -307,7 +345,8 @@ mod tests {
 
     #[test]
     fn test_degrees_of_freedom() {
-        let e = AssemblyConstraint::new(AssemblyConstraintConfig::new()).unwrap()
+        let e = AssemblyConstraint::new(AssemblyConstraintConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.degrees_of_freedom();
         assert!(result > 0);

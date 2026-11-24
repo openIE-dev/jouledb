@@ -14,11 +14,24 @@ pub enum EnvError {
     /// Required variable missing.
     Missing(String),
     /// Type validation failed.
-    TypeMismatch { name: String, expected: String, actual: String },
+    TypeMismatch {
+        name: String,
+        expected: String,
+        actual: String,
+    },
     /// Value not in allowed set.
-    InvalidChoice { name: String, value: String, allowed: Vec<String> },
+    InvalidChoice {
+        name: String,
+        value: String,
+        allowed: Vec<String>,
+    },
     /// Value out of range.
-    OutOfRange { name: String, value: String, min: Option<String>, max: Option<String> },
+    OutOfRange {
+        name: String,
+        value: String,
+        min: Option<String>,
+        max: Option<String>,
+    },
     /// Parse error in .env file.
     ParseError { line: usize, reason: String },
     /// Secret leaked in non-secret variable.
@@ -29,13 +42,26 @@ impl std::fmt::Display for EnvError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Missing(name) => write!(f, "required variable missing: {name}"),
-            Self::TypeMismatch { name, expected, actual } => {
+            Self::TypeMismatch {
+                name,
+                expected,
+                actual,
+            } => {
                 write!(f, "{name}: expected {expected}, got \"{actual}\"")
             }
-            Self::InvalidChoice { name, value, allowed } => {
+            Self::InvalidChoice {
+                name,
+                value,
+                allowed,
+            } => {
                 write!(f, "{name}: \"{value}\" not in [{}]", allowed.join(", "))
             }
-            Self::OutOfRange { name, value, min, max } => {
+            Self::OutOfRange {
+                name,
+                value,
+                min,
+                max,
+            } => {
                 write!(
                     f,
                     "{name}: \"{value}\" out of range [{}, {}]",
@@ -97,9 +123,7 @@ impl EnvType {
                     || value.starts_with("https://")
                     || value.starts_with("ftp://")
             }
-            Self::Port => {
-                value.parse::<u16>().map(|p| p >= 1).unwrap_or(false)
-            }
+            Self::Port => value.parse::<u16>().map(|p| p >= 1).unwrap_or(false),
             Self::Email => value.contains('@') && value.contains('.'),
             Self::Choice(opts) => opts.iter().any(|o| o == value),
         }
@@ -207,15 +231,23 @@ pub fn parse_dotenv(content: &str) -> Result<BTreeMap<String, String>, EnvError>
 
 /// Common patterns that suggest a value is a secret.
 const SECRET_PATTERNS: &[&str] = &[
-    "password", "secret", "token", "api_key", "apikey",
-    "private_key", "access_key", "auth",
+    "password",
+    "secret",
+    "token",
+    "api_key",
+    "apikey",
+    "private_key",
+    "access_key",
+    "auth",
 ];
 
 /// Heuristic patterns in values that suggest secrets.
 fn looks_like_secret_value(value: &str) -> bool {
     // Long random-looking strings.
     if value.len() >= 32
-        && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        && value
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
     {
         return true;
     }
@@ -243,7 +275,10 @@ pub struct EnvValidator {
 
 impl EnvValidator {
     pub fn new() -> Self {
-        Self { definitions: Vec::new(), detect_secrets: true }
+        Self {
+            definitions: Vec::new(),
+            detect_secrets: true,
+        }
     }
 
     pub fn disable_secret_detection(mut self) -> Self {
@@ -256,10 +291,7 @@ impl EnvValidator {
     }
 
     /// Validate environment variables against definitions.
-    pub fn validate(
-        &self,
-        env: &BTreeMap<String, String>,
-    ) -> ValidationReport {
+    pub fn validate(&self, env: &BTreeMap<String, String>) -> ValidationReport {
         let mut errors = Vec::new();
         let mut resolved = BTreeMap::new();
 
@@ -330,7 +362,11 @@ impl EnvValidator {
             if !def.description.is_empty() {
                 lines.push(format!("# {}", def.description));
             }
-            let required_tag = if def.required { " (required)" } else { " (optional)" };
+            let required_tag = if def.required {
+                " (required)"
+            } else {
+                " (optional)"
+            };
             let type_tag = def.env_type.name();
             lines.push(format!("# Type: {type_tag}{required_tag}"));
             let default_val = def.default.as_deref().unwrap_or("");
@@ -391,7 +427,10 @@ mod tests {
     use super::*;
 
     fn env_map(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
     }
 
     #[test]
@@ -515,7 +554,10 @@ mod tests {
         let env = env_map(&[("PORT", "8080")]);
         let report = v.validate(&env);
         assert!(report.valid);
-        assert_eq!(report.resolved.get("PORT").map(|s| s.as_str()), Some("8080"));
+        assert_eq!(
+            report.resolved.get("PORT").map(|s| s.as_str()),
+            Some("8080")
+        );
     }
 
     #[test]
@@ -544,7 +586,10 @@ mod tests {
         let env = BTreeMap::new();
         let report = v.validate(&env);
         assert!(report.valid);
-        assert_eq!(report.resolved.get("PORT").map(|s| s.as_str()), Some("3000"));
+        assert_eq!(
+            report.resolved.get("PORT").map(|s| s.as_str()),
+            Some("3000")
+        );
     }
 
     #[test]
@@ -683,13 +728,15 @@ mod tests {
         let report = v.validate(&env);
         assert!(report.valid);
         assert_eq!(report.resolved.len(), 4);
-        assert_eq!(report.resolved.get("DEBUG").map(|s| s.as_str()), Some("false"));
+        assert_eq!(
+            report.resolved.get("DEBUG").map(|s| s.as_str()),
+            Some("false")
+        );
     }
 
     #[test]
     fn test_env_var_def_description() {
-        let def = EnvVarDef::new("PORT", EnvType::Port)
-            .with_description("The server port");
+        let def = EnvVarDef::new("PORT", EnvType::Port).with_description("The server port");
         assert_eq!(def.description, "The server port");
     }
 }

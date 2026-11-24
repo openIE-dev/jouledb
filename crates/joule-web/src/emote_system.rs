@@ -23,7 +23,10 @@ impl fmt::Display for EmoteError {
         match self {
             Self::EmoteNotFound(id) => write!(f, "emote not found: {id}"),
             Self::DuplicateEmote(id) => write!(f, "duplicate emote: {id}"),
-            Self::OnCooldown { user, remaining_secs } => {
+            Self::OnCooldown {
+                user,
+                remaining_secs,
+            } => {
                 write!(f, "{user} on cooldown: {remaining_secs}s remaining")
             }
             Self::SetNotFound(id) => write!(f, "emote set not found: {id}"),
@@ -206,7 +209,9 @@ impl EmoteRegistry {
     }
 
     pub fn remove_emote(&mut self, id: &str) -> Result<Emote, EmoteError> {
-        self.emotes.remove(id).ok_or_else(|| EmoteError::EmoteNotFound(id.to_string()))
+        self.emotes
+            .remove(id)
+            .ok_or_else(|| EmoteError::EmoteNotFound(id.to_string()))
     }
 
     pub fn get_emote(&self, id: &str) -> Option<&Emote> {
@@ -226,7 +231,12 @@ impl EmoteRegistry {
     }
 
     /// Use an emote. Enforces cooldown and tracks usage/combo.
-    pub fn use_emote(&mut self, user_id: &str, emote_id: &str, timestamp: u64) -> Result<(), EmoteError> {
+    pub fn use_emote(
+        &mut self,
+        user_id: &str,
+        emote_id: &str,
+        timestamp: u64,
+    ) -> Result<(), EmoteError> {
         if !self.emotes.contains_key(emote_id) {
             return Err(EmoteError::EmoteNotFound(emote_id.to_string()));
         }
@@ -242,10 +252,14 @@ impl EmoteRegistry {
         }
         self.cooldowns.insert(user_id.to_string(), timestamp);
         *self.usage_counts.entry(emote_id.to_string()).or_default() += 1;
-        self.users_who_used.entry(emote_id.to_string()).or_default().insert(user_id.to_string());
+        self.users_who_used
+            .entry(emote_id.to_string())
+            .or_default()
+            .insert(user_id.to_string());
 
         // Combo tracking
-        self.combo_window.push_back((user_id.to_string(), emote_id.to_string(), timestamp));
+        self.combo_window
+            .push_back((user_id.to_string(), emote_id.to_string(), timestamp));
         // Evict old entries
         while let Some(front) = self.combo_window.front() {
             if timestamp.saturating_sub(front.2) > self.combo_window_secs {
@@ -261,9 +275,13 @@ impl EmoteRegistry {
     pub fn detect_combo(&self) -> Option<EmoteCombo> {
         let mut counts: HashMap<&str, HashSet<&str>> = HashMap::new();
         for (user, emote, _) in &self.combo_window {
-            counts.entry(emote.as_str()).or_default().insert(user.as_str());
+            counts
+                .entry(emote.as_str())
+                .or_default()
+                .insert(user.as_str());
         }
-        counts.into_iter()
+        counts
+            .into_iter()
             .filter(|(_, users)| users.len() >= 2)
             .max_by_key(|(_, users)| users.len())
             .map(|(emote_id, users)| EmoteCombo {
@@ -275,15 +293,25 @@ impl EmoteRegistry {
 
     pub fn search_by_name(&self, query: &str) -> Vec<&Emote> {
         let lower = query.to_lowercase();
-        self.emotes.values().filter(|e| e.name.to_lowercase().contains(&lower)).collect()
+        self.emotes
+            .values()
+            .filter(|e| e.name.to_lowercase().contains(&lower))
+            .collect()
     }
 
     pub fn search_by_category(&self, category: EmoteCategory) -> Vec<&Emote> {
-        self.emotes.values().filter(|e| e.category == category).collect()
+        self.emotes
+            .values()
+            .filter(|e| e.category == category)
+            .collect()
     }
 
     pub fn popular_emotes(&self, top_n: usize) -> Vec<(&str, u64)> {
-        let mut sorted: Vec<_> = self.usage_counts.iter().map(|(k, &v)| (k.as_str(), v)).collect();
+        let mut sorted: Vec<_> = self
+            .usage_counts
+            .iter()
+            .map(|(k, &v)| (k.as_str(), v))
+            .collect();
         sorted.sort_by(|a, b| b.1.cmp(&a.1));
         sorted.truncate(top_n);
         sorted
@@ -303,7 +331,9 @@ impl EmoteRegistry {
     }
 
     pub fn favorites(&self, user_id: &str) -> &[String] {
-        self.user_favorites.get(user_id).map_or(&[], |v| v.as_slice())
+        self.user_favorites
+            .get(user_id)
+            .map_or(&[], |v| v.as_slice())
     }
 
     pub fn usage_count(&self, emote_id: &str) -> u64 {
@@ -311,7 +341,9 @@ impl EmoteRegistry {
     }
 
     pub fn stats(&self) -> EmoteStats {
-        let unique_users: HashSet<&str> = self.users_who_used.values()
+        let unique_users: HashSet<&str> = self
+            .users_who_used
+            .values()
             .flat_map(|s| s.iter().map(|u| u.as_str()))
             .collect();
         EmoteStats {
@@ -334,9 +366,12 @@ mod tests {
 
     fn registry() -> EmoteRegistry {
         let mut r = EmoteRegistry::new(5, 10);
-        r.register_emote(Emote::new("e1", "smile", EmoteCategory::Happy)).unwrap();
-        r.register_emote(Emote::new("e2", "cry", EmoteCategory::Sad)).unwrap();
-        r.register_emote(Emote::new("e3", "dance", EmoteCategory::Action).animated()).unwrap();
+        r.register_emote(Emote::new("e1", "smile", EmoteCategory::Happy))
+            .unwrap();
+        r.register_emote(Emote::new("e2", "cry", EmoteCategory::Sad))
+            .unwrap();
+        r.register_emote(Emote::new("e3", "dance", EmoteCategory::Action).animated())
+            .unwrap();
         r
     }
 
@@ -349,7 +384,10 @@ mod tests {
     #[test]
     fn test_duplicate_emote() {
         let mut r = registry();
-        assert!(r.register_emote(Emote::new("e1", "smile2", EmoteCategory::Happy)).is_err());
+        assert!(
+            r.register_emote(Emote::new("e1", "smile2", EmoteCategory::Happy))
+                .is_err()
+        );
     }
 
     #[test]
@@ -434,7 +472,8 @@ mod tests {
     #[test]
     fn test_combo_window_expiry() {
         let mut r = EmoteRegistry::new(0, 5); // 0 cooldown, 5s window
-        r.register_emote(Emote::new("e1", "smile", EmoteCategory::Happy)).unwrap();
+        r.register_emote(Emote::new("e1", "smile", EmoteCategory::Happy))
+            .unwrap();
         r.use_emote("alice", "e1", 100).unwrap();
         r.use_emote("bob", "e1", 200).unwrap(); // 100s later, alice expired
         // alice's entry should be evicted

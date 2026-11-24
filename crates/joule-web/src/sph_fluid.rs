@@ -73,7 +73,10 @@ impl Vec2 {
         if len < 1e-12 {
             Self::zero()
         } else {
-            Self { x: self.x / len, y: self.y / len }
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+            }
         }
     }
 
@@ -82,15 +85,24 @@ impl Vec2 {
     }
 
     pub fn add(&self, other: &Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
     }
 
     pub fn sub(&self, other: &Self) -> Self {
-        Self { x: self.x - other.x, y: self.y - other.y }
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
     }
 
     pub fn scale(&self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
     }
 }
 
@@ -158,7 +170,9 @@ pub struct SphConfig {
 impl SphConfig {
     pub fn validate(&self) -> Result<(), SphError> {
         if self.smoothing_radius <= 0.0 {
-            return Err(SphError::InvalidConfig("smoothing_radius must be > 0".into()));
+            return Err(SphError::InvalidConfig(
+                "smoothing_radius must be > 0".into(),
+            ));
         }
         if self.rest_density <= 0.0 {
             return Err(SphError::InvalidConfig("rest_density must be > 0".into()));
@@ -170,7 +184,9 @@ impl SphConfig {
             return Err(SphError::InvalidConfig("timestep must be > 0".into()));
         }
         if self.domain_min.x >= self.domain_max.x || self.domain_min.y >= self.domain_max.y {
-            return Err(SphError::InvalidConfig("domain_min must be < domain_max".into()));
+            return Err(SphError::InvalidConfig(
+                "domain_min must be < domain_max".into(),
+            ));
         }
         Ok(())
     }
@@ -346,13 +362,7 @@ impl SphSimulation {
     }
 
     /// Create a block of particles in a rectangular region.
-    pub fn create_block(
-        &mut self,
-        min: Vec2,
-        max: Vec2,
-        spacing: f64,
-        mass: f64,
-    ) -> Vec<usize> {
+    pub fn create_block(&mut self, min: Vec2, max: Vec2, spacing: f64, mass: f64) -> Vec<usize> {
         let mut ids = Vec::new();
         let mut y = min.y;
         while y <= max.y {
@@ -552,10 +562,16 @@ impl SphSimulation {
     fn check_divergence(&self) -> Result<(), SphError> {
         for p in &self.particles {
             if !p.position.x.is_finite() || !p.position.y.is_finite() {
-                return Err(SphError::Diverged(format!("particle {} position NaN/Inf", p.id)));
+                return Err(SphError::Diverged(format!(
+                    "particle {} position NaN/Inf",
+                    p.id
+                )));
             }
             if !p.velocity.x.is_finite() || !p.velocity.y.is_finite() {
-                return Err(SphError::Diverged(format!("particle {} velocity NaN/Inf", p.id)));
+                return Err(SphError::Diverged(format!(
+                    "particle {} velocity NaN/Inf",
+                    p.id
+                )));
             }
         }
         Ok(())
@@ -611,7 +627,9 @@ impl SphSimulation {
         } else {
             0.0
         };
-        let max_vel = self.particles.iter()
+        let max_vel = self
+            .particles
+            .iter()
             .map(|p| p.velocity.length())
             .fold(0.0_f64, f64::max);
 
@@ -626,7 +644,9 @@ impl SphSimulation {
 
     /// Get a particle by index.
     pub fn get_particle(&self, idx: usize) -> Result<&Particle, SphError> {
-        self.particles.get(idx).ok_or(SphError::ParticleOutOfRange(idx))
+        self.particles
+            .get(idx)
+            .ok_or(SphError::ParticleOutOfRange(idx))
     }
 
     /// Total kinetic energy of the system.
@@ -858,7 +878,10 @@ mod tests {
     #[test]
     fn test_get_particle_out_of_range() {
         let sim = default_sim();
-        assert!(matches!(sim.get_particle(0), Err(SphError::ParticleOutOfRange(0))));
+        assert!(matches!(
+            sim.get_particle(0),
+            Err(SphError::ParticleOutOfRange(0))
+        ));
     }
 
     #[test]

@@ -21,10 +21,7 @@ pub enum Expr {
     /// Variable / identifier reference.
     Ident(String),
     /// Prefix (unary) operation: operator, operand.
-    Prefix {
-        op: String,
-        operand: Box<Expr>,
-    },
+    Prefix { op: String, operand: Box<Expr> },
     /// Infix (binary) operation: left, operator, right.
     Infix {
         left: Box<Expr>,
@@ -32,20 +29,11 @@ pub enum Expr {
         right: Box<Expr>,
     },
     /// Postfix (unary) operation: operand, operator.
-    Postfix {
-        operand: Box<Expr>,
-        op: String,
-    },
+    Postfix { operand: Box<Expr>, op: String },
     /// Function call: callee, arguments.
-    Call {
-        callee: Box<Expr>,
-        args: Vec<Expr>,
-    },
+    Call { callee: Box<Expr>, args: Vec<Expr> },
     /// Index operation: base[index].
-    Index {
-        base: Box<Expr>,
-        index: Box<Expr>,
-    },
+    Index { base: Box<Expr>, index: Box<Expr> },
     /// Ternary conditional: cond ? then_expr : else_expr.
     Ternary {
         cond: Box<Expr>,
@@ -78,7 +66,11 @@ impl fmt::Display for Expr {
                 write!(f, ")")
             }
             Self::Index { base, index } => write!(f, "{base}[{index}]"),
-            Self::Ternary { cond, then_expr, else_expr } => {
+            Self::Ternary {
+                cond,
+                then_expr,
+                else_expr,
+            } => {
                 write!(f, "({cond} ? {then_expr} : {else_expr})")
             }
             Self::Group(inner) => write!(f, "({inner})"),
@@ -256,19 +248,22 @@ impl PrattParser {
 
     /// Register a prefix operator.
     pub fn prefix(&mut self, op: &str, precedence: u32) -> &mut Self {
-        self.prefix_ops.insert(op.to_string(), PrefixOp { precedence });
+        self.prefix_ops
+            .insert(op.to_string(), PrefixOp { precedence });
         self
     }
 
     /// Register an infix operator.
     pub fn infix(&mut self, op: &str, precedence: u32, assoc: Assoc) -> &mut Self {
-        self.infix_ops.insert(op.to_string(), InfixOp { precedence, assoc });
+        self.infix_ops
+            .insert(op.to_string(), InfixOp { precedence, assoc });
         self
     }
 
     /// Register a postfix operator.
     pub fn postfix(&mut self, op: &str, precedence: u32) -> &mut Self {
-        self.postfix_ops.insert(op.to_string(), PostfixOp { precedence });
+        self.postfix_ops
+            .insert(op.to_string(), PostfixOp { precedence });
         self
     }
 
@@ -495,7 +490,10 @@ impl PrattParser {
             cursor.advance();
             Ok(())
         } else {
-            Err(ParseError::Expected(")".into(), format!("{}", cursor.current())))
+            Err(ParseError::Expected(
+                ")".into(),
+                format!("{}", cursor.current()),
+            ))
         }
     }
 
@@ -504,7 +502,10 @@ impl PrattParser {
             cursor.advance();
             Ok(())
         } else {
-            Err(ParseError::Expected("]".into(), format!("{}", cursor.current())))
+            Err(ParseError::Expected(
+                "]".into(),
+                format!("{}", cursor.current()),
+            ))
         }
     }
 
@@ -513,7 +514,10 @@ impl PrattParser {
             cursor.advance();
             Ok(())
         } else {
-            Err(ParseError::Expected(":".into(), format!("{}", cursor.current())))
+            Err(ParseError::Expected(
+                ":".into(),
+                format!("{}", cursor.current()),
+            ))
         }
     }
 }
@@ -602,13 +606,34 @@ pub fn tokenize_math(input: &str) -> Vec<PToken> {
         }
 
         match c {
-            '(' => { tokens.push(PToken::LParen); i += 1; }
-            ')' => { tokens.push(PToken::RParen); i += 1; }
-            '[' => { tokens.push(PToken::LBracket); i += 1; }
-            ']' => { tokens.push(PToken::RBracket); i += 1; }
-            ',' => { tokens.push(PToken::Comma); i += 1; }
-            '?' => { tokens.push(PToken::Question); i += 1; }
-            ':' => { tokens.push(PToken::Colon); i += 1; }
+            '(' => {
+                tokens.push(PToken::LParen);
+                i += 1;
+            }
+            ')' => {
+                tokens.push(PToken::RParen);
+                i += 1;
+            }
+            '[' => {
+                tokens.push(PToken::LBracket);
+                i += 1;
+            }
+            ']' => {
+                tokens.push(PToken::RBracket);
+                i += 1;
+            }
+            ',' => {
+                tokens.push(PToken::Comma);
+                i += 1;
+            }
+            '?' => {
+                tokens.push(PToken::Question);
+                i += 1;
+            }
+            ':' => {
+                tokens.push(PToken::Colon);
+                i += 1;
+            }
             '"' => {
                 i += 1; // skip opening "
                 let start = i;
@@ -777,7 +802,11 @@ mod tests {
     fn test_postfix_operator() {
         let mut p = PrattParser::arithmetic();
         p.postfix("++", 85);
-        let tokens = vec![PToken::Ident("x".into()), PToken::Op("++".into()), PToken::Eof];
+        let tokens = vec![
+            PToken::Ident("x".into()),
+            PToken::Op("++".into()),
+            PToken::Eof,
+        ];
         let e = p.parse(&tokens).unwrap();
         assert!(matches!(e, Expr::Postfix { ref op, .. } if op == "++"));
     }
@@ -800,11 +829,7 @@ mod tests {
 
     #[test]
     fn test_error_missing_rparen() {
-        let tokens = vec![
-            PToken::LParen,
-            PToken::Integer(1),
-            PToken::Eof,
-        ];
+        let tokens = vec![PToken::LParen, PToken::Integer(1), PToken::Eof];
         let p = PrattParser::arithmetic();
         let err = p.parse(&tokens).unwrap_err();
         assert!(matches!(err, ParseError::Expected(..)));

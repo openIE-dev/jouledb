@@ -128,8 +128,8 @@ pub struct TokenConfig {
 impl Default for TokenConfig {
     fn default() -> Self {
         Self {
-            access_lifetime_secs: 900,      // 15 min
-            refresh_lifetime_secs: 604800,  // 7 days
+            access_lifetime_secs: 900,     // 15 min
+            refresh_lifetime_secs: 604800, // 7 days
             max_sessions: 5,
             sliding_window_secs: 60,
         }
@@ -181,10 +181,7 @@ impl TokenEngine {
     ) -> Result<TokenPair, TokenError> {
         // Check session limit.
         if self.config.max_sessions > 0 {
-            let sessions = self
-                .user_sessions
-                .entry(user_id.to_string())
-                .or_default();
+            let sessions = self.user_sessions.entry(user_id.to_string()).or_default();
 
             // Clean up expired/compromised families.
             let active_families: Vec<String> = sessions
@@ -272,11 +269,7 @@ impl TokenEngine {
     }
 
     /// Validate a token (check existence, blacklist, expiry).
-    pub fn validate_token(
-        &self,
-        token_id: &str,
-        now_secs: u64,
-    ) -> Result<&Token, TokenError> {
+    pub fn validate_token(&self, token_id: &str, now_secs: u64) -> Result<&Token, TokenError> {
         if self.blacklist.contains(token_id) {
             return Err(TokenError::TokenRevoked(token_id.to_string()));
         }
@@ -355,7 +348,10 @@ impl TokenEngine {
         self.tokens.get_mut(refresh_token_id).unwrap().consumed = true;
 
         // Update family generation.
-        self.families.get_mut(&family_id).unwrap().current_generation = new_generation;
+        self.families
+            .get_mut(&family_id)
+            .unwrap()
+            .current_generation = new_generation;
 
         let pair = self.create_pair(&user_id, &family_id, new_generation, now_secs, device_id);
         Ok(pair)
@@ -429,16 +425,13 @@ impl TokenEngine {
         }
 
         // Find the corresponding access token in the same family and generation.
-        let access_expired = self
-            .tokens
-            .values()
-            .any(|t| {
-                t.family_id == token.family_id
-                    && t.token_type == TokenType::Access
-                    && t.generation == token.generation
-                    && t.is_expired(now_secs)
-                    && now_secs < t.expires_at_secs + self.config.sliding_window_secs
-            });
+        let access_expired = self.tokens.values().any(|t| {
+            t.family_id == token.family_id
+                && t.token_type == TokenType::Access
+                && t.generation == token.generation
+                && t.is_expired(now_secs)
+                && now_secs < t.expires_at_secs + self.config.sliding_window_secs
+        });
 
         Ok(access_expired)
     }
@@ -508,9 +501,7 @@ mod tests {
         let mut engine = default_engine();
         let pair = engine.issue_tokens("user-1", 1000, None).unwrap();
 
-        let token = engine
-            .validate_token(&pair.access_token.id, 1100)
-            .unwrap();
+        let token = engine.validate_token(&pair.access_token.id, 1100).unwrap();
         assert_eq!(token.user_id, "user-1");
     }
 
@@ -542,9 +533,7 @@ mod tests {
         let mut engine = default_engine();
         let pair = engine.issue_tokens("user-1", 1000, None).unwrap();
 
-        let new_pair = engine
-            .rotate_tokens(&pair.refresh_token.id, 1200)
-            .unwrap();
+        let new_pair = engine.rotate_tokens(&pair.refresh_token.id, 1200).unwrap();
         assert_eq!(new_pair.access_token.generation, 1);
         assert_eq!(new_pair.access_token.family_id, pair.access_token.family_id);
     }
@@ -555,9 +544,7 @@ mod tests {
         let pair = engine.issue_tokens("user-1", 1000, None).unwrap();
 
         // First rotation succeeds.
-        let _new_pair = engine
-            .rotate_tokens(&pair.refresh_token.id, 1200)
-            .unwrap();
+        let _new_pair = engine.rotate_tokens(&pair.refresh_token.id, 1200).unwrap();
 
         // Reusing the old refresh token triggers compromise.
         let err = engine
@@ -607,12 +594,8 @@ mod tests {
 
         engine.revoke_all_sessions("user-1");
 
-        assert!(engine
-            .validate_token(&pair1.access_token.id, 1100)
-            .is_err());
-        assert!(engine
-            .validate_token(&pair2.access_token.id, 1100)
-            .is_err());
+        assert!(engine.validate_token(&pair1.access_token.id, 1100).is_err());
+        assert!(engine.validate_token(&pair2.access_token.id, 1100).is_err());
         assert_eq!(engine.active_session_count("user-1"), 0);
     }
 
@@ -626,12 +609,8 @@ mod tests {
             .revoke_session(&pair1.access_token.family_id)
             .unwrap();
 
-        assert!(engine
-            .validate_token(&pair1.access_token.id, 1100)
-            .is_err());
-        assert!(engine
-            .validate_token(&pair2.access_token.id, 1100)
-            .is_ok());
+        assert!(engine.validate_token(&pair1.access_token.id, 1100).is_err());
+        assert!(engine.validate_token(&pair2.access_token.id, 1100).is_ok());
     }
 
     #[test]
@@ -689,14 +668,8 @@ mod tests {
         let pair = engine
             .issue_tokens("user-1", 1000, Some("iphone-12".to_string()))
             .unwrap();
-        assert_eq!(
-            pair.access_token.device_id.as_deref(),
-            Some("iphone-12")
-        );
-        assert_eq!(
-            pair.refresh_token.device_id.as_deref(),
-            Some("iphone-12")
-        );
+        assert_eq!(pair.access_token.device_id.as_deref(), Some("iphone-12"));
+        assert_eq!(pair.refresh_token.device_id.as_deref(), Some("iphone-12"));
     }
 
     #[test]
@@ -764,20 +737,12 @@ mod tests {
     fn test_multi_rotation_chain() {
         let mut engine = default_engine();
         let pair0 = engine.issue_tokens("user-1", 1000, None).unwrap();
-        let pair1 = engine
-            .rotate_tokens(&pair0.refresh_token.id, 1100)
-            .unwrap();
-        let pair2 = engine
-            .rotate_tokens(&pair1.refresh_token.id, 1200)
-            .unwrap();
-        let pair3 = engine
-            .rotate_tokens(&pair2.refresh_token.id, 1300)
-            .unwrap();
+        let pair1 = engine.rotate_tokens(&pair0.refresh_token.id, 1100).unwrap();
+        let pair2 = engine.rotate_tokens(&pair1.refresh_token.id, 1200).unwrap();
+        let pair3 = engine.rotate_tokens(&pair2.refresh_token.id, 1300).unwrap();
 
         assert_eq!(pair3.access_token.generation, 3);
-        assert!(engine
-            .validate_token(&pair3.access_token.id, 1400)
-            .is_ok());
+        assert!(engine.validate_token(&pair3.access_token.id, 1400).is_ok());
     }
 
     #[test]
@@ -791,9 +756,7 @@ mod tests {
     fn test_compromised_family_blocks_validation() {
         let mut engine = default_engine();
         let pair = engine.issue_tokens("user-1", 1000, None).unwrap();
-        let new_pair = engine
-            .rotate_tokens(&pair.refresh_token.id, 1100)
-            .unwrap();
+        let new_pair = engine.rotate_tokens(&pair.refresh_token.id, 1100).unwrap();
 
         // Trigger compromise by reusing old refresh.
         let _ = engine.rotate_tokens(&pair.refresh_token.id, 1200);
@@ -802,6 +765,9 @@ mod tests {
         let err = engine
             .validate_token(&new_pair.access_token.id, 1150)
             .unwrap_err();
-        assert!(matches!(err, TokenError::FamilyCompromised(_) | TokenError::TokenRevoked(_)));
+        assert!(matches!(
+            err,
+            TokenError::FamilyCompromised(_) | TokenError::TokenRevoked(_)
+        ));
     }
 }

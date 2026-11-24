@@ -21,11 +21,17 @@ impl Vec2 {
     }
 
     pub fn add(self, other: Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
     }
 
     pub fn scale(self, s: f32) -> Self {
-        Self { x: self.x * s, y: self.y * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
     }
 }
 
@@ -43,8 +49,14 @@ impl Vec3 {
 
     pub fn normalize(self) -> Self {
         let len = (self.x * self.x + self.y * self.y + self.z * self.z).sqrt();
-        if len < 1e-10 { return Self::new(0.0, 0.0, 0.0); }
-        Self { x: self.x / len, y: self.y / len, z: self.z / len }
+        if len < 1e-10 {
+            return Self::new(0.0, 0.0, 0.0);
+        }
+        Self {
+            x: self.x / len,
+            y: self.y / len,
+            z: self.z / len,
+        }
     }
 
     pub fn length(self) -> f32 {
@@ -68,19 +80,31 @@ impl HeightField {
         if data.len() != expected {
             return Err(format!("expected {} samples, got {}", expected, data.len()));
         }
-        Ok(Self { width, height, data })
+        Ok(Self {
+            width,
+            height,
+            data,
+        })
     }
 
     /// Flat height field (all zeros).
     pub fn flat(width: u32, height: u32) -> Self {
         let count = (width as usize) * (height as usize);
-        Self { width, height, data: vec![0.0; count] }
+        Self {
+            width,
+            height,
+            data: vec![0.0; count],
+        }
     }
 
     /// Constant height.
     pub fn constant(width: u32, height: u32, h: f32) -> Self {
         let count = (width as usize) * (height as usize);
-        Self { width, height, data: vec![h; count] }
+        Self {
+            width,
+            height,
+            data: vec![h; count],
+        }
     }
 
     /// Sample height at UV (bilinear interpolation, clamped).
@@ -228,10 +252,9 @@ pub fn parallax_steep(
         }
         current_uv = current_uv.add(delta_uv);
         current_depth += layer_depth;
-        current_map_h = height_field.sample(
-            current_uv.x.clamp(0.0, 1.0),
-            current_uv.y.clamp(0.0, 1.0),
-        ) + params.height_bias;
+        current_map_h = height_field
+            .sample(current_uv.x.clamp(0.0, 1.0), current_uv.y.clamp(0.0, 1.0))
+            + params.height_bias;
     }
 
     (current_uv, current_depth)
@@ -273,10 +296,9 @@ pub fn parallax_occlusion(
         prev_depth = current_depth;
         current_uv = current_uv.add(delta_uv);
         current_depth += layer_depth;
-        current_map_h = height_field.sample(
-            current_uv.x.clamp(0.0, 1.0),
-            current_uv.y.clamp(0.0, 1.0),
-        ) + params.height_bias;
+        current_map_h = height_field
+            .sample(current_uv.x.clamp(0.0, 1.0), current_uv.y.clamp(0.0, 1.0))
+            + params.height_bias;
     }
 
     // Binary search refinement.
@@ -286,15 +308,10 @@ pub fn parallax_occlusion(
     let mut hi_depth = current_depth;
 
     for _ in 0..params.binary_refinements {
-        let mid_uv = Vec2::new(
-            (lo_uv.x + hi_uv.x) * 0.5,
-            (lo_uv.y + hi_uv.y) * 0.5,
-        );
+        let mid_uv = Vec2::new((lo_uv.x + hi_uv.x) * 0.5, (lo_uv.y + hi_uv.y) * 0.5);
         let mid_depth = (lo_depth + hi_depth) * 0.5;
-        let mid_h = height_field.sample(
-            mid_uv.x.clamp(0.0, 1.0),
-            mid_uv.y.clamp(0.0, 1.0),
-        ) + params.height_bias;
+        let mid_h = height_field.sample(mid_uv.x.clamp(0.0, 1.0), mid_uv.y.clamp(0.0, 1.0))
+            + params.height_bias;
 
         if mid_depth < mid_h {
             // Still above surface.
@@ -307,10 +324,7 @@ pub fn parallax_occlusion(
         }
     }
 
-    let final_uv = Vec2::new(
-        (lo_uv.x + hi_uv.x) * 0.5,
-        (lo_uv.y + hi_uv.y) * 0.5,
-    );
+    let final_uv = Vec2::new((lo_uv.x + hi_uv.x) * 0.5, (lo_uv.y + hi_uv.y) * 0.5);
     let final_depth = (lo_depth + hi_depth) * 0.5;
     (final_uv, final_depth)
 }
@@ -350,10 +364,8 @@ pub fn self_shadow(
             break;
         }
 
-        let map_h = height_field.sample(
-            current_uv.x.clamp(0.0, 1.0),
-            current_uv.y.clamp(0.0, 1.0),
-        ) + params.height_bias;
+        let map_h = height_field.sample(current_uv.x.clamp(0.0, 1.0), current_uv.y.clamp(0.0, 1.0))
+            + params.height_bias;
 
         if map_h > current_depth {
             // Occluded — soft shadow based on how much we're blocked.
@@ -368,12 +380,7 @@ pub fn self_shadow(
 // ── Displacement mapping helper ─────────────────────────────────
 
 /// Displace a vertex position along its normal based on height.
-pub fn displace_vertex(
-    position: Vec3,
-    normal: Vec3,
-    height: f32,
-    params: &ParallaxParams,
-) -> Vec3 {
+pub fn displace_vertex(position: Vec3, normal: Vec3, height: f32, params: &ParallaxParams) -> Vec3 {
     let n = normal.normalize();
     let displacement = (height + params.height_bias) * params.height_scale;
     Vec3::new(
@@ -512,8 +519,12 @@ mod tests {
     #[test]
     fn test_pom_refinement_converges() {
         let hf = HeightField::constant(8, 8, 0.5);
-        let params_coarse = ParallaxParams::new(0.1).with_steps(4, 8).with_refinements(0);
-        let params_fine = ParallaxParams::new(0.1).with_steps(4, 8).with_refinements(8);
+        let params_coarse = ParallaxParams::new(0.1)
+            .with_steps(4, 8)
+            .with_refinements(0);
+        let params_fine = ParallaxParams::new(0.1)
+            .with_steps(4, 8)
+            .with_refinements(8);
         let view = Vec3::new(0.2, 0.0, 0.98).normalize();
         let (_, d_coarse) = parallax_occlusion(Vec2::new(0.5, 0.5), view, &hf, &params_coarse);
         let (_, d_fine) = parallax_occlusion(Vec2::new(0.5, 0.5), view, &hf, &params_fine);

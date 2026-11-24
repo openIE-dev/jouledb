@@ -53,7 +53,10 @@ pub struct SubPixelAccumulator {
 
 impl SubPixelAccumulator {
     pub fn new() -> Self {
-        Self { remainder_x: 0.0, remainder_y: 0.0 }
+        Self {
+            remainder_x: 0.0,
+            remainder_y: 0.0,
+        }
     }
 
     /// Add a fractional movement delta. Returns the integer pixel delta

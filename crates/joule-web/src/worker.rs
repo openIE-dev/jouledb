@@ -134,12 +134,13 @@ impl WorkerProxy {
 
         if self.pending.remove(&msg.id).is_some() {
             if msg.kind == MessageKind::Error {
-                let err = serde_json::from_value::<WorkerError>(msg.payload.clone())
-                    .unwrap_or(WorkerError {
+                let err = serde_json::from_value::<WorkerError>(msg.payload.clone()).unwrap_or(
+                    WorkerError {
                         code: "UNKNOWN".to_string(),
                         message: "Unknown error".to_string(),
                         data: Some(msg.payload),
-                    });
+                    },
+                );
                 Some(WorkerResponse {
                     id: msg.id,
                     result: Err(err),

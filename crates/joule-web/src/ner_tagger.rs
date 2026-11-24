@@ -100,7 +100,13 @@ fn match_email(text: &str, start: usize) -> Option<(usize, usize)> {
 
     // Local part: alphanumeric, dots, underscores, hyphens.
     let local_start = i;
-    while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'.' || bytes[i] == b'_' || bytes[i] == b'-' || bytes[i] == b'+') {
+    while i < bytes.len()
+        && (bytes[i].is_ascii_alphanumeric()
+            || bytes[i] == b'.'
+            || bytes[i] == b'_'
+            || bytes[i] == b'-'
+            || bytes[i] == b'+')
+    {
         i += 1;
     }
     if i == local_start || i >= bytes.len() || bytes[i] != b'@' {
@@ -110,7 +116,9 @@ fn match_email(text: &str, start: usize) -> Option<(usize, usize)> {
 
     // Domain part.
     let domain_start = i;
-    while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'.' || bytes[i] == b'-') {
+    while i < bytes.len()
+        && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'.' || bytes[i] == b'-')
+    {
         i += 1;
     }
     if i == domain_start {
@@ -128,13 +136,19 @@ fn match_email(text: &str, start: usize) -> Option<(usize, usize)> {
 
 fn match_url(text: &str, start: usize) -> Option<(usize, usize)> {
     let slice = &text[start..];
-    if !slice.starts_with("http://") && !slice.starts_with("https://") && !slice.starts_with("www.") {
+    if !slice.starts_with("http://") && !slice.starts_with("https://") && !slice.starts_with("www.")
+    {
         return None;
     }
 
     let mut i = start;
     let bytes = text.as_bytes();
-    while i < bytes.len() && !bytes[i].is_ascii_whitespace() && bytes[i] != b'>' && bytes[i] != b')' && bytes[i] != b']' {
+    while i < bytes.len()
+        && !bytes[i].is_ascii_whitespace()
+        && bytes[i] != b'>'
+        && bytes[i] != b')'
+        && bytes[i] != b']'
+    {
         i += 1;
     }
 
@@ -188,33 +202,61 @@ fn match_date(text: &str, start: usize) -> Option<(usize, usize)> {
 
     // YYYY-MM-DD or YYYY/MM/DD
     if bytes.len() >= 10
-        && bytes[0].is_ascii_digit() && bytes[1].is_ascii_digit()
-        && bytes[2].is_ascii_digit() && bytes[3].is_ascii_digit()
+        && bytes[0].is_ascii_digit()
+        && bytes[1].is_ascii_digit()
+        && bytes[2].is_ascii_digit()
+        && bytes[3].is_ascii_digit()
         && (bytes[4] == b'-' || bytes[4] == b'/')
-        && bytes[5].is_ascii_digit() && bytes[6].is_ascii_digit()
+        && bytes[5].is_ascii_digit()
+        && bytes[6].is_ascii_digit()
         && (bytes[7] == b'-' || bytes[7] == b'/')
-        && bytes[8].is_ascii_digit() && bytes[9].is_ascii_digit()
+        && bytes[8].is_ascii_digit()
+        && bytes[9].is_ascii_digit()
     {
         return Some((start, start + 10));
     }
 
     // MM/DD/YYYY or DD/MM/YYYY
     if bytes.len() >= 10
-        && bytes[0].is_ascii_digit() && bytes[1].is_ascii_digit()
+        && bytes[0].is_ascii_digit()
+        && bytes[1].is_ascii_digit()
         && (bytes[2] == b'/' || bytes[2] == b'-')
-        && bytes[3].is_ascii_digit() && bytes[4].is_ascii_digit()
+        && bytes[3].is_ascii_digit()
+        && bytes[4].is_ascii_digit()
         && (bytes[5] == b'/' || bytes[5] == b'-')
-        && bytes[6].is_ascii_digit() && bytes[7].is_ascii_digit()
-        && bytes[8].is_ascii_digit() && bytes[9].is_ascii_digit()
+        && bytes[6].is_ascii_digit()
+        && bytes[7].is_ascii_digit()
+        && bytes[8].is_ascii_digit()
+        && bytes[9].is_ascii_digit()
     {
         return Some((start, start + 10));
     }
 
     // Month names: January 1, 2024 etc.
     let months = [
-        "january", "february", "march", "april", "may", "june",
-        "july", "august", "september", "october", "november", "december",
-        "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
+        "january",
+        "february",
+        "march",
+        "april",
+        "may",
+        "june",
+        "july",
+        "august",
+        "september",
+        "october",
+        "november",
+        "december",
+        "jan",
+        "feb",
+        "mar",
+        "apr",
+        "jun",
+        "jul",
+        "aug",
+        "sep",
+        "oct",
+        "nov",
+        "dec",
     ];
     let lower = slice.to_lowercase();
     for month in &months {
@@ -222,9 +264,10 @@ fn match_date(text: &str, start: usize) -> Option<(usize, usize)> {
             // Find end of date expression (month + day + optional year).
             let mut end = month.len();
             // Skip whitespace and digits.
-            while end < slice.len() && (slice.as_bytes()[end].is_ascii_whitespace()
-                || slice.as_bytes()[end].is_ascii_digit()
-                || slice.as_bytes()[end] == b',')
+            while end < slice.len()
+                && (slice.as_bytes()[end].is_ascii_whitespace()
+                    || slice.as_bytes()[end].is_ascii_digit()
+                    || slice.as_bytes()[end] == b',')
             {
                 end += 1;
             }
@@ -262,7 +305,11 @@ fn match_time(text: &str, start: usize) -> Option<(usize, usize)> {
     i += 2;
 
     // Optional :SS
-    if i + 2 < bytes.len() && bytes[i] == b':' && bytes[i + 1].is_ascii_digit() && bytes[i + 2].is_ascii_digit() {
+    if i + 2 < bytes.len()
+        && bytes[i] == b':'
+        && bytes[i + 1].is_ascii_digit()
+        && bytes[i + 2].is_ascii_digit()
+    {
         i += 3;
     }
 
@@ -306,7 +353,12 @@ fn match_phone(text: &str, start: usize) -> Option<(usize, usize)> {
         if bytes[i].is_ascii_digit() {
             digit_count += 1;
             i += 1;
-        } else if bytes[i] == b'-' || bytes[i] == b' ' || bytes[i] == b'.' || bytes[i] == b')' || bytes[i] == b'(' {
+        } else if bytes[i] == b'-'
+            || bytes[i] == b' '
+            || bytes[i] == b'.'
+            || bytes[i] == b')'
+            || bytes[i] == b'('
+        {
             i += 1;
         } else {
             break;
@@ -412,7 +464,12 @@ impl NerTagger {
     }
 
     /// Add a built-in pattern rule.
-    pub fn add_pattern_rule(&mut self, entity_type: EntityType, pattern: BuiltinPattern, confidence: f64) {
+    pub fn add_pattern_rule(
+        &mut self,
+        entity_type: EntityType,
+        pattern: BuiltinPattern,
+        confidence: f64,
+    ) {
         self.rules.push(NerRule {
             entity_type,
             kind: RuleKind::BuiltinPattern(pattern),
@@ -446,7 +503,8 @@ impl NerTagger {
 
     /// Add an entity link (surface form → canonical id).
     pub fn add_entity_link(&mut self, surface: &str, canonical_id: &str) {
-        self.entity_links.insert(surface.to_lowercase(), canonical_id.to_string());
+        self.entity_links
+            .insert(surface.to_lowercase(), canonical_id.to_string());
     }
 
     /// Tag entities in text.
@@ -456,10 +514,22 @@ impl NerTagger {
         for rule in &self.rules {
             match &rule.kind {
                 RuleKind::BuiltinPattern(pattern) => {
-                    self.apply_pattern(text, *pattern, rule.entity_type, rule.confidence, &mut entities);
+                    self.apply_pattern(
+                        text,
+                        *pattern,
+                        rule.entity_type,
+                        rule.confidence,
+                        &mut entities,
+                    );
                 }
                 RuleKind::Dictionary(dict) => {
-                    self.apply_dictionary(text, dict, rule.entity_type, rule.confidence, &mut entities);
+                    self.apply_dictionary(
+                        text,
+                        dict,
+                        rule.entity_type,
+                        rule.confidence,
+                        &mut entities,
+                    );
                 }
                 RuleKind::TitleCase => {
                     self.apply_title_case(text, rule.entity_type, rule.confidence, &mut entities);
@@ -526,10 +596,10 @@ impl NerTagger {
                 let abs_end = abs_start + entry.len();
 
                 // Ensure word boundary.
-                let at_word_start = abs_start == 0
-                    || !text.as_bytes()[abs_start - 1].is_ascii_alphanumeric();
-                let at_word_end = abs_end >= text.len()
-                    || !text.as_bytes()[abs_end].is_ascii_alphanumeric();
+                let at_word_start =
+                    abs_start == 0 || !text.as_bytes()[abs_start - 1].is_ascii_alphanumeric();
+                let at_word_end =
+                    abs_end >= text.len() || !text.as_bytes()[abs_end].is_ascii_alphanumeric();
 
                 if at_word_start && at_word_end {
                     entities.push(Entity {
@@ -651,7 +721,11 @@ pub fn resolve_overlaps(mut entities: Vec<Entity>) -> Vec<Entity> {
         a.start
             .cmp(&b.start)
             .then((b.end - b.start).cmp(&(a.end - a.start)))
-            .then(b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal))
+            .then(
+                b.confidence
+                    .partial_cmp(&a.confidence)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+            )
     });
 
     let mut result = Vec::new();
@@ -677,7 +751,10 @@ mod tests {
     fn test_email_detection() {
         let tagger = NerTagger::with_defaults();
         let entities = tagger.tag("Contact us at info@example.com for help");
-        let emails: Vec<&Entity> = entities.iter().filter(|e| e.entity_type == EntityType::Email).collect();
+        let emails: Vec<&Entity> = entities
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Email)
+            .collect();
         assert_eq!(emails.len(), 1);
         assert_eq!(emails[0].text, "info@example.com");
     }
@@ -686,7 +763,10 @@ mod tests {
     fn test_url_detection() {
         let tagger = NerTagger::with_defaults();
         let entities = tagger.tag("Visit https://example.com/page for details");
-        let urls: Vec<&Entity> = entities.iter().filter(|e| e.entity_type == EntityType::Url).collect();
+        let urls: Vec<&Entity> = entities
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Url)
+            .collect();
         assert_eq!(urls.len(), 1);
         assert!(urls[0].text.starts_with("https://"));
     }
@@ -695,7 +775,10 @@ mod tests {
     fn test_money_detection() {
         let tagger = NerTagger::with_defaults();
         let entities = tagger.tag("The price is $49.99 today");
-        let money: Vec<&Entity> = entities.iter().filter(|e| e.entity_type == EntityType::Money).collect();
+        let money: Vec<&Entity> = entities
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Money)
+            .collect();
         assert_eq!(money.len(), 1);
         assert_eq!(money[0].text, "$49.99");
     }
@@ -704,7 +787,10 @@ mod tests {
     fn test_date_detection_iso() {
         let tagger = NerTagger::with_defaults();
         let entities = tagger.tag("The event is on 2024-03-15 sharp");
-        let dates: Vec<&Entity> = entities.iter().filter(|e| e.entity_type == EntityType::Date).collect();
+        let dates: Vec<&Entity> = entities
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Date)
+            .collect();
         assert_eq!(dates.len(), 1);
         assert_eq!(dates[0].text, "2024-03-15");
     }
@@ -713,7 +799,10 @@ mod tests {
     fn test_percent_detection() {
         let tagger = NerTagger::with_defaults();
         let entities = tagger.tag("Growth was 42.5% this quarter");
-        let pcts: Vec<&Entity> = entities.iter().filter(|e| e.entity_type == EntityType::Percent).collect();
+        let pcts: Vec<&Entity> = entities
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Percent)
+            .collect();
         assert_eq!(pcts.len(), 1);
         assert_eq!(pcts[0].text, "42.5%");
     }
@@ -721,11 +810,7 @@ mod tests {
     #[test]
     fn test_dictionary_ner() {
         let mut tagger = NerTagger::new();
-        tagger.add_dictionary(
-            EntityType::Location,
-            &["new york", "london", "paris"],
-            0.9,
-        );
+        tagger.add_dictionary(EntityType::Location, &["new york", "london", "paris"], 0.9);
         let entities = tagger.tag("She traveled to London and then Paris");
         assert_eq!(entities.len(), 2);
         let locs: Vec<&str> = entities.iter().map(|e| e.text.as_str()).collect();
@@ -755,8 +840,22 @@ mod tests {
     #[test]
     fn test_overlap_resolution() {
         let entities = vec![
-            Entity { text: "New".to_string(), entity_type: EntityType::Location, start: 0, end: 3, confidence: 0.5, linked_id: None },
-            Entity { text: "New York".to_string(), entity_type: EntityType::Location, start: 0, end: 8, confidence: 0.9, linked_id: None },
+            Entity {
+                text: "New".to_string(),
+                entity_type: EntityType::Location,
+                start: 0,
+                end: 3,
+                confidence: 0.5,
+                linked_id: None,
+            },
+            Entity {
+                text: "New York".to_string(),
+                entity_type: EntityType::Location,
+                start: 0,
+                end: 8,
+                confidence: 0.9,
+                linked_id: None,
+            },
         ];
         let resolved = resolve_overlaps(entities);
         assert_eq!(resolved.len(), 1);
@@ -787,7 +886,10 @@ mod tests {
     fn test_multiple_emails() {
         let tagger = NerTagger::with_defaults();
         let entities = tagger.tag("Send to alice@test.com or bob@test.com");
-        let emails: Vec<&Entity> = entities.iter().filter(|e| e.entity_type == EntityType::Email).collect();
+        let emails: Vec<&Entity> = entities
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Email)
+            .collect();
         assert_eq!(emails.len(), 2);
     }
 
@@ -803,7 +905,10 @@ mod tests {
         let text = "Price: $100.00 end";
         let tagger = NerTagger::with_defaults();
         let entities = tagger.tag(text);
-        let money: Vec<&Entity> = entities.iter().filter(|e| e.entity_type == EntityType::Money).collect();
+        let money: Vec<&Entity> = entities
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Money)
+            .collect();
         assert!(!money.is_empty());
         let e = money[0];
         assert_eq!(&text[e.start..e.end], e.text.as_str());
@@ -822,7 +927,10 @@ mod tests {
     fn test_time_detection() {
         let tagger = NerTagger::with_defaults();
         let entities = tagger.tag("The meeting is at 14:30 today");
-        let times: Vec<&Entity> = entities.iter().filter(|e| e.entity_type == EntityType::Time).collect();
+        let times: Vec<&Entity> = entities
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Time)
+            .collect();
         assert!(!times.is_empty());
         assert!(times[0].text.contains("14:30"));
     }

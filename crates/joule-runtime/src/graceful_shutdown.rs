@@ -10,8 +10,8 @@
 //! This module tracks pending operations and coordinates orderly shutdown.
 
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 /// Shutdown phase.
@@ -211,7 +211,6 @@ impl ShutdownCoordinator {
             operations_abandoned: pending.in_flight(),
         }
     }
-
 }
 
 /// Wait for in-flight operations to complete, up to drain_timeout.

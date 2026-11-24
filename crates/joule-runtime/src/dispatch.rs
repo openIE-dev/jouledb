@@ -561,9 +561,10 @@ impl DispatchMesh {
 
         all_domains.retain(|domain| {
             // Check if any node has the required level in this domain
-            !self.nodes.values().any(|node| {
-                node.ledger.delegation_level(domain) >= min_level
-            })
+            !self
+                .nodes
+                .values()
+                .any(|node| node.ledger.delegation_level(domain) >= min_level)
         });
 
         all_domains
@@ -791,7 +792,13 @@ mod tests {
         mesh.register_node(DispatchNode::new("node-a".into(), 1_000_000));
 
         // Record success → should update node's ledger
-        let report = make_report("node-a", "t1", "git", TaskAction::Acted, TaskOutcome::Success);
+        let report = make_report(
+            "node-a",
+            "t1",
+            "git",
+            TaskAction::Acted,
+            TaskOutcome::Success,
+        );
         mesh.report(report);
 
         let node = mesh.node("node-a").unwrap();
@@ -804,7 +811,13 @@ mod tests {
         let mut mesh = DispatchMesh::new();
         mesh.register_node(DispatchNode::new("node-a".into(), 1_000_000));
 
-        let report = make_report("node-a", "t1", "fs", TaskAction::Acted, TaskOutcome::Failure);
+        let report = make_report(
+            "node-a",
+            "t1",
+            "fs",
+            TaskAction::Acted,
+            TaskOutcome::Failure,
+        );
         mesh.report(report);
 
         let node = mesh.node("node-a").unwrap();
@@ -818,7 +831,13 @@ mod tests {
         let score_before = node.ledger.score("deploy");
         mesh.register_node(node);
 
-        let report = make_report("node-a", "t1", "deploy", TaskAction::Halted, TaskOutcome::Failure);
+        let report = make_report(
+            "node-a",
+            "t1",
+            "deploy",
+            TaskAction::Halted,
+            TaskOutcome::Failure,
+        );
         mesh.report(report);
 
         // Score should be unchanged (halt is neutral)
@@ -886,8 +905,20 @@ mod tests {
         mesh.register_node(build_competent_node("node-a", "git", 50));
 
         // Report tasks in git and quantum domains
-        mesh.report(make_report("node-a", "t1", "git", TaskAction::Acted, TaskOutcome::Success));
-        mesh.report(make_report("node-a", "t2", "quantum", TaskAction::Escalated, TaskOutcome::Pending));
+        mesh.report(make_report(
+            "node-a",
+            "t1",
+            "git",
+            TaskAction::Acted,
+            TaskOutcome::Success,
+        ));
+        mesh.report(make_report(
+            "node-a",
+            "t2",
+            "quantum",
+            TaskAction::Escalated,
+            TaskOutcome::Pending,
+        ));
 
         // Quantum is uncovered (no node at Advise level)
         let uncovered = mesh.uncovered_domains(DelegationLevel::Advise);
@@ -944,9 +975,27 @@ mod tests {
         let mut mesh = DispatchMesh::new();
         mesh.register_node(DispatchNode::new("node-a".into(), 1_000_000));
 
-        mesh.report(make_report("node-a", "t1", "git", TaskAction::Acted, TaskOutcome::Success));
-        mesh.report(make_report("node-a", "t2", "git", TaskAction::Acted, TaskOutcome::Success));
-        mesh.report(make_report("node-a", "t3", "fs", TaskAction::Acted, TaskOutcome::Success));
+        mesh.report(make_report(
+            "node-a",
+            "t1",
+            "git",
+            TaskAction::Acted,
+            TaskOutcome::Success,
+        ));
+        mesh.report(make_report(
+            "node-a",
+            "t2",
+            "git",
+            TaskAction::Acted,
+            TaskOutcome::Success,
+        ));
+        mesh.report(make_report(
+            "node-a",
+            "t3",
+            "fs",
+            TaskAction::Acted,
+            TaskOutcome::Success,
+        ));
 
         let by_domain = mesh.reports_by_domain();
         assert_eq!(*by_domain.get("git").unwrap(), 2);
@@ -965,7 +1014,13 @@ mod tests {
 
     #[test]
     fn test_status_report_serde_roundtrip() {
-        let report = make_report("node-a", "t1", "git", TaskAction::Acted, TaskOutcome::Success);
+        let report = make_report(
+            "node-a",
+            "t1",
+            "git",
+            TaskAction::Acted,
+            TaskOutcome::Success,
+        );
         let json = serde_json::to_string(&report).unwrap();
         let parsed: StatusReport = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.node_id, "node-a");
@@ -994,7 +1049,8 @@ mod tests {
         // GPU node with MODERATE domain competence (20 successes)
         mesh.register_node(build_gpu_node("gpu-moderate", "ml", 20));
 
-        let intent = make_intent_with_class("t1", "ml", DelegationLevel::Tell, TaskClass::Inference);
+        let intent =
+            make_intent_with_class("t1", "ml", DelegationLevel::Tell, TaskClass::Inference);
         let bid = mesh.substrate_select(&intent).unwrap();
 
         // GPU should win despite lower competence — the honest answer

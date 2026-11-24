@@ -221,9 +221,7 @@ impl JouleAgentFs {
             .workspaces
             .write()
             .map_err(|e| BranchError::Storage(e.to_string()))?;
-        let state = ws
-            .entry(branch.to_string())
-            .or_default();
+        let state = ws.entry(branch.to_string()).or_default();
         state.files.insert(
             norm,
             OverlaySlot::Present(FileEntry {
@@ -543,10 +541,7 @@ impl JouleAgentFs {
                 .workspaces
                 .write()
                 .map_err(|e| BranchError::Storage(e.to_string()))?;
-            let child_files = ws
-                .get(branch)
-                .map(|s| s.files.clone())
-                .unwrap_or_default();
+            let child_files = ws.get(branch).map(|s| s.files.clone()).unwrap_or_default();
             let child_kv = ws.get(branch).map(|s| s.kv.clone()).unwrap_or_default();
 
             let parent_state = ws.entry(diff.parent.clone()).or_default();
@@ -759,6 +754,10 @@ mod tests {
             .write_file("rogue-agent", "/escape/dump.bin", &big)
             .unwrap_err();
         assert!(matches!(err, BranchError::EnergyBudgetExhausted { .. }));
-        assert!(fs.stat_file("rogue-agent", "/escape/dump.bin").unwrap().is_none());
+        assert!(
+            fs.stat_file("rogue-agent", "/escape/dump.bin")
+                .unwrap()
+                .is_none()
+        );
     }
 }

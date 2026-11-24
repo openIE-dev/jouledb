@@ -17,11 +17,18 @@ pub enum BoundedContextError {
     /// Context not found.
     ContextNotFound(String),
     /// Translation failed.
-    TranslationFailed { from: String, to: String, reason: String },
+    TranslationFailed {
+        from: String,
+        to: String,
+        reason: String,
+    },
     /// Contract violation.
     ContractViolation { context: String, reason: String },
     /// Mapping not found.
-    MappingNotFound { upstream: String, downstream: String },
+    MappingNotFound {
+        upstream: String,
+        downstream: String,
+    },
     /// Duplicate context.
     DuplicateContext(String),
     /// Invalid integration event.
@@ -40,7 +47,10 @@ impl std::fmt::Display for BoundedContextError {
             Self::ContractViolation { context, reason } => {
                 write!(f, "contract violation in {context}: {reason}")
             }
-            Self::MappingNotFound { upstream, downstream } => {
+            Self::MappingNotFound {
+                upstream,
+                downstream,
+            } => {
                 write!(f, "no mapping from {upstream} to {downstream}")
             }
             Self::DuplicateContext(name) => write!(f, "duplicate context: {name}"),
@@ -332,7 +342,9 @@ pub struct AntiCorruptionLayer {
 
 impl AntiCorruptionLayer {
     pub fn new() -> Self {
-        Self { translators: Vec::new() }
+        Self {
+            translators: Vec::new(),
+        }
     }
 
     /// Register a translator.
@@ -347,7 +359,9 @@ impl AntiCorruptionLayer {
         to: &str,
         data: &HashMap<String, String>,
     ) -> Result<HashMap<String, String>, BoundedContextError> {
-        let translator = self.translators.iter()
+        let translator = self
+            .translators
+            .iter()
             .find(|t| t.from_context == from && t.to_context == to)
             .ok_or_else(|| BoundedContextError::MappingNotFound {
                 upstream: from.to_string(),
@@ -435,11 +449,7 @@ pub struct FieldDefinition {
 }
 
 impl FieldDefinition {
-    pub fn new(
-        name: impl Into<String>,
-        field_type: impl Into<String>,
-        required: bool,
-    ) -> Self {
+    pub fn new(name: impl Into<String>, field_type: impl Into<String>, required: bool) -> Self {
         Self {
             name: name.into(),
             field_type: field_type.into(),
@@ -470,10 +480,7 @@ impl ContextMap {
     }
 
     /// Register a bounded context.
-    pub fn register_context(
-        &mut self,
-        context: BoundedContext,
-    ) -> Result<(), BoundedContextError> {
+    pub fn register_context(&mut self, context: BoundedContext) -> Result<(), BoundedContextError> {
         if self.contexts.contains_key(&context.name) {
             return Err(BoundedContextError::DuplicateContext(context.name.clone()));
         }
@@ -484,10 +491,14 @@ impl ContextMap {
     /// Add a mapping between contexts.
     pub fn add_mapping(&mut self, mapping: ContextMapping) -> Result<(), BoundedContextError> {
         if !self.contexts.contains_key(&mapping.upstream) {
-            return Err(BoundedContextError::ContextNotFound(mapping.upstream.clone()));
+            return Err(BoundedContextError::ContextNotFound(
+                mapping.upstream.clone(),
+            ));
         }
         if !self.contexts.contains_key(&mapping.downstream) {
-            return Err(BoundedContextError::ContextNotFound(mapping.downstream.clone()));
+            return Err(BoundedContextError::ContextNotFound(
+                mapping.downstream.clone(),
+            ));
         }
         self.mappings.push(mapping);
         Ok(())
@@ -500,17 +511,25 @@ impl ContextMap {
 
     /// Get mappings for a context (as upstream).
     pub fn upstream_mappings(&self, context_name: &str) -> Vec<&ContextMapping> {
-        self.mappings.iter().filter(|m| m.upstream == context_name).collect()
+        self.mappings
+            .iter()
+            .filter(|m| m.upstream == context_name)
+            .collect()
     }
 
     /// Get mappings for a context (as downstream).
     pub fn downstream_mappings(&self, context_name: &str) -> Vec<&ContextMapping> {
-        self.mappings.iter().filter(|m| m.downstream == context_name).collect()
+        self.mappings
+            .iter()
+            .filter(|m| m.downstream == context_name)
+            .collect()
     }
 
     /// Find the mapping between two contexts.
     pub fn find_mapping(&self, upstream: &str, downstream: &str) -> Option<&ContextMapping> {
-        self.mappings.iter().find(|m| m.upstream == upstream && m.downstream == downstream)
+        self.mappings
+            .iter()
+            .find(|m| m.upstream == upstream && m.downstream == downstream)
     }
 
     /// Register a translator in the ACL.
@@ -534,7 +553,9 @@ impl ContextMap {
         context_name: &str,
         type_name: &str,
     ) -> Result<(), BoundedContextError> {
-        let ctx = self.contexts.get(context_name)
+        let ctx = self
+            .contexts
+            .get(context_name)
             .ok_or_else(|| BoundedContextError::ContextNotFound(context_name.to_string()))?;
         if !ctx.owns_type(type_name) {
             return Err(BoundedContextError::BoundaryViolation {
@@ -607,7 +628,10 @@ mod tests {
         let (orders, _) = make_contexts();
         map.register_context(orders.clone()).unwrap();
         let result = map.register_context(orders);
-        assert!(matches!(result, Err(BoundedContextError::DuplicateContext(_))));
+        assert!(matches!(
+            result,
+            Err(BoundedContextError::DuplicateContext(_))
+        ));
     }
 
     #[test]
@@ -628,7 +652,10 @@ mod tests {
         map.register_context(orders).unwrap();
         let mapping = ContextMapping::new("Orders", "Missing", MappingType::Conformist);
         let result = map.add_mapping(mapping);
-        assert!(matches!(result, Err(BoundedContextError::ContextNotFound(_))));
+        assert!(matches!(
+            result,
+            Err(BoundedContextError::ContextNotFound(_))
+        ));
     }
 
     #[test]
@@ -674,15 +701,18 @@ mod tests {
     fn test_acl_translation_not_found() {
         let acl = AntiCorruptionLayer::new();
         let result = acl.translate("A", "B", &HashMap::new());
-        assert!(matches!(result, Err(BoundedContextError::MappingNotFound { .. })));
+        assert!(matches!(
+            result,
+            Err(BoundedContextError::MappingNotFound { .. })
+        ));
     }
 
     #[test]
     fn test_integration_event() {
         let mut data = HashMap::new();
         data.insert("order_id".to_string(), "ORD-001".to_string());
-        let event = IntegrationEvent::new("order_placed", "Orders", data)
-            .with_correlation("corr-123");
+        let event =
+            IntegrationEvent::new("order_placed", "Orders", data).with_correlation("corr-123");
         assert_eq!(event.event_type, "order_placed");
         assert_eq!(event.source_context, "Orders");
         assert_eq!(event.correlation_id.as_deref(), Some("corr-123"));
@@ -702,11 +732,13 @@ mod tests {
 
     #[test]
     fn test_event_contract_missing_field() {
-        let contract = EventContract::new("order_placed", 1, "Orders")
-            .require_field("order_id");
+        let contract = EventContract::new("order_placed", 1, "Orders").require_field("order_id");
         let event = IntegrationEvent::new("order_placed", "Orders", HashMap::new());
         let result = contract.validate(&event);
-        assert!(matches!(result, Err(BoundedContextError::ContractViolation { .. })));
+        assert!(matches!(
+            result,
+            Err(BoundedContextError::ContractViolation { .. })
+        ));
     }
 
     #[test]
@@ -714,7 +746,10 @@ mod tests {
         let contract = EventContract::new("order_placed", 1, "Orders");
         let event = IntegrationEvent::new("order_shipped", "Orders", HashMap::new());
         let result = contract.validate(&event);
-        assert!(matches!(result, Err(BoundedContextError::ContractViolation { .. })));
+        assert!(matches!(
+            result,
+            Err(BoundedContextError::ContractViolation { .. })
+        ));
     }
 
     #[test]
@@ -725,8 +760,7 @@ mod tests {
             .add_field(FieldDefinition::new("total", "decimal", true));
         lang.add_type(order_type);
         lang.add_event_contract(
-            EventContract::new("order_placed", 1, "Orders")
-                .require_field("order_id"),
+            EventContract::new("order_placed", 1, "Orders").require_field("order_id"),
         );
         assert!(lang.find_type("Order").is_some());
         assert!(lang.find_type("Missing").is_none());
@@ -747,7 +781,10 @@ mod tests {
         let (orders, _) = make_contexts();
         map.register_context(orders).unwrap();
         let result = map.validate_boundary("Orders", "StockItem");
-        assert!(matches!(result, Err(BoundedContextError::BoundaryViolation { .. })));
+        assert!(matches!(
+            result,
+            Err(BoundedContextError::BoundaryViolation { .. })
+        ));
     }
 
     #[test]
@@ -756,12 +793,9 @@ mod tests {
         let (orders, inventory) = make_contexts();
         map.register_context(orders).unwrap();
         map.register_context(inventory).unwrap();
-        map.register_translator(Translator::new(
-            "test",
-            "Orders",
-            "Inventory",
-            |data| Ok(data.clone()),
-        ));
+        map.register_translator(Translator::new("test", "Orders", "Inventory", |data| {
+            Ok(data.clone())
+        }));
         let data = HashMap::new();
         assert!(map.translate("Orders", "Inventory", &data).is_ok());
     }
@@ -781,7 +815,12 @@ mod tests {
         let (orders, inventory) = make_contexts();
         map.register_context(orders).unwrap();
         map.register_context(inventory).unwrap();
-        map.add_mapping(ContextMapping::new("Orders", "Inventory", MappingType::CustomerSupplier)).unwrap();
+        map.add_mapping(ContextMapping::new(
+            "Orders",
+            "Inventory",
+            MappingType::CustomerSupplier,
+        ))
+        .unwrap();
         assert!(map.find_mapping("Orders", "Inventory").is_some());
         assert!(map.find_mapping("Inventory", "Orders").is_none());
     }

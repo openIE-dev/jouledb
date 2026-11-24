@@ -590,10 +590,7 @@ impl FlowReasoning for LocalFlowReasoner {
         }
 
         // Final output is the last trace node's output
-        let conclusion = trace
-            .last()
-            .map(|t| t.output.clone())
-            .unwrap_or_default();
+        let conclusion = trace.last().map(|t| t.output.clone()).unwrap_or_default();
 
         Ok(FlowResult {
             conclusion,
@@ -665,7 +662,8 @@ mod tests {
     fn test_local_reasoner_executes() {
         let reasoner = LocalFlowReasoner;
         let mut builder = FlowGraphBuilder::new();
-        let graph = builder.build_query_graph("explain why X is similar to Y", DomainLut::Metacognition);
+        let graph =
+            builder.build_query_graph("explain why X is similar to Y", DomainLut::Metacognition);
         let result = reasoner.reason_graph(&graph).unwrap();
         assert!(!result.conclusion.is_empty());
         assert!(result.confidence > 0.0);

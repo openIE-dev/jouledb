@@ -555,8 +555,7 @@ impl MultiRateLimiter {
                 config.window_ms,
             )?)),
             Strategy::LeakyBucket => {
-                let leak_rate =
-                    config.max_requests as f64 / (config.window_ms as f64 / 1000.0);
+                let leak_rate = config.max_requests as f64 / (config.window_ms as f64 / 1000.0);
                 Ok(Self::LeakyBucket(LeakyBucket::new(
                     config.max_requests,
                     leak_rate,

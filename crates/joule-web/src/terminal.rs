@@ -77,7 +77,8 @@ impl Capabilities {
     /// Detect capabilities from a TERM string (heuristic).
     pub fn from_term(term: &str) -> Self {
         let lower = term.to_ascii_lowercase();
-        let true_color = lower.contains("256color") || lower.contains("truecolor") || lower.contains("24bit");
+        let true_color =
+            lower.contains("256color") || lower.contains("truecolor") || lower.contains("24bit");
         let color_256 = true_color || lower.contains("256color") || lower.contains("xterm");
         Self {
             color_256,
@@ -99,19 +100,29 @@ pub struct Cursor;
 
 impl Cursor {
     /// Move cursor up by `n` rows.
-    pub fn up(n: u16) -> String { format!("{ESC}[{n}A") }
+    pub fn up(n: u16) -> String {
+        format!("{ESC}[{n}A")
+    }
 
     /// Move cursor down by `n` rows.
-    pub fn down(n: u16) -> String { format!("{ESC}[{n}B") }
+    pub fn down(n: u16) -> String {
+        format!("{ESC}[{n}B")
+    }
 
     /// Move cursor right by `n` columns.
-    pub fn right(n: u16) -> String { format!("{ESC}[{n}C") }
+    pub fn right(n: u16) -> String {
+        format!("{ESC}[{n}C")
+    }
 
     /// Move cursor left by `n` columns.
-    pub fn left(n: u16) -> String { format!("{ESC}[{n}D") }
+    pub fn left(n: u16) -> String {
+        format!("{ESC}[{n}D")
+    }
 
     /// Move cursor to home position (1,1).
-    pub fn home() -> String { format!("{ESC}[H") }
+    pub fn home() -> String {
+        format!("{ESC}[H")
+    }
 
     /// Move cursor to specific position (1-based row, col).
     pub fn goto(row: u16, col: u16) -> String {
@@ -119,16 +130,24 @@ impl Cursor {
     }
 
     /// Save cursor position.
-    pub fn save() -> String { format!("{ESC}[s") }
+    pub fn save() -> String {
+        format!("{ESC}[s")
+    }
 
     /// Restore cursor position.
-    pub fn restore() -> String { format!("{ESC}[u") }
+    pub fn restore() -> String {
+        format!("{ESC}[u")
+    }
 
     /// Hide cursor.
-    pub fn hide() -> String { format!("{ESC}[?25l") }
+    pub fn hide() -> String {
+        format!("{ESC}[?25l")
+    }
 
     /// Show cursor.
-    pub fn show() -> String { format!("{ESC}[?25h") }
+    pub fn show() -> String {
+        format!("{ESC}[?25h")
+    }
 }
 
 /// Screen control escape sequences.
@@ -136,34 +155,54 @@ pub struct Screen;
 
 impl Screen {
     /// Clear entire screen.
-    pub fn clear() -> String { format!("{ESC}[2J") }
+    pub fn clear() -> String {
+        format!("{ESC}[2J")
+    }
 
     /// Clear from cursor to end of screen.
-    pub fn clear_below() -> String { format!("{ESC}[0J") }
+    pub fn clear_below() -> String {
+        format!("{ESC}[0J")
+    }
 
     /// Clear from cursor to start of screen.
-    pub fn clear_above() -> String { format!("{ESC}[1J") }
+    pub fn clear_above() -> String {
+        format!("{ESC}[1J")
+    }
 
     /// Clear entire line.
-    pub fn clear_line() -> String { format!("{ESC}[2K") }
+    pub fn clear_line() -> String {
+        format!("{ESC}[2K")
+    }
 
     /// Clear from cursor to end of line.
-    pub fn clear_line_right() -> String { format!("{ESC}[0K") }
+    pub fn clear_line_right() -> String {
+        format!("{ESC}[0K")
+    }
 
     /// Clear from cursor to start of line.
-    pub fn clear_line_left() -> String { format!("{ESC}[1K") }
+    pub fn clear_line_left() -> String {
+        format!("{ESC}[1K")
+    }
 
     /// Scroll up by `n` lines.
-    pub fn scroll_up(n: u16) -> String { format!("{ESC}[{n}S") }
+    pub fn scroll_up(n: u16) -> String {
+        format!("{ESC}[{n}S")
+    }
 
     /// Scroll down by `n` lines.
-    pub fn scroll_down(n: u16) -> String { format!("{ESC}[{n}T") }
+    pub fn scroll_down(n: u16) -> String {
+        format!("{ESC}[{n}T")
+    }
 
     /// Enter alternate screen buffer.
-    pub fn alt_enter() -> String { format!("{ESC}[?1049h") }
+    pub fn alt_enter() -> String {
+        format!("{ESC}[?1049h")
+    }
 
     /// Leave alternate screen buffer.
-    pub fn alt_leave() -> String { format!("{ESC}[?1049l") }
+    pub fn alt_leave() -> String {
+        format!("{ESC}[?1049l")
+    }
 
     /// Set window title (OSC 2).
     pub fn set_title(title: &str) -> String {
@@ -281,9 +320,12 @@ impl fmt::Display for Terminal {
         write!(
             f,
             "Terminal({}x{} cursor=({},{}) raw={} alt={})",
-            self.size.cols, self.size.rows,
-            self.cursor.col, self.cursor.row,
-            self.raw_mode, self.alt_screen,
+            self.size.cols,
+            self.size.rows,
+            self.cursor.col,
+            self.cursor.row,
+            self.raw_mode,
+            self.alt_screen,
         )
     }
 }

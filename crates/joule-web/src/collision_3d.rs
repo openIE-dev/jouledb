@@ -13,11 +13,19 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
 
-    pub fn dot(self, r: Self) -> f64 { self.x * r.x + self.y * r.y + self.z * r.z }
+    pub fn dot(self, r: Self) -> f64 {
+        self.x * r.x + self.y * r.y + self.z * r.z
+    }
 
     pub fn cross(self, r: Self) -> Self {
         Self {
@@ -27,54 +35,115 @@ impl Vec3 {
         }
     }
 
-    pub fn length_sq(self) -> f64 { self.dot(self) }
-    pub fn length(self) -> f64 { self.length_sq().sqrt() }
+    pub fn length_sq(self) -> f64 {
+        self.dot(self)
+    }
+    pub fn length(self) -> f64 {
+        self.length_sq().sqrt()
+    }
 
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-12 { Self::ZERO } else { self * (1.0 / l) }
+        if l < 1e-12 {
+            Self::ZERO
+        } else {
+            self * (1.0 / l)
+        }
     }
 
-    pub fn abs(self) -> Self { Self { x: self.x.abs(), y: self.y.abs(), z: self.z.abs() } }
+    pub fn abs(self) -> Self {
+        Self {
+            x: self.x.abs(),
+            y: self.y.abs(),
+            z: self.z.abs(),
+        }
+    }
 
     pub fn min_comp(self, r: Self) -> Self {
-        Self { x: self.x.min(r.x), y: self.y.min(r.y), z: self.z.min(r.z) }
+        Self {
+            x: self.x.min(r.x),
+            y: self.y.min(r.y),
+            z: self.z.min(r.z),
+        }
     }
 
     pub fn max_comp(self, r: Self) -> Self {
-        Self { x: self.x.max(r.x), y: self.y.max(r.y), z: self.z.max(r.z) }
+        Self {
+            x: self.x.max(r.x),
+            y: self.y.max(r.y),
+            z: self.z.max(r.z),
+        }
     }
 }
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 impl std::ops::Mul<f64> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 impl std::ops::Neg for Vec3 {
     type Output = Self;
-    fn neg(self) -> Self { Self { x: -self.x, y: -self.y, z: -self.z } }
+    fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
 }
 
 // ── Quaternion (for OBB orientation) ─────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Quaternion { pub w: f64, pub x: f64, pub y: f64, pub z: f64 }
+pub struct Quaternion {
+    pub w: f64,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+}
 
 impl Quaternion {
-    pub const IDENTITY: Self = Self { w: 1.0, x: 0.0, y: 0.0, z: 0.0 };
+    pub const IDENTITY: Self = Self {
+        w: 1.0,
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     pub fn from_axis_angle(axis: Vec3, angle: f64) -> Self {
         let h = angle * 0.5;
         let s = h.sin();
-        Self { w: h.cos(), x: axis.x * s, y: axis.y * s, z: axis.z * s }
+        Self {
+            w: h.cos(),
+            x: axis.x * s,
+            y: axis.y * s,
+            z: axis.z * s,
+        }
     }
 
     pub fn rotate_vec(self, v: Vec3) -> Vec3 {
@@ -85,7 +154,12 @@ impl Quaternion {
     }
 
     pub fn conjugate(self) -> Self {
-        Self { w: self.w, x: -self.x, y: -self.y, z: -self.z }
+        Self {
+            w: self.w,
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
     }
 
     /// Get the local axes of this orientation.
@@ -113,12 +187,31 @@ pub struct Contact {
 /// 3D collision shape variants.
 #[derive(Debug, Clone)]
 pub enum CollisionShape {
-    Sphere { center: Vec3, radius: f64 },
-    Aabb { min: Vec3, max: Vec3 },
-    Obb { center: Vec3, half_extents: Vec3, orientation: Quaternion },
-    Capsule { a: Vec3, b: Vec3, radius: f64 },
-    ConvexHull { vertices: Vec<Vec3> },
-    TriangleMesh { vertices: Vec<Vec3>, indices: Vec<[usize; 3]> },
+    Sphere {
+        center: Vec3,
+        radius: f64,
+    },
+    Aabb {
+        min: Vec3,
+        max: Vec3,
+    },
+    Obb {
+        center: Vec3,
+        half_extents: Vec3,
+        orientation: Quaternion,
+    },
+    Capsule {
+        a: Vec3,
+        b: Vec3,
+        radius: f64,
+    },
+    ConvexHull {
+        vertices: Vec<Vec3>,
+    },
+    TriangleMesh {
+        vertices: Vec<Vec3>,
+        indices: Vec<[usize; 3]>,
+    },
 }
 
 impl CollisionShape {
@@ -133,7 +226,11 @@ impl CollisionShape {
     }
 
     pub fn obb(center: Vec3, half_extents: Vec3, orientation: Quaternion) -> Self {
-        CollisionShape::Obb { center, half_extents, orientation }
+        CollisionShape::Obb {
+            center,
+            half_extents,
+            orientation,
+        }
     }
 
     pub fn capsule(a: Vec3, b: Vec3, radius: f64) -> Self {
@@ -157,7 +254,11 @@ impl CollisionShape {
                 (*center - r, *center + r)
             }
             CollisionShape::Aabb { min, max } => (*min, *max),
-            CollisionShape::Obb { center, half_extents, orientation } => {
+            CollisionShape::Obb {
+                center,
+                half_extents,
+                orientation,
+            } => {
                 let axes = orientation.axes();
                 let mut extent = Vec3::ZERO;
                 for i in 0..3 {
@@ -224,12 +325,8 @@ impl CollisionShape {
                 let r = *radius;
                 std::f64::consts::PI * r * r * h + (4.0 / 3.0) * std::f64::consts::PI * r * r * r
             }
-            CollisionShape::ConvexHull { vertices } => {
-                convex_hull_volume(vertices)
-            }
-            CollisionShape::TriangleMesh { vertices, indices } => {
-                mesh_volume(vertices, indices)
-            }
+            CollisionShape::ConvexHull { vertices } => convex_hull_volume(vertices),
+            CollisionShape::TriangleMesh { vertices, indices } => mesh_volume(vertices, indices),
         }
     }
 
@@ -242,15 +339,23 @@ impl CollisionShape {
             CollisionShape::Obb { center, .. } => *center,
             CollisionShape::Capsule { a, b, .. } => (*a + *b) * 0.5,
             CollisionShape::ConvexHull { vertices } => {
-                if vertices.is_empty() { return Vec3::ZERO; }
+                if vertices.is_empty() {
+                    return Vec3::ZERO;
+                }
                 let mut sum = Vec3::ZERO;
-                for v in vertices { sum = sum + *v; }
+                for v in vertices {
+                    sum = sum + *v;
+                }
                 sum * (1.0 / vertices.len() as f64)
             }
             CollisionShape::TriangleMesh { vertices, .. } => {
-                if vertices.is_empty() { return Vec3::ZERO; }
+                if vertices.is_empty() {
+                    return Vec3::ZERO;
+                }
                 let mut sum = Vec3::ZERO;
-                for v in vertices { sum = sum + *v; }
+                for v in vertices {
+                    sum = sum + *v;
+                }
                 sum * (1.0 / vertices.len() as f64)
             }
         }
@@ -264,11 +369,18 @@ impl CollisionShape {
                 (p - *center).length_sq() <= radius * radius
             }
             CollisionShape::Aabb { min, max } => {
-                p.x >= min.x && p.x <= max.x
-                    && p.y >= min.y && p.y <= max.y
-                    && p.z >= min.z && p.z <= max.z
+                p.x >= min.x
+                    && p.x <= max.x
+                    && p.y >= min.y
+                    && p.y <= max.y
+                    && p.z >= min.z
+                    && p.z <= max.z
             }
-            CollisionShape::Obb { center, half_extents, orientation } => {
+            CollisionShape::Obb {
+                center,
+                half_extents,
+                orientation,
+            } => {
                 let local = orientation.conjugate().rotate_vec(p - *center);
                 local.x.abs() <= half_extents.x
                     && local.y.abs() <= half_extents.y
@@ -278,9 +390,7 @@ impl CollisionShape {
                 let d = closest_point_on_segment(p, *a, *b);
                 (p - d).length_sq() <= radius * radius
             }
-            CollisionShape::ConvexHull { vertices } => {
-                point_in_convex_hull(p, vertices)
-            }
+            CollisionShape::ConvexHull { vertices } => point_in_convex_hull(p, vertices),
             CollisionShape::TriangleMesh { .. } => {
                 // Point-in-mesh is expensive; use raycast parity
                 false // conservative: not supported for mesh
@@ -301,14 +411,16 @@ impl CollisionShape {
                     *center + d * (*radius / len)
                 }
             }
-            CollisionShape::Aabb { min, max } => {
-                Vec3::new(
-                    p.x.max(min.x).min(max.x),
-                    p.y.max(min.y).min(max.y),
-                    p.z.max(min.z).min(max.z),
-                )
-            }
-            CollisionShape::Obb { center, half_extents, orientation } => {
+            CollisionShape::Aabb { min, max } => Vec3::new(
+                p.x.max(min.x).min(max.x),
+                p.y.max(min.y).min(max.y),
+                p.z.max(min.z).min(max.z),
+            ),
+            CollisionShape::Obb {
+                center,
+                half_extents,
+                orientation,
+            } => {
                 let local = orientation.conjugate().rotate_vec(p - *center);
                 let clamped = Vec3::new(
                     local.x.max(-half_extents.x).min(half_extents.x),
@@ -327,9 +439,7 @@ impl CollisionShape {
                     seg_pt + d * (*radius / len)
                 }
             }
-            CollisionShape::ConvexHull { vertices } => {
-                closest_point_on_convex_hull(p, vertices)
-            }
+            CollisionShape::ConvexHull { vertices } => closest_point_on_convex_hull(p, vertices),
             CollisionShape::TriangleMesh { vertices, indices } => {
                 closest_point_on_mesh(p, vertices, indices)
             }
@@ -352,14 +462,20 @@ fn closest_point_on_segment(p: Vec3, a: Vec3, b: Vec3) -> Vec3 {
 // ── Helper: convex hull volume (tetrahedra from origin) ──────
 
 fn convex_hull_volume(verts: &[Vec3]) -> f64 {
-    if verts.len() < 4 { return 0.0; }
+    if verts.len() < 4 {
+        return 0.0;
+    }
     // Use first vertex as pivot, treat each consecutive triple as face
     let mut vol = 0.0;
     let o = verts[0];
     for i in 1..verts.len() - 1 {
         let a = verts[i] - o;
         let b = verts[(i + 1) % verts.len()] - o;
-        let c = if i + 2 < verts.len() { verts[i + 2] - o } else { verts[1] - o };
+        let c = if i + 2 < verts.len() {
+            verts[i + 2] - o
+        } else {
+            verts[1] - o
+        };
         vol += a.dot(b.cross(c)).abs();
     }
     vol / 6.0
@@ -382,21 +498,28 @@ fn mesh_volume(verts: &[Vec3], indices: &[[usize; 3]]) -> f64 {
 // ── Helper: point in convex hull (approximate) ───────────────
 
 fn point_in_convex_hull(p: Vec3, verts: &[Vec3]) -> bool {
-    if verts.len() < 4 { return false; }
+    if verts.len() < 4 {
+        return false;
+    }
     let centroid = {
         let mut s = Vec3::ZERO;
-        for v in verts { s = s + *v; }
+        for v in verts {
+            s = s + *v;
+        }
         s * (1.0 / verts.len() as f64)
     };
     // Check if p is "inside" relative to centroid, using distance heuristic
-    let max_dist_sq = verts.iter()
+    let max_dist_sq = verts
+        .iter()
         .map(|v| (*v - centroid).length_sq())
         .fold(0.0f64, f64::max);
     (p - centroid).length_sq() <= max_dist_sq
 }
 
 fn closest_point_on_convex_hull(p: Vec3, verts: &[Vec3]) -> Vec3 {
-    if verts.is_empty() { return Vec3::ZERO; }
+    if verts.is_empty() {
+        return Vec3::ZERO;
+    }
     let mut best = verts[0];
     let mut best_dist = (p - best).length_sq();
     for v in &verts[1..] {
@@ -416,12 +539,16 @@ fn closest_point_on_triangle(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Vec3 {
 
     let d1 = ab.dot(ap);
     let d2 = ac.dot(ap);
-    if d1 <= 0.0 && d2 <= 0.0 { return a; }
+    if d1 <= 0.0 && d2 <= 0.0 {
+        return a;
+    }
 
     let bp = p - b;
     let d3 = ab.dot(bp);
     let d4 = ac.dot(bp);
-    if d3 >= 0.0 && d4 <= d3 { return b; }
+    if d3 >= 0.0 && d4 <= d3 {
+        return b;
+    }
 
     let vc = d1 * d4 - d3 * d2;
     if vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0 {
@@ -432,7 +559,9 @@ fn closest_point_on_triangle(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Vec3 {
     let cp = p - c;
     let d5 = ab.dot(cp);
     let d6 = ac.dot(cp);
-    if d6 >= 0.0 && d5 <= d6 { return c; }
+    if d6 >= 0.0 && d5 <= d6 {
+        return c;
+    }
 
     let vb = d5 * d2 - d1 * d6;
     if vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0 {
@@ -474,31 +603,61 @@ fn closest_point_on_mesh(p: Vec3, verts: &[Vec3], indices: &[[usize; 3]]) -> Vec
 /// Test two shapes for collision, returning a contact if penetrating.
 pub fn test_collision(a: &CollisionShape, b: &CollisionShape) -> Option<Contact> {
     match (a, b) {
-        (CollisionShape::Sphere { center: ca, radius: ra },
-         CollisionShape::Sphere { center: cb, radius: rb }) => {
-            sphere_vs_sphere(*ca, *ra, *cb, *rb)
-        }
-        (CollisionShape::Sphere { center, radius },
-         CollisionShape::Aabb { min, max }) |
-        (CollisionShape::Aabb { min, max },
-         CollisionShape::Sphere { center, radius }) => {
+        (
+            CollisionShape::Sphere {
+                center: ca,
+                radius: ra,
+            },
+            CollisionShape::Sphere {
+                center: cb,
+                radius: rb,
+            },
+        ) => sphere_vs_sphere(*ca, *ra, *cb, *rb),
+        (CollisionShape::Sphere { center, radius }, CollisionShape::Aabb { min, max })
+        | (CollisionShape::Aabb { min, max }, CollisionShape::Sphere { center, radius }) => {
             sphere_vs_aabb(*center, *radius, *min, *max)
         }
-        (CollisionShape::Aabb { min: amin, max: amax },
-         CollisionShape::Aabb { min: bmin, max: bmax }) => {
-            aabb_vs_aabb(*amin, *amax, *bmin, *bmax)
-        }
-        (CollisionShape::Sphere { center, radius },
-         CollisionShape::Capsule { a: ca, b: cb, radius: cr }) |
-        (CollisionShape::Capsule { a: ca, b: cb, radius: cr },
-         CollisionShape::Sphere { center, radius }) => {
+        (
+            CollisionShape::Aabb {
+                min: amin,
+                max: amax,
+            },
+            CollisionShape::Aabb {
+                min: bmin,
+                max: bmax,
+            },
+        ) => aabb_vs_aabb(*amin, *amax, *bmin, *bmax),
+        (
+            CollisionShape::Sphere { center, radius },
+            CollisionShape::Capsule {
+                a: ca,
+                b: cb,
+                radius: cr,
+            },
+        )
+        | (
+            CollisionShape::Capsule {
+                a: ca,
+                b: cb,
+                radius: cr,
+            },
+            CollisionShape::Sphere { center, radius },
+        ) => {
             let seg_pt = closest_point_on_segment(*center, *ca, *cb);
             sphere_vs_sphere(*center, *radius, seg_pt, *cr)
         }
-        (CollisionShape::Capsule { a: a1, b: b1, radius: r1 },
-         CollisionShape::Capsule { a: a2, b: b2, radius: r2 }) => {
-            capsule_vs_capsule(*a1, *b1, *r1, *a2, *b2, *r2)
-        }
+        (
+            CollisionShape::Capsule {
+                a: a1,
+                b: b1,
+                radius: r1,
+            },
+            CollisionShape::Capsule {
+                a: a2,
+                b: b2,
+                radius: r2,
+            },
+        ) => capsule_vs_capsule(*a1, *b1, *r1, *a2, *b2, *r2),
         _ => {
             // For OBB, convex hull, and mesh: use bounding sphere fallback
             let (amin, amax) = a.bounding_aabb();
@@ -516,10 +675,18 @@ fn sphere_vs_sphere(ca: Vec3, ra: f64, cb: Vec3, rb: f64) -> Option<Contact> {
         return None;
     }
     let dist = dist_sq.sqrt();
-    let normal = if dist > 1e-12 { d * (1.0 / dist) } else { Vec3::new(1.0, 0.0, 0.0) };
+    let normal = if dist > 1e-12 {
+        d * (1.0 / dist)
+    } else {
+        Vec3::new(1.0, 0.0, 0.0)
+    };
     let depth = sum_r - dist;
     let point = ca + normal * ra;
-    Some(Contact { point, normal, depth })
+    Some(Contact {
+        point,
+        normal,
+        depth,
+    })
 }
 
 fn sphere_vs_aabb(center: Vec3, radius: f64, min: Vec3, max: Vec3) -> Option<Contact> {
@@ -534,9 +701,17 @@ fn sphere_vs_aabb(center: Vec3, radius: f64, min: Vec3, max: Vec3) -> Option<Con
         return None;
     }
     let dist = dist_sq.sqrt();
-    let normal = if dist > 1e-12 { d * (1.0 / dist) } else { Vec3::new(1.0, 0.0, 0.0) };
+    let normal = if dist > 1e-12 {
+        d * (1.0 / dist)
+    } else {
+        Vec3::new(1.0, 0.0, 0.0)
+    };
     let depth = radius - dist;
-    Some(Contact { point: closest, normal, depth })
+    Some(Contact {
+        point: closest,
+        normal,
+        depth,
+    })
 }
 
 fn aabb_vs_aabb(amin: Vec3, amax: Vec3, bmin: Vec3, bmax: Vec3) -> Option<Contact> {
@@ -569,7 +744,11 @@ fn aabb_vs_aabb(amin: Vec3, amax: Vec3, bmin: Vec3, bmax: Vec3) -> Option<Contac
     let center_b = (bmin + bmax) * 0.5;
     let point = (center_a + center_b) * 0.5;
 
-    Some(Contact { point, normal, depth })
+    Some(Contact {
+        point,
+        normal,
+        depth,
+    })
 }
 
 fn capsule_vs_capsule(a1: Vec3, b1: Vec3, r1: f64, a2: Vec3, b2: Vec3, r2: f64) -> Option<Contact> {
@@ -624,8 +803,12 @@ mod tests {
 
     const EPS: f64 = 1e-5;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
-    fn v3_approx(a: Vec3, b: Vec3) -> bool { approx(a.x, b.x) && approx(a.y, b.y) && approx(a.z, b.z) }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
+    fn v3_approx(a: Vec3, b: Vec3) -> bool {
+        approx(a.x, b.x) && approx(a.y, b.y) && approx(a.z, b.z)
+    }
 
     #[test]
     fn test_sphere_vs_sphere_hit() {
@@ -644,8 +827,10 @@ mod tests {
     #[test]
     fn test_aabb_vs_aabb_hit() {
         let c = aabb_vs_aabb(
-            Vec3::new(-1.0, -1.0, -1.0), Vec3::new(1.0, 1.0, 1.0),
-            Vec3::new(0.5, -1.0, -1.0), Vec3::new(2.5, 1.0, 1.0),
+            Vec3::new(-1.0, -1.0, -1.0),
+            Vec3::new(1.0, 1.0, 1.0),
+            Vec3::new(0.5, -1.0, -1.0),
+            Vec3::new(2.5, 1.0, 1.0),
         );
         assert!(c.is_some());
         assert!(approx(c.unwrap().depth, 0.5));
@@ -654,8 +839,10 @@ mod tests {
     #[test]
     fn test_aabb_vs_aabb_miss() {
         let c = aabb_vs_aabb(
-            Vec3::new(-1.0, -1.0, -1.0), Vec3::new(1.0, 1.0, 1.0),
-            Vec3::new(2.0, -1.0, -1.0), Vec3::new(4.0, 1.0, 1.0),
+            Vec3::new(-1.0, -1.0, -1.0),
+            Vec3::new(1.0, 1.0, 1.0),
+            Vec3::new(2.0, -1.0, -1.0),
+            Vec3::new(4.0, 1.0, 1.0),
         );
         assert!(c.is_none());
     }
@@ -663,8 +850,10 @@ mod tests {
     #[test]
     fn test_sphere_vs_aabb_hit() {
         let c = sphere_vs_aabb(
-            Vec3::new(2.0, 0.0, 0.0), 1.5,
-            Vec3::new(-1.0, -1.0, -1.0), Vec3::new(1.0, 1.0, 1.0),
+            Vec3::new(2.0, 0.0, 0.0),
+            1.5,
+            Vec3::new(-1.0, -1.0, -1.0),
+            Vec3::new(1.0, 1.0, 1.0),
         );
         assert!(c.is_some());
         assert!(c.unwrap().depth > 0.0);
@@ -673,8 +862,10 @@ mod tests {
     #[test]
     fn test_sphere_vs_aabb_miss() {
         let c = sphere_vs_aabb(
-            Vec3::new(5.0, 0.0, 0.0), 1.0,
-            Vec3::new(-1.0, -1.0, -1.0), Vec3::new(1.0, 1.0, 1.0),
+            Vec3::new(5.0, 0.0, 0.0),
+            1.0,
+            Vec3::new(-1.0, -1.0, -1.0),
+            Vec3::new(1.0, 1.0, 1.0),
         );
         assert!(c.is_none());
     }
@@ -682,8 +873,12 @@ mod tests {
     #[test]
     fn test_capsule_vs_capsule_hit() {
         let c = capsule_vs_capsule(
-            Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 2.0, 0.0), 0.5,
-            Vec3::new(0.8, 0.0, 0.0), Vec3::new(0.8, 2.0, 0.0), 0.5,
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 2.0, 0.0),
+            0.5,
+            Vec3::new(0.8, 0.0, 0.0),
+            Vec3::new(0.8, 2.0, 0.0),
+            0.5,
         );
         assert!(c.is_some());
     }
@@ -691,8 +886,12 @@ mod tests {
     #[test]
     fn test_capsule_vs_capsule_miss() {
         let c = capsule_vs_capsule(
-            Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 2.0, 0.0), 0.3,
-            Vec3::new(2.0, 0.0, 0.0), Vec3::new(2.0, 2.0, 0.0), 0.3,
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 2.0, 0.0),
+            0.3,
+            Vec3::new(2.0, 0.0, 0.0),
+            Vec3::new(2.0, 2.0, 0.0),
+            0.3,
         );
         assert!(c.is_none());
     }
@@ -796,11 +995,7 @@ mod tests {
 
     #[test]
     fn test_obb_volume() {
-        let s = CollisionShape::obb(
-            Vec3::ZERO,
-            Vec3::new(1.0, 2.0, 3.0),
-            Quaternion::IDENTITY,
-        );
+        let s = CollisionShape::obb(Vec3::ZERO, Vec3::new(1.0, 2.0, 3.0), Quaternion::IDENTITY);
         assert!(approx(s.volume(), 48.0)); // 8 * 1 * 2 * 3
     }
 
@@ -839,11 +1034,7 @@ mod tests {
 
     #[test]
     fn test_obb_bounding_aabb_aligned() {
-        let s = CollisionShape::obb(
-            Vec3::ZERO,
-            Vec3::new(1.0, 2.0, 3.0),
-            Quaternion::IDENTITY,
-        );
+        let s = CollisionShape::obb(Vec3::ZERO, Vec3::new(1.0, 2.0, 3.0), Quaternion::IDENTITY);
         let (lo, hi) = s.bounding_aabb();
         assert!(v3_approx(lo, Vec3::new(-1.0, -2.0, -3.0)));
         assert!(v3_approx(hi, Vec3::new(1.0, 2.0, 3.0)));

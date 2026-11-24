@@ -250,12 +250,7 @@ pub struct FmOscillator {
 
 impl FmOscillator {
     /// Create an FM oscillator with carrier and modulator frequencies.
-    pub fn new(
-        carrier_freq: f64,
-        modulator_freq: f64,
-        mod_index: f64,
-        sample_rate: f64,
-    ) -> Self {
+    pub fn new(carrier_freq: f64, modulator_freq: f64, mod_index: f64, sample_rate: f64) -> Self {
         Self {
             carrier: Oscillator::new(Waveform::Sine, carrier_freq, sample_rate),
             modulator: Oscillator::new(Waveform::Sine, modulator_freq, sample_rate),
@@ -434,12 +429,7 @@ impl OscillatorBank {
 
     /// Create an additive synthesis bank with harmonics.
     /// Each harmonic has frequency = base_freq * (n+1) and amplitude = base_amp / (n+1).
-    pub fn additive(
-        base_freq: f64,
-        base_amp: f64,
-        num_harmonics: usize,
-        sample_rate: f64,
-    ) -> Self {
+    pub fn additive(base_freq: f64, base_amp: f64, num_harmonics: usize, sample_rate: f64) -> Self {
         let mut bank = Self::new(sample_rate);
         for n in 0..num_harmonics {
             let harmonic = (n + 1) as f64;
@@ -546,7 +536,10 @@ mod tests {
         osc.generate(&mut buf);
         // About 25% should be +1 and 75% should be -1
         let positive: usize = buf.iter().filter(|s| **s > 0.0).count();
-        assert!(positive >= 20 && positive <= 30, "positive count = {positive}");
+        assert!(
+            positive >= 20 && positive <= 30,
+            "positive count = {positive}"
+        );
     }
 
     #[test]

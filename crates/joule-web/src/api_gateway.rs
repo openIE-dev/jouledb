@@ -36,7 +36,10 @@ impl fmt::Display for GatewayError {
             Self::UpstreamNotFound(name) => write!(f, "upstream not found: {name}"),
             Self::DuplicateRoute(id) => write!(f, "duplicate route: {id}"),
             Self::InvalidPattern(p) => write!(f, "invalid pattern: {p}"),
-            Self::Timeout { route_id, timeout_ms } => {
+            Self::Timeout {
+                route_id,
+                timeout_ms,
+            } => {
                 write!(f, "timeout on route {route_id}: {timeout_ms}ms")
             }
             Self::TransformError(msg) => write!(f, "transform error: {msg}"),
@@ -114,7 +117,10 @@ impl PathPattern {
         }
         let trimmed = pattern.strip_prefix('/').unwrap_or(pattern);
         if trimmed.is_empty() {
-            return Ok(Self { segments: vec![], raw: pattern.to_string() });
+            return Ok(Self {
+                segments: vec![],
+                raw: pattern.to_string(),
+            });
         }
         let mut segments = Vec::new();
         for part in trimmed.split('/') {
@@ -124,9 +130,7 @@ impl PathPattern {
                 PatternSegment::Glob
             } else if let Some(name) = part.strip_prefix(':') {
                 if name.is_empty() {
-                    return Err(GatewayError::InvalidPattern(
-                        "empty parameter name".into(),
-                    ));
+                    return Err(GatewayError::InvalidPattern("empty parameter name".into()));
                 }
                 PatternSegment::Param(name.to_string())
             } else {
@@ -134,7 +138,10 @@ impl PathPattern {
             };
             segments.push(seg);
         }
-        Ok(Self { segments, raw: pattern.to_string() })
+        Ok(Self {
+            segments,
+            raw: pattern.to_string(),
+        })
     }
 
     /// Match a concrete path against this pattern, returning extracted params.
@@ -206,10 +213,7 @@ pub enum HeaderAction {
 }
 
 /// Apply header actions to a header map.
-pub fn apply_header_actions(
-    headers: &mut HashMap<String, Vec<String>>,
-    actions: &[HeaderAction],
-) {
+pub fn apply_header_actions(headers: &mut HashMap<String, Vec<String>>, actions: &[HeaderAction]) {
     for action in actions {
         match action {
             HeaderAction::Add { name, value } => {
@@ -668,10 +672,13 @@ mod tests {
     #[test]
     fn header_add() {
         let mut headers = HashMap::new();
-        apply_header_actions(&mut headers, &[HeaderAction::Add {
-            name: "X-Req-Id".into(),
-            value: "abc".into(),
-        }]);
+        apply_header_actions(
+            &mut headers,
+            &[HeaderAction::Add {
+                name: "X-Req-Id".into(),
+                value: "abc".into(),
+            }],
+        );
         assert_eq!(headers.get("X-Req-Id").unwrap(), &vec!["abc".to_string()]);
     }
 
@@ -679,21 +686,30 @@ mod tests {
     fn header_add_appends() {
         let mut headers = HashMap::new();
         headers.insert("X-Tag".into(), vec!["a".into()]);
-        apply_header_actions(&mut headers, &[HeaderAction::Add {
-            name: "X-Tag".into(),
-            value: "b".into(),
-        }]);
-        assert_eq!(headers.get("X-Tag").unwrap(), &vec!["a".to_string(), "b".to_string()]);
+        apply_header_actions(
+            &mut headers,
+            &[HeaderAction::Add {
+                name: "X-Tag".into(),
+                value: "b".into(),
+            }],
+        );
+        assert_eq!(
+            headers.get("X-Tag").unwrap(),
+            &vec!["a".to_string(), "b".to_string()]
+        );
     }
 
     #[test]
     fn header_set_replaces() {
         let mut headers = HashMap::new();
         headers.insert("X-Tag".into(), vec!["a".into(), "b".into()]);
-        apply_header_actions(&mut headers, &[HeaderAction::Set {
-            name: "X-Tag".into(),
-            value: "c".into(),
-        }]);
+        apply_header_actions(
+            &mut headers,
+            &[HeaderAction::Set {
+                name: "X-Tag".into(),
+                value: "c".into(),
+            }],
+        );
         assert_eq!(headers.get("X-Tag").unwrap(), &vec!["c".to_string()]);
     }
 
@@ -701,9 +717,12 @@ mod tests {
     fn header_remove() {
         let mut headers = HashMap::new();
         headers.insert("X-Secret".into(), vec!["hide".into()]);
-        apply_header_actions(&mut headers, &[HeaderAction::Remove {
-            name: "X-Secret".into(),
-        }]);
+        apply_header_actions(
+            &mut headers,
+            &[HeaderAction::Remove {
+                name: "X-Secret".into(),
+            }],
+        );
         assert!(!headers.contains_key("X-Secret"));
     }
 
@@ -711,10 +730,13 @@ mod tests {
     fn header_rename() {
         let mut headers = HashMap::new();
         headers.insert("Old-Name".into(), vec!["val".into()]);
-        apply_header_actions(&mut headers, &[HeaderAction::Rename {
-            from: "Old-Name".into(),
-            to: "New-Name".into(),
-        }]);
+        apply_header_actions(
+            &mut headers,
+            &[HeaderAction::Rename {
+                from: "Old-Name".into(),
+                to: "New-Name".into(),
+            }],
+        );
         assert!(!headers.contains_key("Old-Name"));
         assert_eq!(headers.get("New-Name").unwrap(), &vec!["val".to_string()]);
     }
@@ -780,15 +802,21 @@ mod tests {
     fn gateway_no_match() {
         let gw = ApiGateway::new();
         let req = make_request(HttpMethod::Get, "/nope");
-        assert!(matches!(gw.resolve(&req), Err(GatewayError::NoRouteMatch { .. })));
+        assert!(matches!(
+            gw.resolve(&req),
+            Err(GatewayError::NoRouteMatch { .. })
+        ));
     }
 
     #[test]
     fn gateway_duplicate_route() {
         let mut gw = ApiGateway::new();
         gw.add_upstream(make_upstream("svc", "http://svc:80"));
-        gw.add_route(make_route("r1", HttpMethod::Get, "/a", "svc")).unwrap();
-        let err = gw.add_route(make_route("r1", HttpMethod::Post, "/b", "svc")).unwrap_err();
+        gw.add_route(make_route("r1", HttpMethod::Get, "/a", "svc"))
+            .unwrap();
+        let err = gw
+            .add_route(make_route("r1", HttpMethod::Post, "/b", "svc"))
+            .unwrap_err();
         assert!(matches!(err, GatewayError::DuplicateRoute(_)));
     }
 
@@ -796,7 +824,8 @@ mod tests {
     fn gateway_method_mismatch() {
         let mut gw = ApiGateway::new();
         gw.add_upstream(make_upstream("svc", "http://svc:80"));
-        gw.add_route(make_route("r1", HttpMethod::Post, "/data", "svc")).unwrap();
+        gw.add_route(make_route("r1", HttpMethod::Post, "/data", "svc"))
+            .unwrap();
 
         let req = make_request(HttpMethod::Get, "/data");
         assert!(gw.resolve(&req).is_err());
@@ -806,7 +835,8 @@ mod tests {
     fn gateway_any_method_matches() {
         let mut gw = ApiGateway::new();
         gw.add_upstream(make_upstream("svc", "http://svc:80"));
-        gw.add_route(make_route("r1", HttpMethod::Any, "/health", "svc")).unwrap();
+        gw.add_route(make_route("r1", HttpMethod::Any, "/health", "svc"))
+            .unwrap();
 
         for method in [HttpMethod::Get, HttpMethod::Post, HttpMethod::Delete] {
             let req = make_request(method, "/health");
@@ -838,7 +868,8 @@ mod tests {
         let mut up = make_upstream("svc", "http://svc:80");
         up.healthy = false;
         gw.add_upstream(up);
-        gw.add_route(make_route("r1", HttpMethod::Get, "/test", "svc")).unwrap();
+        gw.add_route(make_route("r1", HttpMethod::Get, "/test", "svc"))
+            .unwrap();
 
         let req = make_request(HttpMethod::Get, "/test");
         assert!(gw.resolve(&req).is_err());
@@ -856,7 +887,8 @@ mod tests {
     fn gateway_remove_route() {
         let mut gw = ApiGateway::new();
         gw.add_upstream(make_upstream("svc", "http://svc:80"));
-        gw.add_route(make_route("r1", HttpMethod::Get, "/a", "svc")).unwrap();
+        gw.add_route(make_route("r1", HttpMethod::Get, "/a", "svc"))
+            .unwrap();
         assert!(gw.remove_route("r1"));
         assert!(!gw.remove_route("r1"));
         assert_eq!(gw.route_count(), 0);
@@ -866,7 +898,8 @@ mod tests {
     fn gateway_disable_route() {
         let mut gw = ApiGateway::new();
         gw.add_upstream(make_upstream("svc", "http://svc:80"));
-        gw.add_route(make_route("r1", HttpMethod::Get, "/a", "svc")).unwrap();
+        gw.add_route(make_route("r1", HttpMethod::Get, "/a", "svc"))
+            .unwrap();
         gw.set_route_enabled("r1", false);
 
         let req = make_request(HttpMethod::Get, "/a");
@@ -896,7 +929,8 @@ mod tests {
     fn gateway_global_request_headers() {
         let mut gw = ApiGateway::new();
         gw.add_upstream(make_upstream("svc", "http://svc:80"));
-        gw.add_route(make_route("r1", HttpMethod::Get, "/a", "svc")).unwrap();
+        gw.add_route(make_route("r1", HttpMethod::Get, "/a", "svc"))
+            .unwrap();
         gw.add_global_request_header(HeaderAction::Set {
             name: "X-Gateway".into(),
             value: "joule".into(),
@@ -978,8 +1012,10 @@ mod tests {
         let mut gw = ApiGateway::new();
         gw.add_upstream(make_upstream("b-svc", "http://b:80"));
         gw.add_upstream(make_upstream("a-svc", "http://a:80"));
-        gw.add_route(make_route("r1", HttpMethod::Get, "/a", "a-svc")).unwrap();
-        gw.add_route(make_route("r2", HttpMethod::Get, "/b", "b-svc")).unwrap();
+        gw.add_route(make_route("r1", HttpMethod::Get, "/a", "a-svc"))
+            .unwrap();
+        gw.add_route(make_route("r2", HttpMethod::Get, "/b", "b-svc"))
+            .unwrap();
 
         assert_eq!(gw.route_count(), 2);
         assert_eq!(gw.upstream_names(), vec!["a-svc", "b-svc"]);
@@ -988,9 +1024,13 @@ mod tests {
     #[test]
     fn gateway_upstream_not_found() {
         let mut gw = ApiGateway::new();
-        gw.add_route(make_route("r1", HttpMethod::Get, "/a", "missing")).unwrap();
+        gw.add_route(make_route("r1", HttpMethod::Get, "/a", "missing"))
+            .unwrap();
         let req = make_request(HttpMethod::Get, "/a");
-        assert!(matches!(gw.resolve(&req), Err(GatewayError::UpstreamNotFound(_))));
+        assert!(matches!(
+            gw.resolve(&req),
+            Err(GatewayError::UpstreamNotFound(_))
+        ));
     }
 
     #[test]

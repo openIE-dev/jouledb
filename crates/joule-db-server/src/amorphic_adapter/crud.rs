@@ -471,7 +471,10 @@ impl AmorphicTableStorage {
     }
 
     /// Owned rows -> record field maps (parallel; `_table` tag added).
-    pub fn rows_to_field_maps(table: &str, rows: Vec<RowData>) -> Vec<HashMap<String, AmorphicValue>> {
+    pub fn rows_to_field_maps(
+        table: &str,
+        rows: Vec<RowData>,
+    ) -> Vec<HashMap<String, AmorphicValue>> {
         use rayon::prelude::*;
         rows.into_par_iter()
             .map(|row| {
@@ -505,10 +508,14 @@ impl AmorphicTableStorage {
         // and appended from the batch rows in parallel with the store's
         // index updates and WAL encode (it was a serial step after them).
         // Queries cannot read it meanwhile: they need the store lock we hold.
-        let snap = self.col_cache.lock().ok().and_then(|mut c| match c.get(table) {
-            Some((g, _)) if *g == gen_before => c.remove(table).map(|(_, t)| t),
-            _ => None,
-        });
+        let snap = self
+            .col_cache
+            .lock()
+            .ok()
+            .and_then(|mut c| match c.get(table) {
+                Some((g, _)) if *g == gen_before => c.remove(table).map(|(_, t)| t),
+                _ => None,
+            });
         let had_snap = snap.is_some();
         let (ids, snap) = store
             .ingest_fields_batch_with(batch, move |rows| {
@@ -561,10 +568,14 @@ impl AmorphicTableStorage {
         batch.table_field = TABLE_FIELD.to_string();
         batch.table = table.to_string();
         let gen_before = store.generation();
-        let snap = self.col_cache.lock().ok().and_then(|mut c| match c.get(table) {
-            Some((g, _)) if *g == gen_before => c.remove(table).map(|(_, t)| t),
-            _ => None,
-        });
+        let snap = self
+            .col_cache
+            .lock()
+            .ok()
+            .and_then(|mut c| match c.get(table) {
+                Some((g, _)) if *g == gen_before => c.remove(table).map(|(_, t)| t),
+                _ => None,
+            });
         // no snapshot: an empty table's snapshot is just this batch
         let fresh = snap.is_none()
             && store.pending_rows() == 0
@@ -574,7 +585,9 @@ impl AmorphicTableStorage {
         let n = batch.len;
         let (_, snap) = store
             .ingest_column_batch_with(batch, move |b| match snap {
-                Some(mut t) => std::sync::Arc::make_mut(&mut t).append_batch(b).then_some(t),
+                Some(mut t) => std::sync::Arc::make_mut(&mut t)
+                    .append_batch(b)
+                    .then_some(t),
                 None if fresh => Some(std::sync::Arc::new(
                     crate::columnar_exec::TableColumns::from_batch(&columns, b),
                 )),

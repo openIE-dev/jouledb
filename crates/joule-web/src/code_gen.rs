@@ -162,11 +162,7 @@ impl AstBuilder {
         }
     }
 
-    pub fn add_enum(
-        &mut self,
-        name: impl Into<String>,
-        visibility: Visibility,
-    ) -> EnumBuilder<'_> {
+    pub fn add_enum(&mut self, name: impl Into<String>, visibility: Visibility) -> EnumBuilder<'_> {
         EnumBuilder {
             parent: self,
             name: name.into(),
@@ -280,7 +276,10 @@ pub struct FunctionBuilder<'a> {
 
 impl<'a> FunctionBuilder<'a> {
     pub fn param(mut self, name: impl Into<String>, ty: impl Into<String>) -> Self {
-        self.params.push(Param { name: name.into(), type_name: ty.into() });
+        self.params.push(Param {
+            name: name.into(),
+            type_name: ty.into(),
+        });
         self
     }
 
@@ -378,7 +377,10 @@ impl ImportManager {
 
     /// Add a glob import: `use module_path::*;`
     pub fn add_glob(&mut self, module_path: impl Into<String>) {
-        self.imports.entry(module_path.into()).or_default().insert("*".to_string());
+        self.imports
+            .entry(module_path.into())
+            .or_default()
+            .insert("*".to_string());
     }
 
     /// Render all imports as sorted `use` statements.
@@ -419,7 +421,11 @@ pub struct OutputBuffer {
 
 impl OutputBuffer {
     pub fn new(indent_str: impl Into<String>) -> Self {
-        Self { lines: Vec::new(), indent_level: 0, indent_str: indent_str.into() }
+        Self {
+            lines: Vec::new(),
+            indent_level: 0,
+            indent_str: indent_str.into(),
+        }
     }
 
     pub fn with_spaces(n: usize) -> Self {
@@ -467,7 +473,11 @@ pub struct CodeRenderer {
 
 impl CodeRenderer {
     pub fn new() -> Self {
-        Self { imports: ImportManager::new(), nodes: Vec::new(), header_comment: None }
+        Self {
+            imports: ImportManager::new(),
+            nodes: Vec::new(),
+            header_comment: None,
+        }
     }
 
     pub fn set_header(&mut self, comment: impl Into<String>) {
@@ -523,7 +533,13 @@ impl Default for CodeRenderer {
 
 fn render_node(node: &AstNode, buf: &mut OutputBuffer) {
     match node {
-        AstNode::Struct { name, visibility, fields, derives, doc } => {
+        AstNode::Struct {
+            name,
+            visibility,
+            fields,
+            derives,
+            doc,
+        } => {
             if let Some(d) = doc {
                 buf.line(format!("/// {d}"));
             }
@@ -538,14 +554,27 @@ fn render_node(node: &AstNode, buf: &mut OutputBuffer) {
             buf.dedent();
             buf.line("}");
         }
-        AstNode::Function { name, visibility, params, return_type, body, doc, is_async } => {
+        AstNode::Function {
+            name,
+            visibility,
+            params,
+            return_type,
+            body,
+            doc,
+            is_async,
+        } => {
             if let Some(d) = doc {
                 buf.line(format!("/// {d}"));
             }
             let async_kw = if *is_async { "async " } else { "" };
-            let params_str: Vec<String> =
-                params.iter().map(|p| format!("{}: {}", p.name, p.type_name)).collect();
-            let ret = return_type.as_ref().map(|r| format!(" -> {r}")).unwrap_or_default();
+            let params_str: Vec<String> = params
+                .iter()
+                .map(|p| format!("{}: {}", p.name, p.type_name))
+                .collect();
+            let ret = return_type
+                .as_ref()
+                .map(|r| format!(" -> {r}"))
+                .unwrap_or_default();
             buf.line(format!(
                 "{}{async_kw}fn {name}({}){ret} {{",
                 visibility.prefix(),
@@ -558,7 +587,13 @@ fn render_node(node: &AstNode, buf: &mut OutputBuffer) {
             buf.dedent();
             buf.line("}");
         }
-        AstNode::Enum { name, visibility, variants, derives, doc } => {
+        AstNode::Enum {
+            name,
+            visibility,
+            variants,
+            derives,
+            doc,
+        } => {
             if let Some(d) = doc {
                 buf.line(format!("/// {d}"));
             }
@@ -577,7 +612,11 @@ fn render_node(node: &AstNode, buf: &mut OutputBuffer) {
             buf.dedent();
             buf.line("}");
         }
-        AstNode::Impl { target, trait_name, methods } => {
+        AstNode::Impl {
+            target,
+            trait_name,
+            methods,
+        } => {
             if let Some(tr) = trait_name {
                 buf.line(format!("impl {tr} for {target} {{"));
             } else {
@@ -593,10 +632,22 @@ fn render_node(node: &AstNode, buf: &mut OutputBuffer) {
             buf.dedent();
             buf.line("}");
         }
-        AstNode::Const { name, visibility, type_name, value } => {
-            buf.line(format!("{}const {name}: {type_name} = {value};", visibility.prefix()));
+        AstNode::Const {
+            name,
+            visibility,
+            type_name,
+            value,
+        } => {
+            buf.line(format!(
+                "{}const {name}: {type_name} = {value};",
+                visibility.prefix()
+            ));
         }
-        AstNode::TypeAlias { name, visibility, target } => {
+        AstNode::TypeAlias {
+            name,
+            visibility,
+            target,
+        } => {
             buf.line(format!("{}type {name} = {target};", visibility.prefix()));
         }
         AstNode::Raw(code) => {
@@ -637,7 +688,9 @@ impl Template {
 
         // Process conditional blocks first.
         loop {
-            let Some(start) = result.find("{{#if ") else { break };
+            let Some(start) = result.find("{{#if ") else {
+                break;
+            };
             let tag_end = result[start..]
                 .find("}}")
                 .ok_or_else(|| CodeGenError::UnclosedBlock("if".to_string()))?
@@ -652,8 +705,16 @@ impl Template {
 
             let inner = &result[tag_end..close_pos];
             let keep = vars.get(&var_name).map(|v| !v.is_empty()).unwrap_or(false);
-            let replacement = if keep { inner.to_string() } else { String::new() };
-            result = format!("{}{replacement}{}", &result[..start], &result[close_pos + close_tag.len()..]);
+            let replacement = if keep {
+                inner.to_string()
+            } else {
+                String::new()
+            };
+            result = format!(
+                "{}{replacement}{}",
+                &result[..start],
+                &result[close_pos + close_tag.len()..]
+            );
         }
 
         // Then substitute variables.
@@ -708,7 +769,11 @@ impl GenerationPlan {
         }
         self.files.insert(
             p.clone(),
-            PlannedFile { path: p, content: content.into(), overwrite },
+            PlannedFile {
+                path: p,
+                content: content.into(),
+                overwrite,
+            },
         );
         Ok(())
     }
@@ -922,7 +987,12 @@ mod tests {
 
         assert_eq!(builder.nodes().len(), 1);
         match &builder.nodes()[0] {
-            AstNode::Struct { name, fields, derives, .. } => {
+            AstNode::Struct {
+                name,
+                fields,
+                derives,
+                ..
+            } => {
                 assert_eq!(name, "User");
                 assert_eq!(fields.len(), 2);
                 assert_eq!(derives.len(), 2);
@@ -943,7 +1013,12 @@ mod tests {
 
         assert_eq!(builder.nodes().len(), 1);
         match &builder.nodes()[0] {
-            AstNode::Function { name, params, return_type, .. } => {
+            AstNode::Function {
+                name,
+                params,
+                return_type,
+                ..
+            } => {
                 assert_eq!(name, "greet");
                 assert_eq!(params.len(), 1);
                 assert!(return_type.is_some());
@@ -987,7 +1062,11 @@ mod tests {
     #[test]
     fn test_ast_builder_type_alias() {
         let mut builder = AstBuilder::new();
-        builder.add_type_alias("Result", Visibility::Public, "std::result::Result<T, MyError>");
+        builder.add_type_alias(
+            "Result",
+            Visibility::Public,
+            "std::result::Result<T, MyError>",
+        );
         match &builder.nodes()[0] {
             AstNode::TypeAlias { name, target, .. } => {
                 assert_eq!(name, "Result");
@@ -1024,8 +1103,14 @@ mod tests {
             name: "add".to_string(),
             visibility: Visibility::Public,
             params: vec![
-                Param { name: "a".to_string(), type_name: "i32".to_string() },
-                Param { name: "b".to_string(), type_name: "i32".to_string() },
+                Param {
+                    name: "a".to_string(),
+                    type_name: "i32".to_string(),
+                },
+                Param {
+                    name: "b".to_string(),
+                    type_name: "i32".to_string(),
+                },
             ],
             return_type: Some("i32".to_string()),
             body: "a + b".to_string(),

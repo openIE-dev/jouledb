@@ -75,10 +75,7 @@ impl ClipRect {
     }
 
     pub fn contains(&self, px: i32, py: i32) -> bool {
-        px >= self.x
-            && py >= self.y
-            && px < self.x + self.w as i32
-            && py < self.y + self.h as i32
+        px >= self.x && py >= self.y && px < self.x + self.w as i32 && py < self.y + self.h as i32
     }
 }
 

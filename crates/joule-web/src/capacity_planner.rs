@@ -169,9 +169,17 @@ impl TrendDirection {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScalingAction {
     NoAction,
-    ScaleUp { additional_units: u64, reason: String },
-    ScaleDown { excess_units: u64, reason: String },
-    Alert { message: String },
+    ScaleUp {
+        additional_units: u64,
+        reason: String,
+    },
+    ScaleDown {
+        excess_units: u64,
+        reason: String,
+    },
+    Alert {
+        message: String,
+    },
 }
 
 /// Headroom analysis result.
@@ -300,8 +308,8 @@ impl ResourceTracker {
 
                 let (time_to, date) = match target_x {
                     Some(secs) if secs > 0.0 => {
-                        let last_x = (self.samples.last().unwrap().timestamp - base)
-                            .num_seconds() as f64;
+                        let last_x =
+                            (self.samples.last().unwrap().timestamp - base).num_seconds() as f64;
                         let remaining = secs - last_x;
                         if remaining > 0.0 {
                             let dur = Duration::seconds(remaining as i64);
@@ -373,10 +381,7 @@ impl ResourceTracker {
         };
 
         WhatIfResult {
-            scenario: format!(
-                "Add {:.1} units to {}",
-                additional_load, self.name
-            ),
+            scenario: format!("Add {:.1} units to {}", additional_load, self.name),
             original_utilization_percent: current_pct,
             projected_utilization_percent: projected_pct,
             additional_load,
@@ -656,8 +661,8 @@ mod tests {
 
     #[test]
     fn test_scaling_critical() {
-        let mut t = ResourceTracker::new("cpu", ResourceKind::Cpu, 100.0)
-            .with_thresholds(70.0, 90.0);
+        let mut t =
+            ResourceTracker::new("cpu", ResourceKind::Cpu, 100.0).with_thresholds(70.0, 90.0);
         t.record(95.0);
         match t.scaling_recommendation(10.0) {
             ScalingAction::ScaleUp {
@@ -673,8 +678,8 @@ mod tests {
 
     #[test]
     fn test_scaling_warning() {
-        let mut t = ResourceTracker::new("cpu", ResourceKind::Cpu, 100.0)
-            .with_thresholds(70.0, 90.0);
+        let mut t =
+            ResourceTracker::new("cpu", ResourceKind::Cpu, 100.0).with_thresholds(70.0, 90.0);
         t.record(75.0);
         match t.scaling_recommendation(10.0) {
             ScalingAction::Alert { message } => {
@@ -686,8 +691,8 @@ mod tests {
 
     #[test]
     fn test_scaling_no_action() {
-        let mut t = ResourceTracker::new("cpu", ResourceKind::Cpu, 100.0)
-            .with_thresholds(70.0, 90.0);
+        let mut t =
+            ResourceTracker::new("cpu", ResourceKind::Cpu, 100.0).with_thresholds(70.0, 90.0);
         t.record(50.0);
         assert_eq!(t.scaling_recommendation(10.0), ScalingAction::NoAction);
     }

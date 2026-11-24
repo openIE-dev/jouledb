@@ -178,10 +178,7 @@ fn tokenize_query(input: &str) -> Result<Vec<Token>, ParseError> {
                 let start = i;
                 while i < len
                     && !chars[i].is_whitespace()
-                    && !matches!(
-                        chars[i],
-                        '(' | ')' | '[' | ']' | '{' | '}' | ':' | '"'
-                    )
+                    && !matches!(chars[i], '(' | ')' | '[' | ']' | '{' | '}' | ':' | '"')
                 {
                     i += 1;
                 }

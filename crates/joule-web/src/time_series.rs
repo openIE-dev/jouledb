@@ -159,11 +159,7 @@ impl TimeSeries {
     }
 
     /// Downsample the series into buckets of `bucket_ms` using the given method.
-    pub fn downsample(
-        &self,
-        bucket_ms: u64,
-        method: DownsampleMethod,
-    ) -> Vec<DataPoint> {
+    pub fn downsample(&self, bucket_ms: u64, method: DownsampleMethod) -> Vec<DataPoint> {
         if self.points.is_empty() || bucket_ms == 0 {
             return Vec::new();
         }

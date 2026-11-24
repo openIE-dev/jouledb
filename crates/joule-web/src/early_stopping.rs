@@ -72,7 +72,9 @@ impl fmt::Display for TrainingStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             TrainingStatus::Improving => write!(f, "improving"),
-            TrainingStatus::Stalled { epochs_without_improvement } => {
+            TrainingStatus::Stalled {
+                epochs_without_improvement,
+            } => {
                 write!(f, "stalled ({epochs_without_improvement} epochs)")
             }
             TrainingStatus::StopPatience => write!(f, "stopped (patience)"),
@@ -156,7 +158,10 @@ impl EarlyStopping {
         }
 
         // Check for improvement
-        if self.direction.is_improvement(metric_value, self.best_value, self.min_delta) {
+        if self
+            .direction
+            .is_improvement(metric_value, self.best_value, self.min_delta)
+        {
             self.best_value = metric_value;
             self.best_epoch = self.current_epoch;
             self.epochs_no_improve = 0;
@@ -225,11 +230,7 @@ impl fmt::Display for EarlyStopping {
         write!(
             f,
             "EarlyStopping(patience={}, {}, best={:.6} @epoch {}, no_improve={})",
-            self.patience,
-            self.direction,
-            self.best_value,
-            self.best_epoch,
-            self.epochs_no_improve
+            self.patience, self.direction, self.best_value, self.best_epoch, self.epochs_no_improve
         )
     }
 }
@@ -272,8 +273,8 @@ impl MetricTracker {
                 self.ema_value = value;
                 self.ema_initialized = true;
             } else {
-                self.ema_value = self.smoothing_factor * self.ema_value
-                    + (1.0 - self.smoothing_factor) * value;
+                self.ema_value =
+                    self.smoothing_factor * self.ema_value + (1.0 - self.smoothing_factor) * value;
             }
             self.smoothed_history.push(self.ema_value);
         }
@@ -317,9 +318,8 @@ impl MetricTracker {
             return 0.0;
         }
         let mean = self.mean();
-        let variance =
-            self.history.iter().map(|v| (v - mean).powi(2)).sum::<f64>()
-                / self.history.len() as f64;
+        let variance = self.history.iter().map(|v| (v - mean).powi(2)).sum::<f64>()
+            / self.history.len() as f64;
         variance.sqrt()
     }
 
@@ -329,12 +329,8 @@ impl MetricTracker {
             return None;
         }
         match direction {
-            MetricDirection::Minimize => {
-                self.history.iter().cloned().reduce(f64::min)
-            }
-            MetricDirection::Maximize => {
-                self.history.iter().cloned().reduce(f64::max)
-            }
+            MetricDirection::Minimize => self.history.iter().cloned().reduce(f64::min),
+            MetricDirection::Maximize => self.history.iter().cloned().reduce(f64::max),
         }
     }
 
@@ -620,8 +616,8 @@ mod tests {
 
     #[test]
     fn early_stopping_divergence_threshold() {
-        let mut es = EarlyStopping::new(5, MetricDirection::Minimize)
-            .with_divergence_threshold(100.0);
+        let mut es =
+            EarlyStopping::new(5, MetricDirection::Minimize).with_divergence_threshold(100.0);
         let status = es.step(500.0);
         assert_eq!(status, TrainingStatus::StopDiverged);
     }

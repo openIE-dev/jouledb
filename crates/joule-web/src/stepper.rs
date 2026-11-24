@@ -288,7 +288,10 @@ impl Stepper {
             Orientation::Vertical => "vertical",
         };
 
-        let mut html = format!("<div class=\"stepper stepper--{}\" role=\"navigation\">", orient);
+        let mut html = format!(
+            "<div class=\"stepper stepper--{}\" role=\"navigation\">",
+            orient
+        );
 
         for (i, step) in self.steps.iter().enumerate() {
             let state_class = step.state.as_str();
@@ -301,14 +304,21 @@ impl Stepper {
                  <div class=\"stepper-indicator\">{}</div>\
                  <div class=\"stepper-label\">{}{}</div>",
                 state_class,
-                if step.state == StepState::Active { "step" } else { "false" },
+                if step.state == StepState::Active {
+                    "step"
+                } else {
+                    "false"
+                },
                 step_num,
                 step.label,
                 optional_label,
             ));
 
             if let Some(desc) = &step.description {
-                html.push_str(&format!("<div class=\"stepper-description\">{}</div>", desc));
+                html.push_str(&format!(
+                    "<div class=\"stepper-description\">{}</div>",
+                    desc
+                ));
             }
 
             if let Some(err) = &step.error_message {
@@ -408,7 +418,10 @@ mod tests {
         let mut stepper = Stepper::new(three_steps());
         stepper.set_error("Invalid email");
         assert_eq!(stepper.steps[0].state, StepState::Error);
-        assert_eq!(stepper.steps[0].error_message.as_deref(), Some("Invalid email"));
+        assert_eq!(
+            stepper.steps[0].error_message.as_deref(),
+            Some("Invalid email")
+        );
         assert_eq!(stepper.errors(), vec![0]);
     }
 
@@ -446,11 +459,8 @@ mod tests {
 
     #[test]
     fn test_non_clickable_step() {
-        let mut stepper = Stepper::new(vec![
-            Step::new("A"),
-            Step::new("B").clickable(false),
-        ])
-        .navigation(NavigationMode::Free);
+        let mut stepper = Stepper::new(vec![Step::new("A"), Step::new("B").clickable(false)])
+            .navigation(NavigationMode::Free);
         assert!(!stepper.go_to(1));
     }
 

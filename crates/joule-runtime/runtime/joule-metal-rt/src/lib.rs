@@ -66,9 +66,7 @@ pub use device::{DeviceInfo, MetalDevice};
 pub use error::{MetalError, MetalResult};
 pub use hdc::{FABRIC_HDC_DOT_MSL, HdcDotTiming, hdc_dot_i8, hdc_dot_i8_timed, reference_hdc_dot};
 pub use pipeline::{MetalComputePipeline, MetalLibrary, ThreadgroupSize};
-pub use reduce::{
-    ANE_DOES_NOT_RUN_THIS_KERNEL, FABRIC_REDUCE_SUM_MSL, reference_f32_sum, sum_f64,
-};
+pub use reduce::{ANE_DOES_NOT_RUN_THIS_KERNEL, FABRIC_REDUCE_SUM_MSL, reference_f32_sum, sum_f64};
 pub use sync::{MetalEvent, MetalFence, MetalSharedEvent};
 
 /// Environment variable that marks a host as real Apple-silicon hardware.

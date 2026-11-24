@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::{AmorphicRecord, RecordId, DIMENSION};
+use crate::{AmorphicRecord, DIMENSION, RecordId};
 
 /// A detected contrast (spike event).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -130,11 +130,7 @@ impl ContrastEngine {
     ///
     /// The record is always stored regardless. The contrast gate determines
     /// whether the system "notices" — whether it spends energy analyzing.
-    pub fn gate_ingest(
-        &mut self,
-        record: &AmorphicRecord,
-        timestamp_ms: u64,
-    ) -> Option<Contrast> {
+    pub fn gate_ingest(&mut self, record: &AmorphicRecord, timestamp_ms: u64) -> Option<Contrast> {
         self.total_ingests.fetch_add(1, Ordering::Relaxed);
 
         // Update per-field statistics
@@ -308,7 +304,9 @@ impl ContrastEngine {
 
     /// Get the top N most contrasting fields (highest novel value rate).
     pub fn hottest_fields(&self, n: usize) -> Vec<(String, f64)> {
-        let mut fields: Vec<(String, f64)> = self.field_stats.iter()
+        let mut fields: Vec<(String, f64)> = self
+            .field_stats
+            .iter()
             .filter(|(_, stats)| stats.appearances > 0)
             .map(|(name, stats)| {
                 let novelty_rate = stats.novel_values as f64 / stats.appearances as f64;
@@ -325,13 +323,19 @@ impl ContrastEngine {
     ///
     /// Returns clusters of record IDs that spiked within `window_ms` of each other.
     /// The Promoter can use these for targeted `analyze_records()`.
-    pub fn detect_spike_clusters(&self, window_ms: u64, min_cluster_size: usize) -> Vec<SpikeCluster> {
+    pub fn detect_spike_clusters(
+        &self,
+        window_ms: u64,
+        min_cluster_size: usize,
+    ) -> Vec<SpikeCluster> {
         if self.recent_contrasts.len() < min_cluster_size {
             return Vec::new();
         }
 
         // Only consider ingest novelty spikes
-        let spikes: Vec<&Contrast> = self.recent_contrasts.iter()
+        let spikes: Vec<&Contrast> = self
+            .recent_contrasts
+            .iter()
             .filter(|c| c.source == ContrastSource::IngestNovelty)
             .collect();
 
@@ -432,7 +436,8 @@ impl ContrastEngine {
                 hasher.finish()
             };
 
-            let seen = self.field_value_hashes
+            let seen = self
+                .field_value_hashes
                 .entry(field.to_string())
                 .or_default();
 
@@ -487,9 +492,9 @@ mod tests {
 
         // Ingest many similar records — centroid should stabilize
         for i in 0..20 {
-            let id = store.ingest_json(&format!(
-                r#"{{"name": "item_{}", "type": "widget"}}"#, i
-            )).unwrap();
+            let id = store
+                .ingest_json(&format!(r#"{{"name": "item_{}", "type": "widget"}}"#, i))
+                .unwrap();
             let record = store.records.get(&id).unwrap();
             engine.gate_ingest(record, 1000 + i as u64);
         }
@@ -505,9 +510,9 @@ mod tests {
 
         // Same field, different values
         for color in &["red", "blue", "green", "red", "red"] {
-            let id = store.ingest_json(&format!(
-                r#"{{"color": "{}"}}"#, color
-            )).unwrap();
+            let id = store
+                .ingest_json(&format!(r#"{{"color": "{}"}}"#, color))
+                .unwrap();
             let record = store.records.get(&id).unwrap();
             engine.gate_ingest(record, 1000);
         }
@@ -525,9 +530,9 @@ mod tests {
 
         // "name" always different, "type" always same
         for i in 0..10 {
-            let id = store.ingest_json(&format!(
-                r#"{{"name": "item_{}", "type": "widget"}}"#, i
-            )).unwrap();
+            let id = store
+                .ingest_json(&format!(r#"{{"name": "item_{}", "type": "widget"}}"#, i))
+                .unwrap();
             let record = store.records.get(&id).unwrap();
             engine.gate_ingest(record, 1000 + i);
         }
@@ -595,10 +600,14 @@ mod tests {
     #[test]
     fn test_gate_update_delta() {
         let mut store = AmorphicStore::new();
-        let id1 = store.ingest_json(r#"{"name": "version_1", "data": "original"}"#).unwrap();
+        let id1 = store
+            .ingest_json(r#"{"name": "version_1", "data": "original"}"#)
+            .unwrap();
         let old = store.records.get(&id1).unwrap().clone();
 
-        let id2 = store.ingest_json(r#"{"name": "completely_different_record", "data": "changed"}"#).unwrap();
+        let id2 = store
+            .ingest_json(r#"{"name": "completely_different_record", "data": "changed"}"#)
+            .unwrap();
         let new = store.records.get(&id2).unwrap();
 
         let mut engine = ContrastEngine::new();

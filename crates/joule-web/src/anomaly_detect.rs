@@ -367,11 +367,7 @@ impl IqrDetector {
             .iter()
             .filter_map(|v| {
                 if *v < lower || *v > upper {
-                    let deviation = if *v > upper {
-                        v - upper
-                    } else {
-                        lower - v
-                    };
+                    let deviation = if *v > upper { v - upper } else { lower - v };
                     let iqr = upper - lower;
                     let score = if iqr.abs() < f64::EPSILON {
                         1.0
@@ -453,8 +449,7 @@ impl EwmaDetector {
 
         let diff = value - self.ewma;
         let new_ewma = self.alpha * value + (1.0 - self.alpha) * self.ewma;
-        self.ewma_var =
-            (1.0 - self.alpha) * (self.ewma_var + self.alpha * diff * diff);
+        self.ewma_var = (1.0 - self.alpha) * (self.ewma_var + self.alpha * diff * diff);
 
         let sd = self.ewma_var.sqrt();
         let expected = self.ewma;
@@ -564,10 +559,7 @@ impl SlidingWindow {
     }
 
     pub fn min(&self) -> f64 {
-        self.buffer
-            .iter()
-            .copied()
-            .fold(f64::INFINITY, f64::min)
+        self.buffer.iter().copied().fold(f64::INFINITY, f64::min)
     }
 
     pub fn max(&self) -> f64 {
@@ -722,12 +714,7 @@ impl AnomalyScorer {
     }
 
     /// Score a value given pre-computed z-score, iqr-distance, and ewma-distance.
-    pub fn score(
-        &self,
-        z_score_abs: f64,
-        iqr_distance: f64,
-        ewma_distance: f64,
-    ) -> f64 {
+    pub fn score(&self, z_score_abs: f64, iqr_distance: f64, ewma_distance: f64) -> f64 {
         let total_weight = self.z_weight + self.iqr_weight + self.ewma_weight;
         if total_weight.abs() < f64::EPSILON {
             return 0.0;
@@ -959,16 +946,14 @@ mod tests {
 
     #[test]
     fn test_alert_threshold_upper() {
-        let mut alert = AlertThreshold::new("cpu_high", "cpu_percent")
-            .with_upper(90.0);
+        let mut alert = AlertThreshold::new("cpu_high", "cpu_percent").with_upper(90.0);
         assert!(!alert.check(85.0));
         assert!(alert.check(95.0));
     }
 
     #[test]
     fn test_alert_threshold_lower() {
-        let mut alert = AlertThreshold::new("mem_low", "free_memory_mb")
-            .with_lower(100.0);
+        let mut alert = AlertThreshold::new("mem_low", "free_memory_mb").with_lower(100.0);
         assert!(!alert.check(200.0));
         assert!(alert.check(50.0));
     }

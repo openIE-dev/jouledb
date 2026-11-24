@@ -428,10 +428,7 @@ impl Cursor {
 // ── Builder helper ───────────────────────────────────────────────
 
 /// Build result set metadata from column name/type pairs.
-pub fn build_meta(
-    columns: &[(&str, ColumnType)],
-    total_rows: usize,
-) -> ResultSetMeta {
+pub fn build_meta(columns: &[(&str, ColumnType)], total_rows: usize) -> ResultSetMeta {
     let cols: Vec<ColumnMeta> = columns
         .iter()
         .enumerate()
@@ -464,9 +461,17 @@ mod tests {
 
     fn sample_rows() -> Vec<Row> {
         vec![
-            vec![Value::Int(1), Value::Text("Alice".into()), Value::Float(95.5)],
+            vec![
+                Value::Int(1),
+                Value::Text("Alice".into()),
+                Value::Float(95.5),
+            ],
             vec![Value::Int(2), Value::Text("Bob".into()), Value::Float(88.0)],
-            vec![Value::Int(3), Value::Text("Carol".into()), Value::Float(92.3)],
+            vec![
+                Value::Int(3),
+                Value::Text("Carol".into()),
+                Value::Float(92.3),
+            ],
         ]
     }
 
@@ -523,10 +528,7 @@ mod tests {
         let mut cursor = Cursor::forward(sample_rows(), sample_meta());
         cursor.next().unwrap();
         let err = cursor.get_by_name("nonexistent").unwrap_err();
-        assert_eq!(
-            err,
-            CursorError::ColumnNotFound("nonexistent".into())
-        );
+        assert_eq!(err, CursorError::ColumnNotFound("nonexistent".into()));
     }
 
     #[test]

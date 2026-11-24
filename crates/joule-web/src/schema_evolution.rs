@@ -193,7 +193,11 @@ impl fmt::Display for SchemaChange {
             Self::FieldRenamed { old_name, new_name } => {
                 write!(f, "rename '{old_name}' -> '{new_name}'")
             }
-            Self::TypeChanged { field, old_type, new_type } => {
+            Self::TypeChanged {
+                field,
+                old_type,
+                new_type,
+            } => {
                 write!(f, "change type of '{field}': {old_type} -> {new_type}")
             }
             Self::MadeOptional(name) => write!(f, "make '{name}' optional"),
@@ -282,7 +286,10 @@ pub struct CompatibilityResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MigrationStep {
     /// Add a field with a default value.
-    AddField { name: String, default: serde_json::Value },
+    AddField {
+        name: String,
+        default: serde_json::Value,
+    },
     /// Remove a field.
     RemoveField(String),
     /// Rename a field.
@@ -290,7 +297,10 @@ pub enum MigrationStep {
     /// Cast a field to a new type.
     CastField { name: String, new_type: FieldType },
     /// Set a default value for missing fields.
-    SetDefault { name: String, value: serde_json::Value },
+    SetDefault {
+        name: String,
+        value: serde_json::Value,
+    },
 }
 
 impl fmt::Display for MigrationStep {
@@ -493,10 +503,7 @@ impl SchemaRegistry {
         for change in &diff.changes {
             match change {
                 SchemaChange::FieldAdded(fd) => {
-                    let default = fd
-                        .default_value
-                        .clone()
-                        .unwrap_or(serde_json::Value::Null);
+                    let default = fd.default_value.clone().unwrap_or(serde_json::Value::Null);
                     steps.push(MigrationStep::AddField {
                         name: fd.name.clone(),
                         default,
@@ -511,13 +518,17 @@ impl SchemaRegistry {
                         to: new_name.clone(),
                     });
                 }
-                SchemaChange::TypeChanged { field, new_type, .. } => {
+                SchemaChange::TypeChanged {
+                    field, new_type, ..
+                } => {
                     steps.push(MigrationStep::CastField {
                         name: field.clone(),
                         new_type: new_type.clone(),
                     });
                 }
-                SchemaChange::DefaultChanged { field, new_default, .. } => {
+                SchemaChange::DefaultChanged {
+                    field, new_default, ..
+                } => {
                     if let Some(val) = new_default {
                         steps.push(MigrationStep::SetDefault {
                             name: field.clone(),
@@ -574,10 +585,7 @@ impl SchemaRegistry {
                 // Removing a field that old schema expects breaks forward compat.
                 for old_f in &old.fields {
                     if !new_map.contains_key(old_f.name.as_str()) && old_f.required {
-                        violations.push(format!(
-                            "required field '{}' removed",
-                            old_f.name
-                        ));
+                        violations.push(format!("required field '{}' removed", old_f.name));
                     }
                 }
             }
@@ -596,10 +604,8 @@ impl SchemaRegistry {
                 }
                 for old_f in &old.fields {
                     if !new_map.contains_key(old_f.name.as_str()) && old_f.required {
-                        violations.push(format!(
-                            "required field '{}' removed (forward)",
-                            old_f.name
-                        ));
+                        violations
+                            .push(format!("required field '{}' removed (forward)", old_f.name));
                     }
                 }
             }
@@ -723,7 +729,9 @@ mod tests {
         let mut new_fields = basic_fields();
         new_fields.push(FieldDef::optional("email", FieldType::String));
 
-        let v = reg.evolve("user", new_fields, Some("Add email".into())).unwrap();
+        let v = reg
+            .evolve("user", new_fields, Some("Add email".into()))
+            .unwrap();
         assert_eq!(v.version, 2);
         assert_eq!(v.fields.len(), 3);
     }
@@ -903,8 +911,7 @@ mod tests {
 
         let mut v2_fields = basic_fields();
         v2_fields.push(
-            FieldDef::optional("email", FieldType::String)
-                .with_default(serde_json::json!("")),
+            FieldDef::optional("email", FieldType::String).with_default(serde_json::json!("")),
         );
         reg.evolve("user", v2_fields, None).unwrap();
 
@@ -964,8 +971,7 @@ mod tests {
 
     #[test]
     fn field_def_with_doc() {
-        let f = FieldDef::required("id", FieldType::Integer)
-            .with_doc("Primary key");
+        let f = FieldDef::required("id", FieldType::Integer).with_doc("Primary key");
         assert_eq!(f.doc, Some("Primary key".to_string()));
     }
 

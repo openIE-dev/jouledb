@@ -25,8 +25,8 @@ pub enum TemplateError {
 #[derive(Debug, Clone)]
 enum TemplateNode {
     Text(String),
-    Expr(String),         // {{variable}}
-    RawExpr(String),      // {{{variable}}}
+    Expr(String),    // {{variable}}
+    RawExpr(String), // {{{variable}}}
     If {
         condition: String,
         body: Vec<TemplateNode>,
@@ -114,7 +114,11 @@ impl TemplateEngine {
                     let val = resolve(data, path);
                     out.push_str(&value_to_string(&val));
                 }
-                TemplateNode::If { condition, body, else_body } => {
+                TemplateNode::If {
+                    condition,
+                    body,
+                    else_body,
+                } => {
                     if is_truthy(&resolve(data, condition)) {
                         out.push_str(&self.render_nodes(body, data)?);
                     } else {
@@ -146,9 +150,7 @@ impl TemplateEngine {
                             let mut ctx = serde_json::Map::new();
                             ctx.insert("@key".to_string(), Value::String(k.clone()));
                             ctx.insert("this".to_string(), v.clone());
-                            out.push_str(
-                                &self.render_nodes(body, &Value::Object(ctx))?,
-                            );
+                            out.push_str(&self.render_nodes(body, &Value::Object(ctx))?);
                         }
                     }
                 }
@@ -202,14 +204,16 @@ fn parse(src: &str) -> Result<Vec<TemplateNode>, TemplateError> {
 
             // Triple-stache raw?
             if rest.starts_with("{{{") {
-                let end = rest.find("}}}")
+                let end = rest
+                    .find("}}}")
                     .ok_or_else(|| TemplateError::Parse("unclosed {{{".into()))?;
                 let inner = rest[3..end].trim();
                 nodes.push(TemplateNode::RawExpr(inner.to_string()));
                 rest = &rest[end + 3..];
             } else {
                 // Double-stache
-                let end = rest.find("}}")
+                let end = rest
+                    .find("}}")
                     .ok_or_else(|| TemplateError::Parse("unclosed {{".into()))?;
                 let inner = rest[2..end].trim();
                 rest = &rest[end + 2..];
@@ -270,9 +274,9 @@ fn parse_block<'a>(
     tag: &str,
 ) -> Result<(Vec<TemplateNode>, Vec<TemplateNode>, &'a str), TemplateError> {
     let close = format!("{{{{/{tag}}}}}");
-    let close_pos = src.find(&close).ok_or_else(|| {
-        TemplateError::Parse(format!("unclosed {{{{#{tag}}}}}"))
-    })?;
+    let close_pos = src
+        .find(&close)
+        .ok_or_else(|| TemplateError::Parse(format!("unclosed {{{{#{tag}}}}}")))?;
 
     let block = &src[..close_pos];
     let remaining = &src[close_pos + close.len()..];
@@ -354,7 +358,9 @@ mod tests {
     #[test]
     fn simple_variable() {
         let engine = TemplateEngine::new();
-        let out = engine.render_string("Hello, {{name}}!", &json!({"name": "world"})).unwrap();
+        let out = engine
+            .render_string("Hello, {{name}}!", &json!({"name": "world"}))
+            .unwrap();
         assert_eq!(out, "Hello, world!");
     }
 
@@ -400,7 +406,9 @@ mod tests {
     fn each_with_array() {
         let engine = TemplateEngine::new();
         let data = json!({"items": ["a", "b", "c"]});
-        let out = engine.render_string("{{#each items}}{{this}},{{/each}}", &data).unwrap();
+        let out = engine
+            .render_string("{{#each items}}{{this}},{{/each}}", &data)
+            .unwrap();
         assert_eq!(out, "a,b,c,");
     }
 
@@ -463,7 +471,9 @@ mod tests {
     #[test]
     fn missing_variable_empty_string() {
         let engine = TemplateEngine::new();
-        let out = engine.render_string("Hello, {{name}}!", &json!({})).unwrap();
+        let out = engine
+            .render_string("Hello, {{name}}!", &json!({}))
+            .unwrap();
         assert_eq!(out, "Hello, !");
     }
 

@@ -50,8 +50,14 @@ impl FeatureStats {
     pub fn compute(values: &[f64]) -> Self {
         if values.is_empty() {
             return Self {
-                min: 0.0, max: 0.0, mean: 0.0, std_dev: 0.0,
-                median: 0.0, q1: 0.0, q3: 0.0, max_abs: 0.0,
+                min: 0.0,
+                max: 0.0,
+                mean: 0.0,
+                std_dev: 0.0,
+                median: 0.0,
+                q1: 0.0,
+                q3: 0.0,
+                max_abs: 0.0,
             };
         }
         let mut sorted = values.to_vec();
@@ -66,7 +72,16 @@ impl FeatureStats {
         let q1 = percentile_sorted(&sorted, 25.0);
         let q3 = percentile_sorted(&sorted, 75.0);
         let max_abs = sorted.iter().map(|v| v.abs()).fold(0.0_f64, f64::max);
-        Self { min, max, mean, std_dev, median, q1, q3, max_abs }
+        Self {
+            min,
+            max,
+            mean,
+            std_dev,
+            median,
+            q1,
+            q3,
+            max_abs,
+        }
     }
 
     pub fn iqr(&self) -> f64 {
@@ -80,8 +95,11 @@ impl FeatureStats {
 
 impl fmt::Display for FeatureStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Stats(mean={:.4}, std={:.4}, min={:.4}, max={:.4})",
-               self.mean, self.std_dev, self.min, self.max)
+        write!(
+            f,
+            "Stats(mean={:.4}, std={:.4}, min={:.4}, max={:.4})",
+            self.mean, self.std_dev, self.min, self.max
+        )
     }
 }
 
@@ -137,7 +155,10 @@ impl Normalizer {
 
     /// Fit the normalizer on column-major data (each inner Vec is one feature column).
     pub fn fit(&mut self, columns: &[Vec<f64>]) {
-        self.feature_stats = columns.iter().map(|col| FeatureStats::compute(col)).collect();
+        self.feature_stats = columns
+            .iter()
+            .map(|col| FeatureStats::compute(col))
+            .collect();
     }
 
     /// Fit on row-major data (each inner Vec is one sample).
@@ -254,8 +275,13 @@ impl Normalizer {
 
 impl fmt::Display for Normalizer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Normalizer(method={}, features={}, fitted={})",
-               self.method, self.feature_stats.len(), self.is_fitted())
+        write!(
+            f,
+            "Normalizer(method={}, features={}, fitted={})",
+            self.method,
+            self.feature_stats.len(),
+            self.is_fitted()
+        )
     }
 }
 
@@ -286,7 +312,10 @@ pub struct ChannelNormalizer {
 
 impl ChannelNormalizer {
     pub fn new(means: Vec<f64>, stds: Vec<f64>) -> Self {
-        Self { channel_means: means, channel_stds: stds }
+        Self {
+            channel_means: means,
+            channel_stds: stds,
+        }
     }
 
     /// ImageNet-style defaults (3 channels).
@@ -309,8 +338,8 @@ impl ChannelNormalizer {
             let offset = c * pixels_per_channel;
             for i in 0..pixels_per_channel {
                 if offset + i < out.len() {
-                    out[offset + i] = (out[offset + i] - self.channel_means[c])
-                        / self.channel_stds[c].max(1e-12);
+                    out[offset + i] =
+                        (out[offset + i] - self.channel_means[c]) / self.channel_stds[c].max(1e-12);
                 }
             }
         }
@@ -325,8 +354,8 @@ impl ChannelNormalizer {
             let offset = c * pixels_per_channel;
             for i in 0..pixels_per_channel {
                 if offset + i < out.len() {
-                    out[offset + i] = out[offset + i] * self.channel_stds[c]
-                        + self.channel_means[c];
+                    out[offset + i] =
+                        out[offset + i] * self.channel_stds[c] + self.channel_means[c];
                 }
             }
         }

@@ -62,7 +62,11 @@ impl<'a> Parser<'a> {
 
     fn skip_ws(&mut self) {
         while let Some(c) = self.peek() {
-            if c == ' ' || c == '\t' { self.advance(1); } else { break; }
+            if c == ' ' || c == '\t' {
+                self.advance(1);
+            } else {
+                break;
+            }
         }
     }
 
@@ -81,17 +85,23 @@ impl<'a> Parser<'a> {
     fn skip_comment(&mut self) {
         while let Some(c) = self.peek() {
             self.advance(c.len_utf8());
-            if c == '\n' { break; }
+            if c == '\n' {
+                break;
+            }
         }
     }
 
     fn skip_to_newline(&mut self) {
         self.skip_ws();
-        if let Some('#') = self.peek() { self.skip_comment(); }
-        else if let Some('\n') = self.peek() { self.advance(1); }
-        else if let Some('\r') = self.peek() {
+        if let Some('#') = self.peek() {
+            self.skip_comment();
+        } else if let Some('\n') = self.peek() {
             self.advance(1);
-            if let Some('\n') = self.peek() { self.advance(1); }
+        } else if let Some('\r') = self.peek() {
+            self.advance(1);
+            if let Some('\n') = self.peek() {
+                self.advance(1);
+            }
         }
     }
 
@@ -106,7 +116,9 @@ impl<'a> Parser<'a> {
                 break;
             }
         }
-        if self.pos == start { return Err(TomlError::InvalidKey("empty bare key".into())); }
+        if self.pos == start {
+            return Err(TomlError::InvalidKey("empty bare key".into()));
+        }
         Ok(self.input[start..self.pos].to_string())
     }
 
@@ -145,32 +157,53 @@ impl<'a> Parser<'a> {
         loop {
             match self.peek() {
                 None => return Err(TomlError::UnterminatedString),
-                Some('"') => { self.advance(1); return Ok(out); }
-                Some('\\') => { self.advance(1); out.push(self.parse_escape()?); }
-                Some(c) => { self.advance(c.len_utf8()); out.push(c); }
+                Some('"') => {
+                    self.advance(1);
+                    return Ok(out);
+                }
+                Some('\\') => {
+                    self.advance(1);
+                    out.push(self.parse_escape()?);
+                }
+                Some(c) => {
+                    self.advance(c.len_utf8());
+                    out.push(c);
+                }
             }
         }
     }
 
     fn parse_ml_basic(&mut self) -> Result<String, TomlError> {
-        if let Some('\n') = self.peek() { self.advance(1); }
-        else if self.remaining().starts_with("\r\n") { self.advance(2); }
+        if let Some('\n') = self.peek() {
+            self.advance(1);
+        } else if self.remaining().starts_with("\r\n") {
+            self.advance(2);
+        }
         let mut out = String::new();
         loop {
-            if self.remaining().starts_with("\"\"\"") { self.advance(3); return Ok(out); }
+            if self.remaining().starts_with("\"\"\"") {
+                self.advance(3);
+                return Ok(out);
+            }
             match self.peek() {
                 None => return Err(TomlError::UnterminatedString),
                 Some('\\') => {
                     self.advance(1);
                     if matches!(self.peek(), Some('\n') | Some('\r')) {
-                        while matches!(self.peek(), Some('\n') | Some('\r') | Some(' ') | Some('\t')) {
+                        while matches!(
+                            self.peek(),
+                            Some('\n') | Some('\r') | Some(' ') | Some('\t')
+                        ) {
                             self.advance(1);
                         }
                     } else {
                         out.push(self.parse_escape()?);
                     }
                 }
-                Some(c) => { self.advance(c.len_utf8()); out.push(c); }
+                Some(c) => {
+                    self.advance(c.len_utf8());
+                    out.push(c);
+                }
             }
         }
     }
@@ -196,8 +229,11 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_ml_literal(&mut self) -> Result<String, TomlError> {
-        if let Some('\n') = self.peek() { self.advance(1); }
-        else if self.remaining().starts_with("\r\n") { self.advance(2); }
+        if let Some('\n') = self.peek() {
+            self.advance(1);
+        } else if self.remaining().starts_with("\r\n") {
+            self.advance(2);
+        }
         let start = self.pos;
         loop {
             if self.remaining().starts_with("'''") {
@@ -214,15 +250,42 @@ impl<'a> Parser<'a> {
 
     fn parse_escape(&mut self) -> Result<char, TomlError> {
         match self.peek() {
-            Some('b') => { self.advance(1); Ok('\u{0008}') }
-            Some('t') => { self.advance(1); Ok('\t') }
-            Some('n') => { self.advance(1); Ok('\n') }
-            Some('f') => { self.advance(1); Ok('\u{000C}') }
-            Some('r') => { self.advance(1); Ok('\r') }
-            Some('"') => { self.advance(1); Ok('"') }
-            Some('\\') => { self.advance(1); Ok('\\') }
-            Some('u') => { self.advance(1); self.parse_unicode(4) }
-            Some('U') => { self.advance(1); self.parse_unicode(8) }
+            Some('b') => {
+                self.advance(1);
+                Ok('\u{0008}')
+            }
+            Some('t') => {
+                self.advance(1);
+                Ok('\t')
+            }
+            Some('n') => {
+                self.advance(1);
+                Ok('\n')
+            }
+            Some('f') => {
+                self.advance(1);
+                Ok('\u{000C}')
+            }
+            Some('r') => {
+                self.advance(1);
+                Ok('\r')
+            }
+            Some('"') => {
+                self.advance(1);
+                Ok('"')
+            }
+            Some('\\') => {
+                self.advance(1);
+                Ok('\\')
+            }
+            Some('u') => {
+                self.advance(1);
+                self.parse_unicode(4)
+            }
+            Some('U') => {
+                self.advance(1);
+                self.parse_unicode(8)
+            }
             Some(c) => Err(TomlError::InvalidEscape(format!("\\{c}"))),
             None => Err(TomlError::UnexpectedEof),
         }
@@ -231,11 +294,15 @@ impl<'a> Parser<'a> {
     fn parse_unicode(&mut self, digits: usize) -> Result<char, TomlError> {
         let start = self.pos;
         for _ in 0..digits {
-            if self.peek().map_or(false, |c| c.is_ascii_hexdigit()) { self.advance(1); }
-            else { return Err(TomlError::InvalidEscape(format!("unicode at {start}"))); }
+            if self.peek().map_or(false, |c| c.is_ascii_hexdigit()) {
+                self.advance(1);
+            } else {
+                return Err(TomlError::InvalidEscape(format!("unicode at {start}")));
+            }
         }
         let hex = &self.input[start..self.pos];
-        let code = u32::from_str_radix(hex, 16).map_err(|_| TomlError::InvalidEscape(hex.into()))?;
+        let code =
+            u32::from_str_radix(hex, 16).map_err(|_| TomlError::InvalidEscape(hex.into()))?;
         char::from_u32(code).ok_or_else(|| TomlError::InvalidEscape(hex.into()))
     }
 
@@ -247,30 +314,38 @@ impl<'a> Parser<'a> {
             Some('"') => Ok(Value::String(self.parse_basic_string()?)),
             Some('\'') => Ok(Value::String(self.parse_literal_string()?)),
             Some('t') if self.remaining().starts_with("true") => {
-                self.advance(4); Ok(Value::Bool(true))
+                self.advance(4);
+                Ok(Value::Bool(true))
             }
             Some('f') if self.remaining().starts_with("false") => {
-                self.advance(5); Ok(Value::Bool(false))
+                self.advance(5);
+                Ok(Value::Bool(false))
             }
             Some('[') => self.parse_array_value(),
             Some('{') => self.parse_inline_table(),
             Some('i') if self.remaining().starts_with("inf") => {
-                self.advance(3); Ok(serde_json::json!(f64::INFINITY))
+                self.advance(3);
+                Ok(serde_json::json!(f64::INFINITY))
             }
             Some('+') if self.remaining().starts_with("+inf") => {
-                self.advance(4); Ok(serde_json::json!(f64::INFINITY))
+                self.advance(4);
+                Ok(serde_json::json!(f64::INFINITY))
             }
             Some('-') if self.remaining().starts_with("-inf") => {
-                self.advance(4); Ok(serde_json::json!(f64::NEG_INFINITY))
+                self.advance(4);
+                Ok(serde_json::json!(f64::NEG_INFINITY))
             }
             Some('n') if self.remaining().starts_with("nan") => {
-                self.advance(3); Ok(Value::Null) // JSON has no NaN, use null
+                self.advance(3);
+                Ok(Value::Null) // JSON has no NaN, use null
             }
             Some('+') if self.remaining().starts_with("+nan") => {
-                self.advance(4); Ok(Value::Null)
+                self.advance(4);
+                Ok(Value::Null)
             }
             Some('-') if self.remaining().starts_with("-nan") => {
-                self.advance(4); Ok(Value::Null)
+                self.advance(4);
+                Ok(Value::Null)
             }
             Some(c) if c.is_ascii_digit() || c == '+' || c == '-' => self.parse_number_or_dt(),
             Some(c) => Err(TomlError::UnexpectedChar(c, self.pos)),
@@ -280,34 +355,75 @@ impl<'a> Parser<'a> {
 
     fn parse_number_or_dt(&mut self) -> Result<Value, TomlError> {
         let start = self.pos;
-        if matches!(self.peek(), Some('+') | Some('-')) { self.advance(1); }
+        if matches!(self.peek(), Some('+') | Some('-')) {
+            self.advance(1);
+        }
 
         // 0x / 0o / 0b
         if self.remaining().starts_with("0x") || self.remaining().starts_with("0X") {
             self.advance(2);
             let hs = self.pos;
-            while self.peek().map_or(false, |c| c.is_ascii_hexdigit() || c == '_') { self.advance(1); }
-            let clean: String = self.input[hs..self.pos].chars().filter(|c| *c != '_').collect();
-            let sign: i64 = if self.input[start..].starts_with('-') { -1 } else { 1 };
-            let val = i64::from_str_radix(&clean, 16).map_err(|_| TomlError::InvalidNumber(self.input[start..self.pos].into()))?;
+            while self
+                .peek()
+                .map_or(false, |c| c.is_ascii_hexdigit() || c == '_')
+            {
+                self.advance(1);
+            }
+            let clean: String = self.input[hs..self.pos]
+                .chars()
+                .filter(|c| *c != '_')
+                .collect();
+            let sign: i64 = if self.input[start..].starts_with('-') {
+                -1
+            } else {
+                1
+            };
+            let val = i64::from_str_radix(&clean, 16)
+                .map_err(|_| TomlError::InvalidNumber(self.input[start..self.pos].into()))?;
             return Ok(serde_json::json!(sign * val));
         }
         if self.remaining().starts_with("0o") || self.remaining().starts_with("0O") {
             self.advance(2);
             let os = self.pos;
-            while self.peek().map_or(false, |c| ('0'..='7').contains(&c) || c == '_') { self.advance(1); }
-            let clean: String = self.input[os..self.pos].chars().filter(|c| *c != '_').collect();
-            let sign: i64 = if self.input[start..].starts_with('-') { -1 } else { 1 };
-            let val = i64::from_str_radix(&clean, 8).map_err(|_| TomlError::InvalidNumber(self.input[start..self.pos].into()))?;
+            while self
+                .peek()
+                .map_or(false, |c| ('0'..='7').contains(&c) || c == '_')
+            {
+                self.advance(1);
+            }
+            let clean: String = self.input[os..self.pos]
+                .chars()
+                .filter(|c| *c != '_')
+                .collect();
+            let sign: i64 = if self.input[start..].starts_with('-') {
+                -1
+            } else {
+                1
+            };
+            let val = i64::from_str_radix(&clean, 8)
+                .map_err(|_| TomlError::InvalidNumber(self.input[start..self.pos].into()))?;
             return Ok(serde_json::json!(sign * val));
         }
         if self.remaining().starts_with("0b") || self.remaining().starts_with("0B") {
             self.advance(2);
             let bs = self.pos;
-            while self.peek().map_or(false, |c| c == '0' || c == '1' || c == '_') { self.advance(1); }
-            let clean: String = self.input[bs..self.pos].chars().filter(|c| *c != '_').collect();
-            let sign: i64 = if self.input[start..].starts_with('-') { -1 } else { 1 };
-            let val = i64::from_str_radix(&clean, 2).map_err(|_| TomlError::InvalidNumber(self.input[start..self.pos].into()))?;
+            while self
+                .peek()
+                .map_or(false, |c| c == '0' || c == '1' || c == '_')
+            {
+                self.advance(1);
+            }
+            let clean: String = self.input[bs..self.pos]
+                .chars()
+                .filter(|c| *c != '_')
+                .collect();
+            let sign: i64 = if self.input[start..].starts_with('-') {
+                -1
+            } else {
+                1
+            };
+            let val = i64::from_str_radix(&clean, 2)
+                .map_err(|_| TomlError::InvalidNumber(self.input[start..self.pos].into()))?;
             return Ok(serde_json::json!(sign * val));
         }
 
@@ -316,22 +432,34 @@ impl<'a> Parser<'a> {
         while let Some(c) = self.peek() {
             match c {
                 '0'..='9' | '_' => self.advance(1),
-                '.' => { is_float = true; self.advance(1); }
+                '.' => {
+                    is_float = true;
+                    self.advance(1);
+                }
                 'e' | 'E' => {
                     is_float = true;
                     self.advance(1);
-                    if matches!(self.peek(), Some('+') | Some('-')) { self.advance(1); }
+                    if matches!(self.peek(), Some('+') | Some('-')) {
+                        self.advance(1);
+                    }
                 }
                 '-' if !is_float && (self.pos - start == 4 || self.pos - start == 5) => {
-                    could_be_dt = true; break;
+                    could_be_dt = true;
+                    break;
                 }
-                'T' | 't' | ':' | 'Z' | 'z' => { could_be_dt = true; break; }
+                'T' | 't' | ':' | 'Z' | 'z' => {
+                    could_be_dt = true;
+                    break;
+                }
                 _ => break,
             }
         }
 
         if could_be_dt {
-            while self.peek().map_or(false, |c| c.is_ascii_digit() || "T:Zz.+-t".contains(c)) {
+            while self
+                .peek()
+                .map_or(false, |c| c.is_ascii_digit() || "T:Zz.+-t".contains(c))
+            {
                 self.advance(1);
             }
             return Ok(Value::String(self.input[start..self.pos].to_string()));
@@ -340,10 +468,14 @@ impl<'a> Parser<'a> {
         let raw = &self.input[start..self.pos];
         let clean: String = raw.chars().filter(|c| *c != '_').collect();
         if is_float {
-            let val: f64 = clean.parse().map_err(|_| TomlError::InvalidNumber(raw.into()))?;
+            let val: f64 = clean
+                .parse()
+                .map_err(|_| TomlError::InvalidNumber(raw.into()))?;
             Ok(serde_json::json!(val))
         } else {
-            let val: i64 = clean.parse().map_err(|_| TomlError::InvalidNumber(raw.into()))?;
+            let val: i64 = clean
+                .parse()
+                .map_err(|_| TomlError::InvalidNumber(raw.into()))?;
             Ok(serde_json::json!(val))
         }
     }
@@ -353,10 +485,15 @@ impl<'a> Parser<'a> {
         let mut items = Vec::new();
         loop {
             self.skip_ws_and_nl();
-            if let Some(']') = self.peek() { self.advance(1); return Ok(Value::Array(items)); }
+            if let Some(']') = self.peek() {
+                self.advance(1);
+                return Ok(Value::Array(items));
+            }
             items.push(self.parse_value()?);
             self.skip_ws_and_nl();
-            if let Some(',') = self.peek() { self.advance(1); }
+            if let Some(',') = self.peek() {
+                self.advance(1);
+            }
         }
     }
 
@@ -365,7 +502,10 @@ impl<'a> Parser<'a> {
         let mut map = Map::new();
         loop {
             self.skip_ws();
-            if let Some('}') = self.peek() { self.advance(1); return Ok(Value::Object(map)); }
+            if let Some('}') = self.peek() {
+                self.advance(1);
+                return Ok(Value::Object(map));
+            }
             let keys = self.parse_dotted_key()?;
             self.skip_ws();
             match self.peek() {
@@ -375,7 +515,9 @@ impl<'a> Parser<'a> {
             let val = self.parse_value()?;
             insert_dotted(&mut map, &keys, val)?;
             self.skip_ws();
-            if let Some(',') = self.peek() { self.advance(1); }
+            if let Some(',') = self.peek() {
+                self.advance(1);
+            }
         }
     }
 }
@@ -394,7 +536,9 @@ fn ensure_table(root: &mut Map<String, Value>, path: &[String]) {
 }
 
 fn ensure_aot(root: &mut Map<String, Value>, path: &[String]) {
-    if path.is_empty() { return; }
+    if path.is_empty() {
+        return;
+    }
     let mut cur = root;
     // Navigate to parent tables
     for key in &path[..path.len() - 1] {
@@ -423,7 +567,10 @@ fn ensure_aot(root: &mut Map<String, Value>, path: &[String]) {
     }
 }
 
-fn get_table_mut<'a>(root: &'a mut Map<String, Value>, path: &[String]) -> &'a mut Map<String, Value> {
+fn get_table_mut<'a>(
+    root: &'a mut Map<String, Value>,
+    path: &[String],
+) -> &'a mut Map<String, Value> {
     if path.is_empty() {
         return root;
     }
@@ -431,7 +578,11 @@ fn get_table_mut<'a>(root: &'a mut Map<String, Value>, path: &[String]) -> &'a m
     get_table_step(root, path, 0)
 }
 
-fn get_table_step<'a>(cur: &'a mut Map<String, Value>, path: &[String], idx: usize) -> &'a mut Map<String, Value> {
+fn get_table_step<'a>(
+    cur: &'a mut Map<String, Value>,
+    path: &[String],
+    idx: usize,
+) -> &'a mut Map<String, Value> {
     if idx >= path.len() {
         return cur;
     }
@@ -463,7 +614,11 @@ fn get_table_step<'a>(cur: &'a mut Map<String, Value>, path: &[String], idx: usi
     }
 }
 
-fn insert_dotted(table: &mut Map<String, Value>, keys: &[String], val: Value) -> Result<(), TomlError> {
+fn insert_dotted(
+    table: &mut Map<String, Value>,
+    keys: &[String],
+    val: Value,
+) -> Result<(), TomlError> {
     if keys.len() == 1 {
         table.insert(keys[0].clone(), val);
         Ok(())
@@ -488,27 +643,42 @@ pub fn parse(input: &str) -> Result<Value, TomlError> {
 
     loop {
         parser.skip_ws_and_nl();
-        if parser.peek().is_none() { break; }
+        if parser.peek().is_none() {
+            break;
+        }
 
         match parser.peek() {
             Some('[') => {
                 parser.advance(1);
-                let is_aot = if let Some('[') = parser.peek() { parser.advance(1); true } else { false };
+                let is_aot = if let Some('[') = parser.peek() {
+                    parser.advance(1);
+                    true
+                } else {
+                    false
+                };
                 parser.skip_ws();
                 let path = parser.parse_dotted_key()?;
                 parser.skip_ws();
                 if is_aot {
-                    if let Some(']') = parser.peek() { parser.advance(1); }
-                    if let Some(']') = parser.peek() { parser.advance(1); }
+                    if let Some(']') = parser.peek() {
+                        parser.advance(1);
+                    }
+                    if let Some(']') = parser.peek() {
+                        parser.advance(1);
+                    }
                     ensure_aot(&mut root, &path);
                 } else {
-                    if let Some(']') = parser.peek() { parser.advance(1); }
+                    if let Some(']') = parser.peek() {
+                        parser.advance(1);
+                    }
                     ensure_table(&mut root, &path);
                 }
                 current_path = path;
                 parser.skip_to_newline();
             }
-            Some('#') => { parser.skip_comment(); }
+            Some('#') => {
+                parser.skip_comment();
+            }
             Some(_) => {
                 let keys = parser.parse_dotted_key()?;
                 parser.skip_ws();

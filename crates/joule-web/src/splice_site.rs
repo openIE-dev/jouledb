@@ -119,8 +119,7 @@ impl fmt::Display for SpliceSite {
         write!(
             f,
             "SpliceSite({}, pos={}, {}, score={:.3}, {})",
-            self.site_type, self.position, self.dinucleotide,
-            self.score, self.strength,
+            self.site_type, self.position, self.dinucleotide, self.score, self.strength,
         )
     }
 }
@@ -152,16 +151,16 @@ impl SplicePwm {
     /// Consensus: MAG|GTRAGT (M=A/C, R=A/G, |=exon/intron boundary).
     pub fn default_donor() -> Self {
         Self::new(SpliceSiteType::Donor)
-            .with_position(1.0, -1.0, -0.5, 0.5)   // M (A or C)
-            .with_position(1.5, -1.0, -0.5, -0.5)   // A
-            .with_position(-1.0, -1.0, 2.0, -1.0)   // G
+            .with_position(1.0, -1.0, -0.5, 0.5) // M (A or C)
+            .with_position(1.5, -1.0, -0.5, -0.5) // A
+            .with_position(-1.0, -1.0, 2.0, -1.0) // G
             // intron boundary
-            .with_position(-2.0, -2.0, 2.5, -2.0)   // G (canonical)
-            .with_position(-2.0, 2.5, -2.0, -2.0)   // T (canonical)
-            .with_position(1.0, -0.5, 0.5, -1.0)    // R (A or G)
-            .with_position(1.5, -0.5, -0.5, -0.5)   // A
-            .with_position(-1.0, -1.0, 2.0, -1.0)   // G
-            .with_position(-1.0, 1.5, -0.5, -0.5)   // T
+            .with_position(-2.0, -2.0, 2.5, -2.0) // G (canonical)
+            .with_position(-2.0, 2.5, -2.0, -2.0) // T (canonical)
+            .with_position(1.0, -0.5, 0.5, -1.0) // R (A or G)
+            .with_position(1.5, -0.5, -0.5, -0.5) // A
+            .with_position(-1.0, -1.0, 2.0, -1.0) // G
+            .with_position(-1.0, 1.5, -0.5, -0.5) // T
     }
 
     /// Build a default acceptor (3') splice site PWM.
@@ -169,17 +168,17 @@ impl SplicePwm {
     /// Consensus: polypyrimidine tract + YAG| (Y=C/T).
     pub fn default_acceptor() -> Self {
         Self::new(SpliceSiteType::Acceptor)
-            .with_position(-0.5, 1.0, -1.0, 1.0)    // Y (pyrimidine)
-            .with_position(-0.5, 1.0, -1.0, 1.0)    // Y
-            .with_position(-0.5, 1.0, -1.0, 1.0)    // Y
-            .with_position(-0.5, 1.0, -1.0, 1.0)    // Y (polypyrimidine tract)
-            .with_position(-1.0, 1.0, -1.0, 1.0)    // Y
-            .with_position(-2.0, -2.0, -2.0, -2.0)   // N (branch point region)
-            .with_position(-0.5, 1.0, -1.0, 1.0)    // Y
+            .with_position(-0.5, 1.0, -1.0, 1.0) // Y (pyrimidine)
+            .with_position(-0.5, 1.0, -1.0, 1.0) // Y
+            .with_position(-0.5, 1.0, -1.0, 1.0) // Y
+            .with_position(-0.5, 1.0, -1.0, 1.0) // Y (polypyrimidine tract)
+            .with_position(-1.0, 1.0, -1.0, 1.0) // Y
+            .with_position(-2.0, -2.0, -2.0, -2.0) // N (branch point region)
+            .with_position(-0.5, 1.0, -1.0, 1.0) // Y
             // splice site
-            .with_position(-2.0, -2.0, -2.0, -2.0)   // N
-            .with_position(2.5, -2.0, -2.0, -2.0)   // A (canonical)
-            .with_position(-2.0, -2.0, 2.5, -2.0)   // G (canonical)
+            .with_position(-2.0, -2.0, -2.0, -2.0) // N
+            .with_position(2.5, -2.0, -2.0, -2.0) // A (canonical)
+            .with_position(-2.0, -2.0, 2.5, -2.0) // G (canonical)
     }
 
     fn base_index(b: u8) -> Option<usize> {
@@ -210,10 +209,14 @@ impl SplicePwm {
 
     /// Max and min possible scores.
     pub fn score_range(&self) -> (f64, f64) {
-        let max_s: f64 = self.matrix.iter()
+        let max_s: f64 = self
+            .matrix
+            .iter()
             .map(|r| r.iter().copied().fold(f64::NEG_INFINITY, f64::max))
             .sum();
-        let min_s: f64 = self.matrix.iter()
+        let min_s: f64 = self
+            .matrix
+            .iter()
             .map(|r| r.iter().copied().fold(f64::INFINITY, f64::min))
             .sum();
         (min_s, max_s)
@@ -223,13 +226,22 @@ impl SplicePwm {
     pub fn normalized_score(&self, seq: &[u8]) -> f64 {
         let raw = self.score(seq);
         let (mn, mx) = self.score_range();
-        if (mx - mn).abs() < 1e-12 { 0.0 } else { (raw - mn) / (mx - mn) }
+        if (mx - mn).abs() < 1e-12 {
+            0.0
+        } else {
+            (raw - mn) / (mx - mn)
+        }
     }
 }
 
 impl fmt::Display for SplicePwm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SplicePwm({}, len={})", self.site_type, self.matrix.len())
+        write!(
+            f,
+            "SplicePwm({}, len={})",
+            self.site_type,
+            self.matrix.len()
+        )
     }
 }
 
@@ -269,11 +281,19 @@ impl IntronExon {
     }
 
     pub fn exon_length(&self) -> usize {
-        if self.exon_end >= self.exon_start { self.exon_end - self.exon_start + 1 } else { 0 }
+        if self.exon_end >= self.exon_start {
+            self.exon_end - self.exon_start + 1
+        } else {
+            0
+        }
     }
 
     pub fn intron_length(&self) -> usize {
-        if self.intron_end >= self.intron_start { self.intron_end - self.intron_start + 1 } else { 0 }
+        if self.intron_end >= self.intron_start {
+            self.intron_end - self.intron_start + 1
+        } else {
+            0
+        }
     }
 }
 
@@ -282,8 +302,12 @@ impl fmt::Display for IntronExon {
         write!(
             f,
             "IntronExon(exon={}-{} [{}bp], intron={}-{} [{}bp])",
-            self.exon_start, self.exon_end, self.exon_length(),
-            self.intron_start, self.intron_end, self.intron_length(),
+            self.exon_start,
+            self.exon_end,
+            self.exon_length(),
+            self.intron_start,
+            self.intron_end,
+            self.intron_length(),
         )
     }
 }
@@ -295,7 +319,8 @@ pub fn polypyrimidine_score(seq: &[u8]) -> f64 {
     if seq.is_empty() {
         return 0.0;
     }
-    let pyrimidine_count = seq.iter()
+    let pyrimidine_count = seq
+        .iter()
         .filter(|&&b| b == b'T' || b == b't' || b == b'C' || b == b'c')
         .count();
     pyrimidine_count as f64 / seq.len() as f64
@@ -480,8 +505,8 @@ mod tests {
     #[test]
     fn test_splice_pwm_score() {
         let pwm = SplicePwm::new(SpliceSiteType::Donor)
-            .with_position(2.0, -1.0, -1.0, -1.0)   // A
-            .with_position(-1.0, -1.0, 2.0, -1.0);  // G
+            .with_position(2.0, -1.0, -1.0, -1.0) // A
+            .with_position(-1.0, -1.0, 2.0, -1.0); // G
         let score = pwm.score(b"AG");
         assert!((score - 4.0).abs() < 1e-9);
     }

@@ -98,7 +98,8 @@ impl SurpriseGate {
             Err(p) => p.into_inner(),
         };
         // Bound distinct channels (4,096 max) so dynamic untrusted channel tags cannot OOM
-        if !map.contains_key(channel) && map.len() >= 4096
+        if !map.contains_key(channel)
+            && map.len() >= 4096
             && let Some(evict_key) = map.keys().next().cloned()
         {
             map.remove(&evict_key);

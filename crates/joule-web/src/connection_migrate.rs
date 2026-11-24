@@ -37,10 +37,16 @@ impl fmt::Display for MigrationError {
             Self::DuplicateConnection(id) => write!(f, "duplicate connection: {id}"),
             Self::NoActiveMigration(id) => write!(f, "no active migration for connection {id}"),
             Self::MigrationInProgress(id) => write!(f, "migration already in progress for {id}"),
-            Self::PathValidationFailed { connection_id, reason } => {
+            Self::PathValidationFailed {
+                connection_id,
+                reason,
+            } => {
                 write!(f, "path validation failed for {connection_id}: {reason}")
             }
-            Self::RollbackFailed { connection_id, reason } => {
+            Self::RollbackFailed {
+                connection_id,
+                reason,
+            } => {
                 write!(f, "rollback failed for {connection_id}: {reason}")
             }
             Self::ConnectionClosed(id) => write!(f, "connection {id} is closed"),
@@ -61,7 +67,10 @@ pub struct NetAddress {
 
 impl NetAddress {
     pub fn new(ip: impl Into<String>, port: u16) -> Self {
-        Self { ip: ip.into(), port }
+        Self {
+            ip: ip.into(),
+            port,
+        }
     }
 }
 
@@ -161,11 +170,7 @@ impl fmt::Display for MigrationStats {
         write!(
             f,
             "total={} ok={} fail={} rollback={} probes={}",
-            self.total_migrations,
-            self.successful,
-            self.failed,
-            self.rollbacks,
-            self.probes_sent,
+            self.total_migrations, self.successful, self.failed, self.rollbacks, self.probes_sent,
         )
     }
 }
@@ -235,23 +240,32 @@ impl MigrationManager {
     }
 
     /// Register a connection.
-    pub fn register(&mut self, connection_id: u64, address: NetAddress) -> Result<(), MigrationError> {
+    pub fn register(
+        &mut self,
+        connection_id: u64,
+        address: NetAddress,
+    ) -> Result<(), MigrationError> {
         if self.connections.contains_key(&connection_id) {
             return Err(MigrationError::DuplicateConnection(connection_id));
         }
-        self.connections.insert(connection_id, ConnectionEntry {
-            id: connection_id,
-            current_address: address,
-            active_migration: None,
-            history: VecDeque::new(),
-            closed: false,
-        });
+        self.connections.insert(
+            connection_id,
+            ConnectionEntry {
+                id: connection_id,
+                current_address: address,
+                active_migration: None,
+                history: VecDeque::new(),
+                closed: false,
+            },
+        );
         Ok(())
     }
 
     /// Unregister (close) a connection.
     pub fn close(&mut self, connection_id: u64) -> Result<(), MigrationError> {
-        let entry = self.connections.get_mut(&connection_id)
+        let entry = self
+            .connections
+            .get_mut(&connection_id)
             .ok_or(MigrationError::ConnectionNotFound(connection_id))?;
         entry.closed = true;
         Ok(())
@@ -263,7 +277,9 @@ impl MigrationManager {
         connection_id: u64,
         new_address: NetAddress,
     ) -> Result<(), MigrationError> {
-        let entry = self.connections.get_mut(&connection_id)
+        let entry = self
+            .connections
+            .get_mut(&connection_id)
             .ok_or(MigrationError::ConnectionNotFound(connection_id))?;
         if entry.closed {
             return Err(MigrationError::ConnectionClosed(connection_id));
@@ -288,9 +304,13 @@ impl MigrationManager {
     /// Send a probe for path validation.
     pub fn probe(&mut self, connection_id: u64) -> Result<MigrationState, MigrationError> {
         let probes_required = self.config.probes_required;
-        let entry = self.connections.get_mut(&connection_id)
+        let entry = self
+            .connections
+            .get_mut(&connection_id)
             .ok_or(MigrationError::ConnectionNotFound(connection_id))?;
-        let migration = entry.active_migration.as_mut()
+        let migration = entry
+            .active_migration
+            .as_mut()
             .ok_or(MigrationError::NoActiveMigration(connection_id))?;
 
         migration.state = MigrationState::Probing;
@@ -308,9 +328,13 @@ impl MigrationManager {
     pub fn complete(&mut self, connection_id: u64) -> Result<(), MigrationError> {
         let max_history = self.config.max_history;
         let tick = self.current_tick;
-        let entry = self.connections.get_mut(&connection_id)
+        let entry = self
+            .connections
+            .get_mut(&connection_id)
             .ok_or(MigrationError::ConnectionNotFound(connection_id))?;
-        let mut migration = entry.active_migration.take()
+        let mut migration = entry
+            .active_migration
+            .take()
             .ok_or(MigrationError::NoActiveMigration(connection_id))?;
 
         if migration.state != MigrationState::Validated {
@@ -341,9 +365,13 @@ impl MigrationManager {
     pub fn rollback(&mut self, connection_id: u64) -> Result<(), MigrationError> {
         let max_history = self.config.max_history;
         let tick = self.current_tick;
-        let entry = self.connections.get_mut(&connection_id)
+        let entry = self
+            .connections
+            .get_mut(&connection_id)
             .ok_or(MigrationError::ConnectionNotFound(connection_id))?;
-        let mut migration = entry.active_migration.take()
+        let mut migration = entry
+            .active_migration
+            .take()
             .ok_or(MigrationError::NoActiveMigration(connection_id))?;
 
         migration.state = MigrationState::RolledBack;
@@ -361,21 +389,30 @@ impl MigrationManager {
 
     /// Get the current address for a connection.
     pub fn address(&self, connection_id: u64) -> Result<&NetAddress, MigrationError> {
-        let entry = self.connections.get(&connection_id)
+        let entry = self
+            .connections
+            .get(&connection_id)
             .ok_or(MigrationError::ConnectionNotFound(connection_id))?;
         Ok(&entry.current_address)
     }
 
     /// Whether a migration is in progress.
     pub fn has_active_migration(&self, connection_id: u64) -> Result<bool, MigrationError> {
-        let entry = self.connections.get(&connection_id)
+        let entry = self
+            .connections
+            .get(&connection_id)
             .ok_or(MigrationError::ConnectionNotFound(connection_id))?;
         Ok(entry.active_migration.is_some())
     }
 
     /// Get migration history for a connection.
-    pub fn history(&self, connection_id: u64) -> Result<&VecDeque<MigrationRecord>, MigrationError> {
-        let entry = self.connections.get(&connection_id)
+    pub fn history(
+        &self,
+        connection_id: u64,
+    ) -> Result<&VecDeque<MigrationRecord>, MigrationError> {
+        let entry = self
+            .connections
+            .get(&connection_id)
             .ok_or(MigrationError::ConnectionNotFound(connection_id))?;
         Ok(&entry.history)
     }

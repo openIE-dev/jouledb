@@ -114,8 +114,11 @@ impl fmt::Display for SwConfig {
         write!(
             f,
             "SwConfig(match={}, mis={}, open={}, ext={}, affine={})",
-            self.match_score, self.mismatch_penalty,
-            self.gap_open, self.gap_extend, self.use_affine
+            self.match_score,
+            self.mismatch_penalty,
+            self.gap_open,
+            self.gap_extend,
+            self.use_affine
         )
     }
 }
@@ -147,7 +150,9 @@ impl SwAlignment {
         self.aligned_a
             .iter()
             .zip(self.aligned_b.iter())
-            .filter(|(a, b)| **a != b'-' && **b != b'-' && a.to_ascii_uppercase() == b.to_ascii_uppercase())
+            .filter(|(a, b)| {
+                **a != b'-' && **b != b'-' && a.to_ascii_uppercase() == b.to_ascii_uppercase()
+            })
             .count()
     }
 }
@@ -159,8 +164,12 @@ impl fmt::Display for SwAlignment {
         write!(
             f,
             "SW(score={:.1}, id={:.1}%, len={}, gaps={})\n  A: {}\n  B: {}",
-            self.score, self.identity, self.length(), self.num_gaps,
-            a_str, b_str
+            self.score,
+            self.identity,
+            self.length(),
+            self.num_gaps,
+            a_str,
+            b_str
         )
     }
 }
@@ -272,8 +281,7 @@ impl SmithWaterman {
                     iy[i][j - 1] + self.config.gap_extend,
                 );
 
-                let diag =
-                    h[i - 1][j - 1] + self.config.score_pair(seq_a[i - 1], seq_b[j - 1]);
+                let diag = h[i - 1][j - 1] + self.config.score_pair(seq_a[i - 1], seq_b[j - 1]);
 
                 let mut best = 0.0;
                 let mut dir = TraceDir::None;
@@ -350,10 +358,20 @@ impl SmithWaterman {
         let matches = aligned_a
             .iter()
             .zip(aligned_b.iter())
-            .filter(|(a, b)| **a != b'-' && **b != b'-' && a.to_ascii_uppercase() == b.to_ascii_uppercase())
+            .filter(|(a, b)| {
+                **a != b'-' && **b != b'-' && a.to_ascii_uppercase() == b.to_ascii_uppercase()
+            })
             .count();
-        let gaps = aligned_a.iter().chain(aligned_b.iter()).filter(|&&c| c == b'-').count();
-        let identity = if aln_len > 0 { matches as f64 / aln_len as f64 * 100.0 } else { 0.0 };
+        let gaps = aligned_a
+            .iter()
+            .chain(aligned_b.iter())
+            .filter(|&&c| c == b'-')
+            .count();
+        let identity = if aln_len > 0 {
+            matches as f64 / aln_len as f64 * 100.0
+        } else {
+            0.0
+        };
 
         Ok(SwAlignment {
             aligned_a,
@@ -584,7 +602,9 @@ mod tests {
     #[test]
     fn protein_alignment() {
         let sw = SmithWaterman::new(
-            SwConfig::new().with_match_score(1.0).with_mismatch_penalty(-1.0),
+            SwConfig::new()
+                .with_match_score(1.0)
+                .with_mismatch_penalty(-1.0),
         );
         let aln = sw.align(b"MKWVTF", b"MKWVTF").unwrap();
         assert!((aln.identity - 100.0).abs() < 1e-9);

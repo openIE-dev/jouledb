@@ -24,7 +24,11 @@ impl Vec3 {
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn norm(&self) -> f64 {
@@ -36,7 +40,11 @@ impl Vec3 {
         if n < 1e-15 {
             return Self::zero();
         }
-        Self { x: self.x / n, y: self.y / n, z: self.z / n }
+        Self {
+            x: self.x / n,
+            y: self.y / n,
+            z: self.z / n,
+        }
     }
 
     pub fn dot(&self, other: &Vec3) -> f64 {
@@ -83,7 +91,12 @@ pub struct Quaternion {
 
 impl Quaternion {
     pub fn identity() -> Self {
-        Self { w: 1.0, x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            w: 1.0,
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn new(w: f64, x: f64, y: f64, z: f64) -> Self {
@@ -94,7 +107,12 @@ impl Quaternion {
         let half = angle / 2.0;
         let s = half.sin();
         let a = axis.normalized();
-        Self { w: half.cos(), x: a.x * s, y: a.y * s, z: a.z * s }
+        Self {
+            w: half.cos(),
+            x: a.x * s,
+            y: a.y * s,
+            z: a.z * s,
+        }
     }
 
     pub fn from_euler(roll: f64, pitch: f64, yaw: f64) -> Self {
@@ -121,11 +139,21 @@ impl Quaternion {
         if n < 1e-15 {
             return Self::identity();
         }
-        Self { w: self.w / n, x: self.x / n, y: self.y / n, z: self.z / n }
+        Self {
+            w: self.w / n,
+            x: self.x / n,
+            y: self.y / n,
+            z: self.z / n,
+        }
     }
 
     pub fn conjugate(&self) -> Self {
-        Self { w: self.w, x: -self.x, y: -self.y, z: -self.z }
+        Self {
+            w: self.w,
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
     }
 
     pub fn multiply(&self, other: &Quaternion) -> Quaternion {
@@ -180,9 +208,9 @@ impl Quaternion {
         let wy = q.w * q.y;
         let wz = q.w * q.z;
         [
-            [1.0 - 2.0 * (yy + zz), 2.0 * (xy - wz),       2.0 * (xz + wy)],
-            [2.0 * (xy + wz),       1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx)],
-            [2.0 * (xz - wy),       2.0 * (yz + wx),       1.0 - 2.0 * (xx + yy)],
+            [1.0 - 2.0 * (yy + zz), 2.0 * (xy - wz), 2.0 * (xz + wy)],
+            [2.0 * (xy + wz), 1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx)],
+            [2.0 * (xz - wy), 2.0 * (yz + wx), 1.0 - 2.0 * (xx + yy)],
         ]
     }
 
@@ -219,7 +247,11 @@ impl Quaternion {
 
 impl fmt::Display for Quaternion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Q({:.4}, {:.4}, {:.4}, {:.4})", self.w, self.x, self.y, self.z)
+        write!(
+            f,
+            "Q({:.4}, {:.4}, {:.4}, {:.4})",
+            self.w, self.x, self.y, self.z
+        )
     }
 }
 
@@ -238,13 +270,21 @@ pub struct ImuReading {
 
 impl ImuReading {
     pub fn new(accel: Vec3, gyro: Vec3, timestamp_s: f64) -> Self {
-        Self { accel, gyro, timestamp_s }
+        Self {
+            accel,
+            gyro,
+            timestamp_s,
+        }
     }
 }
 
 impl fmt::Display for ImuReading {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "IMU(t={:.3}s, a={}, g={})", self.timestamp_s, self.accel, self.gyro)
+        write!(
+            f,
+            "IMU(t={:.3}s, a={}, g={})",
+            self.timestamp_s, self.accel, self.gyro
+        )
     }
 }
 
@@ -280,9 +320,8 @@ impl ComplementaryFilter {
     pub fn update(&mut self, reading: &ImuReading) {
         // Accelerometer-based angles
         let accel_roll = reading.accel.y.atan2(reading.accel.z);
-        let accel_pitch = (-reading.accel.x).atan2(
-            (reading.accel.y * reading.accel.y + reading.accel.z * reading.accel.z).sqrt(),
-        );
+        let accel_pitch = (-reading.accel.x)
+            .atan2((reading.accel.y * reading.accel.y + reading.accel.z * reading.accel.z).sqrt());
 
         if !self.initialized {
             self.roll = accel_roll;
@@ -471,7 +510,8 @@ impl MadgwickFilter {
                 q.x + q_dot.x * dt,
                 q.y + q_dot.y * dt,
                 q.z + q_dot.z * dt,
-            ).normalized();
+            )
+            .normalized();
             return;
         }
 
@@ -522,7 +562,8 @@ impl MadgwickFilter {
             q.x + (q_dot_x - self.beta * gx) * dt,
             q.y + (q_dot_y - self.beta * gy) * dt,
             q.z + (q_dot_z - self.beta * gz) * dt,
-        ).normalized();
+        )
+        .normalized();
     }
 
     pub fn orientation(&self) -> Quaternion {
@@ -545,7 +586,10 @@ impl fmt::Display for MadgwickFilter {
         write!(
             f,
             "Madgwick(beta={:.3}, rpy=({:.1}, {:.1}, {:.1}) deg)",
-            self.beta, r.to_degrees(), p.to_degrees(), y.to_degrees()
+            self.beta,
+            r.to_degrees(),
+            p.to_degrees(),
+            y.to_degrees()
         )
     }
 }
@@ -650,11 +694,7 @@ mod tests {
     #[test]
     fn test_complementary_filter_init() {
         let mut filter = ComplementaryFilter::new(0.98);
-        let reading = ImuReading::new(
-            Vec3::new(0.0, 0.0, 9.81),
-            Vec3::zero(),
-            0.0,
-        );
+        let reading = ImuReading::new(Vec3::new(0.0, 0.0, 9.81), Vec3::zero(), 0.0);
         filter.update(&reading);
         let (roll, pitch) = filter.orientation();
         assert!(roll.abs() < 0.01);
@@ -665,11 +705,7 @@ mod tests {
     fn test_complementary_filter_tilted() {
         let mut filter = ComplementaryFilter::new(0.98);
         // Tilted 45 degrees in roll
-        let reading = ImuReading::new(
-            Vec3::new(0.0, 6.94, 6.94),
-            Vec3::zero(),
-            0.0,
-        );
+        let reading = ImuReading::new(Vec3::new(0.0, 6.94, 6.94), Vec3::zero(), 0.0);
         filter.update(&reading);
         let (roll, _) = filter.orientation();
         assert!((roll - PI / 4.0).abs() < 0.05);
@@ -724,11 +760,7 @@ mod tests {
     fn test_madgwick_stationary() {
         let mut filter = MadgwickFilter::new(0.1).with_sample_freq(100.0);
         for i in 0..200 {
-            let reading = ImuReading::new(
-                Vec3::new(0.0, 0.0, 9.81),
-                Vec3::zero(),
-                i as f64 * 0.01,
-            );
+            let reading = ImuReading::new(Vec3::new(0.0, 0.0, 9.81), Vec3::zero(), i as f64 * 0.01);
             filter.update(&reading);
         }
         let (roll, pitch, _) = filter.euler_angles();

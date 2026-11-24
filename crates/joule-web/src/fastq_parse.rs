@@ -13,9 +13,20 @@ pub enum FastqError {
     EmptyInput,
     MissingHeader(usize),
     MissingSeparator(usize),
-    LengthMismatch { record: usize, seq_len: usize, qual_len: usize },
-    InvalidQuality { record: usize, position: usize, ch: char },
-    PairedEndMismatch { r1_count: usize, r2_count: usize },
+    LengthMismatch {
+        record: usize,
+        seq_len: usize,
+        qual_len: usize,
+    },
+    InvalidQuality {
+        record: usize,
+        position: usize,
+        ch: char,
+    },
+    PairedEndMismatch {
+        r1_count: usize,
+        r2_count: usize,
+    },
     MalformedRecord(String),
 }
 
@@ -25,14 +36,31 @@ impl fmt::Display for FastqError {
             Self::EmptyInput => write!(f, "empty FASTQ input"),
             Self::MissingHeader(n) => write!(f, "missing '@' header at record {n}"),
             Self::MissingSeparator(n) => write!(f, "missing '+' separator at record {n}"),
-            Self::LengthMismatch { record, seq_len, qual_len } => {
-                write!(f, "record {record}: sequence length {seq_len} != quality length {qual_len}")
+            Self::LengthMismatch {
+                record,
+                seq_len,
+                qual_len,
+            } => {
+                write!(
+                    f,
+                    "record {record}: sequence length {seq_len} != quality length {qual_len}"
+                )
             }
-            Self::InvalidQuality { record, position, ch } => {
-                write!(f, "record {record}: invalid quality char '{ch}' at position {position}")
+            Self::InvalidQuality {
+                record,
+                position,
+                ch,
+            } => {
+                write!(
+                    f,
+                    "record {record}: invalid quality char '{ch}' at position {position}"
+                )
             }
             Self::PairedEndMismatch { r1_count, r2_count } => {
-                write!(f, "paired-end mismatch: R1 has {r1_count}, R2 has {r2_count} records")
+                write!(
+                    f,
+                    "paired-end mismatch: R1 has {r1_count}, R2 has {r2_count} records"
+                )
             }
             Self::MalformedRecord(s) => write!(f, "malformed record: {s}"),
         }
@@ -189,8 +217,13 @@ impl FastqRecord {
 
 impl fmt::Display for FastqRecord {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "@{} ({}bp, mean_q={:.1})", self.id, self.len(),
-               self.mean_quality(QualityEncoding::Phred33))
+        write!(
+            f,
+            "@{} ({}bp, mean_q={:.1})",
+            self.id,
+            self.len(),
+            self.mean_quality(QualityEncoding::Phred33)
+        )
     }
 }
 
@@ -245,9 +278,10 @@ impl FastqParser {
                 continue;
             }
             if i + 3 >= lines.len() {
-                return Err(FastqError::MalformedRecord(
-                    format!("incomplete record at line {}", i + 1),
-                ));
+                return Err(FastqError::MalformedRecord(format!(
+                    "incomplete record at line {}",
+                    i + 1
+                )));
             }
             // Line 1: header
             let header = lines[i].trim();
@@ -304,7 +338,11 @@ impl FastqParser {
 
 impl fmt::Display for FastqParser {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "FastqParser(encoding={}, min_len={})", self.encoding, self.min_length)
+        write!(
+            f,
+            "FastqParser(encoding={}, min_len={})",
+            self.encoding, self.min_length
+        )
     }
 }
 
@@ -410,13 +448,19 @@ mod tests {
     #[test]
     fn t10_missing_header() {
         let input = "ACGT\n+\nIIII\nXXXX\n";
-        assert!(matches!(parse_fastq(input), Err(FastqError::MissingHeader(_))));
+        assert!(matches!(
+            parse_fastq(input),
+            Err(FastqError::MissingHeader(_))
+        ));
     }
 
     #[test]
     fn t11_length_mismatch() {
         let input = "@r\nACGT\n+\nIII\n";
-        assert!(matches!(parse_fastq(input), Err(FastqError::LengthMismatch { .. })));
+        assert!(matches!(
+            parse_fastq(input),
+            Err(FastqError::LengthMismatch { .. })
+        ));
     }
 
     #[test]
@@ -485,6 +529,9 @@ mod tests {
     #[test]
     fn t20_missing_separator() {
         let input = "@r\nACGT\nNOSEP\nIIII\n";
-        assert!(matches!(parse_fastq(input), Err(FastqError::MissingSeparator(_))));
+        assert!(matches!(
+            parse_fastq(input),
+            Err(FastqError::MissingSeparator(_))
+        ));
     }
 }

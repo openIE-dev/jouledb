@@ -100,11 +100,23 @@ impl Version {
         if parts.len() != 3 {
             return Err(SemverError::InvalidVersion(input.to_string()));
         }
-        let major = parts[0].parse().map_err(|_| SemverError::InvalidVersion(input.to_string()))?;
-        let minor = parts[1].parse().map_err(|_| SemverError::InvalidVersion(input.to_string()))?;
-        let patch = parts[2].parse().map_err(|_| SemverError::InvalidVersion(input.to_string()))?;
+        let major = parts[0]
+            .parse()
+            .map_err(|_| SemverError::InvalidVersion(input.to_string()))?;
+        let minor = parts[1]
+            .parse()
+            .map_err(|_| SemverError::InvalidVersion(input.to_string()))?;
+        let patch = parts[2]
+            .parse()
+            .map_err(|_| SemverError::InvalidVersion(input.to_string()))?;
 
-        Ok(Version { major, minor, patch, pre, build })
+        Ok(Version {
+            major,
+            minor,
+            patch,
+            pre,
+            build,
+        })
     }
 
     /// Whether this version has pre-release identifiers.
@@ -173,14 +185,18 @@ impl fmt::Display for Version {
         if !self.pre.is_empty() {
             write!(f, "-")?;
             for (i, p) in self.pre.iter().enumerate() {
-                if i > 0 { write!(f, ".")?; }
+                if i > 0 {
+                    write!(f, ".")?;
+                }
                 write!(f, "{p}")?;
             }
         }
         if !self.build.is_empty() {
             write!(f, "+")?;
             for (i, b) in self.build.iter().enumerate() {
-                if i > 0 { write!(f, ".")?; }
+                if i > 0 {
+                    write!(f, ".")?;
+                }
                 write!(f, "{b}")?;
             }
         }
@@ -235,7 +251,9 @@ impl VersionRange {
         let mut comparators = Vec::new();
         for part in or_parts {
             let part = part.trim();
-            if part.is_empty() { continue; }
+            if part.is_empty() {
+                continue;
+            }
             let and_group = parse_and_group(part)?;
             comparators.push(and_group);
         }
@@ -247,18 +265,22 @@ impl VersionRange {
 
     /// Check whether a version satisfies this range.
     pub fn satisfies(&self, version: &Version) -> bool {
-        self.comparators.iter().any(|and_group| {
-            and_group.iter().all(|comp| comp.matches(version))
-        })
+        self.comparators
+            .iter()
+            .any(|and_group| and_group.iter().all(|comp| comp.matches(version)))
     }
 }
 
 impl fmt::Display for VersionRange {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, group) in self.comparators.iter().enumerate() {
-            if i > 0 { write!(f, " || ")?; }
+            if i > 0 {
+                write!(f, " || ")?;
+            }
             for (j, comp) in group.iter().enumerate() {
-                if j > 0 { write!(f, " ")?; }
+                if j > 0 {
+                    write!(f, " ")?;
+                }
                 write!(f, "{comp}")?;
             }
         }
@@ -278,8 +300,12 @@ impl fmt::Display for Comparator {
             RangeOp::Tilde => "~",
         };
         write!(f, "{}{}", op_str, self.major)?;
-        if let Some(min) = self.minor { write!(f, ".{min}")?; }
-        if let Some(pat) = self.patch { write!(f, ".{pat}")?; }
+        if let Some(min) = self.minor {
+            write!(f, ".{min}")?;
+        }
+        if let Some(pat) = self.patch {
+            write!(f, ".{pat}")?;
+        }
         Ok(())
     }
 }
@@ -326,7 +352,13 @@ fn parse_single_comparator(input: &str) -> Result<Comparator, SemverError> {
 
     // Handle wildcard
     if rest == "*" || rest == "x" || rest == "X" {
-        return Ok(Comparator { op: RangeOp::Gte, major: 0, minor: Some(0), patch: Some(0), pre: vec![] });
+        return Ok(Comparator {
+            op: RangeOp::Gte,
+            major: 0,
+            minor: Some(0),
+            patch: Some(0),
+            pre: vec![],
+        });
     }
 
     // Split off pre-release
@@ -334,7 +366,11 @@ fn parse_single_comparator(input: &str) -> Result<Comparator, SemverError> {
         let pre_ids: Vec<PreRelease> = pp
             .split('.')
             .map(|s| {
-                if let Ok(n) = s.parse::<u64>() { PreRelease::Num(n) } else { PreRelease::Alpha(s.to_string()) }
+                if let Ok(n) = s.parse::<u64>() {
+                    PreRelease::Num(n)
+                } else {
+                    PreRelease::Alpha(s.to_string())
+                }
             })
             .collect();
         (vp, pre_ids)
@@ -343,45 +379,83 @@ fn parse_single_comparator(input: &str) -> Result<Comparator, SemverError> {
     };
 
     let parts: Vec<&str> = version_part.split('.').collect();
-    let major: u64 = parts[0].parse().map_err(|_| SemverError::InvalidRange(input.to_string()))?;
+    let major: u64 = parts[0]
+        .parse()
+        .map_err(|_| SemverError::InvalidRange(input.to_string()))?;
     let minor = if parts.len() > 1 {
         let s = parts[1];
-        if s == "*" || s == "x" || s == "X" { None } else { Some(s.parse().map_err(|_| SemverError::InvalidRange(input.to_string()))?) }
+        if s == "*" || s == "x" || s == "X" {
+            None
+        } else {
+            Some(
+                s.parse()
+                    .map_err(|_| SemverError::InvalidRange(input.to_string()))?,
+            )
+        }
     } else {
         None
     };
     let patch = if parts.len() > 2 {
         let s = parts[2];
-        if s == "*" || s == "x" || s == "X" { None } else { Some(s.parse().map_err(|_| SemverError::InvalidRange(input.to_string()))?) }
+        if s == "*" || s == "x" || s == "X" {
+            None
+        } else {
+            Some(
+                s.parse()
+                    .map_err(|_| SemverError::InvalidRange(input.to_string()))?,
+            )
+        }
     } else {
         None
     };
 
-    Ok(Comparator { op, major, minor, patch, pre })
+    Ok(Comparator {
+        op,
+        major,
+        minor,
+        patch,
+        pre,
+    })
 }
 
 impl Comparator {
     fn matches(&self, v: &Version) -> bool {
         match self.op {
             RangeOp::Eq => self.matches_eq(v),
-            RangeOp::Gt => self.to_version().map_or(false, |cv| v.cmp_precedence(&cv) == Ordering::Greater),
-            RangeOp::Gte => self.to_version().map_or(false, |cv| v.cmp_precedence(&cv) != Ordering::Less),
-            RangeOp::Lt => self.to_version().map_or(false, |cv| v.cmp_precedence(&cv) == Ordering::Less),
-            RangeOp::Lte => self.to_version().map_or(false, |cv| v.cmp_precedence(&cv) != Ordering::Greater),
+            RangeOp::Gt => self
+                .to_version()
+                .map_or(false, |cv| v.cmp_precedence(&cv) == Ordering::Greater),
+            RangeOp::Gte => self
+                .to_version()
+                .map_or(false, |cv| v.cmp_precedence(&cv) != Ordering::Less),
+            RangeOp::Lt => self
+                .to_version()
+                .map_or(false, |cv| v.cmp_precedence(&cv) == Ordering::Less),
+            RangeOp::Lte => self
+                .to_version()
+                .map_or(false, |cv| v.cmp_precedence(&cv) != Ordering::Greater),
             RangeOp::Caret => self.matches_caret(v),
             RangeOp::Tilde => self.matches_tilde(v),
         }
     }
 
     fn matches_eq(&self, v: &Version) -> bool {
-        if v.major != self.major { return false; }
+        if v.major != self.major {
+            return false;
+        }
         if let Some(min) = self.minor {
-            if v.minor != min { return false; }
+            if v.minor != min {
+                return false;
+            }
         }
         if let Some(pat) = self.patch {
-            if v.patch != pat { return false; }
+            if v.patch != pat {
+                return false;
+            }
         }
-        if !self.pre.is_empty() && self.pre != v.pre { return false; }
+        if !self.pre.is_empty() && self.pre != v.pre {
+            return false;
+        }
         true
     }
 
@@ -391,15 +465,41 @@ impl Comparator {
         // ^1.2.3 := >=1.2.3, <2.0.0
         // ^0.2.3 := >=0.2.3, <0.3.0
         // ^0.0.3 := >=0.0.3, <0.0.4
-        let lo = Version { major: self.major, minor, patch, pre: self.pre.clone(), build: vec![] };
-        if v.cmp_precedence(&lo) == Ordering::Less { return false; }
+        let lo = Version {
+            major: self.major,
+            minor,
+            patch,
+            pre: self.pre.clone(),
+            build: vec![],
+        };
+        if v.cmp_precedence(&lo) == Ordering::Less {
+            return false;
+        }
 
         let hi = if self.major != 0 {
-            Version { major: self.major + 1, minor: 0, patch: 0, pre: vec![], build: vec![] }
+            Version {
+                major: self.major + 1,
+                minor: 0,
+                patch: 0,
+                pre: vec![],
+                build: vec![],
+            }
         } else if minor != 0 || self.minor.is_none() {
-            Version { major: 0, minor: minor + 1, patch: 0, pre: vec![], build: vec![] }
+            Version {
+                major: 0,
+                minor: minor + 1,
+                patch: 0,
+                pre: vec![],
+                build: vec![],
+            }
         } else {
-            Version { major: 0, minor: 0, patch: patch + 1, pre: vec![], build: vec![] }
+            Version {
+                major: 0,
+                minor: 0,
+                patch: patch + 1,
+                pre: vec![],
+                build: vec![],
+            }
         };
         v.cmp_precedence(&hi) == Ordering::Less
     }
@@ -408,13 +508,33 @@ impl Comparator {
         let minor = self.minor.unwrap_or(0);
         let patch = self.patch.unwrap_or(0);
         // ~1.2.3 := >=1.2.3, <1.3.0
-        let lo = Version { major: self.major, minor, patch, pre: self.pre.clone(), build: vec![] };
-        if v.cmp_precedence(&lo) == Ordering::Less { return false; }
+        let lo = Version {
+            major: self.major,
+            minor,
+            patch,
+            pre: self.pre.clone(),
+            build: vec![],
+        };
+        if v.cmp_precedence(&lo) == Ordering::Less {
+            return false;
+        }
 
         let hi = if self.minor.is_some() {
-            Version { major: self.major, minor: minor + 1, patch: 0, pre: vec![], build: vec![] }
+            Version {
+                major: self.major,
+                minor: minor + 1,
+                patch: 0,
+                pre: vec![],
+                build: vec![],
+            }
         } else {
-            Version { major: self.major + 1, minor: 0, patch: 0, pre: vec![], build: vec![] }
+            Version {
+                major: self.major + 1,
+                minor: 0,
+                patch: 0,
+                pre: vec![],
+                build: vec![],
+            }
         };
         v.cmp_precedence(&hi) == Ordering::Less
     }

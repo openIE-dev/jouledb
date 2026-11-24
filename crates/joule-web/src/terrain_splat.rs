@@ -23,11 +23,21 @@ impl Color {
     }
 
     pub fn black() -> Self {
-        Self { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }
+        Self {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 1.0,
+        }
     }
 
     pub fn white() -> Self {
-        Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }
+        Self {
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+            a: 1.0,
+        }
     }
 
     pub fn lerp(&self, other: &Color, t: f32) -> Color {
@@ -117,7 +127,11 @@ impl SplatMap {
         for i in (0..count).step_by(4) {
             data[i] = 1.0;
         }
-        Self { width, height, data }
+        Self {
+            width,
+            height,
+            data,
+        }
     }
 
     fn idx(&self, x: usize, y: usize) -> usize {
@@ -129,7 +143,12 @@ impl SplatMap {
             return [0.0; 4];
         }
         let i = self.idx(x, y);
-        [self.data[i], self.data[i + 1], self.data[i + 2], self.data[i + 3]]
+        [
+            self.data[i],
+            self.data[i + 1],
+            self.data[i + 2],
+            self.data[i + 3],
+        ]
     }
 
     pub fn set_weights(&mut self, x: usize, y: usize, w: [f32; 4]) {
@@ -266,7 +285,13 @@ pub fn triplanar_sample(
 
 /// Sharp height-based blend between two layers.
 /// `depth` controls the transition width (smaller = sharper).
-pub fn height_blend(weight_a: f32, height_a: f32, weight_b: f32, height_b: f32, depth: f32) -> (f32, f32) {
+pub fn height_blend(
+    weight_a: f32,
+    height_a: f32,
+    weight_b: f32,
+    height_b: f32,
+    depth: f32,
+) -> (f32, f32) {
     let ma = weight_a + height_a;
     let mb = weight_b + height_b;
     let max_val = ma.max(mb) - depth;
@@ -364,13 +389,7 @@ impl TerrainSplat {
     }
 
     /// Sample the composited terrain color at a world position with given splat UV.
-    pub fn sample(
-        &self,
-        world_pos: &Vec3,
-        normal: &Vec3,
-        splat_u: f32,
-        splat_v: f32,
-    ) -> Color {
+    pub fn sample(&self, world_pos: &Vec3, normal: &Vec3, splat_u: f32, splat_v: f32) -> Color {
         if self.layers.is_empty() {
             return Color::black();
         }
@@ -589,7 +608,11 @@ mod tests {
     #[test]
     fn slope_angle_vertical() {
         let side = Vec3::new(1.0, 0.0, 0.0);
-        assert!(approx(slope_angle(&side), std::f32::consts::FRAC_PI_2, 1e-4));
+        assert!(approx(
+            slope_angle(&side),
+            std::f32::consts::FRAC_PI_2,
+            1e-4
+        ));
     }
 
     #[test]
@@ -607,7 +630,11 @@ mod tests {
         // Nearly flat: tiny slope so angle is near 0 but inside grass center
         let normal = Vec3::new(0.05, 0.999, 0.0);
         let w = auto_splat_weights(&normal, &[grass, rock]);
-        assert!(w[0] > w[1], "flat terrain should be mostly grass: w={:?}", w);
+        assert!(
+            w[0] > w[1],
+            "flat terrain should be mostly grass: w={:?}",
+            w
+        );
     }
 
     #[test]

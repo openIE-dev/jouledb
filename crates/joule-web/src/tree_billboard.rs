@@ -74,11 +74,21 @@ pub struct AtlasRegion {
 
 impl AtlasRegion {
     pub fn new(u_min: f32, v_min: f32, u_max: f32, v_max: f32) -> Self {
-        Self { u_min, v_min, u_max, v_max }
+        Self {
+            u_min,
+            v_min,
+            u_max,
+            v_max,
+        }
     }
 
     pub fn full() -> Self {
-        Self { u_min: 0.0, v_min: 0.0, u_max: 1.0, v_max: 1.0 }
+        Self {
+            u_min: 0.0,
+            v_min: 0.0,
+            u_max: 1.0,
+            v_max: 1.0,
+        }
     }
 
     /// Width in UV space.
@@ -247,12 +257,7 @@ impl Billboard {
     }
 
     /// Generate shadow quad projected onto ground (Y=ground_y).
-    pub fn shadow_quad(
-        &self,
-        camera: &Vec3,
-        light_dir: &Vec3,
-        ground_y: f32,
-    ) -> Option<[Vec3; 4]> {
+    pub fn shadow_quad(&self, camera: &Vec3, light_dir: &Vec3, ground_y: f32) -> Option<[Vec3; 4]> {
         if !self.casts_shadow {
             return None;
         }
@@ -263,11 +268,7 @@ impl Billboard {
         let mut shadow = [Vec3::new(0.0, 0.0, 0.0); 4];
         for (i, c) in corners.iter().enumerate() {
             let t = (ground_y - c.y) / light_dir.y;
-            shadow[i] = Vec3::new(
-                c.x + light_dir.x * t,
-                ground_y,
-                c.z + light_dir.z * t,
-            );
+            shadow[i] = Vec3::new(c.x + light_dir.x * t, ground_y, c.z + light_dir.z * t);
         }
         Some(shadow)
     }
@@ -438,7 +439,8 @@ impl BillboardBatch {
 
     /// Cull billboards beyond max_distance.
     pub fn cull_by_distance(&mut self, camera: &Vec3, max_distance: f32) {
-        self.billboards.retain(|bb| bb.position.distance_to(camera) <= max_distance);
+        self.billboards
+            .retain(|bb| bb.position.distance_to(camera) <= max_distance);
     }
 }
 

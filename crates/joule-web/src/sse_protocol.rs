@@ -115,9 +115,7 @@ impl SseEvent {
         }
         if let Some(id) = &self.id {
             if id.contains('\0') {
-                return Err(SseError::InvalidData(
-                    "id contains null byte".to_string(),
-                ));
+                return Err(SseError::InvalidData("id contains null byte".to_string()));
             }
         }
         Ok(())
@@ -240,10 +238,7 @@ pub fn parse_event_stream(input: &str) -> Result<Vec<SseEvent>, SseError> {
     }
 
     // If there's data remaining without a trailing blank line, still dispatch it.
-    if !current_data.is_empty()
-        || current_id.is_some()
-        || current_event_type.is_some()
-    {
+    if !current_data.is_empty() || current_id.is_some() || current_event_type.is_some() {
         let data = current_data.join("\n");
         events.push(SseEvent {
             id: current_id,

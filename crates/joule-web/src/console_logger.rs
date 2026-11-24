@@ -74,13 +74,7 @@ impl ConsoleBuffer {
     }
 
     /// Log with source location.
-    pub fn log_with_source(
-        &mut self,
-        level: LogLevel,
-        message: &str,
-        file: &str,
-        line: u32,
-    ) {
+    pub fn log_with_source(&mut self, level: LogLevel, message: &str, file: &str, line: u32) {
         self.push_entry(level, message, Some(file), Some(line), None);
     }
 
@@ -226,7 +220,10 @@ impl ConsoleBuffer {
 
     /// Filter entries by minimum log level.
     pub fn filter_by_level(&self, min_level: LogLevel) -> Vec<&LogEntry> {
-        self.entries.iter().filter(|e| e.level >= min_level).collect()
+        self.entries
+            .iter()
+            .filter(|e| e.level >= min_level)
+            .collect()
     }
 
     /// Filter entries by source file pattern (substring match).

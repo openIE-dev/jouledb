@@ -117,7 +117,13 @@ pub struct GameSession {
 }
 
 impl GameSession {
-    pub fn new(id: &str, host: &str, max_players: usize, game_mode: &str, created_at_ms: u64) -> Self {
+    pub fn new(
+        id: &str,
+        host: &str,
+        max_players: usize,
+        game_mode: &str,
+        created_at_ms: u64,
+    ) -> Self {
         let mut players = HashMap::new();
         players.insert(host.to_string(), PlayerStatus::Connected);
         Self {
@@ -143,7 +149,10 @@ impl GameSession {
     }
 
     pub fn connected_count(&self) -> usize {
-        self.players.values().filter(|s| matches!(s, PlayerStatus::Connected)).count()
+        self.players
+            .values()
+            .filter(|s| matches!(s, PlayerStatus::Connected))
+            .count()
     }
 
     pub fn player_ids(&self) -> Vec<&str> {
@@ -164,7 +173,8 @@ impl GameSession {
         if self.players.len() >= self.max_players {
             return Err(SessionError::SessionFull(self.id.clone()));
         }
-        self.players.insert(player.to_string(), PlayerStatus::Connected);
+        self.players
+            .insert(player.to_string(), PlayerStatus::Connected);
         Ok(())
     }
 
@@ -423,13 +433,15 @@ mod tests {
             Some(PlayerStatus::Disconnected { .. })
         ));
         s.reconnect("bob").unwrap();
-        assert!(matches!(s.player_status("bob"), Some(PlayerStatus::Connected)));
+        assert!(matches!(
+            s.player_status("bob"),
+            Some(PlayerStatus::Connected)
+        ));
     }
 
     #[test]
     fn expire_disconnected() {
-        let mut s = GameSession::new("1", "alice", 4, "dm", 0)
-            .with_reconnect_timeout(10_000);
+        let mut s = GameSession::new("1", "alice", 4, "dm", 0).with_reconnect_timeout(10_000);
         s.add_player("bob").unwrap();
         s.disconnect("bob", 1000).unwrap();
         let expired = s.expire_disconnected(5000);

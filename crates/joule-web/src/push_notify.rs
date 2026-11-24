@@ -180,10 +180,7 @@ impl NotificationAction {
                 r#"{{"action":"{}","title":"{}","icon":"{}"}}"#,
                 self.action, self.title, icon
             ),
-            None => format!(
-                r#"{{"action":"{}","title":"{}"}}"#,
-                self.action, self.title
-            ),
+            None => format!(r#"{{"action":"{}","title":"{}"}}"#, self.action, self.title),
         }
     }
 }
@@ -419,12 +416,16 @@ pub struct TopicDeduplicator {
 
 impl TopicDeduplicator {
     pub fn new() -> Self {
-        Self { latest: HashMap::new() }
+        Self {
+            latest: HashMap::new(),
+        }
     }
 
     /// Record a message. Returns true if this is a new topic or updated content.
     pub fn record(&mut self, topic: &str, payload_json: &str) -> bool {
-        let prev = self.latest.insert(topic.to_string(), payload_json.to_string());
+        let prev = self
+            .latest
+            .insert(topic.to_string(), payload_json.to_string());
         prev.as_deref() != Some(payload_json)
     }
 
@@ -487,8 +488,7 @@ mod tests {
 
     #[test]
     fn subscription_expiration() {
-        let sub = PushSubscription::new("https://example.com/push", "k", "a")
-            .with_expiration(1000);
+        let sub = PushSubscription::new("https://example.com/push", "k", "a").with_expiration(1000);
         assert!(!sub.is_expired_at(999));
         assert!(sub.is_expired_at(1000));
         assert!(sub.is_expired_at(1001));
@@ -502,10 +502,7 @@ mod tests {
 
     #[test]
     fn subscription_origin() {
-        let sub = PushSubscription::new(
-            "https://fcm.googleapis.com/fcm/send/abc",
-            "k", "a",
-        );
+        let sub = PushSubscription::new("https://fcm.googleapis.com/fcm/send/abc", "k", "a");
         assert_eq!(sub.origin(), Some("https://fcm.googleapis.com"));
     }
 
@@ -513,7 +510,12 @@ mod tests {
 
     #[test]
     fn urgency_roundtrip() {
-        for u in [Urgency::VeryLow, Urgency::Low, Urgency::Normal, Urgency::High] {
+        for u in [
+            Urgency::VeryLow,
+            Urgency::Low,
+            Urgency::Normal,
+            Urgency::High,
+        ] {
             assert_eq!(Urgency::from_str(u.as_str()), Some(u));
         }
     }
@@ -542,8 +544,7 @@ mod tests {
 
     #[test]
     fn action_json_with_icon() {
-        let a = NotificationAction::new("open", "Open")
-            .with_icon("/icons/open.png");
+        let a = NotificationAction::new("open", "Open").with_icon("/icons/open.png");
         let json = a.to_json();
         assert!(json.contains(r#""icon":"/icons/open.png""#));
     }
@@ -579,8 +580,7 @@ mod tests {
 
     #[test]
     fn payload_with_tag() {
-        let p = NotificationPayload::new("Update")
-            .with_tag("msg-123");
+        let p = NotificationPayload::new("Update").with_tag("msg-123");
         let json = p.to_json();
         assert!(json.contains(r#""tag":"msg-123""#));
     }
@@ -597,8 +597,7 @@ mod tests {
 
     #[test]
     fn payload_with_dir_and_lang() {
-        let p = NotificationPayload::new("Test")
-            .with_dir(NotificationDir::Rtl);
+        let p = NotificationPayload::new("Test").with_dir(NotificationDir::Rtl);
         let json = p.to_json();
         assert!(json.contains(r#""dir":"rtl""#));
     }
@@ -619,8 +618,7 @@ mod tests {
 
     #[test]
     fn payload_data_passthrough() {
-        let p = NotificationPayload::new("Test")
-            .with_data(r#"{"key":"value"}"#);
+        let p = NotificationPayload::new("Test").with_data(r#"{"key":"value"}"#);
         let json = p.to_json();
         assert!(json.contains(r#""data":{"key":"value"}"#));
     }

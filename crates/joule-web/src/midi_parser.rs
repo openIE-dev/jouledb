@@ -94,30 +94,87 @@ pub fn decode_vlq(data: &[u8]) -> Option<(u32, usize)> {
 /// A parsed MIDI channel message.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MidiMessage {
-    NoteOff { channel: u8, note: u8, velocity: u8 },
-    NoteOn { channel: u8, note: u8, velocity: u8 },
-    ControlChange { channel: u8, controller: u8, value: u8 },
-    ProgramChange { channel: u8, program: u8 },
-    ChannelPressure { channel: u8, pressure: u8 },
-    PitchBend { channel: u8, value: u16 },
-    SystemExclusive { data: Vec<u8> },
-    MetaTempo { microseconds_per_beat: u32 },
-    MetaTimeSignature { numerator: u8, denominator_power: u8 },
+    NoteOff {
+        channel: u8,
+        note: u8,
+        velocity: u8,
+    },
+    NoteOn {
+        channel: u8,
+        note: u8,
+        velocity: u8,
+    },
+    ControlChange {
+        channel: u8,
+        controller: u8,
+        value: u8,
+    },
+    ProgramChange {
+        channel: u8,
+        program: u8,
+    },
+    ChannelPressure {
+        channel: u8,
+        pressure: u8,
+    },
+    PitchBend {
+        channel: u8,
+        value: u16,
+    },
+    SystemExclusive {
+        data: Vec<u8>,
+    },
+    MetaTempo {
+        microseconds_per_beat: u32,
+    },
+    MetaTimeSignature {
+        numerator: u8,
+        denominator_power: u8,
+    },
     MetaEndOfTrack,
-    MetaTrackName { name: String },
-    Unknown { status: u8, data: Vec<u8> },
+    MetaTrackName {
+        name: String,
+    },
+    Unknown {
+        status: u8,
+        data: Vec<u8>,
+    },
 }
 
 impl fmt::Display for MidiMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MidiMessage::NoteOn { channel, note, velocity } => {
-                write!(f, "NoteOn ch={} note={} vel={}", channel, midi_to_note_name(*note), velocity)
+            MidiMessage::NoteOn {
+                channel,
+                note,
+                velocity,
+            } => {
+                write!(
+                    f,
+                    "NoteOn ch={} note={} vel={}",
+                    channel,
+                    midi_to_note_name(*note),
+                    velocity
+                )
             }
-            MidiMessage::NoteOff { channel, note, velocity } => {
-                write!(f, "NoteOff ch={} note={} vel={}", channel, midi_to_note_name(*note), velocity)
+            MidiMessage::NoteOff {
+                channel,
+                note,
+                velocity,
+            } => {
+                write!(
+                    f,
+                    "NoteOff ch={} note={} vel={}",
+                    channel,
+                    midi_to_note_name(*note),
+                    velocity
+                )
             }
-            MidiMessage::ControlChange { channel, controller, value } => {
+            MidiMessage::ControlChange {
+                channel,
+                controller,
+                value,
+            } => {
                 write!(f, "CC ch={} ctrl={} val={}", channel, controller, value)
             }
             MidiMessage::ProgramChange { channel, program } => {
@@ -129,7 +186,9 @@ impl fmt::Display for MidiMessage {
             MidiMessage::SystemExclusive { data } => {
                 write!(f, "SysEx [{} bytes]", data.len())
             }
-            MidiMessage::MetaTempo { microseconds_per_beat } => {
+            MidiMessage::MetaTempo {
+                microseconds_per_beat,
+            } => {
                 let bpm = 60_000_000.0 / *microseconds_per_beat as f64;
                 write!(f, "Tempo {:.1} BPM", bpm)
             }
@@ -141,13 +200,25 @@ impl fmt::Display for MidiMessage {
 /// Serialize a MIDI message back to bytes (channel messages only).
 pub fn serialize_message(msg: &MidiMessage) -> Vec<u8> {
     match msg {
-        MidiMessage::NoteOff { channel, note, velocity } => {
+        MidiMessage::NoteOff {
+            channel,
+            note,
+            velocity,
+        } => {
             vec![0x80 | (channel & 0x0F), *note & 0x7F, *velocity & 0x7F]
         }
-        MidiMessage::NoteOn { channel, note, velocity } => {
+        MidiMessage::NoteOn {
+            channel,
+            note,
+            velocity,
+        } => {
             vec![0x90 | (channel & 0x0F), *note & 0x7F, *velocity & 0x7F]
         }
-        MidiMessage::ControlChange { channel, controller, value } => {
+        MidiMessage::ControlChange {
+            channel,
+            controller,
+            value,
+        } => {
             vec![0xB0 | (channel & 0x0F), *controller & 0x7F, *value & 0x7F]
         }
         MidiMessage::ProgramChange { channel, program } => {
@@ -167,12 +238,17 @@ pub fn serialize_message(msg: &MidiMessage) -> Vec<u8> {
             out.push(0xF7);
             out
         }
-        MidiMessage::MetaTempo { microseconds_per_beat } => {
+        MidiMessage::MetaTempo {
+            microseconds_per_beat,
+        } => {
             let v = *microseconds_per_beat;
             vec![0xFF, 0x51, 0x03, (v >> 16) as u8, (v >> 8) as u8, v as u8]
         }
         MidiMessage::MetaEndOfTrack => vec![0xFF, 0x2F, 0x00],
-        MidiMessage::MetaTimeSignature { numerator, denominator_power } => {
+        MidiMessage::MetaTimeSignature {
+            numerator,
+            denominator_power,
+        } => {
             vec![0xFF, 0x58, 0x04, *numerator, *denominator_power, 24, 8]
         }
         MidiMessage::MetaTrackName { name } => {
@@ -201,8 +277,8 @@ pub struct MidiEvent {
 /// MIDI file format type.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MidiFormat {
-    SingleTrack,   // Format 0
-    MultiTrack,    // Format 1
+    SingleTrack, // Format 0
+    MultiTrack,  // Format 1
 }
 
 /// A parsed MIDI file.
@@ -226,12 +302,24 @@ pub fn build_tempo_map(events: &[MidiEvent]) -> Vec<TempoEntry> {
     let mut tick: u64 = 0;
     for ev in events {
         tick += ev.delta_ticks as u64;
-        if let MidiMessage::MetaTempo { microseconds_per_beat } = &ev.message {
-            map.push(TempoEntry { tick, microseconds_per_beat: *microseconds_per_beat });
+        if let MidiMessage::MetaTempo {
+            microseconds_per_beat,
+        } = &ev.message
+        {
+            map.push(TempoEntry {
+                tick,
+                microseconds_per_beat: *microseconds_per_beat,
+            });
         }
     }
     if map.is_empty() || map[0].tick != 0 {
-        map.insert(0, TempoEntry { tick: 0, microseconds_per_beat: 500_000 }); // 120 BPM default
+        map.insert(
+            0,
+            TempoEntry {
+                tick: 0,
+                microseconds_per_beat: 500_000,
+            },
+        ); // 120 BPM default
     }
     map
 }
@@ -275,41 +363,101 @@ pub fn parse_message(data: &[u8], running_status: u8) -> Option<(MidiMessage, us
 
     match status & 0xF0 {
         0x80 => {
-            if remaining.len() < 2 { return None; }
+            if remaining.len() < 2 {
+                return None;
+            }
             let ch = status & 0x0F;
-            Some((MidiMessage::NoteOff { channel: ch, note: remaining[0], velocity: remaining[1] }, offset + 2))
+            Some((
+                MidiMessage::NoteOff {
+                    channel: ch,
+                    note: remaining[0],
+                    velocity: remaining[1],
+                },
+                offset + 2,
+            ))
         }
         0x90 => {
-            if remaining.len() < 2 { return None; }
+            if remaining.len() < 2 {
+                return None;
+            }
             let ch = status & 0x0F;
             let vel = remaining[1];
             if vel == 0 {
-                Some((MidiMessage::NoteOff { channel: ch, note: remaining[0], velocity: 0 }, offset + 2))
+                Some((
+                    MidiMessage::NoteOff {
+                        channel: ch,
+                        note: remaining[0],
+                        velocity: 0,
+                    },
+                    offset + 2,
+                ))
             } else {
-                Some((MidiMessage::NoteOn { channel: ch, note: remaining[0], velocity: vel }, offset + 2))
+                Some((
+                    MidiMessage::NoteOn {
+                        channel: ch,
+                        note: remaining[0],
+                        velocity: vel,
+                    },
+                    offset + 2,
+                ))
             }
         }
         0xA0 => {
-            if remaining.len() < 2 { return None; }
-            Some((MidiMessage::Unknown { status, data: remaining[..2].to_vec() }, offset + 2))
+            if remaining.len() < 2 {
+                return None;
+            }
+            Some((
+                MidiMessage::Unknown {
+                    status,
+                    data: remaining[..2].to_vec(),
+                },
+                offset + 2,
+            ))
         }
         0xB0 => {
-            if remaining.len() < 2 { return None; }
+            if remaining.len() < 2 {
+                return None;
+            }
             let ch = status & 0x0F;
-            Some((MidiMessage::ControlChange { channel: ch, controller: remaining[0], value: remaining[1] }, offset + 2))
+            Some((
+                MidiMessage::ControlChange {
+                    channel: ch,
+                    controller: remaining[0],
+                    value: remaining[1],
+                },
+                offset + 2,
+            ))
         }
         0xC0 => {
-            if remaining.is_empty() { return None; }
+            if remaining.is_empty() {
+                return None;
+            }
             let ch = status & 0x0F;
-            Some((MidiMessage::ProgramChange { channel: ch, program: remaining[0] }, offset + 1))
+            Some((
+                MidiMessage::ProgramChange {
+                    channel: ch,
+                    program: remaining[0],
+                },
+                offset + 1,
+            ))
         }
         0xD0 => {
-            if remaining.is_empty() { return None; }
+            if remaining.is_empty() {
+                return None;
+            }
             let ch = status & 0x0F;
-            Some((MidiMessage::ChannelPressure { channel: ch, pressure: remaining[0] }, offset + 1))
+            Some((
+                MidiMessage::ChannelPressure {
+                    channel: ch,
+                    pressure: remaining[0],
+                },
+                offset + 1,
+            ))
         }
         0xE0 => {
-            if remaining.len() < 2 { return None; }
+            if remaining.len() < 2 {
+                return None;
+            }
             let ch = status & 0x0F;
             let value = (remaining[0] as u16) | ((remaining[1] as u16) << 7);
             Some((MidiMessage::PitchBend { channel: ch, value }, offset + 2))
@@ -319,19 +467,33 @@ pub fn parse_message(data: &[u8], running_status: u8) -> Option<(MidiMessage, us
                 0xF0 => {
                     // SysEx: read until 0xF7
                     if let Some(end) = remaining.iter().position(|b| *b == 0xF7) {
-                        Some((MidiMessage::SystemExclusive { data: remaining[..end].to_vec() }, offset + end + 1))
+                        Some((
+                            MidiMessage::SystemExclusive {
+                                data: remaining[..end].to_vec(),
+                            },
+                            offset + end + 1,
+                        ))
                     } else {
-                        Some((MidiMessage::SystemExclusive { data: remaining.to_vec() }, offset + remaining.len()))
+                        Some((
+                            MidiMessage::SystemExclusive {
+                                data: remaining.to_vec(),
+                            },
+                            offset + remaining.len(),
+                        ))
                     }
                 }
                 0xFF => {
                     // Meta event
-                    if remaining.len() < 2 { return None; }
+                    if remaining.len() < 2 {
+                        return None;
+                    }
                     let meta_type = remaining[0];
                     let (length, vlq_len) = decode_vlq(&remaining[1..])?;
                     let data_start = 1 + vlq_len;
                     let data_end = data_start + length as usize;
-                    if remaining.len() < data_end { return None; }
+                    if remaining.len() < data_end {
+                        return None;
+                    }
                     let meta_data = &remaining[data_start..data_end];
 
                     let msg = match meta_type {
@@ -343,19 +505,28 @@ pub fn parse_message(data: &[u8], running_status: u8) -> Option<(MidiMessage, us
                             let uspb = ((meta_data[0] as u32) << 16)
                                 | ((meta_data[1] as u32) << 8)
                                 | meta_data[2] as u32;
-                            MidiMessage::MetaTempo { microseconds_per_beat: uspb }
-                        }
-                        0x58 if meta_data.len() >= 2 => {
-                            MidiMessage::MetaTimeSignature {
-                                numerator: meta_data[0],
-                                denominator_power: meta_data[1],
+                            MidiMessage::MetaTempo {
+                                microseconds_per_beat: uspb,
                             }
                         }
-                        _ => MidiMessage::Unknown { status: 0xFF, data: meta_data.to_vec() },
+                        0x58 if meta_data.len() >= 2 => MidiMessage::MetaTimeSignature {
+                            numerator: meta_data[0],
+                            denominator_power: meta_data[1],
+                        },
+                        _ => MidiMessage::Unknown {
+                            status: 0xFF,
+                            data: meta_data.to_vec(),
+                        },
                     };
                     Some((msg, offset + data_end))
                 }
-                _ => Some((MidiMessage::Unknown { status, data: vec![] }, offset)),
+                _ => Some((
+                    MidiMessage::Unknown {
+                        status,
+                        data: vec![],
+                    },
+                    offset,
+                )),
             }
         }
         _ => None,
@@ -364,11 +535,17 @@ pub fn parse_message(data: &[u8], running_status: u8) -> Option<(MidiMessage, us
 
 /// Parse raw MIDI file bytes into a MidiFile structure.
 pub fn parse_midi_file(data: &[u8]) -> Option<MidiFile> {
-    if data.len() < 14 { return None; }
+    if data.len() < 14 {
+        return None;
+    }
     // Header chunk: MThd
-    if &data[0..4] != b"MThd" { return None; }
+    if &data[0..4] != b"MThd" {
+        return None;
+    }
     let header_len = u32::from_be_bytes([data[4], data[5], data[6], data[7]]) as usize;
-    if header_len < 6 { return None; }
+    if header_len < 6 {
+        return None;
+    }
     let format_raw = u16::from_be_bytes([data[8], data[9]]);
     let num_tracks = u16::from_be_bytes([data[10], data[11]]);
     let tpq = u16::from_be_bytes([data[12], data[13]]);
@@ -383,14 +560,20 @@ pub fn parse_midi_file(data: &[u8]) -> Option<MidiFile> {
     let mut tracks = Vec::new();
 
     for _ in 0..num_tracks {
-        if pos + 8 > data.len() { break; }
-        if &data[pos..pos + 4] != b"MTrk" { break; }
-        let track_len = u32::from_be_bytes([
-            data[pos + 4], data[pos + 5], data[pos + 6], data[pos + 7],
-        ]) as usize;
+        if pos + 8 > data.len() {
+            break;
+        }
+        if &data[pos..pos + 4] != b"MTrk" {
+            break;
+        }
+        let track_len =
+            u32::from_be_bytes([data[pos + 4], data[pos + 5], data[pos + 6], data[pos + 7]])
+                as usize;
         pos += 8;
         let track_end = pos + track_len;
-        if track_end > data.len() { break; }
+        if track_end > data.len() {
+            break;
+        }
 
         let mut events = Vec::new();
         let mut tpos = pos;
@@ -402,14 +585,19 @@ pub fn parse_midi_file(data: &[u8]) -> Option<MidiFile> {
                 None => break,
             };
             tpos += vlq_len;
-            if tpos >= track_end { break; }
+            if tpos >= track_end {
+                break;
+            }
 
             match parse_message(&data[tpos..track_end], running) {
                 Some((msg, consumed)) => {
                     if data[tpos] & 0x80 != 0 && data[tpos] < 0xF0 {
                         running = data[tpos];
                     }
-                    events.push(MidiEvent { delta_ticks: delta, message: msg });
+                    events.push(MidiEvent {
+                        delta_ticks: delta,
+                        message: msg,
+                    });
                     tpos += consumed;
                 }
                 None => break,
@@ -420,7 +608,11 @@ pub fn parse_midi_file(data: &[u8]) -> Option<MidiFile> {
         pos = track_end;
     }
 
-    Some(MidiFile { format, ticks_per_quarter: tpq, tracks })
+    Some(MidiFile {
+        format,
+        ticks_per_quarter: tpq,
+        tracks,
+    })
 }
 
 /// Build a minimal MIDI file (format 0) from events.
@@ -456,7 +648,11 @@ pub fn extract_notes(events: &[MidiEvent]) -> Vec<(u64, u8, u8, u8, u64)> {
     for ev in events {
         tick += ev.delta_ticks as u64;
         match &ev.message {
-            MidiMessage::NoteOn { channel, note, velocity } => {
+            MidiMessage::NoteOn {
+                channel,
+                note,
+                velocity,
+            } => {
                 pending.insert((*channel, *note), (tick, *velocity));
             }
             MidiMessage::NoteOff { channel, note, .. } => {
@@ -544,21 +740,42 @@ mod tests {
         let data = [0x90, 60, 100];
         let (msg, consumed) = parse_message(&data, 0).unwrap();
         assert_eq!(consumed, 3);
-        assert_eq!(msg, MidiMessage::NoteOn { channel: 0, note: 60, velocity: 100 });
+        assert_eq!(
+            msg,
+            MidiMessage::NoteOn {
+                channel: 0,
+                note: 60,
+                velocity: 100
+            }
+        );
     }
 
     #[test]
     fn test_parse_note_on_vel_zero_is_note_off() {
         let data = [0x91, 64, 0];
         let (msg, _) = parse_message(&data, 0).unwrap();
-        assert_eq!(msg, MidiMessage::NoteOff { channel: 1, note: 64, velocity: 0 });
+        assert_eq!(
+            msg,
+            MidiMessage::NoteOff {
+                channel: 1,
+                note: 64,
+                velocity: 0
+            }
+        );
     }
 
     #[test]
     fn test_parse_control_change() {
         let data = [0xB2, 7, 100]; // CC#7 (volume) on ch2
         let (msg, _) = parse_message(&data, 0).unwrap();
-        assert_eq!(msg, MidiMessage::ControlChange { channel: 2, controller: 7, value: 100 });
+        assert_eq!(
+            msg,
+            MidiMessage::ControlChange {
+                channel: 2,
+                controller: 7,
+                value: 100
+            }
+        );
     }
 
     #[test]
@@ -566,14 +783,26 @@ mod tests {
         let data = [0xC5, 42];
         let (msg, consumed) = parse_message(&data, 0).unwrap();
         assert_eq!(consumed, 2);
-        assert_eq!(msg, MidiMessage::ProgramChange { channel: 5, program: 42 });
+        assert_eq!(
+            msg,
+            MidiMessage::ProgramChange {
+                channel: 5,
+                program: 42
+            }
+        );
     }
 
     #[test]
     fn test_parse_pitch_bend() {
         let data = [0xE0, 0x00, 0x40]; // center
         let (msg, _) = parse_message(&data, 0).unwrap();
-        assert_eq!(msg, MidiMessage::PitchBend { channel: 0, value: 0x2000 });
+        assert_eq!(
+            msg,
+            MidiMessage::PitchBend {
+                channel: 0,
+                value: 0x2000
+            }
+        );
     }
 
     #[test]
@@ -582,12 +811,23 @@ mod tests {
         let data = [60, 80]; // note=60, vel=80, running_status=0x90
         let (msg, consumed) = parse_message(&data, 0x90).unwrap();
         assert_eq!(consumed, 2);
-        assert_eq!(msg, MidiMessage::NoteOn { channel: 0, note: 60, velocity: 80 });
+        assert_eq!(
+            msg,
+            MidiMessage::NoteOn {
+                channel: 0,
+                note: 60,
+                velocity: 80
+            }
+        );
     }
 
     #[test]
     fn test_serialize_roundtrip_note_on() {
-        let msg = MidiMessage::NoteOn { channel: 3, note: 72, velocity: 110 };
+        let msg = MidiMessage::NoteOn {
+            channel: 3,
+            note: 72,
+            velocity: 110,
+        };
         let bytes = serialize_message(&msg);
         let (parsed, _) = parse_message(&bytes, 0).unwrap();
         assert_eq!(parsed, msg);
@@ -595,7 +835,11 @@ mod tests {
 
     #[test]
     fn test_serialize_roundtrip_cc() {
-        let msg = MidiMessage::ControlChange { channel: 0, controller: 64, value: 127 };
+        let msg = MidiMessage::ControlChange {
+            channel: 0,
+            controller: 64,
+            value: 127,
+        };
         let bytes = serialize_message(&msg);
         let (parsed, _) = parse_message(&bytes, 0).unwrap();
         assert_eq!(parsed, msg);
@@ -603,7 +847,9 @@ mod tests {
 
     #[test]
     fn test_serialize_sysex() {
-        let msg = MidiMessage::SystemExclusive { data: vec![0x7E, 0x7F, 0x09, 0x01] };
+        let msg = MidiMessage::SystemExclusive {
+            data: vec![0x7E, 0x7F, 0x09, 0x01],
+        };
         let bytes = serialize_message(&msg);
         assert_eq!(bytes[0], 0xF0);
         assert_eq!(*bytes.last().unwrap(), 0xF7);
@@ -612,9 +858,26 @@ mod tests {
     #[test]
     fn test_build_and_parse_midi_file() {
         let events = vec![
-            MidiEvent { delta_ticks: 0, message: MidiMessage::NoteOn { channel: 0, note: 60, velocity: 100 } },
-            MidiEvent { delta_ticks: 480, message: MidiMessage::NoteOff { channel: 0, note: 60, velocity: 0 } },
-            MidiEvent { delta_ticks: 0, message: MidiMessage::MetaEndOfTrack },
+            MidiEvent {
+                delta_ticks: 0,
+                message: MidiMessage::NoteOn {
+                    channel: 0,
+                    note: 60,
+                    velocity: 100,
+                },
+            },
+            MidiEvent {
+                delta_ticks: 480,
+                message: MidiMessage::NoteOff {
+                    channel: 0,
+                    note: 60,
+                    velocity: 0,
+                },
+            },
+            MidiEvent {
+                delta_ticks: 0,
+                message: MidiMessage::MetaEndOfTrack,
+            },
         ];
         let data = build_midi_file(&events, 480);
         let parsed = parse_midi_file(&data).unwrap();
@@ -626,9 +889,14 @@ mod tests {
 
     #[test]
     fn test_tempo_map_default() {
-        let events = vec![
-            MidiEvent { delta_ticks: 0, message: MidiMessage::NoteOn { channel: 0, note: 60, velocity: 100 } },
-        ];
+        let events = vec![MidiEvent {
+            delta_ticks: 0,
+            message: MidiMessage::NoteOn {
+                channel: 0,
+                note: 60,
+                velocity: 100,
+            },
+        }];
         let map = build_tempo_map(&events);
         assert_eq!(map.len(), 1);
         assert_eq!(map[0].microseconds_per_beat, 500_000); // 120 BPM
@@ -637,8 +905,18 @@ mod tests {
     #[test]
     fn test_tempo_map_with_change() {
         let events = vec![
-            MidiEvent { delta_ticks: 0, message: MidiMessage::MetaTempo { microseconds_per_beat: 600_000 } },
-            MidiEvent { delta_ticks: 960, message: MidiMessage::MetaTempo { microseconds_per_beat: 400_000 } },
+            MidiEvent {
+                delta_ticks: 0,
+                message: MidiMessage::MetaTempo {
+                    microseconds_per_beat: 600_000,
+                },
+            },
+            MidiEvent {
+                delta_ticks: 960,
+                message: MidiMessage::MetaTempo {
+                    microseconds_per_beat: 400_000,
+                },
+            },
         ];
         let map = build_tempo_map(&events);
         assert_eq!(map.len(), 2);
@@ -648,7 +926,10 @@ mod tests {
 
     #[test]
     fn test_tick_to_microseconds() {
-        let map = vec![TempoEntry { tick: 0, microseconds_per_beat: 500_000 }];
+        let map = vec![TempoEntry {
+            tick: 0,
+            microseconds_per_beat: 500_000,
+        }];
         // At 120 BPM, 480 ticks = 1 beat = 500,000 us
         let us = tick_to_microseconds(480, 480, &map);
         assert!((us - 500_000.0).abs() < 1.0);
@@ -657,10 +938,38 @@ mod tests {
     #[test]
     fn test_extract_notes() {
         let events = vec![
-            MidiEvent { delta_ticks: 0, message: MidiMessage::NoteOn { channel: 0, note: 60, velocity: 100 } },
-            MidiEvent { delta_ticks: 480, message: MidiMessage::NoteOff { channel: 0, note: 60, velocity: 0 } },
-            MidiEvent { delta_ticks: 0, message: MidiMessage::NoteOn { channel: 0, note: 64, velocity: 90 } },
-            MidiEvent { delta_ticks: 240, message: MidiMessage::NoteOff { channel: 0, note: 64, velocity: 0 } },
+            MidiEvent {
+                delta_ticks: 0,
+                message: MidiMessage::NoteOn {
+                    channel: 0,
+                    note: 60,
+                    velocity: 100,
+                },
+            },
+            MidiEvent {
+                delta_ticks: 480,
+                message: MidiMessage::NoteOff {
+                    channel: 0,
+                    note: 60,
+                    velocity: 0,
+                },
+            },
+            MidiEvent {
+                delta_ticks: 0,
+                message: MidiMessage::NoteOn {
+                    channel: 0,
+                    note: 64,
+                    velocity: 90,
+                },
+            },
+            MidiEvent {
+                delta_ticks: 240,
+                message: MidiMessage::NoteOff {
+                    channel: 0,
+                    note: 64,
+                    velocity: 0,
+                },
+            },
         ];
         let notes = extract_notes(&events);
         assert_eq!(notes.len(), 2);
@@ -670,7 +979,11 @@ mod tests {
 
     #[test]
     fn test_midi_display() {
-        let msg = MidiMessage::NoteOn { channel: 0, note: 60, velocity: 100 };
+        let msg = MidiMessage::NoteOn {
+            channel: 0,
+            note: 60,
+            velocity: 100,
+        };
         let s = format!("{}", msg);
         assert!(s.contains("NoteOn"));
         assert!(s.contains("C4"));

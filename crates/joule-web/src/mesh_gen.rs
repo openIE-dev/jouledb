@@ -80,12 +80,18 @@ impl MeshGenConfig {
 }
 
 impl Default for MeshGenConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for MeshGenConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MeshGenConfig(max_edge_length={0:.4}, min_angle_deg={1:.4}, max_triangles={2}, adaptive={3})", self.max_edge_length, self.min_angle_deg, self.max_triangles, self.adaptive)
+        write!(
+            f,
+            "MeshGenConfig(max_edge_length={0:.4}, min_angle_deg={1:.4}, max_triangles={2}, adaptive={3})",
+            self.max_edge_length, self.min_angle_deg, self.max_triangles, self.adaptive
+        )
     }
 }
 
@@ -101,7 +107,10 @@ pub struct MeshGen {
 impl MeshGen {
     pub fn new(config: MeshGenConfig) -> Result<Self, MeshGenError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -113,32 +122,46 @@ impl MeshGen {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &MeshGenConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &MeshGenConfig {
+        &self.config
+    }
 
     /// 2D Delaunay triangulation.
     pub fn triangulate_2d(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Mesh a parametric surface.
     pub fn surface_mesh(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Compute mesh quality.
     pub fn quality_metrics(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -150,7 +173,9 @@ impl MeshGen {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -162,7 +187,11 @@ impl MeshGen {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -235,7 +264,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = MeshGen::new(MeshGenConfig::new()).unwrap()
+        let e = MeshGen::new(MeshGenConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -251,7 +281,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = MeshGen::new(MeshGenConfig::new()).unwrap()
+        let e = MeshGen::new(MeshGenConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("MeshGen"));
@@ -259,7 +290,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = MeshGen::new(MeshGenConfig::new()).unwrap()
+        let e = MeshGen::new(MeshGenConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -270,7 +302,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = MeshGen::new(MeshGenConfig::new()).unwrap()
+        let e = MeshGen::new(MeshGenConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -278,7 +311,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = MeshGen::new(MeshGenConfig::new()).unwrap()
+        let e = MeshGen::new(MeshGenConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -295,7 +329,8 @@ mod tests {
 
     #[test]
     fn test_triangulate_2d() {
-        let e = MeshGen::new(MeshGenConfig::new()).unwrap()
+        let e = MeshGen::new(MeshGenConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.triangulate_2d();
         assert!(!result.is_empty());
@@ -303,7 +338,8 @@ mod tests {
 
     #[test]
     fn test_surface_mesh() {
-        let e = MeshGen::new(MeshGenConfig::new()).unwrap()
+        let e = MeshGen::new(MeshGenConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.surface_mesh();
         assert!(!result.is_empty());
@@ -311,7 +347,8 @@ mod tests {
 
     #[test]
     fn test_quality_metrics() {
-        let e = MeshGen::new(MeshGenConfig::new()).unwrap()
+        let e = MeshGen::new(MeshGenConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.quality_metrics();
         assert!(!result.is_empty());

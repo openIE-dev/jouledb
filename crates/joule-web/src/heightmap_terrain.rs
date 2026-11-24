@@ -23,7 +23,11 @@ impl Vec3 {
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn length(&self) -> f32 {
@@ -176,12 +180,7 @@ impl TerrainChunk {
     }
 
     /// Create chunk from a height slice (row-major, size x size).
-    pub fn from_heights(
-        coord: ChunkCoord,
-        size: usize,
-        spacing: f32,
-        heights: &[f32],
-    ) -> Self {
+    pub fn from_heights(coord: ChunkCoord, size: usize, spacing: f32, heights: &[f32]) -> Self {
         let count = size * size;
         let mut h = vec![0.0; count];
         let copy_len = heights.len().min(count);
@@ -545,9 +544,7 @@ pub fn generate_sine_terrain(
                 for c in 0..chunk_size {
                     let wx = base_x + c as f32 * spacing;
                     let wz = base_z + r as f32 * spacing;
-                    let h = amplitude
-                        * (wx * frequency).sin()
-                        * (wz * frequency).sin();
+                    let h = amplitude * (wx * frequency).sin() * (wz * frequency).sin();
                     chunk.set_height(r, c, h);
                 }
             }
@@ -789,12 +786,7 @@ mod tests {
     #[test]
     fn chunk_from_heights() {
         let data: Vec<f32> = (0..16).map(|i| i as f32).collect();
-        let c = TerrainChunk::from_heights(
-            ChunkCoord { cx: 0, cz: 0 },
-            4,
-            1.0,
-            &data,
-        );
+        let c = TerrainChunk::from_heights(ChunkCoord { cx: 0, cz: 0 }, 4, 1.0, &data);
         assert!(approx_eq(c.get_height(0, 0), 0.0, 1e-6));
         assert!(approx_eq(c.get_height(3, 3), 15.0, 1e-6));
     }

@@ -335,11 +335,7 @@ impl Reconciler {
     }
 
     /// Run the work loop with priority-based time slicing.
-    pub fn work_loop_with_priority(
-        &mut self,
-        start_id: u64,
-        priority: Priority,
-    ) -> usize {
+    pub fn work_loop_with_priority(&mut self, start_id: u64, priority: Priority) -> usize {
         // Convert time slice to a work unit budget (approximation)
         let max_units = match priority {
             Priority::Immediate => usize::MAX,

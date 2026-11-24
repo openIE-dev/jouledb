@@ -156,8 +156,12 @@ impl DisplayConfig {
     /// Deterministic pseudo-random in [0, 1) from seed + count.
     fn simple_hash(&self, count: u32) -> f64 {
         let mut x = self.jitter_seed.wrapping_add(count as u64);
-        x = x.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
-        x = x.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        x = x
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        x = x
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         (x >> 33) as f64 / (1u64 << 31) as f64
     }
 }
@@ -167,8 +171,7 @@ impl fmt::Display for DisplayConfig {
         write!(
             f,
             "DisplayConfig(base={:.2} range=[{:.2},{:.2}] strategy={})",
-            self.base_display_qty, self.min_display_qty,
-            self.max_display_qty, self.strategy,
+            self.base_display_qty, self.min_display_qty, self.max_display_qty, self.strategy,
         )
     }
 }
@@ -193,8 +196,14 @@ pub struct IcebergOrder {
 }
 
 impl IcebergOrder {
-    pub fn new(id: u64, symbol: &str, side: IcebergSide,
-               total_qty: f64, display_qty: f64, limit_price: f64) -> Self {
+    pub fn new(
+        id: u64,
+        symbol: &str,
+        side: IcebergSide,
+        total_qty: f64,
+        display_qty: f64,
+        limit_price: f64,
+    ) -> Self {
         let config = DisplayConfig::new(display_qty);
         Self {
             id,
@@ -214,10 +223,9 @@ impl IcebergOrder {
 
     pub fn with_display_config(mut self, config: DisplayConfig) -> Self {
         self.display_config = config;
-        self.display_quantity = self.display_config.next_display(
-            self.hidden_quantity() + self.display_quantity,
-            0,
-        );
+        self.display_quantity = self
+            .display_config
+            .next_display(self.hidden_quantity() + self.display_quantity, 0);
         self
     }
 
@@ -247,17 +255,23 @@ impl IcebergOrder {
 
     /// Average fill price.
     pub fn avg_fill_price(&self) -> f64 {
-        if self.filled_quantity < 1e-12 { return 0.0; }
+        if self.filled_quantity < 1e-12 {
+            return 0.0;
+        }
         let notional: f64 = self.fills.iter().map(|f| f.notional()).sum();
         notional / self.filled_quantity
     }
 
     /// Process an incoming fill against the displayed quantity.
     pub fn process_fill(&mut self, price: f64, qty: f64, timestamp_ns: u64) -> bool {
-        if !self.is_active || qty < 1e-12 { return false; }
+        if !self.is_active || qty < 1e-12 {
+            return false;
+        }
 
         let fill_qty = qty.min(self.display_quantity);
-        if fill_qty < 1e-12 { return false; }
+        if fill_qty < 1e-12 {
+            return false;
+        }
 
         let mut fill = IcebergFill::new(price, fill_qty, timestamp_ns);
         fill.display_was = self.display_quantity;
@@ -285,10 +299,9 @@ impl IcebergOrder {
     /// Replenish the display quantity from the hidden reserve.
     fn replenish(&mut self) {
         self.replenish_count += 1;
-        let new_display = self.display_config.next_display(
-            self.remaining(),
-            self.replenish_count,
-        );
+        let new_display = self
+            .display_config
+            .next_display(self.remaining(), self.replenish_count);
         self.display_quantity = new_display.min(self.remaining());
     }
 
@@ -308,13 +321,24 @@ impl IcebergOrder {
 
     /// Information leakage score: higher means more detectable.
     pub fn leakage_score(&self) -> f64 {
-        if self.fills.len() < 2 { return 0.0; }
+        if self.fills.len() < 2 {
+            return 0.0;
+        }
         let display_sizes: Vec<f64> = self.fills.iter().map(|f| f.display_was).collect();
         let mean = display_sizes.iter().sum::<f64>() / display_sizes.len() as f64;
-        let variance = display_sizes.iter()
-            .map(|d| { let diff = d - mean; diff * diff })
-            .sum::<f64>() / display_sizes.len() as f64;
-        let cv = if mean > 1e-12 { variance.sqrt() / mean } else { 0.0 };
+        let variance = display_sizes
+            .iter()
+            .map(|d| {
+                let diff = d - mean;
+                diff * diff
+            })
+            .sum::<f64>()
+            / display_sizes.len() as f64;
+        let cv = if mean > 1e-12 {
+            variance.sqrt() / mean
+        } else {
+            0.0
+        };
         // Low CV means predictable display sizes → higher leakage.
         1.0 - cv.min(1.0)
     }
@@ -325,9 +349,14 @@ impl fmt::Display for IcebergOrder {
         write!(
             f,
             "Iceberg(#{} {} {} total={:.2} display={:.2} hidden={:.2} filled={:.1}% replenish={})",
-            self.id, self.side, self.symbol, self.total_quantity,
-            self.display_quantity, self.hidden_quantity(),
-            self.completion_pct(), self.replenish_count,
+            self.id,
+            self.side,
+            self.symbol,
+            self.total_quantity,
+            self.display_quantity,
+            self.hidden_quantity(),
+            self.completion_pct(),
+            self.replenish_count,
         )
     }
 }
@@ -343,7 +372,10 @@ pub struct IcebergManager {
 
 impl IcebergManager {
     pub fn new() -> Self {
-        Self { orders: Vec::new(), next_id: 1 }
+        Self {
+            orders: Vec::new(),
+            next_id: 1,
+        }
     }
 
     pub fn submit(&mut self, mut order: IcebergOrder) -> u64 {
@@ -376,14 +408,16 @@ impl IcebergManager {
     }
 
     pub fn total_displayed(&self) -> f64 {
-        self.orders.iter()
+        self.orders
+            .iter()
             .filter(|o| o.is_active)
             .map(|o| o.display_quantity)
             .sum()
     }
 
     pub fn total_hidden(&self) -> f64 {
-        self.orders.iter()
+        self.orders
+            .iter()
             .filter(|o| o.is_active)
             .map(|o| o.hidden_quantity())
             .sum()
@@ -395,7 +429,9 @@ impl fmt::Display for IcebergManager {
         write!(
             f,
             "IcebergMgr(active={} displayed={:.2} hidden={:.2})",
-            self.active_count(), self.total_displayed(), self.total_hidden(),
+            self.active_count(),
+            self.total_displayed(),
+            self.total_hidden(),
         )
     }
 }
@@ -527,8 +563,22 @@ mod tests {
     #[test]
     fn test_manager_totals() {
         let mut mgr = IcebergManager::new();
-        mgr.submit(IcebergOrder::new(0, "AAPL", IcebergSide::Buy, 500.0, 50.0, 150.0));
-        mgr.submit(IcebergOrder::new(0, "MSFT", IcebergSide::Sell, 300.0, 30.0, 200.0));
+        mgr.submit(IcebergOrder::new(
+            0,
+            "AAPL",
+            IcebergSide::Buy,
+            500.0,
+            50.0,
+            150.0,
+        ));
+        mgr.submit(IcebergOrder::new(
+            0,
+            "MSFT",
+            IcebergSide::Sell,
+            300.0,
+            30.0,
+            200.0,
+        ));
         assert!((mgr.total_displayed() - 80.0).abs() < 1e-9);
         assert!((mgr.total_hidden() - 720.0).abs() < 1e-9);
     }

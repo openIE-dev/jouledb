@@ -189,22 +189,42 @@ impl<K: Eq + Hash + Clone, V: Clone> StrategyCache<K, V> {
 
     /// Create a write-through, read-through cache.
     pub fn write_through_read_through(capacity: usize, ttl: Duration) -> Self {
-        Self::new(capacity, ttl, WritePolicy::WriteThrough, ReadPolicy::ReadThrough)
+        Self::new(
+            capacity,
+            ttl,
+            WritePolicy::WriteThrough,
+            ReadPolicy::ReadThrough,
+        )
     }
 
     /// Create a write-back, read-through cache.
     pub fn write_back(capacity: usize, ttl: Duration) -> Self {
-        Self::new(capacity, ttl, WritePolicy::WriteBack, ReadPolicy::ReadThrough)
+        Self::new(
+            capacity,
+            ttl,
+            WritePolicy::WriteBack,
+            ReadPolicy::ReadThrough,
+        )
     }
 
     /// Create a write-around, cache-aside cache.
     pub fn write_around(capacity: usize, ttl: Duration) -> Self {
-        Self::new(capacity, ttl, WritePolicy::WriteAround, ReadPolicy::CacheAside)
+        Self::new(
+            capacity,
+            ttl,
+            WritePolicy::WriteAround,
+            ReadPolicy::CacheAside,
+        )
     }
 
     /// Create a cache-aside cache (lazy caching).
     pub fn cache_aside(capacity: usize, ttl: Duration) -> Self {
-        Self::new(capacity, ttl, WritePolicy::WriteThrough, ReadPolicy::CacheAside)
+        Self::new(
+            capacity,
+            ttl,
+            WritePolicy::WriteThrough,
+            ReadPolicy::CacheAside,
+        )
     }
 
     pub fn len(&self) -> usize {
@@ -638,11 +658,7 @@ mod tests {
     fn test_invalidate_by_tag() {
         let mut cache = StrategyCache::write_through_read_through(10, ttl_1s());
         cache
-            .put_tagged(
-                "a".to_string(),
-                1,
-                vec!["product".to_string()],
-            )
+            .put_tagged("a".to_string(), 1, vec!["product".to_string()])
             .unwrap();
         cache
             .put_tagged(

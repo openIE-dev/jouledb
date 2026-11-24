@@ -185,7 +185,8 @@ impl FogOfWar {
     }
 
     pub fn get_cell(&self, col: u32, row: u32) -> FogState {
-        self.index(col, row).map_or(FogState::Hidden, |i| self.cells[i])
+        self.index(col, row)
+            .map_or(FogState::Hidden, |i| self.cells[i])
     }
 
     pub fn set_cell(&mut self, col: u32, row: u32, state: FogState) {
@@ -252,7 +253,13 @@ pub struct Ping {
 
 impl Ping {
     pub fn new(wx: f64, wy: f64, color: MinimapColor, duration: f64) -> Self {
-        Self { world_x: wx, world_y: wy, color, duration, elapsed: 0.0 }
+        Self {
+            world_x: wx,
+            world_y: wy,
+            color,
+            duration,
+            elapsed: 0.0,
+        }
     }
 
     pub fn is_expired(&self) -> bool {
@@ -261,7 +268,11 @@ impl Ping {
 
     /// Current animation progress [0, 1].
     pub fn progress(&self) -> f64 {
-        if self.duration <= 0.0 { 1.0 } else { (self.elapsed / self.duration).clamp(0.0, 1.0) }
+        if self.duration <= 0.0 {
+            1.0
+        } else {
+            (self.elapsed / self.duration).clamp(0.0, 1.0)
+        }
     }
 }
 
@@ -422,7 +433,8 @@ impl Minimap {
     // ── Ping ────────────────────────────────────────────────
 
     pub fn add_ping(&mut self, world_x: f64, world_y: f64, color: MinimapColor, duration: f64) {
-        self.pings.push(Ping::new(world_x, world_y, color, duration));
+        self.pings
+            .push(Ping::new(world_x, world_y, color, duration));
     }
 
     /// Advance pings and remove expired ones.
@@ -652,7 +664,12 @@ mod tests {
     #[test]
     fn add_remove_entity() {
         let mut mm = basic_minimap();
-        mm.add_entity(MinimapEntity::new("player", EntityCategory::Player, 0.0, 0.0));
+        mm.add_entity(MinimapEntity::new(
+            "player",
+            EntityCategory::Player,
+            0.0,
+            0.0,
+        ));
         assert_eq!(mm.entity_count(), 1);
         assert!(mm.remove_entity("player"));
         assert_eq!(mm.entity_count(), 0);
@@ -690,7 +707,12 @@ mod tests {
     fn render_icons_excludes_out_of_viewport() {
         let mut mm = basic_minimap();
         // 1000 world units away at zoom=10 → 100 minimap px from center, past edge
-        mm.add_entity(MinimapEntity::new("far", EntityCategory::Enemy, 1000.0, 0.0));
+        mm.add_entity(MinimapEntity::new(
+            "far",
+            EntityCategory::Enemy,
+            1000.0,
+            0.0,
+        ));
         let icons = mm.render_icons();
         assert!(icons.is_empty());
     }

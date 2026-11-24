@@ -23,7 +23,12 @@ pub struct StereoParams {
 
 impl StereoParams {
     pub fn new(focal_length: f64, baseline: f64) -> Self {
-        Self { focal_length, baseline, cx: 0.0, cy: 0.0 }
+        Self {
+            focal_length,
+            baseline,
+            cx: 0.0,
+            cy: 0.0,
+        }
     }
 
     pub fn with_principal_point(mut self, cx: f64, cy: f64) -> Self {
@@ -51,8 +56,11 @@ impl StereoParams {
 
 impl fmt::Display for StereoParams {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "StereoParams(f={:.1} b={:.3} cx={:.1} cy={:.1})",
-               self.focal_length, self.baseline, self.cx, self.cy)
+        write!(
+            f,
+            "StereoParams(f={:.1} b={:.3} cx={:.1} cy={:.1})",
+            self.focal_length, self.baseline, self.cx, self.cy
+        )
     }
 }
 
@@ -68,12 +76,20 @@ pub struct DisparityMap {
 
 impl DisparityMap {
     pub fn new(width: usize, height: usize) -> Self {
-        Self { data: vec![0.0; width * height], width, height }
+        Self {
+            data: vec![0.0; width * height],
+            width,
+            height,
+        }
     }
 
     pub fn from_data(data: Vec<f64>, width: usize, height: usize) -> Self {
         assert_eq!(data.len(), width * height);
-        Self { data, width, height }
+        Self {
+            data,
+            width,
+            height,
+        }
     }
 
     pub fn get(&self, x: usize, y: usize) -> f64 {
@@ -96,7 +112,9 @@ impl DisparityMap {
     /// Mean disparity of valid (non-zero) pixels.
     pub fn mean_disparity(&self) -> f64 {
         let valid: Vec<f64> = self.data.iter().cloned().filter(|v| *v > 0.0).collect();
-        if valid.is_empty() { return 0.0; }
+        if valid.is_empty() {
+            return 0.0;
+        }
         valid.iter().sum::<f64>() / valid.len() as f64
     }
 
@@ -114,8 +132,14 @@ impl DisparityMap {
 
 impl fmt::Display for DisparityMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "DisparityMap({}x{} max={:.1} fill={:.1}%)",
-               self.width, self.height, self.max_disparity(), self.fill_rate() * 100.0)
+        write!(
+            f,
+            "DisparityMap({}x{} max={:.1} fill={:.1}%)",
+            self.width,
+            self.height,
+            self.max_disparity(),
+            self.fill_rate() * 100.0
+        )
     }
 }
 
@@ -131,7 +155,11 @@ pub struct DepthMap {
 
 impl DepthMap {
     pub fn new(width: usize, height: usize) -> Self {
-        Self { data: vec![0.0; width * height], width, height }
+        Self {
+            data: vec![0.0; width * height],
+            width,
+            height,
+        }
     }
 
     pub fn get(&self, x: usize, y: usize) -> f64 {
@@ -140,14 +168,18 @@ impl DepthMap {
 
     /// Minimum finite depth.
     pub fn min_depth(&self) -> f64 {
-        self.data.iter().cloned()
+        self.data
+            .iter()
+            .cloned()
             .filter(|v| v.is_finite() && *v > 0.0)
             .fold(f64::INFINITY, f64::min)
     }
 
     /// Maximum finite depth.
     pub fn max_depth(&self) -> f64 {
-        self.data.iter().cloned()
+        self.data
+            .iter()
+            .cloned()
             .filter(|v| v.is_finite())
             .fold(0.0_f64, f64::max)
     }
@@ -171,8 +203,14 @@ impl DepthMap {
 
 impl fmt::Display for DepthMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "DepthMap({}x{} range=[{:.2}, {:.2}]m)",
-               self.width, self.height, self.min_depth(), self.max_depth())
+        write!(
+            f,
+            "DepthMap({}x{} range=[{:.2}, {:.2}]m)",
+            self.width,
+            self.height,
+            self.min_depth(),
+            self.max_depth()
+        )
     }
 }
 
@@ -216,17 +254,24 @@ impl BlockMatchConfig {
 
 impl fmt::Display for BlockMatchConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "BlockMatch(blk={} disp=[{},{}] uniq={:.2})",
-               self.block_size, self.min_disparity, self.max_disparity,
-               self.uniqueness_ratio)
+        write!(
+            f,
+            "BlockMatch(blk={} disp=[{},{}] uniq={:.2})",
+            self.block_size, self.min_disparity, self.max_disparity, self.uniqueness_ratio
+        )
     }
 }
 
 /// Sum of absolute differences for a block centered at (lx, ly)
 /// in the left image and (rx, ry) in the right image.
 fn sad_block(
-    left: &[f64], right: &[f64], width: usize,
-    lx: usize, ly: usize, rx: usize, ry: usize,
+    left: &[f64],
+    right: &[f64],
+    width: usize,
+    lx: usize,
+    ly: usize,
+    rx: usize,
+    ry: usize,
     block_size: usize,
 ) -> f64 {
     let half = block_size / 2;
@@ -246,8 +291,10 @@ fn sad_block(
 
 /// Block matching stereo disparity.
 pub fn block_match(
-    left: &[f64], right: &[f64],
-    width: usize, height: usize,
+    left: &[f64],
+    right: &[f64],
+    width: usize,
+    height: usize,
     config: &BlockMatchConfig,
 ) -> DisparityMap {
     let half = config.block_size / 2;
@@ -260,7 +307,9 @@ pub fn block_match(
             let mut best_d = 0;
 
             for d in config.min_disparity..=config.max_disparity {
-                if c < d + half { continue; }
+                if c < d + half {
+                    continue;
+                }
                 let cost = sad_block(left, right, width, c, r, c - d, r, config.block_size);
                 if cost < best_sad {
                     second_sad = best_sad;
@@ -330,16 +379,25 @@ impl SgmConfig {
 
 impl fmt::Display for SgmConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SGM(blk={} disp=[{},{}] P1={:.0} P2={:.0} paths={})",
-               self.block_size, self.min_disparity, self.max_disparity,
-               self.penalty_small, self.penalty_large, self.num_paths)
+        write!(
+            f,
+            "SGM(blk={} disp=[{},{}] P1={:.0} P2={:.0} paths={})",
+            self.block_size,
+            self.min_disparity,
+            self.max_disparity,
+            self.penalty_small,
+            self.penalty_large,
+            self.num_paths
+        )
     }
 }
 
 /// Semi-global matching stereo (simplified 4-path aggregation).
 pub fn sgm_match(
-    left: &[f64], right: &[f64],
-    width: usize, height: usize,
+    left: &[f64],
+    right: &[f64],
+    width: usize,
+    height: usize,
     config: &SgmConfig,
 ) -> DisparityMap {
     let n_disp = config.max_disparity - config.min_disparity + 1;
@@ -352,7 +410,9 @@ pub fn sgm_match(
         for c in (half + config.max_disparity)..width - half {
             for di in 0..n_disp {
                 let d = config.min_disparity + di;
-                if c < d + half { continue; }
+                if c < d + half {
+                    continue;
+                }
                 let cost = sad_block(left, right, width, c, r, c - d, r, config.block_size);
                 cost_vol[(r * width + c) * n_disp + di] = cost;
             }
@@ -370,8 +430,16 @@ pub fn sgm_match(
         let mut path_cost = vec![0.0_f64; width * height * n_disp];
 
         // Determine traversal order
-        let rows: Vec<usize> = if dr >= 0 { (0..height).collect() } else { (0..height).rev().collect() };
-        let cols: Vec<usize> = if dc >= 0 { (0..width).collect() } else { (0..width).rev().collect() };
+        let rows: Vec<usize> = if dr >= 0 {
+            (0..height).collect()
+        } else {
+            (0..height).rev().collect()
+        };
+        let cols: Vec<usize> = if dc >= 0 {
+            (0..width).collect()
+        } else {
+            (0..width).rev().collect()
+        };
 
         for &r in &rows {
             for &c in &cols {
@@ -396,13 +464,23 @@ pub fn sgm_match(
 
                     // Min of: same disparity, +/-1 with P1, any other with P2
                     let same = path_cost[prev_idx * n_disp + di];
-                    let minus1 = if di > 0 { path_cost[prev_idx * n_disp + di - 1] + config.penalty_small } else { f64::MAX };
-                    let plus1 = if di + 1 < n_disp { path_cost[prev_idx * n_disp + di + 1] + config.penalty_small } else { f64::MAX };
+                    let minus1 = if di > 0 {
+                        path_cost[prev_idx * n_disp + di - 1] + config.penalty_small
+                    } else {
+                        f64::MAX
+                    };
+                    let plus1 = if di + 1 < n_disp {
+                        path_cost[prev_idx * n_disp + di + 1] + config.penalty_small
+                    } else {
+                        f64::MAX
+                    };
 
                     let mut min_prev = f64::MAX;
                     for k in 0..n_disp {
                         let v = path_cost[prev_idx * n_disp + k];
-                        if v < min_prev { min_prev = v; }
+                        if v < min_prev {
+                            min_prev = v;
+                        }
                     }
                     let any_other = min_prev + config.penalty_large;
 
@@ -469,13 +547,17 @@ pub fn median_filter_disparity(disp: &DisparityMap, kernel: usize) -> DisparityM
 /// Left-right consistency check. Invalidates disparities that differ
 /// by more than `threshold` when computed from the other view.
 pub fn lr_consistency_check(
-    left_disp: &DisparityMap, right_disp: &DisparityMap, threshold: f64,
+    left_disp: &DisparityMap,
+    right_disp: &DisparityMap,
+    threshold: f64,
 ) -> DisparityMap {
     let mut out = left_disp.clone();
     for r in 0..left_disp.height {
         for c in 0..left_disp.width {
             let d = left_disp.get(c, r);
-            if d <= 0.0 { continue; }
+            if d <= 0.0 {
+                continue;
+            }
             let rc = c as f64 - d;
             if rc < 0.0 || rc >= right_disp.width as f64 {
                 out.set(c, r, 0.0);
@@ -603,7 +685,9 @@ mod tests {
     #[test]
     fn test_block_match_identical() {
         let img = uniform(40, 40, 128.0);
-        let cfg = BlockMatchConfig::new().with_block_size(5).with_disparity_range(0, 10);
+        let cfg = BlockMatchConfig::new()
+            .with_block_size(5)
+            .with_disparity_range(0, 10);
         let dm = block_match(&img, &img, 40, 40, &cfg);
         // Identical images → disparity 0 everywhere
         assert!(dm.mean_disparity() < 1.0);
@@ -632,7 +716,9 @@ mod tests {
     fn test_median_filter() {
         let mut dm = DisparityMap::new(5, 5);
         // Set all to 10, one outlier at center
-        for v in &mut dm.data { *v = 10.0; }
+        for v in &mut dm.data {
+            *v = 10.0;
+        }
         dm.set(2, 2, 100.0);
         let filtered = median_filter_disparity(&dm, 3);
         // Median should suppress the outlier

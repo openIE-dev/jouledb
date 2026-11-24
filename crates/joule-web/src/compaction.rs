@@ -341,10 +341,7 @@ pub fn time_window_pick(
 ///
 /// Write amplification = total bytes written / bytes of original data.
 /// For leveled compaction, this is approximately the level size multiplier.
-pub fn estimate_write_amplification(
-    levels: &[Vec<TableInfo>],
-    config: &LeveledConfig,
-) -> f64 {
+pub fn estimate_write_amplification(levels: &[Vec<TableInfo>], config: &LeveledConfig) -> f64 {
     if levels.is_empty() {
         return 1.0;
     }
@@ -598,9 +595,7 @@ mod tests {
             level0_file_trigger: 4,
             ..Default::default()
         };
-        let tables: Vec<TableInfo> = (0..4)
-            .map(|i| make_table(i, 100, b"a", b"z"))
-            .collect();
+        let tables: Vec<TableInfo> = (0..4).map(|i| make_table(i, 100, b"a", b"z")).collect();
         assert!(leveled_needs_compaction(0, &tables, &config));
     }
 

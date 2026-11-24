@@ -47,9 +47,21 @@ impl PhysicsAabb {
     /// Raycast against this AABB. Returns `Some(t)` for the nearest intersection.
     pub fn raycast(&self, origin: &Vec3, dir: &Vec3) -> Option<f64> {
         let inv_d = Vec3::new(
-            if dir.x.abs() > 1e-12 { 1.0 / dir.x } else { f64::MAX.copysign(dir.x) },
-            if dir.y.abs() > 1e-12 { 1.0 / dir.y } else { f64::MAX.copysign(dir.y) },
-            if dir.z.abs() > 1e-12 { 1.0 / dir.z } else { f64::MAX.copysign(dir.z) },
+            if dir.x.abs() > 1e-12 {
+                1.0 / dir.x
+            } else {
+                f64::MAX.copysign(dir.x)
+            },
+            if dir.y.abs() > 1e-12 {
+                1.0 / dir.y
+            } else {
+                f64::MAX.copysign(dir.y)
+            },
+            if dir.z.abs() > 1e-12 {
+                1.0 / dir.z
+            } else {
+                f64::MAX.copysign(dir.z)
+            },
         );
 
         let t1 = (self.min.x - origin.x) * inv_d.x;
@@ -138,10 +150,9 @@ impl Collider {
     pub fn enclosing_aabb(&self) -> PhysicsAabb {
         match self {
             Collider::Aabb(a) => *a,
-            Collider::Sphere(s) => PhysicsAabb::from_center_half(
-                s.center,
-                Vec3::new(s.radius, s.radius, s.radius),
-            ),
+            Collider::Sphere(s) => {
+                PhysicsAabb::from_center_half(s.center, Vec3::new(s.radius, s.radius, s.radius))
+            }
         }
     }
 }
@@ -282,7 +293,11 @@ fn collide_sphere_sphere(a: &BoundingSphere, b: &BoundingSphere) -> Option<(Vec3
     if dist >= sum_r {
         return None;
     }
-    let normal = if dist > 1e-12 { diff * (1.0 / dist) } else { Vec3::up() };
+    let normal = if dist > 1e-12 {
+        diff * (1.0 / dist)
+    } else {
+        Vec3::up()
+    };
     Some((normal, sum_r - dist))
 }
 
@@ -297,7 +312,11 @@ fn collide_aabb_sphere(a: &PhysicsAabb, s: &BoundingSphere) -> Option<(Vec3, f64
     if dist >= s.radius {
         return None;
     }
-    let normal = if dist > 1e-12 { diff * (1.0 / dist) } else { Vec3::up() };
+    let normal = if dist > 1e-12 {
+        diff * (1.0 / dist)
+    } else {
+        Vec3::up()
+    };
     Some((normal, s.radius - dist))
 }
 
@@ -426,7 +445,11 @@ impl PhysicsWorld {
             let (ca, cb, rest) = {
                 let ba = self.bodies.iter().find(|b| b.id == a_id).unwrap();
                 let bb = self.bodies.iter().find(|b| b.id == b_id).unwrap();
-                (ba.world_collider(), bb.world_collider(), (ba.restitution + bb.restitution) * 0.5)
+                (
+                    ba.world_collider(),
+                    bb.world_collider(),
+                    (ba.restitution + bb.restitution) * 0.5,
+                )
             };
             if let Some((normal, penetration)) = collide(&ca, &cb) {
                 contacts.push((a_id, b_id, normal, penetration, rest));
@@ -438,7 +461,12 @@ impl PhysicsWorld {
             let (va, vb, inv_ma, inv_mb) = {
                 let ba = self.bodies.iter().find(|b| b.id == a_id).unwrap();
                 let bb = self.bodies.iter().find(|b| b.id == b_id).unwrap();
-                (ba.velocity, bb.velocity, ba.inverse_mass(), bb.inverse_mass())
+                (
+                    ba.velocity,
+                    bb.velocity,
+                    ba.inverse_mass(),
+                    bb.inverse_mass(),
+                )
             };
             let relative_vel = vb - va;
             let vel_along_normal = relative_vel.dot(&normal);
@@ -639,7 +667,10 @@ mod tests {
             Collider::Sphere(BoundingSphere::new(Vec3::zero(), 0.5)),
         );
         world.add_body(body);
-        world.body_mut(1).unwrap().apply_force(Vec3::new(10.0, 0.0, 0.0));
+        world
+            .body_mut(1)
+            .unwrap()
+            .apply_force(Vec3::new(10.0, 0.0, 0.0));
         world.step(1.0);
         let b = world.body(1).unwrap();
         // F=10, m=2, a=5, v=5*1=5, pos=5*1=5

@@ -431,7 +431,11 @@ impl OptimalReplacer {
         }
 
         let total = sequence.len() as u64;
-        let hit_rate = if total > 0 { hits as f64 / total as f64 } else { 0.0 };
+        let hit_rate = if total > 0 {
+            hits as f64 / total as f64
+        } else {
+            0.0
+        };
 
         OptimalResult {
             faults,
@@ -568,12 +572,24 @@ mod tests {
     #[test]
     fn test_fifo_basic() {
         let mut fifo = FifoReplacer::new(3);
-        assert!(matches!(fifo.access(1), AccessResult::Fault { evicted: None }));
-        assert!(matches!(fifo.access(2), AccessResult::Fault { evicted: None }));
-        assert!(matches!(fifo.access(3), AccessResult::Fault { evicted: None }));
+        assert!(matches!(
+            fifo.access(1),
+            AccessResult::Fault { evicted: None }
+        ));
+        assert!(matches!(
+            fifo.access(2),
+            AccessResult::Fault { evicted: None }
+        ));
+        assert!(matches!(
+            fifo.access(3),
+            AccessResult::Fault { evicted: None }
+        ));
         assert!(matches!(fifo.access(1), AccessResult::Hit));
         // Evict page 1 (oldest) when adding page 4
-        assert!(matches!(fifo.access(4), AccessResult::Fault { evicted: Some(1) }));
+        assert!(matches!(
+            fifo.access(4),
+            AccessResult::Fault { evicted: Some(1) }
+        ));
     }
 
     #[test]
@@ -597,7 +613,10 @@ mod tests {
         lru.access(1); // Hit — moves 1 to most recent
         // Pages in LRU order: [2, 3, 1]
         // Evict 2 (least recently used)
-        assert!(matches!(lru.access(4), AccessResult::Fault { evicted: Some(2) }));
+        assert!(matches!(
+            lru.access(4),
+            AccessResult::Fault { evicted: Some(2) }
+        ));
     }
 
     #[test]
@@ -693,7 +712,11 @@ mod tests {
         let results = compare_algorithms(&seq, 3);
         assert_eq!(results.len(), 5);
         // Optimal should be the best (or tied)
-        let opt_faults = results.iter().find(|s| s.algorithm == PageAlgorithm::Optimal).unwrap().page_faults;
+        let opt_faults = results
+            .iter()
+            .find(|s| s.algorithm == PageAlgorithm::Optimal)
+            .unwrap()
+            .page_faults;
         for stat in &results {
             assert!(stat.page_faults >= opt_faults);
         }

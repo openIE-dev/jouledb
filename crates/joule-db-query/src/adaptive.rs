@@ -779,9 +779,10 @@ impl CardinalityEstimator {
             PlanNode::SetOp { left, .. } => self.get_primary_table(left),
             PlanNode::RecursiveCte { name, .. } => name.clone(),
             PlanNode::VectorScan { table, .. } => table.clone(),
-            PlanNode::WcojJoin { atoms, .. } => {
-                atoms.first().map(|(name, _)| name.clone()).unwrap_or_default()
-            }
+            PlanNode::WcojJoin { atoms, .. } => atoms
+                .first()
+                .map(|(name, _)| name.clone())
+                .unwrap_or_default(),
             PlanNode::Empty => String::new(),
         }
     }

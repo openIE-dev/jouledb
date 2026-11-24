@@ -216,7 +216,12 @@ impl BulkheadRegistry {
     }
 
     /// Register a new bulkhead.
-    pub fn register(&mut self, name: impl Into<String>, max_concurrent: usize, queue_capacity: usize) {
+    pub fn register(
+        &mut self,
+        name: impl Into<String>,
+        max_concurrent: usize,
+        queue_capacity: usize,
+    ) {
         let n = name.into();
         self.bulkheads
             .insert(n.clone(), Bulkhead::new(n, max_concurrent, queue_capacity));

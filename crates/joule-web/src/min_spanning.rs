@@ -3,8 +3,8 @@
 //! Operates on weighted undirected graphs. Returns MST edge lists, total weight,
 //! and handles disconnected graphs (spanning forest).
 
-use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 
 // ── MST Edge ─────────────────────────────────────────────────────────────────
 
@@ -162,7 +162,11 @@ pub fn kruskal(graph: &UndirectedGraph) -> MstResult {
 
     for (a, b, w) in edges {
         if uf.union(a, b) {
-            mst_edges.push(MstEdge { from: a, to: b, weight: w });
+            mst_edges.push(MstEdge {
+                from: a,
+                to: b,
+                weight: w,
+            });
             total += w;
         }
     }
@@ -232,7 +236,11 @@ pub fn prim(graph: &UndirectedGraph) -> MstResult {
         let mut heap = BinaryHeap::new();
         in_mst[start] = true;
         for &(nb, w) in graph.neighbors(start) {
-            heap.push(PrimState { weight: w, node: nb, from: start });
+            heap.push(PrimState {
+                weight: w,
+                node: nb,
+                from: start,
+            });
         }
 
         while let Some(PrimState { weight, node, from }) = heap.pop() {
@@ -240,12 +248,20 @@ pub fn prim(graph: &UndirectedGraph) -> MstResult {
                 continue;
             }
             in_mst[node] = true;
-            mst_edges.push(MstEdge { from, to: node, weight });
+            mst_edges.push(MstEdge {
+                from,
+                to: node,
+                weight,
+            });
             total += weight;
 
             for &(nb, w) in graph.neighbors(node) {
                 if !in_mst[nb] {
-                    heap.push(PrimState { weight: w, node: nb, from: node });
+                    heap.push(PrimState {
+                        weight: w,
+                        node: nb,
+                        from: node,
+                    });
                 }
             }
         }
@@ -317,7 +333,11 @@ pub fn boruvka(graph: &UndirectedGraph) -> MstResult {
         for idx in edge_indices {
             let (a, b, w) = all_edges[idx];
             if uf.union(a, b) {
-                mst_edges.push(MstEdge { from: a, to: b, weight: w });
+                mst_edges.push(MstEdge {
+                    from: a,
+                    to: b,
+                    weight: w,
+                });
                 total += w;
                 added = true;
             }

@@ -55,27 +55,26 @@ pub fn apply_char_filter(text: &str, filter: &CharFilter) -> String {
             .chars()
             .filter(|c| c.is_alphanumeric() || c.is_whitespace())
             .collect(),
-        CharFilter::AsciiNormalize => {
-            text.chars()
-                .map(|c| match c {
-                    '\u{00C0}'..='\u{00C5}' => 'A',
-                    '\u{00E0}'..='\u{00E5}' => 'a',
-                    '\u{00C8}'..='\u{00CB}' => 'E',
-                    '\u{00E8}'..='\u{00EB}' => 'e',
-                    '\u{00CC}'..='\u{00CF}' => 'I',
-                    '\u{00EC}'..='\u{00EF}' => 'i',
-                    '\u{00D2}'..='\u{00D6}' => 'O',
-                    '\u{00F2}'..='\u{00F6}' => 'o',
-                    '\u{00D9}'..='\u{00DC}' => 'U',
-                    '\u{00F9}'..='\u{00FC}' => 'u',
-                    '\u{00D1}' => 'N',
-                    '\u{00F1}' => 'n',
-                    '\u{00C7}' => 'C',
-                    '\u{00E7}' => 'c',
-                    other => other,
-                })
-                .collect()
-        }
+        CharFilter::AsciiNormalize => text
+            .chars()
+            .map(|c| match c {
+                '\u{00C0}'..='\u{00C5}' => 'A',
+                '\u{00E0}'..='\u{00E5}' => 'a',
+                '\u{00C8}'..='\u{00CB}' => 'E',
+                '\u{00E8}'..='\u{00EB}' => 'e',
+                '\u{00CC}'..='\u{00CF}' => 'I',
+                '\u{00EC}'..='\u{00EF}' => 'i',
+                '\u{00D2}'..='\u{00D6}' => 'O',
+                '\u{00F2}'..='\u{00F6}' => 'o',
+                '\u{00D9}'..='\u{00DC}' => 'U',
+                '\u{00F9}'..='\u{00FC}' => 'u',
+                '\u{00D1}' => 'N',
+                '\u{00F1}' => 'n',
+                '\u{00C7}' => 'C',
+                '\u{00E7}' => 'c',
+                other => other,
+            })
+            .collect(),
         CharFilter::HtmlStrip => {
             let mut result = String::with_capacity(text.len());
             let mut in_tag = false;
@@ -193,10 +192,9 @@ pub fn stop_word_filter(tokens: Vec<Token>, stop_words: &HashSet<String>) -> Vec
 /// Build a default English stop-word set.
 pub fn english_stop_words() -> HashSet<String> {
     [
-        "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
-        "of", "with", "by", "from", "is", "it", "as", "be", "was", "were",
-        "been", "are", "have", "has", "had", "do", "does", "did", "will",
-        "would", "could", "should", "may", "might", "shall", "can", "this",
+        "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",
+        "from", "is", "it", "as", "be", "was", "were", "been", "are", "have", "has", "had", "do",
+        "does", "did", "will", "would", "could", "should", "may", "might", "shall", "can", "this",
         "that", "these", "those", "not", "no", "nor", "so", "if", "then",
     ]
     .iter()
@@ -326,7 +324,10 @@ pub fn edge_ngram_filter(tokens: Vec<Token>, min_n: usize, max_n: usize) -> Vec<
 
 /// Remove tokens shorter than a minimum length.
 pub fn length_filter(tokens: Vec<Token>, min_len: usize) -> Vec<Token> {
-    tokens.into_iter().filter(|t| t.text.len() >= min_len).collect()
+    tokens
+        .into_iter()
+        .filter(|t| t.text.len() >= min_len)
+        .collect()
 }
 
 /// Trim whitespace from token text.
@@ -576,7 +577,10 @@ mod tests {
     fn test_synonym_filter() {
         let tokens = whitespace_tokenize("fast car");
         let mut syns = HashMap::new();
-        syns.insert("fast".to_string(), vec!["quick".to_string(), "rapid".to_string()]);
+        syns.insert(
+            "fast".to_string(),
+            vec!["quick".to_string(), "rapid".to_string()],
+        );
         let expanded = synonym_filter(tokens, &syns);
         // Should have original + 2 synonyms + "car"
         assert_eq!(expanded.len(), 4);

@@ -23,7 +23,10 @@ impl fmt::Display for QLearningError {
         match self {
             Self::InvalidParameter(s) => write!(f, "invalid parameter: {s}"),
             Self::StateNotFound(s) => write!(f, "state not found: {s}"),
-            Self::ActionOutOfRange { action, num_actions } => {
+            Self::ActionOutOfRange {
+                action,
+                num_actions,
+            } => {
                 write!(f, "action {action} out of range for {num_actions} actions")
             }
             Self::NoEpisodeData => write!(f, "no episode data available"),
@@ -42,7 +45,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -59,7 +64,9 @@ impl Rng {
     }
 
     fn next_usize(&mut self, upper: usize) -> usize {
-        if upper == 0 { return 0; }
+        if upper == 0 {
+            return 0;
+        }
         (self.next_u64() % upper as u64) as usize
     }
 }
@@ -72,7 +79,11 @@ pub enum ExplorationStrategy {
     /// Epsilon-greedy with a fixed epsilon.
     EpsilonGreedy(f64),
     /// Epsilon-greedy with linear decay from start to minimum over given steps.
-    EpsilonDecay { start: f64, minimum: f64, decay_steps: u64 },
+    EpsilonDecay {
+        start: f64,
+        minimum: f64,
+        decay_steps: u64,
+    },
     /// Softmax (Boltzmann) exploration with temperature.
     Softmax(f64),
     /// Pure greedy — always pick best known action.
@@ -83,8 +94,15 @@ impl fmt::Display for ExplorationStrategy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EpsilonGreedy(e) => write!(f, "EpsilonGreedy({e:.3})"),
-            Self::EpsilonDecay { start, minimum, decay_steps } => {
-                write!(f, "EpsilonDecay({start:.3}→{minimum:.3} over {decay_steps})")
+            Self::EpsilonDecay {
+                start,
+                minimum,
+                decay_steps,
+            } => {
+                write!(
+                    f,
+                    "EpsilonDecay({start:.3}→{minimum:.3} over {decay_steps})"
+                )
             }
             Self::Softmax(t) => write!(f, "Softmax(τ={t:.3})"),
             Self::Greedy => write!(f, "Greedy"),
@@ -200,13 +218,19 @@ impl QLearningAgent {
     /// Create a new Q-learning agent.
     pub fn new(num_actions: usize, alpha: f64, gamma: f64) -> Result<Self, QLearningError> {
         if num_actions == 0 {
-            return Err(QLearningError::InvalidParameter("num_actions must be > 0".into()));
+            return Err(QLearningError::InvalidParameter(
+                "num_actions must be > 0".into(),
+            ));
         }
         if alpha <= 0.0 || alpha > 1.0 {
-            return Err(QLearningError::InvalidParameter("alpha must be in (0, 1]".into()));
+            return Err(QLearningError::InvalidParameter(
+                "alpha must be in (0, 1]".into(),
+            ));
         }
         if gamma < 0.0 || gamma > 1.0 {
-            return Err(QLearningError::InvalidParameter("gamma must be in [0, 1]".into()));
+            return Err(QLearningError::InvalidParameter(
+                "gamma must be in [0, 1]".into(),
+            ));
         }
         Ok(Self {
             q_table: QTable::new(num_actions, 0.0),
@@ -241,7 +265,11 @@ impl QLearningAgent {
     fn current_epsilon(&self) -> f64 {
         match self.strategy {
             ExplorationStrategy::EpsilonGreedy(e) => e,
-            ExplorationStrategy::EpsilonDecay { start, minimum, decay_steps } => {
+            ExplorationStrategy::EpsilonDecay {
+                start,
+                minimum,
+                decay_steps,
+            } => {
                 if decay_steps == 0 {
                     return minimum;
                 }
@@ -257,8 +285,7 @@ impl QLearningAgent {
     pub fn select_action(&mut self, state: u64) -> usize {
         let n = self.q_table.num_actions();
         match self.strategy {
-            ExplorationStrategy::EpsilonGreedy(_)
-            | ExplorationStrategy::EpsilonDecay { .. } => {
+            ExplorationStrategy::EpsilonGreedy(_) | ExplorationStrategy::EpsilonDecay { .. } => {
                 let eps = self.current_epsilon();
                 if self.rng.next_f64() < eps {
                     self.rng.next_usize(n)
@@ -385,13 +412,19 @@ impl SarsaAgent {
     /// Create a new SARSA agent.
     pub fn new(num_actions: usize, alpha: f64, gamma: f64) -> Result<Self, QLearningError> {
         if num_actions == 0 {
-            return Err(QLearningError::InvalidParameter("num_actions must be > 0".into()));
+            return Err(QLearningError::InvalidParameter(
+                "num_actions must be > 0".into(),
+            ));
         }
         if alpha <= 0.0 || alpha > 1.0 {
-            return Err(QLearningError::InvalidParameter("alpha must be in (0, 1]".into()));
+            return Err(QLearningError::InvalidParameter(
+                "alpha must be in (0, 1]".into(),
+            ));
         }
         if gamma < 0.0 || gamma > 1.0 {
-            return Err(QLearningError::InvalidParameter("gamma must be in [0, 1]".into()));
+            return Err(QLearningError::InvalidParameter(
+                "gamma must be in [0, 1]".into(),
+            ));
         }
         Ok(Self {
             q_table: QTable::new(num_actions, 0.0),
@@ -422,9 +455,14 @@ impl SarsaAgent {
         let n = self.q_table.num_actions();
         let eps = match self.strategy {
             ExplorationStrategy::EpsilonGreedy(e) => e,
-            ExplorationStrategy::EpsilonDecay { start, minimum, decay_steps } => {
-                if decay_steps == 0 { minimum }
-                else {
+            ExplorationStrategy::EpsilonDecay {
+                start,
+                minimum,
+                decay_steps,
+            } => {
+                if decay_steps == 0 {
+                    minimum
+                } else {
                     let p = (self.total_steps as f64) / (decay_steps as f64);
                     start + (minimum - start) * p.min(1.0)
                 }
@@ -458,7 +496,11 @@ impl SarsaAgent {
             .pending
             .ok_or_else(|| QLearningError::InvalidParameter("call begin_episode first".into()))?;
 
-        let next_action = if done { 0 } else { self.select_action(next_state) };
+        let next_action = if done {
+            0
+        } else {
+            self.select_action(next_state)
+        };
 
         let current_q = self.q_table.get(state, action);
         let target = if done {
@@ -524,9 +566,16 @@ pub struct ExpectedSarsa {
 }
 
 impl ExpectedSarsa {
-    pub fn new(num_actions: usize, alpha: f64, gamma: f64, epsilon: f64) -> Result<Self, QLearningError> {
+    pub fn new(
+        num_actions: usize,
+        alpha: f64,
+        gamma: f64,
+        epsilon: f64,
+    ) -> Result<Self, QLearningError> {
         if num_actions == 0 {
-            return Err(QLearningError::InvalidParameter("num_actions must be > 0".into()));
+            return Err(QLearningError::InvalidParameter(
+                "num_actions must be > 0".into(),
+            ));
         }
         Ok(Self {
             q_table: QTable::new(num_actions, 0.0),
@@ -607,9 +656,16 @@ pub struct DoubleQLearning {
 }
 
 impl DoubleQLearning {
-    pub fn new(num_actions: usize, alpha: f64, gamma: f64, epsilon: f64) -> Result<Self, QLearningError> {
+    pub fn new(
+        num_actions: usize,
+        alpha: f64,
+        gamma: f64,
+        epsilon: f64,
+    ) -> Result<Self, QLearningError> {
         if num_actions == 0 {
-            return Err(QLearningError::InvalidParameter("num_actions must be > 0".into()));
+            return Err(QLearningError::InvalidParameter(
+                "num_actions must be > 0".into(),
+            ));
         }
         Ok(Self {
             q1: QTable::new(num_actions, 0.0),
@@ -648,13 +704,23 @@ impl DoubleQLearning {
         if self.rng.next_f64() < 0.5 {
             let best_a = self.q1.best_action(next_state);
             let current = self.q1.get(state, action);
-            let target = if done { reward } else { reward + self.gamma * self.q2.get(next_state, best_a) };
-            self.q1.set(state, action, current + self.alpha * (target - current));
+            let target = if done {
+                reward
+            } else {
+                reward + self.gamma * self.q2.get(next_state, best_a)
+            };
+            self.q1
+                .set(state, action, current + self.alpha * (target - current));
         } else {
             let best_a = self.q2.best_action(next_state);
             let current = self.q2.get(state, action);
-            let target = if done { reward } else { reward + self.gamma * self.q1.get(next_state, best_a) };
-            self.q2.set(state, action, current + self.alpha * (target - current));
+            let target = if done {
+                reward
+            } else {
+                reward + self.gamma * self.q1.get(next_state, best_a)
+            };
+            self.q2
+                .set(state, action, current + self.alpha * (target - current));
         }
         self.total_steps += 1;
     }
@@ -686,7 +752,9 @@ mod tests {
     use super::*;
 
     const EPS: f64 = 1e-6;
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     #[test]
     fn test_qtable_new() {
@@ -741,7 +809,8 @@ mod tests {
 
     #[test]
     fn test_agent_update() {
-        let mut agent = QLearningAgent::new(2, 0.5, 0.9).unwrap()
+        let mut agent = QLearningAgent::new(2, 0.5, 0.9)
+            .unwrap()
             .with_strategy(ExplorationStrategy::Greedy);
         agent.update(0, 0, 1.0, 1, false).unwrap();
         assert!(agent.q_table().get(0, 0) > 0.0);
@@ -756,7 +825,8 @@ mod tests {
 
     #[test]
     fn test_agent_select_greedy() {
-        let mut agent = QLearningAgent::new(3, 0.5, 0.9).unwrap()
+        let mut agent = QLearningAgent::new(3, 0.5, 0.9)
+            .unwrap()
             .with_strategy(ExplorationStrategy::Greedy);
         agent.update(0, 1, 100.0, 0, true).unwrap();
         let action = agent.select_action(0);
@@ -765,7 +835,8 @@ mod tests {
 
     #[test]
     fn test_agent_epsilon_greedy_explores() {
-        let mut agent = QLearningAgent::new(4, 0.1, 0.9).unwrap()
+        let mut agent = QLearningAgent::new(4, 0.1, 0.9)
+            .unwrap()
             .with_strategy(ExplorationStrategy::EpsilonGreedy(1.0))
             .with_seed(123);
         let mut actions = std::collections::HashSet::new();
@@ -798,7 +869,8 @@ mod tests {
 
     #[test]
     fn test_sarsa_episode() {
-        let mut sarsa = SarsaAgent::new(2, 0.5, 0.9).unwrap()
+        let mut sarsa = SarsaAgent::new(2, 0.5, 0.9)
+            .unwrap()
             .with_strategy(ExplorationStrategy::Greedy);
         let _a0 = sarsa.begin_episode(0);
         let _a1 = sarsa.step(1.0, 1, false).unwrap();
@@ -808,7 +880,8 @@ mod tests {
 
     #[test]
     fn test_sarsa_q_update() {
-        let mut sarsa = SarsaAgent::new(2, 1.0, 0.0).unwrap()
+        let mut sarsa = SarsaAgent::new(2, 1.0, 0.0)
+            .unwrap()
             .with_strategy(ExplorationStrategy::Greedy);
         let _a = sarsa.begin_episode(0);
         sarsa.step(7.0, 1, true).unwrap();

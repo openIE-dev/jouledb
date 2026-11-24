@@ -304,7 +304,9 @@ impl EscalationRule {
             EscalationCondition::TimeInState {
                 state: target_state,
                 max_duration_minutes,
-            } => state == *target_state && incident_age.num_minutes() > *max_duration_minutes as i64,
+            } => {
+                state == *target_state && incident_age.num_minutes() > *max_duration_minutes as i64
+            }
             EscalationCondition::SeverityAtLeast { min_severity } => severity <= *min_severity,
             EscalationCondition::NotAcknowledgedWithin { minutes } => {
                 state == IncidentState::Detected && incident_age.num_minutes() > *minutes as i64
@@ -516,7 +518,11 @@ impl Incident {
 
         self.timeline.push(TimelineEvent::new(
             TimelineEventKind::StateChange,
-            &format!("State changed from {} to {}", old.as_str(), new_state.as_str()),
+            &format!(
+                "State changed from {} to {}",
+                old.as_str(),
+                new_state.as_str()
+            ),
         ));
         Ok(())
     }
@@ -596,7 +602,12 @@ impl IncidentTracker {
         }
     }
 
-    pub fn create_incident(&mut self, title: &str, description: &str, severity: Severity) -> String {
+    pub fn create_incident(
+        &mut self,
+        title: &str,
+        description: &str,
+        severity: Severity,
+    ) -> String {
         let incident = Incident::new(title, description, severity);
         let id = incident.id.clone();
         self.incidents.push(incident);
@@ -766,14 +777,8 @@ mod tests {
     fn test_sla_creation() {
         let now = Utc::now();
         let sla = SlaStatus::new(Severity::Sev1, now);
-        assert_eq!(
-            sla.response_deadline,
-            now + Duration::minutes(15)
-        );
-        assert_eq!(
-            sla.resolution_deadline,
-            now + Duration::minutes(240)
-        );
+        assert_eq!(sla.response_deadline, now + Duration::minutes(15));
+        assert_eq!(sla.resolution_deadline, now + Duration::minutes(240));
     }
 
     #[test]
@@ -921,7 +926,10 @@ mod tests {
 
     #[test]
     fn test_responder_role_as_str() {
-        assert_eq!(ResponderRole::IncidentCommander.as_str(), "incident_commander");
+        assert_eq!(
+            ResponderRole::IncidentCommander.as_str(),
+            "incident_commander"
+        );
         assert_eq!(ResponderRole::TechnicalLead.as_str(), "technical_lead");
         assert_eq!(ResponderRole::Responder.as_str(), "responder");
     }

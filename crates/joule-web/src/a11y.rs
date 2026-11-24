@@ -31,44 +31,243 @@ pub struct AriaRole {
 /// Registry of known ARIA roles.
 pub fn known_roles() -> Vec<AriaRole> {
     vec![
-        AriaRole { name: "alert", category: RoleCategory::LiveRegion, required_props: &[], supported_props: &["aria-atomic", "aria-live"] },
-        AriaRole { name: "alertdialog", category: RoleCategory::Window, required_props: &["aria-label"], supported_props: &["aria-describedby"] },
-        AriaRole { name: "banner", category: RoleCategory::Landmark, required_props: &[], supported_props: &["aria-label"] },
-        AriaRole { name: "button", category: RoleCategory::Widget, required_props: &[], supported_props: &["aria-pressed", "aria-expanded", "aria-disabled"] },
-        AriaRole { name: "checkbox", category: RoleCategory::Widget, required_props: &["aria-checked"], supported_props: &["aria-disabled", "aria-readonly"] },
-        AriaRole { name: "complementary", category: RoleCategory::Landmark, required_props: &[], supported_props: &["aria-label"] },
-        AriaRole { name: "contentinfo", category: RoleCategory::Landmark, required_props: &[], supported_props: &["aria-label"] },
-        AriaRole { name: "dialog", category: RoleCategory::Window, required_props: &["aria-label"], supported_props: &["aria-describedby", "aria-modal"] },
-        AriaRole { name: "form", category: RoleCategory::Landmark, required_props: &[], supported_props: &["aria-label"] },
-        AriaRole { name: "heading", category: RoleCategory::Document, required_props: &["aria-level"], supported_props: &[] },
-        AriaRole { name: "img", category: RoleCategory::Document, required_props: &["aria-label"], supported_props: &[] },
-        AriaRole { name: "link", category: RoleCategory::Widget, required_props: &[], supported_props: &["aria-disabled", "aria-expanded"] },
-        AriaRole { name: "list", category: RoleCategory::Document, required_props: &[], supported_props: &["aria-label"] },
-        AriaRole { name: "listbox", category: RoleCategory::Widget, required_props: &[], supported_props: &["aria-multiselectable", "aria-required", "aria-activedescendant"] },
-        AriaRole { name: "listitem", category: RoleCategory::Document, required_props: &[], supported_props: &["aria-level"] },
-        AriaRole { name: "log", category: RoleCategory::LiveRegion, required_props: &[], supported_props: &["aria-live", "aria-atomic"] },
-        AriaRole { name: "main", category: RoleCategory::Landmark, required_props: &[], supported_props: &["aria-label"] },
-        AriaRole { name: "menu", category: RoleCategory::Widget, required_props: &[], supported_props: &["aria-activedescendant", "aria-orientation"] },
-        AriaRole { name: "menuitem", category: RoleCategory::Widget, required_props: &[], supported_props: &["aria-disabled"] },
-        AriaRole { name: "navigation", category: RoleCategory::Landmark, required_props: &[], supported_props: &["aria-label"] },
-        AriaRole { name: "option", category: RoleCategory::Widget, required_props: &["aria-selected"], supported_props: &["aria-disabled"] },
-        AriaRole { name: "progressbar", category: RoleCategory::Widget, required_props: &[], supported_props: &["aria-valuenow", "aria-valuemin", "aria-valuemax"] },
-        AriaRole { name: "radio", category: RoleCategory::Widget, required_props: &["aria-checked"], supported_props: &["aria-disabled"] },
-        AriaRole { name: "radiogroup", category: RoleCategory::Widget, required_props: &[], supported_props: &["aria-required", "aria-orientation"] },
-        AriaRole { name: "region", category: RoleCategory::Landmark, required_props: &["aria-label"], supported_props: &[] },
-        AriaRole { name: "search", category: RoleCategory::Landmark, required_props: &[], supported_props: &["aria-label"] },
-        AriaRole { name: "slider", category: RoleCategory::Widget, required_props: &["aria-valuenow", "aria-valuemin", "aria-valuemax"], supported_props: &["aria-orientation", "aria-disabled"] },
-        AriaRole { name: "spinbutton", category: RoleCategory::Widget, required_props: &["aria-valuenow", "aria-valuemin", "aria-valuemax"], supported_props: &["aria-readonly", "aria-required"] },
-        AriaRole { name: "status", category: RoleCategory::LiveRegion, required_props: &[], supported_props: &["aria-live", "aria-atomic"] },
-        AriaRole { name: "switch", category: RoleCategory::Widget, required_props: &["aria-checked"], supported_props: &["aria-disabled", "aria-readonly"] },
-        AriaRole { name: "tab", category: RoleCategory::Widget, required_props: &[], supported_props: &["aria-selected", "aria-disabled"] },
-        AriaRole { name: "tablist", category: RoleCategory::Widget, required_props: &[], supported_props: &["aria-orientation", "aria-multiselectable"] },
-        AriaRole { name: "tabpanel", category: RoleCategory::Widget, required_props: &[], supported_props: &["aria-labelledby"] },
-        AriaRole { name: "textbox", category: RoleCategory::Widget, required_props: &[], supported_props: &["aria-placeholder", "aria-readonly", "aria-required", "aria-multiline"] },
-        AriaRole { name: "timer", category: RoleCategory::LiveRegion, required_props: &[], supported_props: &["aria-live"] },
-        AriaRole { name: "tooltip", category: RoleCategory::Widget, required_props: &[], supported_props: &["aria-describedby"] },
-        AriaRole { name: "tree", category: RoleCategory::Widget, required_props: &[], supported_props: &["aria-multiselectable", "aria-activedescendant"] },
-        AriaRole { name: "treeitem", category: RoleCategory::Widget, required_props: &[], supported_props: &["aria-expanded", "aria-selected", "aria-level"] },
+        AriaRole {
+            name: "alert",
+            category: RoleCategory::LiveRegion,
+            required_props: &[],
+            supported_props: &["aria-atomic", "aria-live"],
+        },
+        AriaRole {
+            name: "alertdialog",
+            category: RoleCategory::Window,
+            required_props: &["aria-label"],
+            supported_props: &["aria-describedby"],
+        },
+        AriaRole {
+            name: "banner",
+            category: RoleCategory::Landmark,
+            required_props: &[],
+            supported_props: &["aria-label"],
+        },
+        AriaRole {
+            name: "button",
+            category: RoleCategory::Widget,
+            required_props: &[],
+            supported_props: &["aria-pressed", "aria-expanded", "aria-disabled"],
+        },
+        AriaRole {
+            name: "checkbox",
+            category: RoleCategory::Widget,
+            required_props: &["aria-checked"],
+            supported_props: &["aria-disabled", "aria-readonly"],
+        },
+        AriaRole {
+            name: "complementary",
+            category: RoleCategory::Landmark,
+            required_props: &[],
+            supported_props: &["aria-label"],
+        },
+        AriaRole {
+            name: "contentinfo",
+            category: RoleCategory::Landmark,
+            required_props: &[],
+            supported_props: &["aria-label"],
+        },
+        AriaRole {
+            name: "dialog",
+            category: RoleCategory::Window,
+            required_props: &["aria-label"],
+            supported_props: &["aria-describedby", "aria-modal"],
+        },
+        AriaRole {
+            name: "form",
+            category: RoleCategory::Landmark,
+            required_props: &[],
+            supported_props: &["aria-label"],
+        },
+        AriaRole {
+            name: "heading",
+            category: RoleCategory::Document,
+            required_props: &["aria-level"],
+            supported_props: &[],
+        },
+        AriaRole {
+            name: "img",
+            category: RoleCategory::Document,
+            required_props: &["aria-label"],
+            supported_props: &[],
+        },
+        AriaRole {
+            name: "link",
+            category: RoleCategory::Widget,
+            required_props: &[],
+            supported_props: &["aria-disabled", "aria-expanded"],
+        },
+        AriaRole {
+            name: "list",
+            category: RoleCategory::Document,
+            required_props: &[],
+            supported_props: &["aria-label"],
+        },
+        AriaRole {
+            name: "listbox",
+            category: RoleCategory::Widget,
+            required_props: &[],
+            supported_props: &[
+                "aria-multiselectable",
+                "aria-required",
+                "aria-activedescendant",
+            ],
+        },
+        AriaRole {
+            name: "listitem",
+            category: RoleCategory::Document,
+            required_props: &[],
+            supported_props: &["aria-level"],
+        },
+        AriaRole {
+            name: "log",
+            category: RoleCategory::LiveRegion,
+            required_props: &[],
+            supported_props: &["aria-live", "aria-atomic"],
+        },
+        AriaRole {
+            name: "main",
+            category: RoleCategory::Landmark,
+            required_props: &[],
+            supported_props: &["aria-label"],
+        },
+        AriaRole {
+            name: "menu",
+            category: RoleCategory::Widget,
+            required_props: &[],
+            supported_props: &["aria-activedescendant", "aria-orientation"],
+        },
+        AriaRole {
+            name: "menuitem",
+            category: RoleCategory::Widget,
+            required_props: &[],
+            supported_props: &["aria-disabled"],
+        },
+        AriaRole {
+            name: "navigation",
+            category: RoleCategory::Landmark,
+            required_props: &[],
+            supported_props: &["aria-label"],
+        },
+        AriaRole {
+            name: "option",
+            category: RoleCategory::Widget,
+            required_props: &["aria-selected"],
+            supported_props: &["aria-disabled"],
+        },
+        AriaRole {
+            name: "progressbar",
+            category: RoleCategory::Widget,
+            required_props: &[],
+            supported_props: &["aria-valuenow", "aria-valuemin", "aria-valuemax"],
+        },
+        AriaRole {
+            name: "radio",
+            category: RoleCategory::Widget,
+            required_props: &["aria-checked"],
+            supported_props: &["aria-disabled"],
+        },
+        AriaRole {
+            name: "radiogroup",
+            category: RoleCategory::Widget,
+            required_props: &[],
+            supported_props: &["aria-required", "aria-orientation"],
+        },
+        AriaRole {
+            name: "region",
+            category: RoleCategory::Landmark,
+            required_props: &["aria-label"],
+            supported_props: &[],
+        },
+        AriaRole {
+            name: "search",
+            category: RoleCategory::Landmark,
+            required_props: &[],
+            supported_props: &["aria-label"],
+        },
+        AriaRole {
+            name: "slider",
+            category: RoleCategory::Widget,
+            required_props: &["aria-valuenow", "aria-valuemin", "aria-valuemax"],
+            supported_props: &["aria-orientation", "aria-disabled"],
+        },
+        AriaRole {
+            name: "spinbutton",
+            category: RoleCategory::Widget,
+            required_props: &["aria-valuenow", "aria-valuemin", "aria-valuemax"],
+            supported_props: &["aria-readonly", "aria-required"],
+        },
+        AriaRole {
+            name: "status",
+            category: RoleCategory::LiveRegion,
+            required_props: &[],
+            supported_props: &["aria-live", "aria-atomic"],
+        },
+        AriaRole {
+            name: "switch",
+            category: RoleCategory::Widget,
+            required_props: &["aria-checked"],
+            supported_props: &["aria-disabled", "aria-readonly"],
+        },
+        AriaRole {
+            name: "tab",
+            category: RoleCategory::Widget,
+            required_props: &[],
+            supported_props: &["aria-selected", "aria-disabled"],
+        },
+        AriaRole {
+            name: "tablist",
+            category: RoleCategory::Widget,
+            required_props: &[],
+            supported_props: &["aria-orientation", "aria-multiselectable"],
+        },
+        AriaRole {
+            name: "tabpanel",
+            category: RoleCategory::Widget,
+            required_props: &[],
+            supported_props: &["aria-labelledby"],
+        },
+        AriaRole {
+            name: "textbox",
+            category: RoleCategory::Widget,
+            required_props: &[],
+            supported_props: &[
+                "aria-placeholder",
+                "aria-readonly",
+                "aria-required",
+                "aria-multiline",
+            ],
+        },
+        AriaRole {
+            name: "timer",
+            category: RoleCategory::LiveRegion,
+            required_props: &[],
+            supported_props: &["aria-live"],
+        },
+        AriaRole {
+            name: "tooltip",
+            category: RoleCategory::Widget,
+            required_props: &[],
+            supported_props: &["aria-describedby"],
+        },
+        AriaRole {
+            name: "tree",
+            category: RoleCategory::Widget,
+            required_props: &[],
+            supported_props: &["aria-multiselectable", "aria-activedescendant"],
+        },
+        AriaRole {
+            name: "treeitem",
+            category: RoleCategory::Widget,
+            required_props: &[],
+            supported_props: &["aria-expanded", "aria-selected", "aria-level"],
+        },
     ]
 }
 
@@ -107,14 +306,23 @@ pub struct FocusTrap {
 
 impl FocusTrap {
     pub fn new(elements: Vec<String>) -> Self {
-        Self { elements, current: 0, wrap: true }
+        Self {
+            elements,
+            current: 0,
+            wrap: true,
+        }
     }
 
-    pub fn no_wrap(mut self) -> Self { self.wrap = false; self }
+    pub fn no_wrap(mut self) -> Self {
+        self.wrap = false;
+        self
+    }
 
     /// Move focus to next element. Returns the element ID.
     pub fn next(&mut self) -> Option<&str> {
-        if self.elements.is_empty() { return None; }
+        if self.elements.is_empty() {
+            return None;
+        }
         if self.current + 1 < self.elements.len() {
             self.current += 1;
         } else if self.wrap {
@@ -125,7 +333,9 @@ impl FocusTrap {
 
     /// Move focus to previous element.
     pub fn prev(&mut self) -> Option<&str> {
-        if self.elements.is_empty() { return None; }
+        if self.elements.is_empty() {
+            return None;
+        }
         if self.current > 0 {
             self.current -= 1;
         } else if self.wrap {
@@ -155,10 +365,14 @@ impl FocusTrap {
     }
 
     /// Number of focusable elements.
-    pub fn len(&self) -> usize { self.elements.len() }
+    pub fn len(&self) -> usize {
+        self.elements.len()
+    }
 
     /// Whether the trap is empty.
-    pub fn is_empty(&self) -> bool { self.elements.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.elements.is_empty()
+    }
 }
 
 // ── Color Contrast (WCAG 2.1) ───────────────────────────────────
@@ -166,7 +380,7 @@ impl FocusTrap {
 /// sRGB color for contrast calculations.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SrgbColor {
-    pub r: f64,  // 0..1
+    pub r: f64, // 0..1
     pub g: f64,
     pub b: f64,
 }
@@ -209,8 +423,11 @@ impl SrgbColor {
     /// Relative luminance per WCAG 2.1.
     pub fn relative_luminance(&self) -> f64 {
         let linearize = |c: f64| -> f64 {
-            if c <= 0.03928 { c / 12.92 }
-            else { ((c + 0.055) / 1.055).powf(2.4) }
+            if c <= 0.03928 {
+                c / 12.92
+            } else {
+                ((c + 0.055) / 1.055).powf(2.4)
+            }
         };
         0.2126 * linearize(self.r) + 0.7152 * linearize(self.g) + 0.0722 * linearize(self.b)
     }
@@ -219,7 +436,8 @@ impl SrgbColor {
 impl fmt::Display for SrgbColor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "#{:02x}{:02x}{:02x}",
+            f,
+            "#{:02x}{:02x}{:02x}",
             (self.r * 255.0).round() as u8,
             (self.g * 255.0).round() as u8,
             (self.b * 255.0).round() as u8,
@@ -258,17 +476,25 @@ pub fn contrast_ratio(c1: &SrgbColor, c2: &SrgbColor) -> f64 {
 /// Check WCAG conformance for normal text (>= 4.5:1 for AA, >= 7:1 for AAA).
 pub fn check_contrast_normal(fg: &SrgbColor, bg: &SrgbColor) -> WcagLevel {
     let ratio = contrast_ratio(fg, bg);
-    if ratio >= 7.0 { WcagLevel::AAA }
-    else if ratio >= 4.5 { WcagLevel::AA }
-    else { WcagLevel::Fail }
+    if ratio >= 7.0 {
+        WcagLevel::AAA
+    } else if ratio >= 4.5 {
+        WcagLevel::AA
+    } else {
+        WcagLevel::Fail
+    }
 }
 
 /// Check WCAG conformance for large text (>= 3:1 for AA, >= 4.5:1 for AAA).
 pub fn check_contrast_large(fg: &SrgbColor, bg: &SrgbColor) -> WcagLevel {
     let ratio = contrast_ratio(fg, bg);
-    if ratio >= 4.5 { WcagLevel::AAA }
-    else if ratio >= 3.0 { WcagLevel::AA }
-    else { WcagLevel::Fail }
+    if ratio >= 4.5 {
+        WcagLevel::AAA
+    } else if ratio >= 3.0 {
+        WcagLevel::AA
+    } else {
+        WcagLevel::Fail
+    }
 }
 
 /// Suggest a foreground color (black or white) for best contrast against a background.
@@ -294,7 +520,11 @@ pub struct LandmarkRegion {
 
 impl LandmarkRegion {
     pub fn new(role: impl Into<String>, element: impl Into<String>) -> Self {
-        Self { role: role.into(), label: None, element: element.into() }
+        Self {
+            role: role.into(),
+            label: None,
+            element: element.into(),
+        }
     }
 
     pub fn with_label(mut self, label: impl Into<String>) -> Self {
@@ -332,9 +562,7 @@ pub fn standard_landmarks() -> Vec<LandmarkRegion> {
 
 /// Generate a skip-to-content link.
 pub fn skip_link(target_id: &str, text: &str) -> String {
-    format!(
-        r##"<a href="#{target_id}" class="skip-link">{text}</a>"##
-    )
+    format!(r##"<a href="#{target_id}" class="skip-link">{text}</a>"##)
 }
 
 /// Generate CSS for visually-hidden skip link that appears on focus.
@@ -467,7 +695,10 @@ pub fn audit_elements(elements: &[ElementInfo]) -> Vec<AuditIssue> {
                     issues.push(AuditIssue {
                         severity: Severity::Warning,
                         rule: "tabindex".into(),
-                        message: format!("tabindex={} — positive tabindex disrupts natural tab order", n),
+                        message: format!(
+                            "tabindex={} — positive tabindex disrupts natural tab order",
+                            n
+                        ),
                         element: el.id.clone(),
                     });
                 }
@@ -499,13 +730,22 @@ impl ElementInfo {
         }
     }
 
-    pub fn with_id(mut self, id: impl Into<String>) -> Self { self.id = Some(id.into()); self }
+    pub fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
+        self
+    }
     pub fn with_attr(mut self, key: impl Into<String>, val: impl Into<String>) -> Self {
         self.attrs.insert(key.into(), val.into());
         self
     }
-    pub fn with_text(mut self, text: impl Into<String>) -> Self { self.text_content = Some(text.into()); self }
-    pub fn with_label(mut self) -> Self { self.has_associated_label = true; self }
+    pub fn with_text(mut self, text: impl Into<String>) -> Self {
+        self.text_content = Some(text.into());
+        self
+    }
+    pub fn with_label(mut self) -> Self {
+        self.has_associated_label = true;
+        self
+    }
 }
 
 // ── Tests ────────────────────────────────────────────────────────
@@ -694,9 +934,11 @@ mod tests {
 
     #[test]
     fn test_landmark_region() {
-        let nav = LandmarkRegion::new("navigation", "nav")
-            .with_label("Main");
-        assert_eq!(nav.open_tag(), r#"<nav role="navigation" aria-label="Main">"#);
+        let nav = LandmarkRegion::new("navigation", "nav").with_label("Main");
+        assert_eq!(
+            nav.open_tag(),
+            r#"<nav role="navigation" aria-label="Main">"#
+        );
         assert_eq!(nav.close_tag(), "</nav>");
     }
 
@@ -732,9 +974,7 @@ mod tests {
 
     #[test]
     fn test_audit_img_with_alt() {
-        let elements = vec![
-            ElementInfo::new("img").with_attr("alt", "A photo"),
-        ];
+        let elements = vec![ElementInfo::new("img").with_attr("alt", "A photo")];
         let issues = audit_elements(&elements);
         assert!(!issues.iter().any(|i| i.rule == "img-alt"));
     }
@@ -748,45 +988,35 @@ mod tests {
 
     #[test]
     fn test_audit_button_with_text() {
-        let elements = vec![
-            ElementInfo::new("button").with_text("Submit"),
-        ];
+        let elements = vec![ElementInfo::new("button").with_text("Submit")];
         let issues = audit_elements(&elements);
         assert!(!issues.iter().any(|i| i.rule == "accessible-name"));
     }
 
     #[test]
     fn test_audit_input_no_label() {
-        let elements = vec![
-            ElementInfo::new("input").with_attr("type", "text"),
-        ];
+        let elements = vec![ElementInfo::new("input").with_attr("type", "text")];
         let issues = audit_elements(&elements);
         assert!(issues.iter().any(|i| i.rule == "label"));
     }
 
     #[test]
     fn test_audit_input_hidden_ok() {
-        let elements = vec![
-            ElementInfo::new("input").with_attr("type", "hidden"),
-        ];
+        let elements = vec![ElementInfo::new("input").with_attr("type", "hidden")];
         let issues = audit_elements(&elements);
         assert!(!issues.iter().any(|i| i.rule == "label"));
     }
 
     #[test]
     fn test_audit_positive_tabindex() {
-        let elements = vec![
-            ElementInfo::new("div").with_attr("tabindex", "5"),
-        ];
+        let elements = vec![ElementInfo::new("div").with_attr("tabindex", "5")];
         let issues = audit_elements(&elements);
         assert!(issues.iter().any(|i| i.rule == "tabindex"));
     }
 
     #[test]
     fn test_audit_aria_role_validation() {
-        let elements = vec![
-            ElementInfo::new("div").with_attr("role", "checkbox"),
-        ];
+        let elements = vec![ElementInfo::new("div").with_attr("role", "checkbox")];
         let issues = audit_elements(&elements);
         assert!(issues.iter().any(|i| i.rule == "aria-required-props"));
     }

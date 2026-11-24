@@ -418,7 +418,10 @@ impl DynMessage {
 
     /// Whether a field is set (and not default).
     pub fn has_field(&self, name: &str) -> bool {
-        self.fields.get(name).map(|v| !v.is_default()).unwrap_or(false)
+        self.fields
+            .get(name)
+            .map(|v| !v.is_default())
+            .unwrap_or(false)
     }
 
     /// Clear all fields.
@@ -448,7 +451,8 @@ impl DynMessage {
                 (Some(DynValue::Message(existing)), DynValue::Message(incoming)) => {
                     let mut merged = (**existing).clone();
                     merged.merge(incoming);
-                    self.fields.insert(name.clone(), DynValue::Message(Box::new(merged)));
+                    self.fields
+                        .insert(name.clone(), DynValue::Message(Box::new(merged)));
                 }
                 // Append lists.
                 (Some(DynValue::List(existing)), DynValue::List(incoming)) => {
@@ -470,7 +474,9 @@ impl DynMessage {
     /// that differ (name, self_value, other_value).
     pub fn diff(&self, other: &DynMessage) -> Vec<FieldDiff> {
         let mut diffs = Vec::new();
-        let mut all_keys: Vec<String> = self.fields.keys()
+        let mut all_keys: Vec<String> = self
+            .fields
+            .keys()
             .chain(other.fields.keys())
             .cloned()
             .collect();
@@ -578,14 +584,16 @@ impl EnumDescriptor {
 
     /// Find name by number.
     pub fn name_by_number(&self, number: i32) -> Option<&str> {
-        self.values.iter()
+        self.values
+            .iter()
             .find(|(_, n)| *n == number)
             .map(|(name, _)| name.as_str())
     }
 
     /// Find number by name.
     pub fn number_by_name(&self, name: &str) -> Option<i32> {
-        self.values.iter()
+        self.values
+            .iter()
             .find(|(n, _)| n == name)
             .map(|(_, num)| *num)
     }
@@ -722,9 +730,18 @@ mod tests {
     #[test]
     fn dyn_value_default_for_kind() {
         assert_eq!(DynValue::default_for(&FieldKind::Int32), DynValue::Int32(0));
-        assert_eq!(DynValue::default_for(&FieldKind::String), DynValue::String(String::new()));
-        assert_eq!(DynValue::default_for(&FieldKind::Bool), DynValue::Bool(false));
-        assert_eq!(DynValue::default_for(&FieldKind::Float), DynValue::Float(0.0));
+        assert_eq!(
+            DynValue::default_for(&FieldKind::String),
+            DynValue::String(String::new())
+        );
+        assert_eq!(
+            DynValue::default_for(&FieldKind::Bool),
+            DynValue::Bool(false)
+        );
+        assert_eq!(
+            DynValue::default_for(&FieldKind::Float),
+            DynValue::Float(0.0)
+        );
     }
 
     #[test]
@@ -774,8 +791,8 @@ mod tests {
 
     #[test]
     fn field_descriptor_map() {
-        let fd = FieldDescriptor::new("attrs", 6, FieldKind::String)
-            .with_map_key(FieldKind::String);
+        let fd =
+            FieldDescriptor::new("attrs", 6, FieldKind::String).with_map_key(FieldKind::String);
         assert_eq!(fd.cardinality, Cardinality::Map);
         assert_eq!(fd.map_key_kind, Some(FieldKind::String));
     }
@@ -1023,7 +1040,11 @@ mod tests {
     fn descriptor_registry_validate_ok() {
         let mut reg = DescriptorRegistry::new();
         let mut desc = MessageDescriptor::new("Outer");
-        desc.add_field(FieldDescriptor::new("inner", 1, FieldKind::Message("Inner".into())));
+        desc.add_field(FieldDescriptor::new(
+            "inner",
+            1,
+            FieldKind::Message("Inner".into()),
+        ));
         reg.register_message(desc);
         reg.register_message(MessageDescriptor::new("Inner"));
 
@@ -1035,7 +1056,11 @@ mod tests {
     fn descriptor_registry_validate_missing() {
         let mut reg = DescriptorRegistry::new();
         let mut desc = MessageDescriptor::new("Outer");
-        desc.add_field(FieldDescriptor::new("inner", 1, FieldKind::Message("Missing".into())));
+        desc.add_field(FieldDescriptor::new(
+            "inner",
+            1,
+            FieldKind::Message("Missing".into()),
+        ));
         reg.register_message(desc);
 
         let errors = reg.validate_references();
@@ -1064,8 +1089,7 @@ mod tests {
     fn message_descriptor_json_name_lookup() {
         let mut desc = MessageDescriptor::new("Test");
         desc.add_field(
-            FieldDescriptor::new("my_field", 1, FieldKind::Int32)
-                .with_json_name("myField"),
+            FieldDescriptor::new("my_field", 1, FieldKind::Int32).with_json_name("myField"),
         );
         assert!(desc.field_by_json_name("myField").is_some());
         assert!(desc.field_by_json_name("my_field").is_none());

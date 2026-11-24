@@ -60,64 +60,124 @@ impl BiomeProperties {
     pub fn for_biome(biome: BiomeType) -> Self {
         match biome {
             BiomeType::Tundra => Self {
-                biome, tree_density: 0.02, ground_color: [0.85, 0.88, 0.90],
-                height_variation: 0.1, base_temperature: -10.0, base_moisture: 0.3,
+                biome,
+                tree_density: 0.02,
+                ground_color: [0.85, 0.88, 0.90],
+                height_variation: 0.1,
+                base_temperature: -10.0,
+                base_moisture: 0.3,
             },
             BiomeType::Taiga => Self {
-                biome, tree_density: 0.6, ground_color: [0.2, 0.35, 0.2],
-                height_variation: 0.2, base_temperature: -5.0, base_moisture: 0.5,
+                biome,
+                tree_density: 0.6,
+                ground_color: [0.2, 0.35, 0.2],
+                height_variation: 0.2,
+                base_temperature: -5.0,
+                base_moisture: 0.5,
             },
             BiomeType::TemperateForest => Self {
-                biome, tree_density: 0.7, ground_color: [0.25, 0.45, 0.15],
-                height_variation: 0.3, base_temperature: 10.0, base_moisture: 0.6,
+                biome,
+                tree_density: 0.7,
+                ground_color: [0.25, 0.45, 0.15],
+                height_variation: 0.3,
+                base_temperature: 10.0,
+                base_moisture: 0.6,
             },
             BiomeType::TemperateRainforest => Self {
-                biome, tree_density: 0.85, ground_color: [0.15, 0.5, 0.1],
-                height_variation: 0.35, base_temperature: 12.0, base_moisture: 0.9,
+                biome,
+                tree_density: 0.85,
+                ground_color: [0.15, 0.5, 0.1],
+                height_variation: 0.35,
+                base_temperature: 12.0,
+                base_moisture: 0.9,
             },
             BiomeType::TropicalForest => Self {
-                biome, tree_density: 0.8, ground_color: [0.1, 0.55, 0.1],
-                height_variation: 0.25, base_temperature: 25.0, base_moisture: 0.7,
+                biome,
+                tree_density: 0.8,
+                ground_color: [0.1, 0.55, 0.1],
+                height_variation: 0.25,
+                base_temperature: 25.0,
+                base_moisture: 0.7,
             },
             BiomeType::TropicalRainforest => Self {
-                biome, tree_density: 0.95, ground_color: [0.05, 0.45, 0.05],
-                height_variation: 0.2, base_temperature: 27.0, base_moisture: 0.95,
+                biome,
+                tree_density: 0.95,
+                ground_color: [0.05, 0.45, 0.05],
+                height_variation: 0.2,
+                base_temperature: 27.0,
+                base_moisture: 0.95,
             },
             BiomeType::Desert => Self {
-                biome, tree_density: 0.01, ground_color: [0.82, 0.75, 0.55],
-                height_variation: 0.15, base_temperature: 30.0, base_moisture: 0.05,
+                biome,
+                tree_density: 0.01,
+                ground_color: [0.82, 0.75, 0.55],
+                height_variation: 0.15,
+                base_temperature: 30.0,
+                base_moisture: 0.05,
             },
             BiomeType::Grassland => Self {
-                biome, tree_density: 0.05, ground_color: [0.55, 0.65, 0.25],
-                height_variation: 0.1, base_temperature: 15.0, base_moisture: 0.35,
+                biome,
+                tree_density: 0.05,
+                ground_color: [0.55, 0.65, 0.25],
+                height_variation: 0.1,
+                base_temperature: 15.0,
+                base_moisture: 0.35,
             },
             BiomeType::Savanna => Self {
-                biome, tree_density: 0.15, ground_color: [0.65, 0.6, 0.3],
-                height_variation: 0.1, base_temperature: 25.0, base_moisture: 0.25,
+                biome,
+                tree_density: 0.15,
+                ground_color: [0.65, 0.6, 0.3],
+                height_variation: 0.1,
+                base_temperature: 25.0,
+                base_moisture: 0.25,
             },
             BiomeType::Shrubland => Self {
-                biome, tree_density: 0.1, ground_color: [0.5, 0.5, 0.3],
-                height_variation: 0.15, base_temperature: 18.0, base_moisture: 0.2,
+                biome,
+                tree_density: 0.1,
+                ground_color: [0.5, 0.5, 0.3],
+                height_variation: 0.15,
+                base_temperature: 18.0,
+                base_moisture: 0.2,
             },
             BiomeType::BorealForest => Self {
-                biome, tree_density: 0.55, ground_color: [0.2, 0.3, 0.18],
-                height_variation: 0.25, base_temperature: 0.0, base_moisture: 0.55,
+                biome,
+                tree_density: 0.55,
+                ground_color: [0.2, 0.3, 0.18],
+                height_variation: 0.25,
+                base_temperature: 0.0,
+                base_moisture: 0.55,
             },
             BiomeType::Wetland => Self {
-                biome, tree_density: 0.2, ground_color: [0.3, 0.4, 0.25],
-                height_variation: 0.05, base_temperature: 15.0, base_moisture: 0.9,
+                biome,
+                tree_density: 0.2,
+                ground_color: [0.3, 0.4, 0.25],
+                height_variation: 0.05,
+                base_temperature: 15.0,
+                base_moisture: 0.9,
             },
             BiomeType::Alpine => Self {
-                biome, tree_density: 0.0, ground_color: [0.7, 0.7, 0.75],
-                height_variation: 0.4, base_temperature: -15.0, base_moisture: 0.4,
+                biome,
+                tree_density: 0.0,
+                ground_color: [0.7, 0.7, 0.75],
+                height_variation: 0.4,
+                base_temperature: -15.0,
+                base_moisture: 0.4,
             },
             BiomeType::Ocean => Self {
-                biome, tree_density: 0.0, ground_color: [0.1, 0.2, 0.6],
-                height_variation: 0.0, base_temperature: 10.0, base_moisture: 1.0,
+                biome,
+                tree_density: 0.0,
+                ground_color: [0.1, 0.2, 0.6],
+                height_variation: 0.0,
+                base_temperature: 10.0,
+                base_moisture: 1.0,
             },
             BiomeType::Beach => Self {
-                biome, tree_density: 0.03, ground_color: [0.9, 0.85, 0.65],
-                height_variation: 0.02, base_temperature: 20.0, base_moisture: 0.5,
+                biome,
+                tree_density: 0.03,
+                ground_color: [0.9, 0.85, 0.65],
+                height_variation: 0.02,
+                base_temperature: 20.0,
+                base_moisture: 0.5,
             },
         }
     }
@@ -242,30 +302,54 @@ impl BiomeGenerator {
             return BiomeType::Alpine;
         }
         if temperature < -2.0 {
-            if moisture > 0.5 { return BiomeType::Tundra; }
+            if moisture > 0.5 {
+                return BiomeType::Tundra;
+            }
             return BiomeType::Alpine;
         }
         if temperature < 5.0 {
-            if moisture > 0.6 { return BiomeType::Taiga; }
-            if moisture > 0.4 { return BiomeType::BorealForest; }
+            if moisture > 0.6 {
+                return BiomeType::Taiga;
+            }
+            if moisture > 0.4 {
+                return BiomeType::BorealForest;
+            }
             return BiomeType::Tundra;
         }
         if temperature < 15.0 {
-            if moisture > 0.8 { return BiomeType::TemperateRainforest; }
-            if moisture > 0.5 { return BiomeType::TemperateForest; }
-            if moisture > 0.3 { return BiomeType::Grassland; }
+            if moisture > 0.8 {
+                return BiomeType::TemperateRainforest;
+            }
+            if moisture > 0.5 {
+                return BiomeType::TemperateForest;
+            }
+            if moisture > 0.3 {
+                return BiomeType::Grassland;
+            }
             return BiomeType::Shrubland;
         }
         if temperature < 22.0 {
-            if moisture > 0.7 { return BiomeType::TemperateRainforest; }
-            if moisture > 0.4 { return BiomeType::TemperateForest; }
-            if moisture > 0.2 { return BiomeType::Grassland; }
+            if moisture > 0.7 {
+                return BiomeType::TemperateRainforest;
+            }
+            if moisture > 0.4 {
+                return BiomeType::TemperateForest;
+            }
+            if moisture > 0.2 {
+                return BiomeType::Grassland;
+            }
             return BiomeType::Desert;
         }
         // Hot temperatures
-        if moisture > 0.8 { return BiomeType::TropicalRainforest; }
-        if moisture > 0.5 { return BiomeType::TropicalForest; }
-        if moisture > 0.25 { return BiomeType::Savanna; }
+        if moisture > 0.8 {
+            return BiomeType::TropicalRainforest;
+        }
+        if moisture > 0.5 {
+            return BiomeType::TropicalForest;
+        }
+        if moisture > 0.25 {
+            return BiomeType::Savanna;
+        }
         BiomeType::Desert
     }
 
@@ -534,7 +618,10 @@ mod tests {
     #[test]
     fn test_biome_type_display() {
         assert_eq!(format!("{}", BiomeType::Tundra), "Tundra");
-        assert_eq!(format!("{}", BiomeType::TropicalRainforest), "Tropical Rainforest");
+        assert_eq!(
+            format!("{}", BiomeType::TropicalRainforest),
+            "Tropical Rainforest"
+        );
     }
 
     #[test]

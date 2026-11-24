@@ -157,7 +157,11 @@ impl Conv2dLayer {
     /// Number of trainable parameters.
     pub fn param_count(&self) -> usize {
         let w = self.weights.len();
-        if self.config.use_bias { w + self.config.out_channels } else { w }
+        if self.config.use_bias {
+            w + self.config.out_channels
+        } else {
+            w
+        }
     }
 
     /// Pad input if needed, returning the padded tensor.
@@ -247,7 +251,11 @@ impl Conv2dLayer {
         let mut output = vec![0.0; out_c * spatial];
         for oc in 0..out_c {
             for s in 0..spatial {
-                let mut sum = if self.config.use_bias { self.biases[oc] } else { 0.0 };
+                let mut sum = if self.config.use_bias {
+                    self.biases[oc]
+                } else {
+                    0.0
+                };
                 for k in 0..kernel_elems {
                     sum += self.weights[oc * kernel_elems + k] * col[k * spatial + s];
                 }
@@ -329,7 +337,11 @@ impl DepthwiseSeparableConv {
     pub fn compression_ratio(&self, out_channels: usize, kernel_size: usize) -> f64 {
         let standard = self.depthwise.config.in_channels * out_channels * kernel_size * kernel_size;
         let sep = self.param_count();
-        if sep == 0 { 0.0 } else { standard as f64 / sep as f64 }
+        if sep == 0 {
+            0.0
+        } else {
+            standard as f64 / sep as f64
+        }
     }
 }
 

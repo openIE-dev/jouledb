@@ -123,7 +123,8 @@ impl SyncGroup {
         if let Some(pos) = self.barriers.iter().position(|(n, _)| n == name) {
             &mut self.barriers[pos].1
         } else {
-            self.barriers.push((name.to_string(), Barrier::new(expected)));
+            self.barriers
+                .push((name.to_string(), Barrier::new(expected)));
             let last = self.barriers.len() - 1;
             &mut self.barriers[last].1
         }
@@ -252,8 +253,12 @@ mod tests {
     fn test_sync_group_multiple_barriers() {
         let mut group = SyncGroup::new();
 
-        group.barrier("alpha", 1).arrive(1, BinaryHV::random(1000, 1));
-        group.barrier("beta", 1).arrive(2, BinaryHV::random(1000, 2));
+        group
+            .barrier("alpha", 1)
+            .arrive(1, BinaryHV::random(1000, 1));
+        group
+            .barrier("beta", 1)
+            .arrive(2, BinaryHV::random(1000, 2));
 
         assert_eq!(group.barrier_count(), 2);
         assert!(group.is_released("alpha"));

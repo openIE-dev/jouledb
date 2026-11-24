@@ -171,11 +171,7 @@ impl BurrowsWheeler {
     }
 
     /// Backward search: count occurrences of `pattern` in original text.
-    pub fn backward_search(
-        &self,
-        bwt_result: &BwtResult,
-        pattern: &[u8],
-    ) -> usize {
+    pub fn backward_search(&self, bwt_result: &BwtResult, pattern: &[u8]) -> usize {
         if pattern.is_empty() {
             return bwt_result.bwt.len();
         }
@@ -219,11 +215,7 @@ impl BurrowsWheeler {
     }
 
     /// Find all positions where `pattern` occurs.
-    pub fn locate_pattern(
-        &self,
-        bwt_result: &BwtResult,
-        pattern: &[u8],
-    ) -> Vec<usize> {
+    pub fn locate_pattern(&self, bwt_result: &BwtResult, pattern: &[u8]) -> Vec<usize> {
         if pattern.is_empty() {
             return Vec::new();
         }
@@ -260,9 +252,7 @@ impl BurrowsWheeler {
             }
         }
 
-        let mut positions: Vec<usize> = (top..bottom)
-            .map(|i| bwt_result.suffix_array[i])
-            .collect();
+        let mut positions: Vec<usize> = (top..bottom).map(|i| bwt_result.suffix_array[i]).collect();
         positions.sort();
         positions
     }

@@ -504,9 +504,17 @@ impl ResourceCollector {
 
     /// Record memory metrics.
     pub fn record_memory(&mut self, mem: &MemoryMetrics) {
-        self.record("memory.utilization", mem.timestamp_ms, mem.utilization_percent());
+        self.record(
+            "memory.utilization",
+            mem.timestamp_ms,
+            mem.utilization_percent(),
+        );
         self.record("memory.used", mem.timestamp_ms, mem.used_bytes as f64);
-        self.record("memory.available", mem.timestamp_ms, mem.available_bytes as f64);
+        self.record(
+            "memory.available",
+            mem.timestamp_ms,
+            mem.available_bytes as f64,
+        );
     }
 
     /// Record disk metrics.
@@ -613,8 +621,7 @@ mod tests {
 
     #[test]
     fn test_metric_series_max_samples() {
-        let mut series = MetricSeries::new("m", ResourceKind::Cpu, "%")
-            .with_max_samples(3);
+        let mut series = MetricSeries::new("m", ResourceKind::Cpu, "%").with_max_samples(3);
         for i in 0..5 {
             series.record(i as u64 * 1000, i as f64);
         }
@@ -742,9 +749,17 @@ mod tests {
         let mut collector = ResourceCollector::new(5000);
         collector.register(MetricSeries::new("cpu.total", ResourceKind::Cpu, "percent"));
         collector.register(MetricSeries::new("cpu.user", ResourceKind::Cpu, "percent"));
-        collector.register(MetricSeries::new("cpu.system", ResourceKind::Cpu, "percent"));
+        collector.register(MetricSeries::new(
+            "cpu.system",
+            ResourceKind::Cpu,
+            "percent",
+        ));
         collector.register(MetricSeries::new("cpu.idle", ResourceKind::Cpu, "percent"));
-        collector.register(MetricSeries::new("cpu.iowait", ResourceKind::Cpu, "percent"));
+        collector.register(MetricSeries::new(
+            "cpu.iowait",
+            ResourceKind::Cpu,
+            "percent",
+        ));
         assert_eq!(collector.series_count(), 5);
 
         let mut cpu = CpuMetrics::new(1000);
@@ -761,7 +776,12 @@ mod tests {
     fn test_collector_alerts() {
         let mut collector = ResourceCollector::new(1000);
         collector.register(MetricSeries::new("cpu.total", ResourceKind::Cpu, "percent"));
-        collector.add_alert(ThresholdAlert::above("cpu_high", "cpu.total", 80.0, "warning"));
+        collector.add_alert(ThresholdAlert::above(
+            "cpu_high",
+            "cpu.total",
+            80.0,
+            "warning",
+        ));
         collector.record("cpu.total", 1000, 90.0);
         let firing = collector.check_alerts(1000);
         assert_eq!(firing.len(), 1);
@@ -771,9 +791,21 @@ mod tests {
     #[test]
     fn test_collector_record_memory() {
         let mut collector = ResourceCollector::new(1000);
-        collector.register(MetricSeries::new("memory.utilization", ResourceKind::Memory, "percent"));
-        collector.register(MetricSeries::new("memory.used", ResourceKind::Memory, "bytes"));
-        collector.register(MetricSeries::new("memory.available", ResourceKind::Memory, "bytes"));
+        collector.register(MetricSeries::new(
+            "memory.utilization",
+            ResourceKind::Memory,
+            "percent",
+        ));
+        collector.register(MetricSeries::new(
+            "memory.used",
+            ResourceKind::Memory,
+            "bytes",
+        ));
+        collector.register(MetricSeries::new(
+            "memory.available",
+            ResourceKind::Memory,
+            "bytes",
+        ));
 
         let mut mem = MemoryMetrics::new(1000);
         mem.total_bytes = 16_000_000_000;
@@ -795,8 +827,7 @@ mod tests {
 
     #[test]
     fn test_series_with_tag() {
-        let series = MetricSeries::new("m", ResourceKind::Cpu, "%")
-            .with_tag("host", "web-01");
+        let series = MetricSeries::new("m", ResourceKind::Cpu, "%").with_tag("host", "web-01");
         assert_eq!(series.tags.get("host").unwrap(), "web-01");
     }
 

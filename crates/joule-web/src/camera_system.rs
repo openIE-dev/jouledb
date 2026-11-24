@@ -11,13 +11,25 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn zero() -> Self { Self::new(0.0, 0.0, 0.0) }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn zero() -> Self {
+        Self::new(0.0, 0.0, 0.0)
+    }
 
-    pub fn sub(&self, o: &Vec3) -> Vec3 { Vec3::new(self.x - o.x, self.y - o.y, self.z - o.z) }
-    pub fn add(&self, o: &Vec3) -> Vec3 { Vec3::new(self.x + o.x, self.y + o.y, self.z + o.z) }
-    pub fn scale(&self, s: f64) -> Vec3 { Vec3::new(self.x * s, self.y * s, self.z * s) }
-    pub fn dot(&self, o: &Vec3) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
+    pub fn sub(&self, o: &Vec3) -> Vec3 {
+        Vec3::new(self.x - o.x, self.y - o.y, self.z - o.z)
+    }
+    pub fn add(&self, o: &Vec3) -> Vec3 {
+        Vec3::new(self.x + o.x, self.y + o.y, self.z + o.z)
+    }
+    pub fn scale(&self, s: f64) -> Vec3 {
+        Vec3::new(self.x * s, self.y * s, self.z * s)
+    }
+    pub fn dot(&self, o: &Vec3) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
     pub fn cross(&self, o: &Vec3) -> Vec3 {
         Vec3::new(
             self.y * o.z - self.z * o.y,
@@ -25,10 +37,14 @@ impl Vec3 {
             self.x * o.y - self.y * o.x,
         )
     }
-    pub fn length(&self) -> f64 { self.dot(self).sqrt() }
+    pub fn length(&self) -> f64 {
+        self.dot(self).sqrt()
+    }
     pub fn normalize(&self) -> Vec3 {
         let len = self.length();
-        if len < 1e-12 { return Vec3::zero(); }
+        if len < 1e-12 {
+            return Vec3::zero();
+        }
         self.scale(1.0 / len)
     }
 }
@@ -40,7 +56,10 @@ pub struct Mat4(pub [f64; 16]);
 impl Mat4 {
     pub fn identity() -> Self {
         let mut m = [0.0; 16];
-        m[0] = 1.0; m[5] = 1.0; m[10] = 1.0; m[15] = 1.0;
+        m[0] = 1.0;
+        m[5] = 1.0;
+        m[10] = 1.0;
+        m[15] = 1.0;
         Self(m)
     }
 
@@ -76,9 +95,18 @@ impl Mat4 {
         let s = f.cross(up).normalize();
         let u = s.cross(&f);
         let mut m = [0.0; 16];
-        m[0] = s.x;  m[1] = u.x;  m[2]  = -f.x;  m[3]  = 0.0;
-        m[4] = s.y;  m[5] = u.y;  m[6]  = -f.y;  m[7]  = 0.0;
-        m[8] = s.z;  m[9] = u.z;  m[10] = -f.z;  m[11] = 0.0;
+        m[0] = s.x;
+        m[1] = u.x;
+        m[2] = -f.x;
+        m[3] = 0.0;
+        m[4] = s.y;
+        m[5] = u.y;
+        m[6] = -f.y;
+        m[7] = 0.0;
+        m[8] = s.z;
+        m[9] = u.z;
+        m[10] = -f.z;
+        m[11] = 0.0;
         m[12] = -s.dot(eye);
         m[13] = -u.dot(eye);
         m[14] = f.dot(eye);
@@ -120,17 +148,39 @@ impl Mat4 {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Projection {
-    Perspective { fov_y: f64, aspect: f64, near: f64, far: f64 },
-    Orthographic { left: f64, right: f64, bottom: f64, top: f64, near: f64, far: f64 },
+    Perspective {
+        fov_y: f64,
+        aspect: f64,
+        near: f64,
+        far: f64,
+    },
+    Orthographic {
+        left: f64,
+        right: f64,
+        bottom: f64,
+        top: f64,
+        near: f64,
+        far: f64,
+    },
 }
 
 impl Projection {
     pub fn matrix(&self) -> Mat4 {
         match self {
-            Projection::Perspective { fov_y, aspect, near, far } =>
-                Mat4::perspective(*fov_y, *aspect, *near, *far),
-            Projection::Orthographic { left, right, bottom, top, near, far } =>
-                Mat4::orthographic(*left, *right, *bottom, *top, *near, *far),
+            Projection::Perspective {
+                fov_y,
+                aspect,
+                near,
+                far,
+            } => Mat4::perspective(*fov_y, *aspect, *near, *far),
+            Projection::Orthographic {
+                left,
+                right,
+                bottom,
+                top,
+                near,
+                far,
+            } => Mat4::orthographic(*left, *right, *bottom, *top, *near, *far),
         }
     }
 }
@@ -149,8 +199,15 @@ pub struct Plane {
 impl Plane {
     pub fn normalize(&self) -> Self {
         let len = (self.a * self.a + self.b * self.b + self.c * self.c).sqrt();
-        if len < 1e-12 { return self.clone(); }
-        Self { a: self.a / len, b: self.b / len, c: self.c / len, d: self.d / len }
+        if len < 1e-12 {
+            return self.clone();
+        }
+        Self {
+            a: self.a / len,
+            b: self.b / len,
+            c: self.c / len,
+            d: self.d / len,
+        }
     }
 
     /// Signed distance from point to plane.
@@ -176,25 +233,33 @@ impl Frustum {
         let m = &vp.0;
         // Row extraction from column-major storage:
         // row i = [m[0*4+i], m[1*4+i], m[2*4+i], m[3*4+i]]
-        let row = |i: usize| -> [f64; 4] {
-            [m[i], m[4 + i], m[8 + i], m[12 + i]]
-        };
-        let r0 = row(0); let r1 = row(1); let r2 = row(2); let r3 = row(3);
+        let row = |i: usize| -> [f64; 4] { [m[i], m[4 + i], m[8 + i], m[12 + i]] };
+        let r0 = row(0);
+        let r1 = row(1);
+        let r2 = row(2);
+        let r3 = row(3);
         let plane = |a: f64, b: f64, c: f64, d: f64| Plane { a, b, c, d }.normalize();
 
         Frustum {
-            left:   plane(r3[0]+r0[0], r3[1]+r0[1], r3[2]+r0[2], r3[3]+r0[3]),
-            right:  plane(r3[0]-r0[0], r3[1]-r0[1], r3[2]-r0[2], r3[3]-r0[3]),
-            bottom: plane(r3[0]+r1[0], r3[1]+r1[1], r3[2]+r1[2], r3[3]+r1[3]),
-            top:    plane(r3[0]-r1[0], r3[1]-r1[1], r3[2]-r1[2], r3[3]-r1[3]),
-            near:   plane(r3[0]+r2[0], r3[1]+r2[1], r3[2]+r2[2], r3[3]+r2[3]),
-            far:    plane(r3[0]-r2[0], r3[1]-r2[1], r3[2]-r2[2], r3[3]-r2[3]),
+            left: plane(r3[0] + r0[0], r3[1] + r0[1], r3[2] + r0[2], r3[3] + r0[3]),
+            right: plane(r3[0] - r0[0], r3[1] - r0[1], r3[2] - r0[2], r3[3] - r0[3]),
+            bottom: plane(r3[0] + r1[0], r3[1] + r1[1], r3[2] + r1[2], r3[3] + r1[3]),
+            top: plane(r3[0] - r1[0], r3[1] - r1[1], r3[2] - r1[2], r3[3] - r1[3]),
+            near: plane(r3[0] + r2[0], r3[1] + r2[1], r3[2] + r2[2], r3[3] + r2[3]),
+            far: plane(r3[0] - r2[0], r3[1] - r2[1], r3[2] - r2[2], r3[3] - r2[3]),
         }
     }
 
     /// Test if an axis-aligned bounding sphere is inside the frustum.
     pub fn contains_sphere(&self, cx: f64, cy: f64, cz: f64, radius: f64) -> bool {
-        for plane in [&self.left, &self.right, &self.bottom, &self.top, &self.near, &self.far] {
+        for plane in [
+            &self.left,
+            &self.right,
+            &self.bottom,
+            &self.top,
+            &self.near,
+            &self.far,
+        ] {
             if plane.distance(cx, cy, cz) < -radius {
                 return false;
             }
@@ -225,7 +290,13 @@ pub struct CameraShake {
 
 impl CameraShake {
     pub fn new(intensity: f64, decay: f64) -> Self {
-        Self { intensity, decay, remaining: intensity, offset: Vec3::zero(), seed: 12345 }
+        Self {
+            intensity,
+            decay,
+            remaining: intensity,
+            offset: Vec3::zero(),
+            seed: 12345,
+        }
     }
 
     pub fn trigger(&mut self, intensity: f64) {
@@ -246,7 +317,11 @@ impl CameraShake {
         self.seed = self.seed.wrapping_mul(6364136223846793005).wrapping_add(1);
         let rz = ((self.seed >> 33) as f64 / (u32::MAX as f64)) * 2.0 - 1.0;
 
-        self.offset = Vec3::new(rx * self.remaining, ry * self.remaining, rz * self.remaining);
+        self.offset = Vec3::new(
+            rx * self.remaining,
+            ry * self.remaining,
+            rz * self.remaining,
+        );
         self.remaining = (self.remaining - self.decay * dt).max(0.0);
         &self.offset
     }
@@ -273,22 +348,50 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn new_perspective(pos: Vec3, target: Vec3, fov_y: f64, aspect: f64, near: f64, far: f64) -> Self {
+    pub fn new_perspective(
+        pos: Vec3,
+        target: Vec3,
+        fov_y: f64,
+        aspect: f64,
+        near: f64,
+        far: f64,
+    ) -> Self {
         Self {
             position: pos,
             target,
             up: Vec3::new(0.0, 1.0, 0.0),
-            projection: Projection::Perspective { fov_y, aspect, near, far },
+            projection: Projection::Perspective {
+                fov_y,
+                aspect,
+                near,
+                far,
+            },
             shake: CameraShake::new(0.0, 1.0),
         }
     }
 
-    pub fn new_orthographic(pos: Vec3, target: Vec3, left: f64, right: f64, bottom: f64, top: f64, near: f64, far: f64) -> Self {
+    pub fn new_orthographic(
+        pos: Vec3,
+        target: Vec3,
+        left: f64,
+        right: f64,
+        bottom: f64,
+        top: f64,
+        near: f64,
+        far: f64,
+    ) -> Self {
         Self {
             position: pos,
             target,
             up: Vec3::new(0.0, 1.0, 0.0),
-            projection: Projection::Orthographic { left, right, bottom, top, near, far },
+            projection: Projection::Orthographic {
+                left,
+                right,
+                bottom,
+                top,
+                near,
+                far,
+            },
             shake: CameraShake::new(0.0, 1.0),
         }
     }
@@ -324,10 +427,22 @@ impl Camera {
         let near_pt = inv.transform([ndc_x, ndc_y, -1.0, 1.0]);
         let far_pt = inv.transform([ndc_x, ndc_y, 1.0, 1.0]);
 
-        let near_w = if near_pt[3].abs() > 1e-12 { near_pt[3] } else { 1.0 };
-        let far_w = if far_pt[3].abs() > 1e-12 { far_pt[3] } else { 1.0 };
+        let near_w = if near_pt[3].abs() > 1e-12 {
+            near_pt[3]
+        } else {
+            1.0
+        };
+        let far_w = if far_pt[3].abs() > 1e-12 {
+            far_pt[3]
+        } else {
+            1.0
+        };
 
-        let origin = Vec3::new(near_pt[0] / near_w, near_pt[1] / near_w, near_pt[2] / near_w);
+        let origin = Vec3::new(
+            near_pt[0] / near_w,
+            near_pt[1] / near_w,
+            near_pt[2] / near_w,
+        );
         let far_world = Vec3::new(far_pt[0] / far_w, far_pt[1] / far_w, far_pt[2] / far_w);
         let direction = far_world.sub(&origin).normalize();
 
@@ -345,32 +460,82 @@ fn invert_mat4(m: &Mat4) -> Mat4 {
     let s = &m.0;
     let mut inv = [0.0f64; 16];
 
-    inv[0]  =  s[5]*s[10]*s[15] - s[5]*s[11]*s[14] - s[9]*s[6]*s[15] + s[9]*s[7]*s[14] + s[13]*s[6]*s[11] - s[13]*s[7]*s[10];
-    inv[4]  = -s[4]*s[10]*s[15] + s[4]*s[11]*s[14] + s[8]*s[6]*s[15] - s[8]*s[7]*s[14] - s[12]*s[6]*s[11] + s[12]*s[7]*s[10];
-    inv[8]  =  s[4]*s[9]*s[15]  - s[4]*s[11]*s[13] - s[8]*s[5]*s[15] + s[8]*s[7]*s[13] + s[12]*s[5]*s[11] - s[12]*s[7]*s[9];
-    inv[12] = -s[4]*s[9]*s[14]  + s[4]*s[10]*s[13] + s[8]*s[5]*s[14] - s[8]*s[6]*s[13] - s[12]*s[5]*s[10] + s[12]*s[6]*s[9];
+    inv[0] = s[5] * s[10] * s[15] - s[5] * s[11] * s[14] - s[9] * s[6] * s[15]
+        + s[9] * s[7] * s[14]
+        + s[13] * s[6] * s[11]
+        - s[13] * s[7] * s[10];
+    inv[4] = -s[4] * s[10] * s[15] + s[4] * s[11] * s[14] + s[8] * s[6] * s[15]
+        - s[8] * s[7] * s[14]
+        - s[12] * s[6] * s[11]
+        + s[12] * s[7] * s[10];
+    inv[8] = s[4] * s[9] * s[15] - s[4] * s[11] * s[13] - s[8] * s[5] * s[15]
+        + s[8] * s[7] * s[13]
+        + s[12] * s[5] * s[11]
+        - s[12] * s[7] * s[9];
+    inv[12] = -s[4] * s[9] * s[14] + s[4] * s[10] * s[13] + s[8] * s[5] * s[14]
+        - s[8] * s[6] * s[13]
+        - s[12] * s[5] * s[10]
+        + s[12] * s[6] * s[9];
 
-    inv[1]  = -s[1]*s[10]*s[15] + s[1]*s[11]*s[14] + s[9]*s[2]*s[15] - s[9]*s[3]*s[14] - s[13]*s[2]*s[11] + s[13]*s[3]*s[10];
-    inv[5]  =  s[0]*s[10]*s[15] - s[0]*s[11]*s[14] - s[8]*s[2]*s[15] + s[8]*s[3]*s[14] + s[12]*s[2]*s[11] - s[12]*s[3]*s[10];
-    inv[9]  = -s[0]*s[9]*s[15]  + s[0]*s[11]*s[13] + s[8]*s[1]*s[15] - s[8]*s[3]*s[13] - s[12]*s[1]*s[11] + s[12]*s[3]*s[9];
-    inv[13] =  s[0]*s[9]*s[14]  - s[0]*s[10]*s[13] - s[8]*s[1]*s[14] + s[8]*s[2]*s[13] + s[12]*s[1]*s[10] - s[12]*s[2]*s[9];
+    inv[1] = -s[1] * s[10] * s[15] + s[1] * s[11] * s[14] + s[9] * s[2] * s[15]
+        - s[9] * s[3] * s[14]
+        - s[13] * s[2] * s[11]
+        + s[13] * s[3] * s[10];
+    inv[5] = s[0] * s[10] * s[15] - s[0] * s[11] * s[14] - s[8] * s[2] * s[15]
+        + s[8] * s[3] * s[14]
+        + s[12] * s[2] * s[11]
+        - s[12] * s[3] * s[10];
+    inv[9] = -s[0] * s[9] * s[15] + s[0] * s[11] * s[13] + s[8] * s[1] * s[15]
+        - s[8] * s[3] * s[13]
+        - s[12] * s[1] * s[11]
+        + s[12] * s[3] * s[9];
+    inv[13] = s[0] * s[9] * s[14] - s[0] * s[10] * s[13] - s[8] * s[1] * s[14]
+        + s[8] * s[2] * s[13]
+        + s[12] * s[1] * s[10]
+        - s[12] * s[2] * s[9];
 
-    inv[2]  =  s[1]*s[6]*s[15] - s[1]*s[7]*s[14] - s[5]*s[2]*s[15] + s[5]*s[3]*s[14] + s[13]*s[2]*s[7]  - s[13]*s[3]*s[6];
-    inv[6]  = -s[0]*s[6]*s[15] + s[0]*s[7]*s[14] + s[4]*s[2]*s[15] - s[4]*s[3]*s[14] - s[12]*s[2]*s[7]  + s[12]*s[3]*s[6];
-    inv[10] =  s[0]*s[5]*s[15] - s[0]*s[7]*s[13] - s[4]*s[1]*s[15] + s[4]*s[3]*s[13] + s[12]*s[1]*s[7]  - s[12]*s[3]*s[5];
-    inv[14] = -s[0]*s[5]*s[14] + s[0]*s[6]*s[13] + s[4]*s[1]*s[14] - s[4]*s[2]*s[13] - s[12]*s[1]*s[6]  + s[12]*s[2]*s[5];
+    inv[2] = s[1] * s[6] * s[15] - s[1] * s[7] * s[14] - s[5] * s[2] * s[15]
+        + s[5] * s[3] * s[14]
+        + s[13] * s[2] * s[7]
+        - s[13] * s[3] * s[6];
+    inv[6] = -s[0] * s[6] * s[15] + s[0] * s[7] * s[14] + s[4] * s[2] * s[15]
+        - s[4] * s[3] * s[14]
+        - s[12] * s[2] * s[7]
+        + s[12] * s[3] * s[6];
+    inv[10] = s[0] * s[5] * s[15] - s[0] * s[7] * s[13] - s[4] * s[1] * s[15]
+        + s[4] * s[3] * s[13]
+        + s[12] * s[1] * s[7]
+        - s[12] * s[3] * s[5];
+    inv[14] = -s[0] * s[5] * s[14] + s[0] * s[6] * s[13] + s[4] * s[1] * s[14]
+        - s[4] * s[2] * s[13]
+        - s[12] * s[1] * s[6]
+        + s[12] * s[2] * s[5];
 
-    inv[3]  = -s[1]*s[6]*s[11] + s[1]*s[7]*s[10] + s[5]*s[2]*s[11] - s[5]*s[3]*s[10] - s[9]*s[2]*s[7]   + s[9]*s[3]*s[6];
-    inv[7]  =  s[0]*s[6]*s[11] - s[0]*s[7]*s[10] - s[4]*s[2]*s[11] + s[4]*s[3]*s[10] + s[8]*s[2]*s[7]   - s[8]*s[3]*s[6];
-    inv[11] = -s[0]*s[5]*s[11] + s[0]*s[7]*s[9]  + s[4]*s[1]*s[11] - s[4]*s[3]*s[9]  - s[8]*s[1]*s[7]   + s[8]*s[3]*s[5];
-    inv[15] =  s[0]*s[5]*s[10] - s[0]*s[6]*s[9]  - s[4]*s[1]*s[10] + s[4]*s[2]*s[9]  + s[8]*s[1]*s[6]   - s[8]*s[2]*s[5];
+    inv[3] = -s[1] * s[6] * s[11] + s[1] * s[7] * s[10] + s[5] * s[2] * s[11]
+        - s[5] * s[3] * s[10]
+        - s[9] * s[2] * s[7]
+        + s[9] * s[3] * s[6];
+    inv[7] = s[0] * s[6] * s[11] - s[0] * s[7] * s[10] - s[4] * s[2] * s[11]
+        + s[4] * s[3] * s[10]
+        + s[8] * s[2] * s[7]
+        - s[8] * s[3] * s[6];
+    inv[11] = -s[0] * s[5] * s[11] + s[0] * s[7] * s[9] + s[4] * s[1] * s[11]
+        - s[4] * s[3] * s[9]
+        - s[8] * s[1] * s[7]
+        + s[8] * s[3] * s[5];
+    inv[15] = s[0] * s[5] * s[10] - s[0] * s[6] * s[9] - s[4] * s[1] * s[10]
+        + s[4] * s[2] * s[9]
+        + s[8] * s[1] * s[6]
+        - s[8] * s[2] * s[5];
 
-    let det = s[0]*inv[0] + s[1]*inv[4] + s[2]*inv[8] + s[3]*inv[12];
+    let det = s[0] * inv[0] + s[1] * inv[4] + s[2] * inv[8] + s[3] * inv[12];
     if det.abs() < 1e-20 {
         return Mat4::identity();
     }
     let inv_det = 1.0 / det;
-    for v in &mut inv { *v *= inv_det; }
+    for v in &mut inv {
+        *v *= inv_det;
+    }
     Mat4(inv)
 }
 
@@ -460,7 +625,9 @@ mod tests {
             Vec3::new(0.0, 0.0, 10.0),
             Vec3::zero(),
             std::f64::consts::FRAC_PI_4,
-            1.0, 0.1, 100.0,
+            1.0,
+            0.1,
+            100.0,
         );
         let vp = cam.view_projection();
         // Should produce a valid matrix (non-degenerate).
@@ -473,7 +640,9 @@ mod tests {
             Vec3::new(0.0, 0.0, 10.0),
             Vec3::zero(),
             std::f64::consts::FRAC_PI_4,
-            1.0, 0.1, 100.0,
+            1.0,
+            0.1,
+            100.0,
         );
         let frustum = cam.frustum();
         assert!(frustum.contains_sphere(0.0, 0.0, 0.0, 0.5));
@@ -485,7 +654,9 @@ mod tests {
             Vec3::new(0.0, 0.0, 10.0),
             Vec3::zero(),
             std::f64::consts::FRAC_PI_4,
-            1.0, 0.1, 50.0,
+            1.0,
+            0.1,
+            50.0,
         );
         let frustum = cam.frustum();
         // Point far behind the camera.
@@ -494,7 +665,12 @@ mod tests {
 
     #[test]
     fn test_plane_distance() {
-        let p = Plane { a: 0.0, b: 1.0, c: 0.0, d: -5.0 };
+        let p = Plane {
+            a: 0.0,
+            b: 1.0,
+            c: 0.0,
+            d: -5.0,
+        };
         assert_near(p.distance(0.0, 10.0, 0.0), 5.0, "plane dist");
     }
 
@@ -504,7 +680,9 @@ mod tests {
             Vec3::new(0.0, 0.0, 10.0),
             Vec3::zero(),
             std::f64::consts::FRAC_PI_4,
-            1.0, 0.1, 100.0,
+            1.0,
+            0.1,
+            100.0,
         );
         let ray = cam.screen_to_ray(0.0, 0.0);
         // Center ray should point roughly toward negative z.
@@ -565,8 +743,11 @@ mod tests {
         for i in 0..4 {
             for j in 0..4 {
                 let expected = if i == j { 1.0 } else { 0.0 };
-                assert!((product.0[j * 4 + i] - expected).abs() < 1e-4,
-                    "roundtrip [{i}][{j}]: {} vs {expected}", product.0[j * 4 + i]);
+                assert!(
+                    (product.0[j * 4 + i] - expected).abs() < 1e-4,
+                    "roundtrip [{i}][{j}]: {} vs {expected}",
+                    product.0[j * 4 + i]
+                );
             }
         }
     }
@@ -587,9 +768,12 @@ mod tests {
     #[test]
     fn test_projection_matrix_orthographic() {
         let proj = Projection::Orthographic {
-            left: -10.0, right: 10.0,
-            bottom: -10.0, top: 10.0,
-            near: 0.1, far: 100.0,
+            left: -10.0,
+            right: 10.0,
+            bottom: -10.0,
+            top: 10.0,
+            near: 0.1,
+            far: 100.0,
         };
         let m = proj.matrix();
         assert_near(m.0[0], 2.0 / 20.0, "ortho sx");
@@ -600,7 +784,10 @@ mod tests {
         let mut cam = Camera::new_perspective(
             Vec3::new(0.0, 0.0, 10.0),
             Vec3::zero(),
-            std::f64::consts::FRAC_PI_4, 1.0, 0.1, 100.0,
+            std::f64::consts::FRAC_PI_4,
+            1.0,
+            0.1,
+            100.0,
         );
         cam.shake = CameraShake::new(0.0, 5.0);
         cam.shake.trigger(2.0);
@@ -613,7 +800,12 @@ mod tests {
         let cam = Camera::new_orthographic(
             Vec3::new(0.0, 10.0, 0.0),
             Vec3::zero(),
-            -5.0, 5.0, -5.0, 5.0, 0.1, 50.0,
+            -5.0,
+            5.0,
+            -5.0,
+            5.0,
+            0.1,
+            50.0,
         );
         let m = cam.projection_matrix();
         assert!(m.0.iter().all(|v| v.is_finite()));

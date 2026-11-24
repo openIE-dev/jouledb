@@ -21,13 +21,27 @@ pub struct Tensor3 {
 impl Tensor3 {
     /// Create a zero-filled tensor.
     pub fn zeros(batch: usize, rows: usize, cols: usize) -> Self {
-        Self { batch, rows, cols, data: vec![0.0; batch * rows * cols] }
+        Self {
+            batch,
+            rows,
+            cols,
+            data: vec![0.0; batch * rows * cols],
+        }
     }
 
     /// Create from raw data (batch-major, row-major within each batch).
     pub fn from_data(batch: usize, rows: usize, cols: usize, data: Vec<f64>) -> Self {
-        assert_eq!(data.len(), batch * rows * cols, "Tensor3 data length mismatch");
-        Self { batch, rows, cols, data }
+        assert_eq!(
+            data.len(),
+            batch * rows * cols,
+            "Tensor3 data length mismatch"
+        );
+        Self {
+            batch,
+            rows,
+            cols,
+            data,
+        }
     }
 
     /// Index into the tensor: data[b][r][c].
@@ -58,7 +72,11 @@ impl Tensor3 {
 
 impl fmt::Display for Tensor3 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Tensor3(batch={}, rows={}, cols={})", self.batch, self.rows, self.cols)
+        write!(
+            f,
+            "Tensor3(batch={}, rows={}, cols={})",
+            self.batch, self.rows, self.cols
+        )
     }
 }
 
@@ -82,17 +100,27 @@ impl LinearProjection {
         let mut weight = Vec::with_capacity(out_features * in_features);
         let mut state = seed;
         for _ in 0..(out_features * in_features) {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let u = (state >> 33) as f64 / (1u64 << 31) as f64;
             weight.push(u * 2.0 * limit - limit);
         }
         let bias = vec![0.0; out_features];
-        Self { weight, bias, in_features, out_features }
+        Self {
+            weight,
+            bias,
+            in_features,
+            out_features,
+        }
     }
 
     /// Apply projection to a Tensor3: (B, S, in) -> (B, S, out).
     pub fn forward(&self, input: &Tensor3) -> Tensor3 {
-        assert_eq!(input.cols, self.in_features, "input cols must match in_features");
+        assert_eq!(
+            input.cols, self.in_features,
+            "input cols must match in_features"
+        );
         let mut out = Tensor3::zeros(input.batch, input.rows, self.out_features);
         for b in 0..input.batch {
             for s in 0..input.rows {
@@ -151,7 +179,12 @@ pub struct SelfAttentionConfig {
 
 impl SelfAttentionConfig {
     pub fn new(d_model: usize) -> Self {
-        Self { d_model, mask: AttentionMask::None, dropout_rate: 0.0, scale_factor: None }
+        Self {
+            d_model,
+            mask: AttentionMask::None,
+            dropout_rate: 0.0,
+            scale_factor: None,
+        }
     }
 
     pub fn with_mask(mut self, mask: AttentionMask) -> Self {
@@ -202,7 +235,9 @@ impl SelfAttention {
 
     /// Return the scaling denominator (sqrt(d_k) or custom).
     fn scale(&self) -> f64 {
-        self.config.scale_factor.unwrap_or_else(|| (self.config.d_model as f64).sqrt())
+        self.config
+            .scale_factor
+            .unwrap_or_else(|| (self.config.d_model as f64).sqrt())
     }
 
     /// Compute the attention mask matrix for a given sequence length.
@@ -358,7 +393,12 @@ pub fn batched_matmul(a: &Tensor3, b: &Tensor3) -> Tensor3 {
 /// Scaled dot-product attention (standalone function).
 ///
 /// q, k, v: (B, S, D). Returns (B, S, D).
-pub fn scaled_dot_product_attention(q: &Tensor3, k: &Tensor3, v: &Tensor3, causal: bool) -> Tensor3 {
+pub fn scaled_dot_product_attention(
+    q: &Tensor3,
+    k: &Tensor3,
+    v: &Tensor3,
+    causal: bool,
+) -> Tensor3 {
     let b = q.batch;
     let s = q.rows;
     let d = q.cols;
@@ -594,8 +634,8 @@ mod tests {
         let a = Tensor3::from_data(1, 2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
         let b = Tensor3::from_data(1, 3, 2, vec![1.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
         let c = batched_matmul(&a, &b);
-        assert_eq!(c.get(0, 0, 0), 4.0);  // 1*1 + 2*0 + 3*1
-        assert_eq!(c.get(0, 0, 1), 5.0);  // 1*0 + 2*1 + 3*1
+        assert_eq!(c.get(0, 0, 0), 4.0); // 1*1 + 2*0 + 3*1
+        assert_eq!(c.get(0, 0, 1), 5.0); // 1*0 + 2*1 + 3*1
         assert_eq!(c.get(0, 1, 0), 10.0); // 4*1 + 5*0 + 6*1
     }
 
@@ -622,7 +662,9 @@ mod tests {
 
     #[test]
     fn test_self_attention_display() {
-        let cfg = SelfAttentionConfig::new(64).with_mask(AttentionMask::Causal).with_dropout(0.1);
+        let cfg = SelfAttentionConfig::new(64)
+            .with_mask(AttentionMask::Causal)
+            .with_dropout(0.1);
         let attn = SelfAttention::new(cfg);
         let s = format!("{}", attn);
         assert!(s.contains("64"));

@@ -158,14 +158,22 @@ fn parse_srt_time(s: &str) -> Result<u64, SubtitleError> {
     if parts.len() != 3 {
         return Err(SubtitleError::InvalidTimecode(s.into()));
     }
-    let h: u64 = parts[0].parse().map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
-    let m: u64 = parts[1].parse().map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
+    let h: u64 = parts[0]
+        .parse()
+        .map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
+    let m: u64 = parts[1]
+        .parse()
+        .map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
     let sec_parts: Vec<&str> = parts[2].split(',').collect();
     if sec_parts.len() != 2 {
         return Err(SubtitleError::InvalidTimecode(s.into()));
     }
-    let sec: u64 = sec_parts[0].parse().map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
-    let ms: u64 = sec_parts[1].parse().map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
+    let sec: u64 = sec_parts[0]
+        .parse()
+        .map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
+    let ms: u64 = sec_parts[1]
+        .parse()
+        .map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
     Ok(h * 3_600_000 + m * 60_000 + sec * 1_000 + ms)
 }
 
@@ -185,7 +193,9 @@ pub fn parse_srt(input: &str) -> Result<SubtitleTrack, SubtitleError> {
         let timing = lines[1].trim();
         let arrow_parts: Vec<&str> = timing.split("-->").collect();
         if arrow_parts.len() != 2 {
-            return Err(SubtitleError::InvalidFormat(format!("bad timing line: {timing}")));
+            return Err(SubtitleError::InvalidFormat(format!(
+                "bad timing line: {timing}"
+            )));
         }
         let start_ms = parse_srt_time(arrow_parts[0])?;
         let end_ms = parse_srt_time(arrow_parts[1])?;
@@ -210,24 +220,38 @@ fn parse_vtt_time(s: &str) -> Result<u64, SubtitleError> {
     let parts: Vec<&str> = s.split(':').collect();
     match parts.len() {
         3 => {
-            let h: u64 = parts[0].parse().map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
-            let m: u64 = parts[1].parse().map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
+            let h: u64 = parts[0]
+                .parse()
+                .map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
+            let m: u64 = parts[1]
+                .parse()
+                .map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
             let sec_parts: Vec<&str> = parts[2].split('.').collect();
             if sec_parts.len() != 2 {
                 return Err(SubtitleError::InvalidTimecode(s.into()));
             }
-            let sec: u64 = sec_parts[0].parse().map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
-            let ms: u64 = sec_parts[1].parse().map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
+            let sec: u64 = sec_parts[0]
+                .parse()
+                .map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
+            let ms: u64 = sec_parts[1]
+                .parse()
+                .map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
             Ok(h * 3_600_000 + m * 60_000 + sec * 1_000 + ms)
         }
         2 => {
-            let m: u64 = parts[0].parse().map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
+            let m: u64 = parts[0]
+                .parse()
+                .map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
             let sec_parts: Vec<&str> = parts[1].split('.').collect();
             if sec_parts.len() != 2 {
                 return Err(SubtitleError::InvalidTimecode(s.into()));
             }
-            let sec: u64 = sec_parts[0].parse().map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
-            let ms: u64 = sec_parts[1].parse().map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
+            let sec: u64 = sec_parts[0]
+                .parse()
+                .map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
+            let ms: u64 = sec_parts[1]
+                .parse()
+                .map_err(|_| SubtitleError::InvalidTimecode(s.into()))?;
             Ok(m * 60_000 + sec * 1_000 + ms)
         }
         _ => Err(SubtitleError::InvalidTimecode(s.into())),
@@ -298,7 +322,11 @@ pub fn parse_vtt(input: &str) -> Result<SubtitleTrack, SubtitleError> {
         // After the end timecode there may be settings
         let after_parts: Vec<&str> = after_arrow.trim().splitn(2, ' ').collect();
         let end_str = after_parts[0];
-        let settings = if after_parts.len() > 1 { after_parts[1] } else { "" };
+        let settings = if after_parts.len() > 1 {
+            after_parts[1]
+        } else {
+            ""
+        };
 
         let start_ms = parse_vtt_time(start_str)?;
         let end_ms = parse_vtt_time(end_str)?;
@@ -457,12 +485,18 @@ Hello from VTT!
     fn subtitle_track_sorted_insert() {
         let mut track = SubtitleTrack::new("test", "en");
         track.add_cue(Cue {
-            id: None, start_ms: 5000, end_ms: 6000,
-            text: "second".into(), position: CuePosition::default(),
+            id: None,
+            start_ms: 5000,
+            end_ms: 6000,
+            text: "second".into(),
+            position: CuePosition::default(),
         });
         track.add_cue(Cue {
-            id: None, start_ms: 1000, end_ms: 2000,
-            text: "first".into(), position: CuePosition::default(),
+            id: None,
+            start_ms: 1000,
+            end_ms: 2000,
+            text: "first".into(),
+            position: CuePosition::default(),
         });
         assert_eq!(track.cues()[0].text, "first");
         assert_eq!(track.cues()[1].text, "second");

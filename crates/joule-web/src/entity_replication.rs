@@ -19,7 +19,11 @@ pub enum ReplicationError {
     /// Entity already exists.
     DuplicateEntity(u64),
     /// Not the owner of this entity.
-    NotOwner { entity_id: u64, owner: u64, requester: u64 },
+    NotOwner {
+        entity_id: u64,
+        owner: u64,
+        requester: u64,
+    },
     /// Bandwidth budget exceeded.
     BudgetExceeded { budget: usize, required: usize },
     /// Component not found on entity.
@@ -31,13 +35,23 @@ impl fmt::Display for ReplicationError {
         match self {
             Self::EntityNotFound(id) => write!(f, "entity not found: {id}"),
             Self::DuplicateEntity(id) => write!(f, "duplicate entity: {id}"),
-            Self::NotOwner { entity_id, owner, requester } => {
-                write!(f, "entity {entity_id}: owner={owner}, requester={requester}")
+            Self::NotOwner {
+                entity_id,
+                owner,
+                requester,
+            } => {
+                write!(
+                    f,
+                    "entity {entity_id}: owner={owner}, requester={requester}"
+                )
             }
             Self::BudgetExceeded { budget, required } => {
                 write!(f, "budget exceeded: budget={budget}, required={required}")
             }
-            Self::ComponentNotFound { entity_id, component } => {
+            Self::ComponentNotFound {
+                entity_id,
+                component,
+            } => {
                 write!(f, "component '{component}' not found on entity {entity_id}")
             }
         }
@@ -95,7 +109,10 @@ pub enum ReplicationEvent {
     /// An entity was destroyed.
     Destroy { entity_id: u64 },
     /// Components on an entity were updated.
-    Update { entity_id: u64, components: Vec<String> },
+    Update {
+        entity_id: u64,
+        components: Vec<String>,
+    },
     /// Ownership transferred.
     OwnershipTransfer { entity_id: u64, from: u64, to: u64 },
 }
@@ -107,10 +124,21 @@ impl fmt::Display for ReplicationEvent {
                 write!(f, "Create(entity={entity_id}, owner={owner})")
             }
             Self::Destroy { entity_id } => write!(f, "Destroy(entity={entity_id})"),
-            Self::Update { entity_id, components } => {
-                write!(f, "Update(entity={entity_id}, components={})", components.len())
+            Self::Update {
+                entity_id,
+                components,
+            } => {
+                write!(
+                    f,
+                    "Update(entity={entity_id}, components={})",
+                    components.len()
+                )
             }
-            Self::OwnershipTransfer { entity_id, from, to } => {
+            Self::OwnershipTransfer {
+                entity_id,
+                from,
+                to,
+            } => {
                 write!(f, "Transfer(entity={entity_id}, {from}->{to})")
             }
         }
@@ -186,7 +214,8 @@ impl ReplicatedEntity {
 
     /// Byte size of dirty components only.
     pub fn dirty_byte_size(&self) -> usize {
-        self.dirty.iter()
+        self.dirty
+            .iter()
             .filter_map(|k| self.components.get(k).map(|v| k.len() + v.len()))
             .sum()
     }
@@ -207,7 +236,11 @@ impl fmt::Display for ReplicatedEntity {
         write!(
             f,
             "ReplicatedEntity(id={}, owner={}, pri={}, comps={}, dirty={})",
-            self.id, self.owner, self.priority, self.components.len(), self.dirty.len(),
+            self.id,
+            self.owner,
+            self.priority,
+            self.components.len(),
+            self.dirty.len(),
         )
     }
 }
@@ -245,15 +278,21 @@ impl ReplicationManager {
         let id = entity.id;
         let owner = entity.owner;
         self.entities.insert(id, entity);
-        self.pending_events.push(ReplicationEvent::Create { entity_id: id, owner });
+        self.pending_events.push(ReplicationEvent::Create {
+            entity_id: id,
+            owner,
+        });
         Ok(())
     }
 
     /// Destroy a replicated entity.
     pub fn destroy_entity(&mut self, id: u64) -> Result<ReplicatedEntity, ReplicationError> {
-        let entity = self.entities.remove(&id)
+        let entity = self
+            .entities
+            .remove(&id)
             .ok_or(ReplicationError::EntityNotFound(id))?;
-        self.pending_events.push(ReplicationEvent::Destroy { entity_id: id });
+        self.pending_events
+            .push(ReplicationEvent::Destroy { entity_id: id });
         Ok(entity)
     }
 
@@ -275,7 +314,9 @@ impl ReplicationManager {
         component: impl Into<String>,
         data: Vec<u8>,
     ) -> Result<(), ReplicationError> {
-        let entity = self.entities.get_mut(&entity_id)
+        let entity = self
+            .entities
+            .get_mut(&entity_id)
             .ok_or(ReplicationError::EntityNotFound(entity_id))?;
         if entity.owner != requester {
             return Err(ReplicationError::NotOwner {
@@ -295,7 +336,9 @@ impl ReplicationManager {
         from: u64,
         to: u64,
     ) -> Result<(), ReplicationError> {
-        let entity = self.entities.get_mut(&entity_id)
+        let entity = self
+            .entities
+            .get_mut(&entity_id)
             .ok_or(ReplicationError::EntityNotFound(entity_id))?;
         if entity.owner != from {
             return Err(ReplicationError::NotOwner {
@@ -305,9 +348,12 @@ impl ReplicationManager {
             });
         }
         entity.owner = to;
-        self.pending_events.push(ReplicationEvent::OwnershipTransfer {
-            entity_id, from, to,
-        });
+        self.pending_events
+            .push(ReplicationEvent::OwnershipTransfer {
+                entity_id,
+                from,
+                to,
+            });
         Ok(())
     }
 
@@ -317,7 +363,9 @@ impl ReplicationManager {
         let mut budget_remaining = self.bandwidth_budget;
 
         // Collect dirty entities sorted by priority (Critical first).
-        let mut dirty_ids: Vec<(u64, ReplicationPriority, usize)> = self.entities.iter()
+        let mut dirty_ids: Vec<(u64, ReplicationPriority, usize)> = self
+            .entities
+            .iter()
             .filter(|(_, e)| e.is_dirty())
             .map(|(&id, e)| (id, e.priority, e.dirty_byte_size()))
             .collect();
@@ -361,7 +409,8 @@ impl ReplicationManager {
 
     /// Get all entity IDs owned by a given peer.
     pub fn entities_owned_by(&self, owner: u64) -> Vec<u64> {
-        self.entities.iter()
+        self.entities
+            .iter()
             .filter(|(_, e)| e.owner == owner)
             .map(|(&id, _)| id)
             .collect()
@@ -514,8 +563,16 @@ mod tests {
         e.set_component("pos", vec![1, 2]);
         mgr.create_entity(e).unwrap();
         let events = mgr.replicate();
-        assert!(events.iter().any(|ev| matches!(ev, ReplicationEvent::Create { .. })));
-        assert!(events.iter().any(|ev| matches!(ev, ReplicationEvent::Update { .. })));
+        assert!(
+            events
+                .iter()
+                .any(|ev| matches!(ev, ReplicationEvent::Create { .. }))
+        );
+        assert!(
+            events
+                .iter()
+                .any(|ev| matches!(ev, ReplicationEvent::Update { .. }))
+        );
     }
 
     #[test]
@@ -536,7 +593,11 @@ mod tests {
         mgr.create_entity(e).unwrap();
         let events = mgr.replicate();
         // The update event should be skipped (too large for budget).
-        assert!(!events.iter().any(|ev| matches!(ev, ReplicationEvent::Update { .. })));
+        assert!(
+            !events
+                .iter()
+                .any(|ev| matches!(ev, ReplicationEvent::Update { .. }))
+        );
     }
 
     #[test]
@@ -561,7 +622,10 @@ mod tests {
 
     #[test]
     fn replication_event_display() {
-        let e = ReplicationEvent::Create { entity_id: 1, owner: 2 };
+        let e = ReplicationEvent::Create {
+            entity_id: 1,
+            owner: 2,
+        };
         assert!(format!("{e}").contains("Create"));
     }
 

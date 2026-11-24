@@ -313,12 +313,7 @@ impl DebugSession {
         for id in &matching {
             self.breakpoints.record_hit(id);
             // Re-borrow to evaluate condition
-            if let Some(bp) = self
-                .breakpoints
-                .list()
-                .iter()
-                .find(|bp| bp.id == *id)
-            {
+            if let Some(bp) = self.breakpoints.list().iter().find(|bp| bp.id == *id) {
                 if Self::evaluate_condition(bp) {
                     fired.push(id.clone());
                 }

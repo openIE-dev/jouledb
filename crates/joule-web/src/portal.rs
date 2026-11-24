@@ -174,12 +174,7 @@ impl PortalManager {
     // ── Mount / unmount ─────────────────────────────────────────────────
 
     /// Mount content into a target. Returns `None` if the target does not exist.
-    pub fn mount(
-        &mut self,
-        target_id: &str,
-        content: &str,
-        priority: i32,
-    ) -> Option<Uuid> {
+    pub fn mount(&mut self, target_id: &str, content: &str, priority: i32) -> Option<Uuid> {
         if !self.has_target(target_id) {
             return None;
         }

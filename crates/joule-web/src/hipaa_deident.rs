@@ -74,12 +74,18 @@ impl HipaaDeidentConfig {
 }
 
 impl Default for HipaaDeidentConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for HipaaDeidentConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "HipaaDeidentConfig(method={0}, date_shift_range={1}, zip_truncate={2}, age_threshold={3})", self.method, self.date_shift_range, self.zip_truncate, self.age_threshold)
+        write!(
+            f,
+            "HipaaDeidentConfig(method={0}, date_shift_range={1}, zip_truncate={2}, age_threshold={3})",
+            self.method, self.date_shift_range, self.zip_truncate, self.age_threshold
+        )
     }
 }
 
@@ -95,7 +101,10 @@ pub struct HipaaDeident {
 impl HipaaDeident {
     pub fn new(config: HipaaDeidentConfig) -> Result<Self, HipaaDeidentError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -107,9 +116,15 @@ impl HipaaDeident {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &HipaaDeidentConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &HipaaDeidentConfig {
+        &self.config
+    }
 
     /// Apply de-identification.
     pub fn deidentify(&self) -> String {
@@ -123,7 +138,9 @@ impl HipaaDeident {
 
     /// Re-identification risk score.
     pub fn reident_risk(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -133,7 +150,9 @@ impl HipaaDeident {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -145,7 +164,9 @@ impl HipaaDeident {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -157,7 +178,11 @@ impl HipaaDeident {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -230,7 +255,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = HipaaDeident::new(HipaaDeidentConfig::new()).unwrap()
+        let e = HipaaDeident::new(HipaaDeidentConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -246,7 +272,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = HipaaDeident::new(HipaaDeidentConfig::new()).unwrap()
+        let e = HipaaDeident::new(HipaaDeidentConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("HipaaDeident"));
@@ -254,7 +281,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = HipaaDeident::new(HipaaDeidentConfig::new()).unwrap()
+        let e = HipaaDeident::new(HipaaDeidentConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -265,7 +293,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = HipaaDeident::new(HipaaDeidentConfig::new()).unwrap()
+        let e = HipaaDeident::new(HipaaDeidentConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -273,7 +302,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = HipaaDeident::new(HipaaDeidentConfig::new()).unwrap()
+        let e = HipaaDeident::new(HipaaDeidentConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -290,7 +320,8 @@ mod tests {
 
     #[test]
     fn test_deidentify() {
-        let e = HipaaDeident::new(HipaaDeidentConfig::new()).unwrap()
+        let e = HipaaDeident::new(HipaaDeidentConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.deidentify();
         assert!(!result.is_empty());
@@ -298,7 +329,8 @@ mod tests {
 
     #[test]
     fn test_is_identifier() {
-        let e = HipaaDeident::new(HipaaDeidentConfig::new()).unwrap()
+        let e = HipaaDeident::new(HipaaDeidentConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.is_identifier();
         assert!(result);
@@ -306,7 +338,8 @@ mod tests {
 
     #[test]
     fn test_reident_risk() {
-        let e = HipaaDeident::new(HipaaDeidentConfig::new()).unwrap()
+        let e = HipaaDeident::new(HipaaDeidentConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.reident_risk();
         assert!(result.is_finite());

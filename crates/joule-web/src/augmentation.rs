@@ -15,11 +15,16 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: seed.wrapping_add(1) }
+        Self {
+            state: seed.wrapping_add(1),
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.state
     }
 
@@ -54,12 +59,20 @@ pub struct Image2D {
 
 impl Image2D {
     pub fn new(width: usize, height: usize) -> Self {
-        Self { data: vec![0.0; width * height], width, height }
+        Self {
+            data: vec![0.0; width * height],
+            width,
+            height,
+        }
     }
 
     pub fn from_data(data: Vec<f64>, width: usize, height: usize) -> Self {
         assert_eq!(data.len(), width * height, "data length mismatch");
-        Self { data, width, height }
+        Self {
+            data,
+            width,
+            height,
+        }
     }
 
     pub fn get(&self, x: usize, y: usize) -> f64 {
@@ -117,11 +130,14 @@ impl fmt::Display for Transform {
             Self::Rotate90 => write!(f, "Rot90"),
             Self::Rotate180 => write!(f, "Rot180"),
             Self::Rotate270 => write!(f, "Rot270"),
-            Self::ColorJitter { brightness, contrast } =>
-                write!(f, "Jitter(b={:.2},c={:.2})", brightness, contrast),
+            Self::ColorJitter {
+                brightness,
+                contrast,
+            } => write!(f, "Jitter(b={:.2},c={:.2})", brightness, contrast),
             Self::Cutout { size } => write!(f, "Cutout({})", size),
-            Self::ElasticDeform { alpha, sigma } =>
-                write!(f, "Elastic(a={:.1},s={:.1})", alpha, sigma),
+            Self::ElasticDeform { alpha, sigma } => {
+                write!(f, "Elastic(a={:.1},s={:.1})", alpha, sigma)
+            }
         }
     }
 }
@@ -180,7 +196,12 @@ impl Augmentor {
 
 impl fmt::Display for Augmentor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Augmentor(n={}, p={:.2})", self.transforms.len(), self.probability)
+        write!(
+            f,
+            "Augmentor(n={}, p={:.2})",
+            self.transforms.len(),
+            self.probability
+        )
     }
 }
 
@@ -194,8 +215,10 @@ fn apply_transform(img: &Image2D, t: &Transform, rng: &mut Rng) -> Image2D {
         Transform::Rotate90 => rotate_90(img),
         Transform::Rotate180 => rotate_180(img),
         Transform::Rotate270 => rotate_270(img),
-        Transform::ColorJitter { brightness, contrast } =>
-            color_jitter(img, *brightness, *contrast, rng),
+        Transform::ColorJitter {
+            brightness,
+            contrast,
+        } => color_jitter(img, *brightness, *contrast, rng),
         Transform::Cutout { size } => cutout(img, *size, rng),
         Transform::ElasticDeform { alpha, sigma } => elastic_deform(img, *alpha, *sigma, rng),
     }
@@ -286,8 +309,16 @@ fn color_jitter(img: &Image2D, brightness: f64, contrast: f64, rng: &mut Rng) ->
 
 fn cutout(img: &Image2D, size: usize, rng: &mut Rng) -> Image2D {
     let mut out = img.clone();
-    let cx = if img.width > 0 { (rng.next_u64() as usize) % img.width } else { 0 };
-    let cy = if img.height > 0 { (rng.next_u64() as usize) % img.height } else { 0 };
+    let cx = if img.width > 0 {
+        (rng.next_u64() as usize) % img.width
+    } else {
+        0
+    };
+    let cy = if img.height > 0 {
+        (rng.next_u64() as usize) % img.height
+    } else {
+        0
+    };
     let half = size / 2;
     let x0 = cx.saturating_sub(half);
     let y0 = cy.saturating_sub(half);
@@ -391,7 +422,10 @@ fn bilinear_sample(img: &Image2D, sx: f64, sy: f64) -> f64 {
 
 /// Mixup: linearly interpolate two samples and their labels.
 pub fn mixup(a: &[f64], b: &[f64], lambda: f64) -> Vec<f64> {
-    a.iter().zip(b.iter()).map(|(x, y)| lambda * x + (1.0 - lambda) * y).collect()
+    a.iter()
+        .zip(b.iter())
+        .map(|(x, y)| lambda * x + (1.0 - lambda) * y)
+        .collect()
 }
 
 /// Generate a mixup lambda from a Beta(alpha, alpha) distribution approximation.
@@ -526,7 +560,10 @@ mod tests {
         let img = test_img();
         let aug = Augmentor::new()
             .with_transform(Transform::HorizontalFlip)
-            .with_transform(Transform::ColorJitter { brightness: 0.1, contrast: 0.1 })
+            .with_transform(Transform::ColorJitter {
+                brightness: 0.1,
+                contrast: 0.1,
+            })
             .with_seed(42);
         let result = aug.apply(&img);
         assert_eq!(result.width, img.width);
@@ -553,7 +590,10 @@ mod tests {
 
     #[test]
     fn transform_display() {
-        let t = Transform::ElasticDeform { alpha: 10.0, sigma: 3.0 };
+        let t = Transform::ElasticDeform {
+            alpha: 10.0,
+            sigma: 3.0,
+        };
         assert!(format!("{}", t).contains("Elastic"));
     }
 
@@ -571,7 +611,10 @@ mod tests {
         let img = test_img();
         let aug = Augmentor::new()
             .with_transform(Transform::HorizontalFlip)
-            .with_transform(Transform::ColorJitter { brightness: 0.3, contrast: 0.3 })
+            .with_transform(Transform::ColorJitter {
+                brightness: 0.3,
+                contrast: 0.3,
+            })
             .with_seed(77);
         let r1 = aug.apply(&img);
         let r2 = aug.apply(&img);

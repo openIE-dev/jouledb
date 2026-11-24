@@ -59,21 +59,36 @@ impl Wrench {
     /// Zero wrench.
     pub fn zero() -> Self {
         Self {
-            fx: 0.0, fy: 0.0, fz: 0.0,
-            tx: 0.0, ty: 0.0, tz: 0.0,
+            fx: 0.0,
+            fy: 0.0,
+            fz: 0.0,
+            tx: 0.0,
+            ty: 0.0,
+            tz: 0.0,
         }
     }
 
     /// Create from force and torque vectors.
     pub fn new(fx: f64, fy: f64, fz: f64, tx: f64, ty: f64, tz: f64) -> Self {
-        Self { fx, fy, fz, tx, ty, tz }
+        Self {
+            fx,
+            fy,
+            fz,
+            tx,
+            ty,
+            tz,
+        }
     }
 
     /// Create from arrays.
     pub fn from_arrays(force: [f64; 3], torque: [f64; 3]) -> Self {
         Self {
-            fx: force[0], fy: force[1], fz: force[2],
-            tx: torque[0], ty: torque[1], tz: torque[2],
+            fx: force[0],
+            fy: force[1],
+            fz: force[2],
+            tx: torque[0],
+            ty: torque[1],
+            tz: torque[2],
         }
     }
 
@@ -129,15 +144,23 @@ impl Wrench {
     /// Scale wrench by a scalar.
     pub fn scale(&self, s: f64) -> Wrench {
         Wrench {
-            fx: self.fx * s, fy: self.fy * s, fz: self.fz * s,
-            tx: self.tx * s, ty: self.ty * s, tz: self.tz * s,
+            fx: self.fx * s,
+            fy: self.fy * s,
+            fz: self.fz * s,
+            tx: self.tx * s,
+            ty: self.ty * s,
+            tz: self.tz * s,
         }
     }
 
     /// Dot product in wrench space (force·force + torque·torque).
     pub fn dot(&self, other: &Wrench) -> f64 {
-        self.fx * other.fx + self.fy * other.fy + self.fz * other.fz
-            + self.tx * other.tx + self.ty * other.ty + self.tz * other.tz
+        self.fx * other.fx
+            + self.fy * other.fy
+            + self.fz * other.fz
+            + self.tx * other.tx
+            + self.ty * other.ty
+            + self.tz * other.tz
     }
 
     /// L2 norm in 6D wrench space.
@@ -284,8 +307,7 @@ impl ContactDetector {
         let f_mag = wrench.force_magnitude();
         let t_mag = wrench.torque_magnitude();
 
-        let above_threshold =
-            f_mag > self.force_threshold || t_mag > self.torque_threshold;
+        let above_threshold = f_mag > self.force_threshold || t_mag > self.torque_threshold;
 
         if above_threshold {
             self.counter = self.counter.saturating_add(1);
@@ -293,11 +315,8 @@ impl ContactDetector {
                 self.in_contact = true;
                 // Update contact direction.
                 if f_mag > 1e-9 {
-                    self.contact_direction = [
-                        wrench.fx / f_mag,
-                        wrench.fy / f_mag,
-                        wrench.fz / f_mag,
-                    ];
+                    self.contact_direction =
+                        [wrench.fx / f_mag, wrench.fy / f_mag, wrench.fz / f_mag];
                 }
             }
         } else {
@@ -349,9 +368,7 @@ impl WrenchFilter {
     /// Create a wrench filter from cutoff frequency and sample rate.
     pub fn from_cutoff(cutoff_hz: f64, sample_rate_hz: f64) -> Result<Self, FtError> {
         if cutoff_hz <= 0.0 || sample_rate_hz <= 0.0 {
-            return Err(FtError::InvalidParameter(
-                "frequencies must be > 0".into(),
-            ));
+            return Err(FtError::InvalidParameter("frequencies must be > 0".into()));
         }
         let dt = 1.0 / sample_rate_hz;
         let rc = 1.0 / (2.0 * std::f64::consts::PI * cutoff_hz);
@@ -665,25 +682,24 @@ mod tests {
 
     #[test]
     fn test_contact_detector_above_threshold() {
-        let mut cd = ContactDetector::new(5.0, 1.0).unwrap()
-            .with_confirmation(1);
+        let mut cd = ContactDetector::new(5.0, 1.0).unwrap().with_confirmation(1);
         let w = Wrench::new(10.0, 0.0, 0.0, 0.0, 0.0, 0.0);
         assert!(cd.update(&w));
     }
 
     #[test]
     fn test_contact_detector_confirmation() {
-        let mut cd = ContactDetector::new(5.0, 1.0).unwrap()
-            .with_confirmation(3);
+        let mut cd = ContactDetector::new(5.0, 1.0).unwrap().with_confirmation(3);
         let w = Wrench::new(10.0, 0.0, 0.0, 0.0, 0.0, 0.0);
         assert!(!cd.update(&w)); // count=1
         assert!(!cd.update(&w)); // count=2
-        assert!(cd.update(&w));  // count=3
+        assert!(cd.update(&w)); // count=3
     }
 
     #[test]
     fn test_contact_direction() {
-        let mut cd = ContactDetector::new(1.0, 10.0).unwrap()
+        let mut cd = ContactDetector::new(1.0, 10.0)
+            .unwrap()
             .with_confirmation(1);
         let w = Wrench::new(0.0, 0.0, -5.0, 0.0, 0.0, 0.0);
         cd.update(&w);

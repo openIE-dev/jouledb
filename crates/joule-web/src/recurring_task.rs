@@ -712,11 +712,11 @@ mod tests {
         sched.register_cron(
             "report",
             "Daily Report",
-            vec![0],     // minute 0
-            vec![9],     // hour 9
-            vec![],      // any day
-            vec![],      // any month
-            vec![],      // any weekday
+            vec![0], // minute 0
+            vec![9], // hour 9
+            vec![],  // any day
+            vec![],  // any month
+            vec![],  // any weekday
             0,
         );
         let task = sched.get_task("report").unwrap();

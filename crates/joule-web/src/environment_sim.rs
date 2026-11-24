@@ -41,7 +41,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -58,7 +60,9 @@ impl Rng {
     }
 
     fn next_usize(&mut self, upper: usize) -> usize {
-        if upper == 0 { return 0; }
+        if upper == 0 {
+            return 0;
+        }
         (self.next_u64() % upper as u64) as usize
     }
 }
@@ -107,7 +111,13 @@ impl fmt::Display for Space {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Discrete(n) => write!(f, "Discrete({n})"),
-            Self::Box { low, high } => write!(f, "Box(dims={}, low={:.1?}, high={:.1?})", low.len(), low, high),
+            Self::Box { low, high } => write!(
+                f,
+                "Box(dims={}, low={:.1?}, high={:.1?})",
+                low.len(),
+                low,
+                high
+            ),
         }
     }
 }
@@ -192,7 +202,9 @@ impl GridWorld {
     /// Create a new grid world environment.
     pub fn new(width: usize, height: usize) -> Result<Self, EnvError> {
         if width < 2 || height < 2 {
-            return Err(EnvError::InvalidParameter("grid must be at least 2x2".into()));
+            return Err(EnvError::InvalidParameter(
+                "grid must be at least 2x2".into(),
+            ));
         }
         let size = width * height;
         Ok(Self {
@@ -323,10 +335,26 @@ impl GridWorld {
 
         let (mut nx, mut ny) = (self.agent_x, self.agent_y);
         match effective_act {
-            GridAction::Up => { if ny > 0 { ny -= 1; } }
-            GridAction::Down => { if ny < self.height - 1 { ny += 1; } }
-            GridAction::Left => { if nx > 0 { nx -= 1; } }
-            GridAction::Right => { if nx < self.width - 1 { nx += 1; } }
+            GridAction::Up => {
+                if ny > 0 {
+                    ny -= 1;
+                }
+            }
+            GridAction::Down => {
+                if ny < self.height - 1 {
+                    ny += 1;
+                }
+            }
+            GridAction::Left => {
+                if nx > 0 {
+                    nx -= 1;
+                }
+            }
+            GridAction::Right => {
+                if nx < self.width - 1 {
+                    nx += 1;
+                }
+            }
         }
 
         if !self.is_wall(nx, ny) {
@@ -367,8 +395,12 @@ impl GridWorld {
         })
     }
 
-    pub fn width(&self) -> usize { self.width }
-    pub fn height(&self) -> usize { self.height }
+    pub fn width(&self) -> usize {
+        self.width
+    }
+    pub fn height(&self) -> usize {
+        self.height
+    }
 }
 
 impl fmt::Display for GridWorld {
@@ -376,9 +408,7 @@ impl fmt::Display for GridWorld {
         write!(
             f,
             "GridWorld({}x{}, agent=({},{}), goal=({},{}))",
-            self.width, self.height,
-            self.agent_x, self.agent_y,
-            self.goal_x, self.goal_y,
+            self.width, self.height, self.agent_x, self.agent_y, self.goal_x, self.goal_y,
         )
     }
 }
@@ -404,7 +434,9 @@ pub struct ChainWalk {
 impl ChainWalk {
     pub fn new(length: usize) -> Result<Self, EnvError> {
         if length < 2 {
-            return Err(EnvError::InvalidParameter("chain length must be >= 2".into()));
+            return Err(EnvError::InvalidParameter(
+                "chain length must be >= 2".into(),
+            ));
         }
         Ok(Self {
             length,
@@ -458,7 +490,9 @@ impl ChainWalk {
             return Err(EnvError::EpisodeNotStarted);
         }
         if action > 1 {
-            return Err(EnvError::InvalidAction(format!("expected 0 or 1, got {action}")));
+            return Err(EnvError::InvalidAction(format!(
+                "expected 0 or 1, got {action}"
+            )));
         }
 
         let effective = if self.slip_prob > 0.0 && self.rng.next_f64() < self.slip_prob {
@@ -477,7 +511,11 @@ impl ChainWalk {
         let at_goal = self.position == self.goal;
         let truncated = self.episode_steps >= self.max_steps;
 
-        let reward = if at_goal { self.goal_reward } else { self.step_reward };
+        let reward = if at_goal {
+            self.goal_reward
+        } else {
+            self.step_reward
+        };
         self.episode_reward += reward;
 
         if at_goal || truncated {
@@ -496,8 +534,12 @@ impl ChainWalk {
         })
     }
 
-    pub fn position(&self) -> usize { self.position }
-    pub fn length(&self) -> usize { self.length }
+    pub fn position(&self) -> usize {
+        self.position
+    }
+    pub fn length(&self) -> usize {
+        self.length
+    }
 }
 
 impl fmt::Display for ChainWalk {
@@ -532,19 +574,26 @@ impl RewardTracker {
     }
 
     pub fn mean(&self) -> f64 {
-        if self.rewards.is_empty() { return 0.0; }
+        if self.rewards.is_empty() {
+            return 0.0;
+        }
         self.rewards.iter().sum::<f64>() / self.rewards.len() as f64
     }
 
     pub fn windowed_mean(&self) -> f64 {
-        if self.rewards.is_empty() { return 0.0; }
+        if self.rewards.is_empty() {
+            return 0.0;
+        }
         let start = self.rewards.len().saturating_sub(self.window_size);
         let slice = &self.rewards[start..];
         slice.iter().sum::<f64>() / slice.len() as f64
     }
 
     pub fn max(&self) -> f64 {
-        self.rewards.iter().cloned().fold(f64::NEG_INFINITY, f64::max)
+        self.rewards
+            .iter()
+            .cloned()
+            .fold(f64::NEG_INFINITY, f64::max)
     }
 
     pub fn min(&self) -> f64 {
@@ -579,7 +628,9 @@ mod tests {
     use super::*;
 
     const EPS: f64 = 1e-6;
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     #[test]
     fn test_space_discrete() {
@@ -656,7 +707,8 @@ mod tests {
 
     #[test]
     fn test_gridworld_goal_reached() {
-        let mut gw = GridWorld::new(2, 2).unwrap()
+        let mut gw = GridWorld::new(2, 2)
+            .unwrap()
             .with_goal(1, 0)
             .with_goal_reward(10.0);
         gw.reset();

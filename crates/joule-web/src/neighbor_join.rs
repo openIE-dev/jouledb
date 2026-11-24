@@ -41,8 +41,9 @@ pub struct QMatrix {
 impl QMatrix {
     /// Compute Q from a distance matrix.
     pub fn from_distances(dist: &[f64], n: usize) -> Self {
-        let row_sums: Vec<f64> =
-            (0..n).map(|i| (0..n).map(|j| dist[i * n + j]).sum()).collect();
+        let row_sums: Vec<f64> = (0..n)
+            .map(|i| (0..n).map(|j| dist[i * n + j]).sum())
+            .collect();
         let mut values = vec![0.0; n * n];
         let nf = n as f64;
         for i in 0..n {
@@ -50,8 +51,7 @@ impl QMatrix {
                 if i == j {
                     values[i * n + j] = 0.0;
                 } else {
-                    values[i * n + j] =
-                        (nf - 2.0) * dist[i * n + j] - row_sums[i] - row_sums[j];
+                    values[i * n + j] = (nf - 2.0) * dist[i * n + j] - row_sums[i] - row_sums[j];
                 }
             }
         }
@@ -200,7 +200,9 @@ pub struct NjConfig {
 
 impl NjConfig {
     pub fn new() -> Self {
-        Self { negative_branch_to_zero: true }
+        Self {
+            negative_branch_to_zero: true,
+        }
     }
 
     pub fn with_negative_branch_to_zero(mut self, val: bool) -> Self {
@@ -220,11 +222,7 @@ impl Default for NjConfig {
 /// Run the neighbor-joining algorithm on a distance matrix.
 ///
 /// `labels` — taxon names, `dist` — row-major n×n symmetric distance matrix.
-pub fn neighbor_join(
-    labels: &[&str],
-    dist: &[f64],
-    config: &NjConfig,
-) -> Result<NjTree, NjError> {
+pub fn neighbor_join(labels: &[&str], dist: &[f64], config: &NjConfig) -> Result<NjTree, NjError> {
     let n = labels.len();
     if n < 2 {
         return Err(NjError::MatrixTooSmall(n));
@@ -262,13 +260,16 @@ pub fn neighbor_join(
         let row_sum_j: f64 = (0..cur_n).map(|k| d[qj * cur_n + k]).sum();
 
         let nf = cur_n as f64;
-        let mut li = 0.5 * d[qi * cur_n + qj]
-            + (row_sum_i - row_sum_j) / (2.0 * (nf - 2.0));
+        let mut li = 0.5 * d[qi * cur_n + qj] + (row_sum_i - row_sum_j) / (2.0 * (nf - 2.0));
         let mut lj = d[qi * cur_n + qj] - li;
 
         if config.negative_branch_to_zero {
-            if li < 0.0 { li = 0.0; }
-            if lj < 0.0 { lj = 0.0; }
+            if li < 0.0 {
+                li = 0.0;
+            }
+            if lj < 0.0 {
+                lj = 0.0;
+            }
         }
 
         let node_i = id_map[&active[qi]];
@@ -282,8 +283,7 @@ pub fn neighbor_join(
             if k == qi || k == qj {
                 new_row.push(0.0);
             } else {
-                let dk = 0.5
-                    * (d[qi * cur_n + k] + d[qj * cur_n + k] - d[qi * cur_n + qj]);
+                let dk = 0.5 * (d[qi * cur_n + k] + d[qj * cur_n + k] - d[qi * cur_n + qj]);
                 new_row.push(dk);
             }
         }
@@ -353,9 +353,15 @@ pub fn neighbor_join(
         let final_d = d[0 * cur_n + 1];
         let root_node = NjNode::internal(next_id, node_a, node_b, final_d / 2.0, final_d / 2.0);
         nodes.push(root_node);
-        Ok(NjTree { nodes, root: next_id })
+        Ok(NjTree {
+            nodes,
+            root: next_id,
+        })
     } else {
-        Ok(NjTree { nodes, root: id_map[&active[0]] })
+        Ok(NjTree {
+            nodes,
+            root: id_map[&active[0]],
+        })
     }
 }
 
@@ -495,7 +501,10 @@ mod tests {
 
     #[test]
     fn test_q_matrix_display() {
-        let q = QMatrix { values: vec![0.0; 4], n: 2 };
+        let q = QMatrix {
+            values: vec![0.0; 4],
+            n: 2,
+        };
         assert_eq!(format!("{q}"), "QMatrix(2×2)");
     }
 

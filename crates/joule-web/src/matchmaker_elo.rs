@@ -159,7 +159,11 @@ impl fmt::Display for EloRating {
             self.player_id,
             self.rating,
             self.games_played,
-            if self.is_provisional() { ", provisional" } else { "" }
+            if self.is_provisional() {
+                ", provisional"
+            } else {
+                ""
+            }
         )
     }
 }
@@ -193,7 +197,12 @@ impl EloCalc {
     }
 
     /// Multi-player rating delta given placement (0 = first, n-1 = last).
-    pub fn multi_delta(k: f64, player_rating: f64, opponent_ratings: &[f64], placement: usize) -> f64 {
+    pub fn multi_delta(
+        k: f64,
+        player_rating: f64,
+        opponent_ratings: &[f64],
+        placement: usize,
+    ) -> f64 {
         let n = opponent_ratings.len() + 1;
         if n <= 1 {
             return 0.0;
@@ -505,7 +514,9 @@ mod tests {
         b.register("a").unwrap();
         b.register("b").unwrap();
         b.register("c").unwrap();
-        let deltas = b.record_multi_match(&[("a", 0), ("b", 1), ("c", 2)]).unwrap();
+        let deltas = b
+            .record_multi_match(&[("a", 0), ("b", 1), ("c", 2)])
+            .unwrap();
         assert!(deltas[0] > 0.0); // winner gains
         assert!(deltas[2] < 0.0); // loser drops
     }

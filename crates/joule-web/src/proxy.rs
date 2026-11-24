@@ -146,8 +146,7 @@ impl LoadBalancer {
             }
             LbStrategy::WeightedRoundRobin => {
                 // Total weight among available.
-                let total_weight: u32 =
-                    avail.iter().map(|i| self.backends[*i].weight).sum();
+                let total_weight: u32 = avail.iter().map(|i| self.backends[*i].weight).sum();
                 if total_weight == 0 {
                     return Err(ProxyError::NoBackendAvailable);
                 }
@@ -458,10 +457,7 @@ mod tests {
 
     #[test]
     fn least_connections() {
-        let mut backends = vec![
-            Backend::new("http://a:8080"),
-            Backend::new("http://b:8080"),
-        ];
+        let mut backends = vec![Backend::new("http://a:8080"), Backend::new("http://b:8080")];
         backends[0].active_connections = 10;
         backends[0].health = BackendHealth::Healthy;
         backends[1].active_connections = 2;

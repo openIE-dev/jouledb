@@ -242,12 +242,10 @@ impl Counter {
     }
 
     pub fn to_family(&self) -> MetricFamily {
-        let mut family =
-            MetricFamily::new(&format!("{}_total", self.name), MetricType::Counter);
+        let mut family = MetricFamily::new(&format!("{}_total", self.name), MetricType::Counter);
         family.help = self.help.clone();
-        let mut sample =
-            MetricSample::new(&format!("{}_total", self.name), self.value)
-                .with_labels(self.labels.clone());
+        let mut sample = MetricSample::new(&format!("{}_total", self.name), self.value)
+            .with_labels(self.labels.clone());
         sample.timestamp_ms = self.timestamp_ms;
         family.add_sample(sample);
         family
@@ -319,8 +317,7 @@ impl Gauge {
     pub fn to_family(&self) -> MetricFamily {
         let mut family = MetricFamily::new(&self.name, MetricType::Gauge);
         family.help = self.help.clone();
-        let mut sample =
-            MetricSample::new(&self.name, self.value).with_labels(self.labels.clone());
+        let mut sample = MetricSample::new(&self.name, self.value).with_labels(self.labels.clone());
         sample.timestamp_ms = self.timestamp_ms;
         family.add_sample(sample);
         family
@@ -369,7 +366,9 @@ impl HistogramMetric {
     pub fn with_default_buckets(name: &str) -> Self {
         Self::new(
             name,
-            &[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0],
+            &[
+                0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+            ],
         )
     }
 
@@ -414,26 +413,25 @@ impl HistogramMetric {
         for (i, bound) in self.buckets.iter().enumerate() {
             let mut labels = self.labels.clone();
             labels.push(LabelPair::new("le", &format_value(*bound)));
-            let mut sample = MetricSample::new(&format!("{}_bucket", self.name), self.bucket_counts[i] as f64)
-                .with_labels(labels);
+            let mut sample = MetricSample::new(
+                &format!("{}_bucket", self.name),
+                self.bucket_counts[i] as f64,
+            )
+            .with_labels(labels);
             sample.timestamp_ms = self.timestamp_ms;
             family.add_sample(sample);
         }
         // +Inf bucket
         let mut inf_labels = self.labels.clone();
         inf_labels.push(LabelPair::new("le", "+Inf"));
-        let mut inf_sample = MetricSample::new(
-            &format!("{}_bucket", self.name),
-            self.count as f64,
-        )
-        .with_labels(inf_labels);
+        let mut inf_sample = MetricSample::new(&format!("{}_bucket", self.name), self.count as f64)
+            .with_labels(inf_labels);
         inf_sample.timestamp_ms = self.timestamp_ms;
         family.add_sample(inf_sample);
 
         // _sum
-        let mut sum_sample =
-            MetricSample::new(&format!("{}_sum", self.name), self.sum)
-                .with_labels(self.labels.clone());
+        let mut sum_sample = MetricSample::new(&format!("{}_sum", self.name), self.sum)
+            .with_labels(self.labels.clone());
         sum_sample.timestamp_ms = self.timestamp_ms;
         family.add_sample(sum_sample);
 
@@ -510,15 +508,13 @@ impl SummaryMetric {
         for (q, v) in &self.quantiles {
             let mut labels = self.labels.clone();
             labels.push(LabelPair::new("quantile", &format!("{}", q)));
-            let mut sample =
-                MetricSample::new(&self.name, *v).with_labels(labels);
+            let mut sample = MetricSample::new(&self.name, *v).with_labels(labels);
             sample.timestamp_ms = self.timestamp_ms;
             family.add_sample(sample);
         }
 
-        let mut sum_sample =
-            MetricSample::new(&format!("{}_sum", self.name), self.sum)
-                .with_labels(self.labels.clone());
+        let mut sum_sample = MetricSample::new(&format!("{}_sum", self.name), self.sum)
+            .with_labels(self.labels.clone());
         sum_sample.timestamp_ms = self.timestamp_ms;
         family.add_sample(sum_sample);
 
@@ -781,8 +777,7 @@ mod tests {
 
     #[test]
     fn test_histogram_to_family() {
-        let mut h = HistogramMetric::new("latency", &[0.1, 0.5])
-            .with_help("Request latency");
+        let mut h = HistogramMetric::new("latency", &[0.1, 0.5]).with_help("Request latency");
         h.observe(0.05);
         h.observe(0.3);
         let text = h.to_family().format();
@@ -804,8 +799,7 @@ mod tests {
 
     #[test]
     fn test_summary_metric() {
-        let mut s = SummaryMetric::new("rpc_duration")
-            .with_help("RPC duration summary");
+        let mut s = SummaryMetric::new("rpc_duration").with_help("RPC duration summary");
         s.set_quantile(0.5, 120.0);
         s.set_quantile(0.9, 250.0);
         s.set_quantile(0.99, 480.0);
@@ -903,8 +897,7 @@ mod tests {
 
     #[test]
     fn test_histogram_with_labels() {
-        let mut h = HistogramMetric::new("dur", &[1.0])
-            .with_label("service", "web");
+        let mut h = HistogramMetric::new("dur", &[1.0]).with_label("service", "web");
         h.observe(0.5);
         let text = h.to_family().format();
         assert!(text.contains("service=\"web\""));

@@ -38,15 +38,33 @@ impl Permissions {
     /// Convert to numeric octal mode.
     pub fn to_mode(self) -> u16 {
         let mut m = 0u16;
-        if self.owner_read { m |= 0o400; }
-        if self.owner_write { m |= 0o200; }
-        if self.owner_exec { m |= 0o100; }
-        if self.group_read { m |= 0o040; }
-        if self.group_write { m |= 0o020; }
-        if self.group_exec { m |= 0o010; }
-        if self.other_read { m |= 0o004; }
-        if self.other_write { m |= 0o002; }
-        if self.other_exec { m |= 0o001; }
+        if self.owner_read {
+            m |= 0o400;
+        }
+        if self.owner_write {
+            m |= 0o200;
+        }
+        if self.owner_exec {
+            m |= 0o100;
+        }
+        if self.group_read {
+            m |= 0o040;
+        }
+        if self.group_write {
+            m |= 0o020;
+        }
+        if self.group_exec {
+            m |= 0o010;
+        }
+        if self.other_read {
+            m |= 0o004;
+        }
+        if self.other_write {
+            m |= 0o002;
+        }
+        if self.other_exec {
+            m |= 0o001;
+        }
         m
     }
 
@@ -456,9 +474,7 @@ impl VirtualFs {
     pub fn delete_recursive(&mut self, path: &str) -> Result<(), VfsError> {
         let norm = Self::normalize_path(path)?;
         if norm == "/" {
-            return Err(VfsError::PermissionDenied(
-                "cannot delete root".into(),
-            ));
+            return Err(VfsError::PermissionDenied("cannot delete root".into()));
         }
         if !self.nodes.contains_key(&norm) {
             return Err(VfsError::NotFound(norm));
@@ -738,7 +754,9 @@ impl VirtualFs {
         let mut results: Vec<String> = self
             .nodes
             .keys()
-            .filter(|k| **k != norm && (k.starts_with(&prefix) || (norm == "/" && k.as_str() != "/")))
+            .filter(|k| {
+                **k != norm && (k.starts_with(&prefix) || (norm == "/" && k.as_str() != "/"))
+            })
             .cloned()
             .collect();
         results.sort();
@@ -842,7 +860,8 @@ mod tests {
     fn test_nested_file() {
         let mut fs = VirtualFs::new();
         fs.mkdir_p("/usr/local/bin").unwrap();
-        fs.create_file("/usr/local/bin/app", b"binary data").unwrap();
+        fs.create_file("/usr/local/bin/app", b"binary data")
+            .unwrap();
         assert_eq!(fs.read_file("/usr/local/bin/app").unwrap(), b"binary data");
     }
 

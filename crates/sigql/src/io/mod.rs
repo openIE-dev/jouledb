@@ -61,8 +61,10 @@ pub use parquet::{ParquetOptions, read_parquet, write_parquet};
 pub use traits::{DataType, Format, SignalMetadata, SignalReader, SignalWriter};
 pub use wav::{read_wav, write_wav};
 
+pub use freq_store::{
+    CompressionInfo, compression_info, read_freq, read_freq_progressive, write_freq,
+};
 pub use media_ingest::{MediaIngestConfig, MediaIngestPipeline};
-pub use freq_store::{CompressionInfo, compression_info, read_freq, read_freq_progressive, write_freq};
 
 #[cfg(feature = "storage")]
 pub use sigql_connector::SignalStorageConnector;

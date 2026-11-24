@@ -30,7 +30,10 @@ impl CypherQuery {
             match c {
                 CypherClause::AsOf(ts) => pins.push(ts),
                 other => {
-                    if matches!(other, CypherClause::Match(_) | CypherClause::OptionalMatch(_)) {
+                    if matches!(
+                        other,
+                        CypherClause::Match(_) | CypherClause::OptionalMatch(_)
+                    ) {
                         last_match_idx = Some(kept.len());
                     }
                     kept.push(other);
@@ -60,9 +63,15 @@ impl CypherQuery {
         };
 
         // Conjoin all pins (multiple AS OF is unusual but well-defined).
-        let Some(temporal) = pins.into_iter().map(pin_pred).reduce(|a, b| {
-            Expression::Binary { left: Box::new(a), op: Operator::And, right: Box::new(b) }
-        }) else {
+        let Some(temporal) = pins
+            .into_iter()
+            .map(pin_pred)
+            .reduce(|a, b| Expression::Binary {
+                left: Box::new(a),
+                op: Operator::And,
+                right: Box::new(b),
+            })
+        else {
             return;
         };
 
@@ -102,7 +111,8 @@ impl CypherQuery {
             returning: Vec::new(),
             ctes: Vec::new(),
             derived_columns: HashMap::new(),
-            distinct: false, source_alias: None,
+            distinct: false,
+            source_alias: None,
         }
     }
 }
@@ -1542,9 +1552,7 @@ mod tests {
         match expr {
             Expression::Column(c) => c == col,
             Expression::QualifiedColumn { column, .. } => column == col,
-            Expression::Binary { left, right, .. } => {
-                mentions(left, col) || mentions(right, col)
-            }
+            Expression::Binary { left, right, .. } => mentions(left, col) || mentions(right, col),
             _ => false,
         }
     }
@@ -1564,7 +1572,10 @@ mod tests {
         // A synthetic WHERE was inserted right after the MATCH.
         assert!(matches!(q.clauses[0], CypherClause::Match(_)));
         let CypherClause::Where(w) = &q.clauses[1] else {
-            panic!("expected a synthetic WHERE after MATCH, got {:?}", q.clauses[1]);
+            panic!(
+                "expected a synthetic WHERE after MATCH, got {:?}",
+                q.clauses[1]
+            );
         };
         assert!(mentions(w, "valid_from"), "missing valid_from bound");
         assert!(mentions(w, "valid_to"), "missing valid_to bound");
@@ -1598,8 +1609,10 @@ mod tests {
             .filter(|c| matches!(c, CypherClause::Where(_)))
             .count();
         assert_eq!(where_count, 1, "AS OF should fold into the existing WHERE");
-        if let Some(CypherClause::Where(w)) =
-            q.clauses.iter().find(|c| matches!(c, CypherClause::Where(_)))
+        if let Some(CypherClause::Where(w)) = q
+            .clauses
+            .iter()
+            .find(|c| matches!(c, CypherClause::Where(_)))
         {
             assert!(mentions(w, "id"), "user predicate dropped");
             assert!(mentions(w, "valid_from") && mentions(w, "valid_to"));

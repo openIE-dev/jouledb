@@ -37,39 +37,87 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0 } }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+    pub fn zero() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
 
-    pub fn magnitude(self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
+    pub fn magnitude(self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
 
-    pub fn magnitude_sq(self) -> f64 { self.x * self.x + self.y * self.y }
+    pub fn magnitude_sq(self) -> f64 {
+        self.x * self.x + self.y * self.y
+    }
 
     pub fn normalized(self) -> Self {
         let m = self.magnitude();
-        if m < 1e-12 { Self::zero() } else { Self { x: self.x / m, y: self.y / m } }
+        if m < 1e-12 {
+            Self::zero()
+        } else {
+            Self {
+                x: self.x / m,
+                y: self.y / m,
+            }
+        }
     }
 
-    pub fn dot(self, o: Vec2) -> f64 { self.x * o.x + self.y * o.y }
+    pub fn dot(self, o: Vec2) -> f64 {
+        self.x * o.x + self.y * o.y
+    }
 
-    pub fn cross_z(self, o: Vec2) -> f64 { self.x * o.y - self.y * o.x }
+    pub fn cross_z(self, o: Vec2) -> f64 {
+        self.x * o.y - self.y * o.x
+    }
 
-    pub fn add(self, o: Vec2) -> Vec2 { Vec2 { x: self.x + o.x, y: self.y + o.y } }
-    pub fn sub(self, o: Vec2) -> Vec2 { Vec2 { x: self.x - o.x, y: self.y - o.y } }
-    pub fn scale(self, s: f64) -> Vec2 { Vec2 { x: self.x * s, y: self.y * s } }
+    pub fn add(self, o: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x + o.x,
+            y: self.y + o.y,
+        }
+    }
+    pub fn sub(self, o: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x - o.x,
+            y: self.y - o.y,
+        }
+    }
+    pub fn scale(self, s: f64) -> Vec2 {
+        Vec2 {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
 
-    pub fn perpendicular(self) -> Vec2 { Vec2 { x: -self.y, y: self.x } }
+    pub fn perpendicular(self) -> Vec2 {
+        Vec2 {
+            x: -self.y,
+            y: self.x,
+        }
+    }
 
-    pub fn distance_to(self, o: Vec2) -> f64 { self.sub(o).magnitude() }
+    pub fn distance_to(self, o: Vec2) -> f64 {
+        self.sub(o).magnitude()
+    }
 
     pub fn clamp_magnitude(self, max: f64) -> Vec2 {
         let m = self.magnitude();
-        if m <= max { self } else { self.normalized().scale(max) }
+        if m <= max {
+            self
+        } else {
+            self.normalized().scale(max)
+        }
     }
 
     pub fn rotate(self, angle: f64) -> Vec2 {
         let c = angle.cos();
         let s = angle.sin();
-        Vec2 { x: self.x * c - self.y * s, y: self.x * s + self.y * c }
+        Vec2 {
+            x: self.x * c - self.y * s,
+            y: self.x * s + self.y * c,
+        }
     }
 }
 
@@ -104,8 +152,14 @@ impl Agent {
         }
     }
 
-    pub fn with_velocity(mut self, v: Vec2) -> Self { self.velocity = v; self }
-    pub fn with_preferred_velocity(mut self, v: Vec2) -> Self { self.preferred_velocity = v; self }
+    pub fn with_velocity(mut self, v: Vec2) -> Self {
+        self.velocity = v;
+        self
+    }
+    pub fn with_preferred_velocity(mut self, v: Vec2) -> Self {
+        self.preferred_velocity = v;
+        self
+    }
 
     /// Advance the agent by one time step.
     pub fn step(&mut self, dt: f64) {
@@ -116,7 +170,8 @@ impl Agent {
 impl fmt::Display for Agent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "Agent(id={}, pos={}, vel={}, r={:.2})",
+            f,
+            "Agent(id={}, pos={}, vel={}, r={:.2})",
             self.id, self.position, self.velocity, self.radius,
         )
     }
@@ -191,7 +246,10 @@ pub struct HalfPlane {
 
 impl HalfPlane {
     pub fn new(point: Vec2, normal: Vec2) -> Self {
-        Self { point, normal: normal.normalized() }
+        Self {
+            point,
+            normal: normal.normalized(),
+        }
     }
 
     /// Check if a velocity satisfies this constraint (is in the feasible half).
@@ -254,14 +312,16 @@ pub fn compute_orca_halfplane(a: &Agent, b: &Agent, tau: f64) -> HalfPlane {
                     let left_dir = Vec2::new(
                         rel_pos.x * leg_len - rel_pos.y * combined_radius,
                         rel_pos.x * combined_radius + rel_pos.y * leg_len,
-                    ).scale(1.0 / dist_sq);
+                    )
+                    .scale(1.0 / dist_sq);
                     u = left_dir.scale(rel_vel.dot(left_dir)).sub(rel_vel);
                 } else {
                     // Right leg
                     let right_dir = Vec2::new(
                         rel_pos.x * leg_len + rel_pos.y * combined_radius,
                         -rel_pos.x * combined_radius + rel_pos.y * leg_len,
-                    ).scale(1.0 / dist_sq);
+                    )
+                    .scale(1.0 / dist_sq);
                     u = right_dir.scale(rel_vel.dot(right_dir)).sub(rel_vel);
                 }
             }
@@ -285,11 +345,7 @@ pub fn compute_orca_halfplane(a: &Agent, b: &Agent, tau: f64) -> HalfPlane {
 // ── Solve ORCA (incremental projection) ─────────────────────────
 
 /// Solve for the best feasible velocity given ORCA half-planes.
-pub fn solve_orca(
-    preferred: Vec2,
-    max_speed: f64,
-    constraints: &[HalfPlane],
-) -> Vec2 {
+pub fn solve_orca(preferred: Vec2, max_speed: f64, constraints: &[HalfPlane]) -> Vec2 {
     let mut result = preferred;
 
     // Iterative projection
@@ -301,7 +357,9 @@ pub fn solve_orca(
                 feasible = false;
             }
         }
-        if feasible { break; }
+        if feasible {
+            break;
+        }
     }
 
     result.clamp_magnitude(max_speed)
@@ -333,8 +391,14 @@ impl OrcaSimulator {
         })
     }
 
-    pub fn with_dt(mut self, dt: f64) -> Self { self.dt = dt; self }
-    pub fn with_time_horizon(mut self, tau: f64) -> Self { self.time_horizon = tau; self }
+    pub fn with_dt(mut self, dt: f64) -> Self {
+        self.dt = dt;
+        self
+    }
+    pub fn with_time_horizon(mut self, tau: f64) -> Self {
+        self.time_horizon = tau;
+        self
+    }
 
     pub fn add_agent(&mut self, agent: Agent) -> usize {
         let id = self.agents.len();
@@ -342,14 +406,23 @@ impl OrcaSimulator {
         id
     }
 
-    pub fn agent(&self, id: usize) -> Option<&Agent> { self.agents.get(id) }
-    pub fn agent_count(&self) -> usize { self.agents.len() }
-    pub fn time(&self) -> f64 { self.time }
+    pub fn agent(&self, id: usize) -> Option<&Agent> {
+        self.agents.get(id)
+    }
+    pub fn agent_count(&self) -> usize {
+        self.agents.len()
+    }
+    pub fn time(&self) -> f64 {
+        self.time
+    }
 
     /// Set preferred velocity for an agent.
     pub fn set_preferred_velocity(&mut self, id: usize, v: Vec2) -> Result<(), VoError> {
         match self.agents.get_mut(id) {
-            Some(a) => { a.preferred_velocity = v; Ok(()) }
+            Some(a) => {
+                a.preferred_velocity = v;
+                Ok(())
+            }
             None => Err(VoError::AgentNotFound(id)),
         }
     }
@@ -362,8 +435,11 @@ impl OrcaSimulator {
         for i in 0..n {
             let mut constraints = Vec::new();
             for j in 0..n {
-                if i == j { continue; }
-                let hp = compute_orca_halfplane(&self.agents[i], &self.agents[j], self.time_horizon);
+                if i == j {
+                    continue;
+                }
+                let hp =
+                    compute_orca_halfplane(&self.agents[i], &self.agents[j], self.time_horizon);
                 constraints.push(hp);
             }
             new_velocities[i] = solve_orca(
@@ -382,7 +458,9 @@ impl OrcaSimulator {
 
     /// Step N times.
     pub fn step_n(&mut self, n: usize) {
-        for _ in 0..n { self.step(); }
+        for _ in 0..n {
+            self.step();
+        }
     }
 
     /// Check if any pair of agents is in collision.
@@ -405,7 +483,9 @@ impl OrcaSimulator {
             for j in (i + 1)..self.agents.len() {
                 let d = self.agents[i].position.distance_to(self.agents[j].position);
                 let gap = d - self.agents[i].radius - self.agents[j].radius;
-                if gap < min_d { min_d = gap; }
+                if gap < min_d {
+                    min_d = gap;
+                }
             }
         }
         min_d
@@ -415,8 +495,12 @@ impl OrcaSimulator {
 impl fmt::Display for OrcaSimulator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "OrcaSimulator(agents={}, tau={:.2}, dt={:.3}, t={:.3})",
-            self.agents.len(), self.time_horizon, self.dt, self.time,
+            f,
+            "OrcaSimulator(agents={}, tau={:.2}, dt={:.3}, t={:.3})",
+            self.agents.len(),
+            self.time_horizon,
+            self.dt,
+            self.time,
         )
     }
 }
@@ -425,22 +509,26 @@ impl fmt::Display for OrcaSimulator {
 
 /// Compute the Minkowski sum of two convex polygons given as CCW vertex lists.
 pub fn minkowski_sum(poly_a: &[Vec2], poly_b: &[Vec2]) -> Vec<Vec2> {
-    if poly_a.is_empty() || poly_b.is_empty() { return Vec::new(); }
+    if poly_a.is_empty() || poly_b.is_empty() {
+        return Vec::new();
+    }
     let na = poly_a.len();
     let nb = poly_b.len();
 
     // Find bottom-most points
     let mut ai = 0;
     for i in 1..na {
-        if poly_a[i].y < poly_a[ai].y
-            || (poly_a[i].y == poly_a[ai].y && poly_a[i].x < poly_a[ai].x)
-        { ai = i; }
+        if poly_a[i].y < poly_a[ai].y || (poly_a[i].y == poly_a[ai].y && poly_a[i].x < poly_a[ai].x)
+        {
+            ai = i;
+        }
     }
     let mut bi = 0;
     for i in 1..nb {
-        if poly_b[i].y < poly_b[bi].y
-            || (poly_b[i].y == poly_b[bi].y && poly_b[i].x < poly_b[bi].x)
-        { bi = i; }
+        if poly_b[i].y < poly_b[bi].y || (poly_b[i].y == poly_b[bi].y && poly_b[i].x < poly_b[bi].x)
+        {
+            bi = i;
+        }
     }
 
     let mut result = Vec::with_capacity(na + nb);
@@ -478,7 +566,9 @@ pub fn minkowski_sum(poly_a: &[Vec2], poly_b: &[Vec2]) -> Vec<Vec2> {
 mod tests {
     use super::*;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < 1e-6 }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < 1e-6
+    }
 
     #[test]
     fn test_vec2_ops() {
@@ -513,8 +603,7 @@ mod tests {
 
     #[test]
     fn test_agent_step() {
-        let mut a = Agent::new(0, Vec2::new(0.0, 0.0), 0.5, 2.0)
-            .with_velocity(Vec2::new(1.0, 0.0));
+        let mut a = Agent::new(0, Vec2::new(0.0, 0.0), 0.5, 2.0).with_velocity(Vec2::new(1.0, 0.0));
         a.step(0.5);
         assert!(approx(a.position.x, 0.5));
     }
@@ -528,10 +617,8 @@ mod tests {
 
     #[test]
     fn test_vo_computation() {
-        let a = Agent::new(0, Vec2::new(0.0, 0.0), 0.5, 2.0)
-            .with_velocity(Vec2::new(1.0, 0.0));
-        let b = Agent::new(1, Vec2::new(5.0, 0.0), 0.5, 2.0)
-            .with_velocity(Vec2::new(-1.0, 0.0));
+        let a = Agent::new(0, Vec2::new(0.0, 0.0), 0.5, 2.0).with_velocity(Vec2::new(1.0, 0.0));
+        let b = Agent::new(1, Vec2::new(5.0, 0.0), 0.5, 2.0).with_velocity(Vec2::new(-1.0, 0.0));
         let vo = VelocityObstacle::compute(&a, &b, 5.0);
         // Head-on velocity should be inside the VO
         assert!(vo.contains(Vec2::new(1.0, 0.0)));
@@ -600,11 +687,11 @@ mod tests {
         let mut sim = OrcaSimulator::new(0.1, 3.0).unwrap();
         sim.add_agent(
             Agent::new(0, Vec2::new(0.0, 0.0), 0.3, 1.5)
-                .with_preferred_velocity(Vec2::new(1.0, 0.0))
+                .with_preferred_velocity(Vec2::new(1.0, 0.0)),
         );
         sim.add_agent(
             Agent::new(1, Vec2::new(5.0, -5.0), 0.3, 1.5)
-                .with_preferred_velocity(Vec2::new(0.0, 1.0))
+                .with_preferred_velocity(Vec2::new(0.0, 1.0)),
         );
         sim.step_n(200);
         assert!(sim.time() > 0.0);
@@ -633,12 +720,16 @@ mod tests {
     #[test]
     fn test_minkowski_sum_squares() {
         let sq1 = vec![
-            Vec2::new(0.0, 0.0), Vec2::new(1.0, 0.0),
-            Vec2::new(1.0, 1.0), Vec2::new(0.0, 1.0),
+            Vec2::new(0.0, 0.0),
+            Vec2::new(1.0, 0.0),
+            Vec2::new(1.0, 1.0),
+            Vec2::new(0.0, 1.0),
         ];
         let sq2 = vec![
-            Vec2::new(0.0, 0.0), Vec2::new(1.0, 0.0),
-            Vec2::new(1.0, 1.0), Vec2::new(0.0, 1.0),
+            Vec2::new(0.0, 0.0),
+            Vec2::new(1.0, 0.0),
+            Vec2::new(1.0, 1.0),
+            Vec2::new(0.0, 1.0),
         ];
         let msum = minkowski_sum(&sq1, &sq2);
         assert!(!msum.is_empty());

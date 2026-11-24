@@ -258,7 +258,8 @@ impl ScrollAnchor {
         // Remove existing entry with the same id.
         self.anchors.retain(|(existing, _)| existing != id);
         self.anchors.push((id.to_string(), y));
-        self.anchors.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        self.anchors
+            .sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
     }
 
     pub fn unregister(&mut self, id: &str) {
@@ -281,7 +282,10 @@ impl ScrollAnchor {
 
     /// Return the y position to scroll to for the given anchor.
     pub fn scroll_to_anchor(&self, id: &str) -> Option<f64> {
-        self.anchors.iter().find(|(aid, _)| aid == id).map(|(_, y)| *y)
+        self.anchors
+            .iter()
+            .find(|(aid, _)| aid == id)
+            .map(|(_, y)| *y)
     }
 }
 

@@ -50,19 +50,27 @@ pub struct ObsMat {
 
 impl ObsMat {
     pub fn zeros(r: usize, c: usize) -> Self {
-        Self { rows: r, cols: c, data: vec![0.0; r * c] }
+        Self {
+            rows: r,
+            cols: c,
+            data: vec![0.0; r * c],
+        }
     }
 
     pub fn identity(n: usize) -> Self {
         let mut m = Self::zeros(n, n);
-        for i in 0..n { m.data[i * n + i] = 1.0; }
+        for i in 0..n {
+            m.data[i * n + i] = 1.0;
+        }
         m
     }
 
     pub fn from_vec(rows: usize, cols: usize, data: Vec<f64>) -> Result<Self, ObserverError> {
         if data.len() != rows * cols {
             return Err(ObserverError::DimensionMismatch(format!(
-                "expected {} elements, got {}", rows * cols, data.len()
+                "expected {} elements, got {}",
+                rows * cols,
+                data.len()
             )));
         }
         Ok(Self { rows, cols, data })
@@ -89,14 +97,17 @@ impl ObsMat {
     pub fn mul(&self, other: &ObsMat) -> Result<ObsMat, ObserverError> {
         if self.cols != other.rows {
             return Err(ObserverError::DimensionMismatch(format!(
-                "{}x{} * {}x{}", self.rows, self.cols, other.rows, other.cols
+                "{}x{} * {}x{}",
+                self.rows, self.cols, other.rows, other.cols
             )));
         }
         let mut result = ObsMat::zeros(self.rows, other.cols);
         for i in 0..self.rows {
             for j in 0..other.cols {
                 let mut sum = 0.0;
-                for k in 0..self.cols { sum += self.get(i, k) * other.get(k, j); }
+                for k in 0..self.cols {
+                    sum += self.get(i, k) * other.get(k, j);
+                }
                 result.set(i, j, sum);
             }
         }
@@ -107,32 +118,59 @@ impl ObsMat {
         if self.rows != other.rows || self.cols != other.cols {
             return Err(ObserverError::DimensionMismatch("add size mismatch".into()));
         }
-        let data: Vec<f64> = self.data.iter().zip(&other.data).map(|(a, b)| a + b).collect();
-        Ok(ObsMat { rows: self.rows, cols: self.cols, data })
+        let data: Vec<f64> = self
+            .data
+            .iter()
+            .zip(&other.data)
+            .map(|(a, b)| a + b)
+            .collect();
+        Ok(ObsMat {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        })
     }
 
     pub fn sub(&self, other: &ObsMat) -> Result<ObsMat, ObserverError> {
         if self.rows != other.rows || self.cols != other.cols {
             return Err(ObserverError::DimensionMismatch("sub size mismatch".into()));
         }
-        let data: Vec<f64> = self.data.iter().zip(&other.data).map(|(a, b)| a - b).collect();
-        Ok(ObsMat { rows: self.rows, cols: self.cols, data })
+        let data: Vec<f64> = self
+            .data
+            .iter()
+            .zip(&other.data)
+            .map(|(a, b)| a - b)
+            .collect();
+        Ok(ObsMat {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        })
     }
 
     pub fn scale(&self, s: f64) -> ObsMat {
         let data: Vec<f64> = self.data.iter().map(|v| v * s).collect();
-        ObsMat { rows: self.rows, cols: self.cols, data }
+        ObsMat {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        }
     }
 
     pub fn mul_vec(&self, v: &[f64]) -> Result<Vec<f64>, ObserverError> {
         if self.cols != v.len() {
             return Err(ObserverError::DimensionMismatch(format!(
-                "mat {}x{} * vec {}", self.rows, self.cols, v.len()
+                "mat {}x{} * vec {}",
+                self.rows,
+                self.cols,
+                v.len()
             )));
         }
         let mut result = vec![0.0; self.rows];
         for i in 0..self.rows {
-            for j in 0..self.cols { result[i] += self.get(i, j) * v[j]; }
+            for j in 0..self.cols {
+                result[i] += self.get(i, j) * v[j];
+            }
         }
         Ok(result)
     }
@@ -144,7 +182,9 @@ impl ObsMat {
         let n = self.rows;
         let mut aug = vec![0.0; n * 2 * n];
         for i in 0..n {
-            for j in 0..n { aug[i * 2 * n + j] = self.get(i, j); }
+            for j in 0..n {
+                aug[i * 2 * n + j] = self.get(i, j);
+            }
             aug[i * 2 * n + n + i] = 1.0;
         }
         for col in 0..n {
@@ -152,9 +192,14 @@ impl ObsMat {
             let mut max_val = aug[col * 2 * n + col].abs();
             for row in (col + 1)..n {
                 let v = aug[row * 2 * n + col].abs();
-                if v > max_val { max_val = v; max_row = row; }
+                if v > max_val {
+                    max_val = v;
+                    max_row = row;
+                }
             }
-            if max_val < 1e-14 { return Err(ObserverError::SingularMatrix); }
+            if max_val < 1e-14 {
+                return Err(ObserverError::SingularMatrix);
+            }
             if max_row != col {
                 for j in 0..2 * n {
                     let tmp = aug[col * 2 * n + j];
@@ -163,16 +208,24 @@ impl ObsMat {
                 }
             }
             let pivot = aug[col * 2 * n + col];
-            for j in 0..2 * n { aug[col * 2 * n + j] /= pivot; }
+            for j in 0..2 * n {
+                aug[col * 2 * n + j] /= pivot;
+            }
             for row in 0..n {
-                if row == col { continue; }
+                if row == col {
+                    continue;
+                }
                 let factor = aug[row * 2 * n + col];
-                for j in 0..2 * n { aug[row * 2 * n + j] -= factor * aug[col * 2 * n + j]; }
+                for j in 0..2 * n {
+                    aug[row * 2 * n + j] -= factor * aug[col * 2 * n + j];
+                }
             }
         }
         let mut inv = ObsMat::zeros(n, n);
         for i in 0..n {
-            for j in 0..n { inv.set(i, j, aug[i * 2 * n + n + j]); }
+            for j in 0..n {
+                inv.set(i, j, aug[i * 2 * n + n + j]);
+            }
         }
         Ok(inv)
     }
@@ -221,14 +274,19 @@ fn numerical_rank(m: &ObsMat, tol: f64) -> usize {
     let mut pivot_col = 0;
 
     for row in 0..rows.min(cols) {
-        if pivot_col >= cols { break; }
+        if pivot_col >= cols {
+            break;
+        }
 
         // Find pivot.
         let mut max_val = 0.0;
         let mut max_row = row;
         for r in row..rows {
             let v = work[r * cols + pivot_col].abs();
-            if v > max_val { max_val = v; max_row = r; }
+            if v > max_val {
+                max_val = v;
+                max_row = r;
+            }
         }
 
         if max_val < tol {
@@ -286,22 +344,33 @@ pub struct LuenbergerObserver {
 
 impl LuenbergerObserver {
     /// Create with given system matrices and observer gain.
-    pub fn new(
-        a: ObsMat, b: ObsMat, c: ObsMat, l: ObsMat,
-    ) -> Result<Self, ObserverError> {
+    pub fn new(a: ObsMat, b: ObsMat, c: ObsMat, l: ObsMat) -> Result<Self, ObserverError> {
         let n = a.rows;
-        if a.cols != n { return Err(ObserverError::DimensionMismatch("A not square".into())); }
+        if a.cols != n {
+            return Err(ObserverError::DimensionMismatch("A not square".into()));
+        }
         let nu = b.cols;
         let ny = c.rows;
-        if b.rows != n { return Err(ObserverError::DimensionMismatch("B row mismatch".into())); }
-        if c.cols != n { return Err(ObserverError::DimensionMismatch("C col mismatch".into())); }
+        if b.rows != n {
+            return Err(ObserverError::DimensionMismatch("B row mismatch".into()));
+        }
+        if c.cols != n {
+            return Err(ObserverError::DimensionMismatch("C col mismatch".into()));
+        }
         if l.rows != n || l.cols != ny {
-            return Err(ObserverError::DimensionMismatch("L dimension mismatch".into()));
+            return Err(ObserverError::DimensionMismatch(
+                "L dimension mismatch".into(),
+            ));
         }
         Ok(Self {
-            n, nu, ny,
+            n,
+            nu,
+            ny,
             x_hat: vec![0.0; n],
-            a, b, c, l,
+            a,
+            b,
+            c,
+            l,
         })
     }
 
@@ -318,7 +387,8 @@ impl LuenbergerObserver {
         let bu = self.b.mul_vec(u)?;
         let l_innov = self.l.mul_vec(&innovation)?;
 
-        self.x_hat = ax.iter()
+        self.x_hat = ax
+            .iter()
             .zip(&bu)
             .zip(&l_innov)
             .map(|((a, b), c)| a + b + c)
@@ -349,14 +419,11 @@ impl LuenbergerObserver {
 /// Design observer gain L for a SISO system using Ackermann's formula approach.
 /// For a 2x2 system with desired poles p1, p2:
 /// Desired characteristic: (z - p1)(z - p2) = z^2 - (p1+p2)z + p1*p2
-pub fn design_gain_2x2(
-    a: &ObsMat,
-    c: &ObsMat,
-    p1: f64,
-    p2: f64,
-) -> Result<ObsMat, ObserverError> {
+pub fn design_gain_2x2(a: &ObsMat, c: &ObsMat, p1: f64, p2: f64) -> Result<ObsMat, ObserverError> {
     if a.rows != 2 || a.cols != 2 {
-        return Err(ObserverError::InvalidPoles("only supports 2x2 systems".into()));
+        return Err(ObserverError::InvalidPoles(
+            "only supports 2x2 systems".into(),
+        ));
     }
     if c.rows != 1 || c.cols != 2 {
         return Err(ObserverError::DimensionMismatch("C must be 1x2".into()));
@@ -381,9 +448,12 @@ pub fn design_gain_2x2(
     // Equation 2 (det):
     //   (a00 - l1*c0)*(a11 - l2*c1) - (a01 - l1*c1)*(a10 - l2*c0) = p1*p2
 
-    let a00 = a.get(0, 0); let a01 = a.get(0, 1);
-    let a10 = a.get(1, 0); let a11 = a.get(1, 1);
-    let c0 = c.get(0, 0); let c1 = c.get(0, 1);
+    let a00 = a.get(0, 0);
+    let a01 = a.get(0, 1);
+    let a10 = a.get(1, 0);
+    let a11 = a.get(1, 1);
+    let c0 = c.get(0, 0);
+    let c1 = c.get(0, 1);
     let trace_a = a00 + a11;
     let desired_trace = p1 + p2;
     let desired_det = p1 * p2;
@@ -432,10 +502,13 @@ pub struct ReducedOrderObserver {
     /// Internal state.
     pub z_hat: Vec<f64>,
     /// Partitioned matrices: A = [[A11, A12], [A21, A22]]
-    pub a11: ObsMat, pub a12: ObsMat,
-    pub a21: ObsMat, pub a22: ObsMat,
+    pub a11: ObsMat,
+    pub a12: ObsMat,
+    pub a21: ObsMat,
+    pub a22: ObsMat,
     /// Input partition: B = [B1; B2]
-    pub b1: ObsMat, pub b2: ObsMat,
+    pub b1: ObsMat,
+    pub b2: ObsMat,
     /// Observer gain for reduced system.
     pub l_r: ObsMat,
 }
@@ -443,19 +516,32 @@ pub struct ReducedOrderObserver {
 impl ReducedOrderObserver {
     /// Create from full system partitioned around measured outputs.
     pub fn new(
-        a11: ObsMat, a12: ObsMat, a21: ObsMat, a22: ObsMat,
-        b1: ObsMat, b2: ObsMat, l_r: ObsMat,
+        a11: ObsMat,
+        a12: ObsMat,
+        a21: ObsMat,
+        a22: ObsMat,
+        b1: ObsMat,
+        b2: ObsMat,
+        l_r: ObsMat,
     ) -> Result<Self, ObserverError> {
         let ny = a11.rows;
         let nz = a22.rows;
         if l_r.rows != nz || l_r.cols != ny {
-            return Err(ObserverError::DimensionMismatch("L_r dimension mismatch".into()));
+            return Err(ObserverError::DimensionMismatch(
+                "L_r dimension mismatch".into(),
+            ));
         }
         Ok(Self {
-            ny, nz,
+            ny,
+            nz,
             z_hat: vec![0.0; nz],
-            a11, a12, a21, a22,
-            b1, b2, l_r,
+            a11,
+            a12,
+            a21,
+            a22,
+            b1,
+            b2,
+            l_r,
         })
     }
 
@@ -477,9 +563,9 @@ impl ReducedOrderObserver {
 
         let ly = self.l_r.mul_vec(y)?;
 
-        self.z_hat = (0..self.nz).map(|i| {
-            a22z[i] - la12z[i] + a21y[i] - la11y[i] + b2u[i] - lb1u[i] + ly[i]
-        }).collect();
+        self.z_hat = (0..self.nz)
+            .map(|i| a22z[i] - la12z[i] + a21y[i] - la11y[i] + b2u[i] - lb1u[i] + ly[i])
+            .collect();
 
         Ok(self.z_hat.clone())
     }
@@ -518,14 +604,22 @@ pub struct DisturbanceObserver {
 impl DisturbanceObserver {
     /// Create a disturbance observer.
     pub fn new(
-        a: ObsMat, b: ObsMat, c: ObsMat, l_x: ObsMat, l_d: ObsMat,
+        a: ObsMat,
+        b: ObsMat,
+        c: ObsMat,
+        l_x: ObsMat,
+        l_d: ObsMat,
     ) -> Result<Self, ObserverError> {
         let n = a.rows;
         Ok(Self {
             n,
             x_hat: vec![0.0; n],
             d_hat: vec![0.0; n],
-            a, b, c, l_x, l_d,
+            a,
+            b,
+            c,
+            l_x,
+            l_d,
         })
     }
 
@@ -539,9 +633,9 @@ impl DisturbanceObserver {
         let lx_inn = self.l_x.mul_vec(&innovation)?;
 
         // State update: x_hat = Ax + Bu + d_hat + Lx*(y - Cx_hat)
-        self.x_hat = (0..self.n).map(|i| {
-            ax[i] + bu[i] + self.d_hat[i] + lx_inn[i]
-        }).collect();
+        self.x_hat = (0..self.n)
+            .map(|i| ax[i] + bu[i] + self.d_hat[i] + lx_inn[i])
+            .collect();
 
         // Disturbance update: d_hat += Ld*(y - Cx_hat)
         let ld_inn = self.l_d.mul_vec(&innovation)?;
@@ -568,9 +662,7 @@ pub struct DeadBeatObserver {
 impl DeadBeatObserver {
     /// Create dead-beat observer for a 2x2 SISO system.
     /// Poles at z=0 for fastest convergence.
-    pub fn new_2x2(
-        a: ObsMat, b: ObsMat, c: ObsMat,
-    ) -> Result<Self, ObserverError> {
+    pub fn new_2x2(a: ObsMat, b: ObsMat, c: ObsMat) -> Result<Self, ObserverError> {
         // Place both poles at 0.
         let l = design_gain_2x2(&a, &c, 0.0, 0.0)?;
         let observer = LuenbergerObserver::new(a, b, c, l)?;
@@ -727,7 +819,11 @@ mod tests {
             let y = c.mul_vec(&x_true).unwrap();
             dbo.update(&u, &y).unwrap();
             let ax = a.mul_vec(&x_true).unwrap();
-            x_true = ax.iter().zip(b.mul_vec(&u).unwrap().iter()).map(|(a, b)| a + b).collect();
+            x_true = ax
+                .iter()
+                .zip(b.mul_vec(&u).unwrap().iter())
+                .map(|(a, b)| a + b)
+                .collect();
         }
         assert!(dbo.converged());
     }

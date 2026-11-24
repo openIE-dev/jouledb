@@ -361,9 +361,7 @@ impl AudioGraph {
                 if on_stack.contains(&neighbor) {
                     return true;
                 }
-                if !visited.contains(&neighbor)
-                    && self.dfs_cycle(neighbor, visited, on_stack)
-                {
+                if !visited.contains(&neighbor) && self.dfs_cycle(neighbor, visited, on_stack) {
                     return true;
                 }
             }
@@ -447,9 +445,8 @@ impl AudioGraph {
                 .get(&id)
                 .map_or(1, |n| n.processor.input_count().max(1));
 
-            let mut inputs: Vec<Vec<f32>> = (0..input_count)
-                .map(|_| vec![0.0f32; frames])
-                .collect();
+            let mut inputs: Vec<Vec<f32>> =
+                (0..input_count).map(|_| vec![0.0f32; frames]).collect();
 
             // Gather inputs from connected source nodes
             for conn in &self.connections {
@@ -470,9 +467,8 @@ impl AudioGraph {
                 if node.bypassed {
                     // Bypass: copy inputs to outputs directly
                     let out_count = node.processor.output_count().max(1);
-                    let mut node_outputs: Vec<Vec<f32>> = (0..out_count)
-                        .map(|_| vec![0.0f32; frames])
-                        .collect();
+                    let mut node_outputs: Vec<Vec<f32>> =
+                        (0..out_count).map(|_| vec![0.0f32; frames]).collect();
                     let copy_count = inputs.len().min(node_outputs.len());
                     for i in 0..copy_count {
                         let len = frames.min(inputs[i].len()).min(node_outputs[i].len());
@@ -481,9 +477,8 @@ impl AudioGraph {
                     outputs.insert(id, node_outputs);
                 } else {
                     let out_count = node.processor.output_count().max(1);
-                    let mut node_outputs: Vec<Vec<f32>> = (0..out_count)
-                        .map(|_| vec![0.0f32; frames])
-                        .collect();
+                    let mut node_outputs: Vec<Vec<f32>> =
+                        (0..out_count).map(|_| vec![0.0f32; frames]).collect();
                     node.processor.process(&inputs, &mut node_outputs, frames);
                     outputs.insert(id, node_outputs);
                 }
@@ -1103,7 +1098,10 @@ mod tests {
 
     #[test]
     fn graph_error_display() {
-        assert_eq!(format!("{}", GraphError::CycleDetected), "cycle detected in audio graph");
+        assert_eq!(
+            format!("{}", GraphError::CycleDetected),
+            "cycle detected in audio graph"
+        );
         assert_eq!(
             format!("{}", GraphError::NodeNotFound(42)),
             "node 42 not found"

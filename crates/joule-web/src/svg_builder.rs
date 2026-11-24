@@ -259,9 +259,7 @@ impl SvgBuilder {
         // Add <style> if present.
         if !self.styles.is_empty() {
             let css = self.styles.join("\n");
-            let style_node = SvgNode::new("style")
-                .attr("type", "text/css")
-                .text(&css);
+            let style_node = SvgNode::new("style").attr("type", "text/css").text(&css);
             root = root.child(style_node);
         }
 
@@ -437,12 +435,7 @@ pub fn animate(attribute: &str, from: &str, to: &str, dur: &str) -> SvgNode {
 }
 
 /// Create an `<animateTransform>` element.
-pub fn animate_transform(
-    transform_type: &str,
-    from: &str,
-    to: &str,
-    dur: &str,
-) -> SvgNode {
+pub fn animate_transform(transform_type: &str, from: &str, to: &str, dur: &str) -> SvgNode {
     SvgNode::new_self_closing("animateTransform")
         .attr("attributeName", "transform")
         .attr("type", transform_type)
@@ -531,9 +524,7 @@ mod tests {
 
     #[test]
     fn test_viewbox() {
-        let svg = SvgBuilder::new()
-            .view_box(0.0, 0.0, 200.0, 200.0)
-            .build();
+        let svg = SvgBuilder::new().view_box(0.0, 0.0, 200.0, 200.0).build();
         assert!(svg.contains("viewBox=\"0 0 200 200\""));
     }
 
@@ -626,9 +617,7 @@ mod tests {
     #[test]
     fn test_pattern_def() {
         let svg = SvgBuilder::new()
-            .def(
-                pattern("dots", 10.0, 10.0).child(circle(5.0, 5.0, 2.0).fill("gray")),
-            )
+            .def(pattern("dots", 10.0, 10.0).child(circle(5.0, 5.0, 2.0).fill("gray")))
             .build();
         assert!(svg.contains("<pattern"));
         assert!(svg.contains("id=\"dots\""));
@@ -653,8 +642,12 @@ mod tests {
 
     #[test]
     fn test_animate_transform_element() {
-        let el = rect(0.0, 0.0, 20.0, 20.0)
-            .child(animate_transform("rotate", "0 10 10", "360 10 10", "3s"));
+        let el = rect(0.0, 0.0, 20.0, 20.0).child(animate_transform(
+            "rotate",
+            "0 10 10",
+            "360 10 10",
+            "3s",
+        ));
         let svg = SvgBuilder::new().add(el).build();
         assert!(svg.contains("<animateTransform"));
         assert!(svg.contains("type=\"rotate\""));

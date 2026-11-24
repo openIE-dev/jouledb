@@ -29,7 +29,10 @@ pub enum NotificationError {
     /// Template render error.
     RenderError(String),
     /// Max retries exceeded.
-    MaxRetriesExceeded { notification_id: String, attempts: u32 },
+    MaxRetriesExceeded {
+        notification_id: String,
+        attempts: u32,
+    },
     /// Batch is empty.
     EmptyBatch,
 }
@@ -50,7 +53,10 @@ impl std::fmt::Display for NotificationError {
                 notification_id,
                 attempts,
             } => {
-                write!(f, "notification {notification_id} max retries exceeded ({attempts})")
+                write!(
+                    f,
+                    "notification {notification_id} max retries exceeded ({attempts})"
+                )
             }
             Self::EmptyBatch => write!(f, "batch is empty"),
         }
@@ -224,7 +230,10 @@ fn render_template(
     // Check for unresolved placeholders.
     if result.contains("{{") && result.contains("}}") {
         let start = result.find("{{").unwrap();
-        let end = result[start..].find("}}").map(|i| i + start + 2).unwrap_or(result.len());
+        let end = result[start..]
+            .find("}}")
+            .map(|i| i + start + 2)
+            .unwrap_or(result.len());
         let unresolved = &result[start..end];
         return Err(NotificationError::RenderError(format!(
             "unresolved placeholder: {unresolved}"
@@ -269,7 +278,10 @@ impl NotificationEngine {
     // ── Template Management ─────────────────────────────────────
 
     /// Register a notification template.
-    pub fn register_template(&mut self, template: NotificationTemplate) -> Result<(), NotificationError> {
+    pub fn register_template(
+        &mut self,
+        template: NotificationTemplate,
+    ) -> Result<(), NotificationError> {
         if self.templates.contains_key(&template.id) {
             return Err(NotificationError::DuplicateTemplate(template.id.clone()));
         }
@@ -342,7 +354,11 @@ impl NotificationEngine {
             .clone();
 
         // Check preferences.
-        if !recipient.preferences.enabled_channels.contains(&template.channel) {
+        if !recipient
+            .preferences
+            .enabled_channels
+            .contains(&template.channel)
+        {
             return Err(NotificationError::ChannelNotConfigured {
                 recipient: recipient_id.to_string(),
                 channel: format!("{:?}", template.channel),
@@ -395,10 +411,7 @@ impl NotificationEngine {
     }
 
     /// Send batch notifications to multiple recipients.
-    pub fn send_batch(
-        &mut self,
-        request: &BatchRequest,
-    ) -> Result<Vec<String>, NotificationError> {
+    pub fn send_batch(&mut self, request: &BatchRequest) -> Result<Vec<String>, NotificationError> {
         if request.recipient_ids.is_empty() {
             return Err(NotificationError::EmptyBatch);
         }
@@ -430,9 +443,7 @@ impl NotificationEngine {
             .notifications
             .iter_mut()
             .find(|n| n.id == notification_id)
-            .ok_or_else(|| {
-                NotificationError::NotificationNotFound(notification_id.to_string())
-            })?;
+            .ok_or_else(|| NotificationError::NotificationNotFound(notification_id.to_string()))?;
 
         let now = Utc::now();
         notif.status = DeliveryStatus::Delivered;
@@ -457,9 +468,7 @@ impl NotificationEngine {
             .notifications
             .iter_mut()
             .find(|n| n.id == notification_id)
-            .ok_or_else(|| {
-                NotificationError::NotificationNotFound(notification_id.to_string())
-            })?;
+            .ok_or_else(|| NotificationError::NotificationNotFound(notification_id.to_string()))?;
 
         let now = Utc::now();
         let attempt_count = notif.attempts.len() as u32;
@@ -491,9 +500,7 @@ impl NotificationEngine {
             .notifications
             .iter_mut()
             .find(|n| n.id == notification_id)
-            .ok_or_else(|| {
-                NotificationError::NotificationNotFound(notification_id.to_string())
-            })?;
+            .ok_or_else(|| NotificationError::NotificationNotFound(notification_id.to_string()))?;
         notif.status = DeliveryStatus::Bounced;
         Ok(())
     }
@@ -531,13 +538,19 @@ impl NotificationEngine {
 
     /// Compute the next retry time for a notification.
     pub fn next_retry_time(&self, notification_id: &str) -> Option<DateTime<Utc>> {
-        let notif = self.notifications.iter().find(|n| n.id == notification_id)?;
+        let notif = self
+            .notifications
+            .iter()
+            .find(|n| n.id == notification_id)?;
         if notif.status != DeliveryStatus::Retrying {
             return None;
         }
         let attempt = notif.attempts.len() as u32;
         let delay = self.retry_policy.initial_delay_seconds as u64
-            * self.retry_policy.backoff_multiplier.pow(attempt.saturating_sub(1)) as u64;
+            * self
+                .retry_policy
+                .backoff_multiplier
+                .pow(attempt.saturating_sub(1)) as u64;
         let capped = delay.min(self.retry_policy.max_delay_seconds);
         let last_attempt_time = notif.attempts.last().map(|a| a.timestamp)?;
         Some(last_attempt_time + Duration::seconds(capped as i64))
@@ -560,10 +573,9 @@ impl NotificationEngine {
     /// Check if recipient is in quiet hours.
     pub fn is_quiet_hours(&self, recipient_id: &str, hour: u8) -> bool {
         if let Some(r) = self.recipients.get(recipient_id) {
-            if let (Some(start), Some(end)) = (
-                r.preferences.quiet_start_hour,
-                r.preferences.quiet_end_hour,
-            ) {
+            if let (Some(start), Some(end)) =
+                (r.preferences.quiet_start_hour, r.preferences.quiet_end_hour)
+            {
                 if start <= end {
                     return hour >= start && hour < end;
                 } else {
@@ -699,7 +711,10 @@ mod tests {
             .register_template(make_template("t2", Channel::Sms))
             .unwrap();
         let err = engine.send("t2", "r1", &test_vars(), None).unwrap_err();
-        assert!(matches!(err, NotificationError::ChannelNotConfigured { .. }));
+        assert!(matches!(
+            err,
+            NotificationError::ChannelNotConfigured { .. }
+        ));
     }
 
     #[test]
@@ -722,13 +737,12 @@ mod tests {
 
     #[test]
     fn test_max_retries_exhausted() {
-        let mut engine = NotificationEngine::new()
-            .with_retry_policy(RetryPolicy {
-                max_attempts: 1,
-                initial_delay_seconds: 1,
-                backoff_multiplier: 1,
-                max_delay_seconds: 10,
-            });
+        let mut engine = NotificationEngine::new().with_retry_policy(RetryPolicy {
+            max_attempts: 1,
+            initial_delay_seconds: 1,
+            backoff_multiplier: 1,
+            max_delay_seconds: 10,
+        });
         engine
             .register_template(make_template("t1", Channel::Email))
             .unwrap();
@@ -850,7 +864,10 @@ mod tests {
         let err = engine
             .send("t1", "r1", &test_vars(), Some("promo".into()))
             .unwrap_err();
-        assert!(matches!(err, NotificationError::ChannelNotConfigured { .. }));
+        assert!(matches!(
+            err,
+            NotificationError::ChannelNotConfigured { .. }
+        ));
     }
 
     #[test]

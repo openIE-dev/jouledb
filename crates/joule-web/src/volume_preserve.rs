@@ -48,20 +48,38 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
 
     pub fn add(self, o: Self) -> Self {
-        Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z }
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
     }
 
     pub fn sub(self, o: Self) -> Self {
-        Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z }
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
     }
 
     pub fn scale(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn dot(self, o: Self) -> f64 {
@@ -86,7 +104,11 @@ impl Vec3 {
 
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-12 { Self::ZERO } else { self.scale(1.0 / l) }
+        if l < 1e-12 {
+            Self::ZERO
+        } else {
+            self.scale(1.0 / l)
+        }
     }
 }
 
@@ -128,29 +150,41 @@ fn triangle_normal(p0: Vec3, p1: Vec3, p2: Vec3) -> Vec3 {
 /// Ideal gas: PV = nRT
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GasState {
-    pub moles: f64,           // n
-    pub temperature: f64,     // T in Kelvin
-    pub gas_constant: f64,    // R (8.314 J/(mol·K))
+    pub moles: f64,        // n
+    pub temperature: f64,  // T in Kelvin
+    pub gas_constant: f64, // R (8.314 J/(mol·K))
 }
 
 impl GasState {
     pub const R_DEFAULT: f64 = 8.314;
 
     pub fn new(moles: f64, temperature: f64) -> Result<Self, VolumeError> {
-        if moles <= 0.0 { return Err(VolumeError::InvalidGasAmount); }
-        if temperature <= 0.0 { return Err(VolumeError::InvalidTemperature); }
-        Ok(Self { moles, temperature, gas_constant: Self::R_DEFAULT })
+        if moles <= 0.0 {
+            return Err(VolumeError::InvalidGasAmount);
+        }
+        if temperature <= 0.0 {
+            return Err(VolumeError::InvalidTemperature);
+        }
+        Ok(Self {
+            moles,
+            temperature,
+            gas_constant: Self::R_DEFAULT,
+        })
     }
 
     /// Compute pressure for given volume: P = nRT / V
     pub fn pressure_for_volume(&self, volume: f64) -> f64 {
-        if volume.abs() < 1e-15 { return f64::MAX; }
+        if volume.abs() < 1e-15 {
+            return f64::MAX;
+        }
         self.moles * self.gas_constant * self.temperature / volume.abs()
     }
 
     /// Compute equilibrium volume for given pressure: V = nRT / P
     pub fn volume_for_pressure(&self, pressure: f64) -> f64 {
-        if pressure.abs() < 1e-15 { return f64::MAX; }
+        if pressure.abs() < 1e-15 {
+            return f64::MAX;
+        }
         self.moles * self.gas_constant * self.temperature / pressure
     }
 }
@@ -245,7 +279,9 @@ impl VolumePreserver {
     }
 
     pub fn set_temperature(&mut self, temp: f64) -> Result<(), VolumeError> {
-        if temp <= 0.0 { return Err(VolumeError::InvalidTemperature); }
+        if temp <= 0.0 {
+            return Err(VolumeError::InvalidTemperature);
+        }
         if let Some(g) = &mut self.gas {
             g.temperature = temp;
         }
@@ -273,14 +309,18 @@ impl VolumePreserver {
     }
 
     pub fn volume_ratio(&self) -> f64 {
-        if self.target_volume.abs() < 1e-15 { return 1.0; }
+        if self.target_volume.abs() < 1e-15 {
+            return 1.0;
+        }
         self.current_volume() / self.target_volume
     }
 
     fn apply_volume_constraint(&mut self) {
         let vol = self.current_volume();
         let effective_target = self.target_volume + self.inflation;
-        if effective_target.abs() < 1e-15 { return; }
+        if effective_target.abs() < 1e-15 {
+            return;
+        }
         let deviation = vol - effective_target;
 
         // Gas model: use internal pressure
@@ -303,13 +343,19 @@ impl VolumePreserver {
                 let p2 = self.positions[tri[2]];
                 let normal = triangle_normal(p0, p1, p2);
                 let area = normal.length() * 0.5;
-                if area < 1e-12 { continue; }
+                if area < 1e-12 {
+                    continue;
+                }
                 let n = normal.normalized();
                 let force = n.scale(-pressure * area / 3.0);
                 for k in 0..3 {
                     let idx = tri[k];
                     if !self.fixed[idx] {
-                        let inv_m = if self.masses[idx] > 1e-12 { 1.0 / self.masses[idx] } else { 0.0 };
+                        let inv_m = if self.masses[idx] > 1e-12 {
+                            1.0 / self.masses[idx]
+                        } else {
+                            0.0
+                        };
                         self.velocities[idx] = self.velocities[idx].add(force.scale(inv_m));
                     }
                 }
@@ -339,7 +385,11 @@ impl VolumePreserver {
                 for k in 0..4 {
                     let idx = t[k];
                     if !self.fixed[idx] {
-                        let inv_m = if self.masses[idx] > 1e-12 { 1.0 / self.masses[idx] } else { 0.0 };
+                        let inv_m = if self.masses[idx] > 1e-12 {
+                            1.0 / self.masses[idx]
+                        } else {
+                            0.0
+                        };
                         let correction = grads[k].scale(-pressure * self.stiffness * inv_m);
                         self.velocities[idx] = self.velocities[idx].add(correction);
                     }
@@ -352,7 +402,9 @@ impl VolumePreserver {
     pub fn enforce_volume_scaling(&mut self) {
         let vol = self.current_volume();
         let effective_target = self.target_volume + self.inflation;
-        if vol.abs() < 1e-15 || effective_target.abs() < 1e-15 { return; }
+        if vol.abs() < 1e-15 || effective_target.abs() < 1e-15 {
+            return;
+        }
 
         let ratio = effective_target / vol;
         let scale = ratio.cbrt(); // cube root for 3D scaling
@@ -366,7 +418,9 @@ impl VolumePreserver {
                 count += 1;
             }
         }
-        if count == 0 { return; }
+        if count == 0 {
+            return;
+        }
         center = center.scale(1.0 / count as f64);
 
         // Scale positions relative to center
@@ -395,7 +449,9 @@ impl VolumePreserver {
 
         // Damping and integration
         for i in 0..self.positions.len() {
-            if self.fixed[i] { continue; }
+            if self.fixed[i] {
+                continue;
+            }
             self.velocities[i] = self.velocities[i].scale(1.0 - self.damping);
             self.positions[i] = self.positions[i].add(self.velocities[i].scale(dt));
         }
@@ -443,12 +499,18 @@ pub fn make_box_surface(size: f64) -> (Vec<Vec3>, Vec<[usize; 3]>) {
     ];
     // 12 triangles (2 per face, outward normals)
     let tris = vec![
-        [0, 2, 1], [0, 3, 2], // front
-        [4, 5, 6], [4, 6, 7], // back
-        [0, 1, 5], [0, 5, 4], // bottom
-        [2, 3, 7], [2, 7, 6], // top
-        [0, 4, 7], [0, 7, 3], // left
-        [1, 2, 6], [1, 6, 5], // right
+        [0, 2, 1],
+        [0, 3, 2], // front
+        [4, 5, 6],
+        [4, 6, 7], // back
+        [0, 1, 5],
+        [0, 5, 4], // bottom
+        [2, 3, 7],
+        [2, 7, 6], // top
+        [0, 4, 7],
+        [0, 7, 3], // left
+        [1, 2, 6],
+        [1, 6, 5], // right
     ];
     (verts, tris)
 }

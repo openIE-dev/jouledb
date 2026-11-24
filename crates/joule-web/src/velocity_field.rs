@@ -27,7 +27,11 @@ impl fmt::Display for VelocityFieldError {
         match self {
             Self::InvalidGrid(msg) => write!(f, "invalid grid: {msg}"),
             Self::OutOfDomain { position } => {
-                write!(f, "position out of domain: ({:.4}, {:.4}, {:.4})", position[0], position[1], position[2])
+                write!(
+                    f,
+                    "position out of domain: ({:.4}, {:.4}, {:.4})",
+                    position[0], position[1], position[2]
+                )
             }
             Self::DimensionMismatch(msg) => write!(f, "dimension mismatch: {msg}"),
             Self::TracingFailed(msg) => write!(f, "tracing failed: {msg}"),
@@ -61,7 +65,9 @@ impl VelocityField2D {
         Self {
             u: vec![0.0; n],
             v: vec![0.0; n],
-            nx, ny, dx,
+            nx,
+            ny,
+            dx,
             origin_x: 0.0,
             origin_y: 0.0,
         }
@@ -78,19 +84,33 @@ impl VelocityField2D {
     }
 
     pub fn get_u(&self, x: usize, y: usize) -> f64 {
-        if x < self.nx && y < self.ny { self.u[self.idx(x, y)] } else { 0.0 }
+        if x < self.nx && y < self.ny {
+            self.u[self.idx(x, y)]
+        } else {
+            0.0
+        }
     }
 
     pub fn get_v(&self, x: usize, y: usize) -> f64 {
-        if x < self.nx && y < self.ny { self.v[self.idx(x, y)] } else { 0.0 }
+        if x < self.nx && y < self.ny {
+            self.v[self.idx(x, y)]
+        } else {
+            0.0
+        }
     }
 
     pub fn set_u(&mut self, x: usize, y: usize, val: f64) {
-        if x < self.nx && y < self.ny { let i = self.idx(x, y); self.u[i] = val; }
+        if x < self.nx && y < self.ny {
+            let i = self.idx(x, y);
+            self.u[i] = val;
+        }
     }
 
     pub fn set_v(&mut self, x: usize, y: usize, val: f64) {
-        if x < self.nx && y < self.ny { let i = self.idx(x, y); self.v[i] = val; }
+        if x < self.nx && y < self.ny {
+            let i = self.idx(x, y);
+            self.v[i] = val;
+        }
     }
 
     pub fn set_velocity(&mut self, x: usize, y: usize, ux: f64, vy: f64) {
@@ -116,7 +136,10 @@ impl VelocityField2D {
 
     /// Convert world position to fractional grid coordinates.
     fn world_to_grid(&self, wx: f64, wy: f64) -> (f64, f64) {
-        ((wx - self.origin_x) / self.dx, (wy - self.origin_y) / self.dx)
+        (
+            (wx - self.origin_x) / self.dx,
+            (wy - self.origin_y) / self.dx,
+        )
     }
 
     /// Bilinear interpolation of u-component at fractional grid coords.
@@ -195,7 +218,14 @@ impl VelocityField2D {
     }
 
     /// Gradient of a scalar field at grid point (central differences).
-    pub fn gradient_scalar(scalar: &[f64], nx: usize, ny: usize, dx: f64, x: usize, y: usize) -> (f64, f64) {
+    pub fn gradient_scalar(
+        scalar: &[f64],
+        nx: usize,
+        ny: usize,
+        dx: f64,
+        x: usize,
+        y: usize,
+    ) -> (f64, f64) {
         if x == 0 || x >= nx - 1 || y == 0 || y >= ny - 1 {
             return (0.0, 0.0);
         }
@@ -249,11 +279,7 @@ impl VelocityField2D {
     }
 
     /// Advect a set of particles through the field using RK4.
-    pub fn advect_particles(
-        &self,
-        particles: &mut [(f64, f64)],
-        dt: f64,
-    ) {
+    pub fn advect_particles(&self, particles: &mut [(f64, f64)], dt: f64) {
         for p in particles.iter_mut() {
             let (k1u, k1v) = self.sample(p.0, p.1);
             let (k2u, k2v) = self.sample(p.0 + 0.5 * dt * k1u, p.1 + 0.5 * dt * k1v);
@@ -268,9 +294,10 @@ impl VelocityField2D {
     /// Add another field to this field (element-wise).
     pub fn add(&mut self, other: &VelocityField2D) -> Result<(), VelocityFieldError> {
         if self.nx != other.nx || self.ny != other.ny {
-            return Err(VelocityFieldError::DimensionMismatch(
-                format!("{}x{} vs {}x{}", self.nx, self.ny, other.nx, other.ny),
-            ));
+            return Err(VelocityFieldError::DimensionMismatch(format!(
+                "{}x{} vs {}x{}",
+                self.nx, self.ny, other.nx, other.ny
+            )));
         }
         for i in 0..self.u.len() {
             self.u[i] += other.u[i];
@@ -281,16 +308,25 @@ impl VelocityField2D {
 
     /// Scale all velocities by a factor.
     pub fn scale(&mut self, factor: f64) {
-        for val in &mut self.u { *val *= factor; }
-        for val in &mut self.v { *val *= factor; }
+        for val in &mut self.u {
+            *val *= factor;
+        }
+        for val in &mut self.v {
+            *val *= factor;
+        }
     }
 
     /// Linear interpolation between this field and another.
-    pub fn lerp(&self, other: &VelocityField2D, t: f64) -> Result<VelocityField2D, VelocityFieldError> {
+    pub fn lerp(
+        &self,
+        other: &VelocityField2D,
+        t: f64,
+    ) -> Result<VelocityField2D, VelocityFieldError> {
         if self.nx != other.nx || self.ny != other.ny {
-            return Err(VelocityFieldError::DimensionMismatch(
-                format!("{}x{} vs {}x{}", self.nx, self.ny, other.nx, other.ny),
-            ));
+            return Err(VelocityFieldError::DimensionMismatch(format!(
+                "{}x{} vs {}x{}",
+                self.nx, self.ny, other.nx, other.ny
+            )));
         }
         let mut result = VelocityField2D::new(self.nx, self.ny, self.dx)
             .with_origin(self.origin_x, self.origin_y);
@@ -320,7 +356,13 @@ impl VelocityField2D {
                 let ux = self.get_u(x, y);
                 let vy = self.get_v(x, y);
                 let mag = (ux * ux + vy * vy).sqrt();
-                arrows.push(Arrow2D { x: wx, y: wy, dx: ux, dy: vy, magnitude: mag });
+                arrows.push(Arrow2D {
+                    x: wx,
+                    y: wy,
+                    dx: ux,
+                    dy: vy,
+                    magnitude: mag,
+                });
             }
         }
         arrows
@@ -355,8 +397,13 @@ impl VelocityField3D {
     pub fn new(nx: usize, ny: usize, nz: usize, dx: f64) -> Self {
         let n = nx * ny * nz;
         Self {
-            u: vec![0.0; n], v: vec![0.0; n], w: vec![0.0; n],
-            nx, ny, nz, dx,
+            u: vec![0.0; n],
+            v: vec![0.0; n],
+            w: vec![0.0; n],
+            nx,
+            ny,
+            nz,
+            dx,
         }
     }
 

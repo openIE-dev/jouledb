@@ -13,17 +13,42 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0 } }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y } }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s } }
-    pub fn length_sq(self) -> f64 { self.x * self.x + self.y * self.y }
-    pub fn length(self) -> f64 { self.length_sq().sqrt() }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+    pub fn zero() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+        }
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
+    pub fn length_sq(self) -> f64 {
+        self.x * self.x + self.y * self.y
+    }
+    pub fn length(self) -> f64 {
+        self.length_sq().sqrt()
+    }
 }
 
 impl Default for Vec2 {
-    fn default() -> Self { Self::zero() }
+    fn default() -> Self {
+        Self::zero()
+    }
 }
 
 // ── AABB ─────────────────────────────────────────────────────
@@ -35,18 +60,24 @@ pub struct AABB {
 }
 
 impl AABB {
-    pub fn new(min: Vec2, max: Vec2) -> Self { Self { min, max } }
+    pub fn new(min: Vec2, max: Vec2) -> Self {
+        Self { min, max }
+    }
 
     pub fn overlaps(&self, other: &AABB) -> bool {
-        self.min.x <= other.max.x && self.max.x >= other.min.x
-            && self.min.y <= other.max.y && self.max.y >= other.min.y
+        self.min.x <= other.max.x
+            && self.max.x >= other.min.x
+            && self.min.y <= other.max.y
+            && self.max.y >= other.min.y
     }
 
     pub fn contains(&self, p: Vec2) -> bool {
         p.x >= self.min.x && p.x <= self.max.x && p.y >= self.min.y && p.y <= self.max.y
     }
 
-    pub fn center(&self) -> Vec2 { self.min.add(self.max).scale(0.5) }
+    pub fn center(&self) -> Vec2 {
+        self.min.add(self.max).scale(0.5)
+    }
 }
 
 // ── Entity ID ────────────────────────────────────────────────
@@ -85,13 +116,19 @@ impl SpatialGrid2D {
     }
 
     /// Cell size.
-    pub fn cell_size(&self) -> f64 { self.cell_size }
+    pub fn cell_size(&self) -> f64 {
+        self.cell_size
+    }
 
     /// Total entities in the grid.
-    pub fn entity_count(&self) -> usize { self.entities.len() }
+    pub fn entity_count(&self) -> usize {
+        self.entities.len()
+    }
 
     /// Number of occupied cells.
-    pub fn occupied_cell_count(&self) -> usize { self.cells.len() }
+    pub fn occupied_cell_count(&self) -> usize {
+        self.cells.len()
+    }
 
     /// Insert an entity with the given AABB.
     pub fn insert(&mut self, id: EntityId, aabb: AABB) {
@@ -106,7 +143,9 @@ impl SpatialGrid2D {
 
     /// Remove an entity.
     pub fn remove(&mut self, id: EntityId) -> bool {
-        if self.entities.remove(&id).is_none() { return false; }
+        if self.entities.remove(&id).is_none() {
+            return false;
+        }
         if let Some(keys) = self.entity_cells.remove(&id) {
             for key in &keys {
                 if let Some(vec) = self.cells.get_mut(key) {
@@ -160,21 +199,26 @@ impl SpatialGrid2D {
         );
         let candidates = self.query_aabb(&query_aabb);
         let r2 = radius * radius;
-        candidates.into_iter().filter(|id| {
-            if let Some(aabb) = self.entities.get(&id) {
-                let c = aabb.center();
-                c.sub(center).length_sq() <= r2
-            } else {
-                false
-            }
-        }).collect()
+        candidates
+            .into_iter()
+            .filter(|id| {
+                if let Some(aabb) = self.entities.get(&id) {
+                    let c = aabb.center();
+                    c.sub(center).length_sq() <= r2
+                } else {
+                    false
+                }
+            })
+            .collect()
     }
 
     /// Ray-march through the grid using DDA (Digital Differential Analyzer).
     /// Returns entity IDs intersected along the ray, up to `max_dist`.
     pub fn ray_march(&self, origin: Vec2, direction: Vec2, max_dist: f64) -> Vec<EntityId> {
         let dir_len = direction.length();
-        if dir_len < 1e-12 { return Vec::new(); }
+        if dir_len < 1e-12 {
+            return Vec::new();
+        }
         let dir = Vec2::new(direction.x / dir_len, direction.y / dir_len);
 
         let mut cx = (origin.x * self.inv_cell).floor() as i64;
@@ -183,14 +227,38 @@ impl SpatialGrid2D {
         let step_x: i64 = if dir.x >= 0.0 { 1 } else { -1 };
         let step_y: i64 = if dir.y >= 0.0 { 1 } else { -1 };
 
-        let t_delta_x = if dir.x.abs() > 1e-12 { self.cell_size / dir.x.abs() } else { f64::MAX };
-        let t_delta_y = if dir.y.abs() > 1e-12 { self.cell_size / dir.y.abs() } else { f64::MAX };
+        let t_delta_x = if dir.x.abs() > 1e-12 {
+            self.cell_size / dir.x.abs()
+        } else {
+            f64::MAX
+        };
+        let t_delta_y = if dir.y.abs() > 1e-12 {
+            self.cell_size / dir.y.abs()
+        } else {
+            f64::MAX
+        };
 
-        let next_x = if dir.x >= 0.0 { (cx + 1) as f64 * self.cell_size } else { cx as f64 * self.cell_size };
-        let next_y = if dir.y >= 0.0 { (cy + 1) as f64 * self.cell_size } else { cy as f64 * self.cell_size };
+        let next_x = if dir.x >= 0.0 {
+            (cx + 1) as f64 * self.cell_size
+        } else {
+            cx as f64 * self.cell_size
+        };
+        let next_y = if dir.y >= 0.0 {
+            (cy + 1) as f64 * self.cell_size
+        } else {
+            cy as f64 * self.cell_size
+        };
 
-        let mut t_max_x = if dir.x.abs() > 1e-12 { (next_x - origin.x) / dir.x } else { f64::MAX };
-        let mut t_max_y = if dir.y.abs() > 1e-12 { (next_y - origin.y) / dir.y } else { f64::MAX };
+        let mut t_max_x = if dir.x.abs() > 1e-12 {
+            (next_x - origin.x) / dir.x
+        } else {
+            f64::MAX
+        };
+        let mut t_max_y = if dir.y.abs() > 1e-12 {
+            (next_y - origin.y) / dir.y
+        } else {
+            f64::MAX
+        };
 
         let mut seen = HashSet::new();
         let mut result = Vec::new();
@@ -224,10 +292,14 @@ impl SpatialGrid2D {
         let mut result = Vec::new();
         for dx in -1..=1_i64 {
             for dy in -1..=1_i64 {
-                if dx == 0 && dy == 0 { continue; }
+                if dx == 0 && dy == 0 {
+                    continue;
+                }
                 if let Some(ids) = self.cells.get(&(cx + dx, cy + dy)) {
                     for &id in ids {
-                        if seen.insert(id) { result.push(id); }
+                        if seen.insert(id) {
+                            result.push(id);
+                        }
                     }
                 }
             }
@@ -237,7 +309,10 @@ impl SpatialGrid2D {
 
     /// Get the cell key for a point.
     pub fn cell_for_point(&self, p: Vec2) -> (i64, i64) {
-        ((p.x * self.inv_cell).floor() as i64, (p.y * self.inv_cell).floor() as i64)
+        (
+            (p.x * self.inv_cell).floor() as i64,
+            (p.y * self.inv_cell).floor() as i64,
+        )
     }
 
     // ── Statistics ──
@@ -249,7 +324,9 @@ impl SpatialGrid2D {
 
     /// Average entities per occupied cell.
     pub fn avg_entities_per_cell(&self) -> f64 {
-        if self.cells.is_empty() { return 0.0; }
+        if self.cells.is_empty() {
+            return 0.0;
+        }
         let total: usize = self.cells.values().map(|v| v.len()).sum();
         total as f64 / self.cells.len() as f64
     }
@@ -338,7 +415,7 @@ mod tests {
     #[test]
     fn query_radius() {
         let mut g = SpatialGrid2D::new(10.0);
-        g.insert(1, aabb(0.0, 0.0, 2.0, 2.0));   // center (1,1)
+        g.insert(1, aabb(0.0, 0.0, 2.0, 2.0)); // center (1,1)
         g.insert(2, aabb(50.0, 50.0, 52.0, 52.0)); // center (51,51)
         let result = g.query_radius(Vec2::new(0.0, 0.0), 5.0);
         assert!(result.contains(&1));
@@ -388,9 +465,9 @@ mod tests {
     #[test]
     fn neighbors_query() {
         let mut g = SpatialGrid2D::new(10.0);
-        g.insert(1, aabb(15.0, 5.0, 18.0, 8.0));   // cell (1, 0)
-        g.insert(2, aabb(-5.0, -5.0, -2.0, -2.0));  // cell (-1, -1)
-        g.insert(3, aabb(5.0, 5.0, 8.0, 8.0));      // cell (0, 0)
+        g.insert(1, aabb(15.0, 5.0, 18.0, 8.0)); // cell (1, 0)
+        g.insert(2, aabb(-5.0, -5.0, -2.0, -2.0)); // cell (-1, -1)
+        g.insert(3, aabb(5.0, 5.0, 8.0, 8.0)); // cell (0, 0)
         let result = g.neighbors(0, 0);
         assert!(result.contains(&1)); // adjacent cell
     }

@@ -64,10 +64,7 @@ impl<T> Wrapper<T> {
 }
 
 /// Apply a wrapped function to a wrapped argument.
-pub fn apply<A, B>(
-    wf: Wrapper<Box<dyn FnOnce(A) -> B>>,
-    wa: Wrapper<A>,
-) -> Wrapper<B> {
+pub fn apply<A, B>(wf: Wrapper<Box<dyn FnOnce(A) -> B>>, wa: Wrapper<A>) -> Wrapper<B> {
     match (wf, wa) {
         (Wrapper::Value(f), Wrapper::Value(a)) => Wrapper::Value(f(a)),
         _ => Wrapper::Empty,
@@ -122,10 +119,7 @@ pub fn map_result<A, B, E>(res: Result<A, E>, f: impl FnOnce(A) -> B) -> Result<
 
 /// Zip-apply: apply each function in `fns` to the corresponding element in `args`.
 pub fn zip_apply<A: Clone, B>(fns: Vec<Box<dyn Fn(&A) -> B>>, args: &[A]) -> Vec<B> {
-    fns.iter()
-        .zip(args.iter())
-        .map(|(f, a)| f(a))
-        .collect()
+    fns.iter().zip(args.iter()).map(|(f, a)| f(a)).collect()
 }
 
 /// Zip-apply for Options: if both are Some, apply `f`.
@@ -156,10 +150,7 @@ pub fn zip_apply_wrapper<A, B, C>(
 
 /// Traverse: map each element with `f` (which returns an Option), then sequence.
 /// Returns `None` if any element maps to `None`.
-pub fn traverse_option<A, B>(
-    items: Vec<A>,
-    f: impl Fn(A) -> Option<B>,
-) -> Option<Vec<B>> {
+pub fn traverse_option<A, B>(items: Vec<A>, f: impl Fn(A) -> Option<B>) -> Option<Vec<B>> {
     let mut result = Vec::with_capacity(items.len());
     for item in items {
         match f(item) {
@@ -176,10 +167,7 @@ pub fn sequence_option<T>(items: Vec<Option<T>>) -> Option<Vec<T>> {
 }
 
 /// Traverse with Result: map each element, short-circuiting on first Err.
-pub fn traverse_result<A, B, E>(
-    items: Vec<A>,
-    f: impl Fn(A) -> Result<B, E>,
-) -> Result<Vec<B>, E> {
+pub fn traverse_result<A, B, E>(items: Vec<A>, f: impl Fn(A) -> Result<B, E>) -> Result<Vec<B>, E> {
     let mut result = Vec::with_capacity(items.len());
     for item in items {
         result.push(f(item)?);
@@ -193,10 +181,7 @@ pub fn sequence_result<T, E>(items: Vec<Result<T, E>>) -> Result<Vec<T>, E> {
 }
 
 /// Traverse with Wrapper: map each element, returning Empty if any is Empty.
-pub fn traverse_wrapper<A, B>(
-    items: Vec<A>,
-    f: impl Fn(A) -> Wrapper<B>,
-) -> Wrapper<Vec<B>> {
+pub fn traverse_wrapper<A, B>(items: Vec<A>, f: impl Fn(A) -> Wrapper<B>) -> Wrapper<Vec<B>> {
     let mut result = Vec::with_capacity(items.len());
     for item in items {
         match f(item) {
@@ -272,9 +257,7 @@ impl<E, T> Validation<E, T> {
     pub fn map_errors<F>(self, f: impl Fn(E) -> F) -> Validation<F, T> {
         match self {
             Validation::Success(v) => Validation::Success(v),
-            Validation::Failure(errs) => {
-                Validation::Failure(errs.into_iter().map(f).collect())
-            }
+            Validation::Failure(errs) => Validation::Failure(errs.into_iter().map(f).collect()),
         }
     }
 
@@ -354,15 +337,24 @@ pub fn validation_combine3<E, A, B, C, D>(
     let mut all_errors: Vec<E> = Vec::new();
     let a = match va {
         Validation::Success(v) => Some(v),
-        Validation::Failure(e) => { all_errors.extend(e); None }
+        Validation::Failure(e) => {
+            all_errors.extend(e);
+            None
+        }
     };
     let b = match vb {
         Validation::Success(v) => Some(v),
-        Validation::Failure(e) => { all_errors.extend(e); None }
+        Validation::Failure(e) => {
+            all_errors.extend(e);
+            None
+        }
     };
     let c = match vc {
         Validation::Success(v) => Some(v),
-        Validation::Failure(e) => { all_errors.extend(e); None }
+        Validation::Failure(e) => {
+            all_errors.extend(e);
+            None
+        }
     };
     if all_errors.is_empty() {
         // All were successful — unwrap is safe.
@@ -423,8 +415,7 @@ mod tests {
 
     #[test]
     fn wrapper_apply() {
-        let f: Wrapper<Box<dyn FnOnce(i32) -> i32>> =
-            Wrapper::Value(Box::new(|x| x * 2));
+        let f: Wrapper<Box<dyn FnOnce(i32) -> i32>> = Wrapper::Value(Box::new(|x| x * 2));
         let result = apply(f, Wrapper::Value(5));
         assert_eq!(result, Wrapper::Value(10));
     }
@@ -495,17 +486,13 @@ mod tests {
 
     #[test]
     fn traverse_option_fn() {
-        let result = traverse_option(vec![1, 2, 3], |x| {
-            if x > 0 { Some(x * 10) } else { None }
-        });
+        let result = traverse_option(vec![1, 2, 3], |x| if x > 0 { Some(x * 10) } else { None });
         assert_eq!(result, Some(vec![10, 20, 30]));
     }
 
     #[test]
     fn traverse_option_fail() {
-        let result = traverse_option(vec![1, 0, 3], |x| {
-            if x > 0 { Some(x * 10) } else { None }
-        });
+        let result = traverse_option(vec![1, 0, 3], |x| if x > 0 { Some(x * 10) } else { None });
         assert_eq!(result, None);
     }
 
@@ -515,16 +502,12 @@ mod tests {
             sequence_option(vec![Some(1), Some(2), Some(3)]),
             Some(vec![1, 2, 3])
         );
-        assert_eq!(
-            sequence_option(vec![Some(1), None, Some(3)]),
-            None
-        );
+        assert_eq!(sequence_option(vec![Some(1), None, Some(3)]), None);
     }
 
     #[test]
     fn traverse_result_fn() {
-        let result: Result<Vec<i32>, &str> =
-            traverse_result(vec![1, 2, 3], |x| Ok(x * 10));
+        let result: Result<Vec<i32>, &str> = traverse_result(vec![1, 2, 3], |x| Ok(x * 10));
         assert_eq!(result, Ok(vec![10, 20, 30]));
     }
 
@@ -680,11 +663,7 @@ mod tests {
 
     #[test]
     fn zip_apply_wrapper_fn() {
-        let result = zip_apply_wrapper(
-            Wrapper::Value(3),
-            Wrapper::Value(4),
-            |a, b| a + b,
-        );
+        let result = zip_apply_wrapper(Wrapper::Value(3), Wrapper::Value(4), |a, b| a + b);
         assert_eq!(result, Wrapper::Value(7));
     }
 }

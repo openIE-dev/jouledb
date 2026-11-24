@@ -4,8 +4,8 @@
 //! hashing for pipeline compatibility. Format conversion.
 
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 // ── Attribute Types ──────────────────────────────────────────
 
@@ -65,7 +65,11 @@ pub struct VertexAttribute {
 }
 
 impl VertexAttribute {
-    pub fn new(semantic: AttributeSemantic, component_type: ComponentType, component_count: u8) -> Self {
+    pub fn new(
+        semantic: AttributeSemantic,
+        component_type: ComponentType,
+        component_count: u8,
+    ) -> Self {
         Self {
             semantic,
             component_type,
@@ -142,7 +146,11 @@ impl VertexFormat {
             });
             offset += attr.byte_size();
         }
-        Self { bindings, stride: offset, interleaved: true }
+        Self {
+            bindings,
+            stride: offset,
+            interleaved: true,
+        }
     }
 
     /// Create a separate (struct-of-arrays) format — each attribute in its own buffer.
@@ -156,17 +164,27 @@ impl VertexFormat {
             });
         }
         let stride = attributes.iter().map(|a| a.byte_size()).sum();
-        Self { bindings, stride, interleaved: false }
+        Self {
+            bindings,
+            stride,
+            interleaved: false,
+        }
     }
 
-    pub fn attribute_count(&self) -> usize { self.bindings.len() }
+    pub fn attribute_count(&self) -> usize {
+        self.bindings.len()
+    }
 
     pub fn has_semantic(&self, semantic: AttributeSemantic) -> bool {
-        self.bindings.iter().any(|b| b.attribute.semantic == semantic)
+        self.bindings
+            .iter()
+            .any(|b| b.attribute.semantic == semantic)
     }
 
     pub fn find_attribute(&self, semantic: AttributeSemantic) -> Option<&AttributeBinding> {
-        self.bindings.iter().find(|b| b.attribute.semantic == semantic)
+        self.bindings
+            .iter()
+            .find(|b| b.attribute.semantic == semantic)
     }
 
     /// Compute a 64-bit hash of this format for pipeline compatibility checks.
@@ -189,7 +207,11 @@ impl VertexFormat {
 
     /// Number of distinct buffers used.
     pub fn buffer_count(&self) -> u32 {
-        self.bindings.iter().map(|b| b.buffer_index).max().map_or(0, |m| m + 1)
+        self.bindings
+            .iter()
+            .map(|b| b.buffer_index)
+            .max()
+            .map_or(0, |m| m + 1)
     }
 
     /// Stride per buffer for separate layouts.
@@ -221,15 +243,22 @@ impl VertexData {
             let stride = strides.get(&(i as u32)).copied().unwrap_or(format.stride);
             buffers.push(vec![0u8; stride * vertex_count]);
         }
-        Self { format, buffers, vertex_count }
+        Self {
+            format,
+            buffers,
+            vertex_count,
+        }
     }
 
     /// Write a f32 component to the given vertex index and attribute.
     pub fn write_f32(&mut self, vertex: usize, semantic: AttributeSemantic, values: &[f32]) {
         if let Some(binding) = self.format.find_attribute(semantic) {
             let buf_idx = binding.buffer_index as usize;
-            let stride = self.format.strides_per_buffer()
-                .get(&binding.buffer_index).copied()
+            let stride = self
+                .format
+                .strides_per_buffer()
+                .get(&binding.buffer_index)
+                .copied()
                 .unwrap_or(self.format.stride);
             let base = vertex * stride + binding.offset;
             let count = values.len().min(binding.attribute.component_count as usize);
@@ -247,8 +276,11 @@ impl VertexData {
     pub fn read_f32(&self, vertex: usize, semantic: AttributeSemantic) -> Vec<f32> {
         if let Some(binding) = self.format.find_attribute(semantic) {
             let buf_idx = binding.buffer_index as usize;
-            let stride = self.format.strides_per_buffer()
-                .get(&binding.buffer_index).copied()
+            let stride = self
+                .format
+                .strides_per_buffer()
+                .get(&binding.buffer_index)
+                .copied()
                 .unwrap_or(self.format.stride);
             let base = vertex * stride + binding.offset;
             let count = binding.attribute.component_count as usize;
@@ -528,16 +560,9 @@ mod tests {
 
     #[test]
     fn test_custom_attribute() {
-        let custom = VertexAttribute::new(
-            AttributeSemantic::Custom(42),
-            ComponentType::Float32,
-            2,
-        );
+        let custom = VertexAttribute::new(AttributeSemantic::Custom(42), ComponentType::Float32, 2);
         assert_eq!(custom.byte_size(), 8);
-        let fmt = VertexFormat::interleaved(&[
-            VertexAttribute::position_f32(),
-            custom,
-        ]);
+        let fmt = VertexFormat::interleaved(&[VertexAttribute::position_f32(), custom]);
         assert!(fmt.has_semantic(AttributeSemantic::Custom(42)));
     }
 

@@ -231,8 +231,12 @@ impl Query {
             match &clause.op {
                 WhereOp::Eq(expected) => val == expected,
                 WhereOp::Ne(expected) => val != expected,
-                WhereOp::Gt(threshold) => cmp_field_values(val, threshold) == Some(std::cmp::Ordering::Greater),
-                WhereOp::Lt(threshold) => cmp_field_values(val, threshold) == Some(std::cmp::Ordering::Less),
+                WhereOp::Gt(threshold) => {
+                    cmp_field_values(val, threshold) == Some(std::cmp::Ordering::Greater)
+                }
+                WhereOp::Lt(threshold) => {
+                    cmp_field_values(val, threshold) == Some(std::cmp::Ordering::Less)
+                }
                 WhereOp::Like(pattern) => {
                     if let FieldValue::Text(s) = val {
                         simple_like_match(s, pattern)
@@ -434,26 +438,56 @@ mod tests {
         fn from_fields(fields: &HashMap<String, FieldValue>) -> Result<Self, OrmError> {
             let id = match fields.get("id") {
                 Some(FieldValue::Text(s)) => s.clone(),
-                _ => return Err(OrmError::TypeMismatch { field: "id".into(), expected: "Text".into() }),
+                _ => {
+                    return Err(OrmError::TypeMismatch {
+                        field: "id".into(),
+                        expected: "Text".into(),
+                    });
+                }
             };
             let name = match fields.get("name") {
                 Some(FieldValue::Text(s)) => s.clone(),
-                _ => return Err(OrmError::TypeMismatch { field: "name".into(), expected: "Text".into() }),
+                _ => {
+                    return Err(OrmError::TypeMismatch {
+                        field: "name".into(),
+                        expected: "Text".into(),
+                    });
+                }
             };
             let age = match fields.get("age") {
                 Some(FieldValue::Integer(n)) => *n,
-                _ => return Err(OrmError::TypeMismatch { field: "age".into(), expected: "Integer".into() }),
+                _ => {
+                    return Err(OrmError::TypeMismatch {
+                        field: "age".into(),
+                        expected: "Integer".into(),
+                    });
+                }
             };
             let active = match fields.get("active") {
                 Some(FieldValue::Bool(b)) => *b,
-                _ => return Err(OrmError::TypeMismatch { field: "active".into(), expected: "Bool".into() }),
+                _ => {
+                    return Err(OrmError::TypeMismatch {
+                        field: "active".into(),
+                        expected: "Bool".into(),
+                    });
+                }
             };
-            Ok(Self { id, name, age, active })
+            Ok(Self {
+                id,
+                name,
+                age,
+                active,
+            })
         }
     }
 
     fn make_user(id: &str, name: &str, age: i64) -> User {
-        User { id: id.into(), name: name.into(), age, active: true }
+        User {
+            id: id.into(),
+            name: name.into(),
+            age,
+            active: true,
+        }
     }
 
     #[test]

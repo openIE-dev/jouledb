@@ -10,55 +10,112 @@ use std::f64::consts::PI;
 // ── Mini FFT ────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy)]
-struct Cpx { re: f64, im: f64 }
+struct Cpx {
+    re: f64,
+    im: f64,
+}
 
 impl Cpx {
-    fn new(re: f64, im: f64) -> Self { Self { re, im } }
-    fn zero() -> Self { Self { re: 0.0, im: 0.0 } }
-    fn polar(r: f64, t: f64) -> Self { Self { re: r * t.cos(), im: r * t.sin() } }
-    fn mag_sq(&self) -> f64 { self.re * self.re + self.im * self.im }
-    fn conj(&self) -> Self { Self { re: self.re, im: -self.im } }
+    fn new(re: f64, im: f64) -> Self {
+        Self { re, im }
+    }
+    fn zero() -> Self {
+        Self { re: 0.0, im: 0.0 }
+    }
+    fn polar(r: f64, t: f64) -> Self {
+        Self {
+            re: r * t.cos(),
+            im: r * t.sin(),
+        }
+    }
+    fn mag_sq(&self) -> f64 {
+        self.re * self.re + self.im * self.im
+    }
+    fn conj(&self) -> Self {
+        Self {
+            re: self.re,
+            im: -self.im,
+        }
+    }
 }
 
 impl std::ops::Add for Cpx {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { re: self.re + r.re, im: self.im + r.im } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            re: self.re + r.re,
+            im: self.im + r.im,
+        }
+    }
 }
 impl std::ops::Sub for Cpx {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { re: self.re - r.re, im: self.im - r.im } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            re: self.re - r.re,
+            im: self.im - r.im,
+        }
+    }
 }
 impl std::ops::Mul for Cpx {
     type Output = Self;
     fn mul(self, r: Self) -> Self {
-        Self { re: self.re * r.re - self.im * r.im, im: self.re * r.im + self.im * r.re }
+        Self {
+            re: self.re * r.re - self.im * r.im,
+            im: self.re * r.im + self.im * r.re,
+        }
     }
 }
 impl std::ops::Mul<f64> for Cpx {
     type Output = Self;
-    fn mul(self, r: f64) -> Self { Self { re: self.re * r, im: self.im * r } }
+    fn mul(self, r: f64) -> Self {
+        Self {
+            re: self.re * r,
+            im: self.im * r,
+        }
+    }
 }
 impl std::ops::Div for Cpx {
     type Output = Self;
     fn div(self, r: Self) -> Self {
         let d = r.re * r.re + r.im * r.im;
-        Self { re: (self.re * r.re + self.im * r.im) / d, im: (self.im * r.re - self.re * r.im) / d }
+        Self {
+            re: (self.re * r.re + self.im * r.im) / d,
+            im: (self.im * r.re - self.re * r.im) / d,
+        }
     }
 }
 
-fn next_pow2(n: usize) -> usize { let mut p = 1; while p < n { p <<= 1; } p }
+fn next_pow2(n: usize) -> usize {
+    let mut p = 1;
+    while p < n {
+        p <<= 1;
+    }
+    p
+}
 
 fn bit_rev(i: usize, bits: u32) -> usize {
-    let mut r = 0; let mut v = i;
-    for _ in 0..bits { r = (r << 1) | (v & 1); v >>= 1; }
+    let mut r = 0;
+    let mut v = i;
+    for _ in 0..bits {
+        r = (r << 1) | (v & 1);
+        v >>= 1;
+    }
     r
 }
 
 fn fft_ip(data: &mut [Cpx], inv: bool) {
     let n = data.len();
-    if n <= 1 { return; }
+    if n <= 1 {
+        return;
+    }
     let lg = (n as f64).log2() as u32;
-    for i in 0..n { let j = bit_rev(i, lg); if i < j { data.swap(i, j); } }
+    for i in 0..n {
+        let j = bit_rev(i, lg);
+        if i < j {
+            data.swap(i, j);
+        }
+    }
     let mut len = 2;
     while len <= n {
         let half = len / 2;
@@ -75,7 +132,12 @@ fn fft_ip(data: &mut [Cpx], inv: bool) {
         }
         len <<= 1;
     }
-    if inv { let s = 1.0 / n as f64; for d in data.iter_mut() { *d = *d * s; } }
+    if inv {
+        let s = 1.0 / n as f64;
+        for d in data.iter_mut() {
+            *d = *d * s;
+        }
+    }
 }
 
 // ── Error type ──────────────────────────────────────────────────
@@ -319,10 +381,7 @@ impl OverlapSave {
 
         // Discard first kernel_len-1 samples (overlap-save)
         let skip = self.kernel_len - 1;
-        let useful: Vec<f64> = buf[skip..skip + input.len()]
-            .iter()
-            .map(|c| c.re)
-            .collect();
+        let useful: Vec<f64> = buf[skip..skip + input.len()].iter().map(|c| c.re).collect();
 
         // Save tail for next block
         let tail_start = input.len().saturating_sub(self.kernel_len - 1);
@@ -352,7 +411,9 @@ pub fn wiener_deconvolution(
         return Err(ConvError::EmptyInput);
     }
     if noise_power < 0.0 {
-        return Err(ConvError::InvalidParameter("noise_power must be >= 0".into()));
+        return Err(ConvError::InvalidParameter(
+            "noise_power must be >= 0".into(),
+        ));
     }
 
     let n = next_pow2(observed.len().max(kernel.len()));
@@ -381,7 +442,11 @@ pub fn wiener_deconvolution(
         .collect();
 
     fft_ip(&mut result_fft, true);
-    Ok(result_fft.iter().take(observed.len()).map(|c| c.re).collect())
+    Ok(result_fft
+        .iter()
+        .take(observed.len())
+        .map(|c| c.re)
+        .collect())
 }
 
 // ── Matched filtering ───────────────────────────────────────────
@@ -418,13 +483,26 @@ pub fn convolution_reverb(
 
     // Normalize wet signal to match dry signal energy
     let dry_energy: f64 = dry_signal.iter().map(|s| s * s).sum::<f64>().sqrt();
-    let wet_energy: f64 = wet.iter().take(dry_signal.len()).map(|s| s * s).sum::<f64>().sqrt();
-    let gain = if wet_energy > 1e-12 { dry_energy / wet_energy } else { 1.0 };
+    let wet_energy: f64 = wet
+        .iter()
+        .take(dry_signal.len())
+        .map(|s| s * s)
+        .sum::<f64>()
+        .sqrt();
+    let gain = if wet_energy > 1e-12 {
+        dry_energy / wet_energy
+    } else {
+        1.0
+    };
 
     let output_len = wet.len();
     let mut output = vec![0.0; output_len];
     for i in 0..output_len {
-        let dry_val = if i < dry_signal.len() { dry_signal[i] } else { 0.0 };
+        let dry_val = if i < dry_signal.len() {
+            dry_signal[i]
+        } else {
+            0.0
+        };
         let wet_val = wet[i] * gain;
         output[i] = (1.0 - wet_mix) * dry_val + wet_mix * wet_val;
     }
@@ -441,10 +519,7 @@ pub fn convolve_multichannel(
     if channels.is_empty() || kernel.is_empty() {
         return Err(ConvError::EmptyInput);
     }
-    channels
-        .iter()
-        .map(|ch| convolve_fft(ch, kernel))
-        .collect()
+    channels.iter().map(|ch| convolve_fft(ch, kernel)).collect()
 }
 
 /// Convolve each channel with its own kernel.
@@ -655,7 +730,12 @@ mod tests {
         }
         let mf = matched_filter(&signal, &template).unwrap();
         // Peak should be near the embedding position
-        let peak_idx = mf.iter().enumerate().max_by(|a, b| a.1.partial_cmp(b.1).unwrap()).unwrap().0;
+        let peak_idx = mf
+            .iter()
+            .enumerate()
+            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+            .unwrap()
+            .0;
         // Peak in cross-correlation should be at embed_pos + template_len - 1
         let expected_peak = 8 + template.len() - 1;
         assert!(
@@ -697,10 +777,7 @@ mod tests {
 
     #[test]
     fn test_multichannel_same_kernel() {
-        let channels = vec![
-            vec![1.0, 2.0, 3.0],
-            vec![4.0, 5.0, 6.0],
-        ];
+        let channels = vec![vec![1.0, 2.0, 3.0], vec![4.0, 5.0, 6.0]];
         let kernel = vec![1.0, 0.5];
         let out = convolve_multichannel(&channels, &kernel).unwrap();
         assert_eq!(out.len(), 2);
@@ -709,14 +786,8 @@ mod tests {
 
     #[test]
     fn test_multichannel_multi_kernel() {
-        let channels = vec![
-            vec![1.0, 2.0],
-            vec![3.0, 4.0],
-        ];
-        let kernels = vec![
-            vec![1.0],
-            vec![0.5, 0.5],
-        ];
+        let channels = vec![vec![1.0, 2.0], vec![3.0, 4.0]];
+        let kernels = vec![vec![1.0], vec![0.5, 0.5]];
         let out = convolve_multichannel_multi_kernel(&channels, &kernels).unwrap();
         assert_eq!(out.len(), 2);
     }

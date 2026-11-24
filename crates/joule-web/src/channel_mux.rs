@@ -78,7 +78,12 @@ pub struct MuxFrame {
 
 impl MuxFrame {
     pub fn new(channel_id: ChannelId, frame_type: FrameType, payload: Vec<u8>, seq: u64) -> Self {
-        Self { channel_id, frame_type, payload, seq }
+        Self {
+            channel_id,
+            frame_type,
+            payload,
+            seq,
+        }
     }
 
     /// Create a data frame.
@@ -98,7 +103,12 @@ impl MuxFrame {
 
     /// Create a window update frame with the credit amount.
     pub fn window_update(channel_id: ChannelId, credit: u32) -> Self {
-        Self::new(channel_id, FrameType::WindowUpdate, credit.to_be_bytes().to_vec(), 0)
+        Self::new(
+            channel_id,
+            FrameType::WindowUpdate,
+            credit.to_be_bytes().to_vec(),
+            0,
+        )
     }
 
     /// Create a ping frame.
@@ -113,7 +123,12 @@ impl MuxFrame {
 
     /// Create a reset frame with a reason code.
     pub fn reset(channel_id: ChannelId, reason: u32) -> Self {
-        Self::new(channel_id, FrameType::Reset, reason.to_be_bytes().to_vec(), 0)
+        Self::new(
+            channel_id,
+            FrameType::Reset,
+            reason.to_be_bytes().to_vec(),
+            0,
+        )
     }
 
     /// Serialize frame to bytes: [type:1][channel_id:4][seq:8][len:4][payload:N].
@@ -136,15 +151,22 @@ impl MuxFrame {
         let frame_type = FrameType::from_u8(data[0])?;
         let channel_id = ChannelId(u32::from_be_bytes([data[1], data[2], data[3], data[4]]));
         let seq = u64::from_be_bytes([
-            data[5], data[6], data[7], data[8],
-            data[9], data[10], data[11], data[12],
+            data[5], data[6], data[7], data[8], data[9], data[10], data[11], data[12],
         ]);
         let len = u32::from_be_bytes([data[13], data[14], data[15], data[16]]) as usize;
         if data.len() < 17 + len {
             return None;
         }
         let payload = data[17..17 + len].to_vec();
-        Some((Self { channel_id, frame_type, payload, seq }, 17 + len))
+        Some((
+            Self {
+                channel_id,
+                frame_type,
+                payload,
+                seq,
+            },
+            17 + len,
+        ))
     }
 }
 
@@ -167,7 +189,9 @@ pub struct ChannelMetadata {
 
 impl ChannelMetadata {
     pub fn new() -> Self {
-        Self { labels: HashMap::new() }
+        Self {
+            labels: HashMap::new(),
+        }
     }
 
     pub fn with_label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
@@ -255,13 +279,19 @@ impl Default for MuxConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MuxEvent {
     /// A new channel was opened by the remote.
-    ChannelOpened { channel_id: ChannelId, metadata: ChannelMetadata },
+    ChannelOpened {
+        channel_id: ChannelId,
+        metadata: ChannelMetadata,
+    },
     /// A channel was closed.
     ChannelClosed { channel_id: ChannelId },
     /// A channel was reset with a reason.
     ChannelReset { channel_id: ChannelId, reason: u32 },
     /// Data received on a channel.
-    DataReceived { channel_id: ChannelId, data: Vec<u8> },
+    DataReceived {
+        channel_id: ChannelId,
+        data: Vec<u8>,
+    },
     /// Backpressure: send window exhausted on a channel.
     Backpressure { channel_id: ChannelId },
     /// Ping received.
@@ -289,7 +319,9 @@ impl fmt::Display for MuxError {
             Self::ChannelNotOpen(id) => write!(f, "channel not open: {}", id),
             Self::TooManyChannels => write!(f, "too many channels"),
             Self::ChannelAlreadyExists(id) => write!(f, "channel already exists: {}", id),
-            Self::PayloadTooLarge { size, max } => write!(f, "payload too large: {} > {}", size, max),
+            Self::PayloadTooLarge { size, max } => {
+                write!(f, "payload too large: {} > {}", size, max)
+            }
             Self::WindowExhausted(id) => write!(f, "send window exhausted for {}", id),
             Self::InvalidFrame => write!(f, "invalid frame"),
         }
@@ -330,19 +362,22 @@ impl ChannelMux {
         self.next_channel_id += 1;
 
         let meta_bytes = metadata.to_bytes();
-        self.channels.insert(id, Channel {
+        self.channels.insert(
             id,
-            state: ChannelState::Open,
-            metadata,
-            send_window: self.config.initial_window_size,
-            recv_window: self.config.initial_window_size,
-            send_queue: VecDeque::new(),
-            recv_queue: VecDeque::new(),
-            next_send_seq: 1,
-            next_recv_seq: 1,
-            bytes_sent: 0,
-            bytes_received: 0,
-        });
+            Channel {
+                id,
+                state: ChannelState::Open,
+                metadata,
+                send_window: self.config.initial_window_size,
+                recv_window: self.config.initial_window_size,
+                send_queue: VecDeque::new(),
+                recv_queue: VecDeque::new(),
+                next_send_seq: 1,
+                next_recv_seq: 1,
+                bytes_sent: 0,
+                bytes_received: 0,
+            },
+        );
 
         self.outbound.push_back(MuxFrame::open(id, meta_bytes));
         Ok(id)
@@ -350,7 +385,9 @@ impl ChannelMux {
 
     /// Close a channel. Queues a Close frame.
     pub fn close_channel(&mut self, channel_id: ChannelId) -> Result<(), MuxError> {
-        let ch = self.channels.get_mut(&channel_id)
+        let ch = self
+            .channels
+            .get_mut(&channel_id)
             .ok_or(MuxError::ChannelNotFound(channel_id))?;
         ch.state = ChannelState::Closing;
         self.outbound.push_back(MuxFrame::close(channel_id));
@@ -365,7 +402,9 @@ impl ChannelMux {
                 max: self.config.max_frame_payload,
             });
         }
-        let ch = self.channels.get_mut(&channel_id)
+        let ch = self
+            .channels
+            .get_mut(&channel_id)
             .ok_or(MuxError::ChannelNotFound(channel_id))?;
         if ch.state != ChannelState::Open {
             return Err(MuxError::ChannelNotOpen(channel_id));
@@ -380,13 +419,16 @@ impl ChannelMux {
         ch.next_send_seq += 1;
         ch.send_window -= data.len() as u32;
         ch.bytes_sent += data.len() as u64;
-        self.outbound.push_back(MuxFrame::data(channel_id, data, seq));
+        self.outbound
+            .push_back(MuxFrame::data(channel_id, data, seq));
         Ok(())
     }
 
     /// Read received data from a channel.
     pub fn recv(&mut self, channel_id: ChannelId) -> Result<Option<Vec<u8>>, MuxError> {
-        let ch = self.channels.get_mut(&channel_id)
+        let ch = self
+            .channels
+            .get_mut(&channel_id)
             .ok_or(MuxError::ChannelNotFound(channel_id))?;
         Ok(ch.recv_queue.pop_front())
     }
@@ -403,20 +445,26 @@ impl ChannelMux {
                     return Err(MuxError::TooManyChannels);
                 }
                 let metadata = ChannelMetadata::from_bytes(&frame.payload);
-                self.channels.insert(id, Channel {
+                self.channels.insert(
                     id,
-                    state: ChannelState::Open,
-                    metadata: metadata.clone(),
-                    send_window: self.config.initial_window_size,
-                    recv_window: self.config.initial_window_size,
-                    send_queue: VecDeque::new(),
-                    recv_queue: VecDeque::new(),
-                    next_send_seq: 1,
-                    next_recv_seq: 1,
-                    bytes_sent: 0,
-                    bytes_received: 0,
+                    Channel {
+                        id,
+                        state: ChannelState::Open,
+                        metadata: metadata.clone(),
+                        send_window: self.config.initial_window_size,
+                        recv_window: self.config.initial_window_size,
+                        send_queue: VecDeque::new(),
+                        recv_queue: VecDeque::new(),
+                        next_send_seq: 1,
+                        next_recv_seq: 1,
+                        bytes_sent: 0,
+                        bytes_received: 0,
+                    },
+                );
+                self.events.push(MuxEvent::ChannelOpened {
+                    channel_id: id,
+                    metadata,
                 });
-                self.events.push(MuxEvent::ChannelOpened { channel_id: id, metadata });
             }
             FrameType::Close => {
                 let id = frame.channel_id;
@@ -427,23 +475,32 @@ impl ChannelMux {
             }
             FrameType::Data => {
                 let id = frame.channel_id;
-                let ch = self.channels.get_mut(&id)
+                let ch = self
+                    .channels
+                    .get_mut(&id)
                     .ok_or(MuxError::ChannelNotFound(id))?;
                 ch.recv_window = ch.recv_window.saturating_sub(frame.payload.len() as u32);
                 ch.bytes_received += frame.payload.len() as u64;
                 ch.next_recv_seq = frame.seq + 1;
                 let data = frame.payload.clone();
                 ch.recv_queue.push_back(data.clone());
-                self.events.push(MuxEvent::DataReceived { channel_id: id, data });
+                self.events.push(MuxEvent::DataReceived {
+                    channel_id: id,
+                    data,
+                });
             }
             FrameType::WindowUpdate => {
                 let id = frame.channel_id;
-                let ch = self.channels.get_mut(&id)
+                let ch = self
+                    .channels
+                    .get_mut(&id)
                     .ok_or(MuxError::ChannelNotFound(id))?;
                 if frame.payload.len() >= 4 {
                     let credit = u32::from_be_bytes([
-                        frame.payload[0], frame.payload[1],
-                        frame.payload[2], frame.payload[3],
+                        frame.payload[0],
+                        frame.payload[1],
+                        frame.payload[2],
+                        frame.payload[3],
                     ]);
                     ch.send_window = ch.send_window.saturating_add(credit);
                     // Drain send queue if window allows
@@ -451,7 +508,9 @@ impl ChannelMux {
                 }
             }
             FrameType::Ping => {
-                self.events.push(MuxEvent::PingReceived { data: frame.payload.clone() });
+                self.events.push(MuxEvent::PingReceived {
+                    data: frame.payload.clone(),
+                });
                 self.outbound.push_back(MuxFrame::pong(frame.payload));
             }
             FrameType::Pong => {
@@ -461,8 +520,10 @@ impl ChannelMux {
                 let id = frame.channel_id;
                 let reason = if frame.payload.len() >= 4 {
                     u32::from_be_bytes([
-                        frame.payload[0], frame.payload[1],
-                        frame.payload[2], frame.payload[3],
+                        frame.payload[0],
+                        frame.payload[1],
+                        frame.payload[2],
+                        frame.payload[3],
                     ])
                 } else {
                     0
@@ -472,7 +533,10 @@ impl ChannelMux {
                     ch.send_queue.clear();
                     ch.recv_queue.clear();
                 }
-                self.events.push(MuxEvent::ChannelReset { channel_id: id, reason });
+                self.events.push(MuxEvent::ChannelReset {
+                    channel_id: id,
+                    reason,
+                });
             }
         }
         Ok(())
@@ -492,16 +556,20 @@ impl ChannelMux {
             ch.next_send_seq += 1;
             ch.send_window -= data.len() as u32;
             ch.bytes_sent += data.len() as u64;
-            self.outbound.push_back(MuxFrame::data(channel_id, data, seq));
+            self.outbound
+                .push_back(MuxFrame::data(channel_id, data, seq));
         }
     }
 
     /// Grant receive window credit to a channel (sends WindowUpdate to remote).
     pub fn grant_window(&mut self, channel_id: ChannelId, credit: u32) -> Result<(), MuxError> {
-        let ch = self.channels.get_mut(&channel_id)
+        let ch = self
+            .channels
+            .get_mut(&channel_id)
             .ok_or(MuxError::ChannelNotFound(channel_id))?;
         ch.recv_window = ch.recv_window.saturating_add(credit);
-        self.outbound.push_back(MuxFrame::window_update(channel_id, credit));
+        self.outbound
+            .push_back(MuxFrame::window_update(channel_id, credit));
         Ok(())
     }
 
@@ -522,7 +590,10 @@ impl ChannelMux {
 
     /// Number of open channels.
     pub fn open_channel_count(&self) -> usize {
-        self.channels.values().filter(|ch| ch.state == ChannelState::Open).count()
+        self.channels
+            .values()
+            .filter(|ch| ch.state == ChannelState::Open)
+            .count()
     }
 
     /// Get the state of a channel.
@@ -558,7 +629,8 @@ impl ChannelMux {
     /// Remove closed channels from tracking.
     pub fn prune_closed(&mut self) -> usize {
         let before = self.channels.len();
-        self.channels.retain(|_, ch| ch.state != ChannelState::Closed);
+        self.channels
+            .retain(|_, ch| ch.state != ChannelState::Closed);
         before - self.channels.len()
     }
 
@@ -569,7 +641,9 @@ impl ChannelMux {
 
     /// Reset a channel with a reason code.
     pub fn reset_channel(&mut self, channel_id: ChannelId, reason: u32) -> Result<(), MuxError> {
-        let ch = self.channels.get_mut(&channel_id)
+        let ch = self
+            .channels
+            .get_mut(&channel_id)
             .ok_or(MuxError::ChannelNotFound(channel_id))?;
         ch.state = ChannelState::Closed;
         ch.send_queue.clear();
@@ -602,8 +676,15 @@ mod tests {
 
     #[test]
     fn frame_type_roundtrip() {
-        for ft in [FrameType::Open, FrameType::Close, FrameType::Data,
-                    FrameType::WindowUpdate, FrameType::Ping, FrameType::Pong, FrameType::Reset] {
+        for ft in [
+            FrameType::Open,
+            FrameType::Close,
+            FrameType::Data,
+            FrameType::WindowUpdate,
+            FrameType::Ping,
+            FrameType::Pong,
+            FrameType::Reset,
+        ] {
             assert_eq!(FrameType::from_u8(ft.to_u8()), Some(ft));
         }
     }
@@ -692,7 +773,10 @@ mod tests {
 
     #[test]
     fn max_channels_exceeded() {
-        let mut mux = ChannelMux::new(MuxConfig { max_channels: 2, ..Default::default() });
+        let mut mux = ChannelMux::new(MuxConfig {
+            max_channels: 2,
+            ..Default::default()
+        });
         mux.open_channel(ChannelMetadata::new()).unwrap();
         mux.open_channel(ChannelMetadata::new()).unwrap();
         assert!(matches!(
@@ -741,7 +825,10 @@ mod tests {
 
     #[test]
     fn send_payload_too_large() {
-        let mut mux = ChannelMux::new(MuxConfig { max_frame_payload: 5, ..Default::default() });
+        let mut mux = ChannelMux::new(MuxConfig {
+            max_frame_payload: 5,
+            ..Default::default()
+        });
         let id = mux.open_channel(ChannelMetadata::new()).unwrap();
         assert!(matches!(
             mux.send(id, vec![0; 10]),
@@ -789,7 +876,11 @@ mod tests {
         // Next send gets queued (backpressure)
         mux.send(id, vec![1; 5]).unwrap();
         let events = mux.take_events();
-        assert!(events.iter().any(|e| matches!(e, MuxEvent::Backpressure { .. })));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, MuxEvent::Backpressure { .. }))
+        );
 
         // Only the first send produced a data frame
         let out = mux.take_outbound();
@@ -843,7 +934,11 @@ mod tests {
         mux.process_frame(MuxFrame::close(id)).unwrap();
         assert_eq!(mux.channel_state(id), Some(ChannelState::Closed));
         let events = mux.take_events();
-        assert!(events.iter().any(|e| matches!(e, MuxEvent::ChannelClosed { .. })));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, MuxEvent::ChannelClosed { .. }))
+        );
     }
 
     // ── Ping/Pong ──────────────────────────────────────────────────
@@ -851,10 +946,15 @@ mod tests {
     #[test]
     fn ping_generates_pong() {
         let mut mux = ChannelMux::new(MuxConfig::default());
-        mux.process_frame(MuxFrame::ping(b"hello".to_vec())).unwrap();
+        mux.process_frame(MuxFrame::ping(b"hello".to_vec()))
+            .unwrap();
 
         let events = mux.take_events();
-        assert!(events.iter().any(|e| matches!(e, MuxEvent::PingReceived { .. })));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, MuxEvent::PingReceived { .. }))
+        );
 
         let out = mux.take_outbound();
         assert_eq!(out.len(), 1);
@@ -892,7 +992,11 @@ mod tests {
 
         mux.process_frame(MuxFrame::reset(id, 99)).unwrap();
         let events = mux.take_events();
-        assert!(events.iter().any(|e| matches!(e, MuxEvent::ChannelReset { reason: 99, .. })));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, MuxEvent::ChannelReset { reason: 99, .. }))
+        );
     }
 
     // ── Grant window ───────────────────────────────────────────────
@@ -945,7 +1049,11 @@ mod tests {
     fn error_display() {
         assert!(MuxError::TooManyChannels.to_string().contains("too many"));
         assert!(MuxError::InvalidFrame.to_string().contains("invalid"));
-        assert!(MuxError::ChannelNotFound(ChannelId(1)).to_string().contains("ch:1"));
+        assert!(
+            MuxError::ChannelNotFound(ChannelId(1))
+                .to_string()
+                .contains("ch:1")
+        );
     }
 
     // ── Data on unknown channel ────────────────────────────────────

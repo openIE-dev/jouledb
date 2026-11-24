@@ -97,9 +97,13 @@ impl fmt::Display for IdentityRecord {
         write!(
             f,
             "{} {} (DOB {}-{:02}-{:02}, {} {})",
-            self.first_name, self.last_name,
-            self.dob.0, self.dob.1, self.dob.2,
-            self.document_type, self.country,
+            self.first_name,
+            self.last_name,
+            self.dob.0,
+            self.dob.1,
+            self.dob.2,
+            self.document_type,
+            self.country,
         )
     }
 }
@@ -116,7 +120,11 @@ pub struct SanctionsEntry {
 
 impl fmt::Display for SanctionsEntry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} [{}] ({})", self.name_key, self.program, self.entity_type)
+        write!(
+            f,
+            "{} [{}] ({})",
+            self.name_key, self.program, self.entity_type
+        )
     }
 }
 
@@ -139,8 +147,12 @@ impl fmt::Display for KycResult {
         write!(
             f,
             "KYC[{}] risk={} score={:.2} sanctions={} pep={} doc_valid={}",
-            self.identity, self.risk_level, self.risk_score,
-            self.sanctions_match, self.pep_flag, self.document_valid,
+            self.identity,
+            self.risk_level,
+            self.risk_score,
+            self.sanctions_match,
+            self.pep_flag,
+            self.document_valid,
         )
     }
 }
@@ -175,16 +187,42 @@ impl Default for KycConfig {
 }
 
 impl KycConfig {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
-    pub fn with_fuzzy_threshold(mut self, t: f64) -> Self { self.fuzzy_threshold = t; self }
-    pub fn with_high_risk_score(mut self, s: f64) -> Self { self.high_risk_score = s; self }
-    pub fn with_medium_risk_score(mut self, s: f64) -> Self { self.medium_risk_score = s; self }
-    pub fn with_pep_risk_weight(mut self, w: f64) -> Self { self.pep_risk_weight = w; self }
-    pub fn with_sanctions_risk_weight(mut self, w: f64) -> Self { self.sanctions_risk_weight = w; self }
-    pub fn with_expired_doc_risk_weight(mut self, w: f64) -> Self { self.expired_doc_risk_weight = w; self }
-    pub fn with_high_risk_countries(mut self, c: Vec<String>) -> Self { self.high_risk_countries = c; self }
-    pub fn with_current_day(mut self, d: u64) -> Self { self.current_day = d; self }
+    pub fn with_fuzzy_threshold(mut self, t: f64) -> Self {
+        self.fuzzy_threshold = t;
+        self
+    }
+    pub fn with_high_risk_score(mut self, s: f64) -> Self {
+        self.high_risk_score = s;
+        self
+    }
+    pub fn with_medium_risk_score(mut self, s: f64) -> Self {
+        self.medium_risk_score = s;
+        self
+    }
+    pub fn with_pep_risk_weight(mut self, w: f64) -> Self {
+        self.pep_risk_weight = w;
+        self
+    }
+    pub fn with_sanctions_risk_weight(mut self, w: f64) -> Self {
+        self.sanctions_risk_weight = w;
+        self
+    }
+    pub fn with_expired_doc_risk_weight(mut self, w: f64) -> Self {
+        self.expired_doc_risk_weight = w;
+        self
+    }
+    pub fn with_high_risk_countries(mut self, c: Vec<String>) -> Self {
+        self.high_risk_countries = c;
+        self
+    }
+    pub fn with_current_day(mut self, d: u64) -> Self {
+        self.current_day = d;
+        self
+    }
 }
 
 impl fmt::Display for KycConfig {
@@ -192,8 +230,10 @@ impl fmt::Display for KycConfig {
         write!(
             f,
             "KycConfig(fuzzy={:.2} high={:.0} med={:.0} countries={})",
-            self.fuzzy_threshold, self.high_risk_score,
-            self.medium_risk_score, self.high_risk_countries.len(),
+            self.fuzzy_threshold,
+            self.high_risk_score,
+            self.medium_risk_score,
+            self.high_risk_countries.len(),
         )
     }
 }
@@ -239,8 +279,12 @@ fn jaro_similarity(a: &str, b: &str) -> f64 {
     let mut transpositions = 0usize;
     let mut k = 0;
     for (i, _) in a_chars.iter().enumerate().filter(|(i, _)| a_matched[*i]) {
-        while !b_matched[k] { k += 1; }
-        if a_chars[i] != b_chars[k] { transpositions += 1; }
+        while !b_matched[k] {
+            k += 1;
+        }
+        if a_chars[i] != b_chars[k] {
+            transpositions += 1;
+        }
         k += 1;
     }
     let m = matches as f64;
@@ -311,11 +355,18 @@ pub struct KycEngine {
 impl KycEngine {
     pub fn new(config: KycConfig, mut sanctions_list: Vec<SanctionsEntry>) -> Self {
         sanctions_list.sort_by(|a, b| a.name_key.cmp(&b.name_key));
-        Self { config, sanctions_list }
+        Self {
+            config,
+            sanctions_list,
+        }
     }
 
-    pub fn config(&self) -> &KycConfig { &self.config }
-    pub fn sanctions_count(&self) -> usize { self.sanctions_list.len() }
+    pub fn config(&self) -> &KycConfig {
+        &self.config
+    }
+    pub fn sanctions_count(&self) -> usize {
+        self.sanctions_list.len()
+    }
 
     pub fn check(&self, record: &IdentityRecord) -> KycResult {
         let mut score: f64 = 0.0;
@@ -350,7 +401,12 @@ impl KycEngine {
 
         // High-risk country.
         let country_upper = record.country.to_uppercase();
-        if self.config.high_risk_countries.iter().any(|c| c.to_uppercase() == country_upper) {
+        if self
+            .config
+            .high_risk_countries
+            .iter()
+            .any(|c| c.to_uppercase() == country_upper)
+        {
             score += 20.0;
             notes.push(format!("high-risk country: {}", record.country));
         }
@@ -404,7 +460,12 @@ impl KycEngine {
 
 impl fmt::Display for KycEngine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "KycEngine(sanctions={} {})", self.sanctions_list.len(), self.config)
+        write!(
+            f,
+            "KycEngine(sanctions={} {})",
+            self.sanctions_list.len(),
+            self.config
+        )
     }
 }
 
@@ -422,8 +483,16 @@ mod tests {
 
     fn sample_sanctions() -> Vec<SanctionsEntry> {
         vec![
-            SanctionsEntry { name_key: "JOHNDOE".into(), program: "SDN".into(), entity_type: "Individual".into() },
-            SanctionsEntry { name_key: "JANESMITH".into(), program: "EU".into(), entity_type: "Individual".into() },
+            SanctionsEntry {
+                name_key: "JOHNDOE".into(),
+                program: "SDN".into(),
+                entity_type: "Individual".into(),
+            },
+            SanctionsEntry {
+                name_key: "JANESMITH".into(),
+                program: "EU".into(),
+                entity_type: "Individual".into(),
+            },
         ]
     }
 
@@ -591,7 +660,11 @@ mod tests {
         let s = format!("{rec}");
         assert!(s.contains("Alice"));
 
-        let entry = SanctionsEntry { name_key: "FOO".into(), program: "X".into(), entity_type: "Y".into() };
+        let entry = SanctionsEntry {
+            name_key: "FOO".into(),
+            program: "X".into(),
+            entity_type: "Y".into(),
+        };
         assert!(format!("{entry}").contains("FOO"));
 
         let engine = KycEngine::new(sample_config(), sample_sanctions());

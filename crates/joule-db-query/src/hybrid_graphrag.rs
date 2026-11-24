@@ -239,10 +239,7 @@ impl TriModalRrfIndex {
                 let tf_map = self.doc_tokens.get(&id);
                 let mut score = 0.0;
                 for term in &q_terms {
-                    let tf = tf_map
-                        .and_then(|m| m.get(term))
-                        .copied()
-                        .unwrap_or(0) as f64;
+                    let tf = tf_map.and_then(|m| m.get(term)).copied().unwrap_or(0) as f64;
                     if tf > 0.0 {
                         let df = *self.doc_freq.get(term).unwrap_or(&1) as f64;
                         let idf = ((n_docs - df + 0.5) / (df + 0.5) + 1.0).ln();
@@ -265,7 +262,9 @@ impl TriModalRrfIndex {
             padded.resize(self.dim, 0.0);
             let hits = self
                 .rabitq
-                .search_filtered(&padded, candidate_ids.len(), |id| candidate_set.contains(&id));
+                .search_filtered(&padded, candidate_ids.len(), |id| {
+                    candidate_set.contains(&id)
+                });
             for h in hits {
                 rabitq_map.insert(h.id, h.cosine_similarity);
             }
@@ -591,7 +590,9 @@ fn validate_sql_fragment(fragment: &str, label: &str) -> Result<(), String> {
         ));
     }
     let upper = fragment.to_ascii_uppercase();
-    for forbidden in [" DROP ", " DELETE ", " UPDATE ", " INSERT ", " ALTER ", " UNION "] {
+    for forbidden in [
+        " DROP ", " DELETE ", " UPDATE ", " INSERT ", " ALTER ", " UNION ",
+    ] {
         let padded = format!(" {upper} ");
         if padded.contains(forbidden) {
             return Err(format!("forbidden SQL keyword in {label}"));
@@ -709,9 +710,12 @@ impl SemanticCatalog {
             if joined.contains(target) {
                 continue;
             }
-            let path = self
-                .bfs_join_path(&joined, target)
-                .ok_or_else(|| format!("no verified join path from '{}' to '{target}'", base_entity.name))?;
+            let path = self.bfs_join_path(&joined, target).ok_or_else(|| {
+                format!(
+                    "no verified join path from '{}' to '{target}'",
+                    base_entity.name
+                )
+            })?;
             for (src_ent, src_col, dst_ent, dst_col) in path {
                 if joined.insert(dst_ent.clone())
                     && let (Some(se), Some(de)) =
@@ -1072,7 +1076,10 @@ mod tests {
         );
 
         assert_eq!(hits[0].id, 3);
-        assert!(hits[0].acorn_two_hop_rescued, "ACORN must rescue Node 3 across filtered bridge Node 2");
+        assert!(
+            hits[0].acorn_two_hop_rescued,
+            "ACORN must rescue Node 3 across filtered bridge Node 2"
+        );
     }
 
     #[test]
@@ -1175,8 +1182,14 @@ mod tests {
             })
             .unwrap();
 
-        assert!(sql.contains("LEFT JOIN dim_customers ON fact_orders.customer_id = dim_customers.customer_id"));
-        assert!(sql.contains("LEFT JOIN dim_regions ON dim_customers.region_id = dim_regions.region_id"));
+        assert!(sql.contains(
+            "LEFT JOIN dim_customers ON fact_orders.customer_id = dim_customers.customer_id"
+        ));
+        assert!(
+            sql.contains(
+                "LEFT JOIN dim_regions ON dim_customers.region_id = dim_regions.region_id"
+            )
+        );
         assert!(sql.contains("fact_orders.tenant_id = 'acme'"));
         assert!(sql.contains("GROUP BY dim_regions.name"));
     }

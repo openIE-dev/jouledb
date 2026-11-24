@@ -15,7 +15,9 @@ use std::sync::{Arc, Mutex};
 pub struct CoalesceKey(pub String);
 
 impl CoalesceKey {
-    pub fn new(s: impl Into<String>) -> Self { Self(s.into()) }
+    pub fn new(s: impl Into<String>) -> Self {
+        Self(s.into())
+    }
 
     /// Build a key from method + URL.
     pub fn from_request(method: &str, url: &str) -> Self {
@@ -27,7 +29,9 @@ impl CoalesceKey {
         Self(format!("{method}:{url}:{body_hash}"))
     }
 
-    pub fn as_str(&self) -> &str { &self.0 }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 impl fmt::Display for CoalesceKey {
@@ -48,8 +52,12 @@ pub enum FlightStatus {
 }
 
 impl FlightStatus {
-    pub fn is_leader(&self) -> bool { matches!(self, FlightStatus::Leader) }
-    pub fn is_follower(&self) -> bool { matches!(self, FlightStatus::Follower { .. }) }
+    pub fn is_leader(&self) -> bool {
+        matches!(self, FlightStatus::Leader)
+    }
+    pub fn is_follower(&self) -> bool {
+        matches!(self, FlightStatus::Follower { .. })
+    }
 }
 
 // ── Flight result ───────────────────────────────────────────────
@@ -94,8 +102,11 @@ pub struct CoalesceStats {
 impl CoalesceStats {
     /// Deduplication ratio: followers / total requests.
     pub fn dedup_ratio(&self) -> f64 {
-        if self.total_requests == 0 { 0.0 }
-        else { self.total_followers as f64 / self.total_requests as f64 }
+        if self.total_requests == 0 {
+            0.0
+        } else {
+            self.total_followers as f64 / self.total_requests as f64
+        }
     }
 }
 
@@ -135,11 +146,14 @@ impl SingleFlight {
             inner.stats.total_followers += 1;
             FlightStatus::Follower { position }
         } else {
-            inner.flights.insert(key_str, FlightEntry {
-                waiter_count: 1,
-                started_ms: now_ms,
-                result: None,
-            });
+            inner.flights.insert(
+                key_str,
+                FlightEntry {
+                    waiter_count: 1,
+                    started_ms: now_ms,
+                    result: None,
+                },
+            );
             let count = inner.flights.len();
             if count > inner.stats.peak_in_flight {
                 inner.stats.peak_in_flight = count;
@@ -165,8 +179,7 @@ impl SingleFlight {
     /// Retrieve the result for a key (if the leader has completed).
     pub fn get_result(&self, key: &CoalesceKey) -> Option<FlightResult> {
         let inner = self.inner.lock().unwrap();
-        inner.flights.get(&key.0)
-            .and_then(|e| e.result.clone())
+        inner.flights.get(&key.0).and_then(|e| e.result.clone())
     }
 
     /// Remove a completed flight, freeing the entry.
@@ -188,7 +201,11 @@ impl SingleFlight {
 
     /// Total waiters across all in-flight groups.
     pub fn total_waiters(&self) -> usize {
-        self.inner.lock().unwrap().flights.values()
+        self.inner
+            .lock()
+            .unwrap()
+            .flights
+            .values()
             .map(|e| e.waiter_count)
             .sum()
     }
@@ -202,9 +219,9 @@ impl SingleFlight {
     pub fn evict_stale(&self, now_ms: u64, max_age_ms: u64) -> usize {
         let mut inner = self.inner.lock().unwrap();
         let before = inner.flights.len();
-        inner.flights.retain(|_, entry| {
-            now_ms.saturating_sub(entry.started_ms) < max_age_ms
-        });
+        inner
+            .flights
+            .retain(|_, entry| now_ms.saturating_sub(entry.started_ms) < max_age_ms);
         let evicted = before - inner.flights.len();
         inner.stats.total_evicted += evicted as u64;
         evicted
@@ -212,7 +229,9 @@ impl SingleFlight {
 }
 
 impl Default for SingleFlight {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Stampede shield ─────────────────────────────────────────────
@@ -230,7 +249,9 @@ pub struct StampedeShield {
 
 impl StampedeShield {
     pub fn new(beta: f64) -> Self {
-        Self { beta: beta.max(0.1) }
+        Self {
+            beta: beta.max(0.1),
+        }
     }
 
     /// Default beta = 1.0.
@@ -313,19 +334,26 @@ impl DedupBatch {
 
     /// Get requester indices for a key.
     pub fn requesters_for(&self, key: &CoalesceKey) -> &[usize] {
-        self.requesters.get(&key.0).map(|v| v.as_slice()).unwrap_or(&[])
+        self.requesters
+            .get(&key.0)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
     }
 
     /// Deduplication ratio.
     pub fn dedup_ratio(&self) -> f64 {
-        if self.next_requester == 0 { return 0.0; }
+        if self.next_requester == 0 {
+            return 0.0;
+        }
         let dupes = self.next_requester - self.keys.len();
         dupes as f64 / self.next_requester as f64
     }
 }
 
 impl Default for DedupBatch {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────

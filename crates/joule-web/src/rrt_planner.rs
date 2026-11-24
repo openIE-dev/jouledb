@@ -47,7 +47,9 @@ impl Point {
     }
 
     pub fn new3(x: f64, y: f64, z: f64) -> Self {
-        Self { coords: vec![x, y, z] }
+        Self {
+            coords: vec![x, y, z],
+        }
     }
 
     pub fn dim(&self) -> usize {
@@ -149,11 +151,16 @@ struct SimpleRng {
 
 impl SimpleRng {
     fn new(seed: u64) -> Self {
-        Self { state: seed.wrapping_add(1) }
+        Self {
+            state: seed.wrapping_add(1),
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.state
     }
 
@@ -205,15 +212,38 @@ impl RrtConfig {
         })
     }
 
-    pub fn with_step_size(mut self, s: f64) -> Self { self.step_size = s; self }
-    pub fn with_goal_threshold(mut self, t: f64) -> Self { self.goal_threshold = t; self }
-    pub fn with_goal_bias(mut self, b: f64) -> Self { self.goal_bias = b; self }
-    pub fn with_max_iterations(mut self, n: usize) -> Self { self.max_iterations = n; self }
-    pub fn with_seed(mut self, s: u64) -> Self { self.seed = s; self }
-    pub fn with_rewire_radius(mut self, r: f64) -> Self { self.rewire_radius = r; self }
-    pub fn with_collision_samples(mut self, n: usize) -> Self { self.collision_samples = n; self }
+    pub fn with_step_size(mut self, s: f64) -> Self {
+        self.step_size = s;
+        self
+    }
+    pub fn with_goal_threshold(mut self, t: f64) -> Self {
+        self.goal_threshold = t;
+        self
+    }
+    pub fn with_goal_bias(mut self, b: f64) -> Self {
+        self.goal_bias = b;
+        self
+    }
+    pub fn with_max_iterations(mut self, n: usize) -> Self {
+        self.max_iterations = n;
+        self
+    }
+    pub fn with_seed(mut self, s: u64) -> Self {
+        self.seed = s;
+        self
+    }
+    pub fn with_rewire_radius(mut self, r: f64) -> Self {
+        self.rewire_radius = r;
+        self
+    }
+    pub fn with_collision_samples(mut self, n: usize) -> Self {
+        self.collision_samples = n;
+        self
+    }
 
-    fn dim(&self) -> usize { self.bounds_min.len() }
+    fn dim(&self) -> usize {
+        self.bounds_min.len()
+    }
 }
 
 impl fmt::Display for RrtConfig {
@@ -256,7 +286,9 @@ fn near_neighbors(nodes: &[TreeNode], query: &Point, radius: f64) -> Vec<usize> 
 // ── Collision checking ──────────────────────────────────────────
 
 fn collision_free(a: &Point, b: &Point, obstacles: &[AabbObstacle], samples: usize) -> bool {
-    !obstacles.iter().any(|obs| obs.intersects_segment(a, b, samples))
+    !obstacles
+        .iter()
+        .any(|obs| obs.intersects_segment(a, b, samples))
 }
 
 fn point_collision_free(p: &Point, obstacles: &[AabbObstacle]) -> bool {
@@ -310,7 +342,10 @@ pub struct Rrt {
 
 impl Rrt {
     pub fn new(config: RrtConfig) -> Self {
-        Self { config, obstacles: Vec::new() }
+        Self {
+            config,
+            obstacles: Vec::new(),
+        }
     }
 
     pub fn with_obstacles(mut self, obs: Vec<AabbObstacle>) -> Self {
@@ -320,7 +355,11 @@ impl Rrt {
 
     pub fn plan(&self, start: Point, goal: Point) -> Result<RrtResult, RrtError> {
         let mut rng = SimpleRng::new(self.config.seed);
-        let mut nodes = vec![TreeNode { point: start.clone(), parent: None, cost: 0.0 }];
+        let mut nodes = vec![TreeNode {
+            point: start.clone(),
+            parent: None,
+            cost: 0.0,
+        }];
 
         for iter in 0..self.config.max_iterations {
             let sample = if rng.next_f64() < self.config.goal_bias {
@@ -333,7 +372,9 @@ impl Rrt {
             };
 
             let near_idx = nearest_neighbor(&nodes, &sample);
-            let new_point = nodes[near_idx].point.steer_toward(&sample, self.config.step_size);
+            let new_point = nodes[near_idx]
+                .point
+                .steer_toward(&sample, self.config.step_size);
 
             if !point_collision_free(&new_point, &self.obstacles) {
                 continue;
@@ -348,7 +389,11 @@ impl Rrt {
             }
 
             let new_cost = nodes[near_idx].cost + nodes[near_idx].point.distance_to(&new_point);
-            nodes.push(TreeNode { point: new_point.clone(), parent: Some(near_idx), cost: new_cost });
+            nodes.push(TreeNode {
+                point: new_point.clone(),
+                parent: Some(near_idx),
+                cost: new_cost,
+            });
 
             if new_point.distance_to(&goal) <= self.config.goal_threshold {
                 let goal_idx = nodes.len() - 1;
@@ -381,7 +426,10 @@ pub struct RrtStar {
 
 impl RrtStar {
     pub fn new(config: RrtConfig) -> Self {
-        Self { config, obstacles: Vec::new() }
+        Self {
+            config,
+            obstacles: Vec::new(),
+        }
     }
 
     pub fn with_obstacles(mut self, obs: Vec<AabbObstacle>) -> Self {
@@ -391,7 +439,11 @@ impl RrtStar {
 
     pub fn plan(&self, start: Point, goal: Point) -> Result<RrtResult, RrtError> {
         let mut rng = SimpleRng::new(self.config.seed);
-        let mut nodes = vec![TreeNode { point: start.clone(), parent: None, cost: 0.0 }];
+        let mut nodes = vec![TreeNode {
+            point: start.clone(),
+            parent: None,
+            cost: 0.0,
+        }];
         let mut best_goal_idx: Option<usize> = None;
 
         for iter in 0..self.config.max_iterations {
@@ -405,7 +457,9 @@ impl RrtStar {
             };
 
             let near_idx = nearest_neighbor(&nodes, &sample);
-            let new_point = nodes[near_idx].point.steer_toward(&sample, self.config.step_size);
+            let new_point = nodes[near_idx]
+                .point
+                .steer_toward(&sample, self.config.step_size);
 
             if !point_collision_free(&new_point, &self.obstacles) {
                 continue;
@@ -414,7 +468,8 @@ impl RrtStar {
             // Find best parent among near neighbors
             let neighbors = near_neighbors(&nodes, &new_point, self.config.rewire_radius);
             let mut best_parent = near_idx;
-            let mut best_cost = nodes[near_idx].cost + nodes[near_idx].point.distance_to(&new_point);
+            let mut best_cost =
+                nodes[near_idx].cost + nodes[near_idx].point.distance_to(&new_point);
 
             for &ni in &neighbors {
                 let c = nodes[ni].cost + nodes[ni].point.distance_to(&new_point);
@@ -498,7 +553,10 @@ pub struct RrtConnect {
 
 impl RrtConnect {
     pub fn new(config: RrtConfig) -> Self {
-        Self { config, obstacles: Vec::new() }
+        Self {
+            config,
+            obstacles: Vec::new(),
+        }
     }
 
     pub fn with_obstacles(mut self, obs: Vec<AabbObstacle>) -> Self {
@@ -524,7 +582,11 @@ impl RrtConnect {
         }
         let cost = nodes[near_idx].cost + nodes[near_idx].point.distance_to(&new_point);
         let idx = nodes.len();
-        nodes.push(TreeNode { point: new_point, parent: Some(near_idx), cost });
+        nodes.push(TreeNode {
+            point: new_point,
+            parent: Some(near_idx),
+            cost,
+        });
         Some(idx)
     }
 
@@ -553,8 +615,16 @@ impl RrtConnect {
 
     pub fn plan(&self, start: Point, goal: Point) -> Result<RrtResult, RrtError> {
         let mut rng = SimpleRng::new(self.config.seed);
-        let mut tree_a = vec![TreeNode { point: start.clone(), parent: None, cost: 0.0 }];
-        let mut tree_b = vec![TreeNode { point: goal.clone(), parent: None, cost: 0.0 }];
+        let mut tree_a = vec![TreeNode {
+            point: start.clone(),
+            parent: None,
+            cost: 0.0,
+        }];
+        let mut tree_b = vec![TreeNode {
+            point: goal.clone(),
+            parent: None,
+            cost: 0.0,
+        }];
         let mut swapped = false;
 
         for iter in 0..self.config.max_iterations {
@@ -591,10 +661,7 @@ impl RrtConnect {
                             path_a.reverse();
                         }
 
-                        let cost = path_a
-                            .windows(2)
-                            .map(|w| w[0].distance_to(&w[1]))
-                            .sum();
+                        let cost = path_a.windows(2).map(|w| w[0].distance_to(&w[1])).sum();
 
                         return Ok(RrtResult {
                             path: path_a,
@@ -686,7 +753,9 @@ mod tests {
     fn test_rrt_simple_path() {
         let cfg = config2d();
         let rrt = Rrt::new(cfg);
-        let result = rrt.plan(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0)).unwrap();
+        let result = rrt
+            .plan(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0))
+            .unwrap();
         assert!(result.path.len() >= 2);
         assert!(result.cost > 0.0);
     }
@@ -696,7 +765,9 @@ mod tests {
         let cfg = config2d().with_max_iterations(10000);
         let obs = vec![AabbObstacle::new(vec![4.0, 0.0], vec![5.0, 8.0])];
         let rrt = Rrt::new(cfg).with_obstacles(obs);
-        let result = rrt.plan(Point::new2(1.0, 5.0), Point::new2(9.0, 5.0)).unwrap();
+        let result = rrt
+            .plan(Point::new2(1.0, 5.0), Point::new2(9.0, 5.0))
+            .unwrap();
         assert!(result.path.len() >= 2);
         // Path must go around the wall
         assert!(result.cost > 8.0);
@@ -706,7 +777,9 @@ mod tests {
     fn test_rrt_start_equals_goal() {
         let cfg = config2d().with_goal_threshold(1.0);
         let rrt = Rrt::new(cfg);
-        let result = rrt.plan(Point::new2(5.0, 5.0), Point::new2(5.0, 5.0)).unwrap();
+        let result = rrt
+            .plan(Point::new2(5.0, 5.0), Point::new2(5.0, 5.0))
+            .unwrap();
         assert!(!result.path.is_empty());
     }
 
@@ -722,7 +795,9 @@ mod tests {
     fn test_rrt_star_simple() {
         let cfg = config2d().with_rewire_radius(2.0);
         let rrt = RrtStar::new(cfg);
-        let result = rrt.plan(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0)).unwrap();
+        let result = rrt
+            .plan(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0))
+            .unwrap();
         assert!(result.path.len() >= 2);
     }
 
@@ -731,10 +806,19 @@ mod tests {
         let cfg = config2d().with_max_iterations(8000).with_rewire_radius(2.0);
         let basic_rrt = Rrt::new(cfg.clone());
         let star_rrt = RrtStar::new(cfg);
-        let r1 = basic_rrt.plan(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0)).unwrap();
-        let r2 = star_rrt.plan(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0)).unwrap();
+        let r1 = basic_rrt
+            .plan(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0))
+            .unwrap();
+        let r2 = star_rrt
+            .plan(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0))
+            .unwrap();
         // RRT* should produce a path no worse than basic (with enough iterations)
-        assert!(r2.cost <= r1.cost * 1.5, "star cost {} vs basic {}", r2.cost, r1.cost);
+        assert!(
+            r2.cost <= r1.cost * 1.5,
+            "star cost {} vs basic {}",
+            r2.cost,
+            r1.cost
+        );
     }
 
     #[test]
@@ -749,7 +833,9 @@ mod tests {
     fn test_rrt_connect_simple() {
         let cfg = config2d();
         let rrt = RrtConnect::new(cfg);
-        let result = rrt.plan(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0)).unwrap();
+        let result = rrt
+            .plan(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0))
+            .unwrap();
         assert!(result.path.len() >= 2);
         // First point near start, last point near goal
         assert!(result.path[0].distance_to(&Point::new2(1.0, 1.0)) < 1.0);
@@ -760,7 +846,9 @@ mod tests {
         let cfg = config2d().with_max_iterations(10000);
         let obs = vec![AabbObstacle::new(vec![4.0, 0.0], vec![5.0, 8.0])];
         let rrt = RrtConnect::new(cfg).with_obstacles(obs);
-        let result = rrt.plan(Point::new2(1.0, 5.0), Point::new2(9.0, 5.0)).unwrap();
+        let result = rrt
+            .plan(Point::new2(1.0, 5.0), Point::new2(9.0, 5.0))
+            .unwrap();
         assert!(result.path.len() >= 2);
     }
 

@@ -121,12 +121,20 @@ fn ints_value(values: &[i64]) -> Pb {
         vec![values.len() as i64]
     };
     // TensorValue.ints = 2 { packed values = 1 }
-    immediate(MIL_INT32, &shape, Pb::new().msg(2, Pb::new().packed(1, values)))
+    immediate(
+        MIL_INT32,
+        &shape,
+        Pb::new().msg(2, Pb::new().packed(1, values)),
+    )
 }
 
 fn bool_value(v: bool) -> Pb {
     // TensorValue.bools = 3 { packed values = 1 }
-    immediate(MIL_BOOL, &[], Pb::new().msg(3, Pb::new().packed(1, &[i64::from(v)])))
+    immediate(
+        MIL_BOOL,
+        &[],
+        Pb::new().msg(3, Pb::new().packed(1, &[i64::from(v)])),
+    )
 }
 
 /// `const` op. `val` is the Value; `out_dtype`/`out_shape` describe it.
@@ -166,7 +174,12 @@ pub fn model_spec_bytes(shape: &ModelShape) -> Vec<u8> {
     let out_shape = shape.output_shape();
     let w_shape = shape.weight_shape();
 
-    let mut ops = vec![const_op(WEIGHT_NAME, MIL_FLOAT16, &w_shape, blob_value(&w_shape))];
+    let mut ops = vec![const_op(
+        WEIGHT_NAME,
+        MIL_FLOAT16,
+        &w_shape,
+        blob_value(&w_shape),
+    )];
     let similarity = match shape.layout {
         Layout::MatMul => {
             ops.push(const_op("transpose_x_0", MIL_BOOL, &[], bool_value(false)));
@@ -182,9 +195,24 @@ pub fn model_spec_bytes(shape: &ModelShape) -> Vec<u8> {
         }
         Layout::ChannelsFirstConv => {
             ops.push(const_op("strides_0", MIL_INT32, &[2], ints_value(&[1, 1])));
-            ops.push(const_op("pad_type_0", MIL_STRING, &[], string_value("valid")));
-            ops.push(const_op("pad_0", MIL_INT32, &[4], ints_value(&[0, 0, 0, 0])));
-            ops.push(const_op("dilations_0", MIL_INT32, &[2], ints_value(&[1, 1])));
+            ops.push(const_op(
+                "pad_type_0",
+                MIL_STRING,
+                &[],
+                string_value("valid"),
+            ));
+            ops.push(const_op(
+                "pad_0",
+                MIL_INT32,
+                &[4],
+                ints_value(&[0, 0, 0, 0]),
+            ));
+            ops.push(const_op(
+                "dilations_0",
+                MIL_INT32,
+                &[2],
+                ints_value(&[1, 1]),
+            ));
             ops.push(const_op("groups_0", MIL_INT32, &[], ints_value(&[1])));
             Pb::new()
                 .string(1, "conv")
@@ -212,7 +240,10 @@ pub fn model_spec_bytes(shape: &ModelShape) -> Vec<u8> {
     let program = Pb::new().varint(1, 1).map_entry(2, "main", function);
 
     let metadata = Pb::new()
-        .string(1, "JouleDB HDC similarity: scores = Q(+-1) . M(+-1)^T, Hamming = (d - score) / 2")
+        .string(
+            1,
+            "JouleDB HDC similarity: scores = Q(+-1) . M(+-1)^T, Hamming = (d - score) / 2",
+        )
         .string(3, "joule-ane-rt");
     let description = Pb::new()
         .msg(1, array_feature(INPUT_NAME, &in_shape))
@@ -338,14 +369,28 @@ mod tests {
 
     #[test]
     fn spec_starts_with_version_and_contains_program() {
-        let shape = ModelShape { layout: Layout::MatMul, n: 2, d: 8, k: 3 };
+        let shape = ModelShape {
+            layout: Layout::MatMul,
+            n: 2,
+            d: 8,
+            k: 3,
+        };
         let bytes = model_spec_bytes(&shape);
         assert_eq!(&bytes[0..2], &[0x08, 0x07]);
         let hay = String::from_utf8_lossy(&bytes);
-        for needle in ["matmul", "CoreML6", "codebook", "@model_path/weights/weight.bin", "scores"] {
+        for needle in [
+            "matmul",
+            "CoreML6",
+            "codebook",
+            "@model_path/weights/weight.bin",
+            "scores",
+        ] {
             assert!(hay.contains(needle), "missing {needle}");
         }
-        let conv = model_spec_bytes(&ModelShape { layout: Layout::ChannelsFirstConv, ..shape });
+        let conv = model_spec_bytes(&ModelShape {
+            layout: Layout::ChannelsFirstConv,
+            ..shape
+        });
         assert!(String::from_utf8_lossy(&conv).contains("conv"));
         assert!(String::from_utf8_lossy(&conv).contains("valid"));
     }

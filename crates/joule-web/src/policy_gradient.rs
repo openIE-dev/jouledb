@@ -41,7 +41,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -95,11 +97,17 @@ pub struct Trajectory {
 
 impl Trajectory {
     pub fn new() -> Self {
-        Self { transitions: Vec::new() }
+        Self {
+            transitions: Vec::new(),
+        }
     }
 
     pub fn push(&mut self, state: Vec<f64>, action: usize, reward: f64) {
-        self.transitions.push(Transition { state, action, reward });
+        self.transitions.push(Transition {
+            state,
+            action,
+            reward,
+        });
     }
 
     pub fn len(&self) -> usize {
@@ -167,11 +175,7 @@ pub enum Baseline {
 
 impl Baseline {
     /// Compute baseline-subtracted advantages from returns and states.
-    pub fn compute_advantages(
-        &mut self,
-        returns: &[f64],
-        states: &[Vec<f64>],
-    ) -> Vec<f64> {
+    pub fn compute_advantages(&mut self, returns: &[f64], states: &[Vec<f64>]) -> Vec<f64> {
         match self {
             Self::None => returns.to_vec(),
             Self::MeanReturn => {
@@ -274,7 +278,11 @@ impl SoftmaxPolicy {
     }
 
     /// Sample an action from the policy.
-    pub fn sample_action(&self, state: &[f64], rng: &mut Rng) -> Result<usize, PolicyGradientError> {
+    pub fn sample_action(
+        &self,
+        state: &[f64],
+        rng: &mut Rng,
+    ) -> Result<usize, PolicyGradientError> {
         let probs = self.action_probs(state)?;
         let mut r = rng.next_f64();
         for (i, &p) in probs.iter().enumerate() {
@@ -289,7 +297,9 @@ impl SoftmaxPolicy {
     /// Compute log-gradient of log π(a|s) w.r.t. weights.
     /// Returns gradient for weights and bias.
     fn log_grad(&self, state: &[f64], action: usize) -> (Vec<Vec<f64>>, Vec<f64>) {
-        let probs = self.action_probs(state).unwrap_or_else(|_| vec![1.0 / self.num_actions as f64; self.num_actions]);
+        let probs = self
+            .action_probs(state)
+            .unwrap_or_else(|_| vec![1.0 / self.num_actions as f64; self.num_actions]);
         let mut w_grad = vec![vec![0.0; self.num_features]; self.num_actions];
         let mut b_grad = vec![0.0; self.num_actions];
 
@@ -356,10 +366,14 @@ impl ReinforceAgent {
         gamma: f64,
     ) -> Result<Self, PolicyGradientError> {
         if lr <= 0.0 {
-            return Err(PolicyGradientError::InvalidParameter("lr must be > 0".into()));
+            return Err(PolicyGradientError::InvalidParameter(
+                "lr must be > 0".into(),
+            ));
         }
         if gamma < 0.0 || gamma > 1.0 {
-            return Err(PolicyGradientError::InvalidParameter("gamma must be in [0,1]".into()));
+            return Err(PolicyGradientError::InvalidParameter(
+                "gamma must be in [0,1]".into(),
+            ));
         }
         let policy = SoftmaxPolicy::new(num_features, num_actions)?;
         Ok(Self {
@@ -409,11 +423,8 @@ impl ReinforceAgent {
                 continue;
             }
             let returns = traj.compute_returns(self.gamma);
-            let states: Vec<Vec<f64>> = traj
-                .transitions()
-                .iter()
-                .map(|t| t.state.clone())
-                .collect();
+            let states: Vec<Vec<f64>> =
+                traj.transitions().iter().map(|t| t.state.clone()).collect();
 
             let advantages = self.baseline.compute_advantages(&returns, &states);
 
@@ -469,10 +480,7 @@ impl fmt::Display for ReinforceAgent {
         write!(
             f,
             "REINFORCE(lr={:.4}, γ={:.3}, baseline={}, episodes={})",
-            self.lr,
-            self.gamma,
-            self.baseline,
-            self.episodes_trained,
+            self.lr, self.gamma, self.baseline, self.episodes_trained,
         )
     }
 }
@@ -484,7 +492,9 @@ mod tests {
     use super::*;
 
     const EPS: f64 = 1e-6;
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     #[test]
     fn test_trajectory_new() {
@@ -586,7 +596,10 @@ mod tests {
 
     #[test]
     fn test_baseline_exponential_mean() {
-        let mut bl = Baseline::ExponentialMean { value: 0.0, decay: 0.9 };
+        let mut bl = Baseline::ExponentialMean {
+            value: 0.0,
+            decay: 0.9,
+        };
         let returns = vec![10.0, 10.0, 10.0];
         let states = vec![vec![1.0], vec![1.0], vec![1.0]];
         let _adv = bl.compute_advantages(&returns, &states);

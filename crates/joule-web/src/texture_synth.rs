@@ -18,8 +18,12 @@ pub struct Color {
 }
 
 impl Color {
-    pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Self { Self { r, g, b, a } }
-    pub const fn rgb(r: u8, g: u8, b: u8) -> Self { Self { r, g, b, a: 255 } }
+    pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Self {
+        Self { r, g, b, a }
+    }
+    pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
+        Self { r, g, b, a: 255 }
+    }
     pub const WHITE: Self = Self::rgb(255, 255, 255);
     pub const BLACK: Self = Self::rgb(0, 0, 0);
     pub const TRANSPARENT: Self = Self::rgba(0, 0, 0, 0);
@@ -35,11 +39,21 @@ impl Color {
     }
 
     pub fn invert(self) -> Self {
-        Self { r: 255 - self.r, g: 255 - self.g, b: 255 - self.b, a: self.a }
+        Self {
+            r: 255 - self.r,
+            g: 255 - self.g,
+            b: 255 - self.b,
+            a: self.a,
+        }
     }
 
     fn to_f64(self) -> (f64, f64, f64, f64) {
-        (self.r as f64 / 255.0, self.g as f64 / 255.0, self.b as f64 / 255.0, self.a as f64 / 255.0)
+        (
+            self.r as f64 / 255.0,
+            self.g as f64 / 255.0,
+            self.b as f64 / 255.0,
+            self.a as f64 / 255.0,
+        )
     }
 
     fn from_f64(r: f64, g: f64, b: f64, a: f64) -> Self {
@@ -63,7 +77,11 @@ pub struct Texture {
 
 impl Texture {
     pub fn new(width: usize, height: usize) -> Self {
-        Self { width, height, pixels: vec![Color::BLACK; width * height] }
+        Self {
+            width,
+            height,
+            pixels: vec![Color::BLACK; width * height],
+        }
     }
 
     pub fn get(&self, x: usize, y: usize) -> Color {
@@ -151,7 +169,8 @@ pub fn fbm(x: f64, y: f64, octaves: u32, seed: u64) -> f64 {
     let mut max_val = 0.0;
 
     for i in 0..octaves {
-        value += smooth_noise(x * frequency, y * frequency, seed.wrapping_add(i as u64)) * amplitude;
+        value +=
+            smooth_noise(x * frequency, y * frequency, seed.wrapping_add(i as u64)) * amplitude;
         max_val += amplitude;
         amplitude *= 0.5;
         frequency *= 2.0;
@@ -180,7 +199,13 @@ fn turbulence(x: f64, y: f64, octaves: u32, seed: u64) -> f64 {
 // ── Pattern generators ──
 
 /// Generate a checkerboard pattern.
-pub fn checkerboard(width: usize, height: usize, cell_size: usize, c1: Color, c2: Color) -> Texture {
+pub fn checkerboard(
+    width: usize,
+    height: usize,
+    cell_size: usize,
+    c1: Color,
+    c2: Color,
+) -> Texture {
     let mut tex = Texture::new(width, height);
     let cell_size = cell_size.max(1);
     tex.fill_from(|u, v| {
@@ -192,7 +217,15 @@ pub fn checkerboard(width: usize, height: usize, cell_size: usize, c1: Color, c2
 }
 
 /// Generate a brick pattern.
-pub fn bricks(width: usize, height: usize, brick_w: usize, brick_h: usize, mortar: f64, wall_color: Color, mortar_color: Color) -> Texture {
+pub fn bricks(
+    width: usize,
+    height: usize,
+    brick_w: usize,
+    brick_h: usize,
+    mortar: f64,
+    wall_color: Color,
+    mortar_color: Color,
+) -> Texture {
     let mut tex = Texture::new(width, height);
     let bw = brick_w.max(1) as f64;
     let bh = brick_h.max(1) as f64;
@@ -214,7 +247,13 @@ pub fn bricks(width: usize, height: usize, brick_w: usize, brick_h: usize, morta
 }
 
 /// Generate a linear gradient.
-pub fn gradient_linear(width: usize, height: usize, c1: Color, c2: Color, horizontal: bool) -> Texture {
+pub fn gradient_linear(
+    width: usize,
+    height: usize,
+    c1: Color,
+    c2: Color,
+    horizontal: bool,
+) -> Texture {
     let mut tex = Texture::new(width, height);
     tex.fill_from(|u, v| {
         let t = if horizontal { u } else { v };
@@ -236,18 +275,36 @@ pub fn gradient_radial(width: usize, height: usize, c_center: Color, c_edge: Col
 }
 
 /// Generate stripes.
-pub fn stripes(width: usize, height: usize, stripe_width: usize, c1: Color, c2: Color, horizontal: bool) -> Texture {
+pub fn stripes(
+    width: usize,
+    height: usize,
+    stripe_width: usize,
+    c1: Color,
+    c2: Color,
+    horizontal: bool,
+) -> Texture {
     let mut tex = Texture::new(width, height);
     let sw = stripe_width.max(1);
     tex.fill_from(|u, v| {
-        let pos = if horizontal { (v * height as f64) as usize } else { (u * width as f64) as usize };
+        let pos = if horizontal {
+            (v * height as f64) as usize
+        } else {
+            (u * width as f64) as usize
+        };
         if (pos / sw) % 2 == 0 { c1 } else { c2 }
     });
     tex
 }
 
 /// Generate a dot pattern.
-pub fn dots(width: usize, height: usize, spacing: usize, radius: f64, dot_color: Color, bg_color: Color) -> Texture {
+pub fn dots(
+    width: usize,
+    height: usize,
+    spacing: usize,
+    radius: f64,
+    dot_color: Color,
+    bg_color: Color,
+) -> Texture {
     let mut tex = Texture::new(width, height);
     let sp = spacing.max(1) as f64;
     tex.fill_from(|u, v| {
@@ -301,7 +358,14 @@ pub fn voronoi(width: usize, height: usize, num_points: usize, seed: u64) -> Tex
 // ── Noise-based patterns ──
 
 /// Wood grain texture.
-pub fn wood_grain(width: usize, height: usize, rings: f64, seed: u64, c1: Color, c2: Color) -> Texture {
+pub fn wood_grain(
+    width: usize,
+    height: usize,
+    rings: f64,
+    seed: u64,
+    c1: Color,
+    c2: Color,
+) -> Texture {
     let mut tex = Texture::new(width, height);
     tex.fill_from(|u, v| {
         let dx = u - 0.5;
@@ -326,7 +390,15 @@ pub fn marble(width: usize, height: usize, scale: f64, seed: u64, c1: Color, c2:
 }
 
 /// Cloud texture (fBm).
-pub fn clouds(width: usize, height: usize, scale: f64, octaves: u32, seed: u64, c1: Color, c2: Color) -> Texture {
+pub fn clouds(
+    width: usize,
+    height: usize,
+    scale: f64,
+    octaves: u32,
+    seed: u64,
+    c1: Color,
+    c2: Color,
+) -> Texture {
     let mut tex = Texture::new(width, height);
     tex.fill_from(|u, v| {
         let n = fbm(u * scale, v * scale, octaves, seed);
@@ -357,7 +429,11 @@ pub fn blend(a: &Texture, b: &Texture, mode: BlendMode) -> Texture {
             BlendMode::Multiply => (ar * br, ag * bg, ab * bb),
             BlendMode::Overlay => {
                 let ov = |base: f64, top: f64| -> f64 {
-                    if base < 0.5 { 2.0 * base * top } else { 1.0 - 2.0 * (1.0 - base) * (1.0 - top) }
+                    if base < 0.5 {
+                        2.0 * base * top
+                    } else {
+                        1.0 - 2.0 * (1.0 - base) * (1.0 - top)
+                    }
                 };
                 (ov(ar, br), ov(ag, bg), ov(ab, bb))
             }
@@ -490,7 +566,15 @@ mod tests {
 
     #[test]
     fn test_bricks() {
-        let tex = bricks(32, 32, 8, 4, 0.1, Color::rgb(180, 80, 60), Color::rgb(120, 120, 120));
+        let tex = bricks(
+            32,
+            32,
+            8,
+            4,
+            0.1,
+            Color::rgb(180, 80, 60),
+            Color::rgb(120, 120, 120),
+        );
         assert_eq!(tex.width, 32);
         // Check mortar exists (grey pixels)
         let has_mortar = tex.pixels.iter().any(|c| c.r == 120);
@@ -539,7 +623,14 @@ mod tests {
 
     #[test]
     fn test_wood_grain() {
-        let tex = wood_grain(32, 32, 10.0, 42, Color::rgb(139, 90, 43), Color::rgb(210, 160, 80));
+        let tex = wood_grain(
+            32,
+            32,
+            10.0,
+            42,
+            Color::rgb(139, 90, 43),
+            Color::rgb(210, 160, 80),
+        );
         assert_eq!(tex.width, 32);
         let unique: std::collections::HashSet<(u8, u8, u8)> =
             tex.pixels.iter().map(|c| (c.r, c.g, c.b)).collect();
@@ -609,7 +700,11 @@ mod tests {
     fn test_fbm_range() {
         for i in 0..100 {
             let val = fbm(i as f64 * 0.1, i as f64 * 0.07, 4, 42);
-            assert!(val >= -0.1 && val <= 1.1, "fbm out of expected range: {}", val);
+            assert!(
+                val >= -0.1 && val <= 1.1,
+                "fbm out of expected range: {}",
+                val
+            );
         }
     }
 

@@ -80,8 +80,9 @@ fn parse_header(buf: &[u8]) -> Option<PageHeader> {
         return None;
     }
     let page_type = PageType::from_byte(buf[5]);
-    let page_id =
-        u64::from_le_bytes([buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15]]);
+    let page_id = u64::from_le_bytes([
+        buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15],
+    ]);
     let data_len = u32::from_le_bytes([buf[16], buf[17], buf[18], buf[19]]);
     Some(PageHeader {
         page_type,
@@ -313,19 +314,19 @@ fn scan_data_file(path: &Path) -> std::io::Result<ScanResult> {
             .entry(header.page_type as u8)
             .or_insert(0) += 1;
 
-        let body_end = PAGE_HEADER_SIZE
-            + (header.data_len as usize).min(PAGE_SIZE - PAGE_HEADER_SIZE);
+        let body_end =
+            PAGE_HEADER_SIZE + (header.data_len as usize).min(PAGE_SIZE - PAGE_HEADER_SIZE);
         if header.page_type == PageType::BTreeInternal {
-            if let Some((first_key, children)) =
-                parse_internal(&buf[PAGE_HEADER_SIZE..body_end])
-            {
+            if let Some((first_key, children)) = parse_internal(&buf[PAGE_HEADER_SIZE..body_end]) {
                 result.internal_children.insert(header.page_id, children);
                 if !first_key.is_empty() {
                     result.internal_first_key.insert(header.page_id, first_key);
                 }
             }
         } else if header.page_type == PageType::BTreeLeaf {
-            if let Some((first_key, last_key)) = parse_leaf_first_last(&buf[PAGE_HEADER_SIZE..body_end]) {
+            if let Some((first_key, last_key)) =
+                parse_leaf_first_last(&buf[PAGE_HEADER_SIZE..body_end])
+            {
                 result.leaf_first_key.insert(header.page_id, first_key);
                 result.leaf_last_key.insert(header.page_id, last_key);
             }
@@ -397,10 +398,7 @@ struct RootStats {
 /// reflects them as inner pages of an already-claimed tree.
 ///
 /// Total work: each page visited at most once. O(total_pages).
-fn measure_all_shared(
-    scan: &ScanResult,
-    candidates: &[u64],
-) -> Vec<RootStats> {
+fn measure_all_shared(scan: &ScanResult, candidates: &[u64]) -> Vec<RootStats> {
     // Sort by direct fanout descending. Heuristic: the original tree's
     // root has the widest fanout (root pulls together the largest
     // number of subtree branches). Processing it first ensures its
@@ -408,12 +406,7 @@ fn measure_all_shared(
     // also be a "candidate" by virtue of orphaning.
     let mut sorted: Vec<u64> = candidates.to_vec();
     sorted.sort_by_key(|id| {
-        std::cmp::Reverse(
-            scan.internal_children
-                .get(id)
-                .map(|c| c.len())
-                .unwrap_or(0),
-        )
+        std::cmp::Reverse(scan.internal_children.get(id).map(|c| c.len()).unwrap_or(0))
     });
 
     let mut visited: HashSet<u64> = HashSet::with_capacity(scan.valid_pages as usize);
@@ -527,8 +520,7 @@ fn coverage_per_root(
         } else if let Some(first_key) = scan.leaf_first_key.get(&id) {
             leaf_total += 1;
             // Bucket by table prefix; non-row keys go to "<other>".
-            let bucket = extract_table_prefix(first_key)
-                .unwrap_or_else(|| b"<other>".to_vec());
+            let bucket = extract_table_prefix(first_key).unwrap_or_else(|| b"<other>".to_vec());
             *by_prefix.entry(bucket).or_insert(0) += 1;
         }
     }
@@ -698,7 +690,10 @@ fn write_synthetic_recovery(
     data_file.seek(SeekFrom::Start(offset))?;
     data_file.write_all(&page_bytes)?;
     data_file.sync_all()?;
-    eprintln!("wrote synthetic page bytes to data.wdb at offset {}", offset);
+    eprintln!(
+        "wrote synthetic page bytes to data.wdb at offset {}",
+        offset
+    );
 
     // Write meta.wdb pointing at the synthetic root.
     write_recovery_meta(db_dir, synthetic_root_id, synthetic_root_id + 1)?;
@@ -722,10 +717,7 @@ fn write_recovery_meta(
             .as_secs()
     );
     let backup_path = db_dir.join(&backup_name);
-    let tmp_path = db_dir.join(format!(
-        "meta.wdb.recover.tmp.{}",
-        std::process::id()
-    ));
+    let tmp_path = db_dir.join(format!("meta.wdb.recover.tmp.{}", std::process::id()));
 
     // Backup existing meta first.
     if meta_path.exists() {
@@ -790,11 +782,11 @@ fn build_consistent_leaf_order(scan: &ScanResult) -> Vec<(u64, Vec<u8>, Vec<u8>)
         .leaf_first_key
         .iter()
         .filter_map(|(id, fk)| {
-            scan.leaf_last_key.get(id).map(|lk| (*id, fk.clone(), lk.clone()))
+            scan.leaf_last_key
+                .get(id)
+                .map(|lk| (*id, fk.clone(), lk.clone()))
         })
-        .filter(|(_, fk, _)| {
-            fk.starts_with(b"__catalog__::") || fk.starts_with(b"row::")
-        })
+        .filter(|(_, fk, _)| fk.starts_with(b"__catalog__::") || fk.starts_with(b"row::"))
         // Reject leaves whose [first..last] range crosses table or
         // catalog/row boundaries. Such leaves are CoW fragments where
         // the on-disk page was partially overwritten with a different
@@ -815,11 +807,7 @@ fn build_consistent_leaf_order(scan: &ScanResult) -> Vec<(u64, Vec<u8>, Vec<u8>)
         })
         .collect();
 
-    leaves.sort_by(|a, b| {
-        a.1.cmp(&b.1)
-            .then(b.2.cmp(&a.2))
-            .then(b.0.cmp(&a.0))
-    });
+    leaves.sort_by(|a, b| a.1.cmp(&b.1).then(b.2.cmp(&a.2)).then(b.0.cmp(&a.0)));
 
     let mut out: Vec<(u64, Vec<u8>, Vec<u8>)> = Vec::with_capacity(leaves.len());
     let mut prev_last: Option<Vec<u8>> = None;
@@ -879,10 +867,7 @@ fn try_encode_internal_body(children: &[(Vec<u8>, u64)]) -> Option<Vec<u8>> {
 /// We pack greedily: walk forward consuming children until adding the
 /// next would overflow the page body budget, emit an internal page,
 /// then continue. This adapts to varying key sizes.
-fn build_btree_bulk(
-    leaves: Vec<(Vec<u8>, u64)>,
-    next_page_id: u64,
-) -> (u64, Vec<(u64, Vec<u8>)>) {
+fn build_btree_bulk(leaves: Vec<(Vec<u8>, u64)>, next_page_id: u64) -> (u64, Vec<(u64, Vec<u8>)>) {
     let mut next_id = next_page_id;
     let mut new_pages: Vec<(u64, Vec<u8>)> = Vec::new();
     let mut current = leaves;
@@ -926,10 +911,7 @@ fn encode_internal_page(page_id: u64, body: &[u8]) -> Vec<u8> {
 }
 
 /// Write the rebuilt B-tree to data.wdb and update meta.wdb.
-fn write_rebuild(
-    db_dir: &Path,
-    scan: &ScanResult,
-) -> std::io::Result<()> {
+fn write_rebuild(db_dir: &Path, scan: &ScanResult) -> std::io::Result<()> {
     eprintln!("==> bulk B-tree rebuild from leaves");
     eprintln!("    scanned leaves total: {}", scan.leaf_first_key.len());
 
@@ -958,13 +940,14 @@ fn write_rebuild(
         std::process::exit(1);
     }
 
-    let leaf_pairs: Vec<(Vec<u8>, u64)> = included
-        .into_iter()
-        .map(|(id, fk, _lk)| (fk, id))
-        .collect();
+    let leaf_pairs: Vec<(Vec<u8>, u64)> =
+        included.into_iter().map(|(id, fk, _lk)| (fk, id)).collect();
 
     let next_page_id = scan.max_page_id + 1;
-    eprintln!("    allocating new internal pages starting at {}", next_page_id);
+    eprintln!(
+        "    allocating new internal pages starting at {}",
+        next_page_id
+    );
     let (root_id, new_pages) = build_btree_bulk(leaf_pairs, next_page_id);
     eprintln!(
         "    rebuild produced {} new internal pages; new root = {}",
@@ -1031,7 +1014,10 @@ fn print_report(scan: &ScanResult, root_stats: &[RootStats]) {
     println!();
     println!("file pages:            {:>12}", scan.total_pages);
     println!("valid pages:           {:>12}", scan.valid_pages);
-    println!("invalid (bad magic):   {:>12}", scan.total_pages - scan.valid_pages - scan.page_id_mismatches);
+    println!(
+        "invalid (bad magic):   {:>12}",
+        scan.total_pages - scan.valid_pages - scan.page_id_mismatches
+    );
     println!("offset/id mismatches:  {:>12}", scan.page_id_mismatches);
     println!("max page id seen:      {:>12}", scan.max_page_id);
     println!();
@@ -1054,7 +1040,10 @@ fn print_report(scan: &ScanResult, root_stats: &[RootStats]) {
         println!("  {:<16} {:>12}", name, count);
     }
     println!();
-    println!("internal nodes parsed: {:>12}", scan.internal_children.len());
+    println!(
+        "internal nodes parsed: {:>12}",
+        scan.internal_children.len()
+    );
     println!();
     println!("=== root candidates (top 20 by reachable subtree size) ===");
     println!(
@@ -1096,8 +1085,14 @@ fn print_top_candidates_with_range(scan: &ScanResult, root_stats: &[RootStats], 
     for s in root_stats.iter().take(n) {
         let first = find_subtree_first_key(scan, s.page_id);
         let last = find_subtree_last_key(scan, s.page_id);
-        let f = first.as_ref().map(|k| printable(k, 64)).unwrap_or_else(|| "<none>".into());
-        let l = last.as_ref().map(|k| printable(k, 64)).unwrap_or_else(|| "<none>".into());
+        let f = first
+            .as_ref()
+            .map(|k| printable(k, 64))
+            .unwrap_or_else(|| "<none>".into());
+        let l = last
+            .as_ref()
+            .map(|k| printable(k, 64))
+            .unwrap_or_else(|| "<none>".into());
         println!(
             "{:>12}  {:>14}  {:>14}  [{}  ..  {}]",
             s.page_id, s.reachable_internal, s.reachable_leaf, f, l
@@ -1124,19 +1119,14 @@ fn print_global_leaf_prefix_histogram(scan: &ScanResult) {
     println!(" the same logical row across distinct leaf pages, so this is an upper bound.)");
 }
 
-fn print_coverage_for_top_candidates(
-    scan: &ScanResult,
-    root_stats: &[RootStats],
-    n: usize,
-) {
+fn print_coverage_for_top_candidates(scan: &ScanResult, root_stats: &[RootStats], n: usize) {
     println!();
     println!(
         "=== leaf coverage by table-prefix for top {} candidates ===",
         n
     );
     for s in root_stats.iter().take(n) {
-        let (by_prefix, leaf_total) =
-            coverage_per_root(scan, s.page_id, scan.valid_pages as usize);
+        let (by_prefix, leaf_total) = coverage_per_root(scan, s.page_id, scan.valid_pages as usize);
         if leaf_total == 0 {
             continue;
         }
@@ -1246,7 +1236,9 @@ fn main() -> std::io::Result<()> {
     }
 
     let db_dir = db_dir.unwrap_or_else(|| {
-        eprintln!("usage: joule-db-recover <db_dir> [--write-recovery-meta | --write-synthetic-recovery]");
+        eprintln!(
+            "usage: joule-db-recover <db_dir> [--write-recovery-meta | --write-synthetic-recovery]"
+        );
         std::process::exit(2);
     });
     let data_path = db_dir.join("data.wdb");

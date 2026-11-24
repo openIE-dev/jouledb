@@ -193,9 +193,11 @@ impl AlpCodec {
             .ok_or_else(|| CodecError::InvalidFormat {
                 reason: "ALP count/width overflow".into(),
             })?;
-        let min_required = data_end.checked_add(4).ok_or_else(|| CodecError::InvalidFormat {
-            reason: "ALP header size overflow".into(),
-        })?;
+        let min_required = data_end
+            .checked_add(4)
+            .ok_or_else(|| CodecError::InvalidFormat {
+                reason: "ALP header size overflow".into(),
+            })?;
         if bytes.len() < min_required {
             return Err(CodecError::UnexpectedEof {
                 expected: min_required,
@@ -429,7 +431,9 @@ impl SymbolDictCodec {
             let mut pos = 0usize;
             while pos < b.len() {
                 if pos + 8 <= b.len()
-                    && let Some(code) = symbols.iter().position(|sym| sym.as_slice() == &b[pos..pos + 8])
+                    && let Some(code) = symbols
+                        .iter()
+                        .position(|sym| sym.as_slice() == &b[pos..pos + 8])
                 {
                     data.push(code as u8);
                     pos += 8;
@@ -534,7 +538,12 @@ mod tests {
     #[test]
     fn test_fsst_symbol_dict_random_access_topic_compression() {
         let topics: Vec<String> = (0..500)
-            .map(|i| format!("jouledb://robot/humanoid_01/arm_left/joint_{:02}/torque", i % 7))
+            .map(|i| {
+                format!(
+                    "jouledb://robot/humanoid_01/arm_left/joint_{:02}/torque",
+                    i % 7
+                )
+            })
             .collect();
         let refs: Vec<&str> = topics.iter().map(String::as_str).collect();
         let raw_len: usize = refs.iter().map(|s| s.len()).sum();

@@ -80,7 +80,11 @@ impl Genotype {
     /// Parse a GT field like "0/1" or "0|1".
     pub fn from_gt(gt: &str) -> Result<Self, VcfError> {
         if gt == "." || gt == "./." || gt == ".|." {
-            return Ok(Self { alleles: vec![None, None], phased: false, fields: HashMap::new() });
+            return Ok(Self {
+                alleles: vec![None, None],
+                phased: false,
+                fields: HashMap::new(),
+            });
         }
         let phased = gt.contains('|');
         let sep = if phased { '|' } else { '/' };
@@ -90,11 +94,17 @@ impl Genotype {
                 if a == "." {
                     Ok(None)
                 } else {
-                    a.parse::<usize>().map(Some).map_err(|_| VcfError::InvalidGenotype(gt.to_string()))
+                    a.parse::<usize>()
+                        .map(Some)
+                        .map_err(|_| VcfError::InvalidGenotype(gt.to_string()))
                 }
             })
             .collect();
-        Ok(Self { alleles: alleles?, phased, fields: HashMap::new() })
+        Ok(Self {
+            alleles: alleles?,
+            phased,
+            fields: HashMap::new(),
+        })
     }
 
     pub fn with_field(mut self, key: &str, value: &str) -> Self {
@@ -121,18 +131,22 @@ impl Genotype {
     }
 
     /// Ploidy.
-    pub fn ploidy(&self) -> usize { self.alleles.len() }
+    pub fn ploidy(&self) -> usize {
+        self.alleles.len()
+    }
 }
 
 impl fmt::Display for Genotype {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let sep = if self.phased { "|" } else { "/" };
-        let parts: Vec<String> = self.alleles.iter().map(|a| {
-            match a {
+        let parts: Vec<String> = self
+            .alleles
+            .iter()
+            .map(|a| match a {
                 Some(v) => v.to_string(),
                 None => ".".to_string(),
-            }
-        }).collect();
+            })
+            .collect();
         write!(f, "{}", parts.join(sep))
     }
 }
@@ -140,8 +154,7 @@ impl fmt::Display for Genotype {
 // ── VCF header ──────────────────────────────────────────────────
 
 /// VCF file header metadata.
-#[derive(Debug, Clone, Default)]
-#[derive(PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct VcfHeader {
     pub file_format: String,
     pub info_fields: HashMap<String, VcfFieldDef>,
@@ -162,17 +175,21 @@ pub struct VcfFieldDef {
 
 impl fmt::Display for VcfHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "VcfHeader(format={}, samples={}, info={}, fmt={})",
-               self.file_format, self.samples.len(),
-               self.info_fields.len(), self.format_fields.len())
+        write!(
+            f,
+            "VcfHeader(format={}, samples={}, info={}, fmt={})",
+            self.file_format,
+            self.samples.len(),
+            self.info_fields.len(),
+            self.format_fields.len()
+        )
     }
 }
 
 // ── VCF record ──────────────────────────────────────────────────
 
 /// A single VCF variant record.
-#[derive(Debug, Clone)]
-#[derive(PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VcfRecord {
     pub chrom: String,
     pub pos: u64,
@@ -225,7 +242,11 @@ impl VcfRecord {
                 }
             }
         }
-        if total == 0 { 0.0 } else { alt_count as f64 / total as f64 }
+        if total == 0 {
+            0.0
+        } else {
+            alt_count as f64 / total as f64
+        }
     }
 
     /// True if the variant passes all filters.
@@ -241,9 +262,16 @@ impl VcfRecord {
 
 impl fmt::Display for VcfRecord {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{} {}->{} type={} AF={:.3}",
-               self.chrom, self.pos, self.reference,
-               self.alt.join(","), self.variant_type(), self.allele_frequency())
+        write!(
+            f,
+            "{}:{} {}->{} type={} AF={:.3}",
+            self.chrom,
+            self.pos,
+            self.reference,
+            self.alt.join(","),
+            self.variant_type(),
+            self.allele_frequency()
+        )
     }
 }
 
@@ -257,9 +285,20 @@ pub struct VcfParser {
 }
 
 impl VcfParser {
-    pub fn new() -> Self { Self { pass_only: false, min_qual: None } }
-    pub fn with_pass_only(mut self, p: bool) -> Self { self.pass_only = p; self }
-    pub fn with_min_qual(mut self, q: f64) -> Self { self.min_qual = Some(q); self }
+    pub fn new() -> Self {
+        Self {
+            pass_only: false,
+            min_qual: None,
+        }
+    }
+    pub fn with_pass_only(mut self, p: bool) -> Self {
+        self.pass_only = p;
+        self
+    }
+    pub fn with_min_qual(mut self, q: f64) -> Self {
+        self.min_qual = Some(q);
+        self
+    }
 
     /// Parse a complete VCF string.
     pub fn parse(&self, input: &str) -> Result<(VcfHeader, Vec<VcfRecord>), VcfError> {
@@ -274,7 +313,9 @@ impl VcfParser {
         for line in input.lines() {
             line_num += 1;
             let trimmed = line.trim();
-            if trimmed.is_empty() { continue; }
+            if trimmed.is_empty() {
+                continue;
+            }
 
             if trimmed.starts_with("##") {
                 parse_meta_line(trimmed, &mut header);
@@ -294,14 +335,26 @@ impl VcfParser {
 
             let fields: Vec<&str> = trimmed.split('\t').collect();
             if fields.len() < 8 {
-                return Err(VcfError::InsufficientFields { line: line_num, found: fields.len() });
+                return Err(VcfError::InsufficientFields {
+                    line: line_num,
+                    found: fields.len(),
+                });
             }
-            let pos: u64 = fields[1]
-                .parse()
-                .map_err(|_| VcfError::InvalidPos { line: line_num, value: fields[1].to_string() })?;
-            let qual = if fields[5] == "." { None } else {
-                Some(fields[5].parse::<f64>()
-                    .map_err(|_| VcfError::InvalidQual { line: line_num, value: fields[5].to_string() })?)
+            let pos: u64 = fields[1].parse().map_err(|_| VcfError::InvalidPos {
+                line: line_num,
+                value: fields[1].to_string(),
+            })?;
+            let qual = if fields[5] == "." {
+                None
+            } else {
+                Some(
+                    fields[5]
+                        .parse::<f64>()
+                        .map_err(|_| VcfError::InvalidQual {
+                            line: line_num,
+                            value: fields[5].to_string(),
+                        })?,
+                )
             };
             let filter: Vec<String> = if fields[6] == "." {
                 Vec::new()
@@ -335,9 +388,13 @@ impl VcfParser {
                 genotypes,
             };
 
-            if self.pass_only && !rec.is_pass() { continue; }
+            if self.pass_only && !rec.is_pass() {
+                continue;
+            }
             if let Some(mq) = self.min_qual {
-                if rec.qual.unwrap_or(0.0) < mq { continue; }
+                if rec.qual.unwrap_or(0.0) < mq {
+                    continue;
+                }
             }
             records.push(rec);
         }
@@ -347,7 +404,11 @@ impl VcfParser {
 
 impl fmt::Display for VcfParser {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "VcfParser(pass_only={}, min_qual={:?})", self.pass_only, self.min_qual)
+        write!(
+            f,
+            "VcfParser(pass_only={}, min_qual={:?})",
+            self.pass_only, self.min_qual
+        )
     }
 }
 
@@ -417,7 +478,9 @@ fn parse_meta_fields(s: &str) -> HashMap<String, String> {
 
 fn parse_info(field: &str) -> HashMap<String, String> {
     let mut map = HashMap::new();
-    if field == "." { return map; }
+    if field == "." {
+        return map;
+    }
     for item in field.split(';') {
         if let Some(pos) = item.find('=') {
             map.insert(item[..pos].to_string(), item[pos + 1..].to_string());
@@ -456,7 +519,8 @@ mod tests {
          ##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total Depth\">\n\
          ##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n\
          #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1\n\
-         chr1\t100\trs1\tA\tG\t30\tPASS\tDP=50\tGT\t0/1\n".to_string()
+         chr1\t100\trs1\tA\tG\t30\tPASS\tDP=50\tGT\t0/1\n"
+            .to_string()
     }
 
     #[test]

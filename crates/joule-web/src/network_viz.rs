@@ -39,11 +39,7 @@ pub struct NetworkNode {
 }
 
 impl NetworkNode {
-    pub fn new(
-        id: impl Into<String>,
-        label: impl Into<String>,
-        device_type: DeviceType,
-    ) -> Self {
+    pub fn new(id: impl Into<String>, label: impl Into<String>, device_type: DeviceType) -> Self {
         Self {
             id: id.into(),
             label: label.into(),
@@ -171,9 +167,11 @@ impl Network {
     }
 
     pub fn update_traffic(&mut self, state: TrafficState) {
-        if let Some(existing) = self.traffic.iter_mut().find(|t| {
-            t.link_source == state.link_source && t.link_target == state.link_target
-        }) {
+        if let Some(existing) = self
+            .traffic
+            .iter_mut()
+            .find(|t| t.link_source == state.link_source && t.link_target == state.link_target)
+        {
             *existing = state;
         } else {
             self.traffic.push(state);
@@ -396,12 +394,18 @@ impl Network {
 
     /// Count active (up) links.
     pub fn active_link_count(&self) -> usize {
-        self.links.iter().filter(|l| l.status == LinkStatus::Up).count()
+        self.links
+            .iter()
+            .filter(|l| l.status == LinkStatus::Up)
+            .count()
     }
 
     /// Count down links.
     pub fn down_link_count(&self) -> usize {
-        self.links.iter().filter(|l| l.status == LinkStatus::Down).count()
+        self.links
+            .iter()
+            .filter(|l| l.status == LinkStatus::Down)
+            .count()
     }
 }
 
@@ -419,10 +423,18 @@ mod tests {
 
     fn sample_network() -> Network {
         let mut net = Network::new();
-        net.add_node(NetworkNode::new("r1", "Router 1", DeviceType::Router).with_subnet("10.0.0.0/24"));
-        net.add_node(NetworkNode::new("s1", "Switch 1", DeviceType::Switch).with_subnet("10.0.0.0/24"));
-        net.add_node(NetworkNode::new("srv1", "Server 1", DeviceType::Server).with_subnet("10.0.1.0/24"));
-        net.add_node(NetworkNode::new("srv2", "Server 2", DeviceType::Server).with_subnet("10.0.1.0/24"));
+        net.add_node(
+            NetworkNode::new("r1", "Router 1", DeviceType::Router).with_subnet("10.0.0.0/24"),
+        );
+        net.add_node(
+            NetworkNode::new("s1", "Switch 1", DeviceType::Switch).with_subnet("10.0.0.0/24"),
+        );
+        net.add_node(
+            NetworkNode::new("srv1", "Server 1", DeviceType::Server).with_subnet("10.0.1.0/24"),
+        );
+        net.add_node(
+            NetworkNode::new("srv2", "Server 2", DeviceType::Server).with_subnet("10.0.1.0/24"),
+        );
         net.add_node(NetworkNode::new("fw", "Firewall", DeviceType::Firewall));
         net.add_link(NetworkLink::new("r1", "s1", 1000.0, 0.5));
         net.add_link(NetworkLink::new("s1", "srv1", 1000.0, 0.2));
@@ -514,7 +526,11 @@ mod tests {
         net.apply_layout(TopologyLayout::Ring, 800.0, 600.0);
         // All nodes should have positions set.
         for node in net.nodes() {
-            assert!(node.x > 0.0 || node.y > 0.0, "node {} not positioned", node.id);
+            assert!(
+                node.x > 0.0 || node.y > 0.0,
+                "node {} not positioned",
+                node.id
+            );
         }
     }
 

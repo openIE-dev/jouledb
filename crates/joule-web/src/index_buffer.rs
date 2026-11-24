@@ -83,22 +83,50 @@ pub struct IndexBuffer {
 
 impl IndexBuffer {
     pub fn new(topology: Topology, index_type: IndexType) -> Self {
-        Self { indices: Vec::new(), topology, index_type, primitive_restart: false }
+        Self {
+            indices: Vec::new(),
+            topology,
+            index_type,
+            primitive_restart: false,
+        }
     }
 
     pub fn from_indices(indices: Vec<u32>, topology: Topology) -> Self {
         let max_val = indices.iter().copied().max().unwrap_or(0);
-        let index_type = if max_val <= 0xFFFF { IndexType::U16 } else { IndexType::U32 };
-        Self { indices, topology, index_type, primitive_restart: false }
+        let index_type = if max_val <= 0xFFFF {
+            IndexType::U16
+        } else {
+            IndexType::U32
+        };
+        Self {
+            indices,
+            topology,
+            index_type,
+            primitive_restart: false,
+        }
     }
 
-    pub fn set_primitive_restart(&mut self, enabled: bool) { self.primitive_restart = enabled; }
-    pub fn primitive_restart_enabled(&self) -> bool { self.primitive_restart }
-    pub fn topology(&self) -> Topology { self.topology }
-    pub fn index_type(&self) -> IndexType { self.index_type }
-    pub fn indices(&self) -> &[u32] { &self.indices }
-    pub fn len(&self) -> usize { self.indices.len() }
-    pub fn is_empty(&self) -> bool { self.indices.is_empty() }
+    pub fn set_primitive_restart(&mut self, enabled: bool) {
+        self.primitive_restart = enabled;
+    }
+    pub fn primitive_restart_enabled(&self) -> bool {
+        self.primitive_restart
+    }
+    pub fn topology(&self) -> Topology {
+        self.topology
+    }
+    pub fn index_type(&self) -> IndexType {
+        self.index_type
+    }
+    pub fn indices(&self) -> &[u32] {
+        &self.indices
+    }
+    pub fn len(&self) -> usize {
+        self.indices.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.indices.is_empty()
+    }
 
     pub fn push(&mut self, index: u32) {
         self.indices.push(index);
@@ -127,7 +155,11 @@ impl IndexBuffer {
             return self.clone();
         }
         let mut out = Vec::new();
-        let restart = if self.primitive_restart { Some(self.index_type.restart_index()) } else { None };
+        let restart = if self.primitive_restart {
+            Some(self.index_type.restart_index())
+        } else {
+            None
+        };
         let mut strip_start = 0;
         let mut i = 0;
         while i < self.indices.len() {
@@ -183,12 +215,8 @@ impl IndexBuffer {
                 }
                 tris
             }
-            Topology::TriangleStrip => {
-                self.strip_to_list().expand_triangles()
-            }
-            Topology::TriangleFan => {
-                self.fan_to_list().expand_triangles()
-            }
+            Topology::TriangleStrip => self.strip_to_list().expand_triangles(),
+            Topology::TriangleFan => self.fan_to_list().expand_triangles(),
             _ => Vec::new(),
         }
     }
@@ -239,10 +267,18 @@ impl IndexBuffer {
             Topology::LineList => self.indices.len() / 2,
             Topology::PointList => self.indices.len(),
             Topology::TriangleStrip | Topology::TriangleFan => {
-                if self.indices.len() >= 3 { self.indices.len() - 2 } else { 0 }
+                if self.indices.len() >= 3 {
+                    self.indices.len() - 2
+                } else {
+                    0
+                }
             }
             Topology::LineStrip => {
-                if self.indices.len() >= 2 { self.indices.len() - 1 } else { 0 }
+                if self.indices.len() >= 2 {
+                    self.indices.len() - 1
+                } else {
+                    0
+                }
             }
         };
         let degenerate_triangle_count = self.find_degenerate_triangles().len();
@@ -280,7 +316,9 @@ impl IndexBuffer {
 
         // Score function for valence
         fn valence_score(active_tri_count: usize) -> f64 {
-            if active_tri_count == 0 { return -1.0; }
+            if active_tri_count == 0 {
+                return -1.0;
+            }
             // Bonus for low valence
             let bonus = 2.0 / (active_tri_count as f64).sqrt();
             bonus
@@ -290,7 +328,10 @@ impl IndexBuffer {
             match cache_pos {
                 None => 0.0,
                 Some(pos) => {
-                    if pos < 3 { 0.75 } // recently used
+                    if pos < 3 {
+                        0.75
+                    }
+                    // recently used
                     else {
                         let normalized = 1.0 - ((pos - 3) as f64) / ((cache_size - 3) as f64);
                         normalized.powf(1.5)
@@ -299,9 +340,7 @@ impl IndexBuffer {
             }
         }
 
-        let mut active_count: Vec<usize> = (0..vertex_count)
-            .map(|v| vert_tris[v].len())
-            .collect();
+        let mut active_count: Vec<usize> = (0..vertex_count).map(|v| vert_tris[v].len()).collect();
         let mut emitted = vec![false; tri_count];
         // LRU cache
         let mut lru_cache: Vec<u32> = Vec::with_capacity(cache_size);
@@ -324,7 +363,9 @@ impl IndexBuffer {
                 let vi = cv as usize;
                 if vi < vertex_count {
                     for &t in &vert_tris[vi] {
-                        if !emitted[t] { candidates.push(t); }
+                        if !emitted[t] {
+                            candidates.push(t);
+                        }
                     }
                 }
             }
@@ -334,7 +375,10 @@ impl IndexBuffer {
             if candidates.is_empty() {
                 // Fall back to any unemitted triangle
                 for t in 0..tri_count {
-                    if !emitted[t] { candidates.push(t); break; }
+                    if !emitted[t] {
+                        candidates.push(t);
+                        break;
+                    }
                 }
             }
 
@@ -380,7 +424,9 @@ impl IndexBuffer {
     pub fn convert_type(&mut self, new_type: IndexType) {
         if new_type == IndexType::U16 {
             for idx in &mut self.indices {
-                if *idx > 0xFFFF { *idx = 0xFFFF; }
+                if *idx > 0xFFFF {
+                    *idx = 0xFFFF;
+                }
             }
         }
         self.index_type = new_type;
@@ -495,9 +541,7 @@ mod tests {
 
     #[test]
     fn test_remove_degenerate() {
-        let mut buf = IndexBuffer::from_indices(
-            vec![0, 0, 1, 2, 3, 4], Topology::TriangleList,
-        );
+        let mut buf = IndexBuffer::from_indices(vec![0, 0, 1, 2, 3, 4], Topology::TriangleList);
         buf.remove_degenerate_triangles();
         assert_eq!(buf.len(), 3);
         assert_eq!(buf.indices()[0], 2);
@@ -541,7 +585,10 @@ mod tests {
         buf.push(100000);
         let bytes = buf.to_bytes();
         assert_eq!(bytes.len(), 4);
-        assert_eq!(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]), 100000);
+        assert_eq!(
+            u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
+            100000
+        );
     }
 
     #[test]
@@ -553,9 +600,8 @@ mod tests {
 
     #[test]
     fn test_optimize_preserves_triangles() {
-        let mut buf = IndexBuffer::from_indices(
-            vec![0, 1, 2, 2, 3, 0, 3, 4, 5], Topology::TriangleList,
-        );
+        let mut buf =
+            IndexBuffer::from_indices(vec![0, 1, 2, 2, 3, 0, 3, 4, 5], Topology::TriangleList);
         let original_count = buf.stats().primitive_count;
         buf.optimize_vertex_cache(6);
         assert_eq!(buf.stats().primitive_count, original_count);
@@ -607,10 +653,14 @@ mod tests {
         let mut buf = IndexBuffer::new(Topology::TriangleStrip, IndexType::U16);
         buf.set_primitive_restart(true);
         // First strip: 0,1,2,3
-        for i in 0..4 { buf.push(i); }
+        for i in 0..4 {
+            buf.push(i);
+        }
         buf.push_restart();
         // Second strip: 4,5,6,7
-        for i in 4..8 { buf.push(i); }
+        for i in 4..8 {
+            buf.push(i);
+        }
         let list = buf.strip_to_list();
         assert_eq!(list.stats().primitive_count, 4); // 2+2
     }

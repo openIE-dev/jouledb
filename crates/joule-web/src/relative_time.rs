@@ -77,26 +77,64 @@ fn plural(n: i64) -> &'static str {
 }
 
 impl RelativeTimeLocale for EnglishLocale {
-    fn just_now(&self) -> &str { "just now" }
-    fn seconds_ago(&self, n: i64) -> String { format!("{n} second{} ago", plural(n)) }
-    fn minutes_ago(&self, n: i64) -> String { format!("{n} minute{} ago", plural(n)) }
-    fn hours_ago(&self, n: i64) -> String { format!("{n} hour{} ago", plural(n)) }
-    fn yesterday(&self) -> String { "yesterday".to_string() }
-    fn days_ago(&self, n: i64) -> String { format!("{n} day{} ago", plural(n)) }
-    fn weeks_ago(&self, n: i64) -> String { format!("{n} week{} ago", plural(n)) }
-    fn last_month(&self) -> String { "last month".to_string() }
-    fn months_ago(&self, n: i64) -> String { format!("{n} month{} ago", plural(n)) }
-    fn last_year(&self) -> String { "last year".to_string() }
-    fn years_ago(&self, n: i64) -> String { format!("{n} year{} ago", plural(n)) }
+    fn just_now(&self) -> &str {
+        "just now"
+    }
+    fn seconds_ago(&self, n: i64) -> String {
+        format!("{n} second{} ago", plural(n))
+    }
+    fn minutes_ago(&self, n: i64) -> String {
+        format!("{n} minute{} ago", plural(n))
+    }
+    fn hours_ago(&self, n: i64) -> String {
+        format!("{n} hour{} ago", plural(n))
+    }
+    fn yesterday(&self) -> String {
+        "yesterday".to_string()
+    }
+    fn days_ago(&self, n: i64) -> String {
+        format!("{n} day{} ago", plural(n))
+    }
+    fn weeks_ago(&self, n: i64) -> String {
+        format!("{n} week{} ago", plural(n))
+    }
+    fn last_month(&self) -> String {
+        "last month".to_string()
+    }
+    fn months_ago(&self, n: i64) -> String {
+        format!("{n} month{} ago", plural(n))
+    }
+    fn last_year(&self) -> String {
+        "last year".to_string()
+    }
+    fn years_ago(&self, n: i64) -> String {
+        format!("{n} year{} ago", plural(n))
+    }
 
-    fn in_seconds(&self, n: i64) -> String { format!("in {n} second{}", plural(n)) }
-    fn in_minutes(&self, n: i64) -> String { format!("in {n} minute{}", plural(n)) }
-    fn in_hours(&self, n: i64) -> String { format!("in {n} hour{}", plural(n)) }
-    fn tomorrow(&self) -> String { "tomorrow".to_string() }
-    fn in_days(&self, n: i64) -> String { format!("in {n} day{}", plural(n)) }
-    fn in_weeks(&self, n: i64) -> String { format!("in {n} week{}", plural(n)) }
-    fn in_months(&self, n: i64) -> String { format!("in {n} month{}", plural(n)) }
-    fn in_years(&self, n: i64) -> String { format!("in {n} year{}", plural(n)) }
+    fn in_seconds(&self, n: i64) -> String {
+        format!("in {n} second{}", plural(n))
+    }
+    fn in_minutes(&self, n: i64) -> String {
+        format!("in {n} minute{}", plural(n))
+    }
+    fn in_hours(&self, n: i64) -> String {
+        format!("in {n} hour{}", plural(n))
+    }
+    fn tomorrow(&self) -> String {
+        "tomorrow".to_string()
+    }
+    fn in_days(&self, n: i64) -> String {
+        format!("in {n} day{}", plural(n))
+    }
+    fn in_weeks(&self, n: i64) -> String {
+        format!("in {n} week{}", plural(n))
+    }
+    fn in_months(&self, n: i64) -> String {
+        format!("in {n} month{}", plural(n))
+    }
+    fn in_years(&self, n: i64) -> String {
+        format!("in {n} year{}", plural(n))
+    }
 }
 
 // ── Formatter ──────────────────────────────────────────────────
@@ -265,7 +303,10 @@ mod tests {
     use chrono::NaiveDate;
 
     fn dt(y: i32, m: u32, d: u32, h: u32, mi: u32, s: u32) -> NaiveDateTime {
-        NaiveDate::from_ymd_opt(y, m, d).unwrap().and_hms_opt(h, mi, s).unwrap()
+        NaiveDate::from_ymd_opt(y, m, d)
+            .unwrap()
+            .and_hms_opt(h, mi, s)
+            .unwrap()
     }
 
     fn now() -> NaiveDateTime {
@@ -382,10 +423,19 @@ mod tests {
     fn update_interval_suggestion() {
         let fmt = RelativeTimeFormatter::new();
         // Recent: update every second.
-        assert_eq!(fmt.suggested_update_interval(dt(2026, 3, 8, 11, 59, 50), now()), 1);
+        assert_eq!(
+            fmt.suggested_update_interval(dt(2026, 3, 8, 11, 59, 50), now()),
+            1
+        );
         // Minutes ago: every 30s.
-        assert_eq!(fmt.suggested_update_interval(dt(2026, 3, 8, 11, 50, 0), now()), 30);
+        assert_eq!(
+            fmt.suggested_update_interval(dt(2026, 3, 8, 11, 50, 0), now()),
+            30
+        );
         // Hours ago: every 5 min.
-        assert_eq!(fmt.suggested_update_interval(dt(2026, 3, 8, 8, 0, 0), now()), 300);
+        assert_eq!(
+            fmt.suggested_update_interval(dt(2026, 3, 8, 8, 0, 0), now()),
+            300
+        );
     }
 }

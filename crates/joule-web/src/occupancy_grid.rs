@@ -63,12 +63,26 @@ impl Default for SensorModel {
 }
 
 impl SensorModel {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
-    pub fn with_log_odds_occ(mut self, v: f64) -> Self { self.log_odds_occ = v; self }
-    pub fn with_log_odds_free(mut self, v: f64) -> Self { self.log_odds_free = v; self }
-    pub fn with_max_range(mut self, v: f64) -> Self { self.max_range = v; self }
-    pub fn with_angular_resolution(mut self, v: f64) -> Self { self.angular_resolution = v; self }
+    pub fn with_log_odds_occ(mut self, v: f64) -> Self {
+        self.log_odds_occ = v;
+        self
+    }
+    pub fn with_log_odds_free(mut self, v: f64) -> Self {
+        self.log_odds_free = v;
+        self
+    }
+    pub fn with_max_range(mut self, v: f64) -> Self {
+        self.max_range = v;
+        self
+    }
+    pub fn with_angular_resolution(mut self, v: f64) -> Self {
+        self.angular_resolution = v;
+        self
+    }
 }
 
 // ── Grid configuration ───────────────────────────────────────────
@@ -102,7 +116,9 @@ impl Default for GridConfig {
 }
 
 impl GridConfig {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn with_size(mut self, w: usize, h: usize) -> Self {
         self.width = w;
@@ -147,7 +163,11 @@ pub struct OccupancyGrid {
 impl OccupancyGrid {
     pub fn new(config: GridConfig) -> Self {
         let n = config.width * config.height;
-        Self { cells: vec![0.0; n], update_count: 0, config }
+        Self {
+            cells: vec![0.0; n],
+            update_count: 0,
+            config,
+        }
     }
 
     /// Cell index from grid coords.
@@ -160,7 +180,8 @@ impl OccupancyGrid {
     pub fn world_to_grid(&self, wx: f64, wy: f64) -> Option<(usize, usize)> {
         let gx = ((wx - self.config.origin_x) / self.config.resolution).floor() as isize;
         let gy = ((wy - self.config.origin_y) / self.config.resolution).floor() as isize;
-        if gx < 0 || gy < 0 || gx >= self.config.width as isize || gy >= self.config.height as isize {
+        if gx < 0 || gy < 0 || gx >= self.config.width as isize || gy >= self.config.height as isize
+        {
             None
         } else {
             Some((gx as usize, gy as usize))
@@ -199,14 +220,19 @@ impl OccupancyGrid {
     /// Set log-odds directly (clamped).
     pub fn set_log_odds(&mut self, col: usize, row: usize, lo: f64) {
         let idx = self.index(col, row);
-        self.cells[idx] = lo.clamp(self.config.log_odds_clamp_min, self.config.log_odds_clamp_max);
+        self.cells[idx] = lo.clamp(
+            self.config.log_odds_clamp_min,
+            self.config.log_odds_clamp_max,
+        );
     }
 
     /// Update a single cell with an additive log-odds increment.
     pub fn update_cell(&mut self, col: usize, row: usize, delta_lo: f64) {
         let idx = self.index(col, row);
-        let new_lo = (self.cells[idx] + delta_lo)
-            .clamp(self.config.log_odds_clamp_min, self.config.log_odds_clamp_max);
+        let new_lo = (self.cells[idx] + delta_lo).clamp(
+            self.config.log_odds_clamp_min,
+            self.config.log_odds_clamp_max,
+        );
         self.cells[idx] = new_lo;
     }
 
@@ -225,7 +251,9 @@ impl OccupancyGrid {
 
         loop {
             points.push((cx, cy));
-            if cx == x1 && cy == y1 { break; }
+            if cx == x1 && cy == y1 {
+                break;
+            }
             let e2 = 2 * err;
             if e2 >= dy {
                 err += dy;
@@ -263,7 +291,8 @@ impl OccupancyGrid {
             let ray = Self::bresenham(sx as isize, sy as isize, ex as isize, ey as isize);
             let n = ray.len();
             for (i, &(cx, cy)) in ray.iter().enumerate() {
-                if cx < 0 || cy < 0
+                if cx < 0
+                    || cy < 0
                     || cx >= self.config.width as isize
                     || cy >= self.config.height as isize
                 {
@@ -284,7 +313,13 @@ impl OccupancyGrid {
     }
 
     /// Integrate a full scan (vector of `(angle, range)` pairs).
-    pub fn integrate_scan(&mut self, robot_x: f64, robot_y: f64, robot_theta: f64, scan: &[(f64, f64)]) {
+    pub fn integrate_scan(
+        &mut self,
+        robot_x: f64,
+        robot_y: f64,
+        robot_theta: f64,
+        scan: &[(f64, f64)],
+    ) {
         for &(angle, range) in scan {
             self.integrate_beam(robot_x, robot_y, robot_theta, angle, range);
         }
@@ -342,7 +377,9 @@ impl OccupancyGrid {
 
     /// Reset all cells to unknown (log-odds = 0).
     pub fn reset(&mut self) {
-        for v in &mut self.cells { *v = 0.0; }
+        for v in &mut self.cells {
+            *v = 0.0;
+        }
         self.update_count = 0;
     }
 }
@@ -353,8 +390,13 @@ impl fmt::Display for OccupancyGrid {
         write!(
             f,
             "OccupancyGrid({}x{}, res={:.2}m, free={}, occ={}, unk={}, updates={})",
-            self.config.width, self.config.height, self.config.resolution,
-            free, occ, unk, self.update_count
+            self.config.width,
+            self.config.height,
+            self.config.resolution,
+            free,
+            occ,
+            unk,
+            self.update_count
         )
     }
 }
@@ -463,7 +505,9 @@ mod tests {
     fn test_bresenham_vertical() {
         let pts = OccupancyGrid::bresenham(2, 0, 2, 4);
         assert_eq!(pts.len(), 5);
-        for &(x, _) in &pts { assert_eq!(x, 2); }
+        for &(x, _) in &pts {
+            assert_eq!(x, 2);
+        }
     }
 
     #[test]
@@ -480,9 +524,7 @@ mod tests {
     #[test]
     fn test_integrate_scan() {
         let mut g = small_grid();
-        let scan: Vec<(f64, f64)> = (0..10)
-            .map(|i| (i as f64 * 0.1 - 0.45, 3.0))
-            .collect();
+        let scan: Vec<(f64, f64)> = (0..10).map(|i| (i as f64 * 0.1 - 0.45, 3.0)).collect();
         g.integrate_scan(0.0, 0.0, 0.0, &scan);
         assert_eq!(g.update_count, 10);
     }
@@ -531,7 +573,9 @@ mod tests {
 
     #[test]
     fn test_sensor_model_builder() {
-        let sm = SensorModel::new().with_max_range(50.0).with_log_odds_occ(1.0);
+        let sm = SensorModel::new()
+            .with_max_range(50.0)
+            .with_log_odds_occ(1.0);
         assert!((sm.max_range - 50.0).abs() < 1e-10);
         assert!((sm.log_odds_occ - 1.0).abs() < 1e-10);
     }

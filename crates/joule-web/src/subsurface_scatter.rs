@@ -17,7 +17,11 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
@@ -29,16 +33,30 @@ impl Vec3 {
 
     pub fn normalize(self) -> Self {
         let len = self.dot(self).sqrt();
-        if len < 1e-10 { return Self::ZERO; }
-        Self { x: self.x / len, y: self.y / len, z: self.z / len }
+        if len < 1e-10 {
+            return Self::ZERO;
+        }
+        Self {
+            x: self.x / len,
+            y: self.y / len,
+            z: self.z / len,
+        }
     }
 
     pub fn scale(self, s: f32) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn add(self, other: Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y, z: self.z + other.z }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
     }
 }
 
@@ -51,23 +69,43 @@ pub struct Color3 {
 }
 
 impl Color3 {
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0 };
-    pub const BLACK: Self = Self { r: 0.0, g: 0.0, b: 0.0 };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+    };
+    pub const BLACK: Self = Self {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+    };
 
     pub fn new(r: f32, g: f32, b: f32) -> Self {
         Self { r, g, b }
     }
 
     pub fn scale(self, s: f32) -> Self {
-        Self { r: self.r * s, g: self.g * s, b: self.b * s }
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
     }
 
     pub fn add(self, other: Self) -> Self {
-        Self { r: self.r + other.r, g: self.g + other.g, b: self.b + other.b }
+        Self {
+            r: self.r + other.r,
+            g: self.g + other.g,
+            b: self.b + other.b,
+        }
     }
 
     pub fn mul(self, other: Self) -> Self {
-        Self { r: self.r * other.r, g: self.g * other.g, b: self.b * other.b }
+        Self {
+            r: self.r * other.r,
+            g: self.g * other.g,
+            b: self.b * other.b,
+        }
     }
 
     pub fn luminance(&self) -> f32 {
@@ -106,7 +144,10 @@ pub struct GaussianTerm {
 
 impl GaussianTerm {
     pub fn new(weight: Color3, variance: f32) -> Self {
-        Self { weight, variance: variance.max(1e-6) }
+        Self {
+            weight,
+            variance: variance.max(1e-6),
+        }
     }
 
     /// Evaluate this Gaussian at distance `r`.
@@ -128,7 +169,10 @@ pub struct DiffusionProfile {
 
 impl DiffusionProfile {
     pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), terms: Vec::new() }
+        Self {
+            name: name.into(),
+            terms: Vec::new(),
+        }
     }
 
     /// Add a Gaussian term (up to 3).
@@ -162,14 +206,18 @@ impl DiffusionProfile {
 
     /// Simple single-term marble/wax profile.
     pub fn marble() -> Self {
-        Self::new("marble")
-            .add_term(GaussianTerm::new(Color3::new(0.85, 0.85, 0.80), 0.02))
+        Self::new("marble").add_term(GaussianTerm::new(Color3::new(0.85, 0.85, 0.80), 0.02))
     }
 }
 
 impl fmt::Display for DiffusionProfile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "DiffusionProfile({}, {} terms)", self.name, self.terms.len())
+        write!(
+            f,
+            "DiffusionProfile({}, {} terms)",
+            self.name,
+            self.terms.len()
+        )
     }
 }
 
@@ -188,7 +236,11 @@ pub struct KernelSample {
 ///
 /// `num_samples` is the total number of taps (should be odd for center tap).
 /// `max_radius` is the maximum blur radius in texels.
-pub fn generate_blur_kernel(profile: &DiffusionProfile, num_samples: usize, max_radius: f32) -> Vec<KernelSample> {
+pub fn generate_blur_kernel(
+    profile: &DiffusionProfile,
+    num_samples: usize,
+    max_radius: f32,
+) -> Vec<KernelSample> {
     let num_samples = num_samples.max(1);
     let half = num_samples / 2;
     let mut samples = Vec::with_capacity(num_samples);
@@ -198,7 +250,11 @@ pub fn generate_blur_kernel(profile: &DiffusionProfile, num_samples: usize, max_
 
     for i in 0..num_samples {
         let idx = i as f32 - half as f32;
-        let offset = if half > 0 { idx / half as f32 * max_radius } else { 0.0 };
+        let offset = if half > 0 {
+            idx / half as f32 * max_radius
+        } else {
+            0.0
+        };
         let w = profile.evaluate(offset.abs());
         total_weight = total_weight.add(w);
         samples.push(KernelSample { offset, weight: w });
@@ -207,9 +263,21 @@ pub fn generate_blur_kernel(profile: &DiffusionProfile, num_samples: usize, max_
     // Normalise so weights sum to (1,1,1).
     for s in &mut samples {
         s.weight = Color3::new(
-            if total_weight.r > 1e-8 { s.weight.r / total_weight.r } else { 0.0 },
-            if total_weight.g > 1e-8 { s.weight.g / total_weight.g } else { 0.0 },
-            if total_weight.b > 1e-8 { s.weight.b / total_weight.b } else { 0.0 },
+            if total_weight.r > 1e-8 {
+                s.weight.r / total_weight.r
+            } else {
+                0.0
+            },
+            if total_weight.g > 1e-8 {
+                s.weight.g / total_weight.g
+            } else {
+                0.0
+            },
+            if total_weight.b > 1e-8 {
+                s.weight.b / total_weight.b
+            } else {
+                0.0
+            },
         );
     }
 
@@ -305,7 +373,9 @@ pub fn transmittance(
     );
 
     // Combine: back-light transmittance scaled by scatter color.
-    scatter_color.mul(falloff).scale(ndl_back + ndl_wrap.max(0.0) * 0.2)
+    scatter_color
+        .mul(falloff)
+        .scale(ndl_back + ndl_wrap.max(0.0) * 0.2)
 }
 
 // ── SSS Material parameters ─────────────────────────────────────
@@ -353,13 +423,23 @@ impl SssMaterial {
             1.0 / self.scatter_distance.max(0.01),
             1.0 / self.scatter_distance.max(0.01),
         );
-        transmittance(thickness, self.scatter_color, attenuation, self.thickness_scale, light_dot_normal)
+        transmittance(
+            thickness,
+            self.scatter_color,
+            attenuation,
+            self.thickness_scale,
+            light_dot_normal,
+        )
     }
 }
 
 impl fmt::Display for SssMaterial {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SssMaterial({}, dist={:.3})", self.name, self.scatter_distance)
+        write!(
+            f,
+            "SssMaterial({}, dist={:.3})",
+            self.name, self.scatter_distance
+        )
     }
 }
 
@@ -391,8 +471,7 @@ mod tests {
 
     #[test]
     fn test_diffusion_profile_single() {
-        let p = DiffusionProfile::new("test")
-            .add_term(GaussianTerm::new(Color3::WHITE, 1.0));
+        let p = DiffusionProfile::new("test").add_term(GaussianTerm::new(Color3::WHITE, 1.0));
         let v = p.evaluate(0.0);
         assert!(approx(v.r, 1.0));
     }

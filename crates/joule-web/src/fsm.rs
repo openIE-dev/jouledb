@@ -64,10 +64,7 @@ impl Transition {
     }
 
     /// Attach a guard predicate.
-    pub fn with_guard(
-        mut self,
-        f: impl Fn(&HashMap<String, Value>) -> bool + 'static,
-    ) -> Self {
+    pub fn with_guard(mut self, f: impl Fn(&HashMap<String, Value>) -> bool + 'static) -> Self {
         self.guard = Some(Box::new(f));
         self
     }
@@ -121,10 +118,7 @@ impl StateMachine {
     pub fn send(&mut self, event: &str) -> Option<Vec<u64>> {
         let transitions = self.transitions.get(&self.current)?;
         let idx = transitions.iter().position(|t| {
-            t.event == event
-                && t.guard
-                    .as_ref()
-                    .map_or(true, |g| g(&self.context))
+            t.event == event && t.guard.as_ref().map_or(true, |g| g(&self.context))
         })?;
 
         let target = transitions[idx].target.clone();
@@ -159,12 +153,8 @@ impl StateMachine {
     /// transition exists whose guard passes).
     pub fn can_send(&self, event: &str) -> bool {
         self.transitions.get(&self.current).is_some_and(|ts| {
-            ts.iter().any(|t| {
-                t.event == event
-                    && t.guard
-                        .as_ref()
-                        .map_or(true, |g| g(&self.context))
-            })
+            ts.iter()
+                .any(|t| t.event == event && t.guard.as_ref().map_or(true, |g| g(&self.context)))
         })
     }
 
@@ -174,11 +164,7 @@ impl StateMachine {
             .get(&self.current)
             .map(|ts| {
                 ts.iter()
-                    .filter(|t| {
-                        t.guard
-                            .as_ref()
-                            .map_or(true, |g| g(&self.context))
-                    })
+                    .filter(|t| t.guard.as_ref().map_or(true, |g| g(&self.context)))
                     .map(|t| t.event.as_str())
                     .collect()
             })
@@ -239,8 +225,11 @@ mod tests {
         m.add_state(State::new("unlocked"));
         m.add_transition(
             "locked",
-            Transition::new("UNLOCK", "unlocked")
-                .with_guard(|ctx| ctx.get("has_key").and_then(|v| v.as_bool()).unwrap_or(false)),
+            Transition::new("UNLOCK", "unlocked").with_guard(|ctx| {
+                ctx.get("has_key")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false)
+            }),
         );
         // No key in context -> guard blocks
         assert_eq!(m.send("UNLOCK"), None);
@@ -254,8 +243,11 @@ mod tests {
         m.add_state(State::new("unlocked"));
         m.add_transition(
             "locked",
-            Transition::new("UNLOCK", "unlocked")
-                .with_guard(|ctx| ctx.get("has_key").and_then(|v| v.as_bool()).unwrap_or(false)),
+            Transition::new("UNLOCK", "unlocked").with_guard(|ctx| {
+                ctx.get("has_key")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false)
+            }),
         );
         m.set_context("has_key", json!(true));
         assert!(m.send("UNLOCK").is_some());
@@ -280,10 +272,7 @@ mod tests {
         let mut m = StateMachine::new("a");
         m.add_state(State::new("a").with_on_exit(1));
         m.add_state(State::new("b").with_on_enter(2));
-        m.add_transition(
-            "a",
-            Transition::new("GO", "b").with_actions(vec![99]),
-        );
+        m.add_transition("a", Transition::new("GO", "b").with_actions(vec![99]));
         let actions = m.send("GO").unwrap();
         // on_exit(1), transition action(99), on_enter(2)
         assert_eq!(actions, vec![1, 99, 2]);
@@ -303,10 +292,7 @@ mod tests {
         let mut m = traffic_light();
         m.send("TIMER");
         m.send("TIMER");
-        assert_eq!(
-            m.history(),
-            &["green", "yellow", "red"]
-        );
+        assert_eq!(m.history(), &["green", "yellow", "red"]);
     }
 
     #[test]

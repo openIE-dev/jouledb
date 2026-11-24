@@ -47,7 +47,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -196,7 +198,9 @@ impl Galaxy {
         }
 
         let mut rng = Rng::new(config.seed);
-        let mut stars = Vec::with_capacity(config.star_count + config.globular_clusters * config.cluster_star_count);
+        let mut stars = Vec::with_capacity(
+            config.star_count + config.globular_clusters * config.cluster_star_count,
+        );
 
         let bulge_count = (config.star_count as f64 * config.bulge_fraction) as usize;
         let disk_count = config.star_count - bulge_count;
@@ -212,7 +216,16 @@ impl Galaxy {
             let z = r * phi.sin() * 0.6; // slightly oblate
             let mass = rng.power_law(config.min_mass, config.max_mass, -2.35);
             let (cr, cg, cb) = mass_to_color(mass);
-            stars.push(GalaxyStar { x, y, z, mass, color_r: cr, color_g: cg, color_b: cb, in_cluster: false });
+            stars.push(GalaxyStar {
+                x,
+                y,
+                z,
+                mass,
+                color_r: cr,
+                color_g: cg,
+                color_b: cb,
+                in_cluster: false,
+            });
         }
 
         // Generate disk stars.
@@ -233,7 +246,16 @@ impl Galaxy {
                     let z = rng.gaussian(0.0, config.radius * config.disk_thickness);
                     let mass = rng.power_law(config.min_mass, config.max_mass, -2.35);
                     let (cr, cg, cb) = mass_to_color(mass);
-                    stars.push(GalaxyStar { x, y, z, mass, color_r: cr, color_g: cg, color_b: cb, in_cluster: false });
+                    stars.push(GalaxyStar {
+                        x,
+                        y,
+                        z,
+                        mass,
+                        color_r: cr,
+                        color_g: cg,
+                        color_b: cb,
+                        in_cluster: false,
+                    });
                 }
             }
             GalaxyType::Elliptical => {
@@ -246,7 +268,16 @@ impl Galaxy {
                     let z = r * phi.sin() * 0.5;
                     let mass = rng.power_law(config.min_mass, config.max_mass, -2.35);
                     let (cr, cg, cb) = mass_to_color(mass);
-                    stars.push(GalaxyStar { x, y, z, mass, color_r: cr, color_g: cg, color_b: cb, in_cluster: false });
+                    stars.push(GalaxyStar {
+                        x,
+                        y,
+                        z,
+                        mass,
+                        color_r: cr,
+                        color_g: cg,
+                        color_b: cb,
+                        in_cluster: false,
+                    });
                 }
             }
             GalaxyType::Irregular => {
@@ -259,7 +290,16 @@ impl Galaxy {
                     let z = rng.gaussian(0.0, config.radius * 0.05);
                     let mass = rng.power_law(config.min_mass, config.max_mass, -2.35);
                     let (cr, cg, cb) = mass_to_color(mass);
-                    stars.push(GalaxyStar { x, y, z, mass, color_r: cr, color_g: cg, color_b: cb, in_cluster: false });
+                    stars.push(GalaxyStar {
+                        x,
+                        y,
+                        z,
+                        mass,
+                        color_r: cr,
+                        color_g: cg,
+                        color_b: cb,
+                        in_cluster: false,
+                    });
                 }
             }
         }
@@ -280,8 +320,13 @@ impl Galaxy {
                 let mass = rng.power_law(config.min_mass, 2.0, -2.35); // clusters are old, low mass
                 let (cr2, cg2, cb2) = mass_to_color(mass);
                 stars.push(GalaxyStar {
-                    x: cx + dx, y: cy + dy, z: cz + dz,
-                    mass, color_r: cr2, color_g: cg2, color_b: cb2,
+                    x: cx + dx,
+                    y: cy + dy,
+                    z: cz + dz,
+                    mass,
+                    color_r: cr2,
+                    color_g: cg2,
+                    color_b: cb2,
                     in_cluster: true,
                 });
             }
@@ -367,7 +412,9 @@ fn mass_to_color(mass: f64) -> (f64, f64, f64) {
     // Approximate temperature from mass: T ~ 5778 * M^0.57
     let temp = 5778.0 * mass.powf(0.57);
     let t = temp / 100.0;
-    let r = if t <= 66.0 { 1.0 } else {
+    let r = if t <= 66.0 {
+        1.0
+    } else {
         (329.698727446 * (t - 60.0).powf(-0.1332047592) / 255.0).clamp(0.0, 1.0)
     };
     let g = if t <= 66.0 {
@@ -375,7 +422,11 @@ fn mass_to_color(mass: f64) -> (f64, f64, f64) {
     } else {
         (288.1221695283 * (t - 60.0).powf(-0.0755148492) / 255.0).clamp(0.0, 1.0)
     };
-    let b = if t >= 66.0 { 1.0 } else if t <= 19.0 { 0.0 } else {
+    let b = if t >= 66.0 {
+        1.0
+    } else if t <= 19.0 {
+        0.0
+    } else {
         ((138.5177312231 * (t - 10.0).ln() - 305.0447927307) / 255.0).clamp(0.0, 1.0)
     };
     (r, g, b)
@@ -424,19 +475,28 @@ mod tests {
 
     #[test]
     fn zero_star_count_error() {
-        let config = GalaxyConfig { star_count: 0, ..Default::default() };
+        let config = GalaxyConfig {
+            star_count: 0,
+            ..Default::default()
+        };
         assert!(Galaxy::generate(config).is_err());
     }
 
     #[test]
     fn zero_seed_error() {
-        let config = GalaxyConfig { seed: 0, ..Default::default() };
+        let config = GalaxyConfig {
+            seed: 0,
+            ..Default::default()
+        };
         assert!(Galaxy::generate(config).is_err());
     }
 
     #[test]
     fn negative_radius_error() {
-        let config = GalaxyConfig { radius: -1.0, ..Default::default() };
+        let config = GalaxyConfig {
+            radius: -1.0,
+            ..Default::default()
+        };
         assert!(Galaxy::generate(config).is_err());
     }
 
@@ -452,7 +512,11 @@ mod tests {
 
     #[test]
     fn deterministic_generation() {
-        let config = GalaxyConfig { star_count: 100, seed: 42, ..Default::default() };
+        let config = GalaxyConfig {
+            star_count: 100,
+            seed: 42,
+            ..Default::default()
+        };
         let g1 = Galaxy::generate(config.clone()).unwrap();
         let g2 = Galaxy::generate(config).unwrap();
         assert_eq!(g1.star_count(), g2.star_count());
@@ -479,14 +543,20 @@ mod tests {
 
     #[test]
     fn no_globular_clusters() {
-        let config = GalaxyConfig { globular_clusters: 0, ..Default::default() };
+        let config = GalaxyConfig {
+            globular_clusters: 0,
+            ..Default::default()
+        };
         let galaxy = Galaxy::generate(config).unwrap();
         assert_eq!(galaxy.cluster_star_count(), 0);
     }
 
     #[test]
     fn average_color_valid() {
-        let config = GalaxyConfig { star_count: 500, ..Default::default() };
+        let config = GalaxyConfig {
+            star_count: 500,
+            ..Default::default()
+        };
         let galaxy = Galaxy::generate(config).unwrap();
         let (r, g, b) = galaxy.average_color();
         assert!(r >= 0.0 && r <= 1.0);
@@ -510,7 +580,10 @@ mod tests {
 
     #[test]
     fn radial_density_profile() {
-        let config = GalaxyConfig { star_count: 1000, ..Default::default() };
+        let config = GalaxyConfig {
+            star_count: 1000,
+            ..Default::default()
+        };
         let galaxy = Galaxy::generate(config).unwrap();
         let density = galaxy.radial_density(10);
         assert_eq!(density.len(), 10);
@@ -520,7 +593,10 @@ mod tests {
 
     #[test]
     fn dust_lane_detection() {
-        let config = GalaxyConfig { star_count: 500, ..Default::default() };
+        let config = GalaxyConfig {
+            star_count: 500,
+            ..Default::default()
+        };
         let galaxy = Galaxy::generate(config).unwrap();
         let mut dust_count = 0;
         for i in 0..galaxy.star_count() {
@@ -534,7 +610,11 @@ mod tests {
 
     #[test]
     fn mass_distribution_salpeter() {
-        let config = GalaxyConfig { star_count: 5000, seed: 77, ..Default::default() };
+        let config = GalaxyConfig {
+            star_count: 5000,
+            seed: 77,
+            ..Default::default()
+        };
         let galaxy = Galaxy::generate(config).unwrap();
         let low_mass: usize = galaxy.stars.iter().filter(|s| s.mass < 1.0).count();
         let high_mass: usize = galaxy.stars.iter().filter(|s| s.mass > 10.0).count();
@@ -544,7 +624,10 @@ mod tests {
 
     #[test]
     fn star_positions_finite() {
-        let config = GalaxyConfig { star_count: 500, ..Default::default() };
+        let config = GalaxyConfig {
+            star_count: 500,
+            ..Default::default()
+        };
         let galaxy = Galaxy::generate(config).unwrap();
         for s in &galaxy.stars {
             assert!(s.x.is_finite());
@@ -575,10 +658,14 @@ mod tests {
             ..Default::default()
         };
         let galaxy = Galaxy::generate(config).unwrap();
-        let near_center = galaxy.stars.iter().filter(|s| {
-            let r = (s.x * s.x + s.y * s.y + s.z * s.z).sqrt();
-            r < galaxy.config.radius * 0.5
-        }).count();
+        let near_center = galaxy
+            .stars
+            .iter()
+            .filter(|s| {
+                let r = (s.x * s.x + s.y * s.y + s.z * s.z).sqrt();
+                r < galaxy.config.radius * 0.5
+            })
+            .count();
         // Most bulge stars should be near center.
         assert!(near_center > galaxy.stars.len() / 2);
     }

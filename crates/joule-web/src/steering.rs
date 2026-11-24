@@ -17,32 +17,75 @@ pub struct Vec2 {
 impl Vec2 {
     pub const ZERO: Vec2 = Vec2 { x: 0.0, y: 0.0 };
 
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
 
-    pub fn length(&self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
+    pub fn length(&self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
 
-    pub fn length_sq(&self) -> f64 { self.x * self.x + self.y * self.y }
+    pub fn length_sq(&self) -> f64 {
+        self.x * self.x + self.y * self.y
+    }
 
     pub fn normalized(&self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::ZERO } else { Self { x: self.x / len, y: self.y / len } }
+        if len < 1e-12 {
+            Self::ZERO
+        } else {
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+            }
+        }
     }
 
     pub fn truncate(&self, max_len: f64) -> Self {
         let len = self.length();
-        if len <= max_len { *self } else { let s = max_len / len; Self { x: self.x * s, y: self.y * s } }
+        if len <= max_len {
+            *self
+        } else {
+            let s = max_len / len;
+            Self {
+                x: self.x * s,
+                y: self.y * s,
+            }
+        }
     }
 
-    pub fn dot(&self, other: Vec2) -> f64 { self.x * other.x + self.y * other.y }
+    pub fn dot(&self, other: Vec2) -> f64 {
+        self.x * other.x + self.y * other.y
+    }
 
     pub fn dist(&self, other: Vec2) -> f64 {
         ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
     }
 
-    pub fn add(&self, other: Vec2) -> Self { Self { x: self.x + other.x, y: self.y + other.y } }
-    pub fn sub(&self, other: Vec2) -> Self { Self { x: self.x - other.x, y: self.y - other.y } }
-    pub fn scale(&self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s } }
-    pub fn perp(&self) -> Self { Self { x: -self.y, y: self.x } }
+    pub fn add(&self, other: Vec2) -> Self {
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+    pub fn sub(&self, other: Vec2) -> Self {
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
+    }
+    pub fn scale(&self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
+    pub fn perp(&self) -> Self {
+        Self {
+            x: -self.y,
+            y: self.x,
+        }
+    }
 }
 
 // ── Agent ───────────────────────────────────────────────────────
@@ -80,7 +123,9 @@ impl Agent {
         }
     }
 
-    pub fn speed(&self) -> f64 { self.velocity.length() }
+    pub fn speed(&self) -> f64 {
+        self.velocity.length()
+    }
 }
 
 // ── Obstacle ────────────────────────────────────────────────────
@@ -96,13 +141,20 @@ pub struct Obstacle {
 
 /// Seek: steer toward a target.
 pub fn seek(agent: &Agent, target: Vec2) -> Vec2 {
-    let desired = target.sub(agent.position).normalized().scale(agent.max_speed);
+    let desired = target
+        .sub(agent.position)
+        .normalized()
+        .scale(agent.max_speed);
     desired.sub(agent.velocity).truncate(agent.max_force)
 }
 
 /// Flee: steer away from a target.
 pub fn flee(agent: &Agent, target: Vec2) -> Vec2 {
-    let desired = agent.position.sub(target).normalized().scale(agent.max_speed);
+    let desired = agent
+        .position
+        .sub(target)
+        .normalized()
+        .scale(agent.max_speed);
     desired.sub(agent.velocity).truncate(agent.max_force)
 }
 
@@ -142,8 +194,16 @@ pub fn evade(agent: &Agent, target_pos: Vec2, target_vel: Vec2) -> Vec2 {
 pub fn wander(agent: &Agent, circle_dist: f64, circle_radius: f64, angle: f64) -> Vec2 {
     let circle_center = agent.heading.scale(circle_dist);
     let displacement = Vec2::new(angle.cos(), angle.sin()).scale(circle_radius);
-    let desired = agent.position.add(circle_center).add(displacement).sub(agent.position);
-    desired.normalized().scale(agent.max_speed).sub(agent.velocity).truncate(agent.max_force)
+    let desired = agent
+        .position
+        .add(circle_center)
+        .add(displacement)
+        .sub(agent.position);
+    desired
+        .normalized()
+        .scale(agent.max_speed)
+        .sub(agent.velocity)
+        .truncate(agent.max_force)
 }
 
 /// Obstacle avoidance: steer away from the nearest obstacle ahead.
@@ -176,8 +236,12 @@ pub fn obstacle_avoidance(agent: &Agent, obstacles: &[Obstacle], look_ahead: f64
 
 /// Path following: steer toward the nearest point on a path, plus look-ahead.
 pub fn path_following(agent: &Agent, path: &[Vec2], look_ahead_dist: f64) -> Vec2 {
-    if path.is_empty() { return Vec2::ZERO; }
-    if path.len() == 1 { return seek(agent, path[0]); }
+    if path.is_empty() {
+        return Vec2::ZERO;
+    }
+    if path.len() == 1 {
+        return seek(agent, path[0]);
+    }
 
     // Find nearest segment.
     let mut min_dist = f64::INFINITY;
@@ -228,7 +292,9 @@ fn project_on_segment(p: Vec2, a: Vec2, b: Vec2) -> Vec2 {
     let ab = b.sub(a);
     let ap = p.sub(a);
     let ab_sq = ab.length_sq();
-    if ab_sq < 1e-12 { return a; }
+    if ab_sq < 1e-12 {
+        return a;
+    }
     let t = (ap.dot(ab) / ab_sq).clamp(0.0, 1.0);
     a.add(ab.scale(t))
 }
@@ -242,14 +308,22 @@ pub fn separation(agent: &Agent, neighbors: &[Agent], desired_dist: f64) -> Vec2
     for other in neighbors {
         let d = agent.position.dist(other.position);
         if d > 0.0 && d < desired_dist {
-            let away = agent.position.sub(other.position).normalized().scale(1.0 / d);
+            let away = agent
+                .position
+                .sub(other.position)
+                .normalized()
+                .scale(1.0 / d);
             force = force.add(away);
             count += 1;
         }
     }
     if count > 0 {
         force = force.scale(1.0 / count as f64);
-        force.normalized().scale(agent.max_speed).sub(agent.velocity).truncate(agent.max_force)
+        force
+            .normalized()
+            .scale(agent.max_speed)
+            .sub(agent.velocity)
+            .truncate(agent.max_force)
     } else {
         Vec2::ZERO
     }
@@ -257,18 +331,25 @@ pub fn separation(agent: &Agent, neighbors: &[Agent], desired_dist: f64) -> Vec2
 
 /// Alignment: steer toward the average heading of neighbors.
 pub fn alignment(agent: &Agent, neighbors: &[Agent]) -> Vec2 {
-    if neighbors.is_empty() { return Vec2::ZERO; }
+    if neighbors.is_empty() {
+        return Vec2::ZERO;
+    }
     let mut avg = Vec2::ZERO;
     for other in neighbors {
         avg = avg.add(other.velocity);
     }
     avg = avg.scale(1.0 / neighbors.len() as f64);
-    avg.normalized().scale(agent.max_speed).sub(agent.velocity).truncate(agent.max_force)
+    avg.normalized()
+        .scale(agent.max_speed)
+        .sub(agent.velocity)
+        .truncate(agent.max_force)
 }
 
 /// Cohesion: steer toward the center of mass of neighbors.
 pub fn cohesion(agent: &Agent, neighbors: &[Agent]) -> Vec2 {
-    if neighbors.is_empty() { return Vec2::ZERO; }
+    if neighbors.is_empty() {
+        return Vec2::ZERO;
+    }
     let mut center = Vec2::ZERO;
     for other in neighbors {
         center = center.add(other.position);
@@ -295,7 +376,9 @@ pub fn priority_combine(forces: &[Vec2], max_force: f64) -> Vec2 {
 
     for force in forces {
         let mag = force.length();
-        if mag < 1e-6 { continue; }
+        if mag < 1e-6 {
+            continue;
+        }
         if mag <= remaining {
             accumulated = accumulated.add(*force);
             remaining -= mag;
@@ -373,7 +456,10 @@ mod tests {
         let mut agent = agent_at(0.0, 0.0);
         agent.heading = Vec2::new(1.0, 0.0);
         agent.velocity = Vec2::new(5.0, 0.0);
-        let obs = vec![Obstacle { position: Vec2::new(5.0, 0.0), radius: 2.0 }];
+        let obs = vec![Obstacle {
+            position: Vec2::new(5.0, 0.0),
+            radius: 2.0,
+        }];
         let force = obstacle_avoidance(&agent, &obs, 10.0);
         assert!(force.length() > 0.0);
     }
@@ -381,7 +467,11 @@ mod tests {
     #[test]
     fn path_following_steers() {
         let agent = agent_at(0.0, 1.0);
-        let path = vec![Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0), Vec2::new(10.0, 10.0)];
+        let path = vec![
+            Vec2::new(0.0, 0.0),
+            Vec2::new(10.0, 0.0),
+            Vec2::new(10.0, 10.0),
+        ];
         let force = path_following(&agent, &path, 3.0);
         assert!(force.length() > 0.0);
     }

@@ -47,11 +47,19 @@ pub struct SteerCmd {
 
 impl SteerCmd {
     pub fn new(heading: f64, speed_scale: f64) -> Self {
-        Self { heading, speed_scale: speed_scale.clamp(0.0, 1.0), emergency_stop: false }
+        Self {
+            heading,
+            speed_scale: speed_scale.clamp(0.0, 1.0),
+            emergency_stop: false,
+        }
     }
 
     pub fn stop() -> Self {
-        Self { heading: 0.0, speed_scale: 0.0, emergency_stop: true }
+        Self {
+            heading: 0.0,
+            speed_scale: 0.0,
+            emergency_stop: true,
+        }
     }
 }
 
@@ -60,7 +68,11 @@ impl fmt::Display for SteerCmd {
         if self.emergency_stop {
             write!(f, "SteerCmd(STOP)")
         } else {
-            write!(f, "SteerCmd(h={:.3}, spd={:.2})", self.heading, self.speed_scale)
+            write!(
+                f,
+                "SteerCmd(h={:.3}, spd={:.2})",
+                self.heading, self.speed_scale
+            )
         }
     }
 }
@@ -85,7 +97,11 @@ impl SafetyZone {
                 "zones must satisfy 0 < critical < warning < free".into(),
             ));
         }
-        Ok(Self { critical, warning, free })
+        Ok(Self {
+            critical,
+            warning,
+            free,
+        })
     }
 
     /// Compute speed scale based on minimum obstacle distance.
@@ -271,7 +287,11 @@ impl Vfh {
 
 impl fmt::Display for Vfh {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "VFH(sectors={}, thresh={:.2})", self.num_sectors, self.threshold)
+        write!(
+            f,
+            "VFH(sectors={}, thresh={:.2})",
+            self.num_sectors, self.threshold
+        )
     }
 }
 
@@ -311,7 +331,11 @@ pub struct NearnessDiagram {
 
 impl NearnessDiagram {
     pub fn new(safety: SafetyZone, robot_width: f64) -> Self {
-        Self { safety, max_range: 10.0, robot_width }
+        Self {
+            safety,
+            max_range: 10.0,
+            robot_width,
+        }
     }
 
     pub fn with_max_range(mut self, r: f64) -> Self {

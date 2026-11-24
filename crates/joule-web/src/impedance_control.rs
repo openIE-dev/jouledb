@@ -106,12 +106,7 @@ impl ImpedanceModel1D {
     /// given measured position, velocity, and external force.
     ///
     /// Returns the actuator force command.
-    pub fn compute_force(
-        &self,
-        measured_pos: f64,
-        measured_vel: f64,
-        external_force: f64,
-    ) -> f64 {
+    pub fn compute_force(&self, measured_pos: f64, measured_vel: f64, external_force: f64) -> f64 {
         // Desired behavior: F_ext = M_d*a + B_d*v + K_d*(x - x_eq)
         // Rearranged: a_desired = (F_ext - B_d*v - K_d*(x-x_eq)) / M_d
         // Actuator force = actual robot dynamics cancel + desired impedance force
@@ -246,9 +241,9 @@ impl ImpedanceModelND {
         }
         for (i, &m) in inertias.iter().enumerate() {
             if m <= 0.0 {
-                return Err(ImpedanceError::InvalidParameter(
-                    format!("inertia[{i}] must be > 0"),
-                ));
+                return Err(ImpedanceError::InvalidParameter(format!(
+                    "inertia[{i}] must be > 0"
+                )));
             }
         }
         Ok(Self {
@@ -332,9 +327,7 @@ impl ImpedanceModelND {
     /// Damping ratios for each DOF.
     pub fn damping_ratios(&self) -> Vec<f64> {
         (0..self.ndof)
-            .map(|i| {
-                self.dampings[i] / (2.0 * (self.stiffnesses[i] * self.inertias[i]).sqrt())
-            })
+            .map(|i| self.dampings[i] / (2.0 * (self.stiffnesses[i] * self.inertias[i]).sqrt()))
             .collect()
     }
 
@@ -383,12 +376,7 @@ impl ComplianceProfile {
     }
 
     /// Compliant in one axis, stiff in others.
-    pub fn compliant_axis(
-        axis: usize,
-        soft_k: f64,
-        stiff_k: f64,
-        damping: f64,
-    ) -> Self {
+    pub fn compliant_axis(axis: usize, soft_k: f64, stiff_k: f64, damping: f64) -> Self {
         let mut stiffness = [stiff_k; 6];
         if axis < 6 {
             stiffness[axis] = soft_k;
@@ -460,8 +448,12 @@ impl fmt::Display for ComplianceProfile {
             f,
             "Compliance('{}', K=[{:.1},{:.1},{:.1},{:.2},{:.2},{:.2}])",
             self.name,
-            self.stiffness[0], self.stiffness[1], self.stiffness[2],
-            self.stiffness[3], self.stiffness[4], self.stiffness[5]
+            self.stiffness[0],
+            self.stiffness[1],
+            self.stiffness[2],
+            self.stiffness[3],
+            self.stiffness[4],
+            self.stiffness[5]
         )
     }
 }
@@ -490,11 +482,7 @@ pub struct VariableImpedanceController {
 
 impl VariableImpedanceController {
     /// Create a variable impedance controller.
-    pub fn new(
-        model: ImpedanceModel1D,
-        min_stiffness: f64,
-        max_stiffness: f64,
-    ) -> Self {
+    pub fn new(model: ImpedanceModel1D, min_stiffness: f64, max_stiffness: f64) -> Self {
         Self {
             model,
             min_stiffness,
@@ -544,10 +532,10 @@ impl VariableImpedanceController {
         }
 
         // Adjust damping to maintain critical damping ratio.
-        self.model.damping =
-            2.0 * (self.model.stiffness * self.model.inertia).sqrt();
+        self.model.damping = 2.0 * (self.model.stiffness * self.model.inertia).sqrt();
 
-        self.model.compute_force(measured_pos, measured_vel, external_force)
+        self.model
+            .compute_force(measured_pos, measured_vel, external_force)
     }
 
     /// Current stiffness.
@@ -606,7 +594,8 @@ mod tests {
 
     #[test]
     fn test_impedance_1d_spring_force() {
-        let m = ImpedanceModel1D::new(1.0, 0.0, 100.0).unwrap()
+        let m = ImpedanceModel1D::new(1.0, 0.0, 100.0)
+            .unwrap()
             .with_equilibrium(1.0);
         // Displaced 0.1 m from equilibrium.
         let f = m.compute_force(0.9, 0.0, 0.0);
@@ -625,7 +614,8 @@ mod tests {
     #[test]
     fn test_impedance_1d_step_convergence() {
         // Critically damped system should converge to equilibrium.
-        let mut m = ImpedanceModel1D::new(1.0, 20.0, 100.0).unwrap()
+        let mut m = ImpedanceModel1D::new(1.0, 20.0, 100.0)
+            .unwrap()
             .with_equilibrium(0.0)
             .with_initial_state(1.0, 0.0);
 
@@ -644,20 +634,19 @@ mod tests {
 
     #[test]
     fn test_impedance_nd_dim_mismatch() {
-        let m = ImpedanceModelND::new(
-            vec![1.0, 1.0],
-            vec![10.0],
-            vec![100.0, 100.0],
-        );
+        let m = ImpedanceModelND::new(vec![1.0, 1.0], vec![10.0], vec![100.0, 100.0]);
         assert!(m.is_err());
     }
 
     #[test]
     fn test_impedance_nd_compute_forces() {
-        let m = ImpedanceModelND::new_uniform(2, 1.0, 0.0, 100.0).unwrap()
+        let m = ImpedanceModelND::new_uniform(2, 1.0, 0.0, 100.0)
+            .unwrap()
             .with_equilibrium(vec![1.0, 2.0]);
 
-        let forces = m.compute_forces(&[0.9, 1.8], &[0.0, 0.0], &[0.0, 0.0]).unwrap();
+        let forces = m
+            .compute_forces(&[0.9, 1.8], &[0.0, 0.0], &[0.0, 0.0])
+            .unwrap();
         // K*(x_eq - x) = 100*0.1 = 10.0
         assert!((forces[0] - 10.0).abs() < 1e-9);
         assert!((forces[1] - 20.0).abs() < 1e-9);
@@ -699,8 +688,8 @@ mod tests {
     #[test]
     fn test_variable_impedance_reduces_stiffness() {
         let model = ImpedanceModel1D::new(1.0, 20.0, 500.0).unwrap();
-        let mut vic = VariableImpedanceController::new(model, 10.0, 500.0)
-            .with_energy_threshold(0.1);
+        let mut vic =
+            VariableImpedanceController::new(model, 10.0, 500.0).with_energy_threshold(0.1);
 
         // Apply large external force repeatedly.
         for _ in 0..100 {

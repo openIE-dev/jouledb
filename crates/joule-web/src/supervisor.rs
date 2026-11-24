@@ -204,12 +204,29 @@ impl Default for RestartIntensity {
 /// Events emitted by the supervision tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SupervisorEvent {
-    ChildStarted { supervisor: String, child: String },
-    ChildStopped { supervisor: String, child: String },
-    ChildRestarted { supervisor: String, child: String },
-    ChildFailed { supervisor: String, child: String, reason: String },
-    IntensityExceeded { supervisor: String },
-    SupervisorShutDown { supervisor: String },
+    ChildStarted {
+        supervisor: String,
+        child: String,
+    },
+    ChildStopped {
+        supervisor: String,
+        child: String,
+    },
+    ChildRestarted {
+        supervisor: String,
+        child: String,
+    },
+    ChildFailed {
+        supervisor: String,
+        child: String,
+        reason: String,
+    },
+    IntensityExceeded {
+        supervisor: String,
+    },
+    SupervisorShutDown {
+        supervisor: String,
+    },
 }
 
 // ── Supervisor ──────────────────────────────────────────────────
@@ -269,7 +286,8 @@ impl Supervisor {
         }
         let order = self.children.len();
         let child_id = spec.id.clone();
-        self.children.push(Child::new(spec, order, self.current_tick));
+        self.children
+            .push(Child::new(spec, order, self.current_tick));
         self.child_order.push(child_id.clone());
         self.events.push(SupervisorEvent::ChildStarted {
             supervisor: self.id.clone(),
@@ -332,11 +350,7 @@ impl Supervisor {
                 vec![child_id_str]
             }
             RestartStrategy::OneForAll => {
-                let ids: Vec<String> = self
-                    .children
-                    .iter()
-                    .map(|c| c.spec.id.clone())
-                    .collect();
+                let ids: Vec<String> = self.children.iter().map(|c| c.spec.id.clone()).collect();
                 for i in 0..self.children.len() {
                     self.restart_child(i)?;
                 }
@@ -646,9 +660,21 @@ mod tests {
         sup.start_child(ChildSpec::worker("w1")).unwrap();
         sup.child_failed("w1", "err").unwrap();
         let events = sup.drain_events();
-        assert!(events.iter().any(|e| matches!(e, SupervisorEvent::ChildStarted { .. })));
-        assert!(events.iter().any(|e| matches!(e, SupervisorEvent::ChildFailed { .. })));
-        assert!(events.iter().any(|e| matches!(e, SupervisorEvent::ChildRestarted { .. })));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, SupervisorEvent::ChildStarted { .. }))
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, SupervisorEvent::ChildFailed { .. }))
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, SupervisorEvent::ChildRestarted { .. }))
+        );
     }
 
     #[test]

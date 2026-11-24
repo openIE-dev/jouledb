@@ -90,9 +90,7 @@ impl Run {
             rpr.push_str(&format!("<w:sz w:val=\"{half_pt}\"/>"));
         }
         if let Some(fam) = &self.format.font_family {
-            rpr.push_str(&format!(
-                "<w:rFonts w:ascii=\"{fam}\" w:hAnsi=\"{fam}\"/>"
-            ));
+            rpr.push_str(&format!("<w:rFonts w:ascii=\"{fam}\" w:hAnsi=\"{fam}\"/>"));
         }
         if let Some(col) = &self.format.color {
             rpr.push_str(&format!("<w:color w:val=\"{col}\"/>"));
@@ -190,9 +188,7 @@ impl Paragraph {
     fn to_xml(&self) -> String {
         let mut ppr = String::new();
         if let Some(level) = self.heading_level {
-            ppr.push_str(&format!(
-                "<w:pStyle w:val=\"Heading{level}\"/>"
-            ));
+            ppr.push_str(&format!("<w:pStyle w:val=\"Heading{level}\"/>"));
         }
         if let Some(ls) = &self.list_style {
             let num_id = match ls {
@@ -468,9 +464,7 @@ impl DocxDocument {
                 DocElement::Table(t) => xml.push_str(&t.to_xml()),
                 DocElement::Image(img) => xml.push_str(&img.to_xml()),
                 DocElement::PageBreak => {
-                    xml.push_str(
-                        "<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>",
-                    );
+                    xml.push_str("<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>");
                 }
             }
         }
@@ -540,28 +534,21 @@ mod tests {
 
     #[test]
     fn paragraph_bullet_list() {
-        let p = Paragraph::new()
-            .bullet()
-            .add_run(Run::new("Item one"));
+        let p = Paragraph::new().bullet().add_run(Run::new("Item one"));
         let xml = p.to_xml();
         assert!(xml.contains("<w:numId w:val=\"1\"/>"));
     }
 
     #[test]
     fn paragraph_numbered_list() {
-        let p = Paragraph::new()
-            .numbered()
-            .add_run(Run::new("Step 1"));
+        let p = Paragraph::new().numbered().add_run(Run::new("Step 1"));
         let xml = p.to_xml();
         assert!(xml.contains("<w:numId w:val=\"2\"/>"));
     }
 
     #[test]
     fn table_from_grid() {
-        let table = Table::from_grid(&[
-            &["Name", "Age"],
-            &["Alice", "30"],
-        ]);
+        let table = Table::from_grid(&[&["Name", "Age"], &["Alice", "30"]]);
         let xml = table.to_xml();
         assert!(xml.contains("<w:tbl>"));
         assert!(xml.contains("Alice"));
@@ -570,8 +557,7 @@ mod tests {
 
     #[test]
     fn table_cell_merge() {
-        let cell = TableCell::new("Merged")
-            .with_merge(MergeType::HMergeStart);
+        let cell = TableCell::new("Merged").with_merge(MergeType::HMergeStart);
         let xml = cell.to_xml();
         assert!(xml.contains("<w:hMerge w:val=\"restart\"/>"));
     }
@@ -597,15 +583,8 @@ mod tests {
     fn full_document() {
         let doc = DocxDocument::new()
             .title("Test Doc")
-            .add_paragraph(
-                Paragraph::new()
-                    .heading(1)
-                    .add_run(Run::new("Title")),
-            )
-            .add_paragraph(
-                Paragraph::new()
-                    .add_run(Run::new("Body text")),
-            )
+            .add_paragraph(Paragraph::new().heading(1).add_run(Run::new("Title")))
+            .add_paragraph(Paragraph::new().add_run(Run::new("Body text")))
             .add_page_break()
             .add_table(Table::from_grid(&[&["A", "B"]]))
             .add_image(ImagePlaceholder::new("fig.png", 200, 100));

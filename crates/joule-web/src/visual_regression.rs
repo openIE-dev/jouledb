@@ -97,7 +97,12 @@ pub struct MaskRegion {
 
 impl MaskRegion {
     pub fn new(x: u32, y: u32, width: u32, height: u32) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     /// Check if a pixel coordinate falls within this mask.
@@ -139,11 +144,7 @@ pub struct DiffImage {
 // ── Comparison ──────────────────────────────────────────────────
 
 /// Compare two pixel buffers exactly (pixel-by-pixel), optionally ignoring masked regions.
-pub fn compare(
-    baseline: &PixelBuffer,
-    actual: &PixelBuffer,
-    masks: &[MaskRegion],
-) -> DiffMetrics {
+pub fn compare(baseline: &PixelBuffer, actual: &PixelBuffer, masks: &[MaskRegion]) -> DiffMetrics {
     assert_eq!(baseline.width, actual.width, "Width mismatch");
     assert_eq!(baseline.height, actual.height, "Height mismatch");
 

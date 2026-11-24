@@ -139,13 +139,21 @@ pub struct IsotopePeak {
 
 impl IsotopePeak {
     pub fn new(index: usize, mass: f64, probability: f64) -> Self {
-        Self { index, mass, probability }
+        Self {
+            index,
+            mass,
+            probability,
+        }
     }
 }
 
 impl fmt::Display for IsotopePeak {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "M+{} mass={:.4} p={:.4}", self.index, self.mass, self.probability)
+        write!(
+            f,
+            "M+{} mass={:.4} p={:.4}",
+            self.index, self.mass, self.probability
+        )
     }
 }
 
@@ -160,7 +168,10 @@ pub struct IsotopeDistribution {
 
 impl IsotopeDistribution {
     pub fn new(mono_mass: f64, peaks: Vec<IsotopePeak>) -> Self {
-        Self { monoisotopic_mass: mono_mass, peaks }
+        Self {
+            monoisotopic_mass: mono_mass,
+            peaks,
+        }
     }
 
     /// Index of the most abundant isotope peak.
@@ -183,7 +194,11 @@ impl IsotopeDistribution {
         if total_p <= 0.0 {
             return self.monoisotopic_mass;
         }
-        self.peaks.iter().map(|p| p.mass * p.probability).sum::<f64>() / total_p
+        self.peaks
+            .iter()
+            .map(|p| p.mass * p.probability)
+            .sum::<f64>()
+            / total_p
     }
 
     /// Number of peaks in the distribution.
@@ -321,11 +336,7 @@ pub fn isotope_dot_product(observed: &[f64], theoretical: &[f64]) -> f64 {
 
 /// Estimate the monoisotopic mass from an observed isotope envelope
 /// by subtracting k * C13_DELTA from the most-intense peak.
-pub fn estimate_monoisotopic(
-    observed_mz: f64,
-    charge: u8,
-    most_abundant_offset: usize,
-) -> f64 {
+pub fn estimate_monoisotopic(observed_mz: f64, charge: u8, most_abundant_offset: usize) -> f64 {
     observed_mz - most_abundant_offset as f64 * C13_DELTA / charge as f64
 }
 

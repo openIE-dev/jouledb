@@ -358,7 +358,9 @@ impl Vm {
 
             match instr {
                 Opcode::Push(v) => self.push(v)?,
-                Opcode::Pop => { self.pop()?; }
+                Opcode::Pop => {
+                    self.pop()?;
+                }
                 Opcode::Dup => {
                     let v = self.peek()?.clone();
                     self.push(v)?;
@@ -394,14 +396,12 @@ impl Vm {
                     match (&a, &b) {
                         (Value::Int(_), Value::Int(0)) => return Err(VmError::DivisionByZero),
                         (Value::Float(_), Value::Float(d)) if *d == 0.0 => {
-                            return Err(VmError::DivisionByZero)
+                            return Err(VmError::DivisionByZero);
                         }
                         (Value::Int(_), Value::Float(d)) if *d == 0.0 => {
-                            return Err(VmError::DivisionByZero)
+                            return Err(VmError::DivisionByZero);
                         }
-                        (Value::Float(_), Value::Int(0)) => {
-                            return Err(VmError::DivisionByZero)
-                        }
+                        (Value::Float(_), Value::Int(0)) => return Err(VmError::DivisionByZero),
                         _ => {}
                     }
                     let result = self.arith_op(&a, &b, "/")?;
@@ -550,14 +550,24 @@ impl Vm {
                     fields.reverse();
                     let id = self.next_heap_id;
                     self.next_heap_id += 1;
-                    self.heap.insert(id, HeapObject { fields, marked: false });
+                    self.heap.insert(
+                        id,
+                        HeapObject {
+                            fields,
+                            marked: false,
+                        },
+                    );
                     self.push(Value::Ref(id))?;
                 }
                 Opcode::LoadField(idx) => {
                     let r = self.pop()?;
                     if let Value::Ref(id) = r {
                         let obj = self.heap.get(&id).ok_or(VmError::InvalidRef(id))?;
-                        let val = obj.fields.get(idx).ok_or(VmError::InvalidField(idx))?.clone();
+                        let val = obj
+                            .fields
+                            .get(idx)
+                            .ok_or(VmError::InvalidField(idx))?
+                            .clone();
                         self.push(val)?;
                     } else {
                         return Err(VmError::TypeError("load_field requires ref".into()));
@@ -650,9 +660,7 @@ impl Vm {
     fn compare(&self, a: &Value, b: &Value) -> Result<i32, VmError> {
         match (a, b) {
             (Value::Int(x), Value::Int(y)) => Ok(x.cmp(y) as i32),
-            (Value::Float(x), Value::Float(y)) => {
-                Ok(x.partial_cmp(y).map_or(0, |o| o as i32))
-            }
+            (Value::Float(x), Value::Float(y)) => Ok(x.partial_cmp(y).map_or(0, |o| o as i32)),
             (Value::Int(x), Value::Float(y)) => {
                 let xf = *x as f64;
                 Ok(xf.partial_cmp(y).map_or(0, |o| o as i32))
@@ -699,7 +707,13 @@ impl Vm {
                 let field_refs: Vec<usize> = obj
                     .fields
                     .iter()
-                    .filter_map(|v| if let Value::Ref(r) = v { Some(*r) } else { None })
+                    .filter_map(|v| {
+                        if let Value::Ref(r) = v {
+                            Some(*r)
+                        } else {
+                            None
+                        }
+                    })
                     .collect();
                 worklist.extend(field_refs);
             }
@@ -897,14 +911,14 @@ mod tests {
         // main: push 10, push 20, call func at 5 with 2 args
         // func: load local 0, load local 1, add, return
         let mut vm = Vm::new(vec![
-            Opcode::Push(Value::Int(10)),  // 0
-            Opcode::Push(Value::Int(20)),  // 1
-            Opcode::Call(4, 2),            // 2
-            Opcode::Halt,                  // 3
-            Opcode::LoadLocal(0),          // 4 (func start)
-            Opcode::LoadLocal(1),          // 5
-            Opcode::Add,                   // 6
-            Opcode::Return,                // 7
+            Opcode::Push(Value::Int(10)), // 0
+            Opcode::Push(Value::Int(20)), // 1
+            Opcode::Call(4, 2),           // 2
+            Opcode::Halt,                 // 3
+            Opcode::LoadLocal(0),         // 4 (func start)
+            Opcode::LoadLocal(1),         // 5
+            Opcode::Add,                  // 6
+            Opcode::Return,               // 7
         ]);
         vm.allocate_locals(4);
         let err = vm.run().unwrap_err();
@@ -935,8 +949,8 @@ mod tests {
         let v = run(vec![
             Opcode::Push(Value::Int(10)),
             Opcode::Push(Value::Int(20)),
-            Opcode::Alloc(2),         // create object with 2 fields
-            Opcode::LoadField(1),     // load field 1 (20)
+            Opcode::Alloc(2),     // create object with 2 fields
+            Opcode::LoadField(1), // load field 1 (20)
         ]);
         assert_eq!(v, Value::Int(20));
     }
@@ -945,12 +959,12 @@ mod tests {
     fn test_heap_store_field() {
         let v = run(vec![
             Opcode::Push(Value::Int(10)),
-            Opcode::Alloc(1),              // obj with [10]
-            Opcode::Dup,                   // dup ref
-            Opcode::Push(Value::Int(99)),  // new value
-            Opcode::Swap,                  // put ref on top for store
-            Opcode::StoreField(0),         // store 99 at field 0
-            Opcode::LoadField(0),          // load back
+            Opcode::Alloc(1),             // obj with [10]
+            Opcode::Dup,                  // dup ref
+            Opcode::Push(Value::Int(99)), // new value
+            Opcode::Swap,                 // put ref on top for store
+            Opcode::StoreField(0),        // store 99 at field 0
+            Opcode::LoadField(0),         // load back
         ]);
         assert_eq!(v, Value::Int(99));
     }
@@ -959,10 +973,10 @@ mod tests {
     fn test_gc_collects_unreachable() {
         let mut vm = Vm::new(vec![
             Opcode::Push(Value::Int(1)),
-            Opcode::Alloc(1),      // creates object 0
-            Opcode::Pop,           // drop the reference
+            Opcode::Alloc(1), // creates object 0
+            Opcode::Pop,      // drop the reference
             Opcode::Push(Value::Int(2)),
-            Opcode::Alloc(1),      // creates object 1
+            Opcode::Alloc(1), // creates object 1
         ]);
         vm.run().unwrap();
         assert_eq!(vm.heap_size(), 2);

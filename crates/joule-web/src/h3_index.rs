@@ -51,7 +51,9 @@ impl CubeCoord {
         Self { q, r, s: -q - r }
     }
 
-    pub fn origin() -> Self { Self::new(0, 0) }
+    pub fn origin() -> Self {
+        Self::new(0, 0)
+    }
 
     pub fn distance(&self, other: &CubeCoord) -> u64 {
         let dq = (self.q - other.q).unsigned_abs();
@@ -175,7 +177,9 @@ impl HexGrid {
         Ok(Self { resolution })
     }
 
-    pub fn resolution(&self) -> u8 { self.resolution }
+    pub fn resolution(&self) -> u8 {
+        self.resolution
+    }
 
     /// Convert lat/lon to hex cell coordinates.
     pub fn lat_lon_to_cell(&self, lat: f64, lon: f64) -> Result<HexCell, H3Error> {
@@ -211,7 +215,10 @@ impl HexGrid {
             let r_min = (-ki).max(-q - ki);
             let r_max = ki.min(-q + ki);
             for r in r_min..=r_max {
-                cells.push(HexCell::new(CubeCoord::new(center.q + q, center.r + r), self.resolution));
+                cells.push(HexCell::new(
+                    CubeCoord::new(center.q + q, center.r + r),
+                    self.resolution,
+                ));
             }
         }
         cells
@@ -225,9 +232,7 @@ impl HexGrid {
         let mut results = Vec::new();
         let ki = k as i64;
         // Walk around the ring
-        let directions = [
-            (1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1), (1, -1),
-        ];
+        let directions = [(1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1), (1, -1)];
         let mut cur = CubeCoord::new(center.q - ki, center.r + ki);
         for &(dq, dr) in &directions {
             for _ in 0..k {
@@ -239,7 +244,13 @@ impl HexGrid {
     }
 
     /// Generate all hex cells covering a bounding box.
-    pub fn cells_in_bbox(&self, lat_min: f64, lon_min: f64, lat_max: f64, lon_max: f64) -> Result<Vec<HexCell>, H3Error> {
+    pub fn cells_in_bbox(
+        &self,
+        lat_min: f64,
+        lon_min: f64,
+        lat_max: f64,
+        lon_max: f64,
+    ) -> Result<Vec<HexCell>, H3Error> {
         let c1 = self.lat_lon_to_cell(lat_min, lon_min)?;
         let c2 = self.lat_lon_to_cell(lat_max, lon_max)?;
         let q_min = c1.coord.q.min(c2.coord.q) - 1;
@@ -252,7 +263,11 @@ impl HexGrid {
             for r in r_min..=r_max {
                 let cell = HexCell::new(CubeCoord::new(q, r), self.resolution);
                 let (lat, lon) = self.cell_to_lat_lon(&cell);
-                if lat >= lat_min - pad && lat <= lat_max + pad && lon >= lon_min - pad && lon <= lon_max + pad {
+                if lat >= lat_min - pad
+                    && lat <= lat_max + pad
+                    && lon >= lon_min - pad
+                    && lon <= lon_max + pad
+                {
                     cells.push(cell);
                 }
             }
@@ -263,7 +278,12 @@ impl HexGrid {
 
 impl fmt::Display for HexGrid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "HexGrid(res={}, cell_size={:.4}°)", self.resolution, self.cell_size_deg())
+        write!(
+            f,
+            "HexGrid(res={}, cell_size={:.4}°)",
+            self.resolution,
+            self.cell_size_deg()
+        )
     }
 }
 
@@ -283,7 +303,9 @@ pub fn cell_to_index(cell: &HexCell) -> u64 {
 pub fn index_to_cell(index: u64) -> Result<HexCell, H3Error> {
     let res = (index >> 58) as u8;
     if res > MAX_RESOLUTION {
-        return Err(H3Error::InvalidIndex(format!("resolution {res} out of range")));
+        return Err(H3Error::InvalidIndex(format!(
+            "resolution {res} out of range"
+        )));
     }
     let bias = 1_i64 << 28;
     let mask = (1_u64 << 29) - 1;
@@ -434,7 +456,7 @@ mod tests {
         let ring0 = grid.k_ring(&center, 0);
         assert_eq!(ring0.len(), 1);
         let ring1 = grid.k_ring(&center, 1);
-        assert_eq!(ring1.len(), 7);  // 1 + 6
+        assert_eq!(ring1.len(), 7); // 1 + 6
         let ring2 = grid.k_ring(&center, 2);
         assert_eq!(ring2.len(), 19); // 1 + 6 + 12
     }

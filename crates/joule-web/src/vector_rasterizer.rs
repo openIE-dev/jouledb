@@ -32,9 +32,14 @@ impl Point {
 pub enum PathCmd {
     MoveTo(Point),
     LineTo(Point),
-    QuadTo(Point, Point),       // control, end
+    QuadTo(Point, Point),         // control, end
     CubicTo(Point, Point, Point), // c1, c2, end
-    ArcTo { center: Point, radius: f32, start_angle: f32, sweep: f32 },
+    ArcTo {
+        center: Point,
+        radius: f32,
+        start_angle: f32,
+        sweep: f32,
+    },
     Close,
 }
 
@@ -148,15 +153,20 @@ pub fn flatten_path(path: &Path, tolerance: f32) -> Vec<Vec<Point>> {
                 start_angle,
                 sweep,
             } => {
-                flatten_arc(*center, *radius, *start_angle, *sweep, tolerance, &mut current);
+                flatten_arc(
+                    *center,
+                    *radius,
+                    *start_angle,
+                    *sweep,
+                    tolerance,
+                    &mut current,
+                );
                 if let Some(last) = current.last() {
                     cursor = *last;
                 }
             }
             PathCmd::Close => {
-                if current.len() > 1
-                    && (current[0].x != cursor.x || current[0].y != cursor.y)
-                {
+                if current.len() > 1 && (current[0].x != cursor.x || current[0].y != cursor.y) {
                     current.push(contour_start);
                 }
                 if current.len() > 1 {
@@ -250,9 +260,9 @@ pub enum FillRule {
 #[derive(Debug, Clone)]
 struct ActiveEdge {
     x_at_scanline: f32,
-    x_step: f32,     // dx per scanline
-    y_max: f32,      // edge ends at this y
-    direction: i32,   // +1 for downward, -1 for upward (for winding)
+    x_step: f32,    // dx per scanline
+    y_max: f32,     // edge ends at this y
+    direction: i32, // +1 for downward, -1 for upward (for winding)
 }
 
 /// Rasterize filled contours to a coverage buffer.
@@ -324,7 +334,11 @@ pub fn rasterize_fill(
         active.retain(|e| sy_f < e.y_max);
 
         // Sort active edges by x
-        active.sort_by(|a, b| a.x_at_scanline.partial_cmp(&b.x_at_scanline).unwrap_or(std::cmp::Ordering::Equal));
+        active.sort_by(|a, b| {
+            a.x_at_scanline
+                .partial_cmp(&b.x_at_scanline)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // Fill spans
         let pixel_y = sub_y / ss;
@@ -371,14 +385,7 @@ pub fn rasterize_fill(
     coverage
 }
 
-fn fill_span(
-    coverage: &mut [f32],
-    width: usize,
-    y: usize,
-    x0: f32,
-    x1: f32,
-    weight: f32,
-) {
+fn fill_span(coverage: &mut [f32], width: usize, y: usize, x0: f32, x1: f32, weight: f32) {
     let px_start = (x0.floor() as isize).max(0) as usize;
     let px_end = (x1.ceil() as usize).min(width);
 
@@ -519,12 +526,8 @@ pub fn stroke_path(contour: &[Point], params: &StrokeParams) -> Vec<Vec<Point>> 
                 let segments = 8;
                 let angle_start = (ny).atan2(nx);
                 for j in 0..=segments {
-                    let a =
-                        angle_start - std::f32::consts::PI * j as f32 / segments as f32;
-                    left_side.push(Point::new(
-                        last.x + hw * a.cos(),
-                        last.y + hw * a.sin(),
-                    ));
+                    let a = angle_start - std::f32::consts::PI * j as f32 / segments as f32;
+                    left_side.push(Point::new(last.x + hw * a.cos(), last.y + hw * a.sin()));
                 }
             }
         }
@@ -690,10 +693,7 @@ mod tests {
 
     #[test]
     fn test_stroke_path_basic() {
-        let contour = vec![
-            Point::new(0.0, 5.0),
-            Point::new(10.0, 5.0),
-        ];
+        let contour = vec![Point::new(0.0, 5.0), Point::new(10.0, 5.0)];
         let params = StrokeParams {
             width: 2.0,
             ..Default::default()
@@ -705,10 +705,7 @@ mod tests {
 
     #[test]
     fn test_stroke_path_round_cap() {
-        let contour = vec![
-            Point::new(0.0, 5.0),
-            Point::new(10.0, 5.0),
-        ];
+        let contour = vec![Point::new(0.0, 5.0), Point::new(10.0, 5.0)];
         let params = StrokeParams {
             width: 4.0,
             cap: LineCap::Round,
@@ -722,10 +719,7 @@ mod tests {
 
     #[test]
     fn test_stroke_path_square_cap() {
-        let contour = vec![
-            Point::new(5.0, 5.0),
-            Point::new(15.0, 5.0),
-        ];
+        let contour = vec![Point::new(5.0, 5.0), Point::new(15.0, 5.0)];
         let params = StrokeParams {
             width: 2.0,
             cap: LineCap::Square,

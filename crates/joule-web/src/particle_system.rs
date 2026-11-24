@@ -10,21 +10,53 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0 } }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y } }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s } }
-    pub fn length(self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
-    pub fn length_sq(self) -> f64 { self.x * self.x + self.y * self.y }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+    pub fn zero() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+        }
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
+    pub fn length(self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+    pub fn length_sq(self) -> f64 {
+        self.x * self.x + self.y * self.y
+    }
     pub fn normalized(self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { Self { x: self.x / len, y: self.y / len } }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+            }
+        }
     }
 }
 
 impl Default for Vec2 {
-    fn default() -> Self { Self::zero() }
+    fn default() -> Self {
+        Self::zero()
+    }
 }
 
 // ── Color ────────────────────────────────────────────────────
@@ -43,9 +75,15 @@ impl Color {
         Self { r, g, b, a }
     }
 
-    pub fn white() -> Self { Self::new(1.0, 1.0, 1.0, 1.0) }
-    pub fn red() -> Self { Self::new(1.0, 0.0, 0.0, 1.0) }
-    pub fn transparent() -> Self { Self::new(0.0, 0.0, 0.0, 0.0) }
+    pub fn white() -> Self {
+        Self::new(1.0, 1.0, 1.0, 1.0)
+    }
+    pub fn red() -> Self {
+        Self::new(1.0, 0.0, 0.0, 1.0)
+    }
+    pub fn transparent() -> Self {
+        Self::new(0.0, 0.0, 0.0, 0.0)
+    }
 
     /// Linearly interpolate between two colors.
     pub fn lerp(self, other: Self, t: f64) -> Self {
@@ -59,7 +97,9 @@ impl Color {
 }
 
 impl Default for Color {
-    fn default() -> Self { Self::white() }
+    fn default() -> Self {
+        Self::white()
+    }
 }
 
 // ── Particle ─────────────────────────────────────────────────
@@ -113,7 +153,11 @@ impl Particle {
 
     /// Normalized age in [0, 1].
     pub fn age_ratio(&self) -> f64 {
-        if self.lifetime <= 0.0 { 1.0 } else { (self.age / self.lifetime).min(1.0) }
+        if self.lifetime <= 0.0 {
+            1.0
+        } else {
+            (self.age / self.lifetime).min(1.0)
+        }
     }
 
     /// Update color and size based on age.
@@ -149,14 +193,20 @@ impl Force {
             Force::Wind(w) => *w,
             Force::Drag(coeff) => {
                 let speed = particle.velocity.length();
-                if speed < 1e-12 { Vec2::zero() }
-                else { particle.velocity.normalized().scale(-coeff * speed * speed) }
+                if speed < 1e-12 {
+                    Vec2::zero()
+                } else {
+                    particle.velocity.normalized().scale(-coeff * speed * speed)
+                }
             }
             Force::Radial { center, strength } => {
                 let diff = center.sub(particle.position);
                 let dist_sq = diff.length_sq();
-                if dist_sq < 1e-12 { Vec2::zero() }
-                else { diff.normalized().scale(*strength / dist_sq.sqrt().max(1.0)) }
+                if dist_sq < 1e-12 {
+                    Vec2::zero()
+                } else {
+                    diff.normalized().scale(*strength / dist_sq.sqrt().max(1.0))
+                }
             }
             Force::Turbulence { strength, scale } => {
                 // Simple deterministic pseudo-noise based on position
@@ -312,7 +362,9 @@ impl ParticleSystem {
 
         // Update existing particles
         for p in &mut self.particles {
-            if !p.alive { continue; }
+            if !p.alive {
+                continue;
+            }
 
             // Accumulate forces
             let mut total_force = Vec2::zero();
@@ -344,7 +396,10 @@ impl ParticleSystem {
     /// Deterministic pseudo-random in [0, 1).
     fn next_random(&mut self) -> f64 {
         self.rng_counter = self.rng_counter.wrapping_add(1);
-        let state = self.rng_counter.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        let state = self
+            .rng_counter
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let bits = (state >> 33) as u32;
         (bits as f64) / (u32::MAX as f64)
     }
@@ -375,7 +430,10 @@ impl ParticleSystem {
 
         let speed = self.rand_range(self.config.speed_range.0, self.config.speed_range.1);
         let lifetime = self.rand_range(self.config.lifetime_range.0, self.config.lifetime_range.1);
-        let start_size = self.rand_range(self.config.start_size_range.0, self.config.start_size_range.1);
+        let start_size = self.rand_range(
+            self.config.start_size_range.0,
+            self.config.start_size_range.1,
+        );
         let end_size = self.rand_range(self.config.end_size_range.0, self.config.end_size_range.1);
 
         // Compute direction with spread
@@ -528,8 +586,13 @@ mod tests {
         sys.add_force(Force::Drag(1.0));
         sys.burst(1);
         // Get initial speed
-        let initial_speed = sys.particles().iter()
-            .find(|p| p.alive).unwrap().velocity.length();
+        let initial_speed = sys
+            .particles()
+            .iter()
+            .find(|p| p.alive)
+            .unwrap()
+            .velocity
+            .length();
         sys.update(0.1);
         let alive: Vec<_> = sys.alive_particles().collect();
         if !alive.is_empty() {
@@ -604,7 +667,10 @@ mod tests {
         let mut sys = default_system();
         sys.config.position = Vec2::new(10.0, 0.0);
         sys.config.speed_range = (0.0, 0.0);
-        sys.add_force(Force::Radial { center: Vec2::zero(), strength: 100.0 });
+        sys.add_force(Force::Radial {
+            center: Vec2::zero(),
+            strength: 100.0,
+        });
         sys.burst(1);
         sys.update(0.1);
         let p = sys.alive_particles().next().unwrap();
@@ -616,7 +682,10 @@ mod tests {
     fn turbulence_force() {
         let mut sys = default_system();
         sys.config.speed_range = (0.0, 0.0);
-        sys.add_force(Force::Turbulence { strength: 5.0, scale: 1.0 });
+        sys.add_force(Force::Turbulence {
+            strength: 5.0,
+            scale: 1.0,
+        });
         sys.burst(1);
         sys.update(0.5);
         let p = sys.alive_particles().next().unwrap();

@@ -388,7 +388,12 @@ impl WsFrame {
             if data.len() < offset + 4 {
                 return Err(WsFrameError::Incomplete);
             }
-            let key = [data[offset], data[offset + 1], data[offset + 2], data[offset + 3]];
+            let key = [
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ];
             offset += 4;
             Some(key)
         } else {
@@ -436,7 +441,10 @@ pub struct FragmentAssembler {
 
 impl FragmentAssembler {
     pub fn new() -> Self {
-        Self { opcode: None, fragments: Vec::new() }
+        Self {
+            opcode: None,
+            fragments: Vec::new(),
+        }
     }
 
     /// Feed a frame. Returns Some((opcode, payload)) when a complete message
@@ -620,7 +628,10 @@ mod tests {
             mask: None,
             payload: vec![0; 126],
         };
-        assert_eq!(frame.validate().unwrap_err(), WsFrameError::ControlFrameTooLarge(126));
+        assert_eq!(
+            frame.validate().unwrap_err(),
+            WsFrameError::ControlFrameTooLarge(126)
+        );
     }
 
     #[test]
@@ -645,6 +656,9 @@ mod tests {
 
     #[test]
     fn incomplete_data() {
-        assert_eq!(WsFrame::parse(&[0x81]).unwrap_err(), WsFrameError::Incomplete);
+        assert_eq!(
+            WsFrame::parse(&[0x81]).unwrap_err(),
+            WsFrameError::Incomplete
+        );
     }
 }

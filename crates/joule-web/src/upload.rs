@@ -489,7 +489,8 @@ mod tests {
         let mut mgr = UploadManager::new();
         mgr.max_concurrent = 2;
         for i in 0..5 {
-            mgr.add_file(sample_file(&format!("f{i}.bin"), 100)).unwrap();
+            mgr.add_file(sample_file(&format!("f{i}.bin"), 100))
+                .unwrap();
         }
         let started = mgr.start_all();
         assert_eq!(started, 2);

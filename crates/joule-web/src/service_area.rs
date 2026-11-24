@@ -70,22 +70,32 @@ impl ServiceAreaConfig {
 
     pub fn validate(&self) -> Result<(), ServiceAreaError> {
         if self.max_time_min.is_nan() {
-            return Err(ServiceAreaError::InvalidConfig("max_time_min is NaN".into()));
+            return Err(ServiceAreaError::InvalidConfig(
+                "max_time_min is NaN".into(),
+            ));
         }
         if self.demand_weight.is_nan() {
-            return Err(ServiceAreaError::InvalidConfig("demand_weight is NaN".into()));
+            return Err(ServiceAreaError::InvalidConfig(
+                "demand_weight is NaN".into(),
+            ));
         }
         Ok(())
     }
 }
 
 impl Default for ServiceAreaConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for ServiceAreaConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ServiceAreaConfig(travel_mode={0}, max_time_min={1:.4}, num_facilities={2}, demand_weight={3:.4})", self.travel_mode, self.max_time_min, self.num_facilities, self.demand_weight)
+        write!(
+            f,
+            "ServiceAreaConfig(travel_mode={0}, max_time_min={1:.4}, num_facilities={2}, demand_weight={3:.4})",
+            self.travel_mode, self.max_time_min, self.num_facilities, self.demand_weight
+        )
     }
 }
 
@@ -101,7 +111,10 @@ pub struct ServiceArea {
 impl ServiceArea {
     pub fn new(config: ServiceAreaConfig) -> Result<Self, ServiceAreaError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -113,32 +126,46 @@ impl ServiceArea {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &ServiceAreaConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &ServiceAreaConfig {
+        &self.config
+    }
 
     /// Compute isochrone service area.
     pub fn isochrone_area(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// P-median facility location.
     pub fn p_median(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Accessibility scoring.
     pub fn accessibility_score(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -150,7 +177,9 @@ impl ServiceArea {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -162,7 +191,11 @@ impl ServiceArea {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -235,7 +268,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = ServiceArea::new(ServiceAreaConfig::new()).unwrap()
+        let e = ServiceArea::new(ServiceAreaConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -251,7 +285,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = ServiceArea::new(ServiceAreaConfig::new()).unwrap()
+        let e = ServiceArea::new(ServiceAreaConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("ServiceArea"));
@@ -259,7 +294,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = ServiceArea::new(ServiceAreaConfig::new()).unwrap()
+        let e = ServiceArea::new(ServiceAreaConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -270,7 +306,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = ServiceArea::new(ServiceAreaConfig::new()).unwrap()
+        let e = ServiceArea::new(ServiceAreaConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -278,7 +315,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = ServiceArea::new(ServiceAreaConfig::new()).unwrap()
+        let e = ServiceArea::new(ServiceAreaConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -295,7 +333,8 @@ mod tests {
 
     #[test]
     fn test_isochrone_area() {
-        let e = ServiceArea::new(ServiceAreaConfig::new()).unwrap()
+        let e = ServiceArea::new(ServiceAreaConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.isochrone_area();
         assert!(!result.is_empty());
@@ -303,7 +342,8 @@ mod tests {
 
     #[test]
     fn test_p_median() {
-        let e = ServiceArea::new(ServiceAreaConfig::new()).unwrap()
+        let e = ServiceArea::new(ServiceAreaConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.p_median();
         assert!(!result.is_empty());
@@ -311,7 +351,8 @@ mod tests {
 
     #[test]
     fn test_accessibility_score() {
-        let e = ServiceArea::new(ServiceAreaConfig::new()).unwrap()
+        let e = ServiceArea::new(ServiceAreaConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.accessibility_score();
         assert!(!result.is_empty());

@@ -423,11 +423,7 @@ mod tests {
         let size = basis.size_bytes();
 
         // Should be small — the "1KB brain"
-        assert!(
-            size < 5000,
-            "eigenbasis should be small: {} bytes",
-            size
-        );
+        assert!(size < 5000, "eigenbasis should be small: {} bytes", size);
     }
 
     #[test]

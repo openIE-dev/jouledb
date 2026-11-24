@@ -15,7 +15,10 @@ pub enum EcsError {
     /// Entity does not exist.
     EntityNotFound(u64),
     /// Component not found on entity.
-    ComponentNotFound { entity: u64, component: &'static str },
+    ComponentNotFound {
+        entity: u64,
+        component: &'static str,
+    },
     /// Entity already destroyed.
     EntityDestroyed(u64),
     /// System already registered.
@@ -133,7 +136,9 @@ impl Archetype {
     fn new(mut types: Vec<TypeId>) -> Self {
         types.sort();
         types.dedup();
-        Self { component_types: types }
+        Self {
+            component_types: types,
+        }
     }
 }
 
@@ -215,7 +220,10 @@ impl World {
     /// Spawn via the fluent entity builder.
     pub fn build_entity(&mut self) -> EntityBuilder<'_> {
         let entity = self.spawn();
-        EntityBuilder { world: self, entity }
+        EntityBuilder {
+            world: self,
+            entity,
+        }
     }
 
     /// Destroy an entity and remove all its components.
@@ -254,7 +262,10 @@ impl World {
         let tid = TypeId::of::<C>();
         let storage = self.storages.entry(tid).or_insert_with(SparseSet::new);
         storage.insert(entity, Box::new(component));
-        self.entity_components.entry(entity).or_default().insert(tid);
+        self.entity_components
+            .entry(entity)
+            .or_default()
+            .insert(tid);
         Ok(())
     }
 
@@ -264,10 +275,13 @@ impl World {
             return Err(EcsError::EntityNotFound(entity));
         }
         let tid = TypeId::of::<C>();
-        let storage = self.storages.get_mut(&tid).ok_or(EcsError::ComponentNotFound {
-            entity,
-            component: C::component_name(),
-        })?;
+        let storage = self
+            .storages
+            .get_mut(&tid)
+            .ok_or(EcsError::ComponentNotFound {
+                entity,
+                component: C::component_name(),
+            })?;
         let boxed = storage.remove(entity).ok_or(EcsError::ComponentNotFound {
             entity,
             component: C::component_name(),
@@ -303,10 +317,13 @@ impl World {
             return Err(EcsError::EntityNotFound(entity));
         }
         let tid = TypeId::of::<C>();
-        let storage = self.storages.get_mut(&tid).ok_or(EcsError::ComponentNotFound {
-            entity,
-            component: C::component_name(),
-        })?;
+        let storage = self
+            .storages
+            .get_mut(&tid)
+            .ok_or(EcsError::ComponentNotFound {
+                entity,
+                component: C::component_name(),
+            })?;
         storage
             .get_mut(entity)
             .and_then(|any| any.downcast_mut::<C>())
@@ -450,20 +467,42 @@ mod tests {
 
     // Test components.
     #[derive(Debug, Clone, PartialEq)]
-    struct Position { x: f64, y: f64 }
-    impl Component for Position { fn component_name() -> &'static str { "Position" } }
+    struct Position {
+        x: f64,
+        y: f64,
+    }
+    impl Component for Position {
+        fn component_name() -> &'static str {
+            "Position"
+        }
+    }
 
     #[derive(Debug, Clone, PartialEq)]
-    struct Velocity { dx: f64, dy: f64 }
-    impl Component for Velocity { fn component_name() -> &'static str { "Velocity" } }
+    struct Velocity {
+        dx: f64,
+        dy: f64,
+    }
+    impl Component for Velocity {
+        fn component_name() -> &'static str {
+            "Velocity"
+        }
+    }
 
     #[derive(Debug, Clone, PartialEq)]
     struct Health(i32);
-    impl Component for Health { fn component_name() -> &'static str { "Health" } }
+    impl Component for Health {
+        fn component_name() -> &'static str {
+            "Health"
+        }
+    }
 
     #[derive(Debug, Clone, PartialEq)]
     struct Dead;
-    impl Component for Dead { fn component_name() -> &'static str { "Dead" } }
+    impl Component for Dead {
+        fn component_name() -> &'static str {
+            "Dead"
+        }
+    }
 
     #[test]
     fn spawn_and_destroy() {
@@ -481,7 +520,10 @@ mod tests {
         let mut w = World::new();
         let e = w.spawn();
         w.add_component(e, Position { x: 1.0, y: 2.0 }).unwrap();
-        assert_eq!(w.get_component::<Position>(e).unwrap(), &Position { x: 1.0, y: 2.0 });
+        assert_eq!(
+            w.get_component::<Position>(e).unwrap(),
+            &Position { x: 1.0, y: 2.0 }
+        );
         let removed = w.remove_component::<Position>(e).unwrap();
         assert_eq!(removed, Position { x: 1.0, y: 2.0 });
         assert!(!w.has_component::<Position>(e));
@@ -499,7 +541,8 @@ mod tests {
     #[test]
     fn entity_builder() {
         let mut w = World::new();
-        let e = w.build_entity()
+        let e = w
+            .build_entity()
             .with(Position { x: 0.0, y: 0.0 })
             .with(Velocity { dx: 1.0, dy: -1.0 })
             .with(Health(50))
@@ -525,7 +568,11 @@ mod tests {
     #[test]
     fn query_with_multiple() {
         let mut w = World::new();
-        let e1 = w.build_entity().with(Position { x: 0.0, y: 0.0 }).with(Velocity { dx: 1.0, dy: 0.0 }).build();
+        let e1 = w
+            .build_entity()
+            .with(Position { x: 0.0, y: 0.0 })
+            .with(Velocity { dx: 1.0, dy: 0.0 })
+            .build();
         let _e2 = w.build_entity().with(Position { x: 0.0, y: 0.0 }).build();
         let required = vec![TypeId::of::<Position>(), TypeId::of::<Velocity>()];
         let result = w.query_with(&required);
@@ -547,7 +594,11 @@ mod tests {
     #[test]
     fn archetype_tracking() {
         let mut w = World::new();
-        let e = w.build_entity().with(Position { x: 0.0, y: 0.0 }).with(Health(10)).build();
+        let e = w
+            .build_entity()
+            .with(Position { x: 0.0, y: 0.0 })
+            .with(Health(10))
+            .build();
         let arch = w.archetype_of(e).unwrap();
         assert_eq!(arch.component_types.len(), 2);
     }
@@ -564,12 +615,12 @@ mod tests {
     fn system_registration_and_tick() {
         struct MoveSystem;
         impl System for MoveSystem {
-            fn name(&self) -> &str { "MoveSystem" }
+            fn name(&self) -> &str {
+                "MoveSystem"
+            }
             fn run(&mut self, world: &mut World) {
-                let entities = world.query_with(&[
-                    TypeId::of::<Position>(),
-                    TypeId::of::<Velocity>(),
-                ]);
+                let entities =
+                    world.query_with(&[TypeId::of::<Position>(), TypeId::of::<Velocity>()]);
                 for e in entities {
                     let vel = world.get_component::<Velocity>(e).unwrap().clone();
                     let pos = world.get_component_mut::<Position>(e).unwrap();
@@ -580,7 +631,8 @@ mod tests {
         }
 
         let mut w = World::new();
-        let e = w.build_entity()
+        let e = w
+            .build_entity()
             .with(Position { x: 0.0, y: 0.0 })
             .with(Velocity { dx: 5.0, dy: 3.0 })
             .build();

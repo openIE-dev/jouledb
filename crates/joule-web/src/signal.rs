@@ -184,7 +184,10 @@ impl<T: Clone + 'static> Computed<T> {
         {
             let rt = self.runtime.borrow();
             if rt.updating.contains(&self.id) {
-                panic!("Circular dependency detected in computed signal {}", self.id);
+                panic!(
+                    "Circular dependency detected in computed signal {}",
+                    self.id
+                );
             }
         }
 
@@ -361,9 +364,7 @@ mod tests {
 
         let a_val = a.value.clone();
         let b_val = b.value.clone();
-        let sum = Computed::new(&rt, move || {
-            *a_val.borrow() + *b_val.borrow()
-        });
+        let sum = Computed::new(&rt, move || *a_val.borrow() + *b_val.borrow());
 
         assert_eq!(sum.get(), 7);
     }

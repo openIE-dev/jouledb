@@ -16,7 +16,11 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SchemaTypeError {
     /// Value does not conform to schema.
-    ValidationFailed { path: String, expected: String, got: String },
+    ValidationFailed {
+        path: String,
+        expected: String,
+        got: String,
+    },
     /// Schema compatibility check failed.
     IncompatibleSchema { reason: String },
     /// Unknown type reference.
@@ -30,8 +34,15 @@ pub enum SchemaTypeError {
 impl fmt::Display for SchemaTypeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ValidationFailed { path, expected, got } => {
-                write!(f, "validation failed at {path}: expected {expected}, got {got}")
+            Self::ValidationFailed {
+                path,
+                expected,
+                got,
+            } => {
+                write!(
+                    f,
+                    "validation failed at {path}: expected {expected}, got {got}"
+                )
             }
             Self::IncompatibleSchema { reason } => write!(f, "incompatible schema: {reason}"),
             Self::UnknownType(name) => write!(f, "unknown type: {name}"),
@@ -104,7 +115,10 @@ impl SchemaType {
 
     /// Whether this is a primitive type.
     pub fn is_primitive(&self) -> bool {
-        matches!(self, Self::Null | Self::Bool | Self::Int | Self::Float | Self::Str)
+        matches!(
+            self,
+            Self::Null | Self::Bool | Self::Int | Self::Float | Self::Str
+        )
     }
 
     /// Whether this type allows null values.
@@ -155,7 +169,11 @@ impl StructSchema {
 
     /// Required field names.
     pub fn required_fields(&self) -> Vec<&str> {
-        self.fields.iter().filter(|f| f.required).map(|f| f.name.as_str()).collect()
+        self.fields
+            .iter()
+            .filter(|f| f.required)
+            .map(|f| f.name.as_str())
+            .collect()
     }
 }
 
@@ -261,12 +279,20 @@ pub struct EnumVariant {
 impl EnumVariant {
     /// A unit variant (no payload).
     pub fn unit(name: impl Into<String>) -> Self {
-        Self { name: name.into(), payload: None, description: None }
+        Self {
+            name: name.into(),
+            payload: None,
+            description: None,
+        }
     }
 
     /// A variant with payload.
     pub fn with_payload(name: impl Into<String>, schema: SchemaType) -> Self {
-        Self { name: name.into(), payload: Some(schema), description: None }
+        Self {
+            name: name.into(),
+            payload: Some(schema),
+            description: None,
+        }
     }
 
     /// Set description.
@@ -289,7 +315,12 @@ pub fn validate(schema: &SchemaType, value: &Value) -> Result<(), Vec<SchemaType
     }
 }
 
-fn validate_inner(schema: &SchemaType, value: &Value, path: &str, errors: &mut Vec<SchemaTypeError>) {
+fn validate_inner(
+    schema: &SchemaType,
+    value: &Value,
+    path: &str,
+    errors: &mut Vec<SchemaTypeError>,
+) {
     match schema {
         SchemaType::Any => {}
         SchemaType::Null => {
@@ -405,7 +436,11 @@ fn validate_inner(schema: &SchemaType, value: &Value, path: &str, errors: &mut V
         }
         SchemaType::Enum(e) => {
             if let Some(s) = value.as_str() {
-                if !e.variants.iter().any(|v| v.name == s && v.payload.is_none()) {
+                if !e
+                    .variants
+                    .iter()
+                    .any(|v| v.name == s && v.payload.is_none())
+                {
                     errors.push(SchemaTypeError::ValidationFailed {
                         path: path.to_string(),
                         expected: format!("one of {:?}", e.variant_names()),
@@ -529,7 +564,9 @@ pub fn is_compatible(reader: &SchemaType, writer: &SchemaType) -> bool {
         }
         (SchemaType::Enum(r), SchemaType::Enum(w)) => {
             // Writer variants must be a subset of reader variants.
-            w.variants.iter().all(|wv| r.variants.iter().any(|rv| rv.name == wv.name))
+            w.variants
+                .iter()
+                .all(|wv| r.variants.iter().any(|rv| rv.name == wv.name))
         }
         (SchemaType::Union(r_types), w) => {
             // Writer must be compatible with at least one union branch.
@@ -845,11 +882,12 @@ mod tests {
     #[test]
     fn test_validate_struct_no_extra() {
         let schema = SchemaType::Struct(
-            StructSchema::new("Strict")
-                .with_field(SchemaField::required("x", SchemaType::Int)),
+            StructSchema::new("Strict").with_field(SchemaField::required("x", SchemaType::Int)),
         );
         let errs = validate(&schema, &json!({"x": 1, "y": 2})).unwrap_err();
-        assert!(errs.iter().any(|e| matches!(e, SchemaTypeError::ValidationFailed { got, .. } if got == "extra field")));
+        assert!(errs.iter().any(
+            |e| matches!(e, SchemaTypeError::ValidationFailed { got, .. } if got == "extra field")
+        ));
     }
 
     #[test]
@@ -943,13 +981,23 @@ mod tests {
 
     #[test]
     fn test_coerce_string_to_bool() {
-        assert_eq!(coerce(&json!("true"), &SchemaType::Bool).unwrap(), json!(true));
-        assert_eq!(coerce(&json!("0"), &SchemaType::Bool).unwrap(), json!(false));
+        assert_eq!(
+            coerce(&json!("true"), &SchemaType::Bool).unwrap(),
+            json!(true)
+        );
+        assert_eq!(
+            coerce(&json!("0"), &SchemaType::Bool).unwrap(),
+            json!(false)
+        );
     }
 
     #[test]
     fn test_coerce_null_to_optional() {
-        let result = coerce(&json!(null), &SchemaType::Optional(Box::new(SchemaType::Int))).unwrap();
+        let result = coerce(
+            &json!(null),
+            &SchemaType::Optional(Box::new(SchemaType::Int)),
+        )
+        .unwrap();
         assert_eq!(result, json!(null));
     }
 

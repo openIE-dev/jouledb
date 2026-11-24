@@ -47,7 +47,7 @@ fn gf256_inv(a: u8) -> u8 {
     let mut result = a;
     for _ in 0..6 {
         result = gf256_mul(result, result); // square
-        result = gf256_mul(result, a);      // multiply by a
+        result = gf256_mul(result, a); // multiply by a
     }
     // After 6 iterations of square-multiply: a^(2^7 - 1) = a^127
     // We need a^254 = (a^127)^2

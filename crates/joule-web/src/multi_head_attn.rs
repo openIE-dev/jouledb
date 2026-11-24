@@ -19,7 +19,11 @@ pub struct Matrix {
 
 impl Matrix {
     pub fn zeros(rows: usize, cols: usize) -> Self {
-        Self { rows, cols, data: vec![0.0; rows * cols] }
+        Self {
+            rows,
+            cols,
+            data: vec![0.0; rows * cols],
+        }
     }
 
     pub fn from_data(rows: usize, cols: usize, data: Vec<f64>) -> Self {
@@ -87,7 +91,9 @@ impl Linear {
         let mut data = Vec::with_capacity(out_features * in_features);
         let mut state = seed;
         for _ in 0..(out_features * in_features) {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let u = (state >> 33) as f64 / (1u64 << 31) as f64;
             data.push(u * 2.0 * limit - limit);
         }
@@ -148,8 +154,17 @@ pub struct MultiHeadAttnConfig {
 
 impl MultiHeadAttnConfig {
     pub fn new(d_model: usize, num_heads: usize) -> Self {
-        assert_eq!(d_model % num_heads, 0, "d_model must be divisible by num_heads");
-        Self { d_model, num_heads, causal: false, dropout_rate: 0.0 }
+        assert_eq!(
+            d_model % num_heads,
+            0,
+            "d_model must be divisible by num_heads"
+        );
+        Self {
+            d_model,
+            num_heads,
+            causal: false,
+            dropout_rate: 0.0,
+        }
     }
 
     pub fn with_causal(mut self, causal: bool) -> Self {
@@ -293,7 +308,8 @@ impl MultiHeadAttention {
         self.last_attn_weights.clear();
 
         for hi in 0..self.config.num_heads {
-            let (out, weights) = self.single_head_attention(&q_heads[hi], &k_heads[hi], &v_heads[hi]);
+            let (out, weights) =
+                self.single_head_attention(&q_heads[hi], &k_heads[hi], &v_heads[hi]);
             head_outputs.push(out);
             self.last_attn_weights.push(weights);
         }
@@ -330,8 +346,10 @@ impl MultiHeadAttention {
     /// Total number of parameters in the layer.
     pub fn num_parameters(&self) -> usize {
         let linear_params = |l: &Linear| l.weight.rows * l.weight.cols + l.bias.len();
-        linear_params(&self.w_q) + linear_params(&self.w_k)
-            + linear_params(&self.w_v) + linear_params(&self.w_o)
+        linear_params(&self.w_q)
+            + linear_params(&self.w_k)
+            + linear_params(&self.w_v)
+            + linear_params(&self.w_o)
     }
 }
 
@@ -371,36 +389,40 @@ impl fmt::Display for HeadStats {
 
 /// Compute per-head statistics from attention weights.
 pub fn compute_head_stats(weights: &[Matrix]) -> Vec<HeadStats> {
-    weights.iter().enumerate().map(|(hi, w)| {
-        let s_q = w.rows;
-        let s_k = w.cols;
-        let mut total_entropy = 0.0;
-        let mut max_w = 0.0_f64;
-        let mut near_zero = 0usize;
-        let threshold = 1e-4;
+    weights
+        .iter()
+        .enumerate()
+        .map(|(hi, w)| {
+            let s_q = w.rows;
+            let s_k = w.cols;
+            let mut total_entropy = 0.0;
+            let mut max_w = 0.0_f64;
+            let mut near_zero = 0usize;
+            let threshold = 1e-4;
 
-        for r in 0..s_q {
-            let mut row_entropy = 0.0;
-            for c in 0..s_k {
-                let p = w.get(r, c);
-                max_w = max_w.max(p);
-                if p > 1e-12 {
-                    row_entropy -= p * p.ln();
+            for r in 0..s_q {
+                let mut row_entropy = 0.0;
+                for c in 0..s_k {
+                    let p = w.get(r, c);
+                    max_w = max_w.max(p);
+                    if p > 1e-12 {
+                        row_entropy -= p * p.ln();
+                    }
+                    if p < threshold {
+                        near_zero += 1;
+                    }
                 }
-                if p < threshold {
-                    near_zero += 1;
-                }
+                total_entropy += row_entropy;
             }
-            total_entropy += row_entropy;
-        }
 
-        HeadStats {
-            head_index: hi,
-            mean_entropy: total_entropy / s_q as f64,
-            max_weight: max_w,
-            sparsity: near_zero as f64 / (s_q * s_k) as f64,
-        }
-    }).collect()
+            HeadStats {
+                head_index: hi,
+                mean_entropy: total_entropy / s_q as f64,
+                max_weight: max_w,
+                sparsity: near_zero as f64 / (s_q * s_k) as f64,
+            }
+        })
+        .collect()
 }
 
 // ── Tests ────────────────────────────────────────────────────────
@@ -586,7 +608,12 @@ mod tests {
 
     #[test]
     fn test_head_stats_display() {
-        let s = HeadStats { head_index: 0, mean_entropy: 1.5, max_weight: 0.8, sparsity: 0.3 };
+        let s = HeadStats {
+            head_index: 0,
+            mean_entropy: 1.5,
+            max_weight: 0.8,
+            sparsity: 0.3,
+        };
         let disp = format!("{}", s);
         assert!(disp.contains("Head[0]"));
         assert!(disp.contains("entropy"));

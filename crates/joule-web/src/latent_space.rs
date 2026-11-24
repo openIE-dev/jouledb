@@ -16,10 +16,15 @@ struct Rng {
 }
 
 impl Rng {
-    fn new(seed: u64) -> Self { Self { state: seed } }
+    fn new(seed: u64) -> Self {
+        Self { state: seed }
+    }
 
     fn next(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.state
     }
 
@@ -44,7 +49,9 @@ pub fn l2_norm(v: &[f64]) -> f64 {
 /// Normalize a vector to unit length.
 pub fn normalize(v: &[f64]) -> Vec<f64> {
     let n = l2_norm(v);
-    if n < 1e-15 { return v.to_vec(); }
+    if n < 1e-15 {
+        return v.to_vec();
+    }
     v.iter().map(|x| x / n).collect()
 }
 
@@ -57,13 +64,19 @@ pub fn dot(a: &[f64], b: &[f64]) -> f64 {
 pub fn cosine_similarity(a: &[f64], b: &[f64]) -> f64 {
     let na = l2_norm(a);
     let nb = l2_norm(b);
-    if na < 1e-15 || nb < 1e-15 { return 0.0; }
+    if na < 1e-15 || nb < 1e-15 {
+        return 0.0;
+    }
     dot(a, b) / (na * nb)
 }
 
 /// Euclidean distance.
 pub fn euclidean_distance(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b.iter()).map(|(x, y)| (x - y).powi(2)).sum::<f64>().sqrt()
+    a.iter()
+        .zip(b.iter())
+        .map(|(x, y)| (x - y).powi(2))
+        .sum::<f64>()
+        .sqrt()
 }
 
 // ── Interpolation ─────────────────────────────────────────────
@@ -72,7 +85,8 @@ pub fn euclidean_distance(a: &[f64], b: &[f64]) -> f64 {
 /// lerp(a, b, t) = (1-t)*a + t*b
 pub fn lerp(a: &[f64], b: &[f64], t: f64) -> Vec<f64> {
     assert_eq!(a.len(), b.len());
-    a.iter().zip(b.iter())
+    a.iter()
+        .zip(b.iter())
         .map(|(ai, bi)| (1.0 - t) * ai + t * bi)
         .collect()
 }
@@ -105,7 +119,9 @@ pub fn slerp(a: &[f64], b: &[f64], t: f64) -> Vec<f64> {
 
     // Interpolate on the sphere, then scale by interpolated magnitude.
     let interp_norm = (1.0 - t) * na + t * nb;
-    a_unit.iter().zip(b_unit.iter())
+    a_unit
+        .iter()
+        .zip(b_unit.iter())
         .map(|(ai, bi)| (coeff_a * ai + coeff_b * bi) * interp_norm)
         .collect()
 }
@@ -117,11 +133,17 @@ pub fn interpolation_sequence(
     steps: usize,
     use_slerp: bool,
 ) -> Vec<Vec<f64>> {
-    if steps <= 1 { return vec![a.to_vec()]; }
+    if steps <= 1 {
+        return vec![a.to_vec()];
+    }
     (0..steps)
         .map(|i| {
             let t = i as f64 / (steps - 1) as f64;
-            if use_slerp { slerp(a, b, t) } else { lerp(a, b, t) }
+            if use_slerp {
+                slerp(a, b, t)
+            } else {
+                lerp(a, b, t)
+            }
         })
         .collect()
 }
@@ -143,37 +165,66 @@ pub struct Traversal {
 
 impl Traversal {
     /// Create a traversal by varying one dimension from min_val to max_val.
-    pub fn single_dim(base: &[f64], dimension: usize, min_val: f64, max_val: f64, steps: usize) -> Self {
+    pub fn single_dim(
+        base: &[f64],
+        dimension: usize,
+        min_val: f64,
+        max_val: f64,
+        steps: usize,
+    ) -> Self {
         assert!(dimension < base.len());
         let steps = steps.max(2);
         let values: Vec<f64> = (0..steps)
             .map(|i| min_val + (max_val - min_val) * i as f64 / (steps - 1) as f64)
             .collect();
 
-        let points: Vec<Vec<f64>> = values.iter().map(|v| {
-            let mut point = base.to_vec();
-            point[dimension] = *v;
-            point
-        }).collect();
+        let points: Vec<Vec<f64>> = values
+            .iter()
+            .map(|v| {
+                let mut point = base.to_vec();
+                point[dimension] = *v;
+                point
+            })
+            .collect();
 
-        Self { base: base.to_vec(), dimension, points, values }
+        Self {
+            base: base.to_vec(),
+            dimension,
+            points,
+            values,
+        }
     }
 
     /// Create a traversal along an arbitrary direction vector.
-    pub fn along_direction(base: &[f64], direction: &[f64], min_scale: f64, max_scale: f64, steps: usize) -> Self {
+    pub fn along_direction(
+        base: &[f64],
+        direction: &[f64],
+        min_scale: f64,
+        max_scale: f64,
+        steps: usize,
+    ) -> Self {
         let dir_norm = normalize(direction);
         let steps = steps.max(2);
         let values: Vec<f64> = (0..steps)
             .map(|i| min_scale + (max_scale - min_scale) * i as f64 / (steps - 1) as f64)
             .collect();
 
-        let points: Vec<Vec<f64>> = values.iter().map(|s| {
-            base.iter().zip(dir_norm.iter())
-                .map(|(bi, di)| bi + s * di)
-                .collect()
-        }).collect();
+        let points: Vec<Vec<f64>> = values
+            .iter()
+            .map(|s| {
+                base.iter()
+                    .zip(dir_norm.iter())
+                    .map(|(bi, di)| bi + s * di)
+                    .collect()
+            })
+            .collect();
 
-        Self { base: base.to_vec(), dimension: 0, points, values }
+        Self {
+            base: base.to_vec(),
+            dimension: 0,
+            points,
+            values,
+        }
     }
 }
 
@@ -201,7 +252,8 @@ impl LatentArithmetic {
     pub fn analogy(a: &[f64], b: &[f64], c: &[f64]) -> Vec<f64> {
         assert_eq!(a.len(), b.len());
         assert_eq!(b.len(), c.len());
-        c.iter().zip(b.iter().zip(a.iter()))
+        c.iter()
+            .zip(b.iter().zip(a.iter()))
             .map(|(ci, (bi, ai))| ci + (bi - ai))
             .collect()
     }
@@ -242,7 +294,9 @@ impl LatentArithmetic {
         let mut projection = vec![0.0; dim];
         for b in basis {
             let bn = l2_norm(b);
-            if bn < 1e-15 { continue; }
+            if bn < 1e-15 {
+                continue;
+            }
             let coeff = dot(v, b) / (bn * bn);
             for (p, bi) in projection.iter_mut().zip(b.iter()) {
                 *p += coeff * bi;
@@ -277,7 +331,12 @@ impl DisentanglementMetrics {
     /// Compute metrics from a set of latent encodings.
     pub fn compute(encodings: &[Vec<f64>], factor_labels: Option<&[Vec<f64>]>) -> Self {
         if encodings.is_empty() {
-            return Self { mig: 0.0, activity: vec![], active_dims: 0, mean_correlation: 0.0 };
+            return Self {
+                mig: 0.0,
+                activity: vec![],
+                active_dims: 0,
+                mean_correlation: 0.0,
+            };
         }
 
         let n = encodings.len();
@@ -294,9 +353,11 @@ impl DisentanglementMetrics {
         // Per-dimension variance (activity).
         let activity: Vec<f64> = (0..latent_dim)
             .map(|i| {
-                encodings.iter()
+                encodings
+                    .iter()
                     .map(|enc| (enc[i] - means[i]).powi(2))
-                    .sum::<f64>() / n as f64
+                    .sum::<f64>()
+                    / n as f64
             })
             .collect();
 
@@ -309,16 +370,24 @@ impl DisentanglementMetrics {
         let mut corr_count = 0;
         for i in 0..latent_dim {
             for j in (i + 1)..latent_dim {
-                if stds[i] < 1e-10 || stds[j] < 1e-10 { continue; }
-                let cov: f64 = encodings.iter()
+                if stds[i] < 1e-10 || stds[j] < 1e-10 {
+                    continue;
+                }
+                let cov: f64 = encodings
+                    .iter()
                     .map(|enc| (enc[i] - means[i]) * (enc[j] - means[j]))
-                    .sum::<f64>() / n as f64;
+                    .sum::<f64>()
+                    / n as f64;
                 let corr = (cov / (stds[i] * stds[j])).abs();
                 total_corr += corr;
                 corr_count += 1;
             }
         }
-        let mean_correlation = if corr_count > 0 { total_corr / corr_count as f64 } else { 0.0 };
+        let mean_correlation = if corr_count > 0 {
+            total_corr / corr_count as f64
+        } else {
+            0.0
+        };
 
         // MIG (Mutual Information Gap).
         let mig = if let Some(labels) = factor_labels {
@@ -327,12 +396,19 @@ impl DisentanglementMetrics {
             0.0
         };
 
-        Self { mig, activity, active_dims, mean_correlation }
+        Self {
+            mig,
+            activity,
+            active_dims,
+            mean_correlation,
+        }
     }
 
     /// Compute MIG score from encodings and factor labels.
     fn compute_mig(encodings: &[Vec<f64>], labels: &[Vec<f64>], latent_dim: usize) -> f64 {
-        if labels.is_empty() || labels[0].is_empty() { return 0.0; }
+        if labels.is_empty() || labels[0].is_empty() {
+            return 0.0;
+        }
         let num_factors = labels[0].len();
         let n = encodings.len().min(labels.len());
 
@@ -342,17 +418,34 @@ impl DisentanglementMetrics {
             let mut mi_scores: Vec<f64> = (0..latent_dim)
                 .map(|j| {
                     // Approximate MI via correlation as a proxy.
-                    let enc_mean: f64 = encodings.iter().take(n).map(|e| e[j]).sum::<f64>() / n as f64;
+                    let enc_mean: f64 =
+                        encodings.iter().take(n).map(|e| e[j]).sum::<f64>() / n as f64;
                     let lab_mean: f64 = labels.iter().take(n).map(|l| l[k]).sum::<f64>() / n as f64;
-                    let enc_std: f64 = (encodings.iter().take(n)
-                        .map(|e| (e[j] - enc_mean).powi(2)).sum::<f64>() / n as f64).sqrt();
-                    let lab_std: f64 = (labels.iter().take(n)
-                        .map(|l| (l[k] - lab_mean).powi(2)).sum::<f64>() / n as f64).sqrt();
+                    let enc_std: f64 = (encodings
+                        .iter()
+                        .take(n)
+                        .map(|e| (e[j] - enc_mean).powi(2))
+                        .sum::<f64>()
+                        / n as f64)
+                        .sqrt();
+                    let lab_std: f64 = (labels
+                        .iter()
+                        .take(n)
+                        .map(|l| (l[k] - lab_mean).powi(2))
+                        .sum::<f64>()
+                        / n as f64)
+                        .sqrt();
 
-                    if enc_std < 1e-10 || lab_std < 1e-10 { return 0.0; }
-                    let cov: f64 = encodings.iter().take(n).zip(labels.iter())
+                    if enc_std < 1e-10 || lab_std < 1e-10 {
+                        return 0.0;
+                    }
+                    let cov: f64 = encodings
+                        .iter()
+                        .take(n)
+                        .zip(labels.iter())
                         .map(|(e, l)| (e[j] - enc_mean) * (l[k] - lab_mean))
-                        .sum::<f64>() / n as f64;
+                        .sum::<f64>()
+                        / n as f64;
                     (cov / (enc_std * lab_std)).abs()
                 })
                 .collect();
@@ -391,7 +484,10 @@ pub struct LatentExplorer {
 
 impl LatentExplorer {
     pub fn new(latent_dim: usize) -> Self {
-        Self { latent_dim, stored_vectors: Vec::new() }
+        Self {
+            latent_dim,
+            stored_vectors: Vec::new(),
+        }
     }
 
     pub fn with_vector(mut self, name: &str, vec: Vec<f64>) -> Self {
@@ -408,14 +504,16 @@ impl LatentExplorer {
 
     /// Retrieve a stored vector by name.
     pub fn get(&self, name: &str) -> Option<&Vec<f64>> {
-        self.stored_vectors.iter()
+        self.stored_vectors
+            .iter()
             .find(|(n, _)| n == name)
             .map(|(_, v)| v)
     }
 
     /// Find the nearest stored vector to a query.
     pub fn nearest(&self, query: &[f64]) -> Option<(&str, f64)> {
-        self.stored_vectors.iter()
+        self.stored_vectors
+            .iter()
             .map(|(name, vec)| (name.as_str(), euclidean_distance(query, vec)))
             .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
     }
@@ -428,13 +526,22 @@ impl LatentExplorer {
             .collect()
     }
 
-    pub fn vector_count(&self) -> usize { self.stored_vectors.len() }
-    pub fn latent_dim(&self) -> usize { self.latent_dim }
+    pub fn vector_count(&self) -> usize {
+        self.stored_vectors.len()
+    }
+    pub fn latent_dim(&self) -> usize {
+        self.latent_dim
+    }
 }
 
 impl fmt::Display for LatentExplorer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "LatentExplorer(dim={}, stored={})", self.latent_dim, self.stored_vectors.len())
+        write!(
+            f,
+            "LatentExplorer(dim={}, stored={})",
+            self.latent_dim,
+            self.stored_vectors.len()
+        )
     }
 }
 
@@ -570,11 +677,12 @@ mod tests {
     #[test]
     fn test_disentanglement_with_labels() {
         let encodings = vec![
-            vec![1.0, 0.0], vec![2.0, 0.1], vec![3.0, -0.1], vec![4.0, 0.05],
+            vec![1.0, 0.0],
+            vec![2.0, 0.1],
+            vec![3.0, -0.1],
+            vec![4.0, 0.05],
         ];
-        let labels = vec![
-            vec![1.0], vec![2.0], vec![3.0], vec![4.0],
-        ];
+        let labels = vec![vec![1.0], vec![2.0], vec![3.0], vec![4.0]];
         let metrics = DisentanglementMetrics::compute(&encodings, Some(&labels));
         assert!(metrics.mig >= 0.0);
     }

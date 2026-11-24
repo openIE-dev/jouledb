@@ -11,7 +11,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -47,11 +49,21 @@ pub struct MoSolution {
 
 impl MoSolution {
     pub fn new(x: Vec<f64>, num_objectives: usize) -> Self {
-        Self { x, objectives: vec![0.0; num_objectives], rank: 0, crowding_distance: 0.0 }
+        Self {
+            x,
+            objectives: vec![0.0; num_objectives],
+            rank: 0,
+            crowding_distance: 0.0,
+        }
     }
 
     pub fn with_objectives(x: Vec<f64>, objectives: Vec<f64>) -> Self {
-        Self { x, objectives, rank: 0, crowding_distance: 0.0 }
+        Self {
+            x,
+            objectives,
+            rank: 0,
+            crowding_distance: 0.0,
+        }
     }
 }
 
@@ -77,9 +89,13 @@ pub fn pareto_front(solutions: &[MoSolution]) -> Vec<usize> {
     let mut is_dominated = vec![false; n];
 
     for i in 0..n {
-        if is_dominated[i] { continue; }
+        if is_dominated[i] {
+            continue;
+        }
         for j in 0..n {
-            if i == j || is_dominated[j] { continue; }
+            if i == j || is_dominated[j] {
+                continue;
+            }
             if dominates(&solutions[j].objectives, &solutions[i].objectives) {
                 is_dominated[i] = true;
                 break;
@@ -102,7 +118,9 @@ pub fn non_dominated_sort(solutions: &[MoSolution]) -> Vec<Vec<usize>> {
 
     for i in 0..n {
         for j in 0..n {
-            if i == j { continue; }
+            if i == j {
+                continue;
+            }
             if dominates(&solutions[i].objectives, &solutions[j].objectives) {
                 dominated_set[i].push(j);
             } else if dominates(&solutions[j].objectives, &solutions[i].objectives) {
@@ -137,7 +155,9 @@ pub fn non_dominated_sort(solutions: &[MoSolution]) -> Vec<Vec<usize>> {
 /// Compute crowding distance for a front.
 pub fn crowding_distance(solutions: &[MoSolution], front: &[usize]) -> Vec<f64> {
     let n = front.len();
-    if n == 0 { return Vec::new(); }
+    if n == 0 {
+        return Vec::new();
+    }
     let m = solutions[front[0]].objectives.len();
     let mut distances = vec![0.0f64; n];
 
@@ -174,15 +194,20 @@ pub fn crowding_distance(solutions: &[MoSolution], front: &[usize]) -> Vec<f64> 
 /// Compute 2D hypervolume indicator relative to a reference point.
 /// All objectives are minimized.
 pub fn hypervolume_2d(objectives: &[(f64, f64)], reference: (f64, f64)) -> f64 {
-    if objectives.is_empty() { return 0.0; }
+    if objectives.is_empty() {
+        return 0.0;
+    }
 
     // Filter out points dominated by reference
-    let mut points: Vec<(f64, f64)> = objectives.iter()
+    let mut points: Vec<(f64, f64)> = objectives
+        .iter()
         .filter(|p| p.0 <= reference.0 && p.1 <= reference.1)
         .copied()
         .collect();
 
-    if points.is_empty() { return 0.0; }
+    if points.is_empty() {
+        return 0.0;
+    }
 
     // Sort by first objective
     points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
@@ -200,7 +225,11 @@ pub fn hypervolume_2d(objectives: &[(f64, f64)], reference: (f64, f64)) -> f64 {
     // Compute hypervolume
     let mut hv = 0.0;
     for i in 0..front.len() {
-        let x_right = if i + 1 < front.len() { front[i + 1].0 } else { reference.0 };
+        let x_right = if i + 1 < front.len() {
+            front[i + 1].0
+        } else {
+            reference.0
+        };
         let height = reference.1 - front[i].1;
         hv += (x_right - front[i].0) * height;
     }
@@ -273,7 +302,8 @@ impl Nsga2 {
             let x: Vec<f64> = (0..self.config.dimensions)
                 .map(|_| lo + self.rng.next_f64() * (hi - lo))
                 .collect();
-            self.population.push(MoSolution::new(x, self.config.num_objectives));
+            self.population
+                .push(MoSolution::new(x, self.config.num_objectives));
         }
     }
 
@@ -388,9 +418,15 @@ impl Nsga2 {
                 }
             } else {
                 // Partial front: sort by crowding distance
-                let mut sorted_front: Vec<(usize, usize)> = front.iter().enumerate().map(|(fi, &idx)| (fi, idx)).collect();
+                let mut sorted_front: Vec<(usize, usize)> = front
+                    .iter()
+                    .enumerate()
+                    .map(|(fi, &idx)| (fi, idx))
+                    .collect();
                 sorted_front.sort_by(|a, b| {
-                    dists[b.0].partial_cmp(&dists[a.0]).unwrap_or(std::cmp::Ordering::Equal)
+                    dists[b.0]
+                        .partial_cmp(&dists[a.0])
+                        .unwrap_or(std::cmp::Ordering::Equal)
                 });
                 let remaining = pop_size - new_pop.len();
                 for (_, idx) in sorted_front.into_iter().take(remaining) {
@@ -412,15 +448,21 @@ impl Nsga2 {
             self.step(obj_fn);
             // Compute hypervolume for 2-objective case
             if self.config.num_objectives == 2 {
-                let pts: Vec<(f64, f64)> = self.population.iter()
-                    .map(|s| (s.objectives[0], s.objectives[1])).collect();
+                let pts: Vec<(f64, f64)> = self
+                    .population
+                    .iter()
+                    .map(|s| (s.objectives[0], s.objectives[1]))
+                    .collect();
                 let hv = hypervolume_2d(&pts, (10.0, 10.0));
                 hv_history.push(hv);
             }
         }
 
         let front_indices = pareto_front(&self.population);
-        let pf: Vec<MoSolution> = front_indices.iter().map(|i| self.population[*i].clone()).collect();
+        let pf: Vec<MoSolution> = front_indices
+            .iter()
+            .map(|i| self.population[*i].clone())
+            .collect();
 
         Nsga2Result {
             pareto_front: pf,
@@ -429,8 +471,12 @@ impl Nsga2 {
         }
     }
 
-    pub fn population(&self) -> &[MoSolution] { &self.population }
-    pub fn generation(&self) -> usize { self.generation }
+    pub fn population(&self) -> &[MoSolution] {
+        &self.population
+    }
+    pub fn generation(&self) -> usize {
+        self.generation
+    }
 }
 
 // ── MOEA/D ───────────────────────────────────────────────────────
@@ -463,20 +509,28 @@ impl Moead {
         seed: u64,
     ) -> Self {
         // Generate evenly spaced weight vectors for 2 objectives
-        let weights: Vec<Vec<f64>> = (0..num_subproblems).map(|i| {
-            let w1 = i as f64 / (num_subproblems - 1).max(1) as f64;
-            vec![w1, 1.0 - w1]
-        }).collect();
+        let weights: Vec<Vec<f64>> = (0..num_subproblems)
+            .map(|i| {
+                let w1 = i as f64 / (num_subproblems - 1).max(1) as f64;
+                vec![w1, 1.0 - w1]
+            })
+            .collect();
 
         // Compute neighborhoods based on Euclidean distance between weight vectors
         let k = neighborhood_size.min(num_subproblems);
         let mut neighbors: Vec<Vec<usize>> = Vec::new();
         for i in 0..num_subproblems {
-            let mut dists: Vec<(f64, usize)> = (0..num_subproblems).map(|j| {
-                let d: f64 = weights[i].iter().zip(weights[j].iter())
-                    .map(|(a, b)| (a - b).powi(2)).sum::<f64>().sqrt();
-                (d, j)
-            }).collect();
+            let mut dists: Vec<(f64, usize)> = (0..num_subproblems)
+                .map(|j| {
+                    let d: f64 = weights[i]
+                        .iter()
+                        .zip(weights[j].iter())
+                        .map(|(a, b)| (a - b).powi(2))
+                        .sum::<f64>()
+                        .sqrt();
+                    (d, j)
+                })
+                .collect();
             dists.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
             neighbors.push(dists.iter().take(k).map(|d| d.1).collect());
         }
@@ -523,7 +577,10 @@ impl Moead {
 
     /// Tchebycheff scalarization.
     fn tchebycheff(&self, objectives: &[f64], weight: &[f64]) -> f64 {
-        objectives.iter().zip(weight.iter()).zip(self.ideal_point.iter())
+        objectives
+            .iter()
+            .zip(weight.iter())
+            .zip(self.ideal_point.iter())
             .map(|((&f, &w), &z)| w.max(1e-10) * (f - z).abs())
             .fold(f64::NEG_INFINITY, f64::max)
     }
@@ -539,10 +596,13 @@ impl Moead {
             let p2_idx = ni[self.rng.next_f64() as usize % ni.len()];
 
             // Crossover (intermediate)
-            let mut child_x: Vec<f64> = (0..self.dimensions).map(|d| {
-                let alpha = self.rng.next_f64();
-                alpha * self.solutions[p1_idx].x[d] + (1.0 - alpha) * self.solutions[p2_idx].x[d]
-            }).collect();
+            let mut child_x: Vec<f64> = (0..self.dimensions)
+                .map(|d| {
+                    let alpha = self.rng.next_f64();
+                    alpha * self.solutions[p1_idx].x[d]
+                        + (1.0 - alpha) * self.solutions[p2_idx].x[d]
+                })
+                .collect();
 
             // Mutation
             for v in child_x.iter_mut() {
@@ -557,7 +617,8 @@ impl Moead {
 
             // Update neighbors if child is better
             for &j in &self.neighbors[i].clone() {
-                let old_scalar = self.tchebycheff(&self.solutions[j].objectives, &self.weight_vectors[j]);
+                let old_scalar =
+                    self.tchebycheff(&self.solutions[j].objectives, &self.weight_vectors[j]);
                 let new_scalar = self.tchebycheff(&child_obj, &self.weight_vectors[j]);
                 if new_scalar < old_scalar {
                     self.solutions[j].x = child_x.clone();
@@ -576,8 +637,12 @@ impl Moead {
         self.solutions.clone()
     }
 
-    pub fn solutions(&self) -> &[MoSolution] { &self.solutions }
-    pub fn generation(&self) -> usize { self.generation }
+    pub fn solutions(&self) -> &[MoSolution] {
+        &self.solutions
+    }
+    pub fn generation(&self) -> usize {
+        self.generation
+    }
 }
 
 // ── Non-dominated archive ────────────────────────────────────────
@@ -591,7 +656,10 @@ pub struct NondominatedArchive {
 
 impl NondominatedArchive {
     pub fn new(max_size: usize) -> Self {
-        Self { solutions: Vec::new(), max_size }
+        Self {
+            solutions: Vec::new(),
+            max_size,
+        }
     }
 
     /// Add a solution; remove any that it dominates.
@@ -604,7 +672,8 @@ impl NondominatedArchive {
         }
 
         // Remove solutions dominated by new one
-        self.solutions.retain(|s| !dominates(&sol.objectives, &s.objectives));
+        self.solutions
+            .retain(|s| !dominates(&sol.objectives, &s.objectives));
         self.solutions.push(sol);
 
         // Truncate if over capacity (remove lowest crowding distance)
@@ -621,8 +690,12 @@ impl NondominatedArchive {
         true
     }
 
-    pub fn len(&self) -> usize { self.solutions.len() }
-    pub fn is_empty(&self) -> bool { self.solutions.is_empty() }
+    pub fn len(&self) -> usize {
+        self.solutions.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.solutions.is_empty()
+    }
 }
 
 // ── Tests ────────────────────────────────────────────────────────
@@ -732,7 +805,11 @@ mod tests {
 
     #[test]
     fn test_nsga2_initialize() {
-        let config = Nsga2Config { population_size: 20, dimensions: 3, ..Default::default() };
+        let config = Nsga2Config {
+            population_size: 20,
+            dimensions: 3,
+            ..Default::default()
+        };
         let mut nsga2 = Nsga2::new(config);
         nsga2.initialize();
         assert_eq!(nsga2.population().len(), 20);
@@ -838,7 +915,10 @@ mod tests {
     fn test_archive_capacity() {
         let mut archive = NondominatedArchive::new(3);
         for i in 0..5 {
-            archive.add(MoSolution::with_objectives(vec![], vec![i as f64, 5.0 - i as f64]));
+            archive.add(MoSolution::with_objectives(
+                vec![],
+                vec![i as f64, 5.0 - i as f64],
+            ));
         }
         assert!(archive.len() <= 3);
     }

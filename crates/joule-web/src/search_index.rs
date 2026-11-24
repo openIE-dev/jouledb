@@ -42,12 +42,7 @@ impl SearchIndex {
     }
 
     /// Index a document. `tokens` are (term, position) pairs from a single field.
-    pub fn index_document(
-        &mut self,
-        doc_id: u64,
-        field: &str,
-        tokens: &[(String, u32)],
-    ) {
+    pub fn index_document(&mut self, doc_id: u64, field: &str, tokens: &[(String, u32)]) {
         // Build per-term postings.
         let mut term_positions: HashMap<String, Vec<u32>> = HashMap::new();
         for (term, pos) in tokens {

@@ -280,10 +280,7 @@ impl BlueGreenDeployment {
     /// Start deploying a new version to the inactive environment.
     pub fn begin_deploy(&mut self, new_version: &str, timestamp: u64) -> Result<(), String> {
         if self.state != DeployState::Idle && self.state != DeployState::Live {
-            return Err(format!(
-                "cannot begin deploy in state '{}'",
-                self.state
-            ));
+            return Err(format!("cannot begin deploy in state '{}'", self.state));
         }
 
         self.inactive_env_mut().version = new_version.to_string();
@@ -304,10 +301,7 @@ impl BlueGreenDeployment {
     /// Mark the inactive environment as deployed and begin validation.
     pub fn begin_validation(&mut self, timestamp: u64) -> Result<(), String> {
         if self.state != DeployState::Deploying {
-            return Err(format!(
-                "cannot validate in state '{}'",
-                self.state
-            ));
+            return Err(format!("cannot validate in state '{}'", self.state));
         }
         self.state = DeployState::Validating;
         self.log_event(timestamp, "beginning pre-switch validation".into());
@@ -337,10 +331,7 @@ impl BlueGreenDeployment {
         timestamp: u64,
     ) -> Result<(), String> {
         if self.state != DeployState::Validating {
-            return Err(format!(
-                "cannot drain in state '{}'",
-                self.state
-            ));
+            return Err(format!("cannot drain in state '{}'", self.state));
         }
         if !self.all_validations_passed() {
             return Err("validations have not all passed".into());
@@ -351,7 +342,10 @@ impl BlueGreenDeployment {
         self.state = DeployState::Draining;
         self.log_event(
             timestamp,
-            format!("draining {initial_connections} connections from {}", self.active_color),
+            format!(
+                "draining {initial_connections} connections from {}",
+                self.active_color
+            ),
         );
         Ok(())
     }
@@ -374,17 +368,17 @@ impl BlueGreenDeployment {
     /// Switch traffic to the new environment.
     pub fn switch(&mut self, timestamp: u64) -> Result<(), String> {
         if self.state != DeployState::Draining {
-            return Err(format!(
-                "cannot switch in state '{}'",
-                self.state
-            ));
+            return Err(format!("cannot switch in state '{}'", self.state));
         }
 
         let new_active = self.active_color.opposite();
         self.state = DeployState::Switching;
         self.log_event(
             timestamp,
-            format!("switching traffic from {} to {}", self.active_color, new_active),
+            format!(
+                "switching traffic from {} to {}",
+                self.active_color, new_active
+            ),
         );
 
         self.active_env_mut().is_active = false;

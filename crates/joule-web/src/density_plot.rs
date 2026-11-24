@@ -51,7 +51,10 @@ pub fn density_at(x: f64, data: &[f64], bandwidth: f64) -> f64 {
     if n == 0.0 || bandwidth <= 0.0 {
         return 0.0;
     }
-    let sum: f64 = data.iter().map(|xi| gaussian_kernel((x - xi) / bandwidth)).sum();
+    let sum: f64 = data
+        .iter()
+        .map(|xi| gaussian_kernel((x - xi) / bandwidth))
+        .sum();
     sum / (n * bandwidth)
 }
 
@@ -133,7 +136,8 @@ impl DensitySeries {
 
     /// Effective bandwidth (specified or Silverman).
     pub fn effective_bandwidth(&self) -> f64 {
-        self.bandwidth.unwrap_or_else(|| silverman_bandwidth(&self.data))
+        self.bandwidth
+            .unwrap_or_else(|| silverman_bandwidth(&self.data))
     }
 }
 
@@ -239,10 +243,7 @@ impl DensityPlotConfig {
 // ── Rendering ───────────────────────────────────────────────────
 
 /// Render the density plot as SVG.
-pub fn render_density_plot(
-    series: &[DensitySeries],
-    cfg: &DensityPlotConfig,
-) -> String {
+pub fn render_density_plot(series: &[DensitySeries], cfg: &DensityPlotConfig) -> String {
     if series.is_empty() {
         let mut svg = String::new();
         let _ = write!(
@@ -444,8 +445,8 @@ mod tests {
 
     fn sample_data() -> Vec<f64> {
         vec![
-            1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5,
-            9.0, 9.5, 10.0, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 5.0, 5.0,
+            1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0,
+            9.5, 10.0, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 5.0, 5.0,
         ]
     }
 

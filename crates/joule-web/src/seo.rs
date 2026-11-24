@@ -23,23 +23,37 @@ pub enum MetaTag {
 
 impl MetaTag {
     pub fn name(name: impl Into<String>, content: impl Into<String>) -> Self {
-        Self::Name { name: name.into(), content: content.into() }
+        Self::Name {
+            name: name.into(),
+            content: content.into(),
+        }
     }
 
     pub fn property(property: impl Into<String>, content: impl Into<String>) -> Self {
-        Self::Property { property: property.into(), content: content.into() }
+        Self::Property {
+            property: property.into(),
+            content: content.into(),
+        }
     }
 
     pub fn http_equiv(equiv: impl Into<String>, content: impl Into<String>) -> Self {
-        Self::HttpEquiv { http_equiv: equiv.into(), content: content.into() }
+        Self::HttpEquiv {
+            http_equiv: equiv.into(),
+            content: content.into(),
+        }
     }
 
     /// Render as HTML string.
     pub fn to_html(&self) -> String {
         match self {
             Self::Name { name, content } => format!(r#"<meta name="{name}" content="{content}">"#),
-            Self::Property { property, content } => format!(r#"<meta property="{property}" content="{content}">"#),
-            Self::HttpEquiv { http_equiv, content } => format!(r#"<meta http-equiv="{http_equiv}" content="{content}">"#),
+            Self::Property { property, content } => {
+                format!(r#"<meta property="{property}" content="{content}">"#)
+            }
+            Self::HttpEquiv {
+                http_equiv,
+                content,
+            } => format!(r#"<meta http-equiv="{http_equiv}" content="{content}">"#),
             Self::Charset(cs) => format!(r#"<meta charset="{cs}">"#),
         }
     }
@@ -72,40 +86,99 @@ pub struct OpenGraph {
 }
 
 impl OpenGraph {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
-    pub fn website() -> Self { Self { og_type: Some("website".into()), ..Default::default() } }
-    pub fn article() -> Self { Self { og_type: Some("article".into()), ..Default::default() } }
+    pub fn website() -> Self {
+        Self {
+            og_type: Some("website".into()),
+            ..Default::default()
+        }
+    }
+    pub fn article() -> Self {
+        Self {
+            og_type: Some("article".into()),
+            ..Default::default()
+        }
+    }
 
-    pub fn title(mut self, t: impl Into<String>) -> Self { self.title = Some(t.into()); self }
-    pub fn description(mut self, d: impl Into<String>) -> Self { self.description = Some(d.into()); self }
-    pub fn url(mut self, u: impl Into<String>) -> Self { self.url = Some(u.into()); self }
-    pub fn image(mut self, i: impl Into<String>) -> Self { self.image = Some(i.into()); self }
+    pub fn title(mut self, t: impl Into<String>) -> Self {
+        self.title = Some(t.into());
+        self
+    }
+    pub fn description(mut self, d: impl Into<String>) -> Self {
+        self.description = Some(d.into());
+        self
+    }
+    pub fn url(mut self, u: impl Into<String>) -> Self {
+        self.url = Some(u.into());
+        self
+    }
+    pub fn image(mut self, i: impl Into<String>) -> Self {
+        self.image = Some(i.into());
+        self
+    }
     pub fn image_dimensions(mut self, w: u32, h: u32) -> Self {
         self.image_width = Some(w);
         self.image_height = Some(h);
         self
     }
-    pub fn image_alt(mut self, a: impl Into<String>) -> Self { self.image_alt = Some(a.into()); self }
-    pub fn site_name(mut self, s: impl Into<String>) -> Self { self.site_name = Some(s.into()); self }
-    pub fn locale(mut self, l: impl Into<String>) -> Self { self.locale = Some(l.into()); self }
+    pub fn image_alt(mut self, a: impl Into<String>) -> Self {
+        self.image_alt = Some(a.into());
+        self
+    }
+    pub fn site_name(mut self, s: impl Into<String>) -> Self {
+        self.site_name = Some(s.into());
+        self
+    }
+    pub fn locale(mut self, l: impl Into<String>) -> Self {
+        self.locale = Some(l.into());
+        self
+    }
 
     /// Generate Open Graph meta tags.
     pub fn to_meta_tags(&self) -> Vec<MetaTag> {
         let mut tags = Vec::new();
-        if let Some(ref t) = self.og_type { tags.push(MetaTag::property("og:type", t)); }
-        if let Some(ref t) = self.title { tags.push(MetaTag::property("og:title", t)); }
-        if let Some(ref d) = self.description { tags.push(MetaTag::property("og:description", d)); }
-        if let Some(ref u) = self.url { tags.push(MetaTag::property("og:url", u)); }
-        if let Some(ref i) = self.image { tags.push(MetaTag::property("og:image", i)); }
-        if let Some(w) = self.image_width { tags.push(MetaTag::property("og:image:width", w.to_string())); }
-        if let Some(h) = self.image_height { tags.push(MetaTag::property("og:image:height", h.to_string())); }
-        if let Some(ref a) = self.image_alt { tags.push(MetaTag::property("og:image:alt", a)); }
-        if let Some(ref s) = self.site_name { tags.push(MetaTag::property("og:site_name", s)); }
-        if let Some(ref l) = self.locale { tags.push(MetaTag::property("og:locale", l)); }
-        if let Some(ref a) = self.article_author { tags.push(MetaTag::property("article:author", a)); }
-        if let Some(ref p) = self.article_published { tags.push(MetaTag::property("article:published_time", p)); }
-        if let Some(ref s) = self.article_section { tags.push(MetaTag::property("article:section", s)); }
+        if let Some(ref t) = self.og_type {
+            tags.push(MetaTag::property("og:type", t));
+        }
+        if let Some(ref t) = self.title {
+            tags.push(MetaTag::property("og:title", t));
+        }
+        if let Some(ref d) = self.description {
+            tags.push(MetaTag::property("og:description", d));
+        }
+        if let Some(ref u) = self.url {
+            tags.push(MetaTag::property("og:url", u));
+        }
+        if let Some(ref i) = self.image {
+            tags.push(MetaTag::property("og:image", i));
+        }
+        if let Some(w) = self.image_width {
+            tags.push(MetaTag::property("og:image:width", w.to_string()));
+        }
+        if let Some(h) = self.image_height {
+            tags.push(MetaTag::property("og:image:height", h.to_string()));
+        }
+        if let Some(ref a) = self.image_alt {
+            tags.push(MetaTag::property("og:image:alt", a));
+        }
+        if let Some(ref s) = self.site_name {
+            tags.push(MetaTag::property("og:site_name", s));
+        }
+        if let Some(ref l) = self.locale {
+            tags.push(MetaTag::property("og:locale", l));
+        }
+        if let Some(ref a) = self.article_author {
+            tags.push(MetaTag::property("article:author", a));
+        }
+        if let Some(ref p) = self.article_published {
+            tags.push(MetaTag::property("article:published_time", p));
+        }
+        if let Some(ref s) = self.article_section {
+            tags.push(MetaTag::property("article:section", s));
+        }
         tags
     }
 }
@@ -146,29 +219,75 @@ pub struct TwitterCard {
 
 impl TwitterCard {
     pub fn summary() -> Self {
-        Self { card_type: TwitterCardType::Summary, title: None, description: None, image: None, image_alt: None, site: None, creator: None }
+        Self {
+            card_type: TwitterCardType::Summary,
+            title: None,
+            description: None,
+            image: None,
+            image_alt: None,
+            site: None,
+            creator: None,
+        }
     }
 
     pub fn large_image() -> Self {
-        Self { card_type: TwitterCardType::SummaryLargeImage, title: None, description: None, image: None, image_alt: None, site: None, creator: None }
+        Self {
+            card_type: TwitterCardType::SummaryLargeImage,
+            title: None,
+            description: None,
+            image: None,
+            image_alt: None,
+            site: None,
+            creator: None,
+        }
     }
 
-    pub fn title(mut self, t: impl Into<String>) -> Self { self.title = Some(t.into()); self }
-    pub fn description(mut self, d: impl Into<String>) -> Self { self.description = Some(d.into()); self }
-    pub fn image(mut self, i: impl Into<String>) -> Self { self.image = Some(i.into()); self }
-    pub fn image_alt(mut self, a: impl Into<String>) -> Self { self.image_alt = Some(a.into()); self }
-    pub fn site(mut self, s: impl Into<String>) -> Self { self.site = Some(s.into()); self }
-    pub fn creator(mut self, c: impl Into<String>) -> Self { self.creator = Some(c.into()); self }
+    pub fn title(mut self, t: impl Into<String>) -> Self {
+        self.title = Some(t.into());
+        self
+    }
+    pub fn description(mut self, d: impl Into<String>) -> Self {
+        self.description = Some(d.into());
+        self
+    }
+    pub fn image(mut self, i: impl Into<String>) -> Self {
+        self.image = Some(i.into());
+        self
+    }
+    pub fn image_alt(mut self, a: impl Into<String>) -> Self {
+        self.image_alt = Some(a.into());
+        self
+    }
+    pub fn site(mut self, s: impl Into<String>) -> Self {
+        self.site = Some(s.into());
+        self
+    }
+    pub fn creator(mut self, c: impl Into<String>) -> Self {
+        self.creator = Some(c.into());
+        self
+    }
 
     /// Generate Twitter Card meta tags.
     pub fn to_meta_tags(&self) -> Vec<MetaTag> {
         let mut tags = vec![MetaTag::name("twitter:card", self.card_type.to_string())];
-        if let Some(ref t) = self.title { tags.push(MetaTag::name("twitter:title", t)); }
-        if let Some(ref d) = self.description { tags.push(MetaTag::name("twitter:description", d)); }
-        if let Some(ref i) = self.image { tags.push(MetaTag::name("twitter:image", i)); }
-        if let Some(ref a) = self.image_alt { tags.push(MetaTag::name("twitter:image:alt", a)); }
-        if let Some(ref s) = self.site { tags.push(MetaTag::name("twitter:site", s)); }
-        if let Some(ref c) = self.creator { tags.push(MetaTag::name("twitter:creator", c)); }
+        if let Some(ref t) = self.title {
+            tags.push(MetaTag::name("twitter:title", t));
+        }
+        if let Some(ref d) = self.description {
+            tags.push(MetaTag::name("twitter:description", d));
+        }
+        if let Some(ref i) = self.image {
+            tags.push(MetaTag::name("twitter:image", i));
+        }
+        if let Some(ref a) = self.image_alt {
+            tags.push(MetaTag::name("twitter:image:alt", a));
+        }
+        if let Some(ref s) = self.site {
+            tags.push(MetaTag::name("twitter:site", s));
+        }
+        if let Some(ref c) = self.creator {
+            tags.push(MetaTag::name("twitter:creator", c));
+        }
         tags
     }
 }
@@ -196,7 +315,8 @@ impl JsonLd {
     }
 
     pub fn set_str(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.properties.insert(key.into(), serde_json::Value::String(value.into()));
+        self.properties
+            .insert(key.into(), serde_json::Value::String(value.into()));
         self
     }
 
@@ -206,7 +326,8 @@ impl JsonLd {
     }
 
     pub fn set_bool(mut self, key: impl Into<String>, value: bool) -> Self {
-        self.properties.insert(key.into(), serde_json::Value::Bool(value));
+        self.properties
+            .insert(key.into(), serde_json::Value::Bool(value));
         self
     }
 
@@ -217,7 +338,8 @@ impl JsonLd {
     }
 
     pub fn set_array(mut self, key: impl Into<String>, arr: Vec<serde_json::Value>) -> Self {
-        self.properties.insert(key.into(), serde_json::Value::Array(arr));
+        self.properties
+            .insert(key.into(), serde_json::Value::Array(arr));
         self
     }
 
@@ -251,17 +373,20 @@ pub fn webpage_ld(name: &str, url: &str, description: &str) -> JsonLd {
 
 /// Create a BreadcrumbList JSON-LD.
 pub fn breadcrumb_ld(items: &[(&str, &str)]) -> JsonLd {
-    let list_items: Vec<serde_json::Value> = items.iter().enumerate().map(|(i, (name, url))| {
-        serde_json::json!({
-            "@type": "ListItem",
-            "position": i + 1,
-            "name": name,
-            "item": url,
+    let list_items: Vec<serde_json::Value> = items
+        .iter()
+        .enumerate()
+        .map(|(i, (name, url))| {
+            serde_json::json!({
+                "@type": "ListItem",
+                "position": i + 1,
+                "name": name,
+                "item": url,
+            })
         })
-    }).collect();
+        .collect();
 
-    JsonLd::new("BreadcrumbList")
-        .set_array("itemListElement", list_items)
+    JsonLd::new("BreadcrumbList").set_array("itemListElement", list_items)
 }
 
 // ── Canonical & Hreflang ─────────────────────────────────────────
@@ -280,12 +405,18 @@ pub struct Hreflang {
 
 impl Hreflang {
     pub fn new(lang: impl Into<String>, url: impl Into<String>) -> Self {
-        Self { lang: lang.into(), url: url.into() }
+        Self {
+            lang: lang.into(),
+            url: url.into(),
+        }
     }
 
     /// Generate `<link rel="alternate" hreflang="..." href="...">`.
     pub fn to_html(&self) -> String {
-        format!(r#"<link rel="alternate" hreflang="{}" href="{}">"#, self.lang, self.url)
+        format!(
+            r#"<link rel="alternate" hreflang="{}" href="{}">"#,
+            self.lang, self.url
+        )
     }
 }
 
@@ -303,7 +434,11 @@ pub struct SeoValidation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum IssueSeverity { Error, Warning, Info }
+pub enum IssueSeverity {
+    Error,
+    Warning,
+    Info,
+}
 
 impl fmt::Display for IssueSeverity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -332,11 +467,29 @@ impl fmt::Display for SeoIssue {
 pub fn validate_title(title: &str) -> Vec<SeoIssue> {
     let mut issues = Vec::new();
     if title.is_empty() {
-        issues.push(SeoIssue { severity: IssueSeverity::Error, field: "title".into(), message: "title is empty".into() });
+        issues.push(SeoIssue {
+            severity: IssueSeverity::Error,
+            field: "title".into(),
+            message: "title is empty".into(),
+        });
     } else if title.len() < 10 {
-        issues.push(SeoIssue { severity: IssueSeverity::Warning, field: "title".into(), message: format!("title is very short ({} chars, recommended 30-60)", title.len()) });
+        issues.push(SeoIssue {
+            severity: IssueSeverity::Warning,
+            field: "title".into(),
+            message: format!(
+                "title is very short ({} chars, recommended 30-60)",
+                title.len()
+            ),
+        });
     } else if title.len() > 60 {
-        issues.push(SeoIssue { severity: IssueSeverity::Warning, field: "title".into(), message: format!("title may be truncated in SERPs ({} chars, recommended max 60)", title.len()) });
+        issues.push(SeoIssue {
+            severity: IssueSeverity::Warning,
+            field: "title".into(),
+            message: format!(
+                "title may be truncated in SERPs ({} chars, recommended max 60)",
+                title.len()
+            ),
+        });
     }
     issues
 }
@@ -345,11 +498,29 @@ pub fn validate_title(title: &str) -> Vec<SeoIssue> {
 pub fn validate_description(desc: &str) -> Vec<SeoIssue> {
     let mut issues = Vec::new();
     if desc.is_empty() {
-        issues.push(SeoIssue { severity: IssueSeverity::Error, field: "description".into(), message: "description is empty".into() });
+        issues.push(SeoIssue {
+            severity: IssueSeverity::Error,
+            field: "description".into(),
+            message: "description is empty".into(),
+        });
     } else if desc.len() < 50 {
-        issues.push(SeoIssue { severity: IssueSeverity::Warning, field: "description".into(), message: format!("description is short ({} chars, recommended 120-160)", desc.len()) });
+        issues.push(SeoIssue {
+            severity: IssueSeverity::Warning,
+            field: "description".into(),
+            message: format!(
+                "description is short ({} chars, recommended 120-160)",
+                desc.len()
+            ),
+        });
     } else if desc.len() > 160 {
-        issues.push(SeoIssue { severity: IssueSeverity::Warning, field: "description".into(), message: format!("description may be truncated ({} chars, recommended max 160)", desc.len()) });
+        issues.push(SeoIssue {
+            severity: IssueSeverity::Warning,
+            field: "description".into(),
+            message: format!(
+                "description may be truncated ({} chars, recommended max 160)",
+                desc.len()
+            ),
+        });
     }
     issues
 }
@@ -369,24 +540,50 @@ pub struct RobotsDirectives {
 
 impl RobotsDirectives {
     pub fn default_allow() -> Self {
-        Self { index: true, follow: true, no_archive: false, no_snippet: false, max_snippet: None, max_image_preview: None }
+        Self {
+            index: true,
+            follow: true,
+            no_archive: false,
+            no_snippet: false,
+            max_snippet: None,
+            max_image_preview: None,
+        }
     }
 
     pub fn noindex() -> Self {
-        Self { index: false, ..Self::default_allow() }
+        Self {
+            index: false,
+            ..Self::default_allow()
+        }
     }
 
     pub fn noindex_nofollow() -> Self {
-        Self { index: false, follow: false, ..Self::default_allow() }
+        Self {
+            index: false,
+            follow: false,
+            ..Self::default_allow()
+        }
     }
 
     /// Generate meta robots tag.
     pub fn to_meta_tag(&self) -> MetaTag {
         let mut parts = Vec::new();
-        if self.index { parts.push("index"); } else { parts.push("noindex"); }
-        if self.follow { parts.push("follow"); } else { parts.push("nofollow"); }
-        if self.no_archive { parts.push("noarchive"); }
-        if self.no_snippet { parts.push("nosnippet"); }
+        if self.index {
+            parts.push("index");
+        } else {
+            parts.push("noindex");
+        }
+        if self.follow {
+            parts.push("follow");
+        } else {
+            parts.push("nofollow");
+        }
+        if self.no_archive {
+            parts.push("noarchive");
+        }
+        if self.no_snippet {
+            parts.push("nosnippet");
+        }
         MetaTag::name("robots", parts.join(", "))
     }
 }
@@ -422,14 +619,38 @@ impl PageSeo {
         }
     }
 
-    pub fn description(mut self, d: impl Into<String>) -> Self { self.description = Some(d.into()); self }
-    pub fn canonical(mut self, c: impl Into<String>) -> Self { self.canonical = Some(c.into()); self }
-    pub fn robots(mut self, r: RobotsDirectives) -> Self { self.robots = Some(r); self }
-    pub fn open_graph(mut self, og: OpenGraph) -> Self { self.og = Some(og); self }
-    pub fn twitter_card(mut self, tc: TwitterCard) -> Self { self.twitter = Some(tc); self }
-    pub fn add_json_ld(mut self, ld: JsonLd) -> Self { self.json_ld.push(ld); self }
-    pub fn add_hreflang(mut self, h: Hreflang) -> Self { self.hreflang.push(h); self }
-    pub fn add_meta(mut self, m: MetaTag) -> Self { self.extra_meta.push(m); self }
+    pub fn description(mut self, d: impl Into<String>) -> Self {
+        self.description = Some(d.into());
+        self
+    }
+    pub fn canonical(mut self, c: impl Into<String>) -> Self {
+        self.canonical = Some(c.into());
+        self
+    }
+    pub fn robots(mut self, r: RobotsDirectives) -> Self {
+        self.robots = Some(r);
+        self
+    }
+    pub fn open_graph(mut self, og: OpenGraph) -> Self {
+        self.og = Some(og);
+        self
+    }
+    pub fn twitter_card(mut self, tc: TwitterCard) -> Self {
+        self.twitter = Some(tc);
+        self
+    }
+    pub fn add_json_ld(mut self, ld: JsonLd) -> Self {
+        self.json_ld.push(ld);
+        self
+    }
+    pub fn add_hreflang(mut self, h: Hreflang) -> Self {
+        self.hreflang.push(h);
+        self
+    }
+    pub fn add_meta(mut self, m: MetaTag) -> Self {
+        self.extra_meta.push(m);
+        self
+    }
 
     /// Generate all HTML tags for this page's SEO.
     pub fn to_html(&self) -> String {
@@ -515,13 +736,19 @@ mod tests {
     #[test]
     fn test_meta_tag_name() {
         let tag = MetaTag::name("description", "A test page");
-        assert_eq!(tag.to_html(), r#"<meta name="description" content="A test page">"#);
+        assert_eq!(
+            tag.to_html(),
+            r#"<meta name="description" content="A test page">"#
+        );
     }
 
     #[test]
     fn test_meta_tag_property() {
         let tag = MetaTag::property("og:title", "Test");
-        assert_eq!(tag.to_html(), r#"<meta property="og:title" content="Test">"#);
+        assert_eq!(
+            tag.to_html(),
+            r#"<meta property="og:title" content="Test">"#
+        );
     }
 
     #[test]
@@ -546,16 +773,27 @@ mod tests {
             .image_dimensions(1200, 630);
 
         let tags = og.to_meta_tags();
-        assert!(tags.iter().any(|t| matches!(t, MetaTag::Property { property, .. } if property == "og:type")));
-        assert!(tags.iter().any(|t| matches!(t, MetaTag::Property { property, .. } if property == "og:title")));
-        assert!(tags.iter().any(|t| matches!(t, MetaTag::Property { property, .. } if property == "og:image:width")));
+        assert!(
+            tags.iter()
+                .any(|t| matches!(t, MetaTag::Property { property, .. } if property == "og:type"))
+        );
+        assert!(
+            tags.iter()
+                .any(|t| matches!(t, MetaTag::Property { property, .. } if property == "og:title"))
+        );
+        assert!(tags.iter().any(
+            |t| matches!(t, MetaTag::Property { property, .. } if property == "og:image:width")
+        ));
     }
 
     #[test]
     fn test_open_graph_article() {
         let og = OpenGraph::article().title("Blog Post");
         let tags = og.to_meta_tags();
-        let type_tag = tags.iter().find(|t| matches!(t, MetaTag::Property { property, .. } if property == "og:type")).unwrap();
+        let type_tag = tags
+            .iter()
+            .find(|t| matches!(t, MetaTag::Property { property, .. } if property == "og:type"))
+            .unwrap();
         if let MetaTag::Property { content, .. } = type_tag {
             assert_eq!(content, "article");
         }
@@ -570,14 +808,19 @@ mod tests {
 
         let tags = tc.to_meta_tags();
         assert!(tags.iter().any(|t| matches!(t, MetaTag::Name { name, content } if name == "twitter:card" && content == "summary")));
-        assert!(tags.iter().any(|t| matches!(t, MetaTag::Name { name, .. } if name == "twitter:site")));
+        assert!(
+            tags.iter()
+                .any(|t| matches!(t, MetaTag::Name { name, .. } if name == "twitter:site"))
+        );
     }
 
     #[test]
     fn test_twitter_card_large_image() {
         let tc = TwitterCard::large_image();
         let tags = tc.to_meta_tags();
-        assert!(tags.iter().any(|t| matches!(t, MetaTag::Name { content, .. } if content == "summary_large_image")));
+        assert!(tags.iter().any(
+            |t| matches!(t, MetaTag::Name { content, .. } if content == "summary_large_image")
+        ));
     }
 
     #[test]
@@ -718,9 +961,17 @@ mod tests {
             .description("A comprehensive description of the page content for search engines")
             .canonical("https://example.com/page")
             .robots(RobotsDirectives::default_allow())
-            .open_graph(OpenGraph::website().title("My Page").url("https://example.com/page"))
+            .open_graph(
+                OpenGraph::website()
+                    .title("My Page")
+                    .url("https://example.com/page"),
+            )
             .twitter_card(TwitterCard::summary().title("My Page"))
-            .add_json_ld(webpage_ld("My Page", "https://example.com/page", "Description"))
+            .add_json_ld(webpage_ld(
+                "My Page",
+                "https://example.com/page",
+                "Description",
+            ))
             .add_hreflang(Hreflang::new("en", "https://example.com/en/page"));
 
         let html = seo.to_html();
@@ -747,14 +998,20 @@ mod tests {
             .open_graph(OpenGraph::website());
 
         let issues = seo.validate();
-        let errors: Vec<_> = issues.iter().filter(|i| i.severity == IssueSeverity::Error).collect();
+        let errors: Vec<_> = issues
+            .iter()
+            .filter(|i| i.severity == IssueSeverity::Error)
+            .collect();
         assert!(errors.is_empty());
     }
 
     #[test]
     fn test_twitter_card_type_display() {
         assert_eq!(TwitterCardType::Summary.to_string(), "summary");
-        assert_eq!(TwitterCardType::SummaryLargeImage.to_string(), "summary_large_image");
+        assert_eq!(
+            TwitterCardType::SummaryLargeImage.to_string(),
+            "summary_large_image"
+        );
         assert_eq!(TwitterCardType::App.to_string(), "app");
         assert_eq!(TwitterCardType::Player.to_string(), "player");
     }

@@ -43,11 +43,16 @@ struct Lcg {
 
 impl Lcg {
     fn new(seed: u64) -> Self {
-        Self { state: seed.wrapping_add(1) }
+        Self {
+            state: seed.wrapping_add(1),
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.state
     }
 
@@ -229,7 +234,11 @@ impl EmbeddingLayer {
 
     /// L2 norm of a specific embedding vector.
     pub fn embedding_norm(&self, token_id: usize) -> f64 {
-        self.lookup(token_id).iter().map(|x| x * x).sum::<f64>().sqrt()
+        self.lookup(token_id)
+            .iter()
+            .map(|x| x * x)
+            .sum::<f64>()
+            .sqrt()
     }
 
     /// Cosine similarity between two embedding vectors.
@@ -269,11 +278,7 @@ impl fmt::Display for EmbeddingLayer {
         write!(
             f,
             "Embedding({}, {}, padding={:?}, max_norm={:?}, freeze={})",
-            self.num_embeddings,
-            self.embedding_dim,
-            self.padding_idx,
-            self.max_norm,
-            self.freeze
+            self.num_embeddings, self.embedding_dim, self.padding_idx, self.max_norm, self.freeze
         )
     }
 }
@@ -381,14 +386,14 @@ impl SinusoidalPositionalEncoding {
         for pos in 0..max_len {
             for i in 0..dim {
                 let angle = pos as f64 / (10000.0_f64).powf(2.0 * (i / 2) as f64 / dim as f64);
-                encodings[pos * dim + i] = if i % 2 == 0 {
-                    angle.sin()
-                } else {
-                    angle.cos()
-                };
+                encodings[pos * dim + i] = if i % 2 == 0 { angle.sin() } else { angle.cos() };
             }
         }
-        Self { max_len, dim, encodings }
+        Self {
+            max_len,
+            dim,
+            encodings,
+        }
     }
 
     /// Get encoding for a specific position.
@@ -412,7 +417,11 @@ impl SinusoidalPositionalEncoding {
 
 impl fmt::Display for SinusoidalPositionalEncoding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SinusoidalPE(max_len={}, dim={})", self.max_len, self.dim)
+        write!(
+            f,
+            "SinusoidalPE(max_len={}, dim={})",
+            self.max_len, self.dim
+        )
     }
 }
 
@@ -531,8 +540,7 @@ mod tests {
 
     #[test]
     fn test_sparse_grad_apply() {
-        let mut emb = EmbeddingLayer::new(10, 2)
-            .with_init(EmbeddingInit::Constant(1.0), 0);
+        let mut emb = EmbeddingLayer::new(10, 2).with_init(EmbeddingInit::Constant(1.0), 0);
         let mut sg = SparseGrad::new(2);
         sg.accumulate(0, &[0.5, 0.5]);
         sg.apply_sgd(&mut emb, 1.0);

@@ -286,12 +286,21 @@ impl HolographicReceiver {
                         let payload = &buf[..amt];
 
                         // Try deserializing as new Message enum
-                        if let Ok((msg, _)) = bincode::serde::decode_from_slice::<HolographicMessage, _>(payload, bincode::config::standard()) {
+                        if let Ok((msg, _)) =
+                            bincode::serde::decode_from_slice::<HolographicMessage, _>(
+                                payload,
+                                bincode::config::standard(),
+                            )
+                        {
                             match msg {
                                 HolographicMessage::Delta(delta) => {
                                     let mut b_guard = book.lock().unwrap();
                                     // Deserialize the HV component
-                                    if let Ok((hv, _)) = bincode::serde::decode_from_slice::<BinaryHV, _>(&delta.vector, bincode::config::standard())
+                                    if let Ok((hv, _)) =
+                                        bincode::serde::decode_from_slice::<BinaryHV, _>(
+                                            &delta.vector,
+                                            bincode::config::standard(),
+                                        )
                                     {
                                         let target_bundle = if delta.is_bid {
                                             &mut b_guard.bids

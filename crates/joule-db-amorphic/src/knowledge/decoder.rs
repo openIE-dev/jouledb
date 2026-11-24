@@ -122,16 +122,9 @@ impl TextDecoder for TemplateDecoder {
                             .take(5)
                             .map(|(p, s)| format!("{} ({:.0}%)", p, s * 100.0))
                             .collect();
-                        out.push_str(&format!(
-                            ". Key patterns: {}",
-                            pattern_str.join(", ")
-                        ));
+                        out.push_str(&format!(". Key patterns: {}", pattern_str.join(", ")));
                     }
-                    if out.is_empty() {
-                        raw.clone()
-                    } else {
-                        out
-                    }
+                    if out.is_empty() { raw.clone() } else { out }
                 }
                 _ => raw.clone(),
             }
@@ -142,7 +135,12 @@ impl TextDecoder for TemplateDecoder {
                 parts.push(entity.clone());
             }
             if !context.patterns.is_empty() {
-                let patterns: Vec<&str> = context.patterns.iter().take(3).map(|(p, _)| p.as_str()).collect();
+                let patterns: Vec<&str> = context
+                    .patterns
+                    .iter()
+                    .take(3)
+                    .map(|(p, _)| p.as_str())
+                    .collect();
                 parts.push(format!("exhibits {}", patterns.join(", ")));
             }
             parts.join(". ")
@@ -153,7 +151,7 @@ impl TextDecoder for TemplateDecoder {
             text,
             tokens,
             energy: tokens as f64 * 0.000_000_01, // 10 nJ per token (template is free)
-            latency_us: 1, // <1µs
+            latency_us: 1,                        // <1µs
         }
     }
 

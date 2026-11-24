@@ -435,26 +435,26 @@ pub fn apply_filters(
             filters.iter().all(|filter| {
                 let field_val = item.get(&filter.field);
                 match &filter.op {
-                    FilterOp::Eq => field_val.map(|v| matches_value(v, &filter.value)).unwrap_or(false),
-                    FilterOp::Neq => field_val.map(|v| !matches_value(v, &filter.value)).unwrap_or(true),
-                    FilterOp::Contains => {
-                        field_val
-                            .and_then(|v| v.as_str())
-                            .map(|s| {
-                                let pattern = filter.value.as_str().unwrap_or("");
-                                s.contains(pattern)
-                            })
-                            .unwrap_or(false)
-                    }
-                    FilterOp::StartsWith => {
-                        field_val
-                            .and_then(|v| v.as_str())
-                            .map(|s| {
-                                let pattern = filter.value.as_str().unwrap_or("");
-                                s.starts_with(pattern)
-                            })
-                            .unwrap_or(false)
-                    }
+                    FilterOp::Eq => field_val
+                        .map(|v| matches_value(v, &filter.value))
+                        .unwrap_or(false),
+                    FilterOp::Neq => field_val
+                        .map(|v| !matches_value(v, &filter.value))
+                        .unwrap_or(true),
+                    FilterOp::Contains => field_val
+                        .and_then(|v| v.as_str())
+                        .map(|s| {
+                            let pattern = filter.value.as_str().unwrap_or("");
+                            s.contains(pattern)
+                        })
+                        .unwrap_or(false),
+                    FilterOp::StartsWith => field_val
+                        .and_then(|v| v.as_str())
+                        .map(|s| {
+                            let pattern = filter.value.as_str().unwrap_or("");
+                            s.starts_with(pattern)
+                        })
+                        .unwrap_or(false),
                     FilterOp::Gt | FilterOp::Gte | FilterOp::Lt | FilterOp::Lte => {
                         compare_values(field_val, &filter.value, &filter.op)
                     }
@@ -476,12 +476,8 @@ pub fn apply_filters(
 fn matches_value(a: &serde_json::Value, b: &serde_json::Value) -> bool {
     match (a, b) {
         (serde_json::Value::String(sa), serde_json::Value::String(sb)) => sa == sb,
-        (serde_json::Value::Number(na), serde_json::Value::String(sb)) => {
-            na.to_string() == *sb
-        }
-        (serde_json::Value::Bool(ba), serde_json::Value::String(sb)) => {
-            ba.to_string() == *sb
-        }
+        (serde_json::Value::Number(na), serde_json::Value::String(sb)) => na.to_string() == *sb,
+        (serde_json::Value::Bool(ba), serde_json::Value::String(sb)) => ba.to_string() == *sb,
         _ => a == b,
     }
 }
@@ -573,9 +569,7 @@ pub fn etag_matches(etag: &str, if_none_match: &str) -> bool {
         return true;
     }
     // Parse comma-separated ETags
-    if_none_match
-        .split(',')
-        .any(|tag| tag.trim() == etag)
+    if_none_match.split(',').any(|tag| tag.trim() == etag)
 }
 
 // ── Bulk Operations ──────────────────────────────────────────────
@@ -735,8 +729,7 @@ mod tests {
 
     #[test]
     fn resource_with_self_link() {
-        let r = Resource::new("user", serde_json::json!({"id": "1"}))
-            .with_self_link("/users/1");
+        let r = Resource::new("user", serde_json::json!({"id": "1"})).with_self_link("/users/1");
         let link = r.link("self").unwrap();
         assert_eq!(link.href, "/users/1");
     }
@@ -904,15 +897,21 @@ mod tests {
     #[test]
     fn bulk_operations() {
         let entries = vec![
-            BulkEntry { action: BulkAction::Create, id: None, data: Some(serde_json::json!({"name": "A"})) },
-            BulkEntry { action: BulkAction::Delete, id: Some("bad".to_string()), data: None },
+            BulkEntry {
+                action: BulkAction::Create,
+                id: None,
+                data: Some(serde_json::json!({"name": "A"})),
+            },
+            BulkEntry {
+                action: BulkAction::Delete,
+                id: Some("bad".to_string()),
+                data: None,
+            },
         ];
-        let results = process_bulk(&entries, |entry| {
-            match entry.action {
-                BulkAction::Create => Ok("new-1".to_string()),
-                BulkAction::Delete => Err("not found".to_string()),
-                _ => Ok("ok".to_string()),
-            }
+        let results = process_bulk(&entries, |entry| match entry.action {
+            BulkAction::Create => Ok("new-1".to_string()),
+            BulkAction::Delete => Err("not found".to_string()),
+            _ => Ok("ok".to_string()),
         });
         assert_eq!(results.len(), 2);
         assert!(results[0].success);
@@ -924,7 +923,11 @@ mod tests {
     fn resource_definition_links() {
         let def = ResourceDefinition::new("users", "/api/users");
         let links = def.instance_links("123");
-        assert!(links.iter().any(|l| l.rel == "self" && l.href == "/api/users/123"));
+        assert!(
+            links
+                .iter()
+                .any(|l| l.rel == "self" && l.href == "/api/users/123")
+        );
         assert!(links.iter().any(|l| l.rel == "collection"));
     }
 

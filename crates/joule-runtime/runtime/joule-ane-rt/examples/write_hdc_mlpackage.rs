@@ -10,12 +10,24 @@ use joule_ane_rt::{Layout, ModelShape, write_mlpackage};
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 6 {
-        eprintln!("usage: {} <out.mlpackage> <matmul|conv> <n> <d> <k>", args[0]);
+        eprintln!(
+            "usage: {} <out.mlpackage> <matmul|conv> <n> <d> <k>",
+            args[0]
+        );
         std::process::exit(2);
     }
-    let layout = if args[2] == "conv" { Layout::ChannelsFirstConv } else { Layout::MatMul };
+    let layout = if args[2] == "conv" {
+        Layout::ChannelsFirstConv
+    } else {
+        Layout::MatMul
+    };
     let parse = |s: &str| s.parse::<usize>().unwrap_or(1).max(1);
-    let shape = ModelShape { layout, n: parse(&args[3]), d: parse(&args[4]), k: parse(&args[5]) };
+    let shape = ModelShape {
+        layout,
+        n: parse(&args[3]),
+        d: parse(&args[4]),
+        k: parse(&args[5]),
+    };
     let mut state = 0x2545_F491_4F6C_DD1Du64;
     let codebook: Vec<i8> = (0..shape.k * shape.d)
         .map(|_| {

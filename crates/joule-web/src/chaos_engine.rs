@@ -214,8 +214,14 @@ impl SteadyStateHypothesis {
         if self.probes.is_empty() {
             return HypothesisResult::Inconclusive;
         }
-        let all_passed = self.probes.iter().all(|p| p.result == Some(HypothesisResult::Passed));
-        let any_failed = self.probes.iter().any(|p| p.result == Some(HypothesisResult::Failed));
+        let all_passed = self
+            .probes
+            .iter()
+            .all(|p| p.result == Some(HypothesisResult::Passed));
+        let any_failed = self
+            .probes
+            .iter()
+            .any(|p| p.result == Some(HypothesisResult::Failed));
         if any_failed {
             HypothesisResult::Failed
         } else if all_passed {
@@ -255,7 +261,9 @@ impl Probe {
         let passed = match &self.probe_type {
             ProbeType::ErrorRateBelow { max_rate } => measured <= *max_rate + self.tolerance,
             ProbeType::LatencyBelow { max_ms } => measured <= *max_ms + self.tolerance,
-            ProbeType::AvailabilityAbove { min_percent } => measured >= *min_percent - self.tolerance,
+            ProbeType::AvailabilityAbove { min_percent } => {
+                measured >= *min_percent - self.tolerance
+            }
             ProbeType::ThroughputAbove { min_rps } => measured >= *min_rps - self.tolerance,
             ProbeType::Custom { check_value } => (measured - check_value).abs() <= self.tolerance,
         };
@@ -519,11 +527,10 @@ impl Experiment {
                 | AbortCondition::MetricBelow { metric, .. } => {
                     metric_values.get(metric).copied().unwrap_or(0.0)
                 }
-                AbortCondition::DurationExceeds { .. } => {
-                    self.started_at
-                        .map(|s| (Utc::now() - s).num_seconds() as f64)
-                        .unwrap_or(0.0)
-                }
+                AbortCondition::DurationExceeds { .. } => self
+                    .started_at
+                    .map(|s| (Utc::now() - s).num_seconds() as f64)
+                    .unwrap_or(0.0),
             };
             if abort.check(value) {
                 should_abort = true;
@@ -582,7 +589,9 @@ impl Experiment {
 
         let started = self.started_at.unwrap_or_else(Utc::now);
         let ended = self.ended_at.unwrap_or_else(Utc::now);
-        let hypothesis_before = self.hypothesis_before.unwrap_or(HypothesisResult::Inconclusive);
+        let hypothesis_before = self
+            .hypothesis_before
+            .unwrap_or(HypothesisResult::Inconclusive);
         let preserved = hypothesis_after == HypothesisResult::Passed;
 
         ExperimentResult {
@@ -602,10 +611,8 @@ impl Experiment {
     /// Add a finding during the experiment.
     pub fn add_finding(&mut self, finding: &str) {
         self.findings.push(finding.to_string());
-        self.events.push(ExperimentEvent::new(
-            ExperimentEventKind::Finding,
-            finding,
-        ));
+        self.events
+            .push(ExperimentEvent::new(ExperimentEventKind::Finding, finding));
     }
 
     pub fn event_count(&self) -> usize {
@@ -791,7 +798,11 @@ mod tests {
     #[test]
     fn test_hypothesis_all_pass() {
         let mut h = SteadyStateHypothesis::new("Stable", "System should be stable");
-        let mut p1 = Probe::new("error_rate", ProbeType::ErrorRateBelow { max_rate: 0.01 }, 0.001);
+        let mut p1 = Probe::new(
+            "error_rate",
+            ProbeType::ErrorRateBelow { max_rate: 0.01 },
+            0.001,
+        );
         p1.evaluate(0.005);
         let mut p2 = Probe::new("latency", ProbeType::LatencyBelow { max_ms: 100.0 }, 5.0);
         p2.evaluate(80.0);

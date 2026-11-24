@@ -152,11 +152,7 @@ pub fn pixel_absolute_to_latlng(px: f64, py: f64, zoom: f64) -> LatLng {
 }
 
 /// Convert lat/lng to viewport pixel coordinates relative to the map center.
-pub fn latlng_to_viewport_pixel(
-    point: &LatLng,
-    state: &MapState,
-    viewport: &Viewport,
-) -> Pixel {
+pub fn latlng_to_viewport_pixel(point: &LatLng, state: &MapState, viewport: &Viewport) -> Pixel {
     let center_abs = latlng_to_pixel_absolute(state.center_lat, state.center_lng, state.zoom);
     let point_abs = latlng_to_pixel_absolute(point.lat, point.lng, state.zoom);
     Pixel {
@@ -166,11 +162,7 @@ pub fn latlng_to_viewport_pixel(
 }
 
 /// Convert viewport pixel coordinates back to lat/lng.
-pub fn viewport_pixel_to_latlng(
-    pixel: &Pixel,
-    state: &MapState,
-    viewport: &Viewport,
-) -> LatLng {
+pub fn viewport_pixel_to_latlng(pixel: &Pixel, state: &MapState, viewport: &Viewport) -> LatLng {
     let center_abs = latlng_to_pixel_absolute(state.center_lat, state.center_lng, state.zoom);
     let abs_x = pixel.x + center_abs.x - (viewport.width as f64) / 2.0;
     let abs_y = pixel.y + center_abs.y - (viewport.height as f64) / 2.0;
@@ -218,11 +210,7 @@ pub fn visible_tiles(state: &MapState, viewport: &Viewport) -> Vec<TileCoord> {
 /// Pan the map by a pixel delta, returning a new MapState.
 pub fn pan(state: &MapState, dx: f64, dy: f64) -> MapState {
     let center_abs = latlng_to_pixel_absolute(state.center_lat, state.center_lng, state.zoom);
-    let new_center = pixel_absolute_to_latlng(
-        center_abs.x + dx,
-        center_abs.y + dy,
-        state.zoom,
-    );
+    let new_center = pixel_absolute_to_latlng(center_abs.x + dx, center_abs.y + dy, state.zoom);
     MapState {
         center_lat: new_center.lat.clamp(-MAX_LATITUDE, MAX_LATITUDE),
         center_lng: wrap_lng(new_center.lng),
@@ -244,7 +232,10 @@ pub fn zoom_at(
 ) -> MapState {
     let new_zoom = new_zoom.clamp(0.0, 22.0);
     let target = viewport_pixel_to_latlng(
-        &Pixel { x: screen_x, y: screen_y },
+        &Pixel {
+            x: screen_x,
+            y: screen_y,
+        },
         state,
         viewport,
     );
@@ -269,12 +260,18 @@ pub fn zoom_at(
 /// Compute the geographic bounding box of the visible area.
 pub fn visible_bounds(state: &MapState, viewport: &Viewport) -> BoundingBox {
     let sw = viewport_pixel_to_latlng(
-        &Pixel { x: 0.0, y: viewport.height as f64 },
+        &Pixel {
+            x: 0.0,
+            y: viewport.height as f64,
+        },
         state,
         viewport,
     );
     let ne = viewport_pixel_to_latlng(
-        &Pixel { x: viewport.width as f64, y: 0.0 },
+        &Pixel {
+            x: viewport.width as f64,
+            y: 0.0,
+        },
         state,
         viewport,
     );

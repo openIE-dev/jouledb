@@ -57,7 +57,10 @@ pub struct KeyMaterial {
 impl KeyMaterial {
     /// Create key material from raw bytes.
     pub fn new(bytes: Vec<u8>) -> Self {
-        Self { bytes, generation: 0 }
+        Self {
+            bytes,
+            generation: 0,
+        }
     }
 
     /// Create a key with a specific generation number.
@@ -124,7 +127,11 @@ impl EncryptedFrame {
         let nonce = u64::from_be_bytes(data[..8].try_into().unwrap());
         let ciphertext = data[8..data.len() - TAG_SIZE].to_vec();
         let tag = data[data.len() - TAG_SIZE..].to_vec();
-        Ok(Self { nonce, ciphertext, tag })
+        Ok(Self {
+            nonce,
+            ciphertext,
+            tag,
+        })
     }
 
     /// Wire size.
@@ -163,10 +170,7 @@ impl fmt::Display for EncryptionStats {
         write!(
             f,
             "encrypted={} decrypted={} auth_fail={} rotations={}",
-            self.frames_encrypted,
-            self.frames_decrypted,
-            self.auth_failures,
-            self.key_rotations,
+            self.frames_encrypted, self.frames_decrypted, self.auth_failures, self.key_rotations,
         )
     }
 }
@@ -270,7 +274,11 @@ impl EncryptedTransport {
             self.rotate_key()?;
         }
 
-        Ok(EncryptedFrame { nonce, ciphertext, tag })
+        Ok(EncryptedFrame {
+            nonce,
+            ciphertext,
+            tag,
+        })
     }
 
     /// Decrypt and authenticate an encrypted frame.
@@ -353,9 +361,7 @@ fn xor_cipher(data: &[u8], key: &[u8], nonce: u64) -> Vec<u8> {
     let nonce_bytes = nonce.to_be_bytes();
     data.iter()
         .enumerate()
-        .map(|(i, &b)| {
-            b ^ key[i % key.len()] ^ nonce_bytes[i % 8]
-        })
+        .map(|(i, &b)| b ^ key[i % key.len()] ^ nonce_bytes[i % 8])
         .collect()
 }
 

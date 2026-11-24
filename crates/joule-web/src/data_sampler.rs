@@ -29,14 +29,20 @@ pub enum SamplerError {
 impl fmt::Display for SamplerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SampleTooLarge { requested, available } => {
+            Self::SampleTooLarge {
+                requested,
+                available,
+            } => {
                 write!(f, "sample size {requested} exceeds population {available}")
             }
             Self::EmptyDataset => write!(f, "cannot sample from empty dataset"),
             Self::InvalidConfig(msg) => write!(f, "invalid config: {msg}"),
             Self::StratumNotFound(s) => write!(f, "stratum not found: {s}"),
             Self::WeightsMismatch { expected, got } => {
-                write!(f, "weights length {got} does not match data length {expected}")
+                write!(
+                    f,
+                    "weights length {got} does not match data length {expected}"
+                )
             }
         }
     }
@@ -433,10 +439,7 @@ impl fmt::Debug for DataSampler {
 }
 
 /// Compute the proportion distribution for each stratum.
-fn compute_distribution<T>(
-    data: &[T],
-    label_fn: &impl Fn(&T) -> String,
-) -> HashMap<String, f64> {
+fn compute_distribution<T>(data: &[T], label_fn: &impl Fn(&T) -> String) -> HashMap<String, f64> {
     let mut counts: HashMap<String, usize> = HashMap::new();
     for item in data {
         *counts.entry(label_fn(item)).or_insert(0) += 1;
@@ -535,8 +538,16 @@ mod tests {
     fn stratified_sample() {
         let mut sampler = DataSampler::new(42);
         let data: Vec<(&str, i32)> = vec![
-            ("A", 1), ("A", 2), ("A", 3), ("A", 4), ("A", 5),
-            ("B", 6), ("B", 7), ("B", 8), ("B", 9), ("B", 10),
+            ("A", 1),
+            ("A", 2),
+            ("A", 3),
+            ("A", 4),
+            ("A", 5),
+            ("B", 6),
+            ("B", 7),
+            ("B", 8),
+            ("B", 9),
+            ("B", 10),
         ];
 
         let result = sampler
@@ -622,12 +633,8 @@ mod tests {
         let population: Vec<&str> = vec!["A", "A", "A", "A", "A", "B", "B", "B", "B", "B"];
         let sample: Vec<&str> = vec!["A", "A", "B", "B"];
 
-        let comparison = sampler.validate_sample(
-            &population,
-            &sample,
-            |item| item.to_string(),
-            0.1,
-        );
+        let comparison =
+            sampler.validate_sample(&population, &sample, |item| item.to_string(), 0.1);
         assert!(comparison.is_representative);
         assert!(comparison.max_deviation <= 0.1);
     }
@@ -638,12 +645,8 @@ mod tests {
         let population: Vec<&str> = vec!["A", "A", "A", "A", "A", "B", "B", "B", "B", "B"];
         let sample: Vec<&str> = vec!["A", "A", "A", "A"]; // All A, no B
 
-        let comparison = sampler.validate_sample(
-            &population,
-            &sample,
-            |item| item.to_string(),
-            0.1,
-        );
+        let comparison =
+            sampler.validate_sample(&population, &sample, |item| item.to_string(), 0.1);
         assert!(!comparison.is_representative);
         assert!(comparison.max_deviation > 0.1);
     }

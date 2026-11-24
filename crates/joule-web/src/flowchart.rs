@@ -436,10 +436,14 @@ mod tests {
 
     fn simple_flowchart() -> Flowchart {
         let mut fc = Flowchart::new();
-        fc.add_node(FlowNode::new("start", NodeKind::Start, "Begin")).unwrap();
-        fc.add_node(FlowNode::new("proc", NodeKind::Process, "Do work")).unwrap();
-        fc.add_node(FlowNode::new("dec", NodeKind::Decision, "OK?")).unwrap();
-        fc.add_node(FlowNode::new("end", NodeKind::End, "Done")).unwrap();
+        fc.add_node(FlowNode::new("start", NodeKind::Start, "Begin"))
+            .unwrap();
+        fc.add_node(FlowNode::new("proc", NodeKind::Process, "Do work"))
+            .unwrap();
+        fc.add_node(FlowNode::new("dec", NodeKind::Decision, "OK?"))
+            .unwrap();
+        fc.add_node(FlowNode::new("end", NodeKind::End, "Done"))
+            .unwrap();
         fc.connect("start", "proc", BranchLabel::None).unwrap();
         fc.connect("proc", "dec", BranchLabel::None).unwrap();
         fc.connect("dec", "end", BranchLabel::Yes).unwrap();
@@ -457,7 +461,8 @@ mod tests {
     #[test]
     fn test_duplicate_node_id() {
         let mut fc = Flowchart::new();
-        fc.add_node(FlowNode::new("a", NodeKind::Process, "A")).unwrap();
+        fc.add_node(FlowNode::new("a", NodeKind::Process, "A"))
+            .unwrap();
         let result = fc.add_node(FlowNode::new("a", NodeKind::Process, "B"));
         assert!(matches!(result, Err(FlowchartError::DuplicateNodeId(_))));
     }
@@ -465,7 +470,8 @@ mod tests {
     #[test]
     fn test_missing_node_connect() {
         let mut fc = Flowchart::new();
-        fc.add_node(FlowNode::new("a", NodeKind::Process, "A")).unwrap();
+        fc.add_node(FlowNode::new("a", NodeKind::Process, "A"))
+            .unwrap();
         let result = fc.connect("a", "b", BranchLabel::None);
         assert!(matches!(result, Err(FlowchartError::MissingNode(_))));
     }
@@ -480,24 +486,34 @@ mod tests {
     #[test]
     fn test_validate_no_start() {
         let mut fc = Flowchart::new();
-        fc.add_node(FlowNode::new("end", NodeKind::End, "End")).unwrap();
+        fc.add_node(FlowNode::new("end", NodeKind::End, "End"))
+            .unwrap();
         let errors = fc.validate();
-        assert!(errors.iter().any(|e| matches!(e, FlowchartError::NoStartNode)));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, FlowchartError::NoStartNode))
+        );
     }
 
     #[test]
     fn test_validate_decision_branches() {
         let mut fc = Flowchart::new();
-        fc.add_node(FlowNode::new("start", NodeKind::Start, "S")).unwrap();
-        fc.add_node(FlowNode::new("dec", NodeKind::Decision, "?")).unwrap();
-        fc.add_node(FlowNode::new("end", NodeKind::End, "E")).unwrap();
+        fc.add_node(FlowNode::new("start", NodeKind::Start, "S"))
+            .unwrap();
+        fc.add_node(FlowNode::new("dec", NodeKind::Decision, "?"))
+            .unwrap();
+        fc.add_node(FlowNode::new("end", NodeKind::End, "E"))
+            .unwrap();
         fc.connect("start", "dec", BranchLabel::None).unwrap();
         fc.connect("dec", "end", BranchLabel::Yes).unwrap();
         // Missing No branch.
         let errors = fc.validate();
-        assert!(errors
-            .iter()
-            .any(|e| matches!(e, FlowchartError::DecisionMissingNo(_))));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, FlowchartError::DecisionMissingNo(_)))
+        );
     }
 
     #[test]
@@ -555,15 +571,20 @@ conn -> e
     #[test]
     fn test_validate_unreachable_end() {
         let mut fc = Flowchart::new();
-        fc.add_node(FlowNode::new("start", NodeKind::Start, "S")).unwrap();
-        fc.add_node(FlowNode::new("proc", NodeKind::Process, "P")).unwrap();
-        fc.add_node(FlowNode::new("end", NodeKind::End, "E")).unwrap();
+        fc.add_node(FlowNode::new("start", NodeKind::Start, "S"))
+            .unwrap();
+        fc.add_node(FlowNode::new("proc", NodeKind::Process, "P"))
+            .unwrap();
+        fc.add_node(FlowNode::new("end", NodeKind::End, "E"))
+            .unwrap();
         fc.connect("start", "proc", BranchLabel::None).unwrap();
         // No connection to end.
         let errors = fc.validate();
-        assert!(errors
-            .iter()
-            .any(|e| matches!(e, FlowchartError::UnreachableEnd)));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, FlowchartError::UnreachableEnd))
+        );
     }
 
     #[test]

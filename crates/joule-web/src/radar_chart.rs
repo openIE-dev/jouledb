@@ -410,7 +410,12 @@ mod tests {
     }
 
     fn sample_dataset() -> RadarDataset {
-        RadarDataset::new("Vehicle A", vec![8.0, 6.0, 7.0, 5.0, 9.0], "steelblue", "navy")
+        RadarDataset::new(
+            "Vehicle A",
+            vec![8.0, 6.0, 7.0, 5.0, 9.0],
+            "steelblue",
+            "navy",
+        )
     }
 
     #[test]
@@ -498,7 +503,12 @@ mod tests {
     fn render_radar_chart_multiple_datasets() {
         let axes = sample_axes();
         let ds1 = sample_dataset();
-        let ds2 = RadarDataset::new("Vehicle B", vec![4.0, 9.0, 3.0, 8.0, 2.0], "coral", "darkred");
+        let ds2 = RadarDataset::new(
+            "Vehicle B",
+            vec![4.0, 9.0, 3.0, 8.0, 2.0],
+            "coral",
+            "darkred",
+        );
         let cfg = RadarChartConfig::default();
         let svg = render_radar_chart(&axes, &[ds1, ds2], &cfg);
         // Grid polygons (5 levels) + 2 data polygons = 7

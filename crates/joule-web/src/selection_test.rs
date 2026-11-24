@@ -19,7 +19,10 @@ pub struct SfsData {
 
 impl SfsData {
     pub fn new(counts: Vec<u64>, n_individuals: usize) -> Self {
-        Self { counts, n_individuals }
+        Self {
+            counts,
+            n_individuals,
+        }
     }
 
     /// Total number of chromosomes: 2n.
@@ -61,14 +64,20 @@ impl SfsData {
 
     /// Singleton count (sites with exactly 1 derived allele).
     pub fn singletons(&self) -> u64 {
-        if self.counts.len() > 1 { self.counts[1] } else { 0 }
+        if self.counts.len() > 1 {
+            self.counts[1]
+        } else {
+            0
+        }
     }
 
     /// High-frequency derived count (sites with > n/2 derived alleles).
     pub fn high_freq_derived(&self) -> u64 {
         let half = self.n_chromosomes() / 2;
         let n2 = self.n_chromosomes();
-        self.counts.iter().enumerate()
+        self.counts
+            .iter()
+            .enumerate()
             .filter(|&(i, _)| i > half && i < n2)
             .map(|(_, &c)| c)
             .sum()
@@ -127,8 +136,7 @@ impl fmt::Display for SelectionResult {
         write!(
             f,
             "{}={:.4} p={:.6} signal={} sites={}",
-            self.test_name, self.statistic, self.p_value,
-            self.interpretation, self.n_sites
+            self.test_name, self.statistic, self.p_value, self.interpretation, self.n_sites
         )
     }
 }
@@ -253,12 +261,12 @@ impl SelectionTester {
             2.0 * (nf * a1 - 2.0 * (nf - 1.0)) / ((nf - 1.0) * (nf - 2.0))
         };
 
-        let dn = cn + (nf - 2.0) / ((nf - 1.0) * (nf - 1.0))
+        let dn = cn
+            + (nf - 2.0) / ((nf - 1.0) * (nf - 1.0))
             + 2.0 / (nf - 1.0) * (1.5 - (2.0 * an_plus1 - 3.0) / (nf - 2.0) - 1.0 / nf);
         let _ = dn;
 
-        let vd = 1.0 + a1 * a1 / (a2 + a1 * a1)
-            * (cn * cn - (cn - s / a1) * (cn - s / a1));
+        let vd = 1.0 + a1 * a1 / (a2 + a1 * a1) * (cn * cn - (cn - s / a1) * (cn - s / a1));
         let vd = vd.max(1e-15);
 
         let d_star = (s / a1 - eta_s * nf / (nf - 1.0)) / vd.sqrt();
@@ -307,8 +315,7 @@ impl SelectionTester {
 
         // Variance components
         let vf_num = (2.0 * nf * a1 - 4.0 * (nf - 1.0)) / ((nf - 1.0) * (nf - 2.0));
-        let vf = vf_num + a2
-            + (2.0 * (nf * nf + nf + 3.0)) / (9.0 * nf * (nf - 1.0))
+        let vf = vf_num + a2 + (2.0 * (nf * nf + nf + 3.0)) / (9.0 * nf * (nf - 1.0))
             - 2.0 * an1 / (nf - 1.0);
         let vf = vf.max(1e-15);
         let _ = a2;
@@ -368,8 +375,7 @@ impl SelectionTester {
         let a1 = harmonic(n - 1);
         let theta = s / a1;
         let var_h = theta * (nf - 2.0) / (6.0 * (nf - 1.0))
-            + theta * theta * (18.0 * nf * nf * (3.0 * nf + 2.0) * a1
-                - 88.0 * nf * nf * nf)
+            + theta * theta * (18.0 * nf * nf * (3.0 * nf + 2.0) * a1 - 88.0 * nf * nf * nf)
                 / (9.0 * nf * nf * (nf - 1.0) * (nf - 1.0));
         let var_h = var_h.abs().max(1e-15);
 
@@ -406,7 +412,11 @@ impl SelectionTester {
 
 impl fmt::Display for SelectionTester {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SelectionTester(alpha={}, beta_approx={})", self.alpha, self.use_beta_approx)
+        write!(
+            f,
+            "SelectionTester(alpha={}, beta_approx={})",
+            self.alpha, self.use_beta_approx
+        )
     }
 }
 
@@ -460,8 +470,12 @@ impl fmt::Display for MkCounts {
         write!(
             f,
             "MK(Dn={}, Ds={}, Pn={}, Ps={}, NI={:.4}, alpha={:.4})",
-            self.dn, self.ds, self.pn, self.ps,
-            self.neutrality_index(), self.alpha()
+            self.dn,
+            self.ds,
+            self.pn,
+            self.ps,
+            self.neutrality_index(),
+            self.alpha()
         )
     }
 }
@@ -523,10 +537,10 @@ fn normal_two_tail(z: f64) -> f64 {
 /// Standard normal CDF via rational approximation.
 fn normal_cdf(x: f64) -> f64 {
     let t = 1.0 / (1.0 + 0.2316419 * x.abs());
-    let poly = t * (0.319_381_530
-        + t * (-0.356_563_782
-            + t * (1.781_477_937
-                + t * (-1.821_255_978 + t * 1.330_274_429))));
+    let poly = t
+        * (0.319_381_530
+            + t * (-0.356_563_782
+                + t * (1.781_477_937 + t * (-1.821_255_978 + t * 1.330_274_429))));
     let pdf = (-0.5 * x * x).exp() * 0.398_942_280_401;
     if x >= 0.0 {
         1.0 - pdf * poly

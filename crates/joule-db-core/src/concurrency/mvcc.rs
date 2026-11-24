@@ -509,13 +509,13 @@ impl MvccTransaction {
 
         // Serialize validate + commit publication so concurrent SSI write-skew
         // transactions cannot pass validation simultaneously before publishing commit_ts.
-        let commit_guard = self
-            .store
-            .commit_lock
-            .lock()
-            .map_err(|_| TransactionError::SerializationFailure {
-                reason: "commit_lock poisoned".to_string(),
-            })?;
+        let commit_guard =
+            self.store
+                .commit_lock
+                .lock()
+                .map_err(|_| TransactionError::SerializationFailure {
+                    reason: "commit_lock poisoned".to_string(),
+                })?;
 
         if let Some(conflict_reason) = self.validate()? {
             drop(commit_guard);

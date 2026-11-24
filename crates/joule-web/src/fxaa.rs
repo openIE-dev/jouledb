@@ -103,7 +103,11 @@ impl ImageBuffer {
         if pixels.len() != width * height {
             return None;
         }
-        Some(Self { pixels, width, height })
+        Some(Self {
+            pixels,
+            width,
+            height,
+        })
     }
 
     fn pixel_at(&self, x: usize, y: usize) -> Rgba {
@@ -154,7 +158,9 @@ pub fn detect_edge(image: &ImageBuffer, x: usize, y: usize, config: &FxaaConfig)
     let luma_max = luma_n.max(luma_s).max(luma_e).max(luma_w).max(luma_m);
     let contrast = luma_max - luma_min;
 
-    let threshold = config.edge_threshold.max(luma_max * config.edge_threshold_min);
+    let threshold = config
+        .edge_threshold
+        .max(luma_max * config.edge_threshold_min);
     if contrast < threshold {
         return EdgeInfo {
             is_edge: false,
@@ -204,9 +210,8 @@ fn subpixel_blend(image: &ImageBuffer, x: usize, y: usize, config: &FxaaConfig) 
     let luma_se = image.luma_at(ix + 1, iy + 1);
 
     // Low-pass filter of the 3x3 neighborhood.
-    let avg = (2.0 * (luma_n + luma_s + luma_e + luma_w)
-        + luma_nw + luma_ne + luma_sw + luma_se)
-        / 12.0;
+    let avg =
+        (2.0 * (luma_n + luma_s + luma_e + luma_w) + luma_nw + luma_ne + luma_sw + luma_se) / 12.0;
 
     let range = {
         let min_l = luma_n.min(luma_s).min(luma_e).min(luma_w).min(luma_m);
@@ -255,11 +260,7 @@ pub fn fxaa_pixel(image: &ImageBuffer, x: usize, y: usize, config: &FxaaConfig) 
     let iy = y as isize;
 
     // Perpendicular direction to the edge (direction to blend toward).
-    let (perp_x, perp_y): (isize, isize) = if edge.is_horizontal {
-        (0, 1)
-    } else {
-        (1, 0)
-    };
+    let (perp_x, perp_y): (isize, isize) = if edge.is_horizontal { (0, 1) } else { (1, 0) };
 
     let luma_pos = image.luma_at(ix + perp_x, iy + perp_y);
     let luma_neg = image.luma_at(ix - perp_x, iy - perp_y);
@@ -284,12 +285,24 @@ pub fn fxaa_pixel(image: &ImageBuffer, x: usize, y: usize, config: &FxaaConfig) 
     };
 
     let (dist_pos, _at_end_pos) = edge_search(
-        image, ix, iy, search_step_x, search_step_y,
-        edge.luminance, luma_edge_avg, config.max_search_steps,
+        image,
+        ix,
+        iy,
+        search_step_x,
+        search_step_y,
+        edge.luminance,
+        luma_edge_avg,
+        config.max_search_steps,
     );
     let (dist_neg, _at_end_neg) = edge_search(
-        image, ix, iy, -search_step_x, -search_step_y,
-        edge.luminance, luma_edge_avg, config.max_search_steps,
+        image,
+        ix,
+        iy,
+        -search_step_x,
+        -search_step_y,
+        edge.luminance,
+        luma_edge_avg,
+        config.max_search_steps,
     );
 
     // Compute pixel offset along edge perpendicular.
@@ -310,10 +323,7 @@ pub fn fxaa_pixel(image: &ImageBuffer, x: usize, y: usize, config: &FxaaConfig) 
     }
 
     // Blend the center pixel toward the neighbor on the steeper-gradient side.
-    let neighbor = image.pixel_at_clamped(
-        ix + perp_x * step_sign,
-        iy + perp_y * step_sign,
-    );
+    let neighbor = image.pixel_at_clamped(ix + perp_x * step_sign, iy + perp_y * step_sign);
     let original = image.pixel_at(x, y);
     Rgba::lerp(&original, &neighbor, blend_factor)
 }
@@ -379,7 +389,11 @@ pub fn compare_before_after(
     FxaaComparison {
         pixels_changed: changed,
         total_pixels: total,
-        avg_luma_change: if changed > 0 { total_luma_diff / changed as f32 } else { 0.0 },
+        avg_luma_change: if changed > 0 {
+            total_luma_diff / changed as f32
+        } else {
+            0.0
+        },
         max_luma_change: max_luma_diff,
         edge_fraction: edge_count as f32 / total as f32,
     }
@@ -643,7 +657,10 @@ mod tests {
         let img = solid_image(8, 8, Rgba::new(128, 128, 128, 255));
         let config = FxaaConfig::default();
         let blend = subpixel_blend(&img, 4, 4, &config);
-        assert!(blend.abs() < 1e-3, "solid area should have ~0 sub-pixel blend");
+        assert!(
+            blend.abs() < 1e-3,
+            "solid area should have ~0 sub-pixel blend"
+        );
     }
 
     #[test]
@@ -663,10 +680,18 @@ mod tests {
         let result_low = apply_fxaa(&img, &low);
         let result_high = apply_fxaa(&img, &high);
 
-        let changed_low = img.pixels.iter().zip(result_low.pixels.iter())
-            .filter(|(a, b)| a != b).count();
-        let changed_high = img.pixels.iter().zip(result_high.pixels.iter())
-            .filter(|(a, b)| a != b).count();
+        let changed_low = img
+            .pixels
+            .iter()
+            .zip(result_low.pixels.iter())
+            .filter(|(a, b)| a != b)
+            .count();
+        let changed_high = img
+            .pixels
+            .iter()
+            .zip(result_high.pixels.iter())
+            .filter(|(a, b)| a != b)
+            .count();
 
         // High quality should detect at least as many edges.
         assert!(changed_high >= changed_low);

@@ -14,11 +14,29 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0, z: 0.0 } }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z } }
-    pub fn length(self) -> f64 { (self.x * self.x + self.y * self.y + self.z * self.z).sqrt() }
-    pub fn distance(self, o: Self) -> f64 { self.sub(o).length() }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
+    }
+    pub fn length(self) -> f64 {
+        (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
+    }
+    pub fn distance(self, o: Self) -> f64 {
+        self.sub(o).length()
+    }
 }
 
 // ── TransitionMode ───────────────────────────────────────────
@@ -193,7 +211,14 @@ pub struct LodTransition {
 
 impl LodTransition {
     pub fn new(from: usize, to: usize, mode: TransitionMode, duration: f64) -> Self {
-        Self { from_level: from, to_level: to, progress: 0.0, duration, elapsed: 0.0, mode }
+        Self {
+            from_level: from,
+            to_level: to,
+            progress: 0.0,
+            duration,
+            elapsed: 0.0,
+            mode,
+        }
     }
 
     pub fn update(&mut self, dt: f64) {
@@ -205,18 +230,30 @@ impl LodTransition {
         }
     }
 
-    pub fn is_complete(&self) -> bool { self.progress >= 1.0 }
+    pub fn is_complete(&self) -> bool {
+        self.progress >= 1.0
+    }
     pub fn current_level(&self) -> usize {
-        if self.progress >= 0.5 { self.to_level } else { self.from_level }
+        if self.progress >= 0.5 {
+            self.to_level
+        } else {
+            self.from_level
+        }
     }
 
     /// Cross-fade alpha for the `from` mesh.
-    pub fn from_alpha(&self) -> f64 { 1.0 - self.progress }
+    pub fn from_alpha(&self) -> f64 {
+        1.0 - self.progress
+    }
     /// Cross-fade alpha for the `to` mesh.
-    pub fn to_alpha(&self) -> f64 { self.progress }
+    pub fn to_alpha(&self) -> f64 {
+        self.progress
+    }
 
     /// Dither threshold for current pixel (0..1 range dither pattern).
-    pub fn dither_threshold(&self) -> f64 { self.progress }
+    pub fn dither_threshold(&self) -> f64 {
+        self.progress
+    }
 }
 
 // ── LodObject ────────────────────────────────────────────────
@@ -250,9 +287,13 @@ impl LodObject {
     }
 
     pub fn effective_level(&self) -> usize {
-        if let Some(ovr) = self.override_level { return ovr; }
+        if let Some(ovr) = self.override_level {
+            return ovr;
+        }
         if let Some(tr) = &self.transition {
-            if !tr.is_complete() { return tr.current_level(); }
+            if !tr.is_complete() {
+                return tr.current_level();
+            }
         }
         self.current_level
     }
@@ -272,11 +313,21 @@ pub struct LodGroup {
 
 impl LodGroup {
     pub fn new(id: u64, center: Vec3, bounding_radius: f64) -> Self {
-        Self { id, object_ids: Vec::new(), center, bounding_radius, current_level: 0 }
+        Self {
+            id,
+            object_ids: Vec::new(),
+            center,
+            bounding_radius,
+            current_level: 0,
+        }
     }
 
-    pub fn add_object(&mut self, object_id: u64) { self.object_ids.push(object_id); }
-    pub fn remove_object(&mut self, object_id: u64) { self.object_ids.retain(|o| *o != object_id); }
+    pub fn add_object(&mut self, object_id: u64) {
+        self.object_ids.push(object_id);
+    }
+    pub fn remove_object(&mut self, object_id: u64) {
+        self.object_ids.retain(|o| *o != object_id);
+    }
 }
 
 // ── LodStats ─────────────────────────────────────────────────
@@ -299,7 +350,9 @@ pub fn projected_screen_height(
     fov_y_rad: f64,
     screen_height_pixels: f64,
 ) -> f64 {
-    if distance < 1e-9 { return screen_height_pixels; }
+    if distance < 1e-9 {
+        return screen_height_pixels;
+    }
     let projected_size = object_radius / (distance * (fov_y_rad * 0.5).tan());
     projected_size * screen_height_pixels
 }
@@ -315,7 +368,11 @@ pub struct LodSystem {
 
 impl LodSystem {
     pub fn new() -> Self {
-        Self { configs: Vec::new(), objects: Vec::new(), groups: Vec::new() }
+        Self {
+            configs: Vec::new(),
+            objects: Vec::new(),
+            groups: Vec::new(),
+        }
     }
 
     pub fn add_config(&mut self, config: LodConfig) -> usize {
@@ -339,7 +396,9 @@ impl LodSystem {
     /// Update all objects based on camera position and elapsed time.
     pub fn update(&mut self, camera_pos: Vec3, dt: f64, fov_y_rad: f64, screen_height: f64) {
         for obj in self.objects.iter_mut() {
-            if obj.config_index >= self.configs.len() { continue; }
+            if obj.config_index >= self.configs.len() {
+                continue;
+            }
             let config = &self.configs[obj.config_index];
 
             // Resolve override
@@ -357,14 +416,19 @@ impl LodSystem {
             // Select target level
             let target = if config.use_screen_size {
                 let pixels = projected_screen_height(
-                    obj.bounding_radius, distance, fov_y_rad, screen_height,
+                    obj.bounding_radius,
+                    distance,
+                    fov_y_rad,
+                    screen_height,
                 );
                 config.select_level_screen_size(pixels)
             } else {
                 config.select_level_hysteresis(distance, obj.current_level)
             };
 
-            if target != obj.current_level && obj.transition.as_ref().map_or(true, |t| t.is_complete()) {
+            if target != obj.current_level
+                && obj.transition.as_ref().map_or(true, |t| t.is_complete())
+            {
                 start_transition(obj, target, config);
             }
 
@@ -387,7 +451,9 @@ impl LodSystem {
             objects_per_level[level] += 1;
 
             if let Some(tr) = &obj.transition {
-                if !tr.is_complete() { transitioning_count += 1; }
+                if !tr.is_complete() {
+                    transitioning_count += 1;
+                }
             }
 
             if obj.config_index < self.configs.len() {
@@ -427,7 +493,11 @@ fn start_transition(obj: &mut LodObject, target: usize, config: &LodConfig) {
         obj.current_level,
         target,
         config.transition,
-        if config.transition == TransitionMode::Instant { 0.0 } else { config.transition_duration },
+        if config.transition == TransitionMode::Instant {
+            0.0
+        } else {
+            config.transition_duration
+        },
     );
     obj.transition = Some(tr);
 }
@@ -615,7 +685,8 @@ mod tests {
             LodLevel::new(10.0, 1, 1000).with_screen_pixels(200.0),
             LodLevel::new(30.0, 2, 500).with_screen_pixels(50.0),
             LodLevel::new(100.0, 3, 100).with_screen_pixels(10.0),
-        ]).with_screen_size(true);
+        ])
+        .with_screen_size(true);
         // Large on screen -> highest detail matching
         assert_eq!(cfg.select_level_screen_size(300.0), 0);
         // Medium

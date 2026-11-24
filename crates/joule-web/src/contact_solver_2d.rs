@@ -17,25 +17,71 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0 } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y }
-    pub fn cross(self, o: Self) -> f64 { self.x * o.y - self.y * o.x }
-    pub fn length(self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
-    pub fn length_sq(self) -> f64 { self.x * self.x + self.y * self.y }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+    pub fn zero() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y
+    }
+    pub fn cross(self, o: Self) -> f64 {
+        self.x * o.y - self.y * o.x
+    }
+    pub fn length(self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+    pub fn length_sq(self) -> f64 {
+        self.x * self.x + self.y * self.y
+    }
     pub fn normalized(self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { Self { x: self.x / len, y: self.y / len } }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+            }
+        }
     }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y } }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s } }
-    pub fn negate(self) -> Self { Self { x: -self.x, y: -self.y } }
-    pub fn perpendicular(self) -> Self { Self { x: -self.y, y: self.x } }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+        }
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
+    pub fn negate(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+        }
+    }
+    pub fn perpendicular(self) -> Self {
+        Self {
+            x: -self.y,
+            y: self.x,
+        }
+    }
 }
 
 impl Default for Vec2 {
-    fn default() -> Self { Self::zero() }
+    fn default() -> Self {
+        Self::zero()
+    }
 }
 
 // ── Material ─────────────────────────────────────────────────
@@ -50,16 +96,30 @@ pub struct Material {
 
 impl Material {
     pub fn new(restitution: f64, static_friction: f64, dynamic_friction: f64) -> Self {
-        Self { restitution, static_friction, dynamic_friction }
+        Self {
+            restitution,
+            static_friction,
+            dynamic_friction,
+        }
     }
-    pub fn rubber() -> Self { Self::new(0.8, 0.9, 0.7) }
-    pub fn ice() -> Self { Self::new(0.1, 0.05, 0.02) }
-    pub fn steel() -> Self { Self::new(0.5, 0.6, 0.4) }
-    pub fn default_mat() -> Self { Self::new(0.3, 0.5, 0.3) }
+    pub fn rubber() -> Self {
+        Self::new(0.8, 0.9, 0.7)
+    }
+    pub fn ice() -> Self {
+        Self::new(0.1, 0.05, 0.02)
+    }
+    pub fn steel() -> Self {
+        Self::new(0.5, 0.6, 0.4)
+    }
+    pub fn default_mat() -> Self {
+        Self::new(0.3, 0.5, 0.3)
+    }
 }
 
 impl Default for Material {
-    fn default() -> Self { Self::default_mat() }
+    fn default() -> Self {
+        Self::default_mat()
+    }
 }
 
 // ── Body state ───────────────────────────────────────────────
@@ -79,8 +139,10 @@ pub struct SolverBody {
 impl SolverBody {
     pub fn new_dynamic(pos: Vec2, mass: f64, inertia: f64) -> Self {
         Self {
-            position: pos, rotation: 0.0,
-            linear_velocity: Vec2::zero(), angular_velocity: 0.0,
+            position: pos,
+            rotation: 0.0,
+            linear_velocity: Vec2::zero(),
+            angular_velocity: 0.0,
             inv_mass: if mass > 0.0 { 1.0 / mass } else { 0.0 },
             inv_inertia: if inertia > 0.0 { 1.0 / inertia } else { 0.0 },
             material: Material::default(),
@@ -89,9 +151,12 @@ impl SolverBody {
 
     pub fn new_static(pos: Vec2) -> Self {
         Self {
-            position: pos, rotation: 0.0,
-            linear_velocity: Vec2::zero(), angular_velocity: 0.0,
-            inv_mass: 0.0, inv_inertia: 0.0,
+            position: pos,
+            rotation: 0.0,
+            linear_velocity: Vec2::zero(),
+            angular_velocity: 0.0,
+            inv_mass: 0.0,
+            inv_inertia: 0.0,
             material: Material::default(),
         }
     }
@@ -126,10 +191,17 @@ pub struct ContactConstraint {
 impl ContactConstraint {
     pub fn new(body_a: usize, body_b: usize, point: Vec2, normal: Vec2, depth: f64) -> Self {
         Self {
-            body_a, body_b, point, normal, depth,
-            normal_impulse: 0.0, tangent_impulse: 0.0,
-            r_a: Vec2::zero(), r_b: Vec2::zero(),
-            effective_mass_normal: 0.0, effective_mass_tangent: 0.0,
+            body_a,
+            body_b,
+            point,
+            normal,
+            depth,
+            normal_impulse: 0.0,
+            tangent_impulse: 0.0,
+            r_a: Vec2::zero(),
+            r_b: Vec2::zero(),
+            effective_mass_normal: 0.0,
+            effective_mass_tangent: 0.0,
             velocity_bias: 0.0,
         }
     }
@@ -168,7 +240,9 @@ impl SolverConfig {
 }
 
 impl Default for SolverConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -176,14 +250,14 @@ impl Default for SolverConfig {
 /// Velocity at the contact point on body at `bodies[idx]` with lever arm `r`.
 fn vel_at(bodies: &[SolverBody], idx: usize, r: Vec2) -> Vec2 {
     let b = &bodies[idx];
-    b.linear_velocity.add(Vec2::new(-b.angular_velocity * r.y, b.angular_velocity * r.x))
+    b.linear_velocity.add(Vec2::new(
+        -b.angular_velocity * r.y,
+        b.angular_velocity * r.x,
+    ))
 }
 
 /// Apply impulse `p`: body_a gets `-p`, body_b gets `+p` (separates along normal).
-fn apply_impulse_pair(
-    a: &mut SolverBody, b: &mut SolverBody,
-    r_a: Vec2, r_b: Vec2, p: Vec2,
-) {
+fn apply_impulse_pair(a: &mut SolverBody, b: &mut SolverBody, r_a: Vec2, r_b: Vec2, p: Vec2) {
     a.linear_velocity = a.linear_velocity.sub(p.scale(a.inv_mass));
     a.angular_velocity -= a.inv_inertia * r_a.cross(p);
     b.linear_velocity = b.linear_velocity.add(p.scale(b.inv_mass));
@@ -191,8 +265,17 @@ fn apply_impulse_pair(
 }
 
 /// Safe `apply_impulse_pair` that splits the slice to avoid double borrow.
-fn apply_impulse_slice(bodies: &mut [SolverBody], ia: usize, ib: usize, r_a: Vec2, r_b: Vec2, p: Vec2) {
-    if ia == ib { return; }
+fn apply_impulse_slice(
+    bodies: &mut [SolverBody],
+    ia: usize,
+    ib: usize,
+    r_a: Vec2,
+    r_b: Vec2,
+    p: Vec2,
+) {
+    if ia == ib {
+        return;
+    }
     if ia < ib {
         let (left, right) = bodies.split_at_mut(ib);
         apply_impulse_pair(&mut left[ia], &mut right[0], r_a, r_b, p);
@@ -213,7 +296,10 @@ pub struct ContactSolver {
 
 impl ContactSolver {
     pub fn new(config: SolverConfig) -> Self {
-        Self { config, contacts: Vec::new() }
+        Self {
+            config,
+            contacts: Vec::new(),
+        }
     }
 
     pub fn clear(&mut self) {
@@ -224,7 +310,9 @@ impl ContactSolver {
         self.contacts.push(c);
     }
 
-    pub fn contact_count(&self) -> usize { self.contacts.len() }
+    pub fn contact_count(&self) -> usize {
+        self.contacts.len()
+    }
 
     /// Pre-solve: compute effective masses, velocity bias, apply warm-start.
     pub fn pre_solve(&mut self, bodies: &mut [SolverBody], dt: f64) {
@@ -253,7 +341,11 @@ impl ContactSolver {
             let rt_a = c.r_a.cross(tangent);
             let rt_b = c.r_b.cross(tangent);
             let k_tangent = inv_m_a + inv_m_b + inv_i_a * rt_a * rt_a + inv_i_b * rt_b * rt_b;
-            c.effective_mass_tangent = if k_tangent > 0.0 { 1.0 / k_tangent } else { 0.0 };
+            c.effective_mass_tangent = if k_tangent > 0.0 {
+                1.0 / k_tangent
+            } else {
+                0.0
+            };
 
             // Baumgarte velocity bias for penetration correction.
             let penetration = (c.depth - self.config.slop).max(0.0);
@@ -266,13 +358,19 @@ impl ContactSolver {
             let vn = dv.dot(c.normal);
             // vn < 0 means closing.  Add restitution bias if closing fast enough.
             if -vn > self.config.restitution_threshold {
-                let e = (bodies[c.body_a].material.restitution + bodies[c.body_b].material.restitution) * 0.5;
+                let e = (bodies[c.body_a].material.restitution
+                    + bodies[c.body_b].material.restitution)
+                    * 0.5;
                 c.velocity_bias += e * (-vn);
             }
 
             // Warm-start: apply cached impulse from previous frame.
-            if self.config.warm_start && (c.normal_impulse.abs() > 1e-12 || c.tangent_impulse.abs() > 1e-12) {
-                let p = c.normal.scale(c.normal_impulse * self.config.warm_start_factor)
+            if self.config.warm_start
+                && (c.normal_impulse.abs() > 1e-12 || c.tangent_impulse.abs() > 1e-12)
+            {
+                let p = c
+                    .normal
+                    .scale(c.normal_impulse * self.config.warm_start_factor)
                     .add(tangent.scale(c.tangent_impulse * self.config.warm_start_factor));
                 apply_impulse_slice(bodies, c.body_a, c.body_b, c.r_a, c.r_b, p);
             }
@@ -321,8 +419,12 @@ impl ContactSolver {
                 let lambda_t = eff_mass_t * (-vt);
 
                 // Coulomb friction clamp.
-                let mu_s = (bodies[body_a].material.static_friction + bodies[body_b].material.static_friction) * 0.5;
-                let mu_d = (bodies[body_a].material.dynamic_friction + bodies[body_b].material.dynamic_friction) * 0.5;
+                let mu_s = (bodies[body_a].material.static_friction
+                    + bodies[body_b].material.static_friction)
+                    * 0.5;
+                let mu_d = (bodies[body_a].material.dynamic_friction
+                    + bodies[body_b].material.dynamic_friction)
+                    * 0.5;
                 let max_friction = mu_s * self.contacts[ci].normal_impulse;
                 let new_t = old_tangent_impulse + lambda_t;
                 let clamped_t = if new_t.abs() <= max_friction {
@@ -357,8 +459,12 @@ mod tests {
     use super::*;
 
     const EPS: f64 = 1e-4;
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
-    fn approx_wide(a: f64, b: f64) -> bool { (a - b).abs() < 0.5 }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
+    fn approx_wide(a: f64, b: f64) -> bool {
+        (a - b).abs() < 0.5
+    }
 
     #[test]
     fn material_defaults() {
@@ -375,9 +481,7 @@ mod tests {
     #[test]
     fn solver_no_contacts() {
         let mut solver = ContactSolver::new(SolverConfig::new());
-        let mut bodies = vec![
-            SolverBody::new_dynamic(Vec2::zero(), 1.0, 1.0),
-        ];
+        let mut bodies = vec![SolverBody::new_dynamic(Vec2::zero(), 1.0, 1.0)];
         solver.solve(&mut bodies, 1.0 / 60.0);
         assert_eq!(solver.contact_count(), 0);
     }
@@ -393,7 +497,13 @@ mod tests {
         bodies[0].linear_velocity = Vec2::new(-1.0, 0.0);
         bodies[1].linear_velocity = Vec2::new(1.0, 0.0);
         // Normal points from A to B (right).
-        solver.add_contact(ContactConstraint::new(0, 1, Vec2::new(1.0, 0.0), Vec2::new(1.0, 0.0), 0.0));
+        solver.add_contact(ContactConstraint::new(
+            0,
+            1,
+            Vec2::new(1.0, 0.0),
+            Vec2::new(1.0, 0.0),
+            0.0,
+        ));
         solver.solve(&mut bodies, 1.0 / 60.0);
         // dv.dot(n) = (1 - (-1)) * 1 = 2 > 0 → separating → clamped to 0.
         assert!(approx(solver.contacts()[0].normal_impulse, 0.0));
@@ -402,7 +512,10 @@ mod tests {
     #[test]
     fn solver_colliding_equal_mass() {
         // Head-on collision: body0 → right, body1 → left, equal mass, e=1.
-        let mut solver = ContactSolver::new(SolverConfig { restitution_threshold: 0.0, ..SolverConfig::new() });
+        let mut solver = ContactSolver::new(SolverConfig {
+            restitution_threshold: 0.0,
+            ..SolverConfig::new()
+        });
         let mut bodies = vec![
             SolverBody::new_dynamic(Vec2::zero(), 1.0, 1.0),
             SolverBody::new_dynamic(Vec2::new(2.0, 0.0), 1.0, 1.0),
@@ -413,7 +526,13 @@ mod tests {
         bodies[1].material = Material::new(1.0, 0.0, 0.0);
 
         // Normal from A to B (right).
-        solver.add_contact(ContactConstraint::new(0, 1, Vec2::new(1.0, 0.0), Vec2::new(1.0, 0.0), 0.0));
+        solver.add_contact(ContactConstraint::new(
+            0,
+            1,
+            Vec2::new(1.0, 0.0),
+            Vec2::new(1.0, 0.0),
+            0.0,
+        ));
         solver.solve(&mut bodies, 1.0 / 60.0);
         // Perfectly elastic: velocities swap.
         assert!(approx_wide(bodies[0].linear_velocity.x, -5.0));
@@ -434,7 +553,11 @@ mod tests {
         // Normal from A (dynamic) to B (static floor), pointing down.
         // Contact at floor surface, normal = (0, -1) from A to B.
         solver.add_contact(ContactConstraint::new(
-            0, 1, Vec2::new(0.0, 0.0), Vec2::new(0.0, -1.0), 0.01,
+            0,
+            1,
+            Vec2::new(0.0, 0.0),
+            Vec2::new(0.0, -1.0),
+            0.01,
         ));
         solver.solve(&mut bodies, 1.0 / 60.0);
         // Body should have downward velocity reduced (impulse pushes body up).
@@ -450,7 +573,11 @@ mod tests {
         ];
         // Normal from A (dynamic) to B (floor below), pointing down.
         solver.add_contact(ContactConstraint::new(
-            0, 1, Vec2::new(0.0, -0.5), Vec2::new(0.0, -1.0), 0.1,
+            0,
+            1,
+            Vec2::new(0.0, -0.5),
+            Vec2::new(0.0, -1.0),
+            0.1,
         ));
         solver.solve(&mut bodies, 1.0 / 60.0);
         // Baumgarte pushes body A upward (positive y).
@@ -469,7 +596,11 @@ mod tests {
         bodies[1].material = Material::new(0.0, 0.8, 0.6);
 
         solver.add_contact(ContactConstraint::new(
-            0, 1, Vec2::new(0.0, 0.0), Vec2::new(0.0, -1.0), 0.01,
+            0,
+            1,
+            Vec2::new(0.0, 0.0),
+            Vec2::new(0.0, -1.0),
+            0.01,
         ));
         solver.solve(&mut bodies, 1.0 / 60.0);
         assert!(bodies[0].linear_velocity.x < 10.0);
@@ -484,10 +615,18 @@ mod tests {
         ];
         bodies[0].linear_velocity = Vec2::new(0.0, -5.0);
         solver.add_contact(ContactConstraint::new(
-            0, 1, Vec2::new(-0.5, 0.0), Vec2::new(0.0, -1.0), 0.01,
+            0,
+            1,
+            Vec2::new(-0.5, 0.0),
+            Vec2::new(0.0, -1.0),
+            0.01,
         ));
         solver.add_contact(ContactConstraint::new(
-            0, 1, Vec2::new(0.5, 0.0), Vec2::new(0.0, -1.0), 0.01,
+            0,
+            1,
+            Vec2::new(0.5, 0.0),
+            Vec2::new(0.0, -1.0),
+            0.01,
         ));
         solver.solve(&mut bodies, 1.0 / 60.0);
         assert!(bodies[0].linear_velocity.y > -5.0);
@@ -495,7 +634,10 @@ mod tests {
 
     #[test]
     fn solver_warm_start() {
-        let config = SolverConfig { warm_start: true, ..SolverConfig::new() };
+        let config = SolverConfig {
+            warm_start: true,
+            ..SolverConfig::new()
+        };
         let mut solver = ContactSolver::new(config);
         let mut bodies = vec![
             SolverBody::new_dynamic(Vec2::zero(), 1.0, 1.0),
@@ -511,7 +653,10 @@ mod tests {
 
     #[test]
     fn solver_warm_start_disabled() {
-        let config = SolverConfig { warm_start: false, ..SolverConfig::new() };
+        let config = SolverConfig {
+            warm_start: false,
+            ..SolverConfig::new()
+        };
         let mut solver = ContactSolver::new(config);
         let mut bodies = vec![
             SolverBody::new_dynamic(Vec2::zero(), 1.0, 1.0),
@@ -527,7 +672,10 @@ mod tests {
     #[test]
     fn solver_high_restitution() {
         // Ball bouncing off static floor.
-        let mut solver = ContactSolver::new(SolverConfig { restitution_threshold: 0.0, ..SolverConfig::new() });
+        let mut solver = ContactSolver::new(SolverConfig {
+            restitution_threshold: 0.0,
+            ..SolverConfig::new()
+        });
         let mut bodies = vec![
             SolverBody::new_dynamic(Vec2::new(0.0, 1.0), 1.0, 1.0),
             SolverBody::new_static(Vec2::new(0.0, 0.0)),
@@ -537,7 +685,11 @@ mod tests {
         bodies[1].material = Material::rubber();
         // Normal from A (ball) to B (floor): (0, -1).
         solver.add_contact(ContactConstraint::new(
-            0, 1, Vec2::new(0.0, 0.0), Vec2::new(0.0, -1.0), 0.0,
+            0,
+            1,
+            Vec2::new(0.0, 0.0),
+            Vec2::new(0.0, -1.0),
+            0.0,
         ));
         solver.solve(&mut bodies, 1.0 / 60.0);
         // High restitution: body should bounce upward.
@@ -556,7 +708,11 @@ mod tests {
         bodies[1].material = Material::ice();
 
         solver.add_contact(ContactConstraint::new(
-            0, 1, Vec2::new(0.0, 0.0), Vec2::new(0.0, -1.0), 0.01,
+            0,
+            1,
+            Vec2::new(0.0, 0.0),
+            Vec2::new(0.0, -1.0),
+            0.01,
         ));
         solver.solve(&mut bodies, 1.0 / 60.0);
         // Ice: very low friction, tangential velocity barely reduced.
@@ -566,7 +722,13 @@ mod tests {
     #[test]
     fn solver_clear_resets() {
         let mut solver = ContactSolver::new(SolverConfig::new());
-        solver.add_contact(ContactConstraint::new(0, 1, Vec2::zero(), Vec2::new(0.0, 1.0), 0.0));
+        solver.add_contact(ContactConstraint::new(
+            0,
+            1,
+            Vec2::zero(),
+            Vec2::new(0.0, 1.0),
+            0.0,
+        ));
         assert_eq!(solver.contact_count(), 1);
         solver.clear();
         assert_eq!(solver.contact_count(), 0);
@@ -574,7 +736,10 @@ mod tests {
 
     #[test]
     fn solver_iterations_config() {
-        let config = SolverConfig { iterations: 16, ..SolverConfig::new() };
+        let config = SolverConfig {
+            iterations: 16,
+            ..SolverConfig::new()
+        };
         let solver = ContactSolver::new(config);
         assert_eq!(solver.config.iterations, 16);
     }
@@ -586,7 +751,13 @@ mod tests {
             SolverBody::new_static(Vec2::zero()),
             SolverBody::new_static(Vec2::new(1.0, 0.0)),
         ];
-        solver.add_contact(ContactConstraint::new(0, 1, Vec2::new(0.5, 0.0), Vec2::new(1.0, 0.0), 0.1));
+        solver.add_contact(ContactConstraint::new(
+            0,
+            1,
+            Vec2::new(0.5, 0.0),
+            Vec2::new(1.0, 0.0),
+            0.1,
+        ));
         solver.solve(&mut bodies, 1.0 / 60.0);
         assert!(approx(bodies[0].linear_velocity.x, 0.0));
         assert!(approx(bodies[1].linear_velocity.x, 0.0));
@@ -599,7 +770,13 @@ mod tests {
             SolverBody::new_dynamic(Vec2::zero(), 1.0, 1.0),
             SolverBody::new_dynamic(Vec2::new(2.0, 0.0), 1.0, 1.0),
         ];
-        solver.add_contact(ContactConstraint::new(0, 1, Vec2::new(1.0, 0.0), Vec2::new(1.0, 0.0), 0.0));
+        solver.add_contact(ContactConstraint::new(
+            0,
+            1,
+            Vec2::new(1.0, 0.0),
+            Vec2::new(1.0, 0.0),
+            0.0,
+        ));
         solver.pre_solve(&mut bodies, 1.0 / 60.0);
         assert!(solver.contacts()[0].effective_mass_normal > 0.0);
         assert!(solver.contacts()[0].effective_mass_tangent > 0.0);
@@ -617,7 +794,11 @@ mod tests {
         bodies[0].material = Material::new(0.0, 0.0, 0.0);
         bodies[1].material = Material::new(0.0, 0.0, 0.0);
         solver.add_contact(ContactConstraint::new(
-            0, 1, Vec2::new(0.0, 0.0), Vec2::new(0.0, -1.0), 0.01,
+            0,
+            1,
+            Vec2::new(0.0, 0.0),
+            Vec2::new(0.0, -1.0),
+            0.01,
         ));
         solver.solve(&mut bodies, 1.0 / 60.0);
         // Inelastic: should stop, not bounce.
@@ -635,7 +816,13 @@ mod tests {
         // Bodies separating.
         bodies[0].linear_velocity = Vec2::new(-5.0, 0.0);
         bodies[1].linear_velocity = Vec2::new(5.0, 0.0);
-        solver.add_contact(ContactConstraint::new(0, 1, Vec2::new(1.0, 0.0), Vec2::new(1.0, 0.0), 0.0));
+        solver.add_contact(ContactConstraint::new(
+            0,
+            1,
+            Vec2::new(1.0, 0.0),
+            Vec2::new(1.0, 0.0),
+            0.0,
+        ));
         solver.solve(&mut bodies, 1.0 / 60.0);
         assert!(solver.contacts()[0].normal_impulse >= 0.0);
     }

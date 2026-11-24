@@ -18,7 +18,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: seed.wrapping_add(1) }
+        Self {
+            state: seed.wrapping_add(1),
+        }
     }
 
     fn next_f64(&mut self) -> f64 {
@@ -354,7 +356,14 @@ impl FaultInjector {
         let mut out = String::new();
         out.push_str("Fault Injection Statistics\n");
         out.push_str(&format!("{}\n", "=".repeat(50)));
-        out.push_str(&format!("Global: {}\n", if self.globally_enabled { "enabled" } else { "disabled" }));
+        out.push_str(&format!(
+            "Global: {}\n",
+            if self.globally_enabled {
+                "enabled"
+            } else {
+                "disabled"
+            }
+        ));
         out.push_str(&format!("Fault points: {}\n", self.num_faults()));
         out.push_str(&format!("Total checks: {}\n", self.total_checks()));
         out.push_str(&format!("Total triggers: {}\n\n", self.total_triggers()));
@@ -396,10 +405,7 @@ pub struct ScopedFault {
 impl ScopedFault {
     /// Enable a fault in the injector and remember previous state.
     pub fn activate(injector: &mut FaultInjector, name: &str) -> Self {
-        let was_enabled = injector
-            .get(name)
-            .map(|fp| fp.enabled)
-            .unwrap_or(false);
+        let was_enabled = injector.get(name).map(|fp| fp.enabled).unwrap_or(false);
         injector.enable(name);
         Self {
             name: name.to_string(),
@@ -424,7 +430,10 @@ mod tests {
     #[test]
     fn always_schedule_fires_every_time() {
         let mut injector = FaultInjector::new(1);
-        injector.register(FaultPoint::new("io_error", FailureMode::Error("disk full".into())));
+        injector.register(FaultPoint::new(
+            "io_error",
+            FailureMode::Error("disk full".into()),
+        ));
 
         for _ in 0..5 {
             let outcome = injector.check("io_error");
@@ -498,8 +507,7 @@ mod tests {
     fn first_n_schedule() {
         let mut injector = FaultInjector::new(1);
         injector.register(
-            FaultPoint::new("first2", FailureMode::Empty)
-                .with_schedule(FailureSchedule::FirstN(2)),
+            FaultPoint::new("first2", FailureMode::Empty).with_schedule(FailureSchedule::FirstN(2)),
         );
 
         assert!(injector.check("first2").is_triggered()); // 1
@@ -511,8 +519,7 @@ mod tests {
     fn after_n_schedule() {
         let mut injector = FaultInjector::new(1);
         injector.register(
-            FaultPoint::new("after3", FailureMode::Empty)
-                .with_schedule(FailureSchedule::AfterN(3)),
+            FaultPoint::new("after3", FailureMode::Empty).with_schedule(FailureSchedule::AfterN(3)),
         );
 
         assert!(injector.check("after3").is_pass()); // 1
@@ -629,7 +636,10 @@ mod tests {
     fn failure_mode_display() {
         assert_eq!(format!("{}", FailureMode::Error("x".into())), "Error(x)");
         assert_eq!(format!("{}", FailureMode::Delay(100)), "Delay(100ms)");
-        assert_eq!(format!("{}", FailureMode::StatusCode(503)), "StatusCode(503)");
+        assert_eq!(
+            format!("{}", FailureMode::StatusCode(503)),
+            "StatusCode(503)"
+        );
         assert_eq!(format!("{}", FailureMode::Empty), "Empty");
     }
 
@@ -665,7 +675,10 @@ mod tests {
     #[test]
     fn corrupt_failure_mode() {
         let mut injector = FaultInjector::new(1);
-        injector.register(FaultPoint::new("corrupt", FailureMode::Corrupt("garbled".into())));
+        injector.register(FaultPoint::new(
+            "corrupt",
+            FailureMode::Corrupt("garbled".into()),
+        ));
         match injector.check("corrupt") {
             FaultOutcome::Triggered(FailureMode::Corrupt(data)) => {
                 assert_eq!(data, "garbled");

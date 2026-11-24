@@ -30,7 +30,9 @@ impl RequestId {
         Self(hex)
     }
 
-    pub fn as_str(&self) -> &str { &self.0 }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 impl fmt::Display for RequestId {
@@ -50,11 +52,17 @@ pub struct IdGenerator {
 
 impl IdGenerator {
     pub fn new(prefix: &str) -> Self {
-        Self { prefix: prefix.to_string(), counter: 0 }
+        Self {
+            prefix: prefix.to_string(),
+            counter: 0,
+        }
     }
 
     pub fn with_start(prefix: &str, start: u64) -> Self {
-        Self { prefix: prefix.to_string(), counter: start }
+        Self {
+            prefix: prefix.to_string(),
+            counter: start,
+        }
     }
 
     /// Generate the next request ID.
@@ -64,8 +72,12 @@ impl IdGenerator {
         id
     }
 
-    pub fn counter(&self) -> u64 { self.counter }
-    pub fn prefix(&self) -> &str { &self.prefix }
+    pub fn counter(&self) -> u64 {
+        self.counter
+    }
+    pub fn prefix(&self) -> &str {
+        &self.prefix
+    }
 }
 
 // ── Header extraction ───────────────────────────────────────────
@@ -164,12 +176,17 @@ impl RequestContext {
     pub fn outgoing_headers(&self) -> HashMap<String, String> {
         let mut h = HashMap::new();
         h.insert(HEADER_X_REQUEST_ID.to_string(), self.request_id.to_string());
-        h.insert(HEADER_X_CORRELATION_ID.to_string(), self.correlation_id.to_string());
+        h.insert(
+            HEADER_X_CORRELATION_ID.to_string(),
+            self.correlation_id.to_string(),
+        );
         h
     }
 
     /// Is this a root context (no parent)?
-    pub fn is_root(&self) -> bool { self.parent_id.is_none() }
+    pub fn is_root(&self) -> bool {
+        self.parent_id.is_none()
+    }
 
     /// Depth in the call chain (root = 0).
     pub fn depth(&self) -> usize {
@@ -191,7 +208,8 @@ pub struct RequestNode {
 
 impl RequestNode {
     pub fn duration_ms(&self) -> Option<u64> {
-        self.completed_ms.map(|end| end.saturating_sub(self.started_ms))
+        self.completed_ms
+            .map(|end| end.saturating_sub(self.started_ms))
     }
 
     pub fn is_complete(&self) -> bool {
@@ -208,30 +226,45 @@ pub struct RequestTree {
 
 impl RequestTree {
     pub fn new() -> Self {
-        Self { nodes: HashMap::new(), root_id: None }
+        Self {
+            nodes: HashMap::new(),
+            root_id: None,
+        }
     }
 
     /// Add a root request.
     pub fn add_root(&mut self, id: RequestId, service: &str, started_ms: u64) {
         self.root_id = Some(id.clone());
-        self.nodes.insert(id.0.clone(), RequestNode {
-            id,
-            parent_id: None,
-            service: service.to_string(),
-            started_ms,
-            completed_ms: None,
-        });
+        self.nodes.insert(
+            id.0.clone(),
+            RequestNode {
+                id,
+                parent_id: None,
+                service: service.to_string(),
+                started_ms,
+                completed_ms: None,
+            },
+        );
     }
 
     /// Add a child request.
-    pub fn add_child(&mut self, id: RequestId, parent_id: RequestId, service: &str, started_ms: u64) {
-        self.nodes.insert(id.0.clone(), RequestNode {
-            id,
-            parent_id: Some(parent_id),
-            service: service.to_string(),
-            started_ms,
-            completed_ms: None,
-        });
+    pub fn add_child(
+        &mut self,
+        id: RequestId,
+        parent_id: RequestId,
+        service: &str,
+        started_ms: u64,
+    ) {
+        self.nodes.insert(
+            id.0.clone(),
+            RequestNode {
+                id,
+                parent_id: Some(parent_id),
+                service: service.to_string(),
+                started_ms,
+                completed_ms: None,
+            },
+        );
     }
 
     /// Mark a request as completed.
@@ -256,7 +289,9 @@ impl RequestTree {
 
     /// Get children of a node.
     pub fn children_of(&self, id: &RequestId) -> Vec<&RequestNode> {
-        let mut children: Vec<&RequestNode> = self.nodes.values()
+        let mut children: Vec<&RequestNode> = self
+            .nodes
+            .values()
             .filter(|n| n.parent_id.as_ref() == Some(id))
             .collect();
         children.sort_by_key(|n| n.started_ms);
@@ -275,10 +310,14 @@ impl RequestTree {
 
     /// All leaf nodes (no children).
     pub fn leaves(&self) -> Vec<&RequestNode> {
-        let parent_ids: std::collections::HashSet<&str> = self.nodes.values()
+        let parent_ids: std::collections::HashSet<&str> = self
+            .nodes
+            .values()
             .filter_map(|n| n.parent_id.as_ref().map(|p| p.0.as_str()))
             .collect();
-        let mut leaves: Vec<&RequestNode> = self.nodes.values()
+        let mut leaves: Vec<&RequestNode> = self
+            .nodes
+            .values()
             .filter(|n| !parent_ids.contains(n.id.0.as_str()))
             .collect();
         leaves.sort_by_key(|n| &n.id.0);
@@ -321,7 +360,9 @@ impl RequestTree {
         let limit = self.nodes.len() + 1;
         let mut steps = 0;
         while let Some(cid) = current_id {
-            if steps >= limit { break; }
+            if steps >= limit {
+                break;
+            }
             steps += 1;
             if let Some(node) = self.nodes.get(&cid.0) {
                 chain.push(node);
@@ -335,7 +376,9 @@ impl RequestTree {
 }
 
 impl Default for RequestTree {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Correlation chain builder ───────────────────────────────────
@@ -343,7 +386,10 @@ impl Default for RequestTree {
 /// Builds a correlation chain string from request IDs.
 /// Format: `id1 -> id2 -> id3`
 pub fn format_correlation_chain(ids: &[&RequestId]) -> String {
-    ids.iter().map(|id| id.0.as_str()).collect::<Vec<_>>().join(" -> ")
+    ids.iter()
+        .map(|id| id.0.as_str())
+        .collect::<Vec<_>>()
+        .join(" -> ")
 }
 
 // ── Tests ───────────────────────────────────────────────────────

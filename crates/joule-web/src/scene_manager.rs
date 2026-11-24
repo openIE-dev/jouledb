@@ -27,15 +27,37 @@ pub enum SceneState {
 /// Callback events that a scene owner should handle.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SceneEvent {
-    Enter { scene_id: String },
-    Exit { scene_id: String },
-    Suspend { scene_id: String },
-    Resume { scene_id: String },
-    Update { scene_id: String, dt: f64 },
-    TransitionProgress { from: String, to: String, progress: f64 },
-    TransitionComplete { from: String, to: String },
-    Loaded { scene_id: String },
-    Unloaded { scene_id: String },
+    Enter {
+        scene_id: String,
+    },
+    Exit {
+        scene_id: String,
+    },
+    Suspend {
+        scene_id: String,
+    },
+    Resume {
+        scene_id: String,
+    },
+    Update {
+        scene_id: String,
+        dt: f64,
+    },
+    TransitionProgress {
+        from: String,
+        to: String,
+        progress: f64,
+    },
+    TransitionComplete {
+        from: String,
+        to: String,
+    },
+    Loaded {
+        scene_id: String,
+    },
+    Unloaded {
+        scene_id: String,
+    },
 }
 
 // ── Transition ──────────────────────────────────────────────────
@@ -123,13 +145,16 @@ impl SceneManager {
 
     /// Register a new scene (starts in `Unloaded` state).
     pub fn register(&mut self, id: &str, tags: &[&str]) {
-        self.scenes.insert(id.to_string(), SceneDescriptor {
-            id: id.to_string(),
-            state: SceneState::Unloaded,
-            tags: tags.iter().map(|s| s.to_string()).collect(),
-            active_time: 0.0,
-            update_count: 0,
-        });
+        self.scenes.insert(
+            id.to_string(),
+            SceneDescriptor {
+                id: id.to_string(),
+                state: SceneState::Unloaded,
+                tags: tags.iter().map(|s| s.to_string()).collect(),
+                active_time: 0.0,
+                update_count: 0,
+            },
+        );
     }
 
     pub fn is_registered(&self, id: &str) -> bool {
@@ -141,7 +166,10 @@ impl SceneManager {
     }
 
     pub fn scene_tags(&self, id: &str) -> Vec<String> {
-        self.scenes.get(id).map(|s| s.tags.clone()).unwrap_or_default()
+        self.scenes
+            .get(id)
+            .map(|s| s.tags.clone())
+            .unwrap_or_default()
     }
 
     // ── Loading ─────────────────────────────────────────────────
@@ -162,7 +190,9 @@ impl SceneManager {
         if let Some(scene) = self.scenes.get_mut(id) {
             if scene.state == SceneState::Loading {
                 scene.state = SceneState::Unloaded; // loaded but not entered
-                self.events.push(SceneEvent::Loaded { scene_id: id.to_string() });
+                self.events.push(SceneEvent::Loaded {
+                    scene_id: id.to_string(),
+                });
                 return true;
             }
         }
@@ -178,7 +208,9 @@ impl SceneManager {
             scene.state = SceneState::Unloaded;
             scene.active_time = 0.0;
             scene.update_count = 0;
-            self.events.push(SceneEvent::Unloaded { scene_id: id.to_string() });
+            self.events.push(SceneEvent::Unloaded {
+                scene_id: id.to_string(),
+            });
             return true;
         }
         false
@@ -206,7 +238,9 @@ impl SceneManager {
             scene.state = SceneState::Active;
         }
         self.stack.push(id.to_string());
-        self.events.push(SceneEvent::Enter { scene_id: id.to_string() });
+        self.events.push(SceneEvent::Enter {
+            scene_id: id.to_string(),
+        });
         true
     }
 
@@ -216,7 +250,9 @@ impl SceneManager {
         if let Some(scene) = self.scenes.get_mut(&popped) {
             scene.state = SceneState::Unloaded;
         }
-        self.events.push(SceneEvent::Exit { scene_id: popped.clone() });
+        self.events.push(SceneEvent::Exit {
+            scene_id: popped.clone(),
+        });
         // Resume new top.
         if let Some(new_top) = self.stack.last().cloned() {
             if let Some(scene) = self.scenes.get_mut(&new_top) {
@@ -350,7 +386,9 @@ impl SceneManager {
         if let Some(scene) = self.scenes.get_mut(from) {
             scene.state = SceneState::Unloaded;
         }
-        self.events.push(SceneEvent::Exit { scene_id: from.to_string() });
+        self.events.push(SceneEvent::Exit {
+            scene_id: from.to_string(),
+        });
 
         // Push new scene.
         if !self.stack.contains(&to.to_string()) {
@@ -359,7 +397,9 @@ impl SceneManager {
         if let Some(scene) = self.scenes.get_mut(to) {
             scene.state = SceneState::Active;
         }
-        self.events.push(SceneEvent::Enter { scene_id: to.to_string() });
+        self.events.push(SceneEvent::Enter {
+            scene_id: to.to_string(),
+        });
         self.events.push(SceneEvent::TransitionComplete {
             from: from.to_string(),
             to: to.to_string(),
@@ -434,8 +474,16 @@ mod tests {
         sm.drain_events(); // clear
         sm.push("b");
         let events = sm.drain_events();
-        assert!(events.iter().any(|e| matches!(e, SceneEvent::Suspend { scene_id } if scene_id == "a")));
-        assert!(events.iter().any(|e| matches!(e, SceneEvent::Enter { scene_id } if scene_id == "b")));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, SceneEvent::Suspend { scene_id } if scene_id == "a"))
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, SceneEvent::Enter { scene_id } if scene_id == "b"))
+        );
     }
 
     #[test]
@@ -531,7 +579,11 @@ mod tests {
         assert_eq!(sm.scene_state("level1"), Some(SceneState::Loading));
         assert!(sm.finish_load("level1"));
         let events = sm.drain_events();
-        assert!(events.iter().any(|e| matches!(e, SceneEvent::Loaded { scene_id } if scene_id == "level1")));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, SceneEvent::Loaded { scene_id } if scene_id == "level1"))
+        );
     }
 
     #[test]
@@ -559,7 +611,9 @@ mod tests {
         sm.transition_to("b", TransitionEffect::Fade { duration_secs: 0.5 });
         sm.update(0.6);
         let events = sm.drain_events();
-        assert!(events.iter().any(|e| matches!(e, SceneEvent::TransitionComplete { from, to } if from == "a" && to == "b")));
+        assert!(events.iter().any(
+            |e| matches!(e, SceneEvent::TransitionComplete { from, to } if from == "a" && to == "b")
+        ));
     }
 
     #[test]
@@ -576,7 +630,16 @@ mod tests {
         assert!((TransitionEffect::Fade { duration_secs: 2.0 }.duration() - 2.0).abs() < EPS);
         assert!((TransitionEffect::SlideLeft { duration_secs: 0.5 }.duration() - 0.5).abs() < EPS);
         assert!((TransitionEffect::SlideRight { duration_secs: 1.5 }.duration() - 1.5).abs() < EPS);
-        assert!((TransitionEffect::Custom { name: "wipe".into(), duration_secs: 3.0 }.duration() - 3.0).abs() < EPS);
+        assert!(
+            (TransitionEffect::Custom {
+                name: "wipe".into(),
+                duration_secs: 3.0
+            }
+            .duration()
+                - 3.0)
+                .abs()
+                < EPS
+        );
     }
 
     #[test]

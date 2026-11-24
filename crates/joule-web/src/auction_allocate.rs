@@ -4,8 +4,8 @@
 //! sequential single-item auctions, combinatorial auctions, bundle bidding,
 //! and winner determination for distributed robotic systems.
 
-use std::fmt;
 use std::collections::HashMap;
+use std::fmt;
 
 // ── Core Types ──
 
@@ -26,11 +26,21 @@ pub struct Bid {
 
 impl Bid {
     pub fn single(robot_id: RobotId, task_id: TaskId, value: f64, cost: f64) -> Self {
-        Self { robot_id, task_ids: vec![task_id], value, cost }
+        Self {
+            robot_id,
+            task_ids: vec![task_id],
+            value,
+            cost,
+        }
     }
 
     pub fn bundle(robot_id: RobotId, task_ids: Vec<TaskId>, value: f64, cost: f64) -> Self {
-        Self { robot_id, task_ids, value, cost }
+        Self {
+            robot_id,
+            task_ids,
+            value,
+            cost,
+        }
     }
 
     pub fn profit(&self) -> f64 {
@@ -44,8 +54,11 @@ impl Bid {
 
 impl fmt::Display for Bid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Bid(robot={}, tasks={:?}, val={:.2}, cost={:.2})",
-            self.robot_id, self.task_ids, self.value, self.cost)
+        write!(
+            f,
+            "Bid(robot={}, tasks={:?}, val={:.2}, cost={:.2})",
+            self.robot_id, self.task_ids, self.value, self.cost
+        )
     }
 }
 
@@ -64,8 +77,10 @@ pub struct Task {
 impl Task {
     pub fn new(id: TaskId, name: &str) -> Self {
         Self {
-            id, name: name.to_string(),
-            priority: 1.0, deadline: f64::MAX,
+            id,
+            name: name.to_string(),
+            priority: 1.0,
+            deadline: f64::MAX,
             location: (0.0, 0.0),
         }
     }
@@ -88,7 +103,11 @@ impl Task {
 
 impl fmt::Display for Task {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Task({}, \"{}\", pri={:.1})", self.id, self.name, self.priority)
+        write!(
+            f,
+            "Task({}, \"{}\", pri={:.1})",
+            self.id, self.name, self.priority
+        )
     }
 }
 
@@ -128,7 +147,8 @@ impl Allocation {
     }
 
     pub fn robot_tasks(&self, robot_id: RobotId) -> Vec<TaskId> {
-        self.assignments.iter()
+        self.assignments
+            .iter()
             .filter(|&(_, r)| *r == robot_id)
             .map(|(&t, _)| t)
             .collect()
@@ -137,8 +157,13 @@ impl Allocation {
 
 impl fmt::Display for Allocation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Allocation({} assigned, {} unassigned, profit={:.2})",
-            self.assignments.len(), self.unassigned.len(), self.total_profit())
+        write!(
+            f,
+            "Allocation({} assigned, {} unassigned, profit={:.2})",
+            self.assignments.len(),
+            self.unassigned.len(),
+            self.total_profit()
+        )
     }
 }
 
@@ -177,7 +202,12 @@ impl SequentialAuction {
 
         // Sort tasks by priority (highest first)
         let mut task_order: Vec<usize> = (0..self.tasks.len()).collect();
-        task_order.sort_by(|&a, &b| self.tasks[b].priority.partial_cmp(&self.tasks[a].priority).unwrap_or(std::cmp::Ordering::Equal));
+        task_order.sort_by(|&a, &b| {
+            self.tasks[b]
+                .priority
+                .partial_cmp(&self.tasks[a].priority)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         for &ti in &task_order {
             let task = &self.tasks[ti];
@@ -185,8 +215,14 @@ impl SequentialAuction {
             let mut best_bid = f64::MIN;
 
             for robot_id in 0..self.num_robots {
-                if robot_counts[robot_id] >= self.max_tasks_per_robot { continue; }
-                let bid_val = bids.get(robot_id).and_then(|b| b.get(ti)).copied().unwrap_or(0.0);
+                if robot_counts[robot_id] >= self.max_tasks_per_robot {
+                    continue;
+                }
+                let bid_val = bids
+                    .get(robot_id)
+                    .and_then(|b| b.get(ti))
+                    .copied()
+                    .unwrap_or(0.0);
                 if bid_val > best_bid {
                     best_bid = bid_val;
                     best_robot = Some(robot_id);
@@ -210,7 +246,12 @@ impl SequentialAuction {
 
 impl fmt::Display for SequentialAuction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SequentialAuction({} tasks, {} robots)", self.tasks.len(), self.num_robots)
+        write!(
+            f,
+            "SequentialAuction({} tasks, {} robots)",
+            self.tasks.len(),
+            self.num_robots
+        )
     }
 }
 
@@ -225,7 +266,10 @@ pub struct CombinatorialAuction {
 
 impl CombinatorialAuction {
     pub fn new() -> Self {
-        Self { tasks: Vec::new(), bids: Vec::new() }
+        Self {
+            tasks: Vec::new(),
+            bids: Vec::new(),
+        }
     }
 
     pub fn add_task(&mut self, task: Task) {
@@ -246,19 +290,30 @@ impl CombinatorialAuction {
         sorted_bids.sort_by(|a, b| {
             let density_a = a.profit() / a.task_ids.len().max(1) as f64;
             let density_b = b.profit() / b.task_ids.len().max(1) as f64;
-            density_b.partial_cmp(&density_a).unwrap_or(std::cmp::Ordering::Equal)
+            density_b
+                .partial_cmp(&density_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         for bid in sorted_bids {
-            if bid.profit() <= 0.0 { continue; }
+            if bid.profit() <= 0.0 {
+                continue;
+            }
 
             // Check if any task in this bid is already assigned
             let conflict = bid.task_ids.iter().any(|t| assigned_tasks.contains(t));
-            if conflict { continue; }
+            if conflict {
+                continue;
+            }
 
             // Accept the bid
             for &task_id in &bid.task_ids {
-                alloc.assign(task_id, bid.robot_id, bid.value / bid.task_ids.len() as f64, bid.cost / bid.task_ids.len() as f64);
+                alloc.assign(
+                    task_id,
+                    bid.robot_id,
+                    bid.value / bid.task_ids.len() as f64,
+                    bid.cost / bid.task_ids.len() as f64,
+                );
                 assigned_tasks.insert(task_id);
             }
         }
@@ -276,7 +331,12 @@ impl CombinatorialAuction {
 
 impl fmt::Display for CombinatorialAuction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CombinatorialAuction({} tasks, {} bids)", self.tasks.len(), self.bids.len())
+        write!(
+            f,
+            "CombinatorialAuction({} tasks, {} bids)",
+            self.tasks.len(),
+            self.bids.len()
+        )
     }
 }
 
@@ -305,18 +365,19 @@ impl CbbaAgent {
 
     /// Phase 1: Build bundle by bidding on available tasks.
     pub fn build_bundle(&mut self, task_values: &HashMap<TaskId, f64>) {
-        let mut available: Vec<(&TaskId, &f64)> = task_values.iter()
+        let mut available: Vec<(&TaskId, &f64)> = task_values
+            .iter()
             .filter(|(tid, _)| !self.bundle.contains(tid))
             .collect();
         available.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal));
 
         while self.bundle.len() < self.max_bundle_size {
-            let best = available.iter().find(|(tid, val)| {
-                match self.winning_bids.get(tid) {
+            let best = available
+                .iter()
+                .find(|(tid, val)| match self.winning_bids.get(tid) {
                     Some(&(_, current_bid)) => **val > current_bid,
                     None => true,
-                }
-            });
+                });
 
             if let Some(&(&task_id, &value)) = best {
                 self.bundle.push(task_id);
@@ -434,9 +495,9 @@ mod tests {
         auction.add_task(Task::new(1, "t1").with_priority(2.0));
 
         let bids = vec![
-            vec![5.0, 3.0],  // robot 0
-            vec![3.0, 7.0],  // robot 1
-            vec![4.0, 2.0],  // robot 2
+            vec![5.0, 3.0], // robot 0
+            vec![3.0, 7.0], // robot 1
+            vec![4.0, 2.0], // robot 2
         ];
 
         let alloc = auction.run(&bids);
@@ -450,8 +511,8 @@ mod tests {
         auction.add_task(Task::new(1, "t1"));
 
         let bids = vec![
-            vec![10.0, 9.0],  // robot 0 bids high on both
-            vec![1.0, 1.0],   // robot 1 bids low
+            vec![10.0, 9.0], // robot 0 bids high on both
+            vec![1.0, 1.0],  // robot 1 bids low
         ];
 
         let alloc = auction.run(&bids);
@@ -467,9 +528,9 @@ mod tests {
         auction.add_task(Task::new(1, "t1"));
         auction.add_task(Task::new(2, "t2"));
 
-        auction.add_bid(Bid::bundle(0, vec![0, 1], 15.0, 5.0));   // profit 10, density 5
-        auction.add_bid(Bid::single(1, 0, 8.0, 1.0));             // profit 7
-        auction.add_bid(Bid::single(1, 2, 6.0, 2.0));             // profit 4
+        auction.add_bid(Bid::bundle(0, vec![0, 1], 15.0, 5.0)); // profit 10, density 5
+        auction.add_bid(Bid::single(1, 0, 8.0, 1.0)); // profit 7
+        auction.add_bid(Bid::single(1, 2, 6.0, 2.0)); // profit 4
 
         let alloc = auction.solve_greedy();
         assert!(alloc.num_assigned() >= 2);

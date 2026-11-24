@@ -34,7 +34,10 @@ impl fmt::Display for QuestError {
                 write!(f, "objective {obj_idx} not found in quest {quest_id}")
             }
             Self::PrerequisiteNotMet { quest_id, requires } => {
-                write!(f, "quest {quest_id} requires quest {requires} to be turned in")
+                write!(
+                    f,
+                    "quest {quest_id} requires quest {requires} to be turned in"
+                )
             }
             Self::QuestExpired(id) => write!(f, "quest {id} has expired"),
             Self::DuplicateQuest(id) => write!(f, "duplicate quest: {id}"),
@@ -57,18 +60,41 @@ pub enum QuestState {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Objective {
-    KillCount { target: String, current: u32, required: u32 },
-    CollectItem { item_id: u64, current: u32, required: u32 },
-    TalkTo { npc: String, done: bool },
-    ReachLocation { x: f64, y: f64, radius: f64, reached: bool },
-    Custom { key: String, done: bool },
+    KillCount {
+        target: String,
+        current: u32,
+        required: u32,
+    },
+    CollectItem {
+        item_id: u64,
+        current: u32,
+        required: u32,
+    },
+    TalkTo {
+        npc: String,
+        done: bool,
+    },
+    ReachLocation {
+        x: f64,
+        y: f64,
+        radius: f64,
+        reached: bool,
+    },
+    Custom {
+        key: String,
+        done: bool,
+    },
 }
 
 impl Objective {
     pub fn is_complete(&self) -> bool {
         match self {
-            Self::KillCount { current, required, .. } => current >= required,
-            Self::CollectItem { current, required, .. } => current >= required,
+            Self::KillCount {
+                current, required, ..
+            } => current >= required,
+            Self::CollectItem {
+                current, required, ..
+            } => current >= required,
             Self::TalkTo { done, .. } => *done,
             Self::ReachLocation { reached, .. } => *reached,
             Self::Custom { done, .. } => *done,
@@ -77,15 +103,45 @@ impl Objective {
 
     pub fn progress_fraction(&self) -> f64 {
         match self {
-            Self::KillCount { current, required, .. } => {
-                if *required == 0 { 1.0 } else { (*current as f64 / *required as f64).min(1.0) }
+            Self::KillCount {
+                current, required, ..
+            } => {
+                if *required == 0 {
+                    1.0
+                } else {
+                    (*current as f64 / *required as f64).min(1.0)
+                }
             }
-            Self::CollectItem { current, required, .. } => {
-                if *required == 0 { 1.0 } else { (*current as f64 / *required as f64).min(1.0) }
+            Self::CollectItem {
+                current, required, ..
+            } => {
+                if *required == 0 {
+                    1.0
+                } else {
+                    (*current as f64 / *required as f64).min(1.0)
+                }
             }
-            Self::TalkTo { done, .. } => if *done { 1.0 } else { 0.0 },
-            Self::ReachLocation { reached, .. } => if *reached { 1.0 } else { 0.0 },
-            Self::Custom { done, .. } => if *done { 1.0 } else { 0.0 },
+            Self::TalkTo { done, .. } => {
+                if *done {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
+            Self::ReachLocation { reached, .. } => {
+                if *reached {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
+            Self::Custom { done, .. } => {
+                if *done {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
         }
     }
 }
@@ -99,12 +155,23 @@ pub struct Reward {
 
 impl Reward {
     pub fn new() -> Self {
-        Self { xp: 0, currency: 0, items: Vec::new() }
+        Self {
+            xp: 0,
+            currency: 0,
+            items: Vec::new(),
+        }
     }
-    pub fn with_xp(mut self, xp: u64) -> Self { self.xp = xp; self }
-    pub fn with_currency(mut self, c: u64) -> Self { self.currency = c; self }
+    pub fn with_xp(mut self, xp: u64) -> Self {
+        self.xp = xp;
+        self
+    }
+    pub fn with_currency(mut self, c: u64) -> Self {
+        self.currency = c;
+        self
+    }
     pub fn with_item(mut self, item_id: u64, qty: u32) -> Self {
-        self.items.push((item_id, qty)); self
+        self.items.push((item_id, qty));
+        self
     }
 }
 
@@ -137,19 +204,23 @@ impl Quest {
     }
 
     pub fn with_objective(mut self, obj: Objective) -> Self {
-        self.objectives.push(obj); self
+        self.objectives.push(obj);
+        self
     }
 
     pub fn with_reward(mut self, reward: Reward) -> Self {
-        self.reward = reward; self
+        self.reward = reward;
+        self
     }
 
     pub fn with_prerequisite(mut self, quest_id: u64) -> Self {
-        self.prerequisites.push(quest_id); self
+        self.prerequisites.push(quest_id);
+        self
     }
 
     pub fn with_deadline(mut self, duration_ms: u64) -> Self {
-        self.deadline_ms = Some(duration_ms); self
+        self.deadline_ms = Some(duration_ms);
+        self
     }
 
     pub fn all_objectives_complete(&self) -> bool {
@@ -157,7 +228,9 @@ impl Quest {
     }
 
     pub fn overall_progress(&self) -> f64 {
-        if self.objectives.is_empty() { return 0.0; }
+        if self.objectives.is_empty() {
+            return 0.0;
+        }
         let sum: f64 = self.objectives.iter().map(|o| o.progress_fraction()).sum();
         sum / self.objectives.len() as f64
     }
@@ -180,7 +253,9 @@ pub struct QuestTracker {
 
 impl QuestTracker {
     pub fn new() -> Self {
-        Self { quests: HashMap::new() }
+        Self {
+            quests: HashMap::new(),
+        }
     }
 
     pub fn register_quest(&mut self, quest: Quest) -> Result<(), QuestError> {
@@ -202,9 +277,15 @@ impl QuestTracker {
         }
         // Check prerequisites
         for pre_id in quest.prerequisites.clone() {
-            let pre = self.quests.get(&pre_id).ok_or(QuestError::QuestNotFound(pre_id))?;
+            let pre = self
+                .quests
+                .get(&pre_id)
+                .ok_or(QuestError::QuestNotFound(pre_id))?;
             if pre.state != QuestState::TurnedIn {
-                return Err(QuestError::PrerequisiteNotMet { quest_id: id, requires: pre_id });
+                return Err(QuestError::PrerequisiteNotMet {
+                    quest_id: id,
+                    requires: pre_id,
+                });
             }
         }
         let quest = self.quests.get_mut(&id).unwrap();
@@ -213,14 +294,28 @@ impl QuestTracker {
         Ok(())
     }
 
-    pub fn update_kill(&mut self, quest_id: u64, target: &str, count: u32) -> Result<bool, QuestError> {
-        let quest = self.quests.get_mut(&quest_id).ok_or(QuestError::QuestNotFound(quest_id))?;
+    pub fn update_kill(
+        &mut self,
+        quest_id: u64,
+        target: &str,
+        count: u32,
+    ) -> Result<bool, QuestError> {
+        let quest = self
+            .quests
+            .get_mut(&quest_id)
+            .ok_or(QuestError::QuestNotFound(quest_id))?;
         if quest.state != QuestState::Active {
             return Err(QuestError::QuestNotActive(quest_id));
         }
         let mut any_updated = false;
         for obj in &mut quest.objectives {
-            if let Objective::KillCount { target: t, current, required, .. } = obj {
+            if let Objective::KillCount {
+                target: t,
+                current,
+                required,
+                ..
+            } = obj
+            {
                 if t == target {
                     *current = (*current + count).min(*required);
                     any_updated = true;
@@ -234,14 +329,28 @@ impl QuestTracker {
         Ok(any_updated)
     }
 
-    pub fn update_collect(&mut self, quest_id: u64, item_id: u64, count: u32) -> Result<bool, QuestError> {
-        let quest = self.quests.get_mut(&quest_id).ok_or(QuestError::QuestNotFound(quest_id))?;
+    pub fn update_collect(
+        &mut self,
+        quest_id: u64,
+        item_id: u64,
+        count: u32,
+    ) -> Result<bool, QuestError> {
+        let quest = self
+            .quests
+            .get_mut(&quest_id)
+            .ok_or(QuestError::QuestNotFound(quest_id))?;
         if quest.state != QuestState::Active {
             return Err(QuestError::QuestNotActive(quest_id));
         }
         let mut any_updated = false;
         for obj in &mut quest.objectives {
-            if let Objective::CollectItem { item_id: iid, current, required, .. } = obj {
+            if let Objective::CollectItem {
+                item_id: iid,
+                current,
+                required,
+                ..
+            } = obj
+            {
                 if *iid == item_id {
                     *current = (*current + count).min(*required);
                     any_updated = true;
@@ -255,7 +364,10 @@ impl QuestTracker {
     }
 
     pub fn update_talk(&mut self, quest_id: u64, npc: &str) -> Result<bool, QuestError> {
-        let quest = self.quests.get_mut(&quest_id).ok_or(QuestError::QuestNotFound(quest_id))?;
+        let quest = self
+            .quests
+            .get_mut(&quest_id)
+            .ok_or(QuestError::QuestNotFound(quest_id))?;
         if quest.state != QuestState::Active {
             return Err(QuestError::QuestNotActive(quest_id));
         }
@@ -275,13 +387,22 @@ impl QuestTracker {
     }
 
     pub fn update_location(&mut self, quest_id: u64, px: f64, py: f64) -> Result<bool, QuestError> {
-        let quest = self.quests.get_mut(&quest_id).ok_or(QuestError::QuestNotFound(quest_id))?;
+        let quest = self
+            .quests
+            .get_mut(&quest_id)
+            .ok_or(QuestError::QuestNotFound(quest_id))?;
         if quest.state != QuestState::Active {
             return Err(QuestError::QuestNotActive(quest_id));
         }
         let mut any_updated = false;
         for obj in &mut quest.objectives {
-            if let Objective::ReachLocation { x, y, radius, reached } = obj {
+            if let Objective::ReachLocation {
+                x,
+                y,
+                radius,
+                reached,
+            } = obj
+            {
                 if !*reached {
                     let dx = px - *x;
                     let dy = py - *y;
@@ -299,7 +420,10 @@ impl QuestTracker {
     }
 
     pub fn update_custom(&mut self, quest_id: u64, key: &str) -> Result<bool, QuestError> {
-        let quest = self.quests.get_mut(&quest_id).ok_or(QuestError::QuestNotFound(quest_id))?;
+        let quest = self
+            .quests
+            .get_mut(&quest_id)
+            .ok_or(QuestError::QuestNotFound(quest_id))?;
         if quest.state != QuestState::Active {
             return Err(QuestError::QuestNotActive(quest_id));
         }
@@ -329,7 +453,10 @@ impl QuestTracker {
     }
 
     pub fn fail_quest(&mut self, id: u64) -> Result<(), QuestError> {
-        let quest = self.quests.get_mut(&id).ok_or(QuestError::QuestNotFound(id))?;
+        let quest = self
+            .quests
+            .get_mut(&id)
+            .ok_or(QuestError::QuestNotFound(id))?;
         if quest.state != QuestState::Active {
             return Err(QuestError::QuestNotActive(id));
         }
@@ -339,7 +466,9 @@ impl QuestTracker {
 
     /// Check and fail expired quests.
     pub fn check_expirations(&mut self, current_time_ms: u64) -> Vec<u64> {
-        let active_ids: Vec<u64> = self.quests.values()
+        let active_ids: Vec<u64> = self
+            .quests
+            .values()
             .filter(|q| q.state == QuestState::Active)
             .map(|q| q.id)
             .collect();
@@ -355,7 +484,9 @@ impl QuestTracker {
     }
 
     pub fn active_quests(&self) -> Vec<&Quest> {
-        let mut result: Vec<&Quest> = self.quests.values()
+        let mut result: Vec<&Quest> = self
+            .quests
+            .values()
             .filter(|q| q.state == QuestState::Active)
             .collect();
         result.sort_by_key(|q| q.id);
@@ -363,7 +494,9 @@ impl QuestTracker {
     }
 
     pub fn completed_quests(&self) -> Vec<&Quest> {
-        let mut result: Vec<&Quest> = self.quests.values()
+        let mut result: Vec<&Quest> = self
+            .quests
+            .values()
             .filter(|q| q.state == QuestState::Completed || q.state == QuestState::TurnedIn)
             .collect();
         result.sort_by_key(|q| q.id);
@@ -371,14 +504,18 @@ impl QuestTracker {
     }
 
     pub fn available_quests(&self) -> Vec<&Quest> {
-        let mut result: Vec<&Quest> = self.quests.values()
+        let mut result: Vec<&Quest> = self
+            .quests
+            .values()
             .filter(|q| q.state == QuestState::Available)
             .collect();
         result.sort_by_key(|q| q.id);
         result
     }
 
-    pub fn quest_count(&self) -> usize { self.quests.len() }
+    pub fn quest_count(&self) -> usize {
+        self.quests.len()
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────
@@ -390,7 +527,9 @@ mod tests {
     fn slay_quest() -> Quest {
         Quest::new(1, "Dragon Slayer", "Kill 5 dragons")
             .with_objective(Objective::KillCount {
-                target: "dragon".to_string(), current: 0, required: 5,
+                target: "dragon".to_string(),
+                current: 0,
+                required: 5,
             })
             .with_reward(Reward::new().with_xp(1000).with_currency(500))
     }
@@ -398,7 +537,9 @@ mod tests {
     fn fetch_quest() -> Quest {
         Quest::new(2, "Herb Gathering", "Collect 10 herbs")
             .with_objective(Objective::CollectItem {
-                item_id: 42, current: 0, required: 10,
+                item_id: 42,
+                current: 0,
+                required: 10,
             })
             .with_reward(Reward::new().with_xp(200).with_item(99, 3))
     }
@@ -407,7 +548,10 @@ mod tests {
         Quest::new(3, "Dragon's Lair", "Enter the lair")
             .with_prerequisite(1) // requires Dragon Slayer
             .with_objective(Objective::ReachLocation {
-                x: 100.0, y: 200.0, radius: 10.0, reached: false,
+                x: 100.0,
+                y: 200.0,
+                radius: 10.0,
+                reached: false,
             })
             .with_reward(Reward::new().with_xp(2000))
     }
@@ -474,7 +618,10 @@ mod tests {
         tracker.accept_quest(1, 0).unwrap();
         tracker.update_kill(1, "dragon", 100).unwrap();
         let q = tracker.get_quest(1).unwrap();
-        if let Objective::KillCount { current, required, .. } = &q.objectives[0] {
+        if let Objective::KillCount {
+            current, required, ..
+        } = &q.objectives[0]
+        {
             assert_eq!(*current, *required);
         }
     }
@@ -556,7 +703,10 @@ mod tests {
     fn talk_to_objective() {
         let mut tracker = QuestTracker::new();
         let q = Quest::new(10, "Meet the Elder", "Talk to Elder Grim")
-            .with_objective(Objective::TalkTo { npc: "Elder Grim".to_string(), done: false })
+            .with_objective(Objective::TalkTo {
+                npc: "Elder Grim".to_string(),
+                done: false,
+            })
             .with_reward(Reward::new().with_xp(50));
         tracker.register_quest(q).unwrap();
         tracker.accept_quest(10, 0).unwrap();
@@ -586,7 +736,10 @@ mod tests {
     fn custom_objective() {
         let mut tracker = QuestTracker::new();
         let q = Quest::new(20, "Secret", "Do the secret thing")
-            .with_objective(Objective::Custom { key: "secret_done".to_string(), done: false })
+            .with_objective(Objective::Custom {
+                key: "secret_done".to_string(),
+                done: false,
+            })
             .with_reward(Reward::new().with_xp(999));
         tracker.register_quest(q).unwrap();
         tracker.accept_quest(20, 0).unwrap();
@@ -618,8 +771,16 @@ mod tests {
     fn multi_objective_quest() {
         let mut tracker = QuestTracker::new();
         let q = Quest::new(30, "Multi", "Do multiple things")
-            .with_objective(Objective::KillCount { target: "goblin".to_string(), current: 0, required: 3 })
-            .with_objective(Objective::CollectItem { item_id: 5, current: 0, required: 2 })
+            .with_objective(Objective::KillCount {
+                target: "goblin".to_string(),
+                current: 0,
+                required: 3,
+            })
+            .with_objective(Objective::CollectItem {
+                item_id: 5,
+                current: 0,
+                required: 2,
+            })
             .with_reward(Reward::new().with_xp(500));
         tracker.register_quest(q).unwrap();
         tracker.accept_quest(30, 0).unwrap();

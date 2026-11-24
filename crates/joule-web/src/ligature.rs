@@ -78,9 +78,7 @@ impl LigatureTable {
                 continue;
             }
             max_len = max_len.max(rule.sequence.len());
-            map.entry(rule.sequence[0])
-                .or_default()
-                .push(rule.clone());
+            map.entry(rule.sequence[0]).or_default().push(rule.clone());
         }
 
         // Sort each group longest-first for greedy matching.
@@ -145,11 +143,7 @@ impl LigatureTable {
 ///
 /// `boundaries` marks positions where ligatures are inhibited: if
 /// `boundaries[i]` is true, no ligature may span across position `i` and `i+1`.
-pub fn apply_ligatures(
-    text: &str,
-    table: &LigatureTable,
-    boundaries: &[bool],
-) -> String {
+pub fn apply_ligatures(text: &str, table: &LigatureTable, boundaries: &[bool]) -> String {
     let chars: Vec<char> = text.chars().collect();
     let len = chars.len();
 
@@ -229,9 +223,7 @@ pub fn ligatures_for_language(lang: Language) -> Vec<LigatureRule> {
             // Turkish: no fi/ffi ligatures (dotless-i issue).
             latin_ligatures()
                 .into_iter()
-                .filter(|r| {
-                    !r.sequence.contains(&'i')
-                })
+                .filter(|r| !r.sequence.contains(&'i'))
                 .collect()
         }
         Language::Dutch => {

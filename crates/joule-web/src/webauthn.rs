@@ -269,9 +269,7 @@ pub fn validate_auth_data_flags(
     require_user_verification: bool,
 ) -> Result<(), WebAuthnError> {
     if !auth_data.user_present() {
-        return Err(WebAuthnError::InvalidAttestation(
-            "user not present".into(),
-        ));
+        return Err(WebAuthnError::InvalidAttestation("user not present".into()));
     }
     if require_user_verification && !auth_data.user_verified() {
         return Err(WebAuthnError::InvalidAttestation(
@@ -365,8 +363,16 @@ pub fn base64url_encode(input: &[u8]) -> String {
     let mut i = 0;
     while i < input.len() {
         let b0 = input[i] as u32;
-        let b1 = if i + 1 < input.len() { input[i + 1] as u32 } else { 0 };
-        let b2 = if i + 2 < input.len() { input[i + 2] as u32 } else { 0 };
+        let b1 = if i + 1 < input.len() {
+            input[i + 1] as u32
+        } else {
+            0
+        };
+        let b2 = if i + 2 < input.len() {
+            input[i + 2] as u32
+        } else {
+            0
+        };
         let triple = (b0 << 16) | (b1 << 8) | b2;
         out.push(B64URL_CHARS[((triple >> 18) & 0x3F) as usize] as char);
         out.push(B64URL_CHARS[((triple >> 12) & 0x3F) as usize] as char);
@@ -404,11 +410,8 @@ mod tests {
 
     #[test]
     fn creation_options_defaults() {
-        let opts = PublicKeyCredentialCreationOptions::new(
-            make_rp(),
-            make_user(),
-            vec![0xAA, 0xBB],
-        );
+        let opts =
+            PublicKeyCredentialCreationOptions::new(make_rp(), make_user(), vec![0xAA, 0xBB]);
         assert_eq!(opts.challenge, vec![0xAA, 0xBB]);
         assert_eq!(opts.pub_key_cred_params.len(), 2);
         assert_eq!(opts.timeout_ms, Some(60_000));
@@ -417,13 +420,9 @@ mod tests {
 
     #[test]
     fn creation_options_custom() {
-        let opts = PublicKeyCredentialCreationOptions::new(
-            make_rp(),
-            make_user(),
-            vec![0xCC],
-        )
-        .timeout(120_000)
-        .attestation(AttestationConveyance::Direct);
+        let opts = PublicKeyCredentialCreationOptions::new(make_rp(), make_user(), vec![0xCC])
+            .timeout(120_000)
+            .attestation(AttestationConveyance::Direct);
         assert_eq!(opts.timeout_ms, Some(120_000));
         assert_eq!(opts.attestation, AttestationConveyance::Direct);
     }
@@ -436,12 +435,8 @@ mod tests {
             cross_origin: false,
             ceremony_type: CeremonyType::Create,
         };
-        let result = validate_client_data(
-            &cd,
-            "dGVzdA",
-            "https://example.com",
-            CeremonyType::Create,
-        );
+        let result =
+            validate_client_data(&cd, "dGVzdA", "https://example.com", CeremonyType::Create);
         assert!(result.is_ok());
     }
 
@@ -453,12 +448,8 @@ mod tests {
             cross_origin: false,
             ceremony_type: CeremonyType::Create,
         };
-        let result = validate_client_data(
-            &cd,
-            "expected",
-            "https://example.com",
-            CeremonyType::Create,
-        );
+        let result =
+            validate_client_data(&cd, "expected", "https://example.com", CeremonyType::Create);
         assert_eq!(result, Err(WebAuthnError::ChallengeMismatch));
     }
 
@@ -470,12 +461,7 @@ mod tests {
             cross_origin: false,
             ceremony_type: CeremonyType::Create,
         };
-        let result = validate_client_data(
-            &cd,
-            "ok",
-            "https://example.com",
-            CeremonyType::Create,
-        );
+        let result = validate_client_data(&cd, "ok", "https://example.com", CeremonyType::Create);
         assert!(matches!(result, Err(WebAuthnError::OriginMismatch { .. })));
     }
 
@@ -581,10 +567,7 @@ mod tests {
 
     #[test]
     fn request_options() {
-        let opts = PublicKeyCredentialRequestOptions::new(
-            vec![0xDE, 0xAD],
-            "example.com",
-        );
+        let opts = PublicKeyCredentialRequestOptions::new(vec![0xDE, 0xAD], "example.com");
         assert_eq!(opts.rp_id, "example.com");
         assert_eq!(opts.challenge, vec![0xDE, 0xAD]);
         assert_eq!(opts.user_verification, UserVerification::Preferred);

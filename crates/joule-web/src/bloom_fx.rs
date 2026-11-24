@@ -19,7 +19,11 @@ impl HdrPixel {
     }
 
     pub fn black() -> Self {
-        Self { r: 0.0, g: 0.0, b: 0.0 }
+        Self {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+        }
     }
 
     pub fn luminance(&self) -> f64 {
@@ -27,7 +31,11 @@ impl HdrPixel {
     }
 
     pub fn scale(&self, s: f64) -> Self {
-        Self { r: self.r * s, g: self.g * s, b: self.b * s }
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
     }
 
     pub fn add(&self, other: &Self) -> Self {
@@ -144,7 +152,11 @@ impl fmt::Display for BloomConfig {
 pub fn soft_threshold(luminance: f64, threshold: f64, knee: f64) -> f64 {
     if knee <= 0.0 {
         // Hard threshold
-        if luminance > threshold { luminance - threshold } else { 0.0 }
+        if luminance > threshold {
+            luminance - threshold
+        } else {
+            0.0
+        }
     } else {
         let half_knee = threshold * knee;
         let low = threshold - half_knee;
@@ -187,7 +199,9 @@ pub fn downsample(src: &HdrBuffer) -> HdrBuffer {
         for x in 0..w {
             let sx = x * 2;
             let sy = y * 2;
-            let mut acc = src.get(sx.min(src.width - 1), sy.min(src.height - 1)).clone();
+            let mut acc = src
+                .get(sx.min(src.width - 1), sy.min(src.height - 1))
+                .clone();
             let mut count = 1.0_f64;
             if sx + 1 < src.width {
                 acc = acc.add(src.get(sx + 1, sy.min(src.height - 1)));
@@ -483,7 +497,11 @@ mod tests {
     fn test_threshold_pass_bright_pixel() {
         let mut buf = HdrBuffer::new(4, 4);
         buf.set(2, 2, HdrPixel::new(5.0, 5.0, 5.0));
-        let config = BloomConfig { threshold: 1.0, knee: 0.0, ..Default::default() };
+        let config = BloomConfig {
+            threshold: 1.0,
+            knee: 0.0,
+            ..Default::default()
+        };
         let result = threshold_pass(&buf, &config);
         let px = result.get(2, 2);
         assert!(px.luminance() > 0.0);
@@ -578,7 +596,10 @@ mod tests {
     #[test]
     fn test_apply_bloom_zero_intensity() {
         let buf = create_bright_spot_buffer(8, 8, 5.0);
-        let config = BloomConfig { intensity: 0.0, ..Default::default() };
+        let config = BloomConfig {
+            intensity: 0.0,
+            ..Default::default()
+        };
         let result = apply_bloom(&buf, &config);
         // With zero intensity, output equals input
         let orig = buf.get(4, 4);

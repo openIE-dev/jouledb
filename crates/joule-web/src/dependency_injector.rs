@@ -175,10 +175,7 @@ impl Container {
     }
 
     /// Register a service.
-    pub fn register(
-        &mut self,
-        registration: ServiceRegistration,
-    ) -> Result<(), DiError> {
+    pub fn register(&mut self, registration: ServiceRegistration) -> Result<(), DiError> {
         if self.frozen {
             return Err(DiError::ContainerFrozen);
         }
@@ -224,11 +221,7 @@ impl Container {
     }
 
     /// Resolve a service within a scope.
-    pub fn resolve_scoped(
-        &mut self,
-        name: &str,
-        scope: &str,
-    ) -> Result<ServiceInstance, DiError> {
+    pub fn resolve_scoped(&mut self, name: &str, scope: &str) -> Result<ServiceInstance, DiError> {
         if !self.active_scopes.contains(scope) {
             return Err(DiError::ScopeNotFound(scope.to_string()));
         }
@@ -268,10 +261,7 @@ impl Container {
                 if let Some(instance) = self.singletons.get(name) {
                     return Ok(instance.clone());
                 }
-                if let Some(instance) = self
-                    .parent_singletons
-                    .as_ref()
-                    .and_then(|ps| ps.get(name))
+                if let Some(instance) = self.parent_singletons.as_ref().and_then(|ps| ps.get(name))
                 {
                     return Ok(instance.clone());
                 }
@@ -330,9 +320,7 @@ impl Container {
     pub fn create_scope(&mut self, name: impl Into<String>) -> String {
         let scope_name = name.into();
         self.active_scopes.insert(scope_name.clone());
-        self.scoped_instances
-            .entry(scope_name.clone())
-            .or_default();
+        self.scoped_instances.entry(scope_name.clone()).or_default();
         scope_name
     }
 

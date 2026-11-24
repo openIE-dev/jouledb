@@ -270,7 +270,11 @@ impl Nfa {
         let mut states = Vec::new();
         let (start, accept) = thompson(ast, &mut states);
         states[accept].is_accept = true;
-        Nfa { states, start, accept }
+        Nfa {
+            states,
+            start,
+            accept,
+        }
     }
 
     /// Compute the epsilon closure of a set of states.
@@ -324,9 +328,9 @@ impl Nfa {
             }
         }
 
-        current.iter().any(|s| {
-            self.states.get(*s).is_some_and(|st| st.is_accept)
-        })
+        current
+            .iter()
+            .any(|s| self.states.get(*s).is_some_and(|st| st.is_accept))
     }
 }
 
@@ -442,9 +446,9 @@ impl Dfa {
             nfa.epsilon_closure(&s)
         };
 
-        let is_accept = start_set.iter().any(|s| {
-            nfa.states.get(*s).is_some_and(|st| st.is_accept)
-        });
+        let is_accept = start_set
+            .iter()
+            .any(|s| nfa.states.get(*s).is_some_and(|st| st.is_accept));
         dfa_states.push(DfaState {
             id: 0,
             transitions: HashMap::new(),
@@ -488,9 +492,9 @@ impl Dfa {
                     id
                 } else {
                     let id = dfa_states.len();
-                    let is_accept = next_set.iter().any(|s| {
-                        nfa.states.get(*s).is_some_and(|st| st.is_accept)
-                    });
+                    let is_accept = next_set
+                        .iter()
+                        .any(|s| nfa.states.get(*s).is_some_and(|st| st.is_accept));
                     dfa_states.push(DfaState {
                         id,
                         transitions: HashMap::new(),
@@ -569,12 +573,10 @@ impl Dfa {
                     for &c in &alphabet {
                         let repr_target = self.states[repr].transitions.get(&c);
                         let s_target = self.states[s].transitions.get(&c);
-                        let repr_part = repr_target.and_then(|t| {
-                            partitions.iter().position(|p| p.contains(t))
-                        });
-                        let s_part = s_target.and_then(|t| {
-                            partitions.iter().position(|p| p.contains(t))
-                        });
+                        let repr_part =
+                            repr_target.and_then(|t| partitions.iter().position(|p| p.contains(t)));
+                        let s_part =
+                            s_target.and_then(|t| partitions.iter().position(|p| p.contains(t)));
                         if repr_part != s_part {
                             matches_repr = false;
                             break;

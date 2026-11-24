@@ -252,12 +252,8 @@ impl BTreeIndex {
         self.nodes.push(sibling);
 
         // Insert median into parent.
-        self.nodes[parent_idx]
-            .keys
-            .insert(child_pos, median_key);
-        self.nodes[parent_idx]
-            .values
-            .insert(child_pos, median_val);
+        self.nodes[parent_idx].keys.insert(child_pos, median_key);
+        self.nodes[parent_idx].values.insert(child_pos, median_val);
         self.nodes[parent_idx]
             .children
             .insert(child_pos + 1, new_idx);
@@ -599,8 +595,7 @@ mod tests {
     #[test]
     fn bulk_load() {
         let mut idx = BTreeIndex::new(5, true).unwrap();
-        let entries: Vec<(IndexKey, RowId)> =
-            (0..30).map(|i| (int_key(i), i as u64)).collect();
+        let entries: Vec<(IndexKey, RowId)> = (0..30).map(|i| (int_key(i), i as u64)).collect();
         idx.bulk_load(&entries).unwrap();
         assert_eq!(idx.len(), 30);
     }

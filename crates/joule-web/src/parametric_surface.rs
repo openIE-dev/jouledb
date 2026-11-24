@@ -171,11 +171,7 @@ pub fn sphere(u_res: usize, v_res: usize) -> ParametricSurface {
         move |u, v| {
             let theta = u * 2.0 * PI;
             let phi = v * PI;
-            Vec3::new(
-                phi.sin() * theta.cos(),
-                phi.cos(),
-                phi.sin() * theta.sin(),
-            )
+            Vec3::new(phi.sin() * theta.cos(), phi.cos(), phi.sin() * theta.sin())
         },
         u_res,
         v_res,
@@ -208,11 +204,9 @@ pub fn klein_bottle(u_res: usize, v_res: usize) -> ParametricSurface {
             let r = 4.0 * (1.0 - 0.5 * uu.cos());
             Vec3::new(
                 if uu <= PI {
-                    6.0 * uu.cos() * (1.0 + uu.sin())
-                        + r * (uu.cos() * vv.cos())
+                    6.0 * uu.cos() * (1.0 + uu.sin()) + r * (uu.cos() * vv.cos())
                 } else {
-                    6.0 * uu.cos() * (1.0 + uu.sin())
-                        + r * ((PI - uu).cos() * vv.cos())
+                    6.0 * uu.cos() * (1.0 + uu.sin()) + r * ((PI - uu).cos() * vv.cos())
                 },
                 if uu <= PI {
                     16.0 * uu.sin()
@@ -270,7 +264,7 @@ pub fn superellipsoid(e1: f64, e2: f64, u_res: usize, v_res: usize) -> Parametri
 pub fn boys_surface(u_res: usize, v_res: usize) -> ParametricSurface {
     ParametricSurface::new(
         move |u, v| {
-            let uu = u * PI;     // [0, π]
+            let uu = u * PI; // [0, π]
             let vv = v * 2.0 * PI; // [0, 2π]
             let su = uu.sin();
             let cu = uu.cos();
@@ -278,11 +272,8 @@ pub fn boys_surface(u_res: usize, v_res: usize) -> ParametricSurface {
             let cv = vv.cos();
             let denom = 2.0 - (2.0 * vv).sin().sqrt() * (3.0 * uu).sin();
             let denom = if denom.abs() < 1e-10 { 1e-10 } else { denom };
-            let x = (su * (2.0 * vv).cos() * cu * cu
-                + (2.0 * vv).sin().sqrt() * cu)
-                / denom;
-            let y = (su * (2.0 * vv).cos() * su.powi(2) * sv * cv
-                + (2.0 * vv).sin().sqrt() * sv)
+            let x = (su * (2.0 * vv).cos() * cu * cu + (2.0 * vv).sin().sqrt() * cu) / denom;
+            let y = (su * (2.0 * vv).cos() * su.powi(2) * sv * cv + (2.0 * vv).sin().sqrt() * sv)
                 / denom;
             let z = 1.5 * cu * cu / denom;
             Vec3::new(x, y, z)
@@ -531,7 +522,11 @@ mod tests {
         let mut mesh = s.tessellate();
         recompute_smooth_normals(&mut mesh);
         // Most normals should be unit length; degenerate poles may be zero
-        let unit_count = mesh.normals.iter().filter(|n| approx(n.length(), 1.0, 0.15)).count();
+        let unit_count = mesh
+            .normals
+            .iter()
+            .filter(|n| approx(n.length(), 1.0, 0.15))
+            .count();
         assert!(unit_count > mesh.normals.len() / 2);
     }
 
@@ -550,11 +545,7 @@ mod tests {
 
     #[test]
     fn test_custom_surface() {
-        let flat = ParametricSurface::new(
-            |u, v| Vec3::new(u, 0.0, v),
-            4,
-            4,
-        );
+        let flat = ParametricSurface::new(|u, v| Vec3::new(u, 0.0, v), 4, 4);
         let mesh = flat.tessellate();
         for v in &mesh.vertices {
             assert!(approx(v.y, 0.0, EPS));

@@ -171,26 +171,20 @@ impl fmt::Display for SphincsConfig {
 
 fn sha256(data: &[u8]) -> [u8; SHA256_DIGEST] {
     let k: [u32; 64] = [
-        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
-        0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-        0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
-        0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
-        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-        0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
-        0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
-        0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-        0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
+        0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
+        0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
+        0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
+        0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+        0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
+        0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
+        0xc67178f2,
     ];
     let mut h: [u32; 8] = [
-        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-        0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+        0x5be0cd19,
     ];
     let bit_len = (data.len() as u64) * 8;
     let mut padded = data.to_vec();
@@ -340,7 +334,14 @@ impl Address {
 // ── WOTS+ ───────────────────────────────────────────────────────
 
 /// Apply the chain function `steps` times starting from `input`.
-fn wots_chain(input: &[u8], start: u32, steps: u32, seed: &[u8], addr: &mut Address, n: usize) -> Vec<u8> {
+fn wots_chain(
+    input: &[u8],
+    start: u32,
+    steps: u32,
+    seed: &[u8],
+    addr: &mut Address,
+    n: usize,
+) -> Vec<u8> {
     let mut val = input[..n].to_vec();
     for i in start..start + steps {
         *addr = addr.clone().set_chain(addr.word2, i);
@@ -384,14 +385,23 @@ pub struct ForsSignature {
 
 impl fmt::Display for ForsSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ForsSignature(trees={}, leaves={})", self.auth_paths.len(), self.leaves.len())
+        write!(
+            f,
+            "ForsSignature(trees={}, leaves={})",
+            self.auth_paths.len(),
+            self.leaves.len()
+        )
     }
 }
 
 /// Generate a FORS keypair leaf.
 fn fors_leaf(secret_seed: &[u8], public_seed: &[u8], addr: &Address, n: usize) -> Vec<u8> {
     let sk = prf(secret_seed, &addr.to_bytes());
-    hash_keyed(public_seed, &[addr.to_bytes(), sk[..n].to_vec()].concat(), n)
+    hash_keyed(
+        public_seed,
+        &[addr.to_bytes(), sk[..n].to_vec()].concat(),
+        n,
+    )
 }
 
 /// Compute FORS tree root from leaves.
@@ -431,7 +441,12 @@ pub struct SphincsPublicKey {
 
 impl fmt::Display for SphincsPublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SphincsPublicKey(seed={}B, root={}B)", self.seed.len(), self.root.len())
+        write!(
+            f,
+            "SphincsPublicKey(seed={}B, root={}B)",
+            self.seed.len(),
+            self.root.len()
+        )
     }
 }
 
@@ -472,7 +487,10 @@ impl fmt::Display for SphincsSignature {
 // ── Key generation ──────────────────────────────────────────────
 
 /// Generate a SPHINCS+ keypair from a seed.
-pub fn keygen(config: &SphincsConfig, seed: &[u8]) -> Result<(SphincsSecretKey, SphincsPublicKey), SphincsError> {
+pub fn keygen(
+    config: &SphincsConfig,
+    seed: &[u8],
+) -> Result<(SphincsSecretKey, SphincsPublicKey), SphincsError> {
     let n = config.hash_bytes();
     if seed.len() < 3 * n {
         return Err(SphincsError::SeedTooShort(seed.len()));
@@ -498,7 +516,12 @@ pub fn keygen(config: &SphincsConfig, seed: &[u8]) -> Result<(SphincsSecretKey, 
 }
 
 /// Compute a hypertree root (simplified — hashes layer roots together).
-fn compute_ht_root(sk_seed: &[u8], pk_seed: &[u8], config: &SphincsConfig, addr: &Address) -> Vec<u8> {
+fn compute_ht_root(
+    sk_seed: &[u8],
+    pk_seed: &[u8],
+    config: &SphincsConfig,
+    addr: &Address,
+) -> Vec<u8> {
     let n = config.hash_bytes();
     let layers = config.level.hypertree_layers();
     let mut root = hash_keyed(pk_seed, &[addr.to_bytes(), sk_seed.to_vec()].concat(), n);
@@ -527,7 +550,13 @@ pub fn sign(
     };
 
     // Message digest
-    let digest_input = [randomizer.clone(), sk.public_key.seed.clone(), sk.public_key.root.clone(), message.to_vec()].concat();
+    let digest_input = [
+        randomizer.clone(),
+        sk.public_key.seed.clone(),
+        sk.public_key.root.clone(),
+        message.to_vec(),
+    ]
+    .concat();
     let digest = sha256(&digest_input);
 
     // FORS signature
@@ -566,7 +595,12 @@ pub fn sign(
         let digits = msg_to_digits(&current, n);
         let checksum = wots_checksum(&digits);
         let mut sig_part = Vec::with_capacity(n);
-        for (j, &d) in digits.iter().chain(checksum.iter()).enumerate().take(WOTS_LEN_32.min(n)) {
+        for (j, &d) in digits
+            .iter()
+            .chain(checksum.iter())
+            .enumerate()
+            .take(WOTS_LEN_32.min(n))
+        {
             let mut a = addr.clone().set_chain(j as u32, 0);
             let sk_val = prf(&sk.seed, &a.to_bytes());
             let chain = wots_chain(&sk_val, 0, d, &sk.public_key.seed, &mut a, n);
@@ -595,13 +629,21 @@ pub fn verify(
     let n = config.hash_bytes();
 
     // Recompute digest
-    let digest_input = [sig.randomizer.clone(), pk.seed.clone(), pk.root.clone(), message.to_vec()].concat();
+    let digest_input = [
+        sig.randomizer.clone(),
+        pk.seed.clone(),
+        pk.root.clone(),
+        message.to_vec(),
+    ]
+    .concat();
     let digest = sha256(&digest_input);
 
     // Verify FORS
     let k = config.level.fors_trees() as usize;
     if sig.fors_sig.leaves.len() != k {
-        return Err(SphincsError::InvalidSignature("wrong FORS leaf count".into()));
+        return Err(SphincsError::InvalidSignature(
+            "wrong FORS leaf count".into(),
+        ));
     }
 
     // Recompute FORS roots and check consistency
@@ -610,21 +652,27 @@ pub fn verify(
         let idx = (digest[i % digest.len()] as u32) % (1 << fors_height);
         let _ = idx; // used for path verification
         if sig.fors_sig.auth_paths[i].len() != fors_height as usize {
-            return Err(SphincsError::InvalidSignature("wrong FORS auth path length".into()));
+            return Err(SphincsError::InvalidSignature(
+                "wrong FORS auth path length".into(),
+            ));
         }
     }
 
     // Verify hypertree
     let layers = config.level.hypertree_layers();
     if sig.ht_sig.len() != layers as usize {
-        return Err(SphincsError::InvalidSignature("wrong hypertree layer count".into()));
+        return Err(SphincsError::InvalidSignature(
+            "wrong hypertree layer count".into(),
+        ));
     }
 
     // Walk layers and verify chain consistency
     let mut current = digest[..n].to_vec();
     for (layer, sig_part) in sig.ht_sig.iter().enumerate() {
         if sig_part.is_empty() {
-            return Err(SphincsError::InvalidSignature(format!("empty layer {layer}")));
+            return Err(SphincsError::InvalidSignature(format!(
+                "empty layer {layer}"
+            )));
         }
         current = hash_keyed(&pk.seed, &current, n);
     }
@@ -635,7 +683,12 @@ pub fn verify(
 // ── Message compression ─────────────────────────────────────────
 
 /// Compress a message to a fixed-size digest for FORS indexing.
-pub fn compress_message(pk_seed: &[u8], pk_root: &[u8], randomizer: &[u8], message: &[u8]) -> Vec<u8> {
+pub fn compress_message(
+    pk_seed: &[u8],
+    pk_root: &[u8],
+    randomizer: &[u8],
+    message: &[u8],
+) -> Vec<u8> {
     let input = [randomizer, pk_seed, pk_root, message].concat();
     sha256(&input).to_vec()
 }

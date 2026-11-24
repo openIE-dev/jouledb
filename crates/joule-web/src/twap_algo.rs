@@ -92,10 +92,16 @@ impl TwapSlice {
 
     /// Elapsed fraction at the given timestamp.
     pub fn elapsed_fraction(&self, now_ns: u64) -> f64 {
-        if now_ns <= self.start_ns { return 0.0; }
-        if now_ns >= self.end_ns { return 1.0; }
+        if now_ns <= self.start_ns {
+            return 0.0;
+        }
+        if now_ns >= self.end_ns {
+            return 1.0;
+        }
         let dur = self.duration_ns() as f64;
-        if dur < 1e-12 { return 1.0; }
+        if dur < 1e-12 {
+            return 1.0;
+        }
         (now_ns - self.start_ns) as f64 / dur
     }
 }
@@ -105,8 +111,11 @@ impl fmt::Display for TwapSlice {
         write!(
             f,
             "Slice[{}](target={:.2} filled={:.2} avg={:.4} fills={})",
-            self.index, self.target_quantity, self.filled_quantity,
-            self.avg_fill_price, self.fill_count,
+            self.index,
+            self.target_quantity,
+            self.filled_quantity,
+            self.avg_fill_price,
+            self.fill_count,
         )
     }
 }
@@ -126,8 +135,7 @@ pub struct TwapSchedule {
 }
 
 impl TwapSchedule {
-    pub fn new(symbol: &str, quantity: f64, num_slices: usize,
-               start_ns: u64, end_ns: u64) -> Self {
+    pub fn new(symbol: &str, quantity: f64, num_slices: usize, start_ns: u64, end_ns: u64) -> Self {
         let mut sched = Self {
             symbol: symbol.to_string(),
             total_quantity: quantity,
@@ -155,7 +163,9 @@ impl TwapSchedule {
 
     fn build_slices(&mut self, num_slices: usize) {
         self.slices.clear();
-        if num_slices == 0 { return; }
+        if num_slices == 0 {
+            return;
+        }
 
         let weights = self.compute_weights(num_slices);
         let total_weight: f64 = weights.iter().sum();
@@ -164,7 +174,11 @@ impl TwapSchedule {
 
         for i in 0..num_slices {
             let s = self.start_ns + interval * i as u64;
-            let e = if i + 1 < num_slices { s + interval } else { self.end_ns };
+            let e = if i + 1 < num_slices {
+                s + interval
+            } else {
+                self.end_ns
+            };
             let qty = self.total_quantity * weights[i] / total_weight;
             self.slices.push(TwapSlice::new(i, s, e, qty));
         }
@@ -173,25 +187,25 @@ impl TwapSchedule {
     fn compute_weights(&self, n: usize) -> Vec<f64> {
         match self.profile {
             ScheduleProfile::Linear => vec![1.0; n],
-            ScheduleProfile::FrontLoaded => {
-                (0..n).map(|i| (n - i) as f64).collect()
-            }
-            ScheduleProfile::BackLoaded => {
-                (0..n).map(|i| (i + 1) as f64).collect()
-            }
+            ScheduleProfile::FrontLoaded => (0..n).map(|i| (n - i) as f64).collect(),
+            ScheduleProfile::BackLoaded => (0..n).map(|i| (i + 1) as f64).collect(),
             ScheduleProfile::UShaped => {
                 let mid = n as f64 / 2.0;
-                (0..n).map(|i| {
-                    let dist = (i as f64 - mid).abs() / mid;
-                    0.5 + dist
-                }).collect()
+                (0..n)
+                    .map(|i| {
+                        let dist = (i as f64 - mid).abs() / mid;
+                        0.5 + dist
+                    })
+                    .collect()
             }
         }
     }
 
     /// Find the active slice for a given timestamp.
     pub fn active_slice_index(&self, now_ns: u64) -> Option<usize> {
-        self.slices.iter().position(|s| now_ns >= s.start_ns && now_ns < s.end_ns)
+        self.slices
+            .iter()
+            .position(|s| now_ns >= s.start_ns && now_ns < s.end_ns)
     }
 
     /// Record a fill on the appropriate slice.
@@ -220,8 +234,12 @@ impl TwapSchedule {
     /// Actual TWAP (volume-weighted average of slice prices).
     pub fn realized_twap(&self) -> f64 {
         let total_qty: f64 = self.slices.iter().map(|s| s.filled_quantity).sum();
-        if total_qty < 1e-12 { return 0.0; }
-        let notional: f64 = self.slices.iter()
+        if total_qty < 1e-12 {
+            return 0.0;
+        }
+        let notional: f64 = self
+            .slices
+            .iter()
             .map(|s| s.avg_fill_price * s.filled_quantity)
             .sum();
         notional / total_qty
@@ -240,10 +258,13 @@ impl TwapSchedule {
 
     /// Ideal filled quantity at a given time, assuming continuous execution.
     pub fn ideal_filled_at(&self, now_ns: u64) -> f64 {
-        self.slices.iter().map(|s| {
-            let frac = s.elapsed_fraction(now_ns);
-            s.target_quantity * frac
-        }).sum()
+        self.slices
+            .iter()
+            .map(|s| {
+                let frac = s.elapsed_fraction(now_ns);
+                s.target_quantity * frac
+            })
+            .sum()
     }
 
     /// Number of completed slices.
@@ -253,18 +274,23 @@ impl TwapSchedule {
 
     /// Per-slice deviation from target.
     pub fn slice_deviations(&self) -> Vec<f64> {
-        self.slices.iter().map(|s| {
-            if s.target_quantity > 1e-12 {
-                (s.filled_quantity - s.target_quantity) / s.target_quantity
-            } else {
-                0.0
-            }
-        }).collect()
+        self.slices
+            .iter()
+            .map(|s| {
+                if s.target_quantity > 1e-12 {
+                    (s.filled_quantity - s.target_quantity) / s.target_quantity
+                } else {
+                    0.0
+                }
+            })
+            .collect()
     }
 
     /// Max absolute slice deviation.
     pub fn max_slice_deviation(&self) -> f64 {
-        self.slice_deviations().iter().map(|d| d.abs())
+        self.slice_deviations()
+            .iter()
+            .map(|d| d.abs())
             .fold(0.0_f64, f64::max)
     }
 }
@@ -274,8 +300,12 @@ impl fmt::Display for TwapSchedule {
         write!(
             f,
             "TWAP({} qty={:.0} profile={} slices={} complete={:.1}% twap={:.4})",
-            self.symbol, self.total_quantity, self.profile,
-            self.slices.len(), self.completion_pct(), self.realized_twap(),
+            self.symbol,
+            self.total_quantity,
+            self.profile,
+            self.slices.len(),
+            self.completion_pct(),
+            self.realized_twap(),
         )
     }
 }
@@ -291,7 +321,10 @@ pub struct TwapTracker {
 
 impl TwapTracker {
     pub fn new() -> Self {
-        Self { prices: Vec::new(), sum: 0.0 }
+        Self {
+            prices: Vec::new(),
+            sum: 0.0,
+        }
     }
 
     pub fn record(&mut self, timestamp_ns: u64, price: f64) {
@@ -300,8 +333,11 @@ impl TwapTracker {
     }
 
     pub fn twap(&self) -> f64 {
-        if self.prices.is_empty() { 0.0 }
-        else { self.sum / self.prices.len() as f64 }
+        if self.prices.is_empty() {
+            0.0
+        } else {
+            self.sum / self.prices.len() as f64
+        }
     }
 
     pub fn sample_count(&self) -> usize {
@@ -309,7 +345,9 @@ impl TwapTracker {
     }
 
     pub fn price_range(&self) -> (f64, f64) {
-        if self.prices.is_empty() { return (0.0, 0.0); }
+        if self.prices.is_empty() {
+            return (0.0, 0.0);
+        }
         let lo = self.prices.iter().map(|(_, p)| *p).fold(f64::MAX, f64::min);
         let hi = self.prices.iter().map(|(_, p)| *p).fold(f64::MIN, f64::max);
         (lo, hi)
@@ -319,8 +357,14 @@ impl TwapTracker {
 impl fmt::Display for TwapTracker {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (lo, hi) = self.price_range();
-        write!(f, "TwapTracker(twap={:.4} samples={} range=[{:.4},{:.4}])",
-            self.twap(), self.prices.len(), lo, hi)
+        write!(
+            f,
+            "TwapTracker(twap={:.4} samples={} range=[{:.4},{:.4}])",
+            self.twap(),
+            self.prices.len(),
+            lo,
+            hi
+        )
     }
 }
 
@@ -351,15 +395,15 @@ mod tests {
 
     #[test]
     fn test_back_loaded_schedule() {
-        let s = TwapSchedule::new("AAPL", 1000.0, 5, 0, 5000)
-            .with_profile(ScheduleProfile::BackLoaded);
+        let s =
+            TwapSchedule::new("AAPL", 1000.0, 5, 0, 5000).with_profile(ScheduleProfile::BackLoaded);
         assert!(s.slices[4].target_quantity > s.slices[0].target_quantity);
     }
 
     #[test]
     fn test_u_shaped_schedule() {
-        let s = TwapSchedule::new("AAPL", 1000.0, 6, 0, 6000)
-            .with_profile(ScheduleProfile::UShaped);
+        let s =
+            TwapSchedule::new("AAPL", 1000.0, 6, 0, 6000).with_profile(ScheduleProfile::UShaped);
         let mid = s.slices.len() / 2;
         assert!(s.slices[0].target_quantity > s.slices[mid].target_quantity);
     }

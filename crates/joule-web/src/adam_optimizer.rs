@@ -75,8 +75,8 @@ impl fmt::Display for AdamConfig {
 
 /// Per-parameter optimizer state for Adam variants.
 struct AdamState {
-    m: Vec<f64>,     // first moment (mean of gradients)
-    v: Vec<f64>,     // second moment (mean of squared gradients)
+    m: Vec<f64>, // first moment (mean of gradients)
+    v: Vec<f64>, // second moment (mean of squared gradients)
     step: u64,
 }
 
@@ -205,10 +205,7 @@ impl fmt::Display for AdamOptimizer {
         write!(
             f,
             "Adam(lr={:.6}, β1={:.4}, β2={:.4}, steps={})",
-            self.config.learning_rate,
-            self.config.beta1,
-            self.config.beta2,
-            self.state.step
+            self.config.learning_rate, self.config.beta1, self.config.beta2, self.state.step
         )
     }
 }
@@ -403,10 +400,7 @@ impl fmt::Display for AMSGradOptimizer {
         write!(
             f,
             "AMSGrad(lr={:.6}, β1={:.4}, β2={:.4}, steps={})",
-            self.config.learning_rate,
-            self.config.beta1,
-            self.config.beta2,
-            self.state.step
+            self.config.learning_rate, self.config.beta1, self.config.beta2, self.state.step
         )
     }
 }
@@ -480,7 +474,9 @@ mod tests {
 
     #[test]
     fn adam_config_builder() {
-        let cfg = AdamConfig::new(0.01).with_betas(0.8, 0.99).with_epsilon(1e-7);
+        let cfg = AdamConfig::new(0.01)
+            .with_betas(0.8, 0.99)
+            .with_epsilon(1e-7);
         assert!((cfg.beta1 - 0.8).abs() < 1e-10);
         assert!((cfg.epsilon - 1e-7).abs() < 1e-15);
     }

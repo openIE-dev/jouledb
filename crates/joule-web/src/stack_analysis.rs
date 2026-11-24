@@ -70,19 +70,27 @@ impl StackAnalysisConfig {
 
     pub fn validate(&self) -> Result<(), StackAnalysisError> {
         if self.confidence.is_nan() {
-            return Err(StackAnalysisError::InvalidConfig("confidence is NaN".into()));
+            return Err(StackAnalysisError::InvalidConfig(
+                "confidence is NaN".into(),
+            ));
         }
         Ok(())
     }
 }
 
 impl Default for StackAnalysisConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for StackAnalysisConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "StackAnalysisConfig(method={0}, num_simulations={1}, confidence={2:.4}, seed={3})", self.method, self.num_simulations, self.confidence, self.seed)
+        write!(
+            f,
+            "StackAnalysisConfig(method={0}, num_simulations={1}, confidence={2:.4}, seed={3})",
+            self.method, self.num_simulations, self.confidence, self.seed
+        )
     }
 }
 
@@ -98,7 +106,10 @@ pub struct StackAnalysis {
 impl StackAnalysis {
     pub fn new(config: StackAnalysisConfig) -> Result<Self, StackAnalysisError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -110,13 +121,21 @@ impl StackAnalysis {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &StackAnalysisConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &StackAnalysisConfig {
+        &self.config
+    }
 
     /// Worst-case stack analysis.
     pub fn worst_case(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -126,7 +145,9 @@ impl StackAnalysis {
 
     /// Root sum square analysis.
     pub fn rss(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -136,14 +157,18 @@ impl StackAnalysis {
 
     /// Monte Carlo stack simulation.
     pub fn monte_carlo_stack(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -155,7 +180,9 @@ impl StackAnalysis {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -167,7 +194,11 @@ impl StackAnalysis {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -240,7 +271,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = StackAnalysis::new(StackAnalysisConfig::new()).unwrap()
+        let e = StackAnalysis::new(StackAnalysisConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -256,7 +288,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = StackAnalysis::new(StackAnalysisConfig::new()).unwrap()
+        let e = StackAnalysis::new(StackAnalysisConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("StackAnalysis"));
@@ -264,7 +297,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = StackAnalysis::new(StackAnalysisConfig::new()).unwrap()
+        let e = StackAnalysis::new(StackAnalysisConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -275,7 +309,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = StackAnalysis::new(StackAnalysisConfig::new()).unwrap()
+        let e = StackAnalysis::new(StackAnalysisConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -283,7 +318,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = StackAnalysis::new(StackAnalysisConfig::new()).unwrap()
+        let e = StackAnalysis::new(StackAnalysisConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -300,7 +336,8 @@ mod tests {
 
     #[test]
     fn test_worst_case() {
-        let e = StackAnalysis::new(StackAnalysisConfig::new()).unwrap()
+        let e = StackAnalysis::new(StackAnalysisConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.worst_case();
         assert!(result.is_finite());
@@ -308,7 +345,8 @@ mod tests {
 
     #[test]
     fn test_rss() {
-        let e = StackAnalysis::new(StackAnalysisConfig::new()).unwrap()
+        let e = StackAnalysis::new(StackAnalysisConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.rss();
         assert!(result.is_finite());
@@ -316,7 +354,8 @@ mod tests {
 
     #[test]
     fn test_monte_carlo_stack() {
-        let e = StackAnalysis::new(StackAnalysisConfig::new()).unwrap()
+        let e = StackAnalysis::new(StackAnalysisConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.monte_carlo_stack();
         assert!(!result.is_empty());

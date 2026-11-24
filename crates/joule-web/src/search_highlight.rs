@@ -167,7 +167,9 @@ pub fn apply_highlights(text: &str, spans: &[Span], config: &HighlightConfig) ->
 
         // Append highlighted text.
         result.push_str(&config.pre_tag);
-        let highlighted: String = chars[span.start..span.end.min(chars.len())].iter().collect();
+        let highlighted: String = chars[span.start..span.end.min(chars.len())]
+            .iter()
+            .collect();
         result.push_str(&highlighted);
         result.push_str(&config.post_tag);
 
@@ -184,11 +186,7 @@ pub fn apply_highlights(text: &str, spans: &[Span], config: &HighlightConfig) ->
 }
 
 /// Extract the best fragments from text around matching terms.
-pub fn extract_fragments(
-    text: &str,
-    terms: &[&str],
-    config: &HighlightConfig,
-) -> Vec<Fragment> {
+pub fn extract_fragments(text: &str, terms: &[&str], config: &HighlightConfig) -> Vec<Fragment> {
     let chars: Vec<char> = text.chars().collect();
     let char_count = chars.len();
 
@@ -286,11 +284,7 @@ fn snap_to_word_boundary_left(chars: &[char], pos: usize) -> usize {
     while i > 0 && !chars[i].is_whitespace() {
         i -= 1;
     }
-    if chars[i].is_whitespace() {
-        i + 1
-    } else {
-        i
-    }
+    if chars[i].is_whitespace() { i + 1 } else { i }
 }
 
 /// Snap a character position to the nearest word boundary (looking right).
@@ -307,11 +301,7 @@ fn snap_to_word_boundary_right(chars: &[char], pos: usize) -> usize {
 }
 
 /// Generate a snippet: the best fragments joined by a separator.
-pub fn generate_snippet(
-    text: &str,
-    terms: &[&str],
-    config: &HighlightConfig,
-) -> String {
+pub fn generate_snippet(text: &str, terms: &[&str], config: &HighlightConfig) -> String {
     let fragments = extract_fragments(text, terms, config);
     if fragments.is_empty() {
         // Fallback: return the beginning of the text truncated.

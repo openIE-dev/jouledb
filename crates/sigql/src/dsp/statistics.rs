@@ -1,10 +1,15 @@
 //! Statistical operations for signal analysis
 
-
-#[cfg(not(feature = "std"))]
-use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 use super::{DspError, DspResult};
 use crate::types::UncertainValue;
+#[cfg(not(feature = "std"))]
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 
 /// Compute mean of a signal
 pub fn compute_mean(signal: &[f64]) -> DspResult<UncertainValue<f64>> {

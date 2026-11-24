@@ -19,13 +19,21 @@ pub enum ReadModelError {
     /// View already exists.
     ViewAlreadyExists(String),
     /// Handler error.
-    HandlerError { view_id: String, event_type: String, reason: String },
+    HandlerError {
+        view_id: String,
+        event_type: String,
+        reason: String,
+    },
     /// View not ready (still catching up).
     ViewNotReady(String),
     /// Query error.
     QueryError(String),
     /// View version mismatch.
-    VersionMismatch { view_id: String, expected: u64, actual: u64 },
+    VersionMismatch {
+        view_id: String,
+        expected: u64,
+        actual: u64,
+    },
 }
 
 impl std::fmt::Display for ReadModelError {
@@ -33,13 +41,27 @@ impl std::fmt::Display for ReadModelError {
         match self {
             Self::ViewNotFound(id) => write!(f, "view not found: {id}"),
             Self::ViewAlreadyExists(id) => write!(f, "view already exists: {id}"),
-            Self::HandlerError { view_id, event_type, reason } => {
-                write!(f, "handler error in view {view_id} for {event_type}: {reason}")
+            Self::HandlerError {
+                view_id,
+                event_type,
+                reason,
+            } => {
+                write!(
+                    f,
+                    "handler error in view {view_id} for {event_type}: {reason}"
+                )
             }
             Self::ViewNotReady(id) => write!(f, "view {id} not ready"),
             Self::QueryError(msg) => write!(f, "query error: {msg}"),
-            Self::VersionMismatch { view_id, expected, actual } => {
-                write!(f, "version mismatch for {view_id}: expected {expected}, got {actual}")
+            Self::VersionMismatch {
+                view_id,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "version mismatch for {view_id}: expected {expected}, got {actual}"
+                )
             }
         }
     }
@@ -299,10 +321,7 @@ impl MaterializedView {
         let event_type = event.event_type.clone();
 
         // Find handler.
-        let handler = self
-            .handlers
-            .iter()
-            .find(|h| h.event_type == event_type);
+        let handler = self.handlers.iter().find(|h| h.event_type == event_type);
 
         if let Some(handler) = handler {
             let result = handler.handle(&mut self.data, event);
@@ -421,7 +440,10 @@ impl ReadModelBuilder {
     }
 
     /// Dispatch an event to all views.
-    pub fn dispatch(&mut self, event: &ReadModelEvent) -> Vec<(String, Result<(), ReadModelError>)> {
+    pub fn dispatch(
+        &mut self,
+        event: &ReadModelEvent,
+    ) -> Vec<(String, Result<(), ReadModelError>)> {
         let ids: Vec<String> = self.views.keys().cloned().collect();
         let mut results = Vec::new();
         for id in ids {
@@ -434,7 +456,10 @@ impl ReadModelBuilder {
     }
 
     /// Dispatch a batch of events to all views.
-    pub fn dispatch_batch(&mut self, events: &[ReadModelEvent]) -> Vec<(String, Result<u64, ReadModelError>)> {
+    pub fn dispatch_batch(
+        &mut self,
+        events: &[ReadModelEvent],
+    ) -> Vec<(String, Result<u64, ReadModelError>)> {
         let ids: Vec<String> = self.views.keys().cloned().collect();
         let mut results = Vec::new();
         for id in ids {
@@ -536,8 +561,18 @@ mod tests {
         let mut view = make_user_view();
         view.start_building();
 
-        view.apply_event(&make_event(0, "UserCreated", &[("user_id", "u1"), ("name", "Alice")])).unwrap();
-        view.apply_event(&make_event(1, "UserCreated", &[("user_id", "u2"), ("name", "Bob")])).unwrap();
+        view.apply_event(&make_event(
+            0,
+            "UserCreated",
+            &[("user_id", "u1"), ("name", "Alice")],
+        ))
+        .unwrap();
+        view.apply_event(&make_event(
+            1,
+            "UserCreated",
+            &[("user_id", "u2"), ("name", "Bob")],
+        ))
+        .unwrap();
         view.mark_ready();
 
         assert_eq!(view.row_count(), 2);
@@ -550,8 +585,18 @@ mod tests {
         let mut view = make_user_view();
         view.start_building();
 
-        view.apply_event(&make_event(0, "UserCreated", &[("user_id", "u1"), ("name", "Alice")])).unwrap();
-        view.apply_event(&make_event(1, "UserUpdated", &[("user_id", "u1"), ("name", "Alicia")])).unwrap();
+        view.apply_event(&make_event(
+            0,
+            "UserCreated",
+            &[("user_id", "u1"), ("name", "Alice")],
+        ))
+        .unwrap();
+        view.apply_event(&make_event(
+            1,
+            "UserUpdated",
+            &[("user_id", "u1"), ("name", "Alicia")],
+        ))
+        .unwrap();
 
         let row = view.get_row("u1").unwrap();
         assert_eq!(row.get("name").unwrap(), &serde_json::json!("Alicia"));
@@ -562,8 +607,14 @@ mod tests {
         let mut view = make_user_view();
         view.start_building();
 
-        view.apply_event(&make_event(0, "UserCreated", &[("user_id", "u1"), ("name", "Alice")])).unwrap();
-        view.apply_event(&make_event(1, "UserDeleted", &[("user_id", "u1")])).unwrap();
+        view.apply_event(&make_event(
+            0,
+            "UserCreated",
+            &[("user_id", "u1"), ("name", "Alice")],
+        ))
+        .unwrap();
+        view.apply_event(&make_event(1, "UserDeleted", &[("user_id", "u1")]))
+            .unwrap();
 
         assert_eq!(view.row_count(), 0);
     }
@@ -573,11 +624,26 @@ mod tests {
         let mut view = make_user_view();
         view.start_building();
 
-        view.apply_event(&make_event(0, "UserCreated", &[("user_id", "u1"), ("name", "Alice")])).unwrap();
-        view.apply_event(&make_event(1, "UserCreated", &[("user_id", "u2"), ("name", "Bob")])).unwrap();
+        view.apply_event(&make_event(
+            0,
+            "UserCreated",
+            &[("user_id", "u1"), ("name", "Alice")],
+        ))
+        .unwrap();
+        view.apply_event(&make_event(
+            1,
+            "UserCreated",
+            &[("user_id", "u2"), ("name", "Bob")],
+        ))
+        .unwrap();
 
         // Re-apply old event.
-        view.apply_event(&make_event(0, "UserCreated", &[("user_id", "u3"), ("name", "Charlie")])).unwrap();
+        view.apply_event(&make_event(
+            0,
+            "UserCreated",
+            &[("user_id", "u3"), ("name", "Charlie")],
+        ))
+        .unwrap();
         assert_eq!(view.row_count(), 2); // u3 was skipped.
     }
 
@@ -597,7 +663,8 @@ mod tests {
         let mut view = make_user_view();
         view.start_building();
 
-        view.apply_event(&make_event(0, "UnknownEvent", &[])).unwrap();
+        view.apply_event(&make_event(0, "UnknownEvent", &[]))
+            .unwrap();
         assert_eq!(view.events_processed, 0);
         assert_eq!(view.last_position, 1);
     }
@@ -606,7 +673,12 @@ mod tests {
     fn test_view_refresh() {
         let mut view = make_user_view();
         view.start_building();
-        view.apply_event(&make_event(0, "UserCreated", &[("user_id", "u1"), ("name", "Alice")])).unwrap();
+        view.apply_event(&make_event(
+            0,
+            "UserCreated",
+            &[("user_id", "u1"), ("name", "Alice")],
+        ))
+        .unwrap();
         view.mark_ready();
 
         view.refresh();
@@ -620,8 +692,18 @@ mod tests {
     fn test_view_query_predicate() {
         let mut view = make_user_view();
         view.start_building();
-        view.apply_event(&make_event(0, "UserCreated", &[("user_id", "u1"), ("name", "Alice")])).unwrap();
-        view.apply_event(&make_event(1, "UserCreated", &[("user_id", "u2"), ("name", "Bob")])).unwrap();
+        view.apply_event(&make_event(
+            0,
+            "UserCreated",
+            &[("user_id", "u1"), ("name", "Alice")],
+        ))
+        .unwrap();
+        view.apply_event(&make_event(
+            1,
+            "UserCreated",
+            &[("user_id", "u2"), ("name", "Bob")],
+        ))
+        .unwrap();
         view.mark_ready();
 
         let results = view
@@ -733,8 +815,12 @@ mod tests {
     #[test]
     fn test_builder_view_ids_sorted() {
         let mut builder = ReadModelBuilder::new();
-        builder.register_view(MaterializedView::new("zulu")).unwrap();
-        builder.register_view(MaterializedView::new("alpha")).unwrap();
+        builder
+            .register_view(MaterializedView::new("zulu"))
+            .unwrap();
+        builder
+            .register_view(MaterializedView::new("alpha"))
+            .unwrap();
         assert_eq!(builder.view_ids(), vec!["alpha", "zulu"]);
     }
 
@@ -743,7 +829,12 @@ mod tests {
         let mut builder = ReadModelBuilder::new();
         let mut v = make_user_view();
         v.start_building();
-        v.apply_event(&make_event(0, "UserCreated", &[("user_id", "u1"), ("name", "A")])).unwrap();
+        v.apply_event(&make_event(
+            0,
+            "UserCreated",
+            &[("user_id", "u1"), ("name", "A")],
+        ))
+        .unwrap();
         builder.register_view(v).unwrap();
 
         builder.refresh_all();

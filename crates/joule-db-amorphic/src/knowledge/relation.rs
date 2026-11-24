@@ -150,10 +150,10 @@ impl RelationType {
     /// Higher = more informative for knowledge structure.
     pub fn weight(&self) -> f64 {
         match self {
-            Self::IsA => 1.0,          // Taxonomy: most structural
-            Self::PartOf => 0.95,      // Meronymy: strong structure
-            Self::HasA => 0.9,         // Possession: strong
-            Self::Causes => 0.9,       // Causality: very structural
+            Self::IsA => 1.0,     // Taxonomy: most structural
+            Self::PartOf => 0.95, // Meronymy: strong structure
+            Self::HasA => 0.9,    // Possession: strong
+            Self::Causes => 0.9,  // Causality: very structural
             Self::HasPrerequisite => 0.85,
             Self::HasSubevent => 0.8,
             Self::CapableOf => 0.8,
@@ -169,11 +169,11 @@ impl RelationType {
             Self::Desires => 0.55,
             Self::MannerOf => 0.5,
             Self::SimilarTo => 0.4,
-            Self::RelatedTo => 0.3,    // Weak: "related" is vague
+            Self::RelatedTo => 0.3, // Weak: "related" is vague
             Self::DerivedFrom => 0.3,
             Self::FormOf => 0.25,
             Self::EtymologicallyRelatedTo => 0.2,
-            Self::Antonym => 0.4,      // Contrast: structurally informative
+            Self::Antonym => 0.4, // Contrast: structurally informative
             Self::DistinctFrom => 0.35,
             Self::SymbolOf => 0.3,
             Self::ReceivesAction => 0.5,

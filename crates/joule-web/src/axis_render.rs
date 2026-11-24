@@ -50,19 +50,31 @@ impl Default for AxisConfig {
 
 impl AxisConfig {
     pub fn bottom() -> Self {
-        Self { orientation: Orientation::Bottom, ..Self::default() }
+        Self {
+            orientation: Orientation::Bottom,
+            ..Self::default()
+        }
     }
 
     pub fn top() -> Self {
-        Self { orientation: Orientation::Top, ..Self::default() }
+        Self {
+            orientation: Orientation::Top,
+            ..Self::default()
+        }
     }
 
     pub fn left() -> Self {
-        Self { orientation: Orientation::Left, ..Self::default() }
+        Self {
+            orientation: Orientation::Left,
+            ..Self::default()
+        }
     }
 
     pub fn right() -> Self {
-        Self { orientation: Orientation::Right, ..Self::default() }
+        Self {
+            orientation: Orientation::Right,
+            ..Self::default()
+        }
     }
 
     pub fn with_tick_size(mut self, size: f64) -> Self {
@@ -121,9 +133,10 @@ impl TickFormat {
                     value.to_string()
                 }
             }
-            TickFormat::Custom { labels } => {
-                labels.get(index).cloned().unwrap_or_else(|| value.to_string())
-            }
+            TickFormat::Custom { labels } => labels
+                .get(index)
+                .cloned()
+                .unwrap_or_else(|| value.to_string()),
         }
     }
 }
@@ -247,13 +260,19 @@ pub fn compute_axis_layout(
 
     // Build SVG fragment
     let mut svg = String::new();
-    svg.push_str(&format!("<g class=\"axis axis-{}\">\n", match config.orientation {
-        Orientation::Top => "top",
-        Orientation::Bottom => "bottom",
-        Orientation::Left => "left",
-        Orientation::Right => "right",
-    }));
-    svg.push_str(&format!("  <path d=\"{}\" fill=\"none\" stroke=\"currentColor\"/>\n", axis_path));
+    svg.push_str(&format!(
+        "<g class=\"axis axis-{}\">\n",
+        match config.orientation {
+            Orientation::Top => "top",
+            Orientation::Bottom => "bottom",
+            Orientation::Left => "left",
+            Orientation::Right => "right",
+        }
+    ));
+    svg.push_str(&format!(
+        "  <path d=\"{}\" fill=\"none\" stroke=\"currentColor\"/>\n",
+        axis_path
+    ));
 
     for (i, tick) in ticks.iter().enumerate() {
         let (tx1, ty1, tx2, ty2) = if is_horizontal {
@@ -418,13 +437,7 @@ mod tests {
     fn test_axis_with_gridlines() {
         let config = AxisConfig::bottom().with_grid(300.0);
         let format = TickFormat::Number { precision: 0 };
-        let layout = compute_axis_layout(
-            &[0.0, 100.0],
-            &[0.0, 500.0],
-            &config,
-            &format,
-            500.0,
-        );
+        let layout = compute_axis_layout(&[0.0, 100.0], &[0.0, 500.0], &config, &format, 500.0);
         assert_eq!(layout.gridlines.len(), 2);
         assert!(layout.svg.contains("opacity=\"0.2\""));
     }
@@ -433,13 +446,7 @@ mod tests {
     fn test_axis_with_rotation() {
         let config = AxisConfig::bottom().with_label_rotation(45.0);
         let format = TickFormat::Number { precision: 0 };
-        let layout = compute_axis_layout(
-            &[0.0, 100.0],
-            &[0.0, 500.0],
-            &config,
-            &format,
-            500.0,
-        );
+        let layout = compute_axis_layout(&[0.0, 100.0], &[0.0, 500.0], &config, &format, 500.0);
         assert!(layout.svg.contains("rotate(45.0"));
     }
 

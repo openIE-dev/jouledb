@@ -52,11 +52,19 @@ pub struct EdgeWeight {
 
 impl EdgeWeight {
     pub fn new(distance_m: f64, time_s: f64, cost: f64) -> Self {
-        Self { distance_m, time_s, cost }
+        Self {
+            distance_m,
+            time_s,
+            cost,
+        }
     }
 
     pub fn distance_only(d: f64) -> Self {
-        Self { distance_m: d, time_s: 0.0, cost: 0.0 }
+        Self {
+            distance_m: d,
+            time_s: 0.0,
+            cost: 0.0,
+        }
     }
 
     pub fn combined(&self, w_dist: f64, w_time: f64, w_cost: f64) -> f64 {
@@ -65,12 +73,22 @@ impl EdgeWeight {
 }
 
 impl Default for EdgeWeight {
-    fn default() -> Self { Self { distance_m: 1.0, time_s: 1.0, cost: 0.0 } }
+    fn default() -> Self {
+        Self {
+            distance_m: 1.0,
+            time_s: 1.0,
+            cost: 0.0,
+        }
+    }
 }
 
 impl fmt::Display for EdgeWeight {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "d={:.1}m t={:.1}s c={:.2}", self.distance_m, self.time_s, self.cost)
+        write!(
+            f,
+            "d={:.1}m t={:.1}s c={:.2}",
+            self.distance_m, self.time_s, self.cost
+        )
     }
 }
 
@@ -82,7 +100,11 @@ pub enum WeightMode {
     Distance,
     Time,
     Cost,
-    Combined { w_dist: f64, w_time: f64, w_cost: f64 },
+    Combined {
+        w_dist: f64,
+        w_time: f64,
+        w_cost: f64,
+    },
 }
 
 impl WeightMode {
@@ -91,7 +113,11 @@ impl WeightMode {
             Self::Distance => w.distance_m,
             Self::Time => w.time_s,
             Self::Cost => w.cost,
-            Self::Combined { w_dist, w_time, w_cost } => w.combined(*w_dist, *w_time, *w_cost),
+            Self::Combined {
+                w_dist,
+                w_time,
+                w_cost,
+            } => w.combined(*w_dist, *w_time, *w_cost),
         }
     }
 }
@@ -120,7 +146,12 @@ pub struct RoadNode {
 
 impl RoadNode {
     pub fn new(id: u64, lat: f64, lon: f64) -> Self {
-        Self { id, lat, lon, attributes: HashMap::new() }
+        Self {
+            id,
+            lat,
+            lon,
+            attributes: HashMap::new(),
+        }
     }
 
     pub fn with_attr(mut self, key: &str, val: &str) -> Self {
@@ -156,14 +187,23 @@ pub struct RoadEdge {
 impl RoadEdge {
     pub fn new(from: u64, to: u64, weight: EdgeWeight) -> Self {
         Self {
-            from, to, weight, one_way: false,
+            from,
+            to,
+            weight,
+            one_way: false,
             road_class: RoadClass::Local,
             attributes: HashMap::new(),
         }
     }
 
-    pub fn with_one_way(mut self, v: bool) -> Self { self.one_way = v; self }
-    pub fn with_road_class(mut self, c: RoadClass) -> Self { self.road_class = c; self }
+    pub fn with_one_way(mut self, v: bool) -> Self {
+        self.one_way = v;
+        self
+    }
+    pub fn with_road_class(mut self, c: RoadClass) -> Self {
+        self.road_class = c;
+        self
+    }
     pub fn with_attr(mut self, k: &str, v: &str) -> Self {
         self.attributes.insert(k.to_string(), v.to_string());
         self
@@ -232,22 +272,44 @@ pub struct GraphConfig {
 
 impl GraphConfig {
     pub fn new() -> Self {
-        Self { directed: true, weight_mode: WeightMode::Distance, allow_u_turns: false, default_speed_kmh: 50.0 }
+        Self {
+            directed: true,
+            weight_mode: WeightMode::Distance,
+            allow_u_turns: false,
+            default_speed_kmh: 50.0,
+        }
     }
-    pub fn with_directed(mut self, v: bool) -> Self { self.directed = v; self }
-    pub fn with_weight_mode(mut self, m: WeightMode) -> Self { self.weight_mode = m; self }
-    pub fn with_allow_u_turns(mut self, v: bool) -> Self { self.allow_u_turns = v; self }
-    pub fn with_default_speed(mut self, s: f64) -> Self { self.default_speed_kmh = s; self }
+    pub fn with_directed(mut self, v: bool) -> Self {
+        self.directed = v;
+        self
+    }
+    pub fn with_weight_mode(mut self, m: WeightMode) -> Self {
+        self.weight_mode = m;
+        self
+    }
+    pub fn with_allow_u_turns(mut self, v: bool) -> Self {
+        self.allow_u_turns = v;
+        self
+    }
+    pub fn with_default_speed(mut self, s: f64) -> Self {
+        self.default_speed_kmh = s;
+        self
+    }
 }
 
 impl Default for GraphConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for GraphConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "GraphConfig(dir={} mode={} uturn={} speed={:.0})",
-            self.directed, self.weight_mode, self.allow_u_turns, self.default_speed_kmh)
+        write!(
+            f,
+            "GraphConfig(dir={} mode={} uturn={} speed={:.0})",
+            self.directed, self.weight_mode, self.allow_u_turns, self.default_speed_kmh
+        )
     }
 }
 
@@ -273,11 +335,20 @@ pub struct RoadGraph {
 
 impl RoadGraph {
     pub fn new(config: GraphConfig) -> Self {
-        Self { config, nodes: HashMap::new(), edges: Vec::new(), adj: HashMap::new() }
+        Self {
+            config,
+            nodes: HashMap::new(),
+            edges: Vec::new(),
+            adj: HashMap::new(),
+        }
     }
 
-    pub fn node_count(&self) -> usize { self.nodes.len() }
-    pub fn edge_count(&self) -> usize { self.edges.len() }
+    pub fn node_count(&self) -> usize {
+        self.nodes.len()
+    }
+    pub fn edge_count(&self) -> usize {
+        self.edges.len()
+    }
 
     pub fn add_node(&mut self, node: RoadNode) -> Result<(), GraphError> {
         let id = node.id;
@@ -289,7 +360,9 @@ impl RoadGraph {
         Ok(())
     }
 
-    pub fn get_node(&self, id: u64) -> Option<&RoadNode> { self.nodes.get(&id) }
+    pub fn get_node(&self, id: u64) -> Option<&RoadNode> {
+        self.nodes.get(&id)
+    }
 
     pub fn add_edge(&mut self, edge: RoadEdge) -> Result<(), GraphError> {
         if !self.nodes.contains_key(&edge.from) {
@@ -300,11 +373,15 @@ impl RoadGraph {
         }
         let idx = self.edges.len();
         self.adj.entry(edge.from).or_default().push(AdjEntry {
-            target: edge.to, weight: edge.weight, edge_idx: idx,
+            target: edge.to,
+            weight: edge.weight,
+            edge_idx: idx,
         });
         if !edge.one_way && !self.config.directed {
             self.adj.entry(edge.to).or_default().push(AdjEntry {
-                target: edge.from, weight: edge.weight, edge_idx: idx,
+                target: edge.from,
+                weight: edge.weight,
+                edge_idx: idx,
             });
         }
         self.edges.push(edge);
@@ -312,13 +389,15 @@ impl RoadGraph {
     }
 
     pub fn neighbors(&self, node_id: u64) -> Vec<(u64, &EdgeWeight)> {
-        self.adj.get(&node_id)
+        self.adj
+            .get(&node_id)
             .map(|entries| entries.iter().map(|e| (e.target, &e.weight)).collect())
             .unwrap_or_default()
     }
 
     pub fn get_edge(&self, from: u64, to: u64) -> Option<&RoadEdge> {
-        self.adj.get(&from)?
+        self.adj
+            .get(&from)?
             .iter()
             .find(|e| e.target == to)
             .map(|e| &self.edges[e.edge_idx])
@@ -341,7 +420,11 @@ impl RoadGraph {
         for e in &self.edges {
             out.push_str(&format!(
                 "{} {} {:.2} {:.2} {:.2} {}\n",
-                e.from, e.to, e.weight.distance_m, e.weight.time_s, e.weight.cost,
+                e.from,
+                e.to,
+                e.weight.distance_m,
+                e.weight.time_s,
+                e.weight.cost,
                 if e.one_way { 1 } else { 0 }
             ));
         }
@@ -353,18 +436,32 @@ impl RoadGraph {
         let mut g = Self::new(config);
         for line in text.lines() {
             let line = line.trim();
-            if line.is_empty() || line.starts_with('#') { continue; }
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() < 4 {
                 return Err(GraphError::ParseError(format!("need >=4 fields: {line}")));
             }
-            let from: u64 = parts[0].parse().map_err(|_| GraphError::ParseError("bad from".into()))?;
-            let to: u64 = parts[1].parse().map_err(|_| GraphError::ParseError("bad to".into()))?;
-            let dist: f64 = parts[2].parse().map_err(|_| GraphError::ParseError("bad dist".into()))?;
-            let time: f64 = parts[3].parse().map_err(|_| GraphError::ParseError("bad time".into()))?;
+            let from: u64 = parts[0]
+                .parse()
+                .map_err(|_| GraphError::ParseError("bad from".into()))?;
+            let to: u64 = parts[1]
+                .parse()
+                .map_err(|_| GraphError::ParseError("bad to".into()))?;
+            let dist: f64 = parts[2]
+                .parse()
+                .map_err(|_| GraphError::ParseError("bad dist".into()))?;
+            let time: f64 = parts[3]
+                .parse()
+                .map_err(|_| GraphError::ParseError("bad time".into()))?;
             let cost: f64 = if parts.len() > 4 {
-                parts[4].parse().map_err(|_| GraphError::ParseError("bad cost".into()))?
-            } else { 0.0 };
+                parts[4]
+                    .parse()
+                    .map_err(|_| GraphError::ParseError("bad cost".into()))?
+            } else {
+                0.0
+            };
             let one_way = parts.len() > 5 && parts[5] == "1";
 
             if !g.nodes.contains_key(&from) {
@@ -373,8 +470,8 @@ impl RoadGraph {
             if !g.nodes.contains_key(&to) {
                 g.add_node(RoadNode::new(to, 0.0, 0.0)).ok();
             }
-            let edge = RoadEdge::new(from, to, EdgeWeight::new(dist, time, cost))
-                .with_one_way(one_way);
+            let edge =
+                RoadEdge::new(from, to, EdgeWeight::new(dist, time, cost)).with_one_way(one_way);
             g.add_edge(edge)?;
         }
         Ok(g)
@@ -402,7 +499,13 @@ impl RoadGraph {
 
 impl fmt::Display for RoadGraph {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RoadGraph(nodes={} edges={} {})", self.node_count(), self.edge_count(), self.config)
+        write!(
+            f,
+            "RoadGraph(nodes={} edges={} {})",
+            self.node_count(),
+            self.edge_count(),
+            self.config
+        )
     }
 }
 
@@ -429,10 +532,14 @@ mod tests {
         for i in 0..4 {
             g.add_node(RoadNode::new(i, 0.0, i as f64)).unwrap();
         }
-        g.add_edge(RoadEdge::new(0, 1, EdgeWeight::distance_only(10.0))).unwrap();
-        g.add_edge(RoadEdge::new(1, 2, EdgeWeight::distance_only(20.0))).unwrap();
-        g.add_edge(RoadEdge::new(2, 3, EdgeWeight::distance_only(30.0))).unwrap();
-        g.add_edge(RoadEdge::new(0, 3, EdgeWeight::distance_only(100.0))).unwrap();
+        g.add_edge(RoadEdge::new(0, 1, EdgeWeight::distance_only(10.0)))
+            .unwrap();
+        g.add_edge(RoadEdge::new(1, 2, EdgeWeight::distance_only(20.0)))
+            .unwrap();
+        g.add_edge(RoadEdge::new(2, 3, EdgeWeight::distance_only(30.0)))
+            .unwrap();
+        g.add_edge(RoadEdge::new(0, 3, EdgeWeight::distance_only(100.0)))
+            .unwrap();
         g
     }
 
@@ -447,7 +554,10 @@ mod tests {
     fn test_duplicate_node() {
         let mut g = RoadGraph::new(GraphConfig::new());
         g.add_node(RoadNode::new(1, 0.0, 0.0)).unwrap();
-        assert_eq!(g.add_node(RoadNode::new(1, 0.0, 0.0)), Err(GraphError::DuplicateNode(1)));
+        assert_eq!(
+            g.add_node(RoadNode::new(1, 0.0, 0.0)),
+            Err(GraphError::DuplicateNode(1))
+        );
     }
 
     #[test]
@@ -477,7 +587,8 @@ mod tests {
         let mut g = RoadGraph::new(cfg);
         g.add_node(RoadNode::new(0, 0.0, 0.0)).unwrap();
         g.add_node(RoadNode::new(1, 0.0, 0.0)).unwrap();
-        g.add_edge(RoadEdge::new(0, 1, EdgeWeight::default())).unwrap();
+        g.add_edge(RoadEdge::new(0, 1, EdgeWeight::default()))
+            .unwrap();
         assert_eq!(g.neighbors(0).len(), 1);
         assert_eq!(g.neighbors(1).len(), 0);
     }
@@ -592,7 +703,8 @@ mod tests {
         let mut g = RoadGraph::new(cfg);
         g.add_node(RoadNode::new(0, 0.0, 0.0)).unwrap();
         g.add_node(RoadNode::new(1, 0.0, 0.0)).unwrap();
-        g.add_edge(RoadEdge::new(0, 1, EdgeWeight::default()).with_one_way(true)).unwrap();
+        g.add_edge(RoadEdge::new(0, 1, EdgeWeight::default()).with_one_way(true))
+            .unwrap();
         assert_eq!(g.neighbors(0).len(), 1);
         assert_eq!(g.neighbors(1).len(), 0);
     }

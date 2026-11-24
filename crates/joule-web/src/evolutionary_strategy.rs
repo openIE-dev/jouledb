@@ -11,7 +11,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -85,7 +87,11 @@ pub struct EsIndividual {
 
 impl EsIndividual {
     fn new(x: Vec<f64>, sigma: Vec<f64>) -> Self {
-        Self { x, sigma, fitness: f64::INFINITY }
+        Self {
+            x,
+            sigma,
+            fitness: f64::INFINITY,
+        }
     }
 }
 
@@ -172,7 +178,9 @@ impl EvolutionStrategy {
         let dims = self.config.dimensions;
         self.parents.clear();
         for _ in 0..self.config.mu {
-            let x: Vec<f64> = (0..dims).map(|_| lo + self.rng.next_f64() * (hi - lo)).collect();
+            let x: Vec<f64> = (0..dims)
+                .map(|_| lo + self.rng.next_f64() * (hi - lo))
+                .collect();
             let sigma = vec![self.config.initial_sigma; dims];
             self.parents.push(EsIndividual::new(x, sigma));
         }
@@ -196,8 +204,12 @@ impl EvolutionStrategy {
             BoundaryHandling::Reflect => {
                 for v in x.iter_mut() {
                     while *v < lo || *v > hi {
-                        if *v < lo { *v = lo + (lo - *v); }
-                        if *v > hi { *v = hi - (*v - hi); }
+                        if *v < lo {
+                            *v = lo + (lo - *v);
+                        }
+                        if *v > hi {
+                            *v = hi - (*v - hi);
+                        }
                     }
                     *v = v.clamp(lo, hi);
                 }
@@ -217,7 +229,9 @@ impl EvolutionStrategy {
         match self.config.recombination {
             Recombination::Intermediate => {
                 let x: Vec<f64> = (0..dims).map(|i| (p1.x[i] + p2.x[i]) / 2.0).collect();
-                let s: Vec<f64> = (0..dims).map(|i| (p1.sigma[i] + p2.sigma[i]) / 2.0).collect();
+                let s: Vec<f64> = (0..dims)
+                    .map(|i| (p1.sigma[i] + p2.sigma[i]) / 2.0)
+                    .collect();
                 (x, s)
             }
             Recombination::Discrete => {
@@ -234,9 +248,7 @@ impl EvolutionStrategy {
                 }
                 (x, s)
             }
-            Recombination::None => {
-                (p1.x.clone(), p1.sigma.clone())
-            }
+            Recombination::None => (p1.x.clone(), p1.sigma.clone()),
         }
     }
 
@@ -284,7 +296,11 @@ impl EvolutionStrategy {
             }
         };
 
-        pool.sort_by(|a, b| a.fitness.partial_cmp(&b.fitness).unwrap_or(std::cmp::Ordering::Equal));
+        pool.sort_by(|a, b| {
+            a.fitness
+                .partial_cmp(&b.fitness)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         self.parents = pool.into_iter().take(mu).collect();
 
         if let Some(best) = self.parents.first() {
@@ -296,7 +312,11 @@ impl EvolutionStrategy {
     /// Run the full ES optimization.
     pub fn run<F: Fn(&[f64]) -> f64>(&mut self, obj_fn: &F) -> EsResult {
         self.evaluate(obj_fn);
-        self.parents.sort_by(|a, b| a.fitness.partial_cmp(&b.fitness).unwrap_or(std::cmp::Ordering::Equal));
+        self.parents.sort_by(|a, b| {
+            a.fitness
+                .partial_cmp(&b.fitness)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         if let Some(best) = self.parents.first() {
             self.fitness_history.push(best.fitness);
         }
@@ -354,16 +374,22 @@ pub struct CmaEs {
 }
 
 impl CmaEs {
-    pub fn new(dimensions: usize, initial_mean: Vec<f64>, initial_sigma: f64,
-               bounds: (f64, f64), max_generations: usize, seed: u64) -> Self {
+    pub fn new(
+        dimensions: usize,
+        initial_mean: Vec<f64>,
+        initial_sigma: f64,
+        bounds: (f64, f64),
+        max_generations: usize,
+        seed: u64,
+    ) -> Self {
         let n = dimensions;
         let lambda = 4 + (3.0 * (n as f64).ln()).floor() as usize;
         let mu = lambda / 2;
 
         // Rank-based weights
-        let raw_weights: Vec<f64> = (0..mu).map(|i| {
-            ((mu as f64 + 0.5).ln() - ((i + 1) as f64).ln()).max(0.0)
-        }).collect();
+        let raw_weights: Vec<f64> = (0..mu)
+            .map(|i| ((mu as f64 + 0.5).ln() - ((i + 1) as f64).ln()).max(0.0))
+            .collect();
         let sum_w: f64 = raw_weights.iter().sum();
         let weights: Vec<f64> = raw_weights.iter().map(|w| w / sum_w).collect();
         let mu_eff: f64 = 1.0 / weights.iter().map(|w| w * w).sum::<f64>();
@@ -371,7 +397,8 @@ impl CmaEs {
         let cs = (mu_eff + 2.0) / (n as f64 + mu_eff + 5.0);
         let cc = (4.0 + mu_eff / n as f64) / (n as f64 + 4.0 + 2.0 * mu_eff / n as f64);
         let c1 = 2.0 / ((n as f64 + 1.3).powi(2) + mu_eff);
-        let cmu_val = (2.0 * (mu_eff - 2.0 + 1.0 / mu_eff) / ((n as f64 + 2.0).powi(2) + mu_eff)).min(1.0 - c1);
+        let cmu_val = (2.0 * (mu_eff - 2.0 + 1.0 / mu_eff) / ((n as f64 + 2.0).powi(2) + mu_eff))
+            .min(1.0 - c1);
         let damps = 1.0 + 2.0 * (((mu_eff - 1.0) / (n as f64 + 1.0)).sqrt() - 1.0).max(0.0) + cs;
 
         Self {
@@ -401,15 +428,17 @@ impl CmaEs {
     fn sample_population(&mut self) -> Vec<(Vec<f64>, Vec<f64>)> {
         // Returns (x, z) pairs where z ~ N(0, diag_cov)
         let (lo, hi) = self.bounds;
-        (0..self.lambda).map(|_| {
-            let z: Vec<f64> = (0..self.dimensions).map(|d| {
-                self.rng.next_gaussian() * self.diag_cov[d].sqrt()
-            }).collect();
-            let x: Vec<f64> = (0..self.dimensions).map(|d| {
-                (self.mean[d] + self.sigma * z[d]).clamp(lo, hi)
-            }).collect();
-            (x, z)
-        }).collect()
+        (0..self.lambda)
+            .map(|_| {
+                let z: Vec<f64> = (0..self.dimensions)
+                    .map(|d| self.rng.next_gaussian() * self.diag_cov[d].sqrt())
+                    .collect();
+                let x: Vec<f64> = (0..self.dimensions)
+                    .map(|d| (self.mean[d] + self.sigma * z[d]).clamp(lo, hi))
+                    .collect();
+                (x, z)
+            })
+            .collect()
     }
 
     /// Run one generation of CMA-ES.
@@ -418,7 +447,8 @@ impl CmaEs {
         let samples = self.sample_population();
 
         // Evaluate
-        let mut fitnesses: Vec<(f64, Vec<f64>, Vec<f64>)> = samples.into_iter()
+        let mut fitnesses: Vec<(f64, Vec<f64>, Vec<f64>)> = samples
+            .into_iter()
             .map(|(x, z)| {
                 let f = obj_fn(&x);
                 (f, x, z)
@@ -439,7 +469,9 @@ impl CmaEs {
         }
 
         // Evolution path ps (step-size control)
-        let mean_shift: Vec<f64> = (0..n).map(|d| (self.mean[d] - old_mean[d]) / self.sigma).collect();
+        let mean_shift: Vec<f64> = (0..n)
+            .map(|d| (self.mean[d] - old_mean[d]) / self.sigma)
+            .collect();
         let cs_comp = (self.cs * (2.0 - self.cs) * self.mu_eff).sqrt();
         for d in 0..n {
             self.ps[d] = (1.0 - self.cs) * self.ps[d]
@@ -448,9 +480,16 @@ impl CmaEs {
 
         // Evolution path pc (covariance adaptation)
         let ps_norm: f64 = self.ps.iter().map(|v| v * v).sum::<f64>().sqrt();
-        let expected_norm = (n as f64).sqrt() * (1.0 - 1.0 / (4.0 * n as f64) + 1.0 / (21.0 * (n as f64).powi(2)));
-        let hs = if ps_norm / ((1.0 - (1.0 - self.cs).powi(2 * (self.generation as i32 + 1))).sqrt() + 1e-15)
-            < (1.4 + 2.0 / (n as f64 + 1.0)) * expected_norm { 1.0 } else { 0.0 };
+        let expected_norm =
+            (n as f64).sqrt() * (1.0 - 1.0 / (4.0 * n as f64) + 1.0 / (21.0 * (n as f64).powi(2)));
+        let hs = if ps_norm
+            / ((1.0 - (1.0 - self.cs).powi(2 * (self.generation as i32 + 1))).sqrt() + 1e-15)
+            < (1.4 + 2.0 / (n as f64 + 1.0)) * expected_norm
+        {
+            1.0
+        } else {
+            0.0
+        };
         let cc_comp = (self.cc * (2.0 - self.cc) * self.mu_eff).sqrt();
         for d in 0..n {
             self.pc[d] = (1.0 - self.cc) * self.pc[d] + hs * cc_comp * mean_shift[d];
@@ -489,9 +528,15 @@ impl CmaEs {
         }
     }
 
-    pub fn mean(&self) -> &[f64] { &self.mean }
-    pub fn sigma(&self) -> f64 { self.sigma }
-    pub fn generation(&self) -> usize { self.generation }
+    pub fn mean(&self) -> &[f64] {
+        &self.mean
+    }
+    pub fn sigma(&self) -> f64 {
+        self.sigma
+    }
+    pub fn generation(&self) -> usize {
+        self.generation
+    }
 }
 
 // ── Tests ────────────────────────────────────────────────────────
@@ -529,7 +574,11 @@ mod tests {
 
     #[test]
     fn test_initialize() {
-        let config = EsConfig { dimensions: 3, mu: 5, ..Default::default() };
+        let config = EsConfig {
+            dimensions: 3,
+            mu: 5,
+            ..Default::default()
+        };
         let mut es = EvolutionStrategy::new(config);
         es.initialize();
         assert_eq!(es.parents.len(), 5);
@@ -537,7 +586,12 @@ mod tests {
 
     #[test]
     fn test_evaluate_updates_fitness() {
-        let config = EsConfig { dimensions: 2, mu: 3, lambda: 10, ..Default::default() };
+        let config = EsConfig {
+            dimensions: 2,
+            mu: 3,
+            lambda: 10,
+            ..Default::default()
+        };
         let mut es = EvolutionStrategy::new(config);
         es.initialize();
         es.evaluate(&sphere);
@@ -641,7 +695,11 @@ mod tests {
         let mut es = EvolutionStrategy::new(config);
         es.initialize();
         let result = es.run(&sphere);
-        assert!(result.best_fitness < 5.0, "Expected < 5.0, got {}", result.best_fitness);
+        assert!(
+            result.best_fitness < 5.0,
+            "Expected < 5.0, got {}",
+            result.best_fitness
+        );
     }
 
     #[test]
@@ -661,7 +719,12 @@ mod tests {
 
     #[test]
     fn test_generation_counter() {
-        let config = EsConfig { dimensions: 2, mu: 3, lambda: 10, ..Default::default() };
+        let config = EsConfig {
+            dimensions: 2,
+            mu: 3,
+            lambda: 10,
+            ..Default::default()
+        };
         let mut es = EvolutionStrategy::new(config);
         es.initialize();
         es.evaluate(&sphere);
@@ -774,7 +837,11 @@ mod tests {
     fn test_cma_es_sphere() {
         let mut cma = CmaEs::new(2, vec![5.0, 5.0], 2.0, (-10.0, 10.0), 100, 42);
         let result = cma.run(&sphere);
-        assert!(result.best_fitness < 5.0, "CMA-ES sphere: {}", result.best_fitness);
+        assert!(
+            result.best_fitness < 5.0,
+            "CMA-ES sphere: {}",
+            result.best_fitness
+        );
     }
 
     #[test]

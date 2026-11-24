@@ -230,14 +230,12 @@ pub fn composite(src: Color, dst: Color, op: CompositeOp) -> Color {
             )
         }
 
-        CompositeOp::Lighter => {
-            Color::new(
-                (src.r * sa + dst.r * da).min(1.0),
-                (src.g * sa + dst.g * da).min(1.0),
-                (src.b * sa + dst.b * da).min(1.0),
-                (sa + da).min(1.0),
-            )
-        }
+        CompositeOp::Lighter => Color::new(
+            (src.r * sa + dst.r * da).min(1.0),
+            (src.g * sa + dst.g * da).min(1.0),
+            (src.b * sa + dst.b * da).min(1.0),
+            (sa + da).min(1.0),
+        ),
     }
 }
 
@@ -437,7 +435,13 @@ impl PixelBuffer {
     }
 
     /// Composite `src` buffer onto `self` at offset (ox, oy).
-    pub fn composite_buffer(&mut self, src: &PixelBuffer, ox: usize, oy: usize, ctx: &CompositingContext) {
+    pub fn composite_buffer(
+        &mut self,
+        src: &PixelBuffer,
+        ox: usize,
+        oy: usize,
+        ctx: &CompositingContext,
+    ) {
         for y in 0..src.height {
             let dy = oy + y;
             if dy >= self.height {
@@ -498,7 +502,11 @@ mod tests {
 
     #[test]
     fn test_source_out() {
-        let r = composite(red(), Color::new(0.0, 1.0, 0.0, 0.0), CompositeOp::SourceOut);
+        let r = composite(
+            red(),
+            Color::new(0.0, 1.0, 0.0, 0.0),
+            CompositeOp::SourceOut,
+        );
         assert!((r.a - 1.0).abs() < 1e-10);
     }
 

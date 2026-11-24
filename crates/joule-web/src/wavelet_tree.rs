@@ -417,13 +417,8 @@ impl WaveletTree {
                 let new_l = n.bv.rank1(l);
                 let new_r = n.bv.rank1(r);
                 if new_l < new_r {
-                    count += self.range_freq_range_rec(
-                        right,
-                        new_l,
-                        new_r,
-                        sym_lo.max(mid + 1),
-                        sym_hi,
-                    );
+                    count +=
+                        self.range_freq_range_rec(right, new_l, new_r, sym_lo.max(mid + 1), sym_hi);
                 }
             }
         }

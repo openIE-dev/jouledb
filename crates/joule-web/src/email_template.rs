@@ -173,10 +173,7 @@ pub struct RenderedEmail {
 // ── Template Engine ─────────────────────────────────────────────
 
 /// Render a template string with variable substitution, conditionals, and loops.
-fn render_template(
-    template: &str,
-    vars: &HashMap<String, Value>,
-) -> Result<String, TemplateError> {
+fn render_template(template: &str, vars: &HashMap<String, Value>) -> Result<String, TemplateError> {
     let mut output = String::with_capacity(template.len());
     let mut pos = 0;
     let bytes = template.as_bytes();
@@ -225,8 +222,7 @@ fn render_template(
                 }
 
                 // Skip past {{/each}}
-                let after_close =
-                    find_closing_braces(template, block_end + 2 + 4)? + 2; // +4 for "/each" (minus the '/')
+                let after_close = find_closing_braces(template, block_end + 2 + 4)? + 2; // +4 for "/each" (minus the '/')
                 pos = after_close;
             } else if tag_content.starts_with('/') {
                 // Stray closing tag — should have been consumed.
@@ -258,9 +254,7 @@ fn find_closing_braces(template: &str, start: usize) -> Result<usize, TemplateEr
         }
         i += 1;
     }
-    Err(TemplateError::InvalidSyntax(
-        "unclosed {{ tag".to_string(),
-    ))
+    Err(TemplateError::InvalidSyntax("unclosed {{ tag".to_string()))
 }
 
 /// Find the position of the matching `{{/tag}}` block end.
@@ -353,8 +347,7 @@ fn validate_template(
                     } else if let Some(stripped) = tag_content.strip_prefix('/') {
                         let close_tag = stripped.trim();
                         if let Some(top) = stack.pop() {
-                            let expected_type =
-                                top.split(':').next().unwrap_or("");
+                            let expected_type = top.split(':').next().unwrap_or("");
                             if expected_type != close_tag {
                                 errors.push(TemplateError::MismatchedClose {
                                     expected: expected_type.to_string(),
@@ -407,7 +400,10 @@ mod tests {
     use serde_json::json;
 
     fn vars(pairs: &[(&str, Value)]) -> HashMap<String, Value> {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.clone())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
     }
 
     #[test]
@@ -478,13 +474,17 @@ mod tests {
         let tpl = EmailTemplate::new("", "<p>Hello</p>", "").with_inline_css(css);
         let v = HashMap::new();
         let rendered = tpl.render(&v).unwrap();
-        assert!(rendered.html_body.contains("style=\"color: red; font-size: 14px\""));
+        assert!(
+            rendered
+                .html_body
+                .contains("style=\"color: red; font-size: 14px\"")
+        );
     }
 
     #[test]
     fn test_preheader() {
-        let tpl = EmailTemplate::new("", "<body><p>Hi</p></body>", "")
-            .with_preheader("Preview text");
+        let tpl =
+            EmailTemplate::new("", "<body><p>Hi</p></body>", "").with_preheader("Preview text");
         let v = HashMap::new();
         let rendered = tpl.render(&v).unwrap();
         assert!(rendered.html_body.contains("display:none"));
@@ -506,7 +506,11 @@ mod tests {
         let result = tpl.validate(&v);
         assert!(result.is_err());
         let errs = result.unwrap_err();
-        assert!(errs.iter().any(|e| matches!(e, TemplateError::UndefinedVariable { name } if name == "missing")));
+        assert!(
+            errs.iter().any(
+                |e| matches!(e, TemplateError::UndefinedVariable { name } if name == "missing")
+            )
+        );
     }
 
     #[test]

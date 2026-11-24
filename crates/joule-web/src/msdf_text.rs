@@ -219,8 +219,14 @@ pub fn layout_text(
 
         if !current_line_words.is_empty() && current_width + needed > max_width {
             // Flush current line
-            let line =
-                build_line(text, &current_line_words, font, spans, default_color, default_size);
+            let line = build_line(
+                text,
+                &current_line_words,
+                font,
+                spans,
+                default_color,
+                default_size,
+            );
             lines.push(line);
             current_line_words.clear();
             current_width = 0.0;
@@ -246,7 +252,14 @@ pub fn layout_text(
 
     // Final line
     if !current_line_words.is_empty() {
-        let line = build_line(text, &current_line_words, font, spans, default_color, default_size);
+        let line = build_line(
+            text,
+            &current_line_words,
+            font,
+            spans,
+            default_color,
+            default_size,
+        );
         lines.push(line);
     }
 
@@ -360,7 +373,9 @@ fn build_line(
             }
 
             let cm = font.char_metrics.get(&ch);
-            let (w, h) = cm.map(|m| (m.width * scale, m.height * scale)).unwrap_or((size * 0.5, size));
+            let (w, h) = cm
+                .map(|m| (m.width * scale, m.height * scale))
+                .unwrap_or((size * 0.5, size));
             let glyph_id = cm.map(|m| m.glyph_id).unwrap_or(0);
             let bearing_x = cm.map(|m| m.bearing_x * scale).unwrap_or(0.0);
             let bearing_y = cm.map(|m| m.bearing_y * scale).unwrap_or(size * 0.8);

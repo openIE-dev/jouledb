@@ -73,22 +73,32 @@ impl ExposureCalcConfig {
             return Err(ExposureCalcError::InvalidConfig("notional is NaN".into()));
         }
         if self.maturity_years.is_nan() {
-            return Err(ExposureCalcError::InvalidConfig("maturity_years is NaN".into()));
+            return Err(ExposureCalcError::InvalidConfig(
+                "maturity_years is NaN".into(),
+            ));
         }
         if self.recovery_rate.is_nan() {
-            return Err(ExposureCalcError::InvalidConfig("recovery_rate is NaN".into()));
+            return Err(ExposureCalcError::InvalidConfig(
+                "recovery_rate is NaN".into(),
+            ));
         }
         Ok(())
     }
 }
 
 impl Default for ExposureCalcConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for ExposureCalcConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ExposureCalcConfig(notional={0:.4}, maturity_years={1:.4}, recovery_rate={2:.4}, netting={3})", self.notional, self.maturity_years, self.recovery_rate, self.netting)
+        write!(
+            f,
+            "ExposureCalcConfig(notional={0:.4}, maturity_years={1:.4}, recovery_rate={2:.4}, netting={3})",
+            self.notional, self.maturity_years, self.recovery_rate, self.netting
+        )
     }
 }
 
@@ -104,7 +114,10 @@ pub struct ExposureCalc {
 impl ExposureCalc {
     pub fn new(config: ExposureCalcConfig) -> Result<Self, ExposureCalcError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -116,13 +129,21 @@ impl ExposureCalc {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &ExposureCalcConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &ExposureCalcConfig {
+        &self.config
+    }
 
     /// Calculate current exposure.
     pub fn current_exposure(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -132,7 +153,9 @@ impl ExposureCalc {
 
     /// Potential future exposure.
     pub fn potential_future(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -142,7 +165,9 @@ impl ExposureCalc {
 
     /// Expected positive exposure.
     pub fn expected_positive(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -152,7 +177,9 @@ impl ExposureCalc {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -164,7 +191,9 @@ impl ExposureCalc {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -176,7 +205,11 @@ impl ExposureCalc {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -249,7 +282,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = ExposureCalc::new(ExposureCalcConfig::new()).unwrap()
+        let e = ExposureCalc::new(ExposureCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -265,7 +299,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = ExposureCalc::new(ExposureCalcConfig::new()).unwrap()
+        let e = ExposureCalc::new(ExposureCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("ExposureCalc"));
@@ -273,7 +308,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = ExposureCalc::new(ExposureCalcConfig::new()).unwrap()
+        let e = ExposureCalc::new(ExposureCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -284,7 +320,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = ExposureCalc::new(ExposureCalcConfig::new()).unwrap()
+        let e = ExposureCalc::new(ExposureCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -292,7 +329,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = ExposureCalc::new(ExposureCalcConfig::new()).unwrap()
+        let e = ExposureCalc::new(ExposureCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -309,7 +347,8 @@ mod tests {
 
     #[test]
     fn test_current_exposure() {
-        let e = ExposureCalc::new(ExposureCalcConfig::new()).unwrap()
+        let e = ExposureCalc::new(ExposureCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.current_exposure();
         assert!(result.is_finite());
@@ -317,7 +356,8 @@ mod tests {
 
     #[test]
     fn test_potential_future() {
-        let e = ExposureCalc::new(ExposureCalcConfig::new()).unwrap()
+        let e = ExposureCalc::new(ExposureCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.potential_future();
         assert!(result.is_finite());
@@ -325,7 +365,8 @@ mod tests {
 
     #[test]
     fn test_expected_positive() {
-        let e = ExposureCalc::new(ExposureCalcConfig::new()).unwrap()
+        let e = ExposureCalc::new(ExposureCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.expected_positive();
         assert!(result.is_finite());

@@ -18,7 +18,11 @@ pub struct GaussianNoise {
 
 impl GaussianNoise {
     pub fn new(std_dev: f64) -> Self {
-        Self { mean: 0.0, std_dev, seed: 12345 }
+        Self {
+            mean: 0.0,
+            std_dev,
+            seed: 12345,
+        }
     }
 
     pub fn with_mean(mut self, mean: f64) -> Self {
@@ -32,7 +36,10 @@ impl GaussianNoise {
     }
 
     fn next_uniform(&mut self) -> f64 {
-        self.seed = self.seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.seed = self
+            .seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         (self.seed >> 33) as f64 / (1u64 << 31) as f64
     }
 
@@ -60,7 +67,11 @@ impl GaussianNoise {
 
 impl fmt::Display for GaussianNoise {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "GaussianNoise(mean={:.3}, std={:.3})", self.mean, self.std_dev)
+        write!(
+            f,
+            "GaussianNoise(mean={:.3}, std={:.3})",
+            self.mean, self.std_dev
+        )
     }
 }
 
@@ -137,7 +148,11 @@ impl BeamModel {
         };
 
         // Max: point mass at max_range
-        let p_max = if (z - self.max_range).abs() < 0.01 { 1.0 } else { 0.0 };
+        let p_max = if (z - self.max_range).abs() < 0.01 {
+            1.0
+        } else {
+            0.0
+        };
 
         // Random: uniform distribution
         let p_rand = 1.0 / self.max_range;
@@ -153,7 +168,9 @@ impl BeamModel {
 
     /// Compute total log-likelihood for a scan of measurements.
     pub fn scan_likelihood(&self, measurements: &[f64], expected: &[f64]) -> f64 {
-        measurements.iter().zip(expected.iter())
+        measurements
+            .iter()
+            .zip(expected.iter())
             .map(|(z, ze)| self.log_probability(*z, *ze))
             .sum()
     }
@@ -161,8 +178,11 @@ impl BeamModel {
 
 impl fmt::Display for BeamModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "BeamModel(hit={:.2}, short={:.2}, max={:.2}, rand={:.2}, range={:.1})",
-            self.z_hit, self.z_short, self.z_max, self.z_rand, self.max_range)
+        write!(
+            f,
+            "BeamModel(hit={:.2}, short={:.2}, max={:.2}, rand={:.2}, range={:.1})",
+            self.z_hit, self.z_short, self.z_max, self.z_rand, self.max_range
+        )
     }
 }
 
@@ -208,7 +228,12 @@ impl LikelihoodField {
     }
 
     /// Compute distance transform using brute-force (for simplicity).
-    fn compute_distance_field(occupancy: &[bool], width: usize, height: usize, resolution: f64) -> Vec<f64> {
+    fn compute_distance_field(
+        occupancy: &[bool],
+        width: usize,
+        height: usize,
+        resolution: f64,
+    ) -> Vec<f64> {
         let n = width * height;
         let mut field = vec![f64::MAX; n];
 
@@ -267,7 +292,11 @@ impl LikelihoodField {
 
 impl fmt::Display for LikelihoodField {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "LikelihoodField({}x{}, sigma={:.3})", self.width, self.height, self.sigma_hit)
+        write!(
+            f,
+            "LikelihoodField({}x{}, sigma={:.3})",
+            self.width, self.height, self.sigma_hit
+        )
     }
 }
 
@@ -285,7 +314,13 @@ pub struct RayCaster {
 
 impl RayCaster {
     pub fn new(occupancy: Vec<bool>, width: usize, height: usize, resolution: f64) -> Self {
-        Self { occupancy, width, height, resolution, max_range: 30.0 }
+        Self {
+            occupancy,
+            width,
+            height,
+            resolution,
+            max_range: 30.0,
+        }
     }
 
     pub fn with_max_range(mut self, range: f64) -> Self {
@@ -321,7 +356,14 @@ impl RayCaster {
     }
 
     /// Cast multiple rays in a fan pattern.
-    pub fn cast_scan(&self, ox: f64, oy: f64, start_angle: f64, end_angle: f64, num_beams: usize) -> Vec<f64> {
+    pub fn cast_scan(
+        &self,
+        ox: f64,
+        oy: f64,
+        start_angle: f64,
+        end_angle: f64,
+        num_beams: usize,
+    ) -> Vec<f64> {
         let mut ranges = Vec::with_capacity(num_beams);
         let angle_step = if num_beams > 1 {
             (end_angle - start_angle) / (num_beams - 1) as f64
@@ -338,8 +380,11 @@ impl RayCaster {
 
 impl fmt::Display for RayCaster {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RayCaster({}x{}, res={:.3}, max={:.1})",
-            self.width, self.height, self.resolution, self.max_range)
+        write!(
+            f,
+            "RayCaster({}x{}, res={:.3}, max={:.1})",
+            self.width, self.height, self.resolution, self.max_range
+        )
     }
 }
 
@@ -405,8 +450,11 @@ impl SensorConfig {
 
 impl fmt::Display for SensorConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SensorConfig(range=[{:.1},{:.1}], fov={:.2}rad, beams={}, noise={:.3})",
-            self.min_range, self.max_range, self.fov, self.num_beams, self.noise_std)
+        write!(
+            f,
+            "SensorConfig(range=[{:.1},{:.1}], fov={:.2}rad, beams={}, noise={:.3})",
+            self.min_range, self.max_range, self.fov, self.num_beams, self.noise_std
+        )
     }
 }
 

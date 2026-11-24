@@ -20,9 +20,16 @@ pub enum NewtypeError {
     /// Validation failed.
     ValidationFailed { type_name: String, reason: String },
     /// Parse failed.
-    ParseFailed { type_name: String, input: String, reason: String },
+    ParseFailed {
+        type_name: String,
+        input: String,
+        reason: String,
+    },
     /// Arithmetic overflow.
-    Overflow { type_name: String, operation: String },
+    Overflow {
+        type_name: String,
+        operation: String,
+    },
 }
 
 impl fmt::Display for NewtypeError {
@@ -31,10 +38,17 @@ impl fmt::Display for NewtypeError {
             Self::ValidationFailed { type_name, reason } => {
                 write!(f, "{type_name} validation failed: {reason}")
             }
-            Self::ParseFailed { type_name, input, reason } => {
+            Self::ParseFailed {
+                type_name,
+                input,
+                reason,
+            } => {
                 write!(f, "failed to parse {type_name} from \"{input}\": {reason}")
             }
-            Self::Overflow { type_name, operation } => {
+            Self::Overflow {
+                type_name,
+                operation,
+            } => {
                 write!(f, "{type_name} overflow in {operation}")
             }
         }
@@ -93,7 +107,10 @@ impl<T: fmt::Display> fmt::Display for Validated<T> {
 
 impl<T> Validated<T> {
     /// Create a validated newtype. Returns error if the validator rejects.
-    pub fn new(value: T, validator: impl FnOnce(&T) -> Result<(), String>) -> Result<Self, NewtypeError> {
+    pub fn new(
+        value: T,
+        validator: impl FnOnce(&T) -> Result<(), String>,
+    ) -> Result<Self, NewtypeError> {
         validator(&value).map_err(|reason| NewtypeError::ValidationFailed {
             type_name: std::any::type_name::<T>().to_string(),
             reason,
@@ -165,7 +182,10 @@ pub struct Branded<T, Brand> {
 
 impl<T: Clone, Brand> Clone for Branded<T, Brand> {
     fn clone(&self) -> Self {
-        Self { value: self.value.clone(), _brand: PhantomData }
+        Self {
+            value: self.value.clone(),
+            _brand: PhantomData,
+        }
     }
 }
 
@@ -212,7 +232,10 @@ impl<T: fmt::Display, Brand> fmt::Display for Branded<T, Brand> {
 impl<T, Brand> Branded<T, Brand> {
     /// Create a branded value.
     pub fn new(value: T) -> Self {
-        Self { value, _brand: PhantomData }
+        Self {
+            value,
+            _brand: PhantomData,
+        }
     }
 
     /// Borrow the inner value.
@@ -256,7 +279,11 @@ impl NonEmptyString {
     /// Create a non-empty string. Returns `None` if empty.
     pub fn new(s: impl Into<String>) -> Option<Self> {
         let value = s.into();
-        if value.is_empty() { None } else { Some(Self { value }) }
+        if value.is_empty() {
+            None
+        } else {
+            Some(Self { value })
+        }
     }
 
     /// Borrow the inner string.
@@ -400,7 +427,11 @@ impl BoundedI64 {
 
     /// Clamp into range.
     pub fn clamped(value: i64, min: i64, max: i64) -> Self {
-        Self { value: value.clamp(min, max), min, max }
+        Self {
+            value: value.clamp(min, max),
+            min,
+            max,
+        }
     }
 
     /// Get the value.
@@ -410,28 +441,37 @@ impl BoundedI64 {
 
     /// Checked addition within bounds.
     pub fn checked_add(&self, rhs: i64) -> Result<Self, NewtypeError> {
-        let result = self.value.checked_add(rhs).ok_or_else(|| NewtypeError::Overflow {
-            type_name: "BoundedI64".to_string(),
-            operation: "add".to_string(),
-        })?;
+        let result = self
+            .value
+            .checked_add(rhs)
+            .ok_or_else(|| NewtypeError::Overflow {
+                type_name: "BoundedI64".to_string(),
+                operation: "add".to_string(),
+            })?;
         Self::new(result, self.min, self.max)
     }
 
     /// Checked subtraction within bounds.
     pub fn checked_sub(&self, rhs: i64) -> Result<Self, NewtypeError> {
-        let result = self.value.checked_sub(rhs).ok_or_else(|| NewtypeError::Overflow {
-            type_name: "BoundedI64".to_string(),
-            operation: "sub".to_string(),
-        })?;
+        let result = self
+            .value
+            .checked_sub(rhs)
+            .ok_or_else(|| NewtypeError::Overflow {
+                type_name: "BoundedI64".to_string(),
+                operation: "sub".to_string(),
+            })?;
         Self::new(result, self.min, self.max)
     }
 
     /// Checked multiplication within bounds.
     pub fn checked_mul(&self, rhs: i64) -> Result<Self, NewtypeError> {
-        let result = self.value.checked_mul(rhs).ok_or_else(|| NewtypeError::Overflow {
-            type_name: "BoundedI64".to_string(),
-            operation: "mul".to_string(),
-        })?;
+        let result = self
+            .value
+            .checked_mul(rhs)
+            .ok_or_else(|| NewtypeError::Overflow {
+                type_name: "BoundedI64".to_string(),
+                operation: "mul".to_string(),
+            })?;
         Self::new(result, self.min, self.max)
     }
 }
@@ -454,7 +494,11 @@ pub struct Positive {
 impl Positive {
     /// Create a positive integer. Returns None if zero.
     pub fn new(value: u64) -> Option<Self> {
-        if value == 0 { None } else { Some(Self { value }) }
+        if value == 0 {
+            None
+        } else {
+            Some(Self { value })
+        }
     }
 
     /// Get the value.
@@ -502,7 +546,9 @@ pub struct Percentage {
 impl Percentage {
     /// Create a percentage, clamping to [0.0, 100.0].
     pub fn new(value: f64) -> Self {
-        Self { value: value.clamp(0.0, 100.0) }
+        Self {
+            value: value.clamp(0.0, 100.0),
+        }
     }
 
     /// Create from a fraction [0.0, 1.0].
@@ -612,7 +658,11 @@ mod tests {
     #[test]
     fn test_validated_ok() {
         let v = Validated::new(42i32, |x| {
-            if *x > 0 { Ok(()) } else { Err("must be positive".into()) }
+            if *x > 0 {
+                Ok(())
+            } else {
+                Err("must be positive".into())
+            }
         });
         assert!(v.is_ok());
         assert_eq!(*v.unwrap().inner(), 42);
@@ -621,7 +671,11 @@ mod tests {
     #[test]
     fn test_validated_fail() {
         let v = Validated::new(-1i32, |x| {
-            if *x > 0 { Ok(()) } else { Err("must be positive".into()) }
+            if *x > 0 {
+                Ok(())
+            } else {
+                Err("must be positive".into())
+            }
         });
         assert!(v.is_err());
     }
@@ -641,9 +695,16 @@ mod tests {
     #[test]
     fn test_validated_map() {
         let v = Validated::new_unchecked(5i32);
-        let doubled = v.map(|x| x * 2, |x| {
-            if *x <= 100 { Ok(()) } else { Err("too big".into()) }
-        });
+        let doubled = v.map(
+            |x| x * 2,
+            |x| {
+                if *x <= 100 {
+                    Ok(())
+                } else {
+                    Err("too big".into())
+                }
+            },
+        );
         assert_eq!(*doubled.unwrap().inner(), 10);
     }
 
@@ -656,7 +717,11 @@ mod tests {
     #[test]
     fn test_validated_parse() {
         let v = Validated::<i32>::parse("42", |x| {
-            if *x > 0 { Ok(()) } else { Err("must be positive".into()) }
+            if *x > 0 {
+                Ok(())
+            } else {
+                Err("must be positive".into())
+            }
         });
         assert_eq!(*v.unwrap().inner(), 42);
     }

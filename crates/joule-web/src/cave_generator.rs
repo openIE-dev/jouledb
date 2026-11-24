@@ -2,8 +2,8 @@
 // Cellular automata, 3D random walk, stalactite/stalagmite placement,
 // room detection, tunnel connection (A*), multi-layer caves
 
-use std::collections::{BinaryHeap, HashMap, VecDeque};
 use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap, VecDeque};
 use std::fmt;
 
 /// Cell state in a cave grid.
@@ -111,7 +111,9 @@ impl CaveGrid {
         let mut count = 0u32;
         for dy in [-1i64, 0, 1] {
             for dx in [-1i64, 0, 1] {
-                if dx == 0 && dy == 0 { continue; }
+                if dx == 0 && dy == 0 {
+                    continue;
+                }
                 let nx = x as i64 + dx;
                 let ny = y as i64 + dy;
                 if nx < 0 || nx >= self.width as i64 || ny < 0 || ny >= self.height as i64 {
@@ -142,7 +144,9 @@ pub struct CaveGenerator {
 
 impl fmt::Debug for CaveGenerator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("CaveGenerator").field("config", &self.config).finish()
+        f.debug_struct("CaveGenerator")
+            .field("config", &self.config)
+            .finish()
     }
 }
 
@@ -156,13 +160,19 @@ impl CaveGenerator {
     }
 
     fn next_rng(state: &mut u64) -> f64 {
-        *state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        *state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         (*state >> 32) as f64 / (u32::MAX as f64)
     }
 
     fn next_rng_int(state: &mut u64, max: usize) -> usize {
-        if max == 0 { return 0; }
-        *state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        if max == 0 {
+            return 0;
+        }
+        *state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         ((*state >> 33) as usize) % max
     }
 
@@ -174,9 +184,7 @@ impl CaveGenerator {
         for y in 0..self.config.height {
             for x in 0..self.config.width {
                 // Keep borders as walls
-                if x == 0 || x == self.config.width - 1
-                    || y == 0 || y == self.config.height - 1
-                {
+                if x == 0 || x == self.config.width - 1 || y == 0 || y == self.config.height - 1 {
                     continue;
                 }
                 if Self::next_rng(&mut rng) > self.config.fill_probability {
@@ -252,9 +260,7 @@ impl CaveGenerator {
                     for (dx, dy) in [(0i64, 1), (0, -1), (1, 0), (-1, 0)] {
                         let nx = cx as i64 + dx;
                         let ny = cy as i64 + dy;
-                        if nx >= 0 && nx < grid.width as i64
-                            && ny >= 0 && ny < grid.height as i64
-                        {
+                        if nx >= 0 && nx < grid.width as i64 && ny >= 0 && ny < grid.height as i64 {
                             let ni = ny as usize * grid.width + nx as usize;
                             if !visited[ni] && grid.cells[ni] == CaveCell::Air {
                                 visited[ni] = true;
@@ -265,11 +271,15 @@ impl CaveGenerator {
                 }
 
                 if cells.len() >= self.config.min_room_size {
-                    let (sum_x, sum_y) = cells.iter().fold((0usize, 0usize), |(sx, sy), (cx, cy)| {
-                        (sx + cx, sy + cy)
-                    });
+                    let (sum_x, sum_y) = cells
+                        .iter()
+                        .fold((0usize, 0usize), |(sx, sy), (cx, cy)| (sx + cx, sy + cy));
                     let center = (sum_x / cells.len(), sum_y / cells.len());
-                    rooms.push(CaveRoom { id: room_id, cells, center });
+                    rooms.push(CaveRoom {
+                        id: room_id,
+                        cells,
+                        center,
+                    });
                     room_id += 1;
                 }
             }
@@ -310,7 +320,10 @@ impl CaveGenerator {
         let mut came_from: HashMap<(usize, usize), (usize, usize)> = HashMap::new();
 
         g_score.insert(from, 0);
-        open.push(Node { cost: heuristic(from, to), pos: from });
+        open.push(Node {
+            cost: heuristic(from, to),
+            pos: from,
+        });
 
         while let Some(Node { pos, .. }) = open.pop() {
             if pos == to {
@@ -339,7 +352,11 @@ impl CaveGenerator {
                 }
                 let next = (nx as usize, ny as usize);
                 // Walls cost more to traverse (need to carve)
-                let move_cost = if grid.get(next.0, next.1) == CaveCell::Wall { 5 } else { 1 };
+                let move_cost = if grid.get(next.0, next.1) == CaveCell::Wall {
+                    5
+                } else {
+                    1
+                };
                 let tentative_g = current_g.saturating_add(move_cost);
 
                 if tentative_g < g_score.get(&next).copied().unwrap_or(u64::MAX) {
@@ -356,7 +373,9 @@ impl CaveGenerator {
 
     /// Connect all rooms by carving tunnels between their centers.
     pub fn connect_all_rooms(grid: &mut CaveGrid, rooms: &[CaveRoom]) {
-        if rooms.len() < 2 { return; }
+        if rooms.len() < 2 {
+            return;
+        }
         for i in 0..(rooms.len() - 1) {
             Self::connect_rooms(grid, rooms[i].center, rooms[i + 1].center);
         }
@@ -369,14 +388,17 @@ impl CaveGenerator {
 
         for y in 1..(grid.height - 1) {
             for x in 1..(grid.width - 1) {
-                if grid.get(x, y) != CaveCell::Air { continue; }
+                if grid.get(x, y) != CaveCell::Air {
+                    continue;
+                }
 
                 // Stalactite: wall above, air at current
                 if grid.get(x, y - 1) == CaveCell::Wall {
                     if Self::next_rng(&mut rng) < 0.15 {
                         features.push(PlacedFeature {
                             feature: CaveFeature::Stalactite,
-                            x, y,
+                            x,
+                            y,
                         });
                     }
                 }
@@ -386,7 +408,8 @@ impl CaveGenerator {
                     if Self::next_rng(&mut rng) < 0.15 {
                         features.push(PlacedFeature {
                             feature: CaveFeature::Stalagmite,
-                            x, y,
+                            x,
+                            y,
                         });
                     }
                 }
@@ -398,22 +421,28 @@ impl CaveGenerator {
     /// Place entry and exit points on the edge of air regions.
     pub fn place_entry_exit(&self, grid: &CaveGrid, rooms: &[CaveRoom]) -> Vec<PlacedFeature> {
         let mut features = Vec::new();
-        if rooms.is_empty() { return features; }
+        if rooms.is_empty() {
+            return features;
+        }
 
         // Entry: leftmost air cell in the first room
         let first_room = &rooms[0];
-        if let Some(&(ex, ey)) = first_room.cells.iter()
-            .min_by_key(|&&(cx, _)| cx)
-        {
-            features.push(PlacedFeature { feature: CaveFeature::EntryPoint, x: ex, y: ey });
+        if let Some(&(ex, ey)) = first_room.cells.iter().min_by_key(|&&(cx, _)| cx) {
+            features.push(PlacedFeature {
+                feature: CaveFeature::EntryPoint,
+                x: ex,
+                y: ey,
+            });
         }
 
         // Exit: rightmost air cell in the last room
         let last_room = &rooms[rooms.len() - 1];
-        if let Some(&(ex, ey)) = last_room.cells.iter()
-            .max_by_key(|&&(cx, _)| cx)
-        {
-            features.push(PlacedFeature { feature: CaveFeature::ExitPoint, x: ex, y: ey });
+        if let Some(&(ex, ey)) = last_room.cells.iter().max_by_key(|&&(cx, _)| cx) {
+            features.push(PlacedFeature {
+                feature: CaveFeature::ExitPoint,
+                x: ex,
+                y: ey,
+            });
         }
 
         features
@@ -448,9 +477,8 @@ impl CaveGenerator {
         let mut volume = vec![vec![vec![CaveCell::Wall; width]; height]; depth];
         let mut rng = seed;
 
-        let mut walks: Vec<(usize, usize, usize, u32)> = vec![
-            (width / 2, height / 2, depth / 2, walk_length),
-        ];
+        let mut walks: Vec<(usize, usize, usize, u32)> =
+            vec![(width / 2, height / 2, depth / 2, walk_length)];
 
         while let Some((mut x, mut y, mut z, remaining)) = walks.pop() {
             for _ in 0..remaining {
@@ -562,7 +590,10 @@ mod tests {
 
     #[test]
     fn test_detect_rooms() {
-        let cave_gen = CaveGenerator::new(CaveConfig { min_room_size: 5, ..CaveConfig::default() });
+        let cave_gen = CaveGenerator::new(CaveConfig {
+            min_room_size: 5,
+            ..CaveConfig::default()
+        });
         let grid = cave_gen.generate();
         let rooms = cave_gen.detect_rooms(&grid);
         for room in &rooms {
@@ -589,7 +620,10 @@ mod tests {
         if rooms.len() >= 2 {
             CaveGenerator::connect_rooms(&mut grid, rooms[0].center, rooms[1].center);
             // Path should exist (all air) from room0.center to room1.center
-            assert_eq!(grid.get(rooms[0].center.0, rooms[0].center.1), CaveCell::Air);
+            assert_eq!(
+                grid.get(rooms[0].center.0, rooms[0].center.1),
+                CaveCell::Air
+            );
         }
     }
 
@@ -650,7 +684,9 @@ mod tests {
         for z in &volume {
             for y in z {
                 for c in y {
-                    if *c == CaveCell::Air { air += 1; }
+                    if *c == CaveCell::Air {
+                        air += 1;
+                    }
                 }
             }
         }
@@ -681,15 +717,31 @@ mod tests {
 
     #[test]
     fn test_cave_room_partial_eq() {
-        let r1 = CaveRoom { id: 0, cells: vec![(1, 2)], center: (1, 2) };
-        let r2 = CaveRoom { id: 0, cells: vec![(1, 2)], center: (1, 2) };
+        let r1 = CaveRoom {
+            id: 0,
+            cells: vec![(1, 2)],
+            center: (1, 2),
+        };
+        let r2 = CaveRoom {
+            id: 0,
+            cells: vec![(1, 2)],
+            center: (1, 2),
+        };
         assert_eq!(r1, r2);
     }
 
     #[test]
     fn test_placed_feature_eq() {
-        let f1 = PlacedFeature { feature: CaveFeature::Stalactite, x: 3, y: 4 };
-        let f2 = PlacedFeature { feature: CaveFeature::Stalactite, x: 3, y: 4 };
+        let f1 = PlacedFeature {
+            feature: CaveFeature::Stalactite,
+            x: 3,
+            y: 4,
+        };
+        let f2 = PlacedFeature {
+            feature: CaveFeature::Stalactite,
+            x: 3,
+            y: 4,
+        };
         assert_eq!(f1, f2);
     }
 }

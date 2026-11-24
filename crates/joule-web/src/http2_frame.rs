@@ -128,7 +128,12 @@ pub struct Frame {
 
 impl Frame {
     pub fn new(frame_type: FrameType, stream_id: u32, payload: Vec<u8>) -> Self {
-        Self { frame_type, flags: 0, stream_id, payload }
+        Self {
+            frame_type,
+            flags: 0,
+            stream_id,
+            payload,
+        }
     }
 
     pub fn with_flags(mut self, flags: u8) -> Self {
@@ -164,10 +169,14 @@ impl Frame {
 
     /// Decode a frame from bytes. Returns (frame, bytes_consumed) or None.
     pub fn decode(data: &[u8]) -> Option<(Self, usize)> {
-        if data.len() < 9 { return None; }
+        if data.len() < 9 {
+            return None;
+        }
         let len = ((data[0] as u32) << 16) | ((data[1] as u32) << 8) | (data[2] as u32);
         let total = 9 + len as usize;
-        if data.len() < total { return None; }
+        if data.len() < total {
+            return None;
+        }
 
         let frame_type = FrameType::from_u8(data[3])?;
         let flags = data[4];
@@ -177,7 +186,15 @@ impl Frame {
             | (data[8] as u32);
         let payload = data[9..total].to_vec();
 
-        Some((Self { frame_type, flags, stream_id, payload }, total))
+        Some((
+            Self {
+                frame_type,
+                flags,
+                stream_id,
+                payload,
+            },
+            total,
+        ))
     }
 
     pub fn has_flag(&self, flag: u8) -> bool {
@@ -194,15 +211,26 @@ impl Frame {
 /// Construct a DATA frame.
 pub fn data_frame(stream_id: u32, data: &[u8], end_stream: bool) -> Frame {
     let mut f = Frame::new(FrameType::Data, stream_id, data.to_vec());
-    if end_stream { f.flags |= flags::END_STREAM; }
+    if end_stream {
+        f.flags |= flags::END_STREAM;
+    }
     f
 }
 
 /// Construct a HEADERS frame (with raw header block).
-pub fn headers_frame(stream_id: u32, header_block: &[u8], end_stream: bool, end_headers: bool) -> Frame {
+pub fn headers_frame(
+    stream_id: u32,
+    header_block: &[u8],
+    end_stream: bool,
+    end_headers: bool,
+) -> Frame {
     let mut f = Frame::new(FrameType::Headers, stream_id, header_block.to_vec());
-    if end_stream { f.flags |= flags::END_STREAM; }
-    if end_headers { f.flags |= flags::END_HEADERS; }
+    if end_stream {
+        f.flags |= flags::END_STREAM;
+    }
+    if end_headers {
+        f.flags |= flags::END_HEADERS;
+    }
     f
 }
 
@@ -256,8 +284,10 @@ pub fn goaway_frame(last_stream_id: u32, error_code: ErrorCode, debug_data: &[u8
 pub fn window_update_frame(stream_id: u32, increment: u32) -> Frame {
     let inc = increment & 0x7FFF_FFFF;
     let payload = vec![
-        (inc >> 24) as u8, (inc >> 16) as u8,
-        (inc >> 8) as u8, inc as u8,
+        (inc >> 24) as u8,
+        (inc >> 16) as u8,
+        (inc >> 8) as u8,
+        inc as u8,
     ];
     Frame::new(FrameType::WindowUpdate, stream_id, payload)
 }
@@ -266,8 +296,10 @@ pub fn window_update_frame(stream_id: u32, increment: u32) -> Frame {
 pub fn rst_stream_frame(stream_id: u32, error_code: ErrorCode) -> Frame {
     let ec = error_code as u32;
     let payload = vec![
-        (ec >> 24) as u8, (ec >> 16) as u8,
-        (ec >> 8) as u8, ec as u8,
+        (ec >> 24) as u8,
+        (ec >> 16) as u8,
+        (ec >> 8) as u8,
+        ec as u8,
     ];
     Frame::new(FrameType::RstStream, stream_id, payload)
 }
@@ -310,16 +342,24 @@ pub struct FlowWindow {
 
 impl FlowWindow {
     /// Default initial window size per RFC 9113: 65535.
-    pub fn new() -> Self { Self { window_size: 65535 } }
+    pub fn new() -> Self {
+        Self { window_size: 65535 }
+    }
 
-    pub fn with_size(size: i64) -> Self { Self { window_size: size } }
+    pub fn with_size(size: i64) -> Self {
+        Self { window_size: size }
+    }
 
-    pub fn available(&self) -> i64 { self.window_size }
+    pub fn available(&self) -> i64 {
+        self.window_size
+    }
 
     /// Consume `n` bytes from the window. Returns false if insufficient.
     pub fn consume(&mut self, n: u32) -> bool {
         let n = n as i64;
-        if self.window_size < n { return false; }
+        if self.window_size < n {
+            return false;
+        }
         self.window_size -= n;
         true
     }
@@ -341,7 +381,9 @@ impl FlowWindow {
 }
 
 impl Default for FlowWindow {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Stream state ──────────────────────────────────────────────────
@@ -383,8 +425,12 @@ impl Stream {
         }
     }
 
-    pub fn is_client_initiated(&self) -> bool { self.id % 2 == 1 }
-    pub fn is_server_initiated(&self) -> bool { self.id % 2 == 0 && self.id > 0 }
+    pub fn is_client_initiated(&self) -> bool {
+        self.id % 2 == 1
+    }
+    pub fn is_server_initiated(&self) -> bool {
+        self.id % 2 == 0 && self.id > 0
+    }
 }
 
 // ── Stream multiplexer ───────────────────────────────────────────
@@ -423,12 +469,16 @@ impl StreamMultiplexer {
         }
     }
 
-    pub fn set_max_concurrent(&mut self, max: u32) { self.max_concurrent = max; }
+    pub fn set_max_concurrent(&mut self, max: u32) {
+        self.max_concurrent = max;
+    }
 
     /// Open a new client-initiated stream.
     pub fn open_client_stream(&mut self) -> Option<u32> {
         let active = self.active_count();
-        if active >= self.max_concurrent { return None; }
+        if active >= self.max_concurrent {
+            return None;
+        }
         let id = self.next_client_id;
         self.next_client_id += 2;
         let mut stream = Stream::new(id);
@@ -440,7 +490,9 @@ impl StreamMultiplexer {
     /// Open a new server-initiated stream.
     pub fn open_server_stream(&mut self) -> Option<u32> {
         let active = self.active_count();
-        if active >= self.max_concurrent { return None; }
+        if active >= self.max_concurrent {
+            return None;
+        }
         let id = self.next_server_id;
         self.next_server_id += 2;
         let mut stream = Stream::new(id);
@@ -459,10 +511,17 @@ impl StreamMultiplexer {
 
     /// Count of streams in open/half-closed states.
     pub fn active_count(&self) -> u32 {
-        self.streams.values().filter(|s| matches!(
-            s.state,
-            StreamState::Open | StreamState::HalfClosedLocal | StreamState::HalfClosedRemote
-        )).count() as u32
+        self.streams
+            .values()
+            .filter(|s| {
+                matches!(
+                    s.state,
+                    StreamState::Open
+                        | StreamState::HalfClosedLocal
+                        | StreamState::HalfClosedRemote
+                )
+            })
+            .count() as u32
     }
 
     /// Close a stream.
@@ -494,13 +553,23 @@ impl StreamMultiplexer {
         }
     }
 
-    pub fn connection_send_window(&self) -> &FlowWindow { &self.conn_send_window }
-    pub fn connection_recv_window(&self) -> &FlowWindow { &self.conn_recv_window }
-    pub fn connection_send_window_mut(&mut self) -> &mut FlowWindow { &mut self.conn_send_window }
-    pub fn connection_recv_window_mut(&mut self) -> &mut FlowWindow { &mut self.conn_recv_window }
+    pub fn connection_send_window(&self) -> &FlowWindow {
+        &self.conn_send_window
+    }
+    pub fn connection_recv_window(&self) -> &FlowWindow {
+        &self.conn_recv_window
+    }
+    pub fn connection_send_window_mut(&mut self) -> &mut FlowWindow {
+        &mut self.conn_send_window
+    }
+    pub fn connection_recv_window_mut(&mut self) -> &mut FlowWindow {
+        &mut self.conn_recv_window
+    }
 
     /// Number of tracked streams (including closed).
-    pub fn total_streams(&self) -> usize { self.streams.len() }
+    pub fn total_streams(&self) -> usize {
+        self.streams.len()
+    }
 
     /// Remove closed streams to free memory.
     pub fn prune_closed(&mut self) {
@@ -563,7 +632,9 @@ pub fn hpack_encode_integer(value: u64, prefix_bits: u8) -> Vec<u8> {
 
 /// Decode an HPACK integer from a byte slice. Returns (value, bytes_consumed).
 pub fn hpack_decode_integer(data: &[u8], prefix_bits: u8) -> Option<(u64, usize)> {
-    if data.is_empty() { return None; }
+    if data.is_empty() {
+        return None;
+    }
     let max_prefix = (1u64 << prefix_bits) - 1;
     let first = (data[0] as u64) & max_prefix;
     if first < max_prefix {
@@ -573,13 +644,19 @@ pub fn hpack_decode_integer(data: &[u8], prefix_bits: u8) -> Option<(u64, usize)
     let mut shift = 0u64;
     let mut i = 1;
     loop {
-        if i >= data.len() { return None; }
+        if i >= data.len() {
+            return None;
+        }
         let byte = data[i] as u64;
         value += (byte & 0x7F) << shift;
         shift += 7;
         i += 1;
-        if byte & 0x80 == 0 { break; }
-        if shift > 63 { return None; } // overflow protection
+        if byte & 0x80 == 0 {
+            break;
+        }
+        if shift > 63 {
+            return None;
+        } // overflow protection
     }
     Some((value, i))
 }
@@ -607,8 +684,12 @@ mod tests {
 
     #[test]
     fn error_code_roundtrip() {
-        for ec in [ErrorCode::NoError, ErrorCode::ProtocolError, ErrorCode::Cancel,
-                    ErrorCode::Http11Required] {
+        for ec in [
+            ErrorCode::NoError,
+            ErrorCode::ProtocolError,
+            ErrorCode::Cancel,
+            ErrorCode::Http11Required,
+        ] {
             let val = ec as u32;
             assert_eq!(ErrorCode::from_u32(val), Some(ec));
         }
@@ -815,7 +896,10 @@ mod tests {
         let mut mux = StreamMultiplexer::new_client();
         let id = mux.open_client_stream().unwrap();
         mux.half_close_local(id);
-        assert_eq!(mux.get_stream(id).unwrap().state, StreamState::HalfClosedLocal);
+        assert_eq!(
+            mux.get_stream(id).unwrap().state,
+            StreamState::HalfClosedLocal
+        );
         assert_eq!(mux.active_count(), 1);
         mux.half_close_remote(id);
         assert_eq!(mux.get_stream(id).unwrap().state, StreamState::Closed);

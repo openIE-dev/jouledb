@@ -203,12 +203,7 @@ impl<V: Clone + fmt::Debug> CacheAside<V> {
 
     /// Get-or-load: returns cached value or invokes `loader`, caching the
     /// result on success.
-    pub fn get_or_load<F>(
-        &mut self,
-        key: &str,
-        now_ms: u64,
-        loader: F,
-    ) -> Result<&V, CacheError>
+    pub fn get_or_load<F>(&mut self, key: &str, now_ms: u64, loader: F) -> Result<&V, CacheError>
     where
         F: FnOnce(&str) -> Result<V, String>,
     {
@@ -238,18 +233,19 @@ impl<V: Clone + fmt::Debug> CacheAside<V> {
             CacheError::LoadFailed(e)
         })?;
 
-        self.insert_internal(key.to_string(), value, self.config.default_ttl_ms, now_ms, false)?;
+        self.insert_internal(
+            key.to_string(),
+            value,
+            self.config.default_ttl_ms,
+            now_ms,
+            false,
+        )?;
 
         Ok(&self.entries.get(key).unwrap().value)
     }
 
     /// Put a value into the cache, applying the configured write strategy.
-    pub fn put(
-        &mut self,
-        key: String,
-        value: V,
-        now_ms: u64,
-    ) -> Result<(), CacheError> {
+    pub fn put(&mut self, key: String, value: V, now_ms: u64) -> Result<(), CacheError> {
         let strategy = self.config.write_strategy;
         let ttl = self.config.default_ttl_ms;
         let dirty = strategy == WriteStrategy::WriteBehind;
@@ -309,11 +305,7 @@ impl<V: Clone + fmt::Debug> CacheAside<V> {
     }
 
     /// Warm the cache with a batch of key-value pairs.
-    pub fn warm(
-        &mut self,
-        items: Vec<(String, V)>,
-        now_ms: u64,
-    ) -> Result<usize, CacheError> {
+    pub fn warm(&mut self, items: Vec<(String, V)>, now_ms: u64) -> Result<usize, CacheError> {
         let ttl = self.config.default_ttl_ms;
         let mut count = 0;
         for (key, value) in items {
@@ -469,7 +461,9 @@ mod tests {
     #[test]
     fn test_ttl_expiry() {
         let mut cache = default_cache();
-        cache.put_with_ttl("k1".into(), "v1".into(), 500, 1000).unwrap();
+        cache
+            .put_with_ttl("k1".into(), "v1".into(), 500, 1000)
+            .unwrap();
         assert!(cache.get("k1", 1200).is_some()); // 200ms < 500ms TTL
         assert!(cache.get("k1", 1500).is_none()); // 500ms = TTL, expired
         assert_eq!(cache.stats().misses, 1);
@@ -478,7 +472,9 @@ mod tests {
     #[test]
     fn test_no_ttl_never_expires() {
         let mut cache = default_cache();
-        cache.put_with_ttl("k1".into(), "v1".into(), 0, 1000).unwrap();
+        cache
+            .put_with_ttl("k1".into(), "v1".into(), 0, 1000)
+            .unwrap();
         assert!(cache.get("k1", u64::MAX - 1).is_some());
     }
 
@@ -563,7 +559,10 @@ mod tests {
         let mut cache = CacheAside::<String>::new(config);
         cache.put("k1".into(), "v1".into(), 1000).unwrap();
         let err = cache.put("k2".into(), "v2".into(), 1000);
-        assert!(matches!(err, Err(CacheError::CapacityExceeded { capacity: 1 })));
+        assert!(matches!(
+            err,
+            Err(CacheError::CapacityExceeded { capacity: 1 })
+        ));
     }
 
     #[test]
@@ -612,8 +611,12 @@ mod tests {
     #[test]
     fn test_evict_expired() {
         let mut cache = default_cache();
-        cache.put_with_ttl("a".into(), "1".into(), 100, 1000).unwrap();
-        cache.put_with_ttl("b".into(), "2".into(), 500, 1000).unwrap();
+        cache
+            .put_with_ttl("a".into(), "1".into(), 100, 1000)
+            .unwrap();
+        cache
+            .put_with_ttl("b".into(), "2".into(), 500, 1000)
+            .unwrap();
         cache.put_with_ttl("c".into(), "3".into(), 0, 1000).unwrap();
         let evicted = cache.evict_expired(1200);
         assert_eq!(evicted, 1); // only "a" expired
@@ -623,7 +626,9 @@ mod tests {
     #[test]
     fn test_contains() {
         let mut cache = default_cache();
-        cache.put_with_ttl("k1".into(), "v1".into(), 100, 1000).unwrap();
+        cache
+            .put_with_ttl("k1".into(), "v1".into(), 100, 1000)
+            .unwrap();
         assert!(cache.contains("k1", 1050));
         assert!(!cache.contains("k1", 1100));
         assert!(!cache.contains("missing", 1000));
@@ -669,7 +674,9 @@ mod tests {
     #[test]
     fn test_get_or_load_expired_reloads() {
         let mut cache = default_cache();
-        cache.put_with_ttl("k1".into(), "old".into(), 100, 1000).unwrap();
+        cache
+            .put_with_ttl("k1".into(), "old".into(), 100, 1000)
+            .unwrap();
         let val = cache
             .get_or_load("k1", 1200, |_| Ok("refreshed".into()))
             .unwrap()
@@ -714,7 +721,7 @@ mod tests {
             dirty: false,
         };
         assert!(!entry.is_expired(1499)); // 499 < 500
-        assert!(entry.is_expired(1500));  // 500 >= 500
+        assert!(entry.is_expired(1500)); // 500 >= 500
         assert!(entry.is_expired(2000));
     }
 

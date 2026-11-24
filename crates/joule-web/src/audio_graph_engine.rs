@@ -33,7 +33,11 @@ impl AudioBuffer {
     }
 
     pub fn frames(&self) -> usize {
-        if self.channels == 0 { 0 } else { self.samples.len() / self.channels }
+        if self.channels == 0 {
+            0
+        } else {
+            self.samples.len() / self.channels
+        }
     }
 
     pub fn mix_from(&mut self, other: &AudioBuffer) {
@@ -58,16 +62,37 @@ pub enum Waveform {
 /// Source node configuration.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SourceConfig {
-    Oscillator { waveform: Waveform, frequency: f32, amplitude: f32, phase: f32 },
-    SamplePlayer { sample_data: Vec<f32>, playback_rate: f32, looping: bool, position: usize },
+    Oscillator {
+        waveform: Waveform,
+        frequency: f32,
+        amplitude: f32,
+        phase: f32,
+    },
+    SamplePlayer {
+        sample_data: Vec<f32>,
+        playback_rate: f32,
+        looping: bool,
+        position: usize,
+    },
 }
 
 /// Effect node configuration.
 #[derive(Debug, Clone, PartialEq)]
 pub enum EffectConfig {
-    Gain { level: f32 },
-    Filter { cutoff: f32, resonance: f32, kind: FilterKind },
-    Delay { delay_samples: usize, feedback: f32, buffer: Vec<f32>, write_pos: usize },
+    Gain {
+        level: f32,
+    },
+    Filter {
+        cutoff: f32,
+        resonance: f32,
+        kind: FilterKind,
+    },
+    Delay {
+        delay_samples: usize,
+        feedback: f32,
+        buffer: Vec<f32>,
+        write_pos: usize,
+    },
 }
 
 /// Filter type.
@@ -124,7 +149,11 @@ pub struct GraphConfig {
 
 impl Default for GraphConfig {
     fn default() -> Self {
-        Self { sample_rate: 44100, buffer_size: 256, channels: 2 }
+        Self {
+            sample_rate: 44100,
+            buffer_size: 256,
+            channels: 2,
+        }
     }
 }
 
@@ -184,7 +213,9 @@ impl AudioGraphEngine {
     /// Remove a node and all its connections.
     pub fn remove_node(&mut self, id: NodeId) -> Option<AudioNode> {
         let node = self.nodes.remove(&id)?;
-        let to_remove: Vec<ConnectionId> = self.connections.iter()
+        let to_remove: Vec<ConnectionId> = self
+            .connections
+            .iter()
             .filter(|(_, c)| c.from_node == id || c.to_node == id)
             .map(|(cid, _)| *cid)
             .collect();
@@ -205,22 +236,45 @@ impl AudioGraphEngine {
     }
 
     /// Connect output port of one node to input port of another.
-    pub fn connect(&mut self, from_node: NodeId, from_port: usize,
-                   to_node: NodeId, to_port: usize) -> Result<ConnectionId, GraphError> {
-        let from = self.nodes.get(&from_node).ok_or(GraphError::NodeNotFound(from_node))?;
+    pub fn connect(
+        &mut self,
+        from_node: NodeId,
+        from_port: usize,
+        to_node: NodeId,
+        to_port: usize,
+    ) -> Result<ConnectionId, GraphError> {
+        let from = self
+            .nodes
+            .get(&from_node)
+            .ok_or(GraphError::NodeNotFound(from_node))?;
         if from_port >= from.output_ports {
-            return Err(GraphError::InvalidPort { node: from_node, port: from_port });
+            return Err(GraphError::InvalidPort {
+                node: from_node,
+                port: from_port,
+            });
         }
-        let to = self.nodes.get(&to_node).ok_or(GraphError::NodeNotFound(to_node))?;
+        let to = self
+            .nodes
+            .get(&to_node)
+            .ok_or(GraphError::NodeNotFound(to_node))?;
         if to_port >= to.input_ports {
-            return Err(GraphError::InvalidPort { node: to_node, port: to_port });
+            return Err(GraphError::InvalidPort {
+                node: to_node,
+                port: to_port,
+            });
         }
         if from_node == to_node {
             return Err(GraphError::CycleDetected);
         }
 
         let id = self.next_conn_id;
-        let conn = Connection { id, from_node, from_port, to_node, to_port };
+        let conn = Connection {
+            id,
+            from_node,
+            from_port,
+            to_node,
+            to_port,
+        };
 
         // Temporarily add and check for cycle
         self.connections.insert(id, conn);
@@ -259,10 +313,18 @@ impl AudioGraphEngine {
         false
     }
 
-    fn dfs_cycle(&self, node: NodeId, visited: &mut HashSet<NodeId>,
-                 stack: &mut HashSet<NodeId>) -> bool {
-        if stack.contains(&node) { return true; }
-        if visited.contains(&node) { return false; }
+    fn dfs_cycle(
+        &self,
+        node: NodeId,
+        visited: &mut HashSet<NodeId>,
+        stack: &mut HashSet<NodeId>,
+    ) -> bool {
+        if stack.contains(&node) {
+            return true;
+        }
+        if visited.contains(&node) {
+            return false;
+        }
         visited.insert(node);
         stack.insert(node);
         for conn in self.connections.values() {
@@ -289,7 +351,8 @@ impl AudioGraphEngine {
             *in_degree.entry(conn.to_node).or_insert(0) += 1;
         }
         let mut queue: VecDeque<NodeId> = VecDeque::new();
-        let mut zero_nodes: Vec<NodeId> = in_degree.iter()
+        let mut zero_nodes: Vec<NodeId> = in_degree
+            .iter()
             .filter(|(_, d)| **d == 0)
             .map(|(id, _)| *id)
             .collect();
@@ -348,7 +411,9 @@ impl AudioGraphEngine {
 
         for &nid in &order {
             // Collect inputs from connected nodes
-            let input_conns: Vec<Connection> = self.connections.values()
+            let input_conns: Vec<Connection> = self
+                .connections
+                .values()
                 .filter(|c| c.to_node == nid)
                 .cloned()
                 .collect();
@@ -419,13 +484,23 @@ impl AudioGraphEngine {
 }
 
 /// Process a single node given its input buffer.
-fn process_node(node: &mut AudioNode, input: &AudioBuffer,
-                sample_rate: SampleRate, buf_size: usize, channels: usize) -> AudioBuffer {
+fn process_node(
+    node: &mut AudioNode,
+    input: &AudioBuffer,
+    sample_rate: SampleRate,
+    buf_size: usize,
+    channels: usize,
+) -> AudioBuffer {
     match &mut node.kind {
         NodeKind::Source(src) => {
             let mut out = AudioBuffer::new(buf_size, channels);
             match src {
-                SourceConfig::Oscillator { waveform, frequency, amplitude, phase } => {
+                SourceConfig::Oscillator {
+                    waveform,
+                    frequency,
+                    amplitude,
+                    phase,
+                } => {
                     let sr = sample_rate as f32;
                     for frame in 0..buf_size {
                         let t = *phase + (frame as f32 * *frequency / sr);
@@ -453,7 +528,12 @@ fn process_node(node: &mut AudioNode, input: &AudioBuffer,
                     }
                     *phase += buf_size as f32 * *frequency / sample_rate as f32;
                 }
-                SourceConfig::SamplePlayer { sample_data, playback_rate, looping, position } => {
+                SourceConfig::SamplePlayer {
+                    sample_data,
+                    playback_rate,
+                    looping,
+                    position,
+                } => {
                     for frame in 0..buf_size {
                         let idx = (*position as f32 + frame as f32 * *playback_rate) as usize;
                         let sample = if idx < sample_data.len() {
@@ -480,7 +560,11 @@ fn process_node(node: &mut AudioNode, input: &AudioBuffer,
                         *s *= *level;
                     }
                 }
-                EffectConfig::Filter { cutoff, resonance, kind } => {
+                EffectConfig::Filter {
+                    cutoff,
+                    resonance,
+                    kind,
+                } => {
                     // Simple one-pole filter approximation
                     let rc = 1.0 / (2.0 * std::f32::consts::PI * *cutoff);
                     let dt = 1.0 / sample_rate as f32;
@@ -492,9 +576,7 @@ fn process_node(node: &mut AudioNode, input: &AudioBuffer,
                             let idx = frame * channels + ch;
                             let sample = out.samples[idx];
                             let filtered = match kind {
-                                FilterKind::LowPass => {
-                                    prev[ch] + alpha * (sample - prev[ch])
-                                }
+                                FilterKind::LowPass => prev[ch] + alpha * (sample - prev[ch]),
                                 FilterKind::HighPass => {
                                     sample - (prev[ch] + alpha * (sample - prev[ch]))
                                 }
@@ -508,7 +590,12 @@ fn process_node(node: &mut AudioNode, input: &AudioBuffer,
                         }
                     }
                 }
-                EffectConfig::Delay { delay_samples, feedback, buffer, write_pos } => {
+                EffectConfig::Delay {
+                    delay_samples,
+                    feedback,
+                    buffer,
+                    write_pos,
+                } => {
                     let total = channels * *delay_samples;
                     if buffer.len() < total {
                         buffer.resize(total, 0.0);
@@ -528,9 +615,7 @@ fn process_node(node: &mut AudioNode, input: &AudioBuffer,
             }
             out
         }
-        NodeKind::Output(_) => {
-            input.clone()
-        }
+        NodeKind::Output(_) => input.clone(),
     }
 }
 
@@ -547,7 +632,9 @@ impl std::fmt::Display for GraphError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             GraphError::NodeNotFound(id) => write!(f, "node not found: {}", id),
-            GraphError::InvalidPort { node, port } => write!(f, "invalid port {} on node {}", port, node),
+            GraphError::InvalidPort { node, port } => {
+                write!(f, "invalid port {} on node {}", port, node)
+            }
             GraphError::CycleDetected => write!(f, "cycle detected in audio graph"),
             GraphError::ProcessingError(msg) => write!(f, "processing error: {}", msg),
         }
@@ -574,9 +661,15 @@ mod tests {
     #[test]
     fn test_add_node() {
         let mut g = default_engine();
-        let osc = g.add_node("osc", NodeKind::Source(SourceConfig::Oscillator {
-            waveform: Waveform::Sine, frequency: 440.0, amplitude: 1.0, phase: 0.0,
-        }));
+        let osc = g.add_node(
+            "osc",
+            NodeKind::Source(SourceConfig::Oscillator {
+                waveform: Waveform::Sine,
+                frequency: 440.0,
+                amplitude: 1.0,
+                phase: 0.0,
+            }),
+        );
         assert_eq!(g.node_count(), 1);
         let n = g.get_node(osc).unwrap();
         assert_eq!(n.name, "osc");
@@ -587,9 +680,15 @@ mod tests {
     #[test]
     fn test_remove_node() {
         let mut g = default_engine();
-        let osc = g.add_node("osc", NodeKind::Source(SourceConfig::Oscillator {
-            waveform: Waveform::Sine, frequency: 440.0, amplitude: 1.0, phase: 0.0,
-        }));
+        let osc = g.add_node(
+            "osc",
+            NodeKind::Source(SourceConfig::Oscillator {
+                waveform: Waveform::Sine,
+                frequency: 440.0,
+                amplitude: 1.0,
+                phase: 0.0,
+            }),
+        );
         let removed = g.remove_node(osc);
         assert!(removed.is_some());
         assert_eq!(g.node_count(), 0);
@@ -598,9 +697,15 @@ mod tests {
     #[test]
     fn test_remove_node_clears_connections() {
         let mut g = default_engine();
-        let src = g.add_node("src", NodeKind::Source(SourceConfig::Oscillator {
-            waveform: Waveform::Sine, frequency: 440.0, amplitude: 1.0, phase: 0.0,
-        }));
+        let src = g.add_node(
+            "src",
+            NodeKind::Source(SourceConfig::Oscillator {
+                waveform: Waveform::Sine,
+                frequency: 440.0,
+                amplitude: 1.0,
+                phase: 0.0,
+            }),
+        );
         let gain = g.add_node("gain", NodeKind::Effect(EffectConfig::Gain { level: 0.5 }));
         g.connect(src, 0, gain, 0).unwrap();
         assert_eq!(g.connection_count(), 1);
@@ -611,10 +716,19 @@ mod tests {
     #[test]
     fn test_connect_nodes() {
         let mut g = default_engine();
-        let src = g.add_node("src", NodeKind::Source(SourceConfig::Oscillator {
-            waveform: Waveform::Sine, frequency: 440.0, amplitude: 1.0, phase: 0.0,
-        }));
-        let out = g.add_node("out", NodeKind::Output(OutputConfig::Speaker { channel_count: 2 }));
+        let src = g.add_node(
+            "src",
+            NodeKind::Source(SourceConfig::Oscillator {
+                waveform: Waveform::Sine,
+                frequency: 440.0,
+                amplitude: 1.0,
+                phase: 0.0,
+            }),
+        );
+        let out = g.add_node(
+            "out",
+            NodeKind::Output(OutputConfig::Speaker { channel_count: 2 }),
+        );
         let cid = g.connect(src, 0, out, 0).unwrap();
         assert_eq!(g.connection_count(), 1);
         assert!(cid > 0);
@@ -623,18 +737,33 @@ mod tests {
     #[test]
     fn test_invalid_port() {
         let mut g = default_engine();
-        let src = g.add_node("src", NodeKind::Source(SourceConfig::Oscillator {
-            waveform: Waveform::Sine, frequency: 440.0, amplitude: 1.0, phase: 0.0,
-        }));
-        let out = g.add_node("out", NodeKind::Output(OutputConfig::Speaker { channel_count: 2 }));
-        assert!(matches!(g.connect(src, 5, out, 0), Err(GraphError::InvalidPort { .. })));
+        let src = g.add_node(
+            "src",
+            NodeKind::Source(SourceConfig::Oscillator {
+                waveform: Waveform::Sine,
+                frequency: 440.0,
+                amplitude: 1.0,
+                phase: 0.0,
+            }),
+        );
+        let out = g.add_node(
+            "out",
+            NodeKind::Output(OutputConfig::Speaker { channel_count: 2 }),
+        );
+        assert!(matches!(
+            g.connect(src, 5, out, 0),
+            Err(GraphError::InvalidPort { .. })
+        ));
     }
 
     #[test]
     fn test_self_connection_rejected() {
         let mut g = default_engine();
         let eff = g.add_node("eff", NodeKind::Effect(EffectConfig::Gain { level: 1.0 }));
-        assert!(matches!(g.connect(eff, 0, eff, 0), Err(GraphError::CycleDetected)));
+        assert!(matches!(
+            g.connect(eff, 0, eff, 0),
+            Err(GraphError::CycleDetected)
+        ));
     }
 
     #[test]
@@ -643,17 +772,29 @@ mod tests {
         let a = g.add_node("a", NodeKind::Effect(EffectConfig::Gain { level: 1.0 }));
         let b = g.add_node("b", NodeKind::Effect(EffectConfig::Gain { level: 1.0 }));
         g.connect(a, 0, b, 0).unwrap();
-        assert!(matches!(g.connect(b, 0, a, 0), Err(GraphError::CycleDetected)));
+        assert!(matches!(
+            g.connect(b, 0, a, 0),
+            Err(GraphError::CycleDetected)
+        ));
     }
 
     #[test]
     fn test_topological_sort() {
         let mut g = default_engine();
-        let src = g.add_node("src", NodeKind::Source(SourceConfig::Oscillator {
-            waveform: Waveform::Sine, frequency: 440.0, amplitude: 1.0, phase: 0.0,
-        }));
+        let src = g.add_node(
+            "src",
+            NodeKind::Source(SourceConfig::Oscillator {
+                waveform: Waveform::Sine,
+                frequency: 440.0,
+                amplitude: 1.0,
+                phase: 0.0,
+            }),
+        );
         let gain = g.add_node("gain", NodeKind::Effect(EffectConfig::Gain { level: 0.5 }));
-        let out = g.add_node("out", NodeKind::Output(OutputConfig::Speaker { channel_count: 2 }));
+        let out = g.add_node(
+            "out",
+            NodeKind::Output(OutputConfig::Speaker { channel_count: 2 }),
+        );
         g.connect(src, 0, gain, 0).unwrap();
         g.connect(gain, 0, out, 0).unwrap();
         let order = g.topological_sort().unwrap();
@@ -667,10 +808,19 @@ mod tests {
     #[test]
     fn test_disconnect() {
         let mut g = default_engine();
-        let src = g.add_node("src", NodeKind::Source(SourceConfig::Oscillator {
-            waveform: Waveform::Sine, frequency: 440.0, amplitude: 1.0, phase: 0.0,
-        }));
-        let out = g.add_node("out", NodeKind::Output(OutputConfig::Speaker { channel_count: 2 }));
+        let src = g.add_node(
+            "src",
+            NodeKind::Source(SourceConfig::Oscillator {
+                waveform: Waveform::Sine,
+                frequency: 440.0,
+                amplitude: 1.0,
+                phase: 0.0,
+            }),
+        );
+        let out = g.add_node(
+            "out",
+            NodeKind::Output(OutputConfig::Speaker { channel_count: 2 }),
+        );
         let cid = g.connect(src, 0, out, 0).unwrap();
         g.disconnect(cid);
         assert_eq!(g.connection_count(), 0);
@@ -678,11 +828,24 @@ mod tests {
 
     #[test]
     fn test_process_sine_osc() {
-        let mut g = AudioGraphEngine::new(GraphConfig { sample_rate: 44100, buffer_size: 64, channels: 1 });
-        let src = g.add_node("osc", NodeKind::Source(SourceConfig::Oscillator {
-            waveform: Waveform::Sine, frequency: 440.0, amplitude: 1.0, phase: 0.0,
-        }));
-        let out = g.add_node("out", NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }));
+        let mut g = AudioGraphEngine::new(GraphConfig {
+            sample_rate: 44100,
+            buffer_size: 64,
+            channels: 1,
+        });
+        let src = g.add_node(
+            "osc",
+            NodeKind::Source(SourceConfig::Oscillator {
+                waveform: Waveform::Sine,
+                frequency: 440.0,
+                amplitude: 1.0,
+                phase: 0.0,
+            }),
+        );
+        let out = g.add_node(
+            "out",
+            NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }),
+        );
         g.connect(src, 0, out, 0).unwrap();
         let result = g.process().unwrap();
         let buf = result.get(&out).unwrap();
@@ -693,12 +856,25 @@ mod tests {
 
     #[test]
     fn test_gain_effect() {
-        let mut g = AudioGraphEngine::new(GraphConfig { sample_rate: 44100, buffer_size: 64, channels: 1 });
-        let src = g.add_node("osc", NodeKind::Source(SourceConfig::Oscillator {
-            waveform: Waveform::Sine, frequency: 440.0, amplitude: 1.0, phase: 0.0,
-        }));
+        let mut g = AudioGraphEngine::new(GraphConfig {
+            sample_rate: 44100,
+            buffer_size: 64,
+            channels: 1,
+        });
+        let src = g.add_node(
+            "osc",
+            NodeKind::Source(SourceConfig::Oscillator {
+                waveform: Waveform::Sine,
+                frequency: 440.0,
+                amplitude: 1.0,
+                phase: 0.0,
+            }),
+        );
         let gain = g.add_node("gain", NodeKind::Effect(EffectConfig::Gain { level: 0.5 }));
-        let out = g.add_node("out", NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }));
+        let out = g.add_node(
+            "out",
+            NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }),
+        );
         g.connect(src, 0, gain, 0).unwrap();
         g.connect(gain, 0, out, 0).unwrap();
         let result = g.process().unwrap();
@@ -711,11 +887,24 @@ mod tests {
 
     #[test]
     fn test_energy_tracking() {
-        let mut g = AudioGraphEngine::new(GraphConfig { sample_rate: 44100, buffer_size: 128, channels: 1 });
-        let src = g.add_node("osc", NodeKind::Source(SourceConfig::Oscillator {
-            waveform: Waveform::Sine, frequency: 440.0, amplitude: 1.0, phase: 0.0,
-        }));
-        let out = g.add_node("out", NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }));
+        let mut g = AudioGraphEngine::new(GraphConfig {
+            sample_rate: 44100,
+            buffer_size: 128,
+            channels: 1,
+        });
+        let src = g.add_node(
+            "osc",
+            NodeKind::Source(SourceConfig::Oscillator {
+                waveform: Waveform::Sine,
+                frequency: 440.0,
+                amplitude: 1.0,
+                phase: 0.0,
+            }),
+        );
+        let out = g.add_node(
+            "out",
+            NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }),
+        );
         g.connect(src, 0, out, 0).unwrap();
         g.process().unwrap();
         assert!(g.total_energy_uj() > 0);
@@ -723,11 +912,24 @@ mod tests {
 
     #[test]
     fn test_reset_energy() {
-        let mut g = AudioGraphEngine::new(GraphConfig { sample_rate: 44100, buffer_size: 64, channels: 1 });
-        let src = g.add_node("osc", NodeKind::Source(SourceConfig::Oscillator {
-            waveform: Waveform::Sine, frequency: 440.0, amplitude: 1.0, phase: 0.0,
-        }));
-        let out = g.add_node("out", NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }));
+        let mut g = AudioGraphEngine::new(GraphConfig {
+            sample_rate: 44100,
+            buffer_size: 64,
+            channels: 1,
+        });
+        let src = g.add_node(
+            "osc",
+            NodeKind::Source(SourceConfig::Oscillator {
+                waveform: Waveform::Sine,
+                frequency: 440.0,
+                amplitude: 1.0,
+                phase: 0.0,
+            }),
+        );
+        let out = g.add_node(
+            "out",
+            NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }),
+        );
         g.connect(src, 0, out, 0).unwrap();
         g.process().unwrap();
         g.reset_energy();
@@ -736,11 +938,24 @@ mod tests {
 
     #[test]
     fn test_disabled_node() {
-        let mut g = AudioGraphEngine::new(GraphConfig { sample_rate: 44100, buffer_size: 64, channels: 1 });
-        let src = g.add_node("osc", NodeKind::Source(SourceConfig::Oscillator {
-            waveform: Waveform::Sine, frequency: 440.0, amplitude: 1.0, phase: 0.0,
-        }));
-        let out = g.add_node("out", NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }));
+        let mut g = AudioGraphEngine::new(GraphConfig {
+            sample_rate: 44100,
+            buffer_size: 64,
+            channels: 1,
+        });
+        let src = g.add_node(
+            "osc",
+            NodeKind::Source(SourceConfig::Oscillator {
+                waveform: Waveform::Sine,
+                frequency: 440.0,
+                amplitude: 1.0,
+                phase: 0.0,
+            }),
+        );
+        let out = g.add_node(
+            "out",
+            NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }),
+        );
         g.connect(src, 0, out, 0).unwrap();
         g.get_node_mut(src).unwrap().enabled = false;
         let result = g.process().unwrap();
@@ -751,11 +966,24 @@ mod tests {
     #[test]
     fn test_sample_player_source() {
         let samples: Vec<f32> = (0..128).map(|i| (i as f32) / 128.0).collect();
-        let mut g = AudioGraphEngine::new(GraphConfig { sample_rate: 44100, buffer_size: 64, channels: 1 });
-        let src = g.add_node("player", NodeKind::Source(SourceConfig::SamplePlayer {
-            sample_data: samples, playback_rate: 1.0, looping: false, position: 0,
-        }));
-        let out = g.add_node("out", NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }));
+        let mut g = AudioGraphEngine::new(GraphConfig {
+            sample_rate: 44100,
+            buffer_size: 64,
+            channels: 1,
+        });
+        let src = g.add_node(
+            "player",
+            NodeKind::Source(SourceConfig::SamplePlayer {
+                sample_data: samples,
+                playback_rate: 1.0,
+                looping: false,
+                position: 0,
+            }),
+        );
+        let out = g.add_node(
+            "out",
+            NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }),
+        );
         g.connect(src, 0, out, 0).unwrap();
         let result = g.process().unwrap();
         let buf = result.get(&out).unwrap();
@@ -766,18 +994,33 @@ mod tests {
     #[test]
     fn test_validate_valid_graph() {
         let mut g = default_engine();
-        let src = g.add_node("src", NodeKind::Source(SourceConfig::Oscillator {
-            waveform: Waveform::Sine, frequency: 440.0, amplitude: 1.0, phase: 0.0,
-        }));
-        let out = g.add_node("out", NodeKind::Output(OutputConfig::Speaker { channel_count: 2 }));
+        let src = g.add_node(
+            "src",
+            NodeKind::Source(SourceConfig::Oscillator {
+                waveform: Waveform::Sine,
+                frequency: 440.0,
+                amplitude: 1.0,
+                phase: 0.0,
+            }),
+        );
+        let out = g.add_node(
+            "out",
+            NodeKind::Output(OutputConfig::Speaker { channel_count: 2 }),
+        );
         g.connect(src, 0, out, 0).unwrap();
         assert!(g.validate().is_ok());
     }
 
     #[test]
     fn test_audio_buffer_mix() {
-        let mut a = AudioBuffer { samples: vec![1.0, 2.0, 3.0], channels: 1 };
-        let b = AudioBuffer { samples: vec![0.5, 0.5, 0.5], channels: 1 };
+        let mut a = AudioBuffer {
+            samples: vec![1.0, 2.0, 3.0],
+            channels: 1,
+        };
+        let b = AudioBuffer {
+            samples: vec![0.5, 0.5, 0.5],
+            channels: 1,
+        };
         a.mix_from(&b);
         assert!((a.samples[0] - 1.5).abs() < 1e-6);
         assert!((a.samples[1] - 2.5).abs() < 1e-6);
@@ -796,11 +1039,24 @@ mod tests {
 
     #[test]
     fn test_square_wave_osc() {
-        let mut g = AudioGraphEngine::new(GraphConfig { sample_rate: 44100, buffer_size: 64, channels: 1 });
-        let src = g.add_node("sq", NodeKind::Source(SourceConfig::Oscillator {
-            waveform: Waveform::Square, frequency: 440.0, amplitude: 1.0, phase: 0.0,
-        }));
-        let out = g.add_node("out", NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }));
+        let mut g = AudioGraphEngine::new(GraphConfig {
+            sample_rate: 44100,
+            buffer_size: 64,
+            channels: 1,
+        });
+        let src = g.add_node(
+            "sq",
+            NodeKind::Source(SourceConfig::Oscillator {
+                waveform: Waveform::Square,
+                frequency: 440.0,
+                amplitude: 1.0,
+                phase: 0.0,
+            }),
+        );
+        let out = g.add_node(
+            "out",
+            NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }),
+        );
         g.connect(src, 0, out, 0).unwrap();
         let result = g.process().unwrap();
         let buf = result.get(&out).unwrap();
@@ -811,14 +1067,33 @@ mod tests {
 
     #[test]
     fn test_delay_effect() {
-        let mut g = AudioGraphEngine::new(GraphConfig { sample_rate: 44100, buffer_size: 64, channels: 1 });
-        let src = g.add_node("osc", NodeKind::Source(SourceConfig::Oscillator {
-            waveform: Waveform::Sine, frequency: 440.0, amplitude: 1.0, phase: 0.0,
-        }));
-        let delay = g.add_node("delay", NodeKind::Effect(EffectConfig::Delay {
-            delay_samples: 32, feedback: 0.3, buffer: Vec::new(), write_pos: 0,
-        }));
-        let out = g.add_node("out", NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }));
+        let mut g = AudioGraphEngine::new(GraphConfig {
+            sample_rate: 44100,
+            buffer_size: 64,
+            channels: 1,
+        });
+        let src = g.add_node(
+            "osc",
+            NodeKind::Source(SourceConfig::Oscillator {
+                waveform: Waveform::Sine,
+                frequency: 440.0,
+                amplitude: 1.0,
+                phase: 0.0,
+            }),
+        );
+        let delay = g.add_node(
+            "delay",
+            NodeKind::Effect(EffectConfig::Delay {
+                delay_samples: 32,
+                feedback: 0.3,
+                buffer: Vec::new(),
+                write_pos: 0,
+            }),
+        );
+        let out = g.add_node(
+            "out",
+            NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }),
+        );
         g.connect(src, 0, delay, 0).unwrap();
         g.connect(delay, 0, out, 0).unwrap();
         let result = g.process().unwrap();
@@ -829,19 +1104,41 @@ mod tests {
     #[test]
     fn test_nonexistent_node_connection() {
         let mut g = default_engine();
-        let src = g.add_node("src", NodeKind::Source(SourceConfig::Oscillator {
-            waveform: Waveform::Sine, frequency: 440.0, amplitude: 1.0, phase: 0.0,
-        }));
-        assert!(matches!(g.connect(src, 0, 999, 0), Err(GraphError::NodeNotFound(999))));
+        let src = g.add_node(
+            "src",
+            NodeKind::Source(SourceConfig::Oscillator {
+                waveform: Waveform::Sine,
+                frequency: 440.0,
+                amplitude: 1.0,
+                phase: 0.0,
+            }),
+        );
+        assert!(matches!(
+            g.connect(src, 0, 999, 0),
+            Err(GraphError::NodeNotFound(999))
+        ));
     }
 
     #[test]
     fn test_multiple_process_accumulates_energy() {
-        let mut g = AudioGraphEngine::new(GraphConfig { sample_rate: 44100, buffer_size: 64, channels: 1 });
-        let src = g.add_node("osc", NodeKind::Source(SourceConfig::Oscillator {
-            waveform: Waveform::Sine, frequency: 440.0, amplitude: 1.0, phase: 0.0,
-        }));
-        let out = g.add_node("out", NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }));
+        let mut g = AudioGraphEngine::new(GraphConfig {
+            sample_rate: 44100,
+            buffer_size: 64,
+            channels: 1,
+        });
+        let src = g.add_node(
+            "osc",
+            NodeKind::Source(SourceConfig::Oscillator {
+                waveform: Waveform::Sine,
+                frequency: 440.0,
+                amplitude: 1.0,
+                phase: 0.0,
+            }),
+        );
+        let out = g.add_node(
+            "out",
+            NodeKind::Output(OutputConfig::Speaker { channel_count: 1 }),
+        );
         g.connect(src, 0, out, 0).unwrap();
         g.process().unwrap();
         let e1 = g.total_energy_uj();

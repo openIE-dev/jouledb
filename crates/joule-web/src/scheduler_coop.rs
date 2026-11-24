@@ -257,8 +257,7 @@ impl CoopScheduler {
             // Increment skip count for all other ready tasks.
             for task in self.tasks.values_mut() {
                 if task.id != id
-                    && (task.state == CoopTaskState::Ready
-                        || task.state == CoopTaskState::Yielded)
+                    && (task.state == CoopTaskState::Ready || task.state == CoopTaskState::Yielded)
                 {
                     task.skip_count += 1;
                 }
@@ -326,10 +325,7 @@ mod tests {
         sched.add_task(CoopTask::new(id, "work", 30));
         let steps = sched.run_all(100);
         assert_eq!(steps, 3); // 30 work / (1 * 10) = 3 slices
-        assert_eq!(
-            sched.get_task(id).unwrap().state,
-            CoopTaskState::Completed
-        );
+        assert_eq!(sched.get_task(id).unwrap().state, CoopTaskState::Completed);
     }
 
     #[test]
@@ -368,10 +364,7 @@ mod tests {
         assert_eq!(sched.get_task(id).unwrap().work_done, 10);
         sched.step(); // 20 done
         sched.step(); // 25 done (capped at total_work)
-        assert_eq!(
-            sched.get_task(id).unwrap().state,
-            CoopTaskState::Completed
-        );
+        assert_eq!(sched.get_task(id).unwrap().state, CoopTaskState::Completed);
     }
 
     #[test]
@@ -382,10 +375,7 @@ mod tests {
         assert!(sched.cancel(id));
         let result = sched.step();
         assert!(result.is_none()); // No runnable tasks.
-        assert_eq!(
-            sched.get_task(id).unwrap().state,
-            CoopTaskState::Cancelled
-        );
+        assert_eq!(sched.get_task(id).unwrap().state, CoopTaskState::Cancelled);
     }
 
     #[test]

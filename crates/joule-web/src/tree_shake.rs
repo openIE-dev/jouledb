@@ -34,11 +34,7 @@ pub struct ImportedSymbol {
 }
 
 impl ImportedSymbol {
-    pub fn new(
-        name: impl Into<String>,
-        from_module: u64,
-        local_name: impl Into<String>,
-    ) -> Self {
+    pub fn new(name: impl Into<String>, from_module: u64, local_name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
             from_module,
@@ -74,13 +70,11 @@ impl ModuleInfo {
     }
 
     pub fn add_export(&mut self, name: impl Into<String>) {
-        self.exports
-            .push(ExportedSymbol::new(name, self.id));
+        self.exports.push(ExportedSymbol::new(name, self.id));
     }
 
     pub fn add_import(&mut self, name: impl Into<String>, from: u64, local: impl Into<String>) {
-        self.imports
-            .push(ImportedSymbol::new(name, from, local));
+        self.imports.push(ImportedSymbol::new(name, from, local));
     }
 
     pub fn add_re_export(

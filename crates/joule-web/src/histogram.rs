@@ -217,10 +217,7 @@ impl Histogram {
     }
 
     pub fn max_y(&self) -> f64 {
-        self.y_values()
-            .iter()
-            .copied()
-            .fold(0.0_f64, f64::max)
+        self.y_values().iter().copied().fold(0.0_f64, f64::max)
     }
 }
 
@@ -274,7 +271,11 @@ pub struct HistogramSeries {
 }
 
 /// Build overlaid histograms sharing the same bin edges.
-pub fn overlay(series: &[HistogramSeries], rule: &BinRule, mode: HistogramMode) -> Vec<(String, Histogram)> {
+pub fn overlay(
+    series: &[HistogramSeries],
+    rule: &BinRule,
+    mode: HistogramMode,
+) -> Vec<(String, Histogram)> {
     // Gather all data to compute shared edges.
     let all: Vec<f64> = series.iter().flat_map(|s| s.data.iter().copied()).collect();
     let edges = compute_edges(&all, rule);

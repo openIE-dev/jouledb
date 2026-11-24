@@ -33,9 +33,9 @@ impl NatType {
             (RestrictedCone, PortRestricted) | (PortRestricted, RestrictedCone) => true,
             (PortRestricted, PortRestricted) => true,
             (Symmetric, RestrictedCone) | (RestrictedCone, Symmetric) => true,
-            (Symmetric, Symmetric)
-            | (Symmetric, PortRestricted)
-            | (PortRestricted, Symmetric) => false,
+            (Symmetric, Symmetric) | (Symmetric, PortRestricted) | (PortRestricted, Symmetric) => {
+                false
+            }
         }
     }
 }
@@ -216,8 +216,7 @@ impl fmt::Display for HolePunchAttempt {
         write!(
             f,
             "Punch({}<->{}  state={}, technique={:?}, attempt={}/{})",
-            self.peer_a, self.peer_b, self.state, self.technique,
-            self.attempts, self.max_attempts,
+            self.peer_a, self.peer_b, self.state, self.technique, self.attempts, self.max_attempts,
         )
     }
 }
@@ -267,10 +266,22 @@ impl HolePunchCoordinator {
     ) -> Result<(), String> {
         let a = peer_a.into();
         let b = peer_b.into();
-        let nat_a = self.nat_types.get(&a).copied().unwrap_or(NatType::PortRestricted);
-        let nat_b = self.nat_types.get(&b).copied().unwrap_or(NatType::PortRestricted);
+        let nat_a = self
+            .nat_types
+            .get(&a)
+            .copied()
+            .unwrap_or(NatType::PortRestricted);
+        let nat_b = self
+            .nat_types
+            .get(&b)
+            .copied()
+            .unwrap_or(NatType::PortRestricted);
 
-        let key = if a < b { (a.clone(), b.clone()) } else { (b.clone(), a.clone()) };
+        let key = if a < b {
+            (a.clone(), b.clone())
+        } else {
+            (b.clone(), a.clone())
+        };
         if self.attempts.contains_key(&key) {
             return Err("punch already in progress".into());
         }
@@ -316,8 +327,16 @@ impl HolePunchCoordinator {
                     matrix[i][j] = true;
                     continue;
                 }
-                let nat_a = self.nat_types.get(peer_ids[i]).copied().unwrap_or(NatType::Symmetric);
-                let nat_b = self.nat_types.get(peer_ids[j]).copied().unwrap_or(NatType::Symmetric);
+                let nat_a = self
+                    .nat_types
+                    .get(peer_ids[i])
+                    .copied()
+                    .unwrap_or(NatType::Symmetric);
+                let nat_b = self
+                    .nat_types
+                    .get(peer_ids[j])
+                    .copied()
+                    .unwrap_or(NatType::Symmetric);
                 matrix[i][j] = NatType::punch_likely(nat_a, nat_b);
             }
         }
@@ -366,12 +385,18 @@ mod tests {
 
     #[test]
     fn test_punch_unlikely_symmetric_symmetric() {
-        assert!(!NatType::punch_likely(NatType::Symmetric, NatType::Symmetric));
+        assert!(!NatType::punch_likely(
+            NatType::Symmetric,
+            NatType::Symmetric
+        ));
     }
 
     #[test]
     fn test_punch_likely_restricted_restricted() {
-        assert!(NatType::punch_likely(NatType::RestrictedCone, NatType::RestrictedCone));
+        assert!(NatType::punch_likely(
+            NatType::RestrictedCone,
+            NatType::RestrictedCone
+        ));
     }
 
     #[test]

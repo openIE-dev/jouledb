@@ -73,7 +73,9 @@ impl Request {
 
     /// Get the first value of a header.
     pub fn header(&self, name: &str) -> Option<&str> {
-        self.headers.get(name).and_then(|v| v.first().map(|s| s.as_str()))
+        self.headers
+            .get(name)
+            .and_then(|v| v.first().map(|s| s.as_str()))
     }
 
     /// Get all values of a header.
@@ -91,11 +93,8 @@ impl Request {
         if self.query.is_empty() {
             self.path.clone()
         } else {
-            let mut pairs: Vec<String> = self
-                .query
-                .iter()
-                .map(|(k, v)| format!("{k}={v}"))
-                .collect();
+            let mut pairs: Vec<String> =
+                self.query.iter().map(|(k, v)| format!("{k}={v}")).collect();
             pairs.sort(); // Deterministic output
             format!("{}?{}", self.path, pairs.join("&"))
         }
@@ -184,10 +183,7 @@ pub enum QueryTransform {
 }
 
 /// Apply a single query transform.
-pub fn apply_query_transform(
-    query: &mut HashMap<String, String>,
-    transform: &QueryTransform,
-) {
+pub fn apply_query_transform(query: &mut HashMap<String, String>, transform: &QueryTransform) {
     match transform {
         QueryTransform::Set { name, value } => {
             query.insert(name.clone(), value.clone());
@@ -266,7 +262,10 @@ pub enum BodyTransform {
     /// Remove the body.
     Clear,
     /// If body is JSON, set a field at top level.
-    JsonSetField { field: String, value: serde_json::Value },
+    JsonSetField {
+        field: String,
+        value: serde_json::Value,
+    },
     /// If body is JSON, remove a top-level field.
     JsonRemoveField { field: String },
     /// Wrap the body in a JSON envelope: `{ "wrapper_key": <original_body> }`.
@@ -287,10 +286,8 @@ pub fn apply_body_transform(
         }
         BodyTransform::JsonSetField { field, value } => {
             let current = body.as_deref().unwrap_or(b"{}");
-            let mut obj: serde_json::Value =
-                serde_json::from_slice(current).map_err(|e| {
-                    TransformError::BodyTransformFailed(format!("invalid JSON: {e}"))
-                })?;
+            let mut obj: serde_json::Value = serde_json::from_slice(current)
+                .map_err(|e| TransformError::BodyTransformFailed(format!("invalid JSON: {e}")))?;
             if let Some(map) = obj.as_object_mut() {
                 map.insert(field.clone(), value.clone());
             } else {
@@ -305,10 +302,9 @@ pub fn apply_body_transform(
         }
         BodyTransform::JsonRemoveField { field } => {
             if let Some(data) = body.as_deref() {
-                let mut obj: serde_json::Value =
-                    serde_json::from_slice(data).map_err(|e| {
-                        TransformError::BodyTransformFailed(format!("invalid JSON: {e}"))
-                    })?;
+                let mut obj: serde_json::Value = serde_json::from_slice(data).map_err(|e| {
+                    TransformError::BodyTransformFailed(format!("invalid JSON: {e}"))
+                })?;
                 if let Some(map) = obj.as_object_mut() {
                     map.remove(field);
                 }
@@ -320,10 +316,9 @@ pub fn apply_body_transform(
         }
         BodyTransform::JsonWrap { wrapper_key } => {
             if let Some(data) = body.as_deref() {
-                let inner: serde_json::Value =
-                    serde_json::from_slice(data).map_err(|e| {
-                        TransformError::BodyTransformFailed(format!("invalid JSON: {e}"))
-                    })?;
+                let inner: serde_json::Value = serde_json::from_slice(data).map_err(|e| {
+                    TransformError::BodyTransformFailed(format!("invalid JSON: {e}"))
+                })?;
                 let mut wrapper = serde_json::Map::new();
                 wrapper.insert(wrapper_key.clone(), inner);
                 *body = Some(
@@ -344,11 +339,17 @@ pub enum Enrichment {
     /// Add a metadata key-value pair.
     AddMetadata { key: String, value: String },
     /// Copy a header value into metadata.
-    HeaderToMetadata { header: String, metadata_key: String },
+    HeaderToMetadata {
+        header: String,
+        metadata_key: String,
+    },
     /// Copy a query param into metadata.
     QueryToMetadata { param: String, metadata_key: String },
     /// Set a header from metadata.
-    MetadataToHeader { metadata_key: String, header: String },
+    MetadataToHeader {
+        metadata_key: String,
+        header: String,
+    },
 }
 
 /// Apply an enrichment to a request.
@@ -357,17 +358,30 @@ pub fn apply_enrichment(request: &mut Request, enrichment: &Enrichment) {
         Enrichment::AddMetadata { key, value } => {
             request.metadata.insert(key.clone(), value.clone());
         }
-        Enrichment::HeaderToMetadata { header, metadata_key } => {
+        Enrichment::HeaderToMetadata {
+            header,
+            metadata_key,
+        } => {
             if let Some(val) = request.header(header) {
-                request.metadata.insert(metadata_key.clone(), val.to_string());
+                request
+                    .metadata
+                    .insert(metadata_key.clone(), val.to_string());
             }
         }
-        Enrichment::QueryToMetadata { param, metadata_key } => {
+        Enrichment::QueryToMetadata {
+            param,
+            metadata_key,
+        } => {
             if let Some(val) = request.query_param(param) {
-                request.metadata.insert(metadata_key.clone(), val.to_string());
+                request
+                    .metadata
+                    .insert(metadata_key.clone(), val.to_string());
             }
         }
-        Enrichment::MetadataToHeader { metadata_key, header } => {
+        Enrichment::MetadataToHeader {
+            metadata_key,
+            header,
+        } => {
             if let Some(val) = request.metadata.get(metadata_key) {
                 request.headers.insert(header.clone(), vec![val.clone()]);
             }
@@ -467,7 +481,10 @@ mod tests {
         let mut headers = HashMap::new();
         apply_header_transform(
             &mut headers,
-            &HeaderTransform::Add { name: "X-Req".into(), value: "a".into() },
+            &HeaderTransform::Add {
+                name: "X-Req".into(),
+                value: "a".into(),
+            },
         );
         assert_eq!(headers.get("X-Req").unwrap(), &vec!["a".to_string()]);
     }
@@ -478,7 +495,10 @@ mod tests {
         headers.insert("X-Tag".into(), vec!["a".into()]);
         apply_header_transform(
             &mut headers,
-            &HeaderTransform::Add { name: "X-Tag".into(), value: "b".into() },
+            &HeaderTransform::Add {
+                name: "X-Tag".into(),
+                value: "b".into(),
+            },
         );
         assert_eq!(headers.get("X-Tag").unwrap().len(), 2);
     }
@@ -489,7 +509,10 @@ mod tests {
         headers.insert("X-Tag".into(), vec!["a".into(), "b".into()]);
         apply_header_transform(
             &mut headers,
-            &HeaderTransform::Set { name: "X-Tag".into(), value: "c".into() },
+            &HeaderTransform::Set {
+                name: "X-Tag".into(),
+                value: "c".into(),
+            },
         );
         assert_eq!(headers.get("X-Tag").unwrap(), &vec!["c".to_string()]);
     }
@@ -500,7 +523,9 @@ mod tests {
         headers.insert("X-Secret".into(), vec!["hide".into()]);
         apply_header_transform(
             &mut headers,
-            &HeaderTransform::Remove { name: "X-Secret".into() },
+            &HeaderTransform::Remove {
+                name: "X-Secret".into(),
+            },
         );
         assert!(!headers.contains_key("X-Secret"));
     }
@@ -511,7 +536,10 @@ mod tests {
         headers.insert("Old".into(), vec!["val".into()]);
         apply_header_transform(
             &mut headers,
-            &HeaderTransform::Rename { from: "Old".into(), to: "New".into() },
+            &HeaderTransform::Rename {
+                from: "Old".into(),
+                to: "New".into(),
+            },
         );
         assert!(!headers.contains_key("Old"));
         assert_eq!(headers.get("New").unwrap(), &vec!["val".to_string()]);
@@ -523,7 +551,10 @@ mod tests {
         headers.insert("Source".into(), vec!["val".into()]);
         apply_header_transform(
             &mut headers,
-            &HeaderTransform::Copy { from: "Source".into(), to: "Dest".into() },
+            &HeaderTransform::Copy {
+                from: "Source".into(),
+                to: "Dest".into(),
+            },
         );
         assert!(headers.contains_key("Source"));
         assert_eq!(headers.get("Dest").unwrap(), &vec!["val".to_string()]);
@@ -534,7 +565,10 @@ mod tests {
         let mut headers = HashMap::new();
         apply_header_transform(
             &mut headers,
-            &HeaderTransform::SetIfAbsent { name: "X-New".into(), value: "default".into() },
+            &HeaderTransform::SetIfAbsent {
+                name: "X-New".into(),
+                value: "default".into(),
+            },
         );
         assert_eq!(headers.get("X-New").unwrap(), &vec!["default".to_string()]);
     }
@@ -562,7 +596,10 @@ mod tests {
         headers.insert("Auth".into(), vec!["token123".into()]);
         apply_header_transform(
             &mut headers,
-            &HeaderTransform::PrefixValues { name: "Auth".into(), prefix: "Bearer ".into() },
+            &HeaderTransform::PrefixValues {
+                name: "Auth".into(),
+                prefix: "Bearer ".into(),
+            },
         );
         assert_eq!(
             headers.get("Auth").unwrap(),
@@ -577,7 +614,10 @@ mod tests {
         let mut query = HashMap::new();
         apply_query_transform(
             &mut query,
-            &QueryTransform::Set { name: "page".into(), value: "1".into() },
+            &QueryTransform::Set {
+                name: "page".into(),
+                value: "1".into(),
+            },
         );
         assert_eq!(query.get("page").unwrap(), "1");
     }
@@ -588,7 +628,9 @@ mod tests {
         query.insert("secret".into(), "hidden".into());
         apply_query_transform(
             &mut query,
-            &QueryTransform::Remove { name: "secret".into() },
+            &QueryTransform::Remove {
+                name: "secret".into(),
+            },
         );
         assert!(!query.contains_key("secret"));
     }
@@ -599,7 +641,10 @@ mod tests {
         query.insert("old_name".into(), "val".into());
         apply_query_transform(
             &mut query,
-            &QueryTransform::Rename { from: "old_name".into(), to: "new_name".into() },
+            &QueryTransform::Rename {
+                from: "old_name".into(),
+                to: "new_name".into(),
+            },
         );
         assert!(!query.contains_key("old_name"));
         assert_eq!(query.get("new_name").unwrap(), "val");
@@ -611,11 +656,17 @@ mod tests {
         query.insert("existing".into(), "val".into());
         apply_query_transform(
             &mut query,
-            &QueryTransform::SetIfAbsent { name: "existing".into(), value: "ignored".into() },
+            &QueryTransform::SetIfAbsent {
+                name: "existing".into(),
+                value: "ignored".into(),
+            },
         );
         apply_query_transform(
             &mut query,
-            &QueryTransform::SetIfAbsent { name: "new_key".into(), value: "default".into() },
+            &QueryTransform::SetIfAbsent {
+                name: "new_key".into(),
+                value: "default".into(),
+            },
         );
         assert_eq!(query.get("existing").unwrap(), "val");
         assert_eq!(query.get("new_key").unwrap(), "default");
@@ -705,7 +756,9 @@ mod tests {
         let mut body: Option<Vec<u8>> = Some(br#"{"name":"alice","secret":"hide"}"#.to_vec());
         apply_body_transform(
             &mut body,
-            &BodyTransform::JsonRemoveField { field: "secret".into() },
+            &BodyTransform::JsonRemoveField {
+                field: "secret".into(),
+            },
         )
         .unwrap();
 
@@ -719,7 +772,9 @@ mod tests {
         let mut body: Option<Vec<u8>> = Some(br#"{"x":1}"#.to_vec());
         apply_body_transform(
             &mut body,
-            &BodyTransform::JsonWrap { wrapper_key: "data".into() },
+            &BodyTransform::JsonWrap {
+                wrapper_key: "data".into(),
+            },
         )
         .unwrap();
 
@@ -748,7 +803,10 @@ mod tests {
         let mut request = req("GET", "/test");
         apply_enrichment(
             &mut request,
-            &Enrichment::AddMetadata { key: "env".into(), value: "prod".into() },
+            &Enrichment::AddMetadata {
+                key: "env".into(),
+                value: "prod".into(),
+            },
         );
         assert_eq!(request.metadata.get("env").unwrap(), "prod");
     }
@@ -756,7 +814,9 @@ mod tests {
     #[test]
     fn enrich_header_to_metadata() {
         let mut request = req("GET", "/test");
-        request.headers.insert("X-User-Id".into(), vec!["42".into()]);
+        request
+            .headers
+            .insert("X-User-Id".into(), vec!["42".into()]);
         apply_enrichment(
             &mut request,
             &Enrichment::HeaderToMetadata {

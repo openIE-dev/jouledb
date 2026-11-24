@@ -24,12 +24,18 @@ pub struct BigInt {
 impl BigInt {
     /// Zero.
     pub fn zero() -> Self {
-        Self { negative: false, limbs: Vec::new() }
+        Self {
+            negative: false,
+            limbs: Vec::new(),
+        }
     }
 
     /// One.
     pub fn one() -> Self {
-        Self { negative: false, limbs: vec![1] }
+        Self {
+            negative: false,
+            limbs: vec![1],
+        }
     }
 
     /// Create from an i64.
@@ -61,7 +67,10 @@ impl BigInt {
         if hi != 0 {
             limbs.push(hi);
         }
-        Self { negative: false, limbs }
+        Self {
+            negative: false,
+            limbs,
+        }
     }
 
     /// Remove leading zero limbs.
@@ -91,7 +100,10 @@ impl BigInt {
 
     /// Absolute value.
     pub fn abs(&self) -> Self {
-        Self { negative: false, limbs: self.limbs.clone() }
+        Self {
+            negative: false,
+            limbs: self.limbs.clone(),
+        }
     }
 
     /// Negate.
@@ -99,7 +111,10 @@ impl BigInt {
         if self.is_zero() {
             return Self::zero();
         }
-        Self { negative: !self.negative, limbs: self.limbs.clone() }
+        Self {
+            negative: !self.negative,
+            limbs: self.limbs.clone(),
+        }
     }
 
     /// Compare magnitudes (ignoring sign).
@@ -158,25 +173,38 @@ impl BigInt {
 
     /// Addition.
     pub fn add(&self, other: &Self) -> Self {
-        if self.is_zero() { return other.clone(); }
-        if other.is_zero() { return self.clone(); }
+        if self.is_zero() {
+            return other.clone();
+        }
+        if other.is_zero() {
+            return self.clone();
+        }
 
         if self.negative == other.negative {
             // Same sign: add magnitudes
             let limbs = Self::add_magnitudes(&self.limbs, &other.limbs);
-            Self { negative: self.negative, limbs }
+            Self {
+                negative: self.negative,
+                limbs,
+            }
         } else {
             // Different signs: subtract magnitudes
             match self.cmp_magnitude(other) {
                 Ordering::Greater | Ordering::Equal => {
                     let limbs = Self::sub_magnitudes(&self.limbs, &other.limbs);
-                    let mut result = Self { negative: self.negative, limbs };
+                    let mut result = Self {
+                        negative: self.negative,
+                        limbs,
+                    };
                     result.normalize();
                     result
                 }
                 Ordering::Less => {
                     let limbs = Self::sub_magnitudes(&other.limbs, &self.limbs);
-                    let mut result = Self { negative: other.negative, limbs };
+                    let mut result = Self {
+                        negative: other.negative,
+                        limbs,
+                    };
                     result.normalize();
                     result
                 }
@@ -262,12 +290,16 @@ impl BigInt {
         // Check if a >= b
         let a_len = {
             let mut l = a.len();
-            while l > 0 && a[l - 1] == 0 { l -= 1; }
+            while l > 0 && a[l - 1] == 0 {
+                l -= 1;
+            }
             l
         };
         let b_len = {
             let mut l = b.len();
-            while l > 0 && b[l - 1] == 0 { l -= 1; }
+            while l > 0 && b[l - 1] == 0 {
+                l -= 1;
+            }
             l
         };
         if a_len < b_len {
@@ -326,7 +358,13 @@ impl BigInt {
             }
             Ordering::Equal => {
                 let neg = self.negative != other.negative;
-                return (Self { negative: neg, limbs: vec![1] }, Self::zero());
+                return (
+                    Self {
+                        negative: neg,
+                        limbs: vec![1],
+                    },
+                    Self::zero(),
+                );
             }
             _ => {}
         }
@@ -336,8 +374,14 @@ impl BigInt {
         let q_neg = self.negative != other.negative;
         let r_neg = self.negative;
 
-        let mut quotient = Self { negative: q_neg, limbs: q_limbs };
-        let mut remainder = Self { negative: r_neg, limbs: r_limbs };
+        let mut quotient = Self {
+            negative: q_neg,
+            limbs: q_limbs,
+        };
+        let mut remainder = Self {
+            negative: r_neg,
+            limbs: r_limbs,
+        };
         quotient.normalize();
         remainder.normalize();
         (quotient, remainder)
@@ -361,13 +405,23 @@ impl BigInt {
             while quotient.last() == Some(&0) {
                 quotient.pop();
             }
-            let r = if rem == 0 { Vec::new() } else { vec![rem as u32] };
+            let r = if rem == 0 {
+                Vec::new()
+            } else {
+                vec![rem as u32]
+            };
             return (quotient, r);
         }
 
         // Multi-limb: use shifting approach
-        let mut remainder = BigInt { negative: false, limbs: Vec::new() };
-        let divisor = BigInt { negative: false, limbs: denominator.to_vec() };
+        let mut remainder = BigInt {
+            negative: false,
+            limbs: Vec::new(),
+        };
+        let divisor = BigInt {
+            negative: false,
+            limbs: denominator.to_vec(),
+        };
 
         let total_bits = n * 32;
         let mut quotient_bits = vec![false; total_bits];
@@ -443,7 +497,11 @@ impl BigInt {
 
         while !e.is_zero() {
             // Check if lowest bit is set
-            let lowest = if e.limbs.is_empty() { 0 } else { e.limbs[0] & 1 };
+            let lowest = if e.limbs.is_empty() {
+                0
+            } else {
+                e.limbs[0] & 1
+            };
             if lowest == 1 {
                 result = result.mul(&base).div_rem(modulus).1;
             }
@@ -535,7 +593,9 @@ impl BigInt {
     /// Parse from a decimal string.
     pub fn from_str_radix10(s: &str) -> Option<Self> {
         let s = s.trim();
-        if s.is_empty() { return None; }
+        if s.is_empty() {
+            return None;
+        }
 
         let (negative, digits) = if let Some(rest) = s.strip_prefix('-') {
             (true, rest)
@@ -571,7 +631,10 @@ impl BigInt {
             (false, s)
         };
 
-        let hex = hex.strip_prefix("0x").or_else(|| hex.strip_prefix("0X")).unwrap_or(hex);
+        let hex = hex
+            .strip_prefix("0x")
+            .or_else(|| hex.strip_prefix("0X"))
+            .unwrap_or(hex);
         if hex.is_empty() || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
             return None;
         }
@@ -591,7 +654,9 @@ impl BigInt {
 
     /// Number of bits needed to represent this value.
     pub fn bit_length(&self) -> usize {
-        if self.limbs.is_empty() { return 0; }
+        if self.limbs.is_empty() {
+            return 0;
+        }
         let top = self.limbs.len() - 1;
         top * 32 + (32 - self.limbs[top].leading_zeros() as usize)
     }
@@ -615,12 +680,18 @@ impl Ord for BigInt {
     fn cmp(&self, other: &Self) -> Ordering {
         match (self.negative, other.negative) {
             (true, false) => {
-                if self.is_zero() && other.is_zero() { Ordering::Equal }
-                else { Ordering::Less }
+                if self.is_zero() && other.is_zero() {
+                    Ordering::Equal
+                } else {
+                    Ordering::Less
+                }
             }
             (false, true) => {
-                if self.is_zero() && other.is_zero() { Ordering::Equal }
-                else { Ordering::Greater }
+                if self.is_zero() && other.is_zero() {
+                    Ordering::Equal
+                } else {
+                    Ordering::Greater
+                }
             }
             (false, false) => self.cmp_magnitude(other),
             (true, true) => other.cmp_magnitude(self), // reversed for negatives

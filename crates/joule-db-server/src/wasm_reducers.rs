@@ -89,7 +89,10 @@ pub enum ReducerIrOp {
     /// Assert that `key` currently equals `expected` (aborts & rolls back if violated).
     AssertEq { key: String, expected: String },
     /// Emit a structured subscription event to downstream reactive clients.
-    EmitEvent { topic: String, payload_template: String },
+    EmitEvent {
+        topic: String,
+        payload_template: String,
+    },
     /// Burn `iterations` loop steps (used for compute kernels & deterministic fuel-cap tests).
     ComputeLoop { iterations: u64 },
 }
@@ -215,14 +218,13 @@ impl ReducerRuntime {
             Ok(())
         };
 
-        let read_staged = |key: &str,
-                           staged_map: &BTreeMap<String, Option<Vec<u8>>>|
-         -> Option<Vec<u8>> {
-            match staged_map.get(key) {
-                Some(opt) => opt.clone(),
-                None => base_snapshot.get(key).cloned(),
-            }
-        };
+        let read_staged =
+            |key: &str, staged_map: &BTreeMap<String, Option<Vec<u8>>>| -> Option<Vec<u8>> {
+                match staged_map.get(key) {
+                    Some(opt) => opt.clone(),
+                    None => base_snapshot.get(key).cloned(),
+                }
+            };
 
         for op in &module.ops {
             charge_fuel(&mut fuel_used, 5)?;
@@ -286,8 +288,7 @@ impl ReducerRuntime {
 
         let energy_uj = self.policy.fuel_to_uj(fuel_used);
         // Atomically charge the CoW branch energy budget before publishing write-set!
-        self.branch_manager
-            .record_energy(branch_name, energy_uj)?;
+        self.branch_manager.record_energy(branch_name, energy_uj)?;
 
         let keys_modified = staged.len();
         {

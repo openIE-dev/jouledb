@@ -2,9 +2,14 @@
 //!
 //! Parses SigQL query strings into AST using nom combinators.
 
-
 #[cfg(not(feature = "std"))]
-use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 pub mod combinators;
 pub mod error;
 pub mod lexer;
@@ -113,7 +118,12 @@ fn from_clause(input: &str) -> IResult<&str, Vec<FromClause>> {
 }
 
 fn from_item(input: &str) -> IResult<&str, FromClause> {
-    alt((media_from, map(source_ref, FromClause::Signal), session_from)).parse(input)
+    alt((
+        media_from,
+        map(source_ref, FromClause::Signal),
+        session_from,
+    ))
+    .parse(input)
 }
 
 fn session_from(input: &str) -> IResult<&str, FromClause> {
@@ -138,7 +148,8 @@ fn session_from(input: &str) -> IResult<&str, FromClause> {
 fn source_ref(input: &str) -> IResult<&str, SourceRef> {
     let (input, path) = dotted_identifier(input)?;
     let (input, _) = multispace0(input)?;
-    let (input, alias) = opt(preceded(pair(tag_no_case("AS"), multispace1), identifier)).parse(input)?;
+    let (input, alias) =
+        opt(preceded(pair(tag_no_case("AS"), multispace1), identifier)).parse(input)?;
 
     Ok((
         input,
@@ -168,7 +179,8 @@ fn where_clause(input: &str) -> IResult<&str, WhereClause> {
     let (input, conditions) = separated_list1(
         (multispace0, tag_no_case("AND"), multispace0),
         where_condition,
-    ).parse(input)?;
+    )
+    .parse(input)?;
 
     Ok((
         input,
@@ -223,7 +235,8 @@ fn time_spec(input: &str) -> IResult<&str, TimeSpec> {
     alt((
         map(duration, TimeSpec::Relative),
         map(identifier, TimeSpec::Named),
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 fn scalar_condition(input: &str) -> IResult<&str, WhereCondition> {
@@ -255,8 +268,8 @@ fn transform_op(input: &str) -> IResult<&str, TransformOp> {
             highpass_op,
             notch_op,
             median_op,
-            fft2d_op,   // fft2d before fft (longer prefix first)
-            ifft2d_op,  // ifft2d before ifft
+            fft2d_op,  // fft2d before fft (longer prefix first)
+            ifft2d_op, // ifft2d before ifft
             fft_op,
             ifft_op,
             stft_op,
@@ -276,7 +289,7 @@ fn transform_op(input: &str) -> IResult<&str, TransformOp> {
         alt((
             instantaneous_phase_op,
             instantaneous_freq_op,
-            dct2d_op,  // dct2d before any short prefix
+            dct2d_op, // dct2d before any short prefix
             idct2d_op,
             mfcc_op,
             perceptual_hash_op,
@@ -290,7 +303,8 @@ fn transform_op(input: &str) -> IResult<&str, TransformOp> {
             log_op, exp_op, diff_op, cumsum_op, scale_op,
         )),
         offset_op,
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 fn bandpass_op(input: &str) -> IResult<&str, TransformOp> {
@@ -365,7 +379,8 @@ fn fft_op(input: &str) -> IResult<&str, TransformOp> {
         (multispace0, char('('), multispace0),
         fft_params,
         (multispace0, char(')')),
-    )).parse(input)?;
+    ))
+    .parse(input)?;
 
     Ok((input, TransformOp::Fft(params.unwrap_or_default())))
 }
@@ -388,7 +403,8 @@ fn window_function(input: &str) -> IResult<&str, WindowFunction> {
         value(WindowFunction::Hamming, tag_no_case("hamming")),
         value(WindowFunction::Blackman, tag_no_case("blackman")),
         value(WindowFunction::Rectangular, tag_no_case("rectangular")),
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 fn hilbert_op(input: &str) -> IResult<&str, TransformOp> {
@@ -740,7 +756,8 @@ fn causality_spec(input: &str) -> IResult<&str, Causality> {
     alt((
         value(Causality::Causal, tag_no_case("CAUSAL")),
         value(Causality::Acausal, tag_no_case("ACAUSAL")),
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 fn correlate_clause(input: &str) -> IResult<&str, CorrelateClause> {
@@ -820,7 +837,8 @@ fn correlate_op(input: &str) -> IResult<&str, CorrelateOp> {
         pearson_op,
         spearman_op,
         custom_correlate_op,
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 fn cross_correlation_op(input: &str) -> IResult<&str, CorrelateOp> {
@@ -845,7 +863,8 @@ fn cross_correlation_op(input: &str) -> IResult<&str, CorrelateOp> {
             multispace0,
         ),
         duration,
-    )).parse(input)?;
+    ))
+    .parse(input)?;
     let (input, _) = multispace0(input)?;
     let (input, _) = char(')').parse(input)?;
 
@@ -922,7 +941,8 @@ fn granger_causality_op(input: &str) -> IResult<&str, CorrelateOp> {
             multispace0,
         ),
         integer,
-    )).parse(input)?;
+    ))
+    .parse(input)?;
     let (input, _) = multispace0(input)?;
     // Optional direction parameter
     let (input, direction) = opt(preceded(
@@ -935,7 +955,8 @@ fn granger_causality_op(input: &str) -> IResult<&str, CorrelateOp> {
             multispace0,
         ),
         causal_direction,
-    )).parse(input)?;
+    ))
+    .parse(input)?;
     let (input, _) = multispace0(input)?;
     let (input, _) = char(')').parse(input)?;
 
@@ -953,7 +974,8 @@ fn causal_direction(input: &str) -> IResult<&str, CausalDirection> {
         value(CausalDirection::AtoB, tag_no_case("a_to_b")),
         value(CausalDirection::BtoA, tag_no_case("b_to_a")),
         value(CausalDirection::Bidirectional, tag_no_case("bidirectional")),
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 fn phase_locking_value_op(input: &str) -> IResult<&str, CorrelateOp> {
@@ -998,7 +1020,8 @@ fn transfer_entropy_op(input: &str) -> IResult<&str, CorrelateOp> {
             multispace0,
         ),
         integer,
-    )).parse(input)?;
+    ))
+    .parse(input)?;
     let (input, _) = multispace0(input)?;
     let (input, _) = char(')').parse(input)?;
 
@@ -1032,7 +1055,8 @@ fn mutual_information_op(input: &str) -> IResult<&str, CorrelateOp> {
             multispace0,
         ),
         integer,
-    )).parse(input)?;
+    ))
+    .parse(input)?;
     let (input, _) = multispace0(input)?;
     let (input, _) = char(')').parse(input)?;
 
@@ -1086,7 +1110,8 @@ fn dct2d_op(input: &str) -> IResult<&str, TransformOp> {
         (multispace0, char('('), multispace0),
         dct2d_params,
         (multispace0, char(')')),
-    )).parse(input)?;
+    ))
+    .parse(input)?;
     Ok((input, TransformOp::Dct2d(params.unwrap_or_default())))
 }
 
@@ -1116,7 +1141,8 @@ fn mfcc_op(input: &str) -> IResult<&str, TransformOp> {
         (multispace0, char('('), multispace0),
         integer,
         (multispace0, char(')')),
-    )).parse(input)?;
+    ))
+    .parse(input)?;
     Ok((
         input,
         TransformOp::Mfcc(MfccParams {
@@ -1199,17 +1225,27 @@ fn media_from(input: &str) -> IResult<&str, FromClause> {
 
 fn media_aggregate_ops(input: &str) -> IResult<&str, AggregateOp> {
     alt((
-        value(AggregateOp::SpatialFrequencyContent, tag_no_case("spatial_frequency_content")),
+        value(
+            AggregateOp::SpatialFrequencyContent,
+            tag_no_case("spatial_frequency_content"),
+        ),
         value(AggregateOp::TextureEntropy, tag_no_case("texture_entropy")),
         value(AggregateOp::EdgeDensity, tag_no_case("edge_density")),
         value(AggregateOp::PitchContour, tag_no_case("pitch_contour")),
         value(AggregateOp::OnsetStrength, tag_no_case("onset_strength")),
         value(AggregateOp::BeatSpectrum, tag_no_case("beat_spectrum")),
         value(AggregateOp::Loudness, tag_no_case("loudness")),
-        value(AggregateOp::SceneChangeCount, tag_no_case("scene_change_count")),
-        value(AggregateOp::MotionMagnitude, tag_no_case("motion_magnitude")),
+        value(
+            AggregateOp::SceneChangeCount,
+            tag_no_case("scene_change_count"),
+        ),
+        value(
+            AggregateOp::MotionMagnitude,
+            tag_no_case("motion_magnitude"),
+        ),
         value(AggregateOp::FlickerMetric, tag_no_case("flicker_metric")),
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 fn aggregate_clause(input: &str) -> IResult<&str, AggregateClause> {
@@ -1300,7 +1336,8 @@ fn aggregate_op(input: &str) -> IResult<&str, AggregateOp> {
         )),
         // MediaQL aggregates
         media_aggregate_ops,
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 fn band_power_op(input: &str) -> IResult<&str, AggregateOp> {
@@ -1375,7 +1412,8 @@ fn sample_entropy_op(input: &str) -> IResult<&str, AggregateOp> {
     let (input, m) = opt(preceded(
         (tag_no_case("m"), multispace0, char(':'), multispace0),
         integer,
-    )).parse(input)?;
+    ))
+    .parse(input)?;
     let (input, _) = multispace0(input)?;
     // r parameter (tolerance)
     let (input, r) = opt(preceded(
@@ -1388,7 +1426,8 @@ fn sample_entropy_op(input: &str) -> IResult<&str, AggregateOp> {
             multispace0,
         ),
         float,
-    )).parse(input)?;
+    ))
+    .parse(input)?;
     let (input, _) = multispace0(input)?;
     let (input, _) = char(')').parse(input)?;
 
@@ -1424,7 +1463,8 @@ fn clinical_scale(input: &str) -> IResult<&str, ClinicalScale> {
         value(ClinicalScale::Fahn, tag_no_case("fahn")),
         value(ClinicalScale::Bain, tag_no_case("bain")),
         value(ClinicalScale::Custom, tag_no_case("custom")),
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 fn reaction_time_op(input: &str) -> IResult<&str, AggregateOp> {
@@ -1483,7 +1523,8 @@ fn smoothness_method(input: &str) -> IResult<&str, SmoothnessMethod> {
         value(SmoothnessMethod::Sparc, tag_no_case("sparc")),
         value(SmoothnessMethod::Ldlj, tag_no_case("ldlj")),
         value(SmoothnessMethod::Jerk, tag_no_case("jerk")),
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 fn custom_aggregate_op(input: &str) -> IResult<&str, AggregateOp> {
@@ -1531,7 +1572,8 @@ fn returning_clause(input: &str) -> IResult<&str, ReturningClause> {
             multispace0,
         ),
         terminated(float, (multispace0, char(')'))),
-    )).parse(input)?;
+    ))
+    .parse(input)?;
 
     Ok((
         input,
@@ -1553,7 +1595,8 @@ fn pipeline_expr(input: &str) -> IResult<&str, SignalExpr> {
     let (input, rest) = many0(preceded(
         (multispace0, tag("|>"), multispace0),
         transform_stage,
-    )).parse(input)?;
+    ))
+    .parse(input)?;
 
     if rest.is_empty() {
         Ok((input, first))
@@ -1581,7 +1624,8 @@ fn transform_expr(input: &str) -> IResult<&str, SignalExpr> {
         char('('),
         preceded(multispace0, signal_expr),
         preceded(multispace0, char(')')),
-    ).parse(input)?;
+    )
+    .parse(input)?;
 
     Ok((
         input,
@@ -1634,14 +1678,16 @@ fn comparison_op(input: &str) -> IResult<&str, BinaryOp> {
         value(BinaryOp::Ge, tag(">=")),
         value(BinaryOp::Lt, tag("<")),
         value(BinaryOp::Gt, tag(">")),
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 fn scalar_term(input: &str) -> IResult<&str, ScalarExpr> {
     alt((
         map(literal, ScalarExpr::Literal),
         map(identifier, ScalarExpr::Var),
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 // ============== Primitive Parsers ==============
@@ -1650,7 +1696,8 @@ fn identifier(input: &str) -> IResult<&str, SmolStr> {
     let (input, s) = recognize(pair(
         alt((alpha1, tag("_"))),
         many0(alt((alphanumeric1, tag("_")))),
-    )).parse(input)?;
+    ))
+    .parse(input)?;
     Ok((input, SmolStr::new(s)))
 }
 
@@ -1669,18 +1716,16 @@ fn string_literal(input: &str) -> IResult<&str, SmolStr> {
 fn integer(input: &str) -> IResult<&str, i64> {
     map_res(recognize(pair(opt(char('-')), digit1)), |s: &str| {
         s.parse::<i64>()
-    }).parse(input)
+    })
+    .parse(input)
 }
 
 fn float(input: &str) -> IResult<&str, f64> {
     map_res(
-        recognize((
-            opt(char('-')),
-            digit1,
-            opt(pair(char('.'), digit1)),
-        )),
+        recognize((opt(char('-')), digit1, opt(pair(char('.'), digit1)))),
         |s: &str| s.parse::<f64>(),
-    ).parse(input)
+    )
+    .parse(input)
 }
 
 fn frequency(input: &str) -> IResult<&str, Hertz> {
@@ -1693,7 +1738,8 @@ fn frequency(input: &str) -> IResult<&str, Hertz> {
 fn duration(input: &str) -> IResult<&str, Seconds> {
     let (input, value) = float(input)?;
     let (input, _) = multispace0(input)?;
-    let (input, unit) = opt(alt((tag_no_case("ms"), tag_no_case("s"), tag_no_case("m")))).parse(input)?;
+    let (input, unit) =
+        opt(alt((tag_no_case("ms"), tag_no_case("s"), tag_no_case("m")))).parse(input)?;
 
     let seconds = match unit {
         Some("ms") | Some("MS") => value / 1000.0,
@@ -1711,7 +1757,8 @@ fn literal(input: &str) -> IResult<&str, Literal> {
         map(string_literal, Literal::String),
         value(Literal::Bool(true), tag_no_case("true")),
         value(Literal::Bool(false), tag_no_case("false")),
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 #[cfg(test)]
@@ -1912,14 +1959,20 @@ mod tests {
     fn test_parse_media_from() {
         let query_str = "FROM media('photo.jpg') AS img";
         let result = parse_query(query_str);
-        assert!(result.is_ok(), "Failed to parse media FROM: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to parse media FROM: {:?}",
+            result.err()
+        );
         let query = result.unwrap();
         assert_eq!(query.from.len(), 1);
         match &query.from[0] {
             FromClause::Media { source, alias } => {
                 assert_eq!(alias.as_str(), "img");
                 match source {
-                    crate::ast::query::MediaSourceRef::Path(p) => assert_eq!(p.as_str(), "photo.jpg"),
+                    crate::ast::query::MediaSourceRef::Path(p) => {
+                        assert_eq!(p.as_str(), "photo.jpg")
+                    }
                     _ => panic!("Expected Path source"),
                 }
             }

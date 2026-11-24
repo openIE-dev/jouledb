@@ -236,9 +236,8 @@ pub fn render_svg(entries: &[WaterfallEntry], config: &WaterfallConfig) -> Strin
         Orientation::Vertical => {
             let bar_w = (plot_w - total_gap) / n.max(1) as f64;
 
-            let to_y = |v: f64| -> f64 {
-                config.margin + plot_h * (1.0 - (v - min_val) / val_range)
-            };
+            let to_y =
+                |v: f64| -> f64 { config.margin + plot_h * (1.0 - (v - min_val) / val_range) };
 
             for (i, bar) in bars.iter().enumerate() {
                 let x = config.margin + i as f64 * (bar_w + config.bar_gap);
@@ -279,9 +278,7 @@ pub fn render_svg(entries: &[WaterfallEntry], config: &WaterfallConfig) -> Strin
         Orientation::Horizontal => {
             let bar_h = (plot_h - total_gap) / n.max(1) as f64;
 
-            let to_x = |v: f64| -> f64 {
-                config.margin + plot_w * (v - min_val) / val_range
-            };
+            let to_x = |v: f64| -> f64 { config.margin + plot_w * (v - min_val) / val_range };
 
             for (i, bar) in bars.iter().enumerate() {
                 let y = config.margin + i as f64 * (bar_h + config.bar_gap);
@@ -336,8 +333,8 @@ mod tests {
         assert!((totals[0] - 100.0).abs() < 1e-9); // Total bar
         assert!((totals[1] - 150.0).abs() < 1e-9); // +50
         assert!((totals[2] - 130.0).abs() < 1e-9); // -20
-        assert!((totals[3] - 90.0).abs() < 1e-9);  // -40
-        assert!((totals[4] - 90.0).abs() < 1e-9);  // Total
+        assert!((totals[3] - 90.0).abs() < 1e-9); // -40
+        assert!((totals[4] - 90.0).abs() < 1e-9); // Total
     }
 
     #[test]

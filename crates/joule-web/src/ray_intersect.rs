@@ -18,7 +18,11 @@ impl Vec3 {
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn dot(self, other: Self) -> f64 {
@@ -69,28 +73,44 @@ impl Vec3 {
 impl std::ops::Add for Vec3 {
     type Output = Self;
     fn add(self, rhs: Self) -> Self {
-        Self { x: self.x + rhs.x, y: self.y + rhs.y, z: self.z + rhs.z }
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+        }
     }
 }
 
 impl std::ops::Sub for Vec3 {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self {
-        Self { x: self.x - rhs.x, y: self.y - rhs.y, z: self.z - rhs.z }
+        Self {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            z: self.z - rhs.z,
+        }
     }
 }
 
 impl std::ops::Mul<f64> for Vec3 {
     type Output = Self;
     fn mul(self, rhs: f64) -> Self {
-        Self { x: self.x * rhs, y: self.y * rhs, z: self.z * rhs }
+        Self {
+            x: self.x * rhs,
+            y: self.y * rhs,
+            z: self.z * rhs,
+        }
     }
 }
 
 impl std::ops::Neg for Vec3 {
     type Output = Self;
     fn neg(self) -> Self {
-        Self { x: -self.x, y: -self.y, z: -self.z }
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
     }
 }
 
@@ -109,7 +129,10 @@ pub struct Ray {
 
 impl Ray {
     pub fn new(origin: Vec3, direction: Vec3) -> Self {
-        Self { origin, direction: direction.normalized() }
+        Self {
+            origin,
+            direction: direction.normalized(),
+        }
     }
 
     pub fn at(self, t: f64) -> Vec3 {
@@ -132,7 +155,11 @@ pub struct HitRecord {
 
 impl HitRecord {
     pub fn new(t: f64, point: Vec3, normal: Vec3) -> Self {
-        Self { t, point, normal: normal.normalized() }
+        Self {
+            t,
+            point,
+            normal: normal.normalized(),
+        }
     }
 }
 
@@ -224,35 +251,53 @@ pub fn intersect_sphere(
 }
 
 /// Any-hit ray-sphere: returns true if there is any intersection in [t_min, t_max].
-pub fn any_hit_sphere(
-    ray: &Ray,
-    center: Vec3,
-    radius: f64,
-    t_min: f64,
-    t_max: f64,
-) -> bool {
+pub fn any_hit_sphere(ray: &Ray, center: Vec3, radius: f64, t_min: f64, t_max: f64) -> bool {
     intersect_sphere(ray, center, radius, t_min, t_max).is_some()
 }
 
 /// Ray-AABB intersection via slab method. Returns (t_enter, t_exit) or None.
 pub fn intersect_aabb(ray: &Ray, aabb: &Aabb, t_min: f64, t_max: f64) -> Option<(f64, f64)> {
     let inv_d = Vec3::new(
-        if ray.direction.x.abs() > 1e-15 { 1.0 / ray.direction.x } else { f64::INFINITY.copysign(ray.direction.x) },
-        if ray.direction.y.abs() > 1e-15 { 1.0 / ray.direction.y } else { f64::INFINITY.copysign(ray.direction.y) },
-        if ray.direction.z.abs() > 1e-15 { 1.0 / ray.direction.z } else { f64::INFINITY.copysign(ray.direction.z) },
+        if ray.direction.x.abs() > 1e-15 {
+            1.0 / ray.direction.x
+        } else {
+            f64::INFINITY.copysign(ray.direction.x)
+        },
+        if ray.direction.y.abs() > 1e-15 {
+            1.0 / ray.direction.y
+        } else {
+            f64::INFINITY.copysign(ray.direction.y)
+        },
+        if ray.direction.z.abs() > 1e-15 {
+            1.0 / ray.direction.z
+        } else {
+            f64::INFINITY.copysign(ray.direction.z)
+        },
     );
 
     let t0x = (aabb.min.x - ray.origin.x) * inv_d.x;
     let t1x = (aabb.max.x - ray.origin.x) * inv_d.x;
-    let (t0x, t1x) = if inv_d.x < 0.0 { (t1x, t0x) } else { (t0x, t1x) };
+    let (t0x, t1x) = if inv_d.x < 0.0 {
+        (t1x, t0x)
+    } else {
+        (t0x, t1x)
+    };
 
     let t0y = (aabb.min.y - ray.origin.y) * inv_d.y;
     let t1y = (aabb.max.y - ray.origin.y) * inv_d.y;
-    let (t0y, t1y) = if inv_d.y < 0.0 { (t1y, t0y) } else { (t0y, t1y) };
+    let (t0y, t1y) = if inv_d.y < 0.0 {
+        (t1y, t0y)
+    } else {
+        (t0y, t1y)
+    };
 
     let t0z = (aabb.min.z - ray.origin.z) * inv_d.z;
     let t1z = (aabb.max.z - ray.origin.z) * inv_d.z;
-    let (t0z, t1z) = if inv_d.z < 0.0 { (t1z, t0z) } else { (t0z, t1z) };
+    let (t0z, t1z) = if inv_d.z < 0.0 {
+        (t1z, t0z)
+    } else {
+        (t0z, t1z)
+    };
 
     let t_enter = t0x.max(t0y).max(t0z).max(t_min);
     let t_exit = t1x.min(t1y).min(t1z).min(t_max);
@@ -265,12 +310,7 @@ pub fn intersect_aabb(ray: &Ray, aabb: &Aabb, t_min: f64, t_max: f64) -> Option<
 }
 
 /// Ray-triangle intersection using Möller-Trumbore algorithm.
-pub fn intersect_triangle(
-    ray: &Ray,
-    tri: &Triangle,
-    t_min: f64,
-    t_max: f64,
-) -> Option<HitRecord> {
+pub fn intersect_triangle(ray: &Ray, tri: &Triangle, t_min: f64, t_max: f64) -> Option<HitRecord> {
     let e1 = tri.v1 - tri.v0;
     let e2 = tri.v2 - tri.v0;
     let h = ray.direction.cross(e2);
@@ -296,7 +336,11 @@ pub fn intersect_triangle(
     let point = ray.at(t);
     let normal = e1.cross(e2).normalized();
     // Ensure normal faces the ray
-    let normal = if normal.dot(ray.direction) > 0.0 { -normal } else { normal };
+    let normal = if normal.dot(ray.direction) > 0.0 {
+        -normal
+    } else {
+        normal
+    };
     Some(HitRecord::new(t, point, normal))
 }
 
@@ -317,7 +361,11 @@ pub fn intersect_plane(
         return None;
     }
     let point = ray.at(t);
-    let normal = if denom > 0.0 { -plane_normal } else { plane_normal };
+    let normal = if denom > 0.0 {
+        -plane_normal
+    } else {
+        plane_normal
+    };
     Some(HitRecord::new(t, point, normal.normalized()))
 }
 
@@ -452,12 +500,7 @@ pub fn intersect_mesh(
 }
 
 /// Any-hit for mesh: returns true if any triangle hit in range.
-pub fn any_hit_mesh(
-    ray: &Ray,
-    triangles: &[Triangle],
-    t_min: f64,
-    t_max: f64,
-) -> bool {
+pub fn any_hit_mesh(ray: &Ray, triangles: &[Triangle], t_min: f64, t_max: f64) -> bool {
     for tri in triangles {
         if intersect_triangle(ray, tri, t_min, t_max).is_some() {
             return true;
@@ -542,7 +585,13 @@ mod tests {
     fn test_any_hit_sphere() {
         let ray = Ray::new(Vec3::new(0.0, 0.0, -5.0), Vec3::new(0.0, 0.0, 1.0));
         assert!(any_hit_sphere(&ray, Vec3::zero(), 1.0, 0.0, f64::INFINITY));
-        assert!(!any_hit_sphere(&ray, Vec3::new(10.0, 0.0, 0.0), 1.0, 0.0, f64::INFINITY));
+        assert!(!any_hit_sphere(
+            &ray,
+            Vec3::new(10.0, 0.0, 0.0),
+            1.0,
+            0.0,
+            f64::INFINITY
+        ));
     }
 
     #[test]
@@ -610,7 +659,14 @@ mod tests {
     #[test]
     fn test_plane_hit() {
         let ray = Ray::new(Vec3::new(0.0, 5.0, 0.0), Vec3::new(0.0, -1.0, 0.0));
-        let hit = intersect_plane(&ray, Vec3::zero(), Vec3::new(0.0, 1.0, 0.0), 0.0, f64::INFINITY).unwrap();
+        let hit = intersect_plane(
+            &ray,
+            Vec3::zero(),
+            Vec3::new(0.0, 1.0, 0.0),
+            0.0,
+            f64::INFINITY,
+        )
+        .unwrap();
         assert!(approx_eq(hit.t, 5.0, 1e-6));
         assert!(vec3_approx_eq(hit.point, Vec3::zero(), 1e-6));
     }
@@ -618,20 +674,47 @@ mod tests {
     #[test]
     fn test_plane_parallel() {
         let ray = Ray::new(Vec3::new(0.0, 5.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
-        assert!(intersect_plane(&ray, Vec3::zero(), Vec3::new(0.0, 1.0, 0.0), 0.0, f64::INFINITY).is_none());
+        assert!(
+            intersect_plane(
+                &ray,
+                Vec3::zero(),
+                Vec3::new(0.0, 1.0, 0.0),
+                0.0,
+                f64::INFINITY
+            )
+            .is_none()
+        );
     }
 
     #[test]
     fn test_disc_hit() {
         let ray = Ray::new(Vec3::new(0.0, 5.0, 0.0), Vec3::new(0.0, -1.0, 0.0));
-        let hit = intersect_disc(&ray, Vec3::zero(), Vec3::new(0.0, 1.0, 0.0), 2.0, 0.0, f64::INFINITY).unwrap();
+        let hit = intersect_disc(
+            &ray,
+            Vec3::zero(),
+            Vec3::new(0.0, 1.0, 0.0),
+            2.0,
+            0.0,
+            f64::INFINITY,
+        )
+        .unwrap();
         assert!(approx_eq(hit.t, 5.0, 1e-6));
     }
 
     #[test]
     fn test_disc_miss_outside_radius() {
         let ray = Ray::new(Vec3::new(3.0, 5.0, 0.0), Vec3::new(0.0, -1.0, 0.0));
-        assert!(intersect_disc(&ray, Vec3::zero(), Vec3::new(0.0, 1.0, 0.0), 2.0, 0.0, f64::INFINITY).is_none());
+        assert!(
+            intersect_disc(
+                &ray,
+                Vec3::zero(),
+                Vec3::new(0.0, 1.0, 0.0),
+                2.0,
+                0.0,
+                f64::INFINITY
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -645,22 +728,26 @@ mod tests {
             2.0,
             0.0,
             f64::INFINITY,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(approx_eq(hit.t, 4.0, 1e-5));
     }
 
     #[test]
     fn test_cylinder_miss_above() {
         let ray = Ray::new(Vec3::new(-5.0, 10.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
-        assert!(intersect_cylinder(
-            &ray,
-            Vec3::zero(),
-            Vec3::new(0.0, 1.0, 0.0),
-            1.0,
-            2.0,
-            0.0,
-            f64::INFINITY,
-        ).is_none());
+        assert!(
+            intersect_cylinder(
+                &ray,
+                Vec3::zero(),
+                Vec3::new(0.0, 1.0, 0.0),
+                1.0,
+                2.0,
+                0.0,
+                f64::INFINITY,
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -716,13 +803,11 @@ mod tests {
 
     #[test]
     fn test_any_hit_mesh() {
-        let tris = vec![
-            Triangle::new(
-                Vec3::new(-1.0, -1.0, 2.0),
-                Vec3::new(1.0, -1.0, 2.0),
-                Vec3::new(0.0, 1.0, 2.0),
-            ),
-        ];
+        let tris = vec![Triangle::new(
+            Vec3::new(-1.0, -1.0, 2.0),
+            Vec3::new(1.0, -1.0, 2.0),
+            Vec3::new(0.0, 1.0, 2.0),
+        )];
         let ray = Ray::new(Vec3::zero(), Vec3::new(0.0, 0.0, 1.0));
         assert!(any_hit_mesh(&ray, &tris, 0.0, f64::INFINITY));
         let ray2 = Ray::new(Vec3::new(10.0, 10.0, 0.0), Vec3::new(0.0, 0.0, 1.0));

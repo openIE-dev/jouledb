@@ -25,8 +25,7 @@ impl Direction {
     /// Angular distance between two directions on the unit sphere.
     pub fn angular_distance(&self, other: &Direction) -> f64 {
         let cos_d = self.elevation.sin() * other.elevation.sin()
-            + self.elevation.cos() * other.elevation.cos()
-            * (self.azimuth - other.azimuth).cos();
+            + self.elevation.cos() * other.elevation.cos() * (self.azimuth - other.azimuth).cos();
         cos_d.clamp(-1.0, 1.0).acos()
     }
 }
@@ -49,7 +48,10 @@ pub struct HrtfDataset {
 impl HrtfDataset {
     /// Create a new dataset.
     pub fn new(sample_rate: u32) -> Self {
-        Self { measurements: Vec::new(), sample_rate }
+        Self {
+            measurements: Vec::new(),
+            sample_rate,
+        }
     }
 
     /// Add a measurement.
@@ -78,7 +80,9 @@ impl HrtfDataset {
 
     /// Find the K nearest measurements to a direction.
     pub fn k_nearest(&self, dir: &Direction, k: usize) -> Vec<(&HrtfMeasurement, f64)> {
-        let mut indexed: Vec<(&HrtfMeasurement, f64)> = self.measurements.iter()
+        let mut indexed: Vec<(&HrtfMeasurement, f64)> = self
+            .measurements
+            .iter()
             .map(|m| (m, m.direction.angular_distance(dir)))
             .collect();
         indexed.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
@@ -89,9 +93,13 @@ impl HrtfDataset {
     /// Interpolate HRTF for a direction using inverse-distance weighting
     /// of the K nearest measurements.
     pub fn interpolate(&self, dir: &Direction, k: usize) -> Option<(Vec<f64>, Vec<f64>)> {
-        if self.measurements.is_empty() { return None; }
+        if self.measurements.is_empty() {
+            return None;
+        }
         let nearest = self.k_nearest(dir, k);
-        if nearest.is_empty() { return None; }
+        if nearest.is_empty() {
+            return None;
+        }
 
         // If any measurement is at exactly this direction, use it
         if nearest[0].1 < 1e-12 {
@@ -115,8 +123,12 @@ impl HrtfDataset {
         }
 
         if total_weight > 1e-12 {
-            for s in &mut left { *s /= total_weight; }
-            for s in &mut right { *s /= total_weight; }
+            for s in &mut left {
+                *s /= total_weight;
+            }
+            for s in &mut right {
+                *s /= total_weight;
+            }
         }
 
         Some((left, right))
@@ -264,16 +276,24 @@ impl HrtfProcessor {
             let shadow = head_shadow_factor(direction.azimuth);
             if direction.azimuth > 0.0 {
                 // Source is to the right, left ear is shadowed
-                for s in &mut left { *s *= shadow; }
+                for s in &mut left {
+                    *s *= shadow;
+                }
             } else if direction.azimuth < 0.0 {
                 // Source is to the left, right ear is shadowed
-                for s in &mut right { *s *= shadow; }
+                for s in &mut right {
+                    *s *= shadow;
+                }
             }
         }
 
         // Apply ITD: delay the far ear
         if self.enable_itd {
-            let delay = itd_samples(direction.azimuth, self.speed_of_sound, self.dataset.sample_rate);
+            let delay = itd_samples(
+                direction.azimuth,
+                self.speed_of_sound,
+                self.dataset.sample_rate,
+            );
             if delay > 0 {
                 if direction.azimuth > 0.0 {
                     // Source right → delay left ear
@@ -308,15 +328,25 @@ impl HrtfProcessor {
         let dy = source_pos[1] - listener_pos[1];
         let dz = source_pos[2] - listener_pos[2];
 
-        let fwd_len = (listener_fwd[0].powi(2) + listener_fwd[1].powi(2) + listener_fwd[2].powi(2)).sqrt();
-        let up_len = (listener_up[0].powi(2) + listener_up[1].powi(2) + listener_up[2].powi(2)).sqrt();
+        let fwd_len =
+            (listener_fwd[0].powi(2) + listener_fwd[1].powi(2) + listener_fwd[2].powi(2)).sqrt();
+        let up_len =
+            (listener_up[0].powi(2) + listener_up[1].powi(2) + listener_up[2].powi(2)).sqrt();
 
         if fwd_len < 1e-12 || up_len < 1e-12 {
             return Direction::new(0.0, 0.0);
         }
 
-        let fwd = [listener_fwd[0] / fwd_len, listener_fwd[1] / fwd_len, listener_fwd[2] / fwd_len];
-        let up = [listener_up[0] / up_len, listener_up[1] / up_len, listener_up[2] / up_len];
+        let fwd = [
+            listener_fwd[0] / fwd_len,
+            listener_fwd[1] / fwd_len,
+            listener_fwd[2] / fwd_len,
+        ];
+        let up = [
+            listener_up[0] / up_len,
+            listener_up[1] / up_len,
+            listener_up[2] / up_len,
+        ];
         let right = [
             fwd[1] * up[2] - fwd[2] * up[1],
             fwd[2] * up[0] - fwd[0] * up[2],

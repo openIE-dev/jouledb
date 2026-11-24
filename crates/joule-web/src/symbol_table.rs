@@ -397,7 +397,11 @@ impl SymbolTable {
     }
 
     /// Update a symbol (e.g., change its type annotation).
-    pub fn update(&mut self, name: &str, updater: impl FnOnce(&mut Symbol)) -> Result<(), SymbolError> {
+    pub fn update(
+        &mut self,
+        name: &str,
+        updater: impl FnOnce(&mut Symbol),
+    ) -> Result<(), SymbolError> {
         for scope in self.scopes.iter_mut().rev() {
             if let Some(sym) = scope.symbols.get_mut(name) {
                 updater(sym);
@@ -570,9 +574,11 @@ mod tests {
     #[test]
     fn test_scope_shadowing() {
         let mut st = SymbolTable::new();
-        st.define(Symbol::variable("x", false).with_type("int")).unwrap();
+        st.define(Symbol::variable("x", false).with_type("int"))
+            .unwrap();
         st.enter_scope();
-        st.define(Symbol::variable("x", true).with_type("bool")).unwrap();
+        st.define(Symbol::variable("x", true).with_type("bool"))
+            .unwrap();
         let inner = st.lookup("x").unwrap();
         assert_eq!(inner.type_annotation.as_deref(), Some("bool"));
         st.exit_scope().unwrap();
@@ -742,7 +748,9 @@ mod tests {
 
     #[test]
     fn test_symbol_display() {
-        let sym = Symbol::function("add", 2).with_type("(int, int) -> int").with_export();
+        let sym = Symbol::function("add", 2)
+            .with_type("(int, int) -> int")
+            .with_export();
         let s = format!("{sym}");
         assert!(s.contains("add"));
         assert!(s.contains("function/2"));
@@ -752,7 +760,8 @@ mod tests {
     #[test]
     fn test_constant_across_function_scope() {
         let mut st = SymbolTable::new();
-        st.define(Symbol::constant("PI").with_type("float")).unwrap();
+        st.define(Symbol::constant("PI").with_type("float"))
+            .unwrap();
         st.enter_function_scope("calc");
         // Constants should be visible across function scope boundaries
         assert!(st.lookup("PI").is_ok());

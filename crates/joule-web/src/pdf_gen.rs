@@ -30,23 +30,57 @@ impl fmt::Display for PdfError {
 pub type Pt = f64;
 
 /// Convert millimeters to points.
-pub fn mm_to_pt(mm: f64) -> Pt { mm * 72.0 / 25.4 }
+pub fn mm_to_pt(mm: f64) -> Pt {
+    mm * 72.0 / 25.4
+}
 
 /// Convert inches to points.
-pub fn inch_to_pt(inches: f64) -> Pt { inches * 72.0 }
+pub fn inch_to_pt(inches: f64) -> Pt {
+    inches * 72.0
+}
 
 // ── Page Sizes ──────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct PageSize { pub width: Pt, pub height: Pt }
+pub struct PageSize {
+    pub width: Pt,
+    pub height: Pt,
+}
 
 impl PageSize {
-    pub fn new(width: Pt, height: Pt) -> Self { Self { width, height } }
-    pub fn a4() -> Self { Self { width: 595.28, height: 841.89 } }
-    pub fn letter() -> Self { Self { width: 612.0, height: 792.0 } }
-    pub fn a3() -> Self { Self { width: 841.89, height: 1190.55 } }
-    pub fn legal() -> Self { Self { width: 612.0, height: 1008.0 } }
-    pub fn landscape(self) -> Self { Self { width: self.height, height: self.width } }
+    pub fn new(width: Pt, height: Pt) -> Self {
+        Self { width, height }
+    }
+    pub fn a4() -> Self {
+        Self {
+            width: 595.28,
+            height: 841.89,
+        }
+    }
+    pub fn letter() -> Self {
+        Self {
+            width: 612.0,
+            height: 792.0,
+        }
+    }
+    pub fn a3() -> Self {
+        Self {
+            width: 841.89,
+            height: 1190.55,
+        }
+    }
+    pub fn legal() -> Self {
+        Self {
+            width: 612.0,
+            height: 1008.0,
+        }
+    }
+    pub fn landscape(self) -> Self {
+        Self {
+            width: self.height,
+            height: self.width,
+        }
+    }
 }
 
 // ── Color ───────────────────────────────────────────────────────
@@ -59,11 +93,21 @@ pub enum PdfColor {
 }
 
 impl PdfColor {
-    pub fn black() -> Self { PdfColor::Gray(0.0) }
-    pub fn white() -> Self { PdfColor::Gray(1.0) }
-    pub fn red() -> Self { PdfColor::Rgb(1.0, 0.0, 0.0) }
-    pub fn green() -> Self { PdfColor::Rgb(0.0, 1.0, 0.0) }
-    pub fn blue() -> Self { PdfColor::Rgb(0.0, 0.0, 1.0) }
+    pub fn black() -> Self {
+        PdfColor::Gray(0.0)
+    }
+    pub fn white() -> Self {
+        PdfColor::Gray(1.0)
+    }
+    pub fn red() -> Self {
+        PdfColor::Rgb(1.0, 0.0, 0.0)
+    }
+    pub fn green() -> Self {
+        PdfColor::Rgb(0.0, 1.0, 0.0)
+    }
+    pub fn blue() -> Self {
+        PdfColor::Rgb(0.0, 0.0, 1.0)
+    }
 
     fn stroke_operator(&self) -> String {
         match self {
@@ -115,8 +159,12 @@ impl StandardFont {
     /// Approximate width of a character in em-units (1000 units = 1 em).
     pub fn avg_char_width(&self) -> f64 {
         match self {
-            StandardFont::Courier | StandardFont::CourierBold | StandardFont::CourierOblique => 600.0,
-            StandardFont::Helvetica | StandardFont::HelveticaBold | StandardFont::HelveticaOblique => 550.0,
+            StandardFont::Courier | StandardFont::CourierBold | StandardFont::CourierOblique => {
+                600.0
+            }
+            StandardFont::Helvetica
+            | StandardFont::HelveticaBold
+            | StandardFont::HelveticaOblique => 550.0,
             StandardFont::TimesRoman | StandardFont::TimesBold | StandardFont::TimesItalic => 500.0,
         }
     }
@@ -125,17 +173,49 @@ impl StandardFont {
 // ── Text Alignment ──────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TextAlign { Left, Center, Right }
+pub enum TextAlign {
+    Left,
+    Center,
+    Right,
+}
 
 // ── Drawing Operations ──────────────────────────────────────────
 
 /// A drawing operation on a page.
 #[derive(Debug, Clone)]
 pub enum DrawOp {
-    Text { x: Pt, y: Pt, text: String, font_idx: usize, size: f64, color: PdfColor },
-    Line { x1: Pt, y1: Pt, x2: Pt, y2: Pt, width: f64, color: PdfColor },
-    Rect { x: Pt, y: Pt, w: Pt, h: Pt, fill: Option<PdfColor>, stroke: Option<PdfColor>, line_width: f64 },
-    Image { x: Pt, y: Pt, w: Pt, h: Pt, image_idx: usize },
+    Text {
+        x: Pt,
+        y: Pt,
+        text: String,
+        font_idx: usize,
+        size: f64,
+        color: PdfColor,
+    },
+    Line {
+        x1: Pt,
+        y1: Pt,
+        x2: Pt,
+        y2: Pt,
+        width: f64,
+        color: PdfColor,
+    },
+    Rect {
+        x: Pt,
+        y: Pt,
+        w: Pt,
+        h: Pt,
+        fill: Option<PdfColor>,
+        stroke: Option<PdfColor>,
+        line_width: f64,
+    },
+    Image {
+        x: Pt,
+        y: Pt,
+        w: Pt,
+        h: Pt,
+        image_idx: usize,
+    },
 }
 
 // ── Image Data ──────────────────────────────────────────────────
@@ -154,13 +234,25 @@ impl PdfImage {
     /// Create an RGB image from raw pixel data (R, G, B bytes).
     pub fn rgb(width: u32, height: u32, data: Vec<u8>) -> Self {
         assert_eq!(data.len(), (width * height * 3) as usize);
-        Self { width, height, color_space: "DeviceRGB", bits_per_component: 8, data }
+        Self {
+            width,
+            height,
+            color_space: "DeviceRGB",
+            bits_per_component: 8,
+            data,
+        }
     }
 
     /// Create a grayscale image from raw pixel data.
     pub fn grayscale(width: u32, height: u32, data: Vec<u8>) -> Self {
         assert_eq!(data.len(), (width * height) as usize);
-        Self { width, height, color_space: "DeviceGray", bits_per_component: 8, data }
+        Self {
+            width,
+            height,
+            color_space: "DeviceGray",
+            bits_per_component: 8,
+            data,
+        }
     }
 }
 
@@ -173,22 +265,72 @@ pub struct PdfPage {
 }
 
 impl PdfPage {
-    pub fn new(size: PageSize) -> Self { Self { size, ops: Vec::new() } }
+    pub fn new(size: PageSize) -> Self {
+        Self {
+            size,
+            ops: Vec::new(),
+        }
+    }
 
-    pub fn draw_text(&mut self, x: Pt, y: Pt, text: &str, font_idx: usize, size: f64, color: PdfColor) {
-        self.ops.push(DrawOp::Text { x, y, text: text.into(), font_idx, size, color });
+    pub fn draw_text(
+        &mut self,
+        x: Pt,
+        y: Pt,
+        text: &str,
+        font_idx: usize,
+        size: f64,
+        color: PdfColor,
+    ) {
+        self.ops.push(DrawOp::Text {
+            x,
+            y,
+            text: text.into(),
+            font_idx,
+            size,
+            color,
+        });
     }
 
     pub fn draw_line(&mut self, x1: Pt, y1: Pt, x2: Pt, y2: Pt, width: f64, color: PdfColor) {
-        self.ops.push(DrawOp::Line { x1, y1, x2, y2, width, color });
+        self.ops.push(DrawOp::Line {
+            x1,
+            y1,
+            x2,
+            y2,
+            width,
+            color,
+        });
     }
 
-    pub fn draw_rect(&mut self, x: Pt, y: Pt, w: Pt, h: Pt, fill: Option<PdfColor>, stroke: Option<PdfColor>, line_width: f64) {
-        self.ops.push(DrawOp::Rect { x, y, w, h, fill, stroke, line_width });
+    pub fn draw_rect(
+        &mut self,
+        x: Pt,
+        y: Pt,
+        w: Pt,
+        h: Pt,
+        fill: Option<PdfColor>,
+        stroke: Option<PdfColor>,
+        line_width: f64,
+    ) {
+        self.ops.push(DrawOp::Rect {
+            x,
+            y,
+            w,
+            h,
+            fill,
+            stroke,
+            line_width,
+        });
     }
 
     pub fn draw_image(&mut self, x: Pt, y: Pt, w: Pt, h: Pt, image_idx: usize) {
-        self.ops.push(DrawOp::Image { x, y, w, h, image_idx });
+        self.ops.push(DrawOp::Image {
+            x,
+            y,
+            w,
+            h,
+            image_idx,
+        });
     }
 }
 
@@ -214,7 +356,10 @@ impl PdfDocument {
         }
     }
 
-    pub fn author(mut self, author: &str) -> Self { self.author = author.into(); self }
+    pub fn author(mut self, author: &str) -> Self {
+        self.author = author.into();
+        self
+    }
 
     /// Add a font and return its index.
     pub fn add_font(&mut self, font: StandardFont) -> usize {
@@ -244,7 +389,9 @@ impl PdfDocument {
 
     /// Render the document to a PDF 1.4 byte vector.
     pub fn render(&self) -> Result<Vec<u8>, PdfError> {
-        if self.pages.is_empty() { return Err(PdfError::EmptyDocument); }
+        if self.pages.is_empty() {
+            return Err(PdfError::EmptyDocument);
+        }
         let mut w = PdfWriter::new();
 
         // Header
@@ -286,7 +433,10 @@ impl PdfDocument {
         for (i, font) in self.fonts.iter().enumerate() {
             let obj_id = font_start + i;
             w.obj(obj_id);
-            w.line(&format!("<< /Type /Font /Subtype /Type1 /BaseFont /{} >>", font.pdf_name()));
+            w.line(&format!(
+                "<< /Type /Font /Subtype /Type1 /BaseFont /{} >>",
+                font.pdf_name()
+            ));
             w.endobj();
         }
 
@@ -317,7 +467,10 @@ impl PdfDocument {
             // Page object
             w.obj(page_obj_id);
             w.raw("<< /Type /Page /Parent 2 0 R");
-            w.raw(&format!(" /MediaBox [0 0 {:.2} {:.2}]", page.size.width, page.size.height));
+            w.raw(&format!(
+                " /MediaBox [0 0 {:.2} {:.2}]",
+                page.size.width, page.size.height
+            ));
 
             // Resources
             w.raw(" /Resources << /Font <<");
@@ -370,11 +523,23 @@ impl PdfDocument {
         Ok(w.buf)
     }
 
-    fn build_content_stream(&self, page: &PdfPage, _font_start: usize, _image_start: usize) -> String {
+    fn build_content_stream(
+        &self,
+        page: &PdfPage,
+        _font_start: usize,
+        _image_start: usize,
+    ) -> String {
         let mut s = String::new();
         for op in &page.ops {
             match op {
-                DrawOp::Text { x, y, text, font_idx, size, color } => {
+                DrawOp::Text {
+                    x,
+                    y,
+                    text,
+                    font_idx,
+                    size,
+                    color,
+                } => {
                     s.push_str("BT\n");
                     s.push_str(&color.fill_operator());
                     s.push('\n');
@@ -383,13 +548,28 @@ impl PdfDocument {
                     s.push_str(&format!("({}) Tj\n", pdf_escape_string(text)));
                     s.push_str("ET\n");
                 }
-                DrawOp::Line { x1, y1, x2, y2, width, color } => {
+                DrawOp::Line {
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    width,
+                    color,
+                } => {
                     s.push_str(&format!("{width:.2} w\n"));
                     s.push_str(&color.stroke_operator());
                     s.push('\n');
                     s.push_str(&format!("{x1:.2} {y1:.2} m {x2:.2} {y2:.2} l S\n"));
                 }
-                DrawOp::Rect { x, y, w, h, fill, stroke, line_width } => {
+                DrawOp::Rect {
+                    x,
+                    y,
+                    w,
+                    h,
+                    fill,
+                    stroke,
+                    line_width,
+                } => {
                     s.push_str(&format!("{line_width:.2} w\n"));
                     if let Some(fc) = fill {
                         s.push_str(&fc.fill_operator());
@@ -407,7 +587,13 @@ impl PdfDocument {
                         (None, None) => s.push('\n'),
                     }
                 }
-                DrawOp::Image { x, y, w, h, image_idx } => {
+                DrawOp::Image {
+                    x,
+                    y,
+                    w,
+                    h,
+                    image_idx,
+                } => {
                     s.push_str("q\n");
                     s.push_str(&format!("{w:.2} 0 0 {h:.2} {x:.2} {y:.2} cm\n"));
                     s.push_str(&format!("/Im{image_idx} Do\n"));
@@ -446,7 +632,9 @@ pub fn layout_paragraph(
 ) -> Vec<(Pt, Pt, String)> {
     let char_width = font.avg_char_width() / 1000.0 * font_size;
     let max_chars = (max_width / char_width).floor() as usize;
-    if max_chars == 0 { return Vec::new(); }
+    if max_chars == 0 {
+        return Vec::new();
+    }
 
     let words: Vec<&str> = text.split_whitespace().collect();
     let mut lines: Vec<String> = Vec::new();
@@ -467,7 +655,9 @@ pub fn layout_paragraph(
         lines.push(current_line);
     }
 
-    lines.iter().enumerate()
+    lines
+        .iter()
+        .enumerate()
         .map(|(i, line)| (x, y - i as f64 * leading, line.clone()))
         .collect()
 }
@@ -480,17 +670,35 @@ struct PdfWriter {
 }
 
 impl PdfWriter {
-    fn new() -> Self { Self { buf: Vec::new(), offsets: std::collections::HashMap::new() } }
-    fn pos(&self) -> usize { self.buf.len() }
-    fn raw(&mut self, s: &str) { self.buf.extend_from_slice(s.as_bytes()); }
-    fn newline(&mut self) { self.buf.push(b'\n'); }
-    fn line(&mut self, s: &str) { self.raw(s); self.newline(); }
-    fn bytes(&mut self, data: &[u8]) { self.buf.extend_from_slice(data); }
+    fn new() -> Self {
+        Self {
+            buf: Vec::new(),
+            offsets: std::collections::HashMap::new(),
+        }
+    }
+    fn pos(&self) -> usize {
+        self.buf.len()
+    }
+    fn raw(&mut self, s: &str) {
+        self.buf.extend_from_slice(s.as_bytes());
+    }
+    fn newline(&mut self) {
+        self.buf.push(b'\n');
+    }
+    fn line(&mut self, s: &str) {
+        self.raw(s);
+        self.newline();
+    }
+    fn bytes(&mut self, data: &[u8]) {
+        self.buf.extend_from_slice(data);
+    }
     fn obj(&mut self, id: usize) {
         self.offsets.insert(id, self.pos());
         self.line(&format!("{id} 0 obj"));
     }
-    fn endobj(&mut self) { self.line("endobj"); }
+    fn endobj(&mut self) {
+        self.line("endobj");
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────
@@ -590,7 +798,15 @@ mod tests {
     fn pdf_with_rect() {
         let mut doc = PdfDocument::new("Rect");
         let page = doc.add_page(PageSize::a4());
-        page.draw_rect(50.0, 50.0, 200.0, 100.0, Some(PdfColor::blue()), Some(PdfColor::black()), 1.0);
+        page.draw_rect(
+            50.0,
+            50.0,
+            200.0,
+            100.0,
+            Some(PdfColor::blue()),
+            Some(PdfColor::black()),
+            1.0,
+        );
         let bytes = doc.render().unwrap();
         let text = String::from_utf8_lossy(&bytes);
         assert!(text.contains(" re B"));
@@ -628,15 +844,32 @@ mod tests {
 
     #[test]
     fn layout_paragraph_basic() {
-        let lines = layout_paragraph("Hello World", 72.0, 720.0, 500.0, &StandardFont::Helvetica, 12.0, 14.0);
+        let lines = layout_paragraph(
+            "Hello World",
+            72.0,
+            720.0,
+            500.0,
+            &StandardFont::Helvetica,
+            12.0,
+            14.0,
+        );
         assert_eq!(lines.len(), 1);
         assert_eq!(lines[0].2, "Hello World");
     }
 
     #[test]
     fn layout_paragraph_wrapping() {
-        let text = "The quick brown fox jumps over the lazy dog and continues running through the forest";
-        let lines = layout_paragraph(text, 72.0, 720.0, 200.0, &StandardFont::Helvetica, 12.0, 14.0);
+        let text =
+            "The quick brown fox jumps over the lazy dog and continues running through the forest";
+        let lines = layout_paragraph(
+            text,
+            72.0,
+            720.0,
+            200.0,
+            &StandardFont::Helvetica,
+            12.0,
+            14.0,
+        );
         assert!(lines.len() > 1);
         // Each line should fit within bounds
         for (i, (_, y, _)) in lines.iter().enumerate() {
@@ -692,8 +925,14 @@ mod tests {
 
     #[test]
     fn error_display() {
-        assert_eq!(format!("{}", PdfError::EmptyDocument), "document has no pages");
-        assert_eq!(format!("{}", PdfError::InvalidPage(5)), "invalid page index: 5");
+        assert_eq!(
+            format!("{}", PdfError::EmptyDocument),
+            "document has no pages"
+        );
+        assert_eq!(
+            format!("{}", PdfError::InvalidPage(5)),
+            "invalid page index: 5"
+        );
     }
 
     #[test]

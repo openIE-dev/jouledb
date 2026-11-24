@@ -366,8 +366,14 @@ impl ReportBuilder {
             _ => 1,
         };
 
-        let header = report.header.as_ref().map(|h| substitute_params(h, &resolved_params));
-        let footer = report.footer.as_ref().map(|ft| substitute_params(ft, &resolved_params));
+        let header = report
+            .header
+            .as_ref()
+            .map(|h| substitute_params(h, &resolved_params));
+        let footer = report
+            .footer
+            .as_ref()
+            .map(|ft| substitute_params(ft, &resolved_params));
 
         Ok(ReportOutput {
             title: substitute_params(&report.title, &resolved_params),
@@ -405,11 +411,7 @@ impl Default for ReportBuilder {
 
 // ── Filter Application ──────────────────────────────────────────
 
-fn apply_filter(
-    row: &DataRow,
-    filter: &FilterSpec,
-    params: &HashMap<String, String>,
-) -> bool {
+fn apply_filter(row: &DataRow, filter: &FilterSpec, params: &HashMap<String, String>) -> bool {
     let val = row.get(&filter.column);
     match &filter.op {
         FilterOp::Equals(expected) => {
@@ -719,8 +721,7 @@ fn csv_escape(s: &str) -> String {
 // ── Export: JSON ─────────────────────────────────────────────────
 
 fn export_json(output: &ReportOutput) -> Result<String, ReportError> {
-    serde_json::to_string_pretty(output)
-        .map_err(|e| ReportError::ExportError(e.to_string()))
+    serde_json::to_string_pretty(output).map_err(|e| ReportError::ExportError(e.to_string()))
 }
 
 // ── Tests ───────────────────────────────────────────────────────
@@ -760,10 +761,22 @@ mod tests {
 
     fn sample_data() -> Vec<DataRow> {
         vec![
-            DataRow::new().set("name", "Alice").set("dept", "Engineering").set("salary", "90000"),
-            DataRow::new().set("name", "Bob").set("dept", "Marketing").set("salary", "75000"),
-            DataRow::new().set("name", "Charlie").set("dept", "Engineering").set("salary", "95000"),
-            DataRow::new().set("name", "Diana").set("dept", "Marketing").set("salary", "80000"),
+            DataRow::new()
+                .set("name", "Alice")
+                .set("dept", "Engineering")
+                .set("salary", "90000"),
+            DataRow::new()
+                .set("name", "Bob")
+                .set("dept", "Marketing")
+                .set("salary", "75000"),
+            DataRow::new()
+                .set("name", "Charlie")
+                .set("dept", "Engineering")
+                .set("salary", "95000"),
+            DataRow::new()
+                .set("name", "Diana")
+                .set("dept", "Marketing")
+                .set("salary", "80000"),
         ]
     }
 
@@ -896,10 +909,16 @@ mod tests {
         rb.register(report).unwrap();
         let output = rb.generate("r1", &sample_data(), &HashMap::new()).unwrap();
         assert!(output.groups.len() >= 2);
-        let eng_group = output.groups.iter().find(|g| g.group_value == "Engineering");
+        let eng_group = output
+            .groups
+            .iter()
+            .find(|g| g.group_value == "Engineering");
         assert!(eng_group.is_some());
         let eng = eng_group.unwrap();
-        assert_eq!(eng.aggregates.get("Total Salary"), Some(&"185000".to_string()));
+        assert_eq!(
+            eng.aggregates.get("Total Salary"),
+            Some(&"185000".to_string())
+        );
     }
 
     #[test]

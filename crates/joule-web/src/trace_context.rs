@@ -362,7 +362,11 @@ impl TraceTreeNode {
         if self.children.is_empty() {
             self.depth
         } else {
-            self.children.iter().map(|c| c.max_depth()).max().unwrap_or(self.depth)
+            self.children
+                .iter()
+                .map(|c| c.max_depth())
+                .max()
+                .unwrap_or(self.depth)
         }
     }
 
@@ -445,12 +449,7 @@ impl TraceCollector {
     }
 
     /// Start a new child span.
-    pub fn start_span(
-        &mut self,
-        trace_id: &str,
-        parent_span_id: &str,
-        name: &str,
-    ) -> String {
+    pub fn start_span(&mut self, trace_id: &str, parent_span_id: &str, name: &str) -> String {
         let span = Span::new(trace_id, name).with_parent(parent_span_id);
         let span_id = span.span_id.clone();
         self.spans.push(span);
@@ -515,11 +514,7 @@ impl TraceCollector {
 
     /// List all unique trace IDs.
     pub fn trace_ids(&self) -> Vec<String> {
-        let mut ids: Vec<String> = self
-            .spans
-            .iter()
-            .map(|s| s.trace_id.clone())
-            .collect();
+        let mut ids: Vec<String> = self.spans.iter().map(|s| s.trace_id.clone()).collect();
         ids.sort();
         ids.dedup();
         ids

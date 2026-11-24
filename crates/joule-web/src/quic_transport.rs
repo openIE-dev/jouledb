@@ -14,7 +14,10 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QuicError {
     /// Connection is not in a valid state for this operation.
-    InvalidState { current: ConnectionState, expected: &'static str },
+    InvalidState {
+        current: ConnectionState,
+        expected: &'static str,
+    },
     /// Stream not found.
     StreamNotFound(u64),
     /// Duplicate stream ID.
@@ -41,7 +44,10 @@ impl fmt::Display for QuicError {
             Self::DuplicateStream(id) => write!(f, "duplicate stream: {id}"),
             Self::MaxStreamsReached { max } => write!(f, "max streams reached: {max}"),
             Self::FlowControlExceeded { stream_id, limit } => {
-                write!(f, "flow control exceeded on stream {stream_id} (limit={limit})")
+                write!(
+                    f,
+                    "flow control exceeded on stream {stream_id} (limit={limit})"
+                )
             }
             Self::ConnectionFlowExceeded { limit } => {
                 write!(f, "connection flow control exceeded (limit={limit})")
@@ -214,7 +220,10 @@ pub struct Address {
 
 impl Address {
     pub fn new(ip: impl Into<String>, port: u16) -> Self {
-        Self { ip: ip.into(), port }
+        Self {
+            ip: ip.into(),
+            port,
+        }
     }
 }
 
@@ -241,12 +250,7 @@ pub struct QuicConnection {
 }
 
 impl QuicConnection {
-    pub fn new(
-        connection_id: u64,
-        local: Address,
-        remote: Address,
-        config: QuicConfig,
-    ) -> Self {
+    pub fn new(connection_id: u64, local: Address, remote: Address, config: QuicConfig) -> Self {
         Self {
             connection_id,
             config,
@@ -338,7 +342,10 @@ impl QuicConnection {
     }
 
     /// Open a stream with a specific priority.
-    pub fn open_stream_with_priority(&mut self, priority: StreamPriority) -> Result<u64, QuicError> {
+    pub fn open_stream_with_priority(
+        &mut self,
+        priority: StreamPriority,
+    ) -> Result<u64, QuicError> {
         let id = self.open_stream()?;
         if let Some(s) = self.streams.get_mut(&id) {
             s.priority = priority;
@@ -348,7 +355,9 @@ impl QuicConnection {
 
     /// Close a stream.
     pub fn close_stream(&mut self, stream_id: u64) -> Result<(), QuicError> {
-        let stream = self.streams.get_mut(&stream_id)
+        let stream = self
+            .streams
+            .get_mut(&stream_id)
             .ok_or(QuicError::StreamNotFound(stream_id))?;
         if !stream.open {
             return Err(QuicError::StreamNotFound(stream_id));
@@ -371,7 +380,9 @@ impl QuicConnection {
             });
         }
 
-        let stream = self.streams.get_mut(&stream_id)
+        let stream = self
+            .streams
+            .get_mut(&stream_id)
             .ok_or(QuicError::StreamNotFound(stream_id))?;
         if !stream.open {
             return Err(QuicError::StreamNotFound(stream_id));
@@ -397,7 +408,9 @@ impl QuicConnection {
     pub fn receive(&mut self, stream_id: u64, data: Vec<u8>) -> Result<(), QuicError> {
         self.require_connected()?;
         let data_len = data.len() as u64;
-        let stream = self.streams.get_mut(&stream_id)
+        let stream = self
+            .streams
+            .get_mut(&stream_id)
             .ok_or(QuicError::StreamNotFound(stream_id))?;
         stream.bytes_received += data_len;
         stream.recv_buffer.push_back(data);
@@ -407,7 +420,9 @@ impl QuicConnection {
 
     /// Drain received data from a stream.
     pub fn drain_recv(&mut self, stream_id: u64) -> Result<Vec<Vec<u8>>, QuicError> {
-        let stream = self.streams.get_mut(&stream_id)
+        let stream = self
+            .streams
+            .get_mut(&stream_id)
             .ok_or(QuicError::StreamNotFound(stream_id))?;
         Ok(stream.recv_buffer.drain(..).collect())
     }
@@ -435,7 +450,9 @@ impl QuicConnection {
 
     /// Get streams ordered by priority (highest first).
     pub fn streams_by_priority(&self) -> Vec<u64> {
-        let mut ids: Vec<_> = self.streams.iter()
+        let mut ids: Vec<_> = self
+            .streams
+            .iter()
             .filter(|(_, s)| s.open)
             .map(|(&id, s)| (s.priority, id))
             .collect();
@@ -486,7 +503,9 @@ impl QuicConnection {
     fn open_stream_internal(&mut self) -> Result<u64, QuicError> {
         let open_count = self.streams.values().filter(|s| s.open).count();
         if open_count >= self.config.max_streams {
-            return Err(QuicError::MaxStreamsReached { max: self.config.max_streams });
+            return Err(QuicError::MaxStreamsReached {
+                max: self.config.max_streams,
+            });
         }
         let id = self.next_stream_id;
         self.next_stream_id += 1;
@@ -617,8 +636,12 @@ mod tests {
     fn stream_priority_ordering() {
         let mut conn = connected_conn();
         let low = conn.open_stream_with_priority(StreamPriority::Low).unwrap();
-        let high = conn.open_stream_with_priority(StreamPriority::High).unwrap();
-        let normal = conn.open_stream_with_priority(StreamPriority::Normal).unwrap();
+        let high = conn
+            .open_stream_with_priority(StreamPriority::High)
+            .unwrap();
+        let normal = conn
+            .open_stream_with_priority(StreamPriority::Normal)
+            .unwrap();
         let ordered = conn.streams_by_priority();
         assert_eq!(ordered[0], high);
         assert_eq!(ordered[1], normal);

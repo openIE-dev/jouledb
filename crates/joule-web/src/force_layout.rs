@@ -161,7 +161,8 @@ impl QuadNode {
                 let old_mass = self.total_mass;
                 let q = self.quadrant(old_cx, old_cy);
                 let (x0, y0, x1, y1) = self.child_bounds(q);
-                let child = self.children[q].get_or_insert_with(|| Box::new(QuadNode::new(x0, y0, x1, y1)));
+                let child =
+                    self.children[q].get_or_insert_with(|| Box::new(QuadNode::new(x0, y0, x1, y1)));
                 child.insert(old_idx, old_cx, old_cy, old_mass);
             }
         }
@@ -235,7 +236,8 @@ fn apply_charge_force(nodes: &mut [ForceNode], charge_strength: f64, theta: f64)
     // Collect forces first to avoid borrow issues
     let mut forces: Vec<(f64, f64)> = vec![(0.0, 0.0); nodes.len()];
     for i in 0..nodes.len() {
-        let (fx, fy) = compute_charge_recursive(&tree, nodes[i].x, nodes[i].y, i, charge_strength, theta_sq);
+        let (fx, fy) =
+            compute_charge_recursive(&tree, nodes[i].x, nodes[i].y, i, charge_strength, theta_sq);
         forces[i] = (fx, fy);
     }
     for (i, node) in nodes.iter_mut().enumerate() {
@@ -414,8 +416,17 @@ impl ForceSimulation {
         self.alpha += (self.config.alpha_min - self.alpha) * self.config.alpha_decay;
 
         // Apply forces
-        apply_center_force(&mut self.nodes, self.config.center.0, self.config.center.1, self.config.center_strength);
-        apply_charge_force(&mut self.nodes, self.config.charge_strength * self.alpha, self.config.theta);
+        apply_center_force(
+            &mut self.nodes,
+            self.config.center.0,
+            self.config.center.1,
+            self.config.center_strength,
+        );
+        apply_charge_force(
+            &mut self.nodes,
+            self.config.charge_strength * self.alpha,
+            self.config.theta,
+        );
         apply_link_force(&mut self.nodes, &self.links);
         apply_collision_force(&mut self.nodes);
 
@@ -524,10 +535,7 @@ mod tests {
 
     #[test]
     fn test_charge_repulsion() {
-        let nodes = vec![
-            ForceNode::new(0, 0.0, 0.0),
-            ForceNode::new(1, 1.0, 0.0),
-        ];
+        let nodes = vec![ForceNode::new(0, 0.0, 0.0), ForceNode::new(1, 1.0, 0.0)];
         let mut sim = ForceSimulation::new(nodes, vec![]);
         sim.config.center_strength = 0.0;
         sim.tick();
@@ -537,10 +545,7 @@ mod tests {
 
     #[test]
     fn test_link_spring() {
-        let nodes = vec![
-            ForceNode::new(0, 0.0, 0.0),
-            ForceNode::new(1, 100.0, 0.0),
-        ];
+        let nodes = vec![ForceNode::new(0, 0.0, 0.0), ForceNode::new(1, 100.0, 0.0)];
         let links = vec![ForceLink::new(0, 1).with_distance(30.0)];
         let mut sim = ForceSimulation::new(nodes, links);
         sim.config.charge_strength = 0.0;
@@ -570,10 +575,7 @@ mod tests {
 
     #[test]
     fn test_fixed_node() {
-        let mut nodes = vec![
-            ForceNode::new(0, 0.0, 0.0),
-            ForceNode::new(1, 50.0, 50.0),
-        ];
+        let mut nodes = vec![ForceNode::new(0, 0.0, 0.0), ForceNode::new(1, 50.0, 50.0)];
         nodes[0].fixed = true;
         let mut sim = ForceSimulation::new(nodes, vec![]);
         sim.run(50);
@@ -600,7 +602,9 @@ mod tests {
 
     #[test]
     fn test_node_builders() {
-        let n = ForceNode::new(42, 1.0, 2.0).with_mass(5.0).with_radius(10.0);
+        let n = ForceNode::new(42, 1.0, 2.0)
+            .with_mass(5.0)
+            .with_radius(10.0);
         assert_eq!(n.mass, 5.0);
         assert_eq!(n.radius, 10.0);
     }

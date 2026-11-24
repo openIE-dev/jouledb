@@ -20,7 +20,9 @@ impl Vec6 {
     }
 
     pub fn new(v0: f64, v1: f64, v2: f64, v3: f64, v4: f64, v5: f64) -> Self {
-        Self { data: [v0, v1, v2, v3, v4, v5] }
+        Self {
+            data: [v0, v1, v2, v3, v4, v5],
+        }
     }
 
     pub fn from_slice(s: &[f64]) -> Self {
@@ -70,9 +72,11 @@ impl Vec6 {
 
 impl fmt::Display for Vec6 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{:.3}, {:.3}, {:.3} | {:.3}, {:.3}, {:.3}]",
-            self.data[0], self.data[1], self.data[2],
-            self.data[3], self.data[4], self.data[5])
+        write!(
+            f,
+            "[{:.3}, {:.3}, {:.3} | {:.3}, {:.3}, {:.3}]",
+            self.data[0], self.data[1], self.data[2], self.data[3], self.data[4], self.data[5]
+        )
     }
 }
 
@@ -107,13 +111,17 @@ impl SelectionMatrix {
 
     /// Set a specific axis to force control.
     pub fn with_force_axis(mut self, axis: usize) -> Self {
-        if axis < 6 { self.diagonal[axis] = 1.0; }
+        if axis < 6 {
+            self.diagonal[axis] = 1.0;
+        }
         self
     }
 
     /// Set a specific axis to position control.
     pub fn with_position_axis(mut self, axis: usize) -> Self {
-        if axis < 6 { self.diagonal[axis] = 0.0; }
+        if axis < 6 {
+            self.diagonal[axis] = 0.0;
+        }
         self
     }
 
@@ -159,11 +167,16 @@ impl SelectionMatrix {
 
 impl fmt::Display for SelectionMatrix {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let labels: Vec<&str> = self.diagonal.iter()
+        let labels: Vec<&str> = self
+            .diagonal
+            .iter()
             .map(|d| if *d > 0.5 { "F" } else { "P" })
             .collect();
-        write!(f, "S[{} {} {} | {} {} {}]",
-            labels[0], labels[1], labels[2], labels[3], labels[4], labels[5])
+        write!(
+            f,
+            "S[{} {} {} | {} {} {}]",
+            labels[0], labels[1], labels[2], labels[3], labels[4], labels[5]
+        )
     }
 }
 
@@ -182,7 +195,14 @@ pub struct PidController {
 
 impl PidController {
     pub fn new(kp: f64, ki: f64, kd: f64) -> Self {
-        Self { kp, ki, kd, integral: 0.0, prev_error: 0.0, integral_limit: 100.0 }
+        Self {
+            kp,
+            ki,
+            kd,
+            integral: 0.0,
+            prev_error: 0.0,
+            integral_limit: 100.0,
+        }
     }
 
     pub fn with_integral_limit(mut self, limit: f64) -> Self {
@@ -192,8 +212,14 @@ impl PidController {
 
     pub fn compute(&mut self, error: f64, dt: f64) -> f64 {
         self.integral += error * dt;
-        self.integral = self.integral.clamp(-self.integral_limit, self.integral_limit);
-        let derivative = if dt > 0.0 { (error - self.prev_error) / dt } else { 0.0 };
+        self.integral = self
+            .integral
+            .clamp(-self.integral_limit, self.integral_limit);
+        let derivative = if dt > 0.0 {
+            (error - self.prev_error) / dt
+        } else {
+            0.0
+        };
         self.prev_error = error;
         self.kp * error + self.ki * self.integral + self.kd * derivative
     }
@@ -206,7 +232,11 @@ impl PidController {
 
 impl fmt::Display for PidController {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PID(kp={:.2}, ki={:.2}, kd={:.2})", self.kp, self.ki, self.kd)
+        write!(
+            f,
+            "PID(kp={:.2}, ki={:.2}, kd={:.2})",
+            self.kp, self.ki, self.kd
+        )
     }
 }
 
@@ -226,7 +256,9 @@ pub struct HybridController {
 impl HybridController {
     pub fn new(selection: SelectionMatrix) -> Self {
         let force_pids = (0..6).map(|_| PidController::new(1.0, 0.0, 0.1)).collect();
-        let position_pids = (0..6).map(|_| PidController::new(100.0, 0.0, 20.0)).collect();
+        let position_pids = (0..6)
+            .map(|_| PidController::new(100.0, 0.0, 20.0))
+            .collect();
         Self {
             selection,
             force_pids,
@@ -294,14 +326,22 @@ impl HybridController {
     }
 
     pub fn reset(&mut self) {
-        for pid in &mut self.force_pids { pid.reset(); }
-        for pid in &mut self.position_pids { pid.reset(); }
+        for pid in &mut self.force_pids {
+            pid.reset();
+        }
+        for pid in &mut self.position_pids {
+            pid.reset();
+        }
     }
 }
 
 impl fmt::Display for HybridController {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "HybridController({}, limit={:.1})", self.selection, self.output_limit)
+        write!(
+            f,
+            "HybridController({}, limit={:.1})",
+            self.selection, self.output_limit
+        )
     }
 }
 
@@ -345,7 +385,11 @@ impl TaskFrame {
     pub fn from_normal(normal: [f64; 3]) -> Self {
         // Build frame where z-axis aligns with normal
         let n = Self::normalize_vec(normal);
-        let up = if n[2].abs() < 0.9 { [0.0, 0.0, 1.0] } else { [1.0, 0.0, 0.0] };
+        let up = if n[2].abs() < 0.9 {
+            [0.0, 0.0, 1.0]
+        } else {
+            [1.0, 0.0, 0.0]
+        };
         let x = Self::normalize_vec(Self::cross(up, n));
         let y = Self::cross(n, x);
         Self {
@@ -361,7 +405,9 @@ impl TaskFrame {
 
     fn normalize_vec(v: [f64; 3]) -> [f64; 3] {
         let len = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
-        if len < 1e-12 { return [0.0, 0.0, 1.0]; }
+        if len < 1e-12 {
+            return [0.0, 0.0, 1.0];
+        }
         [v[0] / len, v[1] / len, v[2] / len]
     }
 
@@ -413,8 +459,11 @@ impl TaskFrame {
 
 impl fmt::Display for TaskFrame {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TaskFrame(origin=[{:.2},{:.2},{:.2}])",
-            self.origin[0], self.origin[1], self.origin[2])
+        write!(
+            f,
+            "TaskFrame(origin=[{:.2},{:.2},{:.2}])",
+            self.origin[0], self.origin[1], self.origin[2]
+        )
     }
 }
 
@@ -510,8 +559,7 @@ mod tests {
     #[test]
     fn test_hybrid_controller_pure_position() {
         let sel = SelectionMatrix::all_position();
-        let mut ctrl = HybridController::new(sel)
-            .with_position_gains(100.0, 0.0, 0.0);
+        let mut ctrl = HybridController::new(sel).with_position_gains(100.0, 0.0, 0.0);
         ctrl.set_position_desired(Vec6::new(1.0, 0.0, 0.0, 0.0, 0.0, 0.0));
         let out = ctrl.compute(&Vec6::zeros(), &Vec6::zeros(), 0.01);
         assert!(out.command.data[0] > 0.0);
@@ -520,8 +568,7 @@ mod tests {
     #[test]
     fn test_hybrid_controller_pure_force() {
         let sel = SelectionMatrix::all_force();
-        let mut ctrl = HybridController::new(sel)
-            .with_force_gains(1.0, 0.0, 0.0);
+        let mut ctrl = HybridController::new(sel).with_force_gains(1.0, 0.0, 0.0);
         ctrl.set_force_desired(Vec6::new(10.0, 0.0, 0.0, 0.0, 0.0, 0.0));
         let out = ctrl.compute(&Vec6::zeros(), &Vec6::zeros(), 0.01);
         assert!((out.command.data[0] - 10.0).abs() < 1e-6);

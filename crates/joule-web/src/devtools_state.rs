@@ -175,8 +175,7 @@ impl DevToolsStore {
 
     /// Import history from a JSON string, replacing current history.
     pub fn import_json(&mut self, json: &str) -> Result<usize, String> {
-        let records: Vec<ActionRecord> =
-            serde_json::from_str(json).map_err(|e| e.to_string())?;
+        let records: Vec<ActionRecord> = serde_json::from_str(json).map_err(|e| e.to_string())?;
         let count = records.len();
         self.history = records;
         self.current_index = if self.history.is_empty() {

@@ -12,7 +12,11 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenError {
     /// Insufficient balance for transfer/burn.
-    InsufficientBalance { account: String, available: u64, requested: u64 },
+    InsufficientBalance {
+        account: String,
+        available: u64,
+        requested: u64,
+    },
     /// Account not found.
     AccountNotFound(String),
     /// Duplicate account.
@@ -22,7 +26,12 @@ pub enum TokenError {
     /// Cannot transfer to self.
     SelfTransfer(String),
     /// Allowance exceeded.
-    AllowanceExceeded { owner: String, spender: String, allowance: u64, requested: u64 },
+    AllowanceExceeded {
+        owner: String,
+        spender: String,
+        allowance: u64,
+        requested: u64,
+    },
     /// Overflow in balance computation.
     Overflow,
     /// Snapshot not found.
@@ -32,14 +41,26 @@ pub enum TokenError {
 impl fmt::Display for TokenError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InsufficientBalance { account, available, requested } => {
-                write!(f, "insufficient balance for {account}: have {available}, need {requested}")
+            Self::InsufficientBalance {
+                account,
+                available,
+                requested,
+            } => {
+                write!(
+                    f,
+                    "insufficient balance for {account}: have {available}, need {requested}"
+                )
             }
             Self::AccountNotFound(a) => write!(f, "account not found: {a}"),
             Self::DuplicateAccount(a) => write!(f, "duplicate account: {a}"),
             Self::ZeroAmount => write!(f, "amount must be greater than zero"),
             Self::SelfTransfer(a) => write!(f, "cannot transfer to self: {a}"),
-            Self::AllowanceExceeded { owner, spender, allowance, requested } => {
+            Self::AllowanceExceeded {
+                owner,
+                spender,
+                allowance,
+                requested,
+            } => {
                 write!(
                     f,
                     "allowance exceeded: {spender} allowed {allowance} from {owner}, requested {requested}"
@@ -172,11 +193,7 @@ pub struct TokenLedger {
 
 impl TokenLedger {
     /// Create a new token ledger.
-    pub fn new(
-        name: impl Into<String>,
-        symbol: impl Into<String>,
-        decimals: u8,
-    ) -> Self {
+    pub fn new(name: impl Into<String>, symbol: impl Into<String>, decimals: u8) -> Self {
         Self {
             name: name.into(),
             symbol: symbol.into(),
@@ -224,19 +241,20 @@ impl TokenLedger {
     }
 
     /// Mint new tokens to an account.
-    pub fn mint(
-        &mut self,
-        to: &str,
-        amount: u64,
-        timestamp: u64,
-    ) -> Result<u64, TokenError> {
+    pub fn mint(&mut self, to: &str, amount: u64, timestamp: u64) -> Result<u64, TokenError> {
         if amount == 0 {
             return Err(TokenError::ZeroAmount);
         }
         self.ensure_account(to);
         let account = self.accounts.get_mut(to).unwrap();
-        account.balance = account.balance.checked_add(amount).ok_or(TokenError::Overflow)?;
-        self.total_supply = self.total_supply.checked_add(amount).ok_or(TokenError::Overflow)?;
+        account.balance = account
+            .balance
+            .checked_add(amount)
+            .ok_or(TokenError::Overflow)?;
+        self.total_supply = self
+            .total_supply
+            .checked_add(amount)
+            .ok_or(TokenError::Overflow)?;
 
         let tx_id = self.next_tx_id;
         self.next_tx_id += 1;
@@ -252,12 +270,7 @@ impl TokenLedger {
     }
 
     /// Burn tokens from an account.
-    pub fn burn(
-        &mut self,
-        from: &str,
-        amount: u64,
-        timestamp: u64,
-    ) -> Result<u64, TokenError> {
+    pub fn burn(&mut self, from: &str, amount: u64, timestamp: u64) -> Result<u64, TokenError> {
         if amount == 0 {
             return Err(TokenError::ZeroAmount);
         }
@@ -322,7 +335,10 @@ impl TokenLedger {
         // Perform transfer
         self.accounts.get_mut(from).unwrap().balance -= amount;
         let to_acct = self.accounts.get_mut(to).unwrap();
-        to_acct.balance = to_acct.balance.checked_add(amount).ok_or(TokenError::Overflow)?;
+        to_acct.balance = to_acct
+            .balance
+            .checked_add(amount)
+            .ok_or(TokenError::Overflow)?;
 
         let tx_id = self.next_tx_id;
         self.next_tx_id += 1;
@@ -338,12 +354,7 @@ impl TokenLedger {
     }
 
     /// Approve a spender to transfer up to `amount` on behalf of the owner.
-    pub fn approve(
-        &mut self,
-        owner: &str,
-        spender: &str,
-        amount: u64,
-    ) -> Result<(), TokenError> {
+    pub fn approve(&mut self, owner: &str, spender: &str, amount: u64) -> Result<(), TokenError> {
         let account = self
             .accounts
             .get_mut(owner)
@@ -412,7 +423,10 @@ impl TokenLedger {
         // Perform transfer
         self.accounts.get_mut(owner).unwrap().balance -= amount;
         let to_acct = self.accounts.get_mut(to).unwrap();
-        to_acct.balance = to_acct.balance.checked_add(amount).ok_or(TokenError::Overflow)?;
+        to_acct.balance = to_acct
+            .balance
+            .checked_add(amount)
+            .ok_or(TokenError::Overflow)?;
 
         let tx_id = self.next_tx_id;
         self.next_tx_id += 1;
@@ -471,9 +485,7 @@ impl TokenLedger {
     pub fn transactions_for(&self, address: &str) -> Vec<&TokenTransaction> {
         self.transactions
             .iter()
-            .filter(|tx| {
-                tx.from.as_deref() == Some(address) || tx.to.as_deref() == Some(address)
-            })
+            .filter(|tx| tx.from.as_deref() == Some(address) || tx.to.as_deref() == Some(address))
             .collect()
     }
 
@@ -619,7 +631,9 @@ mod tests {
         let mut ledger = setup_ledger();
         ledger.ensure_account("charlie");
         ledger.approve("alice", "charlie", 5000).unwrap();
-        ledger.transfer_from("charlie", "alice", "bob", 3000, 300).unwrap();
+        ledger
+            .transfer_from("charlie", "alice", "bob", 3000, 300)
+            .unwrap();
         assert_eq!(ledger.balance_of("alice"), 7000);
         assert_eq!(ledger.balance_of("bob"), 3000);
         assert_eq!(ledger.allowance("alice", "charlie"), 2000);
@@ -630,7 +644,9 @@ mod tests {
         let mut ledger = setup_ledger();
         ledger.ensure_account("charlie");
         ledger.approve("alice", "charlie", 100).unwrap();
-        let err = ledger.transfer_from("charlie", "alice", "bob", 500, 300).unwrap_err();
+        let err = ledger
+            .transfer_from("charlie", "alice", "bob", 500, 300)
+            .unwrap_err();
         assert!(matches!(err, TokenError::AllowanceExceeded { .. }));
     }
 
@@ -638,14 +654,13 @@ mod tests {
     fn test_batch_transfer() {
         let mut ledger = setup_ledger();
         ledger.ensure_account("charlie");
-        let ids = ledger.batch_transfer(
-            "alice",
-            &[
-                ("bob".to_string(), 2000),
-                ("charlie".to_string(), 3000),
-            ],
-            400,
-        ).unwrap();
+        let ids = ledger
+            .batch_transfer(
+                "alice",
+                &[("bob".to_string(), 2000), ("charlie".to_string(), 3000)],
+                400,
+            )
+            .unwrap();
         assert_eq!(ids.len(), 2);
         assert_eq!(ledger.balance_of("alice"), 5000);
         assert_eq!(ledger.balance_of("bob"), 2000);
@@ -655,14 +670,13 @@ mod tests {
     #[test]
     fn test_batch_transfer_insufficient() {
         let mut ledger = setup_ledger();
-        let err = ledger.batch_transfer(
-            "alice",
-            &[
-                ("bob".to_string(), 6000),
-                ("charlie".to_string(), 6000),
-            ],
-            400,
-        ).unwrap_err();
+        let err = ledger
+            .batch_transfer(
+                "alice",
+                &[("bob".to_string(), 6000), ("charlie".to_string(), 6000)],
+                400,
+            )
+            .unwrap_err();
         assert!(matches!(err, TokenError::InsufficientBalance { .. }));
     }
 

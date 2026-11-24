@@ -19,7 +19,10 @@ pub enum SanitizeError {
     /// Null byte found.
     NullByte,
     /// Homoglyph attack detected.
-    HomoglyphDetected { original: String, suspicious: String },
+    HomoglyphDetected {
+        original: String,
+        suspicious: String,
+    },
     /// Invalid URL.
     InvalidUrl(String),
     /// Input too long.
@@ -32,11 +35,11 @@ impl std::fmt::Display for SanitizeError {
             Self::SqlInjection(s) => write!(f, "SQL injection pattern detected: {s}"),
             Self::PathTraversal(s) => write!(f, "path traversal detected: {s}"),
             Self::NullByte => write!(f, "null byte in input"),
-            Self::HomoglyphDetected { original, suspicious } => {
-                write!(
-                    f,
-                    "homoglyph detected: '{suspicious}' in '{original}'"
-                )
+            Self::HomoglyphDetected {
+                original,
+                suspicious,
+            } => {
+                write!(f, "homoglyph detected: '{suspicious}' in '{original}'")
             }
             Self::InvalidUrl(s) => write!(f, "invalid URL: {s}"),
             Self::InputTooLong { max, got } => {
@@ -309,8 +312,7 @@ pub fn has_mixed_scripts(input: &str) -> bool {
         }
     }
 
-    let script_count =
-        has_latin as u32 + has_cyrillic as u32 + has_cjk as u32;
+    let script_count = has_latin as u32 + has_cyrillic as u32 + has_cjk as u32;
     script_count > 1
 }
 
@@ -342,22 +344,10 @@ pub fn strip_invisible_chars(input: &str) -> String {
 // ── URL Sanitization ───────────────────────────────────────────
 
 /// Dangerous URL schemes.
-const DANGEROUS_SCHEMES: &[&str] = &[
-    "javascript:",
-    "data:",
-    "vbscript:",
-    "file:",
-    "blob:",
-];
+const DANGEROUS_SCHEMES: &[&str] = &["javascript:", "data:", "vbscript:", "file:", "blob:"];
 
 /// Allowed URL schemes.
-const SAFE_SCHEMES: &[&str] = &[
-    "http://",
-    "https://",
-    "mailto:",
-    "tel:",
-    "ftp://",
-];
+const SAFE_SCHEMES: &[&str] = &["http://", "https://", "mailto:", "tel:", "ftp://"];
 
 /// Sanitize a URL, rejecting dangerous schemes.
 pub fn sanitize_url(url: &str) -> Result<String, SanitizeError> {
@@ -563,7 +553,10 @@ mod tests {
     #[test]
     fn test_reject_null_bytes() {
         assert!(reject_null_bytes("clean").is_ok());
-        assert_eq!(reject_null_bytes("nul\0l").unwrap_err(), SanitizeError::NullByte);
+        assert_eq!(
+            reject_null_bytes("nul\0l").unwrap_err(),
+            SanitizeError::NullByte
+        );
     }
 
     // ── SQL Injection ──

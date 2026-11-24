@@ -85,7 +85,12 @@ pub struct FirmwareVersion {
 
 impl FirmwareVersion {
     pub fn new(major: u32, minor: u32, patch: u32) -> Self {
-        Self { major, minor, patch, label: None }
+        Self {
+            major,
+            minor,
+            patch,
+            label: None,
+        }
     }
 
     pub fn with_label(mut self, label: &str) -> Self {
@@ -326,7 +331,10 @@ impl DeviceRegistry {
                 }
             }
             device.group = Some(group.to_string());
-            self.groups.entry(group.to_string()).or_default().push(id.to_string());
+            self.groups
+                .entry(group.to_string())
+                .or_default()
+                .push(id.to_string());
             true
         } else {
             false
@@ -342,30 +350,47 @@ impl DeviceRegistry {
 
     /// Search/filter devices.
     pub fn search(&self, filter: &DeviceFilter) -> Vec<&Device> {
-        self.devices.values().filter(|d| {
-            if let Some(dt) = filter.device_type {
-                if d.device_type != dt { return false; }
-            }
-            if let Some(s) = filter.state {
-                if d.state != s { return false; }
-            }
-            if let Some(g) = &filter.group {
-                if d.group.as_deref() != Some(g.as_str()) { return false; }
-            }
-            if let Some(tag) = &filter.tag {
-                if !d.tags.contains(tag) { return false; }
-            }
-            if let Some(cap) = &filter.capability {
-                if !d.has_capability(cap) { return false; }
-            }
-            if let Some(name) = &filter.name_contains {
-                if !d.name.to_lowercase().contains(&name.to_lowercase()) { return false; }
-            }
-            if let Some(min_fw) = &filter.firmware_min {
-                if d.firmware < *min_fw { return false; }
-            }
-            true
-        }).collect()
+        self.devices
+            .values()
+            .filter(|d| {
+                if let Some(dt) = filter.device_type {
+                    if d.device_type != dt {
+                        return false;
+                    }
+                }
+                if let Some(s) = filter.state {
+                    if d.state != s {
+                        return false;
+                    }
+                }
+                if let Some(g) = &filter.group {
+                    if d.group.as_deref() != Some(g.as_str()) {
+                        return false;
+                    }
+                }
+                if let Some(tag) = &filter.tag {
+                    if !d.tags.contains(tag) {
+                        return false;
+                    }
+                }
+                if let Some(cap) = &filter.capability {
+                    if !d.has_capability(cap) {
+                        return false;
+                    }
+                }
+                if let Some(name) = &filter.name_contains {
+                    if !d.name.to_lowercase().contains(&name.to_lowercase()) {
+                        return false;
+                    }
+                }
+                if let Some(min_fw) = &filter.firmware_min {
+                    if d.firmware < *min_fw {
+                        return false;
+                    }
+                }
+                true
+            })
+            .collect()
     }
 
     pub fn device_count(&self) -> usize {
@@ -455,7 +480,10 @@ mod tests {
         let id = reg.register(d);
         reg.set_error(&id, "sensor stuck");
         assert_eq!(reg.get(&id).unwrap().state, DeviceState::Error);
-        assert_eq!(reg.get(&id).unwrap().error_message.as_deref(), Some("sensor stuck"));
+        assert_eq!(
+            reg.get(&id).unwrap().error_message.as_deref(),
+            Some("sensor stuck")
+        );
         reg.set_state(&id, DeviceState::Online);
         assert!(reg.get(&id).unwrap().error_message.is_none());
     }
@@ -504,15 +532,29 @@ mod tests {
         let d = make_device("s1");
         let id = reg.register(d);
         reg.update_firmware(&id, FirmwareVersion::new(2, 0, 0));
-        assert_eq!(reg.get(&id).unwrap().firmware, FirmwareVersion::new(2, 0, 0));
+        assert_eq!(
+            reg.get(&id).unwrap().firmware,
+            FirmwareVersion::new(2, 0, 0)
+        );
     }
 
     #[test]
     fn search_by_type() {
         let mut reg = DeviceRegistry::new(60);
-        reg.register(Device::new("s1", DeviceType::Sensor, FirmwareVersion::new(1, 0, 0)));
-        reg.register(Device::new("g1", DeviceType::Gateway, FirmwareVersion::new(1, 0, 0)));
-        let filter = DeviceFilter { device_type: Some(DeviceType::Sensor), ..Default::default() };
+        reg.register(Device::new(
+            "s1",
+            DeviceType::Sensor,
+            FirmwareVersion::new(1, 0, 0),
+        ));
+        reg.register(Device::new(
+            "g1",
+            DeviceType::Gateway,
+            FirmwareVersion::new(1, 0, 0),
+        ));
+        let filter = DeviceFilter {
+            device_type: Some(DeviceType::Sensor),
+            ..Default::default()
+        };
         let results = reg.search(&filter);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].device_type, DeviceType::Sensor);
@@ -523,7 +565,10 @@ mod tests {
         let mut reg = DeviceRegistry::new(60);
         reg.register(make_device("Temperature Sensor"));
         reg.register(make_device("Humidity Sensor"));
-        let filter = DeviceFilter { name_contains: Some("temp".to_string()), ..Default::default() };
+        let filter = DeviceFilter {
+            name_contains: Some("temp".to_string()),
+            ..Default::default()
+        };
         let results = reg.search(&filter);
         assert_eq!(results.len(), 1);
     }
@@ -534,7 +579,10 @@ mod tests {
         let d = make_device("s1").with_capability(Capability::new("bluetooth", "5.0"));
         reg.register(d);
         reg.register(make_device("s2"));
-        let filter = DeviceFilter { capability: Some("bluetooth".to_string()), ..Default::default() };
+        let filter = DeviceFilter {
+            capability: Some("bluetooth".to_string()),
+            ..Default::default()
+        };
         let results = reg.search(&filter);
         assert_eq!(results.len(), 1);
     }
@@ -545,7 +593,10 @@ mod tests {
         let d = make_device("s1").with_tag("outdoor");
         reg.register(d);
         reg.register(make_device("s2"));
-        let filter = DeviceFilter { tag: Some("outdoor".to_string()), ..Default::default() };
+        let filter = DeviceFilter {
+            tag: Some("outdoor".to_string()),
+            ..Default::default()
+        };
         let results = reg.search(&filter);
         assert_eq!(results.len(), 1);
     }
@@ -553,9 +604,21 @@ mod tests {
     #[test]
     fn firmware_distribution() {
         let mut reg = DeviceRegistry::new(60);
-        reg.register(Device::new("a", DeviceType::Sensor, FirmwareVersion::new(1, 0, 0)));
-        reg.register(Device::new("b", DeviceType::Sensor, FirmwareVersion::new(1, 0, 0)));
-        reg.register(Device::new("c", DeviceType::Sensor, FirmwareVersion::new(2, 0, 0)));
+        reg.register(Device::new(
+            "a",
+            DeviceType::Sensor,
+            FirmwareVersion::new(1, 0, 0),
+        ));
+        reg.register(Device::new(
+            "b",
+            DeviceType::Sensor,
+            FirmwareVersion::new(1, 0, 0),
+        ));
+        reg.register(Device::new(
+            "c",
+            DeviceType::Sensor,
+            FirmwareVersion::new(2, 0, 0),
+        ));
         let dist = reg.firmware_distribution();
         assert_eq!(dist.get("1.0.0"), Some(&2));
         assert_eq!(dist.get("2.0.0"), Some(&1));
@@ -594,9 +657,20 @@ mod tests {
     #[test]
     fn search_by_firmware_min() {
         let mut reg = DeviceRegistry::new(60);
-        reg.register(Device::new("a", DeviceType::Sensor, FirmwareVersion::new(1, 0, 0)));
-        reg.register(Device::new("b", DeviceType::Sensor, FirmwareVersion::new(2, 0, 0)));
-        let filter = DeviceFilter { firmware_min: Some(FirmwareVersion::new(2, 0, 0)), ..Default::default() };
+        reg.register(Device::new(
+            "a",
+            DeviceType::Sensor,
+            FirmwareVersion::new(1, 0, 0),
+        ));
+        reg.register(Device::new(
+            "b",
+            DeviceType::Sensor,
+            FirmwareVersion::new(2, 0, 0),
+        ));
+        let filter = DeviceFilter {
+            firmware_min: Some(FirmwareVersion::new(2, 0, 0)),
+            ..Default::default()
+        };
         let results = reg.search(&filter);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].firmware, FirmwareVersion::new(2, 0, 0));

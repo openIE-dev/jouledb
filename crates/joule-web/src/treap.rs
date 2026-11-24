@@ -28,9 +28,7 @@ pub struct Treap<K: Ord, V> {
 
 impl<K: Ord + fmt::Debug, V: fmt::Debug> fmt::Debug for Treap<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Treap")
-            .field("len", &self.len)
-            .finish()
+        f.debug_struct("Treap").field("len", &self.len).finish()
     }
 }
 

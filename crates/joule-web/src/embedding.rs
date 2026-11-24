@@ -20,7 +20,9 @@ impl EmbeddingVector {
 
     /// Zero vector of given dimension.
     pub fn zeros(dim: usize) -> Self {
-        Self { data: vec![0.0; dim] }
+        Self {
+            data: vec![0.0; dim],
+        }
     }
 
     /// Dimensionality.
@@ -79,7 +81,12 @@ impl EmbeddingVector {
     pub fn add(&self, other: &EmbeddingVector) -> EmbeddingVector {
         assert_eq!(self.dim(), other.dim());
         EmbeddingVector {
-            data: self.data.iter().zip(other.data.iter()).map(|(a, b)| a + b).collect(),
+            data: self
+                .data
+                .iter()
+                .zip(other.data.iter())
+                .map(|(a, b)| a + b)
+                .collect(),
         }
     }
 
@@ -111,7 +118,10 @@ pub struct EmbeddingIndex {
 impl EmbeddingIndex {
     /// Create an empty index.
     pub fn new(metric: DistanceMetric) -> Self {
-        Self { vectors: Vec::new(), metric }
+        Self {
+            vectors: Vec::new(),
+            metric,
+        }
     }
 
     /// Add a vector to the index.
@@ -196,13 +206,23 @@ impl RandomProjection {
         // Simple LCG for reproducible "random" values.
         let mut state = seed;
         for _ in 0..n {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             // Map to {-1, +1} with equal probability.
-            let val = if (state >> 33) & 1 == 0 { scale } else { -scale };
+            let val = if (state >> 33) & 1 == 0 {
+                scale
+            } else {
+                -scale
+            };
             matrix.push(val);
         }
 
-        Self { matrix, input_dim, output_dim }
+        Self {
+            matrix,
+            input_dim,
+            output_dim,
+        }
     }
 
     /// Project a vector to the lower dimension.
@@ -243,7 +263,11 @@ impl ProductQuantizer {
         } else {
             0
         };
-        Self { num_segments, segment_dim, codebooks }
+        Self {
+            num_segments,
+            segment_dim,
+            codebooks,
+        }
     }
 
     /// Codebook size (entries per segment).

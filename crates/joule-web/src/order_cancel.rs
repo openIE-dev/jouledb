@@ -105,7 +105,12 @@ pub struct CancelRequest {
 
 impl CancelRequest {
     pub fn new(order_id: u64, reason: CancelReason, timestamp_ns: u64) -> Self {
-        Self { order_id, reason, timestamp_ns, client_cancel_id: None }
+        Self {
+            order_id,
+            reason,
+            timestamp_ns,
+            client_cancel_id: None,
+        }
     }
 
     pub fn with_client_cancel_id(mut self, id: &str) -> Self {
@@ -116,7 +121,11 @@ impl CancelRequest {
 
 impl fmt::Display for CancelRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CancelReq(order={}, reason={})", self.order_id, self.reason)
+        write!(
+            f,
+            "CancelReq(order={}, reason={})",
+            self.order_id, self.reason
+        )
     }
 }
 
@@ -171,7 +180,9 @@ impl CancelReplaceRequest {
             }
         }
         if self.new_price.is_none() && self.new_quantity.is_none() {
-            return Err(CancelError::InvalidReplacement("no changes specified".into()));
+            return Err(CancelError::InvalidReplacement(
+                "no changes specified".into(),
+            ));
         }
         Ok(())
     }
@@ -181,7 +192,11 @@ impl fmt::Display for CancelReplaceRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let px = self.new_price.map_or("--".into(), |p| format!("{p:.2}"));
         let qty = self.new_quantity.map_or("--".into(), |q| format!("{q:.4}"));
-        write!(f, "CancelReplace(order={}, px={px}, qty={qty})", self.original_order_id)
+        write!(
+            f,
+            "CancelReplace(order={}, px={px}, qty={qty})",
+            self.original_order_id
+        )
     }
 }
 
@@ -214,7 +229,13 @@ impl fmt::Display for CancelSide {
 
 impl MassCancelCriteria {
     pub fn all(reason: CancelReason) -> Self {
-        Self { side: None, min_price: None, max_price: None, symbol: None, reason }
+        Self {
+            side: None,
+            min_price: None,
+            max_price: None,
+            symbol: None,
+            reason,
+        }
     }
 
     pub fn with_side(mut self, side: CancelSide) -> Self {
@@ -236,16 +257,24 @@ impl MassCancelCriteria {
     /// Check if an order matches these criteria.
     pub fn matches(&self, side: CancelSide, price: f64, symbol: &str) -> bool {
         if let Some(s) = self.side {
-            if s != side { return false; }
+            if s != side {
+                return false;
+            }
         }
         if let Some(min) = self.min_price {
-            if price < min { return false; }
+            if price < min {
+                return false;
+            }
         }
         if let Some(max) = self.max_price {
-            if price > max { return false; }
+            if price > max {
+                return false;
+            }
         }
         if let Some(ref sym) = self.symbol {
-            if sym != symbol { return false; }
+            if sym != symbol {
+                return false;
+            }
         }
         true
     }
@@ -274,15 +303,21 @@ pub struct CancelEvent {
 impl CancelEvent {
     /// Fraction that was unfilled at cancellation.
     pub fn cancel_ratio(&self) -> f64 {
-        if self.original_quantity <= 0.0 { 0.0 }
-        else { self.remaining_at_cancel / self.original_quantity }
+        if self.original_quantity <= 0.0 {
+            0.0
+        } else {
+            self.remaining_at_cancel / self.original_quantity
+        }
     }
 }
 
 impl fmt::Display for CancelEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CancelEvent(id={}, order={}, reason={}, rem={:.4})",
-            self.event_id, self.order_id, self.reason, self.remaining_at_cancel)
+        write!(
+            f,
+            "CancelEvent(id={}, order={}, reason={}, rem={:.4})",
+            self.event_id, self.order_id, self.reason, self.remaining_at_cancel
+        )
     }
 }
 
@@ -299,7 +334,12 @@ pub struct CancelRateTracker {
 
 impl CancelRateTracker {
     pub fn new(window_ns: u64) -> Self {
-        Self { window_ns, orders_submitted: Vec::new(), cancels: Vec::new(), max_rate: 1.0 }
+        Self {
+            window_ns,
+            orders_submitted: Vec::new(),
+            cancels: Vec::new(),
+            max_rate: 1.0,
+        }
     }
 
     pub fn with_max_rate(mut self, rate: f64) -> Self {
@@ -327,7 +367,9 @@ impl CancelRateTracker {
 
     /// Current cancel-to-order ratio in the window.
     pub fn cancel_rate(&self) -> f64 {
-        if self.orders_submitted.is_empty() { return 0.0; }
+        if self.orders_submitted.is_empty() {
+            return 0.0;
+        }
         self.cancels.len() as f64 / self.orders_submitted.len() as f64
     }
 
@@ -337,16 +379,26 @@ impl CancelRateTracker {
     }
 
     /// Orders in window.
-    pub fn order_count(&self) -> usize { self.orders_submitted.len() }
+    pub fn order_count(&self) -> usize {
+        self.orders_submitted.len()
+    }
 
     /// Cancels in window.
-    pub fn cancel_count(&self) -> usize { self.cancels.len() }
+    pub fn cancel_count(&self) -> usize {
+        self.cancels.len()
+    }
 }
 
 impl fmt::Display for CancelRateTracker {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CancelRate(rate={:.3}, orders={}, cancels={}, max={:.3})",
-            self.cancel_rate(), self.order_count(), self.cancel_count(), self.max_rate)
+        write!(
+            f,
+            "CancelRate(rate={:.3}, orders={}, cancels={}, max={:.3})",
+            self.cancel_rate(),
+            self.order_count(),
+            self.cancel_count(),
+            self.max_rate
+        )
     }
 }
 
@@ -380,9 +432,13 @@ impl CancelEngine {
     }
 
     /// Process a cancel request.
-    pub fn cancel(&mut self, state: OrderState, original_qty: f64, remaining: f64,
-                  req: &CancelRequest) -> Result<CancelEvent, CancelError>
-    {
+    pub fn cancel(
+        &mut self,
+        state: OrderState,
+        original_qty: f64,
+        remaining: f64,
+        req: &CancelRequest,
+    ) -> Result<CancelEvent, CancelError> {
         if !state.is_cancellable() {
             if state == OrderState::Cancelled {
                 return Err(CancelError::AlreadyCancelled(req.order_id));
@@ -390,8 +446,10 @@ impl CancelEngine {
             return Err(CancelError::AlreadyFilled(req.order_id));
         }
         if self.rate_tracker.is_exceeded() {
-            return Err(CancelError::RateLimitExceeded(
-                format!("rate={:.3}", self.rate_tracker.cancel_rate())));
+            return Err(CancelError::RateLimitExceeded(format!(
+                "rate={:.3}",
+                self.rate_tracker.cancel_rate()
+            )));
         }
         let event = CancelEvent {
             event_id: self.next_event_id,
@@ -408,41 +466,62 @@ impl CancelEngine {
     }
 
     /// Process a cancel-replace request.
-    pub fn cancel_replace(&mut self, state: OrderState, original_qty: f64, remaining: f64,
-                          req: &CancelReplaceRequest) -> Result<CancelEvent, CancelError>
-    {
+    pub fn cancel_replace(
+        &mut self,
+        state: OrderState,
+        original_qty: f64,
+        remaining: f64,
+        req: &CancelReplaceRequest,
+    ) -> Result<CancelEvent, CancelError> {
         req.validate()?;
         let cancel_req = CancelRequest::new(
-            req.original_order_id, CancelReason::CancelReplace, req.timestamp_ns);
+            req.original_order_id,
+            CancelReason::CancelReplace,
+            req.timestamp_ns,
+        );
         self.cancel(state, original_qty, remaining, &cancel_req)
     }
 
     /// Process a mass cancel. Returns count of orders that would be cancelled.
-    pub fn mass_cancel_count(&self, orders: &[(u64, CancelSide, f64, &str)],
-                             criteria: &MassCancelCriteria) -> usize
-    {
-        orders.iter()
+    pub fn mass_cancel_count(
+        &self,
+        orders: &[(u64, CancelSide, f64, &str)],
+        criteria: &MassCancelCriteria,
+    ) -> usize {
+        orders
+            .iter()
             .filter(|(_, side, price, sym)| criteria.matches(*side, *price, sym))
             .count()
     }
 
     /// Cancel events accessor.
-    pub fn events(&self) -> &[CancelEvent] { &self.events }
+    pub fn events(&self) -> &[CancelEvent] {
+        &self.events
+    }
 
     /// Total cancellation count.
-    pub fn total_cancels(&self) -> usize { self.events.len() }
+    pub fn total_cancels(&self) -> usize {
+        self.events.len()
+    }
 
     /// Rate tracker accessor.
-    pub fn rate_tracker(&self) -> &CancelRateTracker { &self.rate_tracker }
+    pub fn rate_tracker(&self) -> &CancelRateTracker {
+        &self.rate_tracker
+    }
 
     /// Cancellation events for a specific order.
     pub fn events_for_order(&self, order_id: u64) -> Vec<&CancelEvent> {
-        self.events.iter().filter(|e| e.order_id == order_id).collect()
+        self.events
+            .iter()
+            .filter(|e| e.order_id == order_id)
+            .collect()
     }
 
     /// Average cancel ratio across all events.
     pub fn avg_cancel_ratio(&self) -> f64 {
-        if self.events.is_empty() { return 0.0; }
+        if self.events.is_empty() {
+            return 0.0;
+        }
         let sum: f64 = self.events.iter().map(|e| e.cancel_ratio()).sum();
         sum / self.events.len() as f64
     }
@@ -450,8 +529,12 @@ impl CancelEngine {
 
 impl fmt::Display for CancelEngine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CancelEngine(events={}, rate={:.3})",
-            self.events.len(), self.rate_tracker.cancel_rate())
+        write!(
+            f,
+            "CancelEngine(events={}, rate={:.3})",
+            self.events.len(),
+            self.rate_tracker.cancel_rate()
+        )
     }
 }
 
@@ -476,7 +559,9 @@ mod tests {
         let mut eng = CancelEngine::new(1_000_000_000);
         eng.record_order(1000);
         let req = CancelRequest::new(1, CancelReason::UserRequested, 2000);
-        let event = eng.cancel(OrderState::PartiallyFilled, 100.0, 40.0, &req).unwrap();
+        let event = eng
+            .cancel(OrderState::PartiallyFilled, 100.0, 40.0, &req)
+            .unwrap();
         assert!((event.cancel_ratio() - 0.4).abs() < 1e-6);
     }
 
@@ -491,7 +576,10 @@ mod tests {
     fn test_cancel_already_cancelled() {
         let mut eng = CancelEngine::new(1_000_000_000);
         let req = CancelRequest::new(1, CancelReason::UserRequested, 2000);
-        assert!(eng.cancel(OrderState::Cancelled, 100.0, 100.0, &req).is_err());
+        assert!(
+            eng.cancel(OrderState::Cancelled, 100.0, 100.0, &req)
+                .is_err()
+        );
     }
 
     #[test]
@@ -499,7 +587,9 @@ mod tests {
         let mut eng = CancelEngine::new(1_000_000_000);
         eng.record_order(1000);
         let req = CancelReplaceRequest::new(1, 2000).with_new_price(101.0);
-        let event = eng.cancel_replace(OrderState::Open, 100.0, 100.0, &req).unwrap();
+        let event = eng
+            .cancel_replace(OrderState::Open, 100.0, 100.0, &req)
+            .unwrap();
         assert_eq!(event.reason, CancelReason::CancelReplace);
     }
 
@@ -507,14 +597,20 @@ mod tests {
     fn test_cancel_replace_no_changes() {
         let mut eng = CancelEngine::new(1_000_000_000);
         let req = CancelReplaceRequest::new(1, 2000);
-        assert!(eng.cancel_replace(OrderState::Open, 100.0, 100.0, &req).is_err());
+        assert!(
+            eng.cancel_replace(OrderState::Open, 100.0, 100.0, &req)
+                .is_err()
+        );
     }
 
     #[test]
     fn test_cancel_replace_invalid_price() {
         let mut eng = CancelEngine::new(1_000_000_000);
         let req = CancelReplaceRequest::new(1, 2000).with_new_price(-5.0);
-        assert!(eng.cancel_replace(OrderState::Open, 100.0, 100.0, &req).is_err());
+        assert!(
+            eng.cancel_replace(OrderState::Open, 100.0, 100.0, &req)
+                .is_err()
+        );
     }
 
     #[test]
@@ -572,8 +668,7 @@ mod tests {
             (2, CancelSide::Sell, 101.0, "AAPL"),
             (3, CancelSide::Buy, 99.0, "GOOG"),
         ];
-        let criteria = MassCancelCriteria::all(CancelReason::MassCancel)
-            .with_side(CancelSide::Buy);
+        let criteria = MassCancelCriteria::all(CancelReason::MassCancel).with_side(CancelSide::Buy);
         assert_eq!(eng.mass_cancel_count(&orders, &criteria), 2);
     }
 
@@ -595,9 +690,10 @@ mod tests {
         eng.record_order(1000);
         eng.record_order(1000);
         let r1 = CancelRequest::new(1, CancelReason::UserRequested, 2000);
-        eng.cancel(OrderState::Open, 100.0, 100.0, &r1).unwrap();  // ratio=1.0
+        eng.cancel(OrderState::Open, 100.0, 100.0, &r1).unwrap(); // ratio=1.0
         let r2 = CancelRequest::new(2, CancelReason::UserRequested, 3000);
-        eng.cancel(OrderState::PartiallyFilled, 100.0, 50.0, &r2).unwrap(); // ratio=0.5
+        eng.cancel(OrderState::PartiallyFilled, 100.0, 50.0, &r2)
+            .unwrap(); // ratio=0.5
         assert!((eng.avg_cancel_ratio() - 0.75).abs() < 1e-6);
     }
 
@@ -611,8 +707,12 @@ mod tests {
     #[test]
     fn test_display_event() {
         let e = CancelEvent {
-            event_id: 1, order_id: 42, reason: CancelReason::UserRequested,
-            timestamp_ns: 1000, remaining_at_cancel: 50.0, original_quantity: 100.0,
+            event_id: 1,
+            order_id: 42,
+            reason: CancelReason::UserRequested,
+            timestamp_ns: 1000,
+            remaining_at_cancel: 50.0,
+            original_quantity: 100.0,
         };
         let s = format!("{e}");
         assert!(s.contains("42"));
@@ -621,8 +721,7 @@ mod tests {
 
     #[test]
     fn test_cancel_request_display() {
-        let r = CancelRequest::new(7, CancelReason::SessionEnd, 5000)
-            .with_client_cancel_id("cc-1");
+        let r = CancelRequest::new(7, CancelReason::SessionEnd, 5000).with_client_cancel_id("cc-1");
         let s = format!("{r}");
         assert!(s.contains("7"));
         assert!(s.contains("SESSION_END"));

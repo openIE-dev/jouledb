@@ -23,8 +23,12 @@ fn norm_pdf(x: f64) -> f64 {
 }
 
 fn norm_cdf(x: f64) -> f64 {
-    if x < -8.0 { return 0.0; }
-    if x > 8.0 { return 1.0; }
+    if x < -8.0 {
+        return 0.0;
+    }
+    if x > 8.0 {
+        return 1.0;
+    }
     // Abramowitz & Stegun 26.2.17 rational approximation for normal CDF
     let b1 = 0.319_381_530;
     let b2 = -0.356_563_782;
@@ -221,7 +225,15 @@ impl FiniteDiffGreeks {
         // Volga: d²(price)/d(vol)²
         let volga = (p_vu - 2.0 * base + p_vd) / (dv * dv);
 
-        Ok(GreeksResult { delta, gamma, theta, vega, rho, vanna, volga })
+        Ok(GreeksResult {
+            delta,
+            gamma,
+            theta,
+            vega,
+            rho,
+            vanna,
+            volga,
+        })
     }
 }
 
@@ -260,12 +272,10 @@ impl AnalyticalGreeks {
 
         let theta = match kind {
             OptionKind::Call => {
-                -(spot * norm_pdf(d1) * vol) / (2.0 * sqrt_t)
-                    - rate * strike * df * norm_cdf(d2)
+                -(spot * norm_pdf(d1) * vol) / (2.0 * sqrt_t) - rate * strike * df * norm_cdf(d2)
             }
             OptionKind::Put => {
-                -(spot * norm_pdf(d1) * vol) / (2.0 * sqrt_t)
-                    + rate * strike * df * norm_cdf(-d2)
+                -(spot * norm_pdf(d1) * vol) / (2.0 * sqrt_t) + rate * strike * df * norm_cdf(-d2)
             }
         };
 
@@ -279,7 +289,15 @@ impl AnalyticalGreeks {
         let vanna = -norm_pdf(d1) * d2 / vol;
         let volga = vega * d1 * d2 / vol;
 
-        Ok(GreeksResult { delta, gamma, theta, vega, rho, vanna, volga })
+        Ok(GreeksResult {
+            delta,
+            gamma,
+            theta,
+            vega,
+            rho,
+            vanna,
+            volga,
+        })
     }
 }
 
@@ -299,17 +317,31 @@ pub struct Position {
 
 impl Position {
     pub fn new(
-        spot: f64, strike: f64, rate: f64, vol: f64, expiry: f64,
-        kind: OptionKind, quantity: f64,
+        spot: f64,
+        strike: f64,
+        rate: f64,
+        vol: f64,
+        expiry: f64,
+        kind: OptionKind,
+        quantity: f64,
     ) -> Self {
-        Self { spot, strike, rate, vol, expiry, kind, quantity }
+        Self {
+            spot,
+            strike,
+            rate,
+            vol,
+            expiry,
+            kind,
+            quantity,
+        }
     }
 }
 
 impl fmt::Display for Position {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "{}×{} S={:.2} K={:.2} T={:.4}",
+            f,
+            "{}×{} S={:.2} K={:.2} T={:.4}",
             self.quantity, self.kind, self.spot, self.strike, self.expiry,
         )
     }
@@ -390,8 +422,13 @@ impl fmt::Display for GreeksPnlExplain {
         write!(
             f,
             "P&L={:.4} [Δ={:.4} Γ={:.4} Θ={:.4} ν={:.4} ρ={:.4} unexp={:.4}]",
-            self.total_pnl, self.delta_pnl, self.gamma_pnl,
-            self.theta_pnl, self.vega_pnl, self.rho_pnl, self.unexplained,
+            self.total_pnl,
+            self.delta_pnl,
+            self.gamma_pnl,
+            self.theta_pnl,
+            self.vega_pnl,
+            self.rho_pnl,
+            self.unexplained,
         )
     }
 }
@@ -409,14 +446,25 @@ pub struct Scenario {
 
 impl Scenario {
     pub fn new(name: &str, spot_shift: f64, vol_shift: f64, rate_shift: f64) -> Self {
-        Self { name: name.to_string(), spot_shift, vol_shift, rate_shift }
+        Self {
+            name: name.to_string(),
+            spot_shift,
+            vol_shift,
+            rate_shift,
+        }
     }
 }
 
 impl fmt::Display for Scenario {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Scenario({}: ΔS={:.2}%, Δσ={:.4}, Δr={:.4})",
-            self.name, self.spot_shift * 100.0, self.vol_shift, self.rate_shift)
+        write!(
+            f,
+            "Scenario({}: ΔS={:.2}%, Δσ={:.4}, Δr={:.4})",
+            self.name,
+            self.spot_shift * 100.0,
+            self.vol_shift,
+            self.rate_shift
+        )
     }
 }
 
@@ -433,7 +481,8 @@ pub struct ScenarioResult {
 impl fmt::Display for ScenarioResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "{}: base={:.4} stressed={:.4} P&L={:.4}",
+            f,
+            "{}: base={:.4} stressed={:.4} P&L={:.4}",
             self.scenario_name, self.base_price, self.stressed_price, self.pnl,
         )
     }
@@ -444,8 +493,13 @@ pub struct ScenarioGreeks;
 
 impl ScenarioGreeks {
     pub fn evaluate(
-        spot: f64, strike: f64, rate: f64, vol: f64, expiry: f64,
-        kind: OptionKind, scenarios: &[Scenario],
+        spot: f64,
+        strike: f64,
+        rate: f64,
+        vol: f64,
+        expiry: f64,
+        kind: OptionKind,
+        scenarios: &[Scenario],
     ) -> Result<Vec<ScenarioResult>, GreeksError> {
         let base_price = bs_price(spot, strike, rate, vol, expiry, kind);
         let mut results = Vec::with_capacity(scenarios.len());
@@ -481,42 +535,70 @@ mod tests {
     #[test]
     fn test_finite_diff_call_delta() {
         let g = FiniteDiffGreeks::compute(
-            100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Call, &BumpConfig::new(),
-        ).unwrap();
+            100.0,
+            100.0,
+            0.05,
+            0.20,
+            1.0,
+            OptionKind::Call,
+            &BumpConfig::new(),
+        )
+        .unwrap();
         assert!(g.delta > 0.4 && g.delta < 0.8, "call delta = {}", g.delta);
     }
 
     #[test]
     fn test_finite_diff_put_delta() {
         let g = FiniteDiffGreeks::compute(
-            100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Put, &BumpConfig::new(),
-        ).unwrap();
+            100.0,
+            100.0,
+            0.05,
+            0.20,
+            1.0,
+            OptionKind::Put,
+            &BumpConfig::new(),
+        )
+        .unwrap();
         assert!(g.delta < 0.0 && g.delta > -1.0, "put delta = {}", g.delta);
     }
 
     #[test]
     fn test_analytical_matches_finite_diff() {
-        let anal = AnalyticalGreeks::compute(100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Call)
-            .unwrap();
+        let anal =
+            AnalyticalGreeks::compute(100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Call).unwrap();
         let fd = FiniteDiffGreeks::compute(
-            100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Call,
+            100.0,
+            100.0,
+            0.05,
+            0.20,
+            1.0,
+            OptionKind::Call,
             &BumpConfig::new().with_spot_bump(0.001),
-        ).unwrap();
-        assert!(approx(anal.delta, fd.delta, 0.01), "delta: {} vs {}", anal.delta, fd.delta);
-        assert!(approx(anal.gamma, fd.gamma, 0.05), "gamma: {} vs {}", anal.gamma, fd.gamma);
+        )
+        .unwrap();
+        assert!(
+            approx(anal.delta, fd.delta, 0.01),
+            "delta: {} vs {}",
+            anal.delta,
+            fd.delta
+        );
+        assert!(
+            approx(anal.gamma, fd.gamma, 0.05),
+            "gamma: {} vs {}",
+            anal.gamma,
+            fd.gamma
+        );
     }
 
     #[test]
     fn test_analytical_gamma_positive() {
-        let g = AnalyticalGreeks::compute(100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Call)
-            .unwrap();
+        let g = AnalyticalGreeks::compute(100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Call).unwrap();
         assert!(g.gamma > 0.0);
     }
 
     #[test]
     fn test_analytical_vega_positive() {
-        let g = AnalyticalGreeks::compute(100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Call)
-            .unwrap();
+        let g = AnalyticalGreeks::compute(100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Call).unwrap();
         assert!(g.vega > 0.0);
     }
 
@@ -528,7 +610,11 @@ mod tests {
         ];
         let agg = PortfolioGreeks::aggregate(&positions).unwrap();
         // Long call + short put ≈ synthetic forward, delta ≈ 10
-        assert!(agg.delta > 8.0 && agg.delta < 12.0, "portfolio delta = {}", agg.delta);
+        assert!(
+            agg.delta > 8.0 && agg.delta < 12.0,
+            "portfolio delta = {}",
+            agg.delta
+        );
     }
 
     #[test]
@@ -538,10 +624,13 @@ mod tests {
 
     #[test]
     fn test_pnl_explain_sums() {
-        let g = AnalyticalGreeks::compute(100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Call)
-            .unwrap();
+        let g = AnalyticalGreeks::compute(100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Call).unwrap();
         let explain = GreeksPnlExplain::explain(&g, 1.0, 0.0, 0.0, 0.0, g.delta);
-        assert!(approx(explain.unexplained, 0.0, 0.05), "unexplained = {}", explain.unexplained);
+        assert!(
+            approx(explain.unexplained, 0.0, 0.05),
+            "unexplained = {}",
+            explain.unexplained
+        );
     }
 
     #[test]
@@ -558,9 +647,9 @@ mod tests {
             Scenario::new("crash", -0.10, 0.10, -0.01),
             Scenario::new("rally", 0.10, -0.05, 0.01),
         ];
-        let results = ScenarioGreeks::evaluate(
-            100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Call, &scenarios,
-        ).unwrap();
+        let results =
+            ScenarioGreeks::evaluate(100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Call, &scenarios)
+                .unwrap();
         assert_eq!(results.len(), 2);
         assert!(results[0].pnl < 0.0, "crash should lose on call");
         assert!(results[1].pnl > 0.0, "rally should gain on call");
@@ -576,8 +665,15 @@ mod tests {
     #[test]
     fn test_finite_diff_vanna() {
         let g = FiniteDiffGreeks::compute(
-            100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Call, &BumpConfig::new(),
-        ).unwrap();
+            100.0,
+            100.0,
+            0.05,
+            0.20,
+            1.0,
+            OptionKind::Call,
+            &BumpConfig::new(),
+        )
+        .unwrap();
         // Vanna should be finite
         assert!(g.vanna.is_finite(), "vanna = {}", g.vanna);
     }
@@ -585,14 +681,23 @@ mod tests {
     #[test]
     fn test_finite_diff_volga() {
         let g = FiniteDiffGreeks::compute(
-            100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Call, &BumpConfig::new(),
-        ).unwrap();
+            100.0,
+            100.0,
+            0.05,
+            0.20,
+            1.0,
+            OptionKind::Call,
+            &BumpConfig::new(),
+        )
+        .unwrap();
         assert!(g.volga.is_finite(), "volga = {}", g.volga);
     }
 
     #[test]
     fn test_zero_expiry_error() {
-        assert!(AnalyticalGreeks::compute(100.0, 100.0, 0.05, 0.20, 0.0, OptionKind::Call).is_err());
+        assert!(
+            AnalyticalGreeks::compute(100.0, 100.0, 0.05, 0.20, 0.0, OptionKind::Call).is_err()
+        );
     }
 
     #[test]
@@ -634,10 +739,13 @@ mod tests {
 
     #[test]
     fn test_put_call_delta_relationship() {
-        let call = AnalyticalGreeks::compute(100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Call)
-            .unwrap();
-        let put = AnalyticalGreeks::compute(100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Put)
-            .unwrap();
-        assert!(approx(call.delta - put.delta, 1.0, 0.01), "call_Δ - put_Δ ≈ 1");
+        let call =
+            AnalyticalGreeks::compute(100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Call).unwrap();
+        let put =
+            AnalyticalGreeks::compute(100.0, 100.0, 0.05, 0.20, 1.0, OptionKind::Put).unwrap();
+        assert!(
+            approx(call.delta - put.delta, 1.0, 0.01),
+            "call_Δ - put_Δ ≈ 1"
+        );
     }
 }

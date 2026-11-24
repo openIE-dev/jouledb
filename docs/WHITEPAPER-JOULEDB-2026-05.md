@@ -2,9 +2,11 @@
 
 ## A Whitepaper Specification
 
-**Version 0.2 — May 2026**
+**Version 0.2 — May 2026 (Historical Archive — Superseded by [WHITEPAPER-JOULEDB-2026-11.md](WHITEPAPER-JOULEDB-2026-11.md) & [JSYN-LIVING-WEIGHTS-SPEC.md](JSYN-LIVING-WEIGHTS-SPEC.md))**
 **OpenIE, Inc.**
 
+> **November 2026 Update (`v0.2.9`):** For the current architecture — including `.jsyn` (`JSYN-v1`) Sub-1-Bit Living Model Weights ([82 models on Hugging Face](https://huggingface.co/dcharlot65-openie)), `JouleKube` Kubernetes-native AI control plane, Post-Docker `JouleCapsule`, `JouleWard` 6-rail `nJ` confinement, and 7-pillar formal verification (`Hermitage/Elle`, `SQLancer`, `TigerBeetle VOPR`, `SecDB + Napa`, `Morsel` spill, `ClickBench ZoneMaps`) — read **[WHITEPAPER-JOULEDB-2026-11.md](WHITEPAPER-JOULEDB-2026-11.md)** and **[JSYN-LIVING-WEIGHTS-SPEC.md](JSYN-LIVING-WEIGHTS-SPEC.md)**.
+>
 > Supersedes [WHITEPAPER-JOULEDB-2026-04.md](WHITEPAPER-JOULEDB-2026-04.md) (v0.1). The v0.1 document remains available as the historical record. This v0.2 preserves the motivation and architecture chapters and folds in the May 2026 storage-engine hardening pass, the forensic recovery tool, and updated counts. Sections affected: §2.2 (crate table + novel properties), §2.5 (container layer, since removed), §4 (the Good), §5 (the Bad), §6 (the Ugly), §7 (existing-method closures), §9 (Roadmap progress).
 
 ---

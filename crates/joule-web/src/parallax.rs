@@ -130,7 +130,10 @@ impl ParallaxOrigin {
 
     /// Center of viewport.
     pub fn center(viewport_width: f64, viewport_height: f64) -> Self {
-        Self { x: viewport_width / 2.0, y: viewport_height / 2.0 }
+        Self {
+            x: viewport_width / 2.0,
+            y: viewport_height / 2.0,
+        }
     }
 }
 
@@ -249,7 +252,8 @@ impl ParallaxScene {
 
     /// Get computed offsets for all layers (element_id, offset).
     pub fn computed_offsets(&self) -> Vec<(&str, Offset)> {
-        self.layers.iter()
+        self.layers
+            .iter()
             .map(|l| (l.element_id.as_str(), l.current_offset()))
             .collect()
     }
@@ -374,8 +378,7 @@ mod tests {
     fn base_offset() {
         let mut scene = ParallaxScene::new().with_smooth_factor(1.0);
         scene.add_layer(
-            ParallaxLayer::new("shifted", 1.0)
-                .with_base_offset(Offset::new(10.0, 20.0)),
+            ParallaxLayer::new("shifted", 1.0).with_base_offset(Offset::new(10.0, 20.0)),
         );
         scene.update_scroll(0.0, 50.0);
         scene.tick();

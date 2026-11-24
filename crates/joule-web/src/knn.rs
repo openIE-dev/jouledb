@@ -24,9 +24,7 @@ impl DistanceMetric {
                 let sum: f64 = a.iter().zip(b.iter()).map(|(x, y)| (x - y).powi(2)).sum();
                 sum.sqrt()
             }
-            Self::Manhattan => {
-                a.iter().zip(b.iter()).map(|(x, y)| (x - y).abs()).sum()
-            }
+            Self::Manhattan => a.iter().zip(b.iter()).map(|(x, y)| (x - y).abs()).sum(),
             Self::Cosine => {
                 let dot: f64 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
                 let norm_a: f64 = a.iter().map(|x| x * x).sum::<f64>().sqrt();
@@ -70,13 +68,23 @@ impl KdTree {
     /// Build a KD-tree from the given points.
     pub fn build(points: &[Vec<f64>], leaf_size: usize) -> Self {
         if points.is_empty() {
-            return Self { root: None, points: vec![], dims: 0, leaf_size };
+            return Self {
+                root: None,
+                points: vec![],
+                dims: 0,
+                leaf_size,
+            };
         }
         let dims = points[0].len();
         let stored: Vec<Vec<f64>> = points.to_vec();
         let indices: Vec<usize> = (0..points.len()).collect();
         let root = Self::build_node(&stored, &indices, 0, dims, leaf_size);
-        Self { root: Some(root), points: stored, dims, leaf_size }
+        Self {
+            root: Some(root),
+            points: stored,
+            dims,
+            leaf_size,
+        }
     }
 
     fn build_node(
@@ -87,12 +95,16 @@ impl KdTree {
         leaf_size: usize,
     ) -> KdNode {
         if indices.len() <= leaf_size {
-            return KdNode::Leaf { indices: indices.to_vec() };
+            return KdNode::Leaf {
+                indices: indices.to_vec(),
+            };
         }
         let axis = depth % dims;
         let mut sorted = indices.to_vec();
         sorted.sort_by(|a, b| {
-            points[*a][axis].partial_cmp(&points[*b][axis]).unwrap_or(std::cmp::Ordering::Equal)
+            points[*a][axis]
+                .partial_cmp(&points[*b][axis])
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
         let mid = sorted.len() / 2;
         let median = points[sorted[mid]][axis];
@@ -104,8 +116,20 @@ impl KdTree {
         KdNode::Split {
             axis,
             median,
-            left: Box::new(Self::build_node(points, left_indices, depth + 1, dims, leaf_size)),
-            right: Box::new(Self::build_node(points, right_indices, depth + 1, dims, leaf_size)),
+            left: Box::new(Self::build_node(
+                points,
+                left_indices,
+                depth + 1,
+                dims,
+                leaf_size,
+            )),
+            right: Box::new(Self::build_node(
+                points,
+                right_indices,
+                depth + 1,
+                dims,
+                leaf_size,
+            )),
         }
     }
 
@@ -136,7 +160,12 @@ impl KdTree {
                     Self::insert_candidate(best, k, idx, dist);
                 }
             }
-            KdNode::Split { axis, median, left, right } => {
+            KdNode::Split {
+                axis,
+                median,
+                left,
+                right,
+            } => {
                 let (first, second) = if point[*axis] <= *median {
                     (left, right)
                 } else {
@@ -163,7 +192,11 @@ impl KdTree {
             let (worst_pos, worst_dist) = best
                 .iter()
                 .enumerate()
-                .max_by(|a, b| a.1 .1.partial_cmp(&b.1 .1).unwrap_or(std::cmp::Ordering::Equal))
+                .max_by(|a, b| {
+                    a.1.1
+                        .partial_cmp(&b.1.1)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
                 .map(|(i, v)| (i, v.1))
                 .unwrap();
             if dist < worst_dist {
@@ -174,7 +207,11 @@ impl KdTree {
 }
 
 fn euclidean_dist(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b.iter()).map(|(x, y)| (x - y).powi(2)).sum::<f64>().sqrt()
+    a.iter()
+        .zip(b.iter())
+        .map(|(x, y)| (x - y).powi(2))
+        .sum::<f64>()
+        .sqrt()
 }
 
 // ── Search Strategy ─────────────────────────────────────────────
@@ -255,7 +292,8 @@ impl KnnClassifier {
     fn find_neighbors(&self, sample: &[f64]) -> Vec<(usize, f64)> {
         match &self.strategy {
             SearchStrategy::BruteForce => {
-                let mut dists: Vec<(usize, f64)> = self.train_features
+                let mut dists: Vec<(usize, f64)> = self
+                    .train_features
                     .iter()
                     .enumerate()
                     .map(|(i, f)| (i, self.metric.distance(sample, f)))
@@ -264,9 +302,7 @@ impl KnnClassifier {
                 dists.truncate(self.k);
                 dists
             }
-            SearchStrategy::KdTreeIndex(tree) => {
-                tree.query(sample, self.k)
-            }
+            SearchStrategy::KdTreeIndex(tree) => tree.query(sample, self.k),
         }
     }
 
@@ -290,7 +326,11 @@ impl KnnClassifier {
             return 0.0;
         }
         let predictions = self.predict_batch(features);
-        let correct = predictions.iter().zip(labels).filter(|(p, l)| p == l).count();
+        let correct = predictions
+            .iter()
+            .zip(labels)
+            .filter(|(p, l)| p == l)
+            .count();
         correct as f64 / features.len() as f64
     }
 
@@ -308,7 +348,13 @@ impl KnnClassifier {
 
 impl fmt::Display for KnnClassifier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "KnnClassifier(k={}, metric={:?}, n_train={})", self.k, self.metric, self.train_features.len())
+        write!(
+            f,
+            "KnnClassifier(k={}, metric={:?}, n_train={})",
+            self.k,
+            self.metric,
+            self.train_features.len()
+        )
     }
 }
 
@@ -371,7 +417,8 @@ impl KnnRegressor {
     fn find_neighbors(&self, sample: &[f64]) -> Vec<(usize, f64)> {
         match &self.strategy {
             SearchStrategy::BruteForce => {
-                let mut dists: Vec<(usize, f64)> = self.train_features
+                let mut dists: Vec<(usize, f64)> = self
+                    .train_features
                     .iter()
                     .enumerate()
                     .map(|(i, f)| (i, self.metric.distance(sample, f)))
@@ -380,14 +427,15 @@ impl KnnRegressor {
                 dists.truncate(self.k);
                 dists
             }
-            SearchStrategy::KdTreeIndex(tree) => {
-                tree.query(sample, self.k)
-            }
+            SearchStrategy::KdTreeIndex(tree) => tree.query(sample, self.k),
         }
     }
 
     fn simple_average(&self, neighbors: &[(usize, f64)]) -> f64 {
-        let sum: f64 = neighbors.iter().map(|(idx, _)| self.train_targets[*idx]).sum();
+        let sum: f64 = neighbors
+            .iter()
+            .map(|(idx, _)| self.train_targets[*idx])
+            .sum();
         sum / neighbors.len() as f64
     }
 
@@ -410,7 +458,11 @@ impl KnnRegressor {
             return 0.0;
         }
         let predictions = self.predict_batch(features);
-        let sum_sq: f64 = predictions.iter().zip(targets).map(|(p, t)| (p - t).powi(2)).sum();
+        let sum_sq: f64 = predictions
+            .iter()
+            .zip(targets)
+            .map(|(p, t)| (p - t).powi(2))
+            .sum();
         sum_sq / features.len() as f64
     }
 }
@@ -456,7 +508,8 @@ pub fn select_k(
     for &k in k_candidates {
         let mut total_acc = 0.0;
         for (train_idx, test_idx) in &folds {
-            let train_feats: Vec<Vec<f64>> = train_idx.iter().map(|i| features[*i].clone()).collect();
+            let train_feats: Vec<Vec<f64>> =
+                train_idx.iter().map(|i| features[*i].clone()).collect();
             let train_labs: Vec<usize> = train_idx.iter().map(|i| labels[*i]).collect();
             let test_feats: Vec<Vec<f64>> = test_idx.iter().map(|i| features[*i].clone()).collect();
             let test_labs: Vec<usize> = test_idx.iter().map(|i| labels[*i]).collect();
@@ -492,9 +545,18 @@ mod tests {
     fn iris_like_data() -> (Vec<Vec<f64>>, Vec<usize>) {
         // Simplified 2D data with 3 clusters
         let features = vec![
-            vec![1.0, 1.0], vec![1.1, 1.2], vec![0.9, 0.8], vec![1.2, 1.1],
-            vec![5.0, 5.0], vec![5.1, 5.2], vec![4.9, 4.8], vec![5.2, 5.1],
-            vec![9.0, 1.0], vec![9.1, 1.2], vec![8.9, 0.8], vec![9.2, 1.1],
+            vec![1.0, 1.0],
+            vec![1.1, 1.2],
+            vec![0.9, 0.8],
+            vec![1.2, 1.1],
+            vec![5.0, 5.0],
+            vec![5.1, 5.2],
+            vec![4.9, 4.8],
+            vec![5.2, 5.1],
+            vec![9.0, 1.0],
+            vec![9.1, 1.2],
+            vec![8.9, 0.8],
+            vec![9.2, 1.1],
         ];
         let labels = vec![0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2];
         (features, labels)
@@ -585,9 +647,7 @@ mod tests {
 
     #[test]
     fn test_regressor_simple() {
-        let features = vec![
-            vec![0.0], vec![1.0], vec![2.0], vec![3.0], vec![4.0],
-        ];
+        let features = vec![vec![0.0], vec![1.0], vec![2.0], vec![3.0], vec![4.0]];
         let targets = vec![0.0, 1.0, 2.0, 3.0, 4.0];
         let mut reg = KnnRegressor::new(2, DistanceMetric::Euclidean, false);
         reg.fit(&features, &targets);
@@ -671,8 +731,11 @@ mod tests {
     #[test]
     fn test_kdtree_query_k() {
         let points = vec![
-            vec![0.0, 0.0], vec![1.0, 0.0], vec![0.0, 1.0],
-            vec![10.0, 10.0], vec![11.0, 10.0],
+            vec![0.0, 0.0],
+            vec![1.0, 0.0],
+            vec![0.0, 1.0],
+            vec![10.0, 10.0],
+            vec![11.0, 10.0],
         ];
         let tree = KdTree::build(&points, 2);
         let result = tree.query(&[0.0, 0.0], 3);

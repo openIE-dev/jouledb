@@ -25,7 +25,11 @@ pub enum TypeRegistryError {
     /// Parent type does not exist.
     ParentNotFound { child: String, parent: String },
     /// Generic parameter count mismatch.
-    GenericArityMismatch { type_name: String, expected: usize, got: usize },
+    GenericArityMismatch {
+        type_name: String,
+        expected: usize,
+        got: usize,
+    },
     /// Method not found on type.
     MethodNotFound { type_name: String, method: String },
     /// Field not found on type.
@@ -46,8 +50,15 @@ impl fmt::Display for TypeRegistryError {
             Self::ParentNotFound { child, parent } => {
                 write!(f, "parent type {parent} not found for {child}")
             }
-            Self::GenericArityMismatch { type_name, expected, got } => {
-                write!(f, "generic arity mismatch for {type_name}: expected {expected}, got {got}")
+            Self::GenericArityMismatch {
+                type_name,
+                expected,
+                got,
+            } => {
+                write!(
+                    f,
+                    "generic arity mismatch for {type_name}: expected {expected}, got {got}"
+                )
             }
             Self::MethodNotFound { type_name, method } => {
                 write!(f, "method {method} not found on {type_name}")
@@ -380,7 +391,10 @@ impl TypeRegistry {
     }
 
     /// Register a simple primitive type by name.
-    pub fn register_primitive(&mut self, name: impl Into<String>) -> Result<u64, TypeRegistryError> {
+    pub fn register_primitive(
+        &mut self,
+        name: impl Into<String>,
+    ) -> Result<u64, TypeRegistryError> {
         let name = name.into();
         let desc = TypeDescriptor::new(0, &name, TypeKind::Primitive);
         self.register(desc)
@@ -393,7 +407,9 @@ impl TypeRegistry {
 
     /// Look up a type by id.
     pub fn get_by_id(&self, id: u64) -> Option<&TypeDescriptor> {
-        self.id_to_name.get(&id).and_then(|name| self.types.get(name))
+        self.id_to_name
+            .get(&id)
+            .and_then(|name| self.types.get(name))
     }
 
     /// Check whether a type with the given name exists.
@@ -403,7 +419,10 @@ impl TypeRegistry {
 
     /// Remove a type from the registry.
     pub fn unregister(&mut self, name: &str) -> Result<TypeDescriptor, TypeRegistryError> {
-        let desc = self.types.remove(name).ok_or_else(|| TypeRegistryError::TypeNotFound(name.to_string()))?;
+        let desc = self
+            .types
+            .remove(name)
+            .ok_or_else(|| TypeRegistryError::TypeNotFound(name.to_string()))?;
         self.id_to_name.remove(&desc.id);
         Ok(desc)
     }
@@ -424,7 +443,8 @@ impl TypeRegistry {
 
     /// Get types of a specific kind.
     pub fn types_of_kind(&self, kind: &TypeKind) -> Vec<&TypeDescriptor> {
-        let mut result: Vec<&TypeDescriptor> = self.types.values().filter(|t| &t.kind == kind).collect();
+        let mut result: Vec<&TypeDescriptor> =
+            self.types.values().filter(|t| &t.kind == kind).collect();
         result.sort_by(|a, b| a.name.cmp(&b.name));
         result
     }
@@ -512,7 +532,10 @@ impl TypeRegistry {
         name: &str,
         type_args: &[&str],
     ) -> Result<TypeDescriptor, TypeRegistryError> {
-        let base = self.types.get(name).ok_or_else(|| TypeRegistryError::TypeNotFound(name.to_string()))?;
+        let base = self
+            .types
+            .get(name)
+            .ok_or_else(|| TypeRegistryError::TypeNotFound(name.to_string()))?;
         if base.generic_params.len() != type_args.len() {
             return Err(TypeRegistryError::GenericArityMismatch {
                 type_name: name.to_string(),
@@ -590,7 +613,10 @@ impl TypeRegistry {
 
     /// Get all fields for a type including inherited fields (parent fields first).
     pub fn all_fields(&self, name: &str) -> Result<Vec<FieldDescriptor>, TypeRegistryError> {
-        let desc = self.types.get(name).ok_or_else(|| TypeRegistryError::TypeNotFound(name.to_string()))?;
+        let desc = self
+            .types
+            .get(name)
+            .ok_or_else(|| TypeRegistryError::TypeNotFound(name.to_string()))?;
         let mut result = Vec::new();
         if let Some(parent) = &desc.parent {
             result.extend(self.all_fields(parent)?);
@@ -601,7 +627,10 @@ impl TypeRegistry {
 
     /// Get all methods for a type including inherited methods (parent methods first).
     pub fn all_methods(&self, name: &str) -> Result<Vec<MethodDescriptor>, TypeRegistryError> {
-        let desc = self.types.get(name).ok_or_else(|| TypeRegistryError::TypeNotFound(name.to_string()))?;
+        let desc = self
+            .types
+            .get(name)
+            .ok_or_else(|| TypeRegistryError::TypeNotFound(name.to_string()))?;
         let mut result = Vec::new();
         if let Some(parent) = &desc.parent {
             result.extend(self.all_methods(parent)?);
@@ -612,14 +641,16 @@ impl TypeRegistry {
 
     /// Get metadata value for a type.
     pub fn get_metadata(&self, name: &str, key: &str) -> Result<&str, TypeRegistryError> {
-        let desc = self.types.get(name).ok_or_else(|| TypeRegistryError::TypeNotFound(name.to_string()))?;
-        desc.metadata
-            .get(key)
-            .map(|s| s.as_str())
-            .ok_or_else(|| TypeRegistryError::MetadataKeyNotFound {
+        let desc = self
+            .types
+            .get(name)
+            .ok_or_else(|| TypeRegistryError::TypeNotFound(name.to_string()))?;
+        desc.metadata.get(key).map(|s| s.as_str()).ok_or_else(|| {
+            TypeRegistryError::MetadataKeyNotFound {
                 type_name: name.to_string(),
                 key: key.to_string(),
-            })
+            }
+        })
     }
 
     /// Set metadata on an already-registered type.
@@ -629,7 +660,10 @@ impl TypeRegistry {
         key: impl Into<String>,
         value: impl Into<String>,
     ) -> Result<(), TypeRegistryError> {
-        let desc = self.types.get_mut(name).ok_or_else(|| TypeRegistryError::TypeNotFound(name.to_string()))?;
+        let desc = self
+            .types
+            .get_mut(name)
+            .ok_or_else(|| TypeRegistryError::TypeNotFound(name.to_string()))?;
         desc.metadata.insert(key.into(), value.into());
         Ok(())
     }
@@ -746,7 +780,11 @@ mod tests {
                     .with_param("b", "i32")
                     .with_return("i32"),
             )
-            .with_method(MethodDescriptor::new("create").make_static().with_return("Calc"));
+            .with_method(
+                MethodDescriptor::new("create")
+                    .make_static()
+                    .with_return("Calc"),
+            );
         reg.register(desc).unwrap();
 
         let calc = reg.get("Calc").unwrap();
@@ -760,17 +798,23 @@ mod tests {
     #[test]
     fn test_inheritance_ancestors() {
         let mut reg = TypeRegistry::new();
-        reg.register(TypeDescriptor::new(0, "Animal", TypeKind::Struct)
-            .with_field(FieldDescriptor::required("name", "String")))
-            .unwrap();
-        reg.register(TypeDescriptor::new(0, "Dog", TypeKind::Struct)
-            .with_parent("Animal")
-            .with_field(FieldDescriptor::required("breed", "String")))
-            .unwrap();
-        reg.register(TypeDescriptor::new(0, "Puppy", TypeKind::Struct)
-            .with_parent("Dog")
-            .with_field(FieldDescriptor::required("toy", "String")))
-            .unwrap();
+        reg.register(
+            TypeDescriptor::new(0, "Animal", TypeKind::Struct)
+                .with_field(FieldDescriptor::required("name", "String")),
+        )
+        .unwrap();
+        reg.register(
+            TypeDescriptor::new(0, "Dog", TypeKind::Struct)
+                .with_parent("Animal")
+                .with_field(FieldDescriptor::required("breed", "String")),
+        )
+        .unwrap();
+        reg.register(
+            TypeDescriptor::new(0, "Puppy", TypeKind::Struct)
+                .with_parent("Dog")
+                .with_field(FieldDescriptor::required("toy", "String")),
+        )
+        .unwrap();
 
         let ancestors = reg.ancestors("Puppy").unwrap();
         assert_eq!(ancestors, vec!["Dog", "Animal"]);
@@ -795,10 +839,14 @@ mod tests {
     #[test]
     fn test_children_and_descendants() {
         let mut reg = TypeRegistry::new();
-        reg.register(TypeDescriptor::new(0, "A", TypeKind::Struct)).unwrap();
-        reg.register(TypeDescriptor::new(0, "B", TypeKind::Struct).with_parent("A")).unwrap();
-        reg.register(TypeDescriptor::new(0, "C", TypeKind::Struct).with_parent("A")).unwrap();
-        reg.register(TypeDescriptor::new(0, "D", TypeKind::Struct).with_parent("B")).unwrap();
+        reg.register(TypeDescriptor::new(0, "A", TypeKind::Struct))
+            .unwrap();
+        reg.register(TypeDescriptor::new(0, "B", TypeKind::Struct).with_parent("A"))
+            .unwrap();
+        reg.register(TypeDescriptor::new(0, "C", TypeKind::Struct).with_parent("A"))
+            .unwrap();
+        reg.register(TypeDescriptor::new(0, "D", TypeKind::Struct).with_parent("B"))
+            .unwrap();
 
         let children = reg.children("A").unwrap();
         assert_eq!(children, vec!["B", "C"]);
@@ -886,11 +934,8 @@ mod tests {
     #[test]
     fn test_metadata() {
         let mut reg = TypeRegistry::new();
-        reg.register(
-            TypeDescriptor::new(0, "T", TypeKind::Struct)
-                .with_metadata("table", "users"),
-        )
-        .unwrap();
+        reg.register(TypeDescriptor::new(0, "T", TypeKind::Struct).with_metadata("table", "users"))
+            .unwrap();
         assert_eq!(reg.get_metadata("T", "table").unwrap(), "users");
         assert!(reg.get_metadata("T", "nope").is_err());
 
@@ -901,7 +946,8 @@ mod tests {
     #[test]
     fn test_implementors_of() {
         let mut reg = TypeRegistry::new();
-        reg.register(TypeDescriptor::new(0, "Serializable", TypeKind::Interface)).unwrap();
+        reg.register(TypeDescriptor::new(0, "Serializable", TypeKind::Interface))
+            .unwrap();
         reg.register(
             TypeDescriptor::new(0, "User", TypeKind::Struct).with_interface("Serializable"),
         )
@@ -910,7 +956,8 @@ mod tests {
             TypeDescriptor::new(0, "Product", TypeKind::Struct).with_interface("Serializable"),
         )
         .unwrap();
-        reg.register(TypeDescriptor::new(0, "Log", TypeKind::Struct)).unwrap();
+        reg.register(TypeDescriptor::new(0, "Log", TypeKind::Struct))
+            .unwrap();
 
         let impls = reg.implementors_of("Serializable");
         assert_eq!(impls, vec!["Product", "User"]);
@@ -919,9 +966,12 @@ mod tests {
     #[test]
     fn test_search() {
         let mut reg = TypeRegistry::new();
-        reg.register(TypeDescriptor::new(0, "UserProfile", TypeKind::Struct)).unwrap();
-        reg.register(TypeDescriptor::new(0, "UserSettings", TypeKind::Struct)).unwrap();
-        reg.register(TypeDescriptor::new(0, "Product", TypeKind::Struct)).unwrap();
+        reg.register(TypeDescriptor::new(0, "UserProfile", TypeKind::Struct))
+            .unwrap();
+        reg.register(TypeDescriptor::new(0, "UserSettings", TypeKind::Struct))
+            .unwrap();
+        reg.register(TypeDescriptor::new(0, "Product", TypeKind::Struct))
+            .unwrap();
 
         let found = reg.search("user");
         assert_eq!(found.len(), 2);
@@ -930,7 +980,8 @@ mod tests {
     #[test]
     fn test_types_of_kind() {
         let mut reg = make_registry();
-        reg.register(TypeDescriptor::new(0, "User", TypeKind::Struct)).unwrap();
+        reg.register(TypeDescriptor::new(0, "User", TypeKind::Struct))
+            .unwrap();
         let prims = reg.types_of_kind(&TypeKind::Primitive);
         assert_eq!(prims.len(), 3);
         let structs = reg.types_of_kind(&TypeKind::Struct);

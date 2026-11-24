@@ -6,8 +6,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::trending::{TrendWindow, TrendingIndex};
 use crate::RecordId;
+use crate::trending::{TrendWindow, TrendingIndex};
 
 /// Type of content in a schedule slot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

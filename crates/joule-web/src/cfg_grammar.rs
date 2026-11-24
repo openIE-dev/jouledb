@@ -342,10 +342,7 @@ impl Grammar {
                     for s in follow_set {
                         let key = (p.head.clone(), s.clone());
                         if table.contains_key(&key) {
-                            return Err(GrammarError::Ll1Conflict(
-                                p.head.clone(),
-                                format!("{s}"),
-                            ));
+                            return Err(GrammarError::Ll1Conflict(p.head.clone(), format!("{s}")));
                         }
                         table.insert(key, idx);
                     }
@@ -511,7 +508,10 @@ fn lr0_closure_impl(items: &BTreeSet<Lr0Item>, productions: &[Production]) -> BT
             if let Symbol::NonTerminal(ref nt) = prod.body[item.dot] {
                 for (i, p) in productions.iter().enumerate() {
                     if p.head == *nt {
-                        let new_item = Lr0Item { prod_index: i, dot: 0 };
+                        let new_item = Lr0Item {
+                            prod_index: i,
+                            dot: 0,
+                        };
                         if closure.insert(new_item.clone()) {
                             worklist.push_back(new_item);
                         }
@@ -552,7 +552,10 @@ fn lr0_item_sets_impl(productions: &[Production], start: &str) -> Vec<BTreeSet<L
     let mut init = BTreeSet::new();
     for (i, p) in productions.iter().enumerate() {
         if p.head == start {
-            init.insert(Lr0Item { prod_index: i, dot: 0 });
+            init.insert(Lr0Item {
+                prod_index: i,
+                dot: 0,
+            });
         }
     }
     let init = lr0_closure_impl(&init, productions);
@@ -728,14 +731,21 @@ mod tests {
         assert!(!sets.is_empty());
         // The initial set should include items for S productions
         let initial = &sets[0];
-        assert!(initial.iter().any(|item| item.prod_index == 0 && item.dot == 0));
+        assert!(
+            initial
+                .iter()
+                .any(|item| item.prod_index == 0 && item.dot == 0)
+        );
     }
 
     #[test]
     fn test_lr0_closure() {
         let g = ll1_grammar();
         let mut items = BTreeSet::new();
-        items.insert(Lr0Item { prod_index: 0, dot: 0 });
+        items.insert(Lr0Item {
+            prod_index: 0,
+            dot: 0,
+        });
         let closure = g.lr0_closure(&items);
         assert!(closure.len() >= 1);
     }
@@ -752,7 +762,11 @@ mod tests {
         let mut g = Grammar::new("S");
         g.add_production("S", vec![Symbol::nt("X")]); // X is undefined
         let errors = g.validate();
-        assert!(errors.iter().any(|e| matches!(e, GrammarError::UndefinedNonTerminal(s) if s == "X")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, GrammarError::UndefinedNonTerminal(s) if s == "X"))
+        );
     }
 
     #[test]
@@ -761,7 +775,11 @@ mod tests {
         g.add_production("S", vec![Symbol::t("a")]);
         g.add_production("X", vec![Symbol::t("b")]); // X is unreachable
         let errors = g.validate();
-        assert!(errors.iter().any(|e| matches!(e, GrammarError::Unreachable(..))));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, GrammarError::Unreachable(..)))
+        );
     }
 
     #[test]

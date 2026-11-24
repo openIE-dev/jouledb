@@ -78,7 +78,9 @@ impl Costmap {
     /// Create a costmap filled with `default_cost`.
     pub fn new(width: usize, height: usize, default_cost: u8) -> Result<Self, PlannerError> {
         if width == 0 || height == 0 {
-            return Err(PlannerError::InvalidCostmap("dimensions must be > 0".into()));
+            return Err(PlannerError::InvalidCostmap(
+                "dimensions must be > 0".into(),
+            ));
         }
         Ok(Self {
             width,
@@ -90,7 +92,9 @@ impl Costmap {
     /// Build from a pre-existing row-major buffer.
     pub fn from_cells(width: usize, height: usize, cells: Vec<u8>) -> Result<Self, PlannerError> {
         if width == 0 || height == 0 {
-            return Err(PlannerError::InvalidCostmap("dimensions must be > 0".into()));
+            return Err(PlannerError::InvalidCostmap(
+                "dimensions must be > 0".into(),
+            ));
         }
         if cells.len() != width * height {
             return Err(PlannerError::InvalidCostmap(format!(
@@ -99,7 +103,11 @@ impl Costmap {
                 cells.len()
             )));
         }
-        Ok(Self { width, height, cells })
+        Ok(Self {
+            width,
+            height,
+            cells,
+        })
     }
 
     #[inline]
@@ -121,8 +129,14 @@ impl Costmap {
     fn neighbours(&self, p: GridPos, eight: bool) -> Vec<(GridPos, f64)> {
         let dirs_4: [(i32, i32); 4] = [(1, 0), (-1, 0), (0, 1), (0, -1)];
         let dirs_8: [(i32, i32); 8] = [
-            (1, 0), (-1, 0), (0, 1), (0, -1),
-            (1, 1), (1, -1), (-1, 1), (-1, -1),
+            (1, 0),
+            (-1, 0),
+            (0, 1),
+            (0, -1),
+            (1, 1),
+            (1, -1),
+            (-1, 1),
+            (-1, -1),
         ];
         let dirs: &[(i32, i32)] = if eight { &dirs_8 } else { &dirs_4 };
         let mut result = Vec::new();
@@ -163,7 +177,10 @@ impl Eq for AStarNode {}
 
 impl Ord for AStarNode {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        other.f.partial_cmp(&self.f).unwrap_or(std::cmp::Ordering::Equal)
+        other
+            .f
+            .partial_cmp(&self.f)
+            .unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 
@@ -309,7 +326,10 @@ impl GlobalPlanner {
         let mut came_from: HashMap<GridPos, GridPos> = HashMap::new();
 
         g_score.insert(start, 0.0);
-        open.push(AStarNode { pos: start, f: octile_heuristic(start, goal) });
+        open.push(AStarNode {
+            pos: start,
+            f: octile_heuristic(start, goal),
+        });
 
         while let Some(current) = open.pop() {
             if current.pos == goal {
@@ -359,7 +379,10 @@ impl GlobalPlanner {
                 if tentative < *dist.get(&nb).unwrap_or(&f64::INFINITY) {
                     dist.insert(nb, tentative);
                     came_from.insert(nb, current.pos);
-                    open.push(AStarNode { pos: nb, f: tentative });
+                    open.push(AStarNode {
+                        pos: nb,
+                        f: tentative,
+                    });
                 }
             }
         }
@@ -380,7 +403,10 @@ impl GlobalPlanner {
 
         g_score.insert(start, 0.0);
         came_from.insert(start, start);
-        open.push(AStarNode { pos: start, f: euclidean_dist(start, goal) });
+        open.push(AStarNode {
+            pos: start,
+            f: euclidean_dist(start, goal),
+        });
 
         while let Some(current) = open.pop() {
             if current.pos == goal {
@@ -391,15 +417,14 @@ impl GlobalPlanner {
 
             for (nb, step_dist) in costmap.neighbours(current.pos, self.eight_connected) {
                 let parent_g = g_score[&parent];
-                let (best_parent, best_g) =
-                    if self.line_of_sight(costmap, parent, nb) {
-                        let d = euclidean_dist(parent, nb);
-                        let cell_cost = costmap.cost(nb) as f64 * self.cost_weight / 255.0;
-                        (parent, parent_g + d + cell_cost)
-                    } else {
-                        let cell_cost = costmap.cost(nb) as f64 * self.cost_weight / 255.0;
-                        (current.pos, cur_g + step_dist + cell_cost)
-                    };
+                let (best_parent, best_g) = if self.line_of_sight(costmap, parent, nb) {
+                    let d = euclidean_dist(parent, nb);
+                    let cell_cost = costmap.cost(nb) as f64 * self.cost_weight / 255.0;
+                    (parent, parent_g + d + cell_cost)
+                } else {
+                    let cell_cost = costmap.cost(nb) as f64 * self.cost_weight / 255.0;
+                    (current.pos, cur_g + step_dist + cell_cost)
+                };
 
                 if best_g < *g_score.get(&nb).unwrap_or(&f64::INFINITY) {
                     g_score.insert(nb, best_g);
@@ -581,7 +606,9 @@ mod tests {
     fn test_astar_trivial() {
         let cm = empty_costmap(5, 5);
         let planner = GlobalPlanner::new(Algorithm::AStar);
-        let path = planner.plan(&cm, GridPos::new(0, 0), GridPos::new(4, 4)).unwrap();
+        let path = planner
+            .plan(&cm, GridPos::new(0, 0), GridPos::new(4, 4))
+            .unwrap();
         assert!(!path.is_empty());
         assert_eq!(*path.first().unwrap(), GridPos::new(0, 0));
         assert_eq!(*path.last().unwrap(), GridPos::new(4, 4));
@@ -591,7 +618,9 @@ mod tests {
     fn test_astar_same_start_goal() {
         let cm = empty_costmap(5, 5);
         let planner = GlobalPlanner::new(Algorithm::AStar);
-        let path = planner.plan(&cm, GridPos::new(2, 2), GridPos::new(2, 2)).unwrap();
+        let path = planner
+            .plan(&cm, GridPos::new(2, 2), GridPos::new(2, 2))
+            .unwrap();
         assert_eq!(path.len(), 1);
     }
 
@@ -599,7 +628,9 @@ mod tests {
     fn test_astar_around_wall() {
         let cm = costmap_with_wall(10, 10);
         let planner = GlobalPlanner::new(Algorithm::AStar);
-        let path = planner.plan(&cm, GridPos::new(0, 0), GridPos::new(9, 0)).unwrap();
+        let path = planner
+            .plan(&cm, GridPos::new(0, 0), GridPos::new(9, 0))
+            .unwrap();
         assert!(path.len() > 2);
     }
 
@@ -607,7 +638,9 @@ mod tests {
     fn test_dijkstra_trivial() {
         let cm = empty_costmap(5, 5);
         let planner = GlobalPlanner::new(Algorithm::Dijkstra);
-        let path = planner.plan(&cm, GridPos::new(0, 0), GridPos::new(4, 0)).unwrap();
+        let path = planner
+            .plan(&cm, GridPos::new(0, 0), GridPos::new(4, 0))
+            .unwrap();
         assert_eq!(*path.last().unwrap(), GridPos::new(4, 0));
     }
 
@@ -615,7 +648,9 @@ mod tests {
     fn test_theta_star_trivial() {
         let cm = empty_costmap(8, 8);
         let planner = GlobalPlanner::new(Algorithm::ThetaStar);
-        let path = planner.plan(&cm, GridPos::new(0, 0), GridPos::new(7, 7)).unwrap();
+        let path = planner
+            .plan(&cm, GridPos::new(0, 0), GridPos::new(7, 7))
+            .unwrap();
         assert!(!path.is_empty());
     }
 
@@ -637,21 +672,28 @@ mod tests {
         let mut cm = empty_costmap(5, 5);
         cm.set_cost(GridPos::new(0, 0), LETHAL_COST);
         let planner = GlobalPlanner::new(Algorithm::AStar);
-        assert!(planner.plan(&cm, GridPos::new(0, 0), GridPos::new(4, 4)).is_err());
+        assert!(
+            planner
+                .plan(&cm, GridPos::new(0, 0), GridPos::new(4, 4))
+                .is_err()
+        );
     }
 
     #[test]
     fn test_out_of_bounds() {
         let cm = empty_costmap(5, 5);
         let planner = GlobalPlanner::new(Algorithm::AStar);
-        assert!(planner.plan(&cm, GridPos::new(10, 10), GridPos::new(0, 0)).is_err());
+        assert!(
+            planner
+                .plan(&cm, GridPos::new(10, 10), GridPos::new(0, 0))
+                .is_err()
+        );
     }
 
     #[test]
     fn test_smooth_path() {
         let cm = empty_costmap(10, 10);
-        let planner = GlobalPlanner::new(Algorithm::AStar)
-            .with_smooth_params(50, 0.5, 0.3);
+        let planner = GlobalPlanner::new(Algorithm::AStar).with_smooth_params(50, 0.5, 0.3);
         let smoothed = planner
             .plan_smooth(&cm, GridPos::new(0, 0), GridPos::new(9, 9))
             .unwrap();
@@ -686,7 +728,9 @@ mod tests {
     fn test_four_connected() {
         let cm = empty_costmap(5, 5);
         let planner = GlobalPlanner::new(Algorithm::AStar).with_connectivity(false);
-        let path = planner.plan(&cm, GridPos::new(0, 0), GridPos::new(4, 4)).unwrap();
+        let path = planner
+            .plan(&cm, GridPos::new(0, 0), GridPos::new(4, 4))
+            .unwrap();
         // 4-connected: manhattan-style, path should be longer
         assert!(path.len() >= 9);
     }
@@ -696,7 +740,9 @@ mod tests {
         let mut cm = empty_costmap(5, 1);
         cm.set_cost(GridPos::new(2, 0), 200);
         let p_low = GlobalPlanner::new(Algorithm::AStar).with_cost_weight(0.0);
-        let path = p_low.plan(&cm, GridPos::new(0, 0), GridPos::new(4, 0)).unwrap();
+        let path = p_low
+            .plan(&cm, GridPos::new(0, 0), GridPos::new(4, 0))
+            .unwrap();
         assert!(path.len() >= 2);
     }
 

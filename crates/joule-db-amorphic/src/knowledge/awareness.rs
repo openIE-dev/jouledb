@@ -146,12 +146,7 @@ impl Awareness {
     }
 
     /// Register a sensor channel. It starts as Active with no readings.
-    pub fn register_channel(
-        &mut self,
-        name: &str,
-        modality: Modality,
-        expected_interval_ms: u64,
-    ) {
+    pub fn register_channel(&mut self, name: &str, modality: Modality, expected_interval_ms: u64) {
         self.channels.insert(
             name.to_lowercase(),
             SensorChannel {
@@ -186,7 +181,12 @@ impl Awareness {
     }
 
     /// Feed a sensor reading. Returns an action if delta detected.
-    pub fn sense(&mut self, channel_name: &str, value: BinaryHV, timestamp_ms: u64) -> Option<Action> {
+    pub fn sense(
+        &mut self,
+        channel_name: &str,
+        value: BinaryHV,
+        timestamp_ms: u64,
+    ) -> Option<Action> {
         self.tick_ms = timestamp_ms;
 
         let channel = self.channels.get_mut(&channel_name.to_lowercase())?;
@@ -223,10 +223,7 @@ impl Awareness {
             channel.deltas += 1;
             let action = Action {
                 trigger: ActionTrigger::SensorDelta(channel.name.clone()),
-                description: format!(
-                    "delta {:.3} on sensor '{}'",
-                    delta, channel.name
-                ),
+                description: format!("delta {:.3} on sensor '{}'", delta, channel.name),
                 delta_magnitude: delta,
                 energy_joules: 0.000_01 * delta, // Energy proportional to delta
             };
@@ -332,9 +329,21 @@ impl Awareness {
         let mut actions = self.check_silence(current_ms);
 
         // Count channels in each state
-        let active = self.channels.values().filter(|c| c.state == SensorState::Active).count();
-        let silent = self.channels.values().filter(|c| c.state == SensorState::Silent).count();
-        let absent = self.channels.values().filter(|c| c.state == SensorState::Absent).count();
+        let active = self
+            .channels
+            .values()
+            .filter(|c| c.state == SensorState::Active)
+            .count();
+        let silent = self
+            .channels
+            .values()
+            .filter(|c| c.state == SensorState::Silent)
+            .count();
+        let absent = self
+            .channels
+            .values()
+            .filter(|c| c.state == SensorState::Absent)
+            .count();
 
         if silent > 0 || absent > 0 {
             actions.push(Action {
@@ -416,8 +425,8 @@ impl Default for Awareness {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::concept::KNOWLEDGE_DIM;
+    use super::*;
 
     #[test]
     fn test_register_and_sense() {
@@ -470,10 +479,7 @@ mod tests {
         let actions = awareness.check_silence(500); // 500ms > 100ms * 3
 
         assert!(!actions.is_empty());
-        assert_eq!(
-            awareness.channels["heartbeat"].state,
-            SensorState::Silent
-        );
+        assert_eq!(awareness.channels["heartbeat"].state, SensorState::Silent);
     }
 
     #[test]
@@ -598,13 +604,17 @@ mod tests {
         assert!(awareness.reflection_efficiency() > 0.0);
 
         eprintln!("=== Awareness Loop ===");
-        eprintln!("Channels: {} total, {} active, {} absent",
+        eprintln!(
+            "Channels: {} total, {} active, {} absent",
             awareness.channel_count(),
             awareness.active_channels(),
             awareness.absent_channels()
         );
         eprintln!("Delta rate: {:.1}%", awareness.delta_rate() * 100.0);
-        eprintln!("Reflection efficiency: {:.1}", awareness.reflection_efficiency());
+        eprintln!(
+            "Reflection efficiency: {:.1}",
+            awareness.reflection_efficiency()
+        );
         eprintln!("Actions taken: {}", awareness.action_log.len());
     }
 }

@@ -135,7 +135,9 @@ impl TurnRule {
 
     /// Classic Langton's Ant: RL.
     pub fn classic() -> Self {
-        Self { turns: vec![Turn::Right, Turn::Left] }
+        Self {
+            turns: vec![Turn::Right, Turn::Left],
+        }
     }
 
     /// Number of color states.
@@ -168,7 +170,13 @@ pub struct Ant {
 
 impl Ant {
     pub fn new(id: u32, x: i64, y: i64, direction: Direction) -> Self {
-        Self { x, y, direction, id, steps_taken: 0 }
+        Self {
+            x,
+            y,
+            direction,
+            id,
+            steps_taken: 0,
+        }
     }
 }
 
@@ -233,20 +241,34 @@ impl LangtonGrid {
     }
 
     fn update_bounds(&mut self, x: i64, y: i64) {
-        if x < self.min_x { self.min_x = x; }
-        if x > self.max_x { self.max_x = x; }
-        if y < self.min_y { self.min_y = y; }
-        if y > self.max_y { self.max_y = y; }
+        if x < self.min_x {
+            self.min_x = x;
+        }
+        if x > self.max_x {
+            self.max_x = x;
+        }
+        if y < self.min_y {
+            self.min_y = y;
+        }
+        if y > self.max_y {
+            self.max_y = y;
+        }
     }
 
     /// Number of ants.
-    pub fn ant_count(&self) -> usize { self.ants.len() }
+    pub fn ant_count(&self) -> usize {
+        self.ants.len()
+    }
 
     /// Get ant by index.
-    pub fn ant(&self, idx: usize) -> Option<&Ant> { self.ants.get(idx) }
+    pub fn ant(&self, idx: usize) -> Option<&Ant> {
+        self.ants.get(idx)
+    }
 
     /// Total steps across all ants.
-    pub fn total_steps(&self) -> u64 { self.total_steps }
+    pub fn total_steps(&self) -> u64 {
+        self.total_steps
+    }
 
     /// Bounding box: (min_x, min_y, max_x, max_y).
     pub fn bounds(&self) -> (i64, i64, i64, i64) {
@@ -254,7 +276,9 @@ impl LangtonGrid {
     }
 
     /// Number of non-zero cells.
-    pub fn colored_cells(&self) -> usize { self.cells.len() }
+    pub fn colored_cells(&self) -> usize {
+        self.cells.len()
+    }
 
     /// Advance all ants by one step.
     pub fn step(&mut self) {
@@ -295,7 +319,8 @@ impl LangtonGrid {
         for ant in &self.ants {
             positions.entry((ant.x, ant.y)).or_default().push(ant.id);
         }
-        let mut result: Vec<_> = positions.into_iter()
+        let mut result: Vec<_> = positions
+            .into_iter()
             .filter(|(_, ids)| ids.len() > 1)
             .map(|((x, y), ids)| (x, y, ids))
             .collect();
@@ -305,7 +330,12 @@ impl LangtonGrid {
 
     /// Detect highway formation: check if the ant's recent movement forms
     /// a repeating pattern over the given window. Returns the period if found.
-    pub fn detect_highway(&self, ant_idx: usize, history: &[(i64, i64)], min_period: usize) -> Option<usize> {
+    pub fn detect_highway(
+        &self,
+        ant_idx: usize,
+        history: &[(i64, i64)],
+        min_period: usize,
+    ) -> Option<usize> {
         if ant_idx >= self.ants.len() || history.len() < min_period * 3 {
             return None;
         }
@@ -319,10 +349,32 @@ impl LangtonGrid {
             // Check if displacement pattern repeats
             let mut matches = true;
             for i in 0..period {
-                let dx1 = if i > 0 { first_half[i].0 - first_half[i - 1].0 } else if n > period * 2 { first_half[0].0 - history[n - period * 2 - 1].0 } else { continue };
-                let dx2 = second_half[i].0 - if i > 0 { second_half[i - 1].0 } else { first_half[period - 1].0 };
-                let dy1 = if i > 0 { first_half[i].1 - first_half[i - 1].1 } else if n > period * 2 { first_half[0].1 - history[n - period * 2 - 1].1 } else { continue };
-                let dy2 = second_half[i].1 - if i > 0 { second_half[i - 1].1 } else { first_half[period - 1].1 };
+                let dx1 = if i > 0 {
+                    first_half[i].0 - first_half[i - 1].0
+                } else if n > period * 2 {
+                    first_half[0].0 - history[n - period * 2 - 1].0
+                } else {
+                    continue;
+                };
+                let dx2 = second_half[i].0
+                    - if i > 0 {
+                        second_half[i - 1].0
+                    } else {
+                        first_half[period - 1].0
+                    };
+                let dy1 = if i > 0 {
+                    first_half[i].1 - first_half[i - 1].1
+                } else if n > period * 2 {
+                    first_half[0].1 - history[n - period * 2 - 1].1
+                } else {
+                    continue;
+                };
+                let dy2 = second_half[i].1
+                    - if i > 0 {
+                        second_half[i - 1].1
+                    } else {
+                        first_half[period - 1].1
+                    };
                 if dx1 != dx2 || dy1 != dy2 {
                     matches = false;
                     break;
@@ -547,9 +599,9 @@ mod tests {
     fn test_highway_detection_with_repeating_pattern() {
         let g = LangtonGrid::classic();
         // Construct a repeating displacement pattern with period 2
-        let history: Vec<(i64, i64)> = (0..20).map(|i| {
-            if i % 2 == 0 { (i, 0) } else { (i, 1) }
-        }).collect();
+        let history: Vec<(i64, i64)> = (0..20)
+            .map(|i| if i % 2 == 0 { (i, 0) } else { (i, 1) })
+            .collect();
         // This has a repeating displacement pattern
         let result = g.detect_highway(0, &history, 2);
         // May or may not detect depending on exact displacements — just check it doesn't panic

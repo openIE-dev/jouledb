@@ -19,15 +19,36 @@ pub struct Modifiers {
 
 impl Default for Modifiers {
     fn default() -> Self {
-        Self { shift: false, ctrl: false, alt: false }
+        Self {
+            shift: false,
+            ctrl: false,
+            alt: false,
+        }
     }
 }
 
 impl Modifiers {
-    pub fn none() -> Self { Self::default() }
-    pub fn shift() -> Self { Self { shift: true, ..Self::default() } }
-    pub fn ctrl() -> Self { Self { ctrl: true, ..Self::default() } }
-    pub fn alt() -> Self { Self { alt: true, ..Self::default() } }
+    pub fn none() -> Self {
+        Self::default()
+    }
+    pub fn shift() -> Self {
+        Self {
+            shift: true,
+            ..Self::default()
+        }
+    }
+    pub fn ctrl() -> Self {
+        Self {
+            ctrl: true,
+            ..Self::default()
+        }
+    }
+    pub fn alt() -> Self {
+        Self {
+            alt: true,
+            ..Self::default()
+        }
+    }
 
     pub fn is_empty(&self) -> bool {
         !self.shift && !self.ctrl && !self.alt
@@ -36,9 +57,15 @@ impl Modifiers {
     /// Serialize to a compact string representation.
     pub fn to_string_repr(&self) -> String {
         let mut parts = Vec::new();
-        if self.ctrl { parts.push("Ctrl"); }
-        if self.shift { parts.push("Shift"); }
-        if self.alt { parts.push("Alt"); }
+        if self.ctrl {
+            parts.push("Ctrl");
+        }
+        if self.shift {
+            parts.push("Shift");
+        }
+        if self.alt {
+            parts.push("Alt");
+        }
         parts.join("+")
     }
 }
@@ -57,17 +84,26 @@ pub enum InputSource {
 impl InputSource {
     /// Create a simple key binding with no modifiers.
     pub fn key(key: &str) -> Self {
-        Self::Key { key: key.to_lowercase(), modifiers: Modifiers::none() }
+        Self::Key {
+            key: key.to_lowercase(),
+            modifiers: Modifiers::none(),
+        }
     }
 
     /// Create a key binding with modifiers.
     pub fn key_with_mods(key: &str, modifiers: Modifiers) -> Self {
-        Self::Key { key: key.to_lowercase(), modifiers }
+        Self::Key {
+            key: key.to_lowercase(),
+            modifiers,
+        }
     }
 
     /// Create a mouse button binding.
     pub fn mouse(button: u8) -> Self {
-        Self::MouseButton { button, modifiers: Modifiers::none() }
+        Self::MouseButton {
+            button,
+            modifiers: Modifiers::none(),
+        }
     }
 
     /// Create a mouse button binding with modifiers.
@@ -77,7 +113,10 @@ impl InputSource {
 
     /// Create a gamepad button binding.
     pub fn gamepad(pad: u8, button: &str) -> Self {
-        Self::GamepadButton { pad, button: button.to_string() }
+        Self::GamepadButton {
+            pad,
+            button: button.to_string(),
+        }
     }
 
     /// Display string for UI presentation.
@@ -99,8 +138,11 @@ impl InputSource {
                     n => return format!("Mouse{}", n),
                 };
                 let mods = modifiers.to_string_repr();
-                if mods.is_empty() { name.to_string() }
-                else { format!("{}+{}", mods, name) }
+                if mods.is_empty() {
+                    name.to_string()
+                } else {
+                    format!("{}+{}", mods, name)
+                }
             }
             Self::GamepadButton { pad, button } => {
                 format!("Pad{}:{}", pad, button)
@@ -120,7 +162,10 @@ pub struct Binding {
 
 impl Binding {
     pub fn new(action: &str) -> Self {
-        Self { action: action.to_string(), sources: Vec::new() }
+        Self {
+            action: action.to_string(),
+            sources: Vec::new(),
+        }
     }
 
     pub fn add_source(&mut self, source: InputSource) {
@@ -171,12 +216,17 @@ pub struct BindingProfile {
 
 impl BindingProfile {
     pub fn new(name: &str) -> Self {
-        Self { name: name.to_string(), bindings: HashMap::new() }
+        Self {
+            name: name.to_string(),
+            bindings: HashMap::new(),
+        }
     }
 
     /// Bind an input source to an action. Creates the action if it doesn't exist.
     pub fn bind(&mut self, action: &str, source: InputSource) {
-        let entry = self.bindings.entry(action.to_string())
+        let entry = self
+            .bindings
+            .entry(action.to_string())
             .or_insert_with(|| Binding::new(action));
         entry.add_source(source);
     }
@@ -202,14 +252,17 @@ impl BindingProfile {
 
     /// Check if an input source triggers an action.
     pub fn is_source_active(&self, action: &str, source: &InputSource) -> bool {
-        self.bindings.get(action)
+        self.bindings
+            .get(action)
             .map(|b| b.has_source(source))
             .unwrap_or(false)
     }
 
     /// Find which action(s) an input source is bound to.
     pub fn actions_for_source(&self, source: &InputSource) -> Vec<String> {
-        let mut result: Vec<String> = self.bindings.iter()
+        let mut result: Vec<String> = self
+            .bindings
+            .iter()
             .filter(|(_, b)| b.has_source(source))
             .map(|(name, _)| name.clone())
             .collect();
@@ -242,7 +295,11 @@ impl BindingProfile {
                 }
             }
         }
-        conflicts.sort_by(|a, b| a.action_a.cmp(&b.action_a).then(a.action_b.cmp(&b.action_b)));
+        conflicts.sort_by(|a, b| {
+            a.action_a
+                .cmp(&b.action_a)
+                .then(a.action_b.cmp(&b.action_b))
+        });
         conflicts
     }
 
@@ -271,14 +328,22 @@ impl BindingProfile {
                             action: action.clone(),
                             source_type: "key".to_string(),
                             source_key: key.clone(),
-                            modifiers: if modifiers.is_empty() { None } else { Some(modifiers.to_string_repr()) },
+                            modifiers: if modifiers.is_empty() {
+                                None
+                            } else {
+                                Some(modifiers.to_string_repr())
+                            },
                             pad: None,
                         },
                         InputSource::MouseButton { button, modifiers } => SerializedBinding {
                             action: action.clone(),
                             source_type: "mouse".to_string(),
                             source_key: button.to_string(),
-                            modifiers: if modifiers.is_empty() { None } else { Some(modifiers.to_string_repr()) },
+                            modifiers: if modifiers.is_empty() {
+                                None
+                            } else {
+                                Some(modifiers.to_string_repr())
+                            },
                             pad: None,
                         },
                         InputSource::GamepadButton { pad, button } => SerializedBinding {
@@ -303,16 +368,25 @@ impl BindingProfile {
             let source = match entry.source_type.as_str() {
                 "key" => {
                     let mods = parse_modifiers(entry.modifiers.as_deref());
-                    InputSource::Key { key: entry.source_key.clone(), modifiers: mods }
+                    InputSource::Key {
+                        key: entry.source_key.clone(),
+                        modifiers: mods,
+                    }
                 }
                 "mouse" => {
                     let button: u8 = entry.source_key.parse().unwrap_or(0);
                     let mods = parse_modifiers(entry.modifiers.as_deref());
-                    InputSource::MouseButton { button, modifiers: mods }
+                    InputSource::MouseButton {
+                        button,
+                        modifiers: mods,
+                    }
                 }
                 "gamepad" => {
                     let pad = entry.pad.unwrap_or(0);
-                    InputSource::GamepadButton { pad, button: entry.source_key.clone() }
+                    InputSource::GamepadButton {
+                        pad,
+                        button: entry.source_key.clone(),
+                    }
                 }
                 _ => continue,
             };
@@ -323,7 +397,9 @@ impl BindingProfile {
 }
 
 fn parse_modifiers(s: Option<&str>) -> Modifiers {
-    let Some(s) = s else { return Modifiers::none(); };
+    let Some(s) = s else {
+        return Modifiers::none();
+    };
     let mut m = Modifiers::none();
     for part in s.split('+') {
         match part.trim().to_lowercase().as_str() {
@@ -369,7 +445,9 @@ impl BindingManager {
 
     /// Get the active profile (custom if set, else default).
     pub fn active(&self) -> &BindingProfile {
-        self.custom_profile.as_ref().unwrap_or(&self.default_profile)
+        self.custom_profile
+            .as_ref()
+            .unwrap_or(&self.default_profile)
     }
 
     /// Get the default profile.
@@ -404,7 +482,10 @@ mod tests {
     #[test]
     fn test_key_with_modifier() {
         let mut p = BindingProfile::new("default");
-        p.bind("sprint", InputSource::key_with_mods("w", Modifiers::shift()));
+        p.bind(
+            "sprint",
+            InputSource::key_with_mods("w", Modifiers::shift()),
+        );
         let src = InputSource::key_with_mods("w", Modifiers::shift());
         assert!(p.is_source_active("sprint", &src));
         // Without modifier should NOT match
@@ -500,7 +581,10 @@ mod tests {
         let restored = BindingProfile::deserialize("restored", &data);
         assert!(restored.is_source_active("jump", &InputSource::key("space")));
         assert!(restored.is_source_active("fire", &InputSource::mouse(0)));
-        assert!(restored.is_source_active("reload", &InputSource::key_with_mods("r", Modifiers::ctrl())));
+        assert!(restored.is_source_active(
+            "reload",
+            &InputSource::key_with_mods("r", Modifiers::ctrl())
+        ));
         assert!(restored.is_source_active("move", &InputSource::gamepad(0, "LeftStick")));
     }
 

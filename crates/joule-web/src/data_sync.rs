@@ -48,11 +48,15 @@ pub struct SyncState {
 
 impl SyncState {
     pub fn new() -> Self {
-        Self { last_sync_version: 0 }
+        Self {
+            last_sync_version: 0,
+        }
     }
 
     pub fn at_version(version: u64) -> Self {
-        Self { last_sync_version: version }
+        Self {
+            last_sync_version: version,
+        }
     }
 }
 
@@ -181,10 +185,7 @@ impl SyncStore {
     }
 
     /// Merge two sets of changes (local + remote) with conflict detection.
-    pub fn merge(
-        local_changes: &[SyncRecord],
-        remote_changes: &[SyncRecord],
-    ) -> MergeResult {
+    pub fn merge(local_changes: &[SyncRecord], remote_changes: &[SyncRecord]) -> MergeResult {
         let mut merged = Vec::new();
         let mut conflicts = Vec::new();
 
@@ -232,7 +233,8 @@ impl SyncStore {
 
     /// Remove tombstones older than the given threshold timestamp.
     pub fn cleanup_tombstones(&mut self, older_than: i64) {
-        self.records.retain(|_, r| !r.deleted || r.modified_at >= older_than);
+        self.records
+            .retain(|_, r| !r.deleted || r.modified_at >= older_than);
     }
 
     /// Batch sync: apply a batch of records, auto-versioning each.

@@ -1,7 +1,7 @@
 //! CSS specificity calculator: compute, compare, and sort declarations
 //! by cascade precedence (origin, importance, specificity, source order).
 
-use crate::selector_engine::{Selector, PseudoClass};
+use crate::selector_engine::{PseudoClass, Selector};
 
 // ── Specificity ─────────────────────────────────────────────────
 
@@ -24,11 +24,21 @@ impl Specificity {
     }
 
     pub fn inline_style() -> Self {
-        Self { inline: 1, a: 0, b: 0, c: 0 }
+        Self {
+            inline: 1,
+            a: 0,
+            b: 0,
+            c: 0,
+        }
     }
 
     pub fn zero() -> Self {
-        Self { inline: 0, a: 0, b: 0, c: 0 }
+        Self {
+            inline: 0,
+            a: 0,
+            b: 0,
+            c: 0,
+        }
     }
 
     /// Compare two specificities. Returns Ordering.
@@ -78,12 +88,10 @@ pub fn compute(selector: &Selector) -> Specificity {
             _ => Specificity::new(0, 1, 0),
         },
         Selector::PseudoElement(_) => Specificity::new(0, 0, 1),
-        Selector::Compound(parts) => {
-            parts.iter().fold(Specificity::zero(), |acc, s| acc.add(compute(s)))
-        }
-        Selector::Combinator(left, _, right) => {
-            compute(left).add(compute(right))
-        }
+        Selector::Compound(parts) => parts
+            .iter()
+            .fold(Specificity::zero(), |acc, s| acc.add(compute(s))),
+        Selector::Combinator(left, _, right) => compute(left).add(compute(right)),
     }
 }
 
@@ -253,8 +261,22 @@ mod tests {
     #[test]
     fn cascade_sort_by_specificity() {
         let mut decls = vec![
-            Declaration::new("color", "red", false, Origin::Author, Specificity::new(0, 0, 1), 0),
-            Declaration::new("color", "blue", false, Origin::Author, Specificity::new(0, 1, 0), 1),
+            Declaration::new(
+                "color",
+                "red",
+                false,
+                Origin::Author,
+                Specificity::new(0, 0, 1),
+                0,
+            ),
+            Declaration::new(
+                "color",
+                "blue",
+                false,
+                Origin::Author,
+                Specificity::new(0, 1, 0),
+                1,
+            ),
         ];
         sort_by_cascade(&mut decls);
         assert_eq!(decls.last().unwrap().value, "blue");
@@ -263,8 +285,22 @@ mod tests {
     #[test]
     fn cascade_important_overrides() {
         let mut decls = vec![
-            Declaration::new("color", "blue", false, Origin::Author, Specificity::new(1, 0, 0), 0),
-            Declaration::new("color", "red", true, Origin::Author, Specificity::new(0, 0, 1), 1),
+            Declaration::new(
+                "color",
+                "blue",
+                false,
+                Origin::Author,
+                Specificity::new(1, 0, 0),
+                0,
+            ),
+            Declaration::new(
+                "color",
+                "red",
+                true,
+                Origin::Author,
+                Specificity::new(0, 0, 1),
+                1,
+            ),
         ];
         sort_by_cascade(&mut decls);
         // !important author beats non-important author even with lower specificity
@@ -274,8 +310,22 @@ mod tests {
     #[test]
     fn cascade_source_order_tiebreak() {
         let decls = vec![
-            Declaration::new("color", "red", false, Origin::Author, Specificity::new(0, 1, 0), 0),
-            Declaration::new("color", "blue", false, Origin::Author, Specificity::new(0, 1, 0), 1),
+            Declaration::new(
+                "color",
+                "red",
+                false,
+                Origin::Author,
+                Specificity::new(0, 1, 0),
+                0,
+            ),
+            Declaration::new(
+                "color",
+                "blue",
+                false,
+                Origin::Author,
+                Specificity::new(0, 1, 0),
+                1,
+            ),
         ];
         let winner = cascade_winner(&decls).unwrap();
         assert_eq!(winner.value, "blue"); // later source order wins
@@ -284,8 +334,22 @@ mod tests {
     #[test]
     fn cascade_user_agent_lowest() {
         let decls = vec![
-            Declaration::new("display", "block", false, Origin::UserAgent, Specificity::new(0, 0, 1), 0),
-            Declaration::new("display", "flex", false, Origin::Author, Specificity::new(0, 0, 1), 1),
+            Declaration::new(
+                "display",
+                "block",
+                false,
+                Origin::UserAgent,
+                Specificity::new(0, 0, 1),
+                0,
+            ),
+            Declaration::new(
+                "display",
+                "flex",
+                false,
+                Origin::Author,
+                Specificity::new(0, 0, 1),
+                1,
+            ),
         ];
         let winner = cascade_winner(&decls).unwrap();
         assert_eq!(winner.value, "flex");

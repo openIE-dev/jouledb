@@ -23,7 +23,11 @@ pub enum ActorError {
     /// Ask timed out (no response within tick budget).
     AskTimeout { actor_id: u64, correlation_id: u64 },
     /// Max restart intensity exceeded.
-    MaxRestartsExceeded { actor_id: u64, restarts: u32, window: u32 },
+    MaxRestartsExceeded {
+        actor_id: u64,
+        restarts: u32,
+        window: u32,
+    },
 }
 
 impl std::fmt::Display for ActorError {
@@ -35,10 +39,20 @@ impl std::fmt::Display for ActorError {
             }
             Self::ActorStopped(id) => write!(f, "actor {id} is stopped"),
             Self::DuplicateActor(id) => write!(f, "actor already exists: {id}"),
-            Self::AskTimeout { actor_id, correlation_id } => {
-                write!(f, "ask timeout: actor {actor_id}, correlation {correlation_id}")
+            Self::AskTimeout {
+                actor_id,
+                correlation_id,
+            } => {
+                write!(
+                    f,
+                    "ask timeout: actor {actor_id}, correlation {correlation_id}"
+                )
             }
-            Self::MaxRestartsExceeded { actor_id, restarts, window } => {
+            Self::MaxRestartsExceeded {
+                actor_id,
+                restarts,
+                window,
+            } => {
                 write!(f, "actor {actor_id}: {restarts} restarts in {window} ticks")
             }
         }
@@ -297,10 +311,8 @@ impl ActorSystem {
         msg.timestamp_tick = self.current_tick;
         let actor = self.actors.get_mut(&to).unwrap();
         actor.mailbox.push_back(msg);
-        self.events.push(ActorEvent::MessageDelivered {
-            to,
-            msg_id,
-        });
+        self.events
+            .push(ActorEvent::MessageDelivered { to, msg_id });
         Ok(msg_id)
     }
 
@@ -357,10 +369,8 @@ impl ActorSystem {
             Some(msg) => {
                 actor.messages_processed += 1;
                 let msg_id = msg.id;
-                self.events.push(ActorEvent::MessageProcessed {
-                    actor_id,
-                    msg_id,
-                });
+                self.events
+                    .push(ActorEvent::MessageProcessed { actor_id, msg_id });
                 Ok(Some(msg))
             }
             None => Ok(None),
@@ -566,7 +576,8 @@ mod tests {
     #[test]
     fn test_one_for_one_restart() {
         let mut sys = ActorSystem::new();
-        let parent = sys.spawn(Actor::new(0, "supervisor").with_strategy(SupervisorStrategy::OneForOne));
+        let parent =
+            sys.spawn(Actor::new(0, "supervisor").with_strategy(SupervisorStrategy::OneForOne));
         let c1 = sys.spawn_child(parent, Actor::new(0, "c1")).unwrap();
         let c2 = sys.spawn_child(parent, Actor::new(0, "c2")).unwrap();
 
@@ -581,9 +592,8 @@ mod tests {
     #[test]
     fn test_all_for_one_restart() {
         let mut sys = ActorSystem::new();
-        let parent = sys.spawn(
-            Actor::new(0, "supervisor").with_strategy(SupervisorStrategy::AllForOne),
-        );
+        let parent =
+            sys.spawn(Actor::new(0, "supervisor").with_strategy(SupervisorStrategy::AllForOne));
         let c1 = sys.spawn_child(parent, Actor::new(0, "c1")).unwrap();
         let c2 = sys.spawn_child(parent, Actor::new(0, "c2")).unwrap();
 
@@ -615,9 +625,7 @@ mod tests {
         let mut sys = ActorSystem::new();
         let parent = sys.spawn(Actor::new(0, "parent"));
         let child = sys.spawn_child(parent, Actor::new(0, "child")).unwrap();
-        let grandchild = sys
-            .spawn_child(child, Actor::new(0, "grandchild"))
-            .unwrap();
+        let grandchild = sys.spawn_child(child, Actor::new(0, "grandchild")).unwrap();
 
         sys.stop(parent).unwrap();
         assert_eq!(sys.get_actor(parent).unwrap().state, ActorState::Stopped);
@@ -697,8 +705,16 @@ mod tests {
         sys.process_one(id).unwrap();
         let events = sys.drain_events();
         assert!(events.contains(&ActorEvent::ActorStarted(id)));
-        assert!(events.iter().any(|e| matches!(e, ActorEvent::MessageDelivered { .. })));
-        assert!(events.iter().any(|e| matches!(e, ActorEvent::MessageProcessed { .. })));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, ActorEvent::MessageDelivered { .. }))
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, ActorEvent::MessageProcessed { .. }))
+        );
     }
 
     #[test]

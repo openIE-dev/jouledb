@@ -6,8 +6,8 @@
 //! Average Nucleotide Identity (ANI) estimation, and structural
 //! rearrangement detection (inversions, translocations, duplications).
 
-use std::fmt;
 use std::collections::HashMap;
+use std::fmt;
 
 // ── K-mer Index ─────────────────────────────────────────────────
 
@@ -37,7 +37,11 @@ impl KmerIndex {
             }
         }
 
-        Self { k, index, total_kmers: total }
+        Self {
+            k,
+            index,
+            total_kmers: total,
+        }
     }
 
     /// Number of unique k-mers.
@@ -47,12 +51,17 @@ impl KmerIndex {
 
     /// Positions of a specific k-mer.
     pub fn positions(&self, kmer: &str) -> &[usize] {
-        self.index.get(&kmer.to_uppercase()).map_or(&[], |v| v.as_slice())
+        self.index
+            .get(&kmer.to_uppercase())
+            .map_or(&[], |v| v.as_slice())
     }
 
     /// K-mers shared with another index.
     pub fn shared_kmers(&self, other: &KmerIndex) -> usize {
-        self.index.keys().filter(|k| other.index.contains_key(*k)).count()
+        self.index
+            .keys()
+            .filter(|k| other.index.contains_key(*k))
+            .count()
     }
 
     /// Jaccard similarity with another k-mer index.
@@ -68,7 +77,9 @@ impl fmt::Display for KmerIndex {
         write!(
             f,
             "KmerIndex(k={}, unique={}, total={})",
-            self.k, self.unique_count(), self.total_kmers,
+            self.k,
+            self.unique_count(),
+            self.total_kmers,
         )
     }
 }
@@ -117,7 +128,9 @@ impl fmt::Display for AnchorMatch {
         write!(
             f,
             "Anchor(q={}, t={}, len={}, {})",
-            self.query_pos, self.target_pos, self.length,
+            self.query_pos,
+            self.target_pos,
+            self.length,
             if self.is_forward { "fwd" } else { "rev" },
         )
     }
@@ -175,8 +188,10 @@ impl fmt::Display for SyntenyOrientation {
 
 impl SyntenyBlock {
     pub fn new(
-        query_start: usize, query_end: usize,
-        target_start: usize, target_end: usize,
+        query_start: usize,
+        query_end: usize,
+        target_start: usize,
+        target_end: usize,
     ) -> Self {
         Self {
             query_start,
@@ -207,13 +222,17 @@ impl SyntenyBlock {
     pub fn query_length(&self) -> usize {
         if self.query_end >= self.query_start {
             self.query_end - self.query_start + 1
-        } else { 0 }
+        } else {
+            0
+        }
     }
 
     pub fn target_length(&self) -> usize {
         if self.target_end >= self.target_start {
             self.target_end - self.target_start + 1
-        } else { 0 }
+        } else {
+            0
+        }
     }
 
     /// Length ratio between query and target spans.
@@ -229,9 +248,13 @@ impl fmt::Display for SyntenyBlock {
         write!(
             f,
             "SyntenyBlock(q={}-{}, t={}-{}, {}, anchors={}, score={:.1})",
-            self.query_start, self.query_end,
-            self.target_start, self.target_end,
-            self.orientation, self.anchor_count, self.score,
+            self.query_start,
+            self.query_end,
+            self.target_start,
+            self.target_end,
+            self.orientation,
+            self.anchor_count,
+            self.score,
         )
     }
 }
@@ -323,7 +346,11 @@ pub struct DotPlotConfig {
 
 impl DotPlotConfig {
     pub fn new(bin_size: usize, k: usize) -> Self {
-        Self { bin_size, k, min_matches: 1 }
+        Self {
+            bin_size,
+            k,
+            min_matches: 1,
+        }
     }
 
     pub fn with_min_matches(mut self, min: usize) -> Self {
@@ -334,7 +361,11 @@ impl DotPlotConfig {
 
 impl fmt::Display for DotPlotConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "DotPlotConfig(bin={}, k={}, min={})", self.bin_size, self.k, self.min_matches)
+        write!(
+            f,
+            "DotPlotConfig(bin={}, k={}, min={})",
+            self.bin_size, self.k, self.min_matches
+        )
     }
 }
 
@@ -428,7 +459,11 @@ impl Rearrangement {
     }
 
     pub fn query_span(&self) -> usize {
-        if self.query_end >= self.query_start { self.query_end - self.query_start + 1 } else { 0 }
+        if self.query_end >= self.query_start {
+            self.query_end - self.query_start + 1
+        } else {
+            0
+        }
     }
 }
 
@@ -438,8 +473,10 @@ impl fmt::Display for Rearrangement {
             f,
             "Rearrangement({}, q={}-{}, t={}-{}, conf={:.2})",
             self.rearrangement_type,
-            self.query_start, self.query_end,
-            self.target_start, self.target_end,
+            self.query_start,
+            self.query_end,
+            self.target_start,
+            self.target_end,
             self.confidence,
         )
     }
@@ -484,9 +521,12 @@ impl fmt::Display for ComparisonSummary {
         write!(
             f,
             "ComparisonSummary(qlen={}, tlen={}, ANI={:.2}%, shared_kmers={}, blocks={}, synteny_bp={})",
-            self.query_length, self.target_length,
-            self.ani_estimate * 100.0, self.shared_kmers,
-            self.synteny_blocks, self.total_synteny_bp,
+            self.query_length,
+            self.target_length,
+            self.ani_estimate * 100.0,
+            self.shared_kmers,
+            self.synteny_blocks,
+            self.total_synteny_bp,
         )
     }
 }
@@ -632,7 +672,10 @@ mod tests {
     #[test]
     fn test_rearrangement_type_display() {
         assert_eq!(format!("{}", RearrangementType::Duplication), "duplication");
-        assert_eq!(format!("{}", RearrangementType::Translocation), "translocation");
+        assert_eq!(
+            format!("{}", RearrangementType::Translocation),
+            "translocation"
+        );
     }
 
     #[test]

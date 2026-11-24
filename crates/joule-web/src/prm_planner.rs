@@ -42,12 +42,22 @@ pub struct Point {
 }
 
 impl Point {
-    pub fn new(coords: Vec<f64>) -> Self { Self { coords } }
-    pub fn new2(x: f64, y: f64) -> Self { Self { coords: vec![x, y] } }
-    pub fn new3(x: f64, y: f64, z: f64) -> Self { Self { coords: vec![x, y, z] } }
+    pub fn new(coords: Vec<f64>) -> Self {
+        Self { coords }
+    }
+    pub fn new2(x: f64, y: f64) -> Self {
+        Self { coords: vec![x, y] }
+    }
+    pub fn new3(x: f64, y: f64, z: f64) -> Self {
+        Self {
+            coords: vec![x, y, z],
+        }
+    }
 
     pub fn distance_to(&self, other: &Point) -> f64 {
-        self.coords.iter().zip(other.coords.iter())
+        self.coords
+            .iter()
+            .zip(other.coords.iter())
             .map(|(a, b)| (a - b) * (a - b))
             .sum::<f64>()
             .sqrt()
@@ -58,7 +68,9 @@ impl fmt::Display for Point {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(")?;
         for (i, c) in self.coords.iter().enumerate() {
-            if i > 0 { write!(f, ", ")?; }
+            if i > 0 {
+                write!(f, ", ")?;
+            }
             write!(f, "{c:.3}")?;
         }
         write!(f, ")")
@@ -74,10 +86,13 @@ pub struct AabbObstacle {
 }
 
 impl AabbObstacle {
-    pub fn new(min: Vec<f64>, max: Vec<f64>) -> Self { Self { min, max } }
+    pub fn new(min: Vec<f64>, max: Vec<f64>) -> Self {
+        Self { min, max }
+    }
 
     pub fn contains(&self, p: &Point) -> bool {
-        p.coords.iter()
+        p.coords
+            .iter()
             .zip(self.min.iter().zip(self.max.iter()))
             .all(|(c, (lo, hi))| *c >= *lo && *c <= *hi)
     }
@@ -85,10 +100,15 @@ impl AabbObstacle {
     pub fn intersects_segment(&self, a: &Point, b: &Point, samples: usize) -> bool {
         for i in 0..=samples {
             let t = i as f64 / samples as f64;
-            let coords: Vec<f64> = a.coords.iter().zip(b.coords.iter())
+            let coords: Vec<f64> = a
+                .coords
+                .iter()
+                .zip(b.coords.iter())
                 .map(|(ca, cb)| ca + (cb - ca) * t)
                 .collect();
-            if self.contains(&Point { coords }) { return true; }
+            if self.contains(&Point { coords }) {
+                return true;
+            }
         }
         false
     }
@@ -96,13 +116,22 @@ impl AabbObstacle {
 
 // ── Simple LCG RNG ──────────────────────────────────────────────
 
-struct SimpleRng { state: u64 }
+struct SimpleRng {
+    state: u64,
+}
 
 impl SimpleRng {
-    fn new(seed: u64) -> Self { Self { state: seed.wrapping_add(1) } }
+    fn new(seed: u64) -> Self {
+        Self {
+            state: seed.wrapping_add(1),
+        }
+    }
 
     fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.state
     }
 
@@ -110,7 +139,9 @@ impl SimpleRng {
         (self.next_u64() >> 11) as f64 / (1u64 << 53) as f64
     }
 
-    fn next_range(&mut self, lo: f64, hi: f64) -> f64 { lo + self.next_f64() * (hi - lo) }
+    fn next_range(&mut self, lo: f64, hi: f64) -> f64 {
+        lo + self.next_f64() * (hi - lo)
+    }
 }
 
 // ── Roadmap Node & Edge ─────────────────────────────────────────
@@ -167,14 +198,34 @@ impl PrmConfig {
         })
     }
 
-    pub fn with_num_samples(mut self, n: usize) -> Self { self.num_samples = n; self }
-    pub fn with_k_nearest(mut self, k: usize) -> Self { self.k_nearest = k; self }
-    pub fn with_max_edge_length(mut self, l: f64) -> Self { self.max_edge_length = l; self }
-    pub fn with_collision_samples(mut self, n: usize) -> Self { self.collision_samples = n; self }
-    pub fn with_seed(mut self, s: u64) -> Self { self.seed = s; self }
-    pub fn with_lazy(mut self, lazy: bool) -> Self { self.lazy = lazy; self }
+    pub fn with_num_samples(mut self, n: usize) -> Self {
+        self.num_samples = n;
+        self
+    }
+    pub fn with_k_nearest(mut self, k: usize) -> Self {
+        self.k_nearest = k;
+        self
+    }
+    pub fn with_max_edge_length(mut self, l: f64) -> Self {
+        self.max_edge_length = l;
+        self
+    }
+    pub fn with_collision_samples(mut self, n: usize) -> Self {
+        self.collision_samples = n;
+        self
+    }
+    pub fn with_seed(mut self, s: u64) -> Self {
+        self.seed = s;
+        self
+    }
+    pub fn with_lazy(mut self, lazy: bool) -> Self {
+        self.lazy = lazy;
+        self
+    }
 
-    fn dim(&self) -> usize { self.bounds_min.len() }
+    fn dim(&self) -> usize {
+        self.bounds_min.len()
+    }
 }
 
 impl fmt::Display for PrmConfig {
@@ -182,7 +233,10 @@ impl fmt::Display for PrmConfig {
         write!(
             f,
             "PrmConfig(dim={}, samples={}, k={}, lazy={})",
-            self.dim(), self.num_samples, self.k_nearest, self.lazy,
+            self.dim(),
+            self.num_samples,
+            self.k_nearest,
+            self.lazy,
         )
     }
 }
@@ -203,8 +257,11 @@ impl fmt::Display for PrmResult {
         write!(
             f,
             "PrmResult(waypoints={}, cost={:.3}, nodes={}, edges={}, validated={})",
-            self.path.len(), self.cost, self.nodes_in_roadmap,
-            self.edges_in_roadmap, self.edges_validated,
+            self.path.len(),
+            self.cost,
+            self.nodes_in_roadmap,
+            self.edges_in_roadmap,
+            self.edges_validated,
         )
     }
 }
@@ -218,7 +275,9 @@ struct DijkEntry {
 }
 
 impl PartialEq for DijkEntry {
-    fn eq(&self, other: &Self) -> bool { self.cost == other.cost }
+    fn eq(&self, other: &Self) -> bool {
+        self.cost == other.cost
+    }
 }
 impl Eq for DijkEntry {}
 
@@ -231,7 +290,10 @@ impl PartialOrd for DijkEntry {
 impl Ord for DijkEntry {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         // Reverse for min-heap
-        other.cost.partial_cmp(&self.cost).unwrap_or(std::cmp::Ordering::Equal)
+        other
+            .cost
+            .partial_cmp(&self.cost)
+            .unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 
@@ -267,12 +329,17 @@ impl PrmPlanner {
     }
 
     fn edge_free(&self, a: &Point, b: &Point) -> bool {
-        !self.obstacles.iter().any(|o| o.intersects_segment(a, b, self.config.collision_samples))
+        !self
+            .obstacles
+            .iter()
+            .any(|o| o.intersects_segment(a, b, self.config.collision_samples))
     }
 
     /// Find k-nearest nodes to a query point.
     fn k_nearest(&self, query: &Point, k: usize) -> Vec<(usize, f64)> {
-        let mut dists: Vec<(usize, f64)> = self.nodes.iter()
+        let mut dists: Vec<(usize, f64)> = self
+            .nodes
+            .iter()
             .enumerate()
             .map(|(i, n)| (i, n.point.distance_to(query)))
             .collect();
@@ -294,7 +361,10 @@ impl PrmPlanner {
                 .collect();
             let p = Point { coords };
             if self.point_free(&p) {
-                self.nodes.push(RoadmapNode { point: p, edges: Vec::new() });
+                self.nodes.push(RoadmapNode {
+                    point: p,
+                    edges: Vec::new(),
+                });
             }
         }
 
@@ -310,7 +380,9 @@ impl PrmPlanner {
                     let e = &self.edges[*ei];
                     (e.from == i && e.to == j) || (e.from == j && e.to == i)
                 });
-                if exists { continue; }
+                if exists {
+                    continue;
+                }
 
                 let (validated, collision_free) = if self.config.lazy {
                     (false, true) // Assume free, validate later
@@ -321,7 +393,13 @@ impl PrmPlanner {
 
                 if !validated || collision_free {
                     let eidx = self.edges.len();
-                    self.edges.push(RoadmapEdge { from: i, to: j, cost: dist, validated, collision_free });
+                    self.edges.push(RoadmapEdge {
+                        from: i,
+                        to: j,
+                        cost: dist,
+                        validated,
+                        collision_free,
+                    });
                     self.nodes[i].edges.push(eidx);
                     self.nodes[j].edges.push(eidx);
                 }
@@ -334,16 +412,25 @@ impl PrmPlanner {
     /// Add a point to the roadmap and connect it.
     fn add_point(&mut self, p: Point) -> usize {
         let idx = self.nodes.len();
-        self.nodes.push(RoadmapNode { point: p, edges: Vec::new() });
+        self.nodes.push(RoadmapNode {
+            point: p,
+            edges: Vec::new(),
+        });
 
         let neighbors = self.k_nearest(&self.nodes[idx].point, self.config.k_nearest + 1);
         for (j, dist) in neighbors {
-            if j == idx || dist > self.config.max_edge_length { continue; }
+            if j == idx || dist > self.config.max_edge_length {
+                continue;
+            }
             let free = self.edge_free(&self.nodes[idx].point, &self.nodes[j].point);
             if free {
                 let eidx = self.edges.len();
                 self.edges.push(RoadmapEdge {
-                    from: idx, to: j, cost: dist, validated: true, collision_free: true,
+                    from: idx,
+                    to: j,
+                    cost: dist,
+                    validated: true,
+                    collision_free: true,
                 });
                 self.nodes[idx].edges.push(eidx);
                 self.nodes[j].edges.push(eidx);
@@ -357,8 +444,12 @@ impl PrmPlanner {
         if !self.built {
             self.build();
         }
-        if !self.point_free(&start) { return Err(PrmError::StartInCollision); }
-        if !self.point_free(&goal) { return Err(PrmError::GoalInCollision); }
+        if !self.point_free(&start) {
+            return Err(PrmError::StartInCollision);
+        }
+        if !self.point_free(&goal) {
+            return Err(PrmError::GoalInCollision);
+        }
 
         let start_idx = self.add_point(start);
         let goal_idx = self.add_point(goal);
@@ -379,7 +470,10 @@ impl PrmPlanner {
 
         dist[start] = 0.0;
         let mut heap = BinaryHeap::new();
-        heap.push(DijkEntry { node: start, cost: 0.0 });
+        heap.push(DijkEntry {
+            node: start,
+            cost: 0.0,
+        });
 
         while let Some(DijkEntry { node, cost }) = heap.pop() {
             if node == goal {
@@ -393,35 +487,48 @@ impl PrmPlanner {
                     path,
                 });
             }
-            if visited[node] { continue; }
-            if cost > dist[node] { continue; }
+            if visited[node] {
+                continue;
+            }
+            if cost > dist[node] {
+                continue;
+            }
             visited[node] = true;
 
             let edge_indices: Vec<usize> = self.nodes[node].edges.clone();
             for eidx in edge_indices {
                 let edge = &self.edges[eidx];
-                let neighbor = if edge.from == node { edge.to } else { edge.from };
-                if visited[neighbor] { continue; }
+                let neighbor = if edge.from == node {
+                    edge.to
+                } else {
+                    edge.from
+                };
+                if visited[neighbor] {
+                    continue;
+                }
 
                 // Lazy validation
                 if !edge.validated {
                     edges_validated += 1;
-                    let free = self.edge_free(
-                        &self.nodes[edge.from].point,
-                        &self.nodes[edge.to].point,
-                    );
+                    let free =
+                        self.edge_free(&self.nodes[edge.from].point, &self.nodes[edge.to].point);
                     let e = &mut self.edges[eidx];
                     e.validated = true;
                     e.collision_free = free;
                 }
 
-                if !self.edges[eidx].collision_free { continue; }
+                if !self.edges[eidx].collision_free {
+                    continue;
+                }
 
                 let new_dist = dist[node] + self.edges[eidx].cost;
                 if new_dist < dist[neighbor] {
                     dist[neighbor] = new_dist;
                     prev[neighbor] = Some(node);
-                    heap.push(DijkEntry { node: neighbor, cost: new_dist });
+                    heap.push(DijkEntry {
+                        node: neighbor,
+                        cost: new_dist,
+                    });
                 }
             }
         }
@@ -440,9 +547,15 @@ impl PrmPlanner {
         path
     }
 
-    pub fn node_count(&self) -> usize { self.nodes.len() }
-    pub fn edge_count(&self) -> usize { self.edges.len() }
-    pub fn is_built(&self) -> bool { self.built }
+    pub fn node_count(&self) -> usize {
+        self.nodes.len()
+    }
+    pub fn edge_count(&self) -> usize {
+        self.edges.len()
+    }
+    pub fn is_built(&self) -> bool {
+        self.built
+    }
 }
 
 impl fmt::Display for PrmPlanner {
@@ -450,7 +563,9 @@ impl fmt::Display for PrmPlanner {
         write!(
             f,
             "PrmPlanner(nodes={}, edges={}, built={})",
-            self.nodes.len(), self.edges.len(), self.built,
+            self.nodes.len(),
+            self.edges.len(),
+            self.built,
         )
     }
 }
@@ -511,7 +626,9 @@ mod tests {
     fn test_simple_query() {
         let cfg = cfg2d();
         let mut prm = PrmPlanner::new(cfg);
-        let result = prm.query(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0)).unwrap();
+        let result = prm
+            .query(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0))
+            .unwrap();
         assert!(result.path.len() >= 2);
         assert!(result.cost > 0.0);
     }
@@ -521,7 +638,9 @@ mod tests {
         let cfg = cfg2d().with_num_samples(300);
         let obs = vec![AabbObstacle::new(vec![4.0, 0.0], vec![5.0, 8.0])];
         let mut prm = PrmPlanner::new(cfg).with_obstacles(obs);
-        let result = prm.query(Point::new2(1.0, 5.0), Point::new2(9.0, 5.0)).unwrap();
+        let result = prm
+            .query(Point::new2(1.0, 5.0), Point::new2(9.0, 5.0))
+            .unwrap();
         assert!(result.path.len() >= 2);
         assert!(result.cost > 8.0); // must route around wall
     }
@@ -532,14 +651,19 @@ mod tests {
         let obs = vec![AabbObstacle::new(vec![0.0, 0.0], vec![2.0, 2.0])];
         let mut prm = PrmPlanner::new(cfg).with_obstacles(obs);
         prm.build();
-        assert!(prm.query(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0)).is_err());
+        assert!(
+            prm.query(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0))
+                .is_err()
+        );
     }
 
     #[test]
     fn test_lazy_prm() {
         let cfg = cfg2d().with_lazy(true).with_num_samples(200);
         let mut prm = PrmPlanner::new(cfg);
-        let result = prm.query(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0)).unwrap();
+        let result = prm
+            .query(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0))
+            .unwrap();
         assert!(result.path.len() >= 2);
         // In lazy mode, not all edges are validated
         assert!(result.edges_validated <= result.edges_in_roadmap);
@@ -550,8 +674,12 @@ mod tests {
         let cfg = cfg2d();
         let mut prm = PrmPlanner::new(cfg);
         prm.build();
-        let r1 = prm.query(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0)).unwrap();
-        let r2 = prm.query(Point::new2(2.0, 2.0), Point::new2(8.0, 8.0)).unwrap();
+        let r1 = prm
+            .query(Point::new2(1.0, 1.0), Point::new2(9.0, 9.0))
+            .unwrap();
+        let r2 = prm
+            .query(Point::new2(2.0, 2.0), Point::new2(8.0, 8.0))
+            .unwrap();
         assert!(r1.path.len() >= 2);
         assert!(r2.path.len() >= 2);
     }
@@ -564,10 +692,9 @@ mod tests {
             .with_k_nearest(10)
             .with_max_edge_length(5.0);
         let mut prm = PrmPlanner::new(cfg);
-        let result = prm.query(
-            Point::new3(1.0, 1.0, 1.0),
-            Point::new3(9.0, 9.0, 9.0),
-        ).unwrap();
+        let result = prm
+            .query(Point::new3(1.0, 1.0, 1.0), Point::new3(9.0, 9.0, 9.0))
+            .unwrap();
         assert!(result.path.len() >= 2);
     }
 

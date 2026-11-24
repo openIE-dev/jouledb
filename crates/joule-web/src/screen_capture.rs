@@ -247,7 +247,8 @@ impl CaptureSession {
         self.state = SessionState::Active;
         self.frame_count = 0;
         self.events.push_back(CaptureEvent::PermissionGranted);
-        self.events.push_back(CaptureEvent::Started(self.config.clone()));
+        self.events
+            .push_back(CaptureEvent::Started(self.config.clone()));
     }
 
     /// Deny permission.
@@ -342,7 +343,10 @@ mod tests {
         assert_eq!(s.state, SessionState::Idle);
         assert_eq!(s.permission.state, PermissionState::Denied);
         let evts = s.drain_events();
-        assert!(evts.iter().any(|e| matches!(e, CaptureEvent::PermissionDenied)));
+        assert!(
+            evts.iter()
+                .any(|e| matches!(e, CaptureEvent::PermissionDenied))
+        );
     }
 
     #[test]
@@ -413,7 +417,10 @@ mod tests {
         s.stop();
 
         let evts = s.drain_events();
-        assert!(evts.iter().any(|e| matches!(e, CaptureEvent::PermissionGranted)));
+        assert!(
+            evts.iter()
+                .any(|e| matches!(e, CaptureEvent::PermissionGranted))
+        );
         assert!(evts.iter().any(|e| matches!(e, CaptureEvent::Started(_))));
         assert!(evts.iter().any(|e| matches!(e, CaptureEvent::Frame(_))));
         assert!(evts.iter().any(|e| matches!(e, CaptureEvent::Stopped)));

@@ -141,7 +141,10 @@ pub enum ReloadEvent {
     /// Full reload required (HMR boundary not found).
     FullReloadRequired { reason: String },
     /// Update completed.
-    UpdateComplete { updated: Vec<String>, duration_us: u64 },
+    UpdateComplete {
+        updated: Vec<String>,
+        duration_us: u64,
+    },
     /// Update failed.
     UpdateFailed { module_id: String, error: String },
 }
@@ -250,8 +253,16 @@ impl ModuleGraph {
             ]));
         }
 
-        self.modules.get_mut(from).unwrap().dependencies.insert(to.to_string());
-        self.modules.get_mut(to).unwrap().dependents.insert(from.to_string());
+        self.modules
+            .get_mut(from)
+            .unwrap()
+            .dependencies
+            .insert(to.to_string());
+        self.modules
+            .get_mut(to)
+            .unwrap()
+            .dependents
+            .insert(from.to_string());
         Ok(())
     }
 
@@ -298,7 +309,9 @@ impl ModuleGraph {
 
     /// Transition a module state.
     fn transition(&mut self, id: &str, new_state: ModuleState) -> Result<(), HotReloadError> {
-        let module = self.modules.get_mut(id)
+        let module = self
+            .modules
+            .get_mut(id)
             .ok_or_else(|| HotReloadError::ModuleNotFound(id.to_string()))?;
         if !module.state.can_transition_to(new_state) {
             return Err(HotReloadError::InvalidState {
@@ -311,7 +324,10 @@ impl ModuleGraph {
     }
 
     /// Process a file change, computing the invalidation cascade.
-    pub fn process_change(&mut self, change: FileChange) -> Result<Vec<ReloadEvent>, HotReloadError> {
+    pub fn process_change(
+        &mut self,
+        change: FileChange,
+    ) -> Result<Vec<ReloadEvent>, HotReloadError> {
         if self.reload_in_progress {
             return Err(HotReloadError::ReloadInProgress);
         }
@@ -411,9 +427,9 @@ impl ModuleGraph {
         if let Some(module) = self.modules.get(root) {
             if !module.accepts_hot {
                 // Check if any affected module accepts hot
-                return !affected.iter().any(|id| {
-                    self.modules.get(id).map_or(false, |m| m.accepts_hot)
-                });
+                return !affected
+                    .iter()
+                    .any(|id| self.modules.get(id).map_or(false, |m| m.accepts_hot));
             }
         }
         false
@@ -534,9 +550,15 @@ mod tests {
         };
         let events = g.process_change(change).unwrap();
         // Should have file change, module changed, and update events
-        let has_file_change = events.iter().any(|e| matches!(e, ReloadEvent::FileChanged(_)));
-        let has_module_changed = events.iter().any(|e| matches!(e, ReloadEvent::ModuleChanged { .. }));
-        let has_update_complete = events.iter().any(|e| matches!(e, ReloadEvent::UpdateComplete { .. }));
+        let has_file_change = events
+            .iter()
+            .any(|e| matches!(e, ReloadEvent::FileChanged(_)));
+        let has_module_changed = events
+            .iter()
+            .any(|e| matches!(e, ReloadEvent::ModuleChanged { .. }));
+        let has_update_complete = events
+            .iter()
+            .any(|e| matches!(e, ReloadEvent::UpdateComplete { .. }));
         assert!(has_file_change);
         assert!(has_module_changed);
         assert!(has_update_complete);
@@ -577,7 +599,9 @@ mod tests {
             timestamp: 1,
         };
         let events = g.process_change(change).unwrap();
-        let needs_full = events.iter().any(|e| matches!(e, ReloadEvent::FullReloadRequired { .. }));
+        let needs_full = events
+            .iter()
+            .any(|e| matches!(e, ReloadEvent::FullReloadRequired { .. }));
         assert!(needs_full);
     }
 
@@ -614,7 +638,12 @@ mod tests {
 
     #[test]
     fn test_change_kind_variants() {
-        let kinds = [ChangeKind::Modified, ChangeKind::Created, ChangeKind::Deleted, ChangeKind::Renamed];
+        let kinds = [
+            ChangeKind::Modified,
+            ChangeKind::Created,
+            ChangeKind::Deleted,
+            ChangeKind::Renamed,
+        ];
         assert_eq!(kinds.len(), 4);
     }
 

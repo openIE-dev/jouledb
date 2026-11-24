@@ -483,7 +483,8 @@ mod tests {
 
     #[test]
     fn tokens_do_not_collide() {
-        let tokens: std::collections::HashSet<String> = (0..5000).map(|_| generate_token()).collect();
+        let tokens: std::collections::HashSet<String> =
+            (0..5000).map(|_| generate_token()).collect();
         assert_eq!(tokens.len(), 5000);
     }
 

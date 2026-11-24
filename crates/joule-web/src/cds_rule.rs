@@ -74,12 +74,18 @@ impl CdsRuleConfig {
 }
 
 impl Default for CdsRuleConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for CdsRuleConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CdsRuleConfig(max_rules={0}, priority_levels={1}, conflict_resolution={2}, active_only={3})", self.max_rules, self.priority_levels, self.conflict_resolution, self.active_only)
+        write!(
+            f,
+            "CdsRuleConfig(max_rules={0}, priority_levels={1}, conflict_resolution={2}, active_only={3})",
+            self.max_rules, self.priority_levels, self.conflict_resolution, self.active_only
+        )
     }
 }
 
@@ -95,7 +101,10 @@ pub struct CdsRule {
 impl CdsRule {
     pub fn new(config: CdsRuleConfig) -> Result<Self, CdsRuleError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -107,25 +116,39 @@ impl CdsRule {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &CdsRuleConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &CdsRuleConfig {
+        &self.config
+    }
 
     /// Evaluate rules against patient data.
     pub fn evaluate(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Generate CDS alert.
     pub fn generate_alert(&self) -> String {
-        format!("{}: {} records", stringify!(generate_alert), self.data.len())
+        format!(
+            "{}: {} records",
+            stringify!(generate_alert),
+            self.data.len()
+        )
     }
 
     /// Rule activation statistics.
     pub fn rule_activation_rate(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -135,7 +158,9 @@ impl CdsRule {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -147,7 +172,9 @@ impl CdsRule {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -159,7 +186,11 @@ impl CdsRule {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -232,7 +263,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = CdsRule::new(CdsRuleConfig::new()).unwrap()
+        let e = CdsRule::new(CdsRuleConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -248,7 +280,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = CdsRule::new(CdsRuleConfig::new()).unwrap()
+        let e = CdsRule::new(CdsRuleConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("CdsRule"));
@@ -256,7 +289,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = CdsRule::new(CdsRuleConfig::new()).unwrap()
+        let e = CdsRule::new(CdsRuleConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -267,7 +301,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = CdsRule::new(CdsRuleConfig::new()).unwrap()
+        let e = CdsRule::new(CdsRuleConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -275,7 +310,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = CdsRule::new(CdsRuleConfig::new()).unwrap()
+        let e = CdsRule::new(CdsRuleConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -292,7 +328,8 @@ mod tests {
 
     #[test]
     fn test_evaluate() {
-        let e = CdsRule::new(CdsRuleConfig::new()).unwrap()
+        let e = CdsRule::new(CdsRuleConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.evaluate();
         assert!(!result.is_empty());
@@ -300,7 +337,8 @@ mod tests {
 
     #[test]
     fn test_generate_alert() {
-        let e = CdsRule::new(CdsRuleConfig::new()).unwrap()
+        let e = CdsRule::new(CdsRuleConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.generate_alert();
         assert!(!result.is_empty());
@@ -308,7 +346,8 @@ mod tests {
 
     #[test]
     fn test_rule_activation_rate() {
-        let e = CdsRule::new(CdsRuleConfig::new()).unwrap()
+        let e = CdsRule::new(CdsRuleConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.rule_activation_rate();
         assert!(result.is_finite());

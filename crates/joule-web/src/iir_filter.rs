@@ -16,39 +16,74 @@ struct Cplx {
 }
 
 impl Cplx {
-    fn new(re: f64, im: f64) -> Self { Self { re, im } }
-    fn from_polar(r: f64, theta: f64) -> Self {
-        Self { re: r * theta.cos(), im: r * theta.sin() }
+    fn new(re: f64, im: f64) -> Self {
+        Self { re, im }
     }
-    fn mag(&self) -> f64 { (self.re * self.re + self.im * self.im).sqrt() }
-    fn phase(&self) -> f64 { self.im.atan2(self.re) }
-    fn conj(&self) -> Self { Self { re: self.re, im: -self.im } }
+    fn from_polar(r: f64, theta: f64) -> Self {
+        Self {
+            re: r * theta.cos(),
+            im: r * theta.sin(),
+        }
+    }
+    fn mag(&self) -> f64 {
+        (self.re * self.re + self.im * self.im).sqrt()
+    }
+    fn phase(&self) -> f64 {
+        self.im.atan2(self.re)
+    }
+    fn conj(&self) -> Self {
+        Self {
+            re: self.re,
+            im: -self.im,
+        }
+    }
 }
 
 impl std::ops::Add for Cplx {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { re: self.re + r.re, im: self.im + r.im } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            re: self.re + r.re,
+            im: self.im + r.im,
+        }
+    }
 }
 impl std::ops::Sub for Cplx {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { re: self.re - r.re, im: self.im - r.im } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            re: self.re - r.re,
+            im: self.im - r.im,
+        }
+    }
 }
 impl std::ops::Mul for Cplx {
     type Output = Self;
     fn mul(self, r: Self) -> Self {
-        Self { re: self.re * r.re - self.im * r.im, im: self.re * r.im + self.im * r.re }
+        Self {
+            re: self.re * r.re - self.im * r.im,
+            im: self.re * r.im + self.im * r.re,
+        }
     }
 }
 impl std::ops::Div for Cplx {
     type Output = Self;
     fn div(self, r: Self) -> Self {
         let d = r.re * r.re + r.im * r.im;
-        Self { re: (self.re * r.re + self.im * r.im) / d, im: (self.im * r.re - self.re * r.im) / d }
+        Self {
+            re: (self.re * r.re + self.im * r.im) / d,
+            im: (self.im * r.re - self.re * r.im) / d,
+        }
     }
 }
 impl std::ops::Mul<f64> for Cplx {
     type Output = Self;
-    fn mul(self, r: f64) -> Self { Self { re: self.re * r, im: self.im * r } }
+    fn mul(self, r: f64) -> Self {
+        Self {
+            re: self.re * r,
+            im: self.im * r,
+        }
+    }
 }
 
 // ── Transfer Function ───────────────────────────────────────────
@@ -67,7 +102,10 @@ impl TransferFunction {
         let a0 = a[0];
         let b_norm: Vec<f64> = b.iter().map(|v| v / a0).collect();
         let a_norm: Vec<f64> = a.iter().map(|v| v / a0).collect();
-        Self { b: b_norm, a: a_norm }
+        Self {
+            b: b_norm,
+            a: a_norm,
+        }
     }
 
     pub fn order(&self) -> usize {
@@ -279,12 +317,18 @@ impl std::fmt::Display for IirError {
 
 /// Design a Butterworth low-pass filter.
 /// `order`: 1-8. `cutoff`: normalized frequency (0..0.5).
-pub fn butterworth(order: usize, cutoff: f64, filter_type: FilterType) -> Result<TransferFunction, IirError> {
+pub fn butterworth(
+    order: usize,
+    cutoff: f64,
+    filter_type: FilterType,
+) -> Result<TransferFunction, IirError> {
     if order < 1 || order > 8 {
         return Err(IirError::InvalidOrder("order must be 1-8".into()));
     }
     if cutoff <= 0.0 || cutoff >= 0.5 {
-        return Err(IirError::InvalidFrequency(format!("cutoff {cutoff} not in (0, 0.5)")));
+        return Err(IirError::InvalidFrequency(format!(
+            "cutoff {cutoff} not in (0, 0.5)"
+        )));
     }
 
     // Pre-warp
@@ -356,7 +400,7 @@ pub fn butterworth(order: usize, cutoff: f64, filter_type: FilterType) -> Result
             // Second-order section from conjugate pair
             let d0 = (one - p_half) * (one - p_half.conj());
             let d1 = (Cplx::new(-1.0, 0.0) - p_half) * (one - p_half.conj())
-                    + (one - p_half) * (Cplx::new(-1.0, 0.0) - p_half.conj());
+                + (one - p_half) * (Cplx::new(-1.0, 0.0) - p_half.conj());
             let d2 = (Cplx::new(-1.0, 0.0) - p_half) * (Cplx::new(-1.0, 0.0) - p_half.conj());
 
             let a_new = vec![1.0, d1.re / d0.re, d2.re / d0.re];
@@ -433,7 +477,9 @@ pub fn chebyshev1(order: usize, cutoff: f64, ripple_db: f64) -> Result<TransferF
         return Err(IirError::InvalidOrder("order must be 1-8".into()));
     }
     if cutoff <= 0.0 || cutoff >= 0.5 {
-        return Err(IirError::InvalidFrequency(format!("cutoff {cutoff} not in (0, 0.5)")));
+        return Err(IirError::InvalidFrequency(format!(
+            "cutoff {cutoff} not in (0, 0.5)"
+        )));
     }
 
     let epsilon = (10.0_f64.powf(ripple_db / 10.0) - 1.0).sqrt();
@@ -464,7 +510,7 @@ pub fn chebyshev1(order: usize, cutoff: f64, ripple_db: f64) -> Result<TransferF
             // Complex conjugate pair
             let d0 = (one - p_half) * (one - p_half.conj());
             let d1 = (Cplx::new(-1.0, 0.0) - p_half) * (one - p_half.conj())
-                    + (one - p_half) * (Cplx::new(-1.0, 0.0) - p_half.conj());
+                + (one - p_half) * (Cplx::new(-1.0, 0.0) - p_half.conj());
             let d2 = (Cplx::new(-1.0, 0.0) - p_half) * (Cplx::new(-1.0, 0.0) - p_half.conj());
 
             let a_new = vec![1.0, d1.re / d0.re, d2.re / d0.re];
@@ -507,7 +553,10 @@ pub fn chebyshev1(order: usize, cutoff: f64, ripple_db: f64) -> Result<TransferF
 
 /// Compute frequency response of a transfer function.
 /// Returns `(frequencies, magnitudes, phases)`.
-pub fn frequency_response(tf: &TransferFunction, n_points: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+pub fn frequency_response(
+    tf: &TransferFunction,
+    n_points: usize,
+) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     let mut freqs = Vec::with_capacity(n_points);
     let mut mags = Vec::with_capacity(n_points);
     let mut phases = Vec::with_capacity(n_points);
@@ -563,10 +612,7 @@ mod tests {
 
     #[test]
     fn test_sos_cascade_order() {
-        let cascade = SosCascade::new(
-            vec![Sos::new(1.0, 0.0, 0.0, 0.0, 0.0); 3],
-            1.0,
-        );
+        let cascade = SosCascade::new(vec![Sos::new(1.0, 0.0, 0.0, 0.0, 0.0); 3], 1.0);
         assert_eq!(cascade.order(), 6);
     }
 
@@ -617,10 +663,7 @@ mod tests {
 
     #[test]
     fn test_filter_sos_passthrough() {
-        let cascade = SosCascade::new(
-            vec![Sos::new(1.0, 0.0, 0.0, 0.0, 0.0)],
-            1.0,
-        );
+        let cascade = SosCascade::new(vec![Sos::new(1.0, 0.0, 0.0, 0.0, 0.0)], 1.0);
         let signal = vec![1.0, 2.0, 3.0, 4.0];
         let out = filter_sos(&signal, &cascade);
         for (a, b) in out.iter().zip(signal.iter()) {
@@ -645,11 +688,7 @@ mod tests {
     fn test_butterworth_dc_gain() {
         let tf = butterworth(3, 0.2, FilterType::LowPass).unwrap();
         let (_, mags, _) = frequency_response(&tf, 256);
-        assert!(
-            (mags[0] - 1.0).abs() < 0.1,
-            "DC gain = {}",
-            mags[0]
-        );
+        assert!((mags[0] - 1.0).abs() < 0.1, "DC gain = {}", mags[0]);
     }
 
     #[test]

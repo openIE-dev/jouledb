@@ -24,7 +24,9 @@ impl fmt::Display for BencodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnexpectedEof => write!(f, "unexpected end of input"),
-            Self::UnexpectedChar(c, pos) => write!(f, "unexpected byte 0x{c:02x} at position {pos}"),
+            Self::UnexpectedChar(c, pos) => {
+                write!(f, "unexpected byte 0x{c:02x} at position {pos}")
+            }
             Self::InvalidInteger(s) => write!(f, "invalid integer: {s}"),
             Self::InvalidUtf8 => write!(f, "string is not valid UTF-8"),
             Self::ExpectedEnd(pos) => write!(f, "expected 'e' at position {pos}"),
@@ -54,7 +56,10 @@ pub enum Value {
 impl Value {
     /// Get as i64.
     pub fn as_int(&self) -> Option<i64> {
-        match self { Self::Int(n) => Some(*n), _ => None }
+        match self {
+            Self::Int(n) => Some(*n),
+            _ => None,
+        }
     }
 
     /// Get as UTF-8 string.
@@ -67,17 +72,26 @@ impl Value {
 
     /// Get as byte slice.
     pub fn as_bytes(&self) -> Option<&[u8]> {
-        match self { Self::Bytes(b) => Some(b), _ => None }
+        match self {
+            Self::Bytes(b) => Some(b),
+            _ => None,
+        }
     }
 
     /// Get as list.
     pub fn as_list(&self) -> Option<&Vec<Value>> {
-        match self { Self::List(l) => Some(l), _ => None }
+        match self {
+            Self::List(l) => Some(l),
+            _ => None,
+        }
     }
 
     /// Get as dict.
     pub fn as_dict(&self) -> Option<&BTreeMap<Vec<u8>, Value>> {
-        match self { Self::Dict(d) => Some(d), _ => None }
+        match self {
+            Self::Dict(d) => Some(d),
+            _ => None,
+        }
     }
 
     /// Look up a key by string in a dict.
@@ -141,7 +155,10 @@ impl<'a> Decoder<'a> {
     }
 
     fn peek(&self) -> Result<u8, BencodeError> {
-        self.data.get(self.pos).copied().ok_or(BencodeError::UnexpectedEof)
+        self.data
+            .get(self.pos)
+            .copied()
+            .ok_or(BencodeError::UnexpectedEof)
     }
 
     fn decode(&mut self) -> Result<Value, BencodeError> {
@@ -175,7 +192,8 @@ impl<'a> Decoder<'a> {
         if num_str == "-0" {
             return Err(BencodeError::InvalidInteger(num_str.into()));
         }
-        let n: i64 = num_str.parse()
+        let n: i64 = num_str
+            .parse()
             .map_err(|_| BencodeError::InvalidInteger(num_str.into()))?;
         self.pos += 1; // skip 'e'
         Ok(Value::Int(n))
@@ -191,7 +209,8 @@ impl<'a> Decoder<'a> {
         }
         let len_str = std::str::from_utf8(&self.data[start..self.pos])
             .map_err(|_| BencodeError::InvalidUtf8)?;
-        let len: usize = len_str.parse()
+        let len: usize = len_str
+            .parse()
             .map_err(|_| BencodeError::InvalidInteger(len_str.into()))?;
         self.pos += 1; // skip ':'
         if self.pos + len > self.data.len() {
@@ -226,7 +245,11 @@ impl<'a> Decoder<'a> {
             let key = self.decode()?;
             let key_bytes = match key {
                 Value::Bytes(b) => b,
-                _ => return Err(BencodeError::InvalidInteger("dict key must be string".into())),
+                _ => {
+                    return Err(BencodeError::InvalidInteger(
+                        "dict key must be string".into(),
+                    ));
+                }
             };
             // Validate sorted order
             if let Some(prev) = &last_key {
@@ -284,23 +307,27 @@ pub struct TorrentFile {
 pub fn parse_torrent(val: &Value) -> Result<TorrentMetadata, BencodeError> {
     let dict = val.as_dict().ok_or(BencodeError::MissingInfoDict)?;
 
-    let announce = dict.get(b"announce".as_slice())
+    let announce = dict
+        .get(b"announce".as_slice())
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
     let info = val.get("info").ok_or(BencodeError::MissingInfoDict)?;
     let info_dict = info.as_dict().ok_or(BencodeError::MissingInfoDict)?;
 
-    let name = info.get("name")
+    let name = info
+        .get("name")
         .and_then(|v| v.as_str())
         .unwrap_or("unknown")
         .to_string();
 
-    let piece_length = info.get("piece length")
+    let piece_length = info
+        .get("piece length")
         .and_then(|v| v.as_int())
         .unwrap_or(0);
 
-    let pieces = info.get("pieces")
+    let pieces = info
+        .get("pieces")
         .and_then(|v| v.as_bytes())
         .unwrap_or(&[])
         .to_vec();
@@ -312,11 +339,13 @@ pub fn parse_torrent(val: &Value) -> Result<TorrentMetadata, BencodeError> {
         if let Some(list) = file_list.as_list() {
             for file in list {
                 let fl = file.get("length").and_then(|v| v.as_int()).unwrap_or(0);
-                let path_list = file.get("path")
+                let path_list = file
+                    .get("path")
                     .and_then(|v| v.as_list())
                     .cloned()
                     .unwrap_or_default();
-                let path: Vec<String> = path_list.iter()
+                let path: Vec<String> = path_list
+                    .iter()
                     .filter_map(|v| v.as_str().map(|s| s.to_string()))
                     .collect();
                 files.push(TorrentFile { length: fl, path });
@@ -377,7 +406,8 @@ fn sha1(data: &[u8]) -> [u8; 20] {
                 40..=59 => ((b & c) | (b & d) | (c & d), 0x8F1BBCDCu32),
                 _ => (b ^ c ^ d, 0xCA62C1D6u32),
             };
-            let temp = a.rotate_left(5)
+            let temp = a
+                .rotate_left(5)
                 .wrapping_add(f_val)
                 .wrapping_add(e)
                 .wrapping_add(k)
@@ -502,9 +532,10 @@ mod tests {
         let hash = sha1(b"abc");
         assert_eq!(
             hash,
-            [0xa9, 0x99, 0x3e, 0x36, 0x47, 0x06, 0x81, 0x6a,
-             0xba, 0x3e, 0x25, 0x71, 0x78, 0x50, 0xc2, 0x6c,
-             0x9c, 0xd0, 0xd8, 0x9d]
+            [
+                0xa9, 0x99, 0x3e, 0x36, 0x47, 0x06, 0x81, 0x6a, 0xba, 0x3e, 0x25, 0x71, 0x78, 0x50,
+                0xc2, 0x6c, 0x9c, 0xd0, 0xd8, 0x9d
+            ]
         );
     }
 
@@ -517,7 +548,10 @@ mod tests {
         info.insert(b"length".to_vec(), Value::Int(1024));
 
         let mut torrent = BTreeMap::new();
-        torrent.insert(b"announce".to_vec(), Value::Bytes(b"http://tracker.example.com/announce".to_vec()));
+        torrent.insert(
+            b"announce".to_vec(),
+            Value::Bytes(b"http://tracker.example.com/announce".to_vec()),
+        );
         torrent.insert(b"info".to_vec(), Value::Dict(info));
 
         let val = Value::Dict(torrent);
@@ -525,7 +559,10 @@ mod tests {
         assert_eq!(meta.name, "test.txt");
         assert_eq!(meta.piece_length, 262144);
         assert_eq!(meta.length, Some(1024));
-        assert_eq!(meta.announce.as_deref(), Some("http://tracker.example.com/announce"));
+        assert_eq!(
+            meta.announce.as_deref(),
+            Some("http://tracker.example.com/announce")
+        );
         assert_eq!(meta.info_hash.len(), 20);
     }
 

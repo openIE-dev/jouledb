@@ -17,10 +17,18 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
     pub fn cross(self, o: Self) -> Self {
         Self {
             x: self.y * o.z - self.z * o.y,
@@ -28,17 +36,51 @@ impl Vec3 {
             z: self.x * o.y - self.y * o.x,
         }
     }
-    pub fn length(self) -> f64 { self.dot(self).sqrt() }
-    pub fn length_sq(self) -> f64 { self.dot(self) }
+    pub fn length(self) -> f64 {
+        self.dot(self).sqrt()
+    }
+    pub fn length_sq(self) -> f64 {
+        self.dot(self)
+    }
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-12 { return Self::ZERO; }
-        Self { x: self.x / l, y: self.y / l, z: self.z / l }
+        if l < 1e-12 {
+            return Self::ZERO;
+        }
+        Self {
+            x: self.x / l,
+            y: self.y / l,
+            z: self.z / l,
+        }
     }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z } }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
-    pub fn neg(self) -> Self { Self { x: -self.x, y: -self.y, z: -self.z } }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
+    pub fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
     pub fn lerp(self, o: Self, t: f64) -> Self {
         let t = t.clamp(0.0, 1.0);
         Self {
@@ -61,12 +103,34 @@ pub struct Color {
 }
 
 impl Color {
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0 };
-    pub const BLACK: Self = Self { r: 0.0, g: 0.0, b: 0.0 };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+    };
+    pub const BLACK: Self = Self {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+    };
 
-    pub fn new(r: f64, g: f64, b: f64) -> Self { Self { r, g, b } }
-    pub fn scale(self, s: f64) -> Self { Self { r: self.r * s, g: self.g * s, b: self.b * s } }
-    pub fn add(self, o: Self) -> Self { Self { r: self.r + o.r, g: self.g + o.g, b: self.b + o.b } }
+    pub fn new(r: f64, g: f64, b: f64) -> Self {
+        Self { r, g, b }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            r: self.r + o.r,
+            g: self.g + o.g,
+            b: self.b + o.b,
+        }
+    }
 }
 
 // ── Area light shape ───────────────────────────────────────────
@@ -112,7 +176,10 @@ impl LtcTable {
     /// a perfectly smooth surface). Useful for testing.
     pub fn identity(size: u32) -> Self {
         let entry = [1.0, 0.0, 1.0, 0.0]; // a=1,b=0,c=1,d=0 → identity
-        Self { size, data: vec![entry; (size * size) as usize] }
+        Self {
+            size,
+            data: vec![entry; (size * size) as usize],
+        }
     }
 
     /// Create a simple approximation table. Real engines would bake
@@ -136,7 +203,9 @@ impl LtcTable {
 
     /// Look up the LTC coefficients for given roughness and cos_theta (both 0..1).
     pub fn lookup(&self, roughness: f64, cos_theta: f64) -> [f64; 4] {
-        if self.size == 0 { return [1.0, 0.0, 1.0, 0.0]; }
+        if self.size == 0 {
+            return [1.0, 0.0, 1.0, 0.0];
+        }
         let r = (roughness.clamp(0.0, 1.0) * (self.size - 1) as f64) as u32;
         let c = (cos_theta.clamp(0.0, 1.0) * (self.size - 1) as f64) as u32;
         let r = r.min(self.size - 1);
@@ -170,7 +239,13 @@ pub struct AreaLight {
 }
 
 impl AreaLight {
-    pub fn new(position: Vec3, normal: Vec3, shape: AreaShape, color: Color, intensity: f64) -> Self {
+    pub fn new(
+        position: Vec3,
+        normal: Vec3,
+        shape: AreaShape,
+        color: Color,
+        intensity: f64,
+    ) -> Self {
         let n = normal.normalized();
         let right = if n.cross(Vec3::new(0.0, 1.0, 0.0)).length() < 1e-6 {
             Vec3::new(1.0, 0.0, 0.0)
@@ -200,7 +275,9 @@ impl AreaLight {
     /// so that "intensity" means radiant intensity per solid angle.
     pub fn energy_normalization(&self) -> f64 {
         let area = self.shape.area();
-        if area < 1e-12 { return 1.0; }
+        if area < 1e-12 {
+            return 1.0;
+        }
         // Normalize so that a 1×1 rect has factor 1.
         1.0 / area
     }
@@ -247,11 +324,7 @@ impl AreaLight {
     /// Most Significant Point (MSP) for specular: the point on the
     /// emitter surface that contributes most to the specular highlight
     /// when viewed from `surface_pos` with reflection vector `reflect_dir`.
-    pub fn representative_point(
-        &self,
-        surface_pos: Vec3,
-        reflect_dir: Vec3,
-    ) -> Vec3 {
+    pub fn representative_point(&self, surface_pos: Vec3, reflect_dir: Vec3) -> Vec3 {
         // Project the reflection ray onto the emitter plane and find
         // the closest point on the emitter shape.
         let to_light = self.position.sub(surface_pos);
@@ -278,19 +351,29 @@ impl AreaLight {
     pub fn diffuse_form_factor(&self, surface_pos: Vec3, surface_normal: Vec3) -> Color {
         let to_light = self.position.sub(surface_pos);
         let dist_sq = to_light.length_sq();
-        if dist_sq < 1e-12 { return Color::BLACK; }
+        if dist_sq < 1e-12 {
+            return Color::BLACK;
+        }
 
         let dist = dist_sq.sqrt();
         let dir = to_light.scale(1.0 / dist);
 
         // Surface faces light?
         let n_dot_l = surface_normal.normalized().dot(dir).max(0.0);
-        if n_dot_l < 1e-12 { return Color::BLACK; }
+        if n_dot_l < 1e-12 {
+            return Color::BLACK;
+        }
 
         // Emitter faces surface? (for one-sided lights)
         let emitter_facing = self.normal.neg().dot(dir);
-        if !self.two_sided && emitter_facing < 0.0 { return Color::BLACK; }
-        let emitter_cos = if self.two_sided { emitter_facing.abs() } else { emitter_facing.max(0.0) };
+        if !self.two_sided && emitter_facing < 0.0 {
+            return Color::BLACK;
+        }
+        let emitter_cos = if self.two_sided {
+            emitter_facing.abs()
+        } else {
+            emitter_facing.max(0.0)
+        };
 
         let area = self.shape.area();
         // Approximate form factor: A * cos_surface * cos_emitter / (pi * d^2)
@@ -309,7 +392,9 @@ impl AreaLight {
     ) -> Color {
         let to_light = self.position.sub(surface_pos);
         let dist = to_light.length();
-        if dist < 1e-12 { return Color::BLACK; }
+        if dist < 1e-12 {
+            return Color::BLACK;
+        }
 
         let dir = to_light.scale(1.0 / dist);
         let cos_theta = surface_normal.normalized().dot(dir).max(0.0);
@@ -320,11 +405,7 @@ impl AreaLight {
         // the form factor by the trace of the LTC matrix.
         let ltc_scale = (coeffs[0] * coeffs[2] - coeffs[1] * coeffs[3]).abs();
         let base = self.diffuse_form_factor(surface_pos, surface_normal);
-        Color::new(
-            base.r * ltc_scale,
-            base.g * ltc_scale,
-            base.b * ltc_scale,
-        )
+        Color::new(base.r * ltc_scale, base.g * ltc_scale, base.b * ltc_scale)
     }
 
     /// Horizon clipping: clip contribution when the emitter is partially
@@ -339,15 +420,25 @@ impl AreaLight {
                 let hw = width * 0.5;
                 let hh = height * 0.5;
                 let corners = [
-                    self.position.add(self.right.scale(hw)).add(self.up.scale(hh)),
-                    self.position.add(self.right.scale(-hw)).add(self.up.scale(hh)),
-                    self.position.add(self.right.scale(hw)).add(self.up.scale(-hh)),
-                    self.position.add(self.right.scale(-hw)).add(self.up.scale(-hh)),
+                    self.position
+                        .add(self.right.scale(hw))
+                        .add(self.up.scale(hh)),
+                    self.position
+                        .add(self.right.scale(-hw))
+                        .add(self.up.scale(hh)),
+                    self.position
+                        .add(self.right.scale(hw))
+                        .add(self.up.scale(-hh)),
+                    self.position
+                        .add(self.right.scale(-hw))
+                        .add(self.up.scale(-hh)),
                 ];
                 let mut above = 0u32;
                 for c in &corners {
                     let to_c = c.sub(surface_pos);
-                    if to_c.dot(n) > 0.0 { above += 1; }
+                    if to_c.dot(n) > 0.0 {
+                        above += 1;
+                    }
                 }
                 above as f64 / 4.0
             }
@@ -355,8 +446,12 @@ impl AreaLight {
                 let to_center = self.position.sub(surface_pos);
                 let h = to_center.dot(n);
                 // Fraction of sphere/disc above the tangent plane.
-                if h >= radius { return 1.0; }
-                if h <= -radius { return 0.0; }
+                if h >= radius {
+                    return 1.0;
+                }
+                if h <= -radius {
+                    return 0.0;
+                }
                 (h + radius) / (2.0 * radius)
             }
         }
@@ -365,7 +460,9 @@ impl AreaLight {
     /// Combined diffuse contribution with horizon clipping.
     pub fn diffuse_clipped(&self, surface_pos: Vec3, surface_normal: Vec3) -> Color {
         let clip = self.horizon_clip(surface_pos, surface_normal);
-        if clip < 1e-12 { return Color::BLACK; }
+        if clip < 1e-12 {
+            return Color::BLACK;
+        }
         let base = self.diffuse_form_factor(surface_pos, surface_normal);
         base.scale(clip)
     }
@@ -377,10 +474,18 @@ impl AreaLight {
                 let hw = width * 0.5;
                 let hh = height * 0.5;
                 Some([
-                    self.position.add(self.right.scale(-hw)).add(self.up.scale(hh)),
-                    self.position.add(self.right.scale(hw)).add(self.up.scale(hh)),
-                    self.position.add(self.right.scale(hw)).add(self.up.scale(-hh)),
-                    self.position.add(self.right.scale(-hw)).add(self.up.scale(-hh)),
+                    self.position
+                        .add(self.right.scale(-hw))
+                        .add(self.up.scale(hh)),
+                    self.position
+                        .add(self.right.scale(hw))
+                        .add(self.up.scale(hh)),
+                    self.position
+                        .add(self.right.scale(hw))
+                        .add(self.up.scale(-hh)),
+                    self.position
+                        .add(self.right.scale(-hw))
+                        .add(self.up.scale(-hh)),
                 ])
             }
             _ => None,
@@ -396,13 +501,18 @@ mod tests {
 
     const EPS: f64 = 1e-5;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     fn make_rect_light() -> AreaLight {
         AreaLight::new(
             Vec3::new(0.0, 5.0, 0.0),
             Vec3::new(0.0, -1.0, 0.0), // faces down
-            AreaShape::Rectangle { width: 2.0, height: 2.0 },
+            AreaShape::Rectangle {
+                width: 2.0,
+                height: 2.0,
+            },
             Color::WHITE,
             10.0,
         )
@@ -410,7 +520,10 @@ mod tests {
 
     #[test]
     fn area_rectangle() {
-        let a = AreaShape::Rectangle { width: 3.0, height: 4.0 };
+        let a = AreaShape::Rectangle {
+            width: 3.0,
+            height: 4.0,
+        };
         assert!(approx(a.area(), 12.0));
     }
 
@@ -431,7 +544,10 @@ mod tests {
         let l = AreaLight::new(
             Vec3::ZERO,
             Vec3::new(0.0, 0.0, 1.0),
-            AreaShape::Rectangle { width: 1.0, height: 1.0 },
+            AreaShape::Rectangle {
+                width: 1.0,
+                height: 1.0,
+            },
             Color::WHITE,
             1.0,
         );
@@ -443,7 +559,10 @@ mod tests {
         let l = AreaLight::new(
             Vec3::ZERO,
             Vec3::new(0.0, 0.0, 1.0),
-            AreaShape::Rectangle { width: 4.0, height: 4.0 },
+            AreaShape::Rectangle {
+                width: 4.0,
+                height: 4.0,
+            },
             Color::WHITE,
             1.0,
         );
@@ -500,10 +619,7 @@ mod tests {
     #[test]
     fn representative_point_on_axis() {
         let l = make_rect_light();
-        let rp = l.representative_point(
-            Vec3::ZERO,
-            Vec3::new(0.0, 1.0, 0.0),
-        );
+        let rp = l.representative_point(Vec3::ZERO, Vec3::new(0.0, 1.0, 0.0));
         assert!(approx(rp.y, 5.0));
     }
 
@@ -526,7 +642,10 @@ mod tests {
         let l = AreaLight::new(
             Vec3::new(0.0, 5.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0), // faces UP (away from surface below)
-            AreaShape::Rectangle { width: 2.0, height: 2.0 },
+            AreaShape::Rectangle {
+                width: 2.0,
+                height: 2.0,
+            },
             Color::WHITE,
             10.0,
         );
@@ -539,10 +658,14 @@ mod tests {
         let l = AreaLight::new(
             Vec3::new(0.0, 5.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0), // faces UP
-            AreaShape::Rectangle { width: 2.0, height: 2.0 },
+            AreaShape::Rectangle {
+                width: 2.0,
+                height: 2.0,
+            },
             Color::WHITE,
             10.0,
-        ).with_two_sided(true);
+        )
+        .with_two_sided(true);
         let c = l.diffuse_form_factor(Vec3::ZERO, Vec3::new(0.0, 1.0, 0.0));
         assert!(c.r > 0.0);
     }

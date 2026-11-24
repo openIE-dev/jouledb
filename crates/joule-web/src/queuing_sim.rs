@@ -29,7 +29,10 @@ impl fmt::Display for QueueError {
             Self::InvalidRate(r) => write!(f, "invalid rate: {r}"),
             Self::ZeroServers => write!(f, "server count must be >= 1"),
             Self::Unstable { arrival, capacity } => {
-                write!(f, "system unstable: arrival {arrival} >= capacity {capacity}")
+                write!(
+                    f,
+                    "system unstable: arrival {arrival} >= capacity {capacity}"
+                )
             }
             Self::NoData => write!(f, "no simulation data available"),
         }
@@ -47,7 +50,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_f64(&mut self) -> f64 {
@@ -145,7 +150,16 @@ pub fn mm1_analytics(lambda: f64, mu: f64) -> Result<MM1Analytics, QueueError> {
     let w_s = 1.0 / (mu - lambda);
     let w_q = rho / (mu - lambda);
     let p0 = 1.0 - rho;
-    Ok(MM1Analytics { lambda, mu, rho, l_q, l_s, w_q, w_s, p0 })
+    Ok(MM1Analytics {
+        lambda,
+        mu,
+        rho,
+        l_q,
+        l_s,
+        w_q,
+        w_s,
+        p0,
+    })
 }
 
 /// Analytical results for M/D/1 queue.
@@ -177,7 +191,14 @@ pub fn md1_analytics(lambda: f64, mu: f64) -> Result<MD1Analytics, QueueError> {
     let l_q = rho * rho / (2.0 * (1.0 - rho));
     let w_q = l_q / lambda;
     let w_s = w_q + 1.0 / mu;
-    Ok(MD1Analytics { lambda, mu, rho, l_q, w_q, w_s })
+    Ok(MD1Analytics {
+        lambda,
+        mu,
+        rho,
+        l_q,
+        w_q,
+        w_s,
+    })
 }
 
 // ── Server ──────────────────────────────────────────────────────
@@ -192,7 +213,11 @@ struct Server {
 
 impl Server {
     fn new() -> Self {
-        Self { busy_until: 0.0, customers_served: 0, busy_time: 0.0 }
+        Self {
+            busy_until: 0.0,
+            customers_served: 0,
+            busy_time: 0.0,
+        }
     }
 
     fn is_idle(&self, time: f64) -> bool {
@@ -220,7 +245,13 @@ pub struct QueueSimulator {
 
 impl QueueSimulator {
     /// Create a new simulator.
-    pub fn new(model: QueueModel, lambda: f64, mu: f64, servers: usize, seed: u64) -> Result<Self, QueueError> {
+    pub fn new(
+        model: QueueModel,
+        lambda: f64,
+        mu: f64,
+        servers: usize,
+        seed: u64,
+    ) -> Result<Self, QueueError> {
         if lambda <= 0.0 {
             return Err(QueueError::InvalidRate(format!("{lambda}")));
         }
@@ -230,7 +261,9 @@ impl QueueSimulator {
         let server_count = match model {
             QueueModel::MM1 | QueueModel::MD1 => 1,
             QueueModel::MMc => {
-                if servers == 0 { return Err(QueueError::ZeroServers); }
+                if servers == 0 {
+                    return Err(QueueError::ZeroServers);
+                }
                 servers
             }
         };
@@ -250,19 +283,29 @@ impl QueueSimulator {
     }
 
     /// Number of servers.
-    pub fn server_count(&self) -> usize { self.servers.len() }
+    pub fn server_count(&self) -> usize {
+        self.servers.len()
+    }
 
     /// Current simulation time.
-    pub fn current_time(&self) -> f64 { self.current_time }
+    pub fn current_time(&self) -> f64 {
+        self.current_time
+    }
 
     /// Number of customers currently waiting in queue.
-    pub fn queue_length(&self) -> usize { self.queue.len() }
+    pub fn queue_length(&self) -> usize {
+        self.queue.len()
+    }
 
     /// Number of completed customers.
-    pub fn completed_count(&self) -> usize { self.completed.len() }
+    pub fn completed_count(&self) -> usize {
+        self.completed.len()
+    }
 
     /// Maximum queue length observed.
-    pub fn max_queue_length(&self) -> usize { self.max_queue_length_observed }
+    pub fn max_queue_length(&self) -> usize {
+        self.max_queue_length_observed
+    }
 
     /// Utilization (fraction of time servers are busy).
     pub fn utilization(&self) -> f64 {
@@ -316,7 +359,8 @@ impl QueueSimulator {
         if self.queue.len() > self.max_queue_length_observed {
             self.max_queue_length_observed = self.queue.len();
         }
-        self.queue_length_samples.push((self.current_time, self.queue.len()));
+        self.queue_length_samples
+            .push((self.current_time, self.queue.len()));
 
         self.try_serve();
         customer
@@ -329,7 +373,10 @@ impl QueueSimulator {
                 break;
             }
             // Find an idle server.
-            let idle = self.servers.iter().position(|s| s.is_idle(self.current_time));
+            let idle = self
+                .servers
+                .iter()
+                .position(|s| s.is_idle(self.current_time));
             let server_idx = match idle {
                 Some(idx) => idx,
                 None => break,
@@ -374,13 +421,17 @@ impl QueueSimulator {
         if self.completed.is_empty() {
             return None;
         }
-        let total: f64 = self.completed.iter()
-            .filter_map(|c| c.wait_time())
-            .sum();
-        let count = self.completed.iter()
+        let total: f64 = self.completed.iter().filter_map(|c| c.wait_time()).sum();
+        let count = self
+            .completed
+            .iter()
             .filter(|c| c.wait_time().is_some())
             .count();
-        if count == 0 { None } else { Some(total / count as f64) }
+        if count == 0 {
+            None
+        } else {
+            Some(total / count as f64)
+        }
     }
 
     /// Average system time (wait + service).
@@ -388,13 +439,17 @@ impl QueueSimulator {
         if self.completed.is_empty() {
             return None;
         }
-        let total: f64 = self.completed.iter()
-            .filter_map(|c| c.system_time())
-            .sum();
-        let count = self.completed.iter()
+        let total: f64 = self.completed.iter().filter_map(|c| c.system_time()).sum();
+        let count = self
+            .completed
+            .iter()
             .filter(|c| c.system_time().is_some())
             .count();
-        if count == 0 { None } else { Some(total / count as f64) }
+        if count == 0 {
+            None
+        } else {
+            Some(total / count as f64)
+        }
     }
 
     /// Average service time.
@@ -402,13 +457,21 @@ impl QueueSimulator {
         if self.completed.is_empty() {
             return None;
         }
-        let total: f64 = self.completed.iter()
+        let total: f64 = self
+            .completed
+            .iter()
             .filter_map(|c| c.service_duration())
             .sum();
-        let count = self.completed.iter()
+        let count = self
+            .completed
+            .iter()
             .filter(|c| c.service_duration().is_some())
             .count();
-        if count == 0 { None } else { Some(total / count as f64) }
+        if count == 0 {
+            None
+        } else {
+            Some(total / count as f64)
+        }
     }
 
     /// Little's law estimate: L = lambda * W.
@@ -421,13 +484,22 @@ impl QueueSimulator {
         if self.queue_length_samples.is_empty() {
             return Vec::new();
         }
-        let max_len = self.queue_length_samples.iter().map(|(_, l)| *l).max().unwrap_or(0);
+        let max_len = self
+            .queue_length_samples
+            .iter()
+            .map(|(_, l)| *l)
+            .max()
+            .unwrap_or(0);
         let mut counts = vec![0usize; max_len + 1];
         for &(_, len) in &self.queue_length_samples {
             counts[len] += 1;
         }
         let total = self.queue_length_samples.len() as f64;
-        counts.iter().enumerate().map(|(len, &c)| (len, c as f64 / total)).collect()
+        counts
+            .iter()
+            .enumerate()
+            .map(|(len, &c)| (len, c as f64 / total))
+            .collect()
     }
 
     /// All completed customers.

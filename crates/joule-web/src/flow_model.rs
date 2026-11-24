@@ -16,10 +16,15 @@ struct Rng {
 }
 
 impl Rng {
-    fn new(seed: u64) -> Self { Self { state: seed } }
+    fn new(seed: u64) -> Self {
+        Self { state: seed }
+    }
 
     fn next(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.state
     }
 
@@ -84,16 +89,31 @@ impl AffineCoupling {
         let scale = (2.0 / (first_half + second_half) as f64).sqrt();
 
         let scale_weights = (0..second_half)
-            .map(|_| (0..first_half).map(|_| rng.normal() * scale * 0.1).collect())
+            .map(|_| {
+                (0..first_half)
+                    .map(|_| rng.normal() * scale * 0.1)
+                    .collect()
+            })
             .collect();
         let scale_biases = vec![0.0; second_half];
 
         let shift_weights = (0..second_half)
-            .map(|_| (0..first_half).map(|_| rng.normal() * scale * 0.1).collect())
+            .map(|_| {
+                (0..first_half)
+                    .map(|_| rng.normal() * scale * 0.1)
+                    .collect()
+            })
             .collect();
         let shift_biases = vec![0.0; second_half];
 
-        Self { data_dim, split_idx, scale_weights, scale_biases, shift_weights, shift_biases }
+        Self {
+            data_dim,
+            split_idx,
+            scale_weights,
+            scale_biases,
+            shift_weights,
+            shift_biases,
+        }
     }
 
     /// Compute scale (log_s) and shift (t) from the first half of input.
@@ -101,16 +121,24 @@ impl AffineCoupling {
         let n = self.data_dim - self.split_idx;
         let log_s: Vec<f64> = (0..n)
             .map(|j| {
-                let z: f64 = self.scale_weights[j].iter().zip(x_first)
-                    .map(|(w, x)| w * x).sum::<f64>() + self.scale_biases[j];
+                let z: f64 = self.scale_weights[j]
+                    .iter()
+                    .zip(x_first)
+                    .map(|(w, x)| w * x)
+                    .sum::<f64>()
+                    + self.scale_biases[j];
                 // Clamp log_s for stability.
                 z.tanh() * 2.0
             })
             .collect();
         let t: Vec<f64> = (0..n)
             .map(|j| {
-                self.shift_weights[j].iter().zip(x_first)
-                    .map(|(w, x)| w * x).sum::<f64>() + self.shift_biases[j]
+                self.shift_weights[j]
+                    .iter()
+                    .zip(x_first)
+                    .map(|(w, x)| w * x)
+                    .sum::<f64>()
+                    + self.shift_biases[j]
             })
             .collect();
         (log_s, t)
@@ -126,14 +154,19 @@ impl FlowTransform for AffineCoupling {
         let (log_s, t) = self.compute_scale_shift(x_first);
 
         let mut output = x_first.to_vec();
-        let y_second: Vec<f64> = x_second.iter().zip(log_s.iter().zip(t.iter()))
+        let y_second: Vec<f64> = x_second
+            .iter()
+            .zip(log_s.iter().zip(t.iter()))
             .map(|(xi, (ls, ti))| xi * ls.exp() + ti)
             .collect();
         output.extend(y_second);
 
         let log_det: f64 = log_s.iter().sum();
 
-        FlowOutput { data: output, log_det_jacobian: log_det }
+        FlowOutput {
+            data: output,
+            log_det_jacobian: log_det,
+        }
     }
 
     fn inverse(&self, z: &[f64]) -> FlowOutput {
@@ -144,17 +177,24 @@ impl FlowTransform for AffineCoupling {
         let (log_s, t) = self.compute_scale_shift(z_first);
 
         let mut output = z_first.to_vec();
-        let x_second: Vec<f64> = z_second.iter().zip(log_s.iter().zip(t.iter()))
+        let x_second: Vec<f64> = z_second
+            .iter()
+            .zip(log_s.iter().zip(t.iter()))
             .map(|(zi, (ls, ti))| (zi - ti) * (-ls).exp())
             .collect();
         output.extend(x_second);
 
         let log_det: f64 = log_s.iter().map(|ls| -ls).sum();
 
-        FlowOutput { data: output, log_det_jacobian: log_det }
+        FlowOutput {
+            data: output,
+            log_det_jacobian: log_det,
+        }
     }
 
-    fn dim(&self) -> usize { self.data_dim }
+    fn dim(&self) -> usize {
+        self.data_dim
+    }
     fn param_count(&self) -> usize {
         let n = self.data_dim - self.split_idx;
         let m = self.split_idx;
@@ -185,7 +225,9 @@ impl ActNorm {
 
     /// Data-dependent initialization: set scale/bias so first batch has zero mean, unit variance.
     pub fn initialize(&mut self, data: &[Vec<f64>]) {
-        if data.is_empty() || self.initialized { return; }
+        if data.is_empty() || self.initialized {
+            return;
+        }
         let n = data.len() as f64;
 
         let mut means = vec![0.0; self.data_dim];
@@ -215,24 +257,38 @@ impl ActNorm {
 impl FlowTransform for ActNorm {
     fn forward(&self, x: &[f64]) -> FlowOutput {
         assert_eq!(x.len(), self.data_dim);
-        let data: Vec<f64> = x.iter().enumerate()
+        let data: Vec<f64> = x
+            .iter()
+            .enumerate()
             .map(|(i, xi)| (xi + self.bias[i]) * self.log_scale[i].exp())
             .collect();
         let log_det: f64 = self.log_scale.iter().sum();
-        FlowOutput { data, log_det_jacobian: log_det }
+        FlowOutput {
+            data,
+            log_det_jacobian: log_det,
+        }
     }
 
     fn inverse(&self, z: &[f64]) -> FlowOutput {
         assert_eq!(z.len(), self.data_dim);
-        let data: Vec<f64> = z.iter().enumerate()
+        let data: Vec<f64> = z
+            .iter()
+            .enumerate()
             .map(|(i, zi)| zi * (-self.log_scale[i]).exp() - self.bias[i])
             .collect();
         let log_det: f64 = self.log_scale.iter().map(|ls| -ls).sum();
-        FlowOutput { data, log_det_jacobian: log_det }
+        FlowOutput {
+            data,
+            log_det_jacobian: log_det,
+        }
     }
 
-    fn dim(&self) -> usize { self.data_dim }
-    fn param_count(&self) -> usize { 2 * self.data_dim }
+    fn dim(&self) -> usize {
+        self.data_dim
+    }
+    fn param_count(&self) -> usize {
+        2 * self.data_dim
+    }
 }
 
 // ── Permutation Layer ─────────────────────────────────────────
@@ -257,28 +313,44 @@ impl Permutation {
         for (i, &p) in perm.iter().enumerate() {
             inv[p] = i;
         }
-        Self { forward_perm: perm, inverse_perm: inv }
+        Self {
+            forward_perm: perm,
+            inverse_perm: inv,
+        }
     }
 
     pub fn identity(dim: usize) -> Self {
         let perm: Vec<usize> = (0..dim).collect();
-        Self { forward_perm: perm.clone(), inverse_perm: perm }
+        Self {
+            forward_perm: perm.clone(),
+            inverse_perm: perm,
+        }
     }
 }
 
 impl FlowTransform for Permutation {
     fn forward(&self, x: &[f64]) -> FlowOutput {
         let data: Vec<f64> = self.forward_perm.iter().map(|i| x[*i]).collect();
-        FlowOutput { data, log_det_jacobian: 0.0 }
+        FlowOutput {
+            data,
+            log_det_jacobian: 0.0,
+        }
     }
 
     fn inverse(&self, z: &[f64]) -> FlowOutput {
         let data: Vec<f64> = self.inverse_perm.iter().map(|i| z[*i]).collect();
-        FlowOutput { data, log_det_jacobian: 0.0 }
+        FlowOutput {
+            data,
+            log_det_jacobian: 0.0,
+        }
     }
 
-    fn dim(&self) -> usize { self.forward_perm.len() }
-    fn param_count(&self) -> usize { 0 }
+    fn dim(&self) -> usize {
+        self.forward_perm.len()
+    }
+    fn param_count(&self) -> usize {
+        0
+    }
 }
 
 // ── RealNVP Flow ──────────────────────────────────────────────
@@ -302,7 +374,12 @@ impl RealNvpFlow {
             permutations.push(Permutation::new(data_dim, seed + i as u64 * 100 + 50));
         }
 
-        Self { data_dim, couplings, permutations, num_layers }
+        Self {
+            data_dim,
+            couplings,
+            permutations,
+            num_layers,
+        }
     }
 
     pub fn with_num_layers(mut self, n: usize) -> Self {
@@ -311,8 +388,10 @@ impl RealNvpFlow {
         self.permutations.clear();
         self.num_layers = n;
         for i in 0..n {
-            self.couplings.push(AffineCoupling::new(self.data_dim, seed + i as u64 * 100));
-            self.permutations.push(Permutation::new(self.data_dim, seed + i as u64 * 100 + 50));
+            self.couplings
+                .push(AffineCoupling::new(self.data_dim, seed + i as u64 * 100));
+            self.permutations
+                .push(Permutation::new(self.data_dim, seed + i as u64 * 100 + 50));
         }
         self
     }
@@ -332,7 +411,10 @@ impl RealNvpFlow {
             // Permutation has log-det = 0.
         }
 
-        FlowOutput { data: current, log_det_jacobian: total_ldj }
+        FlowOutput {
+            data: current,
+            log_det_jacobian: total_ldj,
+        }
     }
 
     /// Inverse pass: latent -> data.
@@ -349,14 +431,19 @@ impl RealNvpFlow {
             total_ldj += out.log_det_jacobian;
         }
 
-        FlowOutput { data: current, log_det_jacobian: total_ldj }
+        FlowOutput {
+            data: current,
+            log_det_jacobian: total_ldj,
+        }
     }
 
     /// Compute log-probability of a data point under the flow model.
     /// log p(x) = log p_z(f(x)) + log |det J_f(x)|
     pub fn log_prob(&self, x: &[f64]) -> f64 {
         let out = self.forward(x);
-        let log_pz: f64 = out.data.iter()
+        let log_pz: f64 = out
+            .data
+            .iter()
             .map(|zi| -0.5 * (zi * zi + (2.0 * std::f64::consts::PI).ln()))
             .sum();
         log_pz + out.log_det_jacobian
@@ -375,7 +462,10 @@ impl RealNvpFlow {
     }
 
     pub fn total_params(&self) -> usize {
-        self.couplings.iter().map(|c| c.param_count()).sum::<usize>()
+        self.couplings
+            .iter()
+            .map(|c| c.param_count())
+            .sum::<usize>()
     }
 }
 
@@ -384,7 +474,9 @@ impl fmt::Display for RealNvpFlow {
         write!(
             f,
             "RealNVP(dim={}, layers={}, params={})",
-            self.data_dim, self.num_layers, self.total_params(),
+            self.data_dim,
+            self.num_layers,
+            self.total_params(),
         )
     }
 }
@@ -546,7 +638,10 @@ mod tests {
         let b1 = flow.sample_batch(3, 1);
         let b2 = flow.sample_batch(3, 2);
         // Different seeds should yield different samples.
-        let differ = b1[0].iter().zip(b2[0].iter()).any(|(a, b)| (a - b).abs() > 1e-10);
+        let differ = b1[0]
+            .iter()
+            .zip(b2[0].iter())
+            .any(|(a, b)| (a - b).abs() > 1e-10);
         assert!(differ);
     }
 }

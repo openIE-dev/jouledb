@@ -243,7 +243,11 @@ pub(crate) struct HoloLock {
 fn catchup_pool() -> &'static rayon::ThreadPool {
     static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
     POOL.get_or_init(|| {
-        let n = (std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4) / 4).max(1);
+        let n = (std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4)
+            / 4)
+        .max(1);
         rayon::ThreadPoolBuilder::new()
             .num_threads(n)
             .thread_name(|i| format!("jouledb-holo-{i}"))
@@ -270,7 +274,10 @@ pub fn sync_commit_enabled() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| {
         !matches!(
-            std::env::var("JOULEDB_SYNC_COMMIT").as_deref().map(str::to_ascii_lowercase).as_deref(),
+            std::env::var("JOULEDB_SYNC_COMMIT")
+                .as_deref()
+                .map(str::to_ascii_lowercase)
+                .as_deref(),
             Ok("off") | Ok("0") | Ok("false")
         )
     })
@@ -455,7 +462,8 @@ impl HoloLock {
                         for _ in 0..20 {
                             if let Ok(mut g) = lock.try_write() {
                                 let now = epoch.elapsed().as_millis() as u64;
-                                if now.saturating_sub(last.load(std::sync::atomic::Ordering::Relaxed))
+                                if now
+                                    .saturating_sub(last.load(std::sync::atomic::Ordering::Relaxed))
                                     >= Self::IDLE_MS
                                 {
                                     let (ids, holos) = plan.take().unwrap();
@@ -521,7 +529,8 @@ impl HoloLock {
                 return;
             }
             if g.pending_holograms() > 0 {
-                self.pending.store(true, std::sync::atomic::Ordering::Release);
+                self.pending
+                    .store(true, std::sync::atomic::Ordering::Release);
             }
         }
         self.cols_pending
@@ -548,9 +557,7 @@ impl HoloLock {
     /// readers that never look at row records of user tables (column
     /// snapshots keyed by `generation()`, which counts queued rows; schema
     /// metadata, which is always written through the row path).
-    pub(crate) fn read_columns(
-        &self,
-    ) -> std::sync::LockResult<StoreReadGuard<'_>> {
+    pub(crate) fn read_columns(&self) -> std::sync::LockResult<StoreReadGuard<'_>> {
         wrap_read(self.inner.read())
     }
 
@@ -568,14 +575,20 @@ impl HoloLock {
         match w {
             // after an fsync failure, refuse further writes (nothing more is
             // acknowledged on a WAL that may not be durable)
-            Ok(g) if sync.is_some_and(|s| s.has_failed()) => Err(std::sync::PoisonError::new(
-                SyncWriteGuard { guard: Some(g), sync: None },
-            )),
+            Ok(g) if sync.is_some_and(|s| s.has_failed()) => {
+                Err(std::sync::PoisonError::new(SyncWriteGuard {
+                    guard: Some(g),
+                    sync: None,
+                }))
+            }
             Ok(mut g) => {
                 if settle && self.cols_pending.load(std::sync::atomic::Ordering::Acquire) {
                     self.settle_locked(&mut g);
                 }
-                Ok(SyncWriteGuard { guard: Some(g), sync })
+                Ok(SyncWriteGuard {
+                    guard: Some(g),
+                    sync,
+                })
             }
             Err(p) => Err(std::sync::PoisonError::new(SyncWriteGuard {
                 guard: Some(p.into_inner()),
@@ -593,18 +606,14 @@ impl HoloLock {
     /// are always current; deferred hypervector work is left to the
     /// background thread so analytics never pay for it (a bounded per-read
     /// catch-up put ~7 ms on every query until a 1M-row backlog drained).
-    pub(crate) fn read(
-        &self,
-    ) -> std::sync::LockResult<StoreReadGuard<'_>> {
+    pub(crate) fn read(&self) -> std::sync::LockResult<StoreReadGuard<'_>> {
         self.settle_columns();
         wrap_read(self.inner.read())
     }
 
     /// Read lock for hypervector consumers (similarity search): finishes any
     /// queued hypervector work first so results cover every committed row.
-    pub(crate) fn read_indexed(
-        &self,
-    ) -> std::sync::LockResult<StoreReadGuard<'_>> {
+    pub(crate) fn read_indexed(&self) -> std::sync::LockResult<StoreReadGuard<'_>> {
         self.settle_columns();
         if self.pending.load(std::sync::atomic::Ordering::Acquire) {
             if let Ok(mut g) = self.inner.write() {
@@ -616,9 +625,7 @@ impl HoloLock {
         wrap_read(self.inner.read())
     }
 
-    pub(crate) fn read_primary(
-        &self,
-    ) -> std::sync::LockResult<StoreReadGuard<'_>> {
+    pub(crate) fn read_primary(&self) -> std::sync::LockResult<StoreReadGuard<'_>> {
         self.settle_columns();
         wrap_read(self.inner.read())
     }
@@ -663,7 +670,10 @@ impl AmorphicTableStorage {
 
     /// Columnar rows not yet row records (tests and diagnostics).
     pub fn pending_column_rows(&self) -> usize {
-        self.store.read_columns().map(|s| s.pending_rows()).unwrap_or(0)
+        self.store
+            .read_columns()
+            .map(|s| s.pending_rows())
+            .unwrap_or(0)
     }
 
     /// Materialize up to `max` queued columnar rows now (tests).

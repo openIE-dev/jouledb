@@ -38,48 +38,84 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Vec3 = Vec3 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
 
-    pub fn length(&self) -> f64 { (self.x * self.x + self.y * self.y + self.z * self.z).sqrt() }
+    pub fn length(&self) -> f64 {
+        (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
+    }
 
-    pub fn length_sq(&self) -> f64 { self.x * self.x + self.y * self.y + self.z * self.z }
+    pub fn length_sq(&self) -> f64 {
+        self.x * self.x + self.y * self.y + self.z * self.z
+    }
 
     pub fn normalize(&self) -> Self {
         let len = self.length();
-        if len < 1e-12 { return Self::ZERO; }
-        Self { x: self.x / len, y: self.y / len, z: self.z / len }
+        if len < 1e-12 {
+            return Self::ZERO;
+        }
+        Self {
+            x: self.x / len,
+            y: self.y / len,
+            z: self.z / len,
+        }
     }
 
     pub fn scale(&self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn add(&self, other: &Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y, z: self.z + other.z }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
     }
 
     pub fn sub(&self, other: &Self) -> Self {
-        Self { x: self.x - other.x, y: self.y - other.y, z: self.z - other.z }
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+            z: self.z - other.z,
+        }
     }
 
     pub fn dot(&self, other: &Self) -> f64 {
         self.x * other.x + self.y * other.y + self.z * other.z
     }
 
-    pub fn distance(&self, other: &Self) -> f64 { self.sub(other).length() }
+    pub fn distance(&self, other: &Self) -> f64 {
+        self.sub(other).length()
+    }
 
     pub fn clamp_length(&self, max: f64) -> Self {
         let len = self.length();
-        if len <= max { *self } else { self.normalize().scale(max) }
+        if len <= max {
+            *self
+        } else {
+            self.normalize().scale(max)
+        }
     }
 
     /// Banking angle: angle between velocity direction and up vector projected.
     pub fn banking_angle(&self, up: &Self) -> f64 {
         let proj = self.dot(up);
         let len = self.length();
-        if len < 1e-12 { return 0.0; }
+        if len < 1e-12 {
+            return 0.0;
+        }
         (proj / len).asin()
     }
 }
@@ -126,7 +162,12 @@ pub struct FoodSource {
 
 impl FoodSource {
     pub fn new(position: Vec3, energy: f64, regen_rate: f64) -> Self {
-        Self { position, energy, max_energy: energy, regen_rate }
+        Self {
+            position,
+            energy,
+            max_energy: energy,
+            regen_rate,
+        }
     }
 
     /// Consume some energy from this source.
@@ -217,12 +258,16 @@ impl Boid {
         }
     }
 
-    pub fn speed(&self) -> f64 { self.velocity.length() }
+    pub fn speed(&self) -> f64 {
+        self.velocity.length()
+    }
 
     /// Pitch angle (angle from horizontal).
     pub fn pitch(&self) -> f64 {
         let len = self.velocity.length();
-        if len < 1e-12 { return 0.0; }
+        if len < 1e-12 {
+            return 0.0;
+        }
         (self.velocity.z / len).asin()
     }
 
@@ -243,7 +288,10 @@ struct SpatialGrid {
 
 impl SpatialGrid {
     fn new(cell_size: f64) -> Self {
-        Self { cell_size, cells: HashMap::new() }
+        Self {
+            cell_size,
+            cells: HashMap::new(),
+        }
     }
 
     fn clear(&mut self) {
@@ -349,12 +397,18 @@ impl BoidSimulation {
         id
     }
 
-    pub fn boid_count(&self) -> usize { self.boids.len() }
-    pub fn step_count(&self) -> u64 { self.step_count }
+    pub fn boid_count(&self) -> usize {
+        self.boids.len()
+    }
+    pub fn step_count(&self) -> u64 {
+        self.step_count
+    }
 
     /// Get species parameters, defaulting to index 0 if out of range.
     fn get_params(&self, species: u8) -> &SpeciesParams {
-        self.species_params.get(species as usize).unwrap_or(&self.species_params[0])
+        self.species_params
+            .get(species as usize)
+            .unwrap_or(&self.species_params[0])
     }
 
     /// Advance one timestep.
@@ -382,20 +436,29 @@ impl BoidSimulation {
             let mut coh_count = 0u32;
 
             for &j in &candidates {
-                if i == j { continue; }
+                if i == j {
+                    continue;
+                }
                 let dist = self.boids[i].position.distance(&self.boids[j].position);
-                if dist > radius || dist < 1e-12 { continue; }
+                if dist > radius || dist < 1e-12 {
+                    continue;
+                }
 
                 // Predator evasion
                 if self.boids[j].is_predator && !self.boids[i].is_predator {
-                    let flee = self.boids[i].position.sub(&self.boids[j].position).normalize();
+                    let flee = self.boids[i]
+                        .position
+                        .sub(&self.boids[j].position)
+                        .normalize();
                     let w = params.predator_weight;
                     accelerations[i] = accelerations[i].add(&flee.scale(w / dist.max(1.0)));
                     continue;
                 }
 
                 // Only flock with same species
-                if self.boids[j].species != self.boids[i].species { continue; }
+                if self.boids[j].species != self.boids[i].species {
+                    continue;
+                }
 
                 // Separation: only active within close range (half the perception radius)
                 if dist < radius * 0.5 {
@@ -414,25 +477,40 @@ impl BoidSimulation {
 
                 // Leader following
                 if self.boids[j].is_leader {
-                    let toward = self.boids[j].position.sub(&self.boids[i].position).normalize();
+                    let toward = self.boids[j]
+                        .position
+                        .sub(&self.boids[i].position)
+                        .normalize();
                     accelerations[i] = accelerations[i].add(&toward.scale(2.0));
                 }
             }
 
             if sep_count > 0 {
-                let force = sep.scale(1.0 / sep_count as f64).normalize().scale(params.max_speed)
-                    .sub(&self.boids[i].velocity).clamp_length(params.max_force);
+                let force = sep
+                    .scale(1.0 / sep_count as f64)
+                    .normalize()
+                    .scale(params.max_speed)
+                    .sub(&self.boids[i].velocity)
+                    .clamp_length(params.max_force);
                 accelerations[i] = accelerations[i].add(&force.scale(params.separation_weight));
             }
             if ali_count > 0 {
-                let force = ali.scale(1.0 / ali_count as f64).normalize().scale(params.max_speed)
-                    .sub(&self.boids[i].velocity).clamp_length(params.max_force);
+                let force = ali
+                    .scale(1.0 / ali_count as f64)
+                    .normalize()
+                    .scale(params.max_speed)
+                    .sub(&self.boids[i].velocity)
+                    .clamp_length(params.max_force);
                 accelerations[i] = accelerations[i].add(&force.scale(params.alignment_weight));
             }
             if coh_count > 0 {
                 let center = coh.scale(1.0 / coh_count as f64);
-                let force = center.sub(&self.boids[i].position).normalize().scale(params.max_speed)
-                    .sub(&self.boids[i].velocity).clamp_length(params.max_force);
+                let force = center
+                    .sub(&self.boids[i].position)
+                    .normalize()
+                    .scale(params.max_speed)
+                    .sub(&self.boids[i].velocity)
+                    .clamp_length(params.max_force);
                 accelerations[i] = accelerations[i].add(&force.scale(params.cohesion_weight));
             }
 
@@ -450,7 +528,9 @@ impl BoidSimulation {
             if !self.boids[i].is_predator {
                 let mut closest_food: Option<(usize, f64)> = None;
                 for (fi, food) in self.food_sources.iter().enumerate() {
-                    if food.energy < 1e-6 { continue; }
+                    if food.energy < 1e-6 {
+                        continue;
+                    }
                     let d = self.boids[i].position.distance(&food.position);
                     if d < radius {
                         if closest_food.is_none() || d < closest_food.unwrap().1 {
@@ -460,8 +540,12 @@ impl BoidSimulation {
                 }
                 if let Some((_, d)) = closest_food {
                     let fi = closest_food.unwrap().0;
-                    let toward = self.food_sources[fi].position.sub(&self.boids[i].position).normalize();
-                    accelerations[i] = accelerations[i].add(&toward.scale(params.food_weight / d.max(1.0)));
+                    let toward = self.food_sources[fi]
+                        .position
+                        .sub(&self.boids[i].position)
+                        .normalize();
+                    accelerations[i] =
+                        accelerations[i].add(&toward.scale(params.food_weight / d.max(1.0)));
                 }
             }
         }
@@ -470,7 +554,8 @@ impl BoidSimulation {
         let species_params_snapshot = self.species_params.clone();
         for i in 0..n {
             let species = self.boids[i].species;
-            let params = species_params_snapshot.get(species as usize)
+            let params = species_params_snapshot
+                .get(species as usize)
                 .unwrap_or(&species_params_snapshot[0]);
 
             // Record trail
@@ -526,7 +611,9 @@ impl BoidSimulation {
         let mut visited = vec![false; n];
 
         for start in 0..n {
-            if visited[start] { continue; }
+            if visited[start] {
+                continue;
+            }
             current_flock += 1;
             let mut queue = vec![start];
             visited[start] = true;
@@ -536,8 +623,12 @@ impl BoidSimulation {
                 let params = self.get_params(self.boids[idx].species);
                 let radius = params.perception_radius;
                 for j in 0..n {
-                    if visited[j] || j == idx { continue; }
-                    if self.boids[j].species != self.boids[idx].species { continue; }
+                    if visited[j] || j == idx {
+                        continue;
+                    }
+                    if self.boids[j].species != self.boids[idx].species {
+                        continue;
+                    }
                     if self.boids[idx].position.distance(&self.boids[j].position) < radius {
                         visited[j] = true;
                         flock_ids[j] = current_flock;
@@ -562,7 +653,9 @@ impl BoidSimulation {
 
     /// Average position of all boids.
     pub fn center_of_mass(&self) -> Vec3 {
-        if self.boids.is_empty() { return Vec3::ZERO; }
+        if self.boids.is_empty() {
+            return Vec3::ZERO;
+        }
         let mut sum = Vec3::ZERO;
         for b in &self.boids {
             sum = sum.add(&b.position);
@@ -572,14 +665,18 @@ impl BoidSimulation {
 
     /// Average speed.
     pub fn average_speed(&self) -> f64 {
-        if self.boids.is_empty() { return 0.0; }
+        if self.boids.is_empty() {
+            return 0.0;
+        }
         let total: f64 = self.boids.iter().map(|b| b.speed()).sum();
         total / self.boids.len() as f64
     }
 
     /// Average energy.
     pub fn average_energy(&self) -> f64 {
-        if self.boids.is_empty() { return 0.0; }
+        if self.boids.is_empty() {
+            return 0.0;
+        }
         let total: f64 = self.boids.iter().map(|b| b.energy).sum();
         total / self.boids.len() as f64
     }
@@ -587,8 +684,13 @@ impl BoidSimulation {
 
 impl fmt::Display for BoidSimulation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "BoidSim(boids={}, flocks={}, step={})",
-            self.boids.len(), self.flock_count(), self.step_count)
+        write!(
+            f,
+            "BoidSim(boids={}, flocks={}, step={})",
+            self.boids.len(),
+            self.flock_count(),
+            self.step_count
+        )
     }
 }
 
@@ -600,7 +702,9 @@ mod tests {
 
     const EPS: f64 = 1e-6;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     #[test]
     fn test_vec3_basics() {
@@ -637,7 +741,10 @@ mod tests {
 
     #[test]
     fn test_obstacle_sphere_sdf() {
-        let obs = Obstacle::Sphere { center: Vec3::ZERO, radius: 5.0 };
+        let obs = Obstacle::Sphere {
+            center: Vec3::ZERO,
+            radius: 5.0,
+        };
         let outside = Vec3::new(10.0, 0.0, 0.0);
         assert!(obs.sdf(&outside) > 0.0);
         let inside = Vec3::new(2.0, 0.0, 0.0);
@@ -646,7 +753,10 @@ mod tests {
 
     #[test]
     fn test_obstacle_plane_sdf() {
-        let obs = Obstacle::Plane { normal: Vec3::new(0.0, 1.0, 0.0), offset: 0.0 };
+        let obs = Obstacle::Plane {
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            offset: 0.0,
+        };
         let above = Vec3::new(0.0, 5.0, 0.0);
         assert!(obs.sdf(&above) > 0.0);
         let below = Vec3::new(0.0, -5.0, 0.0);
@@ -759,7 +869,11 @@ mod tests {
     #[test]
     fn test_multi_species() {
         let mut sim = BoidSimulation::new();
-        let sp1 = sim.add_species(SpeciesParams { name: "fast".into(), max_speed: 8.0, ..Default::default() });
+        let sp1 = sim.add_species(SpeciesParams {
+            name: "fast".into(),
+            max_speed: 8.0,
+            ..Default::default()
+        });
         sim.add_boid(Vec3::ZERO, Vec3::new(1.0, 0.0, 0.0), 0);
         sim.add_boid(Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), sp1);
         sim.step();

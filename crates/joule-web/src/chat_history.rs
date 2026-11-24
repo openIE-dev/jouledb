@@ -36,8 +36,13 @@ impl std::error::Error for HistoryError {}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MessageStatus {
     Active,
-    Edited { original_content: String, edited_at: u64 },
-    Deleted { deleted_at: u64 },
+    Edited {
+        original_content: String,
+        edited_at: u64,
+    },
+    Deleted {
+        deleted_at: u64,
+    },
 }
 
 impl fmt::Display for MessageStatus {
@@ -82,7 +87,10 @@ impl HistoryMessage {
     }
 
     pub fn is_active(&self) -> bool {
-        matches!(self.status, MessageStatus::Active | MessageStatus::Edited { .. })
+        matches!(
+            self.status,
+            MessageStatus::Active | MessageStatus::Edited { .. }
+        )
     }
 
     pub fn is_deleted(&self) -> bool {
@@ -100,7 +108,11 @@ impl HistoryMessage {
 
 impl fmt::Display for HistoryMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}] {}: {} ({})", self.timestamp, self.sender, self.content, self.status)
+        write!(
+            f,
+            "[{}] {}: {} ({})",
+            self.timestamp, self.sender, self.content, self.status
+        )
     }
 }
 
@@ -114,7 +126,10 @@ pub struct RetentionPolicy {
 
 impl RetentionPolicy {
     pub fn new() -> Self {
-        Self { max_age_secs: None, max_count: None }
+        Self {
+            max_age_secs: None,
+            max_count: None,
+        }
     }
 
     pub fn with_max_age(mut self, secs: u64) -> Self {
@@ -175,11 +190,18 @@ impl ChatLog {
     pub fn append(&mut self, sender: &str, content: &str, timestamp: u64) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
-        self.messages.push(HistoryMessage::new(id, sender, content, timestamp));
+        self.messages
+            .push(HistoryMessage::new(id, sender, content, timestamp));
         id
     }
 
-    pub fn append_reply(&mut self, sender: &str, content: &str, timestamp: u64, reply_to: u64) -> u64 {
+    pub fn append_reply(
+        &mut self,
+        sender: &str,
+        content: &str,
+        timestamp: u64,
+        reply_to: u64,
+    ) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
         let msg = HistoryMessage::new(id, sender, content, timestamp).with_reply_to(reply_to);
@@ -195,14 +217,22 @@ impl ChatLog {
         self.messages.iter_mut().find(|m| m.id == id)
     }
 
-    pub fn edit_message(&mut self, id: u64, new_content: &str, edited_at: u64) -> Result<(), HistoryError> {
+    pub fn edit_message(
+        &mut self,
+        id: u64,
+        new_content: &str,
+        edited_at: u64,
+    ) -> Result<(), HistoryError> {
         let msg = self.get_mut(id).ok_or(HistoryError::MessageNotFound(id))?;
         if msg.is_deleted() {
             return Err(HistoryError::AlreadyDeleted(id));
         }
         let original = msg.content.clone();
         msg.content = new_content.to_string();
-        msg.status = MessageStatus::Edited { original_content: original, edited_at };
+        msg.status = MessageStatus::Edited {
+            original_content: original,
+            edited_at,
+        };
         Ok(())
     }
 
@@ -215,8 +245,15 @@ impl ChatLog {
         Ok(())
     }
 
-    pub fn add_reaction(&mut self, msg_id: u64, user: &str, emoji: &str) -> Result<(), HistoryError> {
-        let msg = self.get_mut(msg_id).ok_or(HistoryError::MessageNotFound(msg_id))?;
+    pub fn add_reaction(
+        &mut self,
+        msg_id: u64,
+        user: &str,
+        emoji: &str,
+    ) -> Result<(), HistoryError> {
+        let msg = self
+            .get_mut(msg_id)
+            .ok_or(HistoryError::MessageNotFound(msg_id))?;
         let users = msg.reactions.entry(emoji.to_string()).or_default();
         if !users.insert(user.to_string()) {
             return Err(HistoryError::DuplicateReaction(emoji.to_string()));
@@ -224,8 +261,15 @@ impl ChatLog {
         Ok(())
     }
 
-    pub fn remove_reaction(&mut self, msg_id: u64, user: &str, emoji: &str) -> Result<(), HistoryError> {
-        let msg = self.get_mut(msg_id).ok_or(HistoryError::MessageNotFound(msg_id))?;
+    pub fn remove_reaction(
+        &mut self,
+        msg_id: u64,
+        user: &str,
+        emoji: &str,
+    ) -> Result<(), HistoryError> {
+        let msg = self
+            .get_mut(msg_id)
+            .ok_or(HistoryError::MessageNotFound(msg_id))?;
         if let Some(users) = msg.reactions.get_mut(emoji) {
             users.remove(user);
             if users.is_empty() {
@@ -250,19 +294,28 @@ impl ChatLog {
 
     pub fn search_content(&self, query: &str) -> Vec<&HistoryMessage> {
         let lower = query.to_lowercase();
-        self.active_messages().filter(|m| m.content.to_lowercase().contains(&lower)).collect()
+        self.active_messages()
+            .filter(|m| m.content.to_lowercase().contains(&lower))
+            .collect()
     }
 
     pub fn search_sender(&self, sender: &str) -> Vec<&HistoryMessage> {
-        self.active_messages().filter(|m| m.sender == sender).collect()
+        self.active_messages()
+            .filter(|m| m.sender == sender)
+            .collect()
     }
 
     pub fn search_time_range(&self, start: u64, end: u64) -> Vec<&HistoryMessage> {
-        self.active_messages().filter(|m| m.timestamp >= start && m.timestamp <= end).collect()
+        self.active_messages()
+            .filter(|m| m.timestamp >= start && m.timestamp <= end)
+            .collect()
     }
 
     pub fn thread(&self, parent_id: u64) -> Vec<&HistoryMessage> {
-        self.messages.iter().filter(|m| m.reply_to == Some(parent_id)).collect()
+        self.messages
+            .iter()
+            .filter(|m| m.reply_to == Some(parent_id))
+            .collect()
     }
 
     pub fn paginate(&self, page: usize, page_size: usize) -> Result<Page<'_>, HistoryError> {
@@ -270,10 +323,18 @@ impl ChatLog {
             return Err(HistoryError::InvalidPage);
         }
         let active: Vec<_> = self.active_messages().collect();
-        let total_pages = if active.is_empty() { 1 } else { (active.len() + page_size - 1) / page_size };
+        let total_pages = if active.is_empty() {
+            1
+        } else {
+            (active.len() + page_size - 1) / page_size
+        };
         let start = page * page_size;
         let msgs = active.into_iter().skip(start).take(page_size).collect();
-        Ok(Page { messages: msgs, page_index: page, total_pages })
+        Ok(Page {
+            messages: msgs,
+            page_index: page,
+            total_pages,
+        })
     }
 
     pub fn compact(&mut self, now: u64) -> usize {

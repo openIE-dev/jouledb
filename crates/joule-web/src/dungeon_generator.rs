@@ -180,7 +180,11 @@ impl Dungeon {
 
     /// Count tiles of a given type.
     pub fn count_tiles(&self, tile: Tile) -> usize {
-        self.tiles.iter().flat_map(|row| row.iter()).filter(|&&t| t == tile).count()
+        self.tiles
+            .iter()
+            .flat_map(|row| row.iter())
+            .filter(|&&t| t == tile)
+            .count()
     }
 }
 
@@ -261,14 +265,20 @@ pub fn generate(config: &DungeonConfig) -> Dungeon {
 fn build_bsp(area: &Rect, config: &DungeonConfig, rng: &mut Rng, depth: usize) -> BspNode {
     let min_partition = config.min_room_size + config.padding * 2 + 2;
     if depth >= config.max_depth || (area.w < min_partition * 2 && area.h < min_partition * 2) {
-        return BspNode::Leaf { area: *area, room: None };
+        return BspNode::Leaf {
+            area: *area,
+            room: None,
+        };
     }
 
     let can_split_h = area.h >= min_partition * 2;
     let can_split_v = area.w >= min_partition * 2;
 
     if !can_split_h && !can_split_v {
-        return BspNode::Leaf { area: *area, room: None };
+        return BspNode::Leaf {
+            area: *area,
+            room: None,
+        };
     }
 
     let horizontal = if can_split_h && can_split_v {
@@ -314,8 +324,16 @@ fn collect_rooms(
     match node {
         BspNode::Leaf { area, room } => {
             let pad = config.padding;
-            let avail_w = if area.w > pad * 2 + 2 { area.w - pad * 2 } else { return; };
-            let avail_h = if area.h > pad * 2 + 2 { area.h - pad * 2 } else { return; };
+            let avail_w = if area.w > pad * 2 + 2 {
+                area.w - pad * 2
+            } else {
+                return;
+            };
+            let avail_h = if area.h > pad * 2 + 2 {
+                area.h - pad * 2
+            } else {
+                return;
+            };
             let rw = rng.range(
                 config.min_room_size.min(avail_w),
                 config.max_room_size.min(avail_w) + 1,
@@ -324,8 +342,16 @@ fn collect_rooms(
                 config.min_room_size.min(avail_h),
                 config.max_room_size.min(avail_h) + 1,
             );
-            let rx = if avail_w > rw { rng.range(area.x + pad, area.x + pad + avail_w - rw + 1) } else { area.x + pad };
-            let ry = if avail_h > rh { rng.range(area.y + pad, area.y + pad + avail_h - rh + 1) } else { area.y + pad };
+            let rx = if avail_w > rw {
+                rng.range(area.x + pad, area.x + pad + avail_w - rw + 1)
+            } else {
+                area.x + pad
+            };
+            let ry = if avail_h > rh {
+                rng.range(area.y + pad, area.y + pad + avail_h - rh + 1)
+            } else {
+                area.y + pad
+            };
             let room_rect = Rect::new(rx, ry, rw, rh);
             *room = Some(room_rect);
             let r = Room {
@@ -400,14 +426,22 @@ fn carve_corridor(
             }
         }
         CorridorStyle::ZShaped => {
-            let mid_y = if y1 < y2 { y1 + (y2 - y1) / 2 } else { y2 + (y1 - y2) / 2 };
+            let mid_y = if y1 < y2 {
+                y1 + (y2 - y1) / 2
+            } else {
+                y2 + (y1 - y2) / 2
+            };
             carve_line(tiles, x1, y1, x1, mid_y, &mut cells, &mut doors);
             carve_line(tiles, x1, mid_y, x2, mid_y, &mut cells, &mut doors);
             carve_line(tiles, x2, mid_y, x2, y2, &mut cells, &mut doors);
         }
     }
 
-    CorridorSegment { cells, style, doors }
+    CorridorSegment {
+        cells,
+        style,
+        doors,
+    }
 }
 
 fn carve_line(
@@ -423,8 +457,20 @@ fn carve_line(
     let width = if height > 0 { tiles[0].len() } else { 0 };
 
     let (mut cx, mut cy) = (x1 as isize, y1 as isize);
-    let dx: isize = if x2 > x1 { 1 } else if x2 < x1 { -1 } else { 0 };
-    let dy: isize = if y2 > y1 { 1 } else if y2 < y1 { -1 } else { 0 };
+    let dx: isize = if x2 > x1 {
+        1
+    } else if x2 < x1 {
+        -1
+    } else {
+        0
+    };
+    let dy: isize = if y2 > y1 {
+        1
+    } else if y2 < y1 {
+        -1
+    } else {
+        0
+    };
 
     loop {
         let ux = cx as usize;
@@ -433,19 +479,20 @@ fn carve_line(
             let prev = tiles[uy][ux];
             if prev == Tile::Wall {
                 // Check if adjacent to a floor tile (room entry => door)
-                let adj_floor = [(1isize, 0isize), (-1, 0), (0, 1), (0, -1)]
-                    .iter()
-                    .any(|&(adx, ady)| {
-                        let nx = cx + adx;
-                        let ny = cy + ady;
-                        if nx >= 0 && ny >= 0 {
-                            let nux = nx as usize;
-                            let nuy = ny as usize;
-                            nuy < height && nux < width && tiles[nuy][nux] == Tile::Floor
-                        } else {
-                            false
-                        }
-                    });
+                let adj_floor =
+                    [(1isize, 0isize), (-1, 0), (0, 1), (0, -1)]
+                        .iter()
+                        .any(|&(adx, ady)| {
+                            let nx = cx + adx;
+                            let ny = cy + ady;
+                            if nx >= 0 && ny >= 0 {
+                                let nux = nx as usize;
+                                let nuy = ny as usize;
+                                nuy < height && nux < width && tiles[nuy][nux] == Tile::Floor
+                            } else {
+                                false
+                            }
+                        });
                 if adj_floor {
                     tiles[uy][ux] = Tile::Door;
                     doors.push((ux, uy));
@@ -541,7 +588,11 @@ pub fn is_connected(dungeon: &Dungeon) -> bool {
             let ny = cy as isize + dy;
             if nx >= 0 && ny >= 0 {
                 let (ux, uy) = (nx as usize, ny as usize);
-                if uy < dungeon.height && ux < dungeon.width && !visited[uy][ux] && passable(dungeon.tiles[uy][ux]) {
+                if uy < dungeon.height
+                    && ux < dungeon.width
+                    && !visited[uy][ux]
+                    && passable(dungeon.tiles[uy][ux])
+                {
                     visited[uy][ux] = true;
                     queue.push_back((ux, uy));
                 }
@@ -599,7 +650,10 @@ mod tests {
 
     #[test]
     fn test_seed_determinism() {
-        let cfg = DungeonConfig { seed: 123, ..Default::default() };
+        let cfg = DungeonConfig {
+            seed: 123,
+            ..Default::default()
+        };
         let d1 = generate(&cfg);
         let d2 = generate(&cfg);
         assert_eq!(d1.tiles, d2.tiles);
@@ -608,8 +662,14 @@ mod tests {
 
     #[test]
     fn test_different_seeds_differ() {
-        let d1 = generate(&DungeonConfig { seed: 1, ..Default::default() });
-        let d2 = generate(&DungeonConfig { seed: 999, ..Default::default() });
+        let d1 = generate(&DungeonConfig {
+            seed: 1,
+            ..Default::default()
+        });
+        let d2 = generate(&DungeonConfig {
+            seed: 999,
+            ..Default::default()
+        });
         // Extremely unlikely to be identical
         assert_ne!(d1.tiles, d2.tiles);
     }
@@ -757,8 +817,15 @@ mod tests {
     #[test]
     fn test_many_seeds_connected() {
         for seed in 0..20u64 {
-            let d = generate(&DungeonConfig { seed, ..Default::default() });
-            assert!(is_connected(&d), "seed {} produced disconnected dungeon", seed);
+            let d = generate(&DungeonConfig {
+                seed,
+                ..Default::default()
+            });
+            assert!(
+                is_connected(&d),
+                "seed {} produced disconnected dungeon",
+                seed
+            );
         }
     }
 

@@ -426,7 +426,9 @@ pub fn spring_layout(graph: &mut Graph, config: &SpringConfig) {
             graph.nodes[i].y += dy[i] * scale;
 
             // Clamp to bounds.
-            graph.nodes[i].x = graph.nodes[i].x.clamp(0.0, config.width - graph.nodes[i].width);
+            graph.nodes[i].x = graph.nodes[i]
+                .x
+                .clamp(0.0, config.width - graph.nodes[i].width);
             graph.nodes[i].y = graph.nodes[i]
                 .y
                 .clamp(0.0, config.height - graph.nodes[i].height);

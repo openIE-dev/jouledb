@@ -29,34 +29,42 @@ impl FlowDir {
     pub fn to_vec(self) -> (f64, f64) {
         let s2 = std::f64::consts::FRAC_1_SQRT_2;
         match self {
-            FlowDir::N  => ( 0.0, -1.0),
-            FlowDir::NE => ( s2,  -s2),
-            FlowDir::E  => ( 1.0,  0.0),
-            FlowDir::SE => ( s2,   s2),
-            FlowDir::S  => ( 0.0,  1.0),
-            FlowDir::SW => (-s2,   s2),
-            FlowDir::W  => (-1.0,  0.0),
-            FlowDir::NW => (-s2,  -s2),
+            FlowDir::N => (0.0, -1.0),
+            FlowDir::NE => (s2, -s2),
+            FlowDir::E => (1.0, 0.0),
+            FlowDir::SE => (s2, s2),
+            FlowDir::S => (0.0, 1.0),
+            FlowDir::SW => (-s2, s2),
+            FlowDir::W => (-1.0, 0.0),
+            FlowDir::NW => (-s2, -s2),
             FlowDir::None => (0.0, 0.0),
         }
     }
 
     /// All 8 compass directions.
     pub fn all() -> [FlowDir; 8] {
-        [FlowDir::N, FlowDir::NE, FlowDir::E, FlowDir::SE,
-         FlowDir::S, FlowDir::SW, FlowDir::W, FlowDir::NW]
+        [
+            FlowDir::N,
+            FlowDir::NE,
+            FlowDir::E,
+            FlowDir::SE,
+            FlowDir::S,
+            FlowDir::SW,
+            FlowDir::W,
+            FlowDir::NW,
+        ]
     }
 }
 
 /// Direction offsets for neighbor lookup.
 const DIR_OFFSETS: [(i32, i32); 8] = [
-    ( 0, -1), // N
-    ( 1, -1), // NE
-    ( 1,  0), // E
-    ( 1,  1), // SE
-    ( 0,  1), // S
-    (-1,  1), // SW
-    (-1,  0), // W
+    (0, -1),  // N
+    (1, -1),  // NE
+    (1, 0),   // E
+    (1, 1),   // SE
+    (0, 1),   // S
+    (-1, 1),  // SW
+    (-1, 0),  // W
     (-1, -1), // NW
 ];
 
@@ -99,7 +107,9 @@ impl CostGrid {
 
     /// Check if a cell is passable.
     pub fn is_passable(&self, x: i32, y: i32) -> bool {
-        if x < 0 || y < 0 { return false; }
+        if x < 0 || y < 0 {
+            return false;
+        }
         let ux = x as usize;
         let uy = y as usize;
         ux < self.width && uy < self.height && self.costs[uy * self.width + ux] > 0
@@ -153,7 +163,9 @@ impl IntegrationField {
     }
 
     pub fn get_signed(&self, x: i32, y: i32) -> u32 {
-        if x < 0 || y < 0 { return UNREACHABLE; }
+        if x < 0 || y < 0 {
+            return UNREACHABLE;
+        }
         self.get(x as usize, y as usize)
     }
 }
@@ -263,14 +275,14 @@ impl FlowField {
         let v11 = get_vec(x0 + 1, y0 + 1);
 
         let vx = v00.0 * (1.0 - tx) * (1.0 - ty)
-               + v10.0 * tx * (1.0 - ty)
-               + v01.0 * (1.0 - tx) * ty
-               + v11.0 * tx * ty;
+            + v10.0 * tx * (1.0 - ty)
+            + v01.0 * (1.0 - tx) * ty
+            + v11.0 * tx * ty;
 
         let vy = v00.1 * (1.0 - tx) * (1.0 - ty)
-               + v10.1 * tx * (1.0 - ty)
-               + v01.1 * (1.0 - tx) * ty
-               + v11.1 * tx * ty;
+            + v10.1 * tx * (1.0 - ty)
+            + v01.1 * (1.0 - tx) * ty
+            + v11.1 * tx * ty;
 
         (vx, vy)
     }
@@ -407,7 +419,10 @@ impl SectorFlowFieldManager {
 // ── Convenience: full pipeline ──────────────────────────────────
 
 /// Build integration + flow fields from cost grid and goals.
-pub fn compute_flow_field(cost_grid: &CostGrid, goals: &[(usize, usize)]) -> (IntegrationField, FlowField) {
+pub fn compute_flow_field(
+    cost_grid: &CostGrid,
+    goals: &[(usize, usize)],
+) -> (IntegrationField, FlowField) {
     let integration = build_integration_field(cost_grid, goals);
     let flow = build_flow_field(&integration, cost_grid);
     (integration, flow)
@@ -482,7 +497,7 @@ mod tests {
         let grid = make_open_grid(3, 3);
         let field = build_integration_field(&grid, &[(1, 1)]);
         // Adjacent cells should be cheaper than corner cells
-        let adj = field.get(1, 0);  // cardinal
+        let adj = field.get(1, 0); // cardinal
         let corner = field.get(0, 0); // diagonal
         assert!(adj < corner);
     }

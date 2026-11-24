@@ -223,7 +223,11 @@ impl SceneGraph {
             }
         }
         // Add to new parent.
-        self.nodes.get_mut(&new_parent).unwrap().children.push(node_id);
+        self.nodes
+            .get_mut(&new_parent)
+            .unwrap()
+            .children
+            .push(node_id);
         self.nodes.get_mut(&node_id).unwrap().parent = Some(new_parent);
         true
     }
@@ -405,11 +409,7 @@ mod tests {
             )
             .unwrap();
         let b = g
-            .add_node(
-                a,
-                "b",
-                Transform::from_position(Vec3::new(0.0, 2.0, 0.0)),
-            )
+            .add_node(a, "b", Transform::from_position(Vec3::new(0.0, 2.0, 0.0)))
             .unwrap();
 
         let wt = g.world_transform(b);
@@ -474,9 +474,13 @@ mod tests {
 
         let mut g = SceneGraph::new();
         // Node at origin — visible.
-        let a = g.add_node(g.root_id(), "visible", Transform::identity()).unwrap();
-        g.node_mut(a).unwrap().aabb =
-            Some(Aabb::new(Vec3::new(-0.5, -0.5, -0.5), Vec3::new(0.5, 0.5, 0.5)));
+        let a = g
+            .add_node(g.root_id(), "visible", Transform::identity())
+            .unwrap();
+        g.node_mut(a).unwrap().aabb = Some(Aabb::new(
+            Vec3::new(-0.5, -0.5, -0.5),
+            Vec3::new(0.5, 0.5, 0.5),
+        ));
 
         // Node far behind camera — invisible.
         let b = g
@@ -486,8 +490,10 @@ mod tests {
                 Transform::from_position(Vec3::new(0.0, 0.0, 1000.0)),
             )
             .unwrap();
-        g.node_mut(b).unwrap().aabb =
-            Some(Aabb::new(Vec3::new(-0.1, -0.1, -0.1), Vec3::new(0.1, 0.1, 0.1)));
+        g.node_mut(b).unwrap().aabb = Some(Aabb::new(
+            Vec3::new(-0.1, -0.1, -0.1),
+            Vec3::new(0.1, 0.1, 0.1),
+        ));
 
         let visible = g.cull(&frustum);
         assert!(visible.contains(&a));
@@ -516,7 +522,9 @@ mod tests {
         let frustum = Frustum::from_view_projection(&vp);
 
         let mut g = SceneGraph::new();
-        let a = g.add_node(g.root_id(), "hidden", Transform::identity()).unwrap();
+        let a = g
+            .add_node(g.root_id(), "hidden", Transform::identity())
+            .unwrap();
         g.node_mut(a).unwrap().visible = false;
         let visible = g.cull(&frustum);
         assert!(!visible.contains(&a));

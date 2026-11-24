@@ -47,7 +47,11 @@ impl fmt::Display for TenantError {
         match self {
             Self::TenantNotFound(id) => write!(f, "tenant not found: {id}"),
             Self::DuplicateTenant(id) => write!(f, "duplicate tenant: {id}"),
-            Self::CrossTenantAccess { requesting_tenant, owning_tenant, resource_id } => {
+            Self::CrossTenantAccess {
+                requesting_tenant,
+                owning_tenant,
+                resource_id,
+            } => {
                 write!(
                     f,
                     "cross-tenant access denied: tenant {requesting_tenant} cannot access resource {resource_id} owned by {owning_tenant}"
@@ -55,8 +59,16 @@ impl fmt::Display for TenantError {
             }
             Self::ResourceNotFound(id) => write!(f, "resource not found: {id}"),
             Self::DuplicateResource(id) => write!(f, "duplicate resource: {id}"),
-            Self::QuotaExceeded { tenant_id, quota_name, limit, current } => {
-                write!(f, "quota '{quota_name}' exceeded for tenant {tenant_id}: {current}/{limit}")
+            Self::QuotaExceeded {
+                tenant_id,
+                quota_name,
+                limit,
+                current,
+            } => {
+                write!(
+                    f,
+                    "quota '{quota_name}' exceeded for tenant {tenant_id}: {current}/{limit}"
+                )
             }
             Self::InvalidHierarchy(msg) => write!(f, "invalid hierarchy: {msg}"),
             Self::TenantSuspended(id) => write!(f, "tenant suspended: {id}"),
@@ -189,7 +201,8 @@ impl Tenant {
     }
 
     pub fn with_quota(mut self, name: &str, limit: u64) -> Self {
-        self.quotas.insert(name.to_string(), Quota::new(name, limit));
+        self.quotas
+            .insert(name.to_string(), Quota::new(name, limit));
         self
     }
 
@@ -331,7 +344,10 @@ impl TenantManager {
     /// Remove a tenant (and all its resources).
     pub fn remove_tenant(&mut self, id: &str) -> Result<Tenant, TenantError> {
         // Check no children
-        let has_children = self.tenants.values().any(|t| t.parent_id.as_deref() == Some(id));
+        let has_children = self
+            .tenants
+            .values()
+            .any(|t| t.parent_id.as_deref() == Some(id));
         if has_children {
             return Err(TenantError::InvalidHierarchy(format!(
                 "tenant {id} has children, remove them first"
@@ -379,7 +395,11 @@ impl TenantManager {
             if !visited.insert(current) {
                 break; // circular reference guard
             }
-            match self.tenants.get(current).and_then(|t| t.parent_id.as_deref()) {
+            match self
+                .tenants
+                .get(current)
+                .and_then(|t| t.parent_id.as_deref())
+            {
                 Some(pid) => {
                     chain.push(pid);
                     current = pid;
@@ -479,8 +499,7 @@ impl TenantManager {
                 && g.to_tenant == resource.tenant_id
                 && (g.resource_type.is_none()
                     || g.resource_type.as_deref() == Some(&resource.resource_type))
-                && (g.resource_id.is_none()
-                    || g.resource_id.as_deref() == Some(&resource.id))
+                && (g.resource_id.is_none() || g.resource_id.as_deref() == Some(&resource.id))
         });
         // Also check hierarchy: parent can access child resources
         let is_ancestor = self
@@ -520,7 +539,10 @@ impl TenantManager {
 
     /// Total resource count for a tenant.
     pub fn resource_count(&self, tenant_id: &str) -> usize {
-        self.resources.values().filter(|r| r.tenant_id == tenant_id).count()
+        self.resources
+            .values()
+            .filter(|r| r.tenant_id == tenant_id)
+            .count()
     }
 
     // ── Cross-Tenant Grants ────────────────────────────────
@@ -549,7 +571,10 @@ impl TenantManager {
             .tenants
             .get_mut(tenant_id)
             .ok_or_else(|| TenantError::TenantNotFound(tenant_id.to_string()))?;
-        let quota = tenant.quotas.entry(name.to_string()).or_insert_with(|| Quota::new(name, 0));
+        let quota = tenant
+            .quotas
+            .entry(name.to_string())
+            .or_insert_with(|| Quota::new(name, 0));
         quota.limit = limit;
         Ok(())
     }
@@ -604,10 +629,8 @@ mod tests {
 
     fn setup_manager() -> TenantManager {
         let mut mgr = TenantManager::new();
-        mgr.register_tenant(
-            Tenant::new("t1", "Acme Corp").with_quota("max_resources", 10),
-        )
-        .unwrap();
+        mgr.register_tenant(Tenant::new("t1", "Acme Corp").with_quota("max_resources", 10))
+            .unwrap();
         mgr.register_tenant(Tenant::new("t2", "Globex")).unwrap();
         mgr
     }
@@ -706,9 +729,13 @@ mod tests {
         let mut mgr = TenantManager::new();
         mgr.register_tenant(Tenant::new("t1", "Small").with_quota("max_resources", 2))
             .unwrap();
-        mgr.add_resource(TenantResource::new("r1", "t1", "doc", "D1")).unwrap();
-        mgr.add_resource(TenantResource::new("r2", "t1", "doc", "D2")).unwrap();
-        let err = mgr.add_resource(TenantResource::new("r3", "t1", "doc", "D3")).unwrap_err();
+        mgr.add_resource(TenantResource::new("r1", "t1", "doc", "D1"))
+            .unwrap();
+        mgr.add_resource(TenantResource::new("r2", "t1", "doc", "D2"))
+            .unwrap();
+        let err = mgr
+            .add_resource(TenantResource::new("r3", "t1", "doc", "D3"))
+            .unwrap_err();
         match err {
             TenantError::QuotaExceeded { .. } => {}
             other => panic!("expected QuotaExceeded, got: {other}"),
@@ -720,17 +747,21 @@ mod tests {
         let mut mgr = TenantManager::new();
         mgr.register_tenant(Tenant::new("t1", "T").with_quota("max_resources", 2))
             .unwrap();
-        mgr.add_resource(TenantResource::new("r1", "t1", "doc", "D1")).unwrap();
-        mgr.add_resource(TenantResource::new("r2", "t1", "doc", "D2")).unwrap();
+        mgr.add_resource(TenantResource::new("r1", "t1", "doc", "D1"))
+            .unwrap();
+        mgr.add_resource(TenantResource::new("r2", "t1", "doc", "D2"))
+            .unwrap();
         mgr.remove_resource("r1").unwrap();
         // Should now succeed
-        mgr.add_resource(TenantResource::new("r3", "t1", "doc", "D3")).unwrap();
+        mgr.add_resource(TenantResource::new("r3", "t1", "doc", "D3"))
+            .unwrap();
     }
 
     #[test]
     fn test_tenant_hierarchy() {
         let mut mgr = TenantManager::new();
-        mgr.register_tenant(Tenant::new("parent", "Parent Corp")).unwrap();
+        mgr.register_tenant(Tenant::new("parent", "Parent Corp"))
+            .unwrap();
         mgr.register_tenant(Tenant::new("child", "Child Inc").with_parent("parent"))
             .unwrap();
         let children = mgr.child_tenants("parent");
@@ -741,7 +772,8 @@ mod tests {
     #[test]
     fn test_parent_access_to_child_resources() {
         let mut mgr = TenantManager::new();
-        mgr.register_tenant(Tenant::new("parent", "Parent")).unwrap();
+        mgr.register_tenant(Tenant::new("parent", "Parent"))
+            .unwrap();
         mgr.register_tenant(Tenant::new("child", "Child").with_parent("parent"))
             .unwrap();
         mgr.add_resource(TenantResource::new("r1", "child", "doc", "Child Doc"))
@@ -755,8 +787,10 @@ mod tests {
     fn test_ancestor_chain() {
         let mut mgr = TenantManager::new();
         mgr.register_tenant(Tenant::new("root", "Root")).unwrap();
-        mgr.register_tenant(Tenant::new("mid", "Mid").with_parent("root")).unwrap();
-        mgr.register_tenant(Tenant::new("leaf", "Leaf").with_parent("mid")).unwrap();
+        mgr.register_tenant(Tenant::new("mid", "Mid").with_parent("root"))
+            .unwrap();
+        mgr.register_tenant(Tenant::new("leaf", "Leaf").with_parent("mid"))
+            .unwrap();
         let chain = mgr.ancestor_chain("leaf");
         assert_eq!(chain, vec!["mid", "root"]);
     }
@@ -787,7 +821,8 @@ mod tests {
     fn test_remove_tenant_with_children_fails() {
         let mut mgr = TenantManager::new();
         mgr.register_tenant(Tenant::new("parent", "P")).unwrap();
-        mgr.register_tenant(Tenant::new("child", "C").with_parent("parent")).unwrap();
+        mgr.register_tenant(Tenant::new("child", "C").with_parent("parent"))
+            .unwrap();
         let err = mgr.remove_tenant("parent").unwrap_err();
         match err {
             TenantError::InvalidHierarchy(_) => {}
@@ -798,9 +833,12 @@ mod tests {
     #[test]
     fn test_list_resources_by_type() {
         let mut mgr = setup_manager();
-        mgr.add_resource(TenantResource::new("r1", "t1", "doc", "D1")).unwrap();
-        mgr.add_resource(TenantResource::new("r2", "t1", "image", "I1")).unwrap();
-        mgr.add_resource(TenantResource::new("r3", "t1", "doc", "D2")).unwrap();
+        mgr.add_resource(TenantResource::new("r1", "t1", "doc", "D1"))
+            .unwrap();
+        mgr.add_resource(TenantResource::new("r2", "t1", "image", "I1"))
+            .unwrap();
+        mgr.add_resource(TenantResource::new("r3", "t1", "doc", "D2"))
+            .unwrap();
         let docs = mgr.list_resources_by_type("t1", "doc");
         assert_eq!(docs.len(), 2);
     }
@@ -858,8 +896,11 @@ mod tests {
     #[test]
     fn test_duplicate_resource() {
         let mut mgr = setup_manager();
-        mgr.add_resource(TenantResource::new("r1", "t1", "doc", "D1")).unwrap();
-        let err = mgr.add_resource(TenantResource::new("r1", "t1", "doc", "D2")).unwrap_err();
+        mgr.add_resource(TenantResource::new("r1", "t1", "doc", "D1"))
+            .unwrap();
+        let err = mgr
+            .add_resource(TenantResource::new("r1", "t1", "doc", "D2"))
+            .unwrap_err();
         assert_eq!(err, TenantError::DuplicateResource("r1".into()));
     }
 }

@@ -59,7 +59,11 @@ pub struct Image {
 
 impl Image {
     pub fn new(width: u32, height: u32) -> Self {
-        Self { width, height, data: vec![0u8; width as usize * height as usize * 4] }
+        Self {
+            width,
+            height,
+            data: vec![0u8; width as usize * height as usize * 4],
+        }
     }
 
     pub fn filled(width: u32, height: u32, c: Rgba) -> Self {
@@ -76,7 +80,12 @@ impl Image {
 
     pub fn get(&self, x: u32, y: u32) -> Rgba {
         let off = (y as usize * self.width as usize + x as usize) * 4;
-        Rgba::new(self.data[off], self.data[off + 1], self.data[off + 2], self.data[off + 3])
+        Rgba::new(
+            self.data[off],
+            self.data[off + 1],
+            self.data[off + 2],
+            self.data[off + 3],
+        )
     }
 
     pub fn set(&mut self, x: u32, y: u32, c: Rgba) {
@@ -109,7 +118,11 @@ fn blend_channel(mode: BlendMode, base: f64, blend: f64) -> f64 {
         BlendMode::Multiply => base * blend,
         BlendMode::Screen => 1.0 - (1.0 - base) * (1.0 - blend),
         BlendMode::Overlay => {
-            if base < 0.5 { 2.0 * base * blend } else { 1.0 - 2.0 * (1.0 - base) * (1.0 - blend) }
+            if base < 0.5 {
+                2.0 * base * blend
+            } else {
+                1.0 - 2.0 * (1.0 - base) * (1.0 - blend)
+            }
         }
         BlendMode::SoftLight => {
             if blend < 0.5 {
@@ -124,7 +137,11 @@ fn blend_channel(mode: BlendMode, base: f64, blend: f64) -> f64 {
             }
         }
         BlendMode::HardLight => {
-            if blend < 0.5 { 2.0 * base * blend } else { 1.0 - 2.0 * (1.0 - base) * (1.0 - blend) }
+            if blend < 0.5 {
+                2.0 * base * blend
+            } else {
+                1.0 - 2.0 * (1.0 - base) * (1.0 - blend)
+            }
         }
         BlendMode::Difference => (base - blend).abs(),
         BlendMode::Exclusion => base + blend - 2.0 * base * blend,
@@ -170,8 +187,18 @@ pub fn blend_images(base: &Image, over: &Image, mode: BlendMode) -> Image {
     let pixels = base.width as usize * base.height as usize;
     for i in 0..pixels {
         let off = i * 4;
-        let b = Rgba::new(base.data[off], base.data[off + 1], base.data[off + 2], base.data[off + 3]);
-        let o = Rgba::new(over.data[off], over.data[off + 1], over.data[off + 2], over.data[off + 3]);
+        let b = Rgba::new(
+            base.data[off],
+            base.data[off + 1],
+            base.data[off + 2],
+            base.data[off + 3],
+        );
+        let o = Rgba::new(
+            over.data[off],
+            over.data[off + 1],
+            over.data[off + 2],
+            over.data[off + 3],
+        );
         let r = blend_pixel(b, o, mode);
         out.data[off] = r.r;
         out.data[off + 1] = r.g;
@@ -207,11 +234,19 @@ pub struct Mask {
 
 impl Mask {
     pub fn new(width: u32, height: u32) -> Self {
-        Self { width, height, data: vec![0u8; width as usize * height as usize] }
+        Self {
+            width,
+            height,
+            data: vec![0u8; width as usize * height as usize],
+        }
     }
 
     pub fn filled(width: u32, height: u32, v: u8) -> Self {
-        Self { width, height, data: vec![v; width as usize * height as usize] }
+        Self {
+            width,
+            height,
+            data: vec![v; width as usize * height as usize],
+        }
     }
 
     pub fn get(&self, x: u32, y: u32) -> u8 {
@@ -376,7 +411,7 @@ mod tests {
         let over = Image::filled(2, 2, Rgba::rgb(0, 255, 0));
         let mut mask = Mask::new(2, 2);
         mask.set(0, 0, 255); // full over
-        mask.set(1, 0, 0);   // full base
+        mask.set(1, 0, 0); // full base
         mask.set(0, 1, 128); // half blend
 
         let result = blend_with_mask(&base, &over, &mask);

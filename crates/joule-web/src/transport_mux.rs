@@ -34,11 +34,23 @@ impl fmt::Display for MuxError {
             Self::DuplicateChannel(id) => write!(f, "duplicate channel: {id}"),
             Self::MaxChannelsReached { max } => write!(f, "max channels reached: {max}"),
             Self::ChannelClosed(id) => write!(f, "channel {id} is closed"),
-            Self::NoCredits { channel_id, available } => {
-                write!(f, "no credits on channel {channel_id} (available={available})")
+            Self::NoCredits {
+                channel_id,
+                available,
+            } => {
+                write!(
+                    f,
+                    "no credits on channel {channel_id} (available={available})"
+                )
             }
-            Self::SendBufferFull { channel_id, capacity } => {
-                write!(f, "send buffer full on channel {channel_id} (cap={capacity})")
+            Self::SendBufferFull {
+                channel_id,
+                capacity,
+            } => {
+                write!(
+                    f,
+                    "send buffer full on channel {channel_id} (cap={capacity})"
+                )
             }
         }
     }
@@ -134,10 +146,7 @@ impl fmt::Display for ChannelStats {
         write!(
             f,
             "sent={}msg/{}B recv={}msg/{}B",
-            self.messages_sent,
-            self.bytes_sent,
-            self.messages_received,
-            self.bytes_received,
+            self.messages_sent, self.bytes_sent, self.messages_received, self.bytes_received,
         )
     }
 }
@@ -274,7 +283,9 @@ impl TransportMux {
     /// Open a new channel, returning its ID.
     pub fn open_channel(&mut self) -> Result<u32, MuxError> {
         if self.channels.len() >= self.config.max_channels {
-            return Err(MuxError::MaxChannelsReached { max: self.config.max_channels });
+            return Err(MuxError::MaxChannelsReached {
+                max: self.config.max_channels,
+            });
         }
         let id = self.next_channel_id;
         self.next_channel_id += 1;
@@ -299,7 +310,9 @@ impl TransportMux {
 
     /// Close a channel.
     pub fn close_channel(&mut self, channel_id: u32) -> Result<(), MuxError> {
-        let ch = self.channels.get_mut(&channel_id)
+        let ch = self
+            .channels
+            .get_mut(&channel_id)
             .ok_or(MuxError::ChannelNotFound(channel_id))?;
         if !ch.open {
             return Err(MuxError::ChannelClosed(channel_id));
@@ -319,7 +332,9 @@ impl TransportMux {
 
     /// Send data on a channel.
     pub fn send(&mut self, channel_id: u32, data: Vec<u8>) -> Result<(), MuxError> {
-        let ch = self.channels.get_mut(&channel_id)
+        let ch = self
+            .channels
+            .get_mut(&channel_id)
             .ok_or(MuxError::ChannelNotFound(channel_id))?;
         if !ch.open {
             return Err(MuxError::ChannelClosed(channel_id));
@@ -346,7 +361,9 @@ impl TransportMux {
 
     /// Deliver data to a channel's receive buffer (simulated incoming).
     pub fn deliver(&mut self, channel_id: u32, data: Vec<u8>) -> Result<(), MuxError> {
-        let ch = self.channels.get_mut(&channel_id)
+        let ch = self
+            .channels
+            .get_mut(&channel_id)
             .ok_or(MuxError::ChannelNotFound(channel_id))?;
         let data_len = data.len() as u64;
         ch.stats.bytes_received += data_len;
@@ -357,14 +374,18 @@ impl TransportMux {
 
     /// Drain received data from a channel.
     pub fn drain_recv(&mut self, channel_id: u32) -> Result<Vec<Vec<u8>>, MuxError> {
-        let ch = self.channels.get_mut(&channel_id)
+        let ch = self
+            .channels
+            .get_mut(&channel_id)
             .ok_or(MuxError::ChannelNotFound(channel_id))?;
         Ok(ch.recv_buffer.drain(..).collect())
     }
 
     /// Grant additional credits to a channel.
     pub fn grant_credits(&mut self, channel_id: u32, credits: u64) -> Result<(), MuxError> {
-        let ch = self.channels.get_mut(&channel_id)
+        let ch = self
+            .channels
+            .get_mut(&channel_id)
             .ok_or(MuxError::ChannelNotFound(channel_id))?;
         ch.credits = ch.credits.saturating_add(credits);
         Ok(())
@@ -409,7 +430,9 @@ impl TransportMux {
     // ── Internal ────────────────────────────────────────────────
 
     fn schedule_round_robin(&mut self) -> Option<(u32, Vec<u8>)> {
-        let open_ids: Vec<u32> = self.channels.iter()
+        let open_ids: Vec<u32> = self
+            .channels
+            .iter()
             .filter(|(_, c)| c.open && !c.send_buffer.is_empty())
             .map(|(&id, _)| id)
             .collect();
@@ -561,8 +584,12 @@ mod tests {
     fn priority_scheduling() {
         let config = MuxConfig::default().with_schedule_mode(ScheduleMode::PriorityBased);
         let mut mux = TransportMux::new(config);
-        let low = mux.open_channel_with(Priority::Low, ChannelMeta::new("low")).unwrap();
-        let high = mux.open_channel_with(Priority::High, ChannelMeta::new("high")).unwrap();
+        let low = mux
+            .open_channel_with(Priority::Low, ChannelMeta::new("low"))
+            .unwrap();
+        let high = mux
+            .open_channel_with(Priority::High, ChannelMeta::new("high"))
+            .unwrap();
         mux.send(low, vec![10]).unwrap();
         mux.send(high, vec![20]).unwrap();
         let (id, data) = mux.schedule_one().unwrap();

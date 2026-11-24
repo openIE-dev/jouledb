@@ -246,10 +246,7 @@ impl fmt::Display for JoinType {
 #[derive(Debug, Clone, PartialEq)]
 pub enum LogicalPlan {
     /// Table scan with table name and available columns.
-    Scan {
-        table: String,
-        columns: Vec<String>,
-    },
+    Scan { table: String, columns: Vec<String> },
     /// Filter (WHERE).
     Filter {
         predicate: Predicate,
@@ -288,11 +285,7 @@ impl LogicalPlan {
             Self::Scan { columns, .. } => columns.clone(),
             Self::Filter { input, .. } => input.output_columns(),
             Self::Project { columns, .. } => columns.clone(),
-            Self::Join {
-                left,
-                right,
-                ..
-            } => {
+            Self::Join { left, right, .. } => {
                 let mut cols = left.output_columns();
                 cols.extend(right.output_columns());
                 cols
@@ -322,9 +315,7 @@ impl LogicalPlan {
             | Self::Project { input, .. }
             | Self::Sort { input, .. }
             | Self::Limit { input, .. } => 1 + input.depth(),
-            Self::Join { left, right, .. } => {
-                1 + std::cmp::max(left.depth(), right.depth())
-            }
+            Self::Join { left, right, .. } => 1 + std::cmp::max(left.depth(), right.depth()),
         }
     }
 
@@ -339,14 +330,20 @@ impl LogicalPlan {
         let pad: String = "  ".repeat(indent);
         match self {
             Self::Scan { table, columns } => {
-                out.push_str(&format!("{pad}Scan({table} [{columns}])\n", columns = columns.join(", ")));
+                out.push_str(&format!(
+                    "{pad}Scan({table} [{columns}])\n",
+                    columns = columns.join(", ")
+                ));
             }
             Self::Filter { predicate, input } => {
                 out.push_str(&format!("{pad}Filter({predicate})\n"));
                 input.format_tree(out, indent + 1);
             }
             Self::Project { columns, input } => {
-                out.push_str(&format!("{pad}Project([{columns}])\n", columns = columns.join(", ")));
+                out.push_str(&format!(
+                    "{pad}Project([{columns}])\n",
+                    columns = columns.join(", ")
+                ));
                 input.format_tree(out, indent + 1);
             }
             Self::Join {
@@ -363,12 +360,18 @@ impl LogicalPlan {
                 right.format_tree(out, indent + 1);
             }
             Self::Sort { keys, input } => {
-                let key_str: Vec<String> =
-                    keys.iter().map(|k| format!("{} {}", k.column, k.direction)).collect();
+                let key_str: Vec<String> = keys
+                    .iter()
+                    .map(|k| format!("{} {}", k.column, k.direction))
+                    .collect();
                 out.push_str(&format!("{pad}Sort([{keys}])\n", keys = key_str.join(", ")));
                 input.format_tree(out, indent + 1);
             }
-            Self::Limit { count, offset, input } => {
+            Self::Limit {
+                count,
+                offset,
+                input,
+            } => {
                 out.push_str(&format!("{pad}Limit({count}, offset={offset})\n"));
                 input.format_tree(out, indent + 1);
             }
@@ -410,10 +413,12 @@ impl LogicalPlan {
             Self::Sort { keys, input } => {
                 let key_arr: Vec<serde_json::Value> = keys
                     .iter()
-                    .map(|k| serde_json::json!({
-                        "column": k.column,
-                        "direction": k.direction.to_string(),
-                    }))
+                    .map(|k| {
+                        serde_json::json!({
+                            "column": k.column,
+                            "direction": k.direction.to_string(),
+                        })
+                    })
                     .collect();
                 serde_json::json!({
                     "node": "Sort",
@@ -421,7 +426,11 @@ impl LogicalPlan {
                     "input": input.to_json(),
                 })
             }
-            Self::Limit { count, offset, input } => serde_json::json!({
+            Self::Limit {
+                count,
+                offset,
+                input,
+            } => serde_json::json!({
                 "node": "Limit",
                 "count": count,
                 "offset": offset,
@@ -468,10 +477,7 @@ pub struct CostEstimate {
 }
 
 /// Estimate the cost of a logical plan given table statistics.
-pub fn estimate_cost(
-    plan: &LogicalPlan,
-    stats: &HashMap<String, TableStats>,
-) -> CostEstimate {
+pub fn estimate_cost(plan: &LogicalPlan, stats: &HashMap<String, TableStats>) -> CostEstimate {
     match plan {
         LogicalPlan::Scan { table, columns } => {
             let ts = stats.get(table);
@@ -553,9 +559,7 @@ fn estimate_selectivity(pred: &Predicate, _stats: &HashMap<String, TableStats>) 
             CmpOp::Ne => 0.9,
             CmpOp::Lt | CmpOp::Le | CmpOp::Gt | CmpOp::Ge => 0.3,
         },
-        Predicate::And(a, b) => {
-            estimate_selectivity(a, _stats) * estimate_selectivity(b, _stats)
-        }
+        Predicate::And(a, b) => estimate_selectivity(a, _stats) * estimate_selectivity(b, _stats),
         Predicate::Or(a, b) => {
             let sa = estimate_selectivity(a, _stats);
             let sb = estimate_selectivity(b, _stats);
@@ -586,8 +590,7 @@ fn push_down_predicates(plan: LogicalPlan) -> LogicalPlan {
                     input: proj_input,
                 } => {
                     let needed = predicate.referenced_columns();
-                    let proj_cols: HashSet<String> =
-                        columns.iter().cloned().collect();
+                    let proj_cols: HashSet<String> = columns.iter().cloned().collect();
                     if needed.is_subset(&proj_cols) {
                         // Push filter below project.
                         LogicalPlan::Project {
@@ -608,15 +611,16 @@ fn push_down_predicates(plan: LogicalPlan) -> LogicalPlan {
                     }
                 }
                 // Push filter below sort.
-                LogicalPlan::Sort { keys, input: sort_input } => {
-                    LogicalPlan::Sort {
-                        keys,
-                        input: Box::new(LogicalPlan::Filter {
-                            predicate,
-                            input: sort_input,
-                        }),
-                    }
-                }
+                LogicalPlan::Sort {
+                    keys,
+                    input: sort_input,
+                } => LogicalPlan::Sort {
+                    keys,
+                    input: Box::new(LogicalPlan::Filter {
+                        predicate,
+                        input: sort_input,
+                    }),
+                },
                 other => LogicalPlan::Filter {
                     predicate,
                     input: Box::new(other),
@@ -631,7 +635,11 @@ fn push_down_predicates(plan: LogicalPlan) -> LogicalPlan {
             keys,
             input: Box::new(push_down_predicates(*input)),
         },
-        LogicalPlan::Limit { count, offset, input } => LogicalPlan::Limit {
+        LogicalPlan::Limit {
+            count,
+            offset,
+            input,
+        } => LogicalPlan::Limit {
             count,
             offset,
             input: Box::new(push_down_predicates(*input)),
@@ -683,7 +691,11 @@ fn prune_projections(plan: LogicalPlan) -> LogicalPlan {
             keys,
             input: Box::new(prune_projections(*input)),
         },
-        LogicalPlan::Limit { count, offset, input } => LogicalPlan::Limit {
+        LogicalPlan::Limit {
+            count,
+            offset,
+            input,
+        } => LogicalPlan::Limit {
             count,
             offset,
             input: Box::new(prune_projections(*input)),
@@ -954,10 +966,7 @@ mod tests {
     fn cost_estimation_scan() {
         let plan = users_scan();
         let mut stats = HashMap::new();
-        stats.insert(
-            "users".into(),
-            TableStats::new("users", 1000, 64),
-        );
+        stats.insert("users".into(), TableStats::new("users", 1000, 64));
         let cost = estimate_cost(&plan, &stats);
         assert!((cost.estimated_rows - 1000.0).abs() < f64::EPSILON);
     }

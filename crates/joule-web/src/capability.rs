@@ -551,12 +551,7 @@ impl CapabilityAuthority {
                     missing: right,
                 });
             }
-            self.audit(
-                CapAuditKind::Denied,
-                cap_id,
-                &actor,
-                "resource mismatch",
-            );
+            self.audit(CapAuditKind::Denied, cap_id, &actor, "resource mismatch");
             return Err(CapabilityError::VerificationFailed(
                 "resource does not match".to_string(),
             ));
@@ -738,7 +733,12 @@ mod tests {
             0,
             "full access",
         );
-        let result = auth.verify(cap, &ResourceKind::File, "/data/file.txt", AccessRight::Read);
+        let result = auth.verify(
+            cap,
+            &ResourceKind::File,
+            "/data/file.txt",
+            AccessRight::Read,
+        );
         assert!(result.is_ok());
     }
 
@@ -761,7 +761,15 @@ mod tests {
     #[test]
     fn verify_wrong_right() {
         let mut auth = CapabilityAuthority::new();
-        let cap = auth.create(ResourceKind::File, "/data", read_only(), "root", "alice", 0, "");
+        let cap = auth.create(
+            ResourceKind::File,
+            "/data",
+            read_only(),
+            "root",
+            "alice",
+            0,
+            "",
+        );
         let result = auth.verify(cap, &ResourceKind::File, "/data", AccessRight::Write);
         assert!(matches!(
             result,
@@ -791,7 +799,15 @@ mod tests {
     #[test]
     fn cannot_delegate_without_right() {
         let mut auth = CapabilityAuthority::new();
-        let cap = auth.create(ResourceKind::File, "/data", read_only(), "root", "alice", 0, "");
+        let cap = auth.create(
+            ResourceKind::File,
+            "/data",
+            read_only(),
+            "root",
+            "alice",
+            0,
+            "",
+        );
         let result = auth.delegate(cap, "bob");
         assert!(matches!(result, Err(CapabilityError::CannotDelegate(_))));
     }
@@ -825,7 +841,10 @@ mod tests {
         wider.insert(AccessRight::Read);
         wider.insert(AccessRight::Write);
         let result = auth.attenuate(cap, wider, "bob");
-        assert!(matches!(result, Err(CapabilityError::AttenuationWidens { .. })));
+        assert!(matches!(
+            result,
+            Err(CapabilityError::AttenuationWidens { .. })
+        ));
     }
 
     #[test]
@@ -853,7 +872,15 @@ mod tests {
     #[test]
     fn double_revoke() {
         let mut auth = CapabilityAuthority::new();
-        let cap = auth.create(ResourceKind::File, "/data", read_only(), "root", "alice", 0, "");
+        let cap = auth.create(
+            ResourceKind::File,
+            "/data",
+            read_only(),
+            "root",
+            "alice",
+            0,
+            "",
+        );
         auth.revoke(cap).unwrap();
         let result = auth.revoke(cap);
         assert!(matches!(result, Err(CapabilityError::AlreadyRevoked(_))));
@@ -862,17 +889,39 @@ mod tests {
     #[test]
     fn expiration() {
         let mut auth = CapabilityAuthority::new();
-        let cap = auth.create(ResourceKind::File, "/data", read_only(), "root", "alice", 100, "");
+        let cap = auth.create(
+            ResourceKind::File,
+            "/data",
+            read_only(),
+            "root",
+            "alice",
+            100,
+            "",
+        );
         auth.set_time(50);
-        assert!(auth.verify(cap, &ResourceKind::File, "/data", AccessRight::Read).is_ok());
+        assert!(
+            auth.verify(cap, &ResourceKind::File, "/data", AccessRight::Read)
+                .is_ok()
+        );
         auth.set_time(200);
-        assert!(auth.verify(cap, &ResourceKind::File, "/data", AccessRight::Read).is_err());
+        assert!(
+            auth.verify(cap, &ResourceKind::File, "/data", AccessRight::Read)
+                .is_err()
+        );
     }
 
     #[test]
     fn exercise_logs_audit() {
         let mut auth = CapabilityAuthority::new();
-        let cap = auth.create(ResourceKind::File, "/data", read_only(), "root", "alice", 0, "");
+        let cap = auth.create(
+            ResourceKind::File,
+            "/data",
+            read_only(),
+            "root",
+            "alice",
+            0,
+            "",
+        );
         auth.exercise(cap, &ResourceKind::File, "/data", AccessRight::Read)
             .unwrap();
         let exercised = auth
@@ -905,8 +954,24 @@ mod tests {
     #[test]
     fn compose_different_resources_fails() {
         let mut auth = CapabilityAuthority::new();
-        let a = auth.create(ResourceKind::File, "/a", read_only(), "root", "alice", 0, "");
-        let b = auth.create(ResourceKind::File, "/b", read_only(), "root", "alice", 0, "");
+        let a = auth.create(
+            ResourceKind::File,
+            "/a",
+            read_only(),
+            "root",
+            "alice",
+            0,
+            "",
+        );
+        let b = auth.create(
+            ResourceKind::File,
+            "/b",
+            read_only(),
+            "root",
+            "alice",
+            0,
+            "",
+        );
         let result = auth.compose(a, b, "alice");
         assert!(result.is_err());
     }
@@ -914,22 +979,50 @@ mod tests {
     #[test]
     fn find_least_privilege() {
         let mut auth = CapabilityAuthority::new();
-        let _broad = auth.create(ResourceKind::File, "/data/*", full_rights(), "root", "alice", 0, "");
-        let narrow = auth.create(ResourceKind::File, "/data/*", read_only(), "root", "alice", 0, "");
-        let found = auth.find_least_privilege(
+        let _broad = auth.create(
+            ResourceKind::File,
+            "/data/*",
+            full_rights(),
+            "root",
             "alice",
-            &ResourceKind::File,
-            "/data/x",
-            AccessRight::Read,
+            0,
+            "",
         );
+        let narrow = auth.create(
+            ResourceKind::File,
+            "/data/*",
+            read_only(),
+            "root",
+            "alice",
+            0,
+            "",
+        );
+        let found =
+            auth.find_least_privilege("alice", &ResourceKind::File, "/data/x", AccessRight::Read);
         assert_eq!(found, Some(narrow));
     }
 
     #[test]
     fn capabilities_for_holder() {
         let mut auth = CapabilityAuthority::new();
-        auth.create(ResourceKind::File, "/a", read_only(), "root", "alice", 0, "");
-        auth.create(ResourceKind::File, "/b", read_only(), "root", "alice", 0, "");
+        auth.create(
+            ResourceKind::File,
+            "/a",
+            read_only(),
+            "root",
+            "alice",
+            0,
+            "",
+        );
+        auth.create(
+            ResourceKind::File,
+            "/b",
+            read_only(),
+            "root",
+            "alice",
+            0,
+            "",
+        );
         auth.create(ResourceKind::File, "/c", read_only(), "root", "bob", 0, "");
         let alice_caps = auth.capabilities_for("alice");
         assert_eq!(alice_caps.len(), 2);
@@ -965,8 +1058,24 @@ mod tests {
     #[test]
     fn active_count_after_revoke() {
         let mut auth = CapabilityAuthority::new();
-        auth.create(ResourceKind::File, "/a", read_only(), "root", "alice", 0, "");
-        let b = auth.create(ResourceKind::File, "/b", read_only(), "root", "alice", 0, "");
+        auth.create(
+            ResourceKind::File,
+            "/a",
+            read_only(),
+            "root",
+            "alice",
+            0,
+            "",
+        );
+        let b = auth.create(
+            ResourceKind::File,
+            "/b",
+            read_only(),
+            "root",
+            "alice",
+            0,
+            "",
+        );
         assert_eq!(auth.active_count(), 2);
         auth.revoke(b).unwrap();
         assert_eq!(auth.active_count(), 1);
@@ -975,7 +1084,15 @@ mod tests {
     #[test]
     fn capability_summary() {
         let mut auth = CapabilityAuthority::new();
-        let cap_id = auth.create(ResourceKind::File, "/tmp", read_only(), "root", "alice", 0, "test");
+        let cap_id = auth.create(
+            ResourceKind::File,
+            "/tmp",
+            read_only(),
+            "root",
+            "alice",
+            0,
+            "test",
+        );
         let cap = auth.get(cap_id).unwrap();
         let summary = cap.summary();
         assert!(summary.contains("file"));
@@ -995,7 +1112,15 @@ mod tests {
     #[test]
     fn revoked_cap_cannot_delegate() {
         let mut auth = CapabilityAuthority::new();
-        let cap = auth.create(ResourceKind::File, "/x", full_rights(), "root", "alice", 0, "");
+        let cap = auth.create(
+            ResourceKind::File,
+            "/x",
+            full_rights(),
+            "root",
+            "alice",
+            0,
+            "",
+        );
         auth.revoke(cap).unwrap();
         let result = auth.delegate(cap, "bob");
         assert!(matches!(result, Err(CapabilityError::Revoked(_))));

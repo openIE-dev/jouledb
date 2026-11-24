@@ -55,7 +55,10 @@ pub struct ScreenCell {
 
 impl Default for ScreenCell {
     fn default() -> Self {
-        Self { ch: ' ', attr: CharAttr::default() }
+        Self {
+            ch: ' ',
+            attr: CharAttr::default(),
+        }
     }
 }
 
@@ -133,7 +136,9 @@ impl ScreenBuffer {
 
     /// Scroll region [top, bottom) up by one line.
     pub fn scroll_up(&mut self, top: usize, bottom: usize) {
-        if top + 1 >= bottom || bottom > self.height { return; }
+        if top + 1 >= bottom || bottom > self.height {
+            return;
+        }
         for row in top..bottom - 1 {
             let src_start = (row + 1) * self.width;
             let dst_start = row * self.width;
@@ -146,7 +151,9 @@ impl ScreenBuffer {
 
     /// Scroll region [top, bottom) down by one line.
     pub fn scroll_down(&mut self, top: usize, bottom: usize) {
-        if top + 1 >= bottom || bottom > self.height { return; }
+        if top + 1 >= bottom || bottom > self.height {
+            return;
+        }
         for row in (top + 1..bottom).rev() {
             let src_start = (row - 1) * self.width;
             let dst_start = row * self.width;
@@ -159,7 +166,9 @@ impl ScreenBuffer {
 
     /// Extract text content of a row.
     pub fn row_text(&self, row: usize) -> String {
-        if row >= self.height { return String::new(); }
+        if row >= self.height {
+            return String::new();
+        }
         let start = row * self.width;
         self.cells[start..start + self.width]
             .iter()
@@ -253,15 +262,27 @@ impl TermEmulator {
 
     /// Active screen buffer.
     pub fn screen(&self) -> &ScreenBuffer {
-        if self.using_alternate { &self.alternate } else { &self.primary }
+        if self.using_alternate {
+            &self.alternate
+        } else {
+            &self.primary
+        }
     }
 
     fn screen_mut(&mut self) -> &mut ScreenBuffer {
-        if self.using_alternate { &mut self.alternate } else { &mut self.primary }
+        if self.using_alternate {
+            &mut self.alternate
+        } else {
+            &mut self.primary
+        }
     }
 
-    pub fn width(&self) -> usize { self.screen().width }
-    pub fn height(&self) -> usize { self.screen().height }
+    pub fn width(&self) -> usize {
+        self.screen().width
+    }
+    pub fn height(&self) -> usize {
+        self.screen().height
+    }
 
     /// Process a string of input characters.
     pub fn feed(&mut self, input: &str) {
@@ -286,8 +307,11 @@ impl TermEmulator {
                 self.parser_state = ParserState::Escape;
             }
             '\n' => self.line_feed(),
-            '\r' => { self.cursor_col = 0; }
-            '\x08' => { // Backspace
+            '\r' => {
+                self.cursor_col = 0;
+            }
+            '\x08' => {
+                // Backspace
                 self.cursor_col = self.cursor_col.saturating_sub(1);
             }
             '\t' => self.tab(),
@@ -307,11 +331,13 @@ impl TermEmulator {
                 self.parser_state = ParserState::OscString;
                 self.osc_buffer.clear();
             }
-            '7' => { // Save cursor (DECSC).
+            '7' => {
+                // Save cursor (DECSC).
                 self.saved_cursor = Some((self.cursor_col, self.cursor_row, self.current_attr));
                 self.parser_state = ParserState::Ground;
             }
-            '8' => { // Restore cursor (DECRC).
+            '8' => {
+                // Restore cursor (DECRC).
                 if let Some((col, row, attr)) = self.saved_cursor {
                     self.cursor_col = col;
                     self.cursor_row = row;
@@ -319,11 +345,13 @@ impl TermEmulator {
                 }
                 self.parser_state = ParserState::Ground;
             }
-            'D' => { // Index (move down, scroll if needed).
+            'D' => {
+                // Index (move down, scroll if needed).
                 self.line_feed();
                 self.parser_state = ParserState::Ground;
             }
-            'M' => { // Reverse index (move up, scroll if needed).
+            'M' => {
+                // Reverse index (move up, scroll if needed).
                 if self.cursor_row == self.scroll_top {
                     let top = self.scroll_top;
                     let bottom = self.scroll_bottom;
@@ -333,7 +361,8 @@ impl TermEmulator {
                 }
                 self.parser_state = ParserState::Ground;
             }
-            'c' => { // Full reset (RIS).
+            'c' => {
+                // Full reset (RIS).
                 let w = self.width();
                 let h = self.height();
                 *self = Self::new(w, h);
@@ -358,7 +387,11 @@ impl TermEmulator {
     fn handle_osc(&mut self, ch: char) {
         if ch == '\x07' || ch == '\x1b' {
             // End of OSC — we just discard the content for now.
-            self.parser_state = if ch == '\x1b' { ParserState::Escape } else { ParserState::Ground };
+            self.parser_state = if ch == '\x1b' {
+                ParserState::Escape
+            } else {
+                ParserState::Ground
+            };
         } else {
             self.osc_buffer.push(ch);
         }
@@ -367,7 +400,8 @@ impl TermEmulator {
     /// Parse CSI parameters as a list of numbers.
     fn parse_params(&self) -> Vec<usize> {
         let cleaned = self.csi_params.trim_start_matches('?');
-        cleaned.split(';')
+        cleaned
+            .split(';')
             .map(|s| s.parse::<usize>().unwrap_or(0))
             .collect()
     }
@@ -378,52 +412,62 @@ impl TermEmulator {
         let p1 = params.get(1).copied().unwrap_or(0);
 
         match final_ch {
-            'A' => { // Cursor Up.
+            'A' => {
+                // Cursor Up.
                 let n = p0.max(1);
                 self.cursor_row = self.cursor_row.saturating_sub(n);
             }
-            'B' => { // Cursor Down.
+            'B' => {
+                // Cursor Down.
                 let n = p0.max(1);
                 self.cursor_row = (self.cursor_row + n).min(self.height() - 1);
             }
-            'C' => { // Cursor Forward.
+            'C' => {
+                // Cursor Forward.
                 let n = p0.max(1);
                 self.cursor_col = (self.cursor_col + n).min(self.width() - 1);
             }
-            'D' => { // Cursor Back.
+            'D' => {
+                // Cursor Back.
                 let n = p0.max(1);
                 self.cursor_col = self.cursor_col.saturating_sub(n);
             }
-            'H' | 'f' => { // Cursor Position (1-based).
+            'H' | 'f' => {
+                // Cursor Position (1-based).
                 let row = p0.max(1) - 1;
                 let col = p1.max(1) - 1;
                 self.cursor_row = row.min(self.height() - 1);
                 self.cursor_col = col.min(self.width() - 1);
             }
-            'J' => { // Erase in Display.
+            'J' => {
+                // Erase in Display.
                 let row = self.cursor_row;
                 let col = self.cursor_col;
                 let h = self.height();
                 match p0 {
-                    0 => { // Below.
+                    0 => {
+                        // Below.
                         self.screen_mut().clear_row_from(row, col);
                         for r in row + 1..h {
                             self.screen_mut().clear_row(r);
                         }
                     }
-                    1 => { // Above.
+                    1 => {
+                        // Above.
                         for r in 0..row {
                             self.screen_mut().clear_row(r);
                         }
                         self.screen_mut().clear_row_to(row, col);
                     }
-                    2 | 3 => { // Entire screen.
+                    2 | 3 => {
+                        // Entire screen.
                         self.screen_mut().clear();
                     }
                     _ => {}
                 }
             }
-            'K' => { // Erase in Line.
+            'K' => {
+                // Erase in Line.
                 let row = self.cursor_row;
                 let col = self.cursor_col;
                 match p0 {
@@ -433,7 +477,8 @@ impl TermEmulator {
                     _ => {}
                 }
             }
-            'S' => { // Scroll Up.
+            'S' => {
+                // Scroll Up.
                 let n = p0.max(1);
                 let top = self.scroll_top;
                 let bottom = self.scroll_bottom;
@@ -441,7 +486,8 @@ impl TermEmulator {
                     self.screen_mut().scroll_up(top, bottom);
                 }
             }
-            'T' => { // Scroll Down.
+            'T' => {
+                // Scroll Down.
                 let n = p0.max(1);
                 let top = self.scroll_top;
                 let bottom = self.scroll_bottom;
@@ -449,7 +495,8 @@ impl TermEmulator {
                     self.screen_mut().scroll_down(top, bottom);
                 }
             }
-            'm' => { // SGR — Set Graphic Rendition.
+            'm' => {
+                // SGR — Set Graphic Rendition.
                 if params.is_empty() || (params.len() == 1 && p0 == 0) {
                     self.current_attr.reset();
                 } else {
@@ -464,7 +511,10 @@ impl TermEmulator {
                             5 => self.current_attr.blink = true,
                             7 => self.current_attr.inverse = true,
                             9 => self.current_attr.strikethrough = true,
-                            22 => { self.current_attr.bold = false; self.current_attr.dim = false; }
+                            22 => {
+                                self.current_attr.bold = false;
+                                self.current_attr.dim = false;
+                            }
                             23 => self.current_attr.italic = false,
                             24 => self.current_attr.underline = false,
                             25 => self.current_attr.blink = false,
@@ -474,13 +524,15 @@ impl TermEmulator {
                             39 => self.current_attr.fg_color = 0,
                             40..=47 => self.current_attr.bg_color = (params[i] - 39) as u8,
                             49 => self.current_attr.bg_color = 0,
-                            38 => { // Extended fg.
+                            38 => {
+                                // Extended fg.
                                 if i + 2 < params.len() && params[i + 1] == 5 {
                                     self.current_attr.fg_color = params[i + 2] as u8;
                                     i += 2;
                                 }
                             }
-                            48 => { // Extended bg.
+                            48 => {
+                                // Extended bg.
                                 if i + 2 < params.len() && params[i + 1] == 5 {
                                     self.current_attr.bg_color = params[i + 2] as u8;
                                     i += 2;
@@ -492,9 +544,14 @@ impl TermEmulator {
                     }
                 }
             }
-            'r' => { // Set Scroll Region (DECSTBM).
+            'r' => {
+                // Set Scroll Region (DECSTBM).
                 let top = p0.max(1) - 1;
-                let bottom = if p1 == 0 { self.height() } else { p1.min(self.height()) };
+                let bottom = if p1 == 0 {
+                    self.height()
+                } else {
+                    p1.min(self.height())
+                };
                 if top < bottom {
                     self.scroll_top = top;
                     self.scroll_bottom = bottom;
@@ -502,7 +559,8 @@ impl TermEmulator {
                     self.cursor_row = top;
                 }
             }
-            'h' => { // Set Mode.
+            'h' => {
+                // Set Mode.
                 if self.csi_params.starts_with('?') {
                     match p0 {
                         25 => self.cursor_visible = true,
@@ -517,7 +575,8 @@ impl TermEmulator {
                     }
                 }
             }
-            'l' => { // Reset Mode.
+            'l' => {
+                // Reset Mode.
                 if self.csi_params.starts_with('?') {
                     match p0 {
                         25 => self.cursor_visible = false,
@@ -531,10 +590,12 @@ impl TermEmulator {
                     }
                 }
             }
-            's' => { // Save cursor position.
+            's' => {
+                // Save cursor position.
                 self.saved_cursor = Some((self.cursor_col, self.cursor_row, self.current_attr));
             }
-            'u' => { // Restore cursor position.
+            'u' => {
+                // Restore cursor position.
                 if let Some((col, row, attr)) = self.saved_cursor {
                     self.cursor_col = col;
                     self.cursor_row = row;
@@ -556,7 +617,10 @@ impl TermEmulator {
             }
         }
 
-        let cell = ScreenCell { ch, attr: self.current_attr };
+        let cell = ScreenCell {
+            ch,
+            attr: self.current_attr,
+        };
         let col = self.cursor_col;
         let row = self.cursor_row;
         self.screen_mut().set(col, row, cell);
@@ -756,10 +820,10 @@ mod tests {
     fn save_restore_cursor() {
         let mut t = TermEmulator::new(80, 24);
         t.feed("\x1b[5;10H"); // Goto (5,10).
-        t.feed("\x1b[s");     // Save.
-        t.feed("\x1b[1;1H");  // Goto (1,1).
+        t.feed("\x1b[s"); // Save.
+        t.feed("\x1b[1;1H"); // Goto (1,1).
         assert_eq!(t.cursor_row, 0);
-        t.feed("\x1b[u");     // Restore.
+        t.feed("\x1b[u"); // Restore.
         assert_eq!(t.cursor_row, 4);
         assert_eq!(t.cursor_col, 9);
     }

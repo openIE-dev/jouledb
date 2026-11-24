@@ -148,9 +148,10 @@ impl Default for Vocabulary {
 // ── Word tokenizer ───────────────────────────────────────────────
 
 fn is_punctuation(c: char) -> bool {
-    c.is_ascii_punctuation() || matches!(c,
-        '\u{2010}'..='\u{2027}' | '\u{2030}'..='\u{205E}' | '\u{2190}'..='\u{2BFF}'
-    )
+    c.is_ascii_punctuation()
+        || matches!(c,
+            '\u{2010}'..='\u{2027}' | '\u{2030}'..='\u{205E}' | '\u{2190}'..='\u{2BFF}'
+        )
 }
 
 /// Tokenize text into words by splitting on whitespace and separating punctuation.
@@ -258,10 +259,9 @@ pub fn word_tokenize_clean(text: &str) -> Vec<NlpToken> {
 
 /// Abbreviations that should not end a sentence.
 const ABBREVIATIONS: &[&str] = &[
-    "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "ave", "blvd",
-    "dept", "est", "vol", "vs", "etc", "inc", "ltd", "co", "corp",
-    "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "oct",
-    "nov", "dec", "fig", "eq", "approx", "govt", "assn",
+    "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "ave", "blvd", "dept", "est", "vol", "vs",
+    "etc", "inc", "ltd", "co", "corp", "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep",
+    "oct", "nov", "dec", "fig", "eq", "approx", "govt", "assn",
 ];
 
 /// Split text into sentences.
@@ -289,7 +289,10 @@ pub fn sentence_split(text: &str) -> Vec<String> {
             // Check if this is an abbreviation (word before period).
             if ch == '.' && (i - punct_start) == 1 {
                 // Find the word before the period.
-                let byte_pos = chars[..punct_start].iter().map(|c| c.len_utf8()).sum::<usize>();
+                let byte_pos = chars[..punct_start]
+                    .iter()
+                    .map(|c| c.len_utf8())
+                    .sum::<usize>();
                 let text_before = &text[current_start..byte_pos];
                 let last_word = text_before.split_whitespace().next_back().unwrap_or("");
                 let clean_word = last_word.trim_start_matches(|c: char| !c.is_alphabetic());
@@ -304,7 +307,8 @@ pub fn sentence_split(text: &str) -> Vec<String> {
             }
 
             // Check if next char is uppercase or end of text → sentence boundary.
-            let is_boundary = i >= len || chars[i].is_uppercase() || chars[i] == '"' || chars[i] == '\'';
+            let is_boundary =
+                i >= len || chars[i].is_uppercase() || chars[i] == '"' || chars[i] == '\'';
 
             if is_boundary {
                 let byte_end: usize = chars[..i].iter().map(|c| c.len_utf8()).sum();
@@ -314,7 +318,12 @@ pub fn sentence_split(text: &str) -> Vec<String> {
                 }
                 current_start = byte_end;
                 // Skip any leading whitespace of next sentence.
-                while current_start < text.len() && text.as_bytes().get(current_start).map_or(false, |b| b.is_ascii_whitespace()) {
+                while current_start < text.len()
+                    && text
+                        .as_bytes()
+                        .get(current_start)
+                        .map_or(false, |b| b.is_ascii_whitespace())
+                {
                     current_start += 1;
                 }
             }
@@ -605,7 +614,10 @@ mod tests {
     #[test]
     fn test_word_tokenize_numbers() {
         let tokens = word_tokenize("Test 42 end");
-        let nums: Vec<&NlpToken> = tokens.iter().filter(|t| t.kind == NlpTokenKind::Number).collect();
+        let nums: Vec<&NlpToken> = tokens
+            .iter()
+            .filter(|t| t.kind == NlpTokenKind::Number)
+            .collect();
         assert_eq!(nums.len(), 1);
         assert_eq!(nums[0].text, "42");
     }
@@ -613,7 +625,8 @@ mod tests {
     #[test]
     fn test_word_tokenize_contractions() {
         let tokens = word_tokenize("don't can't");
-        let words: Vec<&str> = tokens.iter()
+        let words: Vec<&str> = tokens
+            .iter()
             .filter(|t| t.kind == NlpTokenKind::Word)
             .map(|t| t.text.as_str())
             .collect();
@@ -770,7 +783,13 @@ mod tests {
 
     #[test]
     fn test_special_token_roundtrip() {
-        for st in &[SpecialToken::Cls, SpecialToken::Sep, SpecialToken::Pad, SpecialToken::Unk, SpecialToken::Mask] {
+        for st in &[
+            SpecialToken::Cls,
+            SpecialToken::Sep,
+            SpecialToken::Pad,
+            SpecialToken::Unk,
+            SpecialToken::Mask,
+        ] {
             let s = st.as_str();
             let parsed = SpecialToken::from_str(s).unwrap();
             assert_eq!(*st, parsed);
@@ -786,10 +805,8 @@ mod tests {
 
     #[test]
     fn test_build_vocab_from_tokens() {
-        let vocab = Vocabulary::build_from_tokens(
-            &["hello", "world", "hello"],
-            &[SpecialToken::Unk],
-        );
+        let vocab =
+            Vocabulary::build_from_tokens(&["hello", "world", "hello"], &[SpecialToken::Unk]);
         assert_eq!(vocab.len(), 3); // [UNK], hello, world
         assert_eq!(vocab.get_id("hello"), Some(1));
     }

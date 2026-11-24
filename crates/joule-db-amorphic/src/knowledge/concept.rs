@@ -200,7 +200,10 @@ mod tests {
         let apple = enc.encode("apple");
         let quantum = enc.encode("quantum_mechanics");
         let sim = apple.similarity(&quantum);
-        assert!(sim < 0.6, "unrelated concepts should be near-orthogonal: {sim}");
+        assert!(
+            sim < 0.6,
+            "unrelated concepts should be near-orthogonal: {sim}"
+        );
     }
 
     #[test]

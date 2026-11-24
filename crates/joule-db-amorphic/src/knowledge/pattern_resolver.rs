@@ -113,7 +113,10 @@ mod tests {
     #[test]
     fn test_resolver_exists() {
         let resolver = super::PatternLangResolver::from_primitives();
-        eprintln!("Pattern-Lang resolver: {} patterns", resolver.pattern_count());
+        eprintln!(
+            "Pattern-Lang resolver: {} patterns",
+            resolver.pattern_count()
+        );
         eprintln!("{}", resolver.summary());
 
         #[cfg(feature = "pattern-lang")]
@@ -121,8 +124,7 @@ mod tests {
             use crate::ai::pattern_bridge::PatternResolver;
 
             // Test resolution
-            let results =
-                resolver.resolve(&["sort".to_string(), "array".to_string()], None);
+            let results = resolver.resolve(&["sort".to_string(), "array".to_string()], None);
             eprintln!("'sort array' → {} matches", results.len());
             for m in &results {
                 eprintln!(
@@ -139,7 +141,14 @@ mod tests {
                 eprintln!("  {} (score={:.2})", m.pattern_name, m.score);
             }
 
-            let bfs = resolver.resolve(&["breadth".to_string(), "first".to_string(), "search".to_string()], None);
+            let bfs = resolver.resolve(
+                &[
+                    "breadth".to_string(),
+                    "first".to_string(),
+                    "search".to_string(),
+                ],
+                None,
+            );
             eprintln!("'breadth first search' → {} matches", bfs.len());
             for m in bfs.iter().take(3) {
                 eprintln!("  {} (score={:.2})", m.pattern_name, m.score);

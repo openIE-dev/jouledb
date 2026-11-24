@@ -79,8 +79,13 @@ impl ScalarType {
     /// Wire type used to encode this scalar.
     pub fn wire_type(&self) -> WireFormat {
         match self {
-            Self::Int32 | Self::Int64 | Self::Uint32 | Self::Uint64
-            | Self::Sint32 | Self::Sint64 | Self::Bool => WireFormat::Varint,
+            Self::Int32
+            | Self::Int64
+            | Self::Uint32
+            | Self::Uint64
+            | Self::Sint32
+            | Self::Sint64
+            | Self::Bool => WireFormat::Varint,
             Self::Fixed64 | Self::Sfixed64 | Self::Double => WireFormat::Fixed64,
             Self::Fixed32 | Self::Sfixed32 | Self::Float => WireFormat::Fixed32,
             Self::String | Self::Bytes => WireFormat::LengthDelimited,
@@ -812,10 +817,18 @@ impl ProtoFile {
 
     /// Check whether a type name exists (messages or enums, top-level or nested).
     fn type_exists(&self, name: &str) -> bool {
-        if self.messages.iter().any(|m| m.name == name || m.full_name() == name) {
+        if self
+            .messages
+            .iter()
+            .any(|m| m.name == name || m.full_name() == name)
+        {
             return true;
         }
-        if self.enums.iter().any(|e| e.name == name || e.full_name() == name) {
+        if self
+            .enums
+            .iter()
+            .any(|e| e.name == name || e.full_name() == name)
+        {
             return true;
         }
         // Check nested in messages.
@@ -873,7 +886,11 @@ impl ProtoFile {
 
     fn count_fields(msg: &MessageDef) -> usize {
         let own = msg.fields.len();
-        let nested: usize = msg.nested_messages.iter().map(|m| Self::count_fields(m)).sum();
+        let nested: usize = msg
+            .nested_messages
+            .iter()
+            .map(|m| Self::count_fields(m))
+            .sum();
         own + nested
     }
 }
@@ -931,30 +948,75 @@ pub enum SchemaError {
 impl fmt::Display for SchemaError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::DuplicateFieldNumber { message, number, first, second } => {
-                write!(f, "message {message}: duplicate field number {number} ({first}, {second})")
+            Self::DuplicateFieldNumber {
+                message,
+                number,
+                first,
+                second,
+            } => {
+                write!(
+                    f,
+                    "message {message}: duplicate field number {number} ({first}, {second})"
+                )
             }
-            Self::DuplicateFieldName { message, name, first_number, second_number } => {
-                write!(f, "message {message}: duplicate field name '{name}' (numbers {first_number}, {second_number})")
+            Self::DuplicateFieldName {
+                message,
+                name,
+                first_number,
+                second_number,
+            } => {
+                write!(
+                    f,
+                    "message {message}: duplicate field name '{name}' (numbers {first_number}, {second_number})"
+                )
             }
-            Self::ReservedFieldNumber { message, number, field_name } => {
-                write!(f, "message {message}: field '{field_name}' uses reserved number {number}")
+            Self::ReservedFieldNumber {
+                message,
+                number,
+                field_name,
+            } => {
+                write!(
+                    f,
+                    "message {message}: field '{field_name}' uses reserved number {number}"
+                )
             }
             Self::ReservedFieldName { message, name } => {
                 write!(f, "message {message}: field name '{name}' is reserved")
             }
-            Self::InvalidFieldNumber { message, field_name, number } => {
-                write!(f, "message {message}: field '{field_name}' has invalid number {number}")
+            Self::InvalidFieldNumber {
+                message,
+                field_name,
+                number,
+            } => {
+                write!(
+                    f,
+                    "message {message}: field '{field_name}' has invalid number {number}"
+                )
             }
-            Self::ReservedRange { message, field_name, number } => {
-                write!(f, "message {message}: field '{field_name}' uses reserved range number {number}")
+            Self::ReservedRange {
+                message,
+                field_name,
+                number,
+            } => {
+                write!(
+                    f,
+                    "message {message}: field '{field_name}' uses reserved range number {number}"
+                )
             }
             Self::EmptyEnum(name) => write!(f, "enum {name} has no values"),
             Self::EnumZeroValueRequired(name) => {
                 write!(f, "enum {name}: first value must be 0 in proto3")
             }
-            Self::DuplicateEnumNumber { enum_name, number, first, second } => {
-                write!(f, "enum {enum_name}: duplicate number {number} ({first}, {second})")
+            Self::DuplicateEnumNumber {
+                enum_name,
+                number,
+                first,
+                second,
+            } => {
+                write!(
+                    f,
+                    "enum {enum_name}: duplicate number {number} ({first}, {second})"
+                )
             }
             Self::UnresolvedType { context, type_name } => {
                 write!(f, "{context}: unresolved type '{type_name}'")
@@ -1031,15 +1093,19 @@ mod tests {
 
     #[test]
     fn field_def_map() {
-        let f = FieldDef::map("attrs", 6, ScalarType::String, FieldType::Scalar(ScalarType::String));
+        let f = FieldDef::map(
+            "attrs",
+            6,
+            ScalarType::String,
+            FieldType::Scalar(ScalarType::String),
+        );
         assert_eq!(f.rule, FieldRule::Map);
         assert_eq!(f.map_key_type, Some(ScalarType::String));
     }
 
     #[test]
     fn field_json_name() {
-        let f = FieldDef::scalar("my_field", 1, ScalarType::Int32)
-            .with_json_name("myField");
+        let f = FieldDef::scalar("my_field", 1, ScalarType::Int32).with_json_name("myField");
         assert_eq!(f.effective_json_name(), "myField");
         let f2 = FieldDef::scalar("my_field", 1, ScalarType::Int32);
         assert_eq!(f2.effective_json_name(), "my_field");

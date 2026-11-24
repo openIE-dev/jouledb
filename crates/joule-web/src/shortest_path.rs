@@ -3,8 +3,8 @@
 //! Operates on weighted directed graphs represented as adjacency lists.
 //! Supports path reconstruction, distance matrices, and negative cycle detection.
 
-use std::collections::{BinaryHeap, HashMap};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap};
 
 // ── Weighted Graph ───────────────────────────────────────────────────────────
 
@@ -131,7 +131,10 @@ impl ShortestPathResult {
 
     /// Distance to target, or None if unreachable.
     pub fn distance_to(&self, target: usize) -> Option<f64> {
-        self.dist.get(&target).copied().filter(|d| *d < f64::INFINITY)
+        self.dist
+            .get(&target)
+            .copied()
+            .filter(|d| *d < f64::INFINITY)
     }
 }
 
@@ -149,7 +152,10 @@ pub fn dijkstra(graph: &WeightedGraph, source: usize) -> ShortestPathResult {
     dist.insert(source, 0.0);
 
     let mut heap = BinaryHeap::new();
-    heap.push(DijkstraState { cost: 0.0, node: source });
+    heap.push(DijkstraState {
+        cost: 0.0,
+        node: source,
+    });
 
     while let Some(DijkstraState { cost, node }) = heap.pop() {
         let current_dist = dist[&node];
@@ -161,7 +167,10 @@ pub fn dijkstra(graph: &WeightedGraph, source: usize) -> ShortestPathResult {
             if new_dist < dist.get(&next).copied().unwrap_or(f64::INFINITY) {
                 dist.insert(next, new_dist);
                 prev.insert(next, Some(node));
-                heap.push(DijkstraState { cost: new_dist, node: next });
+                heap.push(DijkstraState {
+                    cost: new_dist,
+                    node: next,
+                });
             }
         }
     }
@@ -383,7 +392,10 @@ where
                 g_score.insert(next, tentative_g);
                 prev.insert(next, node);
                 let f = tentative_g + heuristic(next);
-                heap.push(DijkstraState { cost: f, node: next });
+                heap.push(DijkstraState {
+                    cost: f,
+                    node: next,
+                });
             }
         }
     }

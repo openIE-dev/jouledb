@@ -50,7 +50,11 @@ pub struct ServiceVersion {
 
 impl ServiceVersion {
     pub fn new(major: u32, minor: u32, patch: u32) -> Self {
-        Self { major, minor, patch }
+        Self {
+            major,
+            minor,
+            patch,
+        }
     }
 
     /// Parse from "major.minor.patch" string.
@@ -62,7 +66,11 @@ impl ServiceVersion {
         let major = parts[0].parse().ok()?;
         let minor = parts[1].parse().ok()?;
         let patch = parts[2].parse().ok()?;
-        Some(Self { major, minor, patch })
+        Some(Self {
+            major,
+            minor,
+            patch,
+        })
     }
 
     /// Whether this version is compatible with `other` (same major).
@@ -85,7 +93,8 @@ impl PartialOrd for ServiceVersion {
 
 impl Ord for ServiceVersion {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.major.cmp(&other.major)
+        self.major
+            .cmp(&other.major)
             .then(self.minor.cmp(&other.minor))
             .then(self.patch.cmp(&other.patch))
     }
@@ -331,9 +340,7 @@ impl CircuitBreaker {
 
     /// Attempt to transition from Open to HalfOpen.
     pub fn check_transition(&mut self, now_ms: u64) {
-        if self.state == CircuitState::Open
-            && now_ms >= self.opened_at_ms + self.open_duration_ms
-        {
+        if self.state == CircuitState::Open && now_ms >= self.opened_at_ms + self.open_duration_ms {
             self.state = CircuitState::HalfOpen;
             self.success_count = 0;
         }
@@ -386,7 +393,8 @@ impl LoadBalancer {
 
     /// Select an endpoint from available endpoints. Returns index.
     pub fn select(&mut self, endpoints: &[Endpoint]) -> Option<usize> {
-        let available: Vec<usize> = endpoints.iter()
+        let available: Vec<usize> = endpoints
+            .iter()
             .enumerate()
             .filter(|(_, e)| e.is_available())
             .map(|(i, _)| i)
@@ -404,19 +412,23 @@ impl LoadBalancer {
             }
             LoadBalanceStrategy::Random => {
                 // Simple LCG for deterministic "random".
-                self.random_seed = self.random_seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+                self.random_seed = self
+                    .random_seed
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1);
                 let idx = (self.random_seed >> 33) as usize % available.len();
                 Some(available[idx])
             }
             LoadBalanceStrategy::WeightedRoundRobin => {
                 // Select based on weights.
-                let total_weight: u32 = available.iter()
-                    .map(|i| endpoints[*i].weight)
-                    .sum();
+                let total_weight: u32 = available.iter().map(|i| endpoints[*i].weight).sum();
                 if total_weight == 0 {
                     return Some(available[0]);
                 }
-                self.random_seed = self.random_seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+                self.random_seed = self
+                    .random_seed
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1);
                 let target = (self.random_seed >> 33) as u32 % total_weight;
                 let mut cumulative = 0u32;
                 for &i in &available {
@@ -487,7 +499,9 @@ impl ServiceEntry {
     pub fn add_endpoint(&mut self, endpoint: Endpoint) {
         let id = endpoint.id.clone();
         self.endpoints.push(endpoint);
-        self.circuit_breakers.entry(id).or_insert_with(|| CircuitBreaker::new(5, 2));
+        self.circuit_breakers
+            .entry(id)
+            .or_insert_with(|| CircuitBreaker::new(5, 2));
     }
 
     /// Remove an endpoint by ID.
@@ -510,7 +524,8 @@ impl ServiceEntry {
 
     /// Available endpoints (healthy/degraded and circuit not open).
     pub fn available_endpoints(&self, now_ms: u64) -> Vec<&Endpoint> {
-        self.endpoints.iter()
+        self.endpoints
+            .iter()
             .filter(|e| {
                 if !e.is_available() {
                     return false;
@@ -540,13 +555,16 @@ impl ServiceEntry {
     pub fn version_compatible_endpoints(&self) -> Vec<&Endpoint> {
         match &self.required_version {
             None => self.endpoints.iter().collect(),
-            Some(required) => {
-                self.endpoints.iter()
-                    .filter(|e| {
-                        e.version.as_ref().map(|v| v.is_compatible(required)).unwrap_or(false)
-                    })
-                    .collect()
-            }
+            Some(required) => self
+                .endpoints
+                .iter()
+                .filter(|e| {
+                    e.version
+                        .as_ref()
+                        .map(|v| v.is_compatible(required))
+                        .unwrap_or(false)
+                })
+                .collect(),
         }
     }
 
@@ -574,7 +592,10 @@ impl ServiceEntry {
 
     /// Count of healthy endpoints.
     pub fn healthy_count(&self) -> usize {
-        self.endpoints.iter().filter(|e| e.health == HealthStatus::Healthy).count()
+        self.endpoints
+            .iter()
+            .filter(|e| e.health == HealthStatus::Healthy)
+            .count()
     }
 
     /// Count of all endpoints.
@@ -593,7 +614,9 @@ pub struct ServiceRegistry {
 
 impl ServiceRegistry {
     pub fn new() -> Self {
-        Self { services: HashMap::new() }
+        Self {
+            services: HashMap::new(),
+        }
     }
 
     /// Register a service.
@@ -639,12 +662,7 @@ impl ServiceRegistry {
     }
 
     /// Discover: find a service and select an endpoint via load balancer.
-    pub fn discover(
-        &self,
-        name: &str,
-        balancer: &mut LoadBalancer,
-        now_ms: u64,
-    ) -> Option<String> {
+    pub fn discover(&self, name: &str, balancer: &mut LoadBalancer, now_ms: u64) -> Option<String> {
         let svc = self.services.get(name)?;
         let available = svc.available_endpoints(now_ms);
         if available.is_empty() {
@@ -685,10 +703,7 @@ pub struct RoutingRule {
 }
 
 impl RoutingRule {
-    pub fn new(
-        name: impl Into<String>,
-        destination: impl Into<String>,
-    ) -> Self {
+    pub fn new(name: impl Into<String>, destination: impl Into<String>) -> Self {
         Self {
             name: name.into(),
             source_service: String::new(),
@@ -770,7 +785,8 @@ impl MeshRouter {
 
     /// Find matching rules for a destination.
     pub fn find_rules(&self, destination: &str, source: &str) -> Vec<&RoutingRule> {
-        self.rules.iter()
+        self.rules
+            .iter()
             .filter(|r| {
                 r.destination_service == destination
                     && (r.source_service.is_empty() || r.source_service == source)
@@ -792,7 +808,8 @@ impl MeshRouter {
         }
         // Apply the highest-priority rule.
         let rule = rules[0];
-        endpoints.iter()
+        endpoints
+            .iter()
             .filter(|e| e.is_available() && rule.matches_endpoint(e))
             .collect()
     }
@@ -982,9 +999,7 @@ mod tests {
     #[test]
     fn load_balancer_no_available() {
         let mut lb = LoadBalancer::new(LoadBalanceStrategy::RoundRobin);
-        let eps = vec![
-            make_endpoint("a", 80, HealthStatus::Unhealthy),
-        ];
+        let eps = vec![make_endpoint("a", 80, HealthStatus::Unhealthy)];
         assert_eq!(lb.select(&eps), None);
     }
 
@@ -1033,8 +1048,7 @@ mod tests {
 
     #[test]
     fn service_entry_version_compat() {
-        let svc = ServiceEntry::new("api")
-            .with_required_version(ServiceVersion::new(2, 0, 0));
+        let svc = ServiceEntry::new("api").with_required_version(ServiceVersion::new(2, 0, 0));
         let mut entry = svc;
         entry.add_endpoint(
             make_endpoint("ep1", 80, HealthStatus::Healthy)
@@ -1146,9 +1160,7 @@ mod tests {
     #[test]
     fn mesh_router_source_filter() {
         let mut router = MeshRouter::new();
-        router.add_rule(
-            RoutingRule::new("r1", "api").from_source("frontend"),
-        );
+        router.add_rule(RoutingRule::new("r1", "api").from_source("frontend"));
         let rules = router.find_rules("api", "frontend");
         assert_eq!(rules.len(), 1);
         let rules = router.find_rules("api", "backend");

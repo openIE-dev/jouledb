@@ -250,8 +250,7 @@ mod tests {
         });
 
         // Two similar images (same pattern, slight variation)
-        let reference_pixels: Vec<f64> =
-            (0..32 * 32).map(|i| (i as f64 / 1024.0).sin()).collect();
+        let reference_pixels: Vec<f64> = (0..32 * 32).map(|i| (i as f64 / 1024.0).sin()).collect();
         let target_pixels: Vec<f64> = (0..32 * 32)
             .map(|i| (i as f64 / 1024.0).sin() + 0.05)
             .collect();

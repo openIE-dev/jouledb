@@ -3,7 +3,7 @@
 //! alert grouping, escalation, and cooldown periods.
 
 use chrono::{DateTime, Duration, Utc};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -303,9 +303,7 @@ impl CooldownTracker {
     pub fn can_fire(&self, rule_id: &str, now: DateTime<Utc>) -> bool {
         match self.last_fired.get(rule_id) {
             None => true,
-            Some(last) => {
-                (now - *last).num_seconds() >= self.cooldown_secs as i64
-            }
+            Some(last) => (now - *last).num_seconds() >= self.cooldown_secs as i64,
         }
     }
 
@@ -361,8 +359,7 @@ mod tests {
 
     #[test]
     fn test_rate_of_change_rule() {
-        let rule =
-            AlertRule::rate_of_change("spike", "rps", Comparator::GreaterThan, 100.0);
+        let rule = AlertRule::rate_of_change("spike", "rps", Comparator::GreaterThan, 100.0);
         assert_eq!(rule.kind, RuleKind::RateOfChange);
         assert!(rule.evaluate_value(150.0));
     }

@@ -27,7 +27,9 @@ impl AnimationStyle {
             Self::Line => vec!["-", "\\", "|", "/"],
             Self::Arc => vec!["◜", "◠", "◝", "◞", "◡", "◟"],
             Self::Braille => vec!["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"],
-            Self::Bouncing => vec!["[    ]", "[=   ]", "[==  ]", "[=== ]", "[ ===]", "[  ==]", "[   =]", "[    ]"],
+            Self::Bouncing => vec![
+                "[    ]", "[=   ]", "[==  ]", "[=== ]", "[ ===]", "[  ==]", "[   =]", "[    ]",
+            ],
             Self::Custom(frames) => frames.iter().map(|s| s.as_str()).collect(),
         }
     }
@@ -74,7 +76,11 @@ impl SpinnerColor {
 
     /// Reset sequence (empty if default).
     pub fn ansi_reset(self) -> &'static str {
-        if matches!(self, Self::Default) { "" } else { "\x1b[0m" }
+        if matches!(self, Self::Default) {
+            ""
+        } else {
+            "\x1b[0m"
+        }
     }
 }
 
@@ -196,7 +202,9 @@ impl Spinner {
 
     /// Advance to the next frame.
     pub fn tick(&mut self, delta_ms: u64) {
-        if !self.is_running() { return; }
+        if !self.is_running() {
+            return;
+        }
         self.elapsed_ms += delta_ms;
         let frames = self.style.frames();
         if !frames.is_empty() {
@@ -207,7 +215,9 @@ impl Spinner {
     /// Current animation frame string.
     pub fn current_frame(&self) -> String {
         let frames = self.style.frames();
-        if frames.is_empty() { return String::new(); }
+        if frames.is_empty() {
+            return String::new();
+        }
         frames[self.frame_index % frames.len()].to_string()
     }
 
@@ -292,7 +302,9 @@ pub struct SpinnerGroup {
 
 impl SpinnerGroup {
     pub fn new() -> Self {
-        Self { spinners: Vec::new() }
+        Self {
+            spinners: Vec::new(),
+        }
     }
 
     pub fn add(&mut self, name: &str, spinner: Spinner) {
@@ -300,7 +312,8 @@ impl SpinnerGroup {
     }
 
     pub fn get_mut(&mut self, name: &str) -> Option<&mut Spinner> {
-        self.spinners.iter_mut()
+        self.spinners
+            .iter_mut()
             .find(|(n, _)| n == name)
             .map(|(_, s)| s)
     }
@@ -317,7 +330,8 @@ impl SpinnerGroup {
     }
 
     pub fn render_all(&self) -> String {
-        self.spinners.iter()
+        self.spinners
+            .iter()
             .map(|(_, s)| s.render())
             .filter(|r| !r.is_empty())
             .collect::<Vec<_>>()
@@ -363,7 +377,9 @@ mod tests {
     #[test]
     fn tick_wraps_around() {
         let mut s = Spinner::line(); // 4 frames
-        for _ in 0..4 { s.tick(80); }
+        for _ in 0..4 {
+            s.tick(80);
+        }
         assert_eq!(s.frame_index, 0);
     }
 
@@ -421,9 +437,7 @@ mod tests {
 
     #[test]
     fn render_with_elapsed() {
-        let mut s = Spinner::dots()
-            .with_message("working")
-            .with_elapsed(true);
+        let mut s = Spinner::dots().with_message("working").with_elapsed(true);
         s.tick(2500);
         let out = s.render();
         assert!(out.contains("2.5s"));

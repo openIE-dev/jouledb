@@ -29,9 +29,7 @@ pub struct SplayTree<K: Ord, V> {
 
 impl<K: Ord + fmt::Debug, V: fmt::Debug> fmt::Debug for SplayTree<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SplayTree")
-            .field("len", &self.len)
-            .finish()
+        f.debug_struct("SplayTree").field("len", &self.len).finish()
     }
 }
 

@@ -49,10 +49,7 @@ impl std::fmt::Display for PluginError {
                 plugin,
                 required,
                 actual,
-            } => write!(
-                f,
-                "plugin {plugin}: requires {required}, got {actual}"
-            ),
+            } => write!(f, "plugin {plugin}: requires {required}, got {actual}"),
             Self::LifecycleError { plugin, reason } => {
                 write!(f, "plugin {plugin} lifecycle error: {reason}")
             }
@@ -179,11 +176,7 @@ pub struct PluginDescriptor {
 }
 
 impl PluginDescriptor {
-    pub fn new(
-        name: impl Into<String>,
-        version: Version,
-        description: impl Into<String>,
-    ) -> Self {
+    pub fn new(name: impl Into<String>, version: Version, description: impl Into<String>) -> Self {
         Self {
             name: name.into(),
             version,
@@ -227,8 +220,14 @@ pub enum PluginEvent {
     Stopped(String),
     Enabled(String),
     Disabled(String),
-    HookCalled { hook: String, subscribers: Vec<String> },
-    Failed { plugin: String, reason: String },
+    HookCalled {
+        hook: String,
+        subscribers: Vec<String>,
+    },
+    Failed {
+        plugin: String,
+        reason: String,
+    },
 }
 
 // ── Plugin Registry ─────────────────────────────────────────────
@@ -313,7 +312,10 @@ impl PluginRegistry {
                         });
                     }
                 }
-                adjacency.entry(dep.name.clone()).or_default().push(name.clone());
+                adjacency
+                    .entry(dep.name.clone())
+                    .or_default()
+                    .push(name.clone());
                 *in_degree.entry(name.clone()).or_insert(0) += 1;
             }
         }
@@ -322,7 +324,12 @@ impl PluginRegistry {
         let mut queue: VecDeque<String> = in_degree
             .iter()
             .filter(|(name, deg)| {
-                **deg == 0 && self.plugins.get(name.as_str()).map(|p| p.enabled).unwrap_or(false)
+                **deg == 0
+                    && self
+                        .plugins
+                        .get(name.as_str())
+                        .map(|p| p.enabled)
+                        .unwrap_or(false)
             })
             .map(|(name, _)| name.clone())
             .collect();
@@ -614,8 +621,7 @@ mod tests {
     fn test_load_order_with_deps() {
         let mut reg = PluginRegistry::new();
         reg.register(
-            PluginDescriptor::new("app", v(1, 0, 0), "App")
-                .depends_on(PluginDependency::new("db")),
+            PluginDescriptor::new("app", v(1, 0, 0), "App").depends_on(PluginDependency::new("db")),
         )
         .unwrap();
         reg.register(PluginDescriptor::new("db", v(1, 0, 0), "Database"))
@@ -630,13 +636,11 @@ mod tests {
     fn test_circular_dependency() {
         let mut reg = PluginRegistry::new();
         reg.register(
-            PluginDescriptor::new("a", v(1, 0, 0), "A")
-                .depends_on(PluginDependency::new("b")),
+            PluginDescriptor::new("a", v(1, 0, 0), "A").depends_on(PluginDependency::new("b")),
         )
         .unwrap();
         reg.register(
-            PluginDescriptor::new("b", v(1, 0, 0), "B")
-                .depends_on(PluginDependency::new("a")),
+            PluginDescriptor::new("b", v(1, 0, 0), "B").depends_on(PluginDependency::new("a")),
         )
         .unwrap();
         let err = reg.resolve_load_order().unwrap_err();
@@ -698,8 +702,7 @@ mod tests {
         reg.register(PluginDescriptor::new("a", v(1, 0, 0), "A"))
             .unwrap();
         reg.register(
-            PluginDescriptor::new("b", v(1, 0, 0), "B")
-                .depends_on(PluginDependency::new("a")),
+            PluginDescriptor::new("b", v(1, 0, 0), "B").depends_on(PluginDependency::new("a")),
         )
         .unwrap();
         reg.init_all().unwrap();
@@ -745,10 +748,8 @@ mod tests {
     fn test_hook_registration_and_call() {
         let mut reg = PluginRegistry::new();
         reg.register_hook("on_request");
-        reg.register(
-            PluginDescriptor::new("auth", v(1, 0, 0), "Auth").subscribe("on_request"),
-        )
-        .unwrap();
+        reg.register(PluginDescriptor::new("auth", v(1, 0, 0), "Auth").subscribe("on_request"))
+            .unwrap();
         reg.init_all().unwrap();
         reg.start_all().unwrap();
         let subs = reg.call_hook("on_request").unwrap();
@@ -759,10 +760,8 @@ mod tests {
     fn test_hook_only_started_plugins() {
         let mut reg = PluginRegistry::new();
         reg.register_hook("on_request");
-        reg.register(
-            PluginDescriptor::new("p1", v(1, 0, 0), "P1").subscribe("on_request"),
-        )
-        .unwrap();
+        reg.register(PluginDescriptor::new("p1", v(1, 0, 0), "P1").subscribe("on_request"))
+            .unwrap();
         // p1 is not started, hook should return empty
         let subs = reg.call_hook("on_request").unwrap();
         assert!(subs.is_empty());

@@ -140,7 +140,10 @@ pub enum Action {
     /// Remove a fact.
     RemoveFact { key: String },
     /// Emit a named event with data.
-    Emit { event: String, data: HashMap<String, FactValue> },
+    Emit {
+        event: String,
+        data: HashMap<String, FactValue>,
+    },
     /// Halt further rule evaluation.
     Halt,
 }
@@ -255,18 +258,22 @@ fn compare_values(left: &FactValue, op: &Operator, right: &FactValue) -> bool {
     match op {
         Operator::Equal => left == right,
         Operator::NotEqual => left != right,
-        Operator::GreaterThan => {
-            left.as_f64().zip(right.as_f64()).map_or(false, |(l, r)| l > r)
-        }
-        Operator::GreaterOrEqual => {
-            left.as_f64().zip(right.as_f64()).map_or(false, |(l, r)| l >= r)
-        }
-        Operator::LessThan => {
-            left.as_f64().zip(right.as_f64()).map_or(false, |(l, r)| l < r)
-        }
-        Operator::LessOrEqual => {
-            left.as_f64().zip(right.as_f64()).map_or(false, |(l, r)| l <= r)
-        }
+        Operator::GreaterThan => left
+            .as_f64()
+            .zip(right.as_f64())
+            .map_or(false, |(l, r)| l > r),
+        Operator::GreaterOrEqual => left
+            .as_f64()
+            .zip(right.as_f64())
+            .map_or(false, |(l, r)| l >= r),
+        Operator::LessThan => left
+            .as_f64()
+            .zip(right.as_f64())
+            .map_or(false, |(l, r)| l < r),
+        Operator::LessOrEqual => left
+            .as_f64()
+            .zip(right.as_f64())
+            .map_or(false, |(l, r)| l <= r),
         Operator::Contains => {
             if let (FactValue::String(haystack), FactValue::String(needle)) = (left, right) {
                 haystack.contains(needle.as_str())
@@ -280,22 +287,20 @@ fn compare_values(left: &FactValue, op: &Operator, right: &FactValue) -> bool {
 
 fn evaluate_condition(cond: &Condition, mem: &WorkingMemory) -> bool {
     match cond {
-        Condition::Clause(clause) => {
-            match &clause.operator {
-                Operator::Exists => mem.contains(&clause.fact_key),
-                Operator::NotExists => !mem.contains(&clause.fact_key),
-                op => {
-                    let fact = match mem.get(&clause.fact_key) {
-                        Some(v) => v,
-                        None => return false,
-                    };
-                    match &clause.value {
-                        Some(val) => compare_values(fact, op, val),
-                        None => false,
-                    }
+        Condition::Clause(clause) => match &clause.operator {
+            Operator::Exists => mem.contains(&clause.fact_key),
+            Operator::NotExists => !mem.contains(&clause.fact_key),
+            op => {
+                let fact = match mem.get(&clause.fact_key) {
+                    Some(v) => v,
+                    None => return false,
+                };
+                match &clause.value {
+                    Some(val) => compare_values(fact, op, val),
+                    None => false,
                 }
             }
-        }
+        },
         Condition::All(conds) => conds.iter().all(|c| evaluate_condition(c, mem)),
         Condition::Any(conds) => conds.iter().any(|c| evaluate_condition(c, mem)),
         Condition::Not(c) => !evaluate_condition(c, mem),
@@ -341,7 +346,10 @@ impl RuleEngine {
 
     /// Remove a rule by ID.
     pub fn remove_rule(&mut self, id: &str) -> Result<Rule, RuleError> {
-        let pos = self.rules.iter().position(|r| r.id == id)
+        let pos = self
+            .rules
+            .iter()
+            .position(|r| r.id == id)
             .ok_or_else(|| RuleError::RuleNotFound(id.to_string()))?;
         Ok(self.rules.remove(pos))
     }
@@ -353,7 +361,9 @@ impl RuleEngine {
 
     /// Get matching rules sorted by priority.
     fn matching_rules(&self) -> Vec<&Rule> {
-        let mut matched: Vec<&Rule> = self.rules.iter()
+        let mut matched: Vec<&Rule> = self
+            .rules
+            .iter()
             .filter(|r| r.enabled && evaluate_condition(&r.condition, &self.memory))
             .collect();
         matched.sort_by(|a, b| b.priority.cmp(&a.priority));
@@ -388,7 +398,9 @@ impl RuleEngine {
                         self.memory.remove(key);
                     }
                     Action::Emit { .. } => { /* events collected via audit */ }
-                    Action::Halt => { halt = true; }
+                    Action::Halt => {
+                        halt = true;
+                    }
                 }
             }
             fired_ids.push(rule.id.clone());
@@ -414,7 +426,8 @@ impl RuleEngine {
 
     /// Get rules in a specific group.
     pub fn rules_in_group(&self, group: &str) -> Vec<&Rule> {
-        self.rules.iter()
+        self.rules
+            .iter()
             .filter(|r| r.group.as_deref() == Some(group))
             .collect()
     }
@@ -533,16 +546,28 @@ mod tests {
     #[test]
     fn test_first_match_strategy() {
         let mut engine = RuleEngine::new().with_strategy(ConflictStrategy::FirstMatch);
-        engine.add_rule(
-            Rule::new("r1", "R1").with_priority(5)
-                .with_condition(Condition::All(vec![]))
-                .with_action(Action::SetFact { key: "x".into(), value: FactValue::Integer(1) }),
-        ).unwrap();
-        engine.add_rule(
-            Rule::new("r2", "R2").with_priority(10)
-                .with_condition(Condition::All(vec![]))
-                .with_action(Action::SetFact { key: "y".into(), value: FactValue::Integer(2) }),
-        ).unwrap();
+        engine
+            .add_rule(
+                Rule::new("r1", "R1")
+                    .with_priority(5)
+                    .with_condition(Condition::All(vec![]))
+                    .with_action(Action::SetFact {
+                        key: "x".into(),
+                        value: FactValue::Integer(1),
+                    }),
+            )
+            .unwrap();
+        engine
+            .add_rule(
+                Rule::new("r2", "R2")
+                    .with_priority(10)
+                    .with_condition(Condition::All(vec![]))
+                    .with_action(Action::SetFact {
+                        key: "y".into(),
+                        value: FactValue::Integer(2),
+                    }),
+            )
+            .unwrap();
         let fired = engine.fire_once();
         assert_eq!(fired.len(), 1);
         assert_eq!(fired[0], "r2"); // highest priority
@@ -552,7 +577,10 @@ mod tests {
     fn test_duplicate_rule_rejected() {
         let mut engine = RuleEngine::new();
         engine.add_rule(age_rule()).unwrap();
-        assert!(matches!(engine.add_rule(age_rule()), Err(RuleError::DuplicateRule(_))));
+        assert!(matches!(
+            engine.add_rule(age_rule()),
+            Err(RuleError::DuplicateRule(_))
+        ));
     }
 
     #[test]
@@ -579,12 +607,16 @@ mod tests {
     #[test]
     fn test_rule_groups() {
         let mut engine = RuleEngine::new();
-        engine.add_rule(age_rule().with_group("eligibility")).unwrap();
-        engine.add_rule(
-            Rule::new("name-check", "Name Check")
-                .with_group("validation")
-                .with_condition(Condition::All(vec![])),
-        ).unwrap();
+        engine
+            .add_rule(age_rule().with_group("eligibility"))
+            .unwrap();
+        engine
+            .add_rule(
+                Rule::new("name-check", "Name Check")
+                    .with_group("validation")
+                    .with_condition(Condition::All(vec![])),
+            )
+            .unwrap();
         assert_eq!(engine.rules_in_group("eligibility").len(), 1);
         assert_eq!(engine.rules_in_group("validation").len(), 1);
         assert_eq!(engine.rules_in_group("other").len(), 0);
@@ -593,16 +625,25 @@ mod tests {
     #[test]
     fn test_halt_action() {
         let mut engine = RuleEngine::new();
-        engine.add_rule(
-            Rule::new("r1", "R1").with_priority(10)
-                .with_condition(Condition::All(vec![]))
-                .with_action(Action::Halt),
-        ).unwrap();
-        engine.add_rule(
-            Rule::new("r2", "R2").with_priority(5)
-                .with_condition(Condition::All(vec![]))
-                .with_action(Action::SetFact { key: "x".into(), value: FactValue::Integer(1) }),
-        ).unwrap();
+        engine
+            .add_rule(
+                Rule::new("r1", "R1")
+                    .with_priority(10)
+                    .with_condition(Condition::All(vec![]))
+                    .with_action(Action::Halt),
+            )
+            .unwrap();
+        engine
+            .add_rule(
+                Rule::new("r2", "R2")
+                    .with_priority(5)
+                    .with_condition(Condition::All(vec![]))
+                    .with_action(Action::SetFact {
+                        key: "x".into(),
+                        value: FactValue::Integer(1),
+                    }),
+            )
+            .unwrap();
         let fired = engine.fire_once();
         assert_eq!(fired, vec!["r1"]); // r2 not fired due to halt
     }
@@ -611,45 +652,51 @@ mod tests {
     fn test_chaining() {
         let mut engine = RuleEngine::new();
         // Rule 1: if age >= 18 → set eligible = true
-        engine.add_rule(
-            Rule::new("r1", "R1").with_priority(10)
-                .with_condition(Condition::All(vec![
-                    Condition::Clause(ConditionClause {
-                        fact_key: "age".into(),
-                        operator: Operator::GreaterOrEqual,
-                        value: Some(FactValue::Integer(18)),
+        engine
+            .add_rule(
+                Rule::new("r1", "R1")
+                    .with_priority(10)
+                    .with_condition(Condition::All(vec![
+                        Condition::Clause(ConditionClause {
+                            fact_key: "age".into(),
+                            operator: Operator::GreaterOrEqual,
+                            value: Some(FactValue::Integer(18)),
+                        }),
+                        Condition::Clause(ConditionClause {
+                            fact_key: "eligible".into(),
+                            operator: Operator::NotExists,
+                            value: None,
+                        }),
+                    ]))
+                    .with_action(Action::SetFact {
+                        key: "eligible".into(),
+                        value: FactValue::Boolean(true),
                     }),
-                    Condition::Clause(ConditionClause {
-                        fact_key: "eligible".into(),
-                        operator: Operator::NotExists,
-                        value: None,
-                    }),
-                ]))
-                .with_action(Action::SetFact {
-                    key: "eligible".into(),
-                    value: FactValue::Boolean(true),
-                }),
-        ).unwrap();
+            )
+            .unwrap();
         // Rule 2: if eligible → set approved = true
-        engine.add_rule(
-            Rule::new("r2", "R2").with_priority(5)
-                .with_condition(Condition::All(vec![
-                    Condition::Clause(ConditionClause {
-                        fact_key: "eligible".into(),
-                        operator: Operator::Equal,
-                        value: Some(FactValue::Boolean(true)),
+        engine
+            .add_rule(
+                Rule::new("r2", "R2")
+                    .with_priority(5)
+                    .with_condition(Condition::All(vec![
+                        Condition::Clause(ConditionClause {
+                            fact_key: "eligible".into(),
+                            operator: Operator::Equal,
+                            value: Some(FactValue::Boolean(true)),
+                        }),
+                        Condition::Clause(ConditionClause {
+                            fact_key: "approved".into(),
+                            operator: Operator::NotExists,
+                            value: None,
+                        }),
+                    ]))
+                    .with_action(Action::SetFact {
+                        key: "approved".into(),
+                        value: FactValue::Boolean(true),
                     }),
-                    Condition::Clause(ConditionClause {
-                        fact_key: "approved".into(),
-                        operator: Operator::NotExists,
-                        value: None,
-                    }),
-                ]))
-                .with_action(Action::SetFact {
-                    key: "approved".into(),
-                    value: FactValue::Boolean(true),
-                }),
-        ).unwrap();
+            )
+            .unwrap();
 
         engine.set_fact("age", FactValue::Integer(21));
         let fired = engine.fire_all().unwrap();

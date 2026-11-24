@@ -458,7 +458,11 @@ mod tests {
         let mut cb = default_cb();
         cb.check();
         cb.record_failure();
-        assert!(cb.events().iter().any(|e| matches!(e, CircuitEvent::Failure)));
+        assert!(
+            cb.events()
+                .iter()
+                .any(|e| matches!(e, CircuitEvent::Failure))
+        );
         cb.clear_events();
         assert!(cb.events().is_empty());
     }

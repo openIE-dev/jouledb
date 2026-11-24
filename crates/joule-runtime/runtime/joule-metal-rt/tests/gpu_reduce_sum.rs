@@ -14,7 +14,9 @@ const SIZES: [usize; 8] = [1, 255, 256, 257, 4096, 65_537, 1_000_003, 4_194_319]
 /// reduction in any order is exact. A dropped tail element or a missed
 /// threadgroup partial shows up as an exact mismatch.
 fn integer_values(n: usize) -> Vec<f64> {
-    (0..n).map(|i| ((i * 2_654_435_761usize) % 5 + 1) as f64).collect()
+    (0..n)
+        .map(|i| ((i * 2_654_435_761usize) % 5 + 1) as f64)
+        .collect()
 }
 
 /// Fractional, mixed-sign values. Compared within fp tolerance.
@@ -45,7 +47,9 @@ fn cpu_reference(values: &[f64]) -> (f64, f64) {
 #[cfg(target_os = "macos")]
 #[test]
 fn fabric_reduce_sum_on_gpu_matches_cpu_reference() {
-    let Some(device) = joule_metal_rt::device_or_skip("fabric_reduce_sum_on_gpu_matches_cpu_reference") else {
+    let Some(device) =
+        joule_metal_rt::device_or_skip("fabric_reduce_sum_on_gpu_matches_cpu_reference")
+    else {
         return;
     };
     println!("metal device: {}", device.name());
@@ -75,13 +79,18 @@ fn fabric_reduce_sum_on_gpu_matches_cpu_reference() {
             if ok { "PASS" } else { "FAIL" }
         );
         if !ok {
-            failures.push(format!("fractional n={n}: cpu={want} gpu={got} err={err} tol={tol}"));
+            failures.push(format!(
+                "fractional n={n}: cpu={want} gpu={got} err={err} tol={tol}"
+            ));
         }
     }
     let empty = sum_f64(&[]).expect("GPU dispatch of empty input");
     println!("gpu_reduce size=        0 kind=empty      gpu={empty}");
     assert_eq!(empty, 0.0);
-    assert!(failures.is_empty(), "GPU reduction mismatches: {failures:#?}");
+    assert!(
+        failures.is_empty(),
+        "GPU reduction mismatches: {failures:#?}"
+    );
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -120,17 +129,27 @@ fn bipolar(len: usize, seed: u64) -> Vec<i8> {
 #[cfg(target_os = "macos")]
 #[test]
 fn fabric_hdc_dot_on_gpu_matches_cpu_exactly() {
-    let Some(device) = joule_metal_rt::device_or_skip("fabric_hdc_dot_on_gpu_matches_cpu_exactly") else {
+    let Some(device) = joule_metal_rt::device_or_skip("fabric_hdc_dot_on_gpu_matches_cpu_exactly")
+    else {
         return;
     };
     println!("metal device: {}", device.name());
-    for &(n, k, d) in &[(1usize, 1usize, 1usize), (3, 5, 257), (8, 64, 1024), (16, 300, 2048), (2, 7, 10_000)] {
+    for &(n, k, d) in &[
+        (1usize, 1usize, 1usize),
+        (3, 5, 257),
+        (8, 64, 1024),
+        (16, 300, 2048),
+        (2, 7, 10_000),
+    ] {
         let q = bipolar(n * d, 11 + d as u64);
         let m = bipolar(k * d, 29 + k as u64);
         let got = hdc_dot_i8(&q, &m, d).expect("GPU HDC dispatch");
         let want = reference_hdc_dot(&q, &m, d);
         let ok = got == want;
-        println!("gpu_hdc_dot n={n} k={k} d={d} exact={ok} {}", if ok { "PASS" } else { "FAIL" });
+        println!(
+            "gpu_hdc_dot n={n} k={k} d={d} exact={ok} {}",
+            if ok { "PASS" } else { "FAIL" }
+        );
         assert!(ok, "GPU HDC dot mismatch n={n} k={k} d={d}");
     }
     // The pipeline is cached per process: a repeat call pays no setup.

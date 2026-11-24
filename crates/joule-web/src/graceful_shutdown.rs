@@ -84,7 +84,10 @@ pub struct TaskTracker {
 
 impl TaskTracker {
     pub fn new() -> Self {
-        Self { tasks: HashMap::new(), next_id: 0 }
+        Self {
+            tasks: HashMap::new(),
+            next_id: 0,
+        }
     }
 
     /// Register a new task, returning its ID.
@@ -92,12 +95,15 @@ impl TaskTracker {
         let id_str = format!("task-{}", self.next_id);
         self.next_id += 1;
         let tid = TaskId(id_str.clone());
-        self.tasks.insert(id_str, TrackedTask {
-            id: tid.clone(),
-            component: component.to_string(),
-            start_ms,
-            description: description.to_string(),
-        });
+        self.tasks.insert(
+            id_str,
+            TrackedTask {
+                id: tid.clone(),
+                component: component.to_string(),
+                start_ms,
+                description: description.to_string(),
+            },
+        );
         tid
     }
 
@@ -120,7 +126,9 @@ impl TaskTracker {
 
     /// In-flight tasks for a specific component.
     pub fn in_flight_for(&self, component: &str) -> Vec<&TrackedTask> {
-        let mut v: Vec<&TrackedTask> = self.tasks.values()
+        let mut v: Vec<&TrackedTask> = self
+            .tasks
+            .values()
             .filter(|t| t.component == component)
             .collect();
         v.sort_by_key(|t| &t.id.0);
@@ -134,7 +142,9 @@ impl TaskTracker {
 }
 
 impl Default for TaskTracker {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Component teardown ──────────────────────────────────────────
@@ -197,8 +207,16 @@ impl fmt::Debug for ShutdownHook {
 }
 
 impl ShutdownHook {
-    pub fn new(name: &str, priority: u32, action: impl Fn() -> HookResult + Send + Sync + 'static) -> Self {
-        Self { name: name.to_string(), priority, action: Arc::new(action) }
+    pub fn new(
+        name: &str,
+        priority: u32,
+        action: impl Fn() -> HookResult + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            name: name.to_string(),
+            priority,
+            action: Arc::new(action),
+        }
     }
 
     pub fn run(&self) -> HookResult {
@@ -284,10 +302,17 @@ impl ShutdownCoordinator {
     }
 
     /// Register an in-flight task. Returns None if not in Running or Draining phase.
-    pub fn register_task(&self, component: &str, description: &str, start_ms: u64) -> Option<TaskId> {
+    pub fn register_task(
+        &self,
+        component: &str,
+        description: &str,
+        start_ms: u64,
+    ) -> Option<TaskId> {
         let mut inner = self.inner.lock().unwrap();
         match inner.phase {
-            ShutdownPhase::Running => Some(inner.tracker.register(component, description, start_ms)),
+            ShutdownPhase::Running => {
+                Some(inner.tracker.register(component, description, start_ms))
+            }
             _ => None,
         }
     }
@@ -331,7 +356,8 @@ impl ShutdownCoordinator {
             return false;
         }
         let drained = inner.tracker.is_drained();
-        let timed_out = inner.drain_started_ms
+        let timed_out = inner
+            .drain_started_ms
             .map(|s| now_ms.saturating_sub(s) >= inner.drain_timeout_ms)
             .unwrap_or(false);
         if drained || timed_out {
@@ -392,7 +418,9 @@ impl ShutdownCoordinator {
         DrainHealth {
             phase: inner.phase,
             in_flight_tasks: inner.tracker.count(),
-            components_remaining: inner.components.iter()
+            components_remaining: inner
+                .components
+                .iter()
                 .filter(|c| c.status != ComponentStatus::ShutDown)
                 .count(),
             accepting_traffic: accepting,
@@ -403,7 +431,9 @@ impl ShutdownCoordinator {
     /// Component statuses.
     pub fn component_statuses(&self) -> Vec<(String, ComponentStatus)> {
         let inner = self.inner.lock().unwrap();
-        inner.components.iter()
+        inner
+            .components
+            .iter()
             .map(|c| (c.name.clone(), c.status))
             .collect()
     }
@@ -428,7 +458,9 @@ impl ShutdownCoordinator {
 
 impl Clone for ShutdownCoordinator {
     fn clone(&self) -> Self {
-        Self { inner: Arc::clone(&self.inner) }
+        Self {
+            inner: Arc::clone(&self.inner),
+        }
     }
 }
 
@@ -467,7 +499,9 @@ impl ShutdownSignal {
 }
 
 impl Default for ShutdownSignal {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────
@@ -486,8 +520,14 @@ mod tests {
 
     #[test]
     fn test_reason_display() {
-        assert_eq!(ShutdownReason::Signal("SIGTERM".into()).to_string(), "signal:SIGTERM");
-        assert_eq!(ShutdownReason::Admin("deploy".into()).to_string(), "admin:deploy");
+        assert_eq!(
+            ShutdownReason::Signal("SIGTERM".into()).to_string(),
+            "signal:SIGTERM"
+        );
+        assert_eq!(
+            ShutdownReason::Admin("deploy".into()).to_string(),
+            "admin:deploy"
+        );
         assert_eq!(ShutdownReason::Error("oom".into()).to_string(), "error:oom");
         assert_eq!(ShutdownReason::Requested.to_string(), "requested");
     }
@@ -548,7 +588,10 @@ mod tests {
         // Initiate shutdown
         assert!(coord.initiate(ShutdownReason::Signal("SIGTERM".into()), 1000));
         assert_eq!(coord.phase(), ShutdownPhase::Draining);
-        assert_eq!(coord.reason(), Some(ShutdownReason::Signal("SIGTERM".into())));
+        assert_eq!(
+            coord.reason(),
+            Some(ShutdownReason::Signal("SIGTERM".into()))
+        );
 
         // Can't initiate again
         assert!(!coord.initiate(ShutdownReason::Requested, 1001));
@@ -614,7 +657,10 @@ mod tests {
         assert_eq!(results.len(), 3);
         assert_eq!(results[0], ("flush-cache".into(), HookResult::Ok));
         assert_eq!(results[1], ("close-db".into(), HookResult::Ok));
-        assert_eq!(results[2], ("fail-hook".into(), HookResult::Failed("disk error".into())));
+        assert_eq!(
+            results[2],
+            ("fail-hook".into(), HookResult::Failed("disk error".into()))
+        );
 
         // Hooks run in priority order
         let order = log.lock().unwrap().clone();
@@ -670,7 +716,10 @@ mod tests {
 
         signal.trigger(ShutdownReason::Signal("SIGINT".into()));
         assert!(signal.is_triggered());
-        assert_eq!(signal.reason(), Some(ShutdownReason::Signal("SIGINT".into())));
+        assert_eq!(
+            signal.reason(),
+            Some(ShutdownReason::Signal("SIGINT".into()))
+        );
     }
 
     #[test]
@@ -702,9 +751,7 @@ mod tests {
 
     #[test]
     fn test_hook_skip_result() {
-        let hook = ShutdownHook::new("optional", 1, || {
-            HookResult::Skipped("not needed".into())
-        });
+        let hook = ShutdownHook::new("optional", 1, || HookResult::Skipped("not needed".into()));
         assert_eq!(hook.run(), HookResult::Skipped("not needed".into()));
     }
 

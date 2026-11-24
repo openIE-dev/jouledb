@@ -5,8 +5,8 @@
 //! TTL-based expiration, priority ordering, routing rules, delivery
 //! confirmation, retry on failure, and throughput/latency statistics.
 
-use std::collections::{BinaryHeap, HashMap, VecDeque};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap, VecDeque};
 use std::fmt;
 
 // ── Errors ──────────────────────────────────────────────────────
@@ -138,7 +138,14 @@ pub struct MessageEnvelope {
 }
 
 impl MessageEnvelope {
-    pub fn new(id: u64, sender: &str, recipient: Recipient, payload: &str, priority: Priority, created_at: u64) -> Self {
+    pub fn new(
+        id: u64,
+        sender: &str,
+        recipient: Recipient,
+        payload: &str,
+        priority: Priority,
+        created_at: u64,
+    ) -> Self {
         Self {
             id,
             sender: sender.to_string(),
@@ -202,7 +209,8 @@ struct PriorityEntry {
 
 impl Ord for PriorityEntry {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.priority.cmp(&other.priority)
+        self.priority
+            .cmp(&other.priority)
             .then_with(|| other.created_at.cmp(&self.created_at))
     }
 }
@@ -322,7 +330,10 @@ impl MessageDispatcher {
     }
 
     pub fn remove_rule(&mut self, rule_id: &str) -> Result<(), DispatchError> {
-        let idx = self.rules.iter().position(|r| r.id == rule_id)
+        let idx = self
+            .rules
+            .iter()
+            .position(|r| r.id == rule_id)
             .ok_or_else(|| DispatchError::RuleNotFound(rule_id.to_string()))?;
         self.rules.remove(idx);
         Ok(())
@@ -341,7 +352,8 @@ impl MessageDispatcher {
         let id = self.next_id;
         self.next_id += 1;
 
-        let mut envelope = MessageEnvelope::new(id, sender, recipient, payload, priority, created_at);
+        let mut envelope =
+            MessageEnvelope::new(id, sender, recipient, payload, priority, created_at);
         if let Some(ttl) = ttl_secs {
             envelope = envelope.with_ttl(ttl);
         }
@@ -393,8 +405,14 @@ impl MessageDispatcher {
     }
 
     /// Deliver the next message from a recipient's queue.
-    pub fn deliver(&mut self, recipient_id: &str, now: u64) -> Result<Option<MessageEnvelope>, DispatchError> {
-        let queue = self.queues.get_mut(recipient_id)
+    pub fn deliver(
+        &mut self,
+        recipient_id: &str,
+        now: u64,
+    ) -> Result<Option<MessageEnvelope>, DispatchError> {
+        let queue = self
+            .queues
+            .get_mut(recipient_id)
             .ok_or_else(|| DispatchError::RecipientNotFound(recipient_id.to_string()))?;
 
         while let Some(msg_id) = queue.pop_front() {
@@ -420,8 +438,13 @@ impl MessageDispatcher {
 
     /// Simulate delivery failure — re-enqueue if retries remain.
     pub fn fail_delivery(&mut self, message_id: u64, reason: &str) -> Result<bool, DispatchError> {
-        let msg = self.messages.get_mut(&message_id)
-            .ok_or_else(|| DispatchError::DeliveryFailed { message_id, reason: "not found".to_string() })?;
+        let msg =
+            self.messages
+                .get_mut(&message_id)
+                .ok_or_else(|| DispatchError::DeliveryFailed {
+                    message_id,
+                    reason: "not found".to_string(),
+                })?;
         msg.retry_count += 1;
         if msg.can_retry() {
             msg.status = DeliveryStatus::Queued;
@@ -502,7 +525,16 @@ mod tests {
     #[test]
     fn test_dispatch_and_deliver() {
         let mut d = dispatcher();
-        let id = d.dispatch("bob", Recipient::User("alice".into()), "hello", Priority::Normal, 100, None).unwrap();
+        let id = d
+            .dispatch(
+                "bob",
+                Recipient::User("alice".into()),
+                "hello",
+                Priority::Normal,
+                100,
+                None,
+            )
+            .unwrap();
         let msg = d.deliver("alice", 101).unwrap().unwrap();
         assert_eq!(msg.id, id);
         assert_eq!(msg.status, DeliveryStatus::Delivered);
@@ -516,7 +548,15 @@ mod tests {
     #[test]
     fn test_message_ttl() {
         let mut d = dispatcher();
-        d.dispatch("bob", Recipient::User("alice".into()), "urgent", Priority::High, 100, Some(10)).unwrap();
+        d.dispatch(
+            "bob",
+            Recipient::User("alice".into()),
+            "urgent",
+            Priority::High,
+            100,
+            Some(10),
+        )
+        .unwrap();
         let msg = d.deliver("alice", 200);
         // Should be expired (200 - 100 = 100 > ttl 10)
         assert!(msg.unwrap().is_none());
@@ -525,7 +565,15 @@ mod tests {
     #[test]
     fn test_broadcast() {
         let mut d = dispatcher();
-        d.dispatch("admin", Recipient::Broadcast, "announcement", Priority::High, 100, None).unwrap();
+        d.dispatch(
+            "admin",
+            Recipient::Broadcast,
+            "announcement",
+            Priority::High,
+            100,
+            None,
+        )
+        .unwrap();
         let a = d.deliver("alice", 101).unwrap();
         let b = d.deliver("bob", 101).unwrap();
         assert!(a.is_some());
@@ -535,7 +583,15 @@ mod tests {
     #[test]
     fn test_channel_dispatch() {
         let mut d = dispatcher();
-        d.dispatch("bob", Recipient::Channel("general".into()), "hi all", Priority::Normal, 100, None).unwrap();
+        d.dispatch(
+            "bob",
+            Recipient::Channel("general".into()),
+            "hi all",
+            Priority::Normal,
+            100,
+            None,
+        )
+        .unwrap();
         let msg = d.deliver("general", 101).unwrap().unwrap();
         assert_eq!(msg.payload, "hi all");
     }
@@ -544,15 +600,39 @@ mod tests {
     fn test_queue_full() {
         let mut d = MessageDispatcher::new(1);
         d.register_recipient("alice");
-        d.dispatch("bob", Recipient::User("alice".into()), "m1", Priority::Normal, 100, None).unwrap();
-        let err = d.dispatch("bob", Recipient::User("alice".into()), "m2", Priority::Normal, 101, None);
+        d.dispatch(
+            "bob",
+            Recipient::User("alice".into()),
+            "m1",
+            Priority::Normal,
+            100,
+            None,
+        )
+        .unwrap();
+        let err = d.dispatch(
+            "bob",
+            Recipient::User("alice".into()),
+            "m2",
+            Priority::Normal,
+            101,
+            None,
+        );
         assert!(err.is_err());
     }
 
     #[test]
     fn test_delivery_failure_retry() {
         let mut d = dispatcher();
-        let id = d.dispatch("bob", Recipient::User("alice".into()), "hello", Priority::Normal, 100, None).unwrap();
+        let id = d
+            .dispatch(
+                "bob",
+                Recipient::User("alice".into()),
+                "hello",
+                Priority::Normal,
+                100,
+                None,
+            )
+            .unwrap();
         d.deliver("alice", 101).unwrap();
         let retried = d.fail_delivery(id, "timeout").unwrap();
         assert!(retried);
@@ -561,7 +641,16 @@ mod tests {
     #[test]
     fn test_max_retries_exhausted() {
         let mut d = dispatcher();
-        let id = d.dispatch("bob", Recipient::User("alice".into()), "hello", Priority::Normal, 100, None).unwrap();
+        let id = d
+            .dispatch(
+                "bob",
+                Recipient::User("alice".into()),
+                "hello",
+                Priority::Normal,
+                100,
+                None,
+            )
+            .unwrap();
         d.deliver("alice", 101).unwrap();
         for _ in 0..3 {
             d.fail_delivery(id, "timeout").unwrap();
@@ -578,7 +667,15 @@ mod tests {
             RoutingRule::new("r1", Recipient::Channel("support".into()))
                 .with_payload_filter("help"),
         );
-        d.dispatch("bob", Recipient::User("alice".into()), "I need help", Priority::Normal, 100, None).unwrap();
+        d.dispatch(
+            "bob",
+            Recipient::User("alice".into()),
+            "I need help",
+            Priority::Normal,
+            100,
+            None,
+        )
+        .unwrap();
         // Message should be routed to support channel
         let msg = d.deliver("support", 101).unwrap();
         assert!(msg.is_some());
@@ -592,7 +689,15 @@ mod tests {
             RoutingRule::new("r1", Recipient::Channel("escalation".into()))
                 .with_min_priority(Priority::High),
         );
-        d.dispatch("bob", Recipient::User("alice".into()), "urgent", Priority::Critical, 100, None).unwrap();
+        d.dispatch(
+            "bob",
+            Recipient::User("alice".into()),
+            "urgent",
+            Priority::Critical,
+            100,
+            None,
+        )
+        .unwrap();
         let msg = d.deliver("escalation", 101).unwrap();
         assert!(msg.is_some());
     }
@@ -608,7 +713,15 @@ mod tests {
     #[test]
     fn test_stats() {
         let mut d = dispatcher();
-        d.dispatch("bob", Recipient::User("alice".into()), "m1", Priority::Normal, 100, None).unwrap();
+        d.dispatch(
+            "bob",
+            Recipient::User("alice".into()),
+            "m1",
+            Priority::Normal,
+            100,
+            None,
+        )
+        .unwrap();
         d.deliver("alice", 105).unwrap();
         let s = d.stats();
         assert_eq!(s.total_dispatched, 1);
@@ -619,8 +732,24 @@ mod tests {
     #[test]
     fn test_queue_depth() {
         let mut d = dispatcher();
-        d.dispatch("bob", Recipient::User("alice".into()), "m1", Priority::Normal, 100, None).unwrap();
-        d.dispatch("bob", Recipient::User("alice".into()), "m2", Priority::Normal, 101, None).unwrap();
+        d.dispatch(
+            "bob",
+            Recipient::User("alice".into()),
+            "m1",
+            Priority::Normal,
+            100,
+            None,
+        )
+        .unwrap();
+        d.dispatch(
+            "bob",
+            Recipient::User("alice".into()),
+            "m2",
+            Priority::Normal,
+            101,
+            None,
+        )
+        .unwrap();
         assert_eq!(d.queue_depth("alice"), 2);
     }
 
@@ -639,7 +768,14 @@ mod tests {
 
     #[test]
     fn test_display_envelope() {
-        let env = MessageEnvelope::new(1, "bob", Recipient::User("alice".into()), "hi", Priority::Normal, 100);
+        let env = MessageEnvelope::new(
+            1,
+            "bob",
+            Recipient::User("alice".into()),
+            "hi",
+            Priority::Normal,
+            100,
+        );
         let s = format!("{env}");
         assert!(s.contains("bob"));
         assert!(s.contains("alice"));
@@ -649,13 +785,23 @@ mod tests {
     #[test]
     fn test_display_recipient() {
         assert_eq!(format!("{}", Recipient::User("alice".into())), "user:alice");
-        assert_eq!(format!("{}", Recipient::Channel("gen".into())), "channel:gen");
+        assert_eq!(
+            format!("{}", Recipient::Channel("gen".into())),
+            "channel:gen"
+        );
         assert_eq!(format!("{}", Recipient::Broadcast), "broadcast");
     }
 
     #[test]
     fn test_envelope_latency() {
-        let mut env = MessageEnvelope::new(1, "bob", Recipient::User("alice".into()), "hi", Priority::Normal, 100);
+        let mut env = MessageEnvelope::new(
+            1,
+            "bob",
+            Recipient::User("alice".into()),
+            "hi",
+            Priority::Normal,
+            100,
+        );
         assert!(env.latency().is_none());
         env.delivered_at = Some(110);
         assert_eq!(env.latency(), Some(10));
@@ -663,8 +809,15 @@ mod tests {
 
     #[test]
     fn test_envelope_can_retry() {
-        let mut env = MessageEnvelope::new(1, "bob", Recipient::User("alice".into()), "hi", Priority::Normal, 100)
-            .with_max_retries(1);
+        let mut env = MessageEnvelope::new(
+            1,
+            "bob",
+            Recipient::User("alice".into()),
+            "hi",
+            Priority::Normal,
+            100,
+        )
+        .with_max_retries(1);
         assert!(env.can_retry());
         env.retry_count = 1;
         assert!(!env.can_retry());
@@ -673,8 +826,24 @@ mod tests {
     #[test]
     fn test_expire_messages() {
         let mut d = dispatcher();
-        d.dispatch("bob", Recipient::User("alice".into()), "old", Priority::Normal, 100, Some(10)).unwrap();
-        d.dispatch("bob", Recipient::User("alice".into()), "new", Priority::Normal, 200, Some(1000)).unwrap();
+        d.dispatch(
+            "bob",
+            Recipient::User("alice".into()),
+            "old",
+            Priority::Normal,
+            100,
+            Some(10),
+        )
+        .unwrap();
+        d.dispatch(
+            "bob",
+            Recipient::User("alice".into()),
+            "new",
+            Priority::Normal,
+            200,
+            Some(1000),
+        )
+        .unwrap();
         let expired = d.expire_messages(200);
         assert_eq!(expired, 1);
     }

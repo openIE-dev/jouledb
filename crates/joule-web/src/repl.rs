@@ -34,7 +34,7 @@ impl fmt::Display for ReplError {
             Self::Quit => write!(f, "quit"),
             Self::UnknownCommand(cmd) => write!(f, "unknown command: {cmd}"),
             Self::HistoryOutOfRange(idx) => write!(f, "history index {idx} out of range"),
-            }
+        }
     }
 }
 
@@ -364,7 +364,9 @@ impl Completer for WordCompleter {
     fn complete(&self, line: &str, cursor_pos: usize) -> Vec<Completion> {
         let before_cursor = &line[..cursor_pos.min(line.len())];
         // Find the word being typed.
-        let word_start = before_cursor.rfind(|c: char| c.is_whitespace()).map_or(0, |p| p + 1);
+        let word_start = before_cursor
+            .rfind(|c: char| c.is_whitespace())
+            .map_or(0, |p| p + 1);
         let partial = &before_cursor[word_start..];
         if partial.is_empty() {
             return Vec::new();
@@ -523,7 +525,10 @@ impl CommandRegistry {
             } else {
                 format!(" ({})", cmd.aliases.join(", "))
             };
-            out.push_str(&format!("  {}{} — {}\n", cmd.name, aliases, cmd.description));
+            out.push_str(&format!(
+                "  {}{} — {}\n",
+                cmd.name, aliases, cmd.description
+            ));
         }
         out
     }
@@ -804,9 +809,7 @@ impl<E: Evaluator> Repl<E> {
                 }
                 Ok(Some(EvalResult::ok(&text)))
             }
-            BuiltinAction::Custom(name) => {
-                Ok(Some(EvalResult::ok(&format!("[custom: {name}]"))))
-            }
+            BuiltinAction::Custom(name) => Ok(Some(EvalResult::ok(&format!("[custom: {name}]")))),
         }
     }
 

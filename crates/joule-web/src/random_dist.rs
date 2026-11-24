@@ -243,7 +243,10 @@ impl Normal {
     }
 
     pub fn standard() -> Self {
-        Self { mean: 0.0, std_dev: 1.0 }
+        Self {
+            mean: 0.0,
+            std_dev: 1.0,
+        }
     }
 
     pub fn pdf(&self, x: f64) -> f64 {
@@ -447,8 +450,7 @@ impl Beta {
         if x <= 0.0 || x >= 1.0 {
             return 0.0;
         }
-        let log_pdf = (self.alpha - 1.0) * x.ln()
-            + (self.beta_param - 1.0) * (1.0 - x).ln()
+        let log_pdf = (self.alpha - 1.0) * x.ln() + (self.beta_param - 1.0) * (1.0 - x).ln()
             - ln_beta(self.alpha, self.beta_param);
         log_pdf.exp()
     }
@@ -588,8 +590,9 @@ pub fn ln_gamma(x: f64) -> f64 {
     ];
 
     if x < 0.5 {
-        let reflect =
-            std::f64::consts::PI.ln() - (std::f64::consts::PI * x).sin().abs().ln() - ln_gamma(1.0 - x);
+        let reflect = std::f64::consts::PI.ln()
+            - (std::f64::consts::PI * x).sin().abs().ln()
+            - ln_gamma(1.0 - x);
         return reflect;
     }
 
@@ -710,8 +713,8 @@ mod tests {
         let mut rng = Rng::new(42);
         let samples = rng.sample_normal(0.0, 1.0, 10000);
         let mean: f64 = samples.iter().sum::<f64>() / samples.len() as f64;
-        let var: f64 = samples.iter().map(|x| (x - mean) * (x - mean)).sum::<f64>()
-            / samples.len() as f64;
+        let var: f64 =
+            samples.iter().map(|x| (x - mean) * (x - mean)).sum::<f64>() / samples.len() as f64;
         assert!(approx_eq(mean, 0.0, 0.1));
         assert!(approx_eq(var, 1.0, 0.15));
     }
@@ -827,7 +830,11 @@ mod tests {
     fn test_normal_pdf_cdf() {
         let n = Normal::standard();
         // PDF at 0 should be 1/sqrt(2*pi)
-        assert!(approx_eq(n.pdf(0.0), 1.0 / (2.0 * std::f64::consts::PI).sqrt(), 1e-10));
+        assert!(approx_eq(
+            n.pdf(0.0),
+            1.0 / (2.0 * std::f64::consts::PI).sqrt(),
+            1e-10
+        ));
         // CDF at 0 should be 0.5
         assert!(approx_eq(n.cdf(0.0), 0.5, 1e-6));
         // CDF is monotonic

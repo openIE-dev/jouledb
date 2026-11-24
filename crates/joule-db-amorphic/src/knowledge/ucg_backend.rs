@@ -124,28 +124,19 @@ impl UcgFileBackend {
         let content =
             std::fs::read_to_string(path).map_err(|e| format!("failed to read graph.json: {e}"))?;
 
-        let json: serde_json::Value =
-            serde_json::from_str(&content).map_err(|e| format!("failed to parse graph.json: {e}"))?;
+        let json: serde_json::Value = serde_json::from_str(&content)
+            .map_err(|e| format!("failed to parse graph.json: {e}"))?;
 
         // Parse edges from the graph JSON
         if let Some(edges) = json.get("edges").and_then(|e| e.as_array()) {
             for edge in edges {
-                let source = edge
-                    .get("source")
-                    .and_then(|s| s.as_str())
-                    .unwrap_or("");
-                let target = edge
-                    .get("target")
-                    .and_then(|t| t.as_str())
-                    .unwrap_or("");
+                let source = edge.get("source").and_then(|s| s.as_str()).unwrap_or("");
+                let target = edge.get("target").and_then(|t| t.as_str()).unwrap_or("");
                 let rel_str = edge
                     .get("relation")
                     .and_then(|r| r.as_str())
                     .unwrap_or("related_to");
-                let weight = edge
-                    .get("weight")
-                    .and_then(|w| w.as_f64())
-                    .unwrap_or(1.0);
+                let weight = edge.get("weight").and_then(|w| w.as_f64()).unwrap_or(1.0);
 
                 if !source.is_empty() && !target.is_empty() {
                     let relation = RelationType::from_conceptnet(rel_str);
@@ -222,7 +213,13 @@ mod tests {
     #[test]
     fn test_config_standard() {
         let config = UcgConfig::standard();
-        assert!(config.data_dir.to_str().unwrap().contains("ai_graph_classification"));
+        assert!(
+            config
+                .data_dir
+                .to_str()
+                .unwrap()
+                .contains("ai_graph_classification")
+        );
     }
 
     #[test]

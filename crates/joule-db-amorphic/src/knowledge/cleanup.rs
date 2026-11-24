@@ -135,11 +135,7 @@ impl CleanupMemory {
 
     /// Iterative cleanup: apply cleanup, then re-query using the clean vector.
     /// Each iteration sharpens the result. Converges in 2-3 rounds typically.
-    pub fn iterative_cleanup(
-        &mut self,
-        noisy: &BinaryHV,
-        max_rounds: usize,
-    ) -> CleanupResult {
+    pub fn iterative_cleanup(&mut self, noisy: &BinaryHV, max_rounds: usize) -> CleanupResult {
         let mut current = noisy.clone();
         let mut best_result = self.cleanup(&current);
 

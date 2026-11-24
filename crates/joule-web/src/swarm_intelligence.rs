@@ -43,7 +43,9 @@ impl Solution {
         Self { position, fitness }
     }
 
-    pub fn dimension(&self) -> usize { self.position.len() }
+    pub fn dimension(&self) -> usize {
+        self.position.len()
+    }
 }
 
 /// Optimization result.
@@ -66,11 +68,16 @@ struct Lcg {
 }
 
 impl Lcg {
-    fn new(seed: u64) -> Self { Self { state: seed } }
+    fn new(seed: u64) -> Self {
+        Self { state: seed }
+    }
 
     /// Random f64 in [0, 1).
     fn next_f64(&mut self) -> f64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         ((self.state >> 33) as f64) / (u32::MAX as f64)
     }
 
@@ -90,7 +97,9 @@ impl Lcg {
     fn levy(&mut self, beta_param: f64) -> f64 {
         let sigma_u = {
             let num = gamma_fn(1.0 + beta_param) * (std::f64::consts::PI * beta_param / 2.0).sin();
-            let den = gamma_fn((1.0 + beta_param) / 2.0) * beta_param * 2.0f64.powf((beta_param - 1.0) / 2.0);
+            let den = gamma_fn((1.0 + beta_param) / 2.0)
+                * beta_param
+                * 2.0f64.powf((beta_param - 1.0) / 2.0);
             (num / den.abs().max(1e-15)).abs().powf(1.0 / beta_param)
         };
         let u = self.gaussian() * sigma_u;
@@ -106,8 +115,12 @@ fn gamma_fn(x: f64) -> f64 {
     } else {
         let z = x - 1.0;
         let coeffs = [
-            76.18009172947146, -86.50532032941678, 24.01409824083091,
-            -1.231739572450155, 0.001208650973866179, -0.000005395239384953,
+            76.18009172947146,
+            -86.50532032941678,
+            24.01409824083091,
+            -1.231739572450155,
+            0.001208650973866179,
+            -0.000005395239384953,
         ];
         let mut ser = 1.000000000190015;
         for (i, &c) in coeffs.iter().enumerate() {
@@ -150,7 +163,9 @@ impl BeeAlgorithm {
             return Err(SwarmError::EmptyBounds);
         }
         if num_employed == 0 {
-            return Err(SwarmError::InvalidParameter("num_employed must be > 0".into()));
+            return Err(SwarmError::InvalidParameter(
+                "num_employed must be > 0".into(),
+            ));
         }
         let dim = bounds.len();
         let mut rng = Lcg::new(seed);
@@ -178,10 +193,18 @@ impl BeeAlgorithm {
         })
     }
 
-    pub fn best(&self) -> &Solution { &self.best }
-    pub fn convergence(&self) -> &[f64] { &self.convergence }
-    pub fn iterations(&self) -> u64 { self.iterations }
-    pub fn evaluations(&self) -> u64 { self.evaluations }
+    pub fn best(&self) -> &Solution {
+        &self.best
+    }
+    pub fn convergence(&self) -> &[f64] {
+        &self.convergence
+    }
+    pub fn iterations(&self) -> u64 {
+        self.iterations
+    }
+    pub fn evaluations(&self) -> u64 {
+        self.evaluations
+    }
 
     fn clamp_position(&self, pos: &mut [f64]) {
         for (i, val) in pos.iter_mut().enumerate() {
@@ -206,12 +229,15 @@ impl BeeAlgorithm {
         for i in 0..n {
             let k = loop {
                 let k = (self.rng.next_f64() * n as f64) as usize % n;
-                if k != i { break k; }
+                if k != i {
+                    break k;
+                }
             };
             let j = (self.rng.next_f64() * dim as f64) as usize % dim;
             let mut new_pos = self.food_sources[i].position.clone();
             let phi = self.rng.uniform(-1.0, 1.0);
-            new_pos[j] += phi * (self.food_sources[i].position[j] - self.food_sources[k].position[j]);
+            new_pos[j] +=
+                phi * (self.food_sources[i].position[j] - self.food_sources[k].position[j]);
             self.clamp_position(&mut new_pos);
 
             let new_fit = objective(&new_pos);
@@ -226,11 +252,19 @@ impl BeeAlgorithm {
         }
 
         // Calculate probabilities for onlooker phase
-        let max_fit = self.food_sources.iter().map(|s| s.fitness).fold(f64::MIN, f64::max);
-        let probs: Vec<f64> = self.food_sources.iter().map(|s| {
-            // Invert fitness for minimization: higher quality = lower fitness
-            max_fit - s.fitness + 1.0
-        }).collect();
+        let max_fit = self
+            .food_sources
+            .iter()
+            .map(|s| s.fitness)
+            .fold(f64::MIN, f64::max);
+        let probs: Vec<f64> = self
+            .food_sources
+            .iter()
+            .map(|s| {
+                // Invert fitness for minimization: higher quality = lower fitness
+                max_fit - s.fitness + 1.0
+            })
+            .collect();
         let total: f64 = probs.iter().sum();
 
         // Onlooker bee phase
@@ -249,12 +283,15 @@ impl BeeAlgorithm {
 
             let k = loop {
                 let k = (self.rng.next_f64() * n as f64) as usize % n;
-                if k != chosen { break k; }
+                if k != chosen {
+                    break k;
+                }
             };
             let j = (self.rng.next_f64() * dim as f64) as usize % dim;
             let mut new_pos = self.food_sources[chosen].position.clone();
             let phi = self.rng.uniform(-1.0, 1.0);
-            new_pos[j] += phi * (self.food_sources[chosen].position[j] - self.food_sources[k].position[j]);
+            new_pos[j] +=
+                phi * (self.food_sources[chosen].position[j] - self.food_sources[k].position[j]);
             self.clamp_position(&mut new_pos);
 
             let new_fit = objective(&new_pos);
@@ -271,7 +308,11 @@ impl BeeAlgorithm {
         // Scout bee phase
         for i in 0..n {
             if self.trials[i] >= self.max_trials {
-                let pos: Vec<f64> = self.bounds.iter().map(|&(lo, hi)| self.rng.uniform(lo, hi)).collect();
+                let pos: Vec<f64> = self
+                    .bounds
+                    .iter()
+                    .map(|&(lo, hi)| self.rng.uniform(lo, hi))
+                    .collect();
                 let fit = objective(&pos);
                 self.evaluations += 1;
                 self.food_sources[i] = Solution::new(pos, fit);
@@ -305,9 +346,9 @@ impl BeeAlgorithm {
 pub struct FireflyAlgorithm {
     bounds: Bounds,
     fireflies: Vec<Solution>,
-    alpha: f64, // randomness
+    alpha: f64,     // randomness
     beta_base: f64, // attraction at distance 0
-    gamma: f64, // light absorption coefficient
+    gamma: f64,     // light absorption coefficient
     best: Solution,
     convergence: Vec<f64>,
     iterations: u64,
@@ -328,23 +369,44 @@ impl FireflyAlgorithm {
             return Err(SwarmError::EmptyBounds);
         }
         if population == 0 {
-            return Err(SwarmError::InvalidParameter("population must be > 0".into()));
+            return Err(SwarmError::InvalidParameter(
+                "population must be > 0".into(),
+            ));
         }
         let dim = bounds.len();
         let mut rng = Lcg::new(seed);
 
-        let fireflies: Vec<Solution> = (0..population).map(|_| {
-            let pos: Vec<f64> = bounds.iter().map(|&(lo, hi)| rng.uniform(lo, hi)).collect();
-            Solution::new(pos, f64::MAX)
-        }).collect();
+        let fireflies: Vec<Solution> = (0..population)
+            .map(|_| {
+                let pos: Vec<f64> = bounds.iter().map(|&(lo, hi)| rng.uniform(lo, hi)).collect();
+                Solution::new(pos, f64::MAX)
+            })
+            .collect();
 
         let best = Solution::new(vec![0.0; dim], f64::MAX);
-        Ok(Self { bounds, fireflies, alpha, beta_base, gamma, best, convergence: Vec::new(), iterations: 0, evaluations: 0, rng })
+        Ok(Self {
+            bounds,
+            fireflies,
+            alpha,
+            beta_base,
+            gamma,
+            best,
+            convergence: Vec::new(),
+            iterations: 0,
+            evaluations: 0,
+            rng,
+        })
     }
 
-    pub fn best(&self) -> &Solution { &self.best }
-    pub fn convergence(&self) -> &[f64] { &self.convergence }
-    pub fn iterations(&self) -> u64 { self.iterations }
+    pub fn best(&self) -> &Solution {
+        &self.best
+    }
+    pub fn convergence(&self) -> &[f64] {
+        &self.convergence
+    }
+    pub fn iterations(&self) -> u64 {
+        self.iterations
+    }
 
     fn distance_sq(a: &[f64], b: &[f64]) -> f64 {
         a.iter().zip(b.iter()).map(|(x, y)| (x - y) * (x - y)).sum()
@@ -373,10 +435,10 @@ impl FireflyAlgorithm {
 
                     for d in 0..dim {
                         let rand = self.rng.uniform(-0.5, 0.5);
-                        self.fireflies[i].position[d] += beta * (old[j].position[d] - old[i].position[d])
-                            + self.alpha * rand;
-                        self.fireflies[i].position[d] = self.fireflies[i].position[d]
-                            .clamp(self.bounds[d].0, self.bounds[d].1);
+                        self.fireflies[i].position[d] +=
+                            beta * (old[j].position[d] - old[i].position[d]) + self.alpha * rand;
+                        self.fireflies[i].position[d] =
+                            self.fireflies[i].position[d].clamp(self.bounds[d].0, self.bounds[d].1);
                     }
 
                     self.fireflies[i].fitness = objective(&self.fireflies[i].position);
@@ -436,21 +498,36 @@ impl CuckooSearch {
         let dim = bounds.len();
         let mut rng = Lcg::new(seed);
 
-        let nests: Vec<Solution> = (0..num_nests).map(|_| {
-            let pos: Vec<f64> = bounds.iter().map(|&(lo, hi)| rng.uniform(lo, hi)).collect();
-            Solution::new(pos, f64::MAX)
-        }).collect();
+        let nests: Vec<Solution> = (0..num_nests)
+            .map(|_| {
+                let pos: Vec<f64> = bounds.iter().map(|&(lo, hi)| rng.uniform(lo, hi)).collect();
+                Solution::new(pos, f64::MAX)
+            })
+            .collect();
 
         let best = Solution::new(vec![0.0; dim], f64::MAX);
         Ok(Self {
-            bounds, nests, discovery_rate, levy_beta: 1.5,
-            best, convergence: Vec::new(), iterations: 0, evaluations: 0, rng,
+            bounds,
+            nests,
+            discovery_rate,
+            levy_beta: 1.5,
+            best,
+            convergence: Vec::new(),
+            iterations: 0,
+            evaluations: 0,
+            rng,
         })
     }
 
-    pub fn best(&self) -> &Solution { &self.best }
-    pub fn convergence(&self) -> &[f64] { &self.convergence }
-    pub fn iterations(&self) -> u64 { self.iterations }
+    pub fn best(&self) -> &Solution {
+        &self.best
+    }
+    pub fn convergence(&self) -> &[f64] {
+        &self.convergence
+    }
+    pub fn iterations(&self) -> u64 {
+        self.iterations
+    }
 
     /// Run one iteration.
     pub fn iterate(&mut self, objective: &dyn Fn(&[f64]) -> f64) {
@@ -486,12 +563,21 @@ impl CuckooSearch {
         let num_abandon = ((n as f64 * self.discovery_rate) as usize).max(1).min(n);
         // Sort by fitness descending (worst first)
         let mut indices: Vec<usize> = (0..n).collect();
-        indices.sort_by(|&a, &b| self.nests[b].fitness.partial_cmp(&self.nests[a].fitness).unwrap_or(std::cmp::Ordering::Equal));
+        indices.sort_by(|&a, &b| {
+            self.nests[b]
+                .fitness
+                .partial_cmp(&self.nests[a].fitness)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         for &i in indices.iter().take(num_abandon) {
             let r = self.rng.next_f64();
             if r < self.discovery_rate {
-                let pos: Vec<f64> = self.bounds.iter().map(|&(lo, hi)| self.rng.uniform(lo, hi)).collect();
+                let pos: Vec<f64> = self
+                    .bounds
+                    .iter()
+                    .map(|&(lo, hi)| self.rng.uniform(lo, hi))
+                    .collect();
                 let fit = objective(&pos);
                 self.evaluations += 1;
                 self.nests[i] = Solution::new(pos, fit);
@@ -538,7 +624,9 @@ impl MultiSwarm {
         share_interval: u64,
     ) -> Result<Self, SwarmError> {
         if num_swarms == 0 {
-            return Err(SwarmError::InvalidParameter("num_swarms must be > 0".into()));
+            return Err(SwarmError::InvalidParameter(
+                "num_swarms must be > 0".into(),
+            ));
         }
         let dim = bounds.len();
         let mut swarms = Vec::with_capacity(num_swarms);
@@ -551,12 +639,23 @@ impl MultiSwarm {
             )?);
         }
         let global_best = Solution::new(vec![0.0; dim], f64::MAX);
-        Ok(Self { swarms, global_best, share_interval, iterations: 0 })
+        Ok(Self {
+            swarms,
+            global_best,
+            share_interval,
+            iterations: 0,
+        })
     }
 
-    pub fn global_best(&self) -> &Solution { &self.global_best }
-    pub fn iterations(&self) -> u64 { self.iterations }
-    pub fn swarm_count(&self) -> usize { self.swarms.len() }
+    pub fn global_best(&self) -> &Solution {
+        &self.global_best
+    }
+    pub fn iterations(&self) -> u64 {
+        self.iterations
+    }
+    pub fn swarm_count(&self) -> usize {
+        self.swarms.len()
+    }
 
     /// Run one iteration across all swarms, sharing best solutions periodically.
     pub fn iterate(&mut self, objective: &dyn Fn(&[f64]) -> f64) {
@@ -578,7 +677,11 @@ impl MultiSwarm {
             let best_fit = self.global_best.fitness;
             for swarm in &mut self.swarms {
                 // Replace worst nest with global best
-                if let Some(worst) = swarm.nests.iter_mut().max_by(|a, b| a.fitness.partial_cmp(&b.fitness).unwrap_or(std::cmp::Ordering::Equal)) {
+                if let Some(worst) = swarm.nests.iter_mut().max_by(|a, b| {
+                    a.fitness
+                        .partial_cmp(&b.fitness)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                }) {
                     if best_fit < worst.fitness {
                         *worst = Solution::new(best_pos.clone(), best_fit);
                     }
@@ -602,7 +705,9 @@ mod tests {
     use super::*;
 
     // Sphere function: f(x) = sum(x_i^2), minimum at origin
-    fn sphere(x: &[f64]) -> f64 { x.iter().map(|xi| xi * xi).sum() }
+    fn sphere(x: &[f64]) -> f64 {
+        x.iter().map(|xi| xi * xi).sum()
+    }
 
     // Rosenbrock: f(x,y) = (1-x)^2 + 100*(y-x^2)^2, minimum at (1,1)
     fn rosenbrock(x: &[f64]) -> f64 {
@@ -626,7 +731,11 @@ mod tests {
         let bounds = vec![(-5.0, 5.0); 2];
         let mut bee = BeeAlgorithm::new(bounds, 20, 20, 5, 50, 42).unwrap();
         bee.run(100, &sphere);
-        assert!(bee.best().fitness < 1.0, "best fitness = {}", bee.best().fitness);
+        assert!(
+            bee.best().fitness < 1.0,
+            "best fitness = {}",
+            bee.best().fitness
+        );
     }
 
     #[test]
@@ -666,7 +775,11 @@ mod tests {
         let bounds = vec![(-5.0, 5.0); 2];
         let mut ff = FireflyAlgorithm::new(bounds, 20, 0.2, 1.0, 0.1, 42).unwrap();
         ff.run(50, &sphere);
-        assert!(ff.best().fitness < 2.0, "best fitness = {}", ff.best().fitness);
+        assert!(
+            ff.best().fitness < 2.0,
+            "best fitness = {}",
+            ff.best().fitness
+        );
     }
 
     #[test]
@@ -694,7 +807,11 @@ mod tests {
         let bounds = vec![(-5.0, 5.0); 2];
         let mut cs = CuckooSearch::new(bounds, 25, 0.25, 42).unwrap();
         cs.run(200, &sphere);
-        assert!(cs.best().fitness < 1.0, "best fitness = {}", cs.best().fitness);
+        assert!(
+            cs.best().fitness < 1.0,
+            "best fitness = {}",
+            cs.best().fitness
+        );
     }
 
     #[test]
@@ -703,7 +820,11 @@ mod tests {
         let mut cs = CuckooSearch::new(bounds, 30, 0.25, 42).unwrap();
         cs.run(500, &rosenbrock);
         // Rosenbrock is harder — just check it finds a reasonable solution
-        assert!(cs.best().fitness < 50.0, "best fitness = {}", cs.best().fitness);
+        assert!(
+            cs.best().fitness < 50.0,
+            "best fitness = {}",
+            cs.best().fitness
+        );
     }
 
     #[test]
@@ -726,7 +847,11 @@ mod tests {
         let bounds = vec![(-5.0, 5.0); 2];
         let mut ms = MultiSwarm::new(bounds, 3, 15, 0.25, 5).unwrap();
         ms.run(100, &sphere);
-        assert!(ms.global_best().fitness < 1.0, "best = {}", ms.global_best().fitness);
+        assert!(
+            ms.global_best().fitness < 1.0,
+            "best = {}",
+            ms.global_best().fitness
+        );
     }
 
     #[test]
@@ -777,6 +902,10 @@ mod tests {
         let bounds = vec![(-5.0, 5.0); 5];
         let mut cs = CuckooSearch::new(bounds, 30, 0.25, 42).unwrap();
         cs.run(200, &sphere);
-        assert!(cs.best().fitness < 5.0, "5D sphere best = {}", cs.best().fitness);
+        assert!(
+            cs.best().fitness < 5.0,
+            "5D sphere best = {}",
+            cs.best().fitness
+        );
     }
 }

@@ -60,13 +60,12 @@ impl DaemonClient {
             Ok(addr) => tokio::net::TcpStream::connect(addr.trim()).await,
             Err(e) => Err(e),
         };
-        let stream = stream
-            .map_err(|e| {
-                RuntimeError::ProcessError(format!(
-                    "cannot connect to daemon at {:?}: {}",
-                    self.socket_path, e
-                ))
-            })?;
+        let stream = stream.map_err(|e| {
+            RuntimeError::ProcessError(format!(
+                "cannot connect to daemon at {:?}: {}",
+                self.socket_path, e
+            ))
+        })?;
 
         let (mut reader, mut writer) = stream.into_split();
 

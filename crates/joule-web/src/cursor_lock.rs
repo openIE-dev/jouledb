@@ -73,7 +73,12 @@ pub struct CursorBounds {
 
 impl CursorBounds {
     pub fn new(x: f64, y: f64, width: f64, height: f64) -> Self {
-        Self { x, y, width: width.max(0.0), height: height.max(0.0) }
+        Self {
+            x,
+            y,
+            width: width.max(0.0),
+            height: height.max(0.0),
+        }
     }
 
     /// Clamp a point to be within these bounds.
@@ -85,8 +90,7 @@ impl CursorBounds {
 
     /// Check if a point is inside the bounds.
     pub fn contains(&self, px: f64, py: f64) -> bool {
-        px >= self.x && px <= self.x + self.width
-            && py >= self.y && py <= self.y + self.height
+        px >= self.x && px <= self.x + self.width && py >= self.y && py <= self.y + self.height
     }
 
     /// Center of the bounds.
@@ -134,9 +138,12 @@ pub struct CursorState {
 impl CursorState {
     pub fn new() -> Self {
         Self {
-            x: 0.0, y: 0.0,
-            delta_x: 0.0, delta_y: 0.0,
-            accum_dx: 0.0, accum_dy: 0.0,
+            x: 0.0,
+            y: 0.0,
+            delta_x: 0.0,
+            delta_y: 0.0,
+            accum_dx: 0.0,
+            accum_dy: 0.0,
             mode: CursorLockMode::Free,
             visible: true,
             shape: CursorShape::Arrow,
@@ -203,7 +210,9 @@ impl CursorState {
     // ── Lock mode ───────────────────────────────────────────
 
     /// Get current lock mode.
-    pub fn lock_mode(&self) -> CursorLockMode { self.mode }
+    pub fn lock_mode(&self) -> CursorLockMode {
+        self.mode
+    }
 
     /// Set cursor to Free mode.
     pub fn set_free(&mut self) {
@@ -238,7 +247,9 @@ impl CursorState {
     // ── Visibility ──────────────────────────────────────────
 
     /// Is the cursor currently visible?
-    pub fn is_visible(&self) -> bool { self.visible }
+    pub fn is_visible(&self) -> bool {
+        self.visible
+    }
 
     /// Show the cursor.
     pub fn show(&mut self) {
@@ -256,7 +267,9 @@ impl CursorState {
     // ── Shape ───────────────────────────────────────────────
 
     /// Get current cursor shape.
-    pub fn shape(&self) -> &CursorShape { &self.shape }
+    pub fn shape(&self) -> &CursorShape {
+        &self.shape
+    }
 
     /// Set cursor shape.
     pub fn set_shape(&mut self, shape: CursorShape) {
@@ -287,7 +300,9 @@ impl CursorState {
     // ── Sensitivity ─────────────────────────────────────────
 
     /// Get mouse sensitivity multiplier.
-    pub fn sensitivity(&self) -> f64 { self.sensitivity }
+    pub fn sensitivity(&self) -> f64 {
+        self.sensitivity
+    }
 
     /// Set mouse sensitivity multiplier.
     pub fn set_sensitivity(&mut self, s: f64) {
@@ -297,7 +312,9 @@ impl CursorState {
     // ── Relative mode ───────────────────────────────────────
 
     /// Is relative (FPS-style) mouse mode active?
-    pub fn is_relative_mode(&self) -> bool { self.relative_mode }
+    pub fn is_relative_mode(&self) -> bool {
+        self.relative_mode
+    }
 
     /// Enable relative mouse mode (implies locked).
     pub fn enable_relative_mode(&mut self) {
@@ -312,7 +329,9 @@ impl CursorState {
     // ── Confinement bounds ──────────────────────────────────
 
     /// Get the confinement bounds (if set).
-    pub fn bounds(&self) -> Option<&CursorBounds> { self.bounds.as_ref() }
+    pub fn bounds(&self) -> Option<&CursorBounds> {
+        self.bounds.as_ref()
+    }
 
     /// Clear the confinement bounds.
     pub fn clear_bounds(&mut self) {
@@ -322,14 +341,20 @@ impl CursorState {
     // ── Position helpers ────────────────────────────────────
 
     /// Get the cursor position as (x, y).
-    pub fn position(&self) -> (f64, f64) { (self.x, self.y) }
+    pub fn position(&self) -> (f64, f64) {
+        (self.x, self.y)
+    }
 
     /// Get the frame delta as (dx, dy).
-    pub fn delta(&self) -> (f64, f64) { (self.delta_x, self.delta_y) }
+    pub fn delta(&self) -> (f64, f64) {
+        (self.delta_x, self.delta_y)
+    }
 }
 
 impl Default for CursorState {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────

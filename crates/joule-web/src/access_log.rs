@@ -503,7 +503,10 @@ impl AccessLogger {
 
     /// Total event count across all segments.
     pub fn total_events(&self) -> usize {
-        self.archived_segments.iter().map(|s| s.len()).sum::<usize>()
+        self.archived_segments
+            .iter()
+            .map(|s| s.len())
+            .sum::<usize>()
             + self.current_segment.len()
     }
 
@@ -531,7 +534,9 @@ impl AccessLogger {
 
         for event in &events {
             total += 1;
-            *by_outcome.entry(event.outcome.as_str().to_string()).or_insert(0) += 1;
+            *by_outcome
+                .entry(event.outcome.as_str().to_string())
+                .or_insert(0) += 1;
             *by_action.entry(event.action.clone()).or_insert(0) += 1;
             users.insert(event.user_id.clone());
             if event.outcome == AccessOutcome::Denied {
@@ -642,14 +647,26 @@ impl Default for AccessLogger {
 mod tests {
     use super::*;
 
-    fn make_event(user: &str, action: &str, resource: &str, outcome: AccessOutcome, ts: u64) -> AccessEvent {
+    fn make_event(
+        user: &str,
+        action: &str,
+        resource: &str,
+        outcome: AccessOutcome,
+        ts: u64,
+    ) -> AccessEvent {
         AccessEvent::new(user, action, resource, outcome).with_timestamp(ts)
     }
 
     #[test]
     fn test_log_event() {
         let mut logger = AccessLogger::new();
-        let id = logger.log(make_event("alice", "read", "/docs/1", AccessOutcome::Allowed, 1000));
+        let id = logger.log(make_event(
+            "alice",
+            "read",
+            "/docs/1",
+            AccessOutcome::Allowed,
+            1000,
+        ));
         assert_eq!(id, 1);
         assert_eq!(logger.total_events(), 1);
     }
@@ -666,9 +683,27 @@ mod tests {
     #[test]
     fn test_query_by_user() {
         let mut logger = AccessLogger::new();
-        logger.log(make_event("alice", "read", "/x", AccessOutcome::Allowed, 1000));
-        logger.log(make_event("bob", "read", "/x", AccessOutcome::Allowed, 2000));
-        logger.log(make_event("alice", "write", "/y", AccessOutcome::Allowed, 3000));
+        logger.log(make_event(
+            "alice",
+            "read",
+            "/x",
+            AccessOutcome::Allowed,
+            1000,
+        ));
+        logger.log(make_event(
+            "bob",
+            "read",
+            "/x",
+            AccessOutcome::Allowed,
+            2000,
+        ));
+        logger.log(make_event(
+            "alice",
+            "write",
+            "/y",
+            AccessOutcome::Allowed,
+            3000,
+        ));
 
         let results = logger.query(&AccessQuery::new().with_user("alice"));
         assert_eq!(results.len(), 2);
@@ -711,9 +746,27 @@ mod tests {
     #[test]
     fn test_query_by_resource_prefix() {
         let mut logger = AccessLogger::new();
-        logger.log(make_event("a", "read", "/api/users/1", AccessOutcome::Allowed, 1000));
-        logger.log(make_event("a", "read", "/api/docs/1", AccessOutcome::Allowed, 2000));
-        logger.log(make_event("a", "read", "/api/users/2", AccessOutcome::Allowed, 3000));
+        logger.log(make_event(
+            "a",
+            "read",
+            "/api/users/1",
+            AccessOutcome::Allowed,
+            1000,
+        ));
+        logger.log(make_event(
+            "a",
+            "read",
+            "/api/docs/1",
+            AccessOutcome::Allowed,
+            2000,
+        ));
+        logger.log(make_event(
+            "a",
+            "read",
+            "/api/users/2",
+            AccessOutcome::Allowed,
+            3000,
+        ));
 
         let results = logger.query(&AccessQuery::new().with_resource_prefix("/api/users"));
         assert_eq!(results.len(), 2);
@@ -723,7 +776,13 @@ mod tests {
     fn test_query_with_limit() {
         let mut logger = AccessLogger::new();
         for i in 0..10 {
-            logger.log(make_event("a", "read", "/x", AccessOutcome::Allowed, i * 1000));
+            logger.log(make_event(
+                "a",
+                "read",
+                "/x",
+                AccessOutcome::Allowed,
+                i * 1000,
+            ));
         }
         let results = logger.query(&AccessQuery::new().with_limit(3));
         assert_eq!(results.len(), 3);
@@ -734,7 +793,13 @@ mod tests {
         let mut logger = AccessLogger::new();
         logger.max_events_per_segment = 3;
         for i in 0..7 {
-            logger.log(make_event("a", "read", "/x", AccessOutcome::Allowed, i * 1000));
+            logger.log(make_event(
+                "a",
+                "read",
+                "/x",
+                AccessOutcome::Allowed,
+                i * 1000,
+            ));
         }
         assert_eq!(logger.segment_count(), 3); // 2 archived + 1 current
         assert_eq!(logger.total_events(), 7);
@@ -746,7 +811,13 @@ mod tests {
         logger.max_events_per_segment = 2;
         logger.max_archived_segments = 2;
         for i in 0..10 {
-            logger.log(make_event("a", "read", "/x", AccessOutcome::Allowed, i * 1000));
+            logger.log(make_event(
+                "a",
+                "read",
+                "/x",
+                AccessOutcome::Allowed,
+                i * 1000,
+            ));
         }
         // Should keep only 2 archived + 1 current = 3 segments
         assert!(logger.segment_count() <= 3);
@@ -755,9 +826,27 @@ mod tests {
     #[test]
     fn test_compliance_report() {
         let mut logger = AccessLogger::new();
-        logger.log(make_event("alice", "read", "/x", AccessOutcome::Allowed, 1000));
-        logger.log(make_event("bob", "write", "/y", AccessOutcome::Denied, 2000));
-        logger.log(make_event("alice", "read", "/z", AccessOutcome::Error, 3000));
+        logger.log(make_event(
+            "alice",
+            "read",
+            "/x",
+            AccessOutcome::Allowed,
+            1000,
+        ));
+        logger.log(make_event(
+            "bob",
+            "write",
+            "/y",
+            AccessOutcome::Denied,
+            2000,
+        ));
+        logger.log(make_event(
+            "alice",
+            "read",
+            "/z",
+            AccessOutcome::Error,
+            3000,
+        ));
 
         let report = logger.compliance_report(0, 5000);
         assert_eq!(report.total_events, 3);
@@ -769,9 +858,27 @@ mod tests {
     #[test]
     fn test_user_access_pattern() {
         let mut logger = AccessLogger::new();
-        logger.log(make_event("alice", "read", "/x", AccessOutcome::Allowed, 1000));
-        logger.log(make_event("alice", "read", "/y", AccessOutcome::Allowed, 2000));
-        logger.log(make_event("alice", "write", "/z", AccessOutcome::Allowed, 3000));
+        logger.log(make_event(
+            "alice",
+            "read",
+            "/x",
+            AccessOutcome::Allowed,
+            1000,
+        ));
+        logger.log(make_event(
+            "alice",
+            "read",
+            "/y",
+            AccessOutcome::Allowed,
+            2000,
+        ));
+        logger.log(make_event(
+            "alice",
+            "write",
+            "/z",
+            AccessOutcome::Allowed,
+            3000,
+        ));
 
         let patterns = logger.user_access_pattern("alice");
         assert_eq!(patterns.len(), 2);
@@ -805,8 +912,20 @@ mod tests {
     fn test_no_alert_below_threshold() {
         let mut logger = AccessLogger::new();
         logger.denial_threshold = 5;
-        logger.log(make_event("user", "read", "/x", AccessOutcome::Denied, 1000));
-        logger.log(make_event("user", "read", "/x", AccessOutcome::Denied, 2000));
+        logger.log(make_event(
+            "user",
+            "read",
+            "/x",
+            AccessOutcome::Denied,
+            1000,
+        ));
+        logger.log(make_event(
+            "user",
+            "read",
+            "/x",
+            AccessOutcome::Denied,
+            2000,
+        ));
         assert!(logger.alerts().is_empty());
     }
 
@@ -852,12 +971,10 @@ mod tests {
     fn test_query_by_source_ip() {
         let mut logger = AccessLogger::new();
         logger.log(
-            make_event("a", "read", "/x", AccessOutcome::Allowed, 1000)
-                .with_source_ip("10.0.0.1"),
+            make_event("a", "read", "/x", AccessOutcome::Allowed, 1000).with_source_ip("10.0.0.1"),
         );
         logger.log(
-            make_event("a", "read", "/y", AccessOutcome::Allowed, 2000)
-                .with_source_ip("10.0.0.2"),
+            make_event("a", "read", "/y", AccessOutcome::Allowed, 2000).with_source_ip("10.0.0.2"),
         );
         let results = logger.query(&AccessQuery::new().with_source_ip("10.0.0.1"));
         assert_eq!(results.len(), 1);

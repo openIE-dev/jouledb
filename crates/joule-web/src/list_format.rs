@@ -311,10 +311,7 @@ mod tests {
     #[test]
     fn unit_list() {
         let f = ListFormatter::unit();
-        assert_eq!(
-            f.format(&["10 lb", "5 oz", "3 g"]),
-            "10 lb, 5 oz, 3 g"
-        );
+        assert_eq!(f.format(&["10 lb", "5 oz", "3 g"]), "10 lb, 5 oz, 3 g");
     }
 
     #[test]
@@ -323,10 +320,7 @@ mod tests {
             style: ListStyle::Short,
             ..ListFormatter::conjunction()
         };
-        assert_eq!(
-            f.format(&["A", "B", "C"]),
-            "A, B, & C"
-        );
+        assert_eq!(f.format(&["A", "B", "C"]), "A, B, & C");
     }
 
     #[test]

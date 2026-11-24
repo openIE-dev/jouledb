@@ -79,7 +79,10 @@ impl NegationOperator {
         // negated vectors tend to have similarity to negation_hv around 0.5
         // (since XOR with random is random), but the binding pattern is detectable
         // via the bipolar similarity being off-center
-        (sim_to_negation > 0.52 || sim_to_negation < 0.48, sim_to_negation)
+        (
+            sim_to_negation > 0.52 || sim_to_negation < 0.48,
+            sim_to_negation,
+        )
     }
 
     /// Detect absence: compare expected state vs actual state.
@@ -167,9 +170,18 @@ impl NegativeKnowledge {
     }
 
     /// Record that "X is NOT Y": negate Y and store the binding.
-    pub fn record_negation(&mut self, subject: &str, negated_property: &str, property_hv: &BinaryHV) {
+    pub fn record_negation(
+        &mut self,
+        subject: &str,
+        negated_property: &str,
+        property_hv: &BinaryHV,
+    ) {
         let not_hv = self.negation.negate(property_hv);
-        let key = format!("{}:not:{}", subject.to_lowercase(), negated_property.to_lowercase());
+        let key = format!(
+            "{}:not:{}",
+            subject.to_lowercase(),
+            negated_property.to_lowercase()
+        );
         self.negated_concepts.insert(key, not_hv);
     }
 
@@ -225,8 +237,8 @@ impl NegativeKnowledge {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::concept::KNOWLEDGE_DIM;
+    use super::*;
 
     #[test]
     fn test_double_negation_is_identity() {

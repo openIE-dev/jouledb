@@ -44,20 +44,38 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
 
     pub fn add(self, o: Self) -> Self {
-        Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z }
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
     }
 
     pub fn sub(self, o: Self) -> Self {
-        Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z }
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
     }
 
     pub fn scale(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn length(self) -> f64 {
@@ -77,12 +95,18 @@ pub struct Mat3 {
 }
 
 impl Mat3 {
-    pub const IDENTITY: Self = Self { m: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]] };
+    pub const IDENTITY: Self = Self {
+        m: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+    };
     pub const ZERO: Self = Self { m: [[0.0; 3]; 3] };
 
     pub fn transpose(self) -> Self {
         let mut r = Self::ZERO;
-        for i in 0..3 { for j in 0..3 { r.m[i][j] = self.m[j][i]; } }
+        for i in 0..3 {
+            for j in 0..3 {
+                r.m[i][j] = self.m[j][i];
+            }
+        }
         r
     }
 
@@ -96,9 +120,13 @@ impl Mat3 {
 
     pub fn mul_mat(self, o: Self) -> Self {
         let mut r = Self::ZERO;
-        for i in 0..3 { for j in 0..3 { for k in 0..3 {
-            r.m[i][j] += self.m[i][k] * o.m[k][j];
-        }}}
+        for i in 0..3 {
+            for j in 0..3 {
+                for k in 0..3 {
+                    r.m[i][j] += self.m[i][k] * o.m[k][j];
+                }
+            }
+        }
         r
     }
 
@@ -110,7 +138,9 @@ impl Mat3 {
 
     pub fn inverse(self) -> Option<Self> {
         let det = self.determinant();
-        if det.abs() < 1e-15 { return None; }
+        if det.abs() < 1e-15 {
+            return None;
+        }
         let inv = 1.0 / det;
         let mut r = Self::ZERO;
         r.m[0][0] = (self.m[1][1] * self.m[2][2] - self.m[1][2] * self.m[2][1]) * inv;
@@ -127,25 +157,41 @@ impl Mat3 {
 
     pub fn add(self, o: Self) -> Self {
         let mut r = Self::ZERO;
-        for i in 0..3 { for j in 0..3 { r.m[i][j] = self.m[i][j] + o.m[i][j]; } }
+        for i in 0..3 {
+            for j in 0..3 {
+                r.m[i][j] = self.m[i][j] + o.m[i][j];
+            }
+        }
         r
     }
 
     pub fn sub(self, o: Self) -> Self {
         let mut r = Self::ZERO;
-        for i in 0..3 { for j in 0..3 { r.m[i][j] = self.m[i][j] - o.m[i][j]; } }
+        for i in 0..3 {
+            for j in 0..3 {
+                r.m[i][j] = self.m[i][j] - o.m[i][j];
+            }
+        }
         r
     }
 
     pub fn scale(self, s: f64) -> Self {
         let mut r = Self::ZERO;
-        for i in 0..3 { for j in 0..3 { r.m[i][j] = self.m[i][j] * s; } }
+        for i in 0..3 {
+            for j in 0..3 {
+                r.m[i][j] = self.m[i][j] * s;
+            }
+        }
         r
     }
 
     pub fn frobenius_norm(self) -> f64 {
         let mut s = 0.0;
-        for i in 0..3 { for j in 0..3 { s += self.m[i][j] * self.m[i][j]; } }
+        for i in 0..3 {
+            for j in 0..3 {
+                s += self.m[i][j] * self.m[i][j];
+            }
+        }
         s.sqrt()
     }
 
@@ -158,19 +204,26 @@ impl Mat3 {
             } else {
                 return Self::IDENTITY;
             }
-            let diff = r.mul_mat(r.transpose()).sub(Self::IDENTITY).frobenius_norm();
-            if diff < 1e-10 { break; }
+            let diff = r
+                .mul_mat(r.transpose())
+                .sub(Self::IDENTITY)
+                .frobenius_norm();
+            if diff < 1e-10 {
+                break;
+            }
         }
         r
     }
 
     /// Outer product: v * w^T.
     pub fn outer(v: Vec3, w: Vec3) -> Self {
-        Self { m: [
-            [v.x * w.x, v.x * w.y, v.x * w.z],
-            [v.y * w.x, v.y * w.y, v.y * w.z],
-            [v.z * w.x, v.z * w.y, v.z * w.z],
-        ]}
+        Self {
+            m: [
+                [v.x * w.x, v.x * w.y, v.x * w.z],
+                [v.y * w.x, v.y * w.y, v.y * w.z],
+                [v.z * w.x, v.z * w.y, v.z * w.z],
+            ],
+        }
     }
 }
 
@@ -223,15 +276,18 @@ impl ShapeMatchSystem {
             return Err(ShapeMatchError::InvalidStiffness);
         }
 
-        let particles: Vec<SmParticle> = positions.iter().zip(masses.iter()).enumerate().map(|(_, (pos, &m))| {
-            SmParticle {
+        let particles: Vec<SmParticle> = positions
+            .iter()
+            .zip(masses.iter())
+            .enumerate()
+            .map(|(_, (pos, &m))| SmParticle {
                 rest_position: *pos,
                 position: *pos,
                 velocity: Vec3::ZERO,
                 mass: if m <= 0.0 { 1.0 } else { m },
                 fixed: false,
-            }
-        }).collect();
+            })
+            .collect();
 
         // Default: single cluster containing all particles
         let indices: Vec<usize> = (0..particles.len()).collect();
@@ -265,7 +321,11 @@ impl ShapeMatchSystem {
             total_m += particles[i].mass;
             weighted = weighted.add(particles[i].rest_position.scale(particles[i].mass));
         }
-        if total_m < 1e-12 { Vec3::ZERO } else { weighted.scale(1.0 / total_m) }
+        if total_m < 1e-12 {
+            Vec3::ZERO
+        } else {
+            weighted.scale(1.0 / total_m)
+        }
     }
 
     fn compute_current_com(&self, indices: &[usize]) -> Vec3 {
@@ -275,7 +335,11 @@ impl ShapeMatchSystem {
             total_m += self.particles[i].mass;
             weighted = weighted.add(self.particles[i].position.scale(self.particles[i].mass));
         }
-        if total_m < 1e-12 { Vec3::ZERO } else { weighted.scale(1.0 / total_m) }
+        if total_m < 1e-12 {
+            Vec3::ZERO
+        } else {
+            weighted.scale(1.0 / total_m)
+        }
     }
 
     pub fn create_clusters(&mut self, cluster_size: usize) {
@@ -304,7 +368,11 @@ impl ShapeMatchSystem {
         if cluster_size == 0 {
             return;
         }
-        let step = if cluster_size > overlap { cluster_size - overlap } else { 1 };
+        let step = if cluster_size > overlap {
+            cluster_size - overlap
+        } else {
+            1
+        };
         self.clusters.clear();
         let n = self.particles.len();
         let mut start = 0;
@@ -320,7 +388,9 @@ impl ShapeMatchSystem {
                 active: true,
             });
             start += step;
-            if end >= n { break; }
+            if end >= n {
+                break;
+            }
         }
     }
 
@@ -374,7 +444,11 @@ impl ShapeMatchSystem {
             for (li, &pi) in self.clusters[ci].particle_indices.iter().enumerate() {
                 let current_d = self.particles[pi].position.sub(com).length();
                 let rest_d = self.particles[pi].rest_position.sub(rest_com).length();
-                let strain = if rest_d > 1e-12 { (current_d - rest_d).abs() / rest_d } else { 0.0 };
+                let strain = if rest_d > 1e-12 {
+                    (current_d - rest_d).abs() / rest_d
+                } else {
+                    0.0
+                };
                 if strain > max_strain {
                     max_strain = strain;
                     split_idx = li;
@@ -452,7 +526,8 @@ impl ShapeMatchSystem {
         }
 
         // Shape matching for each cluster
-        let active_clusters: Vec<Cluster> = self.clusters.iter().filter(|c| c.active).cloned().collect();
+        let active_clusters: Vec<Cluster> =
+            self.clusters.iter().filter(|c| c.active).cloned().collect();
         // Count how many clusters each particle belongs to
         let mut cluster_count = vec![0usize; self.particles.len()];
         for c in &active_clusters {
@@ -477,7 +552,9 @@ impl ShapeMatchSystem {
                 continue;
             }
             let avg_goal = goal_accum[i].scale(1.0 / cluster_count[i] as f64);
-            let delta = avg_goal.sub(self.particles[i].position).scale(self.stiffness);
+            let delta = avg_goal
+                .sub(self.particles[i].position)
+                .scale(self.stiffness);
             self.particles[i].position = self.particles[i].position.add(delta);
         }
 
@@ -499,7 +576,8 @@ impl ShapeMatchSystem {
     }
 
     pub fn max_displacement(&self) -> f64 {
-        self.particles.iter()
+        self.particles
+            .iter()
             .map(|p| p.position.sub(p.rest_position).length())
             .fold(0.0f64, f64::max)
     }
@@ -511,11 +589,16 @@ impl ShapeMatchSystem {
             total_m += p.mass;
             weighted = weighted.add(p.position.scale(p.mass));
         }
-        if total_m < 1e-12 { Vec3::ZERO } else { weighted.scale(1.0 / total_m) }
+        if total_m < 1e-12 {
+            Vec3::ZERO
+        } else {
+            weighted.scale(1.0 / total_m)
+        }
     }
 
     pub fn kinetic_energy(&self) -> f64 {
-        self.particles.iter()
+        self.particles
+            .iter()
             .map(|p| 0.5 * p.mass * p.velocity.length_sq())
             .sum()
     }
@@ -606,11 +689,17 @@ mod tests {
         // Deform: push particle 2 away
         sys.particles[2].position = Vec3::new(0.0, 3.0, 0.0);
         // Step should pull it back toward rest shape
-        let dist_before = sys.particles[2].position.sub(sys.particles[2].rest_position).length();
+        let dist_before = sys.particles[2]
+            .position
+            .sub(sys.particles[2].rest_position)
+            .length();
         for _ in 0..10 {
             sys.step(0.01).unwrap();
         }
-        let dist_after = sys.particles[2].position.sub(sys.particles[2].rest_position).length();
+        let dist_after = sys.particles[2]
+            .position
+            .sub(sys.particles[2].rest_position)
+            .length();
         // Stiffness=0.5 should have reduced displacement somewhat
         assert!(dist_after < dist_before + 1.0);
     }
@@ -713,7 +802,9 @@ mod tests {
         let angle = 0.5_f64;
         let c = angle.cos();
         let s = angle.sin();
-        let rot = Mat3 { m: [[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]] };
+        let rot = Mat3 {
+            m: [[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]],
+        };
         let extracted = rot.extract_rotation();
         assert!(approx(extracted.m[0][0], c, 1e-4));
         assert!(approx(extracted.m[0][1], -s, 1e-4));

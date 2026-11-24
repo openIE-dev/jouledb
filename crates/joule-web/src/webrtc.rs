@@ -246,11 +246,17 @@ mod tests {
     #[test]
     fn signaling_state_pranswer() {
         let mut pc = PeerConnection::new();
-        let offer = SessionDescription { sdp_type: SdpType::Offer, sdp: "v=0\r\n".into() };
+        let offer = SessionDescription {
+            sdp_type: SdpType::Offer,
+            sdp: "v=0\r\n".into(),
+        };
         pc.set_remote_description(offer);
         assert_eq!(pc.signaling_state, SignalingState::HaveRemoteOffer);
 
-        let pranswer = SessionDescription { sdp_type: SdpType::Pranswer, sdp: "v=0\r\n".into() };
+        let pranswer = SessionDescription {
+            sdp_type: SdpType::Pranswer,
+            sdp: "v=0\r\n".into(),
+        };
         pc.set_local_description(pranswer);
         assert_eq!(pc.signaling_state, SignalingState::HaveLocalPrAnswer);
     }
@@ -302,7 +308,10 @@ mod tests {
         pc.set_local_description(offer);
         assert_eq!(pc.signaling_state, SignalingState::HaveLocalOffer);
 
-        let rollback = SessionDescription { sdp_type: SdpType::Rollback, sdp: String::new() };
+        let rollback = SessionDescription {
+            sdp_type: SdpType::Rollback,
+            sdp: String::new(),
+        };
         pc.set_local_description(rollback);
         assert_eq!(pc.signaling_state, SignalingState::Stable);
     }
@@ -336,7 +345,10 @@ mod tests {
         pc.set_local_description(offer);
         assert_eq!(pc.signaling_state, SignalingState::HaveLocalOffer);
 
-        let pranswer = SessionDescription { sdp_type: SdpType::Pranswer, sdp: "v=0\r\n".into() };
+        let pranswer = SessionDescription {
+            sdp_type: SdpType::Pranswer,
+            sdp: "v=0\r\n".into(),
+        };
         pc.set_remote_description(pranswer);
         assert_eq!(pc.signaling_state, SignalingState::HaveRemotePrAnswer);
     }
@@ -346,10 +358,19 @@ mod tests {
         let mut pc = PeerConnection::new();
         let offer = pc.create_offer();
         pc.set_local_description(offer.clone());
-        assert_eq!(pc.local_description.as_ref().unwrap().sdp_type, SdpType::Offer);
+        assert_eq!(
+            pc.local_description.as_ref().unwrap().sdp_type,
+            SdpType::Offer
+        );
 
-        let answer = SessionDescription { sdp_type: SdpType::Answer, sdp: "v=0\r\n".into() };
+        let answer = SessionDescription {
+            sdp_type: SdpType::Answer,
+            sdp: "v=0\r\n".into(),
+        };
         pc.set_remote_description(answer);
-        assert_eq!(pc.remote_description.as_ref().unwrap().sdp_type, SdpType::Answer);
+        assert_eq!(
+            pc.remote_description.as_ref().unwrap().sdp_type,
+            SdpType::Answer
+        );
     }
 }

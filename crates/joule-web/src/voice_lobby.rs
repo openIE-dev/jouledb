@@ -131,7 +131,8 @@ impl VoiceChannel {
         if self.users.len() >= self.max_users {
             return Err(VoiceError::ChannelFull(self.id.clone()));
         }
-        self.users.insert(user_id.to_string(), VoiceUser::new(user_id, timestamp));
+        self.users
+            .insert(user_id.to_string(), VoiceUser::new(user_id, timestamp));
         self.stats.total_joins += 1;
         self.stats.current_users = self.users.len();
         if self.stats.current_users > self.stats.peak_concurrent {
@@ -141,26 +142,38 @@ impl VoiceChannel {
     }
 
     pub fn leave(&mut self, user_id: &str) -> Result<VoiceUser, VoiceError> {
-        let user = self.users.remove(user_id).ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
+        let user = self
+            .users
+            .remove(user_id)
+            .ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
         self.stats.current_users = self.users.len();
         Ok(user)
     }
 
     pub fn mute(&mut self, user_id: &str) -> Result<(), VoiceError> {
-        let u = self.users.get_mut(user_id).ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
+        let u = self
+            .users
+            .get_mut(user_id)
+            .ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
         u.muted = true;
         u.speaking = false;
         Ok(())
     }
 
     pub fn unmute(&mut self, user_id: &str) -> Result<(), VoiceError> {
-        let u = self.users.get_mut(user_id).ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
+        let u = self
+            .users
+            .get_mut(user_id)
+            .ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
         u.muted = false;
         Ok(())
     }
 
     pub fn deafen(&mut self, user_id: &str) -> Result<(), VoiceError> {
-        let u = self.users.get_mut(user_id).ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
+        let u = self
+            .users
+            .get_mut(user_id)
+            .ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
         u.deafened = true;
         u.muted = true;
         u.speaking = false;
@@ -168,14 +181,25 @@ impl VoiceChannel {
     }
 
     pub fn undeafen(&mut self, user_id: &str) -> Result<(), VoiceError> {
-        let u = self.users.get_mut(user_id).ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
+        let u = self
+            .users
+            .get_mut(user_id)
+            .ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
         u.deafened = false;
         u.muted = false;
         Ok(())
     }
 
-    pub fn set_speaking(&mut self, user_id: &str, speaking: bool, timestamp: u64) -> Result<(), VoiceError> {
-        let u = self.users.get_mut(user_id).ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
+    pub fn set_speaking(
+        &mut self,
+        user_id: &str,
+        speaking: bool,
+        timestamp: u64,
+    ) -> Result<(), VoiceError> {
+        let u = self
+            .users
+            .get_mut(user_id)
+            .ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
         if !u.muted {
             u.speaking = speaking;
             u.last_activity = timestamp;
@@ -187,13 +211,23 @@ impl VoiceChannel {
         if volume > 200 {
             return Err(VoiceError::InvalidVolume(volume));
         }
-        let u = self.users.get_mut(user_id).ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
+        let u = self
+            .users
+            .get_mut(user_id)
+            .ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
         u.volume = volume;
         Ok(())
     }
 
-    pub fn set_priority_speaker(&mut self, user_id: &str, priority: bool) -> Result<(), VoiceError> {
-        let u = self.users.get_mut(user_id).ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
+    pub fn set_priority_speaker(
+        &mut self,
+        user_id: &str,
+        priority: bool,
+    ) -> Result<(), VoiceError> {
+        let u = self
+            .users
+            .get_mut(user_id)
+            .ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
         u.priority_speaker = priority;
         Ok(())
     }
@@ -207,7 +241,11 @@ impl VoiceChannel {
     }
 
     pub fn speaking_users(&self) -> Vec<&str> {
-        self.users.values().filter(|u| u.speaking).map(|u| u.user_id.as_str()).collect()
+        self.users
+            .values()
+            .filter(|u| u.speaking)
+            .map(|u| u.user_id.as_str())
+            .collect()
     }
 
     pub fn stats(&self) -> &ChannelStats {
@@ -216,7 +254,9 @@ impl VoiceChannel {
 
     /// Auto-disconnect users idle beyond threshold. Returns disconnected user IDs.
     pub fn auto_disconnect_idle(&mut self, now: u64, idle_threshold: u64) -> Vec<String> {
-        let idle_ids: Vec<String> = self.users.values()
+        let idle_ids: Vec<String> = self
+            .users
+            .values()
             .filter(|u| u.idle_duration(now) >= idle_threshold)
             .map(|u| u.user_id.clone())
             .collect();
@@ -230,7 +270,14 @@ impl VoiceChannel {
 
 impl fmt::Display for VoiceChannel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} ({}/{}, {}kbps)", self.name, self.user_count(), self.max_users, self.bitrate / 1000)
+        write!(
+            f,
+            "{} ({}/{}, {}kbps)",
+            self.name,
+            self.user_count(),
+            self.max_users,
+            self.bitrate / 1000
+        )
     }
 }
 
@@ -247,23 +294,40 @@ impl VoiceManager {
         Self::default()
     }
 
-    pub fn create_channel(&mut self, id: &str, name: &str, max_users: usize, bitrate: u32) -> Result<(), VoiceError> {
+    pub fn create_channel(
+        &mut self,
+        id: &str,
+        name: &str,
+        max_users: usize,
+        bitrate: u32,
+    ) -> Result<(), VoiceError> {
         if self.channels.contains_key(id) {
             return Err(VoiceError::DuplicateChannel(id.to_string()));
         }
-        self.channels.insert(id.to_string(), VoiceChannel::new(id, name, max_users, bitrate));
+        self.channels.insert(
+            id.to_string(),
+            VoiceChannel::new(id, name, max_users, bitrate),
+        );
         Ok(())
     }
 
     pub fn remove_channel(&mut self, id: &str) -> Result<VoiceChannel, VoiceError> {
-        let ch = self.channels.remove(id).ok_or_else(|| VoiceError::ChannelNotFound(id.to_string()))?;
+        let ch = self
+            .channels
+            .remove(id)
+            .ok_or_else(|| VoiceError::ChannelNotFound(id.to_string()))?;
         for user in ch.users.keys() {
             self.user_channel.remove(user);
         }
         Ok(ch)
     }
 
-    pub fn join_channel(&mut self, user_id: &str, channel_id: &str, timestamp: u64) -> Result<(), VoiceError> {
+    pub fn join_channel(
+        &mut self,
+        user_id: &str,
+        channel_id: &str,
+        timestamp: u64,
+    ) -> Result<(), VoiceError> {
         // Leave current channel first
         if let Some(current) = self.user_channel.get(user_id).cloned() {
             if current == channel_id {
@@ -273,19 +337,34 @@ impl VoiceManager {
                 let _ = ch.leave(user_id);
             }
         }
-        let ch = self.channels.get_mut(channel_id).ok_or_else(|| VoiceError::ChannelNotFound(channel_id.to_string()))?;
+        let ch = self
+            .channels
+            .get_mut(channel_id)
+            .ok_or_else(|| VoiceError::ChannelNotFound(channel_id.to_string()))?;
         ch.join(user_id, timestamp)?;
-        self.user_channel.insert(user_id.to_string(), channel_id.to_string());
+        self.user_channel
+            .insert(user_id.to_string(), channel_id.to_string());
         Ok(())
     }
 
     pub fn leave_channel(&mut self, user_id: &str) -> Result<VoiceUser, VoiceError> {
-        let channel_id = self.user_channel.remove(user_id).ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
-        let ch = self.channels.get_mut(&channel_id).ok_or_else(|| VoiceError::ChannelNotFound(channel_id.clone()))?;
+        let channel_id = self
+            .user_channel
+            .remove(user_id)
+            .ok_or_else(|| VoiceError::UserNotInChannel(user_id.to_string()))?;
+        let ch = self
+            .channels
+            .get_mut(&channel_id)
+            .ok_or_else(|| VoiceError::ChannelNotFound(channel_id.clone()))?;
         ch.leave(user_id)
     }
 
-    pub fn move_user(&mut self, user_id: &str, target_channel: &str, timestamp: u64) -> Result<(), VoiceError> {
+    pub fn move_user(
+        &mut self,
+        user_id: &str,
+        target_channel: &str,
+        timestamp: u64,
+    ) -> Result<(), VoiceError> {
         self.join_channel(user_id, target_channel, timestamp)
     }
 

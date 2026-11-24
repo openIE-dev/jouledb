@@ -131,7 +131,9 @@ impl Hyphenator {
             return points
                 .iter()
                 .copied()
-                .filter(|p| *p >= self.min_prefix && *p <= lower.len().saturating_sub(self.min_suffix))
+                .filter(|p| {
+                    *p >= self.min_prefix && *p <= lower.len().saturating_sub(self.min_suffix)
+                })
                 .collect();
         }
 
@@ -231,37 +233,9 @@ impl Hyphenator {
 /// A small subset of English hyphenation patterns (from TeX's `hyphen.tex`).
 pub fn basic_english_patterns() -> Vec<&'static str> {
     vec![
-        ".hy1p",
-        ".he2n",
-        ".in1",
-        ".pre1",
-        ".re1",
-        "1tion",
-        "1sion",
-        "2ment",
-        "2ness",
-        "1ing",
-        "1ment",
-        "1ful",
-        "1ly",
-        "1able",
-        "1ible",
-        "2ta4",
-        "4m1p",
-        "1com",
-        "2puter",
-        "1na1",
-        "4tic",
-        "1or",
-        "2tic",
-        "1al",
-        ".com1",
-        "1put",
-        "2er",
-        "1hy",
-        "1phen",
-        "he2n1a",
-        "1at",
+        ".hy1p", ".he2n", ".in1", ".pre1", ".re1", "1tion", "1sion", "2ment", "2ness", "1ing",
+        "1ment", "1ful", "1ly", "1able", "1ible", "2ta4", "4m1p", "1com", "2puter", "1na1", "4tic",
+        "1or", "2tic", "1al", ".com1", "1put", "2er", "1hy", "1phen", "he2n1a", "1at",
     ]
 }
 

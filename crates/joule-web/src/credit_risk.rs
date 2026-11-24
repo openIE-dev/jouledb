@@ -154,8 +154,7 @@ impl MertonModel {
                 0.0
             };
         }
-        let num = (self.asset_value / self.debt_face).ln()
-            + (r - 0.5 * sigma * sigma) * t;
+        let num = (self.asset_value / self.debt_face).ln() + (r - 0.5 * sigma * sigma) * t;
         num / (sigma * t.sqrt())
     }
 
@@ -173,8 +172,7 @@ impl MertonModel {
             return 0.0;
         }
         let r = self.config.risk_free_rate;
-        ((self.asset_value / self.debt_face).ln()
-            + (r + 0.5 * sigma * sigma) * t)
+        ((self.asset_value / self.debt_face).ln() + (r + 0.5 * sigma * sigma) * t)
             / (sigma * t.sqrt())
     }
 
@@ -238,9 +236,7 @@ impl CreditScoring {
         Self {
             intercept,
             coefficients: coefficients.to_vec(),
-            feature_names: (0..coefficients.len())
-                .map(|i| format!("x{i}"))
-                .collect(),
+            feature_names: (0..coefficients.len()).map(|i| format!("x{i}")).collect(),
         }
     }
 
@@ -625,13 +621,19 @@ mod tests {
     fn test_credit_score_range() {
         let model = CreditScoring::new(-1.0, &[0.3, -0.2]);
         let score = model.credit_score(&[0.5, 1.0]);
-        assert!(score >= 300.0 && score <= 850.0, "Score out of range: {score}");
+        assert!(
+            score >= 300.0 && score <= 850.0,
+            "Score out of range: {score}"
+        );
     }
 
     #[test]
     fn test_credit_scoring_importance() {
-        let model = CreditScoring::new(0.0, &[0.5, -0.8, 0.1])
-            .with_feature_names(&["income", "debt_ratio", "age"]);
+        let model = CreditScoring::new(0.0, &[0.5, -0.8, 0.1]).with_feature_names(&[
+            "income",
+            "debt_ratio",
+            "age",
+        ]);
         let imp = model.feature_importance();
         assert_eq!(imp.len(), 3);
         assert_eq!(imp[1].0, "debt_ratio");
@@ -657,7 +659,10 @@ mod tests {
         let est = LossEstimator::new(0.02, 0.45, 1_000_000.0);
         let ul = est.unexpected_loss();
         assert!(ul > 0.0, "UL should be positive");
-        assert!(ul > est.expected_loss(), "UL typically exceeds EL for low PD");
+        assert!(
+            ul > est.expected_loss(),
+            "UL typically exceeds EL for low PD"
+        );
     }
 
     #[test]
@@ -724,7 +729,10 @@ mod tests {
     fn test_expected_drift() {
         let mig = CreditMigration::standard_7state();
         let drift_aaa = mig.expected_drift(0);
-        assert!(drift_aaa > 0.0, "AAA can only stay or downgrade: drift={drift_aaa}");
+        assert!(
+            drift_aaa > 0.0,
+            "AAA can only stay or downgrade: drift={drift_aaa}"
+        );
     }
 
     #[test]

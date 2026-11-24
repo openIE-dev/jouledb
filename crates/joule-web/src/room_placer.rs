@@ -6,15 +6,19 @@
 //! Delaunay triangulation → MST + extra edges, then routes hallways
 //! with A* on the tile grid.
 
-use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 
 // ── Seeded RNG ──
 
-struct Rng { state: u64 }
+struct Rng {
+    state: u64,
+}
 
 impl Rng {
-    fn new(seed: u64) -> Self { Self { state: seed } }
+    fn new(seed: u64) -> Self {
+        Self { state: seed }
+    }
 
     fn next_u64(&mut self) -> u64 {
         self.state = self.state.wrapping_add(0x9e3779b97f4a7c15);
@@ -25,7 +29,9 @@ impl Rng {
     }
 
     fn range(&mut self, lo: usize, hi: usize) -> usize {
-        if lo >= hi { return lo; }
+        if lo >= hi {
+            return lo;
+        }
         lo + (self.next_u64() % (hi - lo) as u64) as usize
     }
 
@@ -143,18 +149,28 @@ pub struct Level {
 
 impl Level {
     pub fn tile_at(&self, x: usize, y: usize) -> Tile {
-        if y < self.height && x < self.width { self.tiles[y][x] } else { Tile::Empty }
+        if y < self.height && x < self.width {
+            self.tiles[y][x]
+        } else {
+            Tile::Empty
+        }
     }
 
     pub fn to_string_grid(&self) -> String {
-        self.tiles.iter().map(|row| {
-            row.iter().map(|t| match t {
-                Tile::Empty => ' ',
-                Tile::Floor => '.',
-                Tile::Hallway => ',',
-                Tile::Wall => '#',
-            }).collect::<String>()
-        }).collect::<Vec<_>>().join("\n")
+        self.tiles
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|t| match t {
+                        Tile::Empty => ' ',
+                        Tile::Floor => '.',
+                        Tile::Hallway => ',',
+                        Tile::Wall => '#',
+                    })
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 }
 
@@ -185,7 +201,11 @@ pub fn generate_level(config: &LevelConfig) -> Level {
                 tiles[hy][hx] = Tile::Hallway;
             }
         }
-        connections.push(Connection { room_a: *a, room_b: *b, hallway });
+        connections.push(Connection {
+            room_a: *a,
+            room_b: *b,
+            hallway,
+        });
     }
 
     // Add walls around floor/hallway tiles
@@ -193,24 +213,43 @@ pub fn generate_level(config: &LevelConfig) -> Level {
     for y in 0..config.height {
         for x in 0..config.width {
             if snapshot[y][x] == Tile::Empty {
-                let adj = [(0isize, 1isize), (0, -1), (1, 0), (-1, 0),
-                           (1, 1), (1, -1), (-1, 1), (-1, -1)];
+                let adj = [
+                    (0isize, 1isize),
+                    (0, -1),
+                    (1, 0),
+                    (-1, 0),
+                    (1, 1),
+                    (1, -1),
+                    (-1, 1),
+                    (-1, -1),
+                ];
                 let near_open = adj.iter().any(|&(dx, dy)| {
                     let nx = x as isize + dx;
                     let ny = y as isize + dy;
                     if nx >= 0 && ny >= 0 {
                         let ux = nx as usize;
                         let uy = ny as usize;
-                        uy < config.height && ux < config.width
+                        uy < config.height
+                            && ux < config.width
                             && matches!(snapshot[uy][ux], Tile::Floor | Tile::Hallway)
-                    } else { false }
+                    } else {
+                        false
+                    }
                 });
-                if near_open { tiles[y][x] = Tile::Wall; }
+                if near_open {
+                    tiles[y][x] = Tile::Wall;
+                }
             }
         }
     }
 
-    Level { width: config.width, height: config.height, tiles, rooms, connections }
+    Level {
+        width: config.width,
+        height: config.height,
+        tiles,
+        rooms,
+        connections,
+    }
 }
 
 fn place_rooms(config: &LevelConfig, rng: &mut Rng) -> Vec<PlacedRoom> {
@@ -222,25 +261,43 @@ fn place_rooms(config: &LevelConfig, rng: &mut Rng) -> Vec<PlacedRoom> {
 }
 
 fn make_room_cells(
-    shape: RoomShape, ox: usize, oy: usize, w: usize, h: usize,
+    shape: RoomShape,
+    ox: usize,
+    oy: usize,
+    w: usize,
+    h: usize,
 ) -> Vec<(usize, usize)> {
     let mut cells = Vec::new();
     match shape {
         RoomShape::Rectangle => {
-            for dy in 0..h { for dx in 0..w { cells.push((ox + dx, oy + dy)); } }
+            for dy in 0..h {
+                for dx in 0..w {
+                    cells.push((ox + dx, oy + dy));
+                }
+            }
         }
         RoomShape::LShape => {
             let hw = w / 2;
             let hh = h / 2;
-            for dy in 0..h { for dx in 0..hw.max(1) { cells.push((ox + dx, oy + dy)); } }
-            for dy in 0..hh.max(1) { for dx in hw..w { cells.push((ox + dx, oy + dy)); } }
+            for dy in 0..h {
+                for dx in 0..hw.max(1) {
+                    cells.push((ox + dx, oy + dy));
+                }
+            }
+            for dy in 0..hh.max(1) {
+                for dx in hw..w {
+                    cells.push((ox + dx, oy + dy));
+                }
+            }
         }
         RoomShape::Cross => {
             let third_w = (w / 3).max(1);
             let third_h = (h / 3).max(1);
             // Horizontal bar
             for dy in third_h..(h - third_h).max(third_h + 1) {
-                for dx in 0..w { cells.push((ox + dx, oy + dy)); }
+                for dx in 0..w {
+                    cells.push((ox + dx, oy + dy));
+                }
             }
             // Vertical bar
             for dy in 0..h {
@@ -255,8 +312,11 @@ fn make_room_cells(
             let r = cx.min(cy);
             for dy in 0..h {
                 for dx in 0..w {
-                    let dist = ((dx as f64 + 0.5 - cx).powi(2) + (dy as f64 + 0.5 - cy).powi(2)).sqrt();
-                    if dist <= r { cells.push((ox + dx, oy + dy)); }
+                    let dist =
+                        ((dx as f64 + 0.5 - cx).powi(2) + (dy as f64 + 0.5 - cy).powi(2)).sqrt();
+                    if dist <= r {
+                        cells.push((ox + dx, oy + dy));
+                    }
                 }
             }
         }
@@ -276,27 +336,36 @@ fn place_random(config: &LevelConfig, rng: &mut Rng) -> Vec<PlacedRoom> {
         attempts += 1;
         let w = rng.range(config.min_room_size, config.max_room_size + 1);
         let h = rng.range(config.min_room_size, config.max_room_size + 1);
-        if w + config.padding * 2 >= config.width || h + config.padding * 2 >= config.height { continue; }
+        if w + config.padding * 2 >= config.width || h + config.padding * 2 >= config.height {
+            continue;
+        }
         let ox = rng.range(config.padding, config.width - w - config.padding);
         let oy = rng.range(config.padding, config.height - h - config.padding);
 
         let cells = make_room_cells(config.shape, ox, oy, w, h);
-        let padded: Vec<(usize, usize)> = cells.iter().flat_map(|&(cx, cy)| {
-            let mut expanded = Vec::new();
-            let p = config.padding;
-            for dy in 0..=p * 2 {
-                for dx in 0..=p * 2 {
-                    let nx = (cx + dx).saturating_sub(p);
-                    let ny = (cy + dy).saturating_sub(p);
-                    expanded.push((nx, ny));
+        let padded: Vec<(usize, usize)> = cells
+            .iter()
+            .flat_map(|&(cx, cy)| {
+                let mut expanded = Vec::new();
+                let p = config.padding;
+                for dy in 0..=p * 2 {
+                    for dx in 0..=p * 2 {
+                        let nx = (cx + dx).saturating_sub(p);
+                        let ny = (cy + dy).saturating_sub(p);
+                        expanded.push((nx, ny));
+                    }
                 }
-            }
-            expanded
-        }).collect();
+                expanded
+            })
+            .collect();
 
-        if padded.iter().any(|c| occupied.contains(c)) { continue; }
+        if padded.iter().any(|c| occupied.contains(c)) {
+            continue;
+        }
 
-        for &c in &padded { occupied.insert(c); }
+        for &c in &padded {
+            occupied.insert(c);
+        }
         let (bx, by, bw, bh) = PlacedRoom::bounding_box(&cells);
         let center = (bx + bw / 2, by + bh / 2);
         rooms.push(PlacedRoom {
@@ -304,7 +373,10 @@ fn place_random(config: &LevelConfig, rng: &mut Rng) -> Vec<PlacedRoom> {
             shape: config.shape,
             cells,
             center,
-            bounding_x: bx, bounding_y: by, bounding_w: bw, bounding_h: bh,
+            bounding_x: bx,
+            bounding_y: by,
+            bounding_w: bw,
+            bounding_h: bh,
         });
     }
     rooms
@@ -319,9 +391,17 @@ fn place_grid_jitter(config: &LevelConfig, rng: &mut Rng) -> Vec<PlacedRoom> {
 
     for gy in 0..rows {
         for gx in 0..cols {
-            if rooms.len() >= config.room_count { break; }
-            let w = rng.range(config.min_room_size, config.max_room_size.min(cell_w.saturating_sub(4)) + 1);
-            let h = rng.range(config.min_room_size, config.max_room_size.min(cell_h.saturating_sub(4)) + 1);
+            if rooms.len() >= config.room_count {
+                break;
+            }
+            let w = rng.range(
+                config.min_room_size,
+                config.max_room_size.min(cell_w.saturating_sub(4)) + 1,
+            );
+            let h = rng.range(
+                config.min_room_size,
+                config.max_room_size.min(cell_h.saturating_sub(4)) + 1,
+            );
             let jx = rng.range(0, (cell_w.saturating_sub(w)).max(1));
             let jy = rng.range(0, (cell_h.saturating_sub(h)).max(1));
             let ox = (gx * cell_w + jx).min(config.width.saturating_sub(w + 1));
@@ -333,7 +413,10 @@ fn place_grid_jitter(config: &LevelConfig, rng: &mut Rng) -> Vec<PlacedRoom> {
                 shape: config.shape,
                 cells,
                 center: (bx + bw / 2, by + bh / 2),
-                bounding_x: bx, bounding_y: by, bounding_w: bw, bounding_h: bh,
+                bounding_x: bx,
+                bounding_y: by,
+                bounding_w: bw,
+                bounding_h: bh,
             });
         }
     }
@@ -350,18 +433,30 @@ fn place_poisson(config: &LevelConfig, rng: &mut Rng) -> Vec<PlacedRoom> {
 
     while rooms.len() < config.room_count && attempts < max_attempts {
         attempts += 1;
-        let cx = rng.range_f64(config.padding as f64 + 2.0, config.width as f64 - config.padding as f64 - 2.0);
-        let cy = rng.range_f64(config.padding as f64 + 2.0, config.height as f64 - config.padding as f64 - 2.0);
+        let cx = rng.range_f64(
+            config.padding as f64 + 2.0,
+            config.width as f64 - config.padding as f64 - 2.0,
+        );
+        let cy = rng.range_f64(
+            config.padding as f64 + 2.0,
+            config.height as f64 - config.padding as f64 - 2.0,
+        );
 
-        let too_close = centers.iter().any(|&(ox, oy)| {
-            ((cx - ox).powi(2) + (cy - oy).powi(2)).sqrt() < min_dist
-        });
-        if too_close { continue; }
+        let too_close = centers
+            .iter()
+            .any(|&(ox, oy)| ((cx - ox).powi(2) + (cy - oy).powi(2)).sqrt() < min_dist);
+        if too_close {
+            continue;
+        }
 
         let w = rng.range(config.min_room_size, config.max_room_size + 1);
         let h = rng.range(config.min_room_size, config.max_room_size + 1);
-        let ox = (cx as usize).saturating_sub(w / 2).min(config.width.saturating_sub(w + 1));
-        let oy = (cy as usize).saturating_sub(h / 2).min(config.height.saturating_sub(h + 1));
+        let ox = (cx as usize)
+            .saturating_sub(w / 2)
+            .min(config.width.saturating_sub(w + 1));
+        let oy = (cy as usize)
+            .saturating_sub(h / 2)
+            .min(config.height.saturating_sub(h + 1));
         let cells = make_room_cells(config.shape, ox, oy, w, h);
         let (bx, by, bw, bh) = PlacedRoom::bounding_box(&cells);
         centers.push((cx, cy));
@@ -370,7 +465,10 @@ fn place_poisson(config: &LevelConfig, rng: &mut Rng) -> Vec<PlacedRoom> {
             shape: config.shape,
             cells,
             center: (bx + bw / 2, by + bh / 2),
-            bounding_x: bx, bounding_y: by, bounding_w: bw, bounding_h: bh,
+            bounding_x: bx,
+            bounding_y: by,
+            bounding_w: bw,
+            bounding_h: bh,
         });
     }
     rooms
@@ -379,7 +477,9 @@ fn place_poisson(config: &LevelConfig, rng: &mut Rng) -> Vec<PlacedRoom> {
 // ── Connection graph (simplified Delaunay → MST + extras) ──
 
 fn connect_rooms(rooms: &[PlacedRoom], config: &LevelConfig, rng: &mut Rng) -> Vec<(usize, usize)> {
-    if rooms.len() < 2 { return Vec::new(); }
+    if rooms.len() < 2 {
+        return Vec::new();
+    }
 
     // All-pairs edges sorted by distance
     let mut edges: Vec<(f64, usize, usize)> = Vec::new();
@@ -387,7 +487,8 @@ fn connect_rooms(rooms: &[PlacedRoom], config: &LevelConfig, rng: &mut Rng) -> V
         for j in (i + 1)..rooms.len() {
             let (ax, ay) = rooms[i].center;
             let (bx, by) = rooms[j].center;
-            let dist = (((bx as f64 - ax as f64).powi(2)) + ((by as f64 - ay as f64).powi(2))).sqrt();
+            let dist =
+                (((bx as f64 - ax as f64).powi(2)) + ((by as f64 - ay as f64).powi(2))).sqrt();
             edges.push((dist, i, j));
         }
     }
@@ -396,7 +497,10 @@ fn connect_rooms(rooms: &[PlacedRoom], config: &LevelConfig, rng: &mut Rng) -> V
     // Kruskal MST
     let mut parent: Vec<usize> = (0..rooms.len()).collect();
     fn find(p: &mut Vec<usize>, mut i: usize) -> usize {
-        while p[i] != i { p[i] = p[p[i]]; i = p[i]; }
+        while p[i] != i {
+            p[i] = p[p[i]];
+            i = p[i];
+        }
         i
     }
 
@@ -447,7 +551,12 @@ impl PartialOrd for AStarNode {
     }
 }
 
-fn route_hallway(tiles: &[Vec<Tile>], a: &PlacedRoom, b: &PlacedRoom, config: &LevelConfig) -> Vec<(usize, usize)> {
+fn route_hallway(
+    tiles: &[Vec<Tile>],
+    a: &PlacedRoom,
+    b: &PlacedRoom,
+    config: &LevelConfig,
+) -> Vec<(usize, usize)> {
     let (sx, sy) = a.center;
     let (gx, gy) = b.center;
     let h = config.height;
@@ -464,7 +573,12 @@ fn route_hallway(tiles: &[Vec<Tile>], a: &PlacedRoom, b: &PlacedRoom, config: &L
     let mut heap = BinaryHeap::new();
 
     dist.insert((sx, sy), 0);
-    heap.push(AStarNode { cost: 0, heuristic: heuristic(sx, sy), x: sx, y: sy });
+    heap.push(AStarNode {
+        cost: 0,
+        heuristic: heuristic(sx, sy),
+        x: sx,
+        y: sy,
+    });
 
     while let Some(node) = heap.pop() {
         if node.x == gx && node.y == gy {
@@ -479,14 +593,20 @@ fn route_hallway(tiles: &[Vec<Tile>], a: &PlacedRoom, b: &PlacedRoom, config: &L
             return path;
         }
 
-        if node.cost > *dist.get(&(node.x, node.y)).unwrap_or(&usize::MAX) { continue; }
+        if node.cost > *dist.get(&(node.x, node.y)).unwrap_or(&usize::MAX) {
+            continue;
+        }
 
         for (dx, dy) in &[(1isize, 0isize), (-1, 0), (0, 1), (0, -1)] {
             let nx = node.x as isize + dx;
             let ny = node.y as isize + dy;
-            if nx < 0 || ny < 0 { continue; }
+            if nx < 0 || ny < 0 {
+                continue;
+            }
             let (ux, uy) = (nx as usize, ny as usize);
-            if ux >= w || uy >= h { continue; }
+            if ux >= w || uy >= h {
+                continue;
+            }
 
             // Cost: floor/hallway is cheap, empty is moderate, wall is expensive
             let step_cost = match tiles[uy][ux] {
@@ -498,7 +618,12 @@ fn route_hallway(tiles: &[Vec<Tile>], a: &PlacedRoom, b: &PlacedRoom, config: &L
             if new_cost < *dist.get(&(ux, uy)).unwrap_or(&usize::MAX) {
                 dist.insert((ux, uy), new_cost);
                 parent.insert((ux, uy), (node.x, node.y));
-                heap.push(AStarNode { cost: new_cost, heuristic: heuristic(ux, uy), x: ux, y: uy });
+                heap.push(AStarNode {
+                    cost: new_cost,
+                    heuristic: heuristic(ux, uy),
+                    x: ux,
+                    y: uy,
+                });
             }
         }
     }
@@ -506,8 +631,22 @@ fn route_hallway(tiles: &[Vec<Tile>], a: &PlacedRoom, b: &PlacedRoom, config: &L
     // Fallback: straight line
     let mut path = Vec::new();
     let (mut cx, mut cy) = (sx, sy);
-    while cx != gx { path.push((cx, cy)); if cx < gx { cx += 1; } else { cx -= 1; } }
-    while cy != gy { path.push((cx, cy)); if cy < gy { cy += 1; } else { cy -= 1; } }
+    while cx != gx {
+        path.push((cx, cy));
+        if cx < gx {
+            cx += 1;
+        } else {
+            cx -= 1;
+        }
+    }
+    while cy != gy {
+        path.push((cx, cy));
+        if cy < gy {
+            cy += 1;
+        } else {
+            cy -= 1;
+        }
+    }
     path.push((gx, gy));
     path
 }
@@ -546,16 +685,28 @@ mod tests {
 
     #[test]
     fn test_seed_determinism() {
-        let a = generate_level(&LevelConfig { seed: 123, ..Default::default() });
-        let b = generate_level(&LevelConfig { seed: 123, ..Default::default() });
+        let a = generate_level(&LevelConfig {
+            seed: 123,
+            ..Default::default()
+        });
+        let b = generate_level(&LevelConfig {
+            seed: 123,
+            ..Default::default()
+        });
         assert_eq!(a.rooms.len(), b.rooms.len());
         assert_eq!(a.tiles, b.tiles);
     }
 
     #[test]
     fn test_different_seeds() {
-        let a = generate_level(&LevelConfig { seed: 1, ..Default::default() });
-        let b = generate_level(&LevelConfig { seed: 999, ..Default::default() });
+        let a = generate_level(&LevelConfig {
+            seed: 1,
+            ..Default::default()
+        });
+        let b = generate_level(&LevelConfig {
+            seed: 999,
+            ..Default::default()
+        });
         assert_ne!(a.tiles, b.tiles);
     }
 
@@ -638,7 +789,12 @@ mod tests {
     #[test]
     fn test_hallways_exist() {
         let level = default_level();
-        let hallway_count = level.tiles.iter().flat_map(|r| r.iter()).filter(|&&t| t == Tile::Hallway).count();
+        let hallway_count = level
+            .tiles
+            .iter()
+            .flat_map(|r| r.iter())
+            .filter(|&&t| t == Tile::Hallway)
+            .count();
         if level.rooms.len() > 1 {
             assert!(hallway_count > 0);
         }
@@ -647,14 +803,22 @@ mod tests {
     #[test]
     fn test_walls_surround_rooms() {
         let level = default_level();
-        let wall_count = level.tiles.iter().flat_map(|r| r.iter()).filter(|&&t| t == Tile::Wall).count();
+        let wall_count = level
+            .tiles
+            .iter()
+            .flat_map(|r| r.iter())
+            .filter(|&&t| t == Tile::Wall)
+            .count();
         assert!(wall_count > 0);
     }
 
     #[test]
     fn test_to_string_grid() {
         let level = generate_level(&LevelConfig {
-            width: 40, height: 30, room_count: 5, seed: 42,
+            width: 40,
+            height: 30,
+            room_count: 5,
+            seed: 42,
             ..Default::default()
         });
         let s = level.to_string_grid();
@@ -710,7 +874,10 @@ mod tests {
     #[test]
     fn test_many_seeds() {
         for seed in 0..10u64 {
-            let level = generate_level(&LevelConfig { seed, ..Default::default() });
+            let level = generate_level(&LevelConfig {
+                seed,
+                ..Default::default()
+            });
             assert!(!level.rooms.is_empty(), "seed {} produced no rooms", seed);
         }
     }

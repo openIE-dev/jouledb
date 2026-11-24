@@ -75,16 +75,12 @@ impl Filter {
             FilterOp::Contains | FilterOp::Regex => cell_lower.contains(&val_lower),
             FilterOp::StartsWith => cell_lower.starts_with(&val_lower),
             FilterOp::EndsWith => cell_lower.ends_with(&val_lower),
-            FilterOp::GreaterThan => {
-                compare_numeric_or_string(cell, &self.value)
-                    .map(|ord| ord == std::cmp::Ordering::Greater)
-                    .unwrap_or(false)
-            }
-            FilterOp::LessThan => {
-                compare_numeric_or_string(cell, &self.value)
-                    .map(|ord| ord == std::cmp::Ordering::Less)
-                    .unwrap_or(false)
-            }
+            FilterOp::GreaterThan => compare_numeric_or_string(cell, &self.value)
+                .map(|ord| ord == std::cmp::Ordering::Greater)
+                .unwrap_or(false),
+            FilterOp::LessThan => compare_numeric_or_string(cell, &self.value)
+                .map(|ord| ord == std::cmp::Ordering::Less)
+                .unwrap_or(false),
             FilterOp::Between => {
                 let high = self.value2.as_deref().unwrap_or("");
                 let ge = compare_numeric_or_string(cell, &self.value)
@@ -96,7 +92,9 @@ impl Filter {
                 ge && le
             }
             FilterOp::In => {
-                let set: Vec<String> = self.value.split(',')
+                let set: Vec<String> = self
+                    .value
+                    .split(',')
                     .map(|s| s.trim().to_lowercase())
                     .collect();
                 set.contains(&cell_lower)
@@ -135,11 +133,17 @@ pub struct FilterGroup {
 
 impl FilterGroup {
     pub fn and(filters: Vec<Filter>) -> Self {
-        Self { filters, combinator: Combinator::And }
+        Self {
+            filters,
+            combinator: Combinator::And,
+        }
     }
 
     pub fn or(filters: Vec<Filter>) -> Self {
-        Self { filters, combinator: Combinator::Or }
+        Self {
+            filters,
+            combinator: Combinator::Or,
+        }
     }
 
     /// Test whether a data row matches this group.
@@ -268,10 +272,7 @@ mod tests {
     use super::*;
 
     fn row(name: &str, age: &str) -> HashMap<String, String> {
-        HashMap::from([
-            ("name".into(), name.into()),
-            ("age".into(), age.into()),
-        ])
+        HashMap::from([("name".into(), name.into()), ("age".into(), age.into())])
     }
 
     #[test]
@@ -362,15 +363,13 @@ mod tests {
 
     #[test]
     fn engine_apply() {
-        let rows = vec![
-            row("Alice", "30"),
-            row("Bob", "25"),
-            row("Charlie", "35"),
-        ];
+        let rows = vec![row("Alice", "30"), row("Bob", "25"), row("Charlie", "35")];
         let mut engine = FilterEngine::new();
-        engine.set_group(FilterGroup::and(vec![
-            Filter::new("age", FilterOp::GreaterThan, "26"),
-        ]));
+        engine.set_group(FilterGroup::and(vec![Filter::new(
+            "age",
+            FilterOp::GreaterThan,
+            "26",
+        )]));
         let indices = engine.apply(&rows);
         assert_eq!(indices, vec![0, 2]);
     }
@@ -396,9 +395,11 @@ mod tests {
     #[test]
     fn preset_save_load() {
         let mut engine = FilterEngine::new();
-        engine.set_group(FilterGroup::and(vec![
-            Filter::new("age", FilterOp::GreaterThan, "30"),
-        ]));
+        engine.set_group(FilterGroup::and(vec![Filter::new(
+            "age",
+            FilterOp::GreaterThan,
+            "30",
+        )]));
         engine.save_preset("over30");
         engine.clear();
         assert!(engine.group.filters.is_empty());

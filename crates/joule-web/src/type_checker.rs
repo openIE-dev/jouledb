@@ -145,9 +145,7 @@ impl Substitution {
                 Type::Func(params, Box::new(ret))
             }
             Type::Array(elem) => Type::Array(Box::new(self.resolve(elem))),
-            Type::Tuple(elems) => {
-                Type::Tuple(elems.iter().map(|e| self.resolve(e)).collect())
-            }
+            Type::Tuple(elems) => Type::Tuple(elems.iter().map(|e| self.resolve(e)).collect()),
             Type::Option(inner) => Type::Option(Box::new(self.resolve(inner))),
             _ => ty.clone(),
         }
@@ -159,8 +157,7 @@ impl Substitution {
         match resolved {
             Type::Var(id) => id == var,
             Type::Func(params, ret) => {
-                params.iter().any(|p| self.occurs_in(var, p))
-                    || self.occurs_in(var, &ret)
+                params.iter().any(|p| self.occurs_in(var, p)) || self.occurs_in(var, &ret)
             }
             Type::Array(elem) => self.occurs_in(var, &elem),
             Type::Tuple(elems) => elems.iter().any(|e| self.occurs_in(var, e)),
@@ -648,7 +645,8 @@ mod tests {
     #[test]
     fn test_let_binding() {
         let mut tc = TypeChecker::new();
-        tc.infer(&TExpr::Let("x".into(), Box::new(TExpr::IntLit(42)))).unwrap();
+        tc.infer(&TExpr::Let("x".into(), Box::new(TExpr::IntLit(42))))
+            .unwrap();
         let ty = tc.infer(&TExpr::Var("x".into())).unwrap();
         assert_eq!(ty, Type::Int);
     }
@@ -656,7 +654,8 @@ mod tests {
     #[test]
     fn test_function_call() {
         let mut tc = TypeChecker::new();
-        tc.define_function("add", vec![Type::Int, Type::Int], Type::Int).unwrap();
+        tc.define_function("add", vec![Type::Int, Type::Int], Type::Int)
+            .unwrap();
         let expr = TExpr::Call("add".into(), vec![TExpr::IntLit(1), TExpr::IntLit(2)]);
         let ty = tc.infer(&expr).unwrap();
         assert_eq!(ty, Type::Int);
@@ -668,7 +667,13 @@ mod tests {
         tc.define_function("f", vec![Type::Int], Type::Int).unwrap();
         let expr = TExpr::Call("f".into(), vec![TExpr::IntLit(1), TExpr::IntLit(2)]);
         let err = tc.infer(&expr).unwrap_err();
-        assert!(matches!(err, TypeError::ArityMismatch { expected: 1, actual: 2 }));
+        assert!(matches!(
+            err,
+            TypeError::ArityMismatch {
+                expected: 1,
+                actual: 2
+            }
+        ));
     }
 
     #[test]
@@ -773,7 +778,10 @@ mod tests {
     #[test]
     fn test_type_display() {
         assert_eq!(format!("{}", Type::Int), "int");
-        assert_eq!(format!("{}", Type::Func(vec![Type::Int], Box::new(Type::Bool))), "(int) -> bool");
+        assert_eq!(
+            format!("{}", Type::Func(vec![Type::Int], Box::new(Type::Bool))),
+            "(int) -> bool"
+        );
         assert_eq!(format!("{}", Type::Array(Box::new(Type::Str))), "[string]");
     }
 

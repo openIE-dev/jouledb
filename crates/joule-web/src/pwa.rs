@@ -148,13 +148,7 @@ impl WebAppManifest {
         self
     }
 
-    pub fn icon_with_purpose(
-        mut self,
-        src: &str,
-        sizes: &str,
-        type_: &str,
-        purpose: &str,
-    ) -> Self {
+    pub fn icon_with_purpose(mut self, src: &str, sizes: &str, type_: &str, purpose: &str) -> Self {
         self.icons.push(ManifestIcon {
             src: src.to_string(),
             sizes: sizes.to_string(),
@@ -264,11 +258,7 @@ impl ServiceWorkerConfig {
         self
     }
 
-    pub fn runtime_cache(
-        &mut self,
-        pattern: &str,
-        strategy: CachingStrategy,
-    ) -> &mut Self {
+    pub fn runtime_cache(&mut self, pattern: &str, strategy: CachingStrategy) -> &mut Self {
         self.runtime_cache.push(CacheStrategy {
             pattern: pattern.to_string(),
             strategy,
@@ -304,9 +294,7 @@ impl ServiceWorkerConfig {
         let mut js = String::new();
 
         // Cache name constant
-        js.push_str(&format!(
-            "const CACHE_NAME = '{versioned_cache}';\n"
-        ));
+        js.push_str(&format!("const CACHE_NAME = '{versioned_cache}';\n"));
 
         // Precache list
         js.push_str("const PRECACHE_URLS = [\n");
@@ -329,9 +317,7 @@ impl ServiceWorkerConfig {
         js.push_str("self.addEventListener('activate', (event) => {\n");
         js.push_str("  event.waitUntil(\n");
         js.push_str("    caches.keys().then((keys) => Promise.all(\n");
-        js.push_str(
-            "      keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))\n",
-        );
+        js.push_str("      keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))\n");
         js.push_str("    ))\n");
         js.push_str("  );\n");
         js.push_str("});\n\n");
@@ -357,14 +343,12 @@ impl ServiceWorkerConfig {
                 CachingStrategy::StaleWhileRevalidate => {
                     "    event.respondWith(\n      caches.match(event.request).then((r) => {\n        const f = fetch(event.request).then((resp) => {\n          caches.open(CACHE_NAME).then((c) => c.put(event.request, resp.clone()));\n          return resp;\n        });\n        return r || f;\n      })\n    );"
                 }
-                CachingStrategy::NetworkOnly => {
-                    "    event.respondWith(fetch(event.request));"
-                }
-                CachingStrategy::CacheOnly => {
-                    "    event.respondWith(caches.match(event.request));"
-                }
+                CachingStrategy::NetworkOnly => "    event.respondWith(fetch(event.request));",
+                CachingStrategy::CacheOnly => "    event.respondWith(caches.match(event.request));",
             };
-            js.push_str(&format!("  if ({condition}) {{\n{handler}\n    return;\n  }}\n"));
+            js.push_str(&format!(
+                "  if ({condition}) {{\n{handler}\n    return;\n  }}\n"
+            ));
         }
 
         // Default: network-first with optional offline fallback
@@ -413,8 +397,7 @@ mod tests {
 
     #[test]
     fn icon_added() {
-        let m = WebAppManifest::new("App", "A")
-            .icon("/icon.png", "192x192", "image/png");
+        let m = WebAppManifest::new("App", "A").icon("/icon.png", "192x192", "image/png");
         let json = m.to_json();
         assert_eq!(json["icons"][0]["src"], "/icon.png");
         assert_eq!(json["icons"][0]["sizes"], "192x192");
@@ -499,9 +482,11 @@ mod tests {
 
     #[test]
     fn manifest_pretty_printed_valid_json() {
-        let m = WebAppManifest::new("Test", "T")
-            .theme_color("#000")
-            .icon("/i.png", "48x48", "image/png");
+        let m = WebAppManifest::new("Test", "T").theme_color("#000").icon(
+            "/i.png",
+            "48x48",
+            "image/png",
+        );
         let json_str = m.to_json_string();
         assert!(json_str.contains('\n'));
         let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();

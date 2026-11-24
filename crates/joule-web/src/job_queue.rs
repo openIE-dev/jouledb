@@ -185,9 +185,7 @@ impl Job {
             return now_ms.saturating_sub(self.created_at_ms) >= self.delay_ms;
         }
         if self.status == JobStatus::Retrying {
-            return self
-                .next_retry_at_ms
-                .map_or(true, |t| now_ms >= t);
+            return self.next_retry_at_ms.map_or(true, |t| now_ms >= t);
         }
         self.status == JobStatus::Pending
     }
@@ -503,9 +501,12 @@ mod tests {
     #[test]
     fn test_priority_ordering() {
         let mut q = make_queue();
-        q.submit(Job::new("low", "task", "a").with_priority(JobPriority::LOW)).unwrap();
-        q.submit(Job::new("high", "task", "b").with_priority(JobPriority::HIGH)).unwrap();
-        q.submit(Job::new("crit", "task", "c").with_priority(JobPriority::CRITICAL)).unwrap();
+        q.submit(Job::new("low", "task", "a").with_priority(JobPriority::LOW))
+            .unwrap();
+        q.submit(Job::new("high", "task", "b").with_priority(JobPriority::HIGH))
+            .unwrap();
+        q.submit(Job::new("crit", "task", "c").with_priority(JobPriority::CRITICAL))
+            .unwrap();
         assert_eq!(q.pick_next().unwrap().unwrap(), "crit");
         assert_eq!(q.pick_next().unwrap().unwrap(), "high");
     }
@@ -535,7 +536,8 @@ mod tests {
     #[test]
     fn test_fail_with_retry() {
         let mut q = make_queue();
-        q.submit(Job::new("j1", "task", "a").with_max_retries(3)).unwrap();
+        q.submit(Job::new("j1", "task", "a").with_max_retries(3))
+            .unwrap();
         q.pick_next().unwrap();
         let retried = q.fail("j1", "transient error").unwrap();
         assert!(retried);
@@ -545,7 +547,8 @@ mod tests {
     #[test]
     fn test_fail_exhausts_retries() {
         let mut q = make_queue();
-        q.submit(Job::new("j1", "task", "a").with_max_retries(1)).unwrap();
+        q.submit(Job::new("j1", "task", "a").with_max_retries(1))
+            .unwrap();
         q.pick_next().unwrap(); // attempt 1
         q.fail("j1", "error").unwrap(); // retrying
         q.advance_time(10000);
@@ -574,7 +577,8 @@ mod tests {
     #[test]
     fn test_delayed_job() {
         let mut q = make_queue();
-        q.submit(Job::new("j1", "task", "data").with_delay(500)).unwrap();
+        q.submit(Job::new("j1", "task", "data").with_delay(500))
+            .unwrap();
         // Not eligible yet.
         assert!(q.pick_next().unwrap().is_none());
         q.advance_time(500);
@@ -637,9 +641,11 @@ mod tests {
     #[test]
     fn test_jobs_by_tag() {
         let mut q = make_queue();
-        q.submit(Job::new("j1", "t", "a").with_tag("email")).unwrap();
+        q.submit(Job::new("j1", "t", "a").with_tag("email"))
+            .unwrap();
         q.submit(Job::new("j2", "t", "b").with_tag("sms")).unwrap();
-        q.submit(Job::new("j3", "t", "c").with_tag("email")).unwrap();
+        q.submit(Job::new("j3", "t", "c").with_tag("email"))
+            .unwrap();
         let email_jobs = q.jobs_by_tag("email");
         assert_eq!(email_jobs.len(), 2);
     }
@@ -658,18 +664,12 @@ mod tests {
     #[test]
     fn test_job_not_found() {
         let mut q = make_queue();
-        assert!(matches!(
-            q.complete("nope"),
-            Err(JobError::JobNotFound(_))
-        ));
+        assert!(matches!(q.complete("nope"), Err(JobError::JobNotFound(_))));
         assert!(matches!(
             q.fail("nope", "err"),
             Err(JobError::JobNotFound(_))
         ));
-        assert!(matches!(
-            q.cancel("nope"),
-            Err(JobError::JobNotFound(_))
-        ));
+        assert!(matches!(q.cancel("nope"), Err(JobError::JobNotFound(_))));
     }
 
     #[test]
@@ -681,7 +681,8 @@ mod tests {
             max_delay_ms: 5000,
             multiplier: 2.0,
         };
-        q.submit(Job::new("j1", "t", "a").with_retry(policy)).unwrap();
+        q.submit(Job::new("j1", "t", "a").with_retry(policy))
+            .unwrap();
         q.pick_next().unwrap();
         q.fail("j1", "err").unwrap();
         // Retry at clock + 200 (attempt 1, delay = 100 * 2^1 = 200).

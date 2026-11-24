@@ -57,7 +57,9 @@ impl PheromoneGrid {
             return Err(AcoError::ZeroDimension);
         }
         if evaporation_rate < 0.0 || evaporation_rate > 1.0 {
-            return Err(AcoError::InvalidParameter("evaporation_rate must be in [0,1]".into()));
+            return Err(AcoError::InvalidParameter(
+                "evaporation_rate must be in [0,1]".into(),
+            ));
         }
         let size = width * height;
         Ok(Self {
@@ -71,14 +73,22 @@ impl PheromoneGrid {
         })
     }
 
-    pub fn width(&self) -> usize { self.width }
-    pub fn height(&self) -> usize { self.height }
+    pub fn width(&self) -> usize {
+        self.width
+    }
+    pub fn height(&self) -> usize {
+        self.height
+    }
 
-    fn idx(&self, x: usize, y: usize) -> usize { y * self.width + x }
+    fn idx(&self, x: usize, y: usize) -> usize {
+        y * self.width + x
+    }
 
     /// Get pheromone level.
     pub fn get(&self, ptype: PheromoneType, x: usize, y: usize) -> f64 {
-        if x >= self.width || y >= self.height { return 0.0; }
+        if x >= self.width || y >= self.height {
+            return 0.0;
+        }
         let grid = match ptype {
             PheromoneType::Food => &self.food_pheromone,
             PheromoneType::Danger => &self.danger_pheromone,
@@ -88,7 +98,9 @@ impl PheromoneGrid {
 
     /// Deposit pheromone.
     pub fn deposit(&mut self, ptype: PheromoneType, x: usize, y: usize, amount: f64) {
-        if x >= self.width || y >= self.height { return; }
+        if x >= self.width || y >= self.height {
+            return;
+        }
         let idx = self.idx(x, y);
         let grid = match ptype {
             PheromoneType::Food => &mut self.food_pheromone,
@@ -103,11 +115,15 @@ impl PheromoneGrid {
         let min = self.min_pheromone;
         for val in &mut self.food_pheromone {
             *val = (*val * factor).max(min);
-            if *val <= min { *val = 0.0; }
+            if *val <= min {
+                *val = 0.0;
+            }
         }
         for val in &mut self.danger_pheromone {
             *val = (*val * factor).max(min);
-            if *val <= min { *val = 0.0; }
+            if *val <= min {
+                *val = 0.0;
+            }
         }
     }
 
@@ -145,7 +161,8 @@ pub struct ForagingAnt {
 impl ForagingAnt {
     pub fn new(x: usize, y: usize) -> Self {
         Self {
-            x, y,
+            x,
+            y,
             state: AntState::Searching,
             carrying_food: false,
             path: vec![(x, y)],
@@ -178,7 +195,9 @@ impl ForagingSim {
         evaporation_rate: f64,
     ) -> Result<Self, AcoError> {
         let grid = PheromoneGrid::new(width, height, evaporation_rate)?;
-        let ants = (0..num_ants).map(|_| ForagingAnt::new(nest.0, nest.1)).collect();
+        let ants = (0..num_ants)
+            .map(|_| ForagingAnt::new(nest.0, nest.1))
+            .collect();
         Ok(Self {
             grid,
             ants,
@@ -196,13 +215,22 @@ impl ForagingSim {
         self.food_sources.push((x, y, amount));
     }
 
-    pub fn iteration(&self) -> u64 { self.iteration }
-    pub fn food_collected(&self) -> u64 { self.food_collected }
-    pub fn ant_count(&self) -> usize { self.ants.len() }
+    pub fn iteration(&self) -> u64 {
+        self.iteration
+    }
+    pub fn food_collected(&self) -> u64 {
+        self.food_collected
+    }
+    pub fn ant_count(&self) -> usize {
+        self.ants.len()
+    }
 
     /// Simple LCG random.
     fn next_rand(&mut self) -> f64 {
-        self.rng_state = self.rng_state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.rng_state = self
+            .rng_state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         ((self.rng_state >> 33) as f64) / ((1u64 << 31) as f64)
     }
 
@@ -213,7 +241,9 @@ impl ForagingSim {
         let mut nbrs = Vec::with_capacity(8);
         for dy in [-1i32, 0, 1] {
             for dx in [-1i32, 0, 1] {
-                if dx == 0 && dy == 0 { continue; }
+                if dx == 0 && dy == 0 {
+                    continue;
+                }
                 let nx = x as i32 + dx;
                 let ny = y as i32 + dy;
                 if nx >= 0 && nx < w as i32 && ny >= 0 && ny < h as i32 {
@@ -235,7 +265,9 @@ impl ForagingSim {
             let y = self.ants[ai].y;
             let nbrs = self.neighbors(x, y);
 
-            if nbrs.is_empty() { continue; }
+            if nbrs.is_empty() {
+                continue;
+            }
 
             match self.ants[ai].state {
                 AntState::Searching => {
@@ -253,11 +285,14 @@ impl ForagingSim {
 
                     if !found_food {
                         // Move probabilistically based on food pheromone
-                        let weights: Vec<f64> = nbrs.iter().map(|&(nx, ny)| {
-                            let p = self.grid.get(PheromoneType::Food, nx, ny);
-                            let d = self.grid.get(PheromoneType::Danger, nx, ny);
-                            (p + 0.01) / (d + 1.0)
-                        }).collect();
+                        let weights: Vec<f64> = nbrs
+                            .iter()
+                            .map(|&(nx, ny)| {
+                                let p = self.grid.get(PheromoneType::Food, nx, ny);
+                                let d = self.grid.get(PheromoneType::Danger, nx, ny);
+                                (p + 0.01) / (d + 1.0)
+                            })
+                            .collect();
 
                         let total: f64 = weights.iter().sum();
                         let r = self.next_rand() * total;
@@ -270,7 +305,9 @@ impl ForagingSim {
                                 break;
                             }
                         }
-                        if chosen >= nbrs.len() { chosen = nbrs.len() - 1; }
+                        if chosen >= nbrs.len() {
+                            chosen = nbrs.len() - 1;
+                        }
 
                         let (nx, ny) = nbrs[chosen];
                         self.ants[ai].x = nx;
@@ -402,14 +439,27 @@ impl AcoTsp {
         })
     }
 
-    pub fn city_count(&self) -> usize { self.cities.len() }
-    pub fn best_tour(&self) -> &[usize] { &self.best_tour }
-    pub fn best_length(&self) -> f64 { self.best_length }
-    pub fn convergence(&self) -> &[f64] { &self.convergence }
-    pub fn iteration(&self) -> u64 { self.iteration }
+    pub fn city_count(&self) -> usize {
+        self.cities.len()
+    }
+    pub fn best_tour(&self) -> &[usize] {
+        &self.best_tour
+    }
+    pub fn best_length(&self) -> f64 {
+        self.best_length
+    }
+    pub fn convergence(&self) -> &[f64] {
+        &self.convergence
+    }
+    pub fn iteration(&self) -> u64 {
+        self.iteration
+    }
 
     fn next_rand(&mut self) -> f64 {
-        self.rng_state = self.rng_state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.rng_state = self
+            .rng_state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         ((self.rng_state >> 33) as f64) / ((1u64 << 31) as f64)
     }
 
@@ -505,7 +555,9 @@ impl AcoTsp {
         for row in &mut self.pheromones {
             for val in row.iter_mut() {
                 *val *= 1.0 - self.evaporation;
-                if *val < 0.001 { *val = 0.001; }
+                if *val < 0.001 {
+                    *val = 0.001;
+                }
             }
         }
 
@@ -532,7 +584,9 @@ impl AcoTsp {
 
     /// Check if the solution has converged (improvement below threshold over last k iterations).
     pub fn has_converged(&self, window: usize, threshold: f64) -> bool {
-        if self.convergence.len() < window { return false; }
+        if self.convergence.len() < window {
+            return false;
+        }
         let recent = &self.convergence[self.convergence.len() - window..];
         let first = recent[0];
         let last = recent[recent.len() - 1];
@@ -542,8 +596,13 @@ impl AcoTsp {
 
 impl fmt::Display for AcoTsp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "AcoTsp(cities={}, best={:.2}, iter={})",
-            self.cities.len(), self.best_length, self.iteration)
+        write!(
+            f,
+            "AcoTsp(cities={}, best={:.2}, iter={})",
+            self.cities.len(),
+            self.best_length,
+            self.iteration
+        )
     }
 }
 
@@ -555,7 +614,9 @@ mod tests {
 
     const EPS: f64 = 1e-6;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     #[test]
     fn test_pheromone_grid_new() {
@@ -662,8 +723,12 @@ mod tests {
     #[test]
     fn test_aco_tsp_improves() {
         let cities = vec![
-            (0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (2.0, 1.0),
-            (1.0, 1.0), (0.0, 1.0),
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (0.0, 1.0),
         ];
         let mut tsp = AcoTsp::new(cities, 20, 1.0, 3.0, 0.2).unwrap();
         tsp.iterate();
@@ -679,7 +744,11 @@ mod tests {
         let mut tsp = AcoTsp::new(cities, 20, 1.0, 5.0, 0.1).unwrap();
         tsp.iterate_n(100);
         // Best tour should be close to 4.0 (the perimeter)
-        assert!(tsp.best_length() < 4.5, "best length = {}", tsp.best_length());
+        assert!(
+            tsp.best_length() < 4.5,
+            "best length = {}",
+            tsp.best_length()
+        );
     }
 
     #[test]

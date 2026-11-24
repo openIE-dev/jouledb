@@ -49,7 +49,10 @@ pub struct Candidate {
 
 impl Candidate {
     pub fn new(id: impl Into<String>) -> Self {
-        Self { id: id.into(), fields: HashMap::new() }
+        Self {
+            id: id.into(),
+            fields: HashMap::new(),
+        }
     }
 
     pub fn with_field(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
@@ -129,9 +132,17 @@ pub enum Spec {
     /// Field equals a string value.
     FieldEquals { field: String, value: String },
     /// Field compared with an operator.
-    FieldCompare { field: String, op: ComparisonOp, value: String },
+    FieldCompare {
+        field: String,
+        op: ComparisonOp,
+        value: String,
+    },
     /// Field is numeric and compared with an operator.
-    NumericCompare { field: String, op: ComparisonOp, value: i64 },
+    NumericCompare {
+        field: String,
+        op: ComparisonOp,
+        value: i64,
+    },
     /// Field contains a substring.
     Contains { field: String, substring: String },
     /// Field starts with a prefix.
@@ -158,7 +169,10 @@ impl Spec {
     // ── Factory methods ──
 
     pub fn field_equals(field: impl Into<String>, value: impl Into<String>) -> Self {
-        Self::FieldEquals { field: field.into(), value: value.into() }
+        Self::FieldEquals {
+            field: field.into(),
+            value: value.into(),
+        }
     }
 
     pub fn field_compare(
@@ -166,23 +180,40 @@ impl Spec {
         op: ComparisonOp,
         value: impl Into<String>,
     ) -> Self {
-        Self::FieldCompare { field: field.into(), op, value: value.into() }
+        Self::FieldCompare {
+            field: field.into(),
+            op,
+            value: value.into(),
+        }
     }
 
     pub fn numeric_compare(field: impl Into<String>, op: ComparisonOp, value: i64) -> Self {
-        Self::NumericCompare { field: field.into(), op, value }
+        Self::NumericCompare {
+            field: field.into(),
+            op,
+            value,
+        }
     }
 
     pub fn contains(field: impl Into<String>, substring: impl Into<String>) -> Self {
-        Self::Contains { field: field.into(), substring: substring.into() }
+        Self::Contains {
+            field: field.into(),
+            substring: substring.into(),
+        }
     }
 
     pub fn starts_with(field: impl Into<String>, prefix: impl Into<String>) -> Self {
-        Self::StartsWith { field: field.into(), prefix: prefix.into() }
+        Self::StartsWith {
+            field: field.into(),
+            prefix: prefix.into(),
+        }
     }
 
     pub fn ends_with(field: impl Into<String>, suffix: impl Into<String>) -> Self {
-        Self::EndsWith { field: field.into(), suffix: suffix.into() }
+        Self::EndsWith {
+            field: field.into(),
+            suffix: suffix.into(),
+        }
     }
 
     pub fn field_exists(field: impl Into<String>) -> Self {
@@ -190,7 +221,10 @@ impl Spec {
     }
 
     pub fn is_in(field: impl Into<String>, values: Vec<String>) -> Self {
-        Self::In { field: field.into(), values }
+        Self::In {
+            field: field.into(),
+            values,
+        }
     }
 
     // ── Composition ──
@@ -227,28 +261,35 @@ impl Spec {
     /// Evaluate this spec against a candidate.
     pub fn is_satisfied_by(&self, candidate: &Candidate) -> bool {
         match self {
-            Self::FieldEquals { field, value } => {
-                candidate.get_field(field).map(|v| v == value).unwrap_or(false)
-            }
-            Self::FieldCompare { field, op, value } => {
-                candidate.get_field(field).map(|v| op.compare_str(v, value)).unwrap_or(false)
-            }
-            Self::NumericCompare { field, op, value } => {
-                candidate.get_field_as_i64(field).map(|v| op.compare_i64(v, *value)).unwrap_or(false)
-            }
-            Self::Contains { field, substring } => {
-                candidate.get_field(field).map(|v| v.contains(substring.as_str())).unwrap_or(false)
-            }
-            Self::StartsWith { field, prefix } => {
-                candidate.get_field(field).map(|v| v.starts_with(prefix.as_str())).unwrap_or(false)
-            }
-            Self::EndsWith { field, suffix } => {
-                candidate.get_field(field).map(|v| v.ends_with(suffix.as_str())).unwrap_or(false)
-            }
+            Self::FieldEquals { field, value } => candidate
+                .get_field(field)
+                .map(|v| v == value)
+                .unwrap_or(false),
+            Self::FieldCompare { field, op, value } => candidate
+                .get_field(field)
+                .map(|v| op.compare_str(v, value))
+                .unwrap_or(false),
+            Self::NumericCompare { field, op, value } => candidate
+                .get_field_as_i64(field)
+                .map(|v| op.compare_i64(v, *value))
+                .unwrap_or(false),
+            Self::Contains { field, substring } => candidate
+                .get_field(field)
+                .map(|v| v.contains(substring.as_str()))
+                .unwrap_or(false),
+            Self::StartsWith { field, prefix } => candidate
+                .get_field(field)
+                .map(|v| v.starts_with(prefix.as_str()))
+                .unwrap_or(false),
+            Self::EndsWith { field, suffix } => candidate
+                .get_field(field)
+                .map(|v| v.ends_with(suffix.as_str()))
+                .unwrap_or(false),
             Self::FieldExists(field) => candidate.fields.contains_key(field),
-            Self::In { field, values } => {
-                candidate.get_field(field).map(|v| values.iter().any(|val| val == v)).unwrap_or(false)
-            }
+            Self::In { field, values } => candidate
+                .get_field(field)
+                .map(|v| values.iter().any(|val| val == v))
+                .unwrap_or(false),
             Self::And(specs) => specs.iter().all(|s| s.is_satisfied_by(candidate)),
             Self::Or(specs) => specs.iter().any(|s| s.is_satisfied_by(candidate)),
             Self::Not(spec) => !spec.is_satisfied_by(candidate),
@@ -259,12 +300,18 @@ impl Spec {
 
     /// Count satisfied candidates.
     pub fn count_satisfied(&self, candidates: &[Candidate]) -> usize {
-        candidates.iter().filter(|c| self.is_satisfied_by(c)).count()
+        candidates
+            .iter()
+            .filter(|c| self.is_satisfied_by(c))
+            .count()
     }
 
     /// Filter candidates that satisfy this spec.
     pub fn filter<'a>(&self, candidates: &'a [Candidate]) -> Vec<&'a Candidate> {
-        candidates.iter().filter(|c| self.is_satisfied_by(c)).collect()
+        candidates
+            .iter()
+            .filter(|c| self.is_satisfied_by(c))
+            .collect()
     }
 
     /// Find the first satisfying candidate.
@@ -283,7 +330,10 @@ impl Spec {
     }
 
     /// Partition candidates into satisfying and non-satisfying.
-    pub fn partition<'a>(&self, candidates: &'a [Candidate]) -> (Vec<&'a Candidate>, Vec<&'a Candidate>) {
+    pub fn partition<'a>(
+        &self,
+        candidates: &'a [Candidate],
+    ) -> (Vec<&'a Candidate>, Vec<&'a Candidate>) {
         candidates.iter().partition(|c| self.is_satisfied_by(c))
     }
 }
@@ -311,7 +361,10 @@ pub struct ParameterizedSpec {
 
 impl ParameterizedSpec {
     pub fn new(template: Spec) -> Self {
-        Self { template, parameters: HashMap::new() }
+        Self {
+            template,
+            parameters: HashMap::new(),
+        }
     }
 
     pub fn bind(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
@@ -328,32 +381,53 @@ impl ParameterizedSpec {
         match spec {
             Spec::FieldEquals { field, value } => {
                 let resolved = self.resolve_value(value)?;
-                Ok(Spec::FieldEquals { field: field.clone(), value: resolved })
+                Ok(Spec::FieldEquals {
+                    field: field.clone(),
+                    value: resolved,
+                })
             }
             Spec::FieldCompare { field, op, value } => {
                 let resolved = self.resolve_value(value)?;
-                Ok(Spec::FieldCompare { field: field.clone(), op: *op, value: resolved })
+                Ok(Spec::FieldCompare {
+                    field: field.clone(),
+                    op: *op,
+                    value: resolved,
+                })
             }
-            Spec::NumericCompare { field, op, value } => {
-                Ok(Spec::NumericCompare { field: field.clone(), op: *op, value: *value })
-            }
+            Spec::NumericCompare { field, op, value } => Ok(Spec::NumericCompare {
+                field: field.clone(),
+                op: *op,
+                value: *value,
+            }),
             Spec::Contains { field, substring } => {
                 let resolved = self.resolve_value(substring)?;
-                Ok(Spec::Contains { field: field.clone(), substring: resolved })
+                Ok(Spec::Contains {
+                    field: field.clone(),
+                    substring: resolved,
+                })
             }
             Spec::StartsWith { field, prefix } => {
                 let resolved = self.resolve_value(prefix)?;
-                Ok(Spec::StartsWith { field: field.clone(), prefix: resolved })
+                Ok(Spec::StartsWith {
+                    field: field.clone(),
+                    prefix: resolved,
+                })
             }
             Spec::EndsWith { field, suffix } => {
                 let resolved = self.resolve_value(suffix)?;
-                Ok(Spec::EndsWith { field: field.clone(), suffix: resolved })
+                Ok(Spec::EndsWith {
+                    field: field.clone(),
+                    suffix: resolved,
+                })
             }
             Spec::FieldExists(f) => Ok(Spec::FieldExists(f.clone())),
             Spec::In { field, values } => {
                 let resolved: Result<Vec<String>, _> =
                     values.iter().map(|v| self.resolve_value(v)).collect();
-                Ok(Spec::In { field: field.clone(), values: resolved? })
+                Ok(Spec::In {
+                    field: field.clone(),
+                    values: resolved?,
+                })
             }
             Spec::And(specs) => {
                 let resolved: Result<Vec<Spec>, _> =
@@ -377,7 +451,8 @@ impl ParameterizedSpec {
     fn resolve_value(&self, value: &str) -> Result<String, SpecError> {
         if let Some(stripped) = value.strip_prefix(':') {
             // Parameter reference.
-            self.parameters.get(stripped)
+            self.parameters
+                .get(stripped)
                 .cloned()
                 .ok_or_else(|| SpecError::MissingParameter(stripped.to_string()))
         } else {
@@ -471,8 +546,11 @@ mod tests {
 
     #[test]
     fn test_and_composition() {
-        let spec = Spec::field_equals("city", "New York")
-            .and(Spec::numeric_compare("age", ComparisonOp::GreaterThan, 28));
+        let spec = Spec::field_equals("city", "New York").and(Spec::numeric_compare(
+            "age",
+            ComparisonOp::GreaterThan,
+            28,
+        ));
         let candidates = sample_candidates();
         assert!(spec.is_satisfied_by(&candidates[0])); // NYC, 30
         assert!(!spec.is_satisfied_by(&candidates[1])); // SF, 25
@@ -481,8 +559,7 @@ mod tests {
 
     #[test]
     fn test_or_composition() {
-        let spec = Spec::field_equals("name", "Alice")
-            .or(Spec::field_equals("name", "Bob"));
+        let spec = Spec::field_equals("name", "Alice").or(Spec::field_equals("name", "Bob"));
         let candidates = sample_candidates();
         assert!(spec.is_satisfied_by(&candidates[0]));
         assert!(spec.is_satisfied_by(&candidates[1]));
@@ -549,19 +626,23 @@ mod tests {
 
     #[test]
     fn test_serialization_roundtrip() {
-        let spec = Spec::field_equals("name", "Alice")
-            .and(Spec::numeric_compare("age", ComparisonOp::GreaterThan, 20));
+        let spec = Spec::field_equals("name", "Alice").and(Spec::numeric_compare(
+            "age",
+            ComparisonOp::GreaterThan,
+            20,
+        ));
         let json = serialize_spec(&spec).unwrap();
         let deserialized = deserialize_spec(&json).unwrap();
-        let c = Candidate::new("c1").with_field("name", "Alice").with_field("age", "30");
+        let c = Candidate::new("c1")
+            .with_field("name", "Alice")
+            .with_field("age", "30");
         assert!(deserialized.is_satisfied_by(&c));
     }
 
     #[test]
     fn test_parameterized_spec() {
         let template = Spec::field_equals("status", ":target_status");
-        let pspec = ParameterizedSpec::new(template)
-            .bind("target_status", "active");
+        let pspec = ParameterizedSpec::new(template).bind("target_status", "active");
         let built = pspec.build().unwrap();
         let c = Candidate::new("c1").with_field("status", "active");
         assert!(built.is_satisfied_by(&c));

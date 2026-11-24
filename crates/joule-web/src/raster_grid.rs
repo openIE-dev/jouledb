@@ -123,8 +123,14 @@ impl fmt::Display for RasterConfig {
         write!(
             f,
             "RasterConfig({}x{}, cell={}x{}, origin=({}, {}), nodata={}, {})",
-            self.rows, self.cols, self.cell_width, self.cell_height,
-            self.origin_x, self.origin_y, self.nodata, self.crs,
+            self.rows,
+            self.cols,
+            self.cell_width,
+            self.cell_height,
+            self.origin_x,
+            self.origin_y,
+            self.nodata,
+            self.crs,
         )
     }
 }
@@ -224,7 +230,10 @@ impl RasterGrid {
         let col = ((x - self.origin_x) / self.cell_width).floor() as usize;
         let row = ((self.origin_y + self.rows as f64 * self.cell_height - y) / self.cell_height)
             .floor() as usize;
-        (row.min(self.rows.saturating_sub(1)), col.min(self.cols.saturating_sub(1)))
+        (
+            row.min(self.rows.saturating_sub(1)),
+            col.min(self.cols.saturating_sub(1)),
+        )
     }
 
     /// Bounding box as (min_x, min_y, max_x, max_y).
@@ -239,7 +248,13 @@ impl RasterGrid {
     // ── Subsetting ──────────────────────────────────────────────
 
     /// Extract a rectangular sub-grid.
-    pub fn subset(&self, start_row: usize, start_col: usize, nrows: usize, ncols: usize) -> Option<RasterGrid> {
+    pub fn subset(
+        &self,
+        start_row: usize,
+        start_col: usize,
+        nrows: usize,
+        ncols: usize,
+    ) -> Option<RasterGrid> {
         if start_row + nrows > self.rows || start_col + ncols > self.cols {
             return None;
         }
@@ -311,7 +326,9 @@ impl RasterGrid {
         let get = |ri: isize, ci: isize| -> f64 {
             if ri >= 0 && ri < self.rows as isize && ci >= 0 && ci < self.cols as isize {
                 let v = self.data[ri as usize * self.cols + ci as usize];
-                if self.is_nodata(v) { return f64::NAN; }
+                if self.is_nodata(v) {
+                    return f64::NAN;
+                }
                 v
             } else {
                 f64::NAN
@@ -373,7 +390,11 @@ impl RasterGrid {
             }
         }
 
-        if wsum.abs() < f64::EPSILON { self.nodata } else { sum / wsum }
+        if wsum.abs() < f64::EPSILON {
+            self.nodata
+        } else {
+            sum / wsum
+        }
     }
 
     // ── Statistics ──────────────────────────────────────────────
@@ -387,8 +408,12 @@ impl RasterGrid {
 
         for &v in &self.data {
             if !self.is_nodata(v) {
-                if v < min { min = v; }
-                if v > max { max = v; }
+                if v < min {
+                    min = v;
+                }
+                if v > max {
+                    max = v;
+                }
                 sum += v;
                 count += 1;
             }
@@ -419,8 +444,13 @@ impl fmt::Display for RasterGrid {
         write!(
             f,
             "RasterGrid({}x{}, cell={}x{}, valid={}/{}, {})",
-            self.rows, self.cols, self.cell_width, self.cell_height,
-            valid, self.cell_count(), self.crs,
+            self.rows,
+            self.cols,
+            self.cell_width,
+            self.cell_height,
+            valid,
+            self.cell_count(),
+            self.crs,
         )
     }
 }

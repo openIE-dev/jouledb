@@ -49,11 +49,11 @@ impl MatchKind {
 
     pub fn energy_joules(&self) -> f64 {
         match self {
-            MatchKind::VerifiedMapping => 0.0,       // cache hit
-            MatchKind::ExactName => 0.000_001,        // 1 µJ
-            MatchKind::FullKeyword => 0.000_010,      // 10 µJ
-            MatchKind::Partial => 0.000_100,          // 100 µJ
-            MatchKind::NoMatch => 0.0,                // didn't resolve
+            MatchKind::VerifiedMapping => 0.0,   // cache hit
+            MatchKind::ExactName => 0.000_001,   // 1 µJ
+            MatchKind::FullKeyword => 0.000_010, // 10 µJ
+            MatchKind::Partial => 0.000_100,     // 100 µJ
+            MatchKind::NoMatch => 0.0,           // didn't resolve
         }
     }
 }
@@ -158,15 +158,14 @@ impl PatternBridge {
         Self {
             known_patterns: Vec::new(),
             stop_words: vec![
-                "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-                "have", "has", "had", "do", "does", "did", "will", "would", "could",
-                "should", "may", "might", "shall", "can", "need", "must", "of", "in",
-                "to", "for", "with", "on", "at", "by", "from", "as", "into", "through",
-                "about", "between", "after", "before", "above", "below", "and", "or",
-                "but", "not", "no", "nor", "so", "if", "then", "than", "that", "this",
-                "what", "which", "who", "whom", "how", "when", "where", "why", "all",
-                "each", "every", "both", "few", "more", "most", "some", "any", "it",
-                "its", "me", "my", "we", "our", "you", "your", "he", "she", "they",
+                "the", "a", "an", "is", "are", "was", "were", "be", "been", "being", "have", "has",
+                "had", "do", "does", "did", "will", "would", "could", "should", "may", "might",
+                "shall", "can", "need", "must", "of", "in", "to", "for", "with", "on", "at", "by",
+                "from", "as", "into", "through", "about", "between", "after", "before", "above",
+                "below", "and", "or", "but", "not", "no", "nor", "so", "if", "then", "than",
+                "that", "this", "what", "which", "who", "whom", "how", "when", "where", "why",
+                "all", "each", "every", "both", "few", "more", "most", "some", "any", "it", "its",
+                "me", "my", "we", "our", "you", "your", "he", "she", "they",
             ],
         }
     }
@@ -195,11 +194,7 @@ impl PatternBridge {
     /// Attempt deterministic resolution using the pattern resolver.
     /// If successful, returns a resolved output with zero LLM cost.
     /// If not, returns an escalation with the keywords attempted.
-    pub fn try_resolve(
-        &self,
-        query: &str,
-        resolver: &dyn PatternResolver,
-    ) -> PatternResolution {
+    pub fn try_resolve(&self, query: &str, resolver: &dyn PatternResolver) -> PatternResolution {
         let keywords = self.extract_keywords(query);
 
         // First: check for exact pattern name in query
@@ -374,9 +369,7 @@ mod tests {
 
     #[test]
     fn test_resolve_no_match_escalates() {
-        let resolver = MockResolver {
-            patterns: vec![],
-        };
+        let resolver = MockResolver { patterns: vec![] };
         let bridge = PatternBridge::new();
         let result = bridge.try_resolve("explain quantum entanglement", &resolver);
         match result {

@@ -23,7 +23,10 @@ struct VarEntry {
 impl VarRegistry {
     /// Create a root registry with no parent.
     pub fn new() -> Self {
-        Self { vars: HashMap::new(), parent: None }
+        Self {
+            vars: HashMap::new(),
+            parent: None,
+        }
     }
 
     /// Create a child scope that inherits from this registry.
@@ -36,18 +39,24 @@ impl VarRegistry {
 
     /// Define a custom property (inherited by default).
     pub fn define(&mut self, name: &str, value: &str) {
-        self.vars.insert(name.to_string(), VarEntry {
-            value: value.to_string(),
-            inherited: true,
-        });
+        self.vars.insert(
+            name.to_string(),
+            VarEntry {
+                value: value.to_string(),
+                inherited: true,
+            },
+        );
     }
 
     /// Define a non-inherited custom property.
     pub fn define_non_inherited(&mut self, name: &str, value: &str) {
-        self.vars.insert(name.to_string(), VarEntry {
-            value: value.to_string(),
-            inherited: false,
-        });
+        self.vars.insert(
+            name.to_string(),
+            VarEntry {
+                value: value.to_string(),
+                inherited: false,
+            },
+        );
     }
 
     /// Resolve a variable by name, checking this scope then ancestors.
@@ -110,7 +119,11 @@ pub fn parse_var_call(input: &str) -> Option<VarCall> {
         let fallback = inner[comma_pos + 1..].trim().to_string();
         Some(VarCall {
             name,
-            fallback: if fallback.is_empty() { None } else { Some(fallback) },
+            fallback: if fallback.is_empty() {
+                None
+            } else {
+                Some(fallback)
+            },
         })
     } else {
         Some(VarCall {

@@ -145,7 +145,10 @@ impl Trace {
 
     /// Count non-Nop operations (the "live" ops).
     pub fn live_op_count(&self) -> usize {
-        self.ops.iter().filter(|op| !matches!(op, TraceOp::Nop)).count()
+        self.ops
+            .iter()
+            .filter(|op| !matches!(op, TraceOp::Nop))
+            .count()
     }
 }
 
@@ -273,9 +276,12 @@ impl TraceOptimizer {
             let mut is_dead = false;
             for j in (i + 1)..len {
                 match &trace.ops[j] {
-                    TraceOp::LoadReg(r) if *r == reg => break,                 // read — not dead
-                    TraceOp::StoreReg(r) if *r == reg => { is_dead = true; break; } // overwritten
-                    TraceOp::SideEffect(_) | TraceOp::Call(_) => break,        // might read
+                    TraceOp::LoadReg(r) if *r == reg => break, // read — not dead
+                    TraceOp::StoreReg(r) if *r == reg => {
+                        is_dead = true;
+                        break;
+                    } // overwritten
+                    TraceOp::SideEffect(_) | TraceOp::Call(_) => break, // might read
                     TraceOp::Return | TraceOp::LoopBack | TraceOp::Jump(_) => break,
                     _ => {}
                 }
@@ -356,11 +362,7 @@ pub struct JitPipeline {
 }
 
 impl JitPipeline {
-    pub fn new(
-        baseline_threshold: u64,
-        optimized_threshold: u64,
-        hot_loop_threshold: u64,
-    ) -> Self {
+    pub fn new(baseline_threshold: u64, optimized_threshold: u64, hot_loop_threshold: u64) -> Self {
         Self {
             functions: HashMap::new(),
             hot_detector: HotLoopDetector::new(hot_loop_threshold),
@@ -684,14 +686,20 @@ mod tests {
         let mut jit = JitPipeline::new(5, 20, 100);
         jit.register_function(0, "f");
         jit.start_trace(0);
-        jit.trace_op(0, TraceOp::Guard {
-            expected: true,
-            deopt_id: 0,
-        });
-        jit.trace_op(0, TraceOp::Guard {
-            expected: false,
-            deopt_id: 1,
-        });
+        jit.trace_op(
+            0,
+            TraceOp::Guard {
+                expected: true,
+                deopt_id: 0,
+            },
+        );
+        jit.trace_op(
+            0,
+            TraceOp::Guard {
+                expected: false,
+                deopt_id: 1,
+            },
+        );
         assert_eq!(jit.stats().guards_inserted, 2);
         let fs = jit.function_state(0).unwrap();
         assert_eq!(fs.trace.as_ref().unwrap().guard_count, 2);

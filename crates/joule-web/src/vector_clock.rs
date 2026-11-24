@@ -150,11 +150,8 @@ impl VectorClock {
 
     /// Serialize the clock to a JSON-like string representation.
     pub fn serialize(&self) -> String {
-        let mut entries: Vec<(&str, u64)> = self
-            .clock
-            .iter()
-            .map(|(k, v)| (k.as_str(), *v))
-            .collect();
+        let mut entries: Vec<(&str, u64)> =
+            self.clock.iter().map(|(k, v)| (k.as_str(), *v)).collect();
         entries.sort_by(|a, b| a.0.cmp(b.0));
         let parts: Vec<String> = entries
             .iter()

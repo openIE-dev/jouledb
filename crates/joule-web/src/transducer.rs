@@ -303,10 +303,7 @@ fn apply_step<T: Clone + PartialEq + Eq + Hash>(step: &Xform<T>, input: Vec<T>) 
 // ── Transduce into different targets ────────────────────────────────────────
 
 /// Transduce a string pipeline: transform chars and collect back into a String.
-pub fn transduce_string(
-    input: &str,
-    pipeline: &TransducerPipeline<char>,
-) -> String {
+pub fn transduce_string(input: &str, pipeline: &TransducerPipeline<char>) -> String {
     pipeline.transduce(input.chars()).into_iter().collect()
 }
 
@@ -380,9 +377,7 @@ pub fn mapping_step<A: 'static, T: 'static, U: 'static>(
     f: impl Fn(T) -> U + 'static,
     mut downstream: StepProcessor<A, U>,
 ) -> StepProcessor<A, T> {
-    StepProcessor::new(move |acc, item| {
-        (downstream.step)(acc, f(item))
-    })
+    StepProcessor::new(move |acc, item| (downstream.step)(acc, f(item)))
 }
 
 /// Create a filtering step processor.
@@ -485,8 +480,7 @@ mod tests {
 
     #[test]
     fn pipeline_flat_map() {
-        let p = TransducerPipeline::new()
-            .flat_map(|x: i32| vec![x, x * 10]);
+        let p = TransducerPipeline::new().flat_map(|x: i32| vec![x, x * 10]);
         assert_eq!(p.transduce(vec![1, 2]), vec![1, 10, 2, 20]);
     }
 
@@ -517,8 +511,7 @@ mod tests {
     fn pipeline_inspect() {
         let log = Rc::new(RefCell::new(Vec::new()));
         let log_ref = log.clone();
-        let p = TransducerPipeline::new()
-            .inspect(move |x: &i32| log_ref.borrow_mut().push(*x));
+        let p = TransducerPipeline::new().inspect(move |x: &i32| log_ref.borrow_mut().push(*x));
         let result = p.transduce(vec![1, 2, 3]);
         assert_eq!(result, vec![1, 2, 3]);
         assert_eq!(*log.borrow(), vec![1, 2, 3]);

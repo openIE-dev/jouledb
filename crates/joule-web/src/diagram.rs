@@ -80,12 +80,7 @@ pub struct ShapeInstance {
 }
 
 impl ShapeInstance {
-    pub fn new(
-        id: impl Into<String>,
-        shape: Shape,
-        position: Position,
-        size: Size,
-    ) -> Self {
+    pub fn new(id: impl Into<String>, shape: Shape, position: Position, size: Size) -> Self {
         Self {
             id: id.into(),
             shape,
@@ -313,13 +308,7 @@ impl Canvas {
     }
 
     /// Find all shapes intersecting a rectangular region.
-    pub fn shapes_in_region(
-        &self,
-        rx: f64,
-        ry: f64,
-        rw: f64,
-        rh: f64,
-    ) -> Vec<&ShapeInstance> {
+    pub fn shapes_in_region(&self, rx: f64, ry: f64, rw: f64, rh: f64) -> Vec<&ShapeInstance> {
         self.shapes
             .values()
             .filter(|s| {
@@ -464,8 +453,14 @@ mod tests {
     #[test]
     fn test_all_shape_types_hit_test_center() {
         let shapes = [
-            Shape::Rect, Shape::RoundedRect, Shape::Ellipse, Shape::Diamond,
-            Shape::Parallelogram, Shape::Hexagon, Shape::Cylinder, Shape::Cloud,
+            Shape::Rect,
+            Shape::RoundedRect,
+            Shape::Ellipse,
+            Shape::Diamond,
+            Shape::Parallelogram,
+            Shape::Hexagon,
+            Shape::Cylinder,
+            Shape::Cloud,
         ];
         for shape_type in &shapes {
             let s = ShapeInstance::new(

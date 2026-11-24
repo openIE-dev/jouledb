@@ -34,11 +34,26 @@ impl Command {
         }
     }
 
-    pub fn description(mut self, d: impl Into<String>) -> Self { self.description = Some(d.into()); self }
-    pub fn shortcut(mut self, s: impl Into<String>) -> Self { self.shortcut = Some(s.into()); self }
-    pub fn category(mut self, c: impl Into<String>) -> Self { self.category = Some(c.into()); self }
-    pub fn icon(mut self, i: impl Into<String>) -> Self { self.icon = Some(i.into()); self }
-    pub fn enabled(mut self, e: bool) -> Self { self.enabled = e; self }
+    pub fn description(mut self, d: impl Into<String>) -> Self {
+        self.description = Some(d.into());
+        self
+    }
+    pub fn shortcut(mut self, s: impl Into<String>) -> Self {
+        self.shortcut = Some(s.into());
+        self
+    }
+    pub fn category(mut self, c: impl Into<String>) -> Self {
+        self.category = Some(c.into());
+        self
+    }
+    pub fn icon(mut self, i: impl Into<String>) -> Self {
+        self.icon = Some(i.into());
+        self
+    }
+    pub fn enabled(mut self, e: bool) -> Self {
+        self.enabled = e;
+        self
+    }
 }
 
 // ── CommandPalette ──────────────────────────────────────────────
@@ -82,14 +97,31 @@ impl CommandPalette {
         let before = self.commands.len();
         self.commands.retain(|c| c.id != id);
         let removed = self.commands.len() < before;
-        if removed { self.refilter(); }
+        if removed {
+            self.refilter();
+        }
         removed
     }
 
-    pub fn open(&mut self) { self.open = true; self.selected_index = 0; }
-    pub fn close(&mut self) { self.open = false; self.query.clear(); self.refilter(); }
-    pub fn toggle(&mut self) { if self.open { self.close(); } else { self.open(); } }
-    pub fn is_open(&self) -> bool { self.open }
+    pub fn open(&mut self) {
+        self.open = true;
+        self.selected_index = 0;
+    }
+    pub fn close(&mut self) {
+        self.open = false;
+        self.query.clear();
+        self.refilter();
+    }
+    pub fn toggle(&mut self) {
+        if self.open {
+            self.close();
+        } else {
+            self.open();
+        }
+    }
+    pub fn is_open(&self) -> bool {
+        self.open
+    }
 
     pub fn set_query(&mut self, query: impl Into<String>) {
         self.query = query.into();
@@ -97,10 +129,14 @@ impl CommandPalette {
         self.selected_index = 0;
     }
 
-    pub fn query(&self) -> &str { &self.query }
+    pub fn query(&self) -> &str {
+        &self.query
+    }
 
     pub fn select_next(&mut self) {
-        if self.filtered.is_empty() { return; }
+        if self.filtered.is_empty() {
+            return;
+        }
         // Find next enabled
         let len = self.filtered.len();
         for offset in 1..=len {
@@ -113,7 +149,9 @@ impl CommandPalette {
     }
 
     pub fn select_previous(&mut self) {
-        if self.filtered.is_empty() { return; }
+        if self.filtered.is_empty() {
+            return;
+        }
         let len = self.filtered.len();
         for offset in 1..=len {
             let idx = (self.selected_index + len - offset) % len;
@@ -125,20 +163,26 @@ impl CommandPalette {
     }
 
     pub fn selected(&self) -> Option<&Command> {
-        self.filtered.get(self.selected_index).map(|i| &self.commands[*i])
+        self.filtered
+            .get(self.selected_index)
+            .map(|i| &self.commands[*i])
     }
 
     /// Execute the selected command. Returns handler_id, adds to recent, closes.
     pub fn execute(&mut self) -> Option<u64> {
         let cmd_idx = *self.filtered.get(self.selected_index)?;
         let cmd = &self.commands[cmd_idx];
-        if !cmd.enabled { return None; }
+        if !cmd.enabled {
+            return None;
+        }
         let handler_id = cmd.handler_id;
         let id = cmd.id.clone();
 
         // Update recent: remove if present, push front
         self.recent.retain(|r| r != &id);
-        if self.recent.len() >= 16 { self.recent.pop_back(); }
+        if self.recent.len() >= 16 {
+            self.recent.pop_back();
+        }
         self.recent.push_front(id);
 
         self.close();
@@ -146,7 +190,8 @@ impl CommandPalette {
     }
 
     pub fn recent_commands(&self) -> Vec<&Command> {
-        self.recent.iter()
+        self.recent
+            .iter()
             .filter_map(|id| self.commands.iter().find(|c| c.id == *id))
             .collect()
     }
@@ -168,12 +213,23 @@ impl CommandPalette {
 
     fn refilter(&mut self) {
         let q = self.query.to_lowercase();
-        self.filtered = self.commands.iter().enumerate()
+        self.filtered = self
+            .commands
+            .iter()
+            .enumerate()
             .filter(|(_, cmd)| {
-                if q.is_empty() { return true; }
+                if q.is_empty() {
+                    return true;
+                }
                 self.fuzzy_match(&cmd.label, &q)
-                    || cmd.description.as_deref().is_some_and(|d| self.fuzzy_match(d, &q))
-                    || cmd.category.as_deref().is_some_and(|c| self.fuzzy_match(c, &q))
+                    || cmd
+                        .description
+                        .as_deref()
+                        .is_some_and(|d| self.fuzzy_match(d, &q))
+                    || cmd
+                        .category
+                        .as_deref()
+                        .is_some_and(|c| self.fuzzy_match(c, &q))
             })
             .take(self.max_results)
             .map(|(i, _)| i)
@@ -197,7 +253,9 @@ impl CommandPalette {
 }
 
 impl Default for CommandPalette {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────
@@ -229,7 +287,11 @@ mod tests {
     fn query_filters_by_label() {
         let mut p = palette_with_cmds();
         p.set_query("open");
-        let names: Vec<_> = p.filtered_commands().iter().map(|c| c.label.as_str()).collect();
+        let names: Vec<_> = p
+            .filtered_commands()
+            .iter()
+            .map(|c| c.label.as_str())
+            .collect();
         assert!(names.contains(&"Open File"));
         assert!(!names.contains(&"Format Document"));
     }

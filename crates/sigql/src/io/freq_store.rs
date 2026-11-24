@@ -115,7 +115,9 @@ pub fn read_freq_progressive(path: &Path, max_entries: Option<usize>) -> IoResul
     ]);
 
     // Read entries (progressive: only up to max_entries)
-    let read_count = max_entries.map(|m| m.min(entry_count)).unwrap_or(entry_count);
+    let read_count = max_entries
+        .map(|m| m.min(entry_count))
+        .unwrap_or(entry_count);
     let mut entries = Vec::with_capacity(read_count);
 
     let mut entry_buf = [0u8; ENTRY_SIZE];
@@ -123,7 +125,8 @@ pub fn read_freq_progressive(path: &Path, max_entries: Option<usize>) -> IoResul
         file.read_exact(&mut entry_buf)?;
         let pos_x = u16::from_le_bytes([entry_buf[0], entry_buf[1]]) as u32;
         let pos_y = u16::from_le_bytes([entry_buf[2], entry_buf[3]]) as u32;
-        let magnitude = f32::from_le_bytes([entry_buf[4], entry_buf[5], entry_buf[6], entry_buf[7]]);
+        let magnitude =
+            f32::from_le_bytes([entry_buf[4], entry_buf[5], entry_buf[6], entry_buf[7]]);
         let phase = f32::from_le_bytes([entry_buf[8], entry_buf[9], entry_buf[10], entry_buf[11]]);
 
         entries.push(CoefficientEntry {

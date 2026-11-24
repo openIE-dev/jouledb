@@ -94,15 +94,15 @@ impl LanguageDefinition {
             .collect(),
             types: vec![
                 "u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64", "i128",
-                "isize", "f32", "f64", "bool", "char", "str", "String", "Vec", "Option",
-                "Result", "Box", "Rc", "Arc", "HashMap", "HashSet", "Self",
+                "isize", "f32", "f64", "bool", "char", "str", "String", "Vec", "Option", "Result",
+                "Box", "Rc", "Arc", "HashMap", "HashSet", "Self",
             ]
             .into_iter()
             .map(String::from)
             .collect(),
             operators: vec![
-                "=>", "->", "::", "&&", "||", "==", "!=", "<=", ">=", "<<", ">>", "+=", "-=",
-                "*=", "/=", "+", "-", "*", "/", "%", "&", "|", "^", "!", "<", ">", "=",
+                "=>", "->", "::", "&&", "||", "==", "!=", "<=", ">=", "<<", ">>", "+=", "-=", "*=",
+                "/=", "+", "-", "*", "/", "%", "&", "|", "^", "!", "<", ">", "=",
             ]
             .into_iter()
             .map(String::from)
@@ -119,11 +119,43 @@ impl LanguageDefinition {
         Self {
             name: "javascript".into(),
             keywords: vec![
-                "function", "var", "let", "const", "if", "else", "return", "while", "for", "do",
-                "switch", "case", "break", "continue", "new", "this", "class", "extends",
-                "import", "export", "default", "from", "try", "catch", "finally", "throw",
-                "async", "await", "yield", "typeof", "instanceof", "in", "of", "true", "false",
-                "null", "undefined",
+                "function",
+                "var",
+                "let",
+                "const",
+                "if",
+                "else",
+                "return",
+                "while",
+                "for",
+                "do",
+                "switch",
+                "case",
+                "break",
+                "continue",
+                "new",
+                "this",
+                "class",
+                "extends",
+                "import",
+                "export",
+                "default",
+                "from",
+                "try",
+                "catch",
+                "finally",
+                "throw",
+                "async",
+                "await",
+                "yield",
+                "typeof",
+                "instanceof",
+                "in",
+                "of",
+                "true",
+                "false",
+                "null",
+                "undefined",
             ]
             .into_iter()
             .map(String::from)
@@ -136,9 +168,8 @@ impl LanguageDefinition {
             .map(String::from)
             .collect(),
             operators: vec![
-                "===", "!==", "=>", "==", "!=", "<=", ">=", "&&", "||", "??", "?.", "+=",
-                "-=", "*=", "/=", "**", "+", "-", "*", "/", "%", "&", "|", "^", "!", "<",
-                ">", "=", "~",
+                "===", "!==", "=>", "==", "!=", "<=", ">=", "&&", "||", "??", "?.", "+=", "-=",
+                "*=", "/=", "**", "+", "-", "*", "/", "%", "&", "|", "^", "!", "<", ">", "=", "~",
             ]
             .into_iter()
             .map(String::from)
@@ -155,24 +186,37 @@ impl LanguageDefinition {
         Self {
             name: "python".into(),
             keywords: vec![
-                "def", "class", "if", "elif", "else", "while", "for", "return", "import",
-                "from", "as", "with", "try", "except", "finally", "raise", "pass", "break",
-                "continue", "lambda", "yield", "global", "nonlocal", "assert", "and", "or",
-                "not", "in", "is", "True", "False", "None", "async", "await",
+                "def", "class", "if", "elif", "else", "while", "for", "return", "import", "from",
+                "as", "with", "try", "except", "finally", "raise", "pass", "break", "continue",
+                "lambda", "yield", "global", "nonlocal", "assert", "and", "or", "not", "in", "is",
+                "True", "False", "None", "async", "await",
             ]
             .into_iter()
             .map(String::from)
             .collect(),
             types: vec![
-                "int", "float", "str", "bool", "list", "dict", "tuple", "set", "frozenset",
-                "bytes", "bytearray", "object", "type", "range", "complex",
+                "int",
+                "float",
+                "str",
+                "bool",
+                "list",
+                "dict",
+                "tuple",
+                "set",
+                "frozenset",
+                "bytes",
+                "bytearray",
+                "object",
+                "type",
+                "range",
+                "complex",
             ]
             .into_iter()
             .map(String::from)
             .collect(),
             operators: vec![
-                "**", "//", "==", "!=", "<=", ">=", "+=", "-=", "*=", "/=", "//=", "**=",
-                "->", "+", "-", "*", "/", "%", "&", "|", "^", "~", "<", ">", "=",
+                "**", "//", "==", "!=", "<=", ">=", "+=", "-=", "*=", "/=", "//=", "**=", "->",
+                "+", "-", "*", "/", "%", "&", "|", "^", "~", "<", ">", "=",
             ]
             .into_iter()
             .map(String::from)
@@ -190,23 +234,33 @@ impl LanguageDefinition {
             name: "c".into(),
             keywords: vec![
                 "auto", "break", "case", "char", "const", "continue", "default", "do", "double",
-                "else", "enum", "extern", "float", "for", "goto", "if", "int", "long",
-                "register", "return", "short", "signed", "sizeof", "static", "struct", "switch",
-                "typedef", "union", "unsigned", "void", "volatile", "while",
+                "else", "enum", "extern", "float", "for", "goto", "if", "int", "long", "register",
+                "return", "short", "signed", "sizeof", "static", "struct", "switch", "typedef",
+                "union", "unsigned", "void", "volatile", "while",
             ]
             .into_iter()
             .map(String::from)
             .collect(),
             types: vec![
-                "size_t", "ptrdiff_t", "int8_t", "int16_t", "int32_t", "int64_t", "uint8_t",
-                "uint16_t", "uint32_t", "uint64_t", "bool", "FILE",
+                "size_t",
+                "ptrdiff_t",
+                "int8_t",
+                "int16_t",
+                "int32_t",
+                "int64_t",
+                "uint8_t",
+                "uint16_t",
+                "uint32_t",
+                "uint64_t",
+                "bool",
+                "FILE",
             ]
             .into_iter()
             .map(String::from)
             .collect(),
             operators: vec![
-                "->", "==", "!=", "<=", ">=", "&&", "||", "<<", ">>", "+=", "-=", "*=", "/=",
-                "+", "-", "*", "/", "%", "&", "|", "^", "!", "<", ">", "=", "~",
+                "->", "==", "!=", "<=", ">=", "&&", "||", "<<", ">>", "+=", "-=", "*=", "/=", "+",
+                "-", "*", "/", "%", "&", "|", "^", "!", "<", ">", "=", "~",
             ]
             .into_iter()
             .map(String::from)
@@ -403,7 +457,9 @@ pub fn tokenize(source: &str, lang: &LanguageDefinition) -> Vec<Token> {
         if chars[i].is_ascii_digit() {
             let start = i;
             let start_col = col;
-            while i < len && (chars[i].is_ascii_alphanumeric() || chars[i] == '.' || chars[i] == '_') {
+            while i < len
+                && (chars[i].is_ascii_alphanumeric() || chars[i] == '.' || chars[i] == '_')
+            {
                 i += 1;
                 col += 1;
             }
@@ -501,7 +557,10 @@ impl Theme {
         colors.insert(TokenKind::Operator, "color: #56b6c2".into());
         colors.insert(TokenKind::StringLiteral, "color: #98c379".into());
         colors.insert(TokenKind::NumberLiteral, "color: #d19a66".into());
-        colors.insert(TokenKind::Comment, "color: #5c6370; font-style: italic".into());
+        colors.insert(
+            TokenKind::Comment,
+            "color: #5c6370; font-style: italic".into(),
+        );
         colors.insert(TokenKind::Identifier, "color: #e06c75".into());
         colors.insert(TokenKind::Type, "color: #e5c07b".into());
         colors.insert(TokenKind::Function, "color: #61afef".into());
@@ -524,7 +583,10 @@ impl Theme {
         colors.insert(TokenKind::Operator, "color: #0184bc".into());
         colors.insert(TokenKind::StringLiteral, "color: #50a14f".into());
         colors.insert(TokenKind::NumberLiteral, "color: #986801".into());
-        colors.insert(TokenKind::Comment, "color: #a0a1a7; font-style: italic".into());
+        colors.insert(
+            TokenKind::Comment,
+            "color: #a0a1a7; font-style: italic".into(),
+        );
         colors.insert(TokenKind::Identifier, "color: #e45649".into());
         colors.insert(TokenKind::Type, "color: #c18401".into());
         colors.insert(TokenKind::Function, "color: #4078f2".into());
@@ -542,10 +604,7 @@ impl Theme {
 
     /// Get inline CSS for a token kind.
     pub fn style_for(&self, kind: TokenKind) -> &str {
-        self.colors
-            .get(&kind)
-            .map(|s| s.as_str())
-            .unwrap_or("")
+        self.colors.get(&kind).map(|s| s.as_str()).unwrap_or("")
     }
 }
 
@@ -736,7 +795,12 @@ pub fn render_html(tokens: &[Token], config: &RenderConfig, theme: Option<&Theme
 }
 
 /// Convenience: tokenize and render in one step.
-pub fn highlight(source: &str, language: &str, config: &RenderConfig, theme: Option<&Theme>) -> String {
+pub fn highlight(
+    source: &str,
+    language: &str,
+    config: &RenderConfig,
+    theme: Option<&Theme>,
+) -> String {
     let lang = LanguageDefinition::by_name(language);
     match lang {
         Some(def) => {
@@ -758,7 +822,11 @@ pub fn highlight(source: &str, language: &str, config: &RenderConfig, theme: Opt
 /// Generate CSS for a theme.
 pub fn generate_theme_css(theme: &Theme) -> String {
     let mut css = String::new();
-    let _ = write!(css, "pre.hl-{} {{ {}; {} }}\n", theme.name, theme.background, theme.foreground);
+    let _ = write!(
+        css,
+        "pre.hl-{} {{ {}; {} }}\n",
+        theme.name, theme.background, theme.foreground
+    );
     for (kind, style) in &theme.colors {
         let _ = write!(css, ".{} {{ {} }}\n", kind.css_class(), style);
     }
@@ -775,7 +843,10 @@ mod tests {
     fn test_tokenize_rust_keyword() {
         let lang = LanguageDefinition::rust();
         let tokens = tokenize("fn main", &lang);
-        let keywords: Vec<_> = tokens.iter().filter(|t| t.kind == TokenKind::Keyword).collect();
+        let keywords: Vec<_> = tokens
+            .iter()
+            .filter(|t| t.kind == TokenKind::Keyword)
+            .collect();
         assert_eq!(keywords.len(), 1);
         assert_eq!(keywords[0].text, "fn");
     }
@@ -796,7 +867,10 @@ mod tests {
     fn test_tokenize_rust_comment() {
         let lang = LanguageDefinition::rust();
         let tokens = tokenize("// this is a comment", &lang);
-        let comments: Vec<_> = tokens.iter().filter(|t| t.kind == TokenKind::Comment).collect();
+        let comments: Vec<_> = tokens
+            .iter()
+            .filter(|t| t.kind == TokenKind::Comment)
+            .collect();
         assert_eq!(comments.len(), 1);
         assert!(comments[0].text.contains("comment"));
     }
@@ -805,7 +879,10 @@ mod tests {
     fn test_tokenize_multiline_comment() {
         let lang = LanguageDefinition::rust();
         let tokens = tokenize("/* multi\nline */", &lang);
-        let comments: Vec<_> = tokens.iter().filter(|t| t.kind == TokenKind::Comment).collect();
+        let comments: Vec<_> = tokens
+            .iter()
+            .filter(|t| t.kind == TokenKind::Comment)
+            .collect();
         assert_eq!(comments.len(), 1);
         assert!(comments[0].text.contains("multi"));
     }
@@ -838,7 +915,10 @@ mod tests {
     fn test_tokenize_type() {
         let lang = LanguageDefinition::rust();
         let tokens = tokenize("let x: u32", &lang);
-        let types: Vec<_> = tokens.iter().filter(|t| t.kind == TokenKind::Type).collect();
+        let types: Vec<_> = tokens
+            .iter()
+            .filter(|t| t.kind == TokenKind::Type)
+            .collect();
         assert_eq!(types.len(), 1);
         assert_eq!(types[0].text, "u32");
     }
@@ -947,7 +1027,10 @@ mod tests {
     fn test_python_tokenizer() {
         let lang = LanguageDefinition::python();
         let tokens = tokenize("def hello():\n    pass", &lang);
-        let keywords: Vec<_> = tokens.iter().filter(|t| t.kind == TokenKind::Keyword).collect();
+        let keywords: Vec<_> = tokens
+            .iter()
+            .filter(|t| t.kind == TokenKind::Keyword)
+            .collect();
         assert!(keywords.len() >= 2);
         assert_eq!(keywords[0].text, "def");
     }
@@ -956,7 +1039,10 @@ mod tests {
     fn test_javascript_tokenizer() {
         let lang = LanguageDefinition::javascript();
         let tokens = tokenize("const x = 42", &lang);
-        let keywords: Vec<_> = tokens.iter().filter(|t| t.kind == TokenKind::Keyword).collect();
+        let keywords: Vec<_> = tokens
+            .iter()
+            .filter(|t| t.kind == TokenKind::Keyword)
+            .collect();
         assert_eq!(keywords.len(), 1);
         assert_eq!(keywords[0].text, "const");
     }

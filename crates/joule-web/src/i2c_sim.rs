@@ -120,13 +120,21 @@ impl std::fmt::Display for I2cError {
         match self {
             Self::NoDeviceAtAddress(a) => write!(f, "no device at address 0x{:02X}", a),
             Self::InvalidRegister { address, register } => {
-                write!(f, "invalid register 0x{:02X} on device 0x{:02X}", register, address)
+                write!(
+                    f,
+                    "invalid register 0x{:02X} on device 0x{:02X}",
+                    register, address
+                )
             }
             Self::BusBusy => write!(f, "bus is busy"),
             Self::ArbitrationLost => write!(f, "arbitration lost"),
             Self::Nack(a) => write!(f, "NACK from address 0x{:02X}", a),
             Self::ReadOnlyRegister { address, register } => {
-                write!(f, "register 0x{:02X} on device 0x{:02X} is read-only", register, address)
+                write!(
+                    f,
+                    "register 0x{:02X} on device 0x{:02X} is read-only",
+                    register, address
+                )
             }
             Self::DataTooLong { max, got } => {
                 write!(f, "data too long: max {} bytes, got {}", max, got)
@@ -211,10 +219,13 @@ impl I2cSlave {
     }
 
     fn read_register(&self, reg_addr: u8) -> Result<u8, I2cError> {
-        let reg = self.registers.get(&reg_addr).ok_or(I2cError::InvalidRegister {
-            address: self.address.0,
-            register: reg_addr,
-        })?;
+        let reg = self
+            .registers
+            .get(&reg_addr)
+            .ok_or(I2cError::InvalidRegister {
+                address: self.address.0,
+                register: reg_addr,
+            })?;
         if reg.access == RegisterAccess::WriteOnly {
             return Err(I2cError::InvalidRegister {
                 address: self.address.0,
@@ -225,10 +236,13 @@ impl I2cSlave {
     }
 
     fn write_register(&mut self, reg_addr: u8, value: u8) -> Result<(), I2cError> {
-        let reg = self.registers.get_mut(&reg_addr).ok_or(I2cError::InvalidRegister {
-            address: self.address.0,
-            register: reg_addr,
-        })?;
+        let reg = self
+            .registers
+            .get_mut(&reg_addr)
+            .ok_or(I2cError::InvalidRegister {
+                address: self.address.0,
+                register: reg_addr,
+            })?;
         if reg.access == RegisterAccess::ReadOnly {
             return Err(I2cError::ReadOnlyRegister {
                 address: self.address.0,
@@ -271,7 +285,10 @@ impl I2cBus {
     pub fn attach(&mut self, slave: I2cSlave) -> Result<(), I2cError> {
         let addr = slave.address.0;
         if self.slaves.contains_key(&addr) {
-            return Err(I2cError::BusError(format!("address 0x{:02X} already occupied", addr)));
+            return Err(I2cError::BusError(format!(
+                "address 0x{:02X} already occupied",
+                addr
+            )));
         }
         self.slaves.insert(addr, slave);
         Ok(())
@@ -283,7 +300,12 @@ impl I2cBus {
     }
 
     /// Write data to a slave register.
-    pub fn write_register(&mut self, address: I2cAddress, register: u8, data: &[u8]) -> Result<(), I2cError> {
+    pub fn write_register(
+        &mut self,
+        address: I2cAddress,
+        register: u8,
+        data: &[u8],
+    ) -> Result<(), I2cError> {
         if self.bus_busy {
             return Err(I2cError::BusBusy);
         }
@@ -301,13 +323,21 @@ impl I2cBus {
             Err(_) => TransactionResult::BusError,
         };
 
-        self.record_log(address, TransferDirection::Write, Some(register), data.to_vec(), tx_result);
+        self.record_log(
+            address,
+            TransferDirection::Write,
+            Some(register),
+            data.to_vec(),
+            tx_result,
+        );
         self.bus_busy = false;
         result
     }
 
     fn perform_write(&mut self, addr: u8, register: u8, data: &[u8]) -> Result<(), I2cError> {
-        let slave = self.slaves.get_mut(&addr)
+        let slave = self
+            .slaves
+            .get_mut(&addr)
             .ok_or(I2cError::NoDeviceAtAddress(addr))?;
 
         if !slave.online {
@@ -332,7 +362,12 @@ impl I2cBus {
     }
 
     /// Read from a slave register.
-    pub fn read_register(&mut self, address: I2cAddress, register: u8, length: usize) -> Result<Vec<u8>, I2cError> {
+    pub fn read_register(
+        &mut self,
+        address: I2cAddress,
+        register: u8,
+        length: usize,
+    ) -> Result<Vec<u8>, I2cError> {
         if self.bus_busy {
             return Err(I2cError::BusBusy);
         }
@@ -349,13 +384,21 @@ impl I2cBus {
             Err(_) => (TransactionResult::BusError, Vec::new()),
         };
 
-        self.record_log(address, TransferDirection::Read, Some(register), data, tx_result);
+        self.record_log(
+            address,
+            TransferDirection::Read,
+            Some(register),
+            data,
+            tx_result,
+        );
         self.bus_busy = false;
         result
     }
 
     fn perform_read(&self, addr: u8, register: u8, length: usize) -> Result<Vec<u8>, I2cError> {
-        let slave = self.slaves.get(&addr)
+        let slave = self
+            .slaves
+            .get(&addr)
             .ok_or(I2cError::NoDeviceAtAddress(addr))?;
 
         if !slave.online {
@@ -435,7 +478,14 @@ impl I2cBus {
         self.slaves.get(&address.0)
     }
 
-    fn record_log(&mut self, address: I2cAddress, direction: TransferDirection, register: Option<u8>, data: Vec<u8>, result: TransactionResult) {
+    fn record_log(
+        &mut self,
+        address: I2cAddress,
+        direction: TransferDirection,
+        register: Option<u8>,
+        data: Vec<u8>,
+        result: TransactionResult,
+    ) {
         if self.log.len() >= self.max_log {
             self.log.remove(0);
         }
@@ -465,19 +515,26 @@ mod tests {
     fn make_temp_sensor(addr: u8) -> I2cSlave {
         let address = I2cAddress::unchecked(addr);
         let mut slave = I2cSlave::new(address, "TMP102");
-        slave.add_register(Register::new(0x00, "temperature", RegisterAccess::ReadOnly).with_default(25));
-        slave.add_register(Register::new(0x01, "config", RegisterAccess::ReadWrite).with_default(0x60));
-        slave.add_register(Register::new(0x02, "t_low", RegisterAccess::ReadWrite).with_default(75));
-        slave.add_register(Register::new(0x03, "t_high", RegisterAccess::ReadWrite).with_default(80));
+        slave.add_register(
+            Register::new(0x00, "temperature", RegisterAccess::ReadOnly).with_default(25),
+        );
+        slave.add_register(
+            Register::new(0x01, "config", RegisterAccess::ReadWrite).with_default(0x60),
+        );
+        slave
+            .add_register(Register::new(0x02, "t_low", RegisterAccess::ReadWrite).with_default(75));
+        slave.add_register(
+            Register::new(0x03, "t_high", RegisterAccess::ReadWrite).with_default(80),
+        );
         slave
     }
 
     #[test]
     fn address_validation() {
         assert!(I2cAddress::new(0x48).is_some());
-        assert!(I2cAddress::new(5).is_none());     // reserved
-        assert!(I2cAddress::new(125).is_none());    // reserved
-        assert!(I2cAddress::new(200).is_none());    // > 127
+        assert!(I2cAddress::new(5).is_none()); // reserved
+        assert!(I2cAddress::new(125).is_none()); // reserved
+        assert!(I2cAddress::new(200).is_none()); // > 127
     }
 
     #[test]
@@ -547,7 +604,7 @@ mod tests {
         let addr = I2cAddress::unchecked(0x48);
         let data = bus.read_register(addr, 0x00, 4).unwrap();
         assert_eq!(data.len(), 4);
-        assert_eq!(data[0], 25);  // reg 0x00
+        assert_eq!(data[0], 25); // reg 0x00
         assert_eq!(data[1], 0x60); // reg 0x01
     }
 

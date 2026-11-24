@@ -18,7 +18,12 @@ pub struct Camera2D {
 
 impl Camera2D {
     pub fn new(x: f64, y: f64, vw: f64, vh: f64) -> Self {
-        Self { x, y, viewport_w: vw, viewport_h: vh }
+        Self {
+            x,
+            y,
+            viewport_w: vw,
+            viewport_h: vh,
+        }
     }
 
     /// Top-left corner of what the camera sees.
@@ -149,7 +154,10 @@ pub struct ParallaxSystem {
 
 impl ParallaxSystem {
     pub fn new() -> Self {
-        Self { layers: Vec::new(), time_secs: 0.0 }
+        Self {
+            layers: Vec::new(),
+            time_secs: 0.0,
+        }
     }
 
     pub fn add_layer(&mut self, layer: ParallaxLayer) {
@@ -183,7 +191,13 @@ impl ParallaxSystem {
     /// Calculate depth-based speed: layers closer to 0 depth scroll slower.
     /// `near_depth`/`far_depth` define the range; `near_speed`/`far_speed`
     /// define the corresponding scroll multipliers.
-    pub fn depth_speed(depth: i32, far_depth: i32, near_depth: i32, far_speed: f64, near_speed: f64) -> f64 {
+    pub fn depth_speed(
+        depth: i32,
+        far_depth: i32,
+        near_depth: i32,
+        far_speed: f64,
+        near_speed: f64,
+    ) -> f64 {
         if near_depth == far_depth {
             return near_speed;
         }
@@ -277,7 +291,13 @@ impl ParallaxSystem {
     }
 
     /// Set all layer speeds based on their depth using linear interpolation.
-    pub fn auto_depth_speeds(&mut self, far_depth: i32, near_depth: i32, far_speed: f64, near_speed: f64) {
+    pub fn auto_depth_speeds(
+        &mut self,
+        far_depth: i32,
+        near_depth: i32,
+        far_speed: f64,
+        near_speed: f64,
+    ) {
         for layer in &mut self.layers {
             let s = Self::depth_speed(layer.depth, far_depth, near_depth, far_speed, near_speed);
             layer.speed_x = s;

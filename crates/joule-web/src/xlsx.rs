@@ -107,7 +107,10 @@ pub struct Cell {
 
 impl Cell {
     pub fn new(value: CellValue) -> Self {
-        Self { value, format: None }
+        Self {
+            value,
+            format: None,
+        }
     }
 
     pub fn empty() -> Self {
@@ -563,6 +566,9 @@ mod tests {
         assert_eq!(CellValue::Number(3.14).to_string(), "3.14");
         assert_eq!(CellValue::Bool(true).to_string(), "TRUE");
         assert_eq!(CellValue::Empty.to_string(), "");
-        assert_eq!(CellValue::Formula("SUM(A1:A3)".into()).to_string(), "=SUM(A1:A3)");
+        assert_eq!(
+            CellValue::Formula("SUM(A1:A3)".into()).to_string(),
+            "=SUM(A1:A3)"
+        );
     }
 }

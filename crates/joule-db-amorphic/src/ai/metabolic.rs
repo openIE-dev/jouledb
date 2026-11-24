@@ -49,10 +49,10 @@ pub struct ComputeBudget {
 /// The metabolic controller: maps contrast magnitude to compute allocation.
 pub struct MetabolicController {
     /// Thresholds for state transitions
-    pub resting_threshold: f64,    // Below this: resting
-    pub alert_threshold: f64,      // Above this: alert
-    pub active_threshold: f64,     // Above this: active
-    pub surge_threshold: f64,      // Above this: surge
+    pub resting_threshold: f64, // Below this: resting
+    pub alert_threshold: f64,  // Above this: alert
+    pub active_threshold: f64, // Above this: active
+    pub surge_threshold: f64,  // Above this: surge
 
     /// Current state
     state: MetabolicState,
@@ -104,22 +104,22 @@ impl MetabolicController {
         match self.state {
             MetabolicState::Resting => ComputeBudget {
                 state: MetabolicState::Resting,
-                energy_limit: 0.000_001,     // 1 µJ
-                latency_limit_us: 10,         // 10 µs
+                energy_limit: 0.000_001, // 1 µJ
+                latency_limit_us: 10,    // 10 µs
                 allowed_tiers: vec![InferenceTier::Holographic],
                 max_comparisons: 10,
             },
             MetabolicState::Alert => ComputeBudget {
                 state: MetabolicState::Alert,
-                energy_limit: 0.001,          // 1 mJ
-                latency_limit_us: 1_000,      // 1 ms
+                energy_limit: 0.001,     // 1 mJ
+                latency_limit_us: 1_000, // 1 ms
                 allowed_tiers: vec![InferenceTier::Holographic, InferenceTier::Embedded],
                 max_comparisons: 100,
             },
             MetabolicState::Active => ComputeBudget {
                 state: MetabolicState::Active,
-                energy_limit: 0.1,            // 100 mJ
-                latency_limit_us: 100_000,    // 100 ms
+                energy_limit: 0.1,         // 100 mJ
+                latency_limit_us: 100_000, // 100 ms
                 allowed_tiers: vec![
                     InferenceTier::Holographic,
                     InferenceTier::Embedded,

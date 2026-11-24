@@ -26,7 +26,10 @@ pub enum SocialAuthError {
     /// Profile field missing.
     ProfileFieldMissing(String),
     /// Account already linked to a different user.
-    AccountAlreadyLinked { provider: String, external_id: String },
+    AccountAlreadyLinked {
+        provider: String,
+        external_id: String,
+    },
     /// User not found.
     UserNotFound(String),
     /// Link not found.
@@ -380,13 +383,13 @@ impl SocialAuthEngine {
         user_id: &str,
         provider_id: &str,
     ) -> Result<(), SocialAuthError> {
-        let user_link_list = self
-            .user_links
-            .get_mut(user_id)
-            .ok_or_else(|| SocialAuthError::LinkNotFound {
-                user_id: user_id.to_string(),
-                provider: provider_id.to_string(),
-            })?;
+        let user_link_list =
+            self.user_links
+                .get_mut(user_id)
+                .ok_or_else(|| SocialAuthError::LinkNotFound {
+                    user_id: user_id.to_string(),
+                    provider: provider_id.to_string(),
+                })?;
 
         let idx = user_link_list
             .iter()
@@ -420,11 +423,7 @@ impl SocialAuthEngine {
     pub fn user_providers(&self, user_id: &str) -> Vec<&AccountLink> {
         self.user_links
             .get(user_id)
-            .map(|keys| {
-                keys.iter()
-                    .filter_map(|key| self.links.get(key))
-                    .collect()
-            })
+            .map(|keys| keys.iter().filter_map(|key| self.links.get(key)).collect())
             .unwrap_or_default()
     }
 
@@ -460,7 +459,11 @@ mod tests {
             token_url: "https://oauth2.googleapis.com/token".to_string(),
             userinfo_url: "https://openidconnect.googleapis.com/v1/userinfo".to_string(),
             redirect_uri: "https://app.example.com/callback".to_string(),
-            scopes: vec!["openid".to_string(), "email".to_string(), "profile".to_string()],
+            scopes: vec![
+                "openid".to_string(),
+                "email".to_string(),
+                "profile".to_string(),
+            ],
             claim_mapping: ClaimMapping::google(),
         }
     }
@@ -710,12 +713,8 @@ mod tests {
             raw_claims: HashMap::new(),
         };
 
-        engine
-            .link_account("user-1", google_profile, 1000)
-            .unwrap();
-        engine
-            .link_account("user-1", github_profile, 1001)
-            .unwrap();
+        engine.link_account("user-1", google_profile, 1000).unwrap();
+        engine.link_account("user-1", github_profile, 1001).unwrap();
 
         let providers = engine.user_providers("user-1");
         assert_eq!(providers.len(), 2);

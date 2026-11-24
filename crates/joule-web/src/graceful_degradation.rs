@@ -497,9 +497,7 @@ mod tests {
     #[test]
     fn test_essential_feature() {
         let mut mgr = DegradationManager::new().with_auto_adjust(false);
-        mgr.add_feature(
-            FeatureConfig::new("auth", DegradationLevel::Mild).essential(),
-        );
+        mgr.add_feature(FeatureConfig::new("auth", DegradationLevel::Mild).essential());
         mgr.set_level(DegradationLevel::Critical);
         assert_eq!(mgr.feature_state("auth"), FeatureState::Enabled);
     }

@@ -39,7 +39,10 @@ impl BagOfWords {
             .enumerate()
             .map(|(i, t)| (t.clone(), i))
             .collect();
-        Self { vocabulary, term_index }
+        Self {
+            vocabulary,
+            term_index,
+        }
     }
 
     /// Transform a document into a feature vector (word counts).
@@ -258,7 +261,11 @@ impl ClassificationReport {
             .zip(predicted.iter())
             .filter(|(t, p)| t == p)
             .count();
-        let accuracy = if total > 0 { correct as f64 / total as f64 } else { 0.0 };
+        let accuracy = if total > 0 {
+            correct as f64 / total as f64
+        } else {
+            0.0
+        };
 
         let mut per_class = Vec::new();
 
@@ -377,10 +384,7 @@ mod tests {
             "please review the document",
             "lunch at the cafeteria today",
         ];
-        let labels = &[
-            "spam", "spam", "spam", "spam",
-            "ham", "ham", "ham", "ham",
-        ];
+        let labels = &["spam", "spam", "spam", "spam", "ham", "ham", "ham", "ham"];
         NaiveBayesClassifier::train(docs, labels, 1.0)
     }
 

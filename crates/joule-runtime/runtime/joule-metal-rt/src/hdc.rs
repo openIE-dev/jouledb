@@ -80,7 +80,12 @@ pub fn hdc_dot_i8_timed(
     memory: &[i8],
     d: usize,
 ) -> MetalResult<(Vec<i32>, HdcDotTiming)> {
-    if d == 0 || queries.is_empty() || memory.is_empty() || queries.len() % d != 0 || memory.len() % d != 0 {
+    if d == 0
+        || queries.is_empty()
+        || memory.is_empty()
+        || queries.len() % d != 0
+        || memory.len() % d != 0
+    {
         return Err(MetalError::InvalidBufferAccess {
             message: format!(
                 "hdc_dot_i8: queries={} memory={} not multiples of d={d}",
@@ -128,7 +133,11 @@ fn hdc_dot_metal(queries: &[i8], memory: &[i8], d: usize) -> MetalResult<(Vec<i3
         let library = device.create_library_from_source(FABRIC_HDC_DOT_MSL)?;
         let pipeline = device.create_compute_pipeline(&library, "fabric_hdc_dot")?;
         let queue = device.create_command_queue()?;
-        *guard = Some(HdcKernel { device, pipeline, queue });
+        *guard = Some(HdcKernel {
+            device,
+            pipeline,
+            queue,
+        });
         setup_s = setup_started.elapsed().as_secs_f64();
     }
     let Some(kernel) = guard.as_ref() else {
@@ -139,17 +148,29 @@ fn hdc_dot_metal(queries: &[i8], memory: &[i8], d: usize) -> MetalResult<(Vec<i3
     let n = queries.len() / d;
     let k = memory.len() / d;
     let total = n * k;
-    let q = kernel.device.create_buffer_with_data(queries, BufferUsage::Shared)?;
-    let m = kernel.device.create_buffer_with_data(memory, BufferUsage::Shared)?;
-    let out = kernel.device.create_buffer_with_data(&vec![0i32; total], BufferUsage::Shared)?;
+    let q = kernel
+        .device
+        .create_buffer_with_data(queries, BufferUsage::Shared)?;
+    let m = kernel
+        .device
+        .create_buffer_with_data(memory, BufferUsage::Shared)?;
+    let out = kernel
+        .device
+        .create_buffer_with_data(&vec![0i32; total], BufferUsage::Shared)?;
     let dims = kernel
         .device
         .create_buffer_with_data(&[n as u32, k as u32, d as u32], BufferUsage::Shared)?;
-    let width = kernel.pipeline.max_total_threads_per_threadgroup().clamp(1, 256);
+    let width = kernel
+        .pipeline
+        .max_total_threads_per_threadgroup()
+        .clamp(1, 256);
     let groups = total.div_ceil(width as usize) as u32;
-    kernel
-        .queue
-        .launch_kernel(&kernel.pipeline, (groups, 1, 1), (width, 1, 1), &[&q, &m, &out, &dims])?;
+    kernel.queue.launch_kernel(
+        &kernel.pipeline,
+        (groups, 1, 1),
+        (width, 1, 1),
+        &[&q, &m, &out, &dims],
+    )?;
     let scores = out.read::<i32>(total)?;
     Ok((
         scores,
@@ -166,7 +187,10 @@ mod tests {
 
     #[test]
     fn reference_dot_is_correct() {
-        assert_eq!(reference_hdc_dot(&[1, -1, 1, 1], &[1, 1, -1, -1], 2), vec![0, 0, 2, -2]);
+        assert_eq!(
+            reference_hdc_dot(&[1, -1, 1, 1], &[1, 1, -1, -1], 2),
+            vec![0, 0, 2, -2]
+        );
     }
 
     #[test]

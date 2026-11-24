@@ -185,7 +185,12 @@ fn flatten_runs(runs: &[TextRun]) -> (String, Vec<usize>) {
 }
 
 /// Find all break opportunities in text (simplified UAX #14).
-fn find_breaks(text: &str, font_metrics: &LayoutFontMetrics, runs: &[TextRun], style_indices: &[usize]) -> Vec<BreakPoint> {
+fn find_breaks(
+    text: &str,
+    font_metrics: &LayoutFontMetrics,
+    runs: &[TextRun],
+    style_indices: &[usize],
+) -> Vec<BreakPoint> {
     let mut breaks = Vec::new();
     let mut width = 0.0f32;
     let mut char_idx = 0usize;
@@ -264,7 +269,14 @@ pub fn layout_paragraph(
         let avail = params.max_width - indent;
 
         // Width of text from line_start to this break
-        let seg_width = measure_segment(&text, line_start, bp.offset, runs, &style_indices, font_metrics);
+        let seg_width = measure_segment(
+            &text,
+            line_start,
+            bp.offset,
+            runs,
+            &style_indices,
+            font_metrics,
+        );
 
         if bp.kind == BreakKind::Mandatory {
             lines.push((line_start, bp.offset));
@@ -282,7 +294,14 @@ pub fn layout_paragraph(
                 if prev_bp.offset <= line_start {
                     break;
                 }
-                let w = measure_segment(&text, line_start, prev_bp.offset, runs, &style_indices, font_metrics);
+                let w = measure_segment(
+                    &text,
+                    line_start,
+                    prev_bp.offset,
+                    runs,
+                    &style_indices,
+                    font_metrics,
+                );
                 if w <= avail {
                     best = Some(j);
                     break;
@@ -345,7 +364,11 @@ pub fn layout_paragraph(
             let adv = font_metrics.scaled_advance(style.font_id, ch, style.font_size);
 
             // Hanging punctuation: shift opening punct left
-            let hang_offset = if params.hanging_punctuation && li == 0 && glyphs.is_empty() && is_hanging_punct(ch) {
+            let hang_offset = if params.hanging_punctuation
+                && li == 0
+                && glyphs.is_empty()
+                && is_hanging_punct(ch)
+            {
                 -adv
             } else {
                 0.0

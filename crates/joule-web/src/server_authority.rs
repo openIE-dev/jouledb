@@ -91,7 +91,11 @@ impl ClientInput {
 
 impl fmt::Display for ClientInput {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[tick={}] player={} action={}", self.tick, self.player_id, self.action)
+        write!(
+            f,
+            "[tick={}] player={} action={}",
+            self.tick, self.player_id, self.action
+        )
     }
 }
 
@@ -100,8 +104,14 @@ impl fmt::Display for ClientInput {
 #[derive(Debug, Clone, PartialEq)]
 pub enum InputValidationResult {
     Valid,
-    Modified { reason: String, original: HashMap<String, f64>, corrected: HashMap<String, f64> },
-    Rejected { reason: String },
+    Modified {
+        reason: String,
+        original: HashMap<String, f64>,
+        corrected: HashMap<String, f64>,
+    },
+    Rejected {
+        reason: String,
+    },
 }
 
 impl InputValidationResult {
@@ -151,9 +161,14 @@ impl PlayerState {
             resources: HashMap::new(),
             cooldowns: HashMap::new(),
             permissions: vec![
-                ActionType::Move, ActionType::Attack, ActionType::UseItem,
-                ActionType::Ability, ActionType::Interact, ActionType::Chat,
-                ActionType::Trade, ActionType::Build,
+                ActionType::Move,
+                ActionType::Attack,
+                ActionType::UseItem,
+                ActionType::Ability,
+                ActionType::Interact,
+                ActionType::Chat,
+                ActionType::Trade,
+                ActionType::Build,
             ],
             last_action_tick: HashMap::new(),
             action_counts_this_tick: HashMap::new(),
@@ -244,8 +259,11 @@ impl fmt::Display for ValidationStats {
         write!(
             f,
             "inputs={} valid={} modified={} rejected={} accept={:.1}%",
-            self.total_inputs, self.valid_count, self.modified_count,
-            self.rejected_count, self.acceptance_rate() * 100.0
+            self.total_inputs,
+            self.valid_count,
+            self.modified_count,
+            self.rejected_count,
+            self.acceptance_rate() * 100.0
         )
     }
 }
@@ -276,7 +294,10 @@ impl ServerValidator {
         self.players.insert(state.player_id, state);
     }
 
-    pub fn validate_input(&mut self, input: &ClientInput) -> Result<InputValidationResult, AuthorityError> {
+    pub fn validate_input(
+        &mut self,
+        input: &ClientInput,
+    ) -> Result<InputValidationResult, AuthorityError> {
         if !self.players.contains_key(&input.player_id) {
             return Err(AuthorityError::PlayerNotFound(input.player_id));
         }
@@ -347,7 +368,11 @@ impl ServerValidator {
         Ok(result)
     }
 
-    fn validate_move_static(config: &ValidatorConfig, input: &ClientInput, player: &mut PlayerState) -> InputValidationResult {
+    fn validate_move_static(
+        config: &ValidatorConfig,
+        input: &ClientInput,
+        player: &mut PlayerState,
+    ) -> InputValidationResult {
         let target_x = input.get_param("x").unwrap_or(player.x);
         let target_y = input.get_param("y").unwrap_or(player.y);
         let dx = target_x - player.x;
@@ -363,7 +388,10 @@ impl ServerValidator {
             corrected.insert("x".to_string(), player.x);
             corrected.insert("y".to_string(), player.y);
             return InputValidationResult::Modified {
-                reason: format!("rubber-band: dist {dist:.2} > {:.2}", config.rubber_band_threshold),
+                reason: format!(
+                    "rubber-band: dist {dist:.2} > {:.2}",
+                    config.rubber_band_threshold
+                ),
                 original,
                 corrected,
             };
@@ -382,7 +410,10 @@ impl ServerValidator {
             corrected.insert("x".to_string(), clamped_x);
             corrected.insert("y".to_string(), clamped_y);
             return InputValidationResult::Modified {
-                reason: format!("clamped move: dist {dist:.2} > max {:.2}", config.max_move_distance),
+                reason: format!(
+                    "clamped move: dist {dist:.2} > max {:.2}",
+                    config.max_move_distance
+                ),
                 original,
                 corrected,
             };
@@ -393,7 +424,10 @@ impl ServerValidator {
         InputValidationResult::Valid
     }
 
-    fn validate_resource_action_static(input: &ClientInput, player: &mut PlayerState) -> InputValidationResult {
+    fn validate_resource_action_static(
+        input: &ClientInput,
+        player: &mut PlayerState,
+    ) -> InputValidationResult {
         if let Some(cost) = input.get_param("cost") {
             let resource_name = input
                 .parameters
@@ -404,7 +438,9 @@ impl ServerValidator {
             let available = player.resources.get(&resource_name).copied().unwrap_or(0.0);
             if cost > available {
                 return InputValidationResult::Rejected {
-                    reason: format!("insufficient {resource_name}: need {cost:.0}, have {available:.0}"),
+                    reason: format!(
+                        "insufficient {resource_name}: need {cost:.0}, have {available:.0}"
+                    ),
                 };
             }
             *player.resources.entry(resource_name).or_insert(0.0) -= cost;
@@ -444,7 +480,9 @@ mod tests {
     #[test]
     fn test_valid_move() {
         let mut v = setup();
-        let input = ClientInput::new(1, ActionType::Move, 1).with_param("x", 5.0).with_param("y", 0.0);
+        let input = ClientInput::new(1, ActionType::Move, 1)
+            .with_param("x", 5.0)
+            .with_param("y", 0.0);
         let result = v.validate_input(&input).unwrap();
         assert!(result.is_valid());
     }
@@ -452,7 +490,9 @@ mod tests {
     #[test]
     fn test_move_clamped() {
         let mut v = setup();
-        let input = ClientInput::new(1, ActionType::Move, 1).with_param("x", 12.0).with_param("y", 0.0);
+        let input = ClientInput::new(1, ActionType::Move, 1)
+            .with_param("x", 12.0)
+            .with_param("y", 0.0);
         let result = v.validate_input(&input).unwrap();
         assert!(result.is_modified());
     }
@@ -460,7 +500,9 @@ mod tests {
     #[test]
     fn test_rubber_band() {
         let mut v = setup();
-        let input = ClientInput::new(1, ActionType::Move, 1).with_param("x", 100.0).with_param("y", 0.0);
+        let input = ClientInput::new(1, ActionType::Move, 1)
+            .with_param("x", 100.0)
+            .with_param("y", 0.0);
         let result = v.validate_input(&input).unwrap();
         assert!(result.is_modified());
         if let InputValidationResult::Modified { reason, .. } = result {
@@ -472,14 +514,21 @@ mod tests {
     fn test_player_not_found() {
         let mut v = setup();
         let input = ClientInput::new(99, ActionType::Move, 1);
-        assert!(matches!(v.validate_input(&input), Err(AuthorityError::PlayerNotFound(99))));
+        assert!(matches!(
+            v.validate_input(&input),
+            Err(AuthorityError::PlayerNotFound(99))
+        ));
     }
 
     #[test]
     fn test_rate_limiting() {
         let mut v = setup();
-        let i1 = ClientInput::new(1, ActionType::Move, 1).with_param("x", 1.0).with_param("y", 0.0);
-        let i2 = ClientInput::new(1, ActionType::Move, 1).with_param("x", 2.0).with_param("y", 0.0);
+        let i1 = ClientInput::new(1, ActionType::Move, 1)
+            .with_param("x", 1.0)
+            .with_param("y", 0.0);
+        let i2 = ClientInput::new(1, ActionType::Move, 1)
+            .with_param("x", 2.0)
+            .with_param("y", 0.0);
         v.validate_input(&i1).unwrap();
         let result = v.validate_input(&i2).unwrap();
         assert!(result.is_rejected());
@@ -544,7 +593,9 @@ mod tests {
     #[test]
     fn test_stats_tracking() {
         let mut v = setup();
-        let input = ClientInput::new(1, ActionType::Move, 1).with_param("x", 1.0).with_param("y", 0.0);
+        let input = ClientInput::new(1, ActionType::Move, 1)
+            .with_param("x", 1.0)
+            .with_param("y", 0.0);
         v.validate_input(&input).unwrap();
         assert_eq!(v.stats().total_inputs, 1);
         assert_eq!(v.stats().valid_count, 1);
@@ -553,9 +604,13 @@ mod tests {
     #[test]
     fn test_acceptance_rate() {
         let mut v = setup();
-        let good = ClientInput::new(1, ActionType::Move, 1).with_param("x", 1.0).with_param("y", 0.0);
+        let good = ClientInput::new(1, ActionType::Move, 1)
+            .with_param("x", 1.0)
+            .with_param("y", 0.0);
         v.validate_input(&good).unwrap();
-        let bad = ClientInput::new(1, ActionType::Move, 1).with_param("x", 2.0).with_param("y", 0.0);
+        let bad = ClientInput::new(1, ActionType::Move, 1)
+            .with_param("x", 2.0)
+            .with_param("y", 0.0);
         v.validate_input(&bad).unwrap();
         assert!(v.stats().acceptance_rate() < 1.0);
     }
@@ -572,7 +627,9 @@ mod tests {
     fn test_validation_result_display() {
         let r = InputValidationResult::Valid;
         assert_eq!(format!("{r}"), "Valid");
-        let r2 = InputValidationResult::Rejected { reason: "test".to_string() };
+        let r2 = InputValidationResult::Rejected {
+            reason: "test".to_string(),
+        };
         assert!(format!("{r2}").contains("Rejected"));
     }
 
@@ -586,7 +643,11 @@ mod tests {
 
     #[test]
     fn test_stats_display() {
-        let stats = ValidationStats { total_inputs: 100, valid_count: 90, ..Default::default() };
+        let stats = ValidationStats {
+            total_inputs: 100,
+            valid_count: 90,
+            ..Default::default()
+        };
         let s = format!("{stats}");
         assert!(s.contains("inputs=100"));
         assert!(s.contains("valid=90"));
@@ -594,7 +655,9 @@ mod tests {
 
     #[test]
     fn test_player_state_builder() {
-        let p = PlayerState::new(1).with_position(5.0, 10.0).with_resource("mana", 200.0);
+        let p = PlayerState::new(1)
+            .with_position(5.0, 10.0)
+            .with_resource("mana", 200.0);
         assert!((p.x - 5.0).abs() < f64::EPSILON);
         assert!((p.resources["mana"] - 200.0).abs() < f64::EPSILON);
     }
@@ -608,7 +671,9 @@ mod tests {
     #[test]
     fn test_position_updates_on_valid_move() {
         let mut v = setup();
-        let input = ClientInput::new(1, ActionType::Move, 1).with_param("x", 5.0).with_param("y", 3.0);
+        let input = ClientInput::new(1, ActionType::Move, 1)
+            .with_param("x", 5.0)
+            .with_param("y", 3.0);
         v.validate_input(&input).unwrap();
         let state = v.player_state(1).unwrap();
         assert!((state.x - 5.0).abs() < f64::EPSILON);

@@ -27,11 +27,20 @@ pub enum BusEffect {
     /// High-pass filter with cutoff frequency.
     HighPass { cutoff: f64 },
     /// Compressor (threshold, ratio, attack_ms, release_ms).
-    Compressor { threshold: f64, ratio: f64, attack_ms: f64, release_ms: f64 },
+    Compressor {
+        threshold: f64,
+        ratio: f64,
+        attack_ms: f64,
+        release_ms: f64,
+    },
     /// Limiter (ceiling level).
     Limiter { ceiling: f64 },
     /// EQ band (center_freq, gain_db, bandwidth).
-    EqBand { center_freq: f64, gain_db: f64, bandwidth: f64 },
+    EqBand {
+        center_freq: f64,
+        gain_db: f64,
+        bandwidth: f64,
+    },
 }
 
 impl BusEffect {
@@ -39,7 +48,9 @@ impl BusEffect {
     pub fn process(&self, samples: &mut [f64]) {
         match self {
             BusEffect::Gain(g) => {
-                for s in samples.iter_mut() { *s *= *g; }
+                for s in samples.iter_mut() {
+                    *s *= *g;
+                }
             }
             BusEffect::LowPass { cutoff } => {
                 // Simple one-pole approximation
@@ -58,7 +69,9 @@ impl BusEffect {
                     *s = *s - prev;
                 }
             }
-            BusEffect::Compressor { threshold, ratio, .. } => {
+            BusEffect::Compressor {
+                threshold, ratio, ..
+            } => {
                 for s in samples.iter_mut() {
                     let level = s.abs();
                     if level > *threshold {
@@ -77,7 +90,9 @@ impl BusEffect {
             }
             BusEffect::EqBand { gain_db, .. } => {
                 let linear_gain = 10.0f64.powf(*gain_db / 20.0);
-                for s in samples.iter_mut() { *s *= linear_gain; }
+                for s in samples.iter_mut() {
+                    *s *= linear_gain;
+                }
             }
         }
     }
@@ -218,7 +233,9 @@ impl AudioBusSystem {
             self.master_bus_id = None;
         }
         // Remove as parent from children
-        let children: Vec<BusId> = self.buses.values()
+        let children: Vec<BusId> = self
+            .buses
+            .values()
             .filter(|b| b.parent == Some(id))
             .map(|b| b.id)
             .collect();
@@ -272,12 +289,18 @@ impl AudioBusSystem {
 
     /// Set parent bus (creates hierarchy).
     pub fn set_parent(&mut self, child_id: BusId, parent_id: BusId) -> bool {
-        if child_id == parent_id { return false; }
-        if !self.buses.contains_key(&parent_id) { return false; }
+        if child_id == parent_id {
+            return false;
+        }
+        if !self.buses.contains_key(&parent_id) {
+            return false;
+        }
         // Check for cycle: parent chain should not include child
         let mut current = Some(parent_id);
         while let Some(cid) = current {
-            if cid == child_id { return false; }
+            if cid == child_id {
+                return false;
+            }
             current = self.buses.get(&cid).and_then(|b| b.parent);
         }
         if let Some(bus) = self.buses.get_mut(&child_id) {
@@ -312,9 +335,16 @@ impl AudioBusSystem {
     }
 
     /// Add a send from one bus to another.
-    pub fn add_send(&mut self, from_bus: BusId, to_bus: BusId,
-                    level: f64, pre_fader: bool) -> bool {
-        if !self.buses.contains_key(&to_bus) { return false; }
+    pub fn add_send(
+        &mut self,
+        from_bus: BusId,
+        to_bus: BusId,
+        level: f64,
+        pre_fader: bool,
+    ) -> bool {
+        if !self.buses.contains_key(&to_bus) {
+            return false;
+        }
         if let Some(bus) = self.buses.get_mut(&from_bus) {
             bus.sends.push(BusSend {
                 target_bus: to_bus,
@@ -329,7 +359,9 @@ impl AudioBusSystem {
 
     /// Set side-chain on a bus.
     pub fn set_side_chain(&mut self, bus_id: BusId, side_chain: SideChain) -> bool {
-        if !self.buses.contains_key(&side_chain.source_bus) { return false; }
+        if !self.buses.contains_key(&side_chain.source_bus) {
+            return false;
+        }
         if let Some(bus) = self.buses.get_mut(&bus_id) {
             bus.side_chain = Some(side_chain);
             true
@@ -345,7 +377,9 @@ impl AudioBusSystem {
 
     /// Get children of a bus.
     pub fn children(&self, parent_id: BusId) -> Vec<BusId> {
-        let mut children: Vec<BusId> = self.buses.values()
+        let mut children: Vec<BusId> = self
+            .buses
+            .values()
             .filter(|b| b.parent == Some(parent_id))
             .map(|b| b.id)
             .collect();
@@ -381,11 +415,16 @@ impl AudioBusSystem {
                 None => continue,
             };
 
-            if bus.mute { continue; }
+            if bus.mute {
+                continue;
+            }
 
             // Start with input or silence
             let buf_len = inputs.values().next().map(|v| v.len()).unwrap_or(256);
-            let mut buffer = inputs.get(&bus_id).cloned().unwrap_or_else(|| vec![0.0; buf_len]);
+            let mut buffer = inputs
+                .get(&bus_id)
+                .cloned()
+                .unwrap_or_else(|| vec![0.0; buf_len]);
 
             // Mix in children outputs
             let child_ids = self.children(bus_id);
@@ -430,17 +469,24 @@ impl AudioBusSystem {
     pub fn save_snapshot(&mut self, name: &str) -> SnapshotId {
         let id = self.next_snapshot_id;
         self.next_snapshot_id += 1;
-        let states: Vec<BusState> = self.buses.values().map(|b| BusState {
-            bus_id: b.id,
-            volume: b.volume,
-            mute: b.mute,
-            solo: b.solo,
-        }).collect();
-        self.snapshots.insert(id, BusSnapshot {
+        let states: Vec<BusState> = self
+            .buses
+            .values()
+            .map(|b| BusState {
+                bus_id: b.id,
+                volume: b.volume,
+                mute: b.mute,
+                solo: b.solo,
+            })
+            .collect();
+        self.snapshots.insert(
             id,
-            name: name.to_string(),
-            states,
-        });
+            BusSnapshot {
+                id,
+                name: name.to_string(),
+                states,
+            },
+        );
         id
     }
 
@@ -484,7 +530,8 @@ impl AudioBusSystem {
                 *in_degree.entry(pid).or_insert(0) += 1;
             }
         }
-        let mut queue: Vec<BusId> = in_degree.iter()
+        let mut queue: Vec<BusId> = in_degree
+            .iter()
             .filter(|(_, d)| **d == 0)
             .map(|(id, _)| *id)
             .collect();
@@ -638,7 +685,10 @@ mod tests {
     #[test]
     fn test_compressor_effect() {
         let effect = BusEffect::Compressor {
-            threshold: 0.5, ratio: 4.0, attack_ms: 1.0, release_ms: 10.0,
+            threshold: 0.5,
+            ratio: 4.0,
+            attack_ms: 1.0,
+            release_ms: 10.0,
         };
         let mut buf = vec![0.3, 0.9, -0.7];
         effect.process(&mut buf);
@@ -758,7 +808,9 @@ mod tests {
     #[test]
     fn test_eq_band_boost() {
         let effect = BusEffect::EqBand {
-            center_freq: 1000.0, gain_db: 6.0, bandwidth: 1.0,
+            center_freq: 1000.0,
+            gain_db: 6.0,
+            bandwidth: 1.0,
         };
         let mut buf = vec![0.5; 4];
         effect.process(&mut buf);

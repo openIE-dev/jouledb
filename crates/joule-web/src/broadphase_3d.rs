@@ -12,24 +12,50 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
 
     pub fn min_comp(self, r: Self) -> Self {
-        Self { x: self.x.min(r.x), y: self.y.min(r.y), z: self.z.min(r.z) }
+        Self {
+            x: self.x.min(r.x),
+            y: self.y.min(r.y),
+            z: self.z.min(r.z),
+        }
     }
     pub fn max_comp(self, r: Self) -> Self {
-        Self { x: self.x.max(r.x), y: self.y.max(r.y), z: self.z.max(r.z) }
+        Self {
+            x: self.x.max(r.x),
+            y: self.y.max(r.y),
+            z: self.z.max(r.z),
+        }
     }
 }
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 
 // ── AABB ─────────────────────────────────────────────────────
@@ -42,7 +68,9 @@ pub struct Aabb3 {
 }
 
 impl Aabb3 {
-    pub fn new(min: Vec3, max: Vec3) -> Self { Self { min, max } }
+    pub fn new(min: Vec3, max: Vec3) -> Self {
+        Self { min, max }
+    }
 
     pub fn center(&self) -> Vec3 {
         Vec3::new(
@@ -67,7 +95,10 @@ impl Aabb3 {
     /// Expand by a uniform margin (fat AABB).
     pub fn expanded(&self, margin: f64) -> Self {
         let m = Vec3::new(margin, margin, margin);
-        Self { min: self.min - m, max: self.max + m }
+        Self {
+            min: self.min - m,
+            max: self.max + m,
+        }
     }
 
     /// Merge two AABBs.
@@ -80,16 +111,22 @@ impl Aabb3 {
 
     /// Test overlap.
     pub fn overlaps(&self, other: &Aabb3) -> bool {
-        self.min.x <= other.max.x && self.max.x >= other.min.x
-            && self.min.y <= other.max.y && self.max.y >= other.min.y
-            && self.min.z <= other.max.z && self.max.z >= other.min.z
+        self.min.x <= other.max.x
+            && self.max.x >= other.min.x
+            && self.min.y <= other.max.y
+            && self.max.y >= other.min.y
+            && self.min.z <= other.max.z
+            && self.max.z >= other.min.z
     }
 
     /// Contains another AABB entirely.
     pub fn contains(&self, other: &Aabb3) -> bool {
-        self.min.x <= other.min.x && self.max.x >= other.max.x
-            && self.min.y <= other.min.y && self.max.y >= other.max.y
-            && self.min.z <= other.min.z && self.max.z >= other.max.z
+        self.min.x <= other.min.x
+            && self.max.x >= other.max.x
+            && self.min.y <= other.min.y
+            && self.max.y >= other.max.y
+            && self.min.z <= other.min.z
+            && self.max.z >= other.max.z
     }
 
     /// Ray-AABB intersection: returns Some(t) for the nearest hit or None.
@@ -104,7 +141,11 @@ impl Aabb3 {
         let tmin = t1.min(t2).max(t3.min(t4)).max(t5.min(t6));
         let tmax = t1.max(t2).min(t3.max(t4)).min(t5.max(t6));
 
-        if tmax < 0.0 || tmin > tmax { None } else { Some(if tmin >= 0.0 { tmin } else { tmax }) }
+        if tmax < 0.0 || tmin > tmax {
+            None
+        } else {
+            Some(if tmin >= 0.0 { tmin } else { tmax })
+        }
     }
 }
 
@@ -118,7 +159,9 @@ pub struct Frustum {
 }
 
 impl Frustum {
-    pub fn new(planes: [(f64, f64, f64, f64); 6]) -> Self { Self { planes } }
+    pub fn new(planes: [(f64, f64, f64, f64); 6]) -> Self {
+        Self { planes }
+    }
 
     /// Test if an AABB is at least partially inside the frustum.
     pub fn intersects_aabb(&self, aabb: &Aabb3) -> bool {
@@ -153,7 +196,9 @@ struct Node {
 }
 
 impl Node {
-    fn is_leaf(&self) -> bool { self.left == NULL_NODE }
+    fn is_leaf(&self) -> bool {
+        self.left == NULL_NODE
+    }
 }
 
 // ── Dynamic AABB Tree ────────────────────────────────────────
@@ -252,7 +297,9 @@ impl DynamicAabbTree {
     /// Get all overlapping proxy pairs.
     pub fn query_pairs(&self) -> Vec<(ProxyId, ProxyId)> {
         let mut pairs = Vec::new();
-        let leaves: Vec<(ProxyId, Aabb3)> = self.proxy_to_node.iter()
+        let leaves: Vec<(ProxyId, Aabb3)> = self
+            .proxy_to_node
+            .iter()
             .map(|(pid, nid)| (*pid, self.nodes[*nid as usize].aabb))
             .collect();
 
@@ -269,18 +316,26 @@ impl DynamicAabbTree {
     /// Query all proxies whose fat AABB overlaps the given AABB.
     pub fn query_aabb(&self, aabb: &Aabb3) -> Vec<ProxyId> {
         let mut result = Vec::new();
-        if self.root == NULL_NODE { return result; }
+        if self.root == NULL_NODE {
+            return result;
+        }
         let mut stack = vec![self.root];
         while let Some(nid) = stack.pop() {
             let node = &self.nodes[nid as usize];
-            if !node.aabb.overlaps(aabb) { continue; }
+            if !node.aabb.overlaps(aabb) {
+                continue;
+            }
             if node.is_leaf() {
                 if let Some(pid) = node.proxy_id {
                     result.push(pid);
                 }
             } else {
-                if node.left != NULL_NODE { stack.push(node.left); }
-                if node.right != NULL_NODE { stack.push(node.right); }
+                if node.left != NULL_NODE {
+                    stack.push(node.left);
+                }
+                if node.right != NULL_NODE {
+                    stack.push(node.right);
+                }
             }
         }
         result
@@ -289,12 +344,26 @@ impl DynamicAabbTree {
     /// Ray cast through the tree. Returns all proxy IDs hit, sorted by t.
     pub fn ray_cast(&self, origin: Vec3, direction: Vec3) -> Vec<(ProxyId, f64)> {
         let inv_dir = Vec3::new(
-            if direction.x.abs() > 1e-12 { 1.0 / direction.x } else { f64::MAX.copysign(direction.x) },
-            if direction.y.abs() > 1e-12 { 1.0 / direction.y } else { f64::MAX.copysign(direction.y) },
-            if direction.z.abs() > 1e-12 { 1.0 / direction.z } else { f64::MAX.copysign(direction.z) },
+            if direction.x.abs() > 1e-12 {
+                1.0 / direction.x
+            } else {
+                f64::MAX.copysign(direction.x)
+            },
+            if direction.y.abs() > 1e-12 {
+                1.0 / direction.y
+            } else {
+                f64::MAX.copysign(direction.y)
+            },
+            if direction.z.abs() > 1e-12 {
+                1.0 / direction.z
+            } else {
+                f64::MAX.copysign(direction.z)
+            },
         );
         let mut hits = Vec::new();
-        if self.root == NULL_NODE { return hits; }
+        if self.root == NULL_NODE {
+            return hits;
+        }
 
         let mut stack = vec![self.root];
         while let Some(nid) = stack.pop() {
@@ -309,8 +378,12 @@ impl DynamicAabbTree {
                     }
                 }
             } else {
-                if node.left != NULL_NODE { stack.push(node.left); }
-                if node.right != NULL_NODE { stack.push(node.right); }
+                if node.left != NULL_NODE {
+                    stack.push(node.left);
+                }
+                if node.right != NULL_NODE {
+                    stack.push(node.right);
+                }
             }
         }
         hits.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
@@ -320,18 +393,26 @@ impl DynamicAabbTree {
     /// Frustum query: return all proxy IDs whose AABB overlaps the frustum.
     pub fn query_frustum(&self, frustum: &Frustum) -> Vec<ProxyId> {
         let mut result = Vec::new();
-        if self.root == NULL_NODE { return result; }
+        if self.root == NULL_NODE {
+            return result;
+        }
         let mut stack = vec![self.root];
         while let Some(nid) = stack.pop() {
             let node = &self.nodes[nid as usize];
-            if !frustum.intersects_aabb(&node.aabb) { continue; }
+            if !frustum.intersects_aabb(&node.aabb) {
+                continue;
+            }
             if node.is_leaf() {
                 if let Some(pid) = node.proxy_id {
                     result.push(pid);
                 }
             } else {
-                if node.left != NULL_NODE { stack.push(node.left); }
-                if node.right != NULL_NODE { stack.push(node.right); }
+                if node.left != NULL_NODE {
+                    stack.push(node.left);
+                }
+                if node.right != NULL_NODE {
+                    stack.push(node.right);
+                }
             }
         }
         result
@@ -344,12 +425,17 @@ impl DynamicAabbTree {
 
     /// Tree height (0 for empty, 1 for single leaf).
     pub fn height(&self) -> i32 {
-        if self.root == NULL_NODE { 0 } else { self.nodes[self.root as usize].height + 1 }
+        if self.root == NULL_NODE {
+            0
+        } else {
+            self.nodes[self.root as usize].height + 1
+        }
     }
 
     /// Get the fat AABB for a proxy.
     pub fn get_fat_aabb(&self, proxy_id: ProxyId) -> Option<Aabb3> {
-        self.proxy_to_node.iter()
+        self.proxy_to_node
+            .iter()
             .find(|(p, _)| *p == proxy_id)
             .map(|(_, nid)| self.nodes[*nid as usize].aabb)
     }
@@ -378,17 +464,27 @@ impl DynamicAabbTree {
             let right = node.right;
 
             let left_cost = if self.nodes[left as usize].is_leaf() {
-                leaf_aabb.merged(&self.nodes[left as usize].aabb).surface_area() + inherit_cost
+                leaf_aabb
+                    .merged(&self.nodes[left as usize].aabb)
+                    .surface_area()
+                    + inherit_cost
             } else {
-                let new_sa = leaf_aabb.merged(&self.nodes[left as usize].aabb).surface_area();
+                let new_sa = leaf_aabb
+                    .merged(&self.nodes[left as usize].aabb)
+                    .surface_area();
                 let old_sa = self.nodes[left as usize].aabb.surface_area();
                 new_sa - old_sa + inherit_cost
             };
 
             let right_cost = if self.nodes[right as usize].is_leaf() {
-                leaf_aabb.merged(&self.nodes[right as usize].aabb).surface_area() + inherit_cost
+                leaf_aabb
+                    .merged(&self.nodes[right as usize].aabb)
+                    .surface_area()
+                    + inherit_cost
             } else {
-                let new_sa = leaf_aabb.merged(&self.nodes[right as usize].aabb).surface_area();
+                let new_sa = leaf_aabb
+                    .merged(&self.nodes[right as usize].aabb)
+                    .surface_area();
                 let old_sa = self.nodes[right as usize].aabb.surface_area();
                 new_sa - old_sa + inherit_cost
             };
@@ -461,9 +557,11 @@ impl DynamicAabbTree {
             let left = self.nodes[idx as usize].left;
             let right = self.nodes[idx as usize].right;
             if left != NULL_NODE && right != NULL_NODE {
-                self.nodes[idx as usize].height = 1 + self.nodes[left as usize].height
+                self.nodes[idx as usize].height = 1 + self.nodes[left as usize]
+                    .height
                     .max(self.nodes[right as usize].height);
-                self.nodes[idx as usize].aabb = self.nodes[left as usize].aabb
+                self.nodes[idx as usize].aabb = self.nodes[left as usize]
+                    .aabb
                     .merged(&self.nodes[right as usize].aabb);
             }
             idx = self.nodes[idx as usize].parent;
@@ -501,34 +599,57 @@ impl DynamicAabbTree {
             }
 
             // Rotate: pick which child of C becomes child of A
-            if f != NULL_NODE && g != NULL_NODE
+            if f != NULL_NODE
+                && g != NULL_NODE
                 && self.nodes[f as usize].height > self.nodes[g as usize].height
             {
                 self.nodes[c as usize].right = f;
                 self.nodes[a as usize].right = g;
                 self.nodes[g as usize].parent = a;
-                self.nodes[a as usize].aabb = self.nodes[b as usize].aabb
+                self.nodes[a as usize].aabb = self.nodes[b as usize]
+                    .aabb
                     .merged(&self.nodes[g as usize].aabb);
-                self.nodes[c as usize].aabb = self.nodes[a as usize].aabb
+                self.nodes[c as usize].aabb = self.nodes[a as usize]
+                    .aabb
                     .merged(&self.nodes[f as usize].aabb);
-                self.nodes[a as usize].height = 1 + self.nodes[b as usize].height
+                self.nodes[a as usize].height = 1 + self.nodes[b as usize]
+                    .height
                     .max(self.nodes[g as usize].height);
-                self.nodes[c as usize].height = 1 + self.nodes[a as usize].height
+                self.nodes[c as usize].height = 1 + self.nodes[a as usize]
+                    .height
                     .max(self.nodes[f as usize].height);
             } else {
                 self.nodes[c as usize].right = g;
                 self.nodes[a as usize].right = f;
-                if f != NULL_NODE { self.nodes[f as usize].parent = a; }
+                if f != NULL_NODE {
+                    self.nodes[f as usize].parent = a;
+                }
                 let b_aabb = self.nodes[b as usize].aabb;
-                let f_aabb = if f != NULL_NODE { self.nodes[f as usize].aabb } else { b_aabb };
+                let f_aabb = if f != NULL_NODE {
+                    self.nodes[f as usize].aabb
+                } else {
+                    b_aabb
+                };
                 self.nodes[a as usize].aabb = b_aabb.merged(&f_aabb);
-                let g_aabb = if g != NULL_NODE { self.nodes[g as usize].aabb } else { self.nodes[a as usize].aabb };
+                let g_aabb = if g != NULL_NODE {
+                    self.nodes[g as usize].aabb
+                } else {
+                    self.nodes[a as usize].aabb
+                };
                 self.nodes[c as usize].aabb = self.nodes[a as usize].aabb.merged(&g_aabb);
                 let bh = self.nodes[b as usize].height;
-                let fh = if f != NULL_NODE { self.nodes[f as usize].height } else { 0 };
+                let fh = if f != NULL_NODE {
+                    self.nodes[f as usize].height
+                } else {
+                    0
+                };
                 self.nodes[a as usize].height = 1 + bh.max(fh);
                 let ah = self.nodes[a as usize].height;
-                let gh = if g != NULL_NODE { self.nodes[g as usize].height } else { 0 };
+                let gh = if g != NULL_NODE {
+                    self.nodes[g as usize].height
+                } else {
+                    0
+                };
                 self.nodes[c as usize].height = 1 + ah.max(gh);
             }
             return c;
@@ -554,34 +675,57 @@ impl DynamicAabbTree {
                 self.root = b;
             }
 
-            if d != NULL_NODE && e != NULL_NODE
+            if d != NULL_NODE
+                && e != NULL_NODE
                 && self.nodes[d as usize].height > self.nodes[e as usize].height
             {
                 self.nodes[b as usize].right = d;
                 self.nodes[a as usize].left = e;
                 self.nodes[e as usize].parent = a;
-                self.nodes[a as usize].aabb = self.nodes[c as usize].aabb
+                self.nodes[a as usize].aabb = self.nodes[c as usize]
+                    .aabb
                     .merged(&self.nodes[e as usize].aabb);
-                self.nodes[b as usize].aabb = self.nodes[a as usize].aabb
+                self.nodes[b as usize].aabb = self.nodes[a as usize]
+                    .aabb
                     .merged(&self.nodes[d as usize].aabb);
-                self.nodes[a as usize].height = 1 + self.nodes[c as usize].height
+                self.nodes[a as usize].height = 1 + self.nodes[c as usize]
+                    .height
                     .max(self.nodes[e as usize].height);
-                self.nodes[b as usize].height = 1 + self.nodes[a as usize].height
+                self.nodes[b as usize].height = 1 + self.nodes[a as usize]
+                    .height
                     .max(self.nodes[d as usize].height);
             } else {
                 self.nodes[b as usize].right = e;
                 self.nodes[a as usize].left = d;
-                if d != NULL_NODE { self.nodes[d as usize].parent = a; }
+                if d != NULL_NODE {
+                    self.nodes[d as usize].parent = a;
+                }
                 let c_aabb = self.nodes[c as usize].aabb;
-                let d_aabb = if d != NULL_NODE { self.nodes[d as usize].aabb } else { c_aabb };
+                let d_aabb = if d != NULL_NODE {
+                    self.nodes[d as usize].aabb
+                } else {
+                    c_aabb
+                };
                 self.nodes[a as usize].aabb = c_aabb.merged(&d_aabb);
-                let e_aabb = if e != NULL_NODE { self.nodes[e as usize].aabb } else { self.nodes[a as usize].aabb };
+                let e_aabb = if e != NULL_NODE {
+                    self.nodes[e as usize].aabb
+                } else {
+                    self.nodes[a as usize].aabb
+                };
                 self.nodes[b as usize].aabb = self.nodes[a as usize].aabb.merged(&e_aabb);
                 let ch = self.nodes[c as usize].height;
-                let dh = if d != NULL_NODE { self.nodes[d as usize].height } else { 0 };
+                let dh = if d != NULL_NODE {
+                    self.nodes[d as usize].height
+                } else {
+                    0
+                };
                 self.nodes[a as usize].height = 1 + ch.max(dh);
                 let ah = self.nodes[a as usize].height;
-                let eh = if e != NULL_NODE { self.nodes[e as usize].height } else { 0 };
+                let eh = if e != NULL_NODE {
+                    self.nodes[e as usize].height
+                } else {
+                    0
+                };
                 self.nodes[b as usize].height = 1 + ah.max(eh);
             }
             return b;
@@ -601,7 +745,9 @@ mod tests {
 
     const EPS: f64 = 1e-6;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     fn make_aabb(cx: f64, cy: f64, cz: f64, half: f64) -> Aabb3 {
         Aabb3::new(
@@ -783,12 +929,12 @@ mod tests {
 
         // Frustum that contains origin area
         let frustum = Frustum::new([
-            ( 1.0, 0.0, 0.0, 5.0),  // x >= -5
-            (-1.0, 0.0, 0.0, 5.0),  // x <= 5
-            ( 0.0, 1.0, 0.0, 5.0),
-            ( 0.0,-1.0, 0.0, 5.0),
-            ( 0.0, 0.0, 1.0, 5.0),
-            ( 0.0, 0.0,-1.0, 5.0),
+            (1.0, 0.0, 0.0, 5.0),  // x >= -5
+            (-1.0, 0.0, 0.0, 5.0), // x <= 5
+            (0.0, 1.0, 0.0, 5.0),
+            (0.0, -1.0, 0.0, 5.0),
+            (0.0, 0.0, 1.0, 5.0),
+            (0.0, 0.0, -1.0, 5.0),
         ]);
         let hits = tree.query_frustum(&frustum);
         assert_eq!(hits.len(), 1);
@@ -797,12 +943,12 @@ mod tests {
     #[test]
     fn test_frustum_intersects_aabb() {
         let frustum = Frustum::new([
-            ( 1.0, 0.0, 0.0, 10.0),
+            (1.0, 0.0, 0.0, 10.0),
             (-1.0, 0.0, 0.0, 10.0),
-            ( 0.0, 1.0, 0.0, 10.0),
-            ( 0.0,-1.0, 0.0, 10.0),
-            ( 0.0, 0.0, 1.0, 10.0),
-            ( 0.0, 0.0,-1.0, 10.0),
+            (0.0, 1.0, 0.0, 10.0),
+            (0.0, -1.0, 0.0, 10.0),
+            (0.0, 0.0, 1.0, 10.0),
+            (0.0, 0.0, -1.0, 10.0),
         ]);
         let inside = make_aabb(0.0, 0.0, 0.0, 1.0);
         let outside = make_aabb(50.0, 50.0, 50.0, 1.0);

@@ -43,37 +43,64 @@ pub struct Rect {
 
 impl Rect {
     pub fn new(x_min: f64, y_min: f64, x_max: f64, y_max: f64) -> Self {
-        Self { x_min, y_min, x_max, y_max }
+        Self {
+            x_min,
+            y_min,
+            x_max,
+            y_max,
+        }
     }
 
-    pub fn width(&self) -> f64 { self.x_max - self.x_min }
-    pub fn height(&self) -> f64 { self.y_max - self.y_min }
-    pub fn area(&self) -> f64 { self.width() * self.height() }
-    pub fn center_x(&self) -> f64 { (self.x_min + self.x_max) * 0.5 }
-    pub fn center_y(&self) -> f64 { (self.y_min + self.y_max) * 0.5 }
+    pub fn width(&self) -> f64 {
+        self.x_max - self.x_min
+    }
+    pub fn height(&self) -> f64 {
+        self.y_max - self.y_min
+    }
+    pub fn area(&self) -> f64 {
+        self.width() * self.height()
+    }
+    pub fn center_x(&self) -> f64 {
+        (self.x_min + self.x_max) * 0.5
+    }
+    pub fn center_y(&self) -> f64 {
+        (self.y_min + self.y_max) * 0.5
+    }
 
     pub fn contains_point(&self, x: f64, y: f64) -> bool {
         x >= self.x_min && x <= self.x_max && y >= self.y_min && y <= self.y_max
     }
 
     pub fn intersects(&self, other: &Rect) -> bool {
-        self.x_min <= other.x_max && self.x_max >= other.x_min
-            && self.y_min <= other.y_max && self.y_max >= other.y_min
+        self.x_min <= other.x_max
+            && self.x_max >= other.x_min
+            && self.y_min <= other.y_max
+            && self.y_max >= other.y_min
     }
 
     pub fn contains_rect(&self, other: &Rect) -> bool {
-        self.x_min <= other.x_min && self.x_max >= other.x_max
-            && self.y_min <= other.y_min && self.y_max >= other.y_max
+        self.x_min <= other.x_min
+            && self.x_max >= other.x_max
+            && self.y_min <= other.y_min
+            && self.y_max >= other.y_max
     }
 
     /// Distance squared from a point to the nearest edge of this rect.
     pub fn distance_sq_to_point(&self, x: f64, y: f64) -> f64 {
-        let dx = if x < self.x_min { self.x_min - x }
-                 else if x > self.x_max { x - self.x_max }
-                 else { 0.0 };
-        let dy = if y < self.y_min { self.y_min - y }
-                 else if y > self.y_max { y - self.y_max }
-                 else { 0.0 };
+        let dx = if x < self.x_min {
+            self.x_min - x
+        } else if x > self.x_max {
+            x - self.x_max
+        } else {
+            0.0
+        };
+        let dy = if y < self.y_min {
+            self.y_min - y
+        } else if y > self.y_max {
+            y - self.y_max
+        } else {
+            0.0
+        };
         dx * dx + dy * dy
     }
 
@@ -93,7 +120,11 @@ impl Rect {
 
 impl fmt::Display for Rect {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Rect({:.4}, {:.4} .. {:.4}, {:.4})", self.x_min, self.y_min, self.x_max, self.y_max)
+        write!(
+            f,
+            "Rect({:.4}, {:.4} .. {:.4}, {:.4})",
+            self.x_min, self.y_min, self.x_max, self.y_max
+        )
     }
 }
 
@@ -123,12 +154,25 @@ pub struct QuadtreeConfig {
 
 impl QuadtreeConfig {
     pub fn new(bounds: Rect) -> Self {
-        Self { capacity: 8, max_depth: 20, bounds }
+        Self {
+            capacity: 8,
+            max_depth: 20,
+            bounds,
+        }
     }
 
-    pub fn with_capacity(mut self, c: usize) -> Self { self.capacity = c; self }
-    pub fn with_max_depth(mut self, d: usize) -> Self { self.max_depth = d; self }
-    pub fn with_bounds(mut self, b: Rect) -> Self { self.bounds = b; self }
+    pub fn with_capacity(mut self, c: usize) -> Self {
+        self.capacity = c;
+        self
+    }
+    pub fn with_max_depth(mut self, d: usize) -> Self {
+        self.max_depth = d;
+        self
+    }
+    pub fn with_bounds(mut self, b: Rect) -> Self {
+        self.bounds = b;
+        self
+    }
 
     pub fn validate(&self) -> Result<(), QuadtreeError> {
         if self.capacity == 0 {
@@ -138,7 +182,9 @@ impl QuadtreeConfig {
             return Err(QuadtreeError::InvalidConfig("max_depth must be > 0".into()));
         }
         if self.bounds.width() <= 0.0 || self.bounds.height() <= 0.0 {
-            return Err(QuadtreeError::InvalidConfig("bounds must have positive area".into()));
+            return Err(QuadtreeError::InvalidConfig(
+                "bounds must have positive area".into(),
+            ));
         }
         Ok(())
     }
@@ -146,7 +192,11 @@ impl QuadtreeConfig {
 
 impl fmt::Display for QuadtreeConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "QuadtreeConfig(cap={}, depth={}, {})", self.capacity, self.max_depth, self.bounds)
+        write!(
+            f,
+            "QuadtreeConfig(cap={}, depth={}, {})",
+            self.capacity, self.max_depth, self.bounds
+        )
     }
 }
 
@@ -155,16 +205,23 @@ impl fmt::Display for QuadtreeConfig {
 struct QtNode {
     bounds: Rect,
     points: Vec<PointEntry>,
-    children: Option<[Box<QtNode>; 4]>,  // NW, NE, SW, SE
+    children: Option<[Box<QtNode>; 4]>, // NW, NE, SW, SE
     depth: usize,
 }
 
 impl QtNode {
     fn new(bounds: Rect, depth: usize) -> Self {
-        Self { bounds, points: Vec::new(), children: None, depth }
+        Self {
+            bounds,
+            points: Vec::new(),
+            children: None,
+            depth,
+        }
     }
 
-    fn is_leaf(&self) -> bool { self.children.is_none() }
+    fn is_leaf(&self) -> bool {
+        self.children.is_none()
+    }
 
     fn subdivide(&mut self) {
         let nw = Box::new(QtNode::new(self.bounds.nw(), self.depth + 1));
@@ -178,9 +235,9 @@ impl QtNode {
         let cx = self.bounds.center_x();
         let cy = self.bounds.center_y();
         if x < cx {
-            if y >= cy { 0 } else { 2 }  // NW or SW
+            if y >= cy { 0 } else { 2 } // NW or SW
         } else {
-            if y >= cy { 1 } else { 3 }  // NE or SE
+            if y >= cy { 1 } else { 3 } // NE or SE
         }
     }
 }
@@ -197,12 +254,22 @@ impl Quadtree {
     pub fn new(config: QuadtreeConfig) -> Result<Self, QuadtreeError> {
         config.validate()?;
         let root = QtNode::new(config.bounds.clone(), 0);
-        Ok(Self { root, config, count: 0 })
+        Ok(Self {
+            root,
+            config,
+            count: 0,
+        })
     }
 
-    pub fn len(&self) -> usize { self.count }
-    pub fn is_empty(&self) -> bool { self.count == 0 }
-    pub fn bounds(&self) -> &Rect { &self.config.bounds }
+    pub fn len(&self) -> usize {
+        self.count
+    }
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+    pub fn bounds(&self) -> &Rect {
+        &self.config.bounds
+    }
 
     /// Insert a point.
     pub fn insert(&mut self, x: f64, y: f64, id: u64) -> Result<(), QuadtreeError> {
@@ -226,11 +293,21 @@ impl Quadtree {
             let drained: Vec<PointEntry> = node.points.drain(..).collect();
             for p in drained {
                 let q = node.quadrant_for(p.x, p.y);
-                Self::insert_into(&mut node.children.as_mut().unwrap()[q], p, capacity, max_depth);
+                Self::insert_into(
+                    &mut node.children.as_mut().unwrap()[q],
+                    p,
+                    capacity,
+                    max_depth,
+                );
             }
         }
         let q = node.quadrant_for(entry.x, entry.y);
-        Self::insert_into(&mut node.children.as_mut().unwrap()[q], entry, capacity, max_depth);
+        Self::insert_into(
+            &mut node.children.as_mut().unwrap()[q],
+            entry,
+            capacity,
+            max_depth,
+        );
     }
 
     /// Range search: return all entries within `query` rect.
@@ -270,7 +347,13 @@ impl Quadtree {
         }
     }
 
-    fn nearest_node(node: &QtNode, x: f64, y: f64, best: &mut Option<PointEntry>, best_dist: &mut f64) {
+    fn nearest_node(
+        node: &QtNode,
+        x: f64,
+        y: f64,
+        best: &mut Option<PointEntry>,
+        best_dist: &mut f64,
+    ) {
         if node.bounds.distance_sq_to_point(x, y) >= *best_dist {
             return;
         }
@@ -282,7 +365,9 @@ impl Quadtree {
             }
         }
         if let Some(children) = &node.children {
-            let mut ordered: Vec<(usize, f64)> = children.iter().enumerate()
+            let mut ordered: Vec<(usize, f64)> = children
+                .iter()
+                .enumerate()
                 .map(|(i, c)| (i, c.bounds.distance_sq_to_point(x, y)))
                 .collect();
             ordered.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
@@ -340,7 +425,11 @@ impl Quadtree {
 
     fn depth_node(node: &QtNode) -> usize {
         if let Some(children) = &node.children {
-            children.iter().map(|c| Self::depth_node(c)).max().unwrap_or(node.depth)
+            children
+                .iter()
+                .map(|c| Self::depth_node(c))
+                .max()
+                .unwrap_or(node.depth)
         } else {
             node.depth
         }
@@ -349,7 +438,11 @@ impl Quadtree {
 
 impl fmt::Display for Quadtree {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Quadtree(entries={}, bounds={})", self.count, self.config.bounds)
+        write!(
+            f,
+            "Quadtree(entries={}, bounds={})",
+            self.count, self.config.bounds
+        )
     }
 }
 
@@ -369,14 +462,25 @@ struct RegionNode {
 }
 
 impl RegionNode {
-    fn new() -> Self { Self { value: None, children: None } }
+    fn new() -> Self {
+        Self {
+            value: None,
+            children: None,
+        }
+    }
 
-    fn is_leaf(&self) -> bool { self.children.is_none() }
+    fn is_leaf(&self) -> bool {
+        self.children.is_none()
+    }
 }
 
 impl RegionQuadtree {
     pub fn new(bounds: Rect, max_depth: usize) -> Self {
-        Self { root: RegionNode::new(), bounds, max_depth }
+        Self {
+            root: RegionNode::new(),
+            bounds,
+            max_depth,
+        }
     }
 
     /// Set the value at position (x, y).
@@ -388,7 +492,15 @@ impl RegionQuadtree {
         true
     }
 
-    fn set_node(node: &mut RegionNode, bounds: &Rect, x: f64, y: f64, value: u64, depth: usize, max_depth: usize) {
+    fn set_node(
+        node: &mut RegionNode,
+        bounds: &Rect,
+        x: f64,
+        y: f64,
+        value: u64,
+        depth: usize,
+        max_depth: usize,
+    ) {
         if depth >= max_depth {
             node.value = Some(value);
             return;
@@ -404,11 +516,27 @@ impl RegionQuadtree {
         let cx = bounds.center_x();
         let cy = bounds.center_y();
         let (idx, child_bounds) = if x < cx {
-            if y >= cy { (0, bounds.nw()) } else { (2, bounds.sw()) }
+            if y >= cy {
+                (0, bounds.nw())
+            } else {
+                (2, bounds.sw())
+            }
         } else {
-            if y >= cy { (1, bounds.ne()) } else { (3, bounds.se()) }
+            if y >= cy {
+                (1, bounds.ne())
+            } else {
+                (3, bounds.se())
+            }
         };
-        Self::set_node(&mut node.children.as_mut().unwrap()[idx], &child_bounds, x, y, value, depth + 1, max_depth);
+        Self::set_node(
+            &mut node.children.as_mut().unwrap()[idx],
+            &child_bounds,
+            x,
+            y,
+            value,
+            depth + 1,
+            max_depth,
+        );
     }
 
     /// Get the value at position (x, y).
@@ -419,24 +547,50 @@ impl RegionQuadtree {
         Self::get_node(&self.root, &self.bounds, x, y, 0, self.max_depth)
     }
 
-    fn get_node(node: &RegionNode, bounds: &Rect, x: f64, y: f64, depth: usize, max_depth: usize) -> Option<u64> {
+    fn get_node(
+        node: &RegionNode,
+        bounds: &Rect,
+        x: f64,
+        y: f64,
+        depth: usize,
+        max_depth: usize,
+    ) -> Option<u64> {
         if depth >= max_depth || node.is_leaf() {
             return node.value;
         }
         let cx = bounds.center_x();
         let cy = bounds.center_y();
         let (idx, child_bounds) = if x < cx {
-            if y >= cy { (0, bounds.nw()) } else { (2, bounds.sw()) }
+            if y >= cy {
+                (0, bounds.nw())
+            } else {
+                (2, bounds.sw())
+            }
         } else {
-            if y >= cy { (1, bounds.ne()) } else { (3, bounds.se()) }
+            if y >= cy {
+                (1, bounds.ne())
+            } else {
+                (3, bounds.se())
+            }
         };
-        Self::get_node(&node.children.as_ref().unwrap()[idx], &child_bounds, x, y, depth + 1, max_depth)
+        Self::get_node(
+            &node.children.as_ref().unwrap()[idx],
+            &child_bounds,
+            x,
+            y,
+            depth + 1,
+            max_depth,
+        )
     }
 }
 
 impl fmt::Display for RegionQuadtree {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RegionQuadtree(bounds={}, max_depth={})", self.bounds, self.max_depth)
+        write!(
+            f,
+            "RegionQuadtree(bounds={}, max_depth={})",
+            self.bounds, self.max_depth
+        )
     }
 }
 
@@ -477,8 +631,18 @@ mod tests {
     #[test]
     fn test_config_validation() {
         let r = world_bounds();
-        assert!(QuadtreeConfig::new(r.clone()).with_capacity(0).validate().is_err());
-        assert!(QuadtreeConfig::new(r.clone()).with_max_depth(0).validate().is_err());
+        assert!(
+            QuadtreeConfig::new(r.clone())
+                .with_capacity(0)
+                .validate()
+                .is_err()
+        );
+        assert!(
+            QuadtreeConfig::new(r.clone())
+                .with_max_depth(0)
+                .validate()
+                .is_err()
+        );
         assert!(QuadtreeConfig::new(r).validate().is_ok());
     }
 
@@ -494,7 +658,8 @@ mod tests {
         let config = QuadtreeConfig::new(world_bounds());
         let mut qt = Quadtree::new(config).unwrap();
         for i in 0..100 {
-            qt.insert(i as f64 - 50.0, (i as f64) * 0.5 - 25.0, i).unwrap();
+            qt.insert(i as f64 - 50.0, (i as f64) * 0.5 - 25.0, i)
+                .unwrap();
         }
         assert_eq!(qt.len(), 100);
         assert_eq!(qt.count_all(), 100);
@@ -569,7 +734,11 @@ mod tests {
 
     #[test]
     fn test_point_entry_display() {
-        let e = PointEntry { x: 1.0, y: 2.0, id: 3 };
+        let e = PointEntry {
+            x: 1.0,
+            y: 2.0,
+            id: 3,
+        };
         let s = format!("{e}");
         assert!(s.contains("Point"));
     }

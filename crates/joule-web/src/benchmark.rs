@@ -414,16 +414,20 @@ impl BenchSuite {
 
     /// Get the fastest benchmark (lowest mean).
     pub fn fastest(&self) -> Option<&BenchResult> {
-        self.results
-            .iter()
-            .min_by(|a, b| a.mean_ns.partial_cmp(&b.mean_ns).unwrap_or(std::cmp::Ordering::Equal))
+        self.results.iter().min_by(|a, b| {
+            a.mean_ns
+                .partial_cmp(&b.mean_ns)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     }
 
     /// Get the slowest benchmark (highest mean).
     pub fn slowest(&self) -> Option<&BenchResult> {
-        self.results
-            .iter()
-            .max_by(|a, b| a.mean_ns.partial_cmp(&b.mean_ns).unwrap_or(std::cmp::Ordering::Equal))
+        self.results.iter().max_by(|a, b| {
+            a.mean_ns
+                .partial_cmp(&b.mean_ns)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     }
 
     /// Compare all benchmarks against a baseline.

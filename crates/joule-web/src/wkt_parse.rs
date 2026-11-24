@@ -65,15 +65,30 @@ pub struct WktCoord {
 
 impl WktCoord {
     pub fn xy(x: f64, y: f64) -> Self {
-        Self { x, y, z: None, m: None }
+        Self {
+            x,
+            y,
+            z: None,
+            m: None,
+        }
     }
 
     pub fn xyz(x: f64, y: f64, z: f64) -> Self {
-        Self { x, y, z: Some(z), m: None }
+        Self {
+            x,
+            y,
+            z: Some(z),
+            m: None,
+        }
     }
 
     pub fn xyzm(x: f64, y: f64, z: f64, m: f64) -> Self {
-        Self { x, y, z: Some(z), m: Some(m) }
+        Self {
+            x,
+            y,
+            z: Some(z),
+            m: Some(m),
+        }
     }
 
     pub fn dimension(&self) -> CoordDim {
@@ -152,20 +167,15 @@ impl WktGeometry {
             WktGeometry::Point(Some(c)) => vec![*c],
             WktGeometry::Point(None) => vec![],
             WktGeometry::LineString(cs) => cs.clone(),
-            WktGeometry::Polygon(rings) => {
-                rings.iter().flat_map(|r| r.iter().copied()).collect()
-            }
-            WktGeometry::MultiPoint(pts) => {
-                pts.iter().filter_map(|p| *p).collect()
-            }
+            WktGeometry::Polygon(rings) => rings.iter().flat_map(|r| r.iter().copied()).collect(),
+            WktGeometry::MultiPoint(pts) => pts.iter().filter_map(|p| *p).collect(),
             WktGeometry::MultiLineString(lines) => {
                 lines.iter().flat_map(|l| l.iter().copied()).collect()
             }
-            WktGeometry::MultiPolygon(polys) => {
-                polys.iter()
-                    .flat_map(|p| p.iter().flat_map(|r| r.iter().copied()))
-                    .collect()
-            }
+            WktGeometry::MultiPolygon(polys) => polys
+                .iter()
+                .flat_map(|p| p.iter().flat_map(|r| r.iter().copied()))
+                .collect(),
             WktGeometry::GeometryCollection(geoms) => {
                 geoms.iter().flat_map(|g| g.all_coords()).collect()
             }
@@ -190,13 +200,15 @@ impl WktGeometry {
                 format!("LINESTRING ({coords})")
             }
             WktGeometry::Polygon(rings) => {
-                let ring_strs: Vec<String> = rings.iter()
+                let ring_strs: Vec<String> = rings
+                    .iter()
                     .map(|r| format!("({})", Self::format_coord_list(r)))
                     .collect();
                 format!("POLYGON ({})", ring_strs.join(", "))
             }
             WktGeometry::MultiPoint(pts) => {
-                let pt_strs: Vec<String> = pts.iter()
+                let pt_strs: Vec<String> = pts
+                    .iter()
                     .map(|p| match p {
                         Some(c) => format!("({c})"),
                         None => "EMPTY".to_string(),
@@ -205,18 +217,23 @@ impl WktGeometry {
                 format!("MULTIPOINT ({})", pt_strs.join(", "))
             }
             WktGeometry::MultiLineString(lines) => {
-                let line_strs: Vec<String> = lines.iter()
+                let line_strs: Vec<String> = lines
+                    .iter()
                     .map(|l| format!("({})", Self::format_coord_list(l)))
                     .collect();
                 format!("MULTILINESTRING ({})", line_strs.join(", "))
             }
             WktGeometry::MultiPolygon(polys) => {
-                let poly_strs: Vec<String> = polys.iter().map(|rings| {
-                    let ring_strs: Vec<String> = rings.iter()
-                        .map(|r| format!("({})", Self::format_coord_list(r)))
-                        .collect();
-                    format!("({})", ring_strs.join(", "))
-                }).collect();
+                let poly_strs: Vec<String> = polys
+                    .iter()
+                    .map(|rings| {
+                        let ring_strs: Vec<String> = rings
+                            .iter()
+                            .map(|r| format!("({})", Self::format_coord_list(r)))
+                            .collect();
+                        format!("({})", ring_strs.join(", "))
+                    })
+                    .collect();
                 format!("MULTIPOLYGON ({})", poly_strs.join(", "))
             }
             WktGeometry::GeometryCollection(geoms) => {
@@ -227,7 +244,11 @@ impl WktGeometry {
     }
 
     fn format_coord_list(coords: &[WktCoord]) -> String {
-        coords.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", ")
+        coords
+            .iter()
+            .map(|c| c.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 }
 
@@ -247,7 +268,10 @@ pub struct WktParser {
 
 impl WktParser {
     pub fn new(input: &str) -> Self {
-        Self { input: input.chars().collect(), pos: 0 }
+        Self {
+            input: input.chars().collect(),
+            pos: 0,
+        }
     }
 
     /// Parse WKT from a string.
@@ -275,9 +299,12 @@ impl WktParser {
             self.pos += 1;
             Ok(())
         } else {
-            Err(WktError::UnexpectedToken(
-                format!("expected '{}', got {:?} at pos {}", ch, self.peek(), self.pos)
-            ))
+            Err(WktError::UnexpectedToken(format!(
+                "expected '{}', got {:?} at pos {}",
+                ch,
+                self.peek(),
+                self.pos
+            )))
         }
     }
 
@@ -287,7 +314,10 @@ impl WktParser {
         while self.pos < self.input.len() && self.input[self.pos].is_alphabetic() {
             self.pos += 1;
         }
-        self.input[start..self.pos].iter().collect::<String>().to_uppercase()
+        self.input[start..self.pos]
+            .iter()
+            .collect::<String>()
+            .to_uppercase()
     }
 
     fn read_number(&mut self) -> Result<f64, WktError> {
@@ -295,14 +325,16 @@ impl WktParser {
         let start = self.pos;
         while self.pos < self.input.len() {
             let ch = self.input[self.pos];
-            if ch.is_ascii_digit() || ch == '.' || ch == '-' || ch == '+' || ch == 'e' || ch == 'E' {
+            if ch.is_ascii_digit() || ch == '.' || ch == '-' || ch == '+' || ch == 'e' || ch == 'E'
+            {
                 self.pos += 1;
             } else {
                 break;
             }
         }
         let s: String = self.input[start..self.pos].iter().collect();
-        s.parse::<f64>().map_err(|e| WktError::InvalidCoordinate(format!("{e}: '{s}'")))
+        s.parse::<f64>()
+            .map_err(|e| WktError::InvalidCoordinate(format!("{e}: '{s}'")))
     }
 
     fn check_empty(&mut self) -> bool {
@@ -413,7 +445,11 @@ impl WktParser {
                         pts.push(Some(c));
                     }
                     self.skip_whitespace();
-                    if self.peek() == Some(',') { self.pos += 1; } else { break; }
+                    if self.peek() == Some(',') {
+                        self.pos += 1;
+                    } else {
+                        break;
+                    }
                 }
                 self.expect_char(')')?;
                 Ok(WktGeometry::MultiPoint(pts))
@@ -424,7 +460,11 @@ impl WktParser {
                 loop {
                     lines.push(self.parse_coord_list()?);
                     self.skip_whitespace();
-                    if self.peek() == Some(',') { self.pos += 1; } else { break; }
+                    if self.peek() == Some(',') {
+                        self.pos += 1;
+                    } else {
+                        break;
+                    }
                 }
                 self.expect_char(')')?;
                 Ok(WktGeometry::MultiLineString(lines))
@@ -435,7 +475,11 @@ impl WktParser {
                 loop {
                     polys.push(self.parse_ring_list()?);
                     self.skip_whitespace();
-                    if self.peek() == Some(',') { self.pos += 1; } else { break; }
+                    if self.peek() == Some(',') {
+                        self.pos += 1;
+                    } else {
+                        break;
+                    }
                 }
                 self.expect_char(')')?;
                 Ok(WktGeometry::MultiPolygon(polys))
@@ -446,7 +490,11 @@ impl WktParser {
                 loop {
                     geoms.push(self.parse_geometry()?);
                     self.skip_whitespace();
-                    if self.peek() == Some(',') { self.pos += 1; } else { break; }
+                    if self.peek() == Some(',') {
+                        self.pos += 1;
+                    } else {
+                        break;
+                    }
                 }
                 self.expect_char(')')?;
                 Ok(WktGeometry::GeometryCollection(geoms))
@@ -538,9 +586,9 @@ mod tests {
 
     #[test]
     fn test_parse_polygon_with_hole() {
-        let g = WktParser::parse(
-            "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0), (2 2, 8 2, 8 8, 2 8, 2 2))"
-        ).unwrap();
+        let g =
+            WktParser::parse("POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0), (2 2, 8 2, 8 8, 2 8, 2 2))")
+                .unwrap();
         if let WktGeometry::Polygon(rings) = &g {
             assert_eq!(rings.len(), 2);
         } else {
@@ -570,9 +618,8 @@ mod tests {
 
     #[test]
     fn test_parse_multipolygon() {
-        let g = WktParser::parse(
-            "MULTIPOLYGON (((0 0, 1 0, 1 1, 0 0)), ((2 2, 3 2, 3 3, 2 2)))"
-        ).unwrap();
+        let g = WktParser::parse("MULTIPOLYGON (((0 0, 1 0, 1 1, 0 0)), ((2 2, 3 2, 3 3, 2 2)))")
+            .unwrap();
         if let WktGeometry::MultiPolygon(polys) = &g {
             assert_eq!(polys.len(), 2);
         } else {
@@ -582,9 +629,8 @@ mod tests {
 
     #[test]
     fn test_parse_geometry_collection() {
-        let g = WktParser::parse(
-            "GEOMETRYCOLLECTION (POINT (0 0), LINESTRING (0 0, 1 1))"
-        ).unwrap();
+        let g =
+            WktParser::parse("GEOMETRYCOLLECTION (POINT (0 0), LINESTRING (0 0, 1 1))").unwrap();
         if let WktGeometry::GeometryCollection(geoms) = &g {
             assert_eq!(geoms.len(), 2);
         } else {

@@ -317,7 +317,8 @@ async fn test_wave17_gpu_batched_decoder_mcp_host_and_autonomous_agent_loop_e2e(
     // -------------------------------------------------------------------------
     // 3. Frontier 3B: Autonomous Multi-Turn SQL -> Engram + Titans Agent Loop!
     // -------------------------------------------------------------------------
-    let goal = "SELECT rack, watts FROM rack_power ORDER BY watts DESC; commit highest rack to memory";
+    let goal =
+        "SELECT rack, watts FROM rack_power ORDER BY watts DESC; commit highest rack to memory";
     let agent_res: JsonValue = http
         .post(format!("{base_url}/api/v1/agent/run"))
         .json(&json!({

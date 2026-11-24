@@ -148,7 +148,8 @@ impl FixtureDef {
     }
 
     pub fn with_default_param(mut self, key: &str, value: &str) -> Self {
-        self.default_params.insert(key.to_string(), value.to_string());
+        self.default_params
+            .insert(key.to_string(), value.to_string());
         self
     }
 
@@ -691,10 +692,7 @@ mod tests {
         let def = factory.create("db", "test.db");
         assert_eq!(def.name, "db");
         assert_eq!(def.scope, FixtureScope::Test);
-        assert_eq!(
-            def.default_params.get("env").unwrap(),
-            "test"
-        );
+        assert_eq!(def.default_params.get("env").unwrap(), "test");
         assert_eq!(factory.created_count(), 1);
     }
 

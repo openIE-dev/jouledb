@@ -66,7 +66,12 @@ pub struct Schema {
 impl Schema {
     pub fn new(name: &str, version: u32, fields: Vec<SchemaField>) -> Self {
         let fingerprint = compute_fingerprint(name, &fields);
-        Self { name: name.to_string(), version, fields, fingerprint }
+        Self {
+            name: name.to_string(),
+            version,
+            fields,
+            fingerprint,
+        }
     }
 
     pub fn get_field(&self, name: &str) -> Option<&SchemaField> {
@@ -125,7 +130,10 @@ pub fn check_backward(old: &Schema, new: &Schema) -> CompatResult {
         // Removed fields are OK for backward compat (old data has it, new schema ignores it).
     }
 
-    CompatResult { compatible: errors.is_empty(), errors }
+    CompatResult {
+        compatible: errors.is_empty(),
+        errors,
+    }
 }
 
 /// Check forward compatibility (old schema can read new data).
@@ -150,7 +158,10 @@ pub fn check_forward(old: &Schema, new: &Schema) -> CompatResult {
         }
     }
 
-    CompatResult { compatible: errors.is_empty(), errors }
+    CompatResult {
+        compatible: errors.is_empty(),
+        errors,
+    }
 }
 
 /// Check full compatibility (both directions).
@@ -159,7 +170,10 @@ pub fn check_full(old: &Schema, new: &Schema) -> CompatResult {
     let fw = check_forward(old, new);
     let mut errors = bw.errors;
     errors.extend(fw.errors);
-    CompatResult { compatible: errors.is_empty(), errors }
+    CompatResult {
+        compatible: errors.is_empty(),
+        errors,
+    }
 }
 
 /// The schema registry.
@@ -177,25 +191,40 @@ struct SubjectEntry {
 
 impl Default for SubjectEntry {
     fn default() -> Self {
-        Self { schemas: Vec::new(), compatibility: Compatibility::None }
+        Self {
+            schemas: Vec::new(),
+            compatibility: Compatibility::None,
+        }
     }
 }
 
 impl SchemaRegistry {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// Set compatibility mode for a subject.
     pub fn set_compatibility(&mut self, subject: &str, mode: Compatibility) {
-        self.subjects.entry(subject.to_string()).or_default().compatibility = mode;
+        self.subjects
+            .entry(subject.to_string())
+            .or_default()
+            .compatibility = mode;
     }
 
     /// Get the compatibility mode for a subject.
     pub fn get_compatibility(&self, subject: &str) -> Compatibility {
-        self.subjects.get(subject).map(|e| e.compatibility).unwrap_or(Compatibility::None)
+        self.subjects
+            .get(subject)
+            .map(|e| e.compatibility)
+            .unwrap_or(Compatibility::None)
     }
 
     /// Register a new schema version. Returns Ok(version) or Err with compat errors.
-    pub fn register(&mut self, subject: &str, fields: Vec<SchemaField>) -> Result<u32, Vec<String>> {
+    pub fn register(
+        &mut self,
+        subject: &str,
+        fields: Vec<SchemaField>,
+    ) -> Result<u32, Vec<String>> {
         let entry = self.subjects.entry(subject.to_string()).or_default();
         let version = entry.schemas.len() as u32 + 1;
         let schema = Schema::new(subject, version, fields);
@@ -203,7 +232,10 @@ impl SchemaRegistry {
         // Check compatibility against last version.
         if let Some(last) = entry.schemas.last() {
             let result = match entry.compatibility {
-                Compatibility::None => CompatResult { compatible: true, errors: vec![] },
+                Compatibility::None => CompatResult {
+                    compatible: true,
+                    errors: vec![],
+                },
                 Compatibility::Backward => check_backward(last, &schema),
                 Compatibility::Forward => check_forward(last, &schema),
                 Compatibility::Full => check_full(last, &schema),
@@ -213,14 +245,18 @@ impl SchemaRegistry {
             }
         }
 
-        self.by_fingerprint.insert(schema.fingerprint, (subject.to_string(), version));
+        self.by_fingerprint
+            .insert(schema.fingerprint, (subject.to_string(), version));
         entry.schemas.push(schema);
         Ok(version)
     }
 
     /// Get a schema by subject and version.
     pub fn get(&self, subject: &str, version: u32) -> Option<&Schema> {
-        self.subjects.get(subject)?.schemas.get(version as usize - 1)
+        self.subjects
+            .get(subject)?
+            .schemas
+            .get(version as usize - 1)
     }
 
     /// Get the latest schema for a subject.
@@ -236,7 +272,8 @@ impl SchemaRegistry {
 
     /// List all versions for a subject.
     pub fn versions(&self, subject: &str) -> Vec<u32> {
-        self.subjects.get(subject)
+        self.subjects
+            .get(subject)
             .map(|e| (1..=e.schemas.len() as u32).collect())
             .unwrap_or_default()
     }
@@ -254,28 +291,46 @@ mod tests {
     use super::*;
 
     fn field(name: &str, ft: FieldType, required: bool) -> SchemaField {
-        SchemaField { name: name.to_string(), field_type: ft, required, default_value: None }
+        SchemaField {
+            name: name.to_string(),
+            field_type: ft,
+            required,
+            default_value: None,
+        }
     }
 
     fn field_with_default(name: &str, ft: FieldType, default: &str) -> SchemaField {
-        SchemaField { name: name.to_string(), field_type: ft, required: true, default_value: Some(default.to_string()) }
+        SchemaField {
+            name: name.to_string(),
+            field_type: ft,
+            required: true,
+            default_value: Some(default.to_string()),
+        }
     }
 
     #[test]
     fn register_first_version() {
         let mut reg = SchemaRegistry::new();
-        let v = reg.register("user", vec![field("name", FieldType::String, true)]).unwrap();
+        let v = reg
+            .register("user", vec![field("name", FieldType::String, true)])
+            .unwrap();
         assert_eq!(v, 1);
     }
 
     #[test]
     fn register_multiple_versions() {
         let mut reg = SchemaRegistry::new();
-        reg.register("user", vec![field("name", FieldType::String, true)]).unwrap();
-        let v2 = reg.register("user", vec![
-            field("name", FieldType::String, true),
-            field("email", FieldType::String, false),
-        ]).unwrap();
+        reg.register("user", vec![field("name", FieldType::String, true)])
+            .unwrap();
+        let v2 = reg
+            .register(
+                "user",
+                vec![
+                    field("name", FieldType::String, true),
+                    field("email", FieldType::String, false),
+                ],
+            )
+            .unwrap();
         assert_eq!(v2, 2);
     }
 
@@ -283,12 +338,16 @@ mod tests {
     fn backward_compat_add_optional_field() {
         let mut reg = SchemaRegistry::new();
         reg.set_compatibility("user", Compatibility::Backward);
-        reg.register("user", vec![field("name", FieldType::String, true)]).unwrap();
+        reg.register("user", vec![field("name", FieldType::String, true)])
+            .unwrap();
         // Adding optional field is backward compatible.
-        let r = reg.register("user", vec![
-            field("name", FieldType::String, true),
-            field("age", FieldType::Int, false),
-        ]);
+        let r = reg.register(
+            "user",
+            vec![
+                field("name", FieldType::String, true),
+                field("age", FieldType::Int, false),
+            ],
+        );
         assert!(r.is_ok());
     }
 
@@ -296,11 +355,15 @@ mod tests {
     fn backward_compat_add_required_no_default_fails() {
         let mut reg = SchemaRegistry::new();
         reg.set_compatibility("user", Compatibility::Backward);
-        reg.register("user", vec![field("name", FieldType::String, true)]).unwrap();
-        let r = reg.register("user", vec![
-            field("name", FieldType::String, true),
-            field("age", FieldType::Int, true), // required, no default
-        ]);
+        reg.register("user", vec![field("name", FieldType::String, true)])
+            .unwrap();
+        let r = reg.register(
+            "user",
+            vec![
+                field("name", FieldType::String, true),
+                field("age", FieldType::Int, true), // required, no default
+            ],
+        );
         assert!(r.is_err());
     }
 
@@ -308,11 +371,15 @@ mod tests {
     fn backward_compat_add_required_with_default_ok() {
         let mut reg = SchemaRegistry::new();
         reg.set_compatibility("user", Compatibility::Backward);
-        reg.register("user", vec![field("name", FieldType::String, true)]).unwrap();
-        let r = reg.register("user", vec![
-            field("name", FieldType::String, true),
-            field_with_default("age", FieldType::Int, "0"),
-        ]);
+        reg.register("user", vec![field("name", FieldType::String, true)])
+            .unwrap();
+        let r = reg.register(
+            "user",
+            vec![
+                field("name", FieldType::String, true),
+                field_with_default("age", FieldType::Int, "0"),
+            ],
+        );
         assert!(r.is_ok());
     }
 
@@ -320,13 +387,15 @@ mod tests {
     fn forward_compat_remove_required_fails() {
         let mut reg = SchemaRegistry::new();
         reg.set_compatibility("user", Compatibility::Forward);
-        reg.register("user", vec![
-            field("name", FieldType::String, true),
-            field("email", FieldType::String, true),
-        ]).unwrap();
-        let r = reg.register("user", vec![
-            field("name", FieldType::String, true),
-        ]);
+        reg.register(
+            "user",
+            vec![
+                field("name", FieldType::String, true),
+                field("email", FieldType::String, true),
+            ],
+        )
+        .unwrap();
+        let r = reg.register("user", vec![field("name", FieldType::String, true)]);
         assert!(r.is_err());
     }
 
@@ -334,7 +403,8 @@ mod tests {
     fn type_promotion_int_to_long() {
         let mut reg = SchemaRegistry::new();
         reg.set_compatibility("data", Compatibility::Backward);
-        reg.register("data", vec![field("count", FieldType::Int, true)]).unwrap();
+        reg.register("data", vec![field("count", FieldType::Int, true)])
+            .unwrap();
         let r = reg.register("data", vec![field("count", FieldType::Long, true)]);
         assert!(r.is_ok());
     }
@@ -343,7 +413,8 @@ mod tests {
     fn incompatible_type_change() {
         let mut reg = SchemaRegistry::new();
         reg.set_compatibility("data", Compatibility::Backward);
-        reg.register("data", vec![field("count", FieldType::Int, true)]).unwrap();
+        reg.register("data", vec![field("count", FieldType::Int, true)])
+            .unwrap();
         let r = reg.register("data", vec![field("count", FieldType::String, true)]);
         assert!(r.is_err());
     }
@@ -351,8 +422,16 @@ mod tests {
     #[test]
     fn get_schema_by_version() {
         let mut reg = SchemaRegistry::new();
-        reg.register("x", vec![field("a", FieldType::String, true)]).unwrap();
-        reg.register("x", vec![field("a", FieldType::String, true), field("b", FieldType::Int, false)]).unwrap();
+        reg.register("x", vec![field("a", FieldType::String, true)])
+            .unwrap();
+        reg.register(
+            "x",
+            vec![
+                field("a", FieldType::String, true),
+                field("b", FieldType::Int, false),
+            ],
+        )
+        .unwrap();
         let s1 = reg.get("x", 1).unwrap();
         assert_eq!(s1.fields.len(), 1);
         let s2 = reg.get("x", 2).unwrap();
@@ -362,8 +441,16 @@ mod tests {
     #[test]
     fn get_latest() {
         let mut reg = SchemaRegistry::new();
-        reg.register("x", vec![field("a", FieldType::String, true)]).unwrap();
-        reg.register("x", vec![field("a", FieldType::String, true), field("b", FieldType::Int, false)]).unwrap();
+        reg.register("x", vec![field("a", FieldType::String, true)])
+            .unwrap();
+        reg.register(
+            "x",
+            vec![
+                field("a", FieldType::String, true),
+                field("b", FieldType::Int, false),
+            ],
+        )
+        .unwrap();
         let latest = reg.get_latest("x").unwrap();
         assert_eq!(latest.version, 2);
     }
@@ -371,7 +458,8 @@ mod tests {
     #[test]
     fn fingerprint_lookup() {
         let mut reg = SchemaRegistry::new();
-        reg.register("event", vec![field("id", FieldType::String, true)]).unwrap();
+        reg.register("event", vec![field("id", FieldType::String, true)])
+            .unwrap();
         let s = reg.get("event", 1).unwrap();
         let fp = s.fingerprint;
         let found = reg.get_by_fingerprint(fp).unwrap();
@@ -381,9 +469,12 @@ mod tests {
     #[test]
     fn list_versions() {
         let mut reg = SchemaRegistry::new();
-        reg.register("x", vec![field("a", FieldType::String, true)]).unwrap();
-        reg.register("x", vec![field("a", FieldType::String, true)]).unwrap();
-        reg.register("x", vec![field("a", FieldType::String, true)]).unwrap();
+        reg.register("x", vec![field("a", FieldType::String, true)])
+            .unwrap();
+        reg.register("x", vec![field("a", FieldType::String, true)])
+            .unwrap();
+        reg.register("x", vec![field("a", FieldType::String, true)])
+            .unwrap();
         assert_eq!(reg.versions("x"), vec![1, 2, 3]);
     }
 
@@ -399,7 +490,8 @@ mod tests {
     fn no_compat_allows_anything() {
         let mut reg = SchemaRegistry::new();
         reg.set_compatibility("x", Compatibility::None);
-        reg.register("x", vec![field("a", FieldType::String, true)]).unwrap();
+        reg.register("x", vec![field("a", FieldType::String, true)])
+            .unwrap();
         let r = reg.register("x", vec![field("b", FieldType::Int, true)]);
         assert!(r.is_ok());
     }
@@ -407,10 +499,14 @@ mod tests {
     #[test]
     fn full_compat_both_directions() {
         let old = Schema::new("s", 1, vec![field("a", FieldType::String, true)]);
-        let new = Schema::new("s", 2, vec![
-            field("a", FieldType::String, true),
-            field("b", FieldType::String, true), // required, no default — fails backward
-        ]);
+        let new = Schema::new(
+            "s",
+            2,
+            vec![
+                field("a", FieldType::String, true),
+                field("b", FieldType::String, true), // required, no default — fails backward
+            ],
+        );
         let r = check_full(&old, &new);
         assert!(!r.compatible);
     }

@@ -33,10 +33,16 @@ impl fmt::Display for BatchError {
         match self {
             Self::EmptyInput => write!(f, "no items to process"),
             Self::InvalidBatchSize => write!(f, "batch size must be > 0"),
-            Self::BatchFailed { batch_index, reason } => {
+            Self::BatchFailed {
+                batch_index,
+                reason,
+            } => {
                 write!(f, "batch {batch_index} failed: {reason}")
             }
-            Self::RetriesExhausted { batch_index, attempts } => {
+            Self::RetriesExhausted {
+                batch_index,
+                attempts,
+            } => {
                 write!(f, "batch {batch_index} failed after {attempts} attempts")
             }
             Self::CheckpointNotFound(id) => write!(f, "checkpoint not found: {id}"),
@@ -256,10 +262,7 @@ impl<T, U> fmt::Debug for BatchProcessor<T, U> {
 
 impl<T: Clone, U: Clone> BatchProcessor<T, U> {
     /// Create a new batch processor.
-    pub fn new(
-        batch_size: usize,
-        processor: impl Fn(&T) -> ItemResult<U> + 'static,
-    ) -> Self {
+    pub fn new(batch_size: usize, processor: impl Fn(&T) -> ItemResult<U> + 'static) -> Self {
         Self {
             batch_size,
             processor: Box::new(processor),
@@ -292,7 +295,10 @@ impl<T: Clone, U: Clone> BatchProcessor<T, U> {
     }
 
     /// Process all items in batches.
-    pub fn process(&mut self, items: &[T]) -> Result<(Vec<BatchResult<U>>, AggregateResult), BatchError> {
+    pub fn process(
+        &mut self,
+        items: &[T],
+    ) -> Result<(Vec<BatchResult<U>>, AggregateResult), BatchError> {
         if items.is_empty() {
             return Err(BatchError::EmptyInput);
         }
@@ -746,7 +752,10 @@ mod tests {
         assert_eq!(format!("{}", BatchStatus::Pending), "pending");
         assert_eq!(format!("{}", BatchStatus::Succeeded), "succeeded");
         assert_eq!(format!("{}", BatchStatus::Failed), "failed");
-        assert_eq!(format!("{}", BatchStatus::PartialFailure), "partial_failure");
+        assert_eq!(
+            format!("{}", BatchStatus::PartialFailure),
+            "partial_failure"
+        );
     }
 
     #[test]

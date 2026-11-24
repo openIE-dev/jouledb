@@ -62,7 +62,10 @@ impl NetworkCondition {
     }
 
     pub fn lossy(loss: f64) -> Self {
-        Self { loss_rate: loss.clamp(0.0, 1.0), ..Self::perfect() }
+        Self {
+            loss_rate: loss.clamp(0.0, 1.0),
+            ..Self::perfect()
+        }
     }
 
     pub fn with_latency(mut self, latency: f64, jitter: f64) -> Self {
@@ -89,7 +92,10 @@ impl NetworkCondition {
     /// Validate the condition.
     pub fn validate(&self) -> Result<(), SimError> {
         if self.loss_rate < 0.0 || self.loss_rate > 1.0 {
-            return Err(SimError::InvalidConfig(format!("loss_rate {} out of [0,1]", self.loss_rate)));
+            return Err(SimError::InvalidConfig(format!(
+                "loss_rate {} out of [0,1]",
+                self.loss_rate
+            )));
         }
         if self.latency < 0.0 {
             return Err(SimError::InvalidConfig("negative latency".into()));
@@ -158,7 +164,11 @@ impl GilbertElliott {
         }
 
         // Loss decision.
-        let loss_prob = if self.in_bad_state { self.loss_in_bad } else { self.loss_in_good };
+        let loss_prob = if self.in_bad_state {
+            self.loss_in_bad
+        } else {
+            self.loss_in_good
+        };
         rng_val < loss_prob
     }
 
@@ -187,7 +197,9 @@ pub struct DeterministicRng {
 
 impl DeterministicRng {
     pub fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     /// Returns a value in [0.0, 1.0).
@@ -218,7 +230,13 @@ pub struct SimPacket {
 
 impl SimPacket {
     pub fn new(sequence: u64, payload: Vec<u8>, send_time: f64) -> Self {
-        Self { sequence, payload, send_time, delivery_time: send_time, is_duplicate: false }
+        Self {
+            sequence,
+            payload,
+            send_time,
+            delivery_time: send_time,
+            is_duplicate: false,
+        }
     }
 
     pub fn size(&self) -> usize {
@@ -256,15 +274,27 @@ pub struct SimStats {
 
 impl SimStats {
     pub fn delivery_rate(&self) -> f64 {
-        if self.packets_sent == 0 { 1.0 } else { self.packets_delivered as f64 / self.packets_sent as f64 }
+        if self.packets_sent == 0 {
+            1.0
+        } else {
+            self.packets_delivered as f64 / self.packets_sent as f64
+        }
     }
 
     pub fn avg_latency(&self) -> f64 {
-        if self.packets_delivered == 0 { 0.0 } else { self.total_latency / self.packets_delivered as f64 }
+        if self.packets_delivered == 0 {
+            0.0
+        } else {
+            self.total_latency / self.packets_delivered as f64
+        }
     }
 
     pub fn loss_rate(&self) -> f64 {
-        if self.packets_sent == 0 { 0.0 } else { self.packets_dropped as f64 / self.packets_sent as f64 }
+        if self.packets_sent == 0 {
+            0.0
+        } else {
+            self.packets_dropped as f64 / self.packets_sent as f64
+        }
     }
 }
 
@@ -324,7 +354,9 @@ impl PacketSimulator {
         if self.condition.bandwidth_bps > 0 {
             let elapsed = send_time - self.last_send_time;
             self.bandwidth_tokens += elapsed * self.condition.bandwidth_bps as f64;
-            self.bandwidth_tokens = self.bandwidth_tokens.min(self.condition.bandwidth_bps as f64);
+            self.bandwidth_tokens = self
+                .bandwidth_tokens
+                .min(self.condition.bandwidth_bps as f64);
 
             if (payload.len() as f64) > self.bandwidth_tokens {
                 self.stats.packets_dropped += 1;
@@ -355,7 +387,8 @@ impl PacketSimulator {
 
         // Compute delivery time.
         let jitter_offset = if self.condition.jitter > 0.0 {
-            self.rng.range(-self.condition.jitter, self.condition.jitter)
+            self.rng
+                .range(-self.condition.jitter, self.condition.jitter)
         } else {
             0.0
         };
@@ -381,9 +414,12 @@ impl PacketSimulator {
         }
 
         // Duplication.
-        if self.condition.duplicate_rate > 0.0 && self.rng.next_f64() < self.condition.duplicate_rate {
+        if self.condition.duplicate_rate > 0.0
+            && self.rng.next_f64() < self.condition.duplicate_rate
+        {
             let mut dup = SimPacket::new(sequence, payload, send_time);
-            dup.delivery_time = delivery + self.rng.range(0.0, self.condition.latency * 0.5 + 0.001);
+            dup.delivery_time =
+                delivery + self.rng.range(0.0, self.condition.latency * 0.5 + 0.001);
             dup.is_duplicate = true;
             self.delivery_queue.push_back(dup);
             self.stats.packets_duplicated += 1;

@@ -102,10 +102,7 @@ fn run_with_timeout(
                     let _ = child.wait();
                     let _ = stdout_reader.join();
                     let _ = stderr_reader.join();
-                    return Err(format!(
-                        "subprocess timed out after {}s",
-                        timeout.as_secs()
-                    ));
+                    return Err(format!("subprocess timed out after {}s", timeout.as_secs()));
                 }
                 thread::sleep(POLL_INTERVAL);
             }
@@ -147,16 +144,16 @@ impl MambaDecoder {
 
     /// Create with standard mamba.rs location.
     pub fn standard_130m() -> Self {
-        Self::new(
-            "/tmp/jouledb-data/mamba-rs",
-            "130m",
-        )
+        Self::new("/tmp/jouledb-data/mamba-rs", "130m")
     }
 
     /// Check if the binary and weights exist.
     pub fn is_available(&self) -> bool {
         self.binary_path.exists()
-            && self.work_dir.join(format!("mamba-{}.bin", self.model_size)).exists()
+            && self
+                .work_dir
+                .join(format!("mamba-{}.bin", self.model_size))
+                .exists()
             && self.work_dir.join("vocab.json").exists()
     }
 
@@ -178,8 +175,8 @@ impl MambaDecoder {
             .arg(format!("{}", self.temperature))
             .current_dir(&self.work_dir);
 
-        let (stdout, stderr, status) = run_with_timeout(cmd, MAMBA_TIMEOUT)
-            .map_err(|e| format!("mamba: {e}"))?;
+        let (stdout, stderr, status) =
+            run_with_timeout(cmd, MAMBA_TIMEOUT).map_err(|e| format!("mamba: {e}"))?;
 
         let elapsed_us = start.elapsed().as_micros() as u64;
 
@@ -191,9 +188,13 @@ impl MambaDecoder {
         let lines: Vec<&str> = stdout.lines().collect();
         let text = lines
             .iter()
-            .filter(|l| !l.starts_with("state size") && !l.starts_with("weight size")
-                && !l.starts_with("processing prompt") && !l.starts_with("prompt tokens")
-                && !l.contains("tokens generated"))
+            .filter(|l| {
+                !l.starts_with("state size")
+                    && !l.starts_with("weight size")
+                    && !l.starts_with("processing prompt")
+                    && !l.starts_with("prompt tokens")
+                    && !l.contains("tokens generated")
+            })
             .copied()
             .collect::<Vec<_>>()
             .join("\n")
@@ -241,10 +242,10 @@ impl TextDecoder for MambaDecoder {
 
     fn energy_per_token(&self) -> f64 {
         match self.model_size.as_str() {
-            "130m" => 0.000_01,  // ~10µJ per token (130M on Apple Silicon)
-            "370m" => 0.000_03,  // ~30µJ per token
-            "790m" => 0.000_07,  // ~70µJ per token
-            _ => 0.000_1,        // ~100µJ per token (conservative)
+            "130m" => 0.000_01, // ~10µJ per token (130M on Apple Silicon)
+            "370m" => 0.000_03, // ~30µJ per token
+            "790m" => 0.000_07, // ~70µJ per token
+            _ => 0.000_1,       // ~100µJ per token (conservative)
         }
     }
 }
@@ -290,7 +291,8 @@ mod tests {
         };
 
         let result = decoder.decode(&context, 50);
-        eprintln!("Mamba output ({} tokens, {:.3}s, {:.6}J):\n{}",
+        eprintln!(
+            "Mamba output ({} tokens, {:.3}s, {:.6}J):\n{}",
             result.tokens,
             result.latency_us as f64 / 1_000_000.0,
             result.energy,
@@ -359,11 +361,7 @@ mod tests {
 
         assert!(result.is_err(), "hanging subprocess should time out");
         let err = result.unwrap_err();
-        assert!(
-            err.contains("timed out"),
-            "unexpected error: {}",
-            err
-        );
+        assert!(err.contains("timed out"), "unexpected error: {}", err);
         // Must actually return within a few seconds — the whole point.
         assert!(
             elapsed < Duration::from_secs(5),
@@ -407,5 +405,4 @@ mod tests {
             line_count
         );
     }
-
 }

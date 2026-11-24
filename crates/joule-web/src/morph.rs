@@ -131,9 +131,18 @@ pub fn parse_svg_path(d: &str) -> Vec<PathCommand> {
                 i += 7;
             }
             "c" => {
-                let c1 = MorphPoint::new(cursor.x + parse_num(&tokens[i + 1]), cursor.y + parse_num(&tokens[i + 2]));
-                let c2 = MorphPoint::new(cursor.x + parse_num(&tokens[i + 3]), cursor.y + parse_num(&tokens[i + 4]));
-                let p = MorphPoint::new(cursor.x + parse_num(&tokens[i + 5]), cursor.y + parse_num(&tokens[i + 6]));
+                let c1 = MorphPoint::new(
+                    cursor.x + parse_num(&tokens[i + 1]),
+                    cursor.y + parse_num(&tokens[i + 2]),
+                );
+                let c2 = MorphPoint::new(
+                    cursor.x + parse_num(&tokens[i + 3]),
+                    cursor.y + parse_num(&tokens[i + 4]),
+                );
+                let p = MorphPoint::new(
+                    cursor.x + parse_num(&tokens[i + 5]),
+                    cursor.y + parse_num(&tokens[i + 6]),
+                );
                 cursor = p;
                 commands.push(PathCommand::CubicTo(c1, c2, p));
                 i += 7;
@@ -146,8 +155,14 @@ pub fn parse_svg_path(d: &str) -> Vec<PathCommand> {
                 i += 5;
             }
             "q" => {
-                let cp = MorphPoint::new(cursor.x + parse_num(&tokens[i + 1]), cursor.y + parse_num(&tokens[i + 2]));
-                let p = MorphPoint::new(cursor.x + parse_num(&tokens[i + 3]), cursor.y + parse_num(&tokens[i + 4]));
+                let cp = MorphPoint::new(
+                    cursor.x + parse_num(&tokens[i + 1]),
+                    cursor.y + parse_num(&tokens[i + 2]),
+                );
+                let p = MorphPoint::new(
+                    cursor.x + parse_num(&tokens[i + 3]),
+                    cursor.y + parse_num(&tokens[i + 4]),
+                );
                 cursor = p;
                 commands.push(PathCommand::QuadraticTo(cp, p));
                 i += 5;
@@ -200,8 +215,16 @@ fn parse_num(s: &str) -> f64 {
 }
 
 fn read_point(tokens: &[String], idx: usize) -> MorphPoint {
-    let x = if idx < tokens.len() { parse_num(&tokens[idx]) } else { 0.0 };
-    let y = if idx + 1 < tokens.len() { parse_num(&tokens[idx + 1]) } else { 0.0 };
+    let x = if idx < tokens.len() {
+        parse_num(&tokens[idx])
+    } else {
+        0.0
+    };
+    let y = if idx + 1 < tokens.len() {
+        parse_num(&tokens[idx + 1])
+    } else {
+        0.0
+    };
     MorphPoint::new(x, y)
 }
 
@@ -320,7 +343,11 @@ pub fn resample_points(points: &[MorphPoint], n: usize) -> Vec<MorphPoint> {
 
     let mut result = Vec::with_capacity(n);
     for i in 0..n {
-        let target_dist = if n == 1 { 0.0 } else { total * i as f64 / (n - 1) as f64 };
+        let target_dist = if n == 1 {
+            0.0
+        } else {
+            total * i as f64 / (n - 1) as f64
+        };
 
         // Find the segment.
         let seg = match lengths.binary_search_by(|d| d.partial_cmp(&target_dist).unwrap()) {
@@ -347,11 +374,7 @@ pub fn resample_points(points: &[MorphPoint], n: usize) -> Vec<MorphPoint> {
 // ── Morph ──────────────────────────────────────────────────────
 
 /// Interpolate between two normalized point lists at parameter t [0, 1].
-pub fn interpolate_points(
-    from: &[MorphPoint],
-    to: &[MorphPoint],
-    t: f64,
-) -> Vec<MorphPoint> {
+pub fn interpolate_points(from: &[MorphPoint], to: &[MorphPoint], t: f64) -> Vec<MorphPoint> {
     let t = t.clamp(0.0, 1.0);
     from.iter()
         .zip(to.iter())
@@ -360,11 +383,7 @@ pub fn interpolate_points(
 }
 
 /// Interpolate with easing (quadratic ease-in-out).
-pub fn interpolate_eased(
-    from: &[MorphPoint],
-    to: &[MorphPoint],
-    t: f64,
-) -> Vec<MorphPoint> {
+pub fn interpolate_eased(from: &[MorphPoint], to: &[MorphPoint], t: f64) -> Vec<MorphPoint> {
     let t = t.clamp(0.0, 1.0);
     let eased = if t < 0.5 {
         2.0 * t * t
@@ -377,11 +396,7 @@ pub fn interpolate_eased(
 // ── Polygon Morphing ───────────────────────────────────────────
 
 /// Match polygon vertices by angle from centroid, then morph.
-pub fn polygon_morph(
-    from: &[MorphPoint],
-    to: &[MorphPoint],
-    t: f64,
-) -> Vec<MorphPoint> {
+pub fn polygon_morph(from: &[MorphPoint], to: &[MorphPoint], t: f64) -> Vec<MorphPoint> {
     let from_sorted = sort_by_angle(from);
     let to_sorted = sort_by_angle(to);
     let (norm_from, norm_to) = normalize_point_lists(&from_sorted, &to_sorted);

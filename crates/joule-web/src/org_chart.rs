@@ -121,7 +121,10 @@ impl OrgChart {
 
     /// Find root nodes (no reports_to).
     pub fn roots(&self) -> Vec<&OrgNode> {
-        self.nodes.iter().filter(|n| n.reports_to.is_none()).collect()
+        self.nodes
+            .iter()
+            .filter(|n| n.reports_to.is_none())
+            .collect()
     }
 
     /// Get direct reports of a manager.
@@ -230,10 +233,8 @@ impl OrgChart {
             .collect();
 
         if children.is_empty() {
-            self.positions.insert(
-                node_id.to_string(),
-                OrgPosition { x: x_start, y },
-            );
+            self.positions
+                .insert(node_id.to_string(), OrgPosition { x: x_start, y });
             return spacing_x;
         }
 
@@ -250,10 +251,8 @@ impl OrgChart {
         let last_child_x = self.positions[children.last().unwrap()].x;
         let parent_x = (first_child_x + last_child_x) / 2.0;
 
-        self.positions.insert(
-            node_id.to_string(),
-            OrgPosition { x: parent_x, y },
-        );
+        self.positions
+            .insert(node_id.to_string(), OrgPosition { x: parent_x, y });
 
         total_width
     }
@@ -361,7 +360,10 @@ mod tests {
         let mut org = sample_org();
         // Move eng2 to report to eng1.
         org.reorg("eng2", "eng1").unwrap();
-        assert_eq!(org.find_node("eng2").unwrap().reports_to.as_deref(), Some("eng1"));
+        assert_eq!(
+            org.find_node("eng2").unwrap().reports_to.as_deref(),
+            Some("eng1")
+        );
         assert_eq!(org.span_of_control("eng1"), 2);
     }
 

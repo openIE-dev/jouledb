@@ -23,12 +23,15 @@ pub type PitchClass = u8;
 /// Parse a note name to pitch class.
 pub fn parse_note(name: &str) -> Option<PitchClass> {
     let name = name.trim();
-    if name.is_empty() { return None; }
-    let (note, _rest) = if name.len() >= 2 && (name.as_bytes()[1] == b'#' || name.as_bytes()[1] == b'b') {
-        (&name[..2], &name[2..])
-    } else {
-        (&name[..1], &name[1..])
-    };
+    if name.is_empty() {
+        return None;
+    }
+    let (note, _rest) =
+        if name.len() >= 2 && (name.as_bytes()[1] == b'#' || name.as_bytes()[1] == b'b') {
+            (&name[..2], &name[2..])
+        } else {
+            (&name[..1], &name[1..])
+        };
 
     // Try sharp names
     if let Some(pos) = SHARP_NAMES.iter().position(|n| *n == note) {
@@ -76,19 +79,84 @@ pub struct Interval {
 /// All intervals within an octave.
 pub fn intervals() -> Vec<Interval> {
     vec![
-        Interval { semitones: 0,  quality: IntervalQuality::Perfect,    name: "Unison",          short_name: "P1"  },
-        Interval { semitones: 1,  quality: IntervalQuality::Minor,      name: "Minor 2nd",       short_name: "m2"  },
-        Interval { semitones: 2,  quality: IntervalQuality::Major,      name: "Major 2nd",       short_name: "M2"  },
-        Interval { semitones: 3,  quality: IntervalQuality::Minor,      name: "Minor 3rd",       short_name: "m3"  },
-        Interval { semitones: 4,  quality: IntervalQuality::Major,      name: "Major 3rd",       short_name: "M3"  },
-        Interval { semitones: 5,  quality: IntervalQuality::Perfect,    name: "Perfect 4th",     short_name: "P4"  },
-        Interval { semitones: 6,  quality: IntervalQuality::Tritone,    name: "Tritone",         short_name: "TT"  },
-        Interval { semitones: 7,  quality: IntervalQuality::Perfect,    name: "Perfect 5th",     short_name: "P5"  },
-        Interval { semitones: 8,  quality: IntervalQuality::Minor,      name: "Minor 6th",       short_name: "m6"  },
-        Interval { semitones: 9,  quality: IntervalQuality::Major,      name: "Major 6th",       short_name: "M6"  },
-        Interval { semitones: 10, quality: IntervalQuality::Minor,      name: "Minor 7th",       short_name: "m7"  },
-        Interval { semitones: 11, quality: IntervalQuality::Major,      name: "Major 7th",       short_name: "M7"  },
-        Interval { semitones: 12, quality: IntervalQuality::Perfect,    name: "Octave",          short_name: "P8"  },
+        Interval {
+            semitones: 0,
+            quality: IntervalQuality::Perfect,
+            name: "Unison",
+            short_name: "P1",
+        },
+        Interval {
+            semitones: 1,
+            quality: IntervalQuality::Minor,
+            name: "Minor 2nd",
+            short_name: "m2",
+        },
+        Interval {
+            semitones: 2,
+            quality: IntervalQuality::Major,
+            name: "Major 2nd",
+            short_name: "M2",
+        },
+        Interval {
+            semitones: 3,
+            quality: IntervalQuality::Minor,
+            name: "Minor 3rd",
+            short_name: "m3",
+        },
+        Interval {
+            semitones: 4,
+            quality: IntervalQuality::Major,
+            name: "Major 3rd",
+            short_name: "M3",
+        },
+        Interval {
+            semitones: 5,
+            quality: IntervalQuality::Perfect,
+            name: "Perfect 4th",
+            short_name: "P4",
+        },
+        Interval {
+            semitones: 6,
+            quality: IntervalQuality::Tritone,
+            name: "Tritone",
+            short_name: "TT",
+        },
+        Interval {
+            semitones: 7,
+            quality: IntervalQuality::Perfect,
+            name: "Perfect 5th",
+            short_name: "P5",
+        },
+        Interval {
+            semitones: 8,
+            quality: IntervalQuality::Minor,
+            name: "Minor 6th",
+            short_name: "m6",
+        },
+        Interval {
+            semitones: 9,
+            quality: IntervalQuality::Major,
+            name: "Major 6th",
+            short_name: "M6",
+        },
+        Interval {
+            semitones: 10,
+            quality: IntervalQuality::Minor,
+            name: "Minor 7th",
+            short_name: "m7",
+        },
+        Interval {
+            semitones: 11,
+            quality: IntervalQuality::Major,
+            name: "Major 7th",
+            short_name: "M7",
+        },
+        Interval {
+            semitones: 12,
+            quality: IntervalQuality::Perfect,
+            name: "Octave",
+            short_name: "P8",
+        },
     ]
 }
 
@@ -118,14 +186,18 @@ pub fn midi_to_freq(midi_note: u8) -> f64 {
 
 /// Convert frequency to the nearest MIDI note number.
 pub fn freq_to_midi(freq: f64) -> u8 {
-    if freq <= 0.0 { return 0; }
+    if freq <= 0.0 {
+        return 0;
+    }
     let note = 12.0 * (freq / A4_FREQ).log2() + A4_MIDI as f64;
     note.round().clamp(0.0, 127.0) as u8
 }
 
 /// Convert frequency to MIDI note with cents deviation.
 pub fn freq_to_midi_cents(freq: f64) -> (u8, f64) {
-    if freq <= 0.0 { return (0, 0.0); }
+    if freq <= 0.0 {
+        return (0, 0.0);
+    }
     let exact = 12.0 * (freq / A4_FREQ).log2() + A4_MIDI as f64;
     let nearest = exact.round();
     let cents = (exact - nearest) * 100.0;
@@ -187,14 +259,18 @@ pub fn key_signature_accidentals(pc: PitchClass, is_minor: bool) -> i8 {
 /// Get the sharps in a key signature (note names).
 pub fn key_sharps(accidentals: i8) -> Vec<&'static str> {
     let sharp_order = ["F#", "C#", "G#", "D#", "A#", "E#", "B#"];
-    if accidentals <= 0 { return Vec::new(); }
+    if accidentals <= 0 {
+        return Vec::new();
+    }
     sharp_order[..accidentals.min(7) as usize].to_vec()
 }
 
 /// Get the flats in a key signature (note names).
 pub fn key_flats(accidentals: i8) -> Vec<&'static str> {
     let flat_order = ["Bb", "Eb", "Ab", "Db", "Gb", "Cb", "Fb"];
-    if accidentals >= 0 { return Vec::new(); }
+    if accidentals >= 0 {
+        return Vec::new();
+    }
     flat_order[..(-accidentals).min(7) as usize].to_vec()
 }
 
@@ -211,15 +287,27 @@ pub fn enharmonic_equivalents(name: &str) -> Vec<String> {
     let sharp = SHARP_NAMES[pc as usize];
     let flat = FLAT_NAMES[pc as usize];
 
-    if sharp != name { equivs.push(sharp.to_string()); }
-    if flat != name && flat != sharp { equivs.push(flat.to_string()); }
+    if sharp != name {
+        equivs.push(sharp.to_string());
+    }
+    if flat != name && flat != sharp {
+        equivs.push(flat.to_string());
+    }
 
     // Double sharps / flats for edge cases
     match pc {
-        0 => { equivs.push("B#".to_string()); }  // C = B#
-        4 => { equivs.push("Fb".to_string()); }   // E = Fb
-        5 => { equivs.push("E#".to_string()); }   // F = E#
-        11 => { equivs.push("Cb".to_string()); }  // B = Cb
+        0 => {
+            equivs.push("B#".to_string());
+        } // C = B#
+        4 => {
+            equivs.push("Fb".to_string());
+        } // E = Fb
+        5 => {
+            equivs.push("E#".to_string());
+        } // F = E#
+        11 => {
+            equivs.push("Cb".to_string());
+        } // B = Cb
         _ => {}
     }
     equivs.retain(|e| e != name);
@@ -272,13 +360,19 @@ pub fn tritone_substitution(root: PitchClass) -> PitchClass {
 
 /// Find common tones between two scales (given as pitch class sets).
 pub fn common_tones(scale_a: &[PitchClass], scale_b: &[PitchClass]) -> Vec<PitchClass> {
-    scale_a.iter().filter(|&&pc| scale_b.contains(&pc)).copied().collect()
+    scale_a
+        .iter()
+        .filter(|&&pc| scale_b.contains(&pc))
+        .copied()
+        .collect()
 }
 
 /// Find modulation path (intermediate keys) via circle of fifths.
 /// Returns keys to pass through from `from` to `to` (exclusive of endpoints).
 pub fn modulation_path(from: PitchClass, to: PitchClass) -> Vec<PitchClass> {
-    if from == to { return Vec::new(); }
+    if from == to {
+        return Vec::new();
+    }
 
     let circle = circle_of_fifths();
     let pos_from = circle_position(from);
@@ -310,7 +404,10 @@ pub fn closely_related_keys(root: PitchClass) -> Vec<(PitchClass, &'static str)>
         ((root + 7) % 12, "Dominant"),
         ((root + 5) % 12, "Subdominant"),
         (relative_minor((root + 7) % 12), "Dominant relative minor"),
-        (relative_minor((root + 5) % 12), "Subdominant relative minor"),
+        (
+            relative_minor((root + 5) % 12),
+            "Subdominant relative minor",
+        ),
     ]
 }
 
@@ -399,9 +496,9 @@ mod tests {
     #[test]
     fn test_circle_of_fifths() {
         let circle = circle_of_fifths();
-        assert_eq!(circle[0], 0);  // C
-        assert_eq!(circle[1], 7);  // G
-        assert_eq!(circle[2], 2);  // D
+        assert_eq!(circle[0], 0); // C
+        assert_eq!(circle[1], 7); // G
+        assert_eq!(circle[2], 2); // D
         assert_eq!(circle[11], 5); // F
     }
 
@@ -447,7 +544,7 @@ mod tests {
 
     #[test]
     fn test_transpose() {
-        assert_eq!(transpose(60, 7), 67);  // C4 + P5 = G4
+        assert_eq!(transpose(60, 7), 67); // C4 + P5 = G4
         assert_eq!(transpose(60, -5), 55); // C4 - P4 = G3
     }
 
@@ -459,8 +556,8 @@ mod tests {
 
     #[test]
     fn test_relative_keys() {
-        assert_eq!(relative_minor(0), 9);  // C major -> A minor
-        assert_eq!(relative_major(9), 0);  // A minor -> C major
+        assert_eq!(relative_minor(0), 9); // C major -> A minor
+        assert_eq!(relative_major(9), 0); // A minor -> C major
     }
 
     #[test]
@@ -494,9 +591,9 @@ mod tests {
         assert_eq!(keys.len(), 5);
         // Should include Am, G, F, Em, Dm
         let pcs: Vec<u8> = keys.iter().map(|(pc, _)| *pc).collect();
-        assert!(pcs.contains(&9));  // Am
-        assert!(pcs.contains(&7));  // G
-        assert!(pcs.contains(&5));  // F
+        assert!(pcs.contains(&9)); // Am
+        assert!(pcs.contains(&7)); // G
+        assert!(pcs.contains(&5)); // F
     }
 
     #[test]

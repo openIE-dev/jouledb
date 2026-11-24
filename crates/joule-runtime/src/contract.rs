@@ -181,10 +181,7 @@ pub enum ContractResponse {
         accepted_at_ns: u64,
     },
     /// Agent rejects the contract entirely.
-    Reject {
-        contract_id: String,
-        reason: String,
-    },
+    Reject { contract_id: String, reason: String },
     /// Agent proposes modifications (counter-offer).
     CounterPropose {
         contract_id: String,
@@ -310,9 +307,9 @@ impl SignedContract {
         match &self.proposal.extension_policy {
             ExtensionPolicy::None => false,
             ExtensionPolicy::SingleExtension { .. } => self.extensions_granted == 0,
-            ExtensionPolicy::Renewable {
-                max_extensions, ..
-            } => self.extensions_granted < *max_extensions,
+            ExtensionPolicy::Renewable { max_extensions, .. } => {
+                self.extensions_granted < *max_extensions
+            }
             ExtensionPolicy::HostApproval => true,
         }
     }

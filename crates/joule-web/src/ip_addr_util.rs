@@ -17,7 +17,9 @@ pub struct Ipv4Addr {
 
 impl Ipv4Addr {
     pub const fn new(a: u8, b: u8, c: u8, d: u8) -> Self {
-        Self { octets: [a, b, c, d] }
+        Self {
+            octets: [a, b, c, d],
+        }
     }
 
     pub const fn octets(&self) -> [u8; 4] {
@@ -105,7 +107,11 @@ impl Ipv4Addr {
 
 impl fmt::Display for Ipv4Addr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{}.{}.{}", self.octets[0], self.octets[1], self.octets[2], self.octets[3])
+        write!(
+            f,
+            "{}.{}.{}.{}",
+            self.octets[0], self.octets[1], self.octets[2], self.octets[3]
+        )
     }
 }
 
@@ -222,7 +228,9 @@ impl Ipv6Addr {
         Some(Ipv4Addr::new(a, b, c, d))
     }
 
-    pub const LOCALHOST: Self = Self { segments: [0, 0, 0, 0, 0, 0, 0, 1] };
+    pub const LOCALHOST: Self = Self {
+        segments: [0, 0, 0, 0, 0, 0, 0, 1],
+    };
     pub const UNSPECIFIED: Self = Self { segments: [0; 8] };
 }
 
@@ -252,7 +260,9 @@ impl fmt::Display for Ipv6Addr {
         if best_len < 2 {
             // No compression.
             for (i, seg) in self.segments.iter().enumerate() {
-                if i > 0 { write!(f, ":")?; }
+                if i > 0 {
+                    write!(f, ":")?;
+                }
                 write!(f, "{:x}", seg)?;
             }
         } else {
@@ -260,13 +270,17 @@ impl fmt::Display for Ipv6Addr {
             let end = start + best_len;
 
             for i in 0..start {
-                if i > 0 { write!(f, ":")?; }
+                if i > 0 {
+                    write!(f, ":")?;
+                }
                 write!(f, "{:x}", self.segments[i])?;
             }
             write!(f, "::")?;
             let mut first = true;
             for i in end..8 {
-                if !first { write!(f, ":")?; }
+                if !first {
+                    write!(f, ":")?;
+                }
                 write!(f, "{:x}", self.segments[i])?;
                 first = false;
             }
@@ -445,7 +459,11 @@ pub fn summarize(a: &Cidr, b: &Cidr) -> Option<Cidr> {
         return None;
     }
     let parent_prefix = a.prefix_len - 1;
-    let parent_mask = if parent_prefix == 0 { 0 } else { !0u32 << (32 - parent_prefix) };
+    let parent_mask = if parent_prefix == 0 {
+        0
+    } else {
+        !0u32 << (32 - parent_prefix)
+    };
     let net_a = a.network().to_u32() & parent_mask;
     let net_b = b.network().to_u32() & parent_mask;
     if net_a != net_b {

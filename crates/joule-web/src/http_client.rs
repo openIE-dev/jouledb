@@ -661,12 +661,8 @@ mod tests {
 
     #[test]
     fn request_json_body() {
-        let req = Request::post("https://api.example.com/data")
-            .json_body(r#"{"key":"value"}"#);
-        assert_eq!(
-            req.headers.get("content-type"),
-            Some("application/json")
-        );
+        let req = Request::post("https://api.example.com/data").json_body(r#"{"key":"value"}"#);
+        assert_eq!(req.headers.get("content-type"), Some("application/json"));
         assert!(req.body.is_some());
     }
 
@@ -683,10 +679,7 @@ mod tests {
         let client = ClientBuilder::new()
             .base_url("https://api.example.com")
             .default_header("Authorization", "Bearer token")
-            .interceptor(
-                Interceptor::new("trace")
-                    .add_header("X-Trace-Id", "abc123"),
-            );
+            .interceptor(Interceptor::new("trace").add_header("X-Trace-Id", "abc123"));
 
         let req = client.prepare(Request::get("/users"));
         assert_eq!(req.url, "https://api.example.com/users");
@@ -696,11 +689,8 @@ mod tests {
 
     #[test]
     fn client_builder_no_override_explicit_headers() {
-        let client = ClientBuilder::new()
-            .default_header("Accept", "application/xml");
-        let req = client.prepare(
-            Request::get("https://example.com").header("Accept", "text/html"),
-        );
+        let client = ClientBuilder::new().default_header("Accept", "application/xml");
+        let req = client.prepare(Request::get("https://example.com").header("Accept", "text/html"));
         assert_eq!(req.headers.get("accept"), Some("text/html"));
     }
 

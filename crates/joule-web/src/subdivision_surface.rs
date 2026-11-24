@@ -34,7 +34,11 @@ impl Vec3 {
     }
     pub fn normalized(&self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { Self::new(self.x / len, self.y / len, self.z / len) }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            Self::new(self.x / len, self.y / len, self.z / len)
+        }
     }
     pub fn cross(&self, o: &Self) -> Self {
         Self::new(
@@ -156,9 +160,7 @@ impl HalfEdgeMesh {
                 edge_map.insert((origin, face_verts[next_i]), he_base + i);
             }
 
-            mesh.faces.push(HFace {
-                half_edge: he_base,
-            });
+            mesh.faces.push(HFace { half_edge: he_base });
         }
 
         // Link twins
@@ -321,12 +323,19 @@ impl HalfEdgeMesh {
 
     /// Number of boundary edges.
     pub fn boundary_edge_count(&self) -> usize {
-        self.half_edges.iter().filter(|he| he.twin.is_none()).count()
+        self.half_edges
+            .iter()
+            .filter(|he| he.twin.is_none())
+            .count()
     }
 
     /// Total edge count (each edge = pair of half-edges + boundary singles).
     pub fn edge_count(&self) -> usize {
-        let paired = self.half_edges.iter().filter(|he| he.twin.is_some()).count();
+        let paired = self
+            .half_edges
+            .iter()
+            .filter(|he| he.twin.is_some())
+            .count();
         let boundary = self.boundary_edge_count();
         paired / 2 + boundary
     }
@@ -378,8 +387,12 @@ where
                 let total: f64 = current.vertex_neighbors(vi).iter().map(|_| 0.0).sum();
                 total
             };
-            new_positions[vi] =
-                vertex_point_fn(current.vertices[vi].position, &nbrs, is_boundary, avg_crease);
+            new_positions[vi] = vertex_point_fn(
+                current.vertices[vi].position,
+                &nbrs,
+                is_boundary,
+                avg_crease,
+            );
         }
 
         // Create edge midpoints
@@ -476,12 +489,7 @@ mod tests {
             Vec3::new(-1.0, 1.0, -1.0),
             Vec3::new(1.0, -1.0, -1.0),
         ];
-        let faces = vec![
-            vec![0, 1, 2],
-            vec![0, 3, 1],
-            vec![0, 2, 3],
-            vec![1, 3, 2],
-        ];
+        let faces = vec![vec![0, 1, 2], vec![0, 3, 1], vec![0, 2, 3], vec![1, 3, 2]];
         HalfEdgeMesh::from_faces(&positions, &faces)
     }
 
@@ -640,7 +648,7 @@ mod tests {
         let result = subdivide_generic(
             &mesh,
             |a, b, _crease| a.add(&b).scale(0.5), // midpoint
-            |pos, _nbrs, _boundary, _crease| pos,  // keep original
+            |pos, _nbrs, _boundary, _crease| pos, // keep original
             1,
         );
         // 4 faces × 4 = 16 triangles after 1 level
@@ -650,12 +658,8 @@ mod tests {
     #[test]
     fn test_subdivide_level_zero() {
         let mesh = tetrahedron();
-        let result = subdivide_generic(
-            &mesh,
-            |a, b, _| a.add(&b).scale(0.5),
-            |pos, _, _, _| pos,
-            0,
-        );
+        let result =
+            subdivide_generic(&mesh, |a, b, _| a.add(&b).scale(0.5), |pos, _, _, _| pos, 0);
         assert_eq!(result.faces.len(), mesh.faces.len());
     }
 
@@ -695,12 +699,8 @@ mod tests {
     fn test_level_clamped_to_4() {
         let mesh = tetrahedron();
         // Level 5 should be clamped to 4 — just verify it completes without panic
-        let result = subdivide_generic(
-            &mesh,
-            |a, b, _| a.add(&b).scale(0.5),
-            |pos, _, _, _| pos,
-            5,
-        );
+        let result =
+            subdivide_generic(&mesh, |a, b, _| a.add(&b).scale(0.5), |pos, _, _, _| pos, 5);
         assert!(result.faces.len() > 0);
     }
 }

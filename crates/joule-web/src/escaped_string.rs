@@ -82,27 +82,35 @@ fn parse_json_unicode_escape(
     pos: usize,
 ) -> Result<char, EscapeError> {
     let hex = read_hex_digits(chars, 4, pos)?;
-    let code = u32::from_str_radix(&hex, 16)
-        .map_err(|_| EscapeError::InvalidUnicode(hex.clone()))?;
+    let code =
+        u32::from_str_radix(&hex, 16).map_err(|_| EscapeError::InvalidUnicode(hex.clone()))?;
 
     // Handle surrogate pairs.
     if (0xD800..=0xDBFF).contains(&code) {
         // High surrogate — expect \uDCxx low surrogate.
         match (chars.next(), chars.next()) {
             (Some((_, '\\')), Some((_, 'u'))) => {}
-            _ => return Err(EscapeError::InvalidUnicode(format!("unpaired high surrogate U+{code:04X}"))),
+            _ => {
+                return Err(EscapeError::InvalidUnicode(format!(
+                    "unpaired high surrogate U+{code:04X}"
+                )));
+            }
         }
         let low_hex = read_hex_digits(chars, 4, pos)?;
         let low = u32::from_str_radix(&low_hex, 16)
             .map_err(|_| EscapeError::InvalidUnicode(low_hex.clone()))?;
         if !(0xDC00..=0xDFFF).contains(&low) {
-            return Err(EscapeError::InvalidUnicode(format!("expected low surrogate, got U+{low:04X}")));
+            return Err(EscapeError::InvalidUnicode(format!(
+                "expected low surrogate, got U+{low:04X}"
+            )));
         }
         let combined = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00);
         char::from_u32(combined)
             .ok_or_else(|| EscapeError::InvalidUnicode(format!("invalid codepoint U+{combined:X}")))
     } else if (0xDC00..=0xDFFF).contains(&code) {
-        Err(EscapeError::InvalidUnicode(format!("unpaired low surrogate U+{code:04X}")))
+        Err(EscapeError::InvalidUnicode(format!(
+            "unpaired low surrogate U+{code:04X}"
+        )))
     } else {
         char::from_u32(code)
             .ok_or_else(|| EscapeError::InvalidUnicode(format!("invalid codepoint U+{code:X}")))
@@ -261,7 +269,10 @@ pub fn html_unescape(input: &str) -> Result<String, EscapeError> {
             "nbsp" => result.push('\u{00A0}'),
             s if s.starts_with('#') => {
                 let numeric = &s[1..];
-                let code = if let Some(hex) = numeric.strip_prefix('x').or_else(|| numeric.strip_prefix('X')) {
+                let code = if let Some(hex) = numeric
+                    .strip_prefix('x')
+                    .or_else(|| numeric.strip_prefix('X'))
+                {
                     u32::from_str_radix(hex, 16).ok()
                 } else {
                     numeric.parse::<u32>().ok()
@@ -347,7 +358,10 @@ pub fn xml_unescape(input: &str) -> Result<String, EscapeError> {
             "apos" => result.push('\''),
             s if s.starts_with('#') => {
                 let numeric = &s[1..];
-                let code = if let Some(hex) = numeric.strip_prefix('x').or_else(|| numeric.strip_prefix('X')) {
+                let code = if let Some(hex) = numeric
+                    .strip_prefix('x')
+                    .or_else(|| numeric.strip_prefix('X'))
+                {
                     u32::from_str_radix(hex, 16).ok()
                 } else {
                     numeric.parse::<u32>().ok()
@@ -452,10 +466,12 @@ pub fn shell_escape(input: &str) -> String {
         return "''".to_string();
     }
     // If the string contains only safe characters, return as-is.
-    let safe = input.bytes().all(|b| matches!(b,
-        b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9'
-        | b'-' | b'_' | b'.' | b'/' | b':' | b',' | b'+' | b'='
-    ));
+    let safe = input.bytes().all(|b| {
+        matches!(b,
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9'
+            | b'-' | b'_' | b'.' | b'/' | b':' | b',' | b'+' | b'='
+        )
+    });
     if safe {
         return input.to_string();
     }
@@ -519,10 +535,8 @@ pub fn shell_unescape(input: &str) -> Result<String, EscapeError> {
 /// Escape a string for inclusion in a CSV field (RFC 4180).
 /// Wraps in double quotes if the field contains commas, quotes, or newlines.
 pub fn csv_escape(input: &str) -> String {
-    let needs_quoting = input.contains(',')
-        || input.contains('"')
-        || input.contains('\n')
-        || input.contains('\r');
+    let needs_quoting =
+        input.contains(',') || input.contains('"') || input.contains('\n') || input.contains('\r');
 
     if !needs_quoting {
         return input.to_string();
@@ -637,8 +651,10 @@ mod tests {
 
     #[test]
     fn html_escape_basic() {
-        assert_eq!(html_escape("<script>alert('xss')</script>"),
-                   "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;");
+        assert_eq!(
+            html_escape("<script>alert('xss')</script>"),
+            "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;"
+        );
     }
 
     #[test]
@@ -737,7 +753,10 @@ mod tests {
 
     #[test]
     fn shell_unescape_double() {
-        assert_eq!(shell_unescape("\"hello \\\"world\\\"\"").unwrap(), "hello \"world\"");
+        assert_eq!(
+            shell_unescape("\"hello \\\"world\\\"\"").unwrap(),
+            "hello \"world\""
+        );
     }
 
     // ── CSV ─────────────────────────────────────────────────────────

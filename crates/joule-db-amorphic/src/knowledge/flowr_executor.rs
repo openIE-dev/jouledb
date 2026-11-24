@@ -121,10 +121,7 @@ impl FlowRExecutor for DeterministicExecutor {
             }
         }
 
-        let conclusion = trace
-            .last()
-            .map(|(_, o, _)| o.clone())
-            .unwrap_or_default();
+        let conclusion = trace.last().map(|(_, o, _)| o.clone()).unwrap_or_default();
 
         Ok(ReasoningOutput {
             conclusion,
@@ -216,21 +213,29 @@ mod tests {
         let mut nodes = HashMap::new();
         let mut wires = Vec::new();
 
-        nodes.insert("start".into(), RNode {
-            id: "start".into(),
-            kind: "Bind".into(),
-            name: "premise".into(),
-            initial_value: Some("Cancer exhibits replication and feedback".into()),
-            prompt_template: None,
-        });
+        nodes.insert(
+            "start".into(),
+            RNode {
+                id: "start".into(),
+                kind: "Bind".into(),
+                name: "premise".into(),
+                initial_value: Some("Cancer exhibits replication and feedback".into()),
+                prompt_template: None,
+            },
+        );
 
-        nodes.insert("reason".into(), RNode {
-            id: "reason".into(),
-            kind: "Apply".into(),
-            name: "reason_about".into(),
-            initial_value: None,
-            prompt_template: Some("Given that {input}, what structural patterns are present?".into()),
-        });
+        nodes.insert(
+            "reason".into(),
+            RNode {
+                id: "reason".into(),
+                kind: "Apply".into(),
+                name: "reason_about".into(),
+                initial_value: None,
+                prompt_template: Some(
+                    "Given that {input}, what structural patterns are present?".into(),
+                ),
+            },
+        );
 
         wires.push(RWire {
             from_id: "start".into(),

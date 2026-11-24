@@ -14,30 +14,79 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0 } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y }
-    pub fn cross(self, o: Self) -> f64 { self.x * o.y - self.y * o.x }
-    pub fn length(self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
-    pub fn length_sq(self) -> f64 { self.x * self.x + self.y * self.y }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+    pub fn zero() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y
+    }
+    pub fn cross(self, o: Self) -> f64 {
+        self.x * o.y - self.y * o.x
+    }
+    pub fn length(self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+    pub fn length_sq(self) -> f64 {
+        self.x * self.x + self.y * self.y
+    }
     pub fn normalized(self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { Self { x: self.x / len, y: self.y / len } }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+            }
+        }
     }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y } }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s } }
-    pub fn negate(self) -> Self { Self { x: -self.x, y: -self.y } }
-    pub fn perpendicular(self) -> Self { Self { x: -self.y, y: self.x } }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+        }
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
+    pub fn negate(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+        }
+    }
+    pub fn perpendicular(self) -> Self {
+        Self {
+            x: -self.y,
+            y: self.x,
+        }
+    }
     pub fn rotate(self, angle: f64) -> Self {
         let c = angle.cos();
         let s = angle.sin();
-        Self { x: self.x * c - self.y * s, y: self.x * s + self.y * c }
+        Self {
+            x: self.x * c - self.y * s,
+            y: self.x * s + self.y * c,
+        }
     }
 }
 
 impl Default for Vec2 {
-    fn default() -> Self { Self::zero() }
+    fn default() -> Self {
+        Self::zero()
+    }
 }
 
 // ── AABB ─────────────────────────────────────────────────────
@@ -49,10 +98,14 @@ pub struct AABB {
 }
 
 impl AABB {
-    pub fn new(min: Vec2, max: Vec2) -> Self { Self { min, max } }
+    pub fn new(min: Vec2, max: Vec2) -> Self {
+        Self { min, max }
+    }
     pub fn overlaps(&self, other: &AABB) -> bool {
-        self.min.x <= other.max.x && self.max.x >= other.min.x
-            && self.min.y <= other.max.y && self.max.y >= other.min.y
+        self.min.x <= other.max.x
+            && self.max.x >= other.min.x
+            && self.min.y <= other.max.y
+            && self.max.y >= other.min.y
     }
 }
 
@@ -76,15 +129,24 @@ pub struct CollisionFilter {
 }
 
 impl CollisionFilter {
-    pub fn new(category: u16, mask: u16) -> Self { Self { category, mask } }
-    pub fn all() -> Self { Self { category: 0xFFFF, mask: 0xFFFF } }
+    pub fn new(category: u16, mask: u16) -> Self {
+        Self { category, mask }
+    }
+    pub fn all() -> Self {
+        Self {
+            category: 0xFFFF,
+            mask: 0xFFFF,
+        }
+    }
     pub fn should_collide(&self, other: &CollisionFilter) -> bool {
         (self.category & other.mask) != 0 && (other.category & self.mask) != 0
     }
 }
 
 impl Default for CollisionFilter {
-    fn default() -> Self { Self::all() }
+    fn default() -> Self {
+        Self::all()
+    }
 }
 
 // ── Shape ────────────────────────────────────────────────────
@@ -103,7 +165,10 @@ impl Shape {
                 min: Vec2::new(position.x - radius, position.y - radius),
                 max: Vec2::new(position.x + radius, position.y + radius),
             },
-            Shape::Box { half_width, half_height } => {
+            Shape::Box {
+                half_width,
+                half_height,
+            } => {
                 let cos_a = rotation.cos().abs();
                 let sin_a = rotation.sin().abs();
                 let hx = half_width * cos_a + half_height * sin_a;
@@ -125,7 +190,10 @@ impl Shape {
                     max_x = max_x.max(w.x);
                     max_y = max_y.max(w.y);
                 }
-                AABB { min: Vec2::new(min_x, min_y), max: Vec2::new(max_x, max_y) }
+                AABB {
+                    min: Vec2::new(min_x, min_y),
+                    max: Vec2::new(max_x, max_y),
+                }
             }
         }
     }
@@ -161,28 +229,49 @@ pub struct Body {
 impl Body {
     pub fn new_dynamic(id: BodyId, mass: f64, inertia: f64, shape: Shape) -> Self {
         Self {
-            id, body_type: BodyType::Dynamic,
-            position: Vec2::zero(), rotation: 0.0,
-            linear_velocity: Vec2::zero(), angular_velocity: 0.0,
-            mass, inv_mass: if mass > 0.0 { 1.0 / mass } else { 0.0 },
-            inertia, inv_inertia: if inertia > 0.0 { 1.0 / inertia } else { 0.0 },
-            force: Vec2::zero(), torque: 0.0,
-            linear_damping: 0.0, angular_damping: 0.0,
-            gravity_scale: 1.0, shape, filter: CollisionFilter::all(),
-            restitution: 0.3, friction: 0.5,
+            id,
+            body_type: BodyType::Dynamic,
+            position: Vec2::zero(),
+            rotation: 0.0,
+            linear_velocity: Vec2::zero(),
+            angular_velocity: 0.0,
+            mass,
+            inv_mass: if mass > 0.0 { 1.0 / mass } else { 0.0 },
+            inertia,
+            inv_inertia: if inertia > 0.0 { 1.0 / inertia } else { 0.0 },
+            force: Vec2::zero(),
+            torque: 0.0,
+            linear_damping: 0.0,
+            angular_damping: 0.0,
+            gravity_scale: 1.0,
+            shape,
+            filter: CollisionFilter::all(),
+            restitution: 0.3,
+            friction: 0.5,
         }
     }
 
     pub fn new_static(id: BodyId, shape: Shape) -> Self {
         Self {
-            id, body_type: BodyType::Static,
-            position: Vec2::zero(), rotation: 0.0,
-            linear_velocity: Vec2::zero(), angular_velocity: 0.0,
-            mass: 0.0, inv_mass: 0.0, inertia: 0.0, inv_inertia: 0.0,
-            force: Vec2::zero(), torque: 0.0,
-            linear_damping: 0.0, angular_damping: 0.0,
-            gravity_scale: 0.0, shape, filter: CollisionFilter::all(),
-            restitution: 0.3, friction: 0.5,
+            id,
+            body_type: BodyType::Static,
+            position: Vec2::zero(),
+            rotation: 0.0,
+            linear_velocity: Vec2::zero(),
+            angular_velocity: 0.0,
+            mass: 0.0,
+            inv_mass: 0.0,
+            inertia: 0.0,
+            inv_inertia: 0.0,
+            force: Vec2::zero(),
+            torque: 0.0,
+            linear_damping: 0.0,
+            angular_damping: 0.0,
+            gravity_scale: 0.0,
+            shape,
+            filter: CollisionFilter::all(),
+            restitution: 0.3,
+            friction: 0.5,
         }
     }
 
@@ -191,17 +280,24 @@ impl Body {
     }
 
     pub fn integrate(&mut self, dt: f64, gravity: Vec2) {
-        if self.body_type == BodyType::Static { return; }
+        if self.body_type == BodyType::Static {
+            return;
+        }
         if self.body_type == BodyType::Kinematic {
             self.position = self.position.add(self.linear_velocity.scale(dt));
             self.rotation += self.angular_velocity * dt;
             return;
         }
-        let accel = self.force.scale(self.inv_mass).add(gravity.scale(self.gravity_scale));
+        let accel = self
+            .force
+            .scale(self.inv_mass)
+            .add(gravity.scale(self.gravity_scale));
         let ang_accel = self.torque * self.inv_inertia;
         self.linear_velocity = self.linear_velocity.add(accel.scale(dt));
         self.angular_velocity += ang_accel * dt;
-        self.linear_velocity = self.linear_velocity.scale((1.0 - self.linear_damping).max(0.0));
+        self.linear_velocity = self
+            .linear_velocity
+            .scale((1.0 - self.linear_damping).max(0.0));
         self.angular_velocity *= (1.0 - self.angular_damping).max(0.0);
         self.position = self.position.add(self.linear_velocity.scale(dt));
         self.rotation += self.angular_velocity * dt;
@@ -216,9 +312,25 @@ pub type JointId = u64;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Joint {
-    Distance { id: JointId, body_a: BodyId, body_b: BodyId, target_length: f64 },
-    Spring { id: JointId, body_a: BodyId, body_b: BodyId, rest_length: f64, stiffness: f64, damping: f64 },
-    Revolute { id: JointId, body_a: BodyId, body_b: BodyId },
+    Distance {
+        id: JointId,
+        body_a: BodyId,
+        body_b: BodyId,
+        target_length: f64,
+    },
+    Spring {
+        id: JointId,
+        body_a: BodyId,
+        body_b: BodyId,
+        rest_length: f64,
+        stiffness: f64,
+        damping: f64,
+    },
+    Revolute {
+        id: JointId,
+        body_a: BodyId,
+        body_b: BodyId,
+    },
 }
 
 // ── Contact pair ─────────────────────────────────────────────
@@ -271,7 +383,9 @@ impl WorldConfig {
 }
 
 impl Default for WorldConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Physics World ────────────────────────────────────────────
@@ -313,11 +427,13 @@ impl PhysicsWorld2D {
 
     pub fn remove_body(&mut self, id: BodyId) -> Option<Body> {
         // Also remove joints referencing this body.
-        let joint_ids: Vec<JointId> = self.joints.iter()
+        let joint_ids: Vec<JointId> = self
+            .joints
+            .iter()
             .filter(|(_, j)| match j {
-                Joint::Distance { body_a, body_b, .. } |
-                Joint::Spring { body_a, body_b, .. } |
-                Joint::Revolute { body_a, body_b, .. } => *body_a == id || *body_b == id,
+                Joint::Distance { body_a, body_b, .. }
+                | Joint::Spring { body_a, body_b, .. }
+                | Joint::Revolute { body_a, body_b, .. } => *body_a == id || *body_b == id,
             })
             .map(|(jid, _)| *jid)
             .collect();
@@ -329,9 +445,15 @@ impl PhysicsWorld2D {
         self.bodies.remove(&id)
     }
 
-    pub fn body(&self, id: BodyId) -> Option<&Body> { self.bodies.get(&id) }
-    pub fn body_mut(&mut self, id: BodyId) -> Option<&mut Body> { self.bodies.get_mut(&id) }
-    pub fn body_count(&self) -> usize { self.bodies.len() }
+    pub fn body(&self, id: BodyId) -> Option<&Body> {
+        self.bodies.get(&id)
+    }
+    pub fn body_mut(&mut self, id: BodyId) -> Option<&mut Body> {
+        self.bodies.get_mut(&id)
+    }
+    pub fn body_count(&self) -> usize {
+        self.bodies.len()
+    }
 
     pub fn body_ids(&self) -> Vec<BodyId> {
         self.bodies.keys().copied().collect()
@@ -343,8 +465,9 @@ impl PhysicsWorld2D {
         let id = self.next_joint_id;
         self.next_joint_id += 1;
         match &mut joint {
-            Joint::Distance { id: jid, .. } | Joint::Spring { id: jid, .. } |
-            Joint::Revolute { id: jid, .. } => *jid = id,
+            Joint::Distance { id: jid, .. }
+            | Joint::Spring { id: jid, .. }
+            | Joint::Revolute { id: jid, .. } => *jid = id,
         }
         self.joints.insert(id, joint);
         id
@@ -354,7 +477,9 @@ impl PhysicsWorld2D {
         self.joints.remove(&id)
     }
 
-    pub fn joint_count(&self) -> usize { self.joints.len() }
+    pub fn joint_count(&self) -> usize {
+        self.joints.len()
+    }
 
     // ── Stepping ──
 
@@ -411,7 +536,9 @@ impl PhysicsWorld2D {
     }
 
     fn broadphase(&self) -> Vec<ContactPair> {
-        let body_vec: Vec<(BodyId, AABB, &CollisionFilter, BodyType)> = self.bodies.values()
+        let body_vec: Vec<(BodyId, AABB, &CollisionFilter, BodyType)> = self
+            .bodies
+            .values()
             .map(|b| (b.id, b.aabb(), &b.filter, b.body_type))
             .collect();
         let mut pairs = Vec::new();
@@ -421,8 +548,12 @@ impl PhysicsWorld2D {
                 let (id_a, ref aabb_a, filter_a, type_a) = body_vec[i];
                 let (id_b, ref aabb_b, filter_b, type_b) = body_vec[j];
                 // Skip static-static.
-                if type_a == BodyType::Static && type_b == BodyType::Static { continue; }
-                if !filter_a.should_collide(filter_b) { continue; }
+                if type_a == BodyType::Static && type_b == BodyType::Static {
+                    continue;
+                }
+                if !filter_a.should_collide(filter_b) {
+                    continue;
+                }
                 if aabb_a.overlaps(aabb_b) {
                     pairs.push(ContactPair::new(id_a, id_b));
                 }
@@ -434,25 +565,43 @@ impl PhysicsWorld2D {
     fn resolve_contact(&mut self, id_a: BodyId, id_b: BodyId, _dt: f64) {
         // Simple circle-circle resolution for demonstration.
         let (pos_a, radius_a, inv_mass_a, type_a) = {
-            let b = match self.bodies.get(&id_a) { Some(b) => b, None => return };
-            let r = match &b.shape { Shape::Circle { radius } => *radius, Shape::Box { half_width, .. } => *half_width, _ => 1.0 };
+            let b = match self.bodies.get(&id_a) {
+                Some(b) => b,
+                None => return,
+            };
+            let r = match &b.shape {
+                Shape::Circle { radius } => *radius,
+                Shape::Box { half_width, .. } => *half_width,
+                _ => 1.0,
+            };
             (b.position, r, b.inv_mass, b.body_type)
         };
         let (pos_b, radius_b, inv_mass_b, type_b) = {
-            let b = match self.bodies.get(&id_b) { Some(b) => b, None => return };
-            let r = match &b.shape { Shape::Circle { radius } => *radius, Shape::Box { half_width, .. } => *half_width, _ => 1.0 };
+            let b = match self.bodies.get(&id_b) {
+                Some(b) => b,
+                None => return,
+            };
+            let r = match &b.shape {
+                Shape::Circle { radius } => *radius,
+                Shape::Box { half_width, .. } => *half_width,
+                _ => 1.0,
+            };
             (b.position, r, b.inv_mass, b.body_type)
         };
 
         let d = pos_b.sub(pos_a);
         let dist = d.length();
         let sum_r = radius_a + radius_b;
-        if dist >= sum_r || dist < 1e-12 { return; }
+        if dist >= sum_r || dist < 1e-12 {
+            return;
+        }
 
         let normal = d.scale(1.0 / dist);
         let overlap = sum_r - dist;
         let inv_sum = inv_mass_a + inv_mass_b;
-        if inv_sum < 1e-12 { return; }
+        if inv_sum < 1e-12 {
+            return;
+        }
 
         // Position correction.
         let correction = normal.scale(overlap / inv_sum * 0.5);
@@ -468,11 +617,21 @@ impl PhysicsWorld2D {
         }
 
         // Velocity resolution.
-        let vel_a = self.bodies.get(&id_a).map(|b| b.linear_velocity).unwrap_or(Vec2::zero());
-        let vel_b = self.bodies.get(&id_b).map(|b| b.linear_velocity).unwrap_or(Vec2::zero());
+        let vel_a = self
+            .bodies
+            .get(&id_a)
+            .map(|b| b.linear_velocity)
+            .unwrap_or(Vec2::zero());
+        let vel_b = self
+            .bodies
+            .get(&id_b)
+            .map(|b| b.linear_velocity)
+            .unwrap_or(Vec2::zero());
         let rel_vel = vel_b.sub(vel_a);
         let vn = rel_vel.dot(normal);
-        if vn > 0.0 { return; } // separating
+        if vn > 0.0 {
+            return;
+        } // separating
 
         let e = {
             let ra = self.bodies.get(&id_a).map(|b| b.restitution).unwrap_or(0.0);
@@ -498,11 +657,30 @@ impl PhysicsWorld2D {
         let joint_list: Vec<Joint> = self.joints.values().cloned().collect();
         for joint in &joint_list {
             match joint {
-                Joint::Distance { body_a, body_b, target_length, .. } => {
+                Joint::Distance {
+                    body_a,
+                    body_b,
+                    target_length,
+                    ..
+                } => {
                     self.solve_distance_joint(*body_a, *body_b, *target_length, dt);
                 }
-                Joint::Spring { body_a, body_b, rest_length, stiffness, damping, .. } => {
-                    self.solve_spring_joint(*body_a, *body_b, *rest_length, *stiffness, *damping, dt);
+                Joint::Spring {
+                    body_a,
+                    body_b,
+                    rest_length,
+                    stiffness,
+                    damping,
+                    ..
+                } => {
+                    self.solve_spring_joint(
+                        *body_a,
+                        *body_b,
+                        *rest_length,
+                        *stiffness,
+                        *damping,
+                        dt,
+                    );
                 }
                 Joint::Revolute { body_a, body_b, .. } => {
                     self.solve_revolute_joint(*body_a, *body_b, dt);
@@ -513,18 +691,24 @@ impl PhysicsWorld2D {
 
     fn solve_distance_joint(&mut self, id_a: BodyId, id_b: BodyId, target: f64, _dt: f64) {
         let (pos_a, inv_mass_a) = match self.bodies.get(&id_a) {
-            Some(b) => (b.position, b.inv_mass), None => return,
+            Some(b) => (b.position, b.inv_mass),
+            None => return,
         };
         let (pos_b, inv_mass_b) = match self.bodies.get(&id_b) {
-            Some(b) => (b.position, b.inv_mass), None => return,
+            Some(b) => (b.position, b.inv_mass),
+            None => return,
         };
         let d = pos_b.sub(pos_a);
         let dist = d.length();
-        if dist < 1e-12 { return; }
+        if dist < 1e-12 {
+            return;
+        }
         let dir = d.scale(1.0 / dist);
         let error = dist - target;
         let inv_sum = inv_mass_a + inv_mass_b;
-        if inv_sum < 1e-12 { return; }
+        if inv_sum < 1e-12 {
+            return;
+        }
         let correction = dir.scale(error / inv_sum);
         if let Some(ba) = self.bodies.get_mut(&id_a) {
             ba.position = ba.position.add(correction.scale(inv_mass_a));
@@ -534,16 +718,28 @@ impl PhysicsWorld2D {
         }
     }
 
-    fn solve_spring_joint(&mut self, id_a: BodyId, id_b: BodyId, rest: f64, stiffness: f64, damp: f64, dt: f64) {
+    fn solve_spring_joint(
+        &mut self,
+        id_a: BodyId,
+        id_b: BodyId,
+        rest: f64,
+        stiffness: f64,
+        damp: f64,
+        dt: f64,
+    ) {
         let (pos_a, vel_a, inv_mass_a) = match self.bodies.get(&id_a) {
-            Some(b) => (b.position, b.linear_velocity, b.inv_mass), None => return,
+            Some(b) => (b.position, b.linear_velocity, b.inv_mass),
+            None => return,
         };
         let (pos_b, vel_b, inv_mass_b) = match self.bodies.get(&id_b) {
-            Some(b) => (b.position, b.linear_velocity, b.inv_mass), None => return,
+            Some(b) => (b.position, b.linear_velocity, b.inv_mass),
+            None => return,
         };
         let d = pos_b.sub(pos_a);
         let dist = d.length();
-        if dist < 1e-12 { return; }
+        if dist < 1e-12 {
+            return;
+        }
         let dir = d.scale(1.0 / dist);
         let extension = dist - rest;
         let spring_force = stiffness * extension;
@@ -561,14 +757,18 @@ impl PhysicsWorld2D {
 
     fn solve_revolute_joint(&mut self, id_a: BodyId, id_b: BodyId, _dt: f64) {
         let (pos_a, inv_mass_a) = match self.bodies.get(&id_a) {
-            Some(b) => (b.position, b.inv_mass), None => return,
+            Some(b) => (b.position, b.inv_mass),
+            None => return,
         };
         let (pos_b, inv_mass_b) = match self.bodies.get(&id_b) {
-            Some(b) => (b.position, b.inv_mass), None => return,
+            Some(b) => (b.position, b.inv_mass),
+            None => return,
         };
         let d = pos_b.sub(pos_a);
         let inv_sum = inv_mass_a + inv_mass_b;
-        if inv_sum < 1e-12 { return; }
+        if inv_sum < 1e-12 {
+            return;
+        }
         let correction = d.scale(1.0 / inv_sum * 0.2);
         if let Some(ba) = self.bodies.get_mut(&id_a) {
             ba.position = ba.position.add(correction.scale(inv_mass_a));
@@ -592,35 +792,66 @@ impl PhysicsWorld2D {
                     let b = 2.0 * oc.dot(dir);
                     let c = oc.dot(oc) - radius * radius;
                     let disc = b * b - 4.0 * a * c;
-                    if disc < 0.0 { continue; }
+                    if disc < 0.0 {
+                        continue;
+                    }
                     let sqrt_disc = disc.sqrt();
                     let mut t = (-b - sqrt_disc) / (2.0 * a);
-                    if t < 0.0 { t = (-b + sqrt_disc) / (2.0 * a); }
-                    if t < 0.0 || t > max_dist { continue; }
+                    if t < 0.0 {
+                        t = (-b + sqrt_disc) / (2.0 * a);
+                    }
+                    if t < 0.0 || t > max_dist {
+                        continue;
+                    }
                     let point = origin.add(dir.scale(t));
                     let normal = point.sub(body.position).normalized();
-                    results.push(RayCastResult { body_id: body.id, point, normal, distance: t });
+                    results.push(RayCastResult {
+                        body_id: body.id,
+                        point,
+                        normal,
+                        distance: t,
+                    });
                 }
-                Shape::Box { half_width, half_height } => {
+                Shape::Box {
+                    half_width,
+                    half_height,
+                } => {
                     let bb = body.aabb();
-                    let inv_dx = if dir.x.abs() > 1e-12 { 1.0 / dir.x } else { f64::MAX.copysign(dir.x) };
-                    let inv_dy = if dir.y.abs() > 1e-12 { 1.0 / dir.y } else { f64::MAX.copysign(dir.y) };
+                    let inv_dx = if dir.x.abs() > 1e-12 {
+                        1.0 / dir.x
+                    } else {
+                        f64::MAX.copysign(dir.x)
+                    };
+                    let inv_dy = if dir.y.abs() > 1e-12 {
+                        1.0 / dir.y
+                    } else {
+                        f64::MAX.copysign(dir.y)
+                    };
                     let tx1 = (bb.min.x - origin.x) * inv_dx;
                     let tx2 = (bb.max.x - origin.x) * inv_dx;
                     let ty1 = (bb.min.y - origin.y) * inv_dy;
                     let ty2 = (bb.max.y - origin.y) * inv_dy;
                     let tmin = tx1.min(tx2).max(ty1.min(ty2));
                     let tmax = tx1.max(tx2).min(ty1.max(ty2));
-                    if tmax < 0.0 || tmin > tmax { continue; }
+                    if tmax < 0.0 || tmin > tmax {
+                        continue;
+                    }
                     let t = if tmin >= 0.0 { tmin } else { tmax };
-                    if t < 0.0 || t > max_dist { continue; }
+                    if t < 0.0 || t > max_dist {
+                        continue;
+                    }
                     let point = origin.add(dir.scale(t));
                     let normal = if (t - tx1.min(tx2)).abs() < 1e-6 {
                         Vec2::new(if dir.x > 0.0 { -1.0 } else { 1.0 }, 0.0)
                     } else {
                         Vec2::new(0.0, if dir.y > 0.0 { -1.0 } else { 1.0 })
                     };
-                    results.push(RayCastResult { body_id: body.id, point, normal, distance: t });
+                    results.push(RayCastResult {
+                        body_id: body.id,
+                        point,
+                        normal,
+                        distance: t,
+                    });
                 }
                 _ => {}
             }
@@ -641,10 +872,16 @@ impl PhysicsWorld2D {
         self.bodies.values()
     }
 
-    pub fn gravity(&self) -> Vec2 { self.config.gravity }
-    pub fn set_gravity(&mut self, g: Vec2) { self.config.gravity = g; }
+    pub fn gravity(&self) -> Vec2 {
+        self.config.gravity
+    }
+    pub fn set_gravity(&mut self, g: Vec2) {
+        self.config.gravity = g;
+    }
 
-    pub fn active_contact_count(&self) -> usize { self.active_contacts.len() }
+    pub fn active_contact_count(&self) -> usize {
+        self.active_contacts.len()
+    }
 }
 
 // ── Tests ────────────────────────────────────────────────────
@@ -654,19 +891,34 @@ mod tests {
     use super::*;
 
     const EPS: f64 = 1e-4;
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
-    fn v2_approx(a: Vec2, b: Vec2) -> bool { approx(a.x, b.x) && approx(a.y, b.y) }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
+    fn v2_approx(a: Vec2, b: Vec2) -> bool {
+        approx(a.x, b.x) && approx(a.y, b.y)
+    }
 
     fn default_world() -> PhysicsWorld2D {
         PhysicsWorld2D::new(WorldConfig::new())
     }
 
     fn circle_body(mass: f64, radius: f64) -> Body {
-        Body::new_dynamic(0, mass, mass * radius * radius * 0.5, Shape::Circle { radius })
+        Body::new_dynamic(
+            0,
+            mass,
+            mass * radius * radius * 0.5,
+            Shape::Circle { radius },
+        )
     }
 
     fn static_floor() -> Body {
-        let mut b = Body::new_static(0, Shape::Box { half_width: 100.0, half_height: 1.0 });
+        let mut b = Body::new_static(
+            0,
+            Shape::Box {
+                half_width: 100.0,
+                half_height: 1.0,
+            },
+        );
         b.position = Vec2::new(0.0, -10.0);
         b
     }
@@ -685,7 +937,12 @@ mod tests {
         let mut w = default_world();
         let a = w.add_body(circle_body(1.0, 1.0));
         let b = w.add_body(circle_body(1.0, 1.0));
-        let jid = w.add_joint(Joint::Distance { id: 0, body_a: a, body_b: b, target_length: 5.0 });
+        let jid = w.add_joint(Joint::Distance {
+            id: 0,
+            body_a: a,
+            body_b: b,
+            target_length: 5.0,
+        });
         assert_eq!(w.joint_count(), 1);
         w.remove_joint(jid);
         assert_eq!(w.joint_count(), 0);
@@ -696,7 +953,12 @@ mod tests {
         let mut w = default_world();
         let a = w.add_body(circle_body(1.0, 1.0));
         let b = w.add_body(circle_body(1.0, 1.0));
-        w.add_joint(Joint::Distance { id: 0, body_a: a, body_b: b, target_length: 5.0 });
+        w.add_joint(Joint::Distance {
+            id: 0,
+            body_a: a,
+            body_b: b,
+            target_length: 5.0,
+        });
         w.remove_body(a);
         assert_eq!(w.joint_count(), 0);
     }
@@ -771,7 +1033,8 @@ mod tests {
     #[test]
     fn collision_events() {
         let mut w = PhysicsWorld2D::new(WorldConfig {
-            gravity: Vec2::zero(), ..WorldConfig::new()
+            gravity: Vec2::zero(),
+            ..WorldConfig::new()
         });
         let a = w.add_body(circle_body(1.0, 1.0));
         let b = w.add_body(circle_body(1.0, 1.0));
@@ -780,13 +1043,18 @@ mod tests {
         w.body_mut(b).unwrap().position = Vec2::new(1.0, 0.0);
         w.step(1.0 / 60.0);
         let events = w.drain_events();
-        assert!(events.iter().any(|e| matches!(e, ContactEvent::Begin(_, _))));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, ContactEvent::Begin(_, _)))
+        );
     }
 
     #[test]
     fn contact_end_event() {
         let mut w = PhysicsWorld2D::new(WorldConfig {
-            gravity: Vec2::zero(), ..WorldConfig::new()
+            gravity: Vec2::zero(),
+            ..WorldConfig::new()
         });
         let a = w.add_body(circle_body(1.0, 1.0));
         let b = w.add_body(circle_body(1.0, 1.0));
@@ -854,7 +1122,10 @@ mod tests {
 
     #[test]
     fn shape_box_aabb_no_rotation() {
-        let s = Shape::Box { half_width: 2.0, half_height: 1.0 };
+        let s = Shape::Box {
+            half_width: 2.0,
+            half_height: 1.0,
+        };
         let bb = s.compute_aabb(Vec2::zero(), 0.0);
         assert!(v2_approx(bb.min, Vec2::new(-2.0, -1.0)));
         assert!(v2_approx(bb.max, Vec2::new(2.0, 1.0)));
@@ -874,7 +1145,10 @@ mod tests {
 
     #[test]
     fn collision_pushes_apart() {
-        let mut w = PhysicsWorld2D::new(WorldConfig { gravity: Vec2::zero(), ..WorldConfig::new() });
+        let mut w = PhysicsWorld2D::new(WorldConfig {
+            gravity: Vec2::zero(),
+            ..WorldConfig::new()
+        });
         let a = w.add_body(circle_body(1.0, 1.0));
         let b = w.add_body(circle_body(1.0, 1.0));
         w.body_mut(a).unwrap().position = Vec2::new(0.0, 0.0);
@@ -888,16 +1162,25 @@ mod tests {
 
     #[test]
     fn spring_joint_pulls_together() {
-        let mut w = PhysicsWorld2D::new(WorldConfig { gravity: Vec2::zero(), ..WorldConfig::new() });
+        let mut w = PhysicsWorld2D::new(WorldConfig {
+            gravity: Vec2::zero(),
+            ..WorldConfig::new()
+        });
         let a = w.add_body(circle_body(1.0, 0.5));
         let b = w.add_body(circle_body(1.0, 0.5));
         w.body_mut(a).unwrap().position = Vec2::new(0.0, 0.0);
         w.body_mut(b).unwrap().position = Vec2::new(10.0, 0.0);
         w.add_joint(Joint::Spring {
-            id: 0, body_a: a, body_b: b,
-            rest_length: 2.0, stiffness: 100.0, damping: 1.0,
+            id: 0,
+            body_a: a,
+            body_b: b,
+            rest_length: 2.0,
+            stiffness: 100.0,
+            damping: 1.0,
         });
-        for _ in 0..60 { w.step(1.0 / 60.0); }
+        for _ in 0..60 {
+            w.step(1.0 / 60.0);
+        }
         let pa = w.body(a).unwrap().position;
         let pb = w.body(b).unwrap().position;
         let dist = pb.sub(pa).length();
@@ -907,7 +1190,13 @@ mod tests {
     #[test]
     fn ray_cast_box() {
         let mut w = default_world();
-        let mut b = Body::new_static(0, Shape::Box { half_width: 2.0, half_height: 2.0 });
+        let mut b = Body::new_static(
+            0,
+            Shape::Box {
+                half_width: 2.0,
+                half_height: 2.0,
+            },
+        );
         b.position = Vec2::new(5.0, 0.0);
         let id = w.add_body(b);
         let hits = w.ray_cast(Vec2::zero(), Vec2::new(1.0, 0.0), 100.0);

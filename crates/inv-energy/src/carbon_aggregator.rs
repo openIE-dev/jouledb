@@ -89,7 +89,10 @@ impl GridMix {
             / total;
         debug_assert!(
             result >= IPCC_WIND - 0.01 && result <= IPCC_COAL + 0.01,
-            "carbon_intensity contract: {} not in [{}, {}]", result, IPCC_WIND, IPCC_COAL
+            "carbon_intensity contract: {} not in [{}, {}]",
+            result,
+            IPCC_WIND,
+            IPCC_COAL
         );
         result
     }

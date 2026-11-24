@@ -243,8 +243,7 @@ impl GestureRecognizer {
                 let dt = duration_ms as f64;
 
                 // Long press: held long enough without significant movement
-                if duration_ms >= self.config.long_press_min_ms
-                    && dist < self.config.pan_threshold
+                if duration_ms >= self.config.long_press_min_ms && dist < self.config.pan_threshold
                 {
                     gestures.push(GestureType::LongPress);
                 }
@@ -386,11 +385,7 @@ mod tests {
         let g = r.pointer_move(pe(0, 50.0, 0.0, 100));
         assert!(!g.is_empty());
         match &g[0] {
-            GestureType::Pan {
-                dx,
-                velocity_x,
-                ..
-            } => {
+            GestureType::Pan { dx, velocity_x, .. } => {
                 assert!(*dx > 0.0);
                 assert!(*velocity_x > 0.0);
             }
@@ -404,9 +399,7 @@ mod tests {
         r.pointer_down(pe(0, 0.0, 0.0, 0));
         // Large fast movement to the right
         let g = r.pointer_up(pe(0, 200.0, 0.0, 100));
-        let swipe = g
-            .iter()
-            .find(|g| matches!(g, GestureType::Swipe { .. }));
+        let swipe = g.iter().find(|g| matches!(g, GestureType::Swipe { .. }));
         assert!(swipe.is_some());
         match swipe.unwrap() {
             GestureType::Swipe { direction, .. } => {
@@ -480,9 +473,7 @@ mod tests {
         r.pointer_down(pe(0, 0.0, 0.0, 0));
         // 60 px in 5000 ms → velocity = 0.012, well below 0.5
         let g = r.pointer_up(pe(0, 60.0, 0.0, 5000));
-        let swipe = g
-            .iter()
-            .find(|g| matches!(g, GestureType::Swipe { .. }));
+        let swipe = g.iter().find(|g| matches!(g, GestureType::Swipe { .. }));
         assert!(swipe.is_none(), "Should not detect swipe at low velocity");
     }
 }

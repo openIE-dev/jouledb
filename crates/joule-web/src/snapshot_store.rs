@@ -34,8 +34,14 @@ impl std::fmt::Display for SnapshotStoreError {
             Self::NotFound { aggregate_id } => {
                 write!(f, "snapshot not found for aggregate: {aggregate_id}")
             }
-            Self::VersionNotFound { aggregate_id, version } => {
-                write!(f, "snapshot at version {version} not found for {aggregate_id}")
+            Self::VersionNotFound {
+                aggregate_id,
+                version,
+            } => {
+                write!(
+                    f,
+                    "snapshot at version {version} not found for {aggregate_id}"
+                )
             }
             Self::CompressionError(msg) => write!(f, "compression error: {msg}"),
             Self::DecompressionError(msg) => write!(f, "decompression error: {msg}"),
@@ -124,7 +130,9 @@ pub struct Snapshot {
 
 impl Snapshot {
     /// Deserialize the state data into a HashMap.
-    pub fn deserialize_state(&self) -> Result<HashMap<String, serde_json::Value>, SnapshotStoreError> {
+    pub fn deserialize_state(
+        &self,
+    ) -> Result<HashMap<String, serde_json::Value>, SnapshotStoreError> {
         let data = if self.metadata.compressed {
             simple_decompress(&self.state_data)?
         } else {
@@ -148,9 +156,7 @@ fn simple_compress(data: &[u8]) -> Vec<u8> {
     while i < data.len() {
         let byte = data[i];
         let mut count: u8 = 1;
-        while i + (count as usize) < data.len()
-            && data[i + (count as usize)] == byte
-            && count < 255
+        while i + (count as usize) < data.len() && data[i + (count as usize)] == byte && count < 255
         {
             count += 1;
         }
@@ -277,10 +283,7 @@ impl SnapshotStore {
             taken_at: Utc::now(),
         };
 
-        let snapshots = self
-            .snapshots
-            .entry(aggregate_id.to_string())
-            .or_default();
+        let snapshots = self.snapshots.entry(aggregate_id.to_string()).or_default();
         snapshots.push(snapshot.clone());
         snapshots.sort_by_key(|s| s.version);
 
@@ -296,16 +299,13 @@ impl SnapshotStore {
     }
 
     /// Load the latest snapshot for an aggregate.
-    pub fn load_latest(
-        &self,
-        aggregate_id: &str,
-    ) -> Result<Snapshot, SnapshotStoreError> {
-        let snapshots = self
-            .snapshots
-            .get(aggregate_id)
-            .ok_or_else(|| SnapshotStoreError::NotFound {
-                aggregate_id: aggregate_id.to_string(),
-            })?;
+    pub fn load_latest(&self, aggregate_id: &str) -> Result<Snapshot, SnapshotStoreError> {
+        let snapshots =
+            self.snapshots
+                .get(aggregate_id)
+                .ok_or_else(|| SnapshotStoreError::NotFound {
+                    aggregate_id: aggregate_id.to_string(),
+                })?;
 
         snapshots
             .last()
@@ -319,12 +319,12 @@ impl SnapshotStore {
         aggregate_id: &str,
         version: u64,
     ) -> Result<Snapshot, SnapshotStoreError> {
-        let snapshots = self
-            .snapshots
-            .get(aggregate_id)
-            .ok_or_else(|| SnapshotStoreError::NotFound {
-                aggregate_id: aggregate_id.to_string(),
-            })?;
+        let snapshots =
+            self.snapshots
+                .get(aggregate_id)
+                .ok_or_else(|| SnapshotStoreError::NotFound {
+                    aggregate_id: aggregate_id.to_string(),
+                })?;
 
         snapshots
             .iter()
@@ -342,12 +342,12 @@ impl SnapshotStore {
         aggregate_id: &str,
         version: u64,
     ) -> Result<Snapshot, SnapshotStoreError> {
-        let snapshots = self
-            .snapshots
-            .get(aggregate_id)
-            .ok_or_else(|| SnapshotStoreError::NotFound {
-                aggregate_id: aggregate_id.to_string(),
-            })?;
+        let snapshots =
+            self.snapshots
+                .get(aggregate_id)
+                .ok_or_else(|| SnapshotStoreError::NotFound {
+                    aggregate_id: aggregate_id.to_string(),
+                })?;
 
         snapshots
             .iter()
@@ -487,9 +487,15 @@ mod tests {
     #[test]
     fn test_load_at_version() {
         let mut store = SnapshotStore::new();
-        store.save("a1", 5, &test_state("v5", 50), test_metadata()).unwrap();
-        store.save("a1", 10, &test_state("v10", 100), test_metadata()).unwrap();
-        store.save("a1", 15, &test_state("v15", 150), test_metadata()).unwrap();
+        store
+            .save("a1", 5, &test_state("v5", 50), test_metadata())
+            .unwrap();
+        store
+            .save("a1", 10, &test_state("v10", 100), test_metadata())
+            .unwrap();
+        store
+            .save("a1", 15, &test_state("v15", 150), test_metadata())
+            .unwrap();
 
         let snap = store.load_at_version("a1", 10).unwrap();
         assert_eq!(snap.version, 10);
@@ -500,7 +506,9 @@ mod tests {
     #[test]
     fn test_load_at_version_not_found() {
         let mut store = SnapshotStore::new();
-        store.save("a1", 5, &test_state("v5", 50), test_metadata()).unwrap();
+        store
+            .save("a1", 5, &test_state("v5", 50), test_metadata())
+            .unwrap();
         let err = store.load_at_version("a1", 99).unwrap_err();
         assert!(matches!(err, SnapshotStoreError::VersionNotFound { .. }));
     }
@@ -508,8 +516,12 @@ mod tests {
     #[test]
     fn test_load_at_or_before() {
         let mut store = SnapshotStore::new();
-        store.save("a1", 5, &test_state("v5", 50), test_metadata()).unwrap();
-        store.save("a1", 10, &test_state("v10", 100), test_metadata()).unwrap();
+        store
+            .save("a1", 5, &test_state("v5", 50), test_metadata())
+            .unwrap();
+        store
+            .save("a1", 10, &test_state("v10", 100), test_metadata())
+            .unwrap();
 
         let snap = store.load_at_or_before("a1", 8).unwrap();
         assert_eq!(snap.version, 5);
@@ -529,7 +541,7 @@ mod tests {
     fn test_snapshot_policy_every_n() {
         let policy = SnapshotPolicy::EveryNEvents(5);
         assert!(!policy.should_snapshot(3, 0)); // 3 events since 0.
-        assert!(policy.should_snapshot(5, 0));  // 5 events since 0.
+        assert!(policy.should_snapshot(5, 0)); // 5 events since 0.
         assert!(!policy.should_snapshot(7, 5)); // 2 events since 5.
         assert!(policy.should_snapshot(10, 5)); // 5 events since 5.
     }
@@ -558,9 +570,11 @@ mod tests {
         let mut store = SnapshotStore::new().with_policy(SnapshotPolicy::EveryNEvents(3));
 
         assert!(store.should_snapshot(3, "a1")); // No snapshot yet, 3 events since 0.
-        store.save("a1", 3, &test_state("v3", 30), test_metadata()).unwrap();
+        store
+            .save("a1", 3, &test_state("v3", 30), test_metadata())
+            .unwrap();
         assert!(!store.should_snapshot(5, "a1")); // 2 events since snapshot at 3.
-        assert!(store.should_snapshot(6, "a1"));  // 3 events since snapshot at 3.
+        assert!(store.should_snapshot(6, "a1")); // 3 events since snapshot at 3.
     }
 
     #[test]
@@ -603,7 +617,9 @@ mod tests {
     fn test_pruning() {
         let mut store = SnapshotStore::new();
         for v in 1..=10 {
-            store.save("a1", v, &test_state("x", v as i64), test_metadata()).unwrap();
+            store
+                .save("a1", v, &test_state("x", v as i64), test_metadata())
+                .unwrap();
         }
         assert_eq!(store.count("a1"), 10);
 
@@ -620,7 +636,9 @@ mod tests {
     fn test_auto_pruning_on_save() {
         let mut store = SnapshotStore::new().with_max_snapshots(3);
         for v in 1..=5 {
-            store.save("a1", v, &test_state("x", v as i64), test_metadata()).unwrap();
+            store
+                .save("a1", v, &test_state("x", v as i64), test_metadata())
+                .unwrap();
         }
         assert_eq!(store.count("a1"), 3);
         let versions = store.versions("a1");
@@ -630,8 +648,12 @@ mod tests {
     #[test]
     fn test_delete_all() {
         let mut store = SnapshotStore::new();
-        store.save("a1", 1, &test_state("x", 1), test_metadata()).unwrap();
-        store.save("a1", 2, &test_state("x", 2), test_metadata()).unwrap();
+        store
+            .save("a1", 1, &test_state("x", 1), test_metadata())
+            .unwrap();
+        store
+            .save("a1", 2, &test_state("x", 2), test_metadata())
+            .unwrap();
 
         let deleted = store.delete_all("a1");
         assert_eq!(deleted, 2);
@@ -641,17 +663,27 @@ mod tests {
     #[test]
     fn test_total_count() {
         let mut store = SnapshotStore::new();
-        store.save("a1", 1, &test_state("x", 1), test_metadata()).unwrap();
-        store.save("a2", 1, &test_state("y", 2), test_metadata()).unwrap();
-        store.save("a2", 2, &test_state("y", 3), test_metadata()).unwrap();
+        store
+            .save("a1", 1, &test_state("x", 1), test_metadata())
+            .unwrap();
+        store
+            .save("a2", 1, &test_state("y", 2), test_metadata())
+            .unwrap();
+        store
+            .save("a2", 2, &test_state("y", 3), test_metadata())
+            .unwrap();
         assert_eq!(store.total_count(), 3);
     }
 
     #[test]
     fn test_aggregate_ids_sorted() {
         let mut store = SnapshotStore::new();
-        store.save("zulu", 1, &test_state("z", 1), test_metadata()).unwrap();
-        store.save("alpha", 1, &test_state("a", 1), test_metadata()).unwrap();
+        store
+            .save("zulu", 1, &test_state("z", 1), test_metadata())
+            .unwrap();
+        store
+            .save("alpha", 1, &test_state("a", 1), test_metadata())
+            .unwrap();
         assert_eq!(store.aggregate_ids(), vec!["alpha", "zulu"]);
     }
 
@@ -690,28 +722,35 @@ mod tests {
         ];
 
         fn apply(state: &mut HashMap<String, serde_json::Value>, event: &ReplayEvent) {
-            let amount: i64 = event.data.get("amount").and_then(|s| s.parse().ok()).unwrap_or(0);
+            let amount: i64 = event
+                .data
+                .get("amount")
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0);
             let balance = state.get("balance").and_then(|v| v.as_i64()).unwrap_or(0);
             state.insert("balance".to_string(), serde_json::json!(balance + amount));
         }
 
         let (result_state, version) = store.replay("a1", &events, apply).unwrap();
         assert_eq!(version, 7);
-        assert_eq!(result_state.get("balance").unwrap(), &serde_json::json!(175));
+        assert_eq!(
+            result_state.get("balance").unwrap(),
+            &serde_json::json!(175)
+        );
     }
 
     #[test]
     fn test_replay_skips_old_events() {
         let mut store = SnapshotStore::new();
-        store.save("a1", 5, &test_state("alice", 100), test_metadata()).unwrap();
+        store
+            .save("a1", 5, &test_state("alice", 100), test_metadata())
+            .unwrap();
 
-        let events = vec![
-            ReplayEvent {
-                event_type: "Old".to_string(),
-                version: 3, // Before snapshot — should be skipped.
-                data: HashMap::new(),
-            },
-        ];
+        let events = vec![ReplayEvent {
+            event_type: "Old".to_string(),
+            version: 3, // Before snapshot — should be skipped.
+            data: HashMap::new(),
+        }];
 
         fn noop(_state: &mut HashMap<String, serde_json::Value>, _event: &ReplayEvent) {
             unreachable!("should not be called for old events");

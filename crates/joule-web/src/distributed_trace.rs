@@ -222,11 +222,7 @@ impl Baggage {
 
     /// Render as a `baggage` header value (sorted for determinism).
     pub fn to_header(&self) -> String {
-        let mut pairs: Vec<String> = self
-            .items
-            .iter()
-            .map(|(k, v)| format!("{k}={v}"))
-            .collect();
+        let mut pairs: Vec<String> = self.items.iter().map(|(k, v)| format!("{k}={v}")).collect();
         pairs.sort();
         pairs.join(",")
     }
@@ -679,7 +675,13 @@ mod tests {
 
     #[test]
     fn span_creation_and_timing() {
-        let mut span = Span::new("GET /api", make_trace_id(), make_span_id(), SpanKind::Server, 1000);
+        let mut span = Span::new(
+            "GET /api",
+            make_trace_id(),
+            make_span_id(),
+            SpanKind::Server,
+            1000,
+        );
         assert!(span.is_root());
         assert_eq!(span.duration_us(), 0);
 
@@ -690,8 +692,14 @@ mod tests {
     #[test]
     fn span_parent_child() {
         let parent_id = SpanId::from_bytes([0xAA; 8]);
-        let span = Span::new("child", make_trace_id(), make_span_id(), SpanKind::Internal, 100)
-            .with_parent(parent_id.clone());
+        let span = Span::new(
+            "child",
+            make_trace_id(),
+            make_span_id(),
+            SpanKind::Internal,
+            100,
+        )
+        .with_parent(parent_id.clone());
         assert!(!span.is_root());
         assert_eq!(span.parent_span_id, Some(parent_id));
     }
@@ -758,7 +766,9 @@ mod tests {
         let results: Vec<bool> = (0..10).map(|i| s.should_sample(i)).collect();
         assert_eq!(
             results,
-            vec![true, false, false, false, false, true, false, false, false, false]
+            vec![
+                true, false, false, false, false, true, false, false, false, false
+            ]
         );
     }
 
@@ -841,7 +851,13 @@ mod tests {
 
     #[test]
     fn span_duration_not_ended() {
-        let span = Span::new("op", make_trace_id(), make_span_id(), SpanKind::Internal, 500);
+        let span = Span::new(
+            "op",
+            make_trace_id(),
+            make_span_id(),
+            SpanKind::Internal,
+            500,
+        );
         assert_eq!(span.duration_us(), 0);
     }
 

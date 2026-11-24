@@ -323,8 +323,7 @@ mod tests {
     fn test_middleware_intercepts_action() {
         let mut store = Store::new(Counter { count: 0 }, counter_reducer);
         store.add_middleware(
-            |_state: &Counter, action: &CounterAction, next: &dyn Fn(&CounterAction)| match action
-            {
+            |_state: &Counter, action: &CounterAction, next: &dyn Fn(&CounterAction)| match action {
                 CounterAction::Add(n) => next(&CounterAction::Add(n * 2)),
                 other => next(other),
             },

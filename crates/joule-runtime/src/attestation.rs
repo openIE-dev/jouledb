@@ -47,11 +47,7 @@ impl AttestationKey {
     }
 
     /// Create from existing key material (e.g., received via JWP).
-    pub fn from_bytes(
-        hmac_key: [u8; 32],
-        instance_id: String,
-        session_nonce: [u8; 16],
-    ) -> Self {
+    pub fn from_bytes(hmac_key: [u8; 32], instance_id: String, session_nonce: [u8; 16]) -> Self {
         Self {
             hmac_key,
             instance_id,
@@ -91,15 +87,15 @@ impl AttestationKey {
         hmac_key.copy_from_slice(&data[..32]);
         let mut session_nonce = [0u8; 16];
         session_nonce.copy_from_slice(&data[32..48]);
-        let id_len =
-            u32::from_be_bytes([data[48], data[49], data[50], data[51]]) as usize;
+        let id_len = u32::from_be_bytes([data[48], data[49], data[50], data[51]]) as usize;
         if data.len() < 52 + id_len {
             return Err(AttestationError::InvalidKeyMaterial(
                 "truncated instance ID".into(),
             ));
         }
-        let instance_id = String::from_utf8(data[52..52 + id_len].to_vec())
-            .map_err(|_| AttestationError::InvalidKeyMaterial("invalid UTF-8 in instance ID".into()))?;
+        let instance_id = String::from_utf8(data[52..52 + id_len].to_vec()).map_err(|_| {
+            AttestationError::InvalidKeyMaterial("invalid UTF-8 in instance ID".into())
+        })?;
 
         Ok(Self {
             hmac_key,
@@ -201,11 +197,8 @@ impl ReceiptSigner {
             timestamp_ns,
         );
 
-        let signature = compute_signature(
-            &self.key.hmac_key,
-            &payload_hash,
-            &self.key.session_nonce,
-        );
+        let signature =
+            compute_signature(&self.key.hmac_key, &payload_hash, &self.key.session_nonce);
 
         SignedEnergyReceipt {
             instance_id: self.key.instance_id.clone(),
@@ -338,7 +331,9 @@ fn fill_random(buf: &mut [u8]) {
     (buf.as_ptr() as usize).hash(&mut hasher);
     let mut seed = hasher.finish();
     for byte in buf.iter_mut() {
-        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        seed = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         *byte = (seed >> 33) as u8;
     }
 }
@@ -444,11 +439,8 @@ mod tests {
     #[test]
     fn test_instance_mismatch() {
         let key = AttestationKey::generate("correct-id");
-        let wrong_key = AttestationKey::from_bytes(
-            key.hmac_key,
-            "wrong-id".to_string(),
-            key.session_nonce,
-        );
+        let wrong_key =
+            AttestationKey::from_bytes(key.hmac_key, "wrong-id".to_string(), key.session_nonce);
 
         let mut signer = ReceiptSigner::new(key);
         let receipt = signer.sign(1_000_000, 233);

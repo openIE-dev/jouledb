@@ -137,10 +137,7 @@ impl fmt::Display for TacticalTilt {
 }
 
 /// Apply tactical tilts to a strategic allocation, keeping weights normalised.
-pub fn apply_tactical_tilts(
-    strategic: &StrategicAllocation,
-    tilts: &[TacticalTilt],
-) -> Vec<f64> {
+pub fn apply_tactical_tilts(strategic: &StrategicAllocation, tilts: &[TacticalTilt]) -> Vec<f64> {
     let mut weights: Vec<f64> = strategic.classes.iter().map(|c| c.target_weight).collect();
     for tilt in tilts {
         if let Some(idx) = strategic
@@ -179,11 +176,7 @@ pub struct BlackLitterman {
 }
 
 impl BlackLitterman {
-    pub fn new(
-        market_weights: Vec<f64>,
-        covariance: Vec<f64>,
-        n_assets: usize,
-    ) -> Self {
+    pub fn new(market_weights: Vec<f64>, covariance: Vec<f64>, n_assets: usize) -> Self {
         Self {
             tau: 0.05,
             risk_aversion: 2.5,
@@ -273,11 +266,7 @@ pub fn inverse_volatility_weights(volatilities: &[f64]) -> Vec<f64> {
 
 /// Equal-risk contribution (approximate): each asset contributes equal risk.
 /// Uses iterative proportional fitting.
-pub fn equal_risk_contribution(
-    covariance: &[f64],
-    n_assets: usize,
-    max_iter: usize,
-) -> Vec<f64> {
+pub fn equal_risk_contribution(covariance: &[f64], n_assets: usize, max_iter: usize) -> Vec<f64> {
     let mut weights = vec![1.0 / n_assets as f64; n_assets];
     let lr = 0.01;
 
@@ -327,10 +316,7 @@ fn portfolio_var(weights: &[f64], cov: &[f64], n: usize) -> f64 {
 /// Given current market values and target weights, compute the trades needed
 /// to rebalance to the constant-mix targets. Returns the dollar amount to
 /// trade for each asset (positive = buy, negative = sell).
-pub fn constant_mix_trades(
-    current_values: &[f64],
-    target_weights: &[f64],
-) -> Vec<f64> {
+pub fn constant_mix_trades(current_values: &[f64], target_weights: &[f64]) -> Vec<f64> {
     let total: f64 = current_values.iter().sum();
     current_values
         .iter()
@@ -479,9 +465,7 @@ mod tests {
 
     #[test]
     fn test_black_litterman_equilibrium() {
-        let cov = vec![
-            0.04, 0.006, 0.006, 0.01,
-        ];
+        let cov = vec![0.04, 0.006, 0.006, 0.01];
         let bl = BlackLitterman::new(vec![0.6, 0.4], cov, 2);
         let pi = bl.equilibrium_returns();
         assert_eq!(pi.len(), 2);

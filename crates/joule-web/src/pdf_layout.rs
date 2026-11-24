@@ -586,8 +586,7 @@ impl PdfLayout {
                         let _ = writeln!(
                             current_stream,
                             "BT /F1 {:.1} Tf {:.2} {cursor_y:.2} Td (\\225) Tj ET",
-                            self.default_style.font_size,
-                            self.margins.left
+                            self.default_style.font_size, self.margins.left
                         );
                         // Text.
                         let _ = writeln!(
@@ -783,11 +782,32 @@ impl PdfLayout {
                     let kr = k * radius;
                     let stream = format!(
                         "{:.2} {:.2} m {:.2} {:.2} {:.2} {:.2} {:.2} {:.2} c {:.2} {:.2} {:.2} {:.2} {:.2} {:.2} c {:.2} {:.2} {:.2} {:.2} {:.2} {:.2} c {:.2} {:.2} {:.2} {:.2} {:.2} {:.2} c",
-                        cx + radius, *cy,
-                        cx + radius, cy + kr, cx + kr, cy + radius, *cx, cy + radius,
-                        cx - kr, cy + radius, cx - radius, cy + kr, cx - radius, *cy,
-                        cx - radius, cy - kr, cx - kr, cy - radius, *cx, cy - radius,
-                        cx + kr, cy - radius, cx + radius, cy - kr, cx + radius, *cy,
+                        cx + radius,
+                        *cy,
+                        cx + radius,
+                        cy + kr,
+                        cx + kr,
+                        cy + radius,
+                        *cx,
+                        cy + radius,
+                        cx - kr,
+                        cy + radius,
+                        cx - radius,
+                        cy + kr,
+                        cx - radius,
+                        *cy,
+                        cx - radius,
+                        cy - kr,
+                        cx - kr,
+                        cy - radius,
+                        *cx,
+                        cy - radius,
+                        cx + kr,
+                        cy - radius,
+                        cx + radius,
+                        cy - kr,
+                        cx + radius,
+                        *cy,
                     );
                     if let Some(c) = fill {
                         let _ = writeln!(
@@ -1196,7 +1216,12 @@ mod tests {
     #[test]
     fn test_wrap_text() {
         let font = FontMetrics::helvetica();
-        let lines = wrap_text("This is a test of word wrapping in the PDF layout engine", 100.0, &font, 12.0);
+        let lines = wrap_text(
+            "This is a test of word wrapping in the PDF layout engine",
+            100.0,
+            &font,
+            12.0,
+        );
         assert!(lines.len() > 1);
     }
 

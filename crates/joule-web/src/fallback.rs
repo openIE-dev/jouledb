@@ -62,7 +62,12 @@ pub struct FallbackResult<T> {
 }
 
 impl<T> FallbackResult<T> {
-    pub fn success(value: T, level: FallbackLevel, errors: Vec<(FallbackLevel, String)>, attempts: usize) -> Self {
+    pub fn success(
+        value: T,
+        level: FallbackLevel,
+        errors: Vec<(FallbackLevel, String)>,
+        attempts: usize,
+    ) -> Self {
         Self {
             value: Some(value),
             level,
@@ -238,14 +243,24 @@ impl<T: Clone> FallbackChain<T> {
         if let Some(cached) = &self.cached_value {
             attempts += 1;
             self.metrics.record_success(FallbackLevel::Cached);
-            return FallbackResult::success(cached.clone(), FallbackLevel::Cached, errors, attempts);
+            return FallbackResult::success(
+                cached.clone(),
+                FallbackLevel::Cached,
+                errors,
+                attempts,
+            );
         }
 
         // Try default.
         if let Some(default) = &self.default_value {
             attempts += 1;
             self.metrics.record_success(FallbackLevel::Default);
-            return FallbackResult::success(default.clone(), FallbackLevel::Default, errors, attempts);
+            return FallbackResult::success(
+                default.clone(),
+                FallbackLevel::Default,
+                errors,
+                attempts,
+            );
         }
 
         self.metrics.record_failure();

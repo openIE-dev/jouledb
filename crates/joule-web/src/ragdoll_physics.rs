@@ -14,56 +14,159 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
-    pub const UP: Self = Self { x: 0.0, y: 1.0, z: 0.0 };
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn dot(self, r: Self) -> f64 { self.x * r.x + self.y * r.y + self.z * r.z }
-    pub fn cross(self, r: Self) -> Self {
-        Self { x: self.y*r.z - self.z*r.y, y: self.z*r.x - self.x*r.z, z: self.x*r.y - self.y*r.x }
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub const UP: Self = Self {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    };
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
     }
-    pub fn length_sq(self) -> f64 { self.dot(self) }
-    pub fn length(self) -> f64 { self.length_sq().sqrt() }
+    pub fn dot(self, r: Self) -> f64 {
+        self.x * r.x + self.y * r.y + self.z * r.z
+    }
+    pub fn cross(self, r: Self) -> Self {
+        Self {
+            x: self.y * r.z - self.z * r.y,
+            y: self.z * r.x - self.x * r.z,
+            z: self.x * r.y - self.y * r.x,
+        }
+    }
+    pub fn length_sq(self) -> f64 {
+        self.dot(self)
+    }
+    pub fn length(self) -> f64 {
+        self.length_sq().sqrt()
+    }
     pub fn normalized(self) -> Self {
-        let l = self.length(); if l < 1e-12 { Self::ZERO } else { self * (1.0 / l) }
+        let l = self.length();
+        if l < 1e-12 {
+            Self::ZERO
+        } else {
+            self * (1.0 / l)
+        }
     }
 }
 
-impl std::ops::Add for Vec3 { type Output = Self; fn add(self, r: Self) -> Self { Self { x: self.x+r.x, y: self.y+r.y, z: self.z+r.z } } }
-impl std::ops::Sub for Vec3 { type Output = Self; fn sub(self, r: Self) -> Self { Self { x: self.x-r.x, y: self.y-r.y, z: self.z-r.z } } }
-impl std::ops::Mul<f64> for Vec3 { type Output = Self; fn mul(self, s: f64) -> Self { Self { x: self.x*s, y: self.y*s, z: self.z*s } } }
-impl std::ops::Neg for Vec3 { type Output = Self; fn neg(self) -> Self { Self { x: -self.x, y: -self.y, z: -self.z } } }
-impl std::ops::AddAssign for Vec3 { fn add_assign(&mut self, r: Self) { self.x += r.x; self.y += r.y; self.z += r.z; } }
-impl std::ops::SubAssign for Vec3 { fn sub_assign(&mut self, r: Self) { self.x -= r.x; self.y -= r.y; self.z -= r.z; } }
+impl std::ops::Add for Vec3 {
+    type Output = Self;
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
+}
+impl std::ops::Sub for Vec3 {
+    type Output = Self;
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
+}
+impl std::ops::Mul<f64> for Vec3 {
+    type Output = Self;
+    fn mul(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
+}
+impl std::ops::Neg for Vec3 {
+    type Output = Self;
+    fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
+}
+impl std::ops::AddAssign for Vec3 {
+    fn add_assign(&mut self, r: Self) {
+        self.x += r.x;
+        self.y += r.y;
+        self.z += r.z;
+    }
+}
+impl std::ops::SubAssign for Vec3 {
+    fn sub_assign(&mut self, r: Self) {
+        self.x -= r.x;
+        self.y -= r.y;
+        self.z -= r.z;
+    }
+}
 
 // ── Quaternion ───────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Quaternion { pub w: f64, pub x: f64, pub y: f64, pub z: f64 }
+pub struct Quaternion {
+    pub w: f64,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+}
 
 impl Quaternion {
-    pub const IDENTITY: Self = Self { w: 1.0, x: 0.0, y: 0.0, z: 0.0 };
+    pub const IDENTITY: Self = Self {
+        w: 1.0,
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     pub fn from_axis_angle(axis: Vec3, angle: f64) -> Self {
-        let h = angle * 0.5; let s = h.sin();
-        Self { w: h.cos(), x: axis.x * s, y: axis.y * s, z: axis.z * s }
-    }
-
-    pub fn normalized(self) -> Self {
-        let l = (self.w*self.w + self.x*self.x + self.y*self.y + self.z*self.z).sqrt();
-        if l < 1e-12 { Self::IDENTITY } else {
-            let inv = 1.0 / l;
-            Self { w: self.w*inv, x: self.x*inv, y: self.y*inv, z: self.z*inv }
+        let h = angle * 0.5;
+        let s = h.sin();
+        Self {
+            w: h.cos(),
+            x: axis.x * s,
+            y: axis.y * s,
+            z: axis.z * s,
         }
     }
 
-    pub fn conjugate(self) -> Self { Self { w: self.w, x: -self.x, y: -self.y, z: -self.z } }
+    pub fn normalized(self) -> Self {
+        let l = (self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z).sqrt();
+        if l < 1e-12 {
+            Self::IDENTITY
+        } else {
+            let inv = 1.0 / l;
+            Self {
+                w: self.w * inv,
+                x: self.x * inv,
+                y: self.y * inv,
+                z: self.z * inv,
+            }
+        }
+    }
+
+    pub fn conjugate(self) -> Self {
+        Self {
+            w: self.w,
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
 
     pub fn mul(self, r: Self) -> Self {
         Self {
-            w: self.w*r.w - self.x*r.x - self.y*r.y - self.z*r.z,
-            x: self.w*r.x + self.x*r.w + self.y*r.z - self.z*r.y,
-            y: self.w*r.y - self.x*r.z + self.y*r.w + self.z*r.x,
-            z: self.w*r.z + self.x*r.y - self.y*r.x + self.z*r.w,
+            w: self.w * r.w - self.x * r.x - self.y * r.y - self.z * r.z,
+            x: self.w * r.x + self.x * r.w + self.y * r.z - self.z * r.y,
+            y: self.w * r.y - self.x * r.z + self.y * r.w + self.z * r.x,
+            z: self.w * r.z + self.x * r.y - self.y * r.x + self.z * r.w,
         }
     }
 
@@ -76,10 +179,15 @@ impl Quaternion {
 
     /// Slerp between self and other.
     pub fn slerp(self, other: Self, t: f64) -> Self {
-        let mut dot = self.w*other.w + self.x*other.x + self.y*other.y + self.z*other.z;
+        let mut dot = self.w * other.w + self.x * other.x + self.y * other.y + self.z * other.z;
         let other = if dot < 0.0 {
             dot = -dot;
-            Quaternion { w: -other.w, x: -other.x, y: -other.y, z: -other.z }
+            Quaternion {
+                w: -other.w,
+                x: -other.x,
+                y: -other.y,
+                z: -other.z,
+            }
         } else {
             other
         };
@@ -90,12 +198,15 @@ impl Quaternion {
                 x: self.x + (other.x - self.x) * t,
                 y: self.y + (other.y - self.y) * t,
                 z: self.z + (other.z - self.z) * t,
-            }.normalized();
+            }
+            .normalized();
         }
 
         let theta = dot.clamp(-1.0, 1.0).acos();
         let sin_theta = theta.sin();
-        if sin_theta.abs() < 1e-12 { return self; }
+        if sin_theta.abs() < 1e-12 {
+            return self;
+        }
         let a = ((1.0 - t) * theta).sin() / sin_theta;
         let b = (t * theta).sin() / sin_theta;
         Quaternion {
@@ -103,7 +214,8 @@ impl Quaternion {
             x: self.x * a + other.x * b,
             y: self.y * a + other.y * b,
             z: self.z * a + other.z * b,
-        }.normalized()
+        }
+        .normalized()
     }
 
     /// Angular difference as axis-angle vector.
@@ -193,10 +305,7 @@ pub enum JointType {
         max_angle: f64,
     },
     /// Cone-twist (e.g., shoulder, hip). Cone angle + twist limit.
-    ConeTwist {
-        cone_angle: f64,
-        twist_angle: f64,
-    },
+    ConeTwist { cone_angle: f64, twist_angle: f64 },
     /// Fixed (no relative rotation allowed).
     Fixed,
 }
@@ -328,7 +437,14 @@ impl Ragdoll {
     }
 
     /// Add a bone. Returns its BoneId.
-    pub fn add_bone(&mut self, name: &str, length: f64, radius: f64, mass: f64, parent: Option<BoneId>) -> BoneId {
+    pub fn add_bone(
+        &mut self,
+        name: &str,
+        length: f64,
+        radius: f64,
+        mass: f64,
+        parent: Option<BoneId>,
+    ) -> BoneId {
         let id = self.next_bone_id;
         self.next_bone_id += 1;
         let mut bone = Bone::new(id, name, length, radius, mass);
@@ -447,7 +563,9 @@ impl Ragdoll {
         let bone_ids: Vec<BoneId> = self.bones.keys().copied().collect();
         for id in &bone_ids {
             let physics_enabled = self.bones[id].physics_enabled;
-            if !physics_enabled { continue; }
+            if !physics_enabled {
+                continue;
+            }
 
             // Find muscle torque for this bone
             let current_ori = self.bones[id].orientation;
@@ -460,7 +578,11 @@ impl Ragdoll {
             }
 
             let bone = self.bones.get_mut(id).unwrap();
-            let inv_mass = if bone.mass > 1e-12 { 1.0 / bone.mass } else { 0.0 };
+            let inv_mass = if bone.mass > 1e-12 {
+                1.0 / bone.mass
+            } else {
+                0.0
+            };
 
             // Linear: gravity + damping
             bone.linear_velocity += self.gravity * dt;
@@ -475,8 +597,10 @@ impl Ragdoll {
 
             // Integrate orientation
             let omega_q = Quaternion {
-                w: 0.0, x: bone.angular_velocity.x,
-                y: bone.angular_velocity.y, z: bone.angular_velocity.z,
+                w: 0.0,
+                x: bone.angular_velocity.x,
+                y: bone.angular_velocity.y,
+                z: bone.angular_velocity.z,
             };
             let dq = omega_q.mul(bone.orientation);
             bone.orientation = Quaternion {
@@ -484,14 +608,21 @@ impl Ragdoll {
                 x: bone.orientation.x + dq.x * 0.5 * dt,
                 y: bone.orientation.y + dq.y * 0.5 * dt,
                 z: bone.orientation.z + dq.z * 0.5 * dt,
-            }.normalized();
+            }
+            .normalized();
         }
 
         // Enforce joint constraints (position-based)
         for joint in &self.joints {
             let (pos_a, ori_a, pos_b, ori_b) = {
-                let ba = match self.bones.get(&joint.bone_a) { Some(b) => b, None => continue };
-                let bb = match self.bones.get(&joint.bone_b) { Some(b) => b, None => continue };
+                let ba = match self.bones.get(&joint.bone_a) {
+                    Some(b) => b,
+                    None => continue,
+                };
+                let bb = match self.bones.get(&joint.bone_b) {
+                    Some(b) => b,
+                    None => continue,
+                };
                 (ba.position, ba.orientation, bb.position, bb.orientation)
             };
 
@@ -512,7 +643,11 @@ impl Ragdoll {
 
             // Angular limits (simplified)
             match joint.joint_type {
-                JointType::Hinge { axis, min_angle, max_angle } => {
+                JointType::Hinge {
+                    axis,
+                    min_angle,
+                    max_angle,
+                } => {
                     let rel_q = ori_b.mul(ori_a.conjugate());
                     let angle_vec = Quaternion::IDENTITY.angular_diff(rel_q);
                     let angle = angle_vec.dot(axis);
@@ -526,12 +661,16 @@ impl Ragdoll {
                         }
                     }
                 }
-                JointType::ConeTwist { cone_angle, twist_angle } => {
+                JointType::ConeTwist {
+                    cone_angle,
+                    twist_angle,
+                } => {
                     let rel_q = ori_b.mul(ori_a.conjugate());
                     let angle_vec = Quaternion::IDENTITY.angular_diff(rel_q);
                     let total_angle = angle_vec.length();
                     if total_angle > cone_angle {
-                        let correction = angle_vec.normalized() * ((cone_angle - total_angle) * joint.stiffness * 0.01);
+                        let correction = angle_vec.normalized()
+                            * ((cone_angle - total_angle) * joint.stiffness * 0.01);
                         if let Some(bone_b) = self.bones.get_mut(&joint.bone_b) {
                             if bone_b.physics_enabled {
                                 bone_b.angular_velocity += correction;
@@ -557,7 +696,8 @@ impl Ragdoll {
 
     /// Get total kinetic energy of all physics-enabled bones.
     pub fn total_kinetic_energy(&self) -> f64 {
-        self.bones.values()
+        self.bones
+            .values()
             .filter(|b| b.physics_enabled)
             .map(|b| b.kinetic_energy())
             .sum()
@@ -592,8 +732,12 @@ mod tests {
     use super::*;
 
     const EPS: f64 = 1e-4;
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
-    fn v3_approx(a: Vec3, b: Vec3) -> bool { approx(a.x, b.x) && approx(a.y, b.y) && approx(a.z, b.z) }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
+    fn v3_approx(a: Vec3, b: Vec3) -> bool {
+        approx(a.x, b.x) && approx(a.y, b.y) && approx(a.z, b.z)
+    }
 
     fn make_simple_ragdoll() -> Ragdoll {
         let mut r = Ragdoll::new();
@@ -604,15 +748,48 @@ mod tests {
         let l_leg = r.add_bone("left_leg", 0.5, 0.07, 5.0, Some(torso));
         let r_leg = r.add_bone("right_leg", 0.5, 0.07, 5.0, Some(torso));
 
-        r.add_joint(Joint::new(torso, head, JointType::ConeTwist { cone_angle: 0.5, twist_angle: 0.3 }));
-        r.add_joint(Joint::new(torso, l_arm, JointType::ConeTwist { cone_angle: 1.5, twist_angle: 1.0 }));
-        r.add_joint(Joint::new(torso, r_arm, JointType::ConeTwist { cone_angle: 1.5, twist_angle: 1.0 }));
-        r.add_joint(Joint::new(torso, l_leg, JointType::Hinge {
-            axis: Vec3::new(1.0, 0.0, 0.0), min_angle: -2.0, max_angle: 0.1,
-        }));
-        r.add_joint(Joint::new(torso, r_leg, JointType::Hinge {
-            axis: Vec3::new(1.0, 0.0, 0.0), min_angle: -2.0, max_angle: 0.1,
-        }));
+        r.add_joint(Joint::new(
+            torso,
+            head,
+            JointType::ConeTwist {
+                cone_angle: 0.5,
+                twist_angle: 0.3,
+            },
+        ));
+        r.add_joint(Joint::new(
+            torso,
+            l_arm,
+            JointType::ConeTwist {
+                cone_angle: 1.5,
+                twist_angle: 1.0,
+            },
+        ));
+        r.add_joint(Joint::new(
+            torso,
+            r_arm,
+            JointType::ConeTwist {
+                cone_angle: 1.5,
+                twist_angle: 1.0,
+            },
+        ));
+        r.add_joint(Joint::new(
+            torso,
+            l_leg,
+            JointType::Hinge {
+                axis: Vec3::new(1.0, 0.0, 0.0),
+                min_angle: -2.0,
+                max_angle: 0.1,
+            },
+        ));
+        r.add_joint(Joint::new(
+            torso,
+            r_leg,
+            JointType::Hinge {
+                axis: Vec3::new(1.0, 0.0, 0.0),
+                min_angle: -2.0,
+                max_angle: 0.1,
+            },
+        ));
 
         r
     }
@@ -730,7 +907,8 @@ mod tests {
     #[test]
     fn test_muscle_torque_with_error() {
         let mut m = Muscle::new(0, 100.0, 10.0, 500.0);
-        m.target_orientation = Quaternion::from_axis_angle(Vec3::new(1.0, 0.0, 0.0).normalized(), 0.5);
+        m.target_orientation =
+            Quaternion::from_axis_angle(Vec3::new(1.0, 0.0, 0.0).normalized(), 0.5);
         let torque = m.compute_torque(Quaternion::IDENTITY, Vec3::ZERO);
         assert!(torque.length() > 0.0);
     }

@@ -56,10 +56,16 @@ impl std::fmt::Display for FutureError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NotFound(id) => write!(f, "future not found: {id}"),
-            Self::Timeout { future_id, deadline_tick } => {
+            Self::Timeout {
+                future_id,
+                deadline_tick,
+            } => {
                 write!(f, "future {future_id} timed out at tick {deadline_tick}")
             }
-            Self::RetriesExhausted { future_id, attempts } => {
+            Self::RetriesExhausted {
+                future_id,
+                attempts,
+            } => {
                 write!(f, "future {future_id}: all {attempts} retries exhausted")
             }
             Self::AlreadyCompleted(id) => write!(f, "future {id} already completed"),
@@ -87,10 +93,7 @@ pub enum FutureState {
 #[derive(Debug, Clone)]
 enum FutureKind {
     /// A basic value future that resolves at a given tick.
-    Value {
-        value: String,
-        ready_at_tick: u64,
-    },
+    Value { value: String, ready_at_tick: u64 },
     /// Map combinator: transforms the result of another future.
     Map {
         source_id: u64,
@@ -103,18 +106,11 @@ enum FutureKind {
         chained_id: Option<u64>,
     },
     /// Join: waits for all sub-futures to complete.
-    Join {
-        sub_ids: Vec<u64>,
-    },
+    Join { sub_ids: Vec<u64> },
     /// Race: resolves when the first sub-future completes.
-    Race {
-        sub_ids: Vec<u64>,
-    },
+    Race { sub_ids: Vec<u64> },
     /// Timeout: wraps a future with a deadline.
-    Timeout {
-        inner_id: u64,
-        deadline_tick: u64,
-    },
+    Timeout { inner_id: u64, deadline_tick: u64 },
     /// Retry: retries a failing future up to N times.
     Retry {
         attempts: Vec<u64>,
@@ -250,14 +246,17 @@ impl FutureExecutor {
                 return Err(FutureError::Timeout {
                     future_id: id,
                     deadline_tick: 0,
-                })
+                });
             }
             FutureState::Pending => {}
         }
 
         let kind = self.futures[&id].kind.clone();
         match kind {
-            FutureKind::Value { value, ready_at_tick } => {
+            FutureKind::Value {
+                value,
+                ready_at_tick,
+            } => {
                 if self.current_tick >= ready_at_tick {
                     let fut = self.futures.get_mut(&id).unwrap();
                     fut.state = FutureState::Ready(value.clone());
@@ -266,7 +265,10 @@ impl FutureExecutor {
                     Ok(Poll::Pending)
                 }
             }
-            FutureKind::Map { source_id, transform_suffix } => {
+            FutureKind::Map {
+                source_id,
+                transform_suffix,
+            } => {
                 let source_poll = self.poll(source_id)?;
                 match source_poll {
                     Poll::Ready(v) => {
@@ -278,7 +280,11 @@ impl FutureExecutor {
                     Poll::Pending => Ok(Poll::Pending),
                 }
             }
-            FutureKind::AndThen { source_id, next_suffix, chained_id } => {
+            FutureKind::AndThen {
+                source_id,
+                next_suffix,
+                chained_id,
+            } => {
                 if let Some(cid) = chained_id {
                     // Poll the chained future
                     let chained_poll = self.poll(cid)?;
@@ -340,7 +346,10 @@ impl FutureExecutor {
                 }
                 Ok(Poll::Pending)
             }
-            FutureKind::Timeout { inner_id, deadline_tick } => {
+            FutureKind::Timeout {
+                inner_id,
+                deadline_tick,
+            } => {
                 if self.current_tick >= deadline_tick {
                     // Check if inner resolved first
                     let inner_state = self.futures.get(&inner_id).map(|f| f.state.clone());
@@ -365,7 +374,10 @@ impl FutureExecutor {
                     Poll::Pending => Ok(Poll::Pending),
                 }
             }
-            FutureKind::Retry { attempts, max_retries } => {
+            FutureKind::Retry {
+                attempts,
+                max_retries,
+            } => {
                 let max = max_retries as usize;
                 for (i, aid) in attempts.iter().enumerate() {
                     if i >= max {
@@ -492,10 +504,7 @@ mod tests {
         let joined = exec.join(vec![a, b]);
         assert_eq!(exec.poll(joined).unwrap(), Poll::Pending);
         exec.tick(10);
-        assert_eq!(
-            exec.poll(joined).unwrap(),
-            Poll::Ready("a,b".to_string())
-        );
+        assert_eq!(exec.poll(joined).unwrap(), Poll::Ready("a,b".to_string()));
     }
 
     #[test]
@@ -604,10 +613,7 @@ mod tests {
         assert_eq!(exec.state(id), Some(&FutureState::Pending));
         exec.tick(10);
         exec.poll(id).unwrap();
-        assert_eq!(
-            exec.state(id),
-            Some(&FutureState::Ready("val".to_string()))
-        );
+        assert_eq!(exec.state(id), Some(&FutureState::Ready("val".to_string())));
     }
 
     #[test]

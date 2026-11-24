@@ -26,11 +26,7 @@ pub struct TestCase {
 
 impl TestCase {
     /// Create a new test case.
-    pub fn new(
-        name: &str,
-        tags: &[&str],
-        func: impl Fn() -> Result<(), String> + 'static,
-    ) -> Self {
+    pub fn new(name: &str, tags: &[&str], func: impl Fn() -> Result<(), String> + 'static) -> Self {
         Self {
             name: name.to_string(),
             tags: tags.iter().map(|s| s.to_string()).collect(),
@@ -289,7 +285,11 @@ impl fmt::Display for TestReport {
                 TestOutcome::Failed(_) => "FAIL",
                 TestOutcome::Skipped => "SKIP",
             };
-            writeln!(f, "  [{icon}] {} ({:.1}ms)", result.name, result.duration_ms)?;
+            writeln!(
+                f,
+                "  [{icon}] {} ({:.1}ms)",
+                result.name, result.duration_ms
+            )?;
         }
         Ok(())
     }
@@ -484,7 +484,11 @@ mod tests {
         suite.add(TestCase::new("flaky", &[], move || {
             let c = counter.get() + 1;
             counter.set(c);
-            if c < 3 { Err("not yet".to_string()) } else { Ok(()) }
+            if c < 3 {
+                Err("not yet".to_string())
+            } else {
+                Ok(())
+            }
         }));
 
         let report = run_suite(&suite, &TestFilter::new(), 5);

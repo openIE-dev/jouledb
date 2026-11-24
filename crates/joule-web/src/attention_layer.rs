@@ -222,11 +222,16 @@ struct Lcg {
 
 impl Lcg {
     fn new(seed: u64) -> Self {
-        Self { state: seed.wrapping_add(1) }
+        Self {
+            state: seed.wrapping_add(1),
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.state
     }
 
@@ -250,10 +255,12 @@ impl LinearProj {
     fn new(in_dim: usize, out_dim: usize, seed: u64) -> Self {
         let mut rng = Lcg::new(seed);
         let bound = 1.0 / (in_dim as f64).sqrt();
-        let weights: Vec<f64> = (0..in_dim * out_dim)
-            .map(|_| rng.uniform(bound))
-            .collect();
-        Self { in_dim, out_dim, weights }
+        let weights: Vec<f64> = (0..in_dim * out_dim).map(|_| rng.uniform(bound)).collect();
+        Self {
+            in_dim,
+            out_dim,
+            weights,
+        }
     }
 
     /// Project input: `[seq_len, in_dim]` -> `[seq_len, out_dim]`.
@@ -296,7 +303,11 @@ pub struct MultiHeadAttention {
 
 impl MultiHeadAttention {
     pub fn new(d_model: usize, num_heads: usize) -> Self {
-        assert_eq!(d_model % num_heads, 0, "d_model must be divisible by num_heads");
+        assert_eq!(
+            d_model % num_heads,
+            0,
+            "d_model must be divisible by num_heads"
+        );
         let d_k = d_model / num_heads;
         let d_v = d_k;
 
@@ -377,9 +388,8 @@ impl MultiHeadAttention {
             }
 
             // Attention for this head
-            let attn = scaled_dot_product_attention(
-                &q_head, &k_head, &v_head, self.d_k, self.d_v, mask,
-            );
+            let attn =
+                scaled_dot_product_attention(&q_head, &k_head, &v_head, self.d_k, self.d_v, mask);
 
             // Copy head output into concatenated result
             for s in 0..query_len {
@@ -391,8 +401,7 @@ impl MultiHeadAttention {
 
             // Store weights
             let w_offset = h * query_len * kv_len;
-            all_weights[w_offset..w_offset + query_len * kv_len]
-                .copy_from_slice(&attn.weights);
+            all_weights[w_offset..w_offset + query_len * kv_len].copy_from_slice(&attn.weights);
         }
 
         // Output projection
@@ -513,9 +522,8 @@ mod tests {
         let queries = vec![1.0, 0.0, 0.0, 1.0];
         let keys = vec![1.0, 0.0, 0.0, 1.0, 1.0, 1.0];
         let values = vec![1.0, 0.0, 0.0, 1.0, 0.5, 0.5];
-        let out = scaled_dot_product_attention(
-            &queries, &keys, &values, 2, 2, &AttentionMask::None,
-        );
+        let out =
+            scaled_dot_product_attention(&queries, &keys, &values, 2, 2, &AttentionMask::None);
         assert_eq!(out.values.len(), 4); // 2 queries * 2 value dim
         assert_eq!(out.weights.len(), 6); // 2 queries * 3 keys
     }

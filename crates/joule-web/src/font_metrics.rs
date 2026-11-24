@@ -178,7 +178,8 @@ impl FontInstance {
 
     /// Text width in pixels.
     pub fn text_width_px(&self, glyph_ids: &[u32], font_size_px: f64) -> f64 {
-        self.metrics.to_pixels(self.text_width(glyph_ids), font_size_px)
+        self.metrics
+            .to_pixels(self.text_width(glyph_ids), font_size_px)
     }
 }
 

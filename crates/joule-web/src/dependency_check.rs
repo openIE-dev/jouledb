@@ -217,7 +217,9 @@ pub struct DependencyGraph {
 
 impl DependencyGraph {
     pub fn new() -> Self {
-        Self { packages: BTreeMap::new() }
+        Self {
+            packages: BTreeMap::new(),
+        }
     }
 
     /// Add a package to the graph.
@@ -407,10 +409,7 @@ impl DependencyGraph {
     }
 
     /// Check license compliance against an allow-list.
-    pub fn check_license_compliance(
-        &self,
-        allowed: &[License],
-    ) -> Vec<LicenseViolation> {
+    pub fn check_license_compliance(&self, allowed: &[License]) -> Vec<LicenseViolation> {
         let allowed_set: HashSet<&License> = allowed.iter().collect();
         let mut violations = Vec::new();
 
@@ -553,21 +552,22 @@ mod tests {
                 .with_license(License::Mit)
                 .with_dep("lib-a", VersionReq::Caret("1.0.0".into()))
                 .with_dep("lib-b", VersionReq::Caret("2.0.0".into())),
-        ).unwrap();
+        )
+        .unwrap();
         g.add_package(
             Package::new("lib-a", "1.2.0")
                 .with_license(License::Mit)
                 .with_dep("lib-c", VersionReq::Caret("0.5.0".into())),
-        ).unwrap();
+        )
+        .unwrap();
         g.add_package(
             Package::new("lib-b", "2.1.0")
                 .with_license(License::Apache2)
                 .with_dep("lib-c", VersionReq::Caret("0.5.0".into())),
-        ).unwrap();
-        g.add_package(
-            Package::new("lib-c", "0.5.3")
-                .with_license(License::Mit),
-        ).unwrap();
+        )
+        .unwrap();
+        g.add_package(Package::new("lib-c", "0.5.3").with_license(License::Mit))
+            .unwrap();
         g
     }
 
@@ -654,15 +654,12 @@ mod tests {
     #[test]
     fn test_detect_cycle() {
         let mut g = DependencyGraph::new();
-        g.add_package(
-            Package::new("a", "1.0.0").with_dep("b", VersionReq::Any),
-        ).unwrap();
-        g.add_package(
-            Package::new("b", "1.0.0").with_dep("c", VersionReq::Any),
-        ).unwrap();
-        g.add_package(
-            Package::new("c", "1.0.0").with_dep("a", VersionReq::Any),
-        ).unwrap();
+        g.add_package(Package::new("a", "1.0.0").with_dep("b", VersionReq::Any))
+            .unwrap();
+        g.add_package(Package::new("b", "1.0.0").with_dep("c", VersionReq::Any))
+            .unwrap();
+        g.add_package(Package::new("c", "1.0.0").with_dep("a", VersionReq::Any))
+            .unwrap();
 
         let cycles = g.detect_cycles();
         assert!(!cycles.is_empty());
@@ -729,13 +726,13 @@ mod tests {
     fn test_version_conflict_detected() {
         let mut g = DependencyGraph::new();
         g.add_package(
-            Package::new("app", "1.0.0")
-                .with_dep("shared", VersionReq::Exact("1.0.0".into())),
-        ).unwrap();
+            Package::new("app", "1.0.0").with_dep("shared", VersionReq::Exact("1.0.0".into())),
+        )
+        .unwrap();
         g.add_package(
-            Package::new("lib", "1.0.0")
-                .with_dep("shared", VersionReq::Exact("2.0.0".into())),
-        ).unwrap();
+            Package::new("lib", "1.0.0").with_dep("shared", VersionReq::Exact("2.0.0".into())),
+        )
+        .unwrap();
         g.add_package(Package::new("shared", "1.0.0")).unwrap();
 
         let conflicts = g.detect_version_conflicts();

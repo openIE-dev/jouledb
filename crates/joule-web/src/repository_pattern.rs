@@ -19,7 +19,11 @@ pub enum RepositoryError {
     /// Entity already exists.
     AlreadyExists(String),
     /// Version conflict.
-    VersionConflict { id: String, expected: u64, actual: u64 },
+    VersionConflict {
+        id: String,
+        expected: u64,
+        actual: u64,
+    },
     /// Query error.
     QueryError(String),
     /// Unit of work error.
@@ -33,8 +37,15 @@ impl std::fmt::Display for RepositoryError {
         match self {
             Self::NotFound(id) => write!(f, "entity not found: {id}"),
             Self::AlreadyExists(id) => write!(f, "entity already exists: {id}"),
-            Self::VersionConflict { id, expected, actual } => {
-                write!(f, "version conflict for {id}: expected {expected}, got {actual}")
+            Self::VersionConflict {
+                id,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "version conflict for {id}: expected {expected}, got {actual}"
+                )
             }
             Self::QueryError(msg) => write!(f, "query error: {msg}"),
             Self::UnitOfWorkError(msg) => write!(f, "unit of work error: {msg}"),
@@ -99,11 +110,17 @@ pub enum Specification {
 
 impl Specification {
     pub fn field_equals(field: impl Into<String>, value: impl Into<String>) -> Self {
-        Self::FieldEquals { field: field.into(), value: value.into() }
+        Self::FieldEquals {
+            field: field.into(),
+            value: value.into(),
+        }
     }
 
     pub fn field_contains(field: impl Into<String>, substring: impl Into<String>) -> Self {
-        Self::FieldContains { field: field.into(), substring: substring.into() }
+        Self::FieldContains {
+            field: field.into(),
+            substring: substring.into(),
+        }
     }
 
     pub fn type_equals(entity_type: impl Into<String>) -> Self {
@@ -128,9 +145,11 @@ impl Specification {
             Self::FieldEquals { field, value } => {
                 entity.data.get(field).map(|v| v == value).unwrap_or(false)
             }
-            Self::FieldContains { field, substring } => {
-                entity.data.get(field).map(|v| v.contains(substring.as_str())).unwrap_or(false)
-            }
+            Self::FieldContains { field, substring } => entity
+                .data
+                .get(field)
+                .map(|v| v.contains(substring.as_str()))
+                .unwrap_or(false),
             Self::TypeEquals(t) => entity.entity_type == *t,
             Self::And(specs) => specs.iter().all(|s| s.matches(entity)),
             Self::Or(specs) => specs.iter().any(|s| s.matches(entity)),
@@ -158,11 +177,17 @@ pub struct SortBy {
 
 impl SortBy {
     pub fn asc(field: impl Into<String>) -> Self {
-        Self { field: field.into(), order: SortOrder::Ascending }
+        Self {
+            field: field.into(),
+            order: SortOrder::Ascending,
+        }
     }
 
     pub fn desc(field: impl Into<String>) -> Self {
-        Self { field: field.into(), order: SortOrder::Descending }
+        Self {
+            field: field.into(),
+            order: SortOrder::Descending,
+        }
     }
 }
 
@@ -179,7 +204,9 @@ pub struct Page<T> {
 
 impl<T> Page<T> {
     pub fn total_pages(&self) -> usize {
-        if self.page_size == 0 { return 0; }
+        if self.page_size == 0 {
+            return 0;
+        }
         (self.total_items + self.page_size - 1) / self.page_size
     }
 
@@ -223,7 +250,10 @@ pub struct UnitOfWork {
 
 impl UnitOfWork {
     pub fn new() -> Self {
-        Self { changes: Vec::new(), committed: false }
+        Self {
+            changes: Vec::new(),
+            committed: false,
+        }
     }
 
     /// Track an addition.
@@ -328,7 +358,9 @@ impl InMemoryRepository {
     /// Get by id.
     pub fn get(&mut self, id: &str) -> Result<&StorableEntity, RepositoryError> {
         self.stats.total_reads += 1;
-        self.entities.get(id).ok_or_else(|| RepositoryError::NotFound(id.to_string()))
+        self.entities
+            .get(id)
+            .ok_or_else(|| RepositoryError::NotFound(id.to_string()))
     }
 
     /// Get by id (immutable borrow, no stats update).
@@ -338,7 +370,9 @@ impl InMemoryRepository {
 
     /// Update with version check.
     pub fn update(&mut self, entity: StorableEntity) -> Result<(), RepositoryError> {
-        let existing = self.entities.get(&entity.id)
+        let existing = self
+            .entities
+            .get(&entity.id)
             .ok_or_else(|| RepositoryError::NotFound(entity.id.clone()))?;
         if existing.version != entity.version.saturating_sub(1) {
             return Err(RepositoryError::VersionConflict {
@@ -354,7 +388,9 @@ impl InMemoryRepository {
 
     /// Delete by id.
     pub fn delete(&mut self, id: &str) -> Result<StorableEntity, RepositoryError> {
-        let entity = self.entities.remove(id)
+        let entity = self
+            .entities
+            .remove(id)
             .ok_or_else(|| RepositoryError::NotFound(id.to_string()))?;
         if let Some(count) = self.stats.entity_types.get_mut(&entity.entity_type) {
             *count = count.saturating_sub(1);
@@ -378,7 +414,9 @@ impl InMemoryRepository {
         page_size: usize,
     ) -> Page<StorableEntity> {
         self.stats.total_queries += 1;
-        let mut matching: Vec<StorableEntity> = self.entities.values()
+        let mut matching: Vec<StorableEntity> = self
+            .entities
+            .values()
             .filter(|e| spec.matches(e))
             .cloned()
             .collect();
@@ -500,7 +538,9 @@ mod tests {
         repo.add(e).unwrap();
         let mut updated = make_entity("e1", "user");
         updated.version = 2;
-        updated.data.insert("name".to_string(), "updated".to_string());
+        updated
+            .data
+            .insert("name".to_string(), "updated".to_string());
         repo.update(updated).unwrap();
         let found = repo.get("e1").unwrap();
         assert_eq!(found.version, 2);
@@ -513,7 +553,10 @@ mod tests {
         let mut updated = make_entity("e1", "user");
         updated.version = 5; // wrong version
         let result = repo.update(updated);
-        assert!(matches!(result, Err(RepositoryError::VersionConflict { .. })));
+        assert!(matches!(
+            result,
+            Err(RepositoryError::VersionConflict { .. })
+        ));
     }
 
     #[test]

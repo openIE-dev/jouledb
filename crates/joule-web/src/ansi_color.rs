@@ -118,12 +118,24 @@ impl Attributes {
     /// Return the SGR codes for all active attributes.
     pub fn sgr_codes(self) -> Vec<u8> {
         let mut codes = Vec::new();
-        if self.has(Self::BOLD) { codes.push(1); }
-        if self.has(Self::DIM) { codes.push(2); }
-        if self.has(Self::ITALIC) { codes.push(3); }
-        if self.has(Self::UNDERLINE) { codes.push(4); }
-        if self.has(Self::BLINK) { codes.push(5); }
-        if self.has(Self::STRIKETHROUGH) { codes.push(9); }
+        if self.has(Self::BOLD) {
+            codes.push(1);
+        }
+        if self.has(Self::DIM) {
+            codes.push(2);
+        }
+        if self.has(Self::ITALIC) {
+            codes.push(3);
+        }
+        if self.has(Self::UNDERLINE) {
+            codes.push(4);
+        }
+        if self.has(Self::BLINK) {
+            codes.push(5);
+        }
+        if self.has(Self::STRIKETHROUGH) {
+            codes.push(9);
+        }
         codes
     }
 }
@@ -349,7 +361,7 @@ mod tests {
             .render();
         assert!(s.starts_with("\x1b["));
         assert!(s.contains("1;")); // bold
-        assert!(s.contains("31"));  // red fg
+        assert!(s.contains("31")); // red fg
         assert!(s.ends_with("\x1b[0m"));
         assert!(s.contains("error"));
     }
@@ -386,7 +398,10 @@ mod tests {
 
     #[test]
     fn visible_len_counts_chars() {
-        let styled = StyledString::new("abc").bold().fg(Color::Indexed(200)).render();
+        let styled = StyledString::new("abc")
+            .bold()
+            .fg(Color::Indexed(200))
+            .render();
         assert_eq!(visible_len(&styled), 3);
     }
 
@@ -417,7 +432,7 @@ mod tests {
             .fg(Color::Basic(BasicColor::Black))
             .bg(Color::Basic(BasicColor::Yellow))
             .render();
-        assert!(s.contains("30"));  // black fg
-        assert!(s.contains("43"));  // yellow bg
+        assert!(s.contains("30")); // black fg
+        assert!(s.contains("43")); // yellow bg
     }
 }

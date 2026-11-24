@@ -18,11 +18,7 @@ pub struct Asset {
 }
 
 impl Asset {
-    pub fn new(
-        path: impl Into<String>,
-        content_type: impl Into<String>,
-        content: Vec<u8>,
-    ) -> Self {
+    pub fn new(path: impl Into<String>, content_type: impl Into<String>, content: Vec<u8>) -> Self {
         Self {
             path: path.into(),
             content_type: content_type.into(),
@@ -325,9 +321,7 @@ mod tests {
 
     #[test]
     fn inline_large_assets_untouched() {
-        let p = InlineSmallAssets {
-            threshold_bytes: 2,
-        };
+        let p = InlineSmallAssets { threshold_bytes: 2 };
         let a = Asset::new("big.png", "image/png", vec![0; 1000]);
         let result = p.process(a);
         assert_eq!(result.path, "big.png");

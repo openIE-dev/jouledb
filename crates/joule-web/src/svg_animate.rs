@@ -222,18 +222,12 @@ pub enum AnimValue {
 impl AnimValue {
     pub fn lerp(&self, other: &AnimValue, t: f64) -> AnimValue {
         match (self, other) {
-            (AnimValue::Scalar(a), AnimValue::Scalar(b)) => {
-                AnimValue::Scalar(a + (b - a) * t)
-            }
+            (AnimValue::Scalar(a), AnimValue::Scalar(b)) => AnimValue::Scalar(a + (b - a) * t),
             (AnimValue::Vec2(ax, ay), AnimValue::Vec2(bx, by)) => {
                 AnimValue::Vec2(ax + (bx - ax) * t, ay + (by - ay) * t)
             }
             (AnimValue::Vec3(ax, ay, az), AnimValue::Vec3(bx, by, bz)) => {
-                AnimValue::Vec3(
-                    ax + (bx - ax) * t,
-                    ay + (by - ay) * t,
-                    az + (bz - az) * t,
-                )
+                AnimValue::Vec3(ax + (bx - ax) * t, ay + (by - ay) * t, az + (bz - az) * t)
             }
             (AnimValue::Color(ar, ag, ab, aa), AnimValue::Color(br, bg, bb, ba)) => {
                 AnimValue::Color(
@@ -405,7 +399,11 @@ pub fn interpolate_values(
             let mut accum = 0.0;
             for (i, d) in distances.iter().enumerate() {
                 if accum + d >= target || i == distances.len() - 1 {
-                    let local_t = if *d < 1e-12 { 0.0 } else { (target - accum) / d };
+                    let local_t = if *d < 1e-12 {
+                        0.0
+                    } else {
+                        (target - accum) / d
+                    };
                     return values[i].lerp(&values[i + 1], local_t);
                 }
                 accum += d;
@@ -497,7 +495,13 @@ pub fn evaluate_animation(anim: &Animation, t: f64, base_value: &AnimValue) -> O
 
             Some(result)
         }
-        Animation::AnimateMotion { path, key_times, calc_mode, timing, rotate } => {
+        Animation::AnimateMotion {
+            path,
+            key_times,
+            calc_mode,
+            timing,
+            rotate,
+        } => {
             let progress = timing.progress(t)?;
             let pos = interpolate_path(path, progress, *calc_mode, key_times.as_deref());
             Some(AnimValue::Vec2(pos.0, pos.1))
@@ -649,13 +653,7 @@ mod tests {
     fn test_spline_interpolation() {
         let values = vec![AnimValue::Scalar(0.0), AnimValue::Scalar(100.0)];
         let spline = KeySpline::new(0.0, 0.0, 1.0, 1.0); // linear bezier
-        let r = interpolate_values(
-            &values,
-            0.5,
-            CalcMode::Spline,
-            None,
-            Some(&[spline]),
-        );
+        let r = interpolate_values(&values, 0.5, CalcMode::Spline, None, Some(&[spline]));
         match r {
             AnimValue::Scalar(v) => assert!((v - 50.0).abs() < 1.0),
             _ => panic!("wrong type"),

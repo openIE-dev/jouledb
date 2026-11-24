@@ -34,7 +34,13 @@ impl Curve {
             Curve::Linear { slope, intercept } => slope * x + intercept,
             Curve::Quadratic { a, b, c } => a * x * x + b * x + c,
             Curve::Logistic { k, midpoint } => 1.0 / (1.0 + (-k * (x - midpoint)).exp()),
-            Curve::Step { threshold } => if x >= *threshold { 1.0 } else { 0.0 },
+            Curve::Step { threshold } => {
+                if x >= *threshold {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
             Curve::Bell { center, width } => {
                 if width.abs() < 1e-12 {
                     if (x - center).abs() < 1e-12 { 1.0 } else { 0.0 }
@@ -87,7 +93,10 @@ pub struct Consideration {
 
 impl Consideration {
     pub fn new(input_name: &str, curve: Curve) -> Self {
-        Self { input_name: input_name.to_string(), curve }
+        Self {
+            input_name: input_name.to_string(),
+            curve,
+        }
     }
 
     /// Evaluate this consideration given normalized inputs.
@@ -121,7 +130,8 @@ impl UtilityAction {
     }
 
     pub fn with_consideration(mut self, input_name: &str, curve: Curve) -> Self {
-        self.considerations.push(Consideration::new(input_name, curve));
+        self.considerations
+            .push(Consideration::new(input_name, curve));
         self
     }
 
@@ -174,7 +184,9 @@ pub struct WorldState {
 
 impl WorldState {
     pub fn new() -> Self {
-        Self { values: std::collections::HashMap::new() }
+        Self {
+            values: std::collections::HashMap::new(),
+        }
     }
 
     /// Set a normalized input value.
@@ -205,7 +217,8 @@ pub struct Decision {
 
 /// Score all actions and return them sorted by score (highest first).
 pub fn score_actions(actions: &[UtilityAction], inputs: &WorldState) -> Vec<Decision> {
-    let mut scored: Vec<Decision> = actions.iter()
+    let mut scored: Vec<Decision> = actions
+        .iter()
         .map(|a| Decision {
             action_name: a.name.clone(),
             score: a.score(inputs),
@@ -216,7 +229,11 @@ pub fn score_actions(actions: &[UtilityAction], inputs: &WorldState) -> Vec<Deci
         })
         .collect();
 
-    scored.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    scored.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     scored
 }
 
@@ -244,7 +261,11 @@ pub fn select_with_inertia(
                 d.score *= inertia_bonus;
             }
         }
-        scored.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        scored.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
     }
 
     scored.into_iter().next()
@@ -258,9 +279,7 @@ pub fn filter_actions<'a>(
     inputs: &WorldState,
     context_fn: impl Fn(&UtilityAction, &WorldState) -> bool,
 ) -> Vec<&'a UtilityAction> {
-    actions.iter()
-        .filter(|a| context_fn(a, inputs))
-        .collect()
+    actions.iter().filter(|a| context_fn(a, inputs)).collect()
 }
 
 /// Contextual select: filter actions then pick the best.
@@ -269,7 +288,8 @@ pub fn contextual_select(
     inputs: &WorldState,
     context_fn: impl Fn(&UtilityAction, &WorldState) -> bool,
 ) -> Option<Decision> {
-    let filtered: Vec<UtilityAction> = actions.iter()
+    let filtered: Vec<UtilityAction> = actions
+        .iter()
         .filter(|a| context_fn(a, inputs))
         .cloned()
         .collect();
@@ -284,7 +304,10 @@ mod tests {
 
     #[test]
     fn test_linear_curve() {
-        let c = Curve::Linear { slope: 1.0, intercept: 0.0 };
+        let c = Curve::Linear {
+            slope: 1.0,
+            intercept: 0.0,
+        };
         assert!((c.evaluate(0.0) - 0.0).abs() < 1e-6);
         assert!((c.evaluate(0.5) - 0.5).abs() < 1e-6);
         assert!((c.evaluate(1.0) - 1.0).abs() < 1e-6);
@@ -292,20 +315,30 @@ mod tests {
 
     #[test]
     fn test_linear_curve_clamped() {
-        let c = Curve::Linear { slope: 2.0, intercept: 0.0 };
+        let c = Curve::Linear {
+            slope: 2.0,
+            intercept: 0.0,
+        };
         assert!((c.evaluate(1.0) - 1.0).abs() < 1e-6); // 2*1 clamped to 1
     }
 
     #[test]
     fn test_quadratic_curve() {
-        let c = Curve::Quadratic { a: 1.0, b: 0.0, c: 0.0 };
+        let c = Curve::Quadratic {
+            a: 1.0,
+            b: 0.0,
+            c: 0.0,
+        };
         assert!((c.evaluate(0.5) - 0.25).abs() < 1e-6);
         assert!((c.evaluate(1.0) - 1.0).abs() < 1e-6);
     }
 
     #[test]
     fn test_logistic_curve() {
-        let c = Curve::Logistic { k: 10.0, midpoint: 0.5 };
+        let c = Curve::Logistic {
+            k: 10.0,
+            midpoint: 0.5,
+        };
         let at_mid = c.evaluate(0.5);
         assert!((at_mid - 0.5).abs() < 1e-6);
         assert!(c.evaluate(1.0) > 0.9);
@@ -322,7 +355,10 @@ mod tests {
 
     #[test]
     fn test_bell_curve() {
-        let c = Curve::Bell { center: 0.5, width: 0.2 };
+        let c = Curve::Bell {
+            center: 0.5,
+            width: 0.2,
+        };
         let peak = c.evaluate(0.5);
         assert!((peak - 1.0).abs() < 1e-6);
         let off = c.evaluate(0.0);
@@ -331,7 +367,10 @@ mod tests {
 
     #[test]
     fn test_bell_zero_width() {
-        let c = Curve::Bell { center: 0.5, width: 0.0 };
+        let c = Curve::Bell {
+            center: 0.5,
+            width: 0.0,
+        };
         assert!((c.evaluate(0.5) - 1.0).abs() < 1e-6);
         assert!((c.evaluate(0.3) - 0.0).abs() < 1e-6);
     }
@@ -369,8 +408,13 @@ mod tests {
 
     #[test]
     fn test_action_single_consideration() {
-        let action = UtilityAction::new("attack")
-            .with_consideration("enemy_dist", Curve::Linear { slope: -1.0, intercept: 1.0 });
+        let action = UtilityAction::new("attack").with_consideration(
+            "enemy_dist",
+            Curve::Linear {
+                slope: -1.0,
+                intercept: 1.0,
+            },
+        );
         let mut ws = WorldState::new();
         ws.set("enemy_dist", 0.2); // close enemy = high score
         let score = action.score(&ws);
@@ -380,8 +424,20 @@ mod tests {
     #[test]
     fn test_action_zero_consideration_kills_score() {
         let action = UtilityAction::new("attack")
-            .with_consideration("ammo", Curve::Linear { slope: 1.0, intercept: 0.0 })
-            .with_consideration("hp", Curve::Linear { slope: 1.0, intercept: 0.0 });
+            .with_consideration(
+                "ammo",
+                Curve::Linear {
+                    slope: 1.0,
+                    intercept: 0.0,
+                },
+            )
+            .with_consideration(
+                "hp",
+                Curve::Linear {
+                    slope: 1.0,
+                    intercept: 0.0,
+                },
+            );
         let mut ws = WorldState::new();
         ws.set("ammo", 0.0); // no ammo
         ws.set("hp", 1.0);
@@ -391,7 +447,13 @@ mod tests {
     #[test]
     fn test_action_weight() {
         let action = UtilityAction::new("heal")
-            .with_consideration("hp", Curve::Linear { slope: -1.0, intercept: 1.0 })
+            .with_consideration(
+                "hp",
+                Curve::Linear {
+                    slope: -1.0,
+                    intercept: 1.0,
+                },
+            )
             .with_weight(2.0);
         let mut ws = WorldState::new();
         ws.set("hp", 0.0); // low hp
@@ -402,7 +464,13 @@ mod tests {
     #[test]
     fn test_action_threshold() {
         let action = UtilityAction::new("flee")
-            .with_consideration("hp", Curve::Linear { slope: -1.0, intercept: 1.0 })
+            .with_consideration(
+                "hp",
+                Curve::Linear {
+                    slope: -1.0,
+                    intercept: 1.0,
+                },
+            )
             .with_threshold(0.5);
         let mut ws = WorldState::new();
         ws.set("hp", 0.8); // high hp -> low flee score
@@ -414,10 +482,20 @@ mod tests {
     #[test]
     fn test_select_best() {
         let actions = vec![
-            UtilityAction::new("attack")
-                .with_consideration("aggro", Curve::Linear { slope: 1.0, intercept: 0.0 }),
-            UtilityAction::new("hide")
-                .with_consideration("aggro", Curve::Linear { slope: -1.0, intercept: 1.0 }),
+            UtilityAction::new("attack").with_consideration(
+                "aggro",
+                Curve::Linear {
+                    slope: 1.0,
+                    intercept: 0.0,
+                },
+            ),
+            UtilityAction::new("hide").with_consideration(
+                "aggro",
+                Curve::Linear {
+                    slope: -1.0,
+                    intercept: 1.0,
+                },
+            ),
         ];
         let mut ws = WorldState::new();
         ws.set("aggro", 0.9); // high aggression
@@ -428,10 +506,20 @@ mod tests {
     #[test]
     fn test_inertia_keeps_current() {
         let actions = vec![
-            UtilityAction::new("patrol")
-                .with_consideration("threat", Curve::Linear { slope: -1.0, intercept: 1.0 }),
-            UtilityAction::new("attack")
-                .with_consideration("threat", Curve::Linear { slope: 1.0, intercept: 0.0 }),
+            UtilityAction::new("patrol").with_consideration(
+                "threat",
+                Curve::Linear {
+                    slope: -1.0,
+                    intercept: 1.0,
+                },
+            ),
+            UtilityAction::new("attack").with_consideration(
+                "threat",
+                Curve::Linear {
+                    slope: 1.0,
+                    intercept: 0.0,
+                },
+            ),
         ];
         let mut ws = WorldState::new();
         ws.set("threat", 0.48); // slightly below 0.5 — attack marginally loses
@@ -448,10 +536,20 @@ mod tests {
     #[test]
     fn test_contextual_filter() {
         let actions = vec![
-            UtilityAction::new("melee")
-                .with_consideration("dist", Curve::Linear { slope: -1.0, intercept: 1.0 }),
-            UtilityAction::new("ranged")
-                .with_consideration("dist", Curve::Linear { slope: 1.0, intercept: 0.0 }),
+            UtilityAction::new("melee").with_consideration(
+                "dist",
+                Curve::Linear {
+                    slope: -1.0,
+                    intercept: 1.0,
+                },
+            ),
+            UtilityAction::new("ranged").with_consideration(
+                "dist",
+                Curve::Linear {
+                    slope: 1.0,
+                    intercept: 0.0,
+                },
+            ),
         ];
         let ws = WorldState::new();
 
@@ -464,10 +562,14 @@ mod tests {
     #[test]
     fn test_contextual_select() {
         let actions = vec![
-            UtilityAction::new("swim")
-                .with_consideration("water", Curve::Step { threshold: 0.5 }),
-            UtilityAction::new("walk")
-                .with_consideration("water", Curve::Linear { slope: -1.0, intercept: 1.0 }),
+            UtilityAction::new("swim").with_consideration("water", Curve::Step { threshold: 0.5 }),
+            UtilityAction::new("walk").with_consideration(
+                "water",
+                Curve::Linear {
+                    slope: -1.0,
+                    intercept: 1.0,
+                },
+            ),
         ];
         let mut ws = WorldState::new();
         ws.set("water", 0.8);
@@ -487,10 +589,20 @@ mod tests {
     #[test]
     fn test_score_actions_ordering() {
         let actions = vec![
-            UtilityAction::new("low")
-                .with_consideration("x", Curve::Linear { slope: 0.2, intercept: 0.0 }),
-            UtilityAction::new("high")
-                .with_consideration("x", Curve::Linear { slope: 1.0, intercept: 0.0 }),
+            UtilityAction::new("low").with_consideration(
+                "x",
+                Curve::Linear {
+                    slope: 0.2,
+                    intercept: 0.0,
+                },
+            ),
+            UtilityAction::new("high").with_consideration(
+                "x",
+                Curve::Linear {
+                    slope: 1.0,
+                    intercept: 0.0,
+                },
+            ),
         ];
         let mut ws = WorldState::new();
         ws.set("x", 0.8);
@@ -500,7 +612,13 @@ mod tests {
 
     #[test]
     fn test_consideration_evaluate() {
-        let c = Consideration::new("hp", Curve::Linear { slope: 1.0, intercept: 0.0 });
+        let c = Consideration::new(
+            "hp",
+            Curve::Linear {
+                slope: 1.0,
+                intercept: 0.0,
+            },
+        );
         let mut ws = WorldState::new();
         ws.set("hp", 0.7);
         let score = c.evaluate(&ws);
@@ -509,7 +627,13 @@ mod tests {
 
     #[test]
     fn test_consideration_missing_input() {
-        let c = Consideration::new("missing", Curve::Linear { slope: 1.0, intercept: 0.0 });
+        let c = Consideration::new(
+            "missing",
+            Curve::Linear {
+                slope: 1.0,
+                intercept: 0.0,
+            },
+        );
         let ws = WorldState::new();
         let score = c.evaluate(&ws);
         assert!((score - 0.0).abs() < 1e-6); // defaults to 0

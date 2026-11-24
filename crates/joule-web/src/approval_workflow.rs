@@ -378,10 +378,7 @@ impl ApprovalEngine {
         let mut sorted_defs = step_defs;
         sorted_defs.sort_by_key(|s| s.order);
 
-        let steps: Vec<ApprovalStep> = sorted_defs
-            .into_iter()
-            .map(ApprovalStep::new)
-            .collect();
+        let steps: Vec<ApprovalStep> = sorted_defs.into_iter().map(ApprovalStep::new).collect();
 
         let wf = ApprovalWorkflow {
             id: id.clone(),
@@ -419,7 +416,9 @@ impl ApprovalEngine {
         // Find first step that passes routing condition.
         let attrs = wf.attributes.clone();
         for step in &mut wf.steps {
-            if step.status == StepStatus::Pending && evaluate_condition(&step.def.routing_condition, &attrs) {
+            if step.status == StepStatus::Pending
+                && evaluate_condition(&step.def.routing_condition, &attrs)
+            {
                 step.status = StepStatus::AwaitingVotes;
                 step.started_at = Some(now);
                 let step_id = step.def.id.clone();
@@ -478,9 +477,9 @@ impl ApprovalEngine {
         }
 
         if step.has_voted(approver_id) {
-            return Err(ApprovalError::AlreadyResolved(
-                format!("{approver_id} already voted on {step_id}"),
-            ));
+            return Err(ApprovalError::AlreadyResolved(format!(
+                "{approver_id} already voted on {step_id}"
+            )));
         }
 
         let now = Utc::now();
@@ -649,11 +648,7 @@ impl ApprovalEngine {
     }
 
     /// Cancel a workflow.
-    pub fn cancel_workflow(
-        &mut self,
-        workflow_id: &str,
-        actor: &str,
-    ) -> Result<(), ApprovalError> {
+    pub fn cancel_workflow(&mut self, workflow_id: &str, actor: &str) -> Result<(), ApprovalError> {
         let wf = self
             .workflows
             .get_mut(workflow_id)
@@ -763,18 +758,14 @@ fn evaluate_condition(condition: &RoutingCondition, attrs: &HashMap<String, Stri
         RoutingCondition::AttributeEquals { key, value } => {
             attrs.get(key).map_or(false, |v| v == value)
         }
-        RoutingCondition::AttributeGreaterThan { key, threshold } => {
-            attrs
-                .get(key)
-                .and_then(|v| v.parse::<i64>().ok())
-                .map_or(false, |v| v > *threshold)
-        }
-        RoutingCondition::AttributeLessThan { key, threshold } => {
-            attrs
-                .get(key)
-                .and_then(|v| v.parse::<i64>().ok())
-                .map_or(false, |v| v < *threshold)
-        }
+        RoutingCondition::AttributeGreaterThan { key, threshold } => attrs
+            .get(key)
+            .and_then(|v| v.parse::<i64>().ok())
+            .map_or(false, |v| v > *threshold),
+        RoutingCondition::AttributeLessThan { key, threshold } => attrs
+            .get(key)
+            .and_then(|v| v.parse::<i64>().ok())
+            .map_or(false, |v| v < *threshold),
         RoutingCondition::AttributePresent(key) => attrs.contains_key(key),
     }
 }
@@ -836,10 +827,22 @@ mod tests {
     fn test_duplicate_workflow() {
         let mut engine = ApprovalEngine::new();
         engine
-            .create_workflow("wf1", "A", "r", HashMap::new(), vec![step_def("s1", vec!["a"], 1)])
+            .create_workflow(
+                "wf1",
+                "A",
+                "r",
+                HashMap::new(),
+                vec![step_def("s1", vec!["a"], 1)],
+            )
             .unwrap();
         let err = engine
-            .create_workflow("wf1", "B", "r", HashMap::new(), vec![step_def("s2", vec!["b"], 1)])
+            .create_workflow(
+                "wf1",
+                "B",
+                "r",
+                HashMap::new(),
+                vec![step_def("s2", vec!["b"], 1)],
+            )
             .unwrap_err();
         assert_eq!(err, ApprovalError::DuplicateWorkflow("wf1".into()));
     }
@@ -877,7 +880,13 @@ mod tests {
     fn test_rejection_ends_workflow() {
         let mut engine = setup_engine();
         let result = engine
-            .cast_vote("wf1", "s1", "alice", VoteDecision::Reject, Some("no".into()))
+            .cast_vote(
+                "wf1",
+                "s1",
+                "alice",
+                VoteDecision::Reject,
+                Some("no".into()),
+            )
             .unwrap();
         assert_eq!(result, StepStatus::Rejected);
 

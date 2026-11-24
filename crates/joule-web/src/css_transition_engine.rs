@@ -188,13 +188,16 @@ impl TransitionManager {
                     } else {
                         old
                     };
-                    self.active.insert(property.to_string(), ActiveTransition {
-                        property: property.to_string(),
-                        from_value: from,
-                        to_value: value,
-                        start_time: current_time,
-                        config,
-                    });
+                    self.active.insert(
+                        property.to_string(),
+                        ActiveTransition {
+                            property: property.to_string(),
+                            from_value: from,
+                            to_value: value,
+                            start_time: current_time,
+                            config,
+                        },
+                    );
                 }
             }
         }
@@ -344,8 +347,7 @@ mod tests {
 
     #[test]
     fn active_transition_interpolates() {
-        let config = TransitionConfig::new("opacity", 1000.0)
-            .with_timing(TimingFunction::Linear);
+        let config = TransitionConfig::new("opacity", 1000.0).with_timing(TimingFunction::Linear);
         let t = ActiveTransition {
             property: "opacity".to_string(),
             from_value: 0.0,
@@ -379,8 +381,7 @@ mod tests {
     #[test]
     fn manager_starts_transition() {
         let mut mgr = TransitionManager::new();
-        mgr.configure(TransitionConfig::new("opacity", 1000.0)
-            .with_timing(TimingFunction::Linear));
+        mgr.configure(TransitionConfig::new("opacity", 1000.0).with_timing(TimingFunction::Linear));
 
         // Set initial value (no transition — first set)
         mgr.set_property("opacity", 0.0, 0.0);
@@ -395,8 +396,7 @@ mod tests {
     #[test]
     fn manager_tick_interpolates() {
         let mut mgr = TransitionManager::new();
-        mgr.configure(TransitionConfig::new("opacity", 1000.0)
-            .with_timing(TimingFunction::Linear));
+        mgr.configure(TransitionConfig::new("opacity", 1000.0).with_timing(TimingFunction::Linear));
         mgr.set_property("opacity", 0.0, 0.0);
         mgr.set_property("opacity", 1.0, 0.0);
 
@@ -408,8 +408,7 @@ mod tests {
     #[test]
     fn manager_emits_completion() {
         let mut mgr = TransitionManager::new();
-        mgr.configure(TransitionConfig::new("opacity", 100.0)
-            .with_timing(TimingFunction::Linear));
+        mgr.configure(TransitionConfig::new("opacity", 100.0).with_timing(TimingFunction::Linear));
         mgr.set_property("opacity", 0.0, 0.0);
         mgr.set_property("opacity", 1.0, 0.0);
 
@@ -435,8 +434,7 @@ mod tests {
     #[test]
     fn manager_override_transition() {
         let mut mgr = TransitionManager::new();
-        mgr.configure(TransitionConfig::new("left", 1000.0)
-            .with_timing(TimingFunction::Linear));
+        mgr.configure(TransitionConfig::new("left", 1000.0).with_timing(TimingFunction::Linear));
         mgr.set_property("left", 0.0, 0.0);
         mgr.set_property("left", 100.0, 0.0);
 

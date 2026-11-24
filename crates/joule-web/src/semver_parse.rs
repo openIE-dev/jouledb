@@ -87,33 +87,57 @@ impl Version {
             return Err(SemverError::InvalidVersion(input.to_string()));
         }
 
-        let major = parts[0].parse::<u64>()
+        let major = parts[0]
+            .parse::<u64>()
             .map_err(|_| SemverError::InvalidVersion(input.to_string()))?;
         let minor = if parts.len() > 1 {
-            parts[1].parse::<u64>().map_err(|_| SemverError::InvalidVersion(input.to_string()))?
-        } else { 0 };
+            parts[1]
+                .parse::<u64>()
+                .map_err(|_| SemverError::InvalidVersion(input.to_string()))?
+        } else {
+            0
+        };
         let patch = if parts.len() > 2 {
-            parts[2].parse::<u64>().map_err(|_| SemverError::InvalidVersion(input.to_string()))?
-        } else { 0 };
+            parts[2]
+                .parse::<u64>()
+                .map_err(|_| SemverError::InvalidVersion(input.to_string()))?
+        } else {
+            0
+        };
 
         let pre_release = if let Some(pre_str) = pre_release_str {
-            pre_str.split('.').map(|p| {
-                if let Ok(n) = p.parse::<u64>() {
-                    PreReleasePart::Numeric(n)
-                } else {
-                    PreReleasePart::Alpha(p.to_string())
-                }
-            }).collect()
+            pre_str
+                .split('.')
+                .map(|p| {
+                    if let Ok(n) = p.parse::<u64>() {
+                        PreReleasePart::Numeric(n)
+                    } else {
+                        PreReleasePart::Alpha(p.to_string())
+                    }
+                })
+                .collect()
         } else {
             Vec::new()
         };
 
-        Ok(Self { major, minor, patch, pre_release, build_metadata: build_meta })
+        Ok(Self {
+            major,
+            minor,
+            patch,
+            pre_release,
+            build_metadata: build_meta,
+        })
     }
 
     /// Create a version from major.minor.patch components.
     pub fn new(major: u64, minor: u64, patch: u64) -> Self {
-        Self { major, minor, patch, pre_release: Vec::new(), build_metadata: None }
+        Self {
+            major,
+            minor,
+            patch,
+            pre_release: Vec::new(),
+            build_metadata: None,
+        }
     }
 
     /// Is this a pre-release version?
@@ -161,10 +185,14 @@ impl PartialEq for Version {
 impl Ord for Version {
     fn cmp(&self, other: &Self) -> Ordering {
         // Major, minor, patch comparison
-        let core = self.major.cmp(&other.major)
+        let core = self
+            .major
+            .cmp(&other.major)
             .then(self.minor.cmp(&other.minor))
             .then(self.patch.cmp(&other.patch));
-        if core != Ordering::Equal { return core; }
+        if core != Ordering::Equal {
+            return core;
+        }
 
         // Pre-release: version without pre-release has HIGHER precedence
         match (self.pre_release.is_empty(), other.pre_release.is_empty()) {
@@ -174,7 +202,9 @@ impl Ord for Version {
             (false, false) => {
                 for (a, b) in self.pre_release.iter().zip(other.pre_release.iter()) {
                     let c = a.cmp(b);
-                    if c != Ordering::Equal { return c; }
+                    if c != Ordering::Equal {
+                        return c;
+                    }
                 }
                 self.pre_release.len().cmp(&other.pre_release.len())
             }
@@ -194,7 +224,9 @@ impl fmt::Display for Version {
         if !self.pre_release.is_empty() {
             write!(f, "-")?;
             for (i, part) in self.pre_release.iter().enumerate() {
-                if i > 0 { write!(f, ".")?; }
+                if i > 0 {
+                    write!(f, ".")?;
+                }
                 write!(f, "{}", part)?;
             }
         }
@@ -244,13 +276,17 @@ impl VersionRange {
 
         for group in or_groups {
             let group = group.trim();
-            if group.is_empty() { continue; }
+            if group.is_empty() {
+                continue;
+            }
             let parts = split_range_parts(group);
             let mut group_constraints = Vec::new();
 
             for part in parts {
                 let part = part.trim();
-                if part.is_empty() { continue; }
+                if part.is_empty() {
+                    continue;
+                }
                 let cs = parse_single_range(part)?;
                 group_constraints.extend(cs);
             }
@@ -265,10 +301,12 @@ impl VersionRange {
 
     /// Check if a version satisfies this range.
     pub fn satisfies(&self, version: &Version) -> bool {
-        if self.constraints.is_empty() { return true; }
-        self.constraints.iter().any(|group| {
-            group.iter().all(|c| c.matches(version))
-        })
+        if self.constraints.is_empty() {
+            return true;
+        }
+        self.constraints
+            .iter()
+            .any(|group| group.iter().all(|c| c.matches(version)))
     }
 }
 
@@ -336,16 +374,23 @@ fn parse_single_range(part: &str) -> Result<Vec<Constraint>, SemverError> {
 
 impl fmt::Display for VersionRange {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let groups: Vec<String> = self.constraints.iter().map(|g| {
-            let parts: Vec<String> = g.iter().map(|c| match c {
-                Constraint::Gte(v) => format!(">={}", v),
-                Constraint::Lte(v) => format!("<={}", v),
-                Constraint::Gt(v) => format!(">{}", v),
-                Constraint::Lt(v) => format!("<{}", v),
-                Constraint::Eq(v) => format!("={}", v),
-            }).collect();
-            parts.join(" ")
-        }).collect();
+        let groups: Vec<String> = self
+            .constraints
+            .iter()
+            .map(|g| {
+                let parts: Vec<String> = g
+                    .iter()
+                    .map(|c| match c {
+                        Constraint::Gte(v) => format!(">={}", v),
+                        Constraint::Lte(v) => format!("<={}", v),
+                        Constraint::Gt(v) => format!(">{}", v),
+                        Constraint::Lt(v) => format!("<{}", v),
+                        Constraint::Eq(v) => format!("={}", v),
+                    })
+                    .collect();
+                parts.join(" ")
+            })
+            .collect();
         write!(f, "{}", groups.join(" || "))
     }
 }
@@ -354,7 +399,8 @@ impl fmt::Display for VersionRange {
 
 /// Find the maximum version satisfying a range from a list.
 pub fn max_satisfying(versions: &[Version], range: &VersionRange) -> Option<Version> {
-    versions.iter()
+    versions
+        .iter()
         .filter(|v| range.satisfies(v))
         .max()
         .cloned()
@@ -362,7 +408,8 @@ pub fn max_satisfying(versions: &[Version], range: &VersionRange) -> Option<Vers
 
 /// Find the minimum version satisfying a range from a list.
 pub fn min_satisfying(versions: &[Version], range: &VersionRange) -> Option<Version> {
-    versions.iter()
+    versions
+        .iter()
         .filter(|v| range.satisfies(v))
         .min()
         .cloned()
@@ -517,7 +564,9 @@ mod tests {
     #[test]
     fn test_max_satisfying() {
         let versions: Vec<Version> = ["1.0.0", "1.1.0", "1.2.0", "2.0.0"]
-            .iter().map(|s| Version::parse(s).unwrap()).collect();
+            .iter()
+            .map(|s| Version::parse(s).unwrap())
+            .collect();
         let range = VersionRange::parse("^1.0.0").unwrap();
         let max = max_satisfying(&versions, &range).unwrap();
         assert_eq!(max, Version::parse("1.2.0").unwrap());
@@ -526,7 +575,9 @@ mod tests {
     #[test]
     fn test_min_satisfying() {
         let versions: Vec<Version> = ["1.0.0", "1.1.0", "2.0.0"]
-            .iter().map(|s| Version::parse(s).unwrap()).collect();
+            .iter()
+            .map(|s| Version::parse(s).unwrap())
+            .collect();
         let range = VersionRange::parse(">=1.1.0").unwrap();
         let min = min_satisfying(&versions, &range).unwrap();
         assert_eq!(min, Version::parse("1.1.0").unwrap());
@@ -535,7 +586,9 @@ mod tests {
     #[test]
     fn test_sort() {
         let mut versions: Vec<Version> = ["2.0.0", "1.0.0", "1.1.0", "1.0.0-alpha"]
-            .iter().map(|s| Version::parse(s).unwrap()).collect();
+            .iter()
+            .map(|s| Version::parse(s).unwrap())
+            .collect();
         sort_versions(&mut versions);
         assert_eq!(versions[0], Version::parse("1.0.0-alpha").unwrap());
         assert_eq!(versions[1], Version::parse("1.0.0").unwrap());

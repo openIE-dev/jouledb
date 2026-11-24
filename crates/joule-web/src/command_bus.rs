@@ -17,9 +17,15 @@ pub enum CommandBusError {
     /// Multiple handlers registered (only one allowed per type).
     DuplicateHandler(String),
     /// Command validation failed.
-    ValidationFailed { command_type: String, reason: String },
+    ValidationFailed {
+        command_type: String,
+        reason: String,
+    },
     /// Handler returned an error.
-    HandlerFailed { command_type: String, reason: String },
+    HandlerFailed {
+        command_type: String,
+        reason: String,
+    },
     /// Retry exhausted.
     RetryExhausted { command_type: String, attempts: u32 },
     /// Command not found.
@@ -35,14 +41,26 @@ impl std::fmt::Display for CommandBusError {
         match self {
             Self::NoHandler(t) => write!(f, "no handler for command type: {t}"),
             Self::DuplicateHandler(t) => write!(f, "duplicate handler for: {t}"),
-            Self::ValidationFailed { command_type, reason } => {
+            Self::ValidationFailed {
+                command_type,
+                reason,
+            } => {
                 write!(f, "validation failed for {command_type}: {reason}")
             }
-            Self::HandlerFailed { command_type, reason } => {
+            Self::HandlerFailed {
+                command_type,
+                reason,
+            } => {
                 write!(f, "handler failed for {command_type}: {reason}")
             }
-            Self::RetryExhausted { command_type, attempts } => {
-                write!(f, "retry exhausted for {command_type} after {attempts} attempts")
+            Self::RetryExhausted {
+                command_type,
+                attempts,
+            } => {
+                write!(
+                    f,
+                    "retry exhausted for {command_type} after {attempts} attempts"
+                )
             }
             Self::CommandNotFound(id) => write!(f, "command not found: {id}"),
             Self::MiddlewareRejected { middleware, reason } => {
@@ -612,9 +630,7 @@ mod tests {
         let mut bus = CommandBus::new();
         bus.register_handler("cmd", "ok").unwrap();
         bus.add_middleware(Middleware::validation("validator"));
-        bus.add_validation_rule(
-            ValidationRule::new("require_payload", "cmd").require_payload(),
-        );
+        bus.add_validation_rule(ValidationRule::new("require_payload", "cmd").require_payload());
         // Empty payload should fail.
         assert!(matches!(
             bus.dispatch(Command::new("c1", "cmd", "")),
@@ -642,9 +658,7 @@ mod tests {
         let mut bus = CommandBus::new();
         bus.register_handler("cmd", "ok").unwrap();
         bus.add_middleware(Middleware::validation("v"));
-        bus.add_validation_rule(
-            ValidationRule::new("meta", "cmd").require_meta("user_id"),
-        );
+        bus.add_validation_rule(ValidationRule::new("meta", "cmd").require_meta("user_id"));
         // Missing metadata.
         assert!(matches!(
             bus.dispatch(Command::new("c1", "cmd", "data")),
@@ -669,7 +683,8 @@ mod tests {
     #[test]
     fn test_retry_middleware() {
         let mut bus = CommandBus::new();
-        bus.register_failing_handler("cmd", "transient error").unwrap();
+        bus.register_failing_handler("cmd", "transient error")
+            .unwrap();
         bus.add_middleware(Middleware::retry("retrier", 3));
         let err = bus.dispatch(Command::new("c1", "cmd", "data")).unwrap_err();
         assert!(matches!(err, CommandBusError::HandlerFailed { .. }));

@@ -20,7 +20,12 @@ pub struct PopulationFreq {
 impl PopulationFreq {
     pub fn new(pop_id: usize, freq_a: f64, sample_size: usize) -> Self {
         let het_obs = 2.0 * freq_a * (1.0 - freq_a);
-        Self { pop_id, freq_a, sample_size, het_obs }
+        Self {
+            pop_id,
+            freq_a,
+            sample_size,
+            het_obs,
+        }
     }
 
     pub fn with_het_obs(mut self, het_obs: f64) -> Self {
@@ -136,8 +141,12 @@ impl FstEstimator {
 
         if valid.len() < 2 {
             return FstResult {
-                fst: 0.0, fis: 0.0, fit: 0.0,
-                method: self.method, n_pops: valid.len(), n_loci: 1,
+                fst: 0.0,
+                fis: 0.0,
+                fit: 0.0,
+                method: self.method,
+                n_pops: valid.len(),
+                n_loci: 1,
             };
         }
 
@@ -153,8 +162,12 @@ impl FstEstimator {
     pub fn estimate_multi_locus(&self, loci: &[Vec<PopulationFreq>]) -> FstResult {
         if loci.is_empty() {
             return FstResult {
-                fst: 0.0, fis: 0.0, fit: 0.0,
-                method: self.method, n_pops: 0, n_loci: 0,
+                fst: 0.0,
+                fis: 0.0,
+                fit: 0.0,
+                method: self.method,
+                n_pops: 0,
+                n_loci: 0,
             };
         }
 
@@ -221,23 +234,38 @@ impl FstEstimator {
         let n_bar = total_n / r;
 
         // n_c (sample size correction factor)
-        let sum_ni_sq: f64 = pops.iter().map(|p| {
-            let ni = p.sample_size as f64;
-            ni * ni
-        }).sum();
+        let sum_ni_sq: f64 = pops
+            .iter()
+            .map(|p| {
+                let ni = p.sample_size as f64;
+                ni * ni
+            })
+            .sum();
         let n_c = (total_n - sum_ni_sq / total_n) / (r - 1.0);
 
         // Weighted mean allele frequency
-        let p_bar: f64 = pops.iter().map(|p| p.sample_size as f64 * p.freq_a).sum::<f64>() / total_n;
+        let p_bar: f64 = pops
+            .iter()
+            .map(|p| p.sample_size as f64 * p.freq_a)
+            .sum::<f64>()
+            / total_n;
 
         // S^2 (sample variance)
-        let s_sq: f64 = pops.iter().map(|p| {
-            let ni = p.sample_size as f64;
-            ni * (p.freq_a - p_bar).powi(2)
-        }).sum::<f64>() / ((r - 1.0) * n_bar);
+        let s_sq: f64 = pops
+            .iter()
+            .map(|p| {
+                let ni = p.sample_size as f64;
+                ni * (p.freq_a - p_bar).powi(2)
+            })
+            .sum::<f64>()
+            / ((r - 1.0) * n_bar);
 
         // Mean observed het
-        let h_bar: f64 = pops.iter().map(|p| p.het_obs * p.sample_size as f64).sum::<f64>() / total_n;
+        let h_bar: f64 = pops
+            .iter()
+            .map(|p| p.het_obs * p.sample_size as f64)
+            .sum::<f64>()
+            / total_n;
 
         // Variance components a, b, c
         let p_bar_q_bar = p_bar * (1.0 - p_bar);
@@ -252,7 +280,11 @@ impl FstEstimator {
 
         let total = a + b + c;
         let fst = if total > 0.0 { a / total } else { 0.0 };
-        let fis = if (a + b) > 0.0 { 1.0 - c / (a.abs() + b) } else { 0.0 };
+        let fis = if (a + b) > 0.0 {
+            1.0 - c / (a.abs() + b)
+        } else {
+            0.0
+        };
         let fit = if total > 0.0 { 1.0 - c / total } else { 0.0 };
 
         FstResult {
@@ -271,7 +303,11 @@ impl FstEstimator {
 
         // Nei's Gst with sample size correction
         let ht_corr = ht + hs / (2.0 * n);
-        let gst = if ht_corr > 0.0 { (ht_corr - hs) / ht_corr } else { 0.0 };
+        let gst = if ht_corr > 0.0 {
+            (ht_corr - hs) / ht_corr
+        } else {
+            0.0
+        };
 
         let ho = self.mean_het_obs(pops);
         let fis = if hs > 0.0 { 1.0 - ho / hs } else { 0.0 };
@@ -297,10 +333,15 @@ impl FstEstimator {
         let n1 = pops[0].sample_size as f64;
         let n2 = pops[1].sample_size as f64;
 
-        let numerator = (p1 - p2).powi(2) - p1 * (1.0 - p1) / (n1 - 1.0) - p2 * (1.0 - p2) / (n2 - 1.0);
+        let numerator =
+            (p1 - p2).powi(2) - p1 * (1.0 - p1) / (n1 - 1.0) - p2 * (1.0 - p2) / (n2 - 1.0);
         let denominator = p1 * (1.0 - p2) + p2 * (1.0 - p1);
 
-        let fst = if denominator > 0.0 { numerator / denominator } else { 0.0 };
+        let fst = if denominator > 0.0 {
+            numerator / denominator
+        } else {
+            0.0
+        };
 
         FstResult {
             fst: fst.clamp(-1.0, 1.0),
@@ -318,7 +359,10 @@ impl FstEstimator {
         let total_n: f64 = pops.iter().map(|p| p.sample_size as f64).sum();
 
         let p_bar = if self.weighted {
-            pops.iter().map(|p| p.sample_size as f64 * p.freq_a).sum::<f64>() / total_n
+            pops.iter()
+                .map(|p| p.sample_size as f64 * p.freq_a)
+                .sum::<f64>()
+                / total_n
         } else {
             pops.iter().map(|p| p.freq_a).sum::<f64>() / pops.len() as f64
         };
@@ -372,14 +416,18 @@ pub fn fst_two_pops(p1: f64, p2: f64) -> f64 {
 
 /// Nm (number of migrants) from Fst: Nm ≈ (1 - Fst) / (4 * Fst).
 pub fn nm_from_fst(fst: f64) -> f64 {
-    if fst <= 0.0 || fst >= 1.0 { return 0.0; }
+    if fst <= 0.0 || fst >= 1.0 {
+        return 0.0;
+    }
     (1.0 - fst) / (4.0 * fst)
 }
 
 /// Jost's D differentiation measure.
 pub fn jost_d(ht: f64, hs: f64, n_pops: usize) -> f64 {
     let k = n_pops as f64;
-    if hs >= 1.0 { return 0.0; }
+    if hs >= 1.0 {
+        return 0.0;
+    }
     let d = ((ht - hs) / (1.0 - hs)) * (k / (k - 1.0));
     d.clamp(0.0, 1.0)
 }
@@ -478,8 +526,14 @@ mod tests {
     #[test]
     fn test_multi_locus() {
         let loci = vec![
-            vec![PopulationFreq::new(0, 0.8, 50), PopulationFreq::new(1, 0.2, 50)],
-            vec![PopulationFreq::new(0, 0.7, 50), PopulationFreq::new(1, 0.3, 50)],
+            vec![
+                PopulationFreq::new(0, 0.8, 50),
+                PopulationFreq::new(1, 0.2, 50),
+            ],
+            vec![
+                PopulationFreq::new(0, 0.7, 50),
+                PopulationFreq::new(1, 0.3, 50),
+            ],
         ];
         let est = FstEstimator::new().with_method(FstMethod::Wright);
         let result = est.estimate_multi_locus(&loci);
@@ -510,8 +564,12 @@ mod tests {
     #[test]
     fn test_fst_result_display() {
         let r = FstResult {
-            fst: 0.15, fis: 0.02, fit: 0.17,
-            method: FstMethod::WeirCockerham, n_pops: 3, n_loci: 10,
+            fst: 0.15,
+            fis: 0.02,
+            fit: 0.17,
+            method: FstMethod::WeirCockerham,
+            n_pops: 3,
+            n_loci: 10,
         };
         let s = format!("{}", r);
         assert!(s.contains("Weir-Cockerham"));

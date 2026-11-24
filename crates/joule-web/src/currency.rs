@@ -14,13 +14,19 @@ use std::str::FromStr;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CurrencyError {
     /// Cannot perform arithmetic on different currencies.
-    CurrencyMismatch { lhs: CurrencyCode, rhs: CurrencyCode },
+    CurrencyMismatch {
+        lhs: CurrencyCode,
+        rhs: CurrencyCode,
+    },
     /// Unknown currency code.
     UnknownCurrency(String),
     /// Failed to parse a money string.
     ParseError(String),
     /// No exchange rate available.
-    NoExchangeRate { from: CurrencyCode, to: CurrencyCode },
+    NoExchangeRate {
+        from: CurrencyCode,
+        to: CurrencyCode,
+    },
     /// Division by zero.
     DivisionByZero,
 }
@@ -48,9 +54,31 @@ impl std::error::Error for CurrencyError {}
 /// ISO 4217 currency codes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CurrencyCode {
-    USD, EUR, GBP, JPY, CNY, CHF, CAD, AUD, NZD, SGD,
-    HKD, KRW, INR, BRL, MXN, ZAR, SEK, NOK, DKK, PLN,
-    THB, TWD, TRY, AED, SAR,
+    USD,
+    EUR,
+    GBP,
+    JPY,
+    CNY,
+    CHF,
+    CAD,
+    AUD,
+    NZD,
+    SGD,
+    HKD,
+    KRW,
+    INR,
+    BRL,
+    MXN,
+    ZAR,
+    SEK,
+    NOK,
+    DKK,
+    PLN,
+    THB,
+    TWD,
+    TRY,
+    AED,
+    SAR,
 }
 
 impl CurrencyCode {
@@ -101,14 +129,30 @@ impl CurrencyCode {
     /// ISO code as a string.
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::USD => "USD", Self::EUR => "EUR", Self::GBP => "GBP",
-            Self::JPY => "JPY", Self::CNY => "CNY", Self::CHF => "CHF",
-            Self::CAD => "CAD", Self::AUD => "AUD", Self::NZD => "NZD",
-            Self::SGD => "SGD", Self::HKD => "HKD", Self::KRW => "KRW",
-            Self::INR => "INR", Self::BRL => "BRL", Self::MXN => "MXN",
-            Self::ZAR => "ZAR", Self::SEK => "SEK", Self::NOK => "NOK",
-            Self::DKK => "DKK", Self::PLN => "PLN", Self::THB => "THB",
-            Self::TWD => "TWD", Self::TRY => "TRY", Self::AED => "AED",
+            Self::USD => "USD",
+            Self::EUR => "EUR",
+            Self::GBP => "GBP",
+            Self::JPY => "JPY",
+            Self::CNY => "CNY",
+            Self::CHF => "CHF",
+            Self::CAD => "CAD",
+            Self::AUD => "AUD",
+            Self::NZD => "NZD",
+            Self::SGD => "SGD",
+            Self::HKD => "HKD",
+            Self::KRW => "KRW",
+            Self::INR => "INR",
+            Self::BRL => "BRL",
+            Self::MXN => "MXN",
+            Self::ZAR => "ZAR",
+            Self::SEK => "SEK",
+            Self::NOK => "NOK",
+            Self::DKK => "DKK",
+            Self::PLN => "PLN",
+            Self::THB => "THB",
+            Self::TWD => "TWD",
+            Self::TRY => "TRY",
+            Self::AED => "AED",
             Self::SAR => "SAR",
         }
     }
@@ -119,14 +163,30 @@ impl FromStr for CurrencyCode {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_uppercase().as_str() {
-            "USD" => Ok(Self::USD), "EUR" => Ok(Self::EUR), "GBP" => Ok(Self::GBP),
-            "JPY" => Ok(Self::JPY), "CNY" => Ok(Self::CNY), "CHF" => Ok(Self::CHF),
-            "CAD" => Ok(Self::CAD), "AUD" => Ok(Self::AUD), "NZD" => Ok(Self::NZD),
-            "SGD" => Ok(Self::SGD), "HKD" => Ok(Self::HKD), "KRW" => Ok(Self::KRW),
-            "INR" => Ok(Self::INR), "BRL" => Ok(Self::BRL), "MXN" => Ok(Self::MXN),
-            "ZAR" => Ok(Self::ZAR), "SEK" => Ok(Self::SEK), "NOK" => Ok(Self::NOK),
-            "DKK" => Ok(Self::DKK), "PLN" => Ok(Self::PLN), "THB" => Ok(Self::THB),
-            "TWD" => Ok(Self::TWD), "TRY" => Ok(Self::TRY), "AED" => Ok(Self::AED),
+            "USD" => Ok(Self::USD),
+            "EUR" => Ok(Self::EUR),
+            "GBP" => Ok(Self::GBP),
+            "JPY" => Ok(Self::JPY),
+            "CNY" => Ok(Self::CNY),
+            "CHF" => Ok(Self::CHF),
+            "CAD" => Ok(Self::CAD),
+            "AUD" => Ok(Self::AUD),
+            "NZD" => Ok(Self::NZD),
+            "SGD" => Ok(Self::SGD),
+            "HKD" => Ok(Self::HKD),
+            "KRW" => Ok(Self::KRW),
+            "INR" => Ok(Self::INR),
+            "BRL" => Ok(Self::BRL),
+            "MXN" => Ok(Self::MXN),
+            "ZAR" => Ok(Self::ZAR),
+            "SEK" => Ok(Self::SEK),
+            "NOK" => Ok(Self::NOK),
+            "DKK" => Ok(Self::DKK),
+            "PLN" => Ok(Self::PLN),
+            "THB" => Ok(Self::THB),
+            "TWD" => Ok(Self::TWD),
+            "TRY" => Ok(Self::TRY),
+            "AED" => Ok(Self::AED),
             "SAR" => Ok(Self::SAR),
             _ => Err(CurrencyError::UnknownCurrency(s.to_string())),
         }
@@ -151,7 +211,10 @@ pub struct Money {
 impl Money {
     /// Create money from minor units.
     pub fn new(amount_cents: i64, currency: CurrencyCode) -> Self {
-        Self { amount_cents, currency }
+        Self {
+            amount_cents,
+            currency,
+        }
     }
 
     /// Create money from a major-unit float (e.g. 12.50 USD).
@@ -173,7 +236,10 @@ impl Money {
                 rhs: other.currency,
             });
         }
-        Ok(Money::new(self.amount_cents + other.amount_cents, self.currency))
+        Ok(Money::new(
+            self.amount_cents + other.amount_cents,
+            self.currency,
+        ))
     }
 
     /// Subtract another Money value (same currency).
@@ -184,7 +250,10 @@ impl Money {
                 rhs: other.currency,
             });
         }
-        Ok(Money::new(self.amount_cents - other.amount_cents, self.currency))
+        Ok(Money::new(
+            self.amount_cents - other.amount_cents,
+            self.currency,
+        ))
     }
 
     /// Multiply by a scalar.
@@ -263,9 +332,9 @@ impl Money {
                 } else {
                     frac[..dp].to_string()
                 };
-                padded.parse().map_err(|_| {
-                    CurrencyError::ParseError(format!("invalid minor: {padded}"))
-                })?
+                padded
+                    .parse()
+                    .map_err(|_| CurrencyError::ParseError(format!("invalid minor: {padded}")))?
             } else {
                 0
             };
@@ -365,10 +434,12 @@ impl ExchangeRateTable {
         if money.currency == to {
             return Ok(money);
         }
-        let rate = self.get_rate(money.currency, to).ok_or(CurrencyError::NoExchangeRate {
-            from: money.currency,
-            to,
-        })?;
+        let rate = self
+            .get_rate(money.currency, to)
+            .ok_or(CurrencyError::NoExchangeRate {
+                from: money.currency,
+                to,
+            })?;
         // Convert through major units to handle different decimal places.
         let from_major = money.to_major();
         let to_major = from_major * rate;
@@ -524,12 +595,15 @@ mod tests {
     fn at_least_25_currencies() {
         // Verify the enum has at least 25 variants by parsing all codes.
         let codes = [
-            "USD", "EUR", "GBP", "JPY", "CNY", "CHF", "CAD", "AUD", "NZD", "SGD",
-            "HKD", "KRW", "INR", "BRL", "MXN", "ZAR", "SEK", "NOK", "DKK", "PLN",
-            "THB", "TWD", "TRY", "AED", "SAR",
+            "USD", "EUR", "GBP", "JPY", "CNY", "CHF", "CAD", "AUD", "NZD", "SGD", "HKD", "KRW",
+            "INR", "BRL", "MXN", "ZAR", "SEK", "NOK", "DKK", "PLN", "THB", "TWD", "TRY", "AED",
+            "SAR",
         ];
         for code in &codes {
-            assert!(code.parse::<CurrencyCode>().is_ok(), "failed to parse {code}");
+            assert!(
+                code.parse::<CurrencyCode>().is_ok(),
+                "failed to parse {code}"
+            );
         }
     }
 }

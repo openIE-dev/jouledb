@@ -579,7 +579,8 @@ impl LintEngine {
         let mut lines: Vec<String> = source.lines().map(|l| l.to_string()).collect();
 
         // Process fixes in reverse order to preserve line numbers.
-        let mut fixable: Vec<&Diagnostic> = diagnostics.iter().filter(|d| d.fix.is_some()).collect();
+        let mut fixable: Vec<&Diagnostic> =
+            diagnostics.iter().filter(|d| d.fix.is_some()).collect();
         fixable.sort_by(|a, b| b.line.cmp(&a.line));
 
         let mut removed_lines: HashSet<usize> = HashSet::new();
@@ -798,7 +799,10 @@ mod tests {
         let fixed = engine.auto_fix(source, &diags);
         // No trailing whitespace after fix.
         for line in fixed.lines() {
-            assert!(!line.ends_with(' '), "line still has trailing space: {line:?}");
+            assert!(
+                !line.ends_with(' '),
+                "line still has trailing space: {line:?}"
+            );
         }
     }
 

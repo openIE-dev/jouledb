@@ -427,8 +427,7 @@ mod tests {
 
         let make_node_engine = |expert_z: Vec<f32>| {
             let mut eng = JouleHarnessEngine::new(16, 16, 8 * 1024 * 1024).unwrap();
-            let mut t =
-                LittleBitSVFTensor::factorize("m::l0", &weights, 64, 32, 4, 6, 0).unwrap();
+            let mut t = LittleBitSVFTensor::factorize("m::l0", &weights, 64, 32, 4, 6, 0).unwrap();
             t.svf_experts.insert("robotics_grasp".into(), expert_z);
             eng.littlebit_tensors.insert("m::l0".into(), t);
             eng

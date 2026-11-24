@@ -428,10 +428,8 @@ pub fn detect_devices() -> Vec<AcceleratorDevice> {
     detect_gpus(&mut devices, &platform);
 
     // NPU detection — Apple Silicon reports ANE without a Linux device node.
-    let ane = joule_db_energy::apple_neural_engine_present(
-        std::env::consts::OS,
-        std::env::consts::ARCH,
-    );
+    let ane =
+        joule_db_energy::apple_neural_engine_present(std::env::consts::OS, std::env::consts::ARCH);
     if platform.npu_available || ane {
         detect_npus(&mut devices, &platform);
     }

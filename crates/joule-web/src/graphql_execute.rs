@@ -314,12 +314,8 @@ pub fn execute(schema: &Schema, query: &ExecutableQuery) -> GraphqlResponse {
                         .path
                         .iter()
                         .map(|seg| match seg {
-                            PathSegment::Field(name) => {
-                                serde_json::Value::String(name.clone())
-                            }
-                            PathSegment::Index(i) => {
-                                serde_json::Value::Number((*i).into())
-                            }
+                            PathSegment::Field(name) => serde_json::Value::String(name.clone()),
+                            PathSegment::Index(i) => serde_json::Value::Number((*i).into()),
                         })
                         .collect();
                     ResponseError {
@@ -393,10 +389,7 @@ fn resolve_selection_set(
                 Some(val) => val.clone(),
                 None => {
                     errors.push(ExecutionError {
-                        message: format!(
-                            "no resolver for {type_name}.{}",
-                            field.name
-                        ),
+                        message: format!("no resolver for {type_name}.{}", field.name),
                         path: field_path.clone(),
                     });
                     serde_json::Value::Null
@@ -406,7 +399,15 @@ fn resolve_selection_set(
 
         // If there are sub-fields, we need to resolve them
         let final_value = if !field.sub_fields.is_empty() {
-            resolve_nested(schema, type_name, &field.name, &resolved, &field.sub_fields, &field_path, errors)
+            resolve_nested(
+                schema,
+                type_name,
+                &field.name,
+                &resolved,
+                &field.sub_fields,
+                &field_path,
+                errors,
+            )
         } else {
             resolved
         };
@@ -561,10 +562,7 @@ pub fn qf_full(
     QueryField {
         alias: alias.map(|s| s.to_string()),
         name: name.to_string(),
-        arguments: args
-            .into_iter()
-            .map(|(k, v)| (k.to_string(), v))
-            .collect(),
+        arguments: args.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
         sub_fields,
     }
 }
@@ -584,9 +582,15 @@ mod tests {
                 field_with_args(
                     "user",
                     GqlType::Object("User".to_string()),
-                    vec![arg("id", GqlType::NonNull(Box::new(GqlType::Scalar(ScalarType::Id))))],
+                    vec![arg(
+                        "id",
+                        GqlType::NonNull(Box::new(GqlType::Scalar(ScalarType::Id))),
+                    )],
                 ),
-                field("users", GqlType::List(Box::new(GqlType::Object("User".to_string())))),
+                field(
+                    "users",
+                    GqlType::List(Box::new(GqlType::Object("User".to_string()))),
+                ),
                 field("hello", GqlType::Scalar(ScalarType::String)),
             ],
         });
@@ -594,7 +598,10 @@ mod tests {
         schema.add_object_type(ObjectTypeDef {
             name: "User".to_string(),
             fields: vec![
-                field("id", GqlType::NonNull(Box::new(GqlType::Scalar(ScalarType::Id)))),
+                field(
+                    "id",
+                    GqlType::NonNull(Box::new(GqlType::Scalar(ScalarType::Id))),
+                ),
                 field("name", GqlType::Scalar(ScalarType::String)),
                 field("email", GqlType::Scalar(ScalarType::String)),
                 field(
@@ -607,7 +614,10 @@ mod tests {
         schema.add_object_type(ObjectTypeDef {
             name: "Post".to_string(),
             fields: vec![
-                field("id", GqlType::NonNull(Box::new(GqlType::Scalar(ScalarType::Id)))),
+                field(
+                    "id",
+                    GqlType::NonNull(Box::new(GqlType::Scalar(ScalarType::Id))),
+                ),
                 field("title", GqlType::Scalar(ScalarType::String)),
             ],
         });
@@ -702,10 +712,7 @@ mod tests {
     #[test]
     fn execute_list_resolution() {
         let schema = make_user_schema();
-        let q = query(vec![qf_with_sub(
-            "users",
-            vec![qf("id"), qf("name")],
-        )]);
+        let q = query(vec![qf_with_sub("users", vec![qf("id"), qf("name")])]);
         let response = execute(&schema, &q);
         let data = response.data.unwrap();
         let users = data["users"].as_array().unwrap();
@@ -731,12 +738,7 @@ mod tests {
     #[test]
     fn execute_field_alias() {
         let schema = make_user_schema();
-        let q = query(vec![qf_full(
-            "hello",
-            Some("greeting"),
-            vec![],
-            vec![],
-        )]);
+        let q = query(vec![qf_full("hello", Some("greeting"), vec![], vec![])]);
         let response = execute(&schema, &q);
         let data = response.data.unwrap();
         assert_eq!(data["greeting"], "world");
@@ -767,10 +769,7 @@ mod tests {
         let mut schema = Schema::new("Query");
         schema.add_object_type(ObjectTypeDef {
             name: "Query".to_string(),
-            fields: vec![field(
-                "item",
-                GqlType::Object("Item".to_string()),
-            )],
+            fields: vec![field("item", GqlType::Object("Item".to_string()))],
         });
         schema.add_object_type(ObjectTypeDef {
             name: "Item".to_string(),
@@ -858,10 +857,7 @@ mod tests {
         let schema = make_user_schema();
         let q = query(vec![qf_with_sub(
             "users",
-            vec![
-                qf("name"),
-                qf_with_sub("posts", vec![qf("title")]),
-            ],
+            vec![qf("name"), qf_with_sub("posts", vec![qf("title")])],
         )]);
         let response = execute(&schema, &q);
         let data = response.data.unwrap();

@@ -25,12 +25,26 @@ pub struct DemGrid {
 
 impl DemGrid {
     pub fn new(rows: usize, cols: usize, cell_size: f64) -> Self {
-        Self { rows, cols, cell_size, nodata: NODATA, data: vec![NODATA; rows * cols] }
+        Self {
+            rows,
+            cols,
+            cell_size,
+            nodata: NODATA,
+            data: vec![NODATA; rows * cols],
+        }
     }
 
     pub fn from_data(rows: usize, cols: usize, cell_size: f64, data: Vec<f64>) -> Option<Self> {
-        if data.len() != rows * cols { return None; }
-        Some(Self { rows, cols, cell_size, nodata: NODATA, data })
+        if data.len() != rows * cols {
+            return None;
+        }
+        Some(Self {
+            rows,
+            cols,
+            cell_size,
+            nodata: NODATA,
+            data,
+        })
     }
 
     pub fn with_nodata(mut self, nodata: f64) -> Self {
@@ -80,14 +94,26 @@ impl DemGrid {
             self.get_clamped(ri + 1, ci),
             self.get_clamped(ri + 1, ci + 1),
         ];
-        if vals.iter().any(|v| self.is_nodata(*v)) { None } else { Some(vals) }
+        if vals.iter().any(|v| self.is_nodata(*v)) {
+            None
+        } else {
+            Some(vals)
+        }
     }
 }
 
 impl fmt::Display for DemGrid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let valid = self.data.iter().filter(|v| !self.is_nodata(**v)).count();
-        write!(f, "DemGrid({}x{}, cell={}, valid={}/{})", self.rows, self.cols, self.cell_size, valid, self.data.len())
+        write!(
+            f,
+            "DemGrid({}x{}, cell={}, valid={}/{})",
+            self.rows,
+            self.cols,
+            self.cell_size,
+            valid,
+            self.data.len()
+        )
     }
 }
 
@@ -154,7 +180,9 @@ pub fn aspect(dem: &DemGrid) -> DemGrid {
                     out.set(r, c, -1.0); // flat
                 } else {
                     let mut asp = dzdx.atan2(-dzdy) * RAD_TO_DEG;
-                    if asp < 0.0 { asp += 360.0; }
+                    if asp < 0.0 {
+                        asp += 360.0;
+                    }
                     out.set(r, c, asp);
                 }
             }
@@ -175,19 +203,36 @@ pub struct HillshadeConfig {
 
 impl Default for HillshadeConfig {
     fn default() -> Self {
-        Self { azimuth_deg: 315.0, altitude_deg: 45.0, z_factor: 1.0 }
+        Self {
+            azimuth_deg: 315.0,
+            altitude_deg: 45.0,
+            z_factor: 1.0,
+        }
     }
 }
 
 impl HillshadeConfig {
-    pub fn with_azimuth(mut self, deg: f64) -> Self { self.azimuth_deg = deg; self }
-    pub fn with_altitude(mut self, deg: f64) -> Self { self.altitude_deg = deg; self }
-    pub fn with_z_factor(mut self, z: f64) -> Self { self.z_factor = z; self }
+    pub fn with_azimuth(mut self, deg: f64) -> Self {
+        self.azimuth_deg = deg;
+        self
+    }
+    pub fn with_altitude(mut self, deg: f64) -> Self {
+        self.altitude_deg = deg;
+        self
+    }
+    pub fn with_z_factor(mut self, z: f64) -> Self {
+        self.z_factor = z;
+        self
+    }
 }
 
 impl fmt::Display for HillshadeConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Hillshade(az={}, alt={}, z={})", self.azimuth_deg, self.altitude_deg, self.z_factor)
+        write!(
+            f,
+            "Hillshade(az={}, alt={}, z={})",
+            self.azimuth_deg, self.altitude_deg, self.z_factor
+        )
     }
 }
 
@@ -202,10 +247,10 @@ pub fn hillshade(dem: &DemGrid, cfg: &HillshadeConfig) -> DemGrid {
     for r in 0..dem.rows {
         for c in 0..dem.cols {
             if let Some(n) = dem.neighborhood(r, c) {
-                let dzdx = ((n[2] + 2.0 * n[5] + n[8]) - (n[0] + 2.0 * n[3] + n[6]))
-                    / (8.0 * cs) * cfg.z_factor;
-                let dzdy = ((n[6] + 2.0 * n[7] + n[8]) - (n[0] + 2.0 * n[1] + n[2]))
-                    / (8.0 * cs) * cfg.z_factor;
+                let dzdx = ((n[2] + 2.0 * n[5] + n[8]) - (n[0] + 2.0 * n[3] + n[6])) / (8.0 * cs)
+                    * cfg.z_factor;
+                let dzdy = ((n[6] + 2.0 * n[7] + n[8]) - (n[0] + 2.0 * n[1] + n[2])) / (8.0 * cs)
+                    * cfg.z_factor;
                 let slope_rad = (dzdx * dzdx + dzdy * dzdy).sqrt().atan();
                 let aspect_rad = if dzdx.abs() < f64::EPSILON && dzdy.abs() < f64::EPSILON {
                     0.0
@@ -297,8 +342,12 @@ pub fn viewshed(dem: &DemGrid, obs_row: usize, obs_col: usize, eye_height: f64) 
 
     for r in 0..dem.rows {
         for c in 0..dem.cols {
-            if r == obs_row && c == obs_col { continue; }
-            if !dem.is_valid(r, c) { continue; }
+            if r == obs_row && c == obs_col {
+                continue;
+            }
+            if !dem.is_valid(r, c) {
+                continue;
+            }
 
             if line_of_sight(dem, obs_row, obs_col, obs_elev, r, c) {
                 vis.set(r, c, 1.0);
@@ -311,14 +360,14 @@ pub fn viewshed(dem: &DemGrid, obs_row: usize, obs_col: usize, eye_height: f64) 
 }
 
 /// Check line-of-sight between observer and target using Bresenham-like stepping.
-fn line_of_sight(
-    dem: &DemGrid, or: usize, oc: usize, obs_elev: f64, tr: usize, tc: usize,
-) -> bool {
+fn line_of_sight(dem: &DemGrid, or: usize, oc: usize, obs_elev: f64, tr: usize, tc: usize) -> bool {
     let dr = tr as f64 - or as f64;
     let dc = tc as f64 - oc as f64;
     let dist = (dr * dr + dc * dc).sqrt();
     let steps = dist.ceil() as usize;
-    if steps == 0 { return true; }
+    if steps == 0 {
+        return true;
+    }
 
     let target_elev = dem.get(tr, tc);
     let total_dist = dist * dem.cell_size;
@@ -329,13 +378,21 @@ fn line_of_sight(
         let frac = s as f64 / steps as f64;
         let sr = (or as f64 + dr * frac).round() as usize;
         let sc = (oc as f64 + dc * frac).round() as usize;
-        if sr >= dem.rows || sc >= dem.cols { continue; }
+        if sr >= dem.rows || sc >= dem.cols {
+            continue;
+        }
         let elev = dem.get(sr, sc);
-        if dem.is_nodata(elev) { continue; }
+        if dem.is_nodata(elev) {
+            continue;
+        }
         let d = (s as f64 / steps as f64) * total_dist;
-        if d.abs() < f64::EPSILON { continue; }
+        if d.abs() < f64::EPSILON {
+            continue;
+        }
         let angle = (elev - obs_elev) / d;
-        if angle > max_angle { max_angle = angle; }
+        if angle > max_angle {
+            max_angle = angle;
+        }
     }
 
     target_angle >= max_angle
@@ -376,11 +433,15 @@ mod tests {
 
     fn sloped_dem() -> DemGrid {
         // 3x3, elevations increase left to right
-        DemGrid::from_data(3, 3, 10.0, vec![
-            100.0, 110.0, 120.0,
-            100.0, 110.0, 120.0,
-            100.0, 110.0, 120.0,
-        ]).unwrap()
+        DemGrid::from_data(
+            3,
+            3,
+            10.0,
+            vec![
+                100.0, 110.0, 120.0, 100.0, 110.0, 120.0, 100.0, 110.0, 120.0,
+            ],
+        )
+        .unwrap()
     }
 
     #[test]
@@ -460,11 +521,13 @@ mod tests {
     #[test]
     fn test_curvature_concave() {
         // bowl shape: center is lower
-        let dem = DemGrid::from_data(3, 3, 10.0, vec![
-            20.0, 15.0, 20.0,
-            15.0, 10.0, 15.0,
-            20.0, 15.0, 20.0,
-        ]).unwrap();
+        let dem = DemGrid::from_data(
+            3,
+            3,
+            10.0,
+            vec![20.0, 15.0, 20.0, 15.0, 10.0, 15.0, 20.0, 15.0, 20.0],
+        )
+        .unwrap();
         let cp = curvature(&dem, CurvatureType::Profile);
         // center should have non-zero curvature
         assert!(cp.get(1, 1).abs() > 0.0 || true); // curvature present
@@ -507,11 +570,15 @@ mod tests {
 
     #[test]
     fn test_terrain_ruggedness_rough() {
-        let dem = DemGrid::from_data(3, 3, 10.0, vec![
-            100.0, 200.0, 100.0,
-            200.0, 150.0, 200.0,
-            100.0, 200.0, 100.0,
-        ]).unwrap();
+        let dem = DemGrid::from_data(
+            3,
+            3,
+            10.0,
+            vec![
+                100.0, 200.0, 100.0, 200.0, 150.0, 200.0, 100.0, 200.0, 100.0,
+            ],
+        )
+        .unwrap();
         let tri = terrain_ruggedness(&dem);
         assert!(tri.get(1, 1) > 0.0);
     }

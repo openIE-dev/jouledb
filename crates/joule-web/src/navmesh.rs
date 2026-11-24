@@ -5,8 +5,8 @@
 //! Replaces JavaScript navmesh libraries (navmesh, yuka NavMesh) with a
 //! pure-Rust navigation mesh for games and simulations.
 
-use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 
 // ── Vec2 ────────────────────────────────────────────────────────
 
@@ -20,24 +20,37 @@ pub struct Vec2 {
 impl Vec2 {
     pub const ZERO: Vec2 = Vec2 { x: 0.0, y: 0.0 };
 
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
 
-    pub fn length(&self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
+    pub fn length(&self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
 
     pub fn dist(&self, other: Vec2) -> f64 {
         ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
     }
 
     pub fn sub(&self, other: Vec2) -> Vec2 {
-        Vec2 { x: self.x - other.x, y: self.y - other.y }
+        Vec2 {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
     }
 
     pub fn add(&self, other: Vec2) -> Vec2 {
-        Vec2 { x: self.x + other.x, y: self.y + other.y }
+        Vec2 {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
     }
 
     pub fn scale(&self, s: f64) -> Vec2 {
-        Vec2 { x: self.x * s, y: self.y * s }
+        Vec2 {
+            x: self.x * s,
+            y: self.y * s,
+        }
     }
 
     pub fn cross(&self, other: Vec2) -> f64 {
@@ -219,15 +232,28 @@ impl NavMesh {
     /// Add a convex polygon to the mesh.
     pub fn add_polygon(&mut self, vertices: Vec<Vec2>, surface: SurfaceType) -> usize {
         let id = self.polygons.len();
-        self.polygons.push(NavPoly { id, vertices, surface });
+        self.polygons.push(NavPoly {
+            id,
+            vertices,
+            surface,
+        });
         id
     }
 
     /// Connect two polygons with a shared edge (portal).
     pub fn connect(&mut self, poly_a: usize, poly_b: usize, portal: Portal) {
-        self.adjacency.entry(poly_a).or_default().push((poly_b, portal));
-        let reverse_portal = Portal { left: portal.right, right: portal.left };
-        self.adjacency.entry(poly_b).or_default().push((poly_a, reverse_portal));
+        self.adjacency
+            .entry(poly_a)
+            .or_default()
+            .push((poly_b, portal));
+        let reverse_portal = Portal {
+            left: portal.right,
+            right: portal.left,
+        };
+        self.adjacency
+            .entry(poly_b)
+            .or_default()
+            .push((poly_a, reverse_portal));
     }
 
     /// Add an off-mesh link.
@@ -333,12 +359,16 @@ impl NavMesh {
             f_cost: f64,
         }
         impl PartialEq for Node {
-            fn eq(&self, other: &Self) -> bool { self.poly_id == other.poly_id }
+            fn eq(&self, other: &Self) -> bool {
+                self.poly_id == other.poly_id
+            }
         }
         impl Eq for Node {}
         impl Ord for Node {
             fn cmp(&self, other: &Self) -> Ordering {
-                other.f_cost.partial_cmp(&self.f_cost)
+                other
+                    .f_cost
+                    .partial_cmp(&self.f_cost)
                     .unwrap_or(Ordering::Equal)
                     .then_with(|| self.poly_id.cmp(&other.poly_id))
             }
@@ -356,7 +386,10 @@ impl NavMesh {
 
         g_cost.insert(start_poly, 0.0);
         let h = self.polygons[start_poly].centroid().dist(goal_centroid);
-        open.push(Node { poly_id: start_poly, f_cost: h });
+        open.push(Node {
+            poly_id: start_poly,
+            f_cost: h,
+        });
 
         while let Some(current) = open.pop() {
             if current.poly_id == goal_poly {
@@ -386,7 +419,10 @@ impl NavMesh {
                     g_cost.insert(neighbor, new_g);
                     came_from.insert(neighbor, current.poly_id);
                     let h = self.polygons[neighbor].centroid().dist(goal_centroid);
-                    open.push(Node { poly_id: neighbor, f_cost: new_g + h });
+                    open.push(Node {
+                        poly_id: neighbor,
+                        f_cost: new_g + h,
+                    });
                 }
             }
         }
@@ -527,7 +563,10 @@ pub fn navmesh_from_triangles(triangles: &[Triangle], surface: SurfaceType) -> N
             for ei in &edges_i {
                 for ej in &edges_j {
                     if edges_match(ei, ej) {
-                        let portal = Portal { left: ei.0, right: ei.1 };
+                        let portal = Portal {
+                            left: ei.0,
+                            right: ei.1,
+                        };
                         mesh.connect(i, j, portal);
                     }
                 }
@@ -546,8 +585,7 @@ fn triangle_edges(tri: &Triangle) -> [(Vec2, Vec2); 3] {
 /// Check if two edges match (same endpoints, either direction).
 fn edges_match(a: &(Vec2, Vec2), b: &(Vec2, Vec2)) -> bool {
     let eps = 1e-6;
-    (a.0.dist(b.0) < eps && a.1.dist(b.1) < eps)
-        || (a.0.dist(b.1) < eps && a.1.dist(b.0) < eps)
+    (a.0.dist(b.0) < eps && a.1.dist(b.1) < eps) || (a.0.dist(b.1) < eps && a.1.dist(b.0) < eps)
 }
 
 // ── Tests ───────────────────────────────────────────────────────
@@ -570,10 +608,14 @@ mod tests {
         // Two adjacent squares sharing edge at x=1
         mesh.add_polygon(square_poly(0.0, 0.0, 1.0), SurfaceType::Normal);
         mesh.add_polygon(square_poly(1.0, 0.0, 1.0), SurfaceType::Normal);
-        mesh.connect(0, 1, Portal {
-            left: Vec2::new(1.0, 0.0),
-            right: Vec2::new(1.0, 1.0),
-        });
+        mesh.connect(
+            0,
+            1,
+            Portal {
+                left: Vec2::new(1.0, 0.0),
+                right: Vec2::new(1.0, 1.0),
+            },
+        );
         mesh
     }
 
@@ -681,14 +723,22 @@ mod tests {
         mesh.add_polygon(square_poly(0.0, 0.0, 1.0), SurfaceType::Normal);
         mesh.add_polygon(square_poly(1.0, 0.0, 1.0), SurfaceType::Normal);
         mesh.add_polygon(square_poly(2.0, 0.0, 1.0), SurfaceType::Normal);
-        mesh.connect(0, 1, Portal {
-            left: Vec2::new(1.0, 0.0),
-            right: Vec2::new(1.0, 1.0),
-        });
-        mesh.connect(1, 2, Portal {
-            left: Vec2::new(2.0, 0.0),
-            right: Vec2::new(2.0, 1.0),
-        });
+        mesh.connect(
+            0,
+            1,
+            Portal {
+                left: Vec2::new(1.0, 0.0),
+                right: Vec2::new(1.0, 1.0),
+            },
+        );
+        mesh.connect(
+            1,
+            2,
+            Portal {
+                left: Vec2::new(2.0, 0.0),
+                right: Vec2::new(2.0, 1.0),
+            },
+        );
         let path = mesh.find_poly_path(Vec2::new(0.5, 0.5), Vec2::new(2.5, 0.5));
         assert_eq!(path, Some(vec![0, 1, 2]));
     }
@@ -696,11 +746,7 @@ mod tests {
     #[test]
     fn test_funnel_path_single_poly() {
         let mesh = build_two_square_mesh();
-        let path = mesh.funnel_path(
-            Vec2::new(0.2, 0.2),
-            Vec2::new(0.8, 0.8),
-            &[0],
-        );
+        let path = mesh.funnel_path(Vec2::new(0.2, 0.2), Vec2::new(0.8, 0.8), &[0]);
         assert_eq!(path.len(), 2);
     }
 
@@ -780,10 +826,14 @@ mod tests {
         let mut mesh = NavMesh::new();
         mesh.add_polygon(square_poly(0.0, 0.0, 1.0), SurfaceType::Normal);
         mesh.add_polygon(square_poly(1.0, 0.0, 1.0), SurfaceType::Swamp);
-        mesh.connect(0, 1, Portal {
-            left: Vec2::new(1.0, 0.0),
-            right: Vec2::new(1.0, 1.0),
-        });
+        mesh.connect(
+            0,
+            1,
+            Portal {
+                left: Vec2::new(1.0, 0.0),
+                right: Vec2::new(1.0, 1.0),
+            },
+        );
         let neighbors = mesh.neighbors(0);
         let swamp_cost = neighbors[0].1;
         // Swamp cost should be 3x the base distance

@@ -21,15 +21,9 @@ pub enum IrNode {
         right: Box<IrNode>,
     },
     /// Unary operation.
-    UnaryOp {
-        op: IrUnaryOp,
-        operand: Box<IrNode>,
-    },
+    UnaryOp { op: IrUnaryOp, operand: Box<IrNode> },
     /// Load from memory (base + offset).
-    Load {
-        base: Box<IrNode>,
-        offset: i64,
-    },
+    Load { base: Box<IrNode>, offset: i64 },
     /// Store to memory.
     Store {
         base: Box<IrNode>,
@@ -37,10 +31,7 @@ pub enum IrNode {
         value: Box<IrNode>,
     },
     /// Function call.
-    Call {
-        name: String,
-        args: Vec<IrNode>,
-    },
+    Call { name: String, args: Vec<IrNode> },
     /// Conditional branch.
     CondBranch {
         cond: Box<IrNode>,
@@ -185,7 +176,12 @@ pub struct SelectedInstr {
 
 impl SelectedInstr {
     /// Create a new selected instruction.
-    pub fn new(mnemonic: &str, dest: Option<TargetOperand>, sources: Vec<TargetOperand>, cost: u32) -> Self {
+    pub fn new(
+        mnemonic: &str,
+        dest: Option<TargetOperand>,
+        sources: Vec<TargetOperand>,
+        cost: u32,
+    ) -> Self {
         Self {
             mnemonic: mnemonic.to_string(),
             dest,
@@ -294,11 +290,30 @@ impl InstrPattern {
             (PatternKind::Jump, IrNode::Jump(_)) => true,
             (PatternKind::Return, IrNode::Return(_)) => true,
             (PatternKind::UnaryOp(puo), IrNode::UnaryOp { op, .. }) => puo == op,
-            (PatternKind::FusedMulAdd, IrNode::BinOp { op: IrBinOp::Add, left: _, right }) => {
-                matches!(**right, IrNode::BinOp { op: IrBinOp::Mul, .. })
+            (
+                PatternKind::FusedMulAdd,
+                IrNode::BinOp {
+                    op: IrBinOp::Add,
+                    left: _,
+                    right,
+                },
+            ) => {
+                matches!(
+                    **right,
+                    IrNode::BinOp {
+                        op: IrBinOp::Mul,
+                        ..
+                    }
+                )
             }
             (PatternKind::LoadIndexed, IrNode::Load { base, .. }) => {
-                matches!(**base, IrNode::BinOp { op: IrBinOp::Add, .. })
+                matches!(
+                    **base,
+                    IrNode::BinOp {
+                        op: IrBinOp::Add,
+                        ..
+                    }
+                )
             }
             _ => false,
         }
@@ -463,7 +478,9 @@ impl InstructionSelector {
 
     /// Look up the best pattern for a node, returning owned (name, cost, match_kind).
     fn lookup_pattern(&self, node: &IrNode) -> Option<(String, u32, PatternKind)> {
-        self.isa.best_match(node).map(|p| (p.name.clone(), p.cost, p.match_kind.clone()))
+        self.isa
+            .best_match(node)
+            .map(|p| (p.name.clone(), p.cost, p.match_kind.clone()))
     }
 
     /// Select instructions for a single IR tree.
@@ -474,7 +491,13 @@ impl InstructionSelector {
         match node {
             IrNode::IntConst(val) => {
                 let dest = self.fresh_reg();
-                self.emit("li", Some(TargetOperand::Register(dest)), vec![TargetOperand::Immediate(*val)], 1, "li");
+                self.emit(
+                    "li",
+                    Some(TargetOperand::Register(dest)),
+                    vec![TargetOperand::Immediate(*val)],
+                    1,
+                    "li",
+                );
                 Some(dest)
             }
 
@@ -485,12 +508,23 @@ impl InstructionSelector {
                 // FMA is checked structurally (not via best_match) because it
                 // spans two IR nodes and should be preferred over separate add+mul.
                 if *op == IrBinOp::Add {
-                    if let IrNode::BinOp { op: IrBinOp::Mul, left: ml, right: mr } = right.as_ref() {
+                    if let IrNode::BinOp {
+                        op: IrBinOp::Mul,
+                        left: ml,
+                        right: mr,
+                    } = right.as_ref()
+                    {
                         // Check whether the ISA has an fma pattern at all
-                        let has_fma = self.isa.patterns.iter()
+                        let has_fma = self
+                            .isa
+                            .patterns
+                            .iter()
                             .any(|p| p.match_kind == PatternKind::FusedMulAdd);
                         if has_fma {
-                            let fma_cost = self.isa.patterns.iter()
+                            let fma_cost = self
+                                .isa
+                                .patterns
+                                .iter()
                                 .find(|p| p.match_kind == PatternKind::FusedMulAdd)
                                 .map_or(2, |p| p.cost);
                             let ra = self.select_tree(left)?;
@@ -571,21 +605,31 @@ impl InstructionSelector {
                 self.emit(
                     "load",
                     Some(TargetOperand::Register(dest)),
-                    vec![TargetOperand::Memory { base: br, offset: *offset }],
+                    vec![TargetOperand::Memory {
+                        base: br,
+                        offset: *offset,
+                    }],
                     3,
                     "load",
                 );
                 Some(dest)
             }
 
-            IrNode::Store { base, offset, value } => {
+            IrNode::Store {
+                base,
+                offset,
+                value,
+            } => {
                 let br = self.select_tree(base)?;
                 let vr = self.select_tree(value)?;
                 self.emit(
                     "store",
                     None,
                     vec![
-                        TargetOperand::Memory { base: br, offset: *offset },
+                        TargetOperand::Memory {
+                            base: br,
+                            offset: *offset,
+                        },
                         TargetOperand::Register(vr),
                     ],
                     3,
@@ -604,11 +648,21 @@ impl InstructionSelector {
                 let dest = self.fresh_reg();
                 let mut sources = vec![TargetOperand::Label(name.clone())];
                 sources.extend(arg_regs);
-                self.emit("call", Some(TargetOperand::Register(dest)), sources, 5, "call");
+                self.emit(
+                    "call",
+                    Some(TargetOperand::Register(dest)),
+                    sources,
+                    5,
+                    "call",
+                );
                 Some(dest)
             }
 
-            IrNode::CondBranch { cond, true_label, false_label } => {
+            IrNode::CondBranch {
+                cond,
+                true_label,
+                false_label,
+            } => {
                 let cr = self.select_tree(cond)?;
                 self.emit(
                     "br",
@@ -625,7 +679,13 @@ impl InstructionSelector {
             }
 
             IrNode::Jump(label) => {
-                self.emit("jmp", None, vec![TargetOperand::Label(label.clone())], 1, "jmp");
+                self.emit(
+                    "jmp",
+                    None,
+                    vec![TargetOperand::Label(label.clone())],
+                    1,
+                    "jmp",
+                );
                 None
             }
 
@@ -647,8 +707,16 @@ impl InstructionSelector {
     }
 
     /// Emit a target instruction.
-    fn emit(&mut self, mnemonic: &str, dest: Option<TargetOperand>, sources: Vec<TargetOperand>, cost: u32, pattern_name: &str) {
-        self.output.push(SelectedInstr::new(mnemonic, dest, sources, cost));
+    fn emit(
+        &mut self,
+        mnemonic: &str,
+        dest: Option<TargetOperand>,
+        sources: Vec<TargetOperand>,
+        cost: u32,
+        pattern_name: &str,
+    ) {
+        self.output
+            .push(SelectedInstr::new(mnemonic, dest, sources, cost));
         self.stats.record_pattern(pattern_name, cost);
     }
 
@@ -790,10 +858,7 @@ mod tests {
         let isa = TargetIsa::simple_risc();
         let mut sel = InstructionSelector::new(isa);
         // a + (b * c)
-        let tree = make_add(
-            IrNode::Reg(0),
-            make_mul(IrNode::Reg(1), IrNode::Reg(2)),
-        );
+        let tree = make_add(IrNode::Reg(0), make_mul(IrNode::Reg(1), IrNode::Reg(2)));
         let instrs = sel.select_all(&[tree]);
         // Should use fma instead of mul + add
         let has_fma = instrs.iter().any(|i| i.mnemonic == "fma");
@@ -926,8 +991,18 @@ mod tests {
     #[test]
     fn test_lowering_rule_set() {
         let mut rules = LoweringRuleSet::new();
-        rules.add_rule(LoweringRule::new("add_rr", PatternKind::BinOp(IrBinOp::Add), 1, 1));
-        rules.add_rule(LoweringRule::new("add_ri", PatternKind::BinOpImm(IrBinOp::Add), 1, 1));
+        rules.add_rule(LoweringRule::new(
+            "add_rr",
+            PatternKind::BinOp(IrBinOp::Add),
+            1,
+            1,
+        ));
+        rules.add_rule(LoweringRule::new(
+            "add_ri",
+            PatternKind::BinOpImm(IrBinOp::Add),
+            1,
+            1,
+        ));
         assert_eq!(rules.len(), 2);
         assert!(!rules.is_empty());
         assert!(rules.best_rule(&PatternKind::BinOp(IrBinOp::Add)).is_some());
@@ -942,7 +1017,13 @@ mod tests {
             "[r1+8]"
         );
         assert_eq!(
-            format!("{}", TargetOperand::Memory { base: 1, offset: -4 }),
+            format!(
+                "{}",
+                TargetOperand::Memory {
+                    base: 1,
+                    offset: -4
+                }
+            ),
             "[r1-4]"
         );
     }

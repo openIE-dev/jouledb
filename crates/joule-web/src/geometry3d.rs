@@ -18,11 +18,31 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
-    pub const ONE: Self = Self { x: 1.0, y: 1.0, z: 1.0 };
-    pub const UP: Self = Self { x: 0.0, y: 1.0, z: 0.0 };
-    pub const RIGHT: Self = Self { x: 1.0, y: 0.0, z: 0.0 };
-    pub const FORWARD: Self = Self { x: 0.0, y: 0.0, z: -1.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub const ONE: Self = Self {
+        x: 1.0,
+        y: 1.0,
+        z: 1.0,
+    };
+    pub const UP: Self = Self {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    };
+    pub const RIGHT: Self = Self {
+        x: 1.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub const FORWARD: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: -1.0,
+    };
 
     pub const fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
@@ -50,7 +70,9 @@ impl Vec3 {
 
     pub fn normalize(self) -> Self {
         let len = self.length();
-        if len < EPS { return Self::ZERO; }
+        if len < EPS {
+            return Self::ZERO;
+        }
         self.scale(1.0 / len)
     }
 
@@ -84,23 +106,35 @@ impl Vec3 {
 
     pub fn project_onto(self, other: Self) -> Self {
         let d = other.dot(other);
-        if d < EPS { return Self::ZERO; }
+        if d < EPS {
+            return Self::ZERO;
+        }
         other.scale(self.dot(other) / d)
     }
 
     pub fn angle_between(self, other: Self) -> f64 {
         let d = self.dot(other);
         let len_prod = self.length() * other.length();
-        if len_prod < EPS { return 0.0; }
+        if len_prod < EPS {
+            return 0.0;
+        }
         (d / len_prod).clamp(-1.0, 1.0).acos()
     }
 
     pub fn component_min(self, other: Self) -> Self {
-        Self::new(self.x.min(other.x), self.y.min(other.y), self.z.min(other.z))
+        Self::new(
+            self.x.min(other.x),
+            self.y.min(other.y),
+            self.z.min(other.z),
+        )
     }
 
     pub fn component_max(self, other: Self) -> Self {
-        Self::new(self.x.max(other.x), self.y.max(other.y), self.z.max(other.z))
+        Self::new(
+            self.x.max(other.x),
+            self.y.max(other.y),
+            self.z.max(other.z),
+        )
     }
 
     pub fn approx_eq(self, other: Self, tol: f64) -> bool {
@@ -127,7 +161,10 @@ pub struct Ray {
 
 impl Ray {
     pub fn new(origin: Vec3, direction: Vec3) -> Self {
-        Self { origin, direction: direction.normalize() }
+        Self {
+            origin,
+            direction: direction.normalize(),
+        }
     }
 
     /// Point along the ray at parameter t.
@@ -160,13 +197,19 @@ impl Plane {
     /// Create from a normal and a point on the plane.
     pub fn from_normal_and_point(normal: Vec3, point: Vec3) -> Self {
         let n = normal.normalize();
-        Self { normal: n, d: n.dot(point) }
+        Self {
+            normal: n,
+            d: n.dot(point),
+        }
     }
 
     /// Create from three points (CCW winding = normal direction).
     pub fn from_points(a: Vec3, b: Vec3, c: Vec3) -> Self {
         let normal = b.sub(a).cross(c.sub(a)).normalize();
-        Self { normal, d: normal.dot(a) }
+        Self {
+            normal,
+            d: normal.dot(a),
+        }
     }
 
     /// Signed distance from a point to the plane.
@@ -191,11 +234,7 @@ impl Plane {
             return None;
         }
         let t = (self.d - self.normal.dot(ray.origin)) / denom;
-        if t >= -EPS {
-            Some(t)
-        } else {
-            None
-        }
+        if t >= -EPS { Some(t) } else { None }
     }
 }
 
@@ -210,7 +249,10 @@ pub struct Sphere {
 
 impl Sphere {
     pub fn new(center: Vec3, radius: f64) -> Self {
-        Self { center, radius: radius.abs() }
+        Self {
+            center,
+            radius: radius.abs(),
+        }
     }
 
     pub fn contains(&self, p: Vec3) -> bool {
@@ -294,21 +336,30 @@ impl Aabb {
     }
 
     pub fn contains(&self, p: Vec3) -> bool {
-        p.x >= self.min.x - EPS && p.x <= self.max.x + EPS
-            && p.y >= self.min.y - EPS && p.y <= self.max.y + EPS
-            && p.z >= self.min.z - EPS && p.z <= self.max.z + EPS
+        p.x >= self.min.x - EPS
+            && p.x <= self.max.x + EPS
+            && p.y >= self.min.y - EPS
+            && p.y <= self.max.y + EPS
+            && p.z >= self.min.z - EPS
+            && p.z <= self.max.z + EPS
     }
 
     /// Whether two AABBs overlap.
     pub fn intersects(&self, other: &Aabb) -> bool {
-        self.min.x <= other.max.x + EPS && self.max.x >= other.min.x - EPS
-            && self.min.y <= other.max.y + EPS && self.max.y >= other.min.y - EPS
-            && self.min.z <= other.max.z + EPS && self.max.z >= other.min.z - EPS
+        self.min.x <= other.max.x + EPS
+            && self.max.x >= other.min.x - EPS
+            && self.min.y <= other.max.y + EPS
+            && self.max.y >= other.min.y - EPS
+            && self.min.z <= other.max.z + EPS
+            && self.max.z >= other.min.z - EPS
     }
 
     /// Merge two AABBs.
     pub fn merge(&self, other: &Aabb) -> Self {
-        Self::new(self.min.component_min(other.min), self.max.component_max(other.max))
+        Self::new(
+            self.min.component_min(other.min),
+            self.max.component_max(other.max),
+        )
     }
 
     /// Expand to include a point.
@@ -421,21 +472,37 @@ impl Frustum {
 
     /// Whether a point is inside the frustum.
     pub fn contains_point(&self, p: Vec3) -> bool {
-        self.planes.iter().all(|plane| plane.signed_distance(p) >= -EPS)
+        self.planes
+            .iter()
+            .all(|plane| plane.signed_distance(p) >= -EPS)
     }
 
     /// Whether a sphere is at least partially inside the frustum.
     pub fn intersects_sphere(&self, sphere: &Sphere) -> bool {
-        self.planes.iter().all(|plane| plane.signed_distance(sphere.center) >= -sphere.radius - EPS)
+        self.planes
+            .iter()
+            .all(|plane| plane.signed_distance(sphere.center) >= -sphere.radius - EPS)
     }
 
     /// Whether an AABB is at least partially inside the frustum.
     pub fn intersects_aabb(&self, aabb: &Aabb) -> bool {
         for plane in &self.planes {
             // Test the positive vertex (farthest in normal direction)
-            let px = if plane.normal.x >= 0.0 { aabb.max.x } else { aabb.min.x };
-            let py = if plane.normal.y >= 0.0 { aabb.max.y } else { aabb.min.y };
-            let pz = if plane.normal.z >= 0.0 { aabb.max.z } else { aabb.min.z };
+            let px = if plane.normal.x >= 0.0 {
+                aabb.max.x
+            } else {
+                aabb.min.x
+            };
+            let py = if plane.normal.y >= 0.0 {
+                aabb.max.y
+            } else {
+                aabb.min.y
+            };
+            let pz = if plane.normal.z >= 0.0 {
+                aabb.max.z
+            } else {
+                aabb.min.z
+            };
             let p_vertex = Vec3::new(px, py, pz);
             if plane.signed_distance(p_vertex) < -EPS {
                 return false;
@@ -464,7 +531,8 @@ pub fn compute_vertex_normals(positions: &[Vec3], indices: &[usize]) -> Vec<Vec3
         let i0 = indices[t * 3];
         let i1 = indices[t * 3 + 1];
         let i2 = indices[t * 3 + 2];
-        let face_normal = positions[i1].sub(positions[i0])
+        let face_normal = positions[i1]
+            .sub(positions[i0])
             .cross(positions[i2].sub(positions[i0]));
         // Not normalized — magnitude encodes area weight
         normals[i0] = normals[i0].add(face_normal);

@@ -181,7 +181,11 @@ pub fn barycentric(p: &Point, a: &Point, b: &Point, c: &Point) -> Barycentric {
 
     let denom = d00 * d11 - d01 * d01;
     if denom.abs() < 1e-12 {
-        return Barycentric { u: 1.0, v: 0.0, w: 0.0 };
+        return Barycentric {
+            u: 1.0,
+            v: 0.0,
+            w: 0.0,
+        };
     }
 
     let v = (d11 * d20 - d01 * d21) / denom;
@@ -453,7 +457,11 @@ pub fn mesh_quality(points: &[Point], triangles: &[Triangle]) -> MeshQuality {
         let (circ_center, circ_r) = tp.circumcircle();
         let _ = circ_center;
         let in_r = tp.inradius();
-        let ar = if in_r > 1e-12 { circ_r / (2.0 * in_r) } else { f64::INFINITY };
+        let ar = if in_r > 1e-12 {
+            circ_r / (2.0 * in_r)
+        } else {
+            f64::INFINITY
+        };
         total_ar += ar;
 
         // Compute angles.
@@ -467,7 +475,11 @@ pub fn mesh_quality(points: &[Point], triangles: &[Triangle]) -> MeshQuality {
     let count = triangles.len();
     MeshQuality {
         triangle_count: count,
-        avg_aspect_ratio: if count > 0 { total_ar / count as f64 } else { 0.0 },
+        avg_aspect_ratio: if count > 0 {
+            total_ar / count as f64
+        } else {
+            0.0
+        },
         min_angle_deg: global_min_angle,
         max_angle_deg: global_max_angle,
         total_area,
@@ -694,9 +706,7 @@ mod tests {
         let tris = ear_clip(&poly);
         let total_area: f64 = tris
             .iter()
-            .map(|t| {
-                TrianglePoints::new(poly[t.a], poly[t.b], poly[t.c]).area()
-            })
+            .map(|t| TrianglePoints::new(poly[t.a], poly[t.b], poly[t.c]).area())
             .sum();
         assert!((total_area - 100.0).abs() < 1e-6);
     }

@@ -51,7 +51,6 @@ pub struct LiveIntelligence {
     centroid: Option<BinaryHV>,
 
     // === Acceleration metrics ===
-
     /// Total contrasts detected.
     pub contrasts_detected: u64,
     /// Total queries served from cache (zero-cost answers).
@@ -243,7 +242,10 @@ impl LiveIntelligence {
         answers.dedup_by(|a, b| a.0 == b.0);
 
         let answer_text = if answers.is_empty() {
-            format!("I haven't encountered enough about '{}' yet. Ask me after I've read more.", keywords.first().unwrap_or(&String::new()))
+            format!(
+                "I haven't encountered enough about '{}' yet. Ask me after I've read more.",
+                keywords.first().unwrap_or(&String::new())
+            )
         } else {
             answers
                 .iter()
@@ -339,9 +341,9 @@ impl LiveIntelligence {
 
     fn extract_keywords(&self, text: &str) -> Vec<String> {
         let stop_words = [
-            "what", "is", "a", "an", "the", "are", "how", "can", "does", "do",
-            "where", "why", "tell", "me", "about", "describe", "explain", "and",
-            "or", "of", "to", "in", "at", "on", "for", "with",
+            "what", "is", "a", "an", "the", "are", "how", "can", "does", "do", "where", "why",
+            "tell", "me", "about", "describe", "explain", "and", "or", "of", "to", "in", "at",
+            "on", "for", "with",
         ];
         text.to_lowercase()
             .split_whitespace()
@@ -487,9 +489,7 @@ mod tests {
         let mut li = LiveIntelligence::new();
         let result = li.ask("what is a dog?");
         // Empty system should say it needs more reading
-        assert!(
-            result.answer.contains("haven't encountered") || !result.candidates.is_empty()
-        );
+        assert!(result.answer.contains("haven't encountered") || !result.candidates.is_empty());
     }
 
     #[test]

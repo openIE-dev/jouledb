@@ -268,7 +268,10 @@ pub struct OrthogonalInit {
 
 impl OrthogonalInit {
     pub fn new() -> Self {
-        Self { gain: 1.0, seed: 42 }
+        Self {
+            gain: 1.0,
+            seed: 42,
+        }
     }
 
     pub fn with_gain(mut self, gain: f64) -> Self {
@@ -358,7 +361,11 @@ pub struct UniformInit {
 
 impl UniformInit {
     pub fn new(low: f64, high: f64) -> Self {
-        Self { low, high, seed: 42 }
+        Self {
+            low,
+            high,
+            seed: 42,
+        }
     }
 
     pub fn with_seed(mut self, seed: u64) -> Self {
@@ -374,7 +381,9 @@ impl UniformInit {
 
     pub fn initialize(&self, count: usize) -> Vec<f64> {
         let mut rng = Rng::new(self.seed);
-        (0..count).map(|_| rng.uniform(self.low, self.high)).collect()
+        (0..count)
+            .map(|_| rng.uniform(self.low, self.high))
+            .collect()
     }
 }
 
@@ -414,7 +423,9 @@ impl NormalInit {
 
     pub fn initialize(&self, count: usize) -> Vec<f64> {
         let mut rng = Rng::new(self.seed);
-        (0..count).map(|_| rng.normal(self.mean, self.std_dev)).collect()
+        (0..count)
+            .map(|_| rng.normal(self.mean, self.std_dev))
+            .collect()
     }
 }
 
@@ -652,8 +663,12 @@ mod tests {
 
     #[test]
     fn he_fan_out_mode() {
-        let fan_in = HeInit::new().with_fan_mode(FanMode::FanIn).initialize(100, 200);
-        let fan_out = HeInit::new().with_fan_mode(FanMode::FanOut).initialize(100, 200);
+        let fan_in = HeInit::new()
+            .with_fan_mode(FanMode::FanIn)
+            .initialize(100, 200);
+        let fan_out = HeInit::new()
+            .with_fan_mode(FanMode::FanOut)
+            .initialize(100, 200);
         let s_in = InitStats::compute(&fan_in);
         let s_out = InitStats::compute(&fan_out);
         // Fan-in (100) gives larger variance than fan-out (200)
@@ -681,7 +696,10 @@ mod tests {
         let weights = OrthogonalInit::new().with_seed(7).initialize(4, 4);
         // Check column norms ≈ 1.0
         for c in 0..4 {
-            let norm: f64 = (0..4).map(|r| weights[r * 4 + c].powi(2)).sum::<f64>().sqrt();
+            let norm: f64 = (0..4)
+                .map(|r| weights[r * 4 + c].powi(2))
+                .sum::<f64>()
+                .sqrt();
             assert!((norm - 1.0).abs() < 0.1, "column {c} norm = {norm}");
         }
     }

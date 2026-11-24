@@ -23,11 +23,17 @@ pub enum WebhookError {
     /// Delivery failed.
     DeliveryFailed { endpoint_id: String, reason: String },
     /// Max retries exceeded.
-    MaxRetriesExceeded { endpoint_id: String, delivery_id: String },
+    MaxRetriesExceeded {
+        endpoint_id: String,
+        delivery_id: String,
+    },
     /// Payload too large.
     PayloadTooLarge { size: usize, max: usize },
     /// Event type not subscribed.
-    EventNotSubscribed { endpoint_id: String, event_type: String },
+    EventNotSubscribed {
+        endpoint_id: String,
+        event_type: String,
+    },
     /// Invalid URL.
     InvalidUrl(String),
 }
@@ -38,16 +44,28 @@ impl std::fmt::Display for WebhookError {
             Self::EndpointNotFound(id) => write!(f, "endpoint not found: {id}"),
             Self::DuplicateEndpoint(id) => write!(f, "duplicate endpoint: {id}"),
             Self::SignatureInvalid => write!(f, "signature verification failed"),
-            Self::DeliveryFailed { endpoint_id, reason } => {
+            Self::DeliveryFailed {
+                endpoint_id,
+                reason,
+            } => {
                 write!(f, "delivery to {endpoint_id} failed: {reason}")
             }
-            Self::MaxRetriesExceeded { endpoint_id, delivery_id } => {
-                write!(f, "max retries exceeded for {endpoint_id} delivery {delivery_id}")
+            Self::MaxRetriesExceeded {
+                endpoint_id,
+                delivery_id,
+            } => {
+                write!(
+                    f,
+                    "max retries exceeded for {endpoint_id} delivery {delivery_id}"
+                )
             }
             Self::PayloadTooLarge { size, max } => {
                 write!(f, "payload too large: {size} bytes (max {max})")
             }
-            Self::EventNotSubscribed { endpoint_id, event_type } => {
+            Self::EventNotSubscribed {
+                endpoint_id,
+                event_type,
+            } => {
                 write!(f, "endpoint {endpoint_id} not subscribed to {event_type}")
             }
             Self::InvalidUrl(url) => write!(f, "invalid URL: {url}"),
@@ -99,7 +117,11 @@ pub fn verify_signature(secret: &str, payload: &str, signature: &str) -> bool {
     let expected = compute_signature(secret, payload);
     // Constant-time comparison (simplified).
     expected.len() == signature.len()
-        && expected.as_bytes().iter().zip(signature.as_bytes()).all(|(a, b)| a == b)
+        && expected
+            .as_bytes()
+            .iter()
+            .zip(signature.as_bytes())
+            .all(|(a, b)| a == b)
 }
 
 // ── Retry Policy ────────────────────────────────────────────────
@@ -177,18 +199,16 @@ impl PayloadTransform {
     pub fn apply(&self, payload: &HashMap<String, String>) -> HashMap<String, String> {
         match self {
             Self::Identity => payload.clone(),
-            Self::IncludeKeys(keys) => {
-                payload.iter()
-                    .filter(|(k, _)| keys.contains(k))
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect()
-            }
-            Self::ExcludeKeys(keys) => {
-                payload.iter()
-                    .filter(|(k, _)| !keys.contains(k))
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect()
-            }
+            Self::IncludeKeys(keys) => payload
+                .iter()
+                .filter(|(k, _)| keys.contains(k))
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            Self::ExcludeKeys(keys) => payload
+                .iter()
+                .filter(|(k, _)| !keys.contains(k))
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
             Self::Enrich(extra) => {
                 let mut result = payload.clone();
                 for (k, v) in extra {
@@ -220,11 +240,7 @@ pub struct Endpoint {
 }
 
 impl Endpoint {
-    pub fn new(
-        id: impl Into<String>,
-        url: impl Into<String>,
-        secret: impl Into<String>,
-    ) -> Self {
+    pub fn new(id: impl Into<String>, url: impl Into<String>, secret: impl Into<String>) -> Self {
         Self {
             id: id.into(),
             url: url.into(),
@@ -339,21 +355,29 @@ impl DeliveryLog {
     }
 
     pub fn for_event(&self, event_id: &str) -> Vec<&DeliveryAttempt> {
-        self.attempts.iter().filter(|a| a.event_id == event_id).collect()
+        self.attempts
+            .iter()
+            .filter(|a| a.event_id == event_id)
+            .collect()
     }
 
     pub fn for_endpoint(&self, endpoint_id: &str) -> Vec<&DeliveryAttempt> {
-        self.attempts.iter().filter(|a| a.endpoint_id == endpoint_id).collect()
+        self.attempts
+            .iter()
+            .filter(|a| a.endpoint_id == endpoint_id)
+            .collect()
     }
 
     pub fn failed_deliveries(&self) -> Vec<&DeliveryAttempt> {
-        self.attempts.iter()
+        self.attempts
+            .iter()
             .filter(|a| matches!(a.status, DeliveryStatus::Failed | DeliveryStatus::Exhausted))
             .collect()
     }
 
     pub fn pending_retries(&self) -> Vec<&DeliveryAttempt> {
-        self.attempts.iter()
+        self.attempts
+            .iter()
             .filter(|a| a.status == DeliveryStatus::Retrying)
             .collect()
     }
@@ -394,13 +418,16 @@ impl WebhookSystem {
 
     /// Remove an endpoint.
     pub fn remove_endpoint(&mut self, id: &str) -> Result<Endpoint, WebhookError> {
-        self.endpoints.remove(id)
+        self.endpoints
+            .remove(id)
             .ok_or_else(|| WebhookError::EndpointNotFound(id.to_string()))
     }
 
     /// Disable an endpoint.
     pub fn disable_endpoint(&mut self, id: &str) -> Result<(), WebhookError> {
-        let ep = self.endpoints.get_mut(id)
+        let ep = self
+            .endpoints
+            .get_mut(id)
             .ok_or_else(|| WebhookError::EndpointNotFound(id.to_string()))?;
         ep.status = EndpointStatus::Disabled;
         Ok(())
@@ -408,7 +435,9 @@ impl WebhookSystem {
 
     /// Enable an endpoint.
     pub fn enable_endpoint(&mut self, id: &str) -> Result<(), WebhookError> {
-        let ep = self.endpoints.get_mut(id)
+        let ep = self
+            .endpoints
+            .get_mut(id)
             .ok_or_else(|| WebhookError::EndpointNotFound(id.to_string()))?;
         ep.status = EndpointStatus::Active;
         ep.consecutive_failures = 0;
@@ -422,8 +451,11 @@ impl WebhookSystem {
 
     /// Prepare delivery for an event: returns the list of endpoint IDs that should receive it.
     pub fn prepare_delivery(&self, event: &WebhookEvent) -> Vec<String> {
-        self.endpoints.values()
-            .filter(|ep| ep.status == EndpointStatus::Active && ep.filter.matches(&event.event_type))
+        self.endpoints
+            .values()
+            .filter(|ep| {
+                ep.status == EndpointStatus::Active && ep.filter.matches(&event.event_type)
+            })
             .map(|ep| ep.id.clone())
             .collect()
     }
@@ -434,7 +466,9 @@ impl WebhookSystem {
         event: &WebhookEvent,
         endpoint_id: &str,
     ) -> Result<DeliveryAttempt, WebhookError> {
-        let ep = self.endpoints.get(endpoint_id)
+        let ep = self
+            .endpoints
+            .get(endpoint_id)
             .ok_or_else(|| WebhookError::EndpointNotFound(endpoint_id.to_string()))?;
 
         if !ep.filter.matches(&event.event_type) {
@@ -478,12 +512,7 @@ impl WebhookSystem {
     }
 
     /// Record a successful delivery.
-    pub fn record_success(
-        &mut self,
-        delivery_id: &str,
-        endpoint_id: &str,
-        status_code: u16,
-    ) {
+    pub fn record_success(&mut self, delivery_id: &str, endpoint_id: &str, status_code: u16) {
         if let Some(ep) = self.endpoints.get_mut(endpoint_id) {
             ep.record_success();
         }
@@ -652,7 +681,10 @@ mod tests {
     fn test_invalid_url() {
         let mut sys = WebhookSystem::new();
         let ep = Endpoint::new("ep-1", "not-a-url", "secret");
-        assert!(matches!(sys.register_endpoint(ep), Err(WebhookError::InvalidUrl(_))));
+        assert!(matches!(
+            sys.register_endpoint(ep),
+            Err(WebhookError::InvalidUrl(_))
+        ));
     }
 
     #[test]
@@ -669,7 +701,8 @@ mod tests {
     fn test_batch_delivery() {
         let mut sys = WebhookSystem::new();
         sys.register_endpoint(test_endpoint()).unwrap();
-        sys.register_endpoint(Endpoint::new("ep-2", "https://other.com/hook", "s2")).unwrap();
+        sys.register_endpoint(Endpoint::new("ep-2", "https://other.com/hook", "s2"))
+            .unwrap();
         let event = test_event();
         let deliveries = sys.batch_deliver(&event);
         assert_eq!(deliveries.len(), 2);
@@ -701,9 +734,12 @@ mod tests {
     fn test_delivery_exhausted() {
         let mut sys = WebhookSystem::new();
         sys.register_endpoint(
-            Endpoint::new("ep-1", "https://example.com/hook", "s")
-                .with_retry(RetryPolicy { max_attempts: 1, ..Default::default() }),
-        ).unwrap();
+            Endpoint::new("ep-1", "https://example.com/hook", "s").with_retry(RetryPolicy {
+                max_attempts: 1,
+                ..Default::default()
+            }),
+        )
+        .unwrap();
         let event = test_event();
         let delivery = sys.create_delivery(&event, "ep-1").unwrap();
         let next = sys.record_failure(&delivery.delivery_id, "ep-1", "error");
@@ -731,7 +767,8 @@ mod tests {
         sys.register_endpoint(
             Endpoint::new("ep-1", "https://example.com/hook", "s")
                 .with_filter(EventFilter::Types(vec!["user.created".into()])),
-        ).unwrap();
+        )
+        .unwrap();
         let event = test_event(); // order.created
         let err = sys.create_delivery(&event, "ep-1").unwrap_err();
         assert!(matches!(err, WebhookError::EventNotSubscribed { .. }));

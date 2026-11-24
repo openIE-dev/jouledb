@@ -75,9 +75,11 @@ pub fn decode(input: &str) -> Result<Vec<u8>, HexError> {
 /// Validate that a string is a valid hex encoding.
 pub fn is_valid(input: &str) -> bool {
     input.len() % 2 == 0
-        && input.bytes().all(|b| matches!(b,
-            b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F'
-        ))
+        && input.bytes().all(|b| {
+            matches!(b,
+                b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F'
+            )
+        })
 }
 
 // ── Hex Dump ─────────────────────────────────────────────────────────
@@ -194,17 +196,17 @@ pub fn parse_color(input: &str) -> Result<RgbColor, HexError> {
 
 /// Format an RGB color as #RRGGBB.
 pub fn format_color(color: &RgbColor) -> String {
-    format!(
-        "#{:02x}{:02x}{:02x}",
-        color.r, color.g, color.b
-    )
+    format!("#{:02x}{:02x}{:02x}", color.r, color.g, color.b)
 }
 
 // ── Hex to Integer ───────────────────────────────────────────────────
 
 /// Parse a hex string to u32.
 pub fn to_u32(input: &str) -> Result<u32, HexError> {
-    let s = input.strip_prefix("0x").or(input.strip_prefix("0X")).unwrap_or(input);
+    let s = input
+        .strip_prefix("0x")
+        .or(input.strip_prefix("0X"))
+        .unwrap_or(input);
     let mut result = 0u32;
     for (i, &b) in s.as_bytes().iter().enumerate() {
         let val = hex_val(b, i)?;
@@ -218,7 +220,10 @@ pub fn to_u32(input: &str) -> Result<u32, HexError> {
 
 /// Parse a hex string to u64.
 pub fn to_u64(input: &str) -> Result<u64, HexError> {
-    let s = input.strip_prefix("0x").or(input.strip_prefix("0X")).unwrap_or(input);
+    let s = input
+        .strip_prefix("0x")
+        .or(input.strip_prefix("0X"))
+        .unwrap_or(input);
     let mut result = 0u64;
     for (i, &b) in s.as_bytes().iter().enumerate() {
         let val = hex_val(b, i)?;
@@ -348,13 +353,27 @@ mod tests {
     #[test]
     fn parse_color_rrggbb() {
         let color = parse_color("#FF8040").unwrap();
-        assert_eq!(color, RgbColor { r: 255, g: 128, b: 64 });
+        assert_eq!(
+            color,
+            RgbColor {
+                r: 255,
+                g: 128,
+                b: 64
+            }
+        );
     }
 
     #[test]
     fn parse_color_rgb_shorthand() {
         let color = parse_color("#FAB").unwrap();
-        assert_eq!(color, RgbColor { r: 0xFF, g: 0xAA, b: 0xBB });
+        assert_eq!(
+            color,
+            RgbColor {
+                r: 0xFF,
+                g: 0xAA,
+                b: 0xBB
+            }
+        );
     }
 
     #[test]
@@ -365,7 +384,11 @@ mod tests {
 
     #[test]
     fn format_color_roundtrip() {
-        let color = RgbColor { r: 255, g: 128, b: 0 };
+        let color = RgbColor {
+            r: 255,
+            g: 128,
+            b: 0,
+        };
         let formatted = format_color(&color);
         assert_eq!(formatted, "#ff8000");
         let parsed = parse_color(&formatted).unwrap();

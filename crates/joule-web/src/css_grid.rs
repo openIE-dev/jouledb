@@ -60,7 +60,12 @@ pub struct GridTemplate {
 
 impl GridTemplate {
     pub fn new(columns: Vec<TrackSize>, rows: Vec<TrackSize>) -> Self {
-        Self { columns, rows, column_gap: 0.0, row_gap: 0.0 }
+        Self {
+            columns,
+            rows,
+            column_gap: 0.0,
+            row_gap: 0.0,
+        }
     }
 
     pub fn with_gap(mut self, column_gap: f64, row_gap: f64) -> Self {
@@ -84,12 +89,22 @@ pub struct GridItem {
 
 impl GridItem {
     pub fn new(col_start: usize, col_end: usize, row_start: usize, row_end: usize) -> Self {
-        Self { col_start, col_end, row_start, row_end }
+        Self {
+            col_start,
+            col_end,
+            row_start,
+            row_end,
+        }
     }
 
     /// Automatic placement — will be resolved later.
     pub fn auto_place() -> Self {
-        Self { col_start: 0, col_end: 0, row_start: 0, row_end: 0 }
+        Self {
+            col_start: 0,
+            col_end: 0,
+            row_start: 0,
+            row_end: 0,
+        }
     }
 
     fn is_auto(&self) -> bool {
@@ -146,7 +161,10 @@ pub fn resolve_tracks(tracks: &[TrackSize], available: f64, gap: f64) -> Vec<f64
     }
 
     // Pass 4: auto tracks share leftover after fr
-    let auto_count = tracks.iter().filter(|t| matches!(t, TrackSize::Auto)).count();
+    let auto_count = tracks
+        .iter()
+        .filter(|t| matches!(t, TrackSize::Auto))
+        .count();
     if auto_count > 0 && total_fr == 0.0 {
         let auto_share = remaining / auto_count as f64;
         for (i, track) in tracks.iter().enumerate() {
@@ -199,7 +217,12 @@ fn auto_place_items(items: &mut [GridItem], num_cols: usize, num_rows: usize) {
                 cursor_row += 1;
                 continue;
             }
-            if !occupied.get(cursor_row).and_then(|r| r.get(cursor_col)).copied().unwrap_or(true) {
+            if !occupied
+                .get(cursor_row)
+                .and_then(|r| r.get(cursor_col))
+                .copied()
+                .unwrap_or(true)
+            {
                 break;
             }
             cursor_col += 1;
@@ -304,11 +327,7 @@ mod tests {
 
     #[test]
     fn resolve_fr_tracks() {
-        let sizes = resolve_tracks(
-            &[TrackSize::Fr(1.0), TrackSize::Fr(2.0)],
-            300.0,
-            0.0,
-        );
+        let sizes = resolve_tracks(&[TrackSize::Fr(1.0), TrackSize::Fr(2.0)], 300.0, 0.0);
         assert!(approx(sizes[0], 100.0));
         assert!(approx(sizes[1], 200.0));
     }
@@ -316,7 +335,11 @@ mod tests {
     #[test]
     fn resolve_mixed_fixed_and_fr() {
         let sizes = resolve_tracks(
-            &[TrackSize::Fixed(100.0), TrackSize::Fr(1.0), TrackSize::Fr(1.0)],
+            &[
+                TrackSize::Fixed(100.0),
+                TrackSize::Fr(1.0),
+                TrackSize::Fr(1.0),
+            ],
             500.0,
             0.0,
         );
@@ -328,22 +351,14 @@ mod tests {
     #[test]
     fn resolve_with_gap() {
         // 2 columns, 10px gap → usable = 300 - 10 = 290
-        let sizes = resolve_tracks(
-            &[TrackSize::Fr(1.0), TrackSize::Fr(1.0)],
-            300.0,
-            10.0,
-        );
+        let sizes = resolve_tracks(&[TrackSize::Fr(1.0), TrackSize::Fr(1.0)], 300.0, 10.0);
         assert!(approx(sizes[0], 145.0));
         assert!(approx(sizes[1], 145.0));
     }
 
     #[test]
     fn resolve_auto_tracks() {
-        let sizes = resolve_tracks(
-            &[TrackSize::Auto, TrackSize::Auto],
-            200.0,
-            0.0,
-        );
+        let sizes = resolve_tracks(&[TrackSize::Auto, TrackSize::Auto], 200.0, 0.0);
         assert!(approx(sizes[0], 100.0));
         assert!(approx(sizes[1], 100.0));
     }
@@ -389,12 +404,10 @@ mod tests {
         let template = GridTemplate::new(
             vec![TrackSize::Fr(1.0), TrackSize::Fr(1.0)],
             vec![TrackSize::Fixed(50.0)],
-        ).with_gap(10.0, 0.0);
+        )
+        .with_gap(10.0, 0.0);
 
-        let items = vec![
-            GridItem::new(1, 2, 1, 2),
-            GridItem::new(2, 3, 1, 2),
-        ];
+        let items = vec![GridItem::new(1, 2, 1, 2), GridItem::new(2, 3, 1, 2)];
         let rects = layout(&template, &items, 210.0, 50.0);
         assert!(approx(rects[0].x, 0.0));
         assert!(approx(rects[0].width, 100.0));
@@ -444,7 +457,7 @@ mod tests {
         );
         let items = vec![
             GridItem::new(1, 2, 1, 2), // occupies (0,0)
-            GridItem::auto_place(),     // should go to (1,0) = col2, row1
+            GridItem::auto_place(),    // should go to (1,0) = col2, row1
         ];
         let rects = layout(&template, &items, 200.0, 100.0);
         assert!(approx(rects[1].x, 100.0));

@@ -2,9 +2,14 @@
 //!
 //! Additional combinators built on top of nom.
 
-
 #[cfg(not(feature = "std"))]
-use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use nom::{
     Parser,
     character::complete::multispace0,

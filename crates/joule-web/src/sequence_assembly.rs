@@ -45,13 +45,7 @@ pub struct Overlap {
 }
 
 impl Overlap {
-    pub fn new(
-        read_a: usize,
-        read_b: usize,
-        offset: usize,
-        length: usize,
-        identity: f64,
-    ) -> Self {
+    pub fn new(read_a: usize, read_b: usize, offset: usize, length: usize, identity: f64) -> Self {
         Self {
             read_a,
             read_b,
@@ -86,7 +80,12 @@ pub struct Contig {
 
 impl Contig {
     pub fn new(id: usize, sequence: Vec<u8>) -> Self {
-        Self { id, sequence, read_ids: Vec::new(), coverage: 0.0 }
+        Self {
+            id,
+            sequence,
+            read_ids: Vec::new(),
+            coverage: 0.0,
+        }
     }
 
     pub fn with_reads(mut self, reads: Vec<usize>) -> Self {
@@ -115,7 +114,10 @@ impl fmt::Display for Contig {
         write!(
             f,
             "Contig({}: {} bp, {} reads, {:.1}x cov)",
-            self.id, self.length(), self.num_reads(), self.coverage
+            self.id,
+            self.length(),
+            self.num_reads(),
+            self.coverage
         )
     }
 }
@@ -139,16 +141,25 @@ pub enum ScaffoldComponent {
 
 impl Scaffold {
     pub fn new(id: usize) -> Self {
-        Self { id, components: Vec::new(), total_length: 0 }
+        Self {
+            id,
+            components: Vec::new(),
+            total_length: 0,
+        }
     }
 
     pub fn add_contig(&mut self, contig_id: usize, length: usize, reversed: bool) {
-        self.components.push(ScaffoldComponent::Contig { contig_id, reversed });
+        self.components.push(ScaffoldComponent::Contig {
+            contig_id,
+            reversed,
+        });
         self.total_length += length;
     }
 
     pub fn add_gap(&mut self, size: usize) {
-        self.components.push(ScaffoldComponent::Gap { estimated_size: size });
+        self.components.push(ScaffoldComponent::Gap {
+            estimated_size: size,
+        });
         self.total_length += size;
     }
 
@@ -166,7 +177,9 @@ impl fmt::Display for Scaffold {
         write!(
             f,
             "Scaffold({}: {} bp, {} contigs)",
-            self.id, self.total_length, self.num_contigs()
+            self.id,
+            self.total_length,
+            self.num_contigs()
         )
     }
 }
@@ -194,15 +207,32 @@ impl AssemblyConfig {
         }
     }
 
-    pub fn with_min_overlap(mut self, m: usize) -> Self { self.min_overlap = m; self }
-    pub fn with_min_identity(mut self, i: f64) -> Self { self.min_identity = i; self }
-    pub fn with_max_overhang(mut self, o: usize) -> Self { self.max_overhang = o; self }
-    pub fn with_min_contig_length(mut self, l: usize) -> Self { self.min_contig_length = l; self }
-    pub fn with_scaffold_gap_size(mut self, g: usize) -> Self { self.scaffold_gap_size = g; self }
+    pub fn with_min_overlap(mut self, m: usize) -> Self {
+        self.min_overlap = m;
+        self
+    }
+    pub fn with_min_identity(mut self, i: f64) -> Self {
+        self.min_identity = i;
+        self
+    }
+    pub fn with_max_overhang(mut self, o: usize) -> Self {
+        self.max_overhang = o;
+        self
+    }
+    pub fn with_min_contig_length(mut self, l: usize) -> Self {
+        self.min_contig_length = l;
+        self
+    }
+    pub fn with_scaffold_gap_size(mut self, g: usize) -> Self {
+        self.scaffold_gap_size = g;
+        self
+    }
 }
 
 impl Default for AssemblyConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for AssemblyConfig {
@@ -245,8 +275,11 @@ impl fmt::Display for AssemblyResult {
         write!(
             f,
             "Assembly({} contigs, N50={}, total={} bp, {} reads, {} overlaps)",
-            self.num_contigs(), self.n50, self.total_length,
-            self.num_reads, self.num_overlaps
+            self.num_contigs(),
+            self.n50,
+            self.total_length,
+            self.num_reads,
+            self.num_overlaps
         )
     }
 }
@@ -265,7 +298,10 @@ impl OverlapGraph {
         for i in 0..num_reads {
             in_degree.insert(i, 0);
         }
-        Self { edges: HashMap::new(), in_degree }
+        Self {
+            edges: HashMap::new(),
+            in_degree,
+        }
     }
 
     fn add_edge(&mut self, from: usize, to: usize, overlap_len: usize) {
@@ -434,7 +470,9 @@ impl SequenceAssembler {
             if seq.len() >= self.config.min_contig_length {
                 let cov = read_ids.len() as f64;
                 contigs.push(
-                    Contig::new(cid, seq).with_reads(read_ids).with_coverage(cov),
+                    Contig::new(cid, seq)
+                        .with_reads(read_ids)
+                        .with_coverage(cov),
                 );
             }
         }
@@ -550,7 +588,9 @@ mod tests {
     #[test]
     fn no_overlaps_err() {
         let asm = SequenceAssembler::new(
-            AssemblyConfig::new().with_min_overlap(100).with_min_contig_length(1),
+            AssemblyConfig::new()
+                .with_min_overlap(100)
+                .with_min_contig_length(1),
         );
         let r1 = b"AAAA";
         let r2 = b"CCCC";

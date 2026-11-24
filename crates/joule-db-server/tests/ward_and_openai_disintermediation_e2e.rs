@@ -9,9 +9,7 @@ use axum::{
 use base64::Engine;
 use joule_db_energy::{
     ThermalState,
-    fabric::{
-        FabricNodeClass, FabricNodeDescriptor, InterconnectKind, MemoryBusKind, SiliconLane,
-    },
+    fabric::{FabricNodeClass, FabricNodeDescriptor, InterconnectKind, MemoryBusKind, SiliconLane},
 };
 use joule_db_server::{Server, ServerConfig};
 use serde_json::{Value as JsonValue, json};
@@ -345,11 +343,18 @@ async fn test_cross_fabric_heterogeneous_6rail_energy_accounting_e2e() {
     let hops = hop_ok["receipt"]["energy_trace"]["hops"]
         .as_array()
         .expect("hops");
-    assert_eq!(hops.len(), 2, "expected ingress wire hop + remote execution hop");
+    assert_eq!(
+        hops.len(),
+        2,
+        "expected ingress wire hop + remote execution hop"
+    );
     let agg_wire_nj = hop_ok["receipt"]["energy_trace"]["aggregate_rails"]["network_wire_nj"]
         .as_u64()
         .unwrap_or(0);
-    assert!(agg_wire_nj >= 50, "expected positive network_wire_nj across fabric");
+    assert!(
+        agg_wire_nj >= 50,
+        "expected positive network_wire_nj across fabric"
+    );
 
     // 3. Also route OpenAI `/v1/chat/completions` across the compute fabric onto `hydro-peer-01`!
     let (status, chat_hop) = post_json(
@@ -530,5 +535,10 @@ async fn test_openai_and_ollama_drop_in_disintermediation_with_4tier_cascade_e2e
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(ollama_gen["done"], true);
-    assert!(ollama_gen["response"].as_str().unwrap_or("").contains("JouleSynapse"));
+    assert!(
+        ollama_gen["response"]
+            .as_str()
+            .unwrap_or("")
+            .contains("JouleSynapse")
+    );
 }

@@ -107,11 +107,19 @@ impl ElementBuilder {
     }
 
     pub fn disabled(self, b: bool) -> Self {
-        if b { self.attr("disabled", "true") } else { self }
+        if b {
+            self.attr("disabled", "true")
+        } else {
+            self
+        }
     }
 
     pub fn checked(self, b: bool) -> Self {
-        if b { self.attr("checked", "true") } else { self }
+        if b {
+            self.attr("checked", "true")
+        } else {
+            self
+        }
     }
 
     pub fn value(self, v: &str) -> Self {
@@ -283,7 +291,10 @@ mod tests {
         let link: VNode = a().href("https://example.com").build();
         match link {
             VNode::Element { attrs, .. } => {
-                assert_eq!(attrs.get("href").map(String::as_str), Some("https://example.com"));
+                assert_eq!(
+                    attrs.get("href").map(String::as_str),
+                    Some("https://example.com")
+                );
             }
             _ => panic!("expected element"),
         }
@@ -353,11 +364,17 @@ mod tests {
 
     #[test]
     fn input_with_type_and_placeholder() {
-        let node = input().type_("email").placeholder("you@example.com").build();
+        let node = input()
+            .type_("email")
+            .placeholder("you@example.com")
+            .build();
         match node {
             VNode::Element { attrs, .. } => {
                 assert_eq!(attrs.get("type").map(String::as_str), Some("email"));
-                assert_eq!(attrs.get("placeholder").map(String::as_str), Some("you@example.com"));
+                assert_eq!(
+                    attrs.get("placeholder").map(String::as_str),
+                    Some("you@example.com")
+                );
             }
             _ => panic!("expected element"),
         }

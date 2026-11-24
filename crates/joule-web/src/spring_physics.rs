@@ -10,24 +10,62 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0 } }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y } }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y }
-    pub fn cross(self, o: Self) -> f64 { self.x * o.y - self.y * o.x }
-    pub fn length(self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
-    pub fn length_sq(self) -> f64 { self.x * self.x + self.y * self.y }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+    pub fn zero() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+        }
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y
+    }
+    pub fn cross(self, o: Self) -> f64 {
+        self.x * o.y - self.y * o.x
+    }
+    pub fn length(self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+    pub fn length_sq(self) -> f64 {
+        self.x * self.x + self.y * self.y
+    }
     pub fn normalized(self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { Self { x: self.x / len, y: self.y / len } }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+            }
+        }
     }
-    pub fn distance(self, o: Self) -> f64 { self.sub(o).length() }
+    pub fn distance(self, o: Self) -> f64 {
+        self.sub(o).length()
+    }
 }
 
 impl Default for Vec2 {
-    fn default() -> Self { Self::zero() }
+    fn default() -> Self {
+        Self::zero()
+    }
 }
 
 // ── VerletParticle ───────────────────────────────────────────
@@ -85,7 +123,9 @@ impl VerletParticle {
 
     /// Apply a force (accumulated as acceleration).
     pub fn apply_force(&mut self, force: Vec2) {
-        if self.pinned { return; }
+        if self.pinned {
+            return;
+        }
         self.acceleration = self.acceleration.add(force.scale(self.inv_mass));
     }
 
@@ -98,7 +138,10 @@ impl VerletParticle {
             return;
         }
 
-        let vel = self.position.sub(self.prev_position).scale(1.0 - self.damping);
+        let vel = self
+            .position
+            .sub(self.prev_position)
+            .scale(1.0 - self.damping);
         let new_pos = self.position.add(vel).add(self.acceleration.scale(dt * dt));
         self.prev_position = self.position;
         self.position = new_pos;
@@ -107,7 +150,9 @@ impl VerletParticle {
 
     /// Current velocity estimate.
     pub fn velocity(&self, dt: f64) -> Vec2 {
-        if dt < 1e-12 { return Vec2::zero(); }
+        if dt < 1e-12 {
+            return Vec2::zero();
+        }
         self.position.sub(self.prev_position).scale(1.0 / dt)
     }
 }
@@ -131,7 +176,13 @@ pub struct Spring {
 
 impl Spring {
     pub fn new(a: usize, b: usize, rest_length: f64, stiffness: f64) -> Self {
-        Self { a, b, rest_length, stiffness, damping: 0.0 }
+        Self {
+            a,
+            b,
+            rest_length,
+            stiffness,
+            damping: 0.0,
+        }
     }
 
     pub fn with_damping(mut self, damping: f64) -> Self {
@@ -141,7 +192,13 @@ impl Spring {
 
     /// Compute Hooke's law force for this spring.
     /// Returns (force_on_a, force_on_b).
-    pub fn compute_force(&self, pos_a: Vec2, pos_b: Vec2, vel_a: Vec2, vel_b: Vec2) -> (Vec2, Vec2) {
+    pub fn compute_force(
+        &self,
+        pos_a: Vec2,
+        pos_b: Vec2,
+        vel_a: Vec2,
+        vel_b: Vec2,
+    ) -> (Vec2, Vec2) {
         let delta = pos_b.sub(pos_a);
         let dist = delta.length();
         if dist < 1e-12 {
@@ -178,7 +235,12 @@ pub struct DistanceConstraint {
 
 impl DistanceConstraint {
     pub fn new(a: usize, b: usize, rest_length: f64) -> Self {
-        Self { a, b, rest_length, stiffness: 1.0 }
+        Self {
+            a,
+            b,
+            rest_length,
+            stiffness: 1.0,
+        }
     }
 
     pub fn with_stiffness(mut self, stiffness: f64) -> Self {
@@ -190,15 +252,27 @@ impl DistanceConstraint {
     pub fn solve(&self, particles: &mut [VerletParticle]) {
         let pos_a = particles[self.a].position;
         let pos_b = particles[self.b].position;
-        let inv_ma = if particles[self.a].pinned { 0.0 } else { particles[self.a].inv_mass };
-        let inv_mb = if particles[self.b].pinned { 0.0 } else { particles[self.b].inv_mass };
+        let inv_ma = if particles[self.a].pinned {
+            0.0
+        } else {
+            particles[self.a].inv_mass
+        };
+        let inv_mb = if particles[self.b].pinned {
+            0.0
+        } else {
+            particles[self.b].inv_mass
+        };
 
         let total_inv = inv_ma + inv_mb;
-        if total_inv < 1e-12 { return; }
+        if total_inv < 1e-12 {
+            return;
+        }
 
         let delta = pos_b.sub(pos_a);
         let dist = delta.length();
-        if dist < 1e-12 { return; }
+        if dist < 1e-12 {
+            return;
+        }
 
         let diff = (dist - self.rest_length) / dist;
         let correction = delta.scale(diff * self.stiffness / total_inv);
@@ -246,15 +320,20 @@ impl SpringSystem {
 
     /// Add a spring between two particles.
     pub fn add_spring(&mut self, a: usize, b: usize, stiffness: f64, damping: f64) -> usize {
-        let rest = self.particles[a].position.distance(self.particles[b].position);
+        let rest = self.particles[a]
+            .position
+            .distance(self.particles[b].position);
         let idx = self.springs.len();
-        self.springs.push(Spring::new(a, b, rest, stiffness).with_damping(damping));
+        self.springs
+            .push(Spring::new(a, b, rest, stiffness).with_damping(damping));
         idx
     }
 
     /// Add a distance constraint between two particles.
     pub fn add_constraint(&mut self, a: usize, b: usize) -> usize {
-        let rest = self.particles[a].position.distance(self.particles[b].position);
+        let rest = self.particles[a]
+            .position
+            .distance(self.particles[b].position);
         let idx = self.constraints.len();
         self.constraints.push(DistanceConstraint::new(a, b, rest));
         idx
@@ -305,7 +384,9 @@ impl SpringSystem {
     pub fn spring_energy(&self) -> f64 {
         let mut energy = 0.0;
         for s in &self.springs {
-            let dist = self.particles[s.a].position.distance(self.particles[s.b].position);
+            let dist = self.particles[s.a]
+                .position
+                .distance(self.particles[s.b].position);
             let dx = dist - s.rest_length;
             energy += 0.5 * s.stiffness * dx * dx;
         }
@@ -314,7 +395,9 @@ impl SpringSystem {
 }
 
 impl Default for SpringSystem {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Spring Chain ─────────────────────────────────────────────
@@ -329,7 +412,9 @@ pub fn create_chain(
     pin_start: bool,
     pin_end: bool,
 ) -> Vec<usize> {
-    if segments == 0 { return Vec::new(); }
+    if segments == 0 {
+        return Vec::new();
+    }
 
     let mut indices = Vec::with_capacity(segments + 1);
     for i in 0..=segments {
@@ -368,7 +453,9 @@ pub fn create_cloth(
     mass: f64,
     pin_top: bool,
 ) -> Vec<Vec<usize>> {
-    if cols < 2 || rows < 2 { return Vec::new(); }
+    if cols < 2 || rows < 2 {
+        return Vec::new();
+    }
 
     let dx = width / (cols - 1) as f64;
     let dy = height / (rows - 1) as f64;
@@ -421,7 +508,9 @@ pub fn create_cloth(
 mod tests {
     use super::*;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < 0.1 }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < 0.1
+    }
 
     #[test]
     fn verlet_particle_creation() {
@@ -567,16 +656,7 @@ mod tests {
     #[test]
     fn create_cloth_basic() {
         let mut sys = SpringSystem::new();
-        let grid = create_cloth(
-            &mut sys,
-            Vec2::new(0.0, 10.0),
-            10.0,
-            10.0,
-            4,
-            3,
-            1.0,
-            true,
-        );
+        let grid = create_cloth(&mut sys, Vec2::new(0.0, 10.0), 10.0, 10.0, 4, 3, 1.0, true);
         assert_eq!(grid.len(), 3); // 3 rows
         assert_eq!(grid[0].len(), 4); // 4 cols
         // Top row should be pinned
@@ -593,16 +673,7 @@ mod tests {
     fn cloth_simulation_step() {
         let mut sys = SpringSystem::new();
         sys.gravity = Vec2::new(0.0, -10.0);
-        let grid = create_cloth(
-            &mut sys,
-            Vec2::new(0.0, 10.0),
-            4.0,
-            4.0,
-            3,
-            3,
-            1.0,
-            true,
-        );
+        let grid = create_cloth(&mut sys, Vec2::new(0.0, 10.0), 4.0, 4.0, 3, 3, 1.0, true);
         let bottom_y_before = sys.particles[grid[2][1]].position.y;
         for _ in 0..50 {
             sys.step(0.01);

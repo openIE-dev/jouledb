@@ -15,11 +15,23 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0, z: 0.0 } }
-    pub fn splat(v: f64) -> Self { Self { x: v, y: v, z: v } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+    pub fn splat(v: f64) -> Self {
+        Self { x: v, y: v, z: v }
+    }
 
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
     pub fn cross(self, o: Self) -> Self {
         Self {
             x: self.y * o.z - self.z * o.y,
@@ -27,10 +39,16 @@ impl Vec3 {
             z: self.x * o.y - self.y * o.x,
         }
     }
-    pub fn length(self) -> f64 { self.dot(self).sqrt() }
+    pub fn length(self) -> f64 {
+        self.dot(self).sqrt()
+    }
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-15 { Self::zero() } else { self * (1.0 / l) }
+        if l < 1e-15 {
+            Self::zero()
+        } else {
+            self * (1.0 / l)
+        }
     }
     pub fn reflect(self, n: Self) -> Self {
         self - n * (2.0 * self.dot(n))
@@ -42,19 +60,43 @@ impl Vec3 {
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 impl std::ops::Mul<f64> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 impl std::ops::Neg for Vec3 {
     type Output = Self;
-    fn neg(self) -> Self { Self { x: -self.x, y: -self.y, z: -self.z } }
+    fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
 }
 
 impl fmt::Display for Vec3 {
@@ -72,11 +114,29 @@ pub struct Color {
 }
 
 impl Color {
-    pub fn new(r: f64, g: f64, b: f64) -> Self { Self { r, g, b } }
-    pub fn black() -> Self { Self { r: 0.0, g: 0.0, b: 0.0 } }
-    pub fn white() -> Self { Self { r: 1.0, g: 1.0, b: 1.0 } }
-    pub fn luminance(self) -> f64 { 0.2126 * self.r + 0.7152 * self.g + 0.0722 * self.b }
-    pub fn max_channel(self) -> f64 { self.r.max(self.g).max(self.b) }
+    pub fn new(r: f64, g: f64, b: f64) -> Self {
+        Self { r, g, b }
+    }
+    pub fn black() -> Self {
+        Self {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+        }
+    }
+    pub fn white() -> Self {
+        Self {
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+        }
+    }
+    pub fn luminance(self) -> f64 {
+        0.2126 * self.r + 0.7152 * self.g + 0.0722 * self.b
+    }
+    pub fn max_channel(self) -> f64 {
+        self.r.max(self.g).max(self.b)
+    }
     pub fn clamp(self) -> Self {
         Self {
             r: self.r.max(0.0).min(1.0),
@@ -91,15 +151,33 @@ impl Color {
 
 impl std::ops::Add for Color {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { r: self.r + r.r, g: self.g + r.g, b: self.b + r.b } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            r: self.r + r.r,
+            g: self.g + r.g,
+            b: self.b + r.b,
+        }
+    }
 }
 impl std::ops::Mul<f64> for Color {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { r: self.r * s, g: self.g * s, b: self.b * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
+    }
 }
 impl std::ops::Mul for Color {
     type Output = Self;
-    fn mul(self, rhs: Self) -> Self { Self { r: self.r * rhs.r, g: self.g * rhs.g, b: self.b * rhs.b } }
+    fn mul(self, rhs: Self) -> Self {
+        Self {
+            r: self.r * rhs.r,
+            g: self.g * rhs.g,
+            b: self.b * rhs.b,
+        }
+    }
 }
 
 /// Simple LCG random number generator (deterministic for reproducibility).
@@ -109,10 +187,17 @@ pub struct Rng {
 }
 
 impl Rng {
-    pub fn new(seed: u64) -> Self { Self { state: seed.wrapping_add(1) } }
+    pub fn new(seed: u64) -> Self {
+        Self {
+            state: seed.wrapping_add(1),
+        }
+    }
 
     pub fn next_f64(&mut self) -> f64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let bits = (self.state >> 11) as f64;
         bits / (1u64 << 53) as f64
     }
@@ -127,9 +212,14 @@ pub struct Ray {
 
 impl Ray {
     pub fn new(origin: Vec3, direction: Vec3) -> Self {
-        Self { origin, direction: direction.normalized() }
+        Self {
+            origin,
+            direction: direction.normalized(),
+        }
     }
-    pub fn at(self, t: f64) -> Vec3 { self.origin + self.direction * t }
+    pub fn at(self, t: f64) -> Vec3 {
+        self.origin + self.direction * t
+    }
 }
 
 /// Hit information from scene intersection.
@@ -175,7 +265,12 @@ impl Camera {
         let vertical = v * viewport_h;
         let lower_left = look_from - horizontal * 0.5 - vertical * 0.5 - w;
 
-        Self { origin: look_from, lower_left, horizontal, vertical }
+        Self {
+            origin: look_from,
+            lower_left,
+            horizontal,
+            vertical,
+        }
     }
 
     pub fn get_ray(&self, s: f64, t: f64) -> Ray {
@@ -199,7 +294,12 @@ pub struct Scene {
 }
 
 impl Scene {
-    pub fn new() -> Self { Self { spheres: Vec::new(), materials: Vec::new() } }
+    pub fn new() -> Self {
+        Self {
+            spheres: Vec::new(),
+            materials: Vec::new(),
+        }
+    }
 
     pub fn add_material(&mut self, mat: Material) -> usize {
         let id = self.materials.len();
@@ -208,7 +308,11 @@ impl Scene {
     }
 
     pub fn add_sphere(&mut self, center: Vec3, radius: f64, material_id: usize) {
-        self.spheres.push(Sphere { center, radius, material_id });
+        self.spheres.push(Sphere {
+            center,
+            radius,
+            material_id,
+        });
     }
 
     pub fn intersect(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitInfo> {
@@ -221,17 +325,26 @@ impl Scene {
             let half_b = oc.dot(ray.direction);
             let c = oc.dot(oc) - sphere.radius * sphere.radius;
             let disc = half_b * half_b - a * c;
-            if disc < 0.0 { continue; }
+            if disc < 0.0 {
+                continue;
+            }
             let sqrt_d = disc.sqrt();
             let mut t = (-half_b - sqrt_d) / a;
             if t < t_min || t > closest {
                 t = (-half_b + sqrt_d) / a;
-                if t < t_min || t > closest { continue; }
+                if t < t_min || t > closest {
+                    continue;
+                }
             }
             closest = t;
             let p = ray.at(t);
             let n = (p - sphere.center) * (1.0 / sphere.radius);
-            hit_info = Some(HitInfo { t, point: p, normal: n.normalized(), material_id: sphere.material_id });
+            hit_info = Some(HitInfo {
+                t,
+                point: p,
+                normal: n.normalized(),
+                material_id: sphere.material_id,
+            });
         }
         hit_info
     }
@@ -240,7 +353,11 @@ impl Scene {
 /// Build an orthonormal basis from a normal vector.
 fn onb_from_normal(n: Vec3) -> (Vec3, Vec3, Vec3) {
     let w = n.normalized();
-    let a = if w.x.abs() > 0.9 { Vec3::new(0.0, 1.0, 0.0) } else { Vec3::new(1.0, 0.0, 0.0) };
+    let a = if w.x.abs() > 0.9 {
+        Vec3::new(0.0, 1.0, 0.0)
+    } else {
+        Vec3::new(1.0, 0.0, 0.0)
+    };
     let v = w.cross(a).normalized();
     let u = w.cross(v);
     (u, v, w)
@@ -309,12 +426,7 @@ impl PathTracerConfig {
 }
 
 /// Trace a single path and return accumulated radiance.
-pub fn trace_path(
-    scene: &Scene,
-    ray: &Ray,
-    config: &PathTracerConfig,
-    rng: &mut Rng,
-) -> Color {
+pub fn trace_path(scene: &Scene, ray: &Ray, config: &PathTracerConfig, rng: &mut Rng) -> Color {
     let mut throughput = Color::white();
     let mut radiance = Color::black();
     let mut current_ray = *ray;
@@ -361,9 +473,17 @@ pub fn trace_path(
             }
             Material::Refractive { albedo, ior } => {
                 let (out_normal, eta, cos_i) = if current_ray.direction.dot(hit.normal) < 0.0 {
-                    (hit.normal, 1.0 / ior, (-current_ray.direction).dot(hit.normal))
+                    (
+                        hit.normal,
+                        1.0 / ior,
+                        (-current_ray.direction).dot(hit.normal),
+                    )
                 } else {
-                    (-hit.normal, *ior, current_ray.direction.dot(hit.normal).abs())
+                    (
+                        -hit.normal,
+                        *ior,
+                        current_ray.direction.dot(hit.normal).abs(),
+                    )
                 };
 
                 let f = fresnel_schlick(cos_i, ((1.0 - ior) / (1.0 + ior)).powi(2));
@@ -488,7 +608,9 @@ pub fn render_progressive_frame(
 mod tests {
     use super::*;
 
-    fn approx_eq(a: f64, b: f64, eps: f64) -> bool { (a - b).abs() < eps }
+    fn approx_eq(a: f64, b: f64, eps: f64) -> bool {
+        (a - b).abs() < eps
+    }
 
     fn color_approx(a: Color, b: Color, eps: f64) -> bool {
         approx_eq(a.r, b.r, eps) && approx_eq(a.g, b.g, eps) && approx_eq(a.b, b.b, eps)
@@ -545,7 +667,9 @@ mod tests {
     #[test]
     fn test_scene_sphere_intersection() {
         let mut scene = Scene::new();
-        let mat = scene.add_material(Material::Diffuse { albedo: Color::new(0.5, 0.5, 0.5) });
+        let mat = scene.add_material(Material::Diffuse {
+            albedo: Color::new(0.5, 0.5, 0.5),
+        });
         scene.add_sphere(Vec3::new(0.0, 0.0, -3.0), 1.0, mat);
         let ray = Ray::new(Vec3::zero(), Vec3::new(0.0, 0.0, -1.0));
         let hit = scene.intersect(&ray, EPSILON, f64::MAX).unwrap();
@@ -555,7 +679,9 @@ mod tests {
     #[test]
     fn test_scene_miss() {
         let mut scene = Scene::new();
-        let mat = scene.add_material(Material::Diffuse { albedo: Color::white() });
+        let mat = scene.add_material(Material::Diffuse {
+            albedo: Color::white(),
+        });
         scene.add_sphere(Vec3::new(10.0, 10.0, 10.0), 1.0, mat);
         let ray = Ray::new(Vec3::zero(), Vec3::new(0.0, 0.0, -1.0));
         assert!(scene.intersect(&ray, EPSILON, f64::MAX).is_none());
@@ -564,7 +690,9 @@ mod tests {
     #[test]
     fn test_trace_emissive() {
         let mut scene = Scene::new();
-        let emit = scene.add_material(Material::Emissive { emission: Color::new(1.0, 0.0, 0.0) });
+        let emit = scene.add_material(Material::Emissive {
+            emission: Color::new(1.0, 0.0, 0.0),
+        });
         scene.add_sphere(Vec3::new(0.0, 0.0, -3.0), 1.0, emit);
         let config = PathTracerConfig::default_config();
         let mut rng = Rng::new(42);
@@ -587,9 +715,16 @@ mod tests {
     #[test]
     fn test_trace_diffuse_bounded() {
         let mut scene = Scene::new();
-        let diff = scene.add_material(Material::Diffuse { albedo: Color::new(0.8, 0.8, 0.8) });
+        let diff = scene.add_material(Material::Diffuse {
+            albedo: Color::new(0.8, 0.8, 0.8),
+        });
         scene.add_sphere(Vec3::new(0.0, 0.0, -3.0), 1.0, diff);
-        let config = PathTracerConfig { max_bounces: 4, samples_per_pixel: 1, russian_roulette_start: 10, background: Color::new(1.0, 1.0, 1.0) };
+        let config = PathTracerConfig {
+            max_bounces: 4,
+            samples_per_pixel: 1,
+            russian_roulette_start: 10,
+            background: Color::new(1.0, 1.0, 1.0),
+        };
         let mut rng = Rng::new(123);
         let ray = Ray::new(Vec3::zero(), Vec3::new(0.0, 0.0, -1.0));
         let c = trace_path(&scene, &ray, &config, &mut rng);
@@ -601,12 +736,21 @@ mod tests {
     #[test]
     fn test_trace_specular() {
         let mut scene = Scene::new();
-        let spec = scene.add_material(Material::Specular { albedo: Color::white() });
-        let emit = scene.add_material(Material::Emissive { emission: Color::new(0.0, 1.0, 0.0) });
+        let spec = scene.add_material(Material::Specular {
+            albedo: Color::white(),
+        });
+        let emit = scene.add_material(Material::Emissive {
+            emission: Color::new(0.0, 1.0, 0.0),
+        });
         // Mirror sphere reflects to emissive sphere behind origin
         scene.add_sphere(Vec3::new(0.0, 0.0, -3.0), 1.0, spec);
         scene.add_sphere(Vec3::new(0.0, 0.0, 3.0), 1.0, emit);
-        let config = PathTracerConfig { max_bounces: 4, samples_per_pixel: 1, russian_roulette_start: 10, background: Color::black() };
+        let config = PathTracerConfig {
+            max_bounces: 4,
+            samples_per_pixel: 1,
+            russian_roulette_start: 10,
+            background: Color::black(),
+        };
         let mut rng = Rng::new(42);
         let ray = Ray::new(Vec3::zero(), Vec3::new(0.0, 0.0, -1.0));
         let c = trace_path(&scene, &ray, &config, &mut rng);
@@ -648,10 +792,23 @@ mod tests {
     #[test]
     fn test_render_pixel_deterministic() {
         let mut scene = Scene::new();
-        let emit = scene.add_material(Material::Emissive { emission: Color::new(0.5, 0.5, 0.5) });
+        let emit = scene.add_material(Material::Emissive {
+            emission: Color::new(0.5, 0.5, 0.5),
+        });
         scene.add_sphere(Vec3::new(0.0, 0.0, -3.0), 100.0, emit);
-        let cam = Camera::new(Vec3::zero(), Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.0, 0.0), 90.0, 1.0);
-        let config = PathTracerConfig { max_bounces: 1, samples_per_pixel: 4, russian_roulette_start: 10, background: Color::black() };
+        let cam = Camera::new(
+            Vec3::zero(),
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            90.0,
+            1.0,
+        );
+        let config = PathTracerConfig {
+            max_bounces: 1,
+            samples_per_pixel: 4,
+            russian_roulette_start: 10,
+            background: Color::black(),
+        };
         let mut rng1 = Rng::new(42);
         let mut rng2 = Rng::new(42);
         let c1 = render_pixel(&scene, &cam, &config, 5, 5, 10, 10, &mut rng1);
@@ -705,10 +862,23 @@ mod tests {
     #[test]
     fn test_progressive_render() {
         let mut scene = Scene::new();
-        let emit = scene.add_material(Material::Emissive { emission: Color::new(0.3, 0.6, 0.9) });
+        let emit = scene.add_material(Material::Emissive {
+            emission: Color::new(0.3, 0.6, 0.9),
+        });
         scene.add_sphere(Vec3::new(0.0, 0.0, -2.0), 100.0, emit);
-        let cam = Camera::new(Vec3::zero(), Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.0, 0.0), 90.0, 1.0);
-        let config = PathTracerConfig { max_bounces: 1, samples_per_pixel: 1, russian_roulette_start: 10, background: Color::black() };
+        let cam = Camera::new(
+            Vec3::zero(),
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            90.0,
+            1.0,
+        );
+        let config = PathTracerConfig {
+            max_bounces: 1,
+            samples_per_pixel: 1,
+            russian_roulette_start: 10,
+            background: Color::black(),
+        };
         let mut fb = FrameBuffer::new(4, 4);
         let mut rng = Rng::new(77);
         for _ in 0..10 {
@@ -723,11 +893,21 @@ mod tests {
     #[test]
     fn test_glossy_material() {
         let mut scene = Scene::new();
-        let glossy = scene.add_material(Material::Glossy { albedo: Color::white(), roughness: 0.3 });
-        let emit = scene.add_material(Material::Emissive { emission: Color::white() });
+        let glossy = scene.add_material(Material::Glossy {
+            albedo: Color::white(),
+            roughness: 0.3,
+        });
+        let emit = scene.add_material(Material::Emissive {
+            emission: Color::white(),
+        });
         scene.add_sphere(Vec3::new(0.0, 0.0, -3.0), 1.0, glossy);
         scene.add_sphere(Vec3::new(0.0, 0.0, -7.0), 1.0, emit);
-        let config = PathTracerConfig { max_bounces: 4, samples_per_pixel: 8, russian_roulette_start: 10, background: Color::black() };
+        let config = PathTracerConfig {
+            max_bounces: 4,
+            samples_per_pixel: 8,
+            russian_roulette_start: 10,
+            background: Color::black(),
+        };
         let mut rng = Rng::new(42);
         let ray = Ray::new(Vec3::zero(), Vec3::new(0.0, 0.0, -1.0));
         let c = trace_path(&scene, &ray, &config, &mut rng);
@@ -737,9 +917,16 @@ mod tests {
     #[test]
     fn test_russian_roulette_terminates() {
         let mut scene = Scene::new();
-        let diff = scene.add_material(Material::Diffuse { albedo: Color::new(0.1, 0.1, 0.1) });
+        let diff = scene.add_material(Material::Diffuse {
+            albedo: Color::new(0.1, 0.1, 0.1),
+        });
         scene.add_sphere(Vec3::new(0.0, 0.0, 0.0), 1000.0, diff);
-        let config = PathTracerConfig { max_bounces: 100, samples_per_pixel: 1, russian_roulette_start: 2, background: Color::black() };
+        let config = PathTracerConfig {
+            max_bounces: 100,
+            samples_per_pixel: 1,
+            russian_roulette_start: 2,
+            background: Color::black(),
+        };
         let mut rng = Rng::new(42);
         let ray = Ray::new(Vec3::new(0.0, 0.0, 500.0), Vec3::new(0.0, 0.0, -1.0));
         // Should terminate due to RR with low albedo

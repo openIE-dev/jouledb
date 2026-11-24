@@ -94,13 +94,10 @@ impl BlastRadius {
         if self.current_concurrent >= self.max_concurrent {
             return false;
         }
-        if !self.target_services.is_empty()
-            && !self.target_services.iter().any(|s| s == service)
-        {
+        if !self.target_services.is_empty() && !self.target_services.iter().any(|s| s == service) {
             return false;
         }
-        if !self.target_endpoints.is_empty()
-            && !self.target_endpoints.iter().any(|e| e == endpoint)
+        if !self.target_endpoints.is_empty() && !self.target_endpoints.iter().any(|e| e == endpoint)
         {
             return false;
         }
@@ -233,12 +230,10 @@ impl AbortCondition {
         match self {
             Self::ErrorRateExceeds(threshold) => error_rate > *threshold,
             Self::LatencyExceeds(threshold) => latency_us > *threshold,
-            Self::MetricExceeds { metric, threshold } => {
-                custom_metrics
-                    .get(metric)
-                    .map(|v| *v > *threshold)
-                    .unwrap_or(false)
-            }
+            Self::MetricExceeds { metric, threshold } => custom_metrics
+                .get(metric)
+                .map(|v| *v > *threshold)
+                .unwrap_or(false),
             Self::TimeLimit(limit) => elapsed_units >= *limit,
         }
     }
@@ -367,17 +362,22 @@ impl ChaosExperiment {
 
         // Check abort conditions.
         for cond in &self.abort_conditions {
-            if cond.is_triggered(error_rate, latency_us, custom_metrics, self.elapsed_units)
-            {
+            if cond.is_triggered(error_rate, latency_us, custom_metrics, self.elapsed_units) {
                 self.status = ExperimentStatus::Aborted;
                 self.blast_radius.end_fault();
-                self.log_event(timestamp, "experiment aborted: safety condition triggered".into());
+                self.log_event(
+                    timestamp,
+                    "experiment aborted: safety condition triggered".into(),
+                );
                 return false;
             }
         }
 
         // Try to inject a fault.
-        if self.blast_radius.should_inject(hash_bucket, service, endpoint) {
+        if self
+            .blast_radius
+            .should_inject(hash_bucket, service, endpoint)
+        {
             self.blast_radius.begin_fault();
             self.faults_injected = self.faults_injected.saturating_add(1);
             self.blast_radius.end_fault();
@@ -430,10 +430,7 @@ mod tests {
             FaultType::Exception("boom".into()).to_string(),
             "exception:boom"
         );
-        assert_eq!(
-            FaultType::ConnectionReset.to_string(),
-            "connection_reset"
-        );
+        assert_eq!(FaultType::ConnectionReset.to_string(), "connection_reset");
         assert_eq!(
             FaultType::ResourceExhaustion("memory".into()).to_string(),
             "resource_exhaustion:memory"
@@ -461,16 +458,14 @@ mod tests {
 
     #[test]
     fn blast_radius_service_filter() {
-        let br = BlastRadius::new(100)
-            .with_services(vec!["api".into()]);
+        let br = BlastRadius::new(100).with_services(vec!["api".into()]);
         assert!(br.should_inject(0, "api", "/health"));
         assert!(!br.should_inject(0, "frontend", "/"));
     }
 
     #[test]
     fn blast_radius_endpoint_filter() {
-        let br = BlastRadius::new(100)
-            .with_endpoints(vec!["/api/orders".into()]);
+        let br = BlastRadius::new(100).with_endpoints(vec!["/api/orders".into()]);
         assert!(br.should_inject(0, "svc", "/api/orders"));
         assert!(!br.should_inject(0, "svc", "/api/users"));
     }
@@ -751,13 +746,8 @@ mod tests {
     #[test]
     fn experiment_elapsed_increments() {
         let h = SteadyStateHypothesis::new("t");
-        let mut exp = ChaosExperiment::new(
-            "test",
-            "",
-            FaultType::Latency(0),
-            BlastRadius::new(0),
-            h,
-        );
+        let mut exp =
+            ChaosExperiment::new("test", "", FaultType::Latency(0), BlastRadius::new(0), h);
         exp.start(0);
         let empty = HashMap::new();
         exp.tick(50, "s", "/e", 0.0, 0, &empty, 1);

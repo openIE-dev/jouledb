@@ -56,7 +56,10 @@ pub fn encode_chunk(rows: &[(RecordId, HashMap<String, Value>)]) -> Vec<u8> {
             let k = k.as_str();
             let mut c = hint;
             if columns[c] != k {
-                c = columns.iter().position(|x| *x == k).expect("column gathered above");
+                c = columns
+                    .iter()
+                    .position(|x| *x == k)
+                    .expect("column gathered above");
             }
             cols[c][i] = Some(v);
             hint = if c + 1 < nc { c + 1 } else { 0 };
@@ -107,7 +110,11 @@ pub fn encode_chunk(rows: &[(RecordId, HashMap<String, Value>)]) -> Vec<u8> {
             T_FLOAT => {
                 out.reserve(n * 8);
                 for v in &vals {
-                    let x = if let Some(Value::Float(x)) = v { *x } else { 0.0 };
+                    let x = if let Some(Value::Float(x)) = v {
+                        *x
+                    } else {
+                        0.0
+                    };
                     out.extend_from_slice(&x.to_le_bytes());
                 }
             }
@@ -152,7 +159,10 @@ struct Rd<'a> {
 
 impl<'a> Rd<'a> {
     fn take(&mut self, n: usize) -> Result<&'a [u8], String> {
-        let s = self.b.get(self.p..self.p + n).ok_or("truncated JWB1 record")?;
+        let s = self
+            .b
+            .get(self.p..self.p + n)
+            .ok_or("truncated JWB1 record")?;
         self.p += n;
         Ok(s)
     }
@@ -187,7 +197,9 @@ pub fn decode_chunk(data: &[u8]) -> Result<Vec<(RecordId, HashMap<String, Value>
     let bm_len = n.div_ceil(8);
     for _ in 0..nc {
         let nl = r.u16()? as usize;
-        let name = std::str::from_utf8(r.take(nl)?).map_err(|e| e.to_string())?.to_string();
+        let name = std::str::from_utf8(r.take(nl)?)
+            .map_err(|e| e.to_string())?
+            .to_string();
         let tag = r.take(1)?[0];
         let bm = r.take(bm_len)?;
         let has = |i: usize| bm[i / 8] & (1 << (i % 8)) != 0;
@@ -216,11 +228,14 @@ pub fn decode_chunk(data: &[u8]) -> Result<Vec<(RecordId, HashMap<String, Value>
             }
             T_STR => {
                 let offs = r.take((n + 1) * 4)?;
-                let off = |i: usize| u32::from_le_bytes(offs[i * 4..i * 4 + 4].try_into().unwrap()) as usize;
+                let off = |i: usize| {
+                    u32::from_le_bytes(offs[i * 4..i * 4 + 4].try_into().unwrap()) as usize
+                };
                 let bytes = r.take(off(n))?;
                 for (i, row) in rows.iter_mut().enumerate() {
                     if has(i) {
-                        let s = std::str::from_utf8(&bytes[off(i)..off(i + 1)]).map_err(|e| e.to_string())?;
+                        let s = std::str::from_utf8(&bytes[off(i)..off(i + 1)])
+                            .map_err(|e| e.to_string())?;
                         row.1.insert(name.clone(), Value::String(s.to_string()));
                     }
                 }
@@ -229,7 +244,8 @@ pub fn decode_chunk(data: &[u8]) -> Result<Vec<(RecordId, HashMap<String, Value>
                 for (i, row) in rows.iter_mut().enumerate() {
                     if has(i) {
                         let l = r.u32()? as usize;
-                        let v: Value = serde_json::from_slice(r.take(l)?).map_err(|e| e.to_string())?;
+                        let v: Value =
+                            serde_json::from_slice(r.take(l)?).map_err(|e| e.to_string())?;
                         row.1.insert(name.clone(), v);
                     }
                 }
@@ -262,7 +278,11 @@ mod tests {
                 }
                 m.insert(
                     "x".into(),
-                    if i % 2 == 0 { Value::Int(1) } else { Value::String("a".into()) },
+                    if i % 2 == 0 {
+                        Value::Int(1)
+                    } else {
+                        Value::String("a".into())
+                    },
                 );
                 if i == 9 {
                     m.insert("a".into(), Value::Array(vec![Value::Int(1), Value::Null]));

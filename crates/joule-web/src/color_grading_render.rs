@@ -20,11 +20,19 @@ impl GradeColor {
     }
 
     pub fn black() -> Self {
-        Self { r: 0.0, g: 0.0, b: 0.0 }
+        Self {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+        }
     }
 
     pub fn white() -> Self {
-        Self { r: 1.0, g: 1.0, b: 1.0 }
+        Self {
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+        }
     }
 
     pub fn gray(v: f64) -> Self {
@@ -36,7 +44,11 @@ impl GradeColor {
     }
 
     pub fn scale(&self, s: f64) -> Self {
-        Self { r: self.r * s, g: self.g * s, b: self.b * s }
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
     }
 
     pub fn add(&self, other: &Self) -> Self {
@@ -72,10 +84,16 @@ impl GradeColor {
             return (0.0, 0.0, l);
         }
         let d = max - min;
-        let s = if l > 0.5 { d / (2.0 - max - min) } else { d / (max + min) };
+        let s = if l > 0.5 {
+            d / (2.0 - max - min)
+        } else {
+            d / (max + min)
+        };
         let h = if (max - self.r).abs() < 1e-10 {
             let mut h = (self.g - self.b) / d;
-            if self.g < self.b { h += 6.0; }
+            if self.g < self.b {
+                h += 6.0;
+            }
             h
         } else if (max - self.g).abs() < 1e-10 {
             (self.b - self.r) / d + 2.0
@@ -90,16 +108,30 @@ impl GradeColor {
         if s < 1e-10 {
             return Self::gray(l);
         }
-        let q = if l < 0.5 { l * (1.0 + s) } else { l + s - l * s };
+        let q = if l < 0.5 {
+            l * (1.0 + s)
+        } else {
+            l + s - l * s
+        };
         let p = 2.0 * l - q;
         let h_norm = h / 360.0;
 
         fn hue_to_rgb(p: f64, q: f64, mut t: f64) -> f64 {
-            if t < 0.0 { t += 1.0; }
-            if t > 1.0 { t -= 1.0; }
-            if t < 1.0 / 6.0 { return p + (q - p) * 6.0 * t; }
-            if t < 0.5 { return q; }
-            if t < 2.0 / 3.0 { return p + (q - p) * (2.0 / 3.0 - t) * 6.0; }
+            if t < 0.0 {
+                t += 1.0;
+            }
+            if t > 1.0 {
+                t -= 1.0;
+            }
+            if t < 1.0 / 6.0 {
+                return p + (q - p) * 6.0 * t;
+            }
+            if t < 0.5 {
+                return q;
+            }
+            if t < 2.0 / 3.0 {
+                return p + (q - p) * (2.0 / 3.0 - t) * 6.0;
+            }
             p
         }
 
@@ -266,11 +298,7 @@ impl Default for GradingParams {
             lift: GradeColor::black(),
             gamma: GradeColor::white(),
             gain: GradeColor::white(),
-            channel_mixer: [
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-                [0.0, 0.0, 1.0],
-            ],
+            channel_mixer: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
             split_shadow: GradeColor::black(),
             split_highlight: GradeColor::white(),
             split_balance: 0.0,
@@ -331,7 +359,12 @@ pub fn apply_hue_shift(color: &GradeColor, degrees: f64) -> GradeColor {
 }
 
 /// Apply lift/gamma/gain (ASC CDL style).
-pub fn apply_lift_gamma_gain(color: &GradeColor, lift: &GradeColor, gamma: &GradeColor, gain: &GradeColor) -> GradeColor {
+pub fn apply_lift_gamma_gain(
+    color: &GradeColor,
+    lift: &GradeColor,
+    gamma: &GradeColor,
+    gain: &GradeColor,
+) -> GradeColor {
     // out = (color * gain + lift) ^ (1/gamma)
     let apply_ch = |c: f64, g: f64, l: f64, gam: f64| -> f64 {
         let gained = c * g + l;
@@ -389,7 +422,12 @@ pub fn grade_color(color: &GradeColor, params: &GradingParams) -> GradeColor {
     }
     c = apply_lift_gamma_gain(&c, &params.lift, &params.gamma, &params.gain);
     c = apply_channel_mixer(&c, &params.channel_mixer);
-    c = apply_split_toning(&c, &params.split_shadow, &params.split_highlight, params.split_balance);
+    c = apply_split_toning(
+        &c,
+        &params.split_shadow,
+        &params.split_highlight,
+        params.split_balance,
+    );
     c.clamp01()
 }
 
@@ -457,8 +495,15 @@ mod tests {
         for c in &colors {
             let (h, s, l) = c.to_hsl();
             let back = GradeColor::from_hsl(h, s, l);
-            assert!(colors_approx_eq(c, &back, 1e-4),
-                "HSL roundtrip failed: {:?} -> ({:.2},{:.2},{:.2}) -> {:?}", c, h, s, l, back);
+            assert!(
+                colors_approx_eq(c, &back, 1e-4),
+                "HSL roundtrip failed: {:?} -> ({:.2},{:.2},{:.2}) -> {:?}",
+                c,
+                h,
+                s,
+                l,
+                back
+            );
         }
     }
 

@@ -18,7 +18,11 @@ impl TimeSignature {
     pub fn new(num: u8, denom: u8) -> Self {
         Self {
             numerator: num.max(1),
-            denominator: if denom.is_power_of_two() && denom >= 1 { denom } else { 4 },
+            denominator: if denom.is_power_of_two() && denom >= 1 {
+                denom
+            } else {
+                4
+            },
         }
     }
 
@@ -35,7 +39,10 @@ impl TimeSignature {
 
 impl Default for TimeSignature {
     fn default() -> Self {
-        Self { numerator: 4, denominator: 4 }
+        Self {
+            numerator: 4,
+            denominator: 4,
+        }
     }
 }
 
@@ -133,7 +140,8 @@ impl TempoClock {
     /// Add a tempo change event.
     pub fn add_tempo_change(&mut self, change: TempoChange) {
         self.tempo_changes.push(change);
-        self.tempo_changes.sort_by(|a, b| a.beat.partial_cmp(&b.beat).unwrap());
+        self.tempo_changes
+            .sort_by(|a, b| a.beat.partial_cmp(&b.beat).unwrap());
     }
 
     /// Current beat position (fractional).
@@ -144,14 +152,18 @@ impl TempoClock {
     /// Current bar number (0-indexed).
     pub fn bar(&self) -> u64 {
         let qn_per_bar = self.time_signature.quarter_notes_per_bar();
-        if qn_per_bar < 1e-9 { return 0; }
+        if qn_per_bar < 1e-9 {
+            return 0;
+        }
         (self.beat_position / qn_per_bar).floor() as u64
     }
 
     /// Beat within current bar (0-indexed, fractional).
     pub fn beat_in_bar(&self) -> f64 {
         let qn_per_bar = self.time_signature.quarter_notes_per_bar();
-        if qn_per_bar < 1e-9 { return 0.0; }
+        if qn_per_bar < 1e-9 {
+            return 0.0;
+        }
         self.beat_position % qn_per_bar
     }
 
@@ -300,10 +312,7 @@ impl TapTempo {
         if self.tap_times.len() < 2 {
             return None;
         }
-        let intervals: Vec<f64> = self.tap_times
-            .windows(2)
-            .map(|w| w[1] - w[0])
-            .collect();
+        let intervals: Vec<f64> = self.tap_times.windows(2).map(|w| w[1] - w[0]).collect();
         let avg_interval = intervals.iter().sum::<f64>() / intervals.len() as f64;
         if avg_interval < 1e-6 {
             return None;
@@ -438,7 +447,11 @@ pub fn generate_clicks(
                     (ClickType::Subdivision, 0.4)
                 };
 
-                events.push(ClickEvent { sample, click_type, amplitude });
+                events.push(ClickEvent {
+                    sample,
+                    click_type,
+                    amplitude,
+                });
             }
         }
     }
@@ -510,7 +523,10 @@ mod tests {
         // Advance one beat worth of samples (22050 at 120 BPM / 44100 Hz)
         let samples_per_beat = 22050u64;
         let events = clock.advance_samples(samples_per_beat);
-        let beat_events: Vec<_> = events.iter().filter(|e| matches!(e, SyncEvent::Beat(_))).collect();
+        let beat_events: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(e, SyncEvent::Beat(_)))
+            .collect();
         assert_eq!(beat_events.len(), 1);
     }
 
@@ -520,7 +536,10 @@ mod tests {
         let mut clock = TempoClock::new(120.0, ts, 44100.0);
         // Advance 4 beats = 1 bar = 88200 samples
         let events = clock.advance_samples(88200);
-        let bar_events: Vec<_> = events.iter().filter(|e| matches!(e, SyncEvent::Bar(_))).collect();
+        let bar_events: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(e, SyncEvent::Bar(_)))
+            .collect();
         assert_eq!(bar_events.len(), 1);
     }
 

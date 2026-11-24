@@ -23,9 +23,17 @@ pub enum SagaError {
     /// Saga already compensating.
     AlreadyCompensating(String),
     /// Step timeout exceeded.
-    StepTimeout { saga_id: String, step_name: String, timeout_ms: u64 },
+    StepTimeout {
+        saga_id: String,
+        step_name: String,
+        timeout_ms: u64,
+    },
     /// Compensation failed.
-    CompensationFailed { saga_id: String, step_name: String, reason: String },
+    CompensationFailed {
+        saga_id: String,
+        step_name: String,
+        reason: String,
+    },
     /// Duplicate saga id.
     DuplicateSaga(String),
     /// No steps defined.
@@ -41,13 +49,21 @@ impl std::fmt::Display for SagaError {
             }
             Self::AlreadyCompleted(id) => write!(f, "saga already completed: {id}"),
             Self::AlreadyCompensating(id) => write!(f, "saga already compensating: {id}"),
-            Self::StepTimeout { saga_id, step_name, timeout_ms } => {
+            Self::StepTimeout {
+                saga_id,
+                step_name,
+                timeout_ms,
+            } => {
                 write!(
                     f,
                     "step {step_name} in saga {saga_id} timed out after {timeout_ms}ms"
                 )
             }
-            Self::CompensationFailed { saga_id, step_name, reason } => {
+            Self::CompensationFailed {
+                saga_id,
+                step_name,
+                reason,
+            } => {
                 write!(
                     f,
                     "compensation failed for step {step_name} in saga {saga_id}: {reason}"
@@ -289,7 +305,9 @@ impl SagaOrchestrator {
             saga.current_step = next_idx;
             saga.step_states[next_idx].status = StepStatus::Running;
             saga.step_states[next_idx].started_at = Some(now);
-            Ok(StepAdvanceResult::NextStep(saga.step_states[next_idx].name.clone()))
+            Ok(StepAdvanceResult::NextStep(
+                saga.step_states[next_idx].name.clone(),
+            ))
         }
     }
 
@@ -424,8 +442,7 @@ impl SagaOrchestrator {
                 step_name: step_name.to_string(),
             })?;
 
-        saga.step_states[step_idx].status =
-            StepStatus::CompensationFailed(reason.to_string());
+        saga.step_states[step_idx].status = StepStatus::CompensationFailed(reason.to_string());
         saga.status = SagaStatus::PartiallyCompensated;
         saga.updated_at = Utc::now();
         saga.total_energy_uj += 3;
@@ -440,7 +457,10 @@ impl SagaOrchestrator {
 
     /// Get all sagas with a given status.
     pub fn sagas_by_status(&self, status: &SagaStatus) -> Vec<&SagaInstance> {
-        self.sagas.values().filter(|s| &s.status == status).collect()
+        self.sagas
+            .values()
+            .filter(|s| &s.status == status)
+            .collect()
     }
 
     /// Total sagas.
@@ -543,7 +563,8 @@ mod tests {
     #[test]
     fn test_start_saga() {
         let mut orch = SagaOrchestrator::new();
-        orch.create_saga("s1", "T", three_steps(), HashMap::new()).unwrap();
+        orch.create_saga("s1", "T", three_steps(), HashMap::new())
+            .unwrap();
 
         let step = orch.start("s1").unwrap();
         assert_eq!(step.name, "reserve_inventory");
@@ -556,24 +577,21 @@ mod tests {
     #[test]
     fn test_happy_path_all_steps() {
         let mut orch = SagaOrchestrator::new();
-        orch.create_saga("s1", "T", three_steps(), HashMap::new()).unwrap();
+        orch.create_saga("s1", "T", three_steps(), HashMap::new())
+            .unwrap();
         orch.start("s1").unwrap();
 
         let r1 = orch
-            .complete_step("s1", "reserve_inventory", Some(serde_json::json!({"reserved": true})))
+            .complete_step(
+                "s1",
+                "reserve_inventory",
+                Some(serde_json::json!({"reserved": true})),
+            )
             .unwrap();
-        assert_eq!(
-            r1,
-            StepAdvanceResult::NextStep("charge_payment".into())
-        );
+        assert_eq!(r1, StepAdvanceResult::NextStep("charge_payment".into()));
 
-        let r2 = orch
-            .complete_step("s1", "charge_payment", None)
-            .unwrap();
-        assert_eq!(
-            r2,
-            StepAdvanceResult::NextStep("ship_order".into())
-        );
+        let r2 = orch.complete_step("s1", "charge_payment", None).unwrap();
+        assert_eq!(r2, StepAdvanceResult::NextStep("ship_order".into()));
 
         let r3 = orch.complete_step("s1", "ship_order", None).unwrap();
         assert_eq!(r3, StepAdvanceResult::SagaCompleted);
@@ -586,12 +604,14 @@ mod tests {
     #[test]
     fn test_fail_step_triggers_compensation() {
         let mut orch = SagaOrchestrator::new();
-        orch.create_saga("s1", "T", three_steps(), HashMap::new()).unwrap();
+        orch.create_saga("s1", "T", three_steps(), HashMap::new())
+            .unwrap();
         orch.start("s1").unwrap();
         orch.complete_step("s1", "reserve_inventory", None).unwrap();
 
         // Charge payment fails.
-        orch.fail_step("s1", "charge_payment", "card declined").unwrap();
+        orch.fail_step("s1", "charge_payment", "card declined")
+            .unwrap();
 
         let saga = orch.get_saga("s1").unwrap();
         assert_eq!(saga.status, SagaStatus::Compensating);
@@ -607,7 +627,8 @@ mod tests {
     #[test]
     fn test_full_compensation() {
         let mut orch = SagaOrchestrator::new();
-        orch.create_saga("s1", "T", three_steps(), HashMap::new()).unwrap();
+        orch.create_saga("s1", "T", three_steps(), HashMap::new())
+            .unwrap();
         orch.start("s1").unwrap();
         orch.complete_step("s1", "reserve_inventory", None).unwrap();
         orch.complete_step("s1", "charge_payment", None).unwrap();
@@ -635,7 +656,8 @@ mod tests {
     #[test]
     fn test_compensation_failed() {
         let mut orch = SagaOrchestrator::new();
-        orch.create_saga("s1", "T", three_steps(), HashMap::new()).unwrap();
+        orch.create_saga("s1", "T", three_steps(), HashMap::new())
+            .unwrap();
         orch.start("s1").unwrap();
         orch.complete_step("s1", "reserve_inventory", None).unwrap();
         orch.fail_step("s1", "charge_payment", "declined").unwrap();
@@ -667,8 +689,7 @@ mod tests {
 
         // Manually backdate the start time.
         let saga = orch.sagas.get_mut("s1").unwrap();
-        saga.step_states[0].started_at =
-            Some(Utc::now() - Duration::milliseconds(100));
+        saga.step_states[0].started_at = Some(Utc::now() - Duration::milliseconds(100));
 
         let result = orch.complete_step("s1", "fast_step", None);
         assert!(matches!(result, Err(SagaError::StepTimeout { .. })));
@@ -711,8 +732,10 @@ mod tests {
             params: HashMap::new(),
         }];
 
-        orch.create_saga("s1", "T", steps.clone(), HashMap::new()).unwrap();
-        orch.create_saga("s2", "T", steps.clone(), HashMap::new()).unwrap();
+        orch.create_saga("s1", "T", steps.clone(), HashMap::new())
+            .unwrap();
+        orch.create_saga("s2", "T", steps.clone(), HashMap::new())
+            .unwrap();
         orch.create_saga("s3", "T", steps, HashMap::new()).unwrap();
 
         orch.start("s1").unwrap();
@@ -736,7 +759,8 @@ mod tests {
     #[test]
     fn test_step_not_found() {
         let mut orch = SagaOrchestrator::new();
-        orch.create_saga("s1", "T", three_steps(), HashMap::new()).unwrap();
+        orch.create_saga("s1", "T", three_steps(), HashMap::new())
+            .unwrap();
         orch.start("s1").unwrap();
 
         assert!(matches!(
@@ -762,7 +786,8 @@ mod tests {
     #[test]
     fn test_step_output_captured() {
         let mut orch = SagaOrchestrator::new();
-        orch.create_saga("s1", "T", three_steps(), HashMap::new()).unwrap();
+        orch.create_saga("s1", "T", three_steps(), HashMap::new())
+            .unwrap();
         orch.start("s1").unwrap();
 
         let output = serde_json::json!({"reservation_id": "r-123"});
@@ -776,7 +801,8 @@ mod tests {
     #[test]
     fn test_energy_tracking() {
         let mut orch = SagaOrchestrator::new();
-        orch.create_saga("s1", "T", three_steps(), HashMap::new()).unwrap();
+        orch.create_saga("s1", "T", three_steps(), HashMap::new())
+            .unwrap();
         assert!(orch.total_energy_uj() > 0);
 
         let e1 = orch.total_energy_uj();
@@ -788,7 +814,8 @@ mod tests {
     fn test_saga_count() {
         let mut orch = SagaOrchestrator::new();
         assert_eq!(orch.saga_count(), 0);
-        orch.create_saga("s1", "T", three_steps(), HashMap::new()).unwrap();
+        orch.create_saga("s1", "T", three_steps(), HashMap::new())
+            .unwrap();
         assert_eq!(orch.saga_count(), 1);
     }
 
@@ -829,11 +856,13 @@ mod tests {
     #[test]
     fn test_fail_step_first_step() {
         let mut orch = SagaOrchestrator::new();
-        orch.create_saga("s1", "T", three_steps(), HashMap::new()).unwrap();
+        orch.create_saga("s1", "T", three_steps(), HashMap::new())
+            .unwrap();
         orch.start("s1").unwrap();
 
         // First step fails — no prior steps to compensate.
-        orch.fail_step("s1", "reserve_inventory", "out of stock").unwrap();
+        orch.fail_step("s1", "reserve_inventory", "out of stock")
+            .unwrap();
 
         let saga = orch.get_saga("s1").unwrap();
         assert_eq!(saga.status, SagaStatus::Compensating);
@@ -879,6 +908,9 @@ mod tests {
         // Compensate step2 (no compensation — should auto-skip).
         let r = orch.complete_compensation("s1", "step2").unwrap();
         // step2 has no compensation, so step1 is the next (or auto-compensated).
-        assert!(matches!(r, CompensationResult::NextCompensation(_) | CompensationResult::FullyCompensated));
+        assert!(matches!(
+            r,
+            CompensationResult::NextCompensation(_) | CompensationResult::FullyCompensated
+        ));
     }
 }

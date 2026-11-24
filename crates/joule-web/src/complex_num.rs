@@ -213,8 +213,7 @@ impl Complex {
 fn find_split(s: &str) -> Option<usize> {
     let bytes = s.as_bytes();
     for i in 1..bytes.len() {
-        if (bytes[i] == b'+' || bytes[i] == b'-') && bytes[i - 1] != b'e' && bytes[i - 1] != b'E'
-        {
+        if (bytes[i] == b'+' || bytes[i] == b'-') && bytes[i - 1] != b'e' && bytes[i - 1] != b'E' {
             return Some(i);
         }
     }
@@ -417,11 +416,23 @@ mod tests {
 
     #[test]
     fn parse_various_formats() {
-        assert!(approx(Complex::parse("3+4i").unwrap(), Complex::new(3.0, 4.0)));
-        assert!(approx(Complex::parse("3-4i").unwrap(), Complex::new(3.0, -4.0)));
-        assert!(approx(Complex::parse("5i").unwrap(), Complex::new(0.0, 5.0)));
+        assert!(approx(
+            Complex::parse("3+4i").unwrap(),
+            Complex::new(3.0, 4.0)
+        ));
+        assert!(approx(
+            Complex::parse("3-4i").unwrap(),
+            Complex::new(3.0, -4.0)
+        ));
+        assert!(approx(
+            Complex::parse("5i").unwrap(),
+            Complex::new(0.0, 5.0)
+        ));
         assert!(approx(Complex::parse("i").unwrap(), Complex::I));
-        assert!(approx(Complex::parse("-i").unwrap(), Complex::new(0.0, -1.0)));
+        assert!(approx(
+            Complex::parse("-i").unwrap(),
+            Complex::new(0.0, -1.0)
+        ));
         assert!(approx(Complex::parse("7").unwrap(), Complex::new(7.0, 0.0)));
     }
 

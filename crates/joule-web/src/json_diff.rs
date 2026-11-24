@@ -17,7 +17,11 @@ pub enum JsonDiffError {
     /// An array index was out of bounds.
     IndexOutOfBounds { index: usize, length: usize },
     /// A test operation failed.
-    TestFailed { path: String, expected: String, actual: String },
+    TestFailed {
+        path: String,
+        expected: String,
+        actual: String,
+    },
     /// Invalid JSON Pointer syntax.
     InvalidPointer(String),
     /// Generic patch application error.
@@ -31,8 +35,16 @@ impl fmt::Display for JsonDiffError {
             Self::IndexOutOfBounds { index, length } => {
                 write!(f, "index {} out of bounds (length {})", index, length)
             }
-            Self::TestFailed { path, expected, actual } => {
-                write!(f, "test at '{}': expected {}, got {}", path, expected, actual)
+            Self::TestFailed {
+                path,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "test at '{}': expected {}, got {}",
+                    path, expected, actual
+                )
             }
             Self::InvalidPointer(s) => write!(f, "invalid pointer: {}", s),
             Self::PatchFailed(s) => write!(f, "patch failed: {}", s),
@@ -48,7 +60,11 @@ pub enum DiffOp {
     /// Remove a value at a path.
     Remove { path: String, old_value: Value },
     /// Replace a value at a path.
-    Replace { path: String, old_value: Value, new_value: Value },
+    Replace {
+        path: String,
+        old_value: Value,
+        new_value: Value,
+    },
     /// Move a value from one path to another.
     Move { from: String, path: String },
 }
@@ -146,7 +162,11 @@ fn split_pointer(path: &str) -> Result<(String, String), JsonDiffError> {
     if segments.is_empty() {
         return Err(JsonDiffError::InvalidPointer(path.into()));
     }
-    let last = segments.last().unwrap().replace("~1", "/").replace("~0", "~");
+    let last = segments
+        .last()
+        .unwrap()
+        .replace("~1", "/")
+        .replace("~0", "~");
     if segments.len() == 1 {
         Ok((String::new(), last))
     } else {
@@ -251,7 +271,9 @@ pub fn to_patch(result: &JsonDiffResult) -> Vec<PatchOp> {
                 value: value.clone(),
             },
             DiffOp::Remove { path, .. } => PatchOp::Remove { path: path.clone() },
-            DiffOp::Replace { path, new_value, .. } => PatchOp::Replace {
+            DiffOp::Replace {
+                path, new_value, ..
+            } => PatchOp::Replace {
                 path: path.clone(),
                 value: new_value.clone(),
             },
@@ -317,8 +339,8 @@ fn apply_single(doc: &mut Value, op: &PatchOp) -> Result<(), JsonDiffError> {
                 *doc = value.clone();
                 return Ok(());
             }
-            let target = resolve_mut(doc, path)
-                .ok_or_else(|| JsonDiffError::PathNotFound(path.clone()))?;
+            let target =
+                resolve_mut(doc, path).ok_or_else(|| JsonDiffError::PathNotFound(path.clone()))?;
             *target = value.clone();
             Ok(())
         }
@@ -333,8 +355,8 @@ fn apply_single(doc: &mut Value, op: &PatchOp) -> Result<(), JsonDiffError> {
             add_value(doc, path, val)
         }
         PatchOp::Test { path, value } => {
-            let actual = resolve(doc, path)
-                .ok_or_else(|| JsonDiffError::PathNotFound(path.clone()))?;
+            let actual =
+                resolve(doc, path).ok_or_else(|| JsonDiffError::PathNotFound(path.clone()))?;
             if actual != value {
                 return Err(JsonDiffError::TestFailed {
                     path: path.clone(),
@@ -369,9 +391,9 @@ fn add_value(doc: &mut Value, path: &str, value: Value) -> Result<(), JsonDiffEr
                 arr.push(value);
                 Ok(())
             } else {
-                let idx: usize = key.parse().map_err(|_| {
-                    JsonDiffError::InvalidPointer(format!("not an index: {}", key))
-                })?;
+                let idx: usize = key
+                    .parse()
+                    .map_err(|_| JsonDiffError::InvalidPointer(format!("not an index: {}", key)))?;
                 if idx > arr.len() {
                     return Err(JsonDiffError::IndexOutOfBounds {
                         index: idx,
@@ -399,9 +421,9 @@ fn remove_value(doc: &mut Value, path: &str) -> Result<Value, JsonDiffError> {
             .remove(&key)
             .ok_or_else(|| JsonDiffError::PathNotFound(path.into())),
         Value::Array(arr) => {
-            let idx: usize = key.parse().map_err(|_| {
-                JsonDiffError::InvalidPointer(format!("not an index: {}", key))
-            })?;
+            let idx: usize = key
+                .parse()
+                .map_err(|_| JsonDiffError::InvalidPointer(format!("not an index: {}", key)))?;
             if idx >= arr.len() {
                 return Err(JsonDiffError::IndexOutOfBounds {
                     index: idx,
@@ -430,7 +452,9 @@ pub fn reverse_patch(result: &JsonDiffResult) -> Vec<PatchOp> {
                     value: old_value.clone(),
                 });
             }
-            DiffOp::Replace { path, old_value, .. } => {
+            DiffOp::Replace {
+                path, old_value, ..
+            } => {
                 reversed.push(PatchOp::Replace {
                     path: path.clone(),
                     value: old_value.clone(),

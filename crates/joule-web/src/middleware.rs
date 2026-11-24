@@ -226,10 +226,11 @@ impl Middleware for ThunkMiddleware {
                         .filter_map(|v| {
                             let obj = v.as_object()?;
                             let action_type = obj.get("type")?.as_str()?.to_string();
-                            let payload = obj
-                                .get("payload")
-                                .map(|p| p.to_string());
-                            Some(Action { action_type, payload })
+                            let payload = obj.get("payload").map(|p| p.to_string());
+                            Some(Action {
+                                action_type,
+                                payload,
+                            })
                         })
                         .collect();
                     if !actions.is_empty() {
@@ -381,10 +382,8 @@ mod tests {
     #[test]
     fn thunk_expands_actions() {
         let mut thunk = ThunkMiddleware::new();
-        let action = Action::with_payload(
-            "THUNK",
-            r#"[{"type":"INC"},{"type":"INC"},{"type":"DEC"}]"#,
-        );
+        let action =
+            Action::with_payload("THUNK", r#"[{"type":"INC"},{"type":"INC"},{"type":"DEC"}]"#);
         let result = thunk.before_dispatch(&action, "{}");
         match result {
             MiddlewareResult::Multiple(actions) => {
@@ -420,9 +419,18 @@ mod tests {
         let a2 = Action::with_payload("TYPING", "ab");
         let a3 = Action::with_payload("TYPING", "abc");
 
-        assert!(matches!(debounce.before_dispatch(&a1, "{}"), MiddlewareResult::Drop));
-        assert!(matches!(debounce.before_dispatch(&a2, "{}"), MiddlewareResult::Drop));
-        assert!(matches!(debounce.before_dispatch(&a3, "{}"), MiddlewareResult::Drop));
+        assert!(matches!(
+            debounce.before_dispatch(&a1, "{}"),
+            MiddlewareResult::Drop
+        ));
+        assert!(matches!(
+            debounce.before_dispatch(&a2, "{}"),
+            MiddlewareResult::Drop
+        ));
+        assert!(matches!(
+            debounce.before_dispatch(&a3, "{}"),
+            MiddlewareResult::Drop
+        ));
 
         assert_eq!(debounce.pending_count(), 1);
         let flushed = debounce.flush();
@@ -443,8 +451,14 @@ mod tests {
         let mut batch = BatchMiddleware::new(3);
 
         let a = Action::new("A");
-        assert!(matches!(batch.before_dispatch(&a, "{}"), MiddlewareResult::Drop));
-        assert!(matches!(batch.before_dispatch(&a, "{}"), MiddlewareResult::Drop));
+        assert!(matches!(
+            batch.before_dispatch(&a, "{}"),
+            MiddlewareResult::Drop
+        ));
+        assert!(matches!(
+            batch.before_dispatch(&a, "{}"),
+            MiddlewareResult::Drop
+        ));
 
         // Third action triggers the batch
         let result = batch.before_dispatch(&a, "{}");

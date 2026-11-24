@@ -255,7 +255,9 @@ impl SparqlParser {
                     self.expect('?')?;
                     let var = self.read_ident();
                     if desc || self.peek(')') {
-                        if self.peek(')') { self.advance(1); }
+                        if self.peek(')') {
+                            self.advance(1);
+                        }
                     }
                     order_by.push((var, desc));
                     self.skip_ws();
@@ -354,10 +356,7 @@ impl SparqlParser {
                 self.advance_kw("FILTER");
                 self.skip_ws();
                 let expr = self.parse_filter_expr()?;
-                patterns.push(GraphPattern::Filter(
-                    expr,
-                    Box::new(GraphPattern::Empty),
-                ));
+                patterns.push(GraphPattern::Filter(expr, Box::new(GraphPattern::Empty)));
             } else if self.peek_kw("UNION") {
                 self.advance_kw("UNION");
                 self.skip_ws();
@@ -475,7 +474,11 @@ impl SparqlParser {
         } else if self.peek('_') && self.peek_at(1) == Some(':') {
             self.advance(2);
             Ok(SparqlTerm::BlankNode(self.read_ident()))
-        } else if self.cur().map(|c| c.is_ascii_digit() || c == '-').unwrap_or(false) {
+        } else if self
+            .cur()
+            .map(|c| c.is_ascii_digit() || c == '-')
+            .unwrap_or(false)
+        {
             let num_str = self.read_number_str();
             if num_str.contains('.') {
                 Ok(SparqlTerm::Float(num_str.parse().map_err(|_| {
@@ -578,15 +581,32 @@ impl SparqlParser {
     }
 
     fn try_compare_op(&mut self) -> Option<CompareOp> {
-        if self.peek_str("!=") { self.advance(2); Some(CompareOp::Neq) }
-        else if self.peek_str(">=") { self.advance(2); Some(CompareOp::Gte) }
-        else if self.peek_str("<=") { self.advance(2); Some(CompareOp::Lte) }
-        else if self.peek('=') { self.advance(1); Some(CompareOp::Eq) }
-        else if self.peek('>') { self.advance(1); Some(CompareOp::Gt) }
-        else if self.peek('<') && !self.peek_at(1).map(|c| c.is_alphabetic() || c == '/').unwrap_or(false) {
-            self.advance(1); Some(CompareOp::Lt)
+        if self.peek_str("!=") {
+            self.advance(2);
+            Some(CompareOp::Neq)
+        } else if self.peek_str(">=") {
+            self.advance(2);
+            Some(CompareOp::Gte)
+        } else if self.peek_str("<=") {
+            self.advance(2);
+            Some(CompareOp::Lte)
+        } else if self.peek('=') {
+            self.advance(1);
+            Some(CompareOp::Eq)
+        } else if self.peek('>') {
+            self.advance(1);
+            Some(CompareOp::Gt)
+        } else if self.peek('<')
+            && !self
+                .peek_at(1)
+                .map(|c| c.is_alphabetic() || c == '/')
+                .unwrap_or(false)
+        {
+            self.advance(1);
+            Some(CompareOp::Lt)
+        } else {
+            None
         }
-        else { None }
     }
 
     // --- Helpers ---
@@ -597,7 +617,9 @@ impl SparqlParser {
                 if c == '#' {
                     while let Some(c2) = self.cur() {
                         self.advance(1);
-                        if c2 == '\n' { break; }
+                        if c2 == '\n' {
+                            break;
+                        }
                     }
                 } else {
                     self.advance(1);
@@ -608,9 +630,13 @@ impl SparqlParser {
         }
     }
 
-    fn cur(&self) -> Option<char> { self.input.get(self.pos).copied() }
+    fn cur(&self) -> Option<char> {
+        self.input.get(self.pos).copied()
+    }
 
-    fn peek(&self, c: char) -> bool { self.cur() == Some(c) }
+    fn peek(&self, c: char) -> bool {
+        self.cur() == Some(c)
+    }
 
     fn peek_at(&self, offset: usize) -> Option<char> {
         self.input.get(self.pos + offset).copied()
@@ -618,7 +644,9 @@ impl SparqlParser {
 
     fn peek_kw(&self, kw: &str) -> bool {
         let chars: Vec<char> = kw.chars().collect();
-        if self.pos + chars.len() > self.input.len() { return false; }
+        if self.pos + chars.len() > self.input.len() {
+            return false;
+        }
         for (i, c) in chars.iter().enumerate() {
             if self.input[self.pos + i].to_ascii_uppercase() != c.to_ascii_uppercase() {
                 return false;
@@ -626,27 +654,41 @@ impl SparqlParser {
         }
         // Must not be followed by an alphanumeric char.
         let next = self.input.get(self.pos + chars.len());
-        next.map(|c| !c.is_alphanumeric() && *c != '_').unwrap_or(true)
+        next.map(|c| !c.is_alphanumeric() && *c != '_')
+            .unwrap_or(true)
     }
 
     fn peek_str(&self, s: &str) -> bool {
         let chars: Vec<char> = s.chars().collect();
-        if self.pos + chars.len() > self.input.len() { return false; }
+        if self.pos + chars.len() > self.input.len() {
+            return false;
+        }
         for (i, c) in chars.iter().enumerate() {
-            if self.input[self.pos + i] != *c { return false; }
+            if self.input[self.pos + i] != *c {
+                return false;
+            }
         }
         true
     }
 
-    fn advance(&mut self, n: usize) { self.pos += n; }
+    fn advance(&mut self, n: usize) {
+        self.pos += n;
+    }
 
-    fn advance_kw(&mut self, kw: &str) { self.pos += kw.len(); }
+    fn advance_kw(&mut self, kw: &str) {
+        self.pos += kw.len();
+    }
 
     fn expect(&mut self, c: char) -> QueryResult<()> {
-        if self.cur() == Some(c) { self.advance(1); Ok(()) }
-        else {
+        if self.cur() == Some(c) {
+            self.advance(1);
+            Ok(())
+        } else {
             Err(QueryError::ParseError(format!(
-                "expected '{}' at pos {}, got {:?}", c, self.pos, self.cur()
+                "expected '{}' at pos {}, got {:?}",
+                c,
+                self.pos,
+                self.cur()
             )))
         }
     }
@@ -657,7 +699,9 @@ impl SparqlParser {
             if c.is_alphanumeric() || c == '_' || c == '-' {
                 s.push(c);
                 self.advance(1);
-            } else { break; }
+            } else {
+                break;
+            }
         }
         s
     }
@@ -665,7 +709,9 @@ impl SparqlParser {
     fn read_until(&mut self, end: char) -> String {
         let mut s = String::new();
         while let Some(c) = self.cur() {
-            if c == end { break; }
+            if c == end {
+                break;
+            }
             s.push(c);
             self.advance(1);
         }
@@ -674,15 +720,23 @@ impl SparqlParser {
 
     fn read_number(&mut self) -> QueryResult<i64> {
         let s = self.read_number_str();
-        s.parse().map_err(|_| QueryError::ParseError(format!("invalid number: {}", s)))
+        s.parse()
+            .map_err(|_| QueryError::ParseError(format!("invalid number: {}", s)))
     }
 
     fn read_number_str(&mut self) -> String {
         let mut s = String::new();
-        if self.peek('-') { s.push('-'); self.advance(1); }
+        if self.peek('-') {
+            s.push('-');
+            self.advance(1);
+        }
         while let Some(c) = self.cur() {
-            if c.is_ascii_digit() || c == '.' { s.push(c); self.advance(1); }
-            else { break; }
+            if c.is_ascii_digit() || c == '.' {
+                s.push(c);
+                self.advance(1);
+            } else {
+                break;
+            }
         }
         s
     }
@@ -701,10 +755,7 @@ pub struct Triple {
 }
 
 /// Evaluate a SPARQL query against a set of triples.
-pub fn evaluate_sparql(
-    query: &SparqlQuery,
-    triples: &[Triple],
-) -> QueryResult<SparqlResult> {
+pub fn evaluate_sparql(query: &SparqlQuery, triples: &[Triple]) -> QueryResult<SparqlResult> {
     let bindings = match_pattern(&query.pattern, triples);
 
     let columns = match &query.form {
@@ -713,7 +764,9 @@ pub fn evaluate_sparql(
             let mut vars: Vec<String> = Vec::new();
             for b in &bindings {
                 for k in b.keys() {
-                    if !vars.contains(k) { vars.push(k.clone()); }
+                    if !vars.contains(k) {
+                        vars.push(k.clone());
+                    }
                 }
             }
             vars.sort();
@@ -868,7 +921,9 @@ fn merge_bindings(a: &Binding, b: &Binding) -> Option<Binding> {
     let mut merged = a.clone();
     for (k, v) in b {
         if let Some(existing) = merged.get(k) {
-            if existing != v { return None; }
+            if existing != v {
+                return None;
+            }
         } else {
             merged.insert(k.clone(), v.clone());
         }
@@ -887,7 +942,9 @@ mod tests {
     #[test]
     fn test_parse_simple_select() {
         let mut p = SparqlParser::new();
-        let q = p.parse("SELECT ?name ?age WHERE { ?person <name> ?name . ?person <age> ?age }").unwrap();
+        let q = p
+            .parse("SELECT ?name ?age WHERE { ?person <name> ?name . ?person <age> ?age }")
+            .unwrap();
         assert!(matches!(q.form, SparqlForm::Select(v) if v.len() == 2));
     }
 
@@ -911,15 +968,18 @@ mod tests {
         let q = p.parse(
             "PREFIX foaf: <http://xmlns.com/foaf/0.1/> SELECT ?name WHERE { ?p foaf:name ?name }"
         ).unwrap();
-        assert_eq!(q.prefixes.get("foaf").unwrap(), "http://xmlns.com/foaf/0.1/");
+        assert_eq!(
+            q.prefixes.get("foaf").unwrap(),
+            "http://xmlns.com/foaf/0.1/"
+        );
     }
 
     #[test]
     fn test_parse_optional() {
         let mut p = SparqlParser::new();
-        let q = p.parse(
-            "SELECT ?name ?age WHERE { ?p <name> ?name OPTIONAL { ?p <age> ?age } }"
-        ).unwrap();
+        let q = p
+            .parse("SELECT ?name ?age WHERE { ?p <name> ?name OPTIONAL { ?p <age> ?age } }")
+            .unwrap();
         match &q.pattern {
             GraphPattern::Join(patterns) => assert!(patterns.len() >= 2),
             _ => panic!("expected Join pattern"),
@@ -929,7 +989,9 @@ mod tests {
     #[test]
     fn test_parse_limit_offset() {
         let mut p = SparqlParser::new();
-        let q = p.parse("SELECT ?s WHERE { ?s ?p ?o } LIMIT 10 OFFSET 5").unwrap();
+        let q = p
+            .parse("SELECT ?s WHERE { ?s ?p ?o } LIMIT 10 OFFSET 5")
+            .unwrap();
         assert_eq!(q.limit, Some(10));
         assert_eq!(q.offset, Some(5));
     }
@@ -937,13 +999,27 @@ mod tests {
     #[test]
     fn test_evaluate_bgp() {
         let triples = vec![
-            Triple { subject: "alice".into(), predicate: "name".into(), object: "Alice".into() },
-            Triple { subject: "bob".into(), predicate: "name".into(), object: "Bob".into() },
-            Triple { subject: "alice".into(), predicate: "age".into(), object: "30".into() },
+            Triple {
+                subject: "alice".into(),
+                predicate: "name".into(),
+                object: "Alice".into(),
+            },
+            Triple {
+                subject: "bob".into(),
+                predicate: "name".into(),
+                object: "Bob".into(),
+            },
+            Triple {
+                subject: "alice".into(),
+                predicate: "age".into(),
+                object: "30".into(),
+            },
         ];
 
         let mut p = SparqlParser::new();
-        let q = p.parse("SELECT ?name WHERE { ?person <name> ?name }").unwrap();
+        let q = p
+            .parse("SELECT ?name WHERE { ?person <name> ?name }")
+            .unwrap();
         let result = evaluate_sparql(&q, &triples).unwrap();
 
         assert_eq!(result.columns, vec!["name"]);
@@ -953,14 +1029,32 @@ mod tests {
     #[test]
     fn test_evaluate_join() {
         let triples = vec![
-            Triple { subject: "alice".into(), predicate: "name".into(), object: "Alice".into() },
-            Triple { subject: "bob".into(), predicate: "name".into(), object: "Bob".into() },
-            Triple { subject: "alice".into(), predicate: "age".into(), object: "30".into() },
-            Triple { subject: "bob".into(), predicate: "age".into(), object: "25".into() },
+            Triple {
+                subject: "alice".into(),
+                predicate: "name".into(),
+                object: "Alice".into(),
+            },
+            Triple {
+                subject: "bob".into(),
+                predicate: "name".into(),
+                object: "Bob".into(),
+            },
+            Triple {
+                subject: "alice".into(),
+                predicate: "age".into(),
+                object: "30".into(),
+            },
+            Triple {
+                subject: "bob".into(),
+                predicate: "age".into(),
+                object: "25".into(),
+            },
         ];
 
         let mut p = SparqlParser::new();
-        let q = p.parse("SELECT ?name ?age WHERE { ?person <name> ?name . ?person <age> ?age }").unwrap();
+        let q = p
+            .parse("SELECT ?name ?age WHERE { ?person <name> ?name . ?person <age> ?age }")
+            .unwrap();
         let result = evaluate_sparql(&q, &triples).unwrap();
 
         assert_eq!(result.rows.len(), 2);
@@ -968,9 +1062,11 @@ mod tests {
 
     #[test]
     fn test_evaluate_ask() {
-        let triples = vec![
-            Triple { subject: "alice".into(), predicate: "knows".into(), object: "bob".into() },
-        ];
+        let triples = vec![Triple {
+            subject: "alice".into(),
+            predicate: "knows".into(),
+            object: "bob".into(),
+        }];
 
         let mut p = SparqlParser::new();
         let q = p.parse("ASK WHERE { ?s <knows> ?o }").unwrap();
@@ -980,9 +1076,11 @@ mod tests {
 
     #[test]
     fn test_evaluate_ask_false() {
-        let triples = vec![
-            Triple { subject: "alice".into(), predicate: "name".into(), object: "Alice".into() },
-        ];
+        let triples = vec![Triple {
+            subject: "alice".into(),
+            predicate: "name".into(),
+            object: "Alice".into(),
+        }];
 
         let mut p = SparqlParser::new();
         let q = p.parse("ASK WHERE { ?s <knows> ?o }").unwrap();
@@ -993,9 +1091,21 @@ mod tests {
     #[test]
     fn test_evaluate_limit() {
         let triples = vec![
-            Triple { subject: "a".into(), predicate: "p".into(), object: "1".into() },
-            Triple { subject: "b".into(), predicate: "p".into(), object: "2".into() },
-            Triple { subject: "c".into(), predicate: "p".into(), object: "3".into() },
+            Triple {
+                subject: "a".into(),
+                predicate: "p".into(),
+                object: "1".into(),
+            },
+            Triple {
+                subject: "b".into(),
+                predicate: "p".into(),
+                object: "2".into(),
+            },
+            Triple {
+                subject: "c".into(),
+                predicate: "p".into(),
+                object: "3".into(),
+            },
         ];
 
         let mut p = SparqlParser::new();
@@ -1006,9 +1116,11 @@ mod tests {
 
     #[test]
     fn test_evaluate_select_star() {
-        let triples = vec![
-            Triple { subject: "alice".into(), predicate: "name".into(), object: "Alice".into() },
-        ];
+        let triples = vec![Triple {
+            subject: "alice".into(),
+            predicate: "name".into(),
+            object: "Alice".into(),
+        }];
 
         let mut p = SparqlParser::new();
         let q = p.parse("SELECT * WHERE { ?s ?p ?o }").unwrap();

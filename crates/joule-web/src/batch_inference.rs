@@ -245,7 +245,10 @@ pub struct ThroughputTracker {
 
 impl ThroughputTracker {
     pub fn new(window: Duration) -> Self {
-        Self { window, samples: VecDeque::new() }
+        Self {
+            window,
+            samples: VecDeque::new(),
+        }
     }
 
     /// Record that `count` requests were processed at this instant.
@@ -259,7 +262,8 @@ impl ThroughputTracker {
     pub fn requests_per_second(&self) -> f64 {
         let now = Instant::now();
         let cutoff = now - self.window;
-        let total: usize = self.samples
+        let total: usize = self
+            .samples
             .iter()
             .filter(|(t, _)| *t >= cutoff)
             .map(|(_, c)| c)
@@ -285,7 +289,11 @@ impl ThroughputTracker {
 
 impl fmt::Display for ThroughputTracker {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ThroughputTracker({:.1} req/s)", self.requests_per_second())
+        write!(
+            f,
+            "ThroughputTracker({:.1} req/s)",
+            self.requests_per_second()
+        )
     }
 }
 
@@ -425,7 +433,11 @@ impl DynamicBatcher {
 
         let padded_inputs: Vec<Vec<f64>> = requests
             .iter()
-            .map(|r| self.config.padding.apply(&r.input, self.config.pad_value, max_len))
+            .map(|r| {
+                self.config
+                    .padding
+                    .apply(&r.input, self.config.pad_value, max_len)
+            })
             .collect();
 
         let batch_id = self.next_batch_id;
@@ -670,7 +682,10 @@ mod tests {
     fn test_batch_result_display() {
         let br = BatchResult {
             batch_id: 5,
-            outputs: vec![InferOutput { request_id: 1, output: vec![0.5] }],
+            outputs: vec![InferOutput {
+                request_id: 1,
+                output: vec![0.5],
+            }],
             latency: Duration::from_micros(500),
         };
         assert!(format!("{br}").contains("batch=5"));

@@ -344,8 +344,7 @@ impl RaBitQIndex {
                 weighted_popcnt += (plane_ones as u64) << plane;
             }
 
-            let sum_q_where_one =
-                (ones_count as f32) * q_min + (weighted_popcnt as f32) * q_step;
+            let sum_q_where_one = (ones_count as f32) * q_min + (weighted_popcnt as f32) * q_step;
             let o_bar_dot_q = (2.0 * sum_q_where_one - q_sum) * inv_sqrt_d;
 
             // Unbiased RaBitQ estimator of `<x_bar, q_bar> = <o_bar, q_rot> / <o_bar, x_bar>`
@@ -356,8 +355,7 @@ impl RaBitQIndex {
             };
 
             let est_res_ip = entry.residual_norm * q_res_norm * est_unit_ip;
-            let est_sq_l2 = (entry.residual_norm * entry.residual_norm
-                + q_res_norm_sq
+            let est_sq_l2 = (entry.residual_norm * entry.residual_norm + q_res_norm_sq
                 - 2.0 * est_res_ip)
                 .max(0.0);
 
@@ -371,7 +369,9 @@ impl RaBitQIndex {
             let err_bound = entry.residual_norm
                 * q_res_norm
                 * bound_scale
-                * ((1.0 - entry.vertex_proj * entry.vertex_proj).max(0.0).sqrt()
+                * ((1.0 - entry.vertex_proj * entry.vertex_proj)
+                    .max(0.0)
+                    .sqrt()
                     / entry.vertex_proj);
 
             candidates.push((slot, est_sq_l2, est_cos, err_bound));
@@ -486,7 +486,9 @@ mod tests {
         let mut s = seed.wrapping_add(1);
         (0..dim)
             .map(|_| {
-                s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                s = s
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
                 ((s >> 33) as i32 as f32) / (u32::MAX as f32) - 0.5
             })
             .collect()
@@ -551,14 +553,16 @@ mod tests {
             .map(|i| (i as u64, synthetic_vec(dim, 999 + i as u64)))
             .collect();
 
-        let index =
-            RaBitQIndex::build_batch(RaBitQConfig::new(dim).with_exact_rerank(4), &items);
+        let index = RaBitQIndex::build_batch(RaBitQConfig::new(dim).with_exact_rerank(4), &items);
 
         // Only allow odd IDs
         let q = items[42].1.clone(); // 42 is even -> excluded!
         let filtered = index.search_filtered(&q, 5, |id| id % 2 == 1);
         assert_eq!(filtered.len(), 5);
         assert!(filtered.iter().all(|r| r.id % 2 == 1));
-        assert_eq!(filtered[0].error_bound, 0.0, "exact rerank has 0 error bound");
+        assert_eq!(
+            filtered[0].error_bound, 0.0,
+            "exact rerank has 0 error bound"
+        );
     }
 }

@@ -46,11 +46,23 @@ pub struct KinematicState {
 
 impl KinematicState {
     pub fn new(x: f64, y: f64, theta: f64) -> Self {
-        Self { x, y, theta, velocity: 0.0, curvature: 0.0 }
+        Self {
+            x,
+            y,
+            theta,
+            velocity: 0.0,
+            curvature: 0.0,
+        }
     }
 
-    pub fn with_velocity(mut self, v: f64) -> Self { self.velocity = v; self }
-    pub fn with_curvature(mut self, k: f64) -> Self { self.curvature = k; self }
+    pub fn with_velocity(mut self, v: f64) -> Self {
+        self.velocity = v;
+        self
+    }
+    pub fn with_curvature(mut self, k: f64) -> Self {
+        self.curvature = k;
+        self
+    }
 
     pub fn position_distance(&self, other: &KinematicState) -> f64 {
         ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
@@ -71,7 +83,8 @@ impl KinematicState {
 impl fmt::Display for KinematicState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "(x={:.3}, y={:.3}, θ={:.3}, v={:.3}, κ={:.4})",
+            f,
+            "(x={:.3}, y={:.3}, θ={:.3}, v={:.3}, κ={:.4})",
             self.x, self.y, self.theta, self.velocity, self.curvature,
         )
     }
@@ -128,7 +141,8 @@ impl KinematicLimits {
 impl fmt::Display for KinematicLimits {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "Limits(v_max={:.2}, a_max={:.2}, κ_max={:.3})",
+            f,
+            "Limits(v_max={:.2}, a_max={:.2}, κ_max={:.3})",
             self.max_velocity, self.max_acceleration, self.max_curvature,
         )
     }
@@ -151,12 +165,21 @@ pub struct MotionPrimitive {
 
 impl MotionPrimitive {
     /// Create a straight-line primitive.
-    pub fn straight(id: &str, start: KinematicState, length: f64, velocity: f64) -> Result<Self, PrimitiveError> {
+    pub fn straight(
+        id: &str,
+        start: KinematicState,
+        length: f64,
+        velocity: f64,
+    ) -> Result<Self, PrimitiveError> {
         if length <= 0.0 {
-            return Err(PrimitiveError::InvalidParameter("length must be > 0".into()));
+            return Err(PrimitiveError::InvalidParameter(
+                "length must be > 0".into(),
+            ));
         }
         if velocity.abs() < 1e-12 {
-            return Err(PrimitiveError::InvalidParameter("velocity must be non-zero".into()));
+            return Err(PrimitiveError::InvalidParameter(
+                "velocity must be non-zero".into(),
+            ));
         }
         let duration = length / velocity.abs();
         let n = (length * 10.0).ceil().max(5.0) as usize;
@@ -187,15 +210,27 @@ impl MotionPrimitive {
     }
 
     /// Create a circular arc primitive.
-    pub fn arc(id: &str, start: KinematicState, curvature: f64, arc_len: f64, velocity: f64) -> Result<Self, PrimitiveError> {
+    pub fn arc(
+        id: &str,
+        start: KinematicState,
+        curvature: f64,
+        arc_len: f64,
+        velocity: f64,
+    ) -> Result<Self, PrimitiveError> {
         if arc_len <= 0.0 {
-            return Err(PrimitiveError::InvalidParameter("arc_length must be > 0".into()));
+            return Err(PrimitiveError::InvalidParameter(
+                "arc_length must be > 0".into(),
+            ));
         }
         if curvature.abs() < 1e-12 {
-            return Err(PrimitiveError::InvalidParameter("curvature must be non-zero (use straight)".into()));
+            return Err(PrimitiveError::InvalidParameter(
+                "curvature must be non-zero (use straight)".into(),
+            ));
         }
         if velocity.abs() < 1e-12 {
-            return Err(PrimitiveError::InvalidParameter("velocity must be non-zero".into()));
+            return Err(PrimitiveError::InvalidParameter(
+                "velocity must be non-zero".into(),
+            ));
         }
 
         let radius = 1.0 / curvature.abs();
@@ -216,10 +251,19 @@ impl MotionPrimitive {
                     cy - radius * (theta).cos() * curvature.signum(),
                 )
             } else {
-                (start.x + s * start.theta.cos(), start.y + s * start.theta.sin())
+                (
+                    start.x + s * start.theta.cos(),
+                    start.y + s * start.theta.sin(),
+                )
             };
 
-            samples.push(KinematicState { x, y, theta, velocity, curvature });
+            samples.push(KinematicState {
+                x,
+                y,
+                theta,
+                velocity,
+                curvature,
+            });
         }
 
         let end_state = *samples.last().unwrap();
@@ -245,10 +289,14 @@ impl MotionPrimitive {
         velocity: f64,
     ) -> Result<Self, PrimitiveError> {
         if arc_len <= 0.0 {
-            return Err(PrimitiveError::InvalidParameter("arc_length must be > 0".into()));
+            return Err(PrimitiveError::InvalidParameter(
+                "arc_length must be > 0".into(),
+            ));
         }
         if velocity.abs() < 1e-12 {
-            return Err(PrimitiveError::InvalidParameter("velocity must be non-zero".into()));
+            return Err(PrimitiveError::InvalidParameter(
+                "velocity must be non-zero".into(),
+            ));
         }
 
         let duration = arc_len / velocity.abs();
@@ -262,14 +310,26 @@ impl MotionPrimitive {
         let mut theta = start.theta;
         let mut kappa = start_curvature;
 
-        samples.push(KinematicState { x, y, theta, velocity, curvature: kappa });
+        samples.push(KinematicState {
+            x,
+            y,
+            theta,
+            velocity,
+            curvature: kappa,
+        });
 
         for _ in 0..n {
             theta += kappa * ds;
             kappa += dk_ds * ds;
             x += ds * theta.cos();
             y += ds * theta.sin();
-            samples.push(KinematicState { x, y, theta, velocity, curvature: kappa });
+            samples.push(KinematicState {
+                x,
+                y,
+                theta,
+                velocity,
+                curvature: kappa,
+            });
         }
 
         let end_state = *samples.last().unwrap();
@@ -288,17 +348,25 @@ impl MotionPrimitive {
     /// Check feasibility against kinematic limits.
     pub fn is_feasible(&self, limits: &KinematicLimits) -> bool {
         for s in &self.samples {
-            if s.velocity.abs() > limits.max_velocity { return false; }
-            if s.curvature.abs() > limits.max_curvature { return false; }
+            if s.velocity.abs() > limits.max_velocity {
+                return false;
+            }
+            if s.curvature.abs() > limits.max_curvature {
+                return false;
+            }
         }
         // Check acceleration (velocity change over time)
         if self.samples.len() >= 2 {
             let dt = self.duration / (self.samples.len() - 1) as f64;
             for w in self.samples.windows(2) {
                 let accel = (w[1].velocity - w[0].velocity).abs() / dt;
-                if accel > limits.max_acceleration { return false; }
+                if accel > limits.max_acceleration {
+                    return false;
+                }
                 let krate = (w[1].curvature - w[0].curvature).abs() / dt;
-                if krate > limits.max_curvature_rate { return false; }
+                if krate > limits.max_curvature_rate {
+                    return false;
+                }
             }
         }
         true
@@ -306,15 +374,21 @@ impl MotionPrimitive {
 
     /// Check if this primitive can be concatenated after `prev`.
     pub fn can_follow(&self, prev: &MotionPrimitive, pos_tol: f64, angle_tol: f64) -> bool {
-        prev.end_state.approx_eq(&self.start_state, pos_tol, angle_tol)
+        prev.end_state
+            .approx_eq(&self.start_state, pos_tol, angle_tol)
     }
 }
 
 impl fmt::Display for MotionPrimitive {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "Primitive(id={}, type={}, len={:.3}, dur={:.3}, pts={})",
-            self.id, self.traj_type, self.arc_length, self.duration, self.samples.len(),
+            f,
+            "Primitive(id={}, type={}, len={:.3}, dur={:.3}, pts={})",
+            self.id,
+            self.traj_type,
+            self.arc_length,
+            self.duration,
+            self.samples.len(),
         )
     }
 }
@@ -327,7 +401,11 @@ pub struct PrimitiveLibraryStore {
 }
 
 impl PrimitiveLibraryStore {
-    pub fn new() -> Self { Self { primitives: Vec::new() } }
+    pub fn new() -> Self {
+        Self {
+            primitives: Vec::new(),
+        }
+    }
 
     pub fn add(&mut self, prim: MotionPrimitive) -> Result<(), PrimitiveError> {
         if self.primitives.iter().any(|p| p.id == prim.id) {
@@ -341,13 +419,20 @@ impl PrimitiveLibraryStore {
         self.primitives.iter().find(|p| p.id == id)
     }
 
-    pub fn count(&self) -> usize { self.primitives.len() }
+    pub fn count(&self) -> usize {
+        self.primitives.len()
+    }
 
-    pub fn all(&self) -> &[MotionPrimitive] { &self.primitives }
+    pub fn all(&self) -> &[MotionPrimitive] {
+        &self.primitives
+    }
 
     /// Get primitives that are feasible under given limits.
     pub fn feasible(&self, limits: &KinematicLimits) -> Vec<&MotionPrimitive> {
-        self.primitives.iter().filter(|p| p.is_feasible(limits)).collect()
+        self.primitives
+            .iter()
+            .filter(|p| p.is_feasible(limits))
+            .collect()
     }
 
     /// Get primitives whose start state matches a query (within tolerance).
@@ -357,7 +442,8 @@ impl PrimitiveLibraryStore {
         pos_tol: f64,
         angle_tol: f64,
     ) -> Vec<&MotionPrimitive> {
-        self.primitives.iter()
+        self.primitives
+            .iter()
             .filter(|p| p.start_state.approx_eq(state, pos_tol, angle_tol))
             .collect()
     }
@@ -382,7 +468,12 @@ pub struct ConcatenatedTrajectory {
 
 impl ConcatenatedTrajectory {
     pub fn new() -> Self {
-        Self { segments: Vec::new(), total_length: 0.0, total_duration: 0.0, total_cost: 0.0 }
+        Self {
+            segments: Vec::new(),
+            total_length: 0.0,
+            total_duration: 0.0,
+            total_cost: 0.0,
+        }
     }
 
     /// Append a primitive, checking continuity.
@@ -424,7 +515,9 @@ impl ConcatenatedTrajectory {
         self.segments.iter().all(|s| s.is_feasible(limits))
     }
 
-    pub fn segment_count(&self) -> usize { self.segments.len() }
+    pub fn segment_count(&self) -> usize {
+        self.segments.len()
+    }
 
     pub fn start_state(&self) -> Option<KinematicState> {
         self.segments.first().map(|s| s.start_state)
@@ -438,8 +531,12 @@ impl ConcatenatedTrajectory {
 impl fmt::Display for ConcatenatedTrajectory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "ConcatTraj(segs={}, len={:.3}, dur={:.3}, cost={:.3})",
-            self.segments.len(), self.total_length, self.total_duration, self.total_cost,
+            f,
+            "ConcatTraj(segs={}, len={:.3}, dur={:.3}, cost={:.3})",
+            self.segments.len(),
+            self.total_length,
+            self.total_duration,
+            self.total_cost,
         )
     }
 }
@@ -448,8 +545,12 @@ impl fmt::Display for ConcatenatedTrajectory {
 
 fn normalize_angle(a: f64) -> f64 {
     let mut angle = a % (2.0 * std::f64::consts::PI);
-    if angle > std::f64::consts::PI { angle -= 2.0 * std::f64::consts::PI; }
-    if angle < -std::f64::consts::PI { angle += 2.0 * std::f64::consts::PI; }
+    if angle > std::f64::consts::PI {
+        angle -= 2.0 * std::f64::consts::PI;
+    }
+    if angle < -std::f64::consts::PI {
+        angle += 2.0 * std::f64::consts::PI;
+    }
     angle
 }
 
@@ -459,8 +560,12 @@ fn normalize_angle(a: f64) -> f64 {
 mod tests {
     use super::*;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < 1e-4 }
-    fn origin() -> KinematicState { KinematicState::new(0.0, 0.0, 0.0).with_velocity(1.0) }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < 1e-4
+    }
+    fn origin() -> KinematicState {
+        KinematicState::new(0.0, 0.0, 0.0).with_velocity(1.0)
+    }
 
     #[test]
     fn test_state_display() {
@@ -584,15 +689,21 @@ mod tests {
     #[test]
     fn test_library_duplicate() {
         let mut lib = PrimitiveLibraryStore::new();
-        lib.add(MotionPrimitive::straight("s1", origin(), 2.0, 1.0).unwrap()).unwrap();
-        assert!(lib.add(MotionPrimitive::straight("s1", origin(), 3.0, 1.0).unwrap()).is_err());
+        lib.add(MotionPrimitive::straight("s1", origin(), 2.0, 1.0).unwrap())
+            .unwrap();
+        assert!(
+            lib.add(MotionPrimitive::straight("s1", origin(), 3.0, 1.0).unwrap())
+                .is_err()
+        );
     }
 
     #[test]
     fn test_library_feasible_filter() {
         let mut lib = PrimitiveLibraryStore::new();
-        lib.add(MotionPrimitive::straight("slow", origin().with_velocity(0.5), 2.0, 0.5).unwrap()).unwrap();
-        lib.add(MotionPrimitive::straight("fast", origin().with_velocity(5.0), 2.0, 5.0).unwrap()).unwrap();
+        lib.add(MotionPrimitive::straight("slow", origin().with_velocity(0.5), 2.0, 0.5).unwrap())
+            .unwrap();
+        lib.add(MotionPrimitive::straight("fast", origin().with_velocity(5.0), 2.0, 5.0).unwrap())
+            .unwrap();
         let limits = KinematicLimits::new(2.0, 10.0, 1.0, 1.0);
         let feasible = lib.feasible(&limits);
         assert_eq!(feasible.len(), 1);

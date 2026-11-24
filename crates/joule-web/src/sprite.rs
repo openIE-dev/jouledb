@@ -17,10 +17,30 @@ pub struct Color {
 }
 
 impl Color {
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
-    pub const RED: Self = Self { r: 1.0, g: 0.0, b: 0.0, a: 1.0 };
-    pub const GREEN: Self = Self { r: 0.0, g: 1.0, b: 0.0, a: 1.0 };
-    pub const BLUE: Self = Self { r: 0.0, g: 0.0, b: 1.0, a: 1.0 };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+        a: 1.0,
+    };
+    pub const RED: Self = Self {
+        r: 1.0,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
+    pub const GREEN: Self = Self {
+        r: 0.0,
+        g: 1.0,
+        b: 0.0,
+        a: 1.0,
+    };
+    pub const BLUE: Self = Self {
+        r: 0.0,
+        g: 0.0,
+        b: 1.0,
+        a: 1.0,
+    };
 
     pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }
@@ -46,7 +66,12 @@ pub struct Rect {
 
 impl Rect {
     pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 }
 
@@ -172,7 +197,13 @@ pub struct SpriteSheet {
 }
 
 impl SpriteSheet {
-    pub fn new(texture_id: u64, frame_width: u32, frame_height: u32, columns: u32, rows: u32) -> Self {
+    pub fn new(
+        texture_id: u64,
+        frame_width: u32,
+        frame_height: u32,
+        columns: u32,
+        rows: u32,
+    ) -> Self {
         Self {
             texture_id,
             frame_width,
@@ -208,7 +239,12 @@ impl SpriteSheet {
         let row = index / self.columns;
         let x = self.margin + col * (self.frame_width + self.padding);
         let y = self.margin + row * (self.frame_height + self.padding);
-        Some(Rect::new(x as f32, y as f32, self.frame_width as f32, self.frame_height as f32))
+        Some(Rect::new(
+            x as f32,
+            y as f32,
+            self.frame_width as f32,
+            self.frame_height as f32,
+        ))
     }
 
     /// Create a sprite from this sheet at a given frame.
@@ -282,7 +318,9 @@ pub struct AnimatedSprite {
 impl AnimatedSprite {
     pub fn new(sheet: SpriteSheet, animation: SpriteAnimation) -> Self {
         let first_frame = animation.frames.first().copied().unwrap_or(0);
-        let rect = sheet.frame_rect(first_frame).unwrap_or(Rect::new(0.0, 0.0, 0.0, 0.0));
+        let rect = sheet
+            .frame_rect(first_frame)
+            .unwrap_or(Rect::new(0.0, 0.0, 0.0, 0.0));
         let sprite = Sprite::new(sheet.texture_id, rect);
 
         Self {
@@ -399,7 +437,9 @@ pub struct SpriteBatch {
 
 impl SpriteBatch {
     pub fn new() -> Self {
-        Self { sprites: Vec::new() }
+        Self {
+            sprites: Vec::new(),
+        }
     }
 
     pub fn add(&mut self, sprite: Sprite) {
@@ -484,8 +524,7 @@ mod tests {
 
     #[test]
     fn sprite_flip() {
-        let s = Sprite::new(1, Rect::new(0.0, 0.0, 32.0, 32.0))
-            .with_flip(true, false);
+        let s = Sprite::new(1, Rect::new(0.0, 0.0, 32.0, 32.0)).with_flip(true, false);
         assert!(s.flip_h);
         assert!(!s.flip_v);
     }
@@ -518,7 +557,9 @@ mod tests {
 
     #[test]
     fn sprite_sheet_with_padding() {
-        let sheet = SpriteSheet::new(1, 32, 32, 4, 4).with_padding(2).with_margin(1);
+        let sheet = SpriteSheet::new(1, 32, 32, 4, 4)
+            .with_padding(2)
+            .with_margin(1);
         let r = sheet.frame_rect(1).unwrap();
         // x = margin + col * (width + padding) = 1 + 1 * 34 = 35
         assert_eq!(r.x, 35.0);
@@ -534,8 +575,8 @@ mod tests {
     #[test]
     fn animated_sprite_tick_loop() {
         let sheet = test_sheet();
-        let anim = SpriteAnimation::new("walk", vec![0, 1, 2, 3], 4.0)
-            .with_loop_mode(LoopMode::Loop);
+        let anim =
+            SpriteAnimation::new("walk", vec![0, 1, 2, 3], 4.0).with_loop_mode(LoopMode::Loop);
         let mut animated = AnimatedSprite::new(sheet, anim);
 
         assert_eq!(animated.current_frame(), 0);
@@ -552,8 +593,7 @@ mod tests {
     #[test]
     fn animated_sprite_tick_once() {
         let sheet = test_sheet();
-        let anim = SpriteAnimation::new("die", vec![0, 1, 2], 4.0)
-            .with_loop_mode(LoopMode::Once);
+        let anim = SpriteAnimation::new("die", vec![0, 1, 2], 4.0).with_loop_mode(LoopMode::Once);
         let mut animated = AnimatedSprite::new(sheet, anim);
 
         animated.tick(0.26);
@@ -619,8 +659,7 @@ mod tests {
 
     #[test]
     fn sprite_tint() {
-        let s = Sprite::new(1, Rect::new(0.0, 0.0, 32.0, 32.0))
-            .with_tint(Color::RED);
+        let s = Sprite::new(1, Rect::new(0.0, 0.0, 32.0, 32.0)).with_tint(Color::RED);
         assert_eq!(s.tint_color, Color::RED);
     }
 

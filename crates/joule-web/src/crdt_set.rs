@@ -144,7 +144,8 @@ impl TwoPSet {
 
     /// Get all live elements as a sorted vector.
     pub fn elements(&self) -> Vec<&str> {
-        let mut elems: Vec<&str> = self.added
+        let mut elems: Vec<&str> = self
+            .added
             .difference(&self.removed)
             .map(|s| s.as_str())
             .collect();
@@ -256,7 +257,8 @@ impl ORSet {
 
     /// Get all live elements as a sorted vector.
     pub fn elements(&self) -> Vec<&str> {
-        let mut elems: Vec<&str> = self.elements
+        let mut elems: Vec<&str> = self
+            .elements
             .iter()
             .filter(|(_, tags)| !tags.is_empty())
             .map(|(elem, _)| elem.as_str())
@@ -267,9 +269,7 @@ impl ORSet {
 
     /// Get the number of tags for a specific element.
     pub fn tag_count(&self, element: &str) -> usize {
-        self.elements
-            .get(element)
-            .map_or(0, |tags| tags.len())
+        self.elements.get(element).map_or(0, |tags| tags.len())
     }
 
     /// Get the replica id.
@@ -316,10 +316,13 @@ impl LwwElementSet {
 
     /// Add an element with the given timestamp.
     pub fn add(&mut self, element: &str, timestamp: f64) {
-        let entry = self.entries.entry(element.to_string()).or_insert(LwwTimestamp {
-            add_ts: f64::NEG_INFINITY,
-            remove_ts: f64::NEG_INFINITY,
-        });
+        let entry = self
+            .entries
+            .entry(element.to_string())
+            .or_insert(LwwTimestamp {
+                add_ts: f64::NEG_INFINITY,
+                remove_ts: f64::NEG_INFINITY,
+            });
         if timestamp > entry.add_ts {
             entry.add_ts = timestamp;
         }
@@ -327,10 +330,13 @@ impl LwwElementSet {
 
     /// Remove an element with the given timestamp.
     pub fn remove(&mut self, element: &str, timestamp: f64) {
-        let entry = self.entries.entry(element.to_string()).or_insert(LwwTimestamp {
-            add_ts: f64::NEG_INFINITY,
-            remove_ts: f64::NEG_INFINITY,
-        });
+        let entry = self
+            .entries
+            .entry(element.to_string())
+            .or_insert(LwwTimestamp {
+                add_ts: f64::NEG_INFINITY,
+                remove_ts: f64::NEG_INFINITY,
+            });
         if timestamp > entry.remove_ts {
             entry.remove_ts = timestamp;
         }
@@ -355,10 +361,7 @@ impl LwwElementSet {
 
     /// Get the number of live elements.
     pub fn len(&self) -> usize {
-        self.entries
-            .keys()
-            .filter(|k| self.contains(k))
-            .count()
+        self.entries.keys().filter(|k| self.contains(k)).count()
     }
 
     /// Check if the set is empty.
@@ -384,7 +387,8 @@ impl LwwElementSet {
 
     /// Get all live elements as a sorted vector.
     pub fn elements(&self) -> Vec<&str> {
-        let mut elems: Vec<&str> = self.entries
+        let mut elems: Vec<&str> = self
+            .entries
             .keys()
             .filter(|k| self.contains(k))
             .map(|s| s.as_str())

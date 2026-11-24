@@ -95,7 +95,11 @@ impl PixelBuffer {
             for x in 0..new_w {
                 let sx = (x as u64 * self.width as u64 / new_w as u64) as u32;
                 let sy = (y as u64 * self.height as u64 / new_h as u64) as u32;
-                out.set_pixel(x, y, self.get_pixel(sx.min(self.width - 1), sy.min(self.height - 1)));
+                out.set_pixel(
+                    x,
+                    y,
+                    self.get_pixel(sx.min(self.width - 1), sy.min(self.height - 1)),
+                );
             }
         }
         out
@@ -166,8 +170,7 @@ impl PixelBuffer {
         let mut out = self.clone();
         for chunk in out.data.chunks_exact_mut(4) {
             for c in &mut chunk[..3] {
-                let val = (((*c as f64 - 128.0) * factor + 128.0).round() as i32)
-                    .clamp(0, 255);
+                let val = (((*c as f64 - 128.0) * factor + 128.0).round() as i32).clamp(0, 255);
                 *c = val as u8;
             }
         }
@@ -209,12 +212,16 @@ impl PixelBuffer {
                         ((s as f64 * sa + d as f64 * da * (1.0 - sa)) / oa).round() as u8
                     };
 
-                    out.set_pixel(dx as u32, dy as u32, [
-                        blend_ch(src[0], dst[0]),
-                        blend_ch(src[1], dst[1]),
-                        blend_ch(src[2], dst[2]),
-                        (oa * 255.0).round() as u8,
-                    ]);
+                    out.set_pixel(
+                        dx as u32,
+                        dy as u32,
+                        [
+                            blend_ch(src[0], dst[0]),
+                            blend_ch(src[1], dst[1]),
+                            blend_ch(src[2], dst[2]),
+                            (oa * 255.0).round() as u8,
+                        ],
+                    );
                 }
             }
         }
@@ -225,10 +232,9 @@ impl PixelBuffer {
     pub fn histogram(&self) -> [u32; 256] {
         let mut hist = [0u32; 256];
         for chunk in self.data.chunks_exact(4) {
-            let lum = (0.2126 * chunk[0] as f64
-                + 0.7152 * chunk[1] as f64
-                + 0.0722 * chunk[2] as f64)
-                .round() as u8;
+            let lum =
+                (0.2126 * chunk[0] as f64 + 0.7152 * chunk[1] as f64 + 0.0722 * chunk[2] as f64)
+                    .round() as u8;
             hist[lum as usize] += 1;
         }
         hist
@@ -367,6 +373,6 @@ mod tests {
         let hi = buf.contrast(10.0);
         let px = hi.get_pixel(0, 0);
         assert_eq!(px[0], 255); // clamped high
-        assert_eq!(px[1], 0);   // clamped low
+        assert_eq!(px[1], 0); // clamped low
     }
 }

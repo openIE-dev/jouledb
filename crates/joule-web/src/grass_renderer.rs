@@ -257,7 +257,8 @@ impl GrassBlade {
             (base.g - vary * 0.5).clamp(0.0, 1.0),
             (base.b + vary * 0.3).clamp(0.0, 1.0),
             1.0,
-        ).lerp(&tip, 0.5)
+        )
+        .lerp(&tip, 0.5)
     }
 }
 
@@ -290,8 +291,8 @@ impl WindConfig {
     pub fn compute_displacement(&self, pos: &Vec3, time: f32) -> Vec2 {
         let phase = pos.x * 0.7 + pos.z * 1.3;
         let base_sway = (time * self.frequency + phase).sin() * self.strength;
-        let gust = ((time * self.gust_frequency + phase * 0.5).sin() * 0.5 + 0.5)
-            * self.gust_strength;
+        let gust =
+            ((time * self.gust_frequency + phase * 0.5).sin() * 0.5 + 0.5) * self.gust_strength;
         let total = base_sway + gust;
         Vec2::new(self.direction.x * total, self.direction.y * total)
     }
@@ -335,11 +336,7 @@ impl GrassChunk {
     }
 
     pub fn visible_blade_count(&self) -> usize {
-        if self.visible {
-            self.blades.len()
-        } else {
-            0
-        }
+        if self.visible { self.blades.len() } else { 0 }
     }
 }
 
@@ -417,10 +414,10 @@ impl GrassRenderer {
         while x < max_x {
             let mut z = min_z;
             while z < max_z {
-                let dm_u = (x - min_x) / (max_x - min_x).max(1e-6)
-                    * (density_map.width as f32 - 1.0);
-                let dm_v = (z - min_z) / (max_z - min_z).max(1e-6)
-                    * (density_map.height as f32 - 1.0);
+                let dm_u =
+                    (x - min_x) / (max_x - min_x).max(1e-6) * (density_map.width as f32 - 1.0);
+                let dm_v =
+                    (z - min_z) / (max_z - min_z).max(1e-6) * (density_map.height as f32 - 1.0);
                 let density = density_map.sample(dm_u, dm_v);
 
                 // Pseudo-random hash for determinism
@@ -432,15 +429,12 @@ impl GrassRenderer {
                     let bz = z + jitter_z;
                     let by = terrain_height(bx, bz);
 
-                    let h_var = (fract(hash * 43.7) - 0.5) * 2.0
-                        * self.config.height_variation;
-                    let w_var = (fract(hash * 97.3) - 0.5) * 2.0
-                        * self.config.width_variation;
+                    let h_var = (fract(hash * 43.7) - 0.5) * 2.0 * self.config.height_variation;
+                    let w_var = (fract(hash * 97.3) - 0.5) * 2.0 * self.config.width_variation;
 
                     let mut blade = GrassBlade::new(
                         Vec3::new(bx, by, bz),
-                        (self.config.base_height + h_var)
-                            * self.config.season.height_factor(),
+                        (self.config.base_height + h_var) * self.config.season.height_factor(),
                         (self.config.base_width + w_var).max(0.005),
                     );
                     blade.rotation = fract(hash * 73.9) * std::f32::consts::TAU;
@@ -448,7 +442,8 @@ impl GrassRenderer {
 
                     let cx = (bx / self.config.chunk_size).floor() as i32;
                     let cz = (bz / self.config.chunk_size).floor() as i32;
-                    let chunk = self.chunks
+                    let chunk = self
+                        .chunks
                         .entry((cx, cz))
                         .or_insert_with(|| GrassChunk::new(GrassChunkCoord { cx, cz }));
                     chunk.blades.push(blade);
@@ -503,11 +498,7 @@ impl GrassRenderer {
 
     /// Get sorted chunk coords for deterministic iteration.
     pub fn chunk_coords_sorted(&self) -> Vec<GrassChunkCoord> {
-        let mut coords: Vec<GrassChunkCoord> = self
-            .chunks
-            .values()
-            .map(|c| c.coord)
-            .collect();
+        let mut coords: Vec<GrassChunkCoord> = self.chunks.values().map(|c| c.coord).collect();
         coords.sort_by(|a, b| a.cx.cmp(&b.cx).then(a.cz.cmp(&b.cz)));
         coords
     }
@@ -732,7 +723,10 @@ mod tests {
         renderer.generate_area(0.0, 0.0, 2.0, 2.0, &dm, &|_x, _z| 0.0);
         renderer.animate_wind(1.5);
         // At least some blades should have non-zero bend
-        let has_bent = renderer.chunks.values().any(|c| c.blades.iter().any(|b| b.bend > 0.0));
+        let has_bent = renderer
+            .chunks
+            .values()
+            .any(|c| c.blades.iter().any(|b| b.bend > 0.0));
         assert!(has_bent);
     }
 
@@ -773,10 +767,7 @@ mod tests {
         for w in coords.windows(2) {
             let a = w[0];
             let b = w[1];
-            assert!(
-                (a.cx, a.cz) <= (b.cx, b.cz),
-                "coords should be sorted"
-            );
+            assert!((a.cx, a.cz) <= (b.cx, b.cz), "coords should be sorted");
         }
     }
 

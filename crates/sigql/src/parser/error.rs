@@ -1,8 +1,13 @@
 //! Parser error types
 
-
 #[cfg(not(feature = "std"))]
-use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use thiserror::Error;
 
 /// Errors that can occur during parsing

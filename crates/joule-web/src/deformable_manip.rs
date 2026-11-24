@@ -79,7 +79,13 @@ pub struct Spring {
 
 impl Spring {
     pub fn new(a: usize, b: usize, rest_length: f64, stiffness: f64) -> Self {
-        Self { node_a: a, node_b: b, rest_length, stiffness, damping: 0.1 }
+        Self {
+            node_a: a,
+            node_b: b,
+            rest_length,
+            stiffness,
+            damping: 0.1,
+        }
     }
 
     pub fn with_damping(mut self, d: f64) -> Self {
@@ -98,7 +104,11 @@ pub struct MassSpringSystem {
 
 impl MassSpringSystem {
     pub fn new() -> Self {
-        Self { nodes: Vec::new(), springs: Vec::new(), gravity: -9.81 }
+        Self {
+            nodes: Vec::new(),
+            springs: Vec::new(),
+            gravity: -9.81,
+        }
     }
 
     pub fn with_gravity(mut self, g: f64) -> Self {
@@ -117,14 +127,22 @@ impl MassSpringSystem {
     }
 
     /// Create a rope (chain of nodes connected by springs).
-    pub fn create_rope(start: Point2, end: Point2, num_segments: usize, stiffness: f64, mass_per_node: f64) -> Self {
+    pub fn create_rope(
+        start: Point2,
+        end: Point2,
+        num_segments: usize,
+        stiffness: f64,
+        mass_per_node: f64,
+    ) -> Self {
         let mut sys = Self::new();
         let n = num_segments + 1;
         for i in 0..n {
             let t = i as f64 / num_segments as f64;
             let p = start.lerp(&end, t);
             let mut node = MassNode::new(p.x, p.y, mass_per_node);
-            if i == 0 { node.pinned = true; }
+            if i == 0 {
+                node.pinned = true;
+            }
             sys.add_node(node);
         }
         for i in 0..num_segments {
@@ -135,7 +153,14 @@ impl MassSpringSystem {
     }
 
     /// Create a cloth patch (grid of nodes).
-    pub fn create_cloth(origin: Point2, width: f64, height: f64, cols: usize, rows: usize, stiffness: f64) -> Self {
+    pub fn create_cloth(
+        origin: Point2,
+        width: f64,
+        height: f64,
+        cols: usize,
+        rows: usize,
+        stiffness: f64,
+    ) -> Self {
         let mut sys = Self::new();
         let dx = width / (cols - 1).max(1) as f64;
         let dy = height / (rows - 1).max(1) as f64;
@@ -145,7 +170,9 @@ impl MassSpringSystem {
                 let x = origin.x + c as f64 * dx;
                 let y = origin.y + r as f64 * dy;
                 let mut node = MassNode::new(x, y, 0.1);
-                if r == 0 && (c == 0 || c == cols - 1) { node.pinned = true; }
+                if r == 0 && (c == 0 || c == cols - 1) {
+                    node.pinned = true;
+                }
                 sys.add_node(node);
             }
         }
@@ -204,7 +231,9 @@ impl MassSpringSystem {
 
         // Integrate
         for (i, node) in self.nodes.iter_mut().enumerate() {
-            if node.pinned { continue; }
+            if node.pinned {
+                continue;
+            }
             let ax = forces[i].0 / node.mass;
             let ay = forces[i].1 / node.mass;
             node.velocity.x += ax * dt;
@@ -216,18 +245,22 @@ impl MassSpringSystem {
 
     /// Total elastic energy in the system.
     pub fn elastic_energy(&self) -> f64 {
-        self.springs.iter().map(|s| {
-            let a = &self.nodes[s.node_a];
-            let b = &self.nodes[s.node_b];
-            let dist = a.position.distance(&b.position);
-            let stretch = dist - s.rest_length;
-            0.5 * s.stiffness * stretch * stretch
-        }).sum()
+        self.springs
+            .iter()
+            .map(|s| {
+                let a = &self.nodes[s.node_a];
+                let b = &self.nodes[s.node_b];
+                let dist = a.position.distance(&b.position);
+                let stretch = dist - s.rest_length;
+                0.5 * s.stiffness * stretch * stretch
+            })
+            .sum()
     }
 
     /// Total kinetic energy.
     pub fn kinetic_energy(&self) -> f64 {
-        self.nodes.iter()
+        self.nodes
+            .iter()
             .filter(|n| !n.pinned)
             .map(|n| 0.5 * n.mass * (n.velocity.x * n.velocity.x + n.velocity.y * n.velocity.y))
             .sum()
@@ -236,7 +269,12 @@ impl MassSpringSystem {
 
 impl fmt::Display for MassSpringSystem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MassSpringSystem({} nodes, {} springs)", self.nodes.len(), self.springs.len())
+        write!(
+            f,
+            "MassSpringSystem({} nodes, {} springs)",
+            self.nodes.len(),
+            self.springs.len()
+        )
     }
 }
 
@@ -254,12 +292,16 @@ impl ShapeDescriptor {
     }
 
     pub fn from_system(sys: &MassSpringSystem) -> Self {
-        Self { points: sys.nodes.iter().map(|n| n.position).collect() }
+        Self {
+            points: sys.nodes.iter().map(|n| n.position).collect(),
+        }
     }
 
     /// Shape error: sum of squared distances between corresponding points.
     pub fn error(&self, target: &Self) -> f64 {
-        self.points.iter().zip(target.points.iter())
+        self.points
+            .iter()
+            .zip(target.points.iter())
             .map(|(a, b)| {
                 let dx = a.x - b.x;
                 let dy = a.y - b.y;
@@ -299,14 +341,21 @@ impl ShapeDescriptor {
 
     /// Total arc length of the shape (sum of segment lengths).
     pub fn arc_length(&self) -> f64 {
-        if self.points.len() < 2 { return 0.0; }
+        if self.points.len() < 2 {
+            return 0.0;
+        }
         self.points.windows(2).map(|w| w[0].distance(&w[1])).sum()
     }
 }
 
 impl fmt::Display for ShapeDescriptor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Shape({} points, len={:.3})", self.points.len(), self.arc_length())
+        write!(
+            f,
+            "Shape({} points, len={:.3})",
+            self.points.len(),
+            self.arc_length()
+        )
     }
 }
 
@@ -336,8 +385,13 @@ impl FoldAction {
 
 impl fmt::Display for FoldAction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Fold(grasp={}, place={}, dist={:.3})",
-            self.grasp_point, self.place_point, self.fold_distance())
+        write!(
+            f,
+            "Fold(grasp={}, place={}, dist={:.3})",
+            self.grasp_point,
+            self.place_point,
+            self.fold_distance()
+        )
     }
 }
 
@@ -383,7 +437,11 @@ impl FoldPlanner {
         for _ in 0..num_folds {
             let planner = FoldPlanner::new(w, h);
             folds.push(planner.plan_half_fold());
-            if w >= h { w /= 2.0; } else { h /= 2.0; }
+            if w >= h {
+                w /= 2.0;
+            } else {
+                h /= 2.0;
+            }
         }
         folds
     }
@@ -393,7 +451,11 @@ impl FoldPlanner {
         let mut w = self.width;
         let mut h = self.height;
         for _ in 0..num_folds {
-            if w >= h { w /= 2.0; } else { h /= 2.0; }
+            if w >= h {
+                w /= 2.0;
+            } else {
+                h /= 2.0;
+            }
         }
         (w, h)
     }
@@ -433,7 +495,11 @@ mod tests {
     #[test]
     fn test_create_rope() {
         let rope = MassSpringSystem::create_rope(
-            Point2::new(0.0, 0.0), Point2::new(5.0, 0.0), 10, 100.0, 0.1
+            Point2::new(0.0, 0.0),
+            Point2::new(5.0, 0.0),
+            10,
+            100.0,
+            0.1,
         );
         assert_eq!(rope.nodes.len(), 11);
         assert_eq!(rope.springs.len(), 10);
@@ -442,9 +508,7 @@ mod tests {
 
     #[test]
     fn test_create_cloth() {
-        let cloth = MassSpringSystem::create_cloth(
-            Point2::new(0.0, 0.0), 1.0, 1.0, 4, 4, 200.0
-        );
+        let cloth = MassSpringSystem::create_cloth(Point2::new(0.0, 0.0), 1.0, 1.0, 4, 4, 200.0);
         assert_eq!(cloth.nodes.len(), 16);
         assert!(cloth.springs.len() > 0);
     }
@@ -452,7 +516,11 @@ mod tests {
     #[test]
     fn test_step_simulation() {
         let mut rope = MassSpringSystem::create_rope(
-            Point2::new(0.0, 0.0), Point2::new(1.0, 0.0), 5, 100.0, 0.1
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+            5,
+            100.0,
+            0.1,
         );
         let e0 = rope.elastic_energy();
         for _ in 0..10 {
@@ -466,7 +534,11 @@ mod tests {
     #[test]
     fn test_elastic_energy_at_rest() {
         let rope = MassSpringSystem::create_rope(
-            Point2::new(0.0, 0.0), Point2::new(5.0, 0.0), 5, 100.0, 0.1
+            Point2::new(0.0, 0.0),
+            Point2::new(5.0, 0.0),
+            5,
+            100.0,
+            0.1,
         );
         let energy = rope.elastic_energy();
         assert!(energy < 1e-6); // Springs at rest length
@@ -475,7 +547,11 @@ mod tests {
     #[test]
     fn test_kinetic_energy_initial() {
         let rope = MassSpringSystem::create_rope(
-            Point2::new(0.0, 0.0), Point2::new(1.0, 0.0), 3, 50.0, 0.1
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+            3,
+            50.0,
+            0.1,
         );
         assert!((rope.kinetic_energy() - 0.0).abs() < 1e-10);
     }
@@ -483,7 +559,11 @@ mod tests {
     #[test]
     fn test_mass_spring_display() {
         let sys = MassSpringSystem::create_rope(
-            Point2::new(0.0, 0.0), Point2::new(1.0, 0.0), 3, 50.0, 0.1
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+            3,
+            50.0,
+            0.1,
         );
         let s = format!("{sys}");
         assert!(s.contains("4 nodes"));
@@ -499,8 +579,10 @@ mod tests {
     #[test]
     fn test_shape_descriptor_centroid() {
         let shape = ShapeDescriptor::new(vec![
-            Point2::new(0.0, 0.0), Point2::new(2.0, 0.0),
-            Point2::new(2.0, 2.0), Point2::new(0.0, 2.0),
+            Point2::new(0.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(2.0, 2.0),
+            Point2::new(0.0, 2.0),
         ]);
         let c = shape.centroid();
         assert!((c.x - 1.0).abs() < 1e-10);
@@ -510,16 +592,16 @@ mod tests {
     #[test]
     fn test_shape_arc_length() {
         let shape = ShapeDescriptor::new(vec![
-            Point2::new(0.0, 0.0), Point2::new(3.0, 0.0), Point2::new(3.0, 4.0),
+            Point2::new(0.0, 0.0),
+            Point2::new(3.0, 0.0),
+            Point2::new(3.0, 4.0),
         ]);
         assert!((shape.arc_length() - 7.0).abs() < 1e-10);
     }
 
     #[test]
     fn test_shape_bounding_box() {
-        let shape = ShapeDescriptor::new(vec![
-            Point2::new(-1.0, -2.0), Point2::new(3.0, 4.0),
-        ]);
+        let shape = ShapeDescriptor::new(vec![Point2::new(-1.0, -2.0), Point2::new(3.0, 4.0)]);
         let (lo, hi) = shape.bounding_box();
         assert!((lo.x - (-1.0)).abs() < 1e-10);
         assert!((hi.y - 4.0).abs() < 1e-10);
@@ -528,8 +610,10 @@ mod tests {
     #[test]
     fn test_fold_action() {
         let fold = FoldAction::new(
-            Point2::new(10.0, 5.0), Point2::new(0.0, 5.0),
-            Point2::new(5.0, 0.0), Point2::new(5.0, 10.0),
+            Point2::new(10.0, 5.0),
+            Point2::new(0.0, 5.0),
+            Point2::new(5.0, 0.0),
+            Point2::new(5.0, 10.0),
         );
         assert!((fold.fold_distance() - 10.0).abs() < 1e-10);
     }
@@ -559,7 +643,11 @@ mod tests {
     #[test]
     fn test_shape_from_system() {
         let rope = MassSpringSystem::create_rope(
-            Point2::new(0.0, 0.0), Point2::new(1.0, 0.0), 3, 50.0, 0.1
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+            3,
+            50.0,
+            0.1,
         );
         let shape = ShapeDescriptor::from_system(&rope);
         assert_eq!(shape.points.len(), 4);

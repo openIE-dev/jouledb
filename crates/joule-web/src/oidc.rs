@@ -174,7 +174,9 @@ fn base64url_decode(input: &str) -> Result<Vec<u8>, OidcError> {
             TABLE.get(bytes[idx + 3] as usize).copied().unwrap_or(255),
         );
         if a == 255 || b == 255 || c == 255 || d == 255 {
-            return Err(OidcError::InvalidToken("invalid base64url character".into()));
+            return Err(OidcError::InvalidToken(
+                "invalid base64url character".into(),
+            ));
         }
         let n = ((a as u32) << 18) | ((b as u32) << 12) | ((c as u32) << 6) | (d as u32);
         out.push((n >> 16) as u8);
@@ -187,14 +189,18 @@ fn base64url_decode(input: &str) -> Result<Vec<u8>, OidcError> {
         let a = TABLE.get(bytes[idx] as usize).copied().unwrap_or(255);
         let b = TABLE.get(bytes[idx + 1] as usize).copied().unwrap_or(255);
         if a == 255 || b == 255 {
-            return Err(OidcError::InvalidToken("invalid base64url character".into()));
+            return Err(OidcError::InvalidToken(
+                "invalid base64url character".into(),
+            ));
         }
         let n = ((a as u32) << 18) | ((b as u32) << 12);
         out.push((n >> 16) as u8);
         if rem >= 3 {
             let c = TABLE.get(bytes[idx + 2] as usize).copied().unwrap_or(255);
             if c == 255 {
-                return Err(OidcError::InvalidToken("invalid base64url character".into()));
+                return Err(OidcError::InvalidToken(
+                    "invalid base64url character".into(),
+                ));
             }
             let n2 = ((a as u32) << 18) | ((b as u32) << 12) | ((c as u32) << 6);
             // Replace last byte and add next
@@ -329,7 +335,9 @@ impl DiscoveryDocument {
             return Err(OidcError::DiscoveryError("issuer is empty".into()));
         }
         if self.authorization_endpoint.is_empty() {
-            return Err(OidcError::DiscoveryError("authorization_endpoint is empty".into()));
+            return Err(OidcError::DiscoveryError(
+                "authorization_endpoint is empty".into(),
+            ));
         }
         if self.token_endpoint.is_empty() {
             return Err(OidcError::DiscoveryError("token_endpoint is empty".into()));
@@ -338,10 +346,14 @@ impl DiscoveryDocument {
             return Err(OidcError::DiscoveryError("jwks_uri is empty".into()));
         }
         if self.response_types_supported.is_empty() {
-            return Err(OidcError::DiscoveryError("response_types_supported is empty".into()));
+            return Err(OidcError::DiscoveryError(
+                "response_types_supported is empty".into(),
+            ));
         }
         if self.subject_types_supported.is_empty() {
-            return Err(OidcError::DiscoveryError("subject_types_supported is empty".into()));
+            return Err(OidcError::DiscoveryError(
+                "subject_types_supported is empty".into(),
+            ));
         }
         if self.id_token_signing_alg_values_supported.is_empty() {
             return Err(OidcError::DiscoveryError(
@@ -474,11 +486,7 @@ impl OidcSessionStore {
 
     /// Log out all sessions for a subject.
     pub fn logout_all(&mut self, sub: &str) -> usize {
-        let ids: Vec<String> = self
-            .by_sub
-            .get(sub)
-            .cloned()
-            .unwrap_or_default();
+        let ids: Vec<String> = self.by_sub.get(sub).cloned().unwrap_or_default();
         let count = ids.len();
         for id in ids {
             if let Some(s) = self.sessions.get_mut(&id) {
@@ -492,11 +500,7 @@ impl OidcSessionStore {
     pub fn sessions_for_sub(&self, sub: &str) -> Vec<&OidcSession> {
         self.by_sub
             .get(sub)
-            .map(|ids| {
-                ids.iter()
-                    .filter_map(|id| self.sessions.get(id))
-                    .collect()
-            })
+            .map(|ids| ids.iter().filter_map(|id| self.sessions.get(id)).collect())
             .unwrap_or_default()
     }
 
@@ -573,10 +577,7 @@ mod tests {
             scopes_supported: vec!["openid".into(), "profile".into(), "email".into()],
             response_types_supported: vec!["code".into(), "id_token".into()],
             response_modes_supported: Some(vec!["query".into(), "fragment".into()]),
-            grant_types_supported: Some(vec![
-                "authorization_code".into(),
-                "refresh_token".into(),
-            ]),
+            grant_types_supported: Some(vec!["authorization_code".into(), "refresh_token".into()]),
             subject_types_supported: vec!["public".into()],
             id_token_signing_alg_values_supported: vec!["RS256".into()],
             claims_supported: Some(vec!["sub".into(), "name".into(), "email".into()]),
@@ -685,7 +686,9 @@ mod tests {
     #[test]
     fn test_claims_extra() {
         let mut claims = test_claims();
-        claims.extra.insert("role".into(), serde_json::Value::String("admin".into()));
+        claims
+            .extra
+            .insert("role".into(), serde_json::Value::String("admin".into()));
         assert_eq!(claims.extra_string("role"), Some("admin"));
         assert_eq!(claims.extra_string("missing"), None);
     }
@@ -700,14 +703,20 @@ mod tests {
     fn test_discovery_empty_issuer() {
         let mut disco = test_discovery();
         disco.issuer = "".into();
-        assert!(matches!(disco.validate(), Err(OidcError::DiscoveryError(_))));
+        assert!(matches!(
+            disco.validate(),
+            Err(OidcError::DiscoveryError(_))
+        ));
     }
 
     #[test]
     fn test_discovery_http_issuer() {
         let mut disco = test_discovery();
         disco.issuer = "http://auth.example.com".into();
-        assert!(matches!(disco.validate(), Err(OidcError::DiscoveryError(_))));
+        assert!(matches!(
+            disco.validate(),
+            Err(OidcError::DiscoveryError(_))
+        ));
     }
 
     #[test]
@@ -871,7 +880,11 @@ mod tests {
     fn test_error_display() {
         let e = OidcError::MissingClaim("nonce".into());
         assert_eq!(e.to_string(), "missing required claim: nonce");
-        let e = OidcError::TokenExpired { sub: "u1".into(), exp: 100, now: 200 };
+        let e = OidcError::TokenExpired {
+            sub: "u1".into(),
+            exp: 100,
+            now: 200,
+        };
         assert!(e.to_string().contains("u1"));
     }
 
@@ -879,13 +892,19 @@ mod tests {
     fn test_discovery_empty_endpoints() {
         let mut disco = test_discovery();
         disco.authorization_endpoint = "".into();
-        assert!(matches!(disco.validate(), Err(OidcError::DiscoveryError(_))));
+        assert!(matches!(
+            disco.validate(),
+            Err(OidcError::DiscoveryError(_))
+        ));
     }
 
     #[test]
     fn test_discovery_empty_signing_alg() {
         let mut disco = test_discovery();
         disco.id_token_signing_alg_values_supported = vec![];
-        assert!(matches!(disco.validate(), Err(OidcError::DiscoveryError(_))));
+        assert!(matches!(
+            disco.validate(),
+            Err(OidcError::DiscoveryError(_))
+        ));
     }
 }

@@ -443,7 +443,11 @@ mod tests {
     fn line_wrap() {
         let lines = LineBreakSegmenter::wrap("The quick brown fox jumps over the lazy dog", 20);
         for line in &lines {
-            assert!(line.len() <= 20, "Line too long: '{line}' ({} chars)", line.len());
+            assert!(
+                line.len() <= 20,
+                "Line too long: '{line}' ({} chars)",
+                line.len()
+            );
         }
         assert!(lines.len() >= 2);
     }

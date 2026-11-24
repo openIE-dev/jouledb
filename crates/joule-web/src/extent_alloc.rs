@@ -26,7 +26,10 @@ impl std::fmt::Display for ExtentError {
         match self {
             Self::NoSpace(size) => write!(f, "no free extent of size {size}"),
             Self::NotAllocated { offset, length } => {
-                write!(f, "extent at offset {offset} length {length} is not allocated")
+                write!(
+                    f,
+                    "extent at offset {offset} length {length} is not allocated"
+                )
             }
             Self::DoubleFree { offset } => write!(f, "double free at offset {offset}"),
             Self::InvalidExtent(msg) => write!(f, "invalid extent: {msg}"),
@@ -191,7 +194,9 @@ impl ExtentAllocator {
     /// Allocate an extent of the given size.
     pub fn allocate(&mut self, size: u64) -> Result<Extent, ExtentError> {
         if size == 0 {
-            return Err(ExtentError::InvalidExtent("cannot allocate zero size".into()));
+            return Err(ExtentError::InvalidExtent(
+                "cannot allocate zero size".into(),
+            ));
         }
 
         let idx = match self.strategy {
@@ -207,10 +212,7 @@ impl ExtentAllocator {
         if free_extent.length == size {
             self.free_list.remove(idx);
         } else {
-            self.free_list[idx] = Extent::new(
-                free_extent.offset + size,
-                free_extent.length - size,
-            );
+            self.free_list[idx] = Extent::new(free_extent.offset + size, free_extent.length - size);
         }
 
         // Insert into allocated list in sorted order.

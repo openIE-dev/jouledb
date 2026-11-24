@@ -447,9 +447,8 @@ pub fn parse(input: &str) -> Result<FileDiff, UnifiedDiffError> {
         }
     }
 
-    let hs = header_start.ok_or_else(|| {
-        UnifiedDiffError::ParseError("no --- / +++ header found".into())
-    })?;
+    let hs = header_start
+        .ok_or_else(|| UnifiedDiffError::ParseError("no --- / +++ header found".into()))?;
 
     let old_file = lines[hs]
         .strip_prefix("--- ")
@@ -576,10 +575,7 @@ pub fn parse_multi_file(input: &str) -> Result<MultiFileDiff, UnifiedDiffError> 
     // Split on --- lines that are followed by +++ lines.
     let mut i = 0;
     while i < lines.len() {
-        if lines[i].starts_with("--- ")
-            && i + 1 < lines.len()
-            && lines[i + 1].starts_with("+++ ")
-        {
+        if lines[i].starts_with("--- ") && i + 1 < lines.len() && lines[i + 1].starts_with("+++ ") {
             if let Some(last) = segments.last_mut() {
                 last.1 = i;
             }
@@ -685,7 +681,10 @@ mod tests {
         let parsed = parse(&diff).unwrap();
         let hunk = &parsed.hunks[0];
         let has_removal = hunk.lines.iter().any(|l| matches!(l, DiffLine::Removal(_)));
-        let has_addition = hunk.lines.iter().any(|l| matches!(l, DiffLine::Addition(_)));
+        let has_addition = hunk
+            .lines
+            .iter()
+            .any(|l| matches!(l, DiffLine::Addition(_)));
         assert!(has_removal);
         assert!(has_addition);
     }

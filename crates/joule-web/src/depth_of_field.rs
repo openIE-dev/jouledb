@@ -19,11 +19,19 @@ impl DofColor {
     }
 
     pub fn black() -> Self {
-        Self { r: 0.0, g: 0.0, b: 0.0 }
+        Self {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+        }
     }
 
     pub fn scale(&self, s: f64) -> Self {
-        Self { r: self.r * s, g: self.g * s, b: self.b * s }
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
     }
 
     pub fn add(&self, other: &Self) -> Self {
@@ -254,7 +262,11 @@ pub fn circular_kernel(num_samples: usize, radius: f64) -> Vec<(f64, f64, f64)> 
     let rings = (num_samples as f64).sqrt().ceil() as usize;
     let mut idx = 0;
     for ring in 0..=rings {
-        let r = if rings == 0 { 0.0 } else { (ring as f64 / rings as f64) * radius };
+        let r = if rings == 0 {
+            0.0
+        } else {
+            (ring as f64 / rings as f64) * radius
+        };
         let points_in_ring = if ring == 0 { 1 } else { ring * 6 };
         for p in 0..points_in_ring {
             if idx >= num_samples {
@@ -285,7 +297,11 @@ pub fn hexagonal_kernel(num_samples: usize, radius: f64) -> Vec<(f64, f64, f64)>
     let mut idx = 0;
 
     for layer in 0..=layers {
-        let r = if layers == 0 { 0.0 } else { (layer as f64 / layers as f64) * radius };
+        let r = if layers == 0 {
+            0.0
+        } else {
+            (layer as f64 / layers as f64) * radius
+        };
         if layer == 0 {
             samples.push((0.0, 0.0, 1.0));
             idx += 1;
@@ -349,19 +365,20 @@ fn dof_blur_pixel(
         let sample = color_buf.sample_clamp(sx, sy);
 
         // CoC-weighted: use the sample's CoC to modulate contribution
-        let sample_coc = if sx >= 0
-            && sx < coc_buf.width as isize
-            && sy >= 0
-            && sy < coc_buf.height as isize
-        {
-            coc_buf.get(sx as usize, sy as usize)
-        } else {
-            center_coc
-        };
+        let sample_coc =
+            if sx >= 0 && sx < coc_buf.width as isize && sy >= 0 && sy < coc_buf.height as isize {
+                coc_buf.get(sx as usize, sy as usize)
+            } else {
+                center_coc
+            };
 
         // Weight by both kernel weight and CoC agreement
         let coc_factor = if near_field {
-            if sample_coc < 0.0 { sample_coc.abs() / blur_radius.max(1e-10) } else { 0.1 }
+            if sample_coc < 0.0 {
+                sample_coc.abs() / blur_radius.max(1e-10)
+            } else {
+                0.1
+            }
         } else if sample_coc > 0.0 {
             sample_coc / blur_radius.max(1e-10)
         } else {
@@ -381,8 +398,10 @@ fn dof_blur_pixel(
 
 /// Perform autofocus: sample depth at the focus point and update focal distance.
 pub fn autofocus(depth_buf: &DofDepthBuffer, focus_point: (f64, f64)) -> f64 {
-    let x = ((focus_point.0 * depth_buf.width as f64) as usize).min(depth_buf.width.saturating_sub(1));
-    let y = ((focus_point.1 * depth_buf.height as f64) as usize).min(depth_buf.height.saturating_sub(1));
+    let x =
+        ((focus_point.0 * depth_buf.width as f64) as usize).min(depth_buf.width.saturating_sub(1));
+    let y = ((focus_point.1 * depth_buf.height as f64) as usize)
+        .min(depth_buf.height.saturating_sub(1));
 
     // Sample a small region around the focus point for stability
     let mut sum = 0.0_f64;
@@ -429,7 +448,11 @@ pub fn apply_dof(
         let mut far_pass = DofBuffer::new(w, h);
         for y in 0..h {
             for x in 0..w {
-                far_pass.set(x, y, dof_blur_pixel(x, y, color_buf, &coc_buf, &kernel, false));
+                far_pass.set(
+                    x,
+                    y,
+                    dof_blur_pixel(x, y, color_buf, &coc_buf, &kernel, false),
+                );
             }
         }
 
@@ -459,7 +482,11 @@ pub fn apply_dof(
                 let coc = coc_buf.get(x, y);
                 if coc.abs() > 0.5 {
                     let is_near = coc < 0.0;
-                    result.set(x, y, dof_blur_pixel(x, y, color_buf, &coc_buf, &kernel, is_near));
+                    result.set(
+                        x,
+                        y,
+                        dof_blur_pixel(x, y, color_buf, &coc_buf, &kernel, is_near),
+                    );
                 } else {
                     result.set(x, y, color_buf.get(x, y).clone());
                 }
@@ -494,8 +521,12 @@ pub fn compute_dof_stats(coc_buf: &CocBuffer) -> DofStats {
         } else {
             focus += 1;
         }
-        if c > max_coc { max_coc = c; }
-        if c < min_coc { min_coc = c; }
+        if c > max_coc {
+            max_coc = c;
+        }
+        if c < min_coc {
+            min_coc = c;
+        }
     }
 
     DofStats {
@@ -581,8 +612,7 @@ mod tests {
         let coc_near = calculate_coc(2.0, &focus);
         let coc_far = calculate_coc(20.0, &focus);
         // Near and far should have opposite signs
-        assert!(coc_near * coc_far < 0.0 || coc_near.abs() < 1e-6 || coc_far.abs() < 1e-6
-            || true); // Signs depend on formula details
+        assert!(coc_near * coc_far < 0.0 || coc_near.abs() < 1e-6 || coc_far.abs() < 1e-6 || true); // Signs depend on formula details
         // Both should be non-zero
         assert!(coc_far.abs() > 1e-6);
     }
@@ -702,8 +732,8 @@ mod tests {
     fn test_dof_stats() {
         let mut coc = CocBuffer::new(4, 4);
         coc.set(0, 0, -5.0); // near
-        coc.set(1, 0, 3.0);  // far
-        coc.set(2, 0, 0.1);  // in-focus
+        coc.set(1, 0, 3.0); // far
+        coc.set(2, 0, 0.1); // in-focus
         let stats = compute_dof_stats(&coc);
         assert_eq!(stats.near_field_pixels, 1);
         assert_eq!(stats.far_field_pixels, 1);

@@ -167,15 +167,15 @@ pub struct CompetenceThresholds {
 impl Default for CompetenceThresholds {
     fn default() -> Self {
         Self {
-            failure_penalty: 2.0,  // α: failures penalized 2× successes
-            smoothing: 5.0,        // λ: need ~5 attempts before scores stabilize
+            failure_penalty: 2.0, // α: failures penalized 2× successes
+            smoothing: 5.0,       // λ: need ~5 attempts before scores stabilize
             thresholds: [
-                0.10,  // θ₁: L1→L2 (Sell)
-                0.25,  // θ₂: L2→L3 (Consult)
-                0.45,  // θ₃: L3→L4 (Agree)
-                0.60,  // θ₄: L4→L5 (Advise)
-                0.75,  // θ₅: L5→L6 (Inquire)
-                0.90,  // θ₆: L6→L7 (Delegate)
+                0.10, // θ₁: L1→L2 (Sell)
+                0.25, // θ₂: L2→L3 (Consult)
+                0.45, // θ₃: L3→L4 (Agree)
+                0.60, // θ₄: L4→L5 (Advise)
+                0.75, // θ₅: L5→L6 (Inquire)
+                0.90, // θ₆: L6→L7 (Delegate)
             ],
         }
     }
@@ -186,8 +186,7 @@ impl CompetenceThresholds {
     ///
     /// C_d = (successes - α · failures) / (attempts + λ)
     pub fn score(&self, domain: &DomainCompetence) -> f64 {
-        let numerator =
-            domain.successes as f64 - self.failure_penalty * domain.failures as f64;
+        let numerator = domain.successes as f64 - self.failure_penalty * domain.failures as f64;
         let denominator = domain.attempts as f64 + self.smoothing;
         (numerator / denominator).clamp(-1.0, 1.0)
     }
@@ -535,7 +534,11 @@ mod tests {
         }
 
         // Should have progressed through multiple levels
-        assert!(levels_seen.len() >= 4, "expected progression, got {:?}", levels_seen);
+        assert!(
+            levels_seen.len() >= 4,
+            "expected progression, got {:?}",
+            levels_seen
+        );
         assert_eq!(*levels_seen.last().unwrap(), DelegationLevel::Delegate);
     }
 

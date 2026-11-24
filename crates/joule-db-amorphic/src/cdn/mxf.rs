@@ -185,10 +185,19 @@ mod tests {
 
         let fields = MxfExtractor::to_amorphic_fields(&meta);
 
-        assert_eq!(fields.get("name"), Some(&Value::String("Breaking News Segment".into())));
+        assert_eq!(
+            fields.get("name"),
+            Some(&Value::String("Breaking News Segment".into()))
+        );
         assert_eq!(fields.get("width"), Some(&Value::Int(1920)));
-        assert_eq!(fields.get("video_codec"), Some(&Value::String("AVC-Intra 100".into())));
-        assert_eq!(fields.get("_source_format"), Some(&Value::String("MXF".into())));
+        assert_eq!(
+            fields.get("video_codec"),
+            Some(&Value::String("AVC-Intra 100".into()))
+        );
+        assert_eq!(
+            fields.get("_source_format"),
+            Some(&Value::String("MXF".into()))
+        );
 
         // Duration should be 1800 seconds (30 min)
         if let Some(Value::Float(d)) = fields.get("duration_secs") {

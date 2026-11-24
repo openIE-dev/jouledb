@@ -294,7 +294,8 @@ impl NamedAreaGrid {
     }
 
     pub fn add_row(mut self, areas: Vec<impl Into<String>>) -> Self {
-        self.rows.push(areas.into_iter().map(|a| a.into()).collect());
+        self.rows
+            .push(areas.into_iter().map(|a| a.into()).collect());
         self
     }
 
@@ -374,9 +375,8 @@ impl ResponsiveColumns {
 
     pub fn at(mut self, min_width: f64, columns: u32) -> Self {
         self.entries.push((min_width, columns));
-        self.entries.sort_by(|a, b| {
-            a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)
-        });
+        self.entries
+            .sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
         self
     }
 
@@ -402,9 +402,7 @@ impl ResponsiveColumns {
             if i == 0 {
                 css.push_str(&format!("{selector} {{ display: grid; }}\n{rule}"));
             } else {
-                css.push_str(&format!(
-                    "@media (min-width: {min_w}px) {{ {rule} }}\n"
-                ));
+                css.push_str(&format!("@media (min-width: {min_w}px) {{ {rule} }}\n"));
             }
         }
         css
@@ -528,9 +526,7 @@ mod tests {
 
     #[test]
     fn test_responsive_columns_css() {
-        let rc = ResponsiveColumns::new(16.0)
-            .at(0.0, 1)
-            .at(768.0, 2);
+        let rc = ResponsiveColumns::new(16.0).at(0.0, 1).at(768.0, 2);
         let css = rc.to_css(".grid");
         assert!(css.contains("display: grid"));
         assert!(css.contains("repeat(1, 1fr)"));

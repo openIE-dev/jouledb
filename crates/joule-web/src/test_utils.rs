@@ -185,11 +185,7 @@ impl Default for TestContext {
 ///
 /// **Note:** This does NOT sleep; it simply calls `condition()`
 /// repeatedly and compares simulated elapsed time.
-pub fn wait_for(
-    mut condition: impl FnMut() -> bool,
-    max_ms: u64,
-    check_interval_ms: u64,
-) -> bool {
+pub fn wait_for(mut condition: impl FnMut() -> bool, max_ms: u64, check_interval_ms: u64) -> bool {
     let interval = check_interval_ms.max(1);
     let mut elapsed = 0u64;
     while elapsed <= max_ms {

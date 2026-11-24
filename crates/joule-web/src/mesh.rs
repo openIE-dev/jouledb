@@ -355,7 +355,11 @@ impl Mesh {
 
         // Caps.
         let bottom_center = vertices.len() as u32;
-        vertices.push(Vertex::new([0.0, -half_h, 0.0], [0.0, -1.0, 0.0], [0.5, 0.5]));
+        vertices.push(Vertex::new(
+            [0.0, -half_h, 0.0],
+            [0.0, -1.0, 0.0],
+            [0.5, 0.5],
+        ));
         let top_center = vertices.len() as u32;
         vertices.push(Vertex::new([0.0, half_h, 0.0], [0.0, 1.0, 0.0], [0.5, 0.5]));
 
@@ -400,7 +404,12 @@ impl Mesh {
     }
 
     /// Generate a torus centered at origin lying on the XZ plane.
-    pub fn torus(major_radius: f64, minor_radius: f64, major_segments: u32, minor_segments: u32) -> Self {
+    pub fn torus(
+        major_radius: f64,
+        minor_radius: f64,
+        major_segments: u32,
+        minor_segments: u32,
+    ) -> Self {
         let mseg = major_segments.max(3);
         let nseg = minor_segments.max(3);
         let mut vertices = Vec::new();
@@ -506,8 +515,12 @@ mod tests {
     fn sphere_vertices_on_unit_sphere() {
         let s = Mesh::sphere(2);
         for v in &s.vertices {
-            let len = (v.position[0].powi(2) + v.position[1].powi(2) + v.position[2].powi(2)).sqrt();
-            assert!((len - 1.0).abs() < EPS, "vertex not on unit sphere: len={len}");
+            let len =
+                (v.position[0].powi(2) + v.position[1].powi(2) + v.position[2].powi(2)).sqrt();
+            assert!(
+                (len - 1.0).abs() < EPS,
+                "vertex not on unit sphere: len={len}"
+            );
         }
     }
 

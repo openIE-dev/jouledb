@@ -55,7 +55,11 @@ impl Vec3 {
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn dot(self, other: Self) -> f64 {
@@ -79,20 +83,36 @@ impl Vec3 {
         if n < 1e-12 {
             None
         } else {
-            Some(Self { x: self.x / n, y: self.y / n, z: self.z / n })
+            Some(Self {
+                x: self.x / n,
+                y: self.y / n,
+                z: self.z / n,
+            })
         }
     }
 
     pub fn scale(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn add(self, other: Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y, z: self.z + other.z }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
     }
 
     pub fn sub(self, other: Self) -> Self {
-        Self { x: self.x - other.x, y: self.y - other.y, z: self.z - other.z }
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+            z: self.z - other.z,
+        }
     }
 }
 
@@ -123,13 +143,21 @@ impl ContactPoint {
         if friction < 0.0 {
             return Err(GraspError::InvalidContact("negative friction".into()));
         }
-        Ok(Self { position, normal, friction })
+        Ok(Self {
+            position,
+            normal,
+            friction,
+        })
     }
 }
 
 impl fmt::Display for ContactPoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Contact(pos={}, n={}, mu={:.3})", self.position, self.normal, self.friction)
+        write!(
+            f,
+            "Contact(pos={}, n={}, mu={:.3})",
+            self.position, self.normal, self.friction
+        )
     }
 }
 
@@ -148,7 +176,10 @@ impl Wrench {
     }
 
     pub fn zero() -> Self {
-        Self { force: Vec3::zero(), torque: Vec3::zero() }
+        Self {
+            force: Vec3::zero(),
+            torque: Vec3::zero(),
+        }
     }
 
     /// Magnitude of the wrench in R6.
@@ -196,7 +227,11 @@ impl FrictionCone {
         }
         // Build a local tangent frame
         let n = contact.normal;
-        let arbitrary = if n.x.abs() < 0.9 { Vec3::new(1.0, 0.0, 0.0) } else { Vec3::new(0.0, 1.0, 0.0) };
+        let arbitrary = if n.x.abs() < 0.9 {
+            Vec3::new(1.0, 0.0, 0.0)
+        } else {
+            Vec3::new(0.0, 1.0, 0.0)
+        };
         let t1 = n.cross(arbitrary).normalized().unwrap();
         let t2 = n.cross(t1).normalized().unwrap();
 
@@ -214,7 +249,10 @@ impl FrictionCone {
             edge_wrenches.push(Wrench::new(force, torque));
         }
 
-        Ok(Self { num_edges, edge_wrenches })
+        Ok(Self {
+            num_edges,
+            edge_wrenches,
+        })
     }
 }
 
@@ -266,7 +304,12 @@ impl GraspPose {
         if width <= 0.0 {
             return Err(GraspError::OutOfBounds("width must be positive".into()));
         }
-        Ok(Self { center, approach, width, score: 0.0 })
+        Ok(Self {
+            center,
+            approach,
+            width,
+            score: 0.0,
+        })
     }
 
     pub fn with_score(mut self, score: f64) -> Self {
@@ -333,8 +376,7 @@ fn build_grasp_matrix(cones: &[FrictionCone]) -> Vec<[f64; 6]> {
     for cone in cones {
         for w in &cone.edge_wrenches {
             columns.push([
-                w.force.x, w.force.y, w.force.z,
-                w.torque.x, w.torque.y, w.torque.z,
+                w.force.x, w.force.y, w.force.z, w.torque.x, w.torque.y, w.torque.z,
             ]);
         }
     }
@@ -471,7 +513,10 @@ pub struct GraspPlanner {
 
 impl GraspPlanner {
     pub fn new(config: GraspPlannerConfig) -> Self {
-        Self { config, contacts: Vec::new() }
+        Self {
+            config,
+            contacts: Vec::new(),
+        }
     }
 
     pub fn with_contacts(mut self, contacts: Vec<ContactPoint>) -> Self {
@@ -500,16 +545,29 @@ impl GraspPlanner {
         }
         let mut cones = Vec::with_capacity(self.contacts.len());
         for c in &self.contacts {
-            cones.push(FrictionCone::from_contact(c, self.config.centroid, self.config.cone_edges)?);
+            cones.push(FrictionCone::from_contact(
+                c,
+                self.config.centroid,
+                self.config.cone_edges,
+            )?);
         }
         let columns = build_grasp_matrix(&cones);
         let svs = singular_values_6xn(&columns);
         let epsilon = svs.last().copied().unwrap_or(0.0);
         let volume: f64 = svs.iter().product();
         let force_closed = epsilon > 1e-6;
-        let max_contact_force = if epsilon > 1e-12 { 1.0 / epsilon } else { f64::INFINITY };
+        let max_contact_force = if epsilon > 1e-12 {
+            1.0 / epsilon
+        } else {
+            f64::INFINITY
+        };
 
-        Ok(GraspQuality { epsilon, volume, force_closed, max_contact_force })
+        Ok(GraspQuality {
+            epsilon,
+            volume,
+            force_closed,
+            max_contact_force,
+        })
     }
 
     /// Generate antipodal grasp candidates from a set of surface samples.
@@ -538,7 +596,11 @@ impl GraspPlanner {
 
     /// Rank a set of grasp poses by quality.
     pub fn rank_grasps(&self, grasps: &mut [GraspPose]) {
-        grasps.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        grasps.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
     }
 
     /// Number of contacts currently stored.
@@ -663,11 +725,10 @@ mod tests {
 
     #[test]
     fn test_force_closure_opposing() {
-        let planner = GraspPlanner::new(GraspPlannerConfig::default())
-            .with_contacts(vec![
-                contact(-1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.5),
-                contact(1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.5),
-            ]);
+        let planner = GraspPlanner::new(GraspPlannerConfig::default()).with_contacts(vec![
+            contact(-1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.5),
+            contact(1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.5),
+        ]);
         // Two opposing contacts alone cannot span the full 6D wrench space
         assert!(!planner.evaluate_force_closure().unwrap());
     }
@@ -681,13 +742,12 @@ mod tests {
 
     #[test]
     fn test_quality_epsilon_positive() {
-        let planner = GraspPlanner::new(GraspPlannerConfig::default())
-            .with_contacts(vec![
-                contact(-1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.5),
-                contact(1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.5),
-                contact(0.0, -1.0, 0.0, 0.0, 1.0, 0.0, 0.5),
-                contact(0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.5),
-            ]);
+        let planner = GraspPlanner::new(GraspPlannerConfig::default()).with_contacts(vec![
+            contact(-1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.5),
+            contact(1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.5),
+            contact(0.0, -1.0, 0.0, 0.0, 1.0, 0.0, 0.5),
+            contact(0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.5),
+        ]);
         let q = planner.compute_quality().unwrap();
         assert!(q.epsilon > 0.0);
     }
@@ -705,9 +765,7 @@ mod tests {
 
     #[test]
     fn test_generate_candidates() {
-        let planner = GraspPlanner::new(
-            GraspPlannerConfig::default().with_max_candidates(10),
-        );
+        let planner = GraspPlanner::new(GraspPlannerConfig::default().with_max_candidates(10));
         let samples = vec![
             contact(-1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.6),
             contact(1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.6),

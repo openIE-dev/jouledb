@@ -13,10 +13,7 @@ use std::time::Duration;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RetryError {
     /// All retry attempts exhausted.
-    Exhausted {
-        attempts: u32,
-        last_error: String,
-    },
+    Exhausted { attempts: u32, last_error: String },
     /// Total duration budget exceeded.
     DurationExceeded {
         elapsed_ms: u64,
@@ -24,19 +21,28 @@ pub enum RetryError {
         last_error: String,
     },
     /// Retry predicate rejected the error (non-retryable).
-    NonRetryable {
-        error: String,
-    },
+    NonRetryable { error: String },
 }
 
 impl std::fmt::Display for RetryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Exhausted { attempts, last_error } => {
+            Self::Exhausted {
+                attempts,
+                last_error,
+            } => {
                 write!(f, "exhausted after {} attempts: {}", attempts, last_error)
             }
-            Self::DurationExceeded { elapsed_ms, budget_ms, last_error } => {
-                write!(f, "duration exceeded ({}/{}ms): {}", elapsed_ms, budget_ms, last_error)
+            Self::DurationExceeded {
+                elapsed_ms,
+                budget_ms,
+                last_error,
+            } => {
+                write!(
+                    f,
+                    "duration exceeded ({}/{}ms): {}",
+                    elapsed_ms, budget_ms, last_error
+                )
             }
             Self::NonRetryable { error } => {
                 write!(f, "non-retryable: {}", error)
@@ -80,10 +86,11 @@ impl BackoffStrategy {
     pub fn delay_ms(&self, attempt: u32) -> u64 {
         match self {
             Self::Constant { delay_ms } => *delay_ms,
-            Self::Linear { base_delay_ms } => {
-                base_delay_ms.saturating_mul((attempt + 1) as u64)
-            }
-            Self::Exponential { base_delay_ms, max_delay_ms } => {
+            Self::Linear { base_delay_ms } => base_delay_ms.saturating_mul((attempt + 1) as u64),
+            Self::Exponential {
+                base_delay_ms,
+                max_delay_ms,
+            } => {
                 let exp = 1u64.checked_shl(attempt).unwrap_or(u64::MAX);
                 let delay = base_delay_ms.saturating_mul(exp);
                 delay.min(*max_delay_ms)
@@ -427,10 +434,10 @@ mod tests {
             base_delay_ms: 100,
             max_delay_ms: 10000,
         };
-        assert_eq!(strategy.delay_ms(0), 100);   // 100 * 1
-        assert_eq!(strategy.delay_ms(1), 200);   // 100 * 2
-        assert_eq!(strategy.delay_ms(2), 400);   // 100 * 4
-        assert_eq!(strategy.delay_ms(3), 800);   // 100 * 8
+        assert_eq!(strategy.delay_ms(0), 100); // 100 * 1
+        assert_eq!(strategy.delay_ms(1), 200); // 100 * 2
+        assert_eq!(strategy.delay_ms(2), 400); // 100 * 4
+        assert_eq!(strategy.delay_ms(3), 800); // 100 * 8
         assert_eq!(strategy.delay_ms(10), 10000); // capped at max
     }
 
@@ -452,12 +459,12 @@ mod tests {
     fn test_fibonacci_backoff() {
         let strategy = BackoffStrategy::Fibonacci { base_delay_ms: 100 };
         // fib: 1, 1, 2, 3, 5, 8, 13, 21
-        assert_eq!(strategy.delay_ms(0), 100);  // 1*100
-        assert_eq!(strategy.delay_ms(1), 100);  // 1*100
-        assert_eq!(strategy.delay_ms(2), 200);  // 2*100
-        assert_eq!(strategy.delay_ms(3), 300);  // 3*100
-        assert_eq!(strategy.delay_ms(4), 500);  // 5*100
-        assert_eq!(strategy.delay_ms(5), 800);  // 8*100
+        assert_eq!(strategy.delay_ms(0), 100); // 1*100
+        assert_eq!(strategy.delay_ms(1), 100); // 1*100
+        assert_eq!(strategy.delay_ms(2), 200); // 2*100
+        assert_eq!(strategy.delay_ms(3), 300); // 3*100
+        assert_eq!(strategy.delay_ms(4), 500); // 5*100
+        assert_eq!(strategy.delay_ms(5), 800); // 8*100
     }
 
     #[test]
@@ -491,7 +498,10 @@ mod tests {
         }
         ctx.attempt = 3;
         let decision = policy.decide(&ctx, "error");
-        assert!(matches!(decision, RetryDecision::Stop(RetryError::Exhausted { .. })));
+        assert!(matches!(
+            decision,
+            RetryDecision::Stop(RetryError::Exhausted { .. })
+        ));
     }
 
     #[test]
@@ -503,7 +513,10 @@ mod tests {
         ctx.attempt = 2;
         // Next delay 100 would bring total to 300, exceeding 250.
         let decision = policy.decide(&ctx, "error");
-        assert!(matches!(decision, RetryDecision::Stop(RetryError::DurationExceeded { .. })));
+        assert!(matches!(
+            decision,
+            RetryDecision::Stop(RetryError::DurationExceeded { .. })
+        ));
     }
 
     #[test]
@@ -517,11 +530,14 @@ mod tests {
 
     #[test]
     fn test_non_retryable_decision() {
-        let policy = RetryPolicy::constant(100, 3)
-            .with_retryable_errors(vec!["timeout".to_string()]);
+        let policy =
+            RetryPolicy::constant(100, 3).with_retryable_errors(vec!["timeout".to_string()]);
         let ctx = RetryContext::new();
         let decision = policy.decide(&ctx, "permission denied");
-        assert!(matches!(decision, RetryDecision::Stop(RetryError::NonRetryable { .. })));
+        assert!(matches!(
+            decision,
+            RetryDecision::Stop(RetryError::NonRetryable { .. })
+        ));
     }
 
     #[test]
@@ -554,22 +570,26 @@ mod tests {
     fn test_retry_executor_exhausted() {
         let policy = RetryPolicy::constant(100, 2);
         let executor = RetryExecutor::new(policy);
-        let result = executor.execute(|_ctx| {
-            AttemptOutcome::RetryableFailure("always fail".to_string())
-        });
+        let result =
+            executor.execute(|_ctx| AttemptOutcome::RetryableFailure("always fail".to_string()));
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), RetryError::Exhausted { attempts: 3, .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            RetryError::Exhausted { attempts: 3, .. }
+        ));
     }
 
     #[test]
     fn test_retry_executor_non_retryable() {
         let policy = RetryPolicy::constant(100, 5);
         let executor = RetryExecutor::new(policy);
-        let result = executor.execute(|_ctx| {
-            AttemptOutcome::NonRetryableFailure("fatal".to_string())
-        });
+        let result =
+            executor.execute(|_ctx| AttemptOutcome::NonRetryableFailure("fatal".to_string()));
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), RetryError::NonRetryable { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            RetryError::NonRetryable { .. }
+        ));
     }
 
     #[test]
@@ -598,7 +618,10 @@ mod tests {
 
     #[test]
     fn test_retry_error_display() {
-        let err = RetryError::Exhausted { attempts: 5, last_error: "timeout".into() };
+        let err = RetryError::Exhausted {
+            attempts: 5,
+            last_error: "timeout".into(),
+        };
         let msg = format!("{}", err);
         assert!(msg.contains("5 attempts"));
         assert!(msg.contains("timeout"));
@@ -617,7 +640,7 @@ mod tests {
         });
         let ctx = result.unwrap();
         assert_eq!(ctx.delays_applied.len(), 2);
-        assert_eq!(ctx.delays_applied[0], 50);  // linear: 50 * 1
+        assert_eq!(ctx.delays_applied[0], 50); // linear: 50 * 1
         assert_eq!(ctx.delays_applied[1], 100); // linear: 50 * 2
     }
 }

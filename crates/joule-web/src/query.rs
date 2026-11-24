@@ -3,10 +3,10 @@
 //! Replaces TanStack Query, SWR, and Apollo Client with a synchronous
 //! state machine that any async executor (or manual polling) can drive.
 
-use std::collections::{HashMap, HashSet};
-use chrono::{DateTime, Utc, TimeDelta};
+use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
+use std::collections::{HashMap, HashSet};
 
 // ── Status ──────────────────────────────────────────────────────
 
@@ -54,8 +54,8 @@ pub struct QueryConfig {
 impl Default for QueryConfig {
     fn default() -> Self {
         Self {
-            stale_time_ms: 5 * 60 * 1000,   // 5 min
-            cache_time_ms: 30 * 60 * 1000,  // 30 min
+            stale_time_ms: 5 * 60 * 1000,  // 5 min
+            cache_time_ms: 30 * 60 * 1000, // 30 min
             retry_count: 3,
             retry_delay_ms: 1000,
             refetch_on_mount: true,
@@ -122,11 +122,14 @@ impl QueryClient {
     pub fn set_cached(&mut self, key: &str, value: Value) {
         let now = Utc::now();
         let stale_after = Some(now + TimeDelta::milliseconds(self.config.stale_time_ms as i64));
-        self.cache.insert(key.to_string(), CacheEntryRaw {
-            value,
-            fetched_at: now,
-            stale_after,
-        });
+        self.cache.insert(
+            key.to_string(),
+            CacheEntryRaw {
+                value,
+                fetched_at: now,
+                stale_after,
+            },
+        );
         self.invalidated.remove(key);
     }
 
@@ -148,7 +151,9 @@ impl QueryClient {
     }
 
     pub fn invalidate_prefix(&mut self, prefix: &str) {
-        let keys: Vec<String> = self.cache.keys()
+        let keys: Vec<String> = self
+            .cache
+            .keys()
             .filter(|k| k.starts_with(prefix))
             .cloned()
             .collect();
@@ -189,11 +194,14 @@ impl QueryClient {
         let value = serde_json::to_value(&data).unwrap_or(Value::Null);
         let now = Utc::now();
         let stale_after = Some(now + TimeDelta::milliseconds(self.config.stale_time_ms as i64));
-        self.cache.insert(key.to_string(), CacheEntryRaw {
-            value,
-            fetched_at: now,
-            stale_after,
-        });
+        self.cache.insert(
+            key.to_string(),
+            CacheEntryRaw {
+                value,
+                fetched_at: now,
+                stale_after,
+            },
+        );
         self.invalidated.remove(key);
     }
 
@@ -208,7 +216,9 @@ impl QueryClient {
 }
 
 impl Default for QueryClient {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── MutationState ───────────────────────────────────────────────
@@ -256,13 +266,21 @@ impl<T: Clone> MutationState<T> {
         self.submit_count = 0;
     }
 
-    pub fn is_loading(&self) -> bool { self.status == QueryStatus::Loading }
-    pub fn is_success(&self) -> bool { self.status == QueryStatus::Success }
-    pub fn is_error(&self) -> bool { matches!(self.status, QueryStatus::Error(_)) }
+    pub fn is_loading(&self) -> bool {
+        self.status == QueryStatus::Loading
+    }
+    pub fn is_success(&self) -> bool {
+        self.status == QueryStatus::Success
+    }
+    pub fn is_error(&self) -> bool {
+        matches!(self.status, QueryStatus::Error(_))
+    }
 }
 
 impl<T: Clone> Default for MutationState<T> {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────
@@ -270,8 +288,8 @@ impl<T: Clone> Default for MutationState<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
     use chrono::TimeDelta;
+    use serde_json::json;
 
     #[test]
     fn new_client_empty() {

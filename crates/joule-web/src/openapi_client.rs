@@ -223,11 +223,7 @@ pub fn build_request(
         }
     }
 
-    let url = format!(
-        "{}{}",
-        base_url.trim_end_matches('/'),
-        path
-    );
+    let url = format!("{}{}", base_url.trim_end_matches('/'), path);
 
     let mut headers = HashMap::new();
     for p in op.header_params() {
@@ -242,9 +238,7 @@ pub fn build_request(
         .filter_map(|p| values.get(&p.name).map(|v| (p.name.clone(), v.clone())))
         .collect();
 
-    let body = op
-        .body_param()
-        .and_then(|p| values.get(&p.name).cloned());
+    let body = op.body_param().and_then(|p| values.get(&p.name).cloned());
 
     Ok(BuiltRequest {
         method: op.method,
@@ -451,13 +445,13 @@ mod tests {
             method: HttpMethod::Get,
             url: "https://api.example.com/items".into(),
             headers: HashMap::new(),
-            query_pairs: vec![
-                ("page".into(), "1".into()),
-                ("limit".into(), "10".into()),
-            ],
+            query_pairs: vec![("page".into(), "1".into()), ("limit".into(), "10".into())],
             body: None,
         };
-        assert_eq!(req.full_url(), "https://api.example.com/items?page=1&limit=10");
+        assert_eq!(
+            req.full_url(),
+            "https://api.example.com/items?page=1&limit=10"
+        );
     }
 
     #[test]

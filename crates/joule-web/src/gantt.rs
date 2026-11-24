@@ -122,7 +122,9 @@ impl std::fmt::Display for GanttError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::DuplicateTaskId(id) => write!(f, "duplicate task id: {id}"),
-            Self::CircularDependency(cycle) => write!(f, "circular dependency: {}", cycle.join(" -> ")),
+            Self::CircularDependency(cycle) => {
+                write!(f, "circular dependency: {}", cycle.join(" -> "))
+            }
             Self::EndBeforeStart(id) => write!(f, "task {id}: end before start"),
             Self::MissingDependency { task, dependency } => {
                 write!(f, "task {task}: missing dependency {dependency}")
@@ -212,12 +214,9 @@ impl GanttChart {
 
         for task in &self.tasks {
             if !visited.contains(task.id.as_str()) {
-                if let Some(cycle) = self.dfs_cycle(
-                    task.id.as_str(),
-                    &mut visited,
-                    &mut in_stack,
-                    &mut stack,
-                ) {
+                if let Some(cycle) =
+                    self.dfs_cycle(task.id.as_str(), &mut visited, &mut in_stack, &mut stack)
+                {
                     return Some(cycle);
                 }
             }
@@ -473,8 +472,7 @@ mod tests {
         let mut chart = GanttChart::new();
         chart
             .add_task(
-                GanttTask::new("t1", "Design", GanttDate(0), GanttDate(5))
-                    .with_resource("Alice"),
+                GanttTask::new("t1", "Design", GanttDate(0), GanttDate(5)).with_resource("Alice"),
             )
             .unwrap();
         chart
@@ -535,26 +533,28 @@ mod tests {
             .add_task(GanttTask::new("t1", "Bad", GanttDate(10), GanttDate(5)))
             .unwrap();
         let errors = chart.validate();
-        assert!(errors.iter().any(|e| matches!(e, GanttError::EndBeforeStart(_))));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, GanttError::EndBeforeStart(_)))
+        );
     }
 
     #[test]
     fn test_validate_circular_dependency() {
         let mut chart = GanttChart::new();
         chart
-            .add_task(
-                GanttTask::new("a", "A", GanttDate(0), GanttDate(1)).with_dependency("b"),
-            )
+            .add_task(GanttTask::new("a", "A", GanttDate(0), GanttDate(1)).with_dependency("b"))
             .unwrap();
         chart
-            .add_task(
-                GanttTask::new("b", "B", GanttDate(0), GanttDate(1)).with_dependency("a"),
-            )
+            .add_task(GanttTask::new("b", "B", GanttDate(0), GanttDate(1)).with_dependency("a"))
             .unwrap();
         let errors = chart.validate();
-        assert!(errors
-            .iter()
-            .any(|e| matches!(e, GanttError::CircularDependency(_))));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, GanttError::CircularDependency(_)))
+        );
     }
 
     #[test]

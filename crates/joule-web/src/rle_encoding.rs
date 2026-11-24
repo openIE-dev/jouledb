@@ -144,10 +144,7 @@ pub fn packbits_encode(data: &[u8]) -> Vec<u8> {
     while i < data.len() {
         // Look for a run of identical bytes.
         let mut run_len = 1usize;
-        while i + run_len < data.len()
-            && data[i + run_len] == data[i]
-            && run_len < 128
-        {
+        while i + run_len < data.len() && data[i + run_len] == data[i] && run_len < 128 {
             run_len += 1;
         }
 
@@ -288,9 +285,7 @@ pub fn pixel_rle_encode(data: &[u8], element_size: usize) -> Result<Vec<u8>, Rle
     while i < elements.len() {
         let elem = elements[i];
         let mut run_len = 1usize;
-        while i + run_len < elements.len()
-            && elements[i + run_len] == elem
-        {
+        while i + run_len < elements.len() && elements[i + run_len] == elem {
             run_len += 1;
         }
 
@@ -430,12 +425,18 @@ mod tests {
 
     #[test]
     fn rle_decode_odd_length() {
-        assert!(matches!(rle_decode(&[1, 2, 3]), Err(RleError::UnexpectedEof)));
+        assert!(matches!(
+            rle_decode(&[1, 2, 3]),
+            Err(RleError::UnexpectedEof)
+        ));
     }
 
     #[test]
     fn rle_decode_zero_count() {
-        assert!(matches!(rle_decode(&[0, 5]), Err(RleError::InvalidRunLength(0))));
+        assert!(matches!(
+            rle_decode(&[0, 5]),
+            Err(RleError::InvalidRunLength(0))
+        ));
     }
 
     #[test]
@@ -495,13 +496,9 @@ mod tests {
     #[test]
     fn packbits_roundtrip_random_like() {
         // Pattern with short runs and literals mixed.
-        let data: Vec<u8> = (0..200u8).flat_map(|i| {
-            if i % 7 == 0 {
-                vec![i; 5]
-            } else {
-                vec![i]
-            }
-        }).collect();
+        let data: Vec<u8> = (0..200u8)
+            .flat_map(|i| if i % 7 == 0 { vec![i; 5] } else { vec![i] })
+            .collect();
         let enc = packbits_encode(&data);
         let dec = packbits_decode(&enc).unwrap();
         assert_eq!(dec, data);
@@ -527,7 +524,10 @@ mod tests {
     #[test]
     fn packbits_decode_truncated() {
         // Literal header says 3 bytes follow, but only 2 present.
-        assert!(matches!(packbits_decode(&[2, 10, 20]), Err(RleError::UnexpectedEof)));
+        assert!(matches!(
+            packbits_decode(&[2, 10, 20]),
+            Err(RleError::UnexpectedEof)
+        ));
     }
 
     // ── Pixel RLE ───────────────────────────────────────────────────
@@ -536,11 +536,11 @@ mod tests {
     fn pixel_rle_rgb() {
         // 3-byte elements (RGB pixels)
         let data = [
-            255, 0, 0,   // red
-            255, 0, 0,   // red
-            255, 0, 0,   // red
-            0, 255, 0,   // green
-            0, 0, 255,   // blue
+            255, 0, 0, // red
+            255, 0, 0, // red
+            255, 0, 0, // red
+            0, 255, 0, // green
+            0, 0, 255, // blue
         ];
         let enc = pixel_rle_encode(&data, 3).unwrap();
         let dec = pixel_rle_decode(&enc, 3).unwrap();

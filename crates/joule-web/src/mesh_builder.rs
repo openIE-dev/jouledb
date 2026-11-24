@@ -15,8 +15,12 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0 } }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+    pub fn zero() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
 }
 
 // ── Vec3 ─────────────────────────────────────────────────────
@@ -29,9 +33,19 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0, z: 0.0 } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
     pub fn cross(self, o: Self) -> Self {
         Self {
             x: self.y * o.z - self.z * o.y,
@@ -39,20 +53,54 @@ impl Vec3 {
             z: self.x * o.y - self.y * o.x,
         }
     }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z } }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
-    pub fn length(self) -> f64 { (self.x * self.x + self.y * self.y + self.z * self.z).sqrt() }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
+    pub fn length(self) -> f64 {
+        (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
+    }
     pub fn normalized(self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { self.scale(1.0 / len) }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            self.scale(1.0 / len)
+        }
     }
-    pub fn distance(self, o: Self) -> f64 { self.sub(o).length() }
+    pub fn distance(self, o: Self) -> f64 {
+        self.sub(o).length()
+    }
     pub fn min_components(self, o: Self) -> Self {
-        Self { x: self.x.min(o.x), y: self.y.min(o.y), z: self.z.min(o.z) }
+        Self {
+            x: self.x.min(o.x),
+            y: self.y.min(o.y),
+            z: self.z.min(o.z),
+        }
     }
     pub fn max_components(self, o: Self) -> Self {
-        Self { x: self.x.max(o.x), y: self.y.max(o.y), z: self.z.max(o.z) }
+        Self {
+            x: self.x.max(o.x),
+            y: self.y.max(o.y),
+            z: self.z.max(o.z),
+        }
     }
 }
 
@@ -67,8 +115,17 @@ pub struct Vec4 {
 }
 
 impl Vec4 {
-    pub fn new(x: f64, y: f64, z: f64, w: f64) -> Self { Self { x, y, z, w } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0, z: 0.0, w: 0.0 } }
+    pub fn new(x: f64, y: f64, z: f64, w: f64) -> Self {
+        Self { x, y, z, w }
+    }
+    pub fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 0.0,
+        }
+    }
 }
 
 // ── Vertex ───────────────────────────────────────────────────
@@ -83,7 +140,12 @@ pub struct Vertex {
 
 impl Vertex {
     pub fn new(position: Vec3, normal: Vec3, uv: Vec2) -> Self {
-        Self { position, normal, uv, tangent: Vec4::zero() }
+        Self {
+            position,
+            normal,
+            uv,
+            tangent: Vec4::zero(),
+        }
     }
 }
 
@@ -106,8 +168,12 @@ impl BoundingBox {
         self.min = self.min.min_components(p);
         self.max = self.max.max_components(p);
     }
-    pub fn center(&self) -> Vec3 { self.min.add(self.max).scale(0.5) }
-    pub fn extents(&self) -> Vec3 { self.max.sub(self.min) }
+    pub fn center(&self) -> Vec3 {
+        self.min.add(self.max).scale(0.5)
+    }
+    pub fn extents(&self) -> Vec3 {
+        self.max.sub(self.min)
+    }
 }
 
 // ── MeshStats ────────────────────────────────────────────────
@@ -131,7 +197,12 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub fn new() -> Self { Self { vertices: Vec::new(), indices: Vec::new() } }
+    pub fn new() -> Self {
+        Self {
+            vertices: Vec::new(),
+            indices: Vec::new(),
+        }
+    }
 
     pub fn stats(&self) -> MeshStats {
         let mut bb = BoundingBox::empty();
@@ -140,10 +211,15 @@ impl Mesh {
         let mut has_tangents = false;
         for v in &self.vertices {
             bb.expand_point(v.position);
-            if v.normal.length() > 1e-9 { has_normals = true; }
-            if v.uv.x.abs() > 1e-12 || v.uv.y.abs() > 1e-12 { has_uvs = true; }
-            if v.tangent.x.abs() > 1e-12 || v.tangent.y.abs() > 1e-12
-                || v.tangent.z.abs() > 1e-12 { has_tangents = true; }
+            if v.normal.length() > 1e-9 {
+                has_normals = true;
+            }
+            if v.uv.x.abs() > 1e-12 || v.uv.y.abs() > 1e-12 {
+                has_uvs = true;
+            }
+            if v.tangent.x.abs() > 1e-12 || v.tangent.y.abs() > 1e-12 || v.tangent.z.abs() > 1e-12 {
+                has_tangents = true;
+            }
         }
         MeshStats {
             vertex_count: self.vertices.len(),
@@ -226,7 +302,11 @@ impl Mesh {
             // Gram-Schmidt orthogonalize
             let tangent = t.sub(norm.scale(norm.dot(t))).normalized();
             // Handedness
-            let w = if norm.cross(t).dot(tan2[j]) < 0.0 { -1.0 } else { 1.0 };
+            let w = if norm.cross(t).dot(tan2[j]) < 0.0 {
+                -1.0
+            } else {
+                1.0
+            };
             self.vertices[j].tangent = Vec4::new(tangent.x, tangent.y, tangent.z, w);
         }
     }
@@ -268,7 +348,12 @@ pub struct MeshBuilder {
 }
 
 impl MeshBuilder {
-    pub fn new() -> Self { Self { vertices: Vec::new(), indices: Vec::new() } }
+    pub fn new() -> Self {
+        Self {
+            vertices: Vec::new(),
+            indices: Vec::new(),
+        }
+    }
 
     pub fn add_vertex(&mut self, position: Vec3, normal: Vec3, uv: Vec2) -> u32 {
         let idx = self.vertices.len() as u32;
@@ -288,7 +373,10 @@ impl MeshBuilder {
     }
 
     pub fn build(self) -> Mesh {
-        Mesh { vertices: self.vertices, indices: self.indices }
+        Mesh {
+            vertices: self.vertices,
+            indices: self.indices,
+        }
     }
 
     /// Generate a unit quad in XY plane centered at origin.
@@ -296,9 +384,9 @@ impl MeshBuilder {
         let mut b = Self::new();
         let n = Vec3::new(0.0, 0.0, 1.0);
         let v0 = b.add_vertex(Vec3::new(-0.5, -0.5, 0.0), n, Vec2::new(0.0, 0.0));
-        let v1 = b.add_vertex(Vec3::new( 0.5, -0.5, 0.0), n, Vec2::new(1.0, 0.0));
-        let v2 = b.add_vertex(Vec3::new( 0.5,  0.5, 0.0), n, Vec2::new(1.0, 1.0));
-        let v3 = b.add_vertex(Vec3::new(-0.5,  0.5, 0.0), n, Vec2::new(0.0, 1.0));
+        let v1 = b.add_vertex(Vec3::new(0.5, -0.5, 0.0), n, Vec2::new(1.0, 0.0));
+        let v2 = b.add_vertex(Vec3::new(0.5, 0.5, 0.0), n, Vec2::new(1.0, 1.0));
+        let v3 = b.add_vertex(Vec3::new(-0.5, 0.5, 0.0), n, Vec2::new(0.0, 1.0));
         b.add_quad(v0, v1, v2, v3);
         b.build()
     }
@@ -312,11 +400,7 @@ impl MeshBuilder {
             for ix in 0..=segs {
                 let u = ix as f64 / segs as f64;
                 let v = iy as f64 / segs as f64;
-                b.add_vertex(
-                    Vec3::new(u - 0.5, 0.0, v - 0.5),
-                    n,
-                    Vec2::new(u, v),
-                );
+                b.add_vertex(Vec3::new(u - 0.5, 0.0, v - 0.5), n, Vec2::new(u, v));
             }
         }
         let cols = segs + 1;
@@ -337,21 +421,26 @@ impl MeshBuilder {
         let mut b = Self::new();
         // Six faces, each with 4 vertices
         let faces: [([f64; 3], [f64; 3]); 6] = [
-            ([0.0, 0.0,  1.0], [0.0, 0.0,  1.0]),  // front
-            ([0.0, 0.0, -1.0], [0.0, 0.0, -1.0]),  // back
-            ([ 1.0, 0.0, 0.0], [ 1.0, 0.0, 0.0]),  // right
-            ([-1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]),  // left
-            ([0.0,  1.0, 0.0], [0.0,  1.0, 0.0]),  // top
-            ([0.0, -1.0, 0.0], [0.0, -1.0, 0.0]),  // bottom
+            ([0.0, 0.0, 1.0], [0.0, 0.0, 1.0]),   // front
+            ([0.0, 0.0, -1.0], [0.0, 0.0, -1.0]), // back
+            ([1.0, 0.0, 0.0], [1.0, 0.0, 0.0]),   // right
+            ([-1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]), // left
+            ([0.0, 1.0, 0.0], [0.0, 1.0, 0.0]),   // top
+            ([0.0, -1.0, 0.0], [0.0, -1.0, 0.0]), // bottom
         ];
         let uvs = [
-            Vec2::new(0.0, 0.0), Vec2::new(1.0, 0.0),
-            Vec2::new(1.0, 1.0), Vec2::new(0.0, 1.0),
+            Vec2::new(0.0, 0.0),
+            Vec2::new(1.0, 0.0),
+            Vec2::new(1.0, 1.0),
+            Vec2::new(0.0, 1.0),
         ];
         for (norm_arr, _) in &faces {
             let n = Vec3::new(norm_arr[0], norm_arr[1], norm_arr[2]);
             let (right, up) = if n.y.abs() > 0.9 {
-                (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, if n.y > 0.0 { -1.0 } else { 1.0 }))
+                (
+                    Vec3::new(1.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, if n.y > 0.0 { -1.0 } else { 1.0 }),
+                )
             } else {
                 let right = Vec3::new(0.0, 1.0, 0.0).cross(n).normalized();
                 let up = n.cross(right);
@@ -360,9 +449,9 @@ impl MeshBuilder {
             let center = n.scale(0.5);
             let corners = [
                 center.add(right.scale(-0.5)).add(up.scale(-0.5)),
-                center.add(right.scale( 0.5)).add(up.scale(-0.5)),
-                center.add(right.scale( 0.5)).add(up.scale( 0.5)),
-                center.add(right.scale(-0.5)).add(up.scale( 0.5)),
+                center.add(right.scale(0.5)).add(up.scale(-0.5)),
+                center.add(right.scale(0.5)).add(up.scale(0.5)),
+                center.add(right.scale(-0.5)).add(up.scale(0.5)),
             ];
             let base = b.vertices.len() as u32;
             for (ci, corner) in corners.iter().enumerate() {
@@ -384,11 +473,7 @@ impl MeshBuilder {
             for ix in 0..=segs {
                 let u = ix as f64 / segs as f64;
                 let theta = u * 2.0 * PI;
-                let pos = Vec3::new(
-                    phi.sin() * theta.cos(),
-                    phi.cos(),
-                    phi.sin() * theta.sin(),
-                );
+                let pos = Vec3::new(phi.sin() * theta.cos(), phi.cos(), phi.sin() * theta.sin());
                 b.add_vertex(pos, pos.normalized(), Vec2::new(u, v));
             }
         }
@@ -408,24 +493,40 @@ impl MeshBuilder {
     pub fn ico_sphere(subdivisions: u32) -> Mesh {
         let t = (1.0 + 5.0_f64.sqrt()) / 2.0;
         let mut positions = vec![
-            Vec3::new(-1.0,  t, 0.0).normalized(),
-            Vec3::new( 1.0,  t, 0.0).normalized(),
+            Vec3::new(-1.0, t, 0.0).normalized(),
+            Vec3::new(1.0, t, 0.0).normalized(),
             Vec3::new(-1.0, -t, 0.0).normalized(),
-            Vec3::new( 1.0, -t, 0.0).normalized(),
-            Vec3::new(0.0, -1.0,  t).normalized(),
-            Vec3::new(0.0,  1.0,  t).normalized(),
+            Vec3::new(1.0, -t, 0.0).normalized(),
+            Vec3::new(0.0, -1.0, t).normalized(),
+            Vec3::new(0.0, 1.0, t).normalized(),
             Vec3::new(0.0, -1.0, -t).normalized(),
-            Vec3::new(0.0,  1.0, -t).normalized(),
-            Vec3::new( t, 0.0, -1.0).normalized(),
-            Vec3::new( t, 0.0,  1.0).normalized(),
+            Vec3::new(0.0, 1.0, -t).normalized(),
+            Vec3::new(t, 0.0, -1.0).normalized(),
+            Vec3::new(t, 0.0, 1.0).normalized(),
             Vec3::new(-t, 0.0, -1.0).normalized(),
-            Vec3::new(-t, 0.0,  1.0).normalized(),
+            Vec3::new(-t, 0.0, 1.0).normalized(),
         ];
         let mut tris: Vec<[usize; 3]> = vec![
-            [0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],
-            [1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],
-            [3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],
-            [4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1],
+            [0, 11, 5],
+            [0, 5, 1],
+            [0, 1, 7],
+            [0, 7, 10],
+            [0, 10, 11],
+            [1, 5, 9],
+            [5, 11, 4],
+            [11, 10, 2],
+            [10, 7, 6],
+            [7, 1, 8],
+            [3, 9, 4],
+            [3, 4, 2],
+            [3, 2, 6],
+            [3, 6, 8],
+            [3, 8, 9],
+            [4, 9, 5],
+            [2, 4, 11],
+            [6, 2, 10],
+            [8, 6, 7],
+            [9, 8, 1],
         ];
         for _ in 0..subdivisions {
             let mut new_tris = Vec::new();
@@ -450,10 +551,7 @@ impl MeshBuilder {
         }
         let mut builder = Self::new();
         for p in &positions {
-            let uv = Vec2::new(
-                0.5 + p.z.atan2(p.x) / (2.0 * PI),
-                0.5 - p.y.asin() / PI,
-            );
+            let uv = Vec2::new(0.5 + p.z.atan2(p.x) / (2.0 * PI), 0.5 - p.y.asin() / PI);
             builder.add_vertex(*p, p.normalized(), uv);
         }
         for tri in &tris {
@@ -492,7 +590,9 @@ impl MeshBuilder {
         }
         // Top cap
         let top_center = b.add_vertex(
-            Vec3::new(0.0, half_h, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec2::new(0.5, 0.5),
+            Vec3::new(0.0, half_h, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec2::new(0.5, 0.5),
         );
         let top_base = b.vertices.len() as u32;
         for ix in 0..=segs {
@@ -509,7 +609,9 @@ impl MeshBuilder {
         }
         // Bottom cap
         let bot_center = b.add_vertex(
-            Vec3::new(0.0, -half_h, 0.0), Vec3::new(0.0, -1.0, 0.0), Vec2::new(0.5, 0.5),
+            Vec3::new(0.0, -half_h, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec2::new(0.5, 0.5),
         );
         let bot_base = b.vertices.len() as u32;
         for ix in 0..=segs {
@@ -537,7 +639,9 @@ impl MeshBuilder {
         let nr = height / slope_len;
         // Side
         let apex = b.add_vertex(
-            Vec3::new(0.0, half_h, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec2::new(0.5, 0.0),
+            Vec3::new(0.0, half_h, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec2::new(0.5, 0.0),
         );
         let base_start = b.vertices.len() as u32;
         for ix in 0..=segs {
@@ -556,7 +660,9 @@ impl MeshBuilder {
         }
         // Bottom cap
         let bot_center = b.add_vertex(
-            Vec3::new(0.0, -half_h, 0.0), Vec3::new(0.0, -1.0, 0.0), Vec2::new(0.5, 0.5),
+            Vec3::new(0.0, -half_h, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec2::new(0.5, 0.5),
         );
         let cap_start = b.vertices.len() as u32;
         for ix in 0..=segs {
@@ -575,7 +681,12 @@ impl MeshBuilder {
     }
 
     /// Generate a torus centered at origin in XZ plane.
-    pub fn torus(major_segments: u32, minor_segments: u32, major_radius: f64, minor_radius: f64) -> Mesh {
+    pub fn torus(
+        major_segments: u32,
+        minor_segments: u32,
+        major_radius: f64,
+        minor_radius: f64,
+    ) -> Mesh {
         let mut b = Self::new();
         let maj = major_segments.max(3);
         let min = minor_segments.max(3);
@@ -618,7 +729,9 @@ impl MeshBuilder {
 mod tests {
     use super::*;
 
-    fn approx_eq(a: f64, b: f64, eps: f64) -> bool { (a - b).abs() < eps }
+    fn approx_eq(a: f64, b: f64, eps: f64) -> bool {
+        (a - b).abs() < eps
+    }
     fn v3_approx(a: Vec3, b: Vec3, eps: f64) -> bool {
         approx_eq(a.x, b.x, eps) && approx_eq(a.y, b.y, eps) && approx_eq(a.z, b.z, eps)
     }
@@ -636,7 +749,7 @@ mod tests {
         let m = MeshBuilder::quad();
         let s = m.stats();
         assert!(approx_eq(s.bounding_box.min.x, -0.5, 1e-9));
-        assert!(approx_eq(s.bounding_box.max.x,  0.5, 1e-9));
+        assert!(approx_eq(s.bounding_box.max.x, 0.5, 1e-9));
     }
 
     #[test]
@@ -652,9 +765,9 @@ mod tests {
         let m = MeshBuilder::cube();
         let bb = m.stats().bounding_box;
         assert!(approx_eq(bb.min.x, -0.5, 1e-9));
-        assert!(approx_eq(bb.max.x,  0.5, 1e-9));
+        assert!(approx_eq(bb.max.x, 0.5, 1e-9));
         assert!(approx_eq(bb.min.y, -0.5, 1e-9));
-        assert!(approx_eq(bb.max.y,  0.5, 1e-9));
+        assert!(approx_eq(bb.max.y, 0.5, 1e-9));
     }
 
     #[test]
@@ -701,7 +814,7 @@ mod tests {
         let m = MeshBuilder::cylinder(8, 4.0, 1.0);
         let bb = m.stats().bounding_box;
         assert!(approx_eq(bb.min.y, -2.0, 1e-9));
-        assert!(approx_eq(bb.max.y,  2.0, 1e-9));
+        assert!(approx_eq(bb.max.y, 2.0, 1e-9));
     }
 
     #[test]
@@ -729,7 +842,9 @@ mod tests {
     #[test]
     fn test_recalculate_normals() {
         let mut m = MeshBuilder::quad();
-        for v in m.vertices.iter_mut() { v.normal = Vec3::zero(); }
+        for v in m.vertices.iter_mut() {
+            v.normal = Vec3::zero();
+        }
         m.recalculate_normals();
         for v in &m.vertices {
             assert!(v.normal.length() > 0.9);
@@ -758,9 +873,21 @@ mod tests {
     #[test]
     fn test_weld_vertices() {
         let mut b = MeshBuilder::new();
-        let v0 = b.add_vertex(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec2::zero());
-        let v1 = b.add_vertex(Vec3::new(0.0001, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec2::zero());
-        let v2 = b.add_vertex(Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec2::zero());
+        let v0 = b.add_vertex(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec2::zero(),
+        );
+        let v1 = b.add_vertex(
+            Vec3::new(0.0001, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec2::zero(),
+        );
+        let v2 = b.add_vertex(
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec2::zero(),
+        );
         b.add_triangle(v0, v1, v2);
         let mut mesh = b.build();
         assert_eq!(mesh.vertices.len(), 3);
@@ -771,9 +898,21 @@ mod tests {
     #[test]
     fn test_weld_preserves_topology() {
         let mut b = MeshBuilder::new();
-        let v0 = b.add_vertex(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec2::zero());
-        let v1 = b.add_vertex(Vec3::new(0.0001, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec2::zero());
-        let v2 = b.add_vertex(Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec2::zero());
+        let v0 = b.add_vertex(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec2::zero(),
+        );
+        let v1 = b.add_vertex(
+            Vec3::new(0.0001, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec2::zero(),
+        );
+        let v2 = b.add_vertex(
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec2::zero(),
+        );
         b.add_triangle(v0, v1, v2);
         let mut mesh = b.build();
         mesh.weld_vertices(0.001);
@@ -810,7 +949,11 @@ mod tests {
         let m = MeshBuilder::uv_sphere(8, 4);
         for v in &m.vertices {
             let dot = v.position.normalized().dot(v.normal);
-            assert!(dot > 0.99, "normal should align with radial direction, got dot={}", dot);
+            assert!(
+                dot > 0.99,
+                "normal should align with radial direction, got dot={}",
+                dot
+            );
         }
     }
 

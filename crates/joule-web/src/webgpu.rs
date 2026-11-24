@@ -4,8 +4,8 @@
 //! offline pipeline configuration. No actual GPU calls — this is a command
 //! buffer that can be serialized or replayed on a real WebGPU backend.
 
-use std::fmt;
 use std::collections::HashMap;
+use std::fmt;
 
 // ── Texture Formats ──────────────────────────────────────────
 
@@ -39,7 +39,10 @@ impl TextureFormat {
 
     /// Whether this format has a depth component.
     pub fn is_depth(&self) -> bool {
-        matches!(self, Self::Depth24Plus | Self::Depth24PlusStencil8 | Self::Depth32Float)
+        matches!(
+            self,
+            Self::Depth24Plus | Self::Depth24PlusStencil8 | Self::Depth32Float
+        )
     }
 }
 
@@ -213,7 +216,9 @@ impl GpuDevice {
     /// Create a GPU texture.
     pub fn create_texture(&mut self, desc: &TextureDescriptor) -> Result<GpuTexture, GpuError> {
         if desc.width == 0 || desc.height == 0 {
-            return Err(GpuError::InvalidSize("texture dimensions must be > 0".into()));
+            return Err(GpuError::InvalidSize(
+                "texture dimensions must be > 0".into(),
+            ));
         }
         let max = self.limits.max_texture_dimension_2d;
         if desc.width > max || desc.height > max {
@@ -260,7 +265,9 @@ impl GpuDevice {
     /// Create a bind group.
     pub fn create_bind_group(&mut self, desc: &BindGroupDescriptor) -> Result<BindGroup, GpuError> {
         if desc.entries.is_empty() {
-            return Err(GpuError::InvalidBindGroup("bind group must have at least one entry".into()));
+            return Err(GpuError::InvalidBindGroup(
+                "bind group must have at least one entry".into(),
+            ));
         }
         Ok(BindGroup {
             id: self.next_id(),
@@ -325,7 +332,9 @@ pub struct GpuTexture {
 impl GpuTexture {
     /// Calculate total size in bytes.
     pub fn size_bytes(&self) -> u64 {
-        self.width as u64 * self.height as u64 * self.depth as u64
+        self.width as u64
+            * self.height as u64
+            * self.depth as u64
             * self.format.bytes_per_pixel() as u64
             * self.mip_level_count as u64
     }
@@ -458,9 +467,17 @@ pub struct BindGroupEntry {
 
 #[derive(Debug, Clone)]
 pub enum BindingResource {
-    Buffer { buffer_id: u64, offset: u64, size: u64 },
-    Sampler { sampler_id: u64 },
-    TextureView { texture_id: u64 },
+    Buffer {
+        buffer_id: u64,
+        offset: u64,
+        size: u64,
+    },
+    Sampler {
+        sampler_id: u64,
+    },
+    TextureView {
+        texture_id: u64,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -486,17 +503,52 @@ pub enum GpuCommand {
         depth_attachment: Option<DepthAttachment>,
     },
     EndRenderPass,
-    SetPipeline { pipeline_id: u64 },
-    SetBindGroup { index: u32, bind_group_id: u64 },
-    SetVertexBuffer { slot: u32, buffer_id: u64 },
-    SetIndexBuffer { buffer_id: u64, format: IndexFormat },
-    Draw { vertex_count: u32, instance_count: u32, first_vertex: u32, first_instance: u32 },
-    DrawIndexed { index_count: u32, instance_count: u32, first_index: u32, base_vertex: i32, first_instance: u32 },
+    SetPipeline {
+        pipeline_id: u64,
+    },
+    SetBindGroup {
+        index: u32,
+        bind_group_id: u64,
+    },
+    SetVertexBuffer {
+        slot: u32,
+        buffer_id: u64,
+    },
+    SetIndexBuffer {
+        buffer_id: u64,
+        format: IndexFormat,
+    },
+    Draw {
+        vertex_count: u32,
+        instance_count: u32,
+        first_vertex: u32,
+        first_instance: u32,
+    },
+    DrawIndexed {
+        index_count: u32,
+        instance_count: u32,
+        first_index: u32,
+        base_vertex: i32,
+        first_instance: u32,
+    },
     BeginComputePass,
     EndComputePass,
-    Dispatch { x: u32, y: u32, z: u32 },
-    CopyBufferToBuffer { src: u64, src_offset: u64, dst: u64, dst_offset: u64, size: u64 },
-    CopyTextureToTexture { src: u64, dst: u64 },
+    Dispatch {
+        x: u32,
+        y: u32,
+        z: u32,
+    },
+    CopyBufferToBuffer {
+        src: u64,
+        src_offset: u64,
+        dst: u64,
+        dst_offset: u64,
+        size: u64,
+    },
+    CopyTextureToTexture {
+        src: u64,
+        dst: u64,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -534,7 +586,11 @@ pub enum IndexFormat {
 }
 
 impl CommandEncoder {
-    pub fn begin_render_pass(&mut self, color_attachments: Vec<ColorAttachment>, depth: Option<DepthAttachment>) {
+    pub fn begin_render_pass(
+        &mut self,
+        color_attachments: Vec<ColorAttachment>,
+        depth: Option<DepthAttachment>,
+    ) {
         self.commands.push(GpuCommand::BeginRenderPass {
             color_attachments,
             depth_attachment: depth,
@@ -550,23 +606,52 @@ impl CommandEncoder {
     }
 
     pub fn set_bind_group(&mut self, index: u32, bind_group_id: u64) {
-        self.commands.push(GpuCommand::SetBindGroup { index, bind_group_id });
+        self.commands.push(GpuCommand::SetBindGroup {
+            index,
+            bind_group_id,
+        });
     }
 
     pub fn set_vertex_buffer(&mut self, slot: u32, buffer_id: u64) {
-        self.commands.push(GpuCommand::SetVertexBuffer { slot, buffer_id });
+        self.commands
+            .push(GpuCommand::SetVertexBuffer { slot, buffer_id });
     }
 
     pub fn set_index_buffer(&mut self, buffer_id: u64, format: IndexFormat) {
-        self.commands.push(GpuCommand::SetIndexBuffer { buffer_id, format });
+        self.commands
+            .push(GpuCommand::SetIndexBuffer { buffer_id, format });
     }
 
-    pub fn draw(&mut self, vertex_count: u32, instance_count: u32, first_vertex: u32, first_instance: u32) {
-        self.commands.push(GpuCommand::Draw { vertex_count, instance_count, first_vertex, first_instance });
+    pub fn draw(
+        &mut self,
+        vertex_count: u32,
+        instance_count: u32,
+        first_vertex: u32,
+        first_instance: u32,
+    ) {
+        self.commands.push(GpuCommand::Draw {
+            vertex_count,
+            instance_count,
+            first_vertex,
+            first_instance,
+        });
     }
 
-    pub fn draw_indexed(&mut self, index_count: u32, instance_count: u32, first_index: u32, base_vertex: i32, first_instance: u32) {
-        self.commands.push(GpuCommand::DrawIndexed { index_count, instance_count, first_index, base_vertex, first_instance });
+    pub fn draw_indexed(
+        &mut self,
+        index_count: u32,
+        instance_count: u32,
+        first_index: u32,
+        base_vertex: i32,
+        first_instance: u32,
+    ) {
+        self.commands.push(GpuCommand::DrawIndexed {
+            index_count,
+            instance_count,
+            first_index,
+            base_vertex,
+            first_instance,
+        });
     }
 
     pub fn begin_compute_pass(&mut self) {
@@ -581,8 +666,21 @@ impl CommandEncoder {
         self.commands.push(GpuCommand::Dispatch { x, y, z });
     }
 
-    pub fn copy_buffer_to_buffer(&mut self, src: u64, src_offset: u64, dst: u64, dst_offset: u64, size: u64) {
-        self.commands.push(GpuCommand::CopyBufferToBuffer { src, src_offset, dst, dst_offset, size });
+    pub fn copy_buffer_to_buffer(
+        &mut self,
+        src: u64,
+        src_offset: u64,
+        dst: u64,
+        dst_offset: u64,
+        size: u64,
+    ) {
+        self.commands.push(GpuCommand::CopyBufferToBuffer {
+            src,
+            src_offset,
+            dst,
+            dst_offset,
+            size,
+        });
     }
 
     /// Finish encoding and return commands.
@@ -633,11 +731,13 @@ mod tests {
     #[test]
     fn create_buffer() {
         let mut device = GpuDevice::new("test");
-        let buf = device.create_buffer(&BufferDescriptor {
-            label: "vertex-buf".into(),
-            size: 1024,
-            usage: BufferUsage::VERTEX | BufferUsage::COPY_DST,
-        }).unwrap();
+        let buf = device
+            .create_buffer(&BufferDescriptor {
+                label: "vertex-buf".into(),
+                size: 1024,
+                usage: BufferUsage::VERTEX | BufferUsage::COPY_DST,
+            })
+            .unwrap();
         assert_eq!(buf.size, 1024);
         assert!(buf.usage.contains(BufferUsage::VERTEX));
         assert!(buf.usage.contains(BufferUsage::COPY_DST));
@@ -669,15 +769,17 @@ mod tests {
     #[test]
     fn create_texture() {
         let mut device = GpuDevice::new("test");
-        let tex = device.create_texture(&TextureDescriptor {
-            label: "albedo".into(),
-            width: 256,
-            height: 256,
-            depth: None,
-            format: TextureFormat::Rgba8Unorm,
-            usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
-            mip_level_count: None,
-        }).unwrap();
+        let tex = device
+            .create_texture(&TextureDescriptor {
+                label: "albedo".into(),
+                width: 256,
+                height: 256,
+                depth: None,
+                format: TextureFormat::Rgba8Unorm,
+                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+                mip_level_count: None,
+            })
+            .unwrap();
         assert_eq!(tex.width, 256);
         assert_eq!(tex.height, 256);
         assert_eq!(tex.size_bytes(), 256 * 256 * 4);
@@ -732,19 +834,25 @@ mod tests {
     #[test]
     fn create_bind_group() {
         let mut device = GpuDevice::new("test");
-        let bg = device.create_bind_group(&BindGroupDescriptor {
-            label: "bg0".into(),
-            entries: vec![
-                BindGroupEntry {
-                    binding: 0,
-                    resource: BindingResource::Buffer { buffer_id: 1, offset: 0, size: 64 },
-                },
-                BindGroupEntry {
-                    binding: 1,
-                    resource: BindingResource::TextureView { texture_id: 2 },
-                },
-            ],
-        }).unwrap();
+        let bg = device
+            .create_bind_group(&BindGroupDescriptor {
+                label: "bg0".into(),
+                entries: vec![
+                    BindGroupEntry {
+                        binding: 0,
+                        resource: BindingResource::Buffer {
+                            buffer_id: 1,
+                            offset: 0,
+                            size: 64,
+                        },
+                    },
+                    BindGroupEntry {
+                        binding: 1,
+                        resource: BindingResource::TextureView { texture_id: 2 },
+                    },
+                ],
+            })
+            .unwrap();
         assert_eq!(bg.entries.len(), 2);
     }
 
@@ -820,8 +928,10 @@ mod tests {
 
     #[test]
     fn device_features() {
-        let device = GpuDevice::new("test")
-            .with_features(vec![DeviceFeature::TimestampQuery, DeviceFeature::Float32Filterable]);
+        let device = GpuDevice::new("test").with_features(vec![
+            DeviceFeature::TimestampQuery,
+            DeviceFeature::Float32Filterable,
+        ]);
         assert!(device.has_feature(DeviceFeature::TimestampQuery));
         assert!(!device.has_feature(DeviceFeature::TextureCompressionBc));
     }

@@ -262,7 +262,8 @@ impl HeterogeneousRailSample {
             || lane_lower.contains("vulkan")
         {
             let host_dispatch_nj = (base_cpu_mw.saturating_mul(wall_duration_ns) / 8_000).max(40);
-            let shader_nj = (base_gpu_mw.max(900).saturating_mul(wall_duration_ns) / 1_000).max(120);
+            let shader_nj =
+                (base_gpu_mw.max(900).saturating_mul(wall_duration_ns) / 1_000).max(120);
             (host_dispatch_nj, shader_nj, 0)
         } else if lane_lower.contains("npu")
             || lane_lower.contains("ane")
@@ -279,17 +280,14 @@ impl HeterogeneousRailSample {
         };
 
         // pJ/byte -> nJ: divide by 1_000
-        let dram_uma_nj = (mem_bytes_touched.saturating_mul(p_dram_pj_per_byte) / 1_000).max(
-            if mem_bytes_touched > 0 { 5 } else { 0 },
-        );
+        let dram_uma_nj = (mem_bytes_touched.saturating_mul(p_dram_pj_per_byte) / 1_000)
+            .max(if mem_bytes_touched > 0 { 5 } else { 0 });
         // NVMe / flash CAS ~ 240 pJ/byte
-        let storage_nvme_nj = (storage_bytes_io.saturating_mul(240) / 1_000).max(
-            if storage_bytes_io > 0 { 10 } else { 0 },
-        );
+        let storage_nvme_nj = (storage_bytes_io.saturating_mul(240) / 1_000)
+            .max(if storage_bytes_io > 0 { 10 } else { 0 });
         // NIC / WireGuard / RDMA ~ 480 pJ/byte
-        let network_wire_nj = (wire_bytes_io.saturating_mul(480) / 1_000).max(
-            if wire_bytes_io > 0 { 15 } else { 0 },
-        );
+        let network_wire_nj =
+            (wire_bytes_io.saturating_mul(480) / 1_000).max(if wire_bytes_io > 0 { 15 } else { 0 });
 
         let mut sample = Self {
             cpu_nj,
@@ -352,14 +350,11 @@ impl HeterogeneousRailSample {
 
         let dur_ns = wall_duration_ns.max(1);
         // 1 mW * 1_000 ns = 1 nJ
-        let measured_board_nj = (((hw.board_power_mw as u128) * (dur_ns as u128)) / 1_000)
-            .max(1) as u64;
+        let measured_board_nj =
+            (((hw.board_power_mw as u128) * (dur_ns as u128)) / 1_000).max(1) as u64;
 
-        let prior_silicon_sum = (base.cpu_nj
-            + base.gpu_nj
-            + base.npu_ane_nj
-            + base.dram_uma_nj)
-            .max(1) as f64;
+        let prior_silicon_sum =
+            (base.cpu_nj + base.gpu_nj + base.npu_ane_nj + base.dram_uma_nj).max(1) as f64;
         let p_cpu = base.cpu_nj as f64 / prior_silicon_sum;
         let p_gpu = base.gpu_nj as f64 / prior_silicon_sum;
         let p_npu = base.npu_ane_nj as f64 / prior_silicon_sum;
@@ -522,16 +517,15 @@ impl FabricEnergyLedger {
             Err(p) => p.into_inner(),
         };
         guard.total_events = guard.total_events.saturating_add(1);
-        guard.cumulative_rails = guard.cumulative_rails.saturating_add(&trace.aggregate_rails);
+        guard.cumulative_rails = guard
+            .cumulative_rails
+            .saturating_add(&trace.aggregate_rails);
         guard.total_saved_memoization_nj = guard
             .total_saved_memoization_nj
             .saturating_add(trace.saved_by_memoization_nj);
 
         for hop in &trace.hops {
-            let node_entry = guard
-                .per_node_rails
-                .entry(hop.node_id.clone())
-                .or_default();
+            let node_entry = guard.per_node_rails.entry(hop.node_id.clone()).or_default();
             *node_entry = node_entry.saturating_add(&hop.rails);
 
             let class_entry = guard
@@ -752,11 +746,8 @@ impl WardCapabilityToken {
         for caveat in &self.caveats {
             match caveat {
                 WardCaveat::ExpiresAtEpochMs(ts) => {
-                    policy.expires_at_ms = Some(
-                        policy
-                            .expires_at_ms
-                            .map_or(*ts, |prev| prev.min(*ts)),
-                    );
+                    policy.expires_at_ms =
+                        Some(policy.expires_at_ms.map_or(*ts, |prev| prev.min(*ts)));
                 }
                 WardCaveat::AllowPathPrefixes(prefixes) => {
                     let next_set: Vec<String> = prefixes.clone();
@@ -810,10 +801,11 @@ impl WardCapabilityToken {
                 }
                 WardCaveat::AllowSiliconLanes(lanes) => {
                     let set: BTreeSet<String> = lanes.iter().cloned().collect();
-                    policy.allowed_silicon_lanes = Some(match policy.allowed_silicon_lanes.take() {
-                        None => set,
-                        Some(prev) => prev.intersection(&set).cloned().collect(),
-                    });
+                    policy.allowed_silicon_lanes =
+                        Some(match policy.allowed_silicon_lanes.take() {
+                            None => set,
+                            Some(prev) => prev.intersection(&set).cloned().collect(),
+                        });
                 }
                 WardCaveat::MaxTotalNanojoules(max_nj) => {
                     policy.max_total_nj = Some(
@@ -920,9 +912,7 @@ pub struct WardActionContext {
 #[serde(tag = "decision", rename_all = "snake_case")]
 pub enum WardDecision {
     /// Action is cryptographically valid and within all capability + thermodynamic bounds.
-    Permit {
-        effective_remaining_nj: Option<u64>,
-    },
+    Permit { effective_remaining_nj: Option<u64> },
     /// Action is valid in scope, but pauses for Human-in-the-Loop approval due to energy gate.
     RequiresHumanApproval {
         threshold_nj: u64,
@@ -930,9 +920,7 @@ pub enum WardDecision {
         reason: String,
     },
     /// Action is rejected due to cryptographic tamper or caveat / rail / fabric violation.
-    Deny {
-        reason: String,
-    },
+    Deny { reason: String },
 }
 
 /// Verify HMAC chain + evaluate all spatial, network, fabric, power, and 6-rail nanojoule caveats.
@@ -1183,9 +1171,17 @@ pub fn compile_confinement(
         bwrap.push("--share-net".to_string());
     }
     if policy.read_only_fs {
-        bwrap.extend(["--ro-bind".to_string(), ws_str.clone(), "/workspace".to_string()]);
+        bwrap.extend([
+            "--ro-bind".to_string(),
+            ws_str.clone(),
+            "/workspace".to_string(),
+        ]);
     } else {
-        bwrap.extend(["--bind".to_string(), ws_str.clone(), "/workspace".to_string()]);
+        bwrap.extend([
+            "--bind".to_string(),
+            ws_str.clone(),
+            "/workspace".to_string(),
+        ]);
     }
 
     let mut landlock_rules = vec![
@@ -1548,8 +1544,13 @@ impl WardEngine {
 
         // Execute under OS confinement (macOS Seatbelt SBPL when permitted, with clean nested fallback)
         let t0 = Instant::now();
-        let (output, mechanism) =
-            run_confined_subprocess(&req.command, &req.env, workspace_dir, &confinement, req.prefer_os_sandbox)?;
+        let (output, mechanism) = run_confined_subprocess(
+            &req.command,
+            &req.env,
+            workspace_dir,
+            &confinement,
+            req.prefer_os_sandbox,
+        )?;
         let elapsed_ns = t0.elapsed().as_nanos() as u64;
 
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
@@ -1955,10 +1956,7 @@ mod tests {
 
         let req = WardExecRequest {
             token,
-            command: vec![
-                "/bin/echo".into(),
-                "jouleward-deterministic-step".into(),
-            ],
+            command: vec!["/bin/echo".into(), "jouleward-deterministic-step".into()],
             env: BTreeMap::from([("LC_ALL".into(), "C".into())]),
             rootfs_merkle_hex: Some("deadbeefcafebabe".into()),
             memoize: true,
@@ -1974,7 +1972,12 @@ mod tests {
         assert_eq!(first.stdout.trim(), "jouleward-deterministic-step");
         assert!(!first.memoized_cache_hit);
         assert!(first.energy_trace.aggregate_rails.total_nj() > 85);
-        assert!(first.confinement.macos_seatbelt_sbpl.contains("(deny network*)"));
+        assert!(
+            first
+                .confinement
+                .macos_seatbelt_sbpl
+                .contains("(deny network*)")
+        );
 
         // Second identical invocation hits `WardActionCache` in 0 spawns (~85 nJ)!
         let second = engine.execute_local(&req, tmp.path()).unwrap();
@@ -2112,7 +2115,10 @@ mod tests {
             Some(HardwarePowerSample::default()),
         );
         assert!(!fb_fused);
-        assert_eq!(fb_src, TelemetryCalibrationSource::CalibratedInstructionCounter);
+        assert_eq!(
+            fb_src,
+            TelemetryCalibrationSource::CalibratedInstructionCounter
+        );
         assert!(fallback.total_nj() > 0);
     }
 }

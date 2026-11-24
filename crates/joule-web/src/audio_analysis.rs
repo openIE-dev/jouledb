@@ -19,10 +19,7 @@ pub fn rms(samples: &[f32]) -> f32 {
 
 /// Calculate peak (maximum absolute value) of a buffer.
 pub fn peak(samples: &[f32]) -> f32 {
-    samples
-        .iter()
-        .map(|s| s.abs())
-        .fold(0.0f32, f32::max)
+    samples.iter().map(|s| s.abs()).fold(0.0f32, f32::max)
 }
 
 /// Calculate crest factor (peak / RMS ratio).
@@ -124,10 +121,7 @@ pub fn magnitude_spectrum(samples: &[f32]) -> Vec<f64> {
 
 /// Compute the power spectrum (magnitude squared).
 pub fn power_spectrum(samples: &[f32]) -> Vec<f64> {
-    magnitude_spectrum(samples)
-        .iter()
-        .map(|m| m * m)
-        .collect()
+    magnitude_spectrum(samples).iter().map(|m| m * m).collect()
 }
 
 /// Calculate spectral centroid (weighted mean frequency).
@@ -236,11 +230,7 @@ pub fn spectral_flatness(samples: &[f32]) -> f64 {
 
 /// Simple onset detection using spectral flux.
 /// Returns a vector of onset strengths per frame.
-pub fn onset_detection(
-    samples: &[f32],
-    window_size: usize,
-    hop_size: usize,
-) -> Vec<f64> {
+pub fn onset_detection(samples: &[f32], window_size: usize, hop_size: usize) -> Vec<f64> {
     if samples.len() < window_size || hop_size == 0 {
         return Vec::new();
     }
@@ -372,13 +362,7 @@ fn k_weight_stage1(sample_rate: f64) -> KWeightCoeffs {
     let a1 = (2.0 * (k * k - 1.0)) / a0;
     let a2 = (1.0 - k / q_val + k * k) / a0;
 
-    KWeightCoeffs {
-        b0,
-        b1,
-        b2,
-        a1,
-        a2,
-    }
+    KWeightCoeffs { b0, b1, b2, a1, a2 }
 }
 
 /// K-weighting pre-filter stage 2 (highpass at ~38Hz).

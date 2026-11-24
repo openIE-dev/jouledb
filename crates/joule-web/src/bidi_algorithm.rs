@@ -383,7 +383,10 @@ mod tests {
 
     #[test]
     fn rtl_paragraph_level() {
-        assert_eq!(paragraph_level("\u{0645}\u{0631}\u{062D}\u{0628}\u{0627}"), 1); // مرحبا
+        assert_eq!(
+            paragraph_level("\u{0645}\u{0631}\u{062D}\u{0628}\u{0627}"),
+            1
+        ); // مرحبا
     }
 
     #[test]
@@ -434,7 +437,12 @@ mod tests {
     fn resolve_rtl_text() {
         let resolved = resolve_levels("\u{05D0}\u{05D1}\u{05D2}"); // אבג
         for r in &resolved {
-            assert_eq!(r.level % 2, 1, "RTL text should have odd level: level={}", r.level);
+            assert_eq!(
+                r.level % 2,
+                1,
+                "RTL text should have odd level: level={}",
+                r.level
+            );
         }
     }
 

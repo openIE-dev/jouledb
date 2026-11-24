@@ -71,7 +71,11 @@ impl BitWriter {
             return Ok(());
         }
         // Mask off any extra high bits.
-        let mask = if count == 64 { u64::MAX } else { (1u64 << count) - 1 };
+        let mask = if count == 64 {
+            u64::MAX
+        } else {
+            (1u64 << count) - 1
+        };
         let val = value & mask;
 
         match self.order {
@@ -430,11 +434,11 @@ mod tests {
     #[test]
     fn msb_roundtrip() {
         let mut w = BitWriter::new_msb();
-        w.write_bits(5, 3).unwrap();  // 101
-        w.write_bits(3, 2).unwrap();  // 11
-        w.write_bits(0, 1).unwrap();  // 0
-        w.write_bits(1, 1).unwrap();  // 1
-        w.write_bits(0, 1).unwrap();  // 0
+        w.write_bits(5, 3).unwrap(); // 101
+        w.write_bits(3, 2).unwrap(); // 11
+        w.write_bits(0, 1).unwrap(); // 0
+        w.write_bits(1, 1).unwrap(); // 1
+        w.write_bits(0, 1).unwrap(); // 0
         let buf = w.finish();
         // 10111010 = 0xBA
         assert_eq!(buf, [0xBA]);
@@ -470,9 +474,9 @@ mod tests {
     #[test]
     fn lsb_roundtrip() {
         let mut w = BitWriter::new_lsb();
-        w.write_bits(5, 3).unwrap();  // 101 in LSB first
-        w.write_bits(2, 3).unwrap();  // 010 in LSB first
-        w.write_bits(1, 2).unwrap();  // 01 in LSB first
+        w.write_bits(5, 3).unwrap(); // 101 in LSB first
+        w.write_bits(2, 3).unwrap(); // 010 in LSB first
+        w.write_bits(1, 2).unwrap(); // 01 in LSB first
         let buf = w.finish();
 
         let mut r = BitReader::new_lsb(&buf);

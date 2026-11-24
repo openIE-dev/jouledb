@@ -23,7 +23,10 @@ impl FlexDirection {
     }
 
     fn is_reversed(self) -> bool {
-        matches!(self, FlexDirection::RowReverse | FlexDirection::ColumnReverse)
+        matches!(
+            self,
+            FlexDirection::RowReverse | FlexDirection::ColumnReverse
+        )
     }
 }
 
@@ -171,7 +174,10 @@ pub fn layout(
     let mut indexed: Vec<IndexedItem> = items
         .iter()
         .enumerate()
-        .map(|(i, item)| IndexedItem { original_index: i, item: item.clone() })
+        .map(|(i, item)| IndexedItem {
+            original_index: i,
+            item: item.clone(),
+        })
         .collect();
     indexed.sort_by(|a, b| a.item.order.cmp(&b.item.order).then(Ordering::Equal));
 
@@ -192,11 +198,8 @@ pub fn layout(
 
     // Compute cross offsets
     let mut cross_offsets = Vec::with_capacity(lines.len());
-    let cross_start_offset = cross_start_offset(
-        container.align_content,
-        remaining_cross,
-        lines.len(),
-    );
+    let cross_start_offset =
+        cross_start_offset(container.align_content, remaining_cross, lines.len());
     let mut cross_pos = cross_start_offset;
     for (i, cs) in line_cross_sizes.iter().enumerate() {
         cross_offsets.push(cross_pos);
@@ -213,7 +216,15 @@ pub fn layout(
     }
 
     // Compute final rects
-    let mut rects = vec![Rect { x: 0.0, y: 0.0, width: 0.0, height: 0.0 }; items.len()];
+    let mut rects = vec![
+        Rect {
+            x: 0.0,
+            y: 0.0,
+            width: 0.0,
+            height: 0.0
+        };
+        items.len()
+    ];
 
     for (line_idx, line) in lines.iter().enumerate() {
         let line_cross = line_cross_sizes[line_idx];
@@ -237,9 +248,7 @@ pub fn layout(
             };
 
         for (orig_idx, main_size) in items_iter {
-            let align = items[*orig_idx]
-                .align_self
-                .unwrap_or(container.align_items);
+            let align = items[*orig_idx].align_self.unwrap_or(container.align_items);
 
             let cross_item_size = match align {
                 AlignItems::Stretch => line_cross,
@@ -253,12 +262,27 @@ pub fn layout(
             };
 
             let (x, y, w, h) = if container.direction.is_row() {
-                (main_pos, line_cross_offset + cross_offset, *main_size, cross_item_size)
+                (
+                    main_pos,
+                    line_cross_offset + cross_offset,
+                    *main_size,
+                    cross_item_size,
+                )
             } else {
-                (line_cross_offset + cross_offset, main_pos, cross_item_size, *main_size)
+                (
+                    line_cross_offset + cross_offset,
+                    main_pos,
+                    cross_item_size,
+                    *main_size,
+                )
             };
 
-            rects[*orig_idx] = Rect { x, y, width: w, height: h };
+            rects[*orig_idx] = Rect {
+                x,
+                y,
+                width: w,
+                height: h,
+            };
             main_pos += main_size + container.gap + between;
         }
     }
@@ -277,7 +301,11 @@ fn collect_lines(
 
     for ii in indexed {
         let item_main = ii.item.basis;
-        let gap_cost = if current_items.is_empty() { 0.0 } else { container.gap };
+        let gap_cost = if current_items.is_empty() {
+            0.0
+        } else {
+            container.gap
+        };
 
         if container.wrap != FlexWrap::NoWrap
             && !current_items.is_empty()
@@ -287,7 +315,11 @@ fn collect_lines(
             current_items.clear();
             current_main = 0.0;
         }
-        current_main += if current_items.is_empty() { 0.0 } else { container.gap } + item_main;
+        current_main += if current_items.is_empty() {
+            0.0
+        } else {
+            container.gap
+        } + item_main;
         current_items.push((ii.original_index, ii.item.clone()));
     }
     if !current_items.is_empty() {
@@ -296,11 +328,7 @@ fn collect_lines(
     lines
 }
 
-fn resolve_line(
-    items: &[(usize, FlexItem)],
-    main_available: f64,
-    gap: f64,
-) -> FlexLine {
+fn resolve_line(items: &[(usize, FlexItem)], main_available: f64, gap: f64) -> FlexLine {
     let total_basis: f64 = items.iter().map(|(_, it)| it.basis).sum();
     let total_gap = gap * (items.len().saturating_sub(1)) as f64;
     let free = main_available - total_basis - total_gap;
@@ -337,7 +365,11 @@ fn resolve_line(
     // Cross size = max of item basis (simplified; real impl uses intrinsic cross)
     let cross_size: f64 = items.iter().map(|(_, it)| it.basis).fold(0.0_f64, f64::max);
 
-    FlexLine { items: sizes, main_size, cross_size }
+    FlexLine {
+        items: sizes,
+        main_size,
+        cross_size,
+    }
 }
 
 fn distribute_cross_space(
@@ -379,11 +411,7 @@ fn cross_between_space(align: AlignContent, remaining: f64, line_count: usize) -
     }
 }
 
-fn justify_offsets(
-    justify: JustifyContent,
-    free_space: f64,
-    item_count: usize,
-) -> (f64, f64, f64) {
+fn justify_offsets(justify: JustifyContent, free_space: f64, item_count: usize) -> (f64, f64, f64) {
     // Returns (start_pos, between_extra, before_first)
     if item_count == 0 {
         return (0.0, 0.0, 0.0);
@@ -424,8 +452,14 @@ mod tests {
     fn basic_row_layout() {
         let container = FlexContainer::default();
         let items = vec![
-            FlexItem { basis: 100.0, ..Default::default() },
-            FlexItem { basis: 100.0, ..Default::default() },
+            FlexItem {
+                basis: 100.0,
+                ..Default::default()
+            },
+            FlexItem {
+                basis: 100.0,
+                ..Default::default()
+            },
         ];
         let rects = layout(&container, &items, 300.0, 50.0);
         assert!(approx(rects[0].x, 0.0));
@@ -438,11 +472,19 @@ mod tests {
     fn grow_distributes_space() {
         let container = FlexContainer::default();
         let items = vec![
-            FlexItem { basis: 50.0, grow: 1.0, ..Default::default() },
-            FlexItem { basis: 50.0, grow: 3.0, ..Default::default() },
+            FlexItem {
+                basis: 50.0,
+                grow: 1.0,
+                ..Default::default()
+            },
+            FlexItem {
+                basis: 50.0,
+                grow: 3.0,
+                ..Default::default()
+            },
         ];
         let rects = layout(&container, &items, 200.0, 50.0);
-        assert!(approx(rects[0].width, 75.0));  // 50 + 25
+        assert!(approx(rects[0].width, 75.0)); // 50 + 25
         assert!(approx(rects[1].width, 125.0)); // 50 + 75
     }
 
@@ -450,8 +492,16 @@ mod tests {
     fn shrink_reduces_items() {
         let container = FlexContainer::default();
         let items = vec![
-            FlexItem { basis: 200.0, shrink: 1.0, ..Default::default() },
-            FlexItem { basis: 200.0, shrink: 1.0, ..Default::default() },
+            FlexItem {
+                basis: 200.0,
+                shrink: 1.0,
+                ..Default::default()
+            },
+            FlexItem {
+                basis: 200.0,
+                shrink: 1.0,
+                ..Default::default()
+            },
         ];
         let rects = layout(&container, &items, 300.0, 50.0);
         assert!(approx(rects[0].width, 150.0));
@@ -465,8 +515,14 @@ mod tests {
             ..Default::default()
         };
         let items = vec![
-            FlexItem { basis: 50.0, ..Default::default() },
-            FlexItem { basis: 50.0, ..Default::default() },
+            FlexItem {
+                basis: 50.0,
+                ..Default::default()
+            },
+            FlexItem {
+                basis: 50.0,
+                ..Default::default()
+            },
         ];
         let rects = layout(&container, &items, 100.0, 200.0);
         assert!(approx(rects[0].y, 0.0));
@@ -481,9 +537,10 @@ mod tests {
             justify_content: JustifyContent::Center,
             ..Default::default()
         };
-        let items = vec![
-            FlexItem { basis: 50.0, ..Default::default() },
-        ];
+        let items = vec![FlexItem {
+            basis: 50.0,
+            ..Default::default()
+        }];
         let rects = layout(&container, &items, 200.0, 50.0);
         assert!(approx(rects[0].x, 75.0));
     }
@@ -495,8 +552,14 @@ mod tests {
             ..Default::default()
         };
         let items = vec![
-            FlexItem { basis: 50.0, ..Default::default() },
-            FlexItem { basis: 50.0, ..Default::default() },
+            FlexItem {
+                basis: 50.0,
+                ..Default::default()
+            },
+            FlexItem {
+                basis: 50.0,
+                ..Default::default()
+            },
         ];
         let rects = layout(&container, &items, 200.0, 50.0);
         assert!(approx(rects[0].x, 0.0));
@@ -511,9 +574,18 @@ mod tests {
             ..Default::default()
         };
         let items = vec![
-            FlexItem { basis: 60.0, ..Default::default() },
-            FlexItem { basis: 60.0, ..Default::default() },
-            FlexItem { basis: 60.0, ..Default::default() },
+            FlexItem {
+                basis: 60.0,
+                ..Default::default()
+            },
+            FlexItem {
+                basis: 60.0,
+                ..Default::default()
+            },
+            FlexItem {
+                basis: 60.0,
+                ..Default::default()
+            },
         ];
         let rects = layout(&container, &items, 100.0, 200.0);
         // First line: item 0 (60px), can't fit item 1 (60+60=120 > 100)
@@ -531,8 +603,14 @@ mod tests {
             ..Default::default()
         };
         let items = vec![
-            FlexItem { basis: 50.0, ..Default::default() },
-            FlexItem { basis: 50.0, ..Default::default() },
+            FlexItem {
+                basis: 50.0,
+                ..Default::default()
+            },
+            FlexItem {
+                basis: 50.0,
+                ..Default::default()
+            },
         ];
         let rects = layout(&container, &items, 200.0, 50.0);
         assert!(approx(rects[0].x, 0.0));
@@ -543,8 +621,16 @@ mod tests {
     fn order_reorders_items() {
         let container = FlexContainer::default();
         let items = vec![
-            FlexItem { basis: 50.0, order: 2, ..Default::default() },
-            FlexItem { basis: 50.0, order: 1, ..Default::default() },
+            FlexItem {
+                basis: 50.0,
+                order: 2,
+                ..Default::default()
+            },
+            FlexItem {
+                basis: 50.0,
+                order: 1,
+                ..Default::default()
+            },
         ];
         let rects = layout(&container, &items, 200.0, 50.0);
         // Item 1 (order=1) renders first, item 0 (order=2) renders second
@@ -556,8 +642,17 @@ mod tests {
     fn min_max_clamping() {
         let container = FlexContainer::default();
         let items = vec![
-            FlexItem { basis: 50.0, grow: 1.0, max_size: 80.0, ..Default::default() },
-            FlexItem { basis: 50.0, grow: 1.0, ..Default::default() },
+            FlexItem {
+                basis: 50.0,
+                grow: 1.0,
+                max_size: 80.0,
+                ..Default::default()
+            },
+            FlexItem {
+                basis: 50.0,
+                grow: 1.0,
+                ..Default::default()
+            },
         ];
         let rects = layout(&container, &items, 200.0, 50.0);
         assert!(rects[0].width <= 80.0 + 0.01);
@@ -576,9 +671,10 @@ mod tests {
             align_items: AlignItems::Center,
             ..Default::default()
         };
-        let items = vec![
-            FlexItem { basis: 20.0, ..Default::default() },
-        ];
+        let items = vec![FlexItem {
+            basis: 20.0,
+            ..Default::default()
+        }];
         let rects = layout(&container, &items, 200.0, 100.0);
         // Cross axis centering: (100 - 20) / 2 = 40
         assert!(approx(rects[0].y, 40.0));

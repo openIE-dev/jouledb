@@ -90,7 +90,10 @@ pub struct CoilPhaseGenerator {
 impl CoilPhaseGenerator {
     /// Create a coil phase generator.
     pub fn new(mode: StepMode) -> Self {
-        Self { mode, micro_position: 0 }
+        Self {
+            mode,
+            micro_position: 0,
+        }
     }
 
     /// Advance by one micro-step in the given direction (+1 or -1).
@@ -104,19 +107,13 @@ impl CoilPhaseGenerator {
     pub fn coil_currents(&self) -> (f64, f64) {
         let microsteps = self.mode.microsteps_per_full_step() as f64;
         // Electrical angle: 4 full steps = one electrical cycle (2π).
-        let angle =
-            (self.micro_position as f64 / microsteps) * std::f64::consts::FRAC_PI_2;
+        let angle = (self.micro_position as f64 / microsteps) * std::f64::consts::FRAC_PI_2;
 
         match self.mode {
             StepMode::Full => {
                 // Quantize to nearest full step.
                 let idx = self.micro_position.rem_euclid(4) as usize;
-                let table: [(f64, f64); 4] = [
-                    (1.0, 0.0),
-                    (0.0, 1.0),
-                    (-1.0, 0.0),
-                    (0.0, -1.0),
-                ];
+                let table: [(f64, f64); 4] = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)];
                 table[idx]
             }
             StepMode::Half => {
@@ -219,8 +216,7 @@ impl TrapezoidalRamp {
         }
 
         // Deceleration distance: v² / (2*a_decel).
-        let decel_steps =
-            (self.velocity * self.velocity / (2.0 * self.deceleration)).ceil() as u64;
+        let decel_steps = (self.velocity * self.velocity / (2.0 * self.deceleration)).ceil() as u64;
 
         if steps_remaining <= decel_steps {
             // Decelerate.
@@ -400,11 +396,7 @@ pub struct StepperController {
 
 impl StepperController {
     /// Create a stepper controller.
-    pub fn new(
-        mode: StepMode,
-        ramp: TrapezoidalRamp,
-        tracker: PositionTracker,
-    ) -> Self {
+    pub fn new(mode: StepMode, ramp: TrapezoidalRamp, tracker: PositionTracker) -> Self {
         Self {
             phase: CoilPhaseGenerator::new(mode),
             ramp,
@@ -456,8 +448,7 @@ impl StepperController {
             if remaining - steps_taken as u64 == 0 {
                 break;
             }
-            self.current_interval =
-                self.ramp.next_interval(remaining - steps_taken as u64);
+            self.current_interval = self.ramp.next_interval(remaining - steps_taken as u64);
 
             if self.time_accumulator < self.current_interval {
                 break;
@@ -492,10 +483,7 @@ impl fmt::Display for StepperController {
         write!(
             f,
             "Stepper({}, pos={}, target={}, v={:.1} sps)",
-            self.phase.mode,
-            self.tracker.position,
-            self.target_position,
-            self.ramp.velocity
+            self.phase.mode, self.tracker.position, self.target_position, self.ramp.velocity
         )
     }
 }
@@ -604,8 +592,7 @@ mod tests {
 
     #[test]
     fn test_position_tracker_limits() {
-        let mut tracker = PositionTracker::new(200, 8.0)
-            .unwrap();
+        let mut tracker = PositionTracker::new(200, 8.0).unwrap();
         let mut tracker = PositionTracker {
             min_position: -10,
             max_position: 10,

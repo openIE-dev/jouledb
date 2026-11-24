@@ -69,10 +69,7 @@ impl ValueTable {
 
     /// Maximum absolute value across all states (for convergence check).
     pub fn max_value(&self) -> f64 {
-        self.values
-            .values()
-            .map(|v| v.abs())
-            .fold(0.0, f64::max)
+        self.values.values().map(|v| v.abs()).fold(0.0, f64::max)
     }
 
     /// All state-value pairs.
@@ -130,7 +127,11 @@ impl Td0Learner {
     /// Perform a single TD(0) update.
     pub fn update(&mut self, state: u64, reward: f64, next_state: u64, done: bool) -> f64 {
         let v_s = self.values.get(state);
-        let v_next = if done { 0.0 } else { self.values.get(next_state) };
+        let v_next = if done {
+            0.0
+        } else {
+            self.values.get(next_state)
+        };
         let td_error = reward + self.gamma * v_next - v_s;
         self.values.set(state, v_s + self.alpha * td_error);
         self.total_updates += 1;
@@ -339,7 +340,11 @@ impl TdLambdaLearner {
     /// Perform a TD(λ) update step.
     pub fn update(&mut self, state: u64, reward: f64, next_state: u64, done: bool) -> f64 {
         let v_s = self.values.get(state);
-        let v_next = if done { 0.0 } else { self.values.get(next_state) };
+        let v_next = if done {
+            0.0
+        } else {
+            self.values.get(next_state)
+        };
         let td_error = reward + self.gamma * v_next - v_s;
 
         // Update trace for current state
@@ -439,13 +444,7 @@ impl NStepTd {
     }
 
     /// Add a transition. When n steps accumulated, update the oldest state.
-    pub fn step(
-        &mut self,
-        state: u64,
-        reward: f64,
-        next_state: u64,
-        done: bool,
-    ) -> Option<f64> {
+    pub fn step(&mut self, state: u64, reward: f64, next_state: u64, done: bool) -> Option<f64> {
         self.buffer.push((state, reward));
 
         if done {
@@ -636,7 +635,9 @@ mod tests {
     use super::*;
 
     const EPS: f64 = 1e-6;
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     #[test]
     fn test_value_table_default() {
@@ -817,7 +818,10 @@ mod tests {
     #[test]
     fn test_linear_vf_dim_mismatch() {
         let mut vf = LinearValueFunction::new(3, 0.1, 0.99).unwrap();
-        assert!(vf.update(&[1.0, 2.0], 1.0, &[0.0, 0.0, 0.0], false).is_err());
+        assert!(
+            vf.update(&[1.0, 2.0], 1.0, &[0.0, 0.0, 0.0], false)
+                .is_err()
+        );
     }
 
     #[test]

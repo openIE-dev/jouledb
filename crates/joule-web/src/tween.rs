@@ -44,27 +44,59 @@ impl TweenEasing {
             Self::EaseInQuad => t * t,
             Self::EaseOutQuad => t * (2.0 - t),
             Self::EaseInOutQuad => {
-                if t < 0.5 { 2.0 * t * t } else { -1.0 + (4.0 - 2.0 * t) * t }
+                if t < 0.5 {
+                    2.0 * t * t
+                } else {
+                    -1.0 + (4.0 - 2.0 * t) * t
+                }
             }
             Self::EaseInCubic => t * t * t,
-            Self::EaseOutCubic => { let u = t - 1.0; u * u * u + 1.0 }
+            Self::EaseOutCubic => {
+                let u = t - 1.0;
+                u * u * u + 1.0
+            }
             Self::EaseInOutCubic => {
-                if t < 0.5 { 4.0 * t * t * t } else { let u = 2.0 * t - 2.0; (u * u * u + 2.0) / 2.0 }
+                if t < 0.5 {
+                    4.0 * t * t * t
+                } else {
+                    let u = 2.0 * t - 2.0;
+                    (u * u * u + 2.0) / 2.0
+                }
             }
             Self::EaseInQuart => t * t * t * t,
-            Self::EaseOutQuart => { let u = t - 1.0; 1.0 - u * u * u * u }
+            Self::EaseOutQuart => {
+                let u = t - 1.0;
+                1.0 - u * u * u * u
+            }
             Self::EaseInOutQuart => {
-                if t < 0.5 { 8.0 * t * t * t * t } else { let u = t - 1.0; 1.0 - 8.0 * u * u * u * u }
+                if t < 0.5 {
+                    8.0 * t * t * t * t
+                } else {
+                    let u = t - 1.0;
+                    1.0 - 8.0 * u * u * u * u
+                }
             }
             Self::EaseInExpo => {
-                if t == 0.0 { 0.0 } else { (2.0_f64).powf(10.0 * (t - 1.0)) }
+                if t == 0.0 {
+                    0.0
+                } else {
+                    (2.0_f64).powf(10.0 * (t - 1.0))
+                }
             }
             Self::EaseOutExpo => {
-                if t == 1.0 { 1.0 } else { 1.0 - (2.0_f64).powf(-10.0 * t) }
+                if t == 1.0 {
+                    1.0
+                } else {
+                    1.0 - (2.0_f64).powf(-10.0 * t)
+                }
             }
             Self::EaseInOutExpo => {
-                if t == 0.0 { return 0.0; }
-                if t == 1.0 { return 1.0; }
+                if t == 0.0 {
+                    return 0.0;
+                }
+                if t == 1.0 {
+                    return 1.0;
+                }
                 if t < 0.5 {
                     (2.0_f64).powf(20.0 * t - 10.0) / 2.0
                 } else {
@@ -100,24 +132,37 @@ impl TweenEasing {
                 }
             }
             Self::EaseInElastic => {
-                if t == 0.0 { return 0.0; }
-                if t == 1.0 { return 1.0; }
+                if t == 0.0 {
+                    return 0.0;
+                }
+                if t == 1.0 {
+                    return 1.0;
+                }
                 let p = 0.3;
                 -(2.0_f64.powf(10.0 * (t - 1.0)) * ((t - 1.0 - p / 4.0) * 2.0 * PI / p).sin())
             }
             Self::EaseOutElastic => {
-                if t == 0.0 { return 0.0; }
-                if t == 1.0 { return 1.0; }
+                if t == 0.0 {
+                    return 0.0;
+                }
+                if t == 1.0 {
+                    return 1.0;
+                }
                 let p = 0.3;
                 2.0_f64.powf(-10.0 * t) * ((t - p / 4.0) * 2.0 * PI / p).sin() + 1.0
             }
             Self::EaseInOutElastic => {
-                if t == 0.0 { return 0.0; }
-                if t == 1.0 { return 1.0; }
+                if t == 0.0 {
+                    return 0.0;
+                }
+                if t == 1.0 {
+                    return 1.0;
+                }
                 let p = 0.45;
                 if t < 0.5 {
                     let u = 2.0 * t;
-                    -0.5 * (2.0_f64.powf(10.0 * (u - 1.0)) * ((u - 1.0 - p / 4.0) * 2.0 * PI / p).sin())
+                    -0.5 * (2.0_f64.powf(10.0 * (u - 1.0))
+                        * ((u - 1.0 - p / 4.0) * 2.0 * PI / p).sin())
                 } else {
                     let u = 2.0 * t - 1.0;
                     2.0_f64.powf(-10.0 * u) * ((u - p / 4.0) * 2.0 * PI / p).sin() * 0.5 + 1.0
@@ -214,18 +259,30 @@ impl Tween {
     pub fn state(&self) -> TweenState {
         let active_elapsed = (self.elapsed_ms - self.delay_ms).max(0.0);
         if active_elapsed <= 0.0 {
-            return TweenState { progress: 0.0, value: self.from, completed: false };
+            return TweenState {
+                progress: 0.0,
+                value: self.from,
+                completed: false,
+            };
         }
 
         let raw_progress = (active_elapsed / self.duration_ms).min(1.0);
-        let progress = if self.forward { raw_progress } else { 1.0 - raw_progress };
+        let progress = if self.forward {
+            raw_progress
+        } else {
+            1.0 - raw_progress
+        };
         let eased = self.easing.apply(progress);
         let value = self.from + (self.to - self.from) * eased;
 
-        let completed = self.current_repeat >= self.repeat_count
-            && active_elapsed >= self.duration_ms;
+        let completed =
+            self.current_repeat >= self.repeat_count && active_elapsed >= self.duration_ms;
 
-        TweenState { progress, value, completed }
+        TweenState {
+            progress,
+            value,
+            completed,
+        }
     }
 
     /// Advance by `dt_ms` milliseconds.
@@ -357,7 +414,10 @@ mod tests {
     fn tween_with_delay() {
         let mut tw = Tween::new(0.0, 100.0, 1000.0).with_delay(500.0);
         tw.tick(250.0);
-        assert!((tw.state().value - 0.0).abs() < 0.01, "Still in delay period");
+        assert!(
+            (tw.state().value - 0.0).abs() < 0.01,
+            "Still in delay period"
+        );
         tw.tick(750.0); // now 500ms of delay + 500ms active
         assert!((tw.state().value - 50.0).abs() < 0.01);
     }
@@ -450,11 +510,21 @@ mod tests {
     #[test]
     fn all_easings_are_bounded() {
         let easings = [
-            TweenEasing::Linear, TweenEasing::EaseInQuad, TweenEasing::EaseOutQuad,
-            TweenEasing::EaseInOutQuad, TweenEasing::EaseInCubic, TweenEasing::EaseOutCubic,
-            TweenEasing::EaseInOutCubic, TweenEasing::EaseInQuart, TweenEasing::EaseOutQuart,
-            TweenEasing::EaseInOutQuart, TweenEasing::EaseInExpo, TweenEasing::EaseOutExpo,
-            TweenEasing::EaseInOutExpo, TweenEasing::EaseOutBounce, TweenEasing::EaseInBounce,
+            TweenEasing::Linear,
+            TweenEasing::EaseInQuad,
+            TweenEasing::EaseOutQuad,
+            TweenEasing::EaseInOutQuad,
+            TweenEasing::EaseInCubic,
+            TweenEasing::EaseOutCubic,
+            TweenEasing::EaseInOutCubic,
+            TweenEasing::EaseInQuart,
+            TweenEasing::EaseOutQuart,
+            TweenEasing::EaseInOutQuart,
+            TweenEasing::EaseInExpo,
+            TweenEasing::EaseOutExpo,
+            TweenEasing::EaseInOutExpo,
+            TweenEasing::EaseOutBounce,
+            TweenEasing::EaseInBounce,
             TweenEasing::EaseInOutBounce,
         ];
         for e in &easings {

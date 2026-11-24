@@ -190,11 +190,7 @@ impl DepGraph {
             .packages
             .get(name)
             .ok_or_else(|| DepGraphError::PackageNotFound(name.to_string()))?;
-        Ok(pkg
-            .dependencies
-            .iter()
-            .map(|d| d.name.as_str())
-            .collect())
+        Ok(pkg.dependencies.iter().map(|d| d.name.as_str()).collect())
     }
 
     /// Get transitive (all reachable) dependencies of a package.
@@ -392,10 +388,7 @@ impl DepGraph {
             "|-- "
         };
 
-        let version = self
-            .packages
-            .get(name)
-            .map_or("?", |p| p.version.as_str());
+        let version = self.packages.get(name).map_or("?", |p| p.version.as_str());
 
         let circular = visited.contains(name);
         let suffix = if circular { " (circular)" } else { "" };
@@ -451,15 +444,17 @@ impl DepGraph {
                     pkg.dependencies.iter().map(|d| d.name.as_str()).collect();
                 dep_names.sort();
                 for dep_name in dep_names {
-                    let dep = pkg.dependencies.iter().find(|d| d.name == dep_name).unwrap();
+                    let dep = pkg
+                        .dependencies
+                        .iter()
+                        .find(|d| d.name == dep_name)
+                        .unwrap();
                     let style = match dep.kind {
                         DepKind::Dev => " [style=dashed]",
                         DepKind::Optional => " [style=dotted]",
                         _ => "",
                     };
-                    out.push_str(&format!(
-                        "    \"{name}\" -> \"{dep_name}\"{style};\n"
-                    ));
+                    out.push_str(&format!("    \"{name}\" -> \"{dep_name}\"{style};\n"));
                 }
             }
         }
@@ -494,10 +489,7 @@ impl DepGraph {
             if let Some(pkg) = self.packages.get(*name) {
                 for dep in &pkg.dependencies {
                     if nodes.contains(&dep.name) {
-                        out.push_str(&format!(
-                            "    \"{name}\" -> \"{}\";\n",
-                            dep.name
-                        ));
+                        out.push_str(&format!("    \"{name}\" -> \"{}\";\n", dep.name));
                     }
                 }
             }
@@ -688,7 +680,9 @@ mod tests {
 
         let conflicts = graph.detect_version_conflicts();
         assert_eq!(conflicts.len(), 1);
-        assert!(matches!(&conflicts[0], DepGraphError::VersionConflict { package, .. } if package == "c"));
+        assert!(
+            matches!(&conflicts[0], DepGraphError::VersionConflict { package, .. } if package == "c")
+        );
     }
 
     #[test]
@@ -702,9 +696,7 @@ mod tests {
     fn unused_deps() {
         let mut graph = make_graph();
         // Add an orphan package.
-        graph
-            .add_package(Package::new("orphan", "0.1.0"))
-            .unwrap();
+        graph.add_package(Package::new("orphan", "0.1.0")).unwrap();
         let unused = graph.unused_deps(&["app"]);
         assert!(unused.contains(&"orphan"));
     }

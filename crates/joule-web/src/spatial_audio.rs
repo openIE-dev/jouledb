@@ -20,7 +20,11 @@ impl Vec3 {
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn length(&self) -> f64 {
@@ -189,12 +193,9 @@ pub fn distance_attenuation(
             1.0 - rolloff * (clamped - ref_distance) / (max_distance - ref_distance)
         }
         DistanceModel::Inverse => {
-            ref_distance
-                / (ref_distance + rolloff * (distance - ref_distance))
+            ref_distance / (ref_distance + rolloff * (distance - ref_distance))
         }
-        DistanceModel::Exponential => {
-            (distance / ref_distance).powf(-rolloff)
-        }
+        DistanceModel::Exponential => (distance / ref_distance).powf(-rolloff),
     }
     .max(0.0)
 }
@@ -222,12 +223,7 @@ pub fn constant_power_pan(azimuth: f64) -> StereoPan {
 }
 
 /// Apply stereo panning to a mono signal, producing left and right channels.
-pub fn apply_stereo_pan(
-    mono: &[f32],
-    pan: StereoPan,
-    left: &mut [f32],
-    right: &mut [f32],
-) {
+pub fn apply_stereo_pan(mono: &[f32], pan: StereoPan, left: &mut [f32], right: &mut [f32]) {
     let n = mono.len().min(left.len()).min(right.len());
     for i in 0..n {
         left[i] = mono[i] * pan.left as f32;
@@ -424,7 +420,11 @@ mod tests {
 
     #[test]
     fn distance_at_ref_is_unity() {
-        for model in [DistanceModel::Linear, DistanceModel::Inverse, DistanceModel::Exponential] {
+        for model in [
+            DistanceModel::Linear,
+            DistanceModel::Inverse,
+            DistanceModel::Exponential,
+        ] {
             let atten = distance_attenuation(model, 1.0, 1.0, 100.0, 1.0);
             assert!(
                 (atten - 1.0).abs() < 0.01,
@@ -473,7 +473,11 @@ mod tests {
             SPEED_OF_SOUND,
         );
         // Approaching should increase frequency
-        assert!(shift < 1.0, "Approaching source Doppler factor should be < 1.0 (got {}), because vs is negative", shift);
+        assert!(
+            shift < 1.0,
+            "Approaching source Doppler factor should be < 1.0 (got {}), because vs is negative",
+            shift
+        );
         // Actually with this convention: direction is source-listener normalized = (100,0,0).
         // vs = source_vel . direction = -50. denominator = 343 - (-50) = 393.
         // numerator = 343 - 0 = 343. shift = 343/393 ≈ 0.87.

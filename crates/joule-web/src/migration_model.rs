@@ -19,7 +19,11 @@ pub struct MigrationRate {
 
 impl MigrationRate {
     pub fn new(from: usize, to: usize, rate: f64) -> Self {
-        Self { from_pop: from, to_pop: to, rate: rate.max(0.0) }
+        Self {
+            from_pop: from,
+            to_pop: to,
+            rate: rate.max(0.0),
+        }
     }
 
     /// Effective number of migrants per generation: Nm = rate * Ne.
@@ -76,7 +80,9 @@ impl MigrationMatrix {
         if pop >= self.n_pops {
             return 0.0;
         }
-        self.matrix[pop].iter().enumerate()
+        self.matrix[pop]
+            .iter()
+            .enumerate()
             .filter(|&(j, _)| j != pop)
             .map(|(_, &m)| m)
             .sum()
@@ -87,7 +93,9 @@ impl MigrationMatrix {
         if pop >= self.n_pops {
             return 0.0;
         }
-        self.matrix.iter().enumerate()
+        self.matrix
+            .iter()
+            .enumerate()
             .filter(|&(j, _)| j != pop)
             .map(|(_, row)| row[pop])
             .sum()
@@ -147,7 +155,13 @@ impl MigrationMatrix {
 
 impl fmt::Display for MigrationMatrix {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MigrationMatrix({}x{}, gap={:.4})", self.n_pops, self.n_pops, self.spectral_gap())
+        write!(
+            f,
+            "MigrationMatrix({}x{}, gap={:.4})",
+            self.n_pops,
+            self.n_pops,
+            self.spectral_gap()
+        )
     }
 }
 
@@ -235,7 +249,10 @@ impl fmt::Display for IslandModel {
         write!(
             f,
             "IslandModel(k={}, Ne={:.0}, m={:.6}, Fst={:.4})",
-            self.n_pops, self.ne_per_pop, self.migration_rate, self.expected_fst()
+            self.n_pops,
+            self.ne_per_pop,
+            self.migration_rate,
+            self.expected_fst()
         )
     }
 }
@@ -426,7 +443,11 @@ impl ImParams {
 
     /// Scaled divergence time in coalescent units: T = t / (2 * Ne_anc).
     pub fn scaled_divergence(&self) -> f64 {
-        if self.ne_ancestral <= 0.0 { 0.0 } else { self.divergence_time / (2.0 * self.ne_ancestral) }
+        if self.ne_ancestral <= 0.0 {
+            0.0
+        } else {
+            self.divergence_time / (2.0 * self.ne_ancestral)
+        }
     }
 
     /// Scaled migration rates: M = 2 * Ne * m.
@@ -456,8 +477,12 @@ impl fmt::Display for ImParams {
         write!(
             f,
             "IM(Ne1={:.0}, Ne2={:.0}, Ne_a={:.0}, m12={:.6}, m21={:.6}, T={:.0}gen)",
-            self.ne_pop1, self.ne_pop2, self.ne_ancestral,
-            self.migration_1to2, self.migration_2to1, self.divergence_time
+            self.ne_pop1,
+            self.ne_pop2,
+            self.ne_ancestral,
+            self.migration_1to2,
+            self.migration_2to1,
+            self.divergence_time
         )
     }
 }
@@ -472,7 +497,9 @@ fn second_eigenvalue(matrix: &[Vec<f64>]) -> f64 {
     }
 
     // Start with a vector orthogonal to the stationary distribution (1/n, ..., 1/n)
-    let mut v: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect();
+    let mut v: Vec<f64> = (0..n)
+        .map(|i| if i % 2 == 0 { 1.0 } else { -1.0 })
+        .collect();
 
     for _ in 0..100 {
         // Matrix-vector multiply

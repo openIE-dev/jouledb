@@ -18,7 +18,11 @@ pub enum ChangeError {
     /// The field was not found.
     FieldNotFound(String),
     /// The expected old value did not match.
-    StaleValue { field: String, expected: String, actual: String },
+    StaleValue {
+        field: String,
+        expected: String,
+        actual: String,
+    },
     /// A notification callback failed.
     NotifyFailed(String),
 }
@@ -30,7 +34,11 @@ impl fmt::Display for ChangeError {
                 write!(f, "conflict on '{}': {}", field, message)
             }
             Self::FieldNotFound(s) => write!(f, "field not found: {}", s),
-            Self::StaleValue { field, expected, actual } => {
+            Self::StaleValue {
+                field,
+                expected,
+                actual,
+            } => {
                 write!(
                     f,
                     "stale value for '{}': expected {}, got {}",

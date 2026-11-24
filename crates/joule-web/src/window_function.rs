@@ -17,11 +17,11 @@ pub enum WindowKind {
     Hamming,
     Blackman,
     BlackmanHarris,
-    Kaiser(f64),    // beta parameter
-    Gaussian(f64),  // sigma parameter
+    Kaiser(f64),   // beta parameter
+    Gaussian(f64), // sigma parameter
     FlatTop,
     Bartlett,
-    Tukey(f64),     // alpha parameter (0 = rectangular, 1 = Hann)
+    Tukey(f64), // alpha parameter (0 = rectangular, 1 = Hann)
 }
 
 /// Mode: symmetric (for analysis) or periodic (for FFT).
@@ -56,7 +56,9 @@ fn bessel_i0(x: f64) -> f64 {
     for k in 1..=30 {
         term *= (x / (2.0 * k as f64)) * (x / (2.0 * k as f64));
         sum += term;
-        if term < 1e-15 { break; }
+        if term < 1e-15 {
+            break;
+        }
     }
     sum
 }
@@ -100,14 +102,15 @@ pub fn generate(kind: WindowKind, size: usize, mode: WindowMode) -> Result<Vec<f
         WindowKind::BlackmanHarris => (0..gen_size)
             .map(|i| {
                 let x = 2.0 * PI * i as f64 / n as f64;
-                0.35875 - 0.48829 * x.cos() + 0.14128 * (2.0 * x).cos()
-                    - 0.01168 * (3.0 * x).cos()
+                0.35875 - 0.48829 * x.cos() + 0.14128 * (2.0 * x).cos() - 0.01168 * (3.0 * x).cos()
             })
             .collect(),
 
         WindowKind::Kaiser(beta) => {
             if beta < 0.0 {
-                return Err(WindowError::InvalidParameter("Kaiser beta must be >= 0".into()));
+                return Err(WindowError::InvalidParameter(
+                    "Kaiser beta must be >= 0".into(),
+                ));
             }
             let denom = bessel_i0(beta);
             (0..gen_size)
@@ -121,7 +124,9 @@ pub fn generate(kind: WindowKind, size: usize, mode: WindowMode) -> Result<Vec<f
 
         WindowKind::Gaussian(sigma) => {
             if sigma <= 0.0 {
-                return Err(WindowError::InvalidParameter("Gaussian sigma must be > 0".into()));
+                return Err(WindowError::InvalidParameter(
+                    "Gaussian sigma must be > 0".into(),
+                ));
             }
             let center = n as f64 / 2.0;
             (0..gen_size)
@@ -135,20 +140,20 @@ pub fn generate(kind: WindowKind, size: usize, mode: WindowMode) -> Result<Vec<f
         WindowKind::FlatTop => (0..gen_size)
             .map(|i| {
                 let x = 2.0 * PI * i as f64 / n as f64;
-                1.0 - 1.93 * x.cos() + 1.29 * (2.0 * x).cos()
-                    - 0.388 * (3.0 * x).cos() + 0.0322 * (4.0 * x).cos()
+                1.0 - 1.93 * x.cos() + 1.29 * (2.0 * x).cos() - 0.388 * (3.0 * x).cos()
+                    + 0.0322 * (4.0 * x).cos()
             })
             .collect(),
 
         WindowKind::Bartlett => (0..gen_size)
-            .map(|i| {
-                1.0 - (2.0 * i as f64 / n as f64 - 1.0).abs()
-            })
+            .map(|i| 1.0 - (2.0 * i as f64 / n as f64 - 1.0).abs())
             .collect(),
 
         WindowKind::Tukey(alpha) => {
             if alpha < 0.0 || alpha > 1.0 {
-                return Err(WindowError::InvalidParameter("Tukey alpha must be in [0, 1]".into()));
+                return Err(WindowError::InvalidParameter(
+                    "Tukey alpha must be in [0, 1]".into(),
+                ));
             }
             (0..gen_size)
                 .map(|i| {
@@ -223,14 +228,18 @@ pub fn enbw(window: &[f64]) -> f64 {
     let n = window.len() as f64;
     let sum_sq: f64 = window.iter().map(|w| w * w).sum();
     let sum: f64 = window.iter().sum();
-    if sum.abs() < 1e-12 { return 0.0; }
+    if sum.abs() < 1e-12 {
+        return 0.0;
+    }
     n * sum_sq / (sum * sum)
 }
 
 /// Amplitude correction factor: 1 / mean(window).
 pub fn amplitude_correction(window: &[f64]) -> f64 {
     let mean: f64 = window.iter().sum::<f64>() / window.len() as f64;
-    if mean.abs() < 1e-12 { return 0.0; }
+    if mean.abs() < 1e-12 {
+        return 0.0;
+    }
     1.0 / mean
 }
 
@@ -238,7 +247,9 @@ pub fn amplitude_correction(window: &[f64]) -> f64 {
 pub fn energy_correction(window: &[f64]) -> f64 {
     let n = window.len() as f64;
     let sum_sq: f64 = window.iter().map(|w| w * w).sum();
-    if sum_sq < 1e-12 { return 0.0; }
+    if sum_sq < 1e-12 {
+        return 0.0;
+    }
     (n / sum_sq).sqrt()
 }
 
@@ -273,11 +284,15 @@ pub fn cola_hop_sizes(window: &[f64], max_hop: usize) -> Vec<usize> {
 /// Estimate the -3dB main lobe width in bins by computing the DFT of the window.
 /// Returns the width in frequency bins (approximate).
 pub fn main_lobe_width(window: &[f64]) -> f64 {
-    if window.is_empty() { return 0.0; }
+    if window.is_empty() {
+        return 0.0;
+    }
     let n = window.len();
     let fft_size = {
         let mut p = 1;
-        while p < n * 4 { p <<= 1; }
+        while p < n * 4 {
+            p <<= 1;
+        }
         p
     };
 
@@ -297,7 +312,9 @@ pub fn main_lobe_width(window: &[f64]) -> f64 {
         mags.push(mag);
     }
 
-    if max_mag < 1e-12 { return 0.0; }
+    if max_mag < 1e-12 {
+        return 0.0;
+    }
 
     // -3dB threshold
     let threshold = max_mag * 0.5_f64.sqrt();
@@ -316,11 +333,15 @@ pub fn main_lobe_width(window: &[f64]) -> f64 {
 
 /// Estimate peak side lobe level in dB relative to main lobe.
 pub fn side_lobe_level_db(window: &[f64]) -> f64 {
-    if window.is_empty() { return 0.0; }
+    if window.is_empty() {
+        return 0.0;
+    }
     let n = window.len();
     let fft_size = {
         let mut p = 1;
-        while p < n * 4 { p <<= 1; }
+        while p < n * 4 {
+            p <<= 1;
+        }
         p
     };
 
@@ -337,7 +358,9 @@ pub fn side_lobe_level_db(window: &[f64]) -> f64 {
     }
 
     let main_peak = mags[0];
-    if main_peak < 1e-12 { return 0.0; }
+    if main_peak < 1e-12 {
+        return 0.0;
+    }
 
     // Find where main lobe ends (first local minimum)
     let mut main_end = 1;
@@ -349,10 +372,7 @@ pub fn side_lobe_level_db(window: &[f64]) -> f64 {
     }
 
     // Find peak side lobe
-    let side_peak = mags[main_end..]
-        .iter()
-        .cloned()
-        .fold(0.0_f64, f64::max);
+    let side_peak = mags[main_end..].iter().cloned().fold(0.0_f64, f64::max);
 
     if side_peak < 1e-12 {
         return -200.0; // effectively no side lobes

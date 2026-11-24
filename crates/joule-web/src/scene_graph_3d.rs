@@ -20,14 +20,24 @@ pub struct Quat {
 
 impl Quat {
     pub fn identity() -> Self {
-        Self { w: 1.0, x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            w: 1.0,
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     /// Construct from axis-angle (axis must be unit length, angle in radians).
     pub fn from_axis_angle(ax: f64, ay: f64, az: f64, angle: f64) -> Self {
         let half = angle * 0.5;
         let s = half.sin();
-        Self { w: half.cos(), x: ax * s, y: ay * s, z: az * s }
+        Self {
+            w: half.cos(),
+            x: ax * s,
+            y: ay * s,
+            z: az * s,
+        }
     }
 
     pub fn length_sq(&self) -> f64 {
@@ -59,8 +69,18 @@ impl Quat {
 
     /// Rotate a 3D vector by this quaternion.
     pub fn rotate_vec(&self, vx: f64, vy: f64, vz: f64) -> (f64, f64, f64) {
-        let qv = Quat { w: 0.0, x: vx, y: vy, z: vz };
-        let conj = Quat { w: self.w, x: -self.x, y: -self.y, z: -self.z };
+        let qv = Quat {
+            w: 0.0,
+            x: vx,
+            y: vy,
+            z: vz,
+        };
+        let conj = Quat {
+            w: self.w,
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        };
         let result = self.mul(&qv).mul(&conj);
         (result.x, result.y, result.z)
     }
@@ -68,15 +88,35 @@ impl Quat {
     /// Convert to a 4x4 column-major rotation matrix.
     pub fn to_mat4(&self) -> [f64; 16] {
         let (w, x, y, z) = (self.w, self.x, self.y, self.z);
-        let x2 = x + x; let y2 = y + y; let z2 = z + z;
-        let xx = x * x2; let xy = x * y2; let xz = x * z2;
-        let yy = y * y2; let yz = y * z2; let zz = z * z2;
-        let wx = w * x2; let wy = w * y2; let wz = w * z2;
+        let x2 = x + x;
+        let y2 = y + y;
+        let z2 = z + z;
+        let xx = x * x2;
+        let xy = x * y2;
+        let xz = x * z2;
+        let yy = y * y2;
+        let yz = y * z2;
+        let zz = z * z2;
+        let wx = w * x2;
+        let wy = w * y2;
+        let wz = w * z2;
         [
-            1.0 - (yy + zz), xy + wz,         xz - wy,         0.0,
-            xy - wz,         1.0 - (xx + zz),  yz + wx,         0.0,
-            xz + wy,         yz - wx,          1.0 - (xx + yy), 0.0,
-            0.0,             0.0,              0.0,              1.0,
+            1.0 - (yy + zz),
+            xy + wz,
+            xz - wy,
+            0.0,
+            xy - wz,
+            1.0 - (xx + zz),
+            yz + wx,
+            0.0,
+            xz + wy,
+            yz - wx,
+            1.0 - (xx + yy),
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
         ]
     }
 }
@@ -91,12 +131,32 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0, z: 0.0 } }
-    pub fn one() -> Self { Self { x: 1.0, y: 1.0, z: 1.0 } }
-    pub fn add(&self, o: &Vec3) -> Vec3 { Vec3::new(self.x + o.x, self.y + o.y, self.z + o.z) }
-    pub fn scale(&self, s: f64) -> Vec3 { Vec3::new(self.x * s, self.y * s, self.z * s) }
-    pub fn mul_comp(&self, o: &Vec3) -> Vec3 { Vec3::new(self.x * o.x, self.y * o.y, self.z * o.z) }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+    pub fn one() -> Self {
+        Self {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        }
+    }
+    pub fn add(&self, o: &Vec3) -> Vec3 {
+        Vec3::new(self.x + o.x, self.y + o.y, self.z + o.z)
+    }
+    pub fn scale(&self, s: f64) -> Vec3 {
+        Vec3::new(self.x * s, self.y * s, self.z * s)
+    }
+    pub fn mul_comp(&self, o: &Vec3) -> Vec3 {
+        Vec3::new(self.x * o.x, self.y * o.y, self.z * o.z)
+    }
 }
 
 // ── Transform ───────────────────────────────────────────────────
@@ -125,9 +185,15 @@ impl Transform {
             child.position.y * self.scale.y,
             child.position.z * self.scale.z,
         );
-        let (rx, ry, rz) = self.rotation.rotate_vec(scaled_pos.x, scaled_pos.y, scaled_pos.z);
+        let (rx, ry, rz) = self
+            .rotation
+            .rotate_vec(scaled_pos.x, scaled_pos.y, scaled_pos.z);
         Transform {
-            position: Vec3::new(self.position.x + rx, self.position.y + ry, self.position.z + rz),
+            position: Vec3::new(
+                self.position.x + rx,
+                self.position.y + ry,
+                self.position.z + rz,
+            ),
             rotation: self.rotation.mul(&child.rotation).normalize(),
             scale: self.scale.mul_comp(&child.scale),
         }
@@ -137,9 +203,15 @@ impl Transform {
     pub fn to_mat4(&self) -> [f64; 16] {
         let mut m = self.rotation.to_mat4();
         // Apply scale to rotation columns.
-        m[0] *= self.scale.x; m[1] *= self.scale.x; m[2] *= self.scale.x;
-        m[4] *= self.scale.y; m[5] *= self.scale.y; m[6] *= self.scale.y;
-        m[8] *= self.scale.z; m[9] *= self.scale.z; m[10] *= self.scale.z;
+        m[0] *= self.scale.x;
+        m[1] *= self.scale.x;
+        m[2] *= self.scale.x;
+        m[4] *= self.scale.y;
+        m[5] *= self.scale.y;
+        m[6] *= self.scale.y;
+        m[8] *= self.scale.z;
+        m[9] *= self.scale.z;
+        m[10] *= self.scale.z;
         // Translation in column 3.
         m[12] = self.position.x;
         m[13] = self.position.y;
@@ -175,7 +247,11 @@ pub struct SceneGraph3D {
 
 impl SceneGraph3D {
     pub fn new() -> Self {
-        Self { nodes: HashMap::new(), roots: Vec::new(), next_id: 1 }
+        Self {
+            nodes: HashMap::new(),
+            roots: Vec::new(),
+            next_id: 1,
+        }
     }
 
     /// Add a root node. Returns its ID.
@@ -337,7 +413,10 @@ impl SceneGraph3D {
     }
 
     pub fn children(&self, id: NodeId) -> Vec<NodeId> {
-        self.nodes.get(&id).map(|n| n.children.clone()).unwrap_or_default()
+        self.nodes
+            .get(&id)
+            .map(|n| n.children.clone())
+            .unwrap_or_default()
     }
 
     pub fn parent(&self, id: NodeId) -> Option<NodeId> {
@@ -466,7 +545,12 @@ mod tests {
 
     #[test]
     fn test_quat_normalize() {
-        let q = Quat { w: 2.0, x: 0.0, y: 0.0, z: 0.0 };
+        let q = Quat {
+            w: 2.0,
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        };
         let n = q.normalize();
         assert!((n.length_sq() - 1.0).abs() < EPS);
     }
@@ -576,16 +660,23 @@ mod tests {
     #[test]
     fn test_world_transform_propagation() {
         let mut sg = SceneGraph3D::new();
-        let root = sg.add_root("root", Transform {
-            position: Vec3::new(10.0, 0.0, 0.0),
-            rotation: Quat::identity(),
-            scale: Vec3::one(),
-        });
-        sg.add_child(root, "child", Transform {
-            position: Vec3::new(5.0, 0.0, 0.0),
-            rotation: Quat::identity(),
-            scale: Vec3::one(),
-        });
+        let root = sg.add_root(
+            "root",
+            Transform {
+                position: Vec3::new(10.0, 0.0, 0.0),
+                rotation: Quat::identity(),
+                scale: Vec3::one(),
+            },
+        );
+        sg.add_child(
+            root,
+            "child",
+            Transform {
+                position: Vec3::new(5.0, 0.0, 0.0),
+                rotation: Quat::identity(),
+                scale: Vec3::one(),
+            },
+        );
         sg.update_transforms();
         let child_id = sg.find_by_name("child").unwrap();
         let wt = sg.world_transform(child_id).unwrap();
@@ -597,11 +688,14 @@ mod tests {
         let mut sg = SceneGraph3D::new();
         let root = sg.add_root("root", Transform::identity());
         sg.update_transforms();
-        sg.set_local(root, Transform {
-            position: Vec3::new(1.0, 0.0, 0.0),
-            rotation: Quat::identity(),
-            scale: Vec3::one(),
-        });
+        sg.set_local(
+            root,
+            Transform {
+                position: Vec3::new(1.0, 0.0, 0.0),
+                rotation: Quat::identity(),
+                scale: Vec3::one(),
+            },
+        );
         sg.update_transforms();
         let wt = sg.world_transform(root).unwrap();
         assert_vec3_eq(&wt.position, &Vec3::new(1.0, 0.0, 0.0));
@@ -647,13 +741,33 @@ mod tests {
     #[test]
     fn test_multiple_roots() {
         let mut sg = SceneGraph3D::new();
-        sg.add_root("r1", Transform { position: Vec3::new(1.0, 0.0, 0.0), rotation: Quat::identity(), scale: Vec3::one() });
-        sg.add_root("r2", Transform { position: Vec3::new(2.0, 0.0, 0.0), rotation: Quat::identity(), scale: Vec3::one() });
+        sg.add_root(
+            "r1",
+            Transform {
+                position: Vec3::new(1.0, 0.0, 0.0),
+                rotation: Quat::identity(),
+                scale: Vec3::one(),
+            },
+        );
+        sg.add_root(
+            "r2",
+            Transform {
+                position: Vec3::new(2.0, 0.0, 0.0),
+                rotation: Quat::identity(),
+                scale: Vec3::one(),
+            },
+        );
         sg.update_transforms();
         let id1 = sg.find_by_name("r1").unwrap();
         let id2 = sg.find_by_name("r2").unwrap();
-        assert_vec3_eq(&sg.world_transform(id1).unwrap().position, &Vec3::new(1.0, 0.0, 0.0));
-        assert_vec3_eq(&sg.world_transform(id2).unwrap().position, &Vec3::new(2.0, 0.0, 0.0));
+        assert_vec3_eq(
+            &sg.world_transform(id1).unwrap().position,
+            &Vec3::new(1.0, 0.0, 0.0),
+        );
+        assert_vec3_eq(
+            &sg.world_transform(id2).unwrap().position,
+            &Vec3::new(2.0, 0.0, 0.0),
+        );
     }
 
     #[test]
@@ -677,16 +791,25 @@ mod tests {
     #[test]
     fn test_scale_chain_propagation() {
         let mut sg = SceneGraph3D::new();
-        let root = sg.add_root("root", Transform {
-            position: Vec3::zero(),
-            rotation: Quat::identity(),
-            scale: Vec3::new(2.0, 2.0, 2.0),
-        });
-        let child = sg.add_child(root, "child", Transform {
-            position: Vec3::zero(),
-            rotation: Quat::identity(),
-            scale: Vec3::new(3.0, 3.0, 3.0),
-        }).unwrap();
+        let root = sg.add_root(
+            "root",
+            Transform {
+                position: Vec3::zero(),
+                rotation: Quat::identity(),
+                scale: Vec3::new(2.0, 2.0, 2.0),
+            },
+        );
+        let child = sg
+            .add_child(
+                root,
+                "child",
+                Transform {
+                    position: Vec3::zero(),
+                    rotation: Quat::identity(),
+                    scale: Vec3::new(3.0, 3.0, 3.0),
+                },
+            )
+            .unwrap();
         sg.update_transforms();
         let wt = sg.world_transform(child).unwrap();
         assert_vec3_eq(&wt.scale, &Vec3::new(6.0, 6.0, 6.0));

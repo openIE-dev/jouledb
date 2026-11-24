@@ -206,13 +206,15 @@ pub fn visible_tiles_from_bounds(
     let x_min = ((min_lng + 180.0) / 360.0 * nf).floor() as i64;
     let x_max = ((max_lng + 180.0) / 360.0 * nf).floor() as i64;
 
-    let y_min = ((1.0 - (max_lat.to_radians().tan() + 1.0 / max_lat.to_radians().cos()).ln()
-        / std::f64::consts::PI)
+    let y_min = ((1.0
+        - (max_lat.to_radians().tan() + 1.0 / max_lat.to_radians().cos()).ln()
+            / std::f64::consts::PI)
         / 2.0
         * nf)
         .floor() as i64;
-    let y_max = ((1.0 - (min_lat.to_radians().tan() + 1.0 / min_lat.to_radians().cos()).ln()
-        / std::f64::consts::PI)
+    let y_max = ((1.0
+        - (min_lat.to_radians().tan() + 1.0 / min_lat.to_radians().cos()).ln()
+            / std::f64::consts::PI)
         / 2.0
         * nf)
         .floor() as i64;
@@ -230,7 +232,11 @@ pub fn visible_tiles_from_bounds(
 // ── Over-zoom ───────────────────────────────────────────────────
 
 /// Find the best available parent tile for over-zoom, searching up the tree.
-pub fn find_overzoom_parent(coord: &TileCoord, cache: &TileCache, min_zoom: u32) -> Option<TileCoord> {
+pub fn find_overzoom_parent(
+    coord: &TileCoord,
+    cache: &TileCache,
+    min_zoom: u32,
+) -> Option<TileCoord> {
     let mut current = *coord;
     while current.z > min_zoom {
         if let Some(parent) = current.parent() {
@@ -275,9 +281,7 @@ pub fn tile_grid(
     // Center in tile coordinates (fractional)
     let cx = (center_lng + 180.0) / 360.0 * nf;
     let lat_rad = center_lat.to_radians();
-    let cy = (1.0 - (lat_rad.tan() + 1.0 / lat_rad.cos()).ln() / std::f64::consts::PI)
-        / 2.0
-        * nf;
+    let cy = (1.0 - (lat_rad.tan() + 1.0 / lat_rad.cos()).ln() / std::f64::consts::PI) / 2.0 * nf;
 
     let half_w = (viewport_width as f64) / 2.0;
     let half_h = (viewport_height as f64) / 2.0;
@@ -372,7 +376,12 @@ mod tests {
         let mut cache = TileCache::new(10);
         let coord = TileCoord::new(2, 1, 1);
         cache.insert(coord, TileState::Pending);
-        cache.insert(coord, TileState::Loaded { data: vec![1, 2, 3] });
+        cache.insert(
+            coord,
+            TileState::Loaded {
+                data: vec![1, 2, 3],
+            },
+        );
         assert_eq!(cache.len(), 1);
         if let Some(TileState::Loaded { data }) = cache.peek(&coord) {
             assert_eq!(data, &[1, 2, 3]);

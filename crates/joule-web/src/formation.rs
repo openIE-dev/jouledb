@@ -20,20 +20,48 @@ pub struct Vec2 {
 impl Vec2 {
     pub const ZERO: Vec2 = Vec2 { x: 0.0, y: 0.0 };
 
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
 
-    pub fn length(&self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
+    pub fn length(&self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
 
-    pub fn length_sq(&self) -> f64 { self.x * self.x + self.y * self.y }
+    pub fn length_sq(&self) -> f64 {
+        self.x * self.x + self.y * self.y
+    }
 
     pub fn normalized(&self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::ZERO } else { Self { x: self.x / len, y: self.y / len } }
+        if len < 1e-12 {
+            Self::ZERO
+        } else {
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+            }
+        }
     }
 
-    pub fn add(&self, other: Vec2) -> Vec2 { Vec2 { x: self.x + other.x, y: self.y + other.y } }
-    pub fn sub(&self, other: Vec2) -> Vec2 { Vec2 { x: self.x - other.x, y: self.y - other.y } }
-    pub fn scale(&self, s: f64) -> Vec2 { Vec2 { x: self.x * s, y: self.y * s } }
+    pub fn add(&self, other: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+    pub fn sub(&self, other: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
+    }
+    pub fn scale(&self, s: f64) -> Vec2 {
+        Vec2 {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
 
     pub fn dist(&self, other: Vec2) -> f64 {
         ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
@@ -46,7 +74,10 @@ impl Vec2 {
     pub fn rotate(&self, angle: f64) -> Vec2 {
         let c = angle.cos();
         let s = angle.sin();
-        Vec2 { x: self.x * c - self.y * s, y: self.x * s + self.y * c }
+        Vec2 {
+            x: self.x * c - self.y * s,
+            y: self.x * s + self.y * c,
+        }
     }
 
     pub fn lerp(&self, other: Vec2, t: f64) -> Vec2 {
@@ -58,11 +89,15 @@ impl Vec2 {
 
     pub fn truncate(&self, max_len: f64) -> Self {
         let len_sq = self.length_sq();
-        if len_sq <= max_len * max_len { *self }
-        else {
+        if len_sq <= max_len * max_len {
+            *self
+        } else {
             let len = len_sq.sqrt();
             let s = max_len / len;
-            Self { x: self.x * s, y: self.y * s }
+            Self {
+                x: self.x * s,
+                y: self.y * s,
+            }
         }
     }
 }
@@ -283,7 +318,8 @@ impl Formation {
         self.slot_offsets = offsets.clone();
 
         // Compute world positions for each slot
-        let world_slots: Vec<Vec2> = offsets.iter()
+        let world_slots: Vec<Vec2> = offsets
+            .iter()
             .map(|o| self.leader_pos.add(o.rotate(self.leader_heading)))
             .collect();
 
@@ -296,7 +332,9 @@ impl Formation {
             let mut best_dist = f64::MAX;
 
             for (ui, unit) in units.iter().enumerate() {
-                if assigned_units[ui] { continue; }
+                if assigned_units[ui] {
+                    continue;
+                }
                 let d = unit.position.dist_sq(world_slots[slot_idx]);
                 if d < best_dist {
                     best_dist = d;
@@ -337,7 +375,8 @@ impl Formation {
     /// Get the slowest unit's max speed (for speed matching).
     pub fn slowest_speed(&self, units: &[Unit]) -> f64 {
         let assigned_ids: Vec<usize> = self.slot_assignments.keys().copied().collect();
-        units.iter()
+        units
+            .iter()
             .filter(|u| assigned_ids.contains(&u.id))
             .map(|u| u.max_speed)
             .fold(f64::MAX, f64::min)
@@ -353,7 +392,9 @@ impl Formation {
             }
             let force = self.steering_force(unit);
             let accel = force.scale(1.0 / 1.0); // mass = 1
-            unit.velocity = unit.velocity.add(accel.scale(dt))
+            unit.velocity = unit
+                .velocity
+                .add(accel.scale(dt))
                 .truncate(speed_limit.min(unit.max_speed));
             unit.position = unit.position.add(unit.velocity.scale(dt));
         }
@@ -371,7 +412,9 @@ impl Formation {
                     let push = (obs.radius + 2.0 - dist).max(0.0);
                     // Apply in local space
                     let world_shifted = world.add(away.scale(push));
-                    let new_local = world_shifted.sub(self.leader_pos).rotate(-self.leader_heading);
+                    let new_local = world_shifted
+                        .sub(self.leader_pos)
+                        .rotate(-self.leader_heading);
                     *offset = new_local;
                 }
             }
@@ -435,7 +478,8 @@ mod tests {
         let offsets = FormationShape::Wedge {
             spacing: 2.0,
             angle: std::f64::consts::FRAC_PI_4,
-        }.generate_offsets(5);
+        }
+        .generate_offsets(5);
         assert_eq!(offsets.len(), 5);
         // Alternating sides with increasing distance
         assert!(offsets[1].x > 0.0);
@@ -455,7 +499,11 @@ mod tests {
 
     #[test]
     fn test_box_formation() {
-        let offsets = FormationShape::Box { spacing: 2.0, columns: 3 }.generate_offsets(7);
+        let offsets = FormationShape::Box {
+            spacing: 2.0,
+            columns: 3,
+        }
+        .generate_offsets(7);
         assert_eq!(offsets.len(), 7);
         // First row has 3, second row has 3, third row has 1
     }
@@ -463,11 +511,7 @@ mod tests {
     #[test]
     fn test_custom_formation() {
         let custom = FormationShape::Custom {
-            offsets: vec![
-                Vec2::ZERO,
-                Vec2::new(-2.0, -1.0),
-                Vec2::new(2.0, -1.0),
-            ],
+            offsets: vec![Vec2::ZERO, Vec2::new(-2.0, -1.0), Vec2::new(2.0, -1.0)],
         };
         let offsets = custom.generate_offsets(3);
         assert_eq!(offsets.len(), 3);
@@ -476,7 +520,9 @@ mod tests {
 
     #[test]
     fn test_custom_overflow() {
-        let custom = FormationShape::Custom { offsets: vec![Vec2::ZERO, Vec2::new(1.0, 0.0)] };
+        let custom = FormationShape::Custom {
+            offsets: vec![Vec2::ZERO, Vec2::new(1.0, 0.0)],
+        };
         let offsets = custom.generate_offsets(5);
         assert_eq!(offsets.len(), 5);
     }
@@ -589,10 +635,7 @@ mod tests {
         let mut formation = Formation::new(FormationShape::Column { spacing: 5.0 });
         formation.set_leader(Vec2::new(50.0, 50.0), 0.0, 5.0);
 
-        let mut units = vec![
-            make_unit(1, 10.0, 10.0),
-            make_unit(2, 15.0, 10.0),
-        ];
+        let mut units = vec![make_unit(1, 10.0, 10.0), make_unit(2, 15.0, 10.0)];
         for u in &units {
             formation.add_unit(u);
         }
@@ -611,7 +654,10 @@ mod tests {
         formation.add_unit(&u1);
         formation.add_unit(&u2);
 
-        let obstacles = vec![Obstacle { center: Vec2::new(3.0, 0.0), radius: 2.0 }];
+        let obstacles = vec![Obstacle {
+            center: Vec2::new(3.0, 0.0),
+            radius: 2.0,
+        }];
         formation.reshape_for_obstacles(&obstacles);
         // Slot near obstacle should have shifted
     }

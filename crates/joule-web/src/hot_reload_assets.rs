@@ -408,7 +408,10 @@ mod tests {
         let mut times = HashMap::new();
         times.insert("a.txt".to_string(), 200);
         let evts = sys.poll(&times);
-        assert!(evts.iter().any(|e| matches!(e, ReloadEvent::Changed(p) if p == "a.txt")));
+        assert!(
+            evts.iter()
+                .any(|e| matches!(e, ReloadEvent::Changed(p) if p == "a.txt"))
+        );
     }
 
     #[test]
@@ -486,8 +489,10 @@ mod tests {
                 None
             }
         });
-        assert!(evts.iter().any(|e| matches!(e, ReloadEvent::DependencyCascade { source, dependent }
-            if source == "tex.png" && dependent == "mat.mat")));
+        assert!(evts.iter().any(
+            |e| matches!(e, ReloadEvent::DependencyCascade { source, dependent }
+            if source == "tex.png" && dependent == "mat.mat")
+        ));
         assert_eq!(sys.data("mat.mat"), Some(&"mat_v2".to_string()));
     }
 

@@ -101,7 +101,13 @@ impl fmt::Display for R1csConstraint {
                 .collect::<Vec<_>>()
                 .join(" + ")
         }
-        write!(f, "({}) * ({}) = ({})", fmt_lc(&self.a), fmt_lc(&self.b), fmt_lc(&self.c))
+        write!(
+            f,
+            "({}) * ({}) = ({})",
+            fmt_lc(&self.a),
+            fmt_lc(&self.b),
+            fmt_lc(&self.c)
+        )
     }
 }
 
@@ -128,19 +134,35 @@ impl Default for CircuitConfig {
 }
 
 impl CircuitConfig {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
-    pub fn with_modulus(mut self, m: u64) -> Self { self.modulus = m; self }
-    pub fn with_max_gates(mut self, n: usize) -> Self { self.max_gates = n; self }
-    pub fn with_max_wires(mut self, n: usize) -> Self { self.max_wires = n; self }
-    pub fn with_label(mut self, l: impl Into<String>) -> Self { self.label = l.into(); self }
+    pub fn with_modulus(mut self, m: u64) -> Self {
+        self.modulus = m;
+        self
+    }
+    pub fn with_max_gates(mut self, n: usize) -> Self {
+        self.max_gates = n;
+        self
+    }
+    pub fn with_max_wires(mut self, n: usize) -> Self {
+        self.max_wires = n;
+        self
+    }
+    pub fn with_label(mut self, l: impl Into<String>) -> Self {
+        self.label = l.into();
+        self
+    }
 
     pub fn validate(&self) -> Result<(), CircuitError> {
         if self.modulus == 0 {
             return Err(CircuitError::ModulusZero);
         }
         if self.max_gates == 0 || self.max_wires == 0 {
-            return Err(CircuitError::InvalidConfig("max_gates and max_wires must be > 0".into()));
+            return Err(CircuitError::InvalidConfig(
+                "max_gates and max_wires must be > 0".into(),
+            ));
         }
         Ok(())
     }
@@ -148,8 +170,11 @@ impl CircuitConfig {
 
 impl fmt::Display for CircuitConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CircuitConfig(label={}, mod={:#x}, max_gates={}, max_wires={})",
-            self.label, self.modulus, self.max_gates, self.max_wires)
+        write!(
+            f,
+            "CircuitConfig(label={}, mod={:#x}, max_gates={}, max_wires={})",
+            self.label, self.modulus, self.max_gates, self.max_wires
+        )
     }
 }
 
@@ -164,7 +189,10 @@ pub struct Witness {
 
 impl Witness {
     pub fn new(modulus: u64) -> Self {
-        Self { values: HashMap::new(), modulus }
+        Self {
+            values: HashMap::new(),
+            modulus,
+        }
     }
 
     pub fn set(&mut self, wire: Wire, val: u64) {
@@ -175,13 +203,22 @@ impl Witness {
         self.values.get(&wire.0).copied()
     }
 
-    pub fn len(&self) -> usize { self.values.len() }
-    pub fn is_empty(&self) -> bool { self.values.is_empty() }
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
 }
 
 impl fmt::Display for Witness {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Witness({} wires, mod={})", self.values.len(), self.modulus)
+        write!(
+            f,
+            "Witness({} wires, mod={})",
+            self.values.len(),
+            self.modulus
+        )
     }
 }
 
@@ -204,7 +241,7 @@ impl ArithmeticCircuit {
         Ok(Self {
             config,
             gates: Vec::new(),
-            next_wire: 1,  // Reserve wire 0 for constant one (R1CS)
+            next_wire: 1, // Reserve wire 0 for constant one (R1CS)
             input_wires: Vec::new(),
             output_wires: Vec::new(),
             wire_labels: HashMap::new(),
@@ -265,7 +302,11 @@ impl ArithmeticCircuit {
     pub fn add_const_gate(&mut self, left: Wire, value: u64) -> Result<Wire, CircuitError> {
         let out = self.alloc_wire()?;
         let v = value % self.config.modulus;
-        self.gates.push(GateOp::AddConst { left, out, value: v });
+        self.gates.push(GateOp::AddConst {
+            left,
+            out,
+            value: v,
+        });
         Ok(out)
     }
 
@@ -273,24 +314,42 @@ impl ArithmeticCircuit {
     pub fn mul_const_gate(&mut self, left: Wire, value: u64) -> Result<Wire, CircuitError> {
         let out = self.alloc_wire()?;
         let v = value % self.config.modulus;
-        self.gates.push(GateOp::MulConst { left, out, value: v });
+        self.gates.push(GateOp::MulConst {
+            left,
+            out,
+            value: v,
+        });
         Ok(out)
     }
 
-    pub fn gate_count(&self) -> usize { self.gates.len() }
-    pub fn wire_count(&self) -> usize { self.next_wire }
-    pub fn inputs(&self) -> &[Wire] { &self.input_wires }
-    pub fn outputs(&self) -> &[Wire] { &self.output_wires }
-    pub fn gates(&self) -> &[GateOp] { &self.gates }
-    pub fn modulus(&self) -> u64 { self.config.modulus }
-    pub fn label(&self) -> &str { &self.config.label }
+    pub fn gate_count(&self) -> usize {
+        self.gates.len()
+    }
+    pub fn wire_count(&self) -> usize {
+        self.next_wire
+    }
+    pub fn inputs(&self) -> &[Wire] {
+        &self.input_wires
+    }
+    pub fn outputs(&self) -> &[Wire] {
+        &self.output_wires
+    }
+    pub fn gates(&self) -> &[GateOp] {
+        &self.gates
+    }
+    pub fn modulus(&self) -> u64 {
+        self.config.modulus
+    }
+    pub fn label(&self) -> &str {
+        &self.config.label
+    }
 
     /// Generate a witness by evaluating all gates given input assignments.
     pub fn generate_witness(&self, inputs: &HashMap<Wire, u64>) -> Result<Witness, CircuitError> {
         let m = self.config.modulus;
         let mut witness = Witness::new(m);
 
-        witness.set(Wire(0), 1);  // Wire 0 is the constant one wire
+        witness.set(Wire(0), 1); // Wire 0 is the constant one wire
         for (&w, &v) in inputs {
             witness.set(w, v);
         }
@@ -322,13 +381,19 @@ impl ArithmeticCircuit {
                     let a = witness.get(*left).ok_or_else(|| {
                         CircuitError::WitnessGenerationFailed(format!("missing {left}"))
                     })?;
-                    witness.set(*out, (a as u128 + *value as u128).wrapping_rem(m as u128) as u64);
+                    witness.set(
+                        *out,
+                        (a as u128 + *value as u128).wrapping_rem(m as u128) as u64,
+                    );
                 }
                 GateOp::MulConst { left, out, value } => {
                     let a = witness.get(*left).ok_or_else(|| {
                         CircuitError::WitnessGenerationFailed(format!("missing {left}"))
                     })?;
-                    witness.set(*out, (a as u128 * *value as u128).wrapping_rem(m as u128) as u64);
+                    witness.set(
+                        *out,
+                        (a as u128 * *value as u128).wrapping_rem(m as u128) as u64,
+                    );
                 }
             }
         }
@@ -397,7 +462,11 @@ impl ArithmeticCircuit {
             let eval_lc = |lc: &[(usize, u64)]| -> u128 {
                 let mut sum: u128 = 0;
                 for &(idx, coeff) in lc {
-                    let w_val = if idx == 0 { 1u64 } else { witness.get(Wire(idx)).unwrap_or(0) };
+                    let w_val = if idx == 0 {
+                        1u64
+                    } else {
+                        witness.get(Wire(idx)).unwrap_or(0)
+                    };
                     sum = (sum + (coeff as u128 * w_val as u128) % m) % m;
                 }
                 sum
@@ -408,9 +477,9 @@ impl ArithmeticCircuit {
             let c_val = eval_lc(&c.c);
 
             if (a_val * b_val) % m != c_val % m {
-                return Err(CircuitError::UnsatisfiedConstraint(
-                    format!("constraint {i}: {a_val}*{b_val} != {c_val} (mod {m})")
-                ));
+                return Err(CircuitError::UnsatisfiedConstraint(format!(
+                    "constraint {i}: {a_val}*{b_val} != {c_val} (mod {m})"
+                )));
             }
         }
 
@@ -420,9 +489,15 @@ impl ArithmeticCircuit {
 
 impl fmt::Display for ArithmeticCircuit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ArithmeticCircuit(label={}, gates={}, wires={}, inputs={}, outputs={})",
-            self.config.label, self.gates.len(), self.next_wire,
-            self.input_wires.len(), self.output_wires.len())
+        write!(
+            f,
+            "ArithmeticCircuit(label={}, gates={}, wires={}, inputs={}, outputs={})",
+            self.config.label,
+            self.gates.len(),
+            self.next_wire,
+            self.input_wires.len(),
+            self.output_wires.len()
+        )
     }
 }
 
@@ -435,7 +510,9 @@ pub struct CircuitBuilder {
 
 impl CircuitBuilder {
     pub fn new(config: CircuitConfig) -> Result<Self, CircuitError> {
-        Ok(Self { circuit: ArithmeticCircuit::new(config)? })
+        Ok(Self {
+            circuit: ArithmeticCircuit::new(config)?,
+        })
     }
 
     pub fn input(mut self, label: &str) -> Result<(Self, Wire), CircuitError> {
@@ -520,7 +597,10 @@ mod tests {
     fn test_duplicate_label() {
         let mut circ = ArithmeticCircuit::new(small_config()).unwrap();
         circ.alloc_input("x").unwrap();
-        assert!(matches!(circ.alloc_input("x"), Err(CircuitError::DuplicateLabel(_))));
+        assert!(matches!(
+            circ.alloc_input("x"),
+            Err(CircuitError::DuplicateLabel(_))
+        ));
     }
 
     #[test]

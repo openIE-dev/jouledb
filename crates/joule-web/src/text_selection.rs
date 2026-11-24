@@ -151,10 +151,7 @@ impl Selection {
         let start = find_first_text_position(doc);
         let end = find_last_text_position(doc);
         match (start, end) {
-            (Some(s), Some(e)) => Selection::Range {
-                anchor: s,
-                head: e,
-            },
+            (Some(s), Some(e)) => Selection::Range { anchor: s, head: e },
             _ => Selection::Cursor(Position::start()),
         }
     }
@@ -390,10 +387,7 @@ mod tests {
 
     #[test]
     fn range_collapses_when_equal() {
-        let sel = Selection::range(
-            Position::new(vec![0, 0], 3),
-            Position::new(vec![0, 0], 3),
-        );
+        let sel = Selection::range(Position::new(vec![0, 0], 3), Position::new(vec![0, 0], 3));
         assert!(sel.is_collapsed());
     }
 

@@ -12,16 +12,39 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InventoryError {
     ItemNotFound(u64),
-    SlotOccupied { x: usize, y: usize },
-    SlotOutOfBounds { x: usize, y: usize },
+    SlotOccupied {
+        x: usize,
+        y: usize,
+    },
+    SlotOutOfBounds {
+        x: usize,
+        y: usize,
+    },
     InventoryFull,
-    WeightLimitExceeded { current: u64, added: u64, limit: u64 },
-    StackFull { item_id: u64, current: u32, max: u32 },
-    IncompatibleSlot { item_type: ItemType, slot: EquipSlot },
+    WeightLimitExceeded {
+        current: u64,
+        added: u64,
+        limit: u64,
+    },
+    StackFull {
+        item_id: u64,
+        current: u32,
+        max: u32,
+    },
+    IncompatibleSlot {
+        item_type: ItemType,
+        slot: EquipSlot,
+    },
     AlreadyEquipped(EquipSlot),
     NothingEquipped(EquipSlot),
-    InvalidGrid { width: usize, height: usize },
-    CannotStack { a: u64, b: u64 },
+    InvalidGrid {
+        width: usize,
+        height: usize,
+    },
+    CannotStack {
+        a: u64,
+        b: u64,
+    },
 }
 
 impl fmt::Display for InventoryError {
@@ -31,10 +54,18 @@ impl fmt::Display for InventoryError {
             Self::SlotOccupied { x, y } => write!(f, "slot ({x},{y}) occupied"),
             Self::SlotOutOfBounds { x, y } => write!(f, "slot ({x},{y}) out of bounds"),
             Self::InventoryFull => write!(f, "inventory is full"),
-            Self::WeightLimitExceeded { current, added, limit } => {
+            Self::WeightLimitExceeded {
+                current,
+                added,
+                limit,
+            } => {
                 write!(f, "weight {current}+{added} exceeds limit {limit}")
             }
-            Self::StackFull { item_id, current, max } => {
+            Self::StackFull {
+                item_id,
+                current,
+                max,
+            } => {
                 write!(f, "stack full for item {item_id}: {current}/{max}")
             }
             Self::IncompatibleSlot { item_type, slot } => {
@@ -104,9 +135,18 @@ impl ItemDef {
         }
     }
 
-    pub fn with_stack_size(mut self, s: u32) -> Self { self.stack_size = s; self }
-    pub fn with_weight(mut self, w: u64) -> Self { self.weight = w; self }
-    pub fn with_rarity(mut self, r: Rarity) -> Self { self.rarity = r; self }
+    pub fn with_stack_size(mut self, s: u32) -> Self {
+        self.stack_size = s;
+        self
+    }
+    pub fn with_weight(mut self, w: u64) -> Self {
+        self.weight = w;
+        self
+    }
+    pub fn with_rarity(mut self, r: Rarity) -> Self {
+        self.rarity = r;
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -123,7 +163,11 @@ pub struct ItemRegistry {
 }
 
 impl ItemRegistry {
-    pub fn new() -> Self { Self { items: HashMap::new() } }
+    pub fn new() -> Self {
+        Self {
+            items: HashMap::new(),
+        }
+    }
 
     pub fn register(&mut self, def: ItemDef) {
         self.items.insert(def.id, def);
@@ -147,7 +191,12 @@ pub struct GridInventory {
 }
 
 impl GridInventory {
-    pub fn new(width: usize, height: usize, weight_limit: u64, registry: ItemRegistry) -> Result<Self, InventoryError> {
+    pub fn new(
+        width: usize,
+        height: usize,
+        weight_limit: u64,
+        registry: ItemRegistry,
+    ) -> Result<Self, InventoryError> {
         if width == 0 || height == 0 {
             return Err(InventoryError::InvalidGrid { width, height });
         }
@@ -162,10 +211,18 @@ impl GridInventory {
         })
     }
 
-    pub fn width(&self) -> usize { self.width }
-    pub fn height(&self) -> usize { self.height }
-    pub fn weight_limit(&self) -> u64 { self.weight_limit }
-    pub fn current_weight(&self) -> u64 { self.current_weight }
+    pub fn width(&self) -> usize {
+        self.width
+    }
+    pub fn height(&self) -> usize {
+        self.height
+    }
+    pub fn weight_limit(&self) -> u64 {
+        self.weight_limit
+    }
+    pub fn current_weight(&self) -> u64 {
+        self.current_weight
+    }
 
     fn idx(&self, x: usize, y: usize) -> Result<usize, InventoryError> {
         if x >= self.width || y >= self.height {
@@ -180,50 +237,85 @@ impl GridInventory {
     }
 
     fn item_weight(&self, item_id: u64, qty: u32) -> Result<u64, InventoryError> {
-        let def = self.registry.get(item_id).ok_or(InventoryError::ItemNotFound(item_id))?;
+        let def = self
+            .registry
+            .get(item_id)
+            .ok_or(InventoryError::ItemNotFound(item_id))?;
         Ok(def.weight * qty as u64)
     }
 
-    pub fn add_at(&mut self, x: usize, y: usize, item_id: u64, qty: u32) -> Result<(), InventoryError> {
+    pub fn add_at(
+        &mut self,
+        x: usize,
+        y: usize,
+        item_id: u64,
+        qty: u32,
+    ) -> Result<(), InventoryError> {
         let i = self.idx(x, y)?;
-        let def = self.registry.get(item_id).ok_or(InventoryError::ItemNotFound(item_id))?.clone();
+        let def = self
+            .registry
+            .get(item_id)
+            .ok_or(InventoryError::ItemNotFound(item_id))?
+            .clone();
         let add_weight = def.weight * qty as u64;
         if self.current_weight + add_weight > self.weight_limit {
             return Err(InventoryError::WeightLimitExceeded {
-                current: self.current_weight, added: add_weight, limit: self.weight_limit,
+                current: self.current_weight,
+                added: add_weight,
+                limit: self.weight_limit,
             });
         }
         if let Some(ref mut stack) = self.slots[i] {
             if stack.item_id != item_id {
-                return Err(InventoryError::CannotStack { a: stack.item_id, b: item_id });
+                return Err(InventoryError::CannotStack {
+                    a: stack.item_id,
+                    b: item_id,
+                });
             }
             if stack.quantity + qty > def.stack_size {
                 return Err(InventoryError::StackFull {
-                    item_id, current: stack.quantity, max: def.stack_size,
+                    item_id,
+                    current: stack.quantity,
+                    max: def.stack_size,
                 });
             }
             stack.quantity += qty;
         } else {
             if qty > def.stack_size {
-                return Err(InventoryError::StackFull { item_id, current: 0, max: def.stack_size });
+                return Err(InventoryError::StackFull {
+                    item_id,
+                    current: 0,
+                    max: def.stack_size,
+                });
             }
-            self.slots[i] = Some(ItemStack { item_id, quantity: qty });
+            self.slots[i] = Some(ItemStack {
+                item_id,
+                quantity: qty,
+            });
         }
         self.current_weight += add_weight;
         Ok(())
     }
 
     pub fn add_auto(&mut self, item_id: u64, mut qty: u32) -> Result<u32, InventoryError> {
-        let def = self.registry.get(item_id).ok_or(InventoryError::ItemNotFound(item_id))?.clone();
+        let def = self
+            .registry
+            .get(item_id)
+            .ok_or(InventoryError::ItemNotFound(item_id))?
+            .clone();
         let total_weight = def.weight * qty as u64;
         if self.current_weight + total_weight > self.weight_limit {
             return Err(InventoryError::WeightLimitExceeded {
-                current: self.current_weight, added: total_weight, limit: self.weight_limit,
+                current: self.current_weight,
+                added: total_weight,
+                limit: self.weight_limit,
             });
         }
         // Try stacking into existing slots first
         for slot in self.slots.iter_mut() {
-            if qty == 0 { break; }
+            if qty == 0 {
+                break;
+            }
             if let Some(stack) = slot {
                 if stack.item_id == item_id && stack.quantity < def.stack_size {
                     let space = def.stack_size - stack.quantity;
@@ -235,10 +327,15 @@ impl GridInventory {
         }
         // Fill empty slots
         for slot in self.slots.iter_mut() {
-            if qty == 0 { break; }
+            if qty == 0 {
+                break;
+            }
             if slot.is_none() {
                 let add = def.stack_size.min(qty);
-                *slot = Some(ItemStack { item_id, quantity: add });
+                *slot = Some(ItemStack {
+                    item_id,
+                    quantity: add,
+                });
                 qty -= add;
             }
         }
@@ -252,7 +349,9 @@ impl GridInventory {
 
     pub fn remove_at(&mut self, x: usize, y: usize, qty: u32) -> Result<ItemStack, InventoryError> {
         let i = self.idx(x, y)?;
-        let stack = self.slots[i].as_ref().ok_or(InventoryError::InventoryFull)?;
+        let stack = self.slots[i]
+            .as_ref()
+            .ok_or(InventoryError::InventoryFull)?;
         let item_id = stack.item_id;
         let have = stack.quantity;
         let remove = qty.min(have);
@@ -264,11 +363,20 @@ impl GridInventory {
         } else {
             self.slots[i].as_mut().unwrap().quantity -= remove;
             self.current_weight = self.current_weight.saturating_sub(w);
-            Ok(ItemStack { item_id, quantity: remove })
+            Ok(ItemStack {
+                item_id,
+                quantity: remove,
+            })
         }
     }
 
-    pub fn move_item(&mut self, fx: usize, fy: usize, tx: usize, ty: usize) -> Result<(), InventoryError> {
+    pub fn move_item(
+        &mut self,
+        fx: usize,
+        fy: usize,
+        tx: usize,
+        ty: usize,
+    ) -> Result<(), InventoryError> {
         let fi = self.idx(fx, fy)?;
         let ti = self.idx(tx, ty)?;
         if self.slots[fi].is_none() {
@@ -283,7 +391,10 @@ impl GridInventory {
         Ok(())
     }
 
-    pub fn find<F: Fn(&ItemStack, &ItemDef) -> bool>(&self, pred: F) -> Vec<(usize, usize, &ItemStack)> {
+    pub fn find<F: Fn(&ItemStack, &ItemDef) -> bool>(
+        &self,
+        pred: F,
+    ) -> Vec<(usize, usize, &ItemStack)> {
         let mut results = Vec::new();
         for (i, slot) in self.slots.iter().enumerate() {
             if let Some(stack) = slot {
@@ -300,7 +411,10 @@ impl GridInventory {
     }
 
     pub fn sorted_items(&self, mode: SortMode) -> Vec<(usize, &ItemStack)> {
-        let mut items: Vec<(usize, &ItemStack)> = self.slots.iter().enumerate()
+        let mut items: Vec<(usize, &ItemStack)> = self
+            .slots
+            .iter()
+            .enumerate()
             .filter_map(|(i, s)| s.as_ref().map(|st| (i, st)))
             .collect();
         let reg = &self.registry;
@@ -328,9 +442,15 @@ impl GridInventory {
         items
     }
 
-    pub fn total_slots(&self) -> usize { self.width * self.height }
-    pub fn used_slots(&self) -> usize { self.slots.iter().filter(|s| s.is_some()).count() }
-    pub fn free_slots(&self) -> usize { self.total_slots() - self.used_slots() }
+    pub fn total_slots(&self) -> usize {
+        self.width * self.height
+    }
+    pub fn used_slots(&self) -> usize {
+        self.slots.iter().filter(|s| s.is_some()).count()
+    }
+    pub fn free_slots(&self) -> usize {
+        self.total_slots() - self.used_slots()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -353,23 +473,43 @@ pub struct ListInventory {
 
 impl ListInventory {
     pub fn new(capacity: usize, weight_limit: u64, registry: ItemRegistry) -> Self {
-        Self { items: Vec::new(), capacity, weight_limit, current_weight: 0, registry }
+        Self {
+            items: Vec::new(),
+            capacity,
+            weight_limit,
+            current_weight: 0,
+            registry,
+        }
     }
 
-    pub fn items(&self) -> &[ItemStack] { &self.items }
-    pub fn capacity(&self) -> usize { self.capacity }
-    pub fn current_weight(&self) -> u64 { self.current_weight }
+    pub fn items(&self) -> &[ItemStack] {
+        &self.items
+    }
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+    pub fn current_weight(&self) -> u64 {
+        self.current_weight
+    }
 
     pub fn add(&mut self, item_id: u64, mut qty: u32) -> Result<(), InventoryError> {
-        let def = self.registry.get(item_id).ok_or(InventoryError::ItemNotFound(item_id))?.clone();
+        let def = self
+            .registry
+            .get(item_id)
+            .ok_or(InventoryError::ItemNotFound(item_id))?
+            .clone();
         let add_weight = def.weight * qty as u64;
         if self.current_weight + add_weight > self.weight_limit {
             return Err(InventoryError::WeightLimitExceeded {
-                current: self.current_weight, added: add_weight, limit: self.weight_limit,
+                current: self.current_weight,
+                added: add_weight,
+                limit: self.weight_limit,
             });
         }
         for stack in self.items.iter_mut() {
-            if qty == 0 { break; }
+            if qty == 0 {
+                break;
+            }
             if stack.item_id == item_id && stack.quantity < def.stack_size {
                 let space = def.stack_size - stack.quantity;
                 let add = space.min(qty);
@@ -382,7 +522,10 @@ impl ListInventory {
                 return Err(InventoryError::InventoryFull);
             }
             let add = def.stack_size.min(qty);
-            self.items.push(ItemStack { item_id, quantity: add });
+            self.items.push(ItemStack {
+                item_id,
+                quantity: add,
+            });
             qty -= add;
         }
         self.current_weight += add_weight;
@@ -390,11 +533,16 @@ impl ListInventory {
     }
 
     pub fn remove(&mut self, item_id: u64, mut qty: u32) -> Result<u32, InventoryError> {
-        let def = self.registry.get(item_id).ok_or(InventoryError::ItemNotFound(item_id))?;
+        let def = self
+            .registry
+            .get(item_id)
+            .ok_or(InventoryError::ItemNotFound(item_id))?;
         let unit_w = def.weight;
         let mut removed = 0u32;
         self.items.retain_mut(|stack| {
-            if qty == 0 || stack.item_id != item_id { return true; }
+            if qty == 0 || stack.item_id != item_id {
+                return true;
+            }
             if stack.quantity <= qty {
                 qty -= stack.quantity;
                 removed += stack.quantity;
@@ -411,7 +559,11 @@ impl ListInventory {
     }
 
     pub fn count(&self, item_id: u64) -> u32 {
-        self.items.iter().filter(|s| s.item_id == item_id).map(|s| s.quantity).sum()
+        self.items
+            .iter()
+            .filter(|s| s.item_id == item_id)
+            .map(|s| s.quantity)
+            .sum()
     }
 
     pub fn find<F: Fn(&ItemStack) -> bool>(&self, pred: F) -> Vec<&ItemStack> {
@@ -429,31 +581,53 @@ pub struct Equipment {
 
 impl Equipment {
     pub fn new(registry: ItemRegistry) -> Self {
-        Self { slots: HashMap::new(), registry }
+        Self {
+            slots: HashMap::new(),
+            registry,
+        }
     }
 
     fn compatible(item_type: ItemType, slot: EquipSlot) -> bool {
-        matches!((item_type, slot),
-            (ItemType::Armor, EquipSlot::Head) |
-            (ItemType::Armor, EquipSlot::Chest) |
-            (ItemType::Armor, EquipSlot::Legs) |
-            (ItemType::Armor, EquipSlot::Hands) |
-            (ItemType::Weapon, EquipSlot::Weapon) |
-            (ItemType::Armor, EquipSlot::Shield)
+        matches!(
+            (item_type, slot),
+            (ItemType::Armor, EquipSlot::Head)
+                | (ItemType::Armor, EquipSlot::Chest)
+                | (ItemType::Armor, EquipSlot::Legs)
+                | (ItemType::Armor, EquipSlot::Hands)
+                | (ItemType::Weapon, EquipSlot::Weapon)
+                | (ItemType::Armor, EquipSlot::Shield)
         )
     }
 
-    pub fn equip(&mut self, slot: EquipSlot, item_id: u64) -> Result<Option<ItemStack>, InventoryError> {
-        let def = self.registry.get(item_id).ok_or(InventoryError::ItemNotFound(item_id))?;
+    pub fn equip(
+        &mut self,
+        slot: EquipSlot,
+        item_id: u64,
+    ) -> Result<Option<ItemStack>, InventoryError> {
+        let def = self
+            .registry
+            .get(item_id)
+            .ok_or(InventoryError::ItemNotFound(item_id))?;
         if !Self::compatible(def.item_type, slot) {
-            return Err(InventoryError::IncompatibleSlot { item_type: def.item_type, slot });
+            return Err(InventoryError::IncompatibleSlot {
+                item_type: def.item_type,
+                slot,
+            });
         }
-        let prev = self.slots.insert(slot, ItemStack { item_id, quantity: 1 });
+        let prev = self.slots.insert(
+            slot,
+            ItemStack {
+                item_id,
+                quantity: 1,
+            },
+        );
         Ok(prev)
     }
 
     pub fn unequip(&mut self, slot: EquipSlot) -> Result<ItemStack, InventoryError> {
-        self.slots.remove(&slot).ok_or(InventoryError::NothingEquipped(slot))
+        self.slots
+            .remove(&slot)
+            .ok_or(InventoryError::NothingEquipped(slot))
     }
 
     pub fn get(&self, slot: EquipSlot) -> Option<&ItemStack> {
@@ -467,9 +641,15 @@ impl Equipment {
     }
 
     pub fn total_weight(&self) -> u64 {
-        self.slots.values().map(|stack| {
-            self.registry.get(stack.item_id).map(|d| d.weight).unwrap_or(0)
-        }).sum()
+        self.slots
+            .values()
+            .map(|stack| {
+                self.registry
+                    .get(stack.item_id)
+                    .map(|d| d.weight)
+                    .unwrap_or(0)
+            })
+            .sum()
     }
 }
 
@@ -485,13 +665,21 @@ pub struct SerializedInventory {
 impl GridInventory {
     pub fn serialize(&self) -> SerializedInventory {
         SerializedInventory {
-            slots: self.slots.iter().map(|s| s.as_ref().map(|st| (st.item_id, st.quantity))).collect(),
+            slots: self
+                .slots
+                .iter()
+                .map(|s| s.as_ref().map(|st| (st.item_id, st.quantity)))
+                .collect(),
             width: self.width,
             height: self.height,
         }
     }
 
-    pub fn deserialize(data: &SerializedInventory, weight_limit: u64, registry: ItemRegistry) -> Result<Self, InventoryError> {
+    pub fn deserialize(
+        data: &SerializedInventory,
+        weight_limit: u64,
+        registry: ItemRegistry,
+    ) -> Result<Self, InventoryError> {
         let mut inv = Self::new(data.width, data.height, weight_limit, registry)?;
         for (i, slot) in data.slots.iter().enumerate() {
             if let Some((item_id, qty)) = slot {
@@ -512,14 +700,45 @@ mod tests {
 
     fn test_registry() -> ItemRegistry {
         let mut reg = ItemRegistry::new();
-        reg.register(ItemDef::new(1, "Iron Sword", ItemType::Weapon).with_weight(5).with_stack_size(1));
-        reg.register(ItemDef::new(2, "Health Potion", ItemType::Consumable).with_weight(1).with_stack_size(10));
-        reg.register(ItemDef::new(3, "Iron Ore", ItemType::Material).with_weight(3).with_stack_size(20).with_rarity(Rarity::Common));
-        reg.register(ItemDef::new(4, "Dragon Scale", ItemType::Material).with_weight(2).with_stack_size(5).with_rarity(Rarity::Legendary));
-        reg.register(ItemDef::new(5, "Steel Helm", ItemType::Armor).with_weight(4).with_stack_size(1).with_rarity(Rarity::Uncommon));
-        reg.register(ItemDef::new(6, "Quest Scroll", ItemType::Quest).with_weight(0).with_stack_size(1));
+        reg.register(
+            ItemDef::new(1, "Iron Sword", ItemType::Weapon)
+                .with_weight(5)
+                .with_stack_size(1),
+        );
+        reg.register(
+            ItemDef::new(2, "Health Potion", ItemType::Consumable)
+                .with_weight(1)
+                .with_stack_size(10),
+        );
+        reg.register(
+            ItemDef::new(3, "Iron Ore", ItemType::Material)
+                .with_weight(3)
+                .with_stack_size(20)
+                .with_rarity(Rarity::Common),
+        );
+        reg.register(
+            ItemDef::new(4, "Dragon Scale", ItemType::Material)
+                .with_weight(2)
+                .with_stack_size(5)
+                .with_rarity(Rarity::Legendary),
+        );
+        reg.register(
+            ItemDef::new(5, "Steel Helm", ItemType::Armor)
+                .with_weight(4)
+                .with_stack_size(1)
+                .with_rarity(Rarity::Uncommon),
+        );
+        reg.register(
+            ItemDef::new(6, "Quest Scroll", ItemType::Quest)
+                .with_weight(0)
+                .with_stack_size(1),
+        );
         reg.register(ItemDef::new(7, "Leather Gloves", ItemType::Armor).with_weight(2));
-        reg.register(ItemDef::new(8, "Chain Mail", ItemType::Armor).with_weight(10).with_rarity(Rarity::Rare));
+        reg.register(
+            ItemDef::new(8, "Chain Mail", ItemType::Armor)
+                .with_weight(10)
+                .with_rarity(Rarity::Rare),
+        );
         reg
     }
 
@@ -656,9 +875,10 @@ mod tests {
         inv.add_at(1, 0, 2, 1).unwrap(); // Health Potion
         inv.add_at(2, 0, 1, 1).unwrap(); // Iron Sword
         let sorted = inv.sorted_items(SortMode::ByName);
-        let names: Vec<&str> = sorted.iter().map(|(_, s)| {
-            inv.registry.get(s.item_id).unwrap().name.as_str()
-        }).collect();
+        let names: Vec<&str> = sorted
+            .iter()
+            .map(|(_, s)| inv.registry.get(s.item_id).unwrap().name.as_str())
+            .collect();
         assert_eq!(names, vec!["Dragon Scale", "Health Potion", "Iron Sword"]);
     }
 
@@ -670,10 +890,14 @@ mod tests {
         inv.add_at(1, 0, 4, 1).unwrap(); // Legendary
         inv.add_at(2, 0, 5, 1).unwrap(); // Uncommon
         let sorted = inv.sorted_items(SortMode::ByRarity);
-        let rarities: Vec<Rarity> = sorted.iter().map(|(_, s)| {
-            inv.registry.get(s.item_id).unwrap().rarity
-        }).collect();
-        assert_eq!(rarities, vec![Rarity::Legendary, Rarity::Uncommon, Rarity::Common]);
+        let rarities: Vec<Rarity> = sorted
+            .iter()
+            .map(|(_, s)| inv.registry.get(s.item_id).unwrap().rarity)
+            .collect();
+        assert_eq!(
+            rarities,
+            vec![Rarity::Legendary, Rarity::Uncommon, Rarity::Common]
+        );
     }
 
     #[test]
@@ -743,8 +967,8 @@ mod tests {
     fn equipment_weight() {
         let reg = test_registry();
         let mut eq = Equipment::new(reg);
-        eq.equip(EquipSlot::Weapon, 1).unwrap();  // 5
-        eq.equip(EquipSlot::Head, 5).unwrap();     // 4
+        eq.equip(EquipSlot::Weapon, 1).unwrap(); // 5
+        eq.equip(EquipSlot::Head, 5).unwrap(); // 4
         assert_eq!(eq.total_weight(), 9);
     }
 

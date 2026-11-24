@@ -9,12 +9,29 @@
 /// Geometric primitive used to build a skeleton placeholder.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SkeletonShape {
-    Rectangle { width: f64, height: f64 },
-    Circle { radius: f64 },
-    Text { lines: usize, line_height: f64 },
-    Avatar { size: f64 },
-    Button { width: f64, height: f64 },
-    Custom { width: f64, height: f64, border_radius: f64 },
+    Rectangle {
+        width: f64,
+        height: f64,
+    },
+    Circle {
+        radius: f64,
+    },
+    Text {
+        lines: usize,
+        line_height: f64,
+    },
+    Avatar {
+        size: f64,
+    },
+    Button {
+        width: f64,
+        height: f64,
+    },
+    Custom {
+        width: f64,
+        height: f64,
+        border_radius: f64,
+    },
 }
 
 // ── Animation ──────────────────────────────────────────────────
@@ -67,7 +84,9 @@ pub struct SkeletonLayout {
 }
 
 impl Default for SkeletonLayout {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SkeletonLayout {
@@ -76,12 +95,22 @@ impl SkeletonLayout {
     }
 
     pub fn add(mut self, shape: SkeletonShape, x: f64, y: f64) -> Self {
-        self.items.push(SkeletonItem { shape, x, y, delay_ms: 0 });
+        self.items.push(SkeletonItem {
+            shape,
+            x,
+            y,
+            delay_ms: 0,
+        });
         self
     }
 
     pub fn add_with_delay(mut self, shape: SkeletonShape, x: f64, y: f64, delay: u64) -> Self {
-        self.items.push(SkeletonItem { shape, x, y, delay_ms: delay });
+        self.items.push(SkeletonItem {
+            shape,
+            x,
+            y,
+            delay_ms: delay,
+        });
         self
     }
 
@@ -93,8 +122,12 @@ impl SkeletonLayout {
             let (w, h) = shape_bounds(&item.shape);
             let ex = item.x + w;
             let ey = item.y + h;
-            if ex > max_x { max_x = ex; }
-            if ey > max_y { max_y = ey; }
+            if ex > max_x {
+                max_x = ex;
+            }
+            if ey > max_y {
+                max_y = ey;
+            }
         }
         let vw = max_x.ceil().max(1.0);
         let vh = max_y.ceil().max(1.0);
@@ -139,7 +172,12 @@ impl SkeletonLayout {
             } else {
                 String::new()
             };
-            svg.push_str(&shape_to_svg_element(&item.shape, item.x, item.y, &delay_attr));
+            svg.push_str(&shape_to_svg_element(
+                &item.shape,
+                item.x,
+                item.y,
+                &delay_attr,
+            ));
             svg.push('\n');
         }
 
@@ -153,9 +191,30 @@ impl SkeletonLayout {
     pub fn card_layout() -> Self {
         Self::new()
             .add(SkeletonShape::Avatar { size: 48.0 }, 16.0, 16.0)
-            .add(SkeletonShape::Rectangle { width: 200.0, height: 20.0 }, 80.0, 20.0)
-            .add(SkeletonShape::Text { lines: 2, line_height: 16.0 }, 16.0, 80.0)
-            .add(SkeletonShape::Button { width: 100.0, height: 36.0 }, 16.0, 130.0)
+            .add(
+                SkeletonShape::Rectangle {
+                    width: 200.0,
+                    height: 20.0,
+                },
+                80.0,
+                20.0,
+            )
+            .add(
+                SkeletonShape::Text {
+                    lines: 2,
+                    line_height: 16.0,
+                },
+                16.0,
+                80.0,
+            )
+            .add(
+                SkeletonShape::Button {
+                    width: 100.0,
+                    height: 36.0,
+                },
+                16.0,
+                130.0,
+            )
     }
 
     /// List skeleton with `rows` identical rows.
@@ -165,8 +224,22 @@ impl SkeletonLayout {
             let y = 16.0 + (i as f64) * 56.0;
             layout = layout
                 .add(SkeletonShape::Circle { radius: 20.0 }, 16.0, y)
-                .add(SkeletonShape::Rectangle { width: 260.0, height: 16.0 }, 56.0, y + 4.0)
-                .add(SkeletonShape::Rectangle { width: 180.0, height: 12.0 }, 56.0, y + 28.0);
+                .add(
+                    SkeletonShape::Rectangle {
+                        width: 260.0,
+                        height: 16.0,
+                    },
+                    56.0,
+                    y + 4.0,
+                )
+                .add(
+                    SkeletonShape::Rectangle {
+                        width: 180.0,
+                        height: 12.0,
+                    },
+                    56.0,
+                    y + 28.0,
+                );
         }
         layout
     }
@@ -174,9 +247,30 @@ impl SkeletonLayout {
     /// Article skeleton: title + hero image + text block.
     pub fn article_layout() -> Self {
         Self::new()
-            .add(SkeletonShape::Rectangle { width: 320.0, height: 28.0 }, 16.0, 16.0)
-            .add(SkeletonShape::Rectangle { width: 360.0, height: 200.0 }, 16.0, 60.0)
-            .add(SkeletonShape::Text { lines: 4, line_height: 18.0 }, 16.0, 280.0)
+            .add(
+                SkeletonShape::Rectangle {
+                    width: 320.0,
+                    height: 28.0,
+                },
+                16.0,
+                16.0,
+            )
+            .add(
+                SkeletonShape::Rectangle {
+                    width: 360.0,
+                    height: 200.0,
+                },
+                16.0,
+                60.0,
+            )
+            .add(
+                SkeletonShape::Text {
+                    lines: 4,
+                    line_height: 18.0,
+                },
+                16.0,
+                280.0,
+            )
     }
 }
 
@@ -194,7 +288,9 @@ fn shape_bounds(shape: &SkeletonShape) -> (f64, f64) {
 fn shape_to_svg_element(shape: &SkeletonShape, x: f64, y: f64, extra: &str) -> String {
     match shape {
         SkeletonShape::Rectangle { width, height } => {
-            format!("<rect class=\"sk\" x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" rx=\"4\"{extra}/>")
+            format!(
+                "<rect class=\"sk\" x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" rx=\"4\"{extra}/>"
+            )
         }
         SkeletonShape::Circle { radius } => {
             let cx = x + radius;
@@ -220,10 +316,18 @@ fn shape_to_svg_element(shape: &SkeletonShape, x: f64, y: f64, extra: &str) -> S
             format!("<circle class=\"sk\" cx=\"{cx}\" cy=\"{cy}\" r=\"{r}\"{extra}/>")
         }
         SkeletonShape::Button { width, height } => {
-            format!("<rect class=\"sk\" x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" rx=\"8\"{extra}/>")
+            format!(
+                "<rect class=\"sk\" x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" rx=\"8\"{extra}/>"
+            )
         }
-        SkeletonShape::Custom { width, height, border_radius } => {
-            format!("<rect class=\"sk\" x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" rx=\"{border_radius}\"{extra}/>")
+        SkeletonShape::Custom {
+            width,
+            height,
+            border_radius,
+        } => {
+            format!(
+                "<rect class=\"sk\" x=\"{x}\" y=\"{y}\" width=\"{width}\" height=\"{height}\" rx=\"{border_radius}\"{extra}/>"
+            )
         }
     }
 }
@@ -239,10 +343,17 @@ pub enum LoadingState<T> {
 }
 
 impl<T> LoadingState<T> {
-    pub fn is_loading(&self) -> bool { matches!(self, Self::Loading(_)) }
-    pub fn is_loaded(&self) -> bool { matches!(self, Self::Loaded(_)) }
+    pub fn is_loading(&self) -> bool {
+        matches!(self, Self::Loading(_))
+    }
+    pub fn is_loaded(&self) -> bool {
+        matches!(self, Self::Loaded(_))
+    }
     pub fn data(&self) -> Option<&T> {
-        match self { Self::Loaded(t) => Some(t), _ => None }
+        match self {
+            Self::Loaded(t) => Some(t),
+            _ => None,
+        }
     }
 }
 
@@ -283,25 +394,48 @@ mod tests {
 
     #[test]
     fn svg_pulse_animation() {
-        let config = SkeletonConfig { animation: SkeletonAnimation::Pulse, ..Default::default() };
+        let config = SkeletonConfig {
+            animation: SkeletonAnimation::Pulse,
+            ..Default::default()
+        };
         let svg = SkeletonLayout::new()
-            .add(SkeletonShape::Rectangle { width: 100.0, height: 20.0 }, 0.0, 0.0)
+            .add(
+                SkeletonShape::Rectangle {
+                    width: 100.0,
+                    height: 20.0,
+                },
+                0.0,
+                0.0,
+            )
             .to_svg(&config);
         assert!(svg.contains("@keyframes pulse"));
     }
 
     #[test]
     fn svg_wave_animation() {
-        let config = SkeletonConfig { animation: SkeletonAnimation::Wave, ..Default::default() };
+        let config = SkeletonConfig {
+            animation: SkeletonAnimation::Wave,
+            ..Default::default()
+        };
         let svg = SkeletonLayout::new()
-            .add(SkeletonShape::Rectangle { width: 100.0, height: 20.0 }, 0.0, 0.0)
+            .add(
+                SkeletonShape::Rectangle {
+                    width: 100.0,
+                    height: 20.0,
+                },
+                0.0,
+                0.0,
+            )
             .to_svg(&config);
         assert!(svg.contains("linearGradient"));
     }
 
     #[test]
     fn svg_none_animation() {
-        let config = SkeletonConfig { animation: SkeletonAnimation::None_, ..Default::default() };
+        let config = SkeletonConfig {
+            animation: SkeletonAnimation::None_,
+            ..Default::default()
+        };
         let svg = SkeletonLayout::new()
             .add(SkeletonShape::Circle { radius: 10.0 }, 5.0, 5.0)
             .to_svg(&config);
@@ -328,16 +462,30 @@ mod tests {
 
     #[test]
     fn custom_shape_renders() {
-        let layout = SkeletonLayout::new()
-            .add(SkeletonShape::Custom { width: 80.0, height: 40.0, border_radius: 12.0 }, 10.0, 10.0);
+        let layout = SkeletonLayout::new().add(
+            SkeletonShape::Custom {
+                width: 80.0,
+                height: 40.0,
+                border_radius: 12.0,
+            },
+            10.0,
+            10.0,
+        );
         let svg = layout.to_svg(&SkeletonConfig::default());
         assert!(svg.contains("rx=\"12\""));
     }
 
     #[test]
     fn add_with_delay_sets_delay() {
-        let layout = SkeletonLayout::new()
-            .add_with_delay(SkeletonShape::Rectangle { width: 50.0, height: 10.0 }, 0.0, 0.0, 300);
+        let layout = SkeletonLayout::new().add_with_delay(
+            SkeletonShape::Rectangle {
+                width: 50.0,
+                height: 10.0,
+            },
+            0.0,
+            0.0,
+            300,
+        );
         assert_eq!(layout.items[0].delay_ms, 300);
         let svg = layout.to_svg(&SkeletonConfig::default());
         assert!(svg.contains("animation-delay:300ms"));
@@ -345,8 +493,14 @@ mod tests {
 
     #[test]
     fn text_shape_renders_lines() {
-        let layout = SkeletonLayout::new()
-            .add(SkeletonShape::Text { lines: 3, line_height: 16.0 }, 0.0, 0.0);
+        let layout = SkeletonLayout::new().add(
+            SkeletonShape::Text {
+                lines: 3,
+                line_height: 16.0,
+            },
+            0.0,
+            0.0,
+        );
         let svg = layout.to_svg(&SkeletonConfig::default());
         let count = svg.matches("<rect").count();
         assert_eq!(count, 3);

@@ -5,8 +5,8 @@
 //! codon frequency bias tables, and nucleotide sequence translation
 //! across all three reading frames.
 
-use std::fmt;
 use std::collections::HashMap;
+use std::fmt;
 
 // ── Amino Acid ──────────────────────────────────────────────────
 
@@ -20,7 +20,11 @@ pub struct AminoAcid {
 
 impl AminoAcid {
     pub const fn new(letter: char, three: [char; 3], is_stop: bool) -> Self {
-        Self { letter, three_letter: three, is_stop }
+        Self {
+            letter,
+            three_letter: three,
+            is_stop,
+        }
     }
 
     pub fn three_letter_string(&self) -> String {
@@ -95,7 +99,13 @@ impl CodonTable {
         Self {
             id: GeneticCodeId::VertebrateMitochondrial,
             mapping,
-            start_codons: vec!["ATG".into(), "ATT".into(), "ATC".into(), "ATA".into(), "GTG".into()],
+            start_codons: vec![
+                "ATG".into(),
+                "ATT".into(),
+                "ATC".into(),
+                "ATA".into(),
+                "GTG".into(),
+            ],
         }
     }
 
@@ -248,7 +258,10 @@ impl CodonUsageBias {
         let mut i = 0;
         while i + 3 <= bytes.len() {
             let codon = std::str::from_utf8(&bytes[i..i + 3]).unwrap_or("NNN");
-            if codon.bytes().all(|b| matches!(b, b'A' | b'T' | b'G' | b'C')) {
+            if codon
+                .bytes()
+                .all(|b| matches!(b, b'A' | b'T' | b'G' | b'C'))
+            {
                 *counts.entry(codon.to_string()).or_insert(0) += 1;
                 total += 1;
             }
@@ -280,13 +293,22 @@ impl CodonUsageBias {
             }
             i += 3;
         }
-        if count == 0 { 0.0 } else { (log_sum / count as f64).exp() }
+        if count == 0 {
+            0.0
+        } else {
+            (log_sum / count as f64).exp()
+        }
     }
 }
 
 impl fmt::Display for CodonUsageBias {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CodonUsageBias({}, {} codons)", self.organism, self.frequencies.len())
+        write!(
+            f,
+            "CodonUsageBias({}, {} codons)",
+            self.organism,
+            self.frequencies.len()
+        )
     }
 }
 

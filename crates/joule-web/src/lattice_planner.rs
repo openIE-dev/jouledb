@@ -67,7 +67,9 @@ pub struct Waypoint {
 }
 
 impl Waypoint {
-    pub fn new(x: f64, y: f64, theta: f64) -> Self { Self { x, y, theta } }
+    pub fn new(x: f64, y: f64, theta: f64) -> Self {
+        Self { x, y, theta }
+    }
 
     pub fn distance_to(&self, other: &Waypoint) -> f64 {
         ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
@@ -102,11 +104,20 @@ impl LatticePrimitive {
         path: Vec<Waypoint>,
         cost: f64,
     ) -> Self {
-        Self { start_theta_idx, end_dx, end_dy, end_theta_idx, path, cost }
+        Self {
+            start_theta_idx,
+            end_dx,
+            end_dy,
+            end_theta_idx,
+            path,
+            cost,
+        }
     }
 
     pub fn arc_length(&self) -> f64 {
-        if self.path.len() < 2 { return 0.0; }
+        if self.path.len() < 2 {
+            return 0.0;
+        }
         self.path.windows(2).map(|w| w[0].distance_to(&w[1])).sum()
     }
 }
@@ -114,9 +125,9 @@ impl LatticePrimitive {
 impl fmt::Display for LatticePrimitive {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "Prim(h{}->({},{},h{}), cost={:.3})",
-            self.start_theta_idx, self.end_dx, self.end_dy,
-            self.end_theta_idx, self.cost,
+            f,
+            "Prim(h{}->({},{},h{}), cost={:.3})",
+            self.start_theta_idx, self.end_dx, self.end_dy, self.end_theta_idx, self.cost,
         )
     }
 }
@@ -134,10 +145,14 @@ impl PrimitiveLibrary {
     /// Generate primitives for the given heading discretization.
     pub fn generate(num_headings: usize, resolution: f64) -> Result<Self, LatticeError> {
         if num_headings == 0 {
-            return Err(LatticeError::InvalidParameter("num_headings must be > 0".into()));
+            return Err(LatticeError::InvalidParameter(
+                "num_headings must be > 0".into(),
+            ));
         }
         if resolution <= 0.0 {
-            return Err(LatticeError::InvalidParameter("resolution must be > 0".into()));
+            return Err(LatticeError::InvalidParameter(
+                "resolution must be > 0".into(),
+            ));
         }
 
         let mut primitives = Vec::new();
@@ -156,7 +171,14 @@ impl PrimitiveLibrary {
             let dx2 = (base_theta.cos() * 2.0).round() as i32;
             let dy2 = (base_theta.sin() * 2.0).round() as i32;
             let path2 = Self::straight_path(base_theta, resolution, 2);
-            primitives.push(LatticePrimitive::new(hi, dx2, dy2, hi, path2, resolution * 2.0));
+            primitives.push(LatticePrimitive::new(
+                hi,
+                dx2,
+                dy2,
+                hi,
+                path2,
+                resolution * 2.0,
+            ));
 
             // Turn left
             let left_hi = (hi + 1) % num_headings;
@@ -166,7 +188,9 @@ impl PrimitiveLibrary {
             let ldy = (left_theta.sin() * 1.0).round() as i32;
             let left_path = Self::arc_path(base_theta, left_theta, mid_theta, resolution);
             let left_cost = resolution * 1.2; // slight penalty for turning
-            primitives.push(LatticePrimitive::new(hi, ldx, ldy, left_hi, left_path, left_cost));
+            primitives.push(LatticePrimitive::new(
+                hi, ldx, ldy, left_hi, left_path, left_cost,
+            ));
 
             // Turn right
             let right_hi = if hi == 0 { num_headings - 1 } else { hi - 1 };
@@ -176,10 +200,16 @@ impl PrimitiveLibrary {
             let rdy = (right_theta.sin() * 1.0).round() as i32;
             let right_path = Self::arc_path(base_theta, right_theta, mid_theta_r, resolution);
             let right_cost = resolution * 1.2;
-            primitives.push(LatticePrimitive::new(hi, rdx, rdy, right_hi, right_path, right_cost));
+            primitives.push(LatticePrimitive::new(
+                hi, rdx, rdy, right_hi, right_path, right_cost,
+            ));
         }
 
-        Ok(Self { num_headings, resolution, primitives })
+        Ok(Self {
+            num_headings,
+            resolution,
+            primitives,
+        })
     }
 
     fn straight_path(theta: f64, resolution: f64, steps: usize) -> Vec<Waypoint> {
@@ -192,7 +222,12 @@ impl PrimitiveLibrary {
         path
     }
 
-    fn arc_path(start_theta: f64, end_theta: f64, mid_theta: f64, resolution: f64) -> Vec<Waypoint> {
+    fn arc_path(
+        start_theta: f64,
+        end_theta: f64,
+        mid_theta: f64,
+        resolution: f64,
+    ) -> Vec<Waypoint> {
         let n = 5;
         let mut path = Vec::with_capacity(n + 1);
         for i in 0..=n {
@@ -206,19 +241,25 @@ impl PrimitiveLibrary {
     }
 
     pub fn primitives_for_heading(&self, theta_idx: usize) -> Vec<&LatticePrimitive> {
-        self.primitives.iter()
+        self.primitives
+            .iter()
             .filter(|p| p.start_theta_idx == theta_idx)
             .collect()
     }
 
-    pub fn count(&self) -> usize { self.primitives.len() }
+    pub fn count(&self) -> usize {
+        self.primitives.len()
+    }
 }
 
 impl fmt::Display for PrimitiveLibrary {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "PrimitiveLibrary(headings={}, res={:.2}, primitives={})",
-            self.num_headings, self.resolution, self.primitives.len(),
+            f,
+            "PrimitiveLibrary(headings={}, res={:.2}, primitives={})",
+            self.num_headings,
+            self.resolution,
+            self.primitives.len(),
         )
     }
 }
@@ -236,13 +277,30 @@ pub struct LatticeCostWeights {
 
 impl LatticeCostWeights {
     pub fn new() -> Self {
-        Self { distance: 1.0, heading_change: 0.5, proximity: 2.0, reverse_penalty: 5.0 }
+        Self {
+            distance: 1.0,
+            heading_change: 0.5,
+            proximity: 2.0,
+            reverse_penalty: 5.0,
+        }
     }
 
-    pub fn with_distance(mut self, w: f64) -> Self { self.distance = w; self }
-    pub fn with_heading_change(mut self, w: f64) -> Self { self.heading_change = w; self }
-    pub fn with_proximity(mut self, w: f64) -> Self { self.proximity = w; self }
-    pub fn with_reverse_penalty(mut self, w: f64) -> Self { self.reverse_penalty = w; self }
+    pub fn with_distance(mut self, w: f64) -> Self {
+        self.distance = w;
+        self
+    }
+    pub fn with_heading_change(mut self, w: f64) -> Self {
+        self.heading_change = w;
+        self
+    }
+    pub fn with_proximity(mut self, w: f64) -> Self {
+        self.proximity = w;
+        self
+    }
+    pub fn with_reverse_penalty(mut self, w: f64) -> Self {
+        self.reverse_penalty = w;
+        self
+    }
 }
 
 // ── Occupancy grid ──────────────────────────────────────────────
@@ -260,7 +318,10 @@ pub struct OccupancyGrid {
 impl OccupancyGrid {
     pub fn new(width: usize, height: usize, offset_x: i32, offset_y: i32) -> Self {
         Self {
-            width, height, offset_x, offset_y,
+            width,
+            height,
+            offset_x,
+            offset_y,
             cells: vec![false; width * height],
         }
     }
@@ -307,7 +368,9 @@ struct SearchNode {
 }
 
 impl PartialEq for SearchNode {
-    fn eq(&self, other: &Self) -> bool { self.f_cost == other.f_cost }
+    fn eq(&self, other: &Self) -> bool {
+        self.f_cost == other.f_cost
+    }
 }
 impl Eq for SearchNode {}
 
@@ -319,7 +382,10 @@ impl PartialOrd for SearchNode {
 
 impl Ord for SearchNode {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        other.f_cost.partial_cmp(&self.f_cost).unwrap_or(std::cmp::Ordering::Equal)
+        other
+            .f_cost
+            .partial_cmp(&self.f_cost)
+            .unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 
@@ -364,13 +430,17 @@ impl LatticePlanner {
         // Check endpoint
         let end_gx = state.gx + prim.end_dx;
         let end_gy = state.gy + prim.end_dy;
-        if self.grid.is_blocked(end_gx, end_gy) { return false; }
+        if self.grid.is_blocked(end_gx, end_gy) {
+            return false;
+        }
 
         // Check path waypoints (approximate grid cells)
         for wp in &prim.path {
             let gx = state.gx + (wp.x / self.library.resolution).round() as i32;
             let gy = state.gy + (wp.y / self.library.resolution).round() as i32;
-            if self.grid.is_blocked(gx, gy) { return false; }
+            if self.grid.is_blocked(gx, gy) {
+                return false;
+            }
         }
         true
     }
@@ -393,7 +463,8 @@ impl LatticePlanner {
         }
 
         let mut g_costs = std::collections::HashMap::new();
-        let mut came_from: std::collections::HashMap<u64, (u64, usize)> = std::collections::HashMap::new();
+        let mut came_from: std::collections::HashMap<u64, (u64, usize)> =
+            std::collections::HashMap::new();
         let mut open = BinaryHeap::new();
         let mut expansions = 0usize;
 
@@ -422,15 +493,21 @@ impl LatticePlanner {
             }
 
             if let Some(&existing) = g_costs.get(&key) {
-                if g_cost > existing { continue; }
+                if g_cost > existing {
+                    continue;
+                }
             }
 
             expansions += 1;
-            if expansions >= max_expansions { break; }
+            if expansions >= max_expansions {
+                break;
+            }
 
             let prims = self.library.primitives_for_heading(state.theta_idx);
             for prim in prims {
-                if !self.primitive_collision_free(state, prim) { continue; }
+                if !self.primitive_collision_free(state, prim) {
+                    continue;
+                }
 
                 let next = LatticeState::new(
                     state.gx + prim.end_dx,
@@ -438,7 +515,11 @@ impl LatticePlanner {
                     prim.end_theta_idx,
                 );
                 let next_key = self.state_key(next);
-                let heading_diff = if prim.start_theta_idx != prim.end_theta_idx { 1.0 } else { 0.0 };
+                let heading_diff = if prim.start_theta_idx != prim.end_theta_idx {
+                    1.0
+                } else {
+                    0.0
+                };
                 let edge_cost = self.cost_weights.distance * prim.cost
                     + self.cost_weights.heading_change * heading_diff;
 
@@ -505,8 +586,11 @@ pub struct LatticeResult {
 impl fmt::Display for LatticeResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "LatticeResult(waypoints={}, cost={:.3}, expansions={})",
-            self.path.len(), self.cost, self.expansions,
+            f,
+            "LatticeResult(waypoints={}, cost={:.3}, expansions={})",
+            self.path.len(),
+            self.cost,
+            self.expansions,
         )
     }
 }
@@ -642,11 +726,11 @@ mod tests {
         let mut grid = OccupancyGrid::new(20, 20, -10, -10);
         grid.set_blocked(0, 0, true);
         let planner = LatticePlanner::new(lib, grid);
-        assert!(planner.plan(
-            LatticeState::new(0, 0, 0),
-            LatticeState::new(5, 0, 0),
-            1000,
-        ).is_err());
+        assert!(
+            planner
+                .plan(LatticeState::new(0, 0, 0), LatticeState::new(5, 0, 0), 1000,)
+                .is_err()
+        );
     }
 
     #[test]

@@ -68,7 +68,11 @@ impl ImageBuf {
         if pixels.len() != width * height {
             return None;
         }
-        Some(Self { pixels, width, height })
+        Some(Self {
+            pixels,
+            width,
+            height,
+        })
     }
 
     pub fn get(&self, x: usize, y: usize) -> Pixel {
@@ -105,17 +109,10 @@ pub fn bayer_matrix(size: BayerSize) -> Vec<Vec<f32>> {
     match size {
         BayerSize::X2 => {
             let n = 4.0;
-            vec![
-                vec![0.0 / n, 2.0 / n],
-                vec![3.0 / n, 1.0 / n],
-            ]
+            vec![vec![0.0 / n, 2.0 / n], vec![3.0 / n, 1.0 / n]]
         }
-        BayerSize::X4 => {
-            generate_bayer_recursive(4)
-        }
-        BayerSize::X8 => {
-            generate_bayer_recursive(8)
-        }
+        BayerSize::X4 => generate_bayer_recursive(4),
+        BayerSize::X8 => generate_bayer_recursive(8),
     }
 }
 
@@ -193,7 +190,8 @@ pub fn ordered_dither(image: &ImageBuf, bits: u32, size: BayerSize) -> ImageBuf 
                 quantize(p.g + threshold * spread, bits),
                 quantize(p.b + threshold * spread, bits),
                 p.a,
-            ).clamped();
+            )
+            .clamped();
 
             result.set(x, y, dithered);
         }
@@ -204,9 +202,7 @@ pub fn ordered_dither(image: &ImageBuf, bits: u32, size: BayerSize) -> ImageBuf 
 
 /// Apply Floyd-Steinberg error diffusion dithering.
 pub fn floyd_steinberg_dither(image: &ImageBuf, bits: u32) -> ImageBuf {
-    let mut buffer: Vec<(f32, f32, f32)> = image.pixels.iter()
-        .map(|p| (p.r, p.g, p.b))
-        .collect();
+    let mut buffer: Vec<(f32, f32, f32)> = image.pixels.iter().map(|p| (p.r, p.g, p.b)).collect();
 
     let w = image.width;
     let h = image.height;
@@ -222,19 +218,28 @@ pub fn floyd_steinberg_dither(image: &ImageBuf, bits: u32) -> ImageBuf {
             let new_g = quantize(old_g, bits);
             let new_b = quantize(old_b, bits);
 
-            result.set(x, y, Pixel::new(
-                new_r.clamp(0.0, 1.0),
-                new_g.clamp(0.0, 1.0),
-                new_b.clamp(0.0, 1.0),
-                image.pixels[idx].a,
-            ));
+            result.set(
+                x,
+                y,
+                Pixel::new(
+                    new_r.clamp(0.0, 1.0),
+                    new_g.clamp(0.0, 1.0),
+                    new_b.clamp(0.0, 1.0),
+                    image.pixels[idx].a,
+                ),
+            );
 
             let err_r = old_r - new_r;
             let err_g = old_g - new_g;
             let err_b = old_b - new_b;
 
             // Distribute error to neighbors.
-            let distribute = |buf: &mut [(f32, f32, f32)], idx: usize, factor: f32, er: f32, eg: f32, eb: f32| {
+            let distribute = |buf: &mut [(f32, f32, f32)],
+                              idx: usize,
+                              factor: f32,
+                              er: f32,
+                              eg: f32,
+                              eb: f32| {
                 buf[idx].0 += er * factor;
                 buf[idx].1 += eg * factor;
                 buf[idx].2 += eb * factor;
@@ -304,7 +309,8 @@ pub fn blue_noise_dither(image: &ImageBuf, bits: u32, noise_size: usize, seed: u
                 quantize(p.g + threshold * spread, bits),
                 quantize(p.b + threshold * spread, bits),
                 p.a,
-            ).clamped();
+            )
+            .clamped();
 
             result.set(x, y, dithered);
         }
@@ -314,12 +320,7 @@ pub fn blue_noise_dither(image: &ImageBuf, bits: u32, noise_size: usize, seed: u
 }
 
 /// Apply temporal dithering — varies the dither pattern per frame.
-pub fn temporal_dither(
-    image: &ImageBuf,
-    bits: u32,
-    size: BayerSize,
-    frame_index: u32,
-) -> ImageBuf {
+pub fn temporal_dither(image: &ImageBuf, bits: u32, size: BayerSize, frame_index: u32) -> ImageBuf {
     let matrix = bayer_matrix(size);
     let dim = size.dimension();
     let levels = ((1u32 << bits) - 1) as f32;
@@ -341,7 +342,8 @@ pub fn temporal_dither(
                 quantize(p.g + threshold * spread, bits),
                 quantize(p.b + threshold * spread, bits),
                 p.a,
-            ).clamped();
+            )
+            .clamped();
 
             result.set(x, y, dithered);
         }
@@ -382,7 +384,8 @@ pub fn triangle_dither(image: &ImageBuf, bits: u32, seed: u32) -> ImageBuf {
                 quantize(p.g + noise * spread, bits),
                 quantize(p.b + noise * spread, bits),
                 p.a,
-            ).clamped();
+            )
+            .clamped();
 
             result.set(x, y, dithered);
         }
@@ -402,11 +405,7 @@ pub enum DitherMethod {
 }
 
 /// Apply dithering using the specified method.
-pub fn apply_dither(
-    image: &ImageBuf,
-    method: DitherMethod,
-    bits: u32,
-) -> ImageBuf {
+pub fn apply_dither(image: &ImageBuf, method: DitherMethod, bits: u32) -> ImageBuf {
     match method {
         DitherMethod::Ordered => ordered_dither(image, bits, BayerSize::X4),
         DitherMethod::FloydSteinberg => floyd_steinberg_dither(image, bits),
@@ -478,7 +477,10 @@ mod tests {
         let mut vals: Vec<f32> = m.iter().flat_map(|r| r.iter().copied()).collect();
         vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
         for i in 1..vals.len() {
-            assert!((vals[i] - vals[i - 1]).abs() > 1e-6, "duplicate bayer values");
+            assert!(
+                (vals[i] - vals[i - 1]).abs() > 1e-6,
+                "duplicate bayer values"
+            );
         }
     }
 
@@ -529,7 +531,10 @@ mod tests {
     fn test_ordered_dither_modifies_gradient() {
         let img = gradient_image(16, 16);
         let result = ordered_dither(&img, 2, BayerSize::X4);
-        let changed = img.pixels.iter().zip(result.pixels.iter())
+        let changed = img
+            .pixels
+            .iter()
+            .zip(result.pixels.iter())
             .filter(|(a, b)| (a.r - b.r).abs() > 1e-6)
             .count();
         assert!(changed > 0, "dithering should modify gradient pixels");
@@ -548,7 +553,11 @@ mod tests {
         let img = gradient_image(16, 16);
         let result = floyd_steinberg_dither(&img, 4);
         for p in &result.pixels {
-            assert!(p.r >= 0.0 && p.r <= 1.0, "FS produced out of range: {}", p.r);
+            assert!(
+                p.r >= 0.0 && p.r <= 1.0,
+                "FS produced out of range: {}",
+                p.r
+            );
         }
     }
 
@@ -557,7 +566,11 @@ mod tests {
         let img = solid_image(16, 16, 0.5);
         let result = floyd_steinberg_dither(&img, 4);
         let avg: f32 = result.pixels.iter().map(|p| p.r).sum::<f32>() / result.pixels.len() as f32;
-        assert!((avg - 0.5).abs() < 0.05, "FS should preserve average: {}", avg);
+        assert!(
+            (avg - 0.5).abs() < 0.05,
+            "FS should preserve average: {}",
+            avg
+        );
     }
 
     #[test]
@@ -587,11 +600,17 @@ mod tests {
         let frame0 = temporal_dither(&img, 4, BayerSize::X4, 0);
         let frame1 = temporal_dither(&img, 4, BayerSize::X4, 1);
 
-        let different = frame0.pixels.iter().zip(frame1.pixels.iter())
+        let different = frame0
+            .pixels
+            .iter()
+            .zip(frame1.pixels.iter())
             .filter(|(a, b)| (a.r - b.r).abs() > 1e-6)
             .count();
 
-        assert!(different > 0, "temporal dithering should vary between frames");
+        assert!(
+            different > 0,
+            "temporal dithering should vary between frames"
+        );
     }
 
     #[test]

@@ -12,7 +12,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq)]
 pub enum KalmanError {
     /// Dimension mismatch between matrices.
-    DimensionMismatch { expected: (usize, usize), got: (usize, usize) },
+    DimensionMismatch {
+        expected: (usize, usize),
+        got: (usize, usize),
+    },
     /// Matrix is singular and cannot be inverted.
     SingularMatrix,
     /// Invalid noise covariance (must be positive semi-definite).
@@ -25,7 +28,11 @@ impl std::fmt::Display for KalmanError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::DimensionMismatch { expected, got } => {
-                write!(f, "dimension mismatch: expected {}x{}, got {}x{}", expected.0, expected.1, got.0, got.1)
+                write!(
+                    f,
+                    "dimension mismatch: expected {}x{}, got {}x{}",
+                    expected.0, expected.1, got.0, got.1
+                )
             }
             Self::SingularMatrix => write!(f, "singular matrix"),
             Self::InvalidCovariance(msg) => write!(f, "invalid covariance: {msg}"),
@@ -49,7 +56,11 @@ pub struct Matrix {
 impl Matrix {
     /// Create an r x c zero matrix.
     pub fn zeros(r: usize, c: usize) -> Self {
-        Self { rows: r, cols: c, data: vec![0.0; r * c] }
+        Self {
+            rows: r,
+            cols: c,
+            data: vec![0.0; r * c],
+        }
     }
 
     /// Create an n x n identity matrix.
@@ -122,8 +133,17 @@ impl Matrix {
                 got: (other.rows, other.cols),
             });
         }
-        let data: Vec<f64> = self.data.iter().zip(&other.data).map(|(a, b)| a + b).collect();
-        Ok(Matrix { rows: self.rows, cols: self.cols, data })
+        let data: Vec<f64> = self
+            .data
+            .iter()
+            .zip(&other.data)
+            .map(|(a, b)| a + b)
+            .collect();
+        Ok(Matrix {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        })
     }
 
     /// Element-wise subtraction.
@@ -134,14 +154,27 @@ impl Matrix {
                 got: (other.rows, other.cols),
             });
         }
-        let data: Vec<f64> = self.data.iter().zip(&other.data).map(|(a, b)| a - b).collect();
-        Ok(Matrix { rows: self.rows, cols: self.cols, data })
+        let data: Vec<f64> = self
+            .data
+            .iter()
+            .zip(&other.data)
+            .map(|(a, b)| a - b)
+            .collect();
+        Ok(Matrix {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        })
     }
 
     /// Scalar multiply.
     pub fn scale(&self, s: f64) -> Matrix {
         let data: Vec<f64> = self.data.iter().map(|v| v * s).collect();
-        Matrix { rows: self.rows, cols: self.cols, data }
+        Matrix {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        }
     }
 
     /// Invert an NxN matrix using Gauss-Jordan elimination.
@@ -381,10 +414,7 @@ pub fn rts_smooth(
 
     let mut smoothed = vec![(Matrix::zeros(1, 1), Matrix::zeros(1, 1)); n];
     // Last smoothed = last filtered.
-    smoothed[n - 1] = (
-        records[n - 1].x_filt.clone(),
-        records[n - 1].p_filt.clone(),
-    );
+    smoothed[n - 1] = (records[n - 1].x_filt.clone(), records[n - 1].p_filt.clone());
 
     for k in (0..n - 1).rev() {
         let p_pred_inv = records[k + 1].p_pred.inverse()?;
@@ -432,7 +462,10 @@ impl KalmanFilter2x2 {
             f_mat: [[1.0, dt], [0.0, 1.0]],
             h: [1.0, 0.0],
             q: [
-                [process_noise * dt * dt * dt / 3.0, process_noise * dt * dt / 2.0],
+                [
+                    process_noise * dt * dt * dt / 3.0,
+                    process_noise * dt * dt / 2.0,
+                ],
                 [process_noise * dt * dt / 2.0, process_noise * dt],
             ],
             r: meas_noise,
@@ -679,15 +712,17 @@ mod tests {
     #[test]
     fn test_rts_smoother() {
         let f_mat = Matrix::from_vec(1, 1, vec![1.0]).unwrap();
-        let records: Vec<FilterRecord> = (0..5).map(|i| {
-            let val = i as f64;
-            FilterRecord {
-                x_pred: Matrix::col_vec(&[val - 0.1]),
-                p_pred: Matrix::from_vec(1, 1, vec![1.0]).unwrap(),
-                x_filt: Matrix::col_vec(&[val]),
-                p_filt: Matrix::from_vec(1, 1, vec![0.5]).unwrap(),
-            }
-        }).collect();
+        let records: Vec<FilterRecord> = (0..5)
+            .map(|i| {
+                let val = i as f64;
+                FilterRecord {
+                    x_pred: Matrix::col_vec(&[val - 0.1]),
+                    p_pred: Matrix::from_vec(1, 1, vec![1.0]).unwrap(),
+                    x_filt: Matrix::col_vec(&[val]),
+                    p_filt: Matrix::from_vec(1, 1, vec![0.5]).unwrap(),
+                }
+            })
+            .collect();
 
         let smoothed = rts_smooth(&records, &f_mat).unwrap();
         assert_eq!(smoothed.len(), 5);

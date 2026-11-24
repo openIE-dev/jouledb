@@ -172,13 +172,9 @@ pub fn arc_path(
     // SVG arc: sweep-flag 0 = counter-clockwise in screen coords (= clockwise
     // in math coords since y is flipped).  We draw CCW in math → sweep 0.
     if include_center {
-        format!(
-            "M {cx} {cy} L {x1} {y1} A {radius} {radius} 0 {large} 0 {x2} {y2} Z"
-        )
+        format!("M {cx} {cy} L {x1} {y1} A {radius} {radius} 0 {large} 0 {x2} {y2} Z")
     } else {
-        format!(
-            "M {x1} {y1} A {radius} {radius} 0 {large} 0 {x2} {y2}"
-        )
+        format!("M {x1} {y1} A {radius} {radius} 0 {large} 0 {x2} {y2}")
     }
 }
 
@@ -469,9 +465,21 @@ mod tests {
     fn polar_area_svg() {
         let cfg = default_cfg();
         let sectors = vec![
-            PolarAreaSector { label: "A".into(), value: 5.0, color: "#f00".into() },
-            PolarAreaSector { label: "B".into(), value: 8.0, color: "#0f0".into() },
-            PolarAreaSector { label: "C".into(), value: 3.0, color: "#00f".into() },
+            PolarAreaSector {
+                label: "A".into(),
+                value: 5.0,
+                color: "#f00".into(),
+            },
+            PolarAreaSector {
+                label: "B".into(),
+                value: 8.0,
+                color: "#0f0".into(),
+            },
+            PolarAreaSector {
+                label: "C".into(),
+                value: 3.0,
+                color: "#00f".into(),
+            },
         ];
         let svg = render_polar_area(&sectors, &cfg);
         assert!(svg.contains("<path"));
@@ -491,9 +499,24 @@ mod tests {
     fn rose_chart_svg() {
         let cfg = default_cfg();
         let sectors = vec![
-            RoseSector { label: "A".into(), angle_width_deg: 120.0, value: 6.0, color: "#e74c3c".into() },
-            RoseSector { label: "B".into(), angle_width_deg: 120.0, value: 9.0, color: "#2ecc71".into() },
-            RoseSector { label: "C".into(), angle_width_deg: 120.0, value: 4.0, color: "#3498db".into() },
+            RoseSector {
+                label: "A".into(),
+                angle_width_deg: 120.0,
+                value: 6.0,
+                color: "#e74c3c".into(),
+            },
+            RoseSector {
+                label: "B".into(),
+                angle_width_deg: 120.0,
+                value: 9.0,
+                color: "#2ecc71".into(),
+            },
+            RoseSector {
+                label: "C".into(),
+                angle_width_deg: 120.0,
+                value: 4.0,
+                color: "#3498db".into(),
+            },
         ];
         let svg = render_rose_chart(&sectors, &cfg);
         assert!(svg.contains("<path"));

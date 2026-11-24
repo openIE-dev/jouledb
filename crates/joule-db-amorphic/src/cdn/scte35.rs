@@ -64,13 +64,19 @@ impl Scte35Marker {
     /// Is this an ad break start?
     pub fn is_break_start(&self) -> bool {
         self.out_of_network
-            && matches!(self.command, SpliceCommand::SpliceInsert | SpliceCommand::TimeSignal)
+            && matches!(
+                self.command,
+                SpliceCommand::SpliceInsert | SpliceCommand::TimeSignal
+            )
     }
 
     /// Is this an ad break end (return to content)?
     pub fn is_break_end(&self) -> bool {
         !self.out_of_network
-            && matches!(self.command, SpliceCommand::SpliceInsert | SpliceCommand::TimeSignal)
+            && matches!(
+                self.command,
+                SpliceCommand::SpliceInsert | SpliceCommand::TimeSignal
+            )
     }
 }
 
@@ -123,11 +129,7 @@ impl Scte35Parser {
     }
 
     /// Create an explicit ad break marker.
-    pub fn ad_break(
-        event_id: u32,
-        start_ms: u64,
-        duration_ms: u64,
-    ) -> Scte35Marker {
+    pub fn ad_break(event_id: u32, start_ms: u64, duration_ms: u64) -> Scte35Marker {
         Scte35Marker {
             splice_event_id: event_id,
             command: SpliceCommand::SpliceInsert,
@@ -154,11 +156,7 @@ impl Scte35Parser {
 }
 
 /// Store SCTE-35 markers as temporal fields for queryable ad break scheduling.
-pub fn store_markers(
-    temporal: &mut TemporalStore,
-    channel_id: RecordId,
-    markers: &[Scte35Marker],
-) {
+pub fn store_markers(temporal: &mut TemporalStore, channel_id: RecordId, markers: &[Scte35Marker]) {
     for marker in markers {
         if let (Some(start_ms), Some(dur_ms)) = (marker.wall_clock_ms, marker.duration_ms()) {
             temporal.set(

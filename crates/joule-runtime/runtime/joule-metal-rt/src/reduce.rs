@@ -124,7 +124,11 @@ mod tests {
         assert!(FABRIC_REDUCE_SUM_MSL.contains("threadgroup_barrier"));
         assert!(ANE_DOES_NOT_RUN_THIS_KERNEL.contains("Core ML"));
         assert!(ANE_DOES_NOT_RUN_THIS_KERNEL.contains("GPU"));
-        assert!(!ANE_DOES_NOT_RUN_THIS_KERNEL.to_ascii_lowercase().contains("submitted to the ane and ran"));
+        assert!(
+            !ANE_DOES_NOT_RUN_THIS_KERNEL
+                .to_ascii_lowercase()
+                .contains("submitted to the ane and ran")
+        );
     }
 
     #[test]

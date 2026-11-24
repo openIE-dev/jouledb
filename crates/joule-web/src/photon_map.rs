@@ -13,35 +13,81 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0, z: 0.0 } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
-    pub fn length_squared(self) -> f64 { self.dot(self) }
-    pub fn length(self) -> f64 { self.length_squared().sqrt() }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
+    pub fn length_squared(self) -> f64 {
+        self.dot(self)
+    }
+    pub fn length(self) -> f64 {
+        self.length_squared().sqrt()
+    }
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-15 { Self::zero() } else { self * (1.0 / l) }
+        if l < 1e-15 {
+            Self::zero()
+        } else {
+            self * (1.0 / l)
+        }
     }
     pub fn index(self, axis: usize) -> f64 {
-        match axis { 0 => self.x, 1 => self.y, _ => self.z }
+        match axis {
+            0 => self.x,
+            1 => self.y,
+            _ => self.z,
+        }
     }
 }
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 impl std::ops::Mul<f64> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 impl std::ops::Neg for Vec3 {
     type Output = Self;
-    fn neg(self) -> Self { Self { x: -self.x, y: -self.y, z: -self.z } }
+    fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
 }
 
 impl fmt::Display for Vec3 {
@@ -59,22 +105,50 @@ pub struct Color {
 }
 
 impl Color {
-    pub fn new(r: f64, g: f64, b: f64) -> Self { Self { r, g, b } }
-    pub fn black() -> Self { Self { r: 0.0, g: 0.0, b: 0.0 } }
-    pub fn luminance(self) -> f64 { 0.2126 * self.r + 0.7152 * self.g + 0.0722 * self.b }
+    pub fn new(r: f64, g: f64, b: f64) -> Self {
+        Self { r, g, b }
+    }
+    pub fn black() -> Self {
+        Self {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+        }
+    }
+    pub fn luminance(self) -> f64 {
+        0.2126 * self.r + 0.7152 * self.g + 0.0722 * self.b
+    }
 }
 
 impl std::ops::Add for Color {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { r: self.r + r.r, g: self.g + r.g, b: self.b + r.b } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            r: self.r + r.r,
+            g: self.g + r.g,
+            b: self.b + r.b,
+        }
+    }
 }
 impl std::ops::Mul<f64> for Color {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { r: self.r * s, g: self.g * s, b: self.b * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
+    }
 }
 impl std::ops::Mul for Color {
     type Output = Self;
-    fn mul(self, o: Self) -> Self { Self { r: self.r * o.r, g: self.g * o.g, b: self.b * o.b } }
+    fn mul(self, o: Self) -> Self {
+        Self {
+            r: self.r * o.r,
+            g: self.g * o.g,
+            b: self.b * o.b,
+        }
+    }
 }
 
 /// Photon type flag.
@@ -95,7 +169,12 @@ pub struct Photon {
 
 impl Photon {
     pub fn new(position: Vec3, direction: Vec3, power: Color, photon_type: PhotonType) -> Self {
-        Self { position, direction: direction.normalized(), power, photon_type }
+        Self {
+            position,
+            direction: direction.normalized(),
+            power,
+            photon_type,
+        }
     }
 }
 
@@ -105,9 +184,16 @@ pub struct Rng {
 }
 
 impl Rng {
-    pub fn new(seed: u64) -> Self { Self { state: seed.wrapping_add(1) } }
+    pub fn new(seed: u64) -> Self {
+        Self {
+            state: seed.wrapping_add(1),
+        }
+    }
     pub fn next_f64(&mut self) -> f64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let bits = (self.state >> 11) as f64;
         bits / (1u64 << 53) as f64
     }
@@ -126,7 +212,12 @@ pub fn emit_photons(light: &PointLight, count: usize, rng: &mut Rng) -> Vec<Phot
     let mut photons = Vec::with_capacity(count);
     for _ in 0..count {
         let dir = sample_sphere(rng);
-        photons.push(Photon::new(light.position, dir, power_per_photon, PhotonType::Global));
+        photons.push(Photon::new(
+            light.position,
+            dir,
+            power_per_photon,
+            PhotonType::Global,
+        ));
     }
     photons
 }
@@ -160,14 +251,22 @@ impl PhotonMap {
     /// Build a photon map from a list of photons.
     pub fn build(mut photons: Vec<Photon>) -> Self {
         if photons.is_empty() {
-            return Self { photons, nodes: Vec::new(), root: None };
+            return Self {
+                photons,
+                nodes: Vec::new(),
+                root: None,
+            };
         }
         let mut indices: Vec<usize> = (0..photons.len()).collect();
         let mut nodes = Vec::with_capacity(photons.len());
         let root = Self::build_node(&photons, &mut indices, 0, photons.len(), 0, &mut nodes);
         // Reorder photons to match index order in nodes
         let _ = &mut photons;
-        Self { photons, nodes, root: Some(root) }
+        Self {
+            photons,
+            nodes,
+            root: Some(root),
+        }
     }
 
     fn build_node(
@@ -210,13 +309,27 @@ impl PhotonMap {
         });
 
         let left = if mid > start {
-            Some(Self::build_node(photons, indices, start, mid, depth + 1, nodes))
+            Some(Self::build_node(
+                photons,
+                indices,
+                start,
+                mid,
+                depth + 1,
+                nodes,
+            ))
         } else {
             None
         };
 
         let right = if mid + 1 < end {
-            Some(Self::build_node(photons, indices, mid + 1, end, depth + 1, nodes))
+            Some(Self::build_node(
+                photons,
+                indices,
+                mid + 1,
+                end,
+                depth + 1,
+                nodes,
+            ))
         } else {
             None
         };
@@ -235,12 +348,7 @@ impl PhotonMap {
     }
 
     /// Find the N nearest photons to a query point within max_radius.
-    pub fn gather(
-        &self,
-        query: Vec3,
-        max_count: usize,
-        max_radius: f64,
-    ) -> Vec<(usize, f64)> {
+    pub fn gather(&self, query: Vec3, max_count: usize, max_radius: f64) -> Vec<(usize, f64)> {
         let mut results: Vec<(usize, f64)> = Vec::new();
         let mut max_dist_sq = max_radius * max_radius;
         if let Some(root) = self.root {
@@ -409,7 +517,9 @@ pub fn mark_caustic(photon: &mut Photon) {
 mod tests {
     use super::*;
 
-    fn approx_eq(a: f64, b: f64, eps: f64) -> bool { (a - b).abs() < eps }
+    fn approx_eq(a: f64, b: f64, eps: f64) -> bool {
+        (a - b).abs() < eps
+    }
 
     #[test]
     fn test_photon_creation() {
@@ -425,7 +535,10 @@ mod tests {
 
     #[test]
     fn test_emit_photons_count() {
-        let light = PointLight { position: Vec3::zero(), power: Color::new(100.0, 100.0, 100.0) };
+        let light = PointLight {
+            position: Vec3::zero(),
+            power: Color::new(100.0, 100.0, 100.0),
+        };
         let mut rng = Rng::new(42);
         let photons = emit_photons(&light, 1000, &mut rng);
         assert_eq!(photons.len(), 1000);
@@ -433,7 +546,10 @@ mod tests {
 
     #[test]
     fn test_emit_photons_power_conservation() {
-        let light = PointLight { position: Vec3::zero(), power: Color::new(10.0, 20.0, 30.0) };
+        let light = PointLight {
+            position: Vec3::zero(),
+            power: Color::new(10.0, 20.0, 30.0),
+        };
         let mut rng = Rng::new(42);
         let photons = emit_photons(&light, 500, &mut rng);
         let total_r: f64 = photons.iter().map(|p| p.power.r).sum();
@@ -446,7 +562,10 @@ mod tests {
 
     #[test]
     fn test_emit_photons_directions_normalized() {
-        let light = PointLight { position: Vec3::zero(), power: Color::new(1.0, 1.0, 1.0) };
+        let light = PointLight {
+            position: Vec3::zero(),
+            power: Color::new(1.0, 1.0, 1.0),
+        };
         let mut rng = Rng::new(77);
         let photons = emit_photons(&light, 100, &mut rng);
         for p in &photons {
@@ -465,9 +584,12 @@ mod tests {
 
     #[test]
     fn test_photon_map_single() {
-        let photons = vec![
-            Photon::new(Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0), Color::new(1.0, 0.0, 0.0), PhotonType::Global),
-        ];
+        let photons = vec![Photon::new(
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            Color::new(1.0, 0.0, 0.0),
+            PhotonType::Global,
+        )];
         let map = PhotonMap::build(photons);
         assert_eq!(map.len(), 1);
         let results = map.gather(Vec3::new(1.0, 0.0, 0.0), 5, 1.0);
@@ -477,9 +599,24 @@ mod tests {
     #[test]
     fn test_photon_map_gather_nearest() {
         let photons = vec![
-            Photon::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0), Color::new(1.0, 0.0, 0.0), PhotonType::Global),
-            Photon::new(Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0), Color::new(0.0, 1.0, 0.0), PhotonType::Global),
-            Photon::new(Vec3::new(10.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0), Color::new(0.0, 0.0, 1.0), PhotonType::Global),
+            Photon::new(
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, -1.0, 0.0),
+                Color::new(1.0, 0.0, 0.0),
+                PhotonType::Global,
+            ),
+            Photon::new(
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, -1.0, 0.0),
+                Color::new(0.0, 1.0, 0.0),
+                PhotonType::Global,
+            ),
+            Photon::new(
+                Vec3::new(10.0, 0.0, 0.0),
+                Vec3::new(0.0, -1.0, 0.0),
+                Color::new(0.0, 0.0, 1.0),
+                PhotonType::Global,
+            ),
         ];
         let map = PhotonMap::build(photons);
         // Query near origin, should get first two
@@ -492,8 +629,18 @@ mod tests {
     #[test]
     fn test_photon_map_gather_radius_limit() {
         let photons = vec![
-            Photon::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0), Color::new(1.0, 0.0, 0.0), PhotonType::Global),
-            Photon::new(Vec3::new(100.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0), Color::new(0.0, 1.0, 0.0), PhotonType::Global),
+            Photon::new(
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, -1.0, 0.0),
+                Color::new(1.0, 0.0, 0.0),
+                PhotonType::Global,
+            ),
+            Photon::new(
+                Vec3::new(100.0, 0.0, 0.0),
+                Vec3::new(0.0, -1.0, 0.0),
+                Color::new(0.0, 1.0, 0.0),
+                PhotonType::Global,
+            ),
         ];
         let map = PhotonMap::build(photons);
         let results = map.gather(Vec3::zero(), 10, 5.0);
@@ -505,8 +652,18 @@ mod tests {
         let dir = Vec3::new(0.0, -1.0, 0.0); // photon going down
         let normal = Vec3::new(0.0, 1.0, 0.0); // surface facing up
         let photons = vec![
-            Photon::new(Vec3::new(0.0, 0.0, 0.0), dir, Color::new(1.0, 0.0, 0.0), PhotonType::Global),
-            Photon::new(Vec3::new(0.1, 0.0, 0.0), dir, Color::new(1.0, 0.0, 0.0), PhotonType::Global),
+            Photon::new(
+                Vec3::new(0.0, 0.0, 0.0),
+                dir,
+                Color::new(1.0, 0.0, 0.0),
+                PhotonType::Global,
+            ),
+            Photon::new(
+                Vec3::new(0.1, 0.0, 0.0),
+                dir,
+                Color::new(1.0, 0.0, 0.0),
+                PhotonType::Global,
+            ),
         ];
         let map = PhotonMap::build(photons);
         let rad = radiance_estimate(&map, Vec3::zero(), normal, 10, 1.0, KernelFilter::Box);
@@ -519,11 +676,28 @@ mod tests {
         let dir = Vec3::new(0.0, -1.0, 0.0);
         let normal = Vec3::new(0.0, 1.0, 0.0);
         let photons = vec![
-            Photon::new(Vec3::zero(), dir, Color::new(2.0, 0.0, 0.0), PhotonType::Global),
-            Photon::new(Vec3::new(0.5, 0.0, 0.0), dir, Color::new(2.0, 0.0, 0.0), PhotonType::Global),
+            Photon::new(
+                Vec3::zero(),
+                dir,
+                Color::new(2.0, 0.0, 0.0),
+                PhotonType::Global,
+            ),
+            Photon::new(
+                Vec3::new(0.5, 0.0, 0.0),
+                dir,
+                Color::new(2.0, 0.0, 0.0),
+                PhotonType::Global,
+            ),
         ];
         let map = PhotonMap::build(photons);
-        let rad = radiance_estimate(&map, Vec3::zero(), normal, 10, 2.0, KernelFilter::Cone { k: 1.0 });
+        let rad = radiance_estimate(
+            &map,
+            Vec3::zero(),
+            normal,
+            10,
+            2.0,
+            KernelFilter::Cone { k: 1.0 },
+        );
         assert!(rad.r > 0.0);
     }
 
@@ -531,11 +705,21 @@ mod tests {
     fn test_radiance_estimate_gaussian_filter() {
         let dir = Vec3::new(0.0, -1.0, 0.0);
         let normal = Vec3::new(0.0, 1.0, 0.0);
-        let photons = vec![
-            Photon::new(Vec3::zero(), dir, Color::new(5.0, 5.0, 5.0), PhotonType::Global),
-        ];
+        let photons = vec![Photon::new(
+            Vec3::zero(),
+            dir,
+            Color::new(5.0, 5.0, 5.0),
+            PhotonType::Global,
+        )];
         let map = PhotonMap::build(photons);
-        let rad = radiance_estimate(&map, Vec3::zero(), normal, 10, 1.0, KernelFilter::Gaussian { alpha: 0.918 });
+        let rad = radiance_estimate(
+            &map,
+            Vec3::zero(),
+            normal,
+            10,
+            1.0,
+            KernelFilter::Gaussian { alpha: 0.918 },
+        );
         assert!(rad.r > 0.0);
     }
 
@@ -543,9 +727,12 @@ mod tests {
     fn test_radiance_ignores_backfacing() {
         let dir = Vec3::new(0.0, 1.0, 0.0); // photon going UP (behind surface)
         let normal = Vec3::new(0.0, 1.0, 0.0);
-        let photons = vec![
-            Photon::new(Vec3::zero(), dir, Color::new(10.0, 10.0, 10.0), PhotonType::Global),
-        ];
+        let photons = vec![Photon::new(
+            Vec3::zero(),
+            dir,
+            Color::new(10.0, 10.0, 10.0),
+            PhotonType::Global,
+        )];
         let map = PhotonMap::build(photons);
         let rad = radiance_estimate(&map, Vec3::zero(), normal, 10, 1.0, KernelFilter::Box);
         // Photon direction dots positive with normal -> ignored
@@ -555,8 +742,18 @@ mod tests {
     #[test]
     fn test_caustic_map_filters() {
         let photons = vec![
-            Photon::new(Vec3::zero(), Vec3::new(0.0, -1.0, 0.0), Color::new(1.0, 0.0, 0.0), PhotonType::Caustic),
-            Photon::new(Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0), Color::new(0.0, 1.0, 0.0), PhotonType::Global),
+            Photon::new(
+                Vec3::zero(),
+                Vec3::new(0.0, -1.0, 0.0),
+                Color::new(1.0, 0.0, 0.0),
+                PhotonType::Caustic,
+            ),
+            Photon::new(
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, -1.0, 0.0),
+                Color::new(0.0, 1.0, 0.0),
+                PhotonType::Global,
+            ),
         ];
         let caustic_map = build_caustic_map(photons);
         assert_eq!(caustic_map.len(), 1);
@@ -565,9 +762,24 @@ mod tests {
     #[test]
     fn test_global_map_filters() {
         let photons = vec![
-            Photon::new(Vec3::zero(), Vec3::new(0.0, -1.0, 0.0), Color::new(1.0, 0.0, 0.0), PhotonType::Caustic),
-            Photon::new(Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0), Color::new(0.0, 1.0, 0.0), PhotonType::Global),
-            Photon::new(Vec3::new(2.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0), Color::new(0.0, 0.0, 1.0), PhotonType::Global),
+            Photon::new(
+                Vec3::zero(),
+                Vec3::new(0.0, -1.0, 0.0),
+                Color::new(1.0, 0.0, 0.0),
+                PhotonType::Caustic,
+            ),
+            Photon::new(
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, -1.0, 0.0),
+                Color::new(0.0, 1.0, 0.0),
+                PhotonType::Global,
+            ),
+            Photon::new(
+                Vec3::new(2.0, 0.0, 0.0),
+                Vec3::new(0.0, -1.0, 0.0),
+                Color::new(0.0, 0.0, 1.0),
+                PhotonType::Global,
+            ),
         ];
         let global_map = build_global_map(photons);
         assert_eq!(global_map.len(), 2);
@@ -575,7 +787,12 @@ mod tests {
 
     #[test]
     fn test_mark_caustic() {
-        let mut p = Photon::new(Vec3::zero(), Vec3::new(0.0, -1.0, 0.0), Color::new(1.0, 1.0, 1.0), PhotonType::Global);
+        let mut p = Photon::new(
+            Vec3::zero(),
+            Vec3::new(0.0, -1.0, 0.0),
+            Color::new(1.0, 1.0, 1.0),
+            PhotonType::Global,
+        );
         assert_eq!(p.photon_type, PhotonType::Global);
         mark_caustic(&mut p);
         assert_eq!(p.photon_type, PhotonType::Caustic);
@@ -584,14 +801,21 @@ mod tests {
     #[test]
     fn test_kdtree_many_photons() {
         let mut rng = Rng::new(42);
-        let photons: Vec<Photon> = (0..500).map(|_| {
-            let pos = Vec3::new(
-                rng.next_f64() * 100.0 - 50.0,
-                rng.next_f64() * 100.0 - 50.0,
-                rng.next_f64() * 100.0 - 50.0,
-            );
-            Photon::new(pos, Vec3::new(0.0, -1.0, 0.0), Color::new(0.01, 0.01, 0.01), PhotonType::Global)
-        }).collect();
+        let photons: Vec<Photon> = (0..500)
+            .map(|_| {
+                let pos = Vec3::new(
+                    rng.next_f64() * 100.0 - 50.0,
+                    rng.next_f64() * 100.0 - 50.0,
+                    rng.next_f64() * 100.0 - 50.0,
+                );
+                Photon::new(
+                    pos,
+                    Vec3::new(0.0, -1.0, 0.0),
+                    Color::new(0.01, 0.01, 0.01),
+                    PhotonType::Global,
+                )
+            })
+            .collect();
         let map = PhotonMap::build(photons);
         assert_eq!(map.len(), 500);
 
@@ -605,14 +829,16 @@ mod tests {
 
     #[test]
     fn test_gather_respects_max_count() {
-        let photons: Vec<Photon> = (0..50).map(|i| {
-            Photon::new(
-                Vec3::new(i as f64 * 0.01, 0.0, 0.0),
-                Vec3::new(0.0, -1.0, 0.0),
-                Color::new(1.0, 1.0, 1.0),
-                PhotonType::Global,
-            )
-        }).collect();
+        let photons: Vec<Photon> = (0..50)
+            .map(|i| {
+                Photon::new(
+                    Vec3::new(i as f64 * 0.01, 0.0, 0.0),
+                    Vec3::new(0.0, -1.0, 0.0),
+                    Color::new(1.0, 1.0, 1.0),
+                    PhotonType::Global,
+                )
+            })
+            .collect();
         let map = PhotonMap::build(photons);
         let results = map.gather(Vec3::zero(), 5, 100.0);
         assert_eq!(results.len(), 5);
@@ -648,7 +874,14 @@ mod tests {
     #[test]
     fn test_radiance_no_photons() {
         let map = PhotonMap::build(vec![]);
-        let rad = radiance_estimate(&map, Vec3::zero(), Vec3::new(0.0, 1.0, 0.0), 10, 1.0, KernelFilter::Box);
+        let rad = radiance_estimate(
+            &map,
+            Vec3::zero(),
+            Vec3::new(0.0, 1.0, 0.0),
+            10,
+            1.0,
+            KernelFilter::Box,
+        );
         assert!(approx_eq(rad.r, 0.0, 1e-9));
         assert!(approx_eq(rad.g, 0.0, 1e-9));
         assert!(approx_eq(rad.b, 0.0, 1e-9));

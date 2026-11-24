@@ -35,11 +35,17 @@ impl std::error::Error for SurveillanceError {}
 // ── Side / Order type ───────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Side { Buy, Sell }
+pub enum Side {
+    Buy,
+    Sell,
+}
 
 impl fmt::Display for Side {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self { Self::Buy => write!(f, "BUY"), Self::Sell => write!(f, "SELL") }
+        match self {
+            Self::Buy => write!(f, "BUY"),
+            Self::Sell => write!(f, "SELL"),
+        }
     }
 }
 
@@ -69,7 +75,12 @@ impl fmt::Display for PatternType {
 // ── Alert severity ──────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Severity { Low, Medium, High, Critical }
+pub enum Severity {
+    Low,
+    Medium,
+    High,
+    Critical,
+}
 
 impl fmt::Display for Severity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -122,9 +133,14 @@ pub struct Order {
 impl fmt::Display for Order {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "Order({} {} {} {:.2}x{:.0} @{}ms{})",
-            self.order_id, self.instrument, self.side,
-            self.price, self.quantity, self.timestamp_ms,
+            f,
+            "Order({} {} {} {:.2}x{:.0} @{}ms{})",
+            self.order_id,
+            self.instrument,
+            self.side,
+            self.price,
+            self.quantity,
+            self.timestamp_ms,
             if self.cancelled { " CANCELLED" } else { "" },
         )
     }
@@ -148,9 +164,9 @@ pub struct Alert {
 impl fmt::Display for Alert {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "Alert({} {} {} score={:.2} {})",
-            self.alert_id, self.pattern, self.severity,
-            self.score, self.instrument,
+            f,
+            "Alert({} {} {} score={:.2} {})",
+            self.alert_id, self.pattern, self.severity, self.score, self.instrument,
         )
     }
 }
@@ -170,8 +186,12 @@ pub struct Case {
 impl fmt::Display for Case {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "Case({} {} alerts={} assignee={})",
-            self.case_id, self.status, self.alert_ids.len(), self.assignee,
+            f,
+            "Case({} {} alerts={} assignee={})",
+            self.case_id,
+            self.status,
+            self.alert_ids.len(),
+            self.assignee,
         )
     }
 }
@@ -180,7 +200,11 @@ impl fmt::Display for Case {
 
 /// Detect layering: many same-side orders at different price levels,
 /// large fraction cancelled shortly after placement.
-pub fn detect_layering(orders: &[Order], cancel_ratio_threshold: f64, min_levels: usize) -> Vec<Vec<usize>> {
+pub fn detect_layering(
+    orders: &[Order],
+    cancel_ratio_threshold: f64,
+    min_levels: usize,
+) -> Vec<Vec<usize>> {
     let mut by_instrument: HashMap<&str, Vec<(usize, &Order)>> = HashMap::new();
     for (i, o) in orders.iter().enumerate() {
         by_instrument.entry(&o.instrument).or_default().push((i, o));
@@ -189,13 +213,17 @@ pub fn detect_layering(orders: &[Order], cancel_ratio_threshold: f64, min_levels
     for (_inst, ords) in &by_instrument {
         for side in [Side::Buy, Side::Sell] {
             let side_ords: Vec<_> = ords.iter().filter(|(_, o)| o.side == side).collect();
-            if side_ords.len() < min_levels { continue; }
+            if side_ords.len() < min_levels {
+                continue;
+            }
             let mut prices = std::collections::HashSet::new();
             let mut cancelled_count = 0usize;
             let mut indices = Vec::new();
             for &(idx, o) in &side_ords {
                 prices.insert(o.price.to_bits());
-                if o.cancelled { cancelled_count += 1; }
+                if o.cancelled {
+                    cancelled_count += 1;
+                }
                 indices.push(*idx);
             }
             if prices.len() >= min_levels {
@@ -211,7 +239,9 @@ pub fn detect_layering(orders: &[Order], cancel_ratio_threshold: f64, min_levels
 
 /// Detect spoofing: large order placed then cancelled before fill.
 pub fn detect_spoofing(orders: &[Order], size_threshold: f64) -> Vec<usize> {
-    orders.iter().enumerate()
+    orders
+        .iter()
+        .enumerate()
         .filter(|(_, o)| o.cancelled && o.quantity >= size_threshold)
         .map(|(i, _)| i)
         .collect()
@@ -251,10 +281,15 @@ pub fn score_alert(pattern: PatternType, order_count: usize, total_quantity: f64
 }
 
 pub fn severity_from_score(score: f64) -> Severity {
-    if score >= 80.0 { Severity::Critical }
-    else if score >= 60.0 { Severity::High }
-    else if score >= 40.0 { Severity::Medium }
-    else { Severity::Low }
+    if score >= 80.0 {
+        Severity::Critical
+    } else if score >= 60.0 {
+        Severity::High
+    } else if score >= 40.0 {
+        Severity::Medium
+    } else {
+        Severity::Low
+    }
 }
 
 // ── Surveillance engine ─────────────────────────────────────────
@@ -268,25 +303,42 @@ pub struct SurveillanceEngine {
 
 impl SurveillanceEngine {
     pub fn new() -> Self {
-        Self { next_alert_id: 1, next_case_id: 1, alerts: Vec::new(), cases: Vec::new() }
+        Self {
+            next_alert_id: 1,
+            next_case_id: 1,
+            alerts: Vec::new(),
+            cases: Vec::new(),
+        }
     }
 
-    pub fn alerts(&self) -> &[Alert] { &self.alerts }
-    pub fn cases(&self) -> &[Case] { &self.cases }
+    pub fn alerts(&self) -> &[Alert] {
+        &self.alerts
+    }
+    pub fn cases(&self) -> &[Case] {
+        &self.cases
+    }
 
     pub fn generate_alert(
-        &mut self, pattern: PatternType, instrument: &str,
-        account_id: &str, order_ids: Vec<u64>, description: &str,
-        timestamp_ms: u64, total_quantity: f64,
+        &mut self,
+        pattern: PatternType,
+        instrument: &str,
+        account_id: &str,
+        order_ids: Vec<u64>,
+        description: &str,
+        timestamp_ms: u64,
+        total_quantity: f64,
     ) -> &Alert {
         let score = score_alert(pattern, order_ids.len(), total_quantity);
         let severity = severity_from_score(score);
         let alert = Alert {
             alert_id: self.next_alert_id,
-            pattern, severity, score,
+            pattern,
+            severity,
+            score,
             instrument: instrument.into(),
             account_id: account_id.into(),
-            order_ids, description: description.into(),
+            order_ids,
+            description: description.into(),
             timestamp_ms,
         };
         self.next_alert_id += 1;
@@ -308,15 +360,25 @@ impl SurveillanceEngine {
         self.cases.last().unwrap()
     }
 
-    pub fn transition_case(&mut self, case_id: u64, new_status: CaseStatus) -> Result<(), SurveillanceError> {
-        let case = self.cases.iter_mut().find(|c| c.case_id == case_id)
+    pub fn transition_case(
+        &mut self,
+        case_id: u64,
+        new_status: CaseStatus,
+    ) -> Result<(), SurveillanceError> {
+        let case = self
+            .cases
+            .iter_mut()
+            .find(|c| c.case_id == case_id)
             .ok_or(SurveillanceError::CaseNotFound(case_id))?;
         case.status = new_status;
         Ok(())
     }
 
     pub fn add_case_note(&mut self, case_id: u64, note: &str) -> Result<(), SurveillanceError> {
-        let case = self.cases.iter_mut().find(|c| c.case_id == case_id)
+        let case = self
+            .cases
+            .iter_mut()
+            .find(|c| c.case_id == case_id)
             .ok_or(SurveillanceError::CaseNotFound(case_id))?;
         case.notes.push(note.into());
         Ok(())
@@ -325,14 +387,23 @@ impl SurveillanceEngine {
     /// Prioritised alerts sorted by score descending.
     pub fn prioritised_alerts(&self) -> Vec<&Alert> {
         let mut sorted: Vec<&Alert> = self.alerts.iter().collect();
-        sorted.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        sorted.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         sorted
     }
 }
 
 impl fmt::Display for SurveillanceEngine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SurveillanceEngine(alerts={} cases={})", self.alerts.len(), self.cases.len())
+        write!(
+            f,
+            "SurveillanceEngine(alerts={} cases={})",
+            self.alerts.len(),
+            self.cases.len()
+        )
     }
 }
 
@@ -342,11 +413,45 @@ impl fmt::Display for SurveillanceEngine {
 mod tests {
     use super::*;
 
-    fn buy_order(id: u64, acct: &str, inst: &str, price: f64, qty: f64, ts: u64, cancelled: bool) -> Order {
-        Order { order_id: id, account_id: acct.into(), instrument: inst.into(), side: Side::Buy, price, quantity: qty, timestamp_ms: ts, cancelled }
+    fn buy_order(
+        id: u64,
+        acct: &str,
+        inst: &str,
+        price: f64,
+        qty: f64,
+        ts: u64,
+        cancelled: bool,
+    ) -> Order {
+        Order {
+            order_id: id,
+            account_id: acct.into(),
+            instrument: inst.into(),
+            side: Side::Buy,
+            price,
+            quantity: qty,
+            timestamp_ms: ts,
+            cancelled,
+        }
     }
-    fn sell_order(id: u64, acct: &str, inst: &str, price: f64, qty: f64, ts: u64, cancelled: bool) -> Order {
-        Order { order_id: id, account_id: acct.into(), instrument: inst.into(), side: Side::Sell, price, quantity: qty, timestamp_ms: ts, cancelled }
+    fn sell_order(
+        id: u64,
+        acct: &str,
+        inst: &str,
+        price: f64,
+        qty: f64,
+        ts: u64,
+        cancelled: bool,
+    ) -> Order {
+        Order {
+            order_id: id,
+            account_id: acct.into(),
+            instrument: inst.into(),
+            side: Side::Sell,
+            price,
+            quantity: qty,
+            timestamp_ms: ts,
+            cancelled,
+        }
     }
 
     #[test]
@@ -419,8 +524,13 @@ mod tests {
     fn test_generate_alert() {
         let mut engine = SurveillanceEngine::new();
         let alert = engine.generate_alert(
-            PatternType::Spoofing, "AAPL", "ACCT1",
-            vec![1, 2], "spoofing detected", 5000, 10000.0,
+            PatternType::Spoofing,
+            "AAPL",
+            "ACCT1",
+            vec![1, 2],
+            "spoofing detected",
+            5000,
+            10000.0,
         );
         assert_eq!(alert.alert_id, 1);
         assert_eq!(alert.pattern, PatternType::Spoofing);
@@ -439,7 +549,9 @@ mod tests {
     fn test_transition_case() {
         let mut engine = SurveillanceEngine::new();
         engine.create_case(vec![], "analyst1", 100);
-        engine.transition_case(1, CaseStatus::UnderInvestigation).unwrap();
+        engine
+            .transition_case(1, CaseStatus::UnderInvestigation)
+            .unwrap();
         assert_eq!(engine.cases()[0].status, CaseStatus::UnderInvestigation);
     }
 
@@ -462,7 +574,15 @@ mod tests {
     fn test_prioritised_alerts() {
         let mut engine = SurveillanceEngine::new();
         engine.generate_alert(PatternType::Layering, "X", "A", vec![1], "low", 100, 10.0);
-        engine.generate_alert(PatternType::WashTrade, "X", "A", vec![1, 2, 3, 4, 5], "high", 200, 50000.0);
+        engine.generate_alert(
+            PatternType::WashTrade,
+            "X",
+            "A",
+            vec![1, 2, 3, 4, 5],
+            "high",
+            200,
+            50000.0,
+        );
         let pri = engine.prioritised_alerts();
         assert!(pri[0].score >= pri[1].score);
     }
@@ -476,9 +596,15 @@ mod tests {
     #[test]
     fn test_display_alert() {
         let a = Alert {
-            alert_id: 1, pattern: PatternType::Spoofing, severity: Severity::High,
-            score: 75.0, instrument: "AAPL".into(), account_id: "A".into(),
-            order_ids: vec![1], description: "test".into(), timestamp_ms: 100,
+            alert_id: 1,
+            pattern: PatternType::Spoofing,
+            severity: Severity::High,
+            score: 75.0,
+            instrument: "AAPL".into(),
+            account_id: "A".into(),
+            order_ids: vec![1],
+            description: "test".into(),
+            timestamp_ms: 100,
         };
         assert!(format!("{a}").contains("SPOOFING"));
     }
@@ -486,8 +612,12 @@ mod tests {
     #[test]
     fn test_display_case() {
         let c = Case {
-            case_id: 1, status: CaseStatus::Open, alert_ids: vec![1],
-            assignee: "bob".into(), notes: vec![], created_ms: 100,
+            case_id: 1,
+            status: CaseStatus::Open,
+            alert_ids: vec![1],
+            assignee: "bob".into(),
+            notes: vec![],
+            created_ms: 100,
         };
         assert!(format!("{c}").contains("OPEN"));
     }

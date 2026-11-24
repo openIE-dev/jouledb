@@ -31,11 +31,17 @@ pub struct WeekdaySpec {
 
 impl WeekdaySpec {
     pub fn every(wd: Weekday) -> Self {
-        Self { ordinal: None, weekday: wd }
+        Self {
+            ordinal: None,
+            weekday: wd,
+        }
     }
 
     pub fn nth(n: i8, wd: Weekday) -> Self {
-        Self { ordinal: Some(n), weekday: wd }
+        Self {
+            ordinal: Some(n),
+            weekday: wd,
+        }
     }
 }
 
@@ -79,17 +85,26 @@ impl RRule {
 
     /// Create a simple weekly recurrence.
     pub fn weekly() -> Self {
-        Self { freq: Frequency::Weekly, ..Self::daily() }
+        Self {
+            freq: Frequency::Weekly,
+            ..Self::daily()
+        }
     }
 
     /// Create a simple monthly recurrence.
     pub fn monthly() -> Self {
-        Self { freq: Frequency::Monthly, ..Self::daily() }
+        Self {
+            freq: Frequency::Monthly,
+            ..Self::daily()
+        }
     }
 
     /// Create a simple yearly recurrence.
     pub fn yearly() -> Self {
-        Self { freq: Frequency::Yearly, ..Self::daily() }
+        Self {
+            freq: Frequency::Yearly,
+            ..Self::daily()
+        }
     }
 
     pub fn with_interval(mut self, n: u32) -> Self {
@@ -265,7 +280,8 @@ fn expand_candidates(cursor: NaiveDate, rule: &RRule) -> Vec<NaiveDate> {
                 vec![cursor]
             } else {
                 // The week containing `cursor` — find matching days.
-                let week_start = cursor - chrono::Duration::days(cursor.weekday().num_days_from_monday() as i64);
+                let week_start =
+                    cursor - chrono::Duration::days(cursor.weekday().num_days_from_monday() as i64);
                 rule.by_day
                     .iter()
                     .filter_map(|spec| {
@@ -285,8 +301,16 @@ fn expand_candidates(cursor: NaiveDate, rule: &RRule) -> Vec<NaiveDate> {
             } else if !rule.by_day.is_empty() {
                 expand_by_day_in_month(cursor.year(), cursor.month(), &rule.by_day)
             } else {
-                vec![NaiveDate::from_ymd_opt(cursor.year(), cursor.month(), cursor.day().min(days_in_month(cursor.year(), cursor.month())))
-                    .unwrap_or(cursor)]
+                vec![
+                    NaiveDate::from_ymd_opt(
+                        cursor.year(),
+                        cursor.month(),
+                        cursor
+                            .day()
+                            .min(days_in_month(cursor.year(), cursor.month())),
+                    )
+                    .unwrap_or(cursor),
+                ]
             }
         }
         Frequency::Yearly => {
@@ -299,7 +323,9 @@ fn expand_candidates(cursor: NaiveDate, rule: &RRule) -> Vec<NaiveDate> {
                     })
                     .collect()
             } else {
-                let day = cursor.day().min(days_in_month(cursor.year(), cursor.month()));
+                let day = cursor
+                    .day()
+                    .min(days_in_month(cursor.year(), cursor.month()));
                 vec![NaiveDate::from_ymd_opt(cursor.year(), cursor.month(), day).unwrap_or(cursor)]
             }
         }
@@ -365,7 +391,11 @@ fn expand_by_day_in_month(year: i32, month: u32, specs: &[WeekdaySpec]) -> Vec<N
 fn matches_filters(date: NaiveDate, rule: &RRule) -> bool {
     // For daily frequency with by_day, filter by weekday.
     if rule.freq == Frequency::Daily && !rule.by_day.is_empty() {
-        if !rule.by_day.iter().any(|spec| spec.weekday == date.weekday()) {
+        if !rule
+            .by_day
+            .iter()
+            .any(|spec| spec.weekday == date.weekday())
+        {
             return false;
         }
     }
@@ -527,7 +557,9 @@ mod tests {
 
     #[test]
     fn by_month_day_monthly() {
-        let rule = RRule::monthly().with_by_month_day(vec![1, 15]).with_count(4);
+        let rule = RRule::monthly()
+            .with_by_month_day(vec![1, 15])
+            .with_count(4);
         let dates = expand(d(2026, 1, 1), &rule, 100);
         assert_eq!(dates.len(), 4);
         assert_eq!(dates[0], d(2026, 1, 1));

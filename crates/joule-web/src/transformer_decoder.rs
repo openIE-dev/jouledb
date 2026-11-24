@@ -19,7 +19,11 @@ pub struct DMatrix {
 
 impl DMatrix {
     pub fn zeros(rows: usize, cols: usize) -> Self {
-        Self { rows, cols, data: vec![0.0; rows * cols] }
+        Self {
+            rows,
+            cols,
+            data: vec![0.0; rows * cols],
+        }
     }
 
     pub fn from_data(rows: usize, cols: usize, data: Vec<f64>) -> Self {
@@ -64,10 +68,17 @@ impl DMatrix {
 
     pub fn add(&self, other: &DMatrix) -> DMatrix {
         assert_eq!(self.data.len(), other.data.len());
-        let data: Vec<f64> = self.data.iter().zip(other.data.iter())
+        let data: Vec<f64> = self
+            .data
+            .iter()
+            .zip(other.data.iter())
             .map(|(a, b)| a + b)
             .collect();
-        DMatrix { rows: self.rows, cols: self.cols, data }
+        DMatrix {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        }
     }
 
     /// Extract a single row as a new (1, cols) matrix.
@@ -82,7 +93,11 @@ impl DMatrix {
         assert_eq!(row.rows, 1);
         let mut data = self.data.clone();
         data.extend_from_slice(&row.data);
-        DMatrix { rows: self.rows + 1, cols: self.cols, data }
+        DMatrix {
+            rows: self.rows + 1,
+            cols: self.cols,
+            data,
+        }
     }
 
     pub fn frobenius_norm(&self) -> f64 {
@@ -110,11 +125,16 @@ impl Linear {
         let mut data = Vec::with_capacity(out_f * in_f);
         let mut state = seed;
         for _ in 0..(out_f * in_f) {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let u = (state >> 33) as f64 / (1u64 << 31) as f64;
             data.push(u * 2.0 * limit - limit);
         }
-        Self { weight: DMatrix::from_data(out_f, in_f, data), bias: vec![0.0; out_f] }
+        Self {
+            weight: DMatrix::from_data(out_f, in_f, data),
+            bias: vec![0.0; out_f],
+        }
     }
 
     fn forward(&self, input: &DMatrix) -> DMatrix {
@@ -140,7 +160,12 @@ struct LNorm {
 
 impl LNorm {
     fn new(dim: usize) -> Self {
-        Self { gamma: vec![1.0; dim], beta: vec![0.0; dim], eps: 1e-5, dim }
+        Self {
+            gamma: vec![1.0; dim],
+            beta: vec![0.0; dim],
+            eps: 1e-5,
+            dim,
+        }
     }
 
     fn forward(&self, input: &DMatrix) -> DMatrix {
@@ -189,11 +214,9 @@ fn erf_approx(x: f64) -> f64 {
     let sign = if x >= 0.0 { 1.0 } else { -1.0 };
     let a = x.abs();
     let t = 1.0 / (1.0 + 0.3275911 * a);
-    let poly = t * (0.254829592
-        + t * (-0.284496736
-        + t * (1.421413741
-        + t * (-1.453152027
-        + t * 1.061405429))));
+    let poly = t
+        * (0.254829592
+            + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
     sign * (1.0 - poly * (-a * a).exp())
 }
 
@@ -459,7 +482,12 @@ impl TransformerDecoder {
             None
         };
         let output_proj = Linear::new(config.d_model, config.vocab_size, 99999);
-        Self { config, layers, final_norm, output_proj }
+        Self {
+            config,
+            layers,
+            final_norm,
+            output_proj,
+        }
     }
 
     /// Forward pass with teacher forcing.
@@ -582,9 +610,16 @@ pub fn top_k_filter(logits: &[f64], k: usize) -> Vec<f64> {
     let mut indexed: Vec<(usize, f64)> = logits.iter().enumerate().map(|(i, &v)| (i, v)).collect();
     indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     let threshold = indexed[k - 1].1;
-    logits.iter().map(|v| {
-        if *v >= threshold { *v } else { f64::NEG_INFINITY }
-    }).collect()
+    logits
+        .iter()
+        .map(|v| {
+            if *v >= threshold {
+                *v
+            } else {
+                f64::NEG_INFINITY
+            }
+        })
+        .collect()
 }
 
 /// Top-p (nucleus) filtering: keep smallest set of tokens whose cumulative
@@ -604,9 +639,11 @@ pub fn top_p_filter(logits: &[f64], p: f64) -> Vec<f64> {
         }
     }
 
-    logits.iter().enumerate().map(|(i, &v)| {
-        if keep[i] { v } else { f64::NEG_INFINITY }
-    }).collect()
+    logits
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| if keep[i] { v } else { f64::NEG_INFINITY })
+        .collect()
 }
 
 // ── Tests ────────────────────────────────────────────────────────

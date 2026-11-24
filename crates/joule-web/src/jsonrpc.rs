@@ -48,7 +48,11 @@ pub struct IdGenerator {
 }
 
 impl IdGenerator {
-    pub fn new() -> Self { Self { next: AtomicU64::new(1) } }
+    pub fn new() -> Self {
+        Self {
+            next: AtomicU64::new(1),
+        }
+    }
 
     pub fn next_id(&self) -> RpcId {
         RpcId::Number(self.next.fetch_add(1, Ordering::Relaxed) as i64)
@@ -56,7 +60,9 @@ impl IdGenerator {
 }
 
 impl Default for IdGenerator {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Standard error codes ──────────────────────────────────────────
@@ -98,23 +104,37 @@ pub struct RpcError {
 
 impl RpcError {
     pub fn new(code: i64, message: &str) -> Self {
-        Self { code, message: message.into(), data: None }
+        Self {
+            code,
+            message: message.into(),
+            data: None,
+        }
     }
 
     pub fn with_data(mut self, data: serde_json::Value) -> Self {
-        self.data = Some(data); self
+        self.data = Some(data);
+        self
     }
 
     pub fn parse_error() -> Self {
-        Self::new(error_code::PARSE_ERROR, error_code::message(error_code::PARSE_ERROR))
+        Self::new(
+            error_code::PARSE_ERROR,
+            error_code::message(error_code::PARSE_ERROR),
+        )
     }
 
     pub fn invalid_request() -> Self {
-        Self::new(error_code::INVALID_REQUEST, error_code::message(error_code::INVALID_REQUEST))
+        Self::new(
+            error_code::INVALID_REQUEST,
+            error_code::message(error_code::INVALID_REQUEST),
+        )
     }
 
     pub fn method_not_found() -> Self {
-        Self::new(error_code::METHOD_NOT_FOUND, error_code::message(error_code::METHOD_NOT_FOUND))
+        Self::new(
+            error_code::METHOD_NOT_FOUND,
+            error_code::message(error_code::METHOD_NOT_FOUND),
+        )
     }
 
     pub fn invalid_params(detail: &str) -> Self {
@@ -122,13 +142,19 @@ impl RpcError {
     }
 
     pub fn internal_error() -> Self {
-        Self::new(error_code::INTERNAL_ERROR, error_code::message(error_code::INTERNAL_ERROR))
+        Self::new(
+            error_code::INTERNAL_ERROR,
+            error_code::message(error_code::INTERNAL_ERROR),
+        )
     }
 
     pub fn to_json(&self) -> serde_json::Value {
         let mut m = serde_json::Map::new();
         m.insert("code".into(), serde_json::Value::Number(self.code.into()));
-        m.insert("message".into(), serde_json::Value::String(self.message.clone()));
+        m.insert(
+            "message".into(),
+            serde_json::Value::String(self.message.clone()),
+        );
         if let Some(ref d) = self.data {
             m.insert("data".into(), d.clone());
         }
@@ -139,7 +165,11 @@ impl RpcError {
         let code = v.get("code")?.as_i64()?;
         let message = v.get("message")?.as_str()?.to_string();
         let data = v.get("data").cloned();
-        Some(Self { code, message, data })
+        Some(Self {
+            code,
+            message,
+            data,
+        })
     }
 }
 
@@ -161,18 +191,26 @@ pub struct RpcRequest {
 
 impl RpcRequest {
     pub fn new(id: RpcId, method: &str) -> Self {
-        Self { id, method: method.into(), params: None }
+        Self {
+            id,
+            method: method.into(),
+            params: None,
+        }
     }
 
     pub fn with_params(mut self, params: serde_json::Value) -> Self {
-        self.params = Some(params); self
+        self.params = Some(params);
+        self
     }
 
     pub fn to_json(&self) -> serde_json::Value {
         let mut m = serde_json::Map::new();
         m.insert("jsonrpc".into(), serde_json::Value::String("2.0".into()));
         m.insert("id".into(), self.id.to_json());
-        m.insert("method".into(), serde_json::Value::String(self.method.clone()));
+        m.insert(
+            "method".into(),
+            serde_json::Value::String(self.method.clone()),
+        );
         if let Some(ref p) = self.params {
             m.insert("params".into(), p.clone());
         }
@@ -184,10 +222,12 @@ impl RpcRequest {
         if jsonrpc != Some("2.0") {
             return Err(RpcError::invalid_request());
         }
-        let id = v.get("id")
+        let id = v
+            .get("id")
             .and_then(RpcId::from_json)
             .ok_or_else(RpcError::invalid_request)?;
-        let method = v.get("method")
+        let method = v
+            .get("method")
             .and_then(|v| v.as_str())
             .ok_or_else(RpcError::invalid_request)?
             .to_string();
@@ -207,17 +247,24 @@ pub struct RpcNotification {
 
 impl RpcNotification {
     pub fn new(method: &str) -> Self {
-        Self { method: method.into(), params: None }
+        Self {
+            method: method.into(),
+            params: None,
+        }
     }
 
     pub fn with_params(mut self, params: serde_json::Value) -> Self {
-        self.params = Some(params); self
+        self.params = Some(params);
+        self
     }
 
     pub fn to_json(&self) -> serde_json::Value {
         let mut m = serde_json::Map::new();
         m.insert("jsonrpc".into(), serde_json::Value::String("2.0".into()));
-        m.insert("method".into(), serde_json::Value::String(self.method.clone()));
+        m.insert(
+            "method".into(),
+            serde_json::Value::String(self.method.clone()),
+        );
         if let Some(ref p) = self.params {
             m.insert("params".into(), p.clone());
         }
@@ -232,7 +279,8 @@ impl RpcNotification {
         if v.get("id").is_some() {
             return Err(RpcError::invalid_request());
         }
-        let method = v.get("method")
+        let method = v
+            .get("method")
             .and_then(|v| v.as_str())
             .ok_or_else(RpcError::invalid_request)?
             .to_string();
@@ -252,37 +300,51 @@ pub struct RpcResponse {
 
 impl RpcResponse {
     pub fn success(id: RpcId, result: serde_json::Value) -> Self {
-        Self { id, result: Ok(result) }
+        Self {
+            id,
+            result: Ok(result),
+        }
     }
 
     pub fn error(id: RpcId, error: RpcError) -> Self {
-        Self { id, result: Err(error) }
+        Self {
+            id,
+            result: Err(error),
+        }
     }
 
-    pub fn is_success(&self) -> bool { self.result.is_ok() }
-    pub fn is_error(&self) -> bool { self.result.is_err() }
+    pub fn is_success(&self) -> bool {
+        self.result.is_ok()
+    }
+    pub fn is_error(&self) -> bool {
+        self.result.is_err()
+    }
 
     pub fn to_json(&self) -> serde_json::Value {
         let mut m = serde_json::Map::new();
         m.insert("jsonrpc".into(), serde_json::Value::String("2.0".into()));
         m.insert("id".into(), self.id.to_json());
         match &self.result {
-            Ok(val) => { m.insert("result".into(), val.clone()); }
-            Err(err) => { m.insert("error".into(), err.to_json()); }
+            Ok(val) => {
+                m.insert("result".into(), val.clone());
+            }
+            Err(err) => {
+                m.insert("error".into(), err.to_json());
+            }
         }
         serde_json::Value::Object(m)
     }
 
     pub fn from_json(v: &serde_json::Value) -> Result<Self, RpcError> {
-        let id = v.get("id")
+        let id = v
+            .get("id")
             .and_then(RpcId::from_json)
             .ok_or_else(RpcError::invalid_request)?;
         if let Some(result) = v.get("result") {
             return Ok(Self::success(id, result.clone()));
         }
         if let Some(error) = v.get("error") {
-            let rpc_err = RpcError::from_json(error)
-                .ok_or_else(RpcError::invalid_request)?;
+            let rpc_err = RpcError::from_json(error).ok_or_else(RpcError::invalid_request)?;
             return Ok(Self::error(id, rpc_err));
         }
         Err(RpcError::invalid_request())
@@ -339,8 +401,7 @@ pub fn batch_response(responses: &[RpcResponse]) -> serde_json::Value {
 
 /// Parse a raw JSON string into messages. Handles single or batch.
 pub fn parse_raw(input: &str) -> Result<Vec<Result<RpcMessage, RpcError>>, RpcError> {
-    let v: serde_json::Value = serde_json::from_str(input)
-        .map_err(|_| RpcError::parse_error())?;
+    let v: serde_json::Value = serde_json::from_str(input).map_err(|_| RpcError::parse_error())?;
     if v.is_array() {
         parse_batch(&v)
     } else {
@@ -353,18 +414,26 @@ pub fn parse_raw(input: &str) -> Result<Vec<Result<RpcMessage, RpcError>>, RpcEr
 
 /// A simple method dispatcher.
 pub struct Dispatcher {
-    handlers: HashMap<String, Box<dyn Fn(Option<serde_json::Value>) -> Result<serde_json::Value, RpcError> + Send + Sync>>,
+    handlers: HashMap<
+        String,
+        Box<dyn Fn(Option<serde_json::Value>) -> Result<serde_json::Value, RpcError> + Send + Sync>,
+    >,
 }
 
 impl Dispatcher {
     pub fn new() -> Self {
-        Self { handlers: HashMap::new() }
+        Self {
+            handlers: HashMap::new(),
+        }
     }
 
     /// Register a handler for a method.
     pub fn register<F>(&mut self, method: &str, handler: F)
     where
-        F: Fn(Option<serde_json::Value>) -> Result<serde_json::Value, RpcError> + Send + Sync + 'static,
+        F: Fn(Option<serde_json::Value>) -> Result<serde_json::Value, RpcError>
+            + Send
+            + Sync
+            + 'static,
     {
         self.handlers.insert(method.into(), Box::new(handler));
     }
@@ -382,12 +451,10 @@ impl Dispatcher {
     /// Handle a single request. Returns a response.
     pub fn handle_request(&self, req: &RpcRequest) -> RpcResponse {
         match self.handlers.get(&req.method) {
-            Some(handler) => {
-                match handler(req.params.clone()) {
-                    Ok(result) => RpcResponse::success(req.id.clone(), result),
-                    Err(err) => RpcResponse::error(req.id.clone(), err),
-                }
-            }
+            Some(handler) => match handler(req.params.clone()) {
+                Ok(result) => RpcResponse::success(req.id.clone(), result),
+                Err(err) => RpcResponse::error(req.id.clone(), err),
+            },
             None => RpcResponse::error(req.id.clone(), RpcError::method_not_found()),
         }
     }
@@ -407,10 +474,7 @@ impl Dispatcher {
                     // Responses from client — ignore in server context
                 }
                 Err(err) => {
-                    responses.push(RpcResponse::error(
-                        RpcId::Number(0),
-                        err.clone(),
-                    ));
+                    responses.push(RpcResponse::error(RpcId::Number(0), err.clone()));
                 }
             }
         }
@@ -419,7 +483,9 @@ impl Dispatcher {
 }
 
 impl Default for Dispatcher {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────
@@ -444,8 +510,14 @@ mod tests {
 
     #[test]
     fn rpc_id_from_json() {
-        assert_eq!(RpcId::from_json(&serde_json::json!(5)), Some(RpcId::Number(5)));
-        assert_eq!(RpcId::from_json(&serde_json::json!("x")), Some(RpcId::Str("x".into())));
+        assert_eq!(
+            RpcId::from_json(&serde_json::json!(5)),
+            Some(RpcId::Number(5))
+        );
+        assert_eq!(
+            RpcId::from_json(&serde_json::json!("x")),
+            Some(RpcId::Str("x".into()))
+        );
         assert_eq!(RpcId::from_json(&serde_json::json!(true)), None);
     }
 
@@ -473,8 +545,8 @@ mod tests {
 
     #[test]
     fn error_with_data() {
-        let e = RpcError::internal_error()
-            .with_data(serde_json::json!({"detail": "stack overflow"}));
+        let e =
+            RpcError::internal_error().with_data(serde_json::json!({"detail": "stack overflow"}));
         let j = e.to_json();
         assert_eq!(j["code"], -32603);
         assert_eq!(j["data"]["detail"], "stack overflow");
@@ -482,8 +554,7 @@ mod tests {
 
     #[test]
     fn error_roundtrip() {
-        let original = RpcError::new(-32000, "Custom error")
-            .with_data(serde_json::json!("extra"));
+        let original = RpcError::new(-32000, "Custom error").with_data(serde_json::json!("extra"));
         let j = original.to_json();
         let parsed = RpcError::from_json(&j).unwrap();
         assert_eq!(parsed.code, -32000);
@@ -509,8 +580,8 @@ mod tests {
 
     #[test]
     fn request_with_positional_params() {
-        let req = RpcRequest::new(RpcId::Number(1), "subtract")
-            .with_params(serde_json::json!([42, 23]));
+        let req =
+            RpcRequest::new(RpcId::Number(1), "subtract").with_params(serde_json::json!([42, 23]));
         let j = req.to_json();
         assert_eq!(j["params"][0], 42);
         assert_eq!(j["params"][1], 23);
@@ -526,8 +597,8 @@ mod tests {
 
     #[test]
     fn request_roundtrip() {
-        let original = RpcRequest::new(RpcId::Number(7), "getUser")
-            .with_params(serde_json::json!({"id": 42}));
+        let original =
+            RpcRequest::new(RpcId::Number(7), "getUser").with_params(serde_json::json!({"id": 42}));
         let j = original.to_json();
         let parsed = RpcRequest::from_json(&j).unwrap();
         assert_eq!(parsed.id, RpcId::Number(7));
@@ -552,16 +623,15 @@ mod tests {
 
     #[test]
     fn notification_with_params() {
-        let notif = RpcNotification::new("update")
-            .with_params(serde_json::json!([1, 2, 3]));
+        let notif = RpcNotification::new("update").with_params(serde_json::json!([1, 2, 3]));
         let j = notif.to_json();
         assert_eq!(j["params"][0], 1);
     }
 
     #[test]
     fn notification_roundtrip() {
-        let original = RpcNotification::new("notify")
-            .with_params(serde_json::json!({"event": "ready"}));
+        let original =
+            RpcNotification::new("notify").with_params(serde_json::json!({"event": "ready"}));
         let j = original.to_json();
         let parsed = RpcNotification::from_json(&j).unwrap();
         assert_eq!(parsed.method, "notify");
@@ -584,10 +654,7 @@ mod tests {
 
     #[test]
     fn response_error() {
-        let resp = RpcResponse::error(
-            RpcId::Number(1),
-            RpcError::method_not_found(),
-        );
+        let resp = RpcResponse::error(RpcId::Number(1), RpcError::method_not_found());
         assert!(resp.is_error());
         let j = resp.to_json();
         assert_eq!(j["error"]["code"], -32601);
@@ -596,7 +663,8 @@ mod tests {
 
     #[test]
     fn response_roundtrip_success() {
-        let original = RpcResponse::success(RpcId::Str("abc".into()), serde_json::json!({"ok": true}));
+        let original =
+            RpcResponse::success(RpcId::Str("abc".into()), serde_json::json!({"ok": true}));
         let j = original.to_json();
         let parsed = RpcResponse::from_json(&j).unwrap();
         assert_eq!(parsed.id, RpcId::Str("abc".into()));
@@ -605,10 +673,8 @@ mod tests {
 
     #[test]
     fn response_roundtrip_error() {
-        let original = RpcResponse::error(
-            RpcId::Number(5),
-            RpcError::invalid_params("missing field"),
-        );
+        let original =
+            RpcResponse::error(RpcId::Number(5), RpcError::invalid_params("missing field"));
         let j = original.to_json();
         let parsed = RpcResponse::from_json(&j).unwrap();
         assert!(parsed.is_error());
@@ -706,8 +772,7 @@ mod tests {
         assert!(dispatch.has_method("add"));
         assert!(!dispatch.has_method("sub"));
 
-        let req = RpcRequest::new(RpcId::Number(1), "add")
-            .with_params(serde_json::json!([3, 4]));
+        let req = RpcRequest::new(RpcId::Number(1), "add").with_params(serde_json::json!([3, 4]));
         let resp = dispatch.handle_request(&req);
         assert!(resp.is_success());
         assert_eq!(resp.to_json()["result"], 7);
@@ -725,9 +790,7 @@ mod tests {
     #[test]
     fn dispatcher_handler_error() {
         let mut dispatch = Dispatcher::new();
-        dispatch.register("fail", |_| {
-            Err(RpcError::invalid_params("bad input"))
-        });
+        dispatch.register("fail", |_| Err(RpcError::invalid_params("bad input")));
         let req = RpcRequest::new(RpcId::Number(1), "fail");
         let resp = dispatch.handle_request(&req);
         assert!(resp.is_error());
@@ -742,10 +805,14 @@ mod tests {
         });
 
         let messages = vec![
-            Ok(RpcMessage::Request(RpcRequest::new(RpcId::Number(1), "echo")
-                .with_params(serde_json::json!("hello")))),
+            Ok(RpcMessage::Request(
+                RpcRequest::new(RpcId::Number(1), "echo").with_params(serde_json::json!("hello")),
+            )),
             Ok(RpcMessage::Notification(RpcNotification::new("ping"))),
-            Ok(RpcMessage::Request(RpcRequest::new(RpcId::Number(2), "missing"))),
+            Ok(RpcMessage::Request(RpcRequest::new(
+                RpcId::Number(2),
+                "missing",
+            ))),
         ];
 
         let responses = dispatch.handle_batch(&messages);

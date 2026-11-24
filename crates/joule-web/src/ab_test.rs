@@ -327,7 +327,10 @@ impl ABTester {
     }
 
     /// Get all variant metrics for an experiment.
-    pub fn experiment_metrics(&self, experiment_key: &str) -> Option<&HashMap<String, VariantMetrics>> {
+    pub fn experiment_metrics(
+        &self,
+        experiment_key: &str,
+    ) -> Option<&HashMap<String, VariantMetrics>> {
         self.metrics.get(experiment_key)
     }
 
@@ -426,10 +429,13 @@ mod tests {
     use super::*;
 
     fn simple_experiment() -> Experiment {
-        Experiment::new("test_exp", vec![
-            Variant::new("control", 50.0),
-            Variant::new("treatment", 50.0),
-        ])
+        Experiment::new(
+            "test_exp",
+            vec![
+                Variant::new("control", 50.0),
+                Variant::new("treatment", 50.0),
+            ],
+        )
         .with_status(ExperimentStatus::Running)
     }
 
@@ -446,7 +452,10 @@ mod tests {
         ab.register(simple_experiment());
         let result = ab.assign("user_1", "test_exp");
         match &result {
-            Assignment::Assigned { experiment, variant } => {
+            Assignment::Assigned {
+                experiment,
+                variant,
+            } => {
                 assert_eq!(experiment, "test_exp");
                 assert!(variant == "control" || variant == "treatment");
             }
@@ -503,10 +512,13 @@ mod tests {
         ab.register(simple_experiment());
         ab.set_override("qa_user", "test_exp", "treatment");
         let result = ab.assign("qa_user", "test_exp");
-        assert_eq!(result, Assignment::Assigned {
-            experiment: "test_exp".into(),
-            variant: "treatment".into(),
-        });
+        assert_eq!(
+            result,
+            Assignment::Assigned {
+                experiment: "test_exp".into(),
+                variant: "treatment".into(),
+            }
+        );
     }
 
     #[test]
@@ -574,16 +586,22 @@ mod tests {
 
         // Simulate data.
         if let Some(vm) = ab.metrics.get_mut("test_exp") {
-            vm.insert("control".into(), VariantMetrics {
-                impressions: 1000,
-                conversions: 100,
-                value_sum: 100.0,
-            });
-            vm.insert("treatment".into(), VariantMetrics {
-                impressions: 1000,
-                conversions: 150,
-                value_sum: 150.0,
-            });
+            vm.insert(
+                "control".into(),
+                VariantMetrics {
+                    impressions: 1000,
+                    conversions: 100,
+                    value_sum: 100.0,
+                },
+            );
+            vm.insert(
+                "treatment".into(),
+                VariantMetrics {
+                    impressions: 1000,
+                    conversions: 150,
+                    value_sum: 150.0,
+                },
+            );
         }
 
         let (chi2, df) = ab.chi_squared("test_exp").unwrap();
@@ -598,16 +616,22 @@ mod tests {
 
         // Large effect size should be significant.
         if let Some(vm) = ab.metrics.get_mut("test_exp") {
-            vm.insert("control".into(), VariantMetrics {
-                impressions: 1000,
-                conversions: 50,
-                value_sum: 50.0,
-            });
-            vm.insert("treatment".into(), VariantMetrics {
-                impressions: 1000,
-                conversions: 200,
-                value_sum: 200.0,
-            });
+            vm.insert(
+                "control".into(),
+                VariantMetrics {
+                    impressions: 1000,
+                    conversions: 50,
+                    value_sum: 50.0,
+                },
+            );
+            vm.insert(
+                "treatment".into(),
+                VariantMetrics {
+                    impressions: 1000,
+                    conversions: 200,
+                    value_sum: 200.0,
+                },
+            );
         }
 
         assert!(ab.is_significant("test_exp", 0.05));
@@ -620,16 +644,22 @@ mod tests {
 
         // Tiny sample — not significant.
         if let Some(vm) = ab.metrics.get_mut("test_exp") {
-            vm.insert("control".into(), VariantMetrics {
-                impressions: 10,
-                conversions: 5,
-                value_sum: 5.0,
-            });
-            vm.insert("treatment".into(), VariantMetrics {
-                impressions: 10,
-                conversions: 6,
-                value_sum: 6.0,
-            });
+            vm.insert(
+                "control".into(),
+                VariantMetrics {
+                    impressions: 10,
+                    conversions: 5,
+                    value_sum: 5.0,
+                },
+            );
+            vm.insert(
+                "treatment".into(),
+                VariantMetrics {
+                    impressions: 10,
+                    conversions: 6,
+                    value_sum: 6.0,
+                },
+            );
         }
 
         assert!(!ab.is_significant("test_exp", 0.05));
@@ -640,13 +670,25 @@ mod tests {
         let mut ab = ABTester::new();
         let exp = Experiment::new("lc", vec![Variant::new("a", 100.0)]);
         ab.register(exp);
-        assert_eq!(ab.get_experiment("lc").unwrap().status, ExperimentStatus::Draft);
+        assert_eq!(
+            ab.get_experiment("lc").unwrap().status,
+            ExperimentStatus::Draft
+        );
         ab.start("lc");
-        assert_eq!(ab.get_experiment("lc").unwrap().status, ExperimentStatus::Running);
+        assert_eq!(
+            ab.get_experiment("lc").unwrap().status,
+            ExperimentStatus::Running
+        );
         ab.pause("lc");
-        assert_eq!(ab.get_experiment("lc").unwrap().status, ExperimentStatus::Paused);
+        assert_eq!(
+            ab.get_experiment("lc").unwrap().status,
+            ExperimentStatus::Paused
+        );
         ab.complete("lc");
-        assert_eq!(ab.get_experiment("lc").unwrap().status, ExperimentStatus::Completed);
+        assert_eq!(
+            ab.get_experiment("lc").unwrap().status,
+            ExperimentStatus::Completed
+        );
     }
 
     #[test]

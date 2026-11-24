@@ -31,9 +31,21 @@ fn is_unreserved(b: u8) -> bool {
 /// Characters safe in URL paths (unreserved + sub-delims + : @ /).
 fn is_path_safe(b: u8) -> bool {
     is_unreserved(b)
-        || matches!(b,
-            b'!' | b'$' | b'&' | b'\'' | b'(' | b')' | b'*' | b'+' | b',' | b';' | b'='
-            | b':' | b'@' | b'/'
+        || matches!(
+            b,
+            b'!' | b'$'
+                | b'&'
+                | b'\''
+                | b'('
+                | b')'
+                | b'*'
+                | b'+'
+                | b','
+                | b';'
+                | b'='
+                | b':'
+                | b'@'
+                | b'/'
         )
 }
 
@@ -168,10 +180,8 @@ pub fn decode_bytes(input: &str, plus_as_space: bool) -> Result<Vec<u8>, UrlEnco
             if i + 2 >= bytes.len() {
                 return Err(UrlEncodeError::IncompleteSequence(i));
             }
-            let hi = hex_val(bytes[i + 1])
-                .ok_or(UrlEncodeError::InvalidSequence(i))?;
-            let lo = hex_val(bytes[i + 2])
-                .ok_or(UrlEncodeError::InvalidSequence(i))?;
+            let hi = hex_val(bytes[i + 1]).ok_or(UrlEncodeError::InvalidSequence(i))?;
+            let lo = hex_val(bytes[i + 2]).ok_or(UrlEncodeError::InvalidSequence(i))?;
             result.push((hi << 4) | lo);
             i += 3;
         } else if plus_as_space && bytes[i] == b'+' {
@@ -254,9 +264,7 @@ pub fn parse_query_multi(query: &str) -> Result<HashMap<String, Vec<String>>, Ur
 pub fn build_query(params: &HashMap<String, String>) -> String {
     let mut pairs: Vec<String> = params
         .iter()
-        .map(|(k, v)| {
-            format!("{}={}", encode_component(k), encode_component(v))
-        })
+        .map(|(k, v)| format!("{}={}", encode_component(k), encode_component(v)))
         .collect();
     pairs.sort(); // Deterministic output.
     pairs.join("&")

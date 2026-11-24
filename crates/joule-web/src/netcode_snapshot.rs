@@ -34,8 +34,14 @@ impl fmt::Display for SnapshotError {
             Self::EntityNotFound { entity_id, tick } => {
                 write!(f, "entity {entity_id} not found at tick {tick}")
             }
-            Self::RenderTimeTooEarly { render_time, earliest } => {
-                write!(f, "render time {render_time:.3} before earliest {earliest:.3}")
+            Self::RenderTimeTooEarly {
+                render_time,
+                earliest,
+            } => {
+                write!(
+                    f,
+                    "render time {render_time:.3} before earliest {earliest:.3}"
+                )
             }
         }
     }
@@ -137,7 +143,11 @@ pub struct Snapshot {
 
 impl Snapshot {
     pub fn new(tick: u64, server_time: f64) -> Self {
-        Self { tick, server_time, entities: Vec::new() }
+        Self {
+            tick,
+            server_time,
+            entities: Vec::new(),
+        }
     }
 
     pub fn with_entity(mut self, entity: EntityState) -> Self {
@@ -207,7 +217,13 @@ impl SnapshotDelta {
             .map(|e| e.entity_id)
             .collect();
 
-        Self { from_tick: from.tick, to_tick: to.tick, entity_deltas, added_entities, removed_entities }
+        Self {
+            from_tick: from.tick,
+            to_tick: to.tick,
+            entity_deltas,
+            added_entities,
+            removed_entities,
+        }
     }
 
     pub fn changed_count(&self) -> usize {
@@ -226,7 +242,10 @@ pub struct SnapshotBuffer {
 
 impl SnapshotBuffer {
     pub fn new(capacity: usize) -> Self {
-        Self { snapshots: VecDeque::with_capacity(capacity), capacity }
+        Self {
+            snapshots: VecDeque::with_capacity(capacity),
+            capacity,
+        }
     }
 
     /// Insert a snapshot, maintaining time order.
@@ -294,7 +313,11 @@ pub struct InterpolationConfig {
 
 impl InterpolationConfig {
     pub fn new() -> Self {
-        Self { interpolation_delay: 0.1, max_extrapolation: 0.2, buffer_capacity: 32 }
+        Self {
+            interpolation_delay: 0.1,
+            max_extrapolation: 0.2,
+            buffer_capacity: 32,
+        }
     }
 
     pub fn with_delay(mut self, delay: f64) -> Self {
@@ -324,9 +347,18 @@ impl Default for InterpolationConfig {
 /// How a state was computed.
 #[derive(Debug, Clone, PartialEq)]
 pub enum InterpolationMode {
-    Interpolated { from_tick: u64, to_tick: u64, t: f64 },
-    Extrapolated { from_tick: u64, dt: f64 },
-    Exact { tick: u64 },
+    Interpolated {
+        from_tick: u64,
+        to_tick: u64,
+        t: f64,
+    },
+    Extrapolated {
+        from_tick: u64,
+        dt: f64,
+    },
+    Exact {
+        tick: u64,
+    },
 }
 
 /// Result of interpolating an entity.
@@ -349,7 +381,11 @@ pub struct SnapshotInterpolator {
 impl SnapshotInterpolator {
     pub fn new(config: InterpolationConfig) -> Self {
         let cap = config.buffer_capacity;
-        Self { config, buffer: SnapshotBuffer::new(cap), current_time: 0.0 }
+        Self {
+            config,
+            buffer: SnapshotBuffer::new(cap),
+            current_time: 0.0,
+        }
     }
 
     /// Receive a snapshot from the server.
@@ -382,20 +418,32 @@ impl SnapshotInterpolator {
         // Try bracketed interpolation.
         if let Some((from, to)) = self.buffer.find_bracket(render_time) {
             let dt = to.server_time - from.server_time;
-            let t = if dt > 0.0 { (render_time - from.server_time) / dt } else { 0.0 };
+            let t = if dt > 0.0 {
+                (render_time - from.server_time) / dt
+            } else {
+                0.0
+            };
 
-            let from_ent = from.find_entity(entity_id).ok_or(SnapshotError::EntityNotFound {
-                entity_id,
-                tick: from.tick,
-            })?;
-            let to_ent = to.find_entity(entity_id).ok_or(SnapshotError::EntityNotFound {
-                entity_id,
-                tick: to.tick,
-            })?;
+            let from_ent = from
+                .find_entity(entity_id)
+                .ok_or(SnapshotError::EntityNotFound {
+                    entity_id,
+                    tick: from.tick,
+                })?;
+            let to_ent = to
+                .find_entity(entity_id)
+                .ok_or(SnapshotError::EntityNotFound {
+                    entity_id,
+                    tick: to.tick,
+                })?;
 
             return Ok(InterpolatedEntity {
                 state: from_ent.lerp(to_ent, t),
-                mode: InterpolationMode::Interpolated { from_tick: from.tick, to_tick: to.tick, t },
+                mode: InterpolationMode::Interpolated {
+                    from_tick: from.tick,
+                    to_tick: to.tick,
+                    t,
+                },
             });
         }
 
@@ -405,10 +453,12 @@ impl SnapshotInterpolator {
 
         if dt > self.config.max_extrapolation {
             // Still extrapolate but cap at max.
-            let entity = latest.find_entity(entity_id).ok_or(SnapshotError::EntityNotFound {
-                entity_id,
-                tick: latest.tick,
-            })?;
+            let entity = latest
+                .find_entity(entity_id)
+                .ok_or(SnapshotError::EntityNotFound {
+                    entity_id,
+                    tick: latest.tick,
+                })?;
             return Ok(InterpolatedEntity {
                 state: entity.extrapolate(self.config.max_extrapolation),
                 mode: InterpolationMode::Extrapolated {
@@ -419,13 +469,18 @@ impl SnapshotInterpolator {
         }
 
         if dt >= 0.0 {
-            let entity = latest.find_entity(entity_id).ok_or(SnapshotError::EntityNotFound {
-                entity_id,
-                tick: latest.tick,
-            })?;
+            let entity = latest
+                .find_entity(entity_id)
+                .ok_or(SnapshotError::EntityNotFound {
+                    entity_id,
+                    tick: latest.tick,
+                })?;
             return Ok(InterpolatedEntity {
                 state: entity.extrapolate(dt),
-                mode: InterpolationMode::Extrapolated { from_tick: latest.tick, dt },
+                mode: InterpolationMode::Extrapolated {
+                    from_tick: latest.tick,
+                    dt,
+                },
             });
         }
 
@@ -442,7 +497,11 @@ impl SnapshotInterpolator {
         let Some(latest) = self.buffer.latest() else {
             return vec![Err(SnapshotError::BufferEmpty)];
         };
-        latest.entities.iter().map(|e| self.interpolate_entity(e.entity_id)).collect()
+        latest
+            .entities
+            .iter()
+            .map(|e| self.interpolate_entity(e.entity_id))
+            .collect()
     }
 
     pub fn buffered_snapshot_count(&self) -> usize {
@@ -578,7 +637,9 @@ mod tests {
 
     #[test]
     fn interpolator_extrapolation() {
-        let config = InterpolationConfig::new().with_delay(0.0).with_max_extrapolation(1.0);
+        let config = InterpolationConfig::new()
+            .with_delay(0.0)
+            .with_max_extrapolation(1.0);
         let mut interp = SnapshotInterpolator::new(config);
 
         let s1 = Snapshot::new(1, 0.0)

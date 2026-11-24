@@ -16,7 +16,9 @@ pub enum WindowType {
     Hamming,
     Blackman,
     BlackmanHarris,
-    Kaiser { beta: f64 },
+    Kaiser {
+        beta: f64,
+    },
     FlatTop,
 }
 

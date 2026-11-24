@@ -40,7 +40,11 @@ pub struct AnimationClip {
 
 impl AnimationClip {
     pub fn new(name: &str, frames: Vec<FrameDef>, playback: PlaybackMode) -> Self {
-        Self { name: name.to_string(), frames, playback }
+        Self {
+            name: name.to_string(),
+            frames,
+            playback,
+        }
     }
 
     /// Total duration of one forward pass.
@@ -385,10 +389,22 @@ mod tests {
         AnimationClip::new(
             "walk",
             vec![
-                FrameDef { frame_index: 0, duration_secs: 0.1 },
-                FrameDef { frame_index: 1, duration_secs: 0.1 },
-                FrameDef { frame_index: 2, duration_secs: 0.1 },
-                FrameDef { frame_index: 3, duration_secs: 0.1 },
+                FrameDef {
+                    frame_index: 0,
+                    duration_secs: 0.1,
+                },
+                FrameDef {
+                    frame_index: 1,
+                    duration_secs: 0.1,
+                },
+                FrameDef {
+                    frame_index: 2,
+                    duration_secs: 0.1,
+                },
+                FrameDef {
+                    frame_index: 3,
+                    duration_secs: 0.1,
+                },
             ],
             PlaybackMode::Loop,
         )
@@ -398,8 +414,14 @@ mod tests {
         AnimationClip::new(
             "idle",
             vec![
-                FrameDef { frame_index: 10, duration_secs: 0.5 },
-                FrameDef { frame_index: 11, duration_secs: 0.5 },
+                FrameDef {
+                    frame_index: 10,
+                    duration_secs: 0.5,
+                },
+                FrameDef {
+                    frame_index: 11,
+                    duration_secs: 0.5,
+                },
             ],
             PlaybackMode::Loop,
         )
@@ -409,9 +431,18 @@ mod tests {
         AnimationClip::new(
             "attack",
             vec![
-                FrameDef { frame_index: 20, duration_secs: 0.1 },
-                FrameDef { frame_index: 21, duration_secs: 0.1 },
-                FrameDef { frame_index: 22, duration_secs: 0.2 },
+                FrameDef {
+                    frame_index: 20,
+                    duration_secs: 0.1,
+                },
+                FrameDef {
+                    frame_index: 21,
+                    duration_secs: 0.1,
+                },
+                FrameDef {
+                    frame_index: 22,
+                    duration_secs: 0.2,
+                },
             ],
             PlaybackMode::Once,
         )
@@ -472,9 +503,18 @@ mod tests {
         a.add_clip(AnimationClip::new(
             "bounce",
             vec![
-                FrameDef { frame_index: 0, duration_secs: 0.1 },
-                FrameDef { frame_index: 1, duration_secs: 0.1 },
-                FrameDef { frame_index: 2, duration_secs: 0.1 },
+                FrameDef {
+                    frame_index: 0,
+                    duration_secs: 0.1,
+                },
+                FrameDef {
+                    frame_index: 1,
+                    duration_secs: 0.1,
+                },
+                FrameDef {
+                    frame_index: 2,
+                    duration_secs: 0.1,
+                },
             ],
             PlaybackMode::PingPong,
         ));
@@ -492,9 +532,18 @@ mod tests {
         a.add_clip(AnimationClip::new(
             "rev",
             vec![
-                FrameDef { frame_index: 0, duration_secs: 0.1 },
-                FrameDef { frame_index: 1, duration_secs: 0.1 },
-                FrameDef { frame_index: 2, duration_secs: 0.1 },
+                FrameDef {
+                    frame_index: 0,
+                    duration_secs: 0.1,
+                },
+                FrameDef {
+                    frame_index: 1,
+                    duration_secs: 0.1,
+                },
+                FrameDef {
+                    frame_index: 2,
+                    duration_secs: 0.1,
+                },
             ],
             PlaybackMode::Reverse,
         ));

@@ -46,18 +46,14 @@ impl TreeNode {
     fn depth(&self) -> usize {
         match self {
             TreeNode::Leaf { .. } => 0,
-            TreeNode::Split { left, right, .. } => {
-                1 + left.depth().max(right.depth())
-            }
+            TreeNode::Split { left, right, .. } => 1 + left.depth().max(right.depth()),
         }
     }
 
     fn n_leaves(&self) -> usize {
         match self {
             TreeNode::Leaf { .. } => 1,
-            TreeNode::Split { left, right, .. } => {
-                left.n_leaves() + right.n_leaves()
-            }
+            TreeNode::Split { left, right, .. } => left.n_leaves() + right.n_leaves(),
         }
     }
 }
@@ -284,7 +280,13 @@ impl DecisionTree {
     fn predict_node(&self, node: &TreeNode, sample: &[f64]) -> usize {
         match node {
             TreeNode::Leaf { class, .. } => *class,
-            TreeNode::Split { feature_index, threshold, left, right, .. } => {
+            TreeNode::Split {
+                feature_index,
+                threshold,
+                left,
+                right,
+                ..
+            } => {
                 if sample[*feature_index] <= *threshold {
                     self.predict_node(left, sample)
                 } else {
@@ -310,7 +312,13 @@ impl DecisionTree {
     fn leaf_counts(&self, node: &TreeNode, sample: &[f64]) -> Vec<usize> {
         match node {
             TreeNode::Leaf { class_counts, .. } => class_counts.clone(),
-            TreeNode::Split { feature_index, threshold, left, right, .. } => {
+            TreeNode::Split {
+                feature_index,
+                threshold,
+                left,
+                right,
+                ..
+            } => {
                 if sample[*feature_index] <= *threshold {
                     self.leaf_counts(left, sample)
                 } else {
@@ -356,12 +364,30 @@ impl DecisionTree {
     }
 
     fn render_node(&self, node: &TreeNode, buf: &mut String, prefix: &str, is_last: bool) {
-        let connector = if prefix.is_empty() { "" } else if is_last { "`-- " } else { "|-- " };
+        let connector = if prefix.is_empty() {
+            ""
+        } else if is_last {
+            "`-- "
+        } else {
+            "|-- "
+        };
         match node {
-            TreeNode::Leaf { class, n_samples, .. } => {
-                buf.push_str(&format!("{}{}class={} (n={})\n", prefix, connector, class, n_samples));
+            TreeNode::Leaf {
+                class, n_samples, ..
+            } => {
+                buf.push_str(&format!(
+                    "{}{}class={} (n={})\n",
+                    prefix, connector, class, n_samples
+                ));
             }
-            TreeNode::Split { feature_index, threshold, left, right, n_samples, .. } => {
+            TreeNode::Split {
+                feature_index,
+                threshold,
+                left,
+                right,
+                n_samples,
+                ..
+            } => {
                 buf.push_str(&format!(
                     "{}{}feature[{}] <= {:.4} (n={})\n",
                     prefix, connector, feature_index, threshold, n_samples
@@ -481,8 +507,12 @@ mod tests {
 
     fn simple_data() -> (Vec<Vec<f64>>, Vec<usize>) {
         let features = vec![
-            vec![1.0, 2.0], vec![2.0, 3.0], vec![3.0, 4.0],
-            vec![8.0, 7.0], vec![9.0, 8.0], vec![10.0, 9.0],
+            vec![1.0, 2.0],
+            vec![2.0, 3.0],
+            vec![3.0, 4.0],
+            vec![8.0, 7.0],
+            vec![9.0, 8.0],
+            vec![10.0, 9.0],
         ];
         let labels = vec![0, 0, 0, 1, 1, 1];
         (features, labels)
@@ -551,7 +581,10 @@ mod tests {
     #[test]
     fn test_max_depth_pruning() {
         let (feats, labs) = xor_data();
-        let config = TreeConfig { max_depth: Some(1), ..Default::default() };
+        let config = TreeConfig {
+            max_depth: Some(1),
+            ..Default::default()
+        };
         let mut tree = DecisionTree::new(config);
         tree.fit(&feats, &labs);
         assert!(tree.depth() <= 1);
@@ -560,7 +593,10 @@ mod tests {
     #[test]
     fn test_min_samples_split() {
         let (feats, labs) = simple_data();
-        let config = TreeConfig { min_samples_split: 10, ..Default::default() };
+        let config = TreeConfig {
+            min_samples_split: 10,
+            ..Default::default()
+        };
         let mut tree = DecisionTree::new(config);
         tree.fit(&feats, &labs);
         // Should be just a leaf node (can't split with < 10 samples)
@@ -570,7 +606,10 @@ mod tests {
     #[test]
     fn test_gini_criterion() {
         let (feats, labs) = simple_data();
-        let config = TreeConfig { criterion: Criterion::Gini, ..Default::default() };
+        let config = TreeConfig {
+            criterion: Criterion::Gini,
+            ..Default::default()
+        };
         let mut tree = DecisionTree::new(config);
         tree.fit(&feats, &labs);
         let acc = tree.accuracy(&feats, &labs);
@@ -658,7 +697,10 @@ mod tests {
     #[test]
     fn test_min_samples_leaf() {
         let (feats, labs) = simple_data();
-        let config = TreeConfig { min_samples_leaf: 3, ..Default::default() };
+        let config = TreeConfig {
+            min_samples_leaf: 3,
+            ..Default::default()
+        };
         let mut tree = DecisionTree::new(config);
         tree.fit(&feats, &labs);
         // With min_samples_leaf = 3, each leaf has >= 3 samples

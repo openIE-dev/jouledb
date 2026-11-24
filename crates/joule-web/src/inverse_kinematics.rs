@@ -27,11 +27,23 @@ pub enum IkError {
 impl std::fmt::Display for IkError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Unreachable { distance, max_reach } => {
-                write!(f, "target unreachable: distance={distance:.4}, max_reach={max_reach:.4}")
+            Self::Unreachable {
+                distance,
+                max_reach,
+            } => {
+                write!(
+                    f,
+                    "target unreachable: distance={distance:.4}, max_reach={max_reach:.4}"
+                )
             }
-            Self::NotConverged { iterations, residual } => {
-                write!(f, "IK not converged after {iterations} iters (residual={residual:.6})")
+            Self::NotConverged {
+                iterations,
+                residual,
+            } => {
+                write!(
+                    f,
+                    "IK not converged after {iterations} iters (residual={residual:.6})"
+                )
             }
             Self::SingularJacobian => write!(f, "singular Jacobian"),
             Self::InvalidConfig(msg) => write!(f, "invalid IK config: {msg}"),
@@ -162,7 +174,10 @@ pub struct JacobianIkSolver {
 impl JacobianIkSolver {
     /// Create a solver with the given method.
     pub fn new(method: IkMethod) -> Self {
-        Self { method, config: IkConfig::new() }
+        Self {
+            method,
+            config: IkConfig::new(),
+        }
     }
 
     /// Set configuration.
@@ -205,15 +220,9 @@ impl JacobianIkSolver {
 
             // Compute delta_q based on method
             let dq = match self.method {
-                IkMethod::JacobianTranspose => {
-                    self.jacobian_transpose_step(&jac, &err, n)
-                }
-                IkMethod::JacobianPseudoinverse => {
-                    self.jacobian_pseudoinverse_step(&jac, &err, n)
-                }
-                IkMethod::DampedLeastSquares => {
-                    self.dls_step(&jac, &err, n)
-                }
+                IkMethod::JacobianTranspose => self.jacobian_transpose_step(&jac, &err, n),
+                IkMethod::JacobianPseudoinverse => self.jacobian_pseudoinverse_step(&jac, &err, n),
+                IkMethod::DampedLeastSquares => self.dls_step(&jac, &err, n),
             };
 
             for i in 0..n {
@@ -260,12 +269,7 @@ impl JacobianIkSolver {
     }
 
     /// Pseudoinverse step: J^T (J J^T)^{-1} e.
-    fn jacobian_pseudoinverse_step(
-        &self,
-        jac: &[f64],
-        err: &[f64; 3],
-        n: usize,
-    ) -> Vec<f64> {
+    fn jacobian_pseudoinverse_step(&self, jac: &[f64], err: &[f64; 3], n: usize) -> Vec<f64> {
         // J J^T is 3x3
         let jjt = self.mul_jjt(jac, n);
         let jjt_inv = match invert_3x3(&jjt) {
@@ -379,10 +383,15 @@ impl CcdSolver {
         }
         for (i, &l) in link_lengths.iter().enumerate() {
             if l <= 0.0 {
-                return Err(IkError::InvalidConfig(format!("link {i} has non-positive length {l}")));
+                return Err(IkError::InvalidConfig(format!(
+                    "link {i} has non-positive length {l}"
+                )));
             }
         }
-        Ok(Self { link_lengths, config: IkConfig::new() })
+        Ok(Self {
+            link_lengths,
+            config: IkConfig::new(),
+        })
     }
 
     pub fn with_config(mut self, config: IkConfig) -> Self {
@@ -399,12 +408,18 @@ impl CcdSolver {
     pub fn solve_2d(&self, target: [f64; 2], q0: &[f64]) -> Result<IkSolution, IkError> {
         let n = self.link_lengths.len();
         if q0.len() != n {
-            return Err(IkError::DimensionMismatch { expected: n, got: q0.len() });
+            return Err(IkError::DimensionMismatch {
+                expected: n,
+                got: q0.len(),
+            });
         }
         let dist = (target[0] * target[0] + target[1] * target[1]).sqrt();
         let reach = self.max_reach();
         if dist > reach {
-            return Err(IkError::Unreachable { distance: dist, max_reach: reach });
+            return Err(IkError::Unreachable {
+                distance: dist,
+                max_reach: reach,
+            });
         }
 
         let mut angles = q0.to_vec();
@@ -438,8 +453,12 @@ impl CcdSolver {
 
                 let mut delta = to_target - to_ee;
                 // Wrap to [-PI, PI]
-                while delta > PI { delta -= 2.0 * PI; }
-                while delta < -PI { delta += 2.0 * PI; }
+                while delta > PI {
+                    delta -= 2.0 * PI;
+                }
+                while delta < -PI {
+                    delta += 2.0 * PI;
+                }
 
                 angles[j] += delta;
                 self.clamp_angle(&mut angles[j], j);
@@ -477,7 +496,12 @@ impl CcdSolver {
 
 impl std::fmt::Display for CcdSolver {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "CCD({} links, reach={:.3})", self.link_lengths.len(), self.max_reach())
+        write!(
+            f,
+            "CCD({} links, reach={:.3})",
+            self.link_lengths.len(),
+            self.max_reach()
+        )
     }
 }
 
@@ -576,7 +600,11 @@ impl FabrikSolver {
             positions[n] = target;
             for i in (0..n).rev() {
                 let d = dist_2d(positions[i], positions[i + 1]);
-                let ratio = if d > 1e-12 { self.link_lengths[i] / d } else { 1.0 };
+                let ratio = if d > 1e-12 {
+                    self.link_lengths[i] / d
+                } else {
+                    1.0
+                };
                 positions[i] = [
                     positions[i + 1][0] + ratio * (positions[i][0] - positions[i + 1][0]),
                     positions[i + 1][1] + ratio * (positions[i][1] - positions[i + 1][1]),
@@ -587,7 +615,11 @@ impl FabrikSolver {
             positions[0] = base;
             for i in 0..n {
                 let d = dist_2d(positions[i], positions[i + 1]);
-                let ratio = if d > 1e-12 { self.link_lengths[i] / d } else { 1.0 };
+                let ratio = if d > 1e-12 {
+                    self.link_lengths[i] / d
+                } else {
+                    1.0
+                };
                 positions[i + 1] = [
                     positions[i][0] + ratio * (positions[i + 1][0] - positions[i][0]),
                     positions[i][1] + ratio * (positions[i + 1][1] - positions[i][1]),
@@ -646,8 +678,7 @@ impl std::fmt::Display for FabrikResult {
 
 /// Invert a 3x3 matrix (row-major).  Returns `None` if singular.
 fn invert_3x3(m: &[f64; 9]) -> Option<[f64; 9]> {
-    let det = m[0] * (m[4] * m[8] - m[5] * m[7])
-        - m[1] * (m[3] * m[8] - m[5] * m[6])
+    let det = m[0] * (m[4] * m[8] - m[5] * m[7]) - m[1] * (m[3] * m[8] - m[5] * m[6])
         + m[2] * (m[3] * m[7] - m[4] * m[6]);
     if det.abs() < 1e-15 {
         return None;
@@ -729,7 +760,8 @@ mod tests {
 
     #[test]
     fn test_ccd_2d_reachable() {
-        let solver = CcdSolver::new(vec![1.0, 1.0, 1.0]).unwrap()
+        let solver = CcdSolver::new(vec![1.0, 1.0, 1.0])
+            .unwrap()
             .with_config(IkConfig::new().with_max_iterations(200));
         let result = solver.solve_2d([2.0, 1.0], &[0.0, 0.0, 0.0]).unwrap();
         assert!(result.converged);
@@ -766,7 +798,8 @@ mod tests {
 
     #[test]
     fn test_fabrik_at_origin() {
-        let solver = FabrikSolver::new(vec![1.0, 1.0]).unwrap()
+        let solver = FabrikSolver::new(vec![1.0, 1.0])
+            .unwrap()
             .with_tolerance(1e-3);
         let init = vec![[0.0, 0.0], [1.0, 0.0], [2.0, 0.0]];
         let result = solver.solve_2d([0.0, 0.0], &init).unwrap();
@@ -804,7 +837,10 @@ mod tests {
 
     #[test]
     fn test_ik_error_display() {
-        let e = IkError::Unreachable { distance: 5.0, max_reach: 3.0 };
+        let e = IkError::Unreachable {
+            distance: 5.0,
+            max_reach: 3.0,
+        };
         let s = format!("{e}");
         assert!(s.contains("unreachable"));
     }

@@ -476,11 +476,8 @@ impl Database {
         // actual reading version atomically inside the engine.
         let pinned_version = self.engine.current_committed_meta().committed_version;
 
-        let lock = snapshot_registry::register(
-            std::path::Path::new(&self.path),
-            pinned_version,
-        )
-        .map_err(Error::Storage)?;
+        let lock = snapshot_registry::register(std::path::Path::new(&self.path), pinned_version)
+            .map_err(Error::Storage)?;
         let inner = joule_db_core::Snapshot::open(Arc::clone(&self.engine));
         Ok(DbSnapshot { inner, _lock: lock })
     }
@@ -844,12 +841,10 @@ mod tests {
         // pid that is NOT our own (so the registry scan treats it as
         // external rather than skipping it). Take an exclusive flock
         // from this thread to keep `try_lock_exclusive` failing.
-        let snapshots_dir =
-            db_path.join(crate::snapshot_registry::SNAPSHOTS_DIR_NAME);
+        let snapshots_dir = db_path.join(crate::snapshot_registry::SNAPSHOTS_DIR_NAME);
         std::fs::create_dir_all(&snapshots_dir).unwrap();
         let fake_peer_pid = std::process::id().wrapping_add(99_991); // ≠ our pid
-        let peer_lock_path =
-            snapshots_dir.join(format!("{}.0.lock", fake_peer_pid));
+        let peer_lock_path = snapshots_dir.join(format!("{}.0.lock", fake_peer_pid));
         let peer_file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -987,9 +982,7 @@ mod tests {
         // Second open_writer should fail fast (non-blocking).
         let writer_b = Database::open_writer(&path);
         match writer_b {
-            Ok(_) => panic!(
-                "second open_writer should have failed while writer A holds the lock"
-            ),
+            Ok(_) => panic!("second open_writer should have failed while writer A holds the lock"),
             Err(e) => {
                 let msg = format!("{e}");
                 assert!(
@@ -1031,9 +1024,8 @@ mod tests {
         // Open a reader. Then open a writer concurrently — the
         // reader's existence must not block the writer.
         let reader = Database::open(&path).unwrap();
-        let writer = Database::open_writer(&path).expect(
-            "writer must be able to open while a reader is alive",
-        );
+        let writer = Database::open_writer(&path)
+            .expect("writer must be able to open while a reader is alive");
 
         // Both can coexist. Writer commits new data; reader sees
         // the seed (its snapshot is from the open moment) until
@@ -1116,10 +1108,7 @@ mod tests {
                 for i in 0..10 {
                     let key = format!("k_{}_{}", batch, i);
                     let expected = format!("v_{}_{}", batch, i);
-                    assert_eq!(
-                        db.get(key.as_bytes()).unwrap(),
-                        Some(expected.into_bytes()),
-                    );
+                    assert_eq!(db.get(key.as_bytes()).unwrap(), Some(expected.into_bytes()),);
                 }
             }
 

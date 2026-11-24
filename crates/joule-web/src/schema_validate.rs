@@ -31,7 +31,9 @@ pub struct CustomValidator {
 
 impl std::fmt::Debug for CustomValidator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CustomValidator").field("name", &self.name).finish()
+        f.debug_struct("CustomValidator")
+            .field("name", &self.name)
+            .finish()
     }
 }
 
@@ -115,11 +117,21 @@ impl Schema {
         s
     }
 
-    pub fn string() -> Self { Self::typed(SchemaType::String) }
-    pub fn number() -> Self { Self::typed(SchemaType::Number) }
-    pub fn integer() -> Self { Self::typed(SchemaType::Integer) }
-    pub fn boolean() -> Self { Self::typed(SchemaType::Boolean) }
-    pub fn null() -> Self { Self::typed(SchemaType::Null) }
+    pub fn string() -> Self {
+        Self::typed(SchemaType::String)
+    }
+    pub fn number() -> Self {
+        Self::typed(SchemaType::Number)
+    }
+    pub fn integer() -> Self {
+        Self::typed(SchemaType::Integer)
+    }
+    pub fn boolean() -> Self {
+        Self::typed(SchemaType::Boolean)
+    }
+    pub fn null() -> Self {
+        Self::typed(SchemaType::Null)
+    }
 
     pub fn array(items: Schema) -> Self {
         let mut s = Self::typed(SchemaType::Array);
@@ -127,7 +139,9 @@ impl Schema {
         s
     }
 
-    pub fn object() -> Self { Self::typed(SchemaType::Object) }
+    pub fn object() -> Self {
+        Self::typed(SchemaType::Object)
+    }
 
     // ── Builders ────────────────────────────────────────────────
 
@@ -216,7 +230,11 @@ impl Schema {
         self
     }
 
-    pub fn with_custom(mut self, name: impl Into<String>, f: impl Fn(&Value) -> Option<String> + 'static) -> Self {
+    pub fn with_custom(
+        mut self,
+        name: impl Into<String>,
+        f: impl Fn(&Value) -> Option<String> + 'static,
+    ) -> Self {
         self.custom_validators.push(CustomValidator {
             name: name.into(),
             validate_fn: Box::new(f),
@@ -236,7 +254,9 @@ impl Schema {
 }
 
 impl Default for Schema {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Validation Error ────────────────────────────────────────────
@@ -307,7 +327,11 @@ fn validate_inner(value: &Value, schema: &Schema, path: &str, errors: &mut Vec<V
         if !type_ok {
             errors.push(ValidationError::new(
                 path,
-                format!("expected type {:?}, got {:?}", expected_type, value_type_name(value)),
+                format!(
+                    "expected type {:?}, got {:?}",
+                    expected_type,
+                    value_type_name(value)
+                ),
             ));
             return;
         }
@@ -346,12 +370,18 @@ fn validate_inner(value: &Value, schema: &Schema, path: &str, errors: &mut Vec<V
     if let Some(n) = value.as_f64() {
         if let Some(min) = schema.minimum {
             if n < min {
-                errors.push(ValidationError::new(path, format!("value {} < minimum {}", n, min)));
+                errors.push(ValidationError::new(
+                    path,
+                    format!("value {} < minimum {}", n, min),
+                ));
             }
         }
         if let Some(max) = schema.maximum {
             if n > max {
-                errors.push(ValidationError::new(path, format!("value {} > maximum {}", n, max)));
+                errors.push(ValidationError::new(
+                    path,
+                    format!("value {} > maximum {}", n, max),
+                ));
             }
         }
         if let Some(emin) = schema.exclusive_minimum {
@@ -468,15 +498,22 @@ fn validate_inner(value: &Value, schema: &Schema, path: &str, errors: &mut Vec<V
 
     // oneOf.
     if !schema.one_of.is_empty() {
-        let match_count = schema.one_of.iter().filter(|sub| {
-            let mut sub_errors = Vec::new();
-            validate_inner(value, sub, path, &mut sub_errors);
-            sub_errors.is_empty()
-        }).count();
+        let match_count = schema
+            .one_of
+            .iter()
+            .filter(|sub| {
+                let mut sub_errors = Vec::new();
+                validate_inner(value, sub, path, &mut sub_errors);
+                sub_errors.is_empty()
+            })
+            .count();
         if match_count != 1 {
             errors.push(ValidationError::new(
                 path,
-                format!("value matches {} of oneOf schemas, expected exactly 1", match_count),
+                format!(
+                    "value matches {} of oneOf schemas, expected exactly 1",
+                    match_count
+                ),
             ));
         }
     }
@@ -486,7 +523,10 @@ fn validate_inner(value: &Value, schema: &Schema, path: &str, errors: &mut Vec<V
         let mut sub_errors = Vec::new();
         validate_inner(value, not_schema, path, &mut sub_errors);
         if sub_errors.is_empty() {
-            errors.push(ValidationError::new(path, "value must NOT match the 'not' schema"));
+            errors.push(ValidationError::new(
+                path,
+                "value must NOT match the 'not' schema",
+            ));
         }
     }
 
@@ -525,9 +565,13 @@ fn simple_pattern_match(pattern: &str, value: &str) -> bool {
         let parts: Vec<&str> = pat.split(".*").collect();
         let mut remaining = value;
         for (i, part) in parts.iter().enumerate() {
-            if part.is_empty() { continue; }
+            if part.is_empty() {
+                continue;
+            }
             if i == 0 && pattern.starts_with('^') {
-                if !remaining.starts_with(part) { return false; }
+                if !remaining.starts_with(part) {
+                    return false;
+                }
                 remaining = &remaining[part.len()..];
             } else if let Some(pos) = remaining.find(part) {
                 remaining = &remaining[pos + part.len()..];
@@ -537,7 +581,9 @@ fn simple_pattern_match(pattern: &str, value: &str) -> bool {
         }
         if anchored_end {
             if let Some(last) = parts.last() {
-                if !last.is_empty() { return value.ends_with(last); }
+                if !last.is_empty() {
+                    return value.ends_with(last);
+                }
             }
         }
         true
@@ -653,7 +699,9 @@ mod tests {
 
     #[test]
     fn test_array_min_max_items() {
-        let schema = Schema::array(Schema::number()).with_min_items(2).with_max_items(4);
+        let schema = Schema::array(Schema::number())
+            .with_min_items(2)
+            .with_max_items(4);
         assert!(validate(&json!([1, 2, 3]), &schema).is_valid());
         assert!(!validate(&json!([1]), &schema).is_valid());
         assert!(!validate(&json!([1, 2, 3, 4, 5]), &schema).is_valid());
@@ -678,10 +726,7 @@ mod tests {
 
     #[test]
     fn test_any_of() {
-        let schema = Schema::new().with_any_of(vec![
-            Schema::string(),
-            Schema::integer(),
-        ]);
+        let schema = Schema::new().with_any_of(vec![Schema::string(), Schema::integer()]);
         assert!(validate(&json!("hello"), &schema).is_valid());
         assert!(validate(&json!(42), &schema).is_valid());
         assert!(!validate(&json!(true), &schema).is_valid());

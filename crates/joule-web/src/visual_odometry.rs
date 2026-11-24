@@ -16,7 +16,9 @@ pub struct Point2 {
 }
 
 impl Point2 {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
 
     pub fn distance_to(&self, other: &Point2) -> f64 {
         ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
@@ -38,8 +40,16 @@ pub struct Point3 {
 }
 
 impl Point3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0, z: 0.0 } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
 
     pub fn norm(&self) -> f64 {
         (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
@@ -71,7 +81,11 @@ impl Point3 {
 
     pub fn normalized(&self) -> Point3 {
         let n = self.norm();
-        if n < 1e-15 { Point3::zero() } else { self.scale(1.0 / n) }
+        if n < 1e-15 {
+            Point3::zero()
+        } else {
+            self.scale(1.0 / n)
+        }
     }
 }
 
@@ -99,7 +113,9 @@ impl CameraIntrinsics {
 
     /// Project 3-D point to pixel (no distortion).
     pub fn project(&self, p: &Point3) -> Option<Point2> {
-        if p.z <= 0.0 { return None; }
+        if p.z <= 0.0 {
+            return None;
+        }
         Some(Point2::new(
             self.fx * p.x / p.z + self.cx,
             self.fy * p.y / p.z + self.cy,
@@ -108,17 +124,17 @@ impl CameraIntrinsics {
 
     /// Back-project pixel to normalized coordinates.
     pub fn unproject(&self, px: &Point2) -> Point3 {
-        Point3::new(
-            (px.x - self.cx) / self.fx,
-            (px.y - self.cy) / self.fy,
-            1.0,
-        )
+        Point3::new((px.x - self.cx) / self.fx, (px.y - self.cy) / self.fy, 1.0)
     }
 }
 
 impl fmt::Display for CameraIntrinsics {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Camera(fx={:.1}, fy={:.1}, cx={:.1}, cy={:.1})", self.fx, self.fy, self.cx, self.cy)
+        write!(
+            f,
+            "Camera(fx={:.1}, fy={:.1}, cx={:.1}, cy={:.1})",
+            self.fx, self.fy, self.cx, self.cy
+        )
     }
 }
 
@@ -134,14 +150,20 @@ pub struct FeatureTrack {
 
 impl FeatureTrack {
     pub fn new(id: usize, frame_id: usize, pixel: Point2) -> Self {
-        Self { id, observations: vec![(frame_id, pixel)], world_point: None }
+        Self {
+            id,
+            observations: vec![(frame_id, pixel)],
+            world_point: None,
+        }
     }
 
     pub fn add_observation(&mut self, frame_id: usize, pixel: Point2) {
         self.observations.push((frame_id, pixel));
     }
 
-    pub fn track_length(&self) -> usize { self.observations.len() }
+    pub fn track_length(&self) -> usize {
+        self.observations.len()
+    }
 
     pub fn last_observation(&self) -> Option<&(usize, Point2)> {
         self.observations.last()
@@ -163,11 +185,21 @@ pub struct Mat3 {
 }
 
 impl Mat3 {
-    pub fn identity() -> Self { Self { data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0] } }
-    pub fn zeros() -> Self { Self { data: [0.0; 9] } }
+    pub fn identity() -> Self {
+        Self {
+            data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+        }
+    }
+    pub fn zeros() -> Self {
+        Self { data: [0.0; 9] }
+    }
 
-    pub fn get(&self, r: usize, c: usize) -> f64 { self.data[r * 3 + c] }
-    pub fn set(&mut self, r: usize, c: usize, v: f64) { self.data[r * 3 + c] = v; }
+    pub fn get(&self, r: usize, c: usize) -> f64 {
+        self.data[r * 3 + c]
+    }
+    pub fn set(&mut self, r: usize, c: usize, v: f64) {
+        self.data[r * 3 + c] = v;
+    }
 
     pub fn mul_vec(&self, v: &Point3) -> Point3 {
         Point3::new(
@@ -182,7 +214,9 @@ impl Mat3 {
         for i in 0..3 {
             for j in 0..3 {
                 let mut s = 0.0;
-                for k in 0..3 { s += self.get(i, k) * o.get(k, j); }
+                for k in 0..3 {
+                    s += self.get(i, k) * o.get(k, j);
+                }
                 out.set(i, j, s);
             }
         }
@@ -191,7 +225,11 @@ impl Mat3 {
 
     pub fn transpose(&self) -> Mat3 {
         let mut out = Mat3::zeros();
-        for i in 0..3 { for j in 0..3 { out.set(i, j, self.get(j, i)); } }
+        for i in 0..3 {
+            for j in 0..3 {
+                out.set(i, j, self.get(j, i));
+            }
+        }
         out
     }
 }
@@ -207,7 +245,10 @@ pub struct CameraPose {
 
 impl CameraPose {
     pub fn identity() -> Self {
-        Self { rotation: Mat3::identity(), translation: Point3::zero() }
+        Self {
+            rotation: Mat3::identity(),
+            translation: Point3::zero(),
+        }
     }
 
     /// Transform a world point to camera coordinates.
@@ -219,7 +260,10 @@ impl CameraPose {
     pub fn compose(&self, other: &CameraPose) -> CameraPose {
         CameraPose {
             rotation: self.rotation.mul_mat(&other.rotation),
-            translation: self.rotation.mul_vec(&other.translation).add(&self.translation),
+            translation: self
+                .rotation
+                .mul_vec(&other.translation)
+                .add(&self.translation),
         }
     }
 
@@ -254,7 +298,9 @@ impl fmt::Display for CameraPose {
 /// Points must be in normalized camera coordinates (after K⁻¹).
 pub fn estimate_essential_matrix(pts1: &[Point3], pts2: &[Point3]) -> Option<Mat3> {
     let n = pts1.len();
-    if n < 8 { return None; }
+    if n < 8 {
+        return None;
+    }
 
     // Build A matrix (n × 9) for Af = 0
     // Each row: [x2*x1, x2*y1, x2, y2*x1, y2*y1, y2, x1, y1, 1]
@@ -286,8 +332,12 @@ pub fn estimate_essential_matrix(pts1: &[Point3], pts2: &[Point3]) -> Option<Mat
         }
         // Normalize
         let norm: f64 = new_v.iter().map(|x| x * x).sum::<f64>().sqrt();
-        if norm < 1e-15 { break; }
-        for i in 0..9 { v[i] = new_v[i] / norm; }
+        if norm < 1e-15 {
+            break;
+        }
+        for i in 0..9 {
+            v[i] = new_v[i] / norm;
+        }
     }
 
     // The result from inverse power iteration on (AᵀA + shift I) converges
@@ -299,7 +349,9 @@ pub fn estimate_essential_matrix(pts1: &[Point3], pts2: &[Point3]) -> Option<Mat
 
     // Simplified: just use v as approximate E
     let mut e = Mat3::zeros();
-    for i in 0..9 { e.data[i] = v[i]; }
+    for i in 0..9 {
+        e.data[i] = v[i];
+    }
 
     // Enforce rank-2 constraint via approximate SVD
     // (project to nearest rank-2 matrix)
@@ -365,7 +417,9 @@ pub fn solve_pnp(
     camera: &CameraIntrinsics,
 ) -> Option<CameraPose> {
     let n = world_points.len();
-    if n < 6 { return None; }
+    if n < 6 {
+        return None;
+    }
 
     // Normalize image points
     let norm_pts: Vec<Point3> = image_points.iter().map(|p| camera.unproject(p)).collect();
@@ -379,9 +433,35 @@ pub fn solve_pnp(
         let (u, v_coord) = (norm_pts[i].x, norm_pts[i].y);
 
         // Row 1: [X Y Z 1 0 0 0 0 -uX -uY -uZ -u]
-        let row1 = [xw, yw, zw, 1.0, 0.0, 0.0, 0.0, 0.0, -u * xw, -u * yw, -u * zw, -u];
+        let row1 = [
+            xw,
+            yw,
+            zw,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            -u * xw,
+            -u * yw,
+            -u * zw,
+            -u,
+        ];
         // Row 2: [0 0 0 0 X Y Z 1 -vX -vY -vZ -v]
-        let row2 = [0.0, 0.0, 0.0, 0.0, xw, yw, zw, 1.0, -v_coord * xw, -v_coord * yw, -v_coord * zw, -v_coord];
+        let row2 = [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            xw,
+            yw,
+            zw,
+            1.0,
+            -v_coord * xw,
+            -v_coord * yw,
+            -v_coord * zw,
+            -v_coord,
+        ];
 
         for r in 0..12 {
             for c in 0..12 {
@@ -401,8 +481,12 @@ pub fn solve_pnp(
             }
         }
         let norm: f64 = new_p.iter().map(|x| x * x).sum::<f64>().sqrt();
-        if norm < 1e-15 { break; }
-        for i in 0..12 { p_vec[i] = new_p[i] / norm; }
+        if norm < 1e-15 {
+            break;
+        }
+        for i in 0..12 {
+            p_vec[i] = new_p[i] / norm;
+        }
     }
 
     // Extract R and t from the projection vector
@@ -429,7 +513,10 @@ pub fn solve_pnp(
 
     let _ = rrt; // suppress unused
 
-    Some(CameraPose { rotation: rot, translation })
+    Some(CameraPose {
+        rotation: rot,
+        translation,
+    })
 }
 
 // ── Scale recovery ────────────────────────────────────────────────
@@ -441,8 +528,10 @@ pub fn recover_scale(
     idx_a: usize,
     idx_b: usize,
 ) -> f64 {
-    if idx_a >= estimated_pts.len() || idx_b >= estimated_pts.len()
-        || idx_a >= reference_pts.len() || idx_b >= reference_pts.len()
+    if idx_a >= estimated_pts.len()
+        || idx_b >= estimated_pts.len()
+        || idx_a >= reference_pts.len()
+        || idx_b >= reference_pts.len()
     {
         return 1.0;
     }
@@ -450,7 +539,9 @@ pub fn recover_scale(
     let est_dist = estimated_pts[idx_a].sub(&estimated_pts[idx_b]).norm();
     let ref_dist = reference_pts[idx_a].sub(&reference_pts[idx_b]).norm();
 
-    if est_dist < 1e-12 { return 1.0; }
+    if est_dist < 1e-12 {
+        return 1.0;
+    }
     ref_dist / est_dist
 }
 
@@ -482,10 +573,22 @@ impl VoConfig {
         }
     }
 
-    pub fn with_min_features(mut self, n: usize) -> Self { self.min_features = n; self }
-    pub fn with_max_features(mut self, n: usize) -> Self { self.max_features = n; self }
-    pub fn with_min_track_length(mut self, n: usize) -> Self { self.min_track_length = n; self }
-    pub fn with_ransac_threshold(mut self, t: f64) -> Self { self.ransac_threshold = t; self }
+    pub fn with_min_features(mut self, n: usize) -> Self {
+        self.min_features = n;
+        self
+    }
+    pub fn with_max_features(mut self, n: usize) -> Self {
+        self.max_features = n;
+        self
+    }
+    pub fn with_min_track_length(mut self, n: usize) -> Self {
+        self.min_track_length = n;
+        self
+    }
+    pub fn with_ransac_threshold(mut self, t: f64) -> Self {
+        self.ransac_threshold = t;
+        self
+    }
 }
 
 /// Visual odometry state.
@@ -513,7 +616,8 @@ impl VisualOdometry {
     pub fn add_track(&mut self, pixel: Point2) -> usize {
         let id = self.next_track_id;
         self.next_track_id += 1;
-        self.tracks.push(FeatureTrack::new(id, self.current_frame, pixel));
+        self.tracks
+            .push(FeatureTrack::new(id, self.current_frame, pixel));
         id
     }
 
@@ -534,7 +638,10 @@ impl VisualOdometry {
 
     /// Current pose.
     pub fn current_pose(&self) -> CameraPose {
-        self.poses.last().cloned().unwrap_or_else(CameraPose::identity)
+        self.poses
+            .last()
+            .cloned()
+            .unwrap_or_else(CameraPose::identity)
     }
 
     /// Total trajectory length.
@@ -552,7 +659,10 @@ impl VisualOdometry {
     pub fn active_tracks(&self) -> usize {
         self.tracks
             .iter()
-            .filter(|t| t.last_observation().map_or(false, |o| o.0 == self.current_frame))
+            .filter(|t| {
+                t.last_observation()
+                    .map_or(false, |o| o.0 == self.current_frame)
+            })
             .count()
     }
 }

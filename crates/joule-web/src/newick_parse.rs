@@ -36,8 +36,7 @@ impl std::error::Error for NewickError {}
 // ── Tree node ───────────────────────────────────────────────────
 
 /// A node in a phylogenetic tree.
-#[derive(Debug, Clone)]
-#[derive(PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TreeNode {
     pub label: Option<String>,
     pub branch_length: Option<f64>,
@@ -85,10 +84,14 @@ impl TreeNode {
     }
 
     /// True if this is a leaf (no children).
-    pub fn is_leaf(&self) -> bool { self.children.is_empty() }
+    pub fn is_leaf(&self) -> bool {
+        self.children.is_empty()
+    }
 
     /// True if this is an internal node.
-    pub fn is_internal(&self) -> bool { !self.children.is_empty() }
+    pub fn is_internal(&self) -> bool {
+        !self.children.is_empty()
+    }
 
     /// Number of leaves in this subtree.
     pub fn leaf_count(&self) -> usize {
@@ -116,7 +119,11 @@ impl TreeNode {
     /// Total branch length of the subtree.
     pub fn total_branch_length(&self) -> f64 {
         let own = self.branch_length.unwrap_or(0.0);
-        own + self.children.iter().map(|c| c.total_branch_length()).sum::<f64>()
+        own + self
+            .children
+            .iter()
+            .map(|c| c.total_branch_length())
+            .sum::<f64>()
     }
 
     /// Collect all leaf labels.
@@ -149,7 +156,9 @@ impl TreeNode {
         if !self.children.is_empty() {
             s.push('(');
             for (i, child) in self.children.iter().enumerate() {
-                if i > 0 { s.push(','); }
+                if i > 0 {
+                    s.push(',');
+                }
                 s.push_str(&child.to_newick());
             }
             s.push(')');
@@ -210,7 +219,9 @@ pub struct NewickParser {
 
 impl NewickParser {
     pub fn new() -> Self {
-        Self { support_as_label: false }
+        Self {
+            support_as_label: false,
+        }
     }
 
     pub fn with_support_as_label(mut self, s: bool) -> Self {
@@ -227,7 +238,9 @@ impl NewickParser {
         let mut trees = Vec::new();
         for part in trimmed.split(';') {
             let t = part.trim();
-            if t.is_empty() { continue; }
+            if t.is_empty() {
+                continue;
+            }
             let tree = self.parse_tree(t)?;
             trees.push(tree);
         }
@@ -244,9 +257,9 @@ impl NewickParser {
             // Allow trailing whitespace
             let remaining: String = chars[pos..].iter().collect();
             if !remaining.trim().is_empty() {
-                return Err(NewickError::MalformedTree(
-                    format!("unexpected characters at position {pos}"),
-                ));
+                return Err(NewickError::MalformedTree(format!(
+                    "unexpected characters at position {pos}"
+                )));
             }
         }
         Ok(node)
@@ -272,9 +285,9 @@ impl NewickParser {
                     pos += 1;
                     break;
                 } else {
-                    return Err(NewickError::MalformedTree(
-                        format!("expected ',' or ')' at position {pos}"),
-                    ));
+                    return Err(NewickError::MalformedTree(format!(
+                        "expected ',' or ')' at position {pos}"
+                    )));
                 }
             }
         }
@@ -308,7 +321,9 @@ impl NewickParser {
                 pos += 1;
             }
             let bl_str: String = chars[bl_start..pos].iter().collect();
-            let bl: f64 = bl_str.trim().parse()
+            let bl: f64 = bl_str
+                .trim()
+                .parse()
                 .map_err(|_| NewickError::InvalidBranchLength(bl_str))?;
             node.branch_length = Some(bl);
         }
@@ -324,7 +339,11 @@ impl NewickParser {
 
 impl fmt::Display for NewickParser {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "NewickParser(support_as_label={})", self.support_as_label)
+        write!(
+            f,
+            "NewickParser(support_as_label={})",
+            self.support_as_label
+        )
     }
 }
 

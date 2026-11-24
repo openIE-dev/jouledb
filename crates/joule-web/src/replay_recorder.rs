@@ -30,14 +30,23 @@ impl fmt::Display for ReplayError {
             Self::TimestampOutOfOrder { prev, current } => {
                 write!(f, "timestamp out of order: {current} < {prev}")
             }
-            Self::SeekOutOfRange { target_ms, duration_ms } => {
-                write!(f, "seek {target_ms}ms out of range (duration {duration_ms}ms)")
+            Self::SeekOutOfRange {
+                target_ms,
+                duration_ms,
+            } => {
+                write!(
+                    f,
+                    "seek {target_ms}ms out of range (duration {duration_ms}ms)"
+                )
             }
             Self::InvalidSpeed(msg) => write!(f, "invalid speed: {msg}"),
             Self::CorruptedData(msg) => write!(f, "corrupted replay data: {msg}"),
             Self::InvalidMagic => write!(f, "invalid replay magic"),
             Self::ChecksumMismatch { expected, actual } => {
-                write!(f, "checksum mismatch: expected {expected:#010x}, got {actual:#010x}")
+                write!(
+                    f,
+                    "checksum mismatch: expected {expected:#010x}, got {actual:#010x}"
+                )
             }
             Self::ClipRangeInvalid { start_ms, end_ms } => {
                 write!(f, "invalid clip range: {start_ms}..{end_ms}")
@@ -165,19 +174,25 @@ impl InputKind {
         *offset += 1;
         match tag {
             0 => {
-                if *offset + 2 > data.len() { return Err(ReplayError::CorruptedData("truncated key code".into())); }
+                if *offset + 2 > data.len() {
+                    return Err(ReplayError::CorruptedData("truncated key code".into()));
+                }
                 let code = u16::from_le_bytes([data[*offset], data[*offset + 1]]);
                 *offset += 2;
                 Ok(Self::KeyDown(code))
             }
             1 => {
-                if *offset + 2 > data.len() { return Err(ReplayError::CorruptedData("truncated key code".into())); }
+                if *offset + 2 > data.len() {
+                    return Err(ReplayError::CorruptedData("truncated key code".into()));
+                }
                 let code = u16::from_le_bytes([data[*offset], data[*offset + 1]]);
                 *offset += 2;
                 Ok(Self::KeyUp(code))
             }
             2 => {
-                if *offset + 8 > data.len() { return Err(ReplayError::CorruptedData("truncated mouse move".into())); }
+                if *offset + 8 > data.len() {
+                    return Err(ReplayError::CorruptedData("truncated mouse move".into()));
+                }
                 let x = i32::from_le_bytes(data[*offset..*offset + 4].try_into().unwrap());
                 *offset += 4;
                 let y = i32::from_le_bytes(data[*offset..*offset + 4].try_into().unwrap());
@@ -185,14 +200,18 @@ impl InputKind {
                 Ok(Self::MouseMove { x, y })
             }
             3 => {
-                if *offset + 2 > data.len() { return Err(ReplayError::CorruptedData("truncated mouse button".into())); }
+                if *offset + 2 > data.len() {
+                    return Err(ReplayError::CorruptedData("truncated mouse button".into()));
+                }
                 let button = data[*offset];
                 let pressed = data[*offset + 1] != 0;
                 *offset += 2;
                 Ok(Self::MouseButton { button, pressed })
             }
             4 => {
-                if *offset + 3 > data.len() { return Err(ReplayError::CorruptedData("truncated gamepad axis".into())); }
+                if *offset + 3 > data.len() {
+                    return Err(ReplayError::CorruptedData("truncated gamepad axis".into()));
+                }
                 let axis = data[*offset];
                 *offset += 1;
                 let value = i16::from_le_bytes([data[*offset], data[*offset + 1]]);
@@ -200,7 +219,11 @@ impl InputKind {
                 Ok(Self::GamepadAxis { axis, value })
             }
             5 => {
-                if *offset + 2 > data.len() { return Err(ReplayError::CorruptedData("truncated gamepad button".into())); }
+                if *offset + 2 > data.len() {
+                    return Err(ReplayError::CorruptedData(
+                        "truncated gamepad button".into(),
+                    ));
+                }
                 let button = data[*offset];
                 let pressed = data[*offset + 1] != 0;
                 *offset += 2;
@@ -208,12 +231,16 @@ impl InputKind {
             }
             6 => {
                 let len = decode_varint(data, offset)? as usize;
-                if *offset + len > data.len() { return Err(ReplayError::CorruptedData("truncated custom data".into())); }
+                if *offset + len > data.len() {
+                    return Err(ReplayError::CorruptedData("truncated custom data".into()));
+                }
                 let custom_data = data[*offset..*offset + len].to_vec();
                 *offset += len;
                 Ok(Self::Custom(custom_data))
             }
-            _ => Err(ReplayError::CorruptedData(format!("unknown input tag: {tag}"))),
+            _ => Err(ReplayError::CorruptedData(format!(
+                "unknown input tag: {tag}"
+            ))),
         }
     }
 }
@@ -264,7 +291,8 @@ impl ReplayRecorder {
         if let Some(last) = self.events.last() {
             if timestamp_ms < last.timestamp_ms {
                 return Err(ReplayError::TimestampOutOfOrder {
-                    prev: last.timestamp_ms, current: timestamp_ms,
+                    prev: last.timestamp_ms,
+                    current: timestamp_ms,
                 });
             }
         }
@@ -274,7 +302,11 @@ impl ReplayRecorder {
 
     pub fn add_keyframe(&mut self, timestamp_ms: u64, state_snapshot: Vec<u8>) {
         let event_index = self.events.len();
-        self.keyframes.push(Keyframe { timestamp_ms, state_snapshot, event_index });
+        self.keyframes.push(Keyframe {
+            timestamp_ms,
+            state_snapshot,
+            event_index,
+        });
         self.last_keyframe_ms = timestamp_ms;
     }
 
@@ -282,15 +314,23 @@ impl ReplayRecorder {
         current_ms >= self.last_keyframe_ms + self.keyframe_interval_ms
     }
 
-    pub fn event_count(&self) -> usize { self.events.len() }
-    pub fn keyframe_count(&self) -> usize { self.keyframes.len() }
+    pub fn event_count(&self) -> usize {
+        self.events.len()
+    }
+    pub fn keyframe_count(&self) -> usize {
+        self.keyframes.len()
+    }
 
     pub fn duration_ms(&self) -> u64 {
         self.events.last().map(|e| e.timestamp_ms).unwrap_or(0)
     }
 
-    pub fn events(&self) -> &[InputEvent] { &self.events }
-    pub fn initial_state(&self) -> &[u8] { &self.initial_state }
+    pub fn events(&self) -> &[InputEvent] {
+        &self.events
+    }
+    pub fn initial_state(&self) -> &[u8] {
+        &self.initial_state
+    }
 
     /// Encode to binary replay file.
     pub fn encode(&self) -> Vec<u8> {
@@ -341,17 +381,22 @@ impl ReplayRecorder {
         let computed_checksum = crc32(&data[12..]);
         if stored_checksum != computed_checksum {
             return Err(ReplayError::ChecksumMismatch {
-                expected: stored_checksum, actual: computed_checksum,
+                expected: stored_checksum,
+                actual: computed_checksum,
             });
         }
         let mut offset = 12;
         // Duration (skip, recomputed)
-        if offset + 8 > data.len() { return Err(ReplayError::CorruptedData("truncated duration".into())); }
+        if offset + 8 > data.len() {
+            return Err(ReplayError::CorruptedData("truncated duration".into()));
+        }
         let _duration = u64::from_le_bytes(data[offset..offset + 8].try_into().unwrap());
         offset += 8;
         // Initial state
         let state_len = decode_varint(data, &mut offset)? as usize;
-        if offset + state_len > data.len() { return Err(ReplayError::CorruptedData("truncated initial state".into())); }
+        if offset + state_len > data.len() {
+            return Err(ReplayError::CorruptedData("truncated initial state".into()));
+        }
         let initial_state = data[offset..offset + state_len].to_vec();
         offset += state_len;
         // Events
@@ -369,15 +414,25 @@ impl ReplayRecorder {
         let kf_count = decode_varint(data, &mut offset)? as usize;
         let mut keyframes = Vec::with_capacity(kf_count);
         for _ in 0..kf_count {
-            if offset + 8 > data.len() { return Err(ReplayError::CorruptedData("truncated keyframe".into())); }
+            if offset + 8 > data.len() {
+                return Err(ReplayError::CorruptedData("truncated keyframe".into()));
+            }
             let timestamp_ms = u64::from_le_bytes(data[offset..offset + 8].try_into().unwrap());
             offset += 8;
             let event_index = decode_varint(data, &mut offset)? as usize;
             let snap_len = decode_varint(data, &mut offset)? as usize;
-            if offset + snap_len > data.len() { return Err(ReplayError::CorruptedData("truncated keyframe snapshot".into())); }
+            if offset + snap_len > data.len() {
+                return Err(ReplayError::CorruptedData(
+                    "truncated keyframe snapshot".into(),
+                ));
+            }
             let state_snapshot = data[offset..offset + snap_len].to_vec();
             offset += snap_len;
-            keyframes.push(Keyframe { timestamp_ms, state_snapshot, event_index });
+            keyframes.push(Keyframe {
+                timestamp_ms,
+                state_snapshot,
+                event_index,
+            });
         }
         let last_kf_ms = keyframes.last().map(|kf| kf.timestamp_ms).unwrap_or(0);
         Ok(Self {
@@ -394,7 +449,11 @@ impl ReplayRecorder {
         let header = 20;
         let state = self.initial_state.len() + 5;
         let events_est = self.events.len() * 8; // rough
-        let keyframes_est: usize = self.keyframes.iter().map(|kf| 16 + kf.state_snapshot.len()).sum();
+        let keyframes_est: usize = self
+            .keyframes
+            .iter()
+            .map(|kf| 16 + kf.state_snapshot.len())
+            .sum();
         header + state + events_est + keyframes_est
     }
 }
@@ -438,21 +497,39 @@ impl ReplayPlayer {
         Ok(())
     }
 
-    pub fn speed(&self) -> f64 { self.speed }
-    pub fn is_paused(&self) -> bool { self.paused }
-    pub fn pause(&mut self) { self.paused = true; }
-    pub fn resume(&mut self) { self.paused = false; }
-    pub fn current_time_ms(&self) -> u64 { self.current_time_ms }
-    pub fn duration_ms(&self) -> u64 { self.duration_ms }
-    pub fn is_finished(&self) -> bool { self.current_index >= self.events.len() }
+    pub fn speed(&self) -> f64 {
+        self.speed
+    }
+    pub fn is_paused(&self) -> bool {
+        self.paused
+    }
+    pub fn pause(&mut self) {
+        self.paused = true;
+    }
+    pub fn resume(&mut self) {
+        self.paused = false;
+    }
+    pub fn current_time_ms(&self) -> u64 {
+        self.current_time_ms
+    }
+    pub fn duration_ms(&self) -> u64 {
+        self.duration_ms
+    }
+    pub fn is_finished(&self) -> bool {
+        self.current_index >= self.events.len()
+    }
     pub fn progress(&self) -> f64 {
-        if self.duration_ms == 0 { return 1.0; }
+        if self.duration_ms == 0 {
+            return 1.0;
+        }
         self.current_time_ms as f64 / self.duration_ms as f64
     }
 
     /// Advance by real-time delta, return events that fired.
     pub fn advance(&mut self, real_delta_ms: u64) -> Vec<&InputEvent> {
-        if self.paused || self.is_finished() { return Vec::new(); }
+        if self.paused || self.is_finished() {
+            return Vec::new();
+        }
         let game_delta = (real_delta_ms as f64 * self.speed) as u64;
         let target_time = self.current_time_ms + game_delta;
         let mut fired = Vec::new();
@@ -472,11 +549,16 @@ impl ReplayPlayer {
     pub fn seek(&mut self, target_ms: u64) -> Result<Option<&Keyframe>, ReplayError> {
         if target_ms > self.duration_ms {
             return Err(ReplayError::SeekOutOfRange {
-                target_ms, duration_ms: self.duration_ms,
+                target_ms,
+                duration_ms: self.duration_ms,
             });
         }
         // Find the nearest keyframe at or before target
-        let kf = self.keyframes.iter().rev().find(|kf| kf.timestamp_ms <= target_ms);
+        let kf = self
+            .keyframes
+            .iter()
+            .rev()
+            .find(|kf| kf.timestamp_ms <= target_ms);
         if let Some(kf) = kf {
             self.current_index = kf.event_index;
             self.current_time_ms = kf.timestamp_ms;
@@ -488,7 +570,11 @@ impl ReplayPlayer {
             }
             self.current_time_ms = target_ms;
             // Return reference to the keyframe in self.keyframes
-            let kf_idx = self.keyframes.iter().rposition(|k| k.timestamp_ms <= target_ms).unwrap();
+            let kf_idx = self
+                .keyframes
+                .iter()
+                .rposition(|k| k.timestamp_ms <= target_ms)
+                .unwrap();
             Ok(Some(&self.keyframes[kf_idx]))
         } else {
             // No keyframe — start from beginning
@@ -519,24 +605,35 @@ pub fn extract_clip(
         return Err(ReplayError::ClipRangeInvalid { start_ms, end_ms });
     }
     // Find the closest keyframe at or before start
-    let snap = recorder.keyframes.iter().rev()
+    let snap = recorder
+        .keyframes
+        .iter()
+        .rev()
         .find(|kf| kf.timestamp_ms <= start_ms)
         .map(|kf| kf.state_snapshot.clone())
         .unwrap_or_else(|| recorder.initial_state.clone());
 
-    let events: Vec<InputEvent> = recorder.events.iter()
+    let events: Vec<InputEvent> = recorder
+        .events
+        .iter()
         .filter(|e| e.timestamp_ms >= start_ms && e.timestamp_ms <= end_ms)
         .cloned()
-        .map(|mut e| { e.timestamp_ms -= start_ms; e })
+        .map(|mut e| {
+            e.timestamp_ms -= start_ms;
+            e
+        })
         .collect();
 
-    let keyframes: Vec<Keyframe> = recorder.keyframes.iter()
+    let keyframes: Vec<Keyframe> = recorder
+        .keyframes
+        .iter()
         .filter(|kf| kf.timestamp_ms >= start_ms && kf.timestamp_ms <= end_ms)
         .cloned()
         .map(|mut kf| {
             kf.timestamp_ms -= start_ms;
             // Recompute event_index relative to clip
-            kf.event_index = events.iter()
+            kf.event_index = events
+                .iter()
                 .position(|e| e.timestamp_ms >= kf.timestamp_ms)
                 .unwrap_or(events.len());
             kf
@@ -558,13 +655,29 @@ mod tests {
     fn build_replay() -> ReplayRecorder {
         let mut rec = ReplayRecorder::new(vec![0, 1, 2, 3], 5000);
         rec.record_event(0, InputKind::KeyDown(65)).unwrap();
-        rec.record_event(100, InputKind::MouseMove { x: 10, y: 20 }).unwrap();
+        rec.record_event(100, InputKind::MouseMove { x: 10, y: 20 })
+            .unwrap();
         rec.record_event(200, InputKind::KeyUp(65)).unwrap();
-        rec.record_event(500, InputKind::MouseButton { button: 0, pressed: true }).unwrap();
-        rec.record_event(1000, InputKind::GamepadAxis { axis: 0, value: -100 }).unwrap();
+        rec.record_event(
+            500,
+            InputKind::MouseButton {
+                button: 0,
+                pressed: true,
+            },
+        )
+        .unwrap();
+        rec.record_event(
+            1000,
+            InputKind::GamepadAxis {
+                axis: 0,
+                value: -100,
+            },
+        )
+        .unwrap();
         rec.add_keyframe(500, vec![10, 20, 30]);
         rec.record_event(2000, InputKind::KeyDown(66)).unwrap();
-        rec.record_event(3000, InputKind::Custom(vec![42, 43])).unwrap();
+        rec.record_event(3000, InputKind::Custom(vec![42, 43]))
+            .unwrap();
         rec.add_keyframe(2000, vec![40, 50]);
         rec
     }
@@ -620,7 +733,10 @@ mod tests {
         assert_eq!(decoded.keyframe_count(), 2);
         // Verify event content
         assert_eq!(decoded.events()[0].kind, InputKind::KeyDown(65));
-        assert_eq!(decoded.events()[1].kind, InputKind::MouseMove { x: 10, y: 20 });
+        assert_eq!(
+            decoded.events()[1].kind,
+            InputKind::MouseMove { x: 10, y: 20 }
+        );
     }
 
     #[test]
@@ -770,17 +886,31 @@ mod tests {
     #[test]
     fn gamepad_button_roundtrip() {
         let mut rec = ReplayRecorder::new(vec![1], 5000);
-        rec.record_event(0, InputKind::GamepadButton { button: 3, pressed: true }).unwrap();
+        rec.record_event(
+            0,
+            InputKind::GamepadButton {
+                button: 3,
+                pressed: true,
+            },
+        )
+        .unwrap();
         let data = rec.encode();
         let dec = ReplayRecorder::decode(&data).unwrap();
-        assert_eq!(dec.events()[0].kind, InputKind::GamepadButton { button: 3, pressed: true });
+        assert_eq!(
+            dec.events()[0].kind,
+            InputKind::GamepadButton {
+                button: 3,
+                pressed: true
+            }
+        );
     }
 
     #[test]
     fn custom_event_roundtrip() {
         let mut rec = ReplayRecorder::new(vec![1], 5000);
         let payload = vec![1, 2, 3, 4, 5, 6, 7, 8];
-        rec.record_event(0, InputKind::Custom(payload.clone())).unwrap();
+        rec.record_event(0, InputKind::Custom(payload.clone()))
+            .unwrap();
         let data = rec.encode();
         let dec = ReplayRecorder::decode(&data).unwrap();
         assert_eq!(dec.events()[0].kind, InputKind::Custom(payload));

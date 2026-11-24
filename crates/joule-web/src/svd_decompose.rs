@@ -16,7 +16,11 @@ pub struct DenseMat {
 
 impl DenseMat {
     pub fn zeros(rows: usize, cols: usize) -> Self {
-        Self { rows, cols, data: vec![0.0; rows * cols] }
+        Self {
+            rows,
+            cols,
+            data: vec![0.0; rows * cols],
+        }
     }
 
     pub fn from_data(rows: usize, cols: usize, data: Vec<f64>) -> Self {
@@ -26,19 +30,29 @@ impl DenseMat {
 
     pub fn identity(n: usize) -> Self {
         let mut m = Self::zeros(n, n);
-        for i in 0..n { m.set(i, i, 1.0); }
+        for i in 0..n {
+            m.set(i, i, 1.0);
+        }
         m
     }
 
     #[inline]
-    pub fn get(&self, r: usize, c: usize) -> f64 { self.data[r * self.cols + c] }
+    pub fn get(&self, r: usize, c: usize) -> f64 {
+        self.data[r * self.cols + c]
+    }
 
     #[inline]
-    pub fn set(&mut self, r: usize, c: usize, v: f64) { self.data[r * self.cols + c] = v; }
+    pub fn set(&mut self, r: usize, c: usize, v: f64) {
+        self.data[r * self.cols + c] = v;
+    }
 
     pub fn transpose(&self) -> Self {
         let mut t = Self::zeros(self.cols, self.rows);
-        for i in 0..self.rows { for j in 0..self.cols { t.set(j, i, self.get(i, j)); } }
+        for i in 0..self.rows {
+            for j in 0..self.cols {
+                t.set(j, i, self.get(i, j));
+            }
+        }
         t
     }
 
@@ -48,7 +62,9 @@ impl DenseMat {
         for i in 0..self.rows {
             for j in 0..other.cols {
                 let mut s = 0.0;
-                for k in 0..self.cols { s += self.get(i, k) * other.get(k, j); }
+                for k in 0..self.cols {
+                    s += self.get(i, k) * other.get(k, j);
+                }
                 c.set(i, j, s);
             }
         }
@@ -60,11 +76,19 @@ impl DenseMat {
     }
 
     fn col_norm(&self, j: usize) -> f64 {
-        (0..self.rows).map(|i| { let v = self.get(i, j); v * v }).sum::<f64>().sqrt()
+        (0..self.rows)
+            .map(|i| {
+                let v = self.get(i, j);
+                v * v
+            })
+            .sum::<f64>()
+            .sqrt()
     }
 
     fn col_dot(&self, j1: usize, j2: usize) -> f64 {
-        (0..self.rows).map(|i| self.get(i, j1) * self.get(i, j2)).sum()
+        (0..self.rows)
+            .map(|i| self.get(i, j1) * self.get(i, j2))
+            .sum()
     }
 }
 
@@ -159,7 +183,11 @@ pub fn svd(a: &DenseMat) -> SvdDecomposition {
 
     // Sort by descending singular value.
     let mut indices: Vec<usize> = (0..k).collect();
-    indices.sort_by(|&a_idx, &b_idx| sigma[b_idx].partial_cmp(&sigma[a_idx]).unwrap_or(std::cmp::Ordering::Equal));
+    indices.sort_by(|&a_idx, &b_idx| {
+        sigma[b_idx]
+            .partial_cmp(&sigma[a_idx])
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     let sorted_sigma: Vec<f64> = indices.iter().map(|i| sigma[*i]).collect();
     let mut sorted_u = DenseMat::zeros(m, k);
@@ -192,8 +220,12 @@ pub fn svd_truncated(a: &DenseMat, k: usize) -> SvdDecomposition {
     let mut u = DenseMat::zeros(m, k);
     let mut v = DenseMat::zeros(n, k);
     for j in 0..k {
-        for i in 0..m { u.set(i, j, full.u.get(i, j)); }
-        for i in 0..n { v.set(i, j, full.v.get(i, j)); }
+        for i in 0..m {
+            u.set(i, j, full.u.get(i, j));
+        }
+        for i in 0..n {
+            v.set(i, j, full.v.get(i, j));
+        }
     }
     SvdDecomposition {
         u,
@@ -268,7 +300,11 @@ pub fn condition_number(a: &DenseMat) -> f64 {
 /// 2-norm (spectral norm) = largest singular value.
 pub fn matrix_norm_2(a: &DenseMat) -> f64 {
     let dec = svd(a);
-    if dec.sigma.is_empty() { 0.0 } else { dec.sigma[0] }
+    if dec.sigma.is_empty() {
+        0.0
+    } else {
+        dec.sigma[0]
+    }
 }
 
 /// Frobenius norm = sqrt(sum of sigma^2).
@@ -283,11 +319,17 @@ pub fn frobenius_norm_svd(a: &DenseMat) -> f64 {
 mod tests {
     use super::*;
 
-    fn approx_eq(a: f64, b: f64, eps: f64) -> bool { (a - b).abs() < eps }
+    fn approx_eq(a: f64, b: f64, eps: f64) -> bool {
+        (a - b).abs() < eps
+    }
 
     fn mat_approx_eq(a: &DenseMat, b: &DenseMat, eps: f64) -> bool {
-        a.rows == b.rows && a.cols == b.cols
-            && a.data.iter().zip(b.data.iter()).all(|(x, y)| approx_eq(*x, *y, eps))
+        a.rows == b.rows
+            && a.cols == b.cols
+            && a.data
+                .iter()
+                .zip(b.data.iter())
+                .all(|(x, y)| approx_eq(*x, *y, eps))
     }
 
     /// Reconstruct A = U * diag(sigma) * V^T.
@@ -297,7 +339,9 @@ mod tests {
         for i in 0..m {
             for j in 0..n {
                 let mut s = 0.0;
-                for t in 0..k { s += dec.u.get(i, t) * dec.sigma[t] * dec.v.get(j, t); }
+                for t in 0..k {
+                    s += dec.u.get(i, t) * dec.sigma[t] * dec.v.get(j, t);
+                }
                 a.set(i, j, s);
             }
         }
@@ -324,11 +368,7 @@ mod tests {
 
     #[test]
     fn test_svd_reconstruct_3x3() {
-        let a = DenseMat::from_data(3, 3, vec![
-            1.0, 2.0, 3.0,
-            4.0, 5.0, 6.0,
-            7.0, 8.0, 10.0,
-        ]);
+        let a = DenseMat::from_data(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0]);
         let dec = svd(&a);
         let recon = reconstruct(&dec, 3, 3);
         assert!(mat_approx_eq(&recon, &a, 1e-8));
@@ -343,11 +383,7 @@ mod tests {
 
     #[test]
     fn test_svd_diagonal_matrix() {
-        let a = DenseMat::from_data(3, 3, vec![
-            5.0, 0.0, 0.0,
-            0.0, 3.0, 0.0,
-            0.0, 0.0, 1.0,
-        ]);
+        let a = DenseMat::from_data(3, 3, vec![5.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 1.0]);
         let dec = svd(&a);
         assert!(approx_eq(dec.sigma[0], 5.0, 1e-10));
         assert!(approx_eq(dec.sigma[1], 3.0, 1e-10));
@@ -383,11 +419,7 @@ mod tests {
 
     #[test]
     fn test_truncated_svd() {
-        let a = DenseMat::from_data(3, 3, vec![
-            1.0, 2.0, 3.0,
-            4.0, 5.0, 6.0,
-            7.0, 8.0, 10.0,
-        ]);
+        let a = DenseMat::from_data(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0]);
         let trunc = svd_truncated(&a, 2);
         assert_eq!(trunc.sigma.len(), 2);
         assert_eq!(trunc.u.cols, 2);
@@ -403,21 +435,13 @@ mod tests {
     #[test]
     fn test_matrix_rank_deficient() {
         // Rank 1: rows are multiples
-        let a = DenseMat::from_data(3, 3, vec![
-            1.0, 2.0, 3.0,
-            2.0, 4.0, 6.0,
-            3.0, 6.0, 9.0,
-        ]);
+        let a = DenseMat::from_data(3, 3, vec![1.0, 2.0, 3.0, 2.0, 4.0, 6.0, 3.0, 6.0, 9.0]);
         assert_eq!(matrix_rank(&a, 1e-8), 1);
     }
 
     #[test]
     fn test_low_rank_approx() {
-        let a = DenseMat::from_data(3, 3, vec![
-            1.0, 2.0, 3.0,
-            2.0, 4.0, 6.0,
-            3.0, 6.0, 9.0,
-        ]);
+        let a = DenseMat::from_data(3, 3, vec![1.0, 2.0, 3.0, 2.0, 4.0, 6.0, 3.0, 6.0, 9.0]);
         let approx_a = low_rank_approx(&a, 1);
         assert!(mat_approx_eq(&approx_a, &a, 1e-8));
     }

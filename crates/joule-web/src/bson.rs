@@ -182,12 +182,12 @@ pub enum Value {
     String(String),
     Document(Document),
     Array(Vec<Value>),
-    Binary(u8, Vec<u8>),  // subtype, data
+    Binary(u8, Vec<u8>), // subtype, data
     ObjectId(ObjectId),
     Boolean(bool),
-    DateTime(i64),  // milliseconds since epoch
+    DateTime(i64), // milliseconds since epoch
     Null,
-    Regex(String, String),  // pattern, options
+    Regex(String, String), // pattern, options
     Int32(i32),
     Int64(i64),
 }
@@ -202,7 +202,9 @@ pub struct Document {
 
 impl Document {
     pub fn new() -> Self {
-        Self { entries: Vec::new() }
+        Self {
+            entries: Vec::new(),
+        }
     }
 
     /// Insert a key-value pair (appends; keeps order).
@@ -245,7 +247,9 @@ pub struct DocumentBuilder {
 
 impl DocumentBuilder {
     pub fn new() -> Self {
-        Self { doc: Document::new() }
+        Self {
+            doc: Document::new(),
+        }
     }
 
     pub fn double(mut self, key: &str, val: f64) -> Self {
@@ -294,7 +298,8 @@ impl DocumentBuilder {
     }
 
     pub fn regex(mut self, key: &str, pattern: &str, options: &str) -> Self {
-        self.doc.insert(key, Value::Regex(pattern.to_string(), options.to_string()));
+        self.doc
+            .insert(key, Value::Regex(pattern.to_string(), options.to_string()));
         self
     }
 
@@ -458,12 +463,16 @@ impl<'a> Decoder<'a> {
 
     fn read_i64(&mut self) -> Result<i64, BsonError> {
         let b = self.read_bytes(8)?;
-        Ok(i64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]))
+        Ok(i64::from_le_bytes([
+            b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
+        ]))
     }
 
     fn read_f64(&mut self) -> Result<f64, BsonError> {
         let b = self.read_bytes(8)?;
-        Ok(f64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]))
+        Ok(f64::from_le_bytes([
+            b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
+        ]))
     }
 
     fn read_cstring(&mut self) -> Result<String, BsonError> {
@@ -474,8 +483,8 @@ impl<'a> Decoder<'a> {
         if self.pos >= self.data.len() {
             return Err(BsonError::MissingNullTerminator);
         }
-        let s = std::str::from_utf8(&self.data[start..self.pos])
-            .map_err(|_| BsonError::InvalidUtf8)?;
+        let s =
+            std::str::from_utf8(&self.data[start..self.pos]).map_err(|_| BsonError::InvalidUtf8)?;
         self.pos += 1; // skip null
         Ok(s.to_string())
     }
@@ -489,8 +498,7 @@ impl<'a> Decoder<'a> {
         if bytes[len - 1] != 0 {
             return Err(BsonError::MissingNullTerminator);
         }
-        let s = std::str::from_utf8(&bytes[..len - 1])
-            .map_err(|_| BsonError::InvalidUtf8)?;
+        let s = std::str::from_utf8(&bytes[..len - 1]).map_err(|_| BsonError::InvalidUtf8)?;
         Ok(s.to_string())
     }
 
@@ -589,9 +597,7 @@ mod tests {
 
     #[test]
     fn string_field() {
-        let doc = DocumentBuilder::new()
-            .string("name", "Alice")
-            .build();
+        let doc = DocumentBuilder::new().string("name", "Alice").build();
         let decoded = roundtrip(&doc);
         match decoded.get("name") {
             Some(Value::String(s)) => assert_eq!(s, "Alice"),
@@ -615,7 +621,9 @@ mod tests {
 
     #[test]
     fn double_field() {
-        let doc = DocumentBuilder::new().double("pi", std::f64::consts::PI).build();
+        let doc = DocumentBuilder::new()
+            .double("pi", std::f64::consts::PI)
+            .build();
         let decoded = roundtrip(&doc);
         match decoded.get("pi") {
             Some(Value::Double(v)) => assert!((v - std::f64::consts::PI).abs() < f64::EPSILON),
@@ -643,18 +651,23 @@ mod tests {
 
     #[test]
     fn datetime_field() {
-        let doc = DocumentBuilder::new().datetime("created", 1709900000000).build();
+        let doc = DocumentBuilder::new()
+            .datetime("created", 1709900000000)
+            .build();
         let decoded = roundtrip(&doc);
-        assert_eq!(decoded.get("created"), Some(&Value::DateTime(1709900000000)));
+        assert_eq!(
+            decoded.get("created"),
+            Some(&Value::DateTime(1709900000000))
+        );
     }
 
     #[test]
     fn array_field() {
         let doc = DocumentBuilder::new()
-            .array("tags", vec![
-                Value::String("rust".into()),
-                Value::String("bson".into()),
-            ])
+            .array(
+                "tags",
+                vec![Value::String("rust".into()), Value::String("bson".into())],
+            )
             .build();
         let decoded = roundtrip(&doc);
         match decoded.get("tags") {

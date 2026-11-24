@@ -24,8 +24,8 @@ pub enum ScaleType {
     Locrian,
     Chromatic,
     WholeTone,
-    Diminished,        // half-whole diminished
-    DiminishedWhole,   // whole-half diminished
+    Diminished,      // half-whole diminished
+    DiminishedWhole, // whole-half diminished
 }
 
 impl ScaleType {
@@ -88,13 +88,16 @@ const NOTE_NAMES: [&str; 12] = [
 /// A concrete scale: root pitch class + scale type.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Scale {
-    pub root: u8,         // 0-11
+    pub root: u8, // 0-11
     pub scale_type: ScaleType,
 }
 
 impl Scale {
     pub fn new(root: u8, scale_type: ScaleType) -> Self {
-        Self { root: root % 12, scale_type }
+        Self {
+            root: root % 12,
+            scale_type,
+        }
     }
 
     /// Pitch classes in this scale.
@@ -124,7 +127,9 @@ impl Scale {
 
     /// Get the pitch class at a given scale degree (1-based).
     pub fn note_at_degree(&self, degree: usize) -> Option<u8> {
-        if degree == 0 { return None; }
+        if degree == 0 {
+            return None;
+        }
         let intervals = self.scale_type.intervals();
         let idx = (degree - 1) % intervals.len();
         let octave_offset = ((degree - 1) / intervals.len()) as u8 * 12;
@@ -133,11 +138,14 @@ impl Scale {
 
     /// Get MIDI note at a given degree and octave.
     pub fn midi_note_at_degree(&self, degree: usize, octave: u8) -> Option<u8> {
-        if degree == 0 { return None; }
+        if degree == 0 {
+            return None;
+        }
         let intervals = self.scale_type.intervals();
         let idx = (degree - 1) % intervals.len();
         let extra_octaves = ((degree - 1) / intervals.len()) as u8;
-        let midi = (octave + 1 + extra_octaves) as u16 * 12 + self.root as u16 + intervals[idx] as u16;
+        let midi =
+            (octave + 1 + extra_octaves) as u16 * 12 + self.root as u16 + intervals[idx] as u16;
         if midi > 127 { None } else { Some(midi as u8) }
     }
 
@@ -180,10 +188,7 @@ impl Scale {
 
         // Find current degree
         let relative = (pc + 12 - self.root) % 12;
-        let current_idx = intervals
-            .iter()
-            .position(|i| *i == relative)
-            .unwrap_or(0) as i32;
+        let current_idx = intervals.iter().position(|i| *i == relative).unwrap_or(0) as i32;
 
         let len = intervals.len() as i32;
         let new_idx = current_idx + degrees;
@@ -197,7 +202,11 @@ impl Scale {
 
     /// Human-readable name (e.g., "C Major").
     pub fn name(&self) -> String {
-        format!("{} {}", NOTE_NAMES[self.root as usize], self.scale_type.name())
+        format!(
+            "{} {}",
+            NOTE_NAMES[self.root as usize],
+            self.scale_type.name()
+        )
     }
 }
 
@@ -327,7 +336,7 @@ mod tests {
         let s = Scale::new(0, ScaleType::Major);
         assert_eq!(s.degree_of(0), Some(1)); // C = degree 1
         assert_eq!(s.degree_of(4), Some(3)); // E = degree 3
-        assert_eq!(s.degree_of(1), None);    // C# not in scale
+        assert_eq!(s.degree_of(1), None); // C# not in scale
     }
 
     #[test]

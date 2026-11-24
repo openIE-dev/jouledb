@@ -138,17 +138,11 @@ impl HeatmapData {
     }
 
     pub fn min_value(&self) -> Option<f64> {
-        self.flat_values()
-            .iter()
-            .copied()
-            .reduce(f64::min)
+        self.flat_values().iter().copied().reduce(f64::min)
     }
 
     pub fn max_value(&self) -> Option<f64> {
-        self.flat_values()
-            .iter()
-            .copied()
-            .reduce(f64::max)
+        self.flat_values().iter().copied().reduce(f64::max)
     }
 
     /// Clamp all values to [lo, hi].
@@ -178,14 +172,16 @@ impl HeatmapData {
         let mut transposed = transpose(&self.values, self.rows(), ncols);
         let order = greedy_cluster_order(&transposed);
         reorder_rows(&mut transposed, &order);
-        let mut new_col_labels: Vec<String> = order.iter().map(|i| self.col_labels[*i].clone()).collect();
+        let mut new_col_labels: Vec<String> =
+            order.iter().map(|i| self.col_labels[*i].clone()).collect();
         let back = transpose(&transposed, ncols, self.rows());
         self.values = back;
         std::mem::swap(&mut self.col_labels, &mut new_col_labels);
     }
 
     fn apply_row_order(&mut self, order: &[usize]) {
-        let new_values: Vec<Vec<GridValue>> = order.iter().map(|i| self.values[*i].clone()).collect();
+        let new_values: Vec<Vec<GridValue>> =
+            order.iter().map(|i| self.values[*i].clone()).collect();
         let new_labels: Vec<String> = order.iter().map(|i| self.row_labels[*i].clone()).collect();
         self.values = new_values;
         self.row_labels = new_labels;

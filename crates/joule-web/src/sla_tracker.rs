@@ -39,7 +39,11 @@ impl fmt::Display for SliUnit {
 
 impl Sli {
     pub fn new(name: impl Into<String>, description: impl Into<String>, unit: SliUnit) -> Self {
-        Self { name: name.into(), description: description.into(), unit }
+        Self {
+            name: name.into(),
+            description: description.into(),
+            unit,
+        }
     }
 }
 
@@ -74,7 +78,12 @@ pub enum CalendarPeriod {
 
 impl Slo {
     pub fn new(name: impl Into<String>, sli: Sli, target: f64, window: Window) -> Self {
-        Self { name: name.into(), sli, target, window }
+        Self {
+            name: name.into(),
+            sli,
+            target,
+            window,
+        }
     }
 
     /// The error budget as a fraction: 1.0 - target.
@@ -99,7 +108,11 @@ pub struct Measurement {
 impl Measurement {
     pub fn new(timestamp_s: u64, total: u64, good: u64) -> Self {
         assert!(good <= total, "good events cannot exceed total");
-        Self { timestamp_s, total, good }
+        Self {
+            timestamp_s,
+            total,
+            good,
+        }
     }
 
     pub fn bad(&self) -> u64 {
@@ -107,7 +120,11 @@ impl Measurement {
     }
 
     pub fn ratio(&self) -> f64 {
-        if self.total == 0 { 1.0 } else { self.good as f64 / self.total as f64 }
+        if self.total == 0 {
+            1.0
+        } else {
+            self.good as f64 / self.total as f64
+        }
     }
 }
 
@@ -226,7 +243,8 @@ impl SloTracker {
                 now_s.saturating_sub(period_secs)
             }
         };
-        self.measurements.iter()
+        self.measurements
+            .iter()
             .filter(|m| m.timestamp_s >= window_start && m.timestamp_s <= now_s)
             .collect()
     }
@@ -236,7 +254,9 @@ impl SloTracker {
         let ms = self.window_measurements(now_s);
         let total: u64 = ms.iter().map(|m| m.total).sum();
         let good: u64 = ms.iter().map(|m| m.good).sum();
-        if total == 0 { return 1.0; }
+        if total == 0 {
+            return 1.0;
+        }
         good as f64 / total as f64
     }
 
@@ -261,13 +281,20 @@ impl SloTracker {
             0.0
         };
 
-        ErrorBudget { total_budget, consumed, remaining, consumption_ratio }
+        ErrorBudget {
+            total_budget,
+            consumed,
+            remaining,
+            consumption_ratio,
+        }
     }
 
     /// Calculate burn rate over a specific lookback period.
     pub fn burn_rate(&self, now_s: u64, lookback_seconds: u64) -> BurnRate {
         let start = now_s.saturating_sub(lookback_seconds);
-        let ms: Vec<&Measurement> = self.measurements.iter()
+        let ms: Vec<&Measurement> = self
+            .measurements
+            .iter()
             .filter(|m| m.timestamp_s >= start && m.timestamp_s <= now_s)
             .collect();
 
@@ -297,7 +324,11 @@ impl SloTracker {
             }
         }
 
-        BurnRate { rate, window_seconds: lookback_seconds, severity }
+        BurnRate {
+            rate,
+            window_seconds: lookback_seconds,
+            severity,
+        }
     }
 
     /// Predict when the error budget will be exhausted.
@@ -357,7 +388,9 @@ pub struct MultiObjectiveTracker {
 
 impl MultiObjectiveTracker {
     pub fn new() -> Self {
-        Self { trackers: HashMap::new() }
+        Self {
+            trackers: HashMap::new(),
+        }
     }
 
     pub fn add_slo(&mut self, slo: Slo) {
@@ -384,7 +417,9 @@ impl MultiObjectiveTracker {
 
     /// Returns all SLO names that are currently not meeting their target.
     pub fn violations(&self, now_s: u64) -> Vec<String> {
-        let mut result: Vec<String> = self.trackers.iter()
+        let mut result: Vec<String> = self
+            .trackers
+            .iter()
             .filter(|(_, t)| !t.is_meeting_slo(now_s))
             .map(|(name, _)| name.clone())
             .collect();
@@ -399,15 +434,15 @@ impl MultiObjectiveTracker {
 
     /// Summary of all SLOs at a point in time.
     pub fn summary(&self, now_s: u64) -> Vec<SloSummary> {
-        let mut results: Vec<SloSummary> = self.trackers.iter()
-            .map(|(name, tracker)| {
-                SloSummary {
-                    name: name.clone(),
-                    target: tracker.slo.target,
-                    compliance: tracker.compliance(now_s),
-                    budget: tracker.error_budget(now_s),
-                    meeting_slo: tracker.is_meeting_slo(now_s),
-                }
+        let mut results: Vec<SloSummary> = self
+            .trackers
+            .iter()
+            .map(|(name, tracker)| SloSummary {
+                name: name.clone(),
+                target: tracker.slo.target,
+                compliance: tracker.compliance(now_s),
+                budget: tracker.error_budget(now_s),
+                meeting_slo: tracker.is_meeting_slo(now_s),
             })
             .collect();
         results.sort_by(|a, b| a.name.cmp(&b.name));
@@ -441,7 +476,7 @@ fn calendar_period_seconds(period: CalendarPeriod) -> u64 {
     match period {
         CalendarPeriod::Day => 86_400,
         CalendarPeriod::Week => 604_800,
-        CalendarPeriod::Month => 2_592_000, // 30 days
+        CalendarPeriod::Month => 2_592_000,   // 30 days
         CalendarPeriod::Quarter => 7_776_000, // 90 days
     }
 }
@@ -449,19 +484,21 @@ fn calendar_period_seconds(period: CalendarPeriod) -> u64 {
 // ── Rolling window compliance helper ─────────────────────────────
 
 /// Calculate compliance over a sliding window, returning compliance at each step.
-pub fn rolling_compliance(
-    measurements: &[Measurement],
-    window_seconds: u64,
-) -> Vec<(u64, f64)> {
+pub fn rolling_compliance(measurements: &[Measurement], window_seconds: u64) -> Vec<(u64, f64)> {
     let mut result = Vec::new();
     for m in measurements {
         let window_start = m.timestamp_s.saturating_sub(window_seconds);
-        let window_ms: Vec<&Measurement> = measurements.iter()
+        let window_ms: Vec<&Measurement> = measurements
+            .iter()
             .filter(|om| om.timestamp_s >= window_start && om.timestamp_s <= m.timestamp_s)
             .collect();
         let total: u64 = window_ms.iter().map(|om| om.total).sum();
         let good: u64 = window_ms.iter().map(|om| om.good).sum();
-        let compliance = if total == 0 { 1.0 } else { good as f64 / total as f64 };
+        let compliance = if total == 0 {
+            1.0
+        } else {
+            good as f64 / total as f64
+        };
         result.push((m.timestamp_s, compliance));
     }
     result

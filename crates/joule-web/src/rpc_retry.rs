@@ -40,11 +40,19 @@ pub struct RetryError {
 
 impl RetryError {
     pub fn transient(code: u32, message: impl Into<String>) -> Self {
-        Self { kind: ErrorKind::Transient, code, message: message.into() }
+        Self {
+            kind: ErrorKind::Transient,
+            code,
+            message: message.into(),
+        }
     }
 
     pub fn permanent(code: u32, message: impl Into<String>) -> Self {
-        Self { kind: ErrorKind::Permanent, code, message: message.into() }
+        Self {
+            kind: ErrorKind::Permanent,
+            code,
+            message: message.into(),
+        }
     }
 }
 
@@ -113,31 +121,38 @@ impl RetryPolicy {
     }
 
     pub fn with_max_retries(mut self, n: u32) -> Self {
-        self.max_retries = n; self
+        self.max_retries = n;
+        self
     }
 
     pub fn with_base_delay_ms(mut self, ms: u64) -> Self {
-        self.base_delay_ms = ms; self
+        self.base_delay_ms = ms;
+        self
     }
 
     pub fn with_max_delay_ms(mut self, ms: u64) -> Self {
-        self.max_delay_ms = ms; self
+        self.max_delay_ms = ms;
+        self
     }
 
     pub fn with_jitter_pct(mut self, pct: u32) -> Self {
-        self.jitter_pct = pct.min(100); self
+        self.jitter_pct = pct.min(100);
+        self
     }
 
     pub fn with_multiplier(mut self, m: f64) -> Self {
-        self.multiplier = m; self
+        self.multiplier = m;
+        self
     }
 
     pub fn with_retryable_code(mut self, code: u32) -> Self {
-        self.retryable_codes.push(code); self
+        self.retryable_codes.push(code);
+        self
     }
 
     pub fn with_total_timeout_ms(mut self, ms: u64) -> Self {
-        self.total_timeout_ms = Some(ms); self
+        self.total_timeout_ms = Some(ms);
+        self
     }
 
     /// Compute delay for the given attempt (0-indexed).
@@ -154,13 +169,18 @@ impl RetryPolicy {
 }
 
 impl Default for RetryPolicy {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for RetryPolicy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RetryPolicy(max={}, base={}ms, max_delay={}ms, jitter={}%)",
-            self.max_retries, self.base_delay_ms, self.max_delay_ms, self.jitter_pct)
+        write!(
+            f,
+            "RetryPolicy(max={}, base={}ms, max_delay={}ms, jitter={}%)",
+            self.max_retries, self.base_delay_ms, self.max_delay_ms, self.jitter_pct
+        )
     }
 }
 
@@ -204,7 +224,12 @@ impl RetryState {
     }
 
     /// Decide whether to retry after the given error, using the specified jitter seed.
-    pub fn should_retry(&mut self, error: RetryError, now_ms: u64, jitter_seed: u64) -> RetryDecision {
+    pub fn should_retry(
+        &mut self,
+        error: RetryError,
+        now_ms: u64,
+        jitter_seed: u64,
+    ) -> RetryDecision {
         self.errors.push(error.clone());
 
         // Permanent errors are never retried
@@ -235,10 +260,18 @@ impl RetryState {
         RetryDecision::RetryAfter(delay)
     }
 
-    pub fn attempt(&self) -> u32 { self.attempt }
-    pub fn total_delay_ms(&self) -> u64 { self.total_delay_ms }
-    pub fn errors(&self) -> &[RetryError] { &self.errors }
-    pub fn elapsed_ms(&self, now_ms: u64) -> u64 { now_ms.saturating_sub(self.started_at_ms) }
+    pub fn attempt(&self) -> u32 {
+        self.attempt
+    }
+    pub fn total_delay_ms(&self) -> u64 {
+        self.total_delay_ms
+    }
+    pub fn errors(&self) -> &[RetryError] {
+        &self.errors
+    }
+    pub fn elapsed_ms(&self, now_ms: u64) -> u64 {
+        now_ms.saturating_sub(self.started_at_ms)
+    }
 }
 
 // ── Circuit Breaker Guard ──────────────────────────────────────
@@ -343,9 +376,15 @@ impl CircuitBreakerGuard {
         }
     }
 
-    pub fn state(&self) -> CircuitState { self.state }
-    pub fn consecutive_failures(&self) -> u32 { self.consecutive_failures }
-    pub fn total_trips(&self) -> u64 { self.total_trips }
+    pub fn state(&self) -> CircuitState {
+        self.state
+    }
+    pub fn consecutive_failures(&self) -> u32 {
+        self.consecutive_failures
+    }
+    pub fn total_trips(&self) -> u64 {
+        self.total_trips
+    }
 }
 
 // ── Retry Statistics ───────────────────────────────────────────
@@ -362,7 +401,9 @@ pub struct RetryStats {
 }
 
 impl RetryStats {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn record_success_first_try(&mut self) {
         self.total_operations += 1;
@@ -384,13 +425,17 @@ impl RetryStats {
     }
 
     pub fn success_rate(&self) -> f64 {
-        if self.total_operations == 0 { return 0.0; }
+        if self.total_operations == 0 {
+            return 0.0;
+        }
         (self.successful_first_try + self.successful_after_retry) as f64
             / self.total_operations as f64
     }
 
     pub fn avg_retries(&self) -> f64 {
-        if self.total_operations == 0 { return 0.0; }
+        if self.total_operations == 0 {
+            return 0.0;
+        }
         self.total_retries as f64 / self.total_operations as f64
     }
 }
@@ -427,7 +472,10 @@ mod tests {
 
     #[test]
     fn exponential_backoff_increases() {
-        let p = RetryPolicy::new().with_base_delay_ms(100).with_jitter_pct(0).with_multiplier(2.0);
+        let p = RetryPolicy::new()
+            .with_base_delay_ms(100)
+            .with_jitter_pct(0)
+            .with_multiplier(2.0);
         assert_eq!(p.compute_delay(0, 0), 100);
         assert_eq!(p.compute_delay(1, 0), 200);
         assert_eq!(p.compute_delay(2, 0), 400);
@@ -446,7 +494,9 @@ mod tests {
 
     #[test]
     fn jitter_varies_delay() {
-        let p = RetryPolicy::new().with_base_delay_ms(1000).with_jitter_pct(50);
+        let p = RetryPolicy::new()
+            .with_base_delay_ms(1000)
+            .with_jitter_pct(50);
         let d1 = p.compute_delay(0, 1);
         let d2 = p.compute_delay(0, 999);
         // Both should be in the range [500, 1500] approximately
@@ -470,7 +520,10 @@ mod tests {
         let mut state = RetryState::new(policy, 0);
         let err = RetryError::permanent(400, "bad request");
         let decision = state.should_retry(err, 100, 0);
-        assert_eq!(decision, RetryDecision::GiveUp(GiveUpReason::PermanentError));
+        assert_eq!(
+            decision,
+            RetryDecision::GiveUp(GiveUpReason::PermanentError)
+        );
     }
 
     #[test]
@@ -481,7 +534,10 @@ mod tests {
         state.should_retry(err(), 10, 0); // attempt 0 -> 1
         state.should_retry(err(), 20, 0); // attempt 1 -> 2
         let decision = state.should_retry(err(), 30, 0); // attempt 2, exceeds max
-        assert_eq!(decision, RetryDecision::GiveUp(GiveUpReason::MaxRetriesExceeded));
+        assert_eq!(
+            decision,
+            RetryDecision::GiveUp(GiveUpReason::MaxRetriesExceeded)
+        );
     }
 
     #[test]
@@ -492,7 +548,10 @@ mod tests {
         let mut state = RetryState::new(policy, 0);
         let err = RetryError::transient(500, "err");
         let decision = state.should_retry(err, 1500, 0);
-        assert_eq!(decision, RetryDecision::GiveUp(GiveUpReason::BudgetExhausted));
+        assert_eq!(
+            decision,
+            RetryDecision::GiveUp(GiveUpReason::BudgetExhausted)
+        );
     }
 
     #[test]

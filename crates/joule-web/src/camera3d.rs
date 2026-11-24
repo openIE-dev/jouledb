@@ -26,22 +26,42 @@ pub enum Projection {
 
 impl Projection {
     pub fn perspective(fov_y: f64, aspect: f64, near: f64, far: f64) -> Self {
-        Self::Perspective { fov_y, aspect, near, far }
+        Self::Perspective {
+            fov_y,
+            aspect,
+            near,
+            far,
+        }
     }
 
     pub fn orthographic(left: f64, right: f64, bottom: f64, top: f64, near: f64, far: f64) -> Self {
-        Self::Orthographic { left, right, bottom, top, near, far }
+        Self::Orthographic {
+            left,
+            right,
+            bottom,
+            top,
+            near,
+            far,
+        }
     }
 
     /// Build the 4x4 projection matrix.
     pub fn matrix(&self) -> Mat4 {
         match *self {
-            Projection::Perspective { fov_y, aspect, near, far } => {
-                Mat4::perspective(fov_y, aspect, near, far)
-            }
-            Projection::Orthographic { left, right, bottom, top, near, far } => {
-                Mat4::orthographic(left, right, bottom, top, near, far)
-            }
+            Projection::Perspective {
+                fov_y,
+                aspect,
+                near,
+                far,
+            } => Mat4::perspective(fov_y, aspect, near, far),
+            Projection::Orthographic {
+                left,
+                right,
+                bottom,
+                top,
+                near,
+                far,
+            } => Mat4::orthographic(left, right, bottom, top, near, far),
         }
     }
 }
@@ -150,7 +170,11 @@ impl Camera3D {
         if world.w.abs() < 1e-12 {
             return None;
         }
-        Some(Vec3::new(world.x / world.w, world.y / world.w, world.z / world.w))
+        Some(Vec3::new(
+            world.x / world.w,
+            world.y / world.w,
+            world.z / world.w,
+        ))
     }
 }
 

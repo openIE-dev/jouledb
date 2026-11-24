@@ -234,8 +234,7 @@ impl LogEntryBuilder {
 
     /// Add an integer field.
     pub fn field_int(mut self, key: &str, value: i64) -> Self {
-        self.fields
-            .insert(key.to_string(), FieldValue::Int(value));
+        self.fields.insert(key.to_string(), FieldValue::Int(value));
         self
     }
 
@@ -248,8 +247,7 @@ impl LogEntryBuilder {
 
     /// Add a boolean field.
     pub fn field_bool(mut self, key: &str, value: bool) -> Self {
-        self.fields
-            .insert(key.to_string(), FieldValue::Bool(value));
+        self.fields.insert(key.to_string(), FieldValue::Bool(value));
         self
     }
 
@@ -295,7 +293,10 @@ pub enum SamplingStrategy {
     /// Log 1 in N entries.
     RateBased(u64),
     /// Log entries at or above a given level; sample below.
-    LevelBased { always_above: LogLevel, sample_rate: u64 },
+    LevelBased {
+        always_above: LogLevel,
+        sample_rate: u64,
+    },
 }
 
 impl SamplingStrategy {
@@ -363,8 +364,7 @@ impl LogSink {
 
     /// Add a module-level filter (entries from this module need at least this level).
     pub fn add_module_filter(&mut self, module_prefix: &str, level: LogLevel) {
-        self.module_filters
-            .push((module_prefix.to_string(), level));
+        self.module_filters.push((module_prefix.to_string(), level));
     }
 
     /// Emit a log entry (applies filters and sampling).
@@ -613,10 +613,7 @@ mod tests {
         let mut e2 = entry;
         e2.correlation_id = Some("local".into());
         sink.emit(e2);
-        assert_eq!(
-            sink.entries()[0].correlation_id.as_deref(),
-            Some("local")
-        );
+        assert_eq!(sink.entries()[0].correlation_id.as_deref(), Some("local"));
     }
 
     #[test]
@@ -725,10 +722,7 @@ mod tests {
             .field_float("f", 3.14)
             .field_bool("b", true)
             .build();
-        assert_eq!(
-            entry.fields.get("s"),
-            Some(&FieldValue::Str("val".into()))
-        );
+        assert_eq!(entry.fields.get("s"), Some(&FieldValue::Str("val".into())));
         assert_eq!(entry.fields.get("i"), Some(&FieldValue::Int(42)));
         assert_eq!(entry.fields.get("f"), Some(&FieldValue::Float(3.14)));
         assert_eq!(entry.fields.get("b"), Some(&FieldValue::Bool(true)));
@@ -762,9 +756,7 @@ mod tests {
     #[test]
     fn context_field_not_overridden_by_entry() {
         let mut sink = LogSink::new(LogLevel::Trace);
-        sink.set_context(
-            LogContext::new().with_field("env", FieldValue::Str("prod".into())),
-        );
+        sink.set_context(LogContext::new().with_field("env", FieldValue::Str("prod".into())));
         let entry = LogEntryBuilder::new(LogLevel::Info, "msg")
             .timestamp("t")
             .field_str("env", "dev")

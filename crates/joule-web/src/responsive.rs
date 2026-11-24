@@ -16,7 +16,10 @@ pub struct Breakpoint {
 
 impl Breakpoint {
     pub fn new(name: impl Into<String>, min_width_px: u32) -> Self {
-        Self { name: name.into(), min_width_px }
+        Self {
+            name: name.into(),
+            min_width_px,
+        }
     }
 }
 
@@ -29,7 +32,9 @@ pub struct BreakpointSystem {
 impl BreakpointSystem {
     /// Create an empty breakpoint system.
     pub fn new() -> Self {
-        Self { breakpoints: Vec::new() }
+        Self {
+            breakpoints: Vec::new(),
+        }
     }
 
     /// Bootstrap 5 breakpoints.
@@ -118,15 +123,22 @@ impl BreakpointSystem {
 
     /// Determine which breakpoint a given width falls into.
     pub fn current_breakpoint(&self, width_px: u32) -> Option<&Breakpoint> {
-        self.breakpoints.iter().rev().find(|bp| width_px >= bp.min_width_px)
+        self.breakpoints
+            .iter()
+            .rev()
+            .find(|bp| width_px >= bp.min_width_px)
     }
 
     /// Number of defined breakpoints.
-    pub fn count(&self) -> usize { self.breakpoints.len() }
+    pub fn count(&self) -> usize {
+        self.breakpoints.len()
+    }
 }
 
 impl Default for BreakpointSystem {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Media Query Builder ──────────────────────────────────────────
@@ -151,16 +163,30 @@ pub enum MediaFeature {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MediaOrientation { Portrait, Landscape }
+pub enum MediaOrientation {
+    Portrait,
+    Landscape,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ColorScheme { Light, Dark }
+pub enum ColorScheme {
+    Light,
+    Dark,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ContrastPref { More, Less, NoPreference }
+pub enum ContrastPref {
+    More,
+    Less,
+    NoPreference,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PointerType { Fine, Coarse, None }
+pub enum PointerType {
+    Fine,
+    Coarse,
+    None,
+}
 
 impl fmt::Display for MediaFeature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -177,7 +203,10 @@ impl fmt::Display for MediaFeature {
                 write!(f, "(orientation: {s})")
             }
             Self::PrefersColorScheme(cs) => {
-                let s = match cs { ColorScheme::Light => "light", ColorScheme::Dark => "dark" };
+                let s = match cs {
+                    ColorScheme::Light => "light",
+                    ColorScheme::Dark => "dark",
+                };
                 write!(f, "(prefers-color-scheme: {s})")
             }
             Self::PrefersReducedMotion => write!(f, "(prefers-reduced-motion: reduce)"),
@@ -191,7 +220,11 @@ impl fmt::Display for MediaFeature {
             }
             Self::Hover(h) => write!(f, "(hover: {})", if *h { "hover" } else { "none" }),
             Self::Pointer(p) => {
-                let s = match p { PointerType::Fine => "fine", PointerType::Coarse => "coarse", PointerType::None => "none" };
+                let s = match p {
+                    PointerType::Fine => "fine",
+                    PointerType::Coarse => "coarse",
+                    PointerType::None => "none",
+                };
                 write!(f, "(pointer: {s})")
             }
             Self::DisplayMode(m) => write!(f, "(display-mode: {m})"),
@@ -212,31 +245,70 @@ pub struct MediaQuery {
 
 impl MediaQuery {
     pub fn new() -> Self {
-        Self { media_type: None, features: Vec::new(), negate: false }
+        Self {
+            media_type: None,
+            features: Vec::new(),
+            negate: false,
+        }
     }
 
-    pub fn screen() -> Self { Self::new().media_type("screen") }
-    pub fn print() -> Self { Self::new().media_type("print") }
+    pub fn screen() -> Self {
+        Self::new().media_type("screen")
+    }
+    pub fn print() -> Self {
+        Self::new().media_type("print")
+    }
 
-    pub fn media_type(mut self, t: impl Into<String>) -> Self { self.media_type = Some(t.into()); self }
-    pub fn not(mut self) -> Self { self.negate = true; self }
+    pub fn media_type(mut self, t: impl Into<String>) -> Self {
+        self.media_type = Some(t.into());
+        self
+    }
+    pub fn not(mut self) -> Self {
+        self.negate = true;
+        self
+    }
 
-    pub fn feature(mut self, f: MediaFeature) -> Self { self.features.push(f); self }
-    pub fn min_width(self, px: f64) -> Self { self.feature(MediaFeature::MinWidth(px)) }
-    pub fn max_width(self, px: f64) -> Self { self.feature(MediaFeature::MaxWidth(px)) }
-    pub fn min_height(self, px: f64) -> Self { self.feature(MediaFeature::MinHeight(px)) }
-    pub fn max_height(self, px: f64) -> Self { self.feature(MediaFeature::MaxHeight(px)) }
-    pub fn dark_mode(self) -> Self { self.feature(MediaFeature::PrefersColorScheme(ColorScheme::Dark)) }
-    pub fn light_mode(self) -> Self { self.feature(MediaFeature::PrefersColorScheme(ColorScheme::Light)) }
-    pub fn reduced_motion(self) -> Self { self.feature(MediaFeature::PrefersReducedMotion) }
-    pub fn landscape(self) -> Self { self.feature(MediaFeature::Orientation(MediaOrientation::Landscape)) }
-    pub fn portrait(self) -> Self { self.feature(MediaFeature::Orientation(MediaOrientation::Portrait)) }
+    pub fn feature(mut self, f: MediaFeature) -> Self {
+        self.features.push(f);
+        self
+    }
+    pub fn min_width(self, px: f64) -> Self {
+        self.feature(MediaFeature::MinWidth(px))
+    }
+    pub fn max_width(self, px: f64) -> Self {
+        self.feature(MediaFeature::MaxWidth(px))
+    }
+    pub fn min_height(self, px: f64) -> Self {
+        self.feature(MediaFeature::MinHeight(px))
+    }
+    pub fn max_height(self, px: f64) -> Self {
+        self.feature(MediaFeature::MaxHeight(px))
+    }
+    pub fn dark_mode(self) -> Self {
+        self.feature(MediaFeature::PrefersColorScheme(ColorScheme::Dark))
+    }
+    pub fn light_mode(self) -> Self {
+        self.feature(MediaFeature::PrefersColorScheme(ColorScheme::Light))
+    }
+    pub fn reduced_motion(self) -> Self {
+        self.feature(MediaFeature::PrefersReducedMotion)
+    }
+    pub fn landscape(self) -> Self {
+        self.feature(MediaFeature::Orientation(MediaOrientation::Landscape))
+    }
+    pub fn portrait(self) -> Self {
+        self.feature(MediaFeature::Orientation(MediaOrientation::Portrait))
+    }
 
     /// Render the full @media query string.
     pub fn build(&self) -> String {
         let mut parts = Vec::new();
-        if self.negate { parts.push("not".to_string()); }
-        if let Some(ref mt) = self.media_type { parts.push(mt.clone()); }
+        if self.negate {
+            parts.push("not".to_string());
+        }
+        if let Some(ref mt) = self.media_type {
+            parts.push(mt.clone());
+        }
         for feat in &self.features {
             parts.push(feat.to_string());
         }
@@ -249,7 +321,9 @@ impl MediaQuery {
 }
 
 impl Default for MediaQuery {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for MediaQuery {
@@ -272,25 +346,54 @@ pub struct ContainerQuery {
 
 impl ContainerQuery {
     pub fn new() -> Self {
-        Self { container_name: None, min_width: None, max_width: None, min_height: None, max_height: None }
+        Self {
+            container_name: None,
+            min_width: None,
+            max_width: None,
+            min_height: None,
+            max_height: None,
+        }
     }
 
     pub fn named(name: impl Into<String>) -> Self {
-        Self { container_name: Some(name.into()), ..Self::new() }
+        Self {
+            container_name: Some(name.into()),
+            ..Self::new()
+        }
     }
 
-    pub fn min_width(mut self, px: f64) -> Self { self.min_width = Some(px); self }
-    pub fn max_width(mut self, px: f64) -> Self { self.max_width = Some(px); self }
-    pub fn min_height(mut self, px: f64) -> Self { self.min_height = Some(px); self }
-    pub fn max_height(mut self, px: f64) -> Self { self.max_height = Some(px); self }
+    pub fn min_width(mut self, px: f64) -> Self {
+        self.min_width = Some(px);
+        self
+    }
+    pub fn max_width(mut self, px: f64) -> Self {
+        self.max_width = Some(px);
+        self
+    }
+    pub fn min_height(mut self, px: f64) -> Self {
+        self.min_height = Some(px);
+        self
+    }
+    pub fn max_height(mut self, px: f64) -> Self {
+        self.max_height = Some(px);
+        self
+    }
 
     /// Generate the @container rule string.
     pub fn build(&self) -> String {
         let mut conditions = Vec::new();
-        if let Some(v) = self.min_width { conditions.push(format!("(min-width: {v}px)")); }
-        if let Some(v) = self.max_width { conditions.push(format!("(max-width: {v}px)")); }
-        if let Some(v) = self.min_height { conditions.push(format!("(min-height: {v}px)")); }
-        if let Some(v) = self.max_height { conditions.push(format!("(max-height: {v}px)")); }
+        if let Some(v) = self.min_width {
+            conditions.push(format!("(min-width: {v}px)"));
+        }
+        if let Some(v) = self.max_width {
+            conditions.push(format!("(max-width: {v}px)"));
+        }
+        if let Some(v) = self.min_height {
+            conditions.push(format!("(min-height: {v}px)"));
+        }
+        if let Some(v) = self.max_height {
+            conditions.push(format!("(max-height: {v}px)"));
+        }
 
         let cond = conditions.join(" and ");
         match &self.container_name {
@@ -310,12 +413,18 @@ impl ContainerQuery {
 }
 
 impl Default for ContainerQuery {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// Container sizing types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ContainerType { InlineSize, Size, Normal }
+pub enum ContainerType {
+    InlineSize,
+    Size,
+    Normal,
+}
 
 // ── Fluid Typography ─────────────────────────────────────────────
 
@@ -344,12 +453,7 @@ pub fn fluid_type(
 }
 
 /// Generate a fluid spacing scale.
-pub fn fluid_space(
-    min_px: f64,
-    max_px: f64,
-    min_vp: f64,
-    max_vp: f64,
-) -> String {
+pub fn fluid_space(min_px: f64, max_px: f64, min_vp: f64, max_vp: f64) -> String {
     fluid_type(min_px, max_px, min_vp, max_vp)
 }
 
@@ -363,19 +467,31 @@ pub struct AspectRatio {
 }
 
 impl AspectRatio {
-    pub fn new(width: f64, height: f64) -> Self { Self { width, height } }
+    pub fn new(width: f64, height: f64) -> Self {
+        Self { width, height }
+    }
 
     /// Common 16:9 ratio.
-    pub fn widescreen() -> Self { Self::new(16.0, 9.0) }
+    pub fn widescreen() -> Self {
+        Self::new(16.0, 9.0)
+    }
     /// Common 4:3 ratio.
-    pub fn standard() -> Self { Self::new(4.0, 3.0) }
+    pub fn standard() -> Self {
+        Self::new(4.0, 3.0)
+    }
     /// Square 1:1.
-    pub fn square() -> Self { Self::new(1.0, 1.0) }
+    pub fn square() -> Self {
+        Self::new(1.0, 1.0)
+    }
     /// Ultrawide 21:9.
-    pub fn ultrawide() -> Self { Self::new(21.0, 9.0) }
+    pub fn ultrawide() -> Self {
+        Self::new(21.0, 9.0)
+    }
 
     /// Decimal ratio value.
-    pub fn ratio(&self) -> f64 { self.width / self.height }
+    pub fn ratio(&self) -> f64 {
+        self.width / self.height
+    }
 
     /// CSS aspect-ratio property value.
     pub fn css_value(&self) -> String {
@@ -413,10 +529,16 @@ impl fmt::Display for AspectRatio {
 /// Viewport unit types (including new logical units).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewportUnit {
-    Vw, Vh, Vmin, Vmax,
-    Svw, Svh,  // Small viewport
-    Lvw, Lvh,  // Large viewport
-    Dvw, Dvh,  // Dynamic viewport
+    Vw,
+    Vh,
+    Vmin,
+    Vmax,
+    Svw,
+    Svh, // Small viewport
+    Lvw,
+    Lvh, // Large viewport
+    Dvw,
+    Dvh, // Dynamic viewport
 }
 
 impl fmt::Display for ViewportUnit {
@@ -588,7 +710,9 @@ mod tests {
 
     #[test]
     fn test_container_query_named() {
-        let cq = ContainerQuery::named("sidebar").min_width(300.0).max_width(600.0);
+        let cq = ContainerQuery::named("sidebar")
+            .min_width(300.0)
+            .max_width(600.0);
         let result = cq.build();
         assert!(result.contains("@container sidebar"));
         assert!(result.contains("min-width: 300px"));

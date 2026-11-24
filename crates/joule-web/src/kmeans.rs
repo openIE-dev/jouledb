@@ -85,7 +85,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -120,7 +122,10 @@ fn euclidean(a: &[f64], b: &[f64]) -> f64 {
 pub fn kmeans(data: &[Vec<f64>], config: &KMeansConfig) -> KMeansResult {
     assert!(!data.is_empty(), "empty dataset");
     assert!(config.k > 0, "k must be positive");
-    assert!(config.k <= data.len(), "k cannot exceed number of data points");
+    assert!(
+        config.k <= data.len(),
+        "k cannot exceed number of data points"
+    );
 
     let dims = data[0].len();
     let mut rng = Rng::new(config.seed);
@@ -322,7 +327,11 @@ pub fn silhouette_score(data: &[Vec<f64>], assignments: &[usize]) -> f64 {
                 same_count += 1;
             }
         }
-        let a = if same_count > 0 { same_dist / same_count as f64 } else { 0.0 };
+        let a = if same_count > 0 {
+            same_dist / same_count as f64
+        } else {
+            0.0
+        };
 
         // b(i) = min mean distance to points in other clusters
         let mut b = f64::INFINITY;
@@ -346,7 +355,11 @@ pub fn silhouette_score(data: &[Vec<f64>], assignments: &[usize]) -> f64 {
             }
         }
 
-        let s = if a.max(b) > 0.0 { (b - a) / a.max(b) } else { 0.0 };
+        let s = if a.max(b) > 0.0 {
+            (b - a) / a.max(b)
+        } else {
+            0.0
+        };
         total_silhouette += s;
     }
 
@@ -402,8 +415,8 @@ pub fn find_elbow(curve: &[(usize, f64)]) -> Option<usize> {
         let px = *k as f64;
         let py = *inertia;
         // Distance from point to line
-        let dist = ((last.1 - first.1) * px - (last.0 - first.0) * py
-            + last.0 * first.1 - last.1 * first.0)
+        let dist = ((last.1 - first.1) * px - (last.0 - first.0) * py + last.0 * first.1
+            - last.1 * first.0)
             .abs()
             / line_len;
         if dist > max_dist {
@@ -437,18 +450,31 @@ mod tests {
     fn simple_clusters() -> Vec<Vec<f64>> {
         vec![
             // Cluster 0: around (0, 0)
-            vec![0.1, 0.1], vec![-0.1, 0.0], vec![0.0, -0.1], vec![0.2, 0.2],
+            vec![0.1, 0.1],
+            vec![-0.1, 0.0],
+            vec![0.0, -0.1],
+            vec![0.2, 0.2],
             // Cluster 1: around (5, 5)
-            vec![5.0, 5.0], vec![5.1, 4.9], vec![4.9, 5.1], vec![5.2, 5.2],
+            vec![5.0, 5.0],
+            vec![5.1, 4.9],
+            vec![4.9, 5.1],
+            vec![5.2, 5.2],
             // Cluster 2: around (10, 0)
-            vec![10.0, 0.0], vec![10.1, 0.1], vec![9.9, -0.1], vec![10.2, 0.2],
+            vec![10.0, 0.0],
+            vec![10.1, 0.1],
+            vec![9.9, -0.1],
+            vec![10.2, 0.2],
         ]
     }
 
     #[test]
     fn test_kmeans_basic() {
         let data = simple_clusters();
-        let config = KMeansConfig { k: 3, seed: 42, ..Default::default() };
+        let config = KMeansConfig {
+            k: 3,
+            seed: 42,
+            ..Default::default()
+        };
         let result = kmeans(&data, &config);
         assert_eq!(result.centroids.len(), 3);
         assert_eq!(result.assignments.len(), 12);
@@ -458,7 +484,11 @@ mod tests {
     #[test]
     fn test_kmeans_convergence() {
         let data = simple_clusters();
-        let config = KMeansConfig { k: 3, seed: 42, ..Default::default() };
+        let config = KMeansConfig {
+            k: 3,
+            seed: 42,
+            ..Default::default()
+        };
         let result = kmeans(&data, &config);
         assert!(result.converged);
         assert!(result.iterations < config.max_iter);
@@ -480,7 +510,11 @@ mod tests {
     #[test]
     fn test_kmeans_k1() {
         let data = simple_clusters();
-        let config = KMeansConfig { k: 1, seed: 42, ..Default::default() };
+        let config = KMeansConfig {
+            k: 1,
+            seed: 42,
+            ..Default::default()
+        };
         let result = kmeans(&data, &config);
         assert_eq!(result.centroids.len(), 1);
         // All points assigned to cluster 0
@@ -490,7 +524,11 @@ mod tests {
     #[test]
     fn test_correct_cluster_separation() {
         let data = simple_clusters();
-        let config = KMeansConfig { k: 3, seed: 42, ..Default::default() };
+        let config = KMeansConfig {
+            k: 3,
+            seed: 42,
+            ..Default::default()
+        };
         let result = kmeans(&data, &config);
 
         // Points 0..4 should be in one cluster, 4..8 in another, 8..12 in third
@@ -516,19 +554,29 @@ mod tests {
     #[test]
     fn test_inertia_history() {
         let data = simple_clusters();
-        let config = KMeansConfig { k: 3, seed: 42, ..Default::default() };
+        let config = KMeansConfig {
+            k: 3,
+            seed: 42,
+            ..Default::default()
+        };
         let result = kmeans(&data, &config);
         assert!(!result.inertia_history.is_empty());
         // Inertia should generally decrease
         if result.inertia_history.len() >= 2 {
-            assert!(result.inertia_history.last().unwrap() <= result.inertia_history.first().unwrap());
+            assert!(
+                result.inertia_history.last().unwrap() <= result.inertia_history.first().unwrap()
+            );
         }
     }
 
     #[test]
     fn test_silhouette_score_good() {
         let data = simple_clusters();
-        let config = KMeansConfig { k: 3, seed: 42, ..Default::default() };
+        let config = KMeansConfig {
+            k: 3,
+            seed: 42,
+            ..Default::default()
+        };
         let result = kmeans(&data, &config);
         let score = silhouette_score(&data, &result.assignments);
         // Well-separated clusters should have high silhouette score
@@ -566,9 +614,7 @@ mod tests {
 
     #[test]
     fn test_find_elbow() {
-        let curve = vec![
-            (1, 100.0), (2, 40.0), (3, 10.0), (4, 8.0), (5, 7.0),
-        ];
+        let curve = vec![(1, 100.0), (2, 40.0), (3, 10.0), (4, 8.0), (5, 7.0)];
         let elbow = find_elbow(&curve);
         assert!(elbow.is_some());
         // The elbow should be around k=3
@@ -593,7 +639,11 @@ mod tests {
     #[test]
     fn test_kmeans_display() {
         let data = simple_clusters();
-        let config = KMeansConfig { k: 3, seed: 42, ..Default::default() };
+        let config = KMeansConfig {
+            k: 3,
+            seed: 42,
+            ..Default::default()
+        };
         let result = kmeans(&data, &config);
         let s = format!("{}", result);
         assert!(s.contains("KMeansResult"));
@@ -603,7 +653,11 @@ mod tests {
     #[test]
     fn test_kmeans_deterministic() {
         let data = simple_clusters();
-        let config = KMeansConfig { k: 3, seed: 123, ..Default::default() };
+        let config = KMeansConfig {
+            k: 3,
+            seed: 123,
+            ..Default::default()
+        };
         let r1 = kmeans(&data, &config);
         let r2 = kmeans(&data, &config);
         assert_eq!(r1.assignments, r2.assignments);
@@ -613,7 +667,12 @@ mod tests {
     #[test]
     fn test_kmeans_max_iter_limit() {
         let data = simple_clusters();
-        let config = KMeansConfig { k: 3, max_iter: 1, seed: 42, ..Default::default() };
+        let config = KMeansConfig {
+            k: 3,
+            max_iter: 1,
+            seed: 42,
+            ..Default::default()
+        };
         let result = kmeans(&data, &config);
         assert!(result.iterations <= 1);
     }

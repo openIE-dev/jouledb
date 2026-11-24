@@ -64,15 +64,24 @@ struct AStarNode<N> {
 }
 
 impl<N: Eq> PartialEq for AStarNode<N> {
-    fn eq(&self, other: &Self) -> bool { self.node == other.node }
+    fn eq(&self, other: &Self) -> bool {
+        self.node == other.node
+    }
 }
 impl<N: Eq> Eq for AStarNode<N> {}
 
 impl<N: Eq> Ord for AStarNode<N> {
     fn cmp(&self, other: &Self) -> Ordering {
-        other.f_cost.partial_cmp(&self.f_cost)
+        other
+            .f_cost
+            .partial_cmp(&self.f_cost)
             .unwrap_or(Ordering::Equal)
-            .then_with(|| other.g_cost.partial_cmp(&self.g_cost).unwrap_or(Ordering::Equal))
+            .then_with(|| {
+                other
+                    .g_cost
+                    .partial_cmp(&self.g_cost)
+                    .unwrap_or(Ordering::Equal)
+            })
             .then_with(|| other.tiebreak.cmp(&self.tiebreak))
     }
 }
@@ -96,10 +105,14 @@ pub struct AStarState<N: Clone + Eq + Hash> {
 
 impl<N: Clone + Eq + Hash> AStarState<N> {
     /// Number of iterations so far.
-    pub fn iterations(&self) -> usize { self.iterations }
+    pub fn iterations(&self) -> usize {
+        self.iterations
+    }
 
     /// Number of explored nodes.
-    pub fn explored(&self) -> usize { self.closed.len() }
+    pub fn explored(&self) -> usize {
+        self.closed.len()
+    }
 }
 
 /// Run generic A* search.
@@ -135,7 +148,12 @@ where
     let mut g_cost = HashMap::new();
     let h = heuristic(&start);
     g_cost.insert(start.clone(), 0.0);
-    open.push(AStarNode { node: start, f_cost: h, g_cost: 0.0, tiebreak: 0 });
+    open.push(AStarNode {
+        node: start,
+        f_cost: h,
+        g_cost: 0.0,
+        tiebreak: 0,
+    });
     AStarState {
         open,
         g_cost,
@@ -159,14 +177,20 @@ where
     FN: Fn(&N) -> Vec<(N, f64)>,
     FH: Fn(&N) -> f64,
 {
-    let limit = if max_iterations == 0 { usize::MAX } else { max_iterations };
+    let limit = if max_iterations == 0 {
+        usize::MAX
+    } else {
+        max_iterations
+    };
     let mut iters = 0;
 
     while let Some(current) = state.open.pop() {
         if iters >= limit {
             // Put back and return partial
             state.open.push(current);
-            return SearchResult::Partial { explored: state.closed.len() };
+            return SearchResult::Partial {
+                explored: state.closed.len(),
+            };
         }
 
         if current.node == state.goal {
@@ -190,7 +214,9 @@ where
             let existing_g = state.g_cost.get(&neighbor).copied().unwrap_or(f64::MAX);
             if new_g < existing_g {
                 state.g_cost.insert(neighbor.clone(), new_g);
-                state.came_from.insert(neighbor.clone(), current.node.clone());
+                state
+                    .came_from
+                    .insert(neighbor.clone(), current.node.clone());
                 let h = heuristic(&neighbor);
                 state.open.push(AStarNode {
                     node: neighbor,
@@ -231,7 +257,9 @@ pub struct GridPos {
 }
 
 impl GridPos {
-    pub fn new(x: i32, y: i32) -> Self { Self { x, y } }
+    pub fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
+    }
 }
 
 /// Diagonal movement options.
@@ -441,13 +469,7 @@ mod tests {
 
     #[test]
     fn test_start_equals_goal() {
-        let result = astar(
-            0,
-            0,
-            |_| vec![(1, 1.0)],
-            |_| 0.0,
-            0,
-        );
+        let result = astar(0, 0, |_| vec![(1, 1.0)], |_| 0.0, 0);
         match result {
             SearchResult::Found { path, cost } => {
                 assert_eq!(path, vec![0]);
@@ -459,13 +481,7 @@ mod tests {
 
     #[test]
     fn test_max_iterations() {
-        let result = astar(
-            0i32,
-            100,
-            |n| vec![(*n + 1, 1.0)],
-            |n| (100 - *n) as f64,
-            5,
-        );
+        let result = astar(0i32, 100, |n| vec![(*n + 1, 1.0)], |n| (100 - *n) as f64, 5);
         match result {
             SearchResult::Partial { explored } => {
                 assert!(explored <= 6);
@@ -479,7 +495,9 @@ mod tests {
         let goal = 10i32;
         let neighbors = |n: &i32| -> Vec<(i32, f64)> {
             let mut r = Vec::new();
-            if *n + 1 <= goal { r.push((*n + 1, 1.0)); }
+            if *n + 1 <= goal {
+                r.push((*n + 1, 1.0));
+            }
             r
         };
         let heuristic = |n: &i32| (goal - *n) as f64;
@@ -587,20 +605,13 @@ mod tests {
 
     #[test]
     fn test_path_length() {
-        let path = vec![
-            GridPos::new(0, 0),
-            GridPos::new(1, 0),
-            GridPos::new(2, 0),
-        ];
+        let path = vec![GridPos::new(0, 0), GridPos::new(1, 0), GridPos::new(2, 0)];
         assert!((path_length(&path) - 2.0).abs() < 1e-10);
     }
 
     #[test]
     fn test_path_length_diagonal() {
-        let path = vec![
-            GridPos::new(0, 0),
-            GridPos::new(1, 1),
-        ];
+        let path = vec![GridPos::new(0, 0), GridPos::new(1, 1)];
         assert!((path_length(&path) - std::f64::consts::SQRT_2).abs() < 1e-10);
     }
 

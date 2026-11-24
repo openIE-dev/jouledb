@@ -73,35 +73,60 @@ pub struct Quote {
 }
 
 impl Quote {
-    pub fn new(symbol: &str, venue: &str, bid_price: f64, bid_size: f64,
-               ask_price: f64, ask_size: f64, timestamp_us: u64, sequence: u64) -> Self {
+    pub fn new(
+        symbol: &str,
+        venue: &str,
+        bid_price: f64,
+        bid_size: f64,
+        ask_price: f64,
+        ask_size: f64,
+        timestamp_us: u64,
+        sequence: u64,
+    ) -> Self {
         Self {
             symbol: symbol.to_string(),
             venue: venue.to_string(),
-            bid_price, bid_size, ask_price, ask_size, timestamp_us, sequence,
+            bid_price,
+            bid_size,
+            ask_price,
+            ask_size,
+            timestamp_us,
+            sequence,
         }
     }
 
-    pub fn spread(&self) -> f64 { self.ask_price - self.bid_price }
+    pub fn spread(&self) -> f64 {
+        self.ask_price - self.bid_price
+    }
 
-    pub fn mid_price(&self) -> f64 { (self.bid_price + self.ask_price) / 2.0 }
+    pub fn mid_price(&self) -> f64 {
+        (self.bid_price + self.ask_price) / 2.0
+    }
 
     pub fn spread_bps(&self) -> f64 {
         let mid = self.mid_price();
-        if mid == 0.0 { return 0.0; }
+        if mid == 0.0 {
+            return 0.0;
+        }
         (self.spread() / mid) * 10_000.0
     }
 
-    pub fn is_crossed(&self) -> bool { self.bid_price > self.ask_price }
+    pub fn is_crossed(&self) -> bool {
+        self.bid_price > self.ask_price
+    }
 
-    pub fn is_locked(&self) -> bool { (self.bid_price - self.ask_price).abs() < 1e-12 }
+    pub fn is_locked(&self) -> bool {
+        (self.bid_price - self.ask_price).abs() < 1e-12
+    }
 }
 
 impl fmt::Display for Quote {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}@{} {:.4}/{:.4} [{:.0}x{:.0}]",
-               self.symbol, self.venue, self.bid_price, self.ask_price,
-               self.bid_size, self.ask_size)
+        write!(
+            f,
+            "{}@{} {:.4}/{:.4} [{:.0}x{:.0}]",
+            self.symbol, self.venue, self.bid_price, self.ask_price, self.bid_size, self.ask_size
+        )
     }
 }
 
@@ -120,23 +145,38 @@ pub struct Trade {
 }
 
 impl Trade {
-    pub fn new(symbol: &str, venue: &str, price: f64, size: f64,
-               aggressor: Side, timestamp_us: u64, sequence: u64) -> Self {
+    pub fn new(
+        symbol: &str,
+        venue: &str,
+        price: f64,
+        size: f64,
+        aggressor: Side,
+        timestamp_us: u64,
+        sequence: u64,
+    ) -> Self {
         Self {
             symbol: symbol.to_string(),
             venue: venue.to_string(),
-            price, size, aggressor, timestamp_us, sequence,
+            price,
+            size,
+            aggressor,
+            timestamp_us,
+            sequence,
         }
     }
 
-    pub fn notional(&self) -> f64 { self.price * self.size }
+    pub fn notional(&self) -> f64 {
+        self.price * self.size
+    }
 }
 
 impl fmt::Display for Trade {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}@{} {:.4}x{:.0} {} t={}",
-               self.symbol, self.venue, self.price, self.size,
-               self.aggressor, self.timestamp_us)
+        write!(
+            f,
+            "{}@{} {:.4}x{:.0} {} t={}",
+            self.symbol, self.venue, self.price, self.size, self.aggressor, self.timestamp_us
+        )
     }
 }
 
@@ -153,14 +193,22 @@ pub struct Level2Entry {
 
 impl Level2Entry {
     pub fn new(price: f64, size: f64, order_count: u32, venue: &str) -> Self {
-        Self { price, size, order_count, venue: venue.to_string() }
+        Self {
+            price,
+            size,
+            order_count,
+            venue: venue.to_string(),
+        }
     }
 }
 
 impl fmt::Display for Level2Entry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:.4} x {:.0} ({} orders, {})", self.price, self.size,
-               self.order_count, self.venue)
+        write!(
+            f,
+            "{:.4} x {:.0} ({} orders, {})",
+            self.price, self.size, self.order_count, self.venue
+        )
     }
 }
 
@@ -184,22 +232,30 @@ impl Level2Book {
     }
 
     pub fn add_bid(&mut self, entry: Level2Entry) {
-        let pos = self.bids.iter()
+        let pos = self
+            .bids
+            .iter()
             .position(|b| b.price <= entry.price)
             .unwrap_or(self.bids.len());
         self.bids.insert(pos, entry);
     }
 
     pub fn add_ask(&mut self, entry: Level2Entry) {
-        let pos = self.asks.iter()
+        let pos = self
+            .asks
+            .iter()
             .position(|a| a.price >= entry.price)
             .unwrap_or(self.asks.len());
         self.asks.insert(pos, entry);
     }
 
-    pub fn best_bid(&self) -> Option<&Level2Entry> { self.bids.first() }
+    pub fn best_bid(&self) -> Option<&Level2Entry> {
+        self.bids.first()
+    }
 
-    pub fn best_ask(&self) -> Option<&Level2Entry> { self.asks.first() }
+    pub fn best_ask(&self) -> Option<&Level2Entry> {
+        self.asks.first()
+    }
 
     pub fn spread(&self) -> Option<f64> {
         match (self.best_bid(), self.best_ask()) {
@@ -208,9 +264,13 @@ impl Level2Book {
         }
     }
 
-    pub fn total_bid_depth(&self) -> f64 { self.bids.iter().map(|e| e.size).sum() }
+    pub fn total_bid_depth(&self) -> f64 {
+        self.bids.iter().map(|e| e.size).sum()
+    }
 
-    pub fn total_ask_depth(&self) -> f64 { self.asks.iter().map(|e| e.size).sum() }
+    pub fn total_ask_depth(&self) -> f64 {
+        self.asks.iter().map(|e| e.size).sum()
+    }
 
     pub fn depth_levels(&self) -> (usize, usize) {
         (self.bids.len(), self.asks.len())
@@ -219,8 +279,14 @@ impl Level2Book {
 
 impl fmt::Display for Level2Book {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "L2[{}] bids={} asks={} ts={}",
-               self.symbol, self.bids.len(), self.asks.len(), self.timestamp_us)
+        write!(
+            f,
+            "L2[{}] bids={} asks={} ts={}",
+            self.symbol,
+            self.bids.len(),
+            self.asks.len(),
+            self.timestamp_us
+        )
     }
 }
 
@@ -240,18 +306,26 @@ pub struct Nbbo {
 }
 
 impl Nbbo {
-    pub fn spread(&self) -> f64 { self.best_ask - self.best_bid }
+    pub fn spread(&self) -> f64 {
+        self.best_ask - self.best_bid
+    }
 
-    pub fn mid_price(&self) -> f64 { (self.best_bid + self.best_ask) / 2.0 }
+    pub fn mid_price(&self) -> f64 {
+        (self.best_bid + self.best_ask) / 2.0
+    }
 
-    pub fn is_crossed(&self) -> bool { self.best_bid > self.best_ask }
+    pub fn is_crossed(&self) -> bool {
+        self.best_bid > self.best_ask
+    }
 }
 
 impl fmt::Display for Nbbo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "NBBO[{}] {:.4}({})/{:.4}({})",
-               self.symbol, self.best_bid, self.best_bid_venue,
-               self.best_ask, self.best_ask_venue)
+        write!(
+            f,
+            "NBBO[{}] {:.4}({})/{:.4}({})",
+            self.symbol, self.best_bid, self.best_bid_venue, self.best_ask, self.best_ask_venue
+        )
     }
 }
 
@@ -262,7 +336,11 @@ pub struct NbboCalculator {
 }
 
 impl NbboCalculator {
-    pub fn new() -> Self { Self { venue_quotes: HashMap::new() } }
+    pub fn new() -> Self {
+        Self {
+            venue_quotes: HashMap::new(),
+        }
+    }
 
     pub fn update(&mut self, quote: Quote) {
         self.venue_quotes
@@ -292,12 +370,18 @@ impl NbboCalculator {
                 best_ask_venue = q.venue.clone();
             }
         }
-        if best_bid == f64::MIN || best_ask == f64::MAX { return None; }
+        if best_bid == f64::MIN || best_ask == f64::MAX {
+            return None;
+        }
 
         Some(Nbbo {
             symbol: symbol.to_string(),
-            best_bid, best_bid_size, best_bid_venue,
-            best_ask, best_ask_size, best_ask_venue,
+            best_bid,
+            best_bid_size,
+            best_bid_venue,
+            best_ask,
+            best_ask_size,
+            best_ask_venue,
             timestamp_us: venues.values().map(|q| q.timestamp_us).max().unwrap_or(0),
         })
     }
@@ -365,10 +449,18 @@ impl FeedHandler {
         }
     }
 
-    pub fn state(&self) -> FeedState { self.state }
-    pub fn venue(&self) -> &str { &self.venue }
-    pub fn quotes_received(&self) -> u64 { self.quotes_received }
-    pub fn trades_received(&self) -> u64 { self.trades_received }
+    pub fn state(&self) -> FeedState {
+        self.state
+    }
+    pub fn venue(&self) -> &str {
+        &self.venue
+    }
+    pub fn quotes_received(&self) -> u64 {
+        self.quotes_received
+    }
+    pub fn trades_received(&self) -> u64 {
+        self.trades_received
+    }
 
     pub fn connect(&mut self) -> Result<(), FeedError> {
         match self.state {
@@ -376,15 +468,19 @@ impl FeedHandler {
                 self.state = FeedState::Connecting;
                 Ok(())
             }
-            _ => Err(FeedError::InvalidState(
-                format!("cannot connect from {}", self.state))),
+            _ => Err(FeedError::InvalidState(format!(
+                "cannot connect from {}",
+                self.state
+            ))),
         }
     }
 
     pub fn on_connected(&mut self) -> Result<(), FeedError> {
         if self.state != FeedState::Connecting {
-            return Err(FeedError::InvalidState(
-                format!("expected Connecting, got {}", self.state)));
+            return Err(FeedError::InvalidState(format!(
+                "expected Connecting, got {}",
+                self.state
+            )));
         }
         self.state = FeedState::Connected;
         Ok(())
@@ -399,15 +495,19 @@ impl FeedHandler {
                 self.state = FeedState::Subscribing;
                 Ok(())
             }
-            _ => Err(FeedError::InvalidState(
-                format!("cannot subscribe in state {}", self.state))),
+            _ => Err(FeedError::InvalidState(format!(
+                "cannot subscribe in state {}",
+                self.state
+            ))),
         }
     }
 
     pub fn on_subscribed(&mut self) -> Result<(), FeedError> {
         if self.state != FeedState::Subscribing {
-            return Err(FeedError::InvalidState(
-                format!("expected Subscribing, got {}", self.state)));
+            return Err(FeedError::InvalidState(format!(
+                "expected Subscribing, got {}",
+                self.state
+            )));
         }
         self.state = FeedState::Streaming;
         Ok(())
@@ -430,8 +530,10 @@ impl FeedHandler {
 
     pub fn recover(&mut self) -> Result<(), FeedError> {
         if self.state != FeedState::Error {
-            return Err(FeedError::InvalidState(
-                format!("cannot recover from {}", self.state)));
+            return Err(FeedError::InvalidState(format!(
+                "cannot recover from {}",
+                self.state
+            )));
         }
         self.state = FeedState::Recovering;
         Ok(())
@@ -439,8 +541,10 @@ impl FeedHandler {
 
     pub fn on_recovered(&mut self) -> Result<(), FeedError> {
         if self.state != FeedState::Recovering {
-            return Err(FeedError::InvalidState(
-                format!("expected Recovering, got {}", self.state)));
+            return Err(FeedError::InvalidState(format!(
+                "expected Recovering, got {}",
+                self.state
+            )));
         }
         self.state = FeedState::Streaming;
         Ok(())
@@ -454,9 +558,15 @@ impl FeedHandler {
 
 impl fmt::Display for FeedHandler {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "FeedHandler[{} state={} subs={} q={} t={}]",
-               self.venue, self.state, self.subscriptions.len(),
-               self.quotes_received, self.trades_received)
+        write!(
+            f,
+            "FeedHandler[{} state={} subs={} q={} t={}]",
+            self.venue,
+            self.state,
+            self.subscriptions.len(),
+            self.quotes_received,
+            self.trades_received
+        )
     }
 }
 
@@ -535,14 +645,21 @@ impl Conflator {
         (quotes, trades)
     }
 
-    pub fn total_conflated(&self) -> u64 { self.total_conflated }
-    pub fn total_emitted(&self) -> u64 { self.total_emitted }
+    pub fn total_conflated(&self) -> u64 {
+        self.total_conflated
+    }
+    pub fn total_emitted(&self) -> u64 {
+        self.total_emitted
+    }
 }
 
 impl fmt::Display for Conflator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Conflator[{}us conflated={} emitted={}]",
-               self.interval_us, self.total_conflated, self.total_emitted)
+        write!(
+            f,
+            "Conflator[{}us conflated={} emitted={}]",
+            self.interval_us, self.total_conflated, self.total_emitted
+        )
     }
 }
 
@@ -556,7 +673,10 @@ pub struct StaleDetector {
 
 impl StaleDetector {
     pub fn new(threshold_us: u64) -> Self {
-        Self { threshold_us, last_update: HashMap::new() }
+        Self {
+            threshold_us,
+            last_update: HashMap::new(),
+        }
     }
 
     pub fn with_threshold_us(mut self, threshold_us: u64) -> Self {
@@ -576,23 +696,32 @@ impl StaleDetector {
     }
 
     pub fn stale_symbols(&self, now_us: u64) -> Vec<String> {
-        self.last_update.iter()
+        self.last_update
+            .iter()
             .filter(|&(_, &last)| now_us.saturating_sub(last) > self.threshold_us)
             .map(|(sym, _)| sym.clone())
             .collect()
     }
 
     pub fn staleness_us(&self, symbol: &str, now_us: u64) -> Option<u64> {
-        self.last_update.get(symbol).map(|last| now_us.saturating_sub(*last))
+        self.last_update
+            .get(symbol)
+            .map(|last| now_us.saturating_sub(*last))
     }
 
-    pub fn tracked_count(&self) -> usize { self.last_update.len() }
+    pub fn tracked_count(&self) -> usize {
+        self.last_update.len()
+    }
 }
 
 impl fmt::Display for StaleDetector {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "StaleDetector[threshold={}us tracking={}]",
-               self.threshold_us, self.last_update.len())
+        write!(
+            f,
+            "StaleDetector[threshold={}us tracking={}]",
+            self.threshold_us,
+            self.last_update.len()
+        )
     }
 }
 
@@ -653,8 +782,12 @@ mod tests {
     #[test]
     fn nbbo_multi_venue() {
         let mut calc = NbboCalculator::new();
-        calc.update(Quote::new("AAPL", "NYSE", 150.00, 100.0, 150.10, 100.0, 1000, 1));
-        calc.update(Quote::new("AAPL", "ARCA", 150.02, 200.0, 150.08, 150.0, 1001, 2));
+        calc.update(Quote::new(
+            "AAPL", "NYSE", 150.00, 100.0, 150.10, 100.0, 1000, 1,
+        ));
+        calc.update(Quote::new(
+            "AAPL", "ARCA", 150.02, 200.0, 150.08, 150.0, 1001, 2,
+        ));
         let nbbo = calc.nbbo("AAPL").unwrap();
         assert!((nbbo.best_bid - 150.02).abs() < 1e-9);
         assert_eq!(nbbo.best_bid_venue, "ARCA");

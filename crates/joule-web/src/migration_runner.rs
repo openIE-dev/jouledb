@@ -17,13 +17,20 @@ pub enum MigrationError {
     /// Duplicate migration version.
     DuplicateVersion(u64),
     /// Checksum mismatch.
-    ChecksumMismatch { version: u64, expected: u64, actual: u64 },
+    ChecksumMismatch {
+        version: u64,
+        expected: u64,
+        actual: u64,
+    },
     /// Migration already applied.
     AlreadyApplied(u64),
     /// Cannot rollback — migration not applied.
     NotApplied(u64),
     /// Empty migration script.
-    EmptyScript { version: u64, direction: &'static str },
+    EmptyScript {
+        version: u64,
+        direction: &'static str,
+    },
     /// Out-of-order migration.
     OutOfOrder { version: u64, last_applied: u64 },
     /// Script execution failure.
@@ -35,15 +42,25 @@ impl std::fmt::Display for MigrationError {
         match self {
             Self::NotFound(v) => write!(f, "migration not found: v{v}"),
             Self::DuplicateVersion(v) => write!(f, "duplicate migration: v{v}"),
-            Self::ChecksumMismatch { version, expected, actual } => {
-                write!(f, "checksum mismatch v{version}: expected {expected}, got {actual}")
+            Self::ChecksumMismatch {
+                version,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "checksum mismatch v{version}: expected {expected}, got {actual}"
+                )
             }
             Self::AlreadyApplied(v) => write!(f, "migration already applied: v{v}"),
             Self::NotApplied(v) => write!(f, "migration not applied: v{v}"),
             Self::EmptyScript { version, direction } => {
                 write!(f, "empty {direction} script for v{version}")
             }
-            Self::OutOfOrder { version, last_applied } => {
+            Self::OutOfOrder {
+                version,
+                last_applied,
+            } => {
                 write!(f, "out of order: v{version} < last applied v{last_applied}")
             }
             Self::ExecutionFailed { version, reason } => {
@@ -132,11 +149,19 @@ pub struct ExecutionResult {
 
 impl ExecutionResult {
     pub fn ok(time_ms: u64) -> Self {
-        Self { success: true, execution_time_ms: time_ms, error: None }
+        Self {
+            success: true,
+            execution_time_ms: time_ms,
+            error: None,
+        }
     }
 
     pub fn fail(time_ms: u64, error: impl Into<String>) -> Self {
-        Self { success: false, execution_time_ms: time_ms, error: Some(error.into()) }
+        Self {
+            success: false,
+            execution_time_ms: time_ms,
+            error: Some(error.into()),
+        }
     }
 }
 
@@ -299,7 +324,10 @@ impl MigrationRunner {
         }
 
         if migration.up_script.trim().is_empty() {
-            return Err(MigrationError::EmptyScript { version, direction: "up" });
+            return Err(MigrationError::EmptyScript {
+                version,
+                direction: "up",
+            });
         }
 
         // Check ordering.
@@ -380,7 +408,10 @@ impl MigrationRunner {
         }
 
         if migration.down_script.trim().is_empty() {
-            return Err(MigrationError::EmptyScript { version, direction: "down" });
+            return Err(MigrationError::EmptyScript {
+                version,
+                direction: "down",
+            });
         }
 
         let result = if let Some(executor) = &self.executor {
@@ -570,9 +601,17 @@ mod tests {
     #[test]
     fn test_apply_empty_script() {
         let mut runner = MigrationRunner::new();
-        runner.register(Migration::new(1, "empty", "  ", "DROP")).unwrap();
+        runner
+            .register(Migration::new(1, "empty", "  ", "DROP"))
+            .unwrap();
         let err = runner.apply(1).unwrap_err();
-        assert!(matches!(err, MigrationError::EmptyScript { version: 1, direction: "up" }));
+        assert!(matches!(
+            err,
+            MigrationError::EmptyScript {
+                version: 1,
+                direction: "up"
+            }
+        ));
     }
 
     #[test]
@@ -797,10 +836,18 @@ mod tests {
     #[test]
     fn test_rollback_empty_down_script() {
         let mut runner = MigrationRunner::new();
-        runner.register(Migration::new(1, "irreversible", "CREATE", "")).unwrap();
+        runner
+            .register(Migration::new(1, "irreversible", "CREATE", ""))
+            .unwrap();
         runner.apply(1).unwrap();
         let err = runner.rollback(1).unwrap_err();
-        assert!(matches!(err, MigrationError::EmptyScript { version: 1, direction: "down" }));
+        assert!(matches!(
+            err,
+            MigrationError::EmptyScript {
+                version: 1,
+                direction: "down"
+            }
+        ));
     }
 
     #[test]

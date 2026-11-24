@@ -248,11 +248,7 @@ fn plural_polish(ops: &PluralOperands) -> PluralCategory {
     let mod100 = ops.i % 100;
     if (2..=4).contains(&mod10) && !(12..=14).contains(&mod100) {
         PluralCategory::Few
-    } else if mod10 == 0
-        || mod10 == 1
-        || (5..=9).contains(&mod10)
-        || (12..=14).contains(&mod100)
-    {
+    } else if mod10 == 0 || mod10 == 1 || (5..=9).contains(&mod10) || (12..=14).contains(&mod100) {
         PluralCategory::Many
     } else {
         PluralCategory::Other

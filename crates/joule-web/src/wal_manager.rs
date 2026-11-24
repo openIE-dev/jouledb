@@ -14,7 +14,11 @@ pub enum WalManagerError {
     /// LSN not found.
     LsnNotFound(u64),
     /// Checksum mismatch (corruption).
-    ChecksumMismatch { lsn: u64, expected: u32, actual: u32 },
+    ChecksumMismatch {
+        lsn: u64,
+        expected: u32,
+        actual: u32,
+    },
     /// Segment is sealed and cannot accept writes.
     SegmentSealed(u64),
     /// WAL is empty.
@@ -28,8 +32,15 @@ impl std::fmt::Display for WalManagerError {
         match self {
             Self::SegmentNotFound(id) => write!(f, "segment {id} not found"),
             Self::LsnNotFound(lsn) => write!(f, "LSN {lsn} not found"),
-            Self::ChecksumMismatch { lsn, expected, actual } => {
-                write!(f, "checksum mismatch at LSN {lsn}: expected {expected:#010x}, got {actual:#010x}")
+            Self::ChecksumMismatch {
+                lsn,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "checksum mismatch at LSN {lsn}: expected {expected:#010x}, got {actual:#010x}"
+                )
             }
             Self::SegmentSealed(id) => write!(f, "segment {id} is sealed"),
             Self::Empty => write!(f, "WAL is empty"),
@@ -471,17 +482,12 @@ impl WalManager {
 
     /// Maximum LSN in the WAL.
     pub fn max_lsn(&self) -> Option<u64> {
-        self.segments
-            .values()
-            .rev()
-            .find_map(|seg| seg.last_lsn())
+        self.segments.values().rev().find_map(|seg| seg.last_lsn())
     }
 
     /// Minimum LSN in the WAL.
     pub fn min_lsn(&self) -> Option<u64> {
-        self.segments
-            .values()
-            .find_map(|seg| seg.first_lsn())
+        self.segments.values().find_map(|seg| seg.first_lsn())
     }
 
     /// Total number of entries across all segments.
@@ -556,8 +562,10 @@ mod tests {
     #[test]
     fn segment_append_and_iterate() {
         let mut seg = LogSegment::new(1, 4096);
-        seg.append(WalEntry::new(1, b"a".to_vec(), "put".into(), 1)).unwrap();
-        seg.append(WalEntry::new(2, b"b".to_vec(), "put".into(), 1)).unwrap();
+        seg.append(WalEntry::new(1, b"a".to_vec(), "put".into(), 1))
+            .unwrap();
+        seg.append(WalEntry::new(2, b"b".to_vec(), "put".into(), 1))
+            .unwrap();
         assert_eq!(seg.len(), 2);
         assert_eq!(seg.first_lsn(), Some(1));
         assert_eq!(seg.last_lsn(), Some(2));
@@ -574,15 +582,18 @@ mod tests {
     #[test]
     fn segment_is_full() {
         let mut seg = LogSegment::new(1, 64);
-        seg.append(WalEntry::new(1, vec![0u8; 40], "put".into(), 1)).unwrap();
+        seg.append(WalEntry::new(1, vec![0u8; 40], "put".into(), 1))
+            .unwrap();
         assert!(seg.is_full());
     }
 
     #[test]
     fn segment_verify_all() {
         let mut seg = LogSegment::new(1, 4096);
-        seg.append(WalEntry::new(1, b"ok".to_vec(), "put".into(), 1)).unwrap();
-        seg.append(WalEntry::new(2, b"fine".to_vec(), "put".into(), 1)).unwrap();
+        seg.append(WalEntry::new(1, b"ok".to_vec(), "put".into(), 1))
+            .unwrap();
+        seg.append(WalEntry::new(2, b"fine".to_vec(), "put".into(), 1))
+            .unwrap();
         assert!(seg.verify_all().is_ok());
     }
 

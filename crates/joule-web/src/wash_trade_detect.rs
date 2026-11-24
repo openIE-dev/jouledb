@@ -33,11 +33,17 @@ impl std::error::Error for WashTradeError {}
 // ── Trade side ──────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TradeSide { Buy, Sell }
+pub enum TradeSide {
+    Buy,
+    Sell,
+}
 
 impl fmt::Display for TradeSide {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self { Self::Buy => write!(f, "BUY"), Self::Sell => write!(f, "SELL") }
+        match self {
+            Self::Buy => write!(f, "BUY"),
+            Self::Sell => write!(f, "SELL"),
+        }
     }
 }
 
@@ -78,9 +84,14 @@ pub struct TradeRecord {
 impl fmt::Display for TradeRecord {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "Trade({} {} {} {:.2}x{:.0} @{}ms)",
-            self.trade_id, self.instrument,
-            self.buyer_account, self.price, self.quantity, self.timestamp_ms,
+            f,
+            "Trade({} {} {} {:.2}x{:.0} @{}ms)",
+            self.trade_id,
+            self.instrument,
+            self.buyer_account,
+            self.price,
+            self.quantity,
+            self.timestamp_ms,
         )
     }
 }
@@ -101,9 +112,12 @@ pub struct WashTradeAlert {
 impl fmt::Display for WashTradeAlert {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "WashAlert({} conf={:.2} trades={} {})",
-            self.reason, self.confidence,
-            self.trade_ids.len(), self.instrument,
+            f,
+            "WashAlert({} conf={:.2} trades={} {})",
+            self.reason,
+            self.confidence,
+            self.trade_ids.len(),
+            self.instrument,
         )
     }
 }
@@ -117,10 +131,15 @@ pub struct OwnershipMap {
 }
 
 impl OwnershipMap {
-    pub fn new() -> Self { Self { account_to_owner: HashMap::new() } }
+    pub fn new() -> Self {
+        Self {
+            account_to_owner: HashMap::new(),
+        }
+    }
 
     pub fn register(&mut self, account_id: &str, owner_id: &str) {
-        self.account_to_owner.insert(account_id.into(), owner_id.into());
+        self.account_to_owner
+            .insert(account_id.into(), owner_id.into());
     }
 
     pub fn owner_of(&self, account_id: &str) -> Option<&str> {
@@ -134,8 +153,12 @@ impl OwnershipMap {
         }
     }
 
-    pub fn len(&self) -> usize { self.account_to_owner.len() }
-    pub fn is_empty(&self) -> bool { self.account_to_owner.is_empty() }
+    pub fn len(&self) -> usize {
+        self.account_to_owner.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.account_to_owner.is_empty()
+    }
 }
 
 impl fmt::Display for OwnershipMap {
@@ -172,20 +195,44 @@ impl Default for WashTradeConfig {
 }
 
 impl WashTradeConfig {
-    pub fn new() -> Self { Self::default() }
-    pub fn with_timing_window_ms(mut self, ms: u64) -> Self { self.timing_window_ms = ms; self }
-    pub fn with_price_tolerance_pct(mut self, p: f64) -> Self { self.price_tolerance_pct = p; self }
-    pub fn with_quantity_tolerance_pct(mut self, p: f64) -> Self { self.quantity_tolerance_pct = p; self }
-    pub fn with_min_circular_depth(mut self, d: usize) -> Self { self.min_circular_depth = d; self }
-    pub fn with_max_circular_depth(mut self, d: usize) -> Self { self.max_circular_depth = d; self }
-    pub fn with_pre_arranged_window_ms(mut self, ms: u64) -> Self { self.pre_arranged_window_ms = ms; self }
-    pub fn with_min_confidence(mut self, c: f64) -> Self { self.min_confidence = c; self }
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn with_timing_window_ms(mut self, ms: u64) -> Self {
+        self.timing_window_ms = ms;
+        self
+    }
+    pub fn with_price_tolerance_pct(mut self, p: f64) -> Self {
+        self.price_tolerance_pct = p;
+        self
+    }
+    pub fn with_quantity_tolerance_pct(mut self, p: f64) -> Self {
+        self.quantity_tolerance_pct = p;
+        self
+    }
+    pub fn with_min_circular_depth(mut self, d: usize) -> Self {
+        self.min_circular_depth = d;
+        self
+    }
+    pub fn with_max_circular_depth(mut self, d: usize) -> Self {
+        self.max_circular_depth = d;
+        self
+    }
+    pub fn with_pre_arranged_window_ms(mut self, ms: u64) -> Self {
+        self.pre_arranged_window_ms = ms;
+        self
+    }
+    pub fn with_min_confidence(mut self, c: f64) -> Self {
+        self.min_confidence = c;
+        self
+    }
 }
 
 impl fmt::Display for WashTradeConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "WashTradeConfig(window={}ms price_tol={:.4} qty_tol={:.4})",
+            f,
+            "WashTradeConfig(window={}ms price_tol={:.4} qty_tol={:.4})",
             self.timing_window_ms, self.price_tolerance_pct, self.quantity_tolerance_pct,
         )
     }
@@ -193,10 +240,7 @@ impl fmt::Display for WashTradeConfig {
 
 // ── Self-trade detection ────────────────────────────────────────
 
-pub fn detect_self_trades(
-    trades: &[TradeRecord],
-    ownership: &OwnershipMap,
-) -> Vec<WashTradeAlert> {
+pub fn detect_self_trades(trades: &[TradeRecord], ownership: &OwnershipMap) -> Vec<WashTradeAlert> {
     let mut alerts = Vec::new();
     for trade in trades {
         if ownership.same_owner(&trade.buyer_account, &trade.seller_account) {
@@ -227,25 +271,39 @@ pub fn detect_pre_arranged(
     for i in 0..trades.len() {
         for j in (i + 1)..trades.len() {
             let (a, b) = (&trades[i], &trades[j]);
-            if a.instrument != b.instrument { continue; }
+            if a.instrument != b.instrument {
+                continue;
+            }
             let time_diff = b.timestamp_ms.saturating_sub(a.timestamp_ms);
-            if time_diff > config.pre_arranged_window_ms { continue; }
+            if time_diff > config.pre_arranged_window_ms {
+                continue;
+            }
             // Matching price and quantity (within tolerance).
             let price_diff = (a.price - b.price).abs() / a.price.max(1e-12);
             let qty_diff = (a.quantity - b.quantity).abs() / a.quantity.max(1e-12);
-            if price_diff <= config.price_tolerance_pct && qty_diff <= config.quantity_tolerance_pct {
+            if price_diff <= config.price_tolerance_pct && qty_diff <= config.quantity_tolerance_pct
+            {
                 // Opposite sides (buyer of one is seller of other).
                 if a.buyer_account == b.seller_account || a.seller_account == b.buyer_account {
-                    let conf = 1.0 - (time_diff as f64 / config.pre_arranged_window_ms as f64).min(1.0);
+                    let conf =
+                        1.0 - (time_diff as f64 / config.pre_arranged_window_ms as f64).min(1.0);
                     if conf >= config.min_confidence {
                         alerts.push(WashTradeAlert {
                             trade_ids: vec![a.trade_id, b.trade_id],
                             reason: DetectionReason::PreArrangedPattern,
                             confidence: conf,
                             instrument: a.instrument.clone(),
-                            accounts: vec![a.buyer_account.clone(), a.seller_account.clone(), b.buyer_account.clone(), b.seller_account.clone()],
+                            accounts: vec![
+                                a.buyer_account.clone(),
+                                a.seller_account.clone(),
+                                b.buyer_account.clone(),
+                                b.seller_account.clone(),
+                            ],
                             total_quantity: a.quantity + b.quantity,
-                            description: format!("pre-arranged trades {} and {}", a.trade_id, b.trade_id),
+                            description: format!(
+                                "pre-arranged trades {} and {}",
+                                a.trade_id, b.trade_id
+                            ),
                         });
                     }
                 }
@@ -273,19 +331,32 @@ pub fn detect_timing_anomalies(
 
     let mut alerts = Vec::new();
     for ((_a, _b), group) in &by_account_pair {
-        if group.len() < 2 { continue; }
+        if group.len() < 2 {
+            continue;
+        }
         let mut intervals = Vec::new();
         for i in 1..group.len() {
-            let dt = group[i].timestamp_ms.saturating_sub(group[i - 1].timestamp_ms);
+            let dt = group[i]
+                .timestamp_ms
+                .saturating_sub(group[i - 1].timestamp_ms);
             intervals.push(dt);
         }
         // Check for suspiciously regular intervals.
         if intervals.len() >= 2 {
             let mean = intervals.iter().sum::<u64>() as f64 / intervals.len() as f64;
-            let variance = intervals.iter()
-                .map(|dt| { let d = *dt as f64 - mean; d * d })
-                .sum::<f64>() / intervals.len() as f64;
-            let cv = if mean > 0.0 { variance.sqrt() / mean } else { 0.0 };
+            let variance = intervals
+                .iter()
+                .map(|dt| {
+                    let d = *dt as f64 - mean;
+                    d * d
+                })
+                .sum::<f64>()
+                / intervals.len() as f64;
+            let cv = if mean > 0.0 {
+                variance.sqrt() / mean
+            } else {
+                0.0
+            };
             // Low coefficient of variation = suspiciously regular timing.
             if cv < 0.1 && mean < config.timing_window_ms as f64 {
                 let ids: Vec<u64> = group.iter().map(|t| t.trade_id).collect();
@@ -295,7 +366,10 @@ pub fn detect_timing_anomalies(
                     reason: DetectionReason::TimingAnomaly,
                     confidence: 1.0 - cv,
                     instrument: group[0].instrument.clone(),
-                    accounts: vec![group[0].buyer_account.clone(), group[0].seller_account.clone()],
+                    accounts: vec![
+                        group[0].buyer_account.clone(),
+                        group[0].seller_account.clone(),
+                    ],
                     total_quantity: total_qty,
                     description: format!("regular timing (cv={cv:.4}, mean={mean:.0}ms)"),
                 });
@@ -314,11 +388,15 @@ pub fn detect_circular_paths(
     // Build directed graph: buyer -> seller edges.
     let mut graph: HashMap<&str, Vec<(usize, &str)>> = HashMap::new();
     for (i, t) in trades.iter().enumerate() {
-        graph.entry(t.buyer_account.as_str()).or_default().push((i, t.seller_account.as_str()));
+        graph
+            .entry(t.buyer_account.as_str())
+            .or_default()
+            .push((i, t.seller_account.as_str()));
     }
 
     let mut alerts = Vec::new();
-    let accounts: HashSet<&str> = trades.iter()
+    let accounts: HashSet<&str> = trades
+        .iter()
         .flat_map(|t| [t.buyer_account.as_str(), t.seller_account.as_str()])
         .collect();
 
@@ -331,7 +409,9 @@ pub fn detect_circular_paths(
             }
         }
         while let Some((path, current)) = queue.pop_front() {
-            if path.len() > config.max_circular_depth { continue; }
+            if path.len() > config.max_circular_depth {
+                continue;
+            }
             if current == start && path.len() >= config.min_circular_depth {
                 let ids: Vec<u64> = path.iter().map(|i| trades[*i].trade_id).collect();
                 let total_qty: f64 = path.iter().map(|i| trades[*i].quantity).sum();
@@ -372,7 +452,9 @@ impl WashTradeDetector {
         Self { config, ownership }
     }
 
-    pub fn config(&self) -> &WashTradeConfig { &self.config }
+    pub fn config(&self) -> &WashTradeConfig {
+        &self.config
+    }
 
     pub fn detect_all(&self, trades: &[TradeRecord]) -> Vec<WashTradeAlert> {
         let mut all = Vec::new();
@@ -396,10 +478,23 @@ impl fmt::Display for WashTradeDetector {
 mod tests {
     use super::*;
 
-    fn make_trade(id: u64, buyer: &str, seller: &str, inst: &str, price: f64, qty: f64, ts: u64) -> TradeRecord {
+    fn make_trade(
+        id: u64,
+        buyer: &str,
+        seller: &str,
+        inst: &str,
+        price: f64,
+        qty: f64,
+        ts: u64,
+    ) -> TradeRecord {
         TradeRecord {
-            trade_id: id, buyer_account: buyer.into(), seller_account: seller.into(),
-            instrument: inst.into(), price, quantity: qty, timestamp_ms: ts,
+            trade_id: id,
+            buyer_account: buyer.into(),
+            seller_account: seller.into(),
+            instrument: inst.into(),
+            price,
+            quantity: qty,
+            timestamp_ms: ts,
         }
     }
 
@@ -529,9 +624,13 @@ mod tests {
     #[test]
     fn test_alert_display() {
         let a = WashTradeAlert {
-            trade_ids: vec![1], reason: DetectionReason::SameBeneficialOwner,
-            confidence: 1.0, instrument: "AAPL".into(), accounts: vec!["A".into()],
-            total_quantity: 100.0, description: "test".into(),
+            trade_ids: vec![1],
+            reason: DetectionReason::SameBeneficialOwner,
+            confidence: 1.0,
+            instrument: "AAPL".into(),
+            accounts: vec!["A".into()],
+            total_quantity: 100.0,
+            description: "test".into(),
         };
         assert!(format!("{a}").contains("SAME_BENEFICIAL_OWNER"));
     }
@@ -563,8 +662,14 @@ mod tests {
 
     #[test]
     fn test_detection_reason_display() {
-        assert_eq!(format!("{}", DetectionReason::CircularPath), "CIRCULAR_PATH");
-        assert_eq!(format!("{}", DetectionReason::TimingAnomaly), "TIMING_ANOMALY");
+        assert_eq!(
+            format!("{}", DetectionReason::CircularPath),
+            "CIRCULAR_PATH"
+        );
+        assert_eq!(
+            format!("{}", DetectionReason::TimingAnomaly),
+            "TIMING_ANOMALY"
+        );
     }
 
     #[test]

@@ -80,9 +80,16 @@ pub enum RaftLogError {
     /// Gap in log indices.
     IndexGap { expected: u64, got: u64 },
     /// Term mismatch at the given index during consistency check.
-    TermMismatch { index: u64, expected_term: u64, actual_term: u64 },
+    TermMismatch {
+        index: u64,
+        expected_term: u64,
+        actual_term: u64,
+    },
     /// Attempted to access an index before the snapshot.
-    IndexCompacted { requested: u64, first_available: u64 },
+    IndexCompacted {
+        requested: u64,
+        first_available: u64,
+    },
     /// Attempted to commit beyond the last index.
     CommitBeyondEnd { commit: u64, last: u64 },
     /// Log is empty.
@@ -296,14 +303,17 @@ impl RaftLog {
         }
         let start = self.last_applied + 1;
         let end = self.commit_index;
-        (start..=end)
-            .filter_map(|i| self.get(i).ok())
-            .collect()
+        (start..=end).filter_map(|i| self.get(i).ok()).collect()
     }
 
     /// Compact the log up to `up_to_index` (inclusive), replacing compacted
     /// entries with a snapshot.
-    pub fn compact(&mut self, up_to_index: u64, state_data: Vec<u8>, config: Vec<String>) -> Result<(), RaftLogError> {
+    pub fn compact(
+        &mut self,
+        up_to_index: u64,
+        state_data: Vec<u8>,
+        config: Vec<String>,
+    ) -> Result<(), RaftLogError> {
         if up_to_index == 0 {
             return Err(RaftLogError::InvalidSnapshot);
         }
@@ -330,7 +340,9 @@ impl RaftLog {
     pub fn install_snapshot(&mut self, snapshot: Snapshot) {
         let last_idx = snapshot.last_included_index;
         // Discard any entries at or before the snapshot.
-        let new_entries: Vec<RaftEntry> = self.entries.iter()
+        let new_entries: Vec<RaftEntry> = self
+            .entries
+            .iter()
             .filter(|e| e.index > last_idx)
             .cloned()
             .collect();
@@ -388,9 +400,7 @@ impl RaftLog {
 
     /// Get entries in a given index range (inclusive).
     pub fn entries_in_range(&self, start: u64, end: u64) -> Vec<&RaftEntry> {
-        (start..=end)
-            .filter_map(|i| self.get(i).ok())
-            .collect()
+        (start..=end).filter_map(|i| self.get(i).ok()).collect()
     }
 
     /// Get all entries for a given term.
@@ -506,7 +516,13 @@ mod tests {
         let mut log = RaftLog::new();
         log.append(entry(1, 1, "a")).unwrap();
         let result = log.append(entry(1, 3, "c"));
-        assert!(matches!(result, Err(RaftLogError::IndexGap { expected: 2, got: 3 })));
+        assert!(matches!(
+            result,
+            Err(RaftLogError::IndexGap {
+                expected: 2,
+                got: 3
+            })
+        ));
     }
 
     #[test]
@@ -608,7 +624,8 @@ mod tests {
             log.append(entry(1, i, &format!("cmd{}", i))).unwrap();
         }
         log.commit_to(5).unwrap();
-        log.compact(3, b"state".to_vec(), vec!["node1".into()]).unwrap();
+        log.compact(3, b"state".to_vec(), vec!["node1".into()])
+            .unwrap();
         assert!(log.snapshot().is_some());
         let snap = log.snapshot().unwrap();
         assert_eq!(snap.last_included_index, 3);
@@ -776,7 +793,8 @@ mod tests {
         log.append(entry(1, 1, "a")).unwrap();
         log.append(entry(1, 2, "b")).unwrap();
         // Re-sending the same entries is idempotent.
-        log.append_entries(0, 0, vec![entry(1, 1, "a"), entry(1, 2, "b")]).unwrap();
+        log.append_entries(0, 0, vec![entry(1, 1, "a"), entry(1, 2, "b")])
+            .unwrap();
         assert_eq!(log.len(), 2);
     }
 

@@ -75,13 +75,7 @@ impl TemporalSample {
     }
 
     /// Add a locus with frequencies and sample sizes at both time points.
-    pub fn with_locus(
-        mut self,
-        p0: f64,
-        p1: f64,
-        n0: usize,
-        n1: usize,
-    ) -> Self {
+    pub fn with_locus(mut self, p0: f64, p1: f64, n0: usize, n1: usize) -> Self {
         self.freq_t0.push(p0);
         self.freq_t1.push(p1);
         self.sample_size_t0.push(n0);
@@ -232,8 +226,7 @@ impl NeEstimator {
         }
 
         let s = sample_size as f64;
-        let mean_r2: f64 =
-            r_squared_values.iter().sum::<f64>() / r_squared_values.len() as f64;
+        let mean_r2: f64 = r_squared_values.iter().sum::<f64>() / r_squared_values.len() as f64;
 
         // Expected r² due to sampling: E[r²] ≈ 1/S for unlinked loci
         let r2_sample = 1.0 / s;
@@ -290,7 +283,11 @@ impl NeEstimator {
         }
 
         let mean_d: f64 = d_values.iter().sum::<f64>() / d_values.len() as f64;
-        let ne = if mean_d > 0.0 { 1.0 / (2.0 * mean_d) } else { f64::INFINITY };
+        let ne = if mean_d > 0.0 {
+            1.0 / (2.0 * mean_d)
+        } else {
+            f64::INFINITY
+        };
 
         let (lower, upper) = chi2_ci(ne, d_values.len());
 
@@ -341,12 +338,13 @@ impl NeEstimator {
 
         let mut pseudo = Vec::with_capacity(n);
         for i in 0..n {
-            let leave_out: f64 =
-                values.iter().enumerate()
-                    .filter(|&(j, _)| j != i)
-                    .map(|(_, v)| v)
-                    .sum::<f64>()
-                    / (n - 1) as f64;
+            let leave_out: f64 = values
+                .iter()
+                .enumerate()
+                .filter(|&(j, _)| j != i)
+                .map(|(_, v)| v)
+                .sum::<f64>()
+                / (n - 1) as f64;
             let pseudo_val = n as f64 * full_mean - (n - 1) as f64 * leave_out;
             pseudo.push(pseudo_val);
         }
@@ -357,13 +355,25 @@ impl NeEstimator {
         let jk_se = jk_var.sqrt();
 
         let z = 1.96; // 95% CI
-        let ne_est = if jk_mean > 0.0 { generations / (2.0 * jk_mean) } else { f64::INFINITY };
+        let ne_est = if jk_mean > 0.0 {
+            generations / (2.0 * jk_mean)
+        } else {
+            f64::INFINITY
+        };
 
         let lower_fk = jk_mean + z * jk_se;
         let upper_fk = (jk_mean - z * jk_se).max(1e-15);
 
-        let lower_ne = if lower_fk > 0.0 { generations / (2.0 * lower_fk) } else { 0.0 };
-        let upper_ne = if upper_fk > 0.0 { generations / (2.0 * upper_fk) } else { f64::INFINITY };
+        let lower_ne = if lower_fk > 0.0 {
+            generations / (2.0 * lower_fk)
+        } else {
+            0.0
+        };
+        let upper_ne = if upper_fk > 0.0 {
+            generations / (2.0 * upper_fk)
+        } else {
+            f64::INFINITY
+        };
 
         let _ = ne_est;
         (lower_ne.min(upper_ne), lower_ne.max(upper_ne))
@@ -375,7 +385,9 @@ impl fmt::Display for NeEstimator {
         write!(
             f,
             "NeEstimator(method={}, pcrit={:.3}, CI={:.0}%)",
-            self.method, self.pcrit, self.confidence_level * 100.0
+            self.method,
+            self.pcrit,
+            self.confidence_level * 100.0
         )
     }
 }
@@ -397,8 +409,7 @@ impl fmt::Display for BottleneckResult {
         write!(
             f,
             "{}: stat={:.4} p={:.6} sig={} loci={}",
-            self.test_name, self.statistic, self.p_value,
-            self.significant, self.n_loci
+            self.test_name, self.statistic, self.p_value, self.significant, self.n_loci
         )
     }
 }
@@ -489,7 +500,12 @@ pub fn mode_shift_test(allele_freqs: &[f64], n_bins: usize) -> BottleneckResult 
     }
 
     // Find mode bin
-    let mode_bin = bins.iter().enumerate().max_by_key(|&(_, &c)| c).map(|(i, _)| i).unwrap_or(0);
+    let mode_bin = bins
+        .iter()
+        .enumerate()
+        .max_by_key(|&(_, &c)| c)
+        .map(|(i, _)| i)
+        .unwrap_or(0);
 
     // Under stable populations, mode is in the lowest frequency class (bin 0).
     // A shifted mode (bin > 0) suggests a bottleneck.
@@ -518,8 +534,16 @@ fn chi2_ci(ne: f64, df: usize) -> (f64, f64) {
     let factor_lower = (1.0 - 2.0 / (9.0 * k) + z_lower * (2.0 / (9.0 * k)).sqrt()).powi(3);
     let factor_upper = (1.0 - 2.0 / (9.0 * k) - z_lower * (2.0 / (9.0 * k)).sqrt()).powi(3);
 
-    let lower = if factor_lower > 0.0 { ne * k / (k * factor_lower) } else { 0.0 };
-    let upper = if factor_upper > 0.0 { ne * k / (k * factor_upper) } else { f64::INFINITY };
+    let lower = if factor_lower > 0.0 {
+        ne * k / (k * factor_lower)
+    } else {
+        0.0
+    };
+    let upper = if factor_upper > 0.0 {
+        ne * k / (k * factor_upper)
+    } else {
+        f64::INFINITY
+    };
 
     (lower.min(upper), lower.max(upper))
 }
@@ -658,9 +682,15 @@ mod tests {
     fn test_mode_shift_stable() {
         // L-shaped distribution (lots of low-freq alleles)
         let mut freqs = Vec::new();
-        for _ in 0..50 { freqs.push(0.02); }
-        for _ in 0..20 { freqs.push(0.15); }
-        for _ in 0..10 { freqs.push(0.3); }
+        for _ in 0..50 {
+            freqs.push(0.02);
+        }
+        for _ in 0..20 {
+            freqs.push(0.15);
+        }
+        for _ in 0..10 {
+            freqs.push(0.3);
+        }
         let result = mode_shift_test(&freqs, 10);
         assert!(!result.significant);
     }
@@ -669,9 +699,15 @@ mod tests {
     fn test_mode_shift_bottleneck() {
         // Mode shifted away from low frequency
         let mut freqs = Vec::new();
-        for _ in 0..10 { freqs.push(0.05); }
-        for _ in 0..50 { freqs.push(0.3); }
-        for _ in 0..20 { freqs.push(0.6); }
+        for _ in 0..10 {
+            freqs.push(0.05);
+        }
+        for _ in 0..50 {
+            freqs.push(0.3);
+        }
+        for _ in 0..20 {
+            freqs.push(0.6);
+        }
         let result = mode_shift_test(&freqs, 10);
         assert!(result.significant);
     }
@@ -686,8 +722,11 @@ mod tests {
     #[test]
     fn test_ne_estimate_display() {
         let ne = NeEstimate {
-            ne: 500.0, lower_ci: 300.0, upper_ci: 800.0,
-            method: NeMethod::Temporal, n_loci: 10,
+            ne: 500.0,
+            lower_ci: 300.0,
+            upper_ci: 800.0,
+            method: NeMethod::Temporal,
+            n_loci: 10,
         };
         let s = format!("{}", ne);
         assert!(s.contains("500.0"));
@@ -696,8 +735,7 @@ mod tests {
 
     #[test]
     fn test_temporal_sample_display() {
-        let sample = TemporalSample::new(5.0)
-            .with_locus(0.3, 0.35, 50, 50);
+        let sample = TemporalSample::new(5.0).with_locus(0.3, 0.35, 50, 50);
         let s = format!("{}", sample);
         assert!(s.contains("loci=1"));
     }

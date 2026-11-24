@@ -95,7 +95,13 @@ impl RamaPoint {
             "PRO" => AminoAcidClass::Proline,
             _ => AminoAcidClass::General,
         };
-        Self { residue, name: name.to_string(), phi, psi, aa_class }
+        Self {
+            residue,
+            name: name.to_string(),
+            phi,
+            psi,
+            aa_class,
+        }
     }
 
     /// Create with explicit amino acid class override.
@@ -107,7 +113,11 @@ impl RamaPoint {
 
 impl fmt::Display for RamaPoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {} φ={:.1}° ψ={:.1}° [{}]", self.residue, self.name, self.phi, self.psi, self.aa_class)
+        write!(
+            f,
+            "{} {} φ={:.1}° ψ={:.1}° [{}]",
+            self.residue, self.name, self.phi, self.psi, self.aa_class
+        )
     }
 }
 
@@ -146,7 +156,11 @@ pub struct RamaClassifier {
 impl RamaClassifier {
     /// Default classifier with standard region boundaries.
     pub fn new() -> Self {
-        Self { core_scale: 1.0, allowed_scale: 1.6, generous_scale: 2.2 }
+        Self {
+            core_scale: 1.0,
+            allowed_scale: 1.6,
+            generous_scale: 2.2,
+        }
     }
 
     /// Adjust core region stringency.
@@ -219,25 +233,80 @@ impl RamaClassifier {
         match class {
             AminoAcidClass::General => vec![
                 // Alpha-helix region
-                EllipseRegion { phi_center: -63.0, psi_center: -43.0, phi_radius: 25.0, psi_radius: 25.0 },
+                EllipseRegion {
+                    phi_center: -63.0,
+                    psi_center: -43.0,
+                    phi_radius: 25.0,
+                    psi_radius: 25.0,
+                },
                 // Beta-sheet region
-                EllipseRegion { phi_center: -120.0, psi_center: 135.0, phi_radius: 30.0, psi_radius: 25.0 },
+                EllipseRegion {
+                    phi_center: -120.0,
+                    psi_center: 135.0,
+                    phi_radius: 30.0,
+                    psi_radius: 25.0,
+                },
                 // Left-handed helix (small)
-                EllipseRegion { phi_center: 57.0, psi_center: 47.0, phi_radius: 15.0, psi_radius: 15.0 },
+                EllipseRegion {
+                    phi_center: 57.0,
+                    psi_center: 47.0,
+                    phi_radius: 15.0,
+                    psi_radius: 15.0,
+                },
             ],
             AminoAcidClass::Glycine => vec![
-                EllipseRegion { phi_center: -63.0, psi_center: -43.0, phi_radius: 35.0, psi_radius: 35.0 },
-                EllipseRegion { phi_center: -120.0, psi_center: 135.0, phi_radius: 40.0, psi_radius: 35.0 },
-                EllipseRegion { phi_center: 63.0, psi_center: 43.0, phi_radius: 35.0, psi_radius: 35.0 },
-                EllipseRegion { phi_center: 120.0, psi_center: -135.0, phi_radius: 40.0, psi_radius: 35.0 },
+                EllipseRegion {
+                    phi_center: -63.0,
+                    psi_center: -43.0,
+                    phi_radius: 35.0,
+                    psi_radius: 35.0,
+                },
+                EllipseRegion {
+                    phi_center: -120.0,
+                    psi_center: 135.0,
+                    phi_radius: 40.0,
+                    psi_radius: 35.0,
+                },
+                EllipseRegion {
+                    phi_center: 63.0,
+                    psi_center: 43.0,
+                    phi_radius: 35.0,
+                    psi_radius: 35.0,
+                },
+                EllipseRegion {
+                    phi_center: 120.0,
+                    psi_center: -135.0,
+                    phi_radius: 40.0,
+                    psi_radius: 35.0,
+                },
             ],
             AminoAcidClass::Proline => vec![
-                EllipseRegion { phi_center: -63.0, psi_center: -30.0, phi_radius: 15.0, psi_radius: 20.0 },
-                EllipseRegion { phi_center: -63.0, psi_center: 150.0, phi_radius: 15.0, psi_radius: 25.0 },
+                EllipseRegion {
+                    phi_center: -63.0,
+                    psi_center: -30.0,
+                    phi_radius: 15.0,
+                    psi_radius: 20.0,
+                },
+                EllipseRegion {
+                    phi_center: -63.0,
+                    psi_center: 150.0,
+                    phi_radius: 15.0,
+                    psi_radius: 25.0,
+                },
             ],
             AminoAcidClass::PreProline => vec![
-                EllipseRegion { phi_center: -63.0, psi_center: -25.0, phi_radius: 25.0, psi_radius: 20.0 },
-                EllipseRegion { phi_center: -120.0, psi_center: 150.0, phi_radius: 30.0, psi_radius: 20.0 },
+                EllipseRegion {
+                    phi_center: -63.0,
+                    psi_center: -25.0,
+                    phi_radius: 25.0,
+                    psi_radius: 20.0,
+                },
+                EllipseRegion {
+                    phi_center: -120.0,
+                    psi_center: 150.0,
+                    phi_radius: 30.0,
+                    psi_radius: 20.0,
+                },
             ],
         }
     }
@@ -295,12 +364,20 @@ impl RamaAnalysis {
 
     /// Fraction in core region.
     pub fn core_fraction(&self) -> f64 {
-        if self.total == 0 { 0.0 } else { self.core_count as f64 / self.total as f64 }
+        if self.total == 0 {
+            0.0
+        } else {
+            self.core_count as f64 / self.total as f64
+        }
     }
 
     /// Fraction in allowed or better.
     pub fn favoured_fraction(&self) -> f64 {
-        if self.total == 0 { 0.0 } else { (self.core_count + self.allowed_count) as f64 / self.total as f64 }
+        if self.total == 0 {
+            0.0
+        } else {
+            (self.core_count + self.allowed_count) as f64 / self.total as f64
+        }
     }
 
     /// True if the structure passes validation (>= 98% in favoured, 0 disallowed).
@@ -370,8 +447,7 @@ mod tests {
 
     #[test]
     fn test_rama_point_with_class() {
-        let pt = RamaPoint::new(5, "ALA", -63.0, -25.0)
-            .with_class(AminoAcidClass::PreProline);
+        let pt = RamaPoint::new(5, "ALA", -63.0, -25.0).with_class(AminoAcidClass::PreProline);
         assert_eq!(pt.aa_class, AminoAcidClass::PreProline);
     }
 
@@ -386,19 +462,28 @@ mod tests {
     #[test]
     fn test_classify_core_alpha() {
         let c = RamaClassifier::new();
-        assert_eq!(c.classify(-63.0, -43.0, AminoAcidClass::General), RamaRegion::Core);
+        assert_eq!(
+            c.classify(-63.0, -43.0, AminoAcidClass::General),
+            RamaRegion::Core
+        );
     }
 
     #[test]
     fn test_classify_core_beta() {
         let c = RamaClassifier::new();
-        assert_eq!(c.classify(-120.0, 135.0, AminoAcidClass::General), RamaRegion::Core);
+        assert_eq!(
+            c.classify(-120.0, 135.0, AminoAcidClass::General),
+            RamaRegion::Core
+        );
     }
 
     #[test]
     fn test_classify_disallowed() {
         let c = RamaClassifier::new();
-        assert_eq!(c.classify(0.0, 0.0, AminoAcidClass::General), RamaRegion::Disallowed);
+        assert_eq!(
+            c.classify(0.0, 0.0, AminoAcidClass::General),
+            RamaRegion::Disallowed
+        );
     }
 
     #[test]
@@ -413,7 +498,10 @@ mod tests {
     fn test_classify_proline_restricted() {
         let c = RamaClassifier::new();
         // Proline core near -63, -30
-        assert_eq!(c.classify(-63.0, -30.0, AminoAcidClass::Proline), RamaRegion::Core);
+        assert_eq!(
+            c.classify(-63.0, -30.0, AminoAcidClass::Proline),
+            RamaRegion::Core
+        );
     }
 
     #[test]
@@ -481,8 +569,12 @@ mod tests {
     #[test]
     fn test_z_score() {
         let analysis = RamaAnalysis {
-            total: 100, core_count: 90, allowed_count: 8,
-            generous_count: 2, disallowed_count: 0, outliers: vec![],
+            total: 100,
+            core_count: 90,
+            allowed_count: 8,
+            generous_count: 2,
+            disallowed_count: 0,
+            outliers: vec![],
         };
         let z = rama_z_score(&analysis, 0.85, 0.05);
         assert!(approx(z, 1.0, 1e-10)); // (0.9 - 0.85) / 0.05 = 1.0
@@ -491,8 +583,12 @@ mod tests {
     #[test]
     fn test_z_score_zero_stddev() {
         let analysis = RamaAnalysis {
-            total: 10, core_count: 8, allowed_count: 2,
-            generous_count: 0, disallowed_count: 0, outliers: vec![],
+            total: 10,
+            core_count: 8,
+            allowed_count: 2,
+            generous_count: 0,
+            disallowed_count: 0,
+            outliers: vec![],
         };
         assert!(approx(rama_z_score(&analysis, 0.8, 0.0), 0.0, 1e-10));
     }

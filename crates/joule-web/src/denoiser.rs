@@ -11,24 +11,56 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0, z: 0.0 } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
-    pub fn length_squared(self) -> f64 { self.dot(self) }
-    pub fn length(self) -> f64 { self.length_squared().sqrt() }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
+    pub fn length_squared(self) -> f64 {
+        self.dot(self)
+    }
+    pub fn length(self) -> f64 {
+        self.length_squared().sqrt()
+    }
 }
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 impl std::ops::Mul<f64> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 
 impl fmt::Display for Vec3 {
@@ -46,8 +78,16 @@ pub struct Color {
 }
 
 impl Color {
-    pub fn new(r: f64, g: f64, b: f64) -> Self { Self { r, g, b } }
-    pub fn black() -> Self { Self { r: 0.0, g: 0.0, b: 0.0 } }
+    pub fn new(r: f64, g: f64, b: f64) -> Self {
+        Self { r, g, b }
+    }
+    pub fn black() -> Self {
+        Self {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+        }
+    }
     pub fn dist_sq(self, other: Self) -> f64 {
         let dr = self.r - other.r;
         let dg = self.g - other.g;
@@ -58,11 +98,23 @@ impl Color {
 
 impl std::ops::Add for Color {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { r: self.r + r.r, g: self.g + r.g, b: self.b + r.b } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            r: self.r + r.r,
+            g: self.g + r.g,
+            b: self.b + r.b,
+        }
+    }
 }
 impl std::ops::Mul<f64> for Color {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { r: self.r * s, g: self.g * s, b: self.b * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
+    }
 }
 
 /// Feature buffers for edge-stopping denoising.
@@ -86,22 +138,34 @@ impl FeatureBuffers {
 
     pub fn set_normal(&mut self, x: usize, y: usize, n: Vec3) {
         let idx = y * self.width + x;
-        if idx < self.normals.len() { self.normals[idx] = n; }
+        if idx < self.normals.len() {
+            self.normals[idx] = n;
+        }
     }
 
     pub fn set_depth(&mut self, x: usize, y: usize, d: f64) {
         let idx = y * self.width + x;
-        if idx < self.depth.len() { self.depth[idx] = d; }
+        if idx < self.depth.len() {
+            self.depth[idx] = d;
+        }
     }
 
     pub fn get_normal(&self, x: usize, y: usize) -> Vec3 {
         let idx = y * self.width + x;
-        if idx < self.normals.len() { self.normals[idx] } else { Vec3::zero() }
+        if idx < self.normals.len() {
+            self.normals[idx]
+        } else {
+            Vec3::zero()
+        }
     }
 
     pub fn get_depth(&self, x: usize, y: usize) -> f64 {
         let idx = y * self.width + x;
-        if idx < self.depth.len() { self.depth[idx] } else { 0.0 }
+        if idx < self.depth.len() {
+            self.depth[idx]
+        } else {
+            0.0
+        }
     }
 }
 
@@ -137,30 +201,48 @@ pub struct ImageBuffer {
 
 impl ImageBuffer {
     pub fn new(width: usize, height: usize) -> Self {
-        Self { width, height, pixels: vec![Color::black(); width * height] }
+        Self {
+            width,
+            height,
+            pixels: vec![Color::black(); width * height],
+        }
     }
 
     pub fn from_pixels(width: usize, height: usize, pixels: Vec<Color>) -> Self {
         assert_eq!(pixels.len(), width * height);
-        Self { width, height, pixels }
+        Self {
+            width,
+            height,
+            pixels,
+        }
     }
 
     pub fn get(&self, x: usize, y: usize) -> Color {
         let idx = y * self.width + x;
-        if idx < self.pixels.len() { self.pixels[idx] } else { Color::black() }
+        if idx < self.pixels.len() {
+            self.pixels[idx]
+        } else {
+            Color::black()
+        }
     }
 
     pub fn set(&mut self, x: usize, y: usize, c: Color) {
         let idx = y * self.width + x;
-        if idx < self.pixels.len() { self.pixels[idx] = c; }
+        if idx < self.pixels.len() {
+            self.pixels[idx] = c;
+        }
     }
 
-    pub fn pixel_count(&self) -> usize { self.width * self.height }
+    pub fn pixel_count(&self) -> usize {
+        self.width * self.height
+    }
 }
 
 /// Gaussian weight function.
 fn gaussian_weight(dist_sq: f64, sigma: f64) -> f64 {
-    if sigma <= 0.0 { return 0.0; }
+    if sigma <= 0.0 {
+        return 0.0;
+    }
     (-dist_sq / (2.0 * sigma * sigma)).exp()
 }
 
@@ -279,7 +361,8 @@ pub fn atrous_filter_pass(
                     let w_color = gaussian_weight(color_dist_sq, config.sigma_color);
 
                     let normal_diff = center_normal - neighbor_normal;
-                    let w_normal = gaussian_weight(normal_diff.length_squared(), config.sigma_normal);
+                    let w_normal =
+                        gaussian_weight(normal_diff.length_squared(), config.sigma_normal);
 
                     let depth_diff = center_depth - neighbor_depth;
                     let w_depth = gaussian_weight(depth_diff * depth_diff, config.sigma_depth);
@@ -323,8 +406,12 @@ pub struct MotionVector {
 }
 
 impl MotionVector {
-    pub fn zero() -> Self { Self { dx: 0.0, dy: 0.0 } }
-    pub fn new(dx: f64, dy: f64) -> Self { Self { dx, dy } }
+    pub fn zero() -> Self {
+        Self { dx: 0.0, dy: 0.0 }
+    }
+    pub fn new(dx: f64, dy: f64) -> Self {
+        Self { dx, dy }
+    }
 }
 
 /// Temporal accumulation: blend current denoised frame with previous using motion vectors.
@@ -377,7 +464,9 @@ pub fn temporal_accumulate(
 /// Compute simple MSE (mean squared error) between two images.
 pub fn compute_mse(a: &ImageBuffer, b: &ImageBuffer) -> f64 {
     assert_eq!(a.pixel_count(), b.pixel_count());
-    if a.pixel_count() == 0 { return 0.0; }
+    if a.pixel_count() == 0 {
+        return 0.0;
+    }
     let mut sum = 0.0;
     for i in 0..a.pixels.len() {
         sum += a.pixels[i].dist_sq(b.pixels[i]);
@@ -388,7 +477,9 @@ pub fn compute_mse(a: &ImageBuffer, b: &ImageBuffer) -> f64 {
 /// Compute PSNR (peak signal-to-noise ratio) between two images.
 pub fn compute_psnr(a: &ImageBuffer, b: &ImageBuffer) -> f64 {
     let mse = compute_mse(a, b);
-    if mse < 1e-15 { return f64::INFINITY; }
+    if mse < 1e-15 {
+        return f64::INFINITY;
+    }
     10.0 * (1.0 / mse).log10()
 }
 
@@ -396,7 +487,9 @@ pub fn compute_psnr(a: &ImageBuffer, b: &ImageBuffer) -> f64 {
 mod tests {
     use super::*;
 
-    fn approx_eq(a: f64, b: f64, eps: f64) -> bool { (a - b).abs() < eps }
+    fn approx_eq(a: f64, b: f64, eps: f64) -> bool {
+        (a - b).abs() < eps
+    }
 
     fn color_approx(a: Color, b: Color, eps: f64) -> bool {
         approx_eq(a.r, b.r, eps) && approx_eq(a.g, b.g, eps) && approx_eq(a.b, b.b, eps)
@@ -474,7 +567,13 @@ mod tests {
                 features.set_normal(x, y, Vec3::new(1.0, 0.0, 0.0)); // different normal
             }
         }
-        let config = DenoiserConfig { sigma_color: 0.01, sigma_normal: 0.01, sigma_depth: 0.5, sigma_spatial: 2.0, kernel_radius: 2 };
+        let config = DenoiserConfig {
+            sigma_color: 0.01,
+            sigma_normal: 0.01,
+            sigma_depth: 0.5,
+            sigma_spatial: 2.0,
+            kernel_radius: 2,
+        };
         let out = bilateral_filter(&img, &features, &config);
         // Interior pixel should stay close to original
         let left = out.get(1, 4);
@@ -507,12 +606,23 @@ mod tests {
             }
         }
         let features = uniform_features(16, 16);
-        let config = DenoiserConfig { sigma_color: 0.3, sigma_normal: 1.0, sigma_depth: 1.0, sigma_spatial: 2.0, kernel_radius: 3 };
+        let config = DenoiserConfig {
+            sigma_color: 0.3,
+            sigma_normal: 1.0,
+            sigma_depth: 1.0,
+            sigma_spatial: 2.0,
+            kernel_radius: 3,
+        };
 
         let mse_before = compute_mse(&img, &ground_truth);
         let denoised = atrous_denoise(&img, &features, &config, 3);
         let mse_after = compute_mse(&denoised, &ground_truth);
-        assert!(mse_after < mse_before, "denoised MSE {} should be less than noisy MSE {}", mse_after, mse_before);
+        assert!(
+            mse_after < mse_before,
+            "denoised MSE {} should be less than noisy MSE {}",
+            mse_after,
+            mse_before
+        );
     }
 
     #[test]

@@ -165,7 +165,12 @@ impl EventEmitter {
         self.add_listener("*".to_string(), ListenerKind::On, priority)
     }
 
-    fn add_listener(&mut self, event_type: String, kind: ListenerKind, priority: i32) -> ListenerId {
+    fn add_listener(
+        &mut self,
+        event_type: String,
+        kind: ListenerKind,
+        priority: i32,
+    ) -> ListenerId {
         let id = ListenerId(self.next_id);
         self.next_id += 1;
 
@@ -296,7 +301,9 @@ impl EventEmitter {
 
     /// List all event types that have listeners.
     pub fn event_types(&self) -> Vec<&str> {
-        let mut types: Vec<&str> = self.listeners.keys()
+        let mut types: Vec<&str> = self
+            .listeners
+            .keys()
             .filter(|k| !self.listeners[*k].is_empty())
             .map(|k| k.as_str())
             .collect();
@@ -306,7 +313,9 @@ impl EventEmitter {
 
     /// Check if a specific listener is registered.
     pub fn has_listener(&self, listener_id: ListenerId) -> bool {
-        self.listeners.values().any(|list| list.iter().any(|l| l.id == listener_id))
+        self.listeners
+            .values()
+            .any(|list| list.iter().any(|l| l.id == listener_id))
     }
 }
 
@@ -369,7 +378,8 @@ impl EventBubbleTree {
     }
 
     pub fn set_parent(&mut self, child: &str, parent: &str) {
-        self.parent_map.insert(child.to_string(), parent.to_string());
+        self.parent_map
+            .insert(child.to_string(), parent.to_string());
         if let Some(p) = self.targets.get_mut(parent) {
             if !p.children.contains(&child.to_string()) {
                 p.children.push(child.to_string());
@@ -586,7 +596,7 @@ mod tests {
     fn stop_propagation_in_emit() {
         let mut em = emitter();
         em.on("click", 10); // high priority
-        em.on("click", 0);  // low priority
+        em.on("click", 0); // low priority
 
         let mut event = Event::new("click", "");
         event.stop_propagation();

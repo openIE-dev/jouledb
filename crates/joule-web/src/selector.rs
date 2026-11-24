@@ -32,9 +32,7 @@ where
 
     /// Select: if input unchanged, return cached output; otherwise recompute.
     pub fn select(&mut self, input: &Input) -> Output {
-        if let (Some(cached_in), Some(cached_out)) =
-            (&self.cached_input, &self.cached_output)
-        {
+        if let (Some(cached_in), Some(cached_out)) = (&self.cached_input, &self.cached_output) {
             if cached_in == input {
                 self.hits += 1;
                 return cached_out.clone();
@@ -154,9 +152,7 @@ where
     Output: Clone,
 {
     /// Create a factory. The `create_fn` takes a param and returns a transform.
-    pub fn new(
-        create_fn: impl Fn(&Param) -> Box<dyn Fn(&Input) -> Output> + 'static,
-    ) -> Self {
+    pub fn new(create_fn: impl Fn(&Param) -> Box<dyn Fn(&Input) -> Output> + 'static) -> Self {
         Self {
             create_fn: Box::new(create_fn),
             cache: HashMap::new(),
@@ -172,13 +168,16 @@ where
 
         if !self.cache.contains_key(&key) {
             let transform = (self.create_fn)(param);
-            self.cache.insert(key, Selector {
-                transform,
-                cached_input: None,
-                cached_output: None,
-                hits: 0,
-                misses: 0,
-            });
+            self.cache.insert(
+                key,
+                Selector {
+                    transform,
+                    cached_input: None,
+                    cached_output: None,
+                    hits: 0,
+                    misses: 0,
+                },
+            );
         }
         self.cache.get_mut(&key).unwrap().select(input)
     }
@@ -264,10 +263,7 @@ mod tests {
             count: i32,
         }
 
-        let mut sel = create_selector_1(
-            |s: &State| s.count,
-            |count| count * 10,
-        );
+        let mut sel = create_selector_1(|s: &State| s.count, |count| count * 10);
 
         let s = State { count: 3 };
         assert_eq!(sel.select(&s), 30);
@@ -281,11 +277,7 @@ mod tests {
             b: i32,
         }
 
-        let mut sel = create_selector_2(
-            |s: &State| s.a,
-            |s: &State| s.b,
-            |a, b| a + b,
-        );
+        let mut sel = create_selector_2(|s: &State| s.a, |s: &State| s.b, |a, b| a + b);
 
         let s = State { a: 3, b: 7 };
         assert_eq!(sel.select(&s), 10);
@@ -331,9 +323,7 @@ mod tests {
 
     #[test]
     fn factory_clear() {
-        let mut factory = SelectorFactory::new(|_: &i32| {
-            Box::new(|x: &i32| *x)
-        });
+        let mut factory = SelectorFactory::new(|_: &i32| Box::new(|x: &i32| *x));
         factory.select(&1, &10);
         factory.select(&2, &20);
         assert_eq!(factory.cached_count(), 2);

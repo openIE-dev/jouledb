@@ -15,7 +15,12 @@ pub enum Ca2dError {
     /// Grid dimensions are zero.
     ZeroDimension,
     /// Coordinates out of bounds.
-    OutOfBounds { x: usize, y: usize, width: usize, height: usize },
+    OutOfBounds {
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    },
     /// Grid data size does not match dimensions.
     SizeMismatch { expected: usize, got: usize },
     /// Invalid number of states.
@@ -26,7 +31,12 @@ impl fmt::Display for Ca2dError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ZeroDimension => write!(f, "grid dimensions must be non-zero"),
-            Self::OutOfBounds { x, y, width, height } => {
+            Self::OutOfBounds {
+                x,
+                y,
+                width,
+                height,
+            } => {
                 write!(f, "({x}, {y}) out of bounds for {width}x{height} grid")
             }
             Self::SizeMismatch { expected, got } => {
@@ -55,15 +65,16 @@ impl Neighborhood2d {
     pub fn offsets(&self) -> &[(i32, i32)] {
         match self {
             Self::Moore => &[
-                (-1, -1), (0, -1), (1, -1),
-                (-1,  0),          (1,  0),
-                (-1,  1), (0,  1), (1,  1),
+                (-1, -1),
+                (0, -1),
+                (1, -1),
+                (-1, 0),
+                (1, 0),
+                (-1, 1),
+                (0, 1),
+                (1, 1),
             ],
-            Self::VonNeumann => &[
-                          (0, -1),
-                (-1,  0),          (1,  0),
-                          (0,  1),
-            ],
+            Self::VonNeumann => &[(0, -1), (-1, 0), (1, 0), (0, 1)],
         }
     }
 
@@ -105,7 +116,12 @@ pub struct TotalisticRule {
 
 impl TotalisticRule {
     /// Create a new totalistic rule with given birth and survival sums.
-    pub fn new(num_states: u8, birth_sums: &[usize], survival_sums: &[usize], max_sum: usize) -> Self {
+    pub fn new(
+        num_states: u8,
+        birth_sums: &[usize],
+        survival_sums: &[usize],
+        max_sum: usize,
+    ) -> Self {
         let mut birth = vec![false; max_sum + 1];
         let mut survival = vec![false; max_sum + 1];
         for &s in birth_sums {
@@ -118,16 +134,28 @@ impl TotalisticRule {
                 survival[s] = true;
             }
         }
-        Self { num_states, birth, survival }
+        Self {
+            num_states,
+            birth,
+            survival,
+        }
     }
 
     /// Apply the totalistic rule.
     pub fn apply(&self, cell: u8, neighbor_sum: usize) -> u8 {
         let sum_idx = neighbor_sum.min(self.birth.len().saturating_sub(1));
         if cell == 0 {
-            if sum_idx < self.birth.len() && self.birth[sum_idx] { 1 } else { 0 }
+            if sum_idx < self.birth.len() && self.birth[sum_idx] {
+                1
+            } else {
+                0
+            }
         } else if cell == 1 {
-            if sum_idx < self.survival.len() && self.survival[sum_idx] { 1 } else { 0 }
+            if sum_idx < self.survival.len() && self.survival[sum_idx] {
+                1
+            } else {
+                0
+            }
         } else {
             // Multi-state decay: non-zero non-one cells decay toward 0
             cell.saturating_sub(1)
@@ -225,18 +253,29 @@ impl Grid2d {
     }
 
     /// Width of the grid.
-    pub fn width(&self) -> usize { self.width }
+    pub fn width(&self) -> usize {
+        self.width
+    }
 
     /// Height of the grid.
-    pub fn height(&self) -> usize { self.height }
+    pub fn height(&self) -> usize {
+        self.height
+    }
 
     /// Current generation count.
-    pub fn generation(&self) -> u64 { self.generation }
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
 
     /// Get cell at (x, y).
     pub fn get(&self, x: usize, y: usize) -> Result<u8, Ca2dError> {
         if x >= self.width || y >= self.height {
-            return Err(Ca2dError::OutOfBounds { x, y, width: self.width, height: self.height });
+            return Err(Ca2dError::OutOfBounds {
+                x,
+                y,
+                width: self.width,
+                height: self.height,
+            });
         }
         Ok(self.cells[y * self.width + x])
     }
@@ -244,7 +283,12 @@ impl Grid2d {
     /// Set cell at (x, y).
     pub fn set(&mut self, x: usize, y: usize, state: u8) -> Result<(), Ca2dError> {
         if x >= self.width || y >= self.height {
-            return Err(Ca2dError::OutOfBounds { x, y, width: self.width, height: self.height });
+            return Err(Ca2dError::OutOfBounds {
+                x,
+                y,
+                width: self.width,
+                height: self.height,
+            });
         }
         self.cells[y * self.width + x] = state;
         Ok(())
@@ -295,7 +339,10 @@ impl Grid2d {
         let offsets = self.neighborhood.offsets();
         let cx = x as i32;
         let cy = y as i32;
-        offsets.iter().map(|&(dx, dy)| self.read_cell(cx + dx, cy + dy)).collect()
+        offsets
+            .iter()
+            .map(|&(dx, dy)| self.read_cell(cx + dx, cy + dy))
+            .collect()
     }
 
     /// Advance by one generation (double-buffered simultaneous update).
@@ -371,15 +418,27 @@ impl Grid2d {
             for x in 0..self.width {
                 if self.cells[y * self.width + x] != 0 {
                     found = true;
-                    if x < min_x { min_x = x; }
-                    if y < min_y { min_y = y; }
-                    if x > max_x { max_x = x; }
-                    if y > max_y { max_y = y; }
+                    if x < min_x {
+                        min_x = x;
+                    }
+                    if y < min_y {
+                        min_y = y;
+                    }
+                    if x > max_x {
+                        max_x = x;
+                    }
+                    if y > max_y {
+                        max_y = y;
+                    }
                 }
             }
         }
 
-        if found { Some((min_x, min_y, max_x, max_y)) } else { None }
+        if found {
+            Some((min_x, min_y, max_x, max_y))
+        } else {
+            None
+        }
     }
 
     /// Check if the grid is all dead (all zeros).
@@ -399,14 +458,21 @@ impl Grid2d {
         let mut rng = seed;
         for cell in &mut self.cells {
             // LCG: x' = (a*x + c) mod m
-            rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            rng = rng
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let val = ((rng >> 33) as f64) / ((1u64 << 31) as f64);
             *cell = if val < density { 1 } else { 0 };
         }
     }
 
     /// Load a pattern at the given offset. Pattern is a slice of (dx, dy, state).
-    pub fn load_pattern(&mut self, ox: usize, oy: usize, pattern: &[(usize, usize, u8)]) -> Result<(), Ca2dError> {
+    pub fn load_pattern(
+        &mut self,
+        ox: usize,
+        oy: usize,
+        pattern: &[(usize, usize, u8)],
+    ) -> Result<(), Ca2dError> {
         for &(dx, dy, state) in pattern {
             let x = ox + dx;
             let y = oy + dy;
@@ -484,7 +550,14 @@ mod tests {
     use super::*;
 
     fn life_grid(w: usize, h: usize) -> Grid2d {
-        Grid2d::new(w, h, Neighborhood2d::Moore, Boundary2d::Wrap, Grid2d::life_rule()).unwrap()
+        Grid2d::new(
+            w,
+            h,
+            Neighborhood2d::Moore,
+            Boundary2d::Wrap,
+            Grid2d::life_rule(),
+        )
+        .unwrap()
     }
 
     #[test]
@@ -498,7 +571,13 @@ mod tests {
 
     #[test]
     fn test_zero_dimension_error() {
-        let r = Grid2d::new(0, 5, Neighborhood2d::Moore, Boundary2d::Wrap, Grid2d::life_rule());
+        let r = Grid2d::new(
+            0,
+            5,
+            Neighborhood2d::Moore,
+            Boundary2d::Wrap,
+            Grid2d::life_rule(),
+        );
         assert_eq!(r.unwrap_err(), Ca2dError::ZeroDimension);
     }
 
@@ -551,8 +630,13 @@ mod tests {
     #[test]
     fn test_dead_boundary() {
         let mut g = Grid2d::new(
-            3, 3, Neighborhood2d::Moore, Boundary2d::Dead(0), Grid2d::life_rule(),
-        ).unwrap();
+            3,
+            3,
+            Neighborhood2d::Moore,
+            Boundary2d::Dead(0),
+            Grid2d::life_rule(),
+        )
+        .unwrap();
         g.set(0, 0, 1).unwrap();
         // Corner cell with dead boundary: only 3 neighbors in-bounds
         let nbrs = g.gather_neighbors(0, 0);
@@ -565,8 +649,13 @@ mod tests {
     #[test]
     fn test_mirror_boundary() {
         let mut g = Grid2d::new(
-            3, 3, Neighborhood2d::Moore, Boundary2d::Mirror, Grid2d::life_rule(),
-        ).unwrap();
+            3,
+            3,
+            Neighborhood2d::Moore,
+            Boundary2d::Mirror,
+            Grid2d::life_rule(),
+        )
+        .unwrap();
         g.set(0, 0, 1).unwrap();
         // Mirror: (-1,-1) mirrors to (0,0) which is 1
         let val = g.read_cell(-1, -1);
@@ -588,8 +677,13 @@ mod tests {
     #[test]
     fn test_von_neumann_neighborhood() {
         let g = Grid2d::new(
-            5, 5, Neighborhood2d::VonNeumann, Boundary2d::Wrap, Grid2d::life_rule(),
-        ).unwrap();
+            5,
+            5,
+            Neighborhood2d::VonNeumann,
+            Boundary2d::Wrap,
+            Grid2d::life_rule(),
+        )
+        .unwrap();
         let nbrs = g.gather_neighbors(2, 2);
         assert_eq!(nbrs.len(), 4);
     }
@@ -604,14 +698,29 @@ mod tests {
     #[test]
     fn test_from_cells() {
         let cells = vec![0, 1, 1, 0, 1, 0, 0, 0, 1];
-        let g = Grid2d::from_cells(3, 3, cells.clone(), Neighborhood2d::Moore, Boundary2d::Wrap, Grid2d::life_rule()).unwrap();
+        let g = Grid2d::from_cells(
+            3,
+            3,
+            cells.clone(),
+            Neighborhood2d::Moore,
+            Boundary2d::Wrap,
+            Grid2d::life_rule(),
+        )
+        .unwrap();
         assert_eq!(g.population(), 4);
     }
 
     #[test]
     fn test_from_cells_size_mismatch() {
         let cells = vec![0, 1, 1];
-        let r = Grid2d::from_cells(3, 3, cells, Neighborhood2d::Moore, Boundary2d::Wrap, Grid2d::life_rule());
+        let r = Grid2d::from_cells(
+            3,
+            3,
+            cells,
+            Neighborhood2d::Moore,
+            Boundary2d::Wrap,
+            Grid2d::life_rule(),
+        );
         assert!(matches!(r.unwrap_err(), Ca2dError::SizeMismatch { .. }));
     }
 
@@ -723,8 +832,13 @@ mod tests {
     #[test]
     fn test_seeds_rule() {
         let mut g = Grid2d::new(
-            7, 7, Neighborhood2d::Moore, Boundary2d::Dead(0), Grid2d::seeds_rule(),
-        ).unwrap();
+            7,
+            7,
+            Neighborhood2d::Moore,
+            Boundary2d::Dead(0),
+            Grid2d::seeds_rule(),
+        )
+        .unwrap();
         // Seeds: B2/S — two adjacent alive cells birth new cells, nothing survives
         g.set(3, 3, 1).unwrap();
         g.set(4, 3, 1).unwrap();

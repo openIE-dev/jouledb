@@ -34,18 +34,24 @@ impl ContentType {
         let subtype = main[slash_pos + 1..].trim().to_lowercase();
 
         let params = if let Some(ps) = params_str {
-            ps.split(';').filter_map(|p| {
-                let p = p.trim();
-                let eq = p.find('=')?;
-                let key = p[..eq].trim().to_lowercase();
-                let val = p[eq + 1..].trim().trim_matches('"').to_string();
-                Some((key, val))
-            }).collect()
+            ps.split(';')
+                .filter_map(|p| {
+                    let p = p.trim();
+                    let eq = p.find('=')?;
+                    let key = p[..eq].trim().to_lowercase();
+                    let val = p[eq + 1..].trim().trim_matches('"').to_string();
+                    Some((key, val))
+                })
+                .collect()
         } else {
             Vec::new()
         };
 
-        Some(Self { media_type, subtype, params })
+        Some(Self {
+            media_type,
+            subtype,
+            params,
+        })
     }
 
     /// Get the full MIME type as `type/subtype`.
@@ -56,7 +62,8 @@ impl ContentType {
     /// Get a parameter value by key.
     pub fn param(&self, key: &str) -> Option<&str> {
         let key_lower = key.to_lowercase();
-        self.params.iter()
+        self.params
+            .iter()
             .find(|(k, _)| *k == key_lower)
             .map(|(_, v)| v.as_str())
     }
@@ -64,7 +71,9 @@ impl ContentType {
     /// Check if this content type matches a pattern (supports wildcards).
     pub fn matches(&self, pattern: &str) -> bool {
         let pat = pattern.trim().to_lowercase();
-        if pat == "*/*" { return true; }
+        if pat == "*/*" {
+            return true;
+        }
         if let Some(slash_pos) = pat.find('/') {
             let pat_type = &pat[..slash_pos];
             let pat_sub = &pat[slash_pos + 1..];
@@ -123,7 +132,8 @@ impl fmt::Display for ContentType {
 /// Get the MIME type for a file extension.
 pub fn from_extension(ext: &str) -> Option<&'static str> {
     let ext = ext.trim_start_matches('.').to_lowercase();
-    EXTENSION_MAP.iter()
+    EXTENSION_MAP
+        .iter()
         .find(|(e, _)| *e == ext.as_str())
         .map(|(_, m)| *m)
 }
@@ -131,7 +141,8 @@ pub fn from_extension(ext: &str) -> Option<&'static str> {
 /// Get the file extension for a MIME type.
 pub fn to_extension(mime: &str) -> Option<&'static str> {
     let mime_lower = mime.to_lowercase();
-    EXTENSION_MAP.iter()
+    EXTENSION_MAP
+        .iter()
         .find(|(_, m)| *m == mime_lower.as_str())
         .map(|(e, _)| *e)
 }
@@ -139,7 +150,8 @@ pub fn to_extension(mime: &str) -> Option<&'static str> {
 /// Get all matching extensions for a MIME type.
 pub fn to_extensions(mime: &str) -> Vec<&'static str> {
     let mime_lower = mime.to_lowercase();
-    EXTENSION_MAP.iter()
+    EXTENSION_MAP
+        .iter()
         .filter(|(_, m)| *m == mime_lower.as_str())
         .map(|(e, _)| *e)
         .collect()
@@ -156,7 +168,9 @@ pub fn from_path(path: &str) -> Option<&'static str> {
 
 /// Detect MIME type from file content using magic bytes.
 pub fn from_bytes(data: &[u8]) -> Option<&'static str> {
-    if data.len() < 2 { return None; }
+    if data.len() < 2 {
+        return None;
+    }
 
     // PNG
     if data.len() >= 8 && data[..8] == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] {
@@ -179,7 +193,9 @@ pub fn from_bytes(data: &[u8]) -> Option<&'static str> {
         return Some("image/webp");
     }
     // TIFF (little-endian or big-endian)
-    if data.len() >= 4 && (data[..4] == [0x49, 0x49, 0x2A, 0x00] || data[..4] == [0x4D, 0x4D, 0x00, 0x2A]) {
+    if data.len() >= 4
+        && (data[..4] == [0x49, 0x49, 0x2A, 0x00] || data[..4] == [0x4D, 0x4D, 0x00, 0x2A])
+    {
         return Some("image/tiff");
     }
     // ICO
@@ -254,19 +270,26 @@ pub fn from_bytes(data: &[u8]) -> Option<&'static str> {
         return Some("application/x-sqlite3");
     }
     // AVIF
-    if data.len() >= 12 && data[4..8] == *b"ftyp" && (data[8..12] == *b"avif" || data[8..12] == *b"avis") {
+    if data.len() >= 12
+        && data[4..8] == *b"ftyp"
+        && (data[8..12] == *b"avif" || data[8..12] == *b"avis")
+    {
         return Some("image/avif");
     }
 
     // Text heuristic — check if mostly ASCII/UTF-8
-    let text_chars = data.iter().take(512).filter(|b| {
-        b.is_ascii_graphic() || b.is_ascii_whitespace()
-    }).count();
+    let text_chars = data
+        .iter()
+        .take(512)
+        .filter(|b| b.is_ascii_graphic() || b.is_ascii_whitespace())
+        .count();
     if text_chars > data.len().min(512) * 9 / 10 {
         // Probably text — try to guess
-        let start: String = data.iter().take(256).filter_map(|b| {
-            if b.is_ascii() { Some(*b as char) } else { None }
-        }).collect();
+        let start: String = data
+            .iter()
+            .take(256)
+            .filter_map(|b| if b.is_ascii() { Some(*b as char) } else { None })
+            .collect();
         if start.trim_start().starts_with("<?xml") || start.trim_start().starts_with("<") {
             return Some("text/xml");
         }
@@ -290,20 +313,30 @@ pub struct AcceptEntry {
 
 /// Parse an Accept header into entries sorted by quality descending.
 pub fn parse_accept(header: &str) -> Vec<AcceptEntry> {
-    let mut entries: Vec<AcceptEntry> = header.split(',').filter_map(|part| {
-        let part = part.trim();
-        let (mime_part, quality) = if let Some(q_pos) = part.find(";q=") {
-            let q_str = &part[q_pos + 3..];
-            let q: f32 = q_str.trim().parse().unwrap_or(1.0);
-            (&part[..q_pos], q)
-        } else {
-            (part, 1.0)
-        };
-        let ct = ContentType::parse(mime_part)?;
-        Some(AcceptEntry { content_type: ct, quality })
-    }).collect();
+    let mut entries: Vec<AcceptEntry> = header
+        .split(',')
+        .filter_map(|part| {
+            let part = part.trim();
+            let (mime_part, quality) = if let Some(q_pos) = part.find(";q=") {
+                let q_str = &part[q_pos + 3..];
+                let q: f32 = q_str.trim().parse().unwrap_or(1.0);
+                (&part[..q_pos], q)
+            } else {
+                (part, 1.0)
+            };
+            let ct = ContentType::parse(mime_part)?;
+            Some(AcceptEntry {
+                content_type: ct,
+                quality,
+            })
+        })
+        .collect();
 
-    entries.sort_by(|a, b| b.quality.partial_cmp(&a.quality).unwrap_or(std::cmp::Ordering::Equal));
+    entries.sort_by(|a, b| {
+        b.quality
+            .partial_cmp(&a.quality)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     entries
 }
 
@@ -314,7 +347,8 @@ pub fn negotiate(available: &[&str], accept_header: &str) -> Option<String> {
     for entry in &entries {
         for avail in available {
             if let Some(ct) = ContentType::parse(avail) {
-                if entry.content_type.matches(&ct.mime()) || ct.matches(&entry.content_type.mime()) {
+                if entry.content_type.matches(&ct.mime()) || ct.matches(&entry.content_type.mime())
+                {
                     return Some(ct.mime());
                 }
             }
@@ -375,11 +409,20 @@ static EXTENSION_MAP: &[(&str, &str)] = &[
     ("ear", "application/java-archive"),
     ("wasm", "application/wasm"),
     ("doc", "application/msword"),
-    ("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    (
+        "docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ),
     ("xls", "application/vnd.ms-excel"),
-    ("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+    (
+        "xlsx",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ),
     ("ppt", "application/vnd.ms-powerpoint"),
-    ("pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+    (
+        "pptx",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ),
     ("odt", "application/vnd.oasis.opendocument.text"),
     ("ods", "application/vnd.oasis.opendocument.spreadsheet"),
     ("odp", "application/vnd.oasis.opendocument.presentation"),
@@ -728,19 +771,13 @@ mod tests {
 
     #[test]
     fn test_negotiate_wildcard() {
-        let result = negotiate(
-            &["application/json"],
-            "*/*",
-        );
+        let result = negotiate(&["application/json"], "*/*");
         assert_eq!(result, Some("application/json".to_string()));
     }
 
     #[test]
     fn test_negotiate_no_match() {
-        let result = negotiate(
-            &["image/png"],
-            "text/html",
-        );
+        let result = negotiate(&["image/png"], "text/html");
         assert_eq!(result, None);
     }
 
@@ -752,8 +789,10 @@ mod tests {
 
     #[test]
     fn test_common_extensions() {
-        let common = ["html", "css", "js", "json", "png", "jpg", "gif", "svg",
-                       "pdf", "zip", "mp3", "mp4", "wasm", "rs", "py", "go"];
+        let common = [
+            "html", "css", "js", "json", "png", "jpg", "gif", "svg", "pdf", "zip", "mp3", "mp4",
+            "wasm", "rs", "py", "go",
+        ];
         for ext in common {
             assert!(from_extension(ext).is_some(), "missing extension: {}", ext);
         }

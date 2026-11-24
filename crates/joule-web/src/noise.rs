@@ -14,7 +14,9 @@ fn make_perm(seed: u64) -> [u8; 512] {
     // Fisher-Yates shuffle with LCG
     let mut state = seed.wrapping_add(1);
     for i in (1..256).rev() {
-        state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let j = (state >> 33) as usize % (i + 1);
         p.swap(i, j);
     }
@@ -138,7 +140,9 @@ impl SimplexNoise {
         let ii = (i & 255) as usize;
         let jj = (j & 255) as usize;
         let gi0 = self.perm[(ii + self.perm[jj] as usize) & 511] as usize % 12;
-        let gi1 = self.perm[(ii + i1 as usize + self.perm[(jj + j1 as usize) & 511] as usize) & 511] as usize % 12;
+        let gi1 = self.perm[(ii + i1 as usize + self.perm[(jj + j1 as usize) & 511] as usize) & 511]
+            as usize
+            % 12;
         let gi2 = self.perm[(ii + 1 + self.perm[(jj + 1) & 511] as usize) & 511] as usize % 12;
 
         let mut n0 = 0.0;
@@ -227,7 +231,9 @@ impl WorleyNoise {
     /// Hash a cell to get a pseudo-random point offset.
     fn cell_point(&self, cx: i32, cy: i32) -> (f64, f64) {
         let h1 = self.perm[((cx & 255) as usize + self.perm[(cy & 255) as usize] as usize) & 511];
-        let h2 = self.perm[((cx.wrapping_add(127) & 255) as usize + self.perm[(cy.wrapping_add(63) & 255) as usize] as usize) & 511];
+        let h2 = self.perm[((cx.wrapping_add(127) & 255) as usize
+            + self.perm[(cy.wrapping_add(63) & 255) as usize] as usize)
+            & 511];
         (h1 as f64 / 255.0, h2 as f64 / 255.0)
     }
 
@@ -410,8 +416,24 @@ mod tests {
     #[test]
     fn fbm_varies_with_octaves() {
         let p = PerlinNoise::new(42);
-        let v1 = fbm(&p, 1.5, 2.5, FbmParams { octaves: 1, ..Default::default() });
-        let v6 = fbm(&p, 1.5, 2.5, FbmParams { octaves: 6, ..Default::default() });
+        let v1 = fbm(
+            &p,
+            1.5,
+            2.5,
+            FbmParams {
+                octaves: 1,
+                ..Default::default()
+            },
+        );
+        let v6 = fbm(
+            &p,
+            1.5,
+            2.5,
+            FbmParams {
+                octaves: 6,
+                ..Default::default()
+            },
+        );
         // Different octave counts should (usually) produce different values
         // This is a probabilistic check but very unlikely to fail
         assert!((v1 - v6).abs() > 1e-10 || true);

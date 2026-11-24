@@ -9,10 +9,18 @@
 /// Desired placement of the floating element relative to the reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Placement {
-    Top, TopStart, TopEnd,
-    Bottom, BottomStart, BottomEnd,
-    Left, LeftStart, LeftEnd,
-    Right, RightStart, RightEnd,
+    Top,
+    TopStart,
+    TopEnd,
+    Bottom,
+    BottomStart,
+    BottomEnd,
+    Left,
+    LeftStart,
+    LeftEnd,
+    Right,
+    RightStart,
+    RightEnd,
 }
 
 impl Placement {
@@ -35,8 +43,15 @@ impl Placement {
     }
 
     pub fn is_horizontal(&self) -> bool {
-        matches!(self, Self::Left | Self::LeftStart | Self::LeftEnd
-            | Self::Right | Self::RightStart | Self::RightEnd)
+        matches!(
+            self,
+            Self::Left
+                | Self::LeftStart
+                | Self::LeftEnd
+                | Self::Right
+                | Self::RightStart
+                | Self::RightEnd
+        )
     }
 
     pub fn is_vertical(&self) -> bool {
@@ -57,13 +72,26 @@ pub struct Rect {
 
 impl Rect {
     pub fn new(x: f64, y: f64, width: f64, height: f64) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
-    fn right(&self) -> f64 { self.x + self.width }
-    fn bottom(&self) -> f64 { self.y + self.height }
-    fn center_x(&self) -> f64 { self.x + self.width / 2.0 }
-    fn center_y(&self) -> f64 { self.y + self.height / 2.0 }
+    fn right(&self) -> f64 {
+        self.x + self.width
+    }
+    fn bottom(&self) -> f64 {
+        self.y + self.height
+    }
+    fn center_x(&self) -> f64 {
+        self.x + self.width / 2.0
+    }
+    fn center_y(&self) -> f64 {
+        self.y + self.height / 2.0
+    }
 }
 
 /// A 2D point.
@@ -112,7 +140,11 @@ pub struct FloatingResult {
 // ── Core algorithm ─────────────────────────────────────────────
 
 /// Compute the position of a floating element relative to a reference element.
-pub fn compute_position(reference: &Rect, floating: &Rect, config: &FloatingConfig) -> FloatingResult {
+pub fn compute_position(
+    reference: &Rect,
+    floating: &Rect,
+    config: &FloatingConfig,
+) -> FloatingResult {
     let mut placement = config.placement;
 
     // 1. Initial position.
@@ -137,12 +169,16 @@ pub fn compute_position(reference: &Rect, floating: &Rect, config: &FloatingConf
     if config.shift {
         if let Some(ref boundary) = config.boundary {
             if placement.is_vertical() {
-                if x < boundary.x { x = boundary.x; }
+                if x < boundary.x {
+                    x = boundary.x;
+                }
                 if x + floating.width > boundary.right() {
                     x = boundary.right() - floating.width;
                 }
             } else {
-                if y < boundary.y { y = boundary.y; }
+                if y < boundary.y {
+                    y = boundary.y;
+                }
                 if y + floating.height > boundary.bottom() {
                     y = boundary.bottom() - floating.height;
                 }
@@ -157,19 +193,27 @@ pub fn compute_position(reference: &Rect, floating: &Rect, config: &FloatingConf
         (None, None)
     };
 
-    FloatingResult { x, y, placement, arrow_x, arrow_y }
+    FloatingResult {
+        x,
+        y,
+        placement,
+        arrow_x,
+        arrow_y,
+    }
 }
 
-fn initial_coords(reference: &Rect, floating: &Rect, placement: Placement, offset: f64) -> (f64, f64) {
+fn initial_coords(
+    reference: &Rect,
+    floating: &Rect,
+    placement: Placement,
+    offset: f64,
+) -> (f64, f64) {
     match placement {
         Placement::Top => (
             reference.center_x() - floating.width / 2.0,
             reference.y - floating.height - offset,
         ),
-        Placement::TopStart => (
-            reference.x,
-            reference.y - floating.height - offset,
-        ),
+        Placement::TopStart => (reference.x, reference.y - floating.height - offset),
         Placement::TopEnd => (
             reference.right() - floating.width,
             reference.y - floating.height - offset,
@@ -178,10 +222,7 @@ fn initial_coords(reference: &Rect, floating: &Rect, placement: Placement, offse
             reference.center_x() - floating.width / 2.0,
             reference.bottom() + offset,
         ),
-        Placement::BottomStart => (
-            reference.x,
-            reference.bottom() + offset,
-        ),
+        Placement::BottomStart => (reference.x, reference.bottom() + offset),
         Placement::BottomEnd => (
             reference.right() - floating.width,
             reference.bottom() + offset,
@@ -190,10 +231,7 @@ fn initial_coords(reference: &Rect, floating: &Rect, placement: Placement, offse
             reference.x - floating.width - offset,
             reference.center_y() - floating.height / 2.0,
         ),
-        Placement::LeftStart => (
-            reference.x - floating.width - offset,
-            reference.y,
-        ),
+        Placement::LeftStart => (reference.x - floating.width - offset, reference.y),
         Placement::LeftEnd => (
             reference.x - floating.width - offset,
             reference.bottom() - floating.height,
@@ -202,10 +240,7 @@ fn initial_coords(reference: &Rect, floating: &Rect, placement: Placement, offse
             reference.right() + offset,
             reference.center_y() - floating.height / 2.0,
         ),
-        Placement::RightStart => (
-            reference.right() + offset,
-            reference.y,
-        ),
+        Placement::RightStart => (reference.right() + offset, reference.y),
         Placement::RightEnd => (
             reference.right() + offset,
             reference.bottom() - floating.height,
@@ -242,42 +277,98 @@ fn compute_arrow(
 mod tests {
     use super::*;
 
-    fn reference() -> Rect { Rect::new(100.0, 100.0, 80.0, 30.0) }
-    fn tooltip() -> Rect { Rect::new(0.0, 0.0, 120.0, 40.0) }
+    fn reference() -> Rect {
+        Rect::new(100.0, 100.0, 80.0, 30.0)
+    }
+    fn tooltip() -> Rect {
+        Rect::new(0.0, 0.0, 120.0, 40.0)
+    }
 
     #[test]
     fn top_placement_positions_above() {
-        let cfg = FloatingConfig { placement: Placement::Top, offset: 8.0, flip: false, shift: false, arrow: false, boundary: None };
+        let cfg = FloatingConfig {
+            placement: Placement::Top,
+            offset: 8.0,
+            flip: false,
+            shift: false,
+            arrow: false,
+            boundary: None,
+        };
         let r = compute_position(&reference(), &tooltip(), &cfg);
-        assert!(r.y < reference().y, "floating y={} should be above ref y={}", r.y, reference().y);
+        assert!(
+            r.y < reference().y,
+            "floating y={} should be above ref y={}",
+            r.y,
+            reference().y
+        );
         assert_eq!(r.placement, Placement::Top);
     }
 
     #[test]
     fn bottom_placement_positions_below() {
-        let cfg = FloatingConfig { placement: Placement::Bottom, offset: 8.0, flip: false, shift: false, arrow: false, boundary: None };
+        let cfg = FloatingConfig {
+            placement: Placement::Bottom,
+            offset: 8.0,
+            flip: false,
+            shift: false,
+            arrow: false,
+            boundary: None,
+        };
         let r = compute_position(&reference(), &tooltip(), &cfg);
-        assert!(r.y > reference().bottom(), "floating y={} should be below ref bottom={}", r.y, reference().bottom());
+        assert!(
+            r.y > reference().bottom(),
+            "floating y={} should be below ref bottom={}",
+            r.y,
+            reference().bottom()
+        );
     }
 
     #[test]
     fn left_placement() {
-        let cfg = FloatingConfig { placement: Placement::Left, offset: 8.0, flip: false, shift: false, arrow: false, boundary: None };
+        let cfg = FloatingConfig {
+            placement: Placement::Left,
+            offset: 8.0,
+            flip: false,
+            shift: false,
+            arrow: false,
+            boundary: None,
+        };
         let r = compute_position(&reference(), &tooltip(), &cfg);
         assert!(r.x + tooltip().width <= reference().x);
     }
 
     #[test]
     fn right_placement() {
-        let cfg = FloatingConfig { placement: Placement::Right, offset: 8.0, flip: false, shift: false, arrow: false, boundary: None };
+        let cfg = FloatingConfig {
+            placement: Placement::Right,
+            offset: 8.0,
+            flip: false,
+            shift: false,
+            arrow: false,
+            boundary: None,
+        };
         let r = compute_position(&reference(), &tooltip(), &cfg);
         assert!(r.x >= reference().right());
     }
 
     #[test]
     fn offset_pushes_away() {
-        let cfg0 = FloatingConfig { placement: Placement::Bottom, offset: 0.0, flip: false, shift: false, arrow: false, boundary: None };
-        let cfg20 = FloatingConfig { placement: Placement::Bottom, offset: 20.0, flip: false, shift: false, arrow: false, boundary: None };
+        let cfg0 = FloatingConfig {
+            placement: Placement::Bottom,
+            offset: 0.0,
+            flip: false,
+            shift: false,
+            arrow: false,
+            boundary: None,
+        };
+        let cfg20 = FloatingConfig {
+            placement: Placement::Bottom,
+            offset: 20.0,
+            flip: false,
+            shift: false,
+            arrow: false,
+            boundary: None,
+        };
         let r0 = compute_position(&reference(), &tooltip(), &cfg0);
         let r20 = compute_position(&reference(), &tooltip(), &cfg20);
         assert!((r20.y - r0.y - 20.0).abs() < 1e-6);
@@ -287,7 +378,11 @@ mod tests {
     fn flip_when_overflow() {
         let boundary = Rect::new(0.0, 90.0, 400.0, 300.0);
         let cfg = FloatingConfig {
-            placement: Placement::Top, offset: 8.0, flip: true, shift: false, arrow: false,
+            placement: Placement::Top,
+            offset: 8.0,
+            flip: true,
+            shift: false,
+            arrow: false,
             boundary: Some(boundary),
         };
         let r = compute_position(&reference(), &tooltip(), &cfg);
@@ -299,7 +394,11 @@ mod tests {
     fn shift_keeps_in_bounds() {
         let boundary = Rect::new(0.0, 0.0, 180.0, 400.0);
         let cfg = FloatingConfig {
-            placement: Placement::Bottom, offset: 8.0, flip: false, shift: true, arrow: false,
+            placement: Placement::Bottom,
+            offset: 8.0,
+            flip: false,
+            shift: true,
+            arrow: false,
             boundary: Some(boundary),
         };
         let r = compute_position(&reference(), &tooltip(), &cfg);
@@ -310,29 +409,62 @@ mod tests {
     #[test]
     fn arrow_centered_on_reference() {
         let cfg = FloatingConfig {
-            placement: Placement::Bottom, offset: 8.0, flip: false, shift: false, arrow: true, boundary: None,
+            placement: Placement::Bottom,
+            offset: 8.0,
+            flip: false,
+            shift: false,
+            arrow: true,
+            boundary: None,
         };
         let r = compute_position(&reference(), &tooltip(), &cfg);
         assert!(r.arrow_x.is_some());
         let ax = r.arrow_x.unwrap();
         let expected = reference().center_x() - r.x;
-        assert!((ax - expected).abs() < 1.0, "arrow_x={ax}, expected~{expected}");
+        assert!(
+            (ax - expected).abs() < 1.0,
+            "arrow_x={ax}, expected~{expected}"
+        );
     }
 
     #[test]
     fn start_end_alignment() {
-        let cfg_start = FloatingConfig { placement: Placement::BottomStart, offset: 0.0, flip: false, shift: false, arrow: false, boundary: None };
-        let cfg_end = FloatingConfig { placement: Placement::BottomEnd, offset: 0.0, flip: false, shift: false, arrow: false, boundary: None };
+        let cfg_start = FloatingConfig {
+            placement: Placement::BottomStart,
+            offset: 0.0,
+            flip: false,
+            shift: false,
+            arrow: false,
+            boundary: None,
+        };
+        let cfg_end = FloatingConfig {
+            placement: Placement::BottomEnd,
+            offset: 0.0,
+            flip: false,
+            shift: false,
+            arrow: false,
+            boundary: None,
+        };
         let rs = compute_position(&reference(), &tooltip(), &cfg_start);
         let re = compute_position(&reference(), &tooltip(), &cfg_end);
-        assert!((rs.x - reference().x).abs() < 1e-6, "start should align left");
-        assert!((re.x + tooltip().width - reference().right()).abs() < 1e-6, "end should align right");
+        assert!(
+            (rs.x - reference().x).abs() < 1e-6,
+            "start should align left"
+        );
+        assert!(
+            (re.x + tooltip().width - reference().right()).abs() < 1e-6,
+            "end should align right"
+        );
     }
 
     #[test]
     fn no_boundary_no_flip() {
         let cfg = FloatingConfig {
-            placement: Placement::Top, offset: 8.0, flip: true, shift: true, arrow: false, boundary: None,
+            placement: Placement::Top,
+            offset: 8.0,
+            flip: true,
+            shift: true,
+            arrow: false,
+            boundary: None,
         };
         let r = compute_position(&reference(), &tooltip(), &cfg);
         assert_eq!(r.placement, Placement::Top, "no boundary means no flip");
@@ -340,8 +472,16 @@ mod tests {
 
     #[test]
     fn placement_opposite_round_trip() {
-        for p in [Placement::Top, Placement::Bottom, Placement::Left, Placement::Right,
-                   Placement::TopStart, Placement::BottomEnd, Placement::LeftEnd, Placement::RightStart] {
+        for p in [
+            Placement::Top,
+            Placement::Bottom,
+            Placement::Left,
+            Placement::Right,
+            Placement::TopStart,
+            Placement::BottomEnd,
+            Placement::LeftEnd,
+            Placement::RightStart,
+        ] {
             assert_eq!(p.opposite().opposite(), p);
         }
     }

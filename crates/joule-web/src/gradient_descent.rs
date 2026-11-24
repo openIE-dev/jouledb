@@ -173,7 +173,11 @@ impl SgdOptimizer {
     /// Perform a single parameter update step.
     /// `params` and `grads` must have the same length.
     pub fn step(&mut self, params: &mut [f64], grads: &mut [f64]) {
-        assert_eq!(params.len(), grads.len(), "params and grads length mismatch");
+        assert_eq!(
+            params.len(),
+            grads.len(),
+            "params and grads length mismatch"
+        );
         self.clipper.clip(grads);
         for (p, g) in params.iter_mut().zip(grads.iter()) {
             *p -= self.learning_rate * g;
@@ -196,7 +200,11 @@ impl SgdOptimizer {
 
 impl fmt::Display for SgdOptimizer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SGD(lr={:.6}, steps={})", self.learning_rate, self.step_count)
+        write!(
+            f,
+            "SGD(lr={:.6}, steps={})",
+            self.learning_rate, self.step_count
+        )
     }
 }
 
@@ -250,8 +258,7 @@ impl MomentumOptimizer {
         assert_eq!(self.velocity.len(), params.len());
 
         for i in 0..params.len() {
-            self.velocity[i] = self.momentum * self.velocity[i]
-                + (1.0 - self.dampening) * grads[i];
+            self.velocity[i] = self.momentum * self.velocity[i] + (1.0 - self.dampening) * grads[i];
             params[i] -= self.learning_rate * self.velocity[i];
         }
         self.step_count += 1;
@@ -431,7 +438,9 @@ impl MiniBatchSampler {
     fn reshuffle(&mut self) {
         let n = self.indices.len();
         for i in (1..n).rev() {
-            self.rng_state = self.rng_state.wrapping_mul(6364136223846793005)
+            self.rng_state = self
+                .rng_state
+                .wrapping_mul(6364136223846793005)
                 .wrapping_add(1442695040888963407);
             let j = (self.rng_state >> 33) as usize % (i + 1);
             self.indices.swap(i, j);

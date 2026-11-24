@@ -144,7 +144,10 @@ impl fmt::Display for Alert {
         write!(
             f,
             "ALERT [{}] player={} risk={:.2} detections={} type={}",
-            self.severity, self.player_id, self.risk_score, self.detection_count,
+            self.severity,
+            self.player_id,
+            self.risk_score,
+            self.detection_count,
             self.primary_cheat_type
         )
     }
@@ -463,7 +466,9 @@ impl AntiCheatEngine {
     }
 
     pub fn detection_history(&self, player_id: u64) -> Option<&[Detection]> {
-        self.players.get(&player_id).map(|r| r.detections.as_slice())
+        self.players
+            .get(&player_id)
+            .map(|r| r.detections.as_slice())
     }
 
     pub fn alerts(&self) -> &[Alert] {
@@ -471,7 +476,10 @@ impl AntiCheatEngine {
     }
 
     pub fn alerts_for_player(&self, player_id: u64) -> Vec<&Alert> {
-        self.alerts.iter().filter(|a| a.player_id == player_id).collect()
+        self.alerts
+            .iter()
+            .filter(|a| a.player_id == player_id)
+            .collect()
     }
 
     pub fn total_players_tracked(&self) -> usize {
@@ -502,7 +510,8 @@ mod tests {
     fn engine_with_detector() -> AntiCheatEngine {
         let mut e = AntiCheatEngine::new();
         e.set_time(1000);
-        e.register_detector(DetectorConfig::new("speed").with_weight(1.0)).unwrap();
+        e.register_detector(DetectorConfig::new("speed").with_weight(1.0))
+            .unwrap();
         e
     }
 
@@ -587,7 +596,8 @@ mod tests {
     #[test]
     fn test_disabled_detector_rejected() {
         let mut e = AntiCheatEngine::new();
-        e.register_detector(DetectorConfig::new("d1").disabled()).unwrap();
+        e.register_detector(DetectorConfig::new("d1").disabled())
+            .unwrap();
         let d = Detection::new(CheatType::Aimbot, 0.8, 100, 5).with_detector("d1");
         let err = e.submit_detection(d).unwrap_err();
         assert!(matches!(err, AntiCheatError::DetectorDisabled(_)));
@@ -612,8 +622,12 @@ mod tests {
     #[test]
     fn test_detection_history() {
         let mut e = engine_with_detector();
-        e.submit_detection(Detection::new(CheatType::SpeedHack, 0.5, 100, 1).with_detector("speed")).unwrap();
-        e.submit_detection(Detection::new(CheatType::Aimbot, 0.6, 200, 1).with_detector("speed")).unwrap();
+        e.submit_detection(
+            Detection::new(CheatType::SpeedHack, 0.5, 100, 1).with_detector("speed"),
+        )
+        .unwrap();
+        e.submit_detection(Detection::new(CheatType::Aimbot, 0.6, 200, 1).with_detector("speed"))
+            .unwrap();
         let hist = e.detection_history(1).unwrap();
         assert_eq!(hist.len(), 2);
     }
@@ -621,7 +635,10 @@ mod tests {
     #[test]
     fn test_false_positive_tracking() {
         let mut e = engine_with_detector();
-        e.submit_detection(Detection::new(CheatType::SpeedHack, 0.8, 100, 1).with_detector("speed")).unwrap();
+        e.submit_detection(
+            Detection::new(CheatType::SpeedHack, 0.8, 100, 1).with_detector("speed"),
+        )
+        .unwrap();
         assert_eq!(e.player_false_positive_count(1), 0);
         e.mark_false_positive(1, 0).unwrap();
         assert_eq!(e.player_false_positive_count(1), 1);
@@ -631,7 +648,10 @@ mod tests {
     #[test]
     fn test_mark_false_positive_idempotent() {
         let mut e = engine_with_detector();
-        e.submit_detection(Detection::new(CheatType::SpeedHack, 0.8, 100, 1).with_detector("speed")).unwrap();
+        e.submit_detection(
+            Detection::new(CheatType::SpeedHack, 0.8, 100, 1).with_detector("speed"),
+        )
+        .unwrap();
         assert!(e.mark_false_positive(1, 0).unwrap());
         assert!(!e.mark_false_positive(1, 0).unwrap());
         assert_eq!(e.player_false_positive_count(1), 1);
@@ -650,8 +670,12 @@ mod tests {
     #[test]
     fn test_alerts_for_player() {
         let mut e = engine_with_detector();
-        e.submit_detection(Detection::new(CheatType::SpeedHack, 0.95, 1000, 1).with_detector("speed")).unwrap();
-        e.submit_detection(Detection::new(CheatType::Aimbot, 0.95, 1000, 2).with_detector("speed")).unwrap();
+        e.submit_detection(
+            Detection::new(CheatType::SpeedHack, 0.95, 1000, 1).with_detector("speed"),
+        )
+        .unwrap();
+        e.submit_detection(Detection::new(CheatType::Aimbot, 0.95, 1000, 2).with_detector("speed"))
+            .unwrap();
         let p1_alerts = e.alerts_for_player(1);
         assert_eq!(p1_alerts.len(), 1);
         assert_eq!(p1_alerts[0].player_id, 1);
@@ -660,8 +684,14 @@ mod tests {
     #[test]
     fn test_total_players_tracked() {
         let mut e = engine_with_detector();
-        e.submit_detection(Detection::new(CheatType::SpeedHack, 0.5, 100, 1).with_detector("speed")).unwrap();
-        e.submit_detection(Detection::new(CheatType::SpeedHack, 0.5, 100, 2).with_detector("speed")).unwrap();
+        e.submit_detection(
+            Detection::new(CheatType::SpeedHack, 0.5, 100, 1).with_detector("speed"),
+        )
+        .unwrap();
+        e.submit_detection(
+            Detection::new(CheatType::SpeedHack, 0.5, 100, 2).with_detector("speed"),
+        )
+        .unwrap();
         assert_eq!(e.total_players_tracked(), 2);
     }
 

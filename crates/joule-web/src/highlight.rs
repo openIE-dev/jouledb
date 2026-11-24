@@ -86,11 +86,10 @@ pub struct Language {
 impl Language {
     pub fn rust() -> Self {
         let keywords = [
-            "fn", "let", "mut", "pub", "struct", "enum", "impl", "use", "mod",
-            "if", "else", "for", "while", "match", "return", "self", "Self",
-            "crate", "super", "where", "async", "await", "trait", "type",
-            "const", "static", "ref", "move", "loop", "break", "continue",
-            "unsafe", "extern", "dyn", "as", "in",
+            "fn", "let", "mut", "pub", "struct", "enum", "impl", "use", "mod", "if", "else", "for",
+            "while", "match", "return", "self", "Self", "crate", "super", "where", "async",
+            "await", "trait", "type", "const", "static", "ref", "move", "loop", "break",
+            "continue", "unsafe", "extern", "dyn", "as", "in",
         ];
         let mut rules: Vec<HighlightRule> = keywords
             .iter()
@@ -105,15 +104,40 @@ impl Language {
                 kind: TokenKind::Constant,
             });
         }
-        Self { name: "rust".into(), rules }
+        Self {
+            name: "rust".into(),
+            rules,
+        }
     }
 
     pub fn javascript() -> Self {
         let keywords = [
-            "function", "var", "let", "const", "if", "else", "for", "while",
-            "return", "class", "import", "export", "default", "new", "this",
-            "typeof", "instanceof", "try", "catch", "finally", "throw",
-            "async", "await", "yield", "of", "in",
+            "function",
+            "var",
+            "let",
+            "const",
+            "if",
+            "else",
+            "for",
+            "while",
+            "return",
+            "class",
+            "import",
+            "export",
+            "default",
+            "new",
+            "this",
+            "typeof",
+            "instanceof",
+            "try",
+            "catch",
+            "finally",
+            "throw",
+            "async",
+            "await",
+            "yield",
+            "of",
+            "in",
         ];
         let mut rules: Vec<HighlightRule> = keywords
             .iter()
@@ -128,7 +152,10 @@ impl Language {
                 kind: TokenKind::Constant,
             });
         }
-        Self { name: "javascript".into(), rules }
+        Self {
+            name: "javascript".into(),
+            rules,
+        }
     }
 
     pub fn html() -> Self {
@@ -147,7 +174,10 @@ impl Language {
                 kind: TokenKind::Preprocessor,
             })
             .collect();
-        Self { name: "css".into(), rules }
+        Self {
+            name: "css".into(),
+            rules,
+        }
     }
 
     pub fn json() -> Self {
@@ -158,15 +188,17 @@ impl Language {
                 kind: TokenKind::Constant,
             });
         }
-        Self { name: "json".into(), rules }
+        Self {
+            name: "json".into(),
+            rules,
+        }
     }
 
     pub fn python() -> Self {
         let keywords = [
-            "def", "class", "if", "elif", "else", "for", "while", "return",
-            "import", "from", "as", "with", "try", "except", "finally",
-            "raise", "yield", "lambda", "pass", "break", "continue", "and",
-            "or", "not", "is", "in",
+            "def", "class", "if", "elif", "else", "for", "while", "return", "import", "from", "as",
+            "with", "try", "except", "finally", "raise", "yield", "lambda", "pass", "break",
+            "continue", "and", "or", "not", "is", "in",
         ];
         let mut rules: Vec<HighlightRule> = keywords
             .iter()
@@ -181,7 +213,10 @@ impl Language {
                 kind: TokenKind::Constant,
             });
         }
-        Self { name: "python".into(), rules }
+        Self {
+            name: "python".into(),
+            rules,
+        }
     }
 }
 
@@ -277,7 +312,8 @@ pub fn tokenize(source: &str, language: &Language) -> Vec<Token> {
         }
 
         // Rust attributes: #[...]
-        if language.name == "rust" && bytes[pos] == b'#' && pos + 1 < len && bytes[pos + 1] == b'[' {
+        if language.name == "rust" && bytes[pos] == b'#' && pos + 1 < len && bytes[pos + 1] == b'['
+        {
             let start = pos;
             pos += 2;
             let mut depth = 1;
@@ -302,7 +338,9 @@ pub fn tokenize(source: &str, language: &Language) -> Vec<Token> {
         if language.name == "python" && bytes[pos] == b'@' {
             let start = pos;
             pos += 1;
-            while pos < len && (bytes[pos].is_ascii_alphanumeric() || bytes[pos] == b'_' || bytes[pos] == b'.') {
+            while pos < len
+                && (bytes[pos].is_ascii_alphanumeric() || bytes[pos] == b'_' || bytes[pos] == b'.')
+            {
                 pos += 1;
             }
             tokens.push(Token {
@@ -388,13 +426,22 @@ pub fn tokenize(source: &str, language: &Language) -> Vec<Token> {
             || (bytes[pos] == b'.' && pos + 1 < len && bytes[pos + 1].is_ascii_digit())
         {
             let start = pos;
-            if bytes[pos] == b'0' && pos + 1 < len && (bytes[pos + 1] == b'x' || bytes[pos + 1] == b'X') {
+            if bytes[pos] == b'0'
+                && pos + 1 < len
+                && (bytes[pos + 1] == b'x' || bytes[pos + 1] == b'X')
+            {
                 pos += 2;
                 while pos < len && (bytes[pos].is_ascii_hexdigit() || bytes[pos] == b'_') {
                     pos += 1;
                 }
             } else {
-                while pos < len && (bytes[pos].is_ascii_digit() || bytes[pos] == b'.' || bytes[pos] == b'_' || bytes[pos] == b'e' || bytes[pos] == b'E') {
+                while pos < len
+                    && (bytes[pos].is_ascii_digit()
+                        || bytes[pos] == b'.'
+                        || bytes[pos] == b'_'
+                        || bytes[pos] == b'e'
+                        || bytes[pos] == b'E')
+                {
                     pos += 1;
                 }
             }
@@ -442,7 +489,8 @@ pub fn tokenize(source: &str, language: &Language) -> Vec<Token> {
         }
 
         // JSON structural characters.
-        if language.name == "json" && matches!(bytes[pos], b'{' | b'}' | b'[' | b']' | b':' | b',') {
+        if language.name == "json" && matches!(bytes[pos], b'{' | b'}' | b'[' | b']' | b':' | b',')
+        {
             let start = pos;
             pos += 1;
             tokens.push(Token {
@@ -484,8 +532,8 @@ pub fn tokenize(source: &str, language: &Language) -> Vec<Token> {
         let ch = bytes[pos];
         pos += 1;
         let kind = match ch {
-            b'+' | b'-' | b'*' | b'/' | b'%' | b'=' | b'!' | b'<' | b'>'
-            | b'&' | b'|' | b'^' | b'~' => TokenKind::Operator,
+            b'+' | b'-' | b'*' | b'/' | b'%' | b'=' | b'!' | b'<' | b'>' | b'&' | b'|' | b'^'
+            | b'~' => TokenKind::Operator,
             b'(' | b')' | b'{' | b'}' | b'[' | b']' | b';' | b',' | b'.' | b':' => {
                 TokenKind::Punctuation
             }
@@ -615,14 +663,20 @@ mod tests {
     #[test]
     fn tokenize_string_literal() {
         let tokens = tokenize("let s = \"hello\";", &Language::rust());
-        let s = tokens.iter().find(|t| t.kind == TokenKind::String_).unwrap();
+        let s = tokens
+            .iter()
+            .find(|t| t.kind == TokenKind::String_)
+            .unwrap();
         assert_eq!(s.text, "\"hello\"");
     }
 
     #[test]
     fn tokenize_comment() {
         let tokens = tokenize("// comment\nlet x = 1;", &Language::rust());
-        let c = tokens.iter().find(|t| t.kind == TokenKind::Comment).unwrap();
+        let c = tokens
+            .iter()
+            .find(|t| t.kind == TokenKind::Comment)
+            .unwrap();
         assert!(c.text.starts_with("//"));
     }
 
@@ -651,7 +705,10 @@ mod tests {
     #[test]
     fn json_string_number() {
         let tokens = tokenize("{\"key\": 42}", &Language::json());
-        let s = tokens.iter().find(|t| t.kind == TokenKind::String_).unwrap();
+        let s = tokens
+            .iter()
+            .find(|t| t.kind == TokenKind::String_)
+            .unwrap();
         assert_eq!(s.text, "\"key\"");
         let n = tokens.iter().find(|t| t.kind == TokenKind::Number).unwrap();
         assert_eq!(n.text, "42");
@@ -686,7 +743,10 @@ mod tests {
     #[test]
     fn python_triple_quote_string() {
         let tokens = tokenize("x = \"\"\"multi\nline\"\"\"", &Language::python());
-        let s = tokens.iter().find(|t| t.kind == TokenKind::String_).unwrap();
+        let s = tokens
+            .iter()
+            .find(|t| t.kind == TokenKind::String_)
+            .unwrap();
         assert!(s.text.contains("multi"));
         assert!(s.text.contains("line"));
     }
@@ -695,7 +755,11 @@ mod tests {
     fn multiple_tokens_in_sequence() {
         let tokens = tokenize("let x = 42;", &Language::rust());
         assert!(tokens.len() >= 4);
-        let kinds: Vec<_> = tokens.iter().filter(|t| t.kind != TokenKind::Plain).map(|t| t.kind).collect();
+        let kinds: Vec<_> = tokens
+            .iter()
+            .filter(|t| t.kind != TokenKind::Plain)
+            .map(|t| t.kind)
+            .collect();
         assert!(kinds.contains(&TokenKind::Keyword));
         assert!(kinds.contains(&TokenKind::Number));
     }
@@ -709,7 +773,10 @@ mod tests {
     #[test]
     fn rust_block_comment() {
         let tokens = tokenize("/* block */", &Language::rust());
-        let c = tokens.iter().find(|t| t.kind == TokenKind::Comment).unwrap();
+        let c = tokens
+            .iter()
+            .find(|t| t.kind == TokenKind::Comment)
+            .unwrap();
         assert_eq!(c.text, "/* block */");
     }
 }

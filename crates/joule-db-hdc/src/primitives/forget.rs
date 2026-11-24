@@ -105,7 +105,7 @@ impl Forgettable for BinaryHV {
             // Fully random — replace with noise
             return Decay {
                 vector: noise,
-                bits_flipped: self.hamming_distance(&BinaryHV::random(dim, seed)) ,
+                bits_flipped: self.hamming_distance(&BinaryHV::random(dim, seed)),
                 fidelity: 0.5,
             };
         }
@@ -131,7 +131,9 @@ impl Forgettable for BinaryHV {
                     // Reuse shifted seed for other words
                     BinaryHV::random(dim, seed.wrapping_add(2 + i as u64))
                 };
-                noise_words[i] & noise2_words[i] & noise3.as_words()[i.min(noise3.as_words().len() - 1)]
+                noise_words[i]
+                    & noise2_words[i]
+                    & noise3.as_words()[i.min(noise3.as_words().len() - 1)]
             } else if flip_prob < 0.26 {
                 // ~25%: AND two random vectors
                 noise_words[i] & noise2_words[i]

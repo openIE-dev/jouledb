@@ -95,7 +95,11 @@ impl MissionWaypoint {
 
 impl fmt::Display for MissionWaypoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "WP[{}]({:.1},{:.1},{:.1})", self.id, self.x, self.y, self.z)
+        write!(
+            f,
+            "WP[{}]({:.1},{:.1},{:.1})",
+            self.id, self.x, self.y, self.z
+        )
     }
 }
 
@@ -454,9 +458,7 @@ impl MissionPlanner {
                         continue;
                     }
                     if visited[node] == 1 {
-                        return Err(MissionError::CyclicDependency(
-                            self.tasks[node].id.clone(),
-                        ));
+                        return Err(MissionError::CyclicDependency(self.tasks[node].id.clone()));
                     }
                     if visited[node] == 2 {
                         continue;
@@ -466,9 +468,10 @@ impl MissionPlanner {
                     for dep in &self.tasks[node].depends_on {
                         if let Some(&di) = self.task_index.get(dep) {
                             if visited[di] == 1 {
-                                return Err(MissionError::CyclicDependency(
-                                    format!("{} -> {}", self.tasks[node].id, dep),
-                                ));
+                                return Err(MissionError::CyclicDependency(format!(
+                                    "{} -> {}",
+                                    self.tasks[node].id, dep
+                                )));
                             }
                             if visited[di] == 0 {
                                 stack.push((di, false));
@@ -534,7 +537,9 @@ impl MissionPlanner {
             }
         }
         if order.len() != n {
-            return Err(MissionError::CyclicDependency("topological sort incomplete".into()));
+            return Err(MissionError::CyclicDependency(
+                "topological sort incomplete".into(),
+            ));
         }
         Ok(order)
     }

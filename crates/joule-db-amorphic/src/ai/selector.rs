@@ -30,10 +30,10 @@ impl Default for HardwareProfile {
 /// Which tiers are available at runtime.
 #[derive(Debug, Clone)]
 pub struct TierAvailability {
-    pub holographic: bool,   // Always true
-    pub embedded: bool,      // Feature flag + model loaded
-    pub local: bool,         // Feature flag + GPU available
-    pub frontier: bool,      // Feature flag + API keys configured
+    pub holographic: bool, // Always true
+    pub embedded: bool,    // Feature flag + model loaded
+    pub local: bool,       // Feature flag + GPU available
+    pub frontier: bool,    // Feature flag + API keys configured
 }
 
 impl TierAvailability {
@@ -179,9 +179,9 @@ fn estimated_latency(tier: InferenceTier) -> Duration {
 fn estimated_energy(tier: InferenceTier) -> f64 {
     match tier {
         InferenceTier::Holographic => 0.000_000_2, // 0.2 µJ
-        InferenceTier::Embedded => 0.002,           // 2 mJ
-        InferenceTier::Local => 1.0,                // 1 J
-        InferenceTier::Frontier => 0.5,             // 0.5 J (modeled)
+        InferenceTier::Embedded => 0.002,          // 2 mJ
+        InferenceTier::Local => 1.0,               // 1 J
+        InferenceTier::Frontier => 0.5,            // 0.5 J (modeled)
     }
 }
 
@@ -196,42 +196,57 @@ pub fn classify_complexity(query: &str) -> ComplexityScore {
     score += (words.len() as f32 / 50.0).min(0.3);
 
     // Question indicators
-    if lower.contains('?') || lower.starts_with("what") || lower.starts_with("why")
-        || lower.starts_with("how") || lower.starts_with("explain")
+    if lower.contains('?')
+        || lower.starts_with("what")
+        || lower.starts_with("why")
+        || lower.starts_with("how")
+        || lower.starts_with("explain")
     {
         score += 0.3;
     }
 
     // Generation indicators
-    if lower.contains("generate") || lower.contains("create") || lower.contains("write")
-        || lower.contains("compose") || lower.contains("draft")
+    if lower.contains("generate")
+        || lower.contains("create")
+        || lower.contains("write")
+        || lower.contains("compose")
+        || lower.contains("draft")
     {
         score += 0.4;
     }
 
     // Summarization/analysis indicators
-    if lower.contains("summarize") || lower.contains("analyze") || lower.contains("compare")
+    if lower.contains("summarize")
+        || lower.contains("analyze")
+        || lower.contains("compare")
         || lower.contains("evaluate")
     {
         score += 0.3;
     }
 
     // Reasoning indicators
-    if lower.contains("reason") || lower.contains("because") || lower.contains("therefore")
+    if lower.contains("reason")
+        || lower.contains("because")
+        || lower.contains("therefore")
         || lower.contains("step by step")
     {
         score += 0.4;
     }
 
     // Simple operations (lower complexity)
-    if lower.starts_with("find") || lower.starts_with("search") || lower.starts_with("show")
-        || lower.starts_with("list") || lower.starts_with("get")
+    if lower.starts_with("find")
+        || lower.starts_with("search")
+        || lower.starts_with("show")
+        || lower.starts_with("list")
+        || lower.starts_with("get")
     {
         score -= 0.1;
     }
 
     // Similarity keywords (pure holographic)
-    if lower.contains("similar") || lower.contains("like") || lower.contains("match")
+    if lower.contains("similar")
+        || lower.contains("like")
+        || lower.contains("match")
         || lower.contains("nearest")
     {
         score -= 0.2;
@@ -274,8 +289,7 @@ mod tests {
         let avail = TierAvailability::all();
 
         // Latency constraint forces Tier 1
-        let constraints = TierConstraints::default()
-            .with_max_latency(Duration::from_millis(1));
+        let constraints = TierConstraints::default().with_max_latency(Duration::from_millis(1));
         let tier = select_tier(ComplexityScore(0.9), &constraints, &avail, None);
         assert_eq!(tier, InferenceTier::Holographic);
     }

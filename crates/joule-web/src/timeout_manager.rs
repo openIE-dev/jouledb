@@ -12,24 +12,46 @@ use std::collections::HashMap;
 /// Errors from the timeout system.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TimeoutError {
-    Expired { operation: String, budget_ms: u64, elapsed_ms: u64 },
-    NoBudgetRemaining { operation: String },
+    Expired {
+        operation: String,
+        budget_ms: u64,
+        elapsed_ms: u64,
+    },
+    NoBudgetRemaining {
+        operation: String,
+    },
     OperationNotFound(String),
-    DeadlineExceeded { deadline_ms: u64, now_ms: u64 },
+    DeadlineExceeded {
+        deadline_ms: u64,
+        now_ms: u64,
+    },
 }
 
 impl std::fmt::Display for TimeoutError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Expired { operation, budget_ms, elapsed_ms } => {
-                write!(f, "timeout expired for {operation}: {elapsed_ms}ms > {budget_ms}ms")
+            Self::Expired {
+                operation,
+                budget_ms,
+                elapsed_ms,
+            } => {
+                write!(
+                    f,
+                    "timeout expired for {operation}: {elapsed_ms}ms > {budget_ms}ms"
+                )
             }
             Self::NoBudgetRemaining { operation } => {
                 write!(f, "no budget remaining for {operation}")
             }
             Self::OperationNotFound(op) => write!(f, "operation not found: {op}"),
-            Self::DeadlineExceeded { deadline_ms, now_ms } => {
-                write!(f, "deadline exceeded: now={now_ms}ms > deadline={deadline_ms}ms")
+            Self::DeadlineExceeded {
+                deadline_ms,
+                now_ms,
+            } => {
+                write!(
+                    f,
+                    "deadline exceeded: now={now_ms}ms > deadline={deadline_ms}ms"
+                )
             }
         }
     }
@@ -339,11 +361,7 @@ impl TimeoutManager {
     }
 
     /// Start an operation. Returns the effective timeout in ms.
-    pub fn start(
-        &mut self,
-        operation: &str,
-        now_ms: u64,
-    ) -> Result<u64, TimeoutError> {
+    pub fn start(&mut self, operation: &str, now_ms: u64) -> Result<u64, TimeoutError> {
         let config = self
             .configs
             .get(operation)
@@ -559,7 +577,11 @@ mod tests {
         let result = mgr.check("op", 200);
         assert!(result.is_err());
         match result.unwrap_err() {
-            TimeoutError::Expired { operation, budget_ms, elapsed_ms } => {
+            TimeoutError::Expired {
+                operation,
+                budget_ms,
+                elapsed_ms,
+            } => {
                 assert_eq!(operation, "op");
                 assert_eq!(budget_ms, 100);
                 assert_eq!(elapsed_ms, 200);

@@ -51,7 +51,11 @@ impl Vec3 {
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn magnitude(&self) -> f64 {
@@ -63,15 +67,27 @@ impl Vec3 {
         if m < 1e-12 {
             return Err(CompFilterError::ZeroVector);
         }
-        Ok(Self { x: self.x / m, y: self.y / m, z: self.z / m })
+        Ok(Self {
+            x: self.x / m,
+            y: self.y / m,
+            z: self.z / m,
+        })
     }
 
     pub fn scale(&self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn add(&self, other: &Vec3) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y, z: self.z + other.z }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
     }
 
     pub fn dot(&self, other: &Vec3) -> f64 {
@@ -101,7 +117,12 @@ pub struct Quaternion {
 impl Quaternion {
     /// Identity quaternion (no rotation).
     pub fn identity() -> Self {
-        Self { w: 1.0, x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            w: 1.0,
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     /// Create from axis-angle.
@@ -126,7 +147,12 @@ impl Quaternion {
         if n < 1e-12 {
             return Self::identity();
         }
-        Self { w: self.w / n, x: self.x / n, y: self.y / n, z: self.z / n }
+        Self {
+            w: self.w / n,
+            x: self.x / n,
+            y: self.y / n,
+            z: self.z / n,
+        }
     }
 
     /// Hamilton product: self * other.
@@ -141,14 +167,28 @@ impl Quaternion {
 
     /// Conjugate.
     pub fn conjugate(&self) -> Self {
-        Self { w: self.w, x: -self.x, y: -self.y, z: -self.z }
+        Self {
+            w: self.w,
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
     }
 
     /// Rotate a vector by this quaternion: q * v * q'.
     pub fn rotate_vec(&self, v: &Vec3) -> Vec3 {
-        let q_v = Quaternion { w: 0.0, x: v.x, y: v.y, z: v.z };
+        let q_v = Quaternion {
+            w: 0.0,
+            x: v.x,
+            y: v.y,
+            z: v.z,
+        };
         let result = self.mul(&q_v).mul(&self.conjugate());
-        Vec3 { x: result.x, y: result.y, z: result.z }
+        Vec3 {
+            x: result.x,
+            y: result.y,
+            z: result.z,
+        }
     }
 
     /// Spherical linear interpolation.
@@ -156,7 +196,12 @@ impl Quaternion {
         let mut dot = self.w * other.w + self.x * other.x + self.y * other.y + self.z * other.z;
         let mut other = *other;
         if dot < 0.0 {
-            other = Quaternion { w: -other.w, x: -other.x, y: -other.y, z: -other.z };
+            other = Quaternion {
+                w: -other.w,
+                x: -other.x,
+                y: -other.y,
+                z: -other.z,
+            };
             dot = -dot;
         }
         if dot > 0.9995 {
@@ -178,7 +223,8 @@ impl Quaternion {
             x: a * self.x + b * other.x,
             y: a * self.y + b * other.y,
             z: a * self.z + b * other.z,
-        }.normalize()
+        }
+        .normalize()
     }
 
     /// Convert to Euler angles (roll, pitch, yaw) in radians.
@@ -247,13 +293,17 @@ impl CompFilter1D {
         if dt <= 0.0 {
             return Err(CompFilterError::InvalidDt(dt));
         }
-        Ok(Self { alpha, angle: 0.0, dt })
+        Ok(Self {
+            alpha,
+            angle: 0.0,
+            dt,
+        })
     }
 
     /// Update: fuse gyro rate (rad/s) with accelerometer-derived angle (rad).
     pub fn update(&mut self, gyro_rate: f64, accel_angle: f64) -> f64 {
-        self.angle = self.alpha * (self.angle + gyro_rate * self.dt)
-            + (1.0 - self.alpha) * accel_angle;
+        self.angle =
+            self.alpha * (self.angle + gyro_rate * self.dt) + (1.0 - self.alpha) * accel_angle;
         self.angle
     }
 
@@ -355,12 +405,7 @@ impl QuatCompFilter {
     }
 
     /// Update with gyroscope, accelerometer, and magnetometer.
-    pub fn update_with_mag(
-        &mut self,
-        gyro: &Vec3,
-        accel: &Vec3,
-        mag: &Vec3,
-    ) -> Quaternion {
+    pub fn update_with_mag(&mut self, gyro: &Vec3, accel: &Vec3, mag: &Vec3) -> Quaternion {
         // First do gyro+accel fusion.
         self.update(gyro, accel);
 
@@ -371,8 +416,8 @@ impl QuatCompFilter {
         // Compute yaw from magnetometer.
         if let Ok(yaw) = self.mag_yaw(accel, mag) {
             let (roll, pitch, current_yaw) = self.orientation.to_euler();
-            let fused_yaw = self.config.mag_alpha * current_yaw
-                + (1.0 - self.config.mag_alpha) * yaw;
+            let fused_yaw =
+                self.config.mag_alpha * current_yaw + (1.0 - self.config.mag_alpha) * yaw;
             self.orientation = Quaternion::from_euler(roll, pitch, fused_yaw);
         }
 

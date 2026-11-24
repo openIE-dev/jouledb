@@ -12,8 +12,8 @@
 //! Each modality produces a BinaryHV that lives in the same algebra as
 //! text concepts. Cross-modal similarity works natively.
 
-use crate::BinaryHV;
 use super::concept::KNOWLEDGE_DIM;
+use crate::BinaryHV;
 
 /// A grounded input from any modality.
 #[derive(Clone, Debug)]
@@ -89,11 +89,7 @@ pub fn encode_numeric(features: &[f32], dim: usize, seed: u64) -> BinaryHV {
 
 /// Encode a key-value map into BinaryHV using field binding.
 /// Each field: field_name_hv ⊗ field_value_hv. All fields bundled.
-pub fn encode_structured(
-    fields: &[(&str, &str)],
-    dim: usize,
-    seed: u64,
-) -> BinaryHV {
+pub fn encode_structured(fields: &[(&str, &str)], dim: usize, seed: u64) -> BinaryHV {
     if fields.is_empty() {
         return BinaryHV::zeros(dim);
     }
@@ -183,7 +179,9 @@ mod tests {
     #[test]
     fn test_audio_encoding() {
         // Simulated MFCC: 13 coefficients
-        let mfcc = [1.0, -0.5, 0.3, 0.1, -0.2, 0.4, -0.1, 0.2, -0.3, 0.1, 0.0, -0.1, 0.05];
+        let mfcc = [
+            1.0, -0.5, 0.3, 0.1, -0.2, 0.4, -0.1, 0.2, -0.3, 0.1, 0.0, -0.1, 0.05,
+        ];
         let hv = encode_audio_frame(&mfcc, 10000);
         assert_eq!(hv.dimension(), 10000);
     }
@@ -217,7 +215,12 @@ mod tests {
         };
 
         let audio_input = GroundedInput {
-            vector: encode_audio_frame(&[1.0, -0.5, 0.3, 0.1, -0.2, 0.4, -0.1, 0.2, -0.3, 0.1, 0.0, -0.1, 0.05], 10000),
+            vector: encode_audio_frame(
+                &[
+                    1.0, -0.5, 0.3, 0.1, -0.2, 0.4, -0.1, 0.2, -0.3, 0.1, 0.0, -0.1, 0.05,
+                ],
+                10000,
+            ),
             modality: Modality::Audio,
             description: "bark sound".to_string(),
             features: vec![1.0, -0.5, 0.3],

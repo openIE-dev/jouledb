@@ -76,13 +76,18 @@ impl DstTransition {
             matches.get((self.nth_weekday - 1) as usize).copied()
         } else {
             let idx = matches.len() as i8 + self.nth_weekday;
-            if idx >= 0 { matches.get(idx as usize).copied() } else { None }
+            if idx >= 0 {
+                matches.get(idx as usize).copied()
+            } else {
+                None
+            }
         }
     }
 
     /// The datetime of this transition in the given year (local time).
     pub fn datetime_in_year(&self, year: i32) -> Option<NaiveDateTime> {
-        self.date_in_year(year).and_then(|d| d.and_hms_opt(self.hour, 0, 0))
+        self.date_in_year(year)
+            .and_then(|d| d.and_hms_opt(self.hour, 0, 0))
     }
 }
 
@@ -110,11 +115,17 @@ pub struct NamedTimezone {
 impl NamedTimezone {
     /// Is DST active at the given UTC datetime?
     pub fn is_dst(&self, utc_dt: NaiveDateTime) -> bool {
-        let Some(rules) = &self.dst_rules else { return false };
+        let Some(rules) = &self.dst_rules else {
+            return false;
+        };
         let local_approx = utc_dt + chrono::Duration::seconds(self.standard_offset.total_seconds());
         let year = local_approx.year();
-        let Some(start) = rules.start.datetime_in_year(year) else { return false };
-        let Some(end) = rules.end.datetime_in_year(year) else { return false };
+        let Some(start) = rules.start.datetime_in_year(year) else {
+            return false;
+        };
+        let Some(end) = rules.end.datetime_in_year(year) else {
+            return false;
+        };
 
         if start < end {
             // Northern hemisphere: DST between start and end.
@@ -186,72 +197,142 @@ pub fn convert(dt_local: NaiveDateTime, from: &NamedTimezone, to: &NamedTimezone
 // ── Common Timezones ───────────────────────────────────────────
 
 // US DST: second Sunday of March at 2am → first Sunday of November at 2am.
-const US_DST_START: DstTransition = DstTransition { month: 3, nth_weekday: 2, weekday: Weekday::Sun, hour: 2 };
-const US_DST_END: DstTransition = DstTransition { month: 11, nth_weekday: 1, weekday: Weekday::Sun, hour: 2 };
-const US_DST: DstRules = DstRules { start: US_DST_START, end: US_DST_END, offset_minutes: 60 };
+const US_DST_START: DstTransition = DstTransition {
+    month: 3,
+    nth_weekday: 2,
+    weekday: Weekday::Sun,
+    hour: 2,
+};
+const US_DST_END: DstTransition = DstTransition {
+    month: 11,
+    nth_weekday: 1,
+    weekday: Weekday::Sun,
+    hour: 2,
+};
+const US_DST: DstRules = DstRules {
+    start: US_DST_START,
+    end: US_DST_END,
+    offset_minutes: 60,
+};
 
 // EU DST: last Sunday of March at 1am UTC → last Sunday of October at 1am UTC.
-const EU_DST_START: DstTransition = DstTransition { month: 3, nth_weekday: -1, weekday: Weekday::Sun, hour: 1 };
-const EU_DST_END: DstTransition = DstTransition { month: 10, nth_weekday: -1, weekday: Weekday::Sun, hour: 1 };
-const EU_DST: DstRules = DstRules { start: EU_DST_START, end: EU_DST_END, offset_minutes: 60 };
+const EU_DST_START: DstTransition = DstTransition {
+    month: 3,
+    nth_weekday: -1,
+    weekday: Weekday::Sun,
+    hour: 1,
+};
+const EU_DST_END: DstTransition = DstTransition {
+    month: 10,
+    nth_weekday: -1,
+    weekday: Weekday::Sun,
+    hour: 1,
+};
+const EU_DST: DstRules = DstRules {
+    start: EU_DST_START,
+    end: EU_DST_END,
+    offset_minutes: 60,
+};
 
 pub const UTC: NamedTimezone = NamedTimezone {
-    name: "UTC", abbreviation: "UTC", dst_abbreviation: None,
-    standard_offset: TzOffset::new(0, 0), dst_rules: None,
+    name: "UTC",
+    abbreviation: "UTC",
+    dst_abbreviation: None,
+    standard_offset: TzOffset::new(0, 0),
+    dst_rules: None,
 };
 
 pub const US_EASTERN: NamedTimezone = NamedTimezone {
-    name: "America/New_York", abbreviation: "EST", dst_abbreviation: Some("EDT"),
-    standard_offset: TzOffset::new(-5, 0), dst_rules: Some(US_DST),
+    name: "America/New_York",
+    abbreviation: "EST",
+    dst_abbreviation: Some("EDT"),
+    standard_offset: TzOffset::new(-5, 0),
+    dst_rules: Some(US_DST),
 };
 
 pub const US_CENTRAL: NamedTimezone = NamedTimezone {
-    name: "America/Chicago", abbreviation: "CST", dst_abbreviation: Some("CDT"),
-    standard_offset: TzOffset::new(-6, 0), dst_rules: Some(US_DST),
+    name: "America/Chicago",
+    abbreviation: "CST",
+    dst_abbreviation: Some("CDT"),
+    standard_offset: TzOffset::new(-6, 0),
+    dst_rules: Some(US_DST),
 };
 
 pub const US_MOUNTAIN: NamedTimezone = NamedTimezone {
-    name: "America/Denver", abbreviation: "MST", dst_abbreviation: Some("MDT"),
-    standard_offset: TzOffset::new(-7, 0), dst_rules: Some(US_DST),
+    name: "America/Denver",
+    abbreviation: "MST",
+    dst_abbreviation: Some("MDT"),
+    standard_offset: TzOffset::new(-7, 0),
+    dst_rules: Some(US_DST),
 };
 
 pub const US_PACIFIC: NamedTimezone = NamedTimezone {
-    name: "America/Los_Angeles", abbreviation: "PST", dst_abbreviation: Some("PDT"),
-    standard_offset: TzOffset::new(-8, 0), dst_rules: Some(US_DST),
+    name: "America/Los_Angeles",
+    abbreviation: "PST",
+    dst_abbreviation: Some("PDT"),
+    standard_offset: TzOffset::new(-8, 0),
+    dst_rules: Some(US_DST),
 };
 
 pub const EU_CET: NamedTimezone = NamedTimezone {
-    name: "Europe/Berlin", abbreviation: "CET", dst_abbreviation: Some("CEST"),
-    standard_offset: TzOffset::new(1, 0), dst_rules: Some(EU_DST),
+    name: "Europe/Berlin",
+    abbreviation: "CET",
+    dst_abbreviation: Some("CEST"),
+    standard_offset: TzOffset::new(1, 0),
+    dst_rules: Some(EU_DST),
 };
 
 pub const EU_EET: NamedTimezone = NamedTimezone {
-    name: "Europe/Athens", abbreviation: "EET", dst_abbreviation: Some("EEST"),
-    standard_offset: TzOffset::new(2, 0), dst_rules: Some(EU_DST),
+    name: "Europe/Athens",
+    abbreviation: "EET",
+    dst_abbreviation: Some("EEST"),
+    standard_offset: TzOffset::new(2, 0),
+    dst_rules: Some(EU_DST),
 };
 
 pub const EU_GMT: NamedTimezone = NamedTimezone {
-    name: "Europe/London", abbreviation: "GMT", dst_abbreviation: Some("BST"),
-    standard_offset: TzOffset::new(0, 0), dst_rules: Some(EU_DST),
+    name: "Europe/London",
+    abbreviation: "GMT",
+    dst_abbreviation: Some("BST"),
+    standard_offset: TzOffset::new(0, 0),
+    dst_rules: Some(EU_DST),
 };
 
 pub const ASIA_TOKYO: NamedTimezone = NamedTimezone {
-    name: "Asia/Tokyo", abbreviation: "JST", dst_abbreviation: None,
-    standard_offset: TzOffset::new(9, 0), dst_rules: None,
+    name: "Asia/Tokyo",
+    abbreviation: "JST",
+    dst_abbreviation: None,
+    standard_offset: TzOffset::new(9, 0),
+    dst_rules: None,
 };
 
 pub const ASIA_KOLKATA: NamedTimezone = NamedTimezone {
-    name: "Asia/Kolkata", abbreviation: "IST", dst_abbreviation: None,
-    standard_offset: TzOffset::new(5, 30), dst_rules: None,
+    name: "Asia/Kolkata",
+    abbreviation: "IST",
+    dst_abbreviation: None,
+    standard_offset: TzOffset::new(5, 30),
+    dst_rules: None,
 };
 
 pub const AUSTRALIA_SYDNEY: NamedTimezone = NamedTimezone {
-    name: "Australia/Sydney", abbreviation: "AEST", dst_abbreviation: Some("AEDT"),
+    name: "Australia/Sydney",
+    abbreviation: "AEST",
+    dst_abbreviation: Some("AEDT"),
     standard_offset: TzOffset::new(10, 0),
     // Australia DST: first Sunday of October → first Sunday of April.
     dst_rules: Some(DstRules {
-        start: DstTransition { month: 10, nth_weekday: 1, weekday: Weekday::Sun, hour: 2 },
-        end: DstTransition { month: 4, nth_weekday: 1, weekday: Weekday::Sun, hour: 3 },
+        start: DstTransition {
+            month: 10,
+            nth_weekday: 1,
+            weekday: Weekday::Sun,
+            hour: 2,
+        },
+        end: DstTransition {
+            month: 4,
+            nth_weekday: 1,
+            weekday: Weekday::Sun,
+            hour: 3,
+        },
         offset_minutes: 60,
     }),
 };
@@ -259,15 +340,25 @@ pub const AUSTRALIA_SYDNEY: NamedTimezone = NamedTimezone {
 /// All built-in timezones.
 pub fn all_timezones() -> Vec<&'static NamedTimezone> {
     vec![
-        &UTC, &US_EASTERN, &US_CENTRAL, &US_MOUNTAIN, &US_PACIFIC,
-        &EU_GMT, &EU_CET, &EU_EET,
-        &ASIA_TOKYO, &ASIA_KOLKATA, &AUSTRALIA_SYDNEY,
+        &UTC,
+        &US_EASTERN,
+        &US_CENTRAL,
+        &US_MOUNTAIN,
+        &US_PACIFIC,
+        &EU_GMT,
+        &EU_CET,
+        &EU_EET,
+        &ASIA_TOKYO,
+        &ASIA_KOLKATA,
+        &AUSTRALIA_SYDNEY,
     ]
 }
 
 /// Find a timezone by name.
 pub fn find_timezone(name: &str) -> Option<&'static NamedTimezone> {
-    all_timezones().into_iter().find(|tz| tz.name == name || tz.abbreviation == name)
+    all_timezones()
+        .into_iter()
+        .find(|tz| tz.name == name || tz.abbreviation == name)
 }
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -288,7 +379,10 @@ mod tests {
     use super::*;
 
     fn dt(y: i32, m: u32, d: u32, h: u32, mi: u32) -> NaiveDateTime {
-        NaiveDate::from_ymd_opt(y, m, d).unwrap().and_hms_opt(h, mi, 0).unwrap()
+        NaiveDate::from_ymd_opt(y, m, d)
+            .unwrap()
+            .and_hms_opt(h, mi, 0)
+            .unwrap()
     }
 
     #[test]

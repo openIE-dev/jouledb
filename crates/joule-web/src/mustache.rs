@@ -169,7 +169,9 @@ fn parse(template: &str) -> Result<Vec<Node>, MustacheError> {
             // Determine tag type.
             if rest.starts_with('{') {
                 // Triple mustache: {{{name}}}
-                let end = rest.find("}}}").ok_or(MustacheError::UnclosedTag { line })?;
+                let end = rest
+                    .find("}}}")
+                    .ok_or(MustacheError::UnclosedTag { line })?;
                 let name = rest[1..end].trim().to_string();
                 rest = &rest[end + 3..];
                 nodes.push(Node::UnescapedVariable(name));
@@ -244,10 +246,7 @@ fn compute_partial_indent(nodes: &[Node]) -> String {
 }
 
 /// Find the matching `{{/name}}` close tag, handling nested sections of the same name.
-fn find_section_close<'a>(
-    input: &'a str,
-    name: &str,
-) -> Result<(&'a str, &'a str), MustacheError> {
+fn find_section_close<'a>(input: &'a str, name: &str) -> Result<(&'a str, &'a str), MustacheError> {
     let open_tag_prefix = format!("{{{{#{name}}}}}");
     let close_tag = format!("{{{{/{name}}}}}");
     let mut depth = 1usize;
@@ -375,11 +374,10 @@ impl MustacheEngine {
                     }
                 }
                 Node::Partial { name, indent } => {
-                    let partial_src = self.partials.get(name.as_str()).ok_or_else(|| {
-                        MustacheError::PartialNotFound {
-                            name: name.clone(),
-                        }
-                    })?;
+                    let partial_src = self
+                        .partials
+                        .get(name.as_str())
+                        .ok_or_else(|| MustacheError::PartialNotFound { name: name.clone() })?;
                     // Indent each line of the partial.
                     let indented = if indent.is_empty() {
                         partial_src.clone()

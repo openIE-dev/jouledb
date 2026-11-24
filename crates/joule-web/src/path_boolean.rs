@@ -46,9 +46,18 @@ pub enum Segment {
     /// Line from start to end.
     Line { start: Point, end: Point },
     /// Quadratic bezier.
-    QuadBezier { start: Point, control: Point, end: Point },
+    QuadBezier {
+        start: Point,
+        control: Point,
+        end: Point,
+    },
     /// Cubic bezier.
-    CubicBezier { start: Point, ctrl1: Point, ctrl2: Point, end: Point },
+    CubicBezier {
+        start: Point,
+        ctrl1: Point,
+        ctrl2: Point,
+        end: Point,
+    },
     /// Circular arc.
     Arc {
         center: Point,
@@ -64,12 +73,15 @@ impl Segment {
             Segment::Line { start, .. } => *start,
             Segment::QuadBezier { start, .. } => *start,
             Segment::CubicBezier { start, .. } => *start,
-            Segment::Arc { center, radius, start_angle, .. } => {
-                Point::new(
-                    center.x + radius * start_angle.cos(),
-                    center.y + radius * start_angle.sin(),
-                )
-            }
+            Segment::Arc {
+                center,
+                radius,
+                start_angle,
+                ..
+            } => Point::new(
+                center.x + radius * start_angle.cos(),
+                center.y + radius * start_angle.sin(),
+            ),
         }
     }
 
@@ -78,12 +90,15 @@ impl Segment {
             Segment::Line { end, .. } => *end,
             Segment::QuadBezier { end, .. } => *end,
             Segment::CubicBezier { end, .. } => *end,
-            Segment::Arc { center, radius, end_angle, .. } => {
-                Point::new(
-                    center.x + radius * end_angle.cos(),
-                    center.y + radius * end_angle.sin(),
-                )
-            }
+            Segment::Arc {
+                center,
+                radius,
+                end_angle,
+                ..
+            } => Point::new(
+                center.x + radius * end_angle.cos(),
+                center.y + radius * end_angle.sin(),
+            ),
         }
     }
 
@@ -91,23 +106,41 @@ impl Segment {
     pub fn point_at(&self, t: f64) -> Point {
         match self {
             Segment::Line { start, end } => start.lerp(end, t),
-            Segment::QuadBezier { start, control, end } => {
+            Segment::QuadBezier {
+                start,
+                control,
+                end,
+            } => {
                 let mt = 1.0 - t;
                 Point::new(
                     mt * mt * start.x + 2.0 * mt * t * control.x + t * t * end.x,
                     mt * mt * start.y + 2.0 * mt * t * control.y + t * t * end.y,
                 )
             }
-            Segment::CubicBezier { start, ctrl1, ctrl2, end } => {
+            Segment::CubicBezier {
+                start,
+                ctrl1,
+                ctrl2,
+                end,
+            } => {
                 let mt = 1.0 - t;
                 Point::new(
-                    mt * mt * mt * start.x + 3.0 * mt * mt * t * ctrl1.x
-                        + 3.0 * mt * t * t * ctrl2.x + t * t * t * end.x,
-                    mt * mt * mt * start.y + 3.0 * mt * mt * t * ctrl1.y
-                        + 3.0 * mt * t * t * ctrl2.y + t * t * t * end.y,
+                    mt * mt * mt * start.x
+                        + 3.0 * mt * mt * t * ctrl1.x
+                        + 3.0 * mt * t * t * ctrl2.x
+                        + t * t * t * end.x,
+                    mt * mt * mt * start.y
+                        + 3.0 * mt * mt * t * ctrl1.y
+                        + 3.0 * mt * t * t * ctrl2.y
+                        + t * t * t * end.y,
                 )
             }
-            Segment::Arc { center, radius, start_angle, end_angle } => {
+            Segment::Arc {
+                center,
+                radius,
+                start_angle,
+                end_angle,
+            } => {
                 let angle = start_angle + (end_angle - start_angle) * t;
                 Point::new(
                     center.x + radius * angle.cos(),
@@ -142,7 +175,9 @@ pub struct Path {
 
 impl Path {
     pub fn new() -> Self {
-        Self { segments: Vec::new() }
+        Self {
+            segments: Vec::new(),
+        }
     }
 
     pub fn from_segments(segments: Vec<Segment>) -> Self {
@@ -166,14 +201,12 @@ impl Path {
     /// Create a circular path.
     pub fn circle(cx: f64, cy: f64, r: f64) -> Self {
         let center = Point::new(cx, cy);
-        Self::from_segments(vec![
-            Segment::Arc {
-                center,
-                radius: r,
-                start_angle: 0.0,
-                end_angle: std::f64::consts::TAU,
-            },
-        ])
+        Self::from_segments(vec![Segment::Arc {
+            center,
+            radius: r,
+            start_angle: 0.0,
+            end_angle: std::f64::consts::TAU,
+        }])
     }
 
     /// Flatten all segments into a polygon (list of points).
@@ -254,8 +287,10 @@ fn cross_2d(a: &Point, b: &Point, p: &Point) -> f64 {
 
 /// Intersection of two line segments. Returns parameter t for each segment.
 pub fn line_line_intersection(
-    a1: &Point, a2: &Point,
-    b1: &Point, b2: &Point,
+    a1: &Point,
+    a2: &Point,
+    b1: &Point,
+    b2: &Point,
 ) -> Option<(f64, f64, Point)> {
     let d1x = a2.x - a1.x;
     let d1y = a2.y - a1.y;
@@ -290,10 +325,9 @@ pub fn polygon_intersections(poly_a: &[Point], poly_b: &[Point]) -> Vec<Point> {
         let i_next = (i + 1) % na;
         for j in 0..nb {
             let j_next = (j + 1) % nb;
-            if let Some((_, _, pt)) = line_line_intersection(
-                &poly_a[i], &poly_a[i_next],
-                &poly_b[j], &poly_b[j_next],
-            ) {
+            if let Some((_, _, pt)) =
+                line_line_intersection(&poly_a[i], &poly_a[i_next], &poly_b[j], &poly_b[j_next])
+            {
                 intersections.push(pt);
             }
         }
@@ -356,7 +390,9 @@ pub fn boolean_op(path_a: &Path, path_b: &Path, op: BooleanOp) -> BooleanResult 
         BooleanOp::Intersection => {
             let clipped = sutherland_hodgman_clip(&poly_a, &poly_b);
             if clipped.len() >= 3 {
-                BooleanResult { polygons: vec![clipped] }
+                BooleanResult {
+                    polygons: vec![clipped],
+                }
             } else {
                 BooleanResult { polygons: vec![] }
             }
@@ -367,11 +403,17 @@ pub fn boolean_op(path_a: &Path, path_b: &Path, op: BooleanOp) -> BooleanResult 
             if intersections.is_empty() {
                 // Check containment.
                 if point_in_polygon(&poly_a[0], &poly_b) {
-                    BooleanResult { polygons: vec![poly_b] }
+                    BooleanResult {
+                        polygons: vec![poly_b],
+                    }
                 } else if point_in_polygon(&poly_b[0], &poly_a) {
-                    BooleanResult { polygons: vec![poly_a] }
+                    BooleanResult {
+                        polygons: vec![poly_a],
+                    }
                 } else {
-                    BooleanResult { polygons: vec![poly_a, poly_b] }
+                    BooleanResult {
+                        polygons: vec![poly_a, poly_b],
+                    }
                 }
             } else {
                 // Approximate union: merge outline points classified as outside the other.
@@ -389,9 +431,13 @@ pub fn boolean_op(path_a: &Path, path_b: &Path, op: BooleanOp) -> BooleanResult 
                 result.extend(intersections);
                 if result.len() >= 3 {
                     sort_points_ccw(&mut result);
-                    BooleanResult { polygons: vec![result] }
+                    BooleanResult {
+                        polygons: vec![result],
+                    }
                 } else {
-                    BooleanResult { polygons: vec![poly_a, poly_b] }
+                    BooleanResult {
+                        polygons: vec![poly_a, poly_b],
+                    }
                 }
             }
         }
@@ -407,9 +453,13 @@ pub fn boolean_op(path_a: &Path, path_b: &Path, op: BooleanOp) -> BooleanResult 
             result.extend(ints);
             if result.len() >= 3 {
                 sort_points_ccw(&mut result);
-                BooleanResult { polygons: vec![result] }
+                BooleanResult {
+                    polygons: vec![result],
+                }
             } else {
-                BooleanResult { polygons: vec![poly_a] }
+                BooleanResult {
+                    polygons: vec![poly_a],
+                }
             }
         }
         BooleanOp::Xor => {
@@ -451,7 +501,9 @@ fn sort_points_ccw(pts: &mut Vec<Point>) {
     pts.sort_by(|a, b| {
         let angle_a = (a.y - cy).atan2(a.x - cx);
         let angle_b = (b.y - cy).atan2(b.x - cx);
-        angle_a.partial_cmp(&angle_b).unwrap_or(std::cmp::Ordering::Equal)
+        angle_a
+            .partial_cmp(&angle_b)
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
 }
 
@@ -481,13 +533,17 @@ pub fn sutherland_hodgman_clip(subject: &[Point], clip: &[Point]) -> Vec<Point> 
 
             if curr_inside {
                 if !prev_inside {
-                    if let Some(inter) = line_intersect_unbounded(&previous, &current, &edge_start, &edge_end) {
+                    if let Some(inter) =
+                        line_intersect_unbounded(&previous, &current, &edge_start, &edge_end)
+                    {
                         output.push(inter);
                     }
                 }
                 output.push(current);
             } else if prev_inside {
-                if let Some(inter) = line_intersect_unbounded(&previous, &current, &edge_start, &edge_end) {
+                if let Some(inter) =
+                    line_intersect_unbounded(&previous, &current, &edge_start, &edge_end)
+                {
                     output.push(inter);
                 }
             }

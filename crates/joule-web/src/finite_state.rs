@@ -227,9 +227,7 @@ impl Machine {
 
     /// Check if the machine is in a final state.
     pub fn is_done(&self) -> bool {
-        self.states
-            .get(&self.current)
-            .is_some_and(|s| s.is_final)
+        self.states.get(&self.current).is_some_and(|s| s.is_final)
     }
 
     /// Get all currently active states (for parallel machines).
@@ -340,10 +338,7 @@ impl Machine {
 
                     if guard_passes {
                         // Update the parallel state
-                        if let Some(pos) = self
-                            .parallel_states
-                            .iter()
-                            .position(|s| s == state_name)
+                        if let Some(pos) = self.parallel_states.iter().position(|s| s == state_name)
                         {
                             for action in &transition.actions {
                                 self.action_log.push(ActionRecord {
@@ -406,10 +401,7 @@ impl Machine {
     pub fn can_handle(&self, event: &str) -> bool {
         if let Some(state) = self.states.get(&self.current) {
             state.transitions.iter().any(|t| {
-                t.event == event
-                    && t.guard
-                        .as_ref()
-                        .map_or(true, |g| g.evaluate(&self.context))
+                t.event == event && t.guard.as_ref().map_or(true, |g| g.evaluate(&self.context))
             })
         } else {
             false
@@ -419,11 +411,8 @@ impl Machine {
     /// Get all events that the current state can handle.
     pub fn available_events(&self) -> Vec<String> {
         if let Some(state) = self.states.get(&self.current) {
-            let mut events: Vec<String> = state
-                .transitions
-                .iter()
-                .map(|t| t.event.clone())
-                .collect();
+            let mut events: Vec<String> =
+                state.transitions.iter().map(|t| t.event.clone()).collect();
             events.sort();
             events.dedup();
             events
@@ -457,10 +446,7 @@ impl Machine {
             let state = &self.states[*name];
 
             if state.is_final {
-                dot.push_str(&format!(
-                    "  \"{}\" [shape=doublecircle];\n",
-                    name
-                ));
+                dot.push_str(&format!("  \"{}\" [shape=doublecircle];\n", name));
             }
 
             // Sort transitions by event for deterministic output
@@ -567,14 +553,11 @@ mod tests {
     fn guard_blocks_transition() {
         let mut machine = MachineBuilder::new("locked")
             .state(State::new("locked").with_transition(
-                Transition::new("UNLOCK", "unlocked").with_guard(Guard::new(
-                    "has_key",
-                    |ctx| {
-                        ctx.get("has_key")
-                            .and_then(|v| v.as_bool())
-                            .unwrap_or(false)
-                    },
-                )),
+                Transition::new("UNLOCK", "unlocked").with_guard(Guard::new("has_key", |ctx| {
+                    ctx.get("has_key")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                })),
             ))
             .state(State::new("unlocked"))
             .build();
@@ -592,9 +575,10 @@ mod tests {
     #[test]
     fn transition_actions_logged() {
         let mut machine = MachineBuilder::new("idle")
-            .state(State::new("idle").with_transition(
-                Transition::new("START", "running").with_action("log_start"),
-            ))
+            .state(
+                State::new("idle")
+                    .with_transition(Transition::new("START", "running").with_action("log_start")),
+            )
             .state(State::new("running"))
             .build();
 
@@ -623,10 +607,7 @@ mod tests {
     #[test]
     fn final_state() {
         let mut machine = MachineBuilder::new("running")
-            .state(
-                State::new("running")
-                    .with_transition(Transition::new("FINISH", "done")),
-            )
+            .state(State::new("running").with_transition(Transition::new("FINISH", "done")))
             .state(State::new("done").as_final())
             .build();
 
@@ -645,15 +626,9 @@ mod tests {
                     .with_initial_child("editing")
                     .with_transition(Transition::new("DEACTIVATE", "inactive")),
             )
-            .state(
-                State::new("editing")
-                    .with_transition(Transition::new("SAVE", "saving")),
-            )
+            .state(State::new("editing").with_transition(Transition::new("SAVE", "saving")))
             .state(State::new("saving"))
-            .state(
-                State::new("inactive")
-                    .with_transition(Transition::new("ACTIVATE", "active")),
-            )
+            .state(State::new("inactive").with_transition(Transition::new("ACTIVATE", "active")))
             .build();
 
         // Entering "active" should resolve to "editing" (initial child)
@@ -684,10 +659,7 @@ mod tests {
                 .with_transition(Transition::new("EDIT", "editing"))
                 .with_transition(Transition::new("CLOSE", "idle")),
         );
-        machine.add_state(
-            State::new("idle")
-                .with_transition(Transition::new("OPEN", "active")),
-        );
+        machine.add_state(State::new("idle").with_transition(Transition::new("OPEN", "active")));
 
         machine.current = "editing".to_string();
         machine.send("PREVIEW"); // now in previewing
@@ -703,12 +675,10 @@ mod tests {
     fn parallel_states() {
         let mut machine = MachineBuilder::new("idle")
             .state(
-                State::new("bold_off")
-                    .with_transition(Transition::new("TOGGLE_BOLD", "bold_on")),
+                State::new("bold_off").with_transition(Transition::new("TOGGLE_BOLD", "bold_on")),
             )
             .state(
-                State::new("bold_on")
-                    .with_transition(Transition::new("TOGGLE_BOLD", "bold_off")),
+                State::new("bold_on").with_transition(Transition::new("TOGGLE_BOLD", "bold_off")),
             )
             .state(
                 State::new("italic_off")
@@ -780,7 +750,9 @@ mod tests {
         let mut machine = Machine::new("idle");
         machine.set_context("count", serde_json::json!(0));
         assert_eq!(machine.context().get("count"), Some(&serde_json::json!(0)));
-        machine.context_mut().insert("name".into(), serde_json::json!("test"));
+        machine
+            .context_mut()
+            .insert("name".into(), serde_json::json!("test"));
         assert_eq!(
             machine.context().get("name"),
             Some(&serde_json::json!("test"))

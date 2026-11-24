@@ -300,7 +300,8 @@ impl BatchScheduler {
             .ok_or_else(|| BatchError::JobNotFound(job_id.to_string()))?;
         self.running_jobs.remove(job_id);
         // Remove chains.
-        self.chains.retain(|c| c.on_job_id != job_id && c.trigger_job_id != job_id);
+        self.chains
+            .retain(|c| c.on_job_id != job_id && c.trigger_job_id != job_id);
         Ok(state.def)
     }
 
@@ -567,7 +568,11 @@ impl BatchScheduler {
         let new_status = match failure_action {
             FailureAction::Retry if attempt < max_retries => {
                 let delay = job.def.retry_policy.delay_seconds
-                    * job.def.retry_policy.backoff_multiplier.pow(attempt.saturating_sub(1)) as u64;
+                    * job
+                        .def
+                        .retry_policy
+                        .backoff_multiplier
+                        .pow(attempt.saturating_sub(1)) as u64;
                 job.next_run = Some(now + Duration::seconds(delay as i64));
                 job.status = JobStatus::Retrying;
                 JobStatus::Retrying
@@ -646,11 +651,7 @@ impl BatchScheduler {
     // ── Resource Locks ──────────────────────────────────────────
 
     /// Manually acquire a resource lock.
-    pub fn acquire_lock(
-        &mut self,
-        resource: &str,
-        job_id: &str,
-    ) -> Result<(), BatchError> {
+    pub fn acquire_lock(&mut self, resource: &str, job_id: &str) -> Result<(), BatchError> {
         if let Some(lock) = self.locks.get(resource) {
             return Err(BatchError::ResourceLocked {
                 resource: resource.to_string(),

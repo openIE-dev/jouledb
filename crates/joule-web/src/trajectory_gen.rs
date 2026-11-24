@@ -104,7 +104,11 @@ impl LinearTrajectory {
                 got: end.len(),
             });
         }
-        Ok(Self { start, end, duration })
+        Ok(Self {
+            start,
+            end,
+            duration,
+        })
     }
 
     /// Sample at time `t`.
@@ -184,7 +188,10 @@ impl CubicTrajectory {
         }
         let n = q_start.len();
         if q_end.len() != n || v_start.len() != n || v_end.len() != n {
-            return Err(TrajectoryError::DimensionMismatch { expected: n, got: q_end.len() });
+            return Err(TrajectoryError::DimensionMismatch {
+                expected: n,
+                got: q_end.len(),
+            });
         }
         let tf = duration;
         let tf2 = tf * tf;
@@ -197,7 +204,10 @@ impl CubicTrajectory {
             let a3 = (-2.0 * (q_end[i] - q_start[i]) + (v_start[i] + v_end[i]) * tf) / tf3;
             coefficients.push([a0, a1, a2, a3]);
         }
-        Ok(Self { coefficients, duration })
+        Ok(Self {
+            coefficients,
+            duration,
+        })
     }
 
     /// Create with zero boundary velocities.
@@ -225,7 +235,12 @@ impl CubicTrajectory {
             vel[i] = c[1] + 2.0 * c[2] * tc + 3.0 * c[3] * tc2;
             acc[i] = 2.0 * c[2] + 6.0 * c[3] * tc;
         }
-        TrajectoryPoint { time: tc, position: pos, velocity: vel, acceleration: acc }
+        TrajectoryPoint {
+            time: tc,
+            position: pos,
+            velocity: vel,
+            acceleration: acc,
+        }
     }
 
     /// Duration.
@@ -259,9 +274,12 @@ pub struct QuinticTrajectory {
 impl QuinticTrajectory {
     /// Create a quintic trajectory.
     pub fn new(
-        q0: &[f64], q1: &[f64],
-        v0: &[f64], v1: &[f64],
-        a0: &[f64], a1: &[f64],
+        q0: &[f64],
+        q1: &[f64],
+        v0: &[f64],
+        v1: &[f64],
+        a0: &[f64],
+        a1: &[f64],
         duration: f64,
     ) -> Result<Self, TrajectoryError> {
         if duration <= 0.0 {
@@ -269,7 +287,10 @@ impl QuinticTrajectory {
         }
         let n = q0.len();
         if q1.len() != n || v0.len() != n || v1.len() != n || a0.len() != n || a1.len() != n {
-            return Err(TrajectoryError::DimensionMismatch { expected: n, got: q1.len() });
+            return Err(TrajectoryError::DimensionMismatch {
+                expected: n,
+                got: q1.len(),
+            });
         }
         let tf = duration;
         let tf2 = tf * tf;
@@ -283,18 +304,19 @@ impl QuinticTrajectory {
             let c1 = v0[i];
             let c2 = a0[i] / 2.0;
             let dq = q1[i] - q0[i];
-            let c3 = (20.0 * dq - (8.0 * v1[i] + 12.0 * v0[i]) * tf
-                - (3.0 * a0[i] - a1[i]) * tf2)
+            let c3 = (20.0 * dq - (8.0 * v1[i] + 12.0 * v0[i]) * tf - (3.0 * a0[i] - a1[i]) * tf2)
                 / (2.0 * tf3);
-            let c4 = (-30.0 * dq + (14.0 * v1[i] + 16.0 * v0[i]) * tf
+            let c4 = (-30.0 * dq
+                + (14.0 * v1[i] + 16.0 * v0[i]) * tf
                 + (3.0 * a0[i] - 2.0 * a1[i]) * tf2)
                 / (2.0 * tf4);
-            let c5 = (12.0 * dq - 6.0 * (v1[i] + v0[i]) * tf
-                + (a1[i] - a0[i]) * tf2)
-                / (2.0 * tf5);
+            let c5 = (12.0 * dq - 6.0 * (v1[i] + v0[i]) * tf + (a1[i] - a0[i]) * tf2) / (2.0 * tf5);
             coefficients.push([c0, c1, c2, c3, c4, c5]);
         }
-        Ok(Self { coefficients, duration })
+        Ok(Self {
+            coefficients,
+            duration,
+        })
     }
 
     /// Create with zero boundary velocities and accelerations.
@@ -320,7 +342,12 @@ impl QuinticTrajectory {
             vel[i] = c[1] + 2.0 * c[2] * tc + 3.0 * c[3] * t2 + 4.0 * c[4] * t3 + 5.0 * c[5] * t4;
             acc[i] = 2.0 * c[2] + 6.0 * c[3] * tc + 12.0 * c[4] * t2 + 20.0 * c[5] * t3;
         }
-        TrajectoryPoint { time: tc, position: pos, velocity: vel, acceleration: acc }
+        TrajectoryPoint {
+            time: tc,
+            position: pos,
+            velocity: vel,
+            acceleration: acc,
+        }
     }
 
     pub fn duration(&self) -> f64 {
@@ -367,7 +394,10 @@ impl WaypointTrajectory {
         let n = waypoints[0].len();
         for (i, wp) in waypoints.iter().enumerate() {
             if wp.len() != n {
-                return Err(TrajectoryError::DimensionMismatch { expected: n, got: wp.len() });
+                return Err(TrajectoryError::DimensionMismatch {
+                    expected: n,
+                    got: wp.len(),
+                });
             }
             let _ = i; // used for error context
         }
@@ -377,8 +407,8 @@ impl WaypointTrajectory {
         let mut velocities = vec![vec![0.0; n]; waypoints.len()];
         for i in 1..waypoints.len() - 1 {
             for j in 0..n {
-                velocities[i][j] = (waypoints[i + 1][j] - waypoints[i - 1][j])
-                    / (2.0 * segment_duration);
+                velocities[i][j] =
+                    (waypoints[i + 1][j] - waypoints[i - 1][j]) / (2.0 * segment_duration);
             }
         }
 
@@ -396,7 +426,11 @@ impl WaypointTrajectory {
             segments.push(seg);
         }
         let total_duration = num_seg as f64 * segment_duration;
-        Ok(Self { segments, segment_times, total_duration })
+        Ok(Self {
+            segments,
+            segment_times,
+            total_duration,
+        })
     }
 
     /// Sample at time `t`.
@@ -457,7 +491,11 @@ impl CartesianLine {
         if duration <= 0.0 {
             return Err(TrajectoryError::InvalidDuration(duration));
         }
-        Ok(Self { start, end, duration })
+        Ok(Self {
+            start,
+            end,
+            duration,
+        })
     }
 
     /// Sample at time `t` with a quintic time-scaling for smooth start/stop.
@@ -542,7 +580,9 @@ impl CircularArc {
             return Err(TrajectoryError::InvalidDuration(duration));
         }
         if radius <= 0.0 {
-            return Err(TrajectoryError::LimitViolation("radius must be positive".into()));
+            return Err(TrajectoryError::LimitViolation(
+                "radius must be positive".into(),
+            ));
         }
         Ok(Self {
             center: [center[0], center[1], z],
@@ -697,7 +737,10 @@ mod tests {
     #[test]
     fn test_waypoint_too_few() {
         let r = WaypointTrajectory::new(&[vec![0.0]], 1.0);
-        assert!(matches!(r, Err(TrajectoryError::InsufficientWaypoints { .. })));
+        assert!(matches!(
+            r,
+            Err(TrajectoryError::InsufficientWaypoints { .. })
+        ));
     }
 
     #[test]

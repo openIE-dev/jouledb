@@ -20,7 +20,11 @@ pub struct Version {
 
 impl Version {
     pub fn new(major: u32, minor: u32, patch: u32) -> Self {
-        Self { major, minor, patch }
+        Self {
+            major,
+            minor,
+            patch,
+        }
     }
 
     pub fn is_newer_than(&self, other: &Version) -> bool {
@@ -117,7 +121,10 @@ impl UpdateStatus {
     }
 
     pub fn is_terminal(&self) -> bool {
-        matches!(self, Self::Installed | Self::Failed | Self::RolledBack | Self::Skipped)
+        matches!(
+            self,
+            Self::Installed | Self::Failed | Self::RolledBack | Self::Skipped
+        )
     }
 }
 
@@ -271,14 +278,18 @@ impl OtaManager {
 
         // Not already successfully installed.
         let installed = self.device_updates.iter().any(|du| {
-            du.device_id == device_id && du.package_id == package_id && du.status == UpdateStatus::Installed
+            du.device_id == device_id
+                && du.package_id == package_id
+                && du.status == UpdateStatus::Installed
         });
         !installed
     }
 
     /// Get all eligible devices for a package.
     pub fn eligible_devices(&self, package_id: &str) -> Vec<String> {
-        let mut result: Vec<String> = self.devices.keys()
+        let mut result: Vec<String> = self
+            .devices
+            .keys()
             .filter(|id| self.is_eligible(id, package_id))
             .cloned()
             .collect();
@@ -305,7 +316,9 @@ impl OtaManager {
         }
 
         // Check failure count.
-        let failure_count = self.device_updates.iter()
+        let failure_count = self
+            .device_updates
+            .iter()
             .filter(|du| du.package_id == rollout.package_id && du.status == UpdateStatus::Failed)
             .count() as u32;
         if failure_count >= rollout.max_failures {
@@ -317,7 +330,9 @@ impl OtaManager {
         let count = count.min(rollout.max_concurrent);
 
         // Exclude devices with active updates.
-        let active_count = self.device_updates.iter()
+        let active_count = self
+            .device_updates
+            .iter()
             .filter(|du| du.package_id == rollout.package_id && !du.status.is_terminal())
             .count();
         let remaining = rollout.max_concurrent.saturating_sub(active_count);
@@ -350,7 +365,12 @@ impl OtaManager {
     }
 
     /// Update the status of a device's update.
-    pub fn update_status(&mut self, device_id: &str, package_id: &str, status: UpdateStatus) -> bool {
+    pub fn update_status(
+        &mut self,
+        device_id: &str,
+        package_id: &str,
+        status: UpdateStatus,
+    ) -> bool {
         // Find the most recent (last) active update for this device+package.
         let found = self.device_updates.iter_mut().rev().find(|du| {
             du.device_id == device_id && du.package_id == package_id && !du.status.is_terminal()
@@ -397,7 +417,8 @@ impl OtaManager {
     /// Rollback a device to its previous version.
     pub fn rollback(&mut self, device_id: &str, package_id: &str) -> Result<(), String> {
         let du = self.device_updates.iter_mut().rev().find(|du| {
-            du.device_id == device_id && du.package_id == package_id
+            du.device_id == device_id
+                && du.package_id == package_id
                 && (du.status == UpdateStatus::Installed || du.status == UpdateStatus::Failed)
         });
 
@@ -437,7 +458,9 @@ impl OtaManager {
 
     /// Retry a failed update.
     pub fn retry_update(&mut self, device_id: &str, package_id: &str) -> Result<(), String> {
-        let max_attempts = self.device_updates.iter()
+        let max_attempts = self
+            .device_updates
+            .iter()
             .filter(|du| du.device_id == device_id && du.package_id == package_id)
             .map(|du| du.attempts)
             .max()
@@ -449,7 +472,9 @@ impl OtaManager {
 
         // Reset the last failed update.
         let found = self.device_updates.iter_mut().rev().find(|du| {
-            du.device_id == device_id && du.package_id == package_id && du.status == UpdateStatus::Failed
+            du.device_id == device_id
+                && du.package_id == package_id
+                && du.status == UpdateStatus::Failed
         });
 
         if let Some(du) = found {
@@ -465,9 +490,10 @@ impl OtaManager {
 
     /// Get the update status for a device and package.
     pub fn get_device_update(&self, device_id: &str, package_id: &str) -> Option<&DeviceUpdate> {
-        self.device_updates.iter().rev().find(|du| {
-            du.device_id == device_id && du.package_id == package_id
-        })
+        self.device_updates
+            .iter()
+            .rev()
+            .find(|du| du.device_id == device_id && du.package_id == package_id)
     }
 
     /// Summary counts of update statuses for a package.
@@ -575,7 +601,10 @@ mod tests {
         let du = mgr.get_device_update(&dev_id, &pkg_id).unwrap();
         assert_eq!(du.status, UpdateStatus::Installed);
         // Device version should be updated.
-        assert_eq!(mgr.devices.get("d1").unwrap().current_version, Version::new(2, 0, 0));
+        assert_eq!(
+            mgr.devices.get("d1").unwrap().current_version,
+            Version::new(2, 0, 0)
+        );
     }
 
     #[test]
@@ -587,7 +616,10 @@ mod tests {
         mgr.rollback(&dev_id, &pkg_id).unwrap();
         let du = mgr.get_device_update(&dev_id, &pkg_id).unwrap();
         assert_eq!(du.status, UpdateStatus::RolledBack);
-        assert_eq!(mgr.devices.get("d1").unwrap().current_version, Version::new(1, 0, 0));
+        assert_eq!(
+            mgr.devices.get("d1").unwrap().current_version,
+            Version::new(1, 0, 0)
+        );
     }
 
     #[test]

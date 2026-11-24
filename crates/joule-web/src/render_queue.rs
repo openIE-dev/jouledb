@@ -95,12 +95,22 @@ impl RenderCommand {
 
     /// Sort key for opaque: layer ASC, depth ASC (front-to-back), material ASC.
     fn opaque_key(&self) -> (i32, i64, u64, i32) {
-        (self.layer.0, float_to_sort_key(self.depth_sq), self.material_id, self.sub_order)
+        (
+            self.layer.0,
+            float_to_sort_key(self.depth_sq),
+            self.material_id,
+            self.sub_order,
+        )
     }
 
     /// Sort key for transparent: layer ASC, depth DESC (back-to-front), material ASC.
     fn transparent_key(&self) -> (i32, i64, u64, i32) {
-        (self.layer.0, -float_to_sort_key(self.depth_sq), self.material_id, self.sub_order)
+        (
+            self.layer.0,
+            -float_to_sort_key(self.depth_sq),
+            self.material_id,
+            self.sub_order,
+        )
     }
 }
 
@@ -147,11 +157,15 @@ pub struct RenderQueue {
 
 impl RenderQueue {
     pub fn new() -> Self {
-        Self { commands: Vec::new() }
+        Self {
+            commands: Vec::new(),
+        }
     }
 
     pub fn with_capacity(cap: usize) -> Self {
-        Self { commands: Vec::with_capacity(cap) }
+        Self {
+            commands: Vec::with_capacity(cap),
+        }
     }
 
     /// Submit a render command.
@@ -181,7 +195,8 @@ impl RenderQueue {
     /// Sort commands and return them in draw order.
     /// Opaque commands are front-to-back, transparent are back-to-front.
     pub fn sorted(&mut self) -> Vec<RenderCommand> {
-        let (mut opaque, mut transparent): (Vec<_>, Vec<_>) = self.commands
+        let (mut opaque, mut transparent): (Vec<_>, Vec<_>) = self
+            .commands
             .drain(..)
             .partition(|cmd| !cmd.blend.is_transparent());
 
@@ -220,7 +235,11 @@ impl RenderQueue {
     pub fn stats(&self) -> RenderStats {
         let draw_calls = self.commands.len() as u32;
         let triangles: u32 = self.commands.iter().map(|c| c.triangle_count).sum();
-        let opaque_calls = self.commands.iter().filter(|c| !c.blend.is_transparent()).count() as u32;
+        let opaque_calls = self
+            .commands
+            .iter()
+            .filter(|c| !c.blend.is_transparent())
+            .count() as u32;
         let transparent_calls = draw_calls - opaque_calls;
 
         // Estimate batch count by material grouping (exact after sort).
@@ -238,7 +257,13 @@ impl RenderQueue {
             count
         };
 
-        RenderStats { draw_calls, batches, triangles, opaque_calls, transparent_calls }
+        RenderStats {
+            draw_calls,
+            batches,
+            triangles,
+            opaque_calls,
+            transparent_calls,
+        }
     }
 }
 
@@ -250,7 +275,10 @@ mod tests {
 
     fn identity() -> [f64; 16] {
         let mut m = [0.0; 16];
-        m[0] = 1.0; m[5] = 1.0; m[10] = 1.0; m[15] = 1.0;
+        m[0] = 1.0;
+        m[5] = 1.0;
+        m[10] = 1.0;
+        m[15] = 1.0;
         m
     }
 
@@ -280,8 +308,8 @@ mod tests {
     fn test_opaque_front_to_back() {
         let mut q = RenderQueue::new();
         q.submit(cmd(1, 1, 100.0, 10)); // far
-        q.submit(cmd(1, 1, 1.0, 10));   // near
-        q.submit(cmd(1, 1, 50.0, 10));  // mid
+        q.submit(cmd(1, 1, 1.0, 10)); // near
+        q.submit(cmd(1, 1, 50.0, 10)); // mid
         let sorted = q.sorted();
         assert!(sorted[0].depth_sq <= sorted[1].depth_sq);
         assert!(sorted[1].depth_sq <= sorted[2].depth_sq);
@@ -301,8 +329,11 @@ mod tests {
     #[test]
     fn test_opaque_before_transparent() {
         let mut q = RenderQueue::new();
-        q.submit(cmd(1, 1, 10.0, 10).with_blend(BlendMode::AlphaBlend)
-            .with_layer(RenderLayer::TRANSPARENT));
+        q.submit(
+            cmd(1, 1, 10.0, 10)
+                .with_blend(BlendMode::AlphaBlend)
+                .with_layer(RenderLayer::TRANSPARENT),
+        );
         q.submit(cmd(2, 2, 5.0, 10).with_layer(RenderLayer::DEFAULT));
         let sorted = q.sorted();
         // Opaque (layer 0) should come before transparent (layer 100).

@@ -109,10 +109,7 @@ pub fn compute_layout(
     );
 
     // Compute row sums (total per group)
-    let row_sums: Vec<f64> = matrix
-        .iter()
-        .map(|row| row.iter().sum::<f64>())
-        .collect();
+    let row_sums: Vec<f64> = matrix.iter().map(|row| row.iter().sum::<f64>()).collect();
     let grand_total: f64 = row_sums.iter().sum();
 
     // Assign group values
@@ -187,14 +184,7 @@ pub fn compute_layout(
 // ── SVG helpers ─────────────────────────────────────────────────
 
 /// SVG arc path for a group ring segment.
-fn arc_path(
-    start: f64,
-    end: f64,
-    inner_r: f64,
-    outer_r: f64,
-    cx: f64,
-    cy: f64,
-) -> String {
+fn arc_path(start: f64, end: f64, inner_r: f64, outer_r: f64, cx: f64, cy: f64) -> String {
     let x0_outer = cx + outer_r * start.cos();
     let y0_outer = cy + outer_r * start.sin();
     let x1_outer = cx + outer_r * end.cos();
@@ -245,11 +235,7 @@ fn chord_path(chord: &Chord, radius: f64, cx: f64, cy: f64) -> String {
 // ── Rendering ───────────────────────────────────────────────────
 
 /// Render the chord diagram as an SVG string.
-pub fn render_chord_diagram(
-    groups: &[ChordGroup],
-    chords: &[Chord],
-    cfg: &ChordConfig,
-) -> String {
+pub fn render_chord_diagram(groups: &[ChordGroup], chords: &[Chord], cfg: &ChordConfig) -> String {
     let (cx, cy) = cfg.center();
     let mut svg = String::with_capacity(4096);
     let _ = write!(
@@ -275,7 +261,14 @@ pub fn render_chord_diagram(
     // Group arcs
     svg.push_str("<g class=\"groups\">");
     for g in groups {
-        let path = arc_path(g.start_angle, g.end_angle, cfg.inner_radius, cfg.outer_radius, cx, cy);
+        let path = arc_path(
+            g.start_angle,
+            g.end_angle,
+            cfg.inner_radius,
+            cfg.outer_radius,
+            cx,
+            cy,
+        );
         let _ = write!(
             svg,
             "<path d=\"{path}\" fill=\"{}\" stroke=\"white\" stroke-width=\"1\" />",
@@ -309,11 +302,7 @@ pub fn render_chord_diagram(
 }
 
 /// Convenience: compute layout + render.
-pub fn chord_diagram(
-    matrix: &[Vec<f64>],
-    groups: &mut [ChordGroup],
-    cfg: &ChordConfig,
-) -> String {
+pub fn chord_diagram(matrix: &[Vec<f64>], groups: &mut [ChordGroup], cfg: &ChordConfig) -> String {
     let chords = compute_layout(matrix, groups, cfg);
     render_chord_diagram(groups, &chords, cfg)
 }
@@ -458,10 +447,7 @@ mod tests {
 
     #[test]
     fn identity_matrix_no_chords() {
-        let mut groups = vec![
-            ChordGroup::new("A", "red"),
-            ChordGroup::new("B", "blue"),
-        ];
+        let mut groups = vec![ChordGroup::new("A", "red"), ChordGroup::new("B", "blue")];
         let matrix = vec![vec![0.0, 0.0], vec![0.0, 0.0]];
         let cfg = ChordConfig::default();
         let chords = compute_layout(&matrix, &mut groups, &cfg);

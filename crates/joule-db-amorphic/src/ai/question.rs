@@ -15,7 +15,7 @@
 //! 7. LEARN     — Did the frontier shrink? What new frontiers emerged?
 //! ```
 
-use joule_db_hdc::{BinaryHV, BinaryCodebook, BinaryResonator};
+use joule_db_hdc::{BinaryCodebook, BinaryHV, BinaryResonator};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -23,7 +23,7 @@ use super::facade::JouleDbAi;
 use super::receipt::AiReceipt;
 use super::tier::InferenceTier;
 use super::traits::{AiError, AiOutput};
-use crate::{AmorphicStore, RecordId, Value, DIMENSION};
+use crate::{AmorphicStore, DIMENSION, RecordId, Value};
 
 // ============================================================================
 // Frontier: A detected knowledge gap
@@ -203,9 +203,8 @@ impl QuestionEngine {
             // Learn from the outcome
             if outcome.frontier_resolved {
                 // Remove the resolved frontier
-                self.frontiers.retain(|f| {
-                    f.context != outcome.question.frontier.context
-                });
+                self.frontiers
+                    .retain(|f| f.context != outcome.question.frontier.context);
             }
 
             // Add any new frontiers discovered
@@ -267,7 +266,10 @@ impl QuestionEngine {
                 self.frontiers.push(Frontier {
                     context: format!(
                         "Field '{}' exists in {}/{} records ({:.0}% coverage)",
-                        field, count, total_records, coverage * 100.0
+                        field,
+                        count,
+                        total_records,
+                        coverage * 100.0
                     ),
                     unknown_dimensions: vec![field.clone()],
                     confidence: (1.0 - coverage) as f32,
@@ -397,14 +399,8 @@ impl QuestionEngine {
                     .map(|s| s.as_str())
                     .unwrap_or("unknown");
                 Question {
-                    text: format!(
-                        "What is the '{}' for records that are missing it?",
-                        dim
-                    ),
-                    query: Some(format!(
-                        "SELECT name FROM records WHERE {} IS NULL",
-                        dim
-                    )),
+                    text: format!("What is the '{}' for records that are missing it?", dim),
+                    query: Some(format!("SELECT name FROM records WHERE {} IS NULL", dim)),
                     hypothesis: format!(
                         "If we fill in '{}' for all records, schema coverage increases and similarity search improves",
                         dim
@@ -418,7 +414,8 @@ impl QuestionEngine {
             FrontierSource::HologramDegradation => Question {
                 text: "Should the store be partitioned to reduce hologram noise?".to_string(),
                 query: None,
-                hypothesis: "Partitioning would restore retrieval probability above 90%".to_string(),
+                hypothesis: "Partitioning would restore retrieval probability above 90%"
+                    .to_string(),
                 frontier: frontier.clone(),
                 predicted_info_gain: self.estimate_info_gain(frontier),
                 recommended_tier: InferenceTier::Holographic,
@@ -430,7 +427,9 @@ impl QuestionEngine {
                     frontier.context
                 ),
                 query: None,
-                hypothesis: "There may be a missing codebook entry or a novel combination of known factors".to_string(),
+                hypothesis:
+                    "There may be a missing codebook entry or a novel combination of known factors"
+                        .to_string(),
                 frontier: frontier.clone(),
                 predicted_info_gain: self.estimate_info_gain(frontier),
                 recommended_tier: InferenceTier::Embedded,
@@ -439,7 +438,8 @@ impl QuestionEngine {
             FrontierSource::QueryFailure => Question {
                 text: format!("Why did the query fail? Context: {}", frontier.context),
                 query: None,
-                hypothesis: "The query may use terms not represented in the store's vocabulary".to_string(),
+                hypothesis: "The query may use terms not represented in the store's vocabulary"
+                    .to_string(),
                 frontier: frontier.clone(),
                 predicted_info_gain: self.estimate_info_gain(frontier),
                 recommended_tier: InferenceTier::Holographic,
@@ -460,7 +460,10 @@ impl QuestionEngine {
                         "SELECT {} FROM temporal_fields WHERE valid_at(now)",
                         dim
                     )),
-                    hypothesis: format!("Filling the temporal gap in '{}' would enable rights queries for that period", dim),
+                    hypothesis: format!(
+                        "Filling the temporal gap in '{}' would enable rights queries for that period",
+                        dim
+                    ),
                     frontier: frontier.clone(),
                     predicted_info_gain: self.estimate_info_gain(frontier),
                     recommended_tier: InferenceTier::Holographic,
@@ -473,7 +476,8 @@ impl QuestionEngine {
                     frontier.context
                 ),
                 query: None,
-                hypothesis: "The contrast may reveal a missing category or mislabeled record".to_string(),
+                hypothesis: "The contrast may reveal a missing category or mislabeled record"
+                    .to_string(),
                 frontier: frontier.clone(),
                 predicted_info_gain: self.estimate_info_gain(frontier),
                 recommended_tier: InferenceTier::Embedded,
@@ -501,17 +505,10 @@ impl QuestionEngine {
         ai: &mut JouleDbAi,
         store: &AmorphicStore,
     ) -> QuestionOutcome {
-        let query_text = question
-            .query
-            .as_deref()
-            .unwrap_or(&question.text);
+        let query_text = question.query.as_deref().unwrap_or(&question.text);
 
         // Use the AI tier system to get an answer
-        let result = ai.infer(
-            query_text,
-            store,
-            super::tier::TierConstraints::default(),
-        );
+        let result = ai.infer(query_text, store, super::tier::TierConstraints::default());
 
         let (answer_text, receipt) = match result {
             Ok(result) => {
@@ -573,9 +570,15 @@ mod tests {
         let mut store = AmorphicStore::new();
 
         // Insert records with inconsistent schemas
-        store.ingest_json(r#"{"name": "A", "genre": "action", "rating": 8}"#).unwrap();
-        store.ingest_json(r#"{"name": "B", "genre": "comedy", "rating": 7}"#).unwrap();
-        store.ingest_json(r#"{"name": "C", "genre": "drama"}"#).unwrap(); // Missing rating
+        store
+            .ingest_json(r#"{"name": "A", "genre": "action", "rating": 8}"#)
+            .unwrap();
+        store
+            .ingest_json(r#"{"name": "B", "genre": "comedy", "rating": 7}"#)
+            .unwrap();
+        store
+            .ingest_json(r#"{"name": "C", "genre": "drama"}"#)
+            .unwrap(); // Missing rating
         store.ingest_json(r#"{"name": "D"}"#).unwrap(); // Missing genre AND rating
 
         let mut engine = QuestionEngine::new(1.0);
@@ -585,7 +588,11 @@ mod tests {
         assert!(!frontiers.is_empty(), "Should detect schema gaps");
 
         // At least one frontier should be about missing fields
-        assert!(frontiers.iter().any(|f| f.source == FrontierSource::SchemaSparse));
+        assert!(
+            frontiers
+                .iter()
+                .any(|f| f.source == FrontierSource::SchemaSparse)
+        );
     }
 
     #[test]
@@ -612,8 +619,12 @@ mod tests {
         let mut store = AmorphicStore::new();
 
         // Create a store with known gaps
-        store.ingest_json(r#"{"name": "Complete", "genre": "action", "year": 2020, "rating": 9}"#).unwrap();
-        store.ingest_json(r#"{"name": "Partial", "genre": "comedy"}"#).unwrap();
+        store
+            .ingest_json(r#"{"name": "Complete", "genre": "action", "year": 2020, "rating": 9}"#)
+            .unwrap();
+        store
+            .ingest_json(r#"{"name": "Partial", "genre": "comedy"}"#)
+            .unwrap();
         store.ingest_json(r#"{"name": "Minimal"}"#).unwrap();
 
         let mut ai = JouleDbAi::new();
@@ -669,7 +680,9 @@ mod tests {
     fn test_energy_budget_respected() {
         let mut store = AmorphicStore::new();
         for i in 0..20 {
-            store.ingest_json(&format!(r#"{{"name": "item_{}", "score": {}}}"#, i, i)).unwrap();
+            store
+                .ingest_json(&format!(r#"{{"name": "item_{}", "score": {}}}"#, i, i))
+                .unwrap();
         }
 
         let mut ai = JouleDbAi::new();
@@ -686,7 +699,9 @@ mod tests {
         let mut store = AmorphicStore::new();
 
         // High-coverage field (present in 3/4)
-        store.ingest_json(r#"{"name": "A", "genre": "x", "rare": "y"}"#).unwrap();
+        store
+            .ingest_json(r#"{"name": "A", "genre": "x", "rare": "y"}"#)
+            .unwrap();
         store.ingest_json(r#"{"name": "B", "genre": "x"}"#).unwrap();
         store.ingest_json(r#"{"name": "C", "genre": "x"}"#).unwrap();
         store.ingest_json(r#"{"name": "D"}"#).unwrap();

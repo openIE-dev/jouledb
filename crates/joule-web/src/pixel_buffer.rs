@@ -34,8 +34,16 @@ impl PixelFormat {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PixelBufferError {
-    OutOfBounds { x: u32, y: u32, width: u32, height: u32 },
-    DimensionMismatch { expected: usize, actual: usize },
+    OutOfBounds {
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    },
+    DimensionMismatch {
+        expected: usize,
+        actual: usize,
+    },
     InvalidRegion,
     FormatMismatch,
 }
@@ -43,7 +51,12 @@ pub enum PixelBufferError {
 impl std::fmt::Display for PixelBufferError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::OutOfBounds { x, y, width, height } => {
+            Self::OutOfBounds {
+                x,
+                y,
+                width,
+                height,
+            } => {
                 write!(f, "pixel ({x},{y}) out of bounds ({width}x{height})")
             }
             Self::DimensionMismatch { expected, actual } => {
@@ -78,7 +91,12 @@ impl Color {
     }
 
     pub const fn gray(v: u8) -> Self {
-        Self { r: v, g: v, b: v, a: 255 }
+        Self {
+            r: v,
+            g: v,
+            b: v,
+            a: 255,
+        }
     }
 
     pub const WHITE: Self = Self::new(255, 255, 255, 255);
@@ -106,7 +124,12 @@ impl PixelBuffer {
     /// Create a zeroed buffer.
     pub fn new(width: u32, height: u32, format: PixelFormat) -> Self {
         let len = width as usize * height as usize * format.bytes_per_pixel();
-        Self { width, height, format, data: vec![0u8; len] }
+        Self {
+            width,
+            height,
+            format,
+            data: vec![0u8; len],
+        }
     }
 
     /// Create from existing data.
@@ -123,7 +146,12 @@ impl PixelBuffer {
                 actual: data.len(),
             });
         }
-        Ok(Self { width, height, format, data })
+        Ok(Self {
+            width,
+            height,
+            format,
+            data,
+        })
     }
 
     pub fn width(&self) -> u32 {
@@ -158,9 +186,12 @@ impl PixelBuffer {
     pub fn get_pixel(&self, x: u32, y: u32) -> Result<Color, PixelBufferError> {
         let off = self.offset(x, y)?;
         Ok(match self.format {
-            PixelFormat::Rgba => {
-                Color::new(self.data[off], self.data[off + 1], self.data[off + 2], self.data[off + 3])
-            }
+            PixelFormat::Rgba => Color::new(
+                self.data[off],
+                self.data[off + 1],
+                self.data[off + 2],
+                self.data[off + 3],
+            ),
             PixelFormat::Rgb => Color::rgb(self.data[off], self.data[off + 1], self.data[off + 2]),
             PixelFormat::Grayscale => Color::gray(self.data[off]),
         })

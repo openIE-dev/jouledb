@@ -9,7 +9,7 @@
 use proptest::prelude::*;
 
 use crate::ledger::{EnergyLedger, OperationalLayer};
-use crate::receipt::{EnergyReceipt, MemoryTier, SiliconType, MeasurementSource};
+use crate::receipt::{EnergyReceipt, MeasurementSource, MemoryTier, SiliconType};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Strategies

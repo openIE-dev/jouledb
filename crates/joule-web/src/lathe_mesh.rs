@@ -45,7 +45,11 @@ impl Vec3 {
     }
     pub fn normalized(&self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { Self::new(self.x / len, self.y / len, self.z / len) }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            Self::new(self.x / len, self.y / len, self.z / len)
+        }
     }
     pub fn add(&self, o: &Self) -> Self {
         Self::new(self.x + o.x, self.y + o.y, self.z + o.z)
@@ -202,7 +206,11 @@ pub fn generate_lathe(config: &LatheConfig) -> LatheMesh {
         profile_dists.push(profile_dists[i - 1] + d);
     }
     let total_profile_len = *profile_dists.last().unwrap_or(&1.0);
-    let total_profile_len = if total_profile_len < 1e-12 { 1.0 } else { total_profile_len };
+    let total_profile_len = if total_profile_len < 1e-12 {
+        1.0
+    } else {
+        total_profile_len
+    };
 
     let mut vertices = Vec::new();
     let mut normals = Vec::new();
@@ -250,11 +258,19 @@ pub fn generate_lathe(config: &LatheConfig) -> LatheMesh {
 
     // Build indices for the side surface
     let mut indices = Vec::new();
-    let edge_count_profile = if config.closed_profile { p_len } else { p_len - 1 };
+    let edge_count_profile = if config.closed_profile {
+        p_len
+    } else {
+        p_len - 1
+    };
 
     for ri in 0..segs {
         let cur_ring = if is_full { ri % ring_count } else { ri };
-        let next_ring = if is_full { (ri + 1) % ring_count } else { ri + 1 };
+        let next_ring = if is_full {
+            (ri + 1) % ring_count
+        } else {
+            ri + 1
+        };
 
         for pi in 0..edge_count_profile {
             let next_pi = (pi + 1) % p_len;
@@ -309,7 +325,11 @@ pub fn generate_lathe(config: &LatheConfig) -> LatheMesh {
         let cos_e = end_angle.cos();
         let sin_e = end_angle.sin();
         let cap_center_end = vertices.len() as u32;
-        vertices.push(Vec3::new(centroid_x * cos_e, centroid_y, centroid_x * sin_e));
+        vertices.push(Vec3::new(
+            centroid_x * cos_e,
+            centroid_y,
+            centroid_x * sin_e,
+        ));
         normals.push(Vec3::new(-sin_e, 0.0, cos_e).normalized());
         uvs.push([0.5, 0.5]);
 
@@ -339,8 +359,7 @@ pub fn lathe_volume(mesh: &LatheMesh) -> f64 {
         let b = mesh.vertices[tri[1] as usize];
         let c = mesh.vertices[tri[2] as usize];
         // Signed volume of tetrahedron formed by triangle and origin
-        vol += a.x * (b.y * c.z - c.y * b.z)
-            - b.x * (a.y * c.z - c.y * a.z)
+        vol += a.x * (b.y * c.z - c.y * b.z) - b.x * (a.y * c.z - c.y * a.z)
             + c.x * (a.y * b.z - b.y * a.z);
     }
     (vol / 6.0).abs()
@@ -373,10 +392,7 @@ mod tests {
 
     /// Simple rectangle profile: a cylinder outline
     fn cylinder_profile(radius: f64, height: f64) -> Vec<Vec2> {
-        vec![
-            Vec2::new(radius, 0.0),
-            Vec2::new(radius, height),
-        ]
+        vec![Vec2::new(radius, 0.0), Vec2::new(radius, height)]
     }
 
     /// Circle profile for a torus-like shape
@@ -384,7 +400,10 @@ mod tests {
         let mut pts = Vec::with_capacity(n);
         for i in 0..n {
             let angle = 2.0 * PI * i as f64 / n as f64;
-            pts.push(Vec2::new(center_x + radius * angle.cos(), radius * angle.sin()));
+            pts.push(Vec2::new(
+                center_x + radius * angle.cos(),
+                radius * angle.sin(),
+            ));
         }
         pts
     }
@@ -426,8 +445,7 @@ mod tests {
 
     #[test]
     fn test_partial_sweep_vertex_count() {
-        let config = LatheConfig::new(cylinder_profile(1.0, 2.0), 8)
-            .with_sweep(PI); // half revolution
+        let config = LatheConfig::new(cylinder_profile(1.0, 2.0), 8).with_sweep(PI); // half revolution
         let mesh = generate_lathe(&config);
         // Partial: (8+1) rings × 2 = 18 + 2 cap centers
         assert_eq!(mesh.vertex_count(), 9 * 2 + 2);
@@ -449,11 +467,9 @@ mod tests {
 
     #[test]
     fn test_full_sweep_no_caps() {
-        let config = LatheConfig::new(cylinder_profile(1.0, 2.0), 16)
-            .with_caps(true);
+        let config = LatheConfig::new(cylinder_profile(1.0, 2.0), 16).with_caps(true);
         let mesh = generate_lathe(&config);
-        let config2 = LatheConfig::new(cylinder_profile(1.0, 2.0), 16)
-            .with_caps(false);
+        let config2 = LatheConfig::new(cylinder_profile(1.0, 2.0), 16).with_caps(false);
         let mesh2 = generate_lathe(&config2);
         // Full revolution should not add caps regardless of setting
         assert_eq!(mesh.triangle_count(), mesh2.triangle_count());
@@ -461,8 +477,8 @@ mod tests {
 
     #[test]
     fn test_flat_shading() {
-        let config = LatheConfig::new(cylinder_profile(1.0, 2.0), 8)
-            .with_shading(ShadingMode::Flat);
+        let config =
+            LatheConfig::new(cylinder_profile(1.0, 2.0), 8).with_shading(ShadingMode::Flat);
         let mesh = generate_lathe(&config);
         // Normals should be computed (not all zero)
         let has_nonzero = mesh.normals.iter().any(|n| n.length() > 0.5);
@@ -504,8 +520,7 @@ mod tests {
     #[test]
     fn test_closed_profile() {
         let profile = circle_profile(0.3, 1.5, 8);
-        let config = LatheConfig::new(profile, 16)
-            .with_closed_profile(true);
+        let config = LatheConfig::new(profile, 16).with_closed_profile(true);
         let mesh = generate_lathe(&config);
         // Closed profile: 16 segments × 8 edges × 2 tris = 256
         assert_eq!(mesh.triangle_count(), 16 * 8 * 2);
@@ -561,8 +576,7 @@ mod tests {
             Vec2::new(1.0, 2.0),
             Vec2::new(0.0, 2.0),
         ];
-        let config = LatheConfig::new(profile, 64)
-            .with_closed_profile(true);
+        let config = LatheConfig::new(profile, 64).with_closed_profile(true);
         let mesh = generate_lathe(&config);
         let vol = lathe_volume(&mesh);
         assert!(approx(vol, PI * 2.0, 0.5));
@@ -570,8 +584,7 @@ mod tests {
 
     #[test]
     fn test_sweep_quarter_turn() {
-        let config = LatheConfig::new(cylinder_profile(1.0, 1.0), 8)
-            .with_sweep(PI / 2.0);
+        let config = LatheConfig::new(cylinder_profile(1.0, 1.0), 8).with_sweep(PI / 2.0);
         let mesh = generate_lathe(&config);
         // All vertices should be in the positive X-Z quadrant (approximately)
         let ring_count = 9; // 8+1 for partial

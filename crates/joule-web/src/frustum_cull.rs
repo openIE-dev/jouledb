@@ -13,15 +13,57 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0, z: 0.0 } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z } }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
-    pub fn min_comp(self, o: Self) -> Self { Self { x: self.x.min(o.x), y: self.y.min(o.y), z: self.z.min(o.z) } }
-    pub fn max_comp(self, o: Self) -> Self { Self { x: self.x.max(o.x), y: self.y.max(o.y), z: self.z.max(o.z) } }
-    pub fn length(self) -> f64 { self.dot(self).sqrt() }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
+    pub fn min_comp(self, o: Self) -> Self {
+        Self {
+            x: self.x.min(o.x),
+            y: self.y.min(o.y),
+            z: self.z.min(o.z),
+        }
+    }
+    pub fn max_comp(self, o: Self) -> Self {
+        Self {
+            x: self.x.max(o.x),
+            y: self.y.max(o.y),
+            z: self.z.max(o.z),
+        }
+    }
+    pub fn length(self) -> f64 {
+        self.dot(self).sqrt()
+    }
 }
 
 // ── Mat4 ─────────────────────────────────────────────────────
@@ -33,12 +75,14 @@ pub struct Mat4 {
 
 impl Mat4 {
     pub fn identity() -> Self {
-        Self { m: [
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ]}
+        Self {
+            m: [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+        }
     }
 
     pub fn mul(self, o: Self) -> Self {
@@ -57,12 +101,14 @@ impl Mat4 {
     pub fn perspective(fov_y_rad: f64, aspect: f64, near: f64, far: f64) -> Self {
         let f = 1.0 / (fov_y_rad * 0.5).tan();
         let nf = 1.0 / (near - far);
-        Self { m: [
-            [f / aspect, 0.0,  0.0,           0.0],
-            [0.0,        f,    0.0,           0.0],
-            [0.0,        0.0,  far * nf,      near * far * nf],
-            [0.0,        0.0, -1.0,           0.0],
-        ]}
+        Self {
+            m: [
+                [f / aspect, 0.0, 0.0, 0.0],
+                [0.0, f, 0.0, 0.0],
+                [0.0, 0.0, far * nf, near * far * nf],
+                [0.0, 0.0, -1.0, 0.0],
+            ],
+        }
     }
 
     /// Build a look-at view matrix.
@@ -70,7 +116,11 @@ impl Mat4 {
         let f = {
             let d = target.sub(eye);
             let l = d.length();
-            if l < 1e-12 { Vec3::new(0.0, 0.0, -1.0) } else { d.scale(1.0 / l) }
+            if l < 1e-12 {
+                Vec3::new(0.0, 0.0, -1.0)
+            } else {
+                d.scale(1.0 / l)
+            }
         };
         let r = {
             let c = Vec3::new(
@@ -79,19 +129,25 @@ impl Mat4 {
                 f.x * up.y - f.y * up.x,
             );
             let l = c.length();
-            if l < 1e-12 { Vec3::new(1.0, 0.0, 0.0) } else { c.scale(1.0 / l) }
+            if l < 1e-12 {
+                Vec3::new(1.0, 0.0, 0.0)
+            } else {
+                c.scale(1.0 / l)
+            }
         };
         let u = Vec3::new(
             r.y * f.z - r.z * f.y,
             r.z * f.x - r.x * f.z,
             r.x * f.y - r.y * f.x,
         );
-        Self { m: [
-            [r.x,  r.y,  r.z,  -r.dot(eye)],
-            [u.x,  u.y,  u.z,  -u.dot(eye)],
-            [-f.x, -f.y, -f.z, f.dot(eye)],
-            [0.0,  0.0,  0.0,  1.0],
-        ]}
+        Self {
+            m: [
+                [r.x, r.y, r.z, -r.dot(eye)],
+                [u.x, u.y, u.z, -u.dot(eye)],
+                [-f.x, -f.y, -f.z, f.dot(eye)],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+        }
     }
 }
 
@@ -104,9 +160,15 @@ pub struct Aabb {
 }
 
 impl Aabb {
-    pub fn new(min: Vec3, max: Vec3) -> Self { Self { min, max } }
-    pub fn center(&self) -> Vec3 { self.min.add(self.max).scale(0.5) }
-    pub fn half_extents(&self) -> Vec3 { self.max.sub(self.min).scale(0.5) }
+    pub fn new(min: Vec3, max: Vec3) -> Self {
+        Self { min, max }
+    }
+    pub fn center(&self) -> Vec3 {
+        self.min.add(self.max).scale(0.5)
+    }
+    pub fn half_extents(&self) -> Vec3 {
+        self.max.sub(self.min).scale(0.5)
+    }
 }
 
 // ── BoundingSphere ───────────────────────────────────────────
@@ -126,7 +188,9 @@ pub struct Plane {
 }
 
 impl Plane {
-    pub fn new(normal: Vec3, distance: f64) -> Self { Self { normal, distance } }
+    pub fn new(normal: Vec3, distance: f64) -> Self {
+        Self { normal, distance }
+    }
 
     pub fn normalize(&mut self) {
         let len = self.normal.length();
@@ -161,19 +225,33 @@ pub struct CullStats {
 }
 
 impl CullStats {
-    pub fn new() -> Self { Self { tested: 0, visible: 0, culled: 0, intersecting: 0 } }
+    pub fn new() -> Self {
+        Self {
+            tested: 0,
+            visible: 0,
+            culled: 0,
+            intersecting: 0,
+        }
+    }
 
     pub fn record(&mut self, result: CullResult) {
         self.tested += 1;
         match result {
             CullResult::Inside => self.visible += 1,
             CullResult::Outside => self.culled += 1,
-            CullResult::Intersecting => { self.visible += 1; self.intersecting += 1; }
+            CullResult::Intersecting => {
+                self.visible += 1;
+                self.intersecting += 1;
+            }
         }
     }
 
     pub fn cull_ratio(&self) -> f64 {
-        if self.tested == 0 { 0.0 } else { self.culled as f64 / self.tested as f64 }
+        if self.tested == 0 {
+            0.0
+        } else {
+            self.culled as f64 / self.tested as f64
+        }
     }
 }
 
@@ -197,9 +275,7 @@ impl Frustum {
     /// Extract frustum planes from a combined view-projection matrix (row-major).
     /// Griggs-Hartmann method.
     pub fn from_view_projection(vp: &Mat4) -> Self {
-        let row = |r: usize| -> [f64; 4] {
-            [vp.m[r][0], vp.m[r][1], vp.m[r][2], vp.m[r][3]]
-        };
+        let row = |r: usize| -> [f64; 4] { [vp.m[r][0], vp.m[r][1], vp.m[r][2], vp.m[r][3]] };
         let r0 = row(0);
         let r1 = row(1);
         let r2 = row(2);
@@ -209,36 +285,38 @@ impl Frustum {
 
         // Left:   row3 + row0
         planes[PLANE_LEFT] = Plane::new(
-            Vec3::new(r3[0]+r0[0], r3[1]+r0[1], r3[2]+r0[2]),
-            r3[3]+r0[3],
+            Vec3::new(r3[0] + r0[0], r3[1] + r0[1], r3[2] + r0[2]),
+            r3[3] + r0[3],
         );
         // Right:  row3 - row0
         planes[PLANE_RIGHT] = Plane::new(
-            Vec3::new(r3[0]-r0[0], r3[1]-r0[1], r3[2]-r0[2]),
-            r3[3]-r0[3],
+            Vec3::new(r3[0] - r0[0], r3[1] - r0[1], r3[2] - r0[2]),
+            r3[3] - r0[3],
         );
         // Bottom: row3 + row1
         planes[PLANE_BOTTOM] = Plane::new(
-            Vec3::new(r3[0]+r1[0], r3[1]+r1[1], r3[2]+r1[2]),
-            r3[3]+r1[3],
+            Vec3::new(r3[0] + r1[0], r3[1] + r1[1], r3[2] + r1[2]),
+            r3[3] + r1[3],
         );
         // Top:    row3 - row1
         planes[PLANE_TOP] = Plane::new(
-            Vec3::new(r3[0]-r1[0], r3[1]-r1[1], r3[2]-r1[2]),
-            r3[3]-r1[3],
+            Vec3::new(r3[0] - r1[0], r3[1] - r1[1], r3[2] - r1[2]),
+            r3[3] - r1[3],
         );
         // Near:   row3 + row2
         planes[PLANE_NEAR] = Plane::new(
-            Vec3::new(r3[0]+r2[0], r3[1]+r2[1], r3[2]+r2[2]),
-            r3[3]+r2[3],
+            Vec3::new(r3[0] + r2[0], r3[1] + r2[1], r3[2] + r2[2]),
+            r3[3] + r2[3],
         );
         // Far:    row3 - row2
         planes[PLANE_FAR] = Plane::new(
-            Vec3::new(r3[0]-r2[0], r3[1]-r2[1], r3[2]-r2[2]),
-            r3[3]-r2[3],
+            Vec3::new(r3[0] - r2[0], r3[1] - r2[1], r3[2] - r2[2]),
+            r3[3] - r2[3],
         );
 
-        for p in &mut planes { p.normalize(); }
+        for p in &mut planes {
+            p.normalize();
+        }
         Self { planes }
     }
 
@@ -264,7 +342,11 @@ impl Frustum {
                 all_inside = false;
             }
         }
-        if all_inside { CullResult::Inside } else { CullResult::Intersecting }
+        if all_inside {
+            CullResult::Inside
+        } else {
+            CullResult::Intersecting
+        }
     }
 
     /// Test an AABB against the frustum.
@@ -273,14 +355,38 @@ impl Frustum {
         for plane in &self.planes {
             // Find p-vertex (most positive along normal) and n-vertex
             let p_vertex = Vec3::new(
-                if plane.normal.x >= 0.0 { aabb.max.x } else { aabb.min.x },
-                if plane.normal.y >= 0.0 { aabb.max.y } else { aabb.min.y },
-                if plane.normal.z >= 0.0 { aabb.max.z } else { aabb.min.z },
+                if plane.normal.x >= 0.0 {
+                    aabb.max.x
+                } else {
+                    aabb.min.x
+                },
+                if plane.normal.y >= 0.0 {
+                    aabb.max.y
+                } else {
+                    aabb.min.y
+                },
+                if plane.normal.z >= 0.0 {
+                    aabb.max.z
+                } else {
+                    aabb.min.z
+                },
             );
             let n_vertex = Vec3::new(
-                if plane.normal.x >= 0.0 { aabb.min.x } else { aabb.max.x },
-                if plane.normal.y >= 0.0 { aabb.min.y } else { aabb.max.y },
-                if plane.normal.z >= 0.0 { aabb.min.z } else { aabb.max.z },
+                if plane.normal.x >= 0.0 {
+                    aabb.min.x
+                } else {
+                    aabb.max.x
+                },
+                if plane.normal.y >= 0.0 {
+                    aabb.min.y
+                } else {
+                    aabb.max.y
+                },
+                if plane.normal.z >= 0.0 {
+                    aabb.min.z
+                } else {
+                    aabb.max.z
+                },
             );
             if plane.distance_to_point(p_vertex) < 0.0 {
                 return CullResult::Outside;
@@ -289,7 +395,11 @@ impl Frustum {
                 all_inside = false;
             }
         }
-        if all_inside { CullResult::Inside } else { CullResult::Intersecting }
+        if all_inside {
+            CullResult::Inside
+        } else {
+            CullResult::Intersecting
+        }
     }
 
     /// Test AABB with a plane mask to skip already-known-inside planes.
@@ -300,17 +410,43 @@ impl Frustum {
         let mut out_mask = in_mask;
         let mut all_inside = true;
         for i in 0..6 {
-            if in_mask & (1 << i) == 0 { continue; }
+            if in_mask & (1 << i) == 0 {
+                continue;
+            }
             let plane = &self.planes[i];
             let p_vertex = Vec3::new(
-                if plane.normal.x >= 0.0 { aabb.max.x } else { aabb.min.x },
-                if plane.normal.y >= 0.0 { aabb.max.y } else { aabb.min.y },
-                if plane.normal.z >= 0.0 { aabb.max.z } else { aabb.min.z },
+                if plane.normal.x >= 0.0 {
+                    aabb.max.x
+                } else {
+                    aabb.min.x
+                },
+                if plane.normal.y >= 0.0 {
+                    aabb.max.y
+                } else {
+                    aabb.min.y
+                },
+                if plane.normal.z >= 0.0 {
+                    aabb.max.z
+                } else {
+                    aabb.min.z
+                },
             );
             let n_vertex = Vec3::new(
-                if plane.normal.x >= 0.0 { aabb.min.x } else { aabb.max.x },
-                if plane.normal.y >= 0.0 { aabb.min.y } else { aabb.max.y },
-                if plane.normal.z >= 0.0 { aabb.min.z } else { aabb.max.z },
+                if plane.normal.x >= 0.0 {
+                    aabb.min.x
+                } else {
+                    aabb.max.x
+                },
+                if plane.normal.y >= 0.0 {
+                    aabb.min.y
+                } else {
+                    aabb.max.y
+                },
+                if plane.normal.z >= 0.0 {
+                    aabb.min.z
+                } else {
+                    aabb.max.z
+                },
             );
             if plane.distance_to_point(p_vertex) < 0.0 {
                 return (CullResult::Outside, in_mask);
@@ -322,7 +458,11 @@ impl Frustum {
                 all_inside = false;
             }
         }
-        let result = if all_inside { CullResult::Inside } else { CullResult::Intersecting };
+        let result = if all_inside {
+            CullResult::Inside
+        } else {
+            CullResult::Intersecting
+        };
         (result, out_mask)
     }
 }
@@ -337,17 +477,23 @@ pub struct BvhNode {
 
 #[derive(Debug, Clone)]
 pub enum BvhChildren {
-    Leaf(Vec<usize>),           // indices into objects array
+    Leaf(Vec<usize>), // indices into objects array
     Interior(Vec<BvhNode>),
 }
 
 impl BvhNode {
     pub fn leaf(aabb: Aabb, objects: Vec<usize>) -> Self {
-        Self { aabb, children: BvhChildren::Leaf(objects) }
+        Self {
+            aabb,
+            children: BvhChildren::Leaf(objects),
+        }
     }
 
     pub fn interior(aabb: Aabb, children: Vec<BvhNode>) -> Self {
-        Self { aabb, children: BvhChildren::Interior(children) }
+        Self {
+            aabb,
+            children: BvhChildren::Interior(children),
+        }
     }
 }
 
@@ -356,7 +502,12 @@ pub fn cull_bvh(frustum: &Frustum, node: &BvhNode, stats: &mut CullStats) -> Vec
     cull_bvh_masked(frustum, node, 0x3F, stats)
 }
 
-fn cull_bvh_masked(frustum: &Frustum, node: &BvhNode, mask: u8, stats: &mut CullStats) -> Vec<usize> {
+fn cull_bvh_masked(
+    frustum: &Frustum,
+    node: &BvhNode,
+    mask: u8,
+    stats: &mut CullStats,
+) -> Vec<usize> {
     let (result, child_mask) = frustum.test_aabb_masked(&node.aabb, mask);
     stats.record(result);
 
@@ -366,18 +517,16 @@ fn cull_bvh_masked(frustum: &Frustum, node: &BvhNode, mask: u8, stats: &mut Cull
             // Everything inside — collect all leaves
             collect_all_leaves(node)
         }
-        CullResult::Intersecting => {
-            match &node.children {
-                BvhChildren::Leaf(objects) => objects.clone(),
-                BvhChildren::Interior(children) => {
-                    let mut visible = Vec::new();
-                    for child in children {
-                        visible.extend(cull_bvh_masked(frustum, child, child_mask, stats));
-                    }
-                    visible
+        CullResult::Intersecting => match &node.children {
+            BvhChildren::Leaf(objects) => objects.clone(),
+            BvhChildren::Interior(children) => {
+                let mut visible = Vec::new();
+                for child in children {
+                    visible.extend(cull_bvh_masked(frustum, child, child_mask, stats));
                 }
+                visible
             }
-        }
+        },
     }
 }
 
@@ -396,7 +545,9 @@ fn collect_all_leaves(node: &BvhNode) -> Vec<usize> {
 
 /// Build a simple BVH from a list of AABBs (median split on longest axis).
 pub fn build_bvh(aabbs: &[Aabb], max_leaf_size: usize) -> Option<BvhNode> {
-    if aabbs.is_empty() { return None; }
+    if aabbs.is_empty() {
+        return None;
+    }
     let indices: Vec<usize> = (0..aabbs.len()).collect();
     Some(build_bvh_recursive(aabbs, &indices, max_leaf_size))
 }
@@ -417,16 +568,28 @@ fn build_bvh_recursive(aabbs: &[Aabb], indices: &[usize], max_leaf_size: usize) 
 
     // Split on longest axis
     let extent = enclosing.max.sub(enclosing.min);
-    let axis = if extent.x >= extent.y && extent.x >= extent.z { 0 }
-               else if extent.y >= extent.z { 1 }
-               else { 2 };
+    let axis = if extent.x >= extent.y && extent.x >= extent.z {
+        0
+    } else if extent.y >= extent.z {
+        1
+    } else {
+        2
+    };
 
     let mut sorted = indices.to_vec();
     sorted.sort_by(|&a, &b| {
         let ca = aabbs[a].center();
         let cb = aabbs[b].center();
-        let va = match axis { 0 => ca.x, 1 => ca.y, _ => ca.z };
-        let vb = match axis { 0 => cb.x, 1 => cb.y, _ => cb.z };
+        let va = match axis {
+            0 => ca.x,
+            1 => ca.y,
+            _ => ca.z,
+        };
+        let vb = match axis {
+            0 => cb.x,
+            1 => cb.y,
+            _ => cb.z,
+        };
         va.partial_cmp(&vb).unwrap_or(std::cmp::Ordering::Equal)
     });
 
@@ -464,7 +627,11 @@ mod tests {
         let f = make_test_frustum();
         for p in &f.planes {
             let len = p.normal.length();
-            assert!((len - 1.0).abs() < 1e-6, "plane normal should be unit, got {}", len);
+            assert!(
+                (len - 1.0).abs() < 1e-6,
+                "plane normal should be unit, got {}",
+                len
+            );
         }
     }
 
@@ -492,7 +659,10 @@ mod tests {
     #[test]
     fn test_sphere_inside() {
         let f = make_test_frustum();
-        let s = BoundingSphere { center: Vec3::zero(), radius: 0.1 };
+        let s = BoundingSphere {
+            center: Vec3::zero(),
+            radius: 0.1,
+        };
         let result = f.test_sphere(&s);
         assert_ne!(result, CullResult::Outside);
     }
@@ -500,7 +670,10 @@ mod tests {
     #[test]
     fn test_sphere_outside() {
         let f = make_test_frustum();
-        let s = BoundingSphere { center: Vec3::new(0.0, 0.0, 200.0), radius: 1.0 };
+        let s = BoundingSphere {
+            center: Vec3::new(0.0, 0.0, 200.0),
+            radius: 1.0,
+        };
         assert_eq!(f.test_sphere(&s), CullResult::Outside);
     }
 
@@ -515,7 +688,10 @@ mod tests {
     #[test]
     fn test_aabb_outside() {
         let f = make_test_frustum();
-        let aabb = Aabb::new(Vec3::new(100.0, 100.0, 100.0), Vec3::new(101.0, 101.0, 101.0));
+        let aabb = Aabb::new(
+            Vec3::new(100.0, 100.0, 100.0),
+            Vec3::new(101.0, 101.0, 101.0),
+        );
         assert_eq!(f.test_aabb(&aabb), CullResult::Outside);
     }
 
@@ -532,9 +708,15 @@ mod tests {
     fn test_cull_stats() {
         let f = make_test_frustum();
         let mut stats = CullStats::new();
-        let r1 = f.test_aabb(&Aabb::new(Vec3::new(-0.1, -0.1, -0.1), Vec3::new(0.1, 0.1, 0.1)));
+        let r1 = f.test_aabb(&Aabb::new(
+            Vec3::new(-0.1, -0.1, -0.1),
+            Vec3::new(0.1, 0.1, 0.1),
+        ));
         stats.record(r1);
-        let r2 = f.test_aabb(&Aabb::new(Vec3::new(200.0, 200.0, 200.0), Vec3::new(201.0, 201.0, 201.0)));
+        let r2 = f.test_aabb(&Aabb::new(
+            Vec3::new(200.0, 200.0, 200.0),
+            Vec3::new(201.0, 201.0, 201.0),
+        ));
         stats.record(r2);
         assert_eq!(stats.tested, 2);
         assert_eq!(stats.culled, 1);
@@ -560,7 +742,10 @@ mod tests {
     #[test]
     fn test_masked_cull_outside() {
         let f = make_test_frustum();
-        let aabb = Aabb::new(Vec3::new(200.0, 200.0, 200.0), Vec3::new(201.0, 201.0, 201.0));
+        let aabb = Aabb::new(
+            Vec3::new(200.0, 200.0, 200.0),
+            Vec3::new(201.0, 201.0, 201.0),
+        );
         let (result, _) = f.test_aabb_masked(&aabb, 0x3F);
         assert_eq!(result, CullResult::Outside);
     }
@@ -581,9 +766,10 @@ mod tests {
 
     #[test]
     fn test_bvh_leaf() {
-        let aabbs = vec![
-            Aabb::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 1.0, 1.0)),
-        ];
+        let aabbs = vec![Aabb::new(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 1.0, 1.0),
+        )];
         let bvh = build_bvh(&aabbs, 2).unwrap();
         match &bvh.children {
             BvhChildren::Leaf(objs) => assert_eq!(objs.len(), 1),
@@ -595,8 +781,11 @@ mod tests {
     fn test_hierarchical_cull() {
         let f = make_test_frustum();
         let aabbs = vec![
-            Aabb::new(Vec3::new(-0.1, -0.1, -0.1), Vec3::new(0.1, 0.1, 0.1)),     // inside
-            Aabb::new(Vec3::new(200.0, 200.0, 200.0), Vec3::new(201.0, 201.0, 201.0)), // outside
+            Aabb::new(Vec3::new(-0.1, -0.1, -0.1), Vec3::new(0.1, 0.1, 0.1)), // inside
+            Aabb::new(
+                Vec3::new(200.0, 200.0, 200.0),
+                Vec3::new(201.0, 201.0, 201.0),
+            ), // outside
         ];
         let bvh = build_bvh(&aabbs, 1).unwrap();
         let mut stats = CullStats::new();
@@ -616,7 +805,10 @@ mod tests {
         let node = BvhNode::interior(
             Aabb::new(Vec3::zero(), Vec3::new(1.0, 1.0, 1.0)),
             vec![
-                BvhNode::leaf(Aabb::new(Vec3::zero(), Vec3::new(0.5, 0.5, 0.5)), vec![0, 1]),
+                BvhNode::leaf(
+                    Aabb::new(Vec3::zero(), Vec3::new(0.5, 0.5, 0.5)),
+                    vec![0, 1],
+                ),
                 BvhNode::leaf(Aabb::new(Vec3::zero(), Vec3::new(1.0, 1.0, 1.0)), vec![2]),
             ],
         );
@@ -642,7 +834,10 @@ mod tests {
     #[test]
     fn test_sphere_large_radius_intersecting() {
         let f = make_test_frustum();
-        let s = BoundingSphere { center: Vec3::new(0.0, 100.0, 0.0), radius: 200.0 };
+        let s = BoundingSphere {
+            center: Vec3::new(0.0, 100.0, 0.0),
+            radius: 200.0,
+        };
         let result = f.test_sphere(&s);
         assert_ne!(result, CullResult::Outside);
     }

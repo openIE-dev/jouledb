@@ -88,7 +88,11 @@ impl Heightmap {
 
     pub fn from_data(width: usize, height: usize, data: Vec<f64>) -> Self {
         assert_eq!(data.len(), width * height);
-        Self { width, height, data }
+        Self {
+            width,
+            height,
+            data,
+        }
     }
 
     pub fn get(&self, x: usize, y: usize) -> f64 {
@@ -160,8 +164,12 @@ impl Heightmap {
         let mut lo = f64::MAX;
         let mut hi = f64::MIN;
         for &v in &self.data {
-            if v < lo { lo = v; }
-            if v > hi { hi = v; }
+            if v < lo {
+                lo = v;
+            }
+            if v > hi {
+                hi = v;
+            }
         }
         (lo, hi)
     }
@@ -170,7 +178,9 @@ impl Heightmap {
     pub fn normalize(&mut self) {
         let (lo, hi) = self.min_max();
         let range = hi - lo;
-        if range.abs() < 1e-12 { return; }
+        if range.abs() < 1e-12 {
+            return;
+        }
         for v in &mut self.data {
             *v = (*v - lo) / range;
         }
@@ -184,7 +194,9 @@ pub struct ErosionSim {
 
 impl fmt::Debug for ErosionSim {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ErosionSim").field("config", &self.config).finish()
+        f.debug_struct("ErosionSim")
+            .field("config", &self.config)
+            .finish()
     }
 }
 
@@ -199,7 +211,9 @@ impl ErosionSim {
 
     /// Simple seeded RNG.
     fn next_rng(state: &mut u64) -> f64 {
-        *state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        *state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         (*state >> 33) as f64 / (u32::MAX as f64)
     }
 
@@ -207,7 +221,9 @@ impl ErosionSim {
     pub fn erode(&self, heightmap: &mut Heightmap) {
         let w = heightmap.width;
         let h = heightmap.height;
-        if w < 3 || h < 3 { return; }
+        if w < 3 || h < 3 {
+            return;
+        }
 
         let mut rng_state = self.config.seed;
 
@@ -243,7 +259,9 @@ impl ErosionSim {
                     dir_x = Self::next_rng(&mut rng_state) * 2.0 - 1.0;
                     dir_y = Self::next_rng(&mut rng_state) * 2.0 - 1.0;
                     let dl = (dir_x * dir_x + dir_y * dir_y).sqrt();
-                    if dl < 1e-10 { break; }
+                    if dl < 1e-10 {
+                        break;
+                    }
                     dir_x /= dl;
                     dir_y /= dl;
                 } else {
@@ -254,8 +272,7 @@ impl ErosionSim {
                 let new_x = px + dir_x;
                 let new_y = py + dir_y;
 
-                if new_x < 1.0 || new_x >= (w - 2) as f64
-                    || new_y < 1.0 || new_y >= (h - 2) as f64
+                if new_x < 1.0 || new_x >= (w - 2) as f64 || new_y < 1.0 || new_y >= (h - 2) as f64
                 {
                     break;
                 }
@@ -263,7 +280,9 @@ impl ErosionSim {
                 let new_height = heightmap.sample(new_x, new_y);
                 let height_diff = new_height - old_height;
 
-                let sed_capacity = ((-height_diff).max(0.0) * speed * water
+                let sed_capacity = ((-height_diff).max(0.0)
+                    * speed
+                    * water
                     * self.config.sediment_capacity_factor)
                     .max(self.config.min_sediment_capacity);
 
@@ -284,8 +303,8 @@ impl ErosionSim {
                     heightmap.data[(iy + 1) * w + ix + 1] += deposit * fx * fy;
                 } else {
                     // Erode
-                    let erode_amount = ((sed_capacity - sediment) * self.config.erosion_rate)
-                        .min(-height_diff);
+                    let erode_amount =
+                        ((sed_capacity - sediment) * self.config.erosion_rate).min(-height_diff);
                     let radius = self.config.erosion_radius as i64;
                     let mut weight_sum = 0.0;
                     let mut affected: Vec<(usize, f64)> = Vec::new();
@@ -322,7 +341,9 @@ impl ErosionSim {
                 px = new_x;
                 py = new_y;
 
-                if water < 0.001 { break; }
+                if water < 0.001 {
+                    break;
+                }
             }
         }
     }
@@ -331,12 +352,19 @@ impl ErosionSim {
     pub fn thermal_erode(heightmap: &mut Heightmap, config: &ThermalConfig) {
         let w = heightmap.width;
         let h = heightmap.height;
-        if w < 3 || h < 3 { return; }
+        if w < 3 || h < 3 {
+            return;
+        }
 
         let neighbors: [(i64, i64); 8] = [
-            (-1, -1), (0, -1), (1, -1),
-            (-1, 0),           (1, 0),
-            (-1, 1),  (0, 1),  (1, 1),
+            (-1, -1),
+            (0, -1),
+            (1, -1),
+            (-1, 0),
+            (1, 0),
+            (-1, 1),
+            (0, 1),
+            (1, 1),
         ];
 
         for _ in 0..config.iterations {
@@ -356,7 +384,9 @@ impl ErosionSim {
                         let nh = heightmap.data[ny * w + nx];
                         let diff = center - nh;
                         if diff > config.talus_angle {
-                            if diff > max_diff { max_diff = diff; }
+                            if diff > max_diff {
+                                max_diff = diff;
+                            }
                             total_diff += diff;
                             lower_neighbors.push((ny * w + nx, diff));
                         }
@@ -509,7 +539,11 @@ mod tests {
             ..ErosionConfig::default()
         });
         sim.erode(&mut hm);
-        let changed = hm.data.iter().zip(before.iter()).any(|(a, b)| (a - b).abs() > 1e-10);
+        let changed = hm
+            .data
+            .iter()
+            .zip(before.iter())
+            .any(|(a, b)| (a - b).abs() > 1e-10);
         assert!(changed, "erosion should modify the heightmap");
     }
 

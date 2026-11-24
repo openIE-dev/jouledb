@@ -498,10 +498,7 @@ impl VirtualFile for MemoryFile {
     }
 
     fn read_at(&self, buf: &mut [u8], offset: u64) -> std::io::Result<usize> {
-        let data = self
-            .data
-            .read()
-            .expect("lock poisoned: MemoryFile read_at");
+        let data = self.data.read().expect("lock poisoned: MemoryFile read_at");
         let off = offset as usize;
         if off >= data.data.len() {
             return Ok(0);

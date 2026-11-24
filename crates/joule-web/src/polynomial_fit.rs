@@ -43,7 +43,11 @@ impl Polynomial {
 
     /// Degree of the polynomial (0 for constant/zero).
     pub fn degree(&self) -> usize {
-        if self.coeffs.is_empty() { 0 } else { self.coeffs.len().saturating_sub(1) }
+        if self.coeffs.is_empty() {
+            0
+        } else {
+            self.coeffs.len().saturating_sub(1)
+        }
     }
 
     /// Remove trailing near-zero coefficients.
@@ -75,8 +79,12 @@ impl Polynomial {
     pub fn add(&self, other: &Polynomial) -> Polynomial {
         let n = self.coeffs.len().max(other.coeffs.len());
         let mut c = vec![0.0; n];
-        for (i, v) in self.coeffs.iter().enumerate() { c[i] += v; }
-        for (i, v) in other.coeffs.iter().enumerate() { c[i] += v; }
+        for (i, v) in self.coeffs.iter().enumerate() {
+            c[i] += v;
+        }
+        for (i, v) in other.coeffs.iter().enumerate() {
+            c[i] += v;
+        }
         Polynomial::new(c)
     }
 
@@ -84,8 +92,12 @@ impl Polynomial {
     pub fn sub(&self, other: &Polynomial) -> Polynomial {
         let n = self.coeffs.len().max(other.coeffs.len());
         let mut c = vec![0.0; n];
-        for (i, v) in self.coeffs.iter().enumerate() { c[i] += v; }
-        for (i, v) in other.coeffs.iter().enumerate() { c[i] -= v; }
+        for (i, v) in self.coeffs.iter().enumerate() {
+            c[i] += v;
+        }
+        for (i, v) in other.coeffs.iter().enumerate() {
+            c[i] -= v;
+        }
         Polynomial::new(c)
     }
 
@@ -122,7 +134,9 @@ impl Polynomial {
 
         for i in (0..quot_len).rev() {
             let idx = i + dn;
-            if idx >= rem.len() { continue; }
+            if idx >= rem.len() {
+                continue;
+            }
             let q = rem[idx] / lead;
             quot[i] = q;
             for (j, dc) in divisor.coeffs.iter().enumerate() {
@@ -144,7 +158,11 @@ impl Polynomial {
         if self.coeffs.len() <= 1 {
             return Polynomial::zero();
         }
-        let c: Vec<f64> = self.coeffs.iter().enumerate().skip(1)
+        let c: Vec<f64> = self
+            .coeffs
+            .iter()
+            .enumerate()
+            .skip(1)
             .map(|(i, c)| *c * i as f64)
             .collect();
         Polynomial::new(c)
@@ -171,7 +189,9 @@ impl Polynomial {
     /// Returns (real_parts, imag_parts) for each root.
     pub fn roots(&self, max_iter: usize) -> Vec<(f64, f64)> {
         let n = self.degree();
-        if n == 0 { return Vec::new(); }
+        if n == 0 {
+            return Vec::new();
+        }
         if n == 1 {
             return vec![(-self.coeffs[0] / self.coeffs[1], 0.0)];
         }
@@ -211,7 +231,9 @@ impl Polynomial {
                 // Denominator: product of (z_i - z_j) for j != i.
                 let (mut dr, mut di) = (1.0, 0.0);
                 for j in 0..n {
-                    if j == i { continue; }
+                    if j == i {
+                        continue;
+                    }
                     let diffr = zr[i] - zr[j];
                     let diffi = zi[i] - zi[j];
                     let nr = dr * diffr - di * diffi;
@@ -222,14 +244,18 @@ impl Polynomial {
 
                 // z_i -= p(z_i) / prod(z_i - z_j)
                 let denom = dr * dr + di * di;
-                if denom < 1e-30 { continue; }
+                if denom < 1e-30 {
+                    continue;
+                }
                 let delta_r = (pr * dr + pi_val * di) / denom;
                 let delta_i = (pi_val * dr - pr * di) / denom;
                 zr[i] -= delta_r;
                 zi[i] -= delta_i;
                 max_delta = max_delta.max((delta_r * delta_r + delta_i * delta_i).sqrt());
             }
-            if max_delta < 1e-12 { break; }
+            if max_delta < 1e-12 {
+                break;
+            }
         }
 
         zr.into_iter().zip(zi.into_iter()).collect()
@@ -249,9 +275,15 @@ impl fmt::Display for Polynomial {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut first = true;
         for (i, c) in self.coeffs.iter().enumerate() {
-            if c.abs() < 1e-15 && self.coeffs.len() > 1 { continue; }
+            if c.abs() < 1e-15 && self.coeffs.len() > 1 {
+                continue;
+            }
             if !first {
-                if *c >= 0.0 { write!(f, " + ")?; } else { write!(f, " - ")?; }
+                if *c >= 0.0 {
+                    write!(f, " + ")?;
+                } else {
+                    write!(f, " - ")?;
+                }
             }
             let abs_c = if first { *c } else { c.abs() };
             match i {
@@ -275,7 +307,9 @@ pub fn lagrange_interpolate(xs: &[f64], ys: &[f64]) -> Polynomial {
     for i in 0..n {
         let mut basis = Polynomial::constant(ys[i]);
         for j in 0..n {
-            if j == i { continue; }
+            if j == i {
+                continue;
+            }
             let denom = xs[i] - xs[j];
             // (x - xs[j]) / denom
             let factor = Polynomial::new(vec![-xs[j] / denom, 1.0 / denom]);
@@ -366,42 +400,62 @@ pub fn polyfit(xs: &[f64], ys: &[f64], deg: usize) -> Polynomial {
     let rows = m;
     let cols = n;
     let mut q_data = vec![0.0; rows * rows];
-    for i in 0..rows { q_data[i * rows + i] = 1.0; }
+    for i in 0..rows {
+        q_data[i * rows + i] = 1.0;
+    }
 
     for k in 0..cols {
         let mut col: Vec<f64> = (k..rows).map(|i| r[i * cols + k]).collect();
         let norm_c: f64 = col.iter().map(|x| x * x).sum::<f64>().sqrt();
-        if norm_c < 1e-15 { continue; }
+        if norm_c < 1e-15 {
+            continue;
+        }
         let sign = if col[0] >= 0.0 { 1.0 } else { -1.0 };
         col[0] += sign * norm_c;
         let vsq: f64 = col.iter().map(|x| x * x).sum();
-        if vsq < 1e-30 { continue; }
+        if vsq < 1e-30 {
+            continue;
+        }
         for j in k..cols {
             let mut d = 0.0;
-            for i in 0..col.len() { d += col[i] * r[(i + k) * cols + j]; }
+            for i in 0..col.len() {
+                d += col[i] * r[(i + k) * cols + j];
+            }
             let c2 = 2.0 * d / vsq;
-            for i in 0..col.len() { r[(i + k) * cols + j] -= c2 * col[i]; }
+            for i in 0..col.len() {
+                r[(i + k) * cols + j] -= c2 * col[i];
+            }
         }
         for i in 0..rows {
             let mut d = 0.0;
-            for jj in 0..col.len() { d += q_data[i * rows + jj + k] * col[jj]; }
+            for jj in 0..col.len() {
+                d += q_data[i * rows + jj + k] * col[jj];
+            }
             let c2 = 2.0 * d / vsq;
-            for jj in 0..col.len() { q_data[i * rows + jj + k] -= c2 * col[jj]; }
+            for jj in 0..col.len() {
+                q_data[i * rows + jj + k] -= c2 * col[jj];
+            }
         }
     }
 
     // Q^T b (use first n columns of Q).
     let mut qtb = vec![0.0; n];
     for i in 0..n {
-        for j in 0..rows { qtb[i] += q_data[j * rows + i] * ys[j]; }
+        for j in 0..rows {
+            qtb[i] += q_data[j * rows + i] * ys[j];
+        }
     }
     // Back-sub.
     let mut coeffs = vec![0.0; n];
     for i in (0..n).rev() {
         let diag = r[i * cols + i];
-        if diag.abs() < 1e-14 { continue; }
+        if diag.abs() < 1e-14 {
+            continue;
+        }
         let mut s = qtb[i];
-        for j in (i + 1)..n { s -= r[i * cols + j] * coeffs[j]; }
+        for j in (i + 1)..n {
+            s -= r[i * cols + j] * coeffs[j];
+        }
         coeffs[i] = s / diag;
     }
     Polynomial::new(coeffs)
@@ -422,16 +476,25 @@ impl PiecewisePoly {
     /// Build from breakpoints and polynomial pieces.
     pub fn new(breakpoints: Vec<f64>, pieces: Vec<Polynomial>) -> Self {
         assert_eq!(breakpoints.len(), pieces.len() + 1);
-        Self { breakpoints, pieces }
+        Self {
+            breakpoints,
+            pieces,
+        }
     }
 
     /// Evaluate the piecewise polynomial at x.
     pub fn eval(&self, x: f64) -> f64 {
         // Find the segment.
         let n = self.pieces.len();
-        if n == 0 { return 0.0; }
-        if x <= self.breakpoints[0] { return self.pieces[0].eval(x); }
-        if x >= self.breakpoints[n] { return self.pieces[n - 1].eval(x); }
+        if n == 0 {
+            return 0.0;
+        }
+        if x <= self.breakpoints[0] {
+            return self.pieces[0].eval(x);
+        }
+        if x >= self.breakpoints[n] {
+            return self.pieces[n - 1].eval(x);
+        }
         for i in 0..n {
             if x < self.breakpoints[i + 1] {
                 return self.pieces[i].eval(x);
@@ -465,7 +528,9 @@ impl PiecewisePoly {
 mod tests {
     use super::*;
 
-    fn approx_eq(a: f64, b: f64, eps: f64) -> bool { (a - b).abs() < eps }
+    fn approx_eq(a: f64, b: f64, eps: f64) -> bool {
+        (a - b).abs() < eps
+    }
 
     #[test]
     fn test_eval_constant() {

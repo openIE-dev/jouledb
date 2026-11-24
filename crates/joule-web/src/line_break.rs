@@ -49,9 +49,7 @@ pub fn char_break_class(c: char) -> CharBreakClass {
         '\u{00A0}' => CharBreakClass::NonBreakingSpace,
         '-' | '\u{2010}' | '\u{2013}' | '\u{2014}' => CharBreakClass::Hyphen,
         '(' | '[' | '{' | '\u{300C}' | '\u{300E}' | '\u{FF08}' => CharBreakClass::OpenPunctuation,
-        ')' | ']' | '}' | '\u{300D}' | '\u{300F}' | '\u{FF09}' => {
-            CharBreakClass::ClosePunctuation
-        }
+        ')' | ']' | '}' | '\u{300D}' | '\u{300F}' | '\u{FF09}' => CharBreakClass::ClosePunctuation,
         '0'..='9' => CharBreakClass::Numeric,
         '\u{3000}'..='\u{303F}' => CharBreakClass::Ideographic,
         '\u{4E00}'..='\u{9FFF}' => CharBreakClass::Ideographic,
@@ -124,10 +122,7 @@ pub fn is_url(s: &str) -> bool {
 pub fn is_email(s: &str) -> bool {
     let at_pos = s.find('@');
     if let Some(pos) = at_pos {
-        pos > 0
-            && pos < s.len() - 1
-            && s[pos + 1..].contains('.')
-            && !s[..pos].is_empty()
+        pos > 0 && pos < s.len() - 1 && s[pos + 1..].contains('.') && !s[..pos].is_empty()
     } else {
         false
     }
@@ -256,8 +251,7 @@ pub fn knuth_plass_break(items: &[KpItem], line_width: f64) -> Vec<usize> {
                 _ => 0.0,
             };
 
-            let dem = bp.demerits
-                + (1.0 + 100.0 * ratio.abs().powi(3) + penalty_val).powi(2);
+            let dem = bp.demerits + (1.0 + 100.0 * ratio.abs().powi(3) + penalty_val).powi(2);
 
             if dem < best_demerits {
                 best_demerits = dem;
@@ -480,7 +474,10 @@ mod tests {
 
     #[test]
     fn cjk_break_allowed() {
-        assert_eq!(pair_break_class('\u{4E00}', '\u{4E01}'), BreakClass::Allowed);
+        assert_eq!(
+            pair_break_class('\u{4E00}', '\u{4E01}'),
+            BreakClass::Allowed
+        );
     }
 
     #[test]

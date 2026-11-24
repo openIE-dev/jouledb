@@ -1,11 +1,16 @@
 //! Cross-signal correlation and coherence operations
 
-
-#[cfg(not(feature = "std"))]
-use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 use super::fft::{Fft, WindowType};
 use super::{DspError, DspResult};
 use crate::types::{SampleRate, UncertainValue};
+#[cfg(not(feature = "std"))]
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use num_complex::Complex64;
 
 /// Compute cross-correlation between two signals
@@ -338,12 +343,20 @@ mod tests {
         assert_eq!(corr.len(), 19);
         let direct = |lag: isize| -> f64 {
             (0..b.len() as isize)
-                .filter_map(|t| a.get((t + lag) as usize).filter(|_| t + lag >= 0).map(|x| x * b[t as usize]))
+                .filter_map(|t| {
+                    a.get((t + lag) as usize)
+                        .filter(|_| t + lag >= 0)
+                        .map(|x| x * b[t as usize])
+                })
                 .sum()
         };
         for (j, v) in corr.iter().enumerate() {
             let lag = j as isize - 9;
-            assert!((v - direct(lag)).abs() < 1e-12, "lag {lag}: {v} vs {}", direct(lag));
+            assert!(
+                (v - direct(lag)).abs() < 1e-12,
+                "lag {lag}: {v} vs {}",
+                direct(lag)
+            );
         }
         assert_eq!(cross_correlate(&a, &b, None).unwrap().len(), 5);
     }

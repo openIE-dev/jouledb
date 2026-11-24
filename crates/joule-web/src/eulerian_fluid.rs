@@ -26,11 +26,23 @@ impl fmt::Display for EulerianError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidGrid(msg) => write!(f, "invalid grid: {msg}"),
-            Self::SolverNotConverged { iterations, residual } => {
-                write!(f, "solver not converged after {iterations} iters, residual={residual:.2e}")
+            Self::SolverNotConverged {
+                iterations,
+                residual,
+            } => {
+                write!(
+                    f,
+                    "solver not converged after {iterations} iters, residual={residual:.2e}"
+                )
             }
-            Self::CflViolation { max_velocity, cfl_limit } => {
-                write!(f, "CFL violation: max_vel={max_velocity:.4}, limit={cfl_limit:.4}")
+            Self::CflViolation {
+                max_velocity,
+                cfl_limit,
+            } => {
+                write!(
+                    f,
+                    "CFL violation: max_vel={max_velocity:.4}, limit={cfl_limit:.4}"
+                )
             }
             Self::OutOfBounds { x, y } => write!(f, "out of bounds: ({x}, {y})"),
         }
@@ -113,7 +125,9 @@ impl Default for EulerianConfig {
 impl EulerianConfig {
     pub fn validate(&self) -> Result<(), EulerianError> {
         if self.nx < 2 || self.ny < 2 {
-            return Err(EulerianError::InvalidGrid("grid must be at least 2x2".into()));
+            return Err(EulerianError::InvalidGrid(
+                "grid must be at least 2x2".into(),
+            ));
         }
         if self.cell_size <= 0.0 {
             return Err(EulerianError::InvalidGrid("cell_size must be > 0".into()));
@@ -151,7 +165,11 @@ struct Field2D {
 
 impl Field2D {
     fn new(width: usize, height: usize) -> Self {
-        Self { data: vec![0.0; width * height], width, height }
+        Self {
+            data: vec![0.0; width * height],
+            width,
+            height,
+        }
     }
 
     fn get(&self, x: usize, y: usize) -> f64 {
@@ -193,10 +211,7 @@ fn bilinear(field: &Field2D, fx: f64, fy: f64) -> f64 {
     let v01 = field.get(x0, y1);
     let v11 = field.get(x1, y1);
 
-    v00 * (1.0 - sx) * (1.0 - sy)
-        + v10 * sx * (1.0 - sy)
-        + v01 * (1.0 - sx) * sy
-        + v11 * sx * sy
+    v00 * (1.0 - sx) * (1.0 - sy) + v10 * sx * (1.0 - sy) + v01 * (1.0 - sx) * sy + v11 * sx * sy
 }
 
 // ── Eulerian Fluid Simulation ─────────────────────────────────
@@ -345,8 +360,10 @@ impl EulerianFluid {
         let ny = self.config.ny;
         for y in 1..ny.saturating_sub(1) {
             for x in 1..nx {
-                let lap = self.u.get(x + 1, y) + self.u.get(x.wrapping_sub(1).max(0), y)
-                    + self.u.get(x, y + 1) + self.u.get(x, y.wrapping_sub(1).max(0))
+                let lap = self.u.get(x + 1, y)
+                    + self.u.get(x.wrapping_sub(1).max(0), y)
+                    + self.u.get(x, y + 1)
+                    + self.u.get(x, y.wrapping_sub(1).max(0))
                     - 4.0 * self.u.get(x, y);
                 self.u_temp.set(x, y, self.u.get(x, y) + factor * lap);
             }
@@ -360,8 +377,10 @@ impl EulerianFluid {
         // Diffuse v
         for y in 1..ny {
             for x in 1..nx.saturating_sub(1) {
-                let lap = self.v.get(x + 1, y) + self.v.get(x.wrapping_sub(1).max(0), y)
-                    + self.v.get(x, y + 1) + self.v.get(x, y.wrapping_sub(1).max(0))
+                let lap = self.v.get(x + 1, y)
+                    + self.v.get(x.wrapping_sub(1).max(0), y)
+                    + self.v.get(x, y + 1)
+                    + self.v.get(x, y.wrapping_sub(1).max(0))
                     - 4.0 * self.v.get(x, y);
                 self.v_temp.set(x, y, self.v.get(x, y) + factor * lap);
             }
@@ -396,8 +415,9 @@ impl EulerianFluid {
         let mut div = Field2D::new(nx, ny);
         for y in 0..ny {
             for x in 0..nx {
-                let d = (self.u.get(x + 1, y) - self.u.get(x, y)
-                    + self.v.get(x, y + 1) - self.v.get(x, y)) / h;
+                let d = (self.u.get(x + 1, y) - self.u.get(x, y) + self.v.get(x, y + 1)
+                    - self.v.get(x, y))
+                    / h;
                 div.set(x, y, d);
             }
         }
@@ -429,10 +449,22 @@ impl EulerianFluid {
                     let mut sum = 0.0;
                     let mut count = 0.0;
 
-                    if x > 0 { sum += old_pressure.get(x - 1, y); count += 1.0; }
-                    if x < nx - 1 { sum += old_pressure.get(x + 1, y); count += 1.0; }
-                    if y > 0 { sum += old_pressure.get(x, y - 1); count += 1.0; }
-                    if y < ny - 1 { sum += old_pressure.get(x, y + 1); count += 1.0; }
+                    if x > 0 {
+                        sum += old_pressure.get(x - 1, y);
+                        count += 1.0;
+                    }
+                    if x < nx - 1 {
+                        sum += old_pressure.get(x + 1, y);
+                        count += 1.0;
+                    }
+                    if y > 0 {
+                        sum += old_pressure.get(x, y - 1);
+                        count += 1.0;
+                    }
+                    if y < ny - 1 {
+                        sum += old_pressure.get(x, y + 1);
+                        count += 1.0;
+                    }
 
                     if count > 0.0 {
                         let new_p = (sum - divergence.get(x, y) * h / scale) / count;
@@ -475,55 +507,81 @@ impl EulerianFluid {
         // Left wall (u at x=0)
         match self.config.bc_left {
             BoundaryCondition::NoSlip => {
-                for y in 0..ny { self.u.set(0, y, 0.0); }
+                for y in 0..ny {
+                    self.u.set(0, y, 0.0);
+                }
             }
             BoundaryCondition::FreeSlip => {
-                for y in 0..ny { self.u.set(0, y, 0.0); }
+                for y in 0..ny {
+                    self.u.set(0, y, 0.0);
+                }
             }
             BoundaryCondition::Open => {
-                for y in 0..ny { self.u.set(0, y, self.u.get(1, y)); }
+                for y in 0..ny {
+                    self.u.set(0, y, self.u.get(1, y));
+                }
             }
             BoundaryCondition::Periodic => {
-                for y in 0..ny { self.u.set(0, y, self.u.get(nx, y)); }
+                for y in 0..ny {
+                    self.u.set(0, y, self.u.get(nx, y));
+                }
             }
         }
 
         // Right wall (u at x=nx)
         match self.config.bc_right {
             BoundaryCondition::NoSlip | BoundaryCondition::FreeSlip => {
-                for y in 0..ny { self.u.set(nx, y, 0.0); }
+                for y in 0..ny {
+                    self.u.set(nx, y, 0.0);
+                }
             }
             BoundaryCondition::Open => {
-                for y in 0..ny { self.u.set(nx, y, self.u.get(nx - 1, y)); }
+                for y in 0..ny {
+                    self.u.set(nx, y, self.u.get(nx - 1, y));
+                }
             }
             BoundaryCondition::Periodic => {
-                for y in 0..ny { self.u.set(nx, y, self.u.get(0, y)); }
+                for y in 0..ny {
+                    self.u.set(nx, y, self.u.get(0, y));
+                }
             }
         }
 
         // Bottom wall (v at y=0)
         match self.config.bc_bottom {
             BoundaryCondition::NoSlip | BoundaryCondition::FreeSlip => {
-                for x in 0..nx { self.v.set(x, 0, 0.0); }
+                for x in 0..nx {
+                    self.v.set(x, 0, 0.0);
+                }
             }
             BoundaryCondition::Open => {
-                for x in 0..nx { self.v.set(x, 0, self.v.get(x, 1)); }
+                for x in 0..nx {
+                    self.v.set(x, 0, self.v.get(x, 1));
+                }
             }
             BoundaryCondition::Periodic => {
-                for x in 0..nx { self.v.set(x, 0, self.v.get(x, ny)); }
+                for x in 0..nx {
+                    self.v.set(x, 0, self.v.get(x, ny));
+                }
             }
         }
 
         // Top wall (v at y=ny)
         match self.config.bc_top {
             BoundaryCondition::NoSlip | BoundaryCondition::FreeSlip => {
-                for x in 0..nx { self.v.set(x, ny, 0.0); }
+                for x in 0..nx {
+                    self.v.set(x, ny, 0.0);
+                }
             }
             BoundaryCondition::Open => {
-                for x in 0..nx { self.v.set(x, ny, self.v.get(x, ny - 1)); }
+                for x in 0..nx {
+                    self.v.set(x, ny, self.v.get(x, ny - 1));
+                }
             }
             BoundaryCondition::Periodic => {
-                for x in 0..nx { self.v.set(x, ny, self.v.get(x, 0)); }
+                for x in 0..nx {
+                    self.v.set(x, ny, self.v.get(x, 0));
+                }
             }
         }
     }

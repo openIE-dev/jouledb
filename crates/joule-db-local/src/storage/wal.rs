@@ -284,8 +284,14 @@ impl WalEntry {
                 // Payload: tx_id already parsed, then:
                 // first_page_id(8) + page_count(8) + total_bytes(8) + data_crc32(4)
                 let page_id = u64::from_le_bytes([
-                    payload[8], payload[9], payload[10], payload[11],
-                    payload[12], payload[13], payload[14], payload[15],
+                    payload[8],
+                    payload[9],
+                    payload[10],
+                    payload[11],
+                    payload[12],
+                    payload[13],
+                    payload[14],
+                    payload[15],
                 ]);
                 let data = payload[8..].to_vec(); // Include all extent metadata
                 (Some(page_id), data)
@@ -625,7 +631,9 @@ impl WalManager {
         if writes.is_empty() {
             return Ok(());
         }
-        let first = self.current_lsn.fetch_add(writes.len() as u64, Ordering::SeqCst);
+        let first = self
+            .current_lsn
+            .fetch_add(writes.len() as u64, Ordering::SeqCst);
         let encoded: Vec<Vec<u8>> = writes
             .par_iter()
             .enumerate()
@@ -662,7 +670,9 @@ impl WalManager {
         if writes.is_empty() {
             return Ok(());
         }
-        let first = self.current_lsn.fetch_add(writes.len() as u64, Ordering::SeqCst);
+        let first = self
+            .current_lsn
+            .fetch_add(writes.len() as u64, Ordering::SeqCst);
         // a few large entries (batch records) encode one per task; many
         // small ones in groups
         let chunk_len = (writes.len() / (rayon::current_num_threads() * 2)).clamp(1, 2048);
@@ -670,10 +680,12 @@ impl WalManager {
         let chunks: Vec<Vec<u8>> = indexed
             .par_chunks_mut(chunk_len)
             .map(|chunk| -> Result<Vec<u8>, StorageError> {
-                let mut buf = Vec::with_capacity(chunk.iter().map(|(_, (_, d))| d.len() + 64).sum());
+                let mut buf =
+                    Vec::with_capacity(chunk.iter().map(|(_, (_, d))| d.len() + 64).sum());
                 for (i, (page, data)) in chunk.iter_mut() {
-                    let e = WalEntry::page_write(first + *i as u64, tx_id, *page, std::mem::take(data))
-                        .encode()?;
+                    let e =
+                        WalEntry::page_write(first + *i as u64, tx_id, *page, std::mem::take(data))
+                            .encode()?;
                     buf.extend_from_slice(&e);
                 }
                 Ok(buf)
@@ -739,7 +751,12 @@ impl WalManager {
     ) -> Result<u64, StorageError> {
         let lsn = self.next_lsn();
         let entry = WalEntry::extent_write(
-            lsn, tx_id, first_page_id, page_count, total_bytes, data_crc32,
+            lsn,
+            tx_id,
+            first_page_id,
+            page_count,
+            total_bytes,
+            data_crc32,
         );
         self.append_entry(&entry)?;
 
@@ -1276,12 +1293,18 @@ mod crc_compat_tests {
             for b in data {
                 crc ^= *b as u32;
                 for _ in 0..8 {
-                    crc = if crc & 1 != 0 { (crc >> 1) ^ 0xEDB8_8320 } else { crc >> 1 };
+                    crc = if crc & 1 != 0 {
+                        (crc >> 1) ^ 0xEDB8_8320
+                    } else {
+                        crc >> 1
+                    };
                 }
             }
             !crc
         }
-        let data: Vec<u8> = (0..100_000u32).map(|i| (i.wrapping_mul(2654435761) >> 13) as u8).collect();
+        let data: Vec<u8> = (0..100_000u32)
+            .map(|i| (i.wrapping_mul(2654435761) >> 13) as u8)
+            .collect();
         for n in [0, 1, 7, 64, 1000, 100_000] {
             assert_eq!(super::crc32(&data[..n]), legacy(&data[..n]));
         }

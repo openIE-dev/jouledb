@@ -179,13 +179,11 @@ pub fn sanitize_url(url: &str) -> Result<String, XssError> {
     let lower = trimmed.to_lowercase();
 
     // Strip leading whitespace and control chars.
-    let clean: String = lower
-        .chars()
-        .filter(|c| !c.is_control())
-        .collect();
+    let clean: String = lower.chars().filter(|c| !c.is_control()).collect();
 
     // Check for dangerous schemes.
-    if clean.starts_with("javascript:") || clean.starts_with("vbscript:")
+    if clean.starts_with("javascript:")
+        || clean.starts_with("vbscript:")
         || clean.starts_with("data:text/html")
     {
         return Err(XssError::DangerousScheme(trimmed.to_string()));
@@ -195,7 +193,9 @@ pub fn sanitize_url(url: &str) -> Result<String, XssError> {
     if let Some(colon_pos) = clean.find(':') {
         let scheme = &clean[..colon_pos];
         if !scheme.is_empty()
-            && scheme.chars().all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '-' || c == '.')
+            && scheme
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '-' || c == '.')
         {
             if !SAFE_SCHEMES.contains(&scheme) && !clean.starts_with("data:image/") {
                 return Err(XssError::DangerousScheme(scheme.to_string()));
@@ -222,10 +222,41 @@ pub struct PurifierConfig {
 impl Default for PurifierConfig {
     fn default() -> Self {
         let mut tags = HashSet::new();
-        for t in &["p", "br", "b", "i", "em", "strong", "a", "ul", "ol", "li",
-                    "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "code",
-                    "pre", "span", "div", "img", "table", "thead", "tbody",
-                    "tr", "th", "td", "dl", "dt", "dd", "sub", "sup"] {
+        for t in &[
+            "p",
+            "br",
+            "b",
+            "i",
+            "em",
+            "strong",
+            "a",
+            "ul",
+            "ol",
+            "li",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            "blockquote",
+            "code",
+            "pre",
+            "span",
+            "div",
+            "img",
+            "table",
+            "thead",
+            "tbody",
+            "tr",
+            "th",
+            "td",
+            "dl",
+            "dt",
+            "dd",
+            "sub",
+            "sup",
+        ] {
             tags.insert(t.to_string());
         }
 
@@ -329,14 +360,19 @@ pub fn purify_html(input: &str, config: &PurifierConfig) -> String {
 
                 if !config.is_tag_allowed(&tag_name) {
                     // Strip disallowed tag (but keep content for non-script tags).
-                    if tag_name == "script" || tag_name == "style" || tag_name == "iframe"
-                        || tag_name == "object" || tag_name == "embed" || tag_name == "form"
+                    if tag_name == "script"
+                        || tag_name == "style"
+                        || tag_name == "iframe"
+                        || tag_name == "object"
+                        || tag_name == "embed"
+                        || tag_name == "form"
                     {
                         // Also strip content until closing tag.
                         if !is_closing {
                             let close_tag = format!("</{tag_name}>");
                             let remaining: String = chars.collect();
-                            let after = if let Some(pos) = remaining.to_lowercase().find(&close_tag) {
+                            let after = if let Some(pos) = remaining.to_lowercase().find(&close_tag)
+                            {
                                 remaining[pos + close_tag.len()..].to_string()
                             } else {
                                 remaining
@@ -429,13 +465,21 @@ fn parse_attributes(attr_str: &str) -> Vec<(String, String)> {
                 remaining = &remaining[1..];
                 let end = remaining.find('"').unwrap_or(remaining.len());
                 let value = remaining[..end].to_string();
-                remaining = if end < remaining.len() { &remaining[end + 1..] } else { "" };
+                remaining = if end < remaining.len() {
+                    &remaining[end + 1..]
+                } else {
+                    ""
+                };
                 attrs.push((name, value));
             } else if remaining.starts_with('\'') {
                 remaining = &remaining[1..];
                 let end = remaining.find('\'').unwrap_or(remaining.len());
                 let value = remaining[..end].to_string();
-                remaining = if end < remaining.len() { &remaining[end + 1..] } else { "" };
+                remaining = if end < remaining.len() {
+                    &remaining[end + 1..]
+                } else {
+                    ""
+                };
                 attrs.push((name, value));
             } else {
                 let end = remaining
@@ -496,8 +540,10 @@ mod tests {
 
     #[test]
     fn test_html_encode() {
-        assert_eq!(html_encode("<script>alert('xss')</script>"),
-                   "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;");
+        assert_eq!(
+            html_encode("<script>alert('xss')</script>"),
+            "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;"
+        );
     }
 
     #[test]
@@ -530,7 +576,10 @@ mod tests {
 
     #[test]
     fn test_escape_js_string() {
-        assert_eq!(escape_js_string("'; alert('xss');//"), "\\'; alert(\\'xss\\');\\/\\/");
+        assert_eq!(
+            escape_js_string("'; alert('xss');//"),
+            "\\'; alert(\\'xss\\');\\/\\/"
+        );
     }
 
     #[test]
@@ -540,8 +589,10 @@ mod tests {
 
     #[test]
     fn test_escape_css_value() {
-        assert_eq!(escape_css_value("expression(alert(1))"),
-                   "expression\\28 alert\\28 1\\29 \\29 ");
+        assert_eq!(
+            escape_css_value("expression(alert(1))"),
+            "expression\\28 alert\\28 1\\29 \\29 "
+        );
     }
 
     #[test]
@@ -594,12 +645,18 @@ mod tests {
 
     #[test]
     fn test_auto_escape_html() {
-        assert_eq!(auto_escape("<script>", EscapeContext::Html), "&lt;script&gt;");
+        assert_eq!(
+            auto_escape("<script>", EscapeContext::Html),
+            "&lt;script&gt;"
+        );
     }
 
     #[test]
     fn test_auto_escape_url() {
-        assert_eq!(auto_escape("hello world", EscapeContext::Url), "hello%20world");
+        assert_eq!(
+            auto_escape("hello world", EscapeContext::Url),
+            "hello%20world"
+        );
     }
 
     #[test]

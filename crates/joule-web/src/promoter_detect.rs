@@ -101,8 +101,12 @@ impl fmt::Display for PromoterHit {
         write!(
             f,
             "{}@{}-{}({}, score={:.3}, p={:.2e})",
-            self.element, self.position, self.end(),
-            self.strand, self.score, self.p_value,
+            self.element,
+            self.position,
+            self.end(),
+            self.strand,
+            self.score,
+            self.p_value,
         )
     }
 }
@@ -164,16 +168,18 @@ impl Pwm {
 
     /// Maximum possible score for this PWM.
     pub fn max_score(&self) -> f64 {
-        self.matrix.iter().map(|row| {
-            row.iter().copied().fold(f64::NEG_INFINITY, f64::max)
-        }).sum()
+        self.matrix
+            .iter()
+            .map(|row| row.iter().copied().fold(f64::NEG_INFINITY, f64::max))
+            .sum()
     }
 
     /// Minimum possible score for this PWM.
     pub fn min_score(&self) -> f64 {
-        self.matrix.iter().map(|row| {
-            row.iter().copied().fold(f64::INFINITY, f64::min)
-        }).sum()
+        self.matrix
+            .iter()
+            .map(|row| row.iter().copied().fold(f64::INFINITY, f64::min))
+            .sum()
     }
 
     /// Normalized score (0.0 to 1.0) of a subsequence.
@@ -181,7 +187,11 @@ impl Pwm {
         let raw = self.score(seq);
         let mn = self.min_score();
         let mx = self.max_score();
-        if (mx - mn).abs() < 1e-12 { 0.0 } else { (raw - mn) / (mx - mn) }
+        if (mx - mn).abs() < 1e-12 {
+            0.0
+        } else {
+            (raw - mn) / (mx - mn)
+        }
     }
 }
 
@@ -198,13 +208,13 @@ impl fmt::Display for Pwm {
 pub fn detect_tata_boxes(sequence: &str, min_score: f64) -> Vec<PromoterHit> {
     // Build a simple TATA PWM: TATAAAA with some flexibility
     let tata_pwm = Pwm::new("TATA_box")
-        .with_position(-2.0, 2.0, -2.0, -2.0)   // T
-        .with_position(2.0, -2.0, -2.0, -2.0)    // A
-        .with_position(-2.0, 2.0, -2.0, -2.0)    // T
-        .with_position(2.0, -2.0, -2.0, -2.0)    // A
-        .with_position(1.5, 1.0, -2.0, -2.0)     // A/T
-        .with_position(2.0, -1.0, -2.0, -2.0)    // A
-        .with_position(1.5, 1.0, -2.0, -2.0);    // A/T
+        .with_position(-2.0, 2.0, -2.0, -2.0) // T
+        .with_position(2.0, -2.0, -2.0, -2.0) // A
+        .with_position(-2.0, 2.0, -2.0, -2.0) // T
+        .with_position(2.0, -2.0, -2.0, -2.0) // A
+        .with_position(1.5, 1.0, -2.0, -2.0) // A/T
+        .with_position(2.0, -1.0, -2.0, -2.0) // A
+        .with_position(1.5, 1.0, -2.0, -2.0); // A/T
 
     let seq = sequence.to_uppercase();
     let bytes = seq.as_bytes();
@@ -278,7 +288,9 @@ impl fmt::Display for CpgIslandParams {
         write!(
             f,
             "CpgIslandParams(win={}, gc>={:.0}%, obs/exp>={:.2})",
-            self.window_size, self.min_gc_content * 100.0, self.min_obs_exp_cpg,
+            self.window_size,
+            self.min_gc_content * 100.0,
+            self.min_obs_exp_cpg,
         )
     }
 }
@@ -312,8 +324,11 @@ impl fmt::Display for CpgIsland {
         write!(
             f,
             "CpgIsland({}-{}, len={}, GC={:.1}%, obs/exp={:.2})",
-            self.start, self.end, self.length,
-            self.gc_content * 100.0, self.obs_exp_cpg,
+            self.start,
+            self.end,
+            self.length,
+            self.gc_content * 100.0,
+            self.obs_exp_cpg,
         )
     }
 }
@@ -397,7 +412,11 @@ fn compute_cpg_stats(seq: &[u8]) -> (f64, f64) {
     let g_count = seq.iter().filter(|&&b| b == b'G').count() as f64;
     let cpg_count = count_cpg_dinucleotides(seq) as f64;
     let expected = (c_count * g_count) / n;
-    let obs_exp = if expected > 0.0 { cpg_count / expected } else { 0.0 };
+    let obs_exp = if expected > 0.0 {
+        cpg_count / expected
+    } else {
+        0.0
+    };
     (gc, obs_exp)
 }
 
@@ -405,7 +424,9 @@ fn count_cpg_dinucleotides(seq: &[u8]) -> usize {
     if seq.len() < 2 {
         return 0;
     }
-    seq.windows(2).filter(|w| w[0] == b'C' && w[1] == b'G').count()
+    seq.windows(2)
+        .filter(|w| w[0] == b'C' && w[1] == b'G')
+        .count()
 }
 
 // ── P-value Estimation ──────────────────────────────────────────
@@ -484,9 +505,9 @@ mod tests {
     #[test]
     fn test_pwm_score() {
         let pwm = Pwm::new("test")
-            .with_position(2.0, -1.0, -1.0, -1.0)   // A
-            .with_position(-1.0, 2.0, -1.0, -1.0)   // T
-            .with_position(-1.0, -1.0, 2.0, -1.0);  // G
+            .with_position(2.0, -1.0, -1.0, -1.0) // A
+            .with_position(-1.0, 2.0, -1.0, -1.0) // T
+            .with_position(-1.0, -1.0, 2.0, -1.0); // G
         let score = pwm.score(b"ATG");
         assert!((score - 6.0).abs() < 1e-9);
     }
@@ -523,7 +544,10 @@ mod tests {
         let seq = "NNNNNNNTATAAAANNNNN";
         let hits = detect_tata_boxes(seq, 0.5);
         assert!(!hits.is_empty());
-        let best = hits.iter().max_by(|a, b| a.score.partial_cmp(&b.score).unwrap()).unwrap();
+        let best = hits
+            .iter()
+            .max_by(|a, b| a.score.partial_cmp(&b.score).unwrap())
+            .unwrap();
         assert!(best.score > 0.5);
     }
 
@@ -594,8 +618,8 @@ mod tests {
     #[test]
     fn test_scan_pwm() {
         let pwm = Pwm::new("test")
-            .with_position(2.0, -2.0, -2.0, -2.0)  // A
-            .with_position(-2.0, 2.0, -2.0, -2.0)  // T
+            .with_position(2.0, -2.0, -2.0, -2.0) // A
+            .with_position(-2.0, 2.0, -2.0, -2.0) // T
             .with_position(-2.0, -2.0, 2.0, -2.0); // G
         let hits = scan_pwm("NNATGNNN", &pwm, 0.9);
         assert!(!hits.is_empty());

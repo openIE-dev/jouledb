@@ -33,12 +33,19 @@ pub struct LikePattern {
 
 impl LikePattern {
     pub fn new(pattern: &str, case_insensitive: bool) -> Self {
-        let pat = if case_insensitive { pattern.to_lowercase() } else { pattern.to_string() };
+        let pat = if case_insensitive {
+            pattern.to_lowercase()
+        } else {
+            pattern.to_string()
+        };
         let mut segs = vec![Vec::new()];
         let mut it = pat.chars();
         while let Some(c) = it.next() {
             match c {
-                '\\' => segs.last_mut().unwrap().push(Tok::Lit(it.next().unwrap_or('\\'))),
+                '\\' => segs
+                    .last_mut()
+                    .unwrap()
+                    .push(Tok::Lit(it.next().unwrap_or('\\'))),
                 '%' => segs.push(Vec::new()),
                 '_' => segs.last_mut().unwrap().push(Tok::Any1),
                 c => segs.last_mut().unwrap().push(Tok::Lit(c)),
@@ -57,7 +64,10 @@ impl LikePattern {
                 Seg { toks, plain }
             })
             .collect();
-        Self { segs, case_insensitive }
+        Self {
+            segs,
+            case_insensitive,
+        }
     }
 
     /// End byte offset if `seg` matches `text` starting at byte `pos`.

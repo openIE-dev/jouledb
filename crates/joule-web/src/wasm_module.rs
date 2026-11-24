@@ -592,9 +592,7 @@ impl WasmModule {
         // 6) memory limits
         for (i, mem) in self.memories.iter().enumerate() {
             if let Err(e) = mem.limits.validate() {
-                errors.push(ModuleError::Validation(format!(
-                    "memory {i}: {e}"
-                )));
+                errors.push(ModuleError::Validation(format!("memory {i}: {e}")));
             }
         }
 
@@ -658,10 +656,12 @@ impl WasmModule {
         provided: &'a HashMap<(String, String), ExternKind>,
     ) -> Result<&'a ExternKind, ModuleError> {
         let key = (imp.module.clone(), imp.name.clone());
-        provided.get(&key).ok_or_else(|| ModuleError::ImportNotFound {
-            module: imp.module.clone(),
-            name: imp.name.clone(),
-        })
+        provided
+            .get(&key)
+            .ok_or_else(|| ModuleError::ImportNotFound {
+                module: imp.module.clone(),
+                name: imp.name.clone(),
+            })
     }
 
     /// Check that all imports can be resolved.
@@ -918,10 +918,7 @@ mod tests {
             kind: ExternKind::Func(ti),
         });
         let mut provided = HashMap::new();
-        provided.insert(
-            ("env".to_string(), "log".to_string()),
-            ExternKind::Func(ti),
-        );
+        provided.insert(("env".to_string(), "log".to_string()), ExternKind::Func(ti));
         assert!(m.resolve_all_imports(&provided).is_ok());
     }
 
@@ -958,7 +955,10 @@ mod tests {
         let mut m = WasmModule::new();
         m.start = Some(99);
         let errs = m.validate().unwrap_err();
-        assert!(errs.iter().any(|e| matches!(e, ModuleError::Validation(msg) if msg.contains("start"))));
+        assert!(
+            errs.iter()
+                .any(|e| matches!(e, ModuleError::Validation(msg) if msg.contains("start")))
+        );
     }
 
     #[test]

@@ -38,18 +38,14 @@ impl ValidationRule {
             }
             ValidationRule::MinLength(n) => {
                 if value.len() < *n {
-                    Some(format!(
-                        "{field_name} must be at least {n} characters"
-                    ))
+                    Some(format!("{field_name} must be at least {n} characters"))
                 } else {
                     None
                 }
             }
             ValidationRule::MaxLength(n) => {
                 if value.len() > *n {
-                    Some(format!(
-                        "{field_name} must be at most {n} characters"
-                    ))
+                    Some(format!("{field_name} must be at most {n} characters"))
                 } else {
                     None
                 }
@@ -58,18 +54,14 @@ impl ValidationRule {
                 // Simple pattern check — full regex would need the `regex` crate.
                 // We do a basic contains check for the pattern string.
                 if !simple_pattern_match(pattern, value) {
-                    Some(format!(
-                        "{field_name} does not match the required pattern"
-                    ))
+                    Some(format!("{field_name} does not match the required pattern"))
                 } else {
                     None
                 }
             }
             ValidationRule::Email => {
                 if !is_valid_email(value) {
-                    Some(format!(
-                        "{field_name} must be a valid email address"
-                    ))
+                    Some(format!("{field_name} must be a valid email address"))
                 } else {
                     None
                 }
@@ -99,9 +91,7 @@ impl ValidationRule {
             ValidationRule::Range(min, max) => {
                 if let Ok(v) = value.parse::<f64>() {
                     if v < *min || v > *max {
-                        Some(format!(
-                            "{field_name} must be between {min} and {max}"
-                        ))
+                        Some(format!("{field_name} must be between {min} and {max}"))
                     } else {
                         None
                     }
@@ -223,9 +213,10 @@ impl FormState {
 
     /// Register a field with validation rules. Returns a mutable reference to the field.
     pub fn register(&mut self, name: &str, rules: Vec<ValidationRule>) -> &mut FieldState {
-        let field = self.fields.entry(name.to_string()).or_insert_with(|| {
-            FieldState::new(name)
-        });
+        let field = self
+            .fields
+            .entry(name.to_string())
+            .or_insert_with(|| FieldState::new(name));
         field.rules = rules;
         field
     }
@@ -480,10 +471,7 @@ mod tests {
         let mut form = FormState::new();
         form.register(
             "password",
-            vec![
-                ValidationRule::Required,
-                ValidationRule::MinLength(8),
-            ],
+            vec![ValidationRule::Required, ValidationRule::MinLength(8)],
         );
         form.set_value("password", "");
         form.validate_all();
@@ -495,7 +483,10 @@ mod tests {
     #[test]
     fn test_min_max_numeric() {
         let mut form = FormState::new();
-        form.register("score", vec![ValidationRule::Min(0.0), ValidationRule::Max(100.0)]);
+        form.register(
+            "score",
+            vec![ValidationRule::Min(0.0), ValidationRule::Max(100.0)],
+        );
         form.set_value("score", "-5");
         assert!(!form.validate_all());
 

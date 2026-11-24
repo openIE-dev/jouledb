@@ -59,46 +59,67 @@ impl std::error::Error for PasswordHashError {}
 // ── Inline SHA-256 ─────────────────────────────────────────────
 
 const SHA256_H0: [u32; 8] = [
-    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
 ];
 
 const SHA256_K: [u32; 64] = [
-    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
-    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
-    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
-    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
-    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
-    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
-    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
-    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2,
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ];
 
 fn sha256_process_block(state: &mut [u32; 8], block: &[u8; 64]) {
     let mut w = [0u32; 64];
     for i in 0..16 {
-        w[i] = u32::from_be_bytes([block[i*4], block[i*4+1], block[i*4+2], block[i*4+3]]);
+        w[i] = u32::from_be_bytes([
+            block[i * 4],
+            block[i * 4 + 1],
+            block[i * 4 + 2],
+            block[i * 4 + 3],
+        ]);
     }
     for i in 16..64 {
-        let s0 = w[i-15].rotate_right(7) ^ w[i-15].rotate_right(18) ^ (w[i-15] >> 3);
-        let s1 = w[i-2].rotate_right(17) ^ w[i-2].rotate_right(19) ^ (w[i-2] >> 10);
-        w[i] = w[i-16].wrapping_add(s0).wrapping_add(w[i-7]).wrapping_add(s1);
+        let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
+        let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
+        w[i] = w[i - 16]
+            .wrapping_add(s0)
+            .wrapping_add(w[i - 7])
+            .wrapping_add(s1);
     }
     let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = *state;
     for i in 0..64 {
         let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
         let ch = (e & f) ^ ((!e) & g);
-        let t1 = h.wrapping_add(s1).wrapping_add(ch).wrapping_add(SHA256_K[i]).wrapping_add(w[i]);
+        let t1 = h
+            .wrapping_add(s1)
+            .wrapping_add(ch)
+            .wrapping_add(SHA256_K[i])
+            .wrapping_add(w[i]);
         let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
         let maj = (a & b) ^ (a & c) ^ (b & c);
         let t2 = s0.wrapping_add(maj);
-        h = g; g = f; f = e; e = d.wrapping_add(t1);
-        d = c; c = b; b = a; a = t1.wrapping_add(t2);
+        h = g;
+        g = f;
+        f = e;
+        e = d.wrapping_add(t1);
+        d = c;
+        c = b;
+        b = a;
+        a = t1.wrapping_add(t2);
     }
-    state[0] = state[0].wrapping_add(a); state[1] = state[1].wrapping_add(b);
-    state[2] = state[2].wrapping_add(c); state[3] = state[3].wrapping_add(d);
-    state[4] = state[4].wrapping_add(e); state[5] = state[5].wrapping_add(f);
-    state[6] = state[6].wrapping_add(g); state[7] = state[7].wrapping_add(h);
+    state[0] = state[0].wrapping_add(a);
+    state[1] = state[1].wrapping_add(b);
+    state[2] = state[2].wrapping_add(c);
+    state[3] = state[3].wrapping_add(d);
+    state[4] = state[4].wrapping_add(e);
+    state[5] = state[5].wrapping_add(f);
+    state[6] = state[6].wrapping_add(g);
+    state[7] = state[7].wrapping_add(h);
 }
 
 fn sha256(data: &[u8]) -> [u8; 32] {
@@ -106,7 +127,9 @@ fn sha256(data: &[u8]) -> [u8; 32] {
     let bit_len = (data.len() as u64) * 8;
     let mut buf = data.to_vec();
     buf.push(0x80);
-    while buf.len() % 64 != 56 { buf.push(0x00); }
+    while buf.len() % 64 != 56 {
+        buf.push(0x00);
+    }
     buf.extend_from_slice(&bit_len.to_be_bytes());
     for chunk in buf.chunks_exact(64) {
         let block: [u8; 64] = chunk.try_into().unwrap();
@@ -114,18 +137,25 @@ fn sha256(data: &[u8]) -> [u8; 32] {
     }
     let mut out = [0u8; 32];
     for (i, word) in state.iter().enumerate() {
-        out[i*4..(i+1)*4].copy_from_slice(&word.to_be_bytes());
+        out[i * 4..(i + 1) * 4].copy_from_slice(&word.to_be_bytes());
     }
     out
 }
 
 fn hmac_sha256(key: &[u8], message: &[u8]) -> [u8; 32] {
-    let k = if key.len() > 64 { sha256(key).to_vec() } else { key.to_vec() };
+    let k = if key.len() > 64 {
+        sha256(key).to_vec()
+    } else {
+        key.to_vec()
+    };
     let mut k_padded = [0u8; 64];
     k_padded[..k.len()].copy_from_slice(&k);
     let mut ipad = [0x36u8; 64];
     let mut opad = [0x5cu8; 64];
-    for i in 0..64 { ipad[i] ^= k_padded[i]; opad[i] ^= k_padded[i]; }
+    for i in 0..64 {
+        ipad[i] ^= k_padded[i];
+        opad[i] ^= k_padded[i];
+    }
     let mut inner = ipad.to_vec();
     inner.extend_from_slice(message);
     let inner_hash = sha256(&inner);
@@ -215,7 +245,9 @@ fn bytes_to_hex(bytes: &[u8]) -> String {
 
 fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, PasswordHashError> {
     if hex.len() % 2 != 0 {
-        return Err(PasswordHashError::InvalidFormat("odd hex length".to_string()));
+        return Err(PasswordHashError::InvalidFormat(
+            "odd hex length".to_string(),
+        ));
     }
     let mut bytes = Vec::with_capacity(hex.len() / 2);
     let mut i = 0;
@@ -246,7 +278,12 @@ pub struct StoredHash {
 impl StoredHash {
     /// Hash a password with default parameters.
     pub fn create(password: &str) -> Result<Self, PasswordHashError> {
-        Self::create_with_params(password, DEFAULT_ITERATIONS, DEFAULT_DK_LEN, DEFAULT_SALT_LEN)
+        Self::create_with_params(
+            password,
+            DEFAULT_ITERATIONS,
+            DEFAULT_DK_LEN,
+            DEFAULT_SALT_LEN,
+        )
     }
 
     /// Hash a password with custom parameters.
@@ -267,12 +304,22 @@ impl StoredHash {
         }
         let salt = generate_salt(salt_len);
         let hash = pbkdf2_derive(password.as_bytes(), &salt, iterations, dk_len);
-        Ok(Self { salt, iterations, dk_len, hash })
+        Ok(Self {
+            salt,
+            iterations,
+            dk_len,
+            hash,
+        })
     }
 
     /// Verify a password against this stored hash (timing-safe).
     pub fn verify(&self, password: &str) -> bool {
-        let derived = pbkdf2_derive(password.as_bytes(), &self.salt, self.iterations, self.dk_len);
+        let derived = pbkdf2_derive(
+            password.as_bytes(),
+            &self.salt,
+            self.iterations,
+            self.dk_len,
+        );
         constant_time_eq(&derived, &self.hash)
     }
 
@@ -299,7 +346,12 @@ impl StoredHash {
         let salt = hex_to_bytes(parts[3])?;
         let hash = hex_to_bytes(parts[4])?;
         let dk_len = hash.len();
-        Ok(Self { salt, iterations, dk_len, hash })
+        Ok(Self {
+            salt,
+            iterations,
+            dk_len,
+            hash,
+        })
     }
 
     /// Check if the hash needs rehashing (e.g., iterations increased).
@@ -361,10 +413,9 @@ pub struct StrengthReport {
 
 /// Common passwords to check against (top 20).
 const COMMON_PASSWORDS: &[&str] = &[
-    "password", "123456", "12345678", "qwerty", "abc123",
-    "monkey", "1234567", "letmein", "trustno1", "dragon",
-    "baseball", "iloveyou", "master", "sunshine", "ashley",
-    "bailey", "passw0rd", "shadow", "123123", "654321",
+    "password", "123456", "12345678", "qwerty", "abc123", "monkey", "1234567", "letmein",
+    "trustno1", "dragon", "baseball", "iloveyou", "master", "sunshine", "ashley", "bailey",
+    "passw0rd", "shadow", "123123", "654321",
 ];
 
 /// Estimate password strength (zxcvbn-lite).
@@ -395,26 +446,41 @@ pub fn estimate_strength(password: &str) -> StrengthReport {
     }
 
     // Check for sequential characters.
-    let has_sequential = password.as_bytes().windows(3).any(|w| {
-        w[1] == w[0].wrapping_add(1) && w[2] == w[1].wrapping_add(1)
-    });
+    let has_sequential = password
+        .as_bytes()
+        .windows(3)
+        .any(|w| w[1] == w[0].wrapping_add(1) && w[2] == w[1].wrapping_add(1));
     if has_sequential {
         feedback.push("Avoid sequential characters".to_string());
     }
 
     // Calculate character set size.
     let mut charset_size = 0u32;
-    if has_lowercase { charset_size += 26; }
-    if has_uppercase { charset_size += 26; }
-    if has_digits { charset_size += 10; }
-    if has_special { charset_size += 33; }
-    if charset_size == 0 { charset_size = 1; }
+    if has_lowercase {
+        charset_size += 26;
+    }
+    if has_uppercase {
+        charset_size += 26;
+    }
+    if has_digits {
+        charset_size += 10;
+    }
+    if has_special {
+        charset_size += 33;
+    }
+    if charset_size == 0 {
+        charset_size = 1;
+    }
 
     // Estimate entropy.
     let entropy_bits = (length as f64) * (charset_size as f64).log2();
 
     // Penalty for common passwords.
-    let effective_entropy = if is_common { entropy_bits * 0.1 } else { entropy_bits };
+    let effective_entropy = if is_common {
+        entropy_bits * 0.1
+    } else {
+        entropy_bits
+    };
 
     // Score based on entropy.
     let score = if effective_entropy < 20.0 {
@@ -482,14 +548,20 @@ mod tests {
     fn test_sha256_empty() {
         let digest = sha256(b"");
         let hex = bytes_to_hex(&digest);
-        assert_eq!(hex, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+        assert_eq!(
+            hex,
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
     }
 
     #[test]
     fn test_sha256_hello() {
         let digest = sha256(b"hello");
         let hex = bytes_to_hex(&digest);
-        assert_eq!(hex, "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824");
+        assert_eq!(
+            hex,
+            "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+        );
     }
 
     #[test]
@@ -499,7 +571,10 @@ mod tests {
         let data = b"Hi There";
         let mac = hmac_sha256(&key, data);
         let hex = bytes_to_hex(&mac);
-        assert_eq!(hex, "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7");
+        assert_eq!(
+            hex,
+            "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
+        );
     }
 
     #[test]

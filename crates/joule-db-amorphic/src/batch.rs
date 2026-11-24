@@ -66,9 +66,7 @@ pub struct BatchFeatureResponse {
 impl crate::AmorphicStore {
     /// Batch get by record IDs.
     pub fn batch_get_by_ids(&self, ids: &[RecordId]) -> Vec<Option<AmorphicRecord>> {
-        ids.iter()
-            .map(|id| self.get(*id).cloned())
-            .collect()
+        ids.iter().map(|id| self.get(*id).cloned()).collect()
     }
 
     /// Batch get by names (via name_to_id mapping).
@@ -84,23 +82,14 @@ impl crate::AmorphicStore {
     }
 
     /// Batch feature extraction: get specific fields from named records.
-    pub fn batch_get_features(
-        &self,
-        names: &[&str],
-        features: &[&str],
-    ) -> Vec<Vec<Option<Value>>> {
+    pub fn batch_get_features(&self, names: &[&str], features: &[&str]) -> Vec<Vec<Option<Value>>> {
         names
             .iter()
             .map(|name| {
-                let record = self
-                    .name_to_id
-                    .get(*name)
-                    .and_then(|id| self.get(*id));
+                let record = self.name_to_id.get(*name).and_then(|id| self.get(*id));
                 features
                     .iter()
-                    .map(|f| {
-                        record.and_then(|r| r.fields.get(*f).cloned())
-                    })
+                    .map(|f| record.and_then(|r| r.fields.get(*f).cloned()))
                     .collect()
             })
             .collect()
@@ -205,7 +194,6 @@ impl crate::partition::ShardedAmorphicStore {
             latency_us: start.elapsed().as_micros() as u64,
         })
     }
-
 }
 
 #[cfg(test)]

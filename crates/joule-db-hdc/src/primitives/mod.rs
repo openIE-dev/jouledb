@@ -22,14 +22,14 @@
 //! - **Coarsen**: `coarsen` — scale-changing lossy projection
 //! - **Synchronize**: `sync` — temporal coordination barrier
 
+pub mod coarsen;
 pub mod forget;
 pub mod reflect;
 pub mod spawn;
-pub mod coarsen;
 pub mod sync;
 
+pub use coarsen::{CoarsenStrategy, Coarsenable, CoarsenedView};
 pub use forget::{Decay, DecayRate, Forgettable};
 pub use reflect::{Reflectable, Reflection};
 pub use spawn::{SpawnedEntity, Spawner};
-pub use coarsen::{Coarsenable, CoarsenedView, CoarsenStrategy};
 pub use sync::{Barrier, SyncGroup, Synchronizable};

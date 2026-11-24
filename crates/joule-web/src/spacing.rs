@@ -23,7 +23,9 @@ impl Default for SpacingScale {
 
 impl SpacingScale {
     pub fn new(base: f64) -> Self {
-        Self { base: base.max(1.0) }
+        Self {
+            base: base.max(1.0),
+        }
     }
 
     /// Multiply the base unit by `n` (e.g., `scale.mult(2)` = 8px with base=4).
@@ -161,7 +163,12 @@ pub struct BoxSpacing {
 impl BoxSpacing {
     /// All sides equal.
     pub fn all(v: f64) -> Self {
-        Self { top: v, right: v, bottom: v, left: v }
+        Self {
+            top: v,
+            right: v,
+            bottom: v,
+            left: v,
+        }
     }
 
     /// Vertical and horizontal.
@@ -176,7 +183,12 @@ impl BoxSpacing {
 
     /// All four sides.
     pub fn new(top: f64, right: f64, bottom: f64, left: f64) -> Self {
-        Self { top, right, bottom, left }
+        Self {
+            top,
+            right,
+            bottom,
+            left,
+        }
     }
 
     /// Zero spacing.
@@ -225,13 +237,16 @@ pub struct ResponsiveSpacing {
 
 impl ResponsiveSpacing {
     pub fn new() -> Self {
-        Self { entries: Vec::new() }
+        Self {
+            entries: Vec::new(),
+        }
     }
 
     /// Add a breakpoint: at `min_width` viewport, use `spacing` px.
     pub fn at(mut self, min_width: f64, spacing: f64) -> Self {
         self.entries.push((min_width, spacing));
-        self.entries.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+        self.entries
+            .sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
         self
     }
 
@@ -253,9 +268,7 @@ impl ResponsiveSpacing {
         let mut css = String::new();
         for (i, &(min_w, spacing)) in self.entries.iter().enumerate() {
             if i == 0 {
-                css.push_str(&format!(
-                    ":root {{ --{property_name}: {spacing}px; }}\n"
-                ));
+                css.push_str(&format!(":root {{ --{property_name}: {spacing}px; }}\n"));
             } else {
                 css.push_str(&format!(
                     "@media (min-width: {min_w}px) {{ :root {{ --{property_name}: {spacing}px; }} }}\n"
@@ -395,9 +408,7 @@ mod tests {
 
     #[test]
     fn test_responsive_spacing_css() {
-        let rs = ResponsiveSpacing::new()
-            .at(0.0, 8.0)
-            .at(768.0, 16.0);
+        let rs = ResponsiveSpacing::new().at(0.0, 8.0).at(768.0, 16.0);
         let css = rs.to_css("spacing-md");
         assert!(css.contains("--spacing-md: 8px"));
         assert!(css.contains("@media (min-width: 768px)"));

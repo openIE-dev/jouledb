@@ -92,7 +92,11 @@ struct Edge {
 
 impl Edge {
     fn new(a: usize, b: usize) -> Self {
-        if a < b { Self { a, b } } else { Self { a: b, b: a } }
+        if a < b {
+            Self { a, b }
+        } else {
+            Self { a: b, b: a }
+        }
     }
 }
 
@@ -131,11 +135,11 @@ pub fn circumcircle(a: &Point, b: &Point, c: &Point) -> Circumcircle {
 
     let d = 2.0 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
     if d.abs() < 1e-15 {
-        let center = Point::new(
-            (ax + bx + cx) / 3.0,
-            (ay + by + cy) / 3.0,
-        );
-        return Circumcircle { center, radius_sq: f64::MAX };
+        let center = Point::new((ax + bx + cx) / 3.0, (ay + by + cy) / 3.0);
+        return Circumcircle {
+            center,
+            radius_sq: f64::MAX,
+        };
     }
 
     let ux = ((ax * ax + ay * ay) * (by - cy)
@@ -202,11 +206,7 @@ impl Delaunay {
             let mut bad_triangles = Vec::new();
 
             for (ti, tri) in triangulation.iter().enumerate() {
-                let cc = circumcircle(
-                    &all_points[tri.a],
-                    &all_points[tri.b],
-                    &all_points[tri.c],
-                );
+                let cc = circumcircle(&all_points[tri.a], &all_points[tri.b], &all_points[tri.c]);
                 if p.dist_sq(&cc.center) <= cc.radius_sq {
                     bad_triangles.push(ti);
                 }
@@ -221,16 +221,21 @@ impl Delaunay {
                     Edge::new(tri.c, tri.a),
                 ];
                 for edge in &edges {
-                    let shared = bad_triangles.iter().filter(|&&other_ti| {
-                        if other_ti == ti { return false; }
-                        let other = &triangulation[other_ti];
-                        let other_edges = [
-                            Edge::new(other.a, other.b),
-                            Edge::new(other.b, other.c),
-                            Edge::new(other.c, other.a),
-                        ];
-                        other_edges.contains(edge)
-                    }).count();
+                    let shared = bad_triangles
+                        .iter()
+                        .filter(|&&other_ti| {
+                            if other_ti == ti {
+                                return false;
+                            }
+                            let other = &triangulation[other_ti];
+                            let other_edges = [
+                                Edge::new(other.a, other.b),
+                                Edge::new(other.b, other.c),
+                                Edge::new(other.c, other.a),
+                            ];
+                            other_edges.contains(edge)
+                        })
+                        .count();
                     if shared == 0 {
                         boundary.push(*edge);
                     }
@@ -260,12 +265,17 @@ impl Delaunay {
 
     /// Find the nearest point to a query.
     pub fn nearest(&self, query: &Point) -> Option<usize> {
-        if self.points.is_empty() { return None; }
+        if self.points.is_empty() {
+            return None;
+        }
         self.points
             .iter()
             .enumerate()
             .min_by(|(_, a), (_, b)| {
-                query.dist_sq(a).partial_cmp(&query.dist_sq(b)).unwrap_or(std::cmp::Ordering::Equal)
+                query
+                    .dist_sq(a)
+                    .partial_cmp(&query.dist_sq(b))
+                    .unwrap_or(std::cmp::Ordering::Equal)
             })
             .map(|(i, _)| i)
     }
@@ -283,7 +293,9 @@ impl Delaunay {
 
     /// Find triangles adjacent to a given point index.
     pub fn adjacent_triangles(&self, point_idx: usize) -> Vec<usize> {
-        self.triangles.iter().enumerate()
+        self.triangles
+            .iter()
+            .enumerate()
             .filter(|(_, t)| t.contains_vertex(point_idx))
             .map(|(i, _)| i)
             .collect()
@@ -343,7 +355,11 @@ impl Voronoi {
                     ],
                 })
                 .collect();
-            return Self { cells, sites: points.to_vec(), edges: Vec::new() };
+            return Self {
+                cells,
+                sites: points.to_vec(),
+                edges: Vec::new(),
+            };
         }
 
         let delaunay = Delaunay::from_points(points);
@@ -368,10 +384,14 @@ impl Voronoi {
                 let t0 = &delaunay.triangles[tris[0]];
                 let t1 = &delaunay.triangles[tris[1]];
                 let cc0 = circumcircle(
-                    &delaunay.points[t0.a], &delaunay.points[t0.b], &delaunay.points[t0.c],
+                    &delaunay.points[t0.a],
+                    &delaunay.points[t0.b],
+                    &delaunay.points[t0.c],
                 );
                 let cc1 = circumcircle(
-                    &delaunay.points[t1.a], &delaunay.points[t1.b], &delaunay.points[t1.c],
+                    &delaunay.points[t1.a],
+                    &delaunay.points[t1.b],
+                    &delaunay.points[t1.c],
                 );
                 voronoi_edges.push(VoronoiEdge {
                     start: cc0.center,
@@ -383,7 +403,9 @@ impl Voronoi {
                 // Boundary edge: extend from circumcenter outward.
                 let t0 = &delaunay.triangles[tris[0]];
                 let cc = circumcircle(
-                    &delaunay.points[t0.a], &delaunay.points[t0.b], &delaunay.points[t0.c],
+                    &delaunay.points[t0.a],
+                    &delaunay.points[t0.b],
+                    &delaunay.points[t0.c],
                 );
                 let pa = &delaunay.points[ea];
                 let pb = &delaunay.points[eb];
@@ -399,9 +421,13 @@ impl Voronoi {
                 let dir_y = dx;
                 // Pick the direction that goes away from the triangle interior.
                 // The third vertex of the triangle (not ea or eb):
-                let third = if t0.a != ea && t0.a != eb { t0.a }
-                            else if t0.b != ea && t0.b != eb { t0.b }
-                            else { t0.c };
+                let third = if t0.a != ea && t0.a != eb {
+                    t0.a
+                } else if t0.b != ea && t0.b != eb {
+                    t0.b
+                } else {
+                    t0.c
+                };
                 let tp = &delaunay.points[third];
                 // If the direction points toward the third vertex, flip it.
                 let to_third_x = tp.x - mx;
@@ -442,14 +468,17 @@ impl Voronoi {
         for (i, site) in points.iter().enumerate() {
             let mut cell_poly = bbox_poly.clone();
             for (j, other) in points.iter().enumerate() {
-                if i == j { continue; }
+                if i == j {
+                    continue;
+                }
                 // Clip cell_poly to the half-plane closer to site than other.
                 let mx = (site.x + other.x) * 0.5;
                 let my = (site.y + other.y) * 0.5;
                 // Normal pointing from other toward site.
                 let nx = site.x - other.x;
                 let ny = site.y - other.y;
-                cell_poly = clip_edge(&cell_poly,
+                cell_poly = clip_edge(
+                    &cell_poly,
                     |p| (p.x - mx) * nx + (p.y - my) * ny >= -1e-12,
                     |a, b| {
                         let da = (a.x - mx) * nx + (a.y - my) * ny;
@@ -459,10 +488,17 @@ impl Voronoi {
                     },
                 );
             }
-            cells.push(VoronoiCell { site: i, vertices: cell_poly });
+            cells.push(VoronoiCell {
+                site: i,
+                vertices: cell_poly,
+            });
         }
 
-        Voronoi { cells, sites: points.to_vec(), edges: voronoi_edges }
+        Voronoi {
+            cells,
+            sites: points.to_vec(),
+            edges: voronoi_edges,
+        }
     }
 
     /// Find which cell a query point falls in (nearest site).
@@ -471,7 +507,10 @@ impl Voronoi {
             .iter()
             .enumerate()
             .min_by(|(_, a), (_, b)| {
-                query.dist_sq(a).partial_cmp(&query.dist_sq(b)).unwrap_or(std::cmp::Ordering::Equal)
+                query
+                    .dist_sq(a)
+                    .partial_cmp(&query.dist_sq(b))
+                    .unwrap_or(std::cmp::Ordering::Equal)
             })
             .map(|(i, _)| i)
     }
@@ -482,7 +521,10 @@ impl Voronoi {
             .iter()
             .enumerate()
             .min_by(|(_, a), (_, b)| {
-                query.dist_sq(a).partial_cmp(&query.dist_sq(b)).unwrap_or(std::cmp::Ordering::Equal)
+                query
+                    .dist_sq(a)
+                    .partial_cmp(&query.dist_sq(b))
+                    .unwrap_or(std::cmp::Ordering::Equal)
             })
             .map(|(i, p)| (i, query.dist(p)))
     }
@@ -510,27 +552,45 @@ impl Voronoi {
 
 /// Clip a polygon to a bounding box using Sutherland-Hodgman algorithm.
 fn clip_polygon_to_bbox(polygon: &[Point], bbox: (f64, f64, f64, f64)) -> Vec<Point> {
-    if polygon.is_empty() { return Vec::new(); }
+    if polygon.is_empty() {
+        return Vec::new();
+    }
     let (x_min, y_min, x_max, y_max) = bbox;
 
     let mut output = polygon.to_vec();
 
-    output = clip_edge(&output, |p| p.x >= x_min, |a, b| {
-        let t = (x_min - a.x) / (b.x - a.x);
-        Point::new(x_min, a.y + t * (b.y - a.y))
-    });
-    output = clip_edge(&output, |p| p.x <= x_max, |a, b| {
-        let t = (x_max - a.x) / (b.x - a.x);
-        Point::new(x_max, a.y + t * (b.y - a.y))
-    });
-    output = clip_edge(&output, |p| p.y >= y_min, |a, b| {
-        let t = (y_min - a.y) / (b.y - a.y);
-        Point::new(a.x + t * (b.x - a.x), y_min)
-    });
-    output = clip_edge(&output, |p| p.y <= y_max, |a, b| {
-        let t = (y_max - a.y) / (b.y - a.y);
-        Point::new(a.x + t * (b.x - a.x), y_max)
-    });
+    output = clip_edge(
+        &output,
+        |p| p.x >= x_min,
+        |a, b| {
+            let t = (x_min - a.x) / (b.x - a.x);
+            Point::new(x_min, a.y + t * (b.y - a.y))
+        },
+    );
+    output = clip_edge(
+        &output,
+        |p| p.x <= x_max,
+        |a, b| {
+            let t = (x_max - a.x) / (b.x - a.x);
+            Point::new(x_max, a.y + t * (b.y - a.y))
+        },
+    );
+    output = clip_edge(
+        &output,
+        |p| p.y >= y_min,
+        |a, b| {
+            let t = (y_min - a.y) / (b.y - a.y);
+            Point::new(a.x + t * (b.x - a.x), y_min)
+        },
+    );
+    output = clip_edge(
+        &output,
+        |p| p.y <= y_max,
+        |a, b| {
+            let t = (y_max - a.y) / (b.y - a.y);
+            Point::new(a.x + t * (b.x - a.x), y_max)
+        },
+    );
 
     output
 }
@@ -540,7 +600,9 @@ fn clip_edge(
     inside: impl Fn(&Point) -> bool,
     intersect: impl Fn(&Point, &Point) -> Point,
 ) -> Vec<Point> {
-    if polygon.is_empty() { return Vec::new(); }
+    if polygon.is_empty() {
+        return Vec::new();
+    }
     let mut output = Vec::new();
     let n = polygon.len();
     for i in 0..n {
@@ -565,10 +627,14 @@ fn clip_edge(
 
 /// Perform one step of Lloyd relaxation.
 pub fn lloyd_relax(points: &mut [Point], bbox: (f64, f64, f64, f64)) {
-    if points.len() < 2 { return; }
+    if points.len() < 2 {
+        return;
+    }
     let voronoi = Voronoi::from_points(points, bbox);
     for cell in &voronoi.cells {
-        if cell.vertices.len() < 3 { continue; }
+        if cell.vertices.len() < 3 {
+            continue;
+        }
         let centroid = polygon_centroid(&cell.vertices);
         let x = centroid.x.clamp(bbox.0, bbox.2);
         let y = centroid.y.clamp(bbox.1, bbox.3);
@@ -591,7 +657,11 @@ pub enum SweepEvent {
     /// A new site is encountered by the sweep line.
     Site { site_index: usize, y: f64 },
     /// A circle event where a parabolic arc vanishes.
-    Circle { arc_index: usize, center: Point, radius: f64 },
+    Circle {
+        arc_index: usize,
+        center: Point,
+        radius: f64,
+    },
 }
 
 impl SweepEvent {
@@ -608,11 +678,18 @@ impl SweepEvent {
 /// Returns site events sorted by y-coordinate (for sweep line processing).
 /// Circle events must be computed dynamically during the sweep.
 pub fn fortune_site_events(points: &[Point]) -> Vec<SweepEvent> {
-    let mut events: Vec<SweepEvent> = points.iter().enumerate()
-        .map(|(i, p)| SweepEvent::Site { site_index: i, y: p.y })
+    let mut events: Vec<SweepEvent> = points
+        .iter()
+        .enumerate()
+        .map(|(i, p)| SweepEvent::Site {
+            site_index: i,
+            y: p.y,
+        })
         .collect();
     events.sort_by(|a, b| {
-        b.y().partial_cmp(&a.y()).unwrap_or(std::cmp::Ordering::Equal)
+        b.y()
+            .partial_cmp(&a.y())
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
     events
 }
@@ -640,7 +717,9 @@ pub fn compute_circle_event(
 
 /// Signed area of a polygon (positive if CCW).
 fn polygon_area(vertices: &[Point]) -> f64 {
-    if vertices.is_empty() { return 0.0; }
+    if vertices.is_empty() {
+        return 0.0;
+    }
     let n = vertices.len();
     let mut area = 0.0;
     for i in 0..n {
@@ -652,7 +731,9 @@ fn polygon_area(vertices: &[Point]) -> f64 {
 
 /// Centroid of a polygon.
 fn polygon_centroid(vertices: &[Point]) -> Point {
-    if vertices.is_empty() { return Point::new(0.0, 0.0); }
+    if vertices.is_empty() {
+        return Point::new(0.0, 0.0);
+    }
     let n = vertices.len();
     let mut cx = 0.0;
     let mut cy = 0.0;
@@ -823,10 +904,7 @@ mod tests {
 
     #[test]
     fn test_voronoi_nearest_site() {
-        let points = vec![
-            Point::new(2.0, 2.0),
-            Point::new(8.0, 8.0),
-        ];
+        let points = vec![Point::new(2.0, 2.0), Point::new(8.0, 8.0)];
         let v = Voronoi::from_points(&points, (0.0, 0.0, 10.0, 10.0));
         let (idx, dist) = v.nearest_site(&Point::new(3.0, 3.0)).unwrap();
         assert_eq!(idx, 0);
@@ -900,7 +978,9 @@ mod tests {
         let bbox = (0.0, 0.0, 10.0, 10.0);
         let original = points.clone();
         lloyd_relax(&mut points, bbox);
-        let moved = points.iter().zip(original.iter())
+        let moved = points
+            .iter()
+            .zip(original.iter())
             .any(|(a, b)| (a.x - b.x).abs() > 0.001 || (a.y - b.y).abs() > 0.001);
         assert!(moved);
     }
@@ -915,7 +995,9 @@ mod tests {
         let bbox = (0.0, 0.0, 10.0, 10.0);
         let original = points.clone();
         lloyd_relax_n(&mut points, bbox, 5);
-        let moved = points.iter().zip(original.iter())
+        let moved = points
+            .iter()
+            .zip(original.iter())
             .any(|(a, b)| (a.x - b.x).abs() > 0.001 || (a.y - b.y).abs() > 0.001);
         assert!(moved);
     }

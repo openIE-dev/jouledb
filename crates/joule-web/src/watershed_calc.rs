@@ -70,25 +70,37 @@ impl WatershedCalcConfig {
 
     pub fn validate(&self) -> Result<(), WatershedCalcError> {
         if self.fill_threshold.is_nan() {
-            return Err(WatershedCalcError::InvalidConfig("fill_threshold is NaN".into()));
+            return Err(WatershedCalcError::InvalidConfig(
+                "fill_threshold is NaN".into(),
+            ));
         }
         if self.flow_threshold.is_nan() {
-            return Err(WatershedCalcError::InvalidConfig("flow_threshold is NaN".into()));
+            return Err(WatershedCalcError::InvalidConfig(
+                "flow_threshold is NaN".into(),
+            ));
         }
         if self.snap_distance.is_nan() {
-            return Err(WatershedCalcError::InvalidConfig("snap_distance is NaN".into()));
+            return Err(WatershedCalcError::InvalidConfig(
+                "snap_distance is NaN".into(),
+            ));
         }
         Ok(())
     }
 }
 
 impl Default for WatershedCalcConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for WatershedCalcConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "WatershedCalcConfig(fill_threshold={0:.4}, flow_threshold={1:.4}, d8_method={2}, snap_distance={3:.4})", self.fill_threshold, self.flow_threshold, self.d8_method, self.snap_distance)
+        write!(
+            f,
+            "WatershedCalcConfig(fill_threshold={0:.4}, flow_threshold={1:.4}, d8_method={2}, snap_distance={3:.4})",
+            self.fill_threshold, self.flow_threshold, self.d8_method, self.snap_distance
+        )
     }
 }
 
@@ -104,7 +116,10 @@ pub struct WatershedCalc {
 impl WatershedCalc {
     pub fn new(config: WatershedCalcConfig) -> Result<Self, WatershedCalcError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -116,31 +131,45 @@ impl WatershedCalc {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &WatershedCalcConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &WatershedCalcConfig {
+        &self.config
+    }
 
     /// D8 flow direction grid.
     pub fn flow_direction(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Flow accumulation grid.
     pub fn flow_accumulation(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Delineate watershed basin.
     pub fn delineate_basin(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -152,7 +181,9 @@ impl WatershedCalc {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -164,7 +195,11 @@ impl WatershedCalc {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -237,7 +272,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = WatershedCalc::new(WatershedCalcConfig::new()).unwrap()
+        let e = WatershedCalc::new(WatershedCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -253,7 +289,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = WatershedCalc::new(WatershedCalcConfig::new()).unwrap()
+        let e = WatershedCalc::new(WatershedCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("WatershedCalc"));
@@ -261,7 +298,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = WatershedCalc::new(WatershedCalcConfig::new()).unwrap()
+        let e = WatershedCalc::new(WatershedCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -272,7 +310,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = WatershedCalc::new(WatershedCalcConfig::new()).unwrap()
+        let e = WatershedCalc::new(WatershedCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -280,7 +319,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = WatershedCalc::new(WatershedCalcConfig::new()).unwrap()
+        let e = WatershedCalc::new(WatershedCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -297,7 +337,8 @@ mod tests {
 
     #[test]
     fn test_flow_direction() {
-        let e = WatershedCalc::new(WatershedCalcConfig::new()).unwrap()
+        let e = WatershedCalc::new(WatershedCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.flow_direction();
         assert!(!result.is_empty());
@@ -305,7 +346,8 @@ mod tests {
 
     #[test]
     fn test_flow_accumulation() {
-        let e = WatershedCalc::new(WatershedCalcConfig::new()).unwrap()
+        let e = WatershedCalc::new(WatershedCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.flow_accumulation();
         assert!(!result.is_empty());
@@ -313,7 +355,8 @@ mod tests {
 
     #[test]
     fn test_delineate_basin() {
-        let e = WatershedCalc::new(WatershedCalcConfig::new()).unwrap()
+        let e = WatershedCalc::new(WatershedCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.delineate_basin();
         assert!(!result.is_empty());

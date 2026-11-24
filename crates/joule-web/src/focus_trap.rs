@@ -18,7 +18,11 @@ pub struct FocusableElement {
 
 impl FocusableElement {
     pub fn new(id: &str, tab_index: i32) -> Self {
-        Self { id: id.into(), tab_index, disabled: false }
+        Self {
+            id: id.into(),
+            tab_index,
+            disabled: false,
+        }
     }
 
     pub fn with_disabled(mut self, disabled: bool) -> Self {
@@ -97,12 +101,19 @@ impl FocusTrap {
 
     /// Get tab-ordered focusable (non-disabled) elements.
     fn focusable_elements(&self) -> Vec<FocusableElement> {
-        let mut elems: Vec<_> = self.elements.iter().filter(|e| !e.disabled).cloned().collect();
+        let mut elems: Vec<_> = self
+            .elements
+            .iter()
+            .filter(|e| !e.disabled)
+            .cloned()
+            .collect();
         // Positive tab_index first (ascending), then zero tab_index in DOM order.
         elems.sort_by(|a, b| {
             let a_pos = if a.tab_index > 0 { 0 } else { 1 };
             let b_pos = if b.tab_index > 0 { 0 } else { 1 };
-            a_pos.cmp(&b_pos).then_with(|| a.tab_index.cmp(&b.tab_index))
+            a_pos
+                .cmp(&b_pos)
+                .then_with(|| a.tab_index.cmp(&b.tab_index))
         });
         elems
     }
@@ -182,7 +193,8 @@ impl FocusTrap {
     /// Current focused element ID.
     pub fn current_focus(&self) -> Option<String> {
         let focusable = self.focusable_elements();
-        self.current_index.and_then(|i| focusable.get(i).map(|e| e.id.clone()))
+        self.current_index
+            .and_then(|i| focusable.get(i).map(|e| e.id.clone()))
     }
 
     /// Number of focusable elements.

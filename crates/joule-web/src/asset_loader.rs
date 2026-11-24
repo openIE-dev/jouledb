@@ -72,9 +72,11 @@ impl AssetData {
             AssetData::Mesh { data, .. } => data.len() + 8,
             AssetData::Texture { data, .. } => data.len() + 9,
             AssetData::Sound { data, .. } => data.len() + 13,
-            AssetData::Material { shader, texture_ids, .. } => {
-                shader.len() + texture_ids.len() * 8
-            }
+            AssetData::Material {
+                shader,
+                texture_ids,
+                ..
+            } => shader.len() + texture_ids.len() * 8,
             AssetData::Animation { data, .. } => data.len() + 16,
         }
     }

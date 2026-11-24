@@ -136,7 +136,11 @@ pub trait EmbeddedInference: Send + Sync {
     fn embed(&self, text: &str) -> Result<(BinaryHV, AiReceipt), AiError>;
 
     /// Classify text into categories.
-    fn classify(&self, text: &str, categories: &[String]) -> Result<(String, f32, AiReceipt), AiError>;
+    fn classify(
+        &self,
+        text: &str,
+        categories: &[String],
+    ) -> Result<(String, f32, AiReceipt), AiError>;
 
     /// Named entity recognition.
     fn extract_entities(&self, text: &str) -> Result<(Vec<Entity>, AiReceipt), AiError>;

@@ -138,7 +138,11 @@ impl FrameBuffer {
         if pixels.len() != width * height {
             return None;
         }
-        Some(Self { pixels, width, height })
+        Some(Self {
+            pixels,
+            width,
+            height,
+        })
     }
 
     pub fn get(&self, x: usize, y: usize) -> ColorF {
@@ -241,11 +245,7 @@ impl Default for TaaConfig {
 }
 
 /// Compute the AABB (axis-aligned bounding box) of the 3x3 neighborhood for clamping.
-fn neighborhood_aabb(
-    current: &FrameBuffer,
-    x: usize,
-    y: usize,
-) -> (ColorF, ColorF) {
+fn neighborhood_aabb(current: &FrameBuffer, x: usize, y: usize) -> (ColorF, ColorF) {
     let mut lo = ColorF::new(f32::MAX, f32::MAX, f32::MAX, f32::MAX);
     let mut hi = ColorF::new(f32::MIN, f32::MIN, f32::MIN, f32::MIN);
 
@@ -327,7 +327,11 @@ pub fn apply_taa(
 
     for y in 0..h {
         for x in 0..w {
-            result.set(x, y, taa_resolve_pixel(current, history, motion, x, y, config));
+            result.set(
+                x,
+                y,
+                taa_resolve_pixel(current, history, motion, x, y, config),
+            );
         }
     }
 
@@ -357,11 +361,7 @@ impl TaaAccumulator {
     }
 
     /// Process a new frame, returning the resolved result.
-    pub fn accumulate(
-        &mut self,
-        current: &FrameBuffer,
-        motion: &MotionBuffer,
-    ) -> FrameBuffer {
+    pub fn accumulate(&mut self, current: &FrameBuffer, motion: &MotionBuffer) -> FrameBuffer {
         self.frame_count += 1;
 
         let result = match &self.history {
@@ -427,7 +427,9 @@ mod tests {
     fn test_jitter_sequence_varies() {
         let seq = jitter_sequence(8);
         let first = seq[0];
-        let all_same = seq.iter().all(|j| (j.x - first.x).abs() < 1e-6 && (j.y - first.y).abs() < 1e-6);
+        let all_same = seq
+            .iter()
+            .all(|j| (j.x - first.x).abs() < 1e-6 && (j.y - first.y).abs() < 1e-6);
         assert!(!all_same, "jitter sequence should vary");
     }
 
@@ -575,7 +577,11 @@ mod tests {
         let result = apply_taa(&current, &history, &motion, &config);
         // Neighborhood clamp should pull history toward current range.
         let p = result.get(2, 2);
-        assert!((p.r - 0.5).abs() < 0.05, "clamping should constrain history r: {}", p.r);
+        assert!(
+            (p.r - 0.5).abs() < 0.05,
+            "clamping should constrain history r: {}",
+            p.r
+        );
     }
 
     #[test]
@@ -612,7 +618,11 @@ mod tests {
 
         let result = acc.accumulate(&frame, &motion);
         let p = result.get(2, 2);
-        assert!((p.r - 0.8).abs() < 0.01, "should converge to input: {}", p.r);
+        assert!(
+            (p.r - 0.8).abs() < 0.01,
+            "should converge to input: {}",
+            p.r
+        );
     }
 
     #[test]

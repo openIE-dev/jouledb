@@ -61,9 +61,14 @@ impl fmt::Display for Hsp {
         write!(
             f,
             "HSP(score={:.1}, bits={:.1}, E={:.2e}, id={:.1}%, q={}..{}, s={}..{})",
-            self.score, self.bit_score, self.e_value, self.identity,
-            self.query_start, self.query_end,
-            self.subject_start, self.subject_end
+            self.score,
+            self.bit_score,
+            self.e_value,
+            self.identity,
+            self.query_start,
+            self.query_end,
+            self.subject_start,
+            self.subject_end
         )
     }
 }
@@ -109,14 +114,38 @@ impl BlastConfig {
         }
     }
 
-    pub fn with_word_size(mut self, w: usize) -> Self { self.word_size = w; self }
-    pub fn with_match_score(mut self, s: f64) -> Self { self.match_score = s; self }
-    pub fn with_mismatch_penalty(mut self, p: f64) -> Self { self.mismatch_penalty = p; self }
-    pub fn with_gap_open(mut self, g: f64) -> Self { self.gap_open = g; self }
-    pub fn with_gap_extend(mut self, g: f64) -> Self { self.gap_extend = g; self }
-    pub fn with_e_value_threshold(mut self, e: f64) -> Self { self.e_value_threshold = e; self }
-    pub fn with_max_hits(mut self, m: usize) -> Self { self.max_hits = m; self }
-    pub fn with_extend_dropoff(mut self, d: f64) -> Self { self.extend_dropoff = d; self }
+    pub fn with_word_size(mut self, w: usize) -> Self {
+        self.word_size = w;
+        self
+    }
+    pub fn with_match_score(mut self, s: f64) -> Self {
+        self.match_score = s;
+        self
+    }
+    pub fn with_mismatch_penalty(mut self, p: f64) -> Self {
+        self.mismatch_penalty = p;
+        self
+    }
+    pub fn with_gap_open(mut self, g: f64) -> Self {
+        self.gap_open = g;
+        self
+    }
+    pub fn with_gap_extend(mut self, g: f64) -> Self {
+        self.gap_extend = g;
+        self
+    }
+    pub fn with_e_value_threshold(mut self, e: f64) -> Self {
+        self.e_value_threshold = e;
+        self
+    }
+    pub fn with_max_hits(mut self, m: usize) -> Self {
+        self.max_hits = m;
+        self
+    }
+    pub fn with_extend_dropoff(mut self, d: f64) -> Self {
+        self.extend_dropoff = d;
+        self
+    }
 
     pub fn with_db_length(mut self, len: usize) -> Self {
         self.db_length_override = Some(len);
@@ -133,7 +162,9 @@ impl BlastConfig {
 }
 
 impl Default for BlastConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for BlastConfig {
@@ -141,8 +172,7 @@ impl fmt::Display for BlastConfig {
         write!(
             f,
             "BlastConfig(word={}, match={}, mis={}, E_thresh={:.1e})",
-            self.word_size, self.match_score, self.mismatch_penalty,
-            self.e_value_threshold
+            self.word_size, self.match_score, self.mismatch_penalty, self.e_value_threshold
         )
     }
 }
@@ -169,7 +199,13 @@ impl Subject {
 
 impl fmt::Display for Subject {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Subject({}: {}, {} bp)", self.id, self.name, self.sequence.len())
+        write!(
+            f,
+            "Subject({}: {}, {} bp)",
+            self.id,
+            self.name,
+            self.sequence.len()
+        )
     }
 }
 
@@ -203,8 +239,11 @@ impl fmt::Display for BlastResult {
         write!(
             f,
             "BlastResult({} hits, query={}bp, db={}bp, seeds={}, extensions={})",
-            self.hsps.len(), self.query_length, self.db_length,
-            self.num_seeds_scanned, self.num_extensions
+            self.hsps.len(),
+            self.query_length,
+            self.db_length,
+            self.num_seeds_scanned,
+            self.num_extensions
         )
     }
 }
@@ -270,11 +309,7 @@ impl BlastSearcher {
     }
 
     /// Search a query against a database of subjects.
-    pub fn search(
-        &self,
-        query: &[u8],
-        subjects: &[Subject],
-    ) -> Result<BlastResult, BlastError> {
+    pub fn search(&self, query: &[u8], subjects: &[Subject]) -> Result<BlastResult, BlastError> {
         if query.is_empty() {
             return Err(BlastError::EmptyQuery);
         }
@@ -285,9 +320,10 @@ impl BlastSearcher {
             return Err(BlastError::InvalidWordSize(self.config.word_size));
         }
 
-        let db_length: usize = self.config.db_length_override.unwrap_or_else(|| {
-            subjects.iter().map(|s| s.sequence.len()).sum()
-        });
+        let db_length: usize = self
+            .config
+            .db_length_override
+            .unwrap_or_else(|| subjects.iter().map(|s| s.sequence.len()).sum());
 
         let word_idx = WordIndex::build(query, self.config.word_size);
 
@@ -336,7 +372,11 @@ impl BlastSearcher {
         }
 
         // Sort by score descending, deduplicate overlapping HSPs.
-        all_hsps.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        all_hsps.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         let hsps = self.remove_redundant_hsps(all_hsps);
 
         Ok(BlastResult {
@@ -361,10 +401,9 @@ impl BlastSearcher {
 
         // Score the seed itself.
         for k in 0..self.config.word_size {
-            score += self.config.score_pair(
-                query[hit.query_pos + k],
-                subject[hit.subject_pos + k],
-            );
+            score += self
+                .config
+                .score_pair(query[hit.query_pos + k], subject[hit.subject_pos + k]);
         }
         max_score = score;
 
@@ -375,10 +414,9 @@ impl BlastSearcher {
         let q_right_start = hit.query_pos + self.config.word_size;
         let s_right_start = hit.subject_pos + self.config.word_size;
         while q_right_start + r_ext < query.len() && s_right_start + r_ext < subject.len() {
-            r_score += self.config.score_pair(
-                query[q_right_start + r_ext],
-                subject[s_right_start + r_ext],
-            );
+            r_score += self
+                .config
+                .score_pair(query[q_right_start + r_ext], subject[s_right_start + r_ext]);
             r_ext += 1;
             if r_score > max_score {
                 max_score = r_score;
@@ -466,8 +504,12 @@ impl BlastSearcher {
         for hsp in hsps {
             let dominated = kept.iter().any(|k| {
                 k.subject_id == hsp.subject_id
-                    && Self::overlap_frac(k.query_start, k.query_end, hsp.query_start, hsp.query_end)
-                        > 0.5
+                    && Self::overlap_frac(
+                        k.query_start,
+                        k.query_end,
+                        hsp.query_start,
+                        hsp.query_end,
+                    ) > 0.5
             });
             if !dominated && kept.len() < self.config.max_hits {
                 kept.push(hsp);

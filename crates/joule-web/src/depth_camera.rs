@@ -22,7 +22,14 @@ pub struct CameraIntrinsics {
 
 impl CameraIntrinsics {
     pub fn new(fx: f64, fy: f64, cx: f64, cy: f64, width: usize, height: usize) -> Self {
-        Self { fx, fy, cx, cy, width, height }
+        Self {
+            fx,
+            fy,
+            cx,
+            cy,
+            width,
+            height,
+        }
     }
 
     pub fn with_resolution(mut self, width: usize, height: usize) -> Self {
@@ -127,7 +134,11 @@ impl DepthMap {
         if data.len() != width * height {
             return None;
         }
-        Some(Self { data, width, height })
+        Some(Self {
+            data,
+            width,
+            height,
+        })
     }
 
     pub fn get(&self, row: usize, col: usize) -> f64 {
@@ -146,7 +157,10 @@ impl DepthMap {
 
     /// Count valid (non-zero, finite) depth pixels.
     pub fn valid_count(&self) -> usize {
-        self.data.iter().filter(|&&d| d > 0.0 && d.is_finite()).count()
+        self.data
+            .iter()
+            .filter(|&&d| d > 0.0 && d.is_finite())
+            .count()
     }
 
     /// Min and max valid depth values.
@@ -156,8 +170,12 @@ impl DepthMap {
         let mut found = false;
         for &d in &self.data {
             if d > 0.0 && d.is_finite() {
-                if d < min_d { min_d = d; }
-                if d > max_d { max_d = d; }
+                if d < min_d {
+                    min_d = d;
+                }
+                if d > max_d {
+                    max_d = d;
+                }
                 found = true;
             }
         }
@@ -184,7 +202,9 @@ impl fmt::Display for DepthMap {
         write!(
             f,
             "DepthMap({}x{}, valid={})",
-            self.width, self.height, self.valid_count()
+            self.width,
+            self.height,
+            self.valid_count()
         )
     }
 }
@@ -381,7 +401,8 @@ impl BilateralFilter {
                         let depth_diff = d - center;
                         let depth_dist2 = depth_diff * depth_diff;
 
-                        let weight = (spatial_coeff * spatial_dist2 + depth_coeff * depth_dist2).exp();
+                        let weight =
+                            (spatial_coeff * spatial_dist2 + depth_coeff * depth_dist2).exp();
                         weighted_sum += weight * d;
                         weight_total += weight;
                     }
@@ -422,11 +443,7 @@ pub struct RgbdExtrinsics {
 impl RgbdExtrinsics {
     pub fn identity() -> Self {
         Self {
-            rotation: [
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-                [0.0, 0.0, 1.0],
-            ],
+            rotation: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
             translation: [0.0, 0.0, 0.0],
         }
     }
@@ -477,7 +494,11 @@ impl RgbdAligner {
         rgb_intrinsics: CameraIntrinsics,
         extrinsics: RgbdExtrinsics,
     ) -> Self {
-        Self { depth_intrinsics, rgb_intrinsics, extrinsics }
+        Self {
+            depth_intrinsics,
+            rgb_intrinsics,
+            extrinsics,
+        }
     }
 
     /// Align a depth map to the RGB camera frame. Returns an aligned depth map
@@ -513,11 +534,18 @@ impl RgbdAligner {
     }
 
     /// Map a single depth pixel to the corresponding RGB pixel.
-    pub fn map_pixel(&self, depth_row: usize, depth_col: usize, depth_val: f64) -> Option<(usize, usize)> {
+    pub fn map_pixel(
+        &self,
+        depth_row: usize,
+        depth_col: usize,
+        depth_val: f64,
+    ) -> Option<(usize, usize)> {
         if depth_val <= 0.0 {
             return None;
         }
-        let pt = self.depth_intrinsics.backproject(depth_col as f64, depth_row as f64, depth_val);
+        let pt = self
+            .depth_intrinsics
+            .backproject(depth_col as f64, depth_row as f64, depth_val);
         let pt_rgb = self.extrinsics.transform(&pt);
         let (u, v) = self.rgb_intrinsics.project(&pt_rgb)?;
         let ru = v.round() as usize;
@@ -630,11 +658,7 @@ mod tests {
 
     #[test]
     fn test_hole_fill_nearest() {
-        let data = vec![
-            1.0, 0.0, 1.0,
-            0.0, 0.0, 0.0,
-            1.0, 0.0, 1.0,
-        ];
+        let data = vec![1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0];
         let dm = DepthMap::from_data(data, 3, 3).unwrap();
         let filler = HoleFiller::new(HoleFillMethod::NearestNeighbor);
         let filled = filler.fill(&dm);
@@ -644,11 +668,7 @@ mod tests {
 
     #[test]
     fn test_hole_fill_average() {
-        let data = vec![
-            2.0, 0.0, 4.0,
-            0.0, 0.0, 0.0,
-            2.0, 0.0, 4.0,
-        ];
+        let data = vec![2.0, 0.0, 4.0, 0.0, 0.0, 0.0, 2.0, 0.0, 4.0];
         let dm = DepthMap::from_data(data, 3, 3).unwrap();
         let filler = HoleFiller::new(HoleFillMethod::AverageNeighbor);
         let filled = filler.fill(&dm);
@@ -668,8 +688,11 @@ mod tests {
         // Left half at depth 1.0, right half at depth 5.0
         for row in 0..5 {
             for col in 0..5 {
-                if col < 3 { dm.set(row, col, 1.0); }
-                else { dm.set(row, col, 5.0); }
+                if col < 3 {
+                    dm.set(row, col, 1.0);
+                } else {
+                    dm.set(row, col, 5.0);
+                }
             }
         }
         let filter = BilateralFilter::new().with_sigma_depth(0.1);

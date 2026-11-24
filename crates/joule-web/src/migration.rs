@@ -128,7 +128,11 @@ impl MigrationRunner {
 
     /// Register a migration. Rejects duplicates.
     pub fn add_migration(&mut self, migration: Migration) -> Result<(), MigrationError> {
-        if self.migrations.iter().any(|m| m.version == migration.version) {
+        if self
+            .migrations
+            .iter()
+            .any(|m| m.version == migration.version)
+        {
             return Err(MigrationError::DuplicateVersion(migration.version));
         }
         self.migrations.push(migration);
@@ -204,7 +208,13 @@ impl MigrationRunner {
         if self.applied_versions.is_empty() {
             return Err(MigrationError::NothingToRollback);
         }
-        let mut rolled: Vec<u64> = self.applied_versions.iter().rev().take(count).copied().collect();
+        let mut rolled: Vec<u64> = self
+            .applied_versions
+            .iter()
+            .rev()
+            .take(count)
+            .copied()
+            .collect();
         rolled.sort_unstable();
         rolled.reverse(); // highest first
 
@@ -274,9 +284,24 @@ mod tests {
 
     fn sample_migrations() -> Vec<Migration> {
         vec![
-            Migration::new(1, "create_users", "CREATE TABLE users (id INT)", "DROP TABLE users"),
-            Migration::new(2, "add_email", "ALTER TABLE users ADD email TEXT", "ALTER TABLE users DROP email"),
-            Migration::new(3, "create_posts", "CREATE TABLE posts (id INT)", "DROP TABLE posts"),
+            Migration::new(
+                1,
+                "create_users",
+                "CREATE TABLE users (id INT)",
+                "DROP TABLE users",
+            ),
+            Migration::new(
+                2,
+                "add_email",
+                "ALTER TABLE users ADD email TEXT",
+                "ALTER TABLE users DROP email",
+            ),
+            Migration::new(
+                3,
+                "create_posts",
+                "CREATE TABLE posts (id INT)",
+                "DROP TABLE posts",
+            ),
         ]
     }
 
@@ -291,9 +316,15 @@ mod tests {
     #[test]
     fn add_migrations_sorted() {
         let mut runner = MigrationRunner::new();
-        runner.add_migration(Migration::new(3, "c", "", "")).unwrap();
-        runner.add_migration(Migration::new(1, "a", "", "")).unwrap();
-        runner.add_migration(Migration::new(2, "b", "", "")).unwrap();
+        runner
+            .add_migration(Migration::new(3, "c", "", ""))
+            .unwrap();
+        runner
+            .add_migration(Migration::new(1, "a", "", ""))
+            .unwrap();
+        runner
+            .add_migration(Migration::new(2, "b", "", ""))
+            .unwrap();
         let statuses = runner.status();
         assert_eq!(statuses[0].version, 1);
         assert_eq!(statuses[1].version, 2);
@@ -303,8 +334,12 @@ mod tests {
     #[test]
     fn duplicate_version_rejected() {
         let mut runner = MigrationRunner::new();
-        runner.add_migration(Migration::new(1, "a", "", "")).unwrap();
-        let err = runner.add_migration(Migration::new(1, "b", "", "")).unwrap_err();
+        runner
+            .add_migration(Migration::new(1, "a", "", ""))
+            .unwrap();
+        let err = runner
+            .add_migration(Migration::new(1, "b", "", ""))
+            .unwrap_err();
         assert_eq!(err, MigrationError::DuplicateVersion(1));
     }
 
@@ -317,10 +352,20 @@ mod tests {
     #[test]
     fn validate_detects_gap() {
         let mut runner = MigrationRunner::new();
-        runner.add_migration(Migration::new(1, "a", "", "")).unwrap();
-        runner.add_migration(Migration::new(3, "c", "", "")).unwrap();
+        runner
+            .add_migration(Migration::new(1, "a", "", ""))
+            .unwrap();
+        runner
+            .add_migration(Migration::new(3, "c", "", ""))
+            .unwrap();
         let err = runner.validate().unwrap_err();
-        assert_eq!(err, MigrationError::VersionGap { expected: 2, found: 3 });
+        assert_eq!(
+            err,
+            MigrationError::VersionGap {
+                expected: 2,
+                found: 3
+            }
+        );
     }
 
     #[test]

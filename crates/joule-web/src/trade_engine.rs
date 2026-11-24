@@ -5,8 +5,8 @@
 //! market, and stop orders with time-in-force semantics, partial fills, and
 //! deterministic price-time priority matching.
 
-use std::fmt;
 use std::collections::{BTreeMap, VecDeque};
+use std::fmt;
 
 // ── Core Types ──
 
@@ -184,8 +184,14 @@ impl fmt::Display for Order {
         write!(
             f,
             "Order(#{} {} {} {:.4} @ {:.2} [{}/{}] {})",
-            self.id, self.side, self.symbol, self.quantity,
-            self.price, self.status, self.time_in_force, self.order_type,
+            self.id,
+            self.side,
+            self.symbol,
+            self.quantity,
+            self.price,
+            self.status,
+            self.time_in_force,
+            self.order_type,
         )
     }
 }
@@ -210,8 +216,13 @@ impl fmt::Display for TradeEvent {
         write!(
             f,
             "Trade(#{} {} {:.4}@{:.2} buy=#{} sell=#{} aggressor={})",
-            self.trade_id, self.symbol, self.quantity, self.price,
-            self.buy_order_id, self.sell_order_id, self.aggressor_side,
+            self.trade_id,
+            self.symbol,
+            self.quantity,
+            self.price,
+            self.buy_order_id,
+            self.sell_order_id,
+            self.aggressor_side,
         )
     }
 }
@@ -226,7 +237,9 @@ struct PriceLevel {
 
 impl PriceLevel {
     fn new() -> Self {
-        Self { orders: VecDeque::new() }
+        Self {
+            orders: VecDeque::new(),
+        }
     }
 
     fn total_quantity(&self) -> f64 {
@@ -251,7 +264,10 @@ struct BookSide {
 
 impl BookSide {
     fn new(is_bid: bool) -> Self {
-        Self { levels: BTreeMap::new(), is_bid }
+        Self {
+            levels: BTreeMap::new(),
+            is_bid,
+        }
     }
 
     /// Convert f64 price to i64 key (bids negated for descending).
@@ -262,12 +278,18 @@ impl BookSide {
 
     fn insert(&mut self, order: Order) {
         let key = self.price_key(order.price);
-        self.levels.entry(key).or_insert_with(PriceLevel::new).orders.push_back(order);
+        self.levels
+            .entry(key)
+            .or_insert_with(PriceLevel::new)
+            .orders
+            .push_back(order);
     }
 
     fn best_price(&self) -> Option<f64> {
         let (key, level) = self.levels.iter().next()?;
-        if level.is_empty() { return None; }
+        if level.is_empty() {
+            return None;
+        }
         let ticks = if self.is_bid { -key } else { *key };
         Some(ticks as f64 / 1_000_000.0)
     }

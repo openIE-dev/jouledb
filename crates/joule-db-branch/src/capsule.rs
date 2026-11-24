@@ -85,7 +85,10 @@ impl OciImageRef {
             {
                 (first.to_string(), rest.to_string())
             }
-            Some(_) => ("registry-1.docker.io".to_string(), without_digest.to_string()),
+            Some(_) => (
+                "registry-1.docker.io".to_string(),
+                without_digest.to_string(),
+            ),
             None => (
                 "registry-1.docker.io".to_string(),
                 format!("library/{without_digest}"),
@@ -253,15 +256,27 @@ pub struct OciImageRecord {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum JoulefileInstruction {
     From(String),
-    Arg { key: String, default: Option<String> },
-    Env { key: String, value: String },
+    Arg {
+        key: String,
+        default: Option<String>,
+    },
+    Env {
+        key: String,
+        value: String,
+    },
     Workdir(String),
-    Copy { src: String, dst: String },
+    Copy {
+        src: String,
+        dst: String,
+    },
     Run(String),
     Expose(u16),
     Volume(String),
     User(String),
-    Label { key: String, value: String },
+    Label {
+        key: String,
+        value: String,
+    },
     Entrypoint(Vec<String>),
     Cmd(Vec<String>),
     /// JouleDB superset: `ENERGY_BUDGET 25J` / `500mJ` / `10000uJ`
@@ -728,7 +743,8 @@ impl CapsuleEngine {
                             .or_else(|| context_files.get(clean_src))
                         {
                             self.record_cas_blob(bytes);
-                            self.agentfs.write_file(&base_branch, &resolved_dst, bytes)?;
+                            self.agentfs
+                                .write_file(&base_branch, &resolved_dst, bytes)?;
                         }
                     }
                     _ => {}
@@ -772,7 +788,9 @@ impl CapsuleEngine {
         };
         let mut by_id: BTreeMap<String, OciImageRecord> = BTreeMap::new();
         for rec in imgs.values() {
-            by_id.entry(rec.image_id.clone()).or_insert_with(|| rec.clone());
+            by_id
+                .entry(rec.image_id.clone())
+                .or_insert_with(|| rec.clone());
         }
         by_id.into_values().collect()
     }
@@ -790,7 +808,10 @@ impl CapsuleEngine {
             &cow_branch,
             Some(&img.base_branch),
             budget,
-            Some(format!("JouleCapsule '{}' from {}", req.capsule_id, img.reference)),
+            Some(format!(
+                "JouleCapsule '{}' from {}",
+                req.capsule_id, img.reference
+            )),
         )?;
 
         let mut merged_env = BTreeMap::new();
@@ -898,7 +919,9 @@ impl CapsuleEngine {
     ) -> Result<CapsuleExecLog, BranchError> {
         validate_capsule_id(capsule_id)?;
         if command.is_empty() {
-            return Err(BranchError::InvalidName("empty capsule exec command".into()));
+            return Err(BranchError::InvalidName(
+                "empty capsule exec command".into(),
+            ));
         }
 
         let cap = {
@@ -920,11 +943,8 @@ impl CapsuleEngine {
         };
 
         // Materialize sparse CoW rootfs into ephemeral isolated directory
-        let rootfs_dir = sandbox_scratch_root.join(format!(
-            "jcap-{}-{}",
-            capsule_id,
-            cap.exec_logs.len()
-        ));
+        let rootfs_dir =
+            sandbox_scratch_root.join(format!("jcap-{}-{}", capsule_id, cap.exec_logs.len()));
         std::fs::create_dir_all(&rootfs_dir)
             .map_err(|e| BranchError::Storage(format!("failed to create capsule rootfs: {e}")))?;
 
@@ -1000,17 +1020,24 @@ impl CapsuleEngine {
         let sync_res = self.sync_host_dir_into_branch(&rootfs_dir, &rootfs_dir, &cap.cow_branch);
         let _ = std::fs::remove_dir_all(&rootfs_dir);
 
-        if let Err(BranchError::EnergyBudgetExhausted { spent_uj, budget_uj }) = sync_res {
+        if let Err(BranchError::EnergyBudgetExhausted {
+            spent_uj,
+            budget_uj,
+        }) = sync_res
+        {
             if let Ok(mut caps) = self.capsules.write()
                 && let Some(c) = caps.get_mut(capsule_id)
             {
                 c.state = CapsuleState::EnergyThrottled;
             }
-            return Err(BranchError::EnergyBudgetExhausted { spent_uj, budget_uj });
+            return Err(BranchError::EnergyBudgetExhausted {
+                spent_uj,
+                budget_uj,
+            });
         }
 
-        let out = output_res
-            .map_err(|e| BranchError::Storage(format!("capsule exec failed: {e}")))?;
+        let out =
+            output_res.map_err(|e| BranchError::Storage(format!("capsule exec failed: {e}")))?;
         // 15 W nominal active core * duration_us => 15 µJ per millisecond + 5 µJ base
         let energy_uj = 5 + (duration_us / 67).max(1);
 
@@ -1168,7 +1195,10 @@ impl CapsuleEngine {
     }
 
     fn apply_tar_layer_to_branch(&self, branch: &str, raw_or_gz: &[u8]) -> Result<(), BranchError> {
-        let tar_bytes: Vec<u8> = if raw_or_gz.len() >= 2 && raw_or_gz[0] == 0x1F && raw_or_gz[1] == 0x8B {
+        let tar_bytes: Vec<u8> = if raw_or_gz.len() >= 2
+            && raw_or_gz[0] == 0x1F
+            && raw_or_gz[1] == 0x8B
+        {
             let dec = GzDecoder::new(raw_or_gz);
             let mut limited = dec.take((MAX_OCI_LAYER_BYTES + 1) as u64);
             let mut out = Vec::new();
@@ -1311,8 +1341,7 @@ impl CapsuleEngine {
                 && let Ok(rel) = path.strip_prefix(root)
                 && let Ok(bytes) = std::fs::read(&path)
             {
-                let Ok(vfs_path) =
-                    normalize_vfs_path(&rel.to_string_lossy().replace('\\', "/"))
+                let Ok(vfs_path) = normalize_vfs_path(&rel.to_string_lossy().replace('\\', "/"))
                 else {
                     continue;
                 };
@@ -1386,7 +1415,10 @@ fn topological_boot_waves(
                 )));
             }
             *in_degree.entry(name.clone()).or_insert(0) += 1;
-            dependents.entry(dep.clone()).or_default().push(name.clone());
+            dependents
+                .entry(dep.clone())
+                .or_default()
+                .push(name.clone());
         }
     }
 
@@ -1586,7 +1618,10 @@ mod tests {
             .build_from_joulefile("joulesperbit/svc:latest", joulefile, &ctx)
             .unwrap();
         assert_eq!(built.config.default_energy_budget_uj, Some(25_000));
-        assert_eq!(built.config.preferred_silicon_lane.as_deref(), Some("gpu_shader"));
+        assert_eq!(
+            built.config.preferred_silicon_lane.as_deref(),
+            Some("gpu_shader")
+        );
 
         let mut services = BTreeMap::new();
         services.insert(
@@ -1636,7 +1671,11 @@ mod tests {
 
         assert_eq!(
             plan.boot_waves,
-            vec![vec!["db".to_string()], vec!["api".to_string()], vec!["worker".to_string()]]
+            vec![
+                vec!["db".to_string()],
+                vec!["api".to_string()],
+                vec!["worker".to_string()]
+            ]
         );
         // Service discovery env `DB_HOST` & `DB_PORT` auto-injected!
         let api_cap = plan

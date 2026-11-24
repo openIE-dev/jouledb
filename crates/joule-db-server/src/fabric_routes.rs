@@ -262,7 +262,10 @@ pub fn fabric_router(rt: Arc<FabricRuntime>) -> Router {
         .with_state(rt)
 }
 
-async fn execute_on_fabric(rt: Arc<FabricRuntime>, req: FabricExecuteRequest) -> axum::response::Response {
+async fn execute_on_fabric(
+    rt: Arc<FabricRuntime>,
+    req: FabricExecuteRequest,
+) -> axum::response::Response {
     let plan = match rt.fabric.plan(&req.workload) {
         Ok(p) => p,
         Err(e) => {

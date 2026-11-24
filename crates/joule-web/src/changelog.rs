@@ -430,9 +430,7 @@ impl VersionGroup {
     pub fn by_type(&self) -> Vec<(CommitType, Vec<&ConventionalCommit>)> {
         let mut map: HashMap<CommitType, Vec<&ConventionalCommit>> = HashMap::new();
         for c in &self.commits {
-            map.entry(c.commit_type.clone())
-                .or_default()
-                .push(c);
+            map.entry(c.commit_type.clone()).or_default().push(c);
         }
         let mut groups: Vec<(CommitType, Vec<&ConventionalCommit>)> = map.into_iter().collect();
         groups.sort_by_key(|(t, _)| t.display_order());
@@ -563,10 +561,7 @@ impl ChangelogBuilder {
 
         for (version, message) in &self.commits {
             let commit = parse_commit(message)?;
-            version_map
-                .entry(version.clone())
-                .or_default()
-                .push(commit);
+            version_map.entry(version.clone()).or_default().push(commit);
         }
 
         let mut changelog = Changelog::new(&self.title);

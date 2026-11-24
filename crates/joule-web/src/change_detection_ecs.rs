@@ -131,10 +131,8 @@ impl ChangeDetector {
 
     /// Record that a component was added to an entity.
     pub fn record_added(&mut self, entity_id: u64, type_id: TypeId) {
-        self.component_ticks.insert(
-            (entity_id, type_id),
-            ComponentTick::new(self.current_tick),
-        );
+        self.component_ticks
+            .insert((entity_id, type_id), ComponentTick::new(self.current_tick));
     }
 
     /// Record that a component was changed on an entity.
@@ -178,12 +176,7 @@ impl ChangeDetector {
     }
 
     /// Was this component added since `since_tick`?
-    pub fn is_added_since(
-        &self,
-        entity_id: u64,
-        type_id: TypeId,
-        since_tick: u64,
-    ) -> bool {
+    pub fn is_added_since(&self, entity_id: u64, type_id: TypeId, since_tick: u64) -> bool {
         self.component_ticks
             .get(&(entity_id, type_id))
             .map(|ct| ct.is_added_since(since_tick))
@@ -191,12 +184,7 @@ impl ChangeDetector {
     }
 
     /// Was this component changed since `since_tick`?
-    pub fn is_changed_since(
-        &self,
-        entity_id: u64,
-        type_id: TypeId,
-        since_tick: u64,
-    ) -> bool {
+    pub fn is_changed_since(&self, entity_id: u64, type_id: TypeId, since_tick: u64) -> bool {
         self.component_ticks
             .get(&(entity_id, type_id))
             .map(|ct| ct.is_changed_since(since_tick))
@@ -204,11 +192,7 @@ impl ChangeDetector {
     }
 
     /// Get all entities whose component of `type_id` was added since `since_tick`.
-    pub fn added_entities_since(
-        &self,
-        type_id: TypeId,
-        since_tick: u64,
-    ) -> Vec<u64> {
+    pub fn added_entities_since(&self, type_id: TypeId, since_tick: u64) -> Vec<u64> {
         self.component_ticks
             .iter()
             .filter(|((_, tid), ct)| *tid == type_id && ct.is_added_since(since_tick))
@@ -217,11 +201,7 @@ impl ChangeDetector {
     }
 
     /// Get all entities whose component of `type_id` was changed since `since_tick`.
-    pub fn changed_entities_since(
-        &self,
-        type_id: TypeId,
-        since_tick: u64,
-    ) -> Vec<u64> {
+    pub fn changed_entities_since(&self, type_id: TypeId, since_tick: u64) -> Vec<u64> {
         self.component_ticks
             .iter()
             .filter(|((_, tid), ct)| *tid == type_id && ct.is_changed_since(since_tick))
@@ -230,11 +210,7 @@ impl ChangeDetector {
     }
 
     /// Get all removal records for a component type since `since_tick`.
-    pub fn removed_since(
-        &self,
-        type_id: TypeId,
-        since_tick: u64,
-    ) -> Vec<&RemovedRecord> {
+    pub fn removed_since(&self, type_id: TypeId, since_tick: u64) -> Vec<&RemovedRecord> {
         self.removal_log
             .iter()
             .filter(|r| r.type_id == type_id && r.removed_tick > since_tick)
@@ -242,11 +218,7 @@ impl ChangeDetector {
     }
 
     /// Get all change events for a component type since `since_tick`.
-    pub fn events_since(
-        &self,
-        type_id: TypeId,
-        since_tick: u64,
-    ) -> Vec<(u64, ChangeEvent)> {
+    pub fn events_since(&self, type_id: TypeId, since_tick: u64) -> Vec<(u64, ChangeEvent)> {
         let mut events = Vec::new();
         for ((eid, tid), ct) in &self.component_ticks {
             if *tid != type_id {
@@ -286,21 +258,13 @@ impl ChangeDetector {
     }
 
     /// Get all entities with added components since a system's last run.
-    pub fn added_since_system_run(
-        &self,
-        type_id: TypeId,
-        system_name: &str,
-    ) -> Vec<u64> {
+    pub fn added_since_system_run(&self, type_id: TypeId, system_name: &str) -> Vec<u64> {
         let since = self.system_ticks.get(system_name).copied().unwrap_or(0);
         self.added_entities_since(type_id, since)
     }
 
     /// Get all entities with changed components since a system's last run.
-    pub fn changed_since_system_run(
-        &self,
-        type_id: TypeId,
-        system_name: &str,
-    ) -> Vec<u64> {
+    pub fn changed_since_system_run(&self, type_id: TypeId, system_name: &str) -> Vec<u64> {
         let since = self.system_ticks.get(system_name).copied().unwrap_or(0);
         self.changed_entities_since(type_id, since)
     }
@@ -491,8 +455,7 @@ mod tests {
         cd.record_removed(1, TypeId::of::<Pos>());
         cd.record_added(3, TypeId::of::<Pos>());
         let events = cd.events_since(TypeId::of::<Pos>(), 1);
-        let event_types: HashSet<ChangeEvent> =
-            events.iter().map(|(_, e)| *e).collect();
+        let event_types: HashSet<ChangeEvent> = events.iter().map(|(_, e)| *e).collect();
         assert!(event_types.contains(&ChangeEvent::Added));
         assert!(event_types.contains(&ChangeEvent::Changed));
         assert!(event_types.contains(&ChangeEvent::Removed));

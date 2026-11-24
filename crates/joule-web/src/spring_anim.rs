@@ -32,7 +32,12 @@ pub struct SpringConfig {
 
 impl SpringConfig {
     pub fn new(stiffness: f64, damping: f64, mass: f64) -> Self {
-        Self { stiffness, damping, mass, initial_velocity: 0.0 }
+        Self {
+            stiffness,
+            damping,
+            mass,
+            initial_velocity: 0.0,
+        }
     }
 
     pub fn with_initial_velocity(mut self, vel: f64) -> Self {
@@ -42,22 +47,42 @@ impl SpringConfig {
 
     /// Gentle spring — slow settle, low stiffness.
     pub fn gentle() -> Self {
-        Self { stiffness: 120.0, damping: 14.0, mass: 1.0, initial_velocity: 0.0 }
+        Self {
+            stiffness: 120.0,
+            damping: 14.0,
+            mass: 1.0,
+            initial_velocity: 0.0,
+        }
     }
 
     /// Wobbly spring — low damping, lots of oscillation.
     pub fn wobbly() -> Self {
-        Self { stiffness: 180.0, damping: 12.0, mass: 1.0, initial_velocity: 0.0 }
+        Self {
+            stiffness: 180.0,
+            damping: 12.0,
+            mass: 1.0,
+            initial_velocity: 0.0,
+        }
     }
 
     /// Stiff spring — high stiffness, moderate damping.
     pub fn stiff() -> Self {
-        Self { stiffness: 400.0, damping: 28.0, mass: 1.0, initial_velocity: 0.0 }
+        Self {
+            stiffness: 400.0,
+            damping: 28.0,
+            mass: 1.0,
+            initial_velocity: 0.0,
+        }
     }
 
     /// Slow spring — very low stiffness, heavy mass feel.
     pub fn slow() -> Self {
-        Self { stiffness: 60.0, damping: 20.0, mass: 3.0, initial_velocity: 0.0 }
+        Self {
+            stiffness: 60.0,
+            damping: 20.0,
+            mass: 3.0,
+            initial_velocity: 0.0,
+        }
     }
 
     /// Determine damping type from the system parameters.
@@ -223,7 +248,10 @@ pub struct SpringChain {
 
 impl SpringChain {
     pub fn new(springs: Vec<Spring>) -> Self {
-        Self { springs, current_index: 0 }
+        Self {
+            springs,
+            current_index: 0,
+        }
     }
 
     /// Convenience: build a chain from (from, to) pairs using a shared config.
@@ -232,7 +260,10 @@ impl SpringChain {
             .iter()
             .map(|(from, to)| Spring::new(*from, *to, config))
             .collect();
-        Self { springs, current_index: 0 }
+        Self {
+            springs,
+            current_index: 0,
+        }
     }
 
     /// Get the current spring (if any remain).
@@ -359,7 +390,10 @@ mod tests {
         let mut spring = Spring::new(0.0, 100.0, config);
         for _ in 0..1000 {
             spring.step(1.0 / 60.0);
-            assert!(spring.state().position <= 100.01, "Overdamped should not overshoot");
+            assert!(
+                spring.state().position <= 100.01,
+                "Overdamped should not overshoot"
+            );
         }
     }
 

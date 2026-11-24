@@ -58,7 +58,10 @@ impl RelayMessage {
 
     /// Whether the message has reached its destination.
     pub fn reached_destination(&self) -> bool {
-        self.hops.last().map(|h| h == &self.destination).unwrap_or(false)
+        self.hops
+            .last()
+            .map(|h| h == &self.destination)
+            .unwrap_or(false)
     }
 }
 
@@ -67,7 +70,11 @@ impl fmt::Display for RelayMessage {
         write!(
             f,
             "RelayMsg(id={}, {}→{}, hops={}, ttl={})",
-            self.id, self.source, self.destination, self.hop_count(), self.ttl,
+            self.id,
+            self.source,
+            self.destination,
+            self.hop_count(),
+            self.ttl,
         )
     }
 }
@@ -111,8 +118,10 @@ impl fmt::Display for RelayStats {
         write!(
             f,
             "RelayStats(fwd={}, delivered={}, dropped_ttl={}, dropped_dup={}, avg_hops={:.1})",
-            self.messages_forwarded, self.messages_delivered,
-            self.messages_dropped_ttl, self.messages_dropped_dup,
+            self.messages_forwarded,
+            self.messages_delivered,
+            self.messages_dropped_ttl,
+            self.messages_dropped_dup,
             self.avg_hops(),
         )
     }
@@ -172,12 +181,15 @@ impl RelayNode {
         let nid = neighbor_id.into();
         self.neighbors.insert(nid.clone());
         // Direct neighbor is 1 hop
-        self.routes.insert(nid.clone(), RouteEntry {
-            destination: nid.clone(),
-            next_hop: nid,
-            hop_count: 1,
-            last_updated: self.current_tick,
-        });
+        self.routes.insert(
+            nid.clone(),
+            RouteEntry {
+                destination: nid.clone(),
+                next_hop: nid,
+                hop_count: 1,
+                last_updated: self.current_tick,
+            },
+        );
     }
 
     /// Remove a neighbor.
@@ -196,12 +208,15 @@ impl RelayNode {
             None => true,
         };
         if should_update {
-            self.routes.insert(d.clone(), RouteEntry {
-                destination: d,
-                next_hop: v,
-                hop_count: hops + 1,
-                last_updated: self.current_tick,
-            });
+            self.routes.insert(
+                d.clone(),
+                RouteEntry {
+                    destination: d,
+                    next_hop: v,
+                    hop_count: hops + 1,
+                    last_updated: self.current_tick,
+                },
+            );
         }
     }
 
@@ -211,10 +226,21 @@ impl RelayNode {
     }
 
     /// Create a new message from this node to a destination.
-    pub fn create_message(&mut self, destination: impl Into<String>, payload: Vec<u8>) -> RelayMessage {
+    pub fn create_message(
+        &mut self,
+        destination: impl Into<String>,
+        payload: Vec<u8>,
+    ) -> RelayMessage {
         let id = self.next_msg_id;
         self.next_msg_id += 1;
-        RelayMessage::new(id, &self.id, destination, payload, self.default_ttl, self.current_tick)
+        RelayMessage::new(
+            id,
+            &self.id,
+            destination,
+            payload,
+            self.default_ttl,
+            self.current_tick,
+        )
     }
 
     /// Process an incoming relay message. Returns the next-hop node id if forwarding.
@@ -467,7 +493,11 @@ mod tests {
 
     #[test]
     fn test_relay_stats_avg_hops() {
-        let s = RelayStats { messages_delivered: 4, total_hops: 12, ..Default::default() };
+        let s = RelayStats {
+            messages_delivered: 4,
+            total_hops: 12,
+            ..Default::default()
+        };
         assert!((s.avg_hops() - 3.0).abs() < 0.001);
     }
 

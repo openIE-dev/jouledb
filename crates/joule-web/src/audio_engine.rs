@@ -26,7 +26,10 @@ impl AudioBuffer {
 
     /// Create a buffer from existing channel data.
     pub fn from_channels(channels: Vec<Vec<f32>>, sample_rate: f32) -> Self {
-        Self { channels, sample_rate }
+        Self {
+            channels,
+            sample_rate,
+        }
     }
 
     pub fn num_channels(&self) -> usize {
@@ -106,10 +109,9 @@ impl AudioNode for GainNode {
     fn process(&mut self, input: &AudioBuffer, output: &mut AudioBuffer, frames: usize) {
         let ch = input.num_channels().min(output.num_channels());
         for c in 0..ch {
-            if let (Some(inp), Some(out)) = (
-                input.get_channel_data(c),
-                output.get_channel_data_mut(c),
-            ) {
+            if let (Some(inp), Some(out)) =
+                (input.get_channel_data(c), output.get_channel_data_mut(c))
+            {
                 for i in 0..frames.min(inp.len()).min(out.len()) {
                     out[i] = inp[i] * self.gain;
                 }
@@ -233,7 +235,8 @@ impl AudioContext {
 
     /// Disconnect a source from a destination.
     pub fn disconnect(&mut self, source: u64, dest: u64) {
-        self.connections.retain(|&(s, d)| !(s == source && d == dest));
+        self.connections
+            .retain(|&(s, d)| !(s == source && d == dest));
     }
 
     /// Remove a node and all its connections.
@@ -273,8 +276,7 @@ impl AudioContext {
             // Find and process the node
             let node_idx = self.nodes.iter().position(|(id, _)| *id == *nid);
             if let Some(idx) = node_idx {
-                let mut output =
-                    AudioBuffer::new(self.channel_count, frames, self.sample_rate);
+                let mut output = AudioBuffer::new(self.channel_count, frames, self.sample_rate);
                 self.nodes[idx].1.process(&input, &mut output, frames);
                 buffers.insert(*nid, output);
             }
@@ -282,9 +284,9 @@ impl AudioContext {
 
         // Return the last node's output
         if let Some(last_id) = node_ids.last() {
-            buffers.remove(last_id).unwrap_or_else(|| {
-                AudioBuffer::new(self.channel_count, frames, self.sample_rate)
-            })
+            buffers
+                .remove(last_id)
+                .unwrap_or_else(|| AudioBuffer::new(self.channel_count, frames, self.sample_rate))
         } else {
             AudioBuffer::new(self.channel_count, frames, self.sample_rate)
         }
@@ -346,10 +348,7 @@ mod tests {
 
     #[test]
     fn audio_buffer_copy_channel() {
-        let mut buf = AudioBuffer::from_channels(
-            vec![vec![1.0, 2.0], vec![0.0, 0.0]],
-            44100.0,
-        );
+        let mut buf = AudioBuffer::from_channels(vec![vec![1.0, 2.0], vec![0.0, 0.0]], 44100.0);
         buf.copy_channel(0, 1);
         assert_eq!(buf.get_channel_data(1).unwrap(), &[1.0, 2.0]);
     }
@@ -419,7 +418,9 @@ mod tests {
                     }
                 }
             }
-            fn name(&self) -> &str { "ConstNode" }
+            fn name(&self) -> &str {
+                "ConstNode"
+            }
         }
 
         let src = ctx.add_node(Box::new(ConstNode(1.0)));
@@ -452,10 +453,7 @@ mod tests {
 
     #[test]
     fn gain_node_multichannel() {
-        let input = AudioBuffer::from_channels(
-            vec![vec![1.0, 2.0], vec![3.0, 4.0]],
-            44100.0,
-        );
+        let input = AudioBuffer::from_channels(vec![vec![1.0, 2.0], vec![3.0, 4.0]], 44100.0);
         let mut output = AudioBuffer::new(2, 2, 44100.0);
         let mut gain = GainNode::new(0.5);
         gain.process(&input, &mut output, 2);

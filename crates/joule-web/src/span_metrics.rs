@@ -145,7 +145,13 @@ pub struct Span {
 
 impl Span {
     /// Create a new span.
-    pub fn new(span_id: &str, trace_id: &str, operation: &str, service: &str, start_us: u64) -> Self {
+    pub fn new(
+        span_id: &str,
+        trace_id: &str,
+        operation: &str,
+        service: &str,
+        start_us: u64,
+    ) -> Self {
         Self {
             span_id: span_id.to_string(),
             trace_id: trace_id.to_string(),
@@ -664,7 +670,16 @@ mod tests {
     #[test]
     fn test_sla_latency_violation() {
         let spans: Vec<Span> = (0..100)
-            .map(|i| make_span(&format!("s{}", i), "op", "svc", 0, 1_000_000, SpanStatus::Ok))
+            .map(|i| {
+                make_span(
+                    &format!("s{}", i),
+                    "op",
+                    "svc",
+                    0,
+                    1_000_000,
+                    SpanStatus::Ok,
+                )
+            })
             .collect();
         let m = SpanMetrics::from_spans(&spans);
         let sla = SlaDefinition::new("test").with_latency(500_000, 99.0);
@@ -676,10 +691,24 @@ mod tests {
     fn test_sla_error_rate_violation() {
         let mut spans = Vec::new();
         for i in 0..90 {
-            spans.push(make_span(&format!("s{}", i), "op", "svc", 0, 100, SpanStatus::Ok));
+            spans.push(make_span(
+                &format!("s{}", i),
+                "op",
+                "svc",
+                0,
+                100,
+                SpanStatus::Ok,
+            ));
         }
         for i in 90..100 {
-            spans.push(make_span(&format!("s{}", i), "op", "svc", 0, 100, SpanStatus::Error));
+            spans.push(make_span(
+                &format!("s{}", i),
+                "op",
+                "svc",
+                0,
+                100,
+                SpanStatus::Error,
+            ));
         }
         let m = SpanMetrics::from_spans(&spans);
         let sla = SlaDefinition::new("test").with_error_rate(0.05);
@@ -736,8 +765,7 @@ mod tests {
 
     #[test]
     fn test_span_baggage_propagation() {
-        let s = Span::new("s1", "t1", "op", "svc", 0)
-            .with_baggage_item("tenant", "acme");
+        let s = Span::new("s1", "t1", "op", "svc", 0).with_baggage_item("tenant", "acme");
         assert_eq!(s.baggage.get("tenant"), Some("acme"));
     }
 

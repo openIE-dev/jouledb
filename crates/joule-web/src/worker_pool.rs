@@ -36,7 +36,10 @@ impl std::fmt::Display for WorkerPoolError {
             Self::NoHealthyWorkers => write!(f, "no healthy workers available"),
             Self::DuplicateWorker(id) => write!(f, "worker already exists: {id}"),
             Self::CapacityReached { max } => write!(f, "pool capacity reached: {max}"),
-            Self::TaskTimeout { task_id, timeout_ms } => {
+            Self::TaskTimeout {
+                task_id,
+                timeout_ms,
+            } => {
                 write!(f, "task {task_id} timed out after {timeout_ms}ms")
             }
         }

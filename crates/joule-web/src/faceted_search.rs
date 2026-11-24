@@ -126,11 +126,7 @@ impl FacetEngine {
     }
 
     /// Add a document with string facet fields.
-    pub fn add_document(
-        &mut self,
-        doc_id: &str,
-        fields: &HashMap<String, Vec<String>>,
-    ) {
+    pub fn add_document(&mut self, doc_id: &str, fields: &HashMap<String, Vec<String>>) {
         let doc = FacetDocument {
             fields: fields.clone(),
             numeric_fields: HashMap::new(),
@@ -417,12 +413,11 @@ impl FacetEngine {
                 .fields
                 .get(field)
                 .map_or(false, |vals| vals.contains(value)),
-            FilterClause::AnyOf { field, values } => doc
-                .fields
-                .get(field)
-                .map_or(false, |doc_vals| {
+            FilterClause::AnyOf { field, values } => {
+                doc.fields.get(field).map_or(false, |doc_vals| {
                     values.iter().any(|v| doc_vals.contains(v))
-                }),
+                })
+            }
             FilterClause::Range {
                 field,
                 lower,
@@ -439,9 +434,7 @@ impl FacetEngine {
             FilterClause::HierarchyPrefix { field, prefix } => doc
                 .fields
                 .get(field)
-                .map_or(false, |vals| {
-                    vals.iter().any(|v| v.starts_with(prefix))
-                }),
+                .map_or(false, |vals| vals.iter().any(|v| v.starts_with(prefix))),
         }
     }
 }
@@ -464,7 +457,10 @@ mod tests {
         let mut f1 = HashMap::new();
         f1.insert("color".to_string(), vec!["red".to_string()]);
         f1.insert("size".to_string(), vec!["small".to_string()]);
-        f1.insert("category".to_string(), vec!["Electronics > Phones > Android".to_string()]);
+        f1.insert(
+            "category".to_string(),
+            vec!["Electronics > Phones > Android".to_string()],
+        );
         let mut n1 = HashMap::new();
         n1.insert("price".to_string(), 29.99);
         engine.add_document_full("d1", &f1, &n1);
@@ -472,7 +468,10 @@ mod tests {
         let mut f2 = HashMap::new();
         f2.insert("color".to_string(), vec!["blue".to_string()]);
         f2.insert("size".to_string(), vec!["medium".to_string()]);
-        f2.insert("category".to_string(), vec!["Electronics > Phones > iOS".to_string()]);
+        f2.insert(
+            "category".to_string(),
+            vec!["Electronics > Phones > iOS".to_string()],
+        );
         let mut n2 = HashMap::new();
         n2.insert("price".to_string(), 99.99);
         engine.add_document_full("d2", &f2, &n2);
@@ -480,15 +479,24 @@ mod tests {
         let mut f3 = HashMap::new();
         f3.insert("color".to_string(), vec!["red".to_string()]);
         f3.insert("size".to_string(), vec!["large".to_string()]);
-        f3.insert("category".to_string(), vec!["Electronics > Laptops".to_string()]);
+        f3.insert(
+            "category".to_string(),
+            vec!["Electronics > Laptops".to_string()],
+        );
         let mut n3 = HashMap::new();
         n3.insert("price".to_string(), 499.99);
         engine.add_document_full("d3", &f3, &n3);
 
         let mut f4 = HashMap::new();
-        f4.insert("color".to_string(), vec!["green".to_string(), "blue".to_string()]);
+        f4.insert(
+            "color".to_string(),
+            vec!["green".to_string(), "blue".to_string()],
+        );
         f4.insert("size".to_string(), vec!["small".to_string()]);
-        f4.insert("category".to_string(), vec!["Clothing > Shirts".to_string()]);
+        f4.insert(
+            "category".to_string(),
+            vec!["Clothing > Shirts".to_string()],
+        );
         let mut n4 = HashMap::new();
         n4.insert("price".to_string(), 19.99);
         engine.add_document_full("d4", &f4, &n4);
@@ -658,7 +666,11 @@ mod tests {
         let engine = build_engine();
         let result = engine.hierarchical_facet_count("category");
         assert!(!result.values.is_empty());
-        let electronics = result.values.iter().find(|v| v.value == "Electronics").unwrap();
+        let electronics = result
+            .values
+            .iter()
+            .find(|v| v.value == "Electronics")
+            .unwrap();
         assert_eq!(electronics.count, 3); // d1, d2, d3
         assert!(!electronics.children.is_empty());
     }

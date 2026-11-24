@@ -5,8 +5,8 @@
 //! leakage metrics, and anti-gaming protections. Orders rest invisibly
 //! and match at the midpoint of the national best bid and offer (NBBO).
 
-use std::fmt;
 use std::collections::VecDeque;
+use std::fmt;
 
 // ── Core Types ──
 
@@ -60,7 +60,11 @@ pub struct NbboRef {
 
 impl NbboRef {
     pub fn new(bid: f64, ask: f64, timestamp_ns: u64) -> Self {
-        Self { bid, ask, timestamp_ns }
+        Self {
+            bid,
+            ask,
+            timestamp_ns,
+        }
     }
 
     pub fn midpoint(&self) -> f64 {
@@ -73,7 +77,11 @@ impl NbboRef {
 
     pub fn spread_bps(&self) -> f64 {
         let mid = self.midpoint();
-        if mid > 1e-12 { (self.spread() / mid) * 10_000.0 } else { 0.0 }
+        if mid > 1e-12 {
+            (self.spread() / mid) * 10_000.0
+        } else {
+            0.0
+        }
     }
 
     pub fn is_valid(&self) -> bool {
@@ -83,8 +91,14 @@ impl NbboRef {
 
 impl fmt::Display for NbboRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "NBBO({:.4}/{:.4} mid={:.4} spread={:.1}bps)",
-            self.bid, self.ask, self.midpoint(), self.spread_bps())
+        write!(
+            f,
+            "NBBO({:.4}/{:.4} mid={:.4} spread={:.1}bps)",
+            self.bid,
+            self.ask,
+            self.midpoint(),
+            self.spread_bps()
+        )
     }
 }
 
@@ -158,12 +172,18 @@ impl DarkOrder {
 
     /// Whether this order can match a given contra quantity at the midpoint.
     pub fn can_match(&self, contra_qty: f64, midpoint: f64) -> bool {
-        if !self.is_active { return false; }
-        if self.remaining() < 1e-12 { return false; }
+        if !self.is_active {
+            return false;
+        }
+        if self.remaining() < 1e-12 {
+            return false;
+        }
 
         // Check minimum quantity.
         let matchable = contra_qty.min(self.remaining());
-        if matchable < self.min_quantity && self.min_quantity > 0.0 { return false; }
+        if matchable < self.min_quantity && self.min_quantity > 0.0 {
+            return false;
+        }
 
         // Check limit price constraint.
         if !self.peg_to_midpoint && self.limit_price > 0.0 {
@@ -190,8 +210,13 @@ impl fmt::Display for DarkOrder {
         write!(
             f,
             "DarkOrder(#{} {} {} qty={:.2} rem={:.2} cond={} mid_peg={})",
-            self.id, self.side, self.symbol, self.quantity,
-            self.remaining(), self.condition, self.peg_to_midpoint,
+            self.id,
+            self.side,
+            self.symbol,
+            self.quantity,
+            self.remaining(),
+            self.condition,
+            self.peg_to_midpoint,
         )
     }
 }
@@ -222,8 +247,7 @@ impl fmt::Display for DarkMatch {
         write!(
             f,
             "DarkMatch(#{} {} {:.4}@{:.4} improve={:.1}bps)",
-            self.match_id, self.symbol, self.quantity,
-            self.price, self.price_improvement_bps,
+            self.match_id, self.symbol, self.quantity, self.price, self.price_improvement_bps,
         )
     }
 }
@@ -282,8 +306,10 @@ impl fmt::Display for LeakageMetrics {
         write!(
             f,
             "Leakage({} fill={:.1}% cancel={:.1}% toxicity={:.1}bps)",
-            self.participant_id, self.fill_rate() * 100.0,
-            self.cancel_rate() * 100.0, self.toxicity_score(),
+            self.participant_id,
+            self.fill_rate() * 100.0,
+            self.cancel_rate() * 100.0,
+            self.toxicity_score(),
         )
     }
 }
@@ -347,7 +373,12 @@ impl DarkPool {
 
         let midpoint = match &self.nbbo {
             Some(n) if n.is_valid() => n.midpoint(),
-            _ => return { self.rest_order(incoming); Vec::new() },
+            _ => {
+                return {
+                    self.rest_order(incoming);
+                    Vec::new()
+                };
+            }
         };
 
         let contra = match incoming.side {
@@ -452,25 +483,46 @@ impl DarkPool {
     }
 
     pub fn buy_depth(&self) -> f64 {
-        self.buys.iter().filter(|o| o.is_active).map(|o| o.remaining()).sum()
+        self.buys
+            .iter()
+            .filter(|o| o.is_active)
+            .map(|o| o.remaining())
+            .sum()
     }
 
     pub fn sell_depth(&self) -> f64 {
-        self.sells.iter().filter(|o| o.is_active).map(|o| o.remaining()).sum()
+        self.sells
+            .iter()
+            .filter(|o| o.is_active)
+            .map(|o| o.remaining())
+            .sum()
     }
 
     pub fn active_order_count(&self) -> usize {
-        self.buys.iter().chain(self.sells.iter()).filter(|o| o.is_active).count()
+        self.buys
+            .iter()
+            .chain(self.sells.iter())
+            .filter(|o| o.is_active)
+            .count()
     }
 
     pub fn midpoint(&self) -> Option<f64> {
-        self.nbbo.as_ref().filter(|n| n.is_valid()).map(|n| n.midpoint())
+        self.nbbo
+            .as_ref()
+            .filter(|n| n.is_valid())
+            .map(|n| n.midpoint())
     }
 
     /// Average price improvement across all matches in basis points.
     pub fn avg_price_improvement_bps(&self) -> f64 {
-        if self.matches.is_empty() { return 0.0; }
-        let total: f64 = self.matches.iter().map(|m| m.price_improvement_bps * m.quantity).sum();
+        if self.matches.is_empty() {
+            return 0.0;
+        }
+        let total: f64 = self
+            .matches
+            .iter()
+            .map(|m| m.price_improvement_bps * m.quantity)
+            .sum();
         let vol: f64 = self.matches.iter().map(|m| m.quantity).sum();
         if vol > 1e-12 { total / vol } else { 0.0 }
     }
@@ -481,8 +533,11 @@ impl fmt::Display for DarkPool {
         write!(
             f,
             "DarkPool({} buys={:.0} sells={:.0} matches={} vol={:.0})",
-            self.symbol, self.buy_depth(), self.sell_depth(),
-            self.match_count, self.total_volume,
+            self.symbol,
+            self.buy_depth(),
+            self.sell_depth(),
+            self.match_count,
+            self.total_volume,
         )
     }
 }
@@ -522,16 +577,14 @@ mod tests {
 
     #[test]
     fn test_order_min_quantity() {
-        let o = DarkOrder::new(1, "AAPL", DarkSide::Buy, 500.0)
-            .with_min_quantity(100.0);
+        let o = DarkOrder::new(1, "AAPL", DarkSide::Buy, 500.0).with_min_quantity(100.0);
         assert!(!o.can_match(50.0, 150.0)); // Below min.
         assert!(o.can_match(200.0, 150.0)); // Above min.
     }
 
     #[test]
     fn test_order_limit_constraint() {
-        let o = DarkOrder::new(1, "AAPL", DarkSide::Buy, 500.0)
-            .with_limit(150.0);
+        let o = DarkOrder::new(1, "AAPL", DarkSide::Buy, 500.0).with_limit(150.0);
         assert!(o.can_match(100.0, 150.0));
         assert!(!o.can_match(100.0, 151.0)); // Above limit.
     }
@@ -568,9 +621,8 @@ mod tests {
     fn test_anti_gaming_same_participant() {
         let mut p = pool();
         p.submit(DarkOrder::new(1, "AAPL", DarkSide::Buy, 100.0).with_participant("FIRM_A"));
-        let matches = p.submit(
-            DarkOrder::new(2, "AAPL", DarkSide::Sell, 100.0).with_participant("FIRM_A")
-        );
+        let matches =
+            p.submit(DarkOrder::new(2, "AAPL", DarkSide::Sell, 100.0).with_participant("FIRM_A"));
         assert!(matches.is_empty());
     }
 
@@ -622,10 +674,14 @@ mod tests {
     #[test]
     fn test_dark_match_notional() {
         let dm = DarkMatch {
-            match_id: 1, symbol: "AAPL".into(),
-            buy_order_id: 1, sell_order_id: 2,
-            price: 150.0, quantity: 100.0,
-            timestamp_ns: 0, price_improvement_bps: 5.0,
+            match_id: 1,
+            symbol: "AAPL".into(),
+            buy_order_id: 1,
+            sell_order_id: 2,
+            price: 150.0,
+            quantity: 100.0,
+            timestamp_ns: 0,
+            price_improvement_bps: 5.0,
         };
         assert!((dm.notional() - 15000.0).abs() < 1e-9);
     }

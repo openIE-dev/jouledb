@@ -54,11 +54,21 @@ pub struct Viewport {
 
 impl Viewport {
     pub fn new(scroll_y: f64, height: f64) -> Self {
-        Self { scroll_y, scroll_x: 0.0, height, width: 0.0 }
+        Self {
+            scroll_y,
+            scroll_x: 0.0,
+            height,
+            width: 0.0,
+        }
     }
 
     pub fn full(scroll_x: f64, scroll_y: f64, width: f64, height: f64) -> Self {
-        Self { scroll_y, scroll_x, height, width }
+        Self {
+            scroll_y,
+            scroll_x,
+            height,
+            width,
+        }
     }
 
     /// Top of the viewport in document coordinates.
@@ -85,7 +95,11 @@ impl Viewport {
         let visible_bottom = rect.bottom.min(self.bottom());
         let visible_height = (visible_bottom - visible_top).max(0.0);
         let element_height = rect.height();
-        if element_height <= 0.0 { 0.0 } else { (visible_height / element_height).clamp(0.0, 1.0) }
+        if element_height <= 0.0 {
+            0.0
+        } else {
+            (visible_height / element_height).clamp(0.0, 1.0)
+        }
     }
 }
 
@@ -176,7 +190,11 @@ impl ScrollTrigger {
         let new_progress;
 
         if range.abs() < 1e-10 {
-            new_state = if scroll >= trigger_start { TriggerState::After } else { TriggerState::Before };
+            new_state = if scroll >= trigger_start {
+                TriggerState::After
+            } else {
+                TriggerState::Before
+            };
             new_progress = if scroll >= trigger_start { 1.0 } else { 0.0 };
         } else if scroll < trigger_start {
             new_state = TriggerState::Before;
@@ -217,7 +235,12 @@ impl ScrollTrigger {
 
 impl fmt::Display for ScrollTrigger {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ScrollTrigger({}, {:.2}%)", self.element_id, self.progress * 100.0)
+        write!(
+            f,
+            "ScrollTrigger({}, {:.2}%)",
+            self.element_id,
+            self.progress * 100.0
+        )
     }
 }
 
@@ -234,7 +257,10 @@ pub struct SnapPoint {
 
 impl SnapPoint {
     pub fn new(position: f64, label: impl Into<String>) -> Self {
-        Self { position, label: label.into() }
+        Self {
+            position,
+            label: label.into(),
+        }
     }
 }
 
@@ -249,7 +275,10 @@ pub struct ScrollTimeline {
 
 impl ScrollTimeline {
     pub fn new() -> Self {
-        Self { triggers: Vec::new(), snap_points: Vec::new() }
+        Self {
+            triggers: Vec::new(),
+            snap_points: Vec::new(),
+        }
     }
 
     pub fn add_trigger(&mut self, trigger: ScrollTrigger) {
@@ -258,7 +287,8 @@ impl ScrollTimeline {
 
     pub fn add_snap_point(&mut self, snap: SnapPoint) {
         self.snap_points.push(snap);
-        self.snap_points.sort_by(|a, b| a.position.partial_cmp(&b.position).unwrap());
+        self.snap_points
+            .sort_by(|a, b| a.position.partial_cmp(&b.position).unwrap());
     }
 
     pub fn triggers(&self) -> &[ScrollTrigger] {
@@ -384,11 +414,19 @@ mod tests {
 
         // Move from before to active.
         let events = trigger.update(&rect, &viewport_at(500.0));
-        assert!(events.iter().any(|e| matches!(e, ScrollEvent::Enter(id) if id == "box")));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, ScrollEvent::Enter(id) if id == "box"))
+        );
 
         // Move from active to after.
         let events = trigger.update(&rect, &viewport_at(2000.0));
-        assert!(events.iter().any(|e| matches!(e, ScrollEvent::Leave(id) if id == "box")));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, ScrollEvent::Leave(id) if id == "box"))
+        );
     }
 
     #[test]
@@ -399,7 +437,10 @@ mod tests {
         // Middle of range.
         trigger.update(&rect, &viewport_at(600.0));
         let p = trigger.progress();
-        assert!(p > 0.0 && p < 1.0, "Progress should be between 0 and 1, got {p}");
+        assert!(
+            p > 0.0 && p < 1.0,
+            "Progress should be between 0 and 1, got {p}"
+        );
     }
 
     #[test]
@@ -445,7 +486,11 @@ mod tests {
         let vp = viewport_at(200.0);
         let events = timeline.update(&rects, &vp);
         // "a" should be entering/active, "b" still before.
-        assert!(events.iter().any(|e| matches!(e, ScrollEvent::Enter(id) if id == "a")));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, ScrollEvent::Enter(id) if id == "a"))
+        );
     }
 
     #[test]

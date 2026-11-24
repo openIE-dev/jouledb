@@ -202,10 +202,7 @@ impl NotificationCenter {
     pub fn group_by_group_id(&self) -> HashMap<Option<String>, Vec<&Notification>> {
         let mut groups: HashMap<Option<String>, Vec<&Notification>> = HashMap::new();
         for n in &self.notifications {
-            groups
-                .entry(n.group_id.clone())
-                .or_default()
-                .push(n);
+            groups.entry(n.group_id.clone()).or_default().push(n);
         }
         groups
     }
@@ -363,8 +360,8 @@ mod tests {
 
     #[test]
     fn test_action_url() {
-        let n = Notification::new("info", "Click", "")
-            .with_action_url("https://example.com/action");
+        let n =
+            Notification::new("info", "Click", "").with_action_url("https://example.com/action");
         assert_eq!(n.action_url.as_deref(), Some("https://example.com/action"));
     }
 }

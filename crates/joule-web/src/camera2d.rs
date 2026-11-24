@@ -134,7 +134,12 @@ impl Camera2D {
 
     /// Set world bounds.
     pub fn set_bounds(&mut self, min_x: f64, min_y: f64, max_x: f64, max_y: f64) {
-        self.bounds = Some(CameraBounds { min_x, min_y, max_x, max_y });
+        self.bounds = Some(CameraBounds {
+            min_x,
+            min_y,
+            max_x,
+            max_y,
+        });
         self.clamp_to_bounds();
     }
 
@@ -211,9 +216,15 @@ impl Camera2D {
             let decay = 1.0 - progress;
             let magnitude = self.shake_intensity * decay;
 
-            self.shake_seed = self.shake_seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+            self.shake_seed = self
+                .shake_seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1);
             let rx = ((self.shake_seed >> 33) as f64 / (u32::MAX as f64)) * 2.0 - 1.0;
-            self.shake_seed = self.shake_seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+            self.shake_seed = self
+                .shake_seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1);
             let ry = ((self.shake_seed >> 33) as f64 / (u32::MAX as f64)) * 2.0 - 1.0;
 
             self.shake_offset = Vec2::new(rx * magnitude, ry * magnitude);

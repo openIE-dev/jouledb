@@ -57,7 +57,11 @@ impl Vec3 {
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn dot(self, other: Self) -> f64 {
@@ -78,19 +82,39 @@ impl Vec3 {
 
     pub fn normalized(self) -> Option<Self> {
         let n = self.norm();
-        if n < 1e-12 { None } else { Some(Self { x: self.x / n, y: self.y / n, z: self.z / n }) }
+        if n < 1e-12 {
+            None
+        } else {
+            Some(Self {
+                x: self.x / n,
+                y: self.y / n,
+                z: self.z / n,
+            })
+        }
     }
 
     pub fn scale(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn add(self, other: Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y, z: self.z + other.z }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
     }
 
     pub fn sub(self, other: Self) -> Self {
-        Self { x: self.x - other.x, y: self.y - other.y, z: self.z - other.z }
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+            z: self.z - other.z,
+        }
     }
 }
 
@@ -186,9 +210,15 @@ impl fmt::Display for RotMat {
         write!(
             f,
             "R[{:.3},{:.3},{:.3}|{:.3},{:.3},{:.3}|{:.3},{:.3},{:.3}]",
-            self.rows[0][0], self.rows[0][1], self.rows[0][2],
-            self.rows[1][0], self.rows[1][1], self.rows[1][2],
-            self.rows[2][0], self.rows[2][1], self.rows[2][2],
+            self.rows[0][0],
+            self.rows[0][1],
+            self.rows[0][2],
+            self.rows[1][0],
+            self.rows[1][1],
+            self.rows[1][2],
+            self.rows[2][0],
+            self.rows[2][1],
+            self.rows[2][2],
         )
     }
 }
@@ -204,11 +234,17 @@ pub struct Transform {
 
 impl Transform {
     pub fn identity() -> Self {
-        Self { rotation: RotMat::identity(), translation: Vec3::zero() }
+        Self {
+            rotation: RotMat::identity(),
+            translation: Vec3::zero(),
+        }
     }
 
     pub fn new(rotation: RotMat, translation: Vec3) -> Self {
-        Self { rotation, translation }
+        Self {
+            rotation,
+            translation,
+        }
     }
 
     /// Apply this transform to a point.
@@ -315,9 +351,7 @@ pub struct CalibrationSample {
 /// Calibrate the tool-tip transform from multiple flange poses where the
 /// tool tip touches a known fixed point. Uses the least-squares
 /// formulation: minimise sum of ||R_i * p_tip + t_i - p_fixed||^2.
-pub fn calibrate_tool_tip(
-    samples: &[CalibrationSample],
-) -> Result<Vec3, ToolError> {
+pub fn calibrate_tool_tip(samples: &[CalibrationSample]) -> Result<Vec3, ToolError> {
     if samples.len() < 3 {
         return Err(ToolError::InvalidCalibration(
             "need >= 3 calibration samples".into(),
@@ -482,9 +516,10 @@ impl ToolChanger {
     pub fn advance(&mut self) -> Result<ToolChangePhase, ToolError> {
         let succs = self.phase.successors();
         if succs.is_empty() {
-            return Err(ToolError::InvalidTransition(
-                format!("no successor for {}", self.phase),
-            ));
+            return Err(ToolError::InvalidTransition(format!(
+                "no successor for {}",
+                self.phase
+            )));
         }
         let next = succs[0];
 
@@ -692,10 +727,7 @@ mod tests {
 
     #[test]
     fn test_transform_inverse() {
-        let t = Transform::new(
-            RotMat::rot_z(0.5),
-            Vec3::new(1.0, 2.0, 3.0),
-        );
+        let t = Transform::new(RotMat::rot_z(0.5), Vec3::new(1.0, 2.0, 3.0));
         let t_inv = t.inverse();
         let p = Vec3::new(5.0, 6.0, 7.0);
         let roundtrip = t_inv.apply(t.apply(p));
@@ -720,20 +752,17 @@ mod tests {
 
     #[test]
     fn test_tool_flange_inertia() {
-        let tool = ToolDef::new("t1", "T1", 1.0)
-            .with_com(Vec3::new(0.0, 0.0, 0.1));
+        let tool = ToolDef::new("t1", "T1", 1.0).with_com(Vec3::new(0.0, 0.0, 0.1));
         let inertia = tool.flange_inertia();
         assert!((inertia - 0.01).abs() < 1e-10); // 1.0 * 0.1^2
     }
 
     #[test]
     fn test_calibration_insufficient_samples() {
-        let samples = vec![
-            CalibrationSample {
-                flange_transform: Transform::identity(),
-                measured_tip: Vec3::zero(),
-            },
-        ];
+        let samples = vec![CalibrationSample {
+            flange_transform: Transform::identity(),
+            measured_tip: Vec3::zero(),
+        }];
         assert!(calibrate_tool_tip(&samples).is_err());
     }
 
@@ -759,10 +788,7 @@ mod tests {
 
     #[test]
     fn test_tool_change_count() {
-        let tools = vec![
-            ToolDef::new("a", "A", 1.0),
-            ToolDef::new("b", "B", 1.0),
-        ];
+        let tools = vec![ToolDef::new("a", "A", 1.0), ToolDef::new("b", "B", 1.0)];
         let mut changer = ToolChanger::new(tools).with_current_tool("a");
         changer.initiate_change("b").unwrap();
         changer.run_to_completion().unwrap();

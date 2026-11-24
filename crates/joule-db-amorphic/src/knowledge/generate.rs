@@ -130,7 +130,12 @@ impl SequenceMemory {
     }
 
     /// Learn from corpus (BPE mode).
-    pub fn learn_corpus_bpe(&mut self, texts: &[&str], tokenizer: &mut BpeTokenizer, window: usize) {
+    pub fn learn_corpus_bpe(
+        &mut self,
+        texts: &[&str],
+        tokenizer: &mut BpeTokenizer,
+        window: usize,
+    ) {
         for text in texts {
             self.learn_text_bpe(text, tokenizer, window);
         }
@@ -293,13 +298,15 @@ impl Generator {
 
     /// Train in word mode (backward compatible).
     pub fn train(&mut self, texts: &[&str], encoder: &mut ConceptEncoder) {
-        self.sequence_memory.learn_corpus(texts, encoder, self.window);
+        self.sequence_memory
+            .learn_corpus(texts, encoder, self.window);
     }
 
     /// Train in BPE mode.
     pub fn train_bpe(&mut self, texts: &[&str]) {
         if let Some(ref mut tok) = self.tokenizer {
-            self.sequence_memory.learn_corpus_bpe(texts, tok, self.window);
+            self.sequence_memory
+                .learn_corpus_bpe(texts, tok, self.window);
         }
     }
 
@@ -326,19 +333,16 @@ impl Generator {
             };
             let context: Vec<&str> = words[ctx_start..].iter().map(|s| s.as_str()).collect();
 
-            let predictions = self
-                .sequence_memory
-                .predict_next(&context, encoder, 5);
+            let predictions = self.sequence_memory.predict_next(&context, encoder, 5);
 
             let (next_word, confidence, source) = if let Some((word, sim)) = predictions.first() {
                 if *sim > 0.52 {
                     (word.clone(), *sim, "sequence_memory")
                 } else if let Some(ref mut kc) = core.as_deref_mut() {
                     let last_word = words.last().map(|s| s.as_str()).unwrap_or("");
-                    if let Some(recovered) = kc.query_object(
-                        last_word,
-                        super::relation::RelationType::RelatedTo,
-                    ) {
+                    if let Some(recovered) =
+                        kc.query_object(last_word, super::relation::RelationType::RelatedTo)
+                    {
                         let nearest = kc.nearest_concepts(&recovered, 3);
                         if let Some((concept, csim)) = nearest.first() {
                             (concept.clone(), *csim, "knowledge_core")
@@ -395,7 +399,7 @@ impl Generator {
                     generated: vec![],
                     steps: vec![],
                     total_confidence: 0.0,
-                }
+                };
             }
         };
 

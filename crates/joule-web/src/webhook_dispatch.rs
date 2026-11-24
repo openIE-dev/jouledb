@@ -24,9 +24,15 @@ pub enum DispatchError {
     /// Circuit breaker open — endpoint is failing.
     CircuitOpen(String),
     /// Max retries exceeded.
-    MaxRetriesExceeded { endpoint_id: String, event_id: String },
+    MaxRetriesExceeded {
+        endpoint_id: String,
+        event_id: String,
+    },
     /// Event type not subscribed.
-    NotSubscribed { endpoint_id: String, event_type: String },
+    NotSubscribed {
+        endpoint_id: String,
+        event_type: String,
+    },
     /// Delivery failed.
     DeliveryFailed { endpoint_id: String, reason: String },
 }
@@ -38,13 +44,22 @@ impl fmt::Display for DispatchError {
             Self::DuplicateEndpoint(id) => write!(f, "duplicate endpoint: {id}"),
             Self::EndpointDisabled(id) => write!(f, "endpoint disabled: {id}"),
             Self::CircuitOpen(id) => write!(f, "circuit open for endpoint: {id}"),
-            Self::MaxRetriesExceeded { endpoint_id, event_id } => {
+            Self::MaxRetriesExceeded {
+                endpoint_id,
+                event_id,
+            } => {
                 write!(f, "max retries for {endpoint_id} event {event_id}")
             }
-            Self::NotSubscribed { endpoint_id, event_type } => {
+            Self::NotSubscribed {
+                endpoint_id,
+                event_type,
+            } => {
                 write!(f, "{endpoint_id} not subscribed to {event_type}")
             }
-            Self::DeliveryFailed { endpoint_id, reason } => {
+            Self::DeliveryFailed {
+                endpoint_id,
+                reason,
+            } => {
                 write!(f, "delivery to {endpoint_id} failed: {reason}")
             }
         }
@@ -156,8 +171,7 @@ impl Default for RetryPolicy {
 impl RetryPolicy {
     /// Compute delay for a given attempt number (0-based).
     pub fn delay_for_attempt(&self, attempt: u32) -> u64 {
-        let delay = self.initial_delay_ms as f64
-            * self.backoff_multiplier.powi(attempt as i32);
+        let delay = self.initial_delay_ms as f64 * self.backoff_multiplier.powi(attempt as i32);
         (delay as u64).min(self.max_delay_ms)
     }
 }
@@ -397,9 +411,7 @@ impl Dispatcher {
         }
 
         // Check event type subscription
-        if !ep.event_types.is_empty()
-            && !ep.event_types.contains(&event.event_type)
-        {
+        if !ep.event_types.is_empty() && !ep.event_types.contains(&event.event_type) {
             return Err(DispatchError::NotSubscribed {
                 endpoint_id: endpoint_id.to_string(),
                 event_type: event.event_type.clone(),
@@ -446,11 +458,9 @@ impl Dispatcher {
             .deliveries
             .iter_mut()
             .find(|d| d.id == delivery_id)
-            .ok_or_else(|| {
-                DispatchError::DeliveryFailed {
-                    endpoint_id: "unknown".to_string(),
-                    reason: format!("delivery not found: {delivery_id}"),
-                }
+            .ok_or_else(|| DispatchError::DeliveryFailed {
+                endpoint_id: "unknown".to_string(),
+                reason: format!("delivery not found: {delivery_id}"),
             })?;
 
         let attempt_number = delivery.attempts.len() as u32;
@@ -769,7 +779,14 @@ mod tests {
 
         // Record failure
         let status = d
-            .record_attempt(&del_id, false, Some(500), Some("server error".into()), 100, 1000)
+            .record_attempt(
+                &del_id,
+                false,
+                Some(500),
+                Some("server error".into()),
+                100,
+                1000,
+            )
             .unwrap();
         assert_eq!(status, DeliveryStatus::Retrying);
 
@@ -825,14 +842,7 @@ mod tests {
 
         // Now record failures — each delivery exhausts in 1 attempt
         for (i, del_id) in del_ids.iter().enumerate() {
-            let _ = d.record_attempt(
-                del_id,
-                false,
-                Some(500),
-                None,
-                10,
-                (i as u64) * 100,
-            );
+            let _ = d.record_attempt(del_id, false, Some(500), None, 10, (i as u64) * 100);
         }
 
         assert_eq!(d.circuit_state("ep1"), Some(CircuitState::Open));
@@ -850,7 +860,13 @@ mod tests {
             success_threshold: 1,
             open_duration_ms: 100,
         };
-        let mut d = Dispatcher::with_config(RetryPolicy { max_retries: 1, ..Default::default() }, circuit);
+        let mut d = Dispatcher::with_config(
+            RetryPolicy {
+                max_retries: 1,
+                ..Default::default()
+            },
+            circuit,
+        );
         d.register_endpoint(endpoint("ep1", "https://a.com", "s"))
             .unwrap();
 

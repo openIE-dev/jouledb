@@ -86,18 +86,12 @@ impl AuthStore {
             Role::Writer,
             [Operation::Read, Operation::Write, Operation::Query].into(),
         );
-        role_permissions.insert(
-            Role::Reader,
-            [Operation::Read, Operation::Query].into(),
-        );
+        role_permissions.insert(Role::Reader, [Operation::Read, Operation::Query].into());
         role_permissions.insert(
             Role::Moderator,
             [Operation::Read, Operation::Moderate].into(),
         );
-        role_permissions.insert(
-            Role::Analyst,
-            [Operation::Query].into(),
-        );
+        role_permissions.insert(Role::Analyst, [Operation::Query].into());
 
         Self {
             tokens: HashMap::new(),
@@ -216,13 +210,28 @@ mod tests {
         };
 
         // Admin can do everything
-        assert_eq!(auth.check_permission(&admin, Operation::Delete), Permission::Allowed);
-        assert_eq!(auth.check_permission(&admin, Operation::Admin), Permission::Allowed);
+        assert_eq!(
+            auth.check_permission(&admin, Operation::Delete),
+            Permission::Allowed
+        );
+        assert_eq!(
+            auth.check_permission(&admin, Operation::Admin),
+            Permission::Allowed
+        );
 
         // Reader can only read/query
-        assert_eq!(auth.check_permission(&reader, Operation::Read), Permission::Allowed);
-        assert_eq!(auth.check_permission(&reader, Operation::Write), Permission::Denied);
-        assert_eq!(auth.check_permission(&reader, Operation::Delete), Permission::Denied);
+        assert_eq!(
+            auth.check_permission(&reader, Operation::Read),
+            Permission::Allowed
+        );
+        assert_eq!(
+            auth.check_permission(&reader, Operation::Write),
+            Permission::Denied
+        );
+        assert_eq!(
+            auth.check_permission(&reader, Operation::Delete),
+            Permission::Denied
+        );
     }
 
     #[test]

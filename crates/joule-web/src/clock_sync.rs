@@ -27,8 +27,14 @@ impl fmt::Display for ClockSyncError {
                 write!(f, "insufficient samples: have {have}, need {need}")
             }
             Self::InvalidRtt(rtt) => write!(f, "invalid RTT: {rtt}ms"),
-            Self::OutlierRejected { rtt_ms, threshold_ms } => {
-                write!(f, "outlier rejected: rtt={rtt_ms}ms, threshold={threshold_ms}ms")
+            Self::OutlierRejected {
+                rtt_ms,
+                threshold_ms,
+            } => {
+                write!(
+                    f,
+                    "outlier rejected: rtt={rtt_ms}ms, threshold={threshold_ms}ms"
+                )
             }
         }
     }
@@ -51,7 +57,11 @@ pub struct RttSample {
 
 impl RttSample {
     pub fn new(send_time_ms: i64, server_time_ms: i64, recv_time_ms: i64) -> Self {
-        Self { send_time_ms, server_time_ms, recv_time_ms }
+        Self {
+            send_time_ms,
+            server_time_ms,
+            recv_time_ms,
+        }
     }
 
     /// Round-trip time in milliseconds.
@@ -72,7 +82,12 @@ impl RttSample {
 
 impl fmt::Display for RttSample {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RttSample(rtt={}ms, offset={}ms)", self.rtt_ms(), self.offset_estimate_ms())
+        write!(
+            f,
+            "RttSample(rtt={}ms, offset={}ms)",
+            self.rtt_ms(),
+            self.offset_estimate_ms()
+        )
     }
 }
 
@@ -288,12 +303,15 @@ impl ClockSync {
         }
         let n = self.samples.len() as f64;
         let mean = self.samples.iter().map(|s| s.rtt_ms() as f64).sum::<f64>() / n;
-        let variance = self.samples.iter()
+        let variance = self
+            .samples
+            .iter()
             .map(|s| {
                 let d = s.rtt_ms() as f64 - mean;
                 d * d
             })
-            .sum::<f64>() / n;
+            .sum::<f64>()
+            / n;
         (mean, variance.sqrt())
     }
 
@@ -426,14 +444,15 @@ mod tests {
     #[test]
     fn clock_sync_insufficient_samples() {
         let cs = ClockSync::new();
-        assert!(matches!(cs.offset_ms(), Err(ClockSyncError::InsufficientSamples { .. })));
+        assert!(matches!(
+            cs.offset_ms(),
+            Err(ClockSyncError::InsufficientSamples { .. })
+        ));
     }
 
     #[test]
     fn clock_sync_add_samples_and_offset() {
-        let mut cs = ClockSync::new().with_config(
-            ClockSyncConfig::new().with_min_samples(2),
-        );
+        let mut cs = ClockSync::new().with_config(ClockSyncConfig::new().with_min_samples(2));
         cs.add_sample(make_sample(0, 105, 10)).unwrap();
         cs.add_sample(make_sample(10, 115, 20)).unwrap();
         let off = cs.offset_ms().unwrap();
@@ -449,9 +468,7 @@ mod tests {
 
     #[test]
     fn clock_sync_reject_high_rtt() {
-        let mut cs = ClockSync::new().with_config(
-            ClockSyncConfig::new().with_max_rtt(100),
-        );
+        let mut cs = ClockSync::new().with_config(ClockSyncConfig::new().with_max_rtt(100));
         let res = cs.add_sample(make_sample(0, 500, 200));
         assert!(matches!(res, Err(ClockSyncError::OutlierRejected { .. })));
     }
@@ -459,7 +476,9 @@ mod tests {
     #[test]
     fn clock_sync_monotonic_offset() {
         let mut cs = ClockSync::new().with_config(
-            ClockSyncConfig::new().with_min_samples(1).with_max_samples(2),
+            ClockSyncConfig::new()
+                .with_min_samples(1)
+                .with_max_samples(2),
         );
         cs.add_sample(make_sample(0, 200, 10)).unwrap();
         let first = cs.offset_ms().unwrap();
@@ -471,9 +490,7 @@ mod tests {
 
     #[test]
     fn clock_sync_to_server_time() {
-        let mut cs = ClockSync::new().with_config(
-            ClockSyncConfig::new().with_min_samples(1),
-        );
+        let mut cs = ClockSync::new().with_config(ClockSyncConfig::new().with_min_samples(1));
         cs.add_sample(make_sample(0, 100, 10)).unwrap();
         let server_t = cs.to_server_time(50).unwrap();
         assert!(server_t > 50);
@@ -481,9 +498,7 @@ mod tests {
 
     #[test]
     fn clock_sync_to_local_time() {
-        let mut cs = ClockSync::new().with_config(
-            ClockSyncConfig::new().with_min_samples(1),
-        );
+        let mut cs = ClockSync::new().with_config(ClockSyncConfig::new().with_min_samples(1));
         cs.add_sample(make_sample(0, 100, 10)).unwrap();
         let local_t = cs.to_local_time(150).unwrap();
         assert!(local_t < 150);
@@ -506,7 +521,9 @@ mod tests {
     #[test]
     fn clock_sync_quality_improves() {
         let mut cs = ClockSync::new().with_config(
-            ClockSyncConfig::new().with_min_samples(2).with_max_samples(8),
+            ClockSyncConfig::new()
+                .with_min_samples(2)
+                .with_max_samples(8),
         );
         cs.add_sample(make_sample(0, 105, 10)).unwrap();
         assert_eq!(cs.quality(), SyncQuality::Poor);
@@ -518,9 +535,8 @@ mod tests {
 
     #[test]
     fn clock_sync_needs_resync() {
-        let mut cs = ClockSync::new().with_config(
-            ClockSyncConfig::new().with_resync_interval(1000),
-        );
+        let mut cs =
+            ClockSync::new().with_config(ClockSyncConfig::new().with_resync_interval(1000));
         assert!(cs.needs_resync(0));
         cs.add_sample(make_sample(0, 100, 10)).unwrap();
         assert!(!cs.needs_resync(500));
@@ -529,9 +545,7 @@ mod tests {
 
     #[test]
     fn clock_sync_sample_count() {
-        let mut cs = ClockSync::new().with_config(
-            ClockSyncConfig::new().with_max_samples(4),
-        );
+        let mut cs = ClockSync::new().with_config(ClockSyncConfig::new().with_max_samples(4));
         for i in 0..6 {
             let _ = cs.add_sample(make_sample(i * 10, 100 + i * 10, i * 10 + 10));
         }
@@ -548,9 +562,7 @@ mod tests {
 
     #[test]
     fn clock_sync_drift_rate() {
-        let mut cs = ClockSync::new().with_config(
-            ClockSyncConfig::new().with_min_samples(2),
-        );
+        let mut cs = ClockSync::new().with_config(ClockSyncConfig::new().with_min_samples(2));
         cs.add_sample(make_sample(0, 100, 10)).unwrap();
         cs.add_sample(make_sample(1000, 1200, 1010)).unwrap();
         let drift = cs.drift_rate();

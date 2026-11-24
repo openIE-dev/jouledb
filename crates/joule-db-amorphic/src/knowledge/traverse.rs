@@ -8,9 +8,9 @@
 //! Uses Compare + Inhibit: at each step, compare recovered candidates
 //! and suppress all but the strongest (winner-take-all).
 
-use crate::BinaryHV;
 use super::core::KnowledgeCore;
 use super::relation::RelationType;
+use crate::BinaryHV;
 
 /// A single step in a traversal path.
 #[derive(Clone, Debug)]
@@ -309,8 +309,8 @@ impl TraversalResult {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::triple::Triple;
+    use super::*;
 
     fn build_test_core() -> KnowledgeCore {
         let mut core = KnowledgeCore::new();

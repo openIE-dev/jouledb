@@ -234,7 +234,9 @@ impl InviteEngine {
                         .filter(|id| {
                             self.invites
                                 .get(*id)
-                                .map(|inv| inv.status == InviteStatus::Pending && !inv.is_expired(now_secs))
+                                .map(|inv| {
+                                    inv.status == InviteStatus::Pending && !inv.is_expired(now_secs)
+                                })
                                 .unwrap_or(false)
                         })
                         .count()
@@ -360,11 +362,7 @@ impl InviteEngine {
     pub fn find_by_email(&self, email: &str) -> Vec<&Invite> {
         self.email_index
             .get(email)
-            .map(|ids| {
-                ids.iter()
-                    .filter_map(|id| self.invites.get(id))
-                    .collect()
-            })
+            .map(|ids| ids.iter().filter_map(|id| self.invites.get(id)).collect())
             .unwrap_or_default()
     }
 
@@ -384,11 +382,7 @@ impl InviteEngine {
     pub fn invites_by_inviter(&self, inviter_id: &str) -> Vec<&Invite> {
         self.inviter_index
             .get(inviter_id)
-            .map(|ids| {
-                ids.iter()
-                    .filter_map(|id| self.invites.get(id))
-                    .collect()
-            })
+            .map(|ids| ids.iter().filter_map(|id| self.invites.get(id)).collect())
             .unwrap_or_default()
     }
 
@@ -403,13 +397,7 @@ impl InviteEngine {
         emails
             .iter()
             .map(|email| {
-                self.create_invite(
-                    email,
-                    inviter_id,
-                    roles.clone(),
-                    now_secs,
-                    HashMap::new(),
-                )
+                self.create_invite(email, inviter_id, roles.clone(), now_secs, HashMap::new())
             })
             .collect()
     }
@@ -572,9 +560,7 @@ mod tests {
             .unwrap();
 
         engine.accept_invite(&invite.id, "alice", 1500).unwrap();
-        let err = engine
-            .accept_invite(&invite.id, "bob", 1600)
-            .unwrap_err();
+        let err = engine.accept_invite(&invite.id, "bob", 1600).unwrap_err();
         assert!(matches!(err, InviteError::AlreadyAccepted(_)));
     }
 
@@ -622,9 +608,7 @@ mod tests {
             .unwrap();
 
         engine.revoke_invite(&invite.id).unwrap();
-        let err = engine
-            .accept_invite(&invite.id, "alice", 1500)
-            .unwrap_err();
+        let err = engine.accept_invite(&invite.id, "alice", 1500).unwrap_err();
         assert!(matches!(err, InviteError::AlreadyRevoked(_)));
     }
 

@@ -14,7 +14,11 @@ use std::fmt;
 pub enum MultiAgentError {
     InvalidParameter(String),
     AgentNotFound(usize),
-    ActionOutOfRange { agent: usize, action: usize, num_actions: usize },
+    ActionOutOfRange {
+        agent: usize,
+        action: usize,
+        num_actions: usize,
+    },
     NoAgents,
     ChannelFull,
 }
@@ -24,8 +28,15 @@ impl fmt::Display for MultiAgentError {
         match self {
             Self::InvalidParameter(s) => write!(f, "invalid parameter: {s}"),
             Self::AgentNotFound(id) => write!(f, "agent {id} not found"),
-            Self::ActionOutOfRange { agent, action, num_actions } => {
-                write!(f, "agent {agent}: action {action} out of range ({num_actions} actions)")
+            Self::ActionOutOfRange {
+                agent,
+                action,
+                num_actions,
+            } => {
+                write!(
+                    f,
+                    "agent {agent}: action {action} out of range ({num_actions} actions)"
+                )
             }
             Self::NoAgents => write!(f, "no agents configured"),
             Self::ChannelFull => write!(f, "communication channel is full"),
@@ -44,7 +55,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -61,7 +74,9 @@ impl Rng {
     }
 
     fn next_usize(&mut self, upper: usize) -> usize {
-        if upper == 0 { return 0; }
+        if upper == 0 {
+            return 0;
+        }
         (self.next_u64() % upper as u64) as usize
     }
 }
@@ -263,7 +278,10 @@ impl CommChannel {
 
     /// Receive all messages from a specific sender.
     pub fn receive_from(&self, sender: usize) -> Vec<&Message> {
-        self.messages.iter().filter(|m| m.sender == sender).collect()
+        self.messages
+            .iter()
+            .filter(|m| m.sender == sender)
+            .collect()
     }
 
     /// Clear all messages (call between steps).
@@ -343,7 +361,9 @@ impl MultiAgentSystem {
             return Err(MultiAgentError::NoAgents);
         }
         if num_actions == 0 {
-            return Err(MultiAgentError::InvalidParameter("num_actions must be > 0".into()));
+            return Err(MultiAgentError::InvalidParameter(
+                "num_actions must be > 0".into(),
+            ));
         }
         let agents: Vec<Agent> = (0..num_agents)
             .map(|i| Agent::new(i, num_actions, alpha, gamma, epsilon, 42))
@@ -496,12 +516,17 @@ impl MultiAgentSystem {
 
     /// Get agent by ID.
     pub fn agent(&self, id: usize) -> Result<&Agent, MultiAgentError> {
-        self.agents.get(id).ok_or(MultiAgentError::AgentNotFound(id))
+        self.agents
+            .get(id)
+            .ok_or(MultiAgentError::AgentNotFound(id))
     }
 
     /// Best action for a given agent and state.
     pub fn best_action(&self, agent_id: usize, state: u64) -> Result<usize, MultiAgentError> {
-        let agent = self.agents.get(agent_id).ok_or(MultiAgentError::AgentNotFound(agent_id))?;
+        let agent = self
+            .agents
+            .get(agent_id)
+            .ok_or(MultiAgentError::AgentNotFound(agent_id))?;
         Ok(agent.q_table.best_action(state))
     }
 
@@ -553,7 +578,9 @@ mod tests {
     use super::*;
 
     const EPS: f64 = 1e-6;
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     #[test]
     fn test_system_creation() {
@@ -690,7 +717,8 @@ mod tests {
     fn test_average_team_reward() {
         let mut sys = MultiAgentSystem::new(2, 2, 0.5, 0.9, 0.0).unwrap();
         for r in [2.0, 4.0, 6.0] {
-            sys.update(&[0, 0], &[0, 1], &[r, 0.0], &[1, 1], &[true, true]).unwrap();
+            sys.update(&[0, 0], &[0, 1], &[r, 0.0], &[1, 1], &[true, true])
+                .unwrap();
             sys.record_episode();
             sys.reset_episode();
         }

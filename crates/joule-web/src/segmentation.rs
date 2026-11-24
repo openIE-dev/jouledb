@@ -16,7 +16,11 @@ pub struct ClassDef {
 
 impl ClassDef {
     pub fn new(id: u8, name: impl Into<String>, color: [u8; 3]) -> Self {
-        Self { id, name: name.into(), color }
+        Self {
+            id,
+            name: name.into(),
+            color,
+        }
     }
 }
 
@@ -44,7 +48,11 @@ impl SegmentationMask {
     /// Create from existing labels. Panics on length mismatch.
     pub fn from_labels(width: usize, height: usize, labels: Vec<u8>) -> Self {
         assert_eq!(labels.len(), width * height, "label count mismatch");
-        Self { width, height, labels }
+        Self {
+            width,
+            height,
+            labels,
+        }
     }
 
     /// Get the class label at (x, y).
@@ -98,7 +106,11 @@ pub fn argmax_mask(
         }
         labels[pixel] = best_class;
     }
-    SegmentationMask { width, height, labels }
+    SegmentationMask {
+        width,
+        height,
+        labels,
+    }
 }
 
 // ── Overlay blending ────────────────────────────────────────────
@@ -277,7 +289,11 @@ pub fn mask_iou(a: &SegmentationMask, b: &SegmentationMask, class_id: u8) -> f64
             union += 1;
         }
     }
-    if union == 0 { 1.0 } else { intersection as f64 / union as f64 }
+    if union == 0 {
+        1.0
+    } else {
+        intersection as f64 / union as f64
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────
@@ -336,11 +352,7 @@ mod tests {
     #[test]
     fn test_connected_components() {
         // 4x3 mask with two separate class-1 blobs.
-        let labels = vec![
-            1, 1, 0, 0,
-            0, 0, 0, 0,
-            0, 0, 1, 1,
-        ];
+        let labels = vec![1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1];
         let mask = SegmentationMask::from_labels(4, 3, labels);
         let count = component_count(&mask, 1);
         assert_eq!(count, 2);
@@ -348,10 +360,7 @@ mod tests {
 
     #[test]
     fn test_connected_components_single() {
-        let labels = vec![
-            1, 1,
-            1, 1,
-        ];
+        let labels = vec![1, 1, 1, 1];
         let mask = SegmentationMask::from_labels(2, 2, labels);
         assert_eq!(component_count(&mask, 1), 1);
     }
@@ -359,11 +368,7 @@ mod tests {
     #[test]
     fn test_contour_pixels() {
         // 3x3 block of class 1 — only border pixels.
-        let labels = vec![
-            1, 1, 1,
-            1, 1, 1,
-            1, 1, 1,
-        ];
+        let labels = vec![1, 1, 1, 1, 1, 1, 1, 1, 1];
         let mask = SegmentationMask::from_labels(3, 3, labels);
         let contour = contour_pixels(&mask, 1);
         // 8 pixels are on image boundary (edges/corners). Center (1,1) has all 4

@@ -21,7 +21,9 @@ impl fmt::Display for VolatilitySurfaceError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidConfig(msg) => write!(f, "VolatilitySurface: invalid config: {msg}"),
-            Self::ComputationFailed(msg) => write!(f, "VolatilitySurface: computation failed: {msg}"),
+            Self::ComputationFailed(msg) => {
+                write!(f, "VolatilitySurface: computation failed: {msg}")
+            }
             Self::InsufficientData(msg) => write!(f, "VolatilitySurface: insufficient data: {msg}"),
         }
     }
@@ -70,28 +72,40 @@ impl VolatilitySurfaceConfig {
 
     pub fn validate(&self) -> Result<(), VolatilitySurfaceError> {
         if self.atm_vol.is_nan() {
-            return Err(VolatilitySurfaceError::InvalidConfig("atm_vol is NaN".into()));
+            return Err(VolatilitySurfaceError::InvalidConfig(
+                "atm_vol is NaN".into(),
+            ));
         }
         if self.skew.is_nan() {
             return Err(VolatilitySurfaceError::InvalidConfig("skew is NaN".into()));
         }
         if self.kurtosis.is_nan() {
-            return Err(VolatilitySurfaceError::InvalidConfig("kurtosis is NaN".into()));
+            return Err(VolatilitySurfaceError::InvalidConfig(
+                "kurtosis is NaN".into(),
+            ));
         }
         if self.term_slope.is_nan() {
-            return Err(VolatilitySurfaceError::InvalidConfig("term_slope is NaN".into()));
+            return Err(VolatilitySurfaceError::InvalidConfig(
+                "term_slope is NaN".into(),
+            ));
         }
         Ok(())
     }
 }
 
 impl Default for VolatilitySurfaceConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for VolatilitySurfaceConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "VolatilitySurfaceConfig(atm_vol={0:.4}, skew={1:.4}, kurtosis={2:.4}, term_slope={3:.4})", self.atm_vol, self.skew, self.kurtosis, self.term_slope)
+        write!(
+            f,
+            "VolatilitySurfaceConfig(atm_vol={0:.4}, skew={1:.4}, kurtosis={2:.4}, term_slope={3:.4})",
+            self.atm_vol, self.skew, self.kurtosis, self.term_slope
+        )
     }
 }
 
@@ -107,7 +121,10 @@ pub struct VolatilitySurface {
 impl VolatilitySurface {
     pub fn new(config: VolatilitySurfaceConfig) -> Result<Self, VolatilitySurfaceError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -119,13 +136,21 @@ impl VolatilitySurface {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &VolatilitySurfaceConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &VolatilitySurfaceConfig {
+        &self.config
+    }
 
     /// Implied vol at strike/tenor.
     pub fn implied_vol(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -135,7 +160,9 @@ impl VolatilitySurface {
 
     /// Local volatility (Dupire).
     pub fn local_vol(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -145,14 +172,18 @@ impl VolatilitySurface {
 
     /// Vol smile at given tenor.
     pub fn smile_at_tenor(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -164,7 +195,9 @@ impl VolatilitySurface {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -176,7 +209,11 @@ impl VolatilitySurface {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -249,7 +286,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = VolatilitySurface::new(VolatilitySurfaceConfig::new()).unwrap()
+        let e = VolatilitySurface::new(VolatilitySurfaceConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -265,7 +303,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = VolatilitySurface::new(VolatilitySurfaceConfig::new()).unwrap()
+        let e = VolatilitySurface::new(VolatilitySurfaceConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("VolatilitySurface"));
@@ -273,7 +312,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = VolatilitySurface::new(VolatilitySurfaceConfig::new()).unwrap()
+        let e = VolatilitySurface::new(VolatilitySurfaceConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -284,7 +324,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = VolatilitySurface::new(VolatilitySurfaceConfig::new()).unwrap()
+        let e = VolatilitySurface::new(VolatilitySurfaceConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -292,7 +333,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = VolatilitySurface::new(VolatilitySurfaceConfig::new()).unwrap()
+        let e = VolatilitySurface::new(VolatilitySurfaceConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -309,7 +351,8 @@ mod tests {
 
     #[test]
     fn test_implied_vol() {
-        let e = VolatilitySurface::new(VolatilitySurfaceConfig::new()).unwrap()
+        let e = VolatilitySurface::new(VolatilitySurfaceConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.implied_vol();
         assert!(result.is_finite());
@@ -317,7 +360,8 @@ mod tests {
 
     #[test]
     fn test_local_vol() {
-        let e = VolatilitySurface::new(VolatilitySurfaceConfig::new()).unwrap()
+        let e = VolatilitySurface::new(VolatilitySurfaceConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.local_vol();
         assert!(result.is_finite());
@@ -325,7 +369,8 @@ mod tests {
 
     #[test]
     fn test_smile_at_tenor() {
-        let e = VolatilitySurface::new(VolatilitySurfaceConfig::new()).unwrap()
+        let e = VolatilitySurface::new(VolatilitySurfaceConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.smile_at_tenor();
         assert!(!result.is_empty());

@@ -59,16 +59,27 @@ pub struct L2Entry {
 
 impl L2Entry {
     pub fn new(price: f64, volume: f64, order_count: usize) -> Self {
-        Self { price, volume, order_count, cumulative_volume: 0.0, cumulative_notional: 0.0 }
+        Self {
+            price,
+            volume,
+            order_count,
+            cumulative_volume: 0.0,
+            cumulative_notional: 0.0,
+        }
     }
 
-    pub fn notional(&self) -> f64 { self.price * self.volume }
+    pub fn notional(&self) -> f64 {
+        self.price * self.volume
+    }
 }
 
 impl fmt::Display for L2Entry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "L2({:.2}: vol={:.4}, orders={}, cum={:.4})",
-            self.price, self.volume, self.order_count, self.cumulative_volume)
+        write!(
+            f,
+            "L2({:.2}: vol={:.4}, orders={}, cum={:.4})",
+            self.price, self.volume, self.order_count, self.cumulative_volume
+        )
     }
 }
 
@@ -86,7 +97,13 @@ pub struct L3Entry {
 
 impl L3Entry {
     pub fn new(price: f64, order_id: u64, quantity: f64, timestamp_ns: u64) -> Self {
-        Self { price, order_id, quantity, timestamp_ns, is_hidden: false }
+        Self {
+            price,
+            order_id,
+            quantity,
+            timestamp_ns,
+            is_hidden: false,
+        }
     }
 
     pub fn with_hidden(mut self, hidden: bool) -> Self {
@@ -98,7 +115,11 @@ impl L3Entry {
 impl fmt::Display for L3Entry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let h = if self.is_hidden { " [H]" } else { "" };
-        write!(f, "L3({:.2}: id={}, qty={:.4}{h})", self.price, self.order_id, self.quantity)
+        write!(
+            f,
+            "L3({:.2}: id={}, qty={:.4}{h})",
+            self.price, self.order_id, self.quantity
+        )
     }
 }
 
@@ -120,21 +141,32 @@ impl DepthSnapshot {
     /// Bid/ask volume imbalance ratio: (bid - ask) / (bid + ask), range [-1, 1].
     pub fn imbalance(&self) -> f64 {
         let total = self.total_bid_volume + self.total_ask_volume;
-        if total < 1e-12 { 0.0 }
-        else { (self.total_bid_volume - self.total_ask_volume) / total }
+        if total < 1e-12 {
+            0.0
+        } else {
+            (self.total_bid_volume - self.total_ask_volume) / total
+        }
     }
 
     /// Bid depth (number of price levels).
-    pub fn bid_depth(&self) -> usize { self.bid_levels.len() }
+    pub fn bid_depth(&self) -> usize {
+        self.bid_levels.len()
+    }
 
     /// Ask depth (number of price levels).
-    pub fn ask_depth(&self) -> usize { self.ask_levels.len() }
+    pub fn ask_depth(&self) -> usize {
+        self.ask_levels.len()
+    }
 
     /// Best bid price.
-    pub fn best_bid(&self) -> Option<f64> { self.bid_levels.first().map(|e| e.price) }
+    pub fn best_bid(&self) -> Option<f64> {
+        self.bid_levels.first().map(|e| e.price)
+    }
 
     /// Best ask price.
-    pub fn best_ask(&self) -> Option<f64> { self.ask_levels.first().map(|e| e.price) }
+    pub fn best_ask(&self) -> Option<f64> {
+        self.ask_levels.first().map(|e| e.price)
+    }
 
     /// Spread.
     pub fn spread(&self) -> Option<f64> {
@@ -147,9 +179,15 @@ impl DepthSnapshot {
 
 impl fmt::Display for DepthSnapshot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "DepthSnap(bids={}, asks={}, imbalance={:.3}, bid_vol={:.2}, ask_vol={:.2})",
-            self.bid_depth(), self.ask_depth(), self.imbalance(),
-            self.total_bid_volume, self.total_ask_volume)
+        write!(
+            f,
+            "DepthSnap(bids={}, asks={}, imbalance={:.3}, bid_vol={:.2}, ask_vol={:.2})",
+            self.bid_depth(),
+            self.ask_depth(),
+            self.imbalance(),
+            self.total_bid_volume,
+            self.total_ask_volume
+        )
     }
 }
 
@@ -166,8 +204,11 @@ pub struct DepthBar {
 
 impl fmt::Display for DepthBar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Bar({} {:.2}: cum={:.4}, w={:.3})",
-            self.side, self.price, self.cumulative_volume, self.bar_width)
+        write!(
+            f,
+            "Bar({} {:.2}: cum={:.4}, w={:.3})",
+            self.side, self.price, self.cumulative_volume, self.bar_width
+        )
     }
 }
 
@@ -282,7 +323,11 @@ impl BookDepth {
                 price: e.price,
                 cumulative_volume: e.cumulative_volume,
                 side: DepthSide::Bid,
-                bar_width: if max_cum > 1e-12 { e.cumulative_volume / max_cum } else { 0.0 },
+                bar_width: if max_cum > 1e-12 {
+                    e.cumulative_volume / max_cum
+                } else {
+                    0.0
+                },
             });
         }
         for e in &self.ask_l2 {
@@ -290,7 +335,11 @@ impl BookDepth {
                 price: e.price,
                 cumulative_volume: e.cumulative_volume,
                 side: DepthSide::Ask,
-                bar_width: if max_cum > 1e-12 { e.cumulative_volume / max_cum } else { 0.0 },
+                bar_width: if max_cum > 1e-12 {
+                    e.cumulative_volume / max_cum
+                } else {
+                    0.0
+                },
             });
         }
         bars
@@ -302,7 +351,8 @@ impl BookDepth {
             DepthSide::Bid => &self.bid_l2,
             DepthSide::Ask => &self.ask_l2,
         };
-        levels.iter()
+        levels
+            .iter()
             .find(|e| (e.price - price).abs() < 1e-8)
             .map_or(0.0, |e| e.volume)
     }
@@ -321,7 +371,11 @@ impl BookDepth {
         let bid_vol = self.cumulative_volume(DepthSide::Bid, n);
         let ask_vol = self.cumulative_volume(DepthSide::Ask, n);
         let total = bid_vol + ask_vol;
-        if total < 1e-12 { 0.0 } else { (bid_vol - ask_vol) / total }
+        if total < 1e-12 {
+            0.0
+        } else {
+            (bid_vol - ask_vol) / total
+        }
     }
 
     /// VWAP across top N levels.
@@ -336,26 +390,43 @@ impl BookDepth {
             total_not += e.notional();
             total_vol += e.volume;
         }
-        if total_vol > 1e-12 { Some(total_not / total_vol) } else { None }
+        if total_vol > 1e-12 {
+            Some(total_not / total_vol)
+        } else {
+            None
+        }
     }
 
     /// L3 bid data accessor.
-    pub fn bids_l3(&self) -> &[L3Entry] { &self.bid_l3 }
+    pub fn bids_l3(&self) -> &[L3Entry] {
+        &self.bid_l3
+    }
 
     /// L3 ask data accessor.
-    pub fn asks_l3(&self) -> &[L3Entry] { &self.ask_l3 }
+    pub fn asks_l3(&self) -> &[L3Entry] {
+        &self.ask_l3
+    }
 
     /// L2 bid data accessor.
-    pub fn bids_l2(&self) -> &[L2Entry] { &self.bid_l2 }
+    pub fn bids_l2(&self) -> &[L2Entry] {
+        &self.bid_l2
+    }
 
     /// L2 ask data accessor.
-    pub fn asks_l2(&self) -> &[L2Entry] { &self.ask_l2 }
+    pub fn asks_l2(&self) -> &[L2Entry] {
+        &self.ask_l2
+    }
 }
 
 impl fmt::Display for BookDepth {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "BookDepth(bid_levels={}, ask_levels={}, max={})",
-            self.bid_l2.len(), self.ask_l2.len(), self.max_levels)
+        write!(
+            f,
+            "BookDepth(bid_levels={}, ask_levels={}, max={})",
+            self.bid_l2.len(),
+            self.ask_l2.len(),
+            self.max_levels
+        )
     }
 }
 
@@ -533,7 +604,12 @@ mod tests {
 
     #[test]
     fn test_depth_bar_display() {
-        let b = DepthBar { price: 100.0, cumulative_volume: 50.0, side: DepthSide::Bid, bar_width: 0.5 };
+        let b = DepthBar {
+            price: 100.0,
+            cumulative_volume: 50.0,
+            side: DepthSide::Bid,
+            bar_width: 0.5,
+        };
         let s = format!("{b}");
         assert!(s.contains("BID"));
     }

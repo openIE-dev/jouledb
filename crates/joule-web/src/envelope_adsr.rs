@@ -295,7 +295,11 @@ impl EnvelopeBank {
         let envelopes = (0..count)
             .map(|_| Envelope::new(config.clone(), sample_rate))
             .collect();
-        Self { envelopes, sample_rate, config }
+        Self {
+            envelopes,
+            sample_rate,
+            config,
+        }
     }
 
     /// Number of envelopes in the bank.
@@ -354,7 +358,8 @@ impl EnvelopeBank {
     /// Add a new envelope to the bank.
     pub fn add_envelope(&mut self) -> usize {
         let idx = self.envelopes.len();
-        self.envelopes.push(Envelope::new(self.config.clone(), self.sample_rate));
+        self.envelopes
+            .push(Envelope::new(self.config.clone(), self.sample_rate));
         idx
     }
 }
@@ -401,14 +406,21 @@ mod tests {
 
     #[test]
     fn test_attack_reaches_peak() {
-        let config = AdsrConfig { attack_ms: 1.0, ..AdsrConfig::default() };
+        let config = AdsrConfig {
+            attack_ms: 1.0,
+            ..AdsrConfig::default()
+        };
         let mut env = Envelope::new(config, SR);
         env.gate_on(1.0);
         // 1ms at 44100 = ~44 samples
         for _ in 0..100 {
             env.next_sample();
         }
-        assert!((env.output() - 0.7).abs() < 0.15, "should be in decay/sustain range: {}", env.output());
+        assert!(
+            (env.output() - 0.7).abs() < 0.15,
+            "should be in decay/sustain range: {}",
+            env.output()
+        );
     }
 
     #[test]
@@ -427,7 +439,10 @@ mod tests {
         }
         assert_eq!(env.stage(), Stage::Sustain);
         let level = env.output();
-        assert!((level - 0.5).abs() < 0.05, "sustain should hold at ~0.5, got {level}");
+        assert!(
+            (level - 0.5).abs() < 0.05,
+            "sustain should hold at ~0.5, got {level}"
+        );
     }
 
     #[test]
@@ -450,7 +465,11 @@ mod tests {
         for _ in 0..500 {
             env.next_sample();
         }
-        assert!((env.output() - 0.0).abs() < 0.01, "should decay to ~0, got {}", env.output());
+        assert!(
+            (env.output() - 0.0).abs() < 0.01,
+            "should decay to ~0, got {}",
+            env.output()
+        );
     }
 
     #[test]
@@ -490,7 +509,10 @@ mod tests {
             env.next_sample();
         }
         let level = env.output();
-        assert!((level - 0.5).abs() < 0.1, "vel=0.5 should peak at ~0.5, got {level}");
+        assert!(
+            (level - 0.5).abs() < 0.1,
+            "vel=0.5 should peak at ~0.5, got {level}"
+        );
     }
 
     #[test]
@@ -508,7 +530,10 @@ mod tests {
             env.next_sample();
         }
         let level = env.output();
-        assert!((level - 1.0).abs() < 0.05, "sensitivity=0 should ignore velocity, got {level}");
+        assert!(
+            (level - 1.0).abs() < 0.05,
+            "sensitivity=0 should ignore velocity, got {level}"
+        );
     }
 
     #[test]
@@ -530,8 +555,10 @@ mod tests {
         env.gate_on(1.0);
         let level_after = env.next_sample();
         // FromCurrent should start near previous level
-        assert!((level_after - level_before).abs() < 0.1,
-            "retrigger from current should start near {level_before}, got {level_after}");
+        assert!(
+            (level_after - level_before).abs() < 0.1,
+            "retrigger from current should start near {level_before}, got {level_after}"
+        );
     }
 
     #[test]
@@ -548,7 +575,10 @@ mod tests {
         }
         env.gate_on(1.0);
         let level = env.next_sample();
-        assert!(level < 0.05, "retrigger from zero should start near 0, got {level}");
+        assert!(
+            level < 0.05,
+            "retrigger from zero should start near 0, got {level}"
+        );
     }
 
     #[test]
@@ -574,8 +604,12 @@ mod tests {
             env_lin.next_sample();
         }
         // Exponential should be lower than linear at 25%
-        assert!(env_exp.output() < env_lin.output(),
-            "exp {} should be < linear {} early in attack", env_exp.output(), env_lin.output());
+        assert!(
+            env_exp.output() < env_lin.output(),
+            "exp {} should be < linear {} early in attack",
+            env_exp.output(),
+            env_lin.output()
+        );
     }
 
     #[test]
@@ -599,8 +633,12 @@ mod tests {
             env_log.next_sample();
             env_lin.next_sample();
         }
-        assert!(env_log.output() > env_lin.output(),
-            "log {} should be > linear {} early in attack", env_log.output(), env_lin.output());
+        assert!(
+            env_log.output() > env_lin.output(),
+            "log {} should be > linear {} early in attack",
+            env_log.output(),
+            env_lin.output()
+        );
     }
 
     #[test]
@@ -677,7 +715,10 @@ mod tests {
         // Looping should revisit attack
         // (It might not if timing is tight, but the mechanism exists.)
         // Just verify it doesn't crash and stays active.
-        assert!(!env.is_idle(), "looping envelope should not go idle while gate is on");
+        assert!(
+            !env.is_idle(),
+            "looping envelope should not go idle while gate is on"
+        );
     }
 
     #[test]
@@ -691,7 +732,10 @@ mod tests {
         env.gate_off();
         for _ in 0..5000 {
             let s = env.next_sample();
-            assert!(s >= -EPS && s <= 1.0 + EPS, "output out of range during release: {s}");
+            assert!(
+                s >= -EPS && s <= 1.0 + EPS,
+                "output out of range during release: {s}"
+            );
         }
     }
 

@@ -110,7 +110,13 @@ pub struct AtomStore {
     values: HashMap<AtomId, Box<dyn Any>>,
     defaults: HashMap<AtomId, Box<dyn Any>>,
     /// Derived atom definitions.
-    derived: HashMap<AtomId, (Vec<AtomId>, Box<dyn Fn(&dyn Fn(AtomId) -> Box<dyn Any>) -> Box<dyn Any>>)>,
+    derived: HashMap<
+        AtomId,
+        (
+            Vec<AtomId>,
+            Box<dyn Fn(&dyn Fn(AtomId) -> Box<dyn Any>) -> Box<dyn Any>>,
+        ),
+    >,
     /// Async atom statuses.
     async_status: HashMap<AtomId, Box<dyn Any>>,
 }
@@ -151,7 +157,8 @@ impl AtomStore {
 
     /// Reset an atom to its default value.
     pub fn reset<T: Clone + 'static>(&mut self, atom: &Atom<T>) {
-        self.values.insert(atom.id, Box::new(atom.default_value.clone()));
+        self.values
+            .insert(atom.id, Box::new(atom.default_value.clone()));
     }
 
     /// Register a derived atom.
@@ -162,7 +169,8 @@ impl AtomStore {
                 let val = compute(reader);
                 Box::new(val)
             });
-        self.derived.insert(derived.id, (derived.dependencies, wrapper));
+        self.derived
+            .insert(derived.id, (derived.dependencies, wrapper));
     }
 
     /// Read a derived atom's computed value.

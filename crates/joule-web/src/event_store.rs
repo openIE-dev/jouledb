@@ -17,7 +17,11 @@ pub enum EventStoreError {
     /// Stream not found.
     StreamNotFound(String),
     /// Optimistic concurrency conflict.
-    VersionConflict { stream_id: String, expected: u64, actual: u64 },
+    VersionConflict {
+        stream_id: String,
+        expected: u64,
+        actual: u64,
+    },
     /// Stream has been soft-deleted.
     StreamDeleted(String),
     /// Event not found.
@@ -34,11 +38,21 @@ impl std::fmt::Display for EventStoreError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::StreamNotFound(id) => write!(f, "stream not found: {id}"),
-            Self::VersionConflict { stream_id, expected, actual } => {
-                write!(f, "version conflict on {stream_id}: expected {expected}, got {actual}")
+            Self::VersionConflict {
+                stream_id,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "version conflict on {stream_id}: expected {expected}, got {actual}"
+                )
             }
             Self::StreamDeleted(id) => write!(f, "stream deleted: {id}"),
-            Self::EventNotFound { stream_id, position } => {
+            Self::EventNotFound {
+                stream_id,
+                position,
+            } => {
                 write!(f, "event not found at position {position} in {stream_id}")
             }
             Self::EmptyAppend(id) => write!(f, "empty append to {id}"),
@@ -390,11 +404,7 @@ impl EventStore {
     }
 
     /// Read all events globally (across all streams) from a position.
-    pub fn read_all(
-        &self,
-        from_position: u64,
-        count: usize,
-    ) -> Vec<StoredEvent> {
+    pub fn read_all(&self, from_position: u64, count: usize) -> Vec<StoredEvent> {
         self.global_log
             .iter()
             .filter(|e| e.global_position >= from_position)
@@ -497,9 +507,7 @@ impl EventStore {
         let sub = self
             .subscriptions
             .get(subscription_id)
-            .ok_or_else(|| {
-                EventStoreError::SubscriptionNotFound(subscription_id.to_string())
-            })?;
+            .ok_or_else(|| EventStoreError::SubscriptionNotFound(subscription_id.to_string()))?;
 
         if !sub.active {
             return Ok(Vec::new());
@@ -539,46 +547,31 @@ impl EventStore {
     }
 
     /// Pause a subscription.
-    pub fn pause_subscription(
-        &mut self,
-        subscription_id: &str,
-    ) -> Result<(), EventStoreError> {
+    pub fn pause_subscription(&mut self, subscription_id: &str) -> Result<(), EventStoreError> {
         let sub = self
             .subscriptions
             .get_mut(subscription_id)
-            .ok_or_else(|| {
-                EventStoreError::SubscriptionNotFound(subscription_id.to_string())
-            })?;
+            .ok_or_else(|| EventStoreError::SubscriptionNotFound(subscription_id.to_string()))?;
         sub.pause();
         Ok(())
     }
 
     /// Resume a subscription.
-    pub fn resume_subscription(
-        &mut self,
-        subscription_id: &str,
-    ) -> Result<(), EventStoreError> {
+    pub fn resume_subscription(&mut self, subscription_id: &str) -> Result<(), EventStoreError> {
         let sub = self
             .subscriptions
             .get_mut(subscription_id)
-            .ok_or_else(|| {
-                EventStoreError::SubscriptionNotFound(subscription_id.to_string())
-            })?;
+            .ok_or_else(|| EventStoreError::SubscriptionNotFound(subscription_id.to_string()))?;
         sub.resume();
         Ok(())
     }
 
     /// Remove a subscription.
-    pub fn remove_subscription(
-        &mut self,
-        subscription_id: &str,
-    ) -> Result<(), EventStoreError> {
+    pub fn remove_subscription(&mut self, subscription_id: &str) -> Result<(), EventStoreError> {
         self.subscriptions
             .remove(subscription_id)
             .map(|_| ())
-            .ok_or_else(|| {
-                EventStoreError::SubscriptionNotFound(subscription_id.to_string())
-            })
+            .ok_or_else(|| EventStoreError::SubscriptionNotFound(subscription_id.to_string()))
     }
 
     /// Count of active streams (non-deleted).
@@ -628,7 +621,11 @@ mod tests {
     fn test_append_creates_stream() {
         let mut store = EventStore::new();
         let result = store
-            .append("stream-1", ExpectedVersion::NoStream, vec![make_event("Created", "name", "alice")])
+            .append(
+                "stream-1",
+                ExpectedVersion::NoStream,
+                vec![make_event("Created", "name", "alice")],
+            )
             .unwrap();
         assert_eq!(result.stream_id, "stream-1");
         assert_eq!(result.event_count, 1);
@@ -643,7 +640,9 @@ mod tests {
             make_event("Updated", "name", "bob"),
             make_event("Deleted", "reason", "inactive"),
         ];
-        let result = store.append("s1", ExpectedVersion::NoStream, events).unwrap();
+        let result = store
+            .append("s1", ExpectedVersion::NoStream, events)
+            .unwrap();
         assert_eq!(result.event_count, 3);
         assert_eq!(result.first_position, 0);
         assert_eq!(result.last_position, 2);
@@ -653,12 +652,28 @@ mod tests {
     #[test]
     fn test_optimistic_concurrency_exact() {
         let mut store = EventStore::new();
-        store.append("s1", ExpectedVersion::NoStream, vec![make_event("E1", "k", "v")]).unwrap();
+        store
+            .append(
+                "s1",
+                ExpectedVersion::NoStream,
+                vec![make_event("E1", "k", "v")],
+            )
+            .unwrap();
         // Version is now 1, append expecting 1 should succeed.
-        store.append("s1", ExpectedVersion::Exact(1), vec![make_event("E2", "k", "v")]).unwrap();
+        store
+            .append(
+                "s1",
+                ExpectedVersion::Exact(1),
+                vec![make_event("E2", "k", "v")],
+            )
+            .unwrap();
         // Expecting 1 again should fail (version is now 2).
         let err = store
-            .append("s1", ExpectedVersion::Exact(1), vec![make_event("E3", "k", "v")])
+            .append(
+                "s1",
+                ExpectedVersion::Exact(1),
+                vec![make_event("E3", "k", "v")],
+            )
             .unwrap_err();
         assert!(matches!(err, EventStoreError::VersionConflict { .. }));
     }
@@ -666,9 +681,19 @@ mod tests {
     #[test]
     fn test_no_stream_conflict() {
         let mut store = EventStore::new();
-        store.append("s1", ExpectedVersion::NoStream, vec![make_event("E1", "k", "v")]).unwrap();
+        store
+            .append(
+                "s1",
+                ExpectedVersion::NoStream,
+                vec![make_event("E1", "k", "v")],
+            )
+            .unwrap();
         let err = store
-            .append("s1", ExpectedVersion::NoStream, vec![make_event("E2", "k", "v")])
+            .append(
+                "s1",
+                ExpectedVersion::NoStream,
+                vec![make_event("E2", "k", "v")],
+            )
             .unwrap_err();
         assert!(matches!(err, EventStoreError::VersionConflict { .. }));
     }
@@ -676,15 +701,21 @@ mod tests {
     #[test]
     fn test_any_version_always_succeeds() {
         let mut store = EventStore::new();
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "v")]).unwrap();
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E2", "k", "v")]).unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "v")])
+            .unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E2", "k", "v")])
+            .unwrap();
         assert_eq!(store.stream_info("s1").unwrap().current_version, 2);
     }
 
     #[test]
     fn test_empty_append_error() {
         let mut store = EventStore::new();
-        let err = store.append("s1", ExpectedVersion::Any, vec![]).unwrap_err();
+        let err = store
+            .append("s1", ExpectedVersion::Any, vec![])
+            .unwrap_err();
         assert!(matches!(err, EventStoreError::EmptyAppend(_)));
     }
 
@@ -696,8 +727,12 @@ mod tests {
             make_event("E2", "k", "2"),
             make_event("E3", "k", "3"),
         ];
-        store.append("s1", ExpectedVersion::NoStream, events).unwrap();
-        let read = store.read_stream("s1", ReadDirection::Forward, 1, 10).unwrap();
+        store
+            .append("s1", ExpectedVersion::NoStream, events)
+            .unwrap();
+        let read = store
+            .read_stream("s1", ReadDirection::Forward, 1, 10)
+            .unwrap();
         assert_eq!(read.len(), 3);
         assert_eq!(read[0].event_type, "E1");
         assert_eq!(read[2].event_type, "E3");
@@ -711,8 +746,12 @@ mod tests {
             make_event("E2", "k", "2"),
             make_event("E3", "k", "3"),
         ];
-        store.append("s1", ExpectedVersion::NoStream, events).unwrap();
-        let read = store.read_stream("s1", ReadDirection::Forward, 2, 10).unwrap();
+        store
+            .append("s1", ExpectedVersion::NoStream, events)
+            .unwrap();
+        let read = store
+            .read_stream("s1", ReadDirection::Forward, 2, 10)
+            .unwrap();
         assert_eq!(read.len(), 2);
         assert_eq!(read[0].event_type, "E2");
     }
@@ -725,8 +764,12 @@ mod tests {
             make_event("E2", "k", "2"),
             make_event("E3", "k", "3"),
         ];
-        store.append("s1", ExpectedVersion::NoStream, events).unwrap();
-        let read = store.read_stream("s1", ReadDirection::Backward, 3, 2).unwrap();
+        store
+            .append("s1", ExpectedVersion::NoStream, events)
+            .unwrap();
+        let read = store
+            .read_stream("s1", ReadDirection::Backward, 3, 2)
+            .unwrap();
         assert_eq!(read.len(), 2);
         assert_eq!(read[0].event_type, "E3");
         assert_eq!(read[1].event_type, "E2");
@@ -735,16 +778,24 @@ mod tests {
     #[test]
     fn test_read_stream_not_found() {
         let store = EventStore::new();
-        let err = store.read_stream("missing", ReadDirection::Forward, 0, 10).unwrap_err();
+        let err = store
+            .read_stream("missing", ReadDirection::Forward, 0, 10)
+            .unwrap_err();
         assert!(matches!(err, EventStoreError::StreamNotFound(_)));
     }
 
     #[test]
     fn test_read_all_global() {
         let mut store = EventStore::new();
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "1")]).unwrap();
-        store.append("s2", ExpectedVersion::Any, vec![make_event("E2", "k", "2")]).unwrap();
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E3", "k", "3")]).unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "1")])
+            .unwrap();
+        store
+            .append("s2", ExpectedVersion::Any, vec![make_event("E2", "k", "2")])
+            .unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E3", "k", "3")])
+            .unwrap();
 
         let all = store.read_all(0, 100);
         assert_eq!(all.len(), 3);
@@ -756,7 +807,9 @@ mod tests {
     #[test]
     fn test_soft_delete_stream() {
         let mut store = EventStore::new();
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "v")]).unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "v")])
+            .unwrap();
         store.delete_stream("s1").unwrap();
 
         let info = store.stream_info("s1").unwrap();
@@ -764,18 +817,24 @@ mod tests {
         assert!(info.deleted_at.is_some());
 
         // Read from deleted stream fails.
-        let err = store.read_stream("s1", ReadDirection::Forward, 0, 10).unwrap_err();
+        let err = store
+            .read_stream("s1", ReadDirection::Forward, 0, 10)
+            .unwrap_err();
         assert!(matches!(err, EventStoreError::StreamDeleted(_)));
 
         // Append to deleted stream fails.
-        let err = store.append("s1", ExpectedVersion::Any, vec![make_event("E2", "k", "v")]).unwrap_err();
+        let err = store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E2", "k", "v")])
+            .unwrap_err();
         assert!(matches!(err, EventStoreError::StreamDeleted(_)));
     }
 
     #[test]
     fn test_restore_deleted_stream() {
         let mut store = EventStore::new();
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "v")]).unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "v")])
+            .unwrap();
         store.delete_stream("s1").unwrap();
         store.restore_stream("s1").unwrap();
 
@@ -783,7 +842,9 @@ mod tests {
         assert!(!info.is_deleted);
 
         // Can read again.
-        let read = store.read_stream("s1", ReadDirection::Forward, 0, 10).unwrap();
+        let read = store
+            .read_stream("s1", ReadDirection::Forward, 0, 10)
+            .unwrap();
         assert_eq!(read.len(), 1);
     }
 
@@ -805,21 +866,32 @@ mod tests {
         let mut data = HashMap::new();
         data.insert("k".to_string(), "v".to_string());
         store
-            .append("s1", ExpectedVersion::Any, vec![("E1".to_string(), data, meta)])
+            .append(
+                "s1",
+                ExpectedVersion::Any,
+                vec![("E1".to_string(), data, meta)],
+            )
             .unwrap();
 
         let event = store.get_event("s1", 1).unwrap();
         assert_eq!(event.metadata.correlation_id.as_deref(), Some("corr-1"));
         assert_eq!(event.metadata.causation_id.as_deref(), Some("cause-1"));
         assert_eq!(event.metadata.user_id.as_deref(), Some("user-42"));
-        assert_eq!(event.metadata.custom.get("source").map(|s| s.as_str()), Some("test"));
+        assert_eq!(
+            event.metadata.custom.get("source").map(|s| s.as_str()),
+            Some("test")
+        );
     }
 
     #[test]
     fn test_catch_up_subscription() {
         let mut store = EventStore::new();
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "1")]).unwrap();
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E2", "k", "2")]).unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "1")])
+            .unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E2", "k", "2")])
+            .unwrap();
 
         store.create_subscription("sub-1", Some("s1".to_string()));
 
@@ -832,7 +904,9 @@ mod tests {
         assert_eq!(events.len(), 0);
 
         // Append new event, then poll.
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E3", "k", "3")]).unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E3", "k", "3")])
+            .unwrap();
         let events = store.poll_subscription("sub-1", 10).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].event_type, "E3");
@@ -841,8 +915,12 @@ mod tests {
     #[test]
     fn test_subscription_stream_filter() {
         let mut store = EventStore::new();
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "1")]).unwrap();
-        store.append("s2", ExpectedVersion::Any, vec![make_event("E2", "k", "2")]).unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "1")])
+            .unwrap();
+        store
+            .append("s2", ExpectedVersion::Any, vec![make_event("E2", "k", "2")])
+            .unwrap();
 
         store.create_subscription("sub-s1", Some("s1".to_string()));
         let events = store.poll_subscription("sub-s1", 10).unwrap();
@@ -853,8 +931,12 @@ mod tests {
     #[test]
     fn test_global_subscription() {
         let mut store = EventStore::new();
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "1")]).unwrap();
-        store.append("s2", ExpectedVersion::Any, vec![make_event("E2", "k", "2")]).unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "1")])
+            .unwrap();
+        store
+            .append("s2", ExpectedVersion::Any, vec![make_event("E2", "k", "2")])
+            .unwrap();
 
         store.create_subscription("sub-all", None);
         let events = store.poll_subscription("sub-all", 10).unwrap();
@@ -864,7 +946,9 @@ mod tests {
     #[test]
     fn test_pause_resume_subscription() {
         let mut store = EventStore::new();
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "1")]).unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "1")])
+            .unwrap();
         store.create_subscription("sub-1", None);
 
         store.pause_subscription("sub-1").unwrap();
@@ -888,7 +972,9 @@ mod tests {
     #[test]
     fn test_get_event_not_found() {
         let mut store = EventStore::new();
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "v")]).unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "v")])
+            .unwrap();
         let err = store.get_event("s1", 999).unwrap_err();
         assert!(matches!(err, EventStoreError::EventNotFound { .. }));
     }
@@ -897,22 +983,33 @@ mod tests {
     fn test_total_event_count() {
         let mut store = EventStore::new();
         assert_eq!(store.total_event_count(), 0);
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "v")]).unwrap();
-        store.append("s2", ExpectedVersion::Any, vec![
-            make_event("E2", "k", "v"),
-            make_event("E3", "k", "v"),
-        ]).unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "v")])
+            .unwrap();
+        store
+            .append(
+                "s2",
+                ExpectedVersion::Any,
+                vec![make_event("E2", "k", "v"), make_event("E3", "k", "v")],
+            )
+            .unwrap();
         assert_eq!(store.total_event_count(), 3);
     }
 
     #[test]
     fn test_read_by_event_type() {
         let mut store = EventStore::new();
-        store.append("s1", ExpectedVersion::Any, vec![
-            make_event("Created", "k", "1"),
-            make_event("Updated", "k", "2"),
-            make_event("Created", "k", "3"),
-        ]).unwrap();
+        store
+            .append(
+                "s1",
+                ExpectedVersion::Any,
+                vec![
+                    make_event("Created", "k", "1"),
+                    make_event("Updated", "k", "2"),
+                    make_event("Created", "k", "3"),
+                ],
+            )
+            .unwrap();
 
         let created = store.read_by_event_type("Created", 0, 100);
         assert_eq!(created.len(), 2);
@@ -924,9 +1021,27 @@ mod tests {
     #[test]
     fn test_stream_ids_sorted() {
         let mut store = EventStore::new();
-        store.append("zulu", ExpectedVersion::Any, vec![make_event("E", "k", "v")]).unwrap();
-        store.append("alpha", ExpectedVersion::Any, vec![make_event("E", "k", "v")]).unwrap();
-        store.append("mike", ExpectedVersion::Any, vec![make_event("E", "k", "v")]).unwrap();
+        store
+            .append(
+                "zulu",
+                ExpectedVersion::Any,
+                vec![make_event("E", "k", "v")],
+            )
+            .unwrap();
+        store
+            .append(
+                "alpha",
+                ExpectedVersion::Any,
+                vec![make_event("E", "k", "v")],
+            )
+            .unwrap();
+        store
+            .append(
+                "mike",
+                ExpectedVersion::Any,
+                vec![make_event("E", "k", "v")],
+            )
+            .unwrap();
         let ids = store.stream_ids();
         assert_eq!(ids, vec!["alpha", "mike", "zulu"]);
     }
@@ -934,8 +1049,12 @@ mod tests {
     #[test]
     fn test_active_stream_count() {
         let mut store = EventStore::new();
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E", "k", "v")]).unwrap();
-        store.append("s2", ExpectedVersion::Any, vec![make_event("E", "k", "v")]).unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E", "k", "v")])
+            .unwrap();
+        store
+            .append("s2", ExpectedVersion::Any, vec![make_event("E", "k", "v")])
+            .unwrap();
         assert_eq!(store.active_stream_count(), 2);
         store.delete_stream("s1").unwrap();
         assert_eq!(store.active_stream_count(), 1);
@@ -944,9 +1063,15 @@ mod tests {
     #[test]
     fn test_global_position_monotonic() {
         let mut store = EventStore::new();
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "v")]).unwrap();
-        store.append("s2", ExpectedVersion::Any, vec![make_event("E2", "k", "v")]).unwrap();
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E3", "k", "v")]).unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E1", "k", "v")])
+            .unwrap();
+        store
+            .append("s2", ExpectedVersion::Any, vec![make_event("E2", "k", "v")])
+            .unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E3", "k", "v")])
+            .unwrap();
         let all = store.read_all(0, 100);
         for (i, event) in all.iter().enumerate() {
             assert_eq!(event.global_position, i as u64);
@@ -958,9 +1083,17 @@ mod tests {
         let mut store = EventStore::new();
         for i in 0..10 {
             let label = format!("E{i}");
-            store.append("s1", ExpectedVersion::Any, vec![make_event(&label, "k", "v")]).unwrap();
+            store
+                .append(
+                    "s1",
+                    ExpectedVersion::Any,
+                    vec![make_event(&label, "k", "v")],
+                )
+                .unwrap();
         }
-        let read = store.read_stream("s1", ReadDirection::Forward, 1, 3).unwrap();
+        let read = store
+            .read_stream("s1", ReadDirection::Forward, 1, 3)
+            .unwrap();
         assert_eq!(read.len(), 3);
 
         let all = store.read_all(0, 5);
@@ -977,7 +1110,9 @@ mod tests {
     #[test]
     fn test_double_delete_error() {
         let mut store = EventStore::new();
-        store.append("s1", ExpectedVersion::Any, vec![make_event("E", "k", "v")]).unwrap();
+        store
+            .append("s1", ExpectedVersion::Any, vec![make_event("E", "k", "v")])
+            .unwrap();
         store.delete_stream("s1").unwrap();
         let err = store.delete_stream("s1").unwrap_err();
         assert!(matches!(err, EventStoreError::StreamDeleted(_)));

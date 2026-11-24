@@ -261,8 +261,7 @@ impl CoalescentSim {
             let right = active[j];
             let node_id = nodes.len();
             let mut new_node = CoalNode::internal(node_id, current_time, left, right);
-            new_node.n_descendants =
-                nodes[left].n_descendants + nodes[right].n_descendants;
+            new_node.n_descendants = nodes[left].n_descendants + nodes[right].n_descendants;
             nodes[left].parent = Some(node_id);
             nodes[right].parent = Some(node_id);
             nodes.push(new_node);
@@ -662,7 +661,12 @@ mod tests {
 
     #[test]
     fn test_mutation_display() {
-        let m = Mutation { id: 0, branch: 1, time: 0.5, position: 100.0 };
+        let m = Mutation {
+            id: 0,
+            branch: 1,
+            time: 0.5,
+            position: 100.0,
+        };
         let s = format!("{}", m);
         assert!(s.contains("Mut"));
     }

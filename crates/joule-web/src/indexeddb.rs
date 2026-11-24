@@ -396,9 +396,7 @@ mod tests {
                 unique: true,
                 multi_entry: false,
             });
-            store
-                .put("existing", json!({"v": "dup"}))
-                .unwrap();
+            store.put("existing", json!({"v": "dup"})).unwrap();
         }
         let tx = Transaction {
             stores: vec!["s".into()],
@@ -449,9 +447,7 @@ mod tests {
         let tx = Transaction {
             stores: vec!["s".into()],
             mode: TransactionMode::ReadWrite,
-            operations: vec![TxOp::Clear {
-                store: "s".into(),
-            }],
+            operations: vec![TxOp::Clear { store: "s".into() }],
         };
         db.execute_transaction(tx).unwrap();
         assert_eq!(db.stores["s"].count(), 0);

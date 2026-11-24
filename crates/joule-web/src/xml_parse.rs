@@ -82,11 +82,10 @@ impl XmlNode {
     /// Get an attribute value by name.
     pub fn attr(&self, attr_name: &str) -> Option<&str> {
         match self {
-            Self::Element { attributes, .. } => {
-                attributes.iter()
-                    .find(|(k, _)| k == attr_name)
-                    .map(|(_, v)| v.as_str())
-            }
+            Self::Element { attributes, .. } => attributes
+                .iter()
+                .find(|(k, _)| k == attr_name)
+                .map(|(_, v)| v.as_str()),
             _ => None,
         }
     }
@@ -101,7 +100,8 @@ impl XmlNode {
 
     /// Get child elements with a specific tag name.
     pub fn children_by_name(&self, tag: &str) -> Vec<&XmlNode> {
-        self.children().iter()
+        self.children()
+            .iter()
             .filter(|c| c.name() == Some(tag))
             .collect()
     }
@@ -109,9 +109,7 @@ impl XmlNode {
     /// Get the text content of this node (concatenated).
     pub fn text_content(&self) -> String {
         match self {
-            Self::Element { children, .. } => {
-                children.iter().map(|c| c.text_content()).collect()
-            }
+            Self::Element { children, .. } => children.iter().map(|c| c.text_content()).collect(),
             Self::Text(t) => t.clone(),
             Self::CData(t) => t.clone(),
             Self::Comment(_) => String::new(),
@@ -133,7 +131,8 @@ impl XmlNode {
                 match part {
                     XPathStep::Child(name, pred) => {
                         for child in node.children() {
-                            if child.name() == Some(name.as_str()) && matches_predicate(child, pred) {
+                            if child.name() == Some(name.as_str()) && matches_predicate(child, pred)
+                            {
                                 next.push(child);
                             }
                         }
@@ -191,8 +190,12 @@ fn split_xpath_parts(s: &str) -> Vec<&str> {
     let mut in_bracket = false;
     let bytes = s.as_bytes();
     for (i, b) in bytes.iter().enumerate() {
-        if *b == b'[' { in_bracket = true; }
-        if *b == b']' { in_bracket = false; }
+        if *b == b'[' {
+            in_bracket = true;
+        }
+        if *b == b']' {
+            in_bracket = false;
+        }
         if *b == b'/' && !in_bracket {
             parts.push(&s[start..i]);
             start = i + 1;
@@ -233,9 +236,7 @@ fn parse_predicate(s: &str) -> Option<XPathPredicate> {
 fn matches_predicate(node: &XmlNode, pred: &Option<XPathPredicate>) -> bool {
     match pred {
         None => true,
-        Some(XPathPredicate::AttrEquals(attr, val)) => {
-            node.attr(attr) == Some(val.as_str())
-        }
+        Some(XPathPredicate::AttrEquals(attr, val)) => node.attr(attr) == Some(val.as_str()),
     }
 }
 
@@ -269,7 +270,10 @@ fn decode_entities(s: &str) -> Result<String, XmlParseError> {
                 i += 1;
             }
             if i >= chars.len() {
-                return Err(XmlParseError::Invalid { pos: start, msg: "unterminated entity".to_string() });
+                return Err(XmlParseError::Invalid {
+                    pos: start,
+                    msg: "unterminated entity".to_string(),
+                });
             }
             i += 1; // skip ';'
             let decoded = match entity.as_str() {
@@ -309,7 +313,9 @@ pub fn parse_events(input: &str) -> Result<Vec<XmlEvent>, XmlParseError> {
     let mut parser = XmlParser::new(input);
     while !parser.is_eof() {
         parser.skip_whitespace();
-        if parser.is_eof() { break; }
+        if parser.is_eof() {
+            break;
+        }
         if parser.peek() == Some('<') {
             parser.advance();
             if parser.peek() == Some('!') {
@@ -320,7 +326,9 @@ pub fn parse_events(input: &str) -> Result<Vec<XmlEvent>, XmlParseError> {
                     let comment = parser.read_until("-->")?;
                     events.push(XmlEvent::Comment(comment));
                 } else if parser.starts_with("[CDATA[") {
-                    for _ in 0..7 { parser.advance(); }
+                    for _ in 0..7 {
+                        parser.advance();
+                    }
                     let cdata = parser.read_until("]]>")?;
                     events.push(XmlEvent::CData(cdata));
                 } else {
@@ -333,7 +341,8 @@ pub fn parse_events(input: &str) -> Result<Vec<XmlEvent>, XmlParseError> {
                 parser.skip_whitespace();
                 let data = parser.read_until("?>")?;
                 if target == "xml" {
-                    let version = extract_attr_from_pi(&data, "version").unwrap_or_else(|| "1.0".to_string());
+                    let version =
+                        extract_attr_from_pi(&data, "version").unwrap_or_else(|| "1.0".to_string());
                     let encoding = extract_attr_from_pi(&data, "encoding");
                     events.push(XmlEvent::Declaration { version, encoding });
                 } else {
@@ -398,14 +407,19 @@ fn extract_attr_from_pi(data: &str, attr: &str) -> Option<String> {
     let rest = &data[pos + needle.len()..];
     let rest = rest.trim_start();
     let quote = rest.chars().next()?;
-    if quote != '"' && quote != '\'' { return None; }
+    if quote != '"' && quote != '\'' {
+        return None;
+    }
     let end = rest[1..].find(quote)?;
     Some(rest[1..1 + end].to_string())
 }
 
 fn split_ns(name: &str) -> (Option<String>, String) {
     if let Some(colon_pos) = name.find(':') {
-        (Some(name[..colon_pos].to_string()), name[colon_pos + 1..].to_string())
+        (
+            Some(name[..colon_pos].to_string()),
+            name[colon_pos + 1..].to_string(),
+        )
     } else {
         (None, name.to_string())
     }
@@ -418,7 +432,10 @@ struct XmlParser {
 
 impl XmlParser {
     fn new(input: &str) -> Self {
-        Self { chars: input.chars().collect(), pos: 0 }
+        Self {
+            chars: input.chars().collect(),
+            pos: 0,
+        }
     }
 
     fn is_eof(&self) -> bool {
@@ -431,13 +448,19 @@ impl XmlParser {
 
     fn advance(&mut self) -> Option<char> {
         let c = self.chars.get(self.pos).copied();
-        if c.is_some() { self.pos += 1; }
+        if c.is_some() {
+            self.pos += 1;
+        }
         c
     }
 
     fn skip_whitespace(&mut self) {
         while let Some(c) = self.peek() {
-            if c.is_whitespace() { self.advance(); } else { break; }
+            if c.is_whitespace() {
+                self.advance();
+            } else {
+                break;
+            }
         }
     }
 
@@ -470,13 +493,20 @@ impl XmlParser {
     }
 
     fn read_quoted_string(&mut self) -> Result<String, XmlParseError> {
-        let quote = self.advance().ok_or(XmlParseError::UnexpectedEof(self.pos))?;
+        let quote = self
+            .advance()
+            .ok_or(XmlParseError::UnexpectedEof(self.pos))?;
         if quote != '"' && quote != '\'' {
-            return Err(XmlParseError::Expected { expected: "quote".to_string(), pos: self.pos });
+            return Err(XmlParseError::Expected {
+                expected: "quote".to_string(),
+                pos: self.pos,
+            });
         }
         let mut val = String::new();
         while let Some(c) = self.advance() {
-            if c == quote { break; }
+            if c == quote {
+                break;
+            }
             val.push(c);
         }
         decode_entities(&val)
@@ -490,7 +520,9 @@ impl XmlParser {
                 return Err(XmlParseError::UnexpectedEof(self.pos));
             }
             if self.starts_with(end) {
-                for _ in 0..end_chars.len() { self.advance(); }
+                for _ in 0..end_chars.len() {
+                    self.advance();
+                }
                 return Ok(buf);
             }
             buf.push(self.advance().unwrap());
@@ -500,7 +532,9 @@ impl XmlParser {
     fn read_text(&mut self) -> Result<String, XmlParseError> {
         let mut text = String::new();
         while let Some(c) = self.peek() {
-            if c == '<' { break; }
+            if c == '<' {
+                break;
+            }
             text.push(c);
             self.advance();
         }
@@ -517,18 +551,20 @@ pub fn parse_tree(input: &str) -> Result<XmlNode, XmlParseError> {
 }
 
 fn build_tree(events: &[XmlEvent]) -> Result<XmlNode, XmlParseError> {
-    let mut stack: Vec<XmlNode> = vec![
-        XmlNode::Element {
-            name: "__root__".to_string(),
-            namespace: None,
-            attributes: Vec::new(),
-            children: Vec::new(),
-        }
-    ];
+    let mut stack: Vec<XmlNode> = vec![XmlNode::Element {
+        name: "__root__".to_string(),
+        namespace: None,
+        attributes: Vec::new(),
+        children: Vec::new(),
+    }];
 
     for event in events {
         match event {
-            XmlEvent::StartElement { name, namespace, attributes } => {
+            XmlEvent::StartElement {
+                name,
+                namespace,
+                attributes,
+            } => {
                 stack.push(XmlNode::Element {
                     name: name.clone(),
                     namespace: namespace.clone(),
@@ -601,7 +637,12 @@ pub fn serialize(node: &XmlNode) -> String {
 fn serialize_node(node: &XmlNode, out: &mut String, depth: usize) {
     let indent = "  ".repeat(depth);
     match node {
-        XmlNode::Element { name, attributes, children, .. } => {
+        XmlNode::Element {
+            name,
+            attributes,
+            children,
+            ..
+        } => {
             out.push_str(&indent);
             out.push('<');
             out.push_str(name);
@@ -656,15 +697,15 @@ fn serialize_node(node: &XmlNode, out: &mut String, depth: usize) {
 
 fn escape_text(s: &str) -> String {
     s.replace('&', "&amp;")
-     .replace('<', "&lt;")
-     .replace('>', "&gt;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 fn escape_attr(s: &str) -> String {
     s.replace('&', "&amp;")
-     .replace('<', "&lt;")
-     .replace('>', "&gt;")
-     .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 impl fmt::Display for XmlNode {

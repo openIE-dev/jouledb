@@ -34,8 +34,18 @@ impl ImageBuffer {
 
     /// Create from raw f32 data in HWC layout.
     pub fn from_hwc(height: usize, width: usize, channels: usize, data: Vec<f32>) -> Self {
-        assert_eq!(data.len(), height * width * channels, "data length mismatch");
-        Self { height, width, channels, data, is_chw: false }
+        assert_eq!(
+            data.len(),
+            height * width * channels,
+            "data length mismatch"
+        );
+        Self {
+            height,
+            width,
+            channels,
+            data,
+            is_chw: false,
+        }
     }
 
     /// Get pixel value at (row, col, channel) regardless of layout.
@@ -75,7 +85,11 @@ pub enum Transform {
     /// Convert RGB → grayscale (channel count 3 → 1).
     RgbToGrayscale,
     /// Letterbox resize: fit into (height, width) preserving aspect ratio, pad with `fill`.
-    Letterbox { height: usize, width: usize, fill: f32 },
+    Letterbox {
+        height: usize,
+        width: usize,
+        fill: f32,
+    },
     /// Brightness adjustment: pixel * factor.
     Brightness { factor: f32 },
     /// Contrast adjustment: (pixel - 0.5) * factor + 0.5.
@@ -99,7 +113,10 @@ fn resize_nearest(img: &ImageBuffer, new_h: usize, new_w: usize) -> ImageBuffer 
 }
 
 fn center_crop(img: &ImageBuffer, crop_h: usize, crop_w: usize) -> ImageBuffer {
-    assert!(crop_h <= img.height && crop_w <= img.width, "crop larger than image");
+    assert!(
+        crop_h <= img.height && crop_w <= img.width,
+        "crop larger than image"
+    );
     let y_off = (img.height - crop_h) / 2;
     let x_off = (img.width - crop_w) / 2;
     let mut out = ImageBuffer::new(crop_h, crop_w, img.channels);
@@ -153,9 +170,8 @@ fn rgb_to_grayscale(img: &ImageBuffer) -> ImageBuffer {
     let mut out = ImageBuffer::new(img.height, img.width, 1);
     for r in 0..img.height {
         for c in 0..img.width {
-            let gray = img.get(r, c, 0) * 0.299
-                + img.get(r, c, 1) * 0.587
-                + img.get(r, c, 2) * 0.114;
+            let gray =
+                img.get(r, c, 0) * 0.299 + img.get(r, c, 1) * 0.587 + img.get(r, c, 2) * 0.114;
             out.set(r, c, 0, gray);
         }
     }
@@ -213,7 +229,11 @@ fn apply_transform(img: &ImageBuffer, transform: &Transform) -> ImageBuffer {
         Transform::Normalize { mean, std } => normalize(img, mean, std),
         Transform::HwcToChw => hwc_to_chw(img),
         Transform::RgbToGrayscale => rgb_to_grayscale(img),
-        Transform::Letterbox { height, width, fill } => letterbox(img, *height, *width, *fill),
+        Transform::Letterbox {
+            height,
+            width,
+            fill,
+        } => letterbox(img, *height, *width, *fill),
         Transform::Brightness { factor } => brightness(img, *factor),
         Transform::Contrast { factor } => contrast(img, *factor),
     }
@@ -230,7 +250,9 @@ pub struct VisionPipeline {
 impl VisionPipeline {
     /// Create an empty pipeline.
     pub fn new() -> Self {
-        Self { transforms: Vec::new() }
+        Self {
+            transforms: Vec::new(),
+        }
     }
 
     /// Append a transform.
@@ -309,10 +331,14 @@ mod tests {
 
     #[test]
     fn test_hwc_to_chw() {
-        let img = ImageBuffer::from_hwc(2, 2, 3, vec![
-            1.0, 2.0, 3.0,  4.0, 5.0, 6.0,
-            7.0, 8.0, 9.0,  10.0, 11.0, 12.0,
-        ]);
+        let img = ImageBuffer::from_hwc(
+            2,
+            2,
+            3,
+            vec![
+                1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
+            ],
+        );
         let chw = hwc_to_chw(&img);
         assert!(chw.is_chw);
         // Channel 0: [1, 4, 7, 10]
@@ -359,8 +385,14 @@ mod tests {
     #[test]
     fn test_pipeline_chain() {
         let pipe = VisionPipeline::new()
-            .add(Transform::Resize { height: 256, width: 256 })
-            .add(Transform::CenterCrop { height: 224, width: 224 })
+            .add(Transform::Resize {
+                height: 256,
+                width: 256,
+            })
+            .add(Transform::CenterCrop {
+                height: 224,
+                width: 224,
+            })
             .add(Transform::Normalize {
                 mean: vec![0.485, 0.456, 0.406],
                 std: vec![0.229, 0.224, 0.225],

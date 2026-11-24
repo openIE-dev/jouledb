@@ -147,13 +147,16 @@ impl LongPollServer {
         if self.clients.contains_key(&cid) {
             return false;
         }
-        self.clients.insert(cid, ClientState {
-            last_delivered_seq: 0,
-            subscriptions: Vec::new(),
-            pending_request: None,
-            last_poll_ms: now_ms,
-            reconnect_count: 0,
-        });
+        self.clients.insert(
+            cid,
+            ClientState {
+                last_delivered_seq: 0,
+                subscriptions: Vec::new(),
+                pending_request: None,
+                last_poll_ms: now_ms,
+                reconnect_count: 0,
+            },
+        );
         true
     }
 
@@ -208,12 +211,7 @@ impl LongPollServer {
     }
 
     /// A client polls for messages. Returns available messages or holds the request.
-    pub fn poll(
-        &mut self,
-        client_id: &str,
-        since_seq: Option<u64>,
-        now_ms: u64,
-    ) -> PollResult {
+    pub fn poll(&mut self, client_id: &str, since_seq: Option<u64>, now_ms: u64) -> PollResult {
         let Some(state) = self.clients.get_mut(client_id) else {
             return PollResult::NotRegistered;
         };
@@ -226,7 +224,9 @@ impl LongPollServer {
         let base_seq = since_seq.unwrap_or(state.last_delivered_seq);
 
         // Collect messages for this client
-        let relevant: Vec<LpMessage> = self.messages.iter()
+        let relevant: Vec<LpMessage> = self
+            .messages
+            .iter()
             .filter(|m| m.seq > base_seq && state.subscriptions.contains(&m.channel))
             .take(self.config.max_batch_size)
             .cloned()
@@ -272,7 +272,9 @@ impl LongPollServer {
 
         // Evict stale clients
         let timeout = self.config.client_timeout_ms;
-        let stale: Vec<String> = self.clients.iter()
+        let stale: Vec<String> = self
+            .clients
+            .iter()
             .filter(|(_, state)| now_ms.saturating_sub(state.last_poll_ms) > timeout)
             .map(|(cid, _)| cid.clone())
             .collect();
@@ -298,7 +300,9 @@ impl LongPollServer {
             let subs = &state.subscriptions;
             let batch_size = self.config.max_batch_size;
 
-            let msgs: Vec<LpMessage> = self.messages.iter()
+            let msgs: Vec<LpMessage> = self
+                .messages
+                .iter()
                 .filter(|m| m.seq > base_seq && subs.contains(&m.channel))
                 .take(batch_size)
                 .cloned()
@@ -323,7 +327,10 @@ impl LongPollServer {
 
     /// Number of clients with pending (held) requests.
     pub fn pending_count(&self) -> usize {
-        self.clients.values().filter(|s| s.pending_request.is_some()).count()
+        self.clients
+            .values()
+            .filter(|s| s.pending_request.is_some())
+            .count()
     }
 
     /// Number of messages in the buffer.
@@ -350,7 +357,11 @@ impl Default for LongPollServer {
 
 impl fmt::Display for LpMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}] {}:{} {}", self.seq, self.channel, self.event_type, self.data)
+        write!(
+            f,
+            "[{}] {}:{} {}",
+            self.seq, self.channel, self.event_type, self.data
+        )
     }
 }
 
@@ -495,7 +506,10 @@ mod tests {
     #[test]
     fn poll_not_registered() {
         let mut srv = make_server();
-        assert!(matches!(srv.poll("ghost", None, 0), PollResult::NotRegistered));
+        assert!(matches!(
+            srv.poll("ghost", None, 0),
+            PollResult::NotRegistered
+        ));
     }
 
     #[test]

@@ -16,7 +16,12 @@ pub struct MarkerPoint {
 
 impl MarkerPoint {
     pub fn new(id: u64, lat: f64, lng: f64) -> Self {
-        Self { lat, lng, data: None, id }
+        Self {
+            lat,
+            lng,
+            data: None,
+            id,
+        }
     }
 
     pub fn with_data(mut self, data: String) -> Self {
@@ -178,11 +183,7 @@ impl Supercluster {
         let next_clusters = self.clusters_at_zoom(next_zoom);
         next_clusters
             .iter()
-            .filter(|c| {
-                c.point_ids
-                    .iter()
-                    .any(|id| cluster.point_ids.contains(id))
-            })
+            .filter(|c| c.point_ids.iter().any(|id| cluster.point_ids.contains(id)))
             .cloned()
             .collect()
     }

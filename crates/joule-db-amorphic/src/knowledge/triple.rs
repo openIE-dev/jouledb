@@ -7,9 +7,9 @@
 //! Unbinding recovers any component given the other two:
 //!   `animal_hv ≈ Unpermute(triple_hv ⊗ dog_hv ⊗ IsA_hv)`
 
-use crate::BinaryHV;
 use super::concept::{ConceptEncoder, EncodedConcept};
 use super::relation::{RelationCodebook, RelationType};
+use crate::BinaryHV;
 
 /// A raw knowledge triple before encoding.
 #[derive(Clone, Debug)]
@@ -139,7 +139,10 @@ mod tests {
         let e2 = EncodedTriple::encode(&t2, &mut enc, &cb);
 
         let sim = e1.vector.similarity(&e2.vector);
-        assert!(sim < 0.6, "different triples should produce different vectors: {sim}");
+        assert!(
+            sim < 0.6,
+            "different triples should produce different vectors: {sim}"
+        );
     }
 
     #[test]
@@ -174,10 +177,7 @@ mod tests {
 
         // Recovered should be similar to actual object
         let sim = recovered.similarity(actual_object);
-        assert!(
-            sim > 0.5,
-            "recovered object should resemble actual: {sim}"
-        );
+        assert!(sim > 0.5, "recovered object should resemble actual: {sim}");
     }
 
     #[test]
@@ -195,9 +195,6 @@ mod tests {
         let recovered = EncodedTriple::recover_subject(&encoded.vector, relation_hv, object_hv);
 
         let sim = recovered.similarity(actual_subject);
-        assert!(
-            sim > 0.5,
-            "recovered subject should resemble actual: {sim}"
-        );
+        assert!(sim > 0.5, "recovered subject should resemble actual: {sim}");
     }
 }

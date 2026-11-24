@@ -205,52 +205,136 @@ impl Style {
 
     // ── Fluent shortcuts ────────────────────────────────────────
 
-    pub fn display(self, v: CssValue) -> Self { self.rule(CssProperty::Display, v) }
-    pub fn position(self, v: CssValue) -> Self { self.rule(CssProperty::Position, v) }
-    pub fn width(self, v: CssValue) -> Self { self.rule(CssProperty::Width, v) }
-    pub fn height(self, v: CssValue) -> Self { self.rule(CssProperty::Height, v) }
-    pub fn min_width(self, v: CssValue) -> Self { self.rule(CssProperty::MinWidth, v) }
-    pub fn max_width(self, v: CssValue) -> Self { self.rule(CssProperty::MaxWidth, v) }
-    pub fn min_height(self, v: CssValue) -> Self { self.rule(CssProperty::MinHeight, v) }
-    pub fn max_height(self, v: CssValue) -> Self { self.rule(CssProperty::MaxHeight, v) }
-    pub fn margin(self, v: CssValue) -> Self { self.rule(CssProperty::Margin, v) }
-    pub fn padding(self, v: CssValue) -> Self { self.rule(CssProperty::Padding, v) }
-    pub fn color(self, v: CssValue) -> Self { self.rule(CssProperty::Color, v) }
-    pub fn bg(self, v: CssValue) -> Self { self.rule(CssProperty::BackgroundColor, v) }
-    pub fn font_size(self, v: CssValue) -> Self { self.rule(CssProperty::FontSize, v) }
-    pub fn font_weight(self, v: CssValue) -> Self { self.rule(CssProperty::FontWeight, v) }
-    pub fn border_radius(self, v: CssValue) -> Self { self.rule(CssProperty::BorderRadius, v) }
-    pub fn border(self, v: CssValue) -> Self { self.rule(CssProperty::Border, v) }
-    pub fn opacity(self, v: CssValue) -> Self { self.rule(CssProperty::Opacity, v) }
-    pub fn z_index(self, v: CssValue) -> Self { self.rule(CssProperty::ZIndex, v) }
-    pub fn cursor(self, v: CssValue) -> Self { self.rule(CssProperty::Cursor, v) }
-    pub fn box_shadow(self, v: CssValue) -> Self { self.rule(CssProperty::BoxShadow, v) }
-    pub fn transition(self, v: CssValue) -> Self { self.rule(CssProperty::Transition, v) }
-    pub fn transform(self, v: CssValue) -> Self { self.rule(CssProperty::Transform, v) }
-    pub fn gap(self, v: CssValue) -> Self { self.rule(CssProperty::Gap, v) }
-    pub fn flex_grow(self, v: CssValue) -> Self { self.rule(CssProperty::FlexGrow, v) }
-    pub fn flex_shrink(self, v: CssValue) -> Self { self.rule(CssProperty::FlexShrink, v) }
-    pub fn top(self, v: CssValue) -> Self { self.rule(CssProperty::Top, v) }
-    pub fn right(self, v: CssValue) -> Self { self.rule(CssProperty::Right, v) }
-    pub fn bottom(self, v: CssValue) -> Self { self.rule(CssProperty::Bottom, v) }
-    pub fn left(self, v: CssValue) -> Self { self.rule(CssProperty::Left, v) }
-    pub fn flex_direction(self, v: CssValue) -> Self { self.rule(CssProperty::FlexDirection, v) }
-    pub fn justify_content(self, v: CssValue) -> Self { self.rule(CssProperty::JustifyContent, v) }
-    pub fn align_items(self, v: CssValue) -> Self { self.rule(CssProperty::AlignItems, v) }
-    pub fn grid_template_columns(self, v: CssValue) -> Self { self.rule(CssProperty::GridTemplateColumns, v) }
-    pub fn grid_template_rows(self, v: CssValue) -> Self { self.rule(CssProperty::GridTemplateRows, v) }
-    pub fn grid_gap(self, v: CssValue) -> Self { self.rule(CssProperty::GridGap, v) }
-    pub fn grid_column(self, v: CssValue) -> Self { self.rule(CssProperty::GridColumn, v) }
-    pub fn grid_row(self, v: CssValue) -> Self { self.rule(CssProperty::GridRow, v) }
-    pub fn text_align(self, v: CssValue) -> Self { self.rule(CssProperty::TextAlign, v) }
-    pub fn line_height(self, v: CssValue) -> Self { self.rule(CssProperty::LineHeight, v) }
-    pub fn overflow(self, v: CssValue) -> Self { self.rule(CssProperty::Overflow, v) }
+    pub fn display(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Display, v)
+    }
+    pub fn position(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Position, v)
+    }
+    pub fn width(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Width, v)
+    }
+    pub fn height(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Height, v)
+    }
+    pub fn min_width(self, v: CssValue) -> Self {
+        self.rule(CssProperty::MinWidth, v)
+    }
+    pub fn max_width(self, v: CssValue) -> Self {
+        self.rule(CssProperty::MaxWidth, v)
+    }
+    pub fn min_height(self, v: CssValue) -> Self {
+        self.rule(CssProperty::MinHeight, v)
+    }
+    pub fn max_height(self, v: CssValue) -> Self {
+        self.rule(CssProperty::MaxHeight, v)
+    }
+    pub fn margin(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Margin, v)
+    }
+    pub fn padding(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Padding, v)
+    }
+    pub fn color(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Color, v)
+    }
+    pub fn bg(self, v: CssValue) -> Self {
+        self.rule(CssProperty::BackgroundColor, v)
+    }
+    pub fn font_size(self, v: CssValue) -> Self {
+        self.rule(CssProperty::FontSize, v)
+    }
+    pub fn font_weight(self, v: CssValue) -> Self {
+        self.rule(CssProperty::FontWeight, v)
+    }
+    pub fn border_radius(self, v: CssValue) -> Self {
+        self.rule(CssProperty::BorderRadius, v)
+    }
+    pub fn border(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Border, v)
+    }
+    pub fn opacity(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Opacity, v)
+    }
+    pub fn z_index(self, v: CssValue) -> Self {
+        self.rule(CssProperty::ZIndex, v)
+    }
+    pub fn cursor(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Cursor, v)
+    }
+    pub fn box_shadow(self, v: CssValue) -> Self {
+        self.rule(CssProperty::BoxShadow, v)
+    }
+    pub fn transition(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Transition, v)
+    }
+    pub fn transform(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Transform, v)
+    }
+    pub fn gap(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Gap, v)
+    }
+    pub fn flex_grow(self, v: CssValue) -> Self {
+        self.rule(CssProperty::FlexGrow, v)
+    }
+    pub fn flex_shrink(self, v: CssValue) -> Self {
+        self.rule(CssProperty::FlexShrink, v)
+    }
+    pub fn top(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Top, v)
+    }
+    pub fn right(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Right, v)
+    }
+    pub fn bottom(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Bottom, v)
+    }
+    pub fn left(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Left, v)
+    }
+    pub fn flex_direction(self, v: CssValue) -> Self {
+        self.rule(CssProperty::FlexDirection, v)
+    }
+    pub fn justify_content(self, v: CssValue) -> Self {
+        self.rule(CssProperty::JustifyContent, v)
+    }
+    pub fn align_items(self, v: CssValue) -> Self {
+        self.rule(CssProperty::AlignItems, v)
+    }
+    pub fn grid_template_columns(self, v: CssValue) -> Self {
+        self.rule(CssProperty::GridTemplateColumns, v)
+    }
+    pub fn grid_template_rows(self, v: CssValue) -> Self {
+        self.rule(CssProperty::GridTemplateRows, v)
+    }
+    pub fn grid_gap(self, v: CssValue) -> Self {
+        self.rule(CssProperty::GridGap, v)
+    }
+    pub fn grid_column(self, v: CssValue) -> Self {
+        self.rule(CssProperty::GridColumn, v)
+    }
+    pub fn grid_row(self, v: CssValue) -> Self {
+        self.rule(CssProperty::GridRow, v)
+    }
+    pub fn text_align(self, v: CssValue) -> Self {
+        self.rule(CssProperty::TextAlign, v)
+    }
+    pub fn line_height(self, v: CssValue) -> Self {
+        self.rule(CssProperty::LineHeight, v)
+    }
+    pub fn overflow(self, v: CssValue) -> Self {
+        self.rule(CssProperty::Overflow, v)
+    }
 
     /// Shorthand: sets `display: flex`.
-    pub fn flex(self) -> Self { self.display(CssValue::Str("flex".into())) }
+    pub fn flex(self) -> Self {
+        self.display(CssValue::Str("flex".into()))
+    }
 
     /// Shorthand: sets `display: grid`.
-    pub fn grid(self) -> Self { self.display(CssValue::Str("grid".into())) }
+    pub fn grid(self) -> Self {
+        self.display(CssValue::Str("grid".into()))
+    }
 
     // ── Rendering ───────────────────────────────────────────────
 
@@ -280,19 +364,31 @@ pub struct MediaQuery {
 
 impl MediaQuery {
     pub fn min_width(px: f64) -> Self {
-        Self { condition: format!("(min-width: {px}px)"), styles: Vec::new() }
+        Self {
+            condition: format!("(min-width: {px}px)"),
+            styles: Vec::new(),
+        }
     }
 
     pub fn max_width(px: f64) -> Self {
-        Self { condition: format!("(max-width: {px}px)"), styles: Vec::new() }
+        Self {
+            condition: format!("(max-width: {px}px)"),
+            styles: Vec::new(),
+        }
     }
 
     pub fn prefers_dark() -> Self {
-        Self { condition: "(prefers-color-scheme: dark)".into(), styles: Vec::new() }
+        Self {
+            condition: "(prefers-color-scheme: dark)".into(),
+            styles: Vec::new(),
+        }
     }
 
     pub fn prefers_reduced_motion() -> Self {
-        Self { condition: "(prefers-reduced-motion: reduce)".into(), styles: Vec::new() }
+        Self {
+            condition: "(prefers-reduced-motion: reduce)".into(),
+            styles: Vec::new(),
+        }
     }
 
     /// Add a selector + style pair to this media query.
@@ -317,9 +413,15 @@ impl MediaQuery {
 /// A single entry in a stylesheet.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CssRule {
-    Style { selector: String, style: Style },
+    Style {
+        selector: String,
+        style: Style,
+    },
     Media(MediaQuery),
-    Keyframes { name: String, steps: Vec<(f64, Style)> },
+    Keyframes {
+        name: String,
+        steps: Vec<(f64, Style)>,
+    },
     Raw(String),
 }
 
@@ -335,7 +437,10 @@ impl Stylesheet {
     }
 
     pub fn rule(mut self, selector: &str, style: Style) -> Self {
-        self.rules.push(CssRule::Style { selector: selector.to_string(), style });
+        self.rules.push(CssRule::Style {
+            selector: selector.to_string(),
+            style,
+        });
         self
     }
 
@@ -345,7 +450,10 @@ impl Stylesheet {
     }
 
     pub fn keyframes(mut self, name: &str, steps: Vec<(f64, Style)>) -> Self {
-        self.rules.push(CssRule::Keyframes { name: name.to_string(), steps });
+        self.rules.push(CssRule::Keyframes {
+            name: name.to_string(),
+            steps,
+        });
         self
     }
 
@@ -443,7 +551,10 @@ mod tests {
 
     #[test]
     fn css_value_calc() {
-        assert_eq!(CssValue::Calc("100% - 20px".into()).to_string(), "calc(100% - 20px)");
+        assert_eq!(
+            CssValue::Calc("100% - 20px".into()).to_string(),
+            "calc(100% - 20px)"
+        );
     }
 
     #[test]
@@ -553,8 +664,10 @@ mod tests {
 
     #[test]
     fn complex_nested_selectors() {
-        let sheet = Stylesheet::new()
-            .rule("nav > ul > li:first-child a:hover", Style::new().color(CssValue::Color("blue".into())));
+        let sheet = Stylesheet::new().rule(
+            "nav > ul > li:first-child a:hover",
+            Style::new().color(CssValue::Color("blue".into())),
+        );
         let css = sheet.to_css();
         assert!(css.contains("nav > ul > li:first-child a:hover { color: blue }"));
     }
@@ -563,7 +676,10 @@ mod tests {
     fn css_property_display_names() {
         assert_eq!(CssProperty::BackgroundColor.to_string(), "background-color");
         assert_eq!(CssProperty::FlexDirection.to_string(), "flex-direction");
-        assert_eq!(CssProperty::GridTemplateColumns.to_string(), "grid-template-columns");
+        assert_eq!(
+            CssProperty::GridTemplateColumns.to_string(),
+            "grid-template-columns"
+        );
         assert_eq!(CssProperty::ZIndex.to_string(), "z-index");
         assert_eq!(CssProperty::MarginTop.to_string(), "margin-top");
     }

@@ -180,8 +180,7 @@ impl Room {
     }
 
     pub fn set_property(&mut self, key: &str, value: &str) {
-        self.properties
-            .insert(key.to_string(), value.to_string());
+        self.properties.insert(key.to_string(), value.to_string());
         self.push_event(RoomEvent::PropertyChanged {
             key: key.to_string(),
             value: value.to_string(),
@@ -259,7 +258,8 @@ impl RoomFilter {
     }
 
     pub fn with_property(mut self, key: &str, value: &str) -> Self {
-        self.property_match.insert(key.to_string(), value.to_string());
+        self.property_match
+            .insert(key.to_string(), value.to_string());
         self
     }
 
@@ -313,11 +313,17 @@ impl RoomManager {
     pub fn create(&mut self, name: &str, capacity: usize) -> String {
         let id = format!("room-{}", self.next_id);
         self.next_id += 1;
-        self.rooms.insert(id.clone(), Room::new(&id, name, capacity));
+        self.rooms
+            .insert(id.clone(), Room::new(&id, name, capacity));
         id
     }
 
-    pub fn create_with_visibility(&mut self, name: &str, capacity: usize, vis: RoomVisibility) -> String {
+    pub fn create_with_visibility(
+        &mut self,
+        name: &str,
+        capacity: usize,
+        vis: RoomVisibility,
+    ) -> String {
         let id = self.create(name, capacity);
         self.rooms.get_mut(&id).unwrap().visibility = vis;
         id

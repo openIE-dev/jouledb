@@ -99,11 +99,19 @@ impl UsageMeter {
         self.count += 1;
     }
 
-    pub fn cumulative(&self) -> f64 { self.cumulative }
-    pub fn count(&self) -> u64 { self.count }
+    pub fn cumulative(&self) -> f64 {
+        self.cumulative
+    }
+    pub fn count(&self) -> u64 {
+        self.count
+    }
 
     pub fn average(&self) -> f64 {
-        if self.count == 0 { 0.0 } else { self.cumulative / self.count as f64 }
+        if self.count == 0 {
+            0.0
+        } else {
+            self.cumulative / self.count as f64
+        }
     }
 
     pub fn reset(&mut self) {
@@ -134,9 +142,12 @@ impl Budget {
 
     /// Check which alert thresholds have been breached given current spend.
     pub fn breached_thresholds(&self, current_spend: f64) -> Vec<f64> {
-        if self.limit <= 0.0 { return Vec::new(); }
+        if self.limit <= 0.0 {
+            return Vec::new();
+        }
         let ratio = current_spend / self.limit;
-        self.alert_thresholds.iter()
+        self.alert_thresholds
+            .iter()
             .filter(|&&t| ratio >= t)
             .copied()
             .collect()
@@ -195,7 +206,11 @@ pub struct CostPeriod {
 impl CostPeriod {
     pub fn new(name: impl Into<String>, start_s: u64, end_s: u64) -> Self {
         assert!(end_s > start_s, "end must be after start");
-        Self { name: name.into(), start_s, end_s }
+        Self {
+            name: name.into(),
+            start_s,
+            end_s,
+        }
     }
 
     pub fn contains(&self, timestamp_s: u64) -> bool {
@@ -278,7 +293,8 @@ impl CostTracker {
 
     /// Total cost filtered by time range.
     pub fn cost_in_range(&self, start_s: u64, end_s: u64) -> f64 {
-        self.entries.iter()
+        self.entries
+            .iter()
             .filter(|e| e.timestamp_s >= start_s && e.timestamp_s < end_s)
             .map(|e| e.total_cost())
             .sum()
@@ -364,7 +380,9 @@ impl CostTracker {
 
     /// Generate a rollup for a cost period.
     pub fn rollup(&self, period: &CostPeriod) -> PeriodRollup {
-        let period_entries: Vec<&CostEntry> = self.entries.iter()
+        let period_entries: Vec<&CostEntry> = self
+            .entries
+            .iter()
             .filter(|e| period.contains(e.timestamp_s))
             .collect();
 
@@ -437,7 +455,14 @@ impl Default for CostTracker {
 mod tests {
     use super::*;
 
-    fn make_entry(ts: u64, tenant: &str, service: &str, resource: ResourceType, qty: f64, unit_cost: f64) -> CostEntry {
+    fn make_entry(
+        ts: u64,
+        tenant: &str,
+        service: &str,
+        resource: ResourceType,
+        qty: f64,
+        unit_cost: f64,
+    ) -> CostEntry {
         CostEntry::new(ts, tenant, service, "/api/v1", resource, qty, unit_cost)
     }
 
@@ -529,17 +554,52 @@ mod tests {
     #[test]
     fn test_cost_tracker_total() {
         let mut tracker = CostTracker::new();
-        tracker.record(make_entry(100, "acme", "api", ResourceType::Compute, 10.0, 1.0));
-        tracker.record(make_entry(200, "acme", "api", ResourceType::Memory, 5.0, 2.0));
+        tracker.record(make_entry(
+            100,
+            "acme",
+            "api",
+            ResourceType::Compute,
+            10.0,
+            1.0,
+        ));
+        tracker.record(make_entry(
+            200,
+            "acme",
+            "api",
+            ResourceType::Memory,
+            5.0,
+            2.0,
+        ));
         assert!((tracker.total_cost() - 20.0).abs() < 1e-10);
     }
 
     #[test]
     fn test_cost_tracker_by_tenant() {
         let mut tracker = CostTracker::new();
-        tracker.record(make_entry(100, "acme", "api", ResourceType::Compute, 10.0, 1.0));
-        tracker.record(make_entry(200, "beta", "api", ResourceType::Compute, 5.0, 1.0));
-        tracker.record(make_entry(300, "acme", "api", ResourceType::Compute, 3.0, 1.0));
+        tracker.record(make_entry(
+            100,
+            "acme",
+            "api",
+            ResourceType::Compute,
+            10.0,
+            1.0,
+        ));
+        tracker.record(make_entry(
+            200,
+            "beta",
+            "api",
+            ResourceType::Compute,
+            5.0,
+            1.0,
+        ));
+        tracker.record(make_entry(
+            300,
+            "acme",
+            "api",
+            ResourceType::Compute,
+            3.0,
+            1.0,
+        ));
         let by_tenant = tracker.cost_by_tenant();
         assert_eq!(by_tenant.len(), 2);
         assert_eq!(by_tenant[0].0, "acme");
@@ -551,8 +611,22 @@ mod tests {
     #[test]
     fn test_cost_tracker_by_service() {
         let mut tracker = CostTracker::new();
-        tracker.record(make_entry(100, "acme", "api", ResourceType::Compute, 10.0, 1.0));
-        tracker.record(make_entry(200, "acme", "db", ResourceType::Compute, 5.0, 1.0));
+        tracker.record(make_entry(
+            100,
+            "acme",
+            "api",
+            ResourceType::Compute,
+            10.0,
+            1.0,
+        ));
+        tracker.record(make_entry(
+            200,
+            "acme",
+            "db",
+            ResourceType::Compute,
+            5.0,
+            1.0,
+        ));
         let by_svc = tracker.cost_by_service();
         assert_eq!(by_svc.len(), 2);
     }
@@ -560,8 +634,24 @@ mod tests {
     #[test]
     fn test_cost_tracker_by_endpoint() {
         let mut tracker = CostTracker::new();
-        tracker.record(CostEntry::new(100, "t", "s", "/a", ResourceType::Compute, 1.0, 1.0));
-        tracker.record(CostEntry::new(200, "t", "s", "/b", ResourceType::Compute, 2.0, 1.0));
+        tracker.record(CostEntry::new(
+            100,
+            "t",
+            "s",
+            "/a",
+            ResourceType::Compute,
+            1.0,
+            1.0,
+        ));
+        tracker.record(CostEntry::new(
+            200,
+            "t",
+            "s",
+            "/b",
+            ResourceType::Compute,
+            2.0,
+            1.0,
+        ));
         let by_ep = tracker.cost_by_endpoint();
         assert_eq!(by_ep.len(), 2);
     }
@@ -569,8 +659,22 @@ mod tests {
     #[test]
     fn test_cost_tracker_by_resource() {
         let mut tracker = CostTracker::new();
-        tracker.record(make_entry(100, "acme", "api", ResourceType::Compute, 10.0, 1.0));
-        tracker.record(make_entry(200, "acme", "api", ResourceType::Network, 5.0, 1.0));
+        tracker.record(make_entry(
+            100,
+            "acme",
+            "api",
+            ResourceType::Compute,
+            10.0,
+            1.0,
+        ));
+        tracker.record(make_entry(
+            200,
+            "acme",
+            "api",
+            ResourceType::Network,
+            5.0,
+            1.0,
+        ));
         let by_res = tracker.cost_by_resource();
         assert_eq!(by_res.len(), 2);
     }
@@ -578,9 +682,30 @@ mod tests {
     #[test]
     fn test_cost_in_range() {
         let mut tracker = CostTracker::new();
-        tracker.record(make_entry(100, "acme", "api", ResourceType::Compute, 10.0, 1.0));
-        tracker.record(make_entry(200, "acme", "api", ResourceType::Compute, 5.0, 1.0));
-        tracker.record(make_entry(300, "acme", "api", ResourceType::Compute, 3.0, 1.0));
+        tracker.record(make_entry(
+            100,
+            "acme",
+            "api",
+            ResourceType::Compute,
+            10.0,
+            1.0,
+        ));
+        tracker.record(make_entry(
+            200,
+            "acme",
+            "api",
+            ResourceType::Compute,
+            5.0,
+            1.0,
+        ));
+        tracker.record(make_entry(
+            300,
+            "acme",
+            "api",
+            ResourceType::Compute,
+            3.0,
+            1.0,
+        ));
         assert!((tracker.cost_in_range(150, 250) - 5.0).abs() < 1e-10);
     }
 
@@ -588,7 +713,14 @@ mod tests {
     fn test_budget_alerts() {
         let mut tracker = CostTracker::new();
         tracker.add_budget(Budget::new("monthly", 100.0, vec![0.5, 0.8, 1.0]));
-        tracker.record(make_entry(100, "acme", "api", ResourceType::Compute, 55.0, 1.0));
+        tracker.record(make_entry(
+            100,
+            "acme",
+            "api",
+            ResourceType::Compute,
+            55.0,
+            1.0,
+        ));
         let alerts = tracker.check_budgets();
         assert_eq!(alerts.len(), 1);
         assert!((alerts[0].threshold - 0.5).abs() < 1e-10);
@@ -599,7 +731,14 @@ mod tests {
     fn test_budget_alerts_dedup() {
         let mut tracker = CostTracker::new();
         tracker.add_budget(Budget::new("monthly", 100.0, vec![0.5, 0.8]));
-        tracker.record(make_entry(100, "acme", "api", ResourceType::Compute, 55.0, 1.0));
+        tracker.record(make_entry(
+            100,
+            "acme",
+            "api",
+            ResourceType::Compute,
+            55.0,
+            1.0,
+        ));
         let alerts1 = tracker.check_budgets();
         assert_eq!(alerts1.len(), 1);
         // Same state, should not re-fire.
@@ -611,19 +750,50 @@ mod tests {
     fn test_budget_alert_escalation() {
         let mut tracker = CostTracker::new();
         tracker.add_budget(Budget::new("monthly", 100.0, vec![0.5, 0.8, 1.0]));
-        tracker.record(make_entry(100, "acme", "api", ResourceType::Compute, 85.0, 1.0));
+        tracker.record(make_entry(
+            100,
+            "acme",
+            "api",
+            ResourceType::Compute,
+            85.0,
+            1.0,
+        ));
         let alerts = tracker.check_budgets();
         assert_eq!(alerts.len(), 2); // 0.5 and 0.8
-        let warning_alert = alerts.iter().find(|a| (a.threshold - 0.8).abs() < 1e-10).unwrap();
+        let warning_alert = alerts
+            .iter()
+            .find(|a| (a.threshold - 0.8).abs() < 1e-10)
+            .unwrap();
         assert_eq!(warning_alert.severity, AlertSeverity::Warning);
     }
 
     #[test]
     fn test_rollup() {
         let mut tracker = CostTracker::new();
-        tracker.record(make_entry(100, "acme", "api", ResourceType::Compute, 10.0, 1.0));
-        tracker.record(make_entry(200, "beta", "db", ResourceType::Memory, 5.0, 2.0));
-        tracker.record(make_entry(500, "acme", "api", ResourceType::Compute, 3.0, 1.0));
+        tracker.record(make_entry(
+            100,
+            "acme",
+            "api",
+            ResourceType::Compute,
+            10.0,
+            1.0,
+        ));
+        tracker.record(make_entry(
+            200,
+            "beta",
+            "db",
+            ResourceType::Memory,
+            5.0,
+            2.0,
+        ));
+        tracker.record(make_entry(
+            500,
+            "acme",
+            "api",
+            ResourceType::Compute,
+            3.0,
+            1.0,
+        ));
 
         let period = CostPeriod::new("test", 50, 300);
         let rollup = tracker.rollup(&period);
@@ -655,9 +825,30 @@ mod tests {
     #[test]
     fn test_cost_by_tenant_for_service() {
         let mut tracker = CostTracker::new();
-        tracker.record(make_entry(100, "acme", "api", ResourceType::Compute, 10.0, 1.0));
-        tracker.record(make_entry(200, "beta", "api", ResourceType::Compute, 5.0, 1.0));
-        tracker.record(make_entry(300, "acme", "db", ResourceType::Compute, 20.0, 1.0));
+        tracker.record(make_entry(
+            100,
+            "acme",
+            "api",
+            ResourceType::Compute,
+            10.0,
+            1.0,
+        ));
+        tracker.record(make_entry(
+            200,
+            "beta",
+            "api",
+            ResourceType::Compute,
+            5.0,
+            1.0,
+        ));
+        tracker.record(make_entry(
+            300,
+            "acme",
+            "db",
+            ResourceType::Compute,
+            20.0,
+            1.0,
+        ));
         let result = tracker.cost_by_tenant_for_service("api");
         assert_eq!(result.len(), 2);
         let acme = result.iter().find(|(t, _)| t == "acme").unwrap();

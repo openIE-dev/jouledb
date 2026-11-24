@@ -20,7 +20,11 @@ pub enum CommError {
     /// No route to destination.
     NoRoute { from: u64, to: u64 },
     /// Bandwidth exceeded.
-    BandwidthExceeded { node: u64, capacity: f64, requested: f64 },
+    BandwidthExceeded {
+        node: u64,
+        capacity: f64,
+        requested: f64,
+    },
     /// Message too large.
     MessageTooLarge { size: usize, max: usize },
 }
@@ -31,8 +35,15 @@ impl fmt::Display for CommError {
             Self::NodeNotFound(id) => write!(f, "node not found: {id}"),
             Self::DuplicateNode(id) => write!(f, "duplicate node: {id}"),
             Self::NoRoute { from, to } => write!(f, "no route from {from} to {to}"),
-            Self::BandwidthExceeded { node, capacity, requested } => {
-                write!(f, "bandwidth exceeded on node {node}: {requested:.1}/{capacity:.1}")
+            Self::BandwidthExceeded {
+                node,
+                capacity,
+                requested,
+            } => {
+                write!(
+                    f,
+                    "bandwidth exceeded on node {node}: {requested:.1}/{capacity:.1}"
+                )
             }
             Self::MessageTooLarge { size, max } => {
                 write!(f, "message too large: {size} > {max}")
@@ -52,7 +63,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -139,7 +152,11 @@ impl Message {
     }
 
     pub fn hop_count(&self) -> usize {
-        if self.hops.is_empty() { 0 } else { self.hops.len() - 1 }
+        if self.hops.is_empty() {
+            0
+        } else {
+            self.hops.len() - 1
+        }
     }
 
     pub fn is_broadcast(&self) -> bool {
@@ -150,12 +167,20 @@ impl Message {
 impl fmt::Display for Message {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.is_broadcast() {
-            write!(f, "Msg({}, src={}, broadcast, {}B)", self.id, self.source, self.payload_size)
+            write!(
+                f,
+                "Msg({}, src={}, broadcast, {}B)",
+                self.id, self.source, self.payload_size
+            )
         } else {
             write!(
                 f,
                 "Msg({}, {}→{}, {}B, hops={})",
-                self.id, self.source, self.destination, self.payload_size, self.hop_count()
+                self.id,
+                self.source,
+                self.destination,
+                self.payload_size,
+                self.hop_count()
             )
         }
     }
@@ -228,7 +253,11 @@ impl CommLink {
 
     /// Utilization ratio (0.0–1.0).
     pub fn utilization_ratio(&self) -> f64 {
-        if self.bandwidth <= 0.0 { 1.0 } else { self.utilization / self.bandwidth }
+        if self.bandwidth <= 0.0 {
+            1.0
+        } else {
+            self.utilization / self.bandwidth
+        }
     }
 
     /// Shannon capacity in bits/sec based on SNR.
@@ -497,7 +526,11 @@ impl CommGraph {
             numerator += v[i] * lv_i;
         }
         let denominator: f64 = v.iter().map(|x| x * x).sum();
-        if denominator < 1e-12 { 0.0 } else { numerator / denominator }
+        if denominator < 1e-12 {
+            0.0
+        } else {
+            numerator / denominator
+        }
     }
 
     /// Find shortest path (by hop count) using BFS.
@@ -555,13 +588,15 @@ impl CommGraph {
         }
         let path = self.shortest_path(from, to)?;
         self.message_counter += 1;
-        let mut msg = Message::new(self.message_counter, from, to, payload_size)
-            .with_timestamp(self.time);
+        let mut msg =
+            Message::new(self.message_counter, from, to, payload_size).with_timestamp(self.time);
         msg.hops = path.clone();
 
         // Simulate loss along each hop.
         for i in 0..path.len() - 1 {
-            let link_loss = self.links.iter()
+            let link_loss = self
+                .links
+                .iter()
                 .find(|l| l.from == path[i] && l.to == path[i + 1])
                 .map(|l| l.loss_rate)
                 .unwrap_or(0.0);
@@ -596,7 +631,12 @@ impl CommGraph {
                 max: self.max_message_size,
             });
         }
-        let targets: Vec<u64> = self.nodes.keys().copied().filter(|id| *id != from).collect();
+        let targets: Vec<u64> = self
+            .nodes
+            .keys()
+            .copied()
+            .filter(|id| *id != from)
+            .collect();
         let mut delivered = 0usize;
         for target in targets {
             if self.shortest_path(from, target).is_ok() {
@@ -643,7 +683,10 @@ impl CommGraph {
 
     /// Update node positions (for mobile robots).
     pub fn update_position(&mut self, node_id: u64, x: f64, y: f64) -> Result<(), CommError> {
-        let node = self.nodes.get_mut(&node_id).ok_or(CommError::NodeNotFound(node_id))?;
+        let node = self
+            .nodes
+            .get_mut(&node_id)
+            .ok_or(CommError::NodeNotFound(node_id))?;
         node.x = x;
         node.y = y;
         Ok(())
@@ -670,9 +713,12 @@ mod tests {
 
     fn make_graph_3_linear() -> CommGraph {
         let mut g = CommGraph::new();
-        g.add_node(CommNode::new(1, 0.0, 0.0).with_comm_range(15.0)).unwrap();
-        g.add_node(CommNode::new(2, 10.0, 0.0).with_comm_range(15.0)).unwrap();
-        g.add_node(CommNode::new(3, 20.0, 0.0).with_comm_range(15.0)).unwrap();
+        g.add_node(CommNode::new(1, 0.0, 0.0).with_comm_range(15.0))
+            .unwrap();
+        g.add_node(CommNode::new(2, 10.0, 0.0).with_comm_range(15.0))
+            .unwrap();
+        g.add_node(CommNode::new(3, 20.0, 0.0).with_comm_range(15.0))
+            .unwrap();
         g.rebuild_links();
         g
     }
@@ -719,8 +765,10 @@ mod tests {
     #[test]
     fn test_no_route() {
         let mut g = CommGraph::new();
-        g.add_node(CommNode::new(1, 0.0, 0.0).with_comm_range(5.0)).unwrap();
-        g.add_node(CommNode::new(2, 100.0, 0.0).with_comm_range(5.0)).unwrap();
+        g.add_node(CommNode::new(1, 0.0, 0.0).with_comm_range(5.0))
+            .unwrap();
+        g.add_node(CommNode::new(2, 100.0, 0.0).with_comm_range(5.0))
+            .unwrap();
         g.rebuild_links();
         assert!(g.shortest_path(1, 2).is_err());
     }
@@ -734,8 +782,10 @@ mod tests {
     #[test]
     fn test_not_connected() {
         let mut g = CommGraph::new();
-        g.add_node(CommNode::new(1, 0.0, 0.0).with_comm_range(5.0)).unwrap();
-        g.add_node(CommNode::new(2, 100.0, 0.0).with_comm_range(5.0)).unwrap();
+        g.add_node(CommNode::new(1, 0.0, 0.0).with_comm_range(5.0))
+            .unwrap();
+        g.add_node(CommNode::new(2, 100.0, 0.0).with_comm_range(5.0))
+            .unwrap();
         g.rebuild_links();
         assert!(!g.is_connected());
     }
@@ -785,7 +835,9 @@ mod tests {
 
     #[test]
     fn test_shannon_capacity() {
-        let link = CommLink::new(1, 2).with_bandwidth(1_000_000.0).with_snr(30.0);
+        let link = CommLink::new(1, 2)
+            .with_bandwidth(1_000_000.0)
+            .with_snr(30.0);
         let cap = link.shannon_capacity();
         assert!(cap > 1_000_000.0); // Shannon capacity > bandwidth when SNR > 0 dB.
     }

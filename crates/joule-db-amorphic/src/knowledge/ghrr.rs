@@ -326,10 +326,7 @@ mod tests {
         let recovered = bound.unbind_left(&a);
 
         let sim = recovered.similarity(&b);
-        assert!(
-            sim > 0.8,
-            "unbind should recover b: similarity = {sim}"
-        );
+        assert!(sim > 0.8, "unbind should recover b: similarity = {sim}");
     }
 
     #[test]
@@ -344,7 +341,10 @@ mod tests {
         let a = GhrrVector::random(10000, 16, 1);
         let b = GhrrVector::random(10000, 16, 2);
         let sim = a.similarity(&b);
-        assert!(sim.abs() < 0.1, "random vectors should be near-orthogonal: {sim}");
+        assert!(
+            sim.abs() < 0.1,
+            "random vectors should be near-orthogonal: {sim}"
+        );
     }
 
     #[test]
@@ -357,10 +357,7 @@ mod tests {
         let path_321 = GhrrVector::encode_path(&[&r3, &r2, &r1]).unwrap();
 
         let sim = path_123.similarity(&path_321);
-        assert!(
-            sim < 0.9,
-            "path order should matter: similarity = {sim}"
-        );
+        assert!(sim < 0.9, "path order should matter: similarity = {sim}");
     }
 
     #[test]

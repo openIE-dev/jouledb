@@ -224,8 +224,7 @@ fn hex_val(c: u8, pos: usize) -> Result<u8, BaseEncodingError> {
 
 // ── Base58 (Bitcoin) ─────────────────────────────────────────────────
 
-const BASE58_ALPHABET: &[u8; 58] =
-    b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+const BASE58_ALPHABET: &[u8; 58] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
 /// Encode bytes to Base58 (Bitcoin alphabet, no padding).
 pub fn base58_encode(data: &[u8]) -> String {
@@ -307,25 +306,31 @@ pub fn base58_decode(input: &str) -> Result<Vec<u8>, BaseEncodingError> {
 /// Validate a Base64 encoded string.
 pub fn is_valid_base64(input: &str) -> bool {
     let input = input.trim_end_matches('=');
-    input.bytes().all(|b| matches!(b,
-        b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'+' | b'/' | b'-' | b'_'
-    ))
+    input.bytes().all(|b| {
+        matches!(b,
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'+' | b'/' | b'-' | b'_'
+        )
+    })
 }
 
 /// Validate a Base32 encoded string.
 pub fn is_valid_base32(input: &str) -> bool {
     let input = input.trim_end_matches('=');
-    input.bytes().all(|b| matches!(b,
-        b'A'..=b'Z' | b'a'..=b'z' | b'2'..=b'7'
-    ))
+    input.bytes().all(|b| {
+        matches!(b,
+            b'A'..=b'Z' | b'a'..=b'z' | b'2'..=b'7'
+        )
+    })
 }
 
 /// Validate a Base16 (hex) string.
 pub fn is_valid_base16(input: &str) -> bool {
     input.len() % 2 == 0
-        && input.bytes().all(|b| matches!(b,
-            b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F'
-        ))
+        && input.bytes().all(|b| {
+            matches!(b,
+                b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F'
+            )
+        })
 }
 
 /// Validate a Base58 string.

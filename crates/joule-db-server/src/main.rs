@@ -576,13 +576,19 @@ async fn run_shell(url: &str) -> Result<(), Box<dyn std::error::Error + Send + S
 async fn run_fabric_probe(url: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let client = reqwest::Client::new();
     let topo: serde_json::Value = client
-        .get(format!("{}/api/v1/fabric/topology", url.trim_end_matches('/')))
+        .get(format!(
+            "{}/api/v1/fabric/topology",
+            url.trim_end_matches('/')
+        ))
         .send()
         .await?
         .json()
         .await?;
     let probe: serde_json::Value = client
-        .post(format!("{}/api/v1/fabric/execute", url.trim_end_matches('/')))
+        .post(format!(
+            "{}/api/v1/fabric/execute",
+            url.trim_end_matches('/')
+        ))
         .json(&serde_json::json!({
             "workload": joule_db_server::fabric_routes::default_gpu_probe_workload(),
             "batch_count": 64,
@@ -750,8 +756,8 @@ async fn run_synapse_cli(
             rank,
             outliers,
         } => {
-            let abs_path = std::fs::canonicalize(&file)
-                .unwrap_or_else(|_| std::path::PathBuf::from(&file));
+            let abs_path =
+                std::fs::canonicalize(&file).unwrap_or_else(|_| std::path::PathBuf::from(&file));
             client
                 .post(format!("{base}/api/v1/synapse/ingest/safetensors"))
                 .json(&serde_json::json!({

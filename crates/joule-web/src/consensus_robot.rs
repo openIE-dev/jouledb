@@ -32,7 +32,10 @@ impl fmt::Display for ConsensusError {
             Self::DuplicateNode(id) => write!(f, "duplicate node: {id}"),
             Self::Disconnected => write!(f, "graph is disconnected"),
             Self::UnstableStepSize { step, max_degree } => {
-                write!(f, "step size {step:.4} too large for max degree {max_degree}")
+                write!(
+                    f,
+                    "step size {step:.4} too large for max degree {max_degree}"
+                )
             }
             Self::DimensionMismatch { expected, got } => {
                 write!(f, "dimension mismatch: expected {expected}, got {got}")
@@ -124,7 +127,9 @@ pub struct Topology {
 
 impl Topology {
     pub fn new() -> Self {
-        Self { edges: HashMap::new() }
+        Self {
+            edges: HashMap::new(),
+        }
     }
 
     /// Add an undirected edge with weight 1.0.
@@ -200,8 +205,7 @@ impl Topology {
     /// Build the Laplacian matrix.
     pub fn laplacian(&self, ids: &[u64]) -> Vec<Vec<f64>> {
         let n = ids.len();
-        let idx_map: HashMap<u64, usize> =
-            ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+        let idx_map: HashMap<u64, usize> = ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
         let mut lap = vec![vec![0.0f64; n]; n];
         for &id in ids {
             let i = idx_map[&id];
@@ -219,7 +223,12 @@ impl Topology {
 impl fmt::Display for Topology {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let edge_count: usize = self.edges.values().map(|v| v.len()).sum();
-        write!(f, "Topology({} nodes, {} directed edges)", self.edges.len(), edge_count)
+        write!(
+            f,
+            "Topology({} nodes, {} directed edges)",
+            self.edges.len(),
+            edge_count
+        )
     }
 }
 
@@ -287,19 +296,22 @@ impl ConsensusProtocol {
                 let sum: f64 = self.nodes.values().map(|n| n.history[0]).sum();
                 sum / self.nodes.len() as f64
             }
-            ConsensusType::Max => {
-                self.nodes.values().map(|n| n.history[0]).fold(f64::NEG_INFINITY, f64::max)
-            }
-            ConsensusType::Min => {
-                self.nodes.values().map(|n| n.history[0]).fold(f64::INFINITY, f64::min)
-            }
+            ConsensusType::Max => self
+                .nodes
+                .values()
+                .map(|n| n.history[0])
+                .fold(f64::NEG_INFINITY, f64::max),
+            ConsensusType::Min => self
+                .nodes
+                .values()
+                .map(|n| n.history[0])
+                .fold(f64::INFINITY, f64::min),
             ConsensusType::WeightedAverage => {
                 let total_weight: f64 = self.nodes.values().map(|n| n.weight).sum();
                 if total_weight.abs() < 1e-15 {
                     return 0.0;
                 }
-                let weighted_sum: f64 =
-                    self.nodes.values().map(|n| n.weight * n.history[0]).sum();
+                let weighted_sum: f64 = self.nodes.values().map(|n| n.weight * n.history[0]).sum();
                 weighted_sum / total_weight
             }
         }
@@ -503,11 +515,7 @@ impl VectorConsensus {
         self
     }
 
-    pub fn add_state(
-        &mut self,
-        id: u64,
-        state: Vec<f64>,
-    ) -> Result<(), ConsensusError> {
+    pub fn add_state(&mut self, id: u64, state: Vec<f64>) -> Result<(), ConsensusError> {
         if state.len() != self.dimension {
             return Err(ConsensusError::DimensionMismatch {
                 expected: self.dimension,
@@ -622,8 +630,7 @@ mod tests {
     #[test]
     fn test_max_consensus() {
         let topo = Topology::complete(&[1, 2, 3]);
-        let mut proto = ConsensusProtocol::new(ConsensusType::Max)
-            .with_topology(topo);
+        let mut proto = ConsensusProtocol::new(ConsensusType::Max).with_topology(topo);
         proto.add_node(ConsensusNode::new(1, 5.0)).unwrap();
         proto.add_node(ConsensusNode::new(2, 15.0)).unwrap();
         proto.add_node(ConsensusNode::new(3, 10.0)).unwrap();
@@ -636,8 +643,7 @@ mod tests {
     #[test]
     fn test_min_consensus() {
         let topo = Topology::complete(&[1, 2, 3]);
-        let mut proto = ConsensusProtocol::new(ConsensusType::Min)
-            .with_topology(topo);
+        let mut proto = ConsensusProtocol::new(ConsensusType::Min).with_topology(topo);
         proto.add_node(ConsensusNode::new(1, 5.0)).unwrap();
         proto.add_node(ConsensusNode::new(2, 15.0)).unwrap();
         proto.add_node(ConsensusNode::new(3, 10.0)).unwrap();
@@ -653,8 +659,12 @@ mod tests {
         let mut proto = ConsensusProtocol::new(ConsensusType::WeightedAverage)
             .with_topology(topo)
             .with_step_size(0.1);
-        proto.add_node(ConsensusNode::new(1, 0.0).with_weight(3.0)).unwrap();
-        proto.add_node(ConsensusNode::new(2, 10.0).with_weight(1.0)).unwrap();
+        proto
+            .add_node(ConsensusNode::new(1, 0.0).with_weight(3.0))
+            .unwrap();
+        proto
+            .add_node(ConsensusNode::new(2, 10.0).with_weight(1.0))
+            .unwrap();
         let target = proto.theoretical_average(); // (0*3+10*1)/4 = 2.5
         assert!((target - 2.5).abs() < 1e-9);
     }
@@ -761,7 +771,9 @@ mod tests {
             .with_topology(topo)
             .with_step_size(0.05);
         for i in 1..=5 {
-            proto.add_node(ConsensusNode::new(i, (i * 10) as f64)).unwrap();
+            proto
+                .add_node(ConsensusNode::new(i, (i * 10) as f64))
+                .unwrap();
         }
         let iters = proto.run(1000).unwrap();
         assert!(proto.converged);

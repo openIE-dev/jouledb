@@ -725,11 +725,12 @@ impl<S: TableStorage> StorageExecutor<S> {
                                         let (start, end) =
                                             frame.frame_range(pos, sorted_indices.len());
                                         let end = end.min(sorted_indices.len().saturating_sub(1));
-                                        let frame_indices = if start <= end && end < sorted_indices.len() {
-                                            &sorted_indices[start..=end]
-                                        } else {
-                                            &[][..]
-                                        };
+                                        let frame_indices =
+                                            if start <= end && end < sorted_indices.len() {
+                                                &sorted_indices[start..=end]
+                                            } else {
+                                                &[][..]
+                                            };
                                         let agg_val = if wf_wildcard
                                             && wf.function.to_uppercase() == "COUNT"
                                         {
@@ -2688,7 +2689,8 @@ mod tests {
             returning: vec![],
             ctes: vec![],
             derived_columns: derived,
-            distinct: false, source_alias: None,
+            distinct: false,
+            source_alias: None,
         };
 
         // Test scalar subquery evaluation
@@ -2735,7 +2737,8 @@ mod tests {
             returning: vec![],
             ctes: vec![],
             derived_columns: std::collections::HashMap::new(),
-            distinct: false, source_alias: None,
+            distinct: false,
+            source_alias: None,
         };
 
         let row = RowData::new(vec![], vec![]);
@@ -2773,7 +2776,8 @@ mod tests {
             returning: vec![],
             ctes: vec![],
             derived_columns: std::collections::HashMap::new(),
-            distinct: false, source_alias: None,
+            distinct: false,
+            source_alias: None,
         };
 
         let row = RowData::new(vec![], vec![]);
@@ -2807,7 +2811,8 @@ mod tests {
             returning: vec![],
             ctes: vec![],
             derived_columns: std::collections::HashMap::new(),
-            distinct: false, source_alias: None,
+            distinct: false,
+            source_alias: None,
         };
 
         // Product 1 should be IN the subquery results
@@ -2837,7 +2842,8 @@ mod tests {
             returning: vec![],
             ctes: vec![],
             derived_columns: std::collections::HashMap::new(),
-            distinct: false, source_alias: None,
+            distinct: false,
+            source_alias: None,
         };
         let in_expr2 = Expression::In {
             expr: Box::new(Expression::Column("id".to_string())),
@@ -2879,7 +2885,8 @@ mod tests {
             returning: vec![],
             ctes: vec![],
             derived_columns: std::collections::HashMap::new(),
-            distinct: false, source_alias: None,
+            distinct: false,
+            source_alias: None,
         };
 
         // Product 1 has orders

@@ -164,7 +164,10 @@ impl FriendList {
     }
 
     pub fn add_to_group(&mut self, group: &str, user_id: &str) -> Result<(), FriendError> {
-        let g = self.groups.get_mut(group).ok_or_else(|| FriendError::GroupNotFound(group.to_string()))?;
+        let g = self
+            .groups
+            .get_mut(group)
+            .ok_or_else(|| FriendError::GroupNotFound(group.to_string()))?;
         g.insert(user_id.to_string());
         Ok(())
     }
@@ -190,7 +193,8 @@ impl FriendList {
     }
 
     pub fn online_friends(&self) -> Vec<&str> {
-        self.friends.iter()
+        self.friends
+            .iter()
             .filter(|f| self.online_set.contains(f.as_str()))
             .map(|f| f.as_str())
             .collect()
@@ -231,19 +235,31 @@ impl FriendManager {
         // Check already friends
         if let Some(from_list) = self.lists.get(from) {
             if from_list.is_friend(to) {
-                return Err(FriendError::AlreadyFriends(from.to_string(), to.to_string()));
+                return Err(FriendError::AlreadyFriends(
+                    from.to_string(),
+                    to.to_string(),
+                ));
             }
         }
         // Check duplicate request
-        if self.requests.iter().any(|r| r.from == from && r.to == to && r.status == RequestStatus::Pending) {
-            return Err(FriendError::RequestAlreadySent(from.to_string(), to.to_string()));
+        if self
+            .requests
+            .iter()
+            .any(|r| r.from == from && r.to == to && r.status == RequestStatus::Pending)
+        {
+            return Err(FriendError::RequestAlreadySent(
+                from.to_string(),
+                to.to_string(),
+            ));
         }
         self.requests.push(FriendRequest::new(from, to, sent_at));
         Ok(())
     }
 
     pub fn accept_request(&mut self, from: &str, to: &str) -> Result<(), FriendError> {
-        let req = self.requests.iter_mut()
+        let req = self
+            .requests
+            .iter_mut()
             .find(|r| r.from == from && r.to == to && r.status == RequestStatus::Pending)
             .ok_or_else(|| FriendError::RequestNotFound(from.to_string(), to.to_string()))?;
         req.status = RequestStatus::Accepted;
@@ -254,7 +270,9 @@ impl FriendManager {
     }
 
     pub fn reject_request(&mut self, from: &str, to: &str) -> Result<(), FriendError> {
-        let req = self.requests.iter_mut()
+        let req = self
+            .requests
+            .iter_mut()
             .find(|r| r.from == from && r.to == to && r.status == RequestStatus::Pending)
             .ok_or_else(|| FriendError::RequestNotFound(from.to_string(), to.to_string()))?;
         req.status = RequestStatus::Rejected;
@@ -262,7 +280,9 @@ impl FriendManager {
     }
 
     pub fn cancel_request(&mut self, from: &str, to: &str) -> Result<(), FriendError> {
-        let idx = self.requests.iter()
+        let idx = self
+            .requests
+            .iter()
             .position(|r| r.from == from && r.to == to && r.status == RequestStatus::Pending)
             .ok_or_else(|| FriendError::RequestNotFound(from.to_string(), to.to_string()))?;
         self.requests.remove(idx);
@@ -270,9 +290,15 @@ impl FriendManager {
     }
 
     pub fn remove_friend(&mut self, user_a: &str, user_b: &str) -> Result<(), FriendError> {
-        let list_a = self.lists.get_mut(user_a).ok_or_else(|| FriendError::NotFriends(user_a.to_string(), user_b.to_string()))?;
+        let list_a = self
+            .lists
+            .get_mut(user_a)
+            .ok_or_else(|| FriendError::NotFriends(user_a.to_string(), user_b.to_string()))?;
         if !list_a.remove_friend(user_b) {
-            return Err(FriendError::NotFriends(user_a.to_string(), user_b.to_string()));
+            return Err(FriendError::NotFriends(
+                user_a.to_string(),
+                user_b.to_string(),
+            ));
         }
         if let Some(list_b) = self.lists.get_mut(user_b) {
             list_b.remove_friend(user_a);
@@ -295,7 +321,8 @@ impl FriendManager {
     }
 
     pub fn pending_requests_for(&self, user_id: &str) -> Vec<&FriendRequest> {
-        self.requests.iter()
+        self.requests
+            .iter()
             .filter(|r| r.to == user_id && r.status == RequestStatus::Pending)
             .collect()
     }
@@ -388,7 +415,10 @@ mod tests {
     #[test]
     fn test_self_friend_error() {
         let mut m = FriendManager::new();
-        assert_eq!(m.send_request("alice", "alice", 100), Err(FriendError::SelfFriend));
+        assert_eq!(
+            m.send_request("alice", "alice", 100),
+            Err(FriendError::SelfFriend)
+        );
     }
 
     #[test]

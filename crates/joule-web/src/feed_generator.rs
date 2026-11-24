@@ -109,11 +109,7 @@ pub struct FeedEntry {
 }
 
 impl FeedEntry {
-    pub fn new(
-        id: impl Into<String>,
-        title: impl Into<String>,
-        link: impl Into<String>,
-    ) -> Self {
+    pub fn new(id: impl Into<String>, title: impl Into<String>, link: impl Into<String>) -> Self {
         Self {
             id: id.into(),
             title: title.into(),
@@ -308,7 +304,11 @@ impl Feed {
         }
 
         if let Some(updated) = &self.updated {
-            let _ = write!(xml, "  <lastBuildDate>{}</lastBuildDate>\n", xml_escape(updated));
+            let _ = write!(
+                xml,
+                "  <lastBuildDate>{}</lastBuildDate>\n",
+                xml_escape(updated)
+            );
         }
 
         if let Some(gen_name) = &self.generator {
@@ -398,7 +398,11 @@ impl Feed {
         xml.push_str("<feed xmlns=\"http://www.w3.org/2005/Atom\">\n");
 
         let _ = write!(xml, "  <title>{}</title>\n", xml_escape(&self.title));
-        let _ = write!(xml, "  <subtitle>{}</subtitle>\n", xml_escape(&self.description));
+        let _ = write!(
+            xml,
+            "  <subtitle>{}</subtitle>\n",
+            xml_escape(&self.description)
+        );
         let _ = write!(
             xml,
             "  <link href=\"{}\" rel=\"alternate\"/>\n",
@@ -438,16 +442,32 @@ impl Feed {
 
         // Pagination
         if let Some(next) = &self.pagination.next {
-            let _ = write!(xml, "  <link href=\"{}\" rel=\"next\"/>\n", xml_escape(next));
+            let _ = write!(
+                xml,
+                "  <link href=\"{}\" rel=\"next\"/>\n",
+                xml_escape(next)
+            );
         }
         if let Some(prev) = &self.pagination.previous {
-            let _ = write!(xml, "  <link href=\"{}\" rel=\"previous\"/>\n", xml_escape(prev));
+            let _ = write!(
+                xml,
+                "  <link href=\"{}\" rel=\"previous\"/>\n",
+                xml_escape(prev)
+            );
         }
         if let Some(first) = &self.pagination.first {
-            let _ = write!(xml, "  <link href=\"{}\" rel=\"first\"/>\n", xml_escape(first));
+            let _ = write!(
+                xml,
+                "  <link href=\"{}\" rel=\"first\"/>\n",
+                xml_escape(first)
+            );
         }
         if let Some(last) = &self.pagination.last {
-            let _ = write!(xml, "  <link href=\"{}\" rel=\"last\"/>\n", xml_escape(last));
+            let _ = write!(
+                xml,
+                "  <link href=\"{}\" rel=\"last\"/>\n",
+                xml_escape(last)
+            );
         }
 
         for cat in &self.categories {
@@ -472,11 +492,7 @@ impl Feed {
             );
 
             if let Some(summary) = &entry.summary {
-                let _ = write!(
-                    xml,
-                    "    <summary>{}</summary>\n",
-                    xml_escape(summary)
-                );
+                let _ = write!(xml, "    <summary>{}</summary>\n", xml_escape(summary));
             }
 
             if let Some(content) = &entry.content {
@@ -488,7 +504,11 @@ impl Feed {
             }
 
             if let Some(published) = &entry.published {
-                let _ = write!(xml, "    <published>{}</published>\n", xml_escape(published));
+                let _ = write!(
+                    xml,
+                    "    <published>{}</published>\n",
+                    xml_escape(published)
+                );
             }
 
             if let Some(updated) = &entry.updated {
@@ -505,11 +525,7 @@ impl Feed {
             }
 
             for cat in &entry.categories {
-                let _ = write!(
-                    xml,
-                    "    <category term=\"{}\"/>\n",
-                    xml_escape(&cat.term)
-                );
+                let _ = write!(xml, "    <category term=\"{}\"/>\n", xml_escape(&cat.term));
             }
 
             xml.push_str("  </entry>\n");

@@ -108,7 +108,8 @@ impl HashSharding {
         }
         for shard_id in 0..self.num_shards {
             let node_idx = shard_id as usize % nodes.len();
-            self.shard_to_node.insert(shard_id, nodes[node_idx].to_string());
+            self.shard_to_node
+                .insert(shard_id, nodes[node_idx].to_string());
         }
     }
 
@@ -126,7 +127,8 @@ impl HashSharding {
 
     /// Get shards assigned to a specific node (sorted).
     pub fn shards_for_node(&self, node_id: &str) -> Vec<u32> {
-        let mut shards: Vec<u32> = self.shard_to_node
+        let mut shards: Vec<u32> = self
+            .shard_to_node
             .iter()
             .filter(|(_, n)| n.as_str() == node_id)
             .map(|(s, _)| *s)
@@ -279,18 +281,27 @@ impl HashSharding {
             key_counts.push(kc);
         }
         let shard_count = self.num_shards as usize;
-        let avg = if shard_count > 0 { total_keys as f64 / shard_count as f64 } else { 0.0 };
-        let max_keys = key_counts.iter().copied().max().unwrap_or(0);
-        let min_keys = key_counts.iter().copied().min().unwrap_or(0);
-        let variance = if shard_count > 0 {
-            key_counts.iter().map(|k| {
-                let diff = *k as f64 - avg;
-                diff * diff
-            }).sum::<f64>() / shard_count as f64
+        let avg = if shard_count > 0 {
+            total_keys as f64 / shard_count as f64
         } else {
             0.0
         };
-        let nodes: std::collections::HashSet<&str> = self.shard_to_node.values().map(|s| s.as_str()).collect();
+        let max_keys = key_counts.iter().copied().max().unwrap_or(0);
+        let min_keys = key_counts.iter().copied().min().unwrap_or(0);
+        let variance = if shard_count > 0 {
+            key_counts
+                .iter()
+                .map(|k| {
+                    let diff = *k as f64 - avg;
+                    diff * diff
+                })
+                .sum::<f64>()
+                / shard_count as f64
+        } else {
+            0.0
+        };
+        let nodes: std::collections::HashSet<&str> =
+            self.shard_to_node.values().map(|s| s.as_str()).collect();
         ShardStats {
             shard_count,
             total_keys,
@@ -436,7 +447,8 @@ impl RangeSharding {
 
     /// Get shards assigned to a node (sorted by shard_id).
     pub fn shards_for_node(&self, node_id: &str) -> Vec<u32> {
-        let mut shards: Vec<u32> = self.ranges
+        let mut shards: Vec<u32> = self
+            .ranges
             .iter()
             .filter(|r| r.node_id == node_id)
             .map(|r| r.shard_id)

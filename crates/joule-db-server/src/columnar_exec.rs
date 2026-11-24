@@ -55,7 +55,11 @@ struct Zone {
 }
 
 fn zone_of(c: &Col, s: usize, e: usize) -> Option<Zone> {
-    let mut z = Zone { lo: None, hi: None, nulls: 0 };
+    let mut z = Zone {
+        lo: None,
+        hi: None,
+        nulls: 0,
+    };
     match c {
         Col::Int(v, n) => {
             let (mut lo, mut hi, mut any) = (i64::MAX, i64::MIN, false);
@@ -283,7 +287,10 @@ fn cell<'a>(c: Option<&'a joule_db_amorphic::column_batch::BatchColumn>, i: usiz
 impl TableColumns {
     /// Snapshot of a table whose only rows are `batch` (same column typing
     /// as `build` over the materialized records).
-    pub fn from_batch(columns: &[String], batch: &joule_db_amorphic::column_batch::ColumnBatch) -> Self {
+    pub fn from_batch(
+        columns: &[String],
+        batch: &joule_db_amorphic::column_batch::ColumnBatch,
+    ) -> Self {
         use joule_db_amorphic::column_batch::ColData;
         use rayon::prelude::*;
         let n = batch.len;
@@ -299,11 +306,15 @@ impl TableColumns {
                 let col = match bc {
                     Some(b) if any => match &b.data {
                         ColData::Int(v) => Col::Int(
-                            (0..n).map(|i| if b.is_null(i) { 0 } else { v[i] }).collect(),
+                            (0..n)
+                                .map(|i| if b.is_null(i) { 0 } else { v[i] })
+                                .collect(),
                             nulls_of(b),
                         ),
                         ColData::Float(v) => Col::Float(
-                            (0..n).map(|i| if b.is_null(i) { 0.0 } else { v[i] }).collect(),
+                            (0..n)
+                                .map(|i| if b.is_null(i) { 0.0 } else { v[i] })
+                                .collect(),
                             nulls_of(b),
                         ),
                         ColData::Bool(_) => Col::Other,
@@ -355,7 +366,10 @@ impl TableColumns {
             .map(|(name, col)| {
                 let idx = match col {
                     Col::Text(_, dict) => Some(idxs.remove(name).unwrap_or_else(|| {
-                        dict.iter().enumerate().map(|(i, d)| (d.clone(), i as u32)).collect()
+                        dict.iter()
+                            .enumerate()
+                            .map(|(i, d)| (d.clone(), i as u32))
+                            .collect()
                     })),
                     _ => None,
                 };
@@ -411,7 +425,9 @@ impl TableColumns {
                         }
                     }
                     Col::Text(codes, dict) => {
-                        let Some(idx) = idx.as_mut() else { return false };
+                        let Some(idx) = idx.as_mut() else {
+                            return false;
+                        };
                         codes.reserve(n);
                         for i in 0..n {
                             match cell(bc, i) {
@@ -466,7 +482,12 @@ impl FieldGet for &joule_db_amorphic::AmorphicRecord {
     }
 }
 
-impl FieldGet for (u64, std::collections::HashMap<String, joule_db_amorphic::Value>) {
+impl FieldGet
+    for (
+        u64,
+        std::collections::HashMap<String, joule_db_amorphic::Value>,
+    )
+{
     fn field(&self, name: &str) -> Option<&joule_db_amorphic::Value> {
         self.1.get(name)
     }
@@ -1083,7 +1104,14 @@ fn num_cmp(a: Num, b: Num) -> Option<Ordering> {
 
 /// Zone verdict for `col op lit` over rows `[s, e)`: Some(true) every row
 /// passes, Some(false) no row passes, None mixed or unknown.
-fn zone_verdict(t: &TableColumns, col: &str, op: &Operator, x: Num, s: usize, e: usize) -> Option<bool> {
+fn zone_verdict(
+    t: &TableColumns,
+    col: &str,
+    op: &Operator,
+    x: Num,
+    s: usize,
+    e: usize,
+) -> Option<bool> {
     let zs = t.zones.get(col)?;
     if s % ZONE != 0 || (e % ZONE != 0 && e != t.len) {
         return None; // morsel not zone-aligned
@@ -1156,7 +1184,8 @@ fn mask_pred(t: &TableColumns, p: &Pred, s: usize, mask: &mut [bool]) -> Option<
             (Col::Int(v, nulls), Lit::N(Num::F(x))) => {
                 for (k, m) in mask.iter_mut().enumerate() {
                     let i = s + k;
-                    *m &= !nl(nulls, i) && (v[i] as f64).partial_cmp(x).is_some_and(|o| cmp_ok(o, op));
+                    *m &= !nl(nulls, i)
+                        && (v[i] as f64).partial_cmp(x).is_some_and(|o| cmp_ok(o, op));
                 }
             }
             (Col::Float(v, nulls), Lit::N(n)) => {
@@ -1173,14 +1202,22 @@ fn mask_pred(t: &TableColumns, p: &Pred, s: usize, mask: &mut [bool]) -> Option<
                 if dict.len() > 4096 {
                     return None; // per-zone dictionary pass too costly; scan path
                 }
-                let ok: Vec<bool> = dict.iter().map(|d| cmp_ok((**d).cmp(x.as_str()), op)).collect();
+                let ok: Vec<bool> = dict
+                    .iter()
+                    .map(|d| cmp_ok((**d).cmp(x.as_str()), op))
+                    .collect();
                 for (m, &c) in mask.iter_mut().zip(&codes[s..e]) {
                     *m &= c != NULL_CODE && ok[c as usize];
                 }
             }
             _ => return None,
         },
-        Pred::Like { col, pattern, negated, ci } => match t.cols.get(*col)? {
+        Pred::Like {
+            col,
+            pattern,
+            negated,
+            ci,
+        } => match t.cols.get(*col)? {
             Col::Text(codes, dict) => {
                 let ok = like_table(dict, pattern, *negated, *ci);
                 for (m, &c) in mask.iter_mut().zip(&codes[s..e]) {
@@ -1204,7 +1241,12 @@ fn count_where(t: &TableColumns, preds: &[Pred]) -> Option<u64> {
             let (s, e) = (zi * ZONE, ((zi + 1) * ZONE).min(t.len));
             let mut live: Vec<&Pred> = Vec::with_capacity(preds.len());
             for p in preds {
-                if let Pred::Cmp { col, op, lit: Lit::N(x) } = p {
+                if let Pred::Cmp {
+                    col,
+                    op,
+                    lit: Lit::N(x),
+                } = p
+                {
                     match zone_verdict(t, col, op, *x, s, e) {
                         Some(false) => return Some(0),
                         Some(true) => continue,
@@ -1217,7 +1259,14 @@ fn count_where(t: &TableColumns, preds: &[Pred]) -> Option<u64> {
                 return Some((e - s) as u64);
             }
             // one integer comparison, no NULLs: count directly (vectorizes)
-            if let [Pred::Cmp { col, op, lit: Lit::N(Num::I(x)) }] = live.as_slice() {
+            if let [
+                Pred::Cmp {
+                    col,
+                    op,
+                    lit: Lit::N(Num::I(x)),
+                },
+            ] = live.as_slice()
+            {
                 if let Some(Col::Int(v, nulls)) = t.cols.get(*col) {
                     if nulls.is_empty() {
                         let (vs, x) = (&v[s..e], *x);
@@ -1253,7 +1302,9 @@ fn count_where(t: &TableColumns, preds: &[Pred]) -> Option<u64> {
 fn metadata_aggregate(t: &TableColumns, outs: &[OutCol]) -> Option<Vec<Acc>> {
     let mut accs = Vec::with_capacity(outs.len());
     for o in outs {
-        let OutCol::Agg(kind, arg) = o else { return None };
+        let OutCol::Agg(kind, arg) = o else {
+            return None;
+        };
         let mut a = Acc::default();
         match (kind, arg) {
             (AggKind::CountStar, _) => a.count = t.len as u64,
@@ -1292,7 +1343,12 @@ fn morsel_sel(t: &TableColumns, preds: &[Pred], s: usize, e: usize) -> Option<Op
     // predicate passes no row
     let mut live: Vec<&Pred> = Vec::with_capacity(preds.len());
     for p in preds {
-        if let Pred::Cmp { col, op, lit: Lit::N(x) } = p {
+        if let Pred::Cmp {
+            col,
+            op,
+            lit: Lit::N(x),
+        } = p
+        {
             match zone_verdict(t, col, op, *x, s, e) {
                 Some(false) => return Some(Some(Vec::new())),
                 Some(true) => continue,
@@ -1579,33 +1635,42 @@ fn aggregate_dense_soa(
     };
     {
         let parts = &parts;
-        m.first.par_chunks_mut(SLOTS).enumerate().for_each(|(ci, out)| {
-            let base = ci * SLOTS;
-            for p in parts {
-                for (k, a) in out.iter_mut().enumerate() {
-                    if *a == u32::MAX {
-                        *a = p.first[base + k];
+        m.first
+            .par_chunks_mut(SLOTS)
+            .enumerate()
+            .for_each(|(ci, out)| {
+                let base = ci * SLOTS;
+                for p in parts {
+                    for (k, a) in out.iter_mut().enumerate() {
+                        if *a == u32::MAX {
+                            *a = p.first[base + k];
+                        }
                     }
                 }
-            }
-        });
+            });
         for oi in 0..nout {
-            m.cnt[oi].par_chunks_mut(SLOTS).enumerate().for_each(|(ci, out)| {
-                let base = ci * SLOTS;
-                for p in parts {
-                    for (a, b) in out.iter_mut().zip(&p.cnt[oi][base..]) {
-                        *a += b;
+            m.cnt[oi]
+                .par_chunks_mut(SLOTS)
+                .enumerate()
+                .for_each(|(ci, out)| {
+                    let base = ci * SLOTS;
+                    for p in parts {
+                        for (a, b) in out.iter_mut().zip(&p.cnt[oi][base..]) {
+                            *a += b;
+                        }
                     }
-                }
-            });
-            m.isum[oi].par_chunks_mut(SLOTS).enumerate().for_each(|(ci, out)| {
-                let base = ci * SLOTS;
-                for p in parts {
-                    for (a, b) in out.iter_mut().zip(&p.isum[oi][base..]) {
-                        *a += b;
+                });
+            m.isum[oi]
+                .par_chunks_mut(SLOTS)
+                .enumerate()
+                .for_each(|(ci, out)| {
+                    let base = ci * SLOTS;
+                    for p in parts {
+                        for (a, b) in out.iter_mut().zip(&p.isum[oi][base..]) {
+                            *a += b;
+                        }
                     }
-                }
-            });
+                });
             m.fs[oi]
                 .par_chunks_mut(SLOTS)
                 .zip(m.fc[oi].par_chunks_mut(SLOTS))
@@ -2114,7 +2179,9 @@ pub fn execute(query: &SqlQuery, t: &TableColumns) -> Option<VecResult> {
         && !query.group_by.is_empty()
         && rayon::current_thread_index().is_none()
     {
-        if let Some(r) = SMALL_POOL.with(|p| p.as_ref().map(|p| p.install(|| execute_inner(query, t)))) {
+        if let Some(r) =
+            SMALL_POOL.with(|p| p.as_ref().map(|p| p.install(|| execute_inner(query, t))))
+        {
             return r;
         }
     }
@@ -2244,11 +2311,16 @@ fn execute_inner(query: &SqlQuery, t: &TableColumns) -> Option<VecResult> {
     let meta = if preds.is_empty() && gcols.is_empty() {
         metadata_aggregate(t, &outs)
     } else if gcols.is_empty()
-        && outs.iter().all(|o| matches!(o, OutCol::Agg(AggKind::CountStar, _)))
+        && outs
+            .iter()
+            .all(|o| matches!(o, OutCol::Agg(AggKind::CountStar, _)))
     {
         count_where(t, &preds).map(|c| {
             outs.iter()
-                .map(|_| Acc { count: c, ..Acc::default() })
+                .map(|_| Acc {
+                    count: c,
+                    ..Acc::default()
+                })
                 .collect()
         })
     } else {
@@ -2318,7 +2390,12 @@ fn execute_inner(query: &SqlQuery, t: &TableColumns) -> Option<VecResult> {
         let nv = ocols.len();
         let ovals: Vec<Sv> = (0..ngroups)
             .into_par_iter()
-            .flat_map_iter(|gi| ocols.iter().map(move |&oi| cell(gi, oi)).collect::<Vec<_>>())
+            .flat_map_iter(|gi| {
+                ocols
+                    .iter()
+                    .map(move |&oi| cell(gi, oi))
+                    .collect::<Vec<_>>()
+            })
             .collect();
         let order_v: Vec<(usize, bool, Option<bool>)> = order
             .iter()
@@ -2343,7 +2420,10 @@ fn execute_inner(query: &SqlQuery, t: &TableColumns) -> Option<VecResult> {
             cand.truncate(k);
         }
         cand.sort_unstable_by(&cmp);
-        let vals: Vec<Sv> = cand.iter().flat_map(|&gi| (0..no).map(move |oi| cell(gi, oi))).collect();
+        let vals: Vec<Sv> = cand
+            .iter()
+            .flat_map(|&gi| (0..no).map(move |oi| cell(gi, oi)))
+            .collect();
         let n = cand.len();
         (vals, (0..n).collect(), no)
     } else {
@@ -2386,35 +2466,35 @@ fn mk_cmp<'a>(
     order: &'a [(usize, bool, Option<bool>)],
 ) -> impl Fn(&usize, &usize) -> Ordering + Sync + 'a {
     move |&ia: &usize, &ib: &usize| -> Ordering {
-            let (a, b) = (&vals[ia * no..(ia + 1) * no], &vals[ib * no..(ib + 1) * no]);
-            for (i, desc, nulls_first) in order.iter() {
-                let (x, y) = (&a[*i], &b[*i]);
-                let nf = nulls_first.unwrap_or(*desc);
-                let o = match (x.is_null(), y.is_null()) {
-                    (true, true) => Ordering::Equal,
-                    (true, false) => {
-                        if nf {
-                            Ordering::Less
-                        } else {
-                            Ordering::Greater
-                        }
+        let (a, b) = (&vals[ia * no..(ia + 1) * no], &vals[ib * no..(ib + 1) * no]);
+        for (i, desc, nulls_first) in order.iter() {
+            let (x, y) = (&a[*i], &b[*i]);
+            let nf = nulls_first.unwrap_or(*desc);
+            let o = match (x.is_null(), y.is_null()) {
+                (true, true) => Ordering::Equal,
+                (true, false) => {
+                    if nf {
+                        Ordering::Less
+                    } else {
+                        Ordering::Greater
                     }
-                    (false, true) => {
-                        if nf {
-                            Ordering::Greater
-                        } else {
-                            Ordering::Less
-                        }
-                    }
-                    _ => {
-                        let o = x.cmp_val(y);
-                        if *desc { o.reverse() } else { o }
-                    }
-                };
-                if o != Ordering::Equal {
-                    return o;
                 }
+                (false, true) => {
+                    if nf {
+                        Ordering::Greater
+                    } else {
+                        Ordering::Less
+                    }
+                }
+                _ => {
+                    let o = x.cmp_val(y);
+                    if *desc { o.reverse() } else { o }
+                }
+            };
+            if o != Ordering::Equal {
+                return o;
             }
-            ia.cmp(&ib) // stable: earlier groups first on ties
         }
+        ia.cmp(&ib) // stable: earlier groups first on ties
+    }
 }

@@ -21,9 +21,17 @@ pub enum DomainEventError {
     /// Handler error.
     HandlerError { handler_id: String, reason: String },
     /// Version conflict.
-    VersionConflict { stream_id: String, expected: u64, actual: u64 },
+    VersionConflict {
+        stream_id: String,
+        expected: u64,
+        actual: u64,
+    },
     /// Upcast error.
-    UpcastError { event_type: String, from_version: u32, reason: String },
+    UpcastError {
+        event_type: String,
+        from_version: u32,
+        reason: String,
+    },
     /// Duplicate subscription.
     DuplicateSubscription(String),
     /// Serialization error.
@@ -38,10 +46,21 @@ impl std::fmt::Display for DomainEventError {
             Self::HandlerError { handler_id, reason } => {
                 write!(f, "handler {handler_id} error: {reason}")
             }
-            Self::VersionConflict { stream_id, expected, actual } => {
-                write!(f, "version conflict on {stream_id}: expected {expected}, got {actual}")
+            Self::VersionConflict {
+                stream_id,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "version conflict on {stream_id}: expected {expected}, got {actual}"
+                )
             }
-            Self::UpcastError { event_type, from_version, reason } => {
+            Self::UpcastError {
+                event_type,
+                from_version,
+                reason,
+            } => {
                 write!(f, "upcast error for {event_type} v{from_version}: {reason}")
             }
             Self::DuplicateSubscription(id) => write!(f, "duplicate subscription: {id}"),
@@ -79,7 +98,12 @@ impl DomainEvent {
         let ts = Utc::now();
         let agg_id = aggregate_id.into();
         Self {
-            event_id: format!("{}-{}-{}", agg_id, version, ts.timestamp_nanos_opt().unwrap_or(0)),
+            event_id: format!(
+                "{}-{}-{}",
+                agg_id,
+                version,
+                ts.timestamp_nanos_opt().unwrap_or(0)
+            ),
             event_type: event_type.into(),
             aggregate_id: agg_id,
             aggregate_type: aggregate_type.into(),
@@ -187,7 +211,8 @@ impl EventStore {
         aggregate_type: &str,
         events: Vec<DomainEvent>,
     ) -> Result<(), DomainEventError> {
-        let stream = self.streams
+        let stream = self
+            .streams
             .entry(stream_id.to_string())
             .or_insert_with(|| EventStream::new(stream_id, aggregate_type));
         for event in events {
@@ -204,7 +229,8 @@ impl EventStore {
 
     /// Get all events for a stream.
     pub fn get_events(&self, stream_id: &str) -> Result<Vec<&DomainEvent>, DomainEventError> {
-        self.streams.get(stream_id)
+        self.streams
+            .get(stream_id)
             .map(|s| s.events().iter().collect())
             .ok_or_else(|| DomainEventError::StreamNotFound(stream_id.to_string()))
     }
@@ -215,7 +241,8 @@ impl EventStore {
         stream_id: &str,
         version: u64,
     ) -> Result<Vec<&DomainEvent>, DomainEventError> {
-        self.streams.get(stream_id)
+        self.streams
+            .get(stream_id)
             .map(|s| s.events_after(version))
             .ok_or_else(|| DomainEventError::StreamNotFound(stream_id.to_string()))
     }
@@ -237,7 +264,10 @@ impl EventStore {
 
     /// All events of a given type across all streams.
     pub fn events_by_type(&self, event_type: &str) -> Vec<&DomainEvent> {
-        self.global_log.iter().filter(|e| e.event_type == event_type).collect()
+        self.global_log
+            .iter()
+            .filter(|e| e.event_type == event_type)
+            .collect()
     }
 }
 
@@ -319,7 +349,11 @@ impl DomainEventBus {
 
     /// Subscribe a handler.
     pub fn subscribe(&mut self, handler: EventHandler) -> Result<(), DomainEventError> {
-        if self.handlers.iter().any(|h| h.handler_id == handler.handler_id) {
+        if self
+            .handlers
+            .iter()
+            .any(|h| h.handler_id == handler.handler_id)
+        {
             return Err(DomainEventError::DuplicateSubscription(handler.handler_id));
         }
         self.handlers.push(handler);
@@ -428,7 +462,9 @@ pub struct UpcasterRegistry {
 
 impl UpcasterRegistry {
     pub fn new() -> Self {
-        Self { upcasters: Vec::new() }
+        Self {
+            upcasters: Vec::new(),
+        }
     }
 
     /// Register an upcaster.
@@ -439,9 +475,13 @@ impl UpcasterRegistry {
     /// Upcast an event through all applicable version migrations.
     pub fn upcast(&self, event: &mut DomainEvent) {
         loop {
-            let found = self.upcasters.iter().find(|u| {
-                u.event_type == event.event_type && u.from_version == event.schema_version
-            }).cloned();
+            let found = self
+                .upcasters
+                .iter()
+                .find(|u| {
+                    u.event_type == event.event_type && u.from_version == event.schema_version
+                })
+                .cloned();
             match found {
                 Some(upcaster) => upcaster.upcast(event),
                 None => break,
@@ -515,8 +555,7 @@ mod tests {
 
     #[test]
     fn test_event_with_metadata() {
-        let event = make_event("order_created", "order-1", 1)
-            .with_metadata("user_id", "user-42");
+        let event = make_event("order_created", "order-1", 1).with_metadata("user_id", "user-42");
         assert_eq!(event.metadata.get("user_id").unwrap(), "user-42");
     }
 
@@ -534,7 +573,10 @@ mod tests {
         let mut stream = EventStream::new("order-1", "Order");
         stream.append(make_event("created", "order-1", 1)).unwrap();
         let result = stream.append(make_event("updated", "order-1", 5));
-        assert!(matches!(result, Err(DomainEventError::VersionConflict { .. })));
+        assert!(matches!(
+            result,
+            Err(DomainEventError::VersionConflict { .. })
+        ));
     }
 
     #[test]
@@ -569,8 +611,12 @@ mod tests {
     #[test]
     fn test_event_store_global_log() {
         let mut store = EventStore::new();
-        store.append("s1", "A", vec![make_event("ev1", "s1", 1)]).unwrap();
-        store.append("s2", "B", vec![make_event("ev2", "s2", 1)]).unwrap();
+        store
+            .append("s1", "A", vec![make_event("ev1", "s1", 1)])
+            .unwrap();
+        store
+            .append("s2", "B", vec![make_event("ev2", "s2", 1)])
+            .unwrap();
         assert_eq!(store.total_event_count(), 2);
         assert_eq!(store.stream_count(), 2);
     }
@@ -578,13 +624,19 @@ mod tests {
     #[test]
     fn test_event_store_events_by_type() {
         let mut store = EventStore::new();
-        store.append("s1", "A", vec![
-            make_event("created", "s1", 1),
-            make_event("updated", "s1", 2),
-        ]).unwrap();
-        store.append("s2", "B", vec![
-            make_event("created", "s2", 1),
-        ]).unwrap();
+        store
+            .append(
+                "s1",
+                "A",
+                vec![
+                    make_event("created", "s1", 1),
+                    make_event("updated", "s1", 2),
+                ],
+            )
+            .unwrap();
+        store
+            .append("s2", "B", vec![make_event("created", "s2", 1)])
+            .unwrap();
         assert_eq!(store.events_by_type("created").len(), 2);
         assert_eq!(store.events_by_type("updated").len(), 1);
     }
@@ -596,7 +648,8 @@ mod tests {
             "h1",
             vec!["order_created".to_string()],
             |_event| HandlerResult::Ok,
-        )).unwrap();
+        ))
+        .unwrap();
         let event = make_event("order_created", "order-1", 1);
         let results = bus.publish(&event);
         assert_eq!(results.len(), 1);
@@ -607,7 +660,10 @@ mod tests {
     #[test]
     fn test_event_bus_unsubscribe() {
         let mut bus = DomainEventBus::new();
-        bus.subscribe(EventHandler::new("h1", vec!["ev".to_string()], |_| HandlerResult::Ok)).unwrap();
+        bus.subscribe(EventHandler::new("h1", vec!["ev".to_string()], |_| {
+            HandlerResult::Ok
+        }))
+        .unwrap();
         assert!(bus.unsubscribe("h1"));
         assert_eq!(bus.handler_count(), 0);
     }
@@ -615,19 +671,26 @@ mod tests {
     #[test]
     fn test_event_bus_duplicate_subscription() {
         let mut bus = DomainEventBus::new();
-        bus.subscribe(EventHandler::new("h1", vec!["ev".to_string()], |_| HandlerResult::Ok)).unwrap();
-        let result = bus.subscribe(EventHandler::new("h1", vec!["ev".to_string()], |_| HandlerResult::Ok));
-        assert!(matches!(result, Err(DomainEventError::DuplicateSubscription(_))));
+        bus.subscribe(EventHandler::new("h1", vec!["ev".to_string()], |_| {
+            HandlerResult::Ok
+        }))
+        .unwrap();
+        let result = bus.subscribe(EventHandler::new("h1", vec!["ev".to_string()], |_| {
+            HandlerResult::Ok
+        }));
+        assert!(matches!(
+            result,
+            Err(DomainEventError::DuplicateSubscription(_))
+        ));
     }
 
     #[test]
     fn test_event_bus_error_tracking() {
         let mut bus = DomainEventBus::new();
-        bus.subscribe(EventHandler::new(
-            "h1",
-            vec!["ev".to_string()],
-            |_| HandlerResult::Error("fail".to_string()),
-        )).unwrap();
+        bus.subscribe(EventHandler::new("h1", vec!["ev".to_string()], |_| {
+            HandlerResult::Error("fail".to_string())
+        }))
+        .unwrap();
         let event = make_event("ev", "agg-1", 1);
         bus.publish(&event);
         assert_eq!(bus.error_count(), 1);
@@ -639,7 +702,9 @@ mod tests {
         event.schema_version = 1;
 
         let upcaster = EventUpcaster::new("order_created", 1, 2, |event| {
-            event.data.insert("new_field".to_string(), "default".to_string());
+            event
+                .data
+                .insert("new_field".to_string(), "default".to_string());
         });
         upcaster.upcast(&mut event);
         assert_eq!(event.schema_version, 2);
@@ -650,10 +715,14 @@ mod tests {
     fn test_upcaster_registry_chain() {
         let mut registry = UpcasterRegistry::new();
         registry.register(EventUpcaster::new("ev", 1, 2, |event| {
-            event.data.insert("v2_field".to_string(), "added".to_string());
+            event
+                .data
+                .insert("v2_field".to_string(), "added".to_string());
         }));
         registry.register(EventUpcaster::new("ev", 2, 3, |event| {
-            event.data.insert("v3_field".to_string(), "also_added".to_string());
+            event
+                .data
+                .insert("v3_field".to_string(), "also_added".to_string());
         }));
 
         let mut event = make_event("ev", "agg-1", 1);
@@ -693,17 +762,25 @@ mod tests {
         ];
         let mut initial = HashMap::new();
         initial.insert("count".to_string(), "1".to_string());
-        let state = replay_from_version(&events, 1, |state, _event| {
-            let c: u32 = state.get("count").and_then(|c| c.parse().ok()).unwrap_or(0);
-            state.insert("count".to_string(), (c + 1).to_string());
-        }, initial);
+        let state = replay_from_version(
+            &events,
+            1,
+            |state, _event| {
+                let c: u32 = state.get("count").and_then(|c| c.parse().ok()).unwrap_or(0);
+                state.insert("count".to_string(), (c + 1).to_string());
+            },
+            initial,
+        );
         assert_eq!(state.get("count").unwrap(), "3");
     }
 
     #[test]
     fn test_publish_all() {
         let mut bus = DomainEventBus::new();
-        bus.subscribe(EventHandler::new("h1", vec!["ev".to_string()], |_| HandlerResult::Ok)).unwrap();
+        bus.subscribe(EventHandler::new("h1", vec!["ev".to_string()], |_| {
+            HandlerResult::Ok
+        }))
+        .unwrap();
         let events = vec![make_event("ev", "a", 1), make_event("ev", "a", 2)];
         let results = bus.publish_all(&events);
         assert_eq!(results.len(), 2);
@@ -713,11 +790,10 @@ mod tests {
     #[test]
     fn test_handler_skip() {
         let mut bus = DomainEventBus::new();
-        bus.subscribe(EventHandler::new(
-            "h1",
-            vec!["ev".to_string()],
-            |_| HandlerResult::Skip,
-        )).unwrap();
+        bus.subscribe(EventHandler::new("h1", vec!["ev".to_string()], |_| {
+            HandlerResult::Skip
+        }))
+        .unwrap();
         let event = make_event("ev", "agg-1", 1);
         let results = bus.publish(&event);
         assert_eq!(results[0].1, HandlerResult::Skip);

@@ -73,7 +73,20 @@ impl DateTime {
     /// Day of year (1-based).
     pub fn day_of_year(&self) -> u32 {
         let leap = is_leap_year(self.year);
-        let month_days = [31, if leap { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        let month_days = [
+            31,
+            if leap { 29 } else { 28 },
+            31,
+            30,
+            31,
+            30,
+            31,
+            31,
+            30,
+            31,
+            30,
+            31,
+        ];
         let mut doy: u32 = 0;
         for i in 0..(self.month - 1) as usize {
             doy += month_days[i];
@@ -136,7 +149,7 @@ fn is_leap_year(year: i32) -> bool {
 pub struct DateLocale {
     pub months_long: [&'static str; 12],
     pub months_short: [&'static str; 12],
-    pub days_long: [&'static str; 7],   // Sunday first
+    pub days_long: [&'static str; 7], // Sunday first
     pub days_short: [&'static str; 7],
 }
 
@@ -145,16 +158,30 @@ impl DateLocale {
     pub fn english() -> Self {
         Self {
             months_long: [
-                "January", "February", "March", "April", "May", "June",
-                "July", "August", "September", "October", "November", "December",
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
             ],
             months_short: [
-                "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+                "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
             ],
             days_long: [
-                "Sunday", "Monday", "Tuesday", "Wednesday",
-                "Thursday", "Friday", "Saturday",
+                "Sunday",
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
             ],
             days_short: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
         }
@@ -164,16 +191,25 @@ impl DateLocale {
     pub fn french() -> Self {
         Self {
             months_long: [
-                "janvier", "février", "mars", "avril", "mai", "juin",
-                "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+                "janvier",
+                "février",
+                "mars",
+                "avril",
+                "mai",
+                "juin",
+                "juillet",
+                "août",
+                "septembre",
+                "octobre",
+                "novembre",
+                "décembre",
             ],
             months_short: [
-                "janv.", "févr.", "mars", "avr.", "mai", "juin",
-                "juil.", "août", "sept.", "oct.", "nov.", "déc.",
+                "janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.",
+                "nov.", "déc.",
             ],
             days_long: [
-                "dimanche", "lundi", "mardi", "mercredi",
-                "jeudi", "vendredi", "samedi",
+                "dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi",
             ],
             days_short: ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."],
         }
@@ -423,10 +459,7 @@ mod tests {
     #[test]
     fn time_pattern() {
         let f = DateFormatter::new();
-        assert_eq!(
-            f.format_pattern(&sample_dt(), "HH:mm:ss"),
-            "14:30:45"
-        );
+        assert_eq!(f.format_pattern(&sample_dt(), "HH:mm:ss"), "14:30:45");
     }
 
     #[test]
@@ -438,7 +471,10 @@ mod tests {
     #[test]
     fn short_style() {
         let f = DateFormatter::new();
-        assert_eq!(f.format_date_style(&sample_dt(), DateStyle::Short), "3/14/2026");
+        assert_eq!(
+            f.format_date_style(&sample_dt(), DateStyle::Short),
+            "3/14/2026"
+        );
     }
 
     #[test]

@@ -4,8 +4,8 @@
 //! reachability maps, dexterity measures, manipulability ellipsoids, and
 //! workspace boundary approximations for serial kinematic chains.
 
-use std::fmt;
 use std::collections::HashMap;
+use std::fmt;
 
 // ── Core Types ──
 
@@ -49,7 +49,10 @@ pub struct JointLimit {
 
 impl JointLimit {
     pub fn new(min_angle: f64, max_angle: f64) -> Self {
-        Self { min_angle, max_angle }
+        Self {
+            min_angle,
+            max_angle,
+        }
     }
 
     pub fn range(&self) -> f64 {
@@ -76,7 +79,12 @@ pub struct LinkParam {
 
 impl LinkParam {
     pub fn new(length: f64, offset: f64, twist: f64, limit: JointLimit) -> Self {
-        Self { length, offset, twist, joint_limit: limit }
+        Self {
+            length,
+            offset,
+            twist,
+            joint_limit: limit,
+        }
     }
 }
 
@@ -96,7 +104,13 @@ impl Manipulability {
     pub fn compute(jacobian: &[Vec<f64>]) -> Self {
         let rows = jacobian.len();
         if rows == 0 {
-            return Self { yoshikawa: 0.0, condition_number: f64::INFINITY, min_singular: 0.0, max_singular: 0.0, isotropy: 0.0 };
+            return Self {
+                yoshikawa: 0.0,
+                condition_number: f64::INFINITY,
+                min_singular: 0.0,
+                max_singular: 0.0,
+                isotropy: 0.0,
+            };
         }
         let cols = jacobian[0].len();
 
@@ -116,21 +130,38 @@ impl Manipulability {
         let eigenvalues = Self::eigenvalues_symmetric(&jjt);
         let singular_values: Vec<f64> = eigenvalues.iter().map(|e| e.max(0.0).sqrt()).collect();
 
-        let min_sv = singular_values.iter().copied().fold(f64::INFINITY, f64::min);
+        let min_sv = singular_values
+            .iter()
+            .copied()
+            .fold(f64::INFINITY, f64::min);
         let max_sv = singular_values.iter().copied().fold(0.0, f64::max);
 
         let yoshikawa = singular_values.iter().product::<f64>();
-        let condition_number = if min_sv > 1e-12 { max_sv / min_sv } else { f64::INFINITY };
+        let condition_number = if min_sv > 1e-12 {
+            max_sv / min_sv
+        } else {
+            f64::INFINITY
+        };
         let isotropy = if max_sv > 1e-12 { min_sv / max_sv } else { 0.0 };
 
-        Self { yoshikawa, condition_number, min_singular: min_sv, max_singular: max_sv, isotropy }
+        Self {
+            yoshikawa,
+            condition_number,
+            min_singular: min_sv,
+            max_singular: max_sv,
+            isotropy,
+        }
     }
 
     /// Simple eigenvalue estimation for small symmetric matrices using QR-like iteration.
     fn eigenvalues_symmetric(mat: &[Vec<f64>]) -> Vec<f64> {
         let n = mat.len();
-        if n == 0 { return vec![]; }
-        if n == 1 { return vec![mat[0][0]]; }
+        if n == 0 {
+            return vec![];
+        }
+        if n == 1 {
+            return vec![mat[0][0]];
+        }
 
         // For 2x2 or 3x3, use direct formulas via trace and determinant
         if n == 2 {
@@ -151,8 +182,11 @@ impl Manipulability {
 
 impl fmt::Display for Manipulability {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Manipulability(yosh={:.4}, cond={:.2}, iso={:.4})",
-            self.yoshikawa, self.condition_number, self.isotropy)
+        write!(
+            f,
+            "Manipulability(yosh={:.4}, cond={:.2}, iso={:.4})",
+            self.yoshikawa, self.condition_number, self.isotropy
+        )
     }
 }
 
@@ -177,7 +211,12 @@ pub struct VoxelInfo {
 
 impl VoxelInfo {
     fn new() -> Self {
-        Self { reach_count: 0, max_manipulability: 0.0, avg_manipulability: 0.0, manip_sum: 0.0 }
+        Self {
+            reach_count: 0,
+            max_manipulability: 0.0,
+            avg_manipulability: 0.0,
+            manip_sum: 0.0,
+        }
     }
 
     fn add_sample(&mut self, manipulability: f64) {
@@ -208,7 +247,10 @@ impl ReachabilityMap {
 
     pub fn add_sample(&mut self, position: Point3, manipulability: f64) {
         let key = self.point_to_voxel(&position);
-        self.voxels.entry(key).or_insert_with(VoxelInfo::new).add_sample(manipulability);
+        self.voxels
+            .entry(key)
+            .or_insert_with(VoxelInfo::new)
+            .add_sample(manipulability);
         self.total_samples += 1;
     }
 
@@ -228,7 +270,9 @@ impl ReachabilityMap {
 
     /// Compute the reachability index (fraction of reachable vs total sampled).
     pub fn reachability_index(&self, total_voxels: usize) -> f64 {
-        if total_voxels == 0 { return 0.0; }
+        if total_voxels == 0 {
+            return 0.0;
+        }
         self.voxels.len() as f64 / total_voxels as f64
     }
 
@@ -252,16 +296,29 @@ impl ReachabilityMap {
             max_z = max_z.max(z);
         }
         (
-            Point3::new(min_x as f64 * self.resolution, min_y as f64 * self.resolution, min_z as f64 * self.resolution),
-            Point3::new((max_x + 1) as f64 * self.resolution, (max_y + 1) as f64 * self.resolution, (max_z + 1) as f64 * self.resolution),
+            Point3::new(
+                min_x as f64 * self.resolution,
+                min_y as f64 * self.resolution,
+                min_z as f64 * self.resolution,
+            ),
+            Point3::new(
+                (max_x + 1) as f64 * self.resolution,
+                (max_y + 1) as f64 * self.resolution,
+                (max_z + 1) as f64 * self.resolution,
+            ),
         )
     }
 }
 
 impl fmt::Display for ReachabilityMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ReachabilityMap({} voxels, res={:.3}, {} samples)",
-            self.voxels.len(), self.resolution, self.total_samples)
+        write!(
+            f,
+            "ReachabilityMap({} voxels, res={:.3}, {} samples)",
+            self.voxels.len(),
+            self.resolution,
+            self.total_samples
+        )
     }
 }
 
@@ -277,7 +334,11 @@ pub struct WorkspaceAnalyzer {
 
 impl WorkspaceAnalyzer {
     pub fn new(links: Vec<LinkParam>) -> Self {
-        Self { links, samples_per_joint: 16, resolution: 0.1 }
+        Self {
+            links,
+            samples_per_joint: 16,
+            resolution: 0.1,
+        }
     }
 
     pub fn with_samples_per_joint(mut self, n: usize) -> Self {
@@ -334,7 +395,9 @@ impl WorkspaceAnalyzer {
         let mut map = ReachabilityMap::new(self.resolution);
         let n = self.links.len();
 
-        if n == 0 { return map; }
+        if n == 0 {
+            return map;
+        }
 
         // Generate samples recursively
         let mut angles = vec![0.0; n];
@@ -366,7 +429,9 @@ impl WorkspaceAnalyzer {
 
     /// Estimate minimum reach distance (fully folded).
     pub fn min_reach(&self) -> f64 {
-        if self.links.is_empty() { return 0.0; }
+        if self.links.is_empty() {
+            return 0.0;
+        }
         let lengths: Vec<f64> = self.links.iter().map(|l| l.length).collect();
         let max_len = lengths.iter().copied().fold(0.0, f64::max);
         let total: f64 = lengths.iter().sum();
@@ -381,7 +446,9 @@ impl WorkspaceAnalyzer {
 
     /// Compute dexterity map (average manipulability per voxel).
     pub fn average_dexterity(&self, map: &ReachabilityMap) -> f64 {
-        if map.voxels.is_empty() { return 0.0; }
+        if map.voxels.is_empty() {
+            return 0.0;
+        }
         let sum: f64 = map.voxels.values().map(|v| v.avg_manipulability).sum();
         sum / map.voxels.len() as f64
     }
@@ -389,8 +456,13 @@ impl WorkspaceAnalyzer {
 
 impl fmt::Display for WorkspaceAnalyzer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "WorkspaceAnalyzer({} joints, {} samples/joint, res={:.3})",
-            self.links.len(), self.samples_per_joint, self.resolution)
+        write!(
+            f,
+            "WorkspaceAnalyzer({} joints, {} samples/joint, res={:.3})",
+            self.links.len(),
+            self.samples_per_joint,
+            self.resolution
+        )
     }
 }
 
@@ -461,10 +533,7 @@ mod tests {
 
     #[test]
     fn test_manipulability_2x2() {
-        let jac = vec![
-            vec![1.0, 0.0],
-            vec![0.0, 1.0],
-        ];
+        let jac = vec![vec![1.0, 0.0], vec![0.0, 1.0]];
         let m = Manipulability::compute(&jac);
         assert!((m.yoshikawa - 1.0).abs() < 1e-6);
         assert!((m.isotropy - 1.0).abs() < 1e-6);
@@ -472,10 +541,7 @@ mod tests {
 
     #[test]
     fn test_manipulability_singular() {
-        let jac = vec![
-            vec![1.0, 1.0],
-            vec![0.0, 0.0],
-        ];
+        let jac = vec![vec![1.0, 1.0], vec![0.0, 0.0]];
         let m = Manipulability::compute(&jac);
         assert!(m.is_singular());
     }
@@ -518,20 +584,20 @@ mod tests {
 
     #[test]
     fn test_build_reachability_small() {
-        let links = vec![
-            LinkParam::new(1.0, 0.0, 0.0, JointLimit::new(-0.5, 0.5)),
-        ];
-        let wa = WorkspaceAnalyzer::new(links).with_samples_per_joint(5).with_resolution(0.2);
+        let links = vec![LinkParam::new(1.0, 0.0, 0.0, JointLimit::new(-0.5, 0.5))];
+        let wa = WorkspaceAnalyzer::new(links)
+            .with_samples_per_joint(5)
+            .with_resolution(0.2);
         let map = wa.build_reachability_map();
         assert!(map.reachable_voxels() > 0);
     }
 
     #[test]
     fn test_workspace_volume() {
-        let links = vec![
-            LinkParam::new(1.0, 0.0, 0.0, JointLimit::new(-0.5, 0.5)),
-        ];
-        let wa = WorkspaceAnalyzer::new(links).with_samples_per_joint(5).with_resolution(0.5);
+        let links = vec![LinkParam::new(1.0, 0.0, 0.0, JointLimit::new(-0.5, 0.5))];
+        let wa = WorkspaceAnalyzer::new(links)
+            .with_samples_per_joint(5)
+            .with_resolution(0.5);
         let map = wa.build_reachability_map();
         let vol = wa.workspace_volume(&map);
         assert!(vol > 0.0);

@@ -188,7 +188,11 @@ impl ChannelStat {
     }
 
     fn mean(&self) -> f64 {
-        if self.count == 0 { 0.0 } else { self.sum / self.count as f64 }
+        if self.count == 0 {
+            0.0
+        } else {
+            self.sum / self.count as f64
+        }
     }
 
     fn std_dev(&self) -> f64 {
@@ -253,7 +257,11 @@ impl CalibrationCollector {
             let (scale, zp) = match mode {
                 QuantMode::Symmetric => {
                     let abs_max = rmin.abs().max(rmax.abs());
-                    let s = if abs_max == 0.0 { 1.0 } else { abs_max / (qmax) };
+                    let s = if abs_max == 0.0 {
+                        1.0
+                    } else {
+                        abs_max / (qmax)
+                    };
                     (s, 0i64)
                 }
                 QuantMode::Asymmetric => {
@@ -268,7 +276,12 @@ impl CalibrationCollector {
             zero_points.push(zp);
         }
 
-        QuantParams { scale: scales, zero_point: zero_points, precision, mode }
+        QuantParams {
+            scale: scales,
+            zero_point: zero_points,
+            precision,
+            mode,
+        }
     }
 }
 
@@ -297,7 +310,11 @@ impl QuantizedTensor {
                 params.quantize_value(v, ch)
             })
             .collect();
-        Self { shape: shape.to_vec(), data, params: params.clone() }
+        Self {
+            shape: shape.to_vec(),
+            data,
+            params: params.clone(),
+        }
     }
 
     /// Dequantize back to float.
@@ -430,7 +447,11 @@ pub fn dynamic_quantize(values: &[f64], precision: Precision) -> QuantizedTensor
         })
         .collect();
 
-    QuantizedTensor { shape: vec![values.len()], data, params }
+    QuantizedTensor {
+        shape: vec![values.len()],
+        data,
+        params,
+    }
 }
 
 /// Compute mean-squared quantization error.
@@ -440,7 +461,12 @@ pub fn quantization_error(original: &[f64], quantized: &QuantizedTensor) -> f64 
     if n == 0 {
         return 0.0;
     }
-    let mse: f64 = original.iter().zip(&deq).map(|(a, b)| (a - b) * (a - b)).sum::<f64>() / n as f64;
+    let mse: f64 = original
+        .iter()
+        .zip(&deq)
+        .map(|(a, b)| (a - b) * (a - b))
+        .sum::<f64>()
+        / n as f64;
     mse
 }
 

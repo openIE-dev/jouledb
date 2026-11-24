@@ -32,7 +32,7 @@ use super::tier::{InferenceTier, TierConstraints};
 use super::traits::*;
 use super::ucg::UcgEngine;
 use crate::knowledge::{Materializer, Source};
-use crate::{AmorphicRecord, AmorphicStore, RecordId, Value, DIMENSION};
+use crate::{AmorphicRecord, AmorphicStore, DIMENSION, RecordId, Value};
 
 /// The unified AI interface for JouleDB.
 ///
@@ -60,7 +60,6 @@ pub struct JouleDbAi {
     // ====================================================================
     // Nervous System
     // ====================================================================
-
     /// Contrast engine: SNN-style spike gate on every operation.
     pub contrast: ContrastEngine,
     /// Metabolic controller: energy-proportional compute allocation.
@@ -69,7 +68,6 @@ pub struct JouleDbAi {
     // ====================================================================
     // Integration Bridges
     // ====================================================================
-
     /// Pattern-Lang bridge: deterministic resolution before LLM.
     pub pattern_bridge: PatternBridge,
     /// flowR graph builder: constructs reasoning DAGs from queries.
@@ -148,7 +146,8 @@ impl JouleDbAi {
 
     /// Remaining energy budget.
     fn energy_remaining(&self) -> Option<f64> {
-        self.energy_budget.map(|b| (b - self.energy_consumed).max(0.0))
+        self.energy_budget
+            .map(|b| (b - self.energy_consumed).max(0.0))
     }
 
     /// Track energy consumption.
@@ -231,10 +230,10 @@ impl JouleDbAi {
 
         // Step 6: flowQIT tracking
         let elapsed = start.elapsed();
-        self.qit.dynamics.entropy_history.push((
-            elapsed.as_millis() as u64,
-            complexity.0 as f64,
-        ));
+        self.qit
+            .dynamics
+            .entropy_history
+            .push((elapsed.as_millis() as u64, complexity.0 as f64));
 
         Ok(result)
     }
@@ -313,7 +312,9 @@ impl JouleDbAi {
 
         // flowR: build and execute a contrast reasoning graph
         let domain = DomainLut::from_query(&summary);
-        let graph = self.flow_builder.build_contrast_graph(&context, &summary, domain);
+        let graph = self
+            .flow_builder
+            .build_contrast_graph(&context, &summary, domain);
         let flow_result = self.flow_reasoner.reason_graph(&graph)?;
 
         let elapsed = start.elapsed();
@@ -407,7 +408,8 @@ impl JouleDbAi {
             let messages = vec![
                 AiMessage {
                     role: "system".into(),
-                    content: "Convert natural language to SQL or MediaQL. Return only the query.".into(),
+                    content: "Convert natural language to SQL or MediaQL. Return only the query."
+                        .into(),
                 },
                 AiMessage {
                     role: "user".into(),
@@ -424,11 +426,8 @@ impl JouleDbAi {
         let words: Vec<&str> = nl.split_whitespace().collect();
         let query = format!("SELECT * WHERE _text CONTAINS '{}'", words.join(" "));
         let elapsed = start.elapsed();
-        let receipt = AiReceipt::holographic(
-            "hdc-keyword-query",
-            0.000_000_1,
-            elapsed.as_micros() as u64,
-        );
+        let receipt =
+            AiReceipt::holographic("hdc-keyword-query", 0.000_000_1, elapsed.as_micros() as u64);
         Ok((query, receipt))
     }
 
@@ -454,11 +453,8 @@ impl JouleDbAi {
         tags.dedup();
 
         let elapsed = start.elapsed();
-        let receipt = AiReceipt::holographic(
-            "hdc-auto-tag",
-            0.000_000_1,
-            elapsed.as_micros() as u64,
-        );
+        let receipt =
+            AiReceipt::holographic("hdc-auto-tag", 0.000_000_1, elapsed.as_micros() as u64);
         self.record_energy(receipt.energy_joules);
         Ok((tags, receipt))
     }
@@ -528,11 +524,7 @@ impl JouleDbAi {
     }
 
     /// Attempt flowR reasoning if metabolic budget allows.
-    fn try_flow_reasoning(
-        &mut self,
-        query: &str,
-        budget: &ComputeBudget,
-    ) -> Option<AiResult> {
+    fn try_flow_reasoning(&mut self, query: &str, budget: &ComputeBudget) -> Option<AiResult> {
         // Only reason if we're at Alert or higher
         if budget.state == MetabolicState::Resting {
             return None;
@@ -693,12 +685,20 @@ mod tests {
     #[test]
     fn test_facade_tier1_infer() {
         let mut store = AmorphicStore::new();
-        store.ingest_json(r#"{"name": "Inception", "genre": "scifi"}"#).unwrap();
-        store.ingest_json(r#"{"name": "The Matrix", "genre": "scifi"}"#).unwrap();
-        store.ingest_json(r#"{"name": "Frozen", "genre": "animation"}"#).unwrap();
+        store
+            .ingest_json(r#"{"name": "Inception", "genre": "scifi"}"#)
+            .unwrap();
+        store
+            .ingest_json(r#"{"name": "The Matrix", "genre": "scifi"}"#)
+            .unwrap();
+        store
+            .ingest_json(r#"{"name": "Frozen", "genre": "animation"}"#)
+            .unwrap();
 
         let mut ai = JouleDbAi::new();
-        let result = ai.infer("find scifi movies", &store, TierConstraints::default()).unwrap();
+        let result = ai
+            .infer("find scifi movies", &store, TierConstraints::default())
+            .unwrap();
 
         assert!(ai.energy_consumed() > 0.0);
         match result.output {
@@ -716,8 +716,14 @@ mod tests {
         let ai = JouleDbAi::new();
 
         let categories = vec![
-            ("action".to_string(), ai.holo.encode_text("action fighting combat explosions")),
-            ("comedy".to_string(), ai.holo.encode_text("comedy funny humor laughing")),
+            (
+                "action".to_string(),
+                ai.holo.encode_text("action fighting combat explosions"),
+            ),
+            (
+                "comedy".to_string(),
+                ai.holo.encode_text("comedy funny humor laughing"),
+            ),
         ];
 
         let input = ai.holo.encode_text("action fighting movie");
@@ -741,7 +747,9 @@ mod tests {
     fn test_facade_auto_tag() {
         let mut ai = JouleDbAi::new();
         let mut store = AmorphicStore::new();
-        let id = store.ingest_json(r#"{"name": "Inception", "genre": "scifi", "director": "Nolan"}"#).unwrap();
+        let id = store
+            .ingest_json(r#"{"name": "Inception", "genre": "scifi", "director": "Nolan"}"#)
+            .unwrap();
 
         let record = store.get(id).unwrap();
         let (tags, receipt) = ai.auto_tag(record).unwrap();
@@ -775,7 +783,9 @@ mod tests {
     fn test_ingest_with_intelligence() {
         let mut ai = JouleDbAi::new();
         let mut store = AmorphicStore::new();
-        let id = store.ingest_json(r#"{"title": "Inception", "genre": "scifi", "year": 2010}"#).unwrap();
+        let id = store
+            .ingest_json(r#"{"title": "Inception", "genre": "scifi", "year": 2010}"#)
+            .unwrap();
         let record = store.get(id).unwrap();
 
         let intel = ai.ingest_with_intelligence(record, &store, 1000);
@@ -789,8 +799,12 @@ mod tests {
     fn test_reason_about_contrast() {
         let mut ai = JouleDbAi::new();
         let mut store = AmorphicStore::new();
-        let id_a = store.ingest_json(r#"{"title": "Inception", "genre": "scifi", "mood": "dark"}"#).unwrap();
-        let id_b = store.ingest_json(r#"{"title": "Frozen", "genre": "animation", "mood": "light"}"#).unwrap();
+        let id_a = store
+            .ingest_json(r#"{"title": "Inception", "genre": "scifi", "mood": "dark"}"#)
+            .unwrap();
+        let id_b = store
+            .ingest_json(r#"{"title": "Frozen", "genre": "animation", "mood": "light"}"#)
+            .unwrap();
 
         let a = store.get(id_a).unwrap().clone();
         let b = store.get(id_b).unwrap().clone();
@@ -813,7 +827,9 @@ mod tests {
 
         // Ingest some records to build history
         for i in 0..5 {
-            let id = store.ingest_json(&format!(r#"{{"item": "{}"}}"#, i)).unwrap();
+            let id = store
+                .ingest_json(&format!(r#"{{"item": "{}"}}"#, i))
+                .unwrap();
             let record = store.get(id).unwrap();
             ai.ingest_with_intelligence(record, &store, 1000 + i);
         }
@@ -830,16 +846,36 @@ mod tests {
         let mut store = AmorphicStore::new();
 
         // Build a content library
-        store.ingest_json(r#"{"title": "Inception", "genre": "scifi", "director": "Nolan"}"#).unwrap();
-        store.ingest_json(r#"{"title": "Interstellar", "genre": "scifi", "director": "Nolan"}"#).unwrap();
-        store.ingest_json(r#"{"title": "The Matrix", "genre": "scifi", "director": "Wachowski"}"#).unwrap();
-        store.ingest_json(r#"{"title": "Frozen", "genre": "animation", "director": "Buck"}"#).unwrap();
-        store.ingest_json(r#"{"title": "Toy Story", "genre": "animation", "director": "Lasseter"}"#).unwrap();
+        store
+            .ingest_json(r#"{"title": "Inception", "genre": "scifi", "director": "Nolan"}"#)
+            .unwrap();
+        store
+            .ingest_json(r#"{"title": "Interstellar", "genre": "scifi", "director": "Nolan"}"#)
+            .unwrap();
+        store
+            .ingest_json(r#"{"title": "The Matrix", "genre": "scifi", "director": "Wachowski"}"#)
+            .unwrap();
+        store
+            .ingest_json(r#"{"title": "Frozen", "genre": "animation", "director": "Buck"}"#)
+            .unwrap();
+        store
+            .ingest_json(r#"{"title": "Toy Story", "genre": "animation", "director": "Lasseter"}"#)
+            .unwrap();
 
         // Run multiple queries — system should learn
-        let r1 = ai.infer("find scifi movies", &store, TierConstraints::default()).unwrap();
-        let r2 = ai.infer("Nolan films", &store, TierConstraints::default()).unwrap();
-        let r3 = ai.infer("animated movies for kids", &store, TierConstraints::default()).unwrap();
+        let r1 = ai
+            .infer("find scifi movies", &store, TierConstraints::default())
+            .unwrap();
+        let r2 = ai
+            .infer("Nolan films", &store, TierConstraints::default())
+            .unwrap();
+        let r3 = ai
+            .infer(
+                "animated movies for kids",
+                &store,
+                TierConstraints::default(),
+            )
+            .unwrap();
 
         // Energy should accumulate
         assert!(ai.energy_consumed() > 0.0);

@@ -17,7 +17,12 @@ pub enum FkError {
     /// Joint index out of range.
     JointIndexOutOfRange { index: usize, count: usize },
     /// Joint value violates configured limits.
-    JointLimitViolation { index: usize, value: f64, min: f64, max: f64 },
+    JointLimitViolation {
+        index: usize,
+        value: f64,
+        min: f64,
+        max: f64,
+    },
     /// Singular or degenerate frame.
     DegenerateFrame(String),
 }
@@ -27,10 +32,21 @@ impl std::fmt::Display for FkError {
         match self {
             Self::EmptyChain => write!(f, "forward kinematics chain is empty"),
             Self::JointIndexOutOfRange { index, count } => {
-                write!(f, "joint index {index} out of range (chain has {count} joints)")
+                write!(
+                    f,
+                    "joint index {index} out of range (chain has {count} joints)"
+                )
             }
-            Self::JointLimitViolation { index, value, min, max } => {
-                write!(f, "joint {index} value {value:.4} outside [{min:.4}, {max:.4}]")
+            Self::JointLimitViolation {
+                index,
+                value,
+                min,
+                max,
+            } => {
+                write!(
+                    f,
+                    "joint {index} value {value:.4} outside [{min:.4}, {max:.4}]"
+                )
             }
             Self::DegenerateFrame(msg) => write!(f, "degenerate frame: {msg}"),
         }
@@ -64,9 +80,18 @@ impl Transform4 {
     /// Build from rotation matrix (3x3, row-major) and translation.
     pub fn from_rotation_translation(rot: &[f64; 9], tx: f64, ty: f64, tz: f64) -> Self {
         let mut m = [0.0; 16];
-        m[0] = rot[0]; m[1] = rot[1]; m[2] = rot[2]; m[3] = tx;
-        m[4] = rot[3]; m[5] = rot[4]; m[6] = rot[5]; m[7] = ty;
-        m[8] = rot[6]; m[9] = rot[7]; m[10] = rot[8]; m[11] = tz;
+        m[0] = rot[0];
+        m[1] = rot[1];
+        m[2] = rot[2];
+        m[3] = tx;
+        m[4] = rot[3];
+        m[5] = rot[4];
+        m[6] = rot[5];
+        m[7] = ty;
+        m[8] = rot[6];
+        m[9] = rot[7];
+        m[10] = rot[8];
+        m[11] = tz;
         m[15] = 1.0;
         Self { m }
     }
@@ -84,8 +109,10 @@ impl Transform4 {
     pub fn rot_x(angle: f64) -> Self {
         let (s, c) = angle.sin_cos();
         let mut t = Self::identity();
-        t.m[5] = c;  t.m[6] = -s;
-        t.m[9] = s;  t.m[10] = c;
+        t.m[5] = c;
+        t.m[6] = -s;
+        t.m[9] = s;
+        t.m[10] = c;
         t
     }
 
@@ -93,8 +120,10 @@ impl Transform4 {
     pub fn rot_z(angle: f64) -> Self {
         let (s, c) = angle.sin_cos();
         let mut t = Self::identity();
-        t.m[0] = c;  t.m[1] = -s;
-        t.m[4] = s;  t.m[5] = c;
+        t.m[0] = c;
+        t.m[1] = -s;
+        t.m[4] = s;
+        t.m[5] = c;
         t
     }
 
@@ -123,9 +152,8 @@ impl Transform4 {
     /// Extract the 3x3 rotation matrix (row-major).
     pub fn rotation(&self) -> [f64; 9] {
         [
-            self.m[0], self.m[1], self.m[2],
-            self.m[4], self.m[5], self.m[6],
-            self.m[8], self.m[9], self.m[10],
+            self.m[0], self.m[1], self.m[2], self.m[4], self.m[5], self.m[6], self.m[8], self.m[9],
+            self.m[10],
         ]
     }
 
@@ -176,7 +204,10 @@ impl std::fmt::Display for Transform4 {
             writeln!(
                 f,
                 "[{:8.4} {:8.4} {:8.4} {:8.4}]",
-                self.m[i], self.m[i + 1], self.m[i + 2], self.m[i + 3],
+                self.m[i],
+                self.m[i + 1],
+                self.m[i + 2],
+                self.m[i + 3],
             )?;
         }
         Ok(())
@@ -488,7 +519,14 @@ impl Pose6D {
     pub fn from_transform(t: &Transform4) -> Self {
         let p = t.position();
         let e = t.to_euler_zyx();
-        Self { x: p[0], y: p[1], z: p[2], roll: e[0], pitch: e[1], yaw: e[2] }
+        Self {
+            x: p[0],
+            y: p[1],
+            z: p[2],
+            roll: e[0],
+            pitch: e[1],
+            yaw: e[2],
+        }
     }
 
     /// Euclidean distance to another pose (position only).
@@ -722,7 +760,9 @@ mod tests {
     #[test]
     fn test_joint_limit_violation() {
         let joints = vec![DhJoint::revolute(0.0, 0.0, 1.0, 0.0).with_limits(-1.0, 1.0)];
-        let fk = ForwardKinematics::new(joints).unwrap().with_limit_enforcement(true);
+        let fk = ForwardKinematics::new(joints)
+            .unwrap()
+            .with_limit_enforcement(true);
         let result = fk.end_effector(&[2.0]);
         assert!(matches!(result, Err(FkError::JointLimitViolation { .. })));
     }
@@ -739,7 +779,9 @@ mod tests {
     fn test_tool_frame_offset() {
         let joints = vec![DhJoint::revolute(0.0, 0.0, 1.0, 0.0)];
         let tool = Transform4::translation(0.5, 0.0, 0.0);
-        let fk = ForwardKinematics::new(joints).unwrap().with_tool_frame(tool);
+        let fk = ForwardKinematics::new(joints)
+            .unwrap()
+            .with_tool_frame(tool);
         let t = fk.end_effector(&[0.0]).unwrap();
         let p = t.position();
         assert!(approx_eq(p[0], 1.5));

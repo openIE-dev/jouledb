@@ -6,8 +6,8 @@
 //! evaluation, stop codon recognition (TAA/TAG/TGA), and Markov chain
 //! models for coding vs. non-coding sequence discrimination.
 
-use std::fmt;
 use std::collections::HashMap;
+use std::fmt;
 
 // ── Codon Type ──────────────────────────────────────────────────
 
@@ -164,7 +164,10 @@ impl HexamerTable {
         let total = (bytes.len() - 5) as f64;
         for i in 0..=(bytes.len() - 6) {
             let hexamer = &seq[i..i + 6];
-            if hexamer.bytes().all(|b| matches!(b, b'A' | b'T' | b'G' | b'C')) {
+            if hexamer
+                .bytes()
+                .all(|b| matches!(b, b'A' | b'T' | b'G' | b'C'))
+            {
                 *self.coding_freqs.entry(hexamer.to_string()).or_insert(0.0) += 1.0 / total;
             }
         }
@@ -180,8 +183,14 @@ impl HexamerTable {
         let total = (bytes.len() - 5) as f64;
         for i in 0..=(bytes.len() - 6) {
             let hexamer = &seq[i..i + 6];
-            if hexamer.bytes().all(|b| matches!(b, b'A' | b'T' | b'G' | b'C')) {
-                *self.noncoding_freqs.entry(hexamer.to_string()).or_insert(0.0) += 1.0 / total;
+            if hexamer
+                .bytes()
+                .all(|b| matches!(b, b'A' | b'T' | b'G' | b'C'))
+            {
+                *self
+                    .noncoding_freqs
+                    .entry(hexamer.to_string())
+                    .or_insert(0.0) += 1.0 / total;
             }
         }
     }
@@ -274,7 +283,12 @@ impl StartContextScorer {
 
 impl fmt::Display for StartContextScorer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "StartContextScorer(pwm_len={}, atg_offset={})", self.pwm.len(), self.atg_offset)
+        write!(
+            f,
+            "StartContextScorer(pwm_len={}, atg_offset={})",
+            self.pwm.len(),
+            self.atg_offset
+        )
     }
 }
 
@@ -469,8 +483,7 @@ mod tests {
 
     #[test]
     fn test_predicted_gene_display() {
-        let g = PredictedGene::new(100, 500, PredStrand::Forward, 1)
-            .with_id("gene_0001");
+        let g = PredictedGene::new(100, 500, PredStrand::Forward, 1).with_id("gene_0001");
         let s = format!("{}", g);
         assert!(s.contains("gene_0001"));
         assert!(s.contains("+"));
@@ -478,8 +491,7 @@ mod tests {
 
     #[test]
     fn test_find_start_codons_atg_only() {
-        let config = GenePredictorConfig::new()
-            .with_min_orf_length(3);
+        let config = GenePredictorConfig::new().with_min_orf_length(3);
         let seq = "AATGCCATGTT";
         let starts = find_start_codons(seq, &config);
         // ATG at 1 and ATG at 6
@@ -545,11 +557,7 @@ mod tests {
     #[test]
     fn test_predict_genes_forward_basic() {
         // ATG...30 codons...TAA
-        let seq = "AAAAAAA".to_string()
-            + "ATG"
-            + &"GCA".repeat(29)
-            + "TAA"
-            + "AAAAAAA";
+        let seq = "AAAAAAA".to_string() + "ATG" + &"GCA".repeat(29) + "TAA" + "AAAAAAA";
         let config = GenePredictorConfig::new()
             .with_min_orf_length(90)
             .with_score_threshold(f64::NEG_INFINITY);

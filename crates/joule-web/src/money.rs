@@ -107,25 +107,41 @@ impl RoundingMode {
             }
             RoundingMode::HalfUp => {
                 if double_rem >= abs_divisor {
-                    if is_negative { quotient - 1 } else { quotient + 1 }
+                    if is_negative {
+                        quotient - 1
+                    } else {
+                        quotient + 1
+                    }
                 } else {
                     quotient
                 }
             }
             RoundingMode::HalfDown => {
                 if double_rem > abs_divisor {
-                    if is_negative { quotient - 1 } else { quotient + 1 }
+                    if is_negative {
+                        quotient - 1
+                    } else {
+                        quotient + 1
+                    }
                 } else {
                     quotient
                 }
             }
             RoundingMode::HalfEven => {
                 if double_rem > abs_divisor {
-                    if is_negative { quotient - 1 } else { quotient + 1 }
+                    if is_negative {
+                        quotient - 1
+                    } else {
+                        quotient + 1
+                    }
                 } else if double_rem == abs_divisor {
                     // Round to even.
                     if quotient % 2 != 0 {
-                        if is_negative { quotient - 1 } else { quotient + 1 }
+                        if is_negative {
+                            quotient - 1
+                        } else {
+                            quotient + 1
+                        }
                     } else {
                         quotient
                     }
@@ -340,7 +356,12 @@ impl Money {
     }
 
     /// Multiply by a fractional factor with rounding.
-    pub fn multiply_rounded(&self, numerator: i64, denominator: i64, mode: RoundingMode) -> Result<Money, MoneyError> {
+    pub fn multiply_rounded(
+        &self,
+        numerator: i64,
+        denominator: i64,
+        mode: RoundingMode,
+    ) -> Result<Money, MoneyError> {
         if denominator == 0 {
             return Err(MoneyError::DivisionByZero);
         }
@@ -422,7 +443,9 @@ impl Money {
     /// Allocate evenly among `n` parts, distributing remainder cent-by-cent.
     pub fn allocate(&self, n: usize) -> Result<Vec<Money>, MoneyError> {
         if n == 0 {
-            return Err(MoneyError::InvalidAllocation("cannot allocate to 0 parts".to_string()));
+            return Err(MoneyError::InvalidAllocation(
+                "cannot allocate to 0 parts".to_string(),
+            ));
         }
         let base = self.amount / n as i64;
         let remainder = (self.amount % n as i64).unsigned_abs() as usize;
@@ -446,7 +469,9 @@ impl Money {
         }
         let total_ratio: u64 = ratios.iter().sum();
         if total_ratio == 0 {
-            return Err(MoneyError::InvalidAllocation("total ratio is zero".to_string()));
+            return Err(MoneyError::InvalidAllocation(
+                "total ratio is zero".to_string(),
+            ));
         }
         let mut parts = Vec::with_capacity(ratios.len());
         let mut allocated = 0i64;
@@ -459,10 +484,8 @@ impl Money {
                     minor_units: self.minor_units,
                 });
             } else {
-                let part = RoundingMode::Truncate.divide_round(
-                    self.amount * *ratio as i64,
-                    total_ratio as i64,
-                );
+                let part = RoundingMode::Truncate
+                    .divide_round(self.amount * *ratio as i64, total_ratio as i64);
                 allocated += part;
                 parts.push(Money {
                     amount: part,
@@ -534,7 +557,12 @@ impl ExchangeRate {
     }
 
     /// Convert money using this rate.
-    pub fn convert(&self, money: &Money, target_currency: &Currency, mode: RoundingMode) -> Result<Money, MoneyError> {
+    pub fn convert(
+        &self,
+        money: &Money,
+        target_currency: &Currency,
+        mode: RoundingMode,
+    ) -> Result<Money, MoneyError> {
         if money.currency_code != self.from {
             return Err(MoneyError::CurrencyMismatch {
                 lhs: money.currency_code.clone(),
@@ -571,12 +599,15 @@ pub struct CurrencyConverter {
 
 impl CurrencyConverter {
     pub fn new() -> Self {
-        Self { rates: HashMap::new() }
+        Self {
+            rates: HashMap::new(),
+        }
     }
 
     /// Register an exchange rate.
     pub fn register_rate(&mut self, rate: ExchangeRate) {
-        self.rates.insert((rate.from.clone(), rate.to.clone()), rate);
+        self.rates
+            .insert((rate.from.clone(), rate.to.clone()), rate);
     }
 
     /// Convert money to a target currency.
@@ -587,10 +618,13 @@ impl CurrencyConverter {
         mode: RoundingMode,
     ) -> Result<Money, MoneyError> {
         let key = (money.currency_code.clone(), target.code.clone());
-        let rate = self.rates.get(&key).ok_or_else(|| MoneyError::NoExchangeRate {
-            from: money.currency_code.clone(),
-            to: target.code.clone(),
-        })?;
+        let rate = self
+            .rates
+            .get(&key)
+            .ok_or_else(|| MoneyError::NoExchangeRate {
+                from: money.currency_code.clone(),
+                to: target.code.clone(),
+            })?;
         rate.convert(money, target, mode)
     }
 
@@ -605,7 +639,9 @@ impl CurrencyConverter {
 /// Sum a slice of money values (all must be the same currency).
 pub fn sum(values: &[Money]) -> Result<Money, MoneyError> {
     if values.is_empty() {
-        return Err(MoneyError::AllocationError("cannot sum empty list".to_string()));
+        return Err(MoneyError::AllocationError(
+            "cannot sum empty list".to_string(),
+        ));
     }
     let mut total = values[0].clone();
     for v in &values[1..] {
@@ -655,7 +691,10 @@ mod tests {
     fn test_money_add_currency_mismatch() {
         let a = Money::from_major(10, &usd());
         let b = Money::from_major(5, &eur());
-        assert!(matches!(a.add(&b), Err(MoneyError::CurrencyMismatch { .. })));
+        assert!(matches!(
+            a.add(&b),
+            Err(MoneyError::CurrencyMismatch { .. })
+        ));
     }
 
     #[test]
@@ -683,7 +722,10 @@ mod tests {
     #[test]
     fn test_money_divide_by_zero() {
         let m = Money::from_minor(100, &usd());
-        assert!(matches!(m.divide(0, RoundingMode::HalfUp), Err(MoneyError::DivisionByZero)));
+        assert!(matches!(
+            m.divide(0, RoundingMode::HalfUp),
+            Err(MoneyError::DivisionByZero)
+        ));
     }
 
     #[test]
@@ -757,7 +799,10 @@ mod tests {
     #[test]
     fn test_allocate_zero_parts() {
         let m = Money::from_major(10, &usd());
-        assert!(matches!(m.allocate(0), Err(MoneyError::InvalidAllocation(_))));
+        assert!(matches!(
+            m.allocate(0),
+            Err(MoneyError::InvalidAllocation(_))
+        ));
     }
 
     #[test]
@@ -772,7 +817,10 @@ mod tests {
     #[test]
     fn test_allocate_by_ratios_empty() {
         let m = Money::from_major(10, &usd());
-        assert!(matches!(m.allocate_by_ratios(&[]), Err(MoneyError::InvalidAllocation(_))));
+        assert!(matches!(
+            m.allocate_by_ratios(&[]),
+            Err(MoneyError::InvalidAllocation(_))
+        ));
     }
 
     #[test]
@@ -806,7 +854,9 @@ mod tests {
         // 1 USD = 0.85 EUR (85/100)
         let rate = ExchangeRate::new("USD", "EUR", 85, 100);
         let usd_money = Money::from_major(100, &usd());
-        let eur_money = rate.convert(&usd_money, &eur(), RoundingMode::HalfUp).unwrap();
+        let eur_money = rate
+            .convert(&usd_money, &eur(), RoundingMode::HalfUp)
+            .unwrap();
         assert_eq!(eur_money.amount(), 8500); // 100.00 USD -> 85.00 EUR
         assert_eq!(eur_money.currency_code(), "EUR");
     }
@@ -816,7 +866,9 @@ mod tests {
         let mut converter = CurrencyConverter::new();
         converter.register_rate(ExchangeRate::new("USD", "EUR", 85, 100));
         let money = Money::from_major(100, &usd());
-        let converted = converter.convert(&money, &eur(), RoundingMode::HalfUp).unwrap();
+        let converted = converter
+            .convert(&money, &eur(), RoundingMode::HalfUp)
+            .unwrap();
         assert_eq!(converted.amount(), 8500);
     }
 

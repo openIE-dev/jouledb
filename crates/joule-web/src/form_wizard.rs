@@ -115,10 +115,7 @@ impl WizardStep {
         self
     }
 
-    pub fn validator(
-        mut self,
-        v: fn(&HashMap<String, String>) -> Result<(), Vec<String>>,
-    ) -> Self {
+    pub fn validator(mut self, v: fn(&HashMap<String, String>) -> Result<(), Vec<String>>) -> Self {
         self.validator = Some(v);
         self
     }
@@ -219,12 +216,11 @@ impl FormWizard {
     /// Validate the current step.
     pub fn validate_current(&self) -> Result<(), WizardError> {
         let step = self.current_step()?;
-        step.validate(&self.data).map_err(|errors| {
-            WizardError::ValidationFailed {
+        step.validate(&self.data)
+            .map_err(|errors| WizardError::ValidationFailed {
                 step: step.id.clone(),
                 errors,
-            }
-        })
+            })
     }
 
     /// Advance to the next step (validates current step first).
@@ -240,12 +236,11 @@ impl FormWizard {
         // Validate current step
         let step_id = active[self.current].id.clone();
         let step = active[self.current];
-        step.validate(&self.data).map_err(|errors| {
-            WizardError::ValidationFailed {
+        step.validate(&self.data)
+            .map_err(|errors| WizardError::ValidationFailed {
                 step: step_id.clone(),
                 errors,
-            }
-        })?;
+            })?;
 
         // Mark as completed
         self.mark_completed(&step_id);
@@ -301,11 +296,7 @@ impl FormWizard {
             let fields: Vec<(String, String)> = step
                 .fields
                 .iter()
-                .filter_map(|f| {
-                    self.data
-                        .get(f)
-                        .map(|v| (f.clone(), v.clone()))
-                })
+                .filter_map(|f| self.data.get(f).map(|v| (f.clone(), v.clone())))
                 .collect();
 
             if !fields.is_empty() {
@@ -366,14 +357,8 @@ mod tests {
                         }
                     }),
             )
-            .add_step(
-                WizardStep::new("address", "Address")
-                    .fields(vec!["street", "city"]),
-            )
-            .add_step(
-                WizardStep::new("confirm", "Confirm")
-                    .description("Review your information"),
-            )
+            .add_step(WizardStep::new("address", "Address").fields(vec!["street", "city"]))
+            .add_step(WizardStep::new("confirm", "Confirm").description("Review your information"))
     }
 
     #[test]

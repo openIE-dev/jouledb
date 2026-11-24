@@ -27,7 +27,9 @@ impl fmt::Display for MassSpringError {
             Self::InvalidStiffness => write!(f, "stiffness must be non-negative"),
             Self::InvalidDamping => write!(f, "damping must be non-negative"),
             Self::ParticleNotFound(id) => write!(f, "particle not found: {id}"),
-            Self::DuplicateSpring { a, b } => write!(f, "spring already exists between {a} and {b}"),
+            Self::DuplicateSpring { a, b } => {
+                write!(f, "spring already exists between {a} and {b}")
+            }
             Self::SelfSpring(id) => write!(f, "cannot connect particle {id} to itself"),
             Self::InvalidTimestep => write!(f, "timestep must be positive and finite"),
         }
@@ -46,7 +48,11 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
@@ -65,7 +71,11 @@ impl Vec3 {
         if len < 1e-12 {
             Self::ZERO
         } else {
-            Self { x: self.x / len, y: self.y / len, z: self.z / len }
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+                z: self.z / len,
+            }
         }
     }
 
@@ -74,15 +84,27 @@ impl Vec3 {
     }
 
     pub fn scale(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn add(self, other: Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y, z: self.z + other.z }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
     }
 
     pub fn sub(self, other: Self) -> Self {
-        Self { x: self.x - other.x, y: self.y - other.y, z: self.z - other.z }
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+            z: self.z - other.z,
+        }
     }
 }
 
@@ -176,7 +198,12 @@ impl MassSpringSystem {
         }
     }
 
-    pub fn add_particle(&mut self, position: Vec3, mass: f64, pinned: bool) -> Result<usize, MassSpringError> {
+    pub fn add_particle(
+        &mut self,
+        position: Vec3,
+        mass: f64,
+        pinned: bool,
+    ) -> Result<usize, MassSpringError> {
         if mass <= 0.0 || !mass.is_finite() {
             return Err(MassSpringError::InvalidMass);
         }
@@ -220,9 +247,19 @@ impl MassSpringSystem {
                 return Err(MassSpringError::DuplicateSpring { a, b });
             }
         }
-        let rest_length = self.particles[a].position.sub(self.particles[b].position).length();
+        let rest_length = self.particles[a]
+            .position
+            .sub(self.particles[b].position)
+            .length();
         let idx = self.springs.len();
-        self.springs.push(Spring { a, b, rest_length, stiffness, damping, kind });
+        self.springs.push(Spring {
+            a,
+            b,
+            rest_length,
+            stiffness,
+            damping,
+            kind,
+        });
         Ok(idx)
     }
 
@@ -251,7 +288,14 @@ impl MassSpringSystem {
             return Err(MassSpringError::InvalidDamping);
         }
         let idx = self.springs.len();
-        self.springs.push(Spring { a, b, rest_length: rest_length.abs(), stiffness, damping, kind });
+        self.springs.push(Spring {
+            a,
+            b,
+            rest_length: rest_length.abs(),
+            stiffness,
+            damping,
+            kind,
+        });
         Ok(idx)
     }
 
@@ -359,12 +403,16 @@ impl MassSpringSystem {
         let mut pot_gravity = 0.0;
         for p in &self.particles {
             kinetic += 0.5 * p.mass * p.velocity.length_sq();
-            pot_gravity += p.mass * (-self.config.gravity.y) * (p.position.y - self.config.ground_y);
+            pot_gravity +=
+                p.mass * (-self.config.gravity.y) * (p.position.y - self.config.ground_y);
         }
 
         let mut pot_spring = 0.0;
         for s in &self.springs {
-            let dist = self.particles[s.a].position.sub(self.particles[s.b].position).length();
+            let dist = self.particles[s.a]
+                .position
+                .sub(self.particles[s.b].position)
+                .length();
             let stretch = dist - s.rest_length;
             pot_spring += 0.5 * s.stiffness * stretch * stretch;
         }
@@ -433,25 +481,61 @@ impl MassSpringSystem {
             for c in 0..cols {
                 // Structural — horizontal
                 if c + 1 < cols {
-                    sys.add_spring(idx(r, c), idx(r, c + 1), stiffness, damping, SpringKind::Structural)?;
+                    sys.add_spring(
+                        idx(r, c),
+                        idx(r, c + 1),
+                        stiffness,
+                        damping,
+                        SpringKind::Structural,
+                    )?;
                 }
                 // Structural — vertical
                 if r + 1 < rows {
-                    sys.add_spring(idx(r, c), idx(r + 1, c), stiffness, damping, SpringKind::Structural)?;
+                    sys.add_spring(
+                        idx(r, c),
+                        idx(r + 1, c),
+                        stiffness,
+                        damping,
+                        SpringKind::Structural,
+                    )?;
                 }
                 // Shear — diagonals
                 if r + 1 < rows && c + 1 < cols {
-                    sys.add_spring(idx(r, c), idx(r + 1, c + 1), stiffness * 0.5, damping, SpringKind::Shear)?;
+                    sys.add_spring(
+                        idx(r, c),
+                        idx(r + 1, c + 1),
+                        stiffness * 0.5,
+                        damping,
+                        SpringKind::Shear,
+                    )?;
                 }
                 if r + 1 < rows && c > 0 {
-                    sys.add_spring(idx(r, c), idx(r + 1, c - 1), stiffness * 0.5, damping, SpringKind::Shear)?;
+                    sys.add_spring(
+                        idx(r, c),
+                        idx(r + 1, c - 1),
+                        stiffness * 0.5,
+                        damping,
+                        SpringKind::Shear,
+                    )?;
                 }
                 // Bend — skip one
                 if c + 2 < cols {
-                    sys.add_spring(idx(r, c), idx(r, c + 2), stiffness * 0.25, damping, SpringKind::Bend)?;
+                    sys.add_spring(
+                        idx(r, c),
+                        idx(r, c + 2),
+                        stiffness * 0.25,
+                        damping,
+                        SpringKind::Bend,
+                    )?;
                 }
                 if r + 2 < rows {
-                    sys.add_spring(idx(r, c), idx(r + 2, c), stiffness * 0.25, damping, SpringKind::Bend)?;
+                    sys.add_spring(
+                        idx(r, c),
+                        idx(r + 2, c),
+                        stiffness * 0.25,
+                        damping,
+                        SpringKind::Bend,
+                    )?;
                 }
             }
         }
@@ -506,7 +590,9 @@ mod tests {
     #[test]
     fn test_add_particle() {
         let mut sys = default_system();
-        let id = sys.add_particle(Vec3::new(1.0, 2.0, 3.0), 1.0, false).unwrap();
+        let id = sys
+            .add_particle(Vec3::new(1.0, 2.0, 3.0), 1.0, false)
+            .unwrap();
         assert_eq!(id, 0);
         assert_eq!(sys.particles.len(), 1);
         assert!(approx(sys.particles[0].mass, 1.0, 1e-10));
@@ -515,16 +601,26 @@ mod tests {
     #[test]
     fn test_invalid_mass() {
         let mut sys = default_system();
-        assert_eq!(sys.add_particle(Vec3::ZERO, 0.0, false), Err(MassSpringError::InvalidMass));
-        assert_eq!(sys.add_particle(Vec3::ZERO, -1.0, false), Err(MassSpringError::InvalidMass));
+        assert_eq!(
+            sys.add_particle(Vec3::ZERO, 0.0, false),
+            Err(MassSpringError::InvalidMass)
+        );
+        assert_eq!(
+            sys.add_particle(Vec3::ZERO, -1.0, false),
+            Err(MassSpringError::InvalidMass)
+        );
     }
 
     #[test]
     fn test_add_spring() {
         let mut sys = default_system();
-        sys.add_particle(Vec3::new(0.0, 0.0, 0.0), 1.0, false).unwrap();
-        sys.add_particle(Vec3::new(1.0, 0.0, 0.0), 1.0, false).unwrap();
-        let idx = sys.add_spring(0, 1, 100.0, 1.0, SpringKind::Structural).unwrap();
+        sys.add_particle(Vec3::new(0.0, 0.0, 0.0), 1.0, false)
+            .unwrap();
+        sys.add_particle(Vec3::new(1.0, 0.0, 0.0), 1.0, false)
+            .unwrap();
+        let idx = sys
+            .add_spring(0, 1, 100.0, 1.0, SpringKind::Structural)
+            .unwrap();
         assert_eq!(idx, 0);
         assert!(approx(sys.springs[0].rest_length, 1.0, 1e-10));
     }
@@ -533,15 +629,20 @@ mod tests {
     fn test_self_spring_rejected() {
         let mut sys = default_system();
         sys.add_particle(Vec3::ZERO, 1.0, false).unwrap();
-        assert_eq!(sys.add_spring(0, 0, 100.0, 1.0, SpringKind::Structural), Err(MassSpringError::SelfSpring(0)));
+        assert_eq!(
+            sys.add_spring(0, 0, 100.0, 1.0, SpringKind::Structural),
+            Err(MassSpringError::SelfSpring(0))
+        );
     }
 
     #[test]
     fn test_duplicate_spring_rejected() {
         let mut sys = default_system();
         sys.add_particle(Vec3::ZERO, 1.0, false).unwrap();
-        sys.add_particle(Vec3::new(1.0, 0.0, 0.0), 1.0, false).unwrap();
-        sys.add_spring(0, 1, 100.0, 1.0, SpringKind::Structural).unwrap();
+        sys.add_particle(Vec3::new(1.0, 0.0, 0.0), 1.0, false)
+            .unwrap();
+        sys.add_spring(0, 1, 100.0, 1.0, SpringKind::Structural)
+            .unwrap();
         assert_eq!(
             sys.add_spring(1, 0, 100.0, 1.0, SpringKind::Structural),
             Err(MassSpringError::DuplicateSpring { a: 1, b: 0 })
@@ -554,7 +655,8 @@ mod tests {
             ground_enabled: false,
             ..Default::default()
         });
-        sys.add_particle(Vec3::new(0.0, 10.0, 0.0), 1.0, false).unwrap();
+        sys.add_particle(Vec3::new(0.0, 10.0, 0.0), 1.0, false)
+            .unwrap();
         for _ in 0..100 {
             sys.step(0.01).unwrap();
         }
@@ -566,7 +668,8 @@ mod tests {
     #[test]
     fn test_pinned_particle_stays() {
         let mut sys = default_system();
-        sys.add_particle(Vec3::new(0.0, 5.0, 0.0), 1.0, true).unwrap();
+        sys.add_particle(Vec3::new(0.0, 5.0, 0.0), 1.0, true)
+            .unwrap();
         for _ in 0..50 {
             sys.step(0.01).unwrap();
         }
@@ -582,8 +685,10 @@ mod tests {
             ..Default::default()
         });
         sys.add_particle(Vec3::ZERO, 1.0, true).unwrap();
-        sys.add_particle(Vec3::new(2.0, 0.0, 0.0), 1.0, false).unwrap();
-        sys.add_spring(0, 1, 100.0, 0.0, SpringKind::Structural).unwrap();
+        sys.add_particle(Vec3::new(2.0, 0.0, 0.0), 1.0, false)
+            .unwrap();
+        sys.add_spring(0, 1, 100.0, 0.0, SpringKind::Structural)
+            .unwrap();
         // Rest length is 2.0; particle at 2.0. Displace:
         sys.particles[1].position.x = 3.0; // stretched by 1.0
 
@@ -598,7 +703,8 @@ mod tests {
     #[test]
     fn test_ground_collision() {
         let mut sys = default_system();
-        sys.add_particle(Vec3::new(0.0, 0.5, 0.0), 1.0, false).unwrap();
+        sys.add_particle(Vec3::new(0.0, 0.5, 0.0), 1.0, false)
+            .unwrap();
         for _ in 0..500 {
             sys.step(0.01).unwrap();
         }
@@ -613,7 +719,8 @@ mod tests {
             global_damping: 0.0,
             ..Default::default()
         });
-        sys.add_particle(Vec3::new(0.0, 10.0, 0.0), 1.0, false).unwrap();
+        sys.add_particle(Vec3::new(0.0, 10.0, 0.0), 1.0, false)
+            .unwrap();
         let e0 = sys.energy();
         assert!(e0.kinetic < 1e-10);
         assert!(e0.potential_gravity > 0.0);
@@ -625,8 +732,15 @@ mod tests {
     #[test]
     fn test_cloth_grid_construction() {
         let sys = MassSpringSystem::build_cloth_grid(
-            4, 4, 1.0, 1.0, 100.0, 1.0, MassSpringConfig::default(),
-        ).unwrap();
+            4,
+            4,
+            1.0,
+            1.0,
+            100.0,
+            1.0,
+            MassSpringConfig::default(),
+        )
+        .unwrap();
         assert_eq!(sys.particles.len(), 16);
         let (structural, shear, bend) = sys.spring_count_by_kind();
         assert!(structural > 0);
@@ -638,8 +752,15 @@ mod tests {
     fn test_cloth_grid_spring_counts() {
         // 3x3 grid
         let sys = MassSpringSystem::build_cloth_grid(
-            3, 3, 1.0, 1.0, 100.0, 1.0, MassSpringConfig::default(),
-        ).unwrap();
+            3,
+            3,
+            1.0,
+            1.0,
+            100.0,
+            1.0,
+            MassSpringConfig::default(),
+        )
+        .unwrap();
         // Structural: horizontal=6, vertical=6 = 12
         // Shear: diags = 2*2*2 = 8
         // Bend: horiz skip = 3, vert skip = 3 = 6
@@ -652,8 +773,10 @@ mod tests {
     #[test]
     fn test_center_of_mass() {
         let mut sys = default_system();
-        sys.add_particle(Vec3::new(0.0, 0.0, 0.0), 1.0, false).unwrap();
-        sys.add_particle(Vec3::new(2.0, 0.0, 0.0), 1.0, false).unwrap();
+        sys.add_particle(Vec3::new(0.0, 0.0, 0.0), 1.0, false)
+            .unwrap();
+        sys.add_particle(Vec3::new(2.0, 0.0, 0.0), 1.0, false)
+            .unwrap();
         let com = sys.center_of_mass();
         assert!(approx(com.x, 1.0, 1e-10));
     }
@@ -689,16 +812,21 @@ mod tests {
             ..Default::default()
         });
         sys.add_particle(Vec3::ZERO, 1.0, true).unwrap();
-        sys.add_particle(Vec3::new(3.0, 0.0, 0.0), 1.0, false).unwrap();
+        sys.add_particle(Vec3::new(3.0, 0.0, 0.0), 1.0, false)
+            .unwrap();
         // Rest length = 3, start at 3, push away
-        sys.add_spring(0, 1, 50.0, 10.0, SpringKind::Structural).unwrap();
+        sys.add_spring(0, 1, 50.0, 10.0, SpringKind::Structural)
+            .unwrap();
         sys.particles[1].position.x = 5.0;
 
         for _ in 0..3000 {
             sys.step(0.005).unwrap();
         }
         // Should settle near rest length of 3
-        let dist = sys.particles[0].position.sub(sys.particles[1].position).length();
+        let dist = sys.particles[0]
+            .position
+            .sub(sys.particles[1].position)
+            .length();
         assert!(approx(dist, 3.0, 0.1));
     }
 
@@ -720,7 +848,8 @@ mod tests {
     #[test]
     fn test_step_count_and_time() {
         let mut sys = default_system();
-        sys.add_particle(Vec3::new(0.0, 5.0, 0.0), 1.0, false).unwrap();
+        sys.add_particle(Vec3::new(0.0, 5.0, 0.0), 1.0, false)
+            .unwrap();
         sys.step(0.01).unwrap();
         sys.step(0.01).unwrap();
         assert_eq!(sys.step_count, 2);
@@ -731,8 +860,10 @@ mod tests {
     fn test_spring_rest_length_custom() {
         let mut sys = default_system();
         sys.add_particle(Vec3::ZERO, 1.0, false).unwrap();
-        sys.add_particle(Vec3::new(5.0, 0.0, 0.0), 1.0, false).unwrap();
-        sys.add_spring_with_rest(0, 1, 2.0, 100.0, 1.0, SpringKind::Structural).unwrap();
+        sys.add_particle(Vec3::new(5.0, 0.0, 0.0), 1.0, false)
+            .unwrap();
+        sys.add_spring_with_rest(0, 1, 2.0, 100.0, 1.0, SpringKind::Structural)
+            .unwrap();
         assert!(approx(sys.springs[0].rest_length, 2.0, 1e-10));
     }
 
@@ -756,8 +887,10 @@ mod tests {
             ..Default::default()
         });
         sys.add_particle(Vec3::ZERO, 1.0, true).unwrap();
-        sys.add_particle(Vec3::new(2.0, 0.0, 0.0), 1.0, false).unwrap();
-        sys.add_spring(0, 1, 100.0, 0.0, SpringKind::Structural).unwrap();
+        sys.add_particle(Vec3::new(2.0, 0.0, 0.0), 1.0, false)
+            .unwrap();
+        sys.add_spring(0, 1, 100.0, 0.0, SpringKind::Structural)
+            .unwrap();
         sys.particles[1].position.x = 2.5;
 
         let e_initial = sys.energy().total;
@@ -778,10 +911,12 @@ mod tests {
             ..Default::default()
         });
         for i in 0..5 {
-            sys.add_particle(Vec3::new(i as f64, 0.0, 0.0), 1.0, i == 0).unwrap();
+            sys.add_particle(Vec3::new(i as f64, 0.0, 0.0), 1.0, i == 0)
+                .unwrap();
         }
         for i in 0..4 {
-            sys.add_spring(i, i + 1, 200.0, 5.0, SpringKind::Structural).unwrap();
+            sys.add_spring(i, i + 1, 200.0, 5.0, SpringKind::Structural)
+                .unwrap();
         }
         // Displace last particle
         sys.particles[4].position.x = 6.0;
@@ -790,7 +925,10 @@ mod tests {
         }
         // Chain should be somewhat stretched but connected
         for i in 0..4 {
-            let d = sys.particles[i].position.sub(sys.particles[i + 1].position).length();
+            let d = sys.particles[i]
+                .position
+                .sub(sys.particles[i + 1].position)
+                .length();
             assert!(d < 5.0); // not wildly diverged
         }
     }
@@ -798,7 +936,8 @@ mod tests {
     #[test]
     fn test_friction_slows_horizontal() {
         let mut sys = default_system();
-        sys.add_particle(Vec3::new(0.0, 0.0, 0.0), 1.0, false).unwrap();
+        sys.add_particle(Vec3::new(0.0, 0.0, 0.0), 1.0, false)
+            .unwrap();
         sys.particles[0].velocity = Vec3::new(10.0, 0.0, 0.0);
         sys.step(0.01).unwrap();
         // On ground, friction should slow x velocity

@@ -69,7 +69,12 @@ pub struct TextureDerivatives {
 
 impl TextureDerivatives {
     pub fn new(du_dx: f32, du_dy: f32, dv_dx: f32, dv_dy: f32) -> Self {
-        Self { du_dx, du_dy, dv_dx, dv_dy }
+        Self {
+            du_dx,
+            du_dy,
+            dv_dx,
+            dv_dy,
+        }
     }
 
     /// Compute the length of the major and minor axes of the screen-space ellipse.
@@ -136,7 +141,11 @@ impl TextureMap {
         if pixels.len() != width * height {
             return None;
         }
-        Some(Self { pixels, width, height })
+        Some(Self {
+            pixels,
+            width,
+            height,
+        })
     }
 
     pub fn get(&self, x: usize, y: usize) -> Pixel {
@@ -398,7 +407,10 @@ mod tests {
     fn test_derivatives_isotropic() {
         let d = TextureDerivatives::new(0.01, 0.0, 0.0, 0.01);
         let (major, minor) = d.axis_lengths();
-        assert!((major - minor).abs() < 1e-4, "isotropic should have equal axes");
+        assert!(
+            (major - minor).abs() < 1e-4,
+            "isotropic should have equal axes"
+        );
         assert!((d.anisotropy_ratio(16.0) - 1.0).abs() < 0.1);
     }
 
@@ -428,7 +440,11 @@ mod tests {
         let d = TextureDerivatives::new(0.1, 0.0, 0.0, 0.01);
         let angle = d.major_axis_angle();
         // Should be near 0 (horizontal major axis).
-        assert!(angle.abs() < PI / 4.0, "angle should be near zero: {}", angle);
+        assert!(
+            angle.abs() < PI / 4.0,
+            "angle should be near zero: {}",
+            angle
+        );
     }
 
     #[test]
@@ -461,7 +477,11 @@ mod tests {
         let d = TextureDerivatives::new(0.1, 0.0, 0.0, 0.01);
         let config = AnisoConfig::default();
         let p = ewa_filter(&tex, 0.5, 0.5, &d, &config);
-        assert!((p.r - 0.6).abs() < 0.05, "aniso on solid should be close: {}", p.r);
+        assert!(
+            (p.r - 0.6).abs() < 0.05,
+            "aniso on solid should be close: {}",
+            p.r
+        );
     }
 
     #[test]

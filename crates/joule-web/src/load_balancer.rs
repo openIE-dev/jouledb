@@ -154,7 +154,9 @@ struct SimpleRng {
 
 impl SimpleRng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next(&mut self) -> u64 {
@@ -291,11 +293,13 @@ impl LoadBalancer {
         loop {
             self.wrr_index = (self.wrr_index + 1) % healthy.len();
             if self.wrr_index == 0 {
-                let max_weight = healthy.iter()
+                let max_weight = healthy
+                    .iter()
                     .map(|i| self.backends[*i].weight)
                     .max()
                     .unwrap_or(1);
-                let gcd = healthy.iter()
+                let gcd = healthy
+                    .iter()
                     .map(|i| self.backends[*i].weight)
                     .fold(0u32, gcd);
                 self.wrr_current_weight -= gcd as i32;
@@ -338,7 +342,10 @@ impl LoadBalancer {
             }
         }
         // Target unhealthy — fall back to next healthy on ring.
-        let healthy_ids: Vec<&str> = healthy.iter().map(|i| self.backends[*i].id.as_str()).collect();
+        let healthy_ids: Vec<&str> = healthy
+            .iter()
+            .map(|i| self.backends[*i].id.as_str())
+            .collect();
         // Walk the ring to find the next healthy.
         let hash = HashRing::hash_key(key);
         let ring = &self.ring;
@@ -615,9 +622,23 @@ mod tests {
         let mut lb = make_lb(Strategy::LeastConnections);
         lb.connect("b1");
         lb.connect("b1");
-        assert_eq!(lb.backends().iter().find(|b| b.id == "b1").unwrap().active_connections, 2);
+        assert_eq!(
+            lb.backends()
+                .iter()
+                .find(|b| b.id == "b1")
+                .unwrap()
+                .active_connections,
+            2
+        );
         lb.disconnect("b1");
-        assert_eq!(lb.backends().iter().find(|b| b.id == "b1").unwrap().active_connections, 1);
+        assert_eq!(
+            lb.backends()
+                .iter()
+                .find(|b| b.id == "b1")
+                .unwrap()
+                .active_connections,
+            1
+        );
     }
 
     #[test]
@@ -656,7 +677,10 @@ mod tests {
 
     #[test]
     fn test_health_check_failure_threshold() {
-        let config = HealthCheckConfig { unhealthy_threshold: 2, ..Default::default() };
+        let config = HealthCheckConfig {
+            unhealthy_threshold: 2,
+            ..Default::default()
+        };
         let mut state = HealthCheckState::new("b1");
         state.record_failure(&config);
         assert_ne!(state.status, HealthStatus::Unhealthy);
@@ -666,7 +690,10 @@ mod tests {
 
     #[test]
     fn test_health_check_should_check() {
-        let config = HealthCheckConfig { interval_ms: 5000, ..Default::default() };
+        let config = HealthCheckConfig {
+            interval_ms: 5000,
+            ..Default::default()
+        };
         let state = HealthCheckState::new("b1");
         assert!(state.should_check(5000, &config));
         assert!(!state.should_check(3000, &config));

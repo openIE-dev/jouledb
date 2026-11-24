@@ -2,9 +2,9 @@
 
 use super::{DspError, DspResult};
 use crate::types::{Hertz, SampleRate};
-use num_complex::Complex64;
 #[cfg(not(feature = "std"))]
 use alloc::{format, string::String, vec, vec::Vec};
+use num_complex::Complex64;
 
 #[cfg(feature = "std")]
 use rustfft::FftPlanner;

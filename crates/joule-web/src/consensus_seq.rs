@@ -91,10 +91,7 @@ pub struct PosFreqMatrix {
 
 impl PosFreqMatrix {
     /// Build a PFM from aligned sequences.
-    pub fn from_alignment(
-        sequences: &[&[u8]],
-        alphabet: Alphabet,
-    ) -> Result<Self, ConsensusError> {
+    pub fn from_alignment(sequences: &[&[u8]], alphabet: Alphabet) -> Result<Self, ConsensusError> {
         if sequences.is_empty() {
             return Err(ConsensusError::EmptyAlignment);
         }
@@ -147,9 +144,9 @@ impl PosFreqMatrix {
 
     /// Most frequent symbol at a position.
     pub fn consensus_at(&self, pos: usize) -> Option<u8> {
-        self.counts.get(pos).and_then(|m| {
-            m.iter().max_by_key(|&(_, &v)| v).map(|(&k, _)| k)
-        })
+        self.counts
+            .get(pos)
+            .and_then(|m| m.iter().max_by_key(|&(_, &v)| v).map(|(&k, _)| k))
     }
 
     /// Consensus sequence (majority rule).
@@ -266,11 +263,7 @@ impl PosWeightMatrix {
     pub fn max_score(&self) -> f64 {
         self.weights
             .iter()
-            .map(|col| {
-                col.values()
-                    .copied()
-                    .fold(f64::NEG_INFINITY, f64::max)
-            })
+            .map(|col| col.values().copied().fold(f64::NEG_INFINITY, f64::max))
             .sum()
     }
 
@@ -278,11 +271,7 @@ impl PosWeightMatrix {
     pub fn min_score(&self) -> f64 {
         self.weights
             .iter()
-            .map(|col| {
-                col.values()
-                    .copied()
-                    .fold(f64::INFINITY, f64::min)
-            })
+            .map(|col| col.values().copied().fold(f64::INFINITY, f64::min))
             .sum()
     }
 }
@@ -310,12 +299,19 @@ pub fn information_content(pfm: &PosFreqMatrix) -> Vec<f64> {
             ic.push(0.0);
             continue;
         }
-        let entropy: f64 = pfm.alphabet.chars().iter().map(|c| {
-            let cnt = pfm.count(pos, *c) as f64;
-            if cnt == 0.0 { return 0.0; }
-            let p = cnt / total as f64;
-            -p * p.log2()
-        }).sum();
+        let entropy: f64 = pfm
+            .alphabet
+            .chars()
+            .iter()
+            .map(|c| {
+                let cnt = pfm.count(pos, *c) as f64;
+                if cnt == 0.0 {
+                    return 0.0;
+                }
+                let p = cnt / total as f64;
+                -p * p.log2()
+            })
+            .sum();
         ic.push(max_bits - entropy);
     }
 
@@ -330,10 +326,7 @@ pub fn total_information(pfm: &PosFreqMatrix) -> f64 {
 // ── Sequence Logo Heights ───────────────────────────────────────
 
 /// Compute letter heights for a sequence logo at a given position.
-pub fn logo_heights(
-    pfm: &PosFreqMatrix,
-    pos: usize,
-) -> Result<Vec<(u8, f64)>, ConsensusError> {
+pub fn logo_heights(pfm: &PosFreqMatrix, pos: usize) -> Result<Vec<(u8, f64)>, ConsensusError> {
     if pos >= pfm.width() {
         return Err(ConsensusError::PositionOutOfRange(pos));
     }
@@ -383,9 +376,18 @@ impl ConsensusConfig {
         }
     }
 
-    pub fn with_pseudocount(mut self, p: f64) -> Self { self.pseudocount = p; self }
-    pub fn with_threshold(mut self, t: f64) -> Self { self.threshold = t; self }
-    pub fn with_gaps(mut self, g: bool) -> Self { self.include_gaps = g; self }
+    pub fn with_pseudocount(mut self, p: f64) -> Self {
+        self.pseudocount = p;
+        self
+    }
+    pub fn with_threshold(mut self, t: f64) -> Self {
+        self.threshold = t;
+        self
+    }
+    pub fn with_gaps(mut self, g: bool) -> Self {
+        self.include_gaps = g;
+        self
+    }
 }
 
 impl fmt::Display for ConsensusConfig {
@@ -436,8 +438,7 @@ impl ConsensusBuilder {
                 if total == 0 {
                     return b'N';
                 }
-                if let Some((&best_c, &best_cnt)) =
-                    pfm.counts[pos].iter().max_by_key(|&(_, &v)| v)
+                if let Some((&best_c, &best_cnt)) = pfm.counts[pos].iter().max_by_key(|&(_, &v)| v)
                 {
                     let freq = best_cnt as f64 / total as f64;
                     if freq >= self.config.threshold {

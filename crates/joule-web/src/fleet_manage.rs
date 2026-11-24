@@ -4,8 +4,8 @@
 //! routing, dispatch scheduling, battery/fuel management, status monitoring,
 //! and fleet rebalancing for autonomous vehicle fleets.
 
-use std::fmt;
 use std::collections::HashMap;
+use std::fmt;
 
 // ── Core Types ──
 
@@ -51,11 +51,16 @@ pub struct Vehicle {
 impl Vehicle {
     pub fn new(id: usize, name: &str, position: (f64, f64)) -> Self {
         Self {
-            id, name: name.to_string(), position,
+            id,
+            name: name.to_string(),
+            position,
             status: VehicleStatus::Idle,
-            battery_level: 100.0, max_battery: 100.0,
-            speed: 1.0, current_task: None,
-            tasks_completed: 0, total_distance: 0.0,
+            battery_level: 100.0,
+            max_battery: 100.0,
+            speed: 1.0,
+            current_task: None,
+            tasks_completed: 0,
+            total_distance: 0.0,
         }
     }
 
@@ -119,8 +124,14 @@ impl Vehicle {
 
 impl fmt::Display for Vehicle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Vehicle({}, \"{}\", {}, bat={:.0}%)",
-            self.id, self.name, self.status, self.battery_percent())
+        write!(
+            f,
+            "Vehicle({}, \"{}\", {}, bat={:.0}%)",
+            self.id,
+            self.name,
+            self.status,
+            self.battery_percent()
+        )
     }
 }
 
@@ -141,9 +152,13 @@ pub struct DispatchRequest {
 impl DispatchRequest {
     pub fn new(id: usize, pickup: (f64, f64), dropoff: (f64, f64)) -> Self {
         Self {
-            id, pickup, dropoff,
-            priority: 1.0, deadline: f64::MAX,
-            assigned_vehicle: None, completed: false,
+            id,
+            pickup,
+            dropoff,
+            priority: 1.0,
+            deadline: f64::MAX,
+            assigned_vehicle: None,
+            completed: false,
         }
     }
 
@@ -166,7 +181,13 @@ impl DispatchRequest {
 
 impl fmt::Display for DispatchRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Request({}, pri={:.1}, dist={:.2})", self.id, self.priority, self.trip_distance())
+        write!(
+            f,
+            "Request({}, pri={:.1}, dist={:.2})",
+            self.id,
+            self.priority,
+            self.trip_distance()
+        )
     }
 }
 
@@ -242,13 +263,18 @@ impl FleetManager {
     }
 
     pub fn pending_requests(&self) -> Vec<&DispatchRequest> {
-        self.requests.iter().filter(|r| !r.completed && r.assigned_vehicle.is_none()).collect()
+        self.requests
+            .iter()
+            .filter(|r| !r.completed && r.assigned_vehicle.is_none())
+            .collect()
     }
 
     /// Dispatch available vehicles to pending requests.
     pub fn dispatch(&mut self) -> Vec<(usize, usize)> {
         let mut assignments = Vec::new();
-        let pending: Vec<usize> = self.requests.iter()
+        let pending: Vec<usize> = self
+            .requests
+            .iter()
             .enumerate()
             .filter(|(_, r)| !r.completed && r.assigned_vehicle.is_none())
             .map(|(i, _)| i)
@@ -256,9 +282,12 @@ impl FleetManager {
 
         // Sort pending by priority (highest first)
         let mut sorted_pending = pending;
-        sorted_pending.sort_by(|&a, &b|
-            self.requests[b].priority.partial_cmp(&self.requests[a].priority)
-                .unwrap_or(std::cmp::Ordering::Equal));
+        sorted_pending.sort_by(|&a, &b| {
+            self.requests[b]
+                .priority
+                .partial_cmp(&self.requests[a].priority)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         for ri in sorted_pending {
             let pickup = self.requests[ri].pickup;
@@ -276,45 +305,43 @@ impl FleetManager {
     }
 
     fn select_vehicle(&self, target: (f64, f64)) -> Option<usize> {
-        let available: Vec<usize> = self.vehicles.iter()
+        let available: Vec<usize> = self
+            .vehicles
+            .iter()
             .enumerate()
             .filter(|(_, v)| v.is_available())
             .map(|(i, _)| i)
             .collect();
 
-        if available.is_empty() { return None; }
+        if available.is_empty() {
+            return None;
+        }
 
         match self.dispatch_strategy {
-            DispatchStrategy::NearestFirst => {
-                available.into_iter()
-                    .min_by(|&a, &b| {
-                        let da = self.vehicles[a].distance_to(target);
-                        let db = self.vehicles[b].distance_to(target);
-                        da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
-                    })
-            }
-            DispatchStrategy::HighestBattery => {
-                available.into_iter()
-                    .max_by(|&a, &b| {
-                        self.vehicles[a].battery_level.partial_cmp(&self.vehicles[b].battery_level)
-                            .unwrap_or(std::cmp::Ordering::Equal)
-                    })
-            }
-            DispatchStrategy::FastestEta => {
-                available.into_iter()
-                    .min_by(|&a, &b| {
-                        let ta = self.vehicles[a].time_to(target);
-                        let tb = self.vehicles[b].time_to(target);
-                        ta.partial_cmp(&tb).unwrap_or(std::cmp::Ordering::Equal)
-                    })
-            }
+            DispatchStrategy::NearestFirst => available.into_iter().min_by(|&a, &b| {
+                let da = self.vehicles[a].distance_to(target);
+                let db = self.vehicles[b].distance_to(target);
+                da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+            }),
+            DispatchStrategy::HighestBattery => available.into_iter().max_by(|&a, &b| {
+                self.vehicles[a]
+                    .battery_level
+                    .partial_cmp(&self.vehicles[b].battery_level)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            }),
+            DispatchStrategy::FastestEta => available.into_iter().min_by(|&a, &b| {
+                let ta = self.vehicles[a].time_to(target);
+                let tb = self.vehicles[b].time_to(target);
+                ta.partial_cmp(&tb).unwrap_or(std::cmp::Ordering::Equal)
+            }),
         }
     }
 
     /// Find nearest charging station for a vehicle.
     pub fn nearest_charger(&self, vehicle_idx: usize) -> Option<(f64, f64)> {
         let pos = self.vehicles[vehicle_idx].position;
-        self.charging_stations.iter()
+        self.charging_stations
+            .iter()
             .min_by(|a, b| {
                 let da = (a.0 - pos.0).powi(2) + (a.1 - pos.1).powi(2);
                 let db = (b.0 - pos.0).powi(2) + (b.1 - pos.1).powi(2);
@@ -325,10 +352,13 @@ impl FleetManager {
 
     /// Check for vehicles needing to charge.
     pub fn vehicles_needing_charge(&self) -> Vec<usize> {
-        self.vehicles.iter()
+        self.vehicles
+            .iter()
             .enumerate()
-            .filter(|(_, v)| v.battery_percent() < self.low_battery_threshold
-                && v.status != VehicleStatus::Charging)
+            .filter(|(_, v)| {
+                v.battery_percent() < self.low_battery_threshold
+                    && v.status != VehicleStatus::Charging
+            })
             .map(|(i, _)| i)
             .collect()
     }
@@ -337,22 +367,53 @@ impl FleetManager {
     pub fn stats(&self) -> FleetStats {
         let total = self.vehicles.len();
         let available = self.vehicles.iter().filter(|v| v.is_available()).count();
-        let on_task = self.vehicles.iter().filter(|v| v.status == VehicleStatus::OnTask).count();
-        let charging = self.vehicles.iter().filter(|v| v.status == VehicleStatus::Charging).count();
+        let on_task = self
+            .vehicles
+            .iter()
+            .filter(|v| v.status == VehicleStatus::OnTask)
+            .count();
+        let charging = self
+            .vehicles
+            .iter()
+            .filter(|v| v.status == VehicleStatus::Charging)
+            .count();
         let avg_battery = if total > 0 {
-            self.vehicles.iter().map(|v| v.battery_percent()).sum::<f64>() / total as f64
-        } else { 0.0 };
+            self.vehicles
+                .iter()
+                .map(|v| v.battery_percent())
+                .sum::<f64>()
+                / total as f64
+        } else {
+            0.0
+        };
         let total_completed = self.vehicles.iter().map(|v| v.tasks_completed).sum();
-        let pending = self.requests.iter().filter(|r| !r.completed && r.assigned_vehicle.is_none()).count();
+        let pending = self
+            .requests
+            .iter()
+            .filter(|r| !r.completed && r.assigned_vehicle.is_none())
+            .count();
 
-        FleetStats { total, available, on_task, charging, avg_battery, total_completed, pending }
+        FleetStats {
+            total,
+            available,
+            on_task,
+            charging,
+            avg_battery,
+            total_completed,
+            pending,
+        }
     }
 }
 
 impl fmt::Display for FleetManager {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "FleetManager({} vehicles, {} requests, {})",
-            self.vehicles.len(), self.requests.len(), self.dispatch_strategy)
+        write!(
+            f,
+            "FleetManager({} vehicles, {} requests, {})",
+            self.vehicles.len(),
+            self.requests.len(),
+            self.dispatch_strategy
+        )
     }
 }
 
@@ -370,9 +431,17 @@ pub struct FleetStats {
 
 impl fmt::Display for FleetStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Fleet: {}/{} avail, {} on-task, {} charging, bat={:.0}%, {} completed, {} pending",
-            self.available, self.total, self.on_task, self.charging,
-            self.avg_battery, self.total_completed, self.pending)
+        write!(
+            f,
+            "Fleet: {}/{} avail, {} on-task, {} charging, bat={:.0}%, {} completed, {} pending",
+            self.available,
+            self.total,
+            self.on_task,
+            self.charging,
+            self.avg_battery,
+            self.total_completed,
+            self.pending
+        )
     }
 }
 
@@ -389,7 +458,12 @@ pub struct RebalanceZone {
 
 impl RebalanceZone {
     pub fn new(id: usize, center: (f64, f64), radius: f64) -> Self {
-        Self { id, center, radius, demand_weight: 1.0 }
+        Self {
+            id,
+            center,
+            radius,
+            demand_weight: 1.0,
+        }
     }
 
     pub fn with_demand(mut self, weight: f64) -> Self {
@@ -426,13 +500,17 @@ pub fn compute_rebalance(
     let total_idle: usize = vehicles.iter().filter(|v| v.is_available()).count();
 
     for (zi, zone) in zones.iter().enumerate() {
-        let target_count = ((zone.demand_weight / total_demand.max(1.0)) * total_idle as f64).ceil() as usize;
+        let target_count =
+            ((zone.demand_weight / total_demand.max(1.0)) * total_idle as f64).ceil() as usize;
         if zone_counts[zi] < target_count {
             // Find nearest idle vehicle not already moving
             let needed = target_count - zone_counts[zi];
-            let mut candidates: Vec<(usize, f64)> = vehicles.iter()
+            let mut candidates: Vec<(usize, f64)> = vehicles
+                .iter()
                 .enumerate()
-                .filter(|(i, v)| v.is_available() && !moves.contains_key(i) && !zone.contains(v.position))
+                .filter(|(i, v)| {
+                    v.is_available() && !moves.contains_key(i) && !zone.contains(v.position)
+                })
                 .map(|(i, v)| {
                     let dx = v.position.0 - zone.center.0;
                     let dy = v.position.1 - zone.center.1;
@@ -585,8 +663,13 @@ mod tests {
         assert!(format!("{fm}").contains("FleetManager"));
 
         let stats = FleetStats {
-            total: 5, available: 3, on_task: 1, charging: 1,
-            avg_battery: 75.0, total_completed: 10, pending: 2,
+            total: 5,
+            available: 3,
+            on_task: 1,
+            charging: 1,
+            avg_battery: 75.0,
+            total_completed: 10,
+            pending: 2,
         };
         assert!(format!("{stats}").contains("3/5"));
     }

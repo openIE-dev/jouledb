@@ -19,10 +19,16 @@ pub struct Pose2D {
 
 impl Pose2D {
     pub fn new(x: f64, y: f64, theta: f64) -> Self {
-        Self { x, y, theta: wrap_angle(theta) }
+        Self {
+            x,
+            y,
+            theta: wrap_angle(theta),
+        }
     }
 
-    pub fn origin() -> Self { Self::new(0.0, 0.0, 0.0) }
+    pub fn origin() -> Self {
+        Self::new(0.0, 0.0, 0.0)
+    }
 }
 
 impl fmt::Display for Pose2D {
@@ -33,8 +39,12 @@ impl fmt::Display for Pose2D {
 
 fn wrap_angle(a: f64) -> f64 {
     let mut v = a % (2.0 * std::f64::consts::PI);
-    if v > std::f64::consts::PI { v -= 2.0 * std::f64::consts::PI; }
-    if v < -std::f64::consts::PI { v += 2.0 * std::f64::consts::PI; }
+    if v > std::f64::consts::PI {
+        v -= 2.0 * std::f64::consts::PI;
+    }
+    if v < -std::f64::consts::PI {
+        v += 2.0 * std::f64::consts::PI;
+    }
     v
 }
 
@@ -64,7 +74,9 @@ impl LandmarkEstimate {
         let dy = self.mean[1] - pose.y;
         let q = dx * dx + dy * dy;
         let sq = q.sqrt();
-        if sq < 1e-12 { return; }
+        if sq < 1e-12 {
+            return;
+        }
 
         let pred_range = sq;
         let pred_bearing = wrap_angle(dy.atan2(dx) - pose.theta);
@@ -88,7 +100,9 @@ impl LandmarkEstimate {
         let s11 = hp10 * h10 + hp11 * h11 + obs_noise[1];
 
         let det = s00 * s11 - s01 * s10;
-        if det.abs() < 1e-15 { return; }
+        if det.abs() < 1e-15 {
+            return;
+        }
         let inv_det = 1.0 / det;
         let si00 = s11 * inv_det;
         let si01 = -s01 * inv_det;
@@ -149,7 +163,11 @@ pub struct Particle {
 
 impl Particle {
     pub fn new(pose: Pose2D) -> Self {
-        Self { pose, weight: 1.0, landmarks: Vec::new() }
+        Self {
+            pose,
+            weight: 1.0,
+            landmarks: Vec::new(),
+        }
     }
 
     pub fn find_landmark(&self, id: usize) -> Option<usize> {
@@ -166,10 +184,17 @@ pub struct Rng {
 }
 
 impl Rng {
-    pub fn new(seed: u64) -> Self { Self { state: seed.wrapping_add(1) } }
+    pub fn new(seed: u64) -> Self {
+        Self {
+            state: seed.wrapping_add(1),
+        }
+    }
 
     pub fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.state
     }
 
@@ -213,7 +238,9 @@ impl Default for FastSlamConfig {
 }
 
 impl FastSlamConfig {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn with_num_particles(mut self, n: usize) -> Self {
         self.num_particles = n;
@@ -263,15 +290,27 @@ impl FastSlam {
                 Particle::new(Pose2D::new(x, y, t))
             })
             .collect();
-        Self { particles, config, rng }
+        Self {
+            particles,
+            config,
+            rng,
+        }
     }
 
     /// Number of effective particles: N_eff = 1 / Σ w_i².
     pub fn effective_particles(&self) -> f64 {
         let sum_w: f64 = self.particles.iter().map(|p| p.weight).sum();
-        if sum_w < 1e-15 { return 0.0; }
-        let sum_sq: f64 = self.particles.iter().map(|p| (p.weight / sum_w).powi(2)).sum();
-        if sum_sq < 1e-15 { return self.particles.len() as f64; }
+        if sum_w < 1e-15 {
+            return 0.0;
+        }
+        let sum_sq: f64 = self
+            .particles
+            .iter()
+            .map(|p| (p.weight / sum_w).powi(2))
+            .sum();
+        if sum_sq < 1e-15 {
+            return self.particles.len() as f64;
+        }
         1.0 / sum_sq
     }
 
@@ -306,7 +345,10 @@ impl FastSlam {
                 if let Some(idx) = particle.find_landmark(obs.landmark_id) {
                     // Update existing landmark EKF
                     particle.landmarks[idx].update(
-                        &particle.pose, obs.range, obs.bearing, &obs_noise,
+                        &particle.pose,
+                        obs.range,
+                        obs.bearing,
+                        &obs_noise,
                     );
                     // Weight proportional to measurement likelihood (simplified)
                     let lm = &particle.landmarks[idx];
@@ -316,13 +358,21 @@ impl FastSlam {
                     let pred_b = wrap_angle(dy.atan2(dx) - particle.pose.theta);
                     let dr = obs.range - pred_r;
                     let db = wrap_angle(obs.bearing - pred_b);
-                    let likelihood = (-0.5 * (dr * dr / obs_noise[0] + db * db / obs_noise[1])).exp();
+                    let likelihood =
+                        (-0.5 * (dr * dr / obs_noise[0] + db * db / obs_noise[1])).exp();
                     particle.weight *= likelihood.max(1e-30);
                 } else {
                     // New landmark
-                    let lx = particle.pose.x + obs.range * (particle.pose.theta + obs.bearing).cos();
-                    let ly = particle.pose.y + obs.range * (particle.pose.theta + obs.bearing).sin();
-                    particle.landmarks.push(LandmarkEstimate::new(obs.landmark_id, lx, ly, init_cov));
+                    let lx =
+                        particle.pose.x + obs.range * (particle.pose.theta + obs.bearing).cos();
+                    let ly =
+                        particle.pose.y + obs.range * (particle.pose.theta + obs.bearing).sin();
+                    particle.landmarks.push(LandmarkEstimate::new(
+                        obs.landmark_id,
+                        lx,
+                        ly,
+                        init_cov,
+                    ));
                 }
             }
         }
@@ -333,9 +383,13 @@ impl FastSlam {
         let sum: f64 = self.particles.iter().map(|p| p.weight).sum();
         if sum < 1e-30 {
             let w = 1.0 / self.particles.len() as f64;
-            for p in &mut self.particles { p.weight = w; }
+            for p in &mut self.particles {
+                p.weight = w;
+            }
         } else {
-            for p in &mut self.particles { p.weight /= sum; }
+            for p in &mut self.particles {
+                p.weight /= sum;
+            }
         }
     }
 
@@ -391,7 +445,11 @@ impl FastSlam {
     pub fn best_particle(&self) -> &Particle {
         self.particles
             .iter()
-            .max_by(|a, b| a.weight.partial_cmp(&b.weight).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|a, b| {
+                a.weight
+                    .partial_cmp(&b.weight)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .unwrap()
     }
 
@@ -422,9 +480,7 @@ mod tests {
     use super::*;
 
     fn small_config() -> FastSlamConfig {
-        FastSlamConfig::new()
-            .with_num_particles(20)
-            .with_seed(123)
+        FastSlamConfig::new().with_num_particles(20).with_seed(123)
     }
 
     #[test]
@@ -473,7 +529,9 @@ mod tests {
     fn test_effective_particles_uniform() {
         let mut fs = FastSlam::new(small_config());
         let w = 1.0 / 20.0;
-        for p in &mut fs.particles { p.weight = w; }
+        for p in &mut fs.particles {
+            p.weight = w;
+        }
         let neff = fs.effective_particles();
         assert!((neff - 20.0).abs() < 0.1);
     }
@@ -491,7 +549,11 @@ mod tests {
     #[test]
     fn test_update_adds_new_landmarks() {
         let mut fs = FastSlam::new(small_config());
-        let obs = vec![Observation { landmark_id: 1, range: 5.0, bearing: 0.0 }];
+        let obs = vec![Observation {
+            landmark_id: 1,
+            range: 5.0,
+            bearing: 0.0,
+        }];
         fs.update(&obs);
         for p in &fs.particles {
             assert_eq!(p.landmarks.len(), 1);
@@ -501,7 +563,11 @@ mod tests {
     #[test]
     fn test_update_known_landmark() {
         let mut fs = FastSlam::new(small_config());
-        let obs = vec![Observation { landmark_id: 1, range: 5.0, bearing: 0.0 }];
+        let obs = vec![Observation {
+            landmark_id: 1,
+            range: 5.0,
+            bearing: 0.0,
+        }];
         fs.update(&obs);
         fs.update(&obs);
         // Still just 1 landmark per particle
@@ -525,7 +591,10 @@ mod tests {
     #[test]
     fn test_mean_pose() {
         let mut fs = FastSlam::new(small_config());
-        for p in &mut fs.particles { p.pose = Pose2D::new(1.0, 2.0, 0.0); p.weight = 1.0 / 20.0; }
+        for p in &mut fs.particles {
+            p.pose = Pose2D::new(1.0, 2.0, 0.0);
+            p.weight = 1.0 / 20.0;
+        }
         let mp = fs.mean_pose();
         assert!((mp.x - 1.0).abs() < 0.01);
         assert!((mp.y - 2.0).abs() < 0.01);
@@ -542,16 +611,18 @@ mod tests {
     #[test]
     fn test_step_full_cycle() {
         let mut fs = FastSlam::new(small_config());
-        let obs = vec![Observation { landmark_id: 1, range: 3.0, bearing: 0.5 }];
+        let obs = vec![Observation {
+            landmark_id: 1,
+            range: 3.0,
+            bearing: 0.5,
+        }];
         fs.step(1.0, 0.1, 0.1, &obs);
         assert_eq!(fs.particles.len(), 20);
     }
 
     #[test]
     fn test_config_builder() {
-        let cfg = FastSlamConfig::new()
-            .with_num_particles(50)
-            .with_seed(7);
+        let cfg = FastSlamConfig::new().with_num_particles(50).with_seed(7);
         assert_eq!(cfg.num_particles, 50);
         assert_eq!(cfg.seed, 7);
     }
@@ -579,9 +650,21 @@ mod tests {
     fn test_multiple_landmarks() {
         let mut fs = FastSlam::new(small_config());
         let obs = vec![
-            Observation { landmark_id: 1, range: 3.0, bearing: 0.0 },
-            Observation { landmark_id: 2, range: 5.0, bearing: 1.0 },
-            Observation { landmark_id: 3, range: 4.0, bearing: -0.5 },
+            Observation {
+                landmark_id: 1,
+                range: 3.0,
+                bearing: 0.0,
+            },
+            Observation {
+                landmark_id: 2,
+                range: 5.0,
+                bearing: 1.0,
+            },
+            Observation {
+                landmark_id: 3,
+                range: 4.0,
+                bearing: -0.5,
+            },
         ];
         fs.update(&obs);
         for p in &fs.particles {

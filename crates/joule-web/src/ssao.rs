@@ -20,7 +20,11 @@ impl SsaoVec3 {
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn length(&self) -> f64 {
@@ -32,7 +36,11 @@ impl SsaoVec3 {
         if len < 1e-10 {
             Self::zero()
         } else {
-            Self { x: self.x / len, y: self.y / len, z: self.z / len }
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+                z: self.z / len,
+            }
         }
     }
 
@@ -41,15 +49,27 @@ impl SsaoVec3 {
     }
 
     pub fn add(&self, other: &Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y, z: self.z + other.z }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
     }
 
     pub fn sub(&self, other: &Self) -> Self {
-        Self { x: self.x - other.x, y: self.y - other.y, z: self.z - other.z }
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+            z: self.z - other.z,
+        }
     }
 
     pub fn scale(&self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn cross(&self, other: &Self) -> Self {
@@ -169,7 +189,10 @@ impl fmt::Display for SsaoVariant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SsaoVariant::Standard => write!(f, "SSAO"),
-            SsaoVariant::Hbao { directions, steps_per_dir } => {
+            SsaoVariant::Hbao {
+                directions,
+                steps_per_dir,
+            } => {
                 write!(f, "HBAO(dirs={}, steps={})", directions, steps_per_dir)
             }
         }
@@ -313,14 +336,24 @@ pub fn reconstruct_position(
 
 /// Construct a tangent-space to view-space rotation basis (TBN matrix).
 fn create_tbn(normal: &SsaoVec3, random_vec: &SsaoVec3) -> (SsaoVec3, SsaoVec3, SsaoVec3) {
-    let tangent = random_vec.sub(&normal.scale(random_vec.dot(normal))).normalized();
+    let tangent = random_vec
+        .sub(&normal.scale(random_vec.dot(normal)))
+        .normalized();
     let bitangent = normal.cross(&tangent);
     (tangent, bitangent, normal.clone())
 }
 
 /// Transform a tangent-space vector to view-space using TBN.
-fn tbn_transform(v: &SsaoVec3, tangent: &SsaoVec3, bitangent: &SsaoVec3, normal: &SsaoVec3) -> SsaoVec3 {
-    tangent.scale(v.x).add(&bitangent.scale(v.y)).add(&normal.scale(v.z))
+fn tbn_transform(
+    v: &SsaoVec3,
+    tangent: &SsaoVec3,
+    bitangent: &SsaoVec3,
+    normal: &SsaoVec3,
+) -> SsaoVec3 {
+    tangent
+        .scale(v.x)
+        .add(&bitangent.scale(v.y))
+        .add(&normal.scale(v.z))
 }
 
 /// Standard SSAO computation at a single pixel.
@@ -453,11 +486,7 @@ fn hbao_pixel(
 }
 
 /// Edge-aware bilateral blur for AO buffer.
-pub fn bilateral_blur(
-    ao: &AoBuffer,
-    depth_buf: &SsaoDepthBuffer,
-    radius: usize,
-) -> AoBuffer {
+pub fn bilateral_blur(ao: &AoBuffer, depth_buf: &SsaoDepthBuffer, radius: usize) -> AoBuffer {
     let w = ao.width;
     let h = ao.height;
     let mut blurred = AoBuffer::new(w, h);
@@ -479,8 +508,10 @@ pub fn bilateral_blur(
                     let sample_depth = depth_buf.sample_clamp(sx, sy);
 
                     let depth_diff = (center_depth - sample_depth).abs();
-                    let depth_weight = (-depth_diff * depth_diff / (2.0 * depth_sigma * depth_sigma)).exp();
-                    let spatial = (-(dx * dx + dy * dy) as f64 / (2.0 * (radius as f64 + 0.5).powi(2))).exp();
+                    let depth_weight =
+                        (-depth_diff * depth_diff / (2.0 * depth_sigma * depth_sigma)).exp();
+                    let spatial =
+                        (-(dx * dx + dy * dy) as f64 / (2.0 * (radius as f64 + 0.5).powi(2))).exp();
                     let weight = depth_weight * spatial;
 
                     sum += sample_ao * weight;
@@ -525,7 +556,10 @@ pub fn compute_ssao(
                 }
             }
         }
-        SsaoVariant::Hbao { directions, steps_per_dir } => {
+        SsaoVariant::Hbao {
+            directions,
+            steps_per_dir,
+        } => {
             for y in 0..h {
                 for x in 0..w {
                     let val = hbao_pixel(x, y, depth_buf, *directions, *steps_per_dir, config);
@@ -561,11 +595,19 @@ pub fn compute_ao_stats(ao: &AoBuffer) -> AoStats {
     let mut visible = 0usize;
 
     for &v in &ao.values {
-        if v < min_v { min_v = v; }
-        if v > max_v { max_v = v; }
+        if v < min_v {
+            min_v = v;
+        }
+        if v > max_v {
+            max_v = v;
+        }
         sum += v;
-        if v < 0.01 { occluded += 1; }
-        if v > 0.99 { visible += 1; }
+        if v < 0.01 {
+            occluded += 1;
+        }
+        if v > 0.99 {
+            visible += 1;
+        }
     }
 
     let count = ao.values.len().max(1);
@@ -705,7 +747,10 @@ mod tests {
             }
         }
         let config = SsaoConfig {
-            variant: SsaoVariant::Hbao { directions: 4, steps_per_dir: 4 },
+            variant: SsaoVariant::Hbao {
+                directions: 4,
+                steps_per_dir: 4,
+            },
             blur_enabled: false,
             ..Default::default()
         };
@@ -795,7 +840,13 @@ mod tests {
     fn test_ssao_variant_display() {
         let s = format!("{}", SsaoVariant::Standard);
         assert_eq!(s, "SSAO");
-        let h = format!("{}", SsaoVariant::Hbao { directions: 8, steps_per_dir: 4 });
+        let h = format!(
+            "{}",
+            SsaoVariant::Hbao {
+                directions: 8,
+                steps_per_dir: 4
+            }
+        );
         assert!(h.contains("HBAO"));
     }
 

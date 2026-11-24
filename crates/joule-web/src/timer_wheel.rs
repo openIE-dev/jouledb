@@ -144,9 +144,9 @@ impl TimerWheel {
     /// Create a new three-level timing wheel.
     pub fn new() -> Self {
         let levels = vec![
-            WheelLevel::new(256, 1),     // L0: 256 ms
-            WheelLevel::new(64, 256),    // L1: 16384 ms (~16 sec)
-            WheelLevel::new(64, 16384),  // L2: 1048576 ms (~17 min)
+            WheelLevel::new(256, 1),    // L0: 256 ms
+            WheelLevel::new(64, 256),   // L1: 16384 ms (~16 sec)
+            WheelLevel::new(64, 16384), // L2: 1048576 ms (~17 min)
         ];
         Self {
             levels,
@@ -350,9 +350,9 @@ impl TimerWheel {
 
     /// Get time remaining for a timer in ticks.
     pub fn remaining(&self, id: TimerId) -> Option<u64> {
-        self.timers.get(&id).map(|e| {
-            e.expiry_tick.saturating_sub(self.current_tick)
-        })
+        self.timers
+            .get(&id)
+            .map(|e| e.expiry_tick.saturating_sub(self.current_tick))
     }
 
     /// Get wheel statistics.
@@ -381,7 +381,11 @@ impl TimerWheel {
 
     fn insert_into_wheel(&mut self, id: TimerId, ticks_from_now: u64) {
         // delay=0 means "fire on the very next tick", so treat as delay=1.
-        let effective_delay = if ticks_from_now == 0 { 1 } else { ticks_from_now };
+        let effective_delay = if ticks_from_now == 0 {
+            1
+        } else {
+            ticks_from_now
+        };
         for level in &mut self.levels {
             if level.insert(id, effective_delay) {
                 return;
@@ -469,7 +473,9 @@ impl TimerWheel {
         }
 
         // Remove promoted from overflow.
-        let keys_to_remove: Vec<u64> = self.overflow.keys()
+        let keys_to_remove: Vec<u64> = self
+            .overflow
+            .keys()
             .take_while(|&&k| k <= cutoff)
             .copied()
             .collect();

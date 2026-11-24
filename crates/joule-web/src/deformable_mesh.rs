@@ -44,20 +44,38 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
 
     pub fn add(self, o: Self) -> Self {
-        Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z }
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
     }
 
     pub fn sub(self, o: Self) -> Self {
-        Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z }
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
     }
 
     pub fn scale(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn dot(self, o: Self) -> f64 {
@@ -89,15 +107,15 @@ pub struct Mat3 {
 }
 
 impl Mat3 {
-    pub const IDENTITY: Self = Self { m: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]] };
+    pub const IDENTITY: Self = Self {
+        m: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+    };
     pub const ZERO: Self = Self { m: [[0.0; 3]; 3] };
 
     pub fn from_cols(c0: Vec3, c1: Vec3, c2: Vec3) -> Self {
-        Self { m: [
-            [c0.x, c1.x, c2.x],
-            [c0.y, c1.y, c2.y],
-            [c0.z, c1.z, c2.z],
-        ]}
+        Self {
+            m: [[c0.x, c1.x, c2.x], [c0.y, c1.y, c2.y], [c0.z, c1.z, c2.z]],
+        }
     }
 
     pub fn col(&self, i: usize) -> Vec3 {
@@ -161,25 +179,41 @@ impl Mat3 {
 
     pub fn add(self, o: Self) -> Self {
         let mut r = Self::ZERO;
-        for i in 0..3 { for j in 0..3 { r.m[i][j] = self.m[i][j] + o.m[i][j]; } }
+        for i in 0..3 {
+            for j in 0..3 {
+                r.m[i][j] = self.m[i][j] + o.m[i][j];
+            }
+        }
         r
     }
 
     pub fn sub(self, o: Self) -> Self {
         let mut r = Self::ZERO;
-        for i in 0..3 { for j in 0..3 { r.m[i][j] = self.m[i][j] - o.m[i][j]; } }
+        for i in 0..3 {
+            for j in 0..3 {
+                r.m[i][j] = self.m[i][j] - o.m[i][j];
+            }
+        }
         r
     }
 
     pub fn scale(self, s: f64) -> Self {
         let mut r = Self::ZERO;
-        for i in 0..3 { for j in 0..3 { r.m[i][j] = self.m[i][j] * s; } }
+        for i in 0..3 {
+            for j in 0..3 {
+                r.m[i][j] = self.m[i][j] * s;
+            }
+        }
         r
     }
 
     pub fn frobenius_norm(self) -> f64 {
         let mut sum = 0.0;
-        for i in 0..3 { for j in 0..3 { sum += self.m[i][j] * self.m[i][j]; } }
+        for i in 0..3 {
+            for j in 0..3 {
+                sum += self.m[i][j] * self.m[i][j];
+            }
+        }
         sum.sqrt()
     }
 
@@ -193,7 +227,10 @@ impl Mat3 {
                 break;
             }
             // Check convergence
-            let diff = r.mul_mat(r.transpose()).sub(Self::IDENTITY).frobenius_norm();
+            let diff = r
+                .mul_mat(r.transpose())
+                .sub(Self::IDENTITY)
+                .frobenius_norm();
             if diff < 1e-8 {
                 break;
             }
@@ -269,11 +306,7 @@ impl DeformableMesh {
             let p2 = rest_positions[nodes[2]];
             let p3 = rest_positions[nodes[3]];
 
-            let dm = Mat3::from_cols(
-                p1.sub(p0),
-                p2.sub(p0),
-                p3.sub(p0),
-            );
+            let dm = Mat3::from_cols(p1.sub(p0), p2.sub(p0), p3.sub(p0));
             let vol = dm.determinant() / 6.0;
             if vol.abs() < 1e-15 {
                 return Err(DeformMeshError::DegenerateTet(ti));
@@ -319,7 +352,11 @@ impl DeformableMesh {
         })
     }
 
-    pub fn set_boundary(&mut self, node: usize, bc: BoundaryCondition) -> Result<(), DeformMeshError> {
+    pub fn set_boundary(
+        &mut self,
+        node: usize,
+        bc: BoundaryCondition,
+    ) -> Result<(), DeformMeshError> {
         if node >= self.positions.len() {
             return Err(DeformMeshError::InvalidNode(node));
         }
@@ -327,7 +364,11 @@ impl DeformableMesh {
         Ok(())
     }
 
-    pub fn set_plasticity(&mut self, tet_idx: usize, yield_threshold: f64) -> Result<(), DeformMeshError> {
+    pub fn set_plasticity(
+        &mut self,
+        tet_idx: usize,
+        yield_threshold: f64,
+    ) -> Result<(), DeformMeshError> {
         if yield_threshold <= 0.0 {
             return Err(DeformMeshError::InvalidYield);
         }
@@ -380,7 +421,9 @@ impl DeformableMesh {
 
             // Cauchy stress (linear): sigma = lambda * tr(strain) * I + 2*mu*strain
             let tr = elastic_strain.m[0][0] + elastic_strain.m[1][1] + elastic_strain.m[2][2];
-            let stress = Mat3::IDENTITY.scale(lambda * tr).add(elastic_strain.scale(2.0 * mu));
+            let stress = Mat3::IDENTITY
+                .scale(lambda * tr)
+                .add(elastic_strain.scale(2.0 * mu));
 
             // Update plasticity: if strain exceeds yield, accumulate plastic strain
             let strain_norm = elastic_strain.frobenius_norm();
@@ -392,7 +435,10 @@ impl DeformableMesh {
 
             // Force = -V * R * sigma * Dm_inv^T
             let vol = tet.rest_volume.abs();
-            let force_mat = r_mat.mul_mat(stress).mul_mat(tet.rest_inv_dm.transpose()).scale(-vol);
+            let force_mat = r_mat
+                .mul_mat(stress)
+                .mul_mat(tet.rest_inv_dm.transpose())
+                .scale(-vol);
 
             // Distribute forces: f1, f2, f3 from columns; f0 = -(f1+f2+f3)
             let f1 = force_mat.col(0);
@@ -476,7 +522,11 @@ impl DeformableMesh {
             total_m += self.masses[i];
             weighted = weighted.add(self.positions[i].scale(self.masses[i]));
         }
-        if total_m < 1e-12 { Vec3::ZERO } else { weighted.scale(1.0 / total_m) }
+        if total_m < 1e-12 {
+            Vec3::ZERO
+        } else {
+            weighted.scale(1.0 / total_m)
+        }
     }
 
     pub fn node_count(&self) -> usize {
@@ -492,7 +542,9 @@ impl DeformableMesh {
         for (i, pos) in self.positions.iter().enumerate() {
             if i < rest_positions.len() {
                 let d = pos.sub(rest_positions[i]).length();
-                if d > max_d { max_d = d; }
+                if d > max_d {
+                    max_d = d;
+                }
             }
         }
         max_d
@@ -555,14 +607,18 @@ mod tests {
 
     #[test]
     fn test_mat3_determinant() {
-        let m = Mat3 { m: [[1.0, 2.0, 3.0], [0.0, 1.0, 4.0], [5.0, 6.0, 0.0]] };
+        let m = Mat3 {
+            m: [[1.0, 2.0, 3.0], [0.0, 1.0, 4.0], [5.0, 6.0, 0.0]],
+        };
         let det = m.determinant();
         assert!(approx(det, 1.0, 1e-10));
     }
 
     #[test]
     fn test_mat3_inverse() {
-        let m = Mat3 { m: [[2.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 4.0]] };
+        let m = Mat3 {
+            m: [[2.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 4.0]],
+        };
         let inv = m.inverse().unwrap();
         assert!(approx(inv.m[0][0], 0.5, 1e-10));
         assert!(approx(inv.m[1][1], 1.0 / 3.0, 1e-10));
@@ -725,7 +781,9 @@ mod tests {
 
     #[test]
     fn test_mat3_transpose() {
-        let m = Mat3 { m: [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]] };
+        let m = Mat3 {
+            m: [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]],
+        };
         let t = m.transpose();
         assert!(approx(t.m[0][1], 4.0, 1e-10));
         assert!(approx(t.m[1][0], 2.0, 1e-10));

@@ -147,7 +147,13 @@ impl IsotopeEnvelope {
         let monoisotopic_mz = peaks.first().map(|p| p.mz).unwrap_or(0.0);
         let neutral_mass = monoisotopic_mz * charge as f64 - charge as f64 * PROTON_MASS;
         let total_intensity = peaks.iter().map(|p| p.intensity).sum();
-        Self { peaks, charge, monoisotopic_mz, neutral_mass, total_intensity }
+        Self {
+            peaks,
+            charge,
+            monoisotopic_mz,
+            neutral_mass,
+            total_intensity,
+        }
     }
 
     /// Number of isotope peaks in this envelope.
@@ -218,7 +224,11 @@ impl DeconvolvedMass {
 
 impl fmt::Display for DeconvolvedMass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let charges: Vec<String> = self.charge_states.iter().map(|z| format!("{}+", z)).collect();
+        let charges: Vec<String> = self
+            .charge_states
+            .iter()
+            .map(|z| format!("{}+", z))
+            .collect();
         write!(
             f,
             "M={:.2} I={:.0} charges=[{}] n={}",
@@ -451,11 +461,19 @@ mod tests {
     #[test]
     fn test_merge_same_species() {
         let env1 = IsotopeEnvelope::new(
-            vec![MzPeak::new(500.0, 1000.0), MzPeak::new(501.003, 800.0), MzPeak::new(502.007, 400.0)],
+            vec![
+                MzPeak::new(500.0, 1000.0),
+                MzPeak::new(501.003, 800.0),
+                MzPeak::new(502.007, 400.0),
+            ],
             1,
         );
         let env2 = IsotopeEnvelope::new(
-            vec![MzPeak::new(250.5, 600.0), MzPeak::new(251.0, 500.0), MzPeak::new(251.5, 300.0)],
+            vec![
+                MzPeak::new(250.5, 600.0),
+                MzPeak::new(251.0, 500.0),
+                MzPeak::new(251.5, 300.0),
+            ],
             2,
         );
         let merged = merge_envelopes(&[env1, env2], 1.0);
@@ -494,7 +512,11 @@ mod tests {
     #[test]
     fn test_envelope_display() {
         let env = IsotopeEnvelope::new(
-            vec![MzPeak::new(500.0, 1000.0), MzPeak::new(501.0, 500.0), MzPeak::new(502.0, 200.0)],
+            vec![
+                MzPeak::new(500.0, 1000.0),
+                MzPeak::new(501.0, 500.0),
+                MzPeak::new(502.0, 200.0),
+            ],
             2,
         );
         let d = format!("{}", env);
@@ -518,10 +540,7 @@ mod tests {
 
     #[test]
     fn test_min_isotope_peaks_filter() {
-        let peaks = vec![
-            MzPeak::new(500.0, 1000.0),
-            MzPeak::new(501.003, 800.0),
-        ];
+        let peaks = vec![MzPeak::new(500.0, 1000.0), MzPeak::new(501.003, 800.0)];
         let cfg = DeconvConfig::new().with_min_isotope_peaks(3);
         let envs = detect_envelopes(&peaks, &cfg);
         assert!(envs.is_empty());

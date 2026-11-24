@@ -127,7 +127,11 @@ fn validate_inner(
             push_err(
                 errors,
                 &path,
-                format!("expected type {:?}, got {}", types, json_type_name(instance)),
+                format!(
+                    "expected type {:?}, got {}",
+                    types,
+                    json_type_name(instance)
+                ),
             );
         }
     }
@@ -160,12 +164,20 @@ fn validate_inner(
         }
         if let Some(ex_min) = obj.get("exclusiveMinimum").and_then(|v| v.as_f64()) {
             if n <= ex_min {
-                push_err(errors, &path, format!("value {n} <= exclusiveMinimum {ex_min}"));
+                push_err(
+                    errors,
+                    &path,
+                    format!("value {n} <= exclusiveMinimum {ex_min}"),
+                );
             }
         }
         if let Some(ex_max) = obj.get("exclusiveMaximum").and_then(|v| v.as_f64()) {
             if n >= ex_max {
-                push_err(errors, &path, format!("value {n} >= exclusiveMaximum {ex_max}"));
+                push_err(
+                    errors,
+                    &path,
+                    format!("value {n} >= exclusiveMaximum {ex_max}"),
+                );
             }
         }
         if let Some(mult) = obj.get("multipleOf").and_then(|v| v.as_f64()) {
@@ -180,22 +192,38 @@ fn validate_inner(
         let char_len = s.chars().count();
         if let Some(ml) = obj.get("minLength").and_then(|v| v.as_u64()) {
             if (char_len as u64) < ml {
-                push_err(errors, &path, format!("string length {char_len} < minLength {ml}"));
+                push_err(
+                    errors,
+                    &path,
+                    format!("string length {char_len} < minLength {ml}"),
+                );
             }
         }
         if let Some(ml) = obj.get("maxLength").and_then(|v| v.as_u64()) {
             if (char_len as u64) > ml {
-                push_err(errors, &path, format!("string length {char_len} > maxLength {ml}"));
+                push_err(
+                    errors,
+                    &path,
+                    format!("string length {char_len} > maxLength {ml}"),
+                );
             }
         }
         if let Some(Value::String(pat)) = obj.get("pattern") {
             if !simple_regex_match(pat, s) {
-                push_err(errors, &path, format!("string does not match pattern \"{pat}\""));
+                push_err(
+                    errors,
+                    &path,
+                    format!("string does not match pattern \"{pat}\""),
+                );
             }
         }
         if let Some(Value::String(fmt)) = obj.get("format") {
             if !check_format(fmt, s) {
-                push_err(errors, &path, format!("string does not match format \"{fmt}\""));
+                push_err(
+                    errors,
+                    &path,
+                    format!("string does not match format \"{fmt}\""),
+                );
             }
         }
     }
@@ -204,12 +232,20 @@ fn validate_inner(
     if let Some(arr) = instance.as_array() {
         if let Some(mi) = obj.get("minItems").and_then(|v| v.as_u64()) {
             if (arr.len() as u64) < mi {
-                push_err(errors, &path, format!("array length {} < minItems {mi}", arr.len()));
+                push_err(
+                    errors,
+                    &path,
+                    format!("array length {} < minItems {mi}", arr.len()),
+                );
             }
         }
         if let Some(mi) = obj.get("maxItems").and_then(|v| v.as_u64()) {
             if (arr.len() as u64) > mi {
-                push_err(errors, &path, format!("array length {} > maxItems {mi}", arr.len()));
+                push_err(
+                    errors,
+                    &path,
+                    format!("array length {} > maxItems {mi}", arr.len()),
+                );
             }
         }
         if let Some(items_schema) = obj.get("items") {
@@ -245,7 +281,11 @@ fn validate_inner(
             for r in req {
                 if let Some(name) = r.as_str() {
                     if !map.contains_key(name) {
-                        push_err(errors, &path, format!("missing required property \"{name}\""));
+                        push_err(
+                            errors,
+                            &path,
+                            format!("missing required property \"{name}\""),
+                        );
                     }
                 }
             }
@@ -271,12 +311,20 @@ fn validate_inner(
         // minProperties / maxProperties
         if let Some(mp) = obj.get("minProperties").and_then(|v| v.as_u64()) {
             if (map.len() as u64) < mp {
-                push_err(errors, &path, format!("object has {} properties < minProperties {mp}", map.len()));
+                push_err(
+                    errors,
+                    &path,
+                    format!("object has {} properties < minProperties {mp}", map.len()),
+                );
             }
         }
         if let Some(mp) = obj.get("maxProperties").and_then(|v| v.as_u64()) {
             if (map.len() as u64) > mp {
-                push_err(errors, &path, format!("object has {} properties > maxProperties {mp}", map.len()));
+                push_err(
+                    errors,
+                    &path,
+                    format!("object has {} properties > maxProperties {mp}", map.len()),
+                );
             }
         }
     }
@@ -311,7 +359,11 @@ fn validate_inner(
             })
             .count();
         if count != 1 {
-            push_err(errors, &path, format!("expected exactly 1 oneOf match, got {count}"));
+            push_err(
+                errors,
+                &path,
+                format!("expected exactly 1 oneOf match, got {count}"),
+            );
         }
     }
 
@@ -320,7 +372,11 @@ fn validate_inner(
         let mut tmp = Vec::new();
         validate_inner(not_schema, instance, store, path.clone(), &mut tmp);
         if tmp.is_empty() {
-            push_err(errors, &path, "value should NOT validate against 'not' schema");
+            push_err(
+                errors,
+                &path,
+                "value should NOT validate against 'not' schema",
+            );
         }
     }
 }
@@ -359,8 +415,16 @@ fn escape_pointer(seg: &str) -> String {
 fn simple_regex_match(pattern: &str, text: &str) -> bool {
     let anchored_start = pattern.starts_with('^');
     let anchored_end = pattern.ends_with('$') && !pattern.ends_with("\\$");
-    let pat = if anchored_start { &pattern[1..] } else { pattern };
-    let pat = if anchored_end { &pat[..pat.len() - 1] } else { pat };
+    let pat = if anchored_start {
+        &pattern[1..]
+    } else {
+        pattern
+    };
+    let pat = if anchored_end {
+        &pat[..pat.len() - 1]
+    } else {
+        pat
+    };
 
     if pat.is_empty() {
         return if anchored_start && anchored_end {
@@ -386,7 +450,11 @@ fn simple_regex_match(pattern: &str, text: &str) -> bool {
 
 fn try_match_at(pat: &str, text: &str, anchored_start: bool, anchored_end: bool) -> bool {
     let chars: Vec<char> = text.chars().collect();
-    let start_positions = if anchored_start { 0..1 } else { 0..chars.len().max(1) };
+    let start_positions = if anchored_start {
+        0..1
+    } else {
+        0..chars.len().max(1)
+    };
     for start in start_positions {
         if let Some(end) = match_from(pat, &chars, start) {
             if !anchored_end || end == chars.len() {
@@ -428,7 +496,9 @@ fn match_from(pat: &str, chars: &[char], mut pos: usize) -> Option<usize> {
                     if let Some(r) = match_from(&pat[pi..], chars, pos) {
                         return Some(r);
                     }
-                    if pos == saved { break; }
+                    if pos == saved {
+                        break;
+                    }
                     pos -= 1;
                 }
                 return None;
@@ -447,7 +517,9 @@ fn match_from(pat: &str, chars: &[char], mut pos: usize) -> Option<usize> {
                     if let Some(r) = match_from(&pat[pi..], chars, pos) {
                         return Some(r);
                     }
-                    if pos == saved { break; }
+                    if pos == saved {
+                        break;
+                    }
                     pos -= 1;
                 }
                 return None;
@@ -476,7 +548,11 @@ fn match_from(pat: &str, chars: &[char], mut pos: usize) -> Option<usize> {
 }
 
 fn class_len(pat: &[u8], i: usize) -> usize {
-    if i < pat.len() && pat[i] == b'\\' { 2 } else { 1 }
+    if i < pat.len() && pat[i] == b'\\' {
+        2
+    } else {
+        1
+    }
 }
 
 fn char_class_match(class: &str, ch: char) -> bool {
@@ -489,7 +565,11 @@ fn char_class_match(class: &str, ch: char) -> bool {
             _ => ch == b[1] as char,
         }
     } else if b.len() == 1 {
-        if b[0] == b'.' { true } else { ch == b[0] as char }
+        if b[0] == b'.' {
+            true
+        } else {
+            ch == b[0] as char
+        }
     } else {
         false
     }
@@ -574,7 +654,7 @@ mod tests {
 
     #[test]
     fn type_array() {
-        ok(json!({"type": "array"}), json!([1,2]));
+        ok(json!({"type": "array"}), json!([1, 2]));
         fail(json!({"type": "array"}), json!({}));
     }
 
@@ -605,7 +685,10 @@ mod tests {
 
     #[test]
     fn minimum_maximum() {
-        ok(json!({"type": "number", "minimum": 0, "maximum": 100}), json!(50));
+        ok(
+            json!({"type": "number", "minimum": 0, "maximum": 100}),
+            json!(50),
+        );
         fail(json!({"minimum": 10}), json!(5));
         fail(json!({"maximum": 10}), json!(15));
     }
@@ -657,7 +740,10 @@ mod tests {
 
     #[test]
     fn format_uuid() {
-        ok(json!({"format": "uuid"}), json!("550e8400-e29b-41d4-a716-446655440000"));
+        ok(
+            json!({"format": "uuid"}),
+            json!("550e8400-e29b-41d4-a716-446655440000"),
+        );
         fail(json!({"format": "uuid"}), json!("not-a-uuid"));
     }
 
@@ -842,16 +928,25 @@ mod tests {
             },
             "required": ["users"]
         });
-        ok(schema.clone(), json!({"users": [{"name": "A", "email": "a@b.com"}]}));
+        ok(
+            schema.clone(),
+            json!({"users": [{"name": "A", "email": "a@b.com"}]}),
+        );
         let errs = fail(schema, json!({"users": [{"name": ""}]}));
         assert!(errs.len() >= 2); // missing email + minLength
     }
 
     #[test]
     fn error_display() {
-        let e = ValidationError { path: "/a/b".into(), message: "bad".into() };
+        let e = ValidationError {
+            path: "/a/b".into(),
+            message: "bad".into(),
+        };
         assert_eq!(format!("{e}"), "/a/b: bad");
-        let e = ValidationError { path: String::new(), message: "root".into() };
+        let e = ValidationError {
+            path: String::new(),
+            message: "root".into(),
+        };
         assert_eq!(format!("{e}"), "root");
     }
 }

@@ -102,27 +102,47 @@ pub struct TcpFlags {
 
 impl TcpFlags {
     pub fn syn() -> Self {
-        Self { syn: true, ..Default::default() }
+        Self {
+            syn: true,
+            ..Default::default()
+        }
     }
 
     pub fn syn_ack() -> Self {
-        Self { syn: true, ack: true, ..Default::default() }
+        Self {
+            syn: true,
+            ack: true,
+            ..Default::default()
+        }
     }
 
     pub fn ack() -> Self {
-        Self { ack: true, ..Default::default() }
+        Self {
+            ack: true,
+            ..Default::default()
+        }
     }
 
     pub fn fin() -> Self {
-        Self { fin: true, ..Default::default() }
+        Self {
+            fin: true,
+            ..Default::default()
+        }
     }
 
     pub fn fin_ack() -> Self {
-        Self { fin: true, ack: true, ..Default::default() }
+        Self {
+            fin: true,
+            ack: true,
+            ..Default::default()
+        }
     }
 
     pub fn rst() -> Self {
-        Self { rst: true, ..Default::default() }
+        Self {
+            rst: true,
+            ..Default::default()
+        }
     }
 }
 
@@ -432,7 +452,10 @@ impl TcpConnection {
         } else if seg.flags.ack {
             TcpEvent::RecvAck
         } else {
-            return Err(TransitionError { state: self.state, event: TcpEvent::RecvAck });
+            return Err(TransitionError {
+                state: self.state,
+                event: TcpEvent::RecvAck,
+            });
         };
 
         // Update remote sequence tracking.
@@ -499,7 +522,9 @@ pub struct ConnectionTable {
 
 impl ConnectionTable {
     pub fn new() -> Self {
-        Self { connections: Vec::new() }
+        Self {
+            connections: Vec::new(),
+        }
     }
 
     /// Add a connection to the table.
@@ -757,8 +782,18 @@ mod tests {
         conn.apply(TcpEvent::RecvSynAck).unwrap();
         let hist = conn.history();
         assert_eq!(hist.len(), 2);
-        assert_eq!(hist[0], (TcpState::Closed, TcpEvent::ActiveOpen, TcpState::SynSent));
-        assert_eq!(hist[1], (TcpState::SynSent, TcpEvent::RecvSynAck, TcpState::Established));
+        assert_eq!(
+            hist[0],
+            (TcpState::Closed, TcpEvent::ActiveOpen, TcpState::SynSent)
+        );
+        assert_eq!(
+            hist[1],
+            (
+                TcpState::SynSent,
+                TcpEvent::RecvSynAck,
+                TcpState::Established
+            )
+        );
     }
 
     #[test]
@@ -814,23 +849,35 @@ mod tests {
     #[test]
     fn test_segment_seq_len() {
         let seg = TcpSegment {
-            src_port: 1, dst_port: 2, seq_num: 0, ack_num: 0,
+            src_port: 1,
+            dst_port: 2,
+            seq_num: 0,
+            ack_num: 0,
             flags: TcpFlags::syn(),
-            window: 1000, payload_len: 0,
+            window: 1000,
+            payload_len: 0,
         };
         assert_eq!(seg.seq_len(), 1);
 
         let seg2 = TcpSegment {
-            src_port: 1, dst_port: 2, seq_num: 0, ack_num: 0,
+            src_port: 1,
+            dst_port: 2,
+            seq_num: 0,
+            ack_num: 0,
             flags: TcpFlags::ack(),
-            window: 1000, payload_len: 500,
+            window: 1000,
+            payload_len: 500,
         };
         assert_eq!(seg2.seq_len(), 500);
 
         let seg3 = TcpSegment {
-            src_port: 1, dst_port: 2, seq_num: 0, ack_num: 0,
+            src_port: 1,
+            dst_port: 2,
+            seq_num: 0,
+            ack_num: 0,
             flags: TcpFlags::fin_ack(),
-            window: 1000, payload_len: 100,
+            window: 1000,
+            payload_len: 100,
         };
         assert_eq!(seg3.seq_len(), 101);
     }

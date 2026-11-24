@@ -86,9 +86,7 @@ impl RebalanceTrigger {
             Self::Threshold(t) => drift.max_drift > t,
             Self::Calendar(interval) => days_since >= interval,
             Self::TotalDrift(t) => drift.sum_absolute_drift > t,
-            Self::ThresholdOrCalendar(t, interval) => {
-                drift.max_drift > t || days_since >= interval
-            }
+            Self::ThresholdOrCalendar(t, interval) => drift.max_drift > t || days_since >= interval,
         }
     }
 }
@@ -236,10 +234,7 @@ impl RebalanceEngine {
         }
 
         let mut trades = Vec::new();
-        for (i, (&current, &target)) in current_values
-            .iter()
-            .zip(target_weights.iter())
-            .enumerate()
+        for (i, (&current, &target)) in current_values.iter().zip(target_weights.iter()).enumerate()
         {
             let target_val = target * total_value;
             let diff = target_val - current;
@@ -268,7 +263,11 @@ impl RebalanceEngine {
         let current_weights: Vec<f64> = current_values.iter().map(|v| v / total).collect();
         let drift = DriftMetrics::compute(&current_weights, target_weights);
 
-        if self.config.trigger.should_rebalance(&drift, days_since_last) {
+        if self
+            .config
+            .trigger
+            .should_rebalance(&drift, days_since_last)
+        {
             Some(self.generate_trades(current_values, target_weights))
         } else {
             None

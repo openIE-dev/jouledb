@@ -22,7 +22,12 @@ use std::sync::{Arc, RwLock};
 pub trait ObjectStoreTier: Send + Sync {
     fn put_object(&self, key: &str, bytes: &[u8]) -> Result<(), StorageError>;
     fn get_object(&self, key: &str) -> Result<Option<Vec<u8>>, StorageError>;
-    fn get_range(&self, key: &str, offset: usize, len: usize) -> Result<Option<Vec<u8>>, StorageError> {
+    fn get_range(
+        &self,
+        key: &str,
+        offset: usize,
+        len: usize,
+    ) -> Result<Option<Vec<u8>>, StorageError> {
         let Some(full) = self.get_object(key)? else {
             return Ok(None);
         };
@@ -110,7 +115,13 @@ impl LocalDirObjectStore {
         let clean: String = key
             .trim_start_matches('/')
             .chars()
-            .map(|c| if c.is_alphanumeric() || matches!(c, '/' | '.' | '-' | '_') { c } else { '_' })
+            .map(|c| {
+                if c.is_alphanumeric() || matches!(c, '/' | '.' | '-' | '_') {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect();
         self.root.join(clean)
     }
@@ -259,7 +270,11 @@ impl TieredCowBranchStorage {
 
     /// Fork a child `TieredCowBranchStorage` in O(1) by sharing the parent's immutable
     /// CAS `cold_directory` pointers (zero object duplication!).
-    pub fn fork_child(&self, child_name: &str, warm_cache_pages: usize) -> Result<Self, BranchError> {
+    pub fn fork_child(
+        &self,
+        child_name: &str,
+        warm_cache_pages: usize,
+    ) -> Result<Self, BranchError> {
         let cold_snapshot = self
             .cold_directory
             .read()
@@ -513,14 +528,17 @@ mod tests {
     #[test]
     fn test_stateless_suspend_resume_and_cas_branch_dedup() {
         let obj_store = Arc::new(InMemoryObjectStore::new());
-        let mut main_tier =
-            TieredCowBranchStorage::new("main", None, obj_store.clone(), 2);
+        let mut main_tier = TieredCowBranchStorage::new("main", None, obj_store.clone(), 2);
 
         let p1 = main_tier.allocate_page().unwrap();
         let p2 = main_tier.allocate_page().unwrap();
         // Both pages carry identical bytes -> CAS deduplicates to 1 physical `.jpage` blob!
         main_tier
-            .write_page(Page::with_data(p1, PageType::BTreeLeaf, b"shared-payload".to_vec()))
+            .write_page(Page::with_data(
+                p1,
+                PageType::BTreeLeaf,
+                b"shared-payload".to_vec(),
+            ))
             .unwrap();
         main_tier
             .write_page(Page::with_data(p2, PageType::BTreeLeaf, b"body-2".to_vec()))
@@ -532,7 +550,11 @@ mod tests {
         // O(1) child fork shares CAS pointers without copying objects; modifies only p2
         let mut child_tier = main_tier.fork_child("agent-exp", 2).unwrap();
         child_tier
-            .write_page(Page::with_data(p2, PageType::BTreeLeaf, b"mutated-by-agent".to_vec()))
+            .write_page(Page::with_data(
+                p2,
+                PageType::BTreeLeaf,
+                b"mutated-by-agent".to_vec(),
+            ))
             .unwrap();
         child_tier.suspend_to_manifest(Some(500), 42).unwrap();
 

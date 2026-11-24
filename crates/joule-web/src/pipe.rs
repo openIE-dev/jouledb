@@ -67,13 +67,17 @@ impl<T> Pipe<T> {
 
     /// Apply `f` and wrap the result in a new `Pipe`.
     pub fn pipe<U>(self, f: impl FnOnce(T) -> U) -> Pipe<U> {
-        Pipe { value: f(self.value) }
+        Pipe {
+            value: f(self.value),
+        }
     }
 
     /// Conditionally apply `f`; no-op when `condition` is false.
     pub fn pipe_if(self, condition: bool, f: impl FnOnce(T) -> T) -> Pipe<T> {
         if condition {
-            Pipe { value: f(self.value) }
+            Pipe {
+                value: f(self.value),
+            }
         } else {
             self
         }

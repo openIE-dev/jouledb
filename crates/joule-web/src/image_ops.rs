@@ -9,7 +9,11 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ImageError {
-    InvalidDimensions { width: u32, height: u32, data_len: usize },
+    InvalidDimensions {
+        width: u32,
+        height: u32,
+        data_len: usize,
+    },
     CropOutOfBounds,
     EmptyImage,
 }
@@ -17,8 +21,14 @@ pub enum ImageError {
 impl fmt::Display for ImageError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ImageError::InvalidDimensions { width, height, data_len } =>
-                write!(f, "data length {data_len} does not match {width}x{height} image"),
+            ImageError::InvalidDimensions {
+                width,
+                height,
+                data_len,
+            } => write!(
+                f,
+                "data length {data_len} does not match {width}x{height} image"
+            ),
             ImageError::CropOutOfBounds => write!(f, "crop region out of bounds"),
             ImageError::EmptyImage => write!(f, "empty image"),
         }
@@ -37,9 +47,20 @@ pub struct Rgba {
 }
 
 impl Rgba {
-    pub fn new(r: u8, g: u8, b: u8, a: u8) -> Self { Self { r, g, b, a } }
-    pub fn rgb(r: u8, g: u8, b: u8) -> Self { Self { r, g, b, a: 255 } }
-    pub fn gray(v: u8) -> Self { Self { r: v, g: v, b: v, a: 255 } }
+    pub fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
+        Self { r, g, b, a }
+    }
+    pub fn rgb(r: u8, g: u8, b: u8) -> Self {
+        Self { r, g, b, a: 255 }
+    }
+    pub fn gray(v: u8) -> Self {
+        Self {
+            r: v,
+            g: v,
+            b: v,
+            a: 255,
+        }
+    }
 
     /// Convert to grayscale using luminance formula.
     pub fn to_gray(&self) -> u8 {
@@ -51,10 +72,22 @@ impl Rgba {
     pub fn lerp(&self, other: &Rgba, t: f64) -> Rgba {
         let inv = 1.0 - t;
         Rgba {
-            r: (self.r as f64 * inv + other.r as f64 * t).round().min(255.0).max(0.0) as u8,
-            g: (self.g as f64 * inv + other.g as f64 * t).round().min(255.0).max(0.0) as u8,
-            b: (self.b as f64 * inv + other.b as f64 * t).round().min(255.0).max(0.0) as u8,
-            a: (self.a as f64 * inv + other.a as f64 * t).round().min(255.0).max(0.0) as u8,
+            r: (self.r as f64 * inv + other.r as f64 * t)
+                .round()
+                .min(255.0)
+                .max(0.0) as u8,
+            g: (self.g as f64 * inv + other.g as f64 * t)
+                .round()
+                .min(255.0)
+                .max(0.0) as u8,
+            b: (self.b as f64 * inv + other.b as f64 * t)
+                .round()
+                .min(255.0)
+                .max(0.0) as u8,
+            a: (self.a as f64 * inv + other.a as f64 * t)
+                .round()
+                .min(255.0)
+                .max(0.0) as u8,
         }
     }
 }
@@ -74,15 +107,27 @@ impl PixelBuffer {
     pub fn new(width: u32, height: u32, pixels: Vec<Rgba>) -> Result<Self, ImageError> {
         let expected = (width as usize) * (height as usize);
         if pixels.len() != expected {
-            return Err(ImageError::InvalidDimensions { width, height, data_len: pixels.len() });
+            return Err(ImageError::InvalidDimensions {
+                width,
+                height,
+                data_len: pixels.len(),
+            });
         }
-        Ok(Self { width, height, pixels })
+        Ok(Self {
+            width,
+            height,
+            pixels,
+        })
     }
 
     /// Create a buffer filled with a single color.
     pub fn filled(width: u32, height: u32, color: Rgba) -> Self {
         let pixels = vec![color; (width as usize) * (height as usize)];
-        Self { width, height, pixels }
+        Self {
+            width,
+            height,
+            pixels,
+        }
     }
 
     /// Get a pixel at (x, y).
@@ -106,12 +151,21 @@ impl PixelBuffer {
     pub fn from_rgba_bytes(width: u32, height: u32, data: &[u8]) -> Result<Self, ImageError> {
         let expected = (width as usize) * (height as usize) * 4;
         if data.len() != expected {
-            return Err(ImageError::InvalidDimensions { width, height, data_len: data.len() });
+            return Err(ImageError::InvalidDimensions {
+                width,
+                height,
+                data_len: data.len(),
+            });
         }
-        let pixels: Vec<Rgba> = data.chunks_exact(4)
+        let pixels: Vec<Rgba> = data
+            .chunks_exact(4)
             .map(|c| Rgba::new(c[0], c[1], c[2], c[3]))
             .collect();
-        Ok(Self { width, height, pixels })
+        Ok(Self {
+            width,
+            height,
+            pixels,
+        })
     }
 
     /// Convert to raw RGBA bytes.
@@ -142,12 +196,24 @@ impl PixelBuffer {
 
 /// Interpolation method for resizing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ResizeFilter { Nearest, Bilinear }
+pub enum ResizeFilter {
+    Nearest,
+    Bilinear,
+}
 
 /// Resize an image to new dimensions.
-pub fn resize(buf: &PixelBuffer, new_width: u32, new_height: u32, filter: ResizeFilter) -> PixelBuffer {
+pub fn resize(
+    buf: &PixelBuffer,
+    new_width: u32,
+    new_height: u32,
+    filter: ResizeFilter,
+) -> PixelBuffer {
     if new_width == 0 || new_height == 0 {
-        return PixelBuffer { width: new_width, height: new_height, pixels: Vec::new() };
+        return PixelBuffer {
+            width: new_width,
+            height: new_height,
+            pixels: Vec::new(),
+        };
     }
     let mut out = Vec::with_capacity((new_width as usize) * (new_height as usize));
     for y in 0..new_height {
@@ -160,14 +226,16 @@ pub fn resize(buf: &PixelBuffer, new_width: u32, new_height: u32, filter: Resize
                     let sy = (src_y.floor() as u32).min(buf.height - 1);
                     buf.get_pixel(sx, sy)
                 }
-                ResizeFilter::Bilinear => {
-                    bilinear_sample(buf, src_x, src_y)
-                }
+                ResizeFilter::Bilinear => bilinear_sample(buf, src_x, src_y),
             };
             out.push(pixel);
         }
     }
-    PixelBuffer { width: new_width, height: new_height, pixels: out }
+    PixelBuffer {
+        width: new_width,
+        height: new_height,
+        pixels: out,
+    }
 }
 
 fn bilinear_sample(buf: &PixelBuffer, x: f64, y: f64) -> Rgba {
@@ -199,7 +267,11 @@ pub fn crop(buf: &PixelBuffer, x: u32, y: u32, w: u32, h: u32) -> Result<PixelBu
             pixels.push(buf.get_pixel(col, row));
         }
     }
-    Ok(PixelBuffer { width: w, height: h, pixels })
+    Ok(PixelBuffer {
+        width: w,
+        height: h,
+        pixels,
+    })
 }
 
 // ── Rotate ──────────────────────────────────────────────────────
@@ -216,7 +288,11 @@ pub fn rotate_90(buf: &PixelBuffer) -> PixelBuffer {
             pixels[(ny as usize) * (new_w as usize) + (nx as usize)] = buf.get_pixel(x, y);
         }
     }
-    PixelBuffer { width: new_w, height: new_h, pixels }
+    PixelBuffer {
+        width: new_w,
+        height: new_h,
+        pixels,
+    }
 }
 
 /// Rotate 180 degrees.
@@ -229,7 +305,11 @@ pub fn rotate_180(buf: &PixelBuffer) -> PixelBuffer {
             pixels[(ny as usize) * (buf.width as usize) + (nx as usize)] = buf.get_pixel(x, y);
         }
     }
-    PixelBuffer { width: buf.width, height: buf.height, pixels }
+    PixelBuffer {
+        width: buf.width,
+        height: buf.height,
+        pixels,
+    }
 }
 
 /// Rotate 270 degrees clockwise (= 90 counter-clockwise).
@@ -244,7 +324,11 @@ pub fn rotate_270(buf: &PixelBuffer) -> PixelBuffer {
             pixels[(ny as usize) * (new_w as usize) + (nx as usize)] = buf.get_pixel(x, y);
         }
     }
-    PixelBuffer { width: new_w, height: new_h, pixels }
+    PixelBuffer {
+        width: new_w,
+        height: new_h,
+        pixels,
+    }
 }
 
 // ── Flip ────────────────────────────────────────────────────────
@@ -258,7 +342,11 @@ pub fn flip_horizontal(buf: &PixelBuffer) -> PixelBuffer {
                 buf.get_pixel(x, y);
         }
     }
-    PixelBuffer { width: buf.width, height: buf.height, pixels }
+    PixelBuffer {
+        width: buf.width,
+        height: buf.height,
+        pixels,
+    }
 }
 
 /// Flip vertically (mirror around horizontal axis).
@@ -270,44 +358,72 @@ pub fn flip_vertical(buf: &PixelBuffer) -> PixelBuffer {
                 buf.get_pixel(x, y);
         }
     }
-    PixelBuffer { width: buf.width, height: buf.height, pixels }
+    PixelBuffer {
+        width: buf.width,
+        height: buf.height,
+        pixels,
+    }
 }
 
 // ── Color Adjustments ───────────────────────────────────────────
 
 /// Convert the image to grayscale.
 pub fn grayscale(buf: &PixelBuffer) -> PixelBuffer {
-    let pixels: Vec<Rgba> = buf.pixels.iter().map(|p| {
-        let g = p.to_gray();
-        Rgba::new(g, g, g, p.a)
-    }).collect();
-    PixelBuffer { width: buf.width, height: buf.height, pixels }
+    let pixels: Vec<Rgba> = buf
+        .pixels
+        .iter()
+        .map(|p| {
+            let g = p.to_gray();
+            Rgba::new(g, g, g, p.a)
+        })
+        .collect();
+    PixelBuffer {
+        width: buf.width,
+        height: buf.height,
+        pixels,
+    }
 }
 
 /// Adjust brightness. `factor` is added to each channel (-255..255).
 pub fn adjust_brightness(buf: &PixelBuffer, factor: i16) -> PixelBuffer {
-    let pixels: Vec<Rgba> = buf.pixels.iter().map(|p| {
-        Rgba::new(
-            clamp_u8(p.r as i16 + factor),
-            clamp_u8(p.g as i16 + factor),
-            clamp_u8(p.b as i16 + factor),
-            p.a,
-        )
-    }).collect();
-    PixelBuffer { width: buf.width, height: buf.height, pixels }
+    let pixels: Vec<Rgba> = buf
+        .pixels
+        .iter()
+        .map(|p| {
+            Rgba::new(
+                clamp_u8(p.r as i16 + factor),
+                clamp_u8(p.g as i16 + factor),
+                clamp_u8(p.b as i16 + factor),
+                p.a,
+            )
+        })
+        .collect();
+    PixelBuffer {
+        width: buf.width,
+        height: buf.height,
+        pixels,
+    }
 }
 
 /// Adjust contrast. `factor` > 1.0 increases contrast, < 1.0 decreases.
 pub fn adjust_contrast(buf: &PixelBuffer, factor: f64) -> PixelBuffer {
-    let pixels: Vec<Rgba> = buf.pixels.iter().map(|p| {
-        Rgba::new(
-            contrast_channel(p.r, factor),
-            contrast_channel(p.g, factor),
-            contrast_channel(p.b, factor),
-            p.a,
-        )
-    }).collect();
-    PixelBuffer { width: buf.width, height: buf.height, pixels }
+    let pixels: Vec<Rgba> = buf
+        .pixels
+        .iter()
+        .map(|p| {
+            Rgba::new(
+                contrast_channel(p.r, factor),
+                contrast_channel(p.g, factor),
+                contrast_channel(p.b, factor),
+                p.a,
+            )
+        })
+        .collect();
+    PixelBuffer {
+        width: buf.width,
+        height: buf.height,
+        pixels,
+    }
 }
 
 fn contrast_channel(v: u8, factor: f64) -> u8 {
@@ -318,26 +434,40 @@ fn contrast_channel(v: u8, factor: f64) -> u8 {
 
 /// Invert all colors.
 pub fn invert(buf: &PixelBuffer) -> PixelBuffer {
-    let pixels: Vec<Rgba> = buf.pixels.iter().map(|p| {
-        Rgba::new(255 - p.r, 255 - p.g, 255 - p.b, p.a)
-    }).collect();
-    PixelBuffer { width: buf.width, height: buf.height, pixels }
+    let pixels: Vec<Rgba> = buf
+        .pixels
+        .iter()
+        .map(|p| Rgba::new(255 - p.r, 255 - p.g, 255 - p.b, p.a))
+        .collect();
+    PixelBuffer {
+        width: buf.width,
+        height: buf.height,
+        pixels,
+    }
 }
 
 /// Apply a sepia tone.
 pub fn sepia(buf: &PixelBuffer) -> PixelBuffer {
-    let pixels: Vec<Rgba> = buf.pixels.iter().map(|p| {
-        let r = p.r as f64;
-        let g = p.g as f64;
-        let b = p.b as f64;
-        Rgba::new(
-            (r * 0.393 + g * 0.769 + b * 0.189).min(255.0).round() as u8,
-            (r * 0.349 + g * 0.686 + b * 0.168).min(255.0).round() as u8,
-            (r * 0.272 + g * 0.534 + b * 0.131).min(255.0).round() as u8,
-            p.a,
-        )
-    }).collect();
-    PixelBuffer { width: buf.width, height: buf.height, pixels }
+    let pixels: Vec<Rgba> = buf
+        .pixels
+        .iter()
+        .map(|p| {
+            let r = p.r as f64;
+            let g = p.g as f64;
+            let b = p.b as f64;
+            Rgba::new(
+                (r * 0.393 + g * 0.769 + b * 0.189).min(255.0).round() as u8,
+                (r * 0.349 + g * 0.686 + b * 0.168).min(255.0).round() as u8,
+                (r * 0.272 + g * 0.534 + b * 0.131).min(255.0).round() as u8,
+                p.a,
+            )
+        })
+        .collect();
+    PixelBuffer {
+        width: buf.width,
+        height: buf.height,
+        pixels,
+    }
 }
 
 fn clamp_u8(v: i16) -> u8 {
@@ -351,17 +481,33 @@ mod tests {
     use super::*;
 
     fn test_2x2() -> PixelBuffer {
-        PixelBuffer::new(2, 2, vec![
-            Rgba::rgb(255, 0, 0),   Rgba::rgb(0, 255, 0),
-            Rgba::rgb(0, 0, 255),   Rgba::rgb(255, 255, 0),
-        ]).unwrap()
+        PixelBuffer::new(
+            2,
+            2,
+            vec![
+                Rgba::rgb(255, 0, 0),
+                Rgba::rgb(0, 255, 0),
+                Rgba::rgb(0, 0, 255),
+                Rgba::rgb(255, 255, 0),
+            ],
+        )
+        .unwrap()
     }
 
     fn test_3x2() -> PixelBuffer {
-        PixelBuffer::new(3, 2, vec![
-            Rgba::rgb(1, 0, 0), Rgba::rgb(2, 0, 0), Rgba::rgb(3, 0, 0),
-            Rgba::rgb(4, 0, 0), Rgba::rgb(5, 0, 0), Rgba::rgb(6, 0, 0),
-        ]).unwrap()
+        PixelBuffer::new(
+            3,
+            2,
+            vec![
+                Rgba::rgb(1, 0, 0),
+                Rgba::rgb(2, 0, 0),
+                Rgba::rgb(3, 0, 0),
+                Rgba::rgb(4, 0, 0),
+                Rgba::rgb(5, 0, 0),
+                Rgba::rgb(6, 0, 0),
+            ],
+        )
+        .unwrap()
     }
 
     #[test]
@@ -420,7 +566,9 @@ mod tests {
 
     #[test]
     fn from_rgba_bytes() {
-        let data = vec![255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 128, 128, 128, 255];
+        let data = vec![
+            255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 128, 128, 128, 255,
+        ];
         let buf = PixelBuffer::from_rgba_bytes(2, 2, &data).unwrap();
         assert_eq!(buf.get_pixel(0, 0), Rgba::rgb(255, 0, 0));
         assert_eq!(buf.get_pixel(1, 1), Rgba::rgb(128, 128, 128));

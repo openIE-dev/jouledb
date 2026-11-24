@@ -137,13 +137,7 @@ pub struct BrinsonInput {
 }
 
 impl BrinsonInput {
-    pub fn new(
-        sector_name: &str,
-        pw: f64,
-        bw: f64,
-        pr: f64,
-        br: f64,
-    ) -> Self {
+    pub fn new(sector_name: &str, pw: f64, bw: f64, pr: f64, br: f64) -> Self {
         Self {
             sector_name: sector_name.to_string(),
             portfolio_weight: pw,
@@ -372,8 +366,12 @@ mod tests {
     use super::*;
 
     fn sample_data() -> (Vec<f64>, Vec<f64>) {
-        let port = vec![0.01, -0.005, 0.015, 0.008, -0.003, 0.012, 0.006, -0.001, 0.009, 0.004];
-        let bench = vec![0.008, -0.003, 0.012, 0.005, -0.006, 0.010, 0.004, -0.002, 0.007, 0.003];
+        let port = vec![
+            0.01, -0.005, 0.015, 0.008, -0.003, 0.012, 0.006, -0.001, 0.009, 0.004,
+        ];
+        let bench = vec![
+            0.008, -0.003, 0.012, 0.005, -0.006, 0.010, 0.004, -0.002, 0.007, 0.003,
+        ];
         (port, bench)
     }
 

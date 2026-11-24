@@ -125,7 +125,11 @@ pub struct VectorTileLayer {
 
 impl VectorTileLayer {
     pub fn new(name: &str, extent: u32) -> Self {
-        Self { name: name.to_string(), extent, features: Vec::new() }
+        Self {
+            name: name.to_string(),
+            extent,
+            features: Vec::new(),
+        }
     }
 
     pub fn with_feature(mut self, feature: TileFeature) -> Self {
@@ -185,7 +189,11 @@ pub struct RasterTile {
 impl RasterTile {
     pub fn new(width: u32, height: u32) -> Self {
         let n = (width as usize) * (height as usize);
-        Self { width, height, pixels: vec![[0, 0, 0, 0]; n] }
+        Self {
+            width,
+            height,
+            pixels: vec![[0, 0, 0, 0]; n],
+        }
     }
 
     pub fn set_pixel(&mut self, x: u32, y: u32, rgba: [u8; 4]) {
@@ -203,7 +211,12 @@ impl RasterTile {
     }
 
     /// Generate a raster tile from a grid of f64 values using a color function.
-    pub fn from_grid(grid: &[f64], grid_w: u32, grid_h: u32, color_fn: &dyn Fn(f64) -> [u8; 4]) -> Self {
+    pub fn from_grid(
+        grid: &[f64],
+        grid_w: u32,
+        grid_h: u32,
+        color_fn: &dyn Fn(f64) -> [u8; 4],
+    ) -> Self {
         let mut tile = Self::new(grid_w, grid_h);
         for y in 0..grid_h {
             for x in 0..grid_w {
@@ -226,12 +239,18 @@ pub struct TileCache {
 
 impl TileCache {
     pub fn new(capacity: usize) -> Self {
-        Self { entries: Vec::new(), capacity: capacity.max(1) }
+        Self {
+            entries: Vec::new(),
+            capacity: capacity.max(1),
+        }
     }
 
     /// Get cached data for a tile coordinate.
     pub fn get(&self, coord: &TileCoord) -> Option<&[u8]> {
-        self.entries.iter().find(|(c, _)| c == coord).map(|(_, d)| d.as_slice())
+        self.entries
+            .iter()
+            .find(|(c, _)| c == coord)
+            .map(|(_, d)| d.as_slice())
     }
 
     /// Insert (or update) tile data, evicting oldest if at capacity.
@@ -465,12 +484,11 @@ mod tests {
 
     #[test]
     fn vector_tile_encode_roundtrip_size() {
-        let layer = VectorTileLayer::new("roads", 4096)
-            .with_feature(TileFeature {
-                id: 1,
-                geometry: TileGeometry::Point(100, 200),
-                properties: vec![],
-            });
+        let layer = VectorTileLayer::new("roads", 4096).with_feature(TileFeature {
+            id: 1,
+            geometry: TileGeometry::Point(100, 200),
+            properties: vec![],
+        });
         let data = layer.encode();
         assert!(!data.is_empty());
         assert!(data.len() > 10);

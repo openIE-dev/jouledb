@@ -476,9 +476,18 @@ mod tests {
     fn triangle() -> WcojQuery {
         WcojQuery {
             atoms: vec![
-                Atom { relation_name: "e1".into(), variables: vec!["X".into(), "Y".into()] },
-                Atom { relation_name: "e2".into(), variables: vec!["Y".into(), "Z".into()] },
-                Atom { relation_name: "e3".into(), variables: vec!["Z".into(), "X".into()] },
+                Atom {
+                    relation_name: "e1".into(),
+                    variables: vec!["X".into(), "Y".into()],
+                },
+                Atom {
+                    relation_name: "e2".into(),
+                    variables: vec!["Y".into(), "Z".into()],
+                },
+                Atom {
+                    relation_name: "e3".into(),
+                    variables: vec!["Z".into(), "X".into()],
+                },
             ],
             output_variables: vec!["X".into(), "Y".into(), "Z".into()],
         }

@@ -60,14 +60,30 @@ impl SamFlags {
     pub const DUPLICATE: u16 = 0x400;
     pub const SUPPLEMENTARY: u16 = 0x800;
 
-    pub fn has(self, flag: u16) -> bool { self.0 & flag != 0 }
-    pub fn is_paired(self) -> bool { self.has(Self::PAIRED) }
-    pub fn is_unmapped(self) -> bool { self.has(Self::UNMAPPED) }
-    pub fn is_reverse(self) -> bool { self.has(Self::REVERSE_STRAND) }
-    pub fn is_secondary(self) -> bool { self.has(Self::SECONDARY) }
-    pub fn is_supplementary(self) -> bool { self.has(Self::SUPPLEMENTARY) }
-    pub fn is_duplicate(self) -> bool { self.has(Self::DUPLICATE) }
-    pub fn is_primary(self) -> bool { !self.is_secondary() && !self.is_supplementary() }
+    pub fn has(self, flag: u16) -> bool {
+        self.0 & flag != 0
+    }
+    pub fn is_paired(self) -> bool {
+        self.has(Self::PAIRED)
+    }
+    pub fn is_unmapped(self) -> bool {
+        self.has(Self::UNMAPPED)
+    }
+    pub fn is_reverse(self) -> bool {
+        self.has(Self::REVERSE_STRAND)
+    }
+    pub fn is_secondary(self) -> bool {
+        self.has(Self::SECONDARY)
+    }
+    pub fn is_supplementary(self) -> bool {
+        self.has(Self::SUPPLEMENTARY)
+    }
+    pub fn is_duplicate(self) -> bool {
+        self.has(Self::DUPLICATE)
+    }
+    pub fn is_primary(self) -> bool {
+        !self.is_secondary() && !self.is_supplementary()
+    }
 }
 
 impl fmt::Display for SamFlags {
@@ -113,7 +129,9 @@ pub fn parse_cigar(cigar: &str) -> Result<Vec<CigarOp>, SamError> {
     for (i, ch) in cigar.chars().enumerate() {
         if ch.is_ascii_alphabetic() || ch == '=' {
             if i == num_start {
-                return Err(SamError::InvalidCigar(format!("missing length before '{ch}'")));
+                return Err(SamError::InvalidCigar(format!(
+                    "missing length before '{ch}'"
+                )));
             }
             let len: u32 = cigar[num_start..i]
                 .parse()
@@ -180,10 +198,14 @@ fn parse_tag(field: &str) -> Result<(String, TagValue), SamError> {
     let val = match parts[1] {
         "A" => TagValue::Char(parts[2].chars().next().unwrap_or('?')),
         "i" => TagValue::Int(
-            parts[2].parse().map_err(|_| SamError::InvalidTag(field.to_string()))?,
+            parts[2]
+                .parse()
+                .map_err(|_| SamError::InvalidTag(field.to_string()))?,
         ),
         "f" => TagValue::Float(
-            parts[2].parse().map_err(|_| SamError::InvalidTag(field.to_string()))?,
+            parts[2]
+                .parse()
+                .map_err(|_| SamError::InvalidTag(field.to_string()))?,
         ),
         "Z" => TagValue::Str(parts[2].to_string()),
         "H" => TagValue::Hex(parts[2].to_string()),
@@ -195,8 +217,7 @@ fn parse_tag(field: &str) -> Result<(String, TagValue), SamError> {
 // ── SAM header ──────────────────────────────────────────────────
 
 /// A parsed SAM header.
-#[derive(Debug, Clone, Default)]
-#[derive(PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct SamHeader {
     pub hd: HashMap<String, String>,
     pub sequences: Vec<HashMap<String, String>>,
@@ -207,16 +228,20 @@ pub struct SamHeader {
 
 impl fmt::Display for SamHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SamHeader(seqs={}, rgs={}, pgs={})",
-               self.sequences.len(), self.read_groups.len(), self.programs.len())
+        write!(
+            f,
+            "SamHeader(seqs={}, rgs={}, pgs={})",
+            self.sequences.len(),
+            self.read_groups.len(),
+            self.programs.len()
+        )
     }
 }
 
 // ── SAM alignment record ────────────────────────────────────────
 
 /// A single SAM alignment record.
-#[derive(Debug, Clone)]
-#[derive(PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SamRecord {
     pub qname: String,
     pub flag: SamFlags,
@@ -233,7 +258,9 @@ pub struct SamRecord {
 }
 
 impl SamRecord {
-    pub fn is_mapped(&self) -> bool { !self.flag.is_unmapped() }
+    pub fn is_mapped(&self) -> bool {
+        !self.flag.is_unmapped()
+    }
 
     /// End position on the reference (0-based exclusive).
     pub fn end_pos(&self) -> u64 {
@@ -248,8 +275,11 @@ impl SamRecord {
 
 impl fmt::Display for SamRecord {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}:{} flag={} mapq={}",
-               self.qname, self.rname, self.pos, self.flag, self.mapq)
+        write!(
+            f,
+            "{}:{}:{} flag={} mapq={}",
+            self.qname, self.rname, self.pos, self.flag, self.mapq
+        )
     }
 }
 
@@ -264,11 +294,20 @@ pub struct SamParser {
 
 impl SamParser {
     pub fn new() -> Self {
-        Self { skip_unmapped: false, min_mapq: 0 }
+        Self {
+            skip_unmapped: false,
+            min_mapq: 0,
+        }
     }
 
-    pub fn with_skip_unmapped(mut self, s: bool) -> Self { self.skip_unmapped = s; self }
-    pub fn with_min_mapq(mut self, m: u8) -> Self { self.min_mapq = m; self }
+    pub fn with_skip_unmapped(mut self, s: bool) -> Self {
+        self.skip_unmapped = s;
+        self
+    }
+    pub fn with_min_mapq(mut self, m: u8) -> Self {
+        self.min_mapq = m;
+        self
+    }
 
     /// Parse a complete SAM text input.
     pub fn parse(&self, input: &str) -> Result<(SamHeader, Vec<SamRecord>), SamError> {
@@ -296,15 +335,18 @@ impl SamParser {
                     found: fields.len(),
                 });
             }
-            let flag: u16 = fields[1]
-                .parse()
-                .map_err(|_| SamError::InvalidFlag { line: line_num, value: fields[1].to_string() })?;
-            let pos: u64 = fields[3]
-                .parse()
-                .map_err(|_| SamError::InvalidPos { line: line_num, value: fields[3].to_string() })?;
-            let mapq: u8 = fields[4]
-                .parse()
-                .map_err(|_| SamError::InvalidMapq { line: line_num, value: fields[4].to_string() })?;
+            let flag: u16 = fields[1].parse().map_err(|_| SamError::InvalidFlag {
+                line: line_num,
+                value: fields[1].to_string(),
+            })?;
+            let pos: u64 = fields[3].parse().map_err(|_| SamError::InvalidPos {
+                line: line_num,
+                value: fields[3].to_string(),
+            })?;
+            let mapq: u8 = fields[4].parse().map_err(|_| SamError::InvalidMapq {
+                line: line_num,
+                value: fields[4].to_string(),
+            })?;
             let pnext: u64 = fields[7].parse().unwrap_or(0);
             let tlen: i64 = fields[8].parse().unwrap_or(0);
 
@@ -345,7 +387,11 @@ impl SamParser {
 
 impl fmt::Display for SamParser {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SamParser(skip_unmapped={}, min_mapq={})", self.skip_unmapped, self.min_mapq)
+        write!(
+            f,
+            "SamParser(skip_unmapped={}, min_mapq={})",
+            self.skip_unmapped, self.min_mapq
+        )
     }
 }
 
@@ -450,7 +496,10 @@ mod tests {
     #[test]
     fn t10_tag_string() {
         let (_, recs) = parse_sam(&sample_line()).unwrap();
-        assert_eq!(recs[0].tags.get("MD:Z"), Some(&TagValue::Str("48A1".to_string())));
+        assert_eq!(
+            recs[0].tags.get("MD:Z"),
+            Some(&TagValue::Str("48A1".to_string()))
+        );
     }
 
     #[test]

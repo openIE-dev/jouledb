@@ -13,31 +13,84 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0 } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y }
-    pub fn cross(self, o: Self) -> f64 { self.x * o.y - self.y * o.x }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y } }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s } }
-    pub fn length(self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
-    pub fn length_sq(self) -> f64 { self.x * self.x + self.y * self.y }
-    pub fn negate(self) -> Self { Self { x: -self.x, y: -self.y } }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+    pub fn zero() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y
+    }
+    pub fn cross(self, o: Self) -> f64 {
+        self.x * o.y - self.y * o.x
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+        }
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
+    pub fn length(self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+    pub fn length_sq(self) -> f64 {
+        self.x * self.x + self.y * self.y
+    }
+    pub fn negate(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+        }
+    }
     pub fn normalized(self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { Self { x: self.x / len, y: self.y / len } }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+            }
+        }
     }
-    pub fn perpendicular(self) -> Self { Self { x: -self.y, y: self.x } }
-    pub fn distance(self, o: Self) -> f64 { self.sub(o).length() }
-    pub fn angle(self) -> f64 { self.y.atan2(self.x) }
+    pub fn perpendicular(self) -> Self {
+        Self {
+            x: -self.y,
+            y: self.x,
+        }
+    }
+    pub fn distance(self, o: Self) -> f64 {
+        self.sub(o).length()
+    }
+    pub fn angle(self) -> f64 {
+        self.y.atan2(self.x)
+    }
 
     pub fn from_angle(angle: f64) -> Self {
-        Self { x: angle.cos(), y: angle.sin() }
+        Self {
+            x: angle.cos(),
+            y: angle.sin(),
+        }
     }
 }
 
 impl Default for Vec2 {
-    fn default() -> Self { Self::zero() }
+    fn default() -> Self {
+        Self::zero()
+    }
 }
 
 // ── Ray ──────────────────────────────────────────────────────
@@ -51,7 +104,10 @@ pub struct Ray {
 
 impl Ray {
     pub fn new(origin: Vec2, direction: Vec2) -> Self {
-        Self { origin, direction: direction.normalized() }
+        Self {
+            origin,
+            direction: direction.normalized(),
+        }
     }
 
     pub fn from_points(from: Vec2, to: Vec2) -> Self {
@@ -80,7 +136,12 @@ pub struct RayHit {
 
 impl RayHit {
     pub fn new(t: f64, point: Vec2, normal: Vec2, shape_index: usize) -> Self {
-        Self { t, point, normal, shape_index }
+        Self {
+            t,
+            point,
+            normal,
+            shape_index,
+        }
     }
 }
 
@@ -94,13 +155,21 @@ pub struct Segment {
 }
 
 impl Segment {
-    pub fn new(a: Vec2, b: Vec2) -> Self { Self { a, b } }
+    pub fn new(a: Vec2, b: Vec2) -> Self {
+        Self { a, b }
+    }
 
-    pub fn length(&self) -> f64 { self.b.sub(self.a).length() }
+    pub fn length(&self) -> f64 {
+        self.b.sub(self.a).length()
+    }
 
-    pub fn direction(&self) -> Vec2 { self.b.sub(self.a).normalized() }
+    pub fn direction(&self) -> Vec2 {
+        self.b.sub(self.a).normalized()
+    }
 
-    pub fn normal(&self) -> Vec2 { self.direction().perpendicular() }
+    pub fn normal(&self) -> Vec2 {
+        self.direction().perpendicular()
+    }
 }
 
 /// A circle shape.
@@ -112,7 +181,10 @@ pub struct Circle {
 
 impl Circle {
     pub fn new(cx: f64, cy: f64, r: f64) -> Self {
-        Self { center: Vec2::new(cx, cy), radius: r }
+        Self {
+            center: Vec2::new(cx, cy),
+            radius: r,
+        }
     }
 }
 
@@ -125,7 +197,10 @@ pub struct AABB {
 
 impl AABB {
     pub fn new(min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> Self {
-        Self { min: Vec2::new(min_x, min_y), max: Vec2::new(max_x, max_y) }
+        Self {
+            min: Vec2::new(min_x, min_y),
+            max: Vec2::new(max_x, max_y),
+        }
     }
 }
 
@@ -136,13 +211,15 @@ pub struct Polygon {
 }
 
 impl Polygon {
-    pub fn new(vertices: Vec<Vec2>) -> Self { Self { vertices } }
+    pub fn new(vertices: Vec<Vec2>) -> Self {
+        Self { vertices }
+    }
 
     pub fn segments(&self) -> Vec<Segment> {
         let n = self.vertices.len();
-        (0..n).map(|i| {
-            Segment::new(self.vertices[i], self.vertices[(i + 1) % n])
-        }).collect()
+        (0..n)
+            .map(|i| Segment::new(self.vertices[i], self.vertices[(i + 1) % n]))
+            .collect()
     }
 }
 
@@ -190,7 +267,13 @@ pub fn ray_vs_circle(ray: &Ray, circle: &Circle) -> Option<RayHit> {
     let sqrt_d = disc.sqrt();
     let t1 = (-b - sqrt_d) / (2.0 * a);
     let t2 = (-b + sqrt_d) / (2.0 * a);
-    let t = if t1 >= 0.0 { t1 } else if t2 >= 0.0 { t2 } else { return None };
+    let t = if t1 >= 0.0 {
+        t1
+    } else if t2 >= 0.0 {
+        t2
+    } else {
+        return None;
+    };
     let point = ray.point_at(t);
     let normal = point.sub(circle.center).normalized();
     Some(RayHit::new(t, point, normal, 0))
@@ -200,16 +283,28 @@ pub fn ray_vs_circle(ray: &Ray, circle: &Circle) -> Option<RayHit> {
 
 /// Cast a ray against an axis-aligned bounding box.
 pub fn ray_vs_aabb(ray: &Ray, aabb: &AABB) -> Option<RayHit> {
-    let inv_dx = if ray.direction.x.abs() < 1e-12 { f64::INFINITY.copysign(ray.direction.x) } else { 1.0 / ray.direction.x };
-    let inv_dy = if ray.direction.y.abs() < 1e-12 { f64::INFINITY.copysign(ray.direction.y) } else { 1.0 / ray.direction.y };
+    let inv_dx = if ray.direction.x.abs() < 1e-12 {
+        f64::INFINITY.copysign(ray.direction.x)
+    } else {
+        1.0 / ray.direction.x
+    };
+    let inv_dy = if ray.direction.y.abs() < 1e-12 {
+        f64::INFINITY.copysign(ray.direction.y)
+    } else {
+        1.0 / ray.direction.y
+    };
 
     let mut t_min_x = (aabb.min.x - ray.origin.x) * inv_dx;
     let mut t_max_x = (aabb.max.x - ray.origin.x) * inv_dx;
-    if t_min_x > t_max_x { std::mem::swap(&mut t_min_x, &mut t_max_x); }
+    if t_min_x > t_max_x {
+        std::mem::swap(&mut t_min_x, &mut t_max_x);
+    }
 
     let mut t_min_y = (aabb.min.y - ray.origin.y) * inv_dy;
     let mut t_max_y = (aabb.max.y - ray.origin.y) * inv_dy;
-    if t_min_y > t_max_y { std::mem::swap(&mut t_min_y, &mut t_max_y); }
+    if t_min_y > t_max_y {
+        std::mem::swap(&mut t_min_y, &mut t_max_y);
+    }
 
     if t_min_x > t_max_y || t_min_y > t_max_x {
         return None;
@@ -217,7 +312,9 @@ pub fn ray_vs_aabb(ray: &Ray, aabb: &AABB) -> Option<RayHit> {
 
     let t_enter = t_min_x.max(t_min_y);
     let t_exit = t_max_x.min(t_max_y);
-    if t_exit < 0.0 { return None; }
+    if t_exit < 0.0 {
+        return None;
+    }
 
     let t = if t_enter >= 0.0 { t_enter } else { t_exit };
     let point = ray.point_at(t);
@@ -371,11 +468,7 @@ impl FovCone {
 
     /// Cast rays to determine visibility within the cone.
     /// Returns the visible boundary polygon (approximation using `ray_count` rays).
-    pub fn cast_visibility(
-        &self,
-        obstacles: &[Obstacle],
-        ray_count: u32,
-    ) -> Vec<Vec2> {
+    pub fn cast_visibility(&self, obstacles: &[Obstacle], ray_count: u32) -> Vec<Vec2> {
         let base_angle = self.direction.angle();
         let start = base_angle - self.half_angle;
         let end = base_angle + self.half_angle;
@@ -403,12 +496,7 @@ impl FovCone {
 /// Given a light position and obstacles, returns a visibility polygon
 /// (the lit area). Uses `ray_count` evenly-spaced rays + extra rays
 /// toward obstacle vertices.
-pub fn shadow_cast(
-    light: Vec2,
-    obstacles: &[Obstacle],
-    range: f64,
-    ray_count: u32,
-) -> Vec<Vec2> {
+pub fn shadow_cast(light: Vec2, obstacles: &[Obstacle], range: f64, ray_count: u32) -> Vec<Vec2> {
     // Collect all obstacle vertex angles
     let mut angles: Vec<f64> = Vec::new();
 
@@ -472,7 +560,9 @@ pub fn shadow_cast(
 pub fn line_of_sight(from: Vec2, to: Vec2, obstacles: &[Obstacle]) -> bool {
     let diff = to.sub(from);
     let dist = diff.length();
-    if dist < 1e-12 { return true; }
+    if dist < 1e-12 {
+        return true;
+    }
 
     let ray = Ray::new(from, diff);
     match closest_hit(&ray, obstacles) {
@@ -484,7 +574,9 @@ pub fn line_of_sight(from: Vec2, to: Vec2, obstacles: &[Obstacle]) -> bool {
 /// Check line-of-sight with a maximum range.
 pub fn line_of_sight_range(from: Vec2, to: Vec2, obstacles: &[Obstacle], max_range: f64) -> bool {
     let dist = from.distance(to);
-    if dist > max_range { return false; }
+    if dist > max_range {
+        return false;
+    }
     line_of_sight(from, to, obstacles)
 }
 
@@ -494,7 +586,9 @@ pub fn line_of_sight_range(from: Vec2, to: Vec2, obstacles: &[Obstacle], max_ran
 mod tests {
     use super::*;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < 0.05 }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < 0.05
+    }
 
     #[test]
     fn ray_segment_hit() {
@@ -554,8 +648,10 @@ mod tests {
     #[test]
     fn ray_polygon_hit() {
         let poly = Polygon::new(vec![
-            Vec2::new(5.0, -5.0), Vec2::new(10.0, 0.0),
-            Vec2::new(5.0, 5.0), Vec2::new(0.0, 0.0),
+            Vec2::new(5.0, -5.0),
+            Vec2::new(10.0, 0.0),
+            Vec2::new(5.0, 5.0),
+            Vec2::new(0.0, 0.0),
         ]);
         let ray = Ray::new(Vec2::new(-5.0, 0.0), Vec2::new(1.0, 0.0));
         let hit = ray_vs_polygon(&ray, &poly).unwrap();
@@ -599,9 +695,7 @@ mod tests {
 
     #[test]
     fn ray_march_miss() {
-        let sdf = |p: Vec2| -> f64 {
-            p.length() - 5.0
-        };
+        let sdf = |p: Vec2| -> f64 { p.length() - 5.0 };
         let ray = Ray::new(Vec2::new(-20.0, 20.0), Vec2::new(1.0, 0.0));
         assert!(ray_march(&ray, &sdf, 50, 100.0, 0.01).is_none());
     }
@@ -632,9 +726,10 @@ mod tests {
             PI * 0.25, // 45 degrees total
             50.0,
         );
-        let obstacles = vec![
-            Obstacle::Seg(Segment::new(Vec2::new(20.0, -10.0), Vec2::new(20.0, 10.0))),
-        ];
+        let obstacles = vec![Obstacle::Seg(Segment::new(
+            Vec2::new(20.0, -10.0),
+            Vec2::new(20.0, 10.0),
+        ))];
         let vis = fov.cast_visibility(&obstacles, 16);
         // Should include origin as first point
         assert!(approx(vis[0].x, 0.0));
@@ -648,9 +743,10 @@ mod tests {
     #[test]
     fn shadow_cast_basic() {
         let light = Vec2::new(5.0, 5.0);
-        let obstacles = vec![
-            Obstacle::Seg(Segment::new(Vec2::new(10.0, 0.0), Vec2::new(10.0, 10.0))),
-        ];
+        let obstacles = vec![Obstacle::Seg(Segment::new(
+            Vec2::new(10.0, 0.0),
+            Vec2::new(10.0, 10.0),
+        ))];
         let boundary = shadow_cast(light, &obstacles, 50.0, 32);
         assert!(!boundary.is_empty());
         // All boundary points should be within range of light
@@ -671,9 +767,10 @@ mod tests {
 
     #[test]
     fn line_of_sight_blocked() {
-        let obstacles = vec![
-            Obstacle::Seg(Segment::new(Vec2::new(5.0, -5.0), Vec2::new(5.0, 5.0))),
-        ];
+        let obstacles = vec![Obstacle::Seg(Segment::new(
+            Vec2::new(5.0, -5.0),
+            Vec2::new(5.0, 5.0),
+        ))];
         assert!(!line_of_sight(
             Vec2::new(0.0, 0.0),
             Vec2::new(10.0, 0.0),
@@ -720,9 +817,7 @@ mod tests {
     #[test]
     fn shadow_cast_with_circle() {
         let light = Vec2::new(0.0, 0.0);
-        let obstacles = vec![
-            Obstacle::Circ(Circle::new(10.0, 0.0, 3.0)),
-        ];
+        let obstacles = vec![Obstacle::Circ(Circle::new(10.0, 0.0, 3.0))];
         let boundary = shadow_cast(light, &obstacles, 50.0, 32);
         assert!(!boundary.is_empty());
     }

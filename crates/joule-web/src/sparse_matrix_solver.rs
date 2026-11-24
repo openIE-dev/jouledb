@@ -204,10 +204,7 @@ impl CsrMatrix {
 
     /// Sparse-sparse multiply: C = A * B, both in CSR.
     pub fn spmm(&self, other: &CsrMatrix) -> CsrMatrix {
-        assert_eq!(
-            self.ncols, other.nrows,
-            "spmm: inner dimensions must match"
-        );
+        assert_eq!(self.ncols, other.nrows, "spmm: inner dimensions must match");
         let mut triplets = Vec::new();
         for i in 0..self.nrows {
             // Accumulate row i of C in a dense scratch vector.
@@ -279,8 +276,11 @@ impl CsrMatrix {
 
     /// Extract a sub-matrix defined by row and column index slices.
     pub fn submatrix(&self, rows: &[usize], cols: &[usize]) -> CsrMatrix {
-        let col_set: std::collections::HashMap<usize, usize> =
-            cols.iter().enumerate().map(|(new_j, &old_j)| (old_j, new_j)).collect();
+        let col_set: std::collections::HashMap<usize, usize> = cols
+            .iter()
+            .enumerate()
+            .map(|(new_j, &old_j)| (old_j, new_j))
+            .collect();
         let mut triplets = Vec::new();
         for (new_i, &old_i) in rows.iter().enumerate() {
             for k in self.row_ptr[old_i]..self.row_ptr[old_i + 1] {
@@ -441,11 +441,7 @@ mod tests {
 
     #[test]
     fn test_duplicate_triplets_sum() {
-        let t = vec![
-            triplet(0, 0, 1.0),
-            triplet(0, 0, 2.0),
-            triplet(0, 0, 3.0),
-        ];
+        let t = vec![triplet(0, 0, 1.0), triplet(0, 0, 2.0), triplet(0, 0, 3.0)];
         let m = CsrMatrix::from_triplets(1, 1, &t);
         assert!(approx_eq(m.get(0, 0), 6.0, 1e-12));
     }
@@ -486,12 +482,16 @@ mod tests {
         // A = [[1,2],[3,4]], B = [[5,6],[7,8]]
         // C = [[19,22],[43,50]]
         let ta = vec![
-            triplet(0, 0, 1.0), triplet(0, 1, 2.0),
-            triplet(1, 0, 3.0), triplet(1, 1, 4.0),
+            triplet(0, 0, 1.0),
+            triplet(0, 1, 2.0),
+            triplet(1, 0, 3.0),
+            triplet(1, 1, 4.0),
         ];
         let tb = vec![
-            triplet(0, 0, 5.0), triplet(0, 1, 6.0),
-            triplet(1, 0, 7.0), triplet(1, 1, 8.0),
+            triplet(0, 0, 5.0),
+            triplet(0, 1, 6.0),
+            triplet(1, 0, 7.0),
+            triplet(1, 1, 8.0),
         ];
         let a = CsrMatrix::from_triplets(2, 2, &ta);
         let b = CsrMatrix::from_triplets(2, 2, &tb);
@@ -517,8 +517,10 @@ mod tests {
     #[test]
     fn test_diagonal() {
         let t = vec![
-            triplet(0, 0, 1.0), triplet(0, 1, 2.0),
-            triplet(1, 1, 3.0), triplet(2, 2, 5.0),
+            triplet(0, 0, 1.0),
+            triplet(0, 1, 2.0),
+            triplet(1, 1, 3.0),
+            triplet(2, 2, 5.0),
         ];
         let m = CsrMatrix::from_triplets(3, 3, &t);
         let d = m.diagonal();
@@ -593,8 +595,10 @@ mod tests {
     #[test]
     fn test_symmetric() {
         let t = vec![
-            triplet(0, 0, 1.0), triplet(0, 1, 2.0),
-            triplet(1, 0, 2.0), triplet(1, 1, 3.0),
+            triplet(0, 0, 1.0),
+            triplet(0, 1, 2.0),
+            triplet(1, 0, 2.0),
+            triplet(1, 1, 3.0),
         ];
         let m = CsrMatrix::from_triplets(2, 2, &t);
         assert!(m.is_symmetric(1e-12));
@@ -603,8 +607,10 @@ mod tests {
     #[test]
     fn test_not_symmetric() {
         let t = vec![
-            triplet(0, 0, 1.0), triplet(0, 1, 2.0),
-            triplet(1, 0, 3.0), triplet(1, 1, 4.0),
+            triplet(0, 0, 1.0),
+            triplet(0, 1, 2.0),
+            triplet(1, 0, 3.0),
+            triplet(1, 1, 4.0),
         ];
         let m = CsrMatrix::from_triplets(2, 2, &t);
         assert!(!m.is_symmetric(1e-12));
@@ -628,9 +634,15 @@ mod tests {
     fn test_submatrix() {
         // 3x3 matrix, extract rows [0,2], cols [1,2]
         let t = vec![
-            triplet(0, 0, 1.0), triplet(0, 1, 2.0), triplet(0, 2, 3.0),
-            triplet(1, 0, 4.0), triplet(1, 1, 5.0), triplet(1, 2, 6.0),
-            triplet(2, 0, 7.0), triplet(2, 1, 8.0), triplet(2, 2, 9.0),
+            triplet(0, 0, 1.0),
+            triplet(0, 1, 2.0),
+            triplet(0, 2, 3.0),
+            triplet(1, 0, 4.0),
+            triplet(1, 1, 5.0),
+            triplet(1, 2, 6.0),
+            triplet(2, 0, 7.0),
+            triplet(2, 1, 8.0),
+            triplet(2, 2, 9.0),
         ];
         let m = CsrMatrix::from_triplets(3, 3, &t);
         let s = m.submatrix(&[0, 2], &[1, 2]);
@@ -645,8 +657,10 @@ mod tests {
     #[test]
     fn test_transpose_of_transpose() {
         let t = vec![
-            triplet(0, 0, 1.0), triplet(0, 1, 2.0),
-            triplet(1, 0, 3.0), triplet(1, 1, 4.0),
+            triplet(0, 0, 1.0),
+            triplet(0, 1, 2.0),
+            triplet(1, 0, 3.0),
+            triplet(1, 1, 4.0),
         ];
         let a = CsrMatrix::from_triplets(2, 2, &t);
         let att = a.transpose().transpose();

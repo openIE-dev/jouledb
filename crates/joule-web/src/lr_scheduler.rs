@@ -70,7 +70,10 @@ impl fmt::Display for StepDecayScheduler {
         write!(
             f,
             "StepDecay(base={:.6}, γ={:.4}, every={}, lr={:.6})",
-            self.base_lr, self.gamma, self.step_size, self.get_lr()
+            self.base_lr,
+            self.gamma,
+            self.step_size,
+            self.get_lr()
         )
     }
 }
@@ -116,9 +119,7 @@ impl CosineAnnealingScheduler {
         }
         let progress = self.current_step as f64 / self.total_steps as f64;
         self.min_lr
-            + 0.5
-                * (self.base_lr - self.min_lr)
-                * (1.0 + (std::f64::consts::PI * progress).cos())
+            + 0.5 * (self.base_lr - self.min_lr) * (1.0 + (std::f64::consts::PI * progress).cos())
     }
 
     pub fn step(&mut self) -> f64 {

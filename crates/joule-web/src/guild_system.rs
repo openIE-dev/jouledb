@@ -142,7 +142,14 @@ pub struct Guild {
 }
 
 impl Guild {
-    pub fn new(id: &str, name: &str, tag: &str, leader: &str, max_members: usize, created_at: u64) -> Self {
+    pub fn new(
+        id: &str,
+        name: &str,
+        tag: &str,
+        leader: &str,
+        max_members: usize,
+        created_at: u64,
+    ) -> Self {
         let leader_rank = GuildRank::new("Leader", 100)
             .with_permission(GuildPermission::Invite)
             .with_permission(GuildPermission::Kick)
@@ -153,11 +160,14 @@ impl Guild {
         let member_rank = GuildRank::new("Member", 1);
 
         let mut members = HashMap::new();
-        members.insert(leader.to_string(), GuildMember {
-            user_id: leader.to_string(),
-            rank_name: "Leader".to_string(),
-            joined_at: created_at,
-        });
+        members.insert(
+            leader.to_string(),
+            GuildMember {
+                user_id: leader.to_string(),
+                rank_name: "Leader".to_string(),
+                joined_at: created_at,
+            },
+        );
 
         Self {
             id: id.to_string(),
@@ -192,8 +202,12 @@ impl Guild {
     }
 
     fn member_has_permission(&self, user_id: &str, perm: GuildPermission) -> bool {
-        let Some(member) = self.members.get(user_id) else { return false };
-        let Some(rank) = self.get_rank(&member.rank_name) else { return false };
+        let Some(member) = self.members.get(user_id) else {
+            return false;
+        };
+        let Some(rank) = self.get_rank(&member.rank_name) else {
+            return false;
+        };
         rank.has_permission(perm)
     }
 
@@ -204,11 +218,14 @@ impl Guild {
         if self.members.len() >= self.max_members {
             return Err(GuildError::GuildFull(self.id.clone()));
         }
-        self.members.insert(user_id.to_string(), GuildMember {
-            user_id: user_id.to_string(),
-            rank_name: "Member".to_string(),
-            joined_at,
-        });
+        self.members.insert(
+            user_id.to_string(),
+            GuildMember {
+                user_id: user_id.to_string(),
+                rank_name: "Member".to_string(),
+                joined_at,
+            },
+        );
         self.log_activity(&format!("{user_id} joined"), joined_at);
         Ok(())
     }
@@ -240,20 +257,35 @@ impl Guild {
         Ok(())
     }
 
-    pub fn promote(&mut self, promoter: &str, target: &str, new_rank: &str, timestamp: u64) -> Result<(), GuildError> {
+    pub fn promote(
+        &mut self,
+        promoter: &str,
+        target: &str,
+        new_rank: &str,
+        timestamp: u64,
+    ) -> Result<(), GuildError> {
         if !self.member_has_permission(promoter, GuildPermission::Promote) {
             return Err(GuildError::InsufficientRank(promoter.to_string()));
         }
         if self.get_rank(new_rank).is_none() {
             return Err(GuildError::RankNotFound(new_rank.to_string()));
         }
-        let member = self.members.get_mut(target).ok_or_else(|| GuildError::MemberNotFound(target.to_string()))?;
+        let member = self
+            .members
+            .get_mut(target)
+            .ok_or_else(|| GuildError::MemberNotFound(target.to_string()))?;
         member.rank_name = new_rank.to_string();
         self.log_activity(&format!("{target} promoted to {new_rank}"), timestamp);
         Ok(())
     }
 
-    pub fn demote(&mut self, demoter: &str, target: &str, new_rank: &str, timestamp: u64) -> Result<(), GuildError> {
+    pub fn demote(
+        &mut self,
+        demoter: &str,
+        target: &str,
+        new_rank: &str,
+        timestamp: u64,
+    ) -> Result<(), GuildError> {
         if target == self.leader {
             return Err(GuildError::CannotDemoteLeader);
         }
@@ -263,7 +295,10 @@ impl Guild {
         if self.get_rank(new_rank).is_none() {
             return Err(GuildError::RankNotFound(new_rank.to_string()));
         }
-        let member = self.members.get_mut(target).ok_or_else(|| GuildError::MemberNotFound(target.to_string()))?;
+        let member = self
+            .members
+            .get_mut(target)
+            .ok_or_else(|| GuildError::MemberNotFound(target.to_string()))?;
         member.rank_name = new_rank.to_string();
         self.log_activity(&format!("{target} demoted to {new_rank}"), timestamp);
         Ok(())
@@ -273,13 +308,23 @@ impl Guild {
         self.ranks.push(rank);
     }
 
-    pub fn post_to_board(&mut self, author: &str, content: &str, posted_at: u64) -> Result<u64, GuildError> {
+    pub fn post_to_board(
+        &mut self,
+        author: &str,
+        content: &str,
+        posted_at: u64,
+    ) -> Result<u64, GuildError> {
         if !self.is_member(author) {
             return Err(GuildError::MemberNotFound(author.to_string()));
         }
         let id = self.next_post_id;
         self.next_post_id += 1;
-        self.board.push(BoardPost { id, author: author.to_string(), content: content.to_string(), posted_at });
+        self.board.push(BoardPost {
+            id,
+            author: author.to_string(),
+            content: content.to_string(),
+            posted_at,
+        });
         Ok(id)
     }
 
@@ -306,7 +351,10 @@ impl Guild {
 
     pub fn add_alliance(&mut self, guild_id: &str) -> Result<(), GuildError> {
         if !self.alliances.insert(guild_id.to_string()) {
-            return Err(GuildError::AlreadyAllied(self.id.clone(), guild_id.to_string()));
+            return Err(GuildError::AlreadyAllied(
+                self.id.clone(),
+                guild_id.to_string(),
+            ));
         }
         Ok(())
     }
@@ -327,7 +375,10 @@ impl Guild {
     }
 
     fn log_activity(&mut self, description: &str, timestamp: u64) {
-        self.activity_log.push(ActivityEntry { description: description.to_string(), timestamp });
+        self.activity_log.push(ActivityEntry {
+            description: description.to_string(),
+            timestamp,
+        });
     }
 
     pub fn members_list(&self) -> Vec<&GuildMember> {
@@ -337,7 +388,14 @@ impl Guild {
 
 impl fmt::Display for Guild {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}] {} ({}/{})", self.tag, self.name, self.member_count(), self.max_members)
+        write!(
+            f,
+            "[{}] {} ({}/{})",
+            self.tag,
+            self.name,
+            self.member_count(),
+            self.max_members
+        )
     }
 }
 
@@ -353,16 +411,29 @@ impl GuildManager {
         Self::default()
     }
 
-    pub fn create_guild(&mut self, id: &str, name: &str, tag: &str, leader: &str, max_members: usize, created_at: u64) -> Result<(), GuildError> {
+    pub fn create_guild(
+        &mut self,
+        id: &str,
+        name: &str,
+        tag: &str,
+        leader: &str,
+        max_members: usize,
+        created_at: u64,
+    ) -> Result<(), GuildError> {
         if self.guilds.contains_key(id) {
             return Err(GuildError::DuplicateGuild(id.to_string()));
         }
-        self.guilds.insert(id.to_string(), Guild::new(id, name, tag, leader, max_members, created_at));
+        self.guilds.insert(
+            id.to_string(),
+            Guild::new(id, name, tag, leader, max_members, created_at),
+        );
         Ok(())
     }
 
     pub fn disband_guild(&mut self, id: &str) -> Result<Guild, GuildError> {
-        self.guilds.remove(id).ok_or_else(|| GuildError::GuildNotFound(id.to_string()))
+        self.guilds
+            .remove(id)
+            .ok_or_else(|| GuildError::GuildNotFound(id.to_string()))
     }
 
     pub fn get_guild(&self, id: &str) -> Option<&Guild> {
@@ -375,11 +446,16 @@ impl GuildManager {
 
     pub fn search_by_name(&self, query: &str) -> Vec<&Guild> {
         let lower = query.to_lowercase();
-        self.guilds.values().filter(|g| g.name.to_lowercase().contains(&lower)).collect()
+        self.guilds
+            .values()
+            .filter(|g| g.name.to_lowercase().contains(&lower))
+            .collect()
     }
 
     pub fn search_by_tag(&self, tag: &str) -> Option<&Guild> {
-        self.guilds.values().find(|g| g.tag.eq_ignore_ascii_case(tag))
+        self.guilds
+            .values()
+            .find(|g| g.tag.eq_ignore_ascii_case(tag))
     }
 
     pub fn guild_count(&self) -> usize {
@@ -518,7 +594,8 @@ mod tests {
     #[test]
     fn test_guild_manager_create_disband() {
         let mut mgr = GuildManager::new();
-        mgr.create_guild("g1", "Warriors", "WAR", "leader", 50, 1000).unwrap();
+        mgr.create_guild("g1", "Warriors", "WAR", "leader", 50, 1000)
+            .unwrap();
         assert_eq!(mgr.guild_count(), 1);
         mgr.disband_guild("g1").unwrap();
         assert_eq!(mgr.guild_count(), 0);
@@ -527,15 +604,18 @@ mod tests {
     #[test]
     fn test_search_by_name() {
         let mut mgr = GuildManager::new();
-        mgr.create_guild("g1", "Warriors", "WAR", "a", 50, 1000).unwrap();
-        mgr.create_guild("g2", "Mages", "MAG", "b", 50, 1000).unwrap();
+        mgr.create_guild("g1", "Warriors", "WAR", "a", 50, 1000)
+            .unwrap();
+        mgr.create_guild("g2", "Mages", "MAG", "b", 50, 1000)
+            .unwrap();
         assert_eq!(mgr.search_by_name("war").len(), 1);
     }
 
     #[test]
     fn test_search_by_tag() {
         let mut mgr = GuildManager::new();
-        mgr.create_guild("g1", "Warriors", "WAR", "a", 50, 1000).unwrap();
+        mgr.create_guild("g1", "Warriors", "WAR", "a", 50, 1000)
+            .unwrap();
         assert!(mgr.search_by_tag("war").is_some());
     }
 

@@ -228,7 +228,9 @@ impl Default for TimeoutConfig {
 impl ResourceLimits {
     /// Validate limits for consistency.
     pub fn validate(&self) -> Result<(), RuntimeError> {
-        if let (Some(hard), Some(soft)) = (self.memory.hard_limit_bytes, self.memory.soft_limit_bytes) {
+        if let (Some(hard), Some(soft)) =
+            (self.memory.hard_limit_bytes, self.memory.soft_limit_bytes)
+        {
             if soft > hard {
                 return Err(RuntimeError::ConfigError(
                     "memory soft limit cannot exceed hard limit".into(),

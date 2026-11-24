@@ -168,7 +168,11 @@ impl Polynomial {
         if self.coeffs.len() <= 1 {
             return Self::zero();
         }
-        let coeffs: Vec<f64> = self.coeffs.iter().enumerate().skip(1)
+        let coeffs: Vec<f64> = self
+            .coeffs
+            .iter()
+            .enumerate()
+            .skip(1)
             .map(|(i, &c)| c * i as f64)
             .collect();
         Self::new(coeffs)
@@ -241,7 +245,9 @@ impl Polynomial {
             // Build basis polynomial L_i(x) = product of (x - x_j)/(x_i - x_j) for j != i
             let mut basis = Self::constant(1.0);
             for j in 0..n {
-                if j == i { continue; }
+                if j == i {
+                    continue;
+                }
                 let (xj, _) = points[j];
                 let denom = xi - xj;
                 // (x - xj) / denom
@@ -278,7 +284,9 @@ impl fmt::Display for Polynomial {
         }
         let mut first = true;
         for (i, &c) in self.coeffs.iter().enumerate().rev() {
-            if c.abs() < EPS { continue; }
+            if c.abs() < EPS {
+                continue;
+            }
             if !first {
                 if c > 0.0 {
                     write!(f, " + ")?;
@@ -317,7 +325,9 @@ impl PartialEq for Polynomial {
         if self.coeffs.len() != other.coeffs.len() {
             return false;
         }
-        self.coeffs.iter().zip(other.coeffs.iter())
+        self.coeffs
+            .iter()
+            .zip(other.coeffs.iter())
             .all(|(a, b)| (a - b).abs() < EPS)
     }
 }

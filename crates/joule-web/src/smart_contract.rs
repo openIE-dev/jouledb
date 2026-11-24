@@ -338,7 +338,10 @@ impl ContractRuntime {
         // Emit an invocation event
         let mut event_data = HashMap::new();
         event_data.insert("method".to_string(), Value::String(method_name.to_string()));
-        event_data.insert("gas_used".to_string(), Value::Number(serde_json::Number::from(gas_used)));
+        event_data.insert(
+            "gas_used".to_string(),
+            Value::Number(serde_json::Number::from(gas_used)),
+        );
 
         let event = ContractEvent {
             contract_address: address.to_string(),
@@ -453,10 +456,7 @@ mod tests {
                 .with_param("key", ParamType::Address)
                 .with_return(ParamType::Uint),
         );
-        c.add_method(
-            AbiMethod::new("mint", 200, true)
-                .with_param("amount", ParamType::Uint),
-        );
+        c.add_method(AbiMethod::new("mint", 200, true).with_param("amount", ParamType::Uint));
         c.set_state("total_supply", Value::Number(1000.into()));
         c
     }
@@ -473,7 +473,10 @@ mod tests {
     fn test_contract_state_operations() {
         let mut c = Contract::new("0x1", "C1");
         c.set_state("key1", Value::String("val1".to_string()));
-        assert_eq!(c.get_state("key1"), Some(&Value::String("val1".to_string())));
+        assert_eq!(
+            c.get_state("key1"),
+            Some(&Value::String("val1".to_string()))
+        );
         assert_eq!(c.state_count(), 1);
         c.remove_state("key1");
         assert_eq!(c.state_count(), 0);
@@ -520,7 +523,10 @@ mod tests {
         assert!(result.gas_used > 0);
 
         let contract = rt.get_contract("0xToken").unwrap();
-        assert_eq!(contract.get_state("to"), Some(&Value::String("0xBob".to_string())));
+        assert_eq!(
+            contract.get_state("to"),
+            Some(&Value::String("0xBob".to_string()))
+        );
     }
 
     #[test]
@@ -539,7 +545,9 @@ mod tests {
     #[test]
     fn test_invoke_not_found_contract() {
         let mut rt = ContractRuntime::new(100_000);
-        let err = rt.invoke("0xMissing", "foo", HashMap::new(), None).unwrap_err();
+        let err = rt
+            .invoke("0xMissing", "foo", HashMap::new(), None)
+            .unwrap_err();
         assert_eq!(err, ContractError::NotFound("0xMissing".to_string()));
     }
 
@@ -547,7 +555,9 @@ mod tests {
     fn test_invoke_method_not_found() {
         let mut rt = ContractRuntime::new(100_000);
         rt.deploy(make_token_contract()).unwrap();
-        let err = rt.invoke("0xToken", "nonexistent", HashMap::new(), None).unwrap_err();
+        let err = rt
+            .invoke("0xToken", "nonexistent", HashMap::new(), None)
+            .unwrap_err();
         assert!(matches!(err, ContractError::MethodNotFound { .. }));
     }
 
@@ -557,7 +567,9 @@ mod tests {
         rt.deploy(make_token_contract()).unwrap();
 
         // Give only 10 gas but transfer costs 100
-        let err = rt.invoke("0xToken", "transfer", HashMap::new(), Some(10)).unwrap_err();
+        let err = rt
+            .invoke("0xToken", "transfer", HashMap::new(), Some(10))
+            .unwrap_err();
         assert!(matches!(err, ContractError::OutOfGas { .. }));
     }
 
@@ -565,7 +577,8 @@ mod tests {
     fn test_event_emission() {
         let mut rt = ContractRuntime::new(100_000);
         rt.deploy(make_token_contract()).unwrap();
-        rt.invoke("0xToken", "transfer", HashMap::new(), None).unwrap();
+        rt.invoke("0xToken", "transfer", HashMap::new(), None)
+            .unwrap();
         assert_eq!(rt.events().len(), 1);
         assert_eq!(rt.events()[0].name, "transfer_called");
     }
@@ -588,14 +601,15 @@ mod tests {
         rt.deploy(make_token_contract()).unwrap();
 
         let args = HashMap::new();
-        let err = rt.invoke_or_revert(
-            "0xToken",
-            "transfer",
-            args,
-            None,
-            |_args| Some("insufficient balance".to_string()),
-        ).unwrap_err();
-        assert_eq!(err, ContractError::Reverted("insufficient balance".to_string()));
+        let err = rt
+            .invoke_or_revert("0xToken", "transfer", args, None, |_args| {
+                Some("insufficient balance".to_string())
+            })
+            .unwrap_err();
+        assert_eq!(
+            err,
+            ContractError::Reverted("insufficient balance".to_string())
+        );
     }
 
     #[test]
@@ -607,13 +621,9 @@ mod tests {
         c2.add_method(AbiMethod::new("swap", 150, true));
         rt.deploy(c2).unwrap();
 
-        let result = rt.inter_contract_call(
-            "0xExchange",
-            "0xToken",
-            "transfer",
-            HashMap::new(),
-            None,
-        ).unwrap();
+        let result = rt
+            .inter_contract_call("0xExchange", "0xToken", "transfer", HashMap::new(), None)
+            .unwrap();
         assert!(result.success);
     }
 
@@ -621,8 +631,10 @@ mod tests {
     fn test_gas_accumulates() {
         let mut rt = ContractRuntime::new(100_000);
         rt.deploy(make_token_contract()).unwrap();
-        rt.invoke("0xToken", "transfer", HashMap::new(), None).unwrap();
-        rt.invoke("0xToken", "transfer", HashMap::new(), None).unwrap();
+        rt.invoke("0xToken", "transfer", HashMap::new(), None)
+            .unwrap();
+        rt.invoke("0xToken", "transfer", HashMap::new(), None)
+            .unwrap();
         let contract = rt.get_contract("0xToken").unwrap();
         assert!(contract.total_gas_used >= 200);
     }
@@ -643,7 +655,10 @@ mod tests {
 
     #[test]
     fn test_contract_error_display() {
-        let err = ContractError::OutOfGas { used: 500, limit: 100 };
+        let err = ContractError::OutOfGas {
+            used: 500,
+            limit: 100,
+        };
         let msg = format!("{err}");
         assert!(msg.contains("500"));
         assert!(msg.contains("100"));

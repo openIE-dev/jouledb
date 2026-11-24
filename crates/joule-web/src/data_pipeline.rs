@@ -29,7 +29,11 @@ pub enum PipelineError {
     /// Pipeline is empty.
     EmptyPipeline,
     /// Type mismatch between stages.
-    TypeMismatch { from_stage: String, to_stage: String, detail: String },
+    TypeMismatch {
+        from_stage: String,
+        to_stage: String,
+        detail: String,
+    },
 }
 
 impl std::fmt::Display for PipelineError {
@@ -46,7 +50,11 @@ impl std::fmt::Display for PipelineError {
                 write!(f, "stage {stage_id} depends on missing stage {dep_id}")
             }
             Self::EmptyPipeline => write!(f, "pipeline has no stages"),
-            Self::TypeMismatch { from_stage, to_stage, detail } => {
+            Self::TypeMismatch {
+                from_stage,
+                to_stage,
+                detail,
+            } => {
                 write!(f, "type mismatch {from_stage} -> {to_stage}: {detail}")
             }
         }
@@ -153,7 +161,9 @@ pub struct DataRecord {
 
 impl DataRecord {
     pub fn new() -> Self {
-        Self { fields: HashMap::new() }
+        Self {
+            fields: HashMap::new(),
+        }
     }
 
     pub fn with_field(mut self, key: &str, value: serde_json::Value) -> Self {
@@ -341,10 +351,8 @@ impl Pipeline {
                 }
             }
             if let (Some(field), Some(value)) = (add_field, add_value) {
-                rec.fields.insert(
-                    field.clone(),
-                    serde_json::Value::String(value.clone()),
-                );
+                rec.fields
+                    .insert(field.clone(), serde_json::Value::String(value.clone()));
             }
             output.push(rec);
         }
@@ -357,37 +365,38 @@ impl Pipeline {
         input: Vec<DataRecord>,
     ) -> Result<Vec<DataRecord>, PipelineError> {
         let field = stage.config.get("field").cloned().unwrap_or_default();
-        let op = stage.config.get("op").cloned().unwrap_or_else(|| "exists".to_string());
+        let op = stage
+            .config
+            .get("op")
+            .cloned()
+            .unwrap_or_else(|| "exists".to_string());
         let value = stage.config.get("value").cloned();
 
         let output = input
             .into_iter()
-            .filter(|rec| {
-                match op.as_str() {
-                    "exists" => rec.fields.contains_key(&field),
-                    "eq" => {
-                        if let (Some(v), Some(expected)) = (rec.fields.get(&field), &value) {
-                            match v {
-                                serde_json::Value::String(s) => s == expected,
-                                serde_json::Value::Number(n) => n.to_string() == *expected,
-                                _ => false,
-                            }
-                        } else {
-                            false
+            .filter(|rec| match op.as_str() {
+                "exists" => rec.fields.contains_key(&field),
+                "eq" => {
+                    if let (Some(v), Some(expected)) = (rec.fields.get(&field), &value) {
+                        match v {
+                            serde_json::Value::String(s) => s == expected,
+                            serde_json::Value::Number(n) => n.to_string() == *expected,
+                            _ => false,
                         }
+                    } else {
+                        false
                     }
-                    "gt" => {
-                        if let (Some(serde_json::Value::Number(n)), Some(expected)) =
-                            (rec.fields.get(&field), &value)
-                        {
-                            n.as_f64().unwrap_or(0.0)
-                                > expected.parse::<f64>().unwrap_or(0.0)
-                        } else {
-                            false
-                        }
-                    }
-                    _ => true,
                 }
+                "gt" => {
+                    if let (Some(serde_json::Value::Number(n)), Some(expected)) =
+                        (rec.fields.get(&field), &value)
+                    {
+                        n.as_f64().unwrap_or(0.0) > expected.parse::<f64>().unwrap_or(0.0)
+                    } else {
+                        false
+                    }
+                }
+                _ => true,
             })
             .collect();
         Ok(output)
@@ -398,7 +407,11 @@ impl Pipeline {
         stage: &StageDefinition,
         input: Vec<DataRecord>,
     ) -> Result<Vec<DataRecord>, PipelineError> {
-        let func_str = stage.config.get("func").cloned().unwrap_or_else(|| "count".to_string());
+        let func_str = stage
+            .config
+            .get("func")
+            .cloned()
+            .unwrap_or_else(|| "count".to_string());
         let field = stage.config.get("field").cloned().unwrap_or_default();
         let group_by = stage.config.get("group_by").cloned();
 
@@ -924,7 +937,11 @@ mod tests {
 
         let plan = p.build_plan().unwrap();
         let results = p.execute(sample_records(), &plan).unwrap();
-        let val = results[1].records[0].get("result").unwrap().as_f64().unwrap();
+        let val = results[1].records[0]
+            .get("result")
+            .unwrap()
+            .as_f64()
+            .unwrap();
         assert!((val - 90.0).abs() < f64::EPSILON);
     }
 
@@ -941,7 +958,11 @@ mod tests {
 
         let plan = p.build_plan().unwrap();
         let results = p.execute(sample_records(), &plan).unwrap();
-        let val = results[1].records[0].get("result").unwrap().as_f64().unwrap();
+        let val = results[1].records[0]
+            .get("result")
+            .unwrap()
+            .as_f64()
+            .unwrap();
         assert!((val - 30.0).abs() < f64::EPSILON);
     }
 
@@ -961,10 +982,7 @@ mod tests {
         let agg = &results[1];
         assert_eq!(agg.records.len(), 2); // eng, sales
         // Results sorted by group key: eng first, sales second.
-        assert_eq!(
-            agg.records[0].get("dept"),
-            Some(&serde_json::json!("eng"))
-        );
+        assert_eq!(agg.records[0].get("dept"), Some(&serde_json::json!("eng")));
         assert_eq!(agg.records[0].get("result"), Some(&serde_json::json!(2)));
         assert_eq!(
             agg.records[1].get("dept"),
@@ -1006,9 +1024,7 @@ mod tests {
 
     #[test]
     fn test_already_finalized() {
-        let mut p = PipelineBuilder::new()
-            .source("src", "source")
-            .build();
+        let mut p = PipelineBuilder::new().source("src", "source").build();
         let _ = p.build_plan().unwrap();
         assert_eq!(p.build_plan(), Err(PipelineError::AlreadyFinalized));
     }
@@ -1058,7 +1074,11 @@ mod tests {
         let results = p.execute(sample_records(), &plan).unwrap();
         // All 3 pass filter (ages 30, 25, 35 all > 24).
         assert_eq!(results[1].records.len(), 3);
-        let total = results[2].records[0].get("result").unwrap().as_f64().unwrap();
+        let total = results[2].records[0]
+            .get("result")
+            .unwrap()
+            .as_f64()
+            .unwrap();
         assert!((total - 90.0).abs() < f64::EPSILON);
     }
 
@@ -1097,9 +1117,7 @@ mod tests {
 
     #[test]
     fn test_get_stage() {
-        let p = PipelineBuilder::new()
-            .source("src", "my source")
-            .build();
+        let p = PipelineBuilder::new().source("src", "my source").build();
         let s = p.get_stage("src").unwrap();
         assert_eq!(s.description, "my source");
         assert!(p.get_stage("nope").is_err());

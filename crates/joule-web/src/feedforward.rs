@@ -84,10 +84,14 @@ impl FrictionModel {
     /// Create a simple Coulomb + viscous model.
     pub fn new(coulomb: f64, viscous: f64) -> Result<Self, FeedforwardError> {
         if coulomb < 0.0 {
-            return Err(FeedforwardError::InvalidParameter("coulomb must be >= 0".into()));
+            return Err(FeedforwardError::InvalidParameter(
+                "coulomb must be >= 0".into(),
+            ));
         }
         if viscous < 0.0 {
-            return Err(FeedforwardError::InvalidParameter("viscous must be >= 0".into()));
+            return Err(FeedforwardError::InvalidParameter(
+                "viscous must be >= 0".into(),
+            ));
         }
         Ok(Self {
             coulomb,
@@ -109,7 +113,12 @@ impl FrictionModel {
                 "stiction must be >= coulomb".into(),
             ));
         }
-        Ok(Self { coulomb, viscous, stiction, stiction_velocity })
+        Ok(Self {
+            coulomb,
+            viscous,
+            stiction,
+            stiction_velocity,
+        })
     }
 
     /// Compute friction compensation torque/force for a given velocity.
@@ -151,7 +160,9 @@ impl GravityCompensator {
     /// Create with standard gravity.
     pub fn new(mass: f64, com_distance: f64) -> Result<Self, FeedforwardError> {
         if mass < 0.0 {
-            return Err(FeedforwardError::InvalidParameter("mass must be >= 0".into()));
+            return Err(FeedforwardError::InvalidParameter(
+                "mass must be >= 0".into(),
+            ));
         }
         Ok(Self {
             mass,
@@ -177,8 +188,8 @@ impl GravityCompensator {
             let mut angle_sum = 0.0;
             for j in i..n {
                 angle_sum += angles[j];
-                cumulative_torque += links[j].mass * links[j].gravity
-                    * links[j].com_distance * angle_sum.sin();
+                cumulative_torque +=
+                    links[j].mass * links[j].gravity * links[j].com_distance * angle_sum.sin();
             }
             torques[i] = cumulative_torque;
         }
@@ -201,7 +212,11 @@ pub struct VelocityAccelFeedforward {
 
 impl VelocityAccelFeedforward {
     pub fn new(kv: f64, ka: f64) -> Self {
-        Self { kv, ka, static_offset: 0.0 }
+        Self {
+            kv,
+            ka,
+            static_offset: 0.0,
+        }
     }
 
     /// Compute feedforward from trajectory point.
@@ -211,7 +226,9 @@ impl VelocityAccelFeedforward {
 
     /// Compute for multi-DOF.
     pub fn compute_multi(&self, trajectory: &TrajectoryPoint) -> Vec<f64> {
-        trajectory.velocity.iter()
+        trajectory
+            .velocity
+            .iter()
             .zip(&trajectory.acceleration)
             .map(|(v, a)| self.kv * v + self.ka * a + self.static_offset)
             .collect()
@@ -250,7 +267,10 @@ impl LookupFeedforward {
                 ));
             }
         }
-        Ok(Self { breakpoints, values })
+        Ok(Self {
+            breakpoints,
+            values,
+        })
     }
 
     /// Interpolate/extrapolate to get feedforward value.
@@ -259,8 +279,8 @@ impl LookupFeedforward {
 
         // Below range: extrapolate from first segment.
         if input <= self.breakpoints[0] {
-            let slope = (self.values[1] - self.values[0])
-                / (self.breakpoints[1] - self.breakpoints[0]);
+            let slope =
+                (self.values[1] - self.values[0]) / (self.breakpoints[1] - self.breakpoints[0]);
             return self.values[0] + slope * (input - self.breakpoints[0]);
         }
 
@@ -284,8 +304,7 @@ impl LookupFeedforward {
         }
 
         // Linear interpolation.
-        let t = (input - self.breakpoints[lo])
-            / (self.breakpoints[hi] - self.breakpoints[lo]);
+        let t = (input - self.breakpoints[lo]) / (self.breakpoints[hi] - self.breakpoints[lo]);
         self.values[lo] + t * (self.values[hi] - self.values[lo])
     }
 }
@@ -307,9 +326,15 @@ pub struct InverseDynamics {
 impl InverseDynamics {
     pub fn new(mass: f64, damping: f64, stiffness: f64) -> Result<Self, FeedforwardError> {
         if mass <= 0.0 {
-            return Err(FeedforwardError::InvalidParameter("mass must be > 0".into()));
+            return Err(FeedforwardError::InvalidParameter(
+                "mass must be > 0".into(),
+            ));
         }
-        Ok(Self { mass, damping, stiffness })
+        Ok(Self {
+            mass,
+            damping,
+            stiffness,
+        })
     }
 
     /// Compute feedforward force from desired trajectory.
@@ -320,11 +345,13 @@ impl InverseDynamics {
                 "trajectory dimensions inconsistent".into(),
             ));
         }
-        Ok((0..n).map(|i| {
-            self.mass * trajectory.acceleration[i]
-                + self.damping * trajectory.velocity[i]
-                + self.stiffness * trajectory.position[i]
-        }).collect())
+        Ok((0..n)
+            .map(|i| {
+                self.mass * trajectory.acceleration[i]
+                    + self.damping * trajectory.velocity[i]
+                    + self.stiffness * trajectory.position[i]
+            })
+            .collect())
     }
 }
 
@@ -352,7 +379,9 @@ impl FeedforwardFeedback {
             return Err(FeedforwardError::InvalidParameter("dt must be > 0".into()));
         }
         Ok(Self {
-            kff, kfb, dt,
+            kff,
+            kfb,
+            dt,
             integral: 0.0,
             prev_error: 0.0,
         })
@@ -367,17 +396,13 @@ impl FeedforwardFeedback {
         actual_pos: f64,
     ) -> f64 {
         // Feedforward.
-        let ff = self.kff[0] * desired_pos
-            + self.kff[1] * desired_vel
-            + self.kff[2] * desired_acc;
+        let ff = self.kff[0] * desired_pos + self.kff[1] * desired_vel + self.kff[2] * desired_acc;
 
         // Feedback.
         let error = desired_pos - actual_pos;
         self.integral += error * self.dt;
         let derivative = (error - self.prev_error) / self.dt;
-        let fb = self.kfb[0] * error
-            + self.kfb[1] * self.integral
-            + self.kfb[2] * derivative;
+        let fb = self.kfb[0] * error + self.kfb[1] * self.integral + self.kfb[2] * derivative;
         self.prev_error = error;
 
         ff + fb
@@ -541,10 +566,8 @@ mod tests {
 
     #[test]
     fn test_lookup_feedforward_interpolation() {
-        let lut = LookupFeedforward::new(
-            vec![0.0, 1.0, 2.0, 3.0],
-            vec![0.0, 10.0, 30.0, 60.0],
-        ).unwrap();
+        let lut =
+            LookupFeedforward::new(vec![0.0, 1.0, 2.0, 3.0], vec![0.0, 10.0, 30.0, 60.0]).unwrap();
         // At breakpoint.
         assert!(approx(lut.lookup(1.0), 10.0, 1e-10));
         // Midpoint interpolation.
@@ -554,10 +577,7 @@ mod tests {
 
     #[test]
     fn test_lookup_feedforward_extrapolation() {
-        let lut = LookupFeedforward::new(
-            vec![0.0, 1.0],
-            vec![0.0, 10.0],
-        ).unwrap();
+        let lut = LookupFeedforward::new(vec![0.0, 1.0], vec![0.0, 10.0]).unwrap();
         // Below range.
         assert!(approx(lut.lookup(-1.0), -10.0, 1e-10));
         // Above range.
@@ -595,7 +615,8 @@ mod tests {
             [0.0, 1.0, 0.0],  // velocity feedforward
             [10.0, 0.0, 0.0], // proportional feedback
             0.01,
-        ).unwrap();
+        )
+        .unwrap();
         let output = ffb.compute(10.0, 5.0, 0.0, 8.0);
         // ff = 0 + 1*5 + 0 = 5, fb = 10*(10-8) = 20, total = 25
         assert!(approx(output, 25.0, 1e-4));
@@ -603,11 +624,7 @@ mod tests {
 
     #[test]
     fn test_feedforward_feedback_reset() {
-        let mut ffb = FeedforwardFeedback::new(
-            [0.0, 1.0, 0.0],
-            [1.0, 1.0, 1.0],
-            0.01,
-        ).unwrap();
+        let mut ffb = FeedforwardFeedback::new([0.0, 1.0, 0.0], [1.0, 1.0, 1.0], 0.01).unwrap();
         ffb.compute(10.0, 0.0, 0.0, 5.0);
         ffb.reset();
         assert!(approx(ffb.integral, 0.0, 1e-10));

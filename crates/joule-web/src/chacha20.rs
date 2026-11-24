@@ -39,10 +39,18 @@ impl std::error::Error for ChaCha20Error {}
 /// The ChaCha20 quarter round on four u32 words.
 #[inline]
 fn quarter_round(state: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize) {
-    state[a] = state[a].wrapping_add(state[b]); state[d] ^= state[a]; state[d] = state[d].rotate_left(16);
-    state[c] = state[c].wrapping_add(state[d]); state[b] ^= state[c]; state[b] = state[b].rotate_left(12);
-    state[a] = state[a].wrapping_add(state[b]); state[d] ^= state[a]; state[d] = state[d].rotate_left(8);
-    state[c] = state[c].wrapping_add(state[d]); state[b] ^= state[c]; state[b] = state[b].rotate_left(7);
+    state[a] = state[a].wrapping_add(state[b]);
+    state[d] ^= state[a];
+    state[d] = state[d].rotate_left(16);
+    state[c] = state[c].wrapping_add(state[d]);
+    state[b] ^= state[c];
+    state[b] = state[b].rotate_left(12);
+    state[a] = state[a].wrapping_add(state[b]);
+    state[d] ^= state[a];
+    state[d] = state[d].rotate_left(8);
+    state[c] = state[c].wrapping_add(state[d]);
+    state[b] ^= state[c];
+    state[b] = state[b].rotate_left(7);
 }
 
 /// Run 20 rounds (10 double-rounds) of ChaCha on initial state and return 64 bytes.
@@ -51,15 +59,15 @@ fn chacha20_block(state: &[u32; 16]) -> [u8; 64] {
 
     for _ in 0..10 {
         // Column rounds.
-        quarter_round(&mut working, 0, 4, 8,  12);
-        quarter_round(&mut working, 1, 5, 9,  13);
+        quarter_round(&mut working, 0, 4, 8, 12);
+        quarter_round(&mut working, 1, 5, 9, 13);
         quarter_round(&mut working, 2, 6, 10, 14);
         quarter_round(&mut working, 3, 7, 11, 15);
         // Diagonal rounds.
         quarter_round(&mut working, 0, 5, 10, 15);
         quarter_round(&mut working, 1, 6, 11, 12);
-        quarter_round(&mut working, 2, 7, 8,  13);
-        quarter_round(&mut working, 3, 4, 9,  14);
+        quarter_round(&mut working, 2, 7, 8, 13);
+        quarter_round(&mut working, 3, 4, 9, 14);
     }
 
     // Add original state.
@@ -86,9 +94,8 @@ fn init_state(key: &[u8; 32], nonce: &[u8; 12], counter: u32) -> [u32; 16] {
 
     // Key (8 words).
     for i in 0..8 {
-        state[4 + i] = u32::from_le_bytes([
-            key[i * 4], key[i * 4 + 1], key[i * 4 + 2], key[i * 4 + 3],
-        ]);
+        state[4 + i] =
+            u32::from_le_bytes([key[i * 4], key[i * 4 + 1], key[i * 4 + 2], key[i * 4 + 3]]);
     }
 
     // Counter.
@@ -97,7 +104,10 @@ fn init_state(key: &[u8; 32], nonce: &[u8; 12], counter: u32) -> [u32; 16] {
     // Nonce (3 words).
     for i in 0..3 {
         state[13 + i] = u32::from_le_bytes([
-            nonce[i * 4], nonce[i * 4 + 1], nonce[i * 4 + 2], nonce[i * 4 + 3],
+            nonce[i * 4],
+            nonce[i * 4 + 1],
+            nonce[i * 4 + 2],
+            nonce[i * 4 + 3],
         ]);
     }
 
@@ -127,7 +137,11 @@ impl ChaCha20 {
         k.copy_from_slice(key);
         let mut n = [0u8; 12];
         n.copy_from_slice(nonce);
-        Ok(Self { key: k, nonce: n, counter: 0 })
+        Ok(Self {
+            key: k,
+            nonce: n,
+            counter: 0,
+        })
     }
 
     /// Set the block counter for seeking.
@@ -159,13 +173,21 @@ impl ChaCha20 {
 // ── One-shot helpers ───────────────────────────────────────────
 
 /// Encrypt data with ChaCha20.
-pub fn chacha20_encrypt(key: &[u8], nonce: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, ChaCha20Error> {
+pub fn chacha20_encrypt(
+    key: &[u8],
+    nonce: &[u8],
+    plaintext: &[u8],
+) -> Result<Vec<u8>, ChaCha20Error> {
     let mut cipher = ChaCha20::new(key, nonce)?;
     Ok(cipher.crypt(plaintext))
 }
 
 /// Decrypt data with ChaCha20 (same as encrypt — XOR is symmetric).
-pub fn chacha20_decrypt(key: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, ChaCha20Error> {
+pub fn chacha20_decrypt(
+    key: &[u8],
+    nonce: &[u8],
+    ciphertext: &[u8],
+) -> Result<Vec<u8>, ChaCha20Error> {
     chacha20_encrypt(key, nonce, ciphertext)
 }
 
@@ -315,7 +337,12 @@ impl ChaCha20Poly1305 {
     }
 
     /// Encrypt and authenticate.  Returns ciphertext || 16-byte tag.
-    pub fn encrypt(&self, nonce: &[u8], aad: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, ChaCha20Error> {
+    pub fn encrypt(
+        &self,
+        nonce: &[u8],
+        aad: &[u8],
+        plaintext: &[u8],
+    ) -> Result<Vec<u8>, ChaCha20Error> {
         if nonce.len() != 12 {
             return Err(ChaCha20Error::InvalidNonceLength(nonce.len()));
         }
@@ -342,7 +369,12 @@ impl ChaCha20Poly1305 {
     }
 
     /// Decrypt and verify.  Input is ciphertext || 16-byte tag.
-    pub fn decrypt(&self, nonce: &[u8], aad: &[u8], ct_and_tag: &[u8]) -> Result<Vec<u8>, ChaCha20Error> {
+    pub fn decrypt(
+        &self,
+        nonce: &[u8],
+        aad: &[u8],
+        ct_and_tag: &[u8],
+    ) -> Result<Vec<u8>, ChaCha20Error> {
         if nonce.len() != 12 {
             return Err(ChaCha20Error::InvalidNonceLength(nonce.len()));
         }
@@ -422,13 +454,12 @@ mod tests {
     fn test_chacha20_block_rfc8439() {
         // RFC 8439 Section 2.3.2
         let key: [u8; 32] = [
-            0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,
-            0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,
-            0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,
-            0x18,0x19,0x1a,0x1b,0x1c,0x1d,0x1e,0x1f,
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+            0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b,
+            0x1c, 0x1d, 0x1e, 0x1f,
         ];
         let nonce: [u8; 12] = [
-            0x00,0x00,0x00,0x09,0x00,0x00,0x00,0x4a,0x00,0x00,0x00,0x00,
+            0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x4a, 0x00, 0x00, 0x00, 0x00,
         ];
         let state = init_state(&key, &nonce, 1);
         let block = chacha20_block(&state);
@@ -517,7 +548,10 @@ mod tests {
         let mut ct = aead.encrypt(&nonce, aad, plaintext).unwrap();
         // Tamper with ciphertext.
         ct[0] ^= 0xFF;
-        assert_eq!(aead.decrypt(&nonce, aad, &ct), Err(ChaCha20Error::AuthenticationFailed));
+        assert_eq!(
+            aead.decrypt(&nonce, aad, &ct),
+            Err(ChaCha20Error::AuthenticationFailed)
+        );
     }
 
     #[test]
@@ -528,7 +562,10 @@ mod tests {
 
         let aead = ChaCha20Poly1305::new(&key).unwrap();
         let ct = aead.encrypt(&nonce, b"correct aad", plaintext).unwrap();
-        assert_eq!(aead.decrypt(&nonce, b"wrong aad", &ct), Err(ChaCha20Error::AuthenticationFailed));
+        assert_eq!(
+            aead.decrypt(&nonce, b"wrong aad", &ct),
+            Err(ChaCha20Error::AuthenticationFailed)
+        );
     }
 
     #[test]

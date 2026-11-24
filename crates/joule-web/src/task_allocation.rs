@@ -209,9 +209,7 @@ pub fn assignment_cost(robot: &Robot, task: &Task) -> f64 {
         TaskPriority::Low => 2.0,
     };
     let deadline_penalty = match task.deadline_secs {
-        Some(dl) if travel + task.duration_secs > dl => {
-            (travel + task.duration_secs - dl) * 10.0
-        }
+        Some(dl) if travel + task.duration_secs > dl => (travel + task.duration_secs - dl) * 10.0,
         _ => 0.0,
     };
     travel * priority_weight + deadline_penalty
@@ -244,7 +242,11 @@ pub fn hungarian_assignment(cost: &[Vec<f64>]) -> Result<Vec<(usize, usize)>, Al
     let mut c = vec![vec![0.0f64; sz]; sz];
     for i in 0..n {
         for j in 0..m {
-            c[i][j] = if cost[i][j].is_finite() { cost[i][j] } else { 1e15 };
+            c[i][j] = if cost[i][j].is_finite() {
+                cost[i][j]
+            } else {
+                1e15
+            };
         }
     }
 
@@ -411,10 +413,7 @@ pub fn hungarian_assignment(cost: &[Vec<f64>]) -> Result<Vec<(usize, usize)>, Al
 // ── Greedy Assignment ───────────────────────────────────────────
 
 /// Simple greedy assignment: assign each task to the cheapest available robot.
-pub fn greedy_assignment(
-    robots: &[Robot],
-    tasks: &[Task],
-) -> Vec<(usize, usize)> {
+pub fn greedy_assignment(robots: &[Robot], tasks: &[Task]) -> Vec<(usize, usize)> {
     let mut assigned_robots = vec![false; robots.len()];
     let mut result = Vec::new();
 
@@ -531,7 +530,10 @@ impl TaskAllocator {
 
     /// Get which task is assigned to a robot.
     pub fn assignment_for_robot(&self, robot_id: u64) -> Option<u64> {
-        self.assignments.iter().find(|(r, _)| *r == robot_id).map(|(_, t)| *t)
+        self.assignments
+            .iter()
+            .find(|(r, _)| *r == robot_id)
+            .map(|(_, t)| *t)
     }
 
     /// Count of assigned pairs.
@@ -710,15 +712,14 @@ mod tests {
 
     #[test]
     fn test_allocator_no_robots() {
-        let mut alloc = TaskAllocator::new(AssignMethod::Greedy)
-            .with_task(make_task(1, 0.0, 0.0));
+        let mut alloc = TaskAllocator::new(AssignMethod::Greedy).with_task(make_task(1, 0.0, 0.0));
         assert!(alloc.allocate().is_err());
     }
 
     #[test]
     fn test_allocator_no_tasks() {
-        let mut alloc = TaskAllocator::new(AssignMethod::Greedy)
-            .with_robot(make_robot(1, 0.0, 0.0));
+        let mut alloc =
+            TaskAllocator::new(AssignMethod::Greedy).with_robot(make_robot(1, 0.0, 0.0));
         assert!(alloc.allocate().is_err());
     }
 
@@ -735,8 +736,7 @@ mod tests {
 
     #[test]
     fn test_display_impls() {
-        let alloc = TaskAllocator::new(AssignMethod::Hungarian)
-            .with_robot(make_robot(1, 0.0, 0.0));
+        let alloc = TaskAllocator::new(AssignMethod::Hungarian).with_robot(make_robot(1, 0.0, 0.0));
         assert!(format!("{alloc}").contains("Hungarian"));
         let t = make_task(5, 1.0, 2.0).with_priority(TaskPriority::High);
         assert!(format!("{t}").contains("High"));
@@ -747,7 +747,9 @@ mod tests {
     #[test]
     fn test_deadline_penalty() {
         let r = make_robot(1, 0.0, 0.0);
-        let t = make_task(1, 100.0, 0.0).with_duration(50.0).with_deadline(10.0);
+        let t = make_task(1, 100.0, 0.0)
+            .with_duration(50.0)
+            .with_deadline(10.0);
         let c = assignment_cost(&r, &t);
         // Will definitely miss deadline, so large penalty.
         assert!(c > 100.0);

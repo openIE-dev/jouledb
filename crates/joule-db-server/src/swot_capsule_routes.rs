@@ -1087,7 +1087,8 @@ async fn pull_oci_v2_native(
     raw_ref: &str,
 ) -> Result<joule_db_branch::capsule::OciImageRecord, String> {
     let parsed = OciImageRef::parse(raw_ref).map_err(|e| e.to_string())?;
-    let scheme = if parsed.registry.starts_with("localhost") || parsed.registry.starts_with("127.") {
+    let scheme = if parsed.registry.starts_with("localhost") || parsed.registry.starts_with("127.")
+    {
         "http"
     } else {
         "https"

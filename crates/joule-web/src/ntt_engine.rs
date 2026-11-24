@@ -222,9 +222,7 @@ pub fn find_primitive_root(q: u64, n: usize) -> Option<u64> {
             continue;
         }
         // Check that root^n ≡ 1 and root^(n/2) ≢ 1.
-        if mod_pow(root, n as u64, q) == 1
-            && (n < 2 || mod_pow(root, (n / 2) as u64, q) != 1)
-        {
+        if mod_pow(root, n as u64, q) == 1 && (n < 2 || mod_pow(root, (n / 2) as u64, q) != 1) {
             return Some(root);
         }
     }
@@ -300,8 +298,7 @@ impl NttEngine {
     pub fn new(config: NttConfig) -> Self {
         let n = config.n;
         let q = config.q;
-        let psi = find_primitive_root(q, 2 * n)
-            .expect("no primitive root found for given q and n");
+        let psi = find_primitive_root(q, 2 * n).expect("no primitive root found for given q and n");
 
         // Build forward roots table: roots_fwd[i] = psi^{bit_reverse(i, log2(n))}
         // for i in 0..n. This is the standard Kyber/Dilithium layout.
@@ -448,9 +445,7 @@ pub fn poly_sub(a: &[u64], b: &[u64], q: u64) -> Vec<u64> {
 
 /// Negate a polynomial coefficient-wise mod q.
 pub fn poly_neg(a: &[u64], q: u64) -> Vec<u64> {
-    a.iter()
-        .map(|c| if *c == 0 { 0 } else { q - c })
-        .collect()
+    a.iter().map(|c| if *c == 0 { 0 } else { q - c }).collect()
 }
 
 /// Scalar multiply: each coefficient * scalar mod q.

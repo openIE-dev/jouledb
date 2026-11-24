@@ -54,7 +54,11 @@ impl Vec3 {
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn dot(self, other: Self) -> f64 {
@@ -78,20 +82,36 @@ impl Vec3 {
         if n < 1e-12 {
             None
         } else {
-            Some(Self { x: self.x / n, y: self.y / n, z: self.z / n })
+            Some(Self {
+                x: self.x / n,
+                y: self.y / n,
+                z: self.z / n,
+            })
         }
     }
 
     pub fn scale(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn add(self, other: Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y, z: self.z + other.z }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
     }
 
     pub fn sub(self, other: Self) -> Self {
-        Self { x: self.x - other.x, y: self.y - other.y, z: self.z - other.z }
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+            z: self.z - other.z,
+        }
     }
 }
 
@@ -116,11 +136,21 @@ impl Wrench {
     }
 
     pub fn zero() -> Self {
-        Self { force: Vec3::zero(), torque: Vec3::zero() }
+        Self {
+            force: Vec3::zero(),
+            torque: Vec3::zero(),
+        }
     }
 
     pub fn as_array(&self) -> [f64; 6] {
-        [self.force.x, self.force.y, self.force.z, self.torque.x, self.torque.y, self.torque.z]
+        [
+            self.force.x,
+            self.force.y,
+            self.force.z,
+            self.torque.x,
+            self.torque.y,
+            self.torque.z,
+        ]
     }
 
     pub fn magnitude(&self) -> f64 {
@@ -204,9 +234,18 @@ impl SoftContact {
             return Err(CompliantError::InvalidContact("negative friction".into()));
         }
         if stiffness <= 0.0 {
-            return Err(CompliantError::InvalidContact("stiffness must be positive".into()));
+            return Err(CompliantError::InvalidContact(
+                "stiffness must be positive".into(),
+            ));
         }
-        Ok(Self { position, normal, mu_t, mu_r, stiffness, contact_type })
+        Ok(Self {
+            position,
+            normal,
+            mu_t,
+            mu_r,
+            stiffness,
+            contact_type,
+        })
     }
 
     /// Number of wrench components this contact contributes.
@@ -235,7 +274,9 @@ impl SoftContact {
         for i in 0..num_edges {
             let angle = 2.0 * std::f64::consts::PI * (i as f64) / (num_edges as f64);
             let (sin_a, cos_a) = angle.sin_cos();
-            let force = n.add(t1.scale(self.mu_t * cos_a)).add(t2.scale(self.mu_t * sin_a));
+            let force = n
+                .add(t1.scale(self.mu_t * cos_a))
+                .add(t2.scale(self.mu_t * sin_a));
             let force = force.normalized().unwrap_or(n);
             let mut torque = r.cross(force);
             // Add torsional friction component for soft fingers
@@ -292,7 +333,10 @@ impl ContactWrenchSpace {
         for c in contacts {
             wrenches.extend(c.wrench_set(centroid, cone_edges));
         }
-        Ok(Self { wrenches, num_contacts: contacts.len() })
+        Ok(Self {
+            wrenches,
+            num_contacts: contacts.len(),
+        })
     }
 
     /// Check if the origin is inside the convex hull of wrenches (force closure).
@@ -339,7 +383,11 @@ impl ContactWrenchSpace {
             let extent = max_pos.min(max_neg);
             min_extent = min_extent.min(extent);
         }
-        if min_extent == f64::INFINITY { 0.0 } else { min_extent }
+        if min_extent == f64::INFINITY {
+            0.0
+        } else {
+            min_extent
+        }
     }
 
     /// Number of primitive wrenches.
@@ -424,7 +472,10 @@ pub struct EnvelopingGrasp {
 
 impl EnvelopingGrasp {
     pub fn new(config: EnvelopingGraspConfig) -> Self {
-        Self { config, contacts: Vec::new() }
+        Self {
+            config,
+            contacts: Vec::new(),
+        }
     }
 
     pub fn with_contacts(mut self, contacts: Vec<SoftContact>) -> Self {
@@ -461,11 +512,8 @@ impl EnvelopingGrasp {
         if self.contacts.len() < 2 {
             return Err(CompliantError::InsufficientContacts(self.contacts.len()));
         }
-        let cws = ContactWrenchSpace::from_contacts(
-            &self.contacts,
-            centroid,
-            self.config.cone_edges,
-        )?;
+        let cws =
+            ContactWrenchSpace::from_contacts(&self.contacts, centroid, self.config.cone_edges)?;
         let force_closed = cws.check_force_closure();
         let epsilon = cws.epsilon_quality();
         let form_closed = self.contacts.len() >= 7; // form closure needs >= 7 contacts in 3D
@@ -506,8 +554,11 @@ impl fmt::Display for GraspAnalysis {
         write!(
             f,
             "GraspAnalysis(fc={}, form={}, eps={:.4}, contacts={}, k={:.1})",
-            self.force_closed, self.form_closed, self.epsilon,
-            self.num_contacts, self.total_stiffness
+            self.force_closed,
+            self.form_closed,
+            self.epsilon,
+            self.num_contacts,
+            self.total_stiffness
         )
     }
 }
@@ -519,14 +570,20 @@ mod tests {
     use super::*;
 
     fn soft_contact(
-        px: f64, py: f64, pz: f64,
-        nx: f64, ny: f64, nz: f64,
+        px: f64,
+        py: f64,
+        pz: f64,
+        nx: f64,
+        ny: f64,
+        nz: f64,
         mu_t: f64,
     ) -> SoftContact {
         SoftContact::new(
             Vec3::new(px, py, pz),
             Vec3::new(nx, ny, nz),
-            mu_t, 0.1, 100.0,
+            mu_t,
+            0.1,
+            100.0,
             ContactType::SoftFinger,
         )
         .unwrap()
@@ -541,7 +598,11 @@ mod tests {
     #[test]
     fn test_soft_contact_zero_normal() {
         let r = SoftContact::new(
-            Vec3::zero(), Vec3::zero(), 0.5, 0.1, 100.0,
+            Vec3::zero(),
+            Vec3::zero(),
+            0.5,
+            0.1,
+            100.0,
             ContactType::SoftFinger,
         );
         assert!(r.is_err());
@@ -550,7 +611,11 @@ mod tests {
     #[test]
     fn test_soft_contact_negative_friction() {
         let r = SoftContact::new(
-            Vec3::zero(), Vec3::new(0.0, 0.0, 1.0), -0.1, 0.1, 100.0,
+            Vec3::zero(),
+            Vec3::new(0.0, 0.0, 1.0),
+            -0.1,
+            0.1,
+            100.0,
             ContactType::SoftFinger,
         );
         assert!(r.is_err());
@@ -559,7 +624,11 @@ mod tests {
     #[test]
     fn test_wrench_dimension() {
         let point = SoftContact::new(
-            Vec3::zero(), Vec3::new(0.0, 0.0, 1.0), 0.5, 0.0, 100.0,
+            Vec3::zero(),
+            Vec3::new(0.0, 0.0, 1.0),
+            0.5,
+            0.0,
+            100.0,
             ContactType::PointContactFriction,
         )
         .unwrap();
@@ -650,23 +719,21 @@ mod tests {
 
     #[test]
     fn test_total_stiffness() {
-        let eg = EnvelopingGrasp::new(EnvelopingGraspConfig::default())
-            .with_contacts(vec![
-                soft_contact(-1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.5),
-                soft_contact(1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.5),
-            ]);
+        let eg = EnvelopingGrasp::new(EnvelopingGraspConfig::default()).with_contacts(vec![
+            soft_contact(-1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.5),
+            soft_contact(1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.5),
+        ]);
         assert!((eg.total_stiffness() - 200.0).abs() < 1e-10);
     }
 
     #[test]
     fn test_enveloping_analyse() {
-        let eg = EnvelopingGrasp::new(EnvelopingGraspConfig::default())
-            .with_contacts(vec![
-                soft_contact(-1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.5),
-                soft_contact(1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.5),
-                soft_contact(0.0, -1.0, 0.0, 0.0, 1.0, 0.0, 0.5),
-                soft_contact(0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.5),
-            ]);
+        let eg = EnvelopingGrasp::new(EnvelopingGraspConfig::default()).with_contacts(vec![
+            soft_contact(-1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.5),
+            soft_contact(1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.5),
+            soft_contact(0.0, -1.0, 0.0, 0.0, 1.0, 0.0, 0.5),
+            soft_contact(0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.5),
+        ]);
         let analysis = eg.analyse(Vec3::zero()).unwrap();
         assert!(analysis.num_contacts == 4);
     }

@@ -10,8 +10,16 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
-    pub const ONE: Self = Self { x: 1.0, y: 1.0, z: 1.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub const ONE: Self = Self {
+        x: 1.0,
+        y: 1.0,
+        z: 1.0,
+    };
 
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
@@ -23,7 +31,15 @@ impl Vec3 {
 
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-10 { Self::ZERO } else { Self { x: self.x / l, y: self.y / l, z: self.z / l } }
+        if l < 1e-10 {
+            Self::ZERO
+        } else {
+            Self {
+                x: self.x / l,
+                y: self.y / l,
+                z: self.z / l,
+            }
+        }
     }
 
     pub fn dot(self, o: Self) -> f32 {
@@ -41,15 +57,33 @@ impl Vec3 {
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 impl std::ops::Mul<f32> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f32) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f32) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 
 /// 2D UV coordinate.
@@ -60,7 +94,9 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f32, y: f32) -> Self { Self { x, y } }
+    pub fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
 }
 
 /// RGBA color.
@@ -73,9 +109,16 @@ pub struct Color {
 }
 
 impl Color {
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+        a: 1.0,
+    };
 
-    pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self { Self { r, g, b, a } }
+    pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
+        Self { r, g, b, a }
+    }
 }
 
 /// Simple orientation represented as forward+up vectors (orthonormal).
@@ -97,7 +140,11 @@ impl Orientation {
         };
         let right = f.cross(world_up).normalized();
         let up = right.cross(f).normalized();
-        Self { forward: f, up, right }
+        Self {
+            forward: f,
+            up,
+            right,
+        }
     }
 
     pub fn identity() -> Self {
@@ -130,7 +177,12 @@ pub struct AtlasRect {
 
 impl AtlasRect {
     pub fn full() -> Self {
-        Self { u_min: 0.0, v_min: 0.0, u_max: 1.0, v_max: 1.0 }
+        Self {
+            u_min: 0.0,
+            v_min: 0.0,
+            u_max: 1.0,
+            v_max: 1.0,
+        }
     }
 
     /// Map normalized [0,1] UV to atlas UV.
@@ -199,7 +251,14 @@ pub struct Decal {
 
 impl Decal {
     pub fn new(id: u64, position: Vec3, orientation: Orientation, config: DecalConfig) -> Self {
-        Self { position, orientation, config, age: 0.0, active: true, id }
+        Self {
+            position,
+            orientation,
+            config,
+            age: 0.0,
+            active: true,
+            id,
+        }
     }
 
     pub fn id(&self) -> u64 {
@@ -293,7 +352,10 @@ pub struct DecalProjectorSystem {
 
 impl DecalProjectorSystem {
     pub fn new() -> Self {
-        Self { decals: Vec::new(), next_id: 0 }
+        Self {
+            decals: Vec::new(),
+            next_id: 0,
+        }
     }
 
     /// Add a new decal. Returns its ID.
@@ -305,7 +367,8 @@ impl DecalProjectorSystem {
     ) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
-        self.decals.push(Decal::new(id, position, orientation, config));
+        self.decals
+            .push(Decal::new(id, position, orientation, config));
         id
     }
 
@@ -467,7 +530,10 @@ mod tests {
 
     #[test]
     fn test_decal_expires() {
-        let cfg = DecalConfig { lifetime: 1.0, ..Default::default() };
+        let cfg = DecalConfig {
+            lifetime: 1.0,
+            ..Default::default()
+        };
         let mut d = Decal::new(0, Vec3::ZERO, Orientation::identity(), cfg);
         assert!(!d.is_expired());
         d.update(1.5);
@@ -477,7 +543,10 @@ mod tests {
 
     #[test]
     fn test_infinite_lifetime() {
-        let cfg = DecalConfig { lifetime: 0.0, ..Default::default() };
+        let cfg = DecalConfig {
+            lifetime: 0.0,
+            ..Default::default()
+        };
         let mut d = Decal::new(0, Vec3::ZERO, Orientation::identity(), cfg);
         d.update(1000.0);
         assert!(!d.is_expired());
@@ -533,7 +602,10 @@ mod tests {
     #[test]
     fn test_system_update_removes_expired() {
         let mut sys = DecalProjectorSystem::new();
-        let cfg = DecalConfig { lifetime: 1.0, ..Default::default() };
+        let cfg = DecalConfig {
+            lifetime: 1.0,
+            ..Default::default()
+        };
         sys.add_decal(Vec3::ZERO, Orientation::identity(), cfg);
         sys.update(2.0);
         assert_eq!(sys.decal_count(), 0);
@@ -542,9 +614,30 @@ mod tests {
     #[test]
     fn test_system_sorted_decals() {
         let mut sys = DecalProjectorSystem::new();
-        sys.add_decal(Vec3::ZERO, Orientation::identity(), DecalConfig { sort_order: 5, ..Default::default() });
-        sys.add_decal(Vec3::ZERO, Orientation::identity(), DecalConfig { sort_order: 1, ..Default::default() });
-        sys.add_decal(Vec3::ZERO, Orientation::identity(), DecalConfig { sort_order: 3, ..Default::default() });
+        sys.add_decal(
+            Vec3::ZERO,
+            Orientation::identity(),
+            DecalConfig {
+                sort_order: 5,
+                ..Default::default()
+            },
+        );
+        sys.add_decal(
+            Vec3::ZERO,
+            Orientation::identity(),
+            DecalConfig {
+                sort_order: 1,
+                ..Default::default()
+            },
+        );
+        sys.add_decal(
+            Vec3::ZERO,
+            Orientation::identity(),
+            DecalConfig {
+                sort_order: 3,
+                ..Default::default()
+            },
+        );
         let sorted = sys.sorted_decals();
         assert_eq!(sorted[0].config.sort_order, 1);
         assert_eq!(sorted[1].config.sort_order, 3);

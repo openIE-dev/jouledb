@@ -82,7 +82,11 @@ pub struct PrecacheEntry {
 
 impl PrecacheEntry {
     pub fn new(url: impl Into<String>) -> Self {
-        Self { url: url.into(), revision: None, integrity: None }
+        Self {
+            url: url.into(),
+            revision: None,
+            integrity: None,
+        }
     }
 
     pub fn with_revision(mut self, rev: impl Into<String>) -> Self {
@@ -119,7 +123,11 @@ pub struct RouteRule {
 }
 
 impl RouteRule {
-    pub fn new(pattern: RoutePattern, strategy: CacheStrategy, cache_name: impl Into<String>) -> Self {
+    pub fn new(
+        pattern: RoutePattern,
+        strategy: CacheStrategy,
+        cache_name: impl Into<String>,
+    ) -> Self {
         Self {
             pattern,
             strategy,
@@ -129,8 +137,14 @@ impl RouteRule {
         }
     }
 
-    pub fn max_entries(mut self, n: usize) -> Self { self.max_entries = Some(n); self }
-    pub fn max_age(mut self, secs: u64) -> Self { self.max_age_secs = Some(secs); self }
+    pub fn max_entries(mut self, n: usize) -> Self {
+        self.max_entries = Some(n);
+        self
+    }
+    pub fn max_age(mut self, secs: u64) -> Self {
+        self.max_age_secs = Some(secs);
+        self
+    }
 }
 
 // ── Cache Simulation ─────────────────────────────────────────────
@@ -155,7 +169,11 @@ pub struct CachedResponse {
 
 impl CacheState {
     pub fn new(max_entries: Option<usize>) -> Self {
-        Self { entries: HashMap::new(), max_entries, access_order: Vec::new() }
+        Self {
+            entries: HashMap::new(),
+            max_entries,
+            access_order: Vec::new(),
+        }
     }
 
     /// Put a response into the cache, evicting LRU if over limit.
@@ -189,10 +207,14 @@ impl CacheState {
     }
 
     /// Number of cached entries.
-    pub fn len(&self) -> usize { self.entries.len() }
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
 
     /// Whether the cache is empty.
-    pub fn is_empty(&self) -> bool { self.entries.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
 
     /// Total body size of all cached entries.
     pub fn total_size(&self) -> usize {
@@ -242,27 +264,53 @@ pub fn evaluate_strategy(
 ) -> FetchDecision {
     match strategy {
         CacheStrategy::CacheFirst => {
-            if is_cached { FetchDecision::ServeFromCache }
-            else if is_online { FetchDecision::FetchFromNetwork { cache_fallback: false } }
-            else { FetchDecision::Unavailable }
+            if is_cached {
+                FetchDecision::ServeFromCache
+            } else if is_online {
+                FetchDecision::FetchFromNetwork {
+                    cache_fallback: false,
+                }
+            } else {
+                FetchDecision::Unavailable
+            }
         }
         CacheStrategy::NetworkFirst => {
-            if is_online { FetchDecision::FetchFromNetwork { cache_fallback: true } }
-            else if is_cached { FetchDecision::ServeFromCache }
-            else { FetchDecision::Unavailable }
+            if is_online {
+                FetchDecision::FetchFromNetwork {
+                    cache_fallback: true,
+                }
+            } else if is_cached {
+                FetchDecision::ServeFromCache
+            } else {
+                FetchDecision::Unavailable
+            }
         }
         CacheStrategy::StaleWhileRevalidate => {
-            if is_cached { FetchDecision::ServeStaleAndRevalidate }
-            else if is_online { FetchDecision::FetchFromNetwork { cache_fallback: false } }
-            else { FetchDecision::Unavailable }
+            if is_cached {
+                FetchDecision::ServeStaleAndRevalidate
+            } else if is_online {
+                FetchDecision::FetchFromNetwork {
+                    cache_fallback: false,
+                }
+            } else {
+                FetchDecision::Unavailable
+            }
         }
         CacheStrategy::NetworkOnly => {
-            if is_online { FetchDecision::FetchFromNetwork { cache_fallback: false } }
-            else { FetchDecision::Unavailable }
+            if is_online {
+                FetchDecision::FetchFromNetwork {
+                    cache_fallback: false,
+                }
+            } else {
+                FetchDecision::Unavailable
+            }
         }
         CacheStrategy::CacheOnly => {
-            if is_cached { FetchDecision::ServeFromCache }
-            else { FetchDecision::Unavailable }
+            if is_cached {
+                FetchDecision::ServeFromCache
+            } else {
+                FetchDecision::Unavailable
+            }
         }
     }
 }
@@ -312,8 +360,14 @@ impl ServiceWorkerConfig {
         self
     }
 
-    pub fn skip_waiting(mut self, sw: bool) -> Self { self.skip_waiting = sw; self }
-    pub fn clients_claim(mut self, cc: bool) -> Self { self.clients_claim = cc; self }
+    pub fn skip_waiting(mut self, sw: bool) -> Self {
+        self.skip_waiting = sw;
+        self
+    }
+    pub fn clients_claim(mut self, cc: bool) -> Self {
+        self.clients_claim = cc;
+        self
+    }
 
     /// Find the matching route rule for a given URL.
     pub fn match_route(&self, url: &str) -> Option<&RouteRule> {
@@ -322,7 +376,9 @@ impl ServiceWorkerConfig {
 
     /// Determine the cache strategy for a URL, falling back to NetworkFirst.
     pub fn strategy_for(&self, url: &str) -> CacheStrategy {
-        self.match_route(url).map(|r| r.strategy).unwrap_or(CacheStrategy::NetworkFirst)
+        self.match_route(url)
+            .map(|r| r.strategy)
+            .unwrap_or(CacheStrategy::NetworkFirst)
     }
 
     /// Get all precache URLs.
@@ -331,7 +387,9 @@ impl ServiceWorkerConfig {
     }
 
     /// Total number of precache entries.
-    pub fn precache_count(&self) -> usize { self.precache.len() }
+    pub fn precache_count(&self) -> usize {
+        self.precache.len()
+    }
 
     /// Generate a list of all cache names used by routes.
     pub fn cache_names(&self) -> Vec<&str> {
@@ -354,9 +412,17 @@ impl ServiceWorkerConfig {
             warnings.push("no offline fallback page set".into());
         }
         // Check for overlapping exact routes
-        let exact_urls: Vec<&str> = self.routes.iter().filter_map(|r| {
-            if let RoutePattern::Exact(ref u) = r.pattern { Some(u.as_str()) } else { None }
-        }).collect();
+        let exact_urls: Vec<&str> = self
+            .routes
+            .iter()
+            .filter_map(|r| {
+                if let RoutePattern::Exact(ref u) = r.pattern {
+                    Some(u.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect();
         let mut seen = std::collections::HashSet::new();
         for url in &exact_urls {
             if !seen.insert(url) {
@@ -368,7 +434,9 @@ impl ServiceWorkerConfig {
 }
 
 impl Default for ServiceWorkerConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ────────────────────────────────────────────────────────
@@ -423,7 +491,12 @@ mod tests {
     #[test]
     fn test_cache_first_online_not_cached() {
         let d = evaluate_strategy(CacheStrategy::CacheFirst, false, true);
-        assert_eq!(d, FetchDecision::FetchFromNetwork { cache_fallback: false });
+        assert_eq!(
+            d,
+            FetchDecision::FetchFromNetwork {
+                cache_fallback: false
+            }
+        );
     }
 
     #[test]
@@ -435,7 +508,12 @@ mod tests {
     #[test]
     fn test_network_first_online() {
         let d = evaluate_strategy(CacheStrategy::NetworkFirst, true, true);
-        assert_eq!(d, FetchDecision::FetchFromNetwork { cache_fallback: true });
+        assert_eq!(
+            d,
+            FetchDecision::FetchFromNetwork {
+                cache_fallback: true
+            }
+        );
     }
 
     #[test]
@@ -459,14 +537,21 @@ mod tests {
     #[test]
     fn test_stale_while_revalidate_not_cached_online() {
         let d = evaluate_strategy(CacheStrategy::StaleWhileRevalidate, false, true);
-        assert_eq!(d, FetchDecision::FetchFromNetwork { cache_fallback: false });
+        assert_eq!(
+            d,
+            FetchDecision::FetchFromNetwork {
+                cache_fallback: false
+            }
+        );
     }
 
     #[test]
     fn test_network_only() {
         assert_eq!(
             evaluate_strategy(CacheStrategy::NetworkOnly, true, true),
-            FetchDecision::FetchFromNetwork { cache_fallback: false }
+            FetchDecision::FetchFromNetwork {
+                cache_fallback: false
+            }
         );
         assert_eq!(
             evaluate_strategy(CacheStrategy::NetworkOnly, true, false),
@@ -497,17 +582,22 @@ mod tests {
 
     #[test]
     fn test_precache_entry_integrity() {
-        let e = PrecacheEntry::new("/lib.js")
-            .with_integrity("sha256-abc123");
+        let e = PrecacheEntry::new("/lib.js").with_integrity("sha256-abc123");
         assert_eq!(e.integrity.as_deref(), Some("sha256-abc123"));
     }
 
     #[test]
     fn test_cache_state_put_get() {
         let mut cache = CacheState::new(None);
-        cache.put("/a".into(), CachedResponse {
-            url: "/a".into(), status: 200, body_size: 100, timestamp: 1000,
-        });
+        cache.put(
+            "/a".into(),
+            CachedResponse {
+                url: "/a".into(),
+                status: 200,
+                body_size: 100,
+                timestamp: 1000,
+            },
+        );
         assert!(cache.contains("/a"));
         assert!(!cache.contains("/b"));
         assert_eq!(cache.len(), 1);
@@ -520,9 +610,15 @@ mod tests {
     fn test_cache_state_lru_eviction() {
         let mut cache = CacheState::new(Some(2));
         for (i, url) in ["/a", "/b", "/c"].iter().enumerate() {
-            cache.put(url.to_string(), CachedResponse {
-                url: url.to_string(), status: 200, body_size: 50, timestamp: i as u64,
-            });
+            cache.put(
+                url.to_string(),
+                CachedResponse {
+                    url: url.to_string(),
+                    status: 200,
+                    body_size: 50,
+                    timestamp: i as u64,
+                },
+            );
         }
         assert_eq!(cache.len(), 2);
         assert!(!cache.contains("/a")); // evicted
@@ -533,14 +629,38 @@ mod tests {
     #[test]
     fn test_cache_state_lru_access_updates() {
         let mut cache = CacheState::new(Some(2));
-        cache.put("/a".into(), CachedResponse { url: "/a".into(), status: 200, body_size: 10, timestamp: 0 });
-        cache.put("/b".into(), CachedResponse { url: "/b".into(), status: 200, body_size: 10, timestamp: 1 });
+        cache.put(
+            "/a".into(),
+            CachedResponse {
+                url: "/a".into(),
+                status: 200,
+                body_size: 10,
+                timestamp: 0,
+            },
+        );
+        cache.put(
+            "/b".into(),
+            CachedResponse {
+                url: "/b".into(),
+                status: 200,
+                body_size: 10,
+                timestamp: 1,
+            },
+        );
 
         // Access /a to make it recently used
         let _ = cache.get("/a");
 
         // Adding /c should evict /b (least recently used)
-        cache.put("/c".into(), CachedResponse { url: "/c".into(), status: 200, body_size: 10, timestamp: 2 });
+        cache.put(
+            "/c".into(),
+            CachedResponse {
+                url: "/c".into(),
+                status: 200,
+                body_size: 10,
+                timestamp: 2,
+            },
+        );
         assert!(cache.contains("/a"));
         assert!(!cache.contains("/b"));
         assert!(cache.contains("/c"));
@@ -549,7 +669,15 @@ mod tests {
     #[test]
     fn test_cache_state_remove() {
         let mut cache = CacheState::new(None);
-        cache.put("/x".into(), CachedResponse { url: "/x".into(), status: 200, body_size: 10, timestamp: 0 });
+        cache.put(
+            "/x".into(),
+            CachedResponse {
+                url: "/x".into(),
+                status: 200,
+                body_size: 10,
+                timestamp: 0,
+            },
+        );
         assert!(cache.remove("/x"));
         assert!(!cache.remove("/x"));
         assert!(cache.is_empty());
@@ -558,15 +686,39 @@ mod tests {
     #[test]
     fn test_cache_state_total_size() {
         let mut cache = CacheState::new(None);
-        cache.put("/a".into(), CachedResponse { url: "/a".into(), status: 200, body_size: 100, timestamp: 0 });
-        cache.put("/b".into(), CachedResponse { url: "/b".into(), status: 200, body_size: 200, timestamp: 1 });
+        cache.put(
+            "/a".into(),
+            CachedResponse {
+                url: "/a".into(),
+                status: 200,
+                body_size: 100,
+                timestamp: 0,
+            },
+        );
+        cache.put(
+            "/b".into(),
+            CachedResponse {
+                url: "/b".into(),
+                status: 200,
+                body_size: 200,
+                timestamp: 1,
+            },
+        );
         assert_eq!(cache.total_size(), 300);
     }
 
     #[test]
     fn test_cache_state_clear() {
         let mut cache = CacheState::new(None);
-        cache.put("/a".into(), CachedResponse { url: "/a".into(), status: 200, body_size: 10, timestamp: 0 });
+        cache.put(
+            "/a".into(),
+            CachedResponse {
+                url: "/a".into(),
+                status: 200,
+                body_size: 10,
+                timestamp: 0,
+            },
+        );
         cache.clear();
         assert!(cache.is_empty());
     }
@@ -586,8 +738,14 @@ mod tests {
             ));
 
         assert_eq!(config.strategy_for("/app.js"), CacheStrategy::CacheFirst);
-        assert_eq!(config.strategy_for("/api/data"), CacheStrategy::NetworkFirst);
-        assert_eq!(config.strategy_for("/page.html"), CacheStrategy::NetworkFirst); // fallback
+        assert_eq!(
+            config.strategy_for("/api/data"),
+            CacheStrategy::NetworkFirst
+        );
+        assert_eq!(
+            config.strategy_for("/page.html"),
+            CacheStrategy::NetworkFirst
+        ); // fallback
     }
 
     #[test]
@@ -605,9 +763,21 @@ mod tests {
     #[test]
     fn test_sw_config_cache_names() {
         let config = ServiceWorkerConfig::new()
-            .add_route(RouteRule::new(RoutePattern::Any, CacheStrategy::CacheFirst, "main"))
-            .add_route(RouteRule::new(RoutePattern::Extension(".png".into()), CacheStrategy::CacheFirst, "images"))
-            .add_route(RouteRule::new(RoutePattern::Extension(".js".into()), CacheStrategy::CacheFirst, "main"));
+            .add_route(RouteRule::new(
+                RoutePattern::Any,
+                CacheStrategy::CacheFirst,
+                "main",
+            ))
+            .add_route(RouteRule::new(
+                RoutePattern::Extension(".png".into()),
+                CacheStrategy::CacheFirst,
+                "images",
+            ))
+            .add_route(RouteRule::new(
+                RoutePattern::Extension(".js".into()),
+                CacheStrategy::CacheFirst,
+                "main",
+            ));
 
         let names = config.cache_names();
         assert_eq!(names.len(), 2); // "images" and "main" (deduplicated)
@@ -626,8 +796,16 @@ mod tests {
     fn test_sw_config_validate_dup_routes() {
         let config = ServiceWorkerConfig::new()
             .add_precache(PrecacheEntry::new("/a"))
-            .add_route(RouteRule::new(RoutePattern::Exact("/x".into()), CacheStrategy::CacheFirst, "c"))
-            .add_route(RouteRule::new(RoutePattern::Exact("/x".into()), CacheStrategy::NetworkFirst, "c"))
+            .add_route(RouteRule::new(
+                RoutePattern::Exact("/x".into()),
+                CacheStrategy::CacheFirst,
+                "c",
+            ))
+            .add_route(RouteRule::new(
+                RoutePattern::Exact("/x".into()),
+                CacheStrategy::NetworkFirst,
+                "c",
+            ))
             .offline_fallback("/offline.html");
 
         let w = config.validate();
@@ -648,7 +826,9 @@ mod tests {
             RoutePattern::Extension(".png".into()),
             CacheStrategy::CacheFirst,
             "images",
-        ).max_entries(50).max_age(86400);
+        )
+        .max_entries(50)
+        .max_age(86400);
 
         assert_eq!(rule.max_entries, Some(50));
         assert_eq!(rule.max_age_secs, Some(86400));
@@ -658,7 +838,10 @@ mod tests {
     fn test_cache_strategy_display() {
         assert_eq!(CacheStrategy::CacheFirst.to_string(), "CacheFirst");
         assert_eq!(CacheStrategy::NetworkFirst.to_string(), "NetworkFirst");
-        assert_eq!(CacheStrategy::StaleWhileRevalidate.to_string(), "StaleWhileRevalidate");
+        assert_eq!(
+            CacheStrategy::StaleWhileRevalidate.to_string(),
+            "StaleWhileRevalidate"
+        );
         assert_eq!(CacheStrategy::NetworkOnly.to_string(), "NetworkOnly");
         assert_eq!(CacheStrategy::CacheOnly.to_string(), "CacheOnly");
     }

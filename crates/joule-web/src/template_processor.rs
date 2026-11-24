@@ -36,7 +36,9 @@ pub enum TemplateProcessorError {
 impl std::fmt::Display for TemplateProcessorError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::ParseError { message, line } => write!(f, "parse error at line {line}: {message}"),
+            Self::ParseError { message, line } => {
+                write!(f, "parse error at line {line}: {message}")
+            }
             Self::RenderError(msg) => write!(f, "render error: {msg}"),
             Self::TemplateNotFound(name) => write!(f, "template not found: {name}"),
             Self::UndefinedVariable(name) => write!(f, "undefined variable: {name}"),
@@ -79,10 +81,7 @@ enum Node {
         else_body: Vec<Node>,
     },
     /// Block definition: `{% block name %}...{% endblock %}`.
-    Block {
-        name: String,
-        body: Vec<Node>,
-    },
+    Block { name: String, body: Vec<Node> },
     /// Extends: `{% extends "parent" %}`.
     Extends(String),
     /// Macro definition: `{% macro name(args) %}...{% endmacro %}`.
@@ -92,15 +91,9 @@ enum Node {
         body: Vec<Node>,
     },
     /// Macro call: `{{ name(args) }}`.
-    MacroCall {
-        name: String,
-        args: Vec<String>,
-    },
+    MacroCall { name: String, args: Vec<String> },
     /// Set variable: `{% set x = expr %}`.
-    Set {
-        variable: String,
-        value: String,
-    },
+    Set { variable: String, value: String },
     /// Include: `{% include "name" %}`.
     Include(String),
     /// Comment: `{# ... #}`.
@@ -349,10 +342,7 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_tag(
-        &mut self,
-        _end_tags: &[&str],
-    ) -> Result<Option<Node>, TemplateProcessorError> {
+    fn parse_tag(&mut self, _end_tags: &[&str]) -> Result<Option<Node>, TemplateProcessorError> {
         let (content, _trim_right) = self.consume_tag_content()?;
 
         if let Some(rest) = content.strip_prefix("if ") {
@@ -394,7 +384,11 @@ impl<'a> Parser<'a> {
         loop {
             if self.looking_at_tag("elif") {
                 let (content, _) = self.consume_tag_content()?;
-                let cond = content.strip_prefix("elif ").unwrap_or("").trim().to_string();
+                let cond = content
+                    .strip_prefix("elif ")
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
                 let branch_body = self.parse_until(&["elif", "else", "endif"])?;
                 elif_branches.push((cond, branch_body));
             } else if self.looking_at_tag("else") {
@@ -465,10 +459,12 @@ impl<'a> Parser<'a> {
 
     fn parse_macro_def(&mut self, content: &str) -> Result<Node, TemplateProcessorError> {
         // "name(arg1, arg2)"
-        let paren = content.find('(').ok_or_else(|| TemplateProcessorError::ParseError {
-            message: format!("invalid macro syntax: {content}"),
-            line: self.line,
-        })?;
+        let paren = content
+            .find('(')
+            .ok_or_else(|| TemplateProcessorError::ParseError {
+                message: format!("invalid macro syntax: {content}"),
+                line: self.line,
+            })?;
         let name = content[..paren].trim().to_string();
         let args_end = content.find(')').unwrap_or(content.len());
         let args_str = &content[paren + 1..args_end];
@@ -483,11 +479,7 @@ impl<'a> Parser<'a> {
             let _ = self.consume_tag_content()?;
         }
 
-        Ok(Node::MacroDef {
-            name,
-            params,
-            body,
-        })
+        Ok(Node::MacroDef { name, params, body })
     }
 
     fn parse_set(&mut self, content: &str) -> Result<Node, TemplateProcessorError> {
@@ -851,14 +843,22 @@ fn apply_filter(
             if let Ok(Value::Array(arr)) = serde_json::from_str::<Value>(value) {
                 Ok(arr.first().map(value_to_string).unwrap_or_default())
             } else {
-                Ok(value.chars().next().map(|c| c.to_string()).unwrap_or_default())
+                Ok(value
+                    .chars()
+                    .next()
+                    .map(|c| c.to_string())
+                    .unwrap_or_default())
             }
         }
         "last" => {
             if let Ok(Value::Array(arr)) = serde_json::from_str::<Value>(value) {
                 Ok(arr.last().map(value_to_string).unwrap_or_default())
             } else {
-                Ok(value.chars().last().map(|c| c.to_string()).unwrap_or_default())
+                Ok(value
+                    .chars()
+                    .last()
+                    .map(|c| c.to_string())
+                    .unwrap_or_default())
             }
         }
         _ => Err(TemplateProcessorError::FilterNotFound(filter.name.clone())),
@@ -936,17 +936,11 @@ fn render_nodes(
                             // loop variable
                             let mut loop_obj = serde_json::Map::new();
                             loop_obj.insert("index0".into(), Value::Number(i.into()));
-                            loop_obj
-                                .insert("index".into(), Value::Number((i + 1).into()));
+                            loop_obj.insert("index".into(), Value::Number((i + 1).into()));
                             loop_obj.insert("first".into(), Value::Bool(i == 0));
-                            loop_obj
-                                .insert("last".into(), Value::Bool(i == total - 1));
-                            loop_obj.insert(
-                                "length".into(),
-                                Value::Number(total.into()),
-                            );
-                            ctx.variables
-                                .insert("loop".into(), Value::Object(loop_obj));
+                            loop_obj.insert("last".into(), Value::Bool(i == total - 1));
+                            loop_obj.insert("length".into(), Value::Number(total.into()));
+                            ctx.variables.insert("loop".into(), Value::Object(loop_obj));
                             output.push_str(&render_nodes(body, ctx, engine)?);
                         }
                         ctx.variables.remove(variable);
@@ -972,7 +966,8 @@ fn render_nodes(
                 let _ = parent_name;
             }
             Node::MacroDef { name, params, body } => {
-                ctx.macros.insert(name.clone(), (params.clone(), body.clone()));
+                ctx.macros
+                    .insert(name.clone(), (params.clone(), body.clone()));
             }
             Node::MacroCall { name, args } => {
                 let (params, body) = ctx
@@ -985,10 +980,7 @@ fn render_nodes(
                     .map(|p| (p.clone(), ctx.variables.get(p).cloned()))
                     .collect();
                 for (i, param) in params.iter().enumerate() {
-                    let val = args
-                        .get(i)
-                        .map(|a| ctx.resolve(a))
-                        .unwrap_or(Value::Null);
+                    let val = args.get(i).map(|a| ctx.resolve(a)).unwrap_or(Value::Null);
                     ctx.variables.insert(param.clone(), val);
                 }
                 output.push_str(&render_nodes(&body, ctx, engine)?);
@@ -1037,11 +1029,7 @@ impl TemplateProcessor {
     }
 
     /// Register a named template.
-    pub fn register(
-        &mut self,
-        name: impl Into<String>,
-        source: impl Into<String>,
-    ) {
+    pub fn register(&mut self, name: impl Into<String>, source: impl Into<String>) {
         self.templates.insert(name.into(), source.into());
     }
 
@@ -1051,11 +1039,7 @@ impl TemplateProcessor {
     }
 
     /// Render a registered template by name.
-    pub fn render(
-        &self,
-        name: &str,
-        data: &Value,
-    ) -> Result<String, TemplateProcessorError> {
+    pub fn render(&self, name: &str, data: &Value) -> Result<String, TemplateProcessorError> {
         let source = self
             .templates
             .get(name)
@@ -1093,7 +1077,8 @@ impl TemplateProcessor {
             // Also collect macros from child.
             for node in &nodes {
                 if let Node::MacroDef { name, params, body } = node {
-                    ctx.macros.insert(name.clone(), (params.clone(), body.clone()));
+                    ctx.macros
+                        .insert(name.clone(), (params.clone(), body.clone()));
                 }
             }
             // Render parent.
@@ -1144,7 +1129,9 @@ mod tests {
     #[test]
     fn test_basic_expression() {
         let tp = engine();
-        let result = tp.render_string("Hello {{ name }}!", &json!({"name": "World"})).unwrap();
+        let result = tp
+            .render_string("Hello {{ name }}!", &json!({"name": "World"}))
+            .unwrap();
         assert_eq!(result, "Hello World!");
     }
 
@@ -1152,7 +1139,9 @@ mod tests {
     fn test_dot_access() {
         let tp = engine();
         let data = json!({"user": {"name": "Alice", "age": 30}});
-        let result = tp.render_string("{{ user.name }} is {{ user.age }}", &data).unwrap();
+        let result = tp
+            .render_string("{{ user.name }} is {{ user.age }}", &data)
+            .unwrap();
         assert_eq!(result, "Alice is 30");
     }
 
@@ -1180,10 +1169,12 @@ mod tests {
     fn test_elif() {
         let tp = engine();
         let data = json!({"val": 2});
-        let result = tp.render_string(
-            "{% if val == 1 %}one{% elif val == 2 %}two{% else %}other{% endif %}",
-            &data,
-        ).unwrap();
+        let result = tp
+            .render_string(
+                "{% if val == 1 %}one{% elif val == 2 %}two{% else %}other{% endif %}",
+                &data,
+            )
+            .unwrap();
         assert_eq!(result, "two");
     }
 
@@ -1201,10 +1192,9 @@ mod tests {
     fn test_for_loop_variables() {
         let tp = engine();
         let data = json!({"items": [1, 2, 3]});
-        let result = tp.render_string(
-            "{% for x in items %}{{ loop.index }}{% endfor %}",
-            &data,
-        ).unwrap();
+        let result = tp
+            .render_string("{% for x in items %}{{ loop.index }}{% endfor %}", &data)
+            .unwrap();
         assert_eq!(result, "123");
     }
 
@@ -1261,10 +1251,7 @@ mod tests {
     fn test_filter_default() {
         let tp = engine();
         let result = tp
-            .render_string(
-                "{{ missing | default(\"fallback\") }}",
-                &json!({}),
-            )
+            .render_string("{{ missing | default(\"fallback\") }}", &json!({}))
             .unwrap();
         assert_eq!(result, "fallback");
     }
@@ -1273,10 +1260,7 @@ mod tests {
     fn test_filter_truncate() {
         let tp = engine();
         let result = tp
-            .render_string(
-                "{{ text | truncate(5) }}",
-                &json!({"text": "Hello World"}),
-            )
+            .render_string("{{ text | truncate(5) }}", &json!({"text": "Hello World"}))
             .unwrap();
         assert_eq!(result, "Hello...");
     }
@@ -1310,9 +1294,7 @@ mod tests {
     #[test]
     fn test_comments() {
         let tp = engine();
-        let result = tp
-            .render_string("A{# comment #}B", &json!({}))
-            .unwrap();
+        let result = tp.render_string("A{# comment #}B", &json!({})).unwrap();
         assert_eq!(result, "AB");
     }
 
@@ -1356,8 +1338,14 @@ mod tests {
     #[test]
     fn test_template_inheritance() {
         let mut tp = engine();
-        tp.register("base", "Header{% block content %}default{% endblock %}Footer");
-        tp.register("child", "{% extends \"base\" %}{% block content %}CUSTOM{% endblock %}");
+        tp.register(
+            "base",
+            "Header{% block content %}default{% endblock %}Footer",
+        );
+        tp.register(
+            "child",
+            "{% extends \"base\" %}{% block content %}CUSTOM{% endblock %}",
+        );
         let result = tp.render("child", &json!({})).unwrap();
         assert_eq!(result, "HeaderCUSTOMFooter");
     }
@@ -1376,13 +1364,19 @@ mod tests {
         let tp = engine();
         let data = json!({"x": 5});
 
-        let r1 = tp.render_string("{% if x > 3 %}yes{% endif %}", &data).unwrap();
+        let r1 = tp
+            .render_string("{% if x > 3 %}yes{% endif %}", &data)
+            .unwrap();
         assert_eq!(r1, "yes");
 
-        let r2 = tp.render_string("{% if x < 3 %}yes{% else %}no{% endif %}", &data).unwrap();
+        let r2 = tp
+            .render_string("{% if x < 3 %}yes{% else %}no{% endif %}", &data)
+            .unwrap();
         assert_eq!(r2, "no");
 
-        let r3 = tp.render_string("{% if x == 5 %}eq{% endif %}", &data).unwrap();
+        let r3 = tp
+            .render_string("{% if x == 5 %}eq{% endif %}", &data)
+            .unwrap();
         assert_eq!(r3, "eq");
     }
 
@@ -1391,10 +1385,14 @@ mod tests {
         let tp = engine();
         let data = json!({"a": true, "b": false});
 
-        let r1 = tp.render_string("{% if a and b %}yes{% else %}no{% endif %}", &data).unwrap();
+        let r1 = tp
+            .render_string("{% if a and b %}yes{% else %}no{% endif %}", &data)
+            .unwrap();
         assert_eq!(r1, "no");
 
-        let r2 = tp.render_string("{% if a or b %}yes{% else %}no{% endif %}", &data).unwrap();
+        let r2 = tp
+            .render_string("{% if a or b %}yes{% else %}no{% endif %}", &data)
+            .unwrap();
         assert_eq!(r2, "yes");
     }
 
@@ -1412,10 +1410,12 @@ mod tests {
     fn test_nested_for_if() {
         let tp = engine();
         let data = json!({"items": [1, 2, 3, 4, 5]});
-        let result = tp.render_string(
-            "{% for x in items %}{% if x > 3 %}{{ x }}{% endif %}{% endfor %}",
-            &data,
-        ).unwrap();
+        let result = tp
+            .render_string(
+                "{% for x in items %}{% if x > 3 %}{{ x }}{% endif %}{% endfor %}",
+                &data,
+            )
+            .unwrap();
         assert_eq!(result, "45");
     }
 
@@ -1466,7 +1466,10 @@ mod tests {
     fn test_string_literal_in_expression() {
         let tp = engine();
         let result = tp
-            .render_string("{% if status == \"active\" %}yes{% endif %}", &json!({"status": "active"}))
+            .render_string(
+                "{% if status == \"active\" %}yes{% endif %}",
+                &json!({"status": "active"}),
+            )
             .unwrap();
         assert_eq!(result, "yes");
     }

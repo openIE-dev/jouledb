@@ -66,7 +66,11 @@ impl ModuleRegistry {
 
     /// List modules filtered by domain.
     pub fn list_domain(&self, domain: &str) -> Vec<&ModuleEntry> {
-        let mut entries: Vec<_> = self.modules.values().filter(|e| e.domain == domain).collect();
+        let mut entries: Vec<_> = self
+            .modules
+            .values()
+            .filter(|e| e.domain == domain)
+            .collect();
         entries.sort_by_key(|e| e.name);
         entries
     }
@@ -86,12 +90,11 @@ impl ModuleRegistry {
 
     /// Invoke a module by name with JSON arguments.
     /// Returns the result with energy telemetry.
-    pub fn invoke(
-        &self,
-        name: &str,
-        args: &serde_json::Value,
-    ) -> Result<InvokeResult, String> {
-        let entry = self.modules.get(name).ok_or_else(|| format!("unknown module: {name}"))?;
+    pub fn invoke(&self, name: &str, args: &serde_json::Value) -> Result<InvokeResult, String> {
+        let entry = self
+            .modules
+            .get(name)
+            .ok_or_else(|| format!("unknown module: {name}"))?;
         let start = Instant::now();
         let result = (entry.run)(args)?;
         let elapsed = start.elapsed();
@@ -160,42 +163,180 @@ fn get_usize(args: &serde_json::Value, key: &str) -> Result<usize, String> {
 
 fn register_all(m: &mut HashMap<&'static str, ModuleEntry>) {
     // ── Financial ────────────────────────────────────────────
-    register_module!(m, "black_scholes", "Black-Scholes European option pricing", "financial", run_black_scholes);
-    register_module!(m, "bond_price", "Bond pricing and yield calculation", "financial", run_bond_price);
-    register_module!(m, "var_model", "Value-at-Risk models for portfolio risk", "financial", run_var_model);
-    register_module!(m, "monte_carlo_risk", "Monte Carlo risk simulation (GBM paths)", "financial", run_monte_carlo_risk);
-    register_module!(m, "portfolio_optimize", "Mean-variance portfolio optimization", "financial", run_portfolio_optimize);
+    register_module!(
+        m,
+        "black_scholes",
+        "Black-Scholes European option pricing",
+        "financial",
+        run_black_scholes
+    );
+    register_module!(
+        m,
+        "bond_price",
+        "Bond pricing and yield calculation",
+        "financial",
+        run_bond_price
+    );
+    register_module!(
+        m,
+        "var_model",
+        "Value-at-Risk models for portfolio risk",
+        "financial",
+        run_var_model
+    );
+    register_module!(
+        m,
+        "monte_carlo_risk",
+        "Monte Carlo risk simulation (GBM paths)",
+        "financial",
+        run_monte_carlo_risk
+    );
+    register_module!(
+        m,
+        "portfolio_optimize",
+        "Mean-variance portfolio optimization",
+        "financial",
+        run_portfolio_optimize
+    );
 
     // ── Bioinformatics ───────────────────────────────────────
-    register_module!(m, "needleman_wunsch", "Global sequence alignment (Needleman-Wunsch)", "bioinformatics", run_needleman_wunsch);
-    register_module!(m, "smith_waterman", "Local sequence alignment (Smith-Waterman)", "bioinformatics", run_smith_waterman);
-    register_module!(m, "hardy_weinberg", "Hardy-Weinberg equilibrium test", "bioinformatics", run_hardy_weinberg);
-    register_module!(m, "kmer_count", "K-mer frequency counting", "bioinformatics", run_kmer_count);
+    register_module!(
+        m,
+        "needleman_wunsch",
+        "Global sequence alignment (Needleman-Wunsch)",
+        "bioinformatics",
+        run_needleman_wunsch
+    );
+    register_module!(
+        m,
+        "smith_waterman",
+        "Local sequence alignment (Smith-Waterman)",
+        "bioinformatics",
+        run_smith_waterman
+    );
+    register_module!(
+        m,
+        "hardy_weinberg",
+        "Hardy-Weinberg equilibrium test",
+        "bioinformatics",
+        run_hardy_weinberg
+    );
+    register_module!(
+        m,
+        "kmer_count",
+        "K-mer frequency counting",
+        "bioinformatics",
+        run_kmer_count
+    );
 
     // ── GIS / Geospatial ─────────────────────────────────────
-    register_module!(m, "great_circle", "Great circle distance and bearing", "geospatial", run_great_circle);
-    register_module!(m, "geohash_encode", "Geohash encoding/decoding", "geospatial", run_geohash_encode);
-    register_module!(m, "geo_coord", "Coordinate conversion (lat/lon, ECEF, DMS)", "geospatial", run_geo_coord);
+    register_module!(
+        m,
+        "great_circle",
+        "Great circle distance and bearing",
+        "geospatial",
+        run_great_circle
+    );
+    register_module!(
+        m,
+        "geohash_encode",
+        "Geohash encoding/decoding",
+        "geospatial",
+        run_geohash_encode
+    );
+    register_module!(
+        m,
+        "geo_coord",
+        "Coordinate conversion (lat/lon, ECEF, DMS)",
+        "geospatial",
+        run_geo_coord
+    );
 
     // ── Post-Quantum Crypto ──────────────────────────────────
-    register_module!(m, "kyber_kem", "CRYSTALS-Kyber key encapsulation", "post-quantum", run_kyber_kem);
-    register_module!(m, "dilithium_sign", "CRYSTALS-Dilithium digital signatures", "post-quantum", run_dilithium_sign);
-    register_module!(m, "hash_tree", "Merkle hash tree construction", "post-quantum", run_hash_tree);
+    register_module!(
+        m,
+        "kyber_kem",
+        "CRYSTALS-Kyber key encapsulation",
+        "post-quantum",
+        run_kyber_kem
+    );
+    register_module!(
+        m,
+        "dilithium_sign",
+        "CRYSTALS-Dilithium digital signatures",
+        "post-quantum",
+        run_dilithium_sign
+    );
+    register_module!(
+        m,
+        "hash_tree",
+        "Merkle hash tree construction",
+        "post-quantum",
+        run_hash_tree
+    );
 
     // ── CAD/CAM ──────────────────────────────────────────────
-    register_module!(m, "bezier_curve", "Bézier curve evaluation and subdivision", "cad", run_bezier_curve);
-    register_module!(m, "nurbs_curve", "NURBS curve evaluation", "cad", run_nurbs_curve);
+    register_module!(
+        m,
+        "bezier_curve",
+        "Bézier curve evaluation and subdivision",
+        "cad",
+        run_bezier_curve
+    );
+    register_module!(
+        m,
+        "nurbs_curve",
+        "NURBS curve evaluation",
+        "cad",
+        run_nurbs_curve
+    );
 
     // ── Healthcare ───────────────────────────────────────────
-    register_module!(m, "icd_code", "ICD-10 code lookup and validation", "healthcare", run_icd_code);
-    register_module!(m, "dose_calc", "Medication dosage calculation", "healthcare", run_dose_calc);
+    register_module!(
+        m,
+        "icd_code",
+        "ICD-10 code lookup and validation",
+        "healthcare",
+        run_icd_code
+    );
+    register_module!(
+        m,
+        "dose_calc",
+        "Medication dosage calculation",
+        "healthcare",
+        run_dose_calc
+    );
 
     // ── Core Web / ML ────────────────────────────────────────
-    register_module!(m, "fft_engine", "Fast Fourier Transform", "core", run_fft_engine);
+    register_module!(
+        m,
+        "fft_engine",
+        "Fast Fourier Transform",
+        "core",
+        run_fft_engine
+    );
     register_module!(m, "kmeans", "K-means clustering", "core", run_kmeans);
-    register_module!(m, "stats_engine", "Descriptive statistics engine", "core", run_stats_engine);
-    register_module!(m, "json_patch", "RFC 6902 JSON Patch", "core", run_json_patch);
-    register_module!(m, "markdown", "Markdown to HTML parser", "core", run_markdown);
+    register_module!(
+        m,
+        "stats_engine",
+        "Descriptive statistics engine",
+        "core",
+        run_stats_engine
+    );
+    register_module!(
+        m,
+        "json_patch",
+        "RFC 6902 JSON Patch",
+        "core",
+        run_json_patch
+    );
+    register_module!(
+        m,
+        "markdown",
+        "Markdown to HTML parser",
+        "core",
+        run_markdown
+    );
 }
 
 // ── Run functions ────────────────────────────────────────────────
@@ -207,9 +348,16 @@ fn run_black_scholes(args: &serde_json::Value) -> Result<serde_json::Value, Stri
     let rate = get_f64(args, "rate")?;
     let vol = get_f64(args, "vol")?;
     let expiry = get_f64(args, "expiry")?;
-    let is_call = args.get("is_call").and_then(|v| v.as_bool()).unwrap_or(true);
+    let is_call = args
+        .get("is_call")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
     let model = BsModel::new(spot, strike, rate, vol, expiry);
-    let kind = if is_call { OptionKind::Call } else { OptionKind::Put };
+    let kind = if is_call {
+        OptionKind::Call
+    } else {
+        OptionKind::Put
+    };
     let price = model.price(kind).map_err(|e| e.to_string())?;
     let greeks = model.greeks(kind).map_err(|e| e.to_string())?;
     Ok(serde_json::json!({
@@ -223,7 +371,7 @@ fn run_black_scholes(args: &serde_json::Value) -> Result<serde_json::Value, Stri
 }
 
 fn run_bond_price(args: &serde_json::Value) -> Result<serde_json::Value, String> {
-    use crate::bond_price::{BondPriceConfig, BondPrice};
+    use crate::bond_price::{BondPrice, BondPriceConfig};
     let face = get_f64(args, "face_value").unwrap_or(1000.0);
     let coupon = get_f64(args, "coupon_rate")?;
     let yield_rate = get_f64(args, "yield_rate")?;
@@ -304,7 +452,9 @@ fn run_needleman_wunsch(args: &serde_json::Value) -> Result<serde_json::Value, S
     let seq_b = get_str(args, "seq_b")?;
     let cfg = NwConfig::new();
     let aligner = NeedlemanWunsch::new(cfg);
-    let result = aligner.align(seq_a.as_bytes(), seq_b.as_bytes()).map_err(|e| e.to_string())?;
+    let result = aligner
+        .align(seq_a.as_bytes(), seq_b.as_bytes())
+        .map_err(|e| e.to_string())?;
     Ok(serde_json::json!({
         "score": result.score,
         "aligned_a": String::from_utf8_lossy(&result.aligned_a),
@@ -320,7 +470,9 @@ fn run_smith_waterman(args: &serde_json::Value) -> Result<serde_json::Value, Str
     let seq_b = get_str(args, "seq_b")?;
     let cfg = SwConfig::new();
     let aligner = SmithWaterman::new(cfg);
-    let result = aligner.align(seq_a.as_bytes(), seq_b.as_bytes()).map_err(|e| e.to_string())?;
+    let result = aligner
+        .align(seq_a.as_bytes(), seq_b.as_bytes())
+        .map_err(|e| e.to_string())?;
     Ok(serde_json::json!({
         "score": result.score,
         "aligned_a": String::from_utf8_lossy(&result.aligned_a),
@@ -353,7 +505,9 @@ fn run_kmer_count(args: &serde_json::Value) -> Result<serde_json::Value, String>
     let sequence = get_str(args, "sequence")?;
     let k = get_usize(args, "k").unwrap_or(3);
     let counter = KmerCounter::new(k);
-    let spectrum = counter.count(sequence.as_bytes()).map_err(|e| e.to_string())?;
+    let spectrum = counter
+        .count(sequence.as_bytes())
+        .map_err(|e| e.to_string())?;
     let top = spectrum.top_n(10);
     let entries: Vec<_> = top.iter().map(|(kmer, count)| {
         serde_json::json!({ "kmer": String::from_utf8_lossy(kmer), "count": count })
@@ -533,11 +687,18 @@ fn run_kmeans(args: &serde_json::Value) -> Result<serde_json::Value, String> {
     let flat_data = get_f64_array(args, "data")?;
     let dims = get_usize(args, "dims").unwrap_or(2);
     // Convert flat array to Vec<Vec<f64>>
-    let data: Vec<Vec<f64>> = flat_data.chunks(dims)
+    let data: Vec<Vec<f64>> = flat_data
+        .chunks(dims)
         .filter(|c| c.len() == dims)
         .map(|c| c.to_vec())
         .collect();
-    let cfg = KMeansConfig { k, max_iter: 100, tol: 1e-6, init: crate::kmeans::InitMethod::KMeansPlusPlus, seed: 42 };
+    let cfg = KMeansConfig {
+        k,
+        max_iter: 100,
+        tol: 1e-6,
+        init: crate::kmeans::InitMethod::KMeansPlusPlus,
+        seed: 42,
+    };
     let result = kmeans(&data, &cfg);
     Ok(serde_json::json!({
         "centroids": result.centroids,
@@ -567,8 +728,14 @@ fn run_stats_engine(args: &serde_json::Value) -> Result<serde_json::Value, Strin
 
 fn run_json_patch(args: &serde_json::Value) -> Result<serde_json::Value, String> {
     use crate::json_patch;
-    let mut doc = args.get("document").cloned().ok_or("missing parameter: document")?;
-    let patches_val = args.get("patches").cloned().ok_or("missing parameter: patches")?;
+    let mut doc = args
+        .get("document")
+        .cloned()
+        .ok_or("missing parameter: document")?;
+    let patches_val = args
+        .get("patches")
+        .cloned()
+        .ok_or("missing parameter: patches")?;
     let ops = json_patch::parse_patch(&patches_val).map_err(|e| e.to_string())?;
     json_patch::apply(&mut doc, &ops).map_err(|e| e.to_string())?;
     Ok(doc)

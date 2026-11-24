@@ -539,7 +539,10 @@ mod tests {
         outbox.write(make_entry("e2", "order-1")).unwrap();
         let result = outbox.relay(10).unwrap();
         assert_eq!(result.published.len(), 2);
-        assert_eq!(outbox.get_entry("e1").unwrap().status, EntryStatus::Published);
+        assert_eq!(
+            outbox.get_entry("e1").unwrap().status,
+            EntryStatus::Published
+        );
     }
 
     #[test]
@@ -655,10 +658,7 @@ mod tests {
         let result = outbox.relay_for_aggregate("order-1", 10).unwrap();
         assert_eq!(result.published.len(), 2);
         // order-2 should still be pending.
-        assert_eq!(
-            outbox.get_entry("e2").unwrap().status,
-            EntryStatus::Pending
-        );
+        assert_eq!(outbox.get_entry("e2").unwrap().status, EntryStatus::Pending);
     }
 
     #[test]

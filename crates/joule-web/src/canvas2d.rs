@@ -191,13 +191,45 @@ impl Transform2D {
 pub enum DrawCommand {
     MoveTo(f64, f64),
     LineTo(f64, f64),
-    QuadraticTo { cx: f64, cy: f64, x: f64, y: f64 },
-    BezierTo { cx1: f64, cy1: f64, cx2: f64, cy2: f64, x: f64, y: f64 },
-    ArcTo { x: f64, y: f64, radius: f64, start_angle: f64, end_angle: f64 },
+    QuadraticTo {
+        cx: f64,
+        cy: f64,
+        x: f64,
+        y: f64,
+    },
+    BezierTo {
+        cx1: f64,
+        cy1: f64,
+        cx2: f64,
+        cy2: f64,
+        x: f64,
+        y: f64,
+    },
+    ArcTo {
+        x: f64,
+        y: f64,
+        radius: f64,
+        start_angle: f64,
+        end_angle: f64,
+    },
     ClosePath,
-    Rect { x: f64, y: f64, w: f64, h: f64 },
-    Circle { cx: f64, cy: f64, radius: f64 },
-    Ellipse { cx: f64, cy: f64, rx: f64, ry: f64 },
+    Rect {
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+    },
+    Circle {
+        cx: f64,
+        cy: f64,
+        radius: f64,
+    },
+    Ellipse {
+        cx: f64,
+        cy: f64,
+        rx: f64,
+        ry: f64,
+    },
     FillStyle(FillStyle),
     StrokeStyle(StrokeStyle),
     LineWidth(f64),
@@ -212,11 +244,27 @@ pub enum DrawCommand {
     Rotate(f64),
     Scale(f64, f64),
     SetTransform(Transform2D),
-    FillText { text: String, x: f64, y: f64, font: Option<String>, max_width: Option<f64> },
-    StrokeText { text: String, x: f64, y: f64, font: Option<String> },
+    FillText {
+        text: String,
+        x: f64,
+        y: f64,
+        font: Option<String>,
+        max_width: Option<f64>,
+    },
+    StrokeText {
+        text: String,
+        x: f64,
+        y: f64,
+        font: Option<String>,
+    },
     Clip,
     GlobalAlpha(f64),
-    ClearRect { x: f64, y: f64, w: f64, h: f64 },
+    ClearRect {
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+    },
     BeginPath,
 }
 
@@ -257,17 +305,46 @@ impl Canvas2D {
     }
 
     pub fn quadratic_to(&mut self, cx: f64, cy: f64, x: f64, y: f64) -> &mut Self {
-        self.commands.push(DrawCommand::QuadraticTo { cx, cy, x, y });
+        self.commands
+            .push(DrawCommand::QuadraticTo { cx, cy, x, y });
         self
     }
 
-    pub fn bezier_to(&mut self, cx1: f64, cy1: f64, cx2: f64, cy2: f64, x: f64, y: f64) -> &mut Self {
-        self.commands.push(DrawCommand::BezierTo { cx1, cy1, cx2, cy2, x, y });
+    pub fn bezier_to(
+        &mut self,
+        cx1: f64,
+        cy1: f64,
+        cx2: f64,
+        cy2: f64,
+        x: f64,
+        y: f64,
+    ) -> &mut Self {
+        self.commands.push(DrawCommand::BezierTo {
+            cx1,
+            cy1,
+            cx2,
+            cy2,
+            x,
+            y,
+        });
         self
     }
 
-    pub fn arc_to(&mut self, x: f64, y: f64, radius: f64, start_angle: f64, end_angle: f64) -> &mut Self {
-        self.commands.push(DrawCommand::ArcTo { x, y, radius, start_angle, end_angle });
+    pub fn arc_to(
+        &mut self,
+        x: f64,
+        y: f64,
+        radius: f64,
+        start_angle: f64,
+        end_angle: f64,
+    ) -> &mut Self {
+        self.commands.push(DrawCommand::ArcTo {
+            x,
+            y,
+            radius,
+            start_angle,
+            end_angle,
+        });
         self
     }
 
@@ -454,7 +531,14 @@ impl Canvas2D {
                 DrawCommand::QuadraticTo { cx, cy, x, y } => {
                     path_data.push_str(&format!("Q{cx} {cy} {x} {y} "));
                 }
-                DrawCommand::BezierTo { cx1, cy1, cx2, cy2, x, y } => {
+                DrawCommand::BezierTo {
+                    cx1,
+                    cy1,
+                    cx2,
+                    cy2,
+                    x,
+                    y,
+                } => {
                     path_data.push_str(&format!("C{cx1} {cy1} {cx2} {cy2} {x} {y} "));
                 }
                 DrawCommand::ClosePath => {
@@ -477,7 +561,13 @@ impl Canvas2D {
                 }
                 DrawCommand::FillStyle(style) => match style {
                     FillStyle::Color(c) => fill_color = c.clone(),
-                    FillStyle::LinearGradient { x0, y0, x1, y1, stops } => {
+                    FillStyle::LinearGradient {
+                        x0,
+                        y0,
+                        x1,
+                        y1,
+                        stops,
+                    } => {
                         let gid = format!("lg{gradient_id}");
                         gradient_id += 1;
                         let mut def = format!(
@@ -510,7 +600,13 @@ impl Canvas2D {
                 },
                 DrawCommand::StrokeStyle(style) => match style {
                     StrokeStyle::Color(c) => stroke_color = c.clone(),
-                    StrokeStyle::LinearGradient { x0, y0, x1, y1, stops } => {
+                    StrokeStyle::LinearGradient {
+                        x0,
+                        y0,
+                        x1,
+                        y1,
+                        stops,
+                    } => {
                         let gid = format!("slg{gradient_id}");
                         gradient_id += 1;
                         let mut def = format!(
@@ -542,22 +638,36 @@ impl Canvas2D {
                     }
                 },
                 DrawCommand::LineWidth(w) => stroke_width = *w,
-                DrawCommand::FillText { text, x, y, font, .. } => {
-                    let font_attr = font.as_ref().map_or(String::new(), |f| format!(" font-family=\"{f}\""));
+                DrawCommand::FillText {
+                    text, x, y, font, ..
+                } => {
+                    let font_attr = font
+                        .as_ref()
+                        .map_or(String::new(), |f| format!(" font-family=\"{f}\""));
                     svg.push_str(&format!(
                         "  <text x=\"{x}\" y=\"{y}\" fill=\"{fill_color}\"{font_attr}>{text}</text>\n"
                     ));
                 }
                 DrawCommand::StrokeText { text, x, y, font } => {
-                    let font_attr = font.as_ref().map_or(String::new(), |f| format!(" font-family=\"{f}\""));
+                    let font_attr = font
+                        .as_ref()
+                        .map_or(String::new(), |f| format!(" font-family=\"{f}\""));
                     svg.push_str(&format!(
                         "  <text x=\"{x}\" y=\"{y}\" stroke=\"{stroke_color}\" fill=\"none\"{font_attr}>{text}</text>\n"
                     ));
                 }
                 DrawCommand::Fill | DrawCommand::Stroke | DrawCommand::FillAndStroke => {
                     if !path_data.is_empty() {
-                        let fill = if matches!(cmd, DrawCommand::Stroke) { "none" } else { &fill_color };
-                        let stroke_attr = if matches!(cmd, DrawCommand::Fill) { "none" } else { &stroke_color };
+                        let fill = if matches!(cmd, DrawCommand::Stroke) {
+                            "none"
+                        } else {
+                            &fill_color
+                        };
+                        let stroke_attr = if matches!(cmd, DrawCommand::Fill) {
+                            "none"
+                        } else {
+                            &stroke_color
+                        };
                         svg.push_str(&format!(
                             "  <path d=\"{}\" fill=\"{fill}\" stroke=\"{stroke_attr}\" stroke-width=\"{stroke_width}\"/>\n",
                             path_data.trim()
@@ -615,8 +725,23 @@ impl Path2D {
         self
     }
 
-    pub fn bezier_to(&mut self, cx1: f64, cy1: f64, cx2: f64, cy2: f64, x: f64, y: f64) -> &mut Self {
-        self.segments.push(DrawCommand::BezierTo { cx1, cy1, cx2, cy2, x, y });
+    pub fn bezier_to(
+        &mut self,
+        cx1: f64,
+        cy1: f64,
+        cx2: f64,
+        cy2: f64,
+        x: f64,
+        y: f64,
+    ) -> &mut Self {
+        self.segments.push(DrawCommand::BezierTo {
+            cx1,
+            cy1,
+            cx2,
+            cy2,
+            x,
+            y,
+        });
         self
     }
 
@@ -635,7 +760,14 @@ impl Path2D {
         for seg in &self.segments {
             let points: Vec<(f64, f64)> = match seg {
                 DrawCommand::MoveTo(x, y) | DrawCommand::LineTo(x, y) => vec![(*x, *y)],
-                DrawCommand::BezierTo { cx1, cy1, cx2, cy2, x, y } => {
+                DrawCommand::BezierTo {
+                    cx1,
+                    cy1,
+                    cx2,
+                    cy2,
+                    x,
+                    y,
+                } => {
                     vec![(*cx1, *cy1), (*cx2, *cy2), (*x, *y)]
                 }
                 DrawCommand::QuadraticTo { cx, cy, x, y } => {
@@ -644,10 +776,18 @@ impl Path2D {
                 _ => vec![],
             };
             for (px, py) in points {
-                if px < min_x { min_x = px; }
-                if py < min_y { min_y = py; }
-                if px > max_x { max_x = px; }
-                if py > max_y { max_y = py; }
+                if px < min_x {
+                    min_x = px;
+                }
+                if py < min_y {
+                    min_y = py;
+                }
+                if px > max_x {
+                    max_x = px;
+                }
+                if py > max_y {
+                    max_y = py;
+                }
             }
         }
 
@@ -676,7 +816,14 @@ impl Path2D {
                     cur_x = *x;
                     cur_y = *y;
                 }
-                DrawCommand::BezierTo { cx1, cy1, cx2, cy2, x, y } => {
+                DrawCommand::BezierTo {
+                    cx1,
+                    cy1,
+                    cx2,
+                    cy2,
+                    x,
+                    y,
+                } => {
                     // Approximate with chord + control polygon average.
                     let chord = ((*x - cur_x).powi(2) + (*y - cur_y).powi(2)).sqrt();
                     let poly = ((cx1 - cur_x).powi(2) + (cy1 - cur_y).powi(2)).sqrt()
@@ -722,7 +869,10 @@ mod tests {
     #[test]
     fn command_buffer_records() {
         let mut c = Canvas2D::new(800.0, 600.0);
-        c.begin_path().move_to(10.0, 20.0).line_to(30.0, 40.0).fill();
+        c.begin_path()
+            .move_to(10.0, 20.0)
+            .line_to(30.0, 40.0)
+            .fill();
         assert_eq!(c.command_count(), 4);
         assert!(matches!(c.commands()[0], DrawCommand::BeginPath));
         assert!(matches!(c.commands()[1], DrawCommand::MoveTo(10.0, 20.0)));
@@ -790,7 +940,10 @@ mod tests {
     fn gradient_fill() {
         let mut c = Canvas2D::new(100.0, 100.0);
         c.fill_style(FillStyle::LinearGradient {
-            x0: 0.0, y0: 0.0, x1: 100.0, y1: 0.0,
+            x0: 0.0,
+            y0: 0.0,
+            x1: 100.0,
+            y1: 0.0,
             stops: vec![(0.0, "red".into()), (1.0, "blue".into())],
         });
         c.rect(0.0, 0.0, 100.0, 100.0);
@@ -822,7 +975,10 @@ mod tests {
     fn linear_gradient_svg_has_defs() {
         let mut c = Canvas2D::new(200.0, 200.0);
         c.fill_style(FillStyle::LinearGradient {
-            x0: 0.0, y0: 0.0, x1: 200.0, y1: 0.0,
+            x0: 0.0,
+            y0: 0.0,
+            x1: 200.0,
+            y1: 0.0,
             stops: vec![(0.0, "#000".into()), (1.0, "#fff".into())],
         });
         c.rect(0.0, 0.0, 200.0, 200.0);
@@ -841,8 +997,7 @@ mod tests {
 
     #[test]
     fn transform_inverse_roundtrip() {
-        let t = Transform2D::translation(7.0, 13.0)
-            .multiply(&Transform2D::rotation(0.5));
+        let t = Transform2D::translation(7.0, 13.0).multiply(&Transform2D::rotation(0.5));
         let inv = t.inverse().unwrap();
         let id = t.multiply(&inv);
         assert!((id.a - 1.0).abs() < 1e-8);

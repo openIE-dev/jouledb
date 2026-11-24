@@ -107,7 +107,8 @@ impl Operator {
                 }
             }
             EnvStage::Decay => {
-                self.envelope_level -= (self.envelope_level - self.sustain_level) * (1.0 - self.decay_rate);
+                self.envelope_level -=
+                    (self.envelope_level - self.sustain_level) * (1.0 - self.decay_rate);
                 if (self.envelope_level - self.sustain_level).abs() < 0.001 {
                     self.envelope_level = self.sustain_level;
                     self.envelope_stage = EnvStage::Sustain;
@@ -188,10 +189,10 @@ impl Algorithm {
         Self {
             name: "Serial 4→3→2→1".into(),
             modulators: [
-                vec![1],    // op0 modulated by op1
-                vec![2],    // op1 modulated by op2
-                vec![3],    // op2 modulated by op3
-                vec![],     // op3 not modulated
+                vec![1], // op0 modulated by op1
+                vec![2], // op1 modulated by op2
+                vec![3], // op2 modulated by op3
+                vec![],  // op3 not modulated
             ],
             carriers: vec![0],
         }
@@ -211,10 +212,10 @@ impl Algorithm {
         Self {
             name: "Stacked (4→3) + (2→1)".into(),
             modulators: [
-                vec![1],    // op0 modulated by op1
-                vec![],     // op1 is modulator only
-                vec![3],    // op2 modulated by op3
-                vec![],     // op3 is modulator only
+                vec![1], // op0 modulated by op1
+                vec![],  // op1 is modulator only
+                vec![3], // op2 modulated by op3
+                vec![],  // op3 is modulator only
             ],
             carriers: vec![0, 2],
         }
@@ -225,9 +226,9 @@ impl Algorithm {
         Self {
             name: "4→(1,2,3)".into(),
             modulators: [
-                vec![3],    // op0 modulated by op3
-                vec![3],    // op1 modulated by op3
-                vec![3],    // op2 modulated by op3
+                vec![3], // op0 modulated by op3
+                vec![3], // op1 modulated by op3
+                vec![3], // op2 modulated by op3
                 vec![],
             ],
             carriers: vec![0, 1, 2],
@@ -238,12 +239,7 @@ impl Algorithm {
     pub fn trio_plus_one() -> Self {
         Self {
             name: "(3→2→1) + 4".into(),
-            modulators: [
-                vec![1],
-                vec![2],
-                vec![],
-                vec![],
-            ],
+            modulators: [vec![1], vec![2], vec![], vec![]],
             carriers: vec![0, 3],
         }
     }
@@ -253,9 +249,9 @@ impl Algorithm {
         Self {
             name: "(4→3→1) + (4→2)".into(),
             modulators: [
-                vec![2],    // op0 modulated by op2
-                vec![3],    // op1 modulated by op3
-                vec![3],    // op2 modulated by op3
+                vec![2], // op0 modulated by op2
+                vec![3], // op1 modulated by op3
+                vec![3], // op2 modulated by op3
                 vec![],
             ],
             carriers: vec![0, 1],
@@ -284,7 +280,12 @@ impl FmVoice {
     /// Create a new FM voice with the given algorithm.
     pub fn new(algorithm: Algorithm, frequency: f64, sample_rate: f64) -> Self {
         Self {
-            operators: [Operator::new(), Operator::new(), Operator::new(), Operator::new()],
+            operators: [
+                Operator::new(),
+                Operator::new(),
+                Operator::new(),
+                Operator::new(),
+            ],
             algorithm,
             frequency,
             note_number: 60.0,
@@ -496,7 +497,11 @@ mod tests {
         for _ in 0..200 {
             op.process(440.0, SR, 0.0, 1.0, 60.0);
         }
-        assert!(op.envelope_level() > 0.5, "envelope should rise, got {}", op.envelope_level());
+        assert!(
+            op.envelope_level() > 0.5,
+            "envelope should rise, got {}",
+            op.envelope_level()
+        );
     }
 
     #[test]
@@ -511,7 +516,11 @@ mod tests {
         for _ in 0..5000 {
             op.process(440.0, SR, 0.0, 1.0, 60.0);
         }
-        assert!(op.envelope_level() < 0.1, "should decay after release, got {}", op.envelope_level());
+        assert!(
+            op.envelope_level() < 0.1,
+            "should decay after release, got {}",
+            op.envelope_level()
+        );
     }
 
     #[test]
@@ -546,7 +555,10 @@ mod tests {
         for _ in 0..100 {
             sum_low += op2.process(440.0, SR, 0.0, 0.2, 60.0).abs();
         }
-        assert!(sum_high > sum_low, "high velocity should be louder: high={sum_high} low={sum_low}");
+        assert!(
+            sum_high > sum_low,
+            "high velocity should be louder: high={sum_high} low={sum_low}"
+        );
     }
 
     #[test]
@@ -606,7 +618,9 @@ mod tests {
         voice_no_mod.generate_block(&mut buf_clean);
 
         // Compare — they should differ.
-        let diff: f64 = buf_mod.iter().zip(buf_clean.iter())
+        let diff: f64 = buf_mod
+            .iter()
+            .zip(buf_clean.iter())
             .map(|(a, b)| (a - b).abs())
             .sum();
         assert!(diff > 1.0, "modulated and clean should differ: diff={diff}");
@@ -632,7 +646,10 @@ mod tests {
             sum_no_fb += op_no_fb.process(440.0, SR, 0.0, 1.0, 60.0).abs();
         }
         // Feedback adds harmonics, RMS may differ.
-        assert!(sum_fb > 0.0 && sum_no_fb > 0.0, "both should produce output");
+        assert!(
+            sum_fb > 0.0 && sum_no_fb > 0.0,
+            "both should produce output"
+        );
     }
 
     #[test]
@@ -694,7 +711,10 @@ mod tests {
         for _ in 0..200 {
             sum_low += op_low.process(440.0, SR, 0.0, 1.0, 24.0).abs(); // low note
         }
-        assert!(sum_high > sum_low, "high note should be brighter: high={sum_high} low={sum_low}");
+        assert!(
+            sum_high > sum_low,
+            "high note should be brighter: high={sum_high} low={sum_low}"
+        );
     }
 
     #[test]
@@ -703,21 +723,30 @@ mod tests {
         op1.ratio = 1.0;
         op1.attack_rate = 0.1;
         op1.note_on();
-        let samples1: Vec<f64> = (0..441).map(|_| op1.process(440.0, SR, 0.0, 1.0, 60.0)).collect();
+        let samples1: Vec<f64> = (0..441)
+            .map(|_| op1.process(440.0, SR, 0.0, 1.0, 60.0))
+            .collect();
 
         let mut op2 = Operator::new();
         op2.ratio = 2.0;
         op2.attack_rate = 0.1;
         op2.note_on();
-        let samples2: Vec<f64> = (0..441).map(|_| op2.process(440.0, SR, 0.0, 1.0, 60.0)).collect();
+        let samples2: Vec<f64> = (0..441)
+            .map(|_| op2.process(440.0, SR, 0.0, 1.0, 60.0))
+            .collect();
 
         // Count zero crossings — ratio 2 should have ~double.
         fn zero_crossings(s: &[f64]) -> usize {
-            s.windows(2).filter(|w| w[0].signum() != w[1].signum()).count()
+            s.windows(2)
+                .filter(|w| w[0].signum() != w[1].signum())
+                .count()
         }
         let zc1 = zero_crossings(&samples1);
         let zc2 = zero_crossings(&samples2);
-        assert!(zc2 > zc1, "ratio 2 should have more zero crossings: r1={zc1} r2={zc2}");
+        assert!(
+            zc2 > zc1,
+            "ratio 2 should have more zero crossings: r1={zc1} r2={zc2}"
+        );
     }
 
     #[test]

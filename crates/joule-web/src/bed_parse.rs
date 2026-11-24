@@ -11,12 +11,32 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq)]
 pub enum BedError {
     EmptyInput,
-    InsufficientFields { line: usize, found: usize },
-    InvalidCoordinate { line: usize, field: String, value: String },
-    InvalidScore { line: usize, value: String },
-    InvalidStrand { line: usize, value: String },
-    InvalidRgb { line: usize, value: String },
-    StartAfterEnd { line: usize, start: u64, end: u64 },
+    InsufficientFields {
+        line: usize,
+        found: usize,
+    },
+    InvalidCoordinate {
+        line: usize,
+        field: String,
+        value: String,
+    },
+    InvalidScore {
+        line: usize,
+        value: String,
+    },
+    InvalidStrand {
+        line: usize,
+        value: String,
+    },
+    InvalidRgb {
+        line: usize,
+        value: String,
+    },
+    StartAfterEnd {
+        line: usize,
+        start: u64,
+        end: u64,
+    },
 }
 
 impl fmt::Display for BedError {
@@ -30,7 +50,9 @@ impl fmt::Display for BedError {
                 write!(f, "line {line}: invalid {field} '{value}'")
             }
             Self::InvalidScore { line, value } => write!(f, "line {line}: invalid score '{value}'"),
-            Self::InvalidStrand { line, value } => write!(f, "line {line}: invalid strand '{value}'"),
+            Self::InvalidStrand { line, value } => {
+                write!(f, "line {line}: invalid strand '{value}'")
+            }
             Self::InvalidRgb { line, value } => write!(f, "line {line}: invalid RGB '{value}'"),
             Self::StartAfterEnd { line, start, end } => {
                 write!(f, "line {line}: start {start} > end {end}")
@@ -52,11 +74,15 @@ pub struct Rgb {
 }
 
 impl Rgb {
-    pub fn new(r: u8, g: u8, b: u8) -> Self { Self { r, g, b } }
+    pub fn new(r: u8, g: u8, b: u8) -> Self {
+        Self { r, g, b }
+    }
 
     pub fn from_str_triplet(s: &str) -> Option<Self> {
         let parts: Vec<&str> = s.split(',').collect();
-        if parts.len() != 3 { return None; }
+        if parts.len() != 3 {
+            return None;
+        }
         let r: u8 = parts[0].trim().parse().ok()?;
         let g: u8 = parts[1].trim().parse().ok()?;
         let b: u8 = parts[2].trim().parse().ok()?;
@@ -81,7 +107,10 @@ pub struct Block {
 
 impl Block {
     pub fn new(relative_start: u64, size: u64) -> Self {
-        Self { relative_start, size }
+        Self {
+            relative_start,
+            size,
+        }
     }
 }
 
@@ -94,8 +123,7 @@ impl fmt::Display for Block {
 // ── BED record ──────────────────────────────────────────────────
 
 /// A single BED record (supports BED3-BED12).
-#[derive(Debug, Clone)]
-#[derive(PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BedRecord {
     pub chrom: String,
     pub chrom_start: u64,
@@ -125,29 +153,54 @@ impl BedRecord {
         }
     }
 
-    pub fn with_name(mut self, n: &str) -> Self { self.name = Some(n.to_string()); self }
-    pub fn with_score(mut self, s: u16) -> Self { self.score = Some(s); self }
-    pub fn with_strand(mut self, s: char) -> Self { self.strand = Some(s); self }
+    pub fn with_name(mut self, n: &str) -> Self {
+        self.name = Some(n.to_string());
+        self
+    }
+    pub fn with_score(mut self, s: u16) -> Self {
+        self.score = Some(s);
+        self
+    }
+    pub fn with_strand(mut self, s: char) -> Self {
+        self.strand = Some(s);
+        self
+    }
     pub fn with_thick(mut self, start: u64, end: u64) -> Self {
         self.thick_start = Some(start);
         self.thick_end = Some(end);
         self
     }
-    pub fn with_rgb(mut self, rgb: Rgb) -> Self { self.item_rgb = Some(rgb); self }
-    pub fn with_blocks(mut self, blocks: Vec<Block>) -> Self { self.blocks = blocks; self }
+    pub fn with_rgb(mut self, rgb: Rgb) -> Self {
+        self.item_rgb = Some(rgb);
+        self
+    }
+    pub fn with_blocks(mut self, blocks: Vec<Block>) -> Self {
+        self.blocks = blocks;
+        self
+    }
 
     /// Interval length.
-    pub fn length(&self) -> u64 { self.chrom_end - self.chrom_start }
+    pub fn length(&self) -> u64 {
+        self.chrom_end - self.chrom_start
+    }
 
     /// Number of BED columns this record has.
     pub fn column_count(&self) -> usize {
-        if !self.blocks.is_empty() { 12 }
-        else if self.item_rgb.is_some() { 9 }
-        else if self.thick_start.is_some() { 8 }
-        else if self.strand.is_some() { 6 }
-        else if self.score.is_some() { 5 }
-        else if self.name.is_some() { 4 }
-        else { 3 }
+        if !self.blocks.is_empty() {
+            12
+        } else if self.item_rgb.is_some() {
+            9
+        } else if self.thick_start.is_some() {
+            8
+        } else if self.strand.is_some() {
+            6
+        } else if self.score.is_some() {
+            5
+        } else if self.name.is_some() {
+            4
+        } else {
+            3
+        }
     }
 
     /// True if this record overlaps another on the same chromosome.
@@ -159,7 +212,9 @@ impl BedRecord {
 
     /// Overlap length with another record (0 if none).
     pub fn overlap_length(&self, other: &BedRecord) -> u64 {
-        if !self.overlaps(other) { return 0; }
+        if !self.overlaps(other) {
+            return 0;
+        }
         let s = self.chrom_start.max(other.chrom_start);
         let e = self.chrom_end.min(other.chrom_end);
         e - s
@@ -177,20 +232,40 @@ impl BedRecord {
             self.chrom_start.to_string(),
             self.chrom_end.to_string(),
         ];
-        if let Some(ref n) = self.name { parts.push(n.clone()); } else { return parts.join("\t"); }
-        if let Some(s) = self.score { parts.push(s.to_string()); } else { return parts.join("\t"); }
-        if let Some(s) = self.strand { parts.push(s.to_string()); } else { return parts.join("\t"); }
+        if let Some(ref n) = self.name {
+            parts.push(n.clone());
+        } else {
+            return parts.join("\t");
+        }
+        if let Some(s) = self.score {
+            parts.push(s.to_string());
+        } else {
+            return parts.join("\t");
+        }
+        if let Some(s) = self.strand {
+            parts.push(s.to_string());
+        } else {
+            return parts.join("\t");
+        }
         if let Some(ts) = self.thick_start {
             parts.push(ts.to_string());
             parts.push(self.thick_end.unwrap_or(ts).to_string());
         } else {
             return parts.join("\t");
         }
-        if let Some(rgb) = self.item_rgb { parts.push(rgb.to_string()); } else { return parts.join("\t"); }
+        if let Some(rgb) = self.item_rgb {
+            parts.push(rgb.to_string());
+        } else {
+            return parts.join("\t");
+        }
         if !self.blocks.is_empty() {
             parts.push(self.blocks.len().to_string());
             let sizes: Vec<String> = self.blocks.iter().map(|b| b.size.to_string()).collect();
-            let starts: Vec<String> = self.blocks.iter().map(|b| b.relative_start.to_string()).collect();
+            let starts: Vec<String> = self
+                .blocks
+                .iter()
+                .map(|b| b.relative_start.to_string())
+                .collect();
             parts.push(sizes.join(","));
             parts.push(starts.join(","));
         }
@@ -201,7 +276,9 @@ impl BedRecord {
 impl fmt::Display for BedRecord {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{}-{}", self.chrom, self.chrom_start, self.chrom_end)?;
-        if let Some(ref n) = self.name { write!(f, " {n}")?; }
+        if let Some(ref n) = self.name {
+            write!(f, " {n}")?;
+        }
         Ok(())
     }
 }
@@ -209,8 +286,7 @@ impl fmt::Display for BedRecord {
 // ── Track metadata ──────────────────────────────────────────────
 
 /// Track line metadata.
-#[derive(Debug, Clone, Default)]
-#[derive(PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct TrackLine {
     pub name: Option<String>,
     pub description: Option<String>,
@@ -262,7 +338,9 @@ impl TrackLine {
 impl fmt::Display for TrackLine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "track")?;
-        if let Some(ref n) = self.name { write!(f, " name=\"{n}\"")?; }
+        if let Some(ref n) = self.name {
+            write!(f, " name=\"{n}\"")?;
+        }
         Ok(())
     }
 }
@@ -277,13 +355,26 @@ pub struct BedParser {
 }
 
 impl BedParser {
-    pub fn new() -> Self { Self { validate_coords: true, min_length: 0 } }
-    pub fn with_validate_coords(mut self, v: bool) -> Self { self.validate_coords = v; self }
-    pub fn with_min_length(mut self, m: u64) -> Self { self.min_length = m; self }
+    pub fn new() -> Self {
+        Self {
+            validate_coords: true,
+            min_length: 0,
+        }
+    }
+    pub fn with_validate_coords(mut self, v: bool) -> Self {
+        self.validate_coords = v;
+        self
+    }
+    pub fn with_min_length(mut self, m: u64) -> Self {
+        self.min_length = m;
+        self
+    }
 
     /// Parse a complete BED string.
     pub fn parse(&self, input: &str) -> Result<(Option<TrackLine>, Vec<BedRecord>), BedError> {
-        if input.trim().is_empty() { return Err(BedError::EmptyInput); }
+        if input.trim().is_empty() {
+            return Err(BedError::EmptyInput);
+        }
         let mut track = None;
         let mut records = Vec::new();
         let mut line_num = 0_usize;
@@ -291,39 +382,62 @@ impl BedParser {
         for line in input.lines() {
             line_num += 1;
             let trimmed = line.trim();
-            if trimmed.is_empty() || trimmed.starts_with('#') { continue; }
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
             if trimmed.starts_with("track") {
                 track = Some(TrackLine::from_line(trimmed));
                 continue;
             }
-            if trimmed.starts_with("browser") { continue; }
+            if trimmed.starts_with("browser") {
+                continue;
+            }
 
             let fields: Vec<&str> = trimmed.split('\t').collect();
             if fields.len() < 3 {
-                return Err(BedError::InsufficientFields { line: line_num, found: fields.len() });
+                return Err(BedError::InsufficientFields {
+                    line: line_num,
+                    found: fields.len(),
+                });
             }
             let start: u64 = fields[1].parse().map_err(|_| BedError::InvalidCoordinate {
-                line: line_num, field: "chromStart".to_string(), value: fields[1].to_string(),
+                line: line_num,
+                field: "chromStart".to_string(),
+                value: fields[1].to_string(),
             })?;
             let end: u64 = fields[2].parse().map_err(|_| BedError::InvalidCoordinate {
-                line: line_num, field: "chromEnd".to_string(), value: fields[2].to_string(),
+                line: line_num,
+                field: "chromEnd".to_string(),
+                value: fields[2].to_string(),
             })?;
             if self.validate_coords && start > end {
-                return Err(BedError::StartAfterEnd { line: line_num, start, end });
+                return Err(BedError::StartAfterEnd {
+                    line: line_num,
+                    start,
+                    end,
+                });
             }
-            if end - start < self.min_length { continue; }
+            if end - start < self.min_length {
+                continue;
+            }
 
             let mut rec = BedRecord::new(fields[0], start, end);
-            if fields.len() > 3 { rec.name = Some(fields[3].to_string()); }
+            if fields.len() > 3 {
+                rec.name = Some(fields[3].to_string());
+            }
             if fields.len() > 4 {
                 rec.score = Some(fields[4].parse().map_err(|_| BedError::InvalidScore {
-                    line: line_num, value: fields[4].to_string(),
+                    line: line_num,
+                    value: fields[4].to_string(),
                 })?);
             }
             if fields.len() > 5 {
                 let s = fields[5].chars().next().unwrap_or('.');
                 if !matches!(s, '+' | '-' | '.') {
-                    return Err(BedError::InvalidStrand { line: line_num, value: fields[5].to_string() });
+                    return Err(BedError::InvalidStrand {
+                        line: line_num,
+                        value: fields[5].to_string(),
+                    });
                 }
                 rec.strand = Some(s);
             }
@@ -336,10 +450,16 @@ impl BedParser {
             }
             if fields.len() > 11 {
                 let block_count: usize = fields[9].parse().unwrap_or(0);
-                let sizes: Vec<u64> = fields[10].split(',').filter(|s| !s.is_empty())
-                    .filter_map(|s| s.parse().ok()).collect();
-                let starts: Vec<u64> = fields[11].split(',').filter(|s| !s.is_empty())
-                    .filter_map(|s| s.parse().ok()).collect();
+                let sizes: Vec<u64> = fields[10]
+                    .split(',')
+                    .filter(|s| !s.is_empty())
+                    .filter_map(|s| s.parse().ok())
+                    .collect();
+                let starts: Vec<u64> = fields[11]
+                    .split(',')
+                    .filter(|s| !s.is_empty())
+                    .filter_map(|s| s.parse().ok())
+                    .collect();
                 let n = block_count.min(sizes.len()).min(starts.len());
                 rec.blocks = (0..n).map(|i| Block::new(starts[i], sizes[i])).collect();
             }
@@ -351,7 +471,11 @@ impl BedParser {
 
 impl fmt::Display for BedParser {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "BedParser(validate={}, min_len={})", self.validate_coords, self.min_length)
+        write!(
+            f,
+            "BedParser(validate={}, min_len={})",
+            self.validate_coords, self.min_length
+        )
     }
 }
 
@@ -359,8 +483,14 @@ impl fmt::Display for BedParser {
 
 /// Merge overlapping intervals on the same chromosome.
 pub fn merge_intervals(mut recs: Vec<BedRecord>) -> Vec<BedRecord> {
-    if recs.is_empty() { return recs; }
-    recs.sort_by(|a, b| a.chrom.cmp(&b.chrom).then(a.chrom_start.cmp(&b.chrom_start)));
+    if recs.is_empty() {
+        return recs;
+    }
+    recs.sort_by(|a, b| {
+        a.chrom
+            .cmp(&b.chrom)
+            .then(a.chrom_start.cmp(&b.chrom_start))
+    });
     let mut merged = vec![recs[0].clone()];
     for rec in &recs[1..] {
         let last = merged.last_mut().unwrap();
@@ -386,7 +516,8 @@ mod tests {
 
     fn sample_bed() -> String {
         "chr1\t0\t1000\tfeature1\t500\t+\n\
-         chr1\t2000\t3000\tfeature2\t300\t-\n".to_string()
+         chr1\t2000\t3000\tfeature2\t300\t-\n"
+            .to_string()
     }
 
     #[test]
@@ -474,7 +605,10 @@ mod tests {
     #[test]
     fn t12_start_after_end() {
         let input = "chr1\t500\t100\n";
-        assert!(matches!(parse_bed(input), Err(BedError::StartAfterEnd { .. })));
+        assert!(matches!(
+            parse_bed(input),
+            Err(BedError::StartAfterEnd { .. })
+        ));
     }
 
     #[test]
@@ -486,7 +620,9 @@ mod tests {
 
     #[test]
     fn t14_serialization() {
-        let rec = BedRecord::new("chr1", 0, 100).with_name("f1").with_score(500);
+        let rec = BedRecord::new("chr1", 0, 100)
+            .with_name("f1")
+            .with_score(500);
         let s = rec.to_bed();
         assert!(s.contains("chr1\t0\t100\tf1\t500"));
     }

@@ -218,8 +218,7 @@ fn position_nodes(nodes: &mut [SankeyNode], cfg: &SankeyConfig) {
 /// Route links: assign source_y, target_y, and width.
 fn route_links(nodes: &[SankeyNode], links: &mut [SankeyLink], cfg: &SankeyConfig) {
     let usable_height = cfg.height - 2.0 * cfg.padding_top;
-    let node_map: HashMap<&str, &SankeyNode> =
-        nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+    let node_map: HashMap<&str, &SankeyNode> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
     // Track running y offsets per node for stacking links
     let mut source_offsets: HashMap<String, f64> = HashMap::new();
@@ -290,8 +289,7 @@ pub fn layout(nodes: &mut [SankeyNode], links: &mut [SankeyLink], cfg: &SankeyCo
 
 /// Generate a cubic-Bezier SVG path for a link band.
 fn link_path(link: &SankeyLink, nodes: &[SankeyNode], cfg: &SankeyConfig) -> String {
-    let node_map: HashMap<&str, &SankeyNode> =
-        nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+    let node_map: HashMap<&str, &SankeyNode> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
     let src = node_map.get(link.source_id.as_str());
     let tgt = node_map.get(link.target_id.as_str());
@@ -334,11 +332,7 @@ fn actual_col_gap(nodes: &[SankeyNode], cfg: &SankeyConfig) -> f64 {
 }
 
 /// Render the complete Sankey diagram as an SVG string.
-pub fn render_sankey(
-    nodes: &[SankeyNode],
-    links: &[SankeyLink],
-    cfg: &SankeyConfig,
-) -> String {
+pub fn render_sankey(nodes: &[SankeyNode], links: &[SankeyLink], cfg: &SankeyConfig) -> String {
     let mut svg = String::with_capacity(4096);
     let _ = write!(
         svg,
@@ -348,8 +342,7 @@ pub fn render_sankey(
     );
 
     let gap = actual_col_gap(nodes, cfg);
-    let node_map: HashMap<&str, &SankeyNode> =
-        nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+    let node_map: HashMap<&str, &SankeyNode> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
     // Links
     svg.push_str("<g class=\"sankey-links\">");
@@ -502,7 +495,12 @@ mod tests {
         let cfg = SankeyConfig::default();
         layout(&mut nodes, &mut links, &cfg);
         for l in &links {
-            assert!(l.width > 0.0, "link {}→{} width > 0", l.source_id, l.target_id);
+            assert!(
+                l.width > 0.0,
+                "link {}→{} width > 0",
+                l.source_id,
+                l.target_id
+            );
         }
     }
 

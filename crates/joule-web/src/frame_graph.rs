@@ -14,7 +14,9 @@ use std::collections::{HashMap, HashSet, VecDeque};
 pub struct ResourceId(pub String);
 
 impl ResourceId {
-    pub fn new(name: &str) -> Self { Self(name.to_string()) }
+    pub fn new(name: &str) -> Self {
+        Self(name.to_string())
+    }
 }
 
 /// Metadata about a resource.
@@ -159,9 +161,7 @@ impl FrameGraph {
     pub fn compile(&self) -> Option<Vec<PassId>> {
         let enabled: Vec<&RenderPass> = self.passes.iter().filter(|p| p.enabled).collect();
         let pass_ids: Vec<&str> = enabled.iter().map(|p| p.id.as_str()).collect();
-        let index_of = |id: &str| -> Option<usize> {
-            pass_ids.iter().position(|pid| *pid == id)
-        };
+        let index_of = |id: &str| -> Option<usize> { pass_ids.iter().position(|pid| *pid == id) };
 
         let n = enabled.len();
         // Build adjacency: pass A writes resource R, pass B reads resource R => A -> B.
@@ -264,7 +264,12 @@ impl FrameGraph {
     pub fn compile_culled(&self) -> Option<Vec<PassId>> {
         let needed = self.cull();
         let compiled = self.compile()?;
-        Some(compiled.into_iter().filter(|id| needed.contains(id)).collect())
+        Some(
+            compiled
+                .into_iter()
+                .filter(|id| needed.contains(id))
+                .collect(),
+        )
     }
 
     // ── Resource lifetime analysis ──────────────────────────────
@@ -272,9 +277,7 @@ impl FrameGraph {
     /// Compute resource lifetimes given a compiled pass order.
     pub fn resource_lifetimes(&self, order: &[PassId]) -> Vec<ResourceLifetime> {
         let mut lifetimes: HashMap<String, ResourceLifetime> = HashMap::new();
-        let pass_index = |id: &str| -> Option<usize> {
-            order.iter().position(|pid| pid == id)
-        };
+        let pass_index = |id: &str| -> Option<usize> { order.iter().position(|pid| pid == id) };
 
         let enabled: Vec<&RenderPass> = self.passes.iter().filter(|p| p.enabled).collect();
 
@@ -328,33 +331,58 @@ mod tests {
         fg.add_resource(ResourceDesc {
             id: ResourceId::new("depth"),
             kind: ResourceKind::DepthBuffer,
-            width: 1920, height: 1080, persistent: false,
+            width: 1920,
+            height: 1080,
+            persistent: false,
         });
         fg.add_resource(ResourceDesc {
             id: ResourceId::new("gbuffer"),
             kind: ResourceKind::RenderTarget,
-            width: 1920, height: 1080, persistent: false,
+            width: 1920,
+            height: 1080,
+            persistent: false,
         });
         fg.add_resource(ResourceDesc {
             id: ResourceId::new("shadow_map"),
             kind: ResourceKind::Texture2D,
-            width: 2048, height: 2048, persistent: false,
+            width: 2048,
+            height: 2048,
+            persistent: false,
         });
         fg.add_resource(ResourceDesc {
             id: ResourceId::new("hdr"),
             kind: ResourceKind::RenderTarget,
-            width: 1920, height: 1080, persistent: false,
+            width: 1920,
+            height: 1080,
+            persistent: false,
         });
         fg.add_resource(ResourceDesc {
             id: ResourceId::new("backbuffer"),
             kind: ResourceKind::RenderTarget,
-            width: 1920, height: 1080, persistent: true,
+            width: 1920,
+            height: 1080,
+            persistent: true,
         });
 
         fg.add_pass(RenderPass::new("shadow").writes("shadow_map"));
-        fg.add_pass(RenderPass::new("gbuffer").reads("shadow_map").writes("gbuffer").writes("depth"));
-        fg.add_pass(RenderPass::new("lighting").reads("gbuffer").reads("depth").writes("hdr"));
-        fg.add_pass(RenderPass::new("postprocess").reads("hdr").writes("backbuffer").output());
+        fg.add_pass(
+            RenderPass::new("gbuffer")
+                .reads("shadow_map")
+                .writes("gbuffer")
+                .writes("depth"),
+        );
+        fg.add_pass(
+            RenderPass::new("lighting")
+                .reads("gbuffer")
+                .reads("depth")
+                .writes("hdr"),
+        );
+        fg.add_pass(
+            RenderPass::new("postprocess")
+                .reads("hdr")
+                .writes("backbuffer")
+                .output(),
+        );
 
         fg
     }
@@ -476,7 +504,10 @@ mod tests {
         let lifetimes = fg.resource_lifetimes(&order);
         assert!(!lifetimes.is_empty());
         // shadow_map: written by shadow (index 0), read by gbuffer (index 1).
-        let sm_lt = lifetimes.iter().find(|lt| lt.resource.0 == "shadow_map").unwrap();
+        let sm_lt = lifetimes
+            .iter()
+            .find(|lt| lt.resource.0 == "shadow_map")
+            .unwrap();
         assert_eq!(sm_lt.first_write, 0);
         assert_eq!(sm_lt.last_read, Some(1));
     }
@@ -498,7 +529,13 @@ mod tests {
         // Two passes that write independent resources, both read by a merge pass.
         fg.add_pass(RenderPass::new("gen_a").writes("a"));
         fg.add_pass(RenderPass::new("gen_b").writes("b"));
-        fg.add_pass(RenderPass::new("merge").reads("a").reads("b").writes("out").output());
+        fg.add_pass(
+            RenderPass::new("merge")
+                .reads("a")
+                .reads("b")
+                .writes("out")
+                .output(),
+        );
         let order = fg.compile().unwrap();
         assert_eq!(order.len(), 3);
         let mi = order.iter().position(|id| id == "merge").unwrap();
@@ -557,7 +594,13 @@ mod tests {
         fg.add_pass(RenderPass::new("source").writes("shared"));
         fg.add_pass(RenderPass::new("branch_a").reads("shared").writes("a_out"));
         fg.add_pass(RenderPass::new("branch_b").reads("shared").writes("b_out"));
-        fg.add_pass(RenderPass::new("combine").reads("a_out").reads("b_out").writes("final").output());
+        fg.add_pass(
+            RenderPass::new("combine")
+                .reads("a_out")
+                .reads("b_out")
+                .writes("final")
+                .output(),
+        );
         let order = fg.compile().unwrap();
         assert_eq!(order.len(), 4);
         let src = order.iter().position(|id| id == "source").unwrap();

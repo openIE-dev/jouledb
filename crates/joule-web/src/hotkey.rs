@@ -17,15 +17,37 @@ pub struct Modifiers {
 }
 
 impl Modifiers {
-    pub fn none() -> Self { Self::default() }
+    pub fn none() -> Self {
+        Self::default()
+    }
 
-    pub fn ctrl() -> Self { Self { ctrl: true, ..Self::default() } }
+    pub fn ctrl() -> Self {
+        Self {
+            ctrl: true,
+            ..Self::default()
+        }
+    }
 
-    pub fn meta() -> Self { Self { meta: true, ..Self::default() } }
+    pub fn meta() -> Self {
+        Self {
+            meta: true,
+            ..Self::default()
+        }
+    }
 
-    pub fn shift() -> Self { Self { shift: true, ..Self::default() } }
+    pub fn shift() -> Self {
+        Self {
+            shift: true,
+            ..Self::default()
+        }
+    }
 
-    pub fn alt() -> Self { Self { alt: true, ..Self::default() } }
+    pub fn alt() -> Self {
+        Self {
+            alt: true,
+            ..Self::default()
+        }
+    }
 }
 
 // ── KeyCombo ────────────────────────────────────────────────────
@@ -79,10 +101,18 @@ impl KeyCombo {
     /// Display string in platform-appropriate style.
     pub fn to_display_string(&self) -> String {
         let mut parts = Vec::new();
-        if self.modifiers.ctrl { parts.push("Ctrl"); }
-        if self.modifiers.alt { parts.push("Alt"); }
-        if self.modifiers.shift { parts.push("Shift"); }
-        if self.modifiers.meta { parts.push("Meta"); }
+        if self.modifiers.ctrl {
+            parts.push("Ctrl");
+        }
+        if self.modifiers.alt {
+            parts.push("Alt");
+        }
+        if self.modifiers.shift {
+            parts.push("Shift");
+        }
+        if self.modifiers.meta {
+            parts.push("Meta");
+        }
 
         // Capitalize the key for display
         let key_display = if self.key.len() == 1 {
@@ -154,7 +184,9 @@ impl HotkeyManager {
         scope: &str,
         description: &str,
     ) -> bool {
-        let Some(combo) = KeyCombo::parse(shortcut) else { return false };
+        let Some(combo) = KeyCombo::parse(shortcut) else {
+            return false;
+        };
         self.bindings.push(HotkeyBinding {
             combo,
             action_id,
@@ -167,9 +199,12 @@ impl HotkeyManager {
 
     /// Unregister a binding by shortcut and scope.
     pub fn unregister(&mut self, shortcut: &str, scope: &str) -> bool {
-        let Some(combo) = KeyCombo::parse(shortcut) else { return false };
+        let Some(combo) = KeyCombo::parse(shortcut) else {
+            return false;
+        };
         let before = self.bindings.len();
-        self.bindings.retain(|b| !(b.combo == combo && b.scope == scope));
+        self.bindings
+            .retain(|b| !(b.combo == combo && b.scope == scope));
         self.bindings.len() < before
     }
 
@@ -189,7 +224,10 @@ impl HotkeyManager {
 
     /// The currently active (topmost) scope.
     pub fn active_scope(&self) -> &str {
-        self.active_scopes.last().map(|s| s.as_str()).unwrap_or("global")
+        self.active_scopes
+            .last()
+            .map(|s| s.as_str())
+            .unwrap_or("global")
     }
 
     /// Handle a key press. Returns the `action_id` if a binding matches.
@@ -198,10 +236,12 @@ impl HotkeyManager {
 
         // Prune stale sequence buffer entries
         let timeout = std::time::Duration::from_millis(self.sequence_timeout_ms);
-        self.sequence_buffer.retain(|(_, _, t)| now.duration_since(*t) < timeout);
+        self.sequence_buffer
+            .retain(|(_, _, t)| now.duration_since(*t) < timeout);
 
         // Add current key to buffer
-        self.sequence_buffer.push((key.to_lowercase(), modifiers.clone(), now));
+        self.sequence_buffer
+            .push((key.to_lowercase(), modifiers.clone(), now));
 
         // Check chord sequences first (most specific)
         for chord in &self.chords {
@@ -212,9 +252,10 @@ impl HotkeyManager {
             let chord_len = chord.combos.len();
             if buf_len >= chord_len {
                 let tail = &self.sequence_buffer[buf_len - chord_len..];
-                let matched = tail.iter().zip(&chord.combos).all(|((k, m, _), combo)| {
-                    combo.matches(k, m)
-                });
+                let matched = tail
+                    .iter()
+                    .zip(&chord.combos)
+                    .all(|((k, m, _), combo)| combo.matches(k, m));
                 if matched {
                     self.sequence_buffer.clear();
                     return Some(chord.action_id);
@@ -226,7 +267,10 @@ impl HotkeyManager {
         let key_lower = key.to_lowercase();
         for scope in self.active_scopes.iter().rev() {
             for binding in self.bindings.iter().rev() {
-                if binding.enabled && binding.scope == *scope && binding.combo.matches(&key_lower, modifiers) {
+                if binding.enabled
+                    && binding.scope == *scope
+                    && binding.combo.matches(&key_lower, modifiers)
+                {
                     return Some(binding.action_id);
                 }
             }
@@ -282,7 +326,9 @@ impl HotkeyManager {
 }
 
 impl Default for HotkeyManager {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────

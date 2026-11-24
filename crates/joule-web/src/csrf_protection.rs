@@ -18,7 +18,10 @@ pub enum CsrfError {
     /// CSRF token does not match expected value.
     TokenMismatch { expected_prefix: String },
     /// Token has expired.
-    TokenExpired { token_id: String, expired_at_ms: u64 },
+    TokenExpired {
+        token_id: String,
+        expired_at_ms: u64,
+    },
     /// Token already used (one-time tokens).
     TokenAlreadyUsed(String),
     /// Origin header mismatch.
@@ -36,9 +39,15 @@ impl fmt::Display for CsrfError {
         match self {
             Self::TokenMissing => write!(f, "CSRF token missing"),
             Self::TokenMismatch { expected_prefix } => {
-                write!(f, "CSRF token mismatch (expected prefix: {expected_prefix})")
+                write!(
+                    f,
+                    "CSRF token mismatch (expected prefix: {expected_prefix})"
+                )
             }
-            Self::TokenExpired { token_id, expired_at_ms } => {
+            Self::TokenExpired {
+                token_id,
+                expired_at_ms,
+            } => {
                 write!(f, "CSRF token {token_id} expired at {expired_at_ms}")
             }
             Self::TokenAlreadyUsed(id) => write!(f, "CSRF token already used: {id}"),
@@ -178,7 +187,9 @@ fn generate_token_from_seed(seed: u64) -> String {
     let mut state = seed;
     let mut token = String::with_capacity(32);
     for _ in 0..32 {
-        state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let idx = (state >> 33) as usize % CHARS.len();
         token.push(CHARS[idx] as char);
     }
@@ -239,7 +250,8 @@ impl CsrfTokenStore {
     /// Generate a new CSRF token for a session.
     pub fn generate(&mut self, session_id: &str, now_ms: u64) -> CsrfToken {
         let token_id = format!("csrf_{:08x}", self.next_id);
-        let token_value = generate_token_from_seed(self.next_id.wrapping_mul(now_ms.wrapping_add(42)));
+        let token_value =
+            generate_token_from_seed(self.next_id.wrapping_mul(now_ms.wrapping_add(42)));
         self.next_id += 1;
 
         let token = CsrfToken {
@@ -543,9 +555,10 @@ impl CsrfProtection {
                 validator.validate(cookie, submitted)?;
             }
             CsrfStrategy::SynchronizerToken => {
-                let store = self.token_store.as_mut().ok_or_else(|| {
-                    CsrfError::InvalidConfig("token store not configured".into())
-                })?;
+                let store = self
+                    .token_store
+                    .as_mut()
+                    .ok_or_else(|| CsrfError::InvalidConfig("token store not configured".into()))?;
                 let session_id = request
                     .session_id
                     .as_deref()
@@ -704,7 +717,11 @@ mod tests {
         assert_eq!(store.token_count(), 1);
 
         // Validate
-        assert!(store.validate("session_1", &token.token_value, 2000).is_ok());
+        assert!(
+            store
+                .validate("session_1", &token.token_value, 2000)
+                .is_ok()
+        );
     }
 
     #[test]
@@ -742,7 +759,11 @@ mod tests {
         let mut store = CsrfTokenStore::new(60_000, true);
         let token = store.generate("session_1", 1000);
         // First use succeeds
-        assert!(store.validate("session_1", &token.token_value, 2000).is_ok());
+        assert!(
+            store
+                .validate("session_1", &token.token_value, 2000)
+                .is_ok()
+        );
         // Second use fails
         assert!(matches!(
             store.validate("session_1", &token.token_value, 3000),
@@ -755,8 +776,16 @@ mod tests {
         let mut store = CsrfTokenStore::new(60_000, false);
         let token = store.generate("session_1", 1000);
         // Both uses succeed
-        assert!(store.validate("session_1", &token.token_value, 2000).is_ok());
-        assert!(store.validate("session_1", &token.token_value, 3000).is_ok());
+        assert!(
+            store
+                .validate("session_1", &token.token_value, 2000)
+                .is_ok()
+        );
+        assert!(
+            store
+                .validate("session_1", &token.token_value, 3000)
+                .is_ok()
+        );
     }
 
     #[test]
@@ -788,7 +817,11 @@ mod tests {
             "https://app.example.com".into(),
         ]);
         assert!(checker.check_origin(Some("https://example.com")).is_ok());
-        assert!(checker.check_origin(Some("https://app.example.com")).is_ok());
+        assert!(
+            checker
+                .check_origin(Some("https://app.example.com"))
+                .is_ok()
+        );
     }
 
     #[test]
@@ -809,9 +842,11 @@ mod tests {
     #[test]
     fn test_referer_checker_allowed() {
         let checker = OriginChecker::new(vec!["https://example.com".into()]);
-        assert!(checker
-            .check_referer(Some("https://example.com/page?q=1"))
-            .is_ok());
+        assert!(
+            checker
+                .check_referer(Some("https://example.com/page?q=1"))
+                .is_ok()
+        );
     }
 
     #[test]
@@ -917,11 +952,7 @@ mod tests {
     #[test]
     fn test_protection_synchronizer_pass() {
         let mut csrf = CsrfProtection::synchronizer(60_000, false);
-        let token = csrf
-            .token_store
-            .as_mut()
-            .unwrap()
-            .generate("sess_1", 1000);
+        let token = csrf.token_store.as_mut().unwrap().generate("sess_1", 1000);
         let request = CsrfRequest {
             method: "POST".into(),
             origin: None,

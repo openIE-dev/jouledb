@@ -1685,7 +1685,9 @@ fn parse_copy(sql: &str) -> Option<CopySpec> {
             let opts = after[end + 1..].to_ascii_lowercase();
             let fmt = ["parquet", "arrows", "arrow", "ipc", "feather"]
                 .iter()
-                .find(|f| opts.contains(&format!("format {f}")) || opts.contains(&format!("format '{f}'")))
+                .find(|f| {
+                    opts.contains(&format!("format {f}")) || opts.contains(&format!("format '{f}'"))
+                })
                 .and_then(|f| crate::file_formats::FileFormat::from_name(f))
                 .or_else(|| crate::file_formats::FileFormat::from_path(&path))?;
             if from && is_query {
@@ -1757,7 +1759,11 @@ fn copy_file_path(path: &str, for_write: bool) -> Result<std::path::PathBuf, Str
     if p.is_absolute() && !p.starts_with(&root) {
         return Err(format!("{path} is outside JOULEDB_COPY_DIR"));
     }
-    let joined = if p.is_absolute() { p.to_path_buf() } else { root.join(p) };
+    let joined = if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        root.join(p)
+    };
     let check = if for_write {
         let parent = joined.parent().ok_or("bad path")?;
         std::fs::canonicalize(parent)
@@ -1790,7 +1796,8 @@ fn copy_file(
         .map_err(|e| (e.code, e.message))?;
         let p = copy_file_path(&path, false).map_err(bad)?;
         let t_read = std::time::Instant::now();
-        let batches = crate::file_formats::read_file(p.to_str().unwrap_or(&path), fmt).map_err(bad)?;
+        let batches =
+            crate::file_formats::read_file(p.to_str().unwrap_or(&path), fmt).map_err(bad)?;
         if conn_state.session_id.is_none() {
             // Not in a transaction: typed columns straight into the store.
             let t_ins = std::time::Instant::now();
@@ -1811,11 +1818,20 @@ fn copy_file(
             }
         }
         let t_dec = std::time::Instant::now();
-        let (file_cols, mut rows) = crate::file_formats::batches_to_values(&batches).map_err(bad)?;
+        let (file_cols, mut rows) =
+            crate::file_formats::batches_to_values(&batches).map_err(bad)?;
         if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
-            eprintln!("copy_file read={:?} decode={:?}", t_dec - t_read, t_dec.elapsed());
+            eprintln!(
+                "copy_file read={:?} decode={:?}",
+                t_dec - t_read,
+                t_dec.elapsed()
+            );
         }
-        let cols = if spec.columns.is_empty() { file_cols } else { spec.columns.clone() };
+        let cols = if spec.columns.is_empty() {
+            file_cols
+        } else {
+            spec.columns.clone()
+        };
         if rows.is_empty() {
             return Ok(0);
         }
@@ -1834,9 +1850,19 @@ fn copy_file(
         for chunk in rows.chunks(COPY_BATCH_ROWS) {
             let values: Vec<String> = chunk
                 .iter()
-                .map(|r| format!("({})", r.iter().map(ast_literal).collect::<Vec<_>>().join(", ")))
+                .map(|r| {
+                    format!(
+                        "({})",
+                        r.iter().map(ast_literal).collect::<Vec<_>>().join(", ")
+                    )
+                })
                 .collect();
-            let sql = format!("INSERT INTO {}{} VALUES {}", spec.target, col_list, values.join(", "));
+            let sql = format!(
+                "INSERT INTO {}{} VALUES {}",
+                spec.target,
+                col_list,
+                values.join(", ")
+            );
             run_statement(&sql, executor, conn_state, timeout)
                 .map_err(|e| (e.code, format!("COPY row {}: {}", total + 1, e.message)))?;
             total += chunk.len();
@@ -1850,7 +1876,8 @@ fn copy_file(
         } else {
             format!("SELECT {} FROM {}", spec.columns.join(", "), spec.target)
         };
-        let resp = run_statement(&query, executor, conn_state, timeout).map_err(|e| (e.code, e.message))?;
+        let resp = run_statement(&query, executor, conn_state, timeout)
+            .map_err(|e| (e.code, e.message))?;
         let p = copy_file_path(&path, true).map_err(bad)?;
         crate::file_formats::write_file(p.to_str().unwrap_or(&path), fmt, &resp.columns, &resp.rows)
             .map_err(bad)
@@ -1980,11 +2007,21 @@ fn ast_literal(v: &joule_db_query::ast::Value) -> String {
     let q = |s: &str| format!("'{}'", s.replace('\'', "''"));
     match v {
         V::Null => "NULL".into(),
-        V::Bool(b) => if *b { "TRUE".into() } else { "FALSE".into() },
+        V::Bool(b) => {
+            if *b {
+                "TRUE".into()
+            } else {
+                "FALSE".into()
+            }
+        }
         V::Int(i) => i.to_string(),
         V::Float(f) if f.is_finite() => {
             let t = f.to_string();
-            if t.contains(['.', 'e', 'E']) { t } else { format!("{t}.0") }
+            if t.contains(['.', 'e', 'E']) {
+                t
+            } else {
+                format!("{t}.0")
+            }
         }
         V::Float(f) => q(&f.to_string()),
         V::String(s) | V::Uuid(s) => q(s),
@@ -2146,7 +2183,11 @@ where
             rows.remove(0);
         }
         if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
-            eprintln!("copy stdin bytes={} parse={:?}", data.len(), t_recv.elapsed());
+            eprintln!(
+                "copy stdin bytes={} parse={:?}",
+                data.len(),
+                t_recv.elapsed()
+            );
         }
         let cols = if spec.columns.is_empty() {
             String::new()
@@ -4793,7 +4834,9 @@ mod tests {
         assert!(o.is_query && !o.from_stdin && o.delimiter == '\t');
         assert!(parse_copy("COPY t FROM '/etc/passwd'").is_none());
         let f = parse_copy("COPY t FROM '/d/x.parquet'").unwrap();
-        assert!(f.from_stdin && f.file.as_ref().unwrap().1 == crate::file_formats::FileFormat::Parquet);
+        assert!(
+            f.from_stdin && f.file.as_ref().unwrap().1 == crate::file_formats::FileFormat::Parquet
+        );
         let g = parse_copy("COPY (SELECT 1) TO 'out.bin' (FORMAT arrow)").unwrap();
         assert!(!g.from_stdin && g.file.unwrap().1 == crate::file_formats::FileFormat::ArrowFile);
         assert_eq!(

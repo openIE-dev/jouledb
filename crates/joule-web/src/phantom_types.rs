@@ -354,7 +354,10 @@ impl<U: Unit> PartialEq for Quantity<U> {
 impl<U: Unit> Quantity<U> {
     /// Create a new quantity.
     pub fn new(value: f64) -> Self {
-        Self { value, _unit: PhantomData }
+        Self {
+            value,
+            _unit: PhantomData,
+        }
     }
 
     /// Get the raw value.
@@ -398,42 +401,54 @@ impl<U: Unit> Sub for Quantity<U> {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Meters;
 impl Unit for Meters {
-    fn name() -> &'static str { "m" }
+    fn name() -> &'static str {
+        "m"
+    }
 }
 
 /// Square meters.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SquareMeters;
 impl Unit for SquareMeters {
-    fn name() -> &'static str { "m^2" }
+    fn name() -> &'static str {
+        "m^2"
+    }
 }
 
 /// Seconds.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Seconds;
 impl Unit for Seconds {
-    fn name() -> &'static str { "s" }
+    fn name() -> &'static str {
+        "s"
+    }
 }
 
 /// Meters per second.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MetersPerSecond;
 impl Unit for MetersPerSecond {
-    fn name() -> &'static str { "m/s" }
+    fn name() -> &'static str {
+        "m/s"
+    }
 }
 
 /// Kilograms.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Kilograms;
 impl Unit for Kilograms {
-    fn name() -> &'static str { "kg" }
+    fn name() -> &'static str {
+        "kg"
+    }
 }
 
 /// Joules (energy).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Joules;
 impl Unit for Joules {
-    fn name() -> &'static str { "J" }
+    fn name() -> &'static str {
+        "J"
+    }
 }
 
 // ── Unit multiplication ─────────────────────────────────────────
@@ -452,7 +467,10 @@ pub fn velocity(distance: Quantity<Meters>, time: Quantity<Seconds>) -> Quantity
 }
 
 /// energy = mass * velocity^2 (simplified E = 0.5 * m * v^2).
-pub fn kinetic_energy(mass: Quantity<Kilograms>, vel: Quantity<MetersPerSecond>) -> Quantity<Joules> {
+pub fn kinetic_energy(
+    mass: Quantity<Kilograms>,
+    vel: Quantity<MetersPerSecond>,
+) -> Quantity<Joules> {
     Quantity::new(0.5 * mass.value() * vel.value() * vel.value())
 }
 
@@ -484,13 +502,19 @@ pub struct NotSanitized;
 impl<T> Flagged<T, NotValidated> {
     /// Create an unvalidated value.
     pub fn new(value: T) -> Self {
-        Self { value, _flag: PhantomData }
+        Self {
+            value,
+            _flag: PhantomData,
+        }
     }
 
     /// Validate, transitioning to IsValidated on success.
     pub fn validate(self, f: impl FnOnce(&T) -> bool) -> Option<Flagged<T, IsValidated>> {
         if f(&self.value) {
-            Some(Flagged { value: self.value, _flag: PhantomData })
+            Some(Flagged {
+                value: self.value,
+                _flag: PhantomData,
+            })
         } else {
             None
         }
@@ -517,12 +541,18 @@ impl<T> Flagged<T, IsValidated> {
 impl<T> Flagged<T, NotSanitized> {
     /// Create an unsanitized value.
     pub fn unsanitized(value: T) -> Self {
-        Self { value, _flag: PhantomData }
+        Self {
+            value,
+            _flag: PhantomData,
+        }
     }
 
     /// Sanitize, transitioning to Sanitized.
     pub fn sanitize(self, f: impl FnOnce(T) -> T) -> Flagged<T, Sanitized> {
-        Flagged { value: f(self.value), _flag: PhantomData }
+        Flagged {
+            value: f(self.value),
+            _flag: PhantomData,
+        }
     }
 }
 
@@ -699,7 +729,8 @@ mod tests {
 
     #[test]
     fn test_flagged_sanitize() {
-        let raw = Flagged::<String, NotSanitized>::unsanitized("<script>alert(1)</script>".to_string());
+        let raw =
+            Flagged::<String, NotSanitized>::unsanitized("<script>alert(1)</script>".to_string());
         let clean = raw.sanitize(|s| s.replace('<', "&lt;").replace('>', "&gt;"));
         assert_eq!(clean.value(), "&lt;script&gt;alert(1)&lt;/script&gt;");
     }

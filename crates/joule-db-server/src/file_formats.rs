@@ -152,24 +152,30 @@ pub fn write_bytes(batch: &RecordBatch, fmt: FileFormat) -> Result<Vec<u8>, Stri
     Ok(out)
 }
 
-fn write_to<W: std::io::Write + Send>(w: W, batch: &RecordBatch, fmt: FileFormat) -> Result<(), String> {
+fn write_to<W: std::io::Write + Send>(
+    w: W,
+    batch: &RecordBatch,
+    fmt: FileFormat,
+) -> Result<(), String> {
     match fmt {
         FileFormat::Parquet => {
             let props = parquet::file::properties::WriterProperties::builder()
                 .set_compression(parquet::basic::Compression::ZSTD(Default::default()))
                 .build();
-            let mut wr =
-                parquet::arrow::ArrowWriter::try_new(w, batch.schema(), Some(props)).map_err(err)?;
+            let mut wr = parquet::arrow::ArrowWriter::try_new(w, batch.schema(), Some(props))
+                .map_err(err)?;
             wr.write(batch).map_err(err)?;
             wr.close().map_err(err)?;
         }
         FileFormat::ArrowFile => {
-            let mut wr = arrow::ipc::writer::FileWriter::try_new(w, &batch.schema()).map_err(err)?;
+            let mut wr =
+                arrow::ipc::writer::FileWriter::try_new(w, &batch.schema()).map_err(err)?;
             wr.write(batch).map_err(err)?;
             wr.finish().map_err(err)?;
         }
         FileFormat::ArrowStream => {
-            let mut wr = arrow::ipc::writer::StreamWriter::try_new(w, &batch.schema()).map_err(err)?;
+            let mut wr =
+                arrow::ipc::writer::StreamWriter::try_new(w, &batch.schema()).map_err(err)?;
             wr.write(batch).map_err(err)?;
             wr.finish().map_err(err)?;
         }
@@ -178,7 +184,12 @@ fn write_to<W: std::io::Write + Send>(w: W, batch: &RecordBatch, fmt: FileFormat
 }
 
 /// Write a result set to `path`.
-pub fn write_file(path: &str, fmt: FileFormat, columns: &[String], rows: &[Vec<Value>]) -> Result<usize, String> {
+pub fn write_file(
+    path: &str,
+    fmt: FileFormat,
+    columns: &[String],
+    rows: &[Vec<Value>],
+) -> Result<usize, String> {
     let batch = rows_to_batch(columns, rows)?;
     let f = File::create(path).map_err(|e| format!("{path}: {e}"))?;
     write_to(std::io::BufWriter::new(f), &batch, fmt)?;
@@ -195,7 +206,11 @@ pub fn read_file(path: &str, fmt: FileFormat) -> Result<Vec<RecordBatch>, String
             let groups = B::try_new(f).map_err(err)?.metadata().num_row_groups();
             if groups <= 1 {
                 let f = File::open(path).map_err(|e| format!("{path}: {e}"))?;
-                let rd = B::try_new(f).map_err(err)?.with_batch_size(65536).build().map_err(err)?;
+                let rd = B::try_new(f)
+                    .map_err(err)?
+                    .with_batch_size(65536)
+                    .build()
+                    .map_err(err)?;
                 return rd.collect::<Result<Vec<_>, _>>().map_err(err);
             }
             // decode row groups in parallel, batches kept in file order
@@ -215,11 +230,13 @@ pub fn read_file(path: &str, fmt: FileFormat) -> Result<Vec<RecordBatch>, String
             Ok(parts.into_iter().flatten().collect())
         }
         FileFormat::ArrowFile => {
-            let rd = arrow::ipc::reader::FileReader::try_new(std::io::BufReader::new(f), None).map_err(err)?;
+            let rd = arrow::ipc::reader::FileReader::try_new(std::io::BufReader::new(f), None)
+                .map_err(err)?;
             rd.collect::<Result<Vec<_>, _>>().map_err(err)
         }
         FileFormat::ArrowStream => {
-            let rd = arrow::ipc::reader::StreamReader::try_new(std::io::BufReader::new(f), None).map_err(err)?;
+            let rd = arrow::ipc::reader::StreamReader::try_new(std::io::BufReader::new(f), None)
+                .map_err(err)?;
             rd.collect::<Result<Vec<_>, _>>().map_err(err)
         }
     }
@@ -228,11 +245,18 @@ pub fn read_file(path: &str, fmt: FileFormat) -> Result<Vec<RecordBatch>, String
 /// Batches -> (column names, COPY text rows) for `QueryExecutor::bulk_copy`.
 /// Numbers and booleans format as their SQL literals, NULL as `None`;
 /// temporal and decimal types use Arrow's canonical display.
-pub fn batches_to_copy_rows(batches: &[RecordBatch]) -> Result<(Vec<String>, Vec<Vec<Option<String>>>), String> {
+pub fn batches_to_copy_rows(
+    batches: &[RecordBatch],
+) -> Result<(Vec<String>, Vec<Vec<Option<String>>>), String> {
     let Some(first) = batches.first() else {
         return Ok((Vec::new(), Vec::new()));
     };
-    let columns: Vec<String> = first.schema().fields().iter().map(|f| f.name().clone()).collect();
+    let columns: Vec<String> = first
+        .schema()
+        .fields()
+        .iter()
+        .map(|f| f.name().clone())
+        .collect();
     let total: usize = batches.iter().map(|b| b.num_rows()).sum();
     let mut rows = Vec::with_capacity(total);
     let opts = FormatOptions::default();
@@ -250,7 +274,11 @@ pub fn batches_to_copy_rows(batches: &[RecordBatch]) -> Result<(Vec<String>, Vec
                 if a.is_null(i) {
                     row.push(None);
                 } else if let Some(bo) = a.as_any().downcast_ref::<BooleanArray>() {
-                    row.push(Some(if bo.value(i) { "true".into() } else { "false".into() }));
+                    row.push(Some(if bo.value(i) {
+                        "true".into()
+                    } else {
+                        "false".into()
+                    }));
                 } else {
                     row.push(Some(f.value(i).to_string()));
                 }
@@ -285,7 +313,12 @@ pub fn batches_to_values(
     let Some(first) = batches.first() else {
         return Ok((Vec::new(), Vec::new()));
     };
-    let columns: Vec<String> = first.schema().fields().iter().map(|f| f.name().clone()).collect();
+    let columns: Vec<String> = first
+        .schema()
+        .fields()
+        .iter()
+        .map(|f| f.name().clone())
+        .collect();
     let total: usize = batches.iter().map(|b| b.num_rows()).sum();
     let mut rows: Vec<Vec<joule_db_query::ast::Value>> = Vec::with_capacity(total);
     use rayon::prelude::*;
@@ -298,7 +331,11 @@ pub fn batches_to_values(
             .collect::<Result<_, _>>()?;
         let mut its: Vec<_> = cols.into_iter().map(|c| c.into_iter()).collect();
         for _ in 0..b.num_rows() {
-            rows.push(its.iter_mut().map(|it| it.next().unwrap_or(joule_db_query::ast::Value::Null)).collect());
+            rows.push(
+                its.iter_mut()
+                    .map(|it| it.next().unwrap_or(joule_db_query::ast::Value::Null))
+                    .collect(),
+            );
         }
     }
     Ok((columns, rows))
@@ -310,7 +347,11 @@ pub fn batches_to_values(
 /// caller takes the row path).
 pub fn batches_to_columns(
     batches: &[RecordBatch],
-) -> Option<(Vec<String>, Vec<joule_db_amorphic::column_batch::BatchColumn>, usize)> {
+) -> Option<(
+    Vec<String>,
+    Vec<joule_db_amorphic::column_batch::BatchColumn>,
+    usize,
+)> {
     use arrow::array::AsArray;
     use arrow::datatypes::*;
     use joule_db_amorphic::column_batch::{BatchColumn, ColData};
@@ -355,7 +396,12 @@ pub fn batches_to_columns(
                 DataType::Float32 => {
                     let mut v = Vec::with_capacity(total);
                     for a in &arrays {
-                        v.extend(a.as_primitive::<Float32Type>().values().iter().map(|&x| x as f64));
+                        v.extend(
+                            a.as_primitive::<Float32Type>()
+                                .values()
+                                .iter()
+                                .map(|&x| x as f64),
+                        );
                     }
                     ColData::Float(v)
                 }
@@ -406,7 +452,8 @@ pub fn batches_to_columns(
                                     }
                                 }
                                 _ => {
-                                    let f = ArrayFormatter::try_new(*a, &FormatOptions::default()).ok()?;
+                                    let f = ArrayFormatter::try_new(*a, &FormatOptions::default())
+                                        .ok()?;
                                     use std::io::Write;
                                     for i in 0..n {
                                         if !a.is_null(i) {
@@ -436,7 +483,11 @@ pub fn batches_to_columns(
                 }
                 _ => return None,
             };
-            Some(BatchColumn { name: names[ci].clone(), data, valid })
+            Some(BatchColumn {
+                name: names[ci].clone(),
+                data,
+                valid,
+            })
         })
         .collect();
     Some((names, cols?, total))
@@ -456,13 +507,23 @@ fn array_values(a: &dyn Array) -> Result<Vec<joule_db_query::ast::Value>, String
     }
     let fmt_all = |a: &dyn Array| -> Result<Vec<V>, String> {
         let f = ArrayFormatter::try_new(a, &FormatOptions::default()).map_err(err)?;
-        Ok((0..a.len()).map(|i| if a.is_null(i) { V::Null } else { V::String(f.value(i).to_string()) }).collect())
+        Ok((0..a.len())
+            .map(|i| {
+                if a.is_null(i) {
+                    V::Null
+                } else {
+                    V::String(f.value(i).to_string())
+                }
+            })
+            .collect())
     };
     Ok(match a.data_type() {
         DataType::Null => vec![V::Null; n],
         DataType::Boolean => {
             let b = a.as_boolean();
-            (0..n).map(|i| null_or(i, &|i| V::Bool(b.value(i)))).collect()
+            (0..n)
+                .map(|i| null_or(i, &|i| V::Bool(b.value(i))))
+                .collect()
         }
         DataType::Int8 => prim!(Int8Type, |v: i8| V::Int(v as i64)),
         DataType::Int16 => prim!(Int16Type, |v: i16| V::Int(v as i64)),
@@ -479,27 +540,39 @@ fn array_values(a: &dyn Array) -> Result<Vec<joule_db_query::ast::Value>, String
         DataType::Float64 => prim!(Float64Type, V::Float),
         DataType::Utf8 => {
             let s = a.as_string::<i32>();
-            (0..n).map(|i| null_or(i, &|i| V::String(s.value(i).to_string()))).collect()
+            (0..n)
+                .map(|i| null_or(i, &|i| V::String(s.value(i).to_string())))
+                .collect()
         }
         DataType::LargeUtf8 => {
             let s = a.as_string::<i64>();
-            (0..n).map(|i| null_or(i, &|i| V::String(s.value(i).to_string()))).collect()
+            (0..n)
+                .map(|i| null_or(i, &|i| V::String(s.value(i).to_string())))
+                .collect()
         }
         DataType::Utf8View => {
             let s = a.as_string_view();
-            (0..n).map(|i| null_or(i, &|i| V::String(s.value(i).to_string()))).collect()
+            (0..n)
+                .map(|i| null_or(i, &|i| V::String(s.value(i).to_string())))
+                .collect()
         }
         DataType::Binary => {
             let s = a.as_binary::<i32>();
-            (0..n).map(|i| null_or(i, &|i| V::Bytes(s.value(i).to_vec()))).collect()
+            (0..n)
+                .map(|i| null_or(i, &|i| V::Bytes(s.value(i).to_vec())))
+                .collect()
         }
         DataType::LargeBinary => {
             let s = a.as_binary::<i64>();
-            (0..n).map(|i| null_or(i, &|i| V::Bytes(s.value(i).to_vec()))).collect()
+            (0..n)
+                .map(|i| null_or(i, &|i| V::Bytes(s.value(i).to_vec())))
+                .collect()
         }
         DataType::FixedSizeBinary(_) => {
             let s = a.as_fixed_size_binary();
-            (0..n).map(|i| null_or(i, &|i| V::Bytes(s.value(i).to_vec()))).collect()
+            (0..n)
+                .map(|i| null_or(i, &|i| V::Bytes(s.value(i).to_vec())))
+                .collect()
         }
         DataType::Decimal128(p, sc) => {
             let (p, sc) = (*p, *sc);
@@ -584,7 +657,11 @@ mod tests {
             vec![json!(2), Value::Null, json!(2), json!(false)],
             vec![json!(3), json!("c"), Value::Null, Value::Null],
         ];
-        for fmt in [FileFormat::Parquet, FileFormat::ArrowFile, FileFormat::ArrowStream] {
+        for fmt in [
+            FileFormat::Parquet,
+            FileFormat::ArrowFile,
+            FileFormat::ArrowStream,
+        ] {
             let dir = tempfile::tempdir().unwrap();
             let p = dir.path().join("t.out");
             let p = p.to_str().unwrap();
@@ -597,7 +674,15 @@ mod tests {
             assert_eq!(s.field(3).data_type(), &DataType::Boolean);
             let (c, r) = batches_to_copy_rows(&batches).unwrap();
             assert_eq!(c, cols);
-            assert_eq!(r[0], vec![Some("1".into()), Some("a".into()), Some("1.5".into()), Some("true".into())]);
+            assert_eq!(
+                r[0],
+                vec![
+                    Some("1".into()),
+                    Some("a".into()),
+                    Some("1.5".into()),
+                    Some("true".into())
+                ]
+            );
             assert_eq!(r[1][1], None);
             assert_eq!(r[1][2].as_deref(), Some("2.0")); // float column keeps its type
             assert_eq!(r[2][3], None);
@@ -607,13 +692,17 @@ mod tests {
     #[test]
     fn typed_import_keeps_source_types() {
         use arrow::array::*;
-        use arrow::datatypes::{TimeUnit, DataType as DT};
+        use arrow::datatypes::{DataType as DT, TimeUnit};
         use joule_db_query::ast::Value as V;
         let schema = Arc::new(Schema::new(vec![
             Field::new("zip", DT::Utf8, true),
             Field::new("d", DT::Date32, true),
             Field::new("ts", DT::Timestamp(TimeUnit::Microsecond, None), true),
-            Field::new("tsz", DT::Timestamp(TimeUnit::Millisecond, Some("UTC".into())), true),
+            Field::new(
+                "tsz",
+                DT::Timestamp(TimeUnit::Millisecond, Some("UTC".into())),
+                true,
+            ),
             Field::new("price", DT::Decimal128(10, 2), true),
             Field::new("big", DT::Decimal128(38, 4), true),
             Field::new("ok", DT::Boolean, true),
@@ -621,17 +710,29 @@ mod tests {
             Field::new("u", DT::UInt64, true),
             Field::new("i32", DT::Int32, true),
             Field::new("f32", DT::Float32, true),
-            Field::new("dict", DT::Dictionary(Box::new(DT::Int32), Box::new(DT::Utf8)), true),
+            Field::new(
+                "dict",
+                DT::Dictionary(Box::new(DT::Int32), Box::new(DT::Utf8)),
+                true,
+            ),
         ]));
-        let dict: DictionaryArray<arrow::datatypes::Int32Type> = vec![Some("x"), None].into_iter().collect();
+        let dict: DictionaryArray<arrow::datatypes::Int32Type> =
+            vec![Some("x"), None].into_iter().collect();
         let batch = RecordBatch::try_new(
             schema,
             vec![
                 Arc::new(StringArray::from(vec![Some("02139"), Some("123")])),
                 Arc::new(Date32Array::from(vec![Some(19723), None])),
-                Arc::new(TimestampMicrosecondArray::from(vec![Some(1_704_164_645_123_000), None])),
+                Arc::new(TimestampMicrosecondArray::from(vec![
+                    Some(1_704_164_645_123_000),
+                    None,
+                ])),
                 Arc::new(TimestampMillisecondArray::from(vec![Some(0), None]).with_timezone("UTC")),
-                Arc::new(Decimal128Array::from(vec![Some(12345), None]).with_precision_and_scale(10, 2).unwrap()),
+                Arc::new(
+                    Decimal128Array::from(vec![Some(12345), None])
+                        .with_precision_and_scale(10, 2)
+                        .unwrap(),
+                ),
                 Arc::new(
                     Decimal128Array::from(vec![Some(12345678901234567890123i128), None])
                         .with_precision_and_scale(38, 4)
@@ -655,10 +756,18 @@ mod tests {
             assert_eq!(cols[0], "zip");
             let r = &rows[0];
             assert_eq!(r[0], V::String("02139".into()), "{fmt:?}");
-            assert_eq!(rows[1][0], V::String("123".into()), "numeric-looking string stays text");
+            assert_eq!(
+                rows[1][0],
+                V::String("123".into()),
+                "numeric-looking string stays text"
+            );
             assert_eq!(r[1], V::String("2024-01-01".into())); // day 19723
             assert_eq!(r[2], V::String("2024-01-02T03:04:05.123".into()));
-            assert!(matches!(&r[3], V::String(s) if s.starts_with("1970-01-01T00:00:00") && (s.ends_with('Z') || s.ends_with("+00:00"))), "{:?}", r[3]);
+            assert!(
+                matches!(&r[3], V::String(s) if s.starts_with("1970-01-01T00:00:00") && (s.ends_with('Z') || s.ends_with("+00:00"))),
+                "{:?}",
+                r[3]
+            );
             assert_eq!(r[4], V::Float(123.45));
             assert_eq!(r[5], V::String("1234567890123456789.0123".into()));
             assert_eq!(r[6], V::Bool(true));
@@ -678,9 +787,18 @@ mod tests {
 
     #[test]
     fn format_detection() {
-        assert_eq!(FileFormat::from_path("/x/y.parquet"), Some(FileFormat::Parquet));
-        assert_eq!(FileFormat::from_path("a.arrow"), Some(FileFormat::ArrowFile));
-        assert_eq!(FileFormat::from_path("a.arrows"), Some(FileFormat::ArrowStream));
+        assert_eq!(
+            FileFormat::from_path("/x/y.parquet"),
+            Some(FileFormat::Parquet)
+        );
+        assert_eq!(
+            FileFormat::from_path("a.arrow"),
+            Some(FileFormat::ArrowFile)
+        );
+        assert_eq!(
+            FileFormat::from_path("a.arrows"),
+            Some(FileFormat::ArrowStream)
+        );
         assert_eq!(FileFormat::from_path("a.csv"), None);
     }
 }

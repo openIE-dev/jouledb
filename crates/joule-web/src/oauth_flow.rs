@@ -118,10 +118,7 @@ impl OAuthClient {
             client_secret: client_secret.to_string(),
             redirect_uris: redirect_uris.iter().map(|s| s.to_string()).collect(),
             allowed_scopes: scopes.iter().map(|s| s.to_string()).collect(),
-            allowed_grant_types: vec![
-                GrantType::AuthorizationCode,
-                GrantType::RefreshToken,
-            ],
+            allowed_grant_types: vec![GrantType::AuthorizationCode, GrantType::RefreshToken],
         }
     }
 
@@ -357,10 +354,7 @@ impl OAuthServer {
     }
 
     /// Start an authorization request (step 1 of auth code flow).
-    pub fn authorize(
-        &mut self,
-        request: AuthorizationRequest,
-    ) -> Result<String, OAuthError> {
+    pub fn authorize(&mut self, request: AuthorizationRequest) -> Result<String, OAuthError> {
         let client = self
             .clients
             .get(&request.client_id)
@@ -511,9 +505,7 @@ impl OAuthServer {
                     && t.client_id == client_id
                     && !t.revoked
             })
-            .ok_or_else(|| {
-                OAuthError::InvalidRefreshToken(refresh_token.to_string())
-            })?;
+            .ok_or_else(|| OAuthError::InvalidRefreshToken(refresh_token.to_string()))?;
 
         // Revoke old token.
         old_token.revoked = true;
@@ -583,10 +575,7 @@ impl OAuthServer {
     }
 
     /// Validate a state parameter for CSRF protection.
-    pub fn validate_state(
-        expected: &str,
-        got: &str,
-    ) -> Result<(), OAuthError> {
+    pub fn validate_state(expected: &str, got: &str) -> Result<(), OAuthError> {
         if expected != got {
             return Err(OAuthError::StateMismatch {
                 expected: expected.to_string(),
@@ -608,26 +597,20 @@ impl Default for OAuthServer {
 /// Minimal SHA-256 for PKCE S256.
 fn sha256_bytes(data: &[u8]) -> Vec<u8> {
     const H0: [u32; 8] = [
-        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-        0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+        0x5be0cd19,
     ];
     const K: [u32; 64] = [
-        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
-        0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-        0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
-        0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
-        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-        0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
-        0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
-        0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-        0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
+        0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
+        0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
+        0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
+        0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+        0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
+        0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
+        0xc67178f2,
     ];
 
     let mut state = H0;
@@ -643,30 +626,39 @@ fn sha256_bytes(data: &[u8]) -> Vec<u8> {
         let mut w = [0u32; 64];
         for i in 0..16 {
             w[i] = u32::from_be_bytes([
-                chunk[i * 4], chunk[i * 4 + 1],
-                chunk[i * 4 + 2], chunk[i * 4 + 3],
+                chunk[i * 4],
+                chunk[i * 4 + 1],
+                chunk[i * 4 + 2],
+                chunk[i * 4 + 3],
             ]);
         }
         for i in 16..64 {
-            let s0 = w[i - 15].rotate_right(7)
-                ^ w[i - 15].rotate_right(18)
-                ^ (w[i - 15] >> 3);
-            let s1 = w[i - 2].rotate_right(17)
-                ^ w[i - 2].rotate_right(19)
-                ^ (w[i - 2] >> 10);
-            w[i] = w[i - 16].wrapping_add(s0).wrapping_add(w[i - 7]).wrapping_add(s1);
+            let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
+            let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
+            w[i] = w[i - 16]
+                .wrapping_add(s0)
+                .wrapping_add(w[i - 7])
+                .wrapping_add(s1);
         }
         let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = state;
         for i in 0..64 {
             let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
             let ch = (e & f) ^ ((!e) & g);
-            let t1 = h.wrapping_add(s1).wrapping_add(ch).wrapping_add(K[i]).wrapping_add(w[i]);
+            let t1 = h
+                .wrapping_add(s1)
+                .wrapping_add(ch)
+                .wrapping_add(K[i])
+                .wrapping_add(w[i]);
             let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
             let maj = (a & b) ^ (a & c) ^ (b & c);
             let t2 = s0.wrapping_add(maj);
-            h = g; g = f; f = e;
+            h = g;
+            g = f;
+            f = e;
             e = d.wrapping_add(t1);
-            d = c; c = b; b = a;
+            d = c;
+            c = b;
+            b = a;
             a = t1.wrapping_add(t2);
         }
         state[0] = state[0].wrapping_add(a);
@@ -693,8 +685,16 @@ fn base64url_encode(data: &[u8]) -> String {
     let mut i = 0;
     while i < data.len() {
         let b0 = data[i] as u32;
-        let b1 = if i + 1 < data.len() { data[i + 1] as u32 } else { 0 };
-        let b2 = if i + 2 < data.len() { data[i + 2] as u32 } else { 0 };
+        let b1 = if i + 1 < data.len() {
+            data[i + 1] as u32
+        } else {
+            0
+        };
+        let b2 = if i + 2 < data.len() {
+            data[i + 2] as u32
+        } else {
+            0
+        };
         let triple = (b0 << 16) | (b1 << 8) | b2;
 
         out.push(CHARS[((triple >> 18) & 0x3F) as usize] as char);
@@ -766,12 +766,19 @@ mod tests {
     fn test_pkce_plain() {
         let pair = PkcePair::generate("verifier123", CodeChallengeMethod::Plain);
         assert_eq!(pair.challenge, "verifier123");
-        assert!(PkcePair::verify("verifier123", &pair.challenge, CodeChallengeMethod::Plain));
+        assert!(PkcePair::verify(
+            "verifier123",
+            &pair.challenge,
+            CodeChallengeMethod::Plain
+        ));
     }
 
     #[test]
     fn test_pkce_s256() {
-        let pair = PkcePair::generate("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk", CodeChallengeMethod::S256);
+        let pair = PkcePair::generate(
+            "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+            CodeChallengeMethod::S256,
+        );
         assert_ne!(pair.challenge, pair.verifier);
         assert!(PkcePair::verify(
             &pair.verifier,
@@ -790,7 +797,10 @@ mod tests {
         let mut server = setup_server();
         let mut req = make_auth_request();
         req.client_id = "nonexistent".to_string();
-        assert!(matches!(server.authorize(req), Err(OAuthError::InvalidClient(_))));
+        assert!(matches!(
+            server.authorize(req),
+            Err(OAuthError::InvalidClient(_))
+        ));
     }
 
     #[test]
@@ -798,7 +808,10 @@ mod tests {
         let mut server = setup_server();
         let mut req = make_auth_request();
         req.redirect_uri = "https://evil.com/callback".to_string();
-        assert!(matches!(server.authorize(req), Err(OAuthError::InvalidRedirectUri(_))));
+        assert!(matches!(
+            server.authorize(req),
+            Err(OAuthError::InvalidRedirectUri(_))
+        ));
     }
 
     #[test]
@@ -806,7 +819,10 @@ mod tests {
         let mut server = setup_server();
         let mut req = make_auth_request();
         req.scope = ScopeSet::from_list(&["read", "superadmin"]);
-        assert!(matches!(server.authorize(req), Err(OAuthError::InvalidScope(_))));
+        assert!(matches!(
+            server.authorize(req),
+            Err(OAuthError::InvalidScope(_))
+        ));
     }
 
     #[test]
@@ -818,7 +834,14 @@ mod tests {
         assert_eq!(state, "csrf_state_123");
 
         let token_resp = server
-            .exchange_code("client1", "secret1", &code, "https://example.com/callback", None, 1001)
+            .exchange_code(
+                "client1",
+                "secret1",
+                &code,
+                "https://example.com/callback",
+                None,
+                1001,
+            )
             .unwrap();
         assert!(token_resp.access_token.starts_with("at_"));
         assert!(token_resp.refresh_token.is_some());
@@ -835,12 +858,26 @@ mod tests {
 
         // First use succeeds.
         server
-            .exchange_code("client1", "secret1", &code, "https://example.com/callback", None, 1001)
+            .exchange_code(
+                "client1",
+                "secret1",
+                &code,
+                "https://example.com/callback",
+                None,
+                1001,
+            )
             .unwrap();
 
         // Second use fails.
         let err = server
-            .exchange_code("client1", "secret1", &code, "https://example.com/callback", None, 1002)
+            .exchange_code(
+                "client1",
+                "secret1",
+                &code,
+                "https://example.com/callback",
+                None,
+                1002,
+            )
             .unwrap_err();
         assert!(matches!(err, OAuthError::InvalidCode(_)));
     }
@@ -854,7 +891,14 @@ mod tests {
 
         // Try to exchange after expiration (default 600s).
         let err = server
-            .exchange_code("client1", "secret1", &code, "https://example.com/callback", None, 2000)
+            .exchange_code(
+                "client1",
+                "secret1",
+                &code,
+                "https://example.com/callback",
+                None,
+                2000,
+            )
             .unwrap_err();
         assert!(matches!(err, OAuthError::InvalidCode(_)));
     }
@@ -880,7 +924,9 @@ mod tests {
         // Exchange with correct verifier.
         let resp = server
             .exchange_code(
-                "client1", "secret1", &code,
+                "client1",
+                "secret1",
+                &code,
                 "https://example.com/callback",
                 Some("my_verifier_string"),
                 1001,
@@ -909,7 +955,9 @@ mod tests {
 
         let err = server
             .exchange_code(
-                "client1", "secret1", &code,
+                "client1",
+                "secret1",
+                &code,
                 "https://example.com/callback",
                 Some("wrong_verifier"),
                 1001,
@@ -926,16 +974,27 @@ mod tests {
         let (code, _) = server.approve_authorization(&request_id, 1000).unwrap();
 
         let initial = server
-            .exchange_code("client1", "secret1", &code, "https://example.com/callback", None, 1001)
+            .exchange_code(
+                "client1",
+                "secret1",
+                &code,
+                "https://example.com/callback",
+                None,
+                1001,
+            )
             .unwrap();
 
         let rt = initial.refresh_token.unwrap();
-        let refreshed = server.refresh_token("client1", "secret1", &rt, 2000).unwrap();
+        let refreshed = server
+            .refresh_token("client1", "secret1", &rt, 2000)
+            .unwrap();
         assert_ne!(refreshed.access_token, initial.access_token);
         assert!(refreshed.refresh_token.is_some());
 
         // Old refresh token should no longer work.
-        let err = server.refresh_token("client1", "secret1", &rt, 2001).unwrap_err();
+        let err = server
+            .refresh_token("client1", "secret1", &rt, 2001)
+            .unwrap_err();
         assert!(matches!(err, OAuthError::InvalidRefreshToken(_)));
     }
 
@@ -947,7 +1006,14 @@ mod tests {
         let (code, _) = server.approve_authorization(&request_id, 1000).unwrap();
 
         let token_resp = server
-            .exchange_code("client1", "secret1", &code, "https://example.com/callback", None, 1001)
+            .exchange_code(
+                "client1",
+                "secret1",
+                &code,
+                "https://example.com/callback",
+                None,
+                1001,
+            )
             .unwrap();
 
         // Active token.
@@ -972,7 +1038,14 @@ mod tests {
         let (code, _) = server.approve_authorization(&request_id, 1000).unwrap();
 
         let token_resp = server
-            .exchange_code("client1", "secret1", &code, "https://example.com/callback", None, 1001)
+            .exchange_code(
+                "client1",
+                "secret1",
+                &code,
+                "https://example.com/callback",
+                None,
+                1001,
+            )
             .unwrap();
 
         assert!(server.revoke_token(&token_resp.access_token));
@@ -1007,14 +1080,23 @@ mod tests {
         let (code, _) = server.approve_authorization(&request_id, 1000).unwrap();
 
         let err = server
-            .exchange_code("client1", "wrong_secret", &code, "https://example.com/callback", None, 1001)
+            .exchange_code(
+                "client1",
+                "wrong_secret",
+                &code,
+                "https://example.com/callback",
+                None,
+                1001,
+            )
             .unwrap_err();
         assert!(matches!(err, OAuthError::InvalidClient(_)));
     }
 
     #[test]
     fn test_error_display() {
-        let err = OAuthError::TokenExpired { token_id: "t1".to_string() };
+        let err = OAuthError::TokenExpired {
+            token_id: "t1".to_string(),
+        };
         assert!(err.to_string().contains("t1"));
     }
 }

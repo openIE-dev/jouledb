@@ -2,8 +2,8 @@
 //! Priority queue by collapse cost. Target face count or error threshold. Boundary and
 //! seam preservation. Simplification statistics.
 
-use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 
 // ── Vector types ───────────────────────────────────────────────
 
@@ -36,7 +36,11 @@ impl Vec3 {
     }
     pub fn normalized(&self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { Self::new(self.x / len, self.y / len, self.z / len) }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            Self::new(self.x / len, self.y / len, self.z / len)
+        }
     }
     pub fn cross(&self, o: &Self) -> Self {
         Self::new(
@@ -72,9 +76,15 @@ struct Quadric {
 impl Quadric {
     fn zero() -> Self {
         Self {
-            a2: 0.0, ab: 0.0, ac: 0.0, ad: 0.0,
-            b2: 0.0, bc: 0.0, bd: 0.0,
-            c2: 0.0, cd: 0.0,
+            a2: 0.0,
+            ab: 0.0,
+            ac: 0.0,
+            ad: 0.0,
+            b2: 0.0,
+            bc: 0.0,
+            bd: 0.0,
+            c2: 0.0,
+            cd: 0.0,
             d2: 0.0,
         }
     }
@@ -82,9 +92,15 @@ impl Quadric {
     /// Create a quadric from a plane equation (a, b, c, d).
     fn from_plane(a: f64, b: f64, c: f64, d: f64) -> Self {
         Self {
-            a2: a * a, ab: a * b, ac: a * c, ad: a * d,
-            b2: b * b, bc: b * c, bd: b * d,
-            c2: c * c, cd: c * d,
+            a2: a * a,
+            ab: a * b,
+            ac: a * c,
+            ad: a * d,
+            b2: b * b,
+            bc: b * c,
+            bd: b * d,
+            c2: c * c,
+            cd: c * d,
             d2: d * d,
         }
     }
@@ -385,7 +401,12 @@ pub fn simplify(mesh: &SimplifyMesh, config: &SimplifyConfig) -> (SimplifyMesh, 
         remap[i] = i as u32;
     }
 
-    let compute_collapse = |a: u32, b: u32, quadrics: &[Quadric], positions: &[Vec3], config: &SimplifyConfig| -> CollapseCandidate {
+    let compute_collapse = |a: u32,
+                            b: u32,
+                            quadrics: &[Quadric],
+                            positions: &[Vec3],
+                            config: &SimplifyConfig|
+     -> CollapseCandidate {
         let q_sum = quadrics[a as usize].add(&quadrics[b as usize]);
         let optimal = q_sum.optimal_position(positions[a as usize], positions[b as usize]);
         let mut cost = q_sum.evaluate(optimal).max(0.0);
@@ -574,12 +595,18 @@ mod tests {
             Vec3::new(-1.0, 1.0, 1.0),
         ];
         let triangles = vec![
-            [0, 2, 1], [0, 3, 2], // front
-            [4, 5, 6], [4, 6, 7], // back
-            [0, 1, 5], [0, 5, 4], // bottom
-            [2, 3, 7], [2, 7, 6], // top
-            [0, 4, 7], [0, 7, 3], // left
-            [1, 2, 6], [1, 6, 5], // right
+            [0, 2, 1],
+            [0, 3, 2], // front
+            [4, 5, 6],
+            [4, 6, 7], // back
+            [0, 1, 5],
+            [0, 5, 4], // bottom
+            [2, 3, 7],
+            [2, 7, 6], // top
+            [0, 4, 7],
+            [0, 7, 3], // left
+            [1, 2, 6],
+            [1, 6, 5], // right
         ];
         SimplifyMesh::new(positions, triangles)
     }
@@ -588,11 +615,7 @@ mod tests {
         let mut positions = Vec::new();
         for j in 0..=n {
             for i in 0..=n {
-                positions.push(Vec3::new(
-                    i as f64 / n as f64,
-                    0.0,
-                    j as f64 / n as f64,
-                ));
+                positions.push(Vec3::new(i as f64 / n as f64, 0.0, j as f64 / n as f64));
             }
         }
         let mut triangles = Vec::new();
@@ -640,7 +663,11 @@ mod tests {
         let m = subdivided_plane(8); // 128 triangles
         let config = SimplifyConfig::with_target(32);
         let (result, stats) = simplify(&m, &config);
-        assert!(result.triangle_count() <= 34, "got {} tris", result.triangle_count());
+        assert!(
+            result.triangle_count() <= 34,
+            "got {} tris",
+            result.triangle_count()
+        );
         assert!(stats.ratio < 0.5);
     }
 

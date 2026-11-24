@@ -21,7 +21,11 @@ pub enum CoroutineError {
     /// Coroutine panicked/failed.
     Failed { id: u64, reason: String },
     /// Invalid state transition.
-    InvalidTransition { id: u64, from: &'static str, to: &'static str },
+    InvalidTransition {
+        id: u64,
+        from: &'static str,
+        to: &'static str,
+    },
 }
 
 impl std::fmt::Display for CoroutineError {
@@ -226,14 +230,14 @@ impl CoroutineManager {
                 return Err(CoroutineError::Failed {
                     id,
                     reason: "previously failed".to_string(),
-                })
+                });
             }
             CoroutineState::Running => {
                 return Err(CoroutineError::InvalidTransition {
                     id,
                     from: "Running",
                     to: "Running",
-                })
+                });
             }
             CoroutineState::Created | CoroutineState::Suspended => {}
         }

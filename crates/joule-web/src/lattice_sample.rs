@@ -80,12 +80,18 @@ impl LatticeSampleConfig {
 }
 
 impl Default for LatticeSampleConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for LatticeSampleConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "LatticeSampleConfig(dimension={0}, std_dev={1:.4}, center={2:.4}, precision={3})", self.dimension, self.std_dev, self.center, self.precision)
+        write!(
+            f,
+            "LatticeSampleConfig(dimension={0}, std_dev={1:.4}, center={2:.4}, precision={3})",
+            self.dimension, self.std_dev, self.center, self.precision
+        )
     }
 }
 
@@ -101,7 +107,10 @@ pub struct LatticeSample {
 impl LatticeSample {
     pub fn new(config: LatticeSampleConfig) -> Result<Self, LatticeSampleError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -113,34 +122,48 @@ impl LatticeSample {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &LatticeSampleConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &LatticeSampleConfig {
+        &self.config
+    }
 
     /// Sample from discrete Gaussian.
     pub fn discrete_gaussian(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Sample uniform polynomial.
     pub fn uniform_poly(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Sample ternary distribution.
     pub fn ternary_dist(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -152,7 +175,9 @@ impl LatticeSample {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -164,7 +189,11 @@ impl LatticeSample {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -237,7 +266,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = LatticeSample::new(LatticeSampleConfig::new()).unwrap()
+        let e = LatticeSample::new(LatticeSampleConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -253,7 +283,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = LatticeSample::new(LatticeSampleConfig::new()).unwrap()
+        let e = LatticeSample::new(LatticeSampleConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("LatticeSample"));
@@ -261,7 +292,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = LatticeSample::new(LatticeSampleConfig::new()).unwrap()
+        let e = LatticeSample::new(LatticeSampleConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -272,7 +304,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = LatticeSample::new(LatticeSampleConfig::new()).unwrap()
+        let e = LatticeSample::new(LatticeSampleConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -280,7 +313,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = LatticeSample::new(LatticeSampleConfig::new()).unwrap()
+        let e = LatticeSample::new(LatticeSampleConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -297,7 +331,8 @@ mod tests {
 
     #[test]
     fn test_discrete_gaussian() {
-        let e = LatticeSample::new(LatticeSampleConfig::new()).unwrap()
+        let e = LatticeSample::new(LatticeSampleConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.discrete_gaussian();
         assert!(!result.is_empty());
@@ -305,7 +340,8 @@ mod tests {
 
     #[test]
     fn test_uniform_poly() {
-        let e = LatticeSample::new(LatticeSampleConfig::new()).unwrap()
+        let e = LatticeSample::new(LatticeSampleConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.uniform_poly();
         assert!(!result.is_empty());
@@ -313,7 +349,8 @@ mod tests {
 
     #[test]
     fn test_ternary_dist() {
-        let e = LatticeSample::new(LatticeSampleConfig::new()).unwrap()
+        let e = LatticeSample::new(LatticeSampleConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.ternary_dist();
         assert!(!result.is_empty());

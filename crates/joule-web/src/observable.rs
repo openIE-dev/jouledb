@@ -217,11 +217,7 @@ pub fn merge<T: Clone>(a: &[T], b: &[T]) -> Vec<T> {
 }
 
 /// Combine two slices element-wise with a combiner function.
-pub fn combine_latest<A: Clone, B: Clone, R>(
-    a: &[A],
-    b: &[B],
-    f: impl Fn(&A, &B) -> R,
-) -> Vec<R> {
+pub fn combine_latest<A: Clone, B: Clone, R>(a: &[A], b: &[B], f: impl Fn(&A, &B) -> R) -> Vec<R> {
     let len = a.len().min(b.len());
     let mut out = Vec::with_capacity(len);
     for i in 0..len {

@@ -107,29 +107,35 @@ impl OfflineStore {
     pub fn create(&mut self, key: &str, data: Value, timestamp: i64) {
         // Save snapshot for rollback
         if !self.snapshots.contains_key(key) {
-            self.snapshots.insert(key.to_string(), self.data.get(key).cloned());
+            self.snapshots
+                .insert(key.to_string(), self.data.get(key).cloned());
         }
         // Optimistic update
         self.data.insert(key.to_string(), data.clone());
-        self.pending_changes.push(PendingChange::create(key, data, timestamp));
+        self.pending_changes
+            .push(PendingChange::create(key, data, timestamp));
     }
 
     /// Update an existing record.
     pub fn update(&mut self, key: &str, data: Value, timestamp: i64) {
         if !self.snapshots.contains_key(key) {
-            self.snapshots.insert(key.to_string(), self.data.get(key).cloned());
+            self.snapshots
+                .insert(key.to_string(), self.data.get(key).cloned());
         }
         self.data.insert(key.to_string(), data.clone());
-        self.pending_changes.push(PendingChange::update(key, data, timestamp));
+        self.pending_changes
+            .push(PendingChange::update(key, data, timestamp));
     }
 
     /// Delete a record.
     pub fn delete(&mut self, key: &str, timestamp: i64) {
         if !self.snapshots.contains_key(key) {
-            self.snapshots.insert(key.to_string(), self.data.get(key).cloned());
+            self.snapshots
+                .insert(key.to_string(), self.data.get(key).cloned());
         }
         self.data.remove(key);
-        self.pending_changes.push(PendingChange::delete(key, timestamp));
+        self.pending_changes
+            .push(PendingChange::delete(key, timestamp));
     }
 
     /// Number of pending changes.

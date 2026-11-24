@@ -21,13 +21,19 @@ pub struct Tensor {
 impl Tensor {
     pub fn zeros(shape: &[usize]) -> Self {
         let len: usize = shape.iter().product();
-        Self { shape: shape.to_vec(), data: vec![0.0; len] }
+        Self {
+            shape: shape.to_vec(),
+            data: vec![0.0; len],
+        }
     }
 
     pub fn from_vec(shape: &[usize], data: Vec<f64>) -> Self {
         let len: usize = shape.iter().product();
         assert_eq!(data.len(), len, "shape/data mismatch");
-        Self { shape: shape.to_vec(), data }
+        Self {
+            shape: shape.to_vec(),
+            data,
+        }
     }
 
     pub fn numel(&self) -> usize {
@@ -37,15 +43,31 @@ impl Tensor {
     /// Element-wise add; shapes must match.
     pub fn add(&self, other: &Tensor) -> Tensor {
         assert_eq!(self.shape, other.shape);
-        let data: Vec<f64> = self.data.iter().zip(&other.data).map(|(a, b)| a + b).collect();
-        Tensor { shape: self.shape.clone(), data }
+        let data: Vec<f64> = self
+            .data
+            .iter()
+            .zip(&other.data)
+            .map(|(a, b)| a + b)
+            .collect();
+        Tensor {
+            shape: self.shape.clone(),
+            data,
+        }
     }
 
     /// Element-wise multiply.
     pub fn mul(&self, other: &Tensor) -> Tensor {
         assert_eq!(self.shape, other.shape);
-        let data: Vec<f64> = self.data.iter().zip(&other.data).map(|(a, b)| a * b).collect();
-        Tensor { shape: self.shape.clone(), data }
+        let data: Vec<f64> = self
+            .data
+            .iter()
+            .zip(&other.data)
+            .map(|(a, b)| a * b)
+            .collect();
+        Tensor {
+            shape: self.shape.clone(),
+            data,
+        }
     }
 
     /// Matrix multiply for 2-D tensors [M,K] x [K,N] → [M,N].
@@ -66,7 +88,10 @@ impl Tensor {
                 out[i * n + j] = sum;
             }
         }
-        Tensor { shape: vec![m, n], data: out }
+        Tensor {
+            shape: vec![m, n],
+            data: out,
+        }
     }
 
     /// Apply ReLU in-place.
@@ -86,7 +111,10 @@ impl Tensor {
         for b in 0..batches {
             let start = b * last;
             let end = start + last;
-            let max_val = out[start..end].iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+            let max_val = out[start..end]
+                .iter()
+                .cloned()
+                .fold(f64::NEG_INFINITY, f64::max);
             let mut sum = 0.0;
             for v in &mut out[start..end] {
                 *v = (*v - max_val).exp();
@@ -98,7 +126,10 @@ impl Tensor {
                 }
             }
         }
-        Tensor { shape: self.shape.clone(), data: out }
+        Tensor {
+            shape: self.shape.clone(),
+            data: out,
+        }
     }
 }
 
@@ -144,7 +175,10 @@ pub struct Layer {
 
 impl Layer {
     pub fn new(name: impl Into<String>, op: LayerOp) -> Self {
-        Self { name: name.into(), op }
+        Self {
+            name: name.into(),
+            op,
+        }
     }
 
     /// Execute this layer on the input tensor.
@@ -161,23 +195,39 @@ impl Layer {
                 out
             }
             LayerOp::Sigmoid => {
-                let data: Vec<f64> = input.data.iter().map(|v| 1.0 / (1.0 + (-v).exp())).collect();
-                Tensor { shape: input.shape.clone(), data }
+                let data: Vec<f64> = input
+                    .data
+                    .iter()
+                    .map(|v| 1.0 / (1.0 + (-v).exp()))
+                    .collect();
+                Tensor {
+                    shape: input.shape.clone(),
+                    data,
+                }
             }
             LayerOp::Softmax => input.softmax(),
-            LayerOp::BatchNorm { gamma, beta, running_mean, running_var, epsilon } => {
+            LayerOp::BatchNorm {
+                gamma,
+                beta,
+                running_mean,
+                running_var,
+                epsilon,
+            } => {
                 let data: Vec<f64> = input
                     .data
                     .iter()
                     .enumerate()
                     .map(|(i, x)| {
                         let c = i % gamma.numel();
-                        let normed = (x - running_mean.data[c])
-                            / (running_var.data[c] + epsilon).sqrt();
+                        let normed =
+                            (x - running_mean.data[c]) / (running_var.data[c] + epsilon).sqrt();
                         gamma.data[c] * normed + beta.data[c]
                     })
                     .collect();
-                Tensor { shape: input.shape.clone(), data }
+                Tensor {
+                    shape: input.shape.clone(),
+                    data,
+                }
             }
             LayerOp::Dropout { .. } => input.clone(), // pass-through at inference
             LayerOp::Reshape { target } => {
@@ -197,7 +247,10 @@ impl Layer {
                 if let Some(idx) = infer_idx {
                     new_shape[idx] = total / known_product;
                 }
-                Tensor { shape: new_shape, data: input.data.clone() }
+                Tensor {
+                    shape: new_shape,
+                    data: input.data.clone(),
+                }
             }
         }
     }
@@ -212,7 +265,10 @@ fn transpose_2d(t: &Tensor) -> Tensor {
             data[j * r + i] = t.data[i * c + j];
         }
     }
-    Tensor { shape: vec![c, r], data }
+    Tensor {
+        shape: vec![c, r],
+        data,
+    }
 }
 
 fn broadcast_add(mat: &Tensor, bias: &Tensor) -> Tensor {
@@ -223,7 +279,10 @@ fn broadcast_add(mat: &Tensor, bias: &Tensor) -> Tensor {
         .enumerate()
         .map(|(i, v)| v + bias.data[i % cols])
         .collect();
-    Tensor { shape: mat.shape.clone(), data }
+    Tensor {
+        shape: mat.shape.clone(),
+        data,
+    }
 }
 
 // ── Binding ────────────────────────────────────────────────────
@@ -262,7 +321,10 @@ pub struct MemoryBudget {
 
 impl MemoryBudget {
     pub fn new(max_bytes: usize) -> Self {
-        Self { max_bytes, current_bytes: 0 }
+        Self {
+            max_bytes,
+            current_bytes: 0,
+        }
     }
 
     pub fn can_allocate(&self, tensor: &Tensor) -> bool {
@@ -528,7 +590,12 @@ mod tests {
 
     #[test]
     fn test_reshape() {
-        let layer = Layer::new("reshape", LayerOp::Reshape { target: vec![2, -1] });
+        let layer = Layer::new(
+            "reshape",
+            LayerOp::Reshape {
+                target: vec![2, -1],
+            },
+        );
         let input = Tensor::from_vec(&[1, 6], vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
         let out = layer.forward(&input);
         assert_eq!(out.shape, vec![2, 3]);
@@ -551,7 +618,7 @@ mod tests {
     #[test]
     fn test_param_count() {
         let rt = ModelRuntime::new("m")
-            .with_layer(dense_layer("fc1", 4, 3))  // 4*3 + 3 = 15
+            .with_layer(dense_layer("fc1", 4, 3)) // 4*3 + 3 = 15
             .with_layer(dense_layer("fc2", 3, 2)); // 3*2 + 2 = 8
         assert_eq!(rt.param_count(), 23);
     }
@@ -588,13 +655,16 @@ mod tests {
 
     #[test]
     fn test_batch_norm() {
-        let layer = Layer::new("bn", LayerOp::BatchNorm {
-            gamma: Tensor::from_vec(&[2], vec![1.0, 1.0]),
-            beta: Tensor::from_vec(&[2], vec![0.0, 0.0]),
-            running_mean: Tensor::from_vec(&[2], vec![0.0, 0.0]),
-            running_var: Tensor::from_vec(&[2], vec![1.0, 1.0]),
-            epsilon: 1e-5,
-        });
+        let layer = Layer::new(
+            "bn",
+            LayerOp::BatchNorm {
+                gamma: Tensor::from_vec(&[2], vec![1.0, 1.0]),
+                beta: Tensor::from_vec(&[2], vec![0.0, 0.0]),
+                running_mean: Tensor::from_vec(&[2], vec![0.0, 0.0]),
+                running_var: Tensor::from_vec(&[2], vec![1.0, 1.0]),
+                epsilon: 1e-5,
+            },
+        );
         let input = Tensor::from_vec(&[1, 2], vec![2.0, -3.0]);
         let out = layer.forward(&input);
         assert!((out.data[0] - 2.0).abs() < 1e-3);
@@ -606,7 +676,10 @@ mod tests {
         let t = Tensor::zeros(&[2, 3]);
         assert!(format!("{t}").contains("shape=[2, 3]"));
 
-        let b = Binding { name: "input".into(), shape: vec![1, 3] };
+        let b = Binding {
+            name: "input".into(),
+            shape: vec![1, 3],
+        };
         assert!(format!("{b}").contains("input"));
 
         let mb = MemoryBudget::new(1000);

@@ -39,7 +39,11 @@ pub struct RocPoint {
 
 impl RocPoint {
     pub fn new(fpr: f64, tpr: f64, threshold: f64) -> Self {
-        Self { fpr, tpr, threshold }
+        Self {
+            fpr,
+            tpr,
+            threshold,
+        }
     }
 
     /// Distance from perfect classifier (0, 1).
@@ -55,7 +59,11 @@ impl RocPoint {
 
 impl fmt::Display for RocPoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ROC(fpr={:.4}, tpr={:.4}, thr={:.4})", self.fpr, self.tpr, self.threshold)
+        write!(
+            f,
+            "ROC(fpr={:.4}, tpr={:.4}, thr={:.4})",
+            self.fpr, self.tpr, self.threshold
+        )
     }
 }
 
@@ -72,18 +80,28 @@ impl RocCurve {
     /// Compute ROC curve from scored samples.
     pub fn from_scores(samples: &[ScoredSample]) -> Self {
         if samples.is_empty() {
-            return Self { points: Vec::new(), auc: 0.0 };
+            return Self {
+                points: Vec::new(),
+                auc: 0.0,
+            };
         }
         // Sort by descending score
         let mut sorted: Vec<ScoredSample> = samples.to_vec();
-        sorted.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        sorted.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let total_pos = sorted.iter().filter(|s| s.label).count() as f64;
         let total_neg = sorted.iter().filter(|s| !s.label).count() as f64;
 
         if total_pos == 0.0 || total_neg == 0.0 {
             return Self {
-                points: vec![RocPoint::new(0.0, 0.0, f64::INFINITY), RocPoint::new(1.0, 1.0, f64::NEG_INFINITY)],
+                points: vec![
+                    RocPoint::new(0.0, 0.0, f64::INFINITY),
+                    RocPoint::new(1.0, 1.0, f64::NEG_INFINITY),
+                ],
                 auc: 0.5,
             };
         }
@@ -132,7 +150,9 @@ impl RocCurve {
     /// Find the operating point that maximizes Youden's J.
     pub fn optimal_threshold_youden(&self) -> Option<&RocPoint> {
         self.points.iter().max_by(|a, b| {
-            a.youdens_j().partial_cmp(&b.youdens_j()).unwrap_or(std::cmp::Ordering::Equal)
+            a.youdens_j()
+                .partial_cmp(&b.youdens_j())
+                .unwrap_or(std::cmp::Ordering::Equal)
         })
     }
 
@@ -150,7 +170,11 @@ impl RocCurve {
         self.points
             .iter()
             .filter(|p| p.fpr <= target_fpr)
-            .max_by(|a, b| a.tpr.partial_cmp(&b.tpr).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|a, b| {
+                a.tpr
+                    .partial_cmp(&b.tpr)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
     }
 
     /// Find the threshold for a target TPR (sensitivity).
@@ -158,7 +182,11 @@ impl RocCurve {
         self.points
             .iter()
             .filter(|p| p.tpr >= target_tpr)
-            .min_by(|a, b| a.fpr.partial_cmp(&b.fpr).unwrap_or(std::cmp::Ordering::Equal))
+            .min_by(|a, b| {
+                a.fpr
+                    .partial_cmp(&b.fpr)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
     }
 
     /// Extract (FPR, TPR) pairs for plotting.
@@ -199,7 +227,11 @@ pub fn auc_mann_whitney(scores: &[f64], labels: &[bool]) -> f64 {
         return 0.5;
     }
     // Sort by score descending
-    let mut pairs: Vec<(f64, bool)> = scores.iter().zip(labels.iter()).map(|(&s, &l)| (s, l)).collect();
+    let mut pairs: Vec<(f64, bool)> = scores
+        .iter()
+        .zip(labels.iter())
+        .map(|(&s, &l)| (s, l))
+        .collect();
     pairs.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
     // Count concordant pairs
@@ -264,7 +296,9 @@ impl AucBootstrap {
             let mut bs_scores = Vec::with_capacity(n);
             let mut bs_labels = Vec::with_capacity(n);
             for _ in 0..n {
-                state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                state = state
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
                 let idx = (state >> 33) as usize % n;
                 bs_scores.push(scores[idx]);
                 bs_labels.push(labels[idx]);
@@ -279,14 +313,26 @@ impl AucBootstrap {
         let lower = aucs.get(lo_idx).copied().unwrap_or(0.0);
         let upper = aucs.get(hi_idx.min(aucs.len() - 1)).copied().unwrap_or(1.0);
 
-        Self { point_estimate, lower, upper, n_bootstrap, confidence }
+        Self {
+            point_estimate,
+            lower,
+            upper,
+            n_bootstrap,
+            confidence,
+        }
     }
 }
 
 impl fmt::Display for AucBootstrap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "AUC={:.4} [{:.0}% CI: {:.4}-{:.4}]",
-               self.point_estimate, self.confidence * 100.0, self.lower, self.upper)
+        write!(
+            f,
+            "AUC={:.4} [{:.0}% CI: {:.4}-{:.4}]",
+            self.point_estimate,
+            self.confidence * 100.0,
+            self.lower,
+            self.upper
+        )
     }
 }
 
@@ -305,7 +351,10 @@ impl MultiClassRoc {
     /// `labels`: true class for each sample.
     pub fn from_scores(score_matrix: &[Vec<f64>], labels: &[usize]) -> Self {
         if score_matrix.is_empty() {
-            return Self { class_rocs: Vec::new(), macro_auc: 0.0 };
+            return Self {
+                class_rocs: Vec::new(),
+                macro_auc: 0.0,
+            };
         }
         let num_classes = score_matrix[0].len();
         let mut class_rocs = Vec::new();
@@ -323,7 +372,10 @@ impl MultiClassRoc {
             class_rocs.iter().map(|(_, r)| r.auc).sum::<f64>() / class_rocs.len() as f64
         };
 
-        Self { class_rocs, macro_auc }
+        Self {
+            class_rocs,
+            macro_auc,
+        }
     }
 
     pub fn num_classes(&self) -> usize {
@@ -333,7 +385,12 @@ impl MultiClassRoc {
 
 impl fmt::Display for MultiClassRoc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MultiClassROC(classes={}, macro_auc={:.4})", self.num_classes(), self.macro_auc)
+        write!(
+            f,
+            "MultiClassROC(classes={}, macro_auc={:.4})",
+            self.num_classes(),
+            self.macro_auc
+        )
     }
 }
 
@@ -511,7 +568,10 @@ mod tests {
 
     #[test]
     fn multi_class_roc_display() {
-        let mc = MultiClassRoc { class_rocs: Vec::new(), macro_auc: 0.0 };
+        let mc = MultiClassRoc {
+            class_rocs: Vec::new(),
+            macro_auc: 0.0,
+        };
         assert!(format!("{}", mc).contains("classes=0"));
     }
 

@@ -4,7 +4,7 @@
 //! Supports HS256/HS384/HS512/none algorithms, standard + custom claims,
 //! and validation of exp, nbf, iss, aud.
 
-use crate::crypto::{sha256, hmac_sha256, base64_encode, base64_decode};
+use crate::crypto::{base64_decode, base64_encode, hmac_sha256, sha256};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -593,7 +593,10 @@ mod tests {
     #[test]
     fn invalid_format() {
         assert_eq!(dangerous_decode("not.a-jwt"), Err(JwtError::InvalidFormat));
-        assert_eq!(dangerous_decode("only-one-part"), Err(JwtError::InvalidFormat));
+        assert_eq!(
+            dangerous_decode("only-one-part"),
+            Err(JwtError::InvalidFormat)
+        );
     }
 
     #[test]

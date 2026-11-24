@@ -237,7 +237,9 @@ pub struct SagaInstance {
 
 impl SagaInstance {
     pub fn new(instance_id: impl Into<String>, definition: &SagaDefinition) -> Self {
-        let step_execs = definition.steps.iter()
+        let step_execs = definition
+            .steps
+            .iter()
             .map(|s| StepExecution::new(&s.id))
             .collect();
         Self {
@@ -324,7 +326,12 @@ impl SagaInstance {
         exec.completed_at = Some(Utc::now());
         exec.error = Some(reason.to_string());
         let id = exec.step_id.clone();
-        self.record(&id, SagaLogEvent::StepFailed { reason: reason.to_string() });
+        self.record(
+            &id,
+            SagaLogEvent::StepFailed {
+                reason: reason.to_string(),
+            },
+        );
         self.status = SagaStatus::Failed;
         Ok(())
     }
@@ -347,16 +354,19 @@ impl SagaInstance {
 
     /// Mark a step's compensation as completed.
     pub fn complete_compensation(&mut self, step_id: &str) -> Result<(), SagaError> {
-        let exec = self.step_executions.iter_mut()
+        let exec = self
+            .step_executions
+            .iter_mut()
             .find(|e| e.step_id == step_id)
             .ok_or_else(|| SagaError::StepNotFound(step_id.to_string()))?;
         exec.status = StepStatus::Compensated;
         self.record(step_id, SagaLogEvent::CompensationCompleted);
 
         // Check if all compensations done.
-        let all_compensated = self.step_executions.iter().all(|e| {
-            !matches!(e.status, StepStatus::Compensating)
-        });
+        let all_compensated = self
+            .step_executions
+            .iter()
+            .all(|e| !matches!(e.status, StepStatus::Compensating));
         if all_compensated {
             self.status = SagaStatus::CompensationCompleted;
             self.completed_at = Some(Utc::now());
@@ -367,19 +377,27 @@ impl SagaInstance {
 
     /// Mark a step's compensation as failed.
     pub fn fail_compensation(&mut self, step_id: &str, reason: &str) -> Result<(), SagaError> {
-        let exec = self.step_executions.iter_mut()
+        let exec = self
+            .step_executions
+            .iter_mut()
             .find(|e| e.step_id == step_id)
             .ok_or_else(|| SagaError::StepNotFound(step_id.to_string()))?;
         exec.status = StepStatus::CompensationFailed;
         exec.error = Some(reason.to_string());
-        self.record(step_id, SagaLogEvent::CompensationFailed { reason: reason.to_string() });
+        self.record(
+            step_id,
+            SagaLogEvent::CompensationFailed {
+                reason: reason.to_string(),
+            },
+        );
         self.status = SagaStatus::CompensationFailed;
         Ok(())
     }
 
     /// Get all completed step IDs.
     pub fn completed_steps(&self) -> Vec<&str> {
-        self.step_executions.iter()
+        self.step_executions
+            .iter()
             .filter(|e| e.status == StepStatus::Executed || e.status == StepStatus::Compensated)
             .map(|e| e.step_id.as_str())
             .collect()
@@ -421,7 +439,9 @@ impl SagaCoordinator {
         definition_id: &str,
         instance_id: impl Into<String>,
     ) -> Result<&SagaInstance, SagaError> {
-        let def = self.definitions.get(definition_id)
+        let def = self
+            .definitions
+            .get(definition_id)
             .ok_or_else(|| SagaError::SagaNotFound(definition_id.to_string()))?;
         let inst = SagaInstance::new(instance_id, def);
         let iid = inst.instance_id.clone();
@@ -431,13 +451,17 @@ impl SagaCoordinator {
 
     /// Get a mutable instance.
     pub fn instance_mut(&mut self, id: &str) -> Result<&mut SagaInstance, SagaError> {
-        self.instances.get_mut(id)
+        self.instances
+            .get_mut(id)
             .ok_or_else(|| SagaError::SagaNotFound(id.to_string()))
     }
 
     /// List instances by status.
     pub fn instances_by_status(&self, status: SagaStatus) -> Vec<&SagaInstance> {
-        self.instances.values().filter(|i| i.status == status).collect()
+        self.instances
+            .values()
+            .filter(|i| i.status == status)
+            .collect()
     }
 }
 
@@ -449,9 +473,12 @@ mod tests {
 
     fn order_saga() -> SagaDefinition {
         let mut def = SagaDefinition::new("order-saga", "Order Saga");
-        def.add_step(SagaStep::new("reserve-inventory", "Reserve Inventory")).unwrap();
-        def.add_step(SagaStep::new("charge-payment", "Charge Payment").with_timeout_ms(5000)).unwrap();
-        def.add_step(SagaStep::new("ship-order", "Ship Order")).unwrap();
+        def.add_step(SagaStep::new("reserve-inventory", "Reserve Inventory"))
+            .unwrap();
+        def.add_step(SagaStep::new("charge-payment", "Charge Payment").with_timeout_ms(5000))
+            .unwrap();
+        def.add_step(SagaStep::new("ship-order", "Ship Order"))
+            .unwrap();
         def
     }
 
@@ -466,7 +493,10 @@ mod tests {
     fn test_duplicate_step() {
         let mut def = SagaDefinition::new("s", "S");
         def.add_step(SagaStep::new("a", "A")).unwrap();
-        assert!(matches!(def.add_step(SagaStep::new("a", "A2")), Err(SagaError::DuplicateStep(_))));
+        assert!(matches!(
+            def.add_step(SagaStep::new("a", "A2")),
+            Err(SagaError::DuplicateStep(_))
+        ));
     }
 
     #[test]
@@ -551,7 +581,10 @@ mod tests {
         data.insert("reservation_id".to_string(), "R-123".to_string());
         inst.complete_step(data).unwrap();
 
-        assert_eq!(inst.context.get("reservation_id"), Some(&"R-123".to_string()));
+        assert_eq!(
+            inst.context.get("reservation_id"),
+            Some(&"R-123".to_string())
+        );
     }
 
     #[test]
@@ -590,7 +623,9 @@ mod tests {
 
     #[test]
     fn test_step_with_retries() {
-        let step = SagaStep::new("s", "S").with_retries(3).with_timeout_ms(1000);
+        let step = SagaStep::new("s", "S")
+            .with_retries(3)
+            .with_timeout_ms(1000);
         assert_eq!(step.max_retries, 3);
         assert_eq!(step.timeout_ms, Some(1000));
     }

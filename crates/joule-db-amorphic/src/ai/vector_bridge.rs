@@ -66,9 +66,7 @@ impl PhasorVector {
     /// Bundle: circular mean of angles (sum of unit vectors, take angle of result)
     pub fn bundle(vecs: &[&Self]) -> Self {
         if vecs.is_empty() {
-            return Self {
-                angles: Vec::new(),
-            };
+            return Self { angles: Vec::new() };
         }
         let dim = vecs[0].dim();
         let mut angles = Vec::with_capacity(dim);
@@ -92,10 +90,7 @@ impl PhasorVector {
 
     /// Convert to (re, im) pairs for codegraph compatibility.
     pub fn to_complex_pairs(&self) -> Vec<(f32, f32)> {
-        self.angles
-            .iter()
-            .map(|a| (a.cos(), a.sin()))
-            .collect()
+        self.angles.iter().map(|a| (a.cos(), a.sin())).collect()
     }
 }
 
@@ -254,7 +249,10 @@ mod tests {
         let hv = BinaryHV::random(256, 99);
         let pv = binaryhv_to_phasor(&hv);
         let sim = cross_similarity(&hv, &pv);
-        assert!((sim - 1.0).abs() < 1e-5, "self-similarity should be 1.0, got {sim}");
+        assert!(
+            (sim - 1.0).abs() < 1e-5,
+            "self-similarity should be 1.0, got {sim}"
+        );
     }
 
     #[test]
@@ -264,7 +262,10 @@ mod tests {
         let other = BinaryHV::random(10000, 2);
         let pv = binaryhv_to_phasor(&other);
         let sim = cross_similarity(&hv, &pv);
-        assert!(sim.abs() < 0.1, "random vectors should be near-orthogonal, got {sim}");
+        assert!(
+            sim.abs() < 0.1,
+            "random vectors should be near-orthogonal, got {sim}"
+        );
     }
 
     #[test]

@@ -25,10 +25,7 @@ pub enum DedupError {
     /// Key expired.
     KeyExpired(String),
     /// Conflict: same key used with different request parameters.
-    RequestConflict {
-        key: String,
-        reason: String,
-    },
+    RequestConflict { key: String, reason: String },
 }
 
 impl fmt::Display for DedupError {
@@ -153,7 +150,7 @@ impl Default for DedupConfig {
     fn default() -> Self {
         Self {
             max_entries: 10_000,
-            ttl_ms: 86_400_000,  // 24 hours
+            ttl_ms: 86_400_000,       // 24 hours
             in_flight_ttl_ms: 60_000, // 1 minute
             detect_conflicts: true,
             min_key_length: 1,
@@ -249,9 +246,7 @@ impl KeyExtractor {
         fingerprint: &RequestFingerprint,
     ) -> Option<String> {
         match self.source {
-            KeySource::Header => {
-                headers.get(&self.header_name).cloned()
-            }
+            KeySource::Header => headers.get(&self.header_name).cloned(),
             KeySource::QueryParam => {
                 for pair in query.split('&') {
                     if let Some((key, value)) = pair.split_once('=') {
@@ -262,12 +257,10 @@ impl KeyExtractor {
                 }
                 None
             }
-            KeySource::Auto => {
-                Some(format!(
-                    "auto-{}-{}-{:016x}",
-                    fingerprint.method, fingerprint.path, fingerprint.content_hash
-                ))
-            }
+            KeySource::Auto => Some(format!(
+                "auto-{}-{}-{:016x}",
+                fingerprint.method, fingerprint.path, fingerprint.content_hash
+            )),
         }
     }
 }
@@ -540,25 +533,37 @@ mod tests {
     #[test]
     fn test_new_request() {
         let mut store = DedupStore::new();
-        let result = store.check("key-1", fp("POST", "/api/pay", "amount=100"), 1000).unwrap();
+        let result = store
+            .check("key-1", fp("POST", "/api/pay", "amount=100"), 1000)
+            .unwrap();
         assert!(matches!(result, DedupCheck::New));
     }
 
     #[test]
     fn test_duplicate_in_flight() {
         let mut store = DedupStore::new();
-        store.check("key-1", fp("POST", "/pay", "100"), 1000).unwrap();
-        let result = store.check("key-1", fp("POST", "/pay", "100"), 1001).unwrap();
+        store
+            .check("key-1", fp("POST", "/pay", "100"), 1000)
+            .unwrap();
+        let result = store
+            .check("key-1", fp("POST", "/pay", "100"), 1001)
+            .unwrap();
         assert!(matches!(result, DedupCheck::InFlight));
     }
 
     #[test]
     fn test_duplicate_complete() {
         let mut store = DedupStore::new();
-        store.check("key-1", fp("POST", "/pay", "100"), 1000).unwrap();
-        store.complete("key-1", CachedResponse::new(200, "ok"), 1001).unwrap();
+        store
+            .check("key-1", fp("POST", "/pay", "100"), 1000)
+            .unwrap();
+        store
+            .complete("key-1", CachedResponse::new(200, "ok"), 1001)
+            .unwrap();
 
-        let result = store.check("key-1", fp("POST", "/pay", "100"), 1002).unwrap();
+        let result = store
+            .check("key-1", fp("POST", "/pay", "100"), 1002)
+            .unwrap();
         match result {
             DedupCheck::Duplicate(resp) => {
                 assert_eq!(resp.status, 200);
@@ -571,8 +576,12 @@ mod tests {
     #[test]
     fn test_conflict_detection() {
         let mut store = DedupStore::new();
-        store.check("key-1", fp("POST", "/pay", "amount=100"), 1000).unwrap();
-        store.complete("key-1", CachedResponse::new(200, "ok"), 1001).unwrap();
+        store
+            .check("key-1", fp("POST", "/pay", "amount=100"), 1000)
+            .unwrap();
+        store
+            .complete("key-1", CachedResponse::new(200, "ok"), 1001)
+            .unwrap();
 
         let err = store
             .check("key-1", fp("POST", "/pay", "amount=200"), 1002)
@@ -586,18 +595,26 @@ mod tests {
             ttl_ms: 1000,
             ..Default::default()
         });
-        store.check("key-1", fp("POST", "/pay", "100"), 1000).unwrap();
-        store.complete("key-1", CachedResponse::new(200, "ok"), 1000).unwrap();
+        store
+            .check("key-1", fp("POST", "/pay", "100"), 1000)
+            .unwrap();
+        store
+            .complete("key-1", CachedResponse::new(200, "ok"), 1000)
+            .unwrap();
 
         // After TTL expires.
-        let result = store.check("key-1", fp("POST", "/pay", "100"), 3000).unwrap();
+        let result = store
+            .check("key-1", fp("POST", "/pay", "100"), 3000)
+            .unwrap();
         assert!(matches!(result, DedupCheck::New));
     }
 
     #[test]
     fn test_fail_removes_entry() {
         let mut store = DedupStore::new();
-        store.check("key-1", fp("POST", "/pay", "100"), 1000).unwrap();
+        store
+            .check("key-1", fp("POST", "/pay", "100"), 1000)
+            .unwrap();
         store.fail("key-1");
         assert!(store.is_empty());
     }
@@ -605,7 +622,9 @@ mod tests {
     #[test]
     fn test_missing_key() {
         let mut store = DedupStore::new();
-        let err = store.check("", fp("POST", "/pay", "100"), 1000).unwrap_err();
+        let err = store
+            .check("", fp("POST", "/pay", "100"), 1000)
+            .unwrap_err();
         assert_eq!(err, DedupError::MissingKey);
     }
 
@@ -616,7 +635,9 @@ mod tests {
             ..Default::default()
         });
         let long_key = "a".repeat(20);
-        let err = store.check(&long_key, fp("POST", "/pay", "100"), 1000).unwrap_err();
+        let err = store
+            .check(&long_key, fp("POST", "/pay", "100"), 1000)
+            .unwrap_err();
         assert!(matches!(err, DedupError::InvalidKey(_)));
     }
 
@@ -628,9 +649,13 @@ mod tests {
             ..Default::default()
         });
         store.check("key-1", fp("POST", "/a", "1"), 1000).unwrap();
-        store.complete("key-1", CachedResponse::new(200, "ok"), 1000).unwrap();
+        store
+            .complete("key-1", CachedResponse::new(200, "ok"), 1000)
+            .unwrap();
         store.check("key-2", fp("POST", "/b", "2"), 1000).unwrap();
-        store.complete("key-2", CachedResponse::new(200, "ok"), 1000).unwrap();
+        store
+            .complete("key-2", CachedResponse::new(200, "ok"), 1000)
+            .unwrap();
 
         assert_eq!(store.len(), 2);
         let removed = store.cleanup(3000);
@@ -641,9 +666,15 @@ mod tests {
     #[test]
     fn test_stats() {
         let mut store = DedupStore::new();
-        store.check("key-1", fp("POST", "/pay", "100"), 1000).unwrap();
-        store.complete("key-1", CachedResponse::new(200, "ok"), 1001).unwrap();
-        store.check("key-1", fp("POST", "/pay", "100"), 1002).unwrap();
+        store
+            .check("key-1", fp("POST", "/pay", "100"), 1000)
+            .unwrap();
+        store
+            .complete("key-1", CachedResponse::new(200, "ok"), 1001)
+            .unwrap();
+        store
+            .check("key-1", fp("POST", "/pay", "100"), 1002)
+            .unwrap();
 
         let stats = store.stats();
         assert_eq!(stats.total_requests, 2);
@@ -654,8 +685,12 @@ mod tests {
     #[test]
     fn test_stats_coalesced() {
         let mut store = DedupStore::new();
-        store.check("key-1", fp("POST", "/pay", "100"), 1000).unwrap();
-        store.check("key-1", fp("POST", "/pay", "100"), 1001).unwrap();
+        store
+            .check("key-1", fp("POST", "/pay", "100"), 1000)
+            .unwrap();
+        store
+            .check("key-1", fp("POST", "/pay", "100"), 1001)
+            .unwrap();
 
         assert_eq!(store.stats().coalesced, 1);
     }
@@ -665,7 +700,9 @@ mod tests {
         let extractor = KeyExtractor::from_header("Idempotency-Key");
         let mut headers = HashMap::new();
         headers.insert("idempotency-key".to_string(), "my-key-123".to_string());
-        let key = extractor.extract(&headers, "", &fp("POST", "/", "")).unwrap();
+        let key = extractor
+            .extract(&headers, "", &fp("POST", "/", ""))
+            .unwrap();
         assert_eq!(key, "my-key-123");
     }
 
@@ -673,7 +710,9 @@ mod tests {
     fn test_key_extractor_query() {
         let extractor = KeyExtractor::from_query_param("idem_key");
         let headers = HashMap::new();
-        let key = extractor.extract(&headers, "idem_key=abc&other=val", &fp("POST", "/", "")).unwrap();
+        let key = extractor
+            .extract(&headers, "idem_key=abc&other=val", &fp("POST", "/", ""))
+            .unwrap();
         assert_eq!(key, "abc");
     }
 
@@ -681,7 +720,9 @@ mod tests {
     fn test_key_extractor_auto() {
         let extractor = KeyExtractor::auto();
         let headers = HashMap::new();
-        let key = extractor.extract(&headers, "", &fp("POST", "/api/pay", "amount=100")).unwrap();
+        let key = extractor
+            .extract(&headers, "", &fp("POST", "/api/pay", "amount=100"))
+            .unwrap();
         assert!(key.starts_with("auto-POST-/api/pay-"));
     }
 
@@ -689,14 +730,21 @@ mod tests {
     fn test_key_extractor_missing() {
         let extractor = KeyExtractor::from_header("Idempotency-Key");
         let headers = HashMap::new();
-        assert!(extractor.extract(&headers, "", &fp("GET", "/", "")).is_none());
+        assert!(
+            extractor
+                .extract(&headers, "", &fp("GET", "/", ""))
+                .is_none()
+        );
     }
 
     #[test]
     fn test_cached_response_with_header() {
-        let resp = CachedResponse::new(201, "created")
-            .with_header("Content-Type", "application/json");
-        assert_eq!(resp.headers.get("content-type").unwrap(), "application/json");
+        let resp =
+            CachedResponse::new(201, "created").with_header("Content-Type", "application/json");
+        assert_eq!(
+            resp.headers.get("content-type").unwrap(),
+            "application/json"
+        );
     }
 
     #[test]
@@ -716,7 +764,9 @@ mod tests {
         store.check("key-1", fp("POST", "/a", "1"), 1000).unwrap();
         assert_eq!(store.status("key-1", 1000), Some(EntryStatus::InFlight));
 
-        store.complete("key-1", CachedResponse::new(200, "ok"), 1001).unwrap();
+        store
+            .complete("key-1", CachedResponse::new(200, "ok"), 1001)
+            .unwrap();
         assert_eq!(store.status("key-1", 1001), Some(EntryStatus::Complete));
 
         assert_eq!(store.status("key-1", 5000), Some(EntryStatus::Expired));
@@ -726,13 +776,21 @@ mod tests {
     #[test]
     fn test_hit_count() {
         let mut store = DedupStore::new();
-        store.check("key-1", fp("POST", "/pay", "100"), 1000).unwrap();
-        store.complete("key-1", CachedResponse::new(200, "ok"), 1001).unwrap();
+        store
+            .check("key-1", fp("POST", "/pay", "100"), 1000)
+            .unwrap();
+        store
+            .complete("key-1", CachedResponse::new(200, "ok"), 1001)
+            .unwrap();
 
         assert_eq!(store.hit_count("key-1"), 0);
-        store.check("key-1", fp("POST", "/pay", "100"), 1002).unwrap();
+        store
+            .check("key-1", fp("POST", "/pay", "100"), 1002)
+            .unwrap();
         assert_eq!(store.hit_count("key-1"), 1);
-        store.check("key-1", fp("POST", "/pay", "100"), 1003).unwrap();
+        store
+            .check("key-1", fp("POST", "/pay", "100"), 1003)
+            .unwrap();
         assert_eq!(store.hit_count("key-1"), 2);
     }
 

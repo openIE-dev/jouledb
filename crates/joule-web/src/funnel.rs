@@ -220,11 +220,17 @@ pub fn render_funnel(stages: &[FunnelStage], cfg: &FunnelConfig) -> String {
         ));
 
         // Label + percentage
-        let lx = (trap.top_left.0 + trap.top_right.0 + trap.bottom_left.0 + trap.bottom_right.0) / 4.0;
-        let ly = (trap.top_left.1 + trap.top_right.1 + trap.bottom_left.1 + trap.bottom_right.1) / 4.0;
+        let lx =
+            (trap.top_left.0 + trap.top_right.0 + trap.bottom_left.0 + trap.bottom_right.0) / 4.0;
+        let ly =
+            (trap.top_left.1 + trap.top_right.1 + trap.bottom_left.1 + trap.bottom_right.1) / 4.0;
         let fs = cfg.font_size;
         let pct = if !stages.is_empty() {
-            let max_val = stages.iter().map(|s| s.value).fold(0.0_f64, f64::max).max(f64::EPSILON);
+            let max_val = stages
+                .iter()
+                .map(|s| s.value)
+                .fold(0.0_f64, f64::max)
+                .max(f64::EPSILON);
             stage.value / max_val * 100.0
         } else {
             0.0
@@ -258,10 +264,26 @@ mod tests {
 
     fn sample_stages() -> Vec<FunnelStage> {
         vec![
-            FunnelStage { label: "Visitors".into(), value: 1000.0, color: "#3498db".into() },
-            FunnelStage { label: "Leads".into(), value: 600.0, color: "#2ecc71".into() },
-            FunnelStage { label: "Prospects".into(), value: 300.0, color: "#f1c40f".into() },
-            FunnelStage { label: "Customers".into(), value: 100.0, color: "#e74c3c".into() },
+            FunnelStage {
+                label: "Visitors".into(),
+                value: 1000.0,
+                color: "#3498db".into(),
+            },
+            FunnelStage {
+                label: "Leads".into(),
+                value: 600.0,
+                color: "#2ecc71".into(),
+            },
+            FunnelStage {
+                label: "Prospects".into(),
+                value: 300.0,
+                color: "#f1c40f".into(),
+            },
+            FunnelStage {
+                label: "Customers".into(),
+                value: 100.0,
+                color: "#e74c3c".into(),
+            },
         ]
     }
 
@@ -272,8 +294,8 @@ mod tests {
         assert_eq!(widths.len(), 4);
         assert!((widths[0] - 200.0).abs() < 1e-9); // max value = full width
         assert!((widths[1] - 120.0).abs() < 1e-9); // 600/1000 * 200
-        assert!((widths[2] - 60.0).abs() < 1e-9);  // 300/1000 * 200
-        assert!((widths[3] - 20.0).abs() < 1e-9);  // 100/1000 * 200
+        assert!((widths[2] - 60.0).abs() < 1e-9); // 300/1000 * 200
+        assert!((widths[3] - 20.0).abs() < 1e-9); // 100/1000 * 200
     }
 
     #[test]
@@ -286,16 +308,24 @@ mod tests {
         let stages = sample_stages();
         let rates = conversion_rates(&stages);
         assert_eq!(rates.len(), 3);
-        assert!((rates[0] - 60.0).abs() < 1e-9);  // 600/1000
-        assert!((rates[1] - 50.0).abs() < 1e-9);  // 300/600
+        assert!((rates[0] - 60.0).abs() < 1e-9); // 600/1000
+        assert!((rates[1] - 50.0).abs() < 1e-9); // 300/600
         assert!((rates[2] - 100.0 / 3.0).abs() < 0.1); // 100/300
     }
 
     #[test]
     fn conversion_rate_zero_denominator() {
         let stages = vec![
-            FunnelStage { label: "A".into(), value: 0.0, color: "#f00".into() },
-            FunnelStage { label: "B".into(), value: 10.0, color: "#0f0".into() },
+            FunnelStage {
+                label: "A".into(),
+                value: 0.0,
+                color: "#f00".into(),
+            },
+            FunnelStage {
+                label: "B".into(),
+                value: 10.0,
+                color: "#0f0".into(),
+            },
         ];
         let rates = conversion_rates(&stages);
         assert!((rates[0]).abs() < 1e-9);
@@ -341,7 +371,11 @@ mod tests {
         for i in 0..traps.len() - 1 {
             let w_cur = traps[i].top_right.0 - traps[i].top_left.0;
             let w_next = traps[i + 1].top_right.0 - traps[i + 1].top_left.0;
-            assert!(w_cur >= w_next, "Stage {i} should be wider than stage {}", i + 1);
+            assert!(
+                w_cur >= w_next,
+                "Stage {i} should be wider than stage {}",
+                i + 1
+            );
         }
     }
 
@@ -398,6 +432,6 @@ mod tests {
         let cfg = FunnelConfig::default();
         let svg = render_funnel(&stages, &cfg);
         assert!(svg.contains("100%")); // visitors = max
-        assert!(svg.contains("60%"));  // leads
+        assert!(svg.contains("60%")); // leads
     }
 }

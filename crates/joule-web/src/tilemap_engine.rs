@@ -81,7 +81,12 @@ pub struct TileProps {
 
 impl Default for TileProps {
     fn default() -> Self {
-        Self { solid: false, animated: false, damage: 0.0, custom: HashMap::new() }
+        Self {
+            solid: false,
+            animated: false,
+            damage: 0.0,
+            custom: HashMap::new(),
+        }
     }
 }
 
@@ -253,7 +258,10 @@ impl TileLayer {
 
     pub fn set_tile(&mut self, col: i64, row: i64, tile_id: u32) {
         let (cc, lx, ly) = self.chunk_and_local(col, row);
-        self.chunks.entry(cc).or_insert_with(|| Chunk::new(self.chunk_size)).set(lx, ly, tile_id);
+        self.chunks
+            .entry(cc)
+            .or_insert_with(|| Chunk::new(self.chunk_size))
+            .set(lx, ly, tile_id);
     }
 
     pub fn chunk_count(&self) -> usize {
@@ -277,7 +285,11 @@ pub struct Tilemap {
 
 impl Tilemap {
     pub fn new(coord_system: CoordSystem, tileset: Tileset) -> Self {
-        Self { coord_system, tileset, layers: Vec::new() }
+        Self {
+            coord_system,
+            tileset,
+            layers: Vec::new(),
+        }
     }
 
     pub fn add_layer(&mut self, layer: TileLayer) -> usize {
@@ -394,8 +406,21 @@ mod tests {
 
     fn make_tileset() -> Tileset {
         let mut ts = Tileset::new("test", 16, 16);
-        ts.set_props(1, TileProps { solid: true, ..Default::default() });
-        ts.set_props(2, TileProps { solid: false, damage: 5.0, ..Default::default() });
+        ts.set_props(
+            1,
+            TileProps {
+                solid: true,
+                ..Default::default()
+            },
+        );
+        ts.set_props(
+            2,
+            TileProps {
+                solid: false,
+                damage: 5.0,
+                ..Default::default()
+            },
+        );
         ts
     }
 
@@ -411,14 +436,24 @@ mod tests {
 
     #[test]
     fn rect_world_to_tile_basic() {
-        let t = world_to_tile(WorldPos { x: 24.0, y: 35.0 }, 16.0, 16.0, CoordSystem::Rectangular);
+        let t = world_to_tile(
+            WorldPos { x: 24.0, y: 35.0 },
+            16.0,
+            16.0,
+            CoordSystem::Rectangular,
+        );
         assert_eq!(t.col, 1);
         assert_eq!(t.row, 2);
     }
 
     #[test]
     fn rect_tile_to_world_basic() {
-        let w = tile_to_world(TileCoord { col: 3, row: 2 }, 16.0, 16.0, CoordSystem::Rectangular);
+        let w = tile_to_world(
+            TileCoord { col: 3, row: 2 },
+            16.0,
+            16.0,
+            CoordSystem::Rectangular,
+        );
         assert!((w.x - 48.0).abs() < EPS);
         assert!((w.y - 32.0).abs() < EPS);
     }
@@ -441,14 +476,24 @@ mod tests {
 
     #[test]
     fn iso_world_to_tile_origin() {
-        let t = world_to_tile(WorldPos { x: 0.0, y: 0.0 }, 64.0, 32.0, CoordSystem::Isometric);
+        let t = world_to_tile(
+            WorldPos { x: 0.0, y: 0.0 },
+            64.0,
+            32.0,
+            CoordSystem::Isometric,
+        );
         assert_eq!(t.col, 0);
         assert_eq!(t.row, 0);
     }
 
     #[test]
     fn negative_coords_div_euclid() {
-        let t = world_to_tile(WorldPos { x: -1.0, y: -1.0 }, 16.0, 16.0, CoordSystem::Rectangular);
+        let t = world_to_tile(
+            WorldPos { x: -1.0, y: -1.0 },
+            16.0,
+            16.0,
+            CoordSystem::Rectangular,
+        );
         assert_eq!(t.col, -1);
         assert_eq!(t.row, -1);
     }
@@ -497,9 +542,18 @@ mod tests {
     fn tile_animation_cycling() {
         let anim = TileAnimation {
             frames: vec![
-                TileAnimFrame { tile_id: 10, duration_ms: 100 },
-                TileAnimFrame { tile_id: 11, duration_ms: 100 },
-                TileAnimFrame { tile_id: 12, duration_ms: 100 },
+                TileAnimFrame {
+                    tile_id: 10,
+                    duration_ms: 100,
+                },
+                TileAnimFrame {
+                    tile_id: 11,
+                    duration_ms: 100,
+                },
+                TileAnimFrame {
+                    tile_id: 12,
+                    duration_ms: 100,
+                },
             ],
         };
         assert_eq!(anim.current_tile(0), 10);
@@ -579,8 +633,14 @@ mod tests {
             50,
             TileAnimation {
                 frames: vec![
-                    TileAnimFrame { tile_id: 50, duration_ms: 200 },
-                    TileAnimFrame { tile_id: 51, duration_ms: 200 },
+                    TileAnimFrame {
+                        tile_id: 50,
+                        duration_ms: 200,
+                    },
+                    TileAnimFrame {
+                        tile_id: 51,
+                        duration_ms: 200,
+                    },
                 ],
             },
         );
@@ -593,7 +653,9 @@ mod tests {
     #[test]
     fn tile_props_custom_fields() {
         let mut props = TileProps::default();
-        props.custom.insert("material".to_string(), "stone".to_string());
+        props
+            .custom
+            .insert("material".to_string(), "stone".to_string());
         assert_eq!(props.custom.get("material").unwrap(), "stone");
     }
 

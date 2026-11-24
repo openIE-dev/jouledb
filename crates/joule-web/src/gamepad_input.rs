@@ -147,13 +147,19 @@ impl RumbleCommand {
     }
 
     /// Light tap feedback.
-    pub fn light_tap() -> Self { Self::new(0.2, 0.0, 50) }
+    pub fn light_tap() -> Self {
+        Self::new(0.2, 0.0, 50)
+    }
 
     /// Medium impact feedback.
-    pub fn medium_impact() -> Self { Self::new(0.5, 0.3, 150) }
+    pub fn medium_impact() -> Self {
+        Self::new(0.5, 0.3, 150)
+    }
 
     /// Heavy explosion feedback.
-    pub fn heavy_explosion() -> Self { Self::new(1.0, 0.8, 400) }
+    pub fn heavy_explosion() -> Self {
+        Self::new(1.0, 0.8, 400)
+    }
 }
 
 // ── Single Gamepad State ────────────────────────────────────────
@@ -229,39 +235,54 @@ impl GamepadState {
 
     /// Get the filtered left stick as (x, y).
     pub fn left_stick(&self) -> (f64, f64) {
-        let rx = self.axes.get(&GamepadAxis::LeftStickX).copied().unwrap_or(0.0);
-        let ry = self.axes.get(&GamepadAxis::LeftStickY).copied().unwrap_or(0.0);
+        let rx = self
+            .axes
+            .get(&GamepadAxis::LeftStickX)
+            .copied()
+            .unwrap_or(0.0);
+        let ry = self
+            .axes
+            .get(&GamepadAxis::LeftStickY)
+            .copied()
+            .unwrap_or(0.0);
         match self.dead_zone_left {
             DeadZoneMode::Axial { threshold } => (
                 DeadZoneMode::apply_axial(rx, threshold),
                 DeadZoneMode::apply_axial(ry, threshold),
             ),
-            DeadZoneMode::Radial { threshold } => {
-                DeadZoneMode::apply_radial(rx, ry, threshold)
-            }
+            DeadZoneMode::Radial { threshold } => DeadZoneMode::apply_radial(rx, ry, threshold),
         }
     }
 
     /// Get the filtered right stick as (x, y).
     pub fn right_stick(&self) -> (f64, f64) {
-        let rx = self.axes.get(&GamepadAxis::RightStickX).copied().unwrap_or(0.0);
-        let ry = self.axes.get(&GamepadAxis::RightStickY).copied().unwrap_or(0.0);
+        let rx = self
+            .axes
+            .get(&GamepadAxis::RightStickX)
+            .copied()
+            .unwrap_or(0.0);
+        let ry = self
+            .axes
+            .get(&GamepadAxis::RightStickY)
+            .copied()
+            .unwrap_or(0.0);
         match self.dead_zone_right {
             DeadZoneMode::Axial { threshold } => (
                 DeadZoneMode::apply_axial(rx, threshold),
                 DeadZoneMode::apply_axial(ry, threshold),
             ),
-            DeadZoneMode::Radial { threshold } => {
-                DeadZoneMode::apply_radial(rx, ry, threshold)
-            }
+            DeadZoneMode::Radial { threshold } => DeadZoneMode::apply_radial(rx, ry, threshold),
         }
     }
 
     /// Get the filtered trigger value (0.0 to 1.0).
     pub fn trigger(&self, axis: GamepadAxis) -> f64 {
         let raw = self.axes.get(&axis).copied().unwrap_or(0.0);
-        if raw < self.trigger_dead_zone { 0.0 }
-        else { ((raw - self.trigger_dead_zone) / (1.0 - self.trigger_dead_zone)).min(1.0) }
+        if raw < self.trigger_dead_zone {
+            0.0
+        } else {
+            ((raw - self.trigger_dead_zone) / (1.0 - self.trigger_dead_zone)).min(1.0)
+        }
     }
 
     /// Set dead zone for left stick.
@@ -320,7 +341,9 @@ impl GamepadSystem {
 
     /// Connect a gamepad to a slot.
     pub fn connect(&mut self, slot: usize, name: &str) -> bool {
-        if slot >= MAX_GAMEPADS { return false; }
+        if slot >= MAX_GAMEPADS {
+            return false;
+        }
         self.gamepads[slot].connected = true;
         self.gamepads[slot].name = name.to_string();
         true
@@ -328,7 +351,9 @@ impl GamepadSystem {
 
     /// Disconnect a gamepad.
     pub fn disconnect(&mut self, slot: usize) -> bool {
-        if slot >= MAX_GAMEPADS { return false; }
+        if slot >= MAX_GAMEPADS {
+            return false;
+        }
         self.gamepads[slot].connected = false;
         self.gamepads[slot].buttons.clear();
         self.gamepads[slot].axes.clear();
@@ -352,7 +377,8 @@ impl GamepadSystem {
 
     /// Indices of connected gamepads.
     pub fn connected_slots(&self) -> Vec<usize> {
-        self.gamepads.iter()
+        self.gamepads
+            .iter()
             .filter(|gp| gp.connected)
             .map(|gp| gp.slot)
             .collect()
@@ -371,7 +397,9 @@ impl GamepadSystem {
 }
 
 impl Default for GamepadSystem {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────
@@ -540,8 +568,12 @@ mod tests {
         let mut sys = GamepadSystem::new();
         sys.connect(0, "pad0");
         sys.connect(1, "pad1");
-        sys.gamepad_mut(0).unwrap().rumble(RumbleCommand::light_tap());
-        sys.gamepad_mut(1).unwrap().rumble(RumbleCommand::heavy_explosion());
+        sys.gamepad_mut(0)
+            .unwrap()
+            .rumble(RumbleCommand::light_tap());
+        sys.gamepad_mut(1)
+            .unwrap()
+            .rumble(RumbleCommand::heavy_explosion());
         let rumbles = sys.collect_rumbles();
         assert_eq!(rumbles.len(), 2);
     }

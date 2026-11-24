@@ -431,8 +431,7 @@ impl SettlementEngine {
                     continue;
                 }
 
-                let price_diff =
-                    (self.instructions[i].price - self.instructions[j].price).abs();
+                let price_diff = (self.instructions[i].price - self.instructions[j].price).abs();
                 if price_diff > self.config.price_tolerance {
                     continue;
                 }
@@ -474,10 +473,7 @@ impl SettlementEngine {
         let mut settled_count = 0usize;
 
         for m in &self.matches.clone() {
-            let deliver = self
-                .instructions
-                .iter_mut()
-                .find(|i| i.id == m.deliver_id);
+            let deliver = self.instructions.iter_mut().find(|i| i.id == m.deliver_id);
             if let Some(d) = deliver {
                 if d.status == InstructionStatus::Matched
                     || d.status == InstructionStatus::PartiallySettled
@@ -494,10 +490,7 @@ impl SettlementEngine {
                 }
             }
 
-            let receive = self
-                .instructions
-                .iter_mut()
-                .find(|i| i.id == m.receive_id);
+            let receive = self.instructions.iter_mut().find(|i| i.id == m.receive_id);
             if let Some(r) = receive {
                 if r.status == InstructionStatus::Matched
                     || r.status == InstructionStatus::PartiallySettled
@@ -543,8 +536,7 @@ impl SettlementEngine {
                     }
                 }
                 FailPolicy::PenaltyRetry => {
-                    let penalty =
-                        instr.cash_amount() * self.config.penalty_rate_bps / 10_000.0;
+                    let penalty = instr.cash_amount() * self.config.penalty_rate_bps / 10_000.0;
                     self.penalties_accrued += penalty;
                     if instr.retry_count > self.config.max_retries {
                         instr.status = InstructionStatus::Failed;
@@ -650,11 +642,33 @@ mod tests {
     }
 
     fn deliver(id: u64, sec: &str, qty: f64, price: f64) -> SettlementInstruction {
-        SettlementInstruction::new(id, id, sec, InstructionSide::Deliver, qty, price, "CP1", "ACC1", 100, 102)
+        SettlementInstruction::new(
+            id,
+            id,
+            sec,
+            InstructionSide::Deliver,
+            qty,
+            price,
+            "CP1",
+            "ACC1",
+            100,
+            102,
+        )
     }
 
     fn receive(id: u64, sec: &str, qty: f64, price: f64) -> SettlementInstruction {
-        SettlementInstruction::new(id, id, sec, InstructionSide::Receive, qty, price, "CP1", "ACC2", 100, 102)
+        SettlementInstruction::new(
+            id,
+            id,
+            sec,
+            InstructionSide::Receive,
+            qty,
+            price,
+            "CP1",
+            "ACC2",
+            100,
+            102,
+        )
     }
 
     #[test]
@@ -709,8 +723,10 @@ mod tests {
     #[test]
     fn test_exact_matching() {
         let mut eng = make_engine();
-        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0)).unwrap();
-        eng.submit_instruction(receive(2, "AAPL", 100.0, 150.0)).unwrap();
+        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0))
+            .unwrap();
+        eng.submit_instruction(receive(2, "AAPL", 100.0, 150.0))
+            .unwrap();
         let matches = eng.run_matching();
         assert_eq!(matches.len(), 1);
         assert!(matches[0].is_exact);
@@ -719,8 +735,10 @@ mod tests {
     #[test]
     fn test_no_match_different_security() {
         let mut eng = make_engine();
-        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0)).unwrap();
-        eng.submit_instruction(receive(2, "GOOG", 100.0, 150.0)).unwrap();
+        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0))
+            .unwrap();
+        eng.submit_instruction(receive(2, "GOOG", 100.0, 150.0))
+            .unwrap();
         let matches = eng.run_matching();
         assert_eq!(matches.len(), 0);
     }
@@ -728,8 +746,10 @@ mod tests {
     #[test]
     fn test_no_match_price_mismatch() {
         let mut eng = make_engine();
-        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0)).unwrap();
-        eng.submit_instruction(receive(2, "AAPL", 100.0, 200.0)).unwrap();
+        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0))
+            .unwrap();
+        eng.submit_instruction(receive(2, "AAPL", 100.0, 200.0))
+            .unwrap();
         let matches = eng.run_matching();
         assert_eq!(matches.len(), 0);
     }
@@ -737,8 +757,10 @@ mod tests {
     #[test]
     fn test_settle_matched() {
         let mut eng = make_engine();
-        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0)).unwrap();
-        eng.submit_instruction(receive(2, "AAPL", 100.0, 150.0)).unwrap();
+        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0))
+            .unwrap();
+        eng.submit_instruction(receive(2, "AAPL", 100.0, 150.0))
+            .unwrap();
         eng.run_matching();
         let settled = eng.settle_matched().unwrap();
         assert_eq!(settled, 2);
@@ -760,8 +782,10 @@ mod tests {
     #[test]
     fn test_netting_computation() {
         let mut eng = make_engine();
-        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0)).unwrap();
-        eng.submit_instruction(receive(2, "AAPL", 60.0, 150.0)).unwrap();
+        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0))
+            .unwrap();
+        eng.submit_instruction(receive(2, "AAPL", 60.0, 150.0))
+            .unwrap();
         let nets = eng.compute_netting();
         assert!(!nets.is_empty());
     }
@@ -769,7 +793,8 @@ mod tests {
     #[test]
     fn test_fail_auto_retry() {
         let mut eng = make_engine();
-        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0)).unwrap();
+        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0))
+            .unwrap();
         eng.set_current_date(103);
         let failed = eng.process_fails();
         assert!(failed.is_empty());
@@ -778,10 +803,9 @@ mod tests {
 
     #[test]
     fn test_fail_exceeds_max_retries() {
-        let mut eng = SettlementEngine::new(
-            SettlementConfig::new().with_max_retries(1),
-        );
-        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0)).unwrap();
+        let mut eng = SettlementEngine::new(SettlementConfig::new().with_max_retries(1));
+        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0))
+            .unwrap();
         eng.set_current_date(103);
         eng.process_fails(); // retry 1
         eng.process_fails(); // retry 2 → exceeds
@@ -795,7 +819,8 @@ mod tests {
                 .with_fail_policy(FailPolicy::PenaltyRetry)
                 .with_penalty_rate_bps(10.0),
         );
-        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0)).unwrap();
+        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0))
+            .unwrap();
         eng.set_current_date(103);
         eng.process_fails();
         assert!(eng.penalties_accrued() > 0.0);
@@ -808,7 +833,8 @@ mod tests {
                 .with_fail_policy(FailPolicy::CancelAfterRetries)
                 .with_max_retries(0),
         );
-        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0)).unwrap();
+        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0))
+            .unwrap();
         eng.set_current_date(103);
         eng.process_fails();
         assert_eq!(eng.instructions()[0].status, InstructionStatus::Cancelled);
@@ -837,8 +863,10 @@ mod tests {
     #[test]
     fn test_partial_match_quantity() {
         let mut eng = make_engine();
-        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0)).unwrap();
-        eng.submit_instruction(receive(2, "AAPL", 60.0, 150.0)).unwrap();
+        eng.submit_instruction(deliver(1, "AAPL", 100.0, 150.0))
+            .unwrap();
+        eng.submit_instruction(receive(2, "AAPL", 60.0, 150.0))
+            .unwrap();
         let matches = eng.run_matching();
         assert_eq!(matches.len(), 1);
         assert!(!matches[0].is_exact);

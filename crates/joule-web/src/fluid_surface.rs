@@ -136,12 +136,20 @@ impl ScalarField2D {
     pub fn new(nx: usize, ny: usize, cell_size: f64, origin_x: f64, origin_y: f64) -> Self {
         Self {
             data: vec![0.0; (nx + 1) * (ny + 1)],
-            nx, ny, cell_size, origin_x, origin_y,
+            nx,
+            ny,
+            cell_size,
+            origin_x,
+            origin_y,
         }
     }
 
-    fn vertex_count_x(&self) -> usize { self.nx + 1 }
-    fn vertex_count_y(&self) -> usize { self.ny + 1 }
+    fn vertex_count_x(&self) -> usize {
+        self.nx + 1
+    }
+    fn vertex_count_y(&self) -> usize {
+        self.ny + 1
+    }
 
     fn idx(&self, ix: usize, iy: usize) -> usize {
         iy * self.vertex_count_x() + ix
@@ -149,12 +157,18 @@ impl ScalarField2D {
 
     pub fn get(&self, ix: usize, iy: usize) -> f64 {
         let idx = self.idx(ix, iy);
-        if idx < self.data.len() { self.data[idx] } else { 0.0 }
+        if idx < self.data.len() {
+            self.data[idx]
+        } else {
+            0.0
+        }
     }
 
     pub fn set(&mut self, ix: usize, iy: usize, val: f64) {
         let idx = self.idx(ix, iy);
-        if idx < self.data.len() { self.data[idx] = val; }
+        if idx < self.data.len() {
+            self.data[idx] = val;
+        }
     }
 
     /// World position of grid vertex.
@@ -180,7 +194,9 @@ impl ScalarField2D {
             return Err(SurfaceError::NoParticles);
         }
         if nx == 0 || ny == 0 {
-            return Err(SurfaceError::InvalidGrid("grid must be at least 1x1".into()));
+            return Err(SurfaceError::InvalidGrid(
+                "grid must be at least 1x1".into(),
+            ));
         }
 
         let mut field = Self::new(nx, ny, cell_size, origin_x, origin_y);
@@ -235,7 +251,10 @@ impl ScalarField2D {
         };
 
         let mag = (gx * gx + gy * gy).sqrt().max(1e-15);
-        Normal2 { nx: -gx / mag, ny: -gy / mag }
+        Normal2 {
+            nx: -gx / mag,
+            ny: -gy / mag,
+        }
     }
 }
 
@@ -285,10 +304,18 @@ pub fn marching_squares(
 
             // Case index (4-bit)
             let mut case_idx = 0u8;
-            if v0 >= threshold { case_idx |= 1; }
-            if v1 >= threshold { case_idx |= 2; }
-            if v2 >= threshold { case_idx |= 4; }
-            if v3 >= threshold { case_idx |= 8; }
+            if v0 >= threshold {
+                case_idx |= 1;
+            }
+            if v1 >= threshold {
+                case_idx |= 2;
+            }
+            if v2 >= threshold {
+                case_idx |= 4;
+            }
+            if v3 >= threshold {
+                case_idx |= 8;
+            }
 
             // Skip fully inside or fully outside
             if case_idx == 0 || case_idx == 15 {
@@ -297,7 +324,9 @@ pub fn marching_squares(
 
             // Interpolate edge crossings
             let interp = |va: f64, vb: f64, pa: Point2, pb: Point2| -> Point2 {
-                if (vb - va).abs() < 1e-20 { return pa.lerp(&pb, 0.5); }
+                if (vb - va).abs() < 1e-20 {
+                    return pa.lerp(&pb, 0.5);
+                }
                 let t = (threshold - va) / (vb - va);
                 pa.lerp(&pb, t.clamp(0.0, 1.0))
             };
@@ -317,7 +346,10 @@ pub fn marching_squares(
                 let nx = (a.nx + b.nx) * 0.5;
                 let ny = (a.ny + b.ny) * 0.5;
                 let mag = (nx * nx + ny * ny).sqrt().max(1e-15);
-                Normal2 { nx: nx / mag, ny: ny / mag }
+                Normal2 {
+                    nx: nx / mag,
+                    ny: ny / mag,
+                }
             };
 
             let n_bottom = avg_n(normal, normal_r);
@@ -325,9 +357,15 @@ pub fn marching_squares(
             let n_top = avg_n(normal_t, normal_tr);
             let n_left = avg_n(normal, normal_t);
 
-            let add_edge = |edges: &mut Vec<EdgeSegment>, s: Point2, e: Point2, ns: Normal2, ne: Normal2| {
-                edges.push(EdgeSegment { start: s, end: e, normal_start: ns, normal_end: ne });
-            };
+            let add_edge =
+                |edges: &mut Vec<EdgeSegment>, s: Point2, e: Point2, ns: Normal2, ne: Normal2| {
+                    edges.push(EdgeSegment {
+                        start: s,
+                        end: e,
+                        normal_start: ns,
+                        normal_end: ne,
+                    });
+                };
 
             // Marching squares lookup (16 cases)
             match case_idx {
@@ -357,7 +395,10 @@ pub fn marching_squares(
     }
 
     let vc = edges.len() * 2;
-    Ok(MarchingSquaresResult { edges, vertex_count: vc })
+    Ok(MarchingSquaresResult {
+        edges,
+        vertex_count: vc,
+    })
 }
 
 // ── 3D Scalar Field & Marching Cubes ──────────────────────────
@@ -377,12 +418,20 @@ impl ScalarField3D {
     pub fn new(nx: usize, ny: usize, nz: usize, cell_size: f64, origin: Point3) -> Self {
         Self {
             data: vec![0.0; (nx + 1) * (ny + 1) * (nz + 1)],
-            nx, ny, nz, cell_size, origin,
+            nx,
+            ny,
+            nz,
+            cell_size,
+            origin,
         }
     }
 
-    fn vx(&self) -> usize { self.nx + 1 }
-    fn vy(&self) -> usize { self.ny + 1 }
+    fn vx(&self) -> usize {
+        self.nx + 1
+    }
+    fn vy(&self) -> usize {
+        self.ny + 1
+    }
 
     fn idx(&self, ix: usize, iy: usize, iz: usize) -> usize {
         iz * self.vy() * self.vx() + iy * self.vx() + ix
@@ -390,12 +439,18 @@ impl ScalarField3D {
 
     pub fn get(&self, ix: usize, iy: usize, iz: usize) -> f64 {
         let i = self.idx(ix, iy, iz);
-        if i < self.data.len() { self.data[i] } else { 0.0 }
+        if i < self.data.len() {
+            self.data[i]
+        } else {
+            0.0
+        }
     }
 
     pub fn set(&mut self, ix: usize, iy: usize, iz: usize, val: f64) {
         let i = self.idx(ix, iy, iz);
-        if i < self.data.len() { self.data[i] = val; }
+        if i < self.data.len() {
+            self.data[i] = val;
+        }
     }
 
     pub fn vertex_position(&self, ix: usize, iy: usize, iz: usize) -> Point3 {
@@ -454,16 +509,26 @@ impl ScalarField3D {
 
         let gx = if ix > 0 && ix < vx - 1 {
             (self.get(ix + 1, iy, iz) - self.get(ix - 1, iy, iz)) / (2.0 * h)
-        } else { 0.0 };
+        } else {
+            0.0
+        };
         let gy = if iy > 0 && iy < vy - 1 {
             (self.get(ix, iy + 1, iz) - self.get(ix, iy - 1, iz)) / (2.0 * h)
-        } else { 0.0 };
+        } else {
+            0.0
+        };
         let gz = if iz > 0 && iz < vz - 1 {
             (self.get(ix, iy, iz + 1) - self.get(ix, iy, iz - 1)) / (2.0 * h)
-        } else { 0.0 };
+        } else {
+            0.0
+        };
 
         let mag = (gx * gx + gy * gy + gz * gz).sqrt().max(1e-15);
-        Normal3 { nx: -gx / mag, ny: -gy / mag, nz: -gz / mag }
+        Normal3 {
+            nx: -gx / mag,
+            ny: -gy / mag,
+            nz: -gz / mag,
+        }
     }
 
     pub fn max_value(&self) -> f64 {
@@ -514,14 +579,25 @@ pub fn marching_cubes(
                     (cx + 1, cy + 1, cz + 1),
                     (cx, cy + 1, cz + 1),
                 ];
-                let vals: Vec<f64> = corners.iter().map(|&(x, y, z)| field.get(x, y, z)).collect();
-                let positions: Vec<Point3> = corners.iter().map(|&(x, y, z)| field.vertex_position(x, y, z)).collect();
-                let normals: Vec<Normal3> = corners.iter().map(|&(x, y, z)| field.gradient_at(x, y, z)).collect();
+                let vals: Vec<f64> = corners
+                    .iter()
+                    .map(|&(x, y, z)| field.get(x, y, z))
+                    .collect();
+                let positions: Vec<Point3> = corners
+                    .iter()
+                    .map(|&(x, y, z)| field.vertex_position(x, y, z))
+                    .collect();
+                let normals: Vec<Normal3> = corners
+                    .iter()
+                    .map(|&(x, y, z)| field.gradient_at(x, y, z))
+                    .collect();
 
                 // Case index (8-bit)
                 let mut case_idx = 0u8;
                 for (i, &val) in vals.iter().enumerate() {
-                    if val >= threshold { case_idx |= 1 << i; }
+                    if val >= threshold {
+                        case_idx |= 1 << i;
+                    }
                 }
 
                 if case_idx == 0 || case_idx == 255 {
@@ -530,9 +606,18 @@ pub fn marching_cubes(
 
                 // Edges: 12 edges of a cube
                 let edge_pairs: [(usize, usize); 12] = [
-                    (0, 1), (1, 2), (2, 3), (3, 0),
-                    (4, 5), (5, 6), (6, 7), (7, 4),
-                    (0, 4), (1, 5), (2, 6), (3, 7),
+                    (0, 1),
+                    (1, 2),
+                    (2, 3),
+                    (3, 0),
+                    (4, 5),
+                    (5, 6),
+                    (6, 7),
+                    (7, 4),
+                    (0, 4),
+                    (1, 5),
+                    (2, 6),
+                    (3, 7),
                 ];
 
                 let mut edge_verts: [Option<(Point3, Normal3)>; 12] = [None; 12];
@@ -551,12 +636,19 @@ pub fn marching_cubes(
                             ny: normals[a].ny * (1.0 - t) + normals[b].ny * t,
                             nz: normals[a].nz * (1.0 - t) + normals[b].nz * t,
                         };
-                        let mag = (n_interp.nx * n_interp.nx + n_interp.ny * n_interp.ny + n_interp.nz * n_interp.nz).sqrt().max(1e-15);
-                        edge_verts[ei] = Some((p, Normal3 {
-                            nx: n_interp.nx / mag,
-                            ny: n_interp.ny / mag,
-                            nz: n_interp.nz / mag,
-                        }));
+                        let mag = (n_interp.nx * n_interp.nx
+                            + n_interp.ny * n_interp.ny
+                            + n_interp.nz * n_interp.nz)
+                            .sqrt()
+                            .max(1e-15);
+                        edge_verts[ei] = Some((
+                            p,
+                            Normal3 {
+                                nx: n_interp.nx / mag,
+                                ny: n_interp.ny / mag,
+                                nz: n_interp.nz / mag,
+                            },
+                        ));
                     }
                 }
 
@@ -582,7 +674,10 @@ pub fn marching_cubes(
     }
 
     let vc = triangles.len() * 3;
-    Ok(MarchingCubesResult { triangles, vertex_count: vc })
+    Ok(MarchingCubesResult {
+        triangles,
+        vertex_count: vc,
+    })
 }
 
 // ── Tests ─────────────────────────────────────────────────────
@@ -641,17 +736,24 @@ mod tests {
     fn test_scalar_field_2d_from_particles() {
         let particles = vec![Point2::new(0.5, 0.5)];
         let field = ScalarField2D::from_particles(
-            &particles, 0.5, KernelType::Metaball, 10, 10, 0.1, 0.0, 0.0,
-        ).unwrap();
+            &particles,
+            0.5,
+            KernelType::Metaball,
+            10,
+            10,
+            0.1,
+            0.0,
+            0.0,
+        )
+        .unwrap();
         // Value should be highest near the particle
         assert!(field.get(5, 5) > field.get(0, 0));
     }
 
     #[test]
     fn test_scalar_field_2d_no_particles() {
-        let result = ScalarField2D::from_particles(
-            &[], 0.5, KernelType::Metaball, 10, 10, 0.1, 0.0, 0.0,
-        );
+        let result =
+            ScalarField2D::from_particles(&[], 0.5, KernelType::Metaball, 10, 10, 0.1, 0.0, 0.0);
         assert!(matches!(result, Err(SurfaceError::NoParticles)));
     }
 
@@ -659,8 +761,16 @@ mod tests {
     fn test_scalar_field_2d_max_value() {
         let particles = vec![Point2::new(0.5, 0.5)];
         let field = ScalarField2D::from_particles(
-            &particles, 0.5, KernelType::Metaball, 10, 10, 0.1, 0.0, 0.0,
-        ).unwrap();
+            &particles,
+            0.5,
+            KernelType::Metaball,
+            10,
+            10,
+            0.1,
+            0.0,
+            0.0,
+        )
+        .unwrap();
         assert!(field.max_value() > 0.0);
     }
 
@@ -668,8 +778,16 @@ mod tests {
     fn test_scalar_field_2d_gradient() {
         let particles = vec![Point2::new(0.5, 0.5)];
         let field = ScalarField2D::from_particles(
-            &particles, 0.5, KernelType::Metaball, 10, 10, 0.1, 0.0, 0.0,
-        ).unwrap();
+            &particles,
+            0.5,
+            KernelType::Metaball,
+            10,
+            10,
+            0.1,
+            0.0,
+            0.0,
+        )
+        .unwrap();
         // Check gradient at an off-center point where the gradient is non-trivial
         let n = field.gradient_at(3, 5);
         // Normal magnitude should be ~1 (normalized)
@@ -683,8 +801,16 @@ mod tests {
     fn test_marching_squares_single_particle() {
         let particles = vec![Point2::new(0.5, 0.5)];
         let field = ScalarField2D::from_particles(
-            &particles, 0.3, KernelType::Metaball, 20, 20, 0.05, 0.0, 0.0,
-        ).unwrap();
+            &particles,
+            0.3,
+            KernelType::Metaball,
+            20,
+            20,
+            0.05,
+            0.0,
+            0.0,
+        )
+        .unwrap();
         let result = marching_squares(&field, 0.5).unwrap();
         // Should produce a closed contour around the particle
         assert!(!result.edges.is_empty());
@@ -694,8 +820,16 @@ mod tests {
     fn test_marching_squares_two_particles() {
         let particles = vec![Point2::new(0.3, 0.5), Point2::new(0.7, 0.5)];
         let field = ScalarField2D::from_particles(
-            &particles, 0.2, KernelType::Metaball, 20, 20, 0.05, 0.0, 0.0,
-        ).unwrap();
+            &particles,
+            0.2,
+            KernelType::Metaball,
+            20,
+            20,
+            0.05,
+            0.0,
+            0.0,
+        )
+        .unwrap();
         let result = marching_squares(&field, 0.3).unwrap();
         assert!(!result.edges.is_empty());
     }
@@ -718,8 +852,16 @@ mod tests {
     fn test_scalar_field_3d_from_particles() {
         let particles = vec![Point3::new(0.5, 0.5, 0.5)];
         let field = ScalarField3D::from_particles(
-            &particles, 0.3, KernelType::Metaball, 4, 4, 4, 0.25, Point3::new(0.0, 0.0, 0.0),
-        ).unwrap();
+            &particles,
+            0.3,
+            KernelType::Metaball,
+            4,
+            4,
+            4,
+            0.25,
+            Point3::new(0.0, 0.0, 0.0),
+        )
+        .unwrap();
         assert!(field.get(2, 2, 2) > field.get(0, 0, 0));
     }
 
@@ -727,8 +869,16 @@ mod tests {
     fn test_marching_cubes_single_particle() {
         let particles = vec![Point3::new(0.5, 0.5, 0.5)];
         let field = ScalarField3D::from_particles(
-            &particles, 0.3, KernelType::Metaball, 6, 6, 6, 1.0 / 6.0, Point3::new(0.0, 0.0, 0.0),
-        ).unwrap();
+            &particles,
+            0.3,
+            KernelType::Metaball,
+            6,
+            6,
+            6,
+            1.0 / 6.0,
+            Point3::new(0.0, 0.0, 0.0),
+        )
+        .unwrap();
         let result = marching_cubes(&field, 0.5).unwrap();
         assert!(!result.triangles.is_empty());
     }
@@ -744,8 +894,16 @@ mod tests {
     fn test_scalar_field_3d_gradient() {
         let particles = vec![Point3::new(0.5, 0.5, 0.5)];
         let field = ScalarField3D::from_particles(
-            &particles, 0.3, KernelType::Metaball, 4, 4, 4, 0.25, Point3::new(0.0, 0.0, 0.0),
-        ).unwrap();
+            &particles,
+            0.3,
+            KernelType::Metaball,
+            4,
+            4,
+            4,
+            0.25,
+            Point3::new(0.0, 0.0, 0.0),
+        )
+        .unwrap();
         // Off-center point where gradient is non-trivial
         let n = field.gradient_at(1, 2, 2);
         let mag = (n.nx * n.nx + n.ny * n.ny + n.nz * n.nz).sqrt();
@@ -757,8 +915,16 @@ mod tests {
     fn test_poly_kernel_field() {
         let particles = vec![Point2::new(0.5, 0.5)];
         let field = ScalarField2D::from_particles(
-            &particles, 0.3, KernelType::Polynomial, 10, 10, 0.1, 0.0, 0.0,
-        ).unwrap();
+            &particles,
+            0.3,
+            KernelType::Polynomial,
+            10,
+            10,
+            0.1,
+            0.0,
+            0.0,
+        )
+        .unwrap();
         assert!(field.max_value() > 0.0);
         // Far corners should be zero (poly kernel has finite support)
         assert!(field.get(0, 0) < 0.01);

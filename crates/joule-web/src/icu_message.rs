@@ -306,10 +306,7 @@ impl Parser {
                 self.advance();
                 Ok(())
             }
-            Some(ch) => Err(IcuMessageError::UnexpectedChar {
-                pos: self.pos,
-                ch,
-            }),
+            Some(ch) => Err(IcuMessageError::UnexpectedChar { pos: self.pos, ch }),
             None => Err(IcuMessageError::UnexpectedEnd),
         }
     }
@@ -321,7 +318,10 @@ impl Parser {
         while let Some(ch) = self.peek() {
             if ch == '}' {
                 self.advance();
-                if !clauses.iter().any(|(s, _): &(PluralSelector, _)| *s == PluralSelector::Other) {
+                if !clauses
+                    .iter()
+                    .any(|(s, _): &(PluralSelector, _)| *s == PluralSelector::Other)
+                {
                     return Err(IcuMessageError::MissingOther);
                 }
                 return Ok(Node::Plural { arg, clauses });
@@ -468,11 +468,7 @@ fn format_nodes(
                     .iter()
                     .find(|(s, _)| *s == PluralSelector::Exact(n))
                     .or_else(|| clauses.iter().find(|(s, _)| *s == category))
-                    .or_else(|| {
-                        clauses
-                            .iter()
-                            .find(|(s, _)| *s == PluralSelector::Other)
-                    })
+                    .or_else(|| clauses.iter().find(|(s, _)| *s == PluralSelector::Other))
                     .map(|(_, body)| body)
                     .ok_or(IcuMessageError::MissingOther)?;
                 out.push_str(&format_nodes(body, values, Some(n))?);
@@ -543,7 +539,10 @@ mod tests {
     use super::*;
 
     fn vals(pairs: &[(&str, Value)]) -> HashMap<String, Value> {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.clone())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
     }
 
     #[test]
@@ -572,8 +571,7 @@ mod tests {
 
     #[test]
     fn plural_one_other() {
-        let msg =
-            IcuMessage::parse("{count, plural, one{# item} other{# items}}").unwrap();
+        let msg = IcuMessage::parse("{count, plural, one{# item} other{# items}}").unwrap();
         let v1 = vals(&[("count", Value::Integer(1))]);
         assert_eq!(msg.format(&v1).unwrap(), "1 item");
 
@@ -583,20 +581,17 @@ mod tests {
 
     #[test]
     fn plural_exact_match() {
-        let msg = IcuMessage::parse(
-            "{count, plural, =0{no items} one{# item} other{# items}}",
-        )
-        .unwrap();
+        let msg =
+            IcuMessage::parse("{count, plural, =0{no items} one{# item} other{# items}}").unwrap();
         let v0 = vals(&[("count", Value::Integer(0))]);
         assert_eq!(msg.format(&v0).unwrap(), "no items");
     }
 
     #[test]
     fn select_gender() {
-        let msg = IcuMessage::parse(
-            "{gender, select, male{He} female{She} other{They}} liked this.",
-        )
-        .unwrap();
+        let msg =
+            IcuMessage::parse("{gender, select, male{He} female{She} other{They}} liked this.")
+                .unwrap();
         let vm = vals(&[("gender", Value::String("male".into()))]);
         assert_eq!(msg.format(&vm).unwrap(), "He liked this.");
 

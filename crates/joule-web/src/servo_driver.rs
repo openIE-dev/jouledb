@@ -23,7 +23,11 @@ impl fmt::Display for ServoError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidParameter(msg) => write!(f, "invalid parameter: {msg}"),
-            Self::AngleOutOfRange { angle_deg, min, max } => {
+            Self::AngleOutOfRange {
+                angle_deg,
+                min,
+                max,
+            } => {
                 write!(f, "angle {angle_deg:.1}° outside [{min:.1}°, {max:.1}°]")
             }
             Self::IndexOutOfBounds { index, count } => {
@@ -80,7 +84,12 @@ impl PulseWidthMap {
                 "pulse range must be nonzero".into(),
             ));
         }
-        Ok(Self { min_angle, max_angle, min_pulse_us, max_pulse_us })
+        Ok(Self {
+            min_angle,
+            max_angle,
+            min_pulse_us,
+            max_pulse_us,
+        })
     }
 
     /// Convert angle (degrees) to pulse width (µs).
@@ -503,12 +512,9 @@ impl ServoSequencer {
     /// Add a keyframe (automatically sorted by time).
     pub fn add_keyframe(&mut self, kf: Keyframe) {
         self.keyframes.push(kf);
-        self.keyframes.sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap());
-        self.duration = self
-            .keyframes
-            .last()
-            .map(|k| k.time)
-            .unwrap_or(0.0);
+        self.keyframes
+            .sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap());
+        self.duration = self.keyframes.last().map(|k| k.time).unwrap_or(0.0);
     }
 
     /// Interpolate angles at the current time.
@@ -719,8 +725,14 @@ mod tests {
     #[test]
     fn test_sequencer_interpolation() {
         let mut seq = ServoSequencer::new();
-        seq.add_keyframe(Keyframe { time: 0.0, angles: vec![0.0] });
-        seq.add_keyframe(Keyframe { time: 1.0, angles: vec![100.0] });
+        seq.add_keyframe(Keyframe {
+            time: 0.0,
+            angles: vec![0.0],
+        });
+        seq.add_keyframe(Keyframe {
+            time: 1.0,
+            angles: vec![100.0],
+        });
         seq.current_time = 0.5;
         let angles = seq.sample();
         assert!((angles[0] - 50.0).abs() < 1e-6);
@@ -729,8 +741,14 @@ mod tests {
     #[test]
     fn test_sequencer_advance() {
         let mut seq = ServoSequencer::new();
-        seq.add_keyframe(Keyframe { time: 0.0, angles: vec![0.0] });
-        seq.add_keyframe(Keyframe { time: 2.0, angles: vec![180.0] });
+        seq.add_keyframe(Keyframe {
+            time: 0.0,
+            angles: vec![0.0],
+        });
+        seq.add_keyframe(Keyframe {
+            time: 2.0,
+            angles: vec![180.0],
+        });
         let angles = seq.advance(1.0);
         assert!((angles[0] - 90.0).abs() < 1e-6);
     }
@@ -738,8 +756,14 @@ mod tests {
     #[test]
     fn test_sequencer_finished() {
         let mut seq = ServoSequencer::new();
-        seq.add_keyframe(Keyframe { time: 0.0, angles: vec![0.0] });
-        seq.add_keyframe(Keyframe { time: 1.0, angles: vec![90.0] });
+        seq.add_keyframe(Keyframe {
+            time: 0.0,
+            angles: vec![0.0],
+        });
+        seq.add_keyframe(Keyframe {
+            time: 1.0,
+            angles: vec![90.0],
+        });
         assert!(!seq.is_finished());
         seq.current_time = 2.0;
         assert!(seq.is_finished());

@@ -20,8 +20,8 @@ use objc2_core_ml::{
 use objc2_foundation::{NSArray, NSDictionary, NSError, NSInteger, NSNumber, NSString, NSURL};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 const COMPUTE_UNITS_NAME: &str = "cpu_and_neural_engine";
@@ -172,7 +172,8 @@ fn make_input(shape: &ModelShape, q_tile: &[i8]) -> Result<Retained<MLMultiArray
 
 fn predict(model: &MLModel, input: &MLMultiArray) -> Result<Retained<MLMultiArray>, AneError> {
     let key = NSString::from_str(INPUT_NAME);
-    let value: Retained<AnyObject> = unsafe { MLFeatureValue::featureValueWithMultiArray(input) }.into();
+    let value: Retained<AnyObject> =
+        unsafe { MLFeatureValue::featureValueWithMultiArray(input) }.into();
     let dict: Retained<NSDictionary<NSString, AnyObject>> =
         NSDictionary::from_retained_objects(&[&*key], &[value]);
     let provider = unsafe {
@@ -197,7 +198,9 @@ fn read_scores(shape: &ModelShape, out: &MLMultiArray) -> Result<Vec<f32>, AneEr
     let dims = ns_ints(&*unsafe { out.shape() });
     let want: Vec<isize> = shape.output_shape().iter().map(|d| *d as isize).collect();
     if dims != want {
-        return Err(AneError::CoreMl(format!("output shape {dims:?}, expected {want:?}")));
+        return Err(AneError::CoreMl(format!(
+            "output shape {dims:?}, expected {want:?}"
+        )));
     }
     let strides = ns_ints(&*unsafe { out.strides() });
     let dtype = unsafe { out.dataType() };
@@ -414,12 +417,19 @@ pub(crate) fn hdc_similarity(
         let (q_tile, m_tile) = if tiles == 1 {
             (queries.to_vec(), memory.to_vec())
         } else {
-            (tile_columns(queries, d, start, end), tile_columns(memory, d, start, end))
+            (
+                tile_columns(queries, d, start, end),
+                tile_columns(memory, d, start, end),
+            )
         };
         let (model, did_setup, secs) = model_for(&shape, &m_tile, &config)?;
         setup_performed |= did_setup;
         compile_s += secs;
-        prepared.push(Tile { shape, model, q_tile });
+        prepared.push(Tile {
+            shape,
+            model,
+            q_tile,
+        });
     }
     let setup_s = if setup_performed {
         setup_started.elapsed().as_secs_f64()
@@ -437,13 +447,19 @@ pub(crate) fn hdc_similarity(
         for tile in prepared {
             let input = make_input(&tile.shape, &tile.q_tile)?;
             let out = {
-                let _guard = tile.model.predict_lock.lock().unwrap_or_else(|p| p.into_inner());
+                let _guard = tile
+                    .model
+                    .predict_lock
+                    .lock()
+                    .unwrap_or_else(|p| p.into_inner());
                 predict(&tile.model.model, &input)?
             };
             let scores = read_scores(&tile.shape, &out)?;
             for (acc, s) in total.iter_mut().zip(scores) {
                 if s.fract() != 0.0 || !s.is_finite() {
-                    return Err(AneError::CoreMl(format!("non-integer score {s} from Core ML")));
+                    return Err(AneError::CoreMl(format!(
+                        "non-integer score {s} from Core ML"
+                    )));
                 }
                 *acc += s as i32;
             }

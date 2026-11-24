@@ -82,13 +82,22 @@ pub struct TickEvent {
 }
 
 impl TickEvent {
-    pub fn new(timestamp_us: u64, symbol: &str, event_type: EventType,
-               price: f64, size: f64, sequence: u64, venue: &str) -> Self {
+    pub fn new(
+        timestamp_us: u64,
+        symbol: &str,
+        event_type: EventType,
+        price: f64,
+        size: f64,
+        sequence: u64,
+        venue: &str,
+    ) -> Self {
         Self {
             timestamp_us,
             symbol: symbol.to_string(),
             event_type,
-            price, size, sequence,
+            price,
+            size,
+            sequence,
             venue: venue.to_string(),
             metadata: HashMap::new(),
         }
@@ -99,14 +108,24 @@ impl TickEvent {
         self
     }
 
-    pub fn notional(&self) -> f64 { self.price * self.size }
+    pub fn notional(&self) -> f64 {
+        self.price * self.size
+    }
 }
 
 impl fmt::Display for TickEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}@{} {} {:.4}x{:.0} seq={} t={}",
-               self.symbol, self.venue, self.event_type,
-               self.price, self.size, self.sequence, self.timestamp_us)
+        write!(
+            f,
+            "{}@{} {} {:.4}x{:.0} seq={} t={}",
+            self.symbol,
+            self.venue,
+            self.event_type,
+            self.price,
+            self.size,
+            self.sequence,
+            self.timestamp_us
+        )
     }
 }
 
@@ -174,8 +193,10 @@ impl ReplayConfig {
 
     pub fn validate(&self) -> Result<(), ReplayError> {
         if self.speed_factor <= 0.0 {
-            return Err(ReplayError::InvalidSpeed(
-                format!("speed must be positive, got {}", self.speed_factor)));
+            return Err(ReplayError::InvalidSpeed(format!(
+                "speed must be positive, got {}",
+                self.speed_factor
+            )));
         }
         Ok(())
     }
@@ -183,9 +204,14 @@ impl ReplayConfig {
 
 impl fmt::Display for ReplayConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ReplayConfig[speed={:.1}x loop={} syms={} types={}]",
-               self.speed_factor, self.loop_replay,
-               self.symbol_filter.len(), self.event_type_filter.len())
+        write!(
+            f,
+            "ReplayConfig[speed={:.1}x loop={} syms={} types={}]",
+            self.speed_factor,
+            self.loop_replay,
+            self.symbol_filter.len(),
+            self.event_type_filter.len()
+        )
     }
 }
 
@@ -221,11 +247,20 @@ impl ReplayFilter {
         self
     }
 
-    pub fn with_min_price(mut self, p: f64) -> Self { self.min_price = Some(p); self }
+    pub fn with_min_price(mut self, p: f64) -> Self {
+        self.min_price = Some(p);
+        self
+    }
 
-    pub fn with_max_price(mut self, p: f64) -> Self { self.max_price = Some(p); self }
+    pub fn with_max_price(mut self, p: f64) -> Self {
+        self.max_price = Some(p);
+        self
+    }
 
-    pub fn with_min_size(mut self, s: f64) -> Self { self.min_size = Some(s); self }
+    pub fn with_min_size(mut self, s: f64) -> Self {
+        self.min_size = Some(s);
+        self
+    }
 
     /// Returns true if the event passes all filters.
     pub fn matches(&self, event: &TickEvent) -> bool {
@@ -236,13 +271,19 @@ impl ReplayFilter {
             return false;
         }
         if let Some(min) = self.min_price {
-            if event.price < min { return false; }
+            if event.price < min {
+                return false;
+            }
         }
         if let Some(max) = self.max_price {
-            if event.price > max { return false; }
+            if event.price > max {
+                return false;
+            }
         }
         if let Some(min_s) = self.min_size {
-            if event.size < min_s { return false; }
+            if event.size < min_s {
+                return false;
+            }
         }
         true
     }
@@ -254,8 +295,12 @@ impl ReplayFilter {
 
 impl fmt::Display for ReplayFilter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ReplayFilter[syms={} types={}]",
-               self.symbols.len(), self.event_types.len())
+        write!(
+            f,
+            "ReplayFilter[syms={} types={}]",
+            self.symbols.len(),
+            self.event_types.len()
+        )
     }
 }
 
@@ -272,14 +317,22 @@ pub struct Bookmark {
 
 impl Bookmark {
     pub fn new(event_index: usize, timestamp_us: u64, events_replayed: u64, label: &str) -> Self {
-        Self { event_index, timestamp_us, events_replayed, label: label.to_string() }
+        Self {
+            event_index,
+            timestamp_us,
+            events_replayed,
+            label: label.to_string(),
+        }
     }
 }
 
 impl fmt::Display for Bookmark {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Bookmark[\"{}\" idx={} ts={} replayed={}]",
-               self.label, self.event_index, self.timestamp_us, self.events_replayed)
+        write!(
+            f,
+            "Bookmark[\"{}\" idx={} ts={} replayed={}]",
+            self.label, self.event_index, self.timestamp_us, self.events_replayed
+        )
     }
 }
 
@@ -332,12 +385,17 @@ impl ReplayStats {
     }
 
     pub fn data_span_us(&self) -> u64 {
-        if self.first_timestamp_us == u64::MAX { return 0; }
-        self.last_timestamp_us.saturating_sub(self.first_timestamp_us)
+        if self.first_timestamp_us == u64::MAX {
+            return 0;
+        }
+        self.last_timestamp_us
+            .saturating_sub(self.first_timestamp_us)
     }
 
     pub fn events_per_second(&self) -> f64 {
-        if self.wall_clock_us == 0 { return 0.0; }
+        if self.wall_clock_us == 0 {
+            return 0.0;
+        }
         (self.events_replayed as f64) / (self.wall_clock_us as f64 / 1_000_000.0)
     }
 
@@ -352,9 +410,14 @@ impl ReplayStats {
 
 impl fmt::Display for ReplayStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ReplayStats[replayed={} filtered={} syms={} span={}us]",
-               self.events_replayed, self.events_filtered,
-               self.symbols_seen, self.data_span_us())
+        write!(
+            f,
+            "ReplayStats[replayed={} filtered={} syms={} span={}us]",
+            self.events_replayed,
+            self.events_filtered,
+            self.symbols_seen,
+            self.data_span_us()
+        )
     }
 }
 
@@ -403,7 +466,10 @@ impl ReplayEngine {
             filter: None,
             state: ReplayState::Idle,
             cursor: 0,
-            stats: ReplayStats { events_total: total, ..ReplayStats::new() },
+            stats: ReplayStats {
+                events_total: total,
+                ..ReplayStats::new()
+            },
             bookmarks: Vec::new(),
             loop_count: 0,
         })
@@ -414,10 +480,18 @@ impl ReplayEngine {
         self
     }
 
-    pub fn state(&self) -> ReplayState { self.state }
-    pub fn stats(&self) -> &ReplayStats { &self.stats }
-    pub fn cursor(&self) -> usize { self.cursor }
-    pub fn loop_count(&self) -> u64 { self.loop_count }
+    pub fn state(&self) -> ReplayState {
+        self.state
+    }
+    pub fn stats(&self) -> &ReplayStats {
+        &self.stats
+    }
+    pub fn cursor(&self) -> usize {
+        self.cursor
+    }
+    pub fn loop_count(&self) -> u64 {
+        self.loop_count
+    }
 
     pub fn start(&mut self) -> Result<(), ReplayError> {
         if self.events.is_empty() {
@@ -429,9 +503,7 @@ impl ReplayEngine {
         self.state = ReplayState::Running;
         // Apply start time filter
         if let Some(start) = self.config.start_us {
-            while self.cursor < self.events.len()
-                && self.events[self.cursor].timestamp_us < start
-            {
+            while self.cursor < self.events.len() && self.events[self.cursor].timestamp_us < start {
                 self.cursor += 1;
             }
         }
@@ -520,15 +592,20 @@ impl ReplayEngine {
 
     pub fn restore_bookmark(&mut self, bookmark: &Bookmark) -> Result<(), ReplayError> {
         if bookmark.event_index > self.events.len() {
-            return Err(ReplayError::InvalidBookmark(
-                format!("index {} beyond event count {}", bookmark.event_index, self.events.len())));
+            return Err(ReplayError::InvalidBookmark(format!(
+                "index {} beyond event count {}",
+                bookmark.event_index,
+                self.events.len()
+            )));
         }
         self.cursor = bookmark.event_index;
         self.state = ReplayState::Paused;
         Ok(())
     }
 
-    pub fn bookmarks(&self) -> &[Bookmark] { &self.bookmarks }
+    pub fn bookmarks(&self) -> &[Bookmark] {
+        &self.bookmarks
+    }
 
     /// Compute scaled inter-event delay in microseconds.
     pub fn scaled_delay_us(&self, event_a: &TickEvent, event_b: &TickEvent) -> u64 {
@@ -546,8 +623,14 @@ impl ReplayEngine {
 
 impl fmt::Display for ReplayEngine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ReplayEngine[state={} cursor={}/{} loops={}]",
-               self.state, self.cursor, self.events.len(), self.loop_count)
+        write!(
+            f,
+            "ReplayEngine[state={} cursor={}/{} loops={}]",
+            self.state,
+            self.cursor,
+            self.events.len(),
+            self.loop_count
+        )
     }
 }
 
@@ -699,7 +782,9 @@ mod tests {
         let mut engine = ReplayEngine::new(events, cfg).unwrap();
         engine.start().unwrap();
         // Consume through first loop
-        for _ in 0..5 { engine.next_event(); }
+        for _ in 0..5 {
+            engine.next_event();
+        }
         assert_eq!(engine.loop_count(), 0);
     }
 

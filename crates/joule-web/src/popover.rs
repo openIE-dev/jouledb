@@ -97,12 +97,25 @@ pub struct Rect {
 
 impl Rect {
     pub fn new(x: f64, y: f64, w: f64, h: f64) -> Self {
-        Self { x, y, width: w, height: h }
+        Self {
+            x,
+            y,
+            width: w,
+            height: h,
+        }
     }
-    pub fn right(&self) -> f64 { self.x + self.width }
-    pub fn bottom(&self) -> f64 { self.y + self.height }
-    pub fn center_x(&self) -> f64 { self.x + self.width / 2.0 }
-    pub fn center_y(&self) -> f64 { self.y + self.height / 2.0 }
+    pub fn right(&self) -> f64 {
+        self.x + self.width
+    }
+    pub fn bottom(&self) -> f64 {
+        self.y + self.height
+    }
+    pub fn center_x(&self) -> f64 {
+        self.x + self.width / 2.0
+    }
+    pub fn center_y(&self) -> f64 {
+        self.y + self.height / 2.0
+    }
 }
 
 // ── Popover config ─────────────────────────────────────────────────
@@ -226,12 +239,7 @@ impl Popover {
     }
 
     /// Compute position with collision detection against viewport.
-    pub fn compute_position(
-        &mut self,
-        anchor: Rect,
-        popover_size: (f64, f64),
-        viewport: Rect,
-    ) {
+    pub fn compute_position(&mut self, anchor: Rect, popover_size: (f64, f64), viewport: Rect) {
         let (pw, ph) = popover_size;
         let offset = self.config.offset;
 
@@ -258,14 +266,7 @@ impl Popover {
         };
     }
 
-    fn fits(
-        side: Side,
-        anchor: Rect,
-        pw: f64,
-        ph: f64,
-        offset: f64,
-        viewport: Rect,
-    ) -> bool {
+    fn fits(side: Side, anchor: Rect, pw: f64, ph: f64, offset: f64, viewport: Rect) -> bool {
         match side {
             Side::Top => anchor.y - ph - offset >= viewport.y,
             Side::Bottom => anchor.bottom() + ph + offset <= viewport.bottom(),
@@ -306,7 +307,11 @@ impl Popover {
         let (x, y) = self.position;
         let placement_str = self.resolved_placement.as_str();
         let class = self.config.class.as_deref().unwrap_or("popover");
-        let portal_attr = if self.config.portal { " data-portal=\"true\"" } else { "" };
+        let portal_attr = if self.config.portal {
+            " data-portal=\"true\""
+        } else {
+            ""
+        };
 
         let arrow_html = if self.config.show_arrow {
             format!(
@@ -321,8 +326,7 @@ impl Popover {
             "<div class=\"{} popover--{}\" role=\"dialog\" \
              style=\"left:{}px;top:{}px\"{}>\
              <div class=\"popover-content\">{}</div>{}</div>",
-            class, placement_str, x, y, portal_attr,
-            self.config.content, arrow_html,
+            class, placement_str, x, y, portal_attr, self.config.content, arrow_html,
         )
     }
 }
@@ -366,9 +370,8 @@ mod tests {
 
     #[test]
     fn test_click_outside_disabled() {
-        let mut pop = Popover::new(
-            PopoverConfig::new("p1", "Content").dismiss_on_click_outside(false),
-        );
+        let mut pop =
+            Popover::new(PopoverConfig::new("p1", "Content").dismiss_on_click_outside(false));
         pop.show();
         assert!(!pop.handle_click_outside());
         assert!(pop.open);
@@ -404,7 +407,10 @@ mod tests {
     #[test]
     fn test_placement_opposite() {
         assert_eq!(PopoverPlacement::Top.opposite(), PopoverPlacement::Bottom);
-        assert_eq!(PopoverPlacement::LeftStart.opposite(), PopoverPlacement::RightStart);
+        assert_eq!(
+            PopoverPlacement::LeftStart.opposite(),
+            PopoverPlacement::RightStart
+        );
     }
 
     #[test]
@@ -439,9 +445,7 @@ mod tests {
 
     #[test]
     fn test_portal_attribute() {
-        let mut pop = Popover::new(
-            PopoverConfig::new("p1", "Content").portal(true),
-        );
+        let mut pop = Popover::new(PopoverConfig::new("p1", "Content").portal(true));
         pop.show();
         let html = pop.render();
         assert!(html.contains("data-portal=\"true\""));
@@ -449,9 +453,7 @@ mod tests {
 
     #[test]
     fn test_no_arrow() {
-        let mut pop = Popover::new(
-            PopoverConfig::new("p1", "Content").arrow(false),
-        );
+        let mut pop = Popover::new(PopoverConfig::new("p1", "Content").arrow(false));
         pop.show();
         let html = pop.render();
         assert!(!html.contains("popover-arrow"));

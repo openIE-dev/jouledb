@@ -38,9 +38,7 @@ impl CharId {
 impl Ord for CharId {
     fn cmp(&self, other: &Self) -> Ordering {
         // Higher sequence wins, then higher site wins (for tie-breaking).
-        self.seq
-            .cmp(&other.seq)
-            .then(self.site.cmp(&other.site))
+        self.seq.cmp(&other.seq).then(self.site.cmp(&other.site))
     }
 }
 
@@ -224,9 +222,7 @@ impl RgaDocument {
     /// Apply a locally generated operation.
     fn apply_local(&mut self, op: &CrdtOp) -> Result<(), CrdtError> {
         match op {
-            CrdtOp::Insert { id, parent, value } => {
-                self.integrate_insert(*id, *parent, *value)
-            }
+            CrdtOp::Insert { id, parent, value } => self.integrate_insert(*id, *parent, *value),
             CrdtOp::Delete { id } => self.integrate_delete(*id),
         }
     }
@@ -405,11 +401,7 @@ impl RgaDocument {
     }
 
     /// Insert a string at a position (convenience).
-    pub fn insert_string_at(
-        &mut self,
-        pos: usize,
-        s: &str,
-    ) -> Result<Vec<CrdtOp>, CrdtError> {
+    pub fn insert_string_at(&mut self, pos: usize, s: &str) -> Result<Vec<CrdtOp>, CrdtError> {
         let mut ops = Vec::new();
         for (i, ch) in s.chars().enumerate() {
             let op = self.insert_at(pos + i, ch)?;

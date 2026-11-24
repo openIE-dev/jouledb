@@ -390,7 +390,10 @@ fn read_binary(data: &[u8], offset: usize) -> Result<(Vec<u8>, usize), MqttError
     if offset + 2 + len > data.len() {
         return Err(MqttError::UnexpectedEof);
     }
-    Ok((data[offset + 2..offset + 2 + len].to_vec(), offset + 2 + len))
+    Ok((
+        data[offset + 2..offset + 2 + len].to_vec(),
+        offset + 2 + len,
+    ))
 }
 
 impl MqttPacket {
@@ -448,13 +451,23 @@ impl MqttPacket {
                 pkt.extend(payload);
                 Ok(pkt)
             }
-            Self::Connack { session_present, return_code } => {
+            Self::Connack {
+                session_present,
+                return_code,
+            } => {
                 let mut pkt = vec![0x20, 0x02]; // CONNACK, remaining length 2
                 pkt.push(if *session_present { 0x01 } else { 0x00 });
                 pkt.push(return_code.to_u8());
                 Ok(pkt)
             }
-            Self::Publish { dup, qos, retain, topic, packet_id, payload } => {
+            Self::Publish {
+                dup,
+                qos,
+                retain,
+                topic,
+                packet_id,
+                payload,
+            } => {
                 let mut var_hdr = encode_utf8_string(topic);
                 if *qos != QoS::AtMostOnce {
                     if let Some(id) = packet_id {
@@ -487,7 +500,10 @@ impl MqttPacket {
             Self::Pubcomp { packet_id } => {
                 Ok(vec![0x70, 0x02, (packet_id >> 8) as u8, *packet_id as u8])
             }
-            Self::Subscribe { packet_id, subscriptions } => {
+            Self::Subscribe {
+                packet_id,
+                subscriptions,
+            } => {
                 let mut var = packet_id.to_be_bytes().to_vec();
                 for sub in subscriptions {
                     var.extend(encode_utf8_string(&sub.topic_filter));
@@ -498,7 +514,10 @@ impl MqttPacket {
                 pkt.extend(var);
                 Ok(pkt)
             }
-            Self::Suback { packet_id, return_codes } => {
+            Self::Suback {
+                packet_id,
+                return_codes,
+            } => {
                 let mut var = packet_id.to_be_bytes().to_vec();
                 for rc in return_codes {
                     match rc {
@@ -582,10 +601,7 @@ impl MqttPacket {
             return Err(MqttError::UnsupportedProtocolLevel(level));
         }
         let flags = ConnectFlags::from_byte(data[2 + proto_len + 1])?;
-        let keep_alive = u16::from_be_bytes([
-            data[2 + proto_len + 2],
-            data[2 + proto_len + 3],
-        ]);
+        let keep_alive = u16::from_be_bytes([data[2 + proto_len + 2], data[2 + proto_len + 3]]);
         let mut offset = 2 + proto_len + 4;
         let (client_id, next) = read_utf8_string(data, offset)?;
         offset = next;
@@ -655,7 +671,14 @@ impl MqttPacket {
             None
         };
         let payload = data[offset..].to_vec();
-        Ok(Self::Publish { dup, qos, retain, topic, packet_id, payload })
+        Ok(Self::Publish {
+            dup,
+            qos,
+            retain,
+            topic,
+            packet_id,
+            payload,
+        })
     }
 
     fn parse_ack<F>(data: &[u8], constructor: F) -> Result<Self, MqttError>
@@ -683,9 +706,15 @@ impl MqttPacket {
             }
             let qos = QoS::from_u8(data[offset])?;
             offset += 1;
-            subscriptions.push(Subscription { topic_filter: filter, qos });
+            subscriptions.push(Subscription {
+                topic_filter: filter,
+                qos,
+            });
         }
-        Ok(Self::Subscribe { packet_id, subscriptions })
+        Ok(Self::Subscribe {
+            packet_id,
+            subscriptions,
+        })
     }
 
     fn parse_suback(data: &[u8]) -> Result<Self, MqttError> {
@@ -695,9 +724,18 @@ impl MqttPacket {
         let packet_id = u16::from_be_bytes([data[0], data[1]]);
         let return_codes = data[2..]
             .iter()
-            .map(|b| if *b == 0x80 { None } else { QoS::from_u8(*b).ok() })
+            .map(|b| {
+                if *b == 0x80 {
+                    None
+                } else {
+                    QoS::from_u8(*b).ok()
+                }
+            })
             .collect();
-        Ok(Self::Suback { packet_id, return_codes })
+        Ok(Self::Suback {
+            packet_id,
+            return_codes,
+        })
     }
 
     fn parse_unsubscribe(data: &[u8]) -> Result<Self, MqttError> {
@@ -793,7 +831,14 @@ mod tests {
         let bytes = pkt.to_bytes().unwrap();
         let (parsed, consumed) = MqttPacket::parse(&bytes).unwrap();
         assert_eq!(consumed, bytes.len());
-        if let MqttPacket::Connect { client_id, clean_session, username, password, .. } = parsed {
+        if let MqttPacket::Connect {
+            client_id,
+            clean_session,
+            username,
+            password,
+            ..
+        } = parsed
+        {
             assert_eq!(client_id, "test-client");
             assert!(clean_session);
             assert_eq!(username.as_deref(), Some("user"));
@@ -849,8 +894,14 @@ mod tests {
         let pkt = MqttPacket::Subscribe {
             packet_id: 100,
             subscriptions: vec![
-                Subscription { topic_filter: "a/b/c".to_string(), qos: QoS::AtLeastOnce },
-                Subscription { topic_filter: "d/#".to_string(), qos: QoS::ExactlyOnce },
+                Subscription {
+                    topic_filter: "a/b/c".to_string(),
+                    qos: QoS::AtLeastOnce,
+                },
+                Subscription {
+                    topic_filter: "d/#".to_string(),
+                    qos: QoS::ExactlyOnce,
+                },
             ],
         };
         let bytes = pkt.to_bytes().unwrap();
@@ -881,7 +932,11 @@ mod tests {
 
     #[test]
     fn pingreq_pingresp_disconnect() {
-        for pkt in [MqttPacket::Pingreq, MqttPacket::Pingresp, MqttPacket::Disconnect] {
+        for pkt in [
+            MqttPacket::Pingreq,
+            MqttPacket::Pingresp,
+            MqttPacket::Disconnect,
+        ] {
             let bytes = pkt.to_bytes().unwrap();
             assert_eq!(bytes.len(), 2);
             let (parsed, _) = MqttPacket::parse(&bytes).unwrap();

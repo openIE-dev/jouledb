@@ -17,7 +17,11 @@ pub enum SchedulerError {
     /// Process already exists.
     DuplicateProcess(u64),
     /// Process is not in expected state.
-    InvalidState { id: u64, expected: &'static str, actual: &'static str },
+    InvalidState {
+        id: u64,
+        expected: &'static str,
+        actual: &'static str,
+    },
     /// Scheduler is stopped.
     SchedulerStopped,
 }
@@ -27,7 +31,11 @@ impl std::fmt::Display for SchedulerError {
         match self {
             Self::ProcessNotFound(id) => write!(f, "process not found: {id}"),
             Self::DuplicateProcess(id) => write!(f, "process already exists: {id}"),
-            Self::InvalidState { id, expected, actual } => {
+            Self::InvalidState {
+                id,
+                expected,
+                actual,
+            } => {
                 write!(f, "process {id}: expected {expected}, got {actual}")
             }
             Self::SchedulerStopped => write!(f, "scheduler is stopped"),
@@ -173,12 +181,31 @@ pub struct SchedulerStats {
 /// Events emitted by the scheduler.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SchedulerEvent {
-    Scheduled { id: u64, tick: u64 },
-    Preempted { id: u64, tick: u64 },
-    Completed { id: u64, tick: u64 },
-    Blocked { id: u64, tick: u64 },
-    Unblocked { id: u64, tick: u64 },
-    Aged { id: u64, old_priority: u32, new_priority: u32 },
+    Scheduled {
+        id: u64,
+        tick: u64,
+    },
+    Preempted {
+        id: u64,
+        tick: u64,
+    },
+    Completed {
+        id: u64,
+        tick: u64,
+    },
+    Blocked {
+        id: u64,
+        tick: u64,
+    },
+    Unblocked {
+        id: u64,
+        tick: u64,
+    },
+    Aged {
+        id: u64,
+        old_priority: u32,
+        new_priority: u32,
+    },
 }
 
 // ── Round Robin Scheduler ───────────────────────────────────────
@@ -317,9 +344,17 @@ impl RoundRobinScheduler {
 
     /// Insert a process ID into the ready queue ordered by effective priority.
     fn insert_by_priority(&mut self, id: u64) {
-        let eff = self.processes.get(&id).map(|p| p.effective_priority.0).unwrap_or(u32::MAX);
+        let eff = self
+            .processes
+            .get(&id)
+            .map(|p| p.effective_priority.0)
+            .unwrap_or(u32::MAX);
         let pos = self.ready_queue.iter().position(|rid| {
-            self.processes.get(rid).map(|p| p.effective_priority.0).unwrap_or(u32::MAX) > eff
+            self.processes
+                .get(rid)
+                .map(|p| p.effective_priority.0)
+                .unwrap_or(u32::MAX)
+                > eff
         });
         match pos {
             Some(i) => self.ready_queue.insert(i, id),
@@ -407,7 +442,12 @@ impl RoundRobinScheduler {
         loop {
             match self.schedule_one()? {
                 Some(id) => {
-                    if self.processes.get(&id).map(|p| p.is_finished()).unwrap_or(false) {
+                    if self
+                        .processes
+                        .get(&id)
+                        .map(|p| p.is_finished())
+                        .unwrap_or(false)
+                    {
                         completed.push(id);
                     }
                 }
@@ -432,11 +472,7 @@ impl RoundRobinScheduler {
         SchedulerStats {
             total_processes: self.processes.len(),
             ready_count: self.ready_queue.len(),
-            running_count: if self.current_running.is_some() {
-                1
-            } else {
-                0
-            },
+            running_count: if self.current_running.is_some() { 1 } else { 0 },
             blocked_count: self.blocked_set.len(),
             completed_count: self
                 .processes
@@ -445,11 +481,7 @@ impl RoundRobinScheduler {
                 .count(),
             total_context_switches: self.context_switches,
             total_ticks_elapsed: self.current_tick,
-            total_preemptions: self
-                .processes
-                .values()
-                .map(|p| p.preempt_count)
-                .sum(),
+            total_preemptions: self.processes.values().map(|p| p.preempt_count).sum(),
         }
     }
 
@@ -479,9 +511,7 @@ mod tests {
     #[test]
     fn test_add_process() {
         let mut sched = RoundRobinScheduler::new();
-        sched
-            .add_process(Process::new(1, "p1", 100))
-            .unwrap();
+        sched.add_process(Process::new(1, "p1", 100)).unwrap();
         assert_eq!(sched.get_process(1).unwrap().state, ProcessState::Ready);
     }
 
@@ -637,10 +667,7 @@ mod tests {
             .add_process(Process::new(1, "p1", 10).with_time_slice(10))
             .unwrap();
         sched.schedule_one().unwrap();
-        assert_eq!(
-            sched.get_process(1).unwrap().state,
-            ProcessState::Completed
-        );
+        assert_eq!(sched.get_process(1).unwrap().state, ProcessState::Completed);
     }
 
     #[test]
@@ -679,9 +706,7 @@ mod tests {
     fn test_scheduler_stop() {
         let mut sched = RoundRobinScheduler::new();
         sched.stop();
-        let err = sched
-            .add_process(Process::new(1, "p1", 10))
-            .unwrap_err();
+        let err = sched.add_process(Process::new(1, "p1", 10)).unwrap_err();
         assert_eq!(err, SchedulerError::SchedulerStopped);
     }
 
@@ -700,8 +725,16 @@ mod tests {
             .unwrap();
         sched.schedule_one().unwrap();
         let events = sched.drain_events();
-        assert!(events.iter().any(|e| matches!(e, SchedulerEvent::Scheduled { .. })));
-        assert!(events.iter().any(|e| matches!(e, SchedulerEvent::Completed { .. })));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, SchedulerEvent::Scheduled { .. }))
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, SchedulerEvent::Completed { .. }))
+        );
     }
 
     #[test]

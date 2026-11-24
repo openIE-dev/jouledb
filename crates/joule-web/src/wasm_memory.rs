@@ -78,7 +78,10 @@ impl fmt::Display for MemoryError {
                 offset + size
             ),
             Self::InvalidAlignment { offset, required } => {
-                write!(f, "invalid alignment: offset {offset} not aligned to {required}")
+                write!(
+                    f,
+                    "invalid alignment: offset {offset} not aligned to {required}"
+                )
             }
             Self::ZeroPages => write!(f, "initial pages must be > 0 or explicitly 0"),
         }
@@ -179,13 +182,14 @@ impl LinearMemory {
     /// Grow memory by `delta_pages`. Returns the previous page count on success,
     /// or an error if the maximum would be exceeded.
     pub fn grow(&mut self, delta_pages: u32) -> Result<u32, MemoryError> {
-        let new_pages = self.current_pages.checked_add(delta_pages).ok_or(
-            MemoryError::GrowFailed {
-                current: self.current_pages,
-                requested_delta: delta_pages,
-                max: self.max_pages,
-            },
-        )?;
+        let new_pages =
+            self.current_pages
+                .checked_add(delta_pages)
+                .ok_or(MemoryError::GrowFailed {
+                    current: self.current_pages,
+                    requested_delta: delta_pages,
+                    max: self.max_pages,
+                })?;
 
         if new_pages > self.max_pages {
             return Err(MemoryError::GrowFailed {
@@ -377,12 +381,7 @@ impl LinearMemory {
     }
 
     /// memory.copy — copy bytes within memory (handles overlap correctly).
-    pub fn copy_within(
-        &mut self,
-        dst: usize,
-        src: usize,
-        len: usize,
-    ) -> Result<(), MemoryError> {
+    pub fn copy_within(&mut self, dst: usize, src: usize, len: usize) -> Result<(), MemoryError> {
         self.check_bounds(src, len)?;
         self.check_bounds(dst, len)?;
         self.check_protection(src, len)?;
@@ -394,11 +393,7 @@ impl LinearMemory {
     }
 
     /// Initialize a region from an external data segment.
-    pub fn init_segment(
-        &mut self,
-        dst_offset: usize,
-        data: &[u8],
-    ) -> Result<(), MemoryError> {
+    pub fn init_segment(&mut self, dst_offset: usize, data: &[u8]) -> Result<(), MemoryError> {
         self.check_bounds(dst_offset, data.len())?;
         self.data[dst_offset..dst_offset + data.len()].copy_from_slice(data);
         Ok(())

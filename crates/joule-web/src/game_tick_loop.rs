@@ -111,10 +111,7 @@ impl FrameStats {
 
     /// Max frame time in the sample window.
     pub fn max_frame_time(&self) -> f64 {
-        self.frame_times
-            .iter()
-            .copied()
-            .fold(0.0_f64, f64::max)
+        self.frame_times.iter().copied().fold(0.0_f64, f64::max)
     }
 
     pub fn reset(&mut self) {
@@ -298,11 +295,7 @@ impl GameTickLoop {
 
 /// Runs a simple simulation for the given number of frames, returning
 /// total update steps performed, final FPS, and total energy.
-pub fn simulate_loop(
-    fixed_dt: f64,
-    frame_dts: &[f64],
-    energy_per_frame: u64,
-) -> (u64, f64, u64) {
+pub fn simulate_loop(fixed_dt: f64, frame_dts: &[f64], energy_per_frame: u64) -> (u64, f64, u64) {
     let mut game_loop = GameTickLoop::new().with_fixed_dt(fixed_dt);
     let mut total_updates: u64 = 0;
 
@@ -312,7 +305,11 @@ pub fn simulate_loop(
         game_loop.record_energy(energy_per_frame);
     }
 
-    (total_updates, game_loop.stats().fps(), game_loop.energy().total_uj)
+    (
+        total_updates,
+        game_loop.stats().fps(),
+        game_loop.energy().total_uj,
+    )
 }
 
 // ── Tests ───────────────────────────────────────────────────────

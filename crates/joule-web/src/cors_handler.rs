@@ -200,8 +200,7 @@ impl CorsHeaders {
     }
 
     fn add(&mut self, key: &str, value: &str) {
-        self.headers
-            .push((key.to_string(), value.to_string()));
+        self.headers.push((key.to_string(), value.to_string()));
     }
 
     /// Get a header value by name.
@@ -275,10 +274,7 @@ impl CorsHandler {
     }
 
     /// Evaluate a simple (non-preflight) CORS request.
-    pub fn evaluate_simple(
-        &self,
-        origin: &str,
-    ) -> Result<CorsHeaders, CorsHandlerError> {
+    pub fn evaluate_simple(&self, origin: &str) -> Result<CorsHeaders, CorsHandlerError> {
         if !self.is_origin_allowed(origin) {
             return Err(CorsHandlerError::OriginDenied(origin.to_string()));
         }
@@ -326,10 +322,7 @@ impl CorsHandler {
             .collect();
         let mut methods_sorted = methods;
         methods_sorted.sort();
-        headers.add(
-            "Access-Control-Allow-Methods",
-            &methods_sorted.join(", "),
-        );
+        headers.add("Access-Control-Allow-Methods", &methods_sorted.join(", "));
 
         // Allowed headers.
         let mut hdrs: Vec<&str> = self
@@ -399,10 +392,7 @@ impl CorsHandler {
         if !self.policy.expose_headers.is_empty() {
             let mut sorted = self.policy.expose_headers.clone();
             sorted.sort();
-            headers.add(
-                "Access-Control-Expose-Headers",
-                &sorted.join(", "),
-            );
+            headers.add("Access-Control-Expose-Headers", &sorted.join(", "));
         }
     }
 }
@@ -469,9 +459,8 @@ mod tests {
 
     #[test]
     fn test_denylist_origin() {
-        let policy = CorsPolicy::default().with_origins(OriginPolicy::Denylist(vec![
-            "https://evil.com".to_string(),
-        ]));
+        let policy = CorsPolicy::default()
+            .with_origins(OriginPolicy::Denylist(vec!["https://evil.com".to_string()]));
         let h = CorsHandler::new(policy);
         assert!(h.is_origin_allowed("https://example.com"));
         assert!(!h.is_origin_allowed("https://evil.com"));
@@ -512,10 +501,7 @@ mod tests {
         let result = h.evaluate_simple("https://example.com");
         assert!(result.is_ok());
         let headers = result.unwrap();
-        assert_eq!(
-            headers.get("Access-Control-Allow-Origin"),
-            Some("*")
-        );
+        assert_eq!(headers.get("Access-Control-Allow-Origin"), Some("*"));
     }
 
     #[test]
@@ -542,11 +528,7 @@ mod tests {
             .allow_method(HttpMethod::Put)
             .allow_header("x-custom");
         let h = CorsHandler::new(policy);
-        let result = h.evaluate_preflight(
-            "https://example.com",
-            "PUT",
-            &["x-custom"],
-        );
+        let result = h.evaluate_preflight("https://example.com", "PUT", &["x-custom"]);
         assert!(result.is_ok());
         let headers = result.unwrap();
         assert!(headers.has("Access-Control-Allow-Methods"));
@@ -556,8 +538,7 @@ mod tests {
     #[test]
     fn test_preflight_method_denied() {
         let h = CorsHandler::permissive();
-        let result =
-            h.evaluate_preflight("https://example.com", "DELETE", &[]);
+        let result = h.evaluate_preflight("https://example.com", "DELETE", &[]);
         assert!(result.is_err());
         match result.unwrap_err() {
             CorsHandlerError::MethodNotAllowed(m) => assert_eq!(m, "DELETE"),
@@ -568,11 +549,7 @@ mod tests {
     #[test]
     fn test_preflight_header_denied() {
         let h = CorsHandler::permissive();
-        let result = h.evaluate_preflight(
-            "https://example.com",
-            "POST",
-            &["x-forbidden"],
-        );
+        let result = h.evaluate_preflight("https://example.com", "POST", &["x-forbidden"]);
         assert!(result.is_err());
     }
 
@@ -596,16 +573,12 @@ mod tests {
             Some("true")
         );
         // With credentials, origin must be specific, not *.
-        assert_ne!(
-            headers.get("Access-Control-Allow-Origin"),
-            Some("*")
-        );
+        assert_ne!(headers.get("Access-Control-Allow-Origin"), Some("*"));
     }
 
     #[test]
     fn test_expose_headers() {
-        let policy =
-            CorsPolicy::default().expose(vec!["X-Request-Id".to_string()]);
+        let policy = CorsPolicy::default().expose(vec!["X-Request-Id".to_string()]);
         let h = CorsHandler::new(policy);
         let headers = h.evaluate_simple("https://example.com").unwrap();
         assert!(headers.has("Access-Control-Expose-Headers"));
@@ -614,17 +587,14 @@ mod tests {
     #[test]
     fn test_validate_request_full() {
         let policy = CorsPolicy::default()
-            .with_origins(OriginPolicy::Allowlist(vec![
-                "https://ok.com".to_string(),
-            ]))
+            .with_origins(OriginPolicy::Allowlist(vec!["https://ok.com".to_string()]))
             .allow_method(HttpMethod::Put);
         let h = CorsHandler::new(policy);
-        assert!(h
-            .validate_request("https://ok.com", "PUT", &["content-type"])
-            .is_ok());
-        assert!(h
-            .validate_request("https://evil.com", "GET", &[])
-            .is_err());
+        assert!(
+            h.validate_request("https://ok.com", "PUT", &["content-type"])
+                .is_ok()
+        );
+        assert!(h.validate_request("https://evil.com", "GET", &[]).is_err());
     }
 
     #[test]

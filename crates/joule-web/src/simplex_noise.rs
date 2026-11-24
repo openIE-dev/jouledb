@@ -16,20 +16,53 @@ const F4: f64 = 0.30901699437494742; // (sqrt(5) - 1) / 4
 const G4: f64 = 0.13819660112501051; // (5 - sqrt(5)) / 20
 
 const GRAD3: [[f64; 3]; 12] = [
-    [1.0, 1.0, 0.0], [-1.0, 1.0, 0.0], [1.0, -1.0, 0.0], [-1.0, -1.0, 0.0],
-    [1.0, 0.0, 1.0], [-1.0, 0.0, 1.0], [1.0, 0.0, -1.0], [-1.0, 0.0, -1.0],
-    [0.0, 1.0, 1.0], [0.0, -1.0, 1.0], [0.0, 1.0, -1.0], [0.0, -1.0, -1.0],
+    [1.0, 1.0, 0.0],
+    [-1.0, 1.0, 0.0],
+    [1.0, -1.0, 0.0],
+    [-1.0, -1.0, 0.0],
+    [1.0, 0.0, 1.0],
+    [-1.0, 0.0, 1.0],
+    [1.0, 0.0, -1.0],
+    [-1.0, 0.0, -1.0],
+    [0.0, 1.0, 1.0],
+    [0.0, -1.0, 1.0],
+    [0.0, 1.0, -1.0],
+    [0.0, -1.0, -1.0],
 ];
 
 const GRAD4: [[f64; 4]; 32] = [
-    [0.0,1.0,1.0,1.0],[0.0,1.0,1.0,-1.0],[0.0,1.0,-1.0,1.0],[0.0,1.0,-1.0,-1.0],
-    [0.0,-1.0,1.0,1.0],[0.0,-1.0,1.0,-1.0],[0.0,-1.0,-1.0,1.0],[0.0,-1.0,-1.0,-1.0],
-    [1.0,0.0,1.0,1.0],[1.0,0.0,1.0,-1.0],[1.0,0.0,-1.0,1.0],[1.0,0.0,-1.0,-1.0],
-    [-1.0,0.0,1.0,1.0],[-1.0,0.0,1.0,-1.0],[-1.0,0.0,-1.0,1.0],[-1.0,0.0,-1.0,-1.0],
-    [1.0,1.0,0.0,1.0],[1.0,1.0,0.0,-1.0],[1.0,-1.0,0.0,1.0],[1.0,-1.0,0.0,-1.0],
-    [-1.0,1.0,0.0,1.0],[-1.0,1.0,0.0,-1.0],[-1.0,-1.0,0.0,1.0],[-1.0,-1.0,0.0,-1.0],
-    [1.0,1.0,1.0,0.0],[1.0,1.0,-1.0,0.0],[1.0,-1.0,1.0,0.0],[1.0,-1.0,-1.0,0.0],
-    [-1.0,1.0,1.0,0.0],[-1.0,1.0,-1.0,0.0],[-1.0,-1.0,1.0,0.0],[-1.0,-1.0,-1.0,0.0],
+    [0.0, 1.0, 1.0, 1.0],
+    [0.0, 1.0, 1.0, -1.0],
+    [0.0, 1.0, -1.0, 1.0],
+    [0.0, 1.0, -1.0, -1.0],
+    [0.0, -1.0, 1.0, 1.0],
+    [0.0, -1.0, 1.0, -1.0],
+    [0.0, -1.0, -1.0, 1.0],
+    [0.0, -1.0, -1.0, -1.0],
+    [1.0, 0.0, 1.0, 1.0],
+    [1.0, 0.0, 1.0, -1.0],
+    [1.0, 0.0, -1.0, 1.0],
+    [1.0, 0.0, -1.0, -1.0],
+    [-1.0, 0.0, 1.0, 1.0],
+    [-1.0, 0.0, 1.0, -1.0],
+    [-1.0, 0.0, -1.0, 1.0],
+    [-1.0, 0.0, -1.0, -1.0],
+    [1.0, 1.0, 0.0, 1.0],
+    [1.0, 1.0, 0.0, -1.0],
+    [1.0, -1.0, 0.0, 1.0],
+    [1.0, -1.0, 0.0, -1.0],
+    [-1.0, 1.0, 0.0, 1.0],
+    [-1.0, 1.0, 0.0, -1.0],
+    [-1.0, -1.0, 0.0, 1.0],
+    [-1.0, -1.0, 0.0, -1.0],
+    [1.0, 1.0, 1.0, 0.0],
+    [1.0, 1.0, -1.0, 0.0],
+    [1.0, -1.0, 1.0, 0.0],
+    [1.0, -1.0, -1.0, 0.0],
+    [-1.0, 1.0, 1.0, 0.0],
+    [-1.0, 1.0, -1.0, 0.0],
+    [-1.0, -1.0, 1.0, 0.0],
+    [-1.0, -1.0, -1.0, 0.0],
 ];
 
 /// Analytical derivative result for 2D simplex noise.
@@ -58,7 +91,9 @@ pub struct SimplexNoise {
 
 impl fmt::Debug for SimplexNoise {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SimplexNoise").field("seed", &self.seed).finish()
+        f.debug_struct("SimplexNoise")
+            .field("seed", &self.seed)
+            .finish()
     }
 }
 
@@ -71,7 +106,9 @@ impl SimplexNoise {
         }
         let mut rng = seed;
         for i in (1..256).rev() {
-            rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            rng = rng
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let j = (rng >> 33) as usize % (i + 1);
             table.swap(i, j);
         }
@@ -220,13 +257,21 @@ impl SimplexNoise {
         let z0 = z - (k as f64 - t);
 
         let (i1, j1, k1, i2, j2, k2) = if x0 >= y0 {
-            if y0 >= z0 { (1,0,0,1,1,0) }
-            else if x0 >= z0 { (1,0,0,1,0,1) }
-            else { (0,0,1,1,0,1) }
+            if y0 >= z0 {
+                (1, 0, 0, 1, 1, 0)
+            } else if x0 >= z0 {
+                (1, 0, 0, 1, 0, 1)
+            } else {
+                (0, 0, 1, 1, 0, 1)
+            }
         } else {
-            if y0 < z0 { (0,0,1,0,1,1) }
-            else if x0 < z0 { (0,1,0,0,1,1) }
-            else { (0,1,0,1,1,0) }
+            if y0 < z0 {
+                (0, 0, 1, 0, 1, 1)
+            } else if x0 < z0 {
+                (0, 1, 0, 0, 1, 1)
+            } else {
+                (0, 1, 0, 1, 1, 0)
+            }
         };
 
         let x1 = x0 - i1 as f64 + G3;
@@ -240,14 +285,20 @@ impl SimplexNoise {
         let z3 = z0 - 1.0 + 3.0 * G3;
 
         let gi0 = self.hash(i + self.hash(j + self.hash(k) as i64) as i64) % 12;
-        let gi1 = self.hash(i + i1 as i64 + self.hash(j + j1 as i64 + self.hash(k + k1 as i64) as i64) as i64) % 12;
-        let gi2 = self.hash(i + i2 as i64 + self.hash(j + j2 as i64 + self.hash(k + k2 as i64) as i64) as i64) % 12;
+        let gi1 = self.hash(
+            i + i1 as i64 + self.hash(j + j1 as i64 + self.hash(k + k1 as i64) as i64) as i64,
+        ) % 12;
+        let gi2 = self.hash(
+            i + i2 as i64 + self.hash(j + j2 as i64 + self.hash(k + k2 as i64) as i64) as i64,
+        ) % 12;
         let gi3 = self.hash(i + 1 + self.hash(j + 1 + self.hash(k + 1) as i64) as i64) % 12;
 
         let mut n = 0.0;
         for &(gi, xv, yv, zv) in &[
-            (gi0, x0, y0, z0), (gi1, x1, y1, z1),
-            (gi2, x2, y2, z2), (gi3, x3, y3, z3),
+            (gi0, x0, y0, z0),
+            (gi1, x1, y1, z1),
+            (gi2, x2, y2, z2),
+            (gi3, x3, y3, z3),
         ] {
             let tv = 0.6 - xv * xv - yv * yv - zv * zv;
             if tv > 0.0 {
@@ -270,26 +321,50 @@ impl SimplexNoise {
         let z0 = z - (k as f64 - t);
 
         let (i1, j1, k1, i2, j2, k2) = if x0 >= y0 {
-            if y0 >= z0 { (1,0,0,1,1,0) }
-            else if x0 >= z0 { (1,0,0,1,0,1) }
-            else { (0,0,1,1,0,1) }
+            if y0 >= z0 {
+                (1, 0, 0, 1, 1, 0)
+            } else if x0 >= z0 {
+                (1, 0, 0, 1, 0, 1)
+            } else {
+                (0, 0, 1, 1, 0, 1)
+            }
         } else {
-            if y0 < z0 { (0,0,1,0,1,1) }
-            else if x0 < z0 { (0,1,0,0,1,1) }
-            else { (0,1,0,1,1,0) }
+            if y0 < z0 {
+                (0, 0, 1, 0, 1, 1)
+            } else if x0 < z0 {
+                (0, 1, 0, 0, 1, 1)
+            } else {
+                (0, 1, 0, 1, 1, 0)
+            }
         };
 
-        let offsets: [(f64,f64,f64); 4] = [
+        let offsets: [(f64, f64, f64); 4] = [
             (x0, y0, z0),
-            (x0 - i1 as f64 + G3, y0 - j1 as f64 + G3, z0 - k1 as f64 + G3),
-            (x0 - i2 as f64 + 2.0*G3, y0 - j2 as f64 + 2.0*G3, z0 - k2 as f64 + 2.0*G3),
-            (x0 - 1.0 + 3.0*G3, y0 - 1.0 + 3.0*G3, z0 - 1.0 + 3.0*G3),
+            (
+                x0 - i1 as f64 + G3,
+                y0 - j1 as f64 + G3,
+                z0 - k1 as f64 + G3,
+            ),
+            (
+                x0 - i2 as f64 + 2.0 * G3,
+                y0 - j2 as f64 + 2.0 * G3,
+                z0 - k2 as f64 + 2.0 * G3,
+            ),
+            (
+                x0 - 1.0 + 3.0 * G3,
+                y0 - 1.0 + 3.0 * G3,
+                z0 - 1.0 + 3.0 * G3,
+            ),
         ];
 
         let gis = [
             self.hash(i + self.hash(j + self.hash(k) as i64) as i64) % 12,
-            self.hash(i + i1 as i64 + self.hash(j + j1 as i64 + self.hash(k + k1 as i64) as i64) as i64) % 12,
-            self.hash(i + i2 as i64 + self.hash(j + j2 as i64 + self.hash(k + k2 as i64) as i64) as i64) % 12,
+            self.hash(
+                i + i1 as i64 + self.hash(j + j1 as i64 + self.hash(k + k1 as i64) as i64) as i64,
+            ) % 12,
+            self.hash(
+                i + i2 as i64 + self.hash(j + j2 as i64 + self.hash(k + k2 as i64) as i64) as i64,
+            ) % 12,
             self.hash(i + 1 + self.hash(j + 1 + self.hash(k + 1) as i64) as i64) % 12,
         ];
 
@@ -340,7 +415,11 @@ impl SimplexNoise {
         let vals = [x0, y0, z0, w0];
         for a in 0..4 {
             for b in (a + 1)..4 {
-                if vals[a] > vals[b] { rank[a] += 1; } else { rank[b] += 1; }
+                if vals[a] > vals[b] {
+                    rank[a] += 1;
+                } else {
+                    rank[b] += 1;
+                }
             }
         }
         let coord = |r: u8, threshold: u8| -> i64 { if r >= threshold { 1 } else { 0 } };
@@ -349,8 +428,12 @@ impl SimplexNoise {
         for step in 0..5u8 {
             let threshold = 4 - step;
             let (oi, oj, ok, ol) = if step < 4 {
-                (coord(rank[0], threshold), coord(rank[1], threshold),
-                 coord(rank[2], threshold), coord(rank[3], threshold))
+                (
+                    coord(rank[0], threshold),
+                    coord(rank[1], threshold),
+                    coord(rank[2], threshold),
+                    coord(rank[3], threshold),
+                )
             } else {
                 (1, 1, 1, 1)
             };
@@ -362,11 +445,9 @@ impl SimplexNoise {
             let tv = 0.6 - xv * xv - yv * yv - zv * zv - wv * wv;
             if tv > 0.0 {
                 let gi = self.hash(
-                    i + oi + self.hash(
-                        j + oj + self.hash(
-                            k + ok + self.hash(l + ol) as i64
-                        ) as i64
-                    ) as i64
+                    i + oi
+                        + self.hash(j + oj + self.hash(k + ok + self.hash(l + ol) as i64) as i64)
+                            as i64,
                 ) % 32;
                 let tvsq = tv * tv;
                 n += tvsq * tvsq * Self::dot4(&GRAD4[gi], xv, yv, zv, wv);
@@ -554,7 +635,9 @@ mod tests {
         let base = s.noise2d(0.5, 0.5);
         for i in 1..20 {
             let v = s.noise2d(0.5 + i as f64 * 0.7, 0.5 + i as f64 * 0.3);
-            if (v - base).abs() > 1e-6 { distinct += 1; }
+            if (v - base).abs() > 1e-6 {
+                distinct += 1;
+            }
         }
         assert!(distinct > 10);
     }
@@ -565,8 +648,14 @@ mod tests {
         let mut distinct = 0;
         let base = s.noise3d(0.5, 0.5, 0.5);
         for i in 1..20 {
-            let v = s.noise3d(0.5 + i as f64 * 0.5, 0.5 + i as f64 * 0.3, 0.5 + i as f64 * 0.7);
-            if (v - base).abs() > 1e-6 { distinct += 1; }
+            let v = s.noise3d(
+                0.5 + i as f64 * 0.5,
+                0.5 + i as f64 * 0.3,
+                0.5 + i as f64 * 0.7,
+            );
+            if (v - base).abs() > 1e-6 {
+                distinct += 1;
+            }
         }
         assert!(distinct > 10);
     }
@@ -612,14 +701,27 @@ mod tests {
 
     #[test]
     fn test_derivative_struct_partial_eq() {
-        let d1 = NoiseDerivative2D { value: 1.0, dx: 2.0, dy: 3.0 };
-        let d2 = NoiseDerivative2D { value: 1.0, dx: 2.0, dy: 3.0 };
+        let d1 = NoiseDerivative2D {
+            value: 1.0,
+            dx: 2.0,
+            dy: 3.0,
+        };
+        let d2 = NoiseDerivative2D {
+            value: 1.0,
+            dx: 2.0,
+            dy: 3.0,
+        };
         assert_eq!(d1, d2);
     }
 
     #[test]
     fn test_noise3d_derivative_struct() {
-        let d = NoiseDerivative3D { value: 1.0, dx: 2.0, dy: 3.0, dz: 4.0 };
+        let d = NoiseDerivative3D {
+            value: 1.0,
+            dx: 2.0,
+            dy: 3.0,
+            dz: 4.0,
+        };
         let d2 = d;
         assert_eq!(d, d2);
     }

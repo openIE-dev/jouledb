@@ -38,10 +38,20 @@ pub struct Person {
 
 impl Person {
     pub fn new(name: &str) -> Self {
-        Self { name: name.into(), email: None, uri: None }
+        Self {
+            name: name.into(),
+            email: None,
+            uri: None,
+        }
     }
-    pub fn email(mut self, email: &str) -> Self { self.email = Some(email.into()); self }
-    pub fn uri(mut self, uri: &str) -> Self { self.uri = Some(uri.into()); self }
+    pub fn email(mut self, email: &str) -> Self {
+        self.email = Some(email.into());
+        self
+    }
+    pub fn uri(mut self, uri: &str) -> Self {
+        self.uri = Some(uri.into());
+        self
+    }
 }
 
 /// An enclosure (media attachment).
@@ -54,7 +64,11 @@ pub struct Enclosure {
 
 impl Enclosure {
     pub fn new(url: &str, length: u64, mime_type: &str) -> Self {
-        Self { url: url.into(), length, mime_type: mime_type.into() }
+        Self {
+            url: url.into(),
+            length,
+            mime_type: mime_type.into(),
+        }
     }
 }
 
@@ -67,8 +81,12 @@ pub enum Content {
 }
 
 impl Content {
-    pub fn text(s: &str) -> Self { Content::Text(s.into()) }
-    pub fn html(s: &str) -> Self { Content::Html(s.into()) }
+    pub fn text(s: &str) -> Self {
+        Content::Text(s.into())
+    }
+    pub fn html(s: &str) -> Self {
+        Content::Html(s.into())
+    }
 }
 
 // ── Feed Entry ──────────────────────────────────────────────────
@@ -91,21 +109,51 @@ pub struct FeedEntry {
 impl FeedEntry {
     pub fn new(title: &str, link: &str) -> Self {
         Self {
-            title: title.into(), link: link.into(), id: None,
-            published: None, updated: None, summary: None,
-            content: None, author: None, categories: Vec::new(),
+            title: title.into(),
+            link: link.into(),
+            id: None,
+            published: None,
+            updated: None,
+            summary: None,
+            content: None,
+            author: None,
+            categories: Vec::new(),
             enclosure: None,
         }
     }
 
-    pub fn id(mut self, id: &str) -> Self { self.id = Some(id.into()); self }
-    pub fn published(mut self, date: &str) -> Self { self.published = Some(date.into()); self }
-    pub fn updated(mut self, date: &str) -> Self { self.updated = Some(date.into()); self }
-    pub fn summary(mut self, s: &str) -> Self { self.summary = Some(s.into()); self }
-    pub fn content(mut self, c: Content) -> Self { self.content = Some(c); self }
-    pub fn author(mut self, a: Person) -> Self { self.author = Some(a); self }
-    pub fn category(mut self, cat: &str) -> Self { self.categories.push(cat.into()); self }
-    pub fn enclosure(mut self, e: Enclosure) -> Self { self.enclosure = Some(e); self }
+    pub fn id(mut self, id: &str) -> Self {
+        self.id = Some(id.into());
+        self
+    }
+    pub fn published(mut self, date: &str) -> Self {
+        self.published = Some(date.into());
+        self
+    }
+    pub fn updated(mut self, date: &str) -> Self {
+        self.updated = Some(date.into());
+        self
+    }
+    pub fn summary(mut self, s: &str) -> Self {
+        self.summary = Some(s.into());
+        self
+    }
+    pub fn content(mut self, c: Content) -> Self {
+        self.content = Some(c);
+        self
+    }
+    pub fn author(mut self, a: Person) -> Self {
+        self.author = Some(a);
+        self
+    }
+    pub fn category(mut self, cat: &str) -> Self {
+        self.categories.push(cat.into());
+        self
+    }
+    pub fn enclosure(mut self, e: Enclosure) -> Self {
+        self.enclosure = Some(e);
+        self
+    }
 }
 
 // ── RSS 2.0 Builder ─────────────────────────────────────────────
@@ -132,21 +180,51 @@ pub struct RssBuilder {
 impl RssBuilder {
     pub fn new(title: &str, link: &str, description: &str) -> Self {
         Self {
-            title: title.into(), link: link.into(), description: description.into(),
-            language: None, copyright: None, managing_editor: None,
-            pub_date: None, last_build_date: None, generator: None,
-            ttl: None, image_url: None, image_title: None, image_link: None,
+            title: title.into(),
+            link: link.into(),
+            description: description.into(),
+            language: None,
+            copyright: None,
+            managing_editor: None,
+            pub_date: None,
+            last_build_date: None,
+            generator: None,
+            ttl: None,
+            image_url: None,
+            image_title: None,
+            image_link: None,
             items: Vec::new(),
         }
     }
 
-    pub fn language(mut self, lang: &str) -> Self { self.language = Some(lang.into()); self }
-    pub fn copyright(mut self, c: &str) -> Self { self.copyright = Some(c.into()); self }
-    pub fn managing_editor(mut self, e: &str) -> Self { self.managing_editor = Some(e.into()); self }
-    pub fn pub_date(mut self, d: &str) -> Self { self.pub_date = Some(d.into()); self }
-    pub fn last_build_date(mut self, d: &str) -> Self { self.last_build_date = Some(d.into()); self }
-    pub fn generator(mut self, g: &str) -> Self { self.generator = Some(g.into()); self }
-    pub fn ttl(mut self, minutes: u32) -> Self { self.ttl = Some(minutes); self }
+    pub fn language(mut self, lang: &str) -> Self {
+        self.language = Some(lang.into());
+        self
+    }
+    pub fn copyright(mut self, c: &str) -> Self {
+        self.copyright = Some(c.into());
+        self
+    }
+    pub fn managing_editor(mut self, e: &str) -> Self {
+        self.managing_editor = Some(e.into());
+        self
+    }
+    pub fn pub_date(mut self, d: &str) -> Self {
+        self.pub_date = Some(d.into());
+        self
+    }
+    pub fn last_build_date(mut self, d: &str) -> Self {
+        self.last_build_date = Some(d.into());
+        self
+    }
+    pub fn generator(mut self, g: &str) -> Self {
+        self.generator = Some(g.into());
+        self
+    }
+    pub fn ttl(mut self, minutes: u32) -> Self {
+        self.ttl = Some(minutes);
+        self
+    }
 
     pub fn image(mut self, url: &str, title: &str, link: &str) -> Self {
         self.image_url = Some(url.into());
@@ -155,12 +233,19 @@ impl RssBuilder {
         self
     }
 
-    pub fn item(mut self, entry: FeedEntry) -> Self { self.items.push(entry); self }
+    pub fn item(mut self, entry: FeedEntry) -> Self {
+        self.items.push(entry);
+        self
+    }
 
     /// Build the RSS 2.0 XML string.
     pub fn build(&self) -> Result<String, FeedError> {
-        if self.title.is_empty() { return Err(FeedError::MissingTitle); }
-        if self.link.is_empty() { return Err(FeedError::MissingLink); }
+        if self.title.is_empty() {
+            return Err(FeedError::MissingTitle);
+        }
+        if self.link.is_empty() {
+            return Err(FeedError::MissingLink);
+        }
 
         let mut xml = String::new();
         xml.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
@@ -168,7 +253,10 @@ impl RssBuilder {
         xml.push_str("  <channel>\n");
         xml.push_str(&format!("    <title>{}</title>\n", xml_escape(&self.title)));
         xml.push_str(&format!("    <link>{}</link>\n", xml_escape(&self.link)));
-        xml.push_str(&format!("    <description>{}</description>\n", xml_escape(&self.description)));
+        xml.push_str(&format!(
+            "    <description>{}</description>\n",
+            xml_escape(&self.description)
+        ));
 
         if let Some(ref lang) = self.language {
             xml.push_str(&format!("    <language>{lang}</language>\n"));
@@ -177,7 +265,10 @@ impl RssBuilder {
             xml.push_str(&format!("    <copyright>{}</copyright>\n", xml_escape(cr)));
         }
         if let Some(ref me) = self.managing_editor {
-            xml.push_str(&format!("    <managingEditor>{}</managingEditor>\n", xml_escape(me)));
+            xml.push_str(&format!(
+                "    <managingEditor>{}</managingEditor>\n",
+                xml_escape(me)
+            ));
         }
         if let Some(ref pd) = self.pub_date {
             xml.push_str(&format!("    <pubDate>{pd}</pubDate>\n"));
@@ -191,7 +282,9 @@ impl RssBuilder {
         if let Some(ttl) = self.ttl {
             xml.push_str(&format!("    <ttl>{ttl}</ttl>\n"));
         }
-        if let (Some(url), Some(title), Some(link)) = (&self.image_url, &self.image_title, &self.image_link) {
+        if let (Some(url), Some(title), Some(link)) =
+            (&self.image_url, &self.image_title, &self.image_link)
+        {
             xml.push_str("    <image>\n");
             xml.push_str(&format!("      <url>{}</url>\n", xml_escape(url)));
             xml.push_str(&format!("      <title>{}</title>\n", xml_escape(title)));
@@ -201,7 +294,10 @@ impl RssBuilder {
 
         for item in &self.items {
             xml.push_str("    <item>\n");
-            xml.push_str(&format!("      <title>{}</title>\n", xml_escape(&item.title)));
+            xml.push_str(&format!(
+                "      <title>{}</title>\n",
+                xml_escape(&item.title)
+            ));
             xml.push_str(&format!("      <link>{}</link>\n", xml_escape(&item.link)));
             if let Some(ref id) = item.id {
                 xml.push_str(&format!("      <guid>{}</guid>\n", xml_escape(id)));
@@ -210,18 +306,28 @@ impl RssBuilder {
                 xml.push_str(&format!("      <pubDate>{pd}</pubDate>\n"));
             }
             if let Some(ref summary) = item.summary {
-                xml.push_str(&format!("      <description>{}</description>\n", xml_escape(summary)));
+                xml.push_str(&format!(
+                    "      <description>{}</description>\n",
+                    xml_escape(summary)
+                ));
             }
             if let Some(ref content) = item.content {
                 match content {
                     Content::Text(t) | Content::Html(t) | Content::Xhtml(t) => {
-                        xml.push_str(&format!("      <content:encoded><![CDATA[{}]]></content:encoded>\n", t));
+                        xml.push_str(&format!(
+                            "      <content:encoded><![CDATA[{}]]></content:encoded>\n",
+                            t
+                        ));
                     }
                 }
             }
             if let Some(ref author) = item.author {
                 if let Some(ref email) = author.email {
-                    xml.push_str(&format!("      <author>{} ({})</author>\n", email, xml_escape(&author.name)));
+                    xml.push_str(&format!(
+                        "      <author>{} ({})</author>\n",
+                        email,
+                        xml_escape(&author.name)
+                    ));
                 }
             }
             for cat in &item.categories {
@@ -230,7 +336,9 @@ impl RssBuilder {
             if let Some(ref enc) = item.enclosure {
                 xml.push_str(&format!(
                     "      <enclosure url=\"{}\" length=\"{}\" type=\"{}\" />\n",
-                    xml_escape(&enc.url), enc.length, xml_escape(&enc.mime_type)
+                    xml_escape(&enc.url),
+                    enc.length,
+                    xml_escape(&enc.mime_type)
                 ));
             }
             xml.push_str("    </item>\n");
@@ -264,27 +372,66 @@ pub struct AtomBuilder {
 impl AtomBuilder {
     pub fn new(id: &str, title: &str, updated: &str) -> Self {
         Self {
-            id: id.into(), title: title.into(), updated: updated.into(),
-            subtitle: None, link_self: None, link_alternate: None,
-            author: None, generator: None, icon: None, logo: None,
-            rights: None, entries: Vec::new(),
+            id: id.into(),
+            title: title.into(),
+            updated: updated.into(),
+            subtitle: None,
+            link_self: None,
+            link_alternate: None,
+            author: None,
+            generator: None,
+            icon: None,
+            logo: None,
+            rights: None,
+            entries: Vec::new(),
         }
     }
 
-    pub fn subtitle(mut self, s: &str) -> Self { self.subtitle = Some(s.into()); self }
-    pub fn link_self(mut self, url: &str) -> Self { self.link_self = Some(url.into()); self }
-    pub fn link_alternate(mut self, url: &str) -> Self { self.link_alternate = Some(url.into()); self }
-    pub fn author(mut self, a: Person) -> Self { self.author = Some(a); self }
-    pub fn generator(mut self, g: &str) -> Self { self.generator = Some(g.into()); self }
-    pub fn icon(mut self, url: &str) -> Self { self.icon = Some(url.into()); self }
-    pub fn logo(mut self, url: &str) -> Self { self.logo = Some(url.into()); self }
-    pub fn rights(mut self, r: &str) -> Self { self.rights = Some(r.into()); self }
-    pub fn entry(mut self, e: FeedEntry) -> Self { self.entries.push(e); self }
+    pub fn subtitle(mut self, s: &str) -> Self {
+        self.subtitle = Some(s.into());
+        self
+    }
+    pub fn link_self(mut self, url: &str) -> Self {
+        self.link_self = Some(url.into());
+        self
+    }
+    pub fn link_alternate(mut self, url: &str) -> Self {
+        self.link_alternate = Some(url.into());
+        self
+    }
+    pub fn author(mut self, a: Person) -> Self {
+        self.author = Some(a);
+        self
+    }
+    pub fn generator(mut self, g: &str) -> Self {
+        self.generator = Some(g.into());
+        self
+    }
+    pub fn icon(mut self, url: &str) -> Self {
+        self.icon = Some(url.into());
+        self
+    }
+    pub fn logo(mut self, url: &str) -> Self {
+        self.logo = Some(url.into());
+        self
+    }
+    pub fn rights(mut self, r: &str) -> Self {
+        self.rights = Some(r.into());
+        self
+    }
+    pub fn entry(mut self, e: FeedEntry) -> Self {
+        self.entries.push(e);
+        self
+    }
 
     /// Build the Atom 1.0 XML string.
     pub fn build(&self) -> Result<String, FeedError> {
-        if self.title.is_empty() { return Err(FeedError::MissingTitle); }
-        if self.id.is_empty() { return Err(FeedError::MissingId); }
+        if self.title.is_empty() {
+            return Err(FeedError::MissingTitle);
+        }
+        if self.id.is_empty() {
+            return Err(FeedError::MissingId);
+        }
 
         let mut xml = String::new();
         xml.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
@@ -297,10 +444,16 @@ impl AtomBuilder {
             xml.push_str(&format!("  <subtitle>{}</subtitle>\n", xml_escape(st)));
         }
         if let Some(ref ls) = self.link_self {
-            xml.push_str(&format!("  <link rel=\"self\" href=\"{}\" />\n", xml_escape(ls)));
+            xml.push_str(&format!(
+                "  <link rel=\"self\" href=\"{}\" />\n",
+                xml_escape(ls)
+            ));
         }
         if let Some(ref la) = self.link_alternate {
-            xml.push_str(&format!("  <link rel=\"alternate\" href=\"{}\" />\n", xml_escape(la)));
+            xml.push_str(&format!(
+                "  <link rel=\"alternate\" href=\"{}\" />\n",
+                xml_escape(la)
+            ));
         }
         if let Some(ref a) = self.author {
             write_atom_person(&mut xml, "author", a, 2);
@@ -322,8 +475,14 @@ impl AtomBuilder {
             xml.push_str("  <entry>\n");
             let entry_id = entry.id.as_deref().unwrap_or(&entry.link);
             xml.push_str(&format!("    <id>{}</id>\n", xml_escape(entry_id)));
-            xml.push_str(&format!("    <title>{}</title>\n", xml_escape(&entry.title)));
-            xml.push_str(&format!("    <link href=\"{}\" />\n", xml_escape(&entry.link)));
+            xml.push_str(&format!(
+                "    <title>{}</title>\n",
+                xml_escape(&entry.title)
+            ));
+            xml.push_str(&format!(
+                "    <link href=\"{}\" />\n",
+                xml_escape(&entry.link)
+            ));
 
             if let Some(ref updated) = entry.updated {
                 xml.push_str(&format!("    <updated>{updated}</updated>\n"));
@@ -337,10 +496,16 @@ impl AtomBuilder {
             if let Some(ref content) = entry.content {
                 match content {
                     Content::Text(t) => {
-                        xml.push_str(&format!("    <content type=\"text\">{}</content>\n", xml_escape(t)));
+                        xml.push_str(&format!(
+                            "    <content type=\"text\">{}</content>\n",
+                            xml_escape(t)
+                        ));
                     }
                     Content::Html(h) => {
-                        xml.push_str(&format!("    <content type=\"html\">{}</content>\n", xml_escape(h)));
+                        xml.push_str(&format!(
+                            "    <content type=\"html\">{}</content>\n",
+                            xml_escape(h)
+                        ));
                     }
                     Content::Xhtml(x) => {
                         xml.push_str(&format!("    <content type=\"xhtml\"><div xmlns=\"http://www.w3.org/1999/xhtml\">{x}</div></content>\n"));
@@ -364,7 +529,10 @@ impl AtomBuilder {
 fn write_atom_person(xml: &mut String, tag: &str, person: &Person, indent: usize) {
     let pad = " ".repeat(indent);
     xml.push_str(&format!("{pad}<{tag}>\n"));
-    xml.push_str(&format!("{pad}  <name>{}</name>\n", xml_escape(&person.name)));
+    xml.push_str(&format!(
+        "{pad}  <name>{}</name>\n",
+        xml_escape(&person.name)
+    ));
     if let Some(ref email) = person.email {
         xml.push_str(&format!("{pad}  <email>{email}</email>\n"));
     }
@@ -384,19 +552,31 @@ pub struct ValidationIssue {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ValidationLevel { Error, Warning }
+pub enum ValidationLevel {
+    Error,
+    Warning,
+}
 
 /// Validate an RSS feed builder.
 pub fn validate_rss(builder: &RssBuilder) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
     if builder.title.is_empty() {
-        issues.push(ValidationIssue { level: ValidationLevel::Error, message: "title is required".into() });
+        issues.push(ValidationIssue {
+            level: ValidationLevel::Error,
+            message: "title is required".into(),
+        });
     }
     if builder.link.is_empty() {
-        issues.push(ValidationIssue { level: ValidationLevel::Error, message: "link is required".into() });
+        issues.push(ValidationIssue {
+            level: ValidationLevel::Error,
+            message: "link is required".into(),
+        });
     }
     if builder.description.is_empty() {
-        issues.push(ValidationIssue { level: ValidationLevel::Warning, message: "description is recommended".into() });
+        issues.push(ValidationIssue {
+            level: ValidationLevel::Warning,
+            message: "description is recommended".into(),
+        });
     }
     for (i, item) in builder.items.iter().enumerate() {
         if item.title.is_empty() {
@@ -419,16 +599,28 @@ pub fn validate_rss(builder: &RssBuilder) -> Vec<ValidationIssue> {
 pub fn validate_atom(builder: &AtomBuilder) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
     if builder.id.is_empty() {
-        issues.push(ValidationIssue { level: ValidationLevel::Error, message: "id is required".into() });
+        issues.push(ValidationIssue {
+            level: ValidationLevel::Error,
+            message: "id is required".into(),
+        });
     }
     if builder.title.is_empty() {
-        issues.push(ValidationIssue { level: ValidationLevel::Error, message: "title is required".into() });
+        issues.push(ValidationIssue {
+            level: ValidationLevel::Error,
+            message: "title is required".into(),
+        });
     }
     if builder.updated.is_empty() {
-        issues.push(ValidationIssue { level: ValidationLevel::Error, message: "updated is required".into() });
+        issues.push(ValidationIssue {
+            level: ValidationLevel::Error,
+            message: "updated is required".into(),
+        });
     }
     if builder.author.is_none() {
-        issues.push(ValidationIssue { level: ValidationLevel::Warning, message: "author is recommended".into() });
+        issues.push(ValidationIssue {
+            level: ValidationLevel::Warning,
+            message: "author is recommended".into(),
+        });
     }
     for (i, entry) in builder.entries.iter().enumerate() {
         if entry.title.is_empty() {
@@ -502,7 +694,11 @@ mod tests {
     #[test]
     fn rss_with_image() {
         let rss = RssBuilder::new("Feed", "https://example.com", "Desc")
-            .image("https://example.com/logo.png", "Logo", "https://example.com")
+            .image(
+                "https://example.com/logo.png",
+                "Logo",
+                "https://example.com",
+            )
             .build()
             .unwrap();
         assert!(rss.contains("<image>"));
@@ -515,7 +711,7 @@ mod tests {
             .item(
                 FeedEntry::new("Post", "https://example.com/1")
                     .category("tech")
-                    .category("rust")
+                    .category("rust"),
             )
             .build()
             .unwrap();
@@ -525,13 +721,15 @@ mod tests {
 
     #[test]
     fn rss_item_with_enclosure() {
-        let rss = RssBuilder::new("Podcast", "https://example.com", "A podcast")
-            .item(
-                FeedEntry::new("Episode 1", "https://example.com/ep1")
-                    .enclosure(Enclosure::new("https://example.com/ep1.mp3", 12345678, "audio/mpeg"))
-            )
-            .build()
-            .unwrap();
+        let rss =
+            RssBuilder::new("Podcast", "https://example.com", "A podcast")
+                .item(
+                    FeedEntry::new("Episode 1", "https://example.com/ep1").enclosure(
+                        Enclosure::new("https://example.com/ep1.mp3", 12345678, "audio/mpeg"),
+                    ),
+                )
+                .build()
+                .unwrap();
         assert!(rss.contains("enclosure"));
         assert!(rss.contains("audio/mpeg"));
         assert!(rss.contains("12345678"));
@@ -542,7 +740,7 @@ mod tests {
         let rss = RssBuilder::new("Feed", "https://example.com", "Desc")
             .item(
                 FeedEntry::new("Post", "https://example.com/1")
-                    .author(Person::new("Alice").email("alice@example.com"))
+                    .author(Person::new("Alice").email("alice@example.com")),
             )
             .build()
             .unwrap();
@@ -554,7 +752,7 @@ mod tests {
         let rss = RssBuilder::new("Feed", "https://example.com", "Desc")
             .item(
                 FeedEntry::new("Post", "https://example.com/1")
-                    .content(Content::html("<p>Hello</p>"))
+                    .content(Content::html("<p>Hello</p>")),
             )
             .build()
             .unwrap();
@@ -576,18 +774,14 @@ mod tests {
 
     #[test]
     fn atom_basic() {
-        let atom = AtomBuilder::new(
-            "urn:uuid:feed-id",
-            "My Atom Feed",
-            "2026-03-09T00:00:00Z"
-        )
-        .entry(
-            FeedEntry::new("Entry 1", "https://example.com/1")
-                .id("urn:uuid:entry-1")
-                .updated("2026-03-09T00:00:00Z")
-        )
-        .build()
-        .unwrap();
+        let atom = AtomBuilder::new("urn:uuid:feed-id", "My Atom Feed", "2026-03-09T00:00:00Z")
+            .entry(
+                FeedEntry::new("Entry 1", "https://example.com/1")
+                    .id("urn:uuid:entry-1")
+                    .updated("2026-03-09T00:00:00Z"),
+            )
+            .build()
+            .unwrap();
         assert!(atom.contains("<feed xmlns=\"http://www.w3.org/2005/Atom\">"));
         assert!(atom.contains("<id>urn:uuid:feed-id</id>"));
         assert!(atom.contains("<title>My Atom Feed</title>"));
@@ -597,7 +791,11 @@ mod tests {
     #[test]
     fn atom_with_author() {
         let atom = AtomBuilder::new("urn:uuid:1", "Feed", "2026-03-09T00:00:00Z")
-            .author(Person::new("Alice").email("alice@example.com").uri("https://alice.example.com"))
+            .author(
+                Person::new("Alice")
+                    .email("alice@example.com")
+                    .uri("https://alice.example.com"),
+            )
             .build()
             .unwrap();
         assert!(atom.contains("<name>Alice</name>"));
@@ -639,7 +837,7 @@ mod tests {
             .entry(
                 FeedEntry::new("Entry", "https://example.com/1")
                     .id("urn:uuid:e1")
-                    .content(Content::text("Plain text content"))
+                    .content(Content::text("Plain text content")),
             )
             .build()
             .unwrap();
@@ -653,7 +851,7 @@ mod tests {
             .entry(
                 FeedEntry::new("Entry", "https://example.com/1")
                     .id("urn:uuid:e1")
-                    .content(Content::html("<p>HTML</p>"))
+                    .content(Content::html("<p>HTML</p>")),
             )
             .build()
             .unwrap();
@@ -666,7 +864,7 @@ mod tests {
             .entry(
                 FeedEntry::new("Entry", "https://example.com/1")
                     .id("urn:uuid:e1")
-                    .category("rust")
+                    .category("rust"),
             )
             .build()
             .unwrap();
@@ -697,7 +895,10 @@ mod tests {
     fn validate_rss_missing_fields() {
         let builder = RssBuilder::new("", "", "");
         let issues = validate_rss(&builder);
-        let errors: Vec<_> = issues.iter().filter(|i| i.level == ValidationLevel::Error).collect();
+        let errors: Vec<_> = issues
+            .iter()
+            .filter(|i| i.level == ValidationLevel::Error)
+            .collect();
         assert!(errors.len() >= 2);
     }
 
@@ -728,7 +929,9 @@ mod tests {
 
     #[test]
     fn person_builder() {
-        let p = Person::new("Alice").email("a@example.com").uri("https://alice.com");
+        let p = Person::new("Alice")
+            .email("a@example.com")
+            .uri("https://alice.com");
         assert_eq!(p.name, "Alice");
         assert_eq!(p.email.as_deref(), Some("a@example.com"));
         assert_eq!(p.uri.as_deref(), Some("https://alice.com"));
@@ -756,9 +959,18 @@ mod tests {
 
     #[test]
     fn error_display() {
-        assert_eq!(format!("{}", FeedError::MissingTitle), "feed title is required");
-        assert_eq!(format!("{}", FeedError::MissingLink), "feed link is required");
-        assert_eq!(format!("{}", FeedError::MissingId), "atom feed id is required");
+        assert_eq!(
+            format!("{}", FeedError::MissingTitle),
+            "feed title is required"
+        );
+        assert_eq!(
+            format!("{}", FeedError::MissingLink),
+            "feed link is required"
+        );
+        assert_eq!(
+            format!("{}", FeedError::MissingId),
+            "atom feed id is required"
+        );
     }
 
     #[test]

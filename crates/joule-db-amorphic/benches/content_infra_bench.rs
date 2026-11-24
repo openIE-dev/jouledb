@@ -7,7 +7,7 @@
 //! - Trending query latency (live content)
 //! - Multi-tenant isolation overhead
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use joule_db_amorphic::*;
 
 /// Build a store with N records for benchmarking.
@@ -53,9 +53,7 @@ fn bench_similarity_search(c: &mut Criterion) {
     group.sample_size(20);
 
     group.bench_function("similar_to_10k", |b| {
-        b.iter(|| {
-            black_box(store.query_similar_to("item_42", 10))
-        });
+        b.iter(|| black_box(store.query_similar_to("item_42", 10)));
     });
 
     group.finish();
@@ -70,9 +68,8 @@ fn bench_batch_lookup(c: &mut Criterion) {
 
     group.bench_function("batch_get_100_keys", |b| {
         b.iter(|| {
-            let results = store.batch_get_by_names(
-                &keys.iter().map(|s| s.as_str()).collect::<Vec<_>>()
-            );
+            let results =
+                store.batch_get_by_names(&keys.iter().map(|s| s.as_str()).collect::<Vec<_>>());
             black_box(results.len())
         });
     });
@@ -91,15 +88,11 @@ fn bench_trending(c: &mut Criterion) {
     let mut group = c.benchmark_group("trending");
 
     group.bench_function("query_top_10", |b| {
-        b.iter(|| {
-            black_box(trending.query_trending(10, TrendWindow::OneMinute, None))
-        });
+        b.iter(|| black_box(trending.query_trending(10, TrendWindow::OneMinute, None)));
     });
 
     group.bench_function("query_top_100", |b| {
-        b.iter(|| {
-            black_box(trending.query_trending(100, TrendWindow::OneHour, None))
-        });
+        b.iter(|| black_box(trending.query_trending(100, TrendWindow::OneHour, None)));
     });
 
     group.finish();
@@ -133,12 +126,8 @@ fn bench_multi_tenant(c: &mut Criterion) {
     group.bench_function("query_equals_1k_records", |b| {
         b.iter(|| {
             black_box(
-                mt.query_equals(
-                    "tenant_0",
-                    "name",
-                    &Value::String("item_500".to_string()),
-                )
-                .unwrap(),
+                mt.query_equals("tenant_0", "name", &Value::String("item_500".to_string()))
+                    .unwrap(),
             )
         });
     });

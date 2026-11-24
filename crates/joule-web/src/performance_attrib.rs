@@ -21,7 +21,9 @@ impl fmt::Display for PerformanceAttribError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidConfig(msg) => write!(f, "PerformanceAttrib: invalid config: {msg}"),
-            Self::ComputationFailed(msg) => write!(f, "PerformanceAttrib: computation failed: {msg}"),
+            Self::ComputationFailed(msg) => {
+                write!(f, "PerformanceAttrib: computation failed: {msg}")
+            }
             Self::InsufficientData(msg) => write!(f, "PerformanceAttrib: insufficient data: {msg}"),
         }
     }
@@ -70,22 +72,32 @@ impl PerformanceAttribConfig {
 
     pub fn validate(&self) -> Result<(), PerformanceAttribError> {
         if self.benchmark_return.is_nan() {
-            return Err(PerformanceAttribError::InvalidConfig("benchmark_return is NaN".into()));
+            return Err(PerformanceAttribError::InvalidConfig(
+                "benchmark_return is NaN".into(),
+            ));
         }
         if self.portfolio_return.is_nan() {
-            return Err(PerformanceAttribError::InvalidConfig("portfolio_return is NaN".into()));
+            return Err(PerformanceAttribError::InvalidConfig(
+                "portfolio_return is NaN".into(),
+            ));
         }
         Ok(())
     }
 }
 
 impl Default for PerformanceAttribConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for PerformanceAttribConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PerformanceAttribConfig(benchmark_return={0:.4}, portfolio_return={1:.4}, periods={2}, currency_aware={3})", self.benchmark_return, self.portfolio_return, self.periods, self.currency_aware)
+        write!(
+            f,
+            "PerformanceAttribConfig(benchmark_return={0:.4}, portfolio_return={1:.4}, periods={2}, currency_aware={3})",
+            self.benchmark_return, self.portfolio_return, self.periods, self.currency_aware
+        )
     }
 }
 
@@ -101,7 +113,10 @@ pub struct PerformanceAttrib {
 impl PerformanceAttrib {
     pub fn new(config: PerformanceAttribConfig) -> Result<Self, PerformanceAttribError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -113,13 +128,21 @@ impl PerformanceAttrib {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &PerformanceAttribConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &PerformanceAttribConfig {
+        &self.config
+    }
 
     /// Brinson allocation effect.
     pub fn allocation_effect(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -129,7 +152,9 @@ impl PerformanceAttrib {
 
     /// Brinson selection effect.
     pub fn selection_effect(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -139,7 +164,9 @@ impl PerformanceAttrib {
 
     /// TWR calculation.
     pub fn time_weighted_return(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -149,7 +176,9 @@ impl PerformanceAttrib {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -161,7 +190,9 @@ impl PerformanceAttrib {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -173,7 +204,11 @@ impl PerformanceAttrib {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -246,7 +281,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = PerformanceAttrib::new(PerformanceAttribConfig::new()).unwrap()
+        let e = PerformanceAttrib::new(PerformanceAttribConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -262,7 +298,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = PerformanceAttrib::new(PerformanceAttribConfig::new()).unwrap()
+        let e = PerformanceAttrib::new(PerformanceAttribConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("PerformanceAttrib"));
@@ -270,7 +307,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = PerformanceAttrib::new(PerformanceAttribConfig::new()).unwrap()
+        let e = PerformanceAttrib::new(PerformanceAttribConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -281,7 +319,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = PerformanceAttrib::new(PerformanceAttribConfig::new()).unwrap()
+        let e = PerformanceAttrib::new(PerformanceAttribConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -289,7 +328,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = PerformanceAttrib::new(PerformanceAttribConfig::new()).unwrap()
+        let e = PerformanceAttrib::new(PerformanceAttribConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -306,7 +346,8 @@ mod tests {
 
     #[test]
     fn test_allocation_effect() {
-        let e = PerformanceAttrib::new(PerformanceAttribConfig::new()).unwrap()
+        let e = PerformanceAttrib::new(PerformanceAttribConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.allocation_effect();
         assert!(result.is_finite());
@@ -314,7 +355,8 @@ mod tests {
 
     #[test]
     fn test_selection_effect() {
-        let e = PerformanceAttrib::new(PerformanceAttribConfig::new()).unwrap()
+        let e = PerformanceAttrib::new(PerformanceAttribConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.selection_effect();
         assert!(result.is_finite());
@@ -322,7 +364,8 @@ mod tests {
 
     #[test]
     fn test_time_weighted_return() {
-        let e = PerformanceAttrib::new(PerformanceAttribConfig::new()).unwrap()
+        let e = PerformanceAttrib::new(PerformanceAttribConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.time_weighted_return();
         assert!(result.is_finite());

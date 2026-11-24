@@ -16,11 +16,19 @@ pub struct Descriptor {
 }
 
 impl Descriptor {
-    pub fn new(data: Vec<f64>) -> Self { Self { data } }
+    pub fn new(data: Vec<f64>) -> Self {
+        Self { data }
+    }
 
-    pub fn zeros(dim: usize) -> Self { Self { data: vec![0.0; dim] } }
+    pub fn zeros(dim: usize) -> Self {
+        Self {
+            data: vec![0.0; dim],
+        }
+    }
 
-    pub fn dim(&self) -> usize { self.data.len() }
+    pub fn dim(&self) -> usize {
+        self.data.len()
+    }
 
     /// L2 distance to another descriptor.
     pub fn distance(&self, other: &Descriptor) -> f64 {
@@ -37,7 +45,9 @@ impl Descriptor {
     pub fn normalize(&mut self) {
         let norm: f64 = self.data.iter().map(|v| v * v).sum::<f64>().sqrt();
         if norm > 1e-15 {
-            for v in &mut self.data { *v /= norm; }
+            for v in &mut self.data {
+                *v /= norm;
+            }
         }
     }
 }
@@ -64,9 +74,13 @@ pub struct Vocabulary {
 }
 
 impl Vocabulary {
-    pub fn new(words: Vec<VisualWord>) -> Self { Self { words } }
+    pub fn new(words: Vec<VisualWord>) -> Self {
+        Self { words }
+    }
 
-    pub fn size(&self) -> usize { self.words.len() }
+    pub fn size(&self) -> usize {
+        self.words.len()
+    }
 
     /// Quantize a descriptor to the nearest visual word.
     pub fn quantize(&self, desc: &Descriptor) -> usize {
@@ -83,14 +97,21 @@ impl Vocabulary {
     }
 
     /// Build a simple vocabulary from descriptors using k-means.
-    pub fn from_descriptors(descriptors: &[Descriptor], k: usize, max_iter: usize, seed: u64) -> Self {
+    pub fn from_descriptors(
+        descriptors: &[Descriptor],
+        k: usize,
+        max_iter: usize,
+        seed: u64,
+    ) -> Self {
         if descriptors.is_empty() || k == 0 {
             return Self { words: Vec::new() };
         }
         let dim = descriptors[0].dim();
         let mut rng_state = seed.wrapping_add(1);
         let mut next_rng = || -> u64 {
-            rng_state = rng_state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            rng_state = rng_state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             rng_state
         };
 
@@ -109,8 +130,16 @@ impl Vocabulary {
                 let mut best = 0;
                 let mut best_d = f64::MAX;
                 for (c, center) in centers.iter().enumerate() {
-                    let d: f64 = desc.data.iter().zip(center).map(|(a, b)| (a - b) * (a - b)).sum();
-                    if d < best_d { best_d = d; best = c; }
+                    let d: f64 = desc
+                        .data
+                        .iter()
+                        .zip(center)
+                        .map(|(a, b)| (a - b) * (a - b))
+                        .sum();
+                    if d < best_d {
+                        best_d = d;
+                        best = c;
+                    }
                 }
                 assignments[i] = best;
             }
@@ -127,7 +156,9 @@ impl Vocabulary {
             }
             for c in 0..k {
                 if counts[c] > 0 {
-                    for j in 0..dim { new_centers[c][j] /= counts[c] as f64; }
+                    for j in 0..dim {
+                        new_centers[c][j] /= counts[c] as f64;
+                    }
                 }
             }
             centers = new_centers;
@@ -136,7 +167,10 @@ impl Vocabulary {
         let words = centers
             .into_iter()
             .enumerate()
-            .map(|(id, center)| VisualWord { id, center: Descriptor::new(center) })
+            .map(|(id, center)| VisualWord {
+                id,
+                center: Descriptor::new(center),
+            })
             .collect();
         Self { words }
     }
@@ -160,7 +194,11 @@ pub struct BowVector {
 
 impl BowVector {
     /// Build from descriptors + vocabulary (TF weighting).
-    pub fn from_descriptors(frame_id: usize, descriptors: &[Descriptor], vocab: &Vocabulary) -> Self {
+    pub fn from_descriptors(
+        frame_id: usize,
+        descriptors: &[Descriptor],
+        vocab: &Vocabulary,
+    ) -> Self {
         let mut word_counts: HashMap<usize, usize> = HashMap::new();
         for desc in descriptors {
             let word = vocab.quantize(desc);
@@ -193,7 +231,12 @@ impl BowVector {
 
 impl fmt::Display for BowVector {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "BowVector(frame={}, words={})", self.frame_id, self.weights.len())
+        write!(
+            f,
+            "BowVector(frame={}, words={})",
+            self.frame_id,
+            self.weights.len()
+        )
     }
 }
 
@@ -243,12 +286,29 @@ impl Default for LoopClosureConfig {
 }
 
 impl LoopClosureConfig {
-    pub fn new() -> Self { Self::default() }
-    pub fn with_min_score(mut self, s: f64) -> Self { self.min_score = s; self }
-    pub fn with_min_frame_gap(mut self, g: usize) -> Self { self.min_frame_gap = g; self }
-    pub fn with_consistency_window(mut self, w: usize) -> Self { self.consistency_window = w; self }
-    pub fn with_consistency_threshold(mut self, t: usize) -> Self { self.consistency_threshold = t; self }
-    pub fn with_max_candidates(mut self, m: usize) -> Self { self.max_candidates = m; self }
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn with_min_score(mut self, s: f64) -> Self {
+        self.min_score = s;
+        self
+    }
+    pub fn with_min_frame_gap(mut self, g: usize) -> Self {
+        self.min_frame_gap = g;
+        self
+    }
+    pub fn with_consistency_window(mut self, w: usize) -> Self {
+        self.consistency_window = w;
+        self
+    }
+    pub fn with_consistency_threshold(mut self, t: usize) -> Self {
+        self.consistency_threshold = t;
+        self
+    }
+    pub fn with_max_candidates(mut self, m: usize) -> Self {
+        self.max_candidates = m;
+        self
+    }
 }
 
 /// Loop closure detector using bag-of-words.
@@ -261,7 +321,11 @@ pub struct LoopClosureDetector {
 
 impl LoopClosureDetector {
     pub fn new(config: LoopClosureConfig) -> Self {
-        Self { config, database: Vec::new(), detections: Vec::new() }
+        Self {
+            config,
+            database: Vec::new(),
+            detections: Vec::new(),
+        }
     }
 
     /// Add a frame to the database.
@@ -280,7 +344,9 @@ impl LoopClosureDetector {
             } else {
                 entry.frame_id - query.frame_id
             };
-            if gap < self.config.min_frame_gap { continue; }
+            if gap < self.config.min_frame_gap {
+                continue;
+            }
 
             let score = query.similarity(entry);
             if score >= self.config.min_score {
@@ -294,7 +360,11 @@ impl LoopClosureDetector {
         }
 
         // Sort by score descending
-        candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        candidates.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         candidates.truncate(self.config.max_candidates);
 
         // Temporal consistency check
@@ -302,7 +372,8 @@ impl LoopClosureDetector {
             cand.verified = self.check_consistency(cand);
         }
 
-        let verified: Vec<LoopCandidate> = candidates.iter().filter(|c| c.verified).cloned().collect();
+        let verified: Vec<LoopCandidate> =
+            candidates.iter().filter(|c| c.verified).cloned().collect();
         self.detections.extend(verified.iter().cloned());
         candidates
     }
@@ -361,9 +432,18 @@ mod tests {
 
     fn simple_vocab() -> Vocabulary {
         Vocabulary::new(vec![
-            VisualWord { id: 0, center: make_desc(&[1.0, 0.0, 0.0]) },
-            VisualWord { id: 1, center: make_desc(&[0.0, 1.0, 0.0]) },
-            VisualWord { id: 2, center: make_desc(&[0.0, 0.0, 1.0]) },
+            VisualWord {
+                id: 0,
+                center: make_desc(&[1.0, 0.0, 0.0]),
+            },
+            VisualWord {
+                id: 1,
+                center: make_desc(&[0.0, 1.0, 0.0]),
+            },
+            VisualWord {
+                id: 2,
+                center: make_desc(&[0.0, 0.0, 1.0]),
+            },
         ])
     }
 
@@ -461,7 +541,12 @@ mod tests {
 
     #[test]
     fn test_loop_candidate_display() {
-        let c = LoopCandidate { query_frame: 10, match_frame: 50, score: 0.85, verified: true };
+        let c = LoopCandidate {
+            query_frame: 10,
+            match_frame: 50,
+            score: 0.85,
+            verified: true,
+        };
         let s = format!("{}", c);
         assert!(s.contains("10"));
         assert!(s.contains("50"));
@@ -489,7 +574,11 @@ mod tests {
         let vocab = simple_vocab();
         // Add frames that are too close
         for i in 0..3 {
-            det.add_frame(BowVector::from_descriptors(i, &[make_desc(&[1.0, 0.0, 0.0])], &vocab));
+            det.add_frame(BowVector::from_descriptors(
+                i,
+                &[make_desc(&[1.0, 0.0, 0.0])],
+                &vocab,
+            ));
         }
         let query = BowVector::from_descriptors(4, &[make_desc(&[1.0, 0.0, 0.0])], &vocab);
         let cands = det.detect(&query);
@@ -499,10 +588,16 @@ mod tests {
     #[test]
     fn test_detect_loop_found() {
         let mut det = LoopClosureDetector::new(
-            LoopClosureConfig::new().with_min_frame_gap(5).with_min_score(0.5),
+            LoopClosureConfig::new()
+                .with_min_frame_gap(5)
+                .with_min_score(0.5),
         );
         let vocab = simple_vocab();
-        det.add_frame(BowVector::from_descriptors(0, &[make_desc(&[1.0, 0.0, 0.0])], &vocab));
+        det.add_frame(BowVector::from_descriptors(
+            0,
+            &[make_desc(&[1.0, 0.0, 0.0])],
+            &vocab,
+        ));
         let query = BowVector::from_descriptors(100, &[make_desc(&[1.0, 0.0, 0.0])], &vocab);
         let cands = det.detect(&query);
         assert!(!cands.is_empty());

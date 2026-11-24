@@ -232,9 +232,11 @@ impl SourceMap {
 
     /// Add a mapping and update the reverse index.
     pub fn add_mapping(&mut self, mapping: Mapping) {
-        if let (Some(si), Some(ol), Some(oc)) =
-            (mapping.source_idx, mapping.original_line, mapping.original_col)
-        {
+        if let (Some(si), Some(ol), Some(oc)) = (
+            mapping.source_idx,
+            mapping.original_line,
+            mapping.original_col,
+        ) {
             self.reverse_index
                 .entry((si, ol, oc))
                 .or_default()
@@ -260,9 +262,7 @@ impl SourceMap {
 
     /// Get the source content for a given source index.
     pub fn source_content(&self, source_idx: u32) -> Option<&str> {
-        self.sources_content
-            .get(source_idx as usize)?
-            .as_deref()
+        self.sources_content.get(source_idx as usize)?.as_deref()
     }
 
     /// Generate the `mappings` string in VLQ format.
@@ -293,8 +293,7 @@ impl SourceMap {
             out.push_str(&vlq_encode(gen_col - prev_gen_col));
             prev_gen_col = gen_col;
 
-            if let (Some(si), Some(ol), Some(oc)) =
-                (m.source_idx, m.original_line, m.original_col)
+            if let (Some(si), Some(ol), Some(oc)) = (m.source_idx, m.original_line, m.original_col)
             {
                 let si = i64::from(si);
                 let ol = i64::from(ol);
@@ -378,7 +377,12 @@ impl SourceMap {
     }
 
     /// Reverse lookup: find all generated positions for an original position.
-    pub fn reverse_lookup(&self, source_idx: u32, orig_line: u32, orig_col: u32) -> Vec<(u32, u32)> {
+    pub fn reverse_lookup(
+        &self,
+        source_idx: u32,
+        orig_line: u32,
+        orig_col: u32,
+    ) -> Vec<(u32, u32)> {
         self.reverse_index
             .get(&(source_idx, orig_line, orig_col))
             .cloned()

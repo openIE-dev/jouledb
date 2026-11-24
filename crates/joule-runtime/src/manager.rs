@@ -7,7 +7,9 @@ use crate::{
     backend::{ExecOutput, RuntimeBackend},
     catalog,
     competence::DelegationLevel,
-    contract::{ContractError, ContractProposal, ContractResponse, ExtensionRequest, ExtensionResponse},
+    contract::{
+        ContractError, ContractProposal, ContractResponse, ExtensionRequest, ExtensionResponse,
+    },
     dispatch::{DispatchMesh, DispatchNode, StatusReport, TaskAction, TaskIntent, TaskOutcome},
     energy_trace::EnergySample,
     promotion::{PromotionPipeline, PromotionSummary, PromotionTarget},
@@ -478,10 +480,9 @@ impl RuntimeManager {
         agent_id: &str,
         response: ContractResponse,
     ) -> Result<AgentPhase, RuntimeError> {
-        let sandbox = self
-            .active_agents
-            .get_mut(agent_id)
-            .ok_or_else(|| RuntimeError::Internal(format!("no active sandbox for agent {agent_id}")))?;
+        let sandbox = self.active_agents.get_mut(agent_id).ok_or_else(|| {
+            RuntimeError::Internal(format!("no active sandbox for agent {agent_id}"))
+        })?;
 
         let phase = sandbox
             .process_response(response)
@@ -504,10 +505,9 @@ impl RuntimeManager {
         agent_id: &str,
         sample: EnergySample,
     ) -> Result<Option<RecallRecommendation>, RuntimeError> {
-        let sandbox = self
-            .active_agents
-            .get_mut(agent_id)
-            .ok_or_else(|| RuntimeError::Internal(format!("no active sandbox for agent {agent_id}")))?;
+        let sandbox = self.active_agents.get_mut(agent_id).ok_or_else(|| {
+            RuntimeError::Internal(format!("no active sandbox for agent {agent_id}"))
+        })?;
 
         Ok(sandbox.feed_energy_sample(sample))
     }
@@ -518,10 +518,9 @@ impl RuntimeManager {
         agent_id: &str,
         request: &ExtensionRequest,
     ) -> Result<ExtensionResponse, RuntimeError> {
-        let sandbox = self
-            .active_agents
-            .get_mut(agent_id)
-            .ok_or_else(|| RuntimeError::Internal(format!("no active sandbox for agent {agent_id}")))?;
+        let sandbox = self.active_agents.get_mut(agent_id).ok_or_else(|| {
+            RuntimeError::Internal(format!("no active sandbox for agent {agent_id}"))
+        })?;
 
         sandbox
             .process_extension_request(request)
@@ -535,10 +534,9 @@ impl RuntimeManager {
         findings: AgentFindings,
         target_pid: Option<u32>,
     ) -> Result<AgentSandboxResult, RuntimeError> {
-        let sandbox = self
-            .active_agents
-            .remove(agent_id)
-            .ok_or_else(|| RuntimeError::Internal(format!("no active sandbox for agent {agent_id}")))?;
+        let sandbox = self.active_agents.remove(agent_id).ok_or_else(|| {
+            RuntimeError::Internal(format!("no active sandbox for agent {agent_id}"))
+        })?;
 
         sandbox
             .voluntary_return(findings, target_pid)
@@ -552,10 +550,9 @@ impl RuntimeManager {
         reason: &str,
         target_pid: Option<u32>,
     ) -> Result<AgentSandboxResult, RuntimeError> {
-        let sandbox = self
-            .active_agents
-            .remove(agent_id)
-            .ok_or_else(|| RuntimeError::Internal(format!("no active sandbox for agent {agent_id}")))?;
+        let sandbox = self.active_agents.remove(agent_id).ok_or_else(|| {
+            RuntimeError::Internal(format!("no active sandbox for agent {agent_id}"))
+        })?;
 
         Ok(sandbox.recall(reason, target_pid))
     }
@@ -616,7 +613,11 @@ impl RuntimeManager {
     /// no node is competent (task should escalate to LLM fallback).
     pub fn dispatch_task(&mut self, intent: &TaskIntent) -> Option<String> {
         // A5: try deterministic resolution first
-        if self.promotion_pipeline.try_resolve(&intent.purpose).is_some() {
+        if self
+            .promotion_pipeline
+            .try_resolve(&intent.purpose)
+            .is_some()
+        {
             // Task resolved deterministically — no node dispatch needed.
             // The caller should use the promoted resolution directly.
             return None;
@@ -662,8 +663,14 @@ impl RuntimeManager {
         validated: bool,
         llm_energy_uj: u64,
     ) -> Option<String> {
-        self.promotion_pipeline
-            .record_llm_result(trigger, resolution, domain, target, validated, llm_energy_uj)
+        self.promotion_pipeline.record_llm_result(
+            trigger,
+            resolution,
+            domain,
+            target,
+            validated,
+            llm_energy_uj,
+        )
     }
 
     /// Get the promotion pipeline summary.

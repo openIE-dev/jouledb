@@ -101,7 +101,10 @@ pub struct SelectOption {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ComputeExpression {
     /// Concatenate values of named fields with a separator.
-    Concat { fields: Vec<String>, separator: String },
+    Concat {
+        fields: Vec<String>,
+        separator: String,
+    },
     /// Sum numeric fields.
     Sum(Vec<String>),
     /// Subtract second field from first.
@@ -566,11 +569,9 @@ fn evaluate_visibility(condition: &VisibilityCondition, values: &HashMap<String,
         VisibilityCondition::WhenNotEmpty { field_id } => {
             values.get(field_id).map_or(false, |v| !v.is_empty())
         }
-        VisibilityCondition::WhenTrue { field_id } => {
-            values
-                .get(field_id)
-                .map_or(false, |v| v == "true" || v == "1")
-        }
+        VisibilityCondition::WhenTrue { field_id } => values
+            .get(field_id)
+            .map_or(false, |v| v == "true" || v == "1"),
         VisibilityCondition::And(conditions) => {
             conditions.iter().all(|c| evaluate_visibility(c, values))
         }

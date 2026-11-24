@@ -18,13 +18,24 @@ pub enum SessionError {
     /// Session not found.
     NotFound(String),
     /// Session has expired.
-    Expired { session_id: String, expired_at_ms: u64 },
+    Expired {
+        session_id: String,
+        expired_at_ms: u64,
+    },
     /// Session has been invalidated.
     Invalidated(String),
     /// Concurrent session limit exceeded.
-    ConcurrentLimitExceeded { user_id: String, limit: usize, current: usize },
+    ConcurrentLimitExceeded {
+        user_id: String,
+        limit: usize,
+        current: usize,
+    },
     /// Session fingerprint mismatch.
-    FingerprintMismatch { session_id: String, expected_ip: String, actual_ip: String },
+    FingerprintMismatch {
+        session_id: String,
+        expected_ip: String,
+        actual_ip: String,
+    },
     /// Invalid session data.
     InvalidData(String),
 }
@@ -33,14 +44,28 @@ impl fmt::Display for SessionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotFound(id) => write!(f, "session not found: {id}"),
-            Self::Expired { session_id, expired_at_ms } => {
+            Self::Expired {
+                session_id,
+                expired_at_ms,
+            } => {
                 write!(f, "session {session_id} expired at {expired_at_ms}")
             }
             Self::Invalidated(id) => write!(f, "session invalidated: {id}"),
-            Self::ConcurrentLimitExceeded { user_id, limit, current } => {
-                write!(f, "concurrent session limit for user {user_id}: {current}/{limit}")
+            Self::ConcurrentLimitExceeded {
+                user_id,
+                limit,
+                current,
+            } => {
+                write!(
+                    f,
+                    "concurrent session limit for user {user_id}: {current}/{limit}"
+                )
             }
-            Self::FingerprintMismatch { session_id, expected_ip, actual_ip } => {
+            Self::FingerprintMismatch {
+                session_id,
+                expected_ip,
+                actual_ip,
+            } => {
                 write!(
                     f,
                     "fingerprint mismatch for session {session_id}: expected IP {expected_ip}, got {actual_ip}"
@@ -349,7 +374,11 @@ impl SessionManager {
     }
 
     /// Remove a data value.
-    pub fn remove_data(&mut self, session_id: &str, key: &str) -> Result<Option<Value>, SessionError> {
+    pub fn remove_data(
+        &mut self,
+        session_id: &str,
+        key: &str,
+    ) -> Result<Option<Value>, SessionError> {
         let session = self
             .sessions
             .get_mut(session_id)
@@ -398,11 +427,7 @@ impl SessionManager {
 
     /// Invalidate all sessions for a user.
     pub fn invalidate_all(&mut self, user_id: &str) -> usize {
-        let session_ids: Vec<String> = self
-            .user_sessions
-            .get(user_id)
-            .cloned()
-            .unwrap_or_default();
+        let session_ids: Vec<String> = self.user_sessions.get(user_id).cloned().unwrap_or_default();
 
         let mut count = 0;
         for sid in &session_ids {
@@ -508,7 +533,9 @@ fn generate_session_token(seed: u64, counter: u64) -> String {
     h = h.wrapping_mul(0x100000001b3);
     h ^= counter;
     h = h.wrapping_mul(0x100000001b3);
-    let h2 = h.wrapping_mul(0xcbf29ce484222325).wrapping_add(0x6c62272e07bb0142);
+    let h2 = h
+        .wrapping_mul(0xcbf29ce484222325)
+        .wrapping_add(0x6c62272e07bb0142);
     format!("sess_{h:016x}{h2:016x}")
 }
 
@@ -539,7 +566,11 @@ mod tests {
     #[test]
     fn test_get_session() {
         let mut mgr = default_mgr();
-        let sid = mgr.create_session("alice", None, 1000, 42).unwrap().id.clone();
+        let sid = mgr
+            .create_session("alice", None, 1000, 42)
+            .unwrap()
+            .id
+            .clone();
         let session = mgr.get_session(&sid, None, 2000).unwrap();
         assert_eq!(session.last_accessed_ms, 2000);
     }
@@ -555,7 +586,11 @@ mod tests {
     fn test_session_expiry() {
         let mut mgr = default_mgr();
         mgr.config.renew_on_access = false;
-        let sid = mgr.create_session("alice", None, 1000, 42).unwrap().id.clone();
+        let sid = mgr
+            .create_session("alice", None, 1000, 42)
+            .unwrap()
+            .id
+            .clone();
         // Session expires at 1000 + 30000 = 31000
         let err = mgr.get_session(&sid, None, 50_000).unwrap_err();
         match err {
@@ -568,7 +603,11 @@ mod tests {
     fn test_session_ttl_renewal() {
         let mut mgr = default_mgr();
         mgr.config.renew_on_access = true;
-        let sid = mgr.create_session("alice", None, 1000, 42).unwrap().id.clone();
+        let sid = mgr
+            .create_session("alice", None, 1000, 42)
+            .unwrap()
+            .id
+            .clone();
         // Access at 20000 — should renew expiry to 20000 + 30000 = 50000
         mgr.get_session(&sid, None, 20_000).unwrap();
         // Access at 45000 — should still be valid
@@ -578,8 +617,13 @@ mod tests {
     #[test]
     fn test_session_data() {
         let mut mgr = default_mgr();
-        let sid = mgr.create_session("alice", None, 1000, 42).unwrap().id.clone();
-        mgr.set_data(&sid, "basket", json!(["item1", "item2"])).unwrap();
+        let sid = mgr
+            .create_session("alice", None, 1000, 42)
+            .unwrap()
+            .id
+            .clone();
+        mgr.set_data(&sid, "basket", json!(["item1", "item2"]))
+            .unwrap();
         let val = mgr.get_data(&sid, "basket").unwrap();
         assert_eq!(val, Some(&json!(["item1", "item2"])));
     }
@@ -587,7 +631,11 @@ mod tests {
     #[test]
     fn test_remove_session_data() {
         let mut mgr = default_mgr();
-        let sid = mgr.create_session("alice", None, 1000, 42).unwrap().id.clone();
+        let sid = mgr
+            .create_session("alice", None, 1000, 42)
+            .unwrap()
+            .id
+            .clone();
         mgr.set_data(&sid, "key", json!("value")).unwrap();
         let removed = mgr.remove_data(&sid, "key").unwrap();
         assert_eq!(removed, Some(json!("value")));
@@ -597,7 +645,11 @@ mod tests {
     #[test]
     fn test_invalidate_session() {
         let mut mgr = default_mgr();
-        let sid = mgr.create_session("alice", None, 1000, 42).unwrap().id.clone();
+        let sid = mgr
+            .create_session("alice", None, 1000, 42)
+            .unwrap()
+            .id
+            .clone();
         mgr.invalidate(&sid).unwrap();
         let err = mgr.get_session(&sid, None, 2000).unwrap_err();
         assert_eq!(err, SessionError::Invalidated(sid));
@@ -630,7 +682,11 @@ mod tests {
         mgr.create_session("alice", None, 2000, 2).unwrap();
         let err = mgr.create_session("alice", None, 3000, 3).unwrap_err();
         match err {
-            SessionError::ConcurrentLimitExceeded { limit: 2, current: 2, .. } => {}
+            SessionError::ConcurrentLimitExceeded {
+                limit: 2,
+                current: 2,
+                ..
+            } => {}
             other => panic!("expected ConcurrentLimitExceeded, got: {other}"),
         }
     }
@@ -645,7 +701,11 @@ mod tests {
             max_activity_records: 50,
         });
         let fp = SessionFingerprint::new("10.0.0.1", "Mozilla/5.0");
-        let sid = mgr.create_session("alice", Some(fp), 1000, 42).unwrap().id.clone();
+        let sid = mgr
+            .create_session("alice", Some(fp), 1000, 42)
+            .unwrap()
+            .id
+            .clone();
 
         // Same IP — OK
         let same_fp = SessionFingerprint::new("10.0.0.1", "Chrome");
@@ -663,9 +723,14 @@ mod tests {
     #[test]
     fn test_activity_recording() {
         let mut mgr = default_mgr();
-        let sid = mgr.create_session("alice", None, 1000, 42).unwrap().id.clone();
+        let sid = mgr
+            .create_session("alice", None, 1000, 42)
+            .unwrap()
+            .id
+            .clone();
         mgr.record_activity(&sid, "login", 1000, None).unwrap();
-        mgr.record_activity(&sid, "view_page", 2000, Some("/dashboard")).unwrap();
+        mgr.record_activity(&sid, "view_page", 2000, Some("/dashboard"))
+            .unwrap();
 
         let session = mgr.inspect_session(&sid).unwrap();
         assert_eq!(session.activity.len(), 2);
@@ -682,7 +747,11 @@ mod tests {
             enforce_fingerprint: false,
             max_activity_records: 3,
         });
-        let sid = mgr.create_session("alice", None, 1000, 42).unwrap().id.clone();
+        let sid = mgr
+            .create_session("alice", None, 1000, 42)
+            .unwrap()
+            .id
+            .clone();
         for i in 0..5 {
             mgr.record_activity(&sid, &format!("action-{i}"), 1000 + i * 100, None)
                 .unwrap();
@@ -709,7 +778,11 @@ mod tests {
     #[test]
     fn test_cleanup_invalidated() {
         let mut mgr = default_mgr();
-        let sid = mgr.create_session("alice", None, 1000, 42).unwrap().id.clone();
+        let sid = mgr
+            .create_session("alice", None, 1000, 42)
+            .unwrap()
+            .id
+            .clone();
         mgr.invalidate(&sid).unwrap();
         let cleaned = mgr.cleanup(2000);
         assert_eq!(cleaned, 1);
@@ -729,7 +802,11 @@ mod tests {
     #[test]
     fn test_session_metadata() {
         let mut mgr = default_mgr();
-        let sid = mgr.create_session("alice", None, 1000, 42).unwrap().id.clone();
+        let sid = mgr
+            .create_session("alice", None, 1000, 42)
+            .unwrap()
+            .id
+            .clone();
         mgr.set_metadata(&sid, "device", "mobile").unwrap();
         let session = mgr.inspect_session(&sid).unwrap();
         assert_eq!(session.metadata.get("device"), Some(&"mobile".to_string()));
@@ -739,7 +816,11 @@ mod tests {
     fn test_set_custom_ttl() {
         let mut mgr = default_mgr();
         mgr.config.renew_on_access = false;
-        let sid = mgr.create_session("alice", None, 1000, 42).unwrap().id.clone();
+        let sid = mgr
+            .create_session("alice", None, 1000, 42)
+            .unwrap()
+            .id
+            .clone();
         mgr.set_session_ttl(&sid, 5000, 2000).unwrap();
         // Should expire at 2000 + 5000 = 7000
         assert!(mgr.get_session(&sid, None, 6000).is_ok());
@@ -750,7 +831,11 @@ mod tests {
     fn test_session_time_remaining() {
         let mut mgr = default_mgr();
         mgr.config.renew_on_access = false;
-        let sid = mgr.create_session("alice", None, 1000, 42).unwrap().id.clone();
+        let sid = mgr
+            .create_session("alice", None, 1000, 42)
+            .unwrap()
+            .id
+            .clone();
         let session = mgr.inspect_session(&sid).unwrap();
         // expires at 31000, at time 10000 -> 21000 remaining
         assert_eq!(session.time_remaining(10_000), 21_000);
@@ -780,7 +865,11 @@ mod tests {
     #[test]
     fn test_set_data_on_invalidated_session() {
         let mut mgr = default_mgr();
-        let sid = mgr.create_session("alice", None, 1000, 42).unwrap().id.clone();
+        let sid = mgr
+            .create_session("alice", None, 1000, 42)
+            .unwrap()
+            .id
+            .clone();
         mgr.invalidate(&sid).unwrap();
         let err = mgr.set_data(&sid, "key", json!("value")).unwrap_err();
         assert_eq!(err, SessionError::Invalidated(sid));
@@ -789,7 +878,11 @@ mod tests {
     #[test]
     fn test_renewal_count() {
         let mut mgr = default_mgr();
-        let sid = mgr.create_session("alice", None, 1000, 42).unwrap().id.clone();
+        let sid = mgr
+            .create_session("alice", None, 1000, 42)
+            .unwrap()
+            .id
+            .clone();
         mgr.get_session(&sid, None, 2000).unwrap();
         mgr.get_session(&sid, None, 3000).unwrap();
         let session = mgr.inspect_session(&sid).unwrap();

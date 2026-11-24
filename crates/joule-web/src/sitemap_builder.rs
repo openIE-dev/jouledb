@@ -283,7 +283,10 @@ impl SitemapBuilder {
 
         let mut xml = String::new();
         xml.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        let _ = write!(xml, "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"");
+        let _ = write!(
+            xml,
+            "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\""
+        );
         if has_alternates {
             let _ = write!(xml, "\n  xmlns:xhtml=\"http://www.w3.org/1999/xhtml\"");
         }
@@ -330,7 +333,11 @@ impl SitemapBuilder {
             // Images
             for img in &url.images {
                 xml.push_str("    <image:image>\n");
-                let _ = write!(xml, "      <image:loc>{}</image:loc>\n", xml_escape(&img.loc));
+                let _ = write!(
+                    xml,
+                    "      <image:loc>{}</image:loc>\n",
+                    xml_escape(&img.loc)
+                );
                 if let Some(caption) = &img.caption {
                     let _ = write!(
                         xml,
@@ -549,11 +556,13 @@ mod tests {
     #[test]
     fn test_image_sitemap() {
         let mut builder = SitemapBuilder::new();
-        builder.add_url(UrlEntry::new("https://example.com/gallery").add_image(
-            ImageEntry::new("https://example.com/img/photo.jpg")
-                .with_caption("A nice photo")
-                .with_title("Photo 1"),
-        ));
+        builder.add_url(
+            UrlEntry::new("https://example.com/gallery").add_image(
+                ImageEntry::new("https://example.com/img/photo.jpg")
+                    .with_caption("A nice photo")
+                    .with_title("Photo 1"),
+            ),
+        );
         let xml = builder.to_xml().unwrap();
         assert!(xml.contains("image:image"));
         assert!(xml.contains("image:loc"));
@@ -563,15 +572,13 @@ mod tests {
     #[test]
     fn test_video_sitemap() {
         let mut builder = SitemapBuilder::new();
-        builder.add_url(UrlEntry::new("https://example.com/video").add_video(
-            VideoEntry::new(
-                "https://example.com/thumb.jpg",
-                "My Video",
-                "A great video",
-            )
-            .with_content_loc("https://example.com/video.mp4")
-            .with_duration(120),
-        ));
+        builder.add_url(
+            UrlEntry::new("https://example.com/video").add_video(
+                VideoEntry::new("https://example.com/thumb.jpg", "My Video", "A great video")
+                    .with_content_loc("https://example.com/video.mp4")
+                    .with_duration(120),
+            ),
+        );
         let xml = builder.to_xml().unwrap();
         assert!(xml.contains("video:video"));
         assert!(xml.contains("video:thumbnail_loc"));
@@ -595,8 +602,7 @@ mod tests {
     #[test]
     fn test_sitemap_index_render() {
         let entries = vec![
-            SitemapIndexEntry::new("https://example.com/sitemap1.xml")
-                .with_lastmod("2026-03-09"),
+            SitemapIndexEntry::new("https://example.com/sitemap1.xml").with_lastmod("2026-03-09"),
             SitemapIndexEntry::new("https://example.com/sitemap2.xml"),
         ];
         let xml = render_sitemap_index(&entries);
@@ -642,8 +648,7 @@ mod tests {
 
     #[test]
     fn test_image_with_geo() {
-        let img = ImageEntry::new("https://example.com/img.jpg")
-            .with_geo_location("New York, USA");
+        let img = ImageEntry::new("https://example.com/img.jpg").with_geo_location("New York, USA");
         assert_eq!(img.geo_location.as_deref(), Some("New York, USA"));
     }
 
@@ -651,7 +656,10 @@ mod tests {
     fn test_video_with_player() {
         let vid = VideoEntry::new("https://t.jpg", "Title", "Desc")
             .with_player_loc("https://example.com/player");
-        assert_eq!(vid.player_loc.as_deref(), Some("https://example.com/player"));
+        assert_eq!(
+            vid.player_loc.as_deref(),
+            Some("https://example.com/player")
+        );
     }
 
     #[test]

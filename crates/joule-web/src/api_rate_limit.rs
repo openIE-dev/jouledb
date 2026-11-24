@@ -38,13 +38,19 @@ pub enum RateLimitError {
 impl fmt::Display for RateLimitError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::RateLimited { retry_after_ms, limit, remaining } => {
+            Self::RateLimited {
+                retry_after_ms,
+                limit,
+                remaining,
+            } => {
                 write!(
                     f,
                     "rate limited: {remaining}/{limit} remaining, retry after {retry_after_ms}ms"
                 )
             }
-            Self::QuotaExceeded { plan, limit, used, .. } => {
+            Self::QuotaExceeded {
+                plan, limit, used, ..
+            } => {
                 write!(f, "quota exceeded on plan '{plan}': {used}/{limit}")
             }
             Self::UnknownClient(id) => write!(f, "unknown client: {id}"),
@@ -112,8 +118,7 @@ impl Plan {
 
 /// Pre-defined plans.
 pub fn free_plan() -> Plan {
-    Plan::new("free", 60, 60_000)
-        .with_quota(1_000, 86_400_000) // 1K/day
+    Plan::new("free", 60, 60_000).with_quota(1_000, 86_400_000) // 1K/day
 }
 
 pub fn pro_plan() -> Plan {
@@ -229,7 +234,11 @@ impl SlidingWindow {
 
     fn record(&mut self, now_ms: u64) {
         let window_start = (now_ms / self.window_ms) * self.window_ms;
-        if let Some(entry) = self.windows.iter_mut().find(|(start, _)| *start == window_start) {
+        if let Some(entry) = self
+            .windows
+            .iter_mut()
+            .find(|(start, _)| *start == window_start)
+        {
             entry.1 += 1;
         } else {
             self.windows.push((window_start, 1));
@@ -320,13 +329,14 @@ impl QuotaTracker {
 
     fn remaining(&self, now_ms: u64) -> u64 {
         // Don't mutate; just compute
-        let effective_start = if self.period_ms > 0 && now_ms >= self.period_start_ms + self.period_ms {
-            let elapsed = now_ms - self.period_start_ms;
-            let periods = elapsed / self.period_ms;
-            self.period_start_ms + periods * self.period_ms
-        } else {
-            self.period_start_ms
-        };
+        let effective_start =
+            if self.period_ms > 0 && now_ms >= self.period_start_ms + self.period_ms {
+                let elapsed = now_ms - self.period_start_ms;
+                let periods = elapsed / self.period_ms;
+                self.period_start_ms + periods * self.period_ms
+            } else {
+                self.period_start_ms
+            };
         if now_ms >= effective_start + self.period_ms && self.period_ms > 0 {
             // period rolled over
             self.limit
@@ -612,7 +622,10 @@ mod tests {
             quota_reset_ms: Some(86400000),
         };
         let http = headers.to_headers();
-        assert!(http.iter().any(|(k, v)| k == "X-RateLimit-Limit" && v == "100"));
+        assert!(
+            http.iter()
+                .any(|(k, v)| k == "X-RateLimit-Limit" && v == "100")
+        );
         assert!(http.iter().any(|(k, _)| k == "X-Quota-Limit"));
     }
 

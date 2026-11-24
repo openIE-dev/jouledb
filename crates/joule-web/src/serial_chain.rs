@@ -31,10 +31,22 @@ impl Transform4 {
         let sa = alpha.sin();
         Self {
             data: [
-                ct,     -st * ca,  st * sa,  a * ct,
-                st,      ct * ca, -ct * sa,  a * st,
-                0.0,     sa,       ca,       d,
-                0.0,     0.0,      0.0,      1.0,
+                ct,
+                -st * ca,
+                st * sa,
+                a * ct,
+                st,
+                ct * ca,
+                -ct * sa,
+                a * st,
+                0.0,
+                sa,
+                ca,
+                d,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
             ],
         }
     }
@@ -101,10 +113,8 @@ impl Transform4 {
         ];
         Self {
             data: [
-                rt[0][0], rt[0][1], rt[0][2], nt[0],
-                rt[1][0], rt[1][1], rt[1][2], nt[1],
-                rt[2][0], rt[2][1], rt[2][2], nt[2],
-                0.0,      0.0,      0.0,      1.0,
+                rt[0][0], rt[0][1], rt[0][2], nt[0], rt[1][0], rt[1][1], rt[1][2], nt[1], rt[2][0],
+                rt[2][1], rt[2][2], nt[2], 0.0, 0.0, 0.0, 1.0,
             ],
         }
     }
@@ -155,7 +165,9 @@ impl Joint {
         Self {
             name: name.to_string(),
             joint_type: JointType::Revolute,
-            a, alpha, d,
+            a,
+            alpha,
+            d,
             theta_offset: 0.0,
             min_limit: -std::f64::consts::PI,
             max_limit: std::f64::consts::PI,
@@ -166,7 +178,8 @@ impl Joint {
         Self {
             name: name.to_string(),
             joint_type: JointType::Prismatic,
-            a, alpha,
+            a,
+            alpha,
             d: 0.0,
             theta_offset: theta,
             min_limit: 0.0,
@@ -178,7 +191,9 @@ impl Joint {
         Self {
             name: name.to_string(),
             joint_type: JointType::Fixed,
-            a, alpha, d,
+            a,
+            alpha,
+            d,
             theta_offset: theta,
             min_limit: 0.0,
             max_limit: 0.0,
@@ -199,8 +214,12 @@ impl Joint {
     /// Compute the transform for this joint at the given variable value.
     pub fn transform(&self, q: f64) -> Transform4 {
         match self.joint_type {
-            JointType::Revolute => Transform4::from_dh(self.a, self.alpha, self.d, q + self.theta_offset),
-            JointType::Prismatic => Transform4::from_dh(self.a, self.alpha, self.d + q, self.theta_offset),
+            JointType::Revolute => {
+                Transform4::from_dh(self.a, self.alpha, self.d, q + self.theta_offset)
+            }
+            JointType::Prismatic => {
+                Transform4::from_dh(self.a, self.alpha, self.d + q, self.theta_offset)
+            }
             JointType::Fixed => Transform4::from_dh(self.a, self.alpha, self.d, self.theta_offset),
         }
     }
@@ -261,7 +280,10 @@ impl SerialChain {
     }
 
     pub fn num_joints(&self) -> usize {
-        self.joints.iter().filter(|j| j.joint_type != JointType::Fixed).count()
+        self.joints
+            .iter()
+            .filter(|j| j.joint_type != JointType::Fixed)
+            .count()
     }
 
     pub fn num_links(&self) -> usize {
@@ -278,7 +300,9 @@ impl SerialChain {
         let mut q_idx = 0;
 
         for (i, joint) in self.joints.iter().enumerate() {
-            if i > joint_idx { break; }
+            if i > joint_idx {
+                break;
+            }
             let val = if joint.joint_type == JointType::Fixed {
                 0.0
             } else {
@@ -293,7 +317,11 @@ impl SerialChain {
 
     /// Compute full forward kinematics including tool frame.
     pub fn fk(&self, q: &[f64]) -> Transform4 {
-        let last = if self.joints.is_empty() { 0 } else { self.joints.len() - 1 };
+        let last = if self.joints.is_empty() {
+            0
+        } else {
+            self.joints.len() - 1
+        };
         let tf = self.fk_to_joint(q, last);
         tf.multiply(&self.tool_frame)
     }
@@ -323,9 +351,13 @@ impl SerialChain {
     pub fn within_limits(&self, q: &[f64]) -> bool {
         let mut q_idx = 0;
         for joint in &self.joints {
-            if joint.joint_type == JointType::Fixed { continue; }
+            if joint.joint_type == JointType::Fixed {
+                continue;
+            }
             let val = q.get(q_idx).copied().unwrap_or(0.0);
-            if !joint.is_within_limits(val) { return false; }
+            if !joint.is_within_limits(val) {
+                return false;
+            }
             q_idx += 1;
         }
         true
@@ -336,7 +368,9 @@ impl SerialChain {
         let mut result = Vec::new();
         let mut q_idx = 0;
         for joint in &self.joints {
-            if joint.joint_type == JointType::Fixed { continue; }
+            if joint.joint_type == JointType::Fixed {
+                continue;
+            }
             let val = q.get(q_idx).copied().unwrap_or(0.0);
             result.push(joint.clamp(val));
             q_idx += 1;
@@ -353,7 +387,9 @@ impl SerialChain {
         composed.tool_frame = Transform4::identity();
 
         // Add a fixed joint for the connection
-        composed.joints.push(Joint::fixed("connection", 0.0, 0.0, 0.0, 0.0));
+        composed
+            .joints
+            .push(Joint::fixed("connection", 0.0, 0.0, 0.0, 0.0));
 
         for joint in &other.joints {
             composed.joints.push(joint.clone());
@@ -365,14 +401,22 @@ impl SerialChain {
 
     /// Total chain length (sum of link lengths).
     pub fn total_length(&self) -> f64 {
-        self.joints.iter().map(|j| (j.a * j.a + j.d * j.d).sqrt()).sum()
+        self.joints
+            .iter()
+            .map(|j| (j.a * j.a + j.d * j.d).sqrt())
+            .sum()
     }
 }
 
 impl fmt::Display for SerialChain {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SerialChain({}, {} joints, {} DOF)",
-            self.name, self.joints.len(), self.num_joints())
+        write!(
+            f,
+            "SerialChain({}, {} joints, {} DOF)",
+            self.name,
+            self.joints.len(),
+            self.num_joints()
+        )
     }
 }
 
@@ -500,8 +544,8 @@ mod tests {
 
     #[test]
     fn test_tool_frame() {
-        let chain = planar_2r(1.0, 1.0)
-            .with_tool_frame(Transform4::from_translation(0.5, 0.0, 0.0));
+        let chain =
+            planar_2r(1.0, 1.0).with_tool_frame(Transform4::from_translation(0.5, 0.0, 0.0));
         let pos = chain.fk(&[0.0, 0.0]).translation();
         assert!((pos[0] - 2.5).abs() < 1e-10);
     }

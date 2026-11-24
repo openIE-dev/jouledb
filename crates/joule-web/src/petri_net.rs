@@ -26,7 +26,11 @@ pub enum PetriError {
     /// Transition not enabled.
     NotEnabled(String),
     /// Insufficient tokens.
-    InsufficientTokens { place: String, required: u32, available: u32 },
+    InsufficientTokens {
+        place: String,
+        required: u32,
+        available: u32,
+    },
 }
 
 impl fmt::Display for PetriError {
@@ -38,8 +42,15 @@ impl fmt::Display for PetriError {
             Self::DuplicateTransition(t) => write!(f, "duplicate transition: {t}"),
             Self::DuplicateArc { from, to } => write!(f, "duplicate arc: {from} -> {to}"),
             Self::NotEnabled(t) => write!(f, "transition not enabled: {t}"),
-            Self::InsufficientTokens { place, required, available } => {
-                write!(f, "insufficient tokens in {place}: need {required}, have {available}")
+            Self::InsufficientTokens {
+                place,
+                required,
+                available,
+            } => {
+                write!(
+                    f,
+                    "insufficient tokens in {place}: need {required}, have {available}"
+                )
             }
         }
     }
@@ -82,7 +93,11 @@ pub struct Place {
 impl Place {
     /// Create a place with initial tokens.
     pub fn new(name: impl Into<String>, tokens: u32) -> Self {
-        Self { name: name.into(), tokens, capacity: None }
+        Self {
+            name: name.into(),
+            tokens,
+            capacity: None,
+        }
     }
 
     /// Set a capacity limit.
@@ -103,7 +118,10 @@ pub struct Transition {
 
 impl Transition {
     pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), fire_count: 0 }
+        Self {
+            name: name.into(),
+            fire_count: 0,
+        }
     }
 }
 
@@ -148,7 +166,12 @@ impl PetriNet {
     }
 
     /// Add an input arc (place -> transition).
-    pub fn add_input_arc(&mut self, place: &str, transition: &str, weight: u32) -> Result<(), PetriError> {
+    pub fn add_input_arc(
+        &mut self,
+        place: &str,
+        transition: &str,
+        weight: u32,
+    ) -> Result<(), PetriError> {
         if !self.places.contains_key(place) {
             return Err(PetriError::PlaceNotFound(place.to_string()));
         }
@@ -166,7 +189,12 @@ impl PetriNet {
     }
 
     /// Add an output arc (transition -> place).
-    pub fn add_output_arc(&mut self, transition: &str, place: &str, weight: u32) -> Result<(), PetriError> {
+    pub fn add_output_arc(
+        &mut self,
+        transition: &str,
+        place: &str,
+        weight: u32,
+    ) -> Result<(), PetriError> {
         if !self.places.contains_key(place) {
             return Err(PetriError::PlaceNotFound(place.to_string()));
         }
@@ -185,7 +213,12 @@ impl PetriNet {
 
     /// Add an inhibitor arc (place -> transition). Transition fires only if
     /// place has fewer tokens than weight.
-    pub fn add_inhibitor_arc(&mut self, place: &str, transition: &str, weight: u32) -> Result<(), PetriError> {
+    pub fn add_inhibitor_arc(
+        &mut self,
+        place: &str,
+        transition: &str,
+        weight: u32,
+    ) -> Result<(), PetriError> {
         if !self.places.contains_key(place) {
             return Err(PetriError::PlaceNotFound(place.to_string()));
         }
@@ -214,24 +247,34 @@ impl PetriNet {
 
     /// Set tokens in a place.
     pub fn set_tokens(&mut self, place: &str, tokens: u32) -> Result<(), PetriError> {
-        let p = self.places.get_mut(place)
+        let p = self
+            .places
+            .get_mut(place)
             .ok_or_else(|| PetriError::PlaceNotFound(place.to_string()))?;
         p.tokens = tokens;
         Ok(())
     }
 
     /// Number of places.
-    pub fn place_count(&self) -> usize { self.places.len() }
+    pub fn place_count(&self) -> usize {
+        self.places.len()
+    }
 
     /// Number of transitions.
-    pub fn transition_count(&self) -> usize { self.transitions.len() }
+    pub fn transition_count(&self) -> usize {
+        self.transitions.len()
+    }
 
     /// Number of arcs.
-    pub fn arc_count(&self) -> usize { self.arcs.len() }
+    pub fn arc_count(&self) -> usize {
+        self.arcs.len()
+    }
 
     /// Get the current marking (token assignment) as a sorted vector.
     pub fn marking(&self) -> Vec<(String, u32)> {
-        let mut m: Vec<(String, u32)> = self.places.iter()
+        let mut m: Vec<(String, u32)> = self
+            .places
+            .iter()
             .map(|(n, p)| (n.clone(), p.tokens))
             .collect();
         m.sort_by(|a, b| a.0.cmp(&b.0));
@@ -284,7 +327,9 @@ impl PetriNet {
 
     /// All enabled transitions.
     pub fn enabled_transitions(&self) -> Vec<String> {
-        let mut result: Vec<String> = self.transitions.keys()
+        let mut result: Vec<String> = self
+            .transitions
+            .keys()
             .filter(|t| self.is_enabled(t))
             .cloned()
             .collect();
@@ -419,7 +464,10 @@ impl PetriNet {
         let mut trans_names: Vec<&String> = self.transitions.keys().collect();
         trans_names.sort();
         for name in &trans_names {
-            out.push_str(&format!("  \"{}\" [shape=box, style=filled, fillcolor=lightgray];\n", name));
+            out.push_str(&format!(
+                "  \"{}\" [shape=box, style=filled, fillcolor=lightgray];\n",
+                name
+            ));
         }
 
         // Arcs.
@@ -434,11 +482,20 @@ impl PetriNet {
                 String::new()
             };
             if arc.is_input {
-                out.push_str(&format!("  \"{}\" -> \"{}\" [{}{}];\n",
-                    arc.place, arc.transition, label.trim_start_matches(", "), style));
+                out.push_str(&format!(
+                    "  \"{}\" -> \"{}\" [{}{}];\n",
+                    arc.place,
+                    arc.transition,
+                    label.trim_start_matches(", "),
+                    style
+                ));
             } else {
-                out.push_str(&format!("  \"{}\" -> \"{}\" [{}];\n",
-                    arc.transition, arc.place, label.trim_start_matches(", ")));
+                out.push_str(&format!(
+                    "  \"{}\" -> \"{}\" [{}];\n",
+                    arc.transition,
+                    arc.place,
+                    label.trim_start_matches(", ")
+                ));
             }
         }
 

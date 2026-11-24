@@ -22,10 +22,7 @@ pub fn detect_peaks(samples: &[f32], threshold: f32, min_distance: usize) -> Vec
     }
 
     for i in 1..samples.len() - 1 {
-        if samples[i] > samples[i - 1]
-            && samples[i] > samples[i + 1]
-            && samples[i] >= threshold
-        {
+        if samples[i] > samples[i - 1] && samples[i] > samples[i + 1] && samples[i] >= threshold {
             // Check distance from last peak
             if let Some(last) = peaks.last() {
                 let last_peak: &Peak = last;
@@ -224,9 +221,7 @@ pub fn fft(input: &[Complex]) -> Option<Vec<Complex>> {
     let bits = (n as f64).log2() as u32;
 
     // Bit-reversal permutation
-    let mut data: Vec<Complex> = (0..n)
-        .map(|i| input[bit_reverse(i, bits)])
-        .collect();
+    let mut data: Vec<Complex> = (0..n).map(|i| input[bit_reverse(i, bits)]).collect();
 
     // Butterfly operations
     let mut size = 2;
@@ -236,10 +231,7 @@ pub fn fft(input: &[Complex]) -> Option<Vec<Complex>> {
 
         for start in (0..n).step_by(size) {
             for k in 0..half {
-                let twiddle = Complex::new(
-                    (angle * k as f64).cos(),
-                    (angle * k as f64).sin(),
-                );
+                let twiddle = Complex::new((angle * k as f64).cos(), (angle * k as f64).sin());
                 let a = data[start + k];
                 let b = data[start + k + half].mul(twiddle);
                 data[start + k] = a.add(b);
@@ -294,7 +286,11 @@ pub fn dominant_frequency(samples: &[f32], sample_rate: f64) -> Option<f64> {
     spectrum
         .iter()
         .skip(1)
-        .max_by(|a, b| a.magnitude.partial_cmp(&b.magnitude).unwrap_or(std::cmp::Ordering::Equal))
+        .max_by(|a, b| {
+            a.magnitude
+                .partial_cmp(&b.magnitude)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
         .map(|bin| bin.frequency)
 }
 
@@ -445,7 +441,11 @@ mod tests {
             .map(|i| (2.0 * std::f32::consts::PI * 440.0 * i as f32 / sr as f32).sin())
             .collect();
         let freq = dominant_frequency(&samples, sr).unwrap();
-        assert!((freq - 440.0).abs() < 2.0, "Detected {} Hz, expected 440 Hz", freq);
+        assert!(
+            (freq - 440.0).abs() < 2.0,
+            "Detected {} Hz, expected 440 Hz",
+            freq
+        );
     }
 
     #[test]

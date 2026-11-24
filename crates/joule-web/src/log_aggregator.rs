@@ -436,11 +436,8 @@ impl LogAggregator {
 
     /// Query entries with a filter.
     pub fn query(&self, filter: &LogFilter) -> Vec<&LogEntry> {
-        let mut results: Vec<&LogEntry> = self
-            .entries
-            .iter()
-            .filter(|e| filter.matches(e))
-            .collect();
+        let mut results: Vec<&LogEntry> =
+            self.entries.iter().filter(|e| filter.matches(e)).collect();
 
         if let Some(limit) = filter.limit {
             results.truncate(limit);
@@ -581,10 +578,7 @@ impl LogAggregator {
         if slice.is_empty() {
             return 0.0;
         }
-        let error_count = slice
-            .iter()
-            .filter(|e| e.level >= LogLevel::Error)
-            .count();
+        let error_count = slice.iter().filter(|e| e.level >= LogLevel::Error).count();
         error_count as f64 / slice.len() as f64
     }
 }
@@ -710,21 +704,12 @@ mod tests {
     fn test_aggregator_top_k() {
         let mut agg = LogAggregator::new();
         for _ in 0..5 {
-            agg.ingest(
-                LogEntry::new(LogLevel::Info, "req")
-                    .with_field("endpoint", "/api/users"),
-            );
+            agg.ingest(LogEntry::new(LogLevel::Info, "req").with_field("endpoint", "/api/users"));
         }
         for _ in 0..3 {
-            agg.ingest(
-                LogEntry::new(LogLevel::Info, "req")
-                    .with_field("endpoint", "/api/posts"),
-            );
+            agg.ingest(LogEntry::new(LogLevel::Info, "req").with_field("endpoint", "/api/posts"));
         }
-        agg.ingest(
-            LogEntry::new(LogLevel::Info, "req")
-                .with_field("endpoint", "/api/health"),
-        );
+        agg.ingest(LogEntry::new(LogLevel::Info, "req").with_field("endpoint", "/api/health"));
         let top = agg.top_k_field_values("endpoint", 2);
         assert_eq!(top.len(), 2);
         assert_eq!(top[0].value, "/api/users");
@@ -747,8 +732,8 @@ mod tests {
 
     #[test]
     fn test_retention_max_entries() {
-        let mut agg = LogAggregator::new()
-            .with_retention(RetentionPolicy::new().with_max_entries(3));
+        let mut agg =
+            LogAggregator::new().with_retention(RetentionPolicy::new().with_max_entries(3));
         for i in 0..5 {
             agg.ingest(LogEntry::new(LogLevel::Info, &format!("msg {}", i)));
         }

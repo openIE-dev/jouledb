@@ -24,7 +24,10 @@ impl std::fmt::Display for WalError {
         match self {
             Self::LsnNotFound(lsn) => write!(f, "LSN {lsn} not found"),
             Self::ChecksumMismatch { expected, actual } => {
-                write!(f, "checksum mismatch: expected {expected:#010x}, got {actual:#010x}")
+                write!(
+                    f,
+                    "checksum mismatch: expected {expected:#010x}, got {actual:#010x}"
+                )
             }
             Self::SegmentFull => write!(f, "segment full"),
             Self::Empty => write!(f, "log is empty"),
@@ -359,17 +362,12 @@ impl WriteAheadLog {
 
     /// First LSN in the log.
     pub fn first_lsn(&self) -> Option<u64> {
-        self.segments
-            .values()
-            .find_map(|s| s.first_lsn())
+        self.segments.values().find_map(|s| s.first_lsn())
     }
 
     /// Last LSN in the log.
     pub fn last_lsn(&self) -> Option<u64> {
-        self.segments
-            .values()
-            .rev()
-            .find_map(|s| s.last_lsn())
+        self.segments.values().rev().find_map(|s| s.last_lsn())
     }
 
     /// Next LSN that will be assigned.

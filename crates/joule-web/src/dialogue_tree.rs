@@ -13,7 +13,11 @@ use std::fmt;
 pub enum DialogueError {
     NodeNotFound(String),
     NoChoicesAvailable(String),
-    ChoiceIndexOutOfBounds { node: String, index: usize, count: usize },
+    ChoiceIndexOutOfBounds {
+        node: String,
+        index: usize,
+        count: usize,
+    },
     InvalidGraph(Vec<String>),
     EmptyGraph,
     NoEntryPoint,
@@ -26,7 +30,10 @@ impl fmt::Display for DialogueError {
             Self::NodeNotFound(id) => write!(f, "dialogue node not found: {id}"),
             Self::NoChoicesAvailable(id) => write!(f, "no available choices at node: {id}"),
             Self::ChoiceIndexOutOfBounds { node, index, count } => {
-                write!(f, "choice {index} out of bounds at node {node} ({count} choices)")
+                write!(
+                    f,
+                    "choice {index} out of bounds at node {node} ({count} choices)"
+                )
             }
             Self::InvalidGraph(errors) => {
                 write!(f, "invalid dialogue graph: {}", errors.join("; "))
@@ -81,14 +88,22 @@ pub enum Effect {
 impl Effect {
     pub fn apply(&self, state: &mut DialogueState) {
         match self {
-            Self::SetFlag(name, val) => { state.flags.insert(name.clone(), *val); }
-            Self::GiveItem(id) => { state.items.push(*id); }
-            Self::RemoveItem(id) => { state.items.retain(|i| i != id); }
+            Self::SetFlag(name, val) => {
+                state.flags.insert(name.clone(), *val);
+            }
+            Self::GiveItem(id) => {
+                state.items.push(*id);
+            }
+            Self::RemoveItem(id) => {
+                state.items.retain(|i| i != id);
+            }
             Self::ModifyStat(name, delta) => {
                 let entry = state.stats.entry(name.clone()).or_insert(0);
                 *entry += delta;
             }
-            Self::SetStat(name, val) => { state.stats.insert(name.clone(), *val); }
+            Self::SetStat(name, val) => {
+                state.stats.insert(name.clone(), *val);
+            }
         }
     }
 }
@@ -230,7 +245,9 @@ impl DialogueNode {
     }
 
     pub fn available_choices(&self, state: &DialogueState) -> Vec<(usize, &Choice)> {
-        self.choices.iter().enumerate()
+        self.choices
+            .iter()
+            .enumerate()
             .filter(|(_, c)| c.is_available(state))
             .collect()
     }
@@ -284,14 +301,17 @@ impl DialogueGraph {
 
     pub fn add_entry_point(&mut self, entry: EntryPoint) {
         self.entry_points.push(entry);
-        self.entry_points.sort_by(|a, b| b.priority.cmp(&a.priority));
+        self.entry_points
+            .sort_by(|a, b| b.priority.cmp(&a.priority));
     }
 
     pub fn get_node(&self, id: &str) -> Option<&DialogueNode> {
         self.nodes.get(id)
     }
 
-    pub fn node_count(&self) -> usize { self.nodes.len() }
+    pub fn node_count(&self) -> usize {
+        self.nodes.len()
+    }
 
     /// Select the best entry point based on state conditions.
     pub fn select_entry(&self, state: &DialogueState) -> Result<&str, DialogueError> {
@@ -308,7 +328,11 @@ impl DialogueGraph {
     }
 
     /// Enter a node: apply on_enter effects, record history, return the node.
-    pub fn enter_node(&mut self, node_id: &str, state: &mut DialogueState) -> Result<&DialogueNode, DialogueError> {
+    pub fn enter_node(
+        &mut self,
+        node_id: &str,
+        state: &mut DialogueState,
+    ) -> Result<&DialogueNode, DialogueError> {
         if !self.nodes.contains_key(node_id) {
             return Err(DialogueError::NodeNotFound(node_id.to_string()));
         }
@@ -322,8 +346,15 @@ impl DialogueGraph {
     }
 
     /// Choose a choice at a node, apply its effects, return the next node ID.
-    pub fn choose(&self, node_id: &str, choice_idx: usize, state: &mut DialogueState) -> Result<String, DialogueError> {
-        let node = self.nodes.get(node_id)
+    pub fn choose(
+        &self,
+        node_id: &str,
+        choice_idx: usize,
+        state: &mut DialogueState,
+    ) -> Result<String, DialogueError> {
+        let node = self
+            .nodes
+            .get(node_id)
             .ok_or_else(|| DialogueError::NodeNotFound(node_id.to_string()))?;
         let available: Vec<(usize, &Choice)> = node.available_choices(state);
         if available.is_empty() {
@@ -345,15 +376,22 @@ impl DialogueGraph {
         Ok(next)
     }
 
-    pub fn history(&self) -> &[String] { &self.history }
-    pub fn clear_history(&mut self) { self.history.clear(); }
+    pub fn history(&self) -> &[String] {
+        &self.history
+    }
+    pub fn clear_history(&mut self) {
+        self.history.clear();
+    }
 
     pub fn was_visited(&self, node_id: &str) -> bool {
         self.history.iter().any(|h| h == node_id)
     }
 
     pub fn visit_count(&self, node_id: &str) -> usize {
-        self.history.iter().filter(|h| h.as_str() == node_id).count()
+        self.history
+            .iter()
+            .filter(|h| h.as_str() == node_id)
+            .count()
     }
 
     /// Validate graph: check all references are valid, no non-terminal dead ends.
@@ -371,13 +409,19 @@ impl DialogueGraph {
             }
             for (ci, choice) in node.choices.iter().enumerate() {
                 if !self.nodes.contains_key(&choice.next_node) {
-                    errors.push(format!("node '{nid}' choice {ci} references missing node '{}'", choice.next_node));
+                    errors.push(format!(
+                        "node '{nid}' choice {ci} references missing node '{}'",
+                        choice.next_node
+                    ));
                 }
             }
         }
         for ep in &self.entry_points {
             if !self.nodes.contains_key(&ep.node_id) {
-                errors.push(format!("entry point references missing node '{}'", ep.node_id));
+                errors.push(format!(
+                    "entry point references missing node '{}'",
+                    ep.node_id
+                ));
             }
         }
         if errors.is_empty() {
@@ -397,28 +441,40 @@ mod tests {
     fn build_graph() -> DialogueGraph {
         let mut g = DialogueGraph::new();
         g.add_node(
-            DialogueNode::new("start", "NPC", "Hello, {player_name}! What brings you here?")
-                .with_choice(Choice::new("I need a quest.", "quest_offer"))
-                .with_choice(
-                    Choice::new("I have the artifact.", "artifact_return")
-                        .with_condition(Condition::HasItem(42))
-                )
+            DialogueNode::new(
+                "start",
+                "NPC",
+                "Hello, {player_name}! What brings you here?",
+            )
+            .with_choice(Choice::new("I need a quest.", "quest_offer"))
+            .with_choice(
+                Choice::new("I have the artifact.", "artifact_return")
+                    .with_condition(Condition::HasItem(42)),
+            ),
         );
         g.add_node(
             DialogueNode::new("quest_offer", "NPC", "Find the lost artifact in the cave.")
                 .with_enter_effect(Effect::SetFlag("quest_given".to_string(), true))
                 .with_choice(Choice::new("I'll do it!", "accept"))
-                .with_choice(Choice::new("No thanks.", "decline"))
+                .with_choice(Choice::new("No thanks.", "decline")),
         );
         g.add_node(
             DialogueNode::terminal("accept", "NPC", "Good luck, {player_name}!")
-                .with_enter_effect(Effect::ModifyStat("reputation".to_string(), 5))
+                .with_enter_effect(Effect::ModifyStat("reputation".to_string(), 5)),
         );
-        g.add_node(DialogueNode::terminal("decline", "NPC", "Perhaps another time."));
+        g.add_node(DialogueNode::terminal(
+            "decline",
+            "NPC",
+            "Perhaps another time.",
+        ));
         g.add_node(
-            DialogueNode::terminal("artifact_return", "NPC", "You found it! Here's your reward.")
-                .with_enter_effect(Effect::GiveItem(100))
-                .with_enter_effect(Effect::SetFlag("quest_complete".to_string(), true))
+            DialogueNode::terminal(
+                "artifact_return",
+                "NPC",
+                "You found it! Here's your reward.",
+            )
+            .with_enter_effect(Effect::GiveItem(100))
+            .with_enter_effect(Effect::SetFlag("quest_complete".to_string(), true)),
         );
         g.add_entry_point(EntryPoint::new("start", 0));
         g
@@ -455,8 +511,7 @@ mod tests {
     fn validate_missing_reference() {
         let mut g = DialogueGraph::new();
         g.add_node(
-            DialogueNode::new("a", "NPC", "Hi")
-                .with_choice(Choice::new("Go", "nonexistent"))
+            DialogueNode::new("a", "NPC", "Hi").with_choice(Choice::new("Go", "nonexistent")),
         );
         let err = g.validate().unwrap_err();
         if let DialogueError::InvalidGraph(errors) = &err {
@@ -476,8 +531,7 @@ mod tests {
     fn select_entry_conditional() {
         let mut g = build_graph();
         g.add_entry_point(
-            EntryPoint::new("artifact_return", 10)
-                .with_condition(Condition::HasItem(42))
+            EntryPoint::new("artifact_return", 10).with_condition(Condition::HasItem(42)),
         );
         let state = DialogueState::new().with_item(42);
         let entry = g.select_entry(&state).unwrap();
@@ -513,7 +567,11 @@ mod tests {
     #[test]
     fn interpolation_with_stats() {
         let mut g = DialogueGraph::new();
-        g.add_node(DialogueNode::terminal("s", "NPC", "Your rep is {reputation}."));
+        g.add_node(DialogueNode::terminal(
+            "s",
+            "NPC",
+            "Your rep is {reputation}.",
+        ));
         let state = DialogueState::new().with_stat("reputation", 42);
         let node = g.get_node("s").unwrap();
         assert_eq!(node.interpolated_text(&state), "Your rep is 42.");
@@ -557,11 +615,10 @@ mod tests {
     fn choose_applies_effects() {
         let mut g = DialogueGraph::new();
         g.add_node(
-            DialogueNode::new("n", "NPC", "Hi")
-                .with_choice(
-                    Choice::new("Give gold", "end")
-                        .with_effect(Effect::ModifyStat("gold".to_string(), 100))
-                )
+            DialogueNode::new("n", "NPC", "Hi").with_choice(
+                Choice::new("Give gold", "end")
+                    .with_effect(Effect::ModifyStat("gold".to_string(), 100)),
+            ),
         );
         g.add_node(DialogueNode::terminal("end", "NPC", "Thanks!"));
         let mut state = DialogueState::new();
@@ -580,8 +637,7 @@ mod tests {
     #[test]
     fn full_dialogue_walkthrough() {
         let mut g = build_graph();
-        let mut state = DialogueState::new()
-            .with_variable("player_name", "Hero");
+        let mut state = DialogueState::new().with_variable("player_name", "Hero");
 
         let entry = g.select_entry(&state).unwrap().to_string();
         let node = g.enter_node(&entry, &mut state).unwrap();

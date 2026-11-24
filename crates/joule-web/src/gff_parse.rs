@@ -12,10 +12,23 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq)]
 pub enum GffError {
     EmptyInput,
-    InsufficientFields { line: usize, found: usize },
-    InvalidCoordinate { line: usize, field: String, value: String },
-    InvalidStrand { line: usize, value: String },
-    MalformedAttribute { line: usize, attr: String },
+    InsufficientFields {
+        line: usize,
+        found: usize,
+    },
+    InvalidCoordinate {
+        line: usize,
+        field: String,
+        value: String,
+    },
+    InvalidStrand {
+        line: usize,
+        value: String,
+    },
+    MalformedAttribute {
+        line: usize,
+        attr: String,
+    },
     CircularHierarchy(String),
 }
 
@@ -176,7 +189,10 @@ impl GffRecord {
 
     /// Get the GFF3 ID attribute.
     pub fn id(&self) -> Option<&str> {
-        self.attributes.get("ID").and_then(|v| v.first()).map(|s| s.as_str())
+        self.attributes
+            .get("ID")
+            .and_then(|v| v.first())
+            .map(|s| s.as_str())
     }
 
     /// Get the GFF3 Parent attribute(s).
@@ -189,32 +205,43 @@ impl GffRecord {
 
     /// Get the GTF gene_id attribute.
     pub fn gene_id(&self) -> Option<&str> {
-        self.attributes.get("gene_id").and_then(|v| v.first()).map(|s| s.as_str())
+        self.attributes
+            .get("gene_id")
+            .and_then(|v| v.first())
+            .map(|s| s.as_str())
     }
 
     /// Get the GTF transcript_id attribute.
     pub fn transcript_id(&self) -> Option<&str> {
-        self.attributes.get("transcript_id").and_then(|v| v.first()).map(|s| s.as_str())
+        self.attributes
+            .get("transcript_id")
+            .and_then(|v| v.first())
+            .map(|s| s.as_str())
     }
 
     /// Get any attribute by key.
     pub fn attr(&self, key: &str) -> Option<&str> {
-        self.attributes.get(key).and_then(|v| v.first()).map(|s| s.as_str())
+        self.attributes
+            .get(key)
+            .and_then(|v| v.first())
+            .map(|s| s.as_str())
     }
 }
 
 impl fmt::Display for GffRecord {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}-{} {} ({})",
-               self.seqid, self.start, self.end, self.feature_type, self.strand)
+        write!(
+            f,
+            "{}:{}-{} {} ({})",
+            self.seqid, self.start, self.end, self.feature_type, self.strand
+        )
     }
 }
 
 // ── Feature collection ──────────────────────────────────────────
 
 /// A collection of GFF features with hierarchy support.
-#[derive(Debug, Clone)]
-#[derive(PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GffDocument {
     pub records: Vec<GffRecord>,
     pub directives: Vec<String>,
@@ -223,7 +250,10 @@ pub struct GffDocument {
 impl GffDocument {
     /// Filter features by type.
     pub fn by_type(&self, ft: &str) -> Vec<&GffRecord> {
-        self.records.iter().filter(|r| r.feature_type == ft).collect()
+        self.records
+            .iter()
+            .filter(|r| r.feature_type == ft)
+            .collect()
     }
 
     /// Filter features by seqid.
@@ -265,7 +295,10 @@ pub struct GffParser {
 
 impl GffParser {
     pub fn new(format: GffFormat) -> Self {
-        Self { format, feature_filter: None }
+        Self {
+            format,
+            feature_filter: None,
+        }
     }
 
     pub fn with_feature_filter(mut self, ft: &str) -> Self {
@@ -285,59 +318,80 @@ impl GffParser {
         for line in input.lines() {
             line_num += 1;
             let trimmed = line.trim();
-            if trimmed.is_empty() { continue; }
+            if trimmed.is_empty() {
+                continue;
+            }
             if trimmed.starts_with("##") {
                 directives.push(trimmed.to_string());
                 continue;
             }
-            if trimmed.starts_with('#') { continue; }
+            if trimmed.starts_with('#') {
+                continue;
+            }
 
             let fields: Vec<&str> = trimmed.split('\t').collect();
             if fields.len() < 9 {
-                return Err(GffError::InsufficientFields { line: line_num, found: fields.len() });
+                return Err(GffError::InsufficientFields {
+                    line: line_num,
+                    found: fields.len(),
+                });
             }
 
             let feature_type = fields[2].to_string();
             if let Some(ref ft) = self.feature_filter {
-                if feature_type != *ft { continue; }
+                if feature_type != *ft {
+                    continue;
+                }
             }
 
-            let start: u64 = fields[3]
-                .parse()
-                .map_err(|_| GffError::InvalidCoordinate {
-                    line: line_num,
-                    field: "start".to_string(),
-                    value: fields[3].to_string(),
-                })?;
-            let end: u64 = fields[4]
-                .parse()
-                .map_err(|_| GffError::InvalidCoordinate {
-                    line: line_num,
-                    field: "end".to_string(),
-                    value: fields[4].to_string(),
-                })?;
-            let score = if fields[5] == "." { None } else {
-                Some(fields[5].parse::<f64>().map_err(|_| GffError::InvalidCoordinate {
-                    line: line_num,
-                    field: "score".to_string(),
-                    value: fields[5].to_string(),
-                })?)
+            let start: u64 = fields[3].parse().map_err(|_| GffError::InvalidCoordinate {
+                line: line_num,
+                field: "start".to_string(),
+                value: fields[3].to_string(),
+            })?;
+            let end: u64 = fields[4].parse().map_err(|_| GffError::InvalidCoordinate {
+                line: line_num,
+                field: "end".to_string(),
+                value: fields[4].to_string(),
+            })?;
+            let score = if fields[5] == "." {
+                None
+            } else {
+                Some(
+                    fields[5]
+                        .parse::<f64>()
+                        .map_err(|_| GffError::InvalidCoordinate {
+                            line: line_num,
+                            field: "score".to_string(),
+                            value: fields[5].to_string(),
+                        })?,
+                )
             };
             let strand = if fields[6].len() == 1 {
-                Strand::from_char(fields[6].chars().next().unwrap())
-                    .ok_or_else(|| GffError::InvalidStrand {
+                Strand::from_char(fields[6].chars().next().unwrap()).ok_or_else(|| {
+                    GffError::InvalidStrand {
                         line: line_num,
                         value: fields[6].to_string(),
-                    })?
+                    }
+                })?
             } else {
-                return Err(GffError::InvalidStrand { line: line_num, value: fields[6].to_string() });
-            };
-            let phase = if fields[7] == "." { None } else {
-                Some(fields[7].parse::<u8>().map_err(|_| GffError::InvalidCoordinate {
+                return Err(GffError::InvalidStrand {
                     line: line_num,
-                    field: "phase".to_string(),
-                    value: fields[7].to_string(),
-                })?)
+                    value: fields[6].to_string(),
+                });
+            };
+            let phase = if fields[7] == "." {
+                None
+            } else {
+                Some(
+                    fields[7]
+                        .parse::<u8>()
+                        .map_err(|_| GffError::InvalidCoordinate {
+                            line: line_num,
+                            field: "phase".to_string(),
+                            value: fields[7].to_string(),
+                        })?,
+                )
             };
 
             let attributes = match self.format {
@@ -357,13 +411,20 @@ impl GffParser {
                 attributes,
             });
         }
-        Ok(GffDocument { records, directives })
+        Ok(GffDocument {
+            records,
+            directives,
+        })
     }
 }
 
 impl fmt::Display for GffParser {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "GffParser(format={}, filter={:?})", self.format, self.feature_filter)
+        write!(
+            f,
+            "GffParser(format={}, filter={:?})",
+            self.format, self.feature_filter
+        )
     }
 }
 
@@ -371,16 +432,22 @@ impl fmt::Display for GffParser {
 
 fn parse_gff3_attributes(field: &str) -> HashMap<String, Vec<String>> {
     let mut map: HashMap<String, Vec<String>> = HashMap::new();
-    if field == "." { return map; }
+    if field == "." {
+        return map;
+    }
     for pair in field.split(';') {
         let pair = pair.trim();
-        if pair.is_empty() { continue; }
+        if pair.is_empty() {
+            continue;
+        }
         if let Some(eq) = pair.find('=') {
             let key = pair[..eq].to_string();
             let value = pair[eq + 1..].to_string();
             // GFF3 allows comma-separated multi-values
             for v in value.split(',') {
-                map.entry(key.clone()).or_default().push(url_decode(v.trim()));
+                map.entry(key.clone())
+                    .or_default()
+                    .push(url_decode(v.trim()));
             }
         }
     }
@@ -389,10 +456,14 @@ fn parse_gff3_attributes(field: &str) -> HashMap<String, Vec<String>> {
 
 fn parse_gtf_attributes(field: &str) -> HashMap<String, Vec<String>> {
     let mut map: HashMap<String, Vec<String>> = HashMap::new();
-    if field == "." { return map; }
+    if field == "." {
+        return map;
+    }
     for pair in field.split(';') {
         let pair = pair.trim();
-        if pair.is_empty() { continue; }
+        if pair.is_empty() {
+            continue;
+        }
         // GTF format: key "value"
         let parts: Vec<&str> = pair.splitn(2, ' ').collect();
         if parts.len() == 2 {
@@ -533,7 +604,8 @@ mod tests {
 
     #[test]
     fn t14_gtf_parsing() {
-        let input = "chr1\tENSEMBL\texon\t100\t200\t.\t+\t.\tgene_id \"G1\"; transcript_id \"T1\";\n";
+        let input =
+            "chr1\tENSEMBL\texon\t100\t200\t.\t+\t.\tgene_id \"G1\"; transcript_id \"T1\";\n";
         let doc = parse_gtf(input).unwrap();
         assert_eq!(doc.records[0].gene_id(), Some("G1"));
         assert_eq!(doc.records[0].transcript_id(), Some("T1"));

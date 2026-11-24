@@ -85,7 +85,11 @@ pub struct ImagePatch {
 
 impl ImagePatch {
     pub fn new(width: usize, height: usize) -> Self {
-        Self { width, height, pixels: vec![0.0; width * height] }
+        Self {
+            width,
+            height,
+            pixels: vec![0.0; width * height],
+        }
     }
 
     pub fn from_data(width: usize, height: usize, pixels: Vec<f64>) -> Result<Self, SignError> {
@@ -99,7 +103,11 @@ impl ImagePatch {
                 pixels.len()
             )));
         }
-        Ok(Self { width, height, pixels })
+        Ok(Self {
+            width,
+            height,
+            pixels,
+        })
     }
 
     #[inline]
@@ -143,7 +151,12 @@ pub struct HogExtractor {
 
 impl HogExtractor {
     pub fn new() -> Self {
-        Self { cell_size: 8, block_size: 2, num_bins: 9, target_size: 64 }
+        Self {
+            cell_size: 8,
+            block_size: 2,
+            num_bins: 9,
+            target_size: 64,
+        }
     }
 
     pub fn with_cell_size(mut self, s: usize) -> Self {
@@ -314,7 +327,10 @@ pub struct TemplateMatcher {
 
 impl TemplateMatcher {
     pub fn new(metric: DistanceMetric) -> Self {
-        Self { metric, confidence_threshold: 0.6 }
+        Self {
+            metric,
+            confidence_threshold: 0.6,
+        }
     }
 
     pub fn with_threshold(mut self, t: f64) -> Self {
@@ -428,7 +444,10 @@ impl SpeedLimitExtractor {
             SpeedUnit::Kmh => vec![20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130],
             SpeedUnit::Mph => vec![15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80],
         };
-        Self { valid_limits: valid, unit }
+        Self {
+            valid_limits: valid,
+            unit,
+        }
     }
 
     pub fn with_valid_limits(mut self, limits: Vec<u32>) -> Self {
@@ -440,7 +459,11 @@ impl SpeedLimitExtractor {
     pub fn extract(&self, class: SignClass) -> Option<SpeedLimitInfo> {
         if let SignClass::SpeedLimit(v) = class {
             let snapped = self.snap_to_valid(v);
-            Some(SpeedLimitInfo { value: snapped, unit: self.unit, raw_value: v })
+            Some(SpeedLimitInfo {
+                value: snapped,
+                unit: self.unit,
+                raw_value: v,
+            })
         } else {
             None
         }
@@ -634,7 +657,11 @@ mod tests {
 
     #[test]
     fn test_speed_limit_info_display() {
-        let info = SpeedLimitInfo { value: 60, unit: SpeedUnit::Kmh, raw_value: 62 };
+        let info = SpeedLimitInfo {
+            value: 60,
+            unit: SpeedUnit::Kmh,
+            raw_value: 62,
+        };
         assert_eq!(format!("{info}"), "60 km/h");
     }
 

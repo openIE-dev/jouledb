@@ -127,9 +127,7 @@ impl WaveTable {
         let idx = index.rem_euclid(len);
 
         match interp {
-            Interpolation::Nearest => {
-                self.data[idx.round() as usize % self.data.len()]
-            }
+            Interpolation::Nearest => self.data[idx.round() as usize % self.data.len()],
             Interpolation::Linear => {
                 let i0 = idx.floor() as usize % self.data.len();
                 let i1 = (i0 + 1) % self.data.len();
@@ -143,7 +141,13 @@ impl WaveTable {
                 let i2 = (i1 + 1) % n;
                 let i3 = (i1 + 2) % n;
                 let frac = idx - idx.floor();
-                hermite_interp(self.data[i0], self.data[i1], self.data[i2], self.data[i3], frac)
+                hermite_interp(
+                    self.data[i0],
+                    self.data[i1],
+                    self.data[i2],
+                    self.data[i3],
+                    frac,
+                )
             }
         }
     }
@@ -188,7 +192,12 @@ impl BandLimitedTableSet {
         if tables.is_empty() {
             tables.push(WaveTable::sine(table_size));
         }
-        Self { tables, table_size, base_freq, sample_rate }
+        Self {
+            tables,
+            table_size,
+            base_freq,
+            sample_rate,
+        }
     }
 
     /// Generate a band-limited square table set.
@@ -205,7 +214,12 @@ impl BandLimitedTableSet {
         if tables.is_empty() {
             tables.push(WaveTable::sine(table_size));
         }
-        Self { tables, table_size, base_freq, sample_rate }
+        Self {
+            tables,
+            table_size,
+            base_freq,
+            sample_rate,
+        }
     }
 
     /// Number of octave tables.
@@ -298,7 +312,10 @@ pub struct WavetableMorph {
 impl WavetableMorph {
     /// Create a morph set from a list of wavetables.
     pub fn new(tables: Vec<WaveTable>) -> Self {
-        Self { tables, position: 0.0 }
+        Self {
+            tables,
+            position: 0.0,
+        }
     }
 
     /// Number of tables in the morph set.
@@ -350,7 +367,13 @@ pub struct WavetableScanner {
 impl WavetableScanner {
     /// Create a new scanner.
     pub fn new(rate_hz: f64, sample_rate: f64) -> Self {
-        Self { rate_hz, sample_rate, phase: 0.0, depth: 1.0, center: 0.5 }
+        Self {
+            rate_hz,
+            sample_rate,
+            phase: 0.0,
+            depth: 1.0,
+            center: 0.5,
+        }
     }
 
     /// Advance and return the current morph position (0..1).
@@ -381,7 +404,10 @@ pub struct WavetableStack {
 impl WavetableStack {
     /// Create a new empty stack.
     pub fn new() -> Self {
-        Self { oscillators: Vec::new(), gains: Vec::new() }
+        Self {
+            oscillators: Vec::new(),
+            gains: Vec::new(),
+        }
     }
 
     /// Add an oscillator with a gain.
@@ -435,23 +461,35 @@ mod tests {
     fn test_sine_table_at_quarter() {
         let table = WaveTable::sine(TABLE_SIZE);
         let val = table.read(TABLE_SIZE as f64 / 4.0, Interpolation::Linear);
-        assert!((val - 1.0).abs() < 0.01, "sine at pi/2 should be ~1, got {val}");
+        assert!(
+            (val - 1.0).abs() < 0.01,
+            "sine at pi/2 should be ~1, got {val}"
+        );
     }
 
     #[test]
     fn test_sawtooth_table_endpoints() {
         let table = WaveTable::sawtooth(TABLE_SIZE);
         let start = table.read(0.0, Interpolation::Nearest);
-        assert!((start - (-1.0)).abs() < 0.01, "saw start should be ~-1, got {start}");
+        assert!(
+            (start - (-1.0)).abs() < 0.01,
+            "saw start should be ~-1, got {start}"
+        );
     }
 
     #[test]
     fn test_square_table_values() {
         let table = WaveTable::square(TABLE_SIZE);
         let first_quarter = table.read(TABLE_SIZE as f64 / 4.0, Interpolation::Nearest);
-        assert!((first_quarter - 1.0).abs() < EPS, "square first half should be 1.0");
+        assert!(
+            (first_quarter - 1.0).abs() < EPS,
+            "square first half should be 1.0"
+        );
         let third_quarter = table.read(3.0 * TABLE_SIZE as f64 / 4.0, Interpolation::Nearest);
-        assert!((third_quarter - (-1.0)).abs() < EPS, "square second half should be -1.0");
+        assert!(
+            (third_quarter - (-1.0)).abs() < EPS,
+            "square second half should be -1.0"
+        );
     }
 
     #[test]
@@ -459,14 +497,20 @@ mod tests {
         let table = WaveTable::triangle(TABLE_SIZE);
         let mid = table.read(0.0, Interpolation::Nearest);
         // At phase 0, triangle = 4*|0 - 0.5| - 1 = 1.0
-        assert!((mid - 1.0).abs() < 0.01, "triangle at phase 0 should be ~1, got {mid}");
+        assert!(
+            (mid - 1.0).abs() < 0.01,
+            "triangle at phase 0 should be ~1, got {mid}"
+        );
     }
 
     #[test]
     fn test_linear_interpolation() {
         let table = WaveTable::from_samples(vec![0.0, 1.0, 0.0, -1.0]);
         let val = table.read(0.5, Interpolation::Linear);
-        assert!((val - 0.5).abs() < EPS, "linear interp at 0.5 should be 0.5, got {val}");
+        assert!(
+            (val - 0.5).abs() < EPS,
+            "linear interp at 0.5 should be 0.5, got {val}"
+        );
     }
 
     #[test]
@@ -477,7 +521,10 @@ mod tests {
         let cubic_val = table.read(fractional_idx, Interpolation::Cubic);
         let linear_val = table.read(fractional_idx, Interpolation::Linear);
         // Both should be close; cubic is generally more accurate.
-        assert!((cubic_val - linear_val).abs() < 0.1, "cubic and linear should be similar for sine");
+        assert!(
+            (cubic_val - linear_val).abs() < 0.1,
+            "cubic and linear should be similar for sine"
+        );
     }
 
     #[test]
@@ -486,7 +533,10 @@ mod tests {
         assert_eq!(table.len(), TABLE_SIZE);
         // Should be normalised to ~1.
         let peak = table.data.iter().fold(0.0_f64, |a, b| a.max(b.abs()));
-        assert!((peak - 1.0).abs() < 0.01, "should be normalised, peak={peak}");
+        assert!(
+            (peak - 1.0).abs() < 0.01,
+            "should be normalised, peak={peak}"
+        );
     }
 
     #[test]
@@ -494,14 +544,21 @@ mod tests {
         let table = WaveTable::band_limited_square(TABLE_SIZE, 15);
         assert_eq!(table.len(), TABLE_SIZE);
         let peak = table.data.iter().fold(0.0_f64, |a, b| a.max(b.abs()));
-        assert!((peak - 1.0).abs() < 0.01, "should be normalised, peak={peak}");
+        assert!(
+            (peak - 1.0).abs() < 0.01,
+            "should be normalised, peak={peak}"
+        );
     }
 
     #[test]
     fn test_band_limited_table_set_octaves() {
         let set = BandLimitedTableSet::sawtooth(TABLE_SIZE, SR);
         // Should have multiple octave tables.
-        assert!(set.octave_count() > 5, "should cover many octaves, got {}", set.octave_count());
+        assert!(
+            set.octave_count() > 5,
+            "should cover many octaves, got {}",
+            set.octave_count()
+        );
     }
 
     #[test]
@@ -545,7 +602,10 @@ mod tests {
         let morph = WavetableMorph::new(vec![WaveTable::sine(TABLE_SIZE)]);
         let val = morph.read(0.25, Interpolation::Linear);
         let expected = (TAU * 0.25).sin();
-        assert!((val - expected).abs() < 0.02, "single table morph should match sine");
+        assert!(
+            (val - expected).abs() < 0.02,
+            "single table morph should match sine"
+        );
     }
 
     #[test]
@@ -557,7 +617,10 @@ mod tests {
         let mut morph = WavetableMorph::new(tables);
         morph.position = 0.5;
         let val = morph.read(0.0, Interpolation::Nearest);
-        assert!((val - 0.0).abs() < EPS, "50% morph between +1 and -1 should be 0, got {val}");
+        assert!(
+            (val - 0.0).abs() < EPS,
+            "50% morph between +1 and -1 should be 0, got {val}"
+        );
     }
 
     #[test]
@@ -574,10 +637,17 @@ mod tests {
         let mut max_pos = 0.0_f64;
         for _ in 0..(SR as usize) {
             let p = scanner.next_position();
-            if p < min_pos { min_pos = p; }
-            if p > max_pos { max_pos = p; }
+            if p < min_pos {
+                min_pos = p;
+            }
+            if p > max_pos {
+                max_pos = p;
+            }
         }
-        assert!(max_pos - min_pos > 0.5, "scanner should sweep a range: min={min_pos} max={max_pos}");
+        assert!(
+            max_pos - min_pos > 0.5,
+            "scanner should sweep a range: min={min_pos} max={max_pos}"
+        );
     }
 
     #[test]
@@ -589,7 +659,10 @@ mod tests {
         scanner.reset();
         // Phase should be 0, first output near center.
         let pos = scanner.next_position();
-        assert!((pos - 0.5).abs() < 0.1, "after reset, should start near center: {pos}");
+        assert!(
+            (pos - 0.5).abs() < 0.1,
+            "after reset, should start near center: {pos}"
+        );
     }
 
     #[test]
@@ -622,14 +695,20 @@ mod tests {
         // Read past the end should wrap.
         let val = table.read(4.5, Interpolation::Linear);
         // index 4.5 mod 4 = 0.5 → interp between data[0]=0.0 and data[1]=0.5 → 0.25
-        assert!((val - 0.25).abs() < EPS, "wrap-around should work, got {val}");
+        assert!(
+            (val - 0.25).abs() < EPS,
+            "wrap-around should work, got {val}"
+        );
     }
 
     #[test]
     fn test_hermite_interp_straight_line() {
         // Hermite through a straight line y=x should be linear.
         let val = hermite_interp(0.0, 1.0, 2.0, 3.0, 0.5);
-        assert!((val - 1.5).abs() < EPS, "hermite on line should be 1.5, got {val}");
+        assert!(
+            (val - 1.5).abs() < EPS,
+            "hermite on line should be 1.5, got {val}"
+        );
     }
 
     #[test]
@@ -640,8 +719,13 @@ mod tests {
         let mut peak = 0.0_f64;
         for _ in 0..1000 {
             let s = osc.next_sample_single(&table).abs();
-            if s > peak { peak = s; }
+            if s > peak {
+                peak = s;
+            }
         }
-        assert!(peak <= 0.26, "amplitude should limit peak to ~0.25, got {peak}");
+        assert!(
+            peak <= 0.26,
+            "amplitude should limit peak to ~0.25, got {peak}"
+        );
     }
 }

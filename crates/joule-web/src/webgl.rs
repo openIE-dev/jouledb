@@ -21,23 +21,43 @@ impl Vec3 {
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn one() -> Self {
-        Self { x: 1.0, y: 1.0, z: 1.0 }
+        Self {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        }
     }
 
     pub fn up() -> Self {
-        Self { x: 0.0, y: 1.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 1.0,
+            z: 0.0,
+        }
     }
 
     pub fn right() -> Self {
-        Self { x: 1.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 1.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn forward() -> Self {
-        Self { x: 0.0, y: 0.0, z: -1.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: -1.0,
+        }
     }
 
     pub fn dot(&self, other: &Vec3) -> f64 {
@@ -97,28 +117,44 @@ impl Vec3 {
 impl ops::Add for Vec3 {
     type Output = Vec3;
     fn add(self, rhs: Vec3) -> Vec3 {
-        Vec3 { x: self.x + rhs.x, y: self.y + rhs.y, z: self.z + rhs.z }
+        Vec3 {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+        }
     }
 }
 
 impl ops::Sub for Vec3 {
     type Output = Vec3;
     fn sub(self, rhs: Vec3) -> Vec3 {
-        Vec3 { x: self.x - rhs.x, y: self.y - rhs.y, z: self.z - rhs.z }
+        Vec3 {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            z: self.z - rhs.z,
+        }
     }
 }
 
 impl ops::Mul<f64> for Vec3 {
     type Output = Vec3;
     fn mul(self, rhs: f64) -> Vec3 {
-        Vec3 { x: self.x * rhs, y: self.y * rhs, z: self.z * rhs }
+        Vec3 {
+            x: self.x * rhs,
+            y: self.y * rhs,
+            z: self.z * rhs,
+        }
     }
 }
 
 impl ops::Div<f64> for Vec3 {
     type Output = Vec3;
     fn div(self, rhs: f64) -> Vec3 {
-        Vec3 { x: self.x / rhs, y: self.y / rhs, z: self.z / rhs }
+        Vec3 {
+            x: self.x / rhs,
+            y: self.y / rhs,
+            z: self.z / rhs,
+        }
     }
 }
 
@@ -282,9 +318,12 @@ impl Mat4 {
         let w = self.data[3] * v.x + self.data[7] * v.y + self.data[11] * v.z + self.data[15];
         let inv_w = if w.abs() > 1e-12 { 1.0 / w } else { 1.0 };
         Vec3 {
-            x: (self.data[0] * v.x + self.data[4] * v.y + self.data[8] * v.z + self.data[12]) * inv_w,
-            y: (self.data[1] * v.x + self.data[5] * v.y + self.data[9] * v.z + self.data[13]) * inv_w,
-            z: (self.data[2] * v.x + self.data[6] * v.y + self.data[10] * v.z + self.data[14]) * inv_w,
+            x: (self.data[0] * v.x + self.data[4] * v.y + self.data[8] * v.z + self.data[12])
+                * inv_w,
+            y: (self.data[1] * v.x + self.data[5] * v.y + self.data[9] * v.z + self.data[13])
+                * inv_w,
+            z: (self.data[2] * v.x + self.data[6] * v.y + self.data[10] * v.z + self.data[14])
+                * inv_w,
         }
     }
 
@@ -404,7 +443,12 @@ pub struct Quaternion {
 
 impl Quaternion {
     pub fn identity() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0, w: 1.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 1.0,
+        }
     }
 
     pub fn from_axis_angle(axis: &Vec3, angle: f64) -> Self {
@@ -459,7 +503,12 @@ impl Quaternion {
 
         // If dot < 0, negate one to take the shorter arc.
         if dot < 0.0 {
-            other = Quaternion { x: -other.x, y: -other.y, z: -other.z, w: -other.w };
+            other = Quaternion {
+                x: -other.x,
+                y: -other.y,
+                z: -other.z,
+                w: -other.w,
+            };
             dot = -dot;
         }
 
@@ -513,13 +562,27 @@ impl Quaternion {
     }
 
     pub fn conjugate(&self) -> Quaternion {
-        Quaternion { x: -self.x, y: -self.y, z: -self.z, w: self.w }
+        Quaternion {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+            w: self.w,
+        }
     }
 
     pub fn rotate_vec3(&self, v: &Vec3) -> Vec3 {
-        let qv = Quaternion { x: v.x, y: v.y, z: v.z, w: 0.0 };
+        let qv = Quaternion {
+            x: v.x,
+            y: v.y,
+            z: v.z,
+            w: 0.0,
+        };
         let result = self.multiply(&qv).multiply(&self.conjugate());
-        Vec3 { x: result.x, y: result.y, z: result.z }
+        Vec3 {
+            x: result.x,
+            y: result.y,
+            z: result.z,
+        }
     }
 }
 

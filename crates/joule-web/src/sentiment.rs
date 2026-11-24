@@ -86,32 +86,96 @@ impl SentimentLexicon {
 
         // Positive words (score 0.0 to 1.0)
         let positives: &[(&str, f64)] = &[
-            ("good", 0.7), ("great", 0.9), ("excellent", 1.0), ("amazing", 0.95),
-            ("wonderful", 0.9), ("fantastic", 0.95), ("awesome", 0.9), ("love", 0.8),
-            ("happy", 0.8), ("joy", 0.85), ("beautiful", 0.8), ("brilliant", 0.9),
-            ("outstanding", 0.95), ("superb", 0.9), ("perfect", 1.0), ("best", 0.9),
-            ("nice", 0.6), ("pleasant", 0.6), ("enjoy", 0.7), ("like", 0.5),
-            ("fine", 0.4), ("ok", 0.2), ("decent", 0.4), ("impressive", 0.8),
-            ("remarkable", 0.8), ("delightful", 0.85), ("terrific", 0.9),
-            ("positive", 0.6), ("strong", 0.5), ("powerful", 0.6), ("effective", 0.6),
-            ("success", 0.7), ("successful", 0.7), ("win", 0.6), ("advantage", 0.5),
-            ("recommend", 0.7), ("praised", 0.6), ("favorite", 0.7), ("well", 0.4),
-            ("better", 0.6), ("improved", 0.5), ("reliable", 0.6), ("helpful", 0.6),
+            ("good", 0.7),
+            ("great", 0.9),
+            ("excellent", 1.0),
+            ("amazing", 0.95),
+            ("wonderful", 0.9),
+            ("fantastic", 0.95),
+            ("awesome", 0.9),
+            ("love", 0.8),
+            ("happy", 0.8),
+            ("joy", 0.85),
+            ("beautiful", 0.8),
+            ("brilliant", 0.9),
+            ("outstanding", 0.95),
+            ("superb", 0.9),
+            ("perfect", 1.0),
+            ("best", 0.9),
+            ("nice", 0.6),
+            ("pleasant", 0.6),
+            ("enjoy", 0.7),
+            ("like", 0.5),
+            ("fine", 0.4),
+            ("ok", 0.2),
+            ("decent", 0.4),
+            ("impressive", 0.8),
+            ("remarkable", 0.8),
+            ("delightful", 0.85),
+            ("terrific", 0.9),
+            ("positive", 0.6),
+            ("strong", 0.5),
+            ("powerful", 0.6),
+            ("effective", 0.6),
+            ("success", 0.7),
+            ("successful", 0.7),
+            ("win", 0.6),
+            ("advantage", 0.5),
+            ("recommend", 0.7),
+            ("praised", 0.6),
+            ("favorite", 0.7),
+            ("well", 0.4),
+            ("better", 0.6),
+            ("improved", 0.5),
+            ("reliable", 0.6),
+            ("helpful", 0.6),
         ];
 
         // Negative words (score -1.0 to 0.0)
         let negatives: &[(&str, f64)] = &[
-            ("bad", -0.7), ("terrible", -0.95), ("horrible", -0.95), ("awful", -0.9),
-            ("worst", -1.0), ("hate", -0.9), ("ugly", -0.7), ("poor", -0.6),
-            ("disappointing", -0.7), ("sad", -0.7), ("angry", -0.8), ("disgusting", -0.9),
-            ("boring", -0.5), ("dull", -0.4), ("mediocre", -0.3), ("weak", -0.4),
-            ("fail", -0.7), ("failure", -0.7), ("wrong", -0.5), ("broken", -0.6),
-            ("useless", -0.8), ("waste", -0.6), ("annoying", -0.6), ("frustrating", -0.7),
-            ("painful", -0.6), ("difficult", -0.3), ("problem", -0.4), ("issue", -0.3),
-            ("negative", -0.5), ("damage", -0.6), ("loss", -0.5), ("lose", -0.5),
-            ("worse", -0.6), ("inferior", -0.6), ("defect", -0.5), ("error", -0.4),
-            ("bug", -0.3), ("crash", -0.6), ("slow", -0.3), ("expensive", -0.3),
-            ("overpriced", -0.5), ("cheap", -0.2), ("unreliable", -0.6),
+            ("bad", -0.7),
+            ("terrible", -0.95),
+            ("horrible", -0.95),
+            ("awful", -0.9),
+            ("worst", -1.0),
+            ("hate", -0.9),
+            ("ugly", -0.7),
+            ("poor", -0.6),
+            ("disappointing", -0.7),
+            ("sad", -0.7),
+            ("angry", -0.8),
+            ("disgusting", -0.9),
+            ("boring", -0.5),
+            ("dull", -0.4),
+            ("mediocre", -0.3),
+            ("weak", -0.4),
+            ("fail", -0.7),
+            ("failure", -0.7),
+            ("wrong", -0.5),
+            ("broken", -0.6),
+            ("useless", -0.8),
+            ("waste", -0.6),
+            ("annoying", -0.6),
+            ("frustrating", -0.7),
+            ("painful", -0.6),
+            ("difficult", -0.3),
+            ("problem", -0.4),
+            ("issue", -0.3),
+            ("negative", -0.5),
+            ("damage", -0.6),
+            ("loss", -0.5),
+            ("lose", -0.5),
+            ("worse", -0.6),
+            ("inferior", -0.6),
+            ("defect", -0.5),
+            ("error", -0.4),
+            ("bug", -0.3),
+            ("crash", -0.6),
+            ("slow", -0.3),
+            ("expensive", -0.3),
+            ("overpriced", -0.5),
+            ("cheap", -0.2),
+            ("unreliable", -0.6),
         ];
 
         for (word, score) in positives {
@@ -123,24 +187,51 @@ impl SentimentLexicon {
 
         // Negators
         lex.negators = vec![
-            "not".to_string(), "no".to_string(), "never".to_string(),
-            "neither".to_string(), "nobody".to_string(), "nothing".to_string(),
-            "nor".to_string(), "nowhere".to_string(), "hardly".to_string(),
-            "barely".to_string(), "scarcely".to_string(), "don't".to_string(),
-            "doesn't".to_string(), "didn't".to_string(), "wasn't".to_string(),
-            "weren't".to_string(), "won't".to_string(), "wouldn't".to_string(),
-            "couldn't".to_string(), "shouldn't".to_string(), "isn't".to_string(),
-            "aren't".to_string(), "hasn't".to_string(), "haven't".to_string(),
-            "without".to_string(), "lack".to_string(),
+            "not".to_string(),
+            "no".to_string(),
+            "never".to_string(),
+            "neither".to_string(),
+            "nobody".to_string(),
+            "nothing".to_string(),
+            "nor".to_string(),
+            "nowhere".to_string(),
+            "hardly".to_string(),
+            "barely".to_string(),
+            "scarcely".to_string(),
+            "don't".to_string(),
+            "doesn't".to_string(),
+            "didn't".to_string(),
+            "wasn't".to_string(),
+            "weren't".to_string(),
+            "won't".to_string(),
+            "wouldn't".to_string(),
+            "couldn't".to_string(),
+            "shouldn't".to_string(),
+            "isn't".to_string(),
+            "aren't".to_string(),
+            "hasn't".to_string(),
+            "haven't".to_string(),
+            "without".to_string(),
+            "lack".to_string(),
         ];
 
         // Intensifiers (multiply score)
         let intensifiers: &[(&str, f64)] = &[
-            ("very", 1.5), ("extremely", 2.0), ("incredibly", 1.8),
-            ("absolutely", 1.9), ("totally", 1.7), ("completely", 1.8),
-            ("really", 1.4), ("truly", 1.5), ("highly", 1.5),
-            ("so", 1.3), ("remarkably", 1.6), ("exceptionally", 1.8),
-            ("especially", 1.3), ("particularly", 1.3), ("most", 1.4),
+            ("very", 1.5),
+            ("extremely", 2.0),
+            ("incredibly", 1.8),
+            ("absolutely", 1.9),
+            ("totally", 1.7),
+            ("completely", 1.8),
+            ("really", 1.4),
+            ("truly", 1.5),
+            ("highly", 1.5),
+            ("so", 1.3),
+            ("remarkably", 1.6),
+            ("exceptionally", 1.8),
+            ("especially", 1.3),
+            ("particularly", 1.3),
+            ("most", 1.4),
         ];
         for (word, mult) in intensifiers {
             lex.intensifiers.insert(word.to_string(), *mult);
@@ -148,10 +239,18 @@ impl SentimentLexicon {
 
         // Diminishers (reduce score)
         let diminishers: &[(&str, f64)] = &[
-            ("slightly", 0.5), ("somewhat", 0.6), ("rather", 0.7),
-            ("fairly", 0.7), ("a bit", 0.5), ("a little", 0.5),
-            ("kind of", 0.6), ("sort of", 0.6), ("barely", 0.3),
-            ("marginally", 0.4), ("mildly", 0.5), ("partly", 0.6),
+            ("slightly", 0.5),
+            ("somewhat", 0.6),
+            ("rather", 0.7),
+            ("fairly", 0.7),
+            ("a bit", 0.5),
+            ("a little", 0.5),
+            ("kind of", 0.6),
+            ("sort of", 0.6),
+            ("barely", 0.3),
+            ("marginally", 0.4),
+            ("mildly", 0.5),
+            ("partly", 0.6),
         ];
         for (word, mult) in diminishers {
             lex.diminishers.insert(word.to_string(), *mult);
@@ -162,7 +261,8 @@ impl SentimentLexicon {
 
     /// Add or update a word's sentiment score.
     pub fn set_word(&mut self, word: &str, score: f64) {
-        self.words.insert(word.to_lowercase(), score.clamp(-1.0, 1.0));
+        self.words
+            .insert(word.to_lowercase(), score.clamp(-1.0, 1.0));
     }
 
     /// Get a word's sentiment score.
@@ -251,7 +351,11 @@ pub fn score_sentence(text: &str, lexicon: &SentimentLexicon) -> SentimentScore 
         }
 
         // Look for negation.
-        let is_negated = if i > 0 { lexicon.is_negator(&tokens[i - 1]) } else { false };
+        let is_negated = if i > 0 {
+            lexicon.is_negator(&tokens[i - 1])
+        } else {
+            false
+        };
 
         // Look for intensifier in previous position.
         let intensifier = if i > 0 {
@@ -349,7 +453,9 @@ pub fn aspect_sentiment(
     let tokens = tokenize(text);
     let mut results = Vec::new();
 
-    let conjunctions: &[&str] = &["but", "however", "although", "yet", "though", "while", "whereas"];
+    let conjunctions: &[&str] = &[
+        "but", "however", "although", "yet", "though", "while", "whereas",
+    ];
 
     for aspect in aspects {
         let aspect_lower = aspect.to_lowercase();
@@ -543,8 +649,14 @@ mod tests {
 
     #[test]
     fn test_classify_sentiment() {
-        assert_eq!(classify_sentiment("excellent work", &lex()), Polarity::Positive);
-        assert_eq!(classify_sentiment("awful result", &lex()), Polarity::Negative);
+        assert_eq!(
+            classify_sentiment("excellent work", &lex()),
+            Polarity::Positive
+        );
+        assert_eq!(
+            classify_sentiment("awful result", &lex()),
+            Polarity::Negative
+        );
     }
 
     #[test]

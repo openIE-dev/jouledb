@@ -21,7 +21,11 @@ impl Vec3 {
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn splat(v: f64) -> Self {
@@ -29,11 +33,19 @@ impl Vec3 {
     }
 
     pub fn component_min(self, o: Self) -> Self {
-        Self { x: self.x.min(o.x), y: self.y.min(o.y), z: self.z.min(o.z) }
+        Self {
+            x: self.x.min(o.x),
+            y: self.y.min(o.y),
+            z: self.z.min(o.z),
+        }
     }
 
     pub fn component_max(self, o: Self) -> Self {
-        Self { x: self.x.max(o.x), y: self.y.max(o.y), z: self.z.max(o.z) }
+        Self {
+            x: self.x.max(o.x),
+            y: self.y.max(o.y),
+            z: self.z.max(o.z),
+        }
     }
 
     pub fn index(self, axis: usize) -> f64 {
@@ -47,17 +59,35 @@ impl Vec3 {
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 
 impl std::ops::Mul<f64> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 
 impl fmt::Display for Vec3 {
@@ -75,7 +105,10 @@ pub struct Aabb {
 
 impl Aabb {
     pub fn empty() -> Self {
-        Self { min: Vec3::splat(f64::INFINITY), max: Vec3::splat(f64::NEG_INFINITY) }
+        Self {
+            min: Vec3::splat(f64::INFINITY),
+            max: Vec3::splat(f64::NEG_INFINITY),
+        }
     }
 
     pub fn new(min: Vec3, max: Vec3) -> Self {
@@ -110,9 +143,13 @@ impl Aabb {
 
     pub fn longest_axis(&self) -> usize {
         let d = self.max - self.min;
-        if d.x >= d.y && d.x >= d.z { 0 }
-        else if d.y >= d.z { 1 }
-        else { 2 }
+        if d.x >= d.y && d.x >= d.z {
+            0
+        } else if d.y >= d.z {
+            1
+        } else {
+            2
+        }
     }
 
     pub fn is_valid(&self) -> bool {
@@ -130,7 +167,11 @@ pub struct BvhPrimitive {
 
 impl BvhPrimitive {
     pub fn new(bounds: Aabb, index: usize) -> Self {
-        Self { centroid: bounds.centroid(), bounds, index }
+        Self {
+            centroid: bounds.centroid(),
+            bounds,
+            index,
+        }
     }
 }
 
@@ -181,19 +222,35 @@ struct SahBin {
 
 impl SahBin {
     fn empty() -> Self {
-        Self { bounds: Aabb::empty(), count: 0 }
+        Self {
+            bounds: Aabb::empty(),
+            count: 0,
+        }
     }
 }
 
 /// Build a BVH from a list of primitives using binned SAH.
-pub fn build_bvh(primitives: &mut Vec<BvhPrimitive>, max_leaf: usize) -> (Vec<LinearBvhNode>, Vec<usize>) {
+pub fn build_bvh(
+    primitives: &mut Vec<BvhPrimitive>,
+    max_leaf: usize,
+) -> (Vec<LinearBvhNode>, Vec<usize>) {
     if primitives.is_empty() {
         return (vec![], vec![]);
     }
 
-    let leaf_size = if max_leaf == 0 { DEFAULT_MAX_LEAF_SIZE } else { max_leaf };
+    let leaf_size = if max_leaf == 0 {
+        DEFAULT_MAX_LEAF_SIZE
+    } else {
+        max_leaf
+    };
     let mut ordered_prims: Vec<usize> = Vec::with_capacity(primitives.len());
-    let root = build_recursive(primitives, 0, primitives.len(), leaf_size, &mut ordered_prims);
+    let root = build_recursive(
+        primitives,
+        0,
+        primitives.len(),
+        leaf_size,
+        &mut ordered_prims,
+    );
 
     let mut nodes = Vec::new();
     flatten_bvh(&root, &mut nodes);
@@ -221,7 +278,11 @@ fn build_recursive(
         for p in &prims[start..end] {
             ordered.push(p.index);
         }
-        return BuildNode::Leaf { bounds, first_prim: first, count };
+        return BuildNode::Leaf {
+            bounds,
+            first_prim: first,
+            count,
+        };
     }
 
     // Compute centroid bounds
@@ -239,7 +300,11 @@ fn build_recursive(
         for p in &prims[start..end] {
             ordered.push(p.index);
         }
-        return BuildNode::Leaf { bounds, first_prim: first, count };
+        return BuildNode::Leaf {
+            bounds,
+            first_prim: first,
+            count,
+        };
     }
 
     // Binned SAH
@@ -263,7 +328,11 @@ fn build_recursive(
         for p in &prims[start..end] {
             ordered.push(p.index);
         }
-        return BuildNode::Leaf { bounds, first_prim: first, count };
+        return BuildNode::Leaf {
+            bounds,
+            first_prim: first,
+            count,
+        };
     }
     let inv_parent_sa = 1.0 / parent_sa;
 
@@ -286,11 +355,11 @@ fn build_recursive(
             continue;
         }
 
-        let cost = SAH_TRAVERSAL_COST +
-            SAH_INTERSECT_COST * (
-                left_count as f64 * left_bounds.surface_area() +
-                right_count as f64 * right_bounds.surface_area()
-            ) * inv_parent_sa;
+        let cost = SAH_TRAVERSAL_COST
+            + SAH_INTERSECT_COST
+                * (left_count as f64 * left_bounds.surface_area()
+                    + right_count as f64 * right_bounds.surface_area())
+                * inv_parent_sa;
 
         if cost < best_cost {
             best_cost = cost;
@@ -304,7 +373,11 @@ fn build_recursive(
         for p in &prims[start..end] {
             ordered.push(p.index);
         }
-        return BuildNode::Leaf { bounds, first_prim: first, count };
+        return BuildNode::Leaf {
+            bounds,
+            first_prim: first,
+            count,
+        };
     }
 
     // Partition primitives
@@ -327,13 +400,22 @@ fn build_recursive(
     let left = build_recursive(prims, start, mid, max_leaf, ordered);
     let right = build_recursive(prims, mid, end, max_leaf, ordered);
 
-    BuildNode::Interior { bounds, axis, left: Box::new(left), right: Box::new(right) }
+    BuildNode::Interior {
+        bounds,
+        axis,
+        left: Box::new(left),
+        right: Box::new(right),
+    }
 }
 
 fn flatten_bvh(node: &BuildNode, nodes: &mut Vec<LinearBvhNode>) -> usize {
     let my_index = nodes.len();
     match node {
-        BuildNode::Leaf { bounds, first_prim, count } => {
+        BuildNode::Leaf {
+            bounds,
+            first_prim,
+            count,
+        } => {
             nodes.push(LinearBvhNode {
                 bounds: *bounds,
                 offset: *first_prim as u32,
@@ -341,7 +423,12 @@ fn flatten_bvh(node: &BuildNode, nodes: &mut Vec<LinearBvhNode>) -> usize {
                 axis: 0,
             });
         }
-        BuildNode::Interior { bounds, axis, left, right } => {
+        BuildNode::Interior {
+            bounds,
+            axis,
+            left,
+            right,
+        } => {
             nodes.push(LinearBvhNode {
                 bounds: *bounds,
                 offset: 0, // placeholder
@@ -360,8 +447,12 @@ fn flatten_bvh(node: &BuildNode, nodes: &mut Vec<LinearBvhNode>) -> usize {
 pub fn bvh_stats(nodes: &[LinearBvhNode], total_prims: usize) -> BvhStats {
     if nodes.is_empty() {
         return BvhStats {
-            node_count: 0, leaf_count: 0, interior_count: 0,
-            max_depth: 0, total_primitives: total_prims, sah_cost: 0.0,
+            node_count: 0,
+            leaf_count: 0,
+            interior_count: 0,
+            max_depth: 0,
+            total_primitives: total_prims,
+            sah_cost: 0.0,
         };
     }
 
@@ -374,10 +465,14 @@ pub fn bvh_stats(nodes: &[LinearBvhNode], total_prims: usize) -> BvhStats {
     let inv_root_sa = if root_sa > 1e-15 { 1.0 / root_sa } else { 1.0 };
 
     fn walk(
-        nodes: &[LinearBvhNode], idx: usize, depth: usize,
+        nodes: &[LinearBvhNode],
+        idx: usize,
+        depth: usize,
         inv_root_sa: f64,
-        leaf_count: &mut usize, interior_count: &mut usize,
-        max_depth: &mut usize, sah_cost: &mut f64,
+        leaf_count: &mut usize,
+        interior_count: &mut usize,
+        max_depth: &mut usize,
+        sah_cost: &mut f64,
     ) {
         if idx >= nodes.len() {
             return;
@@ -393,12 +488,39 @@ pub fn bvh_stats(nodes: &[LinearBvhNode], total_prims: usize) -> BvhStats {
         } else {
             *interior_count += 1;
             *sah_cost += SAH_TRAVERSAL_COST * node.bounds.surface_area() * inv_root_sa;
-            walk(nodes, idx + 1, depth + 1, inv_root_sa, leaf_count, interior_count, max_depth, sah_cost);
-            walk(nodes, node.offset as usize, depth + 1, inv_root_sa, leaf_count, interior_count, max_depth, sah_cost);
+            walk(
+                nodes,
+                idx + 1,
+                depth + 1,
+                inv_root_sa,
+                leaf_count,
+                interior_count,
+                max_depth,
+                sah_cost,
+            );
+            walk(
+                nodes,
+                node.offset as usize,
+                depth + 1,
+                inv_root_sa,
+                leaf_count,
+                interior_count,
+                max_depth,
+                sah_cost,
+            );
         }
     }
 
-    walk(nodes, 0, 0, inv_root_sa, &mut leaf_count, &mut interior_count, &mut max_depth, &mut sah_cost);
+    walk(
+        nodes,
+        0,
+        0,
+        inv_root_sa,
+        &mut leaf_count,
+        &mut interior_count,
+        &mut max_depth,
+        &mut sah_cost,
+    );
 
     BvhStats {
         node_count: leaf_count + interior_count,
@@ -418,7 +540,12 @@ pub fn refit_bvh(nodes: &mut [LinearBvhNode], primitives: &[Aabb], ordered_indic
     refit_recursive(nodes, 0, primitives, ordered_indices);
 }
 
-fn refit_recursive(nodes: &mut [LinearBvhNode], idx: usize, prims: &[Aabb], ordered: &[usize]) -> Aabb {
+fn refit_recursive(
+    nodes: &mut [LinearBvhNode],
+    idx: usize,
+    prims: &[Aabb],
+    ordered: &[usize],
+) -> Aabb {
     if idx >= nodes.len() {
         return Aabb::empty();
     }
@@ -459,9 +586,21 @@ pub fn traverse_bvh(
     }
 
     let inv_dir = Vec3::new(
-        if ray_dir.x.abs() > 1e-15 { 1.0 / ray_dir.x } else { f64::INFINITY.copysign(ray_dir.x) },
-        if ray_dir.y.abs() > 1e-15 { 1.0 / ray_dir.y } else { f64::INFINITY.copysign(ray_dir.y) },
-        if ray_dir.z.abs() > 1e-15 { 1.0 / ray_dir.z } else { f64::INFINITY.copysign(ray_dir.z) },
+        if ray_dir.x.abs() > 1e-15 {
+            1.0 / ray_dir.x
+        } else {
+            f64::INFINITY.copysign(ray_dir.x)
+        },
+        if ray_dir.y.abs() > 1e-15 {
+            1.0 / ray_dir.y
+        } else {
+            f64::INFINITY.copysign(ray_dir.y)
+        },
+        if ray_dir.z.abs() > 1e-15 {
+            1.0 / ray_dir.z
+        } else {
+            f64::INFINITY.copysign(ray_dir.z)
+        },
     );
 
     let mut stack = vec![0usize];
@@ -489,15 +628,27 @@ pub fn traverse_bvh(
 fn ray_intersects_aabb(aabb: &Aabb, origin: Vec3, inv_dir: Vec3, t_min: f64, t_max: f64) -> bool {
     let t0x = (aabb.min.x - origin.x) * inv_dir.x;
     let t1x = (aabb.max.x - origin.x) * inv_dir.x;
-    let (t0x, t1x) = if inv_dir.x < 0.0 { (t1x, t0x) } else { (t0x, t1x) };
+    let (t0x, t1x) = if inv_dir.x < 0.0 {
+        (t1x, t0x)
+    } else {
+        (t0x, t1x)
+    };
 
     let t0y = (aabb.min.y - origin.y) * inv_dir.y;
     let t1y = (aabb.max.y - origin.y) * inv_dir.y;
-    let (t0y, t1y) = if inv_dir.y < 0.0 { (t1y, t0y) } else { (t0y, t1y) };
+    let (t0y, t1y) = if inv_dir.y < 0.0 {
+        (t1y, t0y)
+    } else {
+        (t0y, t1y)
+    };
 
     let t0z = (aabb.min.z - origin.z) * inv_dir.z;
     let t1z = (aabb.max.z - origin.z) * inv_dir.z;
-    let (t0z, t1z) = if inv_dir.z < 0.0 { (t1z, t0z) } else { (t0z, t1z) };
+    let (t0z, t1z) = if inv_dir.z < 0.0 {
+        (t1z, t0z)
+    } else {
+        (t0z, t1z)
+    };
 
     let t_enter = t0x.max(t0y).max(t0z).max(t_min);
     let t_exit = t1x.min(t1y).min(t1z).min(t_max);
@@ -588,9 +739,9 @@ mod tests {
 
     #[test]
     fn test_build_many_prims() {
-        let mut prims: Vec<BvhPrimitive> = (0..20).map(|i| {
-            make_prim(i as f64 * 3.0, 0.0, 0.0, 1.0, i)
-        }).collect();
+        let mut prims: Vec<BvhPrimitive> = (0..20)
+            .map(|i| make_prim(i as f64 * 3.0, 0.0, 0.0, 1.0, i))
+            .collect();
         let (nodes, ordered) = build_bvh(&mut prims, 4);
         assert!(!nodes.is_empty());
         assert_eq!(ordered.len(), 20);
@@ -608,9 +759,9 @@ mod tests {
 
     #[test]
     fn test_bvh_stats_multi() {
-        let mut prims: Vec<BvhPrimitive> = (0..16).map(|i| {
-            make_prim(i as f64 * 3.0, 0.0, 0.0, 1.0, i)
-        }).collect();
+        let mut prims: Vec<BvhPrimitive> = (0..16)
+            .map(|i| make_prim(i as f64 * 3.0, 0.0, 0.0, 1.0, i))
+            .collect();
         let (nodes, _) = build_bvh(&mut prims, 2);
         let stats = bvh_stats(&nodes, 16);
         assert!(stats.leaf_count >= 2);
@@ -621,9 +772,9 @@ mod tests {
 
     #[test]
     fn test_bvh_root_bounds_enclose_all() {
-        let mut prims: Vec<BvhPrimitive> = (0..10).map(|i| {
-            make_prim(i as f64 * 5.0, i as f64 * 2.0, 0.0, 1.0, i)
-        }).collect();
+        let mut prims: Vec<BvhPrimitive> = (0..10)
+            .map(|i| make_prim(i as f64 * 5.0, i as f64 * 2.0, 0.0, 1.0, i))
+            .collect();
         let (nodes, _) = build_bvh(&mut prims, 4);
         let root_bounds = nodes[0].bounds;
         // All primitive centroids should be within root bounds
@@ -636,9 +787,9 @@ mod tests {
     #[test]
     fn test_ordered_indices_complete() {
         let n = 25;
-        let mut prims: Vec<BvhPrimitive> = (0..n).map(|i| {
-            make_prim(i as f64 * 2.0, (i as f64).sin() * 5.0, 0.0, 1.0, i)
-        }).collect();
+        let mut prims: Vec<BvhPrimitive> = (0..n)
+            .map(|i| make_prim(i as f64 * 2.0, (i as f64).sin() * 5.0, 0.0, 1.0, i))
+            .collect();
         let (_, ordered) = build_bvh(&mut prims, 4);
         assert_eq!(ordered.len(), n);
         let mut sorted = ordered.clone();
@@ -667,20 +818,26 @@ mod tests {
 
     #[test]
     fn test_traverse_bvh_hit() {
-        let mut prims: Vec<BvhPrimitive> = (0..8).map(|i| {
-            make_prim(i as f64 * 10.0, 0.0, 0.0, 2.0, i)
-        }).collect();
+        let mut prims: Vec<BvhPrimitive> = (0..8)
+            .map(|i| make_prim(i as f64 * 10.0, 0.0, 0.0, 2.0, i))
+            .collect();
         let (nodes, _ordered) = build_bvh(&mut prims, 2);
         // Ray aiming at first primitive centered at (0,0,0)
-        let results = traverse_bvh(&nodes, Vec3::new(0.0, 0.0, -5.0), Vec3::new(0.0, 0.0, 1.0), 0.0, 100.0);
+        let results = traverse_bvh(
+            &nodes,
+            Vec3::new(0.0, 0.0, -5.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            0.0,
+            100.0,
+        );
         assert!(!results.is_empty());
     }
 
     #[test]
     fn test_traverse_bvh_miss() {
-        let mut prims: Vec<BvhPrimitive> = (0..8).map(|i| {
-            make_prim(i as f64 * 10.0, 0.0, 0.0, 1.0, i)
-        }).collect();
+        let mut prims: Vec<BvhPrimitive> = (0..8)
+            .map(|i| make_prim(i as f64 * 10.0, 0.0, 0.0, 1.0, i))
+            .collect();
         let (nodes, _) = build_bvh(&mut prims, 2);
         // Ray far away from all prims
         let results = traverse_bvh(
@@ -696,9 +853,8 @@ mod tests {
     #[test]
     fn test_identical_centroids() {
         // All prims at same position -> should become a single leaf
-        let mut prims: Vec<BvhPrimitive> = (0..5).map(|i| {
-            make_prim(0.0, 0.0, 0.0, 1.0, i)
-        }).collect();
+        let mut prims: Vec<BvhPrimitive> =
+            (0..5).map(|i| make_prim(0.0, 0.0, 0.0, 1.0, i)).collect();
         let (nodes, ordered) = build_bvh(&mut prims, 2);
         assert!(!nodes.is_empty());
         assert_eq!(ordered.len(), 5);
@@ -743,12 +899,14 @@ mod tests {
     #[test]
     fn test_build_preserves_all_prims_large() {
         let n = 100;
-        let mut prims: Vec<BvhPrimitive> = (0..n).map(|i| {
-            let x = (i as f64 * 7.3).sin() * 50.0;
-            let y = (i as f64 * 3.1).cos() * 50.0;
-            let z = (i as f64 * 1.7).sin() * 50.0;
-            make_prim(x, y, z, 1.0, i)
-        }).collect();
+        let mut prims: Vec<BvhPrimitive> = (0..n)
+            .map(|i| {
+                let x = (i as f64 * 7.3).sin() * 50.0;
+                let y = (i as f64 * 3.1).cos() * 50.0;
+                let z = (i as f64 * 1.7).sin() * 50.0;
+                make_prim(x, y, z, 1.0, i)
+            })
+            .collect();
         let (nodes, ordered) = build_bvh(&mut prims, 4);
         assert!(!nodes.is_empty());
         assert_eq!(ordered.len(), n);

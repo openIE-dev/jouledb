@@ -66,12 +66,21 @@ pub struct BookEntry {
 
 impl BookEntry {
     pub fn new(order_id: u64, side: Side, price: f64, quantity: f64, timestamp_ns: u64) -> Self {
-        Self { order_id, side, price, quantity, remaining: quantity, timestamp_ns }
+        Self {
+            order_id,
+            side,
+            price,
+            quantity,
+            remaining: quantity,
+            timestamp_ns,
+        }
     }
 
     /// Fraction already filled.
     pub fn fill_ratio(&self) -> f64 {
-        if self.quantity <= 0.0 { return 0.0; }
+        if self.quantity <= 0.0 {
+            return 0.0;
+        }
         1.0 - self.remaining / self.quantity
     }
 
@@ -83,8 +92,11 @@ impl BookEntry {
 
 impl fmt::Display for BookEntry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Entry(id={}, {} {:.4}@{:.2}, rem={:.4})",
-            self.order_id, self.side, self.quantity, self.price, self.remaining)
+        write!(
+            f,
+            "Entry(id={}, {} {:.4}@{:.2}, rem={:.4})",
+            self.order_id, self.side, self.quantity, self.price, self.remaining
+        )
     }
 }
 
@@ -97,13 +109,17 @@ struct PriceLevel {
 }
 
 impl PriceLevel {
-    fn new() -> Self { Self { orders: Vec::new() } }
+    fn new() -> Self {
+        Self { orders: Vec::new() }
+    }
 
     fn total_volume(&self) -> f64 {
         self.orders.iter().map(|o| o.remaining).sum()
     }
 
-    fn order_count(&self) -> usize { self.orders.len() }
+    fn order_count(&self) -> usize {
+        self.orders.len()
+    }
 
     fn add(&mut self, entry: BookEntry) {
         self.orders.push(entry);
@@ -117,7 +133,9 @@ impl PriceLevel {
         }
     }
 
-    fn is_empty(&self) -> bool { self.orders.is_empty() }
+    fn is_empty(&self) -> bool {
+        self.orders.is_empty()
+    }
 }
 
 // ── BookSnapshot ────────────────────────────────────────────────
@@ -142,8 +160,12 @@ impl fmt::Display for BookSnapshot {
         let bid_str = self.best_bid.map_or("--".into(), |v| format!("{v:.2}"));
         let ask_str = self.best_ask.map_or("--".into(), |v| format!("{v:.2}"));
         let spread_str = self.spread.map_or("--".into(), |v| format!("{v:.4}"));
-        write!(f, "Book(bid={bid_str}, ask={ask_str}, spread={spread_str}, \
-            bid_levels={}, ask_levels={})", self.bid_depth, self.ask_depth)
+        write!(
+            f,
+            "Book(bid={bid_str}, ask={ask_str}, spread={spread_str}, \
+            bid_levels={}, ask_levels={})",
+            self.bid_depth, self.ask_depth
+        )
     }
 }
 
@@ -195,7 +217,10 @@ impl OrderBook {
             return Err(OrderBookError::InvalidPrice(format!("{}", entry.price)));
         }
         if entry.remaining <= 0.0 {
-            return Err(OrderBookError::InvalidQuantity(format!("{}", entry.remaining)));
+            return Err(OrderBookError::InvalidQuantity(format!(
+                "{}",
+                entry.remaining
+            )));
         }
         let ticks = price_to_ticks(entry.price, self.tick_size);
         let book = match entry.side {
@@ -235,12 +260,18 @@ impl OrderBook {
 
     /// Best bid price.
     pub fn best_bid(&self) -> Option<f64> {
-        self.bids.keys().next_back().map(|t| ticks_to_price(*t, self.tick_size))
+        self.bids
+            .keys()
+            .next_back()
+            .map(|t| ticks_to_price(*t, self.tick_size))
     }
 
     /// Best ask price.
     pub fn best_ask(&self) -> Option<f64> {
-        self.asks.keys().next().map(|t| ticks_to_price(*t, self.tick_size))
+        self.asks
+            .keys()
+            .next()
+            .map(|t| ticks_to_price(*t, self.tick_size))
     }
 
     /// Bid-ask spread.
@@ -256,7 +287,11 @@ impl OrderBook {
         match (self.best_ask(), self.best_bid()) {
             (Some(a), Some(b)) => {
                 let mid = (a + b) / 2.0;
-                if mid.abs() < 1e-12 { None } else { Some((a - b) / mid * 10_000.0) }
+                if mid.abs() < 1e-12 {
+                    None
+                } else {
+                    Some((a - b) / mid * 10_000.0)
+                }
             }
             _ => None,
         }
@@ -287,11 +322,28 @@ impl OrderBook {
 
     /// Capture a full snapshot.
     pub fn snapshot(&self) -> BookSnapshot {
-        let bid_levels: Vec<(f64, f64, usize)> = self.bids.iter().rev()
-            .map(|(&t, l)| (ticks_to_price(t, self.tick_size), l.total_volume(), l.order_count()))
+        let bid_levels: Vec<(f64, f64, usize)> = self
+            .bids
+            .iter()
+            .rev()
+            .map(|(&t, l)| {
+                (
+                    ticks_to_price(t, self.tick_size),
+                    l.total_volume(),
+                    l.order_count(),
+                )
+            })
             .collect();
-        let ask_levels: Vec<(f64, f64, usize)> = self.asks.iter()
-            .map(|(&t, l)| (ticks_to_price(t, self.tick_size), l.total_volume(), l.order_count()))
+        let ask_levels: Vec<(f64, f64, usize)> = self
+            .asks
+            .iter()
+            .map(|(&t, l)| {
+                (
+                    ticks_to_price(t, self.tick_size),
+                    l.total_volume(),
+                    l.order_count(),
+                )
+            })
             .collect();
         BookSnapshot {
             best_bid: self.best_bid(),
@@ -325,24 +377,37 @@ impl OrderBook {
             total_value += px * vol;
             total_vol += vol;
         }
-        if total_vol > 1e-12 { Some(total_value / total_vol) } else { None }
+        if total_vol > 1e-12 {
+            Some(total_value / total_vol)
+        } else {
+            None
+        }
     }
 
     /// Symbol accessor.
-    pub fn symbol(&self) -> &str { &self.symbol }
+    pub fn symbol(&self) -> &str {
+        &self.symbol
+    }
 
     /// Total order count.
-    pub fn order_count(&self) -> u64 { self.order_count }
+    pub fn order_count(&self) -> u64 {
+        self.order_count
+    }
 
     /// Whether the book is empty.
-    pub fn is_empty(&self) -> bool { self.bids.is_empty() && self.asks.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.bids.is_empty() && self.asks.is_empty()
+    }
 }
 
 impl fmt::Display for OrderBook {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (bd, ad) = self.depth();
-        write!(f, "OrderBook({}, bid_levels={bd}, ask_levels={ad}, orders={})",
-            self.symbol, self.order_count)
+        write!(
+            f,
+            "OrderBook({}, bid_levels={bd}, ask_levels={ad}, orders={})",
+            self.symbol, self.order_count
+        )
     }
 }
 

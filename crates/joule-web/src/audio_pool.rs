@@ -128,8 +128,8 @@ pub struct AudioPool {
 impl AudioPool {
     /// Create a new audio pool with a fixed number of voices.
     pub fn new(pool_size: usize) -> Self {
-        let voices: Vec<Voice> = (0..pool_size).map(|i| {
-            Voice {
+        let voices: Vec<Voice> = (0..pool_size)
+            .map(|i| Voice {
                 id: (i + 1) as VoiceId,
                 sound_id: 0,
                 state: VoiceState::Stopped,
@@ -141,8 +141,8 @@ impl AudioPool {
                 fade_out_remaining: 0,
                 fade_out_total: 0,
                 is_virtual: false,
-            }
-        }).collect();
+            })
+            .collect();
 
         Self {
             voices,
@@ -180,13 +180,20 @@ impl AudioPool {
 
     /// Allocate a voice for a sound. Returns the voice ID, or None if
     /// no voice is available and stealing fails.
-    pub fn allocate(&mut self, sound_id: SoundId, priority: Priority,
-                    mode: PlaybackMode) -> Option<VoiceId> {
+    pub fn allocate(
+        &mut self,
+        sound_id: SoundId,
+        priority: Priority,
+        mode: PlaybackMode,
+    ) -> Option<VoiceId> {
         self.current_tick += 1;
         self.total_allocations += 1;
 
         // First check virtual voices — promote if this sound was virtual
-        let virtual_idx = self.virtual_voices.iter().position(|v| v.sound_id == sound_id);
+        let virtual_idx = self
+            .virtual_voices
+            .iter()
+            .position(|v| v.sound_id == sound_id);
         let (position, age) = if let Some(idx) = virtual_idx {
             let vv = self.virtual_voices.remove(idx);
             (vv.position, vv.age)
@@ -195,7 +202,11 @@ impl AudioPool {
         };
 
         // Find a free (stopped) voice
-        if let Some(voice) = self.voices.iter_mut().find(|v| v.state == VoiceState::Stopped) {
+        if let Some(voice) = self
+            .voices
+            .iter_mut()
+            .find(|v| v.state == VoiceState::Stopped)
+        {
             let vid = self.next_voice_id;
             self.next_voice_id += 1;
             *voice = Voice::new(vid, sound_id, priority, mode);
@@ -245,33 +256,37 @@ impl AudioPool {
 
     /// Find the best voice to steal for the given priority.
     fn find_steal_candidate(&self, new_priority: Priority) -> Option<usize> {
-        let playing: Vec<(usize, &Voice)> = self.voices.iter().enumerate()
+        let playing: Vec<(usize, &Voice)> = self
+            .voices
+            .iter()
+            .enumerate()
             .filter(|(_, v)| v.state == VoiceState::Playing || v.state == VoiceState::Paused)
             .collect();
 
-        if playing.is_empty() { return None; }
+        if playing.is_empty() {
+            return None;
+        }
 
         match self.steal_policy {
-            StealPolicy::Oldest => {
-                playing.iter()
-                    .filter(|(_, v)| v.priority <= new_priority)
-                    .min_by_key(|(_, v)| v.age)
-                    .map(|(i, _)| *i)
-            }
-            StealPolicy::Quietest => {
-                playing.iter()
-                    .filter(|(_, v)| v.priority <= new_priority)
-                    .min_by(|(_, a), (_, b)| {
-                        a.volume.partial_cmp(&b.volume).unwrap_or(std::cmp::Ordering::Equal)
-                    })
-                    .map(|(i, _)| *i)
-            }
-            StealPolicy::LowestPriority => {
-                playing.iter()
-                    .min_by_key(|(_, v)| v.priority)
-                    .filter(|(_, v)| v.priority <= new_priority)
-                    .map(|(i, _)| *i)
-            }
+            StealPolicy::Oldest => playing
+                .iter()
+                .filter(|(_, v)| v.priority <= new_priority)
+                .min_by_key(|(_, v)| v.age)
+                .map(|(i, _)| *i),
+            StealPolicy::Quietest => playing
+                .iter()
+                .filter(|(_, v)| v.priority <= new_priority)
+                .min_by(|(_, a), (_, b)| {
+                    a.volume
+                        .partial_cmp(&b.volume)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .map(|(i, _)| *i),
+            StealPolicy::LowestPriority => playing
+                .iter()
+                .min_by_key(|(_, v)| v.priority)
+                .filter(|(_, v)| v.priority <= new_priority)
+                .map(|(i, _)| *i),
         }
     }
 
@@ -339,7 +354,8 @@ impl AudioPool {
 
     /// Get all active voice IDs (playing, paused, or stopping).
     pub fn active_voice_ids(&self) -> Vec<VoiceId> {
-        self.voices.iter()
+        self.voices
+            .iter()
             .filter(|v| v.state != VoiceState::Stopped)
             .map(|v| v.id)
             .collect()
@@ -375,7 +391,11 @@ impl AudioPool {
         // Try to promote virtual voices to free slots
         let mut promoted = Vec::new();
         for i in 0..self.virtual_voices.len() {
-            if let Some(slot) = self.voices.iter_mut().find(|v| v.state == VoiceState::Stopped) {
+            if let Some(slot) = self
+                .voices
+                .iter_mut()
+                .find(|v| v.state == VoiceState::Stopped)
+            {
                 let vv = &self.virtual_voices[i];
                 let vid = self.next_voice_id;
                 self.next_voice_id += 1;

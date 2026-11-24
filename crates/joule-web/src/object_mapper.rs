@@ -441,9 +441,8 @@ mod tests {
     #[test]
     fn default_value() {
         let mut profile = MappingProfile::new("defaults");
-        profile.add_rule(
-            FieldRule::new("email", "email").with_default(json!("unknown@example.com")),
-        );
+        profile
+            .add_rule(FieldRule::new("email", "email").with_default(json!("unknown@example.com")));
 
         let result = profile.map(&user_source()).unwrap();
         assert_eq!(result["email"], json!("unknown@example.com"));
@@ -466,9 +465,8 @@ mod tests {
     #[test]
     fn converter_failure() {
         let mut profile = MappingProfile::new("fail_conv");
-        let idx = profile.add_converter(Converter::new("fail", |_| {
-            Err("always fails".to_string())
-        }));
+        let idx =
+            profile.add_converter(Converter::new("fail", |_| Err("always fails".to_string())));
         profile.add_rule(FieldRule::new("age", "age").with_converter(idx));
 
         let err = profile.map(&user_source()).unwrap_err();

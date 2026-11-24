@@ -22,7 +22,10 @@ impl Complex {
     }
 
     pub fn from_polar(r: f64, theta: f64) -> Self {
-        Self { re: r * theta.cos(), im: r * theta.sin() }
+        Self {
+            re: r * theta.cos(),
+            im: r * theta.sin(),
+        }
     }
 
     pub fn magnitude(self) -> f64 {
@@ -38,11 +41,17 @@ impl Complex {
     }
 
     pub fn add(self, other: Self) -> Self {
-        Self { re: self.re + other.re, im: self.im + other.im }
+        Self {
+            re: self.re + other.re,
+            im: self.im + other.im,
+        }
     }
 
     pub fn sub(self, other: Self) -> Self {
-        Self { re: self.re - other.re, im: self.im - other.im }
+        Self {
+            re: self.re - other.re,
+            im: self.im - other.im,
+        }
     }
 
     pub fn mul(self, other: Self) -> Self {
@@ -53,11 +62,17 @@ impl Complex {
     }
 
     pub fn scale(self, s: f64) -> Self {
-        Self { re: self.re * s, im: self.im * s }
+        Self {
+            re: self.re * s,
+            im: self.im * s,
+        }
     }
 
     pub fn conj(self) -> Self {
-        Self { re: self.re, im: -self.im }
+        Self {
+            re: self.re,
+            im: -self.im,
+        }
     }
 }
 
@@ -65,7 +80,9 @@ impl Complex {
 
 /// Next power of 2 >= n.
 pub fn next_power_of_two(n: usize) -> usize {
-    if n == 0 { return 1; }
+    if n == 0 {
+        return 1;
+    }
     1usize << (usize::BITS - (n - 1).leading_zeros())
 }
 
@@ -92,7 +109,9 @@ fn bit_reverse(data: &mut [Complex]) {
 fn fft_in_place(data: &mut [Complex], inverse: bool) {
     let n = data.len();
     assert!(n.is_power_of_two(), "FFT length must be a power of 2");
-    if n <= 1 { return; }
+    if n <= 1 {
+        return;
+    }
 
     bit_reverse(data);
 
@@ -133,7 +152,8 @@ fn fft_in_place(data: &mut [Complex], inverse: bool) {
 /// Pads to next power of 2 if needed.
 pub fn fft(signal: &[f64]) -> Vec<Complex> {
     let n = next_power_of_two(signal.len());
-    let mut data: Vec<Complex> = signal.iter()
+    let mut data: Vec<Complex> = signal
+        .iter()
         .map(|x| Complex::new(*x, 0.0))
         .chain(std::iter::repeat(Complex::ZERO))
         .take(n)
@@ -145,7 +165,9 @@ pub fn fft(signal: &[f64]) -> Vec<Complex> {
 /// Compute the FFT of complex input.
 pub fn fft_complex(signal: &[Complex]) -> Vec<Complex> {
     let n = next_power_of_two(signal.len());
-    let mut data: Vec<Complex> = signal.iter().copied()
+    let mut data: Vec<Complex> = signal
+        .iter()
+        .copied()
         .chain(std::iter::repeat(Complex::ZERO))
         .take(n)
         .collect();
@@ -156,7 +178,9 @@ pub fn fft_complex(signal: &[Complex]) -> Vec<Complex> {
 /// Compute the inverse FFT.
 pub fn ifft(spectrum: &[Complex]) -> Vec<Complex> {
     let n = next_power_of_two(spectrum.len());
-    let mut data: Vec<Complex> = spectrum.iter().copied()
+    let mut data: Vec<Complex> = spectrum
+        .iter()
+        .copied()
         .chain(std::iter::repeat(Complex::ZERO))
         .take(n)
         .collect();
@@ -184,11 +208,15 @@ pub fn convolve(a: &[f64], b: &[f64]) -> Vec<f64> {
     let out_len = a.len() + b.len() - 1;
     let n = next_power_of_two(out_len);
 
-    let mut fa: Vec<Complex> = a.iter().map(|x| Complex::new(*x, 0.0))
+    let mut fa: Vec<Complex> = a
+        .iter()
+        .map(|x| Complex::new(*x, 0.0))
         .chain(std::iter::repeat(Complex::ZERO))
         .take(n)
         .collect();
-    let mut fb: Vec<Complex> = b.iter().map(|x| Complex::new(*x, 0.0))
+    let mut fb: Vec<Complex> = b
+        .iter()
+        .map(|x| Complex::new(*x, 0.0))
         .chain(std::iter::repeat(Complex::ZERO))
         .take(n)
         .collect();
@@ -196,7 +224,9 @@ pub fn convolve(a: &[f64], b: &[f64]) -> Vec<f64> {
     fft_in_place(&mut fa, false);
     fft_in_place(&mut fb, false);
 
-    let mut product: Vec<Complex> = fa.iter().zip(fb.iter())
+    let mut product: Vec<Complex> = fa
+        .iter()
+        .zip(fb.iter())
         .map(|(a_val, b_val)| a_val.mul(*b_val))
         .collect();
 
@@ -231,29 +261,47 @@ pub fn apply_window(signal: &mut [f64], window: &[f64]) {
 
 /// Generate a Hamming window of length n.
 pub fn hamming_window(n: usize) -> Vec<f64> {
-    if n == 0 { return Vec::new(); }
-    if n == 1 { return vec![1.0]; }
-    (0..n).map(|i| 0.54 - 0.46 * (2.0 * PI * i as f64 / (n - 1) as f64).cos()).collect()
+    if n == 0 {
+        return Vec::new();
+    }
+    if n == 1 {
+        return vec![1.0];
+    }
+    (0..n)
+        .map(|i| 0.54 - 0.46 * (2.0 * PI * i as f64 / (n - 1) as f64).cos())
+        .collect()
 }
 
 /// Generate a Hann window of length n.
 pub fn hann_window(n: usize) -> Vec<f64> {
-    if n == 0 { return Vec::new(); }
-    if n == 1 { return vec![1.0]; }
-    (0..n).map(|i| 0.5 * (1.0 - (2.0 * PI * i as f64 / (n - 1) as f64).cos())).collect()
+    if n == 0 {
+        return Vec::new();
+    }
+    if n == 1 {
+        return vec![1.0];
+    }
+    (0..n)
+        .map(|i| 0.5 * (1.0 - (2.0 * PI * i as f64 / (n - 1) as f64).cos()))
+        .collect()
 }
 
 /// Generate a Blackman window of length n.
 pub fn blackman_window(n: usize) -> Vec<f64> {
-    if n == 0 { return Vec::new(); }
-    if n == 1 { return vec![1.0]; }
+    if n == 0 {
+        return Vec::new();
+    }
+    if n == 1 {
+        return vec![1.0];
+    }
     let a0 = 0.42;
     let a1 = 0.5;
     let a2 = 0.08;
-    (0..n).map(|i| {
-        let x = i as f64 / (n - 1) as f64;
-        a0 - a1 * (2.0 * PI * x).cos() + a2 * (4.0 * PI * x).cos()
-    }).collect()
+    (0..n)
+        .map(|i| {
+            let x = i as f64 / (n - 1) as f64;
+            a0 - a1 * (2.0 * PI * x).cos() + a2 * (4.0 * PI * x).cos()
+        })
+        .collect()
 }
 
 /// Generate a rectangular window of length n (all ones).
@@ -400,7 +448,9 @@ pub fn zero_crossings(signal: &[f64]) -> Vec<usize> {
 /// `sample_rate` is in Hz.
 pub fn zero_crossing_rate(signal: &[f64], sample_rate: f64) -> f64 {
     let crossings = zero_crossings(signal);
-    if signal.len() < 2 { return 0.0; }
+    if signal.len() < 2 {
+        return 0.0;
+    }
     crossings.len() as f64 * sample_rate / (2.0 * (signal.len() - 1) as f64)
 }
 
@@ -409,24 +459,30 @@ pub fn zero_crossing_rate(signal: &[f64], sample_rate: f64) -> f64 {
 /// Generate a sine wave.
 pub fn generate_sine(frequency: f64, sample_rate: f64, duration: f64) -> Vec<f64> {
     let n = (sample_rate * duration) as usize;
-    (0..n).map(|i| {
-        let t = i as f64 / sample_rate;
-        (2.0 * PI * frequency * t).sin()
-    }).collect()
+    (0..n)
+        .map(|i| {
+            let t = i as f64 / sample_rate;
+            (2.0 * PI * frequency * t).sin()
+        })
+        .collect()
 }
 
 /// Generate a cosine wave.
 pub fn generate_cosine(frequency: f64, sample_rate: f64, duration: f64) -> Vec<f64> {
     let n = (sample_rate * duration) as usize;
-    (0..n).map(|i| {
-        let t = i as f64 / sample_rate;
-        (2.0 * PI * frequency * t).cos()
-    }).collect()
+    (0..n)
+        .map(|i| {
+            let t = i as f64 / sample_rate;
+            (2.0 * PI * frequency * t).cos()
+        })
+        .collect()
 }
 
 /// RMS (root mean square) of a signal.
 pub fn rms(signal: &[f64]) -> f64 {
-    if signal.is_empty() { return 0.0; }
+    if signal.is_empty() {
+        return 0.0;
+    }
     let sum_sq: f64 = signal.iter().map(|x| x * x).sum();
     (sum_sq / signal.len() as f64).sqrt()
 }
@@ -469,8 +525,13 @@ mod tests {
         let spectrum = fft(&signal);
         let recovered = ifft(&spectrum);
         for (i, &orig) in signal.iter().enumerate() {
-            assert!((recovered[i].re - orig).abs() < EPS,
-                "Mismatch at {}: got {} expected {}", i, recovered[i].re, orig);
+            assert!(
+                (recovered[i].re - orig).abs() < EPS,
+                "Mismatch at {}: got {} expected {}",
+                i,
+                recovered[i].re,
+                orig
+            );
         }
     }
 
@@ -483,7 +544,8 @@ mod tests {
         let spectrum = fft(&signal);
         let mags = magnitude_spectrum(&spectrum);
         // Peak should be at bin 1 (and bin N-1 for negative frequency)
-        let peak_idx = mags[..n / 2].iter()
+        let peak_idx = mags[..n / 2]
+            .iter()
             .enumerate()
             .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
             .unwrap()

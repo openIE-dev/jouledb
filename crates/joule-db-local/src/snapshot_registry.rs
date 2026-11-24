@@ -81,10 +81,7 @@ impl Drop for SnapshotLockFile {
 /// Takes a non-blocking exclusive lock — failure is fatal because it
 /// implies our chosen `(pid, seq)` path is somehow already locked
 /// (which our atomic seq counter is supposed to prevent).
-pub fn register(
-    db_path: &Path,
-    committed_version: u64,
-) -> Result<SnapshotLockFile, StorageError> {
+pub fn register(db_path: &Path, committed_version: u64) -> Result<SnapshotLockFile, StorageError> {
     let snapshots_dir = db_path.join(SNAPSHOTS_DIR_NAME);
     fs::create_dir_all(&snapshots_dir).map_err(|e| {
         StorageError::Backend(format!(
@@ -224,9 +221,7 @@ mod tests {
         let lock = register(dir.path(), 42).unwrap();
         assert!(lock.path().exists(), "lockfile should be created");
         assert!(
-            lock.path()
-                .to_string_lossy()
-                .contains(SNAPSHOTS_DIR_NAME),
+            lock.path().to_string_lossy().contains(SNAPSHOTS_DIR_NAME),
             "lockfile lives under snapshots/"
         );
     }

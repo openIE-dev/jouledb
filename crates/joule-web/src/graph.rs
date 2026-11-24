@@ -181,9 +181,9 @@ impl Graph {
 
     /// Get the weight of an edge.
     pub fn edge_weight(&self, from: usize, to: usize) -> Option<f64> {
-        self.adj.get(&from).and_then(|list| {
-            list.iter().find(|(n, _)| *n == to).map(|(_, w)| *w)
-        })
+        self.adj
+            .get(&from)
+            .and_then(|list| list.iter().find(|(n, _)| *n == to).map(|(_, w)| *w))
     }
 
     /// Neighbors of a node.
@@ -209,12 +209,24 @@ impl Graph {
             if let Some(list) = self.adj.get(&from) {
                 for (to, weight) in list {
                     if self.kind == GraphKind::Undirected {
-                        let key = if from <= *to { (from, *to) } else { (*to, from) };
+                        let key = if from <= *to {
+                            (from, *to)
+                        } else {
+                            (*to, from)
+                        };
                         if seen.insert(key) {
-                            result.push(Edge { from, to: *to, weight: *weight });
+                            result.push(Edge {
+                                from,
+                                to: *to,
+                                weight: *weight,
+                            });
                         }
                     } else {
-                        result.push(Edge { from, to: *to, weight: *weight });
+                        result.push(Edge {
+                            from,
+                            to: *to,
+                            weight: *weight,
+                        });
                     }
                 }
             }
@@ -277,12 +289,7 @@ impl Graph {
         order
     }
 
-    fn dfs_recursive(
-        &self,
-        node: usize,
-        visited: &mut HashSet<usize>,
-        order: &mut Vec<usize>,
-    ) {
+    fn dfs_recursive(&self, node: usize, visited: &mut HashSet<usize>, order: &mut Vec<usize>) {
         if !visited.insert(node) {
             return;
         }
@@ -312,7 +319,8 @@ impl Graph {
         }
 
         let mut queue: VecDeque<usize> = VecDeque::new();
-        let mut zero_deg: Vec<usize> = in_deg.iter()
+        let mut zero_deg: Vec<usize> = in_deg
+            .iter()
             .filter(|(_, d)| **d == 0)
             .map(|(id, _)| *id)
             .collect();
@@ -488,7 +496,11 @@ impl Graph {
             nbrs.sort_by(|a, b| a.0.cmp(&b.0));
             for (to, weight) in nbrs {
                 if self.kind == GraphKind::Undirected {
-                    let key = if *from <= to { (*from, to) } else { (to, *from) };
+                    let key = if *from <= to {
+                        (*from, to)
+                    } else {
+                        (to, *from)
+                    };
                     if !seen.insert(key) {
                         continue;
                     }

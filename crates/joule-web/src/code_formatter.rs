@@ -53,10 +53,7 @@ pub enum Doc {
     /// Group: try to fit on one line; if not, break.
     Group(Box<Doc>),
     /// If-flat: choose between flat and broken alternatives.
-    IfFlat {
-        flat: Box<Doc>,
-        broken: Box<Doc>,
-    },
+    IfFlat { flat: Box<Doc>, broken: Box<Doc> },
 }
 
 impl Doc {
@@ -309,8 +306,13 @@ impl Token {
     /// Get the text representation.
     pub fn text(&self) -> String {
         match self {
-            Self::Keyword(s) | Self::Ident(s) | Self::Operator(s) | Self::StringLit(s)
-            | Self::NumberLit(s) | Self::Whitespace(s) | Self::Comment(s) => s.clone(),
+            Self::Keyword(s)
+            | Self::Ident(s)
+            | Self::Operator(s)
+            | Self::StringLit(s)
+            | Self::NumberLit(s)
+            | Self::Whitespace(s)
+            | Self::Comment(s) => s.clone(),
             Self::Punct(c) => c.to_string(),
             Self::Newline => "\n".to_string(),
         }
@@ -631,7 +633,10 @@ mod tests {
     #[test]
     fn pretty_print_concat() {
         let pp = PrettyPrinter::new(80);
-        let doc = Doc::concat(Doc::text("hello"), Doc::concat(Doc::text(" "), Doc::text("world")));
+        let doc = Doc::concat(
+            Doc::text("hello"),
+            Doc::concat(Doc::text(" "), Doc::text("world")),
+        );
         let result = pp.format(&doc).unwrap();
         assert_eq!(result, "hello world");
     }
@@ -664,7 +669,10 @@ mod tests {
         let inner = Doc::concat(Doc::Line(" ".to_string()), Doc::text("body"));
         let doc = Doc::concat(
             Doc::text("fn {"),
-            Doc::concat(Doc::nest(1, inner), Doc::concat(Doc::HardLine, Doc::text("}"))),
+            Doc::concat(
+                Doc::nest(1, inner),
+                Doc::concat(Doc::HardLine, Doc::text("}")),
+            ),
         );
         let result = pp.format(&doc).unwrap();
         assert!(result.contains("  body"));
@@ -673,7 +681,10 @@ mod tests {
     #[test]
     fn pretty_print_hard_line() {
         let pp = PrettyPrinter::new(80);
-        let doc = Doc::group(Doc::concat(Doc::text("a"), Doc::concat(Doc::HardLine, Doc::text("b"))));
+        let doc = Doc::group(Doc::concat(
+            Doc::text("a"),
+            Doc::concat(Doc::HardLine, Doc::text("b")),
+        ));
         let result = pp.format(&doc).unwrap();
         assert!(result.contains('\n'));
     }
@@ -834,11 +845,7 @@ mod tests {
     #[test]
     fn doc_concat_all() {
         let pp = PrettyPrinter::new(80);
-        let doc = Doc::concat_all(vec![
-            Doc::text("a"),
-            Doc::text(" "),
-            Doc::text("b"),
-        ]);
+        let doc = Doc::concat_all(vec![Doc::text("a"), Doc::text(" "), Doc::text("b")]);
         let result = pp.format(&doc).unwrap();
         assert_eq!(result, "a b");
     }

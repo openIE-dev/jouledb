@@ -121,9 +121,13 @@ impl PriorityRules {
     }
 
     /// Determine priority action for a given amendment.
-    pub fn evaluate(&self, old_price: f64, new_price: f64,
-                    old_qty: f64, new_qty: f64) -> PriorityAction
-    {
+    pub fn evaluate(
+        &self,
+        old_price: f64,
+        new_price: f64,
+        old_qty: f64,
+        new_qty: f64,
+    ) -> PriorityAction {
         if self.lose_on_price_change && (old_price - new_price).abs() > 1e-12 {
             return PriorityAction::Lose;
         }
@@ -139,9 +143,13 @@ impl PriorityRules {
 
 impl fmt::Display for PriorityRules {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PriorityRules(price={}, qty_up={}, qty_down={})",
-            self.lose_on_price_change, self.lose_on_quantity_increase,
-            self.lose_on_quantity_decrease)
+        write!(
+            f,
+            "PriorityRules(price={}, qty_up={}, qty_down={})",
+            self.lose_on_price_change,
+            self.lose_on_quantity_increase,
+            self.lose_on_quantity_decrease
+        )
     }
 }
 
@@ -159,7 +167,13 @@ pub struct AmendRequest {
 
 impl AmendRequest {
     pub fn new(order_id: u64, timestamp_ns: u64) -> Self {
-        Self { order_id, new_price: None, new_quantity: None, timestamp_ns, client_amend_id: None }
+        Self {
+            order_id,
+            new_price: None,
+            new_quantity: None,
+            timestamp_ns,
+            client_amend_id: None,
+        }
     }
 
     pub fn with_new_price(mut self, price: f64) -> Self {
@@ -178,10 +192,14 @@ impl AmendRequest {
     }
 
     /// Whether this request changes the price.
-    pub fn changes_price(&self) -> bool { self.new_price.is_some() }
+    pub fn changes_price(&self) -> bool {
+        self.new_price.is_some()
+    }
 
     /// Whether this request changes the quantity.
-    pub fn changes_quantity(&self) -> bool { self.new_quantity.is_some() }
+    pub fn changes_quantity(&self) -> bool {
+        self.new_quantity.is_some()
+    }
 }
 
 impl fmt::Display for AmendRequest {
@@ -231,11 +249,17 @@ impl AmendResult {
 
 impl fmt::Display for AmendResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "AmendResult(id={}, order={}, px={:.2}->{:.2}, qty={:.4}->{:.4}, priority={})",
-            self.amend_id, self.order_id,
-            self.old_price, self.new_price,
-            self.old_quantity, self.new_quantity,
-            self.priority_action)
+        write!(
+            f,
+            "AmendResult(id={}, order={}, px={:.2}->{:.2}, qty={:.4}->{:.4}, priority={})",
+            self.amend_id,
+            self.order_id,
+            self.old_price,
+            self.new_price,
+            self.old_quantity,
+            self.new_quantity,
+            self.priority_action
+        )
     }
 }
 
@@ -271,10 +295,14 @@ impl OrderAmendEngine {
     }
 
     /// Validate an amendment request against order state.
-    pub fn validate(&self, req: &AmendRequest, state: AmendableState,
-                    current_price: f64, current_qty: f64, filled_qty: f64)
-        -> Result<(), AmendError>
-    {
+    pub fn validate(
+        &self,
+        req: &AmendRequest,
+        state: AmendableState,
+        current_price: f64,
+        current_qty: f64,
+        filled_qty: f64,
+    ) -> Result<(), AmendError> {
         if !state.can_amend() {
             return Err(AmendError::NotAmendable(format!("state={state}")));
         }
@@ -291,35 +319,48 @@ impl OrderAmendEngine {
                 return Err(AmendError::InvalidQuantity(format!("{q}")));
             }
             if q < filled_qty {
-                return Err(AmendError::QuantityBelowFilled(
-                    format!("new_qty={q} < filled={filled_qty}")));
+                return Err(AmendError::QuantityBelowFilled(format!(
+                    "new_qty={q} < filled={filled_qty}"
+                )));
             }
         }
         // Check if anything actually changes
-        let same_price = req.new_price.map_or(true, |p| (p - current_price).abs() < 1e-12);
-        let same_qty = req.new_quantity.map_or(true, |q| (q - current_qty).abs() < 1e-12);
+        let same_price = req
+            .new_price
+            .map_or(true, |p| (p - current_price).abs() < 1e-12);
+        let same_qty = req
+            .new_quantity
+            .map_or(true, |q| (q - current_qty).abs() < 1e-12);
         if same_price && same_qty {
             return Err(AmendError::NoChange(req.order_id));
         }
         // Check amend count limit
         let count = self.amend_count_for(req.order_id);
         if count >= self.max_amends_per_order {
-            return Err(AmendError::AmendLimitExceeded(
-                format!("order {} has {count} amends", req.order_id)));
+            return Err(AmendError::AmendLimitExceeded(format!(
+                "order {} has {count} amends",
+                req.order_id
+            )));
         }
         Ok(())
     }
 
     /// Apply an amendment.
-    pub fn amend(&mut self, req: &AmendRequest, state: AmendableState,
-                 current_price: f64, current_qty: f64, filled_qty: f64)
-        -> Result<AmendResult, AmendError>
-    {
+    pub fn amend(
+        &mut self,
+        req: &AmendRequest,
+        state: AmendableState,
+        current_price: f64,
+        current_qty: f64,
+        filled_qty: f64,
+    ) -> Result<AmendResult, AmendError> {
         self.validate(req, state, current_price, current_qty, filled_qty)?;
 
         let new_price = req.new_price.unwrap_or(current_price);
         let new_qty = req.new_quantity.unwrap_or(current_qty);
-        let priority = self.rules.evaluate(current_price, new_price, current_qty, new_qty);
+        let priority = self
+            .rules
+            .evaluate(current_price, new_price, current_qty, new_qty);
 
         let result = AmendResult {
             amend_id: self.next_amend_id,
@@ -338,33 +379,52 @@ impl OrderAmendEngine {
 
     /// Number of amendments for a specific order.
     pub fn amend_count_for(&self, order_id: u64) -> usize {
-        self.events.iter().filter(|e| e.order_id == order_id).count()
+        self.events
+            .iter()
+            .filter(|e| e.order_id == order_id)
+            .count()
     }
 
     /// All amendment events.
-    pub fn events(&self) -> &[AmendResult] { &self.events }
+    pub fn events(&self) -> &[AmendResult] {
+        &self.events
+    }
 
     /// Total amendment count.
-    pub fn total_amends(&self) -> usize { self.events.len() }
+    pub fn total_amends(&self) -> usize {
+        self.events.len()
+    }
 
     /// Events for a specific order.
     pub fn events_for_order(&self, order_id: u64) -> Vec<&AmendResult> {
-        self.events.iter().filter(|e| e.order_id == order_id).collect()
+        self.events
+            .iter()
+            .filter(|e| e.order_id == order_id)
+            .collect()
     }
 
     /// Count of amendments that caused priority loss.
     pub fn priority_loss_count(&self) -> usize {
-        self.events.iter().filter(|e| e.priority_action == PriorityAction::Lose).count()
+        self.events
+            .iter()
+            .filter(|e| e.priority_action == PriorityAction::Lose)
+            .count()
     }
 
     /// Rules accessor.
-    pub fn rules(&self) -> &PriorityRules { &self.rules }
+    pub fn rules(&self) -> &PriorityRules {
+        &self.rules
+    }
 }
 
 impl fmt::Display for OrderAmendEngine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "AmendEngine(amends={}, priority_losses={})",
-            self.events.len(), self.priority_loss_count())
+        write!(
+            f,
+            "AmendEngine(amends={}, priority_losses={})",
+            self.events.len(),
+            self.priority_loss_count()
+        )
     }
 }
 
@@ -382,7 +442,9 @@ mod tests {
     fn test_amend_price() {
         let mut eng = engine();
         let req = AmendRequest::new(1, 1000).with_new_price(105.0);
-        let result = eng.amend(&req, AmendableState::Open, 100.0, 50.0, 0.0).unwrap();
+        let result = eng
+            .amend(&req, AmendableState::Open, 100.0, 50.0, 0.0)
+            .unwrap();
         assert!(result.price_changed());
         assert!(!result.quantity_changed());
         assert_eq!(result.priority_action, PriorityAction::Lose);
@@ -392,7 +454,9 @@ mod tests {
     fn test_amend_quantity_decrease() {
         let mut eng = engine();
         let req = AmendRequest::new(1, 1000).with_new_quantity(30.0);
-        let result = eng.amend(&req, AmendableState::Open, 100.0, 50.0, 0.0).unwrap();
+        let result = eng
+            .amend(&req, AmendableState::Open, 100.0, 50.0, 0.0)
+            .unwrap();
         assert!(!result.price_changed());
         assert!(result.quantity_changed());
         assert_eq!(result.priority_action, PriorityAction::Keep);
@@ -402,7 +466,9 @@ mod tests {
     fn test_amend_quantity_increase() {
         let mut eng = engine();
         let req = AmendRequest::new(1, 1000).with_new_quantity(80.0);
-        let result = eng.amend(&req, AmendableState::Open, 100.0, 50.0, 0.0).unwrap();
+        let result = eng
+            .amend(&req, AmendableState::Open, 100.0, 50.0, 0.0)
+            .unwrap();
         assert_eq!(result.priority_action, PriorityAction::Lose);
     }
 
@@ -412,7 +478,9 @@ mod tests {
         let req = AmendRequest::new(1, 1000)
             .with_new_price(101.0)
             .with_new_quantity(60.0);
-        let result = eng.amend(&req, AmendableState::Open, 100.0, 50.0, 0.0).unwrap();
+        let result = eng
+            .amend(&req, AmendableState::Open, 100.0, 50.0, 0.0)
+            .unwrap();
         assert!(result.price_changed());
         assert!(result.quantity_changed());
     }
@@ -421,49 +489,69 @@ mod tests {
     fn test_amend_filled_state() {
         let mut eng = engine();
         let req = AmendRequest::new(1, 1000).with_new_price(105.0);
-        assert!(eng.amend(&req, AmendableState::Filled, 100.0, 50.0, 50.0).is_err());
+        assert!(
+            eng.amend(&req, AmendableState::Filled, 100.0, 50.0, 50.0)
+                .is_err()
+        );
     }
 
     #[test]
     fn test_amend_cancelled_state() {
         let mut eng = engine();
         let req = AmendRequest::new(1, 1000).with_new_price(105.0);
-        assert!(eng.amend(&req, AmendableState::Cancelled, 100.0, 50.0, 0.0).is_err());
+        assert!(
+            eng.amend(&req, AmendableState::Cancelled, 100.0, 50.0, 0.0)
+                .is_err()
+        );
     }
 
     #[test]
     fn test_amend_no_change() {
         let mut eng = engine();
         let req = AmendRequest::new(1, 1000).with_new_price(100.0);
-        assert!(eng.amend(&req, AmendableState::Open, 100.0, 50.0, 0.0).is_err());
+        assert!(
+            eng.amend(&req, AmendableState::Open, 100.0, 50.0, 0.0)
+                .is_err()
+        );
     }
 
     #[test]
     fn test_amend_invalid_price() {
         let mut eng = engine();
         let req = AmendRequest::new(1, 1000).with_new_price(-5.0);
-        assert!(eng.amend(&req, AmendableState::Open, 100.0, 50.0, 0.0).is_err());
+        assert!(
+            eng.amend(&req, AmendableState::Open, 100.0, 50.0, 0.0)
+                .is_err()
+        );
     }
 
     #[test]
     fn test_amend_invalid_quantity() {
         let mut eng = engine();
         let req = AmendRequest::new(1, 1000).with_new_quantity(0.0);
-        assert!(eng.amend(&req, AmendableState::Open, 100.0, 50.0, 0.0).is_err());
+        assert!(
+            eng.amend(&req, AmendableState::Open, 100.0, 50.0, 0.0)
+                .is_err()
+        );
     }
 
     #[test]
     fn test_amend_below_filled() {
         let mut eng = engine();
         let req = AmendRequest::new(1, 1000).with_new_quantity(20.0);
-        assert!(eng.amend(&req, AmendableState::PartiallyFilled, 100.0, 50.0, 30.0).is_err());
+        assert!(
+            eng.amend(&req, AmendableState::PartiallyFilled, 100.0, 50.0, 30.0)
+                .is_err()
+        );
     }
 
     #[test]
     fn test_amend_partial_fill_state() {
         let mut eng = engine();
         let req = AmendRequest::new(1, 1000).with_new_quantity(40.0);
-        let result = eng.amend(&req, AmendableState::PartiallyFilled, 100.0, 50.0, 30.0).unwrap();
+        let result = eng
+            .amend(&req, AmendableState::PartiallyFilled, 100.0, 50.0, 30.0)
+            .unwrap();
         assert!((result.quantity_delta() - (-10.0)).abs() < 1e-6);
     }
 
@@ -471,20 +559,27 @@ mod tests {
     fn test_amend_limit() {
         let mut eng = engine().with_max_amends_per_order(2);
         let req1 = AmendRequest::new(1, 1000).with_new_price(101.0);
-        eng.amend(&req1, AmendableState::Open, 100.0, 50.0, 0.0).unwrap();
+        eng.amend(&req1, AmendableState::Open, 100.0, 50.0, 0.0)
+            .unwrap();
         let req2 = AmendRequest::new(1, 2000).with_new_price(102.0);
-        eng.amend(&req2, AmendableState::Open, 101.0, 50.0, 0.0).unwrap();
+        eng.amend(&req2, AmendableState::Open, 101.0, 50.0, 0.0)
+            .unwrap();
         let req3 = AmendRequest::new(1, 3000).with_new_price(103.0);
-        assert!(eng.amend(&req3, AmendableState::Open, 102.0, 50.0, 0.0).is_err());
+        assert!(
+            eng.amend(&req3, AmendableState::Open, 102.0, 50.0, 0.0)
+                .is_err()
+        );
     }
 
     #[test]
     fn test_events_for_order() {
         let mut eng = engine();
         let req1 = AmendRequest::new(1, 1000).with_new_price(101.0);
-        eng.amend(&req1, AmendableState::Open, 100.0, 50.0, 0.0).unwrap();
+        eng.amend(&req1, AmendableState::Open, 100.0, 50.0, 0.0)
+            .unwrap();
         let req2 = AmendRequest::new(2, 2000).with_new_price(99.0);
-        eng.amend(&req2, AmendableState::Open, 100.0, 50.0, 0.0).unwrap();
+        eng.amend(&req2, AmendableState::Open, 100.0, 50.0, 0.0)
+            .unwrap();
         assert_eq!(eng.events_for_order(1).len(), 1);
         assert_eq!(eng.events_for_order(2).len(), 1);
     }
@@ -494,20 +589,23 @@ mod tests {
         let mut eng = engine();
         // Price change => lose
         let r1 = AmendRequest::new(1, 1000).with_new_price(101.0);
-        eng.amend(&r1, AmendableState::Open, 100.0, 50.0, 0.0).unwrap();
+        eng.amend(&r1, AmendableState::Open, 100.0, 50.0, 0.0)
+            .unwrap();
         // Qty decrease => keep
         let r2 = AmendRequest::new(2, 2000).with_new_quantity(30.0);
-        eng.amend(&r2, AmendableState::Open, 100.0, 50.0, 0.0).unwrap();
+        eng.amend(&r2, AmendableState::Open, 100.0, 50.0, 0.0)
+            .unwrap();
         assert_eq!(eng.priority_loss_count(), 1);
     }
 
     #[test]
     fn test_custom_rules() {
-        let rules = PriorityRules::default_rules()
-            .with_lose_on_quantity_decrease(true);
+        let rules = PriorityRules::default_rules().with_lose_on_quantity_decrease(true);
         let mut eng = engine().with_rules(rules);
         let req = AmendRequest::new(1, 1000).with_new_quantity(30.0);
-        let result = eng.amend(&req, AmendableState::Open, 100.0, 50.0, 0.0).unwrap();
+        let result = eng
+            .amend(&req, AmendableState::Open, 100.0, 50.0, 0.0)
+            .unwrap();
         assert_eq!(result.priority_action, PriorityAction::Lose);
     }
 
@@ -521,9 +619,12 @@ mod tests {
     #[test]
     fn test_display_result() {
         let r = AmendResult {
-            amend_id: 1, order_id: 42,
-            old_price: 100.0, new_price: 101.0,
-            old_quantity: 50.0, new_quantity: 60.0,
+            amend_id: 1,
+            order_id: 42,
+            old_price: 100.0,
+            new_price: 101.0,
+            old_quantity: 50.0,
+            new_quantity: 60.0,
             priority_action: PriorityAction::Lose,
             timestamp_ns: 1000,
         };

@@ -77,7 +77,9 @@ enum LiquidNode {
         body: Vec<LiquidNode>,
     },
     /// `{% include 'partial' %}`
-    Include { name: String },
+    Include {
+        name: String,
+    },
     /// `{% case expr %}{% when val %}...{% endcase %}`
     Case {
         expr: LiquidExpr,
@@ -89,10 +91,17 @@ enum LiquidNode {
     /// `{% comment %}...{% endcomment %}` — ignored.
     Comment,
     /// `{% cycle 'a', 'b', 'c' %}`
-    Cycle { group: Option<String>, values: Vec<String> },
+    Cycle {
+        group: Option<String>,
+        values: Vec<String>,
+    },
     /// `{% increment var %}` / `{% decrement var %}`
-    Increment { var_name: String },
-    Decrement { var_name: String },
+    Increment {
+        var_name: String,
+    },
+    Decrement {
+        var_name: String,
+    },
     /// Break / Continue inside for loops.
     Break,
     Continue,
@@ -499,12 +508,7 @@ fn parse_nodes(
                         let rest_str = parts[1..].join(" ");
                         let values: Vec<String> = rest_str
                             .split(',')
-                            .map(|s| {
-                                s.trim()
-                                    .trim_matches('\'')
-                                    .trim_matches('"')
-                                    .to_string()
-                            })
+                            .map(|s| s.trim().trim_matches('\'').trim_matches('"').to_string())
                             .collect();
                         nodes.push(LiquidNode::Cycle {
                             group: None,
@@ -934,9 +938,7 @@ impl LiquidEngine {
                     let src = self
                         .includes
                         .get(name.as_str())
-                        .ok_or_else(|| LiquidError::IncludeNotFound {
-                            name: name.clone(),
-                        })?
+                        .ok_or_else(|| LiquidError::IncludeNotFound { name: name.clone() })?
                         .clone();
                     let inc_nodes = parse_template(&src)?;
                     let s = self.render_nodes(&inc_nodes, vars, counters, cycle_counters)?;
@@ -1023,12 +1025,10 @@ impl LiquidEngine {
                     } else if v >= i64::MIN as f64 && v <= i64::MAX as f64 {
                         Value::Number(serde_json::Number::from(v as i64))
                     } else {
-                        serde_json::Number::from_f64(v)
-                            .map_or(Value::Null, Value::Number)
+                        serde_json::Number::from_f64(v).map_or(Value::Null, Value::Number)
                     }
                 } else {
-                    serde_json::Number::from_f64(v)
-                        .map_or(Value::Null, Value::Number)
+                    serde_json::Number::from_f64(v).map_or(Value::Null, Value::Number)
                 }
             }
             LiquidExpr::BoolLiteral(b) => Value::Bool(*b),
@@ -1125,7 +1125,8 @@ impl LiquidEngine {
                     .and_then(|v| v.as_str())
                     .unwrap_or(",");
                 let s = value_to_output(val);
-                let parts: Vec<Value> = s.split(sep).map(|p| Value::String(p.to_string())).collect();
+                let parts: Vec<Value> =
+                    s.split(sep).map(|p| Value::String(p.to_string())).collect();
                 Ok(Value::Array(parts))
             }
             "append" => {
@@ -1146,36 +1147,24 @@ impl LiquidEngine {
                 Ok(Value::String(format!("{prefix}{s}")))
             }
             "replace" => {
-                let from = resolved_args
-                    .first()
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let from = resolved_args.first().and_then(|v| v.as_str()).unwrap_or("");
                 let to = resolved_args.get(1).and_then(|v| v.as_str()).unwrap_or("");
                 let s = value_to_output(val);
                 Ok(Value::String(s.replace(from, to)))
             }
             "replace_first" => {
-                let from = resolved_args
-                    .first()
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let from = resolved_args.first().and_then(|v| v.as_str()).unwrap_or("");
                 let to = resolved_args.get(1).and_then(|v| v.as_str()).unwrap_or("");
                 let s = value_to_output(val);
                 Ok(Value::String(s.replacen(from, to, 1)))
             }
             "remove" => {
-                let target = resolved_args
-                    .first()
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let target = resolved_args.first().and_then(|v| v.as_str()).unwrap_or("");
                 let s = value_to_output(val);
                 Ok(Value::String(s.replace(target, "")))
             }
             "truncate" => {
-                let len = resolved_args
-                    .first()
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(50) as usize;
+                let len = resolved_args.first().and_then(|v| v.as_u64()).unwrap_or(50) as usize;
                 let ellipsis = resolved_args
                     .get(1)
                     .and_then(|v| v.as_str())
@@ -1191,10 +1180,7 @@ impl LiquidEngine {
                 }
             }
             "truncatewords" => {
-                let count = resolved_args
-                    .first()
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(15) as usize;
+                let count = resolved_args.first().and_then(|v| v.as_u64()).unwrap_or(15) as usize;
                 let s = value_to_output(val);
                 let words: Vec<&str> = s.split_whitespace().collect();
                 if words.len() <= count {
@@ -1231,22 +1217,34 @@ impl LiquidEngine {
             }
             "plus" => {
                 let a = val.as_f64().unwrap_or(0.0);
-                let b = resolved_args.first().and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let b = resolved_args
+                    .first()
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
                 Ok(serde_json::Number::from_f64(a + b).map_or(Value::Null, Value::Number))
             }
             "minus" => {
                 let a = val.as_f64().unwrap_or(0.0);
-                let b = resolved_args.first().and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let b = resolved_args
+                    .first()
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
                 Ok(serde_json::Number::from_f64(a - b).map_or(Value::Null, Value::Number))
             }
             "times" => {
                 let a = val.as_f64().unwrap_or(0.0);
-                let b = resolved_args.first().and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let b = resolved_args
+                    .first()
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
                 Ok(serde_json::Number::from_f64(a * b).map_or(Value::Null, Value::Number))
             }
             "divided_by" => {
                 let a = val.as_f64().unwrap_or(0.0);
-                let b = resolved_args.first().and_then(|v| v.as_f64()).unwrap_or(1.0);
+                let b = resolved_args
+                    .first()
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(1.0);
                 if b == 0.0 {
                     Ok(Value::Number(0.into()))
                 } else {
@@ -1256,7 +1254,10 @@ impl LiquidEngine {
             }
             "modulo" => {
                 let a = val.as_f64().unwrap_or(0.0);
-                let b = resolved_args.first().and_then(|v| v.as_f64()).unwrap_or(1.0);
+                let b = resolved_args
+                    .first()
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(1.0);
                 if b == 0.0 {
                     Ok(Value::Number(0.into()))
                 } else {
@@ -1273,16 +1274,15 @@ impl LiquidEngine {
             }
             "round" => {
                 let n = val.as_f64().unwrap_or(0.0);
-                let precision = resolved_args
-                    .first()
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0) as i32;
+                let precision = resolved_args.first().and_then(|v| v.as_u64()).unwrap_or(0) as i32;
                 let factor = 10f64.powi(precision);
                 let rounded = (n * factor).round() / factor;
                 Ok(serde_json::Number::from_f64(rounded).map_or(Value::Null, Value::Number))
             }
             "default" => {
-                if is_truthy_liquid(val) || (val.is_string() && !val.as_str().unwrap_or("").is_empty()) {
+                if is_truthy_liquid(val)
+                    || (val.is_string() && !val.as_str().unwrap_or("").is_empty())
+                {
                     Ok(val.clone())
                 } else {
                     Ok(resolved_args.first().cloned().unwrap_or(Value::Null))
@@ -1325,10 +1325,7 @@ impl LiquidEngine {
             },
             "map" => match val {
                 Value::Array(a) => {
-                    let key = resolved_args
-                        .first()
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
+                    let key = resolved_args.first().and_then(|v| v.as_str()).unwrap_or("");
                     let mapped: Vec<Value> = a
                         .iter()
                         .map(|item| item.get(key).cloned().unwrap_or(Value::Null))
@@ -1349,14 +1346,8 @@ impl LiquidEngine {
             },
             "slice" => {
                 let s = value_to_output(val);
-                let start = resolved_args
-                    .first()
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(0);
-                let len = resolved_args
-                    .get(1)
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(1) as usize;
+                let start = resolved_args.first().and_then(|v| v.as_i64()).unwrap_or(0);
+                let len = resolved_args.get(1).and_then(|v| v.as_u64()).unwrap_or(1) as usize;
 
                 let chars: Vec<char> = s.chars().collect();
                 let total = chars.len() as i64;
@@ -1544,8 +1535,7 @@ mod tests {
 
     #[test]
     fn test_filter_append() {
-        let result =
-            render("{{ name | append: ' World' }}", &json!({"name": "Hello"})).unwrap();
+        let result = render("{{ name | append: ' World' }}", &json!({"name": "Hello"})).unwrap();
         assert_eq!(result, "Hello World");
     }
 
@@ -1637,10 +1627,7 @@ mod tests {
         let mut engine = LiquidEngine::new();
         engine.register_include("greeting", "Hello, {{ name }}!");
         let result = engine
-            .render(
-                "{% include 'greeting' %}",
-                &json!({"name": "World"}),
-            )
+            .render("{% include 'greeting' %}", &json!({"name": "World"}))
             .unwrap();
         assert_eq!(result, "Hello, World!");
     }
@@ -1660,15 +1647,13 @@ mod tests {
 
     #[test]
     fn test_filter_join() {
-        let result =
-            render("{{ items | join: ', ' }}", &json!({"items": ["a", "b"]})).unwrap();
+        let result = render("{{ items | join: ', ' }}", &json!({"items": ["a", "b"]})).unwrap();
         assert_eq!(result, "a, b");
     }
 
     #[test]
     fn test_filter_split() {
-        let result =
-            render("{{ s | split: ',' | size }}", &json!({"s": "a,b,c"})).unwrap();
+        let result = render("{{ s | split: ',' | size }}", &json!({"s": "a,b,c"})).unwrap();
         assert_eq!(result, "3");
     }
 
@@ -1684,8 +1669,7 @@ mod tests {
 
     #[test]
     fn test_nested_dot_path() {
-        let result =
-            render("{{ a.b.c }}", &json!({"a": {"b": {"c": "deep"}}})).unwrap();
+        let result = render("{{ a.b.c }}", &json!({"a": {"b": {"c": "deep"}}})).unwrap();
         assert_eq!(result, "deep");
     }
 
@@ -1707,15 +1691,17 @@ mod tests {
 
     #[test]
     fn test_filter_truncate() {
-        let result =
-            render("{{ s | truncate: 10 }}", &json!({"s": "This is a long string"})).unwrap();
+        let result = render(
+            "{{ s | truncate: 10 }}",
+            &json!({"s": "This is a long string"}),
+        )
+        .unwrap();
         assert_eq!(result, "This is...");
     }
 
     #[test]
     fn test_filter_strip_html() {
-        let result =
-            render("{{ s | strip_html }}", &json!({"s": "<p>hello</p>"})).unwrap();
+        let result = render("{{ s | strip_html }}", &json!({"s": "<p>hello</p>"})).unwrap();
         assert_eq!(result, "hello");
     }
 
@@ -1792,8 +1778,7 @@ mod tests {
         let mut engine = LiquidEngine::new();
         engine.register_filter("double", |val, _args| {
             let n = val.as_f64().unwrap_or(0.0);
-            serde_json::Number::from_f64(n * 2.0)
-                .map_or(Value::Null, Value::Number)
+            serde_json::Number::from_f64(n * 2.0).map_or(Value::Null, Value::Number)
         });
         let result = engine.render("{{ n | double }}", &json!({"n": 5})).unwrap();
         assert_eq!(result, "10");

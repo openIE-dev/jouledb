@@ -74,12 +74,18 @@ impl BreachAssessConfig {
 }
 
 impl Default for BreachAssessConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for BreachAssessConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "BreachAssessConfig(num_records={0}, phi_type={1}, encryption_status={2}, mitigation_applied={3})", self.num_records, self.phi_type, self.encryption_status, self.mitigation_applied)
+        write!(
+            f,
+            "BreachAssessConfig(num_records={0}, phi_type={1}, encryption_status={2}, mitigation_applied={3})",
+            self.num_records, self.phi_type, self.encryption_status, self.mitigation_applied
+        )
     }
 }
 
@@ -95,7 +101,10 @@ pub struct BreachAssess {
 impl BreachAssess {
     pub fn new(config: BreachAssessConfig) -> Result<Self, BreachAssessError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -107,13 +116,21 @@ impl BreachAssess {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &BreachAssessConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &BreachAssessConfig {
+        &self.config
+    }
 
     /// Calculate breach risk score.
     pub fn risk_score(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -128,12 +145,18 @@ impl BreachAssess {
 
     /// Generate assessment summary.
     pub fn assessment_summary(&self) -> String {
-        format!("{}: {} records", stringify!(assessment_summary), self.data.len())
+        format!(
+            "{}: {} records",
+            stringify!(assessment_summary),
+            self.data.len()
+        )
     }
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -145,7 +168,9 @@ impl BreachAssess {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -157,7 +182,11 @@ impl BreachAssess {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -230,7 +259,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = BreachAssess::new(BreachAssessConfig::new()).unwrap()
+        let e = BreachAssess::new(BreachAssessConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -246,7 +276,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = BreachAssess::new(BreachAssessConfig::new()).unwrap()
+        let e = BreachAssess::new(BreachAssessConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("BreachAssess"));
@@ -254,7 +285,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = BreachAssess::new(BreachAssessConfig::new()).unwrap()
+        let e = BreachAssess::new(BreachAssessConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -265,7 +297,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = BreachAssess::new(BreachAssessConfig::new()).unwrap()
+        let e = BreachAssess::new(BreachAssessConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -273,7 +306,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = BreachAssess::new(BreachAssessConfig::new()).unwrap()
+        let e = BreachAssess::new(BreachAssessConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -290,7 +324,8 @@ mod tests {
 
     #[test]
     fn test_risk_score() {
-        let e = BreachAssess::new(BreachAssessConfig::new()).unwrap()
+        let e = BreachAssess::new(BreachAssessConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.risk_score();
         assert!(result.is_finite());
@@ -298,7 +333,8 @@ mod tests {
 
     #[test]
     fn test_notification_required() {
-        let e = BreachAssess::new(BreachAssessConfig::new()).unwrap()
+        let e = BreachAssess::new(BreachAssessConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.notification_required();
         assert!(result);
@@ -306,7 +342,8 @@ mod tests {
 
     #[test]
     fn test_assessment_summary() {
-        let e = BreachAssess::new(BreachAssessConfig::new()).unwrap()
+        let e = BreachAssess::new(BreachAssessConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.assessment_summary();
         assert!(!result.is_empty());

@@ -523,7 +523,8 @@ mod tests {
             readers.push(std::thread::spawn(move || {
                 for round in 0..4 {
                     for i in 0..pages_per_thread {
-                        let pid = first_page + (((t + round) % num_threads) * pages_per_thread + i) as u64;
+                        let pid = first_page
+                            + (((t + round) % num_threads) * pages_per_thread + i) as u64;
                         let expected_t = (t + round) % num_threads;
                         let expected =
                             format!("thread-{expected_t}-page-{i}-payload-{pid}").into_bytes();

@@ -16,7 +16,12 @@ pub enum JointSpaceError {
     /// Invalid limits (min > max).
     InvalidLimits { joint: usize, min: f64, max: f64 },
     /// Configuration violates one or more joint limits.
-    LimitViolation { joint: usize, value: f64, min: f64, max: f64 },
+    LimitViolation {
+        joint: usize,
+        value: f64,
+        min: f64,
+        max: f64,
+    },
     /// Empty configuration space.
     Empty,
     /// Singularity detected.
@@ -32,8 +37,16 @@ impl std::fmt::Display for JointSpaceError {
             Self::InvalidLimits { joint, min, max } => {
                 write!(f, "invalid limits for joint {joint}: [{min:.4}, {max:.4}]")
             }
-            Self::LimitViolation { joint, value, min, max } => {
-                write!(f, "joint {joint} value {value:.4} outside [{min:.4}, {max:.4}]")
+            Self::LimitViolation {
+                joint,
+                value,
+                min,
+                max,
+            } => {
+                write!(
+                    f,
+                    "joint {joint} value {value:.4} outside [{min:.4}, {max:.4}]"
+                )
             }
             Self::Empty => write!(f, "empty configuration space"),
             Self::Singularity(msg) => write!(f, "singularity: {msg}"),
@@ -68,8 +81,8 @@ impl JointLimits {
         Self {
             pos_min,
             pos_max,
-            vel_max: 3.0,     // rad/s default
-            acc_max: 10.0,    // rad/s^2 default
+            vel_max: 3.0,  // rad/s default
+            acc_max: 10.0, // rad/s^2 default
             jerk_max: 0.0,
             continuous: false,
         }
@@ -80,8 +93,8 @@ impl JointLimits {
         Self {
             pos_min,
             pos_max,
-            vel_max: 1.0,     // m/s default
-            acc_max: 5.0,     // m/s^2 default
+            vel_max: 1.0, // m/s default
+            acc_max: 5.0, // m/s^2 default
             jerk_max: 0.0,
             continuous: false,
         }
@@ -170,7 +183,11 @@ impl JointLimits {
 
 impl std::fmt::Display for JointLimits {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let kind = if self.continuous { "continuous" } else { "bounded" };
+        let kind = if self.continuous {
+            "continuous"
+        } else {
+            "bounded"
+        };
         write!(
             f,
             "JointLimits({kind}, [{:.3}, {:.3}], v≤{:.2}, a≤{:.2})",
@@ -191,12 +208,16 @@ pub struct JointConfig {
 impl JointConfig {
     /// Create from a slice.
     pub fn new(values: &[f64]) -> Self {
-        Self { values: values.to_vec() }
+        Self {
+            values: values.to_vec(),
+        }
     }
 
     /// Zero configuration of `n` DOFs.
     pub fn zeros(n: usize) -> Self {
-        Self { values: vec![0.0; n] }
+        Self {
+            values: vec![0.0; n],
+        }
     }
 
     /// Number of DOFs.
@@ -371,7 +392,9 @@ impl ConfigurationSpace {
             .limits
             .iter()
             .map(|lim| {
-                state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                state = state
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
                 let u = (state >> 33) as f64 / (1u64 << 31) as f64;
                 lim.pos_min + u * lim.range()
             })
@@ -397,7 +420,12 @@ impl ConfigurationSpace {
 
 impl std::fmt::Display for ConfigurationSpace {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ConfigurationSpace({} DOF, vol={:.4})", self.ndof(), self.volume())
+        write!(
+            f,
+            "ConfigurationSpace({} DOF, vol={:.4})",
+            self.ndof(),
+            self.volume()
+        )
     }
 }
 

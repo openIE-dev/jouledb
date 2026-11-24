@@ -16,9 +16,19 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0, z: 0.0 } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
     pub fn cross(self, o: Self) -> Self {
         Self {
             x: self.y * o.z - self.z * o.y,
@@ -26,28 +36,58 @@ impl Vec3 {
             z: self.x * o.y - self.y * o.x,
         }
     }
-    pub fn length(self) -> f64 { self.dot(self).sqrt() }
+    pub fn length(self) -> f64 {
+        self.dot(self).sqrt()
+    }
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-15 { Self::zero() } else { self * (1.0 / l) }
+        if l < 1e-15 {
+            Self::zero()
+        } else {
+            self * (1.0 / l)
+        }
     }
 }
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 impl std::ops::Mul<f64> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 impl std::ops::Neg for Vec3 {
     type Output = Self;
-    fn neg(self) -> Self { Self { x: -self.x, y: -self.y, z: -self.z } }
+    fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
 }
 
 impl fmt::Display for Vec3 {
@@ -59,7 +99,11 @@ impl fmt::Display for Vec3 {
 /// Build orthonormal basis from a normal vector.
 pub fn build_onb(n: Vec3) -> (Vec3, Vec3, Vec3) {
     let w = n.normalized();
-    let a = if w.x.abs() > 0.9 { Vec3::new(0.0, 1.0, 0.0) } else { Vec3::new(1.0, 0.0, 0.0) };
+    let a = if w.x.abs() > 0.9 {
+        Vec3::new(0.0, 1.0, 0.0)
+    } else {
+        Vec3::new(1.0, 0.0, 0.0)
+    };
     let v = w.cross(a).normalized();
     let u = w.cross(v);
     (u, v, w)
@@ -102,7 +146,9 @@ pub fn sample_cosine_hemisphere(r1: f64, r2: f64, normal: Vec3) -> Vec3 {
 
 /// PDF for cosine-weighted hemisphere sampling.
 pub fn pdf_cosine_hemisphere(cos_theta: f64) -> f64 {
-    if cos_theta <= 0.0 { return 0.0; }
+    if cos_theta <= 0.0 {
+        return 0.0;
+    }
     cos_theta * INV_PI
 }
 
@@ -129,7 +175,9 @@ pub fn ggx_ndf(cos_theta: f64, roughness: f64) -> f64 {
 
 /// PDF for GGX sampling: D(h) * cos_theta_h / (4 * dot(wo, h)).
 pub fn pdf_ggx(cos_theta_h: f64, roughness: f64, wo_dot_h: f64) -> f64 {
-    if wo_dot_h <= 0.0 { return 0.0; }
+    if wo_dot_h <= 0.0 {
+        return 0.0;
+    }
     ggx_ndf(cos_theta_h, roughness) * cos_theta_h / (4.0 * wo_dot_h)
 }
 
@@ -148,7 +196,9 @@ pub fn sample_beckmann(r1: f64, r2: f64, roughness: f64, normal: Vec3) -> Vec3 {
 
 /// Beckmann NDF value.
 pub fn beckmann_ndf(cos_theta: f64, roughness: f64) -> f64 {
-    if cos_theta <= 0.0 { return 0.0; }
+    if cos_theta <= 0.0 {
+        return 0.0;
+    }
     let a = roughness * roughness;
     let a2 = a * a;
     let cos2 = cos_theta * cos_theta;
@@ -169,7 +219,9 @@ pub fn sample_uniform_cone(r1: f64, r2: f64, cos_theta_max: f64, normal: Vec3) -
 
 /// PDF for uniform cone sampling.
 pub fn pdf_uniform_cone(cos_theta_max: f64) -> f64 {
-    if cos_theta_max >= 1.0 { return 0.0; }
+    if cos_theta_max >= 1.0 {
+        return 0.0;
+    }
     1.0 / (TWO_PI * (1.0 - cos_theta_max))
 }
 
@@ -196,7 +248,9 @@ pub fn mis_balance_heuristic(pdf_f: f64, pdf_g: f64, n_f: usize, n_g: usize) -> 
     let wf = n_f as f64 * pdf_f;
     let wg = n_g as f64 * pdf_g;
     let denom = wf + wg;
-    if denom < 1e-15 { return 0.0; }
+    if denom < 1e-15 {
+        return 0.0;
+    }
     wf / denom
 }
 
@@ -205,7 +259,9 @@ pub fn mis_power_heuristic(pdf_f: f64, pdf_g: f64, n_f: usize, n_g: usize, beta:
     let wf = (n_f as f64 * pdf_f).powf(beta);
     let wg = (n_g as f64 * pdf_g).powf(beta);
     let denom = wf + wg;
-    if denom < 1e-15 { return 0.0; }
+    if denom < 1e-15 {
+        return 0.0;
+    }
     wf / denom
 }
 
@@ -213,7 +269,9 @@ pub fn mis_power_heuristic(pdf_f: f64, pdf_g: f64, n_f: usize, n_g: usize, beta:
 pub fn mis_multi_balance(this_pdf: f64, this_count: usize, all_pdfs: &[(f64, usize)]) -> f64 {
     let numerator = this_count as f64 * this_pdf;
     let denominator: f64 = all_pdfs.iter().map(|(p, n)| *n as f64 * p).sum();
-    if denominator < 1e-15 { return 0.0; }
+    if denominator < 1e-15 {
+        return 0.0;
+    }
     numerator / denominator
 }
 
@@ -274,17 +332,28 @@ pub fn stratified_jittered_1d(n: usize, rng_fn: &mut dyn FnMut() -> f64) -> Vec<
 mod tests {
     use super::*;
 
-    fn approx_eq(a: f64, b: f64, eps: f64) -> bool { (a - b).abs() < eps }
+    fn approx_eq(a: f64, b: f64, eps: f64) -> bool {
+        (a - b).abs() < eps
+    }
 
     fn vec3_approx_eq(a: Vec3, b: Vec3, eps: f64) -> bool {
         approx_eq(a.x, b.x, eps) && approx_eq(a.y, b.y, eps) && approx_eq(a.z, b.z, eps)
     }
 
-    struct TestRng { state: u64 }
+    struct TestRng {
+        state: u64,
+    }
     impl TestRng {
-        fn new(seed: u64) -> Self { Self { state: seed.wrapping_add(1) } }
+        fn new(seed: u64) -> Self {
+            Self {
+                state: seed.wrapping_add(1),
+            }
+        }
         fn next_f64(&mut self) -> f64 {
-            self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            self.state = self
+                .state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             (self.state >> 11) as f64 / (1u64 << 53) as f64
         }
     }

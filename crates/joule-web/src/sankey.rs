@@ -294,8 +294,8 @@ impl SankeyDiagram {
                 .sum::<f64>()
                 .max(1.0);
 
-            let usable = available_height
-                - config.node_padding * (col_nodes.len() as f64 - 1.0).max(0.0);
+            let usable =
+                available_height - config.node_padding * (col_nodes.len() as f64 - 1.0).max(0.0);
             let mut y = 0.0;
 
             for node_id in col_nodes {
@@ -375,9 +375,7 @@ impl SankeyDiagram {
 
         let mid_x = (x0 + x1) / 2.0;
 
-        format!(
-            "M{x0:.1},{y0:.1} C{mid_x:.1},{y0:.1} {mid_x:.1},{y1:.1} {x1:.1},{y1:.1}"
-        )
+        format!("M{x0:.1},{y0:.1} C{mid_x:.1},{y0:.1} {mid_x:.1},{y1:.1} {x1:.1},{y1:.1}")
     }
 
     /// Get all groups.

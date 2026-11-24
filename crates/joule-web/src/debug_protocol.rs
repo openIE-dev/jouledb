@@ -85,10 +85,7 @@ impl DebugMessage {
         body_parts.sort(); // deterministic output
         let body_str = body_parts.join(",");
 
-        let req_seq_str = self
-            .request_seq
-            .map(|s| s.to_string())
-            .unwrap_or_default();
+        let req_seq_str = self.request_seq.map(|s| s.to_string()).unwrap_or_default();
 
         format!(
             "{}|{}|{}|{}|{}|{}",

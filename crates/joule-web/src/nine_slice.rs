@@ -262,14 +262,7 @@ impl NineSliceDef {
     }
 }
 
-fn uv_from_pixels(
-    px: f32,
-    py: f32,
-    pw: f32,
-    ph: f32,
-    atlas_w: f32,
-    atlas_h: f32,
-) -> UvRegion {
+fn uv_from_pixels(px: f32, py: f32, pw: f32, ph: f32, atlas_w: f32, atlas_h: f32) -> UvRegion {
     UvRegion {
         u_min: px / atlas_w,
         v_min: py / atlas_h,
@@ -498,7 +491,11 @@ mod tests {
     #[test]
     fn test_atlas_generate_for_missing() {
         let atlas = NineSliceAtlas::new(256.0, 256.0);
-        assert!(atlas.generate_for("nonexistent", 0.0, 0.0, 50.0, 50.0).is_none());
+        assert!(
+            atlas
+                .generate_for("nonexistent", 0.0, 0.0, 50.0, 50.0)
+                .is_none()
+        );
     }
 
     #[test]

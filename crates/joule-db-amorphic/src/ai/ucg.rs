@@ -37,10 +37,7 @@ impl OrbitWeights {
         let vals: Vec<f64> =
             serde_json::from_str(json).map_err(|e| format!("weight parse error: {e}"))?;
         if vals.len() != NUM_ORBITS {
-            return Err(format!(
-                "expected {NUM_ORBITS} weights, got {}",
-                vals.len()
-            ));
+            return Err(format!("expected {NUM_ORBITS} weights, got {}", vals.len()));
         }
         let mut weights = [0.0; NUM_ORBITS];
         weights.copy_from_slice(&vals);
@@ -50,10 +47,7 @@ impl OrbitWeights {
     /// Load from a flat f64 slice.
     pub fn from_slice(vals: &[f64]) -> Result<Self, String> {
         if vals.len() != NUM_ORBITS {
-            return Err(format!(
-                "expected {NUM_ORBITS} weights, got {}",
-                vals.len()
-            ));
+            return Err(format!("expected {NUM_ORBITS} weights, got {}", vals.len()));
         }
         let mut weights = [0.0; NUM_ORBITS];
         weights.copy_from_slice(vals);

@@ -115,10 +115,7 @@ impl MediaIngestPipeline {
                         // Keep if above threshold relative to DC
                         if dc > 0.0 && quantized.abs() / dc > threshold {
                             entries.push(CoefficientEntry {
-                                position: (
-                                    (bx * block + col) as u32,
-                                    (by * block + row) as u32,
-                                ),
+                                position: ((bx * block + col) as u32, (by * block + row) as u32),
                                 magnitude: quantized.abs() as f32,
                                 phase: if quantized >= 0.0 { 0.0 } else { PI as f32 },
                             });
@@ -180,10 +177,7 @@ impl MediaIngestPipeline {
             let n_bins = spectrum.len();
 
             // Find max magnitude for thresholding
-            let max_mag = spectrum
-                .iter()
-                .map(|(mag, _)| *mag)
-                .fold(0.0f64, f64::max);
+            let max_mag = spectrum.iter().map(|(mag, _)| *mag).fold(0.0f64, f64::max);
 
             // Store significant coefficients
             for (bin, &(mag, phase)) in spectrum.iter().enumerate() {
@@ -481,12 +475,7 @@ mod tests {
         let recovered = idct1d(&dct);
 
         for (a, b) in original.iter().zip(recovered.iter()) {
-            assert!(
-                (a - b).abs() < 1e-10,
-                "Roundtrip failed: {} vs {}",
-                a,
-                b
-            );
+            assert!((a - b).abs() < 1e-10, "Roundtrip failed: {} vs {}", a, b);
         }
     }
 
@@ -498,19 +487,14 @@ mod tests {
         let recovered = idct2d_block(&dct, block);
 
         for (a, b) in original.iter().zip(recovered.iter()) {
-            assert!(
-                (a - b).abs() < 1e-10,
-                "2D roundtrip failed: {} vs {}",
-                a,
-                b
-            );
+            assert!((a - b).abs() < 1e-10, "2D roundtrip failed: {} vs {}", a, b);
         }
     }
 
     #[test]
     fn test_image_ingest_and_reconstruct() {
         let pipeline = MediaIngestPipeline::new(MediaIngestConfig {
-            quality: 100, // Lossless-ish
+            quality: 100,               // Lossless-ish
             coefficient_threshold: 0.0, // Keep all coefficients
             ..Default::default()
         });

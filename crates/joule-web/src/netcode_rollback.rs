@@ -20,9 +20,17 @@ pub enum RollbackError {
     /// Max rollback depth exceeded.
     MaxRollbackExceeded { requested: u32, max: u32 },
     /// Checksum mismatch between states.
-    ChecksumMismatch { frame: u64, expected: u64, actual: u64 },
+    ChecksumMismatch {
+        frame: u64,
+        expected: u64,
+        actual: u64,
+    },
     /// Sync test failed: local and remote diverged.
-    SyncTestFailed { frame: u64, local_hash: u64, remote_hash: u64 },
+    SyncTestFailed {
+        frame: u64,
+        local_hash: u64,
+        remote_hash: u64,
+    },
     /// Input not available for frame.
     MissingInput { frame: u64, player: u32 },
 }
@@ -37,11 +45,25 @@ impl fmt::Display for RollbackError {
             Self::MaxRollbackExceeded { requested, max } => {
                 write!(f, "rollback of {requested} frames exceeds max {max}")
             }
-            Self::ChecksumMismatch { frame, expected, actual } => {
-                write!(f, "checksum mismatch at frame {frame}: expected {expected:#x}, got {actual:#x}")
+            Self::ChecksumMismatch {
+                frame,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "checksum mismatch at frame {frame}: expected {expected:#x}, got {actual:#x}"
+                )
             }
-            Self::SyncTestFailed { frame, local_hash, remote_hash } => {
-                write!(f, "sync test failed at frame {frame}: local={local_hash:#x} remote={remote_hash:#x}")
+            Self::SyncTestFailed {
+                frame,
+                local_hash,
+                remote_hash,
+            } => {
+                write!(
+                    f,
+                    "sync test failed at frame {frame}: local={local_hash:#x} remote={remote_hash:#x}"
+                )
             }
             Self::MissingInput { frame, player } => {
                 write!(f, "missing input for player {player} at frame {frame}")
@@ -65,7 +87,11 @@ pub struct GameStateSnapshot {
 impl GameStateSnapshot {
     pub fn new(frame: u64, data: Vec<u8>) -> Self {
         let checksum = Self::compute_checksum(&data);
-        Self { frame, data, checksum }
+        Self {
+            frame,
+            data,
+            checksum,
+        }
     }
 
     /// Simple FNV-1a hash for checksum.
@@ -97,7 +123,13 @@ pub struct PlayerInput {
 
 impl PlayerInput {
     pub fn new(player_id: u32, frame: u64, buttons: u32) -> Self {
-        Self { player_id, frame, buttons, stick_x: 0, stick_y: 0 }
+        Self {
+            player_id,
+            frame,
+            buttons,
+            stick_x: 0,
+            stick_y: 0,
+        }
     }
 
     pub fn with_stick(mut self, x: i16, y: i16) -> Self {
@@ -120,7 +152,11 @@ impl PlayerInput {
 
 impl fmt::Display for PlayerInput {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Input(p{}, frame={}, btn={:#06x})", self.player_id, self.frame, self.buttons)
+        write!(
+            f,
+            "Input(p{}, frame={}, btn={:#06x})",
+            self.player_id, self.frame, self.buttons
+        )
     }
 }
 
@@ -185,7 +221,10 @@ pub struct FrameAdvantage {
 
 impl FrameAdvantage {
     pub fn new() -> Self {
-        Self { local_frame: 0, remote_frame: 0 }
+        Self {
+            local_frame: 0,
+            remote_frame: 0,
+        }
     }
 
     pub fn update(&mut self, local: u64, remote: u64) {
@@ -283,7 +322,9 @@ impl RollbackManager {
     pub fn save_state(&mut self, state: GameStateSnapshot) {
         // Evict old states beyond history size.
         if self.state_history.len() >= self.config.state_history_size {
-            let oldest = self.current_frame.saturating_sub(self.config.state_history_size as u64);
+            let oldest = self
+                .current_frame
+                .saturating_sub(self.config.state_history_size as u64);
             self.state_history.retain(|&frame, _| frame >= oldest);
         }
         self.state_history.insert(state.frame, state);
@@ -291,7 +332,9 @@ impl RollbackManager {
 
     /// Load a saved state.
     pub fn load_state(&self, frame: u64) -> Result<&GameStateSnapshot, RollbackError> {
-        self.state_history.get(&frame).ok_or(RollbackError::NoSavedState { frame })
+        self.state_history
+            .get(&frame)
+            .ok_or(RollbackError::NoSavedState { frame })
     }
 
     /// Add a confirmed remote input.
@@ -323,7 +366,10 @@ impl RollbackManager {
         self.confirmed_inputs
             .get(&key)
             .or_else(|| self.predicted_inputs.get(&key))
-            .ok_or(RollbackError::MissingInput { frame, player: player_id })
+            .ok_or(RollbackError::MissingInput {
+                frame,
+                player: player_id,
+            })
     }
 
     /// Determine if a rollback is needed: returns the earliest frame that has
@@ -363,9 +409,12 @@ impl RollbackManager {
                 max: self.config.max_rollback_frames,
             });
         }
-        let state = self.state_history.get(&target_frame).ok_or(RollbackError::NoSavedState {
-            frame: target_frame,
-        })?;
+        let state = self
+            .state_history
+            .get(&target_frame)
+            .ok_or(RollbackError::NoSavedState {
+                frame: target_frame,
+            })?;
 
         // Update stats.
         self.stats.total_rollbacks += 1;

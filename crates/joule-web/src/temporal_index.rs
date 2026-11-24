@@ -122,13 +122,7 @@ impl TemporalIndex {
 
     /// Insert a fact valid during [valid_start, valid_end).
     /// Records the transaction time as the current tx time.
-    pub fn insert(
-        &mut self,
-        key: &str,
-        value: &str,
-        valid_start: u64,
-        valid_end: u64,
-    ) -> usize {
+    pub fn insert(&mut self, key: &str, value: &str, valid_start: u64, valid_end: u64) -> usize {
         let version = self.versions.entry(key.to_string()).or_insert(0);
         *version += 1;
 
@@ -142,10 +136,7 @@ impl TemporalIndex {
 
         let idx = self.records.len();
         self.records.push(record);
-        self.key_index
-            .entry(key.to_string())
-            .or_default()
-            .push(idx);
+        self.key_index.entry(key.to_string()).or_default().push(idx);
         self.tx_index
             .entry(self.current_tx_time)
             .or_default()
@@ -214,21 +205,14 @@ impl TemporalIndex {
     }
 
     /// Bitemporal as-of: value of `key` at valid_time `vt` as known at transaction_time `tt`.
-    pub fn as_of_bitemporal(
-        &self,
-        key: &str,
-        vt: u64,
-        tt: u64,
-    ) -> Option<&BitemporalRecord> {
+    pub fn as_of_bitemporal(&self, key: &str, vt: u64, tt: u64) -> Option<&BitemporalRecord> {
         self.key_index.get(key).and_then(|indices| {
             indices
                 .iter()
                 .rev()
                 .filter_map(|idx| {
                     let rec = &self.records[*idx];
-                    if rec.valid_time.contains(vt)
-                        && rec.transaction_time.contains(tt)
-                    {
+                    if rec.valid_time.contains(vt) && rec.transaction_time.contains(tt) {
                         Some(rec)
                     } else {
                         None
@@ -239,11 +223,7 @@ impl TemporalIndex {
     }
 
     /// Time-range query: all records for `key` that overlap the given valid time range.
-    pub fn range_query(
-        &self,
-        key: &str,
-        range: &TimeRange,
-    ) -> Vec<&BitemporalRecord> {
+    pub fn range_query(&self, key: &str, range: &TimeRange) -> Vec<&BitemporalRecord> {
         self.key_index
             .get(key)
             .map(|indices| {
@@ -289,10 +269,8 @@ impl TemporalIndex {
         self.key_index
             .get(key)
             .map(|indices| {
-                let mut recs: Vec<&BitemporalRecord> = indices
-                    .iter()
-                    .map(|idx| &self.records[*idx])
-                    .collect();
+                let mut recs: Vec<&BitemporalRecord> =
+                    indices.iter().map(|idx| &self.records[*idx]).collect();
                 recs.sort_by_key(|r| r.valid_time.start);
                 recs
             })

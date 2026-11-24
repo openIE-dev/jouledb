@@ -21,8 +21,12 @@
 //! ```
 
 use crate::attestation::{AttestationKey, ReceiptSigner, ReceiptVerifier, SignedEnergyReceipt};
-use crate::energy_enforcer::{EnergyEnforcer, EnergyEnforcerConfig, EnergyEnforcerState, EnforcerResult};
-use crate::graceful_shutdown::{PendingOperations, ShutdownConfig, ShutdownCoordinator, ShutdownResult};
+use crate::energy_enforcer::{
+    EnergyEnforcer, EnergyEnforcerConfig, EnergyEnforcerState, EnforcerResult,
+};
+use crate::graceful_shutdown::{
+    PendingOperations, ShutdownConfig, ShutdownCoordinator, ShutdownResult,
+};
 use crate::network_isolation::{IsolationArgs, NetworkIsolationEnforcer, NetworkPolicy};
 use crate::resource_limits::ResourceLimits;
 use crate::{InstanceId, RuntimeError, RuntimeMode};
@@ -105,25 +109,20 @@ impl Sandbox {
 
         // Set up network isolation
         let network_enforcer = Arc::new(NetworkIsolationEnforcer::new());
-        let isolation_args =
-            network_enforcer.apply(&instance_id, config.mode, &config.network)?;
+        let isolation_args = network_enforcer.apply(&instance_id, config.mode, &config.network)?;
 
         // Set up energy enforcer
-        let energy_enforcer = config
-            .resource_limits
-            .energy
-            .max_energy_uj
-            .map(|max_uj| {
-                EnergyEnforcer::new(EnergyEnforcerConfig {
-                    max_energy_uj: max_uj,
-                    sample_interval: std::time::Duration::from_millis(
-                        config.resource_limits.energy.sample_interval_ms,
-                    ),
-                    warning_threshold: config.resource_limits.energy.warning_threshold,
-                    hard_kill: config.resource_limits.energy.hard_kill,
-                    target_pid: None, // Set later via set_target_pid
-                })
-            });
+        let energy_enforcer = config.resource_limits.energy.max_energy_uj.map(|max_uj| {
+            EnergyEnforcer::new(EnergyEnforcerConfig {
+                max_energy_uj: max_uj,
+                sample_interval: std::time::Duration::from_millis(
+                    config.resource_limits.energy.sample_interval_ms,
+                ),
+                warning_threshold: config.resource_limits.energy.warning_threshold,
+                hard_kill: config.resource_limits.energy.hard_kill,
+                target_pid: None, // Set later via set_target_pid
+            })
+        });
 
         let pending = Arc::new(PendingOperations::new());
 
@@ -212,11 +211,7 @@ impl Sandbox {
     }
 
     /// Sign an energy measurement and produce an attested receipt.
-    pub fn sign_receipt(
-        &mut self,
-        energy_uj: u64,
-        carbon_ugco2eq: u64,
-    ) -> SignedEnergyReceipt {
+    pub fn sign_receipt(&mut self, energy_uj: u64, carbon_ugco2eq: u64) -> SignedEnergyReceipt {
         self.signer.sign(energy_uj, carbon_ugco2eq)
     }
 
@@ -241,14 +236,9 @@ impl Sandbox {
         let enforcer_result = self.energy_enforcer.take().and_then(|e| e.stop());
 
         // Build final energy receipt
-        let final_energy_uj = enforcer_result
-            .as_ref()
-            .map(|r| r.consumed_uj)
-            .unwrap_or(0);
-        let final_receipt = self.sign_receipt(
-            final_energy_uj,
-            (final_energy_uj as f64 * 0.000_233) as u64,
-        );
+        let final_energy_uj = enforcer_result.as_ref().map(|r| r.consumed_uj).unwrap_or(0);
+        let final_receipt =
+            self.sign_receipt(final_energy_uj, (final_energy_uj as f64 * 0.000_233) as u64);
 
         // Set up graceful shutdown with cleanup callbacks
         let instance_id = InstanceId::from_string(self.config.instance_id.clone());

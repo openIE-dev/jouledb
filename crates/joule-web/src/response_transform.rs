@@ -157,9 +157,10 @@ impl ResponseAggregator {
             return None;
         }
         match self.strategy {
-            AggregationStrategy::FirstSuccess => {
-                responses.iter().find(|r| (200..300).contains(&r.status)).cloned()
-            }
+            AggregationStrategy::FirstSuccess => responses
+                .iter()
+                .find(|r| (200..300).contains(&r.status))
+                .cloned(),
             AggregationStrategy::ConcatBodies => {
                 let mut combined = Vec::new();
                 for (i, r) in responses.iter().enumerate() {
@@ -198,14 +199,14 @@ impl ResponsePredicate {
     pub fn matches(&self, resp: &Response) -> bool {
         match self {
             Self::StatusInRange(lo, hi) => resp.status >= *lo && resp.status <= *hi,
-            Self::HeaderEquals { key, value } => {
-                resp.headers.get(&key.to_lowercase()).map(|v| v == value).unwrap_or(false)
-            }
-            Self::BodyContains(needle) => {
-                std::str::from_utf8(&resp.body)
-                    .map(|s| s.contains(needle.as_str()))
-                    .unwrap_or(false)
-            }
+            Self::HeaderEquals { key, value } => resp
+                .headers
+                .get(&key.to_lowercase())
+                .map(|v| v == value)
+                .unwrap_or(false),
+            Self::BodyContains(needle) => std::str::from_utf8(&resp.body)
+                .map(|s| s.contains(needle.as_str()))
+                .unwrap_or(false),
         }
     }
 }
@@ -421,8 +422,7 @@ mod tests {
 
     #[test]
     fn test_aggregator_concat() {
-        let agg = ResponseAggregator::new(AggregationStrategy::ConcatBodies)
-            .with_delimiter(b"|");
+        let agg = ResponseAggregator::new(AggregationStrategy::ConcatBodies).with_delimiter(b"|");
         let r1 = Response::new(200).with_body(b"a".to_vec());
         let r2 = Response::new(200).with_body(b"b".to_vec());
         let result = agg.aggregate(&[r1, r2]).unwrap();

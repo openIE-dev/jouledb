@@ -68,7 +68,11 @@ pub struct PubMessage {
 }
 
 impl PubMessage {
-    pub fn new(id: impl Into<String>, topic: impl Into<String>, payload: impl Into<String>) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        topic: impl Into<String>,
+        payload: impl Into<String>,
+    ) -> Self {
         Self {
             id: id.into(),
             topic: topic.into(),
@@ -119,9 +123,9 @@ impl MessageFilter {
 
     /// Check if a message passes this filter.
     pub fn matches(&self, msg: &PubMessage) -> bool {
-        self.required_headers.iter().all(|(k, v)| {
-            msg.headers.get(k).map_or(false, |mv| mv == v)
-        })
+        self.required_headers
+            .iter()
+            .all(|(k, v)| msg.headers.get(k).map_or(false, |mv| mv == v))
     }
 }
 
@@ -521,7 +525,8 @@ mod tests {
     #[test]
     fn test_exact_topic_no_match() {
         let mut ps = PubSub::new();
-        ps.subscribe(Subscriber::new("s1", "orders/placed")).unwrap();
+        ps.subscribe(Subscriber::new("s1", "orders/placed"))
+            .unwrap();
         let d = ps.publish("orders/shipped", "x");
         assert_eq!(d.len(), 0);
     }
@@ -540,7 +545,8 @@ mod tests {
     fn test_message_filter() {
         let mut ps = PubSub::new();
         let filter = MessageFilter::new().require_header("priority", "high");
-        ps.subscribe(Subscriber::new("s1", "alerts").with_filter(filter)).unwrap();
+        ps.subscribe(Subscriber::new("s1", "alerts").with_filter(filter))
+            .unwrap();
 
         // Without matching header — not delivered.
         let d1 = ps.publish("alerts", "low priority");

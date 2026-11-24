@@ -477,10 +477,7 @@ impl IntegrationHub {
     }
 
     /// Complete an aggregation group and merge messages into one.
-    pub fn complete_aggregation(
-        &mut self,
-        group_id: &str,
-    ) -> Result<Message, IntegrationError> {
+    pub fn complete_aggregation(&mut self, group_id: &str) -> Result<Message, IntegrationError> {
         let group = self
             .aggregation_groups
             .remove(group_id)
@@ -587,12 +584,12 @@ fn evaluate_route_condition(condition: &RouteCondition, message: &Message) -> bo
                 false
             }
         }
-        RouteCondition::And(conditions) => {
-            conditions.iter().all(|c| evaluate_route_condition(c, message))
-        }
-        RouteCondition::Or(conditions) => {
-            conditions.iter().any(|c| evaluate_route_condition(c, message))
-        }
+        RouteCondition::And(conditions) => conditions
+            .iter()
+            .all(|c| evaluate_route_condition(c, message)),
+        RouteCondition::Or(conditions) => conditions
+            .iter()
+            .any(|c| evaluate_route_condition(c, message)),
     }
 }
 
@@ -682,10 +679,16 @@ mod tests {
 
     fn setup() -> IntegrationHub {
         let mut hub = IntegrationHub::new();
-        hub.add_route(make_route("r1", RouteCondition::MessageType("order".into())))
-            .unwrap();
-        hub.add_route(make_route("r2", RouteCondition::MessageType("report".into())))
-            .unwrap();
+        hub.add_route(make_route(
+            "r1",
+            RouteCondition::MessageType("order".into()),
+        ))
+        .unwrap();
+        hub.add_route(make_route(
+            "r2",
+            RouteCondition::MessageType("report".into()),
+        ))
+        .unwrap();
         hub
     }
 
@@ -746,7 +749,10 @@ mod tests {
         hub.add_route(route).unwrap();
         let msg = make_message("m1", "any");
         let results = hub.route(msg).unwrap();
-        assert_eq!(results[0].headers.get("processed"), Some(&"true".to_string()));
+        assert_eq!(
+            results[0].headers.get("processed"),
+            Some(&"true".to_string())
+        );
     }
 
     #[test]
@@ -801,11 +807,7 @@ mod tests {
     #[test]
     fn test_split_message() {
         let hub = IntegrationHub::new();
-        let msg = Message::new(
-            "m1",
-            "batch",
-            serde_json::json!({"items": [1, 2, 3]}),
-        );
+        let msg = Message::new("m1", "batch", serde_json::json!({"items": [1, 2, 3]}));
         let parts = hub.split(&msg, "items");
         assert_eq!(parts.len(), 3);
         assert_eq!(parts[0].body, serde_json::json!(1));
@@ -934,8 +936,10 @@ mod tests {
     #[test]
     fn test_multicast_strategy() {
         let mut hub = IntegrationHub::new().with_strategy(RoutingStrategy::Multicast);
-        hub.add_route(make_route("r1", RouteCondition::Always)).unwrap();
-        hub.add_route(make_route("r2", RouteCondition::Always)).unwrap();
+        hub.add_route(make_route("r1", RouteCondition::Always))
+            .unwrap();
+        hub.add_route(make_route("r2", RouteCondition::Always))
+            .unwrap();
         let msg = make_message("m1", "any");
         let results = hub.route(msg).unwrap();
         assert_eq!(results.len(), 2);
@@ -944,8 +948,10 @@ mod tests {
     #[test]
     fn test_round_robin_strategy() {
         let mut hub = IntegrationHub::new().with_strategy(RoutingStrategy::RoundRobin);
-        hub.add_route(make_route("r1", RouteCondition::Always)).unwrap();
-        hub.add_route(make_route("r2", RouteCondition::Always)).unwrap();
+        hub.add_route(make_route("r1", RouteCondition::Always))
+            .unwrap();
+        hub.add_route(make_route("r2", RouteCondition::Always))
+            .unwrap();
 
         let r1 = hub.route(make_message("m1", "any")).unwrap();
         assert_eq!(r1.len(), 1);

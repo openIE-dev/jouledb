@@ -16,9 +16,7 @@ pub struct FenwickTree {
 
 impl fmt::Debug for FenwickTree {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("FenwickTree")
-            .field("n", &self.n)
-            .finish()
+        f.debug_struct("FenwickTree").field("n", &self.n).finish()
     }
 }
 

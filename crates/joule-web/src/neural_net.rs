@@ -41,7 +41,10 @@ impl Activation {
     /// For softmax, returns a placeholder (Jacobian handled in loss backprop).
     pub fn backward(&self, output: &[f64]) -> Vec<f64> {
         match self {
-            Self::ReLU => output.iter().map(|x| if *x > 0.0 { 1.0 } else { 0.0 }).collect(),
+            Self::ReLU => output
+                .iter()
+                .map(|x| if *x > 0.0 { 1.0 } else { 0.0 })
+                .collect(),
             Self::Sigmoid => output.iter().map(|x| x * (1.0 - x)).collect(),
             Self::Tanh => output.iter().map(|x| 1.0 - x * x).collect(),
             Self::Softmax => vec![1.0; output.len()], // handled in loss gradient
@@ -172,13 +175,26 @@ impl DenseLayer {
 /// Optimizer type for training.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum OptimizerType {
-    SGD { lr: f64, momentum: f64 },
-    Adam { lr: f64, beta1: f64, beta2: f64, epsilon: f64 },
+    SGD {
+        lr: f64,
+        momentum: f64,
+    },
+    Adam {
+        lr: f64,
+        beta1: f64,
+        beta2: f64,
+        epsilon: f64,
+    },
 }
 
 impl Default for OptimizerType {
     fn default() -> Self {
-        Self::Adam { lr: 0.001, beta1: 0.9, beta2: 0.999, epsilon: 1e-8 }
+        Self::Adam {
+            lr: 0.001,
+            beta1: 0.9,
+            beta2: 0.999,
+            epsilon: 1e-8,
+        }
     }
 }
 
@@ -240,7 +256,10 @@ impl NeuralNet {
         optimizer: OptimizerType,
         seed: u64,
     ) -> Self {
-        assert!(layer_sizes.len() >= 2, "need at least input and output layer");
+        assert!(
+            layer_sizes.len() >= 2,
+            "need at least input and output layer"
+        );
         assert_eq!(
             activations.len(),
             layer_sizes.len() - 1,
@@ -258,7 +277,11 @@ impl NeuralNet {
             ));
         }
 
-        Self { layers, loss_fn, optimizer }
+        Self {
+            layers,
+            loss_fn,
+            optimizer,
+        }
     }
 
     /// Forward pass through the network.
@@ -342,7 +365,9 @@ impl NeuralNet {
                     }
                     new_delta[j] = sum;
                 }
-                let act_deriv = self.layers[l - 1].activation.backward(&layer_outputs[l - 1]);
+                let act_deriv = self.layers[l - 1]
+                    .activation
+                    .backward(&layer_outputs[l - 1]);
                 for (d, ad) in new_delta.iter_mut().zip(act_deriv.iter()) {
                     *d *= ad;
                 }
@@ -377,7 +402,12 @@ impl NeuralNet {
                     self.layers[layer_idx].biases[i] -= state.bias_velocity[i];
                 }
             }
-            OptimizerType::Adam { lr, beta1, beta2, epsilon } => {
+            OptimizerType::Adam {
+                lr,
+                beta1,
+                beta2,
+                epsilon,
+            } => {
                 let t_f = (t + 1) as f64;
                 for i in 0..self.layers[layer_idx].n_output {
                     for j in 0..self.layers[layer_idx].n_input {
@@ -480,7 +510,11 @@ impl NeuralNet {
 impl fmt::Display for NeuralNet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let sizes = self.layer_sizes();
-        let acts: Vec<String> = self.layers.iter().map(|l| format!("{:?}", l.activation)).collect();
+        let acts: Vec<String> = self
+            .layers
+            .iter()
+            .map(|l| format!("{:?}", l.activation))
+            .collect();
         write!(
             f,
             "NeuralNet(layers={:?}, activations=[{}], params={})",
@@ -584,16 +618,20 @@ mod tests {
             &[2, 8, 1],
             &[Activation::Tanh, Activation::Sigmoid],
             LossFunction::MSE,
-            OptimizerType::SGD { lr: 0.5, momentum: 0.0 },
+            OptimizerType::SGD {
+                lr: 0.5,
+                momentum: 0.0,
+            },
             42,
         );
 
         let inputs = vec![
-            vec![0.0, 0.0], vec![0.0, 1.0], vec![1.0, 0.0], vec![1.0, 1.0],
+            vec![0.0, 0.0],
+            vec![0.0, 1.0],
+            vec![1.0, 0.0],
+            vec![1.0, 1.0],
         ];
-        let targets = vec![
-            vec![0.0], vec![1.0], vec![1.0], vec![0.0],
-        ];
+        let targets = vec![vec![0.0], vec![1.0], vec![1.0], vec![0.0]];
 
         let history = net.train(&inputs, &targets, 500);
         assert!(!history.losses.is_empty());
@@ -694,7 +732,10 @@ mod tests {
             &[1, 4, 1],
             &[Activation::Tanh, Activation::Linear],
             LossFunction::MSE,
-            OptimizerType::SGD { lr: 0.01, momentum: 0.9 },
+            OptimizerType::SGD {
+                lr: 0.01,
+                momentum: 0.9,
+            },
             42,
         );
         let inputs = vec![vec![1.0], vec![2.0], vec![3.0]];

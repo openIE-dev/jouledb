@@ -19,7 +19,10 @@ pub struct TensorVal {
 
 impl TensorVal {
     pub fn scalar(v: f64) -> Self {
-        Self { shape: vec![1], data: vec![v] }
+        Self {
+            shape: vec![1],
+            data: vec![v],
+        }
     }
 
     pub fn from_vec(shape: Vec<usize>, data: Vec<f64>) -> Self {
@@ -28,7 +31,10 @@ impl TensorVal {
 
     pub fn zeros(shape: Vec<usize>) -> Self {
         let n: usize = shape.iter().product();
-        Self { shape, data: vec![0.0; n] }
+        Self {
+            shape,
+            data: vec![0.0; n],
+        }
     }
 
     pub fn numel(&self) -> usize {
@@ -56,10 +62,18 @@ pub enum OpKind {
     MatMul,
     Relu,
     Sigmoid,
-    Conv { kernel: Vec<usize>, stride: usize, padding: usize },
-    ReduceSum { axis: usize },
+    Conv {
+        kernel: Vec<usize>,
+        stride: usize,
+        padding: usize,
+    },
+    ReduceSum {
+        axis: usize,
+    },
     FusedAddRelu,
-    Reshape { target: Vec<usize> },
+    Reshape {
+        target: Vec<usize>,
+    },
     Neg,
 }
 
@@ -101,7 +115,13 @@ pub struct GraphNode {
 
 impl GraphNode {
     pub fn new(id: NodeId, name: impl Into<String>, op: OpKind) -> Self {
-        Self { id, name: name.into(), op, inputs: Vec::new(), output: None }
+        Self {
+            id,
+            name: name.into(),
+            op,
+            inputs: Vec::new(),
+            output: None,
+        }
     }
 }
 
@@ -122,7 +142,10 @@ pub struct TensorGraph {
 
 impl TensorGraph {
     pub fn new() -> Self {
-        Self { nodes: Vec::new(), output_ids: Vec::new() }
+        Self {
+            nodes: Vec::new(),
+            output_ids: Vec::new(),
+        }
     }
 
     /// Add a node, returns its `NodeId`.
@@ -187,7 +210,10 @@ impl TensorGraph {
     }
 
     /// Execute the graph with the given input bindings.
-    pub fn execute(&mut self, inputs: &HashMap<NodeId, TensorVal>) -> Result<Vec<TensorVal>, String> {
+    pub fn execute(
+        &mut self,
+        inputs: &HashMap<NodeId, TensorVal>,
+    ) -> Result<Vec<TensorVal>, String> {
         let order = self.topological_sort()?;
 
         for &id in &order {
@@ -195,9 +221,10 @@ impl TensorGraph {
             let input_ids = self.nodes[id].inputs.clone();
 
             let output = match &op {
-                OpKind::Input => {
-                    inputs.get(&id).cloned().ok_or_else(|| format!("missing input for node {id}"))?
-                }
+                OpKind::Input => inputs
+                    .get(&id)
+                    .cloned()
+                    .ok_or_else(|| format!("missing input for node {id}"))?,
                 OpKind::Constant(val) => val.clone(),
                 OpKind::Add => {
                     let a = self.get_output(input_ids[0])?;
@@ -250,7 +277,10 @@ impl TensorGraph {
                 }
                 OpKind::Reshape { target } => {
                     let a = self.get_output(input_ids[0])?;
-                    TensorVal { shape: target.clone(), data: a.data.clone() }
+                    TensorVal {
+                        shape: target.clone(),
+                        data: a.data.clone(),
+                    }
                 }
                 OpKind::Conv { .. } => {
                     // Simplified: treat as pass-through for shape tracking
@@ -282,9 +312,15 @@ impl TensorGraph {
         };
         for &id in &order {
             let input_ids = self.nodes[id].inputs.clone();
-            if input_ids.is_empty() { continue; }
-            let all_const = input_ids.iter().all(|i| matches!(&self.nodes[*i].op, OpKind::Constant(_)));
-            if !all_const { continue; }
+            if input_ids.is_empty() {
+                continue;
+            }
+            let all_const = input_ids
+                .iter()
+                .all(|i| matches!(&self.nodes[*i].op, OpKind::Constant(_)));
+            if !all_const {
+                continue;
+            }
 
             let mut mini = TensorGraph::new();
             let mut id_map = HashMap::new();
@@ -338,7 +374,9 @@ impl TensorGraph {
                 let pred_id = self.nodes[i].inputs[0];
                 if matches!(self.nodes[pred_id].op, OpKind::Add) {
                     // Check pred is only used by this relu
-                    let pred_consumers: usize = self.nodes.iter()
+                    let pred_consumers: usize = self
+                        .nodes
+                        .iter()
                         .filter(|nd| nd.inputs.contains(&pred_id))
                         .count();
                     if pred_consumers == 1 {
@@ -382,7 +420,12 @@ impl Default for TensorGraph {
 
 impl fmt::Display for TensorGraph {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TensorGraph(nodes={}, outputs={})", self.nodes.len(), self.output_ids.len())
+        write!(
+            f,
+            "TensorGraph(nodes={}, outputs={})",
+            self.nodes.len(),
+            self.output_ids.len()
+        )
     }
 }
 
@@ -397,7 +440,10 @@ fn elementwise_binary(
         return Err(format!("shape mismatch: {:?} vs {:?}", a.shape, b.shape));
     }
     let data: Vec<f64> = a.data.iter().zip(&b.data).map(|(x, y)| f(*x, *y)).collect();
-    Ok(TensorVal { shape: a.shape.clone(), data })
+    Ok(TensorVal {
+        shape: a.shape.clone(),
+        data,
+    })
 }
 
 fn matmul_2d(a: &TensorVal, b: &TensorVal) -> Result<TensorVal, String> {
@@ -419,7 +465,10 @@ fn matmul_2d(a: &TensorVal, b: &TensorVal) -> Result<TensorVal, String> {
             data[i * n + j] = s;
         }
     }
-    Ok(TensorVal { shape: vec![m, n], data })
+    Ok(TensorVal {
+        shape: vec![m, n],
+        data,
+    })
 }
 
 fn reduce_sum(a: &TensorVal, axis: usize) -> Result<TensorVal, String> {
@@ -444,7 +493,10 @@ fn reduce_sum(a: &TensorVal, axis: usize) -> Result<TensorVal, String> {
             }
         }
     }
-    Ok(TensorVal { shape: new_shape, data })
+    Ok(TensorVal {
+        shape: new_shape,
+        data,
+    })
 }
 
 // ── Tests ──────────────────────────────────────────────────────
@@ -533,8 +585,16 @@ mod tests {
     #[test]
     fn test_constant_folding() {
         let mut g = TensorGraph::new();
-        let c1 = g.add_node("c1", OpKind::Constant(TensorVal::from_vec(vec![2], vec![2.0, 3.0])), &[]);
-        let c2 = g.add_node("c2", OpKind::Constant(TensorVal::from_vec(vec![2], vec![4.0, 5.0])), &[]);
+        let c1 = g.add_node(
+            "c1",
+            OpKind::Constant(TensorVal::from_vec(vec![2], vec![2.0, 3.0])),
+            &[],
+        );
+        let c2 = g.add_node(
+            "c2",
+            OpKind::Constant(TensorVal::from_vec(vec![2], vec![4.0, 5.0])),
+            &[],
+        );
         let add = g.add_node("add", OpKind::Add, &[c1, c2]);
         g.mark_output(add);
 
@@ -596,7 +656,10 @@ mod tests {
         g.mark_output(r);
 
         let mut inputs = HashMap::new();
-        inputs.insert(x, TensorVal::from_vec(vec![2, 3], vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]));
+        inputs.insert(
+            x,
+            TensorVal::from_vec(vec![2, 3], vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+        );
 
         let results = g.execute(&inputs).unwrap();
         assert_eq!(results[0].shape, vec![2, 1]);
@@ -662,7 +725,11 @@ mod tests {
     fn test_chain_execution() {
         let mut g = TensorGraph::new();
         let x = g.add_node("x", OpKind::Input, &[]);
-        let c = g.add_node("c", OpKind::Constant(TensorVal::from_vec(vec![2], vec![2.0, 2.0])), &[]);
+        let c = g.add_node(
+            "c",
+            OpKind::Constant(TensorVal::from_vec(vec![2], vec![2.0, 2.0])),
+            &[],
+        );
         let m = g.add_node("mul", OpKind::Mul, &[x, c]);
         let r = g.add_node("relu", OpKind::Relu, &[m]);
         g.mark_output(r);

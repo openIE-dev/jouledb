@@ -361,19 +361,19 @@ pub fn stats(ops: &[EditOp]) -> DiffStats {
 }
 
 /// Generate a unified diff string.
-pub fn unified_diff(old: &str, new: &str, old_name: &str, new_name: &str, context: usize) -> String {
-    let patch = create_patch(old, new, old_name, new_name, context);
-    patch.to_string()
-}
-
-/// Create a patch from two strings.
-pub fn create_patch(
+pub fn unified_diff(
     old: &str,
     new: &str,
     old_name: &str,
     new_name: &str,
     context: usize,
-) -> Patch {
+) -> String {
+    let patch = create_patch(old, new, old_name, new_name, context);
+    patch.to_string()
+}
+
+/// Create a patch from two strings.
+pub fn create_patch(old: &str, new: &str, old_name: &str, new_name: &str, context: usize) -> Patch {
     let ops = diff_lines(old, new);
     let hunks = build_hunks(&ops, context);
 

@@ -10,7 +10,11 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
@@ -22,7 +26,15 @@ impl Vec3 {
 
     pub fn normalized(self) -> Self {
         let len = self.length();
-        if len < 1e-10 { Self::ZERO } else { Self { x: self.x / len, y: self.y / len, z: self.z / len } }
+        if len < 1e-10 {
+            Self::ZERO
+        } else {
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+                z: self.z / len,
+            }
+        }
     }
 
     pub fn dot(self, o: Self) -> f32 {
@@ -40,15 +52,33 @@ impl Vec3 {
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 impl std::ops::Mul<f32> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f32) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f32) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 
 /// RGBA color.
@@ -61,7 +91,12 @@ pub struct Color {
 }
 
 impl Color {
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+        a: 1.0,
+    };
 
     pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }
@@ -106,7 +141,11 @@ impl ColorGradient {
             let (t0, c0) = self.stops[i];
             let (t1, c1) = self.stops[i + 1];
             if t >= t0 && t <= t1 {
-                let frac = if (t1 - t0).abs() < 1e-9 { 0.0 } else { (t - t0) / (t1 - t0) };
+                let frac = if (t1 - t0).abs() < 1e-9 {
+                    0.0
+                } else {
+                    (t - t0) / (t1 - t0)
+                };
                 return c0.lerp(c1, frac);
             }
         }
@@ -128,7 +167,9 @@ impl FloatCurve {
     }
 
     pub fn constant(v: f32) -> Self {
-        Self { keys: vec![(0.0, v), (1.0, v)] }
+        Self {
+            keys: vec![(0.0, v), (1.0, v)],
+        }
     }
 
     pub fn sample(&self, t: f32) -> f32 {
@@ -146,7 +187,11 @@ impl FloatCurve {
             let (t0, v0) = self.keys[i];
             let (t1, v1) = self.keys[i + 1];
             if t >= t0 && t <= t1 {
-                let frac = if (t1 - t0).abs() < 1e-9 { 0.0 } else { (t - t0) / (t1 - t0) };
+                let frac = if (t1 - t0).abs() < 1e-9 {
+                    0.0
+                } else {
+                    (t - t0) / (t1 - t0)
+                };
                 return v0 + (v1 - v0) * frac;
             }
         }
@@ -169,7 +214,11 @@ pub struct ParticleData {
 impl ParticleData {
     /// Normalized age in [0, 1].
     pub fn normalized_age(&self) -> f32 {
-        if self.lifetime <= 0.0 { 1.0 } else { (self.age / self.lifetime).clamp(0.0, 1.0) }
+        if self.lifetime <= 0.0 {
+            1.0
+        } else {
+            (self.age / self.lifetime).clamp(0.0, 1.0)
+        }
     }
 }
 
@@ -196,11 +245,7 @@ fn hash_to_float(n: i32) -> f32 {
 }
 
 fn noise_3d(x: f32, y: f32, z: f32) -> Vec3 {
-    Vec3::new(
-        noise_1d(x + 0.0),
-        noise_1d(y + 100.0),
-        noise_1d(z + 200.0),
-    )
+    Vec3::new(noise_1d(x + 0.0), noise_1d(y + 100.0), noise_1d(z + 200.0))
 }
 
 /// Affector type.
@@ -209,7 +254,11 @@ pub enum AffectorType {
     /// Constant gravitational force.
     Gravity { force: Vec3 },
     /// Directional wind with turbulence.
-    Wind { direction: Vec3, strength: f32, turbulence: f32 },
+    Wind {
+        direction: Vec3,
+        strength: f32,
+        turbulence: f32,
+    },
     /// Velocity damping.
     Drag { coefficient: f32 },
     /// Color over normalized lifetime.
@@ -219,9 +268,17 @@ pub enum AffectorType {
     /// Rotation over normalized lifetime (radians/sec).
     RotationOverLife { curve: FloatCurve },
     /// Point attractor.
-    Attractor { position: Vec3, strength: f32, radius: f32 },
+    Attractor {
+        position: Vec3,
+        strength: f32,
+        radius: f32,
+    },
     /// Vortex around an axis.
-    Vortex { axis: Vec3, center: Vec3, strength: f32 },
+    Vortex {
+        axis: Vec3,
+        center: Vec3,
+        strength: f32,
+    },
     /// Noise-based displacement.
     Noise { frequency: f32, amplitude: f32 },
     /// Clamp velocity magnitude.
@@ -238,7 +295,11 @@ pub struct ParticleAffector {
 
 impl ParticleAffector {
     pub fn new(affector_type: AffectorType, priority: i32) -> Self {
-        Self { affector_type, priority, enabled: true }
+        Self {
+            affector_type,
+            priority,
+            enabled: true,
+        }
     }
 
     /// Apply this affector to a particle for a timestep dt.
@@ -250,7 +311,11 @@ impl ParticleAffector {
             AffectorType::Gravity { force } => {
                 particle.velocity = particle.velocity + *force * dt;
             }
-            AffectorType::Wind { direction, strength, turbulence } => {
+            AffectorType::Wind {
+                direction,
+                strength,
+                turbulence,
+            } => {
                 let wind_force = *direction * *strength;
                 let turb = if *turbulence > 0.0 {
                     let n = noise_3d(
@@ -277,7 +342,11 @@ impl ParticleAffector {
             AffectorType::RotationOverLife { curve } => {
                 particle.rotation += curve.sample(particle.normalized_age()) * dt;
             }
-            AffectorType::Attractor { position, strength, radius } => {
+            AffectorType::Attractor {
+                position,
+                strength,
+                radius,
+            } => {
                 let to_attractor = *position - particle.position;
                 let dist = to_attractor.length();
                 if dist > 1e-6 && dist < *radius {
@@ -286,7 +355,11 @@ impl ParticleAffector {
                     particle.velocity = particle.velocity + dir * (*strength * falloff * dt);
                 }
             }
-            AffectorType::Vortex { axis, center, strength } => {
+            AffectorType::Vortex {
+                axis,
+                center,
+                strength,
+            } => {
                 let to_particle = particle.position - *center;
                 let axis_n = axis.normalized();
                 // Project onto plane perpendicular to axis
@@ -295,10 +368,14 @@ impl ParticleAffector {
                 let dist = radial.length();
                 if dist > 1e-6 {
                     let tangent = axis_n.cross(radial.normalized());
-                    particle.velocity = particle.velocity + tangent * (*strength * dt / dist.max(0.1));
+                    particle.velocity =
+                        particle.velocity + tangent * (*strength * dt / dist.max(0.1));
                 }
             }
-            AffectorType::Noise { frequency, amplitude } => {
+            AffectorType::Noise {
+                frequency,
+                amplitude,
+            } => {
                 let n = noise_3d(
                     particle.position.x * *frequency + particle.age,
                     particle.position.y * *frequency + particle.age,
@@ -324,7 +401,10 @@ pub struct AffectorPipeline {
 
 impl AffectorPipeline {
     pub fn new() -> Self {
-        Self { affectors: Vec::new(), sorted: true }
+        Self {
+            affectors: Vec::new(),
+            sorted: true,
+        }
     }
 
     pub fn add(&mut self, affector: ParticleAffector) {
@@ -405,7 +485,9 @@ mod tests {
     #[test]
     fn test_gravity_affector() {
         let aff = ParticleAffector::new(
-            AffectorType::Gravity { force: Vec3::new(0.0, -10.0, 0.0) },
+            AffectorType::Gravity {
+                force: Vec3::new(0.0, -10.0, 0.0),
+            },
             0,
         );
         let mut p = make_particle();
@@ -415,10 +497,7 @@ mod tests {
 
     #[test]
     fn test_drag_affector() {
-        let aff = ParticleAffector::new(
-            AffectorType::Drag { coefficient: 0.5 },
-            0,
-        );
+        let aff = ParticleAffector::new(AffectorType::Drag { coefficient: 0.5 }, 0);
         let mut p = make_particle();
         p.velocity = Vec3::new(10.0, 0.0, 0.0);
         aff.apply(&mut p, 1.0);
@@ -427,10 +506,7 @@ mod tests {
 
     #[test]
     fn test_drag_clamps_to_zero() {
-        let aff = ParticleAffector::new(
-            AffectorType::Drag { coefficient: 2.0 },
-            0,
-        );
+        let aff = ParticleAffector::new(AffectorType::Drag { coefficient: 2.0 }, 0);
         let mut p = make_particle();
         aff.apply(&mut p, 1.0);
         assert!((p.velocity.x).abs() < 1e-5);
@@ -475,10 +551,7 @@ mod tests {
             (0.0, Color::WHITE),
             (1.0, Color::new(1.0, 0.0, 0.0, 0.0)),
         ]);
-        let aff = ParticleAffector::new(
-            AffectorType::ColorOverLife { gradient },
-            0,
-        );
+        let aff = ParticleAffector::new(AffectorType::ColorOverLife { gradient }, 0);
         let mut p = make_particle();
         p.age = 1.0;
         p.lifetime = 2.0;
@@ -490,10 +563,7 @@ mod tests {
     #[test]
     fn test_size_over_life() {
         let curve = FloatCurve::new(vec![(0.0, 1.0), (1.0, 0.0)]);
-        let aff = ParticleAffector::new(
-            AffectorType::SizeOverLife { curve },
-            0,
-        );
+        let aff = ParticleAffector::new(AffectorType::SizeOverLife { curve }, 0);
         let mut p = make_particle();
         p.age = 1.0;
         p.lifetime = 2.0;
@@ -504,10 +574,7 @@ mod tests {
     #[test]
     fn test_rotation_over_life() {
         let curve = FloatCurve::constant(std::f32::consts::PI);
-        let aff = ParticleAffector::new(
-            AffectorType::RotationOverLife { curve },
-            0,
-        );
+        let aff = ParticleAffector::new(AffectorType::RotationOverLife { curve }, 0);
         let mut p = make_particle();
         aff.apply(&mut p, 1.0);
         assert!((p.rotation - std::f32::consts::PI).abs() < 1e-5);
@@ -566,7 +633,10 @@ mod tests {
     #[test]
     fn test_noise_displacement() {
         let aff = ParticleAffector::new(
-            AffectorType::Noise { frequency: 1.0, amplitude: 2.0 },
+            AffectorType::Noise {
+                frequency: 1.0,
+                amplitude: 2.0,
+            },
             0,
         );
         let mut p = make_particle();
@@ -583,10 +653,7 @@ mod tests {
 
     #[test]
     fn test_velocity_limit() {
-        let aff = ParticleAffector::new(
-            AffectorType::VelocityLimit { max_speed: 2.0 },
-            0,
-        );
+        let aff = ParticleAffector::new(AffectorType::VelocityLimit { max_speed: 2.0 }, 0);
         let mut p = make_particle();
         p.velocity = Vec3::new(10.0, 10.0, 10.0);
         aff.apply(&mut p, 1.0);
@@ -596,10 +663,7 @@ mod tests {
 
     #[test]
     fn test_velocity_limit_under() {
-        let aff = ParticleAffector::new(
-            AffectorType::VelocityLimit { max_speed: 100.0 },
-            0,
-        );
+        let aff = ParticleAffector::new(AffectorType::VelocityLimit { max_speed: 100.0 }, 0);
         let mut p = make_particle();
         let speed_before = p.velocity.length();
         aff.apply(&mut p, 1.0);
@@ -609,7 +673,9 @@ mod tests {
     #[test]
     fn test_disabled_affector() {
         let mut aff = ParticleAffector::new(
-            AffectorType::Gravity { force: Vec3::new(0.0, -100.0, 0.0) },
+            AffectorType::Gravity {
+                force: Vec3::new(0.0, -100.0, 0.0),
+            },
             0,
         );
         aff.enabled = false;
@@ -623,7 +689,9 @@ mod tests {
     fn test_pipeline_priority_order() {
         let mut pipeline = AffectorPipeline::new();
         pipeline.add(ParticleAffector::new(
-            AffectorType::Gravity { force: Vec3::new(0.0, -10.0, 0.0) },
+            AffectorType::Gravity {
+                force: Vec3::new(0.0, -10.0, 0.0),
+            },
             10,
         ));
         pipeline.add(ParticleAffector::new(
@@ -642,7 +710,9 @@ mod tests {
     fn test_pipeline_batch() {
         let mut pipeline = AffectorPipeline::new();
         pipeline.add(ParticleAffector::new(
-            AffectorType::Gravity { force: Vec3::new(0.0, -10.0, 0.0) },
+            AffectorType::Gravity {
+                force: Vec3::new(0.0, -10.0, 0.0),
+            },
             0,
         ));
         let mut particles = vec![make_particle(), make_particle(), make_particle()];
@@ -655,7 +725,10 @@ mod tests {
     #[test]
     fn test_pipeline_clear() {
         let mut pipeline = AffectorPipeline::new();
-        pipeline.add(ParticleAffector::new(AffectorType::Drag { coefficient: 1.0 }, 0));
+        pipeline.add(ParticleAffector::new(
+            AffectorType::Drag { coefficient: 1.0 },
+            0,
+        ));
         assert_eq!(pipeline.len(), 1);
         pipeline.clear();
         assert!(pipeline.is_empty());
@@ -664,8 +737,14 @@ mod tests {
     #[test]
     fn test_pipeline_remove() {
         let mut pipeline = AffectorPipeline::new();
-        pipeline.add(ParticleAffector::new(AffectorType::Drag { coefficient: 1.0 }, 0));
-        pipeline.add(ParticleAffector::new(AffectorType::Drag { coefficient: 2.0 }, 1));
+        pipeline.add(ParticleAffector::new(
+            AffectorType::Drag { coefficient: 1.0 },
+            0,
+        ));
+        pipeline.add(ParticleAffector::new(
+            AffectorType::Drag { coefficient: 2.0 },
+            1,
+        ));
         let removed = pipeline.remove_at(0);
         assert!(removed.is_some());
         assert_eq!(pipeline.len(), 1);

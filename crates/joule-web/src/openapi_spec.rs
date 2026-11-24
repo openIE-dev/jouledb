@@ -85,12 +85,18 @@ impl Default for Schema {
 impl Schema {
     /// Create a `$ref` pointer to a component schema.
     pub fn reference(path: &str) -> Self {
-        Self { ref_path: Some(path.to_string()), ..Default::default() }
+        Self {
+            ref_path: Some(path.to_string()),
+            ..Default::default()
+        }
     }
 
     /// Shorthand for a typed schema.
     pub fn typed(st: SchemaType) -> Self {
-        Self { schema_type: Some(st), ..Default::default() }
+        Self {
+            schema_type: Some(st),
+            ..Default::default()
+        }
     }
 
     /// Shorthand for an array of items.
@@ -117,11 +123,17 @@ impl Schema {
             m.insert("format".into(), serde_json::Value::String(fmt.clone()));
         }
         if let Some(ref desc) = self.description {
-            m.insert("description".into(), serde_json::Value::String(desc.clone()));
+            m.insert(
+                "description".into(),
+                serde_json::Value::String(desc.clone()),
+            );
         }
         if !self.required.is_empty() {
-            let arr: Vec<serde_json::Value> = self.required.iter()
-                .map(|s| serde_json::Value::String(s.clone())).collect();
+            let arr: Vec<serde_json::Value> = self
+                .required
+                .iter()
+                .map(|s| serde_json::Value::String(s.clone()))
+                .collect();
             m.insert("required".into(), serde_json::Value::Array(arr));
         }
         if !self.properties.is_empty() {
@@ -135,8 +147,11 @@ impl Schema {
             m.insert("items".into(), items.to_json());
         }
         if !self.enum_values.is_empty() {
-            let arr: Vec<serde_json::Value> = self.enum_values.iter()
-                .map(|s| serde_json::Value::String(s.clone())).collect();
+            let arr: Vec<serde_json::Value> = self
+                .enum_values
+                .iter()
+                .map(|s| serde_json::Value::String(s.clone()))
+                .collect();
             m.insert("enum".into(), serde_json::Value::Array(arr));
         }
         if self.nullable {
@@ -219,13 +234,23 @@ pub struct Parameter {
 impl Parameter {
     pub fn new(name: &str, location: ParameterIn, schema: Schema) -> Self {
         let required = matches!(location, ParameterIn::Path);
-        Self { name: name.into(), location, description: None, required, schema, deprecated: false }
+        Self {
+            name: name.into(),
+            location,
+            description: None,
+            required,
+            schema,
+            deprecated: false,
+        }
     }
 
     pub fn to_json(&self) -> serde_json::Value {
         let mut m = serde_json::Map::new();
         m.insert("name".into(), serde_json::Value::String(self.name.clone()));
-        m.insert("in".into(), serde_json::Value::String(self.location.to_string()));
+        m.insert(
+            "in".into(),
+            serde_json::Value::String(self.location.to_string()),
+        );
         if let Some(ref d) = self.description {
             m.insert("description".into(), serde_json::Value::String(d.clone()));
         }
@@ -258,7 +283,11 @@ impl RequestBody {
     pub fn json(schema: Schema) -> Self {
         let mut content = BTreeMap::new();
         content.insert("application/json".into(), MediaType { schema });
-        Self { description: None, required: true, content }
+        Self {
+            description: None,
+            required: true,
+            content,
+        }
     }
 
     pub fn to_json(&self) -> serde_json::Value {
@@ -290,18 +319,29 @@ pub struct Response {
 
 impl Response {
     pub fn new(description: &str) -> Self {
-        Self { description: description.into(), content: BTreeMap::new(), headers: BTreeMap::new() }
+        Self {
+            description: description.into(),
+            content: BTreeMap::new(),
+            headers: BTreeMap::new(),
+        }
     }
 
     pub fn with_json(description: &str, schema: Schema) -> Self {
         let mut content = BTreeMap::new();
         content.insert("application/json".into(), MediaType { schema });
-        Self { description: description.into(), content, headers: BTreeMap::new() }
+        Self {
+            description: description.into(),
+            content,
+            headers: BTreeMap::new(),
+        }
     }
 
     pub fn to_json(&self) -> serde_json::Value {
         let mut m = serde_json::Map::new();
-        m.insert("description".into(), serde_json::Value::String(self.description.clone()));
+        m.insert(
+            "description".into(),
+            serde_json::Value::String(self.description.clone()),
+        );
         if !self.content.is_empty() {
             let mut ct = serde_json::Map::new();
             for (mime, mt) in &self.content {
@@ -329,7 +369,14 @@ impl Response {
 /// An HTTP method.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HttpMethod {
-    Get, Post, Put, Delete, Patch, Head, Options, Trace,
+    Get,
+    Post,
+    Put,
+    Delete,
+    Patch,
+    Head,
+    Options,
+    Trace,
 }
 
 impl fmt::Display for HttpMethod {
@@ -364,30 +411,50 @@ pub struct Operation {
 impl Default for Operation {
     fn default() -> Self {
         Self {
-            operation_id: None, summary: None, description: None,
-            tags: Vec::new(), parameters: Vec::new(), request_body: None,
-            responses: BTreeMap::new(), deprecated: false, security: Vec::new(),
+            operation_id: None,
+            summary: None,
+            description: None,
+            tags: Vec::new(),
+            parameters: Vec::new(),
+            request_body: None,
+            responses: BTreeMap::new(),
+            deprecated: false,
+            security: Vec::new(),
         }
     }
 }
 
 impl Operation {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
-    pub fn with_id(mut self, id: &str) -> Self { self.operation_id = Some(id.into()); self }
-    pub fn with_summary(mut self, s: &str) -> Self { self.summary = Some(s.into()); self }
-    pub fn with_tag(mut self, t: &str) -> Self { self.tags.push(t.into()); self }
+    pub fn with_id(mut self, id: &str) -> Self {
+        self.operation_id = Some(id.into());
+        self
+    }
+    pub fn with_summary(mut self, s: &str) -> Self {
+        self.summary = Some(s.into());
+        self
+    }
+    pub fn with_tag(mut self, t: &str) -> Self {
+        self.tags.push(t.into());
+        self
+    }
 
     pub fn with_parameter(mut self, p: Parameter) -> Self {
-        self.parameters.push(p); self
+        self.parameters.push(p);
+        self
     }
 
     pub fn with_body(mut self, b: RequestBody) -> Self {
-        self.request_body = Some(b); self
+        self.request_body = Some(b);
+        self
     }
 
     pub fn with_response(mut self, status: &str, r: Response) -> Self {
-        self.responses.insert(status.into(), r); self
+        self.responses.insert(status.into(), r);
+        self
     }
 
     pub fn to_json(&self) -> serde_json::Value {
@@ -402,13 +469,15 @@ impl Operation {
             m.insert("description".into(), serde_json::Value::String(d.clone()));
         }
         if !self.tags.is_empty() {
-            let arr: Vec<serde_json::Value> = self.tags.iter()
-                .map(|t| serde_json::Value::String(t.clone())).collect();
+            let arr: Vec<serde_json::Value> = self
+                .tags
+                .iter()
+                .map(|t| serde_json::Value::String(t.clone()))
+                .collect();
             m.insert("tags".into(), serde_json::Value::Array(arr));
         }
         if !self.parameters.is_empty() {
-            let arr: Vec<serde_json::Value> = self.parameters.iter()
-                .map(|p| p.to_json()).collect();
+            let arr: Vec<serde_json::Value> = self.parameters.iter().map(|p| p.to_json()).collect();
             m.insert("parameters".into(), serde_json::Value::Array(arr));
         }
         if let Some(ref rb) = self.request_body {
@@ -425,15 +494,21 @@ impl Operation {
             m.insert("deprecated".into(), serde_json::Value::Bool(true));
         }
         if !self.security.is_empty() {
-            let arr: Vec<serde_json::Value> = self.security.iter().map(|sec| {
-                let mut sm = serde_json::Map::new();
-                for (k, v) in sec {
-                    let scopes: Vec<serde_json::Value> = v.iter()
-                        .map(|s| serde_json::Value::String(s.clone())).collect();
-                    sm.insert(k.clone(), serde_json::Value::Array(scopes));
-                }
-                serde_json::Value::Object(sm)
-            }).collect();
+            let arr: Vec<serde_json::Value> = self
+                .security
+                .iter()
+                .map(|sec| {
+                    let mut sm = serde_json::Map::new();
+                    for (k, v) in sec {
+                        let scopes: Vec<serde_json::Value> = v
+                            .iter()
+                            .map(|s| serde_json::Value::String(s.clone()))
+                            .collect();
+                        sm.insert(k.clone(), serde_json::Value::Array(scopes));
+                    }
+                    serde_json::Value::Object(sm)
+                })
+                .collect();
             m.insert("security".into(), serde_json::Value::Array(arr));
         }
         serde_json::Value::Object(m)
@@ -451,7 +526,9 @@ pub struct PathItem {
 }
 
 impl PathItem {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn operation(mut self, method: HttpMethod, op: Operation) -> Self {
         self.operations.insert(method.to_string(), op);
@@ -478,10 +555,18 @@ impl PathItem {
 /// Security scheme type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SecuritySchemeType {
-    ApiKey { name: String, location: ParameterIn },
-    Http { scheme: String, bearer_format: Option<String> },
+    ApiKey {
+        name: String,
+        location: ParameterIn,
+    },
+    Http {
+        scheme: String,
+        bearer_format: Option<String>,
+    },
     OAuth2,
-    OpenIdConnect { url: String },
+    OpenIdConnect {
+        url: String,
+    },
 }
 
 /// A security scheme definition.
@@ -505,7 +590,8 @@ impl SecurityScheme {
     pub fn api_key(name: &str, location: ParameterIn) -> Self {
         Self {
             scheme_type: SecuritySchemeType::ApiKey {
-                name: name.into(), location,
+                name: name.into(),
+                location,
             },
             description: None,
         }
@@ -519,7 +605,10 @@ impl SecurityScheme {
                 m.insert("name".into(), serde_json::Value::String(name.clone()));
                 m.insert("in".into(), serde_json::Value::String(location.to_string()));
             }
-            SecuritySchemeType::Http { scheme, bearer_format } => {
+            SecuritySchemeType::Http {
+                scheme,
+                bearer_format,
+            } => {
                 m.insert("type".into(), serde_json::Value::String("http".into()));
                 m.insert("scheme".into(), serde_json::Value::String(scheme.clone()));
                 if let Some(bf) = bearer_format {
@@ -530,8 +619,14 @@ impl SecurityScheme {
                 m.insert("type".into(), serde_json::Value::String("oauth2".into()));
             }
             SecuritySchemeType::OpenIdConnect { url } => {
-                m.insert("type".into(), serde_json::Value::String("openIdConnect".into()));
-                m.insert("openIdConnectUrl".into(), serde_json::Value::String(url.clone()));
+                m.insert(
+                    "type".into(),
+                    serde_json::Value::String("openIdConnect".into()),
+                );
+                m.insert(
+                    "openIdConnectUrl".into(),
+                    serde_json::Value::String(url.clone()),
+                );
             }
         }
         if let Some(ref d) = self.description {
@@ -557,21 +652,33 @@ pub struct Info {
 impl Info {
     pub fn new(title: &str, version: &str) -> Self {
         Self {
-            title: title.into(), version: version.into(),
-            description: None, terms_of_service: None,
-            license_name: None, license_url: None,
+            title: title.into(),
+            version: version.into(),
+            description: None,
+            terms_of_service: None,
+            license_name: None,
+            license_url: None,
         }
     }
 
     pub fn to_json(&self) -> serde_json::Value {
         let mut m = serde_json::Map::new();
-        m.insert("title".into(), serde_json::Value::String(self.title.clone()));
-        m.insert("version".into(), serde_json::Value::String(self.version.clone()));
+        m.insert(
+            "title".into(),
+            serde_json::Value::String(self.title.clone()),
+        );
+        m.insert(
+            "version".into(),
+            serde_json::Value::String(self.version.clone()),
+        );
         if let Some(ref d) = self.description {
             m.insert("description".into(), serde_json::Value::String(d.clone()));
         }
         if let Some(ref t) = self.terms_of_service {
-            m.insert("termsOfService".into(), serde_json::Value::String(t.clone()));
+            m.insert(
+                "termsOfService".into(),
+                serde_json::Value::String(t.clone()),
+            );
         }
         if self.license_name.is_some() || self.license_url.is_some() {
             let mut lic = serde_json::Map::new();
@@ -595,7 +702,12 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(url: &str) -> Self { Self { url: url.into(), description: None } }
+    pub fn new(url: &str) -> Self {
+        Self {
+            url: url.into(),
+            description: None,
+        }
+    }
 
     pub fn to_json(&self) -> serde_json::Value {
         let mut m = serde_json::Map::new();
@@ -615,7 +727,12 @@ pub struct Tag {
 }
 
 impl Tag {
-    pub fn new(name: &str) -> Self { Self { name: name.into(), description: None } }
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.into(),
+            description: None,
+        }
+    }
 }
 
 // ── OpenAPI Spec ──────────────────────────────────────────────────
@@ -645,7 +762,9 @@ impl OpenApiSpec {
         }
     }
 
-    pub fn add_server(&mut self, server: Server) { self.servers.push(server); }
+    pub fn add_server(&mut self, server: Server) {
+        self.servers.push(server);
+    }
 
     pub fn add_path(&mut self, path: &str, item: PathItem) {
         self.paths.insert(path.into(), item);
@@ -659,7 +778,9 @@ impl OpenApiSpec {
         self.components_security_schemes.insert(name.into(), scheme);
     }
 
-    pub fn add_tag(&mut self, tag: Tag) { self.tags.push(tag); }
+    pub fn add_tag(&mut self, tag: Tag) {
+        self.tags.push(tag);
+    }
 
     /// Validate the spec: checks refs resolve, path params exist, etc.
     pub fn validate(&self) -> Vec<String> {
@@ -674,7 +795,11 @@ impl OpenApiSpec {
         for (path, item) in &self.paths {
             for (method, op) in &item.operations {
                 for param in &op.parameters {
-                    self.check_ref(&param.schema, &format!("{path} {method} param {}", param.name), errors);
+                    self.check_ref(
+                        &param.schema,
+                        &format!("{path} {method} param {}", param.name),
+                        errors,
+                    );
                 }
                 if let Some(ref rb) = op.request_body {
                     for (mime, mt) in &rb.content {
@@ -683,7 +808,11 @@ impl OpenApiSpec {
                 }
                 for (status, resp) in &op.responses {
                     for (mime, mt) in &resp.content {
-                        self.check_ref(&mt.schema, &format!("{path} {method} {status} {mime}"), errors);
+                        self.check_ref(
+                            &mt.schema,
+                            &format!("{path} {method} {status} {mime}"),
+                            errors,
+                        );
                     }
                 }
             }
@@ -705,20 +834,29 @@ impl OpenApiSpec {
         if let Some(ref items) = schema.items {
             self.check_ref(items, context, errors);
         }
-        for s in &schema.one_of { self.check_ref(s, context, errors); }
-        for s in &schema.any_of { self.check_ref(s, context, errors); }
-        for s in &schema.all_of { self.check_ref(s, context, errors); }
+        for s in &schema.one_of {
+            self.check_ref(s, context, errors);
+        }
+        for s in &schema.any_of {
+            self.check_ref(s, context, errors);
+        }
+        for s in &schema.all_of {
+            self.check_ref(s, context, errors);
+        }
     }
 
     fn validate_path_params(&self, errors: &mut Vec<String>) {
         for (path, item) in &self.paths {
-            let template_params: Vec<&str> = path.split('{')
+            let template_params: Vec<&str> = path
+                .split('{')
                 .skip(1)
                 .filter_map(|s| s.split('}').next())
                 .collect();
             for (method, op) in &item.operations {
                 for tp in &template_params {
-                    let found = op.parameters.iter()
+                    let found = op
+                        .parameters
+                        .iter()
                         .any(|p| p.name == *tp && p.location == ParameterIn::Path);
                     if !found {
                         errors.push(format!("{path} {method}: path param '{tp}' not declared"));
@@ -749,7 +887,10 @@ impl OpenApiSpec {
     /// Serialize the entire spec to a `serde_json::Value`.
     pub fn to_json(&self) -> serde_json::Value {
         let mut m = serde_json::Map::new();
-        m.insert("openapi".into(), serde_json::Value::String(self.openapi.clone()));
+        m.insert(
+            "openapi".into(),
+            serde_json::Value::String(self.openapi.clone()),
+        );
         m.insert("info".into(), self.info.to_json());
         if !self.servers.is_empty() {
             let arr: Vec<serde_json::Value> = self.servers.iter().map(|s| s.to_json()).collect();
@@ -781,14 +922,18 @@ impl OpenApiSpec {
             m.insert("components".into(), serde_json::Value::Object(components));
         }
         if !self.tags.is_empty() {
-            let arr: Vec<serde_json::Value> = self.tags.iter().map(|t| {
-                let mut tm = serde_json::Map::new();
-                tm.insert("name".into(), serde_json::Value::String(t.name.clone()));
-                if let Some(ref d) = t.description {
-                    tm.insert("description".into(), serde_json::Value::String(d.clone()));
-                }
-                serde_json::Value::Object(tm)
-            }).collect();
+            let arr: Vec<serde_json::Value> = self
+                .tags
+                .iter()
+                .map(|t| {
+                    let mut tm = serde_json::Map::new();
+                    tm.insert("name".into(), serde_json::Value::String(t.name.clone()));
+                    if let Some(ref d) = t.description {
+                        tm.insert("description".into(), serde_json::Value::String(d.clone()));
+                    }
+                    serde_json::Value::Object(tm)
+                })
+                .collect();
             m.insert("tags".into(), serde_json::Value::Array(arr));
         }
         serde_json::Value::Object(m)
@@ -828,8 +973,10 @@ mod tests {
     fn schema_object_with_properties() {
         let mut s = Schema::typed(SchemaType::Object);
         s.required = vec!["name".into()];
-        s.properties.insert("name".into(), Schema::typed(SchemaType::String));
-        s.properties.insert("age".into(), Schema::typed(SchemaType::Integer));
+        s.properties
+            .insert("name".into(), Schema::typed(SchemaType::String));
+        s.properties
+            .insert("age".into(), Schema::typed(SchemaType::Integer));
         let j = s.to_json();
         assert_eq!(j["type"], "object");
         assert_eq!(j["properties"]["name"]["type"], "string");
@@ -890,7 +1037,11 @@ mod tests {
 
     #[test]
     fn parameter_path() {
-        let p = Parameter::new("petId", ParameterIn::Path, Schema::typed(SchemaType::String));
+        let p = Parameter::new(
+            "petId",
+            ParameterIn::Path,
+            Schema::typed(SchemaType::String),
+        );
         assert!(p.required);
         let j = p.to_json();
         assert_eq!(j["in"], "path");
@@ -899,7 +1050,11 @@ mod tests {
 
     #[test]
     fn parameter_query() {
-        let p = Parameter::new("limit", ParameterIn::Query, Schema::typed(SchemaType::Integer));
+        let p = Parameter::new(
+            "limit",
+            ParameterIn::Query,
+            Schema::typed(SchemaType::Integer),
+        );
         assert!(!p.required);
         let j = p.to_json();
         assert_eq!(j["in"], "query");
@@ -910,7 +1065,10 @@ mod tests {
         let rb = RequestBody::json(Schema::reference("#/components/schemas/Pet"));
         let j = rb.to_json();
         assert_eq!(j["required"], true);
-        assert_eq!(j["content"]["application/json"]["schema"]["$ref"], "#/components/schemas/Pet");
+        assert_eq!(
+            j["content"]["application/json"]["schema"]["$ref"],
+            "#/components/schemas/Pet"
+        );
     }
 
     #[test]
@@ -934,8 +1092,18 @@ mod tests {
             .with_id("listPets")
             .with_summary("List all pets")
             .with_tag("pets")
-            .with_parameter(Parameter::new("limit", ParameterIn::Query, Schema::typed(SchemaType::Integer)))
-            .with_response("200", Response::with_json("OK", Schema::array_of(Schema::reference("#/components/schemas/Pet"))));
+            .with_parameter(Parameter::new(
+                "limit",
+                ParameterIn::Query,
+                Schema::typed(SchemaType::Integer),
+            ))
+            .with_response(
+                "200",
+                Response::with_json(
+                    "OK",
+                    Schema::array_of(Schema::reference("#/components/schemas/Pet")),
+                ),
+            );
         let j = op.to_json();
         assert_eq!(j["operationId"], "listPets");
         assert_eq!(j["tags"][0], "pets");
@@ -978,34 +1146,52 @@ mod tests {
 
         let mut pet = Schema::typed(SchemaType::Object);
         pet.required = vec!["id".into(), "name".into()];
-        pet.properties.insert("id".into(), Schema::typed(SchemaType::Integer));
-        pet.properties.insert("name".into(), Schema::typed(SchemaType::String));
+        pet.properties
+            .insert("id".into(), Schema::typed(SchemaType::Integer));
+        pet.properties
+            .insert("name".into(), Schema::typed(SchemaType::String));
         spec.add_schema("Pet", pet);
 
         let list_op = Operation::new()
             .with_id("listPets")
             .with_tag("pets")
-            .with_response("200", Response::with_json(
-                "OK", Schema::array_of(Schema::reference("#/components/schemas/Pet")),
-            ));
+            .with_response(
+                "200",
+                Response::with_json(
+                    "OK",
+                    Schema::array_of(Schema::reference("#/components/schemas/Pet")),
+                ),
+            );
         let create_op = Operation::new()
             .with_id("createPet")
             .with_tag("pets")
-            .with_body(RequestBody::json(Schema::reference("#/components/schemas/Pet")))
+            .with_body(RequestBody::json(Schema::reference(
+                "#/components/schemas/Pet",
+            )))
             .with_response("201", Response::new("Created"));
-        spec.add_path("/pets", PathItem::new()
-            .operation(HttpMethod::Get, list_op)
-            .operation(HttpMethod::Post, create_op));
+        spec.add_path(
+            "/pets",
+            PathItem::new()
+                .operation(HttpMethod::Get, list_op)
+                .operation(HttpMethod::Post, create_op),
+        );
 
         let get_op = Operation::new()
             .with_id("getPet")
             .with_tag("pets")
-            .with_parameter(Parameter::new("petId", ParameterIn::Path, Schema::typed(SchemaType::String)))
-            .with_response("200", Response::with_json(
-                "OK", Schema::reference("#/components/schemas/Pet"),
-            ));
-        spec.add_path("/pets/{petId}", PathItem::new()
-            .operation(HttpMethod::Get, get_op));
+            .with_parameter(Parameter::new(
+                "petId",
+                ParameterIn::Path,
+                Schema::typed(SchemaType::String),
+            ))
+            .with_response(
+                "200",
+                Response::with_json("OK", Schema::reference("#/components/schemas/Pet")),
+            );
+        spec.add_path(
+            "/pets/{petId}",
+            PathItem::new().operation(HttpMethod::Get, get_op),
+        );
 
         spec.add_security_scheme("bearerAuth", SecurityScheme::bearer_jwt());
 
@@ -1022,10 +1208,10 @@ mod tests {
     #[test]
     fn validate_unresolved_ref() {
         let mut spec = OpenApiSpec::new(Info::new("Test", "1.0"));
-        let op = Operation::new()
-            .with_response("200", Response::with_json(
-                "OK", Schema::reference("#/components/schemas/Missing"),
-            ));
+        let op = Operation::new().with_response(
+            "200",
+            Response::with_json("OK", Schema::reference("#/components/schemas/Missing")),
+        );
         spec.add_path("/test", PathItem::new().operation(HttpMethod::Get, op));
         let errors = spec.validate();
         assert!(!errors.is_empty());
@@ -1036,7 +1222,10 @@ mod tests {
     fn validate_missing_path_param() {
         let mut spec = OpenApiSpec::new(Info::new("Test", "1.0"));
         let op = Operation::new().with_id("get_item");
-        spec.add_path("/items/{itemId}", PathItem::new().operation(HttpMethod::Get, op));
+        spec.add_path(
+            "/items/{itemId}",
+            PathItem::new().operation(HttpMethod::Get, op),
+        );
         let errors = spec.validate();
         assert!(errors.iter().any(|e| e.contains("itemId")));
     }
@@ -1044,10 +1233,14 @@ mod tests {
     #[test]
     fn validate_duplicate_operation_id() {
         let mut spec = OpenApiSpec::new(Info::new("Test", "1.0"));
-        spec.add_path("/a", PathItem::new()
-            .operation(HttpMethod::Get, Operation::new().with_id("dup")));
-        spec.add_path("/b", PathItem::new()
-            .operation(HttpMethod::Get, Operation::new().with_id("dup")));
+        spec.add_path(
+            "/a",
+            PathItem::new().operation(HttpMethod::Get, Operation::new().with_id("dup")),
+        );
+        spec.add_path(
+            "/b",
+            PathItem::new().operation(HttpMethod::Get, Operation::new().with_id("dup")),
+        );
         let errors = spec.validate();
         assert!(errors.iter().any(|e| e.contains("duplicate")));
     }
@@ -1128,7 +1321,8 @@ mod tests {
     #[test]
     fn response_headers() {
         let mut r = Response::new("OK");
-        r.headers.insert("X-Rate-Limit".into(), Schema::typed(SchemaType::Integer));
+        r.headers
+            .insert("X-Rate-Limit".into(), Schema::typed(SchemaType::Integer));
         let j = r.to_json();
         assert_eq!(j["headers"]["X-Rate-Limit"]["schema"]["type"], "integer");
     }
@@ -1161,8 +1355,15 @@ mod tests {
         let mut spec = OpenApiSpec::new(Info::new("T", "1.0"));
         let op = Operation::new()
             .with_id("getItem")
-            .with_parameter(Parameter::new("itemId", ParameterIn::Path, Schema::typed(SchemaType::String)));
-        spec.add_path("/items/{itemId}", PathItem::new().operation(HttpMethod::Get, op));
+            .with_parameter(Parameter::new(
+                "itemId",
+                ParameterIn::Path,
+                Schema::typed(SchemaType::String),
+            ));
+        spec.add_path(
+            "/items/{itemId}",
+            PathItem::new().operation(HttpMethod::Get, op),
+        );
         let errors = spec.validate();
         assert!(errors.is_empty());
     }
@@ -1177,6 +1378,9 @@ mod tests {
         };
         let j = s.to_json();
         assert_eq!(j["type"], "openIdConnect");
-        assert_eq!(j["openIdConnectUrl"], "https://example.com/.well-known/openid");
+        assert_eq!(
+            j["openIdConnectUrl"],
+            "https://example.com/.well-known/openid"
+        );
     }
 }

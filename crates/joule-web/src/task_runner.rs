@@ -280,12 +280,7 @@ impl fmt::Display for ExecutionPlan {
             if group.tasks.len() == 1 {
                 writeln!(f, "Step {}: {}", i + 1, group.tasks[0])?;
             } else {
-                writeln!(
-                    f,
-                    "Step {} (parallel): {}",
-                    i + 1,
-                    group.tasks.join(", ")
-                )?;
+                writeln!(f, "Step {} (parallel): {}", i + 1, group.tasks.join(", "))?;
             }
         }
         Ok(())
@@ -815,12 +810,8 @@ mod tests {
     #[test]
     fn cyclic_dependency() {
         let mut runner = TaskRunner::new();
-        runner
-            .add_task(TaskDef::new("a").depends_on("b"))
-            .unwrap();
-        runner
-            .add_task(TaskDef::new("b").depends_on("a"))
-            .unwrap();
+        runner.add_task(TaskDef::new("a").depends_on("b")).unwrap();
+        runner.add_task(TaskDef::new("b").depends_on("a")).unwrap();
         let err = runner.execution_order("a").unwrap_err();
         assert!(matches!(err, TaskRunnerError::CyclicDependency(_)));
     }
@@ -953,10 +944,10 @@ mod tests {
         assert!(TaskCondition::VarEquals("CI".to_string(), "true".to_string()).evaluate(&vars));
         assert!(!TaskCondition::VarEquals("CI".to_string(), "false".to_string()).evaluate(&vars));
         assert!(TaskCondition::VarNotSet("NOPE".to_string()).evaluate(&vars));
-        assert!(TaskCondition::Not(Box::new(TaskCondition::VarNotSet(
-            "CI".to_string()
-        )))
-        .evaluate(&vars));
+        assert!(
+            TaskCondition::Not(Box::new(TaskCondition::VarNotSet("CI".to_string())))
+                .evaluate(&vars)
+        );
     }
 
     #[test]
@@ -1083,12 +1074,8 @@ task world
     #[test]
     fn detect_all_cycles() {
         let mut runner = TaskRunner::new();
-        runner
-            .add_task(TaskDef::new("x").depends_on("y"))
-            .unwrap();
-        runner
-            .add_task(TaskDef::new("y").depends_on("x"))
-            .unwrap();
+        runner.add_task(TaskDef::new("x").depends_on("y")).unwrap();
+        runner.add_task(TaskDef::new("y").depends_on("x")).unwrap();
         let cycles = runner.detect_cycles();
         assert!(!cycles.is_empty());
     }

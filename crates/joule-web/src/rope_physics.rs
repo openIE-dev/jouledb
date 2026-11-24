@@ -47,20 +47,38 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
 
     pub fn add(self, o: Self) -> Self {
-        Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z }
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
     }
 
     pub fn sub(self, o: Self) -> Self {
-        Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z }
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
     }
 
     pub fn scale(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn dot(self, o: Self) -> f64 {
@@ -77,7 +95,11 @@ impl Vec3 {
 
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-12 { Self::ZERO } else { self.scale(1.0 / l) }
+        if l < 1e-12 {
+            Self::ZERO
+        } else {
+            self.scale(1.0 / l)
+        }
     }
 }
 
@@ -279,26 +301,33 @@ impl Rope {
     fn satisfy_constraints(&mut self) {
         for _ in 0..self.config.constraint_iterations {
             for i in 0..self.particles.len() - 1 {
-                let diff = self.particles[i + 1].position.sub(self.particles[i].position);
+                let diff = self.particles[i + 1]
+                    .position
+                    .sub(self.particles[i].position);
                 let dist = diff.length();
-                if dist < 1e-12 { continue; }
+                if dist < 1e-12 {
+                    continue;
+                }
 
-                let correction = diff.scale((dist - self.segment_length) / dist * 0.5 * self.config.stiffness);
+                let correction =
+                    diff.scale((dist - self.segment_length) / dist * 0.5 * self.config.stiffness);
 
                 let w0 = self.particles[i].inv_mass;
                 let w1 = self.particles[i + 1].inv_mass;
                 let w_total = w0 + w1;
-                if w_total < 1e-12 { continue; }
+                if w_total < 1e-12 {
+                    continue;
+                }
 
                 if !self.particles[i].fixed {
-                    self.particles[i].position = self.particles[i].position.add(
-                        correction.scale(w0 / w_total * 2.0),
-                    );
+                    self.particles[i].position = self.particles[i]
+                        .position
+                        .add(correction.scale(w0 / w_total * 2.0));
                 }
                 if !self.particles[i + 1].fixed {
-                    self.particles[i + 1].position = self.particles[i + 1].position.sub(
-                        correction.scale(w1 / w_total * 2.0),
-                    );
+                    self.particles[i + 1].position = self.particles[i + 1]
+                        .position
+                        .sub(correction.scale(w1 / w_total * 2.0));
                 }
             }
         }
@@ -307,7 +336,9 @@ impl Rope {
     fn handle_collisions(&mut self) {
         for sphere in &self.spheres {
             for p in &mut self.particles {
-                if p.fixed { continue; }
+                if p.fixed {
+                    continue;
+                }
                 let diff = p.position.sub(sphere.center);
                 let dist = diff.length();
                 if dist < sphere.radius && dist > 1e-12 {
@@ -319,7 +350,9 @@ impl Rope {
         for plane in &self.planes {
             let n = plane.normal.normalized();
             for p in &mut self.particles {
-                if p.fixed { continue; }
+                if p.fixed {
+                    continue;
+                }
                 let d = p.position.sub(plane.point).dot(n);
                 if d < 0.0 {
                     p.position = p.position.sub(n.scale(d));
@@ -335,7 +368,11 @@ impl Rope {
 
         // Apply gravity as acceleration
         for p in &mut self.particles {
-            p.acceleration = if p.fixed { Vec3::ZERO } else { self.config.gravity };
+            p.acceleration = if p.fixed {
+                Vec3::ZERO
+            } else {
+                self.config.gravity
+            };
         }
 
         self.verlet_integrate(dt);
@@ -350,14 +387,19 @@ impl Rope {
     pub fn current_length(&self) -> f64 {
         let mut len = 0.0;
         for i in 0..self.particles.len() - 1 {
-            len += self.particles[i].position.sub(self.particles[i + 1].position).length();
+            len += self.particles[i]
+                .position
+                .sub(self.particles[i + 1].position)
+                .length();
         }
         len
     }
 
     /// Straight-line distance between endpoints.
     pub fn endpoint_distance(&self) -> f64 {
-        if self.particles.len() < 2 { return 0.0; }
+        if self.particles.len() < 2 {
+            return 0.0;
+        }
         let first = self.particles[0].position;
         let last = self.particles.last().unwrap().position;
         first.sub(last).length()
@@ -376,12 +418,16 @@ impl Rope {
 
     /// Maximum sag (distance of farthest particle from the line between endpoints).
     pub fn max_sag(&self) -> f64 {
-        if self.particles.len() < 3 { return 0.0; }
+        if self.particles.len() < 3 {
+            return 0.0;
+        }
         let a = self.particles[0].position;
         let b = self.particles.last().unwrap().position;
         let ab = b.sub(a);
         let ab_len = ab.length();
-        if ab_len < 1e-12 { return 0.0; }
+        if ab_len < 1e-12 {
+            return 0.0;
+        }
         let ab_dir = ab.scale(1.0 / ab_len);
 
         let mut max_d = 0.0f64;
@@ -390,13 +436,19 @@ impl Rope {
             let proj = ap.dot(ab_dir);
             let perp = ap.sub(ab_dir.scale(proj));
             let d = perp.length();
-            if d > max_d { max_d = d; }
+            if d > max_d {
+                max_d = d;
+            }
         }
         max_d
     }
 
     pub fn segment_count(&self) -> usize {
-        if self.particles.len() < 2 { 0 } else { self.particles.len() - 1 }
+        if self.particles.len() < 2 {
+            0
+        } else {
+            self.particles.len() - 1
+        }
     }
 
     pub fn particle_count(&self) -> usize {
@@ -405,10 +457,14 @@ impl Rope {
 
     /// Kinetic energy of the rope.
     pub fn kinetic_energy(&self, dt: f64) -> f64 {
-        if dt <= 0.0 { return 0.0; }
+        if dt <= 0.0 {
+            return 0.0;
+        }
         let mut ke = 0.0;
         for p in &self.particles {
-            if p.fixed { continue; }
+            if p.fixed {
+                continue;
+            }
             let vel = p.position.sub(p.prev_position).scale(1.0 / dt);
             ke += 0.5 * p.mass * vel.length_sq();
         }
@@ -423,13 +479,22 @@ impl Rope {
             total_m += p.mass;
             weighted = weighted.add(p.position.scale(p.mass));
         }
-        if total_m < 1e-12 { Vec3::ZERO } else { weighted.scale(1.0 / total_m) }
+        if total_m < 1e-12 {
+            Vec3::ZERO
+        } else {
+            weighted.scale(1.0 / total_m)
+        }
     }
 
     /// Tension at a specific segment (force magnitude).
     pub fn segment_tension(&self, seg: usize) -> f64 {
-        if seg >= self.particles.len() - 1 { return 0.0; }
-        let dist = self.particles[seg].position.sub(self.particles[seg + 1].position).length();
+        if seg >= self.particles.len() - 1 {
+            return 0.0;
+        }
+        let dist = self.particles[seg]
+            .position
+            .sub(self.particles[seg + 1].position)
+            .length();
         let extension = dist - self.segment_length;
         if extension > 0.0 {
             self.config.stiffness * extension * self.particles[seg].mass
@@ -461,7 +526,8 @@ mod tests {
             Vec3::new(0.0, 5.0, 0.0),
             Vec3::new(5.0, 5.0, 0.0),
             RopeConfig::default(),
-        ).unwrap()
+        )
+        .unwrap()
     }
 
     #[test]
@@ -473,28 +539,40 @@ mod tests {
 
     #[test]
     fn test_invalid_segments() {
-        let r = Rope::new(Vec3::ZERO, Vec3::new(1.0, 0.0, 0.0), RopeConfig {
-            segment_count: 0,
-            ..Default::default()
-        });
+        let r = Rope::new(
+            Vec3::ZERO,
+            Vec3::new(1.0, 0.0, 0.0),
+            RopeConfig {
+                segment_count: 0,
+                ..Default::default()
+            },
+        );
         assert!(r.is_err());
     }
 
     #[test]
     fn test_invalid_length() {
-        let r = Rope::new(Vec3::ZERO, Vec3::new(1.0, 0.0, 0.0), RopeConfig {
-            total_length: 0.0,
-            ..Default::default()
-        });
+        let r = Rope::new(
+            Vec3::ZERO,
+            Vec3::new(1.0, 0.0, 0.0),
+            RopeConfig {
+                total_length: 0.0,
+                ..Default::default()
+            },
+        );
         assert!(r.is_err());
     }
 
     #[test]
     fn test_invalid_mass() {
-        let r = Rope::new(Vec3::ZERO, Vec3::new(1.0, 0.0, 0.0), RopeConfig {
-            mass_per_length: 0.0,
-            ..Default::default()
-        });
+        let r = Rope::new(
+            Vec3::ZERO,
+            Vec3::new(1.0, 0.0, 0.0),
+            RopeConfig {
+                mass_per_length: 0.0,
+                ..Default::default()
+            },
+        );
         assert!(r.is_err());
     }
 
@@ -575,8 +653,12 @@ mod tests {
         let mut rope = Rope::new(
             Vec3::new(0.0, 5.0, 0.0),
             Vec3::new(1.0, 5.0, 0.0),
-            RopeConfig { total_length: 5.0, ..Default::default() },
-        ).unwrap();
+            RopeConfig {
+                total_length: 5.0,
+                ..Default::default()
+            },
+        )
+        .unwrap();
         // Endpoints are 1.0 apart but total length is 5.0 -> should be slack
         assert!(rope.is_slack());
     }
@@ -604,7 +686,9 @@ mod tests {
         // Particles should be pushed out of sphere
         let center = Vec3::new(2.5, 3.0, 0.0);
         for p in &rope.particles {
-            if p.fixed { continue; }
+            if p.fixed {
+                continue;
+            }
             let d = p.position.sub(center).length();
             assert!(d >= 2.0 - 0.5); // tolerance for constraint settling
         }
@@ -658,7 +742,8 @@ mod tests {
                 total_length: 2.0,
                 ..Default::default()
             },
-        ).unwrap();
+        )
+        .unwrap();
         // Displace the free end
         rope.particles[1].position = Vec3::new(2.0, 5.0, 0.0);
         rope.particles[1].prev_position = rope.particles[1].position;
@@ -724,8 +809,13 @@ mod tests {
         let rope = Rope::new(
             Vec3::ZERO,
             Vec3::new(0.5, 0.0, 0.0),
-            RopeConfig { segment_count: 1, total_length: 0.5, ..Default::default() },
-        ).unwrap();
+            RopeConfig {
+                segment_count: 1,
+                total_length: 0.5,
+                ..Default::default()
+            },
+        )
+        .unwrap();
         assert_eq!(rope.particle_count(), 2);
         assert_eq!(rope.segment_count(), 1);
     }
@@ -735,14 +825,22 @@ mod tests {
         let mut rope_few = Rope::new(
             Vec3::new(0.0, 5.0, 0.0),
             Vec3::new(5.0, 5.0, 0.0),
-            RopeConfig { constraint_iterations: 1, ..Default::default() },
-        ).unwrap();
+            RopeConfig {
+                constraint_iterations: 1,
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let mut rope_many = Rope::new(
             Vec3::new(0.0, 5.0, 0.0),
             Vec3::new(5.0, 5.0, 0.0),
-            RopeConfig { constraint_iterations: 50, ..Default::default() },
-        ).unwrap();
+            RopeConfig {
+                constraint_iterations: 50,
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         for _ in 0..50 {
             rope_few.step(0.01).unwrap();

@@ -895,13 +895,32 @@ mod tests {
     #[test]
     fn timeseries_names_never_reach_internal_keys() {
         let ts = TimeSeriesPersistence::new(Arc::new(MemoryStorage::new()));
-        for (m, v) in [("meta", 1.0), ("cpu", 2.0), ("disk", 3.0), ("disk::io", 4.0), ("m", 5.0)] {
+        for (m, v) in [
+            ("meta", 1.0),
+            ("cpu", 2.0),
+            ("disk", 3.0),
+            ("disk::io", 4.0),
+            ("m", 5.0),
+        ] {
             ts.register_metric(m).unwrap();
             ts.write(m, pt(10, v)).unwrap();
         }
-        assert_eq!(ts.list_metrics().unwrap(), ["cpu", "disk", "disk::io", "m", "meta"]);
-        for (m, v) in [("meta", 1.0), ("cpu", 2.0), ("disk", 3.0), ("disk::io", 4.0), ("m", 5.0)] {
-            assert_eq!(values(&ts.query(m, i64::MIN, i64::MAX).unwrap()), [(10, v)], "{m}");
+        assert_eq!(
+            ts.list_metrics().unwrap(),
+            ["cpu", "disk", "disk::io", "m", "meta"]
+        );
+        for (m, v) in [
+            ("meta", 1.0),
+            ("cpu", 2.0),
+            ("disk", 3.0),
+            ("disk::io", 4.0),
+            ("m", 5.0),
+        ] {
+            assert_eq!(
+                values(&ts.query(m, i64::MIN, i64::MAX).unwrap()),
+                [(10, v)],
+                "{m}"
+            );
         }
         ts.delete_metric("meta").unwrap();
         ts.delete_metric("disk").unwrap();
@@ -913,12 +932,26 @@ mod tests {
     #[test]
     fn timeseries_duplicate_timestamps_keep_every_point_in_order() {
         let ts = TimeSeriesPersistence::new(Arc::new(MemoryStorage::new()));
-        for (t, v) in [(5, 1.0), (5, 2.0), (-7, 0.5), (5, 3.0), (i64::MIN, -1.0), (i64::MAX, 9.0)] {
+        for (t, v) in [
+            (5, 1.0),
+            (5, 2.0),
+            (-7, 0.5),
+            (5, 3.0),
+            (i64::MIN, -1.0),
+            (i64::MAX, 9.0),
+        ] {
             ts.write("x", pt(t, v)).unwrap();
         }
         assert_eq!(
             values(&ts.query("x", i64::MIN, i64::MAX).unwrap()),
-            [(i64::MIN, -1.0), (-7, 0.5), (5, 1.0), (5, 2.0), (5, 3.0), (i64::MAX, 9.0)]
+            [
+                (i64::MIN, -1.0),
+                (-7, 0.5),
+                (5, 1.0),
+                (5, 2.0),
+                (5, 3.0),
+                (i64::MAX, 9.0)
+            ]
         );
         assert_eq!(values(&ts.query("x", -7, 5).unwrap()).len(), 4);
     }
@@ -928,9 +961,19 @@ mod tests {
         let storage = Arc::new(MemoryStorage::new());
         // Raw keys exactly as the first format wrote them.
         let v1 = |m: &str, t: i64, v: f64| {
-            let key = [b"__ts__::".as_slice(), m.as_bytes(), b"::", &t.to_be_bytes()].concat();
-            storage.put(&key, &serde_json::to_vec(&pt(t, v)).unwrap()).unwrap();
-            storage.put(&[b"__ts__::meta::".as_slice(), m.as_bytes()].concat(), b"1").unwrap();
+            let key = [
+                b"__ts__::".as_slice(),
+                m.as_bytes(),
+                b"::",
+                &t.to_be_bytes(),
+            ]
+            .concat();
+            storage
+                .put(&key, &serde_json::to_vec(&pt(t, v)).unwrap())
+                .unwrap();
+            storage
+                .put(&[b"__ts__::meta::".as_slice(), m.as_bytes()].concat(), b"1")
+                .unwrap();
         };
         v1("cpu", 2, 2.0);
         v1("cpu", -1, 1.0);
@@ -940,13 +983,19 @@ mod tests {
         assert_eq!(ts.migrate_legacy().unwrap(), 4);
         assert!(storage.prefix_scan(b"__ts__::").unwrap().is_empty());
         assert_eq!(ts.list_metrics().unwrap(), ["a::b", "cpu", "meta"]);
-        assert_eq!(values(&ts.query("cpu", -10, 10).unwrap()), [(-1, 1.0), (2, 2.0)]);
+        assert_eq!(
+            values(&ts.query("cpu", -10, 10).unwrap()),
+            [(-1, 1.0), (2, 2.0)]
+        );
         assert_eq!(values(&ts.query("meta", -10, 10).unwrap()), [(3, 3.0)]);
         assert_eq!(values(&ts.query("a::b", -10, 10).unwrap()), [(4, 4.0)]);
         // Rerunning is a no-op; a new point at a migrated timestamp appends.
         assert_eq!(ts.migrate_legacy().unwrap(), 0);
         ts.write("cpu", pt(2, 2.5)).unwrap();
-        assert_eq!(values(&ts.query("cpu", 2, 2).unwrap()), [(2, 2.0), (2, 2.5)]);
+        assert_eq!(
+            values(&ts.query("cpu", 2, 2).unwrap()),
+            [(2, 2.0), (2, 2.5)]
+        );
     }
 
     #[test]

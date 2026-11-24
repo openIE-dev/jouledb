@@ -81,7 +81,11 @@ impl fmt::Display for UpgmaNode {
         if let Some(ref lbl) = self.label {
             write!(f, "{lbl} (h={:.4})", self.height)
         } else {
-            write!(f, "cluster_{} (h={:.4}, n={})", self.id, self.height, self.member_count)
+            write!(
+                f,
+                "cluster_{} (h={:.4}, n={})",
+                self.id, self.height, self.member_count
+            )
         }
     }
 }
@@ -230,11 +234,7 @@ impl Default for UpgmaConfig {
 // ── UPGMA algorithm ─────────────────────────────────────────────
 
 /// Run UPGMA on a distance matrix (row-major, n×n, symmetric).
-pub fn upgma(
-    labels: &[&str],
-    dist: &[f64],
-    config: &UpgmaConfig,
-) -> Result<UpgmaTree, UpgmaError> {
+pub fn upgma(labels: &[&str], dist: &[f64], config: &UpgmaConfig) -> Result<UpgmaTree, UpgmaError> {
     let n = labels.len();
     if n < 2 {
         return Err(UpgmaError::MatrixTooSmall(n));
@@ -301,8 +301,7 @@ pub fn upgma(
                 // UPGMA: size-weighted average
                 let si = size_i as f64;
                 let sj = size_j as f64;
-                new_row[k] =
-                    (si * d[best_i * cur_n + k] + sj * d[best_j * cur_n + k]) / (si + sj);
+                new_row[k] = (si * d[best_i * cur_n + k] + sj * d[best_j * cur_n + k]) / (si + sj);
             }
         }
 

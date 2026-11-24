@@ -77,7 +77,10 @@ impl fmt::Display for LibrarySpectrum {
         write!(
             f,
             "Lib({} z={} mz={:.4} peaks={})",
-            self.peptide, self.charge, self.precursor_mz, self.peaks.len()
+            self.peptide,
+            self.charge,
+            self.precursor_mz,
+            self.peaks.len()
         )
     }
 }
@@ -92,7 +95,9 @@ pub struct SpectralLibrary {
 
 impl SpectralLibrary {
     pub fn new() -> Self {
-        Self { entries: Vec::new() }
+        Self {
+            entries: Vec::new(),
+        }
     }
 
     pub fn with_entries(mut self, entries: Vec<LibrarySpectrum>) -> Self {
@@ -482,13 +487,19 @@ mod tests {
     use super::*;
 
     fn make_peaks(pairs: &[(f64, f64)]) -> Vec<SpectralPeak> {
-        pairs.iter().map(|&(mz, i)| SpectralPeak::new(mz, i)).collect()
+        pairs
+            .iter()
+            .map(|&(mz, i)| SpectralPeak::new(mz, i))
+            .collect()
     }
 
     fn sample_library() -> SpectralLibrary {
         let lib_peaks = make_peaks(&[
-            (200.1, 100.0), (300.2, 500.0), (400.3, 800.0),
-            (500.4, 300.0), (600.5, 200.0),
+            (200.1, 100.0),
+            (300.2, 500.0),
+            (400.3, 800.0),
+            (500.4, 300.0),
+            (600.5, 200.0),
         ]);
         let entry = LibrarySpectrum::new("PEPTIDE", 2, 400.22).with_peaks(lib_peaks);
         SpectralLibrary::new().with_entries(vec![entry])
@@ -547,8 +558,11 @@ mod tests {
     fn test_search_library() {
         let lib = sample_library();
         let query = make_peaks(&[
-            (200.1, 110.0), (300.2, 480.0), (400.3, 790.0),
-            (500.4, 310.0), (600.5, 190.0),
+            (200.1, 110.0),
+            (300.2, 480.0),
+            (400.3, 790.0),
+            (500.4, 310.0),
+            (600.5, 190.0),
         ]);
         let cfg = MatchConfig::new()
             .with_precursor_tolerance(0.5)
@@ -639,7 +653,9 @@ mod tests {
     #[test]
     fn test_empty_query() {
         let lib = sample_library();
-        let cfg = MatchConfig::new().with_min_score(0.0).with_min_matched_peaks(0);
+        let cfg = MatchConfig::new()
+            .with_min_score(0.0)
+            .with_min_matched_peaks(0);
         let results = search_library(&[], 400.22, &lib, &cfg);
         assert!(results.is_empty());
     }

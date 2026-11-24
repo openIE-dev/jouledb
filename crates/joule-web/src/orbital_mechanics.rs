@@ -33,7 +33,10 @@ impl fmt::Display for OrbitalError {
             Self::InvalidEccentricity(e) => write!(f, "eccentricity invalid: {e}"),
             Self::NonPositiveMu(mu) => write!(f, "mu must be positive, got {mu}"),
             Self::KeplerNoConverge { max_iter } => {
-                write!(f, "Kepler equation did not converge in {max_iter} iterations")
+                write!(
+                    f,
+                    "Kepler equation did not converge in {max_iter} iterations"
+                )
             }
             Self::InvalidTransfer(s) => write!(f, "invalid transfer: {s}"),
             Self::NegativeTime(t) => write!(f, "time must be non-negative, got {t}"),
@@ -54,7 +57,11 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
@@ -79,17 +86,35 @@ impl Vec3 {
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 
 impl std::ops::Mul<f64> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 
 // ── Orbital Elements ────────────────────────────────────────────
@@ -126,7 +151,14 @@ impl OrbitalElements {
         if eccentricity < 0.0 || eccentricity >= 1.0 {
             return Err(OrbitalError::InvalidEccentricity(eccentricity));
         }
-        Ok(Self { semi_major_axis, eccentricity, inclination, raan, arg_periapsis, true_anomaly })
+        Ok(Self {
+            semi_major_axis,
+            eccentricity,
+            inclination,
+            raan,
+            arg_periapsis,
+            true_anomaly,
+        })
     }
 
     /// Orbit period: T = 2*pi*sqrt(a^3/mu).
@@ -218,7 +250,10 @@ pub fn elements_to_state(oe: &OrbitalElements, mu: f64) -> Result<StateVector, O
         )
     };
 
-    Ok(StateVector { position: rot(r_pqw), velocity: rot(v_pqw) })
+    Ok(StateVector {
+        position: rot(r_pqw),
+        velocity: rot(v_pqw),
+    })
 }
 
 /// Convert state vector to orbital elements.
@@ -290,7 +325,12 @@ pub fn state_to_elements(sv: &StateVector, mu: f64) -> Result<OrbitalElements, O
 
 /// Solve Kepler's equation: M = E - e*sin(E) for E given M and e.
 /// Uses Newton-Raphson iteration.
-pub fn solve_kepler(mean_anomaly: f64, eccentricity: f64, tol: f64, max_iter: u32) -> Result<f64, OrbitalError> {
+pub fn solve_kepler(
+    mean_anomaly: f64,
+    eccentricity: f64,
+    tol: f64,
+    max_iter: u32,
+) -> Result<f64, OrbitalError> {
     let m = mean_anomaly % (2.0 * PI);
     let mut ea = if eccentricity < 0.8 { m } else { PI };
     for _ in 0..max_iter {
@@ -341,7 +381,9 @@ pub struct HohmannTransfer {
 /// Compute Hohmann transfer parameters.
 pub fn hohmann_transfer(r1: f64, r2: f64, mu: f64) -> Result<HohmannTransfer, OrbitalError> {
     if r1 <= 0.0 || r2 <= 0.0 {
-        return Err(OrbitalError::InvalidTransfer("radii must be positive".to_string()));
+        return Err(OrbitalError::InvalidTransfer(
+            "radii must be positive".to_string(),
+        ));
     }
     if mu <= 0.0 {
         return Err(OrbitalError::NonPositiveMu(mu));
@@ -356,7 +398,13 @@ pub fn hohmann_transfer(r1: f64, r2: f64, mu: f64) -> Result<HohmannTransfer, Or
     let dv2 = (v_circ2 - v_transfer_apo).abs();
     let transfer_time = PI * (a_transfer.powi(3) / mu).sqrt();
 
-    Ok(HohmannTransfer { dv1, dv2, total_dv: dv1 + dv2, transfer_time, transfer_sma: a_transfer })
+    Ok(HohmannTransfer {
+        dv1,
+        dv2,
+        total_dv: dv1 + dv2,
+        transfer_time,
+        transfer_sma: a_transfer,
+    })
 }
 
 // ── Orbit Propagation ───────────────────────────────────────────
@@ -574,7 +622,10 @@ mod tests {
 
     #[test]
     fn state_to_elements_negative_mu() {
-        let sv = StateVector { position: Vec3::new(1.0, 0.0, 0.0), velocity: Vec3::new(0.0, 1.0, 0.0) };
+        let sv = StateVector {
+            position: Vec3::new(1.0, 0.0, 0.0),
+            velocity: Vec3::new(0.0, 1.0, 0.0),
+        };
         assert!(state_to_elements(&sv, -1.0).is_err());
     }
 

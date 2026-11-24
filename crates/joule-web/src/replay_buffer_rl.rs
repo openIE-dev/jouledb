@@ -23,7 +23,10 @@ impl fmt::Display for ReplayError {
             Self::InvalidCapacity => write!(f, "buffer capacity must be > 0"),
             Self::InvalidParameter(s) => write!(f, "invalid parameter: {s}"),
             Self::EmptyBuffer => write!(f, "buffer is empty"),
-            Self::BatchTooLarge { requested, available } => {
+            Self::BatchTooLarge {
+                requested,
+                available,
+            } => {
                 write!(f, "batch size {requested} exceeds available {available}")
             }
         }
@@ -41,7 +44,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -58,7 +63,9 @@ impl Rng {
     }
 
     fn next_usize(&mut self, upper: usize) -> usize {
-        if upper == 0 { return 0; }
+        if upper == 0 {
+            return 0;
+        }
         (self.next_u64() % upper as u64) as usize
     }
 }
@@ -83,7 +90,13 @@ impl Experience {
         next_state: Vec<f64>,
         done: bool,
     ) -> Self {
-        Self { state, action, reward, next_state, done }
+        Self {
+            state,
+            action,
+            reward,
+            next_state,
+            done,
+        }
     }
 }
 
@@ -301,10 +314,14 @@ impl PrioritizedReplayBuffer {
             return Err(ReplayError::InvalidCapacity);
         }
         if alpha < 0.0 || alpha > 1.0 {
-            return Err(ReplayError::InvalidParameter("alpha must be in [0, 1]".into()));
+            return Err(ReplayError::InvalidParameter(
+                "alpha must be in [0, 1]".into(),
+            ));
         }
         if beta < 0.0 || beta > 1.0 {
-            return Err(ReplayError::InvalidParameter("beta must be in [0, 1]".into()));
+            return Err(ReplayError::InvalidParameter(
+                "beta must be in [0, 1]".into(),
+            ));
         }
         // Round capacity up to power of 2 for sum tree
         let cap = capacity.next_power_of_two();
@@ -379,7 +396,11 @@ impl PrioritizedReplayBuffer {
                     min_p = p;
                 }
             }
-            if min_p == f64::MAX { 1.0 / self.size as f64 } else { min_p / total }
+            if min_p == f64::MAX {
+                1.0 / self.size as f64
+            } else {
+                min_p / total
+            }
         } else {
             1.0
         };
@@ -472,7 +493,9 @@ impl NStepBuffer {
             return Err(ReplayError::InvalidParameter("n_steps must be > 0".into()));
         }
         if gamma < 0.0 || gamma > 1.0 {
-            return Err(ReplayError::InvalidParameter("gamma must be in [0, 1]".into()));
+            return Err(ReplayError::InvalidParameter(
+                "gamma must be in [0, 1]".into(),
+            ));
         }
         Ok(Self {
             buffer: Vec::new(),
@@ -582,10 +605,18 @@ mod tests {
     use super::*;
 
     const EPS: f64 = 1e-6;
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     fn make_exp(action: usize, reward: f64, done: bool) -> Experience {
-        Experience::new(vec![action as f64], action, reward, vec![(action + 1) as f64], done)
+        Experience::new(
+            vec![action as f64],
+            action,
+            reward,
+            vec![(action + 1) as f64],
+            done,
+        )
     }
 
     #[test]
@@ -664,7 +695,9 @@ mod tests {
 
     #[test]
     fn test_prioritized_push_and_sample() {
-        let mut buf = PrioritizedReplayBuffer::new(16, 0.6, 0.4).unwrap().with_seed(42);
+        let mut buf = PrioritizedReplayBuffer::new(16, 0.6, 0.4)
+            .unwrap()
+            .with_seed(42);
         for i in 0..10 {
             buf.push(make_exp(i % 3, i as f64, false));
         }
@@ -680,7 +713,9 @@ mod tests {
 
     #[test]
     fn test_prioritized_update_priorities() {
-        let mut buf = PrioritizedReplayBuffer::new(16, 0.6, 0.4).unwrap().with_seed(42);
+        let mut buf = PrioritizedReplayBuffer::new(16, 0.6, 0.4)
+            .unwrap()
+            .with_seed(42);
         for i in 0..8 {
             buf.push(make_exp(i % 2, i as f64, false));
         }

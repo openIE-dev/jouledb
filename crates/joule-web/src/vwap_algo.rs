@@ -69,7 +69,9 @@ impl VolumeBucket {
 
     /// Volume prediction error for this bucket.
     pub fn volume_prediction_error(&self, total_market_volume: f64) -> f64 {
-        if total_market_volume < 1e-12 { return 0.0; }
+        if total_market_volume < 1e-12 {
+            return 0.0;
+        }
         let actual_pct = self.actual_volume / total_market_volume;
         actual_pct - self.expected_volume_pct
     }
@@ -80,8 +82,11 @@ impl fmt::Display for VolumeBucket {
         write!(
             f,
             "Bucket[{}](vol={:.1}% target={:.2} filled={:.2} avg={:.4})",
-            self.index, self.expected_volume_pct * 100.0,
-            self.target_quantity, self.filled_quantity, self.avg_fill_price,
+            self.index,
+            self.expected_volume_pct * 100.0,
+            self.target_quantity,
+            self.filled_quantity,
+            self.avg_fill_price,
         )
     }
 }
@@ -129,10 +134,12 @@ impl VolumeProfile {
 
     pub fn u_shape(buckets: usize) -> Self {
         let mid = buckets as f64 / 2.0;
-        let raw: Vec<f64> = (0..buckets).map(|i| {
-            let dist = ((i as f64) - mid).abs() / mid;
-            0.3 + 0.7 * dist * dist
-        }).collect();
+        let raw: Vec<f64> = (0..buckets)
+            .map(|i| {
+                let dist = ((i as f64) - mid).abs() / mid;
+                0.3 + 0.7 * dist * dist
+            })
+            .collect();
         let total: f64 = raw.iter().sum();
         let weights: Vec<f64> = raw.iter().map(|w| w / total).collect();
         Self {
@@ -159,7 +166,9 @@ impl VolumeProfile {
 
     /// Peak volume bucket index.
     pub fn peak_bucket(&self) -> usize {
-        self.weights.iter().enumerate()
+        self.weights
+            .iter()
+            .enumerate()
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(i, _)| i)
             .unwrap_or(0)
@@ -173,8 +182,13 @@ impl VolumeProfile {
 
 impl fmt::Display for VolumeProfile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "VolumeProfile({} buckets={} peak={})",
-            self.shape, self.bucket_count, self.peak_bucket())
+        write!(
+            f,
+            "VolumeProfile({} buckets={} peak={})",
+            self.shape,
+            self.bucket_count,
+            self.peak_bucket()
+        )
     }
 }
 
@@ -193,19 +207,26 @@ pub struct VwapSchedule {
 }
 
 impl VwapSchedule {
-    pub fn new(symbol: &str, quantity: f64, profile: VolumeProfile,
-               start_ns: u64, end_ns: u64) -> Self {
+    pub fn new(
+        symbol: &str,
+        quantity: f64,
+        profile: VolumeProfile,
+        start_ns: u64,
+        end_ns: u64,
+    ) -> Self {
         let n = profile.bucket_count;
         let duration = end_ns.saturating_sub(start_ns);
         let interval = if n > 0 { duration / n as u64 } else { duration };
 
-        let buckets: Vec<VolumeBucket> = (0..n).map(|i| {
-            let s = start_ns + interval * i as u64;
-            let e = if i + 1 < n { s + interval } else { end_ns };
-            let mut b = VolumeBucket::new(i, s, e, profile.weights[i]);
-            b.target_quantity = quantity * profile.weights[i];
-            b
-        }).collect();
+        let buckets: Vec<VolumeBucket> = (0..n)
+            .map(|i| {
+                let s = start_ns + interval * i as u64;
+                let e = if i + 1 < n { s + interval } else { end_ns };
+                let mut b = VolumeBucket::new(i, s, e, profile.weights[i]);
+                b.target_quantity = quantity * profile.weights[i];
+                b
+            })
+            .collect();
 
         Self {
             symbol: symbol.to_string(),
@@ -225,7 +246,9 @@ impl VwapSchedule {
 
     /// Find the active bucket for a timestamp.
     pub fn active_bucket_index(&self, now_ns: u64) -> Option<usize> {
-        self.buckets.iter().position(|b| now_ns >= b.start_ns && now_ns < b.end_ns)
+        self.buckets
+            .iter()
+            .position(|b| now_ns >= b.start_ns && now_ns < b.end_ns)
     }
 
     /// Record a fill.
@@ -261,8 +284,12 @@ impl VwapSchedule {
     /// Realized VWAP of algo fills.
     pub fn realized_vwap(&self) -> f64 {
         let total_qty: f64 = self.buckets.iter().map(|b| b.filled_quantity).sum();
-        if total_qty < 1e-12 { return 0.0; }
-        let notional: f64 = self.buckets.iter()
+        if total_qty < 1e-12 {
+            return 0.0;
+        }
+        let notional: f64 = self
+            .buckets
+            .iter()
             .map(|b| b.avg_fill_price * b.filled_quantity)
             .sum();
         notional / total_qty
@@ -279,8 +306,11 @@ impl fmt::Display for VwapSchedule {
         write!(
             f,
             "VWAP({} qty={:.0} buckets={} complete={:.1}% vwap={:.4})",
-            self.symbol, self.total_quantity, self.buckets.len(),
-            self.completion_pct(), self.realized_vwap(),
+            self.symbol,
+            self.total_quantity,
+            self.buckets.len(),
+            self.completion_pct(),
+            self.realized_vwap(),
         )
     }
 }
@@ -312,8 +342,12 @@ impl VwapTracker {
         self.cumulative_notional += price * volume;
         self.cumulative_volume += volume;
         self.sample_count += 1;
-        if price > self.high_price { self.high_price = price; }
-        if price < self.low_price { self.low_price = price; }
+        if price > self.high_price {
+            self.high_price = price;
+        }
+        if price < self.low_price {
+            self.low_price = price;
+        }
     }
 
     pub fn vwap(&self) -> f64 {
@@ -333,14 +367,19 @@ impl VwapTracker {
     }
 
     pub fn price_range(&self) -> (f64, f64) {
-        if self.sample_count == 0 { (0.0, 0.0) }
-        else { (self.low_price, self.high_price) }
+        if self.sample_count == 0 {
+            (0.0, 0.0)
+        } else {
+            (self.low_price, self.high_price)
+        }
     }
 
     /// Deviation of a given price from the VWAP in basis points.
     pub fn deviation_bps(&self, price: f64) -> f64 {
         let v = self.vwap();
-        if v < 1e-12 { return 0.0; }
+        if v < 1e-12 {
+            return 0.0;
+        }
         ((price - v) / v) * 10_000.0
     }
 }
@@ -351,7 +390,11 @@ impl fmt::Display for VwapTracker {
         write!(
             f,
             "VwapTracker(vwap={:.4} vol={:.0} samples={} range=[{:.4},{:.4}])",
-            self.vwap(), self.cumulative_volume, self.sample_count, lo, hi,
+            self.vwap(),
+            self.cumulative_volume,
+            self.sample_count,
+            lo,
+            hi,
         )
     }
 }
@@ -402,7 +445,9 @@ impl fmt::Display for VwapDeviation {
         write!(
             f,
             "VwapDev(market={:.4} algo={:.4} dev={:.1}bps impact={:.2})",
-            self.market_vwap, self.algo_vwap, self.deviation_bps,
+            self.market_vwap,
+            self.algo_vwap,
+            self.deviation_bps,
             self.notional_impact(),
         )
     }

@@ -35,7 +35,11 @@ impl Vec3 {
     }
     pub fn normalized(&self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { Self::new(self.x / len, self.y / len, self.z / len) }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            Self::new(self.x / len, self.y / len, self.z / len)
+        }
     }
     pub fn cross(&self, o: &Self) -> Self {
         Self::new(
@@ -241,14 +245,10 @@ pub fn subdivide_once(mesh: &TriMesh) -> TriMesh {
         } else {
             // Interior: Warren's formula
             let beta = warren_beta(n);
-            let nbr_sum = nbrs
-                .iter()
-                .fold(Vec3::zero(), |acc, &nb| {
-                    acc.add(&mesh.positions[nb as usize])
-                });
-            let smooth = orig
-                .scale(1.0 - n as f64 * beta)
-                .add(&nbr_sum.scale(beta));
+            let nbr_sum = nbrs.iter().fold(Vec3::zero(), |acc, &nb| {
+                acc.add(&mesh.positions[nb as usize])
+            });
+            let smooth = orig.scale(1.0 - n as f64 * beta).add(&nbr_sum.scale(beta));
             // Blend with crease
             new_positions[vi] = orig.scale(max_crease).add(&smooth.scale(1.0 - max_crease));
         }
@@ -308,24 +308,19 @@ pub fn tetrahedron() -> TriMesh {
         Vec3::new(-1.0, 1.0, -1.0),
         Vec3::new(1.0, -1.0, -1.0),
     ];
-    let triangles = vec![
-        [0, 1, 2],
-        [0, 3, 1],
-        [0, 2, 3],
-        [1, 3, 2],
-    ];
+    let triangles = vec![[0, 1, 2], [0, 3, 1], [0, 2, 3], [1, 3, 2]];
     TriMesh::new(positions, triangles)
 }
 
 /// Build an octahedron TriMesh.
 pub fn octahedron() -> TriMesh {
     let positions = vec![
-        Vec3::new(0.0, 1.0, 0.0),   // 0: top
-        Vec3::new(1.0, 0.0, 0.0),   // 1
-        Vec3::new(0.0, 0.0, 1.0),   // 2
-        Vec3::new(-1.0, 0.0, 0.0),  // 3
-        Vec3::new(0.0, 0.0, -1.0),  // 4
-        Vec3::new(0.0, -1.0, 0.0),  // 5: bottom
+        Vec3::new(0.0, 1.0, 0.0),  // 0: top
+        Vec3::new(1.0, 0.0, 0.0),  // 1
+        Vec3::new(0.0, 0.0, 1.0),  // 2
+        Vec3::new(-1.0, 0.0, 0.0), // 3
+        Vec3::new(0.0, 0.0, -1.0), // 4
+        Vec3::new(0.0, -1.0, 0.0), // 5: bottom
     ];
     let triangles = vec![
         [0, 1, 2],
@@ -468,7 +463,10 @@ mod tests {
                 break;
             }
         }
-        assert!(found, "should find edge vertex near midpoint for creased edge");
+        assert!(
+            found,
+            "should find edge vertex near midpoint for creased edge"
+        );
     }
 
     #[test]

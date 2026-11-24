@@ -74,12 +74,18 @@ impl StepParseConfig {
 }
 
 impl Default for StepParseConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for StepParseConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "StepParseConfig(schema_version={0}, lazy_parse={1}, validate_refs={2}, max_entities={3})", self.schema_version, self.lazy_parse, self.validate_refs, self.max_entities)
+        write!(
+            f,
+            "StepParseConfig(schema_version={0}, lazy_parse={1}, validate_refs={2}, max_entities={3})",
+            self.schema_version, self.lazy_parse, self.validate_refs, self.max_entities
+        )
     }
 }
 
@@ -95,7 +101,10 @@ pub struct StepParse {
 impl StepParse {
     pub fn new(config: StepParseConfig) -> Result<Self, StepParseError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -107,31 +116,45 @@ impl StepParse {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &StepParseConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &StepParseConfig {
+        &self.config
+    }
 
     /// Parse STEP entities.
     pub fn parse_entities(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Extract B-rep geometry.
     pub fn extract_geometry(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Extract assembly structure.
     pub fn assembly_structure(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -143,7 +166,9 @@ impl StepParse {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -155,7 +180,11 @@ impl StepParse {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -228,7 +257,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = StepParse::new(StepParseConfig::new()).unwrap()
+        let e = StepParse::new(StepParseConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -244,7 +274,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = StepParse::new(StepParseConfig::new()).unwrap()
+        let e = StepParse::new(StepParseConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("StepParse"));
@@ -252,7 +283,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = StepParse::new(StepParseConfig::new()).unwrap()
+        let e = StepParse::new(StepParseConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -263,7 +295,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = StepParse::new(StepParseConfig::new()).unwrap()
+        let e = StepParse::new(StepParseConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -271,7 +304,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = StepParse::new(StepParseConfig::new()).unwrap()
+        let e = StepParse::new(StepParseConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -288,7 +322,8 @@ mod tests {
 
     #[test]
     fn test_parse_entities() {
-        let e = StepParse::new(StepParseConfig::new()).unwrap()
+        let e = StepParse::new(StepParseConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.parse_entities();
         assert!(!result.is_empty());
@@ -296,7 +331,8 @@ mod tests {
 
     #[test]
     fn test_extract_geometry() {
-        let e = StepParse::new(StepParseConfig::new()).unwrap()
+        let e = StepParse::new(StepParseConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.extract_geometry();
         assert!(!result.is_empty());
@@ -304,7 +340,8 @@ mod tests {
 
     #[test]
     fn test_assembly_structure() {
-        let e = StepParse::new(StepParseConfig::new()).unwrap()
+        let e = StepParse::new(StepParseConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.assembly_structure();
         assert!(!result.is_empty());

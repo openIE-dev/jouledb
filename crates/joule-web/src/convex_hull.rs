@@ -126,7 +126,11 @@ pub fn jarvis_march(points: &[Point]) -> Vec<Point> {
                 continue;
             }
             let c = cross(&points[current], &points[next], &points[i]);
-            if c > 0.0 || (c.abs() < 1e-12 && points[current].distance_sq(&points[i]) > points[current].distance_sq(&points[next])) {
+            if c > 0.0
+                || (c.abs() < 1e-12
+                    && points[current].distance_sq(&points[i])
+                        > points[current].distance_sq(&points[next]))
+            {
                 next = i;
             }
         }
@@ -211,7 +215,11 @@ pub struct BoundingRect {
 pub fn minimum_bounding_rect(hull: &[Point]) -> BoundingRect {
     let n = hull.len();
     if n < 2 {
-        let p = if n == 1 { hull[0] } else { Point::new(0.0, 0.0) };
+        let p = if n == 1 {
+            hull[0]
+        } else {
+            Point::new(0.0, 0.0)
+        };
         return BoundingRect {
             corners: [p; 4],
             area: 0.0,
@@ -295,7 +303,11 @@ pub fn minimum_bounding_rect(hull: &[Point]) -> BoundingRect {
 pub fn hull_diameter(hull: &[Point]) -> (f64, Point, Point) {
     let n = hull.len();
     if n < 2 {
-        let p = if n == 1 { hull[0] } else { Point::new(0.0, 0.0) };
+        let p = if n == 1 {
+            hull[0]
+        } else {
+            Point::new(0.0, 0.0)
+        };
         return (0.0, p, p);
     }
     if n == 2 {

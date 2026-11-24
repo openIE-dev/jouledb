@@ -113,7 +113,9 @@ impl Operation {
 
     /// Check if this operation is a no-op.
     pub fn is_noop(&self) -> bool {
-        self.components.iter().all(|c| matches!(c, OpComponent::Retain(_)))
+        self.components
+            .iter()
+            .all(|c| matches!(c, OpComponent::Retain(_)))
     }
 }
 
@@ -156,7 +158,9 @@ pub fn apply(doc: &str, op: &Operation) -> Result<String, OtError> {
                 if end > chars.len() {
                     return Err(OtError::ApplyFailed(format!(
                         "retain past end: pos={}, n={}, len={}",
-                        pos, n, chars.len()
+                        pos,
+                        n,
+                        chars.len()
                     )));
                 }
                 for c in &chars[pos..end] {
@@ -172,7 +176,9 @@ pub fn apply(doc: &str, op: &Operation) -> Result<String, OtError> {
                 if end > chars.len() {
                     return Err(OtError::ApplyFailed(format!(
                         "delete past end: pos={}, n={}, len={}",
-                        pos, n, chars.len()
+                        pos,
+                        n,
+                        chars.len()
                     )));
                 }
                 pos = end;

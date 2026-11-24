@@ -80,10 +80,7 @@ impl AudioBuf {
     pub fn from_interleaved_i16(data: &[i16], channels: usize, sample_rate: u32) -> Self {
         let ch = channels.max(1);
         let frames = if ch > 0 { data.len() / ch } else { 0 };
-        let f32_data: Vec<f32> = data[..frames * ch]
-            .iter()
-            .map(|s| i16_to_f32(*s))
-            .collect();
+        let f32_data: Vec<f32> = data[..frames * ch].iter().map(|s| i16_to_f32(*s)).collect();
         Self {
             data: f32_data,
             channels: ch,
@@ -179,11 +176,9 @@ impl AudioBuf {
                 let end = start + self.frames;
                 self.data[start..end].to_vec()
             }
-            BufferLayout::Interleaved => {
-                (0..self.frames)
-                    .map(|f| self.data[f * self.channels + channel])
-                    .collect()
-            }
+            BufferLayout::Interleaved => (0..self.frames)
+                .map(|f| self.data[f * self.channels + channel])
+                .collect(),
         }
     }
 
@@ -323,10 +318,7 @@ impl AudioBuf {
 
     /// Calculate peak level across all channels.
     pub fn peak(&self) -> f32 {
-        self.data
-            .iter()
-            .map(|s| s.abs())
-            .fold(0.0f32, f32::max)
+        self.data.iter().map(|s| s.abs()).fold(0.0f32, f32::max)
     }
 
     /// Mix another buffer into this one (additive).
@@ -574,7 +566,10 @@ mod tests {
             let f = i16_to_f32(val);
             assert!(f >= -1.0 && f <= 1.0);
             let back = f32_to_i16(f);
-            assert!((val - back).unsigned_abs() <= 1, "val={val} f={f} back={back}");
+            assert!(
+                (val - back).unsigned_abs() <= 1,
+                "val={val} f={f} back={back}"
+            );
         }
     }
 

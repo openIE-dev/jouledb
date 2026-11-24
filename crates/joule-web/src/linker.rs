@@ -21,22 +21,38 @@ pub struct SectionFlags {
 impl SectionFlags {
     /// Code section flags.
     pub fn code() -> Self {
-        Self { writable: false, executable: true, allocatable: true }
+        Self {
+            writable: false,
+            executable: true,
+            allocatable: true,
+        }
     }
 
     /// Data section flags.
     pub fn data() -> Self {
-        Self { writable: true, executable: false, allocatable: true }
+        Self {
+            writable: true,
+            executable: false,
+            allocatable: true,
+        }
     }
 
     /// Read-only data.
     pub fn rodata() -> Self {
-        Self { writable: false, executable: false, allocatable: true }
+        Self {
+            writable: false,
+            executable: false,
+            allocatable: true,
+        }
     }
 
     /// BSS (uninitialized).
     pub fn bss() -> Self {
-        Self { writable: true, executable: false, allocatable: true }
+        Self {
+            writable: true,
+            executable: false,
+            allocatable: true,
+        }
     }
 }
 
@@ -314,20 +330,11 @@ pub enum LinkerError {
         second_file: String,
     },
     /// Relocation target not found.
-    RelocationTargetNotFound {
-        symbol: String,
-        in_file: String,
-    },
+    RelocationTargetNotFound { symbol: String, in_file: String },
     /// Section not found during relocation.
-    SectionNotFound {
-        section: String,
-        in_file: String,
-    },
+    SectionNotFound { section: String, in_file: String },
     /// Relocation out of range.
-    RelocationOutOfRange {
-        symbol: String,
-        reloc_type: String,
-    },
+    RelocationOutOfRange { symbol: String, reloc_type: String },
 }
 
 impl fmt::Display for LinkerError {
@@ -336,8 +343,15 @@ impl fmt::Display for LinkerError {
             Self::UndefinedSymbol(name) => {
                 write!(f, "undefined reference to '{name}'")
             }
-            Self::DuplicateSymbol { name, first_file, second_file } => {
-                write!(f, "multiple definition of '{name}': first defined in {first_file}, also in {second_file}")
+            Self::DuplicateSymbol {
+                name,
+                first_file,
+                second_file,
+            } => {
+                write!(
+                    f,
+                    "multiple definition of '{name}': first defined in {first_file}, also in {second_file}"
+                )
             }
             Self::RelocationTargetNotFound { symbol, in_file } => {
                 write!(f, "relocation target '{symbol}' not found (in {in_file})")
@@ -525,7 +539,9 @@ impl Linker {
 
                 let offset = merged.data.len() as u64;
                 merged.data.extend_from_slice(&sec.data);
-                merged.contributions.push((obj.name.clone(), offset, sec.data.len()));
+                merged
+                    .contributions
+                    .push((obj.name.clone(), offset, sec.data.len()));
 
                 // Update alignment to max
                 if sec.alignment > merged.alignment {
@@ -545,13 +561,15 @@ impl Linker {
 
                 if sym.is_undefined() {
                     // Just register as needed; will check later
-                    self.global_symbols.entry(sym.name.clone()).or_insert(ResolvedSymbol {
-                        address: 0,
-                        source_file: obj.name.clone(),
-                        binding: sym.binding,
-                        size: sym.size,
-                        sym_type: sym.sym_type,
-                    });
+                    self.global_symbols
+                        .entry(sym.name.clone())
+                        .or_insert(ResolvedSymbol {
+                            address: 0,
+                            source_file: obj.name.clone(),
+                            binding: sym.binding,
+                            size: sym.size,
+                            sym_type: sym.sym_type,
+                        });
                     continue;
                 }
 
@@ -580,13 +598,16 @@ impl Linker {
                     }
                 }
 
-                self.global_symbols.insert(sym.name.clone(), ResolvedSymbol {
-                    address: 0, // Will be filled during layout
-                    source_file: obj.name.clone(),
-                    binding: sym.binding,
-                    size: sym.size,
-                    sym_type: sym.sym_type,
-                });
+                self.global_symbols.insert(
+                    sym.name.clone(),
+                    ResolvedSymbol {
+                        address: 0, // Will be filled during layout
+                        source_file: obj.name.clone(),
+                        binding: sym.binding,
+                        size: sym.size,
+                        sym_type: sym.sym_type,
+                    },
+                );
             }
         }
     }
@@ -645,10 +666,7 @@ impl Linker {
         let mut contrib_map: HashMap<(String, String), (usize, u64)> = HashMap::new();
         for (sec_idx, sec) in self.merged_sections.iter().enumerate() {
             for (file_name, offset, _size) in &sec.contributions {
-                contrib_map.insert(
-                    (file_name.clone(), sec.name.clone()),
-                    (sec_idx, *offset),
-                );
+                contrib_map.insert((file_name.clone(), sec.name.clone()), (sec_idx, *offset));
             }
         }
 
@@ -726,10 +744,12 @@ impl Linker {
         for sym_name in &referenced {
             match self.global_symbols.get(sym_name) {
                 Some(resolved) if resolved.address == 0 => {
-                    self.errors.push(LinkerError::UndefinedSymbol(sym_name.clone()));
+                    self.errors
+                        .push(LinkerError::UndefinedSymbol(sym_name.clone()));
                 }
                 None => {
-                    self.errors.push(LinkerError::UndefinedSymbol(sym_name.clone()));
+                    self.errors
+                        .push(LinkerError::UndefinedSymbol(sym_name.clone()));
                 }
                 _ => {}
             }
@@ -744,7 +764,9 @@ impl Linker {
                 continue;
             }
             // Find which section this belongs to
-            let section = self.merged_sections.iter()
+            let section = self
+                .merged_sections
+                .iter()
                 .find(|s| {
                     resolved.address >= s.base_address
                         && resolved.address < s.base_address + s.data.len() as u64
@@ -843,8 +865,17 @@ mod tests {
     /// Create a simple object file with code and a symbol.
     fn make_obj(name: &str, code: &[u8], sym_name: &str, sym_offset: u64) -> ObjectFile {
         let mut obj = ObjectFile::new(name);
-        obj.add_section(Section::with_data(".text", code.to_vec(), SectionFlags::code()));
-        obj.add_symbol(Symbol::function(sym_name, ".text", sym_offset, code.len() as u64));
+        obj.add_section(Section::with_data(
+            ".text",
+            code.to_vec(),
+            SectionFlags::code(),
+        ));
+        obj.add_symbol(Symbol::function(
+            sym_name,
+            ".text",
+            sym_offset,
+            code.len() as u64,
+        ));
         obj
     }
 
@@ -888,9 +919,18 @@ mod tests {
     #[test]
     fn test_undefined_symbol() {
         let mut obj = ObjectFile::new("a.o");
-        obj.add_section(Section::with_data(".text", vec![0xE8, 0, 0, 0, 0], SectionFlags::code()));
+        obj.add_section(Section::with_data(
+            ".text",
+            vec![0xE8, 0, 0, 0, 0],
+            SectionFlags::code(),
+        ));
         obj.add_symbol(Symbol::undefined("missing_func"));
-        obj.add_relocation(Relocation::new(".text", 1, RelocType::Rel32, "missing_func"));
+        obj.add_relocation(Relocation::new(
+            ".text",
+            1,
+            RelocType::Rel32,
+            "missing_func",
+        ));
 
         let mut linker = Linker::new(0x1000);
         linker.add_object(obj);
@@ -916,17 +956,29 @@ mod tests {
         let result = linker.link();
         assert!(result.is_err());
         let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| matches!(e, LinkerError::DuplicateSymbol { name, .. } if name == "dup_sym")));
+        assert!(
+            errors.iter().any(
+                |e| matches!(e, LinkerError::DuplicateSymbol { name, .. } if name == "dup_sym")
+            )
+        );
     }
 
     #[test]
     fn test_weak_symbol_override() {
         let mut obj_a = ObjectFile::new("a.o");
-        obj_a.add_section(Section::with_data(".text", vec![0x01], SectionFlags::code()));
+        obj_a.add_section(Section::with_data(
+            ".text",
+            vec![0x01],
+            SectionFlags::code(),
+        ));
         obj_a.add_symbol(Symbol::weak("shared", ".text", 0));
 
         let mut obj_b = ObjectFile::new("b.o");
-        obj_b.add_section(Section::with_data(".text", vec![0x02], SectionFlags::code()));
+        obj_b.add_section(Section::with_data(
+            ".text",
+            vec![0x02],
+            SectionFlags::code(),
+        ));
         obj_b.add_symbol(Symbol::global("shared", ".text", 0));
 
         let mut linker = Linker::new(0x1000);
@@ -939,11 +991,19 @@ mod tests {
     #[test]
     fn test_relocation_abs32() {
         let mut obj_a = ObjectFile::new("a.o");
-        obj_a.add_section(Section::with_data(".text", vec![0; 4], SectionFlags::code()));
+        obj_a.add_section(Section::with_data(
+            ".text",
+            vec![0; 4],
+            SectionFlags::code(),
+        ));
         obj_a.add_relocation(Relocation::new(".text", 0, RelocType::Abs32, "target"));
 
         let mut obj_b = ObjectFile::new("b.o");
-        obj_b.add_section(Section::with_data(".text", vec![0xCC; 4], SectionFlags::code()));
+        obj_b.add_section(Section::with_data(
+            ".text",
+            vec![0xCC; 4],
+            SectionFlags::code(),
+        ));
         obj_b.add_symbol(Symbol::global("target", ".text", 0));
 
         let mut linker = Linker::new(0x1000);
@@ -998,7 +1058,11 @@ mod tests {
     #[test]
     fn test_data_section() {
         let mut obj = ObjectFile::new("a.o");
-        obj.add_section(Section::with_data(".text", vec![0x90], SectionFlags::code()));
+        obj.add_section(Section::with_data(
+            ".text",
+            vec![0x90],
+            SectionFlags::code(),
+        ));
         obj.add_section(Section::with_data(
             ".data",
             vec![0xDE, 0xAD, 0xBE, 0xEF],

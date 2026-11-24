@@ -266,11 +266,7 @@ impl SessionTokenStore {
     }
 
     /// Validate a token for a session.
-    pub fn validate(
-        &self,
-        session_id: &str,
-        candidate: &str,
-    ) -> Result<(), CsrfProtectError> {
+    pub fn validate(&self, session_id: &str, candidate: &str) -> Result<(), CsrfProtectError> {
         let tokens = self
             .sessions
             .get(session_id)
@@ -457,11 +453,7 @@ impl CsrfGuard {
             origin_validator: None,
             check_origin: false,
             check_referer: false,
-            safe_methods: vec![
-                "GET".to_string(),
-                "HEAD".to_string(),
-                "OPTIONS".to_string(),
-            ],
+            safe_methods: vec!["GET".to_string(), "HEAD".to_string(), "OPTIONS".to_string()],
         }
     }
 
@@ -480,7 +472,9 @@ impl CsrfGuard {
 
     /// Check whether an HTTP method is safe (exempt from CSRF).
     pub fn is_safe_method(&self, method: &str) -> bool {
-        self.safe_methods.iter().any(|m| m.eq_ignore_ascii_case(method))
+        self.safe_methods
+            .iter()
+            .any(|m| m.eq_ignore_ascii_case(method))
     }
 }
 

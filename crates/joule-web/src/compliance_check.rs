@@ -74,12 +74,21 @@ impl ComplianceCheckConfig {
 }
 
 impl Default for ComplianceCheckConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for ComplianceCheckConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ComplianceCheckConfig(safeguard_type={0}, assessment_scope={1}, include_remediation={2}, scoring_method={3})", self.safeguard_type, self.assessment_scope, self.include_remediation, self.scoring_method)
+        write!(
+            f,
+            "ComplianceCheckConfig(safeguard_type={0}, assessment_scope={1}, include_remediation={2}, scoring_method={3})",
+            self.safeguard_type,
+            self.assessment_scope,
+            self.include_remediation,
+            self.scoring_method
+        )
     }
 }
 
@@ -95,7 +104,10 @@ pub struct ComplianceCheck {
 impl ComplianceCheck {
     pub fn new(config: ComplianceCheckConfig) -> Result<Self, ComplianceCheckError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -107,20 +119,30 @@ impl ComplianceCheck {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &ComplianceCheckConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &ComplianceCheckConfig {
+        &self.config
+    }
 
     /// Assess HIPAA safeguards.
     pub fn assess_safeguards(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Calculate compliance score.
     pub fn compliance_score(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -130,12 +152,18 @@ impl ComplianceCheck {
 
     /// Generate remediation plan.
     pub fn remediation_plan(&self) -> String {
-        format!("{}: {} records", stringify!(remediation_plan), self.data.len())
+        format!(
+            "{}: {} records",
+            stringify!(remediation_plan),
+            self.data.len()
+        )
     }
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -147,7 +175,9 @@ impl ComplianceCheck {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -159,7 +189,11 @@ impl ComplianceCheck {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -232,7 +266,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = ComplianceCheck::new(ComplianceCheckConfig::new()).unwrap()
+        let e = ComplianceCheck::new(ComplianceCheckConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -248,7 +283,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = ComplianceCheck::new(ComplianceCheckConfig::new()).unwrap()
+        let e = ComplianceCheck::new(ComplianceCheckConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("ComplianceCheck"));
@@ -256,7 +292,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = ComplianceCheck::new(ComplianceCheckConfig::new()).unwrap()
+        let e = ComplianceCheck::new(ComplianceCheckConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -267,7 +304,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = ComplianceCheck::new(ComplianceCheckConfig::new()).unwrap()
+        let e = ComplianceCheck::new(ComplianceCheckConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -275,7 +313,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = ComplianceCheck::new(ComplianceCheckConfig::new()).unwrap()
+        let e = ComplianceCheck::new(ComplianceCheckConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -292,7 +331,8 @@ mod tests {
 
     #[test]
     fn test_assess_safeguards() {
-        let e = ComplianceCheck::new(ComplianceCheckConfig::new()).unwrap()
+        let e = ComplianceCheck::new(ComplianceCheckConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.assess_safeguards();
         assert!(!result.is_empty());
@@ -300,7 +340,8 @@ mod tests {
 
     #[test]
     fn test_compliance_score() {
-        let e = ComplianceCheck::new(ComplianceCheckConfig::new()).unwrap()
+        let e = ComplianceCheck::new(ComplianceCheckConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.compliance_score();
         assert!(result.is_finite());
@@ -308,7 +349,8 @@ mod tests {
 
     #[test]
     fn test_remediation_plan() {
-        let e = ComplianceCheck::new(ComplianceCheckConfig::new()).unwrap()
+        let e = ComplianceCheck::new(ComplianceCheckConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.remediation_plan();
         assert!(!result.is_empty());

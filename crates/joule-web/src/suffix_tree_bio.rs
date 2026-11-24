@@ -93,7 +93,11 @@ impl SuffixTree {
             text: Vec::new(),
             seq_boundaries: Vec::new(),
             global_end: 0,
-            active: ActivePoint { node: 0, edge: None, length: 0 },
+            active: ActivePoint {
+                node: 0,
+                edge: None,
+                length: 0,
+            },
             remaining: 0,
             last_new_internal: 0,
         }
@@ -132,10 +136,15 @@ impl SuffixTree {
             }
 
             let edge_char = self.active.edge.unwrap_or(c);
-            if !self.nodes[self.active.node].children.contains_key(&edge_char) {
+            if !self.nodes[self.active.node]
+                .children
+                .contains_key(&edge_char)
+            {
                 // New leaf.
                 let leaf = self.new_node(self.global_end - 1, None);
-                self.nodes[self.active.node].children.insert(edge_char, leaf);
+                self.nodes[self.active.node]
+                    .children
+                    .insert(edge_char, leaf);
                 self.add_suffix_link(self.active.node);
             } else {
                 let next = self.nodes[self.active.node].children[&edge_char];
@@ -144,8 +153,7 @@ impl SuffixTree {
                     self.active.node = next;
                     self.active.length -= edge_len;
                     self.active.edge = if self.active.length > 0 {
-                        Some(self.text[self.global_end - 1 - self.active.length
-                            + edge_len])
+                        Some(self.text[self.global_end - 1 - self.active.length + edge_len])
                     } else {
                         Some(c)
                     };
@@ -162,7 +170,9 @@ impl SuffixTree {
                     self.nodes[next].start,
                     Some(self.nodes[next].start + self.active.length),
                 );
-                self.nodes[self.active.node].children.insert(edge_char, split);
+                self.nodes[self.active.node]
+                    .children
+                    .insert(edge_char, split);
                 let leaf = self.new_node(self.global_end - 1, None);
                 self.nodes[split].children.insert(c, leaf);
                 self.nodes[next].start += self.active.length;
@@ -173,9 +183,7 @@ impl SuffixTree {
             self.remaining -= 1;
             if self.active.node == 0 && self.active.length > 0 {
                 self.active.length -= 1;
-                self.active.edge = Some(
-                    self.text[self.global_end - self.remaining],
-                );
+                self.active.edge = Some(self.text[self.global_end - self.remaining]);
             } else {
                 let sl = self.nodes[self.active.node].suffix_link;
                 self.active.node = if sl != 0 { sl } else { 0 };
@@ -312,10 +320,8 @@ impl SuffixTree {
         let mut combined = self.nodes[node].seq_mask;
         let children: Vec<usize> = self.nodes[node].children.values().copied().collect();
         for child in children {
-            let child_depth =
-                depth + self.nodes[child].edge_length(self.global_end);
-            let child_mask =
-                self.lcs_walk(child, child_depth, mask_a, mask_b, best_len, best_end);
+            let child_depth = depth + self.nodes[child].edge_length(self.global_end);
+            let child_mask = self.lcs_walk(child, child_depth, mask_a, mask_b, best_len, best_end);
             combined |= child_mask;
         }
         if (combined & mask_a) != 0 && (combined & mask_b) != 0 && depth > *best_len {
@@ -357,7 +363,9 @@ pub struct SuffixTreeBuilder {
 
 impl SuffixTreeBuilder {
     pub fn new() -> Self {
-        Self { sequences: Vec::new() }
+        Self {
+            sequences: Vec::new(),
+        }
     }
 
     pub fn with_sequence(mut self, seq: &[u8]) -> Self {

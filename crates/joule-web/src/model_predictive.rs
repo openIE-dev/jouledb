@@ -52,7 +52,11 @@ pub struct DenseMat {
 
 impl DenseMat {
     pub fn zeros(r: usize, c: usize) -> Self {
-        Self { rows: r, cols: c, data: vec![0.0; r * c] }
+        Self {
+            rows: r,
+            cols: c,
+            data: vec![0.0; r * c],
+        }
     }
 
     pub fn identity(n: usize) -> Self {
@@ -95,7 +99,8 @@ impl DenseMat {
     pub fn mul(&self, other: &DenseMat) -> Result<DenseMat, MpcError> {
         if self.cols != other.rows {
             return Err(MpcError::DimensionMismatch(format!(
-                "{}x{} * {}x{}", self.rows, self.cols, other.rows, other.cols
+                "{}x{} * {}x{}",
+                self.rows, self.cols, other.rows, other.cols
             )));
         }
         let mut result = DenseMat::zeros(self.rows, other.cols);
@@ -114,32 +119,59 @@ impl DenseMat {
     pub fn add(&self, other: &DenseMat) -> Result<DenseMat, MpcError> {
         if self.rows != other.rows || self.cols != other.cols {
             return Err(MpcError::DimensionMismatch(format!(
-                "add: {}x{} + {}x{}", self.rows, self.cols, other.rows, other.cols
+                "add: {}x{} + {}x{}",
+                self.rows, self.cols, other.rows, other.cols
             )));
         }
-        let data: Vec<f64> = self.data.iter().zip(&other.data).map(|(a, b)| a + b).collect();
-        Ok(DenseMat { rows: self.rows, cols: self.cols, data })
+        let data: Vec<f64> = self
+            .data
+            .iter()
+            .zip(&other.data)
+            .map(|(a, b)| a + b)
+            .collect();
+        Ok(DenseMat {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        })
     }
 
     pub fn sub(&self, other: &DenseMat) -> Result<DenseMat, MpcError> {
         if self.rows != other.rows || self.cols != other.cols {
             return Err(MpcError::DimensionMismatch(format!(
-                "sub: {}x{} - {}x{}", self.rows, self.cols, other.rows, other.cols
+                "sub: {}x{} - {}x{}",
+                self.rows, self.cols, other.rows, other.cols
             )));
         }
-        let data: Vec<f64> = self.data.iter().zip(&other.data).map(|(a, b)| a - b).collect();
-        Ok(DenseMat { rows: self.rows, cols: self.cols, data })
+        let data: Vec<f64> = self
+            .data
+            .iter()
+            .zip(&other.data)
+            .map(|(a, b)| a - b)
+            .collect();
+        Ok(DenseMat {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        })
     }
 
     pub fn scale(&self, s: f64) -> DenseMat {
         let data: Vec<f64> = self.data.iter().map(|v| v * s).collect();
-        DenseMat { rows: self.rows, cols: self.cols, data }
+        DenseMat {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        }
     }
 
     pub fn mul_vec(&self, v: &[f64]) -> Result<Vec<f64>, MpcError> {
         if self.cols != v.len() {
             return Err(MpcError::DimensionMismatch(format!(
-                "mat {}x{} * vec {}", self.rows, self.cols, v.len()
+                "mat {}x{} * vec {}",
+                self.rows,
+                self.cols,
+                v.len()
             )));
         }
         let mut result = vec![0.0; self.rows];
@@ -159,7 +191,9 @@ impl DenseMat {
         let n = self.rows;
         let mut aug = vec![0.0; n * 2 * n];
         for i in 0..n {
-            for j in 0..n { aug[i * 2 * n + j] = self.get(i, j); }
+            for j in 0..n {
+                aug[i * 2 * n + j] = self.get(i, j);
+            }
             aug[i * 2 * n + n + i] = 1.0;
         }
         for col in 0..n {
@@ -167,9 +201,14 @@ impl DenseMat {
             let mut max_val = aug[col * 2 * n + col].abs();
             for row in (col + 1)..n {
                 let v = aug[row * 2 * n + col].abs();
-                if v > max_val { max_val = v; max_row = row; }
+                if v > max_val {
+                    max_val = v;
+                    max_row = row;
+                }
             }
-            if max_val < 1e-14 { return Err(MpcError::SingularMatrix); }
+            if max_val < 1e-14 {
+                return Err(MpcError::SingularMatrix);
+            }
             if max_row != col {
                 for j in 0..2 * n {
                     let tmp = aug[col * 2 * n + j];
@@ -178,16 +217,24 @@ impl DenseMat {
                 }
             }
             let pivot = aug[col * 2 * n + col];
-            for j in 0..2 * n { aug[col * 2 * n + j] /= pivot; }
+            for j in 0..2 * n {
+                aug[col * 2 * n + j] /= pivot;
+            }
             for row in 0..n {
-                if row == col { continue; }
+                if row == col {
+                    continue;
+                }
                 let factor = aug[row * 2 * n + col];
-                for j in 0..2 * n { aug[row * 2 * n + j] -= factor * aug[col * 2 * n + j]; }
+                for j in 0..2 * n {
+                    aug[row * 2 * n + j] -= factor * aug[col * 2 * n + j];
+                }
             }
         }
         let mut inv = DenseMat::zeros(n, n);
         for i in 0..n {
-            for j in 0..n { inv.set(i, j, aug[i * 2 * n + n + j]); }
+            for j in 0..n {
+                inv.set(i, j, aug[i * 2 * n + n + j]);
+            }
         }
         Ok(inv)
     }
@@ -258,21 +305,29 @@ impl Constraints {
     /// Validate dimensions.
     pub fn validate(&self, nu: usize, nx: usize) -> Result<(), MpcError> {
         if self.u_min.len() != nu || self.u_max.len() != nu {
-            return Err(MpcError::InvalidConstraint("input dimension mismatch".into()));
+            return Err(MpcError::InvalidConstraint(
+                "input dimension mismatch".into(),
+            ));
         }
         for i in 0..nu {
             if self.u_min[i] > self.u_max[i] {
-                return Err(MpcError::InvalidConstraint(format!("u_min[{i}] > u_max[{i}]")));
+                return Err(MpcError::InvalidConstraint(format!(
+                    "u_min[{i}] > u_max[{i}]"
+                )));
             }
         }
         if let Some(xmin) = &self.x_min {
             if xmin.len() != nx {
-                return Err(MpcError::InvalidConstraint("x_min dimension mismatch".into()));
+                return Err(MpcError::InvalidConstraint(
+                    "x_min dimension mismatch".into(),
+                ));
             }
         }
         if let Some(xmax) = &self.x_max {
             if xmax.len() != nx {
-                return Err(MpcError::InvalidConstraint("x_max dimension mismatch".into()));
+                return Err(MpcError::InvalidConstraint(
+                    "x_max dimension mismatch".into(),
+                ));
             }
         }
         Ok(())
@@ -323,7 +378,11 @@ impl QuadraticCost {
         for k in 0..n {
             let x = &trajectory[k];
             let u = &inputs[k];
-            let r = if k < reference.len() { &reference[k] } else { &reference[reference.len() - 1] };
+            let r = if k < reference.len() {
+                &reference[k]
+            } else {
+                &reference[reference.len() - 1]
+            };
 
             for (i, (&xi, &ri)) in x.iter().zip(r.iter()).enumerate() {
                 cost += self.q_diag[i] * (xi - ri) * (xi - ri);
@@ -335,7 +394,11 @@ impl QuadraticCost {
 
         // Terminal cost.
         let x_n = &trajectory[n];
-        let r_n = if n < reference.len() { &reference[n] } else { &reference[reference.len() - 1] };
+        let r_n = if n < reference.len() {
+            &reference[n]
+        } else {
+            &reference[reference.len() - 1]
+        };
         for (i, (&xi, &ri)) in x_n.iter().zip(r_n.iter()).enumerate() {
             cost += self.qf_diag[i] * (xi - ri) * (xi - ri);
         }
@@ -394,14 +457,16 @@ pub fn solve_mpc_pgd(
         let mut alpha = step_size;
         let mut accepted = false;
         for _ in 0..10 {
-            let trial: Vec<Vec<f64>> = (0..horizon).map(|k| {
-                let mut u_new = inputs[k].clone();
-                for j in 0..model.nu {
-                    u_new[j] -= alpha * grad[k][j];
-                }
-                constraints.clamp_input(&mut u_new);
-                u_new
-            }).collect();
+            let trial: Vec<Vec<f64>> = (0..horizon)
+                .map(|k| {
+                    let mut u_new = inputs[k].clone();
+                    for j in 0..model.nu {
+                        u_new[j] -= alpha * grad[k][j];
+                    }
+                    constraints.clamp_input(&mut u_new);
+                    u_new
+                })
+                .collect();
             let trial_traj = model.predict(x0, &trial)?;
             let trial_cost = cost.evaluate(&trial_traj, &trial, reference);
             if trial_cost < base_cost {
@@ -426,7 +491,9 @@ pub fn solve_mpc_pgd(
     let final_traj = model.predict(x0, &inputs)?;
     let final_cost = cost.evaluate(&final_traj, &inputs, reference);
     if !final_cost.is_finite() {
-        return Err(MpcError::SolverNotConverged { iterations: max_iter });
+        return Err(MpcError::SolverNotConverged {
+            iterations: max_iter,
+        });
     }
 
     Ok(inputs)
@@ -606,8 +673,16 @@ mod tests {
         let reference = vec![vec![5.0]; 11];
 
         let inputs = solve_mpc_pgd(
-            &model, &cost, &constraints, &[0.0], &reference, 10, 100, 0.005,
-        ).unwrap();
+            &model,
+            &cost,
+            &constraints,
+            &[0.0],
+            &reference,
+            10,
+            100,
+            0.005,
+        )
+        .unwrap();
 
         // First input should be positive (moving toward reference=5).
         assert!(inputs[0][0] > 0.0);
@@ -621,8 +696,16 @@ mod tests {
         let reference = vec![vec![100.0]; 6];
 
         let inputs = solve_mpc_pgd(
-            &model, &cost, &constraints, &[0.0], &reference, 5, 50, 0.005,
-        ).unwrap();
+            &model,
+            &cost,
+            &constraints,
+            &[0.0],
+            &reference,
+            5,
+            50,
+            0.005,
+        )
+        .unwrap();
 
         for u in &inputs {
             assert!(u[0] <= 2.0 + 1e-8);
@@ -738,8 +821,16 @@ mod tests {
         let constraints = Constraints::input_symmetric(1, 10.0);
 
         let inputs = solve_mpc_pgd(
-            &model, &cost, &constraints, &[0.0], &vec![vec![0.0]; 6], 5, 50, 0.01,
-        ).unwrap();
+            &model,
+            &cost,
+            &constraints,
+            &[0.0],
+            &vec![vec![0.0]; 6],
+            5,
+            50,
+            0.01,
+        )
+        .unwrap();
 
         // All inputs should be near zero.
         for u in &inputs {

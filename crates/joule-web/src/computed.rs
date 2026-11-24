@@ -61,10 +61,13 @@ impl ComputedGraph {
 
     /// Register a source value.
     pub fn add_source(&mut self, id: NodeId, value: impl Into<String>) {
-        self.sources.insert(id, SourceNode {
-            value: value.into(),
-            version: 1,
-        });
+        self.sources.insert(
+            id,
+            SourceNode {
+                value: value.into(),
+                version: 1,
+            },
+        );
     }
 
     /// Update a source value. Marks dependent computed nodes as dirty.
@@ -91,13 +94,16 @@ impl ComputedGraph {
         for &dep in &dependencies {
             self.dependents.entry(dep).or_default().insert(id);
         }
-        self.computed.insert(id, ComputedNode {
-            dependencies,
-            compute: Box::new(compute),
-            cached_value: None,
-            dep_versions: HashMap::new(),
-            dirty: true, // not yet computed
-        });
+        self.computed.insert(
+            id,
+            ComputedNode {
+                dependencies,
+                compute: Box::new(compute),
+                cached_value: None,
+                dep_versions: HashMap::new(),
+                dirty: true, // not yet computed
+            },
+        );
     }
 
     /// Read a computed value. Lazily evaluates if dirty.
@@ -185,11 +191,7 @@ impl ComputedGraph {
 
     /// Mark all dependents of a source as dirty.
     fn mark_dependents_dirty(&mut self, source_id: NodeId) {
-        let deps = self
-            .dependents
-            .get(&source_id)
-            .cloned()
-            .unwrap_or_default();
+        let deps = self.dependents.get(&source_id).cloned().unwrap_or_default();
         for dep_id in deps {
             if let Some(node) = self.computed.get_mut(&dep_id) {
                 node.dirty = true;
@@ -334,9 +336,7 @@ mod tests {
     fn dirty_propagation() {
         let mut g = ComputedGraph::new();
         g.add_source(1, "a");
-        g.add_computed(10, vec![1], |reader| {
-            reader(1).to_uppercase()
-        });
+        g.add_computed(10, vec![1], |reader| reader(1).to_uppercase());
 
         assert_eq!(g.get_computed(10), Some("A".to_string()));
 
@@ -359,16 +359,19 @@ mod tests {
         // Node 20 depends on computed 10
         // Register 20 as dependent of 10
         g.dependents.entry(10).or_default().insert(20);
-        g.computed.insert(20, ComputedNode {
-            dependencies: vec![10],
-            compute: Box::new(|reader| {
-                let v: i32 = reader(10).parse().unwrap_or(0);
-                (v + 100).to_string()
-            }),
-            cached_value: None,
-            dep_versions: HashMap::new(),
-            dirty: true,
-        });
+        g.computed.insert(
+            20,
+            ComputedNode {
+                dependencies: vec![10],
+                compute: Box::new(|reader| {
+                    let v: i32 = reader(10).parse().unwrap_or(0);
+                    (v + 100).to_string()
+                }),
+                cached_value: None,
+                dep_versions: HashMap::new(),
+                dirty: true,
+            },
+        );
 
         // First compute 10, then 20 can read from cache
         assert_eq!(g.get_computed(10), Some("6".to_string()));

@@ -175,7 +175,11 @@ impl<K: Eq + std::hash::Hash + Clone + fmt::Debug, V: Clone> ResourceCache<K, V>
     /// Retrieve a value by key, updating LRU order. Returns None on miss or expired.
     pub fn get(&mut self, key: &K) -> Option<&V> {
         // Check expiry first.
-        let expired = self.entries.get(key).map(|e| e.is_expired(self.current_time)).unwrap_or(false);
+        let expired = self
+            .entries
+            .get(key)
+            .map(|e| e.is_expired(self.current_time))
+            .unwrap_or(false);
         if expired {
             self.remove(key);
             self.misses += 1;

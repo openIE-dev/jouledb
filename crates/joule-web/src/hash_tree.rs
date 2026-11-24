@@ -74,12 +74,18 @@ impl HashTreeConfig {
 }
 
 impl Default for HashTreeConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for HashTreeConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "HashTreeConfig(height={0}, hash_len={1}, leaf_count={2}, precompute={3})", self.height, self.hash_len, self.leaf_count, self.precompute)
+        write!(
+            f,
+            "HashTreeConfig(height={0}, hash_len={1}, leaf_count={2}, precompute={3})",
+            self.height, self.hash_len, self.leaf_count, self.precompute
+        )
     }
 }
 
@@ -95,7 +101,10 @@ pub struct HashTree {
 impl HashTree {
     pub fn new(config: HashTreeConfig) -> Result<Self, HashTreeError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -107,19 +116,29 @@ impl HashTree {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &HashTreeConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &HashTreeConfig {
+        &self.config
+    }
 
     /// Build Merkle tree from leaves.
     pub fn build_tree(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Extract authentication path.
     pub fn auth_path(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
@@ -130,7 +149,9 @@ impl HashTree {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -142,7 +163,9 @@ impl HashTree {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -154,7 +177,11 @@ impl HashTree {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -227,7 +254,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = HashTree::new(HashTreeConfig::new()).unwrap()
+        let e = HashTree::new(HashTreeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -243,7 +271,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = HashTree::new(HashTreeConfig::new()).unwrap()
+        let e = HashTree::new(HashTreeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("HashTree"));
@@ -251,7 +280,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = HashTree::new(HashTreeConfig::new()).unwrap()
+        let e = HashTree::new(HashTreeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -262,7 +292,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = HashTree::new(HashTreeConfig::new()).unwrap()
+        let e = HashTree::new(HashTreeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -270,7 +301,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = HashTree::new(HashTreeConfig::new()).unwrap()
+        let e = HashTree::new(HashTreeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -287,7 +319,8 @@ mod tests {
 
     #[test]
     fn test_build_tree() {
-        let e = HashTree::new(HashTreeConfig::new()).unwrap()
+        let e = HashTree::new(HashTreeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.build_tree();
         assert!(!result.is_empty());
@@ -295,7 +328,8 @@ mod tests {
 
     #[test]
     fn test_auth_path() {
-        let e = HashTree::new(HashTreeConfig::new()).unwrap()
+        let e = HashTree::new(HashTreeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.auth_path();
         assert!(!result.is_empty());
@@ -303,7 +337,8 @@ mod tests {
 
     #[test]
     fn test_verify_path() {
-        let e = HashTree::new(HashTreeConfig::new()).unwrap()
+        let e = HashTree::new(HashTreeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.verify_path();
         assert!(result);

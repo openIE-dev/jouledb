@@ -119,7 +119,9 @@ pub struct SpectralType {
 impl SpectralType {
     pub fn parse(s: &str) -> Result<Self, CatalogError> {
         let mut chars = s.chars();
-        let class_char = chars.next().ok_or_else(|| CatalogError::InvalidSpectralType(s.to_string()))?;
+        let class_char = chars
+            .next()
+            .ok_or_else(|| CatalogError::InvalidSpectralType(s.to_string()))?;
         let class = SpectralClass::from_char(class_char)
             .ok_or_else(|| CatalogError::InvalidSpectralType(s.to_string()))?;
         let subclass = match chars.next() {
@@ -216,7 +218,12 @@ pub struct BinarySystem {
 
 impl BinarySystem {
     pub fn new(primary: StarEntry) -> Self {
-        Self { primary, companions: Vec::new(), orbital_period_yr: None, separation_arcsec: None }
+        Self {
+            primary,
+            companions: Vec::new(),
+            orbital_period_yr: None,
+            separation_arcsec: None,
+        }
     }
 
     pub fn add_companion(&mut self, star: StarEntry) {
@@ -247,7 +254,9 @@ pub struct StarCatalog {
 
 impl StarCatalog {
     pub fn new() -> Self {
-        Self { entries: Vec::new() }
+        Self {
+            entries: Vec::new(),
+        }
     }
 
     pub fn add(&mut self, entry: StarEntry) {
@@ -274,9 +283,16 @@ impl StarCatalog {
         max_mag: f64,
     ) -> Result<Vec<&StarEntry>, CatalogError> {
         if min_mag > max_mag {
-            return Err(CatalogError::InvalidMagnitudeRange { min_val: min_mag, max_val: max_mag });
+            return Err(CatalogError::InvalidMagnitudeRange {
+                min_val: min_mag,
+                max_val: max_mag,
+            });
         }
-        Ok(self.entries.iter().filter(|e| e.magnitude >= min_mag && e.magnitude <= max_mag).collect())
+        Ok(self
+            .entries
+            .iter()
+            .filter(|e| e.magnitude >= min_mag && e.magnitude <= max_mag)
+            .collect())
     }
 
     /// Cone search: stars within `radius_deg` of (ra, dec).
@@ -303,7 +319,12 @@ impl StarCatalog {
     }
 
     /// Nearest N stars to a given position.
-    pub fn nearest(&self, ra_deg: f64, dec_deg: f64, n: usize) -> Result<Vec<&StarEntry>, CatalogError> {
+    pub fn nearest(
+        &self,
+        ra_deg: f64,
+        dec_deg: f64,
+        n: usize,
+    ) -> Result<Vec<&StarEntry>, CatalogError> {
         if n < 1 {
             return Err(CatalogError::InvalidN(n));
         }
@@ -318,7 +339,10 @@ impl StarCatalog {
 
     /// Stars of a given spectral class.
     pub fn by_spectral_class(&self, class: SpectralClass) -> Vec<&StarEntry> {
-        self.entries.iter().filter(|e| e.spectral_type.class == class).collect()
+        self.entries
+            .iter()
+            .filter(|e| e.spectral_type.class == class)
+            .collect()
     }
 
     /// Stars closer than a given distance in parsecs.
@@ -326,21 +350,34 @@ impl StarCatalog {
         if max_pc <= 0.0 {
             return Err(CatalogError::NonPositiveDistance(max_pc));
         }
-        Ok(self.entries.iter().filter(|e| e.distance_pc <= max_pc).collect())
+        Ok(self
+            .entries
+            .iter()
+            .filter(|e| e.distance_pc <= max_pc)
+            .collect())
     }
 
     /// Get HR diagram data: (log10(temperature), absolute_magnitude).
     pub fn hr_diagram_data(&self) -> Vec<(f64, f64)> {
         self.entries
             .iter()
-            .map(|e| (e.spectral_type.temperature().log10(), e.absolute_magnitude()))
+            .map(|e| {
+                (
+                    e.spectral_type.temperature().log10(),
+                    e.absolute_magnitude(),
+                )
+            })
             .collect()
     }
 
     /// Brightest N stars (lowest apparent magnitude).
     pub fn brightest(&self, n: usize) -> Vec<&StarEntry> {
         let mut sorted: Vec<&StarEntry> = self.entries.iter().collect();
-        sorted.sort_by(|a, b| a.magnitude.partial_cmp(&b.magnitude).unwrap_or(std::cmp::Ordering::Equal));
+        sorted.sort_by(|a, b| {
+            a.magnitude
+                .partial_cmp(&b.magnitude)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         sorted.into_iter().take(n).collect()
     }
 }

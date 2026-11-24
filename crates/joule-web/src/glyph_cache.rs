@@ -261,7 +261,8 @@ impl GlyphCache {
             }
         };
 
-        self.atlas.write_glyph(pos.0, pos.1, width, height, glyph_data);
+        self.atlas
+            .write_glyph(pos.0, pos.1, width, height, glyph_data);
         let uv = self.atlas.uv_for(pos.0, pos.1, width, height);
 
         let entry = GlyphEntry {

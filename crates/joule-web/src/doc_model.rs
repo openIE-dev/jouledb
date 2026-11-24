@@ -66,7 +66,10 @@ pub enum Node {
     /// A block quote.
     BlockQuote { children: Vec<Node> },
     /// A fenced code block with optional language.
-    CodeBlock { language: Option<String>, text: String },
+    CodeBlock {
+        language: Option<String>,
+        text: String,
+    },
     /// A list (ordered or unordered) containing list items.
     List { kind: ListKind, children: Vec<Node> },
     /// A list item containing block-level content.
@@ -189,10 +192,7 @@ impl Node {
 
     /// Is this an inline node?
     pub fn is_inline(&self) -> bool {
-        matches!(
-            self,
-            Node::Text { .. } | Node::HardBreak | Node::Image(_)
-        )
+        matches!(self, Node::Text { .. } | Node::HardBreak | Node::Image(_))
     }
 
     /// Is this a block node?

@@ -164,11 +164,7 @@ impl MultiTenantStore {
     }
 
     /// SQL query for a specific tenant.
-    pub fn query_sql(
-        &mut self,
-        tenant_id: &str,
-        sql: &str,
-    ) -> AmorphicResult<QueryResult> {
+    pub fn query_sql(&mut self, tenant_id: &str, sql: &str) -> AmorphicResult<QueryResult> {
         self.check_tenant_active(tenant_id)?;
         *self.query_counts.entry(tenant_id.to_string()).or_default() += 1;
         let store = self.stores.get(tenant_id).unwrap().read().unwrap();
@@ -273,7 +269,10 @@ mod tests {
 
         // Netflix ingests data
         store
-            .ingest_json("netflix", r#"{"name": "Stranger Things", "genre": "scifi"}"#)
+            .ingest_json(
+                "netflix",
+                r#"{"name": "Stranger Things", "genre": "scifi"}"#,
+            )
             .unwrap();
 
         // Disney ingests data
@@ -326,9 +325,7 @@ mod tests {
     fn test_tenant_suspension() {
         let mut store = MultiTenantStore::new();
         store.create_tenant(make_tenant("test")).unwrap();
-        store
-            .ingest_json("test", r#"{"name": "data"}"#)
-            .unwrap();
+        store.ingest_json("test", r#"{"name": "data"}"#).unwrap();
 
         // Suspend
         store.suspend_tenant("test").unwrap();
@@ -371,12 +368,8 @@ mod tests {
         let mut store = MultiTenantStore::new();
         store.create_tenant(make_tenant("stats_test")).unwrap();
 
-        store
-            .ingest_json("stats_test", r#"{"name": "A"}"#)
-            .unwrap();
-        store
-            .ingest_json("stats_test", r#"{"name": "B"}"#)
-            .unwrap();
+        store.ingest_json("stats_test", r#"{"name": "A"}"#).unwrap();
+        store.ingest_json("stats_test", r#"{"name": "B"}"#).unwrap();
 
         // Run a query to increment counter
         store

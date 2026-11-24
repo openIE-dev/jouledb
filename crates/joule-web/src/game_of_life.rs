@@ -13,10 +13,18 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GolError {
     ZeroDimension,
-    OutOfBounds { x: usize, y: usize },
+    OutOfBounds {
+        x: usize,
+        y: usize,
+    },
     InvalidRuleString(String),
     InvalidRle(String),
-    PatternTooLarge { pw: usize, ph: usize, gw: usize, gh: usize },
+    PatternTooLarge {
+        pw: usize,
+        ph: usize,
+        gw: usize,
+        gh: usize,
+    },
 }
 
 impl fmt::Display for GolError {
@@ -72,15 +80,22 @@ impl BsRule {
     pub fn seeds() -> Self {
         let mut birth = [false; 9];
         birth[2] = true;
-        Self { birth, survival: [false; 9] }
+        Self {
+            birth,
+            survival: [false; 9],
+        }
     }
 
     /// Day & Night: B3678/S34678.
     pub fn day_night() -> Self {
         let mut birth = [false; 9];
         let mut survival = [false; 9];
-        for &b in &[3, 6, 7, 8] { birth[b] = true; }
-        for &s in &[3, 4, 6, 7, 8] { survival[s] = true; }
+        for &b in &[3, 6, 7, 8] {
+            birth[b] = true;
+        }
+        for &s in &[3, 4, 6, 7, 8] {
+            survival[s] = true;
+        }
         Self { birth, survival }
     }
 
@@ -104,14 +119,20 @@ impl BsRule {
         let mut survival = [false; 9];
 
         for ch in b_part.chars() {
-            let d = ch.to_digit(10).ok_or_else(|| GolError::InvalidRuleString(s.to_string()))? as usize;
+            let d = ch
+                .to_digit(10)
+                .ok_or_else(|| GolError::InvalidRuleString(s.to_string()))?
+                as usize;
             if d > 8 {
                 return Err(GolError::InvalidRuleString(s.to_string()));
             }
             birth[d] = true;
         }
         for ch in s_part.chars() {
-            let d = ch.to_digit(10).ok_or_else(|| GolError::InvalidRuleString(s.to_string()))? as usize;
+            let d = ch
+                .to_digit(10)
+                .ok_or_else(|| GolError::InvalidRuleString(s.to_string()))?
+                as usize;
             if d > 8 {
                 return Err(GolError::InvalidRuleString(s.to_string()));
             }
@@ -125,11 +146,15 @@ impl BsRule {
     pub fn to_rule_string(&self) -> String {
         let mut s = String::from("B");
         for (i, &b) in self.birth.iter().enumerate() {
-            if b { s.push_str(&i.to_string()); }
+            if b {
+                s.push_str(&i.to_string());
+            }
         }
         s.push_str("/S");
         for (i, &sv) in self.survival.iter().enumerate() {
-            if sv { s.push_str(&i.to_string()); }
+            if sv {
+                s.push_str(&i.to_string());
+            }
         }
         s
     }
@@ -167,13 +192,27 @@ pub fn parse_rle(input: &str) -> Result<RlePattern, GolError> {
             for part in trimmed.split(',') {
                 let part = part.trim();
                 if let Some(val) = part.strip_prefix("x").or_else(|| part.strip_prefix("X")) {
-                    let val = val.trim_start_matches(|c: char| c == ' ' || c == '=').trim();
-                    width = val.parse::<usize>().map_err(|_| GolError::InvalidRle("bad width".into()))?;
-                } else if let Some(val) = part.strip_prefix("y").or_else(|| part.strip_prefix("Y")) {
-                    let val = val.trim_start_matches(|c: char| c == ' ' || c == '=').trim();
-                    height = val.parse::<usize>().map_err(|_| GolError::InvalidRle("bad height".into()))?;
-                } else if let Some(val) = part.strip_prefix("rule").or_else(|| part.strip_prefix("Rule")) {
-                    let val = val.trim_start_matches(|c: char| c == ' ' || c == '=').trim();
+                    let val = val
+                        .trim_start_matches(|c: char| c == ' ' || c == '=')
+                        .trim();
+                    width = val
+                        .parse::<usize>()
+                        .map_err(|_| GolError::InvalidRle("bad width".into()))?;
+                } else if let Some(val) = part.strip_prefix("y").or_else(|| part.strip_prefix("Y"))
+                {
+                    let val = val
+                        .trim_start_matches(|c: char| c == ' ' || c == '=')
+                        .trim();
+                    height = val
+                        .parse::<usize>()
+                        .map_err(|_| GolError::InvalidRle("bad height".into()))?;
+                } else if let Some(val) = part
+                    .strip_prefix("rule")
+                    .or_else(|| part.strip_prefix("Rule"))
+                {
+                    let val = val
+                        .trim_start_matches(|c: char| c == ' ' || c == '=')
+                        .trim();
                     rule = Some(val.to_string());
                 }
             }
@@ -224,7 +263,12 @@ pub fn parse_rle(input: &str) -> Result<RlePattern, GolError> {
         }
     }
 
-    Ok(RlePattern { width, height, cells, rule })
+    Ok(RlePattern {
+        width,
+        height,
+        cells,
+        rule,
+    })
 }
 
 // ── Known Patterns ─────────────────────────────────────────────
@@ -249,10 +293,18 @@ pub fn pattern_pulsar() -> Vec<(usize, usize)> {
     let mut cells = Vec::new();
     // Pulsar is symmetric; define one quadrant and mirror
     let quad = [
-        (2, 0), (3, 0), (4, 0),
-        (0, 2), (0, 3), (0, 4),
-        (5, 2), (5, 3), (5, 4),
-        (2, 5), (3, 5), (4, 5),
+        (2, 0),
+        (3, 0),
+        (4, 0),
+        (0, 2),
+        (0, 3),
+        (0, 4),
+        (5, 2),
+        (5, 3),
+        (5, 4),
+        (2, 5),
+        (3, 5),
+        (4, 5),
     ];
     let cx = 6;
     let cy = 6;
@@ -277,14 +329,41 @@ pub fn pattern_r_pentomino() -> Vec<(usize, usize)> {
 pub fn pattern_gosper_glider_gun() -> Vec<(usize, usize)> {
     vec![
         (24, 0),
-        (22, 1), (24, 1),
-        (12, 2), (13, 2), (20, 2), (21, 2), (34, 2), (35, 2),
-        (11, 3), (15, 3), (20, 3), (21, 3), (34, 3), (35, 3),
-        (0, 4), (1, 4), (10, 4), (16, 4), (20, 4), (21, 4),
-        (0, 5), (1, 5), (10, 5), (14, 5), (16, 5), (17, 5), (22, 5), (24, 5),
-        (10, 6), (16, 6), (24, 6),
-        (11, 7), (15, 7),
-        (12, 8), (13, 8),
+        (22, 1),
+        (24, 1),
+        (12, 2),
+        (13, 2),
+        (20, 2),
+        (21, 2),
+        (34, 2),
+        (35, 2),
+        (11, 3),
+        (15, 3),
+        (20, 3),
+        (21, 3),
+        (34, 3),
+        (35, 3),
+        (0, 4),
+        (1, 4),
+        (10, 4),
+        (16, 4),
+        (20, 4),
+        (21, 4),
+        (0, 5),
+        (1, 5),
+        (10, 5),
+        (14, 5),
+        (16, 5),
+        (17, 5),
+        (22, 5),
+        (24, 5),
+        (10, 6),
+        (16, 6),
+        (24, 6),
+        (11, 7),
+        (15, 7),
+        (12, 8),
+        (13, 8),
     ]
 }
 
@@ -330,9 +409,15 @@ impl LifeGrid {
         })
     }
 
-    pub fn width(&self) -> usize { self.width }
-    pub fn height(&self) -> usize { self.height }
-    pub fn generation(&self) -> u64 { self.generation }
+    pub fn width(&self) -> usize {
+        self.width
+    }
+    pub fn height(&self) -> usize {
+        self.height
+    }
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
 
     /// Number of live cells.
     pub fn population(&self) -> usize {
@@ -343,7 +428,9 @@ impl LifeGrid {
         &self.population_history
     }
 
-    pub fn memo_hits(&self) -> u64 { self.memo_hits }
+    pub fn memo_hits(&self) -> u64 {
+        self.memo_hits
+    }
 
     /// Get cell state.
     pub fn get(&self, x: usize, y: usize) -> Result<bool, GolError> {
@@ -371,7 +458,12 @@ impl LifeGrid {
     }
 
     /// Load a pattern at offset.
-    pub fn load_pattern(&mut self, ox: usize, oy: usize, pattern: &[(usize, usize)]) -> Result<(), GolError> {
+    pub fn load_pattern(
+        &mut self,
+        ox: usize,
+        oy: usize,
+        pattern: &[(usize, usize)],
+    ) -> Result<(), GolError> {
         for &(px, py) in pattern {
             let x = ox + px;
             let y = oy + py;
@@ -388,7 +480,9 @@ impl LifeGrid {
         let mut count = 0;
         for dy in [-1i32, 0, 1] {
             for dx in [-1i32, 0, 1] {
-                if dx == 0 && dy == 0 { continue; }
+                if dx == 0 && dy == 0 {
+                    continue;
+                }
                 let nx = ((x as i32 + dx).rem_euclid(self.width as i32)) as usize;
                 let ny = ((y as i32 + dy).rem_euclid(self.height as i32)) as usize;
                 if self.cells[ny * self.width + nx] {
@@ -466,15 +560,27 @@ impl LifeGrid {
             for x in 0..self.width {
                 if self.cells[y * self.width + x] {
                     found = true;
-                    if x < min_x { min_x = x; }
-                    if y < min_y { min_y = y; }
-                    if x > max_x { max_x = x; }
-                    if y > max_y { max_y = y; }
+                    if x < min_x {
+                        min_x = x;
+                    }
+                    if y < min_y {
+                        min_y = y;
+                    }
+                    if x > max_x {
+                        max_x = x;
+                    }
+                    if y > max_y {
+                        max_y = y;
+                    }
                 }
             }
         }
 
-        if found { Some((min_x, min_y, max_x, max_y)) } else { None }
+        if found {
+            Some((min_x, min_y, max_x, max_y))
+        } else {
+            None
+        }
     }
 
     /// Detect the period of the current pattern by running up to `max_steps`
@@ -524,7 +630,11 @@ impl LifeGrid {
         let mut s = String::with_capacity((self.width + 1) * self.height);
         for y in 0..self.height {
             for x in 0..self.width {
-                s.push(if self.cells[y * self.width + x] { '#' } else { '.' });
+                s.push(if self.cells[y * self.width + x] {
+                    '#'
+                } else {
+                    '.'
+                });
             }
             if y + 1 < self.height {
                 s.push('\n');

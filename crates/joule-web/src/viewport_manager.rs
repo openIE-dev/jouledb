@@ -39,16 +39,22 @@ pub struct Rect {
 
 impl Rect {
     pub fn new(x: f64, y: f64, w: f64, h: f64) -> Self {
-        Self { x, y, width: w, height: h }
+        Self {
+            x,
+            y,
+            width: w,
+            height: h,
+        }
     }
 
     pub fn contains(&self, px: f64, py: f64) -> bool {
-        px >= self.x && px < self.x + self.width
-            && py >= self.y && py < self.y + self.height
+        px >= self.x && px < self.x + self.width && py >= self.y && py < self.y + self.height
     }
 
     pub fn aspect_ratio(&self) -> f64 {
-        if self.height.abs() < 1e-12 { return 1.0; }
+        if self.height.abs() < 1e-12 {
+            return 1.0;
+        }
         self.width / self.height
     }
 
@@ -131,17 +137,27 @@ pub fn split_layout(layout: SplitLayout, camera_ids: &[u64]) -> Vec<Viewport> {
             assert!(camera_ids.len() >= 2, "Horizontal split needs 2 cameras");
             vec![
                 Viewport {
-                    id: 0, name: "left".into(),
-                    x: DimUnit::Pct(0.0), y: DimUnit::Pct(0.0),
-                    width: DimUnit::Pct(50.0), height: DimUnit::Pct(100.0),
-                    camera_id: camera_ids[0], render_order: 0, enabled: true,
+                    id: 0,
+                    name: "left".into(),
+                    x: DimUnit::Pct(0.0),
+                    y: DimUnit::Pct(0.0),
+                    width: DimUnit::Pct(50.0),
+                    height: DimUnit::Pct(100.0),
+                    camera_id: camera_ids[0],
+                    render_order: 0,
+                    enabled: true,
                     target_aspect: None,
                 },
                 Viewport {
-                    id: 1, name: "right".into(),
-                    x: DimUnit::Pct(50.0), y: DimUnit::Pct(0.0),
-                    width: DimUnit::Pct(50.0), height: DimUnit::Pct(100.0),
-                    camera_id: camera_ids[1], render_order: 0, enabled: true,
+                    id: 1,
+                    name: "right".into(),
+                    x: DimUnit::Pct(50.0),
+                    y: DimUnit::Pct(0.0),
+                    width: DimUnit::Pct(50.0),
+                    height: DimUnit::Pct(100.0),
+                    camera_id: camera_ids[1],
+                    render_order: 0,
+                    enabled: true,
                     target_aspect: None,
                 },
             ]
@@ -150,17 +166,27 @@ pub fn split_layout(layout: SplitLayout, camera_ids: &[u64]) -> Vec<Viewport> {
             assert!(camera_ids.len() >= 2, "Vertical split needs 2 cameras");
             vec![
                 Viewport {
-                    id: 0, name: "top".into(),
-                    x: DimUnit::Pct(0.0), y: DimUnit::Pct(0.0),
-                    width: DimUnit::Pct(100.0), height: DimUnit::Pct(50.0),
-                    camera_id: camera_ids[0], render_order: 0, enabled: true,
+                    id: 0,
+                    name: "top".into(),
+                    x: DimUnit::Pct(0.0),
+                    y: DimUnit::Pct(0.0),
+                    width: DimUnit::Pct(100.0),
+                    height: DimUnit::Pct(50.0),
+                    camera_id: camera_ids[0],
+                    render_order: 0,
+                    enabled: true,
                     target_aspect: None,
                 },
                 Viewport {
-                    id: 1, name: "bottom".into(),
-                    x: DimUnit::Pct(0.0), y: DimUnit::Pct(50.0),
-                    width: DimUnit::Pct(100.0), height: DimUnit::Pct(50.0),
-                    camera_id: camera_ids[1], render_order: 0, enabled: true,
+                    id: 1,
+                    name: "bottom".into(),
+                    x: DimUnit::Pct(0.0),
+                    y: DimUnit::Pct(50.0),
+                    width: DimUnit::Pct(100.0),
+                    height: DimUnit::Pct(50.0),
+                    camera_id: camera_ids[1],
+                    render_order: 0,
+                    enabled: true,
                     target_aspect: None,
                 },
             ]
@@ -169,31 +195,51 @@ pub fn split_layout(layout: SplitLayout, camera_ids: &[u64]) -> Vec<Viewport> {
             assert!(camera_ids.len() >= 4, "Quad split needs 4 cameras");
             vec![
                 Viewport {
-                    id: 0, name: "top_left".into(),
-                    x: DimUnit::Pct(0.0), y: DimUnit::Pct(0.0),
-                    width: DimUnit::Pct(50.0), height: DimUnit::Pct(50.0),
-                    camera_id: camera_ids[0], render_order: 0, enabled: true,
+                    id: 0,
+                    name: "top_left".into(),
+                    x: DimUnit::Pct(0.0),
+                    y: DimUnit::Pct(0.0),
+                    width: DimUnit::Pct(50.0),
+                    height: DimUnit::Pct(50.0),
+                    camera_id: camera_ids[0],
+                    render_order: 0,
+                    enabled: true,
                     target_aspect: None,
                 },
                 Viewport {
-                    id: 1, name: "top_right".into(),
-                    x: DimUnit::Pct(50.0), y: DimUnit::Pct(0.0),
-                    width: DimUnit::Pct(50.0), height: DimUnit::Pct(50.0),
-                    camera_id: camera_ids[1], render_order: 0, enabled: true,
+                    id: 1,
+                    name: "top_right".into(),
+                    x: DimUnit::Pct(50.0),
+                    y: DimUnit::Pct(0.0),
+                    width: DimUnit::Pct(50.0),
+                    height: DimUnit::Pct(50.0),
+                    camera_id: camera_ids[1],
+                    render_order: 0,
+                    enabled: true,
                     target_aspect: None,
                 },
                 Viewport {
-                    id: 2, name: "bottom_left".into(),
-                    x: DimUnit::Pct(0.0), y: DimUnit::Pct(50.0),
-                    width: DimUnit::Pct(50.0), height: DimUnit::Pct(50.0),
-                    camera_id: camera_ids[2], render_order: 0, enabled: true,
+                    id: 2,
+                    name: "bottom_left".into(),
+                    x: DimUnit::Pct(0.0),
+                    y: DimUnit::Pct(50.0),
+                    width: DimUnit::Pct(50.0),
+                    height: DimUnit::Pct(50.0),
+                    camera_id: camera_ids[2],
+                    render_order: 0,
+                    enabled: true,
                     target_aspect: None,
                 },
                 Viewport {
-                    id: 3, name: "bottom_right".into(),
-                    x: DimUnit::Pct(50.0), y: DimUnit::Pct(50.0),
-                    width: DimUnit::Pct(50.0), height: DimUnit::Pct(50.0),
-                    camera_id: camera_ids[3], render_order: 0, enabled: true,
+                    id: 3,
+                    name: "bottom_right".into(),
+                    x: DimUnit::Pct(50.0),
+                    y: DimUnit::Pct(50.0),
+                    width: DimUnit::Pct(50.0),
+                    height: DimUnit::Pct(50.0),
+                    camera_id: camera_ids[3],
+                    render_order: 0,
+                    enabled: true,
                     target_aspect: None,
                 },
             ]
@@ -264,14 +310,24 @@ impl ViewportManager {
 
     /// Resolve a viewport to a pixel rect.
     pub fn resolve(&self, id: ViewportId) -> Option<Rect> {
-        self.viewports.get(&id).map(|vp| vp.resolve(self.container_width, self.container_height))
+        self.viewports
+            .get(&id)
+            .map(|vp| vp.resolve(self.container_width, self.container_height))
     }
 
     /// Return all enabled viewports sorted by render order (ascending).
     pub fn sorted_viewports(&self) -> Vec<(ViewportId, Rect)> {
-        let mut items: Vec<_> = self.viewports.values()
+        let mut items: Vec<_> = self
+            .viewports
+            .values()
             .filter(|vp| vp.enabled)
-            .map(|vp| (vp.id, vp.render_order, vp.resolve(self.container_width, self.container_height)))
+            .map(|vp| {
+                (
+                    vp.id,
+                    vp.render_order,
+                    vp.resolve(self.container_width, self.container_height),
+                )
+            })
             .collect();
         items.sort_by(|a, b| a.1.cmp(&b.1).then(a.0.cmp(&b.0)));
         items.into_iter().map(|(id, _, rect)| (id, rect)).collect()
@@ -280,7 +336,9 @@ impl ViewportManager {
     /// Hit-test a mouse position (in container pixels).
     /// Returns the viewport with the **highest** render order that contains the point.
     pub fn hit_test(&self, px: f64, py: f64) -> Option<ViewportId> {
-        let mut candidates: Vec<_> = self.viewports.values()
+        let mut candidates: Vec<_> = self
+            .viewports
+            .values()
             .filter(|vp| vp.enabled)
             .filter_map(|vp| {
                 let rect = vp.resolve(self.container_width, self.container_height);
@@ -302,10 +360,7 @@ impl ViewportManager {
         if rect.width < 1e-12 || rect.height < 1e-12 {
             return None;
         }
-        Some((
-            (px - rect.x) / rect.width,
-            (py - rect.y) / rect.height,
-        ))
+        Some(((px - rect.x) / rect.width, (py - rect.y) / rect.height))
     }
 }
 
@@ -317,10 +372,25 @@ mod tests {
 
     const EPS: f64 = 1e-9;
 
-    fn vp(name: &str, x: DimUnit, y: DimUnit, w: DimUnit, h: DimUnit, cam: u64, order: i32) -> Viewport {
+    fn vp(
+        name: &str,
+        x: DimUnit,
+        y: DimUnit,
+        w: DimUnit,
+        h: DimUnit,
+        cam: u64,
+        order: i32,
+    ) -> Viewport {
         Viewport {
-            id: 0, name: name.into(), x, y, width: w, height: h,
-            camera_id: cam, render_order: order, enabled: true,
+            id: 0,
+            name: name.into(),
+            x,
+            y,
+            width: w,
+            height: h,
+            camera_id: cam,
+            render_order: order,
+            enabled: true,
             target_aspect: None,
         }
     }
@@ -378,8 +448,15 @@ mod tests {
 
     #[test]
     fn test_viewport_resolve_px() {
-        let vp = vp("test", DimUnit::Px(10.0), DimUnit::Px(20.0),
-            DimUnit::Px(200.0), DimUnit::Px(100.0), 1, 0);
+        let vp = vp(
+            "test",
+            DimUnit::Px(10.0),
+            DimUnit::Px(20.0),
+            DimUnit::Px(200.0),
+            DimUnit::Px(100.0),
+            1,
+            0,
+        );
         let rect = vp.resolve(800.0, 600.0);
         assert!((rect.x - 10.0).abs() < EPS);
         assert!((rect.y - 20.0).abs() < EPS);
@@ -388,8 +465,15 @@ mod tests {
 
     #[test]
     fn test_viewport_resolve_pct() {
-        let vp = vp("test", DimUnit::Pct(0.0), DimUnit::Pct(0.0),
-            DimUnit::Pct(50.0), DimUnit::Pct(100.0), 1, 0);
+        let vp = vp(
+            "test",
+            DimUnit::Pct(0.0),
+            DimUnit::Pct(0.0),
+            DimUnit::Pct(50.0),
+            DimUnit::Pct(100.0),
+            1,
+            0,
+        );
         let rect = vp.resolve(1920.0, 1080.0);
         assert!((rect.width - 960.0).abs() < EPS);
         assert!((rect.height - 1080.0).abs() < EPS);
@@ -398,8 +482,15 @@ mod tests {
     #[test]
     fn test_manager_add_remove() {
         let mut mgr = ViewportManager::new(1920.0, 1080.0);
-        let id = mgr.add(vp("a", DimUnit::Px(0.0), DimUnit::Px(0.0),
-            DimUnit::Px(960.0), DimUnit::Px(1080.0), 1, 0));
+        let id = mgr.add(vp(
+            "a",
+            DimUnit::Px(0.0),
+            DimUnit::Px(0.0),
+            DimUnit::Px(960.0),
+            DimUnit::Px(1080.0),
+            1,
+            0,
+        ));
         assert_eq!(mgr.count(), 1);
         assert!(mgr.remove(id));
         assert_eq!(mgr.count(), 0);
@@ -408,8 +499,15 @@ mod tests {
     #[test]
     fn test_manager_hit_test() {
         let mut mgr = ViewportManager::new(800.0, 600.0);
-        mgr.add(vp("full", DimUnit::Px(0.0), DimUnit::Px(0.0),
-            DimUnit::Px(800.0), DimUnit::Px(600.0), 1, 0));
+        mgr.add(vp(
+            "full",
+            DimUnit::Px(0.0),
+            DimUnit::Px(0.0),
+            DimUnit::Px(800.0),
+            DimUnit::Px(600.0),
+            1,
+            0,
+        ));
         let hit = mgr.hit_test(400.0, 300.0);
         assert!(hit.is_some());
     }
@@ -417,10 +515,24 @@ mod tests {
     #[test]
     fn test_hit_test_highest_order() {
         let mut mgr = ViewportManager::new(800.0, 600.0);
-        let _bg = mgr.add(vp("bg", DimUnit::Px(0.0), DimUnit::Px(0.0),
-            DimUnit::Px(800.0), DimUnit::Px(600.0), 1, 0));
-        let overlay = mgr.add(vp("overlay", DimUnit::Px(100.0), DimUnit::Px(100.0),
-            DimUnit::Px(200.0), DimUnit::Px(200.0), 2, 10));
+        let _bg = mgr.add(vp(
+            "bg",
+            DimUnit::Px(0.0),
+            DimUnit::Px(0.0),
+            DimUnit::Px(800.0),
+            DimUnit::Px(600.0),
+            1,
+            0,
+        ));
+        let overlay = mgr.add(vp(
+            "overlay",
+            DimUnit::Px(100.0),
+            DimUnit::Px(100.0),
+            DimUnit::Px(200.0),
+            DimUnit::Px(200.0),
+            2,
+            10,
+        ));
         let hit = mgr.hit_test(150.0, 150.0);
         assert_eq!(hit, Some(overlay));
     }
@@ -428,18 +540,39 @@ mod tests {
     #[test]
     fn test_hit_test_miss() {
         let mut mgr = ViewportManager::new(800.0, 600.0);
-        mgr.add(vp("small", DimUnit::Px(100.0), DimUnit::Px(100.0),
-            DimUnit::Px(50.0), DimUnit::Px(50.0), 1, 0));
+        mgr.add(vp(
+            "small",
+            DimUnit::Px(100.0),
+            DimUnit::Px(100.0),
+            DimUnit::Px(50.0),
+            DimUnit::Px(50.0),
+            1,
+            0,
+        ));
         assert!(mgr.hit_test(0.0, 0.0).is_none());
     }
 
     #[test]
     fn test_sorted_viewports() {
         let mut mgr = ViewportManager::new(800.0, 600.0);
-        mgr.add(vp("b", DimUnit::Px(0.0), DimUnit::Px(0.0),
-            DimUnit::Px(100.0), DimUnit::Px(100.0), 1, 5));
-        mgr.add(vp("a", DimUnit::Px(0.0), DimUnit::Px(0.0),
-            DimUnit::Px(100.0), DimUnit::Px(100.0), 2, 1));
+        mgr.add(vp(
+            "b",
+            DimUnit::Px(0.0),
+            DimUnit::Px(0.0),
+            DimUnit::Px(100.0),
+            DimUnit::Px(100.0),
+            1,
+            5,
+        ));
+        mgr.add(vp(
+            "a",
+            DimUnit::Px(0.0),
+            DimUnit::Px(0.0),
+            DimUnit::Px(100.0),
+            DimUnit::Px(100.0),
+            2,
+            1,
+        ));
         let sorted = mgr.sorted_viewports();
         assert_eq!(sorted.len(), 2);
         assert!(sorted[0].0 != sorted[1].0);
@@ -452,8 +585,15 @@ mod tests {
     #[test]
     fn test_disabled_viewport_excluded() {
         let mut mgr = ViewportManager::new(800.0, 600.0);
-        let id = mgr.add(vp("disabled", DimUnit::Px(0.0), DimUnit::Px(0.0),
-            DimUnit::Px(800.0), DimUnit::Px(600.0), 1, 0));
+        let id = mgr.add(vp(
+            "disabled",
+            DimUnit::Px(0.0),
+            DimUnit::Px(0.0),
+            DimUnit::Px(800.0),
+            DimUnit::Px(600.0),
+            1,
+            0,
+        ));
         mgr.get_mut(id).unwrap().enabled = false;
         assert!(mgr.hit_test(400.0, 300.0).is_none());
         assert!(mgr.sorted_viewports().is_empty());
@@ -493,8 +633,15 @@ mod tests {
     #[test]
     fn test_to_viewport_coords() {
         let mut mgr = ViewportManager::new(800.0, 600.0);
-        let id = mgr.add(vp("test", DimUnit::Px(100.0), DimUnit::Px(200.0),
-            DimUnit::Px(400.0), DimUnit::Px(200.0), 1, 0));
+        let id = mgr.add(vp(
+            "test",
+            DimUnit::Px(100.0),
+            DimUnit::Px(200.0),
+            DimUnit::Px(400.0),
+            DimUnit::Px(200.0),
+            1,
+            0,
+        ));
         let (u, v) = mgr.to_viewport_coords(id, 300.0, 300.0).unwrap();
         assert!((u - 0.5).abs() < EPS);
         assert!((v - 0.5).abs() < EPS);
@@ -518,8 +665,15 @@ mod tests {
 
     #[test]
     fn test_viewport_with_target_aspect() {
-        let mut v = vp("test", DimUnit::Px(0.0), DimUnit::Px(0.0),
-            DimUnit::Px(800.0), DimUnit::Px(800.0), 1, 0);
+        let mut v = vp(
+            "test",
+            DimUnit::Px(0.0),
+            DimUnit::Px(0.0),
+            DimUnit::Px(800.0),
+            DimUnit::Px(800.0),
+            1,
+            0,
+        );
         v.target_aspect = Some(16.0 / 9.0);
         let rect = v.resolve(800.0, 800.0);
         // Should be pillarboxed.

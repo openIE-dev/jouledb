@@ -45,23 +45,33 @@ pub struct Coord {
 
 impl Coord {
     pub fn new(lon: f64, lat: f64) -> Self {
-        Self { lon, lat, alt: None }
+        Self {
+            lon,
+            lat,
+            alt: None,
+        }
     }
 
     pub fn with_altitude(lon: f64, lat: f64, alt: f64) -> Self {
-        Self { lon, lat, alt: Some(alt) }
+        Self {
+            lon,
+            lat,
+            alt: Some(alt),
+        }
     }
 
     /// Validate that coordinates are within WGS84 bounds.
     pub fn validate(&self) -> Result<(), GeoJsonError> {
         if self.lon < -180.0 || self.lon > 180.0 {
             return Err(GeoJsonError::InvalidCoordinate(format!(
-                "longitude {} out of range [-180, 180]", self.lon
+                "longitude {} out of range [-180, 180]",
+                self.lon
             )));
         }
         if self.lat < -90.0 || self.lat > 90.0 {
             return Err(GeoJsonError::InvalidCoordinate(format!(
-                "latitude {} out of range [-90, 90]", self.lat
+                "latitude {} out of range [-90, 90]",
+                self.lat
             )));
         }
         Ok(())
@@ -81,11 +91,16 @@ impl Coord {
         match self.alt {
             Some(alt) => format!(
                 "[{:.prec$}, {:.prec$}, {:.prec$}]",
-                self.lon, self.lat, alt, prec = precision as usize
+                self.lon,
+                self.lat,
+                alt,
+                prec = precision as usize
             ),
             None => format!(
                 "[{:.prec$}, {:.prec$}]",
-                self.lon, self.lat, prec = precision as usize
+                self.lon,
+                self.lat,
+                prec = precision as usize
             ),
         }
     }
@@ -113,7 +128,12 @@ pub struct BBox {
 
 impl BBox {
     pub fn new(west: f64, south: f64, east: f64, north: f64) -> Self {
-        Self { west, south, east, north }
+        Self {
+            west,
+            south,
+            east,
+            north,
+        }
     }
 
     pub fn from_coords(coords: &[Coord]) -> Option<Self> {
@@ -125,17 +145,29 @@ impl BBox {
         let mut east = f64::MIN;
         let mut north = f64::MIN;
         for c in coords {
-            if c.lon < west { west = c.lon; }
-            if c.lat < south { south = c.lat; }
-            if c.lon > east { east = c.lon; }
-            if c.lat > north { north = c.lat; }
+            if c.lon < west {
+                west = c.lon;
+            }
+            if c.lat < south {
+                south = c.lat;
+            }
+            if c.lon > east {
+                east = c.lon;
+            }
+            if c.lat > north {
+                north = c.lat;
+            }
         }
-        Some(Self { west, south, east, north })
+        Some(Self {
+            west,
+            south,
+            east,
+            north,
+        })
     }
 
     pub fn contains(&self, c: &Coord) -> bool {
-        c.lon >= self.west && c.lon <= self.east
-            && c.lat >= self.south && c.lat <= self.north
+        c.lon >= self.west && c.lon <= self.east && c.lat >= self.south && c.lat <= self.north
     }
 
     pub fn merge(&self, other: &BBox) -> BBox {
@@ -150,7 +182,10 @@ impl BBox {
     fn serialize(&self, precision: u32) -> String {
         format!(
             "[{:.prec$}, {:.prec$}, {:.prec$}, {:.prec$}]",
-            self.west, self.south, self.east, self.north,
+            self.west,
+            self.south,
+            self.east,
+            self.north,
             prec = precision as usize
         )
     }
@@ -158,7 +193,11 @@ impl BBox {
 
 impl fmt::Display for BBox {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}, {}, {}, {}]", self.west, self.south, self.east, self.north)
+        write!(
+            f,
+            "[{}, {}, {}, {}]",
+            self.west, self.south, self.east, self.north
+        )
     }
 }
 
@@ -187,9 +226,10 @@ impl Geometry {
             Geometry::MultiLineString(lines) => {
                 lines.iter().flat_map(|l| l.iter().copied()).collect()
             }
-            Geometry::MultiPolygon(polys) => {
-                polys.iter().flat_map(|p| p.iter().flat_map(|r| r.iter().copied())).collect()
-            }
+            Geometry::MultiPolygon(polys) => polys
+                .iter()
+                .flat_map(|p| p.iter().flat_map(|r| r.iter().copied()))
+                .collect(),
             Geometry::GeometryCollection(geoms) => {
                 geoms.iter().flat_map(|g| g.all_coords()).collect()
             }
@@ -224,7 +264,7 @@ impl Geometry {
                 for ring in rings {
                     if ring.len() < 4 {
                         return Err(GeoJsonError::InvalidGeometry(
-                            "polygon ring must have at least 4 positions".into()
+                            "polygon ring must have at least 4 positions".into(),
                         ));
                     }
                 }
@@ -242,20 +282,31 @@ impl Geometry {
                 format!("[{}]", parts.join(", "))
             }
             Geometry::Polygon(rings) | Geometry::MultiLineString(rings) => {
-                let ring_strs: Vec<String> = rings.iter().map(|ring| {
-                    let parts: Vec<String> = ring.iter().map(|c| c.serialize(precision)).collect();
-                    format!("[{}]", parts.join(", "))
-                }).collect();
+                let ring_strs: Vec<String> = rings
+                    .iter()
+                    .map(|ring| {
+                        let parts: Vec<String> =
+                            ring.iter().map(|c| c.serialize(precision)).collect();
+                        format!("[{}]", parts.join(", "))
+                    })
+                    .collect();
                 format!("[{}]", ring_strs.join(", "))
             }
             Geometry::MultiPolygon(polys) => {
-                let poly_strs: Vec<String> = polys.iter().map(|poly| {
-                    let ring_strs: Vec<String> = poly.iter().map(|ring| {
-                        let parts: Vec<String> = ring.iter().map(|c| c.serialize(precision)).collect();
-                        format!("[{}]", parts.join(", "))
-                    }).collect();
-                    format!("[{}]", ring_strs.join(", "))
-                }).collect();
+                let poly_strs: Vec<String> = polys
+                    .iter()
+                    .map(|poly| {
+                        let ring_strs: Vec<String> = poly
+                            .iter()
+                            .map(|ring| {
+                                let parts: Vec<String> =
+                                    ring.iter().map(|c| c.serialize(precision)).collect();
+                                format!("[{}]", parts.join(", "))
+                            })
+                            .collect();
+                        format!("[{}]", ring_strs.join(", "))
+                    })
+                    .collect();
                 format!("[{}]", poly_strs.join(", "))
             }
             Geometry::GeometryCollection(_) => String::new(),
@@ -285,7 +336,12 @@ impl Geometry {
 
 impl fmt::Display for Geometry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}(coords={})", self.type_name(), self.all_coords().len())
+        write!(
+            f,
+            "{}(coords={})",
+            self.type_name(),
+            self.all_coords().len()
+        )
     }
 }
 
@@ -373,7 +429,9 @@ impl Feature {
             Some(geom) => parts.push(format!("\"geometry\": {}", geom.to_geojson(precision))),
             None => parts.push("\"geometry\": null".to_string()),
         }
-        let prop_parts: Vec<String> = self.properties.iter()
+        let prop_parts: Vec<String> = self
+            .properties
+            .iter()
             .map(|(k, v)| format!("\"{k}\": {v}"))
             .collect();
         parts.push(format!("\"properties\": {{{}}}", prop_parts.join(", ")));
@@ -387,7 +445,13 @@ impl fmt::Display for Feature {
             Some(g) => g.to_string(),
             None => "null".to_string(),
         };
-        write!(f, "Feature(id={:?}, geom={}, props={})", self.id, geom_str, self.properties.len())
+        write!(
+            f,
+            "Feature(id={:?}, geom={}, props={})",
+            self.id,
+            geom_str,
+            self.properties.len()
+        )
     }
 }
 
@@ -402,7 +466,10 @@ pub struct FeatureCollection {
 
 impl FeatureCollection {
     pub fn new() -> Self {
-        Self { features: Vec::new(), bbox: None }
+        Self {
+            features: Vec::new(),
+            bbox: None,
+        }
     }
 
     pub fn with_feature(mut self, feature: Feature) -> Self {
@@ -421,7 +488,9 @@ impl FeatureCollection {
 
     /// Compute the bounding box from all features.
     pub fn compute_bbox(&mut self) {
-        let all_coords: Vec<Coord> = self.features.iter()
+        let all_coords: Vec<Coord> = self
+            .features
+            .iter()
             .filter_map(|f| f.geometry.as_ref())
             .flat_map(|g| g.all_coords())
             .collect();
@@ -437,7 +506,9 @@ impl FeatureCollection {
     }
 
     pub fn to_geojson(&self, precision: u32) -> String {
-        let feat_strs: Vec<String> = self.features.iter()
+        let feat_strs: Vec<String> = self
+            .features
+            .iter()
             .map(|f| f.to_geojson(precision))
             .collect();
         let mut parts = vec![format!("\"type\": \"FeatureCollection\"")];
@@ -450,7 +521,9 @@ impl FeatureCollection {
 }
 
 impl Default for FeatureCollection {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for FeatureCollection {
@@ -471,7 +544,11 @@ pub struct GeoJsonConfig {
 
 impl GeoJsonConfig {
     pub fn new() -> Self {
-        Self { precision: 6, compute_bbox: false, validate_coords: true }
+        Self {
+            precision: 6,
+            compute_bbox: false,
+            validate_coords: true,
+        }
     }
 
     pub fn with_precision(mut self, precision: u32) -> Self {
@@ -491,7 +568,9 @@ impl GeoJsonConfig {
 }
 
 impl Default for GeoJsonConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Simple JSON tokenizer for GeoJSON parsing ───────────────────
@@ -515,17 +594,26 @@ impl GeoJsonParser {
         let inner = &trimmed[1..trimmed.len() - 1];
         let parts: Vec<&str> = inner.split(',').collect();
         if parts.len() < 2 || parts.len() > 3 {
-            return Err(GeoJsonError::ParseError(
-                format!("expected 2 or 3 values, got {}", parts.len())
-            ));
+            return Err(GeoJsonError::ParseError(format!(
+                "expected 2 or 3 values, got {}",
+                parts.len()
+            )));
         }
-        let lon = parts[0].trim().parse::<f64>()
+        let lon = parts[0]
+            .trim()
+            .parse::<f64>()
             .map_err(|e| GeoJsonError::ParseError(format!("bad lon: {e}")))?;
-        let lat = parts[1].trim().parse::<f64>()
+        let lat = parts[1]
+            .trim()
+            .parse::<f64>()
             .map_err(|e| GeoJsonError::ParseError(format!("bad lat: {e}")))?;
         let alt = if parts.len() == 3 {
-            Some(parts[2].trim().parse::<f64>()
-                .map_err(|e| GeoJsonError::ParseError(format!("bad alt: {e}")))?)
+            Some(
+                parts[2]
+                    .trim()
+                    .parse::<f64>()
+                    .map_err(|e| GeoJsonError::ParseError(format!("bad alt: {e}")))?,
+            )
         } else {
             None
         };
@@ -545,7 +633,9 @@ impl GeoJsonParser {
         for (i, ch) in inner.char_indices() {
             match ch {
                 '[' => {
-                    if depth == 0 { start = i; }
+                    if depth == 0 {
+                        start = i;
+                    }
                     depth += 1;
                 }
                 ']' => {
@@ -608,13 +698,19 @@ mod tests {
     #[test]
     fn test_coord_validate_lon_out_of_range() {
         let c = Coord::new(200.0, 0.0);
-        assert!(matches!(c.validate(), Err(GeoJsonError::InvalidCoordinate(_))));
+        assert!(matches!(
+            c.validate(),
+            Err(GeoJsonError::InvalidCoordinate(_))
+        ));
     }
 
     #[test]
     fn test_coord_validate_lat_out_of_range() {
         let c = Coord::new(0.0, -95.0);
-        assert!(matches!(c.validate(), Err(GeoJsonError::InvalidCoordinate(_))));
+        assert!(matches!(
+            c.validate(),
+            Err(GeoJsonError::InvalidCoordinate(_))
+        ));
     }
 
     #[test]
@@ -626,10 +722,7 @@ mod tests {
 
     #[test]
     fn test_bbox_from_coords() {
-        let coords = vec![
-            Coord::new(-74.0, 40.7),
-            Coord::new(-73.9, 40.8),
-        ];
+        let coords = vec![Coord::new(-74.0, 40.7), Coord::new(-73.9, 40.8)];
         let bbox = BBox::from_coords(&coords).unwrap();
         assert_eq!(bbox.west, -74.0);
         assert_eq!(bbox.north, 40.8);
@@ -659,10 +752,7 @@ mod tests {
 
     #[test]
     fn test_geometry_linestring_bbox() {
-        let g = Geometry::LineString(vec![
-            Coord::new(0.0, 0.0),
-            Coord::new(10.0, 10.0),
-        ]);
+        let g = Geometry::LineString(vec![Coord::new(0.0, 0.0), Coord::new(10.0, 10.0)]);
         let bbox = g.bbox().unwrap();
         assert_eq!(bbox.west, 0.0);
         assert_eq!(bbox.east, 10.0);
@@ -675,7 +765,10 @@ mod tests {
             Coord::new(1.0, 0.0),
             Coord::new(0.0, 0.0),
         ]]);
-        assert!(matches!(g.validate(), Err(GeoJsonError::InvalidGeometry(_))));
+        assert!(matches!(
+            g.validate(),
+            Err(GeoJsonError::InvalidGeometry(_))
+        ));
     }
 
     #[test]
@@ -695,13 +788,15 @@ mod tests {
     fn test_feature_with_property() {
         let f = Feature::new(Geometry::Point(Coord::new(1.0, 2.0)))
             .with_property("name", PropValue::Text("test".into()));
-        assert_eq!(f.properties.get("name"), Some(&PropValue::Text("test".into())));
+        assert_eq!(
+            f.properties.get("name"),
+            Some(&PropValue::Text("test".into()))
+        );
     }
 
     #[test]
     fn test_feature_with_id() {
-        let f = Feature::new(Geometry::Point(Coord::new(0.0, 0.0)))
-            .with_id("abc");
+        let f = Feature::new(Geometry::Point(Coord::new(0.0, 0.0))).with_id("abc");
         assert_eq!(f.id, Some("abc".to_string()));
     }
 
@@ -745,9 +840,7 @@ mod tests {
 
     #[test]
     fn test_geojson_serialize_geometry_collection() {
-        let gc = Geometry::GeometryCollection(vec![
-            Geometry::Point(Coord::new(1.0, 2.0)),
-        ]);
+        let gc = Geometry::GeometryCollection(vec![Geometry::Point(Coord::new(1.0, 2.0))]);
         let json = gc.to_geojson(1);
         assert!(json.contains("GeometryCollection"));
         assert!(json.contains("geometries"));
@@ -787,10 +880,12 @@ mod tests {
 
     #[test]
     fn test_multi_polygon_coords() {
-        let mp = Geometry::MultiPolygon(vec![
-            vec![vec![Coord::new(0.0, 0.0), Coord::new(1.0, 0.0),
-                      Coord::new(1.0, 1.0), Coord::new(0.0, 0.0)]],
-        ]);
+        let mp = Geometry::MultiPolygon(vec![vec![vec![
+            Coord::new(0.0, 0.0),
+            Coord::new(1.0, 0.0),
+            Coord::new(1.0, 1.0),
+            Coord::new(0.0, 0.0),
+        ]]]);
         assert_eq!(mp.all_coords().len(), 4);
     }
 }

@@ -13,12 +13,40 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0, z: 0.0 } }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z } }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
     pub fn cross(self, o: Self) -> Self {
         Self {
             x: self.y * o.z - self.z * o.y,
@@ -26,20 +54,44 @@ impl Vec3 {
             z: self.x * o.y - self.y * o.x,
         }
     }
-    pub fn length(self) -> f64 { self.dot(self).sqrt() }
-    pub fn length_sq(self) -> f64 { self.dot(self) }
+    pub fn length(self) -> f64 {
+        self.dot(self).sqrt()
+    }
+    pub fn length_sq(self) -> f64 {
+        self.dot(self)
+    }
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-12 { Self::zero() } else { self.scale(1.0 / l) }
+        if l < 1e-12 {
+            Self::zero()
+        } else {
+            self.scale(1.0 / l)
+        }
     }
-    pub fn distance(self, o: Self) -> f64 { self.sub(o).length() }
+    pub fn distance(self, o: Self) -> f64 {
+        self.sub(o).length()
+    }
     pub fn min_comp(self, o: Self) -> Self {
-        Self { x: self.x.min(o.x), y: self.y.min(o.y), z: self.z.min(o.z) }
+        Self {
+            x: self.x.min(o.x),
+            y: self.y.min(o.y),
+            z: self.z.min(o.z),
+        }
     }
     pub fn max_comp(self, o: Self) -> Self {
-        Self { x: self.x.max(o.x), y: self.y.max(o.y), z: self.z.max(o.z) }
+        Self {
+            x: self.x.max(o.x),
+            y: self.y.max(o.y),
+            z: self.z.max(o.z),
+        }
     }
-    pub fn abs(self) -> Self { Self { x: self.x.abs(), y: self.y.abs(), z: self.z.abs() } }
+    pub fn abs(self) -> Self {
+        Self {
+            x: self.x.abs(),
+            y: self.y.abs(),
+            z: self.z.abs(),
+        }
+    }
 }
 
 // ── Mat4 (minimal, for transforms) ──────────────────────────
@@ -51,39 +103,45 @@ pub struct Mat4 {
 
 impl Mat4 {
     pub fn identity() -> Self {
-        Self { m: [
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ]}
+        Self {
+            m: [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+        }
     }
 
     pub fn transform_point(self, v: Vec3) -> Vec3 {
         Vec3::new(
-            self.m[0][0]*v.x + self.m[0][1]*v.y + self.m[0][2]*v.z + self.m[0][3],
-            self.m[1][0]*v.x + self.m[1][1]*v.y + self.m[1][2]*v.z + self.m[1][3],
-            self.m[2][0]*v.x + self.m[2][1]*v.y + self.m[2][2]*v.z + self.m[2][3],
+            self.m[0][0] * v.x + self.m[0][1] * v.y + self.m[0][2] * v.z + self.m[0][3],
+            self.m[1][0] * v.x + self.m[1][1] * v.y + self.m[1][2] * v.z + self.m[1][3],
+            self.m[2][0] * v.x + self.m[2][1] * v.y + self.m[2][2] * v.z + self.m[2][3],
         )
     }
 
     pub fn transform_direction(self, v: Vec3) -> Vec3 {
         Vec3::new(
-            self.m[0][0]*v.x + self.m[0][1]*v.y + self.m[0][2]*v.z,
-            self.m[1][0]*v.x + self.m[1][1]*v.y + self.m[1][2]*v.z,
-            self.m[2][0]*v.x + self.m[2][1]*v.y + self.m[2][2]*v.z,
+            self.m[0][0] * v.x + self.m[0][1] * v.y + self.m[0][2] * v.z,
+            self.m[1][0] * v.x + self.m[1][1] * v.y + self.m[1][2] * v.z,
+            self.m[2][0] * v.x + self.m[2][1] * v.y + self.m[2][2] * v.z,
         )
     }
 
     pub fn translation(t: Vec3) -> Self {
         let mut m = Self::identity();
-        m.m[0][3] = t.x; m.m[1][3] = t.y; m.m[2][3] = t.z;
+        m.m[0][3] = t.x;
+        m.m[1][3] = t.y;
+        m.m[2][3] = t.z;
         m
     }
 
     pub fn scaling(s: Vec3) -> Self {
         let mut m = Self::identity();
-        m.m[0][0] = s.x; m.m[1][1] = s.y; m.m[2][2] = s.z;
+        m.m[0][0] = s.x;
+        m.m[1][1] = s.y;
+        m.m[2][2] = s.z;
         m
     }
 }
@@ -98,9 +156,14 @@ pub struct Ray {
 
 impl Ray {
     pub fn new(origin: Vec3, direction: Vec3) -> Self {
-        Self { origin, direction: direction.normalized() }
+        Self {
+            origin,
+            direction: direction.normalized(),
+        }
     }
-    pub fn point_at(&self, t: f64) -> Vec3 { self.origin.add(self.direction.scale(t)) }
+    pub fn point_at(&self, t: f64) -> Vec3 {
+        self.origin.add(self.direction.scale(t))
+    }
 }
 
 // ── AABB ─────────────────────────────────────────────────────
@@ -112,7 +175,9 @@ pub struct Aabb {
 }
 
 impl Aabb {
-    pub fn new(min: Vec3, max: Vec3) -> Self { Self { min, max } }
+    pub fn new(min: Vec3, max: Vec3) -> Self {
+        Self { min, max }
+    }
 
     pub fn empty() -> Self {
         Self {
@@ -134,9 +199,15 @@ impl Aabb {
         self.max = self.max.max_comp(p);
     }
 
-    pub fn center(&self) -> Vec3 { self.min.add(self.max).scale(0.5) }
-    pub fn extents(&self) -> Vec3 { self.max.sub(self.min) }
-    pub fn half_extents(&self) -> Vec3 { self.extents().scale(0.5) }
+    pub fn center(&self) -> Vec3 {
+        self.min.add(self.max).scale(0.5)
+    }
+    pub fn extents(&self) -> Vec3 {
+        self.max.sub(self.min)
+    }
+    pub fn half_extents(&self) -> Vec3 {
+        self.extents().scale(0.5)
+    }
 
     pub fn volume(&self) -> f64 {
         let e = self.extents();
@@ -149,15 +220,21 @@ impl Aabb {
     }
 
     pub fn contains_point(&self, p: Vec3) -> bool {
-        p.x >= self.min.x && p.x <= self.max.x
-            && p.y >= self.min.y && p.y <= self.max.y
-            && p.z >= self.min.z && p.z <= self.max.z
+        p.x >= self.min.x
+            && p.x <= self.max.x
+            && p.y >= self.min.y
+            && p.y <= self.max.y
+            && p.z >= self.min.z
+            && p.z <= self.max.z
     }
 
     pub fn intersects_aabb(&self, other: &Aabb) -> bool {
-        self.min.x <= other.max.x && self.max.x >= other.min.x
-            && self.min.y <= other.max.y && self.max.y >= other.min.y
-            && self.min.z <= other.max.z && self.max.z >= other.min.z
+        self.min.x <= other.max.x
+            && self.max.x >= other.min.x
+            && self.min.y <= other.max.y
+            && self.max.y >= other.min.y
+            && self.min.z <= other.max.z
+            && self.max.z >= other.min.z
     }
 
     pub fn intersects_sphere(&self, sphere: &BoundingSphere) -> bool {
@@ -183,18 +260,26 @@ impl Aabb {
 
         for &(orig, dir, bmin, bmax) in &axes {
             if dir.abs() < 1e-12 {
-                if orig < bmin || orig > bmax { return None; }
+                if orig < bmin || orig > bmax {
+                    return None;
+                }
             } else {
                 let inv_d = 1.0 / dir;
                 let mut t0 = (bmin - orig) * inv_d;
                 let mut t1 = (bmax - orig) * inv_d;
-                if t0 > t1 { std::mem::swap(&mut t0, &mut t1); }
+                if t0 > t1 {
+                    std::mem::swap(&mut t0, &mut t1);
+                }
                 t_min = t_min.max(t0);
                 t_max = t_max.min(t1);
-                if t_min > t_max { return None; }
+                if t_min > t_max {
+                    return None;
+                }
             }
         }
-        if t_max < 0.0 { return None; }
+        if t_max < 0.0 {
+            return None;
+        }
         Some((t_min.max(0.0), t_max))
     }
 
@@ -235,7 +320,9 @@ pub struct BoundingSphere {
 }
 
 impl BoundingSphere {
-    pub fn new(center: Vec3, radius: f64) -> Self { Self { center, radius } }
+    pub fn new(center: Vec3, radius: f64) -> Self {
+        Self { center, radius }
+    }
 
     /// Ritter's bounding sphere from point cloud.
     pub fn from_points(points: &[Vec3]) -> Self {
@@ -249,16 +336,30 @@ impl BoundingSphere {
         let mut min_x = 0usize;
         let mut max_x = 0usize;
         for i in 1..points.len() {
-            if points[i].x < points[min_x].x { min_x = i; }
-            if points[i].x > points[max_x].x { max_x = i; }
+            if points[i].x < points[min_x].x {
+                min_x = i;
+            }
+            if points[i].x > points[max_x].x {
+                max_x = i;
+            }
         }
-        let mut min_y = 0; let mut max_y = 0;
-        let mut min_z = 0; let mut max_z = 0;
+        let mut min_y = 0;
+        let mut max_y = 0;
+        let mut min_z = 0;
+        let mut max_z = 0;
         for i in 1..points.len() {
-            if points[i].y < points[min_y].y { min_y = i; }
-            if points[i].y > points[max_y].y { max_y = i; }
-            if points[i].z < points[min_z].z { min_z = i; }
-            if points[i].z > points[max_z].z { max_z = i; }
+            if points[i].y < points[min_y].y {
+                min_y = i;
+            }
+            if points[i].y > points[max_y].y {
+                max_y = i;
+            }
+            if points[i].z < points[min_z].z {
+                min_z = i;
+            }
+            if points[i].z > points[max_z].z {
+                max_z = i;
+            }
         }
         let dx = points[max_x].distance(points[min_x]);
         let dy = points[max_y].distance(points[min_y]);
@@ -304,20 +405,30 @@ impl BoundingSphere {
         let b = 2.0 * oc.dot(ray.direction);
         let c = oc.dot(oc) - self.radius * self.radius;
         let disc = b * b - 4.0 * a * c;
-        if disc < 0.0 { return None; }
+        if disc < 0.0 {
+            return None;
+        }
         let sqrt_disc = disc.sqrt();
         let t0 = (-b - sqrt_disc) / (2.0 * a);
         let t1 = (-b + sqrt_disc) / (2.0 * a);
-        if t0 >= 0.0 { Some(t0) }
-        else if t1 >= 0.0 { Some(t1) }
-        else { None }
+        if t0 >= 0.0 {
+            Some(t0)
+        } else if t1 >= 0.0 {
+            Some(t1)
+        } else {
+            None
+        }
     }
 
     /// Merge two spheres into an enclosing sphere.
     pub fn merge(&self, other: &BoundingSphere) -> BoundingSphere {
         let d = self.center.distance(other.center);
-        if d + other.radius <= self.radius { return *self; }
-        if d + self.radius <= other.radius { return *other; }
+        if d + other.radius <= self.radius {
+            return *self;
+        }
+        if d + self.radius <= other.radius {
+            return *other;
+        }
         let new_radius = (d + self.radius + other.radius) * 0.5;
         let t = (new_radius - self.radius) / d;
         let new_center = self.center.add(other.center.sub(self.center).scale(t));
@@ -348,7 +459,11 @@ pub struct Obb {
 
 impl Obb {
     pub fn new(center: Vec3, half_extents: Vec3, axes: [Vec3; 3]) -> Self {
-        Self { center, half_extents, axes }
+        Self {
+            center,
+            half_extents,
+            axes,
+        }
     }
 
     /// Create an OBB from an AABB (axis-aligned axes).
@@ -371,7 +486,8 @@ impl Obb {
             let sx = if i & 1 != 0 { 1.0 } else { -1.0 };
             let sy = if i & 2 != 0 { 1.0 } else { -1.0 };
             let sz = if i & 4 != 0 { 1.0 } else { -1.0 };
-            corners[i] = self.center
+            corners[i] = self
+                .center
                 .add(self.axes[0].scale(self.half_extents.x * sx))
                 .add(self.axes[1].scale(self.half_extents.y * sy))
                 .add(self.axes[2].scale(self.half_extents.z * sz));
@@ -389,8 +505,14 @@ impl Obb {
         let d = p.sub(self.center);
         for i in 0..3 {
             let proj = d.dot(self.axes[i]).abs();
-            let extent = [self.half_extents.x, self.half_extents.y, self.half_extents.z][i];
-            if proj > extent + 1e-9 { return false; }
+            let extent = [
+                self.half_extents.x,
+                self.half_extents.y,
+                self.half_extents.z,
+            ][i];
+            if proj > extent + 1e-9 {
+                return false;
+            }
         }
         true
     }
@@ -398,8 +520,16 @@ impl Obb {
     /// SAT-based OBB-OBB intersection test.
     pub fn intersects_obb(&self, other: &Obb) -> bool {
         let t = other.center.sub(self.center);
-        let he_a = [self.half_extents.x, self.half_extents.y, self.half_extents.z];
-        let he_b = [other.half_extents.x, other.half_extents.y, other.half_extents.z];
+        let he_a = [
+            self.half_extents.x,
+            self.half_extents.y,
+            self.half_extents.z,
+        ];
+        let he_b = [
+            other.half_extents.x,
+            other.half_extents.y,
+            other.half_extents.z,
+        ];
 
         // Test 15 separating axes: 3 from A, 3 from B, 9 cross products
         // Precompute rotation and absolute rotation matrices
@@ -412,36 +542,54 @@ impl Obb {
             }
         }
 
-        let t_proj = [t.dot(self.axes[0]), t.dot(self.axes[1]), t.dot(self.axes[2])];
+        let t_proj = [
+            t.dot(self.axes[0]),
+            t.dot(self.axes[1]),
+            t.dot(self.axes[2]),
+        ];
 
         // Test axes from A
         for i in 0..3 {
             let ra = he_a[i];
-            let rb = he_b[0]*abs_r[i][0] + he_b[1]*abs_r[i][1] + he_b[2]*abs_r[i][2];
-            if t_proj[i].abs() > ra + rb { return false; }
+            let rb = he_b[0] * abs_r[i][0] + he_b[1] * abs_r[i][1] + he_b[2] * abs_r[i][2];
+            if t_proj[i].abs() > ra + rb {
+                return false;
+            }
         }
 
         // Test axes from B
         for j in 0..3 {
-            let ra = he_a[0]*abs_r[0][j] + he_a[1]*abs_r[1][j] + he_a[2]*abs_r[2][j];
+            let ra = he_a[0] * abs_r[0][j] + he_a[1] * abs_r[1][j] + he_a[2] * abs_r[2][j];
             let rb = he_b[j];
-            let proj = t_proj[0]*r_mat[0][j] + t_proj[1]*r_mat[1][j] + t_proj[2]*r_mat[2][j];
-            if proj.abs() > ra + rb { return false; }
+            let proj = t_proj[0] * r_mat[0][j] + t_proj[1] * r_mat[1][j] + t_proj[2] * r_mat[2][j];
+            if proj.abs() > ra + rb {
+                return false;
+            }
         }
 
         // Test 9 cross-product axes
         let cross_tests: [(usize, usize); 9] = [
-            (0,0),(0,1),(0,2),(1,0),(1,1),(1,2),(2,0),(2,1),(2,2),
+            (0, 0),
+            (0, 1),
+            (0, 2),
+            (1, 0),
+            (1, 1),
+            (1, 2),
+            (2, 0),
+            (2, 1),
+            (2, 2),
         ];
         for &(i, j) in &cross_tests {
             let i1 = (i + 1) % 3;
             let i2 = (i + 2) % 3;
             let j1 = (j + 1) % 3;
             let j2 = (j + 2) % 3;
-            let ra = he_a[i1]*abs_r[i2][j] + he_a[i2]*abs_r[i1][j];
-            let rb = he_b[j1]*abs_r[i][j2] + he_b[j2]*abs_r[i][j1];
-            let proj = (t_proj[i2]*r_mat[i1][j] - t_proj[i1]*r_mat[i2][j]).abs();
-            if proj > ra + rb { return false; }
+            let ra = he_a[i1] * abs_r[i2][j] + he_a[i2] * abs_r[i1][j];
+            let rb = he_b[j1] * abs_r[i][j2] + he_b[j2] * abs_r[i][j1];
+            let proj = (t_proj[i2] * r_mat[i1][j] - t_proj[i1] * r_mat[i2][j]).abs();
+            if proj > ra + rb {
+                return false;
+            }
         }
 
         true
@@ -455,9 +603,15 @@ impl Obb {
             mat.transform_direction(self.axes[1]).normalized(),
             mat.transform_direction(self.axes[2]).normalized(),
         ];
-        let sx = mat.transform_direction(self.axes[0].scale(self.half_extents.x)).length();
-        let sy = mat.transform_direction(self.axes[1].scale(self.half_extents.y)).length();
-        let sz = mat.transform_direction(self.axes[2].scale(self.half_extents.z)).length();
+        let sx = mat
+            .transform_direction(self.axes[0].scale(self.half_extents.x))
+            .length();
+        let sy = mat
+            .transform_direction(self.axes[1].scale(self.half_extents.y))
+            .length();
+        let sz = mat
+            .transform_direction(self.axes[2].scale(self.half_extents.z))
+            .length();
         Obb::new(new_center, Vec3::new(sx, sy, sz), new_axes)
     }
 }
@@ -468,7 +622,9 @@ impl Obb {
 mod tests {
     use super::*;
 
-    fn approx(a: f64, b: f64, eps: f64) -> bool { (a - b).abs() < eps }
+    fn approx(a: f64, b: f64, eps: f64) -> bool {
+        (a - b).abs() < eps
+    }
 
     #[test]
     fn test_aabb_from_points() {
@@ -524,7 +680,10 @@ mod tests {
         ];
         let s = BoundingSphere::from_points(&pts);
         for &p in &pts {
-            assert!(s.contains_point(p), "sphere should contain all input points");
+            assert!(
+                s.contains_point(p),
+                "sphere should contain all input points"
+            );
         }
     }
 
@@ -650,7 +809,8 @@ mod tests {
     #[test]
     fn test_obb_contains_point() {
         let obb = Obb::from_aabb(&Aabb::new(
-            Vec3::new(-1.0, -1.0, -1.0), Vec3::new(1.0, 1.0, 1.0),
+            Vec3::new(-1.0, -1.0, -1.0),
+            Vec3::new(1.0, 1.0, 1.0),
         ));
         assert!(obb.contains_point(Vec3::zero()));
         assert!(!obb.contains_point(Vec3::new(2.0, 0.0, 0.0)));
@@ -659,10 +819,12 @@ mod tests {
     #[test]
     fn test_obb_obb_intersection() {
         let a = Obb::from_aabb(&Aabb::new(
-            Vec3::new(-1.0, -1.0, -1.0), Vec3::new(1.0, 1.0, 1.0),
+            Vec3::new(-1.0, -1.0, -1.0),
+            Vec3::new(1.0, 1.0, 1.0),
         ));
         let b = Obb::from_aabb(&Aabb::new(
-            Vec3::new(0.5, 0.5, 0.5), Vec3::new(2.0, 2.0, 2.0),
+            Vec3::new(0.5, 0.5, 0.5),
+            Vec3::new(2.0, 2.0, 2.0),
         ));
         assert!(a.intersects_obb(&b));
     }
@@ -670,10 +832,12 @@ mod tests {
     #[test]
     fn test_obb_obb_no_intersection() {
         let a = Obb::from_aabb(&Aabb::new(
-            Vec3::new(-1.0, -1.0, -1.0), Vec3::new(1.0, 1.0, 1.0),
+            Vec3::new(-1.0, -1.0, -1.0),
+            Vec3::new(1.0, 1.0, 1.0),
         ));
         let b = Obb::from_aabb(&Aabb::new(
-            Vec3::new(5.0, 5.0, 5.0), Vec3::new(6.0, 6.0, 6.0),
+            Vec3::new(5.0, 5.0, 5.0),
+            Vec3::new(6.0, 6.0, 6.0),
         ));
         assert!(!a.intersects_obb(&b));
     }
@@ -681,7 +845,8 @@ mod tests {
     #[test]
     fn test_obb_corners_count() {
         let obb = Obb::from_aabb(&Aabb::new(
-            Vec3::new(-1.0, -1.0, -1.0), Vec3::new(1.0, 1.0, 1.0),
+            Vec3::new(-1.0, -1.0, -1.0),
+            Vec3::new(1.0, 1.0, 1.0),
         ));
         assert_eq!(obb.corners().len(), 8);
     }

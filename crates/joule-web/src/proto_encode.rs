@@ -124,7 +124,9 @@ impl ProtoEncoder {
 
     /// Create an encoder with pre-allocated capacity.
     pub fn with_capacity(cap: usize) -> Self {
-        Self { buf: Vec::with_capacity(cap) }
+        Self {
+            buf: Vec::with_capacity(cap),
+        }
     }
 
     /// Current encoded size in bytes.
@@ -194,7 +196,11 @@ impl ProtoEncoder {
     }
 
     /// Encode a uint32 field, always including even if zero.
-    pub fn encode_uint32_always(&mut self, field_number: u32, value: u32) -> Result<(), EncodeError> {
+    pub fn encode_uint32_always(
+        &mut self,
+        field_number: u32,
+        value: u32,
+    ) -> Result<(), EncodeError> {
         self.write_tag(field_number, WIRE_TYPE_VARINT)?;
         self.write_varint(value as u64);
         Ok(())
@@ -262,7 +268,11 @@ impl ProtoEncoder {
     }
 
     /// Encode a bool field, always including.
-    pub fn encode_bool_always(&mut self, field_number: u32, value: bool) -> Result<(), EncodeError> {
+    pub fn encode_bool_always(
+        &mut self,
+        field_number: u32,
+        value: bool,
+    ) -> Result<(), EncodeError> {
         self.write_tag(field_number, WIRE_TYPE_VARINT)?;
         self.write_varint(if value { 1 } else { 0 });
         Ok(())
@@ -319,7 +329,11 @@ impl ProtoEncoder {
     }
 
     /// Encode a float field, always including.
-    pub fn encode_float_always(&mut self, field_number: u32, value: f32) -> Result<(), EncodeError> {
+    pub fn encode_float_always(
+        &mut self,
+        field_number: u32,
+        value: f32,
+    ) -> Result<(), EncodeError> {
         self.write_tag(field_number, WIRE_TYPE_FIXED32)?;
         self.write_fixed32(value.to_bits());
         Ok(())
@@ -336,7 +350,11 @@ impl ProtoEncoder {
     }
 
     /// Encode a double field, always including.
-    pub fn encode_double_always(&mut self, field_number: u32, value: f64) -> Result<(), EncodeError> {
+    pub fn encode_double_always(
+        &mut self,
+        field_number: u32,
+        value: f64,
+    ) -> Result<(), EncodeError> {
         self.write_tag(field_number, WIRE_TYPE_FIXED64)?;
         self.write_fixed64(value.to_bits());
         Ok(())
@@ -354,7 +372,11 @@ impl ProtoEncoder {
     }
 
     /// Encode a bytes field, always including.
-    pub fn encode_bytes_always(&mut self, field_number: u32, data: &[u8]) -> Result<(), EncodeError> {
+    pub fn encode_bytes_always(
+        &mut self,
+        field_number: u32,
+        data: &[u8],
+    ) -> Result<(), EncodeError> {
         self.write_tag(field_number, WIRE_TYPE_LENGTH_DELIMITED)?;
         self.write_varint(data.len() as u64);
         self.write_raw(data);
@@ -372,7 +394,11 @@ impl ProtoEncoder {
     }
 
     /// Encode a nested message (length-delimited).
-    pub fn encode_message(&mut self, field_number: u32, inner: &ProtoEncoder) -> Result<(), EncodeError> {
+    pub fn encode_message(
+        &mut self,
+        field_number: u32,
+        inner: &ProtoEncoder,
+    ) -> Result<(), EncodeError> {
         let data = inner.as_bytes();
         if data.is_empty() {
             return Ok(());
@@ -384,7 +410,11 @@ impl ProtoEncoder {
     }
 
     /// Encode a nested message from raw bytes.
-    pub fn encode_message_raw(&mut self, field_number: u32, data: &[u8]) -> Result<(), EncodeError> {
+    pub fn encode_message_raw(
+        &mut self,
+        field_number: u32,
+        data: &[u8],
+    ) -> Result<(), EncodeError> {
         if data.is_empty() {
             return Ok(());
         }
@@ -407,7 +437,11 @@ impl ProtoEncoder {
     // ── Packed repeated encoding ────────────────────────
 
     /// Encode packed repeated uint32 values.
-    pub fn encode_packed_uint32(&mut self, field_number: u32, values: &[u32]) -> Result<(), EncodeError> {
+    pub fn encode_packed_uint32(
+        &mut self,
+        field_number: u32,
+        values: &[u32],
+    ) -> Result<(), EncodeError> {
         if values.is_empty() {
             return Ok(());
         }
@@ -422,7 +456,11 @@ impl ProtoEncoder {
     }
 
     /// Encode packed repeated uint64 values.
-    pub fn encode_packed_uint64(&mut self, field_number: u32, values: &[u64]) -> Result<(), EncodeError> {
+    pub fn encode_packed_uint64(
+        &mut self,
+        field_number: u32,
+        values: &[u64],
+    ) -> Result<(), EncodeError> {
         if values.is_empty() {
             return Ok(());
         }
@@ -437,7 +475,11 @@ impl ProtoEncoder {
     }
 
     /// Encode packed repeated sint32 values.
-    pub fn encode_packed_sint32(&mut self, field_number: u32, values: &[i32]) -> Result<(), EncodeError> {
+    pub fn encode_packed_sint32(
+        &mut self,
+        field_number: u32,
+        values: &[i32],
+    ) -> Result<(), EncodeError> {
         if values.is_empty() {
             return Ok(());
         }
@@ -452,7 +494,11 @@ impl ProtoEncoder {
     }
 
     /// Encode packed repeated sint64 values.
-    pub fn encode_packed_sint64(&mut self, field_number: u32, values: &[i64]) -> Result<(), EncodeError> {
+    pub fn encode_packed_sint64(
+        &mut self,
+        field_number: u32,
+        values: &[i64],
+    ) -> Result<(), EncodeError> {
         if values.is_empty() {
             return Ok(());
         }
@@ -467,7 +513,11 @@ impl ProtoEncoder {
     }
 
     /// Encode packed repeated fixed32 values.
-    pub fn encode_packed_fixed32(&mut self, field_number: u32, values: &[u32]) -> Result<(), EncodeError> {
+    pub fn encode_packed_fixed32(
+        &mut self,
+        field_number: u32,
+        values: &[u32],
+    ) -> Result<(), EncodeError> {
         if values.is_empty() {
             return Ok(());
         }
@@ -481,7 +531,11 @@ impl ProtoEncoder {
     }
 
     /// Encode packed repeated fixed64 values.
-    pub fn encode_packed_fixed64(&mut self, field_number: u32, values: &[u64]) -> Result<(), EncodeError> {
+    pub fn encode_packed_fixed64(
+        &mut self,
+        field_number: u32,
+        values: &[u64],
+    ) -> Result<(), EncodeError> {
         if values.is_empty() {
             return Ok(());
         }
@@ -495,7 +549,11 @@ impl ProtoEncoder {
     }
 
     /// Encode packed repeated float values.
-    pub fn encode_packed_float(&mut self, field_number: u32, values: &[f32]) -> Result<(), EncodeError> {
+    pub fn encode_packed_float(
+        &mut self,
+        field_number: u32,
+        values: &[f32],
+    ) -> Result<(), EncodeError> {
         if values.is_empty() {
             return Ok(());
         }
@@ -509,7 +567,11 @@ impl ProtoEncoder {
     }
 
     /// Encode packed repeated double values.
-    pub fn encode_packed_double(&mut self, field_number: u32, values: &[f64]) -> Result<(), EncodeError> {
+    pub fn encode_packed_double(
+        &mut self,
+        field_number: u32,
+        values: &[f64],
+    ) -> Result<(), EncodeError> {
         if values.is_empty() {
             return Ok(());
         }
@@ -523,7 +585,11 @@ impl ProtoEncoder {
     }
 
     /// Encode packed repeated bool values.
-    pub fn encode_packed_bool(&mut self, field_number: u32, values: &[bool]) -> Result<(), EncodeError> {
+    pub fn encode_packed_bool(
+        &mut self,
+        field_number: u32,
+        values: &[bool],
+    ) -> Result<(), EncodeError> {
         if values.is_empty() {
             return Ok(());
         }
@@ -539,7 +605,11 @@ impl ProtoEncoder {
     // ── Repeated (non-packed) ───────────────────────────
 
     /// Encode repeated string values (each as a separate field occurrence).
-    pub fn encode_repeated_string(&mut self, field_number: u32, values: &[&str]) -> Result<(), EncodeError> {
+    pub fn encode_repeated_string(
+        &mut self,
+        field_number: u32,
+        values: &[&str],
+    ) -> Result<(), EncodeError> {
         for s in values {
             self.write_tag(field_number, WIRE_TYPE_LENGTH_DELIMITED)?;
             self.write_varint(s.len() as u64);
@@ -549,7 +619,11 @@ impl ProtoEncoder {
     }
 
     /// Encode repeated bytes values.
-    pub fn encode_repeated_bytes(&mut self, field_number: u32, values: &[&[u8]]) -> Result<(), EncodeError> {
+    pub fn encode_repeated_bytes(
+        &mut self,
+        field_number: u32,
+        values: &[&[u8]],
+    ) -> Result<(), EncodeError> {
         for data in values {
             self.write_tag(field_number, WIRE_TYPE_LENGTH_DELIMITED)?;
             self.write_varint(data.len() as u64);
@@ -559,7 +633,11 @@ impl ProtoEncoder {
     }
 
     /// Encode repeated message values.
-    pub fn encode_repeated_message(&mut self, field_number: u32, encoders: &[&ProtoEncoder]) -> Result<(), EncodeError> {
+    pub fn encode_repeated_message(
+        &mut self,
+        field_number: u32,
+        encoders: &[&ProtoEncoder],
+    ) -> Result<(), EncodeError> {
         for enc in encoders {
             let data = enc.as_bytes();
             self.write_tag(field_number, WIRE_TYPE_LENGTH_DELIMITED)?;
@@ -854,7 +932,15 @@ mod tests {
         // tag(1, fixed32) = 0x0D, then 4 bytes of 1.0f32
         assert_eq!(bytes[0], 0x0D);
         let float_bytes = &bytes[1..5];
-        assert_eq!(f32::from_le_bytes([float_bytes[0], float_bytes[1], float_bytes[2], float_bytes[3]]), 1.0);
+        assert_eq!(
+            f32::from_le_bytes([
+                float_bytes[0],
+                float_bytes[1],
+                float_bytes[2],
+                float_bytes[3]
+            ]),
+            1.0
+        );
     }
 
     #[test]
@@ -898,7 +984,8 @@ mod tests {
         enc.encode_packed_fixed32(5, &[100, 200]).unwrap();
         let bytes = enc.finish();
         // 2 fixed32s = 8 bytes payload
-        let tag_and_len = varint_size(make_tag(5, WIRE_TYPE_LENGTH_DELIMITED) as u64) + varint_size(8);
+        let tag_and_len =
+            varint_size(make_tag(5, WIRE_TYPE_LENGTH_DELIMITED) as u64) + varint_size(8);
         assert_eq!(bytes.len(), tag_and_len + 8);
     }
 
@@ -1029,7 +1116,10 @@ mod tests {
         let err = EncodeError::InvalidFieldNumber(0);
         assert_eq!(err.to_string(), "invalid field number: 0");
         assert_eq!(EncodeError::BufferOverflow.to_string(), "buffer overflow");
-        assert_eq!(EncodeError::InvalidMapKey.to_string(), "invalid map key type");
+        assert_eq!(
+            EncodeError::InvalidMapKey.to_string(),
+            "invalid map key type"
+        );
     }
 
     #[test]

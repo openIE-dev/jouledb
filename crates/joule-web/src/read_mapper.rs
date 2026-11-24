@@ -38,13 +38,19 @@ impl std::error::Error for MapperError {}
 pub struct MapQ(pub u8);
 
 impl MapQ {
-    pub fn unique() -> Self { Self(60) }
+    pub fn unique() -> Self {
+        Self(60)
+    }
     pub fn multi_hit(count: usize) -> Self {
-        if count <= 1 { return Self(60); }
+        if count <= 1 {
+            return Self(60);
+        }
         let q = (-(10.0 * (1.0 - 1.0 / count as f64).ln() / std::f64::consts::LN_10)).round();
         Self((q.max(0.0).min(60.0)) as u8)
     }
-    pub fn unmapped() -> Self { Self(0) }
+    pub fn unmapped() -> Self {
+        Self(0)
+    }
 
     /// Probability of incorrect mapping.
     pub fn error_prob(&self) -> f64 {
@@ -126,8 +132,13 @@ impl fmt::Display for MappingHit {
         write!(
             f,
             "Hit(ref={}..{}, {}, score={:.1}, id={:.1}%, {}, cigar={})",
-            self.ref_start, self.ref_end, strand,
-            self.score, self.identity, self.mapq, self.cigar_string()
+            self.ref_start,
+            self.ref_end,
+            strand,
+            self.score,
+            self.identity,
+            self.mapq,
+            self.cigar_string()
         )
     }
 }
@@ -161,7 +172,10 @@ impl fmt::Display for MappingResult {
         write!(
             f,
             "MappingResult(read={}, len={}, mapped={}, hits={})",
-            self.read_id, self.read_length, self.is_mapped, self.num_hits()
+            self.read_id,
+            self.read_length,
+            self.is_mapped,
+            self.num_hits()
         )
     }
 }
@@ -199,20 +213,52 @@ impl MapperConfig {
         }
     }
 
-    pub fn with_seed_len(mut self, s: usize) -> Self { self.seed_len = s; self }
-    pub fn with_seed_step(mut self, s: usize) -> Self { self.seed_step = s; self }
-    pub fn with_max_mismatches(mut self, m: usize) -> Self { self.max_mismatches = m; self }
-    pub fn with_min_score(mut self, s: f64) -> Self { self.min_score = s; self }
-    pub fn with_match_score(mut self, s: f64) -> Self { self.match_score = s; self }
-    pub fn with_mismatch_penalty(mut self, p: f64) -> Self { self.mismatch_penalty = p; self }
-    pub fn with_gap_penalty(mut self, g: f64) -> Self { self.gap_penalty = g; self }
-    pub fn with_min_mapq(mut self, q: u8) -> Self { self.min_mapq = q; self }
-    pub fn with_report_all(mut self, r: bool) -> Self { self.report_all = r; self }
-    pub fn with_max_hits(mut self, m: usize) -> Self { self.max_hits = m; self }
+    pub fn with_seed_len(mut self, s: usize) -> Self {
+        self.seed_len = s;
+        self
+    }
+    pub fn with_seed_step(mut self, s: usize) -> Self {
+        self.seed_step = s;
+        self
+    }
+    pub fn with_max_mismatches(mut self, m: usize) -> Self {
+        self.max_mismatches = m;
+        self
+    }
+    pub fn with_min_score(mut self, s: f64) -> Self {
+        self.min_score = s;
+        self
+    }
+    pub fn with_match_score(mut self, s: f64) -> Self {
+        self.match_score = s;
+        self
+    }
+    pub fn with_mismatch_penalty(mut self, p: f64) -> Self {
+        self.mismatch_penalty = p;
+        self
+    }
+    pub fn with_gap_penalty(mut self, g: f64) -> Self {
+        self.gap_penalty = g;
+        self
+    }
+    pub fn with_min_mapq(mut self, q: u8) -> Self {
+        self.min_mapq = q;
+        self
+    }
+    pub fn with_report_all(mut self, r: bool) -> Self {
+        self.report_all = r;
+        self
+    }
+    pub fn with_max_hits(mut self, m: usize) -> Self {
+        self.max_hits = m;
+        self
+    }
 }
 
 impl Default for MapperConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for MapperConfig {
@@ -333,7 +379,11 @@ impl ReadMapper {
         }
 
         // Sort by score descending.
-        hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        hits.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         hits.truncate(self.config.max_hits);
 
         // Assign MAPQ.
@@ -364,12 +414,7 @@ impl ReadMapper {
     }
 
     /// Extend a candidate alignment at `ref_start`.
-    fn extend_hit(
-        &self,
-        reference: &[u8],
-        read: &[u8],
-        ref_start: usize,
-    ) -> Option<MappingHit> {
+    fn extend_hit(&self, reference: &[u8], read: &[u8], ref_start: usize) -> Option<MappingHit> {
         let ref_end = (ref_start + read.len()).min(reference.len());
         let aln_len = ref_end - ref_start;
         if aln_len == 0 {
@@ -443,7 +488,12 @@ impl ReadMapper {
         let mapped = results.iter().filter(|r| r.is_mapped).count();
         let unique = results.iter().filter(|r| r.num_hits() == 1).count();
         let multi = results.iter().filter(|r| r.num_hits() > 1).count();
-        MappingStats { total_reads: total, mapped, unique, multi_mapped: multi }
+        MappingStats {
+            total_reads: total,
+            mapped,
+            unique,
+            multi_mapped: multi,
+        }
     }
 }
 
@@ -466,7 +516,11 @@ pub struct MappingStats {
 
 impl MappingStats {
     pub fn mapping_rate(&self) -> f64 {
-        if self.total_reads == 0 { 0.0 } else { self.mapped as f64 / self.total_reads as f64 * 100.0 }
+        if self.total_reads == 0 {
+            0.0
+        } else {
+            self.mapped as f64 / self.total_reads as f64 * 100.0
+        }
     }
 }
 
@@ -475,8 +529,11 @@ impl fmt::Display for MappingStats {
         write!(
             f,
             "MappingStats(total={}, mapped={} ({:.1}%), unique={}, multi={})",
-            self.total_reads, self.mapped, self.mapping_rate(),
-            self.unique, self.multi_mapped
+            self.total_reads,
+            self.mapped,
+            self.mapping_rate(),
+            self.unique,
+            self.multi_mapped
         )
     }
 }

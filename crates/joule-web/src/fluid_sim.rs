@@ -48,10 +48,26 @@ fn ix(i: usize, j: usize, n: usize) -> usize {
 /// `b`: 0 for density, 1 for velocity-x, 2 for velocity-y.
 fn set_bnd(b: i32, x: &mut [f64], n: usize) {
     for i in 1..=n {
-        x[ix(0, i, n)] = if b == 1 { -x[ix(1, i, n)] } else { x[ix(1, i, n)] };
-        x[ix(n + 1, i, n)] = if b == 1 { -x[ix(n, i, n)] } else { x[ix(n, i, n)] };
-        x[ix(i, 0, n)] = if b == 2 { -x[ix(i, 1, n)] } else { x[ix(i, 1, n)] };
-        x[ix(i, n + 1, n)] = if b == 2 { -x[ix(i, n, n)] } else { x[ix(i, n, n)] };
+        x[ix(0, i, n)] = if b == 1 {
+            -x[ix(1, i, n)]
+        } else {
+            x[ix(1, i, n)]
+        };
+        x[ix(n + 1, i, n)] = if b == 1 {
+            -x[ix(n, i, n)]
+        } else {
+            x[ix(n, i, n)]
+        };
+        x[ix(i, 0, n)] = if b == 2 {
+            -x[ix(i, 1, n)]
+        } else {
+            x[ix(i, 1, n)]
+        };
+        x[ix(i, n + 1, n)] = if b == 2 {
+            -x[ix(i, n, n)]
+        } else {
+            x[ix(i, n, n)]
+        };
     }
     x[ix(0, 0, n)] = 0.5 * (x[ix(1, 0, n)] + x[ix(0, 1, n)]);
     x[ix(0, n + 1, n)] = 0.5 * (x[ix(1, n + 1, n)] + x[ix(0, n, n)]);
@@ -66,8 +82,10 @@ fn diffuse(b: i32, x: &mut [f64], x0: &[f64], diff: f64, dt: f64, n: usize, iter
         for j in 1..=n {
             for i in 1..=n {
                 x[ix(i, j, n)] = (x0[ix(i, j, n)]
-                    + a * (x[ix(i - 1, j, n)] + x[ix(i + 1, j, n)]
-                         + x[ix(i, j - 1, n)] + x[ix(i, j + 1, n)]))
+                    + a * (x[ix(i - 1, j, n)]
+                        + x[ix(i + 1, j, n)]
+                        + x[ix(i, j - 1, n)]
+                        + x[ix(i, j + 1, n)]))
                     / (1.0 + 4.0 * a);
             }
         }
@@ -98,21 +116,28 @@ fn advect(b: i32, d: &mut [f64], d0: &[f64], u: &[f64], v: &[f64], dt: f64, n: u
             let t0 = 1.0 - t1;
 
             d[ix(i, j, n)] = s0 * (t0 * d0[ix(i0, j0, n)] + t1 * d0[ix(i0, j1, n)])
-                           + s1 * (t0 * d0[ix(i1, j0, n)] + t1 * d0[ix(i1, j1, n)]);
+                + s1 * (t0 * d0[ix(i1, j0, n)] + t1 * d0[ix(i1, j1, n)]);
         }
     }
     set_bnd(b, d, n);
 }
 
 /// Projection step (Helmholtz-Hodge decomposition).
-fn project(u: &mut [f64], v: &mut [f64], p: &mut [f64], div: &mut [f64], n: usize, iterations: usize) {
+fn project(
+    u: &mut [f64],
+    v: &mut [f64],
+    p: &mut [f64],
+    div: &mut [f64],
+    n: usize,
+    iterations: usize,
+) {
     let h = 1.0 / n as f64;
     for j in 1..=n {
         for i in 1..=n {
-            div[ix(i, j, n)] = -0.5 * h * (
-                u[ix(i + 1, j, n)] - u[ix(i - 1, j, n)]
-              + v[ix(i, j + 1, n)] - v[ix(i, j - 1, n)]
-            );
+            div[ix(i, j, n)] = -0.5
+                * h
+                * (u[ix(i + 1, j, n)] - u[ix(i - 1, j, n)] + v[ix(i, j + 1, n)]
+                    - v[ix(i, j - 1, n)]);
             p[ix(i, j, n)] = 0.0;
         }
     }
@@ -123,8 +148,11 @@ fn project(u: &mut [f64], v: &mut [f64], p: &mut [f64], div: &mut [f64], n: usiz
         for j in 1..=n {
             for i in 1..=n {
                 p[ix(i, j, n)] = (div[ix(i, j, n)]
-                    + p[ix(i - 1, j, n)] + p[ix(i + 1, j, n)]
-                    + p[ix(i, j - 1, n)] + p[ix(i, j + 1, n)]) / 4.0;
+                    + p[ix(i - 1, j, n)]
+                    + p[ix(i + 1, j, n)]
+                    + p[ix(i, j - 1, n)]
+                    + p[ix(i, j + 1, n)])
+                    / 4.0;
             }
         }
         set_bnd(0, p, n);
@@ -200,15 +228,23 @@ impl FluidSim {
     }
 
     /// Grid size N.
-    pub fn grid_size(&self) -> usize { self.n }
+    pub fn grid_size(&self) -> usize {
+        self.n
+    }
 
     /// Step count.
-    pub fn step_count(&self) -> u64 { self.step_count }
+    pub fn step_count(&self) -> u64 {
+        self.step_count
+    }
 
     /// Add density at position (i, j).
     pub fn add_density(&mut self, i: usize, j: usize, amount: f64) -> Result<(), FluidError> {
         if i == 0 || i > self.n || j == 0 || j > self.n {
-            return Err(FluidError::OutOfBounds { x: i, y: j, n: self.n });
+            return Err(FluidError::OutOfBounds {
+                x: i,
+                y: j,
+                n: self.n,
+            });
         }
         self.density[ix(i, j, self.n)] += amount;
         Ok(())
@@ -217,7 +253,11 @@ impl FluidSim {
     /// Add velocity at position (i, j).
     pub fn add_velocity(&mut self, i: usize, j: usize, vx: f64, vy: f64) -> Result<(), FluidError> {
         if i == 0 || i > self.n || j == 0 || j > self.n {
-            return Err(FluidError::OutOfBounds { x: i, y: j, n: self.n });
+            return Err(FluidError::OutOfBounds {
+                x: i,
+                y: j,
+                n: self.n,
+            });
         }
         self.vx[ix(i, j, self.n)] += vx;
         self.vy[ix(i, j, self.n)] += vy;
@@ -259,7 +299,9 @@ impl FluidSim {
         for j in 1..=self.n {
             for i in 1..=self.n {
                 let d = self.density[ix(i, j, self.n)];
-                if d > max { max = d; }
+                if d > max {
+                    max = d;
+                }
             }
         }
         max
@@ -273,7 +315,9 @@ impl FluidSim {
                 let u = self.vx[ix(i, j, self.n)];
                 let v = self.vy[ix(i, j, self.n)];
                 let mag = (u * u + v * v).sqrt();
-                if mag > max { max = mag; }
+                if mag > max {
+                    max = mag;
+                }
             }
         }
         max
@@ -293,15 +337,45 @@ impl FluidSim {
         diffuse(1, &mut self.vx, &self.vx_prev, visc, dt, n, iters);
         diffuse(2, &mut self.vy, &self.vy_prev, visc, dt, n, iters);
 
-        project(&mut self.vx, &mut self.vy, &mut self.p, &mut self.div, n, iters);
+        project(
+            &mut self.vx,
+            &mut self.vy,
+            &mut self.p,
+            &mut self.div,
+            n,
+            iters,
+        );
 
         std::mem::swap(&mut self.vx, &mut self.vx_prev);
         std::mem::swap(&mut self.vy, &mut self.vy_prev);
 
-        advect(1, &mut self.vx, &self.vx_prev, &self.vx_prev, &self.vy_prev, dt, n);
-        advect(2, &mut self.vy, &self.vy_prev, &self.vx_prev, &self.vy_prev, dt, n);
+        advect(
+            1,
+            &mut self.vx,
+            &self.vx_prev,
+            &self.vx_prev,
+            &self.vy_prev,
+            dt,
+            n,
+        );
+        advect(
+            2,
+            &mut self.vy,
+            &self.vy_prev,
+            &self.vx_prev,
+            &self.vy_prev,
+            dt,
+            n,
+        );
 
-        project(&mut self.vx, &mut self.vy, &mut self.p, &mut self.div, n, iters);
+        project(
+            &mut self.vx,
+            &mut self.vy,
+            &mut self.p,
+            &mut self.div,
+            n,
+            iters,
+        );
     }
 
     /// Step the density field.
@@ -315,7 +389,15 @@ impl FluidSim {
         diffuse(0, &mut self.density, &self.density_prev, diff, dt, n, iters);
 
         std::mem::swap(&mut self.density, &mut self.density_prev);
-        advect(0, &mut self.density, &self.density_prev, &self.vx, &self.vy, dt, n);
+        advect(
+            0,
+            &mut self.density,
+            &self.density_prev,
+            &self.vx,
+            &self.vy,
+            dt,
+            n,
+        );
     }
 
     /// Advance the simulation by one time step.
@@ -461,7 +543,10 @@ mod tests {
         let initial_at_neighbor = sim.get_density(6, 5);
         sim.step_n(5);
         let after = sim.get_density(6, 5);
-        assert!(after > initial_at_neighbor, "diffusion should spread density");
+        assert!(
+            after > initial_at_neighbor,
+            "diffusion should spread density"
+        );
     }
 
     #[test]
@@ -538,7 +623,9 @@ mod tests {
 
     #[test]
     fn test_with_iterations() {
-        let sim = FluidSim::new(10, 0.1, 0.0, 0.0).unwrap().with_iterations(50);
+        let sim = FluidSim::new(10, 0.1, 0.0, 0.0)
+            .unwrap()
+            .with_iterations(50);
         assert_eq!(sim.iterations, 50);
     }
 
@@ -549,7 +636,10 @@ mod tests {
         let initial_max = sim.max_velocity();
         sim.step_n(10);
         let final_max = sim.max_velocity();
-        assert!(final_max < initial_max, "viscosity should damp velocity: {final_max} vs {initial_max}");
+        assert!(
+            final_max < initial_max,
+            "viscosity should damp velocity: {final_max} vs {initial_max}"
+        );
     }
 
     #[test]

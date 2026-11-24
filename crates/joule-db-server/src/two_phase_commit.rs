@@ -447,8 +447,8 @@ impl RecoveryLog {
         let mut entries = Vec::new();
         let mut max_lsn: u64 = 0;
         if path.exists() {
-            let raw = std::fs::read(path)
-                .map_err(|e| format!("Failed to read recovery log: {e}"))?;
+            let raw =
+                std::fs::read(path).map_err(|e| format!("Failed to read recovery log: {e}"))?;
             let mut valid_len: usize = 0;
 
             for frame in raw.split_inclusive(|&b| b == b'\n') {
@@ -490,7 +490,9 @@ impl RecoveryLog {
                 let repair = std::fs::OpenOptions::new()
                     .write(true)
                     .open(path)
-                    .map_err(|e| format!("Failed to open recovery log for torn-tail repair: {e}"))?;
+                    .map_err(|e| {
+                        format!("Failed to open recovery log for torn-tail repair: {e}")
+                    })?;
                 repair
                     .set_len(valid_len as u64)
                     .map_err(|e| format!("Failed to truncate torn recovery log tail: {e}"))?;

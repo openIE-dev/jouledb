@@ -34,7 +34,9 @@ impl EmailAddress {
         let input = input.trim();
         if let Some(lt_pos) = input.rfind('<') {
             let gt_pos = input.find('>')?;
-            if gt_pos <= lt_pos { return None; }
+            if gt_pos <= lt_pos {
+                return None;
+            }
             let email_part = &input[lt_pos + 1..gt_pos];
             let name_part = input[..lt_pos].trim().trim_matches('"').trim();
             let mut addr = parse_bare_address(email_part)?;
@@ -70,13 +72,25 @@ impl fmt::Display for EmailAddress {
 fn parse_bare_address(email: &str) -> Option<EmailAddress> {
     let email = email.trim();
     let at_pos = email.rfind('@')?;
-    if at_pos == 0 || at_pos == email.len() - 1 { return None; }
+    if at_pos == 0 || at_pos == email.len() - 1 {
+        return None;
+    }
     let local = &email[..at_pos];
     let domain = &email[at_pos + 1..];
-    if local.is_empty() || domain.is_empty() { return None; }
-    if !domain.contains('.') && !domain.eq_ignore_ascii_case("localhost") { return None; }
-    if local.len() > 64 || domain.len() > 255 { return None; }
-    Some(EmailAddress { name: None, local: local.to_string(), domain: domain.to_string() })
+    if local.is_empty() || domain.is_empty() {
+        return None;
+    }
+    if !domain.contains('.') && !domain.eq_ignore_ascii_case("localhost") {
+        return None;
+    }
+    if local.len() > 64 || domain.len() > 255 {
+        return None;
+    }
+    Some(EmailAddress {
+        name: None,
+        local: local.to_string(),
+        domain: domain.to_string(),
+    })
 }
 
 // ── MIME Content Types ──────────────────────────────────────────
@@ -102,7 +116,11 @@ impl ContentType {
 // ── Content Transfer Encoding ───────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TransferEncoding { SevenBit, QuotedPrintable, Base64 }
+pub enum TransferEncoding {
+    SevenBit,
+    QuotedPrintable,
+    Base64,
+}
 
 impl TransferEncoding {
     pub fn as_str(&self) -> &str {
@@ -147,7 +165,9 @@ pub fn base64_encode_mime(data: &[u8]) -> String {
     let raw = base64_encode(data);
     let mut wrapped = String::with_capacity(raw.len() + raw.len() / 76 * 2);
     for (i, ch) in raw.chars().enumerate() {
-        if i > 0 && i % 76 == 0 { wrapped.push_str("\r\n"); }
+        if i > 0 && i % 76 == 0 {
+            wrapped.push_str("\r\n");
+        }
         wrapped.push(ch);
     }
     wrapped
@@ -200,7 +220,12 @@ pub struct Attachment {
 
 impl Attachment {
     pub fn new(filename: &str, content_type: &str, data: Vec<u8>) -> Self {
-        Self { filename: filename.into(), content_type: content_type.into(), data, content_id: None }
+        Self {
+            filename: filename.into(),
+            content_type: content_type.into(),
+            data,
+            content_id: None,
+        }
     }
 
     /// Create an inline attachment with a Content-ID for embedding in HTML.
@@ -234,34 +259,73 @@ pub struct EmailBuilder {
 impl EmailBuilder {
     pub fn new() -> Self {
         Self {
-            from: None, to: Vec::new(), cc: Vec::new(), bcc: Vec::new(),
-            reply_to: None, subject: String::new(), headers: HashMap::new(),
-            text_body: None, html_body: None, attachments: Vec::new(),
+            from: None,
+            to: Vec::new(),
+            cc: Vec::new(),
+            bcc: Vec::new(),
+            reply_to: None,
+            subject: String::new(),
+            headers: HashMap::new(),
+            text_body: None,
+            html_body: None,
+            attachments: Vec::new(),
             message_id: None,
         }
     }
 
-    pub fn from(mut self, addr: EmailAddress) -> Self { self.from = Some(addr); self }
-    pub fn to(mut self, addr: EmailAddress) -> Self { self.to.push(addr); self }
-    pub fn cc(mut self, addr: EmailAddress) -> Self { self.cc.push(addr); self }
-    pub fn bcc(mut self, addr: EmailAddress) -> Self { self.bcc.push(addr); self }
-    pub fn reply_to(mut self, addr: EmailAddress) -> Self { self.reply_to = Some(addr); self }
-    pub fn subject(mut self, subject: &str) -> Self { self.subject = subject.into(); self }
-    pub fn message_id(mut self, id: &str) -> Self { self.message_id = Some(id.into()); self }
+    pub fn from(mut self, addr: EmailAddress) -> Self {
+        self.from = Some(addr);
+        self
+    }
+    pub fn to(mut self, addr: EmailAddress) -> Self {
+        self.to.push(addr);
+        self
+    }
+    pub fn cc(mut self, addr: EmailAddress) -> Self {
+        self.cc.push(addr);
+        self
+    }
+    pub fn bcc(mut self, addr: EmailAddress) -> Self {
+        self.bcc.push(addr);
+        self
+    }
+    pub fn reply_to(mut self, addr: EmailAddress) -> Self {
+        self.reply_to = Some(addr);
+        self
+    }
+    pub fn subject(mut self, subject: &str) -> Self {
+        self.subject = subject.into();
+        self
+    }
+    pub fn message_id(mut self, id: &str) -> Self {
+        self.message_id = Some(id.into());
+        self
+    }
 
     pub fn header(mut self, name: &str, value: &str) -> Self {
         self.headers.insert(name.into(), value.into());
         self
     }
 
-    pub fn text_body(mut self, body: &str) -> Self { self.text_body = Some(body.into()); self }
-    pub fn html_body(mut self, body: &str) -> Self { self.html_body = Some(body.into()); self }
-    pub fn attachment(mut self, att: Attachment) -> Self { self.attachments.push(att); self }
+    pub fn text_body(mut self, body: &str) -> Self {
+        self.text_body = Some(body.into());
+        self
+    }
+    pub fn html_body(mut self, body: &str) -> Self {
+        self.html_body = Some(body.into());
+        self
+    }
+    pub fn attachment(mut self, att: Attachment) -> Self {
+        self.attachments.push(att);
+        self
+    }
 
     /// Build the complete MIME message as a string.
     pub fn build(&self) -> Result<String, EmailError> {
         let from = self.from.as_ref().ok_or(EmailError::MissingFrom)?;
-        if self.to.is_empty() { return Err(EmailError::MissingTo); }
+        if self.to.is_empty() {
+            return Err(EmailError::MissingTo);
+        }
 
         let boundary_mixed = "----=_Part_Mixed_001";
         let boundary_alt = "----=_Part_Alt_002";
@@ -295,7 +359,9 @@ impl EmailBuilder {
         let has_both_bodies = self.text_body.is_some() && self.html_body.is_some();
 
         if has_attachments {
-            msg.push_str(&format!("Content-Type: multipart/mixed; boundary=\"{boundary_mixed}\"\r\n\r\n"));
+            msg.push_str(&format!(
+                "Content-Type: multipart/mixed; boundary=\"{boundary_mixed}\"\r\n\r\n"
+            ));
             msg.push_str(&format!("--{boundary_mixed}\r\n"));
             self.write_body_part(&mut msg, boundary_alt, has_both_bodies);
             for att in &self.attachments {
@@ -304,7 +370,9 @@ impl EmailBuilder {
             }
             msg.push_str(&format!("--{boundary_mixed}--\r\n"));
         } else if has_both_bodies {
-            msg.push_str(&format!("Content-Type: multipart/alternative; boundary=\"{boundary_alt}\"\r\n\r\n"));
+            msg.push_str(&format!(
+                "Content-Type: multipart/alternative; boundary=\"{boundary_alt}\"\r\n\r\n"
+            ));
             if let Some(ref text) = self.text_body {
                 msg.push_str(&format!("--{boundary_alt}\r\n"));
                 msg.push_str("Content-Type: text/plain; charset=utf-8\r\n");
@@ -337,7 +405,9 @@ impl EmailBuilder {
 
     fn write_body_part(&self, msg: &mut String, boundary_alt: &str, has_both: bool) {
         if has_both {
-            msg.push_str(&format!("Content-Type: multipart/alternative; boundary=\"{boundary_alt}\"\r\n\r\n"));
+            msg.push_str(&format!(
+                "Content-Type: multipart/alternative; boundary=\"{boundary_alt}\"\r\n\r\n"
+            ));
             if let Some(ref text) = self.text_body {
                 msg.push_str(&format!("--{boundary_alt}\r\n"));
                 msg.push_str("Content-Type: text/plain; charset=utf-8\r\n");
@@ -367,12 +437,18 @@ impl EmailBuilder {
     }
 
     fn write_attachment(&self, msg: &mut String, att: &Attachment) {
-        msg.push_str(&format!("Content-Type: {}; name=\"{}\"\r\n", att.content_type, att.filename));
+        msg.push_str(&format!(
+            "Content-Type: {}; name=\"{}\"\r\n",
+            att.content_type, att.filename
+        ));
         if let Some(ref cid) = att.content_id {
             msg.push_str(&format!("Content-ID: <{}>\r\n", cid));
             msg.push_str("Content-Disposition: inline\r\n");
         } else {
-            msg.push_str(&format!("Content-Disposition: attachment; filename=\"{}\"\r\n", att.filename));
+            msg.push_str(&format!(
+                "Content-Disposition: attachment; filename=\"{}\"\r\n",
+                att.filename
+            ));
         }
         msg.push_str("Content-Transfer-Encoding: base64\r\n\r\n");
         msg.push_str(&base64_encode_mime(&att.data));
@@ -381,7 +457,9 @@ impl EmailBuilder {
 }
 
 impl Default for EmailBuilder {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Errors ──────────────────────────────────────────────────────
@@ -563,7 +641,8 @@ mod tests {
 
     #[test]
     fn build_with_inline_image() {
-        let att = Attachment::inline_image("logo.png", "image/png", vec![0x89, 0x50, 0x4E], "logo1");
+        let att =
+            Attachment::inline_image("logo.png", "image/png", vec![0x89, 0x50, 0x4E], "logo1");
         let email = EmailBuilder::new()
             .from(EmailAddress::new("sender@example.com").unwrap())
             .to(EmailAddress::new("recipient@example.com").unwrap())
@@ -671,22 +750,34 @@ mod tests {
 
     #[test]
     fn error_display() {
-        assert_eq!(format!("{}", EmailError::MissingFrom), "From address is required");
-        assert_eq!(format!("{}", EmailError::MissingTo), "At least one To address is required");
+        assert_eq!(
+            format!("{}", EmailError::MissingFrom),
+            "From address is required"
+        );
+        assert_eq!(
+            format!("{}", EmailError::MissingTo),
+            "At least one To address is required"
+        );
     }
 
     #[test]
     fn content_type_strings() {
         assert_eq!(ContentType::TextPlain.as_str(), "text/plain; charset=utf-8");
         assert_eq!(ContentType::TextHtml.as_str(), "text/html; charset=utf-8");
-        assert_eq!(ContentType::Custom("application/json".into()).as_str(), "application/json");
+        assert_eq!(
+            ContentType::Custom("application/json".into()).as_str(),
+            "application/json"
+        );
     }
 
     #[test]
     fn transfer_encoding_strings() {
         assert_eq!(TransferEncoding::SevenBit.as_str(), "7bit");
         assert_eq!(TransferEncoding::Base64.as_str(), "base64");
-        assert_eq!(TransferEncoding::QuotedPrintable.as_str(), "quoted-printable");
+        assert_eq!(
+            TransferEncoding::QuotedPrintable.as_str(),
+            "quoted-printable"
+        );
     }
 
     #[test]

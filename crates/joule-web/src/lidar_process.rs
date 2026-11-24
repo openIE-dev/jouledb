@@ -21,7 +21,12 @@ pub struct Point3 {
 
 impl Point3 {
     pub fn new(x: f64, y: f64, z: f64) -> Self {
-        Self { x, y, z, intensity: 0.0 }
+        Self {
+            x,
+            y,
+            z,
+            intensity: 0.0,
+        }
     }
 
     pub fn with_intensity(mut self, intensity: f64) -> Self {
@@ -86,7 +91,9 @@ impl PointCloud {
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        Self { points: Vec::with_capacity(capacity) }
+        Self {
+            points: Vec::with_capacity(capacity),
+        }
     }
 
     pub fn push(&mut self, pt: Point3) {
@@ -126,12 +133,24 @@ impl PointCloud {
         let mut min = self.points[0];
         let mut max = self.points[0];
         for p in &self.points[1..] {
-            if p.x < min.x { min.x = p.x; }
-            if p.y < min.y { min.y = p.y; }
-            if p.z < min.z { min.z = p.z; }
-            if p.x > max.x { max.x = p.x; }
-            if p.y > max.y { max.y = p.y; }
-            if p.z > max.z { max.z = p.z; }
+            if p.x < min.x {
+                min.x = p.x;
+            }
+            if p.y < min.y {
+                min.y = p.y;
+            }
+            if p.z < min.z {
+                min.z = p.z;
+            }
+            if p.x > max.x {
+                max.x = p.x;
+            }
+            if p.y > max.y {
+                max.y = p.y;
+            }
+            if p.z > max.z {
+                max.z = p.z;
+            }
         }
         Some((min, max))
     }
@@ -270,7 +289,11 @@ pub struct Transform2D {
 
 impl Transform2D {
     pub fn identity() -> Self {
-        Self { tx: 0.0, ty: 0.0, theta: 0.0 }
+        Self {
+            tx: 0.0,
+            ty: 0.0,
+            theta: 0.0,
+        }
     }
 
     pub fn apply(&self, p: &Point3) -> Point3 {
@@ -299,7 +322,9 @@ impl fmt::Display for Transform2D {
         write!(
             f,
             "T2D(tx={:.4}, ty={:.4}, theta={:.4} deg)",
-            self.tx, self.ty, self.theta.to_degrees()
+            self.tx,
+            self.ty,
+            self.theta.to_degrees()
         )
     }
 }
@@ -379,8 +404,10 @@ impl IcpMatcher {
             let (mut sx, mut sy) = (0.0, 0.0);
             let (mut tx_sum, mut ty_sum) = (0.0, 0.0);
             for (s, t) in src_matched.iter().zip(tgt_matched.iter()) {
-                sx += s.x; sy += s.y;
-                tx_sum += t.x; ty_sum += t.y;
+                sx += s.x;
+                sy += s.y;
+                tx_sum += t.x;
+                ty_sum += t.y;
             }
             let sc = (sx / n, sy / n);
             let tc = (tx_sum / n, ty_sum / n);
@@ -420,7 +447,11 @@ impl IcpMatcher {
 
 impl fmt::Display for IcpMatcher {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ICP(max_iter={}, eps={:.1e})", self.max_iterations, self.convergence_threshold)
+        write!(
+            f,
+            "ICP(max_iter={}, eps={:.1e})",
+            self.max_iterations, self.convergence_threshold
+        )
     }
 }
 
@@ -466,7 +497,9 @@ impl GroundDetector {
     }
 
     fn pseudo_random(&self, iteration: usize, which: usize) -> usize {
-        let mut h = self.seed.wrapping_add((iteration as u64).wrapping_mul(6364136223846793005));
+        let mut h = self
+            .seed
+            .wrapping_add((iteration as u64).wrapping_mul(6364136223846793005));
         h = h.wrapping_add((which as u64).wrapping_mul(1442695040888963407));
         h ^= h >> 16;
         h = h.wrapping_mul(0x45d9f3b);
@@ -698,7 +731,10 @@ impl EuclideanClusterer {
             if cluster_pts.len() >= self.min_cluster_size
                 && cluster_pts.len() <= self.max_cluster_size
             {
-                clusters.push(Cluster { points: cluster_pts, id: cluster_id });
+                clusters.push(Cluster {
+                    points: cluster_pts,
+                    id: cluster_id,
+                });
                 cluster_id += 1;
             }
         }
@@ -827,7 +863,11 @@ mod tests {
 
     #[test]
     fn test_transform2d_rotation() {
-        let t = Transform2D { tx: 0.0, ty: 0.0, theta: PI / 2.0 };
+        let t = Transform2D {
+            tx: 0.0,
+            ty: 0.0,
+            theta: PI / 2.0,
+        };
         let p = Point3::new(1.0, 0.0, 0.0);
         let q = t.apply(&p);
         assert!((q.x).abs() < 1e-12);

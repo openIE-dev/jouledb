@@ -101,12 +101,7 @@ pub struct MeshMessage {
 }
 
 impl MeshMessage {
-    pub fn new(
-        id: u64,
-        from: impl Into<PeerId>,
-        target: MessageTarget,
-        payload: Vec<u8>,
-    ) -> Self {
+    pub fn new(id: u64, from: impl Into<PeerId>, target: MessageTarget, payload: Vec<u8>) -> Self {
         Self {
             id,
             from: from.into(),
@@ -237,11 +232,7 @@ pub struct StunBindingResponse {
 }
 
 impl StunBindingResponse {
-    pub fn new(
-        transaction_id: [u8; 12],
-        address: impl Into<String>,
-        port: u16,
-    ) -> Self {
+    pub fn new(transaction_id: [u8; 12], address: impl Into<String>, port: u16) -> Self {
         Self {
             transaction_id,
             mapped_address: address.into(),
@@ -347,12 +338,7 @@ impl MeshNetwork {
             .map(|p| p.id.clone())
             .collect();
 
-        let msg = MeshMessage::new(
-            id,
-            self.local_id.clone(),
-            MessageTarget::Broadcast,
-            payload,
-        );
+        let msg = MeshMessage::new(id, self.local_id.clone(), MessageTarget::Broadcast, payload);
         self.seen_message_ids.insert(id);
         self.message_log.push(msg);
         recipients
@@ -381,11 +367,7 @@ impl MeshNetwork {
 
     /// Route a multicast message to a group. Returns recipient peer IDs.
     pub fn route_multicast(&mut self, group: &str, payload: Vec<u8>) -> Vec<PeerId> {
-        let members = self
-            .groups
-            .get(group)
-            .cloned()
-            .unwrap_or_default();
+        let members = self.groups.get(group).cloned().unwrap_or_default();
 
         let recipients: Vec<PeerId> = members
             .iter()
@@ -433,9 +415,7 @@ impl MeshNetwork {
     pub fn detect_timeouts(&mut self, now: u64, timeout_secs: u64) -> Vec<PeerId> {
         let mut timed_out = Vec::new();
         for peer in self.peers.values_mut() {
-            if peer.state == PeerState::Connected
-                && peer.is_timed_out(now, timeout_secs)
-            {
+            if peer.state == PeerState::Connected && peer.is_timed_out(now, timeout_secs) {
                 peer.state = PeerState::Disconnected;
                 timed_out.push(peer.id.clone());
             }
@@ -628,10 +608,7 @@ mod tests {
 
     #[test]
     fn partial_mesh_topology() {
-        let net = MeshNetwork::new(
-            "local",
-            MeshTopology::PartialMesh { max_connections: 3 },
-        );
+        let net = MeshNetwork::new("local", MeshTopology::PartialMesh { max_connections: 3 });
         assert!(matches!(
             net.topology,
             MeshTopology::PartialMesh { max_connections: 3 }

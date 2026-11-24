@@ -47,9 +47,21 @@ impl Default for GaugeConfig {
             start_angle_deg: 225.0,
             end_angle_deg: -45.0,
             color_bands: vec![
-                ColorBand { from: 0.0, to: 33.0, color: "#2ecc71".into() },
-                ColorBand { from: 33.0, to: 66.0, color: "#f1c40f".into() },
-                ColorBand { from: 66.0, to: 100.0, color: "#e74c3c".into() },
+                ColorBand {
+                    from: 0.0,
+                    to: 33.0,
+                    color: "#2ecc71".into(),
+                },
+                ColorBand {
+                    from: 33.0,
+                    to: 66.0,
+                    color: "#f1c40f".into(),
+                },
+                ColorBand {
+                    from: 66.0,
+                    to: 100.0,
+                    color: "#e74c3c".into(),
+                },
             ],
             width: 300.0,
             height: 200.0,
@@ -190,10 +202,7 @@ pub fn render_progress_ring(ring: &ProgressRing, cx: f64, cy: f64) -> String {
         "<circle cx=\"{cx}\" cy=\"{cy}\" r=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\" \
          stroke-dasharray=\"{dash} {gap}\" stroke-dashoffset=\"{}\" \
          transform=\"rotate(-90 {cx} {cy})\" />",
-        ring.radius,
-        ring.color,
-        ring.stroke_width,
-        0.0
+        ring.radius, ring.color, ring.stroke_width, 0.0
     ));
     svg
 }
@@ -262,7 +271,8 @@ pub fn render_gauge(cfg: &GaugeConfig) -> String {
             "<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"#333\" stroke-width=\"{sw}\" />"
         ));
         if tick.is_major {
-            let (lx, ly) = label_position_on_arc(tick.angle_deg, cx, cy, r - cfg.arc_width / 2.0, -20.0);
+            let (lx, ly) =
+                label_position_on_arc(tick.angle_deg, cx, cy, r - cfg.arc_width / 2.0, -20.0);
             let fs = cfg.font_size;
             svg.push_str(&format!(
                 "<text x=\"{lx}\" y=\"{ly}\" font-size=\"{fs}\" text-anchor=\"middle\" dominant-baseline=\"middle\">{:.0}</text>",
@@ -374,7 +384,11 @@ mod tests {
     fn tick_marks_include_min_and_max() {
         let cfg = GaugeConfig::default();
         let ticks = tick_marks(&cfg);
-        let major_values: Vec<f64> = ticks.iter().filter(|t| t.is_major).map(|t| t.value).collect();
+        let major_values: Vec<f64> = ticks
+            .iter()
+            .filter(|t| t.is_major)
+            .map(|t| t.value)
+            .collect();
         assert!(major_values.iter().any(|v| (v - cfg.min).abs() < 1e-9));
         assert!(major_values.iter().any(|v| (v - cfg.max).abs() < 1e-9));
     }
@@ -426,8 +440,16 @@ mod tests {
     fn render_needles_multiple() {
         let cfg = GaugeConfig::default();
         let needles = vec![
-            Needle { value: 30.0, color: "#f00".into(), length_ratio: 0.9 },
-            Needle { value: 70.0, color: "#00f".into(), length_ratio: 0.6 },
+            Needle {
+                value: 30.0,
+                color: "#f00".into(),
+                length_ratio: 0.9,
+            },
+            Needle {
+                value: 70.0,
+                color: "#00f".into(),
+                length_ratio: 0.6,
+            },
         ];
         let svg = render_needles(&needles, &cfg);
         assert_eq!(svg.matches("<line").count(), 2);
@@ -443,9 +465,9 @@ mod tests {
         let svg = render_gauge(&cfg);
         assert!(svg.contains("<svg"));
         assert!(svg.contains("</svg>"));
-        assert!(svg.contains("<path"));  // colour bands
-        assert!(svg.contains("<line"));  // ticks + pointer
-        assert!(svg.contains("<text"));  // labels + readout
+        assert!(svg.contains("<path")); // colour bands
+        assert!(svg.contains("<line")); // ticks + pointer
+        assert!(svg.contains("<text")); // labels + readout
     }
 
     #[test]

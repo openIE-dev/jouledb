@@ -9,8 +9,14 @@ use std::fmt;
 /// Errors from raster algebra operations.
 #[derive(Debug, Clone, PartialEq)]
 pub enum AlgebraError {
-    DimensionMismatch { a: (usize, usize), b: (usize, usize) },
-    DivisionByZero { row: usize, col: usize },
+    DimensionMismatch {
+        a: (usize, usize),
+        b: (usize, usize),
+    },
+    DivisionByZero {
+        row: usize,
+        col: usize,
+    },
     EmptyGrid,
     InvalidWeights,
     NoZones,
@@ -45,16 +51,33 @@ pub struct AlgGrid {
 
 impl AlgGrid {
     pub fn new(rows: usize, cols: usize, nodata: f64) -> Self {
-        Self { rows, cols, nodata, data: vec![nodata; rows * cols] }
+        Self {
+            rows,
+            cols,
+            nodata,
+            data: vec![nodata; rows * cols],
+        }
     }
 
     pub fn from_data(rows: usize, cols: usize, nodata: f64, data: Vec<f64>) -> Option<Self> {
-        if data.len() != rows * cols { return None; }
-        Some(Self { rows, cols, nodata, data })
+        if data.len() != rows * cols {
+            return None;
+        }
+        Some(Self {
+            rows,
+            cols,
+            nodata,
+            data,
+        })
     }
 
     pub fn filled(rows: usize, cols: usize, value: f64) -> Self {
-        Self { rows, cols, nodata: -9999.0, data: vec![value; rows * cols] }
+        Self {
+            rows,
+            cols,
+            nodata: -9999.0,
+            data: vec![value; rows * cols],
+        }
     }
 
     pub fn get(&self, r: usize, c: usize) -> f64 {
@@ -83,7 +106,10 @@ impl AlgGrid {
 
     fn check_dims(&self, other: &AlgGrid) -> Result<(), AlgebraError> {
         if self.dims() != other.dims() {
-            Err(AlgebraError::DimensionMismatch { a: self.dims(), b: other.dims() })
+            Err(AlgebraError::DimensionMismatch {
+                a: self.dims(),
+                b: other.dims(),
+            })
         } else {
             Ok(())
         }
@@ -93,7 +119,14 @@ impl AlgGrid {
 impl fmt::Display for AlgGrid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let valid = self.data.iter().filter(|v| !self.is_nodata(**v)).count();
-        write!(f, "AlgGrid({}x{}, valid={}/{})", self.rows, self.cols, valid, self.data.len())
+        write!(
+            f,
+            "AlgGrid({}x{}, valid={}/{})",
+            self.rows,
+            self.cols,
+            valid,
+            self.data.len()
+        )
     }
 }
 
@@ -153,12 +186,20 @@ pub fn local_scalar(grid: &AlgGrid, scalar: f64, op: LocalOp) -> AlgGrid {
     for r in 0..grid.rows {
         for c in 0..grid.cols {
             let v = grid.get(r, c);
-            if grid.is_nodata(v) { continue; }
+            if grid.is_nodata(v) {
+                continue;
+            }
             let result = match op {
                 LocalOp::Add => v + scalar,
                 LocalOp::Subtract => v - scalar,
                 LocalOp::Multiply => v * scalar,
-                LocalOp::Divide => if scalar.abs() < f64::EPSILON { grid.nodata } else { v / scalar },
+                LocalOp::Divide => {
+                    if scalar.abs() < f64::EPSILON {
+                        grid.nodata
+                    } else {
+                        v / scalar
+                    }
+                }
             };
             out.set(r, c, result);
         }
@@ -197,7 +238,9 @@ pub fn focal(grid: &AlgGrid, radius: usize, stat: FocalStat) -> AlgGrid {
     let mut out = AlgGrid::new(grid.rows, grid.cols, grid.nodata);
     for r in 0..grid.rows {
         for c in 0..grid.cols {
-            if !grid.is_valid(r, c) { continue; }
+            if !grid.is_valid(r, c) {
+                continue;
+            }
             let mut vals = Vec::new();
             let r_start = r.saturating_sub(radius);
             let r_end = (r + radius + 1).min(grid.rows);
@@ -210,7 +253,9 @@ pub fn focal(grid: &AlgGrid, radius: usize, stat: FocalStat) -> AlgGrid {
                     }
                 }
             }
-            if vals.is_empty() { continue; }
+            if vals.is_empty() {
+                continue;
+            }
             let result = match stat {
                 FocalStat::Mean => vals.iter().sum::<f64>() / vals.len() as f64,
                 FocalStat::Max => vals.iter().cloned().fold(f64::MIN, f64::max),
@@ -219,7 +264,8 @@ pub fn focal(grid: &AlgGrid, radius: usize, stat: FocalStat) -> AlgGrid {
                 FocalStat::Count => vals.len() as f64,
                 FocalStat::StdDev => {
                     let mean = vals.iter().sum::<f64>() / vals.len() as f64;
-                    let var = vals.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / vals.len() as f64;
+                    let var =
+                        vals.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / vals.len() as f64;
                     var.sqrt()
                 }
             };
@@ -245,7 +291,8 @@ pub struct ZonalResult {
 impl fmt::Display for ZonalResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "Zone {}: n={}, mean={:.4}, min={:.4}, max={:.4}",
+            f,
+            "Zone {}: n={}, mean={:.4}, min={:.4}, max={:.4}",
             self.zone_id, self.count, self.mean, self.min, self.max,
         )
     }
@@ -258,7 +305,9 @@ pub fn zonal_stats(zones: &AlgGrid, values: &AlgGrid) -> Result<Vec<ZonalResult>
     let mut zone_map: std::collections::BTreeMap<i64, Vec<f64>> = std::collections::BTreeMap::new();
     for r in 0..zones.rows {
         for c in 0..zones.cols {
-            if !zones.is_valid(r, c) || !values.is_valid(r, c) { continue; }
+            if !zones.is_valid(r, c) || !values.is_valid(r, c) {
+                continue;
+            }
             let zid = zones.get(r, c) as i64;
             zone_map.entry(zid).or_default().push(values.get(r, c));
         }
@@ -266,14 +315,24 @@ pub fn zonal_stats(zones: &AlgGrid, values: &AlgGrid) -> Result<Vec<ZonalResult>
     if zone_map.is_empty() {
         return Err(AlgebraError::NoZones);
     }
-    let results = zone_map.into_iter().map(|(zid, vals)| {
-        let count = vals.len();
-        let sum: f64 = vals.iter().sum();
-        let mean = sum / count as f64;
-        let min = vals.iter().cloned().fold(f64::MAX, f64::min);
-        let max = vals.iter().cloned().fold(f64::MIN, f64::max);
-        ZonalResult { zone_id: zid, count, sum, mean, min, max }
-    }).collect();
+    let results = zone_map
+        .into_iter()
+        .map(|(zid, vals)| {
+            let count = vals.len();
+            let sum: f64 = vals.iter().sum();
+            let mean = sum / count as f64;
+            let min = vals.iter().cloned().fold(f64::MAX, f64::min);
+            let max = vals.iter().cloned().fold(f64::MIN, f64::max);
+            ZonalResult {
+                zone_id: zid,
+                count,
+                sum,
+                mean,
+                min,
+                max,
+            }
+        })
+        .collect();
     Ok(results)
 }
 
@@ -293,7 +352,9 @@ pub fn reclassify(grid: &AlgGrid, rules: &[ReclassRule]) -> AlgGrid {
     for r in 0..grid.rows {
         for c in 0..grid.cols {
             let v = grid.get(r, c);
-            if grid.is_nodata(v) { continue; }
+            if grid.is_nodata(v) {
+                continue;
+            }
             for rule in rules {
                 if v >= rule.min && v < rule.max {
                     out.set(r, c, rule.new_value);
@@ -421,11 +482,13 @@ mod tests {
 
     #[test]
     fn test_focal_mean() {
-        let g = AlgGrid::from_data(3, 3, -9999.0, vec![
-            1.0, 2.0, 3.0,
-            4.0, 5.0, 6.0,
-            7.0, 8.0, 9.0,
-        ]).unwrap();
+        let g = AlgGrid::from_data(
+            3,
+            3,
+            -9999.0,
+            vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
+        )
+        .unwrap();
         let r = focal(&g, 1, FocalStat::Mean);
         // center cell has all 9 neighbors -> mean = 5.0
         assert!((r.get(1, 1) - 5.0).abs() < 1e-9);
@@ -433,24 +496,39 @@ mod tests {
 
     #[test]
     fn test_focal_max() {
-        let g = AlgGrid::from_data(3, 3, -9999.0,
-            vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]).unwrap();
+        let g = AlgGrid::from_data(
+            3,
+            3,
+            -9999.0,
+            vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
+        )
+        .unwrap();
         let r = focal(&g, 1, FocalStat::Max);
         assert!((r.get(1, 1) - 9.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_focal_min() {
-        let g = AlgGrid::from_data(3, 3, -9999.0,
-            vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]).unwrap();
+        let g = AlgGrid::from_data(
+            3,
+            3,
+            -9999.0,
+            vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
+        )
+        .unwrap();
         let r = focal(&g, 1, FocalStat::Min);
         assert!((r.get(1, 1) - 1.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_focal_stddev() {
-        let g = AlgGrid::from_data(3, 3, -9999.0,
-            vec![5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0]).unwrap();
+        let g = AlgGrid::from_data(
+            3,
+            3,
+            -9999.0,
+            vec![5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0],
+        )
+        .unwrap();
         let r = focal(&g, 1, FocalStat::StdDev);
         assert!(r.get(1, 1).abs() < 1e-9); // all same -> stddev = 0
     }
@@ -471,10 +549,26 @@ mod tests {
     fn test_reclassify() {
         let g = AlgGrid::from_data(2, 2, -9999.0, vec![5.0, 15.0, 25.0, 35.0]).unwrap();
         let rules = vec![
-            ReclassRule { min: 0.0, max: 10.0, new_value: 1.0 },
-            ReclassRule { min: 10.0, max: 20.0, new_value: 2.0 },
-            ReclassRule { min: 20.0, max: 30.0, new_value: 3.0 },
-            ReclassRule { min: 30.0, max: 40.0, new_value: 4.0 },
+            ReclassRule {
+                min: 0.0,
+                max: 10.0,
+                new_value: 1.0,
+            },
+            ReclassRule {
+                min: 10.0,
+                max: 20.0,
+                new_value: 2.0,
+            },
+            ReclassRule {
+                min: 20.0,
+                max: 30.0,
+                new_value: 3.0,
+            },
+            ReclassRule {
+                min: 30.0,
+                max: 40.0,
+                new_value: 4.0,
+            },
         ];
         let r = reclassify(&g, &rules);
         assert!((r.get(0, 0) - 1.0).abs() < 1e-9);
@@ -486,7 +580,11 @@ mod tests {
     #[test]
     fn test_reclassify_unmatched_becomes_nodata() {
         let g = AlgGrid::from_data(1, 1, -9999.0, vec![100.0]).unwrap();
-        let rules = vec![ReclassRule { min: 0.0, max: 10.0, new_value: 1.0 }];
+        let rules = vec![ReclassRule {
+            min: 0.0,
+            max: 10.0,
+            new_value: 1.0,
+        }];
         let r = reclassify(&g, &rules);
         assert!(r.is_nodata(r.get(0, 0)));
     }

@@ -244,11 +244,7 @@ impl CsvTable {
         sorted.sort_by(|a, b| {
             let va = a.get(col).map(|s| s.as_str()).unwrap_or("");
             let vb = b.get(col).map(|s| s.as_str()).unwrap_or("");
-            if ascending {
-                va.cmp(vb)
-            } else {
-                vb.cmp(va)
-            }
+            if ascending { va.cmp(vb) } else { vb.cmp(va) }
         });
         sorted
     }

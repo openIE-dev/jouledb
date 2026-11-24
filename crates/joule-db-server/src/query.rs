@@ -684,36 +684,39 @@ impl SimpleQueryExecutor {
         let mut inserted = 0usize;
         let mut rows_it = rows.into_iter();
         let mut offset = 0usize;
-        let mut prepare = |offset: usize| -> Option<Result<(Maps, std::time::Duration), QueryErrorResponse>> {
-            let chunk: Vec<Vec<AstValue>> = rows_it.by_ref().take(BULK_CHUNK_ROWS).collect();
-            if chunk.is_empty() {
-                return None;
-            }
-            let t_val = std::time::Instant::now();
-            use rayon::prelude::*;
-            let validated: Result<Vec<RowData>, String> = chunk
-                .into_par_iter()
-                .enumerate()
-                .map(|(i, r)| {
-                    if r.len() != insert_columns.len() {
-                        return Err(format!(
-                            "COPY row {}: expected {} columns, got {}",
-                            offset + i + 1,
-                            insert_columns.len(),
-                            r.len()
-                        ));
-                    }
-                    apply_defaults_and_validate(insert_columns.clone(), r, &column_defs)
+        let mut prepare =
+            |offset: usize| -> Option<Result<(Maps, std::time::Duration), QueryErrorResponse>> {
+                let chunk: Vec<Vec<AstValue>> = rows_it.by_ref().take(BULK_CHUNK_ROWS).collect();
+                if chunk.is_empty() {
+                    return None;
+                }
+                let t_val = std::time::Instant::now();
+                use rayon::prelude::*;
+                let validated: Result<Vec<RowData>, String> = chunk
+                    .into_par_iter()
+                    .enumerate()
+                    .map(|(i, r)| {
+                        if r.len() != insert_columns.len() {
+                            return Err(format!(
+                                "COPY row {}: expected {} columns, got {}",
+                                offset + i + 1,
+                                insert_columns.len(),
+                                r.len()
+                            ));
+                        }
+                        apply_defaults_and_validate(insert_columns.clone(), r, &column_defs)
+                    })
+                    .collect();
+                Some(match validated {
+                    Ok(batch) => Ok((
+                        crate::amorphic_adapter::AmorphicTableStorage::rows_to_field_maps(
+                            table, batch,
+                        ),
+                        t_val.elapsed(),
+                    )),
+                    Err(e) => Err(QueryErrorResponse::execution_error(&e)),
                 })
-                .collect();
-            Some(match validated {
-                Ok(batch) => Ok((
-                    crate::amorphic_adapter::AmorphicTableStorage::rows_to_field_maps(table, batch),
-                    t_val.elapsed(),
-                )),
-                Err(e) => Err(QueryErrorResponse::execution_error(&e)),
-            })
-        };
+            };
         let mut next = prepare(offset);
         while let Some(cur) = next.take() {
             let (maps, prep) = cur?;
@@ -725,7 +728,11 @@ impl SimpleQueryExecutor {
                 || prepare(offset),
             );
             if trace {
-                eprintln!("bulk_copy prep(validate+maps)={:?} insert+next_prep={:?}", prep, t_ins.elapsed());
+                eprintln!(
+                    "bulk_copy prep(validate+maps)={:?} insert+next_prep={:?}",
+                    prep,
+                    t_ins.elapsed()
+                );
             }
             match r {
                 Ok(ids) => inserted += ids.len(),
@@ -772,7 +779,10 @@ impl QueryExecutor for SimpleQueryExecutor {
         let columnar = !NO_COLUMNAR_COPY.with(|c| c.get());
         #[cfg(not(test))]
         let columnar = true;
-        if let Some(batch) = columnar.then(|| self.csv_column_batch(table, columns, rows)).flatten() {
+        if let Some(batch) = columnar
+            .then(|| self.csv_column_batch(table, columns, rows))
+            .flatten()
+        {
             return Some(self.insert_column_batch_logged(table, batch));
         }
         // Integers outside i64 take the SQL fallback (parser decides their type).
@@ -802,7 +812,11 @@ impl QueryExecutor for SimpleQueryExecutor {
         if !self.bulk_insert_eligible(table, &column_defs) {
             return None;
         }
-        let insert_columns = if columns.is_empty() { table_columns } else { columns.to_vec() };
+        let insert_columns = if columns.is_empty() {
+            table_columns
+        } else {
+            columns.to_vec()
+        };
         Some(self.bulk_insert_core(table, insert_columns, column_defs, std::mem::take(rows)))
     }
 
@@ -820,11 +834,14 @@ impl QueryExecutor for SimpleQueryExecutor {
         let t1 = std::time::Instant::now();
         let r = self.insert_column_batch_logged(table, batch);
         if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
-            eprintln!("bulk_insert_arrow convert+checks={:?} insert+commit={:?}", t1 - t0, t1.elapsed());
+            eprintln!(
+                "bulk_insert_arrow convert+checks={:?} insert+commit={:?}",
+                t1 - t0,
+                t1.elapsed()
+            );
         }
         Some(r)
     }
-
 
     fn execute(&self, request: &QueryRequest) -> Result<QueryResponse, QueryErrorResponse> {
         let start = Instant::now();
@@ -6522,7 +6539,11 @@ impl SimpleQueryExecutor {
     ) -> Option<joule_db_amorphic::column_batch::ColumnBatch> {
         let (table_columns, defs) = self.columnar_target(table)?;
         let (file_cols, cols, len) = crate::file_formats::batches_to_columns(batches)?;
-        let names = if columns.is_empty() { file_cols } else { columns.to_vec() };
+        let names = if columns.is_empty() {
+            file_cols
+        } else {
+            columns.to_vec()
+        };
         self.finish_column_batch(table, &table_columns, &defs, names, cols, len)
     }
 
@@ -6559,7 +6580,11 @@ impl SimpleQueryExecutor {
         use joule_db_amorphic::column_batch::{BatchColumn, ColData};
         use rayon::prelude::*;
         let (table_columns, defs) = self.columnar_target(table)?;
-        let names: Vec<String> = if columns.is_empty() { table_columns.clone() } else { columns.to_vec() };
+        let names: Vec<String> = if columns.is_empty() {
+            table_columns.clone()
+        } else {
+            columns.to_vec()
+        };
         let ncols = names.len();
         if rows.is_empty() || rows.iter().any(|r| r.len() != ncols) {
             return None;
@@ -6681,17 +6706,42 @@ impl SimpleQueryExecutor {
                 let coerced = match &c.data {
                     ColData::Int(_) => matches!(
                         &t[..],
-                        "FLOAT" | "DOUBLE" | "REAL" | "NUMERIC" | "DECIMAL" | "BOOLEAN" | "BOOL"
-                            | "TEXT" | "VARCHAR" | "CHAR" | "STRING"
+                        "FLOAT"
+                            | "DOUBLE"
+                            | "REAL"
+                            | "NUMERIC"
+                            | "DECIMAL"
+                            | "BOOLEAN"
+                            | "BOOL"
+                            | "TEXT"
+                            | "VARCHAR"
+                            | "CHAR"
+                            | "STRING"
                     ),
                     ColData::Float(_) => matches!(
                         &t[..],
-                        "INT" | "INTEGER" | "BIGINT" | "SMALLINT" | "TEXT" | "VARCHAR" | "CHAR" | "STRING"
+                        "INT"
+                            | "INTEGER"
+                            | "BIGINT"
+                            | "SMALLINT"
+                            | "TEXT"
+                            | "VARCHAR"
+                            | "CHAR"
+                            | "STRING"
                     ),
                     ColData::Str { .. } => matches!(
                         &t[..],
-                        "INT" | "INTEGER" | "BIGINT" | "SMALLINT" | "FLOAT" | "DOUBLE" | "REAL"
-                            | "NUMERIC" | "DECIMAL" | "BOOLEAN" | "BOOL"
+                        "INT"
+                            | "INTEGER"
+                            | "BIGINT"
+                            | "SMALLINT"
+                            | "FLOAT"
+                            | "DOUBLE"
+                            | "REAL"
+                            | "NUMERIC"
+                            | "DECIMAL"
+                            | "BOOLEAN"
+                            | "BOOL"
                     ),
                     ColData::Bool(_) => false,
                 };
@@ -12509,38 +12559,38 @@ fn coerce_to_column(target: &str, v: AstValue) -> AstValue {
     let mut values = [v];
     let i = 0;
     match (&target[..], &values[i]) {
-                ("INT" | "INTEGER" | "BIGINT" | "SMALLINT", AstValue::String(s)) => {
-                    if let Ok(n) = s.parse::<i64>() {
-                        values[i] = AstValue::Int(n);
-                    }
-                }
-                ("INT" | "INTEGER" | "BIGINT" | "SMALLINT", AstValue::Float(f)) => {
-                    values[i] = AstValue::Int(*f as i64);
-                }
-                ("FLOAT" | "DOUBLE" | "REAL" | "NUMERIC" | "DECIMAL", AstValue::String(s)) => {
-                    if let Ok(f) = s.parse::<f64>() {
-                        values[i] = AstValue::Float(f);
-                    }
-                }
-                ("FLOAT" | "DOUBLE" | "REAL" | "NUMERIC" | "DECIMAL", AstValue::Int(n)) => {
-                    values[i] = AstValue::Float(*n as f64);
-                }
-                ("BOOLEAN" | "BOOL", AstValue::String(s)) => match s.to_lowercase().as_str() {
-                    "true" | "1" | "yes" | "t" => values[i] = AstValue::Bool(true),
-                    "false" | "0" | "no" | "f" => values[i] = AstValue::Bool(false),
-                    _ => {}
-                },
-                ("BOOLEAN" | "BOOL", AstValue::Int(n)) => {
-                    values[i] = AstValue::Bool(*n != 0);
-                }
-                ("TEXT" | "VARCHAR" | "CHAR" | "STRING", AstValue::Int(n)) => {
-                    values[i] = AstValue::String(n.to_string());
-                }
-                ("TEXT" | "VARCHAR" | "CHAR" | "STRING", AstValue::Float(f)) => {
-                    values[i] = AstValue::String(f.to_string());
-                }
-                _ => {} // No coercion needed or possible
+        ("INT" | "INTEGER" | "BIGINT" | "SMALLINT", AstValue::String(s)) => {
+            if let Ok(n) = s.parse::<i64>() {
+                values[i] = AstValue::Int(n);
             }
+        }
+        ("INT" | "INTEGER" | "BIGINT" | "SMALLINT", AstValue::Float(f)) => {
+            values[i] = AstValue::Int(*f as i64);
+        }
+        ("FLOAT" | "DOUBLE" | "REAL" | "NUMERIC" | "DECIMAL", AstValue::String(s)) => {
+            if let Ok(f) = s.parse::<f64>() {
+                values[i] = AstValue::Float(f);
+            }
+        }
+        ("FLOAT" | "DOUBLE" | "REAL" | "NUMERIC" | "DECIMAL", AstValue::Int(n)) => {
+            values[i] = AstValue::Float(*n as f64);
+        }
+        ("BOOLEAN" | "BOOL", AstValue::String(s)) => match s.to_lowercase().as_str() {
+            "true" | "1" | "yes" | "t" => values[i] = AstValue::Bool(true),
+            "false" | "0" | "no" | "f" => values[i] = AstValue::Bool(false),
+            _ => {}
+        },
+        ("BOOLEAN" | "BOOL", AstValue::Int(n)) => {
+            values[i] = AstValue::Bool(*n != 0);
+        }
+        ("TEXT" | "VARCHAR" | "CHAR" | "STRING", AstValue::Int(n)) => {
+            values[i] = AstValue::String(n.to_string());
+        }
+        ("TEXT" | "VARCHAR" | "CHAR" | "STRING", AstValue::Float(f)) => {
+            values[i] = AstValue::String(f.to_string());
+        }
+        _ => {} // No coercion needed or possible
+    }
     let [v] = values;
     v
 }
@@ -12902,12 +12952,16 @@ pub(crate) fn export_response(
     sql: String,
     format: Option<&str>,
 ) -> axum::response::Response {
-    use axum::http::{header, StatusCode};
+    use axum::http::{StatusCode, header};
     use axum::response::IntoResponse;
     let fmt = match crate::file_formats::FileFormat::from_name(format.unwrap_or("parquet")) {
         Some(f) => f,
         None => {
-            return (StatusCode::BAD_REQUEST, "format must be parquet, arrow or arrows").into_response()
+            return (
+                StatusCode::BAD_REQUEST,
+                "format must be parquet, arrow or arrows",
+            )
+                .into_response();
         }
     };
     let resp = match executor.execute(&QueryRequest {
@@ -12938,7 +12992,9 @@ async fn export_query_handler(
     let ex = state.executor.clone();
     tokio::task::spawn_blocking(move || export_response(&ex, req.sql, req.format.as_deref()))
         .await
-        .unwrap_or_else(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response())
+        .unwrap_or_else(|e| {
+            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+        })
 }
 
 pub fn query_router(executor: Arc<dyn QueryExecutor>) -> axum::Router {
@@ -13262,7 +13318,9 @@ mod tests {
             branch_id: None,
             tenant_id: None,
         };
-        let err = executor.execute(&req("INSERT INTO fs VALUES (2)")).unwrap_err();
+        let err = executor
+            .execute(&req("INSERT INTO fs VALUES (2)"))
+            .unwrap_err();
         assert!(err.message.contains("not durable"), "{}", err.message);
         assert!(executor.execute(&req("INSERT INTO fs VALUES (3)")).is_err());
         let bulk = executor.bulk_copy("fs", &["v".into()], &[vec![Some("4".into())]]);
@@ -13277,12 +13335,26 @@ mod tests {
         let executor = SimpleQueryExecutor::new();
         zq(&executor, "CREATE TABLE tn (u INT, d FLOAT)");
         let rows: Vec<Vec<Option<String>>> = (0..200_000i64)
-            .map(|i| vec![Some(((i * 7919) % 50_000).to_string()), Some(format!("{}.25", (i * 31) % 97))])
+            .map(|i| {
+                vec![
+                    Some(((i * 7919) % 50_000).to_string()),
+                    Some(format!("{}.25", (i * 31) % 97)),
+                ]
+            })
             .collect();
-        executor.bulk_copy("tn", &["u".into(), "d".into()], &rows).unwrap().unwrap();
+        executor
+            .bulk_copy("tn", &["u".into(), "d".into()], &rows)
+            .unwrap()
+            .unwrap();
         for (q, k) in [
-            ("SELECT u, sum(d) AS s FROM tn GROUP BY u ORDER BY s DESC, u", 10),
-            ("SELECT u, count(*) AS c FROM tn GROUP BY u ORDER BY c DESC", 25),
+            (
+                "SELECT u, sum(d) AS s FROM tn GROUP BY u ORDER BY s DESC, u",
+                10,
+            ),
+            (
+                "SELECT u, count(*) AS c FROM tn GROUP BY u ORDER BY c DESC",
+                25,
+            ),
             ("SELECT u, sum(d) AS s FROM tn GROUP BY u ORDER BY s", 7),
         ] {
             let full = zq(&executor, q);
@@ -13320,19 +13392,35 @@ mod tests {
                 .map(|i| {
                     vec![
                         Some(i.to_string()),
-                        if i % 7 == 0 { None } else { Some(format!("{}.5", i % 1000)) },
+                        if i % 7 == 0 {
+                            None
+                        } else {
+                            Some(format!("{}.5", i % 1000))
+                        },
                     ]
                 })
                 .collect()
         };
         let cols = vec!["v".to_string(), "w".to_string()];
-        executor.bulk_copy("z", &cols, &mk(0, 20_000)).unwrap().unwrap();
+        executor
+            .bulk_copy("z", &cols, &mk(0, 20_000))
+            .unwrap()
+            .unwrap();
         // warm the column cache, then append so zones refresh incrementally
-        assert_eq!(zq(&executor, "SELECT COUNT(*) FROM z")[0][0], serde_json::json!(20_000));
-        executor.bulk_copy("z", &cols, &mk(20_000, 30_001)).unwrap().unwrap();
+        assert_eq!(
+            zq(&executor, "SELECT COUNT(*) FROM z")[0][0],
+            serde_json::json!(20_000)
+        );
+        executor
+            .bulk_copy("z", &cols, &mk(20_000, 30_001))
+            .unwrap()
+            .unwrap();
         let n = 30_001i64;
         let nn = n - (0..n).filter(|i| i % 7 == 0).count() as i64;
-        let r = zq(&executor, "SELECT COUNT(*), COUNT(w), MIN(v), MAX(v), MIN(w), MAX(w) FROM z");
+        let r = zq(
+            &executor,
+            "SELECT COUNT(*), COUNT(w), MIN(v), MAX(v), MIN(w), MAX(w) FROM z",
+        );
         assert_eq!(r[0][0], serde_json::json!(n));
         assert_eq!(r[0][1], serde_json::json!(nn));
         assert_eq!(r[0][2], serde_json::json!(0));
@@ -13348,7 +13436,10 @@ mod tests {
             ("SELECT COUNT(*) FROM z WHERE w > 0", nn),
             ("SELECT COUNT(*) FROM z WHERE v < 16384 AND v >= 8192", 8192),
             ("SELECT COUNT(*) FROM z WHERE v <> 5", n - 1),
-            ("SELECT COUNT(*) FROM z WHERE w <= 1.5", (0..n).filter(|i| i % 7 != 0 && i % 1000 <= 1).count() as i64),
+            (
+                "SELECT COUNT(*) FROM z WHERE w <= 1.5",
+                (0..n).filter(|i| i % 7 != 0 && i % 1000 <= 1).count() as i64,
+            ),
         ] {
             assert_eq!(zq(&executor, sql)[0][0], serde_json::json!(want), "{sql}");
         }
@@ -142575,32 +142666,59 @@ mod columnar_ingest_tests {
             branch_id: None,
             tenant_id: None,
         };
-        e.execute(&request).unwrap_or_else(|err| panic!("{sql}: {}", err.message)).rows
+        e.execute(&request)
+            .unwrap_or_else(|err| panic!("{sql}: {}", err.message))
+            .rows
     }
 
     fn batches(from: i64, to: i64) -> Vec<RecordBatch> {
         let mut out = Vec::new();
         let mut s = from;
-        let day = |i: i64| if i % 23 == 0 { None } else { Some((i % 400) as i32) };
+        let day = |i: i64| {
+            if i % 23 == 0 {
+                None
+            } else {
+                Some((i % 400) as i32)
+            }
+        };
         while s < to {
             let e = (s + 7_000).min(to);
             let id: ArrayRef = Arc::new(Int64Array::from_iter_values(s..e));
             let k: ArrayRef = Arc::new(Int32Array::from_iter((s..e).map(|i| {
-                if i % 11 == 0 { None } else { Some((i % 97) as i32) }
+                if i % 11 == 0 {
+                    None
+                } else {
+                    Some((i % 97) as i32)
+                }
             })));
             let f: ArrayRef = Arc::new(Float64Array::from_iter((s..e).map(|i| {
-                if i % 13 == 0 { None } else { Some(i as f64 * 0.1 + 1e-7) }
+                if i % 13 == 0 {
+                    None
+                } else {
+                    Some(i as f64 * 0.1 + 1e-7)
+                }
             })));
             let t: ArrayRef = Arc::new(StringArray::from_iter((s..e).map(|i| {
-                if i % 17 == 0 { None } else { Some(format!("s{}", i % 50)) }
+                if i % 17 == 0 {
+                    None
+                } else {
+                    Some(format!("s{}", i % 50))
+                }
             })));
-            let b: ArrayRef = Arc::new(BooleanArray::from_iter((s..e).map(|i| {
-                if i % 19 == 0 { None } else { Some(i % 2 == 0) }
-            })));
+            let b: ArrayRef = Arc::new(BooleanArray::from_iter(
+                (s..e).map(|i| if i % 19 == 0 { None } else { Some(i % 2 == 0) }),
+            ));
             let d: ArrayRef = Arc::new(arrow::array::Date32Array::from_iter((s..e).map(day)));
             out.push(
-                RecordBatch::try_from_iter(vec![("id", id), ("k", k), ("f", f), ("t", t), ("b", b), ("d", d)])
-                    .unwrap(),
+                RecordBatch::try_from_iter(vec![
+                    ("id", id),
+                    ("k", k),
+                    ("f", f),
+                    ("t", t),
+                    ("b", b),
+                    ("d", d),
+                ])
+                .unwrap(),
             );
             s = e;
         }
@@ -142608,17 +142726,25 @@ mod columnar_ingest_tests {
     }
 
     fn create(e: &SimpleQueryExecutor) {
-        q(e, "CREATE TABLE ci (id BIGINT, k INT, f DOUBLE, t TEXT, b BOOLEAN, d TEXT)");
+        q(
+            e,
+            "CREATE TABLE ci (id BIGINT, k INT, f DOUBLE, t TEXT, b BOOLEAN, d TEXT)",
+        );
     }
 
     fn load_rows(e: &SimpleQueryExecutor, from: i64, to: i64) {
         let bs = batches(from, to);
         let (cols, mut rows) = crate::file_formats::batches_to_values(&bs).unwrap();
-        e.bulk_insert_values("ci", &cols, &mut rows).unwrap().unwrap();
+        e.bulk_insert_values("ci", &cols, &mut rows)
+            .unwrap()
+            .unwrap();
     }
 
     fn load_cols(e: &SimpleQueryExecutor, from: i64, to: i64) {
-        let n = e.bulk_insert_arrow("ci", &[], &batches(from, to)).expect("eligible").unwrap();
+        let n = e
+            .bulk_insert_arrow("ci", &[], &batches(from, to))
+            .expect("eligible")
+            .unwrap();
         assert_eq!(n as i64, to - from);
     }
 
@@ -142660,7 +142786,11 @@ mod columnar_ingest_tests {
         // column-snapshot aggregates answer without materializing
         let agg = "SELECT k, count(*), sum(f), min(id), max(id) FROM ci GROUP BY k ORDER BY k";
         assert_eq!(q(&row, agg), q(&col, agg));
-        assert_eq!(col.amorphic.pending_column_rows(), N as usize, "aggregate materialized rows");
+        assert_eq!(
+            col.amorphic.pending_column_rows(),
+            N as usize,
+            "aggregate materialized rows"
+        );
         assert_same(&row, &col, "after first load");
         // second load: one queued, the snapshot appended
         load_rows(&row, N, 2 * N);
@@ -142674,7 +142804,10 @@ mod columnar_ingest_tests {
         for e in [&row, &col] {
             q(e, "UPDATE ci SET t = 'upd' WHERE id = 45001");
             q(e, "DELETE FROM ci WHERE id < 100");
-            q(e, "INSERT INTO ci (id, k, f, t, b, d) VALUES (999999, 1, 2.5, 'x', false, '2026-01-01')");
+            q(
+                e,
+                "INSERT INTO ci (id, k, f, t, b, d) VALUES (999999, 1, 2.5, 'x', false, '2026-01-01')",
+            );
         }
         assert_same(&row, &col, "after row writes");
         assert_eq!(col.amorphic.pending_column_rows(), 0);
@@ -142693,7 +142826,10 @@ mod columnar_ingest_tests {
         load_cols(&col, 0, N);
         let t = std::time::Instant::now();
         while col.amorphic.pending_column_rows() > 0 {
-            assert!(t.elapsed() < std::time::Duration::from_secs(60), "never materialized");
+            assert!(
+                t.elapsed() < std::time::Duration::from_secs(60),
+                "never materialized"
+            );
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
         assert_same(&row, &col, "after background");
@@ -142731,11 +142867,20 @@ mod columnar_ingest_tests {
     #[test]
     fn test_columnar_ingest_ineligible_falls_back() {
         let e = SimpleQueryExecutor::new();
-        q(&e, "CREATE TABLE cf (id DOUBLE, k INT, f DOUBLE, t TEXT, b BOOLEAN, d TEXT)");
+        q(
+            &e,
+            "CREATE TABLE cf (id DOUBLE, k INT, f DOUBLE, t TEXT, b BOOLEAN, d TEXT)",
+        );
         assert!(e.bulk_insert_arrow("cf", &[], &batches(0, 10)).is_none());
-        q(&e, "CREATE TABLE cn (id BIGINT, k INT NOT NULL, f DOUBLE, t TEXT, b BOOLEAN)");
+        q(
+            &e,
+            "CREATE TABLE cn (id BIGINT, k INT NOT NULL, f DOUBLE, t TEXT, b BOOLEAN)",
+        );
         assert!(e.bulk_insert_arrow("cn", &[], &batches(0, 30)).is_none());
-        q(&e, "CREATE TABLE cp (id BIGINT PRIMARY KEY, k INT, f DOUBLE, t TEXT, b BOOLEAN, d TEXT)");
+        q(
+            &e,
+            "CREATE TABLE cp (id BIGINT PRIMARY KEY, k INT, f DOUBLE, t TEXT, b BOOLEAN, d TEXT)",
+        );
         assert!(e.bulk_insert_arrow("cp", &[], &batches(0, 10)).is_none());
     }
 
@@ -142751,22 +142896,43 @@ mod columnar_ingest_tests {
             let name = match i % 7 {
                 0 => format!("\"q,{i}\""),
                 1 => format!("\"multi\nline {i}\""),
-                2 => "".to_string(), // NULL
+                2 => "".to_string(),     // NULL
                 3 => "\"\"".to_string(), // empty string
                 4 => format!("\"say \"\"hi\"\" {i}\""),
                 5 => format!("007{}", i % 10), // leading zeros: text
                 _ => format!("n{}", i % 100),
             };
-            let f = match i % 5 { 0 => "".to_string(), 1 => format!("{}", i), _ => format!("{}.5", i % 1000) };
-            let k = match i % 6 { 0 => "".to_string(), 1 => format!("{}.0", i % 9), _ => format!("{}", i % 50) };
+            let f = match i % 5 {
+                0 => "".to_string(),
+                1 => format!("{}", i),
+                _ => format!("{}.5", i % 1000),
+            };
+            let k = match i % 6 {
+                0 => "".to_string(),
+                1 => format!("{}.0", i % 9),
+                _ => format!("{}", i % 50),
+            };
             let b = ["t", "false", "yes", "0", "", "TRUE"][(i % 6) as usize];
-            let d = if i % 9 == 0 { String::new() } else { format!("2026-{:02}-{:02}", 1 + i % 12, 1 + i % 28) };
-            let t = match i % 4 { 0 => format!("{}", i), 1 => format!("{}.25", i), 2 => "".into(), _ => "x".into() };
+            let d = if i % 9 == 0 {
+                String::new()
+            } else {
+                format!("2026-{:02}-{:02}", 1 + i % 12, 1 + i % 28)
+            };
+            let t = match i % 4 {
+                0 => format!("{}", i),
+                1 => format!("{}.25", i),
+                2 => "".into(),
+                _ => "x".into(),
+            };
             csv.push_str(&format!("{i},{name},{f},{k},{b},{d},{t}\n"));
         }
         let rows = crate::pgwire::split_csv(&csv, ',', "");
-        let ddl = "CREATE TABLE cc (id BIGINT, name TEXT, f DOUBLE, k INT, b BOOLEAN, d TEXT, t TEXT)";
-        let cols: Vec<String> = ["id", "name", "f", "k", "b", "d", "t"].iter().map(|s| s.to_string()).collect();
+        let ddl =
+            "CREATE TABLE cc (id BIGINT, name TEXT, f DOUBLE, k INT, b BOOLEAN, d TEXT, t TEXT)";
+        let cols: Vec<String> = ["id", "name", "f", "k", "b", "d", "t"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         let (row, col) = (SimpleQueryExecutor::new(), SimpleQueryExecutor::new());
         q(&row, ddl);
         q(&col, ddl);
@@ -142774,7 +142940,10 @@ mod columnar_ingest_tests {
         row.bulk_copy("cc", &cols, &rows).unwrap().unwrap();
         NO_COLUMNAR_COPY.with(|c| c.set(false));
         assert!(row.amorphic.pending_column_rows() == 0);
-        assert!(col.csv_column_batch("cc", &cols, &rows).is_some(), "eligible");
+        assert!(
+            col.csv_column_batch("cc", &cols, &rows).is_some(),
+            "eligible"
+        );
         col.bulk_copy("cc", &cols, &rows).unwrap().unwrap();
         assert_eq!(col.amorphic.pending_column_rows(), 30_000);
         for sql in [

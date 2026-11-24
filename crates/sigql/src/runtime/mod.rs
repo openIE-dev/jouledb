@@ -2,12 +2,18 @@
 //!
 //! Executes compiled plans against actual signal data using the DSP module.
 
-#[cfg(feature = "std")]
-use std::collections::HashMap;
 #[cfg(not(feature = "std"))]
 use alloc::collections::BTreeMap as HashMap;
 #[cfg(not(feature = "std"))]
-use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
+#[cfg(feature = "std")]
+use std::collections::HashMap;
 
 use num_complex::Complex64;
 use smol_str::SmolStr;
@@ -393,30 +399,29 @@ impl Runtime {
                 }
                 #[cfg(feature = "std")]
                 {
+                    let input_signal = self.get_signal(registers, *input)?;
+                    let config = crate::io::media_ingest::MediaIngestConfig {
+                        dct_block_size: *block_size,
+                        quality: *quality,
+                        ..Default::default()
+                    };
+                    let pipeline = crate::io::media_ingest::MediaIngestPipeline::new(config);
 
-                let input_signal = self.get_signal(registers, *input)?;
-                let config = crate::io::media_ingest::MediaIngestConfig {
-                    dct_block_size: *block_size,
-                    quality: *quality,
-                    ..Default::default()
-                };
-                let pipeline = crate::io::media_ingest::MediaIngestPipeline::new(config);
+                    // Treat signal samples as a square image
+                    let n = input_signal.samples.len();
+                    let side = (n as f64).sqrt() as u32;
+                    let ingested = pipeline
+                        .ingest_image(&input_signal.samples, side, side)
+                        .map_err(|e| RuntimeError::OperationFailed(format!("DCT2D: {}", e)))?;
 
-                // Treat signal samples as a square image
-                let n = input_signal.samples.len();
-                let side = (n as f64).sqrt() as u32;
-                let ingested = pipeline
-                    .ingest_image(&input_signal.samples, side, side)
-                    .map_err(|e| RuntimeError::OperationFailed(format!("DCT2D: {}", e)))?;
-
-                // Output as spectrum (coefficient magnitudes)
-                let spectrum: Vec<f64> = ingested
-                    .coefficients
-                    .entries
-                    .iter()
-                    .map(|e| e.magnitude as f64)
-                    .collect();
-                registers[output.0 as usize] = Some(RegisterValue::Spectrum(spectrum));
+                    // Output as spectrum (coefficient magnitudes)
+                    let spectrum: Vec<f64> = ingested
+                        .coefficients
+                        .entries
+                        .iter()
+                        .map(|e| e.magnitude as f64)
+                        .collect();
+                    registers[output.0 as usize] = Some(RegisterValue::Spectrum(spectrum));
                 }
             }
 
@@ -443,28 +448,27 @@ impl Runtime {
                 }
                 #[cfg(feature = "std")]
                 {
+                    let input_signal = self.get_signal(registers, *input)?;
+                    let config = crate::io::media_ingest::MediaIngestConfig {
+                        fft_window_size: 2048.min(input_signal.samples.len()),
+                        hop_size: 512,
+                        ..Default::default()
+                    };
+                    let pipeline = crate::io::media_ingest::MediaIngestPipeline::new(config);
 
-                let input_signal = self.get_signal(registers, *input)?;
-                let config = crate::io::media_ingest::MediaIngestConfig {
-                    fft_window_size: 2048.min(input_signal.samples.len()),
-                    hop_size: 512,
-                    ..Default::default()
-                };
-                let pipeline = crate::io::media_ingest::MediaIngestPipeline::new(config);
+                    let ingested = pipeline
+                        .ingest_audio(&input_signal.samples, input_signal.sample_rate)
+                        .map_err(|e| RuntimeError::OperationFailed(format!("MFCC: {}", e)))?;
 
-                let ingested = pipeline
-                    .ingest_audio(&input_signal.samples, input_signal.sample_rate)
-                    .map_err(|e| RuntimeError::OperationFailed(format!("MFCC: {}", e)))?;
-
-                // Output as spectrum (coefficient magnitudes, first n_coefficients per frame)
-                let spectrum: Vec<f64> = ingested
-                    .coefficients
-                    .entries
-                    .iter()
-                    .take(*n_coefficients * 100) // Rough: n_coefficients × ~100 frames
-                    .map(|e| e.magnitude as f64)
-                    .collect();
-                registers[output.0 as usize] = Some(RegisterValue::Spectrum(spectrum));
+                    // Output as spectrum (coefficient magnitudes, first n_coefficients per frame)
+                    let spectrum: Vec<f64> = ingested
+                        .coefficients
+                        .entries
+                        .iter()
+                        .take(*n_coefficients * 100) // Rough: n_coefficients × ~100 frames
+                        .map(|e| e.magnitude as f64)
+                        .collect();
+                    registers[output.0 as usize] = Some(RegisterValue::Spectrum(spectrum));
                 }
             }
 
@@ -616,9 +620,11 @@ impl Runtime {
         #[cfg(not(feature = "std"))]
         {
             let _ = &complex;
-            return Err(RuntimeError::DspError(crate::dsp::DspError::InvalidParameter(
-                String::from("FFT requires the std feature (rustfft)"),
-            )));
+            return Err(RuntimeError::DspError(
+                crate::dsp::DspError::InvalidParameter(String::from(
+                    "FFT requires the std feature (rustfft)",
+                )),
+            ));
         }
 
         // Return magnitude spectrum (positive frequencies only)
@@ -657,9 +663,11 @@ impl Runtime {
         #[cfg(not(feature = "std"))]
         let samples: Vec<f64> = {
             let _ = &complex;
-            return Err(RuntimeError::DspError(crate::dsp::DspError::InvalidParameter(
-                String::from("IFFT requires the std feature (rustfft)"),
-            )));
+            return Err(RuntimeError::DspError(
+                crate::dsp::DspError::InvalidParameter(String::from(
+                    "IFFT requires the std feature (rustfft)",
+                )),
+            ));
         };
 
         Ok(DynSignal::new(
@@ -894,7 +902,7 @@ impl Runtime {
         // usize::MAX: the query gave no max_lag, so use every lag.
         let max_lag = (max_lag_samples != usize::MAX).then_some(max_lag_samples);
         let corr = dsp::correlation::cross_correlate(&signal_a.samples, &signal_b.samples, max_lag)
-        .map_err(|e| RuntimeError::DspError(e))?;
+            .map_err(|e| RuntimeError::DspError(e))?;
 
         Ok(DynSignal::new(
             SmolStr::new("cross_correlation"),

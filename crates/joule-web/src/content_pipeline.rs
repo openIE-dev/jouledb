@@ -429,9 +429,9 @@ impl ContentPipeline {
     pub fn process(&self, item: ContentItem) -> Result<ContentItem, PipelineError> {
         let mut current = item;
         for plugin in &self.plugins {
-            current = plugin.transform(current).map_err(|e| {
-                PipelineError::PluginFailed(format!("{}: {}", plugin.name(), e))
-            })?;
+            current = plugin
+                .transform(current)
+                .map_err(|e| PipelineError::PluginFailed(format!("{}: {}", plugin.name(), e)))?;
         }
         Ok(current)
     }
@@ -652,7 +652,9 @@ mod tests {
         let pipeline = ContentPipeline::new();
         assert_eq!(pipeline.plugin_count(), 0);
         let source = "Hello";
-        let result = pipeline.process_source(source, ContentType::PlainText).unwrap();
+        let result = pipeline
+            .process_source(source, ContentType::PlainText)
+            .unwrap();
         assert_eq!(result.body, "Hello");
     }
 

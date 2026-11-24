@@ -66,10 +66,14 @@ pub trait ResultExt<T, E> {
     fn tap_err(self, f: impl FnOnce(&E)) -> Result<T, E>;
 
     /// Provide a fallback value on error.
-    fn or_default(self) -> T where T: Default;
+    fn or_default(self) -> T
+    where
+        T: Default;
 
     /// Convert the error using Display.
-    fn map_err_to_string(self) -> Result<T, String> where E: fmt::Display;
+    fn map_err_to_string(self) -> Result<T, String>
+    where
+        E: fmt::Display;
 
     /// Combine with another result: if both Ok, return pair; if either Err, accumulate.
     fn and_combine<U>(self, other: Result<U, E>) -> Result<(T, U), Vec<E>>;
@@ -96,11 +100,17 @@ impl<T, E> ResultExt<T, E> for Result<T, E> {
         self
     }
 
-    fn or_default(self) -> T where T: Default {
+    fn or_default(self) -> T
+    where
+        T: Default,
+    {
         self.unwrap_or_default()
     }
 
-    fn map_err_to_string(self) -> Result<T, String> where E: fmt::Display {
+    fn map_err_to_string(self) -> Result<T, String>
+    where
+        E: fmt::Display,
+    {
         self.map_err(|e| e.to_string())
     }
 
@@ -182,7 +192,9 @@ impl<T> OptionExt<T> for Option<T> {
 /// Collect an iterator of Results into Result<Vec<T>, Vec<E>>.
 /// Unlike the standard collect which stops at the first error,
 /// this collects ALL errors.
-pub fn collect_results<T, E>(iter: impl IntoIterator<Item = Result<T, E>>) -> Result<Vec<T>, Vec<E>> {
+pub fn collect_results<T, E>(
+    iter: impl IntoIterator<Item = Result<T, E>>,
+) -> Result<Vec<T>, Vec<E>> {
     let mut oks = Vec::new();
     let mut errs = Vec::new();
     for item in iter {
@@ -191,11 +203,7 @@ pub fn collect_results<T, E>(iter: impl IntoIterator<Item = Result<T, E>>) -> Re
             Err(e) => errs.push(e),
         }
     }
-    if errs.is_empty() {
-        Ok(oks)
-    } else {
-        Err(errs)
-    }
+    if errs.is_empty() { Ok(oks) } else { Err(errs) }
 }
 
 /// Partition an iterator of Results into (Vec<T>, Vec<E>).
@@ -326,7 +334,10 @@ pub fn try_map<T, U, E>(items: &[T], f: impl Fn(&T) -> Result<U, E>) -> Result<V
 }
 
 /// Filter a slice using a fallible predicate, collecting errors.
-pub fn try_filter<T, E>(items: &[T], predicate: impl Fn(&T) -> Result<bool, E>) -> Result<Vec<&T>, Vec<E>> {
+pub fn try_filter<T, E>(
+    items: &[T],
+    predicate: impl Fn(&T) -> Result<bool, E>,
+) -> Result<Vec<&T>, Vec<E>> {
     let mut oks = Vec::new();
     let mut errs = Vec::new();
     for item in items {
@@ -336,11 +347,7 @@ pub fn try_filter<T, E>(items: &[T], predicate: impl Fn(&T) -> Result<bool, E>) 
             Err(e) => errs.push(e),
         }
     }
-    if errs.is_empty() {
-        Ok(oks)
-    } else {
-        Err(errs)
-    }
+    if errs.is_empty() { Ok(oks) } else { Err(errs) }
 }
 
 // ── Tests ───────────────────────────────────────────────────────
@@ -508,9 +515,12 @@ mod tests {
 
     #[test]
     fn test_retry_success_after_failure() {
-        let result = retry(3, |attempt| {
-            if attempt < 2 { Err("not yet") } else { Ok(42) }
-        });
+        let result = retry(
+            3,
+            |attempt| {
+                if attempt < 2 { Err("not yet") } else { Ok(42) }
+            },
+        );
         assert_eq!(result, Ok(42));
     }
 
@@ -523,7 +533,14 @@ mod tests {
     #[test]
     fn test_retry_collect_all_errors() {
         let result = retry_collect(2, |attempt| Err::<i32, _>(format!("fail-{attempt}")));
-        assert_eq!(result, Err(vec!["fail-0".to_string(), "fail-1".to_string(), "fail-2".to_string()]));
+        assert_eq!(
+            result,
+            Err(vec![
+                "fail-0".to_string(),
+                "fail-1".to_string(),
+                "fail-2".to_string()
+            ])
+        );
     }
 
     #[test]
@@ -560,19 +577,15 @@ mod tests {
 
     #[test]
     fn test_chain() {
-        let steps: Vec<Box<dyn FnOnce(i32) -> Result<i32, String>>> = vec![
-            Box::new(|x| Ok(x + 1)),
-            Box::new(|x| Ok(x * 2)),
-        ];
+        let steps: Vec<Box<dyn FnOnce(i32) -> Result<i32, String>>> =
+            vec![Box::new(|x| Ok(x + 1)), Box::new(|x| Ok(x * 2))];
         assert_eq!(chain(Ok(5), steps), Ok(12));
     }
 
     #[test]
     fn test_chain_short_circuit() {
-        let steps: Vec<Box<dyn FnOnce(i32) -> Result<i32, String>>> = vec![
-            Box::new(|_| Err("stop".into())),
-            Box::new(|x| Ok(x * 2)),
-        ];
+        let steps: Vec<Box<dyn FnOnce(i32) -> Result<i32, String>>> =
+            vec![Box::new(|_| Err("stop".into())), Box::new(|x| Ok(x * 2))];
         assert_eq!(chain(Ok(5), steps), Err("stop".to_string()));
     }
 
@@ -580,7 +593,11 @@ mod tests {
     fn test_validate_all_pass() {
         let v = 5i32;
         fn pos(x: &i32) -> Result<(), String> {
-            if *x > 0 { Ok(()) } else { Err("positive".into()) }
+            if *x > 0 {
+                Ok(())
+            } else {
+                Err("positive".into())
+            }
         }
         fn small(x: &i32) -> Result<(), String> {
             if *x < 10 { Ok(()) } else { Err("small".into()) }
@@ -593,7 +610,11 @@ mod tests {
     fn test_validate_all_fail() {
         let v = -5i32;
         fn pos(x: &i32) -> Result<(), String> {
-            if *x > 0 { Ok(()) } else { Err("positive".into()) }
+            if *x > 0 {
+                Ok(())
+            } else {
+                Err("positive".into())
+            }
         }
         fn small(x: &i32) -> Result<(), String> {
             if *x < 10 { Ok(()) } else { Err("small".into()) }
@@ -614,7 +635,11 @@ mod tests {
     fn test_try_map_with_errors() {
         let items = vec![1, -2, 3, -4];
         let result = try_map(&items, |x| {
-            if *x > 0 { Ok(*x) } else { Err(format!("negative: {x}")) }
+            if *x > 0 {
+                Ok(*x)
+            } else {
+                Err(format!("negative: {x}"))
+            }
         });
         assert_eq!(result.unwrap_err().len(), 2);
     }

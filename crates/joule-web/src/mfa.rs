@@ -282,7 +282,9 @@ impl RecoveryCodes {
 
         for i in 0..count {
             // Simple deterministic code generation from seed.
-            let val = seed.wrapping_mul(6364136223846793005).wrapping_add(i as u64);
+            let val = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(i as u64);
             let code = format!("{:08X}", val as u32);
             plaintext.push(code.clone());
             codes.push(RecoveryCodeEntry { code, used: false });
@@ -336,11 +338,7 @@ impl AttemptTracker {
     }
 
     /// Record an attempt. Returns Err if rate limited.
-    pub fn record_attempt(
-        &mut self,
-        user_id: &str,
-        now_secs: u64,
-    ) -> Result<(), MfaError> {
+    pub fn record_attempt(&mut self, user_id: &str, now_secs: u64) -> Result<(), MfaError> {
         let window_start = now_secs.saturating_sub(self.window_secs);
         let entries = self.attempts.entry(user_id.to_string()).or_default();
         entries.retain(|t| *t > window_start);
@@ -481,12 +479,7 @@ impl MfaEngine {
     }
 
     /// Verify a TOTP code for an enrolled user.
-    pub fn verify_code(
-        &mut self,
-        user_id: &str,
-        code: u32,
-        now_secs: u64,
-    ) -> Result<(), MfaError> {
+    pub fn verify_code(&mut self, user_id: &str, code: u32, now_secs: u64) -> Result<(), MfaError> {
         self.rate_limiter.record_attempt(user_id, now_secs)?;
 
         let state = self
@@ -520,11 +513,7 @@ impl MfaEngine {
     }
 
     /// Use a recovery code as a backup method.
-    pub fn use_recovery_code(
-        &mut self,
-        user_id: &str,
-        code: &str,
-    ) -> Result<usize, MfaError> {
+    pub fn use_recovery_code(&mut self, user_id: &str, code: &str) -> Result<usize, MfaError> {
         let state = self
             .users
             .get_mut(user_id)
@@ -588,11 +577,7 @@ impl MfaEngine {
             .users
             .get(user_id)
             .ok_or_else(|| MfaError::UserNotFound(user_id.to_string()))?;
-        Ok(state
-            .recovery
-            .as_ref()
-            .map(|r| r.remaining())
-            .unwrap_or(0))
+        Ok(state.recovery.as_ref().map(|r| r.remaining()).unwrap_or(0))
     }
 }
 

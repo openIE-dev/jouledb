@@ -243,9 +243,7 @@ impl ChipGroup {
                 }
                 true
             }
-            SelectionMode::Multi => {
-                self.chips[index].toggle_select()
-            }
+            SelectionMode::Multi => self.chips[index].toggle_select(),
         }
     }
 

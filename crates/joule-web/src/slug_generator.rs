@@ -101,9 +101,9 @@ impl SlugConfig {
 /// English stop words commonly removed from slugs.
 const DEFAULT_STOP_WORDS: &[&str] = &[
     "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",
-    "from", "is", "it", "as", "be", "was", "are", "were", "been", "being", "have", "has",
-    "had", "do", "does", "did", "will", "would", "could", "should", "may", "might", "shall",
-    "can", "this", "that", "these", "those", "not", "no", "nor", "so", "if", "then",
+    "from", "is", "it", "as", "be", "was", "are", "were", "been", "being", "have", "has", "had",
+    "do", "does", "did", "will", "would", "could", "should", "may", "might", "shall", "can",
+    "this", "that", "these", "those", "not", "no", "nor", "so", "if", "then",
 ];
 
 // ── Unicode Transliteration ─────────────────────────────────────
@@ -112,66 +112,66 @@ const DEFAULT_STOP_WORDS: &[&str] = &[
 fn transliterate_char(ch: char) -> Option<&'static str> {
     Some(match ch {
         // Latin letters with diacritics
-        '\u{00C0}'..='\u{00C5}' => "A",   // À Á Â Ã Ä Å
-        '\u{00C6}' => "AE",               // Æ
-        '\u{00C7}' => "C",                // Ç
-        '\u{00C8}'..='\u{00CB}' => "E",   // È É Ê Ë
-        '\u{00CC}'..='\u{00CF}' => "I",   // Ì Í Î Ï
-        '\u{00D0}' => "D",                // Ð
-        '\u{00D1}' => "N",                // Ñ
-        '\u{00D2}'..='\u{00D6}' => "O",   // Ò Ó Ô Õ Ö
-        '\u{00D8}' => "O",                // Ø
-        '\u{00D9}'..='\u{00DC}' => "U",   // Ù Ú Û Ü
-        '\u{00DD}' => "Y",                // Ý
-        '\u{00DE}' => "Th",               // Þ
-        '\u{00DF}' => "ss",               // ß
-        '\u{00E0}'..='\u{00E5}' => "a",   // à á â ã ä å
-        '\u{00E6}' => "ae",               // æ
-        '\u{00E7}' => "c",                // ç
-        '\u{00E8}'..='\u{00EB}' => "e",   // è é ê ë
-        '\u{00EC}'..='\u{00EF}' => "i",   // ì í î ï
-        '\u{00F0}' => "d",                // ð
-        '\u{00F1}' => "n",                // ñ
-        '\u{00F2}'..='\u{00F6}' => "o",   // ò ó ô õ ö
-        '\u{00F8}' => "o",                // ø
-        '\u{00F9}'..='\u{00FC}' => "u",   // ù ú û ü
-        '\u{00FD}' | '\u{00FF}' => "y",   // ý ÿ
-        '\u{00FE}' => "th",               // þ
+        '\u{00C0}'..='\u{00C5}' => "A", // À Á Â Ã Ä Å
+        '\u{00C6}' => "AE",             // Æ
+        '\u{00C7}' => "C",              // Ç
+        '\u{00C8}'..='\u{00CB}' => "E", // È É Ê Ë
+        '\u{00CC}'..='\u{00CF}' => "I", // Ì Í Î Ï
+        '\u{00D0}' => "D",              // Ð
+        '\u{00D1}' => "N",              // Ñ
+        '\u{00D2}'..='\u{00D6}' => "O", // Ò Ó Ô Õ Ö
+        '\u{00D8}' => "O",              // Ø
+        '\u{00D9}'..='\u{00DC}' => "U", // Ù Ú Û Ü
+        '\u{00DD}' => "Y",              // Ý
+        '\u{00DE}' => "Th",             // Þ
+        '\u{00DF}' => "ss",             // ß
+        '\u{00E0}'..='\u{00E5}' => "a", // à á â ã ä å
+        '\u{00E6}' => "ae",             // æ
+        '\u{00E7}' => "c",              // ç
+        '\u{00E8}'..='\u{00EB}' => "e", // è é ê ë
+        '\u{00EC}'..='\u{00EF}' => "i", // ì í î ï
+        '\u{00F0}' => "d",              // ð
+        '\u{00F1}' => "n",              // ñ
+        '\u{00F2}'..='\u{00F6}' => "o", // ò ó ô õ ö
+        '\u{00F8}' => "o",              // ø
+        '\u{00F9}'..='\u{00FC}' => "u", // ù ú û ü
+        '\u{00FD}' | '\u{00FF}' => "y", // ý ÿ
+        '\u{00FE}' => "th",             // þ
 
         // Additional common accented characters
-        '\u{0100}' | '\u{0102}' => "A",   // Ā Ă
-        '\u{0101}' | '\u{0103}' => "a",   // ā ă
+        '\u{0100}' | '\u{0102}' => "A",              // Ā Ă
+        '\u{0101}' | '\u{0103}' => "a",              // ā ă
         '\u{0106}' | '\u{0108}' | '\u{010C}' => "C", // Ć Ĉ Č
         '\u{0107}' | '\u{0109}' | '\u{010D}' => "c", // ć ĉ č
-        '\u{010E}' | '\u{0110}' => "D",   // Ď Đ
-        '\u{010F}' | '\u{0111}' => "d",   // ď đ
+        '\u{010E}' | '\u{0110}' => "D",              // Ď Đ
+        '\u{010F}' | '\u{0111}' => "d",              // ď đ
         '\u{0112}' | '\u{0114}' | '\u{0116}' | '\u{0118}' | '\u{011A}' => "E",
         '\u{0113}' | '\u{0115}' | '\u{0117}' | '\u{0119}' | '\u{011B}' => "e",
-        '\u{011E}' | '\u{0120}' => "G",   // Ğ Ġ
-        '\u{011F}' | '\u{0121}' => "g",   // ğ ġ
-        '\u{0130}' => "I",                // İ
-        '\u{0131}' => "i",                // ı
-        '\u{0141}' => "L",                // Ł
-        '\u{0142}' => "l",                // ł
-        '\u{0143}' | '\u{0147}' => "N",   // Ń Ň
-        '\u{0144}' | '\u{0148}' => "n",   // ń ň
-        '\u{0150}' | '\u{0152}' => "O",   // Ő Œ (mapped to O for slug purposes)
-        '\u{0151}' | '\u{0153}' => "o",   // ő œ
-        '\u{0158}' | '\u{0154}' => "R",   // Ř Ŕ
-        '\u{0159}' | '\u{0155}' => "r",   // ř ŕ
+        '\u{011E}' | '\u{0120}' => "G",              // Ğ Ġ
+        '\u{011F}' | '\u{0121}' => "g",              // ğ ġ
+        '\u{0130}' => "I",                           // İ
+        '\u{0131}' => "i",                           // ı
+        '\u{0141}' => "L",                           // Ł
+        '\u{0142}' => "l",                           // ł
+        '\u{0143}' | '\u{0147}' => "N",              // Ń Ň
+        '\u{0144}' | '\u{0148}' => "n",              // ń ň
+        '\u{0150}' | '\u{0152}' => "O",              // Ő Œ (mapped to O for slug purposes)
+        '\u{0151}' | '\u{0153}' => "o",              // ő œ
+        '\u{0158}' | '\u{0154}' => "R",              // Ř Ŕ
+        '\u{0159}' | '\u{0155}' => "r",              // ř ŕ
         '\u{015A}' | '\u{015E}' | '\u{0160}' => "S", // Ś Ş Š
         '\u{015B}' | '\u{015F}' | '\u{0161}' => "s", // ś ş š
-        '\u{0164}' | '\u{0162}' => "T",   // Ť Ţ
-        '\u{0165}' | '\u{0163}' => "t",   // ť ţ
-        '\u{016E}' | '\u{0170}' => "U",   // Ů Ű
-        '\u{016F}' | '\u{0171}' => "u",   // ů ű
-        '\u{0178}' => "Y",                // Ÿ
+        '\u{0164}' | '\u{0162}' => "T",              // Ť Ţ
+        '\u{0165}' | '\u{0163}' => "t",              // ť ţ
+        '\u{016E}' | '\u{0170}' => "U",              // Ů Ű
+        '\u{016F}' | '\u{0171}' => "u",              // ů ű
+        '\u{0178}' => "Y",                           // Ÿ
         '\u{0179}' | '\u{017B}' | '\u{017D}' => "Z", // Ź Ż Ž
         '\u{017A}' | '\u{017C}' | '\u{017E}' => "z", // ź ż ž
 
         // Common symbols to text
-        '\u{0026}' => "and",              // &
-        '\u{0040}' => "at",               // @
+        '\u{0026}' => "and", // &
+        '\u{0040}' => "at",  // @
 
         _ => return None,
     })
@@ -335,10 +335,7 @@ mod tests {
 
     #[test]
     fn test_special_characters_removed() {
-        assert_eq!(
-            slugify("Hello! World# $2026").unwrap(),
-            "hello-world-2026"
-        );
+        assert_eq!(slugify("Hello! World# $2026").unwrap(), "hello-world-2026");
     }
 
     #[test]
@@ -486,12 +483,18 @@ mod tests {
 
     #[test]
     fn test_numbers_preserved() {
-        assert_eq!(slugify("Article 42 is great").unwrap(), "article-42-is-great");
+        assert_eq!(
+            slugify("Article 42 is great").unwrap(),
+            "article-42-is-great"
+        );
     }
 
     #[test]
     fn test_mixed_separators() {
-        assert_eq!(slugify("Hello/World-Test_Page").unwrap(), "hello-world-test-page");
+        assert_eq!(
+            slugify("Hello/World-Test_Page").unwrap(),
+            "hello-world-test-page"
+        );
     }
 
     #[test]

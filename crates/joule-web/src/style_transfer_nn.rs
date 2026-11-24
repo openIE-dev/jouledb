@@ -17,10 +17,15 @@ struct Rng {
 }
 
 impl Rng {
-    fn new(seed: u64) -> Self { Self { state: seed } }
+    fn new(seed: u64) -> Self {
+        Self { state: seed }
+    }
 
     fn next(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.state
     }
 
@@ -50,19 +55,31 @@ pub struct FeatureMap {
 
 impl FeatureMap {
     pub fn new(channels: usize, spatial: usize) -> Self {
-        Self { channels, spatial, data: vec![0.0; channels * spatial] }
+        Self {
+            channels,
+            spatial,
+            data: vec![0.0; channels * spatial],
+        }
     }
 
     pub fn from_data(channels: usize, spatial: usize, data: Vec<f64>) -> Self {
         assert_eq!(data.len(), channels * spatial);
-        Self { channels, spatial, data }
+        Self {
+            channels,
+            spatial,
+            data,
+        }
     }
 
     /// Random feature map for testing.
     pub fn random(channels: usize, spatial: usize, seed: u64) -> Self {
         let mut rng = Rng::new(seed);
         let data: Vec<f64> = (0..channels * spatial).map(|_| rng.normal()).collect();
-        Self { channels, spatial, data }
+        Self {
+            channels,
+            spatial,
+            data,
+        }
     }
 
     /// Get value at (channel, spatial_idx).
@@ -84,7 +101,11 @@ impl FeatureMap {
 
 impl fmt::Display for FeatureMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "FeatureMap(channels={}, spatial={})", self.channels, self.spatial)
+        write!(
+            f,
+            "FeatureMap(channels={}, spatial={})",
+            self.channels, self.spatial
+        )
     }
 }
 
@@ -129,7 +150,9 @@ impl GramMatrix {
     /// Frobenius norm of the difference between two Gram matrices.
     pub fn frobenius_distance(&self, other: &GramMatrix) -> f64 {
         assert_eq!(self.size, other.size);
-        self.data.iter().zip(other.data.iter())
+        self.data
+            .iter()
+            .zip(other.data.iter())
             .map(|(a, b)| (a - b).powi(2))
             .sum::<f64>()
             .sqrt()
@@ -143,7 +166,13 @@ impl GramMatrix {
 
 impl fmt::Display for GramMatrix {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "GramMatrix(size={}x{}, norm={:.4})", self.size, self.size, self.frobenius_norm())
+        write!(
+            f,
+            "GramMatrix(size={}x{}, norm={:.4})",
+            self.size,
+            self.size,
+            self.frobenius_norm()
+        )
     }
 }
 
@@ -153,15 +182,22 @@ impl fmt::Display for GramMatrix {
 pub fn content_loss(target: &FeatureMap, generated: &FeatureMap) -> f64 {
     assert_eq!(target.data.len(), generated.data.len());
     let n = target.data.len() as f64;
-    target.data.iter().zip(generated.data.iter())
+    target
+        .data
+        .iter()
+        .zip(generated.data.iter())
         .map(|(t, g)| (t - g).powi(2))
-        .sum::<f64>() / (2.0 * n)
+        .sum::<f64>()
+        / (2.0 * n)
 }
 
 /// Gradient of content loss w.r.t. generated feature map.
 pub fn content_loss_gradient(target: &FeatureMap, generated: &FeatureMap) -> Vec<f64> {
     let n = target.data.len() as f64;
-    generated.data.iter().zip(target.data.iter())
+    generated
+        .data
+        .iter()
+        .zip(target.data.iter())
         .map(|(g, t)| (g - t) / n)
         .collect()
 }
@@ -171,7 +207,10 @@ pub fn content_loss_gradient(target: &FeatureMap, generated: &FeatureMap) -> Vec
 /// Style loss: Frobenius norm of difference between Gram matrices.
 pub fn style_loss(target_gram: &GramMatrix, generated_gram: &GramMatrix) -> f64 {
     let n = target_gram.size as f64;
-    let dist_sq: f64 = target_gram.data.iter().zip(generated_gram.data.iter())
+    let dist_sq: f64 = target_gram
+        .data
+        .iter()
+        .zip(generated_gram.data.iter())
         .map(|(t, g)| (t - g).powi(2))
         .sum();
     dist_sq / (4.0 * n * n)
@@ -185,7 +224,10 @@ pub fn multi_layer_style_loss(
 ) -> f64 {
     assert_eq!(target_grams.len(), generated_grams.len());
     assert_eq!(target_grams.len(), weights.len());
-    target_grams.iter().zip(generated_grams.iter()).zip(weights.iter())
+    target_grams
+        .iter()
+        .zip(generated_grams.iter())
+        .zip(weights.iter())
         .map(|((tg, gg), w)| w * style_loss(tg, gg))
         .sum()
 }
@@ -195,8 +237,11 @@ pub fn multi_layer_style_loss(
 /// Total variation regularization for spatial smoothness.
 /// Operates on a 1D signal (flattened image row/column).
 pub fn total_variation_loss(signal: &[f64]) -> f64 {
-    if signal.len() < 2 { return 0.0; }
-    signal.windows(2)
+    if signal.len() < 2 {
+        return 0.0;
+    }
+    signal
+        .windows(2)
         .map(|w| (w[1] - w[0]).powi(2))
         .sum::<f64>()
 }
@@ -282,7 +327,9 @@ impl StyleTransferConfig {
 }
 
 impl Default for StyleTransferConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for StyleTransferConfig {
@@ -290,8 +337,11 @@ impl fmt::Display for StyleTransferConfig {
         write!(
             f,
             "StyleTransferConfig(content_w={:.1}, style_w={:.1}, tv_w={:.6}, lr={:.4}, iters={})",
-            self.content_weight, self.style_weight, self.tv_weight,
-            self.learning_rate, self.max_iterations,
+            self.content_weight,
+            self.style_weight,
+            self.tv_weight,
+            self.learning_rate,
+            self.max_iterations,
         )
     }
 }
@@ -358,7 +408,8 @@ impl StyleTransferOptimizer {
         let gen_features = FeatureMap::from_data(
             self.content_features.channels,
             self.content_features.spatial,
-            self.current_image.iter()
+            self.current_image
+                .iter()
                 .cycle()
                 .take(self.content_features.channels * self.content_features.spatial)
                 .copied()
@@ -368,9 +419,12 @@ impl StyleTransferOptimizer {
         let c_loss = content_loss(&self.content_features, &gen_features);
 
         let gen_gram = GramMatrix::from_feature_map(&gen_features);
-        let s_loss: f64 = self.style_grams.iter()
+        let s_loss: f64 = self
+            .style_grams
+            .iter()
             .map(|sg| style_loss(sg, &gen_gram))
-            .sum::<f64>() / self.style_grams.len().max(1) as f64;
+            .sum::<f64>()
+            / self.style_grams.len().max(1) as f64;
 
         let tv_loss = total_variation_2d(&self.current_image, self.width, self.height);
 
@@ -383,7 +437,11 @@ impl StyleTransferOptimizer {
         let lr = self.config.learning_rate;
 
         for (i, pixel) in self.current_image.iter_mut().enumerate() {
-            let cg = if i < content_grad.len() { content_grad[i] } else { 0.0 };
+            let cg = if i < content_grad.len() {
+                content_grad[i]
+            } else {
+                0.0
+            };
             *pixel -= lr * self.config.content_weight * cg;
             *pixel = pixel.clamp(-3.0, 3.0);
         }
@@ -408,8 +466,12 @@ impl StyleTransferOptimizer {
         self.history.clone()
     }
 
-    pub fn current_image(&self) -> &[f64] { &self.current_image }
-    pub fn history(&self) -> &[TransferStep] { &self.history }
+    pub fn current_image(&self) -> &[f64] {
+        &self.current_image
+    }
+    pub fn history(&self) -> &[TransferStep] {
+        &self.history
+    }
 }
 
 impl fmt::Display for StyleTransferOptimizer {
@@ -417,7 +479,10 @@ impl fmt::Display for StyleTransferOptimizer {
         write!(
             f,
             "StyleTransferOptimizer({}x{}, iters={}/{})",
-            self.width, self.height, self.history.len(), self.config.max_iterations,
+            self.width,
+            self.height,
+            self.history.len(),
+            self.config.max_iterations,
         )
     }
 }
@@ -442,7 +507,12 @@ impl FastStyleNet {
             .map(|_| (0..dim).map(|_| rng.normal() * scale).collect())
             .collect();
         let biases = vec![0.0; dim];
-        Self { weights, biases, input_dim: dim, output_dim: dim }
+        Self {
+            weights,
+            biases,
+            input_dim: dim,
+            output_dim: dim,
+        }
     }
 
     /// Apply the style transfer network to an input.
@@ -450,8 +520,12 @@ impl FastStyleNet {
         assert_eq!(input.len(), self.input_dim);
         (0..self.output_dim)
             .map(|j| {
-                let z: f64 = self.weights[j].iter().zip(input)
-                    .map(|(w, x)| w * x).sum::<f64>() + self.biases[j];
+                let z: f64 = self.weights[j]
+                    .iter()
+                    .zip(input)
+                    .map(|(w, x)| w * x)
+                    .sum::<f64>()
+                    + self.biases[j];
                 // Tanh to keep values bounded.
                 z.tanh()
             })
@@ -465,7 +539,12 @@ impl FastStyleNet {
 
 impl fmt::Display for FastStyleNet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "FastStyleNet(dim={}, params={})", self.input_dim, self.param_count())
+        write!(
+            f,
+            "FastStyleNet(dim={}, params={})",
+            self.input_dim,
+            self.param_count()
+        )
     }
 }
 

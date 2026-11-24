@@ -188,7 +188,7 @@ pub fn compute_accessibility_score(
 
     // Epilepsy risk from flicker metric
     let epilepsy_risk = match flicker_metric {
-        Some(f) if f > 3.0 => EpilepsyRisk::Warning,  // >3 flashes/sec = ITU threshold
+        Some(f) if f > 3.0 => EpilepsyRisk::Warning, // >3 flashes/sec = ITU threshold
         Some(f) if f > 1.0 => EpilepsyRisk::Caution,
         Some(_) => EpilepsyRisk::Safe,
         None => EpilepsyRisk::Safe,
@@ -196,11 +196,21 @@ pub fn compute_accessibility_score(
 
     // Grade calculation
     let mut score = 0u32;
-    if has_captions { score += 30; }
-    if languages.len() > 1 { score += 10; }
-    if has_audio_description { score += 30; }
-    if epilepsy_risk == EpilepsyRisk::Safe { score += 15; }
-    if reading_level < 8.0 { score += 15; } // Below 8th grade level
+    if has_captions {
+        score += 30;
+    }
+    if languages.len() > 1 {
+        score += 10;
+    }
+    if has_audio_description {
+        score += 30;
+    }
+    if epilepsy_risk == EpilepsyRisk::Safe {
+        score += 15;
+    }
+    if reading_level < 8.0 {
+        score += 15;
+    } // Below 8th grade level
 
     let grade = match score {
         80..=100 => AccessibilityGrade::A,
@@ -227,7 +237,11 @@ fn estimate_reading_level(captions: &[Caption]) -> f64 {
         return 0.0;
     }
 
-    let all_text: String = captions.iter().map(|c| c.text.as_str()).collect::<Vec<_>>().join(" ");
+    let all_text: String = captions
+        .iter()
+        .map(|c| c.text.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
     let words: Vec<&str> = all_text.split_whitespace().collect();
     let sentences = all_text.matches('.').count()
         + all_text.matches('!').count()
@@ -237,7 +251,8 @@ fn estimate_reading_level(captions: &[Caption]) -> f64 {
         return 0.0;
     }
 
-    let avg_word_length: f64 = words.iter().map(|w| w.len() as f64).sum::<f64>() / words.len() as f64;
+    let avg_word_length: f64 =
+        words.iter().map(|w| w.len() as f64).sum::<f64>() / words.len() as f64;
     let avg_sentence_length = words.len() as f64 / sentences as f64;
 
     // Simplified Flesch-Kincaid: 0.39 * ASL + 11.8 * ASW - 15.59
@@ -257,8 +272,20 @@ mod tests {
             content_id: "movie_1".into(),
             language: "en".into(),
             captions: vec![
-                Caption { start_ms: 0, end_ms: 3000, text: "Hello world".into(), speaker: None, language: "en".into() },
-                Caption { start_ms: 3000, end_ms: 6000, text: "The rain falls softly".into(), speaker: None, language: "en".into() },
+                Caption {
+                    start_ms: 0,
+                    end_ms: 3000,
+                    text: "Hello world".into(),
+                    speaker: None,
+                    language: "en".into(),
+                },
+                Caption {
+                    start_ms: 3000,
+                    end_ms: 6000,
+                    text: "The rain falls softly".into(),
+                    speaker: None,
+                    language: "en".into(),
+                },
             ],
             source: CaptionSource::Human,
         });
@@ -276,8 +303,20 @@ mod tests {
             content_id: "movie_1".into(),
             language: "en".into(),
             captions: vec![
-                Caption { start_ms: 0, end_ms: 3000, text: "First".into(), speaker: None, language: "en".into() },
-                Caption { start_ms: 3000, end_ms: 6000, text: "Second".into(), speaker: None, language: "en".into() },
+                Caption {
+                    start_ms: 0,
+                    end_ms: 3000,
+                    text: "First".into(),
+                    speaker: None,
+                    language: "en".into(),
+                },
+                Caption {
+                    start_ms: 3000,
+                    end_ms: 6000,
+                    text: "Second".into(),
+                    speaker: None,
+                    language: "en".into(),
+                },
             ],
             source: CaptionSource::Human,
         });
@@ -296,9 +335,13 @@ mod tests {
         store.add_track(CaptionTrack {
             content_id: "movie_1".into(),
             language: "en".into(),
-            captions: vec![
-                Caption { start_ms: 0, end_ms: 5000, text: "Simple words here. Short sentences.".into(), speaker: None, language: "en".into() },
-            ],
+            captions: vec![Caption {
+                start_ms: 0,
+                end_ms: 5000,
+                text: "Simple words here. Short sentences.".into(),
+                speaker: None,
+                language: "en".into(),
+            }],
             source: CaptionSource::Human,
         });
 

@@ -132,10 +132,7 @@ impl World {
         };
         self.id_to_slot.insert(id, slot_idx);
         self.live_count += 1;
-        Entity {
-            id,
-            generation,
-        }
+        Entity { id, generation }
     }
 
     /// Despawn an entity, removing all its components.
@@ -280,27 +277,24 @@ impl World {
     /// Add or replace a singleton resource.
     pub fn insert_resource<R: 'static>(&mut self, resource: R) {
         let tid = TypeId::of::<R>();
-        self.resources.insert(tid, ResourceEntry {
-            value: Box::new(resource),
-        });
+        self.resources.insert(
+            tid,
+            ResourceEntry {
+                value: Box::new(resource),
+            },
+        );
     }
 
     /// Get a shared reference to a resource.
     pub fn get_resource<R: 'static>(&self) -> Option<&R> {
         let tid = TypeId::of::<R>();
-        self.resources
-            .get(&tid)?
-            .value
-            .downcast_ref::<R>()
+        self.resources.get(&tid)?.value.downcast_ref::<R>()
     }
 
     /// Get a mutable reference to a resource.
     pub fn get_resource_mut<R: 'static>(&mut self) -> Option<&mut R> {
         let tid = TypeId::of::<R>();
-        self.resources
-            .get_mut(&tid)?
-            .value
-            .downcast_mut::<R>()
+        self.resources.get_mut(&tid)?.value.downcast_mut::<R>()
     }
 
     /// Remove a resource, returning it.

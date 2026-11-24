@@ -184,7 +184,7 @@ impl<T: Clone> QueryCache<T> {
         Self {
             entries: HashMap::new(),
             default_ttl_ms,
-            stale_time_ms: 30_000, // 30 seconds stale window
+            stale_time_ms: 30_000,     // 30 seconds stale window
             gc_time_ms: 5 * 60 * 1000, // 5 minutes
             in_flight: HashMap::new(),
             gc_runs: 0,
@@ -237,13 +237,7 @@ impl<T: Clone> QueryCache<T> {
     }
 
     /// Set data with a custom TTL.
-    pub fn set_with_ttl(
-        &mut self,
-        key: impl Into<String>,
-        data: T,
-        now_ms: u64,
-        ttl_ms: u64,
-    ) {
+    pub fn set_with_ttl(&mut self, key: impl Into<String>, data: T, now_ms: u64, ttl_ms: u64) {
         let key = key.into();
         let entry = self
             .entries
@@ -376,8 +370,7 @@ impl<T: Clone> QueryCache<T> {
             .entries
             .iter()
             .filter(|(_, entry)| {
-                entry.is_unused()
-                    && now_ms.saturating_sub(entry.last_accessed) > gc_time
+                entry.is_unused() && now_ms.saturating_sub(entry.last_accessed) > gc_time
             })
             .map(|(key, _)| key.clone())
             .collect();

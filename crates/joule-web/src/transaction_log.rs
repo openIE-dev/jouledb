@@ -492,9 +492,7 @@ impl TransactionLog {
         let lsn = self.next_lsn;
         self.next_lsn += 1;
         let prev_lsn = if tx_id > 0 {
-            self.transactions
-                .get(&tx_id)
-                .map_or(0, |tx| tx.last_lsn)
+            self.transactions.get(&tx_id).map_or(0, |tx| tx.last_lsn)
         } else {
             0
         };

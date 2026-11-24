@@ -165,14 +165,16 @@ impl GossipNode {
 
     /// Join the cluster by adding a seed node.
     pub fn join(&mut self, seed_id: &str, seed_address: &str) {
-        self.members.entry(seed_id.to_string()).or_insert(MemberInfo {
-            node_id: seed_id.to_string(),
-            address: seed_address.to_string(),
-            state: MemberState::Alive,
-            incarnation: 0,
-            last_heartbeat: self.current_tick,
-            suspicion_start: None,
-        });
+        self.members
+            .entry(seed_id.to_string())
+            .or_insert(MemberInfo {
+                node_id: seed_id.to_string(),
+                address: seed_address.to_string(),
+                state: MemberState::Alive,
+                incarnation: 0,
+                last_heartbeat: self.current_tick,
+                suspicion_start: None,
+            });
     }
 
     /// Advance the logical clock by one tick.
@@ -407,8 +409,9 @@ impl GossipNode {
     /// Prune dead members older than a given number of ticks.
     pub fn prune_dead(&mut self, max_age: u64) {
         let cutoff = self.current_tick.saturating_sub(max_age);
-        self.members
-            .retain(|id, m| *id == self.node_id || m.state != MemberState::Dead || m.last_heartbeat >= cutoff);
+        self.members.retain(|id, m| {
+            *id == self.node_id || m.state != MemberState::Dead || m.last_heartbeat >= cutoff
+        });
     }
 }
 
@@ -667,11 +670,8 @@ mod tests {
 
     #[test]
     fn test_cluster_creation() {
-        let cluster = GossipCluster::new(
-            &[("n1", "addr1"), ("n2", "addr2"), ("n3", "addr3")],
-            5,
-            10,
-        );
+        let cluster =
+            GossipCluster::new(&[("n1", "addr1"), ("n2", "addr2"), ("n3", "addr3")], 5, 10);
         assert_eq!(cluster.nodes.len(), 3);
         for (_, node) in &cluster.nodes {
             assert_eq!(node.member_count(), 3);
@@ -680,11 +680,8 @@ mod tests {
 
     #[test]
     fn test_cluster_gossip_round() {
-        let mut cluster = GossipCluster::new(
-            &[("n1", "addr1"), ("n2", "addr2"), ("n3", "addr3")],
-            5,
-            10,
-        );
+        let mut cluster =
+            GossipCluster::new(&[("n1", "addr1"), ("n2", "addr2"), ("n3", "addr3")], 5, 10);
         cluster.gossip_round();
         // After a round, messages should have been exchanged
         let total_sent: u64 = cluster.nodes.values().map(|n| n.messages_sent).sum();

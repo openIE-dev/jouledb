@@ -7,8 +7,8 @@
 //! - Embeddings: Node2Vec random walks
 
 use super::{EdgeId, GraphStore, NodeId};
-use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -90,7 +90,10 @@ impl Eq for DijkstraEntry {}
 
 impl Ord for DijkstraEntry {
     fn cmp(&self, other: &Self) -> Ordering {
-        other.dist.partial_cmp(&self.dist).unwrap_or(Ordering::Equal)
+        other
+            .dist
+            .partial_cmp(&self.dist)
+            .unwrap_or(Ordering::Equal)
     }
 }
 
@@ -126,7 +129,10 @@ impl GraphStore {
         let mut heap = BinaryHeap::new();
 
         dist.insert(source, 0.0);
-        heap.push(DijkstraEntry { node: source, dist: 0.0 });
+        heap.push(DijkstraEntry {
+            node: source,
+            dist: 0.0,
+        });
 
         while let Some(DijkstraEntry { node, dist: d }) = heap.pop() {
             if node == target {
@@ -153,14 +159,19 @@ impl GraphStore {
             if let Some(edge_ids) = outgoing.get(&node) {
                 for &eid in edge_ids {
                     if let Some(edge) = edges.get(&eid) {
-                        let w = edge.properties.get("weight")
+                        let w = edge
+                            .properties
+                            .get("weight")
                             .and_then(|v| v.as_f64())
                             .unwrap_or(1.0);
                         let next_dist = d + w;
                         if next_dist < *dist.get(&edge.to).unwrap_or(&f64::INFINITY) {
                             dist.insert(edge.to, next_dist);
                             prev.insert(edge.to, node);
-                            heap.push(DijkstraEntry { node: edge.to, dist: next_dist });
+                            heap.push(DijkstraEntry {
+                                node: edge.to,
+                                dist: next_dist,
+                            });
                         }
                     }
                 }
@@ -179,7 +190,10 @@ impl GraphStore {
         let mut heap = BinaryHeap::new();
 
         dist.insert(source, 0.0);
-        heap.push(DijkstraEntry { node: source, dist: 0.0 });
+        heap.push(DijkstraEntry {
+            node: source,
+            dist: 0.0,
+        });
 
         while let Some(DijkstraEntry { node, dist: d }) = heap.pop() {
             if d > *dist.get(&node).unwrap_or(&f64::INFINITY) {
@@ -188,13 +202,18 @@ impl GraphStore {
             if let Some(edge_ids) = outgoing.get(&node) {
                 for &eid in edge_ids {
                     if let Some(edge) = edges.get(&eid) {
-                        let w = edge.properties.get("weight")
+                        let w = edge
+                            .properties
+                            .get("weight")
                             .and_then(|v| v.as_f64())
                             .unwrap_or(1.0);
                         let next_dist = d + w;
                         if next_dist < *dist.get(&edge.to).unwrap_or(&f64::INFINITY) {
                             dist.insert(edge.to, next_dist);
-                            heap.push(DijkstraEntry { node: edge.to, dist: next_dist });
+                            heap.push(DijkstraEntry {
+                                node: edge.to,
+                                dist: next_dist,
+                            });
                         }
                     }
                 }
@@ -221,7 +240,9 @@ impl GraphStore {
             let mut changed = false;
             for edge in edges.values() {
                 if let Some(&d) = dist.get(&edge.from) {
-                    let w = edge.properties.get("weight")
+                    let w = edge
+                        .properties
+                        .get("weight")
                         .and_then(|v| v.as_f64())
                         .unwrap_or(1.0);
                     let new_dist = d + w;
@@ -239,7 +260,9 @@ impl GraphStore {
         // Check for negative cycles.
         for edge in edges.values() {
             if let Some(&d) = dist.get(&edge.from) {
-                let w = edge.properties.get("weight")
+                let w = edge
+                    .properties
+                    .get("weight")
                     .and_then(|v| v.as_f64())
                     .unwrap_or(1.0);
                 if d + w < *dist.get(&edge.to).unwrap_or(&f64::INFINITY) {
@@ -281,10 +304,13 @@ impl GraphStore {
                 }
 
                 // Find spur path avoiding excluded edges.
-                if let Some(spur) = self.dijkstra_excluding(spur_node, target, &excluded_edges, &root_path) {
+                if let Some(spur) =
+                    self.dijkstra_excluding(spur_node, target, &excluded_edges, &root_path)
+                {
                     let mut full_path = root_path[..root_path.len() - 1].to_vec();
                     full_path.extend_from_slice(&spur.path);
-                    let total_dist = root_dist - self.edge_dist(root_path[i], spur_node) + spur.distance;
+                    let total_dist =
+                        root_dist - self.edge_dist(root_path[i], spur_node) + spur.distance;
                     let actual_dist = self.path_distance(&full_path);
 
                     if !candidates.iter().any(|(p, _)| *p == full_path)
@@ -304,7 +330,9 @@ impl GraphStore {
             result_paths.push(candidates.remove(0));
         }
 
-        KShortestResult { paths: result_paths }
+        KShortestResult {
+            paths: result_paths,
+        }
     }
 
     /// Dijkstra excluding certain edges and nodes.
@@ -324,7 +352,10 @@ impl GraphStore {
         let mut heap = BinaryHeap::new();
 
         dist.insert(source, 0.0);
-        heap.push(DijkstraEntry { node: source, dist: 0.0 });
+        heap.push(DijkstraEntry {
+            node: source,
+            dist: 0.0,
+        });
 
         while let Some(DijkstraEntry { node, dist: d }) = heap.pop() {
             if node == target {
@@ -332,7 +363,10 @@ impl GraphStore {
                 let mut current = target;
                 while current != source {
                     match prev.get(&current) {
-                        Some(&p) => { path.push(p); current = p; }
+                        Some(&p) => {
+                            path.push(p);
+                            current = p;
+                        }
                         None => return None,
                     }
                 }
@@ -340,20 +374,34 @@ impl GraphStore {
                 return Some(DijkstraResult { path, distance: d });
             }
 
-            if d > *dist.get(&node).unwrap_or(&f64::INFINITY) { continue; }
+            if d > *dist.get(&node).unwrap_or(&f64::INFINITY) {
+                continue;
+            }
 
             if let Some(edge_ids) = outgoing.get(&node) {
                 for &eid in edge_ids {
                     if let Some(edge) = edges.get(&eid) {
-                        if excluded_edges.contains(&(node, edge.to)) { continue; }
-                        if edge.to != source && edge.to != target && excluded_set.contains(&edge.to) { continue; }
+                        if excluded_edges.contains(&(node, edge.to)) {
+                            continue;
+                        }
+                        if edge.to != source && edge.to != target && excluded_set.contains(&edge.to)
+                        {
+                            continue;
+                        }
 
-                        let w = edge.properties.get("weight").and_then(|v| v.as_f64()).unwrap_or(1.0);
+                        let w = edge
+                            .properties
+                            .get("weight")
+                            .and_then(|v| v.as_f64())
+                            .unwrap_or(1.0);
                         let next_dist = d + w;
                         if next_dist < *dist.get(&edge.to).unwrap_or(&f64::INFINITY) {
                             dist.insert(edge.to, next_dist);
                             prev.insert(edge.to, node);
-                            heap.push(DijkstraEntry { node: edge.to, dist: next_dist });
+                            heap.push(DijkstraEntry {
+                                node: edge.to,
+                                dist: next_dist,
+                            });
                         }
                     }
                 }
@@ -377,7 +425,11 @@ impl GraphStore {
             for &eid in edge_ids {
                 if let Some(edge) = edges.get(&eid) {
                     if edge.to == to {
-                        return edge.properties.get("weight").and_then(|v| v.as_f64()).unwrap_or(1.0);
+                        return edge
+                            .properties
+                            .get("weight")
+                            .and_then(|v| v.as_f64())
+                            .unwrap_or(1.0);
                     }
                 }
             }
@@ -432,7 +484,8 @@ impl GraphStore {
                 }
 
                 // Adopt the most frequent neighbor label.
-                if let Some((&best_label, _)) = label_counts.iter().max_by_key(|(_, count)| **count) {
+                if let Some((&best_label, _)) = label_counts.iter().max_by_key(|(_, count)| **count)
+                {
                     if labels[&node] != best_label {
                         labels.insert(node, best_label);
                         changed = true;
@@ -440,7 +493,9 @@ impl GraphStore {
                 }
             }
 
-            if !changed { break; }
+            if !changed {
+                break;
+            }
         }
 
         let communities: HashSet<NodeId> = labels.values().copied().collect();
@@ -488,14 +543,29 @@ impl GraphStore {
                     if let Some(edge) = edges_map.get(&eid) {
                         let w = edge.to;
                         if !indices.contains_key(&w) {
-                            strongconnect(w, index_counter, stack, on_stack, indices, lowlinks, components, comp_id, outgoing, edges_map);
+                            strongconnect(
+                                w,
+                                index_counter,
+                                stack,
+                                on_stack,
+                                indices,
+                                lowlinks,
+                                components,
+                                comp_id,
+                                outgoing,
+                                edges_map,
+                            );
                             let lw = *lowlinks.get(&w).unwrap();
                             let lv = lowlinks.get_mut(&v).unwrap();
-                            if lw < *lv { *lv = lw; }
+                            if lw < *lv {
+                                *lv = lw;
+                            }
                         } else if on_stack.contains(&w) {
                             let iw = *indices.get(&w).unwrap();
                             let lv = lowlinks.get_mut(&v).unwrap();
-                            if iw < *lv { *lv = iw; }
+                            if iw < *lv {
+                                *lv = iw;
+                            }
                         }
                     }
                 }
@@ -506,7 +576,9 @@ impl GraphStore {
                     let w = stack.pop().unwrap();
                     on_stack.remove(&w);
                     components.insert(w, *comp_id);
-                    if w == v { break; }
+                    if w == v {
+                        break;
+                    }
                 }
                 *comp_id += 1;
             }
@@ -515,14 +587,24 @@ impl GraphStore {
         for &node_id in nodes.keys() {
             if !indices.contains_key(&node_id) {
                 strongconnect(
-                    node_id, &mut index_counter, &mut stack, &mut on_stack,
-                    &mut indices, &mut lowlinks, &mut components, &mut comp_id,
-                    &outgoing, &edges_map,
+                    node_id,
+                    &mut index_counter,
+                    &mut stack,
+                    &mut on_stack,
+                    &mut indices,
+                    &mut lowlinks,
+                    &mut components,
+                    &mut comp_id,
+                    &outgoing,
+                    &edges_map,
                 );
             }
         }
 
-        SccResult { num_components: comp_id, components }
+        SccResult {
+            num_components: comp_id,
+            components,
+        }
     }
 
     /// K-Core decomposition.
@@ -595,7 +677,10 @@ impl GraphStore {
         }
 
         let max_core = core_numbers.values().copied().max().unwrap_or(0);
-        KCoreResult { core_numbers, max_core }
+        KCoreResult {
+            core_numbers,
+            max_core,
+        }
     }
 
     /// Count triangles in the graph.
@@ -618,7 +703,10 @@ impl GraphStore {
 
         // For each node u, for each pair of neighbors (v, w), check if v-w edge exists.
         for &u in &node_ids {
-            let neighbors_u: Vec<NodeId> = adj.get(&u).map(|s| s.iter().copied().collect()).unwrap_or_default();
+            let neighbors_u: Vec<NodeId> = adj
+                .get(&u)
+                .map(|s| s.iter().copied().collect())
+                .unwrap_or_default();
             for i in 0..neighbors_u.len() {
                 for j in (i + 1)..neighbors_u.len() {
                     let v = neighbors_u[i];
@@ -672,7 +760,11 @@ impl GraphStore {
         let nb = self.neighbors_undirected(b);
         let intersection = na.intersection(&nb).count() as f64;
         let union = na.union(&nb).count() as f64;
-        if union == 0.0 { 0.0 } else { intersection / union }
+        if union == 0.0 {
+            0.0
+        } else {
+            intersection / union
+        }
     }
 
     /// Adamic-Adar index between two nodes.
@@ -723,9 +815,13 @@ impl GraphStore {
 
         for _ in 0..length {
             if let Some(eids) = outgoing.get(&current) {
-                if eids.is_empty() { break; }
+                if eids.is_empty() {
+                    break;
+                }
                 // Simple LCG PRNG.
-                rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                rng = rng
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
                 let idx = (rng >> 33) as usize % eids.len();
                 if let Some(edge) = edges.get(&eids[idx]) {
                     walk.push(edge.to);

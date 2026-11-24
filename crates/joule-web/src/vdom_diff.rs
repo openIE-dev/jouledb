@@ -119,19 +119,11 @@ impl VNode {
 #[derive(Debug, Clone, PartialEq)]
 pub enum DiffPatch {
     /// Replace the node at `path` with a new node.
-    Replace {
-        path: Vec<usize>,
-        new_node: VNode,
-    },
+    Replace { path: Vec<usize>, new_node: VNode },
     /// Add a child at `path[..path.len()-1]` at index `path.last()`.
-    AddChild {
-        path: Vec<usize>,
-        node: VNode,
-    },
+    AddChild { path: Vec<usize>, node: VNode },
     /// Remove the child at `path`.
-    RemoveChild {
-        path: Vec<usize>,
-    },
+    RemoveChild { path: Vec<usize> },
     /// Modify attributes on the element at `path`.
     ModifyAttrs {
         path: Vec<usize>,
@@ -144,10 +136,7 @@ pub enum DiffPatch {
         moves: Vec<ReorderMove>,
     },
     /// Update text content at `path`.
-    UpdateText {
-        path: Vec<usize>,
-        new_text: String,
-    },
+    UpdateText { path: Vec<usize>, new_text: String },
 }
 
 /// A single child reorder operation.
@@ -166,12 +155,7 @@ pub fn diff(old: &VNode, new: &VNode) -> Vec<DiffPatch> {
     patches
 }
 
-fn diff_recursive(
-    old: &VNode,
-    new: &VNode,
-    path: &[usize],
-    patches: &mut Vec<DiffPatch>,
-) {
+fn diff_recursive(old: &VNode, new: &VNode, path: &[usize], patches: &mut Vec<DiffPatch>) {
     if !old.is_same_type(new) {
         patches.push(DiffPatch::Replace {
             path: path.to_vec(),
@@ -196,8 +180,16 @@ fn diff_recursive(
             diff_children(&old_el.children, &new_el.children, path, patches);
         }
         (
-            VNode::Component { props: old_props, children: old_children, .. },
-            VNode::Component { props: new_props, children: new_children, .. },
+            VNode::Component {
+                props: old_props,
+                children: old_children,
+                ..
+            },
+            VNode::Component {
+                props: new_props,
+                children: new_children,
+                ..
+            },
         ) => {
             // Diff props as attributes
             let old_el_stub = VElement {
@@ -220,12 +212,7 @@ fn diff_recursive(
     }
 }
 
-fn diff_attrs(
-    old_el: &VElement,
-    new_el: &VElement,
-    path: &[usize],
-    patches: &mut Vec<DiffPatch>,
-) {
+fn diff_attrs(old_el: &VElement, new_el: &VElement, path: &[usize], patches: &mut Vec<DiffPatch>) {
     let mut set = HashMap::new();
     let mut remove = Vec::new();
 
@@ -299,9 +286,7 @@ fn diff_unkeyed_children(
     for i in (common_len..old_children.len()).rev() {
         let mut child_path = parent_path.to_vec();
         child_path.push(i);
-        patches.push(DiffPatch::RemoveChild {
-            path: child_path,
-        });
+        patches.push(DiffPatch::RemoveChild { path: child_path });
     }
 }
 
@@ -422,12 +407,8 @@ pub fn count_nodes(node: &VNode) -> usize {
     match node {
         VNode::Empty => 1,
         VNode::Text(_) => 1,
-        VNode::Element(el) => {
-            1 + el.children.iter().map(count_nodes).sum::<usize>()
-        }
-        VNode::Component { children, .. } => {
-            1 + children.iter().map(count_nodes).sum::<usize>()
-        }
+        VNode::Element(el) => 1 + el.children.iter().map(count_nodes).sum::<usize>(),
+        VNode::Component { children, .. } => 1 + children.iter().map(count_nodes).sum::<usize>(),
     }
 }
 
@@ -475,7 +456,9 @@ mod tests {
         let new = VNode::text("world");
         let patches = diff(&old, &new);
         assert_eq!(patches.len(), 1);
-        assert!(matches!(&patches[0], DiffPatch::UpdateText { new_text, .. } if new_text == "world"));
+        assert!(
+            matches!(&patches[0], DiffPatch::UpdateText { new_text, .. } if new_text == "world")
+        );
     }
 
     #[test]
@@ -551,12 +534,10 @@ mod tests {
 
     #[test]
     fn nested_change_produces_correct_path() {
-        let old = VNode::Element(
-            div().with_child(VNode::Element(span().with_child(VNode::text("old")))),
-        );
-        let new = VNode::Element(
-            div().with_child(VNode::Element(span().with_child(VNode::text("new")))),
-        );
+        let old =
+            VNode::Element(div().with_child(VNode::Element(span().with_child(VNode::text("old")))));
+        let new =
+            VNode::Element(div().with_child(VNode::Element(span().with_child(VNode::text("new")))));
         let patches = diff(&old, &new);
         assert_eq!(patches.len(), 1);
         match &patches[0] {

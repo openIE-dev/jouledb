@@ -33,13 +33,22 @@ pub enum EtlError {
 impl fmt::Display for EtlError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ExtractFailed { record_index, reason } => {
+            Self::ExtractFailed {
+                record_index,
+                reason,
+            } => {
                 write!(f, "extract failed at record {record_index}: {reason}")
             }
-            Self::TransformFailed { record_index, reason } => {
+            Self::TransformFailed {
+                record_index,
+                reason,
+            } => {
                 write!(f, "transform failed at record {record_index}: {reason}")
             }
-            Self::LoadFailed { record_index, reason } => {
+            Self::LoadFailed {
+                record_index,
+                reason,
+            } => {
                 write!(f, "load failed at record {record_index}: {reason}")
             }
             Self::ConfigError(msg) => write!(f, "config error: {msg}"),
@@ -718,10 +727,7 @@ pub fn filter_stage(
 }
 
 /// Create a transform stage that maps each record.
-pub fn map_stage(
-    name: impl Into<String>,
-    mapper: impl Fn(&Record) -> Record + 'static,
-) -> Stage {
+pub fn map_stage(name: impl Into<String>, mapper: impl Fn(&Record) -> Record + 'static) -> Stage {
     Stage::new(name, StageKind::Transform, move |record| {
         StageResult::Success(mapper(record))
     })
@@ -794,10 +800,7 @@ mod tests {
 
         let input = make_records(3);
         let (output, _) = pipeline.run(input).unwrap();
-        assert_eq!(
-            output[1].get_field("value").unwrap().as_u64().unwrap(),
-            2
-        );
+        assert_eq!(output[1].get_field("value").unwrap().as_u64().unwrap(), 2);
     }
 
     #[test]

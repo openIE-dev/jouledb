@@ -187,7 +187,8 @@ impl SpatialWeights {
                         .filter(|j| *j != i)
                         .map(|j| (j, locations[i].distance_to(&locations[j])))
                         .collect();
-                    dists.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+                    dists
+                        .sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
                     for &(j, _) in dists.iter().take(k) {
                         data[i * n + j] = 1.0;
                     }
@@ -225,7 +226,12 @@ impl SpatialWeights {
 
 impl fmt::Display for SpatialWeights {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SpatialWeights(n={}, total_w={:.4})", self.n, self.total_weight())
+        write!(
+            f,
+            "SpatialWeights(n={}, total_w={:.4})",
+            self.n,
+            self.total_weight()
+        )
     }
 }
 
@@ -284,7 +290,11 @@ pub struct LisaResult {
 
 impl fmt::Display for LisaResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let sig = self.clusters.iter().filter(|c| **c != LisaCluster::NotSignificant).count();
+        let sig = self
+            .clusters
+            .iter()
+            .filter(|c| **c != LisaCluster::NotSignificant)
+            .count();
         write!(f, "LISA({} obs, {} significant)", self.local_i.len(), sig)
     }
 }
@@ -297,7 +307,9 @@ struct SimplePrng {
 
 impl SimplePrng {
     fn new(seed: u64) -> Self {
-        Self { state: seed.wrapping_add(1) }
+        Self {
+            state: seed.wrapping_add(1),
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -319,7 +331,9 @@ impl SimplePrng {
 // ── Helper functions ────────────────────────────────────────────
 
 fn mean(vals: &[f64]) -> f64 {
-    if vals.is_empty() { return 0.0; }
+    if vals.is_empty() {
+        return 0.0;
+    }
     vals.iter().sum::<f64>() / vals.len() as f64
 }
 
@@ -333,10 +347,10 @@ fn z_to_p(z: f64) -> f64 {
     let az = z.abs();
     let t = 1.0 / (1.0 + 0.2316419 * az);
     let d = 0.3989422804014327;
-    let p_tail = d * (-az * az / 2.0).exp()
+    let p_tail = d
+        * (-az * az / 2.0).exp()
         * (t * (0.319381530
-            + t * (-0.356563782
-                + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429)))));
+            + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429)))));
     2.0 * p_tail
 }
 
@@ -348,13 +362,22 @@ pub fn morans_i(
 ) -> Result<AutocorrResult, SpatialAutoError> {
     let n = locations.len();
     if n != weights.n {
-        return Err(SpatialAutoError::DimensionMismatch { expected: n, got: weights.n });
+        return Err(SpatialAutoError::DimensionMismatch {
+            expected: n,
+            got: weights.n,
+        });
     }
     let vals: Vec<f64> = locations.iter().map(|l| l.value).collect();
     let m = mean(&vals);
     let denom: f64 = vals.iter().map(|v| (v - m) * (v - m)).sum();
     if denom.abs() < 1e-15 {
-        return Ok(AutocorrResult { statistic: 0.0, expected: 0.0, variance: 0.0, z_score: 0.0, p_value: 1.0 });
+        return Ok(AutocorrResult {
+            statistic: 0.0,
+            expected: 0.0,
+            variance: 0.0,
+            z_score: 0.0,
+            p_value: 1.0,
+        });
     }
 
     let s0 = weights.total_weight();
@@ -369,13 +392,19 @@ pub fn morans_i(
     let expected = -1.0 / (n as f64 - 1.0);
     // Normality assumption variance
     let n_f = n as f64;
-    let var_i = (n_f * n_f - 3.0 * n_f + 3.0) / ((n_f - 1.0) * (n_f + 1.0) * s0 * s0)
-        - expected * expected;
+    let var_i =
+        (n_f * n_f - 3.0 * n_f + 3.0) / ((n_f - 1.0) * (n_f + 1.0) * s0 * s0) - expected * expected;
     let var_safe = if var_i > 1e-15 { var_i } else { 1e-15 };
     let z = (i_stat - expected) / var_safe.sqrt();
     let p = z_to_p(z);
 
-    Ok(AutocorrResult { statistic: i_stat, expected, variance: var_safe, z_score: z, p_value: p })
+    Ok(AutocorrResult {
+        statistic: i_stat,
+        expected,
+        variance: var_safe,
+        z_score: z,
+        p_value: p,
+    })
 }
 
 // ── Geary's C ───────────────────────────────────────────────────
@@ -386,13 +415,22 @@ pub fn gearys_c(
 ) -> Result<AutocorrResult, SpatialAutoError> {
     let n = locations.len();
     if n != weights.n {
-        return Err(SpatialAutoError::DimensionMismatch { expected: n, got: weights.n });
+        return Err(SpatialAutoError::DimensionMismatch {
+            expected: n,
+            got: weights.n,
+        });
     }
     let vals: Vec<f64> = locations.iter().map(|l| l.value).collect();
     let m = mean(&vals);
     let denom: f64 = vals.iter().map(|v| (v - m) * (v - m)).sum();
     if denom.abs() < 1e-15 {
-        return Ok(AutocorrResult { statistic: 1.0, expected: 1.0, variance: 0.0, z_score: 0.0, p_value: 1.0 });
+        return Ok(AutocorrResult {
+            statistic: 1.0,
+            expected: 1.0,
+            variance: 0.0,
+            z_score: 0.0,
+            p_value: 1.0,
+        });
     }
 
     let s0 = weights.total_weight();
@@ -411,7 +449,13 @@ pub fn gearys_c(
     let z = (c_stat - expected) / var_safe.sqrt();
     let p = z_to_p(z);
 
-    Ok(AutocorrResult { statistic: c_stat, expected, variance: var_safe, z_score: z, p_value: p })
+    Ok(AutocorrResult {
+        statistic: c_stat,
+        expected,
+        variance: var_safe,
+        z_score: z,
+        p_value: p,
+    })
 }
 
 // ── Permutation test ────────────────────────────────────────────
@@ -458,7 +502,10 @@ pub fn lisa(
 ) -> Result<LisaResult, SpatialAutoError> {
     let n = locations.len();
     if n != weights.n {
-        return Err(SpatialAutoError::DimensionMismatch { expected: n, got: weights.n });
+        return Err(SpatialAutoError::DimensionMismatch {
+            expected: n,
+            got: weights.n,
+        });
     }
     if n < 3 {
         return Err(SpatialAutoError::TooFewObservations(n));
@@ -525,7 +572,11 @@ pub fn lisa(
         };
     }
 
-    Ok(LisaResult { local_i, clusters, p_values })
+    Ok(LisaResult {
+        local_i,
+        clusters,
+        p_values,
+    })
 }
 
 // ── Tests ───────────────────────────────────────────────────────
@@ -582,7 +633,9 @@ mod tests {
     #[test]
     fn test_weights_binary() {
         let locs = sample_grid();
-        let cfg = SpatialWeightsConfig::new().with_threshold(1.5).with_row_standardize(false);
+        let cfg = SpatialWeightsConfig::new()
+            .with_threshold(1.5)
+            .with_row_standardize(false);
         let w = SpatialWeights::build(&locs, &cfg).unwrap();
         assert_eq!(w.n, 9);
         assert!(w.get(0, 1) > 0.0);
@@ -700,14 +753,15 @@ mod tests {
     fn test_lisa_cluster_display() {
         assert_eq!(format!("{}", LisaCluster::HighHigh), "High-High");
         assert_eq!(format!("{}", LisaCluster::LowLow), "Low-Low");
-        assert_eq!(format!("{}", LisaCluster::NotSignificant), "Not Significant");
+        assert_eq!(
+            format!("{}", LisaCluster::NotSignificant),
+            "Not Significant"
+        );
     }
 
     #[test]
     fn test_constant_values() {
-        let locs: Vec<Location> = (0..5)
-            .map(|i| Location::new(i as f64, 0.0, 5.0))
-            .collect();
+        let locs: Vec<Location> = (0..5).map(|i| Location::new(i as f64, 0.0, 5.0)).collect();
         let cfg = SpatialWeightsConfig::new().with_threshold(1.5);
         let w = SpatialWeights::build(&locs, &cfg).unwrap();
         let r = morans_i(&locs, &w).unwrap();

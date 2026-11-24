@@ -125,9 +125,8 @@ pub fn render_component(component: &dyn Component) -> (VNode, LifecycleManager) 
 
     let vnode = component.render();
 
-    let mgr = CURRENT_LIFECYCLE.with(|lc| {
-        lc.borrow_mut().take().unwrap_or_else(LifecycleManager::new)
-    });
+    let mgr =
+        CURRENT_LIFECYCLE.with(|lc| lc.borrow_mut().take().unwrap_or_else(LifecycleManager::new));
 
     (vnode, mgr)
 }
@@ -219,14 +218,15 @@ mod tests {
 
     impl Component for Greeting {
         fn render(&self) -> VNode {
-            VNode::element("span")
-                .child(VNode::text(&format!("Hello, {}!", self.name)))
+            VNode::element("span").child(VNode::text(&format!("Hello, {}!", self.name)))
         }
     }
 
     #[test]
     fn component_renders_vnode() {
-        let comp = Greeting { name: "World".into() };
+        let comp = Greeting {
+            name: "World".into(),
+        };
         let node = comp.render();
         match node {
             VNode::Element { tag, children, .. } => {
@@ -239,8 +239,7 @@ mod tests {
 
     #[test]
     fn props_passed_correctly() {
-        let def = ComponentDef::new("my-props".to_string())
-            .key("k1");
+        let def = ComponentDef::new("my-props".to_string()).key("k1");
         assert_eq!(def.props, "my-props");
         assert_eq!(def.key.as_deref(), Some("k1"));
     }

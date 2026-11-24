@@ -203,7 +203,13 @@ pub struct ThresholdRule {
 }
 
 impl ThresholdRule {
-    pub fn new(name: &str, metric: &str, op: CompareOp, threshold: f64, severity: AlertSeverity) -> Self {
+    pub fn new(
+        name: &str,
+        metric: &str,
+        op: CompareOp,
+        threshold: f64,
+        severity: AlertSeverity,
+    ) -> Self {
         Self {
             name: name.to_string(),
             metric: metric.to_string(),
@@ -244,8 +250,11 @@ impl ThresholdRule {
             severity: self.severity,
             message: format!(
                 "{} {} {} {} (value={})",
-                self.metric, self.op.as_str(), self.threshold,
-                self.severity.as_str(), record.value
+                self.metric,
+                self.op.as_str(),
+                self.threshold,
+                self.severity.as_str(),
+                record.value
             ),
             metric: self.metric.clone(),
             value: record.value,
@@ -307,7 +316,10 @@ impl ForwardingRule {
 
         if let Some((last_val, last_time)) = self.last_forwarded.get(&key) {
             // Interval check.
-            let elapsed = record.timestamp.signed_duration_since(*last_time).num_seconds();
+            let elapsed = record
+                .timestamp
+                .signed_duration_since(*last_time)
+                .num_seconds();
             if elapsed < self.min_interval_secs {
                 return false;
             }
@@ -317,7 +329,8 @@ impl ForwardingRule {
             }
         }
 
-        self.last_forwarded.insert(key, (record.value, record.timestamp));
+        self.last_forwarded
+            .insert(key, (record.value, record.timestamp));
         true
     }
 }
@@ -509,8 +522,8 @@ impl EdgeEngine {
 
     /// Set the sync status (simulates connectivity changes).
     pub fn set_sync_status(&mut self, status: SyncStatus) {
-        let was_offline = self.sync_status == SyncStatus::Offline
-            || self.sync_status == SyncStatus::Error;
+        let was_offline =
+            self.sync_status == SyncStatus::Offline || self.sync_status == SyncStatus::Error;
         self.sync_status = status;
 
         // Flush offline buffer when coming back online.
@@ -636,7 +649,9 @@ mod tests {
     fn processing_rule_applies() {
         let mut engine = EdgeEngine::new();
         engine.add_processing_rule(ProcessingRule::new(
-            "scale_temp", "temperature", TransformAction::Scale(1.8),
+            "scale_temp",
+            "temperature",
+            TransformAction::Scale(1.8),
         ));
         engine.add_forwarding_rule(ForwardingRule::new("all"));
         let record = EdgeRecord::new("s1", "temperature", 100.0);
@@ -651,7 +666,9 @@ mod tests {
     fn processing_rule_discards() {
         let mut engine = EdgeEngine::new();
         engine.add_processing_rule(ProcessingRule::new(
-            "filter_noise", "noise", TransformAction::Discard,
+            "filter_noise",
+            "noise",
+            TransformAction::Discard,
         ));
         let record = EdgeRecord::new("s1", "noise", 0.01);
         let result = engine.process(record);
@@ -661,9 +678,16 @@ mod tests {
     #[test]
     fn threshold_alerting() {
         let mut engine = EdgeEngine::new();
-        engine.add_threshold_rule(ThresholdRule::new(
-            "high_temp", "temp", CompareOp::GreaterThan, 100.0, AlertSeverity::Critical,
-        ).with_cooldown(0));
+        engine.add_threshold_rule(
+            ThresholdRule::new(
+                "high_temp",
+                "temp",
+                CompareOp::GreaterThan,
+                100.0,
+                AlertSeverity::Critical,
+            )
+            .with_cooldown(0),
+        );
         let record = EdgeRecord::new("s1", "temp", 105.0);
         let result = engine.process(record);
         assert_eq!(result.alerts.len(), 1);
@@ -673,9 +697,16 @@ mod tests {
     #[test]
     fn threshold_cooldown() {
         let mut engine = EdgeEngine::new();
-        engine.add_threshold_rule(ThresholdRule::new(
-            "high_temp", "temp", CompareOp::GreaterThan, 100.0, AlertSeverity::Warning,
-        ).with_cooldown(60));
+        engine.add_threshold_rule(
+            ThresholdRule::new(
+                "high_temp",
+                "temp",
+                CompareOp::GreaterThan,
+                100.0,
+                AlertSeverity::Warning,
+            )
+            .with_cooldown(60),
+        );
 
         let now = Utc::now();
         let r1 = EdgeRecord::new("s1", "temp", 105.0).with_timestamp(now);
@@ -705,10 +736,7 @@ mod tests {
     #[test]
     fn forwarding_change_detection() {
         let mut engine = EdgeEngine::new();
-        engine.add_forwarding_rule(
-            ForwardingRule::new("changes")
-                .with_change_detection(1.0)
-        );
+        engine.add_forwarding_rule(ForwardingRule::new("changes").with_change_detection(1.0));
         let now = Utc::now();
 
         let r1 = EdgeRecord::new("s1", "temp", 22.0).with_timestamp(now);

@@ -45,7 +45,11 @@ pub enum Instrument {
     /// Futures-implied rate: start, end in years, convexity-adjusted rate.
     Futures { start: f64, end: f64, rate: f64 },
     /// Par swap rate: maturity in years, annual coupon frequency, par rate.
-    Swap { maturity: f64, frequency: usize, par_rate: f64 },
+    Swap {
+        maturity: f64,
+        frequency: usize,
+        par_rate: f64,
+    },
 }
 
 impl fmt::Display for Instrument {
@@ -57,8 +61,15 @@ impl fmt::Display for Instrument {
             Self::Futures { start, end, rate } => {
                 write!(f, "Futures({start:.4}→{end:.4}, r={rate:.6})")
             }
-            Self::Swap { maturity, frequency, par_rate } => {
-                write!(f, "Swap(T={maturity:.4}, freq={frequency}, c={par_rate:.6})")
+            Self::Swap {
+                maturity,
+                frequency,
+                par_rate,
+            } => {
+                write!(
+                    f,
+                    "Swap(T={maturity:.4}, freq={frequency}, c={par_rate:.6})"
+                )
             }
         }
     }
@@ -90,7 +101,9 @@ impl BootstrappedCurve {
     /// Bootstrap a zero-coupon curve from sorted instruments.
     pub fn from_instruments(instruments: &[Instrument]) -> Result<Self, CurveError> {
         if instruments.is_empty() {
-            return Err(CurveError::InsufficientData("no instruments provided".into()));
+            return Err(CurveError::InsufficientData(
+                "no instruments provided".into(),
+            ));
         }
 
         let mut zeros: Vec<ZeroRate> = Vec::new();
@@ -100,7 +113,10 @@ impl BootstrappedCurve {
                 Instrument::Deposit { maturity, rate } => {
                     // Simple rate → continuously compounded
                     let z = (1.0 + rate * maturity).ln() / maturity;
-                    zeros.push(ZeroRate { maturity: *maturity, rate: z });
+                    zeros.push(ZeroRate {
+                        maturity: *maturity,
+                        rate: z,
+                    });
                 }
                 Instrument::Futures { start, end, rate } => {
                     // Forward rate segment
@@ -108,9 +124,16 @@ impl BootstrappedCurve {
                     let period = end - start;
                     let df_end = df_start / (1.0 + rate * period);
                     let z = -(df_end.ln()) / end;
-                    zeros.push(ZeroRate { maturity: *end, rate: z });
+                    zeros.push(ZeroRate {
+                        maturity: *end,
+                        rate: z,
+                    });
                 }
-                Instrument::Swap { maturity, frequency, par_rate } => {
+                Instrument::Swap {
+                    maturity,
+                    frequency,
+                    par_rate,
+                } => {
                     let n = (*maturity * *frequency as f64).round() as usize;
                     let period = 1.0 / *frequency as f64;
                     let coupon = par_rate * period;
@@ -130,7 +153,10 @@ impl BootstrappedCurve {
                         ));
                     }
                     let z = -(df_n.ln()) / maturity;
-                    zeros.push(ZeroRate { maturity: *maturity, rate: z });
+                    zeros.push(ZeroRate {
+                        maturity: *maturity,
+                        rate: z,
+                    });
                 }
             }
         }
@@ -226,13 +252,30 @@ pub struct NelsonSiegel {
 
 impl NelsonSiegel {
     pub fn new(beta0: f64, beta1: f64, beta2: f64, tau: f64) -> Self {
-        Self { beta0, beta1, beta2, tau }
+        Self {
+            beta0,
+            beta1,
+            beta2,
+            tau,
+        }
     }
 
-    pub fn with_beta0(mut self, b: f64) -> Self { self.beta0 = b; self }
-    pub fn with_beta1(mut self, b: f64) -> Self { self.beta1 = b; self }
-    pub fn with_beta2(mut self, b: f64) -> Self { self.beta2 = b; self }
-    pub fn with_tau(mut self, t: f64) -> Self { self.tau = t; self }
+    pub fn with_beta0(mut self, b: f64) -> Self {
+        self.beta0 = b;
+        self
+    }
+    pub fn with_beta1(mut self, b: f64) -> Self {
+        self.beta1 = b;
+        self
+    }
+    pub fn with_beta2(mut self, b: f64) -> Self {
+        self.beta2 = b;
+        self
+    }
+    pub fn with_tau(mut self, t: f64) -> Self {
+        self.tau = t;
+        self
+    }
 
     /// Zero rate at maturity t.
     pub fn zero_rate(&self, t: f64) -> Result<f64, CurveError> {
@@ -244,7 +287,11 @@ impl NelsonSiegel {
         }
         let x = t / self.tau;
         let exp_x = (-x).exp();
-        let f1 = if x.abs() < 1e-10 { 1.0 } else { (1.0 - exp_x) / x };
+        let f1 = if x.abs() < 1e-10 {
+            1.0
+        } else {
+            (1.0 - exp_x) / x
+        };
         let f2 = f1 - exp_x;
         Ok(self.beta0 + self.beta1 * f1 + self.beta2 * f2)
     }
@@ -263,7 +310,8 @@ impl NelsonSiegel {
 impl fmt::Display for NelsonSiegel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "NS(β₀={:.6}, β₁={:.6}, β₂={:.6}, τ={:.4})",
+            f,
+            "NS(β₀={:.6}, β₁={:.6}, β₂={:.6}, τ={:.4})",
             self.beta0, self.beta1, self.beta2, self.tau,
         )
     }
@@ -284,11 +332,24 @@ pub struct Svensson {
 
 impl Svensson {
     pub fn new(beta0: f64, beta1: f64, beta2: f64, beta3: f64, tau1: f64, tau2: f64) -> Self {
-        Self { beta0, beta1, beta2, beta3, tau1, tau2 }
+        Self {
+            beta0,
+            beta1,
+            beta2,
+            beta3,
+            tau1,
+            tau2,
+        }
     }
 
-    pub fn with_beta3(mut self, b: f64) -> Self { self.beta3 = b; self }
-    pub fn with_tau2(mut self, t: f64) -> Self { self.tau2 = t; self }
+    pub fn with_beta3(mut self, b: f64) -> Self {
+        self.beta3 = b;
+        self
+    }
+    pub fn with_tau2(mut self, t: f64) -> Self {
+        self.tau2 = t;
+        self
+    }
 
     /// Zero rate at maturity t.
     pub fn zero_rate(&self, t: f64) -> Result<f64, CurveError> {
@@ -296,15 +357,25 @@ impl Svensson {
             return Err(CurveError::NegativeMaturity);
         }
         if self.tau1 <= 0.0 || self.tau2 <= 0.0 {
-            return Err(CurveError::InvalidParameter("tau values must be > 0".into()));
+            return Err(CurveError::InvalidParameter(
+                "tau values must be > 0".into(),
+            ));
         }
         let x1 = t / self.tau1;
         let x2 = t / self.tau2;
         let e1 = (-x1).exp();
         let e2 = (-x2).exp();
-        let f1 = if x1.abs() < 1e-10 { 1.0 } else { (1.0 - e1) / x1 };
+        let f1 = if x1.abs() < 1e-10 {
+            1.0
+        } else {
+            (1.0 - e1) / x1
+        };
         let f2 = f1 - e1;
-        let f3 = if x2.abs() < 1e-10 { 1.0 } else { (1.0 - e2) / x2 } - e2;
+        let f3 = if x2.abs() < 1e-10 {
+            1.0
+        } else {
+            (1.0 - e2) / x2
+        } - e2;
 
         Ok(self.beta0 + self.beta1 * f1 + self.beta2 * f2 + self.beta3 * f3)
     }
@@ -397,7 +468,11 @@ impl CubicSplineCurve {
             }
         }
 
-        Ok(Self { maturities: t, rates: r, m })
+        Ok(Self {
+            maturities: t,
+            rates: r,
+            m,
+        })
     }
 
     /// Evaluate interpolated zero rate at maturity t.
@@ -469,9 +544,18 @@ mod tests {
     #[test]
     fn test_bootstrap_deposits() {
         let instruments = vec![
-            Instrument::Deposit { maturity: 0.25, rate: 0.04 },
-            Instrument::Deposit { maturity: 0.5, rate: 0.042 },
-            Instrument::Deposit { maturity: 1.0, rate: 0.045 },
+            Instrument::Deposit {
+                maturity: 0.25,
+                rate: 0.04,
+            },
+            Instrument::Deposit {
+                maturity: 0.5,
+                rate: 0.042,
+            },
+            Instrument::Deposit {
+                maturity: 1.0,
+                rate: 0.045,
+            },
         ];
         let curve = BootstrappedCurve::from_instruments(&instruments).unwrap();
         let z = curve.zero_rate(0.5).unwrap();
@@ -480,9 +564,10 @@ mod tests {
 
     #[test]
     fn test_discount_factor_at_zero() {
-        let instruments = vec![
-            Instrument::Deposit { maturity: 1.0, rate: 0.05 },
-        ];
+        let instruments = vec![Instrument::Deposit {
+            maturity: 1.0,
+            rate: 0.05,
+        }];
         let curve = BootstrappedCurve::from_instruments(&instruments).unwrap();
         let df = curve.discount_factor(0.001).unwrap();
         assert!(df > 0.99 && df < 1.001, "df near zero = {df}");
@@ -491,8 +576,14 @@ mod tests {
     #[test]
     fn test_forward_rate_positive() {
         let instruments = vec![
-            Instrument::Deposit { maturity: 0.5, rate: 0.04 },
-            Instrument::Deposit { maturity: 1.0, rate: 0.045 },
+            Instrument::Deposit {
+                maturity: 0.5,
+                rate: 0.04,
+            },
+            Instrument::Deposit {
+                maturity: 1.0,
+                rate: 0.045,
+            },
         ];
         let curve = BootstrappedCurve::from_instruments(&instruments).unwrap();
         let fwd = curve.forward_rate(0.5, 1.0).unwrap();
@@ -501,9 +592,10 @@ mod tests {
 
     #[test]
     fn test_forward_rate_ordering_error() {
-        let instruments = vec![
-            Instrument::Deposit { maturity: 1.0, rate: 0.05 },
-        ];
+        let instruments = vec![Instrument::Deposit {
+            maturity: 1.0,
+            rate: 0.05,
+        }];
         let curve = BootstrappedCurve::from_instruments(&instruments).unwrap();
         assert!(curve.forward_rate(1.0, 0.5).is_err());
     }
@@ -513,7 +605,10 @@ mod tests {
         let ns = NelsonSiegel::new(0.06, -0.02, 0.01, 2.0);
         let long_rate = ns.zero_rate(30.0).unwrap();
         // At long maturities, rate → β₀
-        assert!(approx(long_rate, 0.06, 0.005), "long rate ≈ β₀, got {long_rate}");
+        assert!(
+            approx(long_rate, 0.06, 0.005),
+            "long rate ≈ β₀, got {long_rate}"
+        );
     }
 
     #[test]
@@ -521,7 +616,10 @@ mod tests {
         let ns = NelsonSiegel::new(0.06, -0.02, 0.01, 2.0);
         let short_rate = ns.zero_rate(0.01).unwrap();
         // At short maturities, rate → β₀ + β₁
-        assert!(approx(short_rate, 0.04, 0.01), "short rate ≈ β₀+β₁, got {short_rate}");
+        assert!(
+            approx(short_rate, 0.04, 0.01),
+            "short rate ≈ β₀+β₁, got {short_rate}"
+        );
     }
 
     #[test]
@@ -591,9 +689,18 @@ mod tests {
     #[test]
     fn test_zero_coupon_curve_generation() {
         let instruments = vec![
-            Instrument::Deposit { maturity: 0.5, rate: 0.04 },
-            Instrument::Deposit { maturity: 1.0, rate: 0.045 },
-            Instrument::Deposit { maturity: 2.0, rate: 0.05 },
+            Instrument::Deposit {
+                maturity: 0.5,
+                rate: 0.04,
+            },
+            Instrument::Deposit {
+                maturity: 1.0,
+                rate: 0.045,
+            },
+            Instrument::Deposit {
+                maturity: 2.0,
+                rate: 0.05,
+            },
         ];
         let curve = BootstrappedCurve::from_instruments(&instruments).unwrap();
         let zc = zero_coupon_curve(&curve, &[0.25, 0.5, 1.0, 1.5, 2.0]).unwrap();
@@ -603,9 +710,10 @@ mod tests {
 
     #[test]
     fn test_display_bootstrapped() {
-        let instruments = vec![
-            Instrument::Deposit { maturity: 1.0, rate: 0.05 },
-        ];
+        let instruments = vec![Instrument::Deposit {
+            maturity: 1.0,
+            rate: 0.05,
+        }];
         let curve = BootstrappedCurve::from_instruments(&instruments).unwrap();
         let s = format!("{curve}");
         assert!(s.contains("BootstrappedCurve("));
@@ -613,7 +721,11 @@ mod tests {
 
     #[test]
     fn test_display_instrument() {
-        let inst = Instrument::Swap { maturity: 5.0, frequency: 2, par_rate: 0.045 };
+        let inst = Instrument::Swap {
+            maturity: 5.0,
+            frequency: 2,
+            par_rate: 0.045,
+        };
         let s = format!("{inst}");
         assert!(s.contains("Swap("));
     }
@@ -621,10 +733,23 @@ mod tests {
     #[test]
     fn test_bootstrap_with_swap() {
         let instruments = vec![
-            Instrument::Deposit { maturity: 0.25, rate: 0.04 },
-            Instrument::Deposit { maturity: 0.5, rate: 0.042 },
-            Instrument::Deposit { maturity: 1.0, rate: 0.045 },
-            Instrument::Swap { maturity: 2.0, frequency: 2, par_rate: 0.047 },
+            Instrument::Deposit {
+                maturity: 0.25,
+                rate: 0.04,
+            },
+            Instrument::Deposit {
+                maturity: 0.5,
+                rate: 0.042,
+            },
+            Instrument::Deposit {
+                maturity: 1.0,
+                rate: 0.045,
+            },
+            Instrument::Swap {
+                maturity: 2.0,
+                frequency: 2,
+                par_rate: 0.047,
+            },
         ];
         let curve = BootstrappedCurve::from_instruments(&instruments).unwrap();
         let z2 = curve.zero_rate(2.0).unwrap();

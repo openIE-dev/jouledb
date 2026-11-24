@@ -319,9 +319,7 @@ impl FieldArray {
             for (i, item) in self.items.iter().enumerate() {
                 if let Some(val) = item.get(field_name) {
                     if !seen.insert(val.to_string()) {
-                        errors.push(FieldArrayError::DuplicateValue(format!(
-                            "index {i}: {val}"
-                        )));
+                        errors.push(FieldArrayError::DuplicateValue(format!("index {i}: {val}")));
                     }
                 }
             }
@@ -377,8 +375,7 @@ mod tests {
 
     #[test]
     fn max_count_enforced() {
-        let mut arr =
-            FieldArray::new().with_constraints(FieldArrayConstraints::new().max(2));
+        let mut arr = FieldArray::new().with_constraints(FieldArrayConstraints::new().max(2));
         arr.push(item("A")).unwrap();
         arr.push(item("B")).unwrap();
         assert!(arr.push(item("C")).is_err());
@@ -386,8 +383,7 @@ mod tests {
 
     #[test]
     fn min_count_on_remove() {
-        let mut arr =
-            FieldArray::new().with_constraints(FieldArrayConstraints::new().min(1));
+        let mut arr = FieldArray::new().with_constraints(FieldArrayConstraints::new().min(1));
         arr.push(item("A")).unwrap();
         assert!(arr.remove(0).is_err()); // would go below min
     }
@@ -431,8 +427,8 @@ mod tests {
 
     #[test]
     fn unique_constraint() {
-        let mut arr = FieldArray::new()
-            .with_constraints(FieldArrayConstraints::new().unique_on("name"));
+        let mut arr =
+            FieldArray::new().with_constraints(FieldArrayConstraints::new().unique_on("name"));
         arr.push(item("Alice")).unwrap();
         assert!(arr.push(item("Alice")).is_err());
         arr.push(item("Bob")).unwrap();
@@ -485,8 +481,7 @@ mod tests {
 
     #[test]
     fn clear_respects_min() {
-        let mut arr =
-            FieldArray::new().with_constraints(FieldArrayConstraints::new().min(1));
+        let mut arr = FieldArray::new().with_constraints(FieldArrayConstraints::new().min(1));
         arr.push(item("A")).unwrap();
         assert!(arr.clear().is_err());
     }

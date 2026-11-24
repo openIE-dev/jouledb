@@ -4,7 +4,7 @@
 //! headers, body, status, timing breakdowns (DNS, connect, TLS, TTFB, content),
 //! and can be filtered, aggregated, or exported.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -121,9 +121,7 @@ impl RequestEntry {
 
     /// Check if status indicates an error (4xx or 5xx).
     pub fn is_error(&self) -> bool {
-        self.response_status
-            .map(|s| s >= 400)
-            .unwrap_or(false)
+        self.response_status.map(|s| s >= 400).unwrap_or(false)
     }
 }
 
@@ -213,16 +211,8 @@ impl RequestLog {
     /// Compute aggregate statistics.
     pub fn stats(&self) -> NetworkStats {
         let total_requests = self.entries.len();
-        let total_size_bytes: u64 = self
-            .entries
-            .iter()
-            .filter_map(|e| e.size_bytes)
-            .sum();
-        let total_duration_ms: f64 = self
-            .entries
-            .iter()
-            .filter_map(|e| e.duration_ms)
-            .sum();
+        let total_size_bytes: u64 = self.entries.iter().filter_map(|e| e.size_bytes).sum();
+        let total_duration_ms: f64 = self.entries.iter().filter_map(|e| e.duration_ms).sum();
         let error_count = self.entries.iter().filter(|e| e.is_error()).count();
         let entries_with_dur = self
             .entries
@@ -450,7 +440,10 @@ mod tests {
         let entry = RequestEntry::new("GET", "/")
             .with_request_header("Accept", "application/json")
             .with_response_header("Content-Type", "application/json");
-        assert_eq!(entry.request_headers.get("Accept").unwrap(), "application/json");
+        assert_eq!(
+            entry.request_headers.get("Accept").unwrap(),
+            "application/json"
+        );
         assert_eq!(
             entry.response_headers.get("Content-Type").unwrap(),
             "application/json"
@@ -459,8 +452,7 @@ mod tests {
 
     #[test]
     fn test_initiator() {
-        let entry = RequestEntry::new("GET", "/api/data")
-            .with_initiator("fetch@app.js:42");
+        let entry = RequestEntry::new("GET", "/api/data").with_initiator("fetch@app.js:42");
         assert_eq!(entry.initiator.as_deref(), Some("fetch@app.js:42"));
     }
 }

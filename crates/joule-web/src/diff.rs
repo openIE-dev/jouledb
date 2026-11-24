@@ -54,10 +54,16 @@ fn diff_sequences<T: PartialEq + Clone + AsRef<str>>(old: &[T], new: &[T]) -> Ve
         return Vec::new();
     }
     if n == 0 {
-        return new.iter().map(|s| DiffOp::Insert(s.as_ref().to_string())).collect();
+        return new
+            .iter()
+            .map(|s| DiffOp::Insert(s.as_ref().to_string()))
+            .collect();
     }
     if m == 0 {
-        return old.iter().map(|s| DiffOp::Delete(s.as_ref().to_string())).collect();
+        return old
+            .iter()
+            .map(|s| DiffOp::Delete(s.as_ref().to_string()))
+            .collect();
     }
 
     // Build LCS table

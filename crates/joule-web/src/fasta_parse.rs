@@ -13,7 +13,11 @@ use std::fmt;
 pub enum FastaError {
     EmptyInput,
     MissingHeader,
-    InvalidCharacter { record: String, position: usize, ch: char },
+    InvalidCharacter {
+        record: String,
+        position: usize,
+        ch: char,
+    },
     DuplicateId(String),
     MalformedHeader(String),
 }
@@ -23,8 +27,15 @@ impl fmt::Display for FastaError {
         match self {
             Self::EmptyInput => write!(f, "empty FASTA input"),
             Self::MissingHeader => write!(f, "first non-empty line must start with '>'"),
-            Self::InvalidCharacter { record, position, ch } => {
-                write!(f, "invalid character '{ch}' at position {position} in record '{record}'")
+            Self::InvalidCharacter {
+                record,
+                position,
+                ch,
+            } => {
+                write!(
+                    f,
+                    "invalid character '{ch}' at position {position} in record '{record}'"
+                )
             }
             Self::DuplicateId(id) => write!(f, "duplicate sequence id: {id}"),
             Self::MalformedHeader(h) => write!(f, "malformed header: {h}"),
@@ -53,10 +64,34 @@ impl Alphabet {
             Self::Dna => matches!(upper, 'A' | 'C' | 'G' | 'T' | 'N' | '-' | '.'),
             Self::Rna => matches!(upper, 'A' | 'C' | 'G' | 'U' | 'N' | '-' | '.'),
             Self::Protein => {
-                matches!(upper,
-                    'A' | 'R' | 'N' | 'D' | 'C' | 'E' | 'Q' | 'G' | 'H' | 'I'
-                    | 'L' | 'K' | 'M' | 'F' | 'P' | 'S' | 'T' | 'W' | 'Y' | 'V'
-                    | 'B' | 'Z' | 'X' | '*' | '-' | '.')
+                matches!(
+                    upper,
+                    'A' | 'R'
+                        | 'N'
+                        | 'D'
+                        | 'C'
+                        | 'E'
+                        | 'Q'
+                        | 'G'
+                        | 'H'
+                        | 'I'
+                        | 'L'
+                        | 'K'
+                        | 'M'
+                        | 'F'
+                        | 'P'
+                        | 'S'
+                        | 'T'
+                        | 'W'
+                        | 'Y'
+                        | 'V'
+                        | 'B'
+                        | 'Z'
+                        | 'X'
+                        | '*'
+                        | '-'
+                        | '.'
+                )
             }
             Self::Any => true,
         }
@@ -100,7 +135,10 @@ impl FastaRecord {
 
     /// Sequence length excluding gaps.
     pub fn ungapped_len(&self) -> usize {
-        self.sequence.chars().filter(|c| *c != '-' && *c != '.').count()
+        self.sequence
+            .chars()
+            .filter(|c| *c != '-' && *c != '.')
+            .count()
     }
 
     /// Total sequence length including gaps.
@@ -457,13 +495,15 @@ mod tests {
     fn t16_duplicate_rejection() {
         let parser = FastaParser::new().with_reject_duplicates(true);
         let input = ">dup\nACGT\n>dup\nTGCA\n";
-        assert_eq!(parser.parse(input), Err(FastaError::DuplicateId("dup".to_string())));
+        assert_eq!(
+            parser.parse(input),
+            Err(FastaError::DuplicateId("dup".to_string()))
+        );
     }
 
     #[test]
     fn t17_roundtrip_serialization() {
-        let rec = FastaRecord::new("s1", "ACGTACGTACGTACGT")
-            .with_description("round trip");
+        let rec = FastaRecord::new("s1", "ACGTACGTACGTACGT").with_description("round trip");
         let serialized = rec.to_fasta(8);
         let parsed = parse_fasta(&serialized).unwrap();
         assert_eq!(parsed[0].sequence, rec.sequence);
@@ -471,10 +511,7 @@ mod tests {
 
     #[test]
     fn t18_write_multi() {
-        let recs = vec![
-            FastaRecord::new("a", "AAAA"),
-            FastaRecord::new("b", "CCCC"),
-        ];
+        let recs = vec![FastaRecord::new("a", "AAAA"), FastaRecord::new("b", "CCCC")];
         let out = write_fasta(&recs, 80);
         assert!(out.contains(">a\n"));
         assert!(out.contains(">b\n"));

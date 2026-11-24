@@ -12,7 +12,7 @@ use joule_db_hdc::BinaryHV;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::{AmorphicRecord, AmorphicStore, QueryResult, RecordId, Value, DIMENSION};
+use crate::{AmorphicRecord, AmorphicStore, DIMENSION, QueryResult, RecordId, Value};
 
 /// A hybrid search query combining multiple signals.
 #[derive(Debug, Clone)]
@@ -122,11 +122,7 @@ pub fn hybrid_search(store: &AmorphicStore, query: &HybridQuery) -> Vec<HybridRe
             .iter()
             .filter_map(|(&id, record)| {
                 let score = keyword_match_score(record, &terms, &query.keyword_fields);
-                if score > 0.0 {
-                    Some((id, score))
-                } else {
-                    None
-                }
+                if score > 0.0 { Some((id, score)) } else { None }
             })
             .collect();
 
@@ -140,22 +136,27 @@ pub fn hybrid_search(store: &AmorphicStore, query: &HybridQuery) -> Vec<HybridRe
     }
 
     // 3. Apply metadata filters (hard filters, not scored)
-    let filtered_ids: Option<std::collections::HashSet<RecordId>> = if query.metadata_filters.is_empty() {
-        None
-    } else {
-        Some(
-            store
-                .records
-                .iter()
-                .filter(|(_, record)| {
-                    query.metadata_filters.iter().all(|(field, value)| {
-                        record.fields.get(field).map(|v| v == value).unwrap_or(false)
+    let filtered_ids: Option<std::collections::HashSet<RecordId>> =
+        if query.metadata_filters.is_empty() {
+            None
+        } else {
+            Some(
+                store
+                    .records
+                    .iter()
+                    .filter(|(_, record)| {
+                        query.metadata_filters.iter().all(|(field, value)| {
+                            record
+                                .fields
+                                .get(field)
+                                .map(|v| v == value)
+                                .unwrap_or(false)
+                        })
                     })
-                })
-                .map(|(&id, _)| id)
-                .collect(),
-        )
-    };
+                    .map(|(&id, _)| id)
+                    .collect(),
+            )
+        };
 
     // 4. Combine scores with weights
     let vw = query.vector_weight as f64;
@@ -181,17 +182,17 @@ pub fn hybrid_search(store: &AmorphicStore, query: &HybridQuery) -> Vec<HybridRe
         })
         .collect();
 
-    results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    results.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     results.truncate(query.k);
     results
 }
 
 /// Compute keyword match score for a record.
-fn keyword_match_score(
-    record: &AmorphicRecord,
-    terms: &[&str],
-    search_fields: &[String],
-) -> f64 {
+fn keyword_match_score(record: &AmorphicRecord, terms: &[&str], search_fields: &[String]) -> f64 {
     let mut total_matches = 0;
 
     for (field, value) in &record.fields {

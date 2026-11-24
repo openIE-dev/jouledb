@@ -19,10 +19,20 @@ pub struct Pose2D {
 
 impl Pose2D {
     pub fn new(x: f64, y: f64, theta: f64) -> Self {
-        Self { x, y, theta: wrap_angle(theta) }
+        Self {
+            x,
+            y,
+            theta: wrap_angle(theta),
+        }
     }
 
-    pub fn identity() -> Self { Self { x: 0.0, y: 0.0, theta: 0.0 } }
+    pub fn identity() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            theta: 0.0,
+        }
+    }
 
     /// Compose: self ⊕ other.
     pub fn compose(&self, other: &Pose2D) -> Pose2D {
@@ -52,14 +62,22 @@ impl Pose2D {
 
 impl fmt::Display for Pose2D {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Pose2D({:.4}, {:.4}, {:.4}rad)", self.x, self.y, self.theta)
+        write!(
+            f,
+            "Pose2D({:.4}, {:.4}, {:.4}rad)",
+            self.x, self.y, self.theta
+        )
     }
 }
 
 fn wrap_angle(a: f64) -> f64 {
     let mut v = a % (2.0 * std::f64::consts::PI);
-    if v > std::f64::consts::PI { v -= 2.0 * std::f64::consts::PI; }
-    if v < -std::f64::consts::PI { v += 2.0 * std::f64::consts::PI; }
+    if v > std::f64::consts::PI {
+        v -= 2.0 * std::f64::consts::PI;
+    }
+    if v < -std::f64::consts::PI {
+        v += 2.0 * std::f64::consts::PI;
+    }
     v
 }
 
@@ -77,7 +95,12 @@ pub struct Edge {
 
 impl Edge {
     pub fn new(from: usize, to: usize, measurement: Pose2D) -> Self {
-        Self { from, to, measurement, information: [1.0, 0.0, 0.0, 1.0, 0.0, 1.0] }
+        Self {
+            from,
+            to,
+            measurement,
+            information: [1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+        }
     }
 
     pub fn with_information(mut self, info: [f64; 6]) -> Self {
@@ -88,11 +111,7 @@ impl Edge {
     /// Expand upper-triangular information to full 3×3.
     pub fn info_matrix(&self) -> [[f64; 3]; 3] {
         let i = &self.information;
-        [
-            [i[0], i[1], i[2]],
-            [i[1], i[3], i[4]],
-            [i[2], i[4], i[5]],
-        ]
+        [[i[0], i[1], i[2]], [i[1], i[3], i[4]], [i[2], i[4], i[5]]]
     }
 
     /// Compute residual error = measurement⁻¹ ⊕ (from⁻¹ ⊕ to).
@@ -118,7 +137,11 @@ impl Edge {
 
 impl fmt::Display for Edge {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Edge({} -> {}, meas={})", self.from, self.to, self.measurement)
+        write!(
+            f,
+            "Edge({} -> {}, meas={})",
+            self.from, self.to, self.measurement
+        )
     }
 }
 
@@ -190,12 +213,29 @@ impl Default for OptimizerConfig {
 }
 
 impl OptimizerConfig {
-    pub fn new() -> Self { Self::default() }
-    pub fn with_max_iterations(mut self, n: usize) -> Self { self.max_iterations = n; self }
-    pub fn with_tolerance(mut self, t: f64) -> Self { self.tolerance = t; self }
-    pub fn with_damping(mut self, d: f64) -> Self { self.damping = d; self }
-    pub fn with_kernel(mut self, k: RobustKernel) -> Self { self.kernel = k; self }
-    pub fn with_fixed_node(mut self, n: usize) -> Self { self.fixed_node = n; self }
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn with_max_iterations(mut self, n: usize) -> Self {
+        self.max_iterations = n;
+        self
+    }
+    pub fn with_tolerance(mut self, t: f64) -> Self {
+        self.tolerance = t;
+        self
+    }
+    pub fn with_damping(mut self, d: f64) -> Self {
+        self.damping = d;
+        self
+    }
+    pub fn with_kernel(mut self, k: RobustKernel) -> Self {
+        self.kernel = k;
+        self
+    }
+    pub fn with_fixed_node(mut self, n: usize) -> Self {
+        self.fixed_node = n;
+        self
+    }
 }
 
 // ── Pose graph ────────────────────────────────────────────────────
@@ -208,7 +248,12 @@ pub struct PoseGraph {
 }
 
 impl PoseGraph {
-    pub fn new() -> Self { Self { nodes: Vec::new(), edges: Vec::new() } }
+    pub fn new() -> Self {
+        Self {
+            nodes: Vec::new(),
+            edges: Vec::new(),
+        }
+    }
 
     pub fn add_node(&mut self, pose: Pose2D) -> usize {
         let id = self.nodes.len();
@@ -220,18 +265,32 @@ impl PoseGraph {
         self.edges.push(edge);
     }
 
-    pub fn num_nodes(&self) -> usize { self.nodes.len() }
-    pub fn num_edges(&self) -> usize { self.edges.len() }
+    pub fn num_nodes(&self) -> usize {
+        self.nodes.len()
+    }
+    pub fn num_edges(&self) -> usize {
+        self.edges.len()
+    }
 
     /// Total weighted error across all edges.
     pub fn total_error(&self) -> f64 {
-        self.edges.iter().map(|e| e.weighted_error(&self.nodes)).sum()
+        self.edges
+            .iter()
+            .map(|e| e.weighted_error(&self.nodes))
+            .sum()
     }
 
     /// Optimize using Gauss-Newton with optional robust kernel.
     pub fn optimize(&mut self, config: &OptimizerConfig) -> OptimizationResult {
         let n = self.nodes.len();
-        if n == 0 { return OptimizationResult { iterations: 0, initial_error: 0.0, final_error: 0.0, converged: true }; }
+        if n == 0 {
+            return OptimizationResult {
+                iterations: 0,
+                initial_error: 0.0,
+                final_error: 0.0,
+                converged: true,
+            };
+        }
 
         let initial_error = self.total_error();
         let dim = n * 3; // 3 DOF per node
@@ -265,7 +324,9 @@ impl PoseGraph {
                         _ => poses_plus[edge.from].theta += eps,
                     }
                     let e_plus = edge.residual(&poses_plus);
-                    for r in 0..3 { ji[r][k] = (e_plus[r] - e[r]) / eps; }
+                    for r in 0..3 {
+                        ji[r][k] = (e_plus[r] - e[r]) / eps;
+                    }
 
                     let mut poses_plus2 = self.nodes.clone();
                     match k {
@@ -274,7 +335,9 @@ impl PoseGraph {
                         _ => poses_plus2[edge.to].theta += eps,
                     }
                     let e_plus2 = edge.residual(&poses_plus2);
-                    for r in 0..3 { jj[r][k] = (e_plus2[r] - e[r]) / eps; }
+                    for r in 0..3 {
+                        jj[r][k] = (e_plus2[r] - e[r]) / eps;
+                    }
                 }
 
                 // Accumulate: H_ii += Ji^T Ω Ji, H_jj += Jj^T Ω Jj, H_ij += Ji^T Ω Jj
@@ -307,8 +370,10 @@ impl PoseGraph {
                     let mut bi = 0.0;
                     let mut bj = 0.0;
                     for k in 0..3 {
-                        bi += ji[k][r] * (w_omega(k, 0) * e[0] + w_omega(k, 1) * e[1] + w_omega(k, 2) * e[2]);
-                        bj += jj[k][r] * (w_omega(k, 0) * e[0] + w_omega(k, 1) * e[1] + w_omega(k, 2) * e[2]);
+                        bi += ji[k][r]
+                            * (w_omega(k, 0) * e[0] + w_omega(k, 1) * e[1] + w_omega(k, 2) * e[2]);
+                        bj += jj[k][r]
+                            * (w_omega(k, 0) * e[0] + w_omega(k, 1) * e[1] + w_omega(k, 2) * e[2]);
                     }
                     b_vec[edge.from][r] += bi;
                     b_vec[edge.to][r] += bj;
@@ -341,7 +406,9 @@ impl PoseGraph {
                 let det = blk[0] * (blk[4] * blk[8] - blk[5] * blk[7])
                     - blk[1] * (blk[3] * blk[8] - blk[5] * blk[6])
                     + blk[2] * (blk[3] * blk[7] - blk[4] * blk[6]);
-                if det.abs() < 1e-15 { continue; }
+                if det.abs() < 1e-15 {
+                    continue;
+                }
                 let inv_det = 1.0 / det;
 
                 let inv = [
@@ -366,12 +433,16 @@ impl PoseGraph {
             // Apply update
             let mut max_delta = 0.0f64;
             for i in 0..n {
-                if i == fixed { continue; }
+                if i == fixed {
+                    continue;
+                }
                 self.nodes[i].x += dx[i][0];
                 self.nodes[i].y += dx[i][1];
                 self.nodes[i].theta = wrap_angle(self.nodes[i].theta + dx[i][2]);
                 let delta = dx[i][0].abs() + dx[i][1].abs() + dx[i][2].abs();
-                if delta > max_delta { max_delta = delta; }
+                if delta > max_delta {
+                    max_delta = delta;
+                }
             }
 
             if max_delta < config.tolerance {
@@ -395,7 +466,13 @@ impl PoseGraph {
 
 impl fmt::Display for PoseGraph {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PoseGraph(nodes={}, edges={}, error={:.6})", self.num_nodes(), self.num_edges(), self.total_error())
+        write!(
+            f,
+            "PoseGraph(nodes={}, edges={}, error={:.6})",
+            self.num_nodes(),
+            self.num_edges(),
+            self.total_error()
+        )
     }
 }
 
@@ -588,14 +665,20 @@ mod tests {
 
     #[test]
     fn test_optimization_result_display() {
-        let r = OptimizationResult { iterations: 5, initial_error: 1.0, final_error: 0.01, converged: true };
+        let r = OptimizationResult {
+            iterations: 5,
+            initial_error: 1.0,
+            final_error: 0.01,
+            converged: true,
+        };
         let s = format!("{}", r);
         assert!(s.contains("converged=true"));
     }
 
     #[test]
     fn test_edge_information_matrix() {
-        let e = Edge::new(0, 1, Pose2D::identity()).with_information([2.0, 0.0, 0.0, 2.0, 0.0, 2.0]);
+        let e =
+            Edge::new(0, 1, Pose2D::identity()).with_information([2.0, 0.0, 0.0, 2.0, 0.0, 2.0]);
         let m = e.info_matrix();
         assert!((m[0][0] - 2.0).abs() < 1e-10);
         assert!((m[1][1] - 2.0).abs() < 1e-10);

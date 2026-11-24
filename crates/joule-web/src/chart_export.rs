@@ -148,16 +148,21 @@ pub fn export_pdf(svg: &str, config: &ExportConfig) -> Vec<u8> {
     );
     let obj4 = format!(
         "4 0 obj\n<< /Length {} >>\nstream\n{}\nendstream\nendobj\n",
-        content.len(), content
+        content.len(),
+        content
     );
     let obj4_offset = pdf.len();
     pdf.extend_from_slice(obj4.as_bytes());
 
     // Object 5: SVG data as embedded file
-    let svg_encoded = svg.replace('\\', "\\\\").replace('(', "\\(").replace(')', "\\)");
+    let svg_encoded = svg
+        .replace('\\', "\\\\")
+        .replace('(', "\\(")
+        .replace(')', "\\)");
     let obj5 = format!(
         "5 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fsvg+xml /Length {} >>\nstream\n{}\nendstream\nendobj\n",
-        svg.len(), svg
+        svg.len(),
+        svg
     );
     let obj5_offset = pdf.len();
     pdf.extend_from_slice(obj5.as_bytes());
@@ -173,9 +178,9 @@ pub fn export_pdf(svg: &str, config: &ExportConfig) -> Vec<u8> {
     pdf.extend_from_slice(format!("{:010} 00000 n \n", obj5_offset).as_bytes());
 
     // Trailer
-    pdf.extend_from_slice(format!(
-        "trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n"
-    ).as_bytes());
+    pdf.extend_from_slice(
+        format!("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n").as_bytes(),
+    );
 
     pdf
 }
@@ -199,10 +204,14 @@ pub fn export_csv(headers: &[&str], rows: &[Vec<f64>]) -> Vec<u8> {
 pub fn export_json(headers: &[&str], rows: &[Vec<f64>]) -> Vec<u8> {
     let mut json = String::from("[");
     for (i, row) in rows.iter().enumerate() {
-        if i > 0 { json.push(','); }
+        if i > 0 {
+            json.push(',');
+        }
         json.push('{');
         for (j, &val) in row.iter().enumerate() {
-            if j > 0 { json.push(','); }
+            if j > 0 {
+                json.push(',');
+            }
             let key = headers.get(j).copied().unwrap_or("_");
             json.push_str(&format!("\"{key}\":{val}"));
         }
@@ -233,7 +242,14 @@ fn extract_rects(svg: &str) -> Vec<SvgRect> {
             let h = extract_attr(segment, "height").unwrap_or(0.0);
             let fill = extract_str_attr(segment, "fill").unwrap_or_else(|| "#000".into());
             let opacity = extract_attr(segment, "opacity").unwrap_or(1.0);
-            rects.push(SvgRect { x, y, width: w, height: h, fill, opacity });
+            rects.push(SvgRect {
+                x,
+                y,
+                width: w,
+                height: h,
+                fill,
+                opacity,
+            });
         }
     }
     rects
@@ -395,14 +411,28 @@ mod tests {
     #[test]
     fn png_export_valid_signature() {
         let svg = "<svg width=\"100\" height=\"100\"><rect x=\"10\" y=\"10\" width=\"80\" height=\"80\" fill=\"#ff0000\"/></svg>";
-        let png = export_png(svg, &ExportConfig { width: 100, height: 100, ..Default::default() });
+        let png = export_png(
+            svg,
+            &ExportConfig {
+                width: 100,
+                height: 100,
+                ..Default::default()
+            },
+        );
         assert_eq!(&png[0..8], &[137, 80, 78, 71, 13, 10, 26, 10]); // PNG signature
     }
 
     #[test]
     fn png_has_ihdr_and_iend() {
         let svg = "<svg width=\"50\" height=\"50\"></svg>";
-        let png = export_png(svg, &ExportConfig { width: 50, height: 50, ..Default::default() });
+        let png = export_png(
+            svg,
+            &ExportConfig {
+                width: 50,
+                height: 50,
+                ..Default::default()
+            },
+        );
         // Check IHDR chunk type at byte 12-15
         assert_eq!(&png[12..16], b"IHDR");
         // Check IEND is present near the end
@@ -468,7 +498,8 @@ mod tests {
 
     #[test]
     fn extract_rects_from_svg() {
-        let svg = "<svg><rect x=\"10\" y=\"20\" width=\"100\" height=\"50\" fill=\"#ff0000\"/></svg>";
+        let svg =
+            "<svg><rect x=\"10\" y=\"20\" width=\"100\" height=\"50\" fill=\"#ff0000\"/></svg>";
         let rects = extract_rects(svg);
         assert_eq!(rects.len(), 1);
         assert!((rects[0].x - 10.0).abs() < 0.01);

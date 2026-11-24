@@ -217,20 +217,29 @@ impl NumberFormat {
         let abs = value.abs();
 
         let (scaled, suffix) = if abs >= 1_000_000_000.0 {
-            (abs / 1_000_000_000.0, match display {
-                CompactDisplay::Short => "B",
-                CompactDisplay::Long => " billion",
-            })
+            (
+                abs / 1_000_000_000.0,
+                match display {
+                    CompactDisplay::Short => "B",
+                    CompactDisplay::Long => " billion",
+                },
+            )
         } else if abs >= 1_000_000.0 {
-            (abs / 1_000_000.0, match display {
-                CompactDisplay::Short => "M",
-                CompactDisplay::Long => " million",
-            })
+            (
+                abs / 1_000_000.0,
+                match display {
+                    CompactDisplay::Short => "M",
+                    CompactDisplay::Long => " million",
+                },
+            )
         } else if abs >= 1_000.0 {
-            (abs / 1_000.0, match display {
-                CompactDisplay::Short => "K",
-                CompactDisplay::Long => " thousand",
-            })
+            (
+                abs / 1_000.0,
+                match display {
+                    CompactDisplay::Short => "K",
+                    CompactDisplay::Long => " thousand",
+                },
+            )
         } else {
             (abs, "")
         };
@@ -417,7 +426,8 @@ mod tests {
             max_fraction_digits: 2,
             ..Default::default()
         };
-        let result = fmt.format_currency(1234.50, "USD", "$", "US dollars", CurrencyDisplay::Symbol);
+        let result =
+            fmt.format_currency(1234.50, "USD", "$", "US dollars", CurrencyDisplay::Symbol);
         assert_eq!(result, "$1,234.50");
     }
 
@@ -447,8 +457,14 @@ mod tests {
     fn compact_short() {
         let fmt = NumberFormat::new();
         assert_eq!(fmt.format_compact(1_500.0, CompactDisplay::Short), "1.5K");
-        assert_eq!(fmt.format_compact(2_500_000.0, CompactDisplay::Short), "2.5M");
-        assert_eq!(fmt.format_compact(3_000_000_000.0, CompactDisplay::Short), "3B");
+        assert_eq!(
+            fmt.format_compact(2_500_000.0, CompactDisplay::Short),
+            "2.5M"
+        );
+        assert_eq!(
+            fmt.format_compact(3_000_000_000.0, CompactDisplay::Short),
+            "3B"
+        );
     }
 
     #[test]

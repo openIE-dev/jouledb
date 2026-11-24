@@ -441,10 +441,7 @@ mod tests {
         assert!(req.body.is_some());
         let body_str = String::from_utf8(req.body.unwrap()).unwrap();
         assert!(body_str.contains("Alice"));
-        assert_eq!(
-            req.headers.get("Content-Type").unwrap(),
-            "application/json"
-        );
+        assert_eq!(req.headers.get("Content-Type").unwrap(), "application/json");
     }
 
     #[test]
@@ -529,10 +526,7 @@ mod tests {
         let req = Request::get("https://api.example.com")
             .bearer_token("my-token")
             .build();
-        assert_eq!(
-            req.headers.get("Authorization").unwrap(),
-            "Bearer my-token"
-        );
+        assert_eq!(req.headers.get("Authorization").unwrap(), "Bearer my-token");
     }
 
     #[test]

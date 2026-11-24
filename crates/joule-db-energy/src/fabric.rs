@@ -76,7 +76,13 @@ impl MemoryBusKind {
     pub fn transfer_pj_per_byte(self, lane: SiliconLane) -> f64 {
         match (self, lane) {
             (Self::UnifiedZeroCopy, _) => 4.0,
-            (_, SiliconLane::CpuScalarSimd | SiliconLane::PopcntBitwise | SiliconLane::Ternary158Bit | SiliconLane::WasmSandbox) => 12.0,
+            (
+                _,
+                SiliconLane::CpuScalarSimd
+                | SiliconLane::PopcntBitwise
+                | SiliconLane::Ternary158Bit
+                | SiliconLane::WasmSandbox,
+            ) => 12.0,
             (Self::LocalDram, _) => 28.0,
             (Self::CxlPooled, _) => 38.0,
             (Self::DiscretePcie, _) => 85.0,
@@ -226,12 +232,18 @@ impl FabricWorkloadKind {
     pub fn base_compute_pj_per_op(self, lane: SiliconLane) -> f64 {
         match (self, lane) {
             (Self::BitwiseHdcVector, SiliconLane::PopcntBitwise) => 1.8,
-            (Self::BitwiseHdcVector, SiliconLane::NpuSystolic | SiliconLane::LpuDeterministicSram) => 2.5,
+            (
+                Self::BitwiseHdcVector,
+                SiliconLane::NpuSystolic | SiliconLane::LpuDeterministicSram,
+            ) => 2.5,
             (Self::BitwiseHdcVector, SiliconLane::GpuShader) => 4.2,
             (Self::BitwiseHdcVector, _) => 18.0,
 
             (Self::TernaryInference, SiliconLane::Ternary158Bit) => 3.2,
-            (Self::TernaryInference, SiliconLane::NpuSystolic | SiliconLane::LpuDeterministicSram) => 4.5,
+            (
+                Self::TernaryInference,
+                SiliconLane::NpuSystolic | SiliconLane::LpuDeterministicSram,
+            ) => 4.5,
             (Self::TernaryInference, SiliconLane::GpuShader) => 9.0,
             (Self::TernaryInference, _) => 28.0,
 

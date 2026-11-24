@@ -45,9 +45,13 @@ impl RpcContext {
         self.metadata.get(key).map(|s| s.as_str())
     }
 
-    pub fn has_error(&self) -> bool { self.error.is_some() }
+    pub fn has_error(&self) -> bool {
+        self.error.is_some()
+    }
 
-    pub fn duration_us(&self) -> u64 { self.end_time_us.saturating_sub(self.start_time_us) }
+    pub fn duration_us(&self) -> u64 {
+        self.end_time_us.saturating_sub(self.start_time_us)
+    }
 }
 
 // ── Intercept Result ───────────────────────────────────────────
@@ -62,8 +66,12 @@ pub enum InterceptResult {
 }
 
 impl InterceptResult {
-    pub fn is_continue(&self) -> bool { matches!(self, Self::Continue) }
-    pub fn is_abort(&self) -> bool { matches!(self, Self::Abort(_)) }
+    pub fn is_continue(&self) -> bool {
+        matches!(self, Self::Continue)
+    }
+    pub fn is_abort(&self) -> bool {
+        matches!(self, Self::Abort(_))
+    }
 }
 
 // ── Interceptor Trait ──────────────────────────────────────────
@@ -74,7 +82,9 @@ pub trait Interceptor: fmt::Debug {
     fn name(&self) -> &str;
 
     /// Priority (lower = runs first). Default is 100.
-    fn priority(&self) -> u32 { 100 }
+    fn priority(&self) -> u32 {
+        100
+    }
 
     /// Called before the RPC is dispatched. Can modify the context or abort.
     fn before_call(&self, ctx: &mut RpcContext) -> InterceptResult {
@@ -101,7 +111,9 @@ pub struct ChainStats {
 
 impl ChainStats {
     pub fn abort_rate(&self) -> f64 {
-        if self.calls_processed == 0 { return 0.0; }
+        if self.calls_processed == 0 {
+            return 0.0;
+        }
         self.calls_aborted as f64 / self.calls_processed as f64
     }
 }
@@ -114,7 +126,10 @@ pub struct InterceptorChain {
 
 impl InterceptorChain {
     pub fn new() -> Self {
-        Self { interceptors: Vec::new(), stats: ChainStats::default() }
+        Self {
+            interceptors: Vec::new(),
+            stats: ChainStats::default(),
+        }
     }
 
     /// Add an interceptor. The chain will be sorted by priority on next execution.
@@ -124,8 +139,12 @@ impl InterceptorChain {
     }
 
     /// Number of interceptors.
-    pub fn len(&self) -> usize { self.interceptors.len() }
-    pub fn is_empty(&self) -> bool { self.interceptors.is_empty() }
+    pub fn len(&self) -> usize {
+        self.interceptors.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.interceptors.is_empty()
+    }
 
     /// Execute the before-call phase. Returns the index where abort occurred, or None.
     pub fn run_before(&mut self, ctx: &mut RpcContext) -> Option<(usize, String)> {
@@ -164,7 +183,9 @@ impl InterceptorChain {
         true
     }
 
-    pub fn stats(&self) -> &ChainStats { &self.stats }
+    pub fn stats(&self) -> &ChainStats {
+        &self.stats
+    }
 
     /// List interceptor names in execution order.
     pub fn interceptor_names(&self) -> Vec<&str> {
@@ -173,7 +194,9 @@ impl InterceptorChain {
 }
 
 impl Default for InterceptorChain {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Debug for InterceptorChain {
@@ -196,13 +219,19 @@ pub struct LoggingInterceptor {
 
 impl LoggingInterceptor {
     pub fn new(prefix: impl Into<String>) -> Self {
-        Self { prefix: prefix.into() }
+        Self {
+            prefix: prefix.into(),
+        }
     }
 }
 
 impl Interceptor for LoggingInterceptor {
-    fn name(&self) -> &str { "logging" }
-    fn priority(&self) -> u32 { 10 }
+    fn name(&self) -> &str {
+        "logging"
+    }
+    fn priority(&self) -> u32 {
+        10
+    }
 
     fn before_call(&self, ctx: &mut RpcContext) -> InterceptResult {
         ctx.set_metadata(
@@ -236,8 +265,12 @@ impl TimingInterceptor {
 }
 
 impl Interceptor for TimingInterceptor {
-    fn name(&self) -> &str { "timing" }
-    fn priority(&self) -> u32 { 5 }
+    fn name(&self) -> &str {
+        "timing"
+    }
+    fn priority(&self) -> u32 {
+        5
+    }
 
     fn before_call(&self, ctx: &mut RpcContext) -> InterceptResult {
         ctx.start_time_us = self.simulated_time_us;
@@ -267,8 +300,12 @@ impl AuthInterceptor {
 }
 
 impl Interceptor for AuthInterceptor {
-    fn name(&self) -> &str { "auth" }
-    fn priority(&self) -> u32 { 20 }
+    fn name(&self) -> &str {
+        "auth"
+    }
+    fn priority(&self) -> u32 {
+        20
+    }
 
     fn before_call(&self, ctx: &mut RpcContext) -> InterceptResult {
         match &self.token {
@@ -296,7 +333,10 @@ pub struct RetryInterceptor {
 
 impl RetryInterceptor {
     pub fn new(max_retries: u32) -> Self {
-        Self { max_retries, current_attempt: 0 }
+        Self {
+            max_retries,
+            current_attempt: 0,
+        }
     }
 
     pub fn set_attempt(&mut self, attempt: u32) {
@@ -305,8 +345,12 @@ impl RetryInterceptor {
 }
 
 impl Interceptor for RetryInterceptor {
-    fn name(&self) -> &str { "retry" }
-    fn priority(&self) -> u32 { 50 }
+    fn name(&self) -> &str {
+        "retry"
+    }
+    fn priority(&self) -> u32 {
+        50
+    }
 
     fn before_call(&self, ctx: &mut RpcContext) -> InterceptResult {
         ctx.set_metadata("retry_attempt", self.current_attempt.to_string());
@@ -334,7 +378,11 @@ pub struct HeaderInterceptor {
 }
 
 impl HeaderInterceptor {
-    pub fn new() -> Self { Self { headers: Vec::new() } }
+    pub fn new() -> Self {
+        Self {
+            headers: Vec::new(),
+        }
+    }
 
     pub fn add_header(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.headers.push((key.into(), value.into()));
@@ -343,12 +391,18 @@ impl HeaderInterceptor {
 }
 
 impl Default for HeaderInterceptor {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Interceptor for HeaderInterceptor {
-    fn name(&self) -> &str { "headers" }
-    fn priority(&self) -> u32 { 15 }
+    fn name(&self) -> &str {
+        "headers"
+    }
+    fn priority(&self) -> u32 {
+        15
+    }
 
     fn before_call(&self, ctx: &mut RpcContext) -> InterceptResult {
         for (k, v) in &self.headers {
@@ -403,7 +457,11 @@ mod tests {
         chain.add(Box::new(LoggingInterceptor::new("log")));
         let mut ctx = RpcContext::new("my_method", vec![]);
         chain.run_before(&mut ctx);
-        assert!(ctx.get_metadata("log_before").unwrap().contains("my_method"));
+        assert!(
+            ctx.get_metadata("log_before")
+                .unwrap()
+                .contains("my_method")
+        );
         chain.run_after(&mut ctx);
         assert!(ctx.get_metadata("log_after").unwrap().contains("ok"));
     }
@@ -423,7 +481,10 @@ mod tests {
     #[test]
     fn auth_interceptor_adds_token() {
         let mut chain = InterceptorChain::new();
-        chain.add(Box::new(AuthInterceptor::new(Some("secret123".into()), true)));
+        chain.add(Box::new(AuthInterceptor::new(
+            Some("secret123".into()),
+            true,
+        )));
         let mut ctx = RpcContext::new("test", vec![]);
         chain.run_before(&mut ctx);
         assert_eq!(ctx.get_metadata("authorization"), Some("Bearer secret123"));
@@ -475,7 +536,7 @@ mod tests {
         chain.add(Box::new(
             HeaderInterceptor::new()
                 .add_header("x-request-id", "abc123")
-                .add_header("x-trace", "trace1")
+                .add_header("x-trace", "trace1"),
         ));
         let mut ctx = RpcContext::new("test", vec![]);
         chain.run_before(&mut ctx);
@@ -486,8 +547,8 @@ mod tests {
     #[test]
     fn chain_priority_ordering() {
         let mut chain = InterceptorChain::new();
-        chain.add(Box::new(LoggingInterceptor::new("log")));   // priority 10
-        chain.add(Box::new(TimingInterceptor::new(0)));         // priority 5
+        chain.add(Box::new(LoggingInterceptor::new("log"))); // priority 10
+        chain.add(Box::new(TimingInterceptor::new(0))); // priority 5
         chain.add(Box::new(AuthInterceptor::new(None, false))); // priority 20
         let names = chain.interceptor_names();
         assert_eq!(names, vec!["timing", "logging", "auth"]);
@@ -510,7 +571,9 @@ mod tests {
         let mut chain = InterceptorChain::new();
         chain.add(Box::new(AuthInterceptor::new(None, true)));
         let mut ctx = RpcContext::new("test", vec![]);
-        let ok = chain.execute(&mut ctx, |_c| { panic!("should not be called"); });
+        let ok = chain.execute(&mut ctx, |_c| {
+            panic!("should not be called");
+        });
         assert!(!ok);
         assert!(ctx.has_error());
     }
@@ -545,8 +608,8 @@ mod tests {
     #[test]
     fn short_circuit_stops_later_interceptors() {
         let mut chain = InterceptorChain::new();
-        chain.add(Box::new(AuthInterceptor::new(None, true)));   // priority 20 -> abort
-        chain.add(Box::new(RetryInterceptor::new(3)));           // priority 50 -> should not run
+        chain.add(Box::new(AuthInterceptor::new(None, true))); // priority 20 -> abort
+        chain.add(Box::new(RetryInterceptor::new(3))); // priority 50 -> should not run
         let mut ctx = RpcContext::new("test", vec![]);
         chain.run_before(&mut ctx);
         // retry metadata should NOT be present because auth aborted first
@@ -556,7 +619,7 @@ mod tests {
     #[test]
     fn after_call_runs_in_reverse() {
         let mut chain = InterceptorChain::new();
-        chain.add(Box::new(LoggingInterceptor::new("first")));  // priority 10
+        chain.add(Box::new(LoggingInterceptor::new("first"))); // priority 10
         chain.add(Box::new(LoggingInterceptor::new("second"))); // priority 10
         let mut ctx = RpcContext::new("test", vec![]);
         chain.run_after(&mut ctx);

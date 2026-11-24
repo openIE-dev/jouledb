@@ -18,7 +18,10 @@ pub enum NavierStokesError {
     /// Solver diverged (NaN or Inf).
     Diverged(String),
     /// Incompatible field dimensions.
-    DimensionMismatch { expected: (usize, usize), got: (usize, usize) },
+    DimensionMismatch {
+        expected: (usize, usize),
+        got: (usize, usize),
+    },
 }
 
 impl fmt::Display for NavierStokesError {
@@ -27,7 +30,11 @@ impl fmt::Display for NavierStokesError {
             Self::InvalidGrid(msg) => write!(f, "invalid grid: {msg}"),
             Self::Diverged(msg) => write!(f, "solver diverged: {msg}"),
             Self::DimensionMismatch { expected, got } => {
-                write!(f, "dimension mismatch: expected {}x{}, got {}x{}", expected.0, expected.1, got.0, got.1)
+                write!(
+                    f,
+                    "dimension mismatch: expected {}x{}, got {}x{}",
+                    expected.0, expected.1, got.0, got.1
+                )
             }
         }
     }
@@ -47,11 +54,19 @@ pub struct ScalarField {
 
 impl ScalarField {
     pub fn new(nx: usize, ny: usize) -> Self {
-        Self { data: vec![0.0; nx * ny], nx, ny }
+        Self {
+            data: vec![0.0; nx * ny],
+            nx,
+            ny,
+        }
     }
 
     pub fn filled(nx: usize, ny: usize, val: f64) -> Self {
-        Self { data: vec![val; nx * ny], nx, ny }
+        Self {
+            data: vec![val; nx * ny],
+            nx,
+            ny,
+        }
     }
 
     pub fn get(&self, x: usize, y: usize) -> f64 {
@@ -192,11 +207,13 @@ pub fn advect_maccormack(
             let x1 = (x0 + 1).min(field.nx - 1);
             let y1 = (y0 + 1).min(field.ny - 1);
 
-            let local_min = field.get(x0, y0)
+            let local_min = field
+                .get(x0, y0)
                 .min(field.get(x1, y0))
                 .min(field.get(x0, y1))
                 .min(field.get(x1, y1));
-            let local_max = field.get(x0, y0)
+            let local_max = field
+                .get(x0, y0)
                 .max(field.get(x1, y0))
                 .max(field.get(x0, y1))
                 .max(field.get(x1, y1));
@@ -231,8 +248,8 @@ pub fn diffuse_jacobi(
         let mut max_res = 0.0_f64;
         for y in 1..ny.saturating_sub(1) {
             for x in 1..nx.saturating_sub(1) {
-                let neighbors = old.get(x + 1, y) + old.get(x - 1, y)
-                    + old.get(x, y + 1) + old.get(x, y - 1);
+                let neighbors =
+                    old.get(x + 1, y) + old.get(x - 1, y) + old.get(x, y + 1) + old.get(x, y - 1);
                 let new_val = (neighbors + alpha * source.get(x, y)) / beta;
                 field.set(x, y, new_val);
                 max_res = max_res.max((new_val - old.get(x, y)).abs());
@@ -370,7 +387,9 @@ pub struct EnergyTracker {
 
 impl EnergyTracker {
     pub fn new() -> Self {
-        Self { history: Vec::new() }
+        Self {
+            history: Vec::new(),
+        }
     }
 
     /// Record a kinetic energy sample at the given time.
@@ -472,8 +491,22 @@ pub fn operator_split_step(
 
     // 2. Diffuse
     if cfg.kinematic_viscosity > 0.0 {
-        diffuse_jacobi(&mut vel.u, cfg.kinematic_viscosity, dt, dx, cfg.diffusion_iters, cfg.diffusion_tol);
-        diffuse_jacobi(&mut vel.v, cfg.kinematic_viscosity, dt, dx, cfg.diffusion_iters, cfg.diffusion_tol);
+        diffuse_jacobi(
+            &mut vel.u,
+            cfg.kinematic_viscosity,
+            dt,
+            dx,
+            cfg.diffusion_iters,
+            cfg.diffusion_tol,
+        );
+        diffuse_jacobi(
+            &mut vel.v,
+            cfg.kinematic_viscosity,
+            dt,
+            dx,
+            cfg.diffusion_iters,
+            cfg.diffusion_tol,
+        );
     }
 
     // 3. Body forces

@@ -212,7 +212,11 @@ pub struct Decoder<'a> {
 
 impl<'a> Decoder<'a> {
     pub fn new(data: &'a [u8]) -> Self {
-        Self { data, pos: 0, depth: 0 }
+        Self {
+            data,
+            pos: 0,
+            depth: 0,
+        }
     }
 
     fn read_u8(&mut self) -> Result<u8, CborError> {
@@ -247,7 +251,9 @@ impl<'a> Decoder<'a> {
             }
             27 => {
                 let b = self.read_bytes(8)?;
-                Ok(u64::from_be_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]))
+                Ok(u64::from_be_bytes([
+                    b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
+                ]))
             }
             _ => Err(CborError::InvalidAdditionalInfo(additional)),
         }
@@ -406,7 +412,9 @@ impl<'a> Decoder<'a> {
                     }
                     27 => {
                         let b = self.read_bytes(8)?;
-                        Ok(Value::Float64(f64::from_be_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]])))
+                        Ok(Value::Float64(f64::from_be_bytes([
+                            b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
+                        ])))
                     }
                     31 => Err(CborError::UnexpectedBreak),
                     v if v <= 23 => Ok(Value::Simple(v)),
@@ -442,7 +450,11 @@ fn half_to_f32(half: u16) -> f32 {
     } else if exp == 31 {
         // inf or nan
         if mant == 0 {
-            if sign == 1 { f32::NEG_INFINITY } else { f32::INFINITY }
+            if sign == 1 {
+                f32::NEG_INFINITY
+            } else {
+                f32::INFINITY
+            }
         } else {
             f32::NAN
         }
@@ -489,9 +501,7 @@ fn encode_canonical_inner(enc: &mut Encoder, val: &Value) {
                 })
                 .collect();
             // Sort by length first, then lexicographic
-            sorted.sort_by(|a, b| {
-                a.0.len().cmp(&b.0.len()).then_with(|| a.0.cmp(&b.0))
-            });
+            sorted.sort_by(|a, b| a.0.len().cmp(&b.0.len()).then_with(|| a.0.cmp(&b.0)));
             enc.write_type_value(5, sorted.len() as u64);
             for (kb, v) in &sorted {
                 enc.buf.extend_from_slice(kb);
@@ -555,7 +565,18 @@ mod tests {
 
     #[test]
     fn unsigned_int_roundtrip() {
-        for n in [0u64, 1, 23, 24, 255, 256, 65535, 65536, u32::MAX as u64, u64::MAX] {
+        for n in [
+            0u64,
+            1,
+            23,
+            24,
+            255,
+            256,
+            65535,
+            65536,
+            u32::MAX as u64,
+            u64::MAX,
+        ] {
             assert_eq!(roundtrip(&Value::UnsignedInt(n)), Value::UnsignedInt(n));
         }
     }
@@ -653,7 +674,10 @@ mod tests {
         enc.encode_indefinite_array(&[Value::UnsignedInt(1), Value::UnsignedInt(2)]);
         let bytes = enc.finish();
         let val = decode(&bytes).unwrap();
-        assert_eq!(val, Value::Array(vec![Value::UnsignedInt(1), Value::UnsignedInt(2)]));
+        assert_eq!(
+            val,
+            Value::Array(vec![Value::UnsignedInt(1), Value::UnsignedInt(2)])
+        );
     }
 
     #[test]
@@ -679,7 +703,10 @@ mod tests {
     fn diagnostic_notation() {
         let val = Value::Map(vec![
             (Value::TextString("a".into()), Value::UnsignedInt(1)),
-            (Value::TextString("b".into()), Value::Array(vec![Value::UnsignedInt(2), Value::UnsignedInt(3)])),
+            (
+                Value::TextString("b".into()),
+                Value::Array(vec![Value::UnsignedInt(2), Value::UnsignedInt(3)]),
+            ),
         ]);
         let diag = diagnostic(&val);
         assert!(diag.contains("\"a\": 1"));
@@ -688,14 +715,10 @@ mod tests {
 
     #[test]
     fn nested_structures() {
-        let val = Value::Array(vec![
-            Value::Map(vec![
-                (Value::TextString("inner".into()), Value::Array(vec![
-                    Value::UnsignedInt(1),
-                    Value::NegativeInt(-2),
-                ])),
-            ]),
-        ]);
+        let val = Value::Array(vec![Value::Map(vec![(
+            Value::TextString("inner".into()),
+            Value::Array(vec![Value::UnsignedInt(1), Value::NegativeInt(-2)]),
+        )])]);
         assert_eq!(roundtrip(&val), val);
     }
 }

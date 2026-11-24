@@ -51,7 +51,9 @@ pub struct VectorClock {
 
 impl VectorClock {
     pub fn new() -> Self {
-        Self { counters: HashMap::new() }
+        Self {
+            counters: HashMap::new(),
+        }
     }
 
     /// Increment the counter for a node.
@@ -76,7 +78,13 @@ impl VectorClock {
     /// Check if this clock happened-before another.
     pub fn happened_before(&self, other: &VectorClock) -> bool {
         let mut at_least_one_less = false;
-        for &node in self.counters.keys().chain(other.counters.keys()).collect::<std::collections::HashSet<_>>().iter() {
+        for &node in self
+            .counters
+            .keys()
+            .chain(other.counters.keys())
+            .collect::<std::collections::HashSet<_>>()
+            .iter()
+        {
             let s = self.get(*node);
             let o = other.get(*node);
             if s > o {
@@ -110,7 +118,10 @@ impl fmt::Display for VectorClock {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut entries: Vec<_> = self.counters.iter().collect();
         entries.sort_by_key(|(k, _)| *k);
-        let parts: Vec<String> = entries.iter().map(|(k, v)| format!("{}:{}", k, v)).collect();
+        let parts: Vec<String> = entries
+            .iter()
+            .map(|(k, v)| format!("{}:{}", k, v))
+            .collect();
         write!(f, "VClock({})", parts.join(", "))
     }
 }
@@ -157,7 +168,12 @@ impl VersionedValue {
     pub fn new(data: Vec<u8>, writer_node: u64, timestamp_ms: u64) -> Self {
         let mut clock = VectorClock::new();
         clock.increment(writer_node);
-        Self { data, clock, timestamp_ms, writer_node }
+        Self {
+            data,
+            clock,
+            timestamp_ms,
+            writer_node,
+        }
     }
 }
 
@@ -286,7 +302,8 @@ impl ConflictResolver {
                                     resolved: false,
                                     winner_node: None,
                                 });
-                                self.unresolved.insert(k.clone(), (existing.clone(), value.clone()));
+                                self.unresolved
+                                    .insert(k.clone(), (existing.clone(), value.clone()));
                                 return Err(ConflictError::MergeFailed {
                                     key: k,
                                     reason: "incompatible values".into(),
@@ -295,7 +312,8 @@ impl ConflictResolver {
                         }
                     }
                     ConflictStrategy::Manual => {
-                        self.unresolved.insert(k.clone(), (existing.clone(), value.clone()));
+                        self.unresolved
+                            .insert(k.clone(), (existing.clone(), value.clone()));
                         self.conflict_log.push(ConflictRecord {
                             key: k.clone(),
                             local_timestamp: existing.timestamp_ms,
@@ -376,10 +394,26 @@ impl ConflictResolver {
         remote: &[u8],
     ) -> Result<Vec<u8>, ConflictError> {
         // Determine what each side changed relative to base.
-        let local_added: Vec<u8> = local.iter().filter(|b| !base.contains(b)).copied().collect();
-        let remote_added: Vec<u8> = remote.iter().filter(|b| !base.contains(b)).copied().collect();
-        let local_removed: Vec<u8> = base.iter().filter(|b| !local.contains(b)).copied().collect();
-        let remote_removed: Vec<u8> = base.iter().filter(|b| !remote.contains(b)).copied().collect();
+        let local_added: Vec<u8> = local
+            .iter()
+            .filter(|b| !base.contains(b))
+            .copied()
+            .collect();
+        let remote_added: Vec<u8> = remote
+            .iter()
+            .filter(|b| !base.contains(b))
+            .copied()
+            .collect();
+        let local_removed: Vec<u8> = base
+            .iter()
+            .filter(|b| !local.contains(b))
+            .copied()
+            .collect();
+        let remote_removed: Vec<u8> = base
+            .iter()
+            .filter(|b| !remote.contains(b))
+            .copied()
+            .collect();
 
         // Check for conflicting changes (both sides removed and added differently).
         for b in &local_added {
@@ -400,7 +434,8 @@ impl ConflictResolver {
         }
 
         // Merge: base + additions - removals.
-        let mut result: Vec<u8> = base.iter()
+        let mut result: Vec<u8> = base
+            .iter()
             .filter(|b| !local_removed.contains(b) && !remote_removed.contains(b))
             .copied()
             .collect();
@@ -500,7 +535,10 @@ mod tests {
 
     #[test]
     fn conflict_strategy_display() {
-        assert_eq!(format!("{}", ConflictStrategy::LastWriterWins), "last-writer-wins");
+        assert_eq!(
+            format!("{}", ConflictStrategy::LastWriterWins),
+            "last-writer-wins"
+        );
         assert_eq!(format!("{}", ConflictStrategy::Manual), "manual");
     }
 
@@ -555,7 +593,10 @@ mod tests {
         let v1 = make_value(1, 100, vec![1]);
         cr.write("k", v1).unwrap();
         let v2 = make_value(2, 200, vec![2]);
-        assert!(matches!(cr.write("k", v2), Err(ConflictError::ManualResolutionRequired { .. })));
+        assert!(matches!(
+            cr.write("k", v2),
+            Err(ConflictError::ManualResolutionRequired { .. })
+        ));
     }
 
     #[test]
@@ -565,7 +606,8 @@ mod tests {
         cr.write("k", v1).unwrap();
         let v2 = make_value(2, 200, vec![2]);
         let _ = cr.write("k", v2);
-        cr.resolve_manual("k", make_value(1, 300, vec![99])).unwrap();
+        cr.resolve_manual("k", make_value(1, 300, vec![99]))
+            .unwrap();
         assert_eq!(cr.read("k").unwrap().data, vec![99]);
         assert_eq!(cr.unresolved_count(), 0);
     }

@@ -89,19 +89,31 @@ pub struct RetentionPolicy {
 
 impl RetentionPolicy {
     pub fn by_age(seconds: u64) -> Self {
-        Self { max_age_seconds: Some(seconds), max_count: None }
+        Self {
+            max_age_seconds: Some(seconds),
+            max_count: None,
+        }
     }
 
     pub fn by_count(count: usize) -> Self {
-        Self { max_age_seconds: None, max_count: Some(count) }
+        Self {
+            max_age_seconds: None,
+            max_count: Some(count),
+        }
     }
 
     pub fn both(max_age_seconds: u64, max_count: usize) -> Self {
-        Self { max_age_seconds: Some(max_age_seconds), max_count: Some(max_count) }
+        Self {
+            max_age_seconds: Some(max_age_seconds),
+            max_count: Some(max_count),
+        }
     }
 
     pub fn unlimited() -> Self {
-        Self { max_age_seconds: None, max_count: None }
+        Self {
+            max_age_seconds: None,
+            max_count: None,
+        }
     }
 }
 
@@ -126,7 +138,9 @@ pub struct AuditQuery {
 }
 
 impl AuditQuery {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn with_time_range(mut self, start: u64, end: u64) -> Self {
         self.start_time_s = Some(start);
@@ -162,22 +176,34 @@ impl AuditQuery {
     /// Check if an event matches this query.
     fn matches(&self, event: &AuditEvent) -> bool {
         if let Some(start) = self.start_time_s {
-            if event.timestamp_s < start { return false; }
+            if event.timestamp_s < start {
+                return false;
+            }
         }
         if let Some(end) = self.end_time_s {
-            if event.timestamp_s > end { return false; }
+            if event.timestamp_s > end {
+                return false;
+            }
         }
         if let Some(actor) = &self.actor {
-            if event.actor != *actor { return false; }
+            if event.actor != *actor {
+                return false;
+            }
         }
         if let Some(action) = &self.action {
-            if event.action != *action { return false; }
+            if event.action != *action {
+                return false;
+            }
         }
         if let Some(resource) = &self.resource {
-            if event.resource != *resource { return false; }
+            if event.resource != *resource {
+                return false;
+            }
         }
         if let Some(outcome) = &self.outcome {
-            if event.outcome != *outcome { return false; }
+            if event.outcome != *outcome {
+                return false;
+            }
         }
         true
     }
@@ -238,8 +264,14 @@ impl AuditTrail {
         let details = details.into();
 
         let event_hash = compute_event_hash(
-            seq, timestamp_s, &actor, &action, &resource,
-            &outcome, &details, self.last_hash,
+            seq,
+            timestamp_s,
+            &actor,
+            &action,
+            &resource,
+            &outcome,
+            &details,
+            self.last_hash,
         );
 
         let event = AuditEvent {
@@ -262,9 +294,8 @@ impl AuditTrail {
 
     /// Query events matching the given filter.
     pub fn query(&self, filter: &AuditQuery) -> Vec<&AuditEvent> {
-        let mut results: Vec<&AuditEvent> = self.events.iter()
-            .filter(|e| filter.matches(e))
-            .collect();
+        let mut results: Vec<&AuditEvent> =
+            self.events.iter().filter(|e| filter.matches(e)).collect();
 
         if let Some(limit) = filter.limit {
             results.truncate(limit);
@@ -302,9 +333,14 @@ impl AuditTrail {
 
             // Recompute the event hash.
             let expected_hash = compute_event_hash(
-                event.sequence, event.timestamp_s, &event.actor,
-                &event.action, &event.resource, &event.outcome,
-                &event.details, event.prev_hash,
+                event.sequence,
+                event.timestamp_s,
+                &event.actor,
+                &event.action,
+                &event.resource,
+                &event.outcome,
+                &event.details,
+                event.prev_hash,
             );
 
             if event.event_hash != expected_hash {
@@ -384,18 +420,24 @@ impl AuditTrail {
         }
 
         let mut result = Vec::new();
-        if success > 0 { result.push((Outcome::Success, success)); }
-        if denied > 0 { result.push((Outcome::Denied, denied)); }
-        if error > 0 { result.push((Outcome::Error, error)); }
-        if failure > 0 { result.push((Outcome::Failure, failure)); }
+        if success > 0 {
+            result.push((Outcome::Success, success));
+        }
+        if denied > 0 {
+            result.push((Outcome::Denied, denied));
+        }
+        if error > 0 {
+            result.push((Outcome::Error, error));
+        }
+        if failure > 0 {
+            result.push((Outcome::Failure, failure));
+        }
         result
     }
 
     /// Get distinct actors in the trail.
     pub fn distinct_actors(&self) -> Vec<String> {
-        let mut actors: Vec<String> = self.events.iter()
-            .map(|e| e.actor.clone())
-            .collect();
+        let mut actors: Vec<String> = self.events.iter().map(|e| e.actor.clone()).collect();
         actors.sort();
         actors.dedup();
         actors
@@ -403,9 +445,7 @@ impl AuditTrail {
 
     /// Get distinct resources in the trail.
     pub fn distinct_resources(&self) -> Vec<String> {
-        let mut resources: Vec<String> = self.events.iter()
-            .map(|e| e.resource.clone())
-            .collect();
+        let mut resources: Vec<String> = self.events.iter().map(|e| e.resource.clone()).collect();
         resources.sort();
         resources.dedup();
         resources
@@ -435,7 +475,14 @@ mod tests {
     #[test]
     fn test_append_event() {
         let mut trail = AuditTrail::new();
-        let seq = trail.append(1000, "admin", "create", "users/42", Outcome::Success, "Created user");
+        let seq = trail.append(
+            1000,
+            "admin",
+            "create",
+            "users/42",
+            Outcome::Success,
+            "Created user",
+        );
         assert_eq!(seq, 1);
         assert_eq!(trail.len(), 1);
     }
@@ -589,8 +636,7 @@ mod tests {
 
     #[test]
     fn test_retention_by_age() {
-        let mut trail = AuditTrail::new()
-            .with_retention(RetentionPolicy::by_age(500));
+        let mut trail = AuditTrail::new().with_retention(RetentionPolicy::by_age(500));
         trail.append(1000, "a", "act", "r", Outcome::Success, "");
         trail.append(1200, "a", "act", "r", Outcome::Success, "");
         trail.append(1400, "a", "act", "r", Outcome::Success, "");
@@ -602,8 +648,7 @@ mod tests {
 
     #[test]
     fn test_retention_by_count() {
-        let mut trail = AuditTrail::new()
-            .with_retention(RetentionPolicy::by_count(2));
+        let mut trail = AuditTrail::new().with_retention(RetentionPolicy::by_count(2));
         trail.append(1000, "a", "act", "r", Outcome::Success, "");
         trail.append(1001, "a", "act", "r", Outcome::Success, "");
         trail.append(1002, "a", "act", "r", Outcome::Success, "");
@@ -615,8 +660,7 @@ mod tests {
 
     #[test]
     fn test_retention_both() {
-        let mut trail = AuditTrail::new()
-            .with_retention(RetentionPolicy::both(100, 5));
+        let mut trail = AuditTrail::new().with_retention(RetentionPolicy::both(100, 5));
         for i in 0..10 {
             trail.append(1000 + i * 20, "a", "act", "r", Outcome::Success, "");
         }
@@ -628,8 +672,7 @@ mod tests {
 
     #[test]
     fn test_retention_unlimited() {
-        let mut trail = AuditTrail::new()
-            .with_retention(RetentionPolicy::unlimited());
+        let mut trail = AuditTrail::new().with_retention(RetentionPolicy::unlimited());
         for i in 0..100 {
             trail.append(i, "a", "act", "r", Outcome::Success, "");
         }
@@ -655,9 +698,17 @@ mod tests {
         trail.append(1002, "a", "act", "r", Outcome::Denied, "");
 
         let counts = trail.count_by_outcome();
-        let success_count = counts.iter().find(|(o, _)| *o == Outcome::Success).map(|(_, c)| *c).unwrap_or(0);
+        let success_count = counts
+            .iter()
+            .find(|(o, _)| *o == Outcome::Success)
+            .map(|(_, c)| *c)
+            .unwrap_or(0);
         assert_eq!(success_count, 2);
-        let denied_count = counts.iter().find(|(o, _)| *o == Outcome::Denied).map(|(_, c)| *c).unwrap_or(0);
+        let denied_count = counts
+            .iter()
+            .find(|(o, _)| *o == Outcome::Denied)
+            .map(|(_, c)| *c)
+            .unwrap_or(0);
         assert_eq!(denied_count, 1);
     }
 
@@ -738,7 +789,14 @@ mod tests {
     #[test]
     fn test_event_details_stored() {
         let mut trail = AuditTrail::new();
-        trail.append(1000, "admin", "create", "users/42", Outcome::Success, "IP: 10.0.0.1");
+        trail.append(
+            1000,
+            "admin",
+            "create",
+            "users/42",
+            Outcome::Success,
+            "IP: 10.0.0.1",
+        );
         let event = trail.get_by_sequence(1).unwrap();
         assert_eq!(event.details, "IP: 10.0.0.1");
     }

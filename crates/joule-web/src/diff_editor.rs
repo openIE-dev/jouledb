@@ -77,7 +77,14 @@ pub fn compute_diff(old_text: &str, new_text: &str) -> Vec<DiffLine> {
     let table = lcs_table(&old_lines, &new_lines);
     let mut result = Vec::new();
 
-    backtrack_diff(&table, &old_lines, &new_lines, old_lines.len(), new_lines.len(), &mut result);
+    backtrack_diff(
+        &table,
+        &old_lines,
+        &new_lines,
+        old_lines.len(),
+        new_lines.len(),
+        &mut result,
+    );
     result
 }
 
@@ -413,14 +420,24 @@ mod tests {
     fn added_line() {
         let model = DiffModel::new("a\nb", "a\nb\nc");
         assert_eq!(model.stats.additions, 1);
-        assert!(model.lines.iter().any(|l| matches!(l, DiffLine::Added(s) if s == "c")));
+        assert!(
+            model
+                .lines
+                .iter()
+                .any(|l| matches!(l, DiffLine::Added(s) if s == "c"))
+        );
     }
 
     #[test]
     fn removed_line() {
         let model = DiffModel::new("a\nb\nc", "a\nc");
         assert_eq!(model.stats.deletions, 1);
-        assert!(model.lines.iter().any(|l| matches!(l, DiffLine::Removed(s) if s == "b")));
+        assert!(
+            model
+                .lines
+                .iter()
+                .any(|l| matches!(l, DiffLine::Removed(s) if s == "b"))
+        );
     }
 
     #[test]
@@ -447,15 +464,31 @@ mod tests {
     fn inline_diff_chars_basic() {
         let segments = inline_diff_chars("hello", "hallo");
         // Should have: Equal("h"), Delete("e"), Insert("a"), Equal("llo")
-        assert!(segments.iter().any(|s| matches!(s, InlineSegment::Delete(d) if d == "e")));
-        assert!(segments.iter().any(|s| matches!(s, InlineSegment::Insert(i) if i == "a")));
+        assert!(
+            segments
+                .iter()
+                .any(|s| matches!(s, InlineSegment::Delete(d) if d == "e"))
+        );
+        assert!(
+            segments
+                .iter()
+                .any(|s| matches!(s, InlineSegment::Insert(i) if i == "a"))
+        );
     }
 
     #[test]
     fn inline_diff_words_basic() {
         let segments = inline_diff_words("the quick fox", "the slow fox");
-        assert!(segments.iter().any(|s| matches!(s, InlineSegment::Delete(d) if d.contains("quick"))));
-        assert!(segments.iter().any(|s| matches!(s, InlineSegment::Insert(i) if i.contains("slow"))));
+        assert!(
+            segments
+                .iter()
+                .any(|s| matches!(s, InlineSegment::Delete(d) if d.contains("quick")))
+        );
+        assert!(
+            segments
+                .iter()
+                .any(|s| matches!(s, InlineSegment::Insert(i) if i.contains("slow")))
+        );
     }
 
     #[test]
@@ -486,7 +519,10 @@ mod tests {
     #[test]
     fn collapsed_view() {
         // Create a diff with many unchanged lines and one change in the middle
-        let old = (0..20).map(|i| format!("line {i}")).collect::<Vec<_>>().join("\n");
+        let old = (0..20)
+            .map(|i| format!("line {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
         let mut new_lines: Vec<String> = (0..20).map(|i| format!("line {i}")).collect();
         new_lines[10] = "CHANGED".to_string();
         let new = new_lines.join("\n");
@@ -495,7 +531,11 @@ mod tests {
         let collapsed = model.collapsed(2);
 
         // Should have collapsed regions and visible lines around the change
-        assert!(collapsed.iter().any(|l| matches!(l, CollapsedLine::Collapsed { .. })));
+        assert!(
+            collapsed
+                .iter()
+                .any(|l| matches!(l, CollapsedLine::Collapsed { .. }))
+        );
         let visible_count = collapsed
             .iter()
             .filter(|l| matches!(l, CollapsedLine::Visible(_)))
@@ -529,6 +569,8 @@ mod tests {
         ];
         let merged = merge_modifications(&lines);
         assert_eq!(merged.len(), 2);
-        assert!(matches!(&merged[0], DiffLine::Modified { old, new } if old == "old" && new == "new"));
+        assert!(
+            matches!(&merged[0], DiffLine::Modified { old, new } if old == "old" && new == "new")
+        );
     }
 }

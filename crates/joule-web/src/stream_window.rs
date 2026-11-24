@@ -30,7 +30,10 @@ impl std::fmt::Display for WindowError {
         match self {
             Self::WindowNotFound(id) => write!(f, "window not found: {id}"),
             Self::InvalidConfig(msg) => write!(f, "invalid config: {msg}"),
-            Self::TooLate { event_time, watermark } => {
+            Self::TooLate {
+                event_time,
+                watermark,
+            } => {
                 write!(f, "event time {event_time} is past watermark {watermark}")
             }
             Self::WindowClosed(id) => write!(f, "window closed: {id}"),
@@ -309,7 +312,10 @@ impl WindowManager {
 
     /// Count open windows.
     pub fn open_window_count(&self) -> usize {
-        self.windows.iter().filter(|w| w.state == WindowState::Open).count()
+        self.windows
+            .iter()
+            .filter(|w| w.state == WindowState::Open)
+            .count()
     }
 
     // ── Internal ────────────────────────────────────────────────
@@ -320,9 +326,10 @@ impl WindowManager {
         let window_end = window_start + size;
 
         // Check if we have this window for this key.
-        let existing = self.windows.iter_mut().find(|w| {
-            w.key == event.key && w.start_ms == window_start && w.end_ms == window_end
-        });
+        let existing = self
+            .windows
+            .iter_mut()
+            .find(|w| w.key == event.key && w.start_ms == window_start && w.end_ms == window_end);
 
         match existing {
             Some(w) => {
@@ -370,9 +377,10 @@ impl WindowManager {
         while start <= event.event_time_ms {
             let end = start + size;
             if event.event_time_ms >= start && event.event_time_ms < end {
-                let existing = self.windows.iter_mut().find(|w| {
-                    w.key == event.key && w.start_ms == start && w.end_ms == end
-                });
+                let existing = self
+                    .windows
+                    .iter_mut()
+                    .find(|w| w.key == event.key && w.start_ms == start && w.end_ms == end);
                 match existing {
                     Some(w) if w.state == WindowState::Open => {
                         assigned.push(w.id.clone());

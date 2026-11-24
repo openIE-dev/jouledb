@@ -93,10 +93,7 @@ impl Default for FunnelChartConfig {
 // ── Layout ──────────────────────────────────────────────────────
 
 /// Compute funnel segments from stages.
-pub fn compute_segments(
-    stages: &[FunnelStage],
-    cfg: &FunnelChartConfig,
-) -> Vec<FunnelSegment> {
+pub fn compute_segments(stages: &[FunnelStage], cfg: &FunnelChartConfig) -> Vec<FunnelSegment> {
     if stages.is_empty() {
         return Vec::new();
     }
@@ -136,11 +133,7 @@ pub fn compute_segments(
             1.0
         } else {
             let prev = stages[i - 1].value;
-            if prev > 0.0 {
-                stage.value / prev
-            } else {
-                0.0
-            }
+            if prev > 0.0 { stage.value / prev } else { 0.0 }
         };
         let cumulative_rate = if first_value > 0.0 {
             stage.value / first_value
@@ -297,10 +290,7 @@ fn render_horizontal_segment(seg: &FunnelSegment, cfg: &FunnelChartConfig) -> St
 }
 
 /// Render the complete funnel chart as SVG.
-pub fn render_funnel_chart(
-    stages: &[FunnelStage],
-    cfg: &FunnelChartConfig,
-) -> String {
+pub fn render_funnel_chart(stages: &[FunnelStage], cfg: &FunnelChartConfig) -> String {
     let segments = compute_segments(stages, cfg);
     let mut svg = String::with_capacity(4096);
     let _ = write!(

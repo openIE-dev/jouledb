@@ -71,13 +71,21 @@ impl EpidemicState {
     /// Fraction of population infected.
     pub fn infection_rate(&self) -> f64 {
         let total = self.total();
-        if total == 0.0 { 0.0 } else { self.infected / total }
+        if total == 0.0 {
+            0.0
+        } else {
+            self.infected / total
+        }
     }
 
     /// Fraction of population recovered.
     pub fn recovery_rate(&self) -> f64 {
         let total = self.total();
-        if total == 0.0 { 0.0 } else { self.recovered / total }
+        if total == 0.0 {
+            0.0
+        } else {
+            self.recovered / total
+        }
     }
 }
 
@@ -110,7 +118,13 @@ impl EpidemicParams {
         if population <= 0.0 {
             return Err(EpidemicError::ZeroPopulation);
         }
-        Ok(Self { beta, gamma, sigma: 0.0, population, dt: 1.0 })
+        Ok(Self {
+            beta,
+            gamma,
+            sigma: 0.0,
+            population,
+            dt: 1.0,
+        })
     }
 
     /// Create SEIR parameters.
@@ -127,7 +141,13 @@ impl EpidemicParams {
         if population <= 0.0 {
             return Err(EpidemicError::ZeroPopulation);
         }
-        Ok(Self { beta, gamma, sigma, population, dt: 1.0 })
+        Ok(Self {
+            beta,
+            gamma,
+            sigma,
+            population,
+            dt: 1.0,
+        })
     }
 
     /// Set the time step.
@@ -138,7 +158,11 @@ impl EpidemicParams {
 
     /// Basic reproduction number R0 = beta / gamma.
     pub fn r0(&self) -> f64 {
-        if self.gamma == 0.0 { f64::INFINITY } else { self.beta / self.gamma }
+        if self.gamma == 0.0 {
+            f64::INFINITY
+        } else {
+            self.beta / self.gamma
+        }
     }
 
     /// Herd immunity threshold: 1 - 1/R0.
@@ -170,9 +194,10 @@ impl EpidemicSim {
     /// Create a new SIR simulation.
     pub fn sir(params: EpidemicParams, initial_infected: f64) -> Result<Self, EpidemicError> {
         if initial_infected < 0.0 || initial_infected > params.population {
-            return Err(EpidemicError::InvalidInitial(
-                format!("infected={initial_infected}, pop={}", params.population),
-            ));
+            return Err(EpidemicError::InvalidInitial(format!(
+                "infected={initial_infected}, pop={}",
+                params.population
+            )));
         }
         let s = params.population - initial_infected;
         Ok(Self {
@@ -198,9 +223,10 @@ impl EpidemicSim {
     ) -> Result<Self, EpidemicError> {
         let total_initial = initial_exposed + initial_infected;
         if total_initial > params.population || initial_exposed < 0.0 || initial_infected < 0.0 {
-            return Err(EpidemicError::InvalidInitial(
-                format!("exposed={initial_exposed}, infected={initial_infected}, pop={}", params.population),
-            ));
+            return Err(EpidemicError::InvalidInitial(format!(
+                "exposed={initial_exposed}, infected={initial_infected}, pop={}",
+                params.population
+            )));
         }
         let s = params.population - total_initial;
         Ok(Self {
@@ -219,40 +245,68 @@ impl EpidemicSim {
     }
 
     /// Model type.
-    pub fn model_type(&self) -> ModelType { self.model }
+    pub fn model_type(&self) -> ModelType {
+        self.model
+    }
 
     /// Current day.
-    pub fn day(&self) -> u64 { self.day }
+    pub fn day(&self) -> u64 {
+        self.day
+    }
 
     /// Current compartment values.
-    pub fn susceptible(&self) -> f64 { self.susceptible }
-    pub fn exposed(&self) -> f64 { self.exposed }
-    pub fn infected(&self) -> f64 { self.infected }
-    pub fn recovered(&self) -> f64 { self.recovered }
+    pub fn susceptible(&self) -> f64 {
+        self.susceptible
+    }
+    pub fn exposed(&self) -> f64 {
+        self.exposed
+    }
+    pub fn infected(&self) -> f64 {
+        self.infected
+    }
+    pub fn recovered(&self) -> f64 {
+        self.recovered
+    }
 
     /// Peak number of infected individuals.
-    pub fn peak_infected(&self) -> f64 { self.peak_infected }
+    pub fn peak_infected(&self) -> f64 {
+        self.peak_infected
+    }
 
     /// Day of peak infection.
-    pub fn peak_day(&self) -> u64 { self.peak_day }
+    pub fn peak_day(&self) -> u64 {
+        self.peak_day
+    }
 
     /// Cumulative infections.
-    pub fn cumulative_infections(&self) -> f64 { self.cumulative_infections }
+    pub fn cumulative_infections(&self) -> f64 {
+        self.cumulative_infections
+    }
 
     /// History of states.
-    pub fn history(&self) -> &[EpidemicState] { &self.history }
+    pub fn history(&self) -> &[EpidemicState] {
+        &self.history
+    }
 
     /// Current effective reproduction number: R_eff = R0 * (S / N).
     pub fn effective_r(&self) -> f64 {
         let n = self.params.population;
-        if n == 0.0 { 0.0 } else { self.params.r0() * (self.susceptible / n) }
+        if n == 0.0 {
+            0.0
+        } else {
+            self.params.r0() * (self.susceptible / n)
+        }
     }
 
     /// R0.
-    pub fn r0(&self) -> f64 { self.params.r0() }
+    pub fn r0(&self) -> f64 {
+        self.params.r0()
+    }
 
     /// Herd immunity threshold.
-    pub fn herd_immunity_threshold(&self) -> f64 { self.params.herd_immunity_threshold() }
+    pub fn herd_immunity_threshold(&self) -> f64 {
+        self.params.herd_immunity_threshold()
+    }
 
     /// Record the current state.
     fn record(&mut self, new_infections: f64, new_recoveries: f64) {
@@ -371,7 +425,8 @@ impl EpidemicSim {
 
     /// Population conservation check.
     pub fn population_check(&self) -> f64 {
-        (self.susceptible + self.exposed + self.infected + self.recovered - self.params.population).abs()
+        (self.susceptible + self.exposed + self.infected + self.recovered - self.params.population)
+            .abs()
     }
 }
 
@@ -488,7 +543,10 @@ mod tests {
         let r_initial = sim.effective_r();
         sim.run(50);
         let r_after = sim.effective_r();
-        assert!(r_after < r_initial, "R_eff should decrease: {r_after} vs {r_initial}");
+        assert!(
+            r_after < r_initial,
+            "R_eff should decrease: {r_after} vs {r_initial}"
+        );
     }
 
     #[test]
@@ -559,7 +617,10 @@ mod tests {
         // Initially all exposed, none infected.
         sim.step();
         // Some exposed should move to infected.
-        assert!(sim.infected() > 0.0, "exposed should transition to infected");
+        assert!(
+            sim.infected() > 0.0,
+            "exposed should transition to infected"
+        );
     }
 
     #[test]
@@ -574,9 +635,12 @@ mod tests {
         seir_sim.run(300);
 
         // SEIR peak should occur later.
-        assert!(seir_sim.peak_day() >= sir_sim.peak_day(),
+        assert!(
+            seir_sim.peak_day() >= sir_sim.peak_day(),
             "SEIR peak day {} should be >= SIR peak day {}",
-            seir_sim.peak_day(), sir_sim.peak_day());
+            seir_sim.peak_day(),
+            sir_sim.peak_day()
+        );
     }
 
     #[test]
@@ -585,12 +649,17 @@ mod tests {
         let mut sim = EpidemicSim::sir(params, 10.0).unwrap();
         sim.run(100);
         // R0 = 0.5 < 1, so epidemic should die out.
-        assert!(sim.infected() < 10.0, "infections should decrease with R0 < 1");
+        assert!(
+            sim.infected() < 10.0,
+            "infections should decrease with R0 < 1"
+        );
     }
 
     #[test]
     fn test_dt_parameter() {
-        let params = EpidemicParams::sir(0.3, 0.1, 10_000.0).unwrap().with_dt(0.5);
+        let params = EpidemicParams::sir(0.3, 0.1, 10_000.0)
+            .unwrap()
+            .with_dt(0.5);
         let sim = EpidemicSim::sir(params, 10.0).unwrap();
         assert_eq!(sim.day(), 0);
     }

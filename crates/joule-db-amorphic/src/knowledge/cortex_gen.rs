@@ -36,11 +36,7 @@ mod inner {
             return_type: format!("{:?}", program.ret_type),
             ir_text,
             block_count: ir_function.blocks.len(),
-            instruction_count: ir_function
-                .blocks
-                .iter()
-                .map(|b| b.instrs.len())
-                .sum(),
+            instruction_count: ir_function.blocks.iter().map(|b| b.instrs.len()).sum(),
         })
     }
 
@@ -122,10 +118,18 @@ mod inner {
             pattern_core::primitives::Primitive::Converge { .. } => "Converge (while-loop)".into(),
             pattern_core::primitives::Primitive::LinearScan { .. } => "LinearScan (fold)".into(),
             pattern_core::primitives::Primitive::Direct { .. } => "Direct (expression)".into(),
-            pattern_core::primitives::Primitive::MapBuild { .. } => "MapBuild (list comprehension)".into(),
-            pattern_core::primitives::Primitive::FilterBuild { .. } => "FilterBuild (filter)".into(),
-            pattern_core::primitives::Primitive::NestedScan { .. } => "NestedScan (nested loops)".into(),
-            pattern_core::primitives::Primitive::TwoPointer { .. } => "TwoPointer (two-pointer)".into(),
+            pattern_core::primitives::Primitive::MapBuild { .. } => {
+                "MapBuild (list comprehension)".into()
+            }
+            pattern_core::primitives::Primitive::FilterBuild { .. } => {
+                "FilterBuild (filter)".into()
+            }
+            pattern_core::primitives::Primitive::NestedScan { .. } => {
+                "NestedScan (nested loops)".into()
+            }
+            pattern_core::primitives::Primitive::TwoPointer { .. } => {
+                "TwoPointer (two-pointer)".into()
+            }
             _ => "Unknown".into(),
         }
     }
@@ -155,11 +159,15 @@ mod inner {
 }
 
 #[cfg(feature = "pattern-lang")]
-pub use inner::{generate_code, generate_from_query, available_patterns, compilable_count, GeneratedCode};
+pub use inner::{
+    GeneratedCode, available_patterns, compilable_count, generate_code, generate_from_query,
+};
 
 /// Stub when pattern-lang feature is not enabled.
 #[cfg(not(feature = "pattern-lang"))]
-pub fn compilable_count() -> usize { 0 }
+pub fn compilable_count() -> usize {
+    0
+}
 
 #[cfg(test)]
 mod tests {
@@ -189,8 +197,10 @@ mod tests {
     fn test_generate_from_query() {
         let resolver = super::super::pattern_resolver::PatternLangResolver::from_primitives();
         let code = super::generate_from_query("compute greatest common divisor", &resolver);
-        eprintln!("Query 'compute greatest common divisor' → {:?}",
-            code.as_ref().map(|c| &c.pattern_name));
+        eprintln!(
+            "Query 'compute greatest common divisor' → {:?}",
+            code.as_ref().map(|c| &c.pattern_name)
+        );
     }
 
     #[cfg(feature = "pattern-lang")]

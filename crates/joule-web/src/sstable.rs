@@ -2,8 +2,8 @@
 //! simple block compression, binary search within blocks, iterator, merge
 //! iterator (multi-way merge), data/index/footer sections.
 
-use std::collections::BinaryHeap;
 use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 
 // ── Errors ───────────────────────────────────────────────────────────────────
 
@@ -15,7 +15,11 @@ pub enum SsTableError {
     /// Key not found.
     KeyNotFound,
     /// Corrupt block (checksum mismatch).
-    CorruptBlock { offset: u32, expected: u32, actual: u32 },
+    CorruptBlock {
+        offset: u32,
+        expected: u32,
+        actual: u32,
+    },
     /// Invalid block data.
     InvalidBlock(String),
     /// Decompression failed.
@@ -29,8 +33,15 @@ impl std::fmt::Display for SsTableError {
         match self {
             Self::BlockNotFound(off) => write!(f, "block not found at offset {off}"),
             Self::KeyNotFound => write!(f, "key not found"),
-            Self::CorruptBlock { offset, expected, actual } => {
-                write!(f, "corrupt block at {offset}: expected crc {expected:#010x}, got {actual:#010x}")
+            Self::CorruptBlock {
+                offset,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "corrupt block at {offset}: expected crc {expected:#010x}, got {actual:#010x}"
+                )
             }
             Self::InvalidBlock(msg) => write!(f, "invalid block: {msg}"),
             Self::DecompressFailed(msg) => write!(f, "decompression failed: {msg}"),
@@ -79,10 +90,16 @@ pub fn decode_kv(data: &[u8], offset: usize) -> Result<(Vec<u8>, Vec<u8>, usize)
         return Err(SsTableError::InvalidBlock("not enough header bytes".into()));
     }
     let key_len = u32::from_le_bytes([
-        data[offset], data[offset + 1], data[offset + 2], data[offset + 3],
+        data[offset],
+        data[offset + 1],
+        data[offset + 2],
+        data[offset + 3],
     ]) as usize;
     let value_len = u32::from_le_bytes([
-        data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7],
+        data[offset + 4],
+        data[offset + 5],
+        data[offset + 6],
+        data[offset + 7],
     ]) as usize;
     let kv_start = offset + 8;
     let total = 8 + key_len + value_len;
@@ -106,10 +123,7 @@ pub fn compress_block(data: &[u8]) -> Vec<u8> {
     while i < data.len() {
         let byte = data[i];
         let mut count = 1u8;
-        while i + (count as usize) < data.len()
-            && data[i + count as usize] == byte
-            && count < 255
-        {
+        while i + (count as usize) < data.len() && data[i + count as usize] == byte && count < 255 {
             count += 1;
         }
         if count >= 3 {
@@ -152,7 +166,9 @@ pub fn decompress_block(data: &[u8]) -> Result<Vec<u8>, SsTableError> {
     while i < data.len() {
         if data[i] == 0xFF {
             if i + 2 >= data.len() {
-                return Err(SsTableError::DecompressFailed("truncated RLE marker".into()));
+                return Err(SsTableError::DecompressFailed(
+                    "truncated RLE marker".into(),
+                ));
             }
             let count = data[i + 1] as usize;
             let byte = data[i + 2];
@@ -306,7 +322,8 @@ impl Block {
         let entry_count = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as usize;
         let compressed_len = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]) as usize;
         let checksum = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
-        let offset_count = u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]) as usize;
+        let offset_count =
+            u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]) as usize;
 
         let mut pos = 16;
         let mut offsets = Vec::with_capacity(offset_count);
@@ -314,12 +331,19 @@ impl Block {
             if pos + 4 > bytes.len() {
                 return Err(SsTableError::InvalidBlock("truncated offsets".into()));
             }
-            offsets.push(u32::from_le_bytes([bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]]));
+            offsets.push(u32::from_le_bytes([
+                bytes[pos],
+                bytes[pos + 1],
+                bytes[pos + 2],
+                bytes[pos + 3],
+            ]));
             pos += 4;
         }
 
         if pos + compressed_len > bytes.len() {
-            return Err(SsTableError::InvalidBlock("truncated compressed data".into()));
+            return Err(SsTableError::InvalidBlock(
+                "truncated compressed data".into(),
+            ));
         }
         let compressed = &bytes[pos..pos + compressed_len];
         let data = decompress_block(compressed)?;
@@ -588,7 +612,10 @@ impl SsTableData {
     /// Look up a key.
     pub fn get(&self, key: &[u8]) -> Result<Vec<u8>, SsTableError> {
         // Find candidate block via index.
-        let idx_entry = self.index.find_block(key).ok_or(SsTableError::KeyNotFound)?;
+        let idx_entry = self
+            .index
+            .find_block(key)
+            .ok_or(SsTableError::KeyNotFound)?;
         // Find the block at that offset.
         let block = self.block_at_offset(idx_entry.offset)?;
         block.get(key)
@@ -686,7 +713,9 @@ impl PartialEq for MergeItem {
 impl Ord for MergeItem {
     fn cmp(&self, other: &Self) -> Ordering {
         // Reverse ordering for min-heap behavior with BinaryHeap (max-heap).
-        other.key.cmp(&self.key)
+        other
+            .key
+            .cmp(&self.key)
             .then_with(|| other.source_idx.cmp(&self.source_idx))
     }
 }
@@ -936,10 +965,7 @@ mod tests {
         let table = builder.build().unwrap();
         assert!(table.block_count() > 1);
         assert_eq!(table.entry_count(), 20);
-        assert_eq!(
-            table.get(b"key_0010").unwrap(),
-            b"val_0010"
-        );
+        assert_eq!(table.get(b"key_0010").unwrap(), b"val_0010");
     }
 
     #[test]

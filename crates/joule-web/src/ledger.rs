@@ -504,40 +504,66 @@ mod tests {
 
     fn setup_basic_ledger() -> Ledger {
         let mut ledger = Ledger::new();
-        ledger.add_account(Account::new("1000", "Cash", AccountType::Asset)).unwrap();
-        ledger.add_account(Account::new("2000", "Accounts Payable", AccountType::Liability)).unwrap();
-        ledger.add_account(Account::new("3000", "Retained Earnings", AccountType::Equity)).unwrap();
-        ledger.add_account(Account::new("4000", "Sales Revenue", AccountType::Revenue)).unwrap();
-        ledger.add_account(Account::new("5000", "Rent Expense", AccountType::Expense)).unwrap();
+        ledger
+            .add_account(Account::new("1000", "Cash", AccountType::Asset))
+            .unwrap();
+        ledger
+            .add_account(Account::new(
+                "2000",
+                "Accounts Payable",
+                AccountType::Liability,
+            ))
+            .unwrap();
+        ledger
+            .add_account(Account::new(
+                "3000",
+                "Retained Earnings",
+                AccountType::Equity,
+            ))
+            .unwrap();
+        ledger
+            .add_account(Account::new("4000", "Sales Revenue", AccountType::Revenue))
+            .unwrap();
+        ledger
+            .add_account(Account::new("5000", "Rent Expense", AccountType::Expense))
+            .unwrap();
         ledger
     }
 
     #[test]
     fn test_add_account() {
         let mut ledger = Ledger::new();
-        ledger.add_account(Account::new("1000", "Cash", AccountType::Asset)).unwrap();
+        ledger
+            .add_account(Account::new("1000", "Cash", AccountType::Asset))
+            .unwrap();
         assert_eq!(ledger.account_count(), 1);
     }
 
     #[test]
     fn test_duplicate_account_error() {
         let mut ledger = Ledger::new();
-        ledger.add_account(Account::new("1000", "Cash", AccountType::Asset)).unwrap();
-        let err = ledger.add_account(Account::new("1000", "Cash 2", AccountType::Asset)).unwrap_err();
+        ledger
+            .add_account(Account::new("1000", "Cash", AccountType::Asset))
+            .unwrap();
+        let err = ledger
+            .add_account(Account::new("1000", "Cash 2", AccountType::Asset))
+            .unwrap_err();
         assert_eq!(err, LedgerError::DuplicateAccount("1000".to_string()));
     }
 
     #[test]
     fn test_post_balanced_entry() {
         let mut ledger = setup_basic_ledger();
-        let id = ledger.post_entry(
-            "Cash sale",
-            1000,
-            vec![
-                LineItem::debit("1000", 5000),
-                LineItem::credit("4000", 5000),
-            ],
-        ).unwrap();
+        let id = ledger
+            .post_entry(
+                "Cash sale",
+                1000,
+                vec![
+                    LineItem::debit("1000", 5000),
+                    LineItem::credit("4000", 5000),
+                ],
+            )
+            .unwrap();
         assert_eq!(id, 1);
         assert_eq!(ledger.entry_count(), 1);
     }
@@ -545,15 +571,23 @@ mod tests {
     #[test]
     fn test_unbalanced_entry_error() {
         let mut ledger = setup_basic_ledger();
-        let err = ledger.post_entry(
-            "Bad entry",
-            1000,
-            vec![
-                LineItem::debit("1000", 5000),
-                LineItem::credit("4000", 3000),
-            ],
-        ).unwrap_err();
-        assert_eq!(err, LedgerError::UnbalancedEntry { debits: 5000, credits: 3000 });
+        let err = ledger
+            .post_entry(
+                "Bad entry",
+                1000,
+                vec![
+                    LineItem::debit("1000", 5000),
+                    LineItem::credit("4000", 3000),
+                ],
+            )
+            .unwrap_err();
+        assert_eq!(
+            err,
+            LedgerError::UnbalancedEntry {
+                debits: 5000,
+                credits: 3000
+            }
+        );
     }
 
     #[test]
@@ -566,38 +600,45 @@ mod tests {
     #[test]
     fn test_invalid_account_ref() {
         let mut ledger = setup_basic_ledger();
-        let err = ledger.post_entry(
-            "Bad ref",
-            1000,
-            vec![
-                LineItem::debit("9999", 100),
-                LineItem::credit("4000", 100),
-            ],
-        ).unwrap_err();
+        let err = ledger
+            .post_entry(
+                "Bad ref",
+                1000,
+                vec![LineItem::debit("9999", 100), LineItem::credit("4000", 100)],
+            )
+            .unwrap_err();
         assert_eq!(err, LedgerError::InvalidAccountRef("9999".to_string()));
     }
 
     #[test]
     fn test_negative_amount_error() {
         let mut ledger = setup_basic_ledger();
-        let err = ledger.post_entry(
-            "Negative",
-            1000,
-            vec![
-                LineItem::debit("1000", -100),
-                LineItem::credit("4000", -100),
-            ],
-        ).unwrap_err();
+        let err = ledger
+            .post_entry(
+                "Negative",
+                1000,
+                vec![
+                    LineItem::debit("1000", -100),
+                    LineItem::credit("4000", -100),
+                ],
+            )
+            .unwrap_err();
         assert_eq!(err, LedgerError::InvalidAmount(-100));
     }
 
     #[test]
     fn test_account_balance() {
         let mut ledger = setup_basic_ledger();
-        ledger.post_entry("Sale", 1000, vec![
-            LineItem::debit("1000", 10000),
-            LineItem::credit("4000", 10000),
-        ]).unwrap();
+        ledger
+            .post_entry(
+                "Sale",
+                1000,
+                vec![
+                    LineItem::debit("1000", 10000),
+                    LineItem::credit("4000", 10000),
+                ],
+            )
+            .unwrap();
         let cash = ledger.get_account("1000").unwrap();
         assert_eq!(cash.balance(), 10000); // Asset: debit-normal
         let revenue = ledger.get_account("4000").unwrap();
@@ -607,14 +648,26 @@ mod tests {
     #[test]
     fn test_trial_balance_is_balanced() {
         let mut ledger = setup_basic_ledger();
-        ledger.post_entry("Sale", 1000, vec![
-            LineItem::debit("1000", 10000),
-            LineItem::credit("4000", 10000),
-        ]).unwrap();
-        ledger.post_entry("Rent", 2000, vec![
-            LineItem::debit("5000", 3000),
-            LineItem::credit("1000", 3000),
-        ]).unwrap();
+        ledger
+            .post_entry(
+                "Sale",
+                1000,
+                vec![
+                    LineItem::debit("1000", 10000),
+                    LineItem::credit("4000", 10000),
+                ],
+            )
+            .unwrap();
+        ledger
+            .post_entry(
+                "Rent",
+                2000,
+                vec![
+                    LineItem::debit("5000", 3000),
+                    LineItem::credit("1000", 3000),
+                ],
+            )
+            .unwrap();
         let tb = ledger.trial_balance();
         assert!(tb.is_balanced());
         assert_eq!(tb.total_debits, tb.total_credits);
@@ -623,14 +676,26 @@ mod tests {
     #[test]
     fn test_income_statement() {
         let mut ledger = setup_basic_ledger();
-        ledger.post_entry("Sale", 1000, vec![
-            LineItem::debit("1000", 10000),
-            LineItem::credit("4000", 10000),
-        ]).unwrap();
-        ledger.post_entry("Rent", 2000, vec![
-            LineItem::debit("5000", 3000),
-            LineItem::credit("1000", 3000),
-        ]).unwrap();
+        ledger
+            .post_entry(
+                "Sale",
+                1000,
+                vec![
+                    LineItem::debit("1000", 10000),
+                    LineItem::credit("4000", 10000),
+                ],
+            )
+            .unwrap();
+        ledger
+            .post_entry(
+                "Rent",
+                2000,
+                vec![
+                    LineItem::debit("5000", 3000),
+                    LineItem::credit("1000", 3000),
+                ],
+            )
+            .unwrap();
         let is = ledger.income_statement();
         assert_eq!(is.total_revenue, 10000);
         assert_eq!(is.total_expenses, 3000);
@@ -641,10 +706,16 @@ mod tests {
     fn test_balance_sheet() {
         let mut ledger = setup_basic_ledger();
         // Owner investment
-        ledger.post_entry("Investment", 1000, vec![
-            LineItem::debit("1000", 50000),
-            LineItem::credit("3000", 50000),
-        ]).unwrap();
+        ledger
+            .post_entry(
+                "Investment",
+                1000,
+                vec![
+                    LineItem::debit("1000", 50000),
+                    LineItem::credit("3000", 50000),
+                ],
+            )
+            .unwrap();
         let bs = ledger.balance_sheet();
         assert_eq!(bs.total_assets, 50000);
         assert_eq!(bs.total_equity, 50000);
@@ -654,13 +725,17 @@ mod tests {
     #[test]
     fn test_account_hierarchy() {
         let mut ledger = Ledger::new();
-        ledger.add_account(Account::new("1000", "Assets", AccountType::Asset)).unwrap();
-        ledger.add_account(
-            Account::new("1100", "Cash", AccountType::Asset).with_parent("1000"),
-        ).unwrap();
-        ledger.add_account(
-            Account::new("1200", "Receivables", AccountType::Asset).with_parent("1000"),
-        ).unwrap();
+        ledger
+            .add_account(Account::new("1000", "Assets", AccountType::Asset))
+            .unwrap();
+        ledger
+            .add_account(Account::new("1100", "Cash", AccountType::Asset).with_parent("1000"))
+            .unwrap();
+        ledger
+            .add_account(
+                Account::new("1200", "Receivables", AccountType::Asset).with_parent("1000"),
+            )
+            .unwrap();
         let children = ledger.children_of("1000");
         assert_eq!(children.len(), 2);
     }
@@ -668,23 +743,35 @@ mod tests {
     #[test]
     fn test_parent_not_found() {
         let mut ledger = Ledger::new();
-        let err = ledger.add_account(
-            Account::new("1100", "Cash", AccountType::Asset).with_parent("9999"),
-        ).unwrap_err();
+        let err = ledger
+            .add_account(Account::new("1100", "Cash", AccountType::Asset).with_parent("9999"))
+            .unwrap_err();
         assert_eq!(err, LedgerError::ParentNotFound("9999".to_string()));
     }
 
     #[test]
     fn test_entries_for_account() {
         let mut ledger = setup_basic_ledger();
-        ledger.post_entry("Sale 1", 1000, vec![
-            LineItem::debit("1000", 5000),
-            LineItem::credit("4000", 5000),
-        ]).unwrap();
-        ledger.post_entry("Rent", 2000, vec![
-            LineItem::debit("5000", 2000),
-            LineItem::credit("1000", 2000),
-        ]).unwrap();
+        ledger
+            .post_entry(
+                "Sale 1",
+                1000,
+                vec![
+                    LineItem::debit("1000", 5000),
+                    LineItem::credit("4000", 5000),
+                ],
+            )
+            .unwrap();
+        ledger
+            .post_entry(
+                "Rent",
+                2000,
+                vec![
+                    LineItem::debit("5000", 2000),
+                    LineItem::credit("1000", 2000),
+                ],
+            )
+            .unwrap();
         let cash_entries = ledger.entries_for_account("1000");
         assert_eq!(cash_entries.len(), 2);
         let rent_entries = ledger.entries_for_account("5000");
@@ -697,10 +784,7 @@ mod tests {
             id: 1,
             description: "test".to_string(),
             timestamp: 0,
-            lines: vec![
-                LineItem::debit("1000", 100),
-                LineItem::credit("4000", 100),
-            ],
+            lines: vec![LineItem::debit("1000", 100), LineItem::credit("4000", 100)],
         };
         assert!(entry.is_balanced());
     }
@@ -723,21 +807,36 @@ mod tests {
     #[test]
     fn test_multiple_entries_accumulate() {
         let mut ledger = setup_basic_ledger();
-        ledger.post_entry("Sale 1", 100, vec![
-            LineItem::debit("1000", 1000),
-            LineItem::credit("4000", 1000),
-        ]).unwrap();
-        ledger.post_entry("Sale 2", 200, vec![
-            LineItem::debit("1000", 2000),
-            LineItem::credit("4000", 2000),
-        ]).unwrap();
+        ledger
+            .post_entry(
+                "Sale 1",
+                100,
+                vec![
+                    LineItem::debit("1000", 1000),
+                    LineItem::credit("4000", 1000),
+                ],
+            )
+            .unwrap();
+        ledger
+            .post_entry(
+                "Sale 2",
+                200,
+                vec![
+                    LineItem::debit("1000", 2000),
+                    LineItem::credit("4000", 2000),
+                ],
+            )
+            .unwrap();
         let cash = ledger.get_account("1000").unwrap();
         assert_eq!(cash.balance(), 3000);
     }
 
     #[test]
     fn test_ledger_error_display() {
-        let err = LedgerError::UnbalancedEntry { debits: 100, credits: 50 };
+        let err = LedgerError::UnbalancedEntry {
+            debits: 100,
+            credits: 50,
+        };
         let msg = format!("{err}");
         assert!(msg.contains("debits=100"));
         assert!(msg.contains("credits=50"));

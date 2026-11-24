@@ -74,7 +74,9 @@ pub struct ProgressState {
 
 impl ProgressState {
     pub fn fraction(&self) -> f64 {
-        if self.total == 0 { return 0.0; }
+        if self.total == 0 {
+            return 0.0;
+        }
         (self.current as f64 / self.total as f64).min(1.0)
     }
 
@@ -94,7 +96,9 @@ impl ProgressState {
 
     /// Items per second throughput.
     pub fn throughput(&self) -> f64 {
-        if self.elapsed_ms == 0 { return 0.0; }
+        if self.elapsed_ms == 0 {
+            return 0.0;
+        }
         self.current as f64 / (self.elapsed_ms as f64 / 1000.0)
     }
 }
@@ -214,14 +218,24 @@ impl ProgressBar {
     pub fn render_bar(&self) -> String {
         let w = self.width as usize;
         let filled = (self.state().fraction() * w as f64) as usize;
-        let half = if filled < w && (self.state().fraction() * w as f64).fract() >= 0.5 { 1 } else { 0 };
+        let half = if filled < w && (self.state().fraction() * w as f64).fract() >= 0.5 {
+            1
+        } else {
+            0
+        };
         let empty = w.saturating_sub(filled).saturating_sub(half);
 
         let mut bar = String::new();
         bar.push(self.style.left_bracket);
-        for _ in 0..filled { bar.push(self.style.filled); }
-        for _ in 0..half { bar.push(self.style.half); }
-        for _ in 0..empty { bar.push(self.style.empty); }
+        for _ in 0..filled {
+            bar.push(self.style.filled);
+        }
+        for _ in 0..half {
+            bar.push(self.style.half);
+        }
+        for _ in 0..empty {
+            bar.push(self.style.empty);
+        }
         bar.push(self.style.right_bracket);
         bar
     }
@@ -229,7 +243,8 @@ impl ProgressBar {
     /// Render the full progress line using the template.
     pub fn render(&self) -> String {
         let st = self.state();
-        let eta = st.eta_ms()
+        let eta = st
+            .eta_ms()
             .map(|ms| format_duration(ms))
             .unwrap_or_else(|| "--:--".to_string());
 
@@ -241,7 +256,10 @@ impl ProgressBar {
         out = out.replace("{elapsed}", &format_duration(self.elapsed_ms));
         out = out.replace("{eta}", &eta);
         out = out.replace("{msg}", &self.message);
-        out = out.replace("{throughput}", &format_throughput(st.throughput(), &self.unit));
+        out = out.replace(
+            "{throughput}",
+            &format_throughput(st.throughput(), &self.unit),
+        );
         out
     }
 }
@@ -320,13 +338,12 @@ impl MultiBar {
     }
 
     pub fn get_mut(&mut self, key: &str) -> Option<&mut ProgressBar> {
-        self.bars.iter_mut()
-            .find(|(k, _)| k == key)
-            .map(|(_, b)| b)
+        self.bars.iter_mut().find(|(k, _)| k == key).map(|(_, b)| b)
     }
 
     pub fn render_all(&self) -> String {
-        self.bars.iter()
+        self.bars
+            .iter()
             .map(|(k, b)| format!("{k}: {}", b.render()))
             .collect::<Vec<_>>()
             .join("\n")
@@ -345,33 +362,58 @@ mod tests {
 
     #[test]
     fn progress_state_fraction() {
-        let s = ProgressState { current: 50, total: 100, elapsed_ms: 1000, message: String::new() };
+        let s = ProgressState {
+            current: 50,
+            total: 100,
+            elapsed_ms: 1000,
+            message: String::new(),
+        };
         assert!((s.fraction() - 0.5).abs() < f64::EPSILON);
         assert_eq!(s.percentage(), 50);
     }
 
     #[test]
     fn progress_state_zero_total() {
-        let s = ProgressState { current: 0, total: 0, elapsed_ms: 0, message: String::new() };
+        let s = ProgressState {
+            current: 0,
+            total: 0,
+            elapsed_ms: 0,
+            message: String::new(),
+        };
         assert_eq!(s.fraction(), 0.0);
     }
 
     #[test]
     fn eta_calculation() {
-        let s = ProgressState { current: 50, total: 100, elapsed_ms: 5000, message: String::new() };
+        let s = ProgressState {
+            current: 50,
+            total: 100,
+            elapsed_ms: 5000,
+            message: String::new(),
+        };
         let eta = s.eta_ms().unwrap();
         assert_eq!(eta, 5000); // 50 items in 5s → 10/s → 50 remaining → 5s
     }
 
     #[test]
     fn eta_none_at_zero() {
-        let s = ProgressState { current: 0, total: 100, elapsed_ms: 0, message: String::new() };
+        let s = ProgressState {
+            current: 0,
+            total: 100,
+            elapsed_ms: 0,
+            message: String::new(),
+        };
         assert!(s.eta_ms().is_none());
     }
 
     #[test]
     fn throughput_calc() {
-        let s = ProgressState { current: 1000, total: 2000, elapsed_ms: 2000, message: String::new() };
+        let s = ProgressState {
+            current: 1000,
+            total: 2000,
+            elapsed_ms: 2000,
+            message: String::new(),
+        };
         assert!((s.throughput() - 500.0).abs() < f64::EPSILON);
     }
 
@@ -387,7 +429,9 @@ mod tests {
 
     #[test]
     fn bar_render_empty() {
-        let bar = ProgressBar::new(100).with_width(10).with_style(BarStyle::ascii());
+        let bar = ProgressBar::new(100)
+            .with_width(10)
+            .with_style(BarStyle::ascii());
         let rendered = bar.render_bar();
         assert!(rendered.starts_with('['));
         assert!(rendered.ends_with(']'));
@@ -396,7 +440,9 @@ mod tests {
 
     #[test]
     fn bar_render_full() {
-        let mut bar = ProgressBar::new(100).with_width(10).with_style(BarStyle::ascii());
+        let mut bar = ProgressBar::new(100)
+            .with_width(10)
+            .with_style(BarStyle::ascii());
         bar.set_position(100, 1000);
         let rendered = bar.render_bar();
         assert!(rendered.contains("=========="));
@@ -442,7 +488,9 @@ mod tests {
     #[test]
     fn spinner_wraps() {
         let mut s = Spinner::line();
-        for _ in 0..8 { s.tick(100); }
+        for _ in 0..8 {
+            s.tick(100);
+        }
         // Should be back to index 0 (8 % 4 = 0)
         assert_eq!(s.index, 0);
     }

@@ -17,7 +17,9 @@ pub struct Coord {
 }
 
 impl Coord {
-    pub fn new(x: i32, y: i32) -> Self { Self { x, y } }
+    pub fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
+    }
 }
 
 // ── Heuristic functions ─────────────────────────────────────────
@@ -70,7 +72,11 @@ impl NavGrid {
     }
 
     pub fn set_blocked(&mut self, c: Coord, is_blocked: bool) {
-        if is_blocked { self.blocked.insert(c); } else { self.blocked.remove(&c); }
+        if is_blocked {
+            self.blocked.insert(c);
+        } else {
+            self.blocked.remove(&c);
+        }
     }
 
     pub fn is_blocked(&self, c: Coord) -> bool {
@@ -97,8 +103,21 @@ impl NavGrid {
     pub fn neighbors(&self, c: Coord) -> Vec<Coord> {
         let mut result = Vec::new();
         let dirs4 = [(0, 1), (0, -1), (1, 0), (-1, 0)];
-        let dirs8 = [(0, 1), (0, -1), (1, 0), (-1, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)];
-        let dirs = if self.allow_diagonal { &dirs8[..] } else { &dirs4[..] };
+        let dirs8 = [
+            (0, 1),
+            (0, -1),
+            (1, 0),
+            (-1, 0),
+            (1, 1),
+            (1, -1),
+            (-1, 1),
+            (-1, -1),
+        ];
+        let dirs = if self.allow_diagonal {
+            &dirs8[..]
+        } else {
+            &dirs4[..]
+        };
         for &(dx, dy) in dirs {
             let n = Coord::new(c.x + dx, c.y + dy);
             if self.walkable(n) {
@@ -127,19 +146,26 @@ struct HeapEntry {
 }
 
 impl PartialEq for HeapEntry {
-    fn eq(&self, other: &Self) -> bool { self.cost == other.cost }
+    fn eq(&self, other: &Self) -> bool {
+        self.cost == other.cost
+    }
 }
 
 impl Eq for HeapEntry {}
 
 impl PartialOrd for HeapEntry {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl Ord for HeapEntry {
     fn cmp(&self, other: &Self) -> Ordering {
         // Reverse for min-heap.
-        other.cost.partial_cmp(&self.cost).unwrap_or(Ordering::Equal)
+        other
+            .cost
+            .partial_cmp(&self.cost)
+            .unwrap_or(Ordering::Equal)
     }
 }
 
@@ -156,7 +182,10 @@ pub fn astar(grid: &NavGrid, start: Coord, goal: Coord, h: Heuristic) -> Option<
     let mut closed: HashSet<Coord> = HashSet::new();
 
     g_score.insert(start, 0.0);
-    open.push(HeapEntry { cost: heuristic_cost(h, start, goal), coord: start });
+    open.push(HeapEntry {
+        cost: heuristic_cost(h, start, goal),
+        coord: start,
+    });
 
     while let Some(HeapEntry { coord: current, .. }) = open.pop() {
         if current == goal {
@@ -167,13 +196,18 @@ pub fn astar(grid: &NavGrid, start: Coord, goal: Coord, h: Heuristic) -> Option<
         }
         let current_g = g_score[&current];
         for neighbor in grid.neighbors(current) {
-            if closed.contains(&neighbor) { continue; }
+            if closed.contains(&neighbor) {
+                continue;
+            }
             let tentative_g = current_g + grid.move_cost(current, neighbor);
             if tentative_g < *g_score.get(&neighbor).unwrap_or(&f64::INFINITY) {
                 g_score.insert(neighbor, tentative_g);
                 came_from.insert(neighbor, current);
                 let f = tentative_g + heuristic_cost(h, neighbor, goal);
-                open.push(HeapEntry { cost: f, coord: neighbor });
+                open.push(HeapEntry {
+                    cost: f,
+                    coord: neighbor,
+                });
             }
         }
     }
@@ -305,7 +339,10 @@ pub struct PathCache {
 
 impl PathCache {
     pub fn new(capacity: usize) -> Self {
-        Self { entries: Vec::new(), capacity }
+        Self {
+            entries: Vec::new(),
+            capacity,
+        }
     }
 
     pub fn get(&self, start: Coord, goal: Coord) -> Option<&[Coord]> {
@@ -317,7 +354,8 @@ impl PathCache {
 
     pub fn insert(&mut self, start: Coord, goal: Coord, path: Vec<Coord>) {
         // Remove existing.
-        self.entries.retain(|((s, g), _)| !(*s == start && *g == goal));
+        self.entries
+            .retain(|((s, g), _)| !(*s == start && *g == goal));
         if self.entries.len() >= self.capacity {
             self.entries.remove(0);
         }
@@ -351,7 +389,13 @@ mod tests {
     #[test]
     fn astar_straight_line() {
         let grid = simple_grid();
-        let path = astar(&grid, Coord::new(0, 0), Coord::new(4, 0), Heuristic::Manhattan).unwrap();
+        let path = astar(
+            &grid,
+            Coord::new(0, 0),
+            Coord::new(4, 0),
+            Heuristic::Manhattan,
+        )
+        .unwrap();
         assert_eq!(path.first(), Some(&Coord::new(0, 0)));
         assert_eq!(path.last(), Some(&Coord::new(4, 0)));
         assert_eq!(path.len(), 5);
@@ -364,7 +408,12 @@ mod tests {
         for x in 1..4 {
             grid.set_blocked(Coord::new(x, 2), true);
         }
-        let path = astar(&grid, Coord::new(2, 0), Coord::new(2, 4), Heuristic::Manhattan);
+        let path = astar(
+            &grid,
+            Coord::new(2, 0),
+            Coord::new(2, 4),
+            Heuristic::Manhattan,
+        );
         assert!(path.is_some());
         let p = path.unwrap();
         // Path must not go through blocked cells.
@@ -381,7 +430,12 @@ mod tests {
         // Wall around (2,2).
         grid.set_blocked(Coord::new(1, 2), true);
         grid.set_blocked(Coord::new(2, 1), true);
-        let path = astar(&grid, Coord::new(0, 0), Coord::new(2, 2), Heuristic::Manhattan);
+        let path = astar(
+            &grid,
+            Coord::new(0, 0),
+            Coord::new(2, 2),
+            Heuristic::Manhattan,
+        );
         assert!(path.is_none()); // No path without diagonal movement
     }
 
@@ -389,7 +443,12 @@ mod tests {
     fn astar_blocked_goal() {
         let mut grid = simple_grid();
         grid.set_blocked(Coord::new(4, 4), true);
-        let path = astar(&grid, Coord::new(0, 0), Coord::new(4, 4), Heuristic::Manhattan);
+        let path = astar(
+            &grid,
+            Coord::new(0, 0),
+            Coord::new(4, 4),
+            Heuristic::Manhattan,
+        );
         assert!(path.is_none());
     }
 
@@ -416,7 +475,13 @@ mod tests {
         for x in 1..4 {
             grid.set_cost(Coord::new(x, 0), 100.0);
         }
-        let path = astar(&grid, Coord::new(0, 0), Coord::new(4, 0), Heuristic::Manhattan).unwrap();
+        let path = astar(
+            &grid,
+            Coord::new(0, 0),
+            Coord::new(4, 0),
+            Heuristic::Manhattan,
+        )
+        .unwrap();
         // Only route is through expensive cells (1D grid).
         assert_eq!(path.len(), 5);
     }
@@ -436,8 +501,11 @@ mod tests {
         let grid = simple_grid();
         // Zigzag path.
         let path = vec![
-            Coord::new(0, 0), Coord::new(1, 0), Coord::new(2, 0),
-            Coord::new(3, 0), Coord::new(4, 0),
+            Coord::new(0, 0),
+            Coord::new(1, 0),
+            Coord::new(2, 0),
+            Coord::new(3, 0),
+            Coord::new(4, 0),
         ];
         let smoothed = smooth_path(&grid, &path);
         // Straight line should simplify to start + end.
@@ -472,7 +540,13 @@ mod tests {
     fn diagonal_movement() {
         let mut grid = NavGrid::new(3, 3);
         grid.allow_diagonal = true;
-        let path = astar(&grid, Coord::new(0, 0), Coord::new(2, 2), Heuristic::Chebyshev).unwrap();
+        let path = astar(
+            &grid,
+            Coord::new(0, 0),
+            Coord::new(2, 2),
+            Heuristic::Chebyshev,
+        )
+        .unwrap();
         // Diagonal path should be 3 cells: (0,0) → (1,1) → (2,2).
         assert_eq!(path.len(), 3);
     }

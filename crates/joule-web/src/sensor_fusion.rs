@@ -99,7 +99,10 @@ impl Calibration {
     }
 
     pub fn identity() -> Self {
-        Self { offset: 0.0, scale: 1.0 }
+        Self {
+            offset: 0.0,
+            scale: 1.0,
+        }
     }
 
     /// Apply calibration: result = (raw - offset) * scale
@@ -138,7 +141,12 @@ pub struct KalmanFilter1D {
 }
 
 impl KalmanFilter1D {
-    pub fn new(initial_estimate: f64, initial_error: f64, process_noise: f64, measurement_noise: f64) -> Self {
+    pub fn new(
+        initial_estimate: f64,
+        initial_error: f64,
+        process_noise: f64,
+        measurement_noise: f64,
+    ) -> Self {
         Self {
             estimate: initial_estimate,
             error_covariance: initial_error,
@@ -416,14 +424,17 @@ impl SensorHealthMonitor {
 
     /// Register a sensor with its expected value range.
     pub fn register(&mut self, sensor_id: &str, min_expected: f64, max_expected: f64) {
-        self.sensors.insert(sensor_id.to_string(), SensorState {
-            last_seen: Utc::now(),
-            health: SensorHealth::Healthy,
-            min_expected,
-            max_expected,
-            consecutive_oor: 0,
-            total_readings: 0,
-        });
+        self.sensors.insert(
+            sensor_id.to_string(),
+            SensorState {
+                last_seen: Utc::now(),
+                health: SensorHealth::Healthy,
+                min_expected,
+                max_expected,
+                consecutive_oor: 0,
+                total_readings: 0,
+            },
+        );
     }
 
     /// Record a reading from a sensor and update its health.
@@ -463,7 +474,9 @@ impl SensorHealthMonitor {
     }
 
     pub fn all_healthy(&self) -> bool {
-        self.sensors.values().all(|s| s.health == SensorHealth::Healthy)
+        self.sensors
+            .values()
+            .all(|s| s.health == SensorHealth::Healthy)
     }
 
     pub fn sensor_count(&self) -> usize {
@@ -472,7 +485,9 @@ impl SensorHealthMonitor {
 
     /// Return ids of sensors with a specific health status.
     pub fn sensors_with_health(&self, health: SensorHealth) -> Vec<String> {
-        let mut result: Vec<String> = self.sensors.iter()
+        let mut result: Vec<String> = self
+            .sensors
+            .iter()
             .filter(|(_, s)| s.health == health)
             .map(|(id, _)| id.clone())
             .collect();
@@ -591,7 +606,12 @@ pub struct FusionConfidence {
 }
 
 impl FusionConfidence {
-    pub fn new(agreement_weight: f64, freshness_weight: f64, coverage_weight: f64, max_age_secs: f64) -> Self {
+    pub fn new(
+        agreement_weight: f64,
+        freshness_weight: f64,
+        coverage_weight: f64,
+        max_age_secs: f64,
+    ) -> Self {
         Self {
             agreement_weight,
             freshness_weight,
@@ -601,7 +621,13 @@ impl FusionConfidence {
     }
 
     /// Compute confidence given a set of values, their timestamps, and the expected sensor count.
-    pub fn score(&self, values: &[f64], timestamps: &[DateTime<Utc>], expected_count: usize, now: DateTime<Utc>) -> f64 {
+    pub fn score(
+        &self,
+        values: &[f64],
+        timestamps: &[DateTime<Utc>],
+        expected_count: usize,
+        now: DateTime<Utc>,
+    ) -> f64 {
         let agreement = self.agreement_score(values);
         let freshness = self.freshness_score(timestamps, now);
         let coverage = self.coverage_score(values.len(), expected_count);
@@ -613,7 +639,8 @@ impl FusionConfidence {
 
         let raw = (self.agreement_weight * agreement
             + self.freshness_weight * freshness
-            + self.coverage_weight * coverage) / total_weight;
+            + self.coverage_weight * coverage)
+            / total_weight;
 
         raw.clamp(0.0, 1.0)
     }
@@ -627,7 +654,11 @@ impl FusionConfidence {
         if mean.abs() < 1e-15 {
             // All near zero — check absolute variance.
             let var: f64 = values.iter().map(|v| v.powi(2)).sum::<f64>() / n;
-            return if var < 1e-10 { 1.0 } else { (1.0 / (1.0 + var)).max(0.0) };
+            return if var < 1e-10 {
+                1.0
+            } else {
+                (1.0 / (1.0 + var)).max(0.0)
+            };
         }
         let cv = (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n).sqrt() / mean.abs();
         (1.0 / (1.0 + cv)).clamp(0.0, 1.0)
@@ -637,9 +668,10 @@ impl FusionConfidence {
         if timestamps.is_empty() {
             return 0.0;
         }
-        let ages: Vec<f64> = timestamps.iter().map(|t| {
-            now.signed_duration_since(*t).num_milliseconds().max(0) as f64 / 1000.0
-        }).collect();
+        let ages: Vec<f64> = timestamps
+            .iter()
+            .map(|t| now.signed_duration_since(*t).num_milliseconds().max(0) as f64 / 1000.0)
+            .collect();
         let avg_age: f64 = ages.iter().sum::<f64>() / ages.len() as f64;
         (1.0 - avg_age / self.max_age_secs).clamp(0.0, 1.0)
     }
@@ -845,7 +877,7 @@ mod tests {
         mon.record("s1", 200.0, now); // oor
         mon.record("s1", 200.0, now); // oor -> degraded
         assert_eq!(mon.health("s1"), Some(SensorHealth::Degraded));
-        mon.record("s1", 50.0, now);  // in range -> resets
+        mon.record("s1", 50.0, now); // in range -> resets
         assert_eq!(mon.health("s1"), Some(SensorHealth::Healthy));
     }
 
@@ -924,8 +956,7 @@ mod tests {
     #[test]
     fn sensor_reading_builder() {
         let ts = Utc::now();
-        let r = SensorReading::new("s1", SensorKind::Temperature, 22.5, "C")
-            .with_timestamp(ts);
+        let r = SensorReading::new("s1", SensorKind::Temperature, 22.5, "C").with_timestamp(ts);
         assert_eq!(r.sensor_id, "s1");
         assert!((r.value - 22.5).abs() < 1e-10);
         assert_eq!(r.timestamp, ts);

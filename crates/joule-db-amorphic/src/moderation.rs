@@ -12,7 +12,7 @@ use joule_db_hdc::BinaryHV;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-use crate::{AmorphicStore, QueryResult, RecordId, DIMENSION};
+use crate::{AmorphicStore, DIMENSION, QueryResult, RecordId};
 
 /// Action to take when content matches a moderation policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -136,9 +136,11 @@ impl ModerationPolicy {
                 ModerationAction::Flag => 1,
                 ModerationAction::Allow => 0,
             };
-            severity_b
-                .cmp(&severity_a)
-                .then(b.similarity.partial_cmp(&a.similarity).unwrap_or(std::cmp::Ordering::Equal))
+            severity_b.cmp(&severity_a).then(
+                b.similarity
+                    .partial_cmp(&a.similarity)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+            )
         });
 
         matches
@@ -277,7 +279,12 @@ mod tests {
 
         // Add banned content
         let banned = BinaryHV::from_hash(b"banned_content_xyz", DIMENSION);
-        policy.add_banned("rule_1", "NSFW content", banned.clone(), ModerationAction::Block);
+        policy.add_banned(
+            "rule_1",
+            "NSFW content",
+            banned.clone(),
+            ModerationAction::Block,
+        );
 
         // Scan the exact same content — should match
         let matches = policy.scan(&banned);

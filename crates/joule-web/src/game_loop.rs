@@ -81,12 +81,30 @@ impl PerfStats {
             min_frame_time_ms: f64::INFINITY,
             max_frame_time_ms: 0.0,
             histogram: vec![
-                HistogramBucket { upper_ms: 4.0, count: 0 },    // ≤4ms (250+ fps)
-                HistogramBucket { upper_ms: 8.0, count: 0 },    // ≤8ms (125+ fps)
-                HistogramBucket { upper_ms: 16.67, count: 0 },  // ≤16.67ms (60+ fps)
-                HistogramBucket { upper_ms: 33.33, count: 0 },  // ≤33.33ms (30+ fps)
-                HistogramBucket { upper_ms: 66.67, count: 0 },  // ≤66.67ms (15+ fps)
-                HistogramBucket { upper_ms: f64::INFINITY, count: 0 }, // >66.67ms
+                HistogramBucket {
+                    upper_ms: 4.0,
+                    count: 0,
+                }, // ≤4ms (250+ fps)
+                HistogramBucket {
+                    upper_ms: 8.0,
+                    count: 0,
+                }, // ≤8ms (125+ fps)
+                HistogramBucket {
+                    upper_ms: 16.67,
+                    count: 0,
+                }, // ≤16.67ms (60+ fps)
+                HistogramBucket {
+                    upper_ms: 33.33,
+                    count: 0,
+                }, // ≤33.33ms (30+ fps)
+                HistogramBucket {
+                    upper_ms: 66.67,
+                    count: 0,
+                }, // ≤66.67ms (15+ fps)
+                HistogramBucket {
+                    upper_ms: f64::INFINITY,
+                    count: 0,
+                }, // >66.67ms
             ],
             frame_times: VecDeque::new(),
             window,
@@ -101,13 +119,21 @@ impl PerfStats {
         }
 
         // Update running stats.
-        if dt_ms < self.min_frame_time_ms { self.min_frame_time_ms = dt_ms; }
-        if dt_ms > self.max_frame_time_ms { self.max_frame_time_ms = dt_ms; }
+        if dt_ms < self.min_frame_time_ms {
+            self.min_frame_time_ms = dt_ms;
+        }
+        if dt_ms > self.max_frame_time_ms {
+            self.max_frame_time_ms = dt_ms;
+        }
 
         let sum: f64 = self.frame_times.iter().sum();
         let count = self.frame_times.len() as f64;
         self.avg_frame_time_ms = sum / count;
-        self.fps = if self.avg_frame_time_ms > 0.0 { 1000.0 / self.avg_frame_time_ms } else { 0.0 };
+        self.fps = if self.avg_frame_time_ms > 0.0 {
+            1000.0 / self.avg_frame_time_ms
+        } else {
+            0.0
+        };
 
         // Histogram.
         for bucket in &mut self.histogram {
@@ -124,7 +150,9 @@ impl PerfStats {
 
     /// Get the 95th percentile frame time in ms.
     pub fn p95_frame_time_ms(&self) -> f64 {
-        if self.frame_times.is_empty() { return 0.0; }
+        if self.frame_times.is_empty() {
+            return 0.0;
+        }
         let mut sorted: Vec<f64> = self.frame_times.iter().copied().collect();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let idx = ((sorted.len() as f64) * 0.95) as usize;
@@ -143,7 +171,10 @@ struct DtSmoother {
 
 impl DtSmoother {
     fn new(window: usize) -> Self {
-        Self { history: VecDeque::new(), window: window.max(1) }
+        Self {
+            history: VecDeque::new(),
+            window: window.max(1),
+        }
     }
 
     fn smooth(&mut self, dt: f64) -> f64 {
@@ -195,8 +226,8 @@ impl GameLoop {
     /// Returns the number of fixed updates performed this frame.
     pub fn frame<F, R>(&mut self, now: Instant, mut update_fn: F, mut render_fn: R) -> u32
     where
-        F: FnMut(f64),  // dt
-        R: FnMut(f64),  // alpha (interpolation factor 0..1)
+        F: FnMut(f64), // dt
+        R: FnMut(f64), // alpha (interpolation factor 0..1)
     {
         let raw_dt = match self.last_time {
             Some(prev) => now.duration_since(prev).as_secs_f64(),
@@ -216,7 +247,9 @@ impl GameLoop {
         self.accumulator += smoothed_dt;
 
         let mut updates = 0u32;
-        while self.accumulator >= self.config.fixed_dt && updates < self.config.max_updates_per_frame {
+        while self.accumulator >= self.config.fixed_dt
+            && updates < self.config.max_updates_per_frame
+        {
             update_fn(self.config.fixed_dt);
             self.accumulator -= self.config.fixed_dt;
             updates += 1;
@@ -235,7 +268,12 @@ impl GameLoop {
     }
 
     /// Convenience: process a frame using raw delta time in seconds.
-    pub fn frame_with_dt<F, R>(&mut self, dt_seconds: f64, mut update_fn: F, mut render_fn: R) -> u32
+    pub fn frame_with_dt<F, R>(
+        &mut self,
+        dt_seconds: f64,
+        mut update_fn: F,
+        mut render_fn: R,
+    ) -> u32
     where
         F: FnMut(f64),
         R: FnMut(f64),
@@ -252,7 +290,9 @@ impl GameLoop {
         self.accumulator += smoothed_dt;
 
         let mut updates = 0u32;
-        while self.accumulator >= self.config.fixed_dt && updates < self.config.max_updates_per_frame {
+        while self.accumulator >= self.config.fixed_dt
+            && updates < self.config.max_updates_per_frame
+        {
             update_fn(self.config.fixed_dt);
             self.accumulator -= self.config.fixed_dt;
             updates += 1;
@@ -270,7 +310,9 @@ impl GameLoop {
     }
 
     /// Pause the game loop.
-    pub fn pause(&mut self) { self.paused = true; }
+    pub fn pause(&mut self) {
+        self.paused = true;
+    }
 
     /// Resume the game loop.
     pub fn resume(&mut self) {
@@ -279,7 +321,9 @@ impl GameLoop {
     }
 
     /// Check if paused.
-    pub fn is_paused(&self) -> bool { self.paused }
+    pub fn is_paused(&self) -> bool {
+        self.paused
+    }
 
     /// Set time scale (slow motion). 1.0 = normal, 0.5 = half speed, 2.0 = double.
     pub fn set_time_scale(&mut self, scale: f64) {
@@ -287,7 +331,9 @@ impl GameLoop {
     }
 
     /// Get current time scale.
-    pub fn time_scale(&self) -> f64 { self.config.time_scale }
+    pub fn time_scale(&self) -> f64 {
+        self.config.time_scale
+    }
 
     /// Set target FPS (frame rate limiting).
     pub fn set_target_fps(&mut self, fps: f64) {
@@ -337,15 +383,22 @@ mod tests {
 
     #[test]
     fn fixed_timestep_updates() {
-        let config = LoopConfig { fixed_dt: 1.0 / 60.0, ..Default::default() };
+        let config = LoopConfig {
+            fixed_dt: 1.0 / 60.0,
+            ..Default::default()
+        };
         let mut game_loop = GameLoop::new(config);
         let mut update_count = 0;
         let mut render_count = 0;
         // Simulate 2 frames worth of time.
         let updates = game_loop.frame_with_dt(
             2.0 / 60.0,
-            |_dt| { update_count += 1; },
-            |_alpha| { render_count += 1; },
+            |_dt| {
+                update_count += 1;
+            },
+            |_alpha| {
+                render_count += 1;
+            },
         );
         assert_eq!(updates, 2);
         assert_eq!(update_count, 2);
@@ -364,7 +417,9 @@ mod tests {
         // Simulate huge dt (10 frames worth).
         let updates = game_loop.frame_with_dt(
             10.0 / 60.0,
-            |_| { updates_done += 1; },
+            |_| {
+                updates_done += 1;
+            },
             |_| {},
         );
         assert!(updates <= 3);
@@ -378,7 +433,13 @@ mod tests {
         assert!(game_loop.is_paused());
 
         let mut update_count = 0;
-        game_loop.frame_with_dt(1.0 / 60.0, |_| { update_count += 1; }, |_| {});
+        game_loop.frame_with_dt(
+            1.0 / 60.0,
+            |_| {
+                update_count += 1;
+            },
+            |_| {},
+        );
         assert_eq!(update_count, 0); // no updates while paused
 
         game_loop.resume();
@@ -387,7 +448,11 @@ mod tests {
 
     #[test]
     fn slow_motion() {
-        let config = LoopConfig { fixed_dt: 1.0 / 60.0, time_scale: 0.5, ..Default::default() };
+        let config = LoopConfig {
+            fixed_dt: 1.0 / 60.0,
+            time_scale: 0.5,
+            ..Default::default()
+        };
         let mut game_loop = GameLoop::new(config);
         // With time_scale=0.5, 2 frames of dt should produce ~1 update.
         let updates = game_loop.frame_with_dt(2.0 / 60.0, |_| {}, |_| {});
@@ -396,7 +461,11 @@ mod tests {
 
     #[test]
     fn double_speed() {
-        let config = LoopConfig { fixed_dt: 1.0 / 60.0, time_scale: 2.0, ..Default::default() };
+        let config = LoopConfig {
+            fixed_dt: 1.0 / 60.0,
+            time_scale: 2.0,
+            ..Default::default()
+        };
         let mut game_loop = GameLoop::new(config);
         let updates = game_loop.frame_with_dt(1.0 / 60.0, |_| {}, |_| {});
         assert_eq!(updates, 2);
@@ -404,11 +473,20 @@ mod tests {
 
     #[test]
     fn render_alpha_interpolation() {
-        let config = LoopConfig { fixed_dt: 1.0 / 60.0, ..Default::default() };
+        let config = LoopConfig {
+            fixed_dt: 1.0 / 60.0,
+            ..Default::default()
+        };
         let mut game_loop = GameLoop::new(config);
         let mut alpha_val = -1.0;
         // Half a frame worth of time — no update, but render with alpha.
-        game_loop.frame_with_dt(0.5 / 60.0, |_| {}, |alpha| { alpha_val = alpha; });
+        game_loop.frame_with_dt(
+            0.5 / 60.0,
+            |_| {},
+            |alpha| {
+                alpha_val = alpha;
+            },
+        );
         assert!(alpha_val >= 0.0 && alpha_val <= 1.0);
     }
 
@@ -475,15 +553,30 @@ mod tests {
 
     #[test]
     fn frame_with_instant() {
-        let config = LoopConfig { fixed_dt: 1.0 / 60.0, ..Default::default() };
+        let config = LoopConfig {
+            fixed_dt: 1.0 / 60.0,
+            ..Default::default()
+        };
         let mut game_loop = GameLoop::new(config);
         let now = Instant::now();
         let mut update_count = 0;
         // First frame initializes.
-        game_loop.frame(now, |_| { update_count += 1; }, |_| {});
+        game_loop.frame(
+            now,
+            |_| {
+                update_count += 1;
+            },
+            |_| {},
+        );
         // Second frame with realistic delta.
         let later = now + Duration::from_millis(17);
-        game_loop.frame(later, |_| { update_count += 1; }, |_| {});
+        game_loop.frame(
+            later,
+            |_| {
+                update_count += 1;
+            },
+            |_| {},
+        );
         assert!(update_count >= 1);
     }
 

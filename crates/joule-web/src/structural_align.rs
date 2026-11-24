@@ -26,7 +26,10 @@ fn centroid(points: &[[f64; 3]]) -> [f64; 3] {
 /// Center a point cloud at the origin.
 fn center_points(points: &[[f64; 3]]) -> Vec<[f64; 3]> {
     let c = centroid(points);
-    points.iter().map(|p| [p[0] - c[0], p[1] - c[1], p[2] - c[2]]).collect()
+    points
+        .iter()
+        .map(|p| [p[0] - c[0], p[1] - c[1], p[2] - c[2]])
+        .collect()
 }
 
 /// Squared distance between two points.
@@ -45,7 +48,11 @@ pub fn rmsd(coords_a: &[[f64; 3]], coords_b: &[[f64; 3]]) -> f64 {
         return 0.0;
     }
     let n = coords_a.len() as f64;
-    let sum: f64 = coords_a.iter().zip(coords_b).map(|(a, b)| dist_sq(*a, *b)).sum();
+    let sum: f64 = coords_a
+        .iter()
+        .zip(coords_b)
+        .map(|(a, b)| dist_sq(*a, *b))
+        .sum();
     (sum / n).sqrt()
 }
 
@@ -64,11 +71,7 @@ pub fn fitted_rmsd(coords_a: &[[f64; 3]], coords_b: &[[f64; 3]]) -> f64 {
 ///
 /// TM-score is length-independent and lies in (0, 1], where 1 means
 /// identical structures. Scores > 0.5 indicate same fold.
-pub fn tm_score(
-    coords_a: &[[f64; 3]],
-    coords_b: &[[f64; 3]],
-    target_length: usize,
-) -> f64 {
+pub fn tm_score(coords_a: &[[f64; 3]], coords_b: &[[f64; 3]], target_length: usize) -> f64 {
     if coords_a.len() != coords_b.len() || coords_a.is_empty() || target_length == 0 {
         return 0.0;
     }
@@ -101,7 +104,9 @@ pub struct RotationMatrix {
 impl RotationMatrix {
     /// Identity rotation.
     pub fn identity() -> Self {
-        Self { m: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]] }
+        Self {
+            m: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        }
     }
 
     /// Apply rotation to a point.
@@ -137,9 +142,15 @@ impl fmt::Display for RotationMatrix {
         write!(
             f,
             "Rot([{:.4},{:.4},{:.4}],[{:.4},{:.4},{:.4}],[{:.4},{:.4},{:.4}])",
-            self.m[0][0], self.m[0][1], self.m[0][2],
-            self.m[1][0], self.m[1][1], self.m[1][2],
-            self.m[2][0], self.m[2][1], self.m[2][2],
+            self.m[0][0],
+            self.m[0][1],
+            self.m[0][2],
+            self.m[1][0],
+            self.m[1][1],
+            self.m[1][2],
+            self.m[2][0],
+            self.m[2][1],
+            self.m[2][2],
         )
     }
 }
@@ -166,14 +177,19 @@ pub struct AlignmentResult {
 impl AlignmentResult {
     /// Per-residue distances after alignment.
     pub fn per_residue_distances(&self, target: &[[f64; 3]]) -> Vec<f64> {
-        self.transformed.iter().zip(target).map(|(a, b)| {
-            dist_sq(*a, *b).sqrt()
-        }).collect()
+        self.transformed
+            .iter()
+            .zip(target)
+            .map(|(a, b)| dist_sq(*a, *b).sqrt())
+            .collect()
     }
 
     /// Count of residues within a distance cutoff after alignment.
     pub fn residues_within(&self, target: &[[f64; 3]], cutoff: f64) -> usize {
-        self.per_residue_distances(target).iter().filter(|&&d| d <= cutoff).count()
+        self.per_residue_distances(target)
+            .iter()
+            .filter(|&&d| d <= cutoff)
+            .count()
     }
 }
 
@@ -184,7 +200,9 @@ impl fmt::Display for AlignmentResult {
             "Alignment(RMSD={:.3}Å, n={}, TM={})",
             self.rmsd,
             self.n_aligned,
-            self.tm_score.map(|t| format!("{:.4}", t)).unwrap_or_else(|| "N/A".to_string()),
+            self.tm_score
+                .map(|t| format!("{:.4}", t))
+                .unwrap_or_else(|| "N/A".to_string()),
         )
     }
 }
@@ -251,10 +269,17 @@ pub fn kabsch_align(target: &[[f64; 3]], mobile: &[[f64; 3]]) -> AlignmentResult
     ];
 
     // Transform mobile coordinates
-    let transformed: Vec<[f64; 3]> = mobile[..n].iter().map(|p| {
-        let rp = rotation.rotate(*p);
-        [rp[0] + translation[0], rp[1] + translation[1], rp[2] + translation[2]]
-    }).collect();
+    let transformed: Vec<[f64; 3]> = mobile[..n]
+        .iter()
+        .map(|p| {
+            let rp = rotation.rotate(*p);
+            [
+                rp[0] + translation[0],
+                rp[1] + translation[1],
+                rp[2] + translation[2],
+            ]
+        })
+        .collect();
 
     let rmsd_val = rmsd(&target[..n], &transformed);
 
@@ -274,7 +299,11 @@ pub fn kabsch_align(target: &[[f64; 3]], mobile: &[[f64; 3]]) -> AlignmentResult
 pub fn align_with_tm_score(target: &[[f64; 3]], mobile: &[[f64; 3]]) -> AlignmentResult {
     let mut result = kabsch_align(target, mobile);
     let l = target.len();
-    result.tm_score = Some(tm_score(&result.transformed, &target[..result.n_aligned], l));
+    result.tm_score = Some(tm_score(
+        &result.transformed,
+        &target[..result.n_aligned],
+        l,
+    ));
     result
 }
 
@@ -293,7 +322,11 @@ pub struct StructuralAligner {
 
 impl StructuralAligner {
     pub fn new() -> Self {
-        Self { distance_cutoff: 5.0, max_iterations: 20, compute_tm: true }
+        Self {
+            distance_cutoff: 5.0,
+            max_iterations: 20,
+            compute_tm: true,
+        }
     }
 
     pub fn with_distance_cutoff(mut self, d: f64) -> Self {
@@ -343,12 +376,17 @@ pub fn gdt_ts(target: &[[f64; 3]], aligned: &[[f64; 3]]) -> f64 {
     }
     let n = target.len() as f64;
     let cutoffs = [1.0, 2.0, 4.0, 8.0];
-    let sum: f64 = cutoffs.iter().map(|cutoff| {
-        let count = target.iter().zip(aligned).filter(|(t, a)| {
-            dist_sq(**t, **a).sqrt() <= *cutoff
-        }).count();
-        count as f64 / n
-    }).sum();
+    let sum: f64 = cutoffs
+        .iter()
+        .map(|cutoff| {
+            let count = target
+                .iter()
+                .zip(aligned)
+                .filter(|(t, a)| dist_sq(**t, **a).sqrt() <= *cutoff)
+                .count();
+            count as f64 / n
+        })
+        .sum();
     sum / 4.0
 }
 
@@ -359,12 +397,17 @@ pub fn gdt_ha(target: &[[f64; 3]], aligned: &[[f64; 3]]) -> f64 {
     }
     let n = target.len() as f64;
     let cutoffs = [0.5, 1.0, 2.0, 4.0];
-    let sum: f64 = cutoffs.iter().map(|cutoff| {
-        let count = target.iter().zip(aligned).filter(|(t, a)| {
-            dist_sq(**t, **a).sqrt() <= *cutoff
-        }).count();
-        count as f64 / n
-    }).sum();
+    let sum: f64 = cutoffs
+        .iter()
+        .map(|cutoff| {
+            let count = target
+                .iter()
+                .zip(aligned)
+                .filter(|(t, a)| dist_sq(**t, **a).sqrt() <= *cutoff)
+                .count();
+            count as f64 / n
+        })
+        .sum();
     sum / 4.0
 }
 
@@ -407,12 +450,16 @@ fn svd_3x3(h: [[f64; 3]; 3]) -> ([[f64; 3]; 3], [[f64; 3]; 3]) {
 
 fn eigen_symmetric_3x3(mut a: [[f64; 3]; 3]) -> ([f64; 3], [[f64; 3]; 3]) {
     let mut v = [[0.0; 3]; 3];
-    for i in 0..3 { v[i][i] = 1.0; }
+    for i in 0..3 {
+        v[i][i] = 1.0;
+    }
 
     for _ in 0..50 {
         for p in 0..3 {
             for q in (p + 1)..3 {
-                if a[p][q].abs() < 1e-15 { continue; }
+                if a[p][q].abs() < 1e-15 {
+                    continue;
+                }
                 let tau = (a[q][q] - a[p][p]) / (2.0 * a[p][q]);
                 let t = if tau >= 0.0 {
                     1.0 / (tau + (1.0 + tau * tau).sqrt())
@@ -432,7 +479,9 @@ fn eigen_symmetric_3x3(mut a: [[f64; 3]; 3]) -> ([f64; 3], [[f64; 3]; 3]) {
                 a[q][p] = 0.0;
 
                 for r in 0..3 {
-                    if r == p || r == q { continue; }
+                    if r == p || r == q {
+                        continue;
+                    }
                     let arp = a[r][p];
                     let arq = a[r][q];
                     a[r][p] = c * arp - s * arq;
@@ -506,7 +555,12 @@ mod tests {
 
     #[test]
     fn test_kabsch_identity() {
-        let coords = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+        let coords = vec![
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ];
         let result = kabsch_align(&coords, &coords);
         assert!(approx(result.rmsd, 0.0, 1e-6));
         assert_eq!(result.n_aligned, 4);
@@ -550,8 +604,13 @@ mod tests {
 
     #[test]
     fn test_tm_score_identical() {
-        let coords = vec![[0.0, 0.0, 0.0], [3.8, 0.0, 0.0], [7.6, 0.0, 0.0],
-                          [11.4, 0.0, 0.0], [15.2, 0.0, 0.0]];
+        let coords = vec![
+            [0.0, 0.0, 0.0],
+            [3.8, 0.0, 0.0],
+            [7.6, 0.0, 0.0],
+            [11.4, 0.0, 0.0],
+            [15.2, 0.0, 0.0],
+        ];
         let score = tm_score(&coords, &coords, coords.len());
         assert!(approx(score, 1.0, 1e-10));
     }

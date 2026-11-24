@@ -13,9 +13,17 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn dot(self, r: Self) -> f64 { self.x * r.x + self.y * r.y + self.z * r.z }
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn dot(self, r: Self) -> f64 {
+        self.x * r.x + self.y * r.y + self.z * r.z
+    }
     pub fn cross(self, r: Self) -> Self {
         Self {
             x: self.y * r.z - self.z * r.y,
@@ -23,35 +31,75 @@ impl Vec3 {
             z: self.x * r.y - self.y * r.x,
         }
     }
-    pub fn length_sq(self) -> f64 { self.dot(self) }
-    pub fn length(self) -> f64 { self.length_sq().sqrt() }
+    pub fn length_sq(self) -> f64 {
+        self.dot(self)
+    }
+    pub fn length(self) -> f64 {
+        self.length_sq().sqrt()
+    }
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-12 { Self::ZERO } else { self * (1.0 / l) }
+        if l < 1e-12 {
+            Self::ZERO
+        } else {
+            self * (1.0 / l)
+        }
     }
 }
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 impl std::ops::Mul<f64> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 impl std::ops::Neg for Vec3 {
     type Output = Self;
-    fn neg(self) -> Self { Self { x: -self.x, y: -self.y, z: -self.z } }
+    fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
 }
 impl std::ops::AddAssign for Vec3 {
-    fn add_assign(&mut self, r: Self) { self.x += r.x; self.y += r.y; self.z += r.z; }
+    fn add_assign(&mut self, r: Self) {
+        self.x += r.x;
+        self.y += r.y;
+        self.z += r.z;
+    }
 }
 impl std::ops::SubAssign for Vec3 {
-    fn sub_assign(&mut self, r: Self) { self.x -= r.x; self.y -= r.y; self.z -= r.z; }
+    fn sub_assign(&mut self, r: Self) {
+        self.x -= r.x;
+        self.y -= r.y;
+        self.z -= r.z;
+    }
 }
 
 // ── Mat3 ─────────────────────────────────────────────────────
@@ -63,17 +111,21 @@ pub struct Mat3 {
 
 impl Mat3 {
     pub const ZERO: Self = Self { m: [[0.0; 3]; 3] };
-    pub const IDENTITY: Self = Self { m: [[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,1.0]] };
+    pub const IDENTITY: Self = Self {
+        m: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+    };
 
     pub fn diagonal(a: f64, b: f64, c: f64) -> Self {
-        Self { m: [[a,0.0,0.0],[0.0,b,0.0],[0.0,0.0,c]] }
+        Self {
+            m: [[a, 0.0, 0.0], [0.0, b, 0.0], [0.0, 0.0, c]],
+        }
     }
 
     pub fn mul_vec(self, v: Vec3) -> Vec3 {
         Vec3 {
-            x: self.m[0][0]*v.x + self.m[0][1]*v.y + self.m[0][2]*v.z,
-            y: self.m[1][0]*v.x + self.m[1][1]*v.y + self.m[1][2]*v.z,
-            z: self.m[2][0]*v.x + self.m[2][1]*v.y + self.m[2][2]*v.z,
+            x: self.m[0][0] * v.x + self.m[0][1] * v.y + self.m[0][2] * v.z,
+            y: self.m[1][0] * v.x + self.m[1][1] * v.y + self.m[1][2] * v.z,
+            z: self.m[2][0] * v.x + self.m[2][1] * v.y + self.m[2][2] * v.z,
         }
     }
 }
@@ -235,13 +287,18 @@ fn compute_tangent_frame(normal: Vec3) -> (Vec3, Vec3) {
 }
 
 fn compute_effective_mass(
-    inv_mass_a: f64, inv_inertia_a: &Mat3, r_a: Vec3,
-    inv_mass_b: f64, inv_inertia_b: &Mat3, r_b: Vec3,
+    inv_mass_a: f64,
+    inv_inertia_a: &Mat3,
+    r_a: Vec3,
+    inv_mass_b: f64,
+    inv_inertia_b: &Mat3,
+    r_b: Vec3,
     direction: Vec3,
 ) -> f64 {
     let rn_a = r_a.cross(direction);
     let rn_b = r_b.cross(direction);
-    let k = inv_mass_a + inv_mass_b
+    let k = inv_mass_a
+        + inv_mass_b
         + rn_a.dot(inv_inertia_a.mul_vec(rn_a))
         + rn_b.dot(inv_inertia_b.mul_vec(rn_b));
     if k > 1e-12 { 1.0 / k } else { 0.0 }
@@ -257,7 +314,10 @@ pub struct ConstraintSolver3D {
 
 impl ConstraintSolver3D {
     pub fn new(config: SolverConfig) -> Self {
-        Self { config, constraints: Vec::new() }
+        Self {
+            config,
+            constraints: Vec::new(),
+        }
     }
 
     pub fn with_default_config() -> Self {
@@ -290,18 +350,30 @@ impl ConstraintSolver3D {
             let bb = &bodies[c.body_b];
 
             c.effective_mass_normal = compute_effective_mass(
-                ba.inv_mass, &ba.inv_inertia, c.r_a,
-                bb.inv_mass, &bb.inv_inertia, c.r_b,
+                ba.inv_mass,
+                &ba.inv_inertia,
+                c.r_a,
+                bb.inv_mass,
+                &bb.inv_inertia,
+                c.r_b,
                 c.normal,
             );
             c.effective_mass_tangent1 = compute_effective_mass(
-                ba.inv_mass, &ba.inv_inertia, c.r_a,
-                bb.inv_mass, &bb.inv_inertia, c.r_b,
+                ba.inv_mass,
+                &ba.inv_inertia,
+                c.r_a,
+                bb.inv_mass,
+                &bb.inv_inertia,
+                c.r_b,
                 c.tangent1,
             );
             c.effective_mass_tangent2 = compute_effective_mass(
-                ba.inv_mass, &ba.inv_inertia, c.r_a,
-                bb.inv_mass, &bb.inv_inertia, c.r_b,
+                ba.inv_mass,
+                &ba.inv_inertia,
+                c.r_a,
+                bb.inv_mass,
+                &bb.inv_inertia,
+                c.r_b,
                 c.tangent2,
             );
 
@@ -418,14 +490,18 @@ impl ConstraintSolver3D {
 
     /// Solve position constraints using split impulse / pseudo-velocities.
     pub fn solve_positions(&mut self, bodies: &mut [SolverBody], dt: f64) {
-        if !self.config.use_split_impulse { return; }
+        if !self.config.use_split_impulse {
+            return;
+        }
         let inv_dt = if dt > 1e-12 { 1.0 / dt } else { 0.0 };
 
         for _ in 0..self.config.position_iterations {
             for ci in 0..self.constraints.len() {
                 let c = &self.constraints[ci];
                 let penetration = (c.depth - self.config.slop).max(0.0);
-                if penetration < 1e-8 { continue; }
+                if penetration < 1e-8 {
+                    continue;
+                }
 
                 let ba_idx = c.body_a;
                 let bb_idx = c.body_b;
@@ -435,8 +511,10 @@ impl ConstraintSolver3D {
                 let eff_mass = c.effective_mass_normal;
 
                 let bias = self.config.baumgarte * inv_dt * penetration;
-                let pseudo_rel = bodies[ba_idx].pseudo_linear + bodies[ba_idx].pseudo_angular.cross(r_a)
-                    - bodies[bb_idx].pseudo_linear - bodies[bb_idx].pseudo_angular.cross(r_b);
+                let pseudo_rel = bodies[ba_idx].pseudo_linear
+                    + bodies[ba_idx].pseudo_angular.cross(r_a)
+                    - bodies[bb_idx].pseudo_linear
+                    - bodies[bb_idx].pseudo_angular.cross(r_b);
                 let pseudo_vn = pseudo_rel.dot(normal);
                 let lambda = eff_mass * (bias - pseudo_vn);
                 let lambda = lambda.max(0.0);
@@ -465,7 +543,9 @@ mod tests {
     use super::*;
 
     const EPS: f64 = 1e-4;
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     fn make_dynamic_body(mass: f64) -> SolverBody {
         let inv = 1.0 / mass;
@@ -543,10 +623,13 @@ mod tests {
     #[test]
     fn test_contact_constraint_creation() {
         let c = ContactConstraint::new(
-            0, 1,
+            0,
+            1,
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
-            0.01, 0.5, 0.3,
+            0.01,
+            0.5,
+            0.3,
         );
         assert_eq!(c.body_a, 0);
         assert_eq!(c.body_b, 1);
@@ -578,7 +661,13 @@ mod tests {
     fn test_solver_add_constraints() {
         let mut solver = ConstraintSolver3D::with_default_config();
         solver.add_constraint(ContactConstraint::new(
-            0, 1, Vec3::ZERO, Vec3::new(0.0, 1.0, 0.0), 0.01, 0.0, 0.3,
+            0,
+            1,
+            Vec3::ZERO,
+            Vec3::new(0.0, 1.0, 0.0),
+            0.01,
+            0.0,
+            0.3,
         ));
         assert_eq!(solver.constraint_count(), 1);
     }
@@ -587,7 +676,13 @@ mod tests {
     fn test_solver_clear_constraints() {
         let mut solver = ConstraintSolver3D::with_default_config();
         solver.add_constraint(ContactConstraint::new(
-            0, 1, Vec3::ZERO, Vec3::new(0.0, 1.0, 0.0), 0.01, 0.0, 0.3,
+            0,
+            1,
+            Vec3::ZERO,
+            Vec3::new(0.0, 1.0, 0.0),
+            0.01,
+            0.0,
+            0.3,
         ));
         solver.clear_constraints();
         assert_eq!(solver.constraint_count(), 0);
@@ -595,19 +690,19 @@ mod tests {
 
     #[test]
     fn test_solver_normal_impulse_separates() {
-        let mut bodies = vec![
-            make_dynamic_body(1.0),
-            make_static_body(),
-        ];
+        let mut bodies = vec![make_dynamic_body(1.0), make_static_body()];
         bodies[0].linear_velocity = Vec3::new(0.0, -5.0, 0.0);
 
         let mut solver = ConstraintSolver3D::with_default_config();
         solver.config.use_split_impulse = false;
         solver.add_constraint(ContactConstraint::new(
-            0, 1,
+            0,
+            1,
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
-            0.01, 0.0, 0.0,
+            0.01,
+            0.0,
+            0.0,
         ));
 
         solver.solve(&mut bodies, 1.0 / 60.0);
@@ -617,20 +712,20 @@ mod tests {
 
     #[test]
     fn test_solver_restitution() {
-        let mut bodies = vec![
-            make_dynamic_body(1.0),
-            make_static_body(),
-        ];
+        let mut bodies = vec![make_dynamic_body(1.0), make_static_body()];
         bodies[0].linear_velocity = Vec3::new(0.0, -10.0, 0.0);
 
         let mut solver = ConstraintSolver3D::with_default_config();
         solver.config.use_split_impulse = false;
         solver.config.restitution_threshold = 0.5;
         solver.add_constraint(ContactConstraint::new(
-            0, 1,
+            0,
+            1,
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
-            0.01, 1.0, 0.0, // full restitution
+            0.01,
+            1.0,
+            0.0, // full restitution
         ));
 
         solver.solve(&mut bodies, 1.0 / 60.0);
@@ -640,10 +735,7 @@ mod tests {
 
     #[test]
     fn test_solver_friction_slows_tangent() {
-        let mut bodies = vec![
-            make_dynamic_body(1.0),
-            make_static_body(),
-        ];
+        let mut bodies = vec![make_dynamic_body(1.0), make_static_body()];
         // Body sliding along x, resting on y=0
         bodies[0].linear_velocity = Vec3::new(10.0, 0.0, 0.0);
 
@@ -651,10 +743,13 @@ mod tests {
         solver.config.use_split_impulse = false;
         // Give it a penetrating contact so there's a normal force for friction
         solver.add_constraint(ContactConstraint::new(
-            0, 1,
+            0,
+            1,
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
-            0.02, 0.0, 0.5, // friction = 0.5
+            0.02,
+            0.0,
+            0.5, // friction = 0.5
         ));
 
         solver.solve(&mut bodies, 1.0 / 60.0);
@@ -664,16 +759,12 @@ mod tests {
 
     #[test]
     fn test_solver_warm_starting() {
-        let mut bodies = vec![
-            make_dynamic_body(1.0),
-            make_static_body(),
-        ];
+        let mut bodies = vec![make_dynamic_body(1.0), make_static_body()];
         bodies[0].linear_velocity = Vec3::new(0.0, -5.0, 0.0);
 
         let mut solver = ConstraintSolver3D::with_default_config();
-        let mut c = ContactConstraint::new(
-            0, 1, Vec3::ZERO, Vec3::new(0.0, 1.0, 0.0), 0.01, 0.0, 0.0,
-        );
+        let mut c =
+            ContactConstraint::new(0, 1, Vec3::ZERO, Vec3::new(0.0, 1.0, 0.0), 0.01, 0.0, 0.0);
         c.accumulated_normal = 3.0; // warm-start hint
         solver.add_constraint(c);
 
@@ -684,15 +775,18 @@ mod tests {
 
     #[test]
     fn test_solver_position_correction() {
-        let mut bodies = vec![
-            make_dynamic_body(1.0),
-            make_static_body(),
-        ];
+        let mut bodies = vec![make_dynamic_body(1.0), make_static_body()];
 
         let mut solver = ConstraintSolver3D::with_default_config();
         solver.config.use_split_impulse = true;
         solver.add_constraint(ContactConstraint::new(
-            0, 1, Vec3::ZERO, Vec3::new(0.0, 1.0, 0.0), 0.05, 0.0, 0.0,
+            0,
+            1,
+            Vec3::ZERO,
+            Vec3::new(0.0, 1.0, 0.0),
+            0.05,
+            0.0,
+            0.0,
         ));
 
         solver.solve(&mut bodies, 1.0 / 60.0);
@@ -702,10 +796,7 @@ mod tests {
 
     #[test]
     fn test_solver_two_dynamic_bodies() {
-        let mut bodies = vec![
-            make_dynamic_body(1.0),
-            make_dynamic_body(1.0),
-        ];
+        let mut bodies = vec![make_dynamic_body(1.0), make_dynamic_body(1.0)];
         bodies[0].linear_velocity = Vec3::new(5.0, 0.0, 0.0);
         bodies[0].position = Vec3::new(-0.5, 0.0, 0.0);
         bodies[1].position = Vec3::new(0.5, 0.0, 0.0);
@@ -713,7 +804,13 @@ mod tests {
         let mut solver = ConstraintSolver3D::with_default_config();
         solver.config.use_split_impulse = false;
         solver.add_constraint(ContactConstraint::new(
-            0, 1, Vec3::ZERO, Vec3::new(1.0, 0.0, 0.0), 0.01, 0.0, 0.0,
+            0,
+            1,
+            Vec3::ZERO,
+            Vec3::new(1.0, 0.0, 0.0),
+            0.01,
+            0.0,
+            0.0,
         ));
 
         let v_before = bodies[0].linear_velocity.x + bodies[1].linear_velocity.x;
@@ -726,14 +823,17 @@ mod tests {
 
     #[test]
     fn test_no_penetration_no_correction() {
-        let mut bodies = vec![
-            make_dynamic_body(1.0),
-            make_static_body(),
-        ];
+        let mut bodies = vec![make_dynamic_body(1.0), make_static_body()];
 
         let mut solver = ConstraintSolver3D::with_default_config();
         solver.add_constraint(ContactConstraint::new(
-            0, 1, Vec3::ZERO, Vec3::new(0.0, 1.0, 0.0), 0.0, 0.0, 0.0,
+            0,
+            1,
+            Vec3::ZERO,
+            Vec3::new(0.0, 1.0, 0.0),
+            0.0,
+            0.0,
+            0.0,
         ));
 
         solver.solve(&mut bodies, 1.0 / 60.0);

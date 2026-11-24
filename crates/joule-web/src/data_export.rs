@@ -241,7 +241,10 @@ pub fn export_csv(columns: &[String], rows: &[ExportRow]) -> String {
 }
 
 pub fn export_json(columns: &[String], rows: &[ExportRow]) -> String {
-    let config = ExportConfig { format: ExportFormat::Json, ..Default::default() };
+    let config = ExportConfig {
+        format: ExportFormat::Json,
+        ..Default::default()
+    };
     let exporter = Exporter::new(&config, columns);
     exporter.export(rows)
 }
@@ -267,10 +270,7 @@ mod tests {
             },
             ExportRow {
                 id: "r2".into(),
-                values: HashMap::from([
-                    ("name".into(), "Bob".into()),
-                    ("age".into(), "25".into()),
-                ]),
+                values: HashMap::from([("name".into(), "Bob".into()), ("age".into(), "25".into())]),
             },
         ]
     }

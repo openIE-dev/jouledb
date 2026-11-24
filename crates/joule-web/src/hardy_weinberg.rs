@@ -37,7 +37,9 @@ impl GenotypeCounts {
     /// Frequency of the A allele.
     pub fn freq_a(&self) -> f64 {
         let n = self.total() as f64;
-        if n == 0.0 { return 0.0; }
+        if n == 0.0 {
+            return 0.0;
+        }
         (2.0 * self.n_aa as f64 + self.n_ab as f64) / (2.0 * n)
     }
 
@@ -49,7 +51,9 @@ impl GenotypeCounts {
     /// Observed heterozygosity.
     pub fn observed_het(&self) -> f64 {
         let n = self.total() as f64;
-        if n == 0.0 { return 0.0; }
+        if n == 0.0 {
+            return 0.0;
+        }
         self.n_ab as f64 / n
     }
 
@@ -133,8 +137,7 @@ impl fmt::Display for HweTestResult {
         write!(
             f,
             "HWE chi2={:.4} p={:.6} exact_p={:.6} F={:.4} deviation={}",
-            self.chi_squared, self.p_value, self.exact_p,
-            self.inbreeding_coeff, self.deviation
+            self.chi_squared, self.p_value, self.exact_p, self.inbreeding_coeff, self.deviation
         )
     }
 }
@@ -309,7 +312,11 @@ pub fn fis_multilocus(loci: &[GenotypeCounts]) -> f64 {
         sum_ho += gc.observed_het();
         sum_he += gc.expected_het();
     }
-    if sum_he == 0.0 { 0.0 } else { 1.0 - sum_ho / sum_he }
+    if sum_he == 0.0 {
+        0.0
+    } else {
+        1.0 - sum_ho / sum_he
+    }
 }
 
 // ── Helper Functions ────────────────────────────────────────────────
@@ -322,10 +329,10 @@ fn chi2_pvalue_1df(x: f64) -> f64 {
     // Upper tail of chi2(1) = 2*(1 - Phi(sqrt(x)))
     let z = x.sqrt();
     let t = 1.0 / (1.0 + 0.2316419 * z);
-    let poly = t * (0.319_381_530
-        + t * (-0.356_563_782
-            + t * (1.781_477_937
-                + t * (-1.821_255_978 + t * 1.330_274_429))));
+    let poly = t
+        * (0.319_381_530
+            + t * (-0.356_563_782
+                + t * (1.781_477_937 + t * (-1.821_255_978 + t * 1.330_274_429))));
     let phi_tail = poly * (-0.5 * z * z).exp() * 0.398_942_280_401;
     (2.0 * phi_tail).clamp(0.0, 1.0)
 }
@@ -408,10 +415,7 @@ fn log_multinomial_coeff(
     n_b_alleles: usize,
 ) -> f64 {
     let _ = n_b_alleles;
-    log_factorial(n)
-        - log_factorial(n_aa)
-        - log_factorial(n_ab)
-        - log_factorial(n_bb)
+    log_factorial(n) - log_factorial(n_aa) - log_factorial(n_ab) - log_factorial(n_bb)
         + n_ab as f64 * 2.0_f64.ln()
 }
 
@@ -584,7 +588,10 @@ mod tests {
 
     #[test]
     fn test_deviation_display() {
-        assert_eq!(format!("{}", HweDeviation::ExcessHet), "excess_heterozygosity");
+        assert_eq!(
+            format!("{}", HweDeviation::ExcessHet),
+            "excess_heterozygosity"
+        );
         assert_eq!(format!("{}", HweDeviation::None), "none");
     }
 

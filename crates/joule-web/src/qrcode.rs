@@ -87,9 +87,7 @@ impl QrCode {
         }
 
         // Convert bits to codewords
-        let data_cws: Vec<u8> = (0..data_codewords)
-            .map(|i| bits.byte_at(i * 8))
-            .collect();
+        let data_cws: Vec<u8> = (0..data_codewords).map(|i| bits.byte_at(i * 8)).collect();
 
         // Generate error correction
         let mut all_codewords = Vec::new();
@@ -272,10 +270,7 @@ fn place_finder_pattern(
 ) {
     for r in 0..7 {
         for c in 0..7 {
-            let val = matches!(
-                (r, c),
-                (0, _) | (6, _) | (_, 0) | (_, 6) | (2..=4, 2..=4)
-            );
+            let val = matches!((r, c), (0, _) | (6, _) | (_, 0) | (_, 6) | (2..=4, 2..=4));
             let rr = row + r;
             let cc = col + c;
             if rr < modules.len() && cc < modules[0].len() {

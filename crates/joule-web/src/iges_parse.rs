@@ -74,12 +74,18 @@ impl IgesParseConfig {
 }
 
 impl Default for IgesParseConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for IgesParseConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "IgesParseConfig(max_entities={0}, parse_annotations={1}, coordinate_transform={2}, flatten={3})", self.max_entities, self.parse_annotations, self.coordinate_transform, self.flatten)
+        write!(
+            f,
+            "IgesParseConfig(max_entities={0}, parse_annotations={1}, coordinate_transform={2}, flatten={3})",
+            self.max_entities, self.parse_annotations, self.coordinate_transform, self.flatten
+        )
     }
 }
 
@@ -95,7 +101,10 @@ pub struct IgesParse {
 impl IgesParse {
     pub fn new(config: IgesParseConfig) -> Result<Self, IgesParseError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -107,31 +116,45 @@ impl IgesParse {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &IgesParseConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &IgesParseConfig {
+        &self.config
+    }
 
     /// Parse IGES entities.
     pub fn parse_entities(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Extract curve entities.
     pub fn extract_curves(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Extract surface entities.
     pub fn extract_surfaces(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -143,7 +166,9 @@ impl IgesParse {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -155,7 +180,11 @@ impl IgesParse {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -228,7 +257,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = IgesParse::new(IgesParseConfig::new()).unwrap()
+        let e = IgesParse::new(IgesParseConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -244,7 +274,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = IgesParse::new(IgesParseConfig::new()).unwrap()
+        let e = IgesParse::new(IgesParseConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("IgesParse"));
@@ -252,7 +283,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = IgesParse::new(IgesParseConfig::new()).unwrap()
+        let e = IgesParse::new(IgesParseConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -263,7 +295,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = IgesParse::new(IgesParseConfig::new()).unwrap()
+        let e = IgesParse::new(IgesParseConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -271,7 +304,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = IgesParse::new(IgesParseConfig::new()).unwrap()
+        let e = IgesParse::new(IgesParseConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -288,7 +322,8 @@ mod tests {
 
     #[test]
     fn test_parse_entities() {
-        let e = IgesParse::new(IgesParseConfig::new()).unwrap()
+        let e = IgesParse::new(IgesParseConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.parse_entities();
         assert!(!result.is_empty());
@@ -296,7 +331,8 @@ mod tests {
 
     #[test]
     fn test_extract_curves() {
-        let e = IgesParse::new(IgesParseConfig::new()).unwrap()
+        let e = IgesParse::new(IgesParseConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.extract_curves();
         assert!(!result.is_empty());
@@ -304,7 +340,8 @@ mod tests {
 
     #[test]
     fn test_extract_surfaces() {
-        let e = IgesParse::new(IgesParseConfig::new()).unwrap()
+        let e = IgesParse::new(IgesParseConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.extract_surfaces();
         assert!(!result.is_empty());

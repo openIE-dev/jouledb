@@ -152,7 +152,13 @@ impl fmt::Display for Lobby {
 }
 
 impl Lobby {
-    pub fn new(id: &str, name: &str, host: &str, max_players: usize, settings: LobbySettings) -> Self {
+    pub fn new(
+        id: &str,
+        name: &str,
+        host: &str,
+        max_players: usize,
+        settings: LobbySettings,
+    ) -> Self {
         let mut players = Vec::new();
         players.push(host.to_string());
         let mut ready = HashSet::new();
@@ -199,7 +205,9 @@ impl Lobby {
 
     pub fn join(&mut self, player: &str, password: Option<&str>) -> Result<(), LobbyError> {
         if self.state != LobbyState::Waiting {
-            return Err(LobbyError::InvalidState("can only join in Waiting state".into()));
+            return Err(LobbyError::InvalidState(
+                "can only join in Waiting state".into(),
+            ));
         }
         if self.locked {
             return Err(LobbyError::LobbyLocked(self.id.clone()));
@@ -290,7 +298,12 @@ impl Lobby {
         Ok(())
     }
 
-    pub fn send_chat(&mut self, sender: &str, text: &str, timestamp_ms: u64) -> Result<(), LobbyError> {
+    pub fn send_chat(
+        &mut self,
+        sender: &str,
+        text: &str,
+        timestamp_ms: u64,
+    ) -> Result<(), LobbyError> {
         if !self.players.contains(&sender.to_string()) {
             return Err(LobbyError::PlayerNotInLobby(sender.to_string()));
         }
@@ -438,9 +451,16 @@ mod tests {
         let id = mgr.create("L", "alice", 4, s).unwrap();
         let err = mgr.get_mut(&id).unwrap().join("bob", None).unwrap_err();
         assert!(matches!(err, LobbyError::WrongPassword));
-        let err2 = mgr.get_mut(&id).unwrap().join("bob", Some("wrong")).unwrap_err();
+        let err2 = mgr
+            .get_mut(&id)
+            .unwrap()
+            .join("bob", Some("wrong"))
+            .unwrap_err();
         assert!(matches!(err2, LobbyError::WrongPassword));
-        mgr.get_mut(&id).unwrap().join("bob", Some("secret")).unwrap();
+        mgr.get_mut(&id)
+            .unwrap()
+            .join("bob", Some("secret"))
+            .unwrap();
         assert_eq!(mgr.get(&id).unwrap().player_count(), 2);
     }
 
@@ -538,7 +558,9 @@ mod tests {
         let mut lobby = Lobby::new("1", "L", "alice", 4, settings());
         lobby.chat_limit = 3;
         for i in 0..5 {
-            lobby.send_chat("alice", &format!("msg{i}"), i as u64).unwrap();
+            lobby
+                .send_chat("alice", &format!("msg{i}"), i as u64)
+                .unwrap();
         }
         assert_eq!(lobby.chat_history().len(), 3);
         assert_eq!(lobby.chat_history()[0].text, "msg2");
@@ -558,7 +580,8 @@ mod tests {
     fn search_by_game_mode() {
         let mut mgr = LobbyManager::new();
         mgr.create("L1", "a", 4, settings()).unwrap();
-        mgr.create("L2", "b", 4, LobbySettings::new("ctf", "map1")).unwrap();
+        mgr.create("L2", "b", 4, LobbySettings::new("ctf", "map1"))
+            .unwrap();
         let results = mgr.search_by_game_mode("ctf");
         assert_eq!(results.len(), 1);
     }

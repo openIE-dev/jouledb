@@ -378,8 +378,10 @@ mod tests {
 
     #[test]
     fn test_wn18rr_pathstore_if_available() {
-        let train_path = Path::new("/tmp/jouledb-testdata/ai_graph_classification/data/WN18RR/train.txt");
-        let test_path = Path::new("/tmp/jouledb-testdata/ai_graph_classification/data/WN18RR/test.txt");
+        let train_path =
+            Path::new("/tmp/jouledb-testdata/ai_graph_classification/data/WN18RR/train.txt");
+        let test_path =
+            Path::new("/tmp/jouledb-testdata/ai_graph_classification/data/WN18RR/test.txt");
 
         if !train_path.exists() || !test_path.exists() {
             eprintln!("WN18RR not available, skipping pathstore benchmark");
@@ -389,16 +391,22 @@ mod tests {
         let train_bt = super::super::benchmark::load_triples(train_path).unwrap();
         let test_bt = super::super::benchmark::load_triples(test_path).unwrap();
 
-        let train: Vec<(String, RelationType, String)> = super::super::benchmark::convert_triples(&train_bt)
-            .into_iter()
-            .map(|t| (t.subject, t.relation, t.object))
-            .collect();
-        let test: Vec<(String, RelationType, String)> = super::super::benchmark::convert_triples(&test_bt)
-            .into_iter()
-            .map(|t| (t.subject, t.relation, t.object))
-            .collect();
+        let train: Vec<(String, RelationType, String)> =
+            super::super::benchmark::convert_triples(&train_bt)
+                .into_iter()
+                .map(|t| (t.subject, t.relation, t.object))
+                .collect();
+        let test: Vec<(String, RelationType, String)> =
+            super::super::benchmark::convert_triples(&test_bt)
+                .into_iter()
+                .map(|t| (t.subject, t.relation, t.object))
+                .collect();
 
-        eprintln!("PATHSTORE WN18RR: {} train, {} test", train.len(), test.len());
+        eprintln!(
+            "PATHSTORE WN18RR: {} train, {} test",
+            train.len(),
+            test.len()
+        );
 
         // Compile structural encodings before evaluation
         let results = evaluate_pathstore_structural(&train, &test, 500);
@@ -409,8 +417,12 @@ mod tests {
         store.ingest_batch(&train);
         store.compile_structural();
 
-        eprintln!("Store: {} paths, {} concepts, {} bytes",
-            store.len(), store.concept_count(), store.memory_bytes());
+        eprintln!(
+            "Store: {} paths, {} concepts, {} bytes",
+            store.len(),
+            store.concept_count(),
+            store.memory_bytes()
+        );
 
         // Per-relation breakdown
         let mut rel_counts: std::collections::HashMap<RelationType, (usize, usize, usize)> =
@@ -418,12 +430,19 @@ mod tests {
         for (s, r, o) in test.iter().take(500) {
             let candidates = store.query_object(s, *r, 10);
             let correct = o.to_lowercase();
-            let rank = candidates.iter().position(|(l, _)| *l == correct).map(|p| p + 1);
+            let rank = candidates
+                .iter()
+                .position(|(l, _)| *l == correct)
+                .map(|p| p + 1);
             let entry = rel_counts.entry(*r).or_insert((0, 0, 0));
             entry.0 += 1; // total
             if let Some(rk) = rank {
-                if rk == 1 { entry.1 += 1; } // hits@1
-                if rk <= 10 { entry.2 += 1; } // hits@10
+                if rk == 1 {
+                    entry.1 += 1;
+                } // hits@1
+                if rk <= 10 {
+                    entry.2 += 1;
+                } // hits@10
             }
         }
         eprintln!("\n=== Per-relation breakdown (first 200 test) ===");
@@ -433,8 +452,13 @@ mod tests {
             if *total > 0 {
                 eprintln!(
                     "  {:?}: {}/{} H@1 ({:.0}%), {}/{} H@10 ({:.0}%)",
-                    rel, h1, total, *h1 as f64 / *total as f64 * 100.0,
-                    h10, total, *h10 as f64 / *total as f64 * 100.0
+                    rel,
+                    h1,
+                    total,
+                    *h1 as f64 / *total as f64 * 100.0,
+                    h10,
+                    total,
+                    *h10 as f64 / *total as f64 * 100.0
                 );
             }
         }
@@ -442,11 +466,20 @@ mod tests {
         for (s, r, o) in test.iter().take(5) {
             let results = store.query_object(s, *r, 5);
             let correct = o.to_lowercase();
-            let rank = results.iter().position(|(l, _)| *l == correct).map(|p| p + 1);
+            let rank = results
+                .iter()
+                .position(|(l, _)| *l == correct)
+                .map(|p| p + 1);
             eprintln!(
                 "  ({}, {:?}, {}) → top3: {:?} | rank: {:?}",
-                s, r, o,
-                results.iter().take(3).map(|(l, s)| format!("{}({:.3})", l, s)).collect::<Vec<_>>(),
+                s,
+                r,
+                o,
+                results
+                    .iter()
+                    .take(3)
+                    .map(|(l, s)| format!("{}({:.3})", l, s))
+                    .collect::<Vec<_>>(),
                 rank
             );
         }

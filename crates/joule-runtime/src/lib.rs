@@ -17,16 +17,16 @@ pub mod agent_lifecycle;
 pub mod agent_sandbox;
 pub mod attestation;
 pub mod backend;
-pub mod competence;
-pub mod contract;
 pub mod catalog;
 pub mod cluster;
+pub mod competence;
 pub mod container;
-pub mod dispatch;
+pub mod contract;
 pub mod daemon;
 pub mod daemon_client;
 pub mod dashboard;
 pub mod db_tuner;
+pub mod dispatch;
 pub mod energy_enforcer;
 pub mod energy_trace;
 pub mod governor;
@@ -61,8 +61,10 @@ use std::fmt;
 use std::str::FromStr;
 
 // Re-exports
+pub use accelerator::{
+    AcceleratorDevice, AcceleratorManager, apple_neural_engine_device_for_host, detect_devices,
+};
 pub use backend::RuntimeBackend;
-pub use accelerator::{AcceleratorDevice, AcceleratorManager, apple_neural_engine_device_for_host, detect_devices};
 pub use manager::RuntimeManager;
 pub use registry::InstanceRegistry;
 
@@ -370,7 +372,8 @@ impl FromStr for AcceleratorKind {
         match s.to_lowercase().as_str() {
             "gpu" | "cuda" | "metal" | "rocm" | "vulkan" | "directml" => Ok(Self::GPU),
             "tpu" | "coral" | "trillium" | "ironwood" => Ok(Self::TPU),
-            "npu" | "neural-engine" | "ane" | "ethos" | "ethos-u85" | "hexagon-npu" | "exynos-npu" => Ok(Self::NPU),
+            "npu" | "neural-engine" | "ane" | "ethos" | "ethos-u85" | "hexagon-npu"
+            | "exynos-npu" => Ok(Self::NPU),
             "lpu" | "groq" | "groq3" => Ok(Self::LPU),
             "fpga" | "xilinx" | "altera" | "versal" | "agilex" | "lattice" => Ok(Self::FPGA),
             "dpu" | "ipu" | "bluefield" | "pensando" => Ok(Self::DPU),
@@ -378,7 +381,9 @@ impl FromStr for AcceleratorKind {
             "dsp" | "hexagon" | "hexagon-dsp" | "c66x" | "tensilica" => Ok(Self::DSP),
             "rdu" | "sambanova" | "sn50" | "sn40l" => Ok(Self::RDU),
             "wse" | "cerebras" | "wse-3" => Ok(Self::WSE),
-            "neuromorphic" | "loihi" | "loihi2" | "akida" | "spinnaker" | "spinnaker2" => Ok(Self::Neuromorphic),
+            "neuromorphic" | "loihi" | "loihi2" | "akida" | "spinnaker" | "spinnaker2" => {
+                Ok(Self::Neuromorphic)
+            }
             "photonic" | "lightmatter" | "luminous" => Ok(Self::Photonic),
             other => Ok(Self::Custom(other.to_string())),
         }
@@ -1047,31 +1052,103 @@ mod tests {
             "fpga".parse::<AcceleratorKind>().unwrap(),
             AcceleratorKind::FPGA
         );
-        assert_eq!("xilinx".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::FPGA);
-        assert_eq!("versal".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::FPGA);
-        assert_eq!("agilex".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::FPGA);
-        assert_eq!("dpu".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::DPU);
-        assert_eq!("ipu".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::DPU);
-        assert_eq!("bluefield".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::DPU);
-        assert_eq!("vpu".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::VPU);
-        assert_eq!("movidius".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::VPU);
-        assert_eq!("dsp".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::DSP);
-        assert_eq!("hexagon-dsp".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::DSP);
-        assert_eq!("tensilica".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::DSP);
-        assert_eq!("rdu".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::RDU);
-        assert_eq!("sambanova".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::RDU);
-        assert_eq!("sn50".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::RDU);
-        assert_eq!("wse".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::WSE);
-        assert_eq!("cerebras".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::WSE);
-        assert_eq!("neuromorphic".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::Neuromorphic);
-        assert_eq!("loihi".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::Neuromorphic);
-        assert_eq!("loihi2".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::Neuromorphic);
-        assert_eq!("akida".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::Neuromorphic);
-        assert_eq!("photonic".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::Photonic);
-        assert_eq!("lightmatter".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::Photonic);
-        assert_eq!("luminous".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::Photonic);
+        assert_eq!(
+            "xilinx".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::FPGA
+        );
+        assert_eq!(
+            "versal".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::FPGA
+        );
+        assert_eq!(
+            "agilex".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::FPGA
+        );
+        assert_eq!(
+            "dpu".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::DPU
+        );
+        assert_eq!(
+            "ipu".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::DPU
+        );
+        assert_eq!(
+            "bluefield".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::DPU
+        );
+        assert_eq!(
+            "vpu".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::VPU
+        );
+        assert_eq!(
+            "movidius".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::VPU
+        );
+        assert_eq!(
+            "dsp".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::DSP
+        );
+        assert_eq!(
+            "hexagon-dsp".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::DSP
+        );
+        assert_eq!(
+            "tensilica".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::DSP
+        );
+        assert_eq!(
+            "rdu".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::RDU
+        );
+        assert_eq!(
+            "sambanova".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::RDU
+        );
+        assert_eq!(
+            "sn50".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::RDU
+        );
+        assert_eq!(
+            "wse".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::WSE
+        );
+        assert_eq!(
+            "cerebras".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::WSE
+        );
+        assert_eq!(
+            "neuromorphic".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::Neuromorphic
+        );
+        assert_eq!(
+            "loihi".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::Neuromorphic
+        );
+        assert_eq!(
+            "loihi2".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::Neuromorphic
+        );
+        assert_eq!(
+            "akida".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::Neuromorphic
+        );
+        assert_eq!(
+            "photonic".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::Photonic
+        );
+        assert_eq!(
+            "lightmatter".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::Photonic
+        );
+        assert_eq!(
+            "luminous".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::Photonic
+        );
         // Unknown falls through to Custom
-        assert_eq!("quantum".parse::<AcceleratorKind>().unwrap(), AcceleratorKind::Custom("quantum".into()));
+        assert_eq!(
+            "quantum".parse::<AcceleratorKind>().unwrap(),
+            AcceleratorKind::Custom("quantum".into())
+        );
     }
 
     #[test]

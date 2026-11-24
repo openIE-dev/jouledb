@@ -8,14 +8,25 @@ use std::fmt;
 // ── Change Frequency ────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ChangeFreq { Always, Hourly, Daily, Weekly, Monthly, Yearly, Never }
+pub enum ChangeFreq {
+    Always,
+    Hourly,
+    Daily,
+    Weekly,
+    Monthly,
+    Yearly,
+    Never,
+}
 
 impl ChangeFreq {
     pub fn as_str(&self) -> &str {
         match self {
-            ChangeFreq::Always => "always", ChangeFreq::Hourly => "hourly",
-            ChangeFreq::Daily => "daily", ChangeFreq::Weekly => "weekly",
-            ChangeFreq::Monthly => "monthly", ChangeFreq::Yearly => "yearly",
+            ChangeFreq::Always => "always",
+            ChangeFreq::Hourly => "hourly",
+            ChangeFreq::Daily => "daily",
+            ChangeFreq::Weekly => "weekly",
+            ChangeFreq::Monthly => "monthly",
+            ChangeFreq::Yearly => "yearly",
             ChangeFreq::Never => "never",
         }
     }
@@ -53,12 +64,26 @@ pub struct SitemapUrl {
 
 impl SitemapUrl {
     pub fn new(loc: &str) -> Self {
-        Self { loc: loc.to_string(), lastmod: None, changefreq: None, priority: None }
+        Self {
+            loc: loc.to_string(),
+            lastmod: None,
+            changefreq: None,
+            priority: None,
+        }
     }
 
-    pub fn lastmod(mut self, date: &str) -> Self { self.lastmod = Some(date.to_string()); self }
-    pub fn changefreq(mut self, freq: ChangeFreq) -> Self { self.changefreq = Some(freq); self }
-    pub fn priority(mut self, p: f64) -> Self { self.priority = Some(p.max(0.0).min(1.0)); self }
+    pub fn lastmod(mut self, date: &str) -> Self {
+        self.lastmod = Some(date.to_string());
+        self
+    }
+    pub fn changefreq(mut self, freq: ChangeFreq) -> Self {
+        self.changefreq = Some(freq);
+        self
+    }
+    pub fn priority(mut self, p: f64) -> Self {
+        self.priority = Some(p.max(0.0).min(1.0));
+        self
+    }
 }
 
 // ── Sitemap Builder ─────────────────────────────────────────────
@@ -70,14 +95,18 @@ pub struct SitemapBuilder {
 }
 
 impl SitemapBuilder {
-    pub fn new() -> Self { Self { urls: Vec::new() } }
+    pub fn new() -> Self {
+        Self { urls: Vec::new() }
+    }
 
     pub fn add(&mut self, url: SitemapUrl) -> &mut Self {
         self.urls.push(url);
         self
     }
 
-    pub fn url_count(&self) -> usize { self.urls.len() }
+    pub fn url_count(&self) -> usize {
+        self.urls.len()
+    }
 
     /// Build the sitemap XML string.
     pub fn build(&self) -> String {
@@ -120,7 +149,9 @@ impl SitemapBuilder {
 }
 
 impl Default for SitemapBuilder {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Sitemap Index ───────────────────────────────────────────────
@@ -134,7 +165,10 @@ pub struct SitemapIndexEntry {
 
 impl SitemapIndexEntry {
     pub fn new(loc: &str) -> Self {
-        Self { loc: loc.to_string(), lastmod: None }
+        Self {
+            loc: loc.to_string(),
+            lastmod: None,
+        }
     }
 
     pub fn lastmod(mut self, date: &str) -> Self {
@@ -150,7 +184,11 @@ pub struct SitemapIndexBuilder {
 }
 
 impl SitemapIndexBuilder {
-    pub fn new() -> Self { Self { entries: Vec::new() } }
+    pub fn new() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
 
     pub fn add(&mut self, entry: SitemapIndexEntry) -> &mut Self {
         self.entries.push(entry);
@@ -175,7 +213,9 @@ impl SitemapIndexBuilder {
 }
 
 impl Default for SitemapIndexBuilder {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Robots.txt ──────────────────────────────────────────────────
@@ -233,7 +273,9 @@ impl RobotsGroup {
                 RobotsRule::Allow(p) => (p.as_str(), true),
                 RobotsRule::Disallow(p) => (p.as_str(), false),
             };
-            if pattern.is_empty() { continue; }
+            if pattern.is_empty() {
+                continue;
+            }
             if path_matches(path, pattern) && pattern.len() >= best_match_len {
                 best_match_len = pattern.len();
                 allowed = is_allow;
@@ -269,7 +311,9 @@ impl RobotsTxt {
 
         for line in input.lines() {
             let line = line.trim();
-            if line.is_empty() || line.starts_with('#') { continue; }
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
 
             let (directive, value) = match line.split_once(':') {
                 Some((d, v)) => (d.trim().to_lowercase(), v.trim().to_string()),
@@ -360,7 +404,9 @@ impl RobotsTxt {
 pub fn build_robots_txt(groups: &[RobotsGroup], sitemaps: &[&str]) -> String {
     let mut out = String::new();
     for (i, group) in groups.iter().enumerate() {
-        if i > 0 { out.push('\n'); }
+        if i > 0 {
+            out.push('\n');
+        }
         for ua in &group.user_agents {
             out.push_str(&format!("User-agent: {ua}\n"));
         }
@@ -428,7 +474,7 @@ mod tests {
             SitemapUrl::new("https://example.com/page")
                 .lastmod("2026-03-09")
                 .changefreq(ChangeFreq::Weekly)
-                .priority(0.8)
+                .priority(0.8),
         );
         let xml = builder.build();
         assert!(xml.contains("<lastmod>2026-03-09</lastmod>"));
@@ -616,8 +662,7 @@ mod tests {
 
     #[test]
     fn sitemap_index_entry_builder() {
-        let entry = SitemapIndexEntry::new("https://example.com/sm.xml")
-            .lastmod("2026-01-01");
+        let entry = SitemapIndexEntry::new("https://example.com/sm.xml").lastmod("2026-01-01");
         assert_eq!(entry.loc, "https://example.com/sm.xml");
         assert_eq!(entry.lastmod.as_deref(), Some("2026-01-01"));
     }

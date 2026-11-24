@@ -35,7 +35,11 @@ impl fmt::Display for RouterError {
                 write!(f, "{method} {path} not found")
             }
             Self::MethodNotAllowed { path, allowed } => {
-                write!(f, "method not allowed for {path}, allowed: {}", allowed.join(", "))
+                write!(
+                    f,
+                    "method not allowed for {path}, allowed: {}",
+                    allowed.join(", ")
+                )
             }
             Self::DuplicateRoute { method, pattern } => {
                 write!(f, "duplicate route: {method} {pattern}")
@@ -131,29 +135,32 @@ impl RoutePattern {
 
         // Root route has no segments
         if parts.len() == 1 && parts[0].is_empty() {
-            return Ok(Self { raw: normalized, segments });
+            return Ok(Self {
+                raw: normalized,
+                segments,
+            });
         }
 
         let mut seen_wildcard = false;
         for part in &parts {
             if seen_wildcard {
-                return Err(RouterError::InvalidPattern(
-                    format!("{pattern}: segments after wildcard"),
-                ));
+                return Err(RouterError::InvalidPattern(format!(
+                    "{pattern}: segments after wildcard"
+                )));
             }
             if part.is_empty() {
-                return Err(RouterError::InvalidPattern(
-                    format!("{pattern}: empty segment"),
-                ));
+                return Err(RouterError::InvalidPattern(format!(
+                    "{pattern}: empty segment"
+                )));
             }
             if *part == "*" {
                 segments.push(Segment::Wildcard);
                 seen_wildcard = true;
             } else if let Some(name) = part.strip_prefix(':') {
                 if name.is_empty() {
-                    return Err(RouterError::InvalidPattern(
-                        format!("{pattern}: empty param name"),
-                    ));
+                    return Err(RouterError::InvalidPattern(format!(
+                        "{pattern}: empty param name"
+                    )));
                 }
                 segments.push(Segment::Param(name.to_string()));
             } else {
@@ -161,7 +168,10 @@ impl RoutePattern {
             }
         }
 
-        Ok(Self { raw: normalized, segments })
+        Ok(Self {
+            raw: normalized,
+            segments,
+        })
     }
 
     /// Check if this pattern conflicts with another (same structure but
@@ -207,7 +217,11 @@ impl RoutePattern {
         let mut params = HashMap::new();
 
         if self.segments.is_empty() {
-            return if path_parts.is_empty() { Some(params) } else { None };
+            return if path_parts.is_empty() {
+                Some(params)
+            } else {
+                None
+            };
         }
 
         let mut pi = 0;
@@ -429,11 +443,7 @@ impl Router {
     }
 
     /// Match a request to a route.
-    pub fn match_route(
-        &self,
-        method: Method,
-        path: &str,
-    ) -> Result<RouteMatch, RouterError> {
+    pub fn match_route(&self, method: Method, path: &str) -> Result<RouteMatch, RouterError> {
         let mut best_match: Option<(RouteMatch, u32)> = None;
         let mut path_matched = false;
         let mut allowed_methods: Vec<String> = Vec::new();
@@ -673,7 +683,8 @@ mod tests {
     #[test]
     fn test_router_route_middleware() {
         let mut r = Router::new();
-        r.add_route_with_middleware(Method::Get, "/admin", "admin_panel", &["auth"]).unwrap();
+        r.add_route_with_middleware(Method::Get, "/admin", "admin_panel", &["auth"])
+            .unwrap();
 
         let m = r.match_route(Method::Get, "/admin").unwrap();
         assert!(m.middleware.contains(&"auth".to_string()));
@@ -686,11 +697,15 @@ mod tests {
             prefix: "/api/v1".to_string(),
             middleware: vec!["auth".to_string()],
         };
-        r.add_group(&group, &[
-            (Method::Get, "/users", "list_users"),
-            (Method::Post, "/users", "create_user"),
-            (Method::Get, "/posts", "list_posts"),
-        ]).unwrap();
+        r.add_group(
+            &group,
+            &[
+                (Method::Get, "/users", "list_users"),
+                (Method::Post, "/users", "create_user"),
+                (Method::Get, "/posts", "list_posts"),
+            ],
+        )
+        .unwrap();
 
         let m = r.match_route(Method::Get, "/api/v1/users").unwrap();
         assert_eq!(m.handler, "list_users");
@@ -772,9 +787,15 @@ mod tests {
     #[test]
     fn test_multiple_params() {
         let mut r = Router::new();
-        r.get("/orgs/:org_id/teams/:team_id/members/:member_id", "get_member").unwrap();
+        r.get(
+            "/orgs/:org_id/teams/:team_id/members/:member_id",
+            "get_member",
+        )
+        .unwrap();
 
-        let m = r.match_route(Method::Get, "/orgs/acme/teams/eng/members/42").unwrap();
+        let m = r
+            .match_route(Method::Get, "/orgs/acme/teams/eng/members/42")
+            .unwrap();
         assert_eq!(m.params.get("org_id").unwrap(), "acme");
         assert_eq!(m.params.get("team_id").unwrap(), "eng");
         assert_eq!(m.params.get("member_id").unwrap(), "42");
@@ -797,9 +818,8 @@ mod tests {
             prefix: "/api".to_string(),
             middleware: vec![],
         };
-        r.add_group(&group, &[
-            (Method::Get, "/", "api_root"),
-        ]).unwrap();
+        r.add_group(&group, &[(Method::Get, "/", "api_root")])
+            .unwrap();
 
         let m = r.match_route(Method::Get, "/api").unwrap();
         assert_eq!(m.handler, "api_root");

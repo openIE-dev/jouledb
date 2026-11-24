@@ -28,7 +28,10 @@ impl fmt::Display for BalanceError {
                 write!(f, "not enough players: have {have}, need {need}")
             }
             Self::UnevenTeams(msg) => write!(f, "uneven teams: {msg}"),
-            Self::PartyTooLarge { party_size, team_size } => {
+            Self::PartyTooLarge {
+                party_size,
+                team_size,
+            } => {
                 write!(f, "party ({party_size}) exceeds team size ({team_size})")
             }
             Self::InvalidTeamCount(n) => write!(f, "invalid team count: {n}"),
@@ -180,7 +183,10 @@ impl BalanceResult {
         if global_avg == 0.0 {
             return 1.0;
         }
-        let max_diff = avgs.iter().map(|a| (a - global_avg).abs()).fold(0.0f64, f64::max);
+        let max_diff = avgs
+            .iter()
+            .map(|a| (a - global_avg).abs())
+            .fold(0.0f64, f64::max);
         (1.0 - max_diff / global_avg).max(0.0)
     }
 }
@@ -306,7 +312,10 @@ impl TeamBalancer {
             // Find the team with lowest total skill that has room.
             let best_team = teams
                 .iter_mut()
-                .filter(|t| t.size() + party_members.len() <= team_size + (players.len() % self.team_count).min(1))
+                .filter(|t| {
+                    t.size() + party_members.len()
+                        <= team_size + (players.len() % self.team_count).min(1)
+                })
                 .min_by(|a, b| a.total_skill().partial_cmp(&b.total_skill()).unwrap());
             if let Some(team) = best_team {
                 for m in &party_members {
@@ -410,9 +419,7 @@ mod tests {
 
     #[test]
     fn balance_two_teams() {
-        let players = vec![
-            p("a", 1000.0), p("b", 900.0), p("c", 800.0), p("d", 700.0),
-        ];
+        let players = vec![p("a", 1000.0), p("b", 900.0), p("c", 800.0), p("d", 700.0)];
         let result = TeamBalancer::new(2).balance(&players).unwrap();
         assert_eq!(result.teams.len(), 2);
         assert_eq!(result.teams[0].size(), 2);
@@ -422,7 +429,10 @@ mod tests {
     #[test]
     fn balance_score_good() {
         let players = vec![
-            p("a", 1000.0), p("b", 1000.0), p("c", 1000.0), p("d", 1000.0),
+            p("a", 1000.0),
+            p("b", 1000.0),
+            p("c", 1000.0),
+            p("d", 1000.0),
         ];
         let result = TeamBalancer::new(2).balance(&players).unwrap();
         assert!(result.balance_score > 0.95);
@@ -431,7 +441,10 @@ mod tests {
     #[test]
     fn balance_improves_with_swap() {
         let players = vec![
-            p("a", 2000.0), p("b", 1000.0), p("c", 1500.0), p("d", 1500.0),
+            p("a", 2000.0),
+            p("b", 1000.0),
+            p("c", 1500.0),
+            p("d", 1500.0),
         ];
         let result = TeamBalancer::new(2)
             .with_max_iterations(50)
@@ -450,7 +463,11 @@ mod tests {
         ];
         let result = TeamBalancer::new(2).balance(&players).unwrap();
         // Find which team has "a".
-        let team_a = result.teams.iter().find(|t| t.members.iter().any(|m| m.id == "a")).unwrap();
+        let team_a = result
+            .teams
+            .iter()
+            .find(|t| t.members.iter().any(|m| m.id == "a"))
+            .unwrap();
         assert!(team_a.members.iter().any(|m| m.id == "b"));
     }
 
@@ -482,7 +499,9 @@ mod tests {
 
     #[test]
     fn three_teams() {
-        let players: Vec<Player> = (0..6).map(|i| p(&format!("p{i}"), 1000.0 + i as f64 * 100.0)).collect();
+        let players: Vec<Player> = (0..6)
+            .map(|i| p(&format!("p{i}"), 1000.0 + i as f64 * 100.0))
+            .collect();
         let result = TeamBalancer::new(3).balance(&players).unwrap();
         assert_eq!(result.teams.len(), 3);
         for t in &result.teams {
@@ -527,16 +546,32 @@ mod tests {
 
     #[test]
     fn balance_score_equal_teams() {
-        let t1 = { let mut t = Team::new("A"); t.add(p("a", 1000.0)); t };
-        let t2 = { let mut t = Team::new("B"); t.add(p("b", 1000.0)); t };
+        let t1 = {
+            let mut t = Team::new("A");
+            t.add(p("a", 1000.0));
+            t
+        };
+        let t2 = {
+            let mut t = Team::new("B");
+            t.add(p("b", 1000.0));
+            t
+        };
         let score = BalanceResult::compute_score(&[t1, t2]);
         assert!((score - 1.0).abs() < 0.001);
     }
 
     #[test]
     fn balance_score_unequal_teams() {
-        let t1 = { let mut t = Team::new("A"); t.add(p("a", 2000.0)); t };
-        let t2 = { let mut t = Team::new("B"); t.add(p("b", 1000.0)); t };
+        let t1 = {
+            let mut t = Team::new("A");
+            t.add(p("a", 2000.0));
+            t
+        };
+        let t2 = {
+            let mut t = Team::new("B");
+            t.add(p("b", 1000.0));
+            t
+        };
         let score = BalanceResult::compute_score(&[t1, t2]);
         assert!(score < 0.8);
     }

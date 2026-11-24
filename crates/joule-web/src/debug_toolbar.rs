@@ -127,13 +127,9 @@ impl RequestTimingPanel {
     pub fn to_panel(&self) -> Panel {
         let mut panel = Panel::new("timing", "Request Timing");
         for r in &self.records {
-            panel.add_entry(
-                PanelEntry::new(&r.label, &r.duration_us.to_string()).with_unit("us"),
-            );
+            panel.add_entry(PanelEntry::new(&r.label, &r.duration_us.to_string()).with_unit("us"));
         }
-        panel.add_entry(
-            PanelEntry::new("Total", &self.total_us().to_string()).with_unit("us"),
-        );
+        panel.add_entry(PanelEntry::new("Total", &self.total_us().to_string()).with_unit("us"));
         panel
     }
 }
@@ -256,9 +252,7 @@ impl CacheStatsPanel {
             &format!("{:.1}%", self.hit_rate() * 100.0),
         ));
         panel.add_entry(PanelEntry::new("Evictions", &self.evictions.to_string()));
-        panel.add_entry(
-            PanelEntry::new("Size", &self.size_bytes.to_string()).with_unit("bytes"),
-        );
+        panel.add_entry(PanelEntry::new("Size", &self.size_bytes.to_string()).with_unit("bytes"));
         panel
     }
 }
@@ -290,12 +284,8 @@ impl MemoryPanel {
 
     pub fn to_panel(&self) -> Panel {
         let mut panel = Panel::new("memory", "Memory");
-        panel.add_entry(
-            PanelEntry::new("Heap", &self.heap_bytes.to_string()).with_unit("bytes"),
-        );
-        panel.add_entry(
-            PanelEntry::new("Stack", &self.stack_bytes.to_string()).with_unit("bytes"),
-        );
+        panel.add_entry(PanelEntry::new("Heap", &self.heap_bytes.to_string()).with_unit("bytes"));
+        panel.add_entry(PanelEntry::new("Stack", &self.stack_bytes.to_string()).with_unit("bytes"));
         panel.add_entry(PanelEntry::new(
             "Allocations",
             &self.allocations.to_string(),
@@ -350,13 +340,9 @@ impl MiddlewareTimingPanel {
     pub fn to_panel(&self) -> Panel {
         let mut panel = Panel::new("middleware", "Middleware Timing");
         for t in &self.timings {
-            panel.add_entry(
-                PanelEntry::new(&t.name, &t.duration_us.to_string()).with_unit("us"),
-            );
+            panel.add_entry(PanelEntry::new(&t.name, &t.duration_us.to_string()).with_unit("us"));
         }
-        panel.add_entry(
-            PanelEntry::new("Total", &self.total_us().to_string()).with_unit("us"),
-        );
+        panel.add_entry(PanelEntry::new("Total", &self.total_us().to_string()).with_unit("us"));
         panel
     }
 }
@@ -377,8 +363,7 @@ impl DebugToolbar {
     }
 
     pub fn add_panel(&mut self, panel: Panel) {
-        self.enabled_ids
-            .insert(panel.id.clone(), panel.enabled);
+        self.enabled_ids.insert(panel.id.clone(), panel.enabled);
         self.panels.push(panel);
     }
 
@@ -520,7 +505,11 @@ mod tests {
     #[test]
     fn test_cache_stats_panel() {
         let mut cs = CacheStatsPanel::new();
-        cs.record_hit(); cs.record_hit(); cs.record_miss(); cs.record_eviction(); cs.set_size(4096);
+        cs.record_hit();
+        cs.record_hit();
+        cs.record_miss();
+        cs.record_eviction();
+        cs.set_size(4096);
         assert_eq!(cs.total_lookups(), 3);
         assert!((cs.hit_rate() - 2.0 / 3.0).abs() < 0.001);
         assert_eq!(cs.to_panel().id, "cache");
@@ -529,7 +518,12 @@ mod tests {
 
     #[test]
     fn test_memory_panel() {
-        let mp = MemoryPanel { heap_bytes: 1024, stack_bytes: 256, allocations: 100, deallocations: 30 };
+        let mp = MemoryPanel {
+            heap_bytes: 1024,
+            stack_bytes: 256,
+            allocations: 100,
+            deallocations: 30,
+        };
         assert_eq!(mp.total_bytes(), 1280);
         assert_eq!(mp.net_allocations(), 70);
         assert_eq!(mp.to_panel().id, "memory");
@@ -538,7 +532,9 @@ mod tests {
     #[test]
     fn test_middleware_timing_panel() {
         let mut mw = MiddlewareTimingPanel::new();
-        mw.record("auth", 50); mw.record("cors", 10); mw.record("logging", 30);
+        mw.record("auth", 50);
+        mw.record("cors", 10);
+        mw.record("logging", 30);
         assert_eq!(mw.count(), 3);
         assert_eq!(mw.total_us(), 90);
         assert_eq!(mw.to_panel().id, "middleware");
@@ -575,7 +571,12 @@ mod tests {
         queries.log("SELECT * FROM users", 300, 10);
         let mut cache = CacheStatsPanel::new();
         cache.record_hit();
-        let mem = MemoryPanel { heap_bytes: 8192, stack_bytes: 512, allocations: 50, deallocations: 10 };
+        let mem = MemoryPanel {
+            heap_bytes: 8192,
+            stack_bytes: 512,
+            allocations: 50,
+            deallocations: 10,
+        };
         let mut mw = MiddlewareTimingPanel::new();
         mw.record("auth", 80);
         let mut tb = DebugToolbar::new();

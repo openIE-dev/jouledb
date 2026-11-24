@@ -18,11 +18,23 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
-    pub const UP: Self = Self { x: 0.0, y: 1.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub const UP: Self = Self {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    };
 
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
     pub fn cross(self, o: Self) -> Self {
         Self {
             x: self.y * o.z - self.z * o.y,
@@ -30,15 +42,41 @@ impl Vec3 {
             z: self.x * o.y - self.y * o.x,
         }
     }
-    pub fn length(self) -> f64 { self.dot(self).sqrt() }
+    pub fn length(self) -> f64 {
+        self.dot(self).sqrt()
+    }
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-12 { return Self::ZERO; }
-        Self { x: self.x / l, y: self.y / l, z: self.z / l }
+        if l < 1e-12 {
+            return Self::ZERO;
+        }
+        Self {
+            x: self.x / l,
+            y: self.y / l,
+            z: self.z / l,
+        }
     }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z } }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -50,7 +88,9 @@ pub struct Vec4 {
 }
 
 impl Vec4 {
-    pub fn new(x: f64, y: f64, z: f64, w: f64) -> Self { Self { x, y, z, w } }
+    pub fn new(x: f64, y: f64, z: f64, w: f64) -> Self {
+        Self { x, y, z, w }
+    }
 }
 
 /// Row-major 4×4 matrix.
@@ -62,10 +102,7 @@ pub struct Mat4 {
 impl Mat4 {
     pub const IDENTITY: Self = Self {
         m: [
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 1.0,
+            1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
         ],
     };
 
@@ -75,10 +112,22 @@ impl Mat4 {
         let u = s.cross(f);
         Self {
             m: [
-                s.x,  s.y,  s.z, -s.dot(eye),
-                u.x,  u.y,  u.z, -u.dot(eye),
-               -f.x, -f.y, -f.z,  f.dot(eye),
-                0.0,  0.0,  0.0,  1.0,
+                s.x,
+                s.y,
+                s.z,
+                -s.dot(eye),
+                u.x,
+                u.y,
+                u.z,
+                -u.dot(eye),
+                -f.x,
+                -f.y,
+                -f.z,
+                f.dot(eye),
+                0.0,
+                0.0,
+                0.0,
+                1.0,
             ],
         }
     }
@@ -89,10 +138,22 @@ impl Mat4 {
         let d = far - near;
         Self {
             m: [
-                2.0 / w, 0.0,     0.0,      -(right + left) / w,
-                0.0,     2.0 / h, 0.0,      -(top + bottom) / h,
-                0.0,     0.0,    -2.0 / d,  -(far + near) / d,
-                0.0,     0.0,     0.0,       1.0,
+                2.0 / w,
+                0.0,
+                0.0,
+                -(right + left) / w,
+                0.0,
+                2.0 / h,
+                0.0,
+                -(top + bottom) / h,
+                0.0,
+                0.0,
+                -2.0 / d,
+                -(far + near) / d,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
             ],
         }
     }
@@ -102,7 +163,9 @@ impl Mat4 {
         for row in 0..4 {
             for col in 0..4 {
                 let mut sum = 0.0;
-                for k in 0..4 { sum += self.m[row * 4 + k] * o.m[k * 4 + col]; }
+                for k in 0..4 {
+                    sum += self.m[row * 4 + k] * o.m[k * 4 + col];
+                }
                 r[row * 4 + col] = sum;
             }
         }
@@ -140,12 +203,8 @@ pub fn compute_splits(scheme: SplitScheme, cascade_count: u32, near: f64, far: f
     for i in 0..=cascade_count {
         let t = i as f64 / cascade_count as f64;
         let val = match scheme {
-            SplitScheme::Uniform => {
-                n + (far - n) * t
-            }
-            SplitScheme::Logarithmic => {
-                n * (far / n).powf(t)
-            }
+            SplitScheme::Uniform => n + (far - n) * t,
+            SplitScheme::Logarithmic => n * (far / n).powf(t),
             SplitScheme::Practical { lambda } => {
                 let lambda = lambda.clamp(0.0, 1.0);
                 let uni = n + (far - n) * t;
@@ -170,12 +229,24 @@ pub struct ShadowBias {
 }
 
 impl ShadowBias {
-    pub fn new(constant: f64, slope_scale: f64) -> Self { Self { constant, slope_scale } }
+    pub fn new(constant: f64, slope_scale: f64) -> Self {
+        Self {
+            constant,
+            slope_scale,
+        }
+    }
 
     /// Compute total bias given the surface normal and light direction.
     pub fn total(&self, surface_normal: Vec3, light_dir: Vec3) -> f64 {
-        let cos_angle = surface_normal.normalized().dot(light_dir.normalized()).abs();
-        let slope = if cos_angle > 1e-6 { (1.0 - cos_angle * cos_angle).sqrt() / cos_angle } else { 1e6 };
+        let cos_angle = surface_normal
+            .normalized()
+            .dot(light_dir.normalized())
+            .abs();
+        let slope = if cos_angle > 1e-6 {
+            (1.0 - cos_angle * cos_angle).sqrt() / cos_angle
+        } else {
+            1e6
+        };
         self.constant + self.slope_scale * slope
     }
 }
@@ -226,7 +297,9 @@ impl PcfKernel {
         }
         // Normalize weights.
         if total_weight > 1e-12 {
-            for s in &mut samples { s.2 /= total_weight; }
+            for s in &mut samples {
+                s.2 /= total_weight;
+            }
         }
         Self { size: s, samples }
     }
@@ -339,9 +412,12 @@ impl CascadedShadowMap {
             let light_pos = cascade_center.sub(self.light_direction.scale(cascade_radius * 2.0));
             let view = Mat4::look_at(light_pos, cascade_center, up);
             let proj = Mat4::ortho(
-                -cascade_radius, cascade_radius,
-                -cascade_radius, cascade_radius,
-                0.0, cascade_radius * 4.0,
+                -cascade_radius,
+                cascade_radius,
+                -cascade_radius,
+                cascade_radius,
+                0.0,
+                cascade_radius * 4.0,
             );
 
             let light_matrix = self.snap_to_texel(proj.mul(&view), cascade_radius);
@@ -358,9 +434,13 @@ impl CascadedShadowMap {
 
     /// Snap the light-space matrix to texel boundaries to prevent shadow shimmer.
     fn snap_to_texel(&self, mat: Mat4, radius: f64) -> Mat4 {
-        if self.resolution == 0 { return mat; }
+        if self.resolution == 0 {
+            return mat;
+        }
         let texel_size = 2.0 * radius / self.resolution as f64;
-        if texel_size < 1e-12 { return mat; }
+        if texel_size < 1e-12 {
+            return mat;
+        }
 
         let mut result = mat;
         // Snap the translation components (indices 3, 7) to texel grid.
@@ -391,10 +471,14 @@ impl CascadedShadowMap {
     /// and < 1 means blending with the next cascade.
     pub fn cascade_blend_factor(&self, depth: f64, cascade_index: u32) -> f64 {
         let idx = cascade_index as usize;
-        if idx >= self.cascades.len() { return 1.0; }
+        if idx >= self.cascades.len() {
+            return 1.0;
+        }
         let cascade = &self.cascades[idx];
         let dist_to_far = cascade.far - depth;
-        if dist_to_far <= 0.0 { return 0.0; }
+        if dist_to_far <= 0.0 {
+            return 0.0;
+        }
         if self.blend_distance <= 0.0 || dist_to_far >= self.blend_distance {
             return 1.0;
         }
@@ -420,7 +504,9 @@ mod tests {
 
     const EPS: f64 = 1e-6;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     #[test]
     fn splits_uniform() {
@@ -597,7 +683,8 @@ mod tests {
             100.0,
             SplitScheme::Uniform,
             512,
-        ).with_blend_distance(5.0);
+        )
+        .with_blend_distance(5.0);
         csm.compute_matrices(Vec3::ZERO, 50.0);
         let f = csm.cascade_blend_factor(10.0, 0);
         assert!(approx(f, 1.0));
@@ -612,7 +699,8 @@ mod tests {
             100.0,
             SplitScheme::Uniform,
             512,
-        ).with_blend_distance(5.0);
+        )
+        .with_blend_distance(5.0);
         csm.compute_matrices(Vec3::ZERO, 50.0);
         // First cascade goes from 1.0 to 50.5.
         let near_far = csm.cascades[0].far;
@@ -647,7 +735,8 @@ mod tests {
             100.0,
             SplitScheme::Uniform,
             512,
-        ).with_bias(ShadowBias::new(0.005, 0.05));
+        )
+        .with_bias(ShadowBias::new(0.005, 0.05));
         let b = csm.compute_bias(Vec3::new(0.0, 1.0, 0.0));
         assert!(b >= 0.005);
     }
@@ -677,10 +766,8 @@ mod tests {
         );
         let mat = Mat4 {
             m: [
-                1.0, 0.0, 0.0, 3.14159,
-                0.0, 1.0, 0.0, 2.71828,
-                0.0, 0.0, 1.0, 0.0,
-                0.0, 0.0, 0.0, 1.0,
+                1.0, 0.0, 0.0, 3.14159, 0.0, 1.0, 0.0, 2.71828, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+                1.0,
             ],
         };
         let snapped = csm.snap_to_texel(mat, 10.0);

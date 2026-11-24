@@ -572,10 +572,7 @@ mod tests {
 
     #[test]
     fn negotiate_selects_best() {
-        let available = vec![
-            MediaType::application_json(),
-            MediaType::text_html(),
-        ];
+        let available = vec![MediaType::application_json(), MediaType::text_html()];
         let result = negotiate("text/html, application/json;q=0.9", &available).unwrap();
         assert_eq!(result.essence(), "text/html");
     }

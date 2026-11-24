@@ -63,8 +63,17 @@ pub struct Icon {
 
 impl Icon {
     /// Create icon with src, size string (e.g. "192x192"), and MIME type.
-    pub fn new(src: impl Into<String>, sizes: impl Into<String>, mime_type: impl Into<String>) -> Self {
-        Self { src: src.into(), sizes: sizes.into(), mime_type: mime_type.into(), purpose: None }
+    pub fn new(
+        src: impl Into<String>,
+        sizes: impl Into<String>,
+        mime_type: impl Into<String>,
+    ) -> Self {
+        Self {
+            src: src.into(),
+            sizes: sizes.into(),
+            mime_type: mime_type.into(),
+            purpose: None,
+        }
     }
 
     /// Set icon purpose (e.g. "any", "maskable", "monochrome").
@@ -160,12 +169,19 @@ pub struct ShareParams {
 
 impl ShareParams {
     pub fn new() -> Self {
-        Self { title: None, text: None, url: None, files: Vec::new() }
+        Self {
+            title: None,
+            text: None,
+            url: None,
+            files: Vec::new(),
+        }
     }
 }
 
 impl Default for ShareParams {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// File type accepted by share target.
@@ -265,26 +281,80 @@ impl Manifest {
         }
     }
 
-    pub fn short_name(mut self, n: impl Into<String>) -> Self { self.short_name = Some(n.into()); self }
-    pub fn description(mut self, d: impl Into<String>) -> Self { self.description = Some(d.into()); self }
-    pub fn start_url(mut self, u: impl Into<String>) -> Self { self.start_url = Some(u.into()); self }
-    pub fn scope(mut self, s: impl Into<String>) -> Self { self.scope = Some(s.into()); self }
-    pub fn display(mut self, d: DisplayMode) -> Self { self.display = Some(d); self }
-    pub fn orientation(mut self, o: Orientation) -> Self { self.orientation = Some(o); self }
-    pub fn theme_color(mut self, c: impl Into<String>) -> Self { self.theme_color = Some(c.into()); self }
-    pub fn background_color(mut self, c: impl Into<String>) -> Self { self.background_color = Some(c.into()); self }
-    pub fn id(mut self, i: impl Into<String>) -> Self { self.id = Some(i.into()); self }
-    pub fn lang(mut self, l: impl Into<String>) -> Self { self.lang = Some(l.into()); self }
-    pub fn dir(mut self, d: impl Into<String>) -> Self { self.dir = Some(d.into()); self }
+    pub fn short_name(mut self, n: impl Into<String>) -> Self {
+        self.short_name = Some(n.into());
+        self
+    }
+    pub fn description(mut self, d: impl Into<String>) -> Self {
+        self.description = Some(d.into());
+        self
+    }
+    pub fn start_url(mut self, u: impl Into<String>) -> Self {
+        self.start_url = Some(u.into());
+        self
+    }
+    pub fn scope(mut self, s: impl Into<String>) -> Self {
+        self.scope = Some(s.into());
+        self
+    }
+    pub fn display(mut self, d: DisplayMode) -> Self {
+        self.display = Some(d);
+        self
+    }
+    pub fn orientation(mut self, o: Orientation) -> Self {
+        self.orientation = Some(o);
+        self
+    }
+    pub fn theme_color(mut self, c: impl Into<String>) -> Self {
+        self.theme_color = Some(c.into());
+        self
+    }
+    pub fn background_color(mut self, c: impl Into<String>) -> Self {
+        self.background_color = Some(c.into());
+        self
+    }
+    pub fn id(mut self, i: impl Into<String>) -> Self {
+        self.id = Some(i.into());
+        self
+    }
+    pub fn lang(mut self, l: impl Into<String>) -> Self {
+        self.lang = Some(l.into());
+        self
+    }
+    pub fn dir(mut self, d: impl Into<String>) -> Self {
+        self.dir = Some(d.into());
+        self
+    }
 
-    pub fn add_icon(mut self, icon: Icon) -> Self { self.icons.push(icon); self }
-    pub fn add_shortcut(mut self, s: Shortcut) -> Self { self.shortcuts.push(s); self }
-    pub fn add_related_app(mut self, app: RelatedApp) -> Self { self.related_applications.push(app); self }
-    pub fn add_protocol_handler(mut self, p: ProtocolHandler) -> Self { self.protocol_handlers.push(p); self }
-    pub fn add_category(mut self, c: impl Into<String>) -> Self { self.categories.push(c.into()); self }
+    pub fn add_icon(mut self, icon: Icon) -> Self {
+        self.icons.push(icon);
+        self
+    }
+    pub fn add_shortcut(mut self, s: Shortcut) -> Self {
+        self.shortcuts.push(s);
+        self
+    }
+    pub fn add_related_app(mut self, app: RelatedApp) -> Self {
+        self.related_applications.push(app);
+        self
+    }
+    pub fn add_protocol_handler(mut self, p: ProtocolHandler) -> Self {
+        self.protocol_handlers.push(p);
+        self
+    }
+    pub fn add_category(mut self, c: impl Into<String>) -> Self {
+        self.categories.push(c.into());
+        self
+    }
 
-    pub fn share_target(mut self, st: ShareTarget) -> Self { self.share_target = Some(st); self }
-    pub fn prefer_related(mut self, p: bool) -> Self { self.prefer_related_applications = Some(p); self }
+    pub fn share_target(mut self, st: ShareTarget) -> Self {
+        self.share_target = Some(st);
+        self
+    }
+    pub fn prefer_related(mut self, p: bool) -> Self {
+        self.prefer_related_applications = Some(p);
+        self
+    }
 
     /// Serialize to JSON string.
     pub fn to_json(&self) -> String {
@@ -307,13 +377,20 @@ impl Manifest {
         if let Some(ref tc) = self.theme_color {
             tags.push(format!(r#"<meta name="theme-color" content="{tc}">"#));
         }
-        if self.display == Some(DisplayMode::Standalone) || self.display == Some(DisplayMode::Fullscreen) {
+        if self.display == Some(DisplayMode::Standalone)
+            || self.display == Some(DisplayMode::Fullscreen)
+        {
             tags.push(r#"<meta name="apple-mobile-web-app-capable" content="yes">"#.to_string());
         }
         if let Some(ref sn) = self.short_name {
-            tags.push(format!(r#"<meta name="apple-mobile-web-app-title" content="{sn}">"#));
+            tags.push(format!(
+                r#"<meta name="apple-mobile-web-app-title" content="{sn}">"#
+            ));
         } else {
-            tags.push(format!(r#"<meta name="apple-mobile-web-app-title" content="{}">"#, self.name));
+            tags.push(format!(
+                r#"<meta name="apple-mobile-web-app-title" content="{}">"#,
+                self.name
+            ));
         }
         tags
     }
@@ -325,11 +402,17 @@ impl Manifest {
             warnings.push("name is empty".into());
         }
         if self.name.len() > 45 {
-            warnings.push(format!("name is {} chars (recommended max 45)", self.name.len()));
+            warnings.push(format!(
+                "name is {} chars (recommended max 45)",
+                self.name.len()
+            ));
         }
         if let Some(ref sn) = self.short_name {
             if sn.len() > 12 {
-                warnings.push(format!("short_name is {} chars (recommended max 12)", sn.len()));
+                warnings.push(format!(
+                    "short_name is {} chars (recommended max 12)",
+                    sn.len()
+                ));
             }
         }
         if self.icons.is_empty() {
@@ -337,12 +420,20 @@ impl Manifest {
         } else {
             let has_192 = self.icons.iter().any(|i| i.sizes.contains("192"));
             let has_512 = self.icons.iter().any(|i| i.sizes.contains("512"));
-            if !has_192 { warnings.push("missing 192x192 icon".into()); }
-            if !has_512 { warnings.push("missing 512x512 icon".into()); }
+            if !has_192 {
+                warnings.push("missing 192x192 icon".into());
+            }
+            if !has_512 {
+                warnings.push("missing 512x512 icon".into());
+            }
             let has_maskable = self.icons.iter().any(|i| {
-                i.purpose.as_deref().map_or(false, |p| p.contains("maskable"))
+                i.purpose
+                    .as_deref()
+                    .map_or(false, |p| p.contains("maskable"))
             });
-            if !has_maskable { warnings.push("no maskable icon for adaptive icon support".into()); }
+            if !has_maskable {
+                warnings.push("no maskable icon for adaptive icon support".into());
+            }
         }
         if self.start_url.is_none() {
             warnings.push("start_url not set".into());
@@ -357,10 +448,14 @@ impl Manifest {
     }
 
     /// Count of defined icons.
-    pub fn icon_count(&self) -> usize { self.icons.len() }
+    pub fn icon_count(&self) -> usize {
+        self.icons.len()
+    }
 
     /// Count of defined shortcuts.
-    pub fn shortcut_count(&self) -> usize { self.shortcuts.len() }
+    pub fn shortcut_count(&self) -> usize {
+        self.shortcuts.len()
+    }
 }
 
 // ── Standard icon sets ───────────────────────────────────────────
@@ -368,9 +463,10 @@ impl Manifest {
 /// Generate a standard set of PNG icons at common sizes.
 pub fn standard_icon_set(base_path: &str) -> Vec<Icon> {
     let sizes: &[u32] = &[48, 72, 96, 128, 144, 152, 192, 384, 512];
-    sizes.iter().map(|s| {
-        Icon::png(format!("{base_path}/icon-{s}x{s}.png"), *s)
-    }).collect()
+    sizes
+        .iter()
+        .map(|s| Icon::png(format!("{base_path}/icon-{s}x{s}.png"), *s))
+        .collect()
 }
 
 /// Generate maskable + any icon set.
@@ -522,14 +618,21 @@ mod tests {
 
         let tags = m.meta_tags();
         assert!(tags.iter().any(|t| t.contains("theme-color")));
-        assert!(tags.iter().any(|t| t.contains("apple-mobile-web-app-capable")));
+        assert!(
+            tags.iter()
+                .any(|t| t.contains("apple-mobile-web-app-capable"))
+        );
     }
 
     #[test]
     fn test_meta_tags_browser_mode() {
         let m = Manifest::new("App").display(DisplayMode::Browser);
         let tags = m.meta_tags();
-        assert!(!tags.iter().any(|t| t.contains("apple-mobile-web-app-capable")));
+        assert!(
+            !tags
+                .iter()
+                .any(|t| t.contains("apple-mobile-web-app-capable"))
+        );
     }
 
     #[test]
@@ -552,9 +655,10 @@ mod tests {
     fn test_dual_purpose_icons() {
         let icons = dual_purpose_icons("/img");
         assert_eq!(icons.len(), 4);
-        let maskable_count = icons.iter().filter(|i| {
-            i.purpose.as_deref() == Some("maskable")
-        }).count();
+        let maskable_count = icons
+            .iter()
+            .filter(|i| i.purpose.as_deref() == Some("maskable"))
+            .count();
         assert_eq!(maskable_count, 2);
     }
 
@@ -575,11 +679,10 @@ mod tests {
 
     #[test]
     fn test_protocol_handlers() {
-        let m = Manifest::new("App")
-            .add_protocol_handler(ProtocolHandler {
-                protocol: "web+myapp".into(),
-                url: "/handle?url=%s".into(),
-            });
+        let m = Manifest::new("App").add_protocol_handler(ProtocolHandler {
+            protocol: "web+myapp".into(),
+            url: "/handle?url=%s".into(),
+        });
 
         assert_eq!(m.protocol_handlers.len(), 1);
         assert_eq!(m.protocol_handlers[0].protocol, "web+myapp");
@@ -647,7 +750,10 @@ mod tests {
         assert_eq!(DisplayMode::Standalone.to_string(), "standalone");
         assert_eq!(DisplayMode::MinimalUi.to_string(), "minimal-ui");
         assert_eq!(DisplayMode::Browser.to_string(), "browser");
-        assert_eq!(DisplayMode::WindowControlsOverlay.to_string(), "window-controls-overlay");
+        assert_eq!(
+            DisplayMode::WindowControlsOverlay.to_string(),
+            "window-controls-overlay"
+        );
     }
 
     #[test]

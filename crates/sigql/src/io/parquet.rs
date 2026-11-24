@@ -189,7 +189,8 @@ fn read_parquet_raw(
 ) -> IoResult<(HashMap<String, ColumnData>, HashMap<String, String>)> {
     let mut head = [0u8; 8];
     {
-        let mut f = File::open(path).map_err(|_| IoError::FileNotFound(path.display().to_string()))?;
+        let mut f =
+            File::open(path).map_err(|_| IoError::FileNotFound(path.display().to_string()))?;
         let n = f.read(&mut head)?;
         if n == 8 && head == *MAGIC {
             return read_legacy_sigpq(path);
@@ -226,7 +227,10 @@ fn read_real_parquet(
                     let c = arrow::compute::cast(a, &DataType::Int64).map_err(|e| perr(&e))?;
                     let p = c.as_primitive::<Int64Type>();
                     let vals = (0..p.len()).map(|i| if p.is_null(i) { 0 } else { p.value(i) });
-                    match columns.entry(name).or_insert_with(|| ColumnData::I64(Vec::new())) {
+                    match columns
+                        .entry(name)
+                        .or_insert_with(|| ColumnData::I64(Vec::new()))
+                    {
                         ColumnData::I64(v) => v.extend(vals),
                         ColumnData::F64(v) => v.extend(vals.map(|x| x as f64)),
                     }
@@ -234,8 +238,12 @@ fn read_real_parquet(
                 t if t.is_numeric() => {
                     let c = arrow::compute::cast(a, &DataType::Float64).map_err(|e| perr(&e))?;
                     let p = c.as_primitive::<Float64Type>();
-                    let vals = (0..p.len()).map(|i| if p.is_null(i) { f64::NAN } else { p.value(i) });
-                    match columns.entry(name).or_insert_with(|| ColumnData::F64(Vec::new())) {
+                    let vals =
+                        (0..p.len()).map(|i| if p.is_null(i) { f64::NAN } else { p.value(i) });
+                    match columns
+                        .entry(name)
+                        .or_insert_with(|| ColumnData::F64(Vec::new()))
+                    {
                         ColumnData::F64(v) => v.extend(vals),
                         ColumnData::I64(v) => v.extend(vals.map(|x| x as i64)),
                     }
@@ -387,7 +395,8 @@ pub fn write_parquet_multi(
             (0..num_rows).map(|i| signal.samples.get(i).copied().unwrap_or(0.0)),
         )));
     }
-    let batch = RecordBatch::try_new(Arc::new(Schema::new(fields)), arrays).map_err(|e| perr(&e))?;
+    let batch =
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), arrays).map_err(|e| perr(&e))?;
     let codec = match options.compression {
         Compression::None => parquet::basic::Compression::UNCOMPRESSED,
         Compression::Snappy => parquet::basic::Compression::SNAPPY,
@@ -404,8 +413,9 @@ pub fn write_parquet_multi(
         ]))
         .build();
     let file = File::create(path)?;
-    let mut w = parquet::arrow::ArrowWriter::try_new(BufWriter::new(file), batch.schema(), Some(props))
-        .map_err(|e| perr(&e))?;
+    let mut w =
+        parquet::arrow::ArrowWriter::try_new(BufWriter::new(file), batch.schema(), Some(props))
+            .map_err(|e| perr(&e))?;
     w.write(&batch).map_err(|e| perr(&e))?;
     w.close().map_err(|e| perr(&e))?;
     Ok(())
@@ -413,7 +423,11 @@ pub fn write_parquet_multi(
 
 /// Write a legacy SIGPQ file (tests only: proves old files still read).
 #[cfg(test)]
-fn write_legacy_sigpq(path: &Path, signals: &[DynSignal<f64>], options: ParquetOptions) -> IoResult<()> {
+fn write_legacy_sigpq(
+    path: &Path,
+    signals: &[DynSignal<f64>],
+    options: ParquetOptions,
+) -> IoResult<()> {
     let file = File::create(path)?;
     let mut writer = BufWriter::new(file);
 
@@ -491,7 +505,6 @@ fn write_legacy_sigpq(path: &Path, signals: &[DynSignal<f64>], options: ParquetO
     Ok(())
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -539,11 +552,19 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path().join("real.parquet");
         let signal = DynSignal::new("v", vec![0.5, 1.5, 2.5], 1000, 7);
-        write_parquet(&path, &signal, ParquetOptions::new().with_compression(Compression::Zstd)).unwrap();
+        write_parquet(
+            &path,
+            &signal,
+            ParquetOptions::new().with_compression(Compression::Zstd),
+        )
+        .unwrap();
         let bytes = std::fs::read(&path).unwrap();
         assert_eq!(&bytes[..4], b"PAR1");
         assert_eq!(&bytes[bytes.len() - 4..], b"PAR1");
-        let rd = parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder::try_new(File::open(&path).unwrap()).unwrap();
+        let rd = parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder::try_new(
+            File::open(&path).unwrap(),
+        )
+        .unwrap();
         let s = rd.schema();
         assert_eq!(s.field(0).name(), "timestamp");
         assert_eq!(s.field(0).data_type(), &arrow::datatypes::DataType::Int64);

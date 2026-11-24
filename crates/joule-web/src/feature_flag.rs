@@ -530,38 +530,32 @@ mod tests {
     #[test]
     fn rule_matches_returns_rule_value() {
         let mut mgr = FlagManager::new();
-        mgr.register(
-            Flag::bool_flag("beta", false).with_rule(FlagRule::new(
-                "r1",
-                vec![Condition {
-                    attribute: "plan".into(),
-                    operator: ConditionOp::Equals,
-                    value: json!("enterprise"),
-                }],
-                FlagValue::Bool(true),
-            )),
-        );
-        let ctx = FlagEvaluationContext::new()
-            .with_attr("plan", json!("enterprise"));
+        mgr.register(Flag::bool_flag("beta", false).with_rule(FlagRule::new(
+            "r1",
+            vec![Condition {
+                attribute: "plan".into(),
+                operator: ConditionOp::Equals,
+                value: json!("enterprise"),
+            }],
+            FlagValue::Bool(true),
+        )));
+        let ctx = FlagEvaluationContext::new().with_attr("plan", json!("enterprise"));
         assert!(mgr.is_enabled("beta", &ctx));
     }
 
     #[test]
     fn rule_no_match_falls_to_default() {
         let mut mgr = FlagManager::new();
-        mgr.register(
-            Flag::bool_flag("beta", false).with_rule(FlagRule::new(
-                "r1",
-                vec![Condition {
-                    attribute: "plan".into(),
-                    operator: ConditionOp::Equals,
-                    value: json!("enterprise"),
-                }],
-                FlagValue::Bool(true),
-            )),
-        );
-        let ctx = FlagEvaluationContext::new()
-            .with_attr("plan", json!("free"));
+        mgr.register(Flag::bool_flag("beta", false).with_rule(FlagRule::new(
+            "r1",
+            vec![Condition {
+                attribute: "plan".into(),
+                operator: ConditionOp::Equals,
+                value: json!("enterprise"),
+            }],
+            FlagValue::Bool(true),
+        )));
+        let ctx = FlagEvaluationContext::new().with_attr("plan", json!("free"));
         assert!(!mgr.is_enabled("beta", &ctx));
     }
 
@@ -644,8 +638,10 @@ mod tests {
         let val = mgr.evaluate("child", &FlagEvaluationContext::default());
         // default_value for bool_flag(true) is Bool(true), but dependency not met → returns default.
         // Actually the default_value equals value for bool_flag, so let's test with a different setup.
-        assert!(!mgr.is_enabled("child", &FlagEvaluationContext::default())
-            || mgr.is_enabled("child", &FlagEvaluationContext::default()));
+        assert!(
+            !mgr.is_enabled("child", &FlagEvaluationContext::default())
+                || mgr.is_enabled("child", &FlagEvaluationContext::default())
+        );
         // Just verify dependency check was triggered via the log.
     }
 
@@ -712,8 +708,7 @@ mod tests {
             operator: ConditionOp::Contains,
             value: json!("@acme.com"),
         };
-        let ctx = FlagEvaluationContext::new()
-            .with_attr("email", json!("alice@acme.com"));
+        let ctx = FlagEvaluationContext::new().with_attr("email", json!("alice@acme.com"));
         assert!(condition_matches(&cond, &ctx));
     }
 
@@ -724,8 +719,7 @@ mod tests {
             operator: ConditionOp::EndsWith,
             value: json!(".rs"),
         };
-        let ctx = FlagEvaluationContext::new()
-            .with_attr("file", json!("main.rs"));
+        let ctx = FlagEvaluationContext::new().with_attr("file", json!("main.rs"));
         assert!(condition_matches(&cond, &ctx));
     }
 
@@ -736,8 +730,7 @@ mod tests {
             operator: ConditionOp::In,
             value: json!(["US", "CA"]),
         };
-        let ctx = FlagEvaluationContext::new()
-            .with_attr("country", json!("US"));
+        let ctx = FlagEvaluationContext::new().with_attr("country", json!("US"));
         assert!(condition_matches(&cond, &ctx));
     }
 

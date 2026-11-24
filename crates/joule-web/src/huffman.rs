@@ -4,8 +4,8 @@
 //! codes, and provides encode/decode operations. Replaces JavaScript
 //! Huffman libraries with a pure Rust implementation.
 
-use std::collections::BinaryHeap;
 use std::cmp::Reverse;
+use std::collections::BinaryHeap;
 
 // ── Errors ───────────────────────────────────────────────────────────
 
@@ -27,8 +27,15 @@ pub enum HuffmanError {
 /// A node in the Huffman tree.
 #[derive(Debug, Clone)]
 enum HuffNode {
-    Leaf { byte: u8, freq: u64 },
-    Internal { freq: u64, left: Box<HuffNode>, right: Box<HuffNode> },
+    Leaf {
+        byte: u8,
+        freq: u64,
+    },
+    Internal {
+        freq: u64,
+        left: Box<HuffNode>,
+        right: Box<HuffNode>,
+    },
 }
 
 impl HuffNode {
@@ -98,7 +105,10 @@ impl CodeTable {
                 table[sym] = codes.get(&(sym as u8)).copied();
             }
         }
-        Ok(Self { codes: table, bit_lengths })
+        Ok(Self {
+            codes: table,
+            bit_lengths,
+        })
     }
 
     /// Look up the code for a byte.
@@ -130,7 +140,10 @@ fn build_tree(freq: &[u64; 256]) -> Option<HuffNode> {
     let mut heap = BinaryHeap::new();
     for (byte, &f) in freq.iter().enumerate() {
         if f > 0 {
-            heap.push(HuffNode::Leaf { byte: byte as u8, freq: f });
+            heap.push(HuffNode::Leaf {
+                byte: byte as u8,
+                freq: f,
+            });
         }
     }
 
@@ -146,7 +159,10 @@ fn build_tree(freq: &[u64; 256]) -> Option<HuffNode> {
             _ => 0,
         };
         heap.push(node);
-        heap.push(HuffNode::Leaf { byte: dummy_byte, freq: 0 });
+        heap.push(HuffNode::Leaf {
+            byte: dummy_byte,
+            freq: 0,
+        });
     }
 
     while heap.len() > 1 {
@@ -198,7 +214,13 @@ fn canonical_codes_from_lengths(lengths: &[u8; 256]) -> std::collections::HashMa
         if len > prev_len {
             code <<= len - prev_len;
         }
-        codes.insert(sym, HuffCode { bits: code, length: len });
+        codes.insert(
+            sym,
+            HuffCode {
+                bits: code,
+                length: len,
+            },
+        );
         prev_len = len;
     }
 
@@ -260,11 +282,7 @@ pub fn encode(data: &[u8], table: &CodeTable) -> Result<(Vec<u8>, u64), HuffmanE
 }
 
 /// Decode bits back to bytes using the code table.
-pub fn decode(
-    encoded: &[u8],
-    bit_count: u64,
-    table: &CodeTable,
-) -> Result<Vec<u8>, HuffmanError> {
+pub fn decode(encoded: &[u8], bit_count: u64, table: &CodeTable) -> Result<Vec<u8>, HuffmanError> {
     // Build a lookup from (bits, length) -> symbol.
     let mut lookup: std::collections::HashMap<(u32, u8), u8> = std::collections::HashMap::new();
     for sym in 0u16..256 {
@@ -483,12 +501,18 @@ mod tests {
 
     #[test]
     fn empty_input_error() {
-        assert!(matches!(build_code_table(b""), Err(HuffmanError::EmptyInput)));
+        assert!(matches!(
+            build_code_table(b""),
+            Err(HuffmanError::EmptyInput)
+        ));
     }
 
     #[test]
     fn invalid_table_deserialize() {
-        assert!(matches!(CodeTable::deserialize(&[1, 2, 3]), Err(HuffmanError::InvalidCodeTable)));
+        assert!(matches!(
+            CodeTable::deserialize(&[1, 2, 3]),
+            Err(HuffmanError::InvalidCodeTable)
+        ));
     }
 
     #[test]

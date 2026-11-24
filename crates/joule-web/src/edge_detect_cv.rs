@@ -18,12 +18,24 @@ pub struct GrayImage {
 
 impl GrayImage {
     pub fn new(width: usize, height: usize) -> Self {
-        Self { data: vec![0.0; width * height], width, height }
+        Self {
+            data: vec![0.0; width * height],
+            width,
+            height,
+        }
     }
 
     pub fn from_data(data: Vec<f64>, width: usize, height: usize) -> Self {
-        assert_eq!(data.len(), width * height, "data length must match width*height");
-        Self { data, width, height }
+        assert_eq!(
+            data.len(),
+            width * height,
+            "data length must match width*height"
+        );
+        Self {
+            data,
+            width,
+            height,
+        }
     }
 
     pub fn get(&self, x: usize, y: usize) -> f64 {
@@ -60,7 +72,7 @@ pub fn convolve2d(image: &GrayImage, kernel: &[f64], ksize: usize) -> GrayImage 
                     let sc = col as i64 + kc as i64 - half as i64;
                     if sr >= 0 && sr < h && sc >= 0 && sc < w {
                         sum += image.data[sr as usize * image.width + sc as usize]
-                             * kernel[kr * ksize + kc];
+                            * kernel[kr * ksize + kc];
                     }
                 }
             }
@@ -194,8 +206,11 @@ impl CannyConfig {
 
 impl fmt::Display for CannyConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CannyConfig(lo={}, hi={}, blur={}x{:.1})",
-               self.low_threshold, self.high_threshold, self.blur_size, self.blur_sigma)
+        write!(
+            f,
+            "CannyConfig(lo={}, hi={}, blur={}x{:.1})",
+            self.low_threshold, self.high_threshold, self.blur_size, self.blur_sigma
+        )
     }
 }
 
@@ -225,10 +240,10 @@ fn non_max_suppress(mag: &GrayImage, dir: &GrayImage) -> GrayImage {
             let m = mag.data[r * w + c];
 
             let (n1, n2) = match angle {
-                0   => (mag.data[r * w + c - 1], mag.data[r * w + c + 1]),
-                45  => (mag.data[(r - 1) * w + c + 1], mag.data[(r + 1) * w + c - 1]),
-                90  => (mag.data[(r - 1) * w + c], mag.data[(r + 1) * w + c]),
-                _   => (mag.data[(r - 1) * w + c - 1], mag.data[(r + 1) * w + c + 1]),
+                0 => (mag.data[r * w + c - 1], mag.data[r * w + c + 1]),
+                45 => (mag.data[(r - 1) * w + c + 1], mag.data[(r + 1) * w + c - 1]),
+                90 => (mag.data[(r - 1) * w + c], mag.data[(r + 1) * w + c]),
+                _ => (mag.data[(r - 1) * w + c - 1], mag.data[(r + 1) * w + c + 1]),
             };
 
             out.data[r * w + c] = if m >= n1 && m >= n2 { m } else { 0.0 };
@@ -240,9 +255,7 @@ fn non_max_suppress(mag: &GrayImage, dir: &GrayImage) -> GrayImage {
 /// Hysteresis thresholding: pixels above `high` are strong edges;
 /// pixels between `low` and `high` are weak edges kept only if
 /// connected to a strong edge.
-pub fn hysteresis(
-    thin: &GrayImage, low: f64, high: f64,
-) -> GrayImage {
+pub fn hysteresis(thin: &GrayImage, low: f64, high: f64) -> GrayImage {
     let w = thin.width;
     let h = thin.height;
     let mut out = GrayImage::new(w, h);
@@ -268,8 +281,7 @@ pub fn hysteresis(
                 if out.data[r * w + c] != WEAK {
                     continue;
                 }
-                let has_strong_neighbor =
-                    out.data[(r - 1) * w + c - 1] == STRONG
+                let has_strong_neighbor = out.data[(r - 1) * w + c - 1] == STRONG
                     || out.data[(r - 1) * w + c] == STRONG
                     || out.data[(r - 1) * w + c + 1] == STRONG
                     || out.data[r * w + c - 1] == STRONG
@@ -380,7 +392,9 @@ pub fn edge_pixel_count(edge_map: &GrayImage) -> usize {
 /// Fraction of edge pixels relative to total.
 pub fn edge_density(edge_map: &GrayImage) -> f64 {
     let total = edge_map.data.len();
-    if total == 0 { return 0.0; }
+    if total == 0 {
+        return 0.0;
+    }
     edge_pixel_count(edge_map) as f64 / total as f64
 }
 
@@ -484,7 +498,9 @@ mod tests {
 
     #[test]
     fn test_canny_config_builder() {
-        let cfg = CannyConfig::new().with_thresholds(30.0, 100.0).with_blur(3, 1.0);
+        let cfg = CannyConfig::new()
+            .with_thresholds(30.0, 100.0)
+            .with_blur(3, 1.0);
         assert_eq!(cfg.low_threshold, 30.0);
         assert_eq!(cfg.high_threshold, 100.0);
         assert_eq!(cfg.blur_size, 3);
@@ -508,9 +524,14 @@ mod tests {
     #[test]
     fn test_canny_step_edge() {
         let img = step_edge_image(40, 40);
-        let cfg = CannyConfig::new().with_thresholds(10.0, 30.0).with_blur(3, 0.8);
+        let cfg = CannyConfig::new()
+            .with_thresholds(10.0, 30.0)
+            .with_blur(3, 0.8);
         let edges = canny(&img, &cfg);
-        assert!(edge_pixel_count(&edges) > 0, "should detect the vertical edge");
+        assert!(
+            edge_pixel_count(&edges) > 0,
+            "should detect the vertical edge"
+        );
     }
 
     #[test]
@@ -541,14 +562,20 @@ mod tests {
         let mut img = GrayImage::new(10, 10);
         // Create a sign change at column 5
         for r in 0..10 {
-            for c in 0..5 { img.set(c, r, 10.0); }
-            for c in 5..10 { img.set(c, r, -10.0); }
+            for c in 0..5 {
+                img.set(c, r, 10.0);
+            }
+            for c in 5..10 {
+                img.set(c, r, -10.0);
+            }
         }
         let zc = zero_crossings(&img, 5.0);
         // Should have edges near column 4-5
         let mut found = false;
         for r in 1..9 {
-            if zc.get(4, r) > 0.0 { found = true; }
+            if zc.get(4, r) > 0.0 {
+                found = true;
+            }
         }
         assert!(found, "should find zero crossings at sign boundary");
     }

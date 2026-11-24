@@ -27,10 +27,7 @@ pub enum ContentEvent {
         completion_pct: f32,
     },
     /// User liked/hearted content
-    Like {
-        user_id: String,
-        content_id: String,
-    },
+    Like { user_id: String, content_id: String },
     /// User shared content
     Share {
         user_id: String,
@@ -44,10 +41,7 @@ pub enum ContentEvent {
         after_ms: u64,
     },
     /// User searched for content
-    Search {
-        user_id: String,
-        query: String,
-    },
+    Search { user_id: String, query: String },
     /// Content was shown to user (for CTR calculation)
     Impression {
         user_id: String,
@@ -55,10 +49,7 @@ pub enum ContentEvent {
         position: u32,
     },
     /// User scrolled in feed
-    Scroll {
-        user_id: String,
-        velocity: f32,
-    },
+    Scroll { user_id: String, velocity: f32 },
 }
 
 impl ContentEvent {
@@ -96,13 +87,13 @@ impl ContentEvent {
                 *completion_pct * 3.0
             }
             ContentEvent::Like { .. } => 2.0,
-            ContentEvent::Share { .. } => 2.5,      // Sharing is high intent
+            ContentEvent::Share { .. } => 2.5, // Sharing is high intent
             ContentEvent::Skip { after_ms, .. } => {
                 // Quick skip = negative signal
                 if *after_ms < 2000 { -1.0 } else { -0.5 }
             }
             ContentEvent::Search { .. } => 1.0,
-            ContentEvent::Impression { .. } => 0.1,  // Weak positive (saw it)
+            ContentEvent::Impression { .. } => 0.1, // Weak positive (saw it)
             ContentEvent::Scroll { velocity, .. } => {
                 // Fast scroll = disengaged
                 if *velocity > 5.0 { -0.3 } else { 0.0 }
@@ -189,7 +180,10 @@ impl EventProcessor {
 
         // Update content engagement score
         if let Some(cid) = event.content_id() {
-            *profile.content_engagement.entry(cid.to_string()).or_default() += weight;
+            *profile
+                .content_engagement
+                .entry(cid.to_string())
+                .or_default() += weight;
         }
 
         // Update holographic profile if we have the content's hologram

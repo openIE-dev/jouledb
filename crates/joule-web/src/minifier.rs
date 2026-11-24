@@ -197,8 +197,18 @@ fn shorten_hex_colors(input: &str) -> String {
 
 /// Optional closing tags that browsers insert automatically.
 const OPTIONAL_CLOSE_TAGS: &[&str] = &[
-    "</li>", "</dt>", "</dd>", "</p>", "</tr>", "</td>", "</th>",
-    "</thead>", "</tbody>", "</tfoot>", "</option>", "</colgroup>",
+    "</li>",
+    "</dt>",
+    "</dd>",
+    "</p>",
+    "</tr>",
+    "</td>",
+    "</th>",
+    "</thead>",
+    "</tbody>",
+    "</tfoot>",
+    "</option>",
+    "</colgroup>",
 ];
 
 /// Minify HTML source code.

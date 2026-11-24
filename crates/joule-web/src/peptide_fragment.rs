@@ -103,7 +103,13 @@ pub struct FragmentIon {
 impl FragmentIon {
     pub fn new(ion_type: FragmentType, index: usize, charge: u8, neutral_mass: f64) -> Self {
         let mz = (neutral_mass + charge as f64 * PROTON_MASS) / charge as f64;
-        Self { ion_type, index, charge, mz, neutral_mass }
+        Self {
+            ion_type,
+            index,
+            charge,
+            mz,
+            neutral_mass,
+        }
     }
 }
 
@@ -255,19 +261,35 @@ pub fn generate_fragments(sequence: &str, config: &FragmentConfig) -> Option<Vec
 
             // Neutral losses.
             if config.include_neutral_losses && config.model.strong_neutral_losses() {
-                let bw = FragmentIon::new(FragmentType::BMinusWater, i, charge, b_mass - WATER_LOSS);
+                let bw =
+                    FragmentIon::new(FragmentType::BMinusWater, i, charge, b_mass - WATER_LOSS);
                 if bw.mz >= config.min_mz && bw.mz <= config.max_mz && bw.neutral_mass > 0.0 {
                     ions.push(bw);
                 }
-                let ba = FragmentIon::new(FragmentType::BMinusAmmonia, i, charge, b_mass - AMMONIA_LOSS);
+                let ba = FragmentIon::new(
+                    FragmentType::BMinusAmmonia,
+                    i,
+                    charge,
+                    b_mass - AMMONIA_LOSS,
+                );
                 if ba.mz >= config.min_mz && ba.mz <= config.max_mz && ba.neutral_mass > 0.0 {
                     ions.push(ba);
                 }
-                let yw = FragmentIon::new(FragmentType::YMinusWater, n - i, charge, y_mass - WATER_LOSS);
+                let yw = FragmentIon::new(
+                    FragmentType::YMinusWater,
+                    n - i,
+                    charge,
+                    y_mass - WATER_LOSS,
+                );
                 if yw.mz >= config.min_mz && yw.mz <= config.max_mz && yw.neutral_mass > 0.0 {
                     ions.push(yw);
                 }
-                let ya = FragmentIon::new(FragmentType::YMinusAmmonia, n - i, charge, y_mass - AMMONIA_LOSS);
+                let ya = FragmentIon::new(
+                    FragmentType::YMinusAmmonia,
+                    n - i,
+                    charge,
+                    y_mass - AMMONIA_LOSS,
+                );
                 if ya.mz >= config.min_mz && ya.mz <= config.max_mz && ya.neutral_mass > 0.0 {
                     ions.push(ya);
                 }
@@ -334,8 +356,14 @@ mod tests {
             .with_neutral_losses(false)
             .with_mz_range(0.0, 5000.0);
         let ions = generate_fragments("PEPTIDE", &cfg).unwrap();
-        let b_count = ions.iter().filter(|i| i.ion_type == FragmentType::B).count();
-        let y_count = ions.iter().filter(|i| i.ion_type == FragmentType::Y).count();
+        let b_count = ions
+            .iter()
+            .filter(|i| i.ion_type == FragmentType::B)
+            .count();
+        let y_count = ions
+            .iter()
+            .filter(|i| i.ion_type == FragmentType::Y)
+            .count();
         // 7-residue peptide ⟹ 6 b-ions and 6 y-ions.
         assert_eq!(b_count, 6);
         assert_eq!(y_count, 6);
@@ -348,22 +376,23 @@ mod tests {
             .with_neutral_losses(false)
             .with_mz_range(0.0, 5000.0);
         let ions = generate_fragments("PEPTIDE", &cfg).unwrap();
-        let a_count = ions.iter().filter(|i| i.ion_type == FragmentType::A).count();
+        let a_count = ions
+            .iter()
+            .filter(|i| i.ion_type == FragmentType::A)
+            .count();
         assert!(a_count > 0);
     }
 
     #[test]
     fn test_neutral_losses_cid() {
-        let cfg = FragmentConfig::new(FragmentationModel::Cid)
-            .with_mz_range(0.0, 5000.0);
+        let cfg = FragmentConfig::new(FragmentationModel::Cid).with_mz_range(0.0, 5000.0);
         let ions = generate_fragments("PEPTIDE", &cfg).unwrap();
         assert!(ions.iter().any(|i| i.ion_type == FragmentType::BMinusWater));
     }
 
     #[test]
     fn test_no_neutral_losses_hcd() {
-        let cfg = FragmentConfig::new(FragmentationModel::Hcd)
-            .with_mz_range(0.0, 5000.0);
+        let cfg = FragmentConfig::new(FragmentationModel::Hcd).with_mz_range(0.0, 5000.0);
         let ions = generate_fragments("PEPTIDE", &cfg).unwrap();
         // HCD does not have strong neutral losses in our model.
         assert!(!ions.iter().any(|i| i.ion_type == FragmentType::BMinusWater));
@@ -400,7 +429,10 @@ mod tests {
             .with_neutral_losses(false)
             .with_mz_range(0.0, 5000.0);
         let ions = generate_fragments("AG", &cfg).unwrap();
-        let b1 = ions.iter().find(|i| i.ion_type == FragmentType::B && i.index == 1).unwrap();
+        let b1 = ions
+            .iter()
+            .find(|i| i.ion_type == FragmentType::B && i.index == 1)
+            .unwrap();
         // b1 = A residue mass + proton
         let expected = 71.037_114 + PROTON_MASS;
         assert!((b1.mz - expected).abs() < 0.001);

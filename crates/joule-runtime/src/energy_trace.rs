@@ -258,8 +258,8 @@ impl TraceAnalyzer {
 
         // Detect spike before pushing (compare to current stats)
         if self.stats.len() >= self.config.min_samples {
-            let threshold = self.stats.mean()
-                + self.config.spike_std_dev_threshold * self.stats.std_dev();
+            let threshold =
+                self.stats.mean() + self.config.spike_std_dev_threshold * self.stats.std_dev();
             if power > threshold {
                 self.spike_count += 1;
             }
@@ -313,8 +313,7 @@ impl TraceAnalyzer {
         });
 
         // Classify pattern
-        let (pattern, confidence) =
-            self.classify(cv, slope, peak_ac, warburg_ratio);
+        let (pattern, confidence) = self.classify(cv, slope, peak_ac, warburg_ratio);
 
         TraceDiagnosis {
             pattern,
@@ -516,8 +515,8 @@ mod tests {
         });
         // Irregular spikes — not periodic, not trending, just variable
         let energies = [
-            1000, 1100, 5000, 900, 1050, 950, 1000, 6000, 1000, 1100,
-            1000, 950, 7000, 1050, 1000, 900, 1100, 1000, 5500, 1000,
+            1000, 1100, 5000, 900, 1050, 950, 1000, 6000, 1000, 1100, 1000, 950, 7000, 1050, 1000,
+            900, 1100, 1000, 5500, 1000,
         ];
         for (i, &e) in energies.iter().enumerate() {
             analyzer.push(make_sample(e, i as u64 * 100));
@@ -526,7 +525,9 @@ mod tests {
         assert!(
             diag.pattern == EnergyPattern::Spiky || diag.pattern == EnergyPattern::Periodic,
             "got {:?}, cv={}, slope={}",
-            diag.pattern, diag.cv, diag.slope,
+            diag.pattern,
+            diag.cv,
+            diag.slope,
         );
     }
 

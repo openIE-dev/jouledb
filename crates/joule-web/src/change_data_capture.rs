@@ -35,8 +35,14 @@ impl std::fmt::Display for CdcError {
         match self {
             Self::SourceNotFound(id) => write!(f, "source not found: {id}"),
             Self::ConsumerNotFound(id) => write!(f, "consumer not found: {id}"),
-            Self::OutOfOrder { expected_seq, got_seq } => {
-                write!(f, "out of order: expected seq {expected_seq}, got {got_seq}")
+            Self::OutOfOrder {
+                expected_seq,
+                got_seq,
+            } => {
+                write!(
+                    f,
+                    "out of order: expected seq {expected_seq}, got {got_seq}"
+                )
             }
             Self::SchemaVersionNotFound { source, version } => {
                 write!(f, "schema version {version} not found for source {source}")
@@ -237,7 +243,11 @@ impl CdcEngine {
             return Err(CdcError::DuplicateEvent(event.event_id.clone()));
         }
         // Ordering check.
-        let expected = self.source_sequences.get(&event.source_id).copied().unwrap_or(1);
+        let expected = self
+            .source_sequences
+            .get(&event.source_id)
+            .copied()
+            .unwrap_or(1);
         if event.sequence != expected {
             return Err(CdcError::OutOfOrder {
                 expected_seq: expected,
@@ -247,7 +257,8 @@ impl CdcEngine {
 
         let idx = self.events.len();
         self.event_ids.insert(event.event_id.clone(), idx);
-        self.source_sequences.insert(event.source_id.clone(), expected + 1);
+        self.source_sequences
+            .insert(event.source_id.clone(), expected + 1);
         self.events.push(event);
         self.total_energy_uj += 8;
         Ok(idx as u64)
@@ -325,11 +336,7 @@ impl CdcEngine {
     }
 
     /// Get a specific schema version for a source.
-    pub fn get_schema(
-        &self,
-        source_id: &str,
-        version: u32,
-    ) -> Result<&CdcSchema, CdcError> {
+    pub fn get_schema(&self, source_id: &str, version: u32) -> Result<&CdcSchema, CdcError> {
         let source = self
             .sources
             .get(source_id)
@@ -461,7 +468,13 @@ mod tests {
         engine.register_source("users", "User table", sample_fields());
 
         let event = make_change_event(
-            "e1", "users", ChangeType::Insert, 1, pk(1), None, Some(row(1, "alice")),
+            "e1",
+            "users",
+            ChangeType::Insert,
+            1,
+            pk(1),
+            None,
+            Some(row(1, "alice")),
         );
         let idx = engine.capture(event).unwrap();
         assert_eq!(idx, 0);
@@ -474,7 +487,13 @@ mod tests {
         engine.register_source("users", "User table", sample_fields());
 
         let e1 = make_change_event(
-            "e1", "users", ChangeType::Insert, 1, pk(1), None, Some(row(1, "alice")),
+            "e1",
+            "users",
+            ChangeType::Insert,
+            1,
+            pk(1),
+            None,
+            Some(row(1, "alice")),
         );
         engine.capture(e1).unwrap();
 
@@ -503,12 +522,24 @@ mod tests {
         engine.register_source("users", "User table", sample_fields());
 
         let e1 = make_change_event(
-            "e1", "users", ChangeType::Insert, 1, pk(1), None, Some(row(1, "alice")),
+            "e1",
+            "users",
+            ChangeType::Insert,
+            1,
+            pk(1),
+            None,
+            Some(row(1, "alice")),
         );
         engine.capture(e1).unwrap();
 
         let e2 = make_change_event(
-            "e2", "users", ChangeType::Delete, 2, pk(1), Some(row(1, "alice")), None,
+            "e2",
+            "users",
+            ChangeType::Delete,
+            2,
+            pk(1),
+            Some(row(1, "alice")),
+            None,
         );
         engine.capture(e2).unwrap();
 
@@ -523,7 +554,13 @@ mod tests {
         engine.register_source("users", "Users", sample_fields());
 
         let e = make_change_event(
-            "e1", "users", ChangeType::Insert, 1, pk(1), None, Some(row(1, "a")),
+            "e1",
+            "users",
+            ChangeType::Insert,
+            1,
+            pk(1),
+            None,
+            Some(row(1, "a")),
         );
         engine.capture(e.clone()).unwrap();
         assert_eq!(
@@ -538,11 +575,20 @@ mod tests {
         engine.register_source("users", "Users", sample_fields());
 
         let e = make_change_event(
-            "e1", "users", ChangeType::Insert, 5, pk(1), None, Some(row(1, "a")),
+            "e1",
+            "users",
+            ChangeType::Insert,
+            5,
+            pk(1),
+            None,
+            Some(row(1, "a")),
         );
         assert!(matches!(
             engine.capture(e),
-            Err(CdcError::OutOfOrder { expected_seq: 1, got_seq: 5 })
+            Err(CdcError::OutOfOrder {
+                expected_seq: 1,
+                got_seq: 5
+            })
         ));
     }
 
@@ -550,7 +596,13 @@ mod tests {
     fn test_source_not_found() {
         let mut engine = CdcEngine::new();
         let e = make_change_event(
-            "e1", "missing", ChangeType::Insert, 1, pk(1), None, Some(row(1, "a")),
+            "e1",
+            "missing",
+            ChangeType::Insert,
+            1,
+            pk(1),
+            None,
+            Some(row(1, "a")),
         );
         assert_eq!(
             engine.capture(e),
@@ -675,12 +727,24 @@ mod tests {
 
         engine
             .capture(make_change_event(
-                "e1", "users", ChangeType::Insert, 1, pk(1), None, Some(row(1, "a")),
+                "e1",
+                "users",
+                ChangeType::Insert,
+                1,
+                pk(1),
+                None,
+                Some(row(1, "a")),
             ))
             .unwrap();
         engine
             .capture(make_change_event(
-                "e2", "users", ChangeType::Insert, 2, pk(2), None, Some(row(2, "b")),
+                "e2",
+                "users",
+                ChangeType::Insert,
+                2,
+                pk(2),
+                None,
+                Some(row(2, "b")),
             ))
             .unwrap();
         engine
@@ -709,7 +773,13 @@ mod tests {
 
         engine
             .capture(make_change_event(
-                "e1", "users", ChangeType::Insert, 1, pk(1), None, Some(row(1, "a")),
+                "e1",
+                "users",
+                ChangeType::Insert,
+                1,
+                pk(1),
+                None,
+                Some(row(1, "a")),
             ))
             .unwrap();
         assert!(engine.total_energy_uj() > 10);
@@ -779,25 +849,39 @@ mod tests {
     fn test_multiple_sources() {
         let mut engine = CdcEngine::new();
         engine.register_source("users", "Users", sample_fields());
-        engine.register_source("orders", "Orders", vec![
-            FieldDefinition {
+        engine.register_source(
+            "orders",
+            "Orders",
+            vec![FieldDefinition {
                 name: "order_id".into(),
                 field_type: FieldType::Int64,
                 nullable: false,
                 default_value: None,
-            },
-        ]);
+            }],
+        );
 
         engine
             .capture(make_change_event(
-                "e1", "users", ChangeType::Insert, 1, pk(1), None, Some(row(1, "a")),
+                "e1",
+                "users",
+                ChangeType::Insert,
+                1,
+                pk(1),
+                None,
+                Some(row(1, "a")),
             ))
             .unwrap();
         let mut opk = HashMap::new();
         opk.insert("order_id".into(), serde_json::json!(100));
         engine
             .capture(make_change_event(
-                "e2", "orders", ChangeType::Insert, 1, opk, None, None,
+                "e2",
+                "orders",
+                ChangeType::Insert,
+                1,
+                opk,
+                None,
+                None,
             ))
             .unwrap();
 

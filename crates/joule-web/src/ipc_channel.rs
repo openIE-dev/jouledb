@@ -587,8 +587,7 @@ impl ChannelRegistry {
         if self.rw_locks.contains_key(name) {
             return Err(IpcError::AlreadyExists(name.into()));
         }
-        self.rw_locks
-            .insert(name.to_string(), RwLockSim::new(name));
+        self.rw_locks.insert(name.to_string(), RwLockSim::new(name));
         Ok(())
     }
 
@@ -892,12 +891,15 @@ mod tests {
         let mut reg = ChannelRegistry::new();
         reg.create_pipe("p1", 10).unwrap();
         reg.create_mailbox("mb1", 10).unwrap();
-        reg.mailbox_mut("mb1").unwrap().send(Message {
-            sender: "x".into(),
-            payload: "y".into(),
-            priority: 1,
-            timestamp: 0,
-        }).unwrap();
+        reg.mailbox_mut("mb1")
+            .unwrap()
+            .send(Message {
+                sender: "x".into(),
+                payload: "y".into(),
+                priority: 1,
+                timestamp: 0,
+            })
+            .unwrap();
         let event = reg.select(&["p1", "mb1"]);
         assert!(matches!(event, Some(ChannelEvent::MailboxReadable(n)) if n == "mb1"));
     }
@@ -927,7 +929,8 @@ mod tests {
             payload: "p".into(),
             priority: 1,
             timestamp: 0,
-        }).unwrap();
+        })
+        .unwrap();
         assert_eq!(mb.peek().unwrap().payload, "p");
         assert_eq!(mb.len(), 1); // Peek doesn't remove
     }

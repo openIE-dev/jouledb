@@ -19,7 +19,11 @@ impl LightColor {
     }
 
     pub fn white() -> Self {
-        Self { r: 1.0, g: 1.0, b: 1.0 }
+        Self {
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+        }
     }
 
     pub fn scale(&self, factor: f64) -> Self {
@@ -65,22 +69,26 @@ pub struct Attenuation {
 
 impl Attenuation {
     pub fn new(constant: f64, linear: f64, quadratic: f64) -> Self {
-        Self { constant, linear, quadratic }
+        Self {
+            constant,
+            linear,
+            quadratic,
+        }
     }
 
     /// No attenuation — always full intensity.
     pub fn none() -> Self {
-        Self { constant: 1.0, linear: 0.0, quadratic: 0.0 }
+        Self {
+            constant: 1.0,
+            linear: 0.0,
+            quadratic: 0.0,
+        }
     }
 
     /// Compute attenuation factor at a given distance.
     pub fn factor(&self, distance: f64) -> f64 {
         let denom = self.constant + self.linear * distance + self.quadratic * distance * distance;
-        if denom < 1e-12 {
-            1.0
-        } else {
-            1.0 / denom
-        }
+        if denom < 1e-12 { 1.0 } else { 1.0 / denom }
     }
 }
 
@@ -282,7 +290,15 @@ pub fn shade_directional(
 ) -> LightColor {
     let light_dir = light.direction * -1.0; // toward the light
     let light_col = light.color.scale(light.intensity);
-    let direct = phong_shade(normal, view_dir, &light_dir, &light_col, surface_color, shininess, 0.5);
+    let direct = phong_shade(
+        normal,
+        view_dir,
+        &light_dir,
+        &light_col,
+        surface_color,
+        shininess,
+        0.5,
+    );
     let amb = ambient.contribute(surface_color);
     amb.add(&direct)
 }
@@ -299,10 +315,22 @@ pub fn shade_point_light(
 ) -> LightColor {
     let to_light = light.position - *surface_pos;
     let distance = to_light.length();
-    let light_dir = if distance > 1e-12 { to_light * (1.0 / distance) } else { Vec3::up() };
+    let light_dir = if distance > 1e-12 {
+        to_light * (1.0 / distance)
+    } else {
+        Vec3::up()
+    };
     let atten = light.attenuation.factor(distance);
     let light_col = light.color.scale(light.intensity * atten);
-    let direct = phong_shade(normal, view_dir, &light_dir, &light_col, surface_color, shininess, 0.5);
+    let direct = phong_shade(
+        normal,
+        view_dir,
+        &light_dir,
+        &light_col,
+        surface_color,
+        shininess,
+        0.5,
+    );
     let amb = ambient.contribute(surface_color);
     amb.add(&direct)
 }

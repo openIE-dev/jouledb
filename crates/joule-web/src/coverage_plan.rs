@@ -80,7 +80,9 @@ pub struct CoverageGrid {
 impl CoverageGrid {
     pub fn new(width: usize, height: usize, cell_size: f64) -> Result<Self, CoverageError> {
         if width == 0 || height == 0 {
-            return Err(CoverageError::InvalidDimensions("dimensions must be > 0".into()));
+            return Err(CoverageError::InvalidDimensions(
+                "dimensions must be > 0".into(),
+            ));
         }
         Ok(Self {
             width,
@@ -116,13 +118,7 @@ impl CoverageGrid {
     }
 
     /// Set a rectangular region as obstacle.
-    pub fn add_obstacle_rect(
-        &mut self,
-        x0: usize,
-        y0: usize,
-        w: usize,
-        h: usize,
-    ) {
+    pub fn add_obstacle_rect(&mut self, x0: usize, y0: usize, w: usize, h: usize) {
         for dy in 0..h {
             for dx in 0..w {
                 let x = x0 + dx;
@@ -150,22 +146,34 @@ impl CoverageGrid {
 
     /// Total number of free (uncovered) cells.
     pub fn free_count(&self) -> usize {
-        self.cells.iter().filter(|c| **c == CellStatus::Free).count()
+        self.cells
+            .iter()
+            .filter(|c| **c == CellStatus::Free)
+            .count()
     }
 
     /// Total number of covered cells.
     pub fn covered_count(&self) -> usize {
-        self.cells.iter().filter(|c| **c == CellStatus::Covered).count()
+        self.cells
+            .iter()
+            .filter(|c| **c == CellStatus::Covered)
+            .count()
     }
 
     /// Total number of obstacle cells.
     pub fn obstacle_count(&self) -> usize {
-        self.cells.iter().filter(|c| **c == CellStatus::Obstacle).count()
+        self.cells
+            .iter()
+            .filter(|c| **c == CellStatus::Obstacle)
+            .count()
     }
 
     /// Total coverable cells (free + covered).
     pub fn coverable_count(&self) -> usize {
-        self.cells.iter().filter(|c| **c != CellStatus::Obstacle).count()
+        self.cells
+            .iter()
+            .filter(|c| **c != CellStatus::Obstacle)
+            .count()
     }
 
     /// Coverage ratio [0, 1].
@@ -253,7 +261,9 @@ impl fmt::Display for SweepDirection {
 
 impl BoustrophedonPlanner {
     pub fn new(direction: SweepDirection) -> Self {
-        Self { sweep_direction: direction }
+        Self {
+            sweep_direction: direction,
+        }
     }
 
     /// Generate a boustrophedon (zigzag) path over the grid.
@@ -334,7 +344,10 @@ impl SpanningTreePlanner {
         start_y: usize,
     ) -> Result<Vec<(usize, usize)>, CoverageError> {
         if !grid.in_bounds(start_x, start_y) {
-            return Err(CoverageError::OutOfBounds { x: start_x, y: start_y });
+            return Err(CoverageError::OutOfBounds {
+                x: start_x,
+                y: start_y,
+            });
         }
         if grid.cells[grid.idx(start_x, start_y)] == CellStatus::Obstacle {
             return Err(CoverageError::NoStartPosition);
@@ -420,7 +433,10 @@ impl AreaPartitioner {
         if num_partitions == 0 {
             return Err(CoverageError::InvalidPartitionCount(0));
         }
-        Ok(Self { num_partitions, method })
+        Ok(Self {
+            num_partitions,
+            method,
+        })
     }
 
     /// Partition the grid, returning a map from robot_id to list of cells.
@@ -511,7 +527,11 @@ impl AreaPartitioner {
 
 impl fmt::Display for AreaPartitioner {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "AreaPartitioner({}, n={})", self.method, self.num_partitions)
+        write!(
+            f,
+            "AreaPartitioner({}, n={})",
+            self.method, self.num_partitions
+        )
     }
 }
 
@@ -582,7 +602,10 @@ impl GreedyPlanner {
         start_y: usize,
     ) -> Result<Vec<(usize, usize)>, CoverageError> {
         if !grid.in_bounds(start_x, start_y) {
-            return Err(CoverageError::OutOfBounds { x: start_x, y: start_y });
+            return Err(CoverageError::OutOfBounds {
+                x: start_x,
+                y: start_y,
+            });
         }
         // Work on a local copy of cell statuses.
         let mut local_cells = grid.cells.clone();

@@ -166,7 +166,8 @@ impl PoolingLayer {
                                             continue;
                                         };
                                         if real_ih < height && real_iw < width {
-                                            let idx = c * height * width + real_ih * width + real_iw;
+                                            let idx =
+                                                c * height * width + real_ih * width + real_iw;
                                             if input[idx] > max_val {
                                                 max_val = input[idx];
                                                 max_idx = idx;
@@ -189,7 +190,8 @@ impl PoolingLayer {
                                         let real_ih = ih - self.config.padding_h;
                                         let real_iw = iw - self.config.padding_w;
                                         if real_ih < height && real_iw < width {
-                                            sum += input[c * height * width + real_ih * width + real_iw];
+                                            sum += input
+                                                [c * height * width + real_ih * width + real_iw];
                                             count += 1;
                                         }
                                     }
@@ -207,7 +209,8 @@ impl PoolingLayer {
                                         let real_ih = ih - self.config.padding_h;
                                         let real_iw = iw - self.config.padding_w;
                                         if real_ih < height && real_iw < width {
-                                            let v = input[c * height * width + real_ih * width + real_iw];
+                                            let v = input
+                                                [c * height * width + real_ih * width + real_iw];
                                             sum_sq += v * v;
                                         }
                                     }
@@ -224,11 +227,7 @@ impl PoolingLayer {
     }
 
     /// Backward pass for max pooling — routes gradient to argmax positions.
-    pub fn backward_max(
-        &self,
-        grad_output: &[f64],
-        input_size: usize,
-    ) -> Vec<f64> {
+    pub fn backward_max(&self, grad_output: &[f64], input_size: usize) -> Vec<f64> {
         let mut grad_input = vec![0.0; input_size];
         for (i, &idx) in self.max_indices.iter().enumerate() {
             if idx < input_size {
@@ -292,12 +291,8 @@ impl GlobalPoolingLayer {
             .map(|c| {
                 let slice = &input[c * spatial..(c + 1) * spatial];
                 match self.pool_type {
-                    GlobalPoolType::Max => {
-                        slice.iter().cloned().fold(f64::NEG_INFINITY, f64::max)
-                    }
-                    GlobalPoolType::Average => {
-                        slice.iter().sum::<f64>() / spatial as f64
-                    }
+                    GlobalPoolType::Max => slice.iter().cloned().fold(f64::NEG_INFINITY, f64::max),
+                    GlobalPoolType::Average => slice.iter().sum::<f64>() / spatial as f64,
                 }
             })
             .collect()
@@ -328,13 +323,7 @@ impl AdaptiveAvgPool {
     }
 
     /// Forward pass using floor-based bin boundaries.
-    pub fn forward(
-        &self,
-        input: &[f64],
-        channels: usize,
-        height: usize,
-        width: usize,
-    ) -> Vec<f64> {
+    pub fn forward(&self, input: &[f64], channels: usize, height: usize, width: usize) -> Vec<f64> {
         let out_spatial = self.target_h * self.target_w;
         let mut output = vec![0.0; channels * out_spatial];
 
@@ -390,7 +379,9 @@ mod tests {
 
     #[test]
     fn test_config_ceil_mode() {
-        let cfg = PoolingConfig::new(PoolType::Max, 3).with_stride(2).with_ceil_mode();
+        let cfg = PoolingConfig::new(PoolType::Max, 3)
+            .with_stride(2)
+            .with_ceil_mode();
         let (h, w) = cfg.output_size(5, 5);
         assert!(h >= 2);
         assert!(w >= 2);
@@ -399,7 +390,9 @@ mod tests {
     #[test]
     fn test_max_pool_2x2() {
         let mut pool = PoolingLayer::max_pool(2);
-        let input = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0];
+        let input = vec![
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0,
+        ];
         let out = pool.forward(&input, 1, 4, 4);
         assert_eq!(out.len(), 4);
         assert!((out[0] - 6.0).abs() < 1e-10);
@@ -411,7 +404,9 @@ mod tests {
     #[test]
     fn test_avg_pool_2x2() {
         let mut pool = PoolingLayer::avg_pool(2);
-        let input = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0];
+        let input = vec![
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0,
+        ];
         let out = pool.forward(&input, 1, 4, 4);
         assert_eq!(out.len(), 4);
         // top-left: (1+2+5+6)/4 = 3.5
@@ -421,7 +416,9 @@ mod tests {
     #[test]
     fn test_l2_pool_2x2() {
         let mut pool = PoolingLayer::new(PoolingConfig::new(PoolType::L2Norm, 2));
-        let input = vec![3.0, 0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        let input = vec![
+            3.0, 0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        ];
         let out = pool.forward(&input, 1, 4, 4);
         // top-left: sqrt(9 + 0 + 16 + 0) = 5.0
         assert!((out[0] - 5.0).abs() < 1e-10);
@@ -489,7 +486,9 @@ mod tests {
     #[test]
     fn test_adaptive_avg_pool_2x2() {
         let aap = AdaptiveAvgPool::new(2, 2);
-        let input = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0];
+        let input = vec![
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0,
+        ];
         let out = aap.forward(&input, 1, 4, 4);
         assert_eq!(out.len(), 4);
     }

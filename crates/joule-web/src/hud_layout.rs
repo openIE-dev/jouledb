@@ -52,11 +52,21 @@ pub struct SafeAreaInsets {
 
 impl SafeAreaInsets {
     pub fn zero() -> Self {
-        Self { top: 0.0, bottom: 0.0, left: 0.0, right: 0.0 }
+        Self {
+            top: 0.0,
+            bottom: 0.0,
+            left: 0.0,
+            right: 0.0,
+        }
     }
 
     pub fn new(top: f64, bottom: f64, left: f64, right: f64) -> Self {
-        Self { top, bottom, left, right }
+        Self {
+            top,
+            bottom,
+            left,
+            right,
+        }
     }
 }
 
@@ -79,7 +89,12 @@ pub struct ScreenRect {
 
 impl ScreenRect {
     pub fn new(x: f64, y: f64, w: f64, h: f64) -> Self {
-        Self { x, y, width: w, height: h }
+        Self {
+            x,
+            y,
+            width: w,
+            height: h,
+        }
     }
 
     pub fn center_x(&self) -> f64 {
@@ -117,10 +132,7 @@ pub enum HudElementKind {
         color_b: f64,
     },
     /// Score or numeric counter.
-    Counter {
-        value: i64,
-        label: String,
-    },
+    Counter { value: i64, label: String },
     /// Ammo display (current / max).
     Ammo {
         current: u32,
@@ -131,20 +143,11 @@ pub enum HudElementKind {
     /// is in the `minimap` module).
     MinimapFrame,
     /// Crosshair / reticle.
-    Crosshair {
-        size: f64,
-        gap: f64,
-        thickness: f64,
-    },
+    Crosshair { size: f64, gap: f64, thickness: f64 },
     /// Generic icon (texture ID, label, etc.).
-    Icon {
-        icon_id: String,
-    },
+    Icon { icon_id: String },
     /// Text label.
-    Label {
-        text: String,
-        font_size: f64,
-    },
+    Label { text: String, font_size: f64 },
 }
 
 // ── HUD Animation ──────────────────────────────────────────────
@@ -188,10 +191,18 @@ impl HudAnimation {
     pub fn is_active(&self) -> bool {
         match self {
             HudAnimation::None => false,
-            HudAnimation::Pulse { elapsed, duration, .. } => *elapsed < *duration,
-            HudAnimation::SlideIn { elapsed, duration, .. } => *elapsed < *duration,
-            HudAnimation::SlideOut { elapsed, duration, .. } => *elapsed < *duration,
-            HudAnimation::Fade { elapsed, duration, .. } => *elapsed < *duration,
+            HudAnimation::Pulse {
+                elapsed, duration, ..
+            } => *elapsed < *duration,
+            HudAnimation::SlideIn {
+                elapsed, duration, ..
+            } => *elapsed < *duration,
+            HudAnimation::SlideOut {
+                elapsed, duration, ..
+            } => *elapsed < *duration,
+            HudAnimation::Fade {
+                elapsed, duration, ..
+            } => *elapsed < *duration,
         }
     }
 
@@ -430,8 +441,7 @@ impl HudLayout {
                 let base_y = anchor_y + elem.offset_y * s - scaled_h * fy;
 
                 // Apply animation
-                let (anim_dx, anim_dy, anim_scale, anim_alpha) =
-                    self.compute_animation(elem, s);
+                let (anim_dx, anim_dy, anim_scale, anim_alpha) = self.compute_animation(elem, s);
 
                 let final_x = base_x + anim_dx;
                 let final_y = base_y + anim_dy;
@@ -440,7 +450,12 @@ impl HudLayout {
 
                 HudLayoutResult {
                     element_id: elem.id.clone(),
-                    rect: ScreenRect::new(final_x, final_y, scaled_w * final_scale, scaled_h * final_scale),
+                    rect: ScreenRect::new(
+                        final_x,
+                        final_y,
+                        scaled_w * final_scale,
+                        scaled_h * final_scale,
+                    ),
                     opacity: final_opacity,
                     scale: final_scale,
                     z_order: elem.z_order,
@@ -455,7 +470,12 @@ impl HudLayout {
     fn compute_animation(&self, elem: &HudElement, scale: f64) -> (f64, f64, f64, f64) {
         match &elem.animation {
             HudAnimation::None => (0.0, 0.0, 1.0, 1.0),
-            HudAnimation::Pulse { frequency, amplitude, elapsed, duration } => {
+            HudAnimation::Pulse {
+                frequency,
+                amplitude,
+                elapsed,
+                duration,
+            } => {
                 if *elapsed >= *duration {
                     return (0.0, 0.0, 1.0, 1.0);
                 }
@@ -463,23 +483,50 @@ impl HudLayout {
                 let pulse = 1.0 + t.sin() * amplitude;
                 (0.0, 0.0, pulse, 1.0)
             }
-            HudAnimation::SlideIn { from_x, from_y, elapsed, duration } => {
-                let t = if *duration > 0.0 { (elapsed / duration).clamp(0.0, 1.0) } else { 1.0 };
+            HudAnimation::SlideIn {
+                from_x,
+                from_y,
+                elapsed,
+                duration,
+            } => {
+                let t = if *duration > 0.0 {
+                    (elapsed / duration).clamp(0.0, 1.0)
+                } else {
+                    1.0
+                };
                 // Ease out
                 let ease = 1.0 - (1.0 - t) * (1.0 - t);
                 let dx = from_x * scale * (1.0 - ease);
                 let dy = from_y * scale * (1.0 - ease);
                 (dx, dy, 1.0, t)
             }
-            HudAnimation::SlideOut { to_x, to_y, elapsed, duration } => {
-                let t = if *duration > 0.0 { (elapsed / duration).clamp(0.0, 1.0) } else { 1.0 };
+            HudAnimation::SlideOut {
+                to_x,
+                to_y,
+                elapsed,
+                duration,
+            } => {
+                let t = if *duration > 0.0 {
+                    (elapsed / duration).clamp(0.0, 1.0)
+                } else {
+                    1.0
+                };
                 let ease = t * t;
                 let dx = to_x * scale * ease;
                 let dy = to_y * scale * ease;
                 (dx, dy, 1.0, 1.0 - t)
             }
-            HudAnimation::Fade { from_alpha, to_alpha, elapsed, duration } => {
-                let t = if *duration > 0.0 { (elapsed / duration).clamp(0.0, 1.0) } else { 1.0 };
+            HudAnimation::Fade {
+                from_alpha,
+                to_alpha,
+                elapsed,
+                duration,
+            } => {
+                let t = if *duration > 0.0 {
+                    (elapsed / duration).clamp(0.0, 1.0)
+                } else {
+                    1.0
+                };
                 let alpha = from_alpha + (to_alpha - from_alpha) * t;
                 (0.0, 0.0, 1.0, alpha)
             }
@@ -534,7 +581,10 @@ mod tests {
     fn score_counter() -> HudElement {
         HudElement::new(
             "score",
-            HudElementKind::Counter { value: 0, label: "SCORE".to_string() },
+            HudElementKind::Counter {
+                value: 0,
+                label: "SCORE".to_string(),
+            },
             Anchor::TopCenter,
             120.0,
             32.0,
@@ -622,7 +672,11 @@ mod tests {
         hud.add_element(
             HudElement::new(
                 "ammo",
-                HudElementKind::Ammo { current: 30, magazine: 30, reserve: 120 },
+                HudElementKind::Ammo {
+                    current: 30,
+                    magazine: 30,
+                    reserve: 120,
+                },
                 Anchor::BottomRight,
                 100.0,
                 40.0,
@@ -732,12 +786,24 @@ mod tests {
     fn hit_test_z_order_top_wins() {
         let mut hud = simple_hud();
         hud.add_element(
-            HudElement::new("bottom", HudElementKind::MinimapFrame, Anchor::TopLeft, 200.0, 200.0)
-                .with_z_order(0),
+            HudElement::new(
+                "bottom",
+                HudElementKind::MinimapFrame,
+                Anchor::TopLeft,
+                200.0,
+                200.0,
+            )
+            .with_z_order(0),
         );
         hud.add_element(
-            HudElement::new("top", HudElementKind::MinimapFrame, Anchor::TopLeft, 200.0, 200.0)
-                .with_z_order(10),
+            HudElement::new(
+                "top",
+                HudElementKind::MinimapFrame,
+                Anchor::TopLeft,
+                200.0,
+                200.0,
+            )
+            .with_z_order(10),
         );
         let hit = hud.hit_test(50.0, 50.0);
         assert_eq!(hit, Some("top".to_string()));
@@ -762,7 +828,11 @@ mod tests {
         let mut hud = simple_hud();
         hud.add_element(HudElement::new(
             "crosshair",
-            HudElementKind::Crosshair { size: 20.0, gap: 4.0, thickness: 2.0 },
+            HudElementKind::Crosshair {
+                size: 20.0,
+                gap: 4.0,
+                thickness: 2.0,
+            },
             Anchor::Center,
             20.0,
             20.0,

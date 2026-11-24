@@ -89,8 +89,10 @@ impl SignalStorageConnector {
             .map_err(|e| IoError::InvalidFormat(format!("Failed to serialize metadata: {}", e)))?;
 
         // Serialize samples (as f64 array)
-        let data_bytes = bincode::serde::encode_to_vec(&signal.samples, bincode::config::standard())
-            .map_err(|e| IoError::InvalidFormat(format!("Failed to serialize samples: {}", e)))?;
+        let data_bytes =
+            bincode::serde::encode_to_vec(&signal.samples, bincode::config::standard()).map_err(
+                |e| IoError::InvalidFormat(format!("Failed to serialize samples: {}", e)),
+            )?;
 
         // Store in engine
         self.engine
@@ -131,11 +133,12 @@ impl SignalStorageConnector {
             })?
             .ok_or_else(|| IoError::FileNotFound(format!("Signal '{}' not found", name)))?;
 
-        let metadata: SignalMetadata = bincode::serde::decode_from_slice(&meta_bytes, bincode::config::standard())
-            .map(|(v, _)| v)
-            .map_err(|e| {
-                IoError::InvalidFormat(format!("Failed to deserialize metadata: {}", e))
-            })?;
+        let metadata: SignalMetadata =
+            bincode::serde::decode_from_slice(&meta_bytes, bincode::config::standard())
+                .map(|(v, _)| v)
+                .map_err(|e| {
+                    IoError::InvalidFormat(format!("Failed to deserialize metadata: {}", e))
+                })?;
 
         // Load samples
         let data_bytes = self
@@ -151,9 +154,12 @@ impl SignalStorageConnector {
                 IoError::FileNotFound(format!("Signal data for '{}' not found", name))
             })?;
 
-        let samples: Vec<f64> = bincode::serde::decode_from_slice(&data_bytes, bincode::config::standard())
-            .map(|(v, _)| v)
-            .map_err(|e| IoError::InvalidFormat(format!("Failed to deserialize samples: {}", e)))?;
+        let samples: Vec<f64> =
+            bincode::serde::decode_from_slice(&data_bytes, bincode::config::standard())
+                .map(|(v, _)| v)
+                .map_err(|e| {
+                    IoError::InvalidFormat(format!("Failed to deserialize samples: {}", e))
+                })?;
 
         Ok(DynSignal::new(
             metadata.channel,

@@ -22,7 +22,13 @@ pub struct Keypoint {
 
 impl Keypoint {
     pub fn new(x: f64, y: f64, response: f64) -> Self {
-        Self { x, y, response, octave: 0, angle: 0.0 }
+        Self {
+            x,
+            y,
+            response,
+            octave: 0,
+            angle: 0.0,
+        }
     }
 
     pub fn with_octave(mut self, octave: u32) -> Self {
@@ -43,8 +49,11 @@ impl Keypoint {
 
 impl fmt::Display for Keypoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Keypoint({:.1}, {:.1} r={:.4} oct={} ang={:.2})",
-               self.x, self.y, self.response, self.octave, self.angle)
+        write!(
+            f,
+            "Keypoint({:.1}, {:.1} r={:.4} oct={} ang={:.2})",
+            self.x, self.y, self.response, self.octave, self.angle
+        )
     }
 }
 
@@ -64,7 +73,8 @@ impl Descriptor {
 
     /// Hamming distance (number of differing bits) to another descriptor.
     pub fn hamming_distance(&self, other: &Descriptor) -> u32 {
-        self.bits.iter()
+        self.bits
+            .iter()
             .zip(other.bits.iter())
             .map(|(a, b)| (a ^ b).count_ones())
             .sum()
@@ -73,9 +83,12 @@ impl Descriptor {
 
 impl fmt::Display for Descriptor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Descriptor(kp={}, ham_weight={})",
-               self.keypoint,
-               self.bits.iter().map(|b| b.count_ones()).sum::<u32>())
+        write!(
+            f,
+            "Descriptor(kp={}, ham_weight={})",
+            self.keypoint,
+            self.bits.iter().map(|b| b.count_ones()).sum::<u32>()
+        )
     }
 }
 
@@ -91,13 +104,21 @@ pub struct Match {
 
 impl Match {
     pub fn new(query_idx: usize, train_idx: usize, distance: u32) -> Self {
-        Self { query_idx, train_idx, distance }
+        Self {
+            query_idx,
+            train_idx,
+            distance,
+        }
     }
 }
 
 impl fmt::Display for Match {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Match(q={} t={} d={})", self.query_idx, self.train_idx, self.distance)
+        write!(
+            f,
+            "Match(q={} t={} d={})",
+            self.query_idx, self.train_idx, self.distance
+        )
     }
 }
 
@@ -114,7 +135,12 @@ pub struct HarrisConfig {
 
 impl HarrisConfig {
     pub fn new() -> Self {
-        Self { k: 0.04, threshold: 1e6, window_size: 3, nms_radius: 3 }
+        Self {
+            k: 0.04,
+            threshold: 1e6,
+            window_size: 3,
+            nms_radius: 3,
+        }
     }
 
     pub fn with_k(mut self, k: f64) -> Self {
@@ -140,8 +166,11 @@ impl HarrisConfig {
 
 impl fmt::Display for HarrisConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "HarrisConfig(k={}, thr={}, win={}, nms={})",
-               self.k, self.threshold, self.window_size, self.nms_radius)
+        write!(
+            f,
+            "HarrisConfig(k={}, thr={}, win={}, nms={})",
+            self.k, self.threshold, self.window_size, self.nms_radius
+        )
     }
 }
 
@@ -153,13 +182,14 @@ fn sobel_gradients(pixels: &[f64], width: usize, height: usize) -> (Vec<f64>, Ve
     for row in 1..height - 1 {
         for col in 1..width - 1 {
             let idx = |r: usize, c: usize| pixels[r * width + c];
-            let gx = -idx(row - 1, col - 1) + idx(row - 1, col + 1)
-                   - 2.0 * idx(row, col - 1) + 2.0 * idx(row, col + 1)
-                   - idx(row + 1, col - 1) + idx(row + 1, col + 1);
-            let gy = -idx(row - 1, col - 1) - 2.0 * idx(row - 1, col)
-                   - idx(row - 1, col + 1)
-                   + idx(row + 1, col - 1) + 2.0 * idx(row + 1, col)
-                   + idx(row + 1, col + 1);
+            let gx = -idx(row - 1, col - 1) + idx(row - 1, col + 1) - 2.0 * idx(row, col - 1)
+                + 2.0 * idx(row, col + 1)
+                - idx(row + 1, col - 1)
+                + idx(row + 1, col + 1);
+            let gy = -idx(row - 1, col - 1) - 2.0 * idx(row - 1, col) - idx(row - 1, col + 1)
+                + idx(row + 1, col - 1)
+                + 2.0 * idx(row + 1, col)
+                + idx(row + 1, col + 1);
             ix[row * width + col] = gx;
             iy[row * width + col] = gy;
         }
@@ -169,7 +199,11 @@ fn sobel_gradients(pixels: &[f64], width: usize, height: usize) -> (Vec<f64>, Ve
 
 /// Harris corner response map.
 fn harris_response(
-    ix: &[f64], iy: &[f64], width: usize, height: usize, config: &HarrisConfig,
+    ix: &[f64],
+    iy: &[f64],
+    width: usize,
+    height: usize,
+    config: &HarrisConfig,
 ) -> Vec<f64> {
     let mut response = vec![0.0_f64; width * height];
     let half = config.window_size / 2;
@@ -201,7 +235,10 @@ fn harris_response(
 
 /// Detect Harris corners in a grayscale image.
 pub fn detect_harris(
-    pixels: &[f64], width: usize, height: usize, config: &HarrisConfig,
+    pixels: &[f64],
+    width: usize,
+    height: usize,
+    config: &HarrisConfig,
 ) -> Vec<Keypoint> {
     let (ix, iy) = sobel_gradients(pixels, width, height);
     let resp = harris_response(&ix, &iy, width, height, config);
@@ -250,7 +287,11 @@ pub struct FastConfig {
 
 impl FastConfig {
     pub fn new() -> Self {
-        Self { threshold: 20.0, min_contiguous: 9, nms: true }
+        Self {
+            threshold: 20.0,
+            min_contiguous: 9,
+            nms: true,
+        }
     }
 
     pub fn with_threshold(mut self, threshold: f64) -> Self {
@@ -271,21 +312,40 @@ impl FastConfig {
 
 impl fmt::Display for FastConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "FastConfig(thr={}, n={}, nms={})", self.threshold, self.min_contiguous, self.nms)
+        write!(
+            f,
+            "FastConfig(thr={}, n={}, nms={})",
+            self.threshold, self.min_contiguous, self.nms
+        )
     }
 }
 
 /// Bresenham circle of radius 3 (16 pixels) — FAST-9/12/16.
 const CIRCLE_OFFSETS: [(i32, i32); 16] = [
-    (0, -3), (1, -3), (2, -2), (3, -1),
-    (3, 0), (3, 1), (2, 2), (1, 3),
-    (0, 3), (-1, 3), (-2, 2), (-3, 1),
-    (-3, 0), (-3, -1), (-2, -2), (-1, -3),
+    (0, -3),
+    (1, -3),
+    (2, -2),
+    (3, -1),
+    (3, 0),
+    (3, 1),
+    (2, 2),
+    (1, 3),
+    (0, 3),
+    (-1, 3),
+    (-2, 2),
+    (-3, 1),
+    (-3, 0),
+    (-3, -1),
+    (-2, -2),
+    (-1, -3),
 ];
 
 /// Detect FAST keypoints.
 pub fn detect_fast(
-    pixels: &[f64], width: usize, height: usize, config: &FastConfig,
+    pixels: &[f64],
+    width: usize,
+    height: usize,
+    config: &FastConfig,
 ) -> Vec<Keypoint> {
     let w = width as i32;
     let h = height as i32;
@@ -327,11 +387,14 @@ pub fn detect_fast(
 
             if passes(&brighter) || passes(&darker) {
                 // Score = sum of absolute differences above threshold
-                let score: f64 = CIRCLE_OFFSETS.iter().map(|&(dx, dy)| {
-                    let px = pixels[((row + dy) as usize) * width + (col + dx) as usize];
-                    let diff = (px - center).abs();
-                    if diff > t { diff - t } else { 0.0 }
-                }).sum();
+                let score: f64 = CIRCLE_OFFSETS
+                    .iter()
+                    .map(|&(dx, dy)| {
+                        let px = pixels[((row + dy) as usize) * width + (col + dx) as usize];
+                        let diff = (px - center).abs();
+                        if diff > t { diff - t } else { 0.0 }
+                    })
+                    .sum();
                 scores[(row as usize) * width + col as usize] = score;
                 candidates.push((col as usize, row as usize, score));
             }
@@ -339,7 +402,8 @@ pub fn detect_fast(
     }
 
     if !config.nms {
-        return candidates.iter()
+        return candidates
+            .iter()
             .map(|&(x, y, s)| Keypoint::new(x as f64, y as f64, s))
             .collect();
     }
@@ -350,7 +414,9 @@ pub fn detect_fast(
         let mut is_max = true;
         'outer: for dy in -1i32..=1 {
             for dx in -1i32..=1 {
-                if dx == 0 && dy == 0 { continue; }
+                if dx == 0 && dy == 0 {
+                    continue;
+                }
                 let nx = (cx as i32 + dx) as usize;
                 let ny = (cy as i32 + dy) as usize;
                 if scores[ny * width + nx] >= score {
@@ -388,7 +454,10 @@ fn orb_sample_pairs() -> Vec<(i32, i32, i32, i32)> {
 
 /// Extract ORB descriptors for given keypoints.
 pub fn extract_orb(
-    pixels: &[f64], width: usize, height: usize, keypoints: &[Keypoint],
+    pixels: &[f64],
+    width: usize,
+    height: usize,
+    keypoints: &[Keypoint],
 ) -> Vec<Descriptor> {
     let pairs = orb_sample_pairs();
     let mut descriptors = Vec::new();
@@ -397,7 +466,8 @@ pub fn extract_orb(
     for kp in keypoints {
         let cx = kp.x as i32;
         let cy = kp.y as i32;
-        if cx < margin || cy < margin
+        if cx < margin
+            || cy < margin
             || cx >= (width as i32 - margin)
             || cy >= (height as i32 - margin)
         {
@@ -482,7 +552,11 @@ pub fn ratio_test(query: &[Descriptor], train: &[Descriptor], ratio: f64) -> Vec
 
 /// Suppress keypoints that are within `radius` of a stronger keypoint.
 pub fn nms_keypoints(keypoints: &mut Vec<Keypoint>, radius: f64) {
-    keypoints.sort_by(|a, b| b.response.partial_cmp(&a.response).unwrap_or(std::cmp::Ordering::Equal));
+    keypoints.sort_by(|a, b| {
+        b.response
+            .partial_cmp(&a.response)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     let mut keep = Vec::new();
     let r2 = radius * radius;
 
@@ -501,7 +575,11 @@ pub fn nms_keypoints(keypoints: &mut Vec<Keypoint>, radius: f64) {
 
 /// Retain only the top-N keypoints by response.
 pub fn retain_best(keypoints: &mut Vec<Keypoint>, n: usize) {
-    keypoints.sort_by(|a, b| b.response.partial_cmp(&a.response).unwrap_or(std::cmp::Ordering::Equal));
+    keypoints.sort_by(|a, b| {
+        b.response
+            .partial_cmp(&a.response)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     keypoints.truncate(n);
 }
 
@@ -537,7 +615,9 @@ mod tests {
 
     #[test]
     fn test_keypoint_builder() {
-        let kp = Keypoint::new(5.0, 5.0, 50.0).with_octave(2).with_angle(1.57);
+        let kp = Keypoint::new(5.0, 5.0, 50.0)
+            .with_octave(2)
+            .with_angle(1.57);
         assert_eq!(kp.octave, 2);
         assert!((kp.angle - 1.57).abs() < 1e-9);
     }

@@ -357,10 +357,7 @@ pub fn compute_per_sample_shading_mask(buffer: &MultiSampleBuffer, threshold: f3
 
 /// Compute the centroid interpolation point for a coverage mask.
 /// Returns the average position of covered samples.
-pub fn centroid_position(
-    coverage: &CoverageMask,
-    sample_count: SampleCount,
-) -> SamplePosition {
+pub fn centroid_position(coverage: &CoverageMask, sample_count: SampleCount) -> SamplePosition {
     let positions = standard_sample_positions(sample_count);
     let mut sum_x = 0.0f32;
     let mut sum_y = 0.0f32;
@@ -577,7 +574,10 @@ mod tests {
             }
         }
         let mask = compute_per_sample_shading_mask(&buf, 0.01);
-        assert!(mask.iter().all(|m| !m), "uniform samples need no per-sample shading");
+        assert!(
+            mask.iter().all(|m| !m),
+            "uniform samples need no per-sample shading"
+        );
     }
 
     #[test]

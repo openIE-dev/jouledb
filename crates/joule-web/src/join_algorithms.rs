@@ -112,7 +112,10 @@ pub struct JoinCondition {
 
 impl JoinCondition {
     pub fn new(left_col: usize, right_col: usize) -> Self {
-        Self { left_col, right_col }
+        Self {
+            left_col,
+            right_col,
+        }
     }
 
     fn matches(&self, left: &Row, right: &Row) -> bool {
@@ -261,10 +264,7 @@ pub fn hash_join(
     // Build phase: hash the left (build) side.
     let mut hash_table: HashMap<Value, Vec<usize>> = HashMap::new();
     for (i, row) in left.iter().enumerate() {
-        hash_table
-            .entry(row[lc].clone())
-            .or_default()
-            .push(i);
+        hash_table.entry(row[lc].clone()).or_default().push(i);
     }
 
     // Probe phase: scan right side and probe the hash table.
@@ -379,24 +379,15 @@ pub enum JoinAlgorithm {
 }
 
 /// Perform a multi-way join: starting from `base`, apply each step in order.
-pub fn multi_way_join(
-    base: &[Row],
-    steps: &[JoinStep],
-) -> Result<JoinResult, JoinError> {
+pub fn multi_way_join(base: &[Row], steps: &[JoinStep]) -> Result<JoinResult, JoinError> {
     let mut current = base.to_vec();
     let mut total_comparisons = 0u64;
 
     for step in steps {
         let result = match step.algorithm {
-            JoinAlgorithm::NestedLoop => {
-                nested_loop_join(&current, &step.right, &step.condition)?
-            }
-            JoinAlgorithm::SortMerge => {
-                sort_merge_join(&current, &step.right, &step.condition)?
-            }
-            JoinAlgorithm::Hash => {
-                hash_join(&current, &step.right, &step.condition)?
-            }
+            JoinAlgorithm::NestedLoop => nested_loop_join(&current, &step.right, &step.condition)?,
+            JoinAlgorithm::SortMerge => sort_merge_join(&current, &step.right, &step.condition)?,
+            JoinAlgorithm::Hash => hash_join(&current, &step.right, &step.condition)?,
         };
         total_comparisons += result.stats.comparisons;
         current = result.rows;
@@ -492,8 +483,7 @@ mod tests {
     fn index_nested_loop_basic() {
         let right = departments();
         let idx = HashLookupIndex::build(&right, 0).unwrap();
-        let result =
-            index_nested_loop_join(&employees(), &right, &cond(), &idx).unwrap();
+        let result = index_nested_loop_join(&employees(), &right, &cond(), &idx).unwrap();
         assert_eq!(result.rows.len(), 4);
         assert_eq!(result.stats.algorithm, "index_nested_loop");
     }
@@ -528,7 +518,11 @@ mod tests {
 
     #[test]
     fn no_matches_produces_empty() {
-        let left = vec![vec![Value::Int(1), Value::Text("X".into()), Value::Int(999)]];
+        let left = vec![vec![
+            Value::Int(1),
+            Value::Text("X".into()),
+            Value::Int(999),
+        ]];
         let result = nested_loop_join(&left, &departments(), &cond()).unwrap();
         assert_eq!(result.rows.len(), 0);
     }

@@ -317,15 +317,7 @@ impl UiRenderer {
         });
     }
 
-    pub fn draw_line(
-        &mut self,
-        x1: f32,
-        y1: f32,
-        x2: f32,
-        y2: f32,
-        color: Color,
-        width: f32,
-    ) {
+    pub fn draw_line(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, color: Color, width: f32) {
         self.push_command(DrawCommand::Line {
             x1,
             y1,
@@ -336,12 +328,7 @@ impl UiRenderer {
         });
     }
 
-    pub fn draw_triangle(
-        &mut self,
-        points: [[f32; 2]; 3],
-        color: Color,
-        filled: bool,
-    ) {
+    pub fn draw_triangle(&mut self, points: [[f32; 2]; 3], color: Color, filled: bool) {
         self.push_command(DrawCommand::Triangle {
             points,
             color,
@@ -405,8 +392,7 @@ impl UiRenderer {
                     color,
                     width,
                 } => {
-                    let (verts, idxs) =
-                        generate_line_vertices(*x1, *y1, *x2, *y2, *width, *color);
+                    let (verts, idxs) = generate_line_vertices(*x1, *y1, *x2, *y2, *width, *color);
                     push_to_batch(&mut batches, None, verts, idxs, current_scissor);
                 }
                 DrawCommand::Circle {
@@ -429,8 +415,7 @@ impl UiRenderer {
                     h,
                     texture_id,
                 } => {
-                    let (verts, idxs) =
-                        generate_image_vertices(*x, *y, *w, *h, Color::WHITE);
+                    let (verts, idxs) = generate_image_vertices(*x, *y, *w, *h, Color::WHITE);
                     push_to_batch(
                         &mut batches,
                         Some(*texture_id),
@@ -486,7 +471,13 @@ fn push_to_batch(
 }
 
 /// Generate 4 vertices + 6 indices for a filled rectangle.
-pub fn generate_rect_vertices(x: f32, y: f32, w: f32, h: f32, color: Color) -> (Vec<Vertex>, Vec<u32>) {
+pub fn generate_rect_vertices(
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    color: Color,
+) -> (Vec<Vertex>, Vec<u32>) {
     let verts = vec![
         Vertex {
             position: [x, y],
@@ -513,7 +504,13 @@ pub fn generate_rect_vertices(x: f32, y: f32, w: f32, h: f32, color: Color) -> (
     (verts, idxs)
 }
 
-fn generate_image_vertices(x: f32, y: f32, w: f32, h: f32, color: Color) -> (Vec<Vertex>, Vec<u32>) {
+fn generate_image_vertices(
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    color: Color,
+) -> (Vec<Vertex>, Vec<u32>) {
     generate_rect_vertices(x, y, w, h, color)
 }
 
@@ -801,7 +798,9 @@ mod tests {
         let cmds = r.finish();
         assert_eq!(cmds.len(), 1);
         match &cmds[0] {
-            DrawCommand::Text { text, font_size, .. } => {
+            DrawCommand::Text {
+                text, font_size, ..
+            } => {
                 assert_eq!(text, "Hello");
                 assert!((*font_size - 16.0).abs() < 1e-6);
             }

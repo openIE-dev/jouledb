@@ -38,7 +38,11 @@ pub struct GeoCoord {
 
 impl GeoCoord {
     pub fn new(lat_deg: f64, lon_deg: f64, alt_m: f64) -> Self {
-        Self { lat_deg, lon_deg, alt_m }
+        Self {
+            lat_deg,
+            lon_deg,
+            alt_m,
+        }
     }
 
     pub fn lat_rad(&self) -> f64 {
@@ -84,8 +88,12 @@ impl fmt::Display for GeoCoord {
         write!(
             f,
             "{:.6}{}{}, {:.6}{}{}, alt={:.1}m",
-            self.lat_deg.abs(), '\u{00B0}', ns,
-            self.lon_deg.abs(), '\u{00B0}', ew,
+            self.lat_deg.abs(),
+            '\u{00B0}',
+            ns,
+            self.lon_deg.abs(),
+            '\u{00B0}',
+            ew,
             self.alt_m,
         )
     }
@@ -103,7 +111,13 @@ pub struct UtmCoord {
 
 impl UtmCoord {
     pub fn new(easting: f64, northing: f64, zone: u8, northern: bool) -> Self {
-        Self { easting, northing, zone, northern_hemisphere: northern, alt_m: 0.0 }
+        Self {
+            easting,
+            northing,
+            zone,
+            northern_hemisphere: northern,
+            alt_m: 0.0,
+        }
     }
 
     pub fn with_altitude(mut self, alt: f64) -> Self {
@@ -148,34 +162,43 @@ pub fn geo_to_utm(coord: &GeoCoord) -> UtmCoord {
     let e2 = WGS84_E2;
     let e4 = e2 * e2;
     let e6 = e4 * e2;
-    let m = WGS84_A * (
-        (1.0 - e2 / 4.0 - 3.0 * e4 / 64.0 - 5.0 * e6 / 256.0) * lat
-        - (3.0 * e2 / 8.0 + 3.0 * e4 / 32.0 + 45.0 * e6 / 1024.0) * (2.0 * lat).sin()
-        + (15.0 * e4 / 256.0 + 45.0 * e6 / 1024.0) * (4.0 * lat).sin()
-        - (35.0 * e6 / 3072.0) * (6.0 * lat).sin()
-    );
+    let m = WGS84_A
+        * ((1.0 - e2 / 4.0 - 3.0 * e4 / 64.0 - 5.0 * e6 / 256.0) * lat
+            - (3.0 * e2 / 8.0 + 3.0 * e4 / 32.0 + 45.0 * e6 / 1024.0) * (2.0 * lat).sin()
+            + (15.0 * e4 / 256.0 + 45.0 * e6 / 1024.0) * (4.0 * lat).sin()
+            - (35.0 * e6 / 3072.0) * (6.0 * lat).sin());
 
     let t2 = t * t;
     let a2 = a_coeff * a_coeff;
 
-    let easting = UTM_K0 * n * (
-        a_coeff
-        + (1.0 - t2 + c) * a2 * a_coeff / 6.0
-        + (5.0 - 18.0 * t2 + t2 * t2 + 72.0 * c - 58.0 * WGS84_E2 / (1.0 - WGS84_E2))
-            * a2 * a2 * a_coeff / 120.0
-    ) + UTM_FE;
+    let easting = UTM_K0
+        * n
+        * (a_coeff
+            + (1.0 - t2 + c) * a2 * a_coeff / 6.0
+            + (5.0 - 18.0 * t2 + t2 * t2 + 72.0 * c - 58.0 * WGS84_E2 / (1.0 - WGS84_E2))
+                * a2
+                * a2
+                * a_coeff
+                / 120.0)
+        + UTM_FE;
 
-    let northing_raw = UTM_K0 * (
-        m + n * t * (
-            a2 / 2.0
-            + (5.0 - t2 + 9.0 * c + 4.0 * c * c) * a2 * a2 / 24.0
-            + (61.0 - 58.0 * t2 + t2 * t2 + 600.0 * c - 330.0 * WGS84_E2 / (1.0 - WGS84_E2))
-                * a2 * a2 * a2 / 720.0
-        )
-    );
+    let northing_raw = UTM_K0
+        * (m + n
+            * t
+            * (a2 / 2.0
+                + (5.0 - t2 + 9.0 * c + 4.0 * c * c) * a2 * a2 / 24.0
+                + (61.0 - 58.0 * t2 + t2 * t2 + 600.0 * c - 330.0 * WGS84_E2 / (1.0 - WGS84_E2))
+                    * a2
+                    * a2
+                    * a2
+                    / 720.0));
 
     let northern = coord.lat_deg >= 0.0;
-    let northing = if northern { northing_raw } else { northing_raw + UTM_FN_SOUTH };
+    let northing = if northern {
+        northing_raw
+    } else {
+        northing_raw + UTM_FN_SOUTH
+    };
 
     UtmCoord {
         easting,
@@ -189,11 +212,19 @@ pub fn geo_to_utm(coord: &GeoCoord) -> UtmCoord {
 /// Convert UTM coordinates back to WGS84 (approximate inverse).
 pub fn utm_to_geo(utm: &UtmCoord) -> GeoCoord {
     let x = utm.easting - UTM_FE;
-    let y = if utm.northern_hemisphere { utm.northing } else { utm.northing - UTM_FN_SOUTH };
+    let y = if utm.northern_hemisphere {
+        utm.northing
+    } else {
+        utm.northing - UTM_FN_SOUTH
+    };
 
     let m = y / UTM_K0;
-    let mu = m / (WGS84_A * (1.0 - WGS84_E2 / 4.0 - 3.0 * WGS84_E2.powi(2) / 64.0
-        - 5.0 * WGS84_E2.powi(3) / 256.0));
+    let mu = m
+        / (WGS84_A
+            * (1.0
+                - WGS84_E2 / 4.0
+                - 3.0 * WGS84_E2.powi(2) / 64.0
+                - 5.0 * WGS84_E2.powi(3) / 256.0));
 
     let e1 = (1.0 - (1.0 - WGS84_E2).sqrt()) / (1.0 + (1.0 - WGS84_E2).sqrt());
     let phi1 = mu
@@ -209,19 +240,34 @@ pub fn utm_to_geo(utm: &UtmCoord) -> GeoCoord {
     let d2 = d * d;
     let t12 = t1 * t1;
 
-    let lat = phi1 - (n1 * t1 / r1) * (
-        d2 / 2.0
-        - (5.0 + 3.0 * t12 + 10.0 * c1 - 4.0 * c1 * c1 - 9.0 * WGS84_E2 / (1.0 - WGS84_E2)) * d2 * d2 / 24.0
-        + (61.0 + 90.0 * t12 + 298.0 * c1 + 45.0 * t12 * t12
-            - 252.0 * WGS84_E2 / (1.0 - WGS84_E2) - 3.0 * c1 * c1) * d2 * d2 * d2 / 720.0
-    );
+    let lat = phi1
+        - (n1 * t1 / r1)
+            * (d2 / 2.0
+                - (5.0 + 3.0 * t12 + 10.0 * c1
+                    - 4.0 * c1 * c1
+                    - 9.0 * WGS84_E2 / (1.0 - WGS84_E2))
+                    * d2
+                    * d2
+                    / 24.0
+                + (61.0 + 90.0 * t12 + 298.0 * c1 + 45.0 * t12 * t12
+                    - 252.0 * WGS84_E2 / (1.0 - WGS84_E2)
+                    - 3.0 * c1 * c1)
+                    * d2
+                    * d2
+                    * d2
+                    / 720.0);
 
     let lon0 = ((utm.zone as f64 - 1.0) * 6.0 - 180.0 + 3.0).to_radians();
-    let lon = lon0 + (
-        d - (1.0 + 2.0 * t12 + c1) * d2 * d / 6.0
-        + (5.0 - 2.0 * c1 + 28.0 * t12 - 3.0 * c1 * c1
-            + 8.0 * WGS84_E2 / (1.0 - WGS84_E2) + 24.0 * t12 * t12) * d2 * d2 * d / 120.0
-    ) / phi1.cos();
+    let lon = lon0
+        + (d - (1.0 + 2.0 * t12 + c1) * d2 * d / 6.0
+            + (5.0 - 2.0 * c1 + 28.0 * t12 - 3.0 * c1 * c1
+                + 8.0 * WGS84_E2 / (1.0 - WGS84_E2)
+                + 24.0 * t12 * t12)
+                * d2
+                * d2
+                * d
+                / 120.0)
+            / phi1.cos();
 
     GeoCoord::new(lat.to_degrees(), lon.to_degrees(), utm.alt_m)
 }
@@ -417,10 +463,22 @@ impl GpsKalman {
 
         // Kalman gain: K = P*H'*S^-1 (4x2)
         let k = [
-            [p[0][0] * si00 + p[0][1] * si10, p[0][0] * si01 + p[0][1] * si11],
-            [p[1][0] * si00 + p[1][1] * si10, p[1][0] * si01 + p[1][1] * si11],
-            [p[2][0] * si00 + p[2][1] * si10, p[2][0] * si01 + p[2][1] * si11],
-            [p[3][0] * si00 + p[3][1] * si10, p[3][0] * si01 + p[3][1] * si11],
+            [
+                p[0][0] * si00 + p[0][1] * si10,
+                p[0][0] * si01 + p[0][1] * si11,
+            ],
+            [
+                p[1][0] * si00 + p[1][1] * si10,
+                p[1][0] * si01 + p[1][1] * si11,
+            ],
+            [
+                p[2][0] * si00 + p[2][1] * si10,
+                p[2][0] * si01 + p[2][1] * si11,
+            ],
+            [
+                p[3][0] * si00 + p[3][1] * si10,
+                p[3][0] * si01 + p[3][1] * si11,
+            ],
         ];
 
         // State update: x = x + K*y
@@ -434,13 +492,21 @@ impl GpsKalman {
             for j in 0..4 {
                 let mut ikh = 0.0;
                 // (I - K*H)[i][j]
-                if i == j { ikh = 1.0; }
-                if j < 2 { ikh -= k[i][j]; }
+                if i == j {
+                    ikh = 1.0;
+                }
+                if j < 2 {
+                    ikh -= k[i][j];
+                }
                 new_p[i][j] = 0.0;
                 for m in 0..4 {
                     let mut ikm = 0.0;
-                    if i == m { ikm = 1.0; }
-                    if m < 2 { ikm -= k[i][m]; }
+                    if i == m {
+                        ikm = 1.0;
+                    }
+                    if m < 2 {
+                        ikm -= k[i][m];
+                    }
                     new_p[i][j] += ikm * p[m][j];
                 }
             }
@@ -477,7 +543,8 @@ impl fmt::Display for GpsKalman {
         write!(
             f,
             "GpsKalman(speed={:.2}m/s, zone={})",
-            self.speed(), self.utm_zone,
+            self.speed(),
+            self.utm_zone,
         )
     }
 }
@@ -502,7 +569,11 @@ pub struct WaypointManager {
 
 impl WaypointManager {
     pub fn new() -> Self {
-        Self { waypoints: Vec::new(), current_index: 0, loop_mode: false }
+        Self {
+            waypoints: Vec::new(),
+            current_index: 0,
+            loop_mode: false,
+        }
     }
 
     pub fn with_loop(mut self, looping: bool) -> Self {
@@ -512,7 +583,11 @@ impl WaypointManager {
 
     pub fn add_waypoint(&mut self, coord: GeoCoord, radius_m: f64) {
         let id = self.waypoints.len();
-        self.waypoints.push(Waypoint { coord, radius_m, id });
+        self.waypoints.push(Waypoint {
+            coord,
+            radius_m,
+            id,
+        });
     }
 
     pub fn current_waypoint(&self) -> Option<&Waypoint> {
@@ -537,12 +612,14 @@ impl WaypointManager {
 
     /// Distance to current waypoint from given position.
     pub fn distance_to_current(&self, position: &GeoCoord) -> Option<f64> {
-        self.current_waypoint().map(|wp| position.haversine_distance(&wp.coord))
+        self.current_waypoint()
+            .map(|wp| position.haversine_distance(&wp.coord))
     }
 
     /// Bearing to current waypoint from given position (radians).
     pub fn bearing_to_current(&self, position: &GeoCoord) -> Option<f64> {
-        self.current_waypoint().map(|wp| position.bearing_to(&wp.coord))
+        self.current_waypoint()
+            .map(|wp| position.bearing_to(&wp.coord))
     }
 
     pub fn is_complete(&self) -> bool {
@@ -559,7 +636,9 @@ impl fmt::Display for WaypointManager {
         write!(
             f,
             "WaypointMgr(wps={}, current={}, loop={})",
-            self.waypoints.len(), self.current_index, self.loop_mode,
+            self.waypoints.len(),
+            self.current_index,
+            self.loop_mode,
         )
     }
 }
@@ -641,8 +720,7 @@ mod tests {
 
     #[test]
     fn test_gps_fix_accuracy() {
-        let fix = GpsFix::new(GeoCoord::new(34.0, -118.0, 0.0), 0.0)
-            .with_hdop(1.0);
+        let fix = GpsFix::new(GeoCoord::new(34.0, -118.0, 0.0), 0.0).with_hdop(1.0);
         assert!((fix.horizontal_accuracy_m() - 3.0).abs() < 1e-12);
     }
 
@@ -703,7 +781,9 @@ mod tests {
     fn test_waypoint_distance() {
         let mut mgr = WaypointManager::new();
         mgr.add_waypoint(GeoCoord::new(34.0, -118.0, 0.0), 10.0);
-        let dist = mgr.distance_to_current(&GeoCoord::new(34.0, -118.0, 0.0)).unwrap();
+        let dist = mgr
+            .distance_to_current(&GeoCoord::new(34.0, -118.0, 0.0))
+            .unwrap();
         assert!(dist < 1.0);
     }
 

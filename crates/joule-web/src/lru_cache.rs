@@ -143,9 +143,7 @@ impl<K: Eq + Hash + Clone, V> LruCache<K, V> {
     }
 
     fn is_expired(entry: &Entry<V>) -> bool {
-        entry
-            .expires_at
-            .is_some_and(|exp| Instant::now() >= exp)
+        entry.expires_at.is_some_and(|exp| Instant::now() >= exp)
     }
 
     fn evict_tail(&mut self) -> Option<K> {

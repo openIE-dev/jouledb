@@ -3,8 +3,8 @@
 //!
 //! Pure-Rust replacement for eventsource-parser, sse.js, etc.
 
-use std::fmt;
 use std::collections::VecDeque;
+use std::fmt;
 
 // ── Event ─────────────────────────────────────────────────────────
 
@@ -37,7 +37,10 @@ impl Default for SseEvent {
 
 impl SseEvent {
     pub fn new(data: &str) -> Self {
-        Self { data: data.into(), ..Default::default() }
+        Self {
+            data: data.into(),
+            ..Default::default()
+        }
     }
 
     pub fn with_type(mut self, event_type: &str) -> Self {
@@ -135,7 +138,9 @@ impl Default for SseParser {
 }
 
 impl SseParser {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// Feed a chunk of bytes into the parser, returning any complete events.
     pub fn feed(&mut self, chunk: &str) -> Vec<SseEvent> {
@@ -173,7 +178,9 @@ impl SseParser {
             self.current_comments.push(comment.to_string());
         } else if let Some(idx) = line.find(':') {
             let field = &line[..idx];
-            let value = line[idx + 1..].strip_prefix(' ').unwrap_or(&line[idx + 1..]);
+            let value = line[idx + 1..]
+                .strip_prefix(' ')
+                .unwrap_or(&line[idx + 1..]);
             self.process_field(field, value);
         } else {
             self.process_field(line, "");
@@ -200,8 +207,10 @@ impl SseParser {
     }
 
     fn dispatch(&mut self) -> Option<SseEvent> {
-        if self.current_data.is_empty() && self.current_event_type.is_none()
-            && self.current_id.is_none() && self.current_retry.is_none()
+        if self.current_data.is_empty()
+            && self.current_event_type.is_none()
+            && self.current_id.is_none()
+            && self.current_retry.is_none()
             && self.current_comments.is_empty()
         {
             return None;
@@ -246,12 +255,18 @@ pub struct SseStream {
 
 impl Default for SseStream {
     fn default() -> Self {
-        Self { events: VecDeque::new(), next_id: 1, auto_id: false }
+        Self {
+            events: VecDeque::new(),
+            next_id: 1,
+            auto_id: false,
+        }
     }
 }
 
 impl SseStream {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// Enable auto-generated sequential IDs.
     pub fn with_auto_id(mut self) -> Self {
@@ -643,9 +658,7 @@ mod tests {
 
     #[test]
     fn roundtrip_event() {
-        let original = SseEvent::new("test data")
-            .with_type("msg")
-            .with_id("7");
+        let original = SseEvent::new("test data").with_type("msg").with_id("7");
         let wire = original.to_wire();
         let mut parser = SseParser::new();
         let events = parser.feed(&wire);

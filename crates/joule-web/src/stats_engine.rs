@@ -12,13 +12,17 @@ const EPS: f64 = 1e-12;
 
 /// Arithmetic mean.
 pub fn mean(data: &[f64]) -> f64 {
-    if data.is_empty() { return 0.0; }
+    if data.is_empty() {
+        return 0.0;
+    }
     data.iter().sum::<f64>() / data.len() as f64
 }
 
 /// Median (middle value or average of two middle values).
 pub fn median(data: &[f64]) -> f64 {
-    if data.is_empty() { return 0.0; }
+    if data.is_empty() {
+        return 0.0;
+    }
     let mut sorted = data.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let n = sorted.len();
@@ -31,7 +35,9 @@ pub fn median(data: &[f64]) -> f64 {
 
 /// Mode (most frequent value). Returns the smallest mode if there are ties.
 pub fn mode(data: &[f64]) -> Option<f64> {
-    if data.is_empty() { return None; }
+    if data.is_empty() {
+        return None;
+    }
     let mut sorted = data.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
@@ -60,14 +66,18 @@ pub fn mode(data: &[f64]) -> Option<f64> {
 
 /// Population variance.
 pub fn variance(data: &[f64]) -> f64 {
-    if data.len() < 2 { return 0.0; }
+    if data.len() < 2 {
+        return 0.0;
+    }
     let m = mean(data);
     data.iter().map(|x| (x - m) * (x - m)).sum::<f64>() / data.len() as f64
 }
 
 /// Sample variance (Bessel's correction).
 pub fn sample_variance(data: &[f64]) -> f64 {
-    if data.len() < 2 { return 0.0; }
+    if data.len() < 2 {
+        return 0.0;
+    }
     let m = mean(data);
     data.iter().map(|x| (x - m) * (x - m)).sum::<f64>() / (data.len() - 1) as f64
 }
@@ -85,10 +95,14 @@ pub fn sample_std_dev(data: &[f64]) -> f64 {
 /// Skewness (Fisher's definition, sample-based).
 pub fn skewness(data: &[f64]) -> f64 {
     let n = data.len() as f64;
-    if n < 3.0 { return 0.0; }
+    if n < 3.0 {
+        return 0.0;
+    }
     let m = mean(data);
     let s = sample_std_dev(data);
-    if s < EPS { return 0.0; }
+    if s < EPS {
+        return 0.0;
+    }
     let sum: f64 = data.iter().map(|x| ((x - m) / s).powi(3)).sum();
     sum * n / ((n - 1.0) * (n - 2.0))
 }
@@ -96,10 +110,14 @@ pub fn skewness(data: &[f64]) -> f64 {
 /// Excess kurtosis (sample-based).
 pub fn kurtosis(data: &[f64]) -> f64 {
     let n = data.len() as f64;
-    if n < 4.0 { return 0.0; }
+    if n < 4.0 {
+        return 0.0;
+    }
     let m = mean(data);
     let s = sample_std_dev(data);
-    if s < EPS { return 0.0; }
+    if s < EPS {
+        return 0.0;
+    }
     let sum: f64 = data.iter().map(|x| ((x - m) / s).powi(4)).sum();
     let k = (n * (n + 1.0) * sum) / ((n - 1.0) * (n - 2.0) * (n - 3.0))
         - (3.0 * (n - 1.0).powi(2)) / ((n - 2.0) * (n - 3.0));
@@ -108,25 +126,35 @@ pub fn kurtosis(data: &[f64]) -> f64 {
 
 /// Percentile (linear interpolation). `p` should be in [0, 100].
 pub fn percentile(data: &[f64], p: f64) -> f64 {
-    if data.is_empty() { return 0.0; }
+    if data.is_empty() {
+        return 0.0;
+    }
     let mut sorted = data.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let n = sorted.len();
-    if n == 1 { return sorted[0]; }
+    if n == 1 {
+        return sorted[0];
+    }
 
     let rank = (p / 100.0) * (n - 1) as f64;
     let lower = rank.floor() as usize;
     let upper = rank.ceil() as usize;
     let frac = rank - lower as f64;
 
-    if lower >= n { return sorted[n - 1]; }
-    if upper >= n { return sorted[n - 1]; }
+    if lower >= n {
+        return sorted[n - 1];
+    }
+    if upper >= n {
+        return sorted[n - 1];
+    }
     sorted[lower] * (1.0 - frac) + sorted[upper] * frac
 }
 
 /// Z-score (standard score) of a value given population mean and std dev.
 pub fn z_score(value: f64, pop_mean: f64, pop_std_dev: f64) -> f64 {
-    if pop_std_dev.abs() < EPS { return 0.0; }
+    if pop_std_dev.abs() < EPS {
+        return 0.0;
+    }
     (value - pop_mean) / pop_std_dev
 }
 
@@ -136,7 +164,9 @@ pub fn z_score(value: f64, pop_mean: f64, pop_std_dev: f64) -> f64 {
 pub fn pearson_correlation(x: &[f64], y: &[f64]) -> f64 {
     assert_eq!(x.len(), y.len(), "Arrays must have equal length");
     let n = x.len();
-    if n < 2 { return 0.0; }
+    if n < 2 {
+        return 0.0;
+    }
 
     let mx = mean(x);
     let my = mean(y);
@@ -151,7 +181,9 @@ pub fn pearson_correlation(x: &[f64], y: &[f64]) -> f64 {
         dy2 += dy * dy;
     }
     let denom = (dx2 * dy2).sqrt();
-    if denom < EPS { return 0.0; }
+    if denom < EPS {
+        return 0.0;
+    }
     num / denom
 }
 
@@ -159,7 +191,9 @@ pub fn pearson_correlation(x: &[f64], y: &[f64]) -> f64 {
 pub fn spearman_correlation(x: &[f64], y: &[f64]) -> f64 {
     assert_eq!(x.len(), y.len(), "Arrays must have equal length");
     let n = x.len();
-    if n < 2 { return 0.0; }
+    if n < 2 {
+        return 0.0;
+    }
 
     let rank_x = ranks(x);
     let rank_y = ranks(y);
@@ -208,7 +242,11 @@ impl LinearRegression {
 
 impl fmt::Display for LinearRegression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "y = {:.4}x + {:.4} (R^2 = {:.4})", self.slope, self.intercept, self.r_squared)
+        write!(
+            f,
+            "y = {:.4}x + {:.4} (R^2 = {:.4})",
+            self.slope, self.intercept, self.r_squared
+        )
     }
 }
 
@@ -217,7 +255,11 @@ pub fn linear_regression(x: &[f64], y: &[f64]) -> LinearRegression {
     assert_eq!(x.len(), y.len(), "Arrays must have equal length");
     let n = x.len() as f64;
     if n < 2.0 {
-        return LinearRegression { slope: 0.0, intercept: y.first().copied().unwrap_or(0.0), r_squared: 0.0 };
+        return LinearRegression {
+            slope: 0.0,
+            intercept: y.first().copied().unwrap_or(0.0),
+            r_squared: 0.0,
+        };
     }
 
     let mx = mean(x);
@@ -233,11 +275,23 @@ pub fn linear_regression(x: &[f64], y: &[f64]) -> LinearRegression {
         ss_yy += dy * dy;
     }
 
-    let slope = if ss_xx.abs() < EPS { 0.0 } else { ss_xy / ss_xx };
+    let slope = if ss_xx.abs() < EPS {
+        0.0
+    } else {
+        ss_xy / ss_xx
+    };
     let intercept = my - slope * mx;
-    let r_squared = if ss_yy.abs() < EPS { 1.0 } else { (ss_xy * ss_xy) / (ss_xx * ss_yy) };
+    let r_squared = if ss_yy.abs() < EPS {
+        1.0
+    } else {
+        (ss_xy * ss_xy) / (ss_xx * ss_yy)
+    };
 
-    LinearRegression { slope, intercept, r_squared }
+    LinearRegression {
+        slope,
+        intercept,
+        r_squared,
+    }
 }
 
 // ── Hypothesis tests ──────────────────────────────────────────
@@ -256,10 +310,18 @@ pub fn t_test_one_sample(data: &[f64], mu: f64) -> TestResult {
     let n = data.len() as f64;
     let m = mean(data);
     let s = sample_std_dev(data);
-    let t = if s < EPS { 0.0 } else { (m - mu) / (s / n.sqrt()) };
+    let t = if s < EPS {
+        0.0
+    } else {
+        (m - mu) / (s / n.sqrt())
+    };
     let df = n - 1.0;
     let p = approximate_t_pvalue(t.abs(), df);
-    TestResult { statistic: t, degrees_of_freedom: df, p_value: p }
+    TestResult {
+        statistic: t,
+        degrees_of_freedom: df,
+        p_value: p,
+    }
 }
 
 /// Two-sample t-test (Welch's, unequal variances).
@@ -280,22 +342,36 @@ pub fn t_test_two_sample(a: &[f64], b: &[f64]) -> TestResult {
     let df = if denom < EPS { 1.0 } else { num / denom };
 
     let p = approximate_t_pvalue(t.abs(), df);
-    TestResult { statistic: t, degrees_of_freedom: df, p_value: p }
+    TestResult {
+        statistic: t,
+        degrees_of_freedom: df,
+        p_value: p,
+    }
 }
 
 /// Chi-squared goodness-of-fit test.
 /// `observed` and `expected` must have the same length.
 pub fn chi_squared_test(observed: &[f64], expected: &[f64]) -> TestResult {
-    assert_eq!(observed.len(), expected.len(), "Arrays must have equal length");
+    assert_eq!(
+        observed.len(),
+        expected.len(),
+        "Arrays must have equal length"
+    );
     let mut chi2 = 0.0;
     for i in 0..observed.len() {
-        if expected[i].abs() < EPS { continue; }
+        if expected[i].abs() < EPS {
+            continue;
+        }
         let diff = observed[i] - expected[i];
         chi2 += (diff * diff) / expected[i];
     }
     let df = (observed.len() as f64 - 1.0).max(1.0);
     let p = approximate_chi2_pvalue(chi2, df);
-    TestResult { statistic: chi2, degrees_of_freedom: df, p_value: p }
+    TestResult {
+        statistic: chi2,
+        degrees_of_freedom: df,
+        p_value: p,
+    }
 }
 
 // ── Confidence intervals ──────────────────────────────────────
@@ -338,9 +414,15 @@ fn z_critical(confidence: f64) -> f64 {
 
 /// Approximate inverse normal CDF (probit function).
 fn inv_normal_cdf(p: f64) -> f64 {
-    if p <= 0.0 { return f64::NEG_INFINITY; }
-    if p >= 1.0 { return f64::INFINITY; }
-    if (p - 0.5).abs() < EPS { return 0.0; }
+    if p <= 0.0 {
+        return f64::NEG_INFINITY;
+    }
+    if p >= 1.0 {
+        return f64::INFINITY;
+    }
+    if (p - 0.5).abs() < EPS {
+        return 0.0;
+    }
 
     // Rational approximation (Abramowitz & Stegun 26.2.23)
     let t = if p < 0.5 {
@@ -376,7 +458,9 @@ fn approximate_t_pvalue(t: f64, df: f64) -> f64 {
 /// Approximate p-value for chi-squared distribution.
 fn approximate_chi2_pvalue(chi2: f64, df: f64) -> f64 {
     // Wilson-Hilferty approximation: transform to standard normal
-    if df < EPS { return 1.0; }
+    if df < EPS {
+        return 1.0;
+    }
     let z = ((chi2 / df).powf(1.0 / 3.0) - (1.0 - 2.0 / (9.0 * df))) / (2.0 / (9.0 * df)).sqrt();
     normal_sf(z)
 }
@@ -386,10 +470,9 @@ fn normal_sf(z: f64) -> f64 {
     // Abramowitz & Stegun approximation 7.1.26
     let t = 1.0 / (1.0 + 0.2316419 * z.abs());
     let d = 0.3989422804014327; // 1/sqrt(2*pi)
-    let p = d * (-z * z / 2.0).exp()
-        * (0.319381530 * t
-            - 0.356563782 * t * t
-            + 1.781477937 * t * t * t
+    let p = d
+        * (-z * z / 2.0).exp()
+        * (0.319381530 * t - 0.356563782 * t * t + 1.781477937 * t * t * t
             - 1.821255978 * t * t * t * t
             + 1.330274429 * t * t * t * t * t);
     if z >= 0.0 { p } else { 1.0 - p }
@@ -584,10 +667,12 @@ mod tests {
     #[test]
     fn test_kurtosis() {
         // Normal-like data should have kurtosis near 0
-        let data: Vec<f64> = (0..1000).map(|i| {
-            let x = i as f64 / 100.0;
-            (-x * x / 2.0).exp()
-        }).collect();
+        let data: Vec<f64> = (0..1000)
+            .map(|i| {
+                let x = i as f64 / 100.0;
+                (-x * x / 2.0).exp()
+            })
+            .collect();
         let k = kurtosis(&data);
         // Just verify it computes without panicking and is finite
         assert!(k.is_finite());

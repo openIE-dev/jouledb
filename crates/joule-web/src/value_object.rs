@@ -19,7 +19,12 @@ pub enum ValueError {
     /// Empty value not allowed.
     Empty(String),
     /// Value out of range.
-    OutOfRange { field: String, min: String, max: String, actual: String },
+    OutOfRange {
+        field: String,
+        min: String,
+        max: String,
+        actual: String,
+    },
     /// Parse error.
     ParseError(String),
     /// Currency mismatch.
@@ -33,7 +38,12 @@ impl fmt::Display for ValueError {
         match self {
             Self::Invalid { field, reason } => write!(f, "invalid {field}: {reason}"),
             Self::Empty(field) => write!(f, "{field} cannot be empty"),
-            Self::OutOfRange { field, min, max, actual } => {
+            Self::OutOfRange {
+                field,
+                min,
+                max,
+                actual,
+            } => {
                 write!(f, "{field} out of range [{min}, {max}]: {actual}")
             }
             Self::ParseError(msg) => write!(f, "parse error: {msg}"),
@@ -65,7 +75,10 @@ impl Money {
         if currency.is_empty() {
             return Err(ValueError::Empty("currency".to_string()));
         }
-        Ok(Self { amount_cents: amount * 100, currency })
+        Ok(Self {
+            amount_cents: amount * 100,
+            currency,
+        })
     }
 
     /// Create from minor units (e.g. cents).
@@ -74,7 +87,10 @@ impl Money {
         if currency.is_empty() {
             return Err(ValueError::Empty("currency".to_string()));
         }
-        Ok(Self { amount_cents, currency })
+        Ok(Self {
+            amount_cents,
+            currency,
+        })
     }
 
     /// Zero money in the given currency.
@@ -253,7 +269,11 @@ impl PhoneNumber {
         number: impl Into<String>,
     ) -> Result<Self, ValueError> {
         let country_code = country_code.into().trim().to_string();
-        let number: String = number.into().chars().filter(|c| c.is_ascii_digit()).collect();
+        let number: String = number
+            .into()
+            .chars()
+            .filter(|c| c.is_ascii_digit())
+            .collect();
         if country_code.is_empty() {
             return Err(ValueError::Empty("country_code".to_string()));
         }
@@ -269,7 +289,10 @@ impl PhoneNumber {
                 reason: "too long (max 15 digits)".to_string(),
             });
         }
-        Ok(Self { country_code, number })
+        Ok(Self {
+            country_code,
+            number,
+        })
     }
 
     pub fn country_code(&self) -> &str {
@@ -332,11 +355,21 @@ impl Address {
         })
     }
 
-    pub fn street(&self) -> &str { &self.street }
-    pub fn city(&self) -> &str { &self.city }
-    pub fn state(&self) -> &str { &self.state }
-    pub fn postal_code(&self) -> &str { &self.postal_code }
-    pub fn country(&self) -> &str { &self.country }
+    pub fn street(&self) -> &str {
+        &self.street
+    }
+    pub fn city(&self) -> &str {
+        &self.city
+    }
+    pub fn state(&self) -> &str {
+        &self.state
+    }
+    pub fn postal_code(&self) -> &str {
+        &self.postal_code
+    }
+    pub fn country(&self) -> &str {
+        &self.country
+    }
 
     /// Single-line formatted address.
     pub fn one_line(&self) -> String {
@@ -381,11 +414,18 @@ impl DateRange {
 
     /// Single-day range.
     pub fn single_day(day: NaiveDate) -> Self {
-        Self { start: day, end: day }
+        Self {
+            start: day,
+            end: day,
+        }
     }
 
-    pub fn start(&self) -> NaiveDate { self.start }
-    pub fn end(&self) -> NaiveDate { self.end }
+    pub fn start(&self) -> NaiveDate {
+        self.start
+    }
+    pub fn end(&self) -> NaiveDate {
+        self.end
+    }
 
     /// Number of days in the range (inclusive).
     pub fn days(&self) -> i64 {
@@ -415,8 +455,8 @@ impl DateRange {
     /// Merge two overlapping or adjacent ranges.
     pub fn merge(&self, other: &DateRange) -> Option<DateRange> {
         // Check overlap or adjacency (end + 1 day == other start).
-        let adjacent = self.end.succ_opt() == Some(other.start)
-            || other.end.succ_opt() == Some(self.start);
+        let adjacent =
+            self.end.succ_opt() == Some(other.start) || other.end.succ_opt() == Some(self.start);
         if !self.overlaps(other) && !adjacent {
             return None;
         }
@@ -480,7 +520,9 @@ impl Percentage {
 
     /// Complement (100 - self).
     pub fn complement(&self) -> Self {
-        Self { value: 100.0 - self.value }
+        Self {
+            value: 100.0 - self.value,
+        }
     }
 }
 
@@ -594,7 +636,10 @@ mod tests {
     fn test_money_add_different_currency() {
         let a = Money::from_major(10, "USD").unwrap();
         let b = Money::from_major(5, "EUR").unwrap();
-        assert!(matches!(a.add(&b), Err(ValueError::CurrencyMismatch { .. })));
+        assert!(matches!(
+            a.add(&b),
+            Err(ValueError::CurrencyMismatch { .. })
+        ));
     }
 
     #[test]
@@ -642,7 +687,10 @@ mod tests {
 
     #[test]
     fn test_money_empty_currency() {
-        assert!(matches!(Money::from_major(10, ""), Err(ValueError::Empty(_))));
+        assert!(matches!(
+            Money::from_major(10, ""),
+            Err(ValueError::Empty(_))
+        ));
     }
 
     // EmailAddress tests
@@ -656,17 +704,26 @@ mod tests {
 
     #[test]
     fn test_email_missing_at() {
-        assert!(matches!(EmailAddress::new("invalid"), Err(ValueError::Invalid { .. })));
+        assert!(matches!(
+            EmailAddress::new("invalid"),
+            Err(ValueError::Invalid { .. })
+        ));
     }
 
     #[test]
     fn test_email_empty_local() {
-        assert!(matches!(EmailAddress::new("@example.com"), Err(ValueError::Invalid { .. })));
+        assert!(matches!(
+            EmailAddress::new("@example.com"),
+            Err(ValueError::Invalid { .. })
+        ));
     }
 
     #[test]
     fn test_email_invalid_domain() {
-        assert!(matches!(EmailAddress::new("user@nodot"), Err(ValueError::Invalid { .. })));
+        assert!(matches!(
+            EmailAddress::new("user@nodot"),
+            Err(ValueError::Invalid { .. })
+        ));
     }
 
     // PhoneNumber tests
@@ -680,7 +737,10 @@ mod tests {
 
     #[test]
     fn test_phone_too_short() {
-        assert!(matches!(PhoneNumber::new("1", "123"), Err(ValueError::Invalid { .. })));
+        assert!(matches!(
+            PhoneNumber::new("1", "123"),
+            Err(ValueError::Invalid { .. })
+        ));
     }
 
     // Address tests
@@ -712,7 +772,10 @@ mod tests {
     fn test_date_range_invalid() {
         let start = NaiveDate::from_ymd_opt(2024, 2, 1).unwrap();
         let end = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
-        assert!(matches!(DateRange::new(start, end), Err(ValueError::InvalidDateRange { .. })));
+        assert!(matches!(
+            DateRange::new(start, end),
+            Err(ValueError::InvalidDateRange { .. })
+        ));
     }
 
     #[test]
@@ -731,11 +794,13 @@ mod tests {
         let r1 = DateRange::new(
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
             NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
         let r2 = DateRange::new(
             NaiveDate::from_ymd_opt(2024, 1, 10).unwrap(),
             NaiveDate::from_ymd_opt(2024, 1, 20).unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
         assert!(r1.overlaps(&r2));
     }
 
@@ -744,11 +809,13 @@ mod tests {
         let r1 = DateRange::new(
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
             NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
         let r2 = DateRange::new(
             NaiveDate::from_ymd_opt(2024, 1, 10).unwrap(),
             NaiveDate::from_ymd_opt(2024, 1, 20).unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
         let inter = r1.intersection(&r2).unwrap();
         assert_eq!(inter.start(), NaiveDate::from_ymd_opt(2024, 1, 10).unwrap());
         assert_eq!(inter.end(), NaiveDate::from_ymd_opt(2024, 1, 15).unwrap());
@@ -771,8 +838,14 @@ mod tests {
 
     #[test]
     fn test_percentage_out_of_range() {
-        assert!(matches!(Percentage::new(101.0), Err(ValueError::OutOfRange { .. })));
-        assert!(matches!(Percentage::new(-1.0), Err(ValueError::OutOfRange { .. })));
+        assert!(matches!(
+            Percentage::new(101.0),
+            Err(ValueError::OutOfRange { .. })
+        ));
+        assert!(matches!(
+            Percentage::new(-1.0),
+            Err(ValueError::OutOfRange { .. })
+        ));
     }
 
     #[test]
@@ -807,7 +880,10 @@ mod tests {
 
     #[test]
     fn test_non_empty_string_whitespace_only() {
-        assert!(matches!(NonEmptyString::new("   "), Err(ValueError::Empty(_))));
+        assert!(matches!(
+            NonEmptyString::new("   "),
+            Err(ValueError::Empty(_))
+        ));
     }
 
     // Timestamp tests

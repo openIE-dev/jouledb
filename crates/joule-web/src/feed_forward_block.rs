@@ -36,7 +36,13 @@ impl Activation {
     /// Compute the derivative (for diagnostics/gradient estimation).
     pub fn derivative(&self, x: f64) -> f64 {
         match self {
-            Self::Relu => if x > 0.0 { 1.0 } else { 0.0 },
+            Self::Relu => {
+                if x > 0.0 {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
             Self::Silu => {
                 let s = sigmoid(x);
                 s + x * s * (1.0 - s)
@@ -76,11 +82,9 @@ fn erf(x: f64) -> f64 {
     let sign = if x >= 0.0 { 1.0 } else { -1.0 };
     let a = x.abs();
     let t = 1.0 / (1.0 + 0.3275911 * a);
-    let poly = t * (0.254829592
-        + t * (-0.284496736
-        + t * (1.421413741
-        + t * (-1.453152027
-        + t * 1.061405429))));
+    let poly = t
+        * (0.254829592
+            + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
     sign * (1.0 - poly * (-a * a).exp())
 }
 
@@ -104,23 +108,33 @@ impl DenseLayer {
         let mut weight = Vec::with_capacity(out_features * in_features);
         let mut state = seed;
         for _ in 0..(out_features * in_features) {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let u = (state >> 33) as f64 / (1u64 << 31) as f64;
             weight.push(u * 2.0 * limit - limit);
         }
-        Self { weight, bias: vec![0.0; out_features], in_features, out_features }
+        Self {
+            weight,
+            bias: vec![0.0; out_features],
+            in_features,
+            out_features,
+        }
     }
 
     /// Forward pass: (seq_len, in_features) -> (seq_len, out_features).
     pub fn forward(&self, input: &[f64], seq_len: usize) -> Vec<f64> {
-        assert_eq!(input.len(), seq_len * self.in_features, "input length mismatch");
+        assert_eq!(
+            input.len(),
+            seq_len * self.in_features,
+            "input length mismatch"
+        );
         let mut output = vec![0.0; seq_len * self.out_features];
         for s in 0..seq_len {
             for o in 0..self.out_features {
                 let mut acc = self.bias[o];
                 for i in 0..self.in_features {
-                    acc += input[s * self.in_features + i]
-                        * self.weight[o * self.in_features + i];
+                    acc += input[s * self.in_features + i] * self.weight[o * self.in_features + i];
                 }
                 output[s * self.out_features + o] = acc;
             }
@@ -261,7 +275,8 @@ impl FeedForwardBlock {
         let hidden = self.layer1.forward(input, seq_len);
         let d_ff = self.config.d_ff();
         let total = hidden.len();
-        let near_zero = hidden.iter()
+        let near_zero = hidden
+            .iter()
             .map(|v| self.config.activation.apply(*v))
             .filter(|v| v.abs() < threshold)
             .count();
@@ -317,7 +332,9 @@ impl GatedFeedForward {
         let up = self.up_layer.forward(input, seq_len);
 
         // Element-wise: SiLU(gate) * up
-        let mut gated: Vec<f64> = gate.iter().zip(up.iter())
+        let mut gated: Vec<f64> = gate
+            .iter()
+            .zip(up.iter())
             .map(|(g, u)| {
                 let silu_g = g * sigmoid(*g);
                 silu_g * u
@@ -335,7 +352,11 @@ impl GatedFeedForward {
 
 impl fmt::Display for GatedFeedForward {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "GatedFeedForward(d_model={}, d_ff={})", self.d_model, self.d_ff)
+        write!(
+            f,
+            "GatedFeedForward(d_model={}, d_ff={})",
+            self.d_model, self.d_ff
+        )
     }
 }
 

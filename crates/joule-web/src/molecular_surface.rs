@@ -86,7 +86,13 @@ pub struct SurfaceAtom {
 impl SurfaceAtom {
     pub fn new(index: usize, coords: [f64; 3], element: Element) -> Self {
         let vdw_radius = element.vdw_radius();
-        Self { index, coords, element, vdw_radius, sasa: 0.0 }
+        Self {
+            index,
+            coords,
+            element,
+            vdw_radius,
+            sasa: 0.0,
+        }
     }
 
     /// Override the van der Waals radius.
@@ -133,7 +139,10 @@ pub struct SasaCalculator {
 impl SasaCalculator {
     /// Default calculator with water probe and 960 test points.
     pub fn new() -> Self {
-        Self { probe_radius: 1.4, n_points: 960 }
+        Self {
+            probe_radius: 1.4,
+            n_points: 960,
+        }
     }
 
     /// Set probe radius.
@@ -224,7 +233,11 @@ pub struct SasaResult {
 impl SasaResult {
     /// Average SASA per atom.
     pub fn average_sasa(&self) -> f64 {
-        if self.atom_count == 0 { 0.0 } else { self.total_sasa / self.atom_count as f64 }
+        if self.atom_count == 0 {
+            0.0
+        } else {
+            self.total_sasa / self.atom_count as f64
+        }
     }
 }
 
@@ -422,35 +435,54 @@ mod tests {
 
     #[test]
     fn test_sasa_calculator_builders() {
-        let calc = SasaCalculator::new().with_probe_radius(1.5).with_n_points(500);
+        let calc = SasaCalculator::new()
+            .with_probe_radius(1.5)
+            .with_n_points(500);
         assert!(calc.to_string().contains("1.50"));
     }
 
     #[test]
     fn test_sasa_result_average() {
-        let r = SasaResult { total_sasa: 100.0, atom_count: 10, probe_radius: 1.4 };
+        let r = SasaResult {
+            total_sasa: 100.0,
+            atom_count: 10,
+            probe_radius: 1.4,
+        };
         assert!(approx(r.average_sasa(), 10.0, 1e-10));
     }
 
     #[test]
     fn test_sasa_result_display() {
-        let r = SasaResult { total_sasa: 1234.5, atom_count: 50, probe_radius: 1.4 };
+        let r = SasaResult {
+            total_sasa: 1234.5,
+            atom_count: 50,
+            probe_radius: 1.4,
+        };
         assert!(r.to_string().contains("1234.5"));
     }
 
     #[test]
     fn test_surface_exposure_buried() {
-        assert_eq!(SurfaceExposure::classify(0.0, 100.0), SurfaceExposure::Buried);
+        assert_eq!(
+            SurfaceExposure::classify(0.0, 100.0),
+            SurfaceExposure::Buried
+        );
     }
 
     #[test]
     fn test_surface_exposure_partial() {
-        assert_eq!(SurfaceExposure::classify(25.0, 100.0), SurfaceExposure::Partial);
+        assert_eq!(
+            SurfaceExposure::classify(25.0, 100.0),
+            SurfaceExposure::Partial
+        );
     }
 
     #[test]
     fn test_surface_exposure_exposed() {
-        assert_eq!(SurfaceExposure::classify(80.0, 100.0), SurfaceExposure::Exposed);
+        assert_eq!(
+            SurfaceExposure::classify(80.0, 100.0),
+            SurfaceExposure::Exposed
+        );
     }
 
     #[test]

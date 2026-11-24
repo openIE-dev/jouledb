@@ -39,12 +39,20 @@ pub struct RelevantContent {
 impl RelevantContent {
     /// Default: additions + text.
     pub fn default_relevant() -> Self {
-        Self { additions: true, removals: false, text: true }
+        Self {
+            additions: true,
+            removals: false,
+            text: true,
+        }
     }
 
     /// All changes relevant.
     pub fn all() -> Self {
-        Self { additions: true, removals: true, text: true }
+        Self {
+            additions: true,
+            removals: true,
+            text: true,
+        }
     }
 
     /// Render to the `aria-relevant` attribute value.
@@ -214,7 +222,13 @@ impl LiveRegion {
             return false;
         }
         let old = std::mem::replace(&mut self.content[index], new_text.into());
-        self.record_update(UpdateKind::TextChange { old, new: new_text.into() }, now_ms);
+        self.record_update(
+            UpdateKind::TextChange {
+                old,
+                new: new_text.into(),
+            },
+            now_ms,
+        );
         true
     }
 
@@ -284,7 +298,11 @@ impl LiveRegion {
         let seq = self.next_seq;
         self.next_seq += 1;
         self.last_update_ms = now_ms;
-        self.updates.push(RegionUpdate { kind, timestamp_ms: now_ms, seq });
+        self.updates.push(RegionUpdate {
+            kind,
+            timestamp_ms: now_ms,
+            seq,
+        });
     }
 }
 
@@ -367,13 +385,17 @@ mod tests {
         r.set_throttle_ms(500);
         assert!(r.add_content("msg1", 1000));
         assert!(!r.add_content("msg2", 1200)); // too soon
-        assert!(r.add_content("msg3", 1500));  // ok
+        assert!(r.add_content("msg3", 1500)); // ok
     }
 
     #[test]
     fn relevant_additions_only() {
         let mut r = LiveRegion::new("list", RegionPoliteness::Polite);
-        r.set_relevant(RelevantContent { additions: true, removals: false, text: false });
+        r.set_relevant(RelevantContent {
+            additions: true,
+            removals: false,
+            text: false,
+        });
         assert!(r.add_content("new item", 0));
         assert!(!r.remove_content(0, 0));
     }
@@ -422,8 +444,15 @@ mod tests {
     #[test]
     fn relevant_attr_rendering() {
         assert_eq!(RelevantContent::all().to_attr(), "all");
-        assert_eq!(RelevantContent::default_relevant().to_attr(), "additions text");
-        let removals_only = RelevantContent { additions: false, removals: true, text: false };
+        assert_eq!(
+            RelevantContent::default_relevant().to_attr(),
+            "additions text"
+        );
+        let removals_only = RelevantContent {
+            additions: false,
+            removals: true,
+            text: false,
+        };
         assert_eq!(removals_only.to_attr(), "removals");
     }
 

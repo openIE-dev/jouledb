@@ -81,11 +81,21 @@ pub struct TransitionColor {
 
 impl TransitionColor {
     pub fn black() -> Self {
-        Self { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }
+        Self {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 1.0,
+        }
     }
 
     pub fn white() -> Self {
-        Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }
+        Self {
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+            a: 1.0,
+        }
     }
 
     pub fn new(r: f64, g: f64, b: f64, a: f64) -> Self {
@@ -242,7 +252,11 @@ impl TransitionController {
 
         if self.elapsed < out_end {
             self.state = TransitionState::TransitionOut;
-            let raw_t = if out_end > 0.0 { self.elapsed / out_end } else { 1.0 };
+            let raw_t = if out_end > 0.0 {
+                self.elapsed / out_end
+            } else {
+                1.0
+            };
             let eased = self.config.out_easing.apply(raw_t);
             self.make_frame(eased, self.elapsed / in_end.max(1e-12))
         } else if self.elapsed < hold_end {
@@ -282,7 +296,8 @@ impl TransitionController {
         let pixel_block = match self.config.kind {
             TransitionKind::Pixelate => {
                 // Block size from 1 (no pixelation) to max (fully pixelated)
-                let max_block = (self.config.screen_width.min(self.config.screen_height) / 8.0).max(1.0);
+                let max_block =
+                    (self.config.screen_width.min(self.config.screen_height) / 8.0).max(1.0);
                 1.0 + c * (max_block - 1.0)
             }
             _ => 1.0,
@@ -290,9 +305,8 @@ impl TransitionController {
 
         let iris_r = match self.config.kind {
             TransitionKind::IrisCircle => {
-                let diag = (self.config.screen_width.powi(2)
-                    + self.config.screen_height.powi(2))
-                .sqrt()
+                let diag = (self.config.screen_width.powi(2) + self.config.screen_height.powi(2))
+                    .sqrt()
                     / 2.0;
                 diag * (1.0 - c)
             }
@@ -339,12 +353,8 @@ impl TransitionController {
                 // These are full-screen overlays
                 c > 0.0
             }
-            TransitionKind::WipeHorizontal => {
-                px <= sw * c
-            }
-            TransitionKind::WipeVertical => {
-                py <= sh * c
-            }
+            TransitionKind::WipeHorizontal => px <= sw * c,
+            TransitionKind::WipeVertical => py <= sh * c,
             TransitionKind::WipeDiagonal => {
                 let normalized = (px / sw + py / sh) / 2.0;
                 normalized <= c
@@ -576,8 +586,8 @@ mod tests {
 
     #[test]
     fn white_fade_color() {
-        let config = TransitionConfig::fade_black(1.0, 0.0, 1.0)
-            .with_color(TransitionColor::white());
+        let config =
+            TransitionConfig::fade_black(1.0, 0.0, 1.0).with_color(TransitionColor::white());
         let mut ctrl = TransitionController::new(config);
         ctrl.start();
         let f = ctrl.update(0.5);

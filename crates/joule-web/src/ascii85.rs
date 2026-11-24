@@ -97,10 +97,7 @@ pub fn encode_adobe(data: &[u8]) -> String {
 /// Decode ASCII85 to bytes.
 pub fn decode(input: &str) -> Result<Vec<u8>, Ascii85Error> {
     // Strip whitespace.
-    let cleaned: Vec<u8> = input
-        .bytes()
-        .filter(|b| !b.is_ascii_whitespace())
-        .collect();
+    let cleaned: Vec<u8> = input.bytes().filter(|b| !b.is_ascii_whitespace()).collect();
 
     let mut result = Vec::with_capacity(cleaned.len() * 4 / 5);
     let mut i = 0;
@@ -156,10 +153,7 @@ pub fn decode_adobe(input: &str) -> Result<Vec<u8>, Ascii85Error> {
 
 /// Validate an ASCII85-encoded string.
 pub fn is_valid(input: &str) -> bool {
-    let cleaned: Vec<u8> = input
-        .bytes()
-        .filter(|b| !b.is_ascii_whitespace())
-        .collect();
+    let cleaned: Vec<u8> = input.bytes().filter(|b| !b.is_ascii_whitespace()).collect();
 
     let mut i = 0;
     while i < cleaned.len() {
@@ -179,7 +173,10 @@ pub fn is_valid(input: &str) -> bool {
 /// Validate Adobe-delimited ASCII85.
 pub fn is_valid_adobe(input: &str) -> bool {
     let trimmed = input.trim();
-    if let Some(inner) = trimmed.strip_prefix("<~").and_then(|s| s.strip_suffix("~>")) {
+    if let Some(inner) = trimmed
+        .strip_prefix("<~")
+        .and_then(|s| s.strip_suffix("~>"))
+    {
         is_valid(inner)
     } else {
         false
@@ -305,7 +302,10 @@ mod tests {
 
     #[test]
     fn adobe_missing_delimiters() {
-        assert_eq!(decode_adobe("no delimiters"), Err(Ascii85Error::MissingDelimiters));
+        assert_eq!(
+            decode_adobe("no delimiters"),
+            Err(Ascii85Error::MissingDelimiters)
+        );
     }
 
     #[test]
@@ -338,8 +338,8 @@ mod tests {
     #[test]
     fn rfc1924_roundtrip() {
         let ipv6: [u8; 16] = [
-            0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00,
-            0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x34,
+            0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00, 0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70,
+            0x73, 0x34,
         ];
         let encoded = encode_rfc1924(&ipv6);
         assert_eq!(encoded.len(), 20);
@@ -365,7 +365,10 @@ mod tests {
 
     #[test]
     fn rfc1924_invalid_length() {
-        assert_eq!(decode_rfc1924("short"), Err(Ascii85Error::InvalidRfc1924Length));
+        assert_eq!(
+            decode_rfc1924("short"),
+            Err(Ascii85Error::InvalidRfc1924Length)
+        );
     }
 
     #[test]

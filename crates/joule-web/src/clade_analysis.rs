@@ -101,7 +101,10 @@ pub struct CladeTree {
 
 impl CladeTree {
     pub fn new() -> Self {
-        Self { nodes: Vec::new(), root: None }
+        Self {
+            nodes: Vec::new(),
+            root: None,
+        }
     }
 
     pub fn add_node(&mut self, label: Option<&str>, branch_length: f64) -> usize {
@@ -134,7 +137,11 @@ impl CladeTree {
 
     /// Get all leaf ids.
     pub fn leaves(&self) -> Vec<usize> {
-        self.nodes.iter().filter(|n| n.is_leaf()).map(|n| n.id).collect()
+        self.nodes
+            .iter()
+            .filter(|n| n.is_leaf())
+            .map(|n| n.id)
+            .collect()
     }
 
     /// Get all leaf labels.
@@ -148,7 +155,10 @@ impl CladeTree {
 
     /// Find node id by label.
     pub fn find_by_label(&self, label: &str) -> Option<usize> {
-        self.nodes.iter().find(|n| n.label.as_deref() == Some(label)).map(|n| n.id)
+        self.nodes
+            .iter()
+            .find(|n| n.label.as_deref() == Some(label))
+            .map(|n| n.id)
     }
 
     /// Collect all leaf ids descended from a node.
@@ -221,10 +231,7 @@ impl fmt::Display for MonophylyStatus {
 }
 
 /// Test whether a set of taxa form a monophyletic group.
-pub fn test_monophyly(
-    tree: &CladeTree,
-    taxa: &[&str],
-) -> Result<MonophylyStatus, CladeError> {
+pub fn test_monophyly(tree: &CladeTree, taxa: &[&str]) -> Result<MonophylyStatus, CladeError> {
     if taxa.is_empty() {
         return Err(CladeError::EmptyTaxonSet);
     }
@@ -312,10 +319,7 @@ pub fn extract_bipartitions(tree: &CladeTree) -> Result<HashSet<BipartitionSplit
 /// Compute the Robinson-Foulds (RF) distance between two trees.
 ///
 /// RF = |splits_A \ splits_B| + |splits_B \ splits_A|
-pub fn robinson_foulds(
-    tree_a: &CladeTree,
-    tree_b: &CladeTree,
-) -> Result<usize, CladeError> {
+pub fn robinson_foulds(tree_a: &CladeTree, tree_b: &CladeTree) -> Result<usize, CladeError> {
     let splits_a = extract_bipartitions(tree_a)?;
     let splits_b = extract_bipartitions(tree_b)?;
 
@@ -440,10 +444,10 @@ mod tests {
         //   3(C) 4(D)
         let mut t = CladeTree::new();
         t.add_node(Some("root"), 0.0);
-        t.add_node(None, 0.1);          // internal node 1
-        t.add_node(Some("B"), 0.2);     // leaf
-        t.add_node(Some("C"), 0.15);    // leaf
-        t.add_node(Some("D"), 0.25);    // leaf
+        t.add_node(None, 0.1); // internal node 1
+        t.add_node(Some("B"), 0.2); // leaf
+        t.add_node(Some("C"), 0.15); // leaf
+        t.add_node(Some("D"), 0.25); // leaf
         t.set_parent(1, 0);
         t.set_parent(2, 0);
         t.set_parent(3, 1);

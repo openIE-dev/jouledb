@@ -242,10 +242,7 @@ impl<T> WindowBatcher<T> {
         self.current.push(item);
         if self.current.len() >= self.window_size {
             self.batches_emitted += 1;
-            let batch = std::mem::replace(
-                &mut self.current,
-                Vec::with_capacity(self.window_size),
-            );
+            let batch = std::mem::replace(&mut self.current, Vec::with_capacity(self.window_size));
             Some(batch)
         } else {
             None

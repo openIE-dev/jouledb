@@ -79,8 +79,18 @@ pub struct FieldDescriptor {
 }
 
 impl FieldDescriptor {
-    pub fn new(name: impl Into<String>, size: usize, priority: FieldPriority, index: usize) -> Self {
-        Self { name: name.into(), size_bytes: size, priority, index }
+    pub fn new(
+        name: impl Into<String>,
+        size: usize,
+        priority: FieldPriority,
+        index: usize,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            size_bytes: size,
+            priority,
+            index,
+        }
     }
 }
 
@@ -95,12 +105,16 @@ pub struct StateSchema {
 
 impl StateSchema {
     pub fn new() -> Self {
-        Self { fields: Vec::new(), total_size: 0 }
+        Self {
+            fields: Vec::new(),
+            total_size: 0,
+        }
     }
 
     pub fn add_field(&mut self, name: impl Into<String>, size: usize, priority: FieldPriority) {
         let index = self.fields.len();
-        self.fields.push(FieldDescriptor::new(name, size, priority, index));
+        self.fields
+            .push(FieldDescriptor::new(name, size, priority, index));
         self.total_size += size;
     }
 
@@ -150,19 +164,28 @@ pub struct StateSnapshot {
 
 impl StateSnapshot {
     pub fn new(sequence: u64, tick: u64, data: Vec<u8>) -> Self {
-        Self { sequence, tick, data }
+        Self {
+            sequence,
+            tick,
+            data,
+        }
     }
 
     /// Read a field's bytes given schema.
     pub fn read_field(&self, schema: &StateSchema, index: usize) -> Result<&[u8], DeltaError> {
-        let offset = schema.field_offset(index).ok_or(DeltaError::FieldOutOfRange {
-            index,
-            max: schema.field_count(),
-        })?;
+        let offset = schema
+            .field_offset(index)
+            .ok_or(DeltaError::FieldOutOfRange {
+                index,
+                max: schema.field_count(),
+            })?;
         let field = schema.field(index).unwrap();
         let end = offset + field.size_bytes;
         if end > self.data.len() {
-            return Err(DeltaError::BufferTooShort { expected: end, actual: self.data.len() });
+            return Err(DeltaError::BufferTooShort {
+                expected: end,
+                actual: self.data.len(),
+            });
         }
         Ok(&self.data[offset..end])
     }
@@ -180,7 +203,10 @@ pub struct ChangeBitmask {
 impl ChangeBitmask {
     pub fn new(field_count: usize) -> Self {
         let bytes = (field_count + 7) / 8;
-        Self { bits: vec![0; bytes], field_count }
+        Self {
+            bits: vec![0; bytes],
+            field_count,
+        }
     }
 
     pub fn set(&mut self, index: usize) {
@@ -270,13 +296,21 @@ pub fn rle_encode(bitmask: &ChangeBitmask) -> Vec<RleSpan> {
         if changed == current_changed {
             length += 1;
         } else {
-            spans.push(RleSpan { start, length, changed: current_changed });
+            spans.push(RleSpan {
+                start,
+                length,
+                changed: current_changed,
+            });
             current_changed = changed;
             start = i;
             length = 1;
         }
     }
-    spans.push(RleSpan { start, length, changed: current_changed });
+    spans.push(RleSpan {
+        start,
+        length,
+        changed: current_changed,
+    });
     spans
 }
 
@@ -292,7 +326,11 @@ pub struct BandwidthEstimator {
 
 impl BandwidthEstimator {
     pub fn new(max_samples: usize, tick_rate: f64) -> Self {
-        Self { samples: Vec::with_capacity(max_samples), max_samples, tick_rate }
+        Self {
+            samples: Vec::with_capacity(max_samples),
+            max_samples,
+            tick_rate,
+        }
     }
 
     pub fn record_delta(&mut self, delta_bytes: usize) {
@@ -357,7 +395,9 @@ impl DeltaEncoder {
         let baseline = self
             .baselines
             .get(&baseline_seq)
-            .ok_or(DeltaError::BaselineNotFound { sequence: baseline_seq })?;
+            .ok_or(DeltaError::BaselineNotFound {
+                sequence: baseline_seq,
+            })?;
 
         let mut bitmask = ChangeBitmask::new(self.schema.field_count());
         let mut changed_data = Vec::new();
@@ -399,10 +439,12 @@ impl DeltaEncoder {
 
     /// Decode a delta against its baseline to produce a full snapshot.
     pub fn decode_delta(&self, delta: &StateDelta) -> Result<StateSnapshot, DeltaError> {
-        let baseline = self
-            .baselines
-            .get(&delta.base_sequence)
-            .ok_or(DeltaError::BaselineNotFound { sequence: delta.base_sequence })?;
+        let baseline =
+            self.baselines
+                .get(&delta.base_sequence)
+                .ok_or(DeltaError::BaselineNotFound {
+                    sequence: delta.base_sequence,
+                })?;
 
         let mut data = baseline.data.clone();
         let priority_order = self.schema.priority_order();
@@ -415,14 +457,19 @@ impl DeltaEncoder {
                 let end = offset + field.size_bytes;
 
                 if end <= data.len() && read_pos + field.size_bytes <= delta.changed_data.len() {
-                    data[offset..end]
-                        .copy_from_slice(&delta.changed_data[read_pos..read_pos + field.size_bytes]);
+                    data[offset..end].copy_from_slice(
+                        &delta.changed_data[read_pos..read_pos + field.size_bytes],
+                    );
                 }
                 read_pos += field.size_bytes;
             }
         }
 
-        Ok(StateSnapshot::new(delta.target_sequence, delta.target_tick, data))
+        Ok(StateSnapshot::new(
+            delta.target_sequence,
+            delta.target_tick,
+            data,
+        ))
     }
 
     pub fn estimated_kbps(&self) -> f64 {

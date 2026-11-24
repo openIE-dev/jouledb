@@ -40,7 +40,12 @@ pub struct ClipRect {
 
 impl ClipRect {
     pub fn new(x_min: f64, y_min: f64, x_max: f64, y_max: f64) -> Self {
-        Self { x_min, y_min, x_max, y_max }
+        Self {
+            x_min,
+            y_min,
+            x_max,
+            y_max,
+        }
     }
 
     pub fn width(&self) -> f64 {
@@ -96,11 +101,7 @@ fn compute_outcode(p: &Point, rect: &ClipRect) -> u8 {
 
 /// Cohen-Sutherland line clipping against an axis-aligned rectangle.
 /// Returns the clipped endpoints, or None if fully outside.
-pub fn cohen_sutherland_clip(
-    p0: Point,
-    p1: Point,
-    rect: &ClipRect,
-) -> Option<(Point, Point)> {
+pub fn cohen_sutherland_clip(p0: Point, p1: Point, rect: &ClipRect) -> Option<(Point, Point)> {
     let mut x0 = p0.x;
     let mut y0 = p0.y;
     let mut x1 = p1.x;
@@ -152,11 +153,7 @@ pub fn cohen_sutherland_clip(
 
 /// Liang-Barsky line clipping against an axis-aligned rectangle.
 /// Returns the clipped endpoints, or None if fully outside.
-pub fn liang_barsky_clip(
-    p0: Point,
-    p1: Point,
-    rect: &ClipRect,
-) -> Option<(Point, Point)> {
+pub fn liang_barsky_clip(p0: Point, p1: Point, rect: &ClipRect) -> Option<(Point, Point)> {
     let dx = p1.x - p0.x;
     let dy = p1.y - p0.y;
 
@@ -259,7 +256,8 @@ pub fn sutherland_hodgman(subject: &[Point], clip: &[Point]) -> Vec<Point> {
 
             if curr_in {
                 if !prev_in {
-                    if let Some(inter) = line_intersect(&previous, &current, &edge_start, &edge_end) {
+                    if let Some(inter) = line_intersect(&previous, &current, &edge_start, &edge_end)
+                    {
                         output.push(inter);
                     }
                 }
@@ -315,10 +313,7 @@ pub fn polygon_centroid(pts: &[Point]) -> Point {
 }
 
 /// Clip multiple line segments against a rectangle, returning surviving segments.
-pub fn clip_polyline_to_rect(
-    polyline: &[Point],
-    rect: &ClipRect,
-) -> Vec<(Point, Point)> {
+pub fn clip_polyline_to_rect(polyline: &[Point], rect: &ClipRect) -> Vec<(Point, Point)> {
     let mut result = Vec::new();
     for i in 0..polyline.len().saturating_sub(1) {
         if let Some(clipped) = cohen_sutherland_clip(polyline[i], polyline[i + 1], rect) {

@@ -11,30 +11,79 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0 } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y }
-    pub fn cross(self, o: Self) -> f64 { self.x * o.y - self.y * o.x }
-    pub fn length(self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
-    pub fn length_sq(self) -> f64 { self.x * self.x + self.y * self.y }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+    pub fn zero() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y
+    }
+    pub fn cross(self, o: Self) -> f64 {
+        self.x * o.y - self.y * o.x
+    }
+    pub fn length(self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+    pub fn length_sq(self) -> f64 {
+        self.x * self.x + self.y * self.y
+    }
     pub fn normalized(self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { Self { x: self.x / len, y: self.y / len } }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+            }
+        }
     }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y } }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s } }
-    pub fn negate(self) -> Self { Self { x: -self.x, y: -self.y } }
-    pub fn perpendicular(self) -> Self { Self { x: -self.y, y: self.x } }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+        }
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
+    pub fn negate(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+        }
+    }
+    pub fn perpendicular(self) -> Self {
+        Self {
+            x: -self.y,
+            y: self.x,
+        }
+    }
     pub fn rotate(self, angle: f64) -> Self {
         let c = angle.cos();
         let s = angle.sin();
-        Self { x: self.x * c - self.y * s, y: self.x * s + self.y * c }
+        Self {
+            x: self.x * c - self.y * s,
+            y: self.x * s + self.y * c,
+        }
     }
 }
 
 impl Default for Vec2 {
-    fn default() -> Self { Self::zero() }
+    fn default() -> Self {
+        Self::zero()
+    }
 }
 
 // ── Body type ────────────────────────────────────────────────
@@ -97,7 +146,9 @@ impl SleepState {
 }
 
 impl Default for SleepState {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Rigid body ───────────────────────────────────────────────
@@ -212,14 +263,18 @@ impl RigidBody2D {
 
     /// Accumulate a force (applied at centre of mass).
     pub fn apply_force(&mut self, f: Vec2) {
-        if self.body_type != BodyType::Dynamic { return; }
+        if self.body_type != BodyType::Dynamic {
+            return;
+        }
         self.force = self.force.add(f);
         self.sleep.wake();
     }
 
     /// Accumulate a force applied at `point` (world-space), generating torque.
     pub fn apply_force_at(&mut self, f: Vec2, point: Vec2) {
-        if self.body_type != BodyType::Dynamic { return; }
+        if self.body_type != BodyType::Dynamic {
+            return;
+        }
         self.force = self.force.add(f);
         let r = point.sub(self.position);
         self.torque += r.cross(f);
@@ -228,21 +283,27 @@ impl RigidBody2D {
 
     /// Accumulate pure torque.
     pub fn apply_torque(&mut self, t: f64) {
-        if self.body_type != BodyType::Dynamic { return; }
+        if self.body_type != BodyType::Dynamic {
+            return;
+        }
         self.torque += t;
         self.sleep.wake();
     }
 
     /// Apply an instantaneous linear impulse.
     pub fn apply_impulse(&mut self, impulse: Vec2) {
-        if self.body_type != BodyType::Dynamic { return; }
+        if self.body_type != BodyType::Dynamic {
+            return;
+        }
         self.linear_velocity = self.linear_velocity.add(impulse.scale(self.inv_mass));
         self.sleep.wake();
     }
 
     /// Apply impulse at a world-space point, affecting both linear and angular velocity.
     pub fn apply_impulse_at(&mut self, impulse: Vec2, point: Vec2) {
-        if self.body_type != BodyType::Dynamic { return; }
+        if self.body_type != BodyType::Dynamic {
+            return;
+        }
         self.linear_velocity = self.linear_velocity.add(impulse.scale(self.inv_mass));
         let r = point.sub(self.position);
         self.angular_velocity += self.inv_inertia * r.cross(impulse);
@@ -251,7 +312,9 @@ impl RigidBody2D {
 
     /// Apply an instantaneous angular impulse.
     pub fn apply_angular_impulse(&mut self, impulse: f64) {
-        if self.body_type != BodyType::Dynamic { return; }
+        if self.body_type != BodyType::Dynamic {
+            return;
+        }
         self.angular_velocity += self.inv_inertia * impulse;
         self.sleep.wake();
     }
@@ -279,7 +342,10 @@ impl RigidBody2D {
         }
 
         // acceleration = force / mass + gravity * gravity_scale
-        let accel = self.force.scale(self.inv_mass).add(gravity.scale(self.gravity_scale));
+        let accel = self
+            .force
+            .scale(self.inv_mass)
+            .add(gravity.scale(self.gravity_scale));
         let ang_accel = self.torque * self.inv_inertia;
 
         // semi-implicit: update velocity first, then position
@@ -287,7 +353,9 @@ impl RigidBody2D {
         self.angular_velocity += ang_accel * dt;
 
         // damping  (exponential decay approximation)
-        self.linear_velocity = self.linear_velocity.scale((1.0 - self.linear_damping).max(0.0));
+        self.linear_velocity = self
+            .linear_velocity
+            .scale((1.0 - self.linear_damping).max(0.0));
         self.angular_velocity *= (1.0 - self.angular_damping).max(0.0);
 
         // position / rotation
@@ -375,14 +443,18 @@ pub struct BodySet {
 
 impl BodySet {
     pub fn new() -> Self {
-        Self { bodies: Vec::new(), next_id: 1 }
+        Self {
+            bodies: Vec::new(),
+            next_id: 1,
+        }
     }
 
     /// Insert a body (id is assigned automatically).  Returns the assigned id.
     pub fn insert_dynamic(&mut self, mass: f64, inertia: f64) -> BodyId {
         let id = self.next_id;
         self.next_id += 1;
-        self.bodies.push(RigidBody2D::new_dynamic(id, mass, inertia));
+        self.bodies
+            .push(RigidBody2D::new_dynamic(id, mass, inertia));
         id
     }
 
@@ -413,8 +485,12 @@ impl BodySet {
         Some(self.bodies.swap_remove(idx))
     }
 
-    pub fn len(&self) -> usize { self.bodies.len() }
-    pub fn is_empty(&self) -> bool { self.bodies.is_empty() }
+    pub fn len(&self) -> usize {
+        self.bodies.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.bodies.is_empty()
+    }
 
     pub fn iter(&self) -> impl Iterator<Item = &RigidBody2D> {
         self.bodies.iter()
@@ -433,7 +509,9 @@ impl BodySet {
 }
 
 impl Default for BodySet {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ────────────────────────────────────────────────────
@@ -444,8 +522,12 @@ mod tests {
 
     const EPS: f64 = 1e-6;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
-    fn v2_approx(a: Vec2, b: Vec2) -> bool { approx(a.x, b.x) && approx(a.y, b.y) }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
+    fn v2_approx(a: Vec2, b: Vec2) -> bool {
+        approx(a.x, b.x) && approx(a.y, b.y)
+    }
 
     #[test]
     fn vec2_basics() {

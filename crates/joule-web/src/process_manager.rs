@@ -21,17 +21,33 @@ pub enum ProcessManagerError {
     /// Step not found.
     StepNotFound { process_id: String, step_id: String },
     /// Step execution failed.
-    StepFailed { process_id: String, step_id: String, reason: String },
+    StepFailed {
+        process_id: String,
+        step_id: String,
+        reason: String,
+    },
     /// Compensation failed.
-    CompensationFailed { process_id: String, step_id: String, reason: String },
+    CompensationFailed {
+        process_id: String,
+        step_id: String,
+        reason: String,
+    },
     /// Process already completed.
     AlreadyCompleted(String),
     /// Process already failed.
     AlreadyFailed(String),
     /// Step timed out.
-    StepTimeout { process_id: String, step_id: String, timeout_ms: u64 },
+    StepTimeout {
+        process_id: String,
+        step_id: String,
+        timeout_ms: u64,
+    },
     /// Invalid state transition.
-    InvalidTransition { process_id: String, from: String, to: String },
+    InvalidTransition {
+        process_id: String,
+        from: String,
+        to: String,
+    },
     /// Process definition not found.
     DefinitionNotFound(String),
 }
@@ -41,21 +57,46 @@ impl std::fmt::Display for ProcessManagerError {
         match self {
             Self::ProcessNotFound(id) => write!(f, "process not found: {id}"),
             Self::ProcessAlreadyExists(id) => write!(f, "process already exists: {id}"),
-            Self::StepNotFound { process_id, step_id } => {
+            Self::StepNotFound {
+                process_id,
+                step_id,
+            } => {
                 write!(f, "step {step_id} not found in process {process_id}")
             }
-            Self::StepFailed { process_id, step_id, reason } => {
+            Self::StepFailed {
+                process_id,
+                step_id,
+                reason,
+            } => {
                 write!(f, "step {step_id} failed in {process_id}: {reason}")
             }
-            Self::CompensationFailed { process_id, step_id, reason } => {
-                write!(f, "compensation for {step_id} failed in {process_id}: {reason}")
+            Self::CompensationFailed {
+                process_id,
+                step_id,
+                reason,
+            } => {
+                write!(
+                    f,
+                    "compensation for {step_id} failed in {process_id}: {reason}"
+                )
             }
             Self::AlreadyCompleted(id) => write!(f, "process already completed: {id}"),
             Self::AlreadyFailed(id) => write!(f, "process already failed: {id}"),
-            Self::StepTimeout { process_id, step_id, timeout_ms } => {
-                write!(f, "step {step_id} in {process_id} timed out after {timeout_ms}ms")
+            Self::StepTimeout {
+                process_id,
+                step_id,
+                timeout_ms,
+            } => {
+                write!(
+                    f,
+                    "step {step_id} in {process_id} timed out after {timeout_ms}ms"
+                )
             }
-            Self::InvalidTransition { process_id, from, to } => {
+            Self::InvalidTransition {
+                process_id,
+                from,
+                to,
+            } => {
                 write!(f, "invalid transition in {process_id}: {from} -> {to}")
             }
             Self::DefinitionNotFound(id) => write!(f, "process definition not found: {id}"),
@@ -139,7 +180,10 @@ pub struct StepDefinition {
     /// The event type that triggers this step.
     pub trigger_event: String,
     /// Execute function: takes process state + event data, returns updated state or error.
-    execute_fn: fn(&HashMap<String, String>, &HashMap<String, String>) -> Result<HashMap<String, String>, String>,
+    execute_fn: fn(
+        &HashMap<String, String>,
+        &HashMap<String, String>,
+    ) -> Result<HashMap<String, String>, String>,
     /// Compensation function: takes process state, returns compensated state or error.
     compensate_fn: Option<fn(&HashMap<String, String>) -> Result<HashMap<String, String>, String>>,
     /// Timeout in milliseconds (0 = no timeout).
@@ -150,7 +194,10 @@ impl StepDefinition {
     pub fn new(
         step_id: impl Into<String>,
         trigger_event: impl Into<String>,
-        execute_fn: fn(&HashMap<String, String>, &HashMap<String, String>) -> Result<HashMap<String, String>, String>,
+        execute_fn: fn(
+            &HashMap<String, String>,
+            &HashMap<String, String>,
+        ) -> Result<HashMap<String, String>, String>,
     ) -> Self {
         Self {
             step_id: step_id.into(),
@@ -379,7 +426,9 @@ impl ProcessManager {
                 .ok_or_else(|| ProcessManagerError::ProcessNotFound(process_id.to_string()))?;
 
             if proc.is_terminal() {
-                return Err(ProcessManagerError::AlreadyCompleted(process_id.to_string()));
+                return Err(ProcessManagerError::AlreadyCompleted(
+                    process_id.to_string(),
+                ));
             }
             if proc.status == ProcessStatus::Failed {
                 return Err(ProcessManagerError::AlreadyFailed(process_id.to_string()));
@@ -449,10 +498,7 @@ impl ProcessManager {
     }
 
     /// Run compensation for a failed process (backward from the failed step).
-    pub fn compensate(
-        &mut self,
-        process_id: &str,
-    ) -> Result<ProcessStatus, ProcessManagerError> {
+    pub fn compensate(&mut self, process_id: &str) -> Result<ProcessStatus, ProcessManagerError> {
         let def_id = {
             let proc = self
                 .processes
@@ -521,17 +567,16 @@ impl ProcessManager {
     }
 
     /// Mark a step as timed out.
-    pub fn timeout_step(
-        &mut self,
-        process_id: &str,
-    ) -> Result<(), ProcessManagerError> {
+    pub fn timeout_step(&mut self, process_id: &str) -> Result<(), ProcessManagerError> {
         let proc = self
             .processes
             .get_mut(process_id)
             .ok_or_else(|| ProcessManagerError::ProcessNotFound(process_id.to_string()))?;
 
         if proc.is_terminal() {
-            return Err(ProcessManagerError::AlreadyCompleted(process_id.to_string()));
+            return Err(ProcessManagerError::AlreadyCompleted(
+                process_id.to_string(),
+            ));
         }
 
         let idx = proc.current_step;
@@ -546,17 +591,16 @@ impl ProcessManager {
     }
 
     /// Restart a failed or timed-out process from its current step.
-    pub fn restart(
-        &mut self,
-        process_id: &str,
-    ) -> Result<(), ProcessManagerError> {
+    pub fn restart(&mut self, process_id: &str) -> Result<(), ProcessManagerError> {
         let proc = self
             .processes
             .get_mut(process_id)
             .ok_or_else(|| ProcessManagerError::ProcessNotFound(process_id.to_string()))?;
 
         if proc.is_terminal() {
-            return Err(ProcessManagerError::AlreadyCompleted(process_id.to_string()));
+            return Err(ProcessManagerError::AlreadyCompleted(
+                process_id.to_string(),
+            ));
         }
 
         match proc.status {
@@ -597,7 +641,10 @@ impl ProcessManager {
 
     /// Count processes by status.
     pub fn count_by_status(&self, status: ProcessStatus) -> usize {
-        self.processes.values().filter(|p| p.status == status).count()
+        self.processes
+            .values()
+            .filter(|p| p.status == status)
+            .count()
     }
 
     /// Total process count.
@@ -641,9 +688,7 @@ mod tests {
         Err("step failed deliberately".to_string())
     }
 
-    fn compensate_step(
-        state: &HashMap<String, String>,
-    ) -> Result<HashMap<String, String>, String> {
+    fn compensate_step(state: &HashMap<String, String>) -> Result<HashMap<String, String>, String> {
         let mut new_state = state.clone();
         new_state.insert("compensated".to_string(), "true".to_string());
         Ok(new_state)
@@ -665,7 +710,11 @@ mod tests {
             StepDefinition::new("charge-payment", "StockReserved", success_step)
                 .with_compensation(compensate_step),
         );
-        def.add_step(StepDefinition::new("ship-order", "PaymentCharged", success_step));
+        def.add_step(StepDefinition::new(
+            "ship-order",
+            "PaymentCharged",
+            success_step,
+        ));
         def
     }
 
@@ -683,7 +732,9 @@ mod tests {
     fn test_start_process() {
         let mut mgr = ProcessManager::new();
         mgr.register_definition(make_def());
-        let pid = mgr.start_process("p1", "order-process", HashMap::new()).unwrap();
+        let pid = mgr
+            .start_process("p1", "order-process", HashMap::new())
+            .unwrap();
         assert_eq!(pid, "p1");
 
         let proc = mgr.get_process("p1").unwrap();
@@ -695,15 +746,20 @@ mod tests {
     fn test_duplicate_process() {
         let mut mgr = ProcessManager::new();
         mgr.register_definition(make_def());
-        mgr.start_process("p1", "order-process", HashMap::new()).unwrap();
-        let err = mgr.start_process("p1", "order-process", HashMap::new()).unwrap_err();
+        mgr.start_process("p1", "order-process", HashMap::new())
+            .unwrap();
+        let err = mgr
+            .start_process("p1", "order-process", HashMap::new())
+            .unwrap_err();
         assert!(matches!(err, ProcessManagerError::ProcessAlreadyExists(_)));
     }
 
     #[test]
     fn test_missing_definition() {
         let mut mgr = ProcessManager::new();
-        let err = mgr.start_process("p1", "missing", HashMap::new()).unwrap_err();
+        let err = mgr
+            .start_process("p1", "missing", HashMap::new())
+            .unwrap_err();
         assert!(matches!(err, ProcessManagerError::DefinitionNotFound(_)));
     }
 
@@ -711,15 +767,22 @@ mod tests {
     fn test_full_process_completion() {
         let mut mgr = ProcessManager::new();
         mgr.register_definition(make_def());
-        mgr.start_process("p1", "order-process", HashMap::new()).unwrap();
+        mgr.start_process("p1", "order-process", HashMap::new())
+            .unwrap();
 
-        let status = mgr.handle_event("p1", &make_trigger("OrderPlaced")).unwrap();
+        let status = mgr
+            .handle_event("p1", &make_trigger("OrderPlaced"))
+            .unwrap();
         assert_eq!(status, ProcessStatus::Running);
 
-        let status = mgr.handle_event("p1", &make_trigger("StockReserved")).unwrap();
+        let status = mgr
+            .handle_event("p1", &make_trigger("StockReserved"))
+            .unwrap();
         assert_eq!(status, ProcessStatus::Running);
 
-        let status = mgr.handle_event("p1", &make_trigger("PaymentCharged")).unwrap();
+        let status = mgr
+            .handle_event("p1", &make_trigger("PaymentCharged"))
+            .unwrap();
         assert_eq!(status, ProcessStatus::Completed);
 
         let proc = mgr.get_process("p1").unwrap();
@@ -731,7 +794,8 @@ mod tests {
     fn test_wrong_event_ignored() {
         let mut mgr = ProcessManager::new();
         mgr.register_definition(make_def());
-        mgr.start_process("p1", "order-process", HashMap::new()).unwrap();
+        mgr.start_process("p1", "order-process", HashMap::new())
+            .unwrap();
 
         let status = mgr.handle_event("p1", &make_trigger("WrongEvent")).unwrap();
         assert_eq!(status, ProcessStatus::Running);
@@ -745,7 +809,8 @@ mod tests {
         def.add_step(StepDefinition::new("s1", "E1", fail_step));
         mgr.register_definition(def);
 
-        mgr.start_process("p1", "fail-process", HashMap::new()).unwrap();
+        mgr.start_process("p1", "fail-process", HashMap::new())
+            .unwrap();
         let status = mgr.handle_event("p1", &make_trigger("E1")).unwrap();
         assert_eq!(status, ProcessStatus::Failed);
 
@@ -759,13 +824,13 @@ mod tests {
         let mut mgr = ProcessManager::new();
         let mut def = ProcessDefinition::new("comp-process");
         def.add_step(
-            StepDefinition::new("s1", "E1", success_step)
-                .with_compensation(compensate_step),
+            StepDefinition::new("s1", "E1", success_step).with_compensation(compensate_step),
         );
         def.add_step(StepDefinition::new("s2", "E2", fail_step));
         mgr.register_definition(def);
 
-        mgr.start_process("p1", "comp-process", HashMap::new()).unwrap();
+        mgr.start_process("p1", "comp-process", HashMap::new())
+            .unwrap();
         mgr.handle_event("p1", &make_trigger("E1")).unwrap();
         mgr.handle_event("p1", &make_trigger("E2")).unwrap(); // Fails.
 
@@ -773,7 +838,10 @@ mod tests {
         assert_eq!(status, ProcessStatus::CompensationCompleted);
 
         let proc = mgr.get_process("p1").unwrap();
-        assert_eq!(proc.state.get("compensated").map(|s| s.as_str()), Some("true"));
+        assert_eq!(
+            proc.state.get("compensated").map(|s| s.as_str()),
+            Some("true")
+        );
     }
 
     #[test]
@@ -781,13 +849,13 @@ mod tests {
         let mut mgr = ProcessManager::new();
         let mut def = ProcessDefinition::new("fail-comp");
         def.add_step(
-            StepDefinition::new("s1", "E1", success_step)
-                .with_compensation(fail_compensate),
+            StepDefinition::new("s1", "E1", success_step).with_compensation(fail_compensate),
         );
         def.add_step(StepDefinition::new("s2", "E2", fail_step));
         mgr.register_definition(def);
 
-        mgr.start_process("p1", "fail-comp", HashMap::new()).unwrap();
+        mgr.start_process("p1", "fail-comp", HashMap::new())
+            .unwrap();
         mgr.handle_event("p1", &make_trigger("E1")).unwrap();
         mgr.handle_event("p1", &make_trigger("E2")).unwrap();
 
@@ -799,7 +867,8 @@ mod tests {
     fn test_compensate_requires_failed_state() {
         let mut mgr = ProcessManager::new();
         mgr.register_definition(make_def());
-        mgr.start_process("p1", "order-process", HashMap::new()).unwrap();
+        mgr.start_process("p1", "order-process", HashMap::new())
+            .unwrap();
 
         let err = mgr.compensate("p1").unwrap_err();
         assert!(matches!(err, ProcessManagerError::InvalidTransition { .. }));
@@ -809,7 +878,8 @@ mod tests {
     fn test_timeout_step() {
         let mut mgr = ProcessManager::new();
         mgr.register_definition(make_def());
-        mgr.start_process("p1", "order-process", HashMap::new()).unwrap();
+        mgr.start_process("p1", "order-process", HashMap::new())
+            .unwrap();
 
         mgr.timeout_step("p1").unwrap();
         let proc = mgr.get_process("p1").unwrap();
@@ -824,7 +894,8 @@ mod tests {
         def.add_step(StepDefinition::new("s1", "E1", fail_step));
         mgr.register_definition(def);
 
-        mgr.start_process("p1", "restart-test", HashMap::new()).unwrap();
+        mgr.start_process("p1", "restart-test", HashMap::new())
+            .unwrap();
         mgr.handle_event("p1", &make_trigger("E1")).unwrap();
         assert_eq!(mgr.get_process("p1").unwrap().status, ProcessStatus::Failed);
 
@@ -839,18 +910,23 @@ mod tests {
     fn test_restart_after_timeout() {
         let mut mgr = ProcessManager::new();
         mgr.register_definition(make_def());
-        mgr.start_process("p1", "order-process", HashMap::new()).unwrap();
+        mgr.start_process("p1", "order-process", HashMap::new())
+            .unwrap();
         mgr.timeout_step("p1").unwrap();
 
         mgr.restart("p1").unwrap();
-        assert_eq!(mgr.get_process("p1").unwrap().status, ProcessStatus::Running);
+        assert_eq!(
+            mgr.get_process("p1").unwrap().status,
+            ProcessStatus::Running
+        );
     }
 
     #[test]
     fn test_restart_running_fails() {
         let mut mgr = ProcessManager::new();
         mgr.register_definition(make_def());
-        mgr.start_process("p1", "order-process", HashMap::new()).unwrap();
+        mgr.start_process("p1", "order-process", HashMap::new())
+            .unwrap();
 
         let err = mgr.restart("p1").unwrap_err();
         assert!(matches!(err, ProcessManagerError::InvalidTransition { .. }));
@@ -863,8 +939,10 @@ mod tests {
         def.add_step(StepDefinition::new("s1", "E1", success_step));
         mgr.register_definition(def);
 
-        mgr.start_process("p1", "data-test", HashMap::new()).unwrap();
-        mgr.handle_event("p1", &make_trigger_with_data("E1", "order_id", "42")).unwrap();
+        mgr.start_process("p1", "data-test", HashMap::new())
+            .unwrap();
+        mgr.handle_event("p1", &make_trigger_with_data("E1", "order_id", "42"))
+            .unwrap();
 
         let proc = mgr.get_process("p1").unwrap();
         assert_eq!(proc.state.get("order_id").map(|s| s.as_str()), Some("42"));
@@ -902,8 +980,10 @@ mod tests {
     fn test_process_ids_sorted() {
         let mut mgr = ProcessManager::new();
         mgr.register_definition(make_def());
-        mgr.start_process("zulu", "order-process", HashMap::new()).unwrap();
-        mgr.start_process("alpha", "order-process", HashMap::new()).unwrap();
+        mgr.start_process("zulu", "order-process", HashMap::new())
+            .unwrap();
+        mgr.start_process("alpha", "order-process", HashMap::new())
+            .unwrap();
         assert_eq!(mgr.process_ids(), vec!["alpha", "zulu"]);
     }
 
@@ -911,8 +991,10 @@ mod tests {
     fn test_count_by_status() {
         let mut mgr = ProcessManager::new();
         mgr.register_definition(make_def());
-        mgr.start_process("p1", "order-process", HashMap::new()).unwrap();
-        mgr.start_process("p2", "order-process", HashMap::new()).unwrap();
+        mgr.start_process("p1", "order-process", HashMap::new())
+            .unwrap();
+        mgr.start_process("p2", "order-process", HashMap::new())
+            .unwrap();
         assert_eq!(mgr.count_by_status(ProcessStatus::Running), 2);
     }
 
@@ -926,10 +1008,12 @@ mod tests {
     fn test_pending_steps_count() {
         let mut mgr = ProcessManager::new();
         mgr.register_definition(make_def());
-        mgr.start_process("p1", "order-process", HashMap::new()).unwrap();
+        mgr.start_process("p1", "order-process", HashMap::new())
+            .unwrap();
 
         assert_eq!(mgr.get_process("p1").unwrap().pending_steps(), 3);
-        mgr.handle_event("p1", &make_trigger("OrderPlaced")).unwrap();
+        mgr.handle_event("p1", &make_trigger("OrderPlaced"))
+            .unwrap();
         assert_eq!(mgr.get_process("p1").unwrap().pending_steps(), 2);
     }
 }

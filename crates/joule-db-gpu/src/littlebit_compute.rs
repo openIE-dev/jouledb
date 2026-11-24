@@ -753,7 +753,10 @@ impl LittleBitGpuKernel {
             buf
         };
 
-        let v_buf = create_ro_buf("lb_v_transposed", bytemuck::cast_slice(&weights.v_transposed_u32));
+        let v_buf = create_ro_buf(
+            "lb_v_transposed",
+            bytemuck::cast_slice(&weights.v_transposed_u32),
+        );
         let x_buf = create_ro_buf("lb_x_bits", bytemuck::cast_slice(&x_bits));
         let sig_buf = create_ro_buf("lb_eff_sigma", bytemuck::cast_slice(eff_sigma));
         let u_buf = create_ro_buf("lb_u_rows", bytemuck::cast_slice(&weights.u_rows_u32));
@@ -1478,7 +1481,9 @@ mod tests {
             .map(|i| ((i as f32) * 0.11).sin())
             .collect();
         let gqa_res = kernel
-            .forward_causal_gqa(&q_batch, &k_all, &v_all, q_len, total_kv, start_pos, nq, nkv, hd)
+            .forward_causal_gqa(
+                &q_batch, &k_all, &v_all, q_len, total_kv, start_pos, nq, nkv, hd,
+            )
             .expect("gqa");
         assert_eq!(gqa_res.output.len(), q_len * nq * hd);
         let inv_sqrt = 1.0 / (hd as f32).sqrt();

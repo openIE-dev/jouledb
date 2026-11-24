@@ -410,10 +410,7 @@ impl SecurityHeaders {
         }
 
         if self.x_content_type_options {
-            headers.push(SecurityHeader::new(
-                "X-Content-Type-Options",
-                "nosniff",
-            ));
+            headers.push(SecurityHeader::new("X-Content-Type-Options", "nosniff"));
         }
 
         if let Some(xxss) = &self.x_xss_protection {
@@ -432,24 +429,15 @@ impl SecurityHeaders {
         }
 
         if let Some(coop) = &self.cross_origin_opener_policy {
-            headers.push(SecurityHeader::new(
-                "Cross-Origin-Opener-Policy",
-                coop,
-            ));
+            headers.push(SecurityHeader::new("Cross-Origin-Opener-Policy", coop));
         }
 
         if let Some(coep) = &self.cross_origin_embedder_policy {
-            headers.push(SecurityHeader::new(
-                "Cross-Origin-Embedder-Policy",
-                coep,
-            ));
+            headers.push(SecurityHeader::new("Cross-Origin-Embedder-Policy", coep));
         }
 
         if let Some(corp) = &self.cross_origin_resource_policy {
-            headers.push(SecurityHeader::new(
-                "Cross-Origin-Resource-Policy",
-                corp,
-            ));
+            headers.push(SecurityHeader::new("Cross-Origin-Resource-Policy", corp));
         }
 
         if let Some(dns) = self.x_dns_prefetch_control {
@@ -619,12 +607,21 @@ mod tests {
     fn test_referrer_policy_all_values() {
         let policies = [
             (ReferrerPolicy::NoReferrer, "no-referrer"),
-            (ReferrerPolicy::NoReferrerWhenDowngrade, "no-referrer-when-downgrade"),
+            (
+                ReferrerPolicy::NoReferrerWhenDowngrade,
+                "no-referrer-when-downgrade",
+            ),
             (ReferrerPolicy::Origin, "origin"),
-            (ReferrerPolicy::OriginWhenCrossOrigin, "origin-when-cross-origin"),
+            (
+                ReferrerPolicy::OriginWhenCrossOrigin,
+                "origin-when-cross-origin",
+            ),
             (ReferrerPolicy::SameOrigin, "same-origin"),
             (ReferrerPolicy::StrictOrigin, "strict-origin"),
-            (ReferrerPolicy::StrictOriginWhenCrossOrigin, "strict-origin-when-cross-origin"),
+            (
+                ReferrerPolicy::StrictOriginWhenCrossOrigin,
+                "strict-origin-when-cross-origin",
+            ),
             (ReferrerPolicy::UnsafeUrl, "unsafe-url"),
         ];
         for (policy, expected) in &policies {
@@ -663,7 +660,10 @@ mod tests {
         let mut pp = PermissionsPolicy::new();
         pp.deny("camera");
         pp.allow_self("microphone");
-        pp.add("geolocation", PermissionAllowlist::Origins(vec!["https://maps.example.com".into()]));
+        pp.add(
+            "geolocation",
+            PermissionAllowlist::Origins(vec!["https://maps.example.com".into()]),
+        );
         let val = pp.to_header_value();
         assert!(val.contains("camera=()"));
         assert!(val.contains("microphone=(self)"));
@@ -697,7 +697,12 @@ mod tests {
     fn test_recommended_header_values() {
         let headers = SecurityHeaders::recommended();
         let built = headers.build();
-        let find = |name: &str| built.iter().find(|h| h.name == name).map(|h| h.value.as_str());
+        let find = |name: &str| {
+            built
+                .iter()
+                .find(|h| h.name == name)
+                .map(|h| h.value.as_str())
+        };
         assert_eq!(find("X-Content-Type-Options"), Some("nosniff"));
         assert_eq!(find("X-Frame-Options"), Some("DENY"));
         assert_eq!(find("X-XSS-Protection"), Some("0"));
@@ -828,10 +833,7 @@ mod tests {
     #[test]
     fn test_middleware_longest_prefix() {
         let mut mw = SecurityHeadersMiddleware::new(SecurityHeaders::none());
-        mw.add_override(
-            "/api/",
-            SecurityHeaders::none().content_type_nosniff(true),
-        );
+        mw.add_override("/api/", SecurityHeaders::none().content_type_nosniff(true));
         mw.add_override(
             "/api/admin/",
             SecurityHeaders::none()

@@ -162,8 +162,11 @@ impl Rng {
 
 impl fmt::Display for Rng {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Rng(state=[{:x}, {:x}, {:x}, {:x}])",
-            self.state[0], self.state[1], self.state[2], self.state[3])
+        write!(
+            f,
+            "Rng(state=[{:x}, {:x}, {:x}, {:x}])",
+            self.state[0], self.state[1], self.state[2], self.state[3]
+        )
     }
 }
 
@@ -240,7 +243,10 @@ mod tests {
                 common_count += 1;
             }
         }
-        assert!(common_count > 900, "Common should appear most often: {common_count}");
+        assert!(
+            common_count > 900,
+            "Common should appear most often: {common_count}"
+        );
     }
 
     #[test]
@@ -278,10 +284,7 @@ mod tests {
         assert_eq!(id.chars().nth(18), Some('-'));
         assert_eq!(id.chars().nth(23), Some('-'));
         let variant = id.chars().nth(19).unwrap();
-        assert!(
-            "89ab".contains(variant),
-            "Invalid variant char: {variant}"
-        );
+        assert!("89ab".contains(variant), "Invalid variant char: {variant}");
     }
 
     #[test]

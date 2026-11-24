@@ -112,8 +112,8 @@ pub fn resolve_joining_forms(text: &str) -> Vec<JoiningForm> {
         // Look for a following joiner (skip transparent).
         let next_joins = find_next_joiner(&joining_types, i);
 
-        let can_join_left = joining_types[i] == JoiningType::Dual
-            || joining_types[i] == JoiningType::Right;
+        let can_join_left =
+            joining_types[i] == JoiningType::Dual || joining_types[i] == JoiningType::Right;
         let can_join_right = joining_types[i] == JoiningType::Dual;
 
         let joins_prev = prev_joins && can_join_left;
@@ -366,7 +366,11 @@ mod tests {
         let forms = resolve_joining_forms("\u{0628}\u{0628}\u{0628}");
         assert_eq!(
             forms,
-            vec![JoiningForm::Initial, JoiningForm::Medial, JoiningForm::Final]
+            vec![
+                JoiningForm::Initial,
+                JoiningForm::Medial,
+                JoiningForm::Final
+            ]
         );
     }
 

@@ -212,9 +212,8 @@ fn pack_internals<V: Clone>(mut current_level: Vec<usize>, nodes: &mut Vec<Node<
         let slab_size = ((n + slab_count - 1) / slab_count).max(1);
 
         // Sort by MBR centroid X.
-        current_level.sort_by(|&a, &b| {
-            centroid_x(&nodes[a].mbr).total_cmp(&centroid_x(&nodes[b].mbr))
-        });
+        current_level
+            .sort_by(|&a, &b| centroid_x(&nodes[a].mbr).total_cmp(&centroid_x(&nodes[b].mbr)));
 
         let mut next_level = Vec::with_capacity(next_count);
 
@@ -224,9 +223,8 @@ fn pack_internals<V: Clone>(mut current_level: Vec<usize>, nodes: &mut Vec<Node<
         for slab in level_snapshot.chunks(slab_size) {
             let mut slab_vec = slab.to_vec();
             // Sort slab by MBR centroid Y.
-            slab_vec.sort_by(|&a, &b| {
-                centroid_y(&nodes[a].mbr).total_cmp(&centroid_y(&nodes[b].mbr))
-            });
+            slab_vec
+                .sort_by(|&a, &b| centroid_y(&nodes[a].mbr).total_cmp(&centroid_y(&nodes[b].mbr)));
 
             for row in slab_vec.chunks(M) {
                 let mut row_vec = row.to_vec();

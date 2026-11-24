@@ -172,7 +172,9 @@ pub fn compute(data: &[DataRow], config: &PivotConfig) -> PivotResult {
 
     for row in data {
         let rk = row_key(row, &config.rows);
-        let ck_vec: Vec<String> = config.columns.iter()
+        let ck_vec: Vec<String> = config
+            .columns
+            .iter()
             .map(|f| row.get(f).map(|v| v.as_text()).unwrap_or_default())
             .collect();
         let ck = col_key(row, &config.columns);
@@ -206,12 +208,16 @@ pub fn compute(data: &[DataRow], config: &PivotConfig) -> PivotResult {
 
             if let Some(rows) = groups.get(&(rk_str.clone(), ck.clone())) {
                 for (field, agg) in &config.values {
-                    let nums: Vec<f64> = rows.iter()
+                    let nums: Vec<f64> = rows
+                        .iter()
                         .filter_map(|r| r.get(field).and_then(|v| v.as_number()))
                         .collect();
                     let val = aggregate(&nums, *agg);
                     col_vals.insert(field.clone(), val);
-                    row_all_values.entry(field.clone()).or_default().extend(&nums);
+                    row_all_values
+                        .entry(field.clone())
+                        .or_default()
+                        .extend(&nums);
                 }
             }
             row_cells.insert(ck, col_vals);
@@ -239,7 +245,8 @@ pub fn compute(data: &[DataRow], config: &PivotConfig) -> PivotResult {
             let rk_str = rk.join("|");
             if let Some(rows) = groups.get(&(rk_str, ck.clone())) {
                 for (field, _agg) in &config.values {
-                    let nums: Vec<f64> = rows.iter()
+                    let nums: Vec<f64> = rows
+                        .iter()
                         .filter_map(|r| r.get(field).and_then(|v| v.as_number()))
                         .collect();
                     all_vals.entry(field.clone()).or_default().extend(nums);
@@ -314,7 +321,11 @@ mod tests {
     fn sum_aggregation() {
         let result = compute(&sample_data(), &config());
         // North + A = 100
-        let north_idx = result.row_headers.iter().position(|r| r[0] == "North").unwrap();
+        let north_idx = result
+            .row_headers
+            .iter()
+            .position(|r| r[0] == "North")
+            .unwrap();
         let north_a = &result.cells[north_idx]["A"]["sales"];
         assert_eq!(*north_a, 100.0);
     }
@@ -322,7 +333,11 @@ mod tests {
     #[test]
     fn row_totals() {
         let result = compute(&sample_data(), &config());
-        let north_idx = result.row_headers.iter().position(|r| r[0] == "North").unwrap();
+        let north_idx = result
+            .row_headers
+            .iter()
+            .position(|r| r[0] == "North")
+            .unwrap();
         assert_eq!(result.row_totals[north_idx]["sales"], 300.0);
     }
 
@@ -341,7 +356,11 @@ mod tests {
             values: vec![("sales".into(), Aggregation::Count)],
         };
         let result = compute(&sample_data(), &cfg);
-        let north_idx = result.row_headers.iter().position(|r| r[0] == "North").unwrap();
+        let north_idx = result
+            .row_headers
+            .iter()
+            .position(|r| r[0] == "North")
+            .unwrap();
         assert_eq!(result.row_totals[north_idx]["sales"], 2.0);
     }
 

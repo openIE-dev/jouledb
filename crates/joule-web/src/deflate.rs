@@ -152,10 +152,18 @@ struct FixedCodes {
 fn build_fixed_codes() -> FixedCodes {
     // Step 1: Assign bit lengths per RFC 1951 §3.2.6
     let mut lit_lengths = [0u8; 288];
-    for i in 0..=143 { lit_lengths[i] = 8; }
-    for i in 144..=255 { lit_lengths[i] = 9; }
-    for i in 256..=279 { lit_lengths[i] = 7; }
-    for i in 280..=287 { lit_lengths[i] = 8; }
+    for i in 0..=143 {
+        lit_lengths[i] = 8;
+    }
+    for i in 144..=255 {
+        lit_lengths[i] = 9;
+    }
+    for i in 256..=279 {
+        lit_lengths[i] = 7;
+    }
+    for i in 280..=287 {
+        lit_lengths[i] = 8;
+    }
 
     // Step 2: Build canonical codes from lengths (RFC 1951 §3.2.2)
     let lit_encode = canonical_codes(&lit_lengths);
@@ -171,7 +179,9 @@ fn build_fixed_codes() -> FixedCodes {
 
     // Distance codes: all 5-bit, codes 0-29
     let mut dist_lengths = [0u8; 30];
-    for i in 0..30 { dist_lengths[i] = 5; }
+    for i in 0..30 {
+        dist_lengths[i] = 5;
+    }
     let dist_codes = canonical_codes(&dist_lengths);
     let mut dist_decode = Vec::new();
     for (sym, &(code, len)) in dist_codes.iter().enumerate() {
@@ -249,25 +259,69 @@ fn decode_symbol(
 
 /// Length base values and extra bits for codes 257-285.
 const LENGTH_TABLE: [(usize, u8); 29] = [
-    (3, 0), (4, 0), (5, 0), (6, 0), (7, 0), (8, 0), (9, 0), (10, 0),     // 257-264
-    (11, 1), (13, 1), (15, 1), (17, 1),                                      // 265-268
-    (19, 2), (23, 2), (27, 2), (31, 2),                                      // 269-272
-    (35, 3), (43, 3), (51, 3), (59, 3),                                      // 273-276
-    (67, 4), (83, 4), (99, 4), (115, 4),                                     // 277-280
-    (131, 5), (163, 5), (195, 5), (227, 5),                                  // 281-284
-    (258, 0),                                                                  // 285
+    (3, 0),
+    (4, 0),
+    (5, 0),
+    (6, 0),
+    (7, 0),
+    (8, 0),
+    (9, 0),
+    (10, 0), // 257-264
+    (11, 1),
+    (13, 1),
+    (15, 1),
+    (17, 1), // 265-268
+    (19, 2),
+    (23, 2),
+    (27, 2),
+    (31, 2), // 269-272
+    (35, 3),
+    (43, 3),
+    (51, 3),
+    (59, 3), // 273-276
+    (67, 4),
+    (83, 4),
+    (99, 4),
+    (115, 4), // 277-280
+    (131, 5),
+    (163, 5),
+    (195, 5),
+    (227, 5), // 281-284
+    (258, 0), // 285
 ];
 
 /// Distance base values and extra bits for codes 0-29.
 const DISTANCE_TABLE: [(usize, u8); 30] = [
-    (1, 0), (2, 0), (3, 0), (4, 0),
-    (5, 1), (7, 1), (9, 2), (13, 2),
-    (17, 3), (25, 3), (33, 4), (49, 4),
-    (65, 5), (97, 5), (129, 6), (193, 6),
-    (257, 7), (385, 7), (513, 8), (769, 8),
-    (1025, 9), (1537, 9), (2049, 10), (3073, 10),
-    (4097, 11), (6145, 11), (8193, 12), (12289, 12),
-    (16385, 13), (24577, 13),
+    (1, 0),
+    (2, 0),
+    (3, 0),
+    (4, 0),
+    (5, 1),
+    (7, 1),
+    (9, 2),
+    (13, 2),
+    (17, 3),
+    (25, 3),
+    (33, 4),
+    (49, 4),
+    (65, 5),
+    (97, 5),
+    (129, 6),
+    (193, 6),
+    (257, 7),
+    (385, 7),
+    (513, 8),
+    (769, 8),
+    (1025, 9),
+    (1537, 9),
+    (2049, 10),
+    (3073, 10),
+    (4097, 11),
+    (6145, 11),
+    (8193, 12),
+    (12289, 12),
+    (16385, 13),
+    (24577, 13),
 ];
 
 /// Find length code and extra bits for a given length (3-258).
@@ -311,9 +365,7 @@ enum Token {
 }
 
 fn hash3(data: &[u8], pos: usize) -> usize {
-    let h = (data[pos] as usize) << 10
-        ^ (data[pos + 1] as usize) << 5
-        ^ (data[pos + 2] as usize);
+    let h = (data[pos] as usize) << 10 ^ (data[pos + 1] as usize) << 5 ^ (data[pos + 2] as usize);
     h & HASH_MASK
 }
 

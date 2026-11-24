@@ -201,11 +201,7 @@ impl MetalBuffer {
     /// * `offset` - Byte offset in the buffer
     /// * `data` - Slice of data to write
     #[cfg(target_os = "macos")]
-    pub fn write_at_offset<T: Copy>(
-        &mut self,
-        offset: usize,
-        data: &[T],
-    ) -> MetalResult<()> {
+    pub fn write_at_offset<T: Copy>(&mut self, offset: usize, data: &[T]) -> MetalResult<()> {
         if self.usage == BufferUsage::Private {
             return Err(MetalError::InvalidBufferAccess {
                 message: "cannot write to Private buffer from CPU; use blit commands".to_string(),
@@ -376,10 +372,10 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn test_buffer_create_write_read() {
-        let Some(device) = crate::device_or_skip("test_buffer_create_write_read") else { return };
-        let mut buffer = device
-            .create_buffer(256, BufferUsage::Shared)
-            .unwrap();
+        let Some(device) = crate::device_or_skip("test_buffer_create_write_read") else {
+            return;
+        };
+        let mut buffer = device.create_buffer(256, BufferUsage::Shared).unwrap();
         let data: [f32; 4] = [1.0, 2.0, 3.0, 4.0];
         buffer.write(&data).unwrap();
         let result: Vec<f32> = buffer.read(4).unwrap();

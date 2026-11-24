@@ -68,17 +68,32 @@ impl Vec2 {
 
 impl std::ops::Add for Vec2 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+        }
+    }
 }
 
 impl std::ops::Sub for Vec2 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+        }
+    }
 }
 
 impl std::ops::Mul<f64> for Vec2 {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
 }
 
 impl std::ops::AddAssign for Vec2 {
@@ -99,7 +114,11 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
@@ -116,17 +135,35 @@ impl Vec3 {
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 
 impl std::ops::Mul<f64> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 
 impl std::ops::AddAssign for Vec3 {
@@ -168,7 +205,11 @@ impl GravityField2D {
         if g_constant <= 0.0 {
             return Err(GravityFieldError::NonPositiveG(g_constant));
         }
-        Ok(Self { sources: Vec::new(), g_constant, softening: 0.0 })
+        Ok(Self {
+            sources: Vec::new(),
+            g_constant,
+            softening: 0.0,
+        })
     }
 
     pub fn with_softening(mut self, s: f64) -> Self {
@@ -268,7 +309,11 @@ impl GravityField3D {
         if g_constant <= 0.0 {
             return Err(GravityFieldError::NonPositiveG(g_constant));
         }
-        Ok(Self { sources: Vec::new(), g_constant, softening: 0.0 })
+        Ok(Self {
+            sources: Vec::new(),
+            g_constant,
+            softening: 0.0,
+        })
     }
 
     pub fn add_source(&mut self, source: PointMass3D) -> Result<(), GravityFieldError> {
@@ -287,7 +332,9 @@ impl GravityField3D {
             let dx = s.position - pos;
             let r2 = dx.magnitude_sq() + eps2;
             let r = r2.sqrt();
-            if r < 1e-30 { continue; }
+            if r < 1e-30 {
+                continue;
+            }
             let inv_r3 = 1.0 / (r2 * r);
             acc += dx * (self.g_constant * s.mass * inv_r3);
         }
@@ -301,7 +348,9 @@ impl GravityField3D {
         for s in &self.sources {
             let dx = s.position - pos;
             let r = (dx.magnitude_sq() + eps2).sqrt();
-            if r < 1e-30 { continue; }
+            if r < 1e-30 {
+                continue;
+            }
             phi -= self.g_constant * s.mass / r;
         }
         phi
@@ -435,7 +484,12 @@ mod tests {
     #[test]
     fn single_source_field() {
         let mut field = GravityField2D::new(1.0).unwrap();
-        field.add_source(PointMass2D { position: Vec2::ZERO, mass: 1.0 }).unwrap();
+        field
+            .add_source(PointMass2D {
+                position: Vec2::ZERO,
+                mass: 1.0,
+            })
+            .unwrap();
         // At (1,0), field should point toward origin: (-G*M/r^2, 0) = (-1, 0)
         let f = field.field_at(Vec2::new(1.0, 0.0));
         assert!(approx_eq(f.x, -1.0, 1e-10));
@@ -445,7 +499,12 @@ mod tests {
     #[test]
     fn potential_single_source() {
         let mut field = GravityField2D::new(1.0).unwrap();
-        field.add_source(PointMass2D { position: Vec2::ZERO, mass: 1.0 }).unwrap();
+        field
+            .add_source(PointMass2D {
+                position: Vec2::ZERO,
+                mass: 1.0,
+            })
+            .unwrap();
         let phi = field.potential_at(Vec2::new(2.0, 0.0));
         // phi = -G*M/r = -1/2 = -0.5
         assert!(approx_eq(phi, -0.5, 1e-10));
@@ -454,8 +513,18 @@ mod tests {
     #[test]
     fn superposition_two_sources() {
         let mut field = GravityField2D::new(1.0).unwrap();
-        field.add_source(PointMass2D { position: Vec2::new(-1.0, 0.0), mass: 1.0 }).unwrap();
-        field.add_source(PointMass2D { position: Vec2::new(1.0, 0.0), mass: 1.0 }).unwrap();
+        field
+            .add_source(PointMass2D {
+                position: Vec2::new(-1.0, 0.0),
+                mass: 1.0,
+            })
+            .unwrap();
+        field
+            .add_source(PointMass2D {
+                position: Vec2::new(1.0, 0.0),
+                mass: 1.0,
+            })
+            .unwrap();
         // At the midpoint (0,0), fields cancel in x.
         let f = field.field_at(Vec2::ZERO);
         assert!(approx_eq(f.x, 0.0, 1e-10));
@@ -470,13 +539,25 @@ mod tests {
     #[test]
     fn field_invalid_mass() {
         let mut field = GravityField2D::new(1.0).unwrap();
-        assert!(field.add_source(PointMass2D { position: Vec2::ZERO, mass: -1.0 }).is_err());
+        assert!(
+            field
+                .add_source(PointMass2D {
+                    position: Vec2::ZERO,
+                    mass: -1.0
+                })
+                .is_err()
+        );
     }
 
     #[test]
     fn grid_sampling() {
         let mut field = GravityField2D::new(1.0).unwrap().with_softening(0.1);
-        field.add_source(PointMass2D { position: Vec2::ZERO, mass: 1.0 }).unwrap();
+        field
+            .add_source(PointMass2D {
+                position: Vec2::ZERO,
+                mass: 1.0,
+            })
+            .unwrap();
         let (fields, pots) = field.sample_grid(-2.0, 2.0, -2.0, 2.0, 5, 5).unwrap();
         assert_eq!(fields.len(), 5);
         assert_eq!(pots[0].len(), 5);
@@ -548,7 +629,12 @@ mod tests {
     #[test]
     fn escape_velocity_from_field_test() {
         let mut field = GravityField2D::new(1.0).unwrap();
-        field.add_source(PointMass2D { position: Vec2::ZERO, mass: 1.0 }).unwrap();
+        field
+            .add_source(PointMass2D {
+                position: Vec2::ZERO,
+                mass: 1.0,
+            })
+            .unwrap();
         let v = escape_velocity_from_field(&field, Vec2::new(1.0, 0.0));
         // phi = -1, v_esc = sqrt(2)
         assert!(approx_eq(v, 2.0_f64.sqrt(), 1e-10));
@@ -578,7 +664,12 @@ mod tests {
     #[test]
     fn field_3d_single_source() {
         let mut field = GravityField3D::new(1.0).unwrap();
-        field.add_source(PointMass3D { position: Vec3::ZERO, mass: 1.0 }).unwrap();
+        field
+            .add_source(PointMass3D {
+                position: Vec3::ZERO,
+                mass: 1.0,
+            })
+            .unwrap();
         let f = field.field_at(Vec3::new(1.0, 0.0, 0.0));
         assert!(approx_eq(f.x, -1.0, 1e-10));
         assert!(approx_eq(f.y, 0.0, 1e-10));
@@ -588,7 +679,12 @@ mod tests {
     #[test]
     fn field_3d_potential() {
         let mut field = GravityField3D::new(1.0).unwrap();
-        field.add_source(PointMass3D { position: Vec3::ZERO, mass: 4.0 }).unwrap();
+        field
+            .add_source(PointMass3D {
+                position: Vec3::ZERO,
+                mass: 4.0,
+            })
+            .unwrap();
         let phi = field.potential_at(Vec3::new(2.0, 0.0, 0.0));
         assert!(approx_eq(phi, -2.0, 1e-10));
     }
@@ -596,7 +692,12 @@ mod tests {
     #[test]
     fn softening_smooths_field() {
         let mut field = GravityField2D::new(1.0).unwrap().with_softening(1.0);
-        field.add_source(PointMass2D { position: Vec2::ZERO, mass: 1.0 }).unwrap();
+        field
+            .add_source(PointMass2D {
+                position: Vec2::ZERO,
+                mass: 1.0,
+            })
+            .unwrap();
         // At origin with softening, field should be zero.
         let f = field.field_at(Vec2::ZERO);
         assert!(vec2_approx_eq(f, Vec2::ZERO, 1e-10));
@@ -605,7 +706,12 @@ mod tests {
     #[test]
     fn field_magnitude() {
         let mut field = GravityField2D::new(1.0).unwrap();
-        field.add_source(PointMass2D { position: Vec2::ZERO, mass: 1.0 }).unwrap();
+        field
+            .add_source(PointMass2D {
+                position: Vec2::ZERO,
+                mass: 1.0,
+            })
+            .unwrap();
         let mag = field.field_magnitude_at(Vec2::new(2.0, 0.0));
         // |g| = G*M/r^2 = 1/4 = 0.25
         assert!(approx_eq(mag, 0.25, 1e-10));

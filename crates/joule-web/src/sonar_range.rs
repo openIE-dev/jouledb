@@ -233,7 +233,9 @@ impl fmt::Display for BeamPattern {
         write!(
             f,
             "Beam(freq={:.0}Hz, diam={:.3}m, half_angle={:.1}deg)",
-            self.frequency_hz, self.diameter_m, self.half_angle_rad.to_degrees(),
+            self.frequency_hz,
+            self.diameter_m,
+            self.half_angle_rad.to_degrees(),
         )
     }
 }
@@ -255,7 +257,11 @@ impl SonarRing {
         for i in 0..num_sensors {
             azimuths.push(2.0 * PI * i as f64 / num_sensors as f64);
         }
-        Self { sensor_azimuths: azimuths, beam_half_angle, max_range }
+        Self {
+            sensor_azimuths: azimuths,
+            beam_half_angle,
+            max_range,
+        }
     }
 
     pub fn with_custom_azimuths(mut self, azimuths: Vec<f64>) -> Self {
@@ -295,7 +301,8 @@ impl SonarRing {
         let mut nearest_range = f64::MAX;
         let mut nearest_azimuth = 0.0;
         for reading in readings {
-            if reading.range_m > 0.0 && reading.range_m < nearest_range
+            if reading.range_m > 0.0
+                && reading.range_m < nearest_range
                 && reading.range_m <= self.max_range
             {
                 nearest_range = reading.range_m;
@@ -620,7 +627,11 @@ mod tests {
         let reading = SonarReading::new(2.0, 0.0, 0.0);
         grid.update_with_reading(0.0, 0.0, &reading, 0.2);
         // Some cells should no longer be 0.5
-        let changed = grid.cells.iter().filter(|&&p| (p - 0.5).abs() > 0.01).count();
+        let changed = grid
+            .cells
+            .iter()
+            .filter(|&&p| (p - 0.5).abs() > 0.01)
+            .count();
         assert!(changed > 0);
     }
 

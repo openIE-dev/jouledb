@@ -52,9 +52,14 @@ pub enum Direction {
 impl Direction {
     pub fn all() -> [Direction; 8] {
         [
-            Direction::North, Direction::NorthEast, Direction::East,
-            Direction::SouthEast, Direction::South, Direction::SouthWest,
-            Direction::West, Direction::NorthWest,
+            Direction::North,
+            Direction::NorthEast,
+            Direction::East,
+            Direction::SouthEast,
+            Direction::South,
+            Direction::SouthWest,
+            Direction::West,
+            Direction::NorthWest,
         ]
     }
 }
@@ -86,14 +91,27 @@ pub struct GeoBBox {
 
 impl GeoBBox {
     pub fn new(lat_min: f64, lat_max: f64, lon_min: f64, lon_max: f64) -> Self {
-        Self { lat_min, lat_max, lon_min, lon_max }
+        Self {
+            lat_min,
+            lat_max,
+            lon_min,
+            lon_max,
+        }
     }
 
-    pub fn center_lat(&self) -> f64 { (self.lat_min + self.lat_max) * 0.5 }
-    pub fn center_lon(&self) -> f64 { (self.lon_min + self.lon_max) * 0.5 }
+    pub fn center_lat(&self) -> f64 {
+        (self.lat_min + self.lat_max) * 0.5
+    }
+    pub fn center_lon(&self) -> f64 {
+        (self.lon_min + self.lon_max) * 0.5
+    }
 
-    pub fn lat_span(&self) -> f64 { self.lat_max - self.lat_min }
-    pub fn lon_span(&self) -> f64 { self.lon_max - self.lon_min }
+    pub fn lat_span(&self) -> f64 {
+        self.lat_max - self.lat_min
+    }
+    pub fn lon_span(&self) -> f64 {
+        self.lon_max - self.lon_min
+    }
 
     pub fn contains(&self, lat: f64, lon: f64) -> bool {
         lat >= self.lat_min && lat <= self.lat_max && lon >= self.lon_min && lon <= self.lon_max
@@ -103,7 +121,8 @@ impl GeoBBox {
 impl fmt::Display for GeoBBox {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "GeoBBox(lat: {:.6}..{:.6}, lon: {:.6}..{:.6})",
+            f,
+            "GeoBBox(lat: {:.6}..{:.6}, lon: {:.6}..{:.6})",
             self.lat_min, self.lat_max, self.lon_min, self.lon_max
         )
     }
@@ -177,15 +196,28 @@ pub fn decode(geohash: &str) -> Result<GeoBBox, GeohashError> {
             let b = (idx >> bit) & 1;
             if is_lon {
                 let mid = (lon_range.0 + lon_range.1) * 0.5;
-                if b == 1 { lon_range.0 = mid; } else { lon_range.1 = mid; }
+                if b == 1 {
+                    lon_range.0 = mid;
+                } else {
+                    lon_range.1 = mid;
+                }
             } else {
                 let mid = (lat_range.0 + lat_range.1) * 0.5;
-                if b == 1 { lat_range.0 = mid; } else { lat_range.1 = mid; }
+                if b == 1 {
+                    lat_range.0 = mid;
+                } else {
+                    lat_range.1 = mid;
+                }
             }
             is_lon = !is_lon;
         }
     }
-    Ok(GeoBBox::new(lat_range.0, lat_range.1, lon_range.0, lon_range.1))
+    Ok(GeoBBox::new(
+        lat_range.0,
+        lat_range.1,
+        lon_range.0,
+        lon_range.1,
+    ))
 }
 
 /// Decode a geohash to its center point.
@@ -201,7 +233,9 @@ fn char_to_index(c: char) -> Result<u8, GeohashError> {
             return Ok(i as u8);
         }
     }
-    Err(GeohashError::InvalidGeohash(format!("invalid character: {c}")))
+    Err(GeohashError::InvalidGeohash(format!(
+        "invalid character: {c}"
+    )))
 }
 
 // ── Neighbors ───────────────────────────────────────────────────
@@ -216,21 +250,25 @@ pub fn neighbor(geohash: &str, direction: Direction) -> Result<String, GeohashEr
     let center_lon = bbox.center_lon();
 
     let (dlat, dlon) = match direction {
-        Direction::North     => ( lat_step,  0.0),
-        Direction::South     => (-lat_step,  0.0),
-        Direction::East      => ( 0.0,       lon_step),
-        Direction::West      => ( 0.0,      -lon_step),
-        Direction::NorthEast => ( lat_step,  lon_step),
-        Direction::NorthWest => ( lat_step, -lon_step),
-        Direction::SouthEast => (-lat_step,  lon_step),
+        Direction::North => (lat_step, 0.0),
+        Direction::South => (-lat_step, 0.0),
+        Direction::East => (0.0, lon_step),
+        Direction::West => (0.0, -lon_step),
+        Direction::NorthEast => (lat_step, lon_step),
+        Direction::NorthWest => (lat_step, -lon_step),
+        Direction::SouthEast => (-lat_step, lon_step),
         Direction::SouthWest => (-lat_step, -lon_step),
     };
 
     let new_lat = (center_lat + dlat).clamp(-90.0, 90.0);
     let mut new_lon = center_lon + dlon;
     // Wrap longitude
-    if new_lon > 180.0 { new_lon -= 360.0; }
-    if new_lon < -180.0 { new_lon += 360.0; }
+    if new_lon > 180.0 {
+        new_lon -= 360.0;
+    }
+    if new_lon < -180.0 {
+        new_lon += 360.0;
+    }
 
     encode(new_lat, new_lon, precision)
 }
@@ -285,16 +323,16 @@ pub fn precision_for_error(meters: f64) -> usize {
     let errors_m = [
         5_009_400.0, // 1
         1_252_300.0, // 2
-          156_500.0, // 3
-           39_100.0, // 4
-            4_900.0, // 5
-            1_200.0, // 6
-              153.0, // 7
-               38.0, // 8
-                4.8, // 9
-                1.2, // 10
-                0.15,// 11
-                0.04,// 12
+        156_500.0,   // 3
+        39_100.0,    // 4
+        4_900.0,     // 5
+        1_200.0,     // 6
+        153.0,       // 7
+        38.0,        // 8
+        4.8,         // 9
+        1.2,         // 10
+        0.15,        // 11
+        0.04,        // 12
     ];
     for (i, &e) in errors_m.iter().enumerate() {
         if e <= meters {
@@ -392,7 +430,8 @@ mod tests {
         let gh = encode(48.8566, 2.3522, 5).unwrap();
         let nbrs = neighbors(&gh).unwrap();
         assert_eq!(nbrs.len(), 8);
-        let unique: std::collections::HashSet<String> = nbrs.iter().map(|(_, s)| s.clone()).collect();
+        let unique: std::collections::HashSet<String> =
+            nbrs.iter().map(|(_, s)| s.clone()).collect();
         assert_eq!(unique.len(), 8);
     }
 

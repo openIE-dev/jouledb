@@ -26,7 +26,10 @@ impl std::fmt::Display for StreamBufferError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::BufferClosed => write!(f, "buffer is closed"),
-            Self::LateEvent { event_ts, watermark } => {
+            Self::LateEvent {
+                event_ts,
+                watermark,
+            } => {
                 write!(f, "late event: ts={event_ts} < watermark={watermark}")
             }
             Self::BufferOverflow { capacity } => {
@@ -373,8 +376,7 @@ impl StreamBuffer {
         // An event belongs to all windows whose [start, start + duration) contains ts.
         // Windows start at multiples of slide_interval.
         let earliest_start = ts.saturating_sub(self.window_duration_ms.saturating_sub(1));
-        let first_window_start =
-            (earliest_start / self.slide_interval_ms) * self.slide_interval_ms;
+        let first_window_start = (earliest_start / self.slide_interval_ms) * self.slide_interval_ms;
         let last_window_start = (ts / self.slide_interval_ms) * self.slide_interval_ms;
 
         let mut start = first_window_start;
@@ -402,9 +404,10 @@ impl StreamBuffer {
     fn ingest_session(&mut self, event: TimestampedEvent) {
         let ts = event.timestamp_ms;
         // Find a session window whose end + gap encompasses this event.
-        let matching = self.windows.iter_mut().find(|w| {
-            !w.closed && ts >= w.start_ms && ts <= w.end_ms + self.session_gap_ms
-        });
+        let matching = self
+            .windows
+            .iter_mut()
+            .find(|w| !w.closed && ts >= w.start_ms && ts <= w.end_ms + self.session_gap_ms);
 
         if let Some(window) = matching {
             window.events.push(event);
@@ -452,8 +455,7 @@ impl StreamBuffer {
                 FlushPolicy::Size(max_size) => {
                     for window in &mut self.windows {
                         if !window.closed {
-                            let total: usize =
-                                window.events.iter().map(|e| e.payload.len()).sum();
+                            let total: usize = window.events.iter().map(|e| e.payload.len()).sum();
                             if total >= max_size {
                                 window.closed = true;
                             }
@@ -606,8 +608,7 @@ mod tests {
 
     #[test]
     fn test_late_event_side_output() {
-        let mut buf = StreamBuffer::tumbling(100)
-            .with_late_policy(LateEventPolicy::SideOutput);
+        let mut buf = StreamBuffer::tumbling(100).with_late_policy(LateEventPolicy::SideOutput);
         buf.advance_watermark(200);
         buf.ingest(TimestampedEvent::new(50, "late")).unwrap();
         assert_eq!(buf.side_output().len(), 1);
@@ -616,8 +617,8 @@ mod tests {
 
     #[test]
     fn test_allowed_lateness() {
-        let mut buf = StreamBuffer::tumbling(100)
-            .with_late_policy(LateEventPolicy::AllowedLateness(50));
+        let mut buf =
+            StreamBuffer::tumbling(100).with_late_policy(LateEventPolicy::AllowedLateness(50));
         buf.advance_watermark(200);
         // 170 is within allowed lateness of 50 (watermark 200 - 170 = 30 < 50).
         buf.ingest(TimestampedEvent::new(170, "ok")).unwrap();
@@ -628,8 +629,7 @@ mod tests {
 
     #[test]
     fn test_flush_policy_count() {
-        let mut buf = StreamBuffer::tumbling(1000)
-            .with_flush_policy(FlushPolicy::Count(3));
+        let mut buf = StreamBuffer::tumbling(1000).with_flush_policy(FlushPolicy::Count(3));
         buf.ingest(TimestampedEvent::new(10, "a")).unwrap();
         buf.ingest(TimestampedEvent::new(20, "b")).unwrap();
         buf.ingest(TimestampedEvent::new(30, "c")).unwrap();
@@ -640,8 +640,7 @@ mod tests {
 
     #[test]
     fn test_flush_policy_size() {
-        let mut buf = StreamBuffer::tumbling(1000)
-            .with_flush_policy(FlushPolicy::Size(10));
+        let mut buf = StreamBuffer::tumbling(1000).with_flush_policy(FlushPolicy::Size(10));
         buf.ingest(TimestampedEvent::new(10, "abcde")).unwrap();
         buf.ingest(TimestampedEvent::new(20, "fghij")).unwrap();
         let closed = buf.drain_closed();
@@ -654,7 +653,10 @@ mod tests {
         buf.ingest(TimestampedEvent::new(10, "a")).unwrap();
         buf.ingest(TimestampedEvent::new(20, "b")).unwrap();
         let result = buf.ingest(TimestampedEvent::new(30, "c"));
-        assert!(matches!(result, Err(StreamBufferError::BufferOverflow { .. })));
+        assert!(matches!(
+            result,
+            Err(StreamBufferError::BufferOverflow { .. })
+        ));
     }
 
     #[test]

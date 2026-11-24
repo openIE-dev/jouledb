@@ -700,7 +700,11 @@ impl JouleSpaceEngine {
     }
 
     /// Export `branch` + its Post-Git intent metadata as a standard `git fast-import` stream!
-    pub fn export_git_fast_import(&self, branch: &str, git_ref: &str) -> Result<String, BranchError> {
+    pub fn export_git_fast_import(
+        &self,
+        branch: &str,
+        git_ref: &str,
+    ) -> Result<String, BranchError> {
         let files = self.agentfs.list_files(branch, "/")?;
         let ops = self.list_ops(Some(branch));
         let last_summary = ops
@@ -760,7 +764,10 @@ impl JouleSpaceEngine {
 
     /// Package `branch` into a secret-scrubbed [`CloudSandboxHandoffBundle`] so an agent started
     /// on a laptop can detach and continue unattended on a cloud/fleet node!
-    pub fn export_cloud_handoff(&self, branch: &str) -> Result<CloudSandboxHandoffBundle, BranchError> {
+    pub fn export_cloud_handoff(
+        &self,
+        branch: &str,
+    ) -> Result<CloudSandboxHandoffBundle, BranchError> {
         self.ensure_branch(branch)?;
         let files = self.agentfs.list_files(branch, "/")?;
         let mut exported_files = BTreeMap::new();
@@ -786,7 +793,10 @@ impl JouleSpaceEngine {
             .branch_manager()
             .get_branch(branch)
             .ok()
-            .and_then(|b| b.energy_budget_uj.map(|cap| cap.saturating_sub(b.energy_spent_uj)));
+            .and_then(|b| {
+                b.energy_budget_uj
+                    .map(|cap| cap.saturating_sub(b.energy_spent_uj))
+            });
         let op_log_tail: Vec<OpLogEntry> = self
             .list_ops(Some(branch))
             .into_iter()
@@ -813,7 +823,10 @@ impl JouleSpaceEngine {
     }
 
     /// Resume a [`CloudSandboxHandoffBundle`] onto a fleet/cloud node.
-    pub fn import_cloud_handoff(&self, bundle: CloudSandboxHandoffBundle) -> Result<usize, BranchError> {
+    pub fn import_cloud_handoff(
+        &self,
+        bundle: CloudSandboxHandoffBundle,
+    ) -> Result<usize, BranchError> {
         self.ensure_branch(&bundle.branch)?;
         let count = bundle.files_utf8_or_hex.len();
         for (path, content) in &bundle.files_utf8_or_hex {
@@ -956,9 +969,7 @@ impl JouleSpaceEngine {
         for (k, incoming) in updates {
             let replace = match room.crdt_state.get(&k) {
                 None => true,
-                Some(cur) => {
-                    (incoming.hlc_ms, &incoming.writer_id) > (cur.hlc_ms, &cur.writer_id)
-                }
+                Some(cur) => (incoming.hlc_ms, &incoming.writer_id) > (cur.hlc_ms, &cur.writer_id),
             };
             if replace {
                 room.crdt_state.insert(k, incoming);
@@ -985,7 +996,11 @@ impl JouleSpaceEngine {
     }
 
     /// Pull incremental workspace + Post-Git deltas since `since_seq` (*Dropbox / Drive* sync).
-    pub fn pull_delta_since(&self, branch: &str, since_seq: u64) -> Result<SyncDeltaBatch, BranchError> {
+    pub fn pull_delta_since(
+        &self,
+        branch: &str,
+        since_seq: u64,
+    ) -> Result<SyncDeltaBatch, BranchError> {
         self.ensure_branch(branch)?;
         let ops: Vec<OpLogEntry> = self
             .list_ops(Some(branch))
@@ -1135,7 +1150,10 @@ mod tests {
                 Some("User asked to wire auth; temp key ghp_9876543210fedcba9876".into()),
             )
             .unwrap();
-        assert_eq!(scrubbed, 2, "Both leaked tokens in code & prompt must be redacted!");
+        assert_eq!(
+            scrubbed, 2,
+            "Both leaked tokens in code & prompt must be redacted!"
+        );
         assert!(
             !op1.prompt_intent
                 .as_deref()
@@ -1157,9 +1175,7 @@ mod tests {
 
         // 2. `jj undo` reverts `/src/lib.rs` back to op1's scrubbed content!
         let _undo_op = space.undo_last_op("feat-agent", "alice").unwrap();
-        let restored = space
-            .pull_delta_since("feat-agent", 0)
-            .unwrap();
+        let restored = space.pull_delta_since("feat-agent", 0).unwrap();
         assert!(
             restored.changed_files_utf8["/src/lib.rs"]
                 .as_deref()

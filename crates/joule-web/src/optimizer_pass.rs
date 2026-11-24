@@ -77,10 +77,7 @@ impl fmt::Display for BinOp {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
     /// Assignment: dest = value.
-    Assign {
-        dest: String,
-        value: Value,
-    },
+    Assign { dest: String, value: Value },
     /// Binary operation: dest = left op right.
     BinOp {
         dest: String,
@@ -89,15 +86,9 @@ pub enum Stmt {
         right: Value,
     },
     /// Copy: dest = source.
-    Copy {
-        dest: String,
-        source: String,
-    },
+    Copy { dest: String, source: String },
     /// Branch if condition is true.
-    BranchIf {
-        cond: Value,
-        target: String,
-    },
+    BranchIf { cond: Value, target: String },
     /// Unconditional jump.
     Jump(String),
     /// Label.
@@ -240,7 +231,12 @@ pub fn constant_propagation(stmts: &mut Vec<Stmt>) -> PassStats {
             Stmt::Assign { dest, value } if !matches!(value, Value::Var(_) | Value::Undef) => {
                 constants.insert(dest.clone(), value.clone());
             }
-            Stmt::BinOp { dest, op: _, left, right: _ } => {
+            Stmt::BinOp {
+                dest,
+                op: _,
+                left,
+                right: _,
+            } => {
                 // If the result is a constant after folding
                 if let Stmt::Assign { value, .. } = &stmts[i] {
                     if !matches!(value, Value::Var(_) | Value::Undef) {
@@ -264,7 +260,10 @@ pub fn constant_propagation(stmts: &mut Vec<Stmt>) -> PassStats {
         }
 
         // Labels and branches invalidate all constants (conservative)
-        if matches!(&stmts[i], Stmt::Label(_) | Stmt::Jump(_) | Stmt::BranchIf { .. }) {
+        if matches!(
+            &stmts[i],
+            Stmt::Label(_) | Stmt::Jump(_) | Stmt::BranchIf { .. }
+        ) {
             constants.clear();
         }
     }
@@ -288,7 +287,12 @@ fn substitute_constants(stmt: &Stmt, constants: &HashMap<String, Value>) -> Stmt
             dest: dest.clone(),
             value: sub(value),
         },
-        Stmt::BinOp { dest, op, left, right } => Stmt::BinOp {
+        Stmt::BinOp {
+            dest,
+            op,
+            left,
+            right,
+        } => Stmt::BinOp {
             dest: dest.clone(),
             op: *op,
             left: sub(left),
@@ -299,7 +303,11 @@ fn substitute_constants(stmt: &Stmt, constants: &HashMap<String, Value>) -> Stmt
             target: target.clone(),
         },
         Stmt::Return(v) => Stmt::Return(sub(v)),
-        Stmt::Call { dest, function, args } => Stmt::Call {
+        Stmt::Call {
+            dest,
+            function,
+            args,
+        } => Stmt::Call {
             dest: dest.clone(),
             function: function.clone(),
             args: args.iter().map(|a| sub(a)).collect(),
@@ -310,7 +318,13 @@ fn substitute_constants(stmt: &Stmt, constants: &HashMap<String, Value>) -> Stmt
 
 /// Constant fold a statement if possible.
 fn constant_fold(stmt: &Stmt) -> Stmt {
-    if let Stmt::BinOp { dest, op, left, right } = stmt {
+    if let Stmt::BinOp {
+        dest,
+        op,
+        left,
+        right,
+    } = stmt
+    {
         if let (Value::Int(l), Value::Int(r)) = (left, right) {
             let result = match op {
                 BinOp::Add => Some(Value::Int(l.wrapping_add(*r))),
@@ -379,7 +393,10 @@ pub fn copy_propagation(stmts: &mut Vec<Stmt>) -> PassStats {
         }
 
         // Labels invalidate copies
-        if matches!(&stmts[i], Stmt::Label(_) | Stmt::Jump(_) | Stmt::BranchIf { .. }) {
+        if matches!(
+            &stmts[i],
+            Stmt::Label(_) | Stmt::Jump(_) | Stmt::BranchIf { .. }
+        ) {
             copies.clear();
         }
     }
@@ -417,7 +434,12 @@ fn substitute_copies(stmt: &Stmt, copies: &HashMap<String, String>) -> Stmt {
             dest: dest.clone(),
             value: sub(value),
         },
-        Stmt::BinOp { dest, op, left, right } => Stmt::BinOp {
+        Stmt::BinOp {
+            dest,
+            op,
+            left,
+            right,
+        } => Stmt::BinOp {
             dest: dest.clone(),
             op: *op,
             left: sub(left),
@@ -435,7 +457,11 @@ fn substitute_copies(stmt: &Stmt, copies: &HashMap<String, String>) -> Stmt {
             target: target.clone(),
         },
         Stmt::Return(v) => Stmt::Return(sub(v)),
-        Stmt::Call { dest, function, args } => Stmt::Call {
+        Stmt::Call {
+            dest,
+            function,
+            args,
+        } => Stmt::Call {
             dest: dest.clone(),
             function: function.clone(),
             args: args.iter().map(|a| sub(a)).collect(),
@@ -495,7 +521,10 @@ pub fn common_subexpression_elimination(stmts: &mut Vec<Stmt>) -> PassStats {
 
     for i in 0..stmts.len() {
         // Labels/jumps invalidate everything
-        if matches!(&stmts[i], Stmt::Label(_) | Stmt::Jump(_) | Stmt::BranchIf { .. }) {
+        if matches!(
+            &stmts[i],
+            Stmt::Label(_) | Stmt::Jump(_) | Stmt::BranchIf { .. }
+        ) {
             available.clear();
             continue;
         }
@@ -509,7 +538,13 @@ pub fn common_subexpression_elimination(stmts: &mut Vec<Stmt>) -> PassStats {
             continue;
         }
 
-        if let Stmt::BinOp { dest, op, left, right } = &stmts[i] {
+        if let Stmt::BinOp {
+            dest,
+            op,
+            left,
+            right,
+        } = &stmts[i]
+        {
             let key = CseKey {
                 op: *op,
                 left: format!("{left}"),
@@ -771,7 +806,10 @@ mod tests {
     #[test]
     fn test_constant_propagation_basic() {
         let mut stmts = vec![
-            Stmt::Assign { dest: "x".into(), value: Value::Int(10) },
+            Stmt::Assign {
+                dest: "x".into(),
+                value: Value::Int(10),
+            },
             Stmt::BinOp {
                 dest: "y".into(),
                 op: BinOp::Add,
@@ -782,7 +820,13 @@ mod tests {
         let stats = constant_propagation(&mut stmts);
         assert!(stats.changed());
         // x should be substituted, then folded: y = 15
-        assert_eq!(stmts[1], Stmt::Assign { dest: "y".into(), value: Value::Int(15) });
+        assert_eq!(
+            stmts[1],
+            Stmt::Assign {
+                dest: "y".into(),
+                value: Value::Int(15)
+            }
+        );
     }
 
     #[test]
@@ -794,7 +838,13 @@ mod tests {
             right: Value::Int(7),
         };
         let folded = constant_fold(&stmt);
-        assert_eq!(folded, Stmt::Assign { dest: "z".into(), value: Value::Int(42) });
+        assert_eq!(
+            folded,
+            Stmt::Assign {
+                dest: "z".into(),
+                value: Value::Int(42)
+            }
+        );
     }
 
     #[test]
@@ -806,7 +856,13 @@ mod tests {
             right: Value::Int(5),
         };
         let folded = constant_fold(&stmt);
-        assert_eq!(folded, Stmt::Assign { dest: "c".into(), value: Value::Bool(true) });
+        assert_eq!(
+            folded,
+            Stmt::Assign {
+                dest: "c".into(),
+                value: Value::Bool(true)
+            }
+        );
     }
 
     #[test]
@@ -824,7 +880,10 @@ mod tests {
     #[test]
     fn test_copy_propagation() {
         let mut stmts = vec![
-            Stmt::Copy { dest: "b".into(), source: "a".into() },
+            Stmt::Copy {
+                dest: "b".into(),
+                source: "a".into(),
+            },
             Stmt::BinOp {
                 dest: "c".into(),
                 op: BinOp::Add,
@@ -845,8 +904,14 @@ mod tests {
     #[test]
     fn test_copy_propagation_chain() {
         let mut stmts = vec![
-            Stmt::Copy { dest: "b".into(), source: "a".into() },
-            Stmt::Copy { dest: "c".into(), source: "b".into() },
+            Stmt::Copy {
+                dest: "b".into(),
+                source: "a".into(),
+            },
+            Stmt::Copy {
+                dest: "c".into(),
+                source: "b".into(),
+            },
             Stmt::Return(Value::Var("c".into())),
         ];
         copy_propagation(&mut stmts);
@@ -857,8 +922,14 @@ mod tests {
     #[test]
     fn test_dead_code_elimination() {
         let mut stmts = vec![
-            Stmt::Assign { dest: "x".into(), value: Value::Int(10) },
-            Stmt::Assign { dest: "y".into(), value: Value::Int(20) },
+            Stmt::Assign {
+                dest: "x".into(),
+                value: Value::Int(10),
+            },
+            Stmt::Assign {
+                dest: "y".into(),
+                value: Value::Int(20),
+            },
             Stmt::Return(Value::Var("x".into())),
         ];
         let stats = dead_code_elimination(&mut stmts);
@@ -870,7 +941,10 @@ mod tests {
     #[test]
     fn test_dce_keeps_used_vars() {
         let mut stmts = vec![
-            Stmt::Assign { dest: "x".into(), value: Value::Int(10) },
+            Stmt::Assign {
+                dest: "x".into(),
+                value: Value::Int(10),
+            },
             Stmt::Return(Value::Var("x".into())),
         ];
         let stats = dead_code_elimination(&mut stmts);
@@ -897,7 +971,13 @@ mod tests {
         let stats = common_subexpression_elimination(&mut stmts);
         assert_eq!(stats.modified, 1);
         // t2 should become a copy of t1
-        assert_eq!(stmts[1], Stmt::Copy { dest: "t2".into(), source: "t1".into() });
+        assert_eq!(
+            stmts[1],
+            Stmt::Copy {
+                dest: "t2".into(),
+                source: "t1".into()
+            }
+        );
     }
 
     #[test]
@@ -909,7 +989,10 @@ mod tests {
                 left: Value::Var("a".into()),
                 right: Value::Var("b".into()),
             },
-            Stmt::Assign { dest: "t1".into(), value: Value::Int(0) }, // kills t1
+            Stmt::Assign {
+                dest: "t1".into(),
+                value: Value::Int(0),
+            }, // kills t1
             Stmt::BinOp {
                 dest: "t2".into(),
                 op: BinOp::Add,
@@ -925,7 +1008,10 @@ mod tests {
     fn test_loop_detection() {
         let stmts = vec![
             Stmt::Label("loop".into()),
-            Stmt::Assign { dest: "x".into(), value: Value::Int(1) },
+            Stmt::Assign {
+                dest: "x".into(),
+                value: Value::Int(1),
+            },
             Stmt::Jump("loop".into()),
         ];
         let loops = find_loops(&stmts);
@@ -935,9 +1021,10 @@ mod tests {
 
     #[test]
     fn test_pass_manager_o0() {
-        let mut stmts = vec![
-            Stmt::Assign { dest: "x".into(), value: Value::Int(10) },
-        ];
+        let mut stmts = vec![Stmt::Assign {
+            dest: "x".into(),
+            value: Value::Int(10),
+        }];
         let mut pm = PassManager::for_level(OptLevel::O0);
         pm.run(&mut stmts);
         assert!(pm.results().is_empty());
@@ -946,8 +1033,14 @@ mod tests {
     #[test]
     fn test_pass_manager_o1() {
         let mut stmts = vec![
-            Stmt::Assign { dest: "x".into(), value: Value::Int(10) },
-            Stmt::Assign { dest: "y".into(), value: Value::Int(20) },
+            Stmt::Assign {
+                dest: "x".into(),
+                value: Value::Int(10),
+            },
+            Stmt::Assign {
+                dest: "y".into(),
+                value: Value::Int(20),
+            },
             Stmt::BinOp {
                 dest: "z".into(),
                 op: BinOp::Add,
@@ -964,7 +1057,10 @@ mod tests {
     #[test]
     fn test_pass_manager_fixed_point() {
         let mut stmts = vec![
-            Stmt::Assign { dest: "x".into(), value: Value::Int(10) },
+            Stmt::Assign {
+                dest: "x".into(),
+                value: Value::Int(10),
+            },
             Stmt::BinOp {
                 dest: "y".into(),
                 op: BinOp::Add,
@@ -1025,6 +1121,12 @@ mod tests {
             right: Value::Bool(false),
         };
         let folded = constant_fold(&stmt);
-        assert_eq!(folded, Stmt::Assign { dest: "r".into(), value: Value::Bool(false) });
+        assert_eq!(
+            folded,
+            Stmt::Assign {
+                dest: "r".into(),
+                value: Value::Bool(false)
+            }
+        );
     }
 }

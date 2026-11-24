@@ -126,10 +126,8 @@ impl LwwRegister {
                     self.history.push(w.clone());
                 }
             }
-            self.history.sort_by(|a, b| {
-                a.timestamp.cmp(&b.timestamp)
-                    .then(a.writer.cmp(&b.writer))
-            });
+            self.history
+                .sort_by(|a, b| a.timestamp.cmp(&b.timestamp).then(a.writer.cmp(&b.writer)));
         }
     }
 
@@ -234,9 +232,10 @@ impl MvRegister {
         // Remove dominated values.
         let mut result: Vec<MvValue> = Vec::new();
         for (i, v) in all_values.iter().enumerate() {
-            let is_dominated = all_values.iter().enumerate().any(|(j, u)| {
-                i != j && Self::dominates(&u.clock, &v.clock)
-            });
+            let is_dominated = all_values
+                .iter()
+                .enumerate()
+                .any(|(j, u)| i != j && Self::dominates(&u.clock, &v.clock));
             if !is_dominated {
                 // Avoid duplicates.
                 let already_present = result.iter().any(|r| r == v);

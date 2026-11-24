@@ -358,7 +358,11 @@ pub struct DropoutSchedule {
 
 impl DropoutSchedule {
     pub fn new(start_rate: f64, end_rate: f64, total_steps: usize) -> Self {
-        Self { start_rate, end_rate, total_steps }
+        Self {
+            start_rate,
+            end_rate,
+            total_steps,
+        }
     }
 
     /// Get the dropout rate at a given training step.

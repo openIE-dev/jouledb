@@ -74,12 +74,18 @@ impl StarkCoreConfig {
 }
 
 impl Default for StarkCoreConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for StarkCoreConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "StarkCoreConfig(trace_length={0}, blowup_factor={1}, num_queries={2}, field_bits={3})", self.trace_length, self.blowup_factor, self.num_queries, self.field_bits)
+        write!(
+            f,
+            "StarkCoreConfig(trace_length={0}, blowup_factor={1}, num_queries={2}, field_bits={3})",
+            self.trace_length, self.blowup_factor, self.num_queries, self.field_bits
+        )
     }
 }
 
@@ -95,7 +101,10 @@ pub struct StarkCore {
 impl StarkCore {
     pub fn new(config: StarkCoreConfig) -> Result<Self, StarkCoreError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -107,19 +116,29 @@ impl StarkCore {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &StarkCoreConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &StarkCoreConfig {
+        &self.config
+    }
 
     /// Generate execution trace.
     pub fn generate_trace(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Generate STARK proof.
     pub fn prove(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
@@ -131,7 +150,9 @@ impl StarkCore {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -143,7 +164,9 @@ impl StarkCore {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -155,7 +178,11 @@ impl StarkCore {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -228,7 +255,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = StarkCore::new(StarkCoreConfig::new()).unwrap()
+        let e = StarkCore::new(StarkCoreConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -244,7 +272,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = StarkCore::new(StarkCoreConfig::new()).unwrap()
+        let e = StarkCore::new(StarkCoreConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("StarkCore"));
@@ -252,7 +281,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = StarkCore::new(StarkCoreConfig::new()).unwrap()
+        let e = StarkCore::new(StarkCoreConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -263,7 +293,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = StarkCore::new(StarkCoreConfig::new()).unwrap()
+        let e = StarkCore::new(StarkCoreConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -271,7 +302,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = StarkCore::new(StarkCoreConfig::new()).unwrap()
+        let e = StarkCore::new(StarkCoreConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -288,7 +320,8 @@ mod tests {
 
     #[test]
     fn test_generate_trace() {
-        let e = StarkCore::new(StarkCoreConfig::new()).unwrap()
+        let e = StarkCore::new(StarkCoreConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.generate_trace();
         assert!(!result.is_empty());
@@ -296,7 +329,8 @@ mod tests {
 
     #[test]
     fn test_prove() {
-        let e = StarkCore::new(StarkCoreConfig::new()).unwrap()
+        let e = StarkCore::new(StarkCoreConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.prove();
         assert!(!result.is_empty());
@@ -304,7 +338,8 @@ mod tests {
 
     #[test]
     fn test_verify() {
-        let e = StarkCore::new(StarkCoreConfig::new()).unwrap()
+        let e = StarkCore::new(StarkCoreConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.verify();
         assert!(result);

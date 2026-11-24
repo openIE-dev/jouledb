@@ -150,7 +150,10 @@ impl VideoPlayer {
             VideoState::Ended if self.loop_playback => {
                 self.current_time = 0.0;
                 self.state = VideoState::Playing;
-                self.events.push_back(VideoEvent::Seek { from: self.duration, to: 0.0 });
+                self.events.push_back(VideoEvent::Seek {
+                    from: self.duration,
+                    to: 0.0,
+                });
                 self.events.push_back(VideoEvent::Play);
             }
             _ => {}
@@ -170,7 +173,8 @@ impl VideoPlayer {
         let clamped = time.clamp(0.0, self.duration);
         let from = self.current_time;
         self.current_time = clamped;
-        self.events.push_back(VideoEvent::Seek { from, to: clamped });
+        self.events
+            .push_back(VideoEvent::Seek { from, to: clamped });
         if self.state == VideoState::Ended && clamped < self.duration {
             self.state = VideoState::Paused;
         }
@@ -207,13 +211,17 @@ impl VideoPlayer {
             self.current_time = self.duration;
             if self.loop_playback {
                 self.current_time = 0.0;
-                self.events.push_back(VideoEvent::Seek { from: self.duration, to: 0.0 });
+                self.events.push_back(VideoEvent::Seek {
+                    from: self.duration,
+                    to: 0.0,
+                });
             } else {
                 self.state = VideoState::Ended;
                 self.events.push_back(VideoEvent::Ended);
             }
         }
-        self.events.push_back(VideoEvent::TimeUpdate(self.current_time));
+        self.events
+            .push_back(VideoEvent::TimeUpdate(self.current_time));
     }
 
     /// Update buffered ranges.
@@ -355,12 +363,22 @@ mod tests {
     fn track_selection() {
         let mut p = VideoPlayer::new(10.0);
         p.add_track(VideoTrack {
-            id: 1, width: 1920, height: 1080, fps: 30.0,
-            codec: "avc1".into(), bitrate: Some(5_000_000), active: false,
+            id: 1,
+            width: 1920,
+            height: 1080,
+            fps: 30.0,
+            codec: "avc1".into(),
+            bitrate: Some(5_000_000),
+            active: false,
         });
         p.add_track(VideoTrack {
-            id: 2, width: 1280, height: 720, fps: 30.0,
-            codec: "avc1".into(), bitrate: Some(2_500_000), active: false,
+            id: 2,
+            width: 1280,
+            height: 720,
+            fps: 30.0,
+            codec: "avc1".into(),
+            bitrate: Some(2_500_000),
+            active: false,
         });
         assert!(p.select_track(2));
         assert!(p.tracks[1].active);
@@ -371,7 +389,10 @@ mod tests {
     fn subtitle_selection() {
         let mut p = VideoPlayer::new(10.0);
         p.add_subtitle_track(SubtitleTrackRef {
-            id: 1, label: "English".into(), language: "en".into(), active: false,
+            id: 1,
+            label: "English".into(),
+            language: "en".into(),
+            active: false,
         });
         p.select_subtitle(Some(1));
         assert_eq!(p.active_subtitle, Some(1));
@@ -392,8 +413,13 @@ mod tests {
     #[test]
     fn resolution_label() {
         let t = VideoTrack {
-            id: 1, width: 1920, height: 1080, fps: 30.0,
-            codec: "avc1".into(), bitrate: None, active: true,
+            id: 1,
+            width: 1920,
+            height: 1080,
+            fps: 30.0,
+            codec: "avc1".into(),
+            bitrate: None,
+            active: true,
         };
         assert_eq!(t.resolution_label(), "1080p");
     }
@@ -405,7 +431,10 @@ mod tests {
         p.report_error("decode failure");
         assert_eq!(p.state, VideoState::Error);
         let evts = p.drain_events();
-        assert!(evts.iter().any(|e| matches!(e, VideoEvent::Error(msg) if msg == "decode failure")));
+        assert!(
+            evts.iter()
+                .any(|e| matches!(e, VideoEvent::Error(msg) if msg == "decode failure"))
+        );
     }
 
     #[test]

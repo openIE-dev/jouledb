@@ -84,19 +84,35 @@ pub struct Tag {
 
 impl Tag {
     pub fn new(class: TagClass, constructed: bool, number: u32) -> Self {
-        Self { class, constructed, number }
+        Self {
+            class,
+            constructed,
+            number,
+        }
     }
 
     pub fn universal(number: u32) -> Self {
-        Self { class: TagClass::Universal, constructed: false, number }
+        Self {
+            class: TagClass::Universal,
+            constructed: false,
+            number,
+        }
     }
 
     pub fn sequence() -> Self {
-        Self { class: TagClass::Universal, constructed: true, number: 16 }
+        Self {
+            class: TagClass::Universal,
+            constructed: true,
+            number: 16,
+        }
     }
 
     pub fn set() -> Self {
-        Self { class: TagClass::Universal, constructed: true, number: 17 }
+        Self {
+            class: TagClass::Universal,
+            constructed: true,
+            number: 17,
+        }
     }
 }
 
@@ -178,7 +194,11 @@ impl Oid {
 
     /// Format as dotted string.
     pub fn to_dotted_string(&self) -> String {
-        self.components.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(".")
+        self.components
+            .iter()
+            .map(|c| c.to_string())
+            .collect::<Vec<_>>()
+            .join(".")
     }
 }
 
@@ -242,7 +262,8 @@ impl DerEncoder {
         let constructed_bit = if tag.constructed { 0x20 } else { 0 };
 
         if tag.number <= 30 {
-            self.buf.push(class_bits | constructed_bit | tag.number as u8);
+            self.buf
+                .push(class_bits | constructed_bit | tag.number as u8);
         } else {
             self.buf.push(class_bits | constructed_bit | 0x1F);
             // Multi-byte tag number
@@ -424,7 +445,11 @@ pub struct DerDecoder<'a> {
 
 impl<'a> DerDecoder<'a> {
     pub fn new(data: &'a [u8]) -> Self {
-        Self { data, pos: 0, depth: 0 }
+        Self {
+            data,
+            pos: 0,
+            depth: 0,
+        }
     }
 
     fn read_u8(&mut self) -> Result<u8, Asn1Error> {
@@ -461,7 +486,11 @@ impl<'a> DerDecoder<'a> {
         } else {
             (byte & 0x1F) as u32
         };
-        Ok(Tag { class, constructed, number })
+        Ok(Tag {
+            class,
+            constructed,
+            number,
+        })
     }
 
     fn read_length(&mut self) -> Result<usize, Asn1Error> {
@@ -598,7 +627,9 @@ mod tests {
 
     #[test]
     fn integer_roundtrip() {
-        for val in [0i64, 1, -1, 127, 128, -128, -129, 256, 32767, -32768, 1000000] {
+        for val in [
+            0i64, 1, -1, 127, 128, -128, -129, 256, 32767, -32768, 1000000,
+        ] {
             let mut enc = DerEncoder::new();
             enc.encode_integer(val);
             let bytes = enc.finish();

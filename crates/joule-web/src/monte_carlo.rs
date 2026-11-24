@@ -28,8 +28,14 @@ impl fmt::Display for McError {
             Self::ZeroSamples => write!(f, "sample count must be non-zero"),
             Self::EmptyData => write!(f, "dataset is empty"),
             Self::InvalidProbability(p) => write!(f, "invalid probability: {p}"),
-            Self::NotConverged { iterations, threshold } => {
-                write!(f, "not converged after {iterations} iterations (threshold: {threshold})")
+            Self::NotConverged {
+                iterations,
+                threshold,
+            } => {
+                write!(
+                    f,
+                    "not converged after {iterations} iterations (threshold: {threshold})"
+                )
             }
         }
     }
@@ -48,7 +54,9 @@ pub struct Xorshift64 {
 impl Xorshift64 {
     /// Create with a seed. Seed must not be zero.
     pub fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     /// Next raw u64.
@@ -108,8 +116,12 @@ pub fn compute_stats(data: &[f64]) -> Result<SampleStats, McError> {
     let mut min = f64::INFINITY;
     let mut max = f64::NEG_INFINITY;
     for &v in data {
-        if v < min { min = v; }
-        if v > max { max = v; }
+        if v < min {
+            min = v;
+        }
+        if v > max {
+            max = v;
+        }
     }
     Ok(SampleStats {
         mean,
@@ -189,7 +201,8 @@ impl MonteCarloEstimator {
 
     /// Current standard error of the mean.
     pub fn standard_error(&self) -> Option<f64> {
-        self.current_variance().map(|v| (v / self.samples.len() as f64).sqrt())
+        self.current_variance()
+            .map(|v| (v / self.samples.len() as f64).sqrt())
     }
 
     /// Convergence history (running mean at each step).
@@ -276,7 +289,8 @@ pub fn importance_sampling(
     }
 
     let normalized: Vec<f64> = target_weights.iter().map(|w| w / weight_sum).collect();
-    let estimate: f64 = target_samples.iter()
+    let estimate: f64 = target_samples
+        .iter()
         .zip(normalized.iter())
         .map(|(s, w)| s * w)
         .sum();
@@ -336,7 +350,11 @@ pub fn estimate_pi(rng: &mut Xorshift64, n: u64) -> f64 {
 }
 
 /// Estimate pi with convergence tracking.
-pub fn estimate_pi_with_convergence(rng: &mut Xorshift64, n: u64, interval: u64) -> Vec<(u64, f64)> {
+pub fn estimate_pi_with_convergence(
+    rng: &mut Xorshift64,
+    n: u64,
+    interval: u64,
+) -> Vec<(u64, f64)> {
     let mut inside = 0u64;
     let mut history = Vec::new();
     for i in 1..=n {
@@ -355,13 +373,7 @@ pub fn estimate_pi_with_convergence(rng: &mut Xorshift64, n: u64, interval: u64)
 // ── Integration ─────────────────────────────────────────────────
 
 /// Estimate the integral of f(x) over [a, b] using Monte Carlo integration.
-pub fn integrate(
-    rng: &mut Xorshift64,
-    a: f64,
-    b: f64,
-    n: u64,
-    f: impl Fn(f64) -> f64,
-) -> f64 {
+pub fn integrate(rng: &mut Xorshift64, a: f64, b: f64, n: u64, f: impl Fn(f64) -> f64) -> f64 {
     if n == 0 {
         return 0.0;
     }
@@ -573,7 +585,10 @@ mod tests {
     fn test_estimate_pi() {
         let mut rng = Xorshift64::new(42);
         let pi = estimate_pi(&mut rng, 100_000);
-        assert!((pi - std::f64::consts::PI).abs() < 0.1, "pi estimate was {pi}");
+        assert!(
+            (pi - std::f64::consts::PI).abs() < 0.1,
+            "pi estimate was {pi}"
+        );
     }
 
     #[test]

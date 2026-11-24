@@ -3,9 +3,14 @@
 //! These types represent signals transformed into the frequency domain.
 //! They are first-class queryable objects in SigQL.
 
-
 #[cfg(not(feature = "std"))]
-use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use num_complex::Complex;
 use smol_str::SmolStr;
 

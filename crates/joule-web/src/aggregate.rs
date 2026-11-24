@@ -17,17 +17,30 @@ pub enum AggregateError {
     /// Invariant violation.
     InvariantViolation { aggregate_id: String, rule: String },
     /// Version conflict.
-    VersionConflict { aggregate_id: String, expected: u64, actual: u64 },
+    VersionConflict {
+        aggregate_id: String,
+        expected: u64,
+        actual: u64,
+    },
     /// Command rejected.
-    CommandRejected { aggregate_id: String, reason: String },
+    CommandRejected {
+        aggregate_id: String,
+        reason: String,
+    },
     /// Unknown event type during replay.
-    UnknownEventType { aggregate_id: String, event_type: String },
+    UnknownEventType {
+        aggregate_id: String,
+        event_type: String,
+    },
     /// Aggregate not found.
     NotFound(String),
     /// Aggregate already exists.
     AlreadyExists(String),
     /// Invalid state for operation.
-    InvalidState { aggregate_id: String, reason: String },
+    InvalidState {
+        aggregate_id: String,
+        reason: String,
+    },
     /// Snapshot error.
     SnapshotError(String),
 }
@@ -38,18 +51,34 @@ impl std::fmt::Display for AggregateError {
             Self::InvariantViolation { aggregate_id, rule } => {
                 write!(f, "invariant violation on {aggregate_id}: {rule}")
             }
-            Self::VersionConflict { aggregate_id, expected, actual } => {
-                write!(f, "version conflict for {aggregate_id}: expected {expected}, got {actual}")
+            Self::VersionConflict {
+                aggregate_id,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "version conflict for {aggregate_id}: expected {expected}, got {actual}"
+                )
             }
-            Self::CommandRejected { aggregate_id, reason } => {
+            Self::CommandRejected {
+                aggregate_id,
+                reason,
+            } => {
                 write!(f, "command rejected for {aggregate_id}: {reason}")
             }
-            Self::UnknownEventType { aggregate_id, event_type } => {
+            Self::UnknownEventType {
+                aggregate_id,
+                event_type,
+            } => {
                 write!(f, "unknown event type for {aggregate_id}: {event_type}")
             }
             Self::NotFound(id) => write!(f, "aggregate not found: {id}"),
             Self::AlreadyExists(id) => write!(f, "aggregate already exists: {id}"),
-            Self::InvalidState { aggregate_id, reason } => {
+            Self::InvalidState {
+                aggregate_id,
+                reason,
+            } => {
                 write!(f, "invalid state for {aggregate_id}: {reason}")
             }
             Self::SnapshotError(msg) => write!(f, "snapshot error: {msg}"),
@@ -82,7 +111,12 @@ impl AggregateEvent {
         let ts = Utc::now();
         let agg_id = aggregate_id.into();
         Self {
-            event_id: format!("{}-{}-{}", agg_id, version, ts.timestamp_nanos_opt().unwrap_or(0)),
+            event_id: format!(
+                "{}-{}-{}",
+                agg_id,
+                version,
+                ts.timestamp_nanos_opt().unwrap_or(0)
+            ),
             aggregate_id: agg_id,
             event_type: event_type.into(),
             version,
@@ -169,15 +203,19 @@ impl Command {
 #[derive(Clone)]
 pub struct CommandHandler {
     pub command_type: String,
-    handler_fn: fn(&HashMap<String, String>, &HashMap<String, String>)
-        -> Result<Vec<(String, HashMap<String, String>)>, String>,
+    handler_fn: fn(
+        &HashMap<String, String>,
+        &HashMap<String, String>,
+    ) -> Result<Vec<(String, HashMap<String, String>)>, String>,
 }
 
 impl CommandHandler {
     pub fn new(
         command_type: impl Into<String>,
-        handler_fn: fn(&HashMap<String, String>, &HashMap<String, String>)
-            -> Result<Vec<(String, HashMap<String, String>)>, String>,
+        handler_fn: fn(
+            &HashMap<String, String>,
+            &HashMap<String, String>,
+        ) -> Result<Vec<(String, HashMap<String, String>)>, String>,
     ) -> Self {
         Self {
             command_type: command_type.into(),
@@ -279,10 +317,18 @@ impl AggregateRoot {
         }
     }
 
-    pub fn id(&self) -> &str { &self.id }
-    pub fn version(&self) -> u64 { self.version }
-    pub fn state(&self) -> &HashMap<String, String> { &self.state }
-    pub fn created_at(&self) -> DateTime<Utc> { self.created_at }
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+    pub fn version(&self) -> u64 {
+        self.version
+    }
+    pub fn state(&self) -> &HashMap<String, String> {
+        &self.state
+    }
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
 
     /// Register an invariant rule.
     pub fn add_invariant(&mut self, rule: InvariantRule) {
@@ -326,7 +372,8 @@ impl AggregateRoot {
         }
 
         // Find handler.
-        let handler = self.command_handlers
+        let handler = self
+            .command_handlers
             .iter()
             .find(|h| h.command_type == cmd.command_type)
             .cloned()
@@ -350,7 +397,11 @@ impl AggregateRoot {
             let event = AggregateEvent::new(&self.id, &event_type, self.version, data);
 
             // Apply via applier.
-            let applier = self.event_appliers.iter().find(|a| a.event_type == event_type).cloned();
+            let applier = self
+                .event_appliers
+                .iter()
+                .find(|a| a.event_type == event_type)
+                .cloned();
             if let Some(ap) = applier {
                 ap.apply(&mut self.state, &event.data);
             }
@@ -368,7 +419,11 @@ impl AggregateRoot {
     /// Apply a single event directly (for replay / event sourcing).
     pub fn apply_event(&mut self, event: &AggregateEvent) -> Result<(), AggregateError> {
         let et = event.event_type.clone();
-        let applier = self.event_appliers.iter().find(|a| a.event_type == et).cloned();
+        let applier = self
+            .event_appliers
+            .iter()
+            .find(|a| a.event_type == et)
+            .cloned();
         match applier {
             Some(ap) => {
                 ap.apply(&mut self.state, &event.data);
@@ -445,7 +500,10 @@ impl AggregateStore {
 
     /// Save events for an aggregate.
     pub fn save_events(&mut self, agg_id: &str, events: Vec<AggregateEvent>) {
-        self.events.entry(agg_id.to_string()).or_default().extend(events);
+        self.events
+            .entry(agg_id.to_string())
+            .or_default()
+            .extend(events);
     }
 
     /// Get all events for an aggregate.
@@ -455,7 +513,10 @@ impl AggregateStore {
 
     /// Save a snapshot.
     pub fn save_snapshot(&mut self, snapshot: AggregateSnapshot) {
-        self.snapshots.entry(snapshot.aggregate_id.clone()).or_default().push(snapshot);
+        self.snapshots
+            .entry(snapshot.aggregate_id.clone())
+            .or_default()
+            .push(snapshot);
     }
 
     /// Get the latest snapshot.
@@ -465,8 +526,14 @@ impl AggregateStore {
 
     /// Get events after a specific version.
     pub fn events_after_version(&self, agg_id: &str, version: u64) -> Vec<AggregateEvent> {
-        self.events.get(agg_id)
-            .map(|evts| evts.iter().filter(|e| e.version > version).cloned().collect())
+        self.events
+            .get(agg_id)
+            .map(|evts| {
+                evts.iter()
+                    .filter(|e| e.version > version)
+                    .cloned()
+                    .collect()
+            })
             .unwrap_or_default()
     }
 
@@ -499,7 +566,10 @@ mod tests {
         // Event applier: "item_added" sets item in state.
         agg.add_event_applier(EventApplier::new("item_added", |state, data| {
             if let Some(item) = data.get("item") {
-                let count: u32 = state.get("item_count").and_then(|c| c.parse().ok()).unwrap_or(0);
+                let count: u32 = state
+                    .get("item_count")
+                    .and_then(|c| c.parse().ok())
+                    .unwrap_or(0);
                 state.insert("item_count".to_string(), (count + 1).to_string());
                 state.insert(format!("item_{count}"), item.clone());
             }
@@ -511,27 +581,24 @@ mod tests {
         }));
 
         // Command handler: "add_item".
-        agg.add_command_handler(CommandHandler::new(
-            "add_item",
-            |_state, data| {
-                if data.get("item").map(|i| i.is_empty()).unwrap_or(true) {
-                    return Err("item name required".to_string());
-                }
-                Ok(vec![("item_added".to_string(), data.clone())])
-            },
-        ));
+        agg.add_command_handler(CommandHandler::new("add_item", |_state, data| {
+            if data.get("item").map(|i| i.is_empty()).unwrap_or(true) {
+                return Err("item name required".to_string());
+            }
+            Ok(vec![("item_added".to_string(), data.clone())])
+        }));
 
         // Command handler: "place_order".
-        agg.add_command_handler(CommandHandler::new(
-            "place_order",
-            |state, data| {
-                let count: u32 = state.get("item_count").and_then(|c| c.parse().ok()).unwrap_or(0);
-                if count == 0 {
-                    return Err("cannot place empty order".to_string());
-                }
-                Ok(vec![("order_placed".to_string(), data.clone())])
-            },
-        ));
+        agg.add_command_handler(CommandHandler::new("place_order", |state, data| {
+            let count: u32 = state
+                .get("item_count")
+                .and_then(|c| c.parse().ok())
+                .unwrap_or(0);
+            if count == 0 {
+                return Err("cannot place empty order".to_string());
+            }
+            Ok(vec![("order_placed".to_string(), data.clone())])
+        }));
 
         agg
     }
@@ -562,7 +629,10 @@ mod tests {
         let data = HashMap::new();
         let cmd = Command::new("add_item", "order-1", data);
         let result = agg.handle_command(&cmd);
-        assert!(matches!(result, Err(AggregateError::CommandRejected { .. })));
+        assert!(matches!(
+            result,
+            Err(AggregateError::CommandRejected { .. })
+        ));
     }
 
     #[test]
@@ -571,7 +641,10 @@ mod tests {
         let data = HashMap::new();
         let cmd = Command::new("add_item", "order-1", data).with_version(5);
         let result = agg.handle_command(&cmd);
-        assert!(matches!(result, Err(AggregateError::VersionConflict { .. })));
+        assert!(matches!(
+            result,
+            Err(AggregateError::VersionConflict { .. })
+        ));
     }
 
     #[test]
@@ -579,7 +652,10 @@ mod tests {
         let mut agg = make_aggregate();
         let cmd = Command::new("unknown", "order-1", HashMap::new());
         let result = agg.handle_command(&cmd);
-        assert!(matches!(result, Err(AggregateError::CommandRejected { .. })));
+        assert!(matches!(
+            result,
+            Err(AggregateError::CommandRejected { .. })
+        ));
     }
 
     #[test]
@@ -587,11 +663,13 @@ mod tests {
         let mut agg = make_aggregate();
         let mut d1 = HashMap::new();
         d1.insert("item".to_string(), "widget".to_string());
-        agg.handle_command(&Command::new("add_item", "order-1", d1)).unwrap();
+        agg.handle_command(&Command::new("add_item", "order-1", d1))
+            .unwrap();
 
         let mut d2 = HashMap::new();
         d2.insert("item".to_string(), "gadget".to_string());
-        agg.handle_command(&Command::new("add_item", "order-1", d2)).unwrap();
+        agg.handle_command(&Command::new("add_item", "order-1", d2))
+            .unwrap();
 
         assert_eq!(agg.version(), 2);
         assert_eq!(agg.get_state("item_count"), Some("2"));
@@ -602,7 +680,10 @@ mod tests {
         let mut agg = make_aggregate();
         let cmd = Command::new("place_order", "order-1", HashMap::new());
         let result = agg.handle_command(&cmd);
-        assert!(matches!(result, Err(AggregateError::CommandRejected { .. })));
+        assert!(matches!(
+            result,
+            Err(AggregateError::CommandRejected { .. })
+        ));
     }
 
     #[test]
@@ -610,8 +691,10 @@ mod tests {
         let mut agg = make_aggregate();
         let mut d1 = HashMap::new();
         d1.insert("item".to_string(), "widget".to_string());
-        agg.handle_command(&Command::new("add_item", "order-1", d1)).unwrap();
-        agg.handle_command(&Command::new("place_order", "order-1", HashMap::new())).unwrap();
+        agg.handle_command(&Command::new("add_item", "order-1", d1))
+            .unwrap();
+        agg.handle_command(&Command::new("place_order", "order-1", HashMap::new()))
+            .unwrap();
         assert_eq!(agg.get_state("status"), Some("placed"));
     }
 
@@ -620,7 +703,8 @@ mod tests {
         let mut agg = make_aggregate();
         let mut d = HashMap::new();
         d.insert("item".to_string(), "widget".to_string());
-        agg.handle_command(&Command::new("add_item", "order-1", d)).unwrap();
+        agg.handle_command(&Command::new("add_item", "order-1", d))
+            .unwrap();
         let snap = agg.take_snapshot();
         assert_eq!(snap.version, 1);
         assert_eq!(snap.aggregate_id, "order-1");
@@ -635,7 +719,8 @@ mod tests {
         let mut agg = make_aggregate();
         let mut d = HashMap::new();
         d.insert("item".to_string(), "widget".to_string());
-        agg.handle_command(&Command::new("add_item", "order-1", d)).unwrap();
+        agg.handle_command(&Command::new("add_item", "order-1", d))
+            .unwrap();
         let events = agg.drain_events();
 
         // Replay on a fresh aggregate.
@@ -652,23 +737,33 @@ mod tests {
             "max_items",
             "cannot have more than 2 items",
             |state| {
-                let count: u32 = state.get("item_count").and_then(|c| c.parse().ok()).unwrap_or(0);
+                let count: u32 = state
+                    .get("item_count")
+                    .and_then(|c| c.parse().ok())
+                    .unwrap_or(0);
                 count <= 2
             },
         ));
         agg.add_event_applier(EventApplier::new("item_added", |state, _data| {
-            let count: u32 = state.get("item_count").and_then(|c| c.parse().ok()).unwrap_or(0);
+            let count: u32 = state
+                .get("item_count")
+                .and_then(|c| c.parse().ok())
+                .unwrap_or(0);
             state.insert("item_count".to_string(), (count + 1).to_string());
         }));
-        agg.add_command_handler(CommandHandler::new(
-            "add_item",
-            |_state, data| Ok(vec![("item_added".to_string(), data.clone())]),
-        ));
+        agg.add_command_handler(CommandHandler::new("add_item", |_state, data| {
+            Ok(vec![("item_added".to_string(), data.clone())])
+        }));
 
-        agg.handle_command(&Command::new("add_item", "inv-1", HashMap::new())).unwrap();
-        agg.handle_command(&Command::new("add_item", "inv-1", HashMap::new())).unwrap();
+        agg.handle_command(&Command::new("add_item", "inv-1", HashMap::new()))
+            .unwrap();
+        agg.handle_command(&Command::new("add_item", "inv-1", HashMap::new()))
+            .unwrap();
         let result = agg.handle_command(&Command::new("add_item", "inv-1", HashMap::new()));
-        assert!(matches!(result, Err(AggregateError::InvariantViolation { .. })));
+        assert!(matches!(
+            result,
+            Err(AggregateError::InvariantViolation { .. })
+        ));
     }
 
     #[test]
@@ -676,7 +771,8 @@ mod tests {
         let mut agg = make_aggregate();
         let mut d = HashMap::new();
         d.insert("item".to_string(), "widget".to_string());
-        agg.handle_command(&Command::new("add_item", "order-1", d)).unwrap();
+        agg.handle_command(&Command::new("add_item", "order-1", d))
+            .unwrap();
         assert_eq!(agg.pending_event_count(), 1);
         let events = agg.drain_events();
         assert_eq!(events.len(), 1);

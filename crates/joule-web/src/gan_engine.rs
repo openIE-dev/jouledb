@@ -16,10 +16,15 @@ struct Rng {
 }
 
 impl Rng {
-    fn new(seed: u64) -> Self { Self { state: seed } }
+    fn new(seed: u64) -> Self {
+        Self { state: seed }
+    }
 
     fn next(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.state
     }
 
@@ -115,13 +120,22 @@ impl Layer {
             .map(|_| (0..input_dim).map(|_| rng.normal() * scale).collect())
             .collect();
         let biases = vec![0.0; output_dim];
-        Self { weights, biases, use_sigmoid }
+        Self {
+            weights,
+            biases,
+            use_sigmoid,
+        }
     }
 
     fn forward(&self, input: &[f64]) -> Vec<f64> {
         (0..self.biases.len())
             .map(|j| {
-                let z: f64 = self.weights[j].iter().zip(input).map(|(w, x)| w * x).sum::<f64>() + self.biases[j];
+                let z: f64 = self.weights[j]
+                    .iter()
+                    .zip(input)
+                    .map(|(w, x)| w * x)
+                    .sum::<f64>()
+                    + self.biases[j];
                 if self.use_sigmoid {
                     1.0 / (1.0 + (-z).exp())
                 } else {
@@ -152,7 +166,11 @@ impl Generator {
         }
         // Output layer uses sigmoid to produce values in [0, 1].
         layers.push(Layer::new(prev, output_dim, true, rng));
-        Self { layers, noise_dim, output_dim }
+        Self {
+            layers,
+            noise_dim,
+            output_dim,
+        }
     }
 
     /// Generate a sample from a noise vector.
@@ -164,11 +182,16 @@ impl Generator {
         h
     }
 
-    pub fn noise_dim(&self) -> usize { self.noise_dim }
-    pub fn output_dim(&self) -> usize { self.output_dim }
+    pub fn noise_dim(&self) -> usize {
+        self.noise_dim
+    }
+    pub fn output_dim(&self) -> usize {
+        self.output_dim
+    }
 
     pub fn param_count(&self) -> usize {
-        self.layers.iter()
+        self.layers
+            .iter()
             .map(|l| l.weights.len() * l.weights[0].len() + l.biases.len())
             .sum()
     }
@@ -176,8 +199,14 @@ impl Generator {
 
 impl fmt::Display for Generator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Generator(noise={}, output={}, layers={}, params={})",
-            self.noise_dim, self.output_dim, self.layers.len(), self.param_count())
+        write!(
+            f,
+            "Generator(noise={}, output={}, layers={}, params={})",
+            self.noise_dim,
+            self.output_dim,
+            self.layers.len(),
+            self.param_count()
+        )
     }
 }
 
@@ -213,7 +242,8 @@ impl Discriminator {
     }
 
     pub fn param_count(&self) -> usize {
-        self.layers.iter()
+        self.layers
+            .iter()
             .map(|l| l.weights.len() * l.weights[0].len() + l.biases.len())
             .sum()
     }
@@ -221,8 +251,13 @@ impl Discriminator {
 
 impl fmt::Display for Discriminator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Discriminator(input={}, layers={}, params={})",
-            self.input_dim, self.layers.len(), self.param_count())
+        write!(
+            f,
+            "Discriminator(input={}, layers={}, params={})",
+            self.input_dim,
+            self.layers.len(),
+            self.param_count()
+        )
     }
 }
 
@@ -238,7 +273,9 @@ pub fn gradient_penalty(
     assert_eq!(real.len(), fake.len());
     // Use epsilon=0.5 for midpoint interpolation.
     let eps = 0.5;
-    let interpolated: Vec<f64> = real.iter().zip(fake.iter())
+    let interpolated: Vec<f64> = real
+        .iter()
+        .zip(fake.iter())
         .map(|(r, f_val)| eps * r + (1.0 - eps) * f_val)
         .collect();
 
@@ -296,17 +333,25 @@ impl CollapseMetrics {
 
         for i in 0..n {
             for j in (i + 1)..n {
-                let dist: f64 = samples[i].iter().zip(samples[j].iter())
+                let dist: f64 = samples[i]
+                    .iter()
+                    .zip(samples[j].iter())
                     .map(|(a, b)| (a - b).powi(2))
                     .sum::<f64>()
                     .sqrt();
                 total_dist += dist;
-                if dist < min_dist { min_dist = dist; }
+                if dist < min_dist {
+                    min_dist = dist;
+                }
                 pair_count += 1;
             }
         }
 
-        let avg_dist = if pair_count > 0 { total_dist / pair_count as f64 } else { 0.0 };
+        let avg_dist = if pair_count > 0 {
+            total_dist / pair_count as f64
+        } else {
+            0.0
+        };
 
         // Per-feature standard deviation.
         let mut means = vec![0.0; dim];
@@ -317,9 +362,11 @@ impl CollapseMetrics {
         }
         let feature_std: Vec<f64> = (0..dim)
             .map(|i| {
-                let var = samples.iter()
+                let var = samples
+                    .iter()
                     .map(|s| (s[i] - means[i]).powi(2))
-                    .sum::<f64>() / n as f64;
+                    .sum::<f64>()
+                    / n as f64;
                 var.sqrt()
             })
             .collect();
@@ -329,12 +376,18 @@ impl CollapseMetrics {
         let mut assigned = vec![false; n];
         let mut modes = 0;
         for i in 0..n {
-            if assigned[i] { continue; }
+            if assigned[i] {
+                continue;
+            }
             modes += 1;
             assigned[i] = true;
             for j in (i + 1)..n {
-                if assigned[j] { continue; }
-                let dist: f64 = samples[i].iter().zip(samples[j].iter())
+                if assigned[j] {
+                    continue;
+                }
+                let dist: f64 = samples[i]
+                    .iter()
+                    .zip(samples[j].iter())
                     .map(|(a, b)| (a - b).powi(2))
                     .sum::<f64>()
                     .sqrt();
@@ -428,7 +481,13 @@ impl GanEngine {
     /// Run one training step with real data.
     pub fn train_step(&mut self, real_samples: &[Vec<f64>]) -> GanTrainStep {
         if real_samples.is_empty() {
-            return GanTrainStep { step: self.step, d_loss_real: 0.0, d_loss_fake: 0.0, g_loss: 0.0, gp: 0.0 };
+            return GanTrainStep {
+                step: self.step,
+                d_loss_real: 0.0,
+                d_loss_fake: 0.0,
+                g_loss: 0.0,
+                gp: 0.0,
+            };
         }
 
         let mut d_loss_real_total = 0.0;
@@ -487,7 +546,9 @@ impl GanEngine {
         CollapseMetrics::analyze(&samples)
     }
 
-    pub fn history(&self) -> &[GanTrainStep] { &self.history }
+    pub fn history(&self) -> &[GanTrainStep] {
+        &self.history
+    }
 
     pub fn total_params(&self) -> usize {
         self.generator.param_count() + self.discriminator.param_count()
@@ -499,7 +560,10 @@ impl fmt::Display for GanEngine {
         write!(
             f,
             "GanEngine(loss={}, noise_dim={}, params={}, steps={})",
-            self.loss_fn, self.noise_dim, self.total_params(), self.step,
+            self.loss_fn,
+            self.noise_dim,
+            self.total_params(),
+            self.step,
         )
     }
 }
@@ -596,7 +660,10 @@ mod tests {
     #[test]
     fn test_collapse_metrics_diverse() {
         let samples = vec![
-            vec![0.0, 0.0], vec![1.0, 1.0], vec![0.0, 1.0], vec![1.0, 0.0],
+            vec![0.0, 0.0],
+            vec![1.0, 1.0],
+            vec![0.0, 1.0],
+            vec![1.0, 0.0],
         ];
         let metrics = CollapseMetrics::analyze(&samples);
         assert!(metrics.avg_pairwise_distance > 0.5);
@@ -606,7 +673,10 @@ mod tests {
     #[test]
     fn test_collapse_metrics_collapsed() {
         let samples = vec![
-            vec![0.5, 0.5], vec![0.501, 0.499], vec![0.5, 0.501], vec![0.499, 0.5],
+            vec![0.5, 0.5],
+            vec![0.501, 0.499],
+            vec![0.5, 0.501],
+            vec![0.499, 0.5],
         ];
         let metrics = CollapseMetrics::analyze(&samples);
         assert!(metrics.avg_pairwise_distance < 0.01);
@@ -627,8 +697,7 @@ mod tests {
 
     #[test]
     fn test_wgan_gp_train_step() {
-        let mut engine = GanEngine::new(4, 2, &[3], GanLoss::Wasserstein)
-            .with_gp_lambda(10.0);
+        let mut engine = GanEngine::new(4, 2, &[3], GanLoss::Wasserstein).with_gp_lambda(10.0);
         let data = vec![vec![0.5, 0.8]];
         let step = engine.train_step(&data);
         assert!(step.gp >= 0.0);

@@ -84,13 +84,7 @@ impl TransitionState {
     }
 
     /// Begin a transition from one route to another.
-    pub fn start(
-        &mut self,
-        from: &str,
-        to: &str,
-        kind: TransitionKind,
-        config: TransitionConfig,
-    ) {
+    pub fn start(&mut self, from: &str, to: &str, kind: TransitionKind, config: TransitionConfig) {
         self.phase = TransitionPhase::Leaving;
         self.kind = kind;
         self.config = config;
@@ -110,9 +104,7 @@ impl TransitionState {
                 self.progress = (self.elapsed_ms as f64 / dur as f64).min(1.0);
                 if self.elapsed_ms >= dur + self.config.stagger_ms {
                     self.phase = TransitionPhase::Entering;
-                    self.elapsed_ms = self
-                        .elapsed_ms
-                        .saturating_sub(dur + self.config.stagger_ms);
+                    self.elapsed_ms = self.elapsed_ms.saturating_sub(dur + self.config.stagger_ms);
                     self.progress = if self.config.enter_duration_ms == 0 {
                         1.0
                     } else {
@@ -357,7 +349,12 @@ mod tests {
     #[test]
     fn start_sets_leaving_phase() {
         let mut ts = TransitionState::new();
-        ts.start("/a", "/b", TransitionKind::Fade, TransitionConfig::default());
+        ts.start(
+            "/a",
+            "/b",
+            TransitionKind::Fade,
+            TransitionConfig::default(),
+        );
         assert_eq!(ts.phase, TransitionPhase::Leaving);
         assert_eq!(ts.from_route.as_deref(), Some("/a"));
         assert_eq!(ts.to_route.as_deref(), Some("/b"));
@@ -366,7 +363,12 @@ mod tests {
     #[test]
     fn tick_advances_progress() {
         let mut ts = TransitionState::new();
-        ts.start("/a", "/b", TransitionKind::Fade, TransitionConfig::default());
+        ts.start(
+            "/a",
+            "/b",
+            TransitionKind::Fade,
+            TransitionConfig::default(),
+        );
         ts.tick(150);
         assert_eq!(ts.phase, TransitionPhase::Leaving);
         assert!((ts.progress - 0.5).abs() < 0.01);
@@ -375,7 +377,12 @@ mod tests {
     #[test]
     fn phase_transitions_leaving_entering_complete() {
         let mut ts = TransitionState::new();
-        ts.start("/a", "/b", TransitionKind::Fade, TransitionConfig::default());
+        ts.start(
+            "/a",
+            "/b",
+            TransitionKind::Fade,
+            TransitionConfig::default(),
+        );
         // Finish leaving (300ms)
         ts.tick(300);
         assert_eq!(ts.phase, TransitionPhase::Entering);
@@ -403,7 +410,12 @@ mod tests {
     #[test]
     fn cancel_jumps_to_complete() {
         let mut ts = TransitionState::new();
-        ts.start("/a", "/b", TransitionKind::Fade, TransitionConfig::default());
+        ts.start(
+            "/a",
+            "/b",
+            TransitionKind::Fade,
+            TransitionConfig::default(),
+        );
         ts.tick(100);
         ts.cancel();
         assert_eq!(ts.phase, TransitionPhase::Complete);
@@ -413,7 +425,12 @@ mod tests {
     #[test]
     fn reset_to_idle() {
         let mut ts = TransitionState::new();
-        ts.start("/a", "/b", TransitionKind::Fade, TransitionConfig::default());
+        ts.start(
+            "/a",
+            "/b",
+            TransitionKind::Fade,
+            TransitionConfig::default(),
+        );
         ts.tick(600);
         ts.reset();
         assert_eq!(ts.phase, TransitionPhase::Idle);
@@ -468,7 +485,12 @@ mod tests {
     #[test]
     fn enter_progress_zero_at_start() {
         let mut ts = TransitionState::new();
-        ts.start("/a", "/b", TransitionKind::Fade, TransitionConfig::default());
+        ts.start(
+            "/a",
+            "/b",
+            TransitionKind::Fade,
+            TransitionConfig::default(),
+        );
         assert!((ts.enter_progress()).abs() < 0.01);
     }
 
@@ -476,7 +498,12 @@ mod tests {
     fn is_animating_during_transition() {
         let mut ts = TransitionState::new();
         assert!(!ts.is_animating());
-        ts.start("/a", "/b", TransitionKind::Fade, TransitionConfig::default());
+        ts.start(
+            "/a",
+            "/b",
+            TransitionKind::Fade,
+            TransitionConfig::default(),
+        );
         assert!(ts.is_animating());
         ts.tick(600);
         assert!(!ts.is_animating());

@@ -40,7 +40,12 @@ impl DataPoint {
 
     /// Deduplication key: source + metric + timestamp (second-level precision).
     pub fn dedup_key(&self) -> String {
-        format!("{}:{}:{}", self.source, self.metric, self.timestamp.timestamp())
+        format!(
+            "{}:{}:{}",
+            self.source,
+            self.metric,
+            self.timestamp.timestamp()
+        )
     }
 }
 
@@ -120,7 +125,10 @@ pub struct RetentionPolicy {
 
 impl RetentionPolicy {
     pub fn new(max_points: usize) -> Self {
-        Self { max_points, max_age: None }
+        Self {
+            max_points,
+            max_age: None,
+        }
     }
 
     pub fn with_max_age(mut self, duration: Duration) -> Self {
@@ -253,11 +261,15 @@ impl TelemetryIngestor {
                         let met = point.metric.clone();
                         let bs = self.bucket_secs;
                         self.store.retain(|p| {
-                            !(p.source == src && p.metric == met && (p.timestamp.timestamp() - pt_ts).abs() < bs)
+                            !(p.source == src
+                                && p.metric == met
+                                && (p.timestamp.timestamp() - pt_ts).abs() < bs)
                         });
                     }
                     DownsampleStrategy::Min => {
-                        let existing_min = self.store.iter()
+                        let existing_min = self
+                            .store
+                            .iter()
                             .filter(|p| in_bucket(p))
                             .map(|p| p.value)
                             .fold(f64::INFINITY, f64::min);
@@ -269,11 +281,15 @@ impl TelemetryIngestor {
                         let met = point.metric.clone();
                         let bs = self.bucket_secs;
                         self.store.retain(|p| {
-                            !(p.source == src && p.metric == met && (p.timestamp.timestamp() - pt_ts).abs() < bs)
+                            !(p.source == src
+                                && p.metric == met
+                                && (p.timestamp.timestamp() - pt_ts).abs() < bs)
                         });
                     }
                     DownsampleStrategy::Max => {
-                        let existing_max = self.store.iter()
+                        let existing_max = self
+                            .store
+                            .iter()
                             .filter(|p| in_bucket(p))
                             .map(|p| p.value)
                             .fold(f64::NEG_INFINITY, f64::max);
@@ -285,7 +301,9 @@ impl TelemetryIngestor {
                         let met = point.metric.clone();
                         let bs = self.bucket_secs;
                         self.store.retain(|p| {
-                            !(p.source == src && p.metric == met && (p.timestamp.timestamp() - pt_ts).abs() < bs)
+                            !(p.source == src
+                                && p.metric == met
+                                && (p.timestamp.timestamp() - pt_ts).abs() < bs)
                         });
                     }
                     DownsampleStrategy::Average | DownsampleStrategy::None => {
@@ -329,7 +347,12 @@ impl TelemetryIngestor {
             }
         }
 
-        BatchResult { accepted, rejected, deduplicated, errors }
+        BatchResult {
+            accepted,
+            rejected,
+            deduplicated,
+            errors,
+        }
     }
 
     /// Apply retention policy: remove excess and expired points.
@@ -383,7 +406,8 @@ impl TelemetryIngestor {
 
     /// Get all stored points for a given source and metric.
     pub fn query(&self, source: &str, metric: &str) -> Vec<&DataPoint> {
-        self.store.iter()
+        self.store
+            .iter()
             .filter(|p| p.source == source && p.metric == metric)
             .collect()
     }
@@ -495,9 +519,7 @@ mod tests {
     #[test]
     fn retention_max_age() {
         let max_age = Duration::seconds(10);
-        let mut ingestor = TelemetryIngestor::new(
-            RetentionPolicy::new(1000).with_max_age(max_age)
-        );
+        let mut ingestor = TelemetryIngestor::new(RetentionPolicy::new(1000).with_max_age(max_age));
         let old = Utc::now() - Duration::seconds(20);
         let p = make_point("s1", "temp", 22.0, old);
         let _ = ingestor.ingest(p);
@@ -570,8 +592,17 @@ mod tests {
         let mut ingestor = TelemetryIngestor::new(RetentionPolicy::new(1000));
         let ts = Utc::now();
         ingestor.ingest(make_point("s1", "temp", 22.0, ts)).unwrap();
-        ingestor.ingest(make_point("s1", "humidity", 60.0, ts + Duration::seconds(1))).unwrap();
-        ingestor.ingest(make_point("s2", "temp", 21.0, ts + Duration::seconds(2))).unwrap();
+        ingestor
+            .ingest(make_point(
+                "s1",
+                "humidity",
+                60.0,
+                ts + Duration::seconds(1),
+            ))
+            .unwrap();
+        ingestor
+            .ingest(make_point("s2", "temp", 21.0, ts + Duration::seconds(2)))
+            .unwrap();
         let temps = ingestor.query("s1", "temp");
         assert_eq!(temps.len(), 1);
     }

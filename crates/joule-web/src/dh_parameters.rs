@@ -183,12 +183,15 @@ impl DhRow {
 
 impl std::fmt::Display for DhRow {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let lbl = if self.label.is_empty() { "-" } else { &self.label };
+        let lbl = if self.label.is_empty() {
+            "-"
+        } else {
+            &self.label
+        };
         write!(
             f,
             "{} θ={:.4} d={:.4} a={:.4} α={:.4} [{:.3},{:.3}] {}",
-            self.kind, self.theta, self.d, self.a, self.alpha,
-            self.q_min, self.q_max, lbl,
+            self.kind, self.theta, self.d, self.a, self.alpha, self.q_min, self.q_max, lbl,
         )
     }
 }
@@ -252,9 +255,18 @@ impl Mat4 {
         let (st, ct) = theta.sin_cos();
         let (sa, ca) = alpha.sin_cos();
         let mut m = Self::identity();
-        m.data[0] = ct;       m.data[1] = -st * ca;  m.data[2] = st * sa;   m.data[3] = a * ct;
-        m.data[4] = st;       m.data[5] = ct * ca;    m.data[6] = -ct * sa;  m.data[7] = a * st;
-        m.data[8] = 0.0;      m.data[9] = sa;         m.data[10] = ca;       m.data[11] = d;
+        m.data[0] = ct;
+        m.data[1] = -st * ca;
+        m.data[2] = st * sa;
+        m.data[3] = a * ct;
+        m.data[4] = st;
+        m.data[5] = ct * ca;
+        m.data[6] = -ct * sa;
+        m.data[7] = a * st;
+        m.data[8] = 0.0;
+        m.data[9] = sa;
+        m.data[10] = ca;
+        m.data[11] = d;
         m
     }
 
@@ -263,17 +275,25 @@ impl Mat4 {
         let (st, ct) = theta.sin_cos();
         let (sa, ca) = alpha_prev.sin_cos();
         let mut m = Self::identity();
-        m.data[0] = ct;         m.data[1] = -st;        m.data[2] = 0.0;   m.data[3] = a_prev;
-        m.data[4] = st * ca;    m.data[5] = ct * ca;     m.data[6] = -sa;   m.data[7] = -sa * d;
-        m.data[8] = st * sa;    m.data[9] = ct * sa;     m.data[10] = ca;   m.data[11] = ca * d;
+        m.data[0] = ct;
+        m.data[1] = -st;
+        m.data[2] = 0.0;
+        m.data[3] = a_prev;
+        m.data[4] = st * ca;
+        m.data[5] = ct * ca;
+        m.data[6] = -sa;
+        m.data[7] = -sa * d;
+        m.data[8] = st * sa;
+        m.data[9] = ct * sa;
+        m.data[10] = ca;
+        m.data[11] = ca * d;
         m
     }
 
     /// Determinant of the upper-left 3x3.
     pub fn rotation_determinant(&self) -> f64 {
         let m = &self.data;
-        m[0] * (m[5] * m[10] - m[6] * m[9])
-            - m[1] * (m[4] * m[10] - m[6] * m[8])
+        m[0] * (m[5] * m[10] - m[6] * m[9]) - m[1] * (m[4] * m[10] - m[6] * m[8])
             + m[2] * (m[4] * m[9] - m[5] * m[8])
     }
 }
@@ -285,7 +305,10 @@ impl std::fmt::Display for Mat4 {
             writeln!(
                 f,
                 "[{:8.4} {:8.4} {:8.4} {:8.4}]",
-                self.data[i], self.data[i + 1], self.data[i + 2], self.data[i + 3],
+                self.data[i],
+                self.data[i + 1],
+                self.data[i + 2],
+                self.data[i + 3],
             )?;
         }
         Ok(())
@@ -311,7 +334,11 @@ impl DhTable {
         if rows.is_empty() {
             return Err(DhError::EmptyTable);
         }
-        Ok(Self { convention, rows, name: String::new() })
+        Ok(Self {
+            convention,
+            rows,
+            name: String::new(),
+        })
     }
 
     /// Set a name for this robot.
@@ -327,7 +354,10 @@ impl DhTable {
 
     /// Number of actuated DOFs (non-fixed rows).
     pub fn num_dof(&self) -> usize {
-        self.rows.iter().filter(|r| r.kind != DhJointKind::Fixed).count()
+        self.rows
+            .iter()
+            .filter(|r| r.kind != DhJointKind::Fixed)
+            .count()
     }
 
     /// Get a row by index.
@@ -445,16 +475,33 @@ impl DhTable {
 
 impl std::fmt::Display for DhTable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = if self.name.is_empty() { "unnamed" } else { &self.name };
-        writeln!(f, "DhTable \"{name}\" ({}, {} rows, {} DOF):", self.convention, self.rows.len(), self.num_dof())?;
-        writeln!(f, "  {:>3}  {:>4}  {:>8}  {:>8}  {:>8}  {:>8}  {:>10}  {}", "#", "Kind", "theta", "d", "a", "alpha", "limits", "label")?;
+        let name = if self.name.is_empty() {
+            "unnamed"
+        } else {
+            &self.name
+        };
+        writeln!(
+            f,
+            "DhTable \"{name}\" ({}, {} rows, {} DOF):",
+            self.convention,
+            self.rows.len(),
+            self.num_dof()
+        )?;
+        writeln!(
+            f,
+            "  {:>3}  {:>4}  {:>8}  {:>8}  {:>8}  {:>8}  {:>10}  {}",
+            "#", "Kind", "theta", "d", "a", "alpha", "limits", "label"
+        )?;
         for (i, row) in self.rows.iter().enumerate() {
-            let lbl = if row.label.is_empty() { "-" } else { &row.label };
+            let lbl = if row.label.is_empty() {
+                "-"
+            } else {
+                &row.label
+            };
             writeln!(
                 f,
                 "  {:>3}  {:>4}  {:>8.4}  {:>8.4}  {:>8.4}  {:>8.4}  [{:>4.2},{:>4.2}]  {}",
-                i, row.kind, row.theta, row.d, row.a, row.alpha,
-                row.q_min, row.q_max, lbl,
+                i, row.kind, row.theta, row.d, row.a, row.alpha, row.q_min, row.q_max, lbl,
             )?;
         }
         Ok(())
@@ -655,8 +702,16 @@ mod tests {
 
     #[test]
     fn test_append_different_convention() {
-        let mut t1 = DhTable::new(DhConvention::Standard, vec![DhRow::revolute(0.0, 0.0, 1.0, 0.0)]).unwrap();
-        let t2 = DhTable::new(DhConvention::Modified, vec![DhRow::revolute(0.0, 0.0, 1.0, 0.0)]).unwrap();
+        let mut t1 = DhTable::new(
+            DhConvention::Standard,
+            vec![DhRow::revolute(0.0, 0.0, 1.0, 0.0)],
+        )
+        .unwrap();
+        let t2 = DhTable::new(
+            DhConvention::Modified,
+            vec![DhRow::revolute(0.0, 0.0, 1.0, 0.0)],
+        )
+        .unwrap();
         assert!(matches!(t1.append(&t2), Err(DhError::ConventionMismatch)));
     }
 

@@ -91,12 +91,7 @@ impl ReactionSet {
     }
 
     /// Add a reaction with a specific timestamp.
-    pub fn add_with_timestamp(
-        &mut self,
-        emoji: &str,
-        user_id: &str,
-        ts: DateTime<Utc>,
-    ) -> bool {
+    pub fn add_with_timestamp(&mut self, emoji: &str, user_id: &str, ts: DateTime<Utc>) -> bool {
         if self
             .reactions
             .iter()

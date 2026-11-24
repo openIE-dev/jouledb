@@ -17,10 +17,15 @@ struct Rng {
 }
 
 impl Rng {
-    fn new(seed: u64) -> Self { Self { state: seed } }
+    fn new(seed: u64) -> Self {
+        Self { state: seed }
+    }
 
     fn next(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.state
     }
 
@@ -79,13 +84,18 @@ pub struct DiffusionSchedule {
 
 impl DiffusionSchedule {
     /// Create a schedule with the given parameters.
-    pub fn new(schedule_type: NoiseSchedule, num_steps: usize, beta_start: f64, beta_end: f64) -> Self {
+    pub fn new(
+        schedule_type: NoiseSchedule,
+        num_steps: usize,
+        beta_start: f64,
+        beta_end: f64,
+    ) -> Self {
         let betas: Vec<f64> = match schedule_type {
-            NoiseSchedule::Linear => {
-                (0..num_steps)
-                    .map(|i| beta_start + (beta_end - beta_start) * i as f64 / (num_steps - 1).max(1) as f64)
-                    .collect()
-            }
+            NoiseSchedule::Linear => (0..num_steps)
+                .map(|i| {
+                    beta_start + (beta_end - beta_start) * i as f64 / (num_steps - 1).max(1) as f64
+                })
+                .collect(),
             NoiseSchedule::Cosine => {
                 let s = 0.008;
                 let max_beta = 0.999;
@@ -93,8 +103,12 @@ impl DiffusionSchedule {
                     .map(|i| {
                         let t1 = i as f64 / num_steps as f64;
                         let t2 = (i + 1) as f64 / num_steps as f64;
-                        let f1 = ((t1 + s) / (1.0 + s) * std::f64::consts::FRAC_PI_2).cos().powi(2);
-                        let f2 = ((t2 + s) / (1.0 + s) * std::f64::consts::FRAC_PI_2).cos().powi(2);
+                        let f1 = ((t1 + s) / (1.0 + s) * std::f64::consts::FRAC_PI_2)
+                            .cos()
+                            .powi(2);
+                        let f2 = ((t2 + s) / (1.0 + s) * std::f64::consts::FRAC_PI_2)
+                            .cos()
+                            .powi(2);
                         (1.0 - f2 / f1).clamp(0.0, max_beta)
                     })
                     .collect()
@@ -122,13 +136,25 @@ impl DiffusionSchedule {
         }
 
         let sqrt_alpha_bars: Vec<f64> = alpha_bars.iter().map(|ab| ab.sqrt()).collect();
-        let sqrt_one_minus_alpha_bars: Vec<f64> = alpha_bars.iter().map(|ab| (1.0 - ab).sqrt()).collect();
-        let snr: Vec<f64> = alpha_bars.iter().map(|ab| {
-            let noise_var = (1.0 - ab).max(1e-15);
-            ab / noise_var
-        }).collect();
+        let sqrt_one_minus_alpha_bars: Vec<f64> =
+            alpha_bars.iter().map(|ab| (1.0 - ab).sqrt()).collect();
+        let snr: Vec<f64> = alpha_bars
+            .iter()
+            .map(|ab| {
+                let noise_var = (1.0 - ab).max(1e-15);
+                ab / noise_var
+            })
+            .collect();
 
-        Self { num_steps, betas, alphas, alpha_bars, sqrt_alpha_bars, sqrt_one_minus_alpha_bars, snr }
+        Self {
+            num_steps,
+            betas,
+            alphas,
+            alpha_bars,
+            sqrt_alpha_bars,
+            sqrt_one_minus_alpha_bars,
+            snr,
+        }
     }
 
     /// Get the signal-to-noise ratio at timestep t (in dB).
@@ -165,7 +191,9 @@ pub fn forward_diffusion(
     let sqrt_one_minus_ab = schedule.sqrt_one_minus_alpha_bars[t];
 
     let noise: Vec<f64> = (0..x0.len()).map(|_| rng.normal()).collect();
-    let noisy: Vec<f64> = x0.iter().zip(noise.iter())
+    let noisy: Vec<f64> = x0
+        .iter()
+        .zip(noise.iter())
         .map(|(x, n)| sqrt_ab * x + sqrt_one_minus_ab * n)
         .collect();
 
@@ -208,7 +236,14 @@ impl Denoiser {
             .collect();
         let biases_out = vec![0.0; data_dim];
 
-        Self { weights_hidden, biases_hidden, weights_out, biases_out, data_dim, hidden_dim }
+        Self {
+            weights_hidden,
+            biases_hidden,
+            weights_out,
+            biases_out,
+            data_dim,
+            hidden_dim,
+        }
     }
 
     /// Predict noise given noisy input and normalized timestep.
@@ -220,8 +255,12 @@ impl Denoiser {
         // Hidden layer with ReLU.
         let hidden: Vec<f64> = (0..self.hidden_dim)
             .map(|j| {
-                let z: f64 = self.weights_hidden[j].iter().zip(input.iter())
-                    .map(|(w, x)| w * x).sum::<f64>() + self.biases_hidden[j];
+                let z: f64 = self.weights_hidden[j]
+                    .iter()
+                    .zip(input.iter())
+                    .map(|(w, x)| w * x)
+                    .sum::<f64>()
+                    + self.biases_hidden[j];
                 z.max(0.0)
             })
             .collect();
@@ -229,8 +268,12 @@ impl Denoiser {
         // Output layer (linear).
         (0..self.data_dim)
             .map(|j| {
-                self.weights_out[j].iter().zip(hidden.iter())
-                    .map(|(w, h)| w * h).sum::<f64>() + self.biases_out[j]
+                self.weights_out[j]
+                    .iter()
+                    .zip(hidden.iter())
+                    .map(|(w, h)| w * h)
+                    .sum::<f64>()
+                    + self.biases_out[j]
             })
             .collect()
     }
@@ -244,8 +287,13 @@ impl Denoiser {
 
 impl fmt::Display for Denoiser {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Denoiser(data_dim={}, hidden={}, params={})",
-            self.data_dim, self.hidden_dim, self.param_count())
+        write!(
+            f,
+            "Denoiser(data_dim={}, hidden={}, params={})",
+            self.data_dim,
+            self.hidden_dim,
+            self.param_count()
+        )
     }
 }
 
@@ -261,7 +309,11 @@ pub struct DdpmSampler {
 
 impl DdpmSampler {
     pub fn new(schedule: DiffusionSchedule, denoiser: Denoiser, seed: u64) -> Self {
-        Self { schedule, denoiser, rng: Rng::new(seed) }
+        Self {
+            schedule,
+            denoiser,
+            rng: Rng::new(seed),
+        }
     }
 
     /// Sample from pure noise using DDPM reverse process.
@@ -286,7 +338,10 @@ impl DdpmSampler {
                 vec![0.0; data_dim]
             };
 
-            x = x.iter().zip(predicted_noise.iter()).zip(noise.iter())
+            x = x
+                .iter()
+                .zip(predicted_noise.iter())
+                .zip(noise.iter())
                 .map(|((xi, ni), zi)| coeff1 * (xi - coeff2 * ni) + zi)
                 .collect();
         }
@@ -302,7 +357,11 @@ impl DdpmSampler {
 
 impl fmt::Display for DdpmSampler {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "DdpmSampler(steps={}, {})", self.schedule.num_steps, self.denoiser)
+        write!(
+            f,
+            "DdpmSampler(steps={}, {})",
+            self.schedule.num_steps, self.denoiser
+        )
     }
 }
 
@@ -321,8 +380,19 @@ pub struct DdimSampler {
 }
 
 impl DdimSampler {
-    pub fn new(schedule: DiffusionSchedule, denoiser: Denoiser, sampling_steps: usize, seed: u64) -> Self {
-        Self { schedule, denoiser, sampling_steps, eta: 0.0, rng: Rng::new(seed) }
+    pub fn new(
+        schedule: DiffusionSchedule,
+        denoiser: Denoiser,
+        sampling_steps: usize,
+        seed: u64,
+    ) -> Self {
+        Self {
+            schedule,
+            denoiser,
+            sampling_steps,
+            eta: 0.0,
+            rng: Rng::new(seed),
+        }
     }
 
     pub fn with_eta(mut self, eta: f64) -> Self {
@@ -334,7 +404,9 @@ impl DdimSampler {
     fn timestep_subsequence(&self) -> Vec<usize> {
         let total = self.schedule.num_steps;
         let steps = self.sampling_steps.min(total);
-        if steps == 0 { return vec![]; }
+        if steps == 0 {
+            return vec![];
+        }
         (0..steps)
             .map(|i| ((total - 1) as f64 * i as f64 / (steps - 1).max(1) as f64) as usize)
             .collect()
@@ -358,18 +430,33 @@ impl DdimSampler {
             };
 
             // Predicted x0.
-            let x0_pred: Vec<f64> = x.iter().zip(eps.iter())
-                .map(|(xi, ei)| (xi - (1.0 - alpha_bar_t).max(1e-10).sqrt() * ei) / alpha_bar_t.max(1e-10).sqrt())
+            let x0_pred: Vec<f64> = x
+                .iter()
+                .zip(eps.iter())
+                .map(|(xi, ei)| {
+                    (xi - (1.0 - alpha_bar_t).max(1e-10).sqrt() * ei)
+                        / alpha_bar_t.max(1e-10).sqrt()
+                })
                 .collect();
 
             // DDIM update.
-            let sigma = self.eta * ((1.0 - alpha_bar_prev) / (1.0 - alpha_bar_t).max(1e-10) * (1.0 - alpha_bar_t / alpha_bar_prev)).max(0.0).sqrt();
+            let sigma = self.eta
+                * ((1.0 - alpha_bar_prev) / (1.0 - alpha_bar_t).max(1e-10)
+                    * (1.0 - alpha_bar_t / alpha_bar_prev))
+                    .max(0.0)
+                    .sqrt();
 
             let dir_coeff = (1.0 - alpha_bar_prev - sigma * sigma).max(0.0).sqrt();
 
-            x = x0_pred.iter().zip(eps.iter())
+            x = x0_pred
+                .iter()
+                .zip(eps.iter())
                 .map(|(x0, ei)| {
-                    let noise = if sigma > 1e-10 { self.rng.normal() } else { 0.0 };
+                    let noise = if sigma > 1e-10 {
+                        self.rng.normal()
+                    } else {
+                        0.0
+                    };
                     alpha_bar_prev.sqrt() * x0 + dir_coeff * ei + sigma * noise
                 })
                 .collect();
@@ -385,8 +472,11 @@ impl DdimSampler {
 
 impl fmt::Display for DdimSampler {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "DdimSampler(sampling_steps={}, eta={:.2}, total_steps={})",
-            self.sampling_steps, self.eta, self.schedule.num_steps)
+        write!(
+            f,
+            "DdimSampler(sampling_steps={}, eta={:.2}, total_steps={})",
+            self.sampling_steps, self.eta, self.schedule.num_steps
+        )
     }
 }
 

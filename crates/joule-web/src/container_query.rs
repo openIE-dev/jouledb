@@ -215,12 +215,7 @@ impl ContainerQuery {
     }
 
     /// Evaluate all conditions against container dimensions and styles.
-    pub fn evaluate(
-        &self,
-        width: f64,
-        height: f64,
-        styles: &[(String, String)],
-    ) -> bool {
+    pub fn evaluate(&self, width: f64, height: f64, styles: &[(String, String)]) -> bool {
         if self.conditions.is_empty() {
             return true;
         }
@@ -473,20 +468,20 @@ mod tests {
         let mut stack = ContainerContextStack::new();
         stack.push(ContainerState::new("main", 800.0, 600.0));
 
-        let q = ContainerQuery::new(Some("main"))
-            .add_size_condition(SizeCondition::MinWidth(600.0));
+        let q =
+            ContainerQuery::new(Some("main")).add_size_condition(SizeCondition::MinWidth(600.0));
         assert!(stack.evaluate(&q));
 
-        let q2 = ContainerQuery::new(Some("main"))
-            .add_size_condition(SizeCondition::MinWidth(1000.0));
+        let q2 =
+            ContainerQuery::new(Some("main")).add_size_condition(SizeCondition::MinWidth(1000.0));
         assert!(!stack.evaluate(&q2));
     }
 
     #[test]
     fn test_context_stack_missing_container() {
         let stack = ContainerContextStack::new();
-        let q = ContainerQuery::new(Some("missing"))
-            .add_size_condition(SizeCondition::MinWidth(100.0));
+        let q =
+            ContainerQuery::new(Some("missing")).add_size_condition(SizeCondition::MinWidth(100.0));
         assert!(!stack.evaluate(&q));
     }
 

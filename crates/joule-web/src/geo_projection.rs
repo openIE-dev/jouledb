@@ -76,7 +76,9 @@ pub struct Equirectangular {
 
 impl Default for Equirectangular {
     fn default() -> Self {
-        Self { standard_parallel: 0.0 }
+        Self {
+            standard_parallel: 0.0,
+        }
     }
 }
 
@@ -140,8 +142,10 @@ impl Robinson {
             return (plen, pdfe);
         }
         let frac = (abs_lat - ROBINSON_TABLE[idx].0) / 5.0;
-        let plen = ROBINSON_TABLE[idx].1 + frac * (ROBINSON_TABLE[idx + 1].1 - ROBINSON_TABLE[idx].1);
-        let pdfe = ROBINSON_TABLE[idx].2 + frac * (ROBINSON_TABLE[idx + 1].2 - ROBINSON_TABLE[idx].2);
+        let plen =
+            ROBINSON_TABLE[idx].1 + frac * (ROBINSON_TABLE[idx + 1].1 - ROBINSON_TABLE[idx].1);
+        let pdfe =
+            ROBINSON_TABLE[idx].2 + frac * (ROBINSON_TABLE[idx + 1].2 - ROBINSON_TABLE[idx].2);
         (plen, pdfe)
     }
 }
@@ -225,7 +229,11 @@ impl AlbersEqualArea {
         let n = (p1.sin() + p2.sin()) / 2.0;
         let c = p1.cos().powi(2) + 2.0 * n * p1.sin();
         let rho0_sq = c - 2.0 * n * self.origin_lat.to_radians().sin();
-        let rho0 = if rho0_sq > 0.0 { (rho0_sq / n).sqrt() } else { 0.0 };
+        let rho0 = if rho0_sq > 0.0 {
+            (rho0_sq / n).sqrt()
+        } else {
+            0.0
+        };
         (n, c, rho0)
     }
 }
@@ -235,7 +243,11 @@ impl Projection for AlbersEqualArea {
         let (n, c, rho0) = self.params();
         let theta = n * (lng - self.central_meridian).to_radians();
         let rho_sq = c - 2.0 * n * lat.to_radians().sin();
-        let rho = if rho_sq > 0.0 { (rho_sq / n).sqrt() } else { 0.0 };
+        let rho = if rho_sq > 0.0 {
+            (rho_sq / n).sqrt()
+        } else {
+            0.0
+        };
         let x = rho * theta.sin();
         let y = rho0 - rho * theta.cos();
         ProjectedPoint::new(x, y)
@@ -279,7 +291,10 @@ pub struct Stereographic {
 
 impl Default for Stereographic {
     fn default() -> Self {
-        Self { center_lat: 90.0, center_lng: 0.0 }
+        Self {
+            center_lat: 90.0,
+            center_lng: 0.0,
+        }
     }
 }
 
@@ -291,8 +306,7 @@ impl Projection for Stereographic {
         let lng0 = self.center_lng.to_radians();
         let dlng = lng_r - lng0;
 
-        let k = 2.0
-            / (1.0 + lat0.sin() * lat_r.sin() + lat0.cos() * lat_r.cos() * dlng.cos());
+        let k = 2.0 / (1.0 + lat0.sin() * lat_r.sin() + lat0.cos() * lat_r.cos() * dlng.cos());
         let x = k * lat_r.cos() * dlng.sin();
         let y = k * (lat0.cos() * lat_r.sin() - lat0.sin() * lat_r.cos() * dlng.cos());
         ProjectedPoint::new(x, y)
@@ -307,8 +321,7 @@ impl Projection for Stereographic {
         }
         let c = 2.0 * (rho / 2.0).atan();
         let lat = (c.cos() * lat0.sin() + y * c.sin() * lat0.cos() / rho).asin();
-        let lng = lng0
-            + (x * c.sin()).atan2(rho * lat0.cos() * c.cos() - y * lat0.sin() * c.sin());
+        let lng = lng0 + (x * c.sin()).atan2(rho * lat0.cos() * c.cos() - y * lat0.sin() * c.sin());
         (lat.to_degrees(), lng.to_degrees())
     }
 
@@ -381,19 +394,19 @@ pub fn vincenty_distance(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64 {
         let c = WGS84_F / 16.0 * _cos2_alpha * (4.0 + WGS84_F * (4.0 - 3.0 * _cos2_alpha));
         let lambda_prev = lambda;
         lambda = l
-            + (1.0 - c) * WGS84_F * sin_alpha
+            + (1.0 - c)
+                * WGS84_F
+                * sin_alpha
                 * (sigma
                     + c * sin_sigma
                         * (cos_2sigma_m + c * cos_sigma * (-1.0 + 2.0 * cos_2sigma_m.powi(2))));
 
         if (lambda - lambda_prev).abs() < 1e-12 {
             // Converged
-            let u_sq = _cos2_alpha * (WGS84_A * WGS84_A - WGS84_B * WGS84_B)
-                / (WGS84_B * WGS84_B);
+            let u_sq = _cos2_alpha * (WGS84_A * WGS84_A - WGS84_B * WGS84_B) / (WGS84_B * WGS84_B);
             let a_coeff =
                 1.0 + u_sq / 16384.0 * (4096.0 + u_sq * (-768.0 + u_sq * (320.0 - 175.0 * u_sq)));
-            let b_coeff =
-                u_sq / 1024.0 * (256.0 + u_sq * (-128.0 + u_sq * (74.0 - 47.0 * u_sq)));
+            let b_coeff = u_sq / 1024.0 * (256.0 + u_sq * (-128.0 + u_sq * (74.0 - 47.0 * u_sq)));
             let delta_sigma = b_coeff
                 * sin_sigma
                 * (cos_2sigma_m
@@ -439,9 +452,8 @@ pub fn midpoint(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> (f64, f64) {
     let bx = lat2_r.cos() * dlng.cos();
     let by = lat2_r.cos() * dlng.sin();
 
-    let lat = (lat1_r.sin() + lat2_r.sin()).atan2(
-        ((lat1_r.cos() + bx).powi(2) + by.powi(2)).sqrt(),
-    );
+    let lat =
+        (lat1_r.sin() + lat2_r.sin()).atan2(((lat1_r.cos() + bx).powi(2) + by.powi(2)).sqrt());
     let lng = lng1.to_radians() + by.atan2(lat1_r.cos() + bx);
 
     (lat.to_degrees(), lng.to_degrees())
@@ -506,7 +518,10 @@ mod tests {
 
     #[test]
     fn test_stereographic_roundtrip() {
-        let s = Stereographic { center_lat: 90.0, center_lng: 0.0 };
+        let s = Stereographic {
+            center_lat: 90.0,
+            center_lng: 0.0,
+        };
         let p = s.project(80.0, 30.0);
         let (lat, lng) = s.inverse(p.x, p.y);
         assert!((lat - 80.0).abs() < 0.01);
@@ -515,7 +530,10 @@ mod tests {
 
     #[test]
     fn test_stereographic_center() {
-        let s = Stereographic { center_lat: 45.0, center_lng: -90.0 };
+        let s = Stereographic {
+            center_lat: 45.0,
+            center_lng: -90.0,
+        };
         let p = s.project(45.0, -90.0);
         assert!((p.x).abs() < 1e-10);
         assert!((p.y).abs() < 1e-10);

@@ -376,12 +376,7 @@ pub fn qr_column_pivoted(a: &DenseMat, rank_tol: f64) -> PivotedQr {
         }
     }
 
-    PivotedQr {
-        q,
-        r,
-        perm,
-        rank,
-    }
+    PivotedQr { q, r, perm, rank }
 }
 
 // ── Rank estimation ───────────────────────────────────────────
@@ -590,7 +585,9 @@ mod tests {
         let ata = a.transpose().mul(&a);
         let atb_vec: Vec<f64> = {
             let at = a.transpose();
-            (0..2).map(|i| (0..3).map(|j| at.get(i, j) * b[j]).sum()).collect()
+            (0..2)
+                .map(|i| (0..3).map(|j| at.get(i, j) * b[j]).sum())
+                .collect()
         };
         for i in 0..2 {
             let mut s = 0.0;

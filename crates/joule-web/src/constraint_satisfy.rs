@@ -18,7 +18,9 @@ impl Domain {
     }
 
     pub fn range(lo: i64, hi: i64) -> Self {
-        Self { values: (lo..=hi).collect() }
+        Self {
+            values: (lo..=hi).collect(),
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -44,10 +46,7 @@ impl Domain {
 #[derive(Debug, Clone)]
 pub enum Constraint {
     /// Unary: restricts a single variable.
-    Unary {
-        variable: usize,
-        allowed: Vec<i64>,
-    },
+    Unary { variable: usize, allowed: Vec<i64> },
     /// Binary: constraint between two variables.
     Binary {
         var1: usize,
@@ -56,9 +55,7 @@ pub enum Constraint {
         relation: BinaryRelation,
     },
     /// All-different: all variables must have distinct values.
-    AllDifferent {
-        variables: Vec<usize>,
-    },
+    AllDifferent { variables: Vec<usize> },
 }
 
 /// Binary relation between two variable assignments.
@@ -70,7 +67,10 @@ pub enum BinaryRelation {
     Equal,
     /// |var1 - var2| != 0 and |var1 - var2| != |index1 - index2|
     /// (for N-Queens diagonal constraint).
-    QueensSafe { row1: usize, row2: usize },
+    QueensSafe {
+        row1: usize,
+        row2: usize,
+    },
 }
 
 impl BinaryRelation {
@@ -81,7 +81,9 @@ impl BinaryRelation {
             Self::LessThanOrEqual => val1 <= val2,
             Self::Equal => val1 == val2,
             Self::QueensSafe { row1, row2 } => {
-                val1 != val2 && (val1 - val2).unsigned_abs() as usize != (*row1 as isize - *row2 as isize).unsigned_abs() as usize
+                val1 != val2
+                    && (val1 - val2).unsigned_abs() as usize
+                        != (*row1 as isize - *row2 as isize).unsigned_abs() as usize
             }
         }
     }
@@ -138,31 +140,43 @@ impl CspBuilder {
     }
 
     pub fn unary(mut self, variable: usize, allowed: Vec<i64>) -> Self {
-        self.csp.constraints.push(Constraint::Unary { variable, allowed });
+        self.csp
+            .constraints
+            .push(Constraint::Unary { variable, allowed });
         self
     }
 
     pub fn not_equal(mut self, var1: usize, var2: usize) -> Self {
         self.csp.constraints.push(Constraint::Binary {
-            var1, var2, relation: BinaryRelation::NotEqual,
+            var1,
+            var2,
+            relation: BinaryRelation::NotEqual,
         });
         self
     }
 
     pub fn less_than(mut self, var1: usize, var2: usize) -> Self {
         self.csp.constraints.push(Constraint::Binary {
-            var1, var2, relation: BinaryRelation::LessThan,
+            var1,
+            var2,
+            relation: BinaryRelation::LessThan,
         });
         self
     }
 
     pub fn all_different(mut self, variables: Vec<usize>) -> Self {
-        self.csp.constraints.push(Constraint::AllDifferent { variables });
+        self.csp
+            .constraints
+            .push(Constraint::AllDifferent { variables });
         self
     }
 
     pub fn binary(mut self, var1: usize, var2: usize, relation: BinaryRelation) -> Self {
-        self.csp.constraints.push(Constraint::Binary { var1, var2, relation });
+        self.csp.constraints.push(Constraint::Binary {
+            var1,
+            var2,
+            relation,
+        });
         self
     }
 
@@ -237,14 +251,21 @@ pub struct CspSolver {
 
 impl CspSolver {
     pub fn new(csp: Csp, config: SolverConfig) -> Self {
-        Self { csp, config, solutions: Vec::new(), nodes_explored: 0 }
+        Self {
+            csp,
+            config,
+            solutions: Vec::new(),
+            nodes_explored: 0,
+        }
     }
 
     /// Apply unary constraints to prune domains.
     fn apply_unary_constraints(&mut self) {
         for constraint in &self.csp.constraints {
             if let Constraint::Unary { variable, allowed } = constraint {
-                self.csp.domains[*variable].values.retain(|v| allowed.contains(v));
+                self.csp.domains[*variable]
+                    .values
+                    .retain(|v| allowed.contains(v));
             }
         }
     }
@@ -310,9 +331,9 @@ impl CspSolver {
         let xj_vals = domains[xj].values.clone();
 
         domains[xi].values.retain(|vi| {
-            let has_support = xj_vals.iter().any(|vj| {
-                self.consistent_pair(xi, *vi, xj, *vj)
-            });
+            let has_support = xj_vals
+                .iter()
+                .any(|vj| self.consistent_pair(xi, *vi, xj, *vj));
             if !has_support {
                 revised = true;
                 false
@@ -327,17 +348,27 @@ impl CspSolver {
     fn consistent_pair(&self, xi: usize, vi: i64, xj: usize, vj: i64) -> bool {
         for c in &self.csp.constraints {
             match c {
-                Constraint::Binary { var1, var2, relation } => {
+                Constraint::Binary {
+                    var1,
+                    var2,
+                    relation,
+                } => {
                     if *var1 == xi && *var2 == xj {
-                        if !relation.check(vi, vj) { return false; }
+                        if !relation.check(vi, vj) {
+                            return false;
+                        }
                     }
                     if *var1 == xj && *var2 == xi {
-                        if !relation.check(vj, vi) { return false; }
+                        if !relation.check(vj, vi) {
+                            return false;
+                        }
                     }
                 }
                 Constraint::AllDifferent { variables } => {
                     if variables.contains(&xi) && variables.contains(&xj) {
-                        if vi == vj { return false; }
+                        if vi == vj {
+                            return false;
+                        }
                     }
                 }
                 _ => {}
@@ -350,14 +381,22 @@ impl CspSolver {
     fn forward_check(&self, domains: &mut Vec<Domain>, var: usize, val: i64) -> bool {
         for c in &self.csp.constraints {
             match c {
-                Constraint::Binary { var1, var2, relation } => {
+                Constraint::Binary {
+                    var1,
+                    var2,
+                    relation,
+                } => {
                     if *var1 == var {
                         domains[*var2].values.retain(|vj| relation.check(val, *vj));
-                        if domains[*var2].is_empty() { return false; }
+                        if domains[*var2].is_empty() {
+                            return false;
+                        }
                     }
                     if *var2 == var {
                         domains[*var1].values.retain(|vi| relation.check(*vi, val));
-                        if domains[*var1].is_empty() { return false; }
+                        if domains[*var1].is_empty() {
+                            return false;
+                        }
                     }
                 }
                 Constraint::AllDifferent { variables } => {
@@ -365,7 +404,9 @@ impl CspSolver {
                         for &other in variables {
                             if other != var {
                                 domains[other].remove(val);
-                                if domains[other].is_empty() { return false; }
+                                if domains[other].is_empty() {
+                                    return false;
+                                }
                             }
                         }
                     }
@@ -401,33 +442,56 @@ impl CspSolver {
         match self.config.value_ordering {
             ValueOrdering::Default => vals,
             ValueOrdering::LeastConstraining => {
-                let mut scored: Vec<(i64, usize)> = vals.iter().map(|v| {
-                    let eliminated = self.count_eliminated(var, *v, domains, assignment);
-                    (*v, eliminated)
-                }).collect();
+                let mut scored: Vec<(i64, usize)> = vals
+                    .iter()
+                    .map(|v| {
+                        let eliminated = self.count_eliminated(var, *v, domains, assignment);
+                        (*v, eliminated)
+                    })
+                    .collect();
                 scored.sort_by_key(|&(_, e)| e);
                 scored.into_iter().map(|(v, _)| v).collect()
             }
         }
     }
 
-    fn count_eliminated(&self, var: usize, val: i64, domains: &[Domain], assignment: &[Option<i64>]) -> usize {
+    fn count_eliminated(
+        &self,
+        var: usize,
+        val: i64,
+        domains: &[Domain],
+        assignment: &[Option<i64>],
+    ) -> usize {
         let mut count = 0;
         for c in &self.csp.constraints {
             match c {
-                Constraint::Binary { var1, var2, relation } => {
+                Constraint::Binary {
+                    var1,
+                    var2,
+                    relation,
+                } => {
                     if *var1 == var && assignment[*var2].is_none() {
-                        count += domains[*var2].values.iter().filter(|&&vj| !relation.check(val, vj)).count();
+                        count += domains[*var2]
+                            .values
+                            .iter()
+                            .filter(|&&vj| !relation.check(val, vj))
+                            .count();
                     }
                     if *var2 == var && assignment[*var1].is_none() {
-                        count += domains[*var1].values.iter().filter(|&&vi| !relation.check(vi, val)).count();
+                        count += domains[*var1]
+                            .values
+                            .iter()
+                            .filter(|&&vi| !relation.check(vi, val))
+                            .count();
                     }
                 }
                 Constraint::AllDifferent { variables } => {
                     if variables.contains(&var) {
                         for &other in variables {
                             if other != var && assignment[other].is_none() {
-                                if domains[other].contains(val) { count += 1; }
+                                if domains[other].contains(val) {
+                                    count += 1;
+                                }
                             }
                         }
                     }
@@ -441,15 +505,23 @@ impl CspSolver {
     fn is_consistent(&self, var: usize, val: i64, assignment: &[Option<i64>]) -> bool {
         for c in &self.csp.constraints {
             match c {
-                Constraint::Binary { var1, var2, relation } => {
+                Constraint::Binary {
+                    var1,
+                    var2,
+                    relation,
+                } => {
                     if *var1 == var {
                         if let Some(v2) = assignment[*var2] {
-                            if !relation.check(val, v2) { return false; }
+                            if !relation.check(val, v2) {
+                                return false;
+                            }
                         }
                     }
                     if *var2 == var {
                         if let Some(v1) = assignment[*var1] {
-                            if !relation.check(v1, val) { return false; }
+                            if !relation.check(v1, val) {
+                                return false;
+                            }
                         }
                     }
                 }
@@ -458,14 +530,18 @@ impl CspSolver {
                         for &other in variables {
                             if other != var {
                                 if let Some(ov) = assignment[other] {
-                                    if ov == val { return false; }
+                                    if ov == val {
+                                        return false;
+                                    }
                                 }
                             }
                         }
                     }
                 }
                 Constraint::Unary { variable, allowed } => {
-                    if *variable == var && !allowed.contains(&val) { return false; }
+                    if *variable == var && !allowed.contains(&val) {
+                        return false;
+                    }
                 }
             }
         }
@@ -527,7 +603,10 @@ impl CspSolver {
         let mut domains = self.csp.domains.clone();
         if self.config.use_ac3 {
             if !self.ac3(&mut domains) {
-                return CspResult { solutions: Vec::new(), nodes_explored: self.nodes_explored };
+                return CspResult {
+                    solutions: Vec::new(),
+                    nodes_explored: self.nodes_explored,
+                };
             }
         }
 
@@ -660,11 +739,14 @@ mod tests {
             .all_domains(Domain::range(1, 3))
             .not_equal(0, 1)
             .build();
-        let mut solver = CspSolver::new(csp, SolverConfig {
-            find_all: true,
-            max_solutions: 100,
-            ..Default::default()
-        });
+        let mut solver = CspSolver::new(
+            csp,
+            SolverConfig {
+                find_all: true,
+                max_solutions: 100,
+                ..Default::default()
+            },
+        );
         let result = solver.solve();
         // 3 * 3 = 9 total, minus 3 where x==y = 6
         assert_eq!(result.solutions.len(), 6);
@@ -673,11 +755,14 @@ mod tests {
     #[test]
     fn test_4_queens() {
         let csp = n_queens(4);
-        let mut solver = CspSolver::new(csp, SolverConfig {
-            find_all: true,
-            max_solutions: 100,
-            ..Default::default()
-        });
+        let mut solver = CspSolver::new(
+            csp,
+            SolverConfig {
+                find_all: true,
+                max_solutions: 100,
+                ..Default::default()
+            },
+        );
         let result = solver.solve();
         assert_eq!(result.solutions.len(), 2); // 4-Queens has exactly 2 solutions
     }
@@ -704,11 +789,14 @@ mod tests {
             .domain(0, Domain::range(1, 10))
             .unary(0, vec![3, 5, 7])
             .build();
-        let mut solver = CspSolver::new(csp, SolverConfig {
-            find_all: true,
-            max_solutions: 100,
-            ..Default::default()
-        });
+        let mut solver = CspSolver::new(
+            csp,
+            SolverConfig {
+                find_all: true,
+                max_solutions: 100,
+                ..Default::default()
+            },
+        );
         let result = solver.solve();
         assert_eq!(result.solutions.len(), 3);
     }
@@ -719,11 +807,14 @@ mod tests {
             .all_domains(Domain::range(1, 3))
             .all_different(vec![0, 1, 2])
             .build();
-        let mut solver = CspSolver::new(csp, SolverConfig {
-            find_all: true,
-            max_solutions: 100,
-            ..Default::default()
-        });
+        let mut solver = CspSolver::new(
+            csp,
+            SolverConfig {
+                find_all: true,
+                max_solutions: 100,
+                ..Default::default()
+            },
+        );
         let result = solver.solve();
         // 3! = 6 permutations
         assert_eq!(result.solutions.len(), 6);
@@ -747,12 +838,15 @@ mod tests {
             .domain(1, Domain::range(1, 3))
             .not_equal(0, 1)
             .build();
-        let mut solver = CspSolver::new(csp, SolverConfig {
-            use_ac3: true,
-            find_all: true,
-            max_solutions: 100,
-            ..Default::default()
-        });
+        let mut solver = CspSolver::new(
+            csp,
+            SolverConfig {
+                use_ac3: true,
+                find_all: true,
+                max_solutions: 100,
+                ..Default::default()
+            },
+        );
         let result = solver.solve();
         assert_eq!(result.solutions.len(), 2);
         for sol in &result.solutions {

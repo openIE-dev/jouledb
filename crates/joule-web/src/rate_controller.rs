@@ -184,10 +184,10 @@ impl RateController {
         self.congestion_log.push(event);
 
         // Multiplicative decrease.
-        self.ss_threshold = (self.window * self.config.multiplicative_decrease)
-            .max(self.config.min_window);
-        self.window = (self.window * self.config.multiplicative_decrease)
-            .max(self.config.min_window);
+        self.ss_threshold =
+            (self.window * self.config.multiplicative_decrease).max(self.config.min_window);
+        self.window =
+            (self.window * self.config.multiplicative_decrease).max(self.config.min_window);
         self.phase = RatePhase::Recovery;
 
         self.record_snapshot(timestamp_ms);

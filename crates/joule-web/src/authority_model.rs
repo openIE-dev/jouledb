@@ -33,12 +33,21 @@ impl fmt::Display for AuthorityError {
         match self {
             Self::EntityNotFound(id) => write!(f, "entity not found: {id}"),
             Self::DuplicateEntity(id) => write!(f, "duplicate entity: {id}"),
-            Self::NoAuthority { entity_id, requester } => {
+            Self::NoAuthority {
+                entity_id,
+                requester,
+            } => {
                 write!(f, "no authority: entity={entity_id}, requester={requester}")
             }
             Self::TransferPending(id) => write!(f, "transfer already pending for entity {id}"),
-            Self::DelegationExpired { entity_id, delegate } => {
-                write!(f, "delegation expired: entity={entity_id}, delegate={delegate}")
+            Self::DelegationExpired {
+                entity_id,
+                delegate,
+            } => {
+                write!(
+                    f,
+                    "delegation expired: entity={entity_id}, delegate={delegate}"
+                )
             }
             Self::InputRejected { entity_id, reason } => {
                 write!(f, "input rejected for entity {entity_id}: {reason}")
@@ -125,7 +134,12 @@ pub struct Prediction {
 
 impl Prediction {
     pub fn new(entity_id: u64, sequence: u64, state: Vec<u8>) -> Self {
-        Self { entity_id, sequence, predicted_state: state, confirmed: false }
+        Self {
+            entity_id,
+            sequence,
+            predicted_state: state,
+            confirmed: false,
+        }
     }
 }
 
@@ -226,19 +240,23 @@ impl AuthorityManager {
         if self.entities.contains_key(&entity_id) {
             return Err(AuthorityError::DuplicateEntity(entity_id));
         }
-        self.entities.insert(entity_id, AuthorityRecord {
-            mode,
-            owner,
-            delegation: None,
-            pending_transfer: None,
-            validation_rules: HashMap::new(),
-        });
+        self.entities.insert(
+            entity_id,
+            AuthorityRecord {
+                mode,
+                owner,
+                delegation: None,
+                pending_transfer: None,
+                validation_rules: HashMap::new(),
+            },
+        );
         Ok(())
     }
 
     /// Unregister an entity.
     pub fn unregister(&mut self, entity_id: u64) -> Result<(), AuthorityError> {
-        self.entities.remove(&entity_id)
+        self.entities
+            .remove(&entity_id)
             .ok_or(AuthorityError::EntityNotFound(entity_id))?;
         self.predictions.remove(&entity_id);
         Ok(())
@@ -246,19 +264,27 @@ impl AuthorityManager {
 
     /// Get the authority mode for an entity.
     pub fn mode(&self, entity_id: u64) -> Result<AuthorityMode, AuthorityError> {
-        Ok(self.entities.get(&entity_id)
-            .ok_or(AuthorityError::EntityNotFound(entity_id))?.mode)
+        Ok(self
+            .entities
+            .get(&entity_id)
+            .ok_or(AuthorityError::EntityNotFound(entity_id))?
+            .mode)
     }
 
     /// Get the owner of an entity.
     pub fn owner(&self, entity_id: u64) -> Result<u64, AuthorityError> {
-        Ok(self.entities.get(&entity_id)
-            .ok_or(AuthorityError::EntityNotFound(entity_id))?.owner)
+        Ok(self
+            .entities
+            .get(&entity_id)
+            .ok_or(AuthorityError::EntityNotFound(entity_id))?
+            .owner)
     }
 
     /// Check if a node has authority over an entity (owner or delegate).
     pub fn has_authority(&self, entity_id: u64, node_id: u64) -> Result<bool, AuthorityError> {
-        let record = self.entities.get(&entity_id)
+        let record = self
+            .entities
+            .get(&entity_id)
             .ok_or(AuthorityError::EntityNotFound(entity_id))?;
         if record.owner == node_id {
             return Ok(true);
@@ -278,7 +304,9 @@ impl AuthorityManager {
         action: impl Into<String>,
         max_payload: usize,
     ) -> Result<(), AuthorityError> {
-        let record = self.entities.get_mut(&entity_id)
+        let record = self
+            .entities
+            .get_mut(&entity_id)
             .ok_or(AuthorityError::EntityNotFound(entity_id))?;
         record.validation_rules.insert(action.into(), max_payload);
         Ok(())
@@ -286,13 +314,17 @@ impl AuthorityManager {
 
     /// Validate an input command on the authoritative side.
     pub fn validate_input(&mut self, cmd: &InputCommand) -> Result<(), AuthorityError> {
-        let record = self.entities.get(&cmd.entity_id)
+        let record = self
+            .entities
+            .get(&cmd.entity_id)
             .ok_or(AuthorityError::EntityNotFound(cmd.entity_id))?;
 
         // In server-authoritative mode, only the server or delegatee can issue commands.
         if record.mode == AuthorityMode::ServerAuthoritative {
             let authorized = record.owner == cmd.sender
-                || record.delegation.as_ref()
+                || record
+                    .delegation
+                    .as_ref()
                     .map(|d| d.delegate == cmd.sender && d.expires_at_tick > self.current_tick)
                     .unwrap_or(false);
             if !authorized {
@@ -326,10 +358,15 @@ impl AuthorityManager {
         from: u64,
         to: u64,
     ) -> Result<TransferRequest, AuthorityError> {
-        let record = self.entities.get_mut(&entity_id)
+        let record = self
+            .entities
+            .get_mut(&entity_id)
             .ok_or(AuthorityError::EntityNotFound(entity_id))?;
         if record.owner != from {
-            return Err(AuthorityError::NoAuthority { entity_id, requester: from });
+            return Err(AuthorityError::NoAuthority {
+                entity_id,
+                requester: from,
+            });
         }
         if record.pending_transfer.is_some() {
             return Err(AuthorityError::TransferPending(entity_id));
@@ -346,9 +383,13 @@ impl AuthorityManager {
 
     /// Complete a pending authority transfer.
     pub fn complete_transfer(&mut self, entity_id: u64) -> Result<(), AuthorityError> {
-        let record = self.entities.get_mut(&entity_id)
+        let record = self
+            .entities
+            .get_mut(&entity_id)
             .ok_or(AuthorityError::EntityNotFound(entity_id))?;
-        let transfer = record.pending_transfer.take()
+        let transfer = record
+            .pending_transfer
+            .take()
             .ok_or(AuthorityError::EntityNotFound(entity_id))?;
         record.owner = transfer.to;
         record.delegation = None;
@@ -364,10 +405,15 @@ impl AuthorityManager {
         delegate: u64,
         duration_ticks: u64,
     ) -> Result<(), AuthorityError> {
-        let record = self.entities.get_mut(&entity_id)
+        let record = self
+            .entities
+            .get_mut(&entity_id)
             .ok_or(AuthorityError::EntityNotFound(entity_id))?;
         if record.owner != owner {
-            return Err(AuthorityError::NoAuthority { entity_id, requester: owner });
+            return Err(AuthorityError::NoAuthority {
+                entity_id,
+                requester: owner,
+            });
         }
         record.delegation = Some(Delegation {
             delegate,
@@ -379,7 +425,10 @@ impl AuthorityManager {
 
     /// Store a prediction for an entity.
     pub fn add_prediction(&mut self, prediction: Prediction) {
-        self.predictions.entry(prediction.entity_id).or_default().push(prediction);
+        self.predictions
+            .entry(prediction.entity_id)
+            .or_default()
+            .push(prediction);
     }
 
     /// Confirm predictions up to a given sequence number.
@@ -399,7 +448,10 @@ impl AuthorityManager {
 
     /// Get unconfirmed predictions for an entity.
     pub fn pending_predictions(&self, entity_id: u64) -> usize {
-        self.predictions.get(&entity_id).map(|v| v.len()).unwrap_or(0)
+        self.predictions
+            .get(&entity_id)
+            .map(|v| v.len())
+            .unwrap_or(0)
     }
 
     /// Entity count.
@@ -429,7 +481,8 @@ impl AuthorityManager {
 
     /// Get all entity IDs owned by a node.
     pub fn entities_owned_by(&self, node_id: u64) -> Vec<u64> {
-        self.entities.iter()
+        self.entities
+            .iter()
             .filter(|(_, r)| r.owner == node_id)
             .map(|(&id, _)| id)
             .collect()
@@ -464,7 +517,8 @@ mod tests {
     #[test]
     fn register_and_query() {
         let mut mgr = AuthorityManager::new(0);
-        mgr.register(1, AuthorityMode::ServerAuthoritative, 0).unwrap();
+        mgr.register(1, AuthorityMode::ServerAuthoritative, 0)
+            .unwrap();
         assert_eq!(mgr.mode(1).unwrap(), AuthorityMode::ServerAuthoritative);
         assert_eq!(mgr.owner(1).unwrap(), 0);
     }
@@ -472,7 +526,8 @@ mod tests {
     #[test]
     fn duplicate_register_error() {
         let mut mgr = AuthorityManager::new(0);
-        mgr.register(1, AuthorityMode::ServerAuthoritative, 0).unwrap();
+        mgr.register(1, AuthorityMode::ServerAuthoritative, 0)
+            .unwrap();
         assert!(matches!(
             mgr.register(1, AuthorityMode::ClientAuthoritative, 1),
             Err(AuthorityError::DuplicateEntity(1))
@@ -482,15 +537,20 @@ mod tests {
     #[test]
     fn unregister() {
         let mut mgr = AuthorityManager::new(0);
-        mgr.register(1, AuthorityMode::ServerAuthoritative, 0).unwrap();
+        mgr.register(1, AuthorityMode::ServerAuthoritative, 0)
+            .unwrap();
         mgr.unregister(1).unwrap();
-        assert!(matches!(mgr.mode(1), Err(AuthorityError::EntityNotFound(1))));
+        assert!(matches!(
+            mgr.mode(1),
+            Err(AuthorityError::EntityNotFound(1))
+        ));
     }
 
     #[test]
     fn has_authority_owner() {
         let mut mgr = AuthorityManager::new(0);
-        mgr.register(1, AuthorityMode::ServerAuthoritative, 0).unwrap();
+        mgr.register(1, AuthorityMode::ServerAuthoritative, 0)
+            .unwrap();
         assert!(mgr.has_authority(1, 0).unwrap());
         assert!(!mgr.has_authority(1, 99).unwrap());
     }
@@ -498,7 +558,8 @@ mod tests {
     #[test]
     fn delegate_authority() {
         let mut mgr = AuthorityManager::new(0);
-        mgr.register(1, AuthorityMode::ServerAuthoritative, 0).unwrap();
+        mgr.register(1, AuthorityMode::ServerAuthoritative, 0)
+            .unwrap();
         mgr.delegate(1, 0, 5, 10).unwrap();
         assert!(mgr.has_authority(1, 5).unwrap());
     }
@@ -506,7 +567,8 @@ mod tests {
     #[test]
     fn delegation_expires() {
         let mut mgr = AuthorityManager::new(0);
-        mgr.register(1, AuthorityMode::ServerAuthoritative, 0).unwrap();
+        mgr.register(1, AuthorityMode::ServerAuthoritative, 0)
+            .unwrap();
         mgr.delegate(1, 0, 5, 2).unwrap();
         mgr.tick();
         mgr.tick();
@@ -516,27 +578,36 @@ mod tests {
     #[test]
     fn validate_input_server_auth() {
         let mut mgr = AuthorityManager::new(0);
-        mgr.register(1, AuthorityMode::ServerAuthoritative, 0).unwrap();
+        mgr.register(1, AuthorityMode::ServerAuthoritative, 0)
+            .unwrap();
         let cmd = InputCommand::new(1, 0, 1, "move");
         mgr.validate_input(&cmd).unwrap();
 
         let bad_cmd = InputCommand::new(1, 99, 1, "move");
-        assert!(matches!(mgr.validate_input(&bad_cmd), Err(AuthorityError::NoAuthority { .. })));
+        assert!(matches!(
+            mgr.validate_input(&bad_cmd),
+            Err(AuthorityError::NoAuthority { .. })
+        ));
     }
 
     #[test]
     fn validate_input_payload_size() {
         let mut mgr = AuthorityManager::new(0);
-        mgr.register(1, AuthorityMode::ClientAuthoritative, 5).unwrap();
+        mgr.register(1, AuthorityMode::ClientAuthoritative, 5)
+            .unwrap();
         mgr.set_validation_rule(1, "move", 10).unwrap();
         let cmd = InputCommand::new(1, 5, 1, "move").with_payload(vec![0; 20]);
-        assert!(matches!(mgr.validate_input(&cmd), Err(AuthorityError::InputRejected { .. })));
+        assert!(matches!(
+            mgr.validate_input(&cmd),
+            Err(AuthorityError::InputRejected { .. })
+        ));
     }
 
     #[test]
     fn request_and_complete_transfer() {
         let mut mgr = AuthorityManager::new(0);
-        mgr.register(1, AuthorityMode::ServerAuthoritative, 0).unwrap();
+        mgr.register(1, AuthorityMode::ServerAuthoritative, 0)
+            .unwrap();
         mgr.request_transfer(1, 0, 5).unwrap();
         mgr.complete_transfer(1).unwrap();
         assert_eq!(mgr.owner(1).unwrap(), 5);
@@ -546,22 +617,31 @@ mod tests {
     #[test]
     fn transfer_pending_error() {
         let mut mgr = AuthorityManager::new(0);
-        mgr.register(1, AuthorityMode::ServerAuthoritative, 0).unwrap();
+        mgr.register(1, AuthorityMode::ServerAuthoritative, 0)
+            .unwrap();
         mgr.request_transfer(1, 0, 5).unwrap();
-        assert!(matches!(mgr.request_transfer(1, 0, 6), Err(AuthorityError::TransferPending(1))));
+        assert!(matches!(
+            mgr.request_transfer(1, 0, 6),
+            Err(AuthorityError::TransferPending(1))
+        ));
     }
 
     #[test]
     fn transfer_not_owner_error() {
         let mut mgr = AuthorityManager::new(0);
-        mgr.register(1, AuthorityMode::ServerAuthoritative, 0).unwrap();
-        assert!(matches!(mgr.request_transfer(1, 99, 5), Err(AuthorityError::NoAuthority { .. })));
+        mgr.register(1, AuthorityMode::ServerAuthoritative, 0)
+            .unwrap();
+        assert!(matches!(
+            mgr.request_transfer(1, 99, 5),
+            Err(AuthorityError::NoAuthority { .. })
+        ));
     }
 
     #[test]
     fn predictions() {
         let mut mgr = AuthorityManager::new(0);
-        mgr.register(1, AuthorityMode::ServerAuthoritative, 0).unwrap();
+        mgr.register(1, AuthorityMode::ServerAuthoritative, 0)
+            .unwrap();
         mgr.add_prediction(Prediction::new(1, 1, vec![10]));
         mgr.add_prediction(Prediction::new(1, 2, vec![20]));
         assert_eq!(mgr.pending_predictions(1), 2);
@@ -573,9 +653,12 @@ mod tests {
     #[test]
     fn entities_owned_by() {
         let mut mgr = AuthorityManager::new(0);
-        mgr.register(1, AuthorityMode::ServerAuthoritative, 0).unwrap();
-        mgr.register(2, AuthorityMode::ClientAuthoritative, 5).unwrap();
-        mgr.register(3, AuthorityMode::ServerAuthoritative, 0).unwrap();
+        mgr.register(1, AuthorityMode::ServerAuthoritative, 0)
+            .unwrap();
+        mgr.register(2, AuthorityMode::ClientAuthoritative, 5)
+            .unwrap();
+        mgr.register(3, AuthorityMode::ServerAuthoritative, 0)
+            .unwrap();
         assert_eq!(mgr.entities_owned_by(0).len(), 2);
     }
 
@@ -588,7 +671,12 @@ mod tests {
 
     #[test]
     fn transfer_request_display() {
-        let req = TransferRequest { entity_id: 1, from: 0, to: 5, requested_at_tick: 10 };
+        let req = TransferRequest {
+            entity_id: 1,
+            from: 0,
+            to: 5,
+            requested_at_tick: 10,
+        };
         let d = format!("{req}");
         assert!(d.contains("Transfer"));
     }

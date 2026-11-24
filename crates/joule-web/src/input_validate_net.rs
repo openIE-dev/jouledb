@@ -119,7 +119,10 @@ impl fmt::Display for InputFrame {
         write!(
             f,
             "frame(player={} seq={} actions={} t={}ms)",
-            self.player_id, self.sequence, self.actions.len(), self.timestamp_ms
+            self.player_id,
+            self.sequence,
+            self.actions.len(),
+            self.timestamp_ms
         )
     }
 }
@@ -193,7 +196,11 @@ pub struct ValueBounds {
 
 impl ValueBounds {
     pub fn new(action_id: u16, min: f64, max: f64) -> Self {
-        Self { action_id, min, max }
+        Self {
+            action_id,
+            min,
+            max,
+        }
     }
 }
 
@@ -325,7 +332,10 @@ impl InputValidator {
         self.server_sequence = seq;
     }
 
-    pub fn validate_frame(&mut self, frame: &InputFrame) -> Result<(InputFrame, Vec<ValidationIssue>), InputValidateError> {
+    pub fn validate_frame(
+        &mut self,
+        frame: &InputFrame,
+    ) -> Result<(InputFrame, Vec<ValidationIssue>), InputValidateError> {
         if frame.actions.is_empty() {
             return Err(InputValidateError::EmptyFrame);
         }
@@ -376,7 +386,11 @@ impl InputValidator {
                 IssueType::TooManyActions,
                 frame.player_id,
                 frame.sequence,
-                &format!("{} actions > max {}", frame.actions.len(), self.config.max_actions_per_frame),
+                &format!(
+                    "{} actions > max {}",
+                    frame.actions.len(),
+                    self.config.max_actions_per_frame
+                ),
             ));
         }
 
@@ -388,7 +402,10 @@ impl InputValidator {
                     IssueType::FrameTooFast,
                     frame.player_id,
                     frame.sequence,
-                    &format!("{}ms < min {}ms", interval, self.config.min_frame_interval_ms),
+                    &format!(
+                        "{}ms < min {}ms",
+                        interval, self.config.min_frame_interval_ms
+                    ),
                 ));
             }
             if interval > self.config.max_frame_interval_ms {
@@ -396,7 +413,10 @@ impl InputValidator {
                     IssueType::FrameTooSlow,
                     frame.player_id,
                     frame.sequence,
-                    &format!("{}ms > max {}ms", interval, self.config.max_frame_interval_ms),
+                    &format!(
+                        "{}ms > max {}ms",
+                        interval, self.config.max_frame_interval_ms
+                    ),
                 ));
             }
         }
@@ -407,7 +427,10 @@ impl InputValidator {
                 IssueType::PredictionExceeded,
                 frame.player_id,
                 frame.sequence,
-                &format!("seq {} too far ahead of server {}", frame.sequence, self.server_sequence),
+                &format!(
+                    "seq {} too far ahead of server {}",
+                    frame.sequence, self.server_sequence
+                ),
             ));
         }
 
@@ -429,7 +452,10 @@ impl InputValidator {
                         IssueType::ValueOutOfBounds,
                         frame.player_id,
                         frame.sequence,
-                        &format!("action {} clamped {:.3} -> {:.3}", action.action_id, original, action.value),
+                        &format!(
+                            "action {} clamped {:.3} -> {:.3}",
+                            action.action_id, original, action.value
+                        ),
                     ));
                 }
             }
@@ -474,8 +500,7 @@ mod tests {
     use super::*;
 
     fn frame(pid: u64, seq: u64, ts: u64) -> InputFrame {
-        InputFrame::new(pid, seq, ts)
-            .with_action(InputAction::new(1, 0.5))
+        InputFrame::new(pid, seq, ts).with_action(InputAction::new(1, 0.5))
     }
 
     fn validator() -> InputValidator {
@@ -513,7 +538,11 @@ mod tests {
         let mut v = validator();
         v.validate_frame(&frame(1, 1, 100)).unwrap();
         let (_, issues) = v.validate_frame(&frame(1, 1, 200)).unwrap();
-        assert!(issues.iter().any(|i| i.issue_type == IssueType::DuplicateFrame));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.issue_type == IssueType::DuplicateFrame)
+        );
     }
 
     #[test]
@@ -521,7 +550,11 @@ mod tests {
         let mut v = validator();
         v.validate_frame(&frame(1, 1, 100)).unwrap();
         let (_, issues) = v.validate_frame(&frame(1, 5, 200)).unwrap();
-        assert!(issues.iter().any(|i| i.issue_type == IssueType::SequenceGap));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.issue_type == IssueType::SequenceGap)
+        );
     }
 
     #[test]
@@ -534,7 +567,11 @@ mod tests {
             .with_action(InputAction::new(2, 0.2))
             .with_action(InputAction::new(3, 0.3));
         let (_, issues) = v.validate_frame(&f).unwrap();
-        assert!(issues.iter().any(|i| i.issue_type == IssueType::TooManyActions));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.issue_type == IssueType::TooManyActions)
+        );
     }
 
     #[test]
@@ -544,7 +581,11 @@ mod tests {
         v.register_player(1);
         v.validate_frame(&frame(1, 1, 100)).unwrap();
         let (_, issues) = v.validate_frame(&frame(1, 2, 110)).unwrap();
-        assert!(issues.iter().any(|i| i.issue_type == IssueType::FrameTooFast));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.issue_type == IssueType::FrameTooFast)
+        );
     }
 
     #[test]
@@ -554,7 +595,11 @@ mod tests {
         v.register_player(1);
         v.validate_frame(&frame(1, 1, 100)).unwrap();
         let (_, issues) = v.validate_frame(&frame(1, 2, 5000)).unwrap();
-        assert!(issues.iter().any(|i| i.issue_type == IssueType::FrameTooSlow));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.issue_type == IssueType::FrameTooSlow)
+        );
     }
 
     #[test]
@@ -563,7 +608,11 @@ mod tests {
         v.set_server_sequence(0);
         let f = frame(1, 50, 100);
         let (_, issues) = v.validate_frame(&f).unwrap();
-        assert!(issues.iter().any(|i| i.issue_type == IssueType::PredictionExceeded));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.issue_type == IssueType::PredictionExceeded)
+        );
     }
 
     #[test]
@@ -574,7 +623,11 @@ mod tests {
         let f = InputFrame::new(1, 1, 100).with_action(InputAction::new(1, 5.0));
         let (sanitized, issues) = v.validate_frame(&f).unwrap();
         assert!((sanitized.actions[0].value - 1.0).abs() < f64::EPSILON);
-        assert!(issues.iter().any(|i| i.issue_type == IssueType::ValueOutOfBounds));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.issue_type == IssueType::ValueOutOfBounds)
+        );
     }
 
     #[test]
@@ -584,7 +637,11 @@ mod tests {
         v.register_player(1);
         let f = frame(1, 1, 100);
         let (_, issues) = v.validate_frame(&f).unwrap();
-        assert!(!issues.iter().any(|i| i.issue_type == IssueType::ValueOutOfBounds));
+        assert!(
+            !issues
+                .iter()
+                .any(|i| i.issue_type == IssueType::ValueOutOfBounds)
+        );
     }
 
     #[test]
@@ -594,7 +651,11 @@ mod tests {
             .with_action(InputAction::new(1, 0.5))
             .with_checksum(12345);
         let (_, issues) = v.validate_frame(&f).unwrap();
-        assert!(issues.iter().any(|i| i.issue_type == IssueType::ChecksumMismatch));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.issue_type == IssueType::ChecksumMismatch)
+        );
     }
 
     #[test]
@@ -604,7 +665,11 @@ mod tests {
         let cs = f.compute_checksum();
         f = f.with_checksum(cs);
         let (_, issues) = v.validate_frame(&f).unwrap();
-        assert!(!issues.iter().any(|i| i.issue_type == IssueType::ChecksumMismatch));
+        assert!(
+            !issues
+                .iter()
+                .any(|i| i.issue_type == IssueType::ChecksumMismatch)
+        );
     }
 
     #[test]

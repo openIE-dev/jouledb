@@ -76,10 +76,14 @@ impl DcMotorModel {
         friction: f64,
     ) -> Result<Self, MotorError> {
         if resistance <= 0.0 {
-            return Err(MotorError::InvalidParameter("resistance must be > 0".into()));
+            return Err(MotorError::InvalidParameter(
+                "resistance must be > 0".into(),
+            ));
         }
         if inductance < 0.0 {
-            return Err(MotorError::InvalidParameter("inductance must be >= 0".into()));
+            return Err(MotorError::InvalidParameter(
+                "inductance must be >= 0".into(),
+            ));
         }
         if inertia <= 0.0 {
             return Err(MotorError::InvalidParameter("inertia must be > 0".into()));
@@ -333,7 +337,9 @@ impl PidController {
 
         // Integral with anti-windup clamping.
         self.integral += error * dt;
-        self.integral = self.integral.clamp(-self.integral_limit, self.integral_limit);
+        self.integral = self
+            .integral
+            .clamp(-self.integral_limit, self.integral_limit);
         let i = self.ki * self.integral;
 
         // Derivative with optional low-pass filter.
@@ -357,7 +363,11 @@ impl PidController {
 
 impl fmt::Display for PidController {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PID(Kp={:.3}, Ki={:.3}, Kd={:.3})", self.kp, self.ki, self.kd)
+        write!(
+            f,
+            "PID(Kp={:.3}, Ki={:.3}, Kd={:.3})",
+            self.kp, self.ki, self.kd
+        )
     }
 }
 
@@ -456,11 +466,7 @@ pub struct PositionController {
 
 impl PositionController {
     /// Create a cascaded position controller.
-    pub fn new(
-        pos_pid: PidController,
-        speed_ctrl: SpeedController,
-        max_speed: f64,
-    ) -> Self {
+    pub fn new(pos_pid: PidController, speed_ctrl: SpeedController, max_speed: f64) -> Self {
         Self {
             pos_pid,
             speed_ctrl,
@@ -632,8 +638,7 @@ impl BackEmfEstimator {
     pub fn update(&mut self, voltage: f64, current: f64) -> f64 {
         let emf = voltage - self.resistance * current;
         let omega_raw = emf / self.ke;
-        self.estimated_omega =
-            self.alpha * self.estimated_omega + (1.0 - self.alpha) * omega_raw;
+        self.estimated_omega = self.alpha * self.estimated_omega + (1.0 - self.alpha) * omega_raw;
         self.estimated_omega
     }
 
@@ -761,16 +766,14 @@ mod tests {
 
     #[test]
     fn test_pid_output_limits() {
-        let mut pid = PidController::new(100.0, 0.0, 0.0)
-            .with_output_limits(-5.0, 5.0);
+        let mut pid = PidController::new(100.0, 0.0, 0.0).with_output_limits(-5.0, 5.0);
         let out = pid.compute(1.0, DT);
         assert!((out - 5.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_pid_integral_windup() {
-        let mut pid = PidController::new(0.0, 100.0, 0.0)
-            .with_integral_limit(1.0);
+        let mut pid = PidController::new(0.0, 100.0, 0.0).with_integral_limit(1.0);
         for _ in 0..1000 {
             pid.compute(10.0, 0.1);
         }
@@ -780,8 +783,7 @@ mod tests {
 
     #[test]
     fn test_speed_controller_converges() {
-        let pid = PidController::new(0.1, 0.5, 0.001)
-            .with_output_limits(0.0, 24.0);
+        let pid = PidController::new(0.1, 0.5, 0.001).with_output_limits(0.0, 24.0);
         let pwm = PwmDutyCycle::new(24.0, 20_000.0).unwrap();
         let mut ctrl = SpeedController::new(pid, pwm);
         let mut motor = DcMotorModel::hobby_motor();
@@ -793,7 +795,11 @@ mod tests {
             motor.step(voltage, 0.0, DT);
         }
         let error = (motor.omega - 100.0).abs();
-        assert!(error < 20.0, "speed should converge near 100: ω={}", motor.omega);
+        assert!(
+            error < 20.0,
+            "speed should converge near 100: ω={}",
+            motor.omega
+        );
     }
 
     #[test]

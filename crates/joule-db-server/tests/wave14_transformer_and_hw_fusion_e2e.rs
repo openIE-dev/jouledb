@@ -90,17 +90,42 @@ fn write_synthetic_minilm_checkpoint(model_dir: &std::path::Path) -> std::path::
     for l in 0..2 {
         let p = format!("encoder.layer.{l}");
         entries.extend([
-            mk_2d(&format!("{p}.attention.self.query.weight"), d, d, 0.3 + l as f32),
+            mk_2d(
+                &format!("{p}.attention.self.query.weight"),
+                d,
+                d,
+                0.3 + l as f32,
+            ),
             mk_1d(&format!("{p}.attention.self.query.bias"), d, 0.0),
-            mk_2d(&format!("{p}.attention.self.key.weight"), d, d, 0.4 + l as f32),
+            mk_2d(
+                &format!("{p}.attention.self.key.weight"),
+                d,
+                d,
+                0.4 + l as f32,
+            ),
             mk_1d(&format!("{p}.attention.self.key.bias"), d, 0.0),
-            mk_2d(&format!("{p}.attention.self.value.weight"), d, d, 0.5 + l as f32),
+            mk_2d(
+                &format!("{p}.attention.self.value.weight"),
+                d,
+                d,
+                0.5 + l as f32,
+            ),
             mk_1d(&format!("{p}.attention.self.value.bias"), d, 0.0),
-            mk_2d(&format!("{p}.attention.output.dense.weight"), d, d, 0.6 + l as f32),
+            mk_2d(
+                &format!("{p}.attention.output.dense.weight"),
+                d,
+                d,
+                0.6 + l as f32,
+            ),
             mk_1d(&format!("{p}.attention.output.dense.bias"), d, 0.0),
             mk_1d(&format!("{p}.attention.output.LayerNorm.weight"), d, 1.0),
             mk_1d(&format!("{p}.attention.output.LayerNorm.bias"), d, 0.0),
-            mk_2d(&format!("{p}.intermediate.dense.weight"), ffn, d, 0.7 + l as f32),
+            mk_2d(
+                &format!("{p}.intermediate.dense.weight"),
+                ffn,
+                d,
+                0.7 + l as f32,
+            ),
             mk_1d(&format!("{p}.intermediate.dense.bias"), ffn, 0.0),
             mk_2d(&format!("{p}.output.dense.weight"), d, ffn, 0.8 + l as f32),
             mk_1d(&format!("{p}.output.dense.bias"), d, 0.0),
@@ -257,8 +282,5 @@ async fn test_live_hardware_sensor_fusion_into_6_rail_nj_ledger_e2e() {
     let (status, ledger) = get_json(&server, "/api/v1/ward/ledger").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(ledger["hardware_sensor_fused"], true);
-    assert_eq!(
-        ledger["live_hardware_telemetry"]["board_power_mw"],
-        18_500
-    );
+    assert_eq!(ledger["live_hardware_telemetry"]["board_power_mw"], 18_500);
 }

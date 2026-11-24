@@ -73,7 +73,10 @@ impl FieldTag {
         if field_number == 0 {
             return Err(ProtoError::InvalidFieldNumber);
         }
-        Ok(Self { field_number, wire_type })
+        Ok(Self {
+            field_number,
+            wire_type,
+        })
     }
 
     fn encode_u32(&self) -> u32 {
@@ -170,7 +173,8 @@ impl MessageBuilder {
 
     /// Write a tag to the internal buffer.
     fn write_tag(&mut self, tag: FieldTag) {
-        self.buf.extend_from_slice(&encode_varint(tag.encode_u32() as u64));
+        self.buf
+            .extend_from_slice(&encode_varint(tag.encode_u32() as u64));
     }
 
     /// Add a varint field.
@@ -211,7 +215,8 @@ impl MessageBuilder {
     pub fn add_bytes(&mut self, field_number: u32, data: &[u8]) -> Result<(), ProtoError> {
         let tag = FieldTag::new(field_number, WireType::LengthDelimited)?;
         self.write_tag(tag);
-        self.buf.extend_from_slice(&encode_varint(data.len() as u64));
+        self.buf
+            .extend_from_slice(&encode_varint(data.len() as u64));
         self.buf.extend_from_slice(data);
         Ok(())
     }
@@ -222,12 +227,20 @@ impl MessageBuilder {
     }
 
     /// Add a nested message field.
-    pub fn add_message(&mut self, field_number: u32, inner: &MessageBuilder) -> Result<(), ProtoError> {
+    pub fn add_message(
+        &mut self,
+        field_number: u32,
+        inner: &MessageBuilder,
+    ) -> Result<(), ProtoError> {
         self.add_bytes(field_number, &inner.buf)
     }
 
     /// Add a repeated varint field (packed encoding).
-    pub fn add_packed_varints(&mut self, field_number: u32, values: &[u64]) -> Result<(), ProtoError> {
+    pub fn add_packed_varints(
+        &mut self,
+        field_number: u32,
+        values: &[u64],
+    ) -> Result<(), ProtoError> {
         let mut packed = Vec::new();
         for v in values {
             packed.extend_from_slice(&encode_varint(*v));

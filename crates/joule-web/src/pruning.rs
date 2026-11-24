@@ -76,9 +76,7 @@ pub enum PruningSchedule {
         power: f64,
     },
     /// Step-wise: increase sparsity at fixed intervals.
-    StepWise {
-        steps: Vec<(u64, f64)>,
-    },
+    StepWise { steps: Vec<(u64, f64)> },
 }
 
 impl PruningSchedule {
@@ -137,10 +135,16 @@ impl fmt::Display for PruningSchedule {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PruningSchedule::OneShot => write!(f, "one-shot"),
-            PruningSchedule::Linear { target_sparsity, .. } => {
+            PruningSchedule::Linear {
+                target_sparsity, ..
+            } => {
                 write!(f, "linear(target={target_sparsity:.2})")
             }
-            PruningSchedule::Polynomial { target_sparsity, power, .. } => {
+            PruningSchedule::Polynomial {
+                target_sparsity,
+                power,
+                ..
+            } => {
                 write!(f, "polynomial(target={target_sparsity:.2}, pow={power})")
             }
             PruningSchedule::StepWise { steps } => {
@@ -163,7 +167,10 @@ impl PruningMask {
     /// Create an all-ones (no pruning) mask.
     pub fn ones(shape: &[usize]) -> Self {
         let len: usize = shape.iter().product();
-        Self { shape: shape.to_vec(), mask: vec![true; len] }
+        Self {
+            shape: shape.to_vec(),
+            mask: vec![true; len],
+        }
     }
 
     /// Create mask by magnitude pruning at given ratio.
@@ -184,7 +191,10 @@ impl PruningMask {
             mask[idx] = false;
         }
 
-        Self { shape: shape.to_vec(), mask }
+        Self {
+            shape: shape.to_vec(),
+            mask,
+        }
     }
 
     /// Create a structured row mask: prune rows with smallest L2 norm.
@@ -195,7 +205,11 @@ impl PruningMask {
             .map(|r| {
                 let start = r * cols;
                 let end = start + cols;
-                let norm: f64 = weights[start..end].iter().map(|v| v * v).sum::<f64>().sqrt();
+                let norm: f64 = weights[start..end]
+                    .iter()
+                    .map(|v| v * v)
+                    .sum::<f64>()
+                    .sqrt();
                 (r, norm)
             })
             .collect();
@@ -209,7 +223,10 @@ impl PruningMask {
             }
         }
 
-        Self { shape: vec![rows, cols], mask }
+        Self {
+            shape: vec![rows, cols],
+            mask,
+        }
     }
 
     /// Create a structured column mask: prune columns with smallest L2 norm.
@@ -218,10 +235,13 @@ impl PruningMask {
 
         let mut col_norms: Vec<(usize, f64)> = (0..cols)
             .map(|c| {
-                let norm: f64 = (0..rows).map(|r| {
-                    let v = weights[r * cols + c];
-                    v * v
-                }).sum::<f64>().sqrt();
+                let norm: f64 = (0..rows)
+                    .map(|r| {
+                        let v = weights[r * cols + c];
+                        v * v
+                    })
+                    .sum::<f64>()
+                    .sqrt();
                 (c, norm)
             })
             .collect();
@@ -235,7 +255,10 @@ impl PruningMask {
             }
         }
 
-        Self { shape: vec![rows, cols], mask }
+        Self {
+            shape: vec![rows, cols],
+            mask,
+        }
     }
 
     /// Apply the mask to weights (zero out pruned positions).
@@ -374,7 +397,10 @@ impl PruningConfig {
 
     /// Get the sparsity target for a specific layer (falls back to global).
     pub fn sparsity_for(&self, layer: &str) -> f64 {
-        self.layer_configs.get(layer).copied().unwrap_or(self.target_sparsity)
+        self.layer_configs
+            .get(layer)
+            .copied()
+            .unwrap_or(self.target_sparsity)
     }
 }
 
@@ -411,11 +437,19 @@ pub struct LayerPruneInfo {
 
 impl PruningReport {
     pub fn new() -> Self {
-        Self { layers: Vec::new(), total_params: 0, total_remaining: 0 }
+        Self {
+            layers: Vec::new(),
+            total_params: 0,
+            total_remaining: 0,
+        }
     }
 
     pub fn add_layer(&mut self, name: impl Into<String>, params: usize, remaining: usize) {
-        let sparsity = if params == 0 { 0.0 } else { 1.0 - remaining as f64 / params as f64 };
+        let sparsity = if params == 0 {
+            0.0
+        } else {
+            1.0 - remaining as f64 / params as f64
+        };
         self.layers.push(LayerPruneInfo {
             name: name.into(),
             params,
@@ -487,8 +521,8 @@ mod tests {
         assert!(!mask.mask[5]); // -0.05
         assert!(!mask.mask[0]); // 0.1
         assert!(!mask.mask[3]); // -0.2
-        assert!(mask.mask[1]);  // -0.5 kept
-        assert!(mask.mask[4]);  // 0.8 kept
+        assert!(mask.mask[1]); // -0.5 kept
+        assert!(mask.mask[4]); // 0.8 kept
     }
 
     #[test]

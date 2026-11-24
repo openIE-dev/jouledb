@@ -41,7 +41,11 @@ impl Vec3 {
     }
     pub fn normalized(&self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { Self::new(self.x / len, self.y / len, self.z / len) }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            Self::new(self.x / len, self.y / len, self.z / len)
+        }
     }
     pub fn add(&self, o: &Self) -> Self {
         Self::new(self.x + o.x, self.y + o.y, self.z + o.z)
@@ -231,7 +235,11 @@ pub fn extrude(config: &ExtrudeConfig) -> ExtrudedMesh {
     let frames = compute_frenet_frames(path);
     let arc_lengths = path_arc_lengths(path);
     let total_length = *arc_lengths.last().unwrap_or(&1.0);
-    let total_length = if total_length < 1e-12 { 1.0 } else { total_length };
+    let total_length = if total_length < 1e-12 {
+        1.0
+    } else {
+        total_length
+    };
 
     let profile_len = profile.len();
     let path_len = path.len();
@@ -250,7 +258,11 @@ pub fn extrude(config: &ExtrudeConfig) -> ExtrudedMesh {
         profile_dists.push(profile_dists[i - 1] + (dx * dx + dy * dy).sqrt());
     }
     let profile_perim = *profile_dists.last().unwrap_or(&1.0);
-    let profile_perim = if profile_perim < 1e-12 { 1.0 } else { profile_perim };
+    let profile_perim = if profile_perim < 1e-12 {
+        1.0
+    } else {
+        profile_perim
+    };
 
     for pi in 0..path_len {
         let frame = &frames[pi];
@@ -333,8 +345,14 @@ pub fn extrude(config: &ExtrudeConfig) -> ExtrudedMesh {
     if config.start_cap == CapStyle::Flat {
         let cap_n = frames[0].tangent.scale(-1.0);
         add_fan_cap(
-            &mut vertices, &mut normals, &mut uvs, &mut indices,
-            0, cap_n, path[0], true,
+            &mut vertices,
+            &mut normals,
+            &mut uvs,
+            &mut indices,
+            0,
+            cap_n,
+            path[0],
+            true,
         );
     }
 
@@ -342,8 +360,14 @@ pub fn extrude(config: &ExtrudeConfig) -> ExtrudedMesh {
         let cap_n = frames[path_len - 1].tangent;
         let ring_start = (path_len - 1) * ring_verts;
         add_fan_cap(
-            &mut vertices, &mut normals, &mut uvs, &mut indices,
-            ring_start, cap_n, path[path_len - 1], false,
+            &mut vertices,
+            &mut normals,
+            &mut uvs,
+            &mut indices,
+            ring_start,
+            cap_n,
+            path[path_len - 1],
+            false,
         );
     }
 
@@ -397,19 +421,41 @@ pub fn extrude(config: &ExtrudeConfig) -> ExtrudedMesh {
         };
 
         if config.start_cap == CapStyle::Rounded {
-            let s0 = if config.scales.is_empty() { 1.0 } else { config.scales[0] };
+            let s0 = if config.scales.is_empty() {
+                1.0
+            } else {
+                config.scales[0]
+            };
             add_rounded(
-                &mut vertices, &mut normals, &mut uvs, &mut indices,
-                0, &frames[0], path[0], s0, true,
+                &mut vertices,
+                &mut normals,
+                &mut uvs,
+                &mut indices,
+                0,
+                &frames[0],
+                path[0],
+                s0,
+                true,
             );
         }
         if config.end_cap == CapStyle::Rounded {
             let last = path_len - 1;
-            let s_last = if last < config.scales.len() { config.scales[last] } else { 1.0 };
+            let s_last = if last < config.scales.len() {
+                config.scales[last]
+            } else {
+                1.0
+            };
             let ring_start = last * ring_verts;
             add_rounded(
-                &mut vertices, &mut normals, &mut uvs, &mut indices,
-                ring_start, &frames[last], path[last], s_last, false,
+                &mut vertices,
+                &mut normals,
+                &mut uvs,
+                &mut indices,
+                ring_start,
+                &frames[last],
+                path[last],
+                s_last,
+                false,
             );
         }
     }

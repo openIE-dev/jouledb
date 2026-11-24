@@ -243,7 +243,10 @@ impl fmt::Display for ProteinQuantResult {
 pub fn spectral_counts(observations: &[PeptideObservation]) -> Vec<(String, usize)> {
     let mut counts: Vec<(String, usize)> = Vec::new();
     for obs in observations {
-        if let Some(entry) = counts.iter_mut().find(|(acc, _)| *acc == obs.protein_accession) {
+        if let Some(entry) = counts
+            .iter_mut()
+            .find(|(acc, _)| *acc == obs.protein_accession)
+        {
             entry.1 += 1;
         } else {
             counts.push((obs.protein_accession.clone(), 1));
@@ -256,10 +259,7 @@ pub fn spectral_counts(observations: &[PeptideObservation]) -> Vec<(String, usiz
 /// Normalised Spectral Abundance Factor.
 ///
 /// NSAF_i = (SpC_i / L_i) / Σ(SpC_j / L_j)
-pub fn compute_nsaf(
-    counts: &[(String, usize)],
-    proteins: &[ProteinEntry],
-) -> Vec<(String, f64)> {
+pub fn compute_nsaf(counts: &[(String, usize)], proteins: &[ProteinEntry]) -> Vec<(String, f64)> {
     let mut saf: Vec<(String, f64)> = counts
         .iter()
         .filter_map(|(acc, spc)| {
@@ -286,7 +286,10 @@ pub fn compute_nsaf(
 pub fn summed_intensity(observations: &[PeptideObservation]) -> Vec<(String, f64)> {
     let mut sums: Vec<(String, f64)> = Vec::new();
     for obs in observations {
-        if let Some(entry) = sums.iter_mut().find(|(acc, _)| *acc == obs.protein_accession) {
+        if let Some(entry) = sums
+            .iter_mut()
+            .find(|(acc, _)| *acc == obs.protein_accession)
+        {
             entry.1 += obs.intensity;
         } else {
             sums.push((obs.protein_accession.clone(), obs.intensity));
@@ -301,7 +304,10 @@ pub fn top_n_intensity(observations: &[PeptideObservation], n: usize) -> Vec<(St
     // Group by protein.
     let mut groups: Vec<(String, Vec<f64>)> = Vec::new();
     for obs in observations {
-        if let Some(entry) = groups.iter_mut().find(|(acc, _)| *acc == obs.protein_accession) {
+        if let Some(entry) = groups
+            .iter_mut()
+            .find(|(acc, _)| *acc == obs.protein_accession)
+        {
             entry.1.push(obs.intensity);
         } else {
             groups.push((obs.protein_accession.clone(), vec![obs.intensity]));

@@ -17,7 +17,10 @@ pub enum PwmError {
     /// Channel index out of bounds.
     ChannelOutOfBounds { index: usize, count: usize },
     /// Dead time exceeds half-period.
-    DeadTimeTooLarge { dead_time_s: f64, half_period_s: f64 },
+    DeadTimeTooLarge {
+        dead_time_s: f64,
+        half_period_s: f64,
+    },
 }
 
 impl fmt::Display for PwmError {
@@ -27,7 +30,10 @@ impl fmt::Display for PwmError {
             Self::ChannelOutOfBounds { index, count } => {
                 write!(f, "channel {index} out of bounds (count={count})")
             }
-            Self::DeadTimeTooLarge { dead_time_s, half_period_s } => {
+            Self::DeadTimeTooLarge {
+                dead_time_s,
+                half_period_s,
+            } => {
                 write!(
                     f,
                     "dead time {dead_time_s:.3e}s exceeds half-period {half_period_s:.3e}s"
@@ -181,9 +187,7 @@ impl DeadTimeInserter {
     /// Create a dead-time inserter with symmetric dead time.
     pub fn new(dead_time_s: f64) -> Result<Self, PwmError> {
         if dead_time_s < 0.0 {
-            return Err(PwmError::InvalidParameter(
-                "dead time must be >= 0".into(),
-            ));
+            return Err(PwmError::InvalidParameter("dead time must be >= 0".into()));
         }
         Ok(Self {
             rising_dt: dead_time_s,

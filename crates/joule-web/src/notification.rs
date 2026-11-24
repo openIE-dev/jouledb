@@ -94,7 +94,10 @@ impl NotificationManager {
         self.notifications.push(notif);
 
         // Enforce max_visible by closing oldest active notifications.
-        let active: Vec<usize> = self.notifications.iter().enumerate()
+        let active: Vec<usize> = self
+            .notifications
+            .iter()
+            .enumerate()
             .filter(|(_, n)| !n.closed)
             .map(|(i, _)| i)
             .collect();

@@ -245,12 +245,17 @@ impl LandmarkRegistry {
             return String::new();
         }
         let inner: Vec<_> = links.iter().map(|l| l.to_html()).collect();
-        format!("<nav aria-label=\"Skip links\" class=\"skip-nav\">{}</nav>", inner.join(""))
+        format!(
+            "<nav aria-label=\"Skip links\" class=\"skip-nav\">{}</nav>",
+            inner.join("")
+        )
     }
 
     /// Look up which landmark a keyboard shortcut maps to.
     pub fn resolve_shortcut(&self, key_combo: &str) -> Option<&str> {
-        self.shortcuts.get(key_combo).map(|sc| sc.landmark_id.as_str())
+        self.shortcuts
+            .get(key_combo)
+            .map(|sc| sc.landmark_id.as_str())
     }
 
     /// Total registered landmarks.
@@ -386,15 +391,26 @@ mod tests {
     #[test]
     fn keyboard_shortcut() {
         let mut reg = sample_registry();
-        reg.add_shortcut(LandmarkShortcut::new("1", &["Alt"], "main-content", "Go to main"));
+        reg.add_shortcut(LandmarkShortcut::new(
+            "1",
+            &["Alt"],
+            "main-content",
+            "Go to main",
+        ));
         let resolved = reg.resolve_shortcut("Alt+1");
         assert_eq!(resolved, Some("main-content"));
     }
 
     #[test]
     fn generate_section_id() {
-        assert_eq!(LandmarkRegistry::generate_section_id("My Cool Section!"), "my-cool-section");
-        assert_eq!(LandmarkRegistry::generate_section_id("hello world"), "hello-world");
+        assert_eq!(
+            LandmarkRegistry::generate_section_id("My Cool Section!"),
+            "my-cool-section"
+        );
+        assert_eq!(
+            LandmarkRegistry::generate_section_id("hello world"),
+            "hello-world"
+        );
     }
 
     #[test]

@@ -10,8 +10,7 @@ use uuid::Uuid;
 // ── Constants ───────────────────────────────────────────────────
 
 /// GSM-7 basic character set (standard table).
-const GSM7_BASIC: &str =
-    "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ ÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?\
+const GSM7_BASIC: &str = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ ÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?\
      ¡ABCDEFGHIJKLMNOPQRSTUVWXYZ\
      ÄÖÑÜabcdefghijklmnopqrstuvwxyz\
      äöñüà§";

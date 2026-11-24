@@ -127,12 +127,7 @@ pub struct MarginPosition {
 }
 
 impl MarginPosition {
-    pub fn new(
-        account_id: &str,
-        security_id: &str,
-        quantity: f64,
-        current_price: f64,
-    ) -> Self {
+    pub fn new(account_id: &str, security_id: &str, quantity: f64, current_price: f64) -> Self {
         Self {
             account_id: account_id.to_string(),
             security_id: security_id.to_string(),
@@ -382,9 +377,9 @@ impl MarginCalculator {
             .collect();
 
         if acct_positions.is_empty() {
-            return Err(MarginError::InvalidPosition(
-                format!("no positions for {account_id}"),
-            ));
+            return Err(MarginError::InvalidPosition(format!(
+                "no positions for {account_id}"
+            )));
         }
 
         // Scan risk: worst-case loss across scenarios
@@ -453,7 +448,11 @@ impl MarginCalculator {
         }
 
         let positive: f64 = net_values.iter().filter(|v| **v > 0.0).sum();
-        let negative: f64 = net_values.iter().filter(|v| **v < 0.0).map(|v| v.abs()).sum();
+        let negative: f64 = net_values
+            .iter()
+            .filter(|v| **v < 0.0)
+            .map(|v| v.abs())
+            .sum();
         let offset = positive.min(negative);
 
         offset * self.config.inter_spread_credit_rate
@@ -478,7 +477,10 @@ impl MarginCalculator {
             .iter()
             .filter(|p| p.account_id == account_id)
             .map(|p| {
-                let prev = prev_prices.get(&p.security_id).copied().unwrap_or(p.current_price);
+                let prev = prev_prices
+                    .get(&p.security_id)
+                    .copied()
+                    .unwrap_or(p.current_price);
                 p.quantity * (p.current_price - prev)
             })
             .sum();
@@ -487,10 +489,7 @@ impl MarginCalculator {
     }
 
     /// Compute maintenance margin.
-    pub fn compute_maintenance_margin(
-        &self,
-        account_id: &str,
-    ) -> Result<f64, MarginError> {
+    pub fn compute_maintenance_margin(&self, account_id: &str) -> Result<f64, MarginError> {
         let total_notional: f64 = self
             .positions
             .iter()
@@ -499,9 +498,9 @@ impl MarginCalculator {
             .sum();
 
         if total_notional == 0.0 {
-            return Err(MarginError::InvalidPosition(
-                format!("no positions for {account_id}"),
-            ));
+            return Err(MarginError::InvalidPosition(format!(
+                "no positions for {account_id}"
+            )));
         }
 
         Ok(total_notional * self.config.maintenance_margin_pct / 100.0)
@@ -599,10 +598,7 @@ mod tests {
 
     fn setup_calc() -> MarginCalculator {
         let mut mc = MarginCalculator::new(MarginConfig::default());
-        mc.add_position(
-            MarginPosition::new("ACC1", "AAPL", 100.0, 150.0)
-                .with_volatility(0.25),
-        );
+        mc.add_position(MarginPosition::new("ACC1", "AAPL", 100.0, 150.0).with_volatility(0.25));
         mc.set_collateral("ACC1", 5000.0);
         mc
     }
@@ -632,8 +628,7 @@ mod tests {
 
     #[test]
     fn test_scenario_pnl_positive_shift() {
-        let pos = MarginPosition::new("ACC1", "AAPL", 100.0, 150.0)
-            .with_volatility(0.0);
+        let pos = MarginPosition::new("ACC1", "AAPL", 100.0, 150.0).with_volatility(0.0);
         let scenario = RiskScenario::new(1, 10.0, 0.0);
         let pnl = pos.scenario_pnl(&scenario);
         assert!((pnl - 1500.0).abs() < 1e-9);
@@ -641,8 +636,7 @@ mod tests {
 
     #[test]
     fn test_scenario_pnl_negative_shift() {
-        let pos = MarginPosition::new("ACC1", "AAPL", 100.0, 150.0)
-            .with_volatility(0.0);
+        let pos = MarginPosition::new("ACC1", "AAPL", 100.0, 150.0).with_volatility(0.0);
         let scenario = RiskScenario::new(1, -10.0, 0.0);
         let pnl = pos.scenario_pnl(&scenario);
         assert!((pnl - -1500.0).abs() < 1e-9);
@@ -692,9 +686,7 @@ mod tests {
     #[test]
     fn test_generate_calls_no_shortfall() {
         let mut mc = MarginCalculator::new(MarginConfig::default());
-        mc.add_position(
-            MarginPosition::new("ACC1", "AAPL", 1.0, 1.0).with_volatility(0.0),
-        );
+        mc.add_position(MarginPosition::new("ACC1", "AAPL", 1.0, 1.0).with_volatility(0.0));
         mc.set_collateral("ACC1", 100_000.0);
         let calls = mc.generate_calls();
         assert!(calls.is_empty());
@@ -708,7 +700,13 @@ mod tests {
         let calls = mc.generate_calls();
         let call_id = calls[0].call_id;
         mc.meet_call(call_id, 1_000_000.0).unwrap();
-        assert!(mc.calls().iter().find(|c| c.call_id == call_id).unwrap().is_met());
+        assert!(
+            mc.calls()
+                .iter()
+                .find(|c| c.call_id == call_id)
+                .unwrap()
+                .is_met()
+        );
     }
 
     #[test]
@@ -750,12 +748,10 @@ mod tests {
         let cfg = MarginConfig::new().with_portfolio_margining(true);
         let mut mc = MarginCalculator::new(cfg);
         mc.add_position(
-            MarginPosition::new("ACC1", "AAPL", 100.0, 150.0)
-                .with_product_group("TECH"),
+            MarginPosition::new("ACC1", "AAPL", 100.0, 150.0).with_product_group("TECH"),
         );
         mc.add_position(
-            MarginPosition::new("ACC1", "GOOG", -50.0, 200.0)
-                .with_product_group("MEDIA"),
+            MarginPosition::new("ACC1", "GOOG", -50.0, 200.0).with_product_group("MEDIA"),
         );
         let req = mc.compute_initial_margin("ACC1").unwrap();
         assert!(req.inter_spread_credit >= 0.0);

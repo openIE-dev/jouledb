@@ -887,10 +887,7 @@ mod tests {
                 .with_resolution(640, 360)
                 .with_codecs("avc1.42e00a"),
         );
-        master.add_variant(
-            HlsVariant::new("high.m3u8", 3_000_000)
-                .with_resolution(1920, 1080),
-        );
+        master.add_variant(HlsVariant::new("high.m3u8", 3_000_000).with_resolution(1920, 1080));
         let output = master.render();
         assert!(output.contains("#EXT-X-STREAM-INF:"));
         assert!(output.contains("BANDWIDTH=800000"));

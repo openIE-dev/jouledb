@@ -63,9 +63,12 @@ pub struct MouseState {
 impl Default for MouseState {
     fn default() -> Self {
         Self {
-            x: 0.0, y: 0.0,
-            prev_x: 0.0, prev_y: 0.0,
-            scroll_x: 0.0, scroll_y: 0.0,
+            x: 0.0,
+            y: 0.0,
+            prev_x: 0.0,
+            prev_y: 0.0,
+            scroll_x: 0.0,
+            scroll_y: 0.0,
             buttons: HashSet::new(),
             prev_buttons: HashSet::new(),
         }
@@ -74,10 +77,14 @@ impl Default for MouseState {
 
 impl MouseState {
     /// Delta X since last frame.
-    pub fn delta_x(&self) -> f64 { self.x - self.prev_x }
+    pub fn delta_x(&self) -> f64 {
+        self.x - self.prev_x
+    }
 
     /// Delta Y since last frame.
-    pub fn delta_y(&self) -> f64 { self.y - self.prev_y }
+    pub fn delta_y(&self) -> f64 {
+        self.y - self.prev_y
+    }
 
     /// True if the button was just pressed this frame.
     pub fn just_pressed(&self, button: MouseButton) -> bool {
@@ -108,13 +115,19 @@ pub struct DeadZone {
 
 impl Default for DeadZone {
     fn default() -> Self {
-        Self { threshold: 0.1, rescale: true }
+        Self {
+            threshold: 0.1,
+            rescale: true,
+        }
     }
 }
 
 impl DeadZone {
     pub fn new(threshold: f64, rescale: bool) -> Self {
-        Self { threshold: threshold.abs(), rescale }
+        Self {
+            threshold: threshold.abs(),
+            rescale,
+        }
     }
 
     /// Apply dead zone filtering to a value in -1.0..1.0.
@@ -197,7 +210,9 @@ impl InputManager {
     }
 
     /// Current frame number.
-    pub fn frame(&self) -> u64 { self.current_frame }
+    pub fn frame(&self) -> u64 {
+        self.current_frame
+    }
 
     // ── Keyboard ────────────────────────────────────────────
 
@@ -268,7 +283,9 @@ impl InputManager {
     }
 
     /// Reference to the current mouse state.
-    pub fn mouse(&self) -> &MouseState { &self.mouse }
+    pub fn mouse(&self) -> &MouseState {
+        &self.mouse
+    }
 
     // ── Analog Axes ─────────────────────────────────────────
 
@@ -332,7 +349,9 @@ impl InputManager {
             return false;
         }
         // Walk the buffer backwards looking for the sequence in order
-        let key_downs: Vec<&TimestampedEvent> = self.event_buffer.iter()
+        let key_downs: Vec<&TimestampedEvent> = self
+            .event_buffer
+            .iter()
             .filter(|e| matches!(&e.event, InputEvent::KeyDown(_)))
             .collect();
 
@@ -345,7 +364,9 @@ impl InputManager {
         let mut first_frame = None;
 
         for ev in key_downs.iter().rev() {
-            if seq_idx == 0 { break; }
+            if seq_idx == 0 {
+                break;
+            }
             if let InputEvent::KeyDown(ref k) = ev.event {
                 if *k == combo.sequence[seq_idx - 1] {
                     if last_frame.is_none() {
@@ -357,7 +378,9 @@ impl InputManager {
             }
         }
 
-        if seq_idx != 0 { return false; }
+        if seq_idx != 0 {
+            return false;
+        }
 
         match (first_frame, last_frame) {
             (Some(first), Some(last)) => last - first <= combo.window_frames,
@@ -378,7 +401,9 @@ impl InputManager {
     }
 
     /// The number of events currently in the buffer.
-    pub fn buffer_len(&self) -> usize { self.event_buffer.len() }
+    pub fn buffer_len(&self) -> usize {
+        self.event_buffer.len()
+    }
 
     /// Drain all events from the buffer.
     pub fn drain_buffer(&mut self) -> Vec<TimestampedEvent> {

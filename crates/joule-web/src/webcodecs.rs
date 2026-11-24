@@ -397,7 +397,10 @@ mod tests {
 
     #[test]
     fn pixel_format_sizes() {
-        assert_eq!(PixelFormat::I420.frame_size(1920, 1080), 1920 * 1080 * 3 / 2);
+        assert_eq!(
+            PixelFormat::I420.frame_size(1920, 1080),
+            1920 * 1080 * 3 / 2
+        );
         assert_eq!(PixelFormat::RGBA.frame_size(100, 100), 40_000);
         assert_eq!(PixelFormat::NV12.frame_size(640, 480), 640 * 480 * 3 / 2);
     }
@@ -473,8 +476,10 @@ mod tests {
         let mut enc = VideoEncoder::new();
         enc.configure(VideoCodecConfig {
             codec: "avc1".into(),
-            width: 4, height: 4,
-            bitrate: None, framerate: None,
+            width: 4,
+            height: 4,
+            bitrate: None,
+            framerate: None,
             hardware_acceleration: HardwareAcceleration::NoPreference,
         });
         enc.set_keyframe_interval(3);
@@ -483,10 +488,10 @@ mod tests {
             enc.encode(&test_frame(i * 33333), false);
         }
         let chunks = enc.drain_output();
-        assert!(chunks[0].is_keyframe);  // frame 0
+        assert!(chunks[0].is_keyframe); // frame 0
         assert!(!chunks[1].is_keyframe); // frame 1
         assert!(!chunks[2].is_keyframe); // frame 2
-        assert!(chunks[3].is_keyframe);  // frame 3
+        assert!(chunks[3].is_keyframe); // frame 3
         assert!(!chunks[4].is_keyframe); // frame 4
         assert!(!chunks[5].is_keyframe); // frame 5
     }
@@ -496,12 +501,14 @@ mod tests {
         let mut enc = VideoEncoder::new();
         enc.configure(VideoCodecConfig {
             codec: "avc1".into(),
-            width: 4, height: 4,
-            bitrate: None, framerate: None,
+            width: 4,
+            height: 4,
+            bitrate: None,
+            framerate: None,
             hardware_acceleration: HardwareAcceleration::NoPreference,
         });
         enc.encode(&test_frame(0), false); // keyframe (first)
-        enc.encode(&test_frame(1), true);  // forced keyframe
+        enc.encode(&test_frame(1), true); // forced keyframe
         let chunks = enc.drain_output();
         assert!(chunks[1].is_keyframe);
     }
@@ -511,8 +518,10 @@ mod tests {
         let mut dec = VideoDecoder::new();
         dec.configure(VideoCodecConfig {
             codec: "avc1".into(),
-            width: 4, height: 4,
-            bitrate: None, framerate: None,
+            width: 4,
+            height: 4,
+            bitrate: None,
+            framerate: None,
             hardware_acceleration: HardwareAcceleration::NoPreference,
         });
 

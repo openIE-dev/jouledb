@@ -251,8 +251,7 @@ impl ModalManager {
     /// Handle Escape key on the top modal.
     pub fn handle_escape_key(&mut self) -> Option<ModalResult> {
         if let Some(top) = self.stack.last() {
-            if top.config.dismiss_policy.escape_key
-                && !top.config.dismiss_policy.programmatic_only
+            if top.config.dismiss_policy.escape_key && !top.config.dismiss_policy.programmatic_only
             {
                 let result = ModalResult::Cancel;
                 self.close_top(result.clone());
@@ -307,11 +306,7 @@ pub fn render_modal(modal: &ModalInstance) -> String {
         AnimationState::Exited => "modal--exited",
     };
 
-    let class = modal
-        .config
-        .class
-        .as_deref()
-        .unwrap_or("modal");
+    let class = modal.config.class.as_deref().unwrap_or("modal");
 
     let aria_label = modal
         .config

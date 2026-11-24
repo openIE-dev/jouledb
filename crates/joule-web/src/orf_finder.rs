@@ -69,7 +69,11 @@ impl Orf {
 
     /// Length in nucleotides.
     pub fn length_nt(&self) -> usize {
-        if self.end >= self.start { self.end - self.start + 1 } else { 0 }
+        if self.end >= self.start {
+            self.end - self.start + 1
+        } else {
+            0
+        }
     }
 
     /// Length in amino acids.
@@ -94,7 +98,11 @@ impl fmt::Display for Orf {
             self.frame,
             self.length_nt(),
             self.length_aa(),
-            if self.is_complete() { "complete" } else { "partial" },
+            if self.is_complete() {
+                "complete"
+            } else {
+                "partial"
+            },
         )
     }
 }
@@ -153,8 +161,10 @@ impl fmt::Display for OrfFinderConfig {
         write!(
             f,
             "OrfFinderConfig(min={}nt, start_req={}, alt_starts={}, reverse={})",
-            self.min_length_nt, self.require_start_codon,
-            self.allow_alternative_starts, self.scan_reverse,
+            self.min_length_nt,
+            self.require_start_codon,
+            self.allow_alternative_starts,
+            self.scan_reverse,
         )
     }
 }
@@ -232,12 +242,7 @@ fn reverse_complement(dna: &[u8]) -> Vec<u8> {
 // ── ORF Scanning ────────────────────────────────────────────────
 
 /// Scan a single reading frame for ORFs.
-fn scan_frame(
-    seq: &[u8],
-    frame: usize,
-    strand: OrfStrand,
-    config: &OrfFinderConfig,
-) -> Vec<Orf> {
+fn scan_frame(seq: &[u8], frame: usize, strand: OrfStrand, config: &OrfFinderConfig) -> Vec<Orf> {
     let mut orfs = Vec::new();
     let mut i = frame;
     let mut current_start: Option<usize> = if !config.require_start_codon {
@@ -250,9 +255,7 @@ fn scan_frame(
     while i + 3 <= seq.len() {
         let codon = &seq[i..i + 3];
 
-        if current_start.is_none()
-            && is_start_codon(codon, config.allow_alternative_starts)
-        {
+        if current_start.is_none() && is_start_codon(codon, config.allow_alternative_starts) {
             current_start = Some(i);
             protein.clear();
             protein.push(translate_codon_simple(codon));
@@ -283,8 +286,7 @@ fn scan_frame(
         let end = seq.len() - 1;
         let nt_len = end - start + 1;
         if nt_len >= config.min_length_nt {
-            let has_start = start + 3 <= seq.len()
-                && is_start_codon(&seq[start..start + 3], true);
+            let has_start = start + 3 <= seq.len() && is_start_codon(&seq[start..start + 3], true);
             let orf = Orf::new(start, end, strand, frame as u8)
                 .with_protein(&protein)
                 .with_start_codon(has_start)
@@ -364,7 +366,8 @@ pub fn orf_summary(orfs: &[Orf]) -> Vec<(OrfStrand, u8, usize, usize)> {
     let mut summary = Vec::new();
     for frame in 0..3u8 {
         for &strand in &[OrfStrand::Forward, OrfStrand::Reverse] {
-            let matching: Vec<&Orf> = orfs.iter()
+            let matching: Vec<&Orf> = orfs
+                .iter()
                 .filter(|o| o.strand == strand && o.frame == frame)
                 .collect();
             let max_len = matching.iter().map(|o| o.length_nt()).max().unwrap_or(0);
@@ -533,8 +536,8 @@ mod tests {
 
     #[test]
     fn test_orf_length_aa() {
-        let orf = Orf::new(0, 89, OrfStrand::Forward, 0)
-            .with_protein("MAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+        let orf =
+            Orf::new(0, 89, OrfStrand::Forward, 0).with_protein("MAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
         assert_eq!(orf.length_aa(), 30);
     }
 

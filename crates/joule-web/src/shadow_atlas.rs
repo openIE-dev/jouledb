@@ -24,10 +24,17 @@ pub struct AtlasRect {
 
 impl AtlasRect {
     pub fn new(x: u32, y: u32, width: u32, height: u32) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
-    pub fn area(&self) -> u32 { self.width * self.height }
+    pub fn area(&self) -> u32 {
+        self.width * self.height
+    }
 
     /// Does this rectangle overlap another?
     pub fn overlaps(&self, other: &Self) -> bool {
@@ -59,7 +66,10 @@ pub struct UvTransform {
 impl UvTransform {
     /// Transform a local (u, v) in [0,1]^2 to atlas UV.
     pub fn apply(&self, u: f64, v: f64) -> (f64, f64) {
-        (self.offset_u + u * self.scale_u, self.offset_v + v * self.scale_v)
+        (
+            self.offset_u + u * self.scale_u,
+            self.offset_v + v * self.scale_v,
+        )
     }
 }
 
@@ -149,7 +159,9 @@ impl ShadowAtlas {
     }
 
     /// Total atlas area in texels.
-    pub fn total_area(&self) -> u32 { self.width * self.height }
+    pub fn total_area(&self) -> u32 {
+        self.width * self.height
+    }
 
     /// Area currently used by allocated regions.
     pub fn used_area(&self) -> u32 {
@@ -164,18 +176,26 @@ impl ShadowAtlas {
     /// Fraction of atlas that is used.
     pub fn utilization(&self) -> f64 {
         let total = self.total_area();
-        if total == 0 { return 0.0; }
+        if total == 0 {
+            return 0.0;
+        }
         self.used_area() as f64 / total as f64
     }
 
     /// Number of allocated regions.
-    pub fn allocation_count(&self) -> usize { self.allocated.len() }
+    pub fn allocation_count(&self) -> usize {
+        self.allocated.len()
+    }
 
     /// Try to allocate a rectangular region of the given size.
     /// Returns the region ID and rectangle, or None if no space.
     pub fn allocate(&mut self, req_width: u32, req_height: u32) -> Option<(RegionId, AtlasRect)> {
-        if req_width == 0 || req_height == 0 { return None; }
-        if req_width > self.width || req_height > self.height { return None; }
+        if req_width == 0 || req_height == 0 {
+            return None;
+        }
+        if req_width > self.width || req_height > self.height {
+            return None;
+        }
 
         // Find the best-fitting free rectangle (best short-side fit).
         let mut best_idx = None;
@@ -269,9 +289,13 @@ impl ShadowAtlas {
             let mut to_add = Vec::new();
 
             for i in 0..len {
-                if to_remove.contains(&i) { continue; }
+                if to_remove.contains(&i) {
+                    continue;
+                }
                 for j in (i + 1)..len {
-                    if to_remove.contains(&j) { continue; }
+                    if to_remove.contains(&j) {
+                        continue;
+                    }
                     let a = self.free_rects[i].rect;
                     let b = self.free_rects[j].rect;
 
@@ -315,7 +339,9 @@ impl ShadowAtlas {
                         break;
                     }
                 }
-                if changed { break; }
+                if changed {
+                    break;
+                }
             }
 
             // Apply removals (sort descending to preserve indices).
@@ -357,8 +383,14 @@ impl ShadowAtlas {
     }
 
     /// Internal allocate (does not bump next_id).
-    fn allocate_internal(&mut self, req_width: u32, req_height: u32) -> Option<(RegionId, AtlasRect)> {
-        if req_width == 0 || req_height == 0 { return None; }
+    fn allocate_internal(
+        &mut self,
+        req_width: u32,
+        req_height: u32,
+    ) -> Option<(RegionId, AtlasRect)> {
+        if req_width == 0 || req_height == 0 {
+            return None;
+        }
 
         let mut best_idx = None;
         let mut best_score = u32::MAX;
@@ -407,7 +439,8 @@ impl ShadowAtlas {
 
     /// List all allocated regions.
     pub fn allocations(&self) -> Vec<(RegionId, AtlasRect)> {
-        let mut result: Vec<(RegionId, AtlasRect)> = self.allocated.iter().map(|(k, v)| (*k, *v)).collect();
+        let mut result: Vec<(RegionId, AtlasRect)> =
+            self.allocated.iter().map(|(k, v)| (*k, *v)).collect();
         result.sort_by_key(|(id, _)| *id);
         result
     }
@@ -421,7 +454,9 @@ mod tests {
 
     const EPS: f64 = 1e-6;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     #[test]
     fn atlas_new_empty() {
@@ -532,10 +567,7 @@ mod tests {
         }
         for i in 0..rects.len() {
             for j in (i + 1)..rects.len() {
-                assert!(
-                    !rects[i].overlaps(&rects[j]),
-                    "regions must not overlap"
-                );
+                assert!(!rects[i].overlaps(&rects[j]), "regions must not overlap");
             }
         }
     }

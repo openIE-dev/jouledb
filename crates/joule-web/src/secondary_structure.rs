@@ -80,13 +80,21 @@ pub struct SSAssignment {
 
 impl SSAssignment {
     pub fn new(residue: usize, kind: SSKind, confidence: f64) -> Self {
-        Self { residue, kind, confidence: confidence.clamp(0.0, 1.0) }
+        Self {
+            residue,
+            kind,
+            confidence: confidence.clamp(0.0, 1.0),
+        }
     }
 }
 
 impl fmt::Display for SSAssignment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Res {} {} (conf={:.2})", self.residue, self.kind, self.confidence)
+        write!(
+            f,
+            "Res {} {} (conf={:.2})",
+            self.residue, self.kind, self.confidence
+        )
     }
 }
 
@@ -146,21 +154,19 @@ impl DsspAssigner {
 
     /// Assign secondary structure from phi/psi angles.
     pub fn assign_from_angles(&self, angles: &[(f64, f64)]) -> Vec<SSAssignment> {
-        angles.iter().enumerate().map(|(i, &(phi, psi))| {
-            let (kind, conf) = self.classify_residue(phi, psi);
-            SSAssignment::new(i, kind, conf)
-        }).collect()
+        angles
+            .iter()
+            .enumerate()
+            .map(|(i, &(phi, psi))| {
+                let (kind, conf) = self.classify_residue(phi, psi);
+                SSAssignment::new(i, kind, conf)
+            })
+            .collect()
     }
 
     fn classify_residue(&self, phi: f64, psi: f64) -> (SSKind, f64) {
-        let helix_score = self.region_score(
-            phi, psi,
-            self.helix_phi_range, self.helix_psi_range,
-        );
-        let sheet_score = self.region_score(
-            phi, psi,
-            self.sheet_phi_range, self.sheet_psi_range,
-        );
+        let helix_score = self.region_score(phi, psi, self.helix_phi_range, self.helix_psi_range);
+        let sheet_score = self.region_score(phi, psi, self.sheet_phi_range, self.sheet_psi_range);
 
         if helix_score > sheet_score && helix_score > 0.0 {
             (SSKind::AlphaHelix, helix_score)
@@ -171,7 +177,13 @@ impl DsspAssigner {
         }
     }
 
-    fn region_score(&self, phi: f64, psi: f64, phi_range: (f64, f64), psi_range: (f64, f64)) -> f64 {
+    fn region_score(
+        &self,
+        phi: f64,
+        psi: f64,
+        phi_range: (f64, f64),
+        psi_range: (f64, f64),
+    ) -> f64 {
         let phi_center = (phi_range.0 + phi_range.1) / 2.0;
         let psi_center = (psi_range.0 + psi_range.1) / 2.0;
         let phi_width = (phi_range.1 - phi_range.0) / 2.0;
@@ -197,8 +209,10 @@ impl fmt::Display for DsspAssigner {
         write!(
             f,
             "DsspAssigner(helix_φ=[{:.0},{:.0}], sheet_φ=[{:.0},{:.0}])",
-            self.helix_phi_range.0, self.helix_phi_range.1,
-            self.sheet_phi_range.0, self.sheet_phi_range.1,
+            self.helix_phi_range.0,
+            self.helix_phi_range.1,
+            self.sheet_phi_range.0,
+            self.sheet_phi_range.1,
         )
     }
 }
@@ -209,26 +223,56 @@ impl fmt::Display for DsspAssigner {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Motif {
     /// Beta hairpin: two antiparallel strands connected by a turn.
-    BetaHairpin { start: usize, turn_start: usize, end: usize },
+    BetaHairpin {
+        start: usize,
+        turn_start: usize,
+        end: usize,
+    },
     /// Helix-turn-helix motif.
-    HelixTurnHelix { helix1_start: usize, turn_start: usize, helix2_start: usize, end: usize },
+    HelixTurnHelix {
+        helix1_start: usize,
+        turn_start: usize,
+        helix2_start: usize,
+        end: usize,
+    },
     /// Greek key motif (four antiparallel strands).
     GreekKey { strands: [usize; 4] },
     /// Beta-alpha-beta unit.
-    BetaAlphaBeta { strand1: usize, helix: usize, strand2: usize },
+    BetaAlphaBeta {
+        strand1: usize,
+        helix: usize,
+        strand2: usize,
+    },
 }
 
 impl fmt::Display for Motif {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::BetaHairpin { start, turn_start, end } =>
-                write!(f, "β-hairpin({}-{}-{})", start, turn_start, end),
-            Self::HelixTurnHelix { helix1_start, turn_start, helix2_start, end } =>
-                write!(f, "HTH({}-{}-{}-{})", helix1_start, turn_start, helix2_start, end),
-            Self::GreekKey { strands } =>
-                write!(f, "GreekKey({},{},{},{})", strands[0], strands[1], strands[2], strands[3]),
-            Self::BetaAlphaBeta { strand1, helix, strand2 } =>
-                write!(f, "βαβ({}-{}-{})", strand1, helix, strand2),
+            Self::BetaHairpin {
+                start,
+                turn_start,
+                end,
+            } => write!(f, "β-hairpin({}-{}-{})", start, turn_start, end),
+            Self::HelixTurnHelix {
+                helix1_start,
+                turn_start,
+                helix2_start,
+                end,
+            } => write!(
+                f,
+                "HTH({}-{}-{}-{})",
+                helix1_start, turn_start, helix2_start, end
+            ),
+            Self::GreekKey { strands } => write!(
+                f,
+                "GreekKey({},{},{},{})",
+                strands[0], strands[1], strands[2], strands[3]
+            ),
+            Self::BetaAlphaBeta {
+                strand1,
+                helix,
+                strand2,
+            } => write!(f, "βαβ({}-{}-{})", strand1, helix, strand2),
         }
     }
 }
@@ -245,7 +289,11 @@ pub struct MotifDetector {
 
 impl MotifDetector {
     pub fn new() -> Self {
-        Self { min_helix_len: 4, min_strand_len: 3, max_turn_len: 5 }
+        Self {
+            min_helix_len: 4,
+            min_strand_len: 3,
+            max_turn_len: 5,
+        }
     }
 
     pub fn with_min_helix_len(mut self, len: usize) -> Self {
@@ -334,13 +382,21 @@ impl MotifDetector {
             if a.kind == current_kind {
                 len += 1;
             } else {
-                segments.push(Segment { kind: current_kind, start, len });
+                segments.push(Segment {
+                    kind: current_kind,
+                    start,
+                    len,
+                });
                 current_kind = a.kind;
                 start = a.residue;
                 len = 1;
             }
         }
-        segments.push(Segment { kind: current_kind, start, len });
+        segments.push(Segment {
+            kind: current_kind,
+            start,
+            len,
+        });
         segments
     }
 }
@@ -377,7 +433,13 @@ pub struct SSComposition {
 impl SSComposition {
     /// Compute composition from assignments.
     pub fn from_assignments(assignments: &[SSAssignment]) -> Self {
-        let mut comp = Self { total: assignments.len(), helix_count: 0, sheet_count: 0, turn_count: 0, coil_count: 0 };
+        let mut comp = Self {
+            total: assignments.len(),
+            helix_count: 0,
+            sheet_count: 0,
+            turn_count: 0,
+            coil_count: 0,
+        };
         for a in assignments {
             match a.kind {
                 k if k.is_helix() => comp.helix_count += 1,
@@ -391,12 +453,20 @@ impl SSComposition {
 
     /// Fraction helix.
     pub fn helix_fraction(&self) -> f64 {
-        if self.total == 0 { 0.0 } else { self.helix_count as f64 / self.total as f64 }
+        if self.total == 0 {
+            0.0
+        } else {
+            self.helix_count as f64 / self.total as f64
+        }
     }
 
     /// Fraction sheet.
     pub fn sheet_fraction(&self) -> f64 {
-        if self.total == 0 { 0.0 } else { self.sheet_count as f64 / self.total as f64 }
+        if self.total == 0 {
+            0.0
+        } else {
+            self.sheet_count as f64 / self.total as f64
+        }
     }
 }
 
@@ -408,8 +478,16 @@ impl fmt::Display for SSComposition {
             self.total,
             self.helix_fraction() * 100.0,
             self.sheet_fraction() * 100.0,
-            if self.total > 0 { self.turn_count as f64 / self.total as f64 * 100.0 } else { 0.0 },
-            if self.total > 0 { self.coil_count as f64 / self.total as f64 * 100.0 } else { 0.0 },
+            if self.total > 0 {
+                self.turn_count as f64 / self.total as f64 * 100.0
+            } else {
+                0.0
+            },
+            if self.total > 0 {
+                self.coil_count as f64 / self.total as f64 * 100.0
+            } else {
+                0.0
+            },
         )
     }
 }
@@ -508,30 +586,54 @@ mod tests {
     #[test]
     fn test_motif_beta_hairpin() {
         let mut assignments = Vec::new();
-        for i in 0..5 { assignments.push(SSAssignment::new(i, SSKind::AntiparallelSheet, 0.9)); }
-        for i in 5..7 { assignments.push(SSAssignment::new(i, SSKind::Turn, 0.8)); }
-        for i in 7..12 { assignments.push(SSAssignment::new(i, SSKind::AntiparallelSheet, 0.9)); }
+        for i in 0..5 {
+            assignments.push(SSAssignment::new(i, SSKind::AntiparallelSheet, 0.9));
+        }
+        for i in 5..7 {
+            assignments.push(SSAssignment::new(i, SSKind::Turn, 0.8));
+        }
+        for i in 7..12 {
+            assignments.push(SSAssignment::new(i, SSKind::AntiparallelSheet, 0.9));
+        }
 
         let detector = MotifDetector::new();
         let motifs = detector.detect(&assignments);
-        assert!(motifs.iter().any(|m| matches!(m, Motif::BetaHairpin { .. })));
+        assert!(
+            motifs
+                .iter()
+                .any(|m| matches!(m, Motif::BetaHairpin { .. }))
+        );
     }
 
     #[test]
     fn test_motif_hth() {
         let mut assignments = Vec::new();
-        for i in 0..6 { assignments.push(SSAssignment::new(i, SSKind::AlphaHelix, 0.9)); }
-        for i in 6..8 { assignments.push(SSAssignment::new(i, SSKind::Turn, 0.8)); }
-        for i in 8..14 { assignments.push(SSAssignment::new(i, SSKind::AlphaHelix, 0.9)); }
+        for i in 0..6 {
+            assignments.push(SSAssignment::new(i, SSKind::AlphaHelix, 0.9));
+        }
+        for i in 6..8 {
+            assignments.push(SSAssignment::new(i, SSKind::Turn, 0.8));
+        }
+        for i in 8..14 {
+            assignments.push(SSAssignment::new(i, SSKind::AlphaHelix, 0.9));
+        }
 
         let detector = MotifDetector::new();
         let motifs = detector.detect(&assignments);
-        assert!(motifs.iter().any(|m| matches!(m, Motif::HelixTurnHelix { .. })));
+        assert!(
+            motifs
+                .iter()
+                .any(|m| matches!(m, Motif::HelixTurnHelix { .. }))
+        );
     }
 
     #[test]
     fn test_motif_display() {
-        let m = Motif::BetaHairpin { start: 0, turn_start: 5, end: 10 };
+        let m = Motif::BetaHairpin {
+            start: 0,
+            turn_start: 5,
+            end: 10,
+        };
         assert!(m.to_string().contains("hairpin"));
     }
 

@@ -20,25 +20,37 @@ pub struct ETag {
 impl ETag {
     /// Create a strong ETag.
     pub fn strong(tag: &str) -> Self {
-        Self { tag: tag.into(), weak: false }
+        Self {
+            tag: tag.into(),
+            weak: false,
+        }
     }
 
     /// Create a weak ETag.
     pub fn weak(tag: &str) -> Self {
-        Self { tag: tag.into(), weak: true }
+        Self {
+            tag: tag.into(),
+            weak: true,
+        }
     }
 
     /// Generate an ETag from content bytes using a simple hash.
     /// Produces a strong ETag.
     pub fn from_content(content: &[u8]) -> Self {
         let hash = content_hash(content);
-        Self { tag: hash, weak: false }
+        Self {
+            tag: hash,
+            weak: false,
+        }
     }
 
     /// Generate a weak ETag from content bytes.
     pub fn weak_from_content(content: &[u8]) -> Self {
         let hash = content_hash(content);
-        Self { tag: hash, weak: true }
+        Self {
+            tag: hash,
+            weak: true,
+        }
     }
 
     /// Generate an ETag from content length and last-modified timestamp.
@@ -51,7 +63,9 @@ impl ETag {
     /// Parse an ETag from a header value string.
     pub fn parse(s: &str) -> Option<Self> {
         let s = s.trim();
-        if s == "*" { return None; } // wildcard isn't a specific ETag
+        if s == "*" {
+            return None;
+        } // wildcard isn't a specific ETag
         let (weak, rest) = if let Some(stripped) = s.strip_prefix("W/") {
             (true, stripped)
         } else {
@@ -60,7 +74,10 @@ impl ETag {
         let rest = rest.trim();
         if rest.starts_with('"') && rest.ends_with('"') && rest.len() >= 2 {
             let tag = &rest[1..rest.len() - 1];
-            Some(Self { tag: tag.into(), weak })
+            Some(Self {
+                tag: tag.into(),
+                weak,
+            })
         } else {
             None
         }
@@ -168,7 +185,8 @@ impl IfMatch {
 }
 
 fn parse_etag_list(header: &str) -> Vec<ETag> {
-    header.split(',')
+    header
+        .split(',')
         .filter_map(|s| ETag::parse(s.trim()))
         .collect()
 }
@@ -191,17 +209,30 @@ impl HttpDate {
     /// `Sun, 06 Nov 1994 08:49:37 GMT`
     pub fn parse_imf(s: &str) -> Option<Self> {
         let parts: Vec<&str> = s.split_whitespace().collect();
-        if parts.len() != 6 || parts[5] != "GMT" { return None; }
+        if parts.len() != 6 || parts[5] != "GMT" {
+            return None;
+        }
         let day: u32 = parts[1].parse().ok()?;
         let month = match parts[2] {
-            "Jan" => 1, "Feb" => 2, "Mar" => 3, "Apr" => 4,
-            "May" => 5, "Jun" => 6, "Jul" => 7, "Aug" => 8,
-            "Sep" => 9, "Oct" => 10, "Nov" => 11, "Dec" => 12,
+            "Jan" => 1,
+            "Feb" => 2,
+            "Mar" => 3,
+            "Apr" => 4,
+            "May" => 5,
+            "Jun" => 6,
+            "Jul" => 7,
+            "Aug" => 8,
+            "Sep" => 9,
+            "Oct" => 10,
+            "Nov" => 11,
+            "Dec" => 12,
             _ => return None,
         };
         let year: i64 = parts[3].parse().ok()?;
         let time_parts: Vec<&str> = parts[4].split(':').collect();
-        if time_parts.len() != 3 { return None; }
+        if time_parts.len() != 3 {
+            return None;
+        }
         let hour: i64 = time_parts[0].parse().ok()?;
         let minute: i64 = time_parts[1].parse().ok()?;
         let second: i64 = time_parts[2].parse().ok()?;
@@ -242,7 +273,9 @@ fn date_to_epoch(year: i64, month: i64, day: i64, hour: i64, min: i64, sec: i64)
     // Leap day adjustment
     if month > 2 {
         let is_leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-        if is_leap { days += 1; }
+        if is_leap {
+            days += 1;
+        }
     }
     days += day - 1;
     days * 86400 + hour * 3600 + min * 60 + sec
@@ -333,12 +366,14 @@ fn format_http_date(epoch_secs: i64) -> String {
 
     // Convert days to year/month/day
     let (year, month, day) = epoch_days_to_date(days_since_epoch);
-    let month_str = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    let month_str = [
+        "", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
 
-    format!("{}, {:02} {} {} {:02}:{:02}:{:02} GMT",
-        dow_str[dow as usize], day, month_str[month as usize],
-        year, hours, minutes, seconds)
+    format!(
+        "{}, {:02} {} {} {:02}:{:02}:{:02} GMT",
+        dow_str[dow as usize], day, month_str[month as usize], year, hours, minutes, seconds
+    )
 }
 
 fn epoch_days_to_date(days: i64) -> (i64, i64, i64) {
@@ -622,9 +657,17 @@ mod tests {
     fn conditional_headers_generation() {
         let etag = ETag::strong("test-etag");
         let headers = conditional_headers(&etag, Some(1700000000));
-        assert!(headers.iter().any(|(k, v)| k == "ETag" && v == r#""test-etag""#));
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "ETag" && v == r#""test-etag""#)
+        );
         assert!(headers.iter().any(|(k, _)| k == "Last-Modified"));
-        assert!(headers.iter().any(|(k, v)| k == "Cache-Control" && v == "no-cache"));
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "Cache-Control" && v == "no-cache")
+        );
     }
 
     #[test]

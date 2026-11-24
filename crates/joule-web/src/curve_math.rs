@@ -11,25 +11,68 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0 } }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y } }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s } }
-    pub fn length(self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
-    pub fn length_sq(self) -> f64 { self.x * self.x + self.y * self.y }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y }
-    pub fn distance(self, o: Self) -> f64 { self.sub(o).length() }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+    pub fn zero() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+        }
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
+    pub fn length(self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+    pub fn length_sq(self) -> f64 {
+        self.x * self.x + self.y * self.y
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y
+    }
+    pub fn distance(self, o: Self) -> f64 {
+        self.sub(o).length()
+    }
     pub fn normalized(self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { Self { x: self.x / len, y: self.y / len } }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+            }
+        }
     }
-    pub fn perpendicular(self) -> Self { Self { x: -self.y, y: self.x } }
-    pub fn lerp(self, o: Self, t: f64) -> Self { self.add(o.sub(self).scale(t)) }
+    pub fn perpendicular(self) -> Self {
+        Self {
+            x: -self.y,
+            y: self.x,
+        }
+    }
+    pub fn lerp(self, o: Self, t: f64) -> Self {
+        self.add(o.sub(self).scale(t))
+    }
 }
 
 impl Default for Vec2 {
-    fn default() -> Self { Self::zero() }
+    fn default() -> Self {
+        Self::zero()
+    }
 }
 
 // ── Curve Trait ──────────────────────────────────────────────
@@ -78,10 +121,12 @@ pub trait Curve {
     /// Subdivide the curve into `n` evenly-spaced sample points.
     fn subdivide(&self, n: u32) -> Vec<Vec2> {
         let count = n.max(2);
-        (0..count).map(|i| {
-            let t = i as f64 / (count - 1) as f64;
-            self.evaluate(t)
-        }).collect()
+        (0..count)
+            .map(|i| {
+                let t = i as f64 / (count - 1) as f64;
+                self.evaluate(t)
+            })
+            .collect()
     }
 
     /// Find the parameter t of the closest point on the curve to `point`.
@@ -182,7 +227,8 @@ impl Curve for CubicBezier {
         let uuu = uu * u;
         let ttt = tt * t;
 
-        self.p0.scale(uuu)
+        self.p0
+            .scale(uuu)
             .add(self.p1.scale(3.0 * uu * t))
             .add(self.p2.scale(3.0 * u * tt))
             .add(self.p3.scale(ttt))
@@ -223,14 +269,17 @@ impl QuadraticBezier {
 impl Curve for QuadraticBezier {
     fn evaluate(&self, t: f64) -> Vec2 {
         let u = 1.0 - t;
-        self.p0.scale(u * u)
+        self.p0
+            .scale(u * u)
             .add(self.p1.scale(2.0 * u * t))
             .add(self.p2.scale(t * t))
     }
 
     fn tangent(&self, t: f64) -> Vec2 {
         let u = 1.0 - t;
-        self.p1.sub(self.p0).scale(2.0 * u)
+        self.p1
+            .sub(self.p0)
+            .scale(2.0 * u)
             .add(self.p2.sub(self.p1).scale(2.0 * t))
     }
 }
@@ -248,7 +297,10 @@ pub struct CatmullRomSpline {
 
 impl CatmullRomSpline {
     pub fn new(points: Vec<Vec2>) -> Self {
-        Self { points, tension: 0.0 }
+        Self {
+            points,
+            tension: 0.0,
+        }
     }
 
     pub fn with_tension(mut self, tension: f64) -> Self {
@@ -258,7 +310,9 @@ impl CatmullRomSpline {
 
     /// Number of segments (one less than number of points, minus 2 for endpoints).
     pub fn segment_count(&self) -> usize {
-        if self.points.len() < 4 { return 0; }
+        if self.points.len() < 4 {
+            return 0;
+        }
         self.points.len() - 3
     }
 
@@ -270,11 +324,13 @@ impl CatmullRomSpline {
 
         let a = p1;
         let b = p2.sub(p0).scale(s);
-        let c = p0.scale(2.0 * s)
+        let c = p0
+            .scale(2.0 * s)
             .add(p1.scale(s - 3.0))
             .add(p2.scale(3.0 - 2.0 * s))
             .add(p3.scale(-s));
-        let d = p0.scale(-s)
+        let d = p0
+            .scale(-s)
             .add(p1.scale(2.0 - s))
             .add(p2.scale(s - 2.0))
             .add(p3.scale(s));
@@ -288,11 +344,13 @@ impl CatmullRomSpline {
         let tt = t * t;
 
         let b = p2.sub(p0).scale(s);
-        let c = p0.scale(2.0 * s)
+        let c = p0
+            .scale(2.0 * s)
             .add(p1.scale(s - 3.0))
             .add(p2.scale(3.0 - 2.0 * s))
             .add(p3.scale(-s));
-        let d = p0.scale(-s)
+        let d = p0
+            .scale(-s)
             .add(p1.scale(2.0 - s))
             .add(p2.scale(s - 2.0))
             .add(p3.scale(s));
@@ -303,7 +361,9 @@ impl CatmullRomSpline {
     /// Map a global parameter t in [0, 1] to (segment_index, local_t).
     fn map_parameter(&self, t: f64) -> (usize, f64) {
         let seg_count = self.segment_count();
-        if seg_count == 0 { return (0, 0.0); }
+        if seg_count == 0 {
+            return (0, 0.0);
+        }
         let scaled = t * seg_count as f64;
         let seg = (scaled.floor() as usize).min(seg_count - 1);
         let local_t = scaled - seg as f64;
@@ -314,8 +374,12 @@ impl CatmullRomSpline {
 impl Curve for CatmullRomSpline {
     fn evaluate(&self, t: f64) -> Vec2 {
         if self.points.len() < 4 {
-            if self.points.is_empty() { return Vec2::zero(); }
-            if self.points.len() == 1 { return self.points[0]; }
+            if self.points.is_empty() {
+                return Vec2::zero();
+            }
+            if self.points.len() == 1 {
+                return self.points[0];
+            }
             let idx = ((self.points.len() - 1) as f64 * t).round() as usize;
             return self.points[idx.min(self.points.len() - 1)];
         }
@@ -332,7 +396,9 @@ impl Curve for CatmullRomSpline {
     }
 
     fn tangent(&self, t: f64) -> Vec2 {
-        if self.points.len() < 4 { return Vec2::new(1.0, 0.0); }
+        if self.points.len() < 4 {
+            return Vec2::new(1.0, 0.0);
+        }
         let (seg, lt) = self.map_parameter(t);
         let i = seg + 1;
         Self::tangent_segment(
@@ -360,8 +426,11 @@ impl BSpline {
     }
 
     pub fn segment_count(&self) -> usize {
-        if self.control_points.len() < 4 { 0 }
-        else { self.control_points.len() - 3 }
+        if self.control_points.len() < 4 {
+            0
+        } else {
+            self.control_points.len() - 3
+        }
     }
 
     fn eval_segment(p0: Vec2, p1: Vec2, p2: Vec2, p3: Vec2, t: f64) -> Vec2 {
@@ -369,8 +438,17 @@ impl BSpline {
         let ttt = tt * t;
         let inv6 = 1.0 / 6.0;
 
-        let a = p0.scale(-1.0).add(p1.scale(3.0)).add(p2.scale(-3.0)).add(p3).scale(inv6);
-        let b = p0.scale(3.0).add(p1.scale(-6.0)).add(p2.scale(3.0)).scale(inv6);
+        let a = p0
+            .scale(-1.0)
+            .add(p1.scale(3.0))
+            .add(p2.scale(-3.0))
+            .add(p3)
+            .scale(inv6);
+        let b = p0
+            .scale(3.0)
+            .add(p1.scale(-6.0))
+            .add(p2.scale(3.0))
+            .scale(inv6);
         let c = p0.scale(-3.0).add(p2.scale(3.0)).scale(inv6);
         let d = p0.add(p1.scale(4.0)).add(p2).scale(inv6);
 
@@ -381,8 +459,17 @@ impl BSpline {
         let tt = t * t;
         let inv6 = 1.0 / 6.0;
 
-        let a = p0.scale(-1.0).add(p1.scale(3.0)).add(p2.scale(-3.0)).add(p3).scale(inv6);
-        let b = p0.scale(3.0).add(p1.scale(-6.0)).add(p2.scale(3.0)).scale(inv6);
+        let a = p0
+            .scale(-1.0)
+            .add(p1.scale(3.0))
+            .add(p2.scale(-3.0))
+            .add(p3)
+            .scale(inv6);
+        let b = p0
+            .scale(3.0)
+            .add(p1.scale(-6.0))
+            .add(p2.scale(3.0))
+            .scale(inv6);
         let c = p0.scale(-3.0).add(p2.scale(3.0)).scale(inv6);
 
         a.scale(3.0 * tt).add(b.scale(2.0 * t)).add(c)
@@ -390,7 +477,9 @@ impl BSpline {
 
     fn map_parameter(&self, t: f64) -> (usize, f64) {
         let seg_count = self.segment_count();
-        if seg_count == 0 { return (0, 0.0); }
+        if seg_count == 0 {
+            return (0, 0.0);
+        }
         let scaled = t * seg_count as f64;
         let seg = (scaled.floor() as usize).min(seg_count - 1);
         let local = scaled - seg as f64;
@@ -402,7 +491,9 @@ impl Curve for BSpline {
     fn evaluate(&self, t: f64) -> Vec2 {
         let n = self.control_points.len();
         if n < 4 {
-            if n == 0 { return Vec2::zero(); }
+            if n == 0 {
+                return Vec2::zero();
+            }
             let idx = ((n - 1) as f64 * t).round() as usize;
             return self.control_points[idx.min(n - 1)];
         }
@@ -417,7 +508,9 @@ impl Curve for BSpline {
     }
 
     fn tangent(&self, t: f64) -> Vec2 {
-        if self.control_points.len() < 4 { return Vec2::new(1.0, 0.0); }
+        if self.control_points.len() < 4 {
+            return Vec2::new(1.0, 0.0);
+        }
         let (seg, lt) = self.map_parameter(t);
         Self::tangent_segment(
             self.control_points[seg],
@@ -438,7 +531,9 @@ pub struct Polyline {
 }
 
 impl Polyline {
-    pub fn new(points: Vec<Vec2>) -> Self { Self { points } }
+    pub fn new(points: Vec<Vec2>) -> Self {
+        Self { points }
+    }
 
     pub fn total_length(&self) -> f64 {
         let mut len = 0.0;
@@ -451,8 +546,12 @@ impl Polyline {
 
 impl Curve for Polyline {
     fn evaluate(&self, t: f64) -> Vec2 {
-        if self.points.is_empty() { return Vec2::zero(); }
-        if self.points.len() == 1 { return self.points[0]; }
+        if self.points.is_empty() {
+            return Vec2::zero();
+        }
+        if self.points.len() == 1 {
+            return self.points[0];
+        }
         let n = self.points.len() - 1;
         let scaled = t * n as f64;
         let seg = (scaled.floor() as usize).min(n - 1);
@@ -461,7 +560,9 @@ impl Curve for Polyline {
     }
 
     fn tangent(&self, t: f64) -> Vec2 {
-        if self.points.len() < 2 { return Vec2::new(1.0, 0.0); }
+        if self.points.len() < 2 {
+            return Vec2::new(1.0, 0.0);
+        }
         let n = self.points.len() - 1;
         let scaled = t * n as f64;
         let seg = (scaled.floor() as usize).min(n - 1);
@@ -479,7 +580,18 @@ pub fn curve_intersections(
     max_depth: u32,
 ) -> Vec<(f64, f64, Vec2)> {
     let mut results = Vec::new();
-    intersect_recursive(a, 0.0, 1.0, b, 0.0, 1.0, tolerance, max_depth, 0, &mut results);
+    intersect_recursive(
+        a,
+        0.0,
+        1.0,
+        b,
+        0.0,
+        1.0,
+        tolerance,
+        max_depth,
+        0,
+        &mut results,
+    );
     results
 }
 
@@ -518,10 +630,54 @@ fn intersect_recursive(
     }
 
     // Subdivide both curves
-    intersect_recursive(a, a_lo, a_mid, b, b_lo, b_mid, tolerance, max_depth, depth + 1, results);
-    intersect_recursive(a, a_lo, a_mid, b, b_mid, b_hi, tolerance, max_depth, depth + 1, results);
-    intersect_recursive(a, a_mid, a_hi, b, b_lo, b_mid, tolerance, max_depth, depth + 1, results);
-    intersect_recursive(a, a_mid, a_hi, b, b_mid, b_hi, tolerance, max_depth, depth + 1, results);
+    intersect_recursive(
+        a,
+        a_lo,
+        a_mid,
+        b,
+        b_lo,
+        b_mid,
+        tolerance,
+        max_depth,
+        depth + 1,
+        results,
+    );
+    intersect_recursive(
+        a,
+        a_lo,
+        a_mid,
+        b,
+        b_mid,
+        b_hi,
+        tolerance,
+        max_depth,
+        depth + 1,
+        results,
+    );
+    intersect_recursive(
+        a,
+        a_mid,
+        a_hi,
+        b,
+        b_lo,
+        b_mid,
+        tolerance,
+        max_depth,
+        depth + 1,
+        results,
+    );
+    intersect_recursive(
+        a,
+        a_mid,
+        a_hi,
+        b,
+        b_mid,
+        b_hi,
+        tolerance,
+        max_depth,
+        depth + 1,
+        results,
+    );
 }
 
 fn curve_bbox(c: &dyn Curve, lo: f64, hi: f64, samples: u32) -> (Vec2, Vec2) {
@@ -539,8 +695,7 @@ fn curve_bbox(c: &dyn Curve, lo: f64, hi: f64, samples: u32) -> (Vec2, Vec2) {
 }
 
 fn bbox_overlap(a: &(Vec2, Vec2), b: &(Vec2, Vec2)) -> bool {
-    a.0.x <= b.1.x && a.1.x >= b.0.x &&
-    a.0.y <= b.1.y && a.1.y >= b.0.y
+    a.0.x <= b.1.x && a.1.x >= b.0.x && a.0.y <= b.1.y && a.1.y >= b.0.y
 }
 
 // ── Tests ────────────────────────────────────────────────────
@@ -549,8 +704,12 @@ fn bbox_overlap(a: &(Vec2, Vec2), b: &(Vec2, Vec2)) -> bool {
 mod tests {
     use super::*;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < 0.1 }
-    fn approx_v(a: Vec2, b: Vec2) -> bool { approx(a.x, b.x) && approx(a.y, b.y) }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < 0.1
+    }
+    fn approx_v(a: Vec2, b: Vec2) -> bool {
+        approx(a.x, b.x) && approx(a.y, b.y)
+    }
 
     #[test]
     fn cubic_bezier_endpoints() {
@@ -849,7 +1008,8 @@ mod tests {
             Vec2::new(1.0, 5.0),
             Vec2::new(2.0, 0.0),
             Vec2::new(3.0, 5.0),
-        ]).with_tension(0.5);
+        ])
+        .with_tension(0.5);
         // Should still pass through inner points
         let p = spline.evaluate(0.0);
         assert!(approx_v(p, Vec2::new(1.0, 5.0)));

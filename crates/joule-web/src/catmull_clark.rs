@@ -34,7 +34,11 @@ impl Vec3 {
     }
     pub fn normalized(&self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { Self::new(self.x / len, self.y / len, self.z / len) }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            Self::new(self.x / len, self.y / len, self.z / len)
+        }
     }
     pub fn cross(&self, o: &Self) -> Self {
         Self::new(
@@ -158,7 +162,11 @@ impl CCMesh {
     }
 
     /// Is an edge on the boundary (only one adjacent face)?
-    fn is_boundary_edge(&self, edge: (u32, u32), edge_faces: &HashMap<(u32, u32), Vec<usize>>) -> bool {
+    fn is_boundary_edge(
+        &self,
+        edge: (u32, u32),
+        edge_faces: &HashMap<(u32, u32), Vec<usize>>,
+    ) -> bool {
         edge_faces.get(&edge).map_or(true, |f| f.len() < 2)
     }
 
@@ -373,8 +381,16 @@ pub fn subdivide_once(mesh: &CCMesh) -> CCMesh {
                 // Crease propagates to sub-edges through edge point
                 if let Some(&ep_idx) = edge_point_map.get(&edge) {
                     let ep32 = ep_idx as u32;
-                    let k0 = if edge.0 < ep32 { (edge.0, ep32) } else { (ep32, edge.0) };
-                    let k1 = if edge.1 < ep32 { (edge.1, ep32) } else { (ep32, edge.1) };
+                    let k0 = if edge.0 < ep32 {
+                        (edge.0, ep32)
+                    } else {
+                        (ep32, edge.0)
+                    };
+                    let k1 = if edge.1 < ep32 {
+                        (edge.1, ep32)
+                    } else {
+                        (ep32, edge.1)
+                    };
                     new_creases.insert(k0, reduced);
                     new_creases.insert(k1, reduced);
                 }
@@ -446,7 +462,10 @@ mod tests {
         let c = cube();
         let centroid = c.face_centroid(0);
         // Face 0: [0,3,2,1] → avg of those 4 corners
-        assert!(centroid.z < 0.0, "front face centroid should have negative z");
+        assert!(
+            centroid.z < 0.0,
+            "front face centroid should have negative z"
+        );
     }
 
     #[test]
@@ -564,12 +583,7 @@ mod tests {
             Vec3::new(-1.0, 1.0, -1.0),
             Vec3::new(1.0, -1.0, -1.0),
         ];
-        let faces = vec![
-            vec![0, 1, 2],
-            vec![0, 3, 1],
-            vec![0, 2, 3],
-            vec![1, 3, 2],
-        ];
+        let faces = vec![vec![0, 1, 2], vec![0, 3, 1], vec![0, 2, 3], vec![1, 3, 2]];
         let mesh = CCMesh::new(positions, faces);
         let sub = subdivide_once(&mesh);
         // Each triangle → 3 quads: 4 × 3 = 12

@@ -255,9 +255,7 @@ impl CompensatingTransaction {
         // Check idempotency key uniqueness.
         if let Some(key) = &step.idempotency_key {
             if self.idempotency_keys.contains(key) {
-                return Err(CompensationError::IdempotencyCollision {
-                    key: key.clone(),
-                });
+                return Err(CompensationError::IdempotencyCollision { key: key.clone() });
             }
             self.idempotency_keys.push(key.clone());
         }
@@ -574,21 +572,13 @@ mod tests {
     fn test_idempotency_key() {
         let mut tx = CompensatingTransaction::new();
         tx.add_step(
-            CompensationStep::new(
-                "s1",
-                || Ok("ok".to_string()),
-                || Ok("ok".to_string()),
-            )
-            .with_idempotency_key("key1"),
+            CompensationStep::new("s1", || Ok("ok".to_string()), || Ok("ok".to_string()))
+                .with_idempotency_key("key1"),
         )
         .unwrap();
         let result = tx.add_step(
-            CompensationStep::new(
-                "s2",
-                || Ok("ok".to_string()),
-                || Ok("ok".to_string()),
-            )
-            .with_idempotency_key("key1"),
+            CompensationStep::new("s2", || Ok("ok".to_string()), || Ok("ok".to_string()))
+                .with_idempotency_key("key1"),
         );
         assert!(matches!(
             result,

@@ -87,7 +87,9 @@ pub fn classify(c: char) -> BidiClass {
         // Arabic block
         '\u{0600}'..='\u{0605}' | '\u{0608}' | '\u{060B}' | '\u{060D}' => BidiClass::AN,
         '\u{0660}'..='\u{0669}' => BidiClass::AN,
-        '\u{0621}'..='\u{064A}' | '\u{066E}'..='\u{06D3}' | '\u{06D5}'
+        '\u{0621}'..='\u{064A}'
+        | '\u{066E}'..='\u{06D3}'
+        | '\u{06D5}'
         | '\u{06FA}'..='\u{06FF}' => BidiClass::AL,
         '\u{064B}'..='\u{065F}' | '\u{0670}' => BidiClass::NSM,
 
@@ -168,17 +170,14 @@ pub fn resolve_levels(text: &str) -> Vec<u8> {
 
         match classes[i] {
             BidiClass::RLE | BidiClass::RLO | BidiClass::LRE | BidiClass::LRO => {
-                let is_rtl =
-                    classes[i] == BidiClass::RLE || classes[i] == BidiClass::RLO;
-                let is_override =
-                    classes[i] == BidiClass::RLO || classes[i] == BidiClass::LRO;
+                let is_rtl = classes[i] == BidiClass::RLE || classes[i] == BidiClass::RLO;
+                let is_override = classes[i] == BidiClass::RLO || classes[i] == BidiClass::LRO;
                 let new_level = if is_rtl {
                     (current_level + 1) | 1 // next odd
                 } else {
                     (current_level + 2) & !1 // next even
                 };
-                if new_level <= max_depth && overflow_isolate == 0 && overflow_embedding == 0
-                {
+                if new_level <= max_depth && overflow_isolate == 0 && overflow_embedding == 0 {
                     let override_status = if is_override {
                         Some(if is_rtl { BidiClass::R } else { BidiClass::L })
                     } else {
@@ -203,8 +202,7 @@ pub fn resolve_levels(text: &str) -> Vec<u8> {
                 } else {
                     (current_level + 2) & !1
                 };
-                if new_level <= max_depth && overflow_isolate == 0 && overflow_embedding == 0
-                {
+                if new_level <= max_depth && overflow_isolate == 0 && overflow_embedding == 0 {
                     valid_isolate += 1;
                     stack.push(DirectionalStatus {
                         level: new_level,
@@ -331,8 +329,7 @@ fn resolve_weak_types(classes: &mut [BidiClass], levels: &[u8], _para_level: u8)
         {
             classes[i] = BidiClass::EN;
         }
-        if classes[i] == BidiClass::CS && levels[i - 1] == levels[i] && levels[i] == levels[i + 1]
-        {
+        if classes[i] == BidiClass::CS && levels[i - 1] == levels[i] && levels[i] == levels[i + 1] {
             if classes[i - 1] == BidiClass::EN && classes[i + 1] == BidiClass::EN {
                 classes[i] = BidiClass::EN;
             } else if classes[i - 1] == BidiClass::AN && classes[i + 1] == BidiClass::AN {

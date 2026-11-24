@@ -59,8 +59,12 @@ fn ends_cvc(word: &str) -> bool {
     let c3 = chars[chars.len() - 1];
     let c2 = chars[chars.len() - 2];
     let c1 = chars[chars.len() - 3];
-    !is_vowel_char(c3) && is_vowel_char(c2) && !is_vowel_char(c1)
-        && c3 != 'w' && c3 != 'x' && c3 != 'y'
+    !is_vowel_char(c3)
+        && is_vowel_char(c2)
+        && !is_vowel_char(c1)
+        && c3 != 'w'
+        && c3 != 'x'
+        && c3 != 'y'
 }
 
 fn replace_suffix(word: &str, suffix: &str, replacement: &str) -> String {
@@ -220,9 +224,8 @@ fn step3(word: &str) -> String {
 /// Porter stemmer step 4: remove -ance, -ence, etc.
 fn step4(word: &str) -> String {
     let suffixes: &[&str] = &[
-        "al", "ance", "ence", "er", "ic", "able", "ible", "ant",
-        "ement", "ment", "ent", "ion", "ou", "ism", "ate", "iti",
-        "ous", "ive", "ize",
+        "al", "ance", "ence", "er", "ic", "able", "ible", "ant", "ement", "ment", "ent", "ion",
+        "ou", "ism", "ate", "iti", "ous", "ive", "ize",
     ];
 
     for suffix in suffixes {

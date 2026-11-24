@@ -128,7 +128,11 @@ impl ServiceInstance {
 
 impl fmt::Display for ServiceInstance {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}/{} @ {}:{}", self.name, self.id, self.address, self.port)
+        write!(
+            f,
+            "{}/{} @ {}:{}",
+            self.name, self.id, self.address, self.port
+        )
     }
 }
 
@@ -137,11 +141,26 @@ impl fmt::Display for ServiceInstance {
 /// Events emitted when the registry changes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RegistryEvent {
-    Registered { service_id: String, service_name: String },
-    Deregistered { service_id: String, service_name: String },
-    HealthChanged { service_id: String, old: ServiceHealth, new: ServiceHealth },
-    HeartbeatReceived { service_id: String },
-    Expired { service_id: String, service_name: String },
+    Registered {
+        service_id: String,
+        service_name: String,
+    },
+    Deregistered {
+        service_id: String,
+        service_name: String,
+    },
+    HealthChanged {
+        service_id: String,
+        old: ServiceHealth,
+        new: ServiceHealth,
+    },
+    HeartbeatReceived {
+        service_id: String,
+    },
+    Expired {
+        service_id: String,
+        service_name: String,
+    },
 }
 
 // ── Watcher ───────────────────────────────────────────────────
@@ -214,7 +233,10 @@ impl ServiceRegistry {
         let id = instance.id.clone();
 
         self.instances.insert(id.clone(), instance);
-        self.by_name.entry(name.clone()).or_default().push(id.clone());
+        self.by_name
+            .entry(name.clone())
+            .or_default()
+            .push(id.clone());
 
         self.emit_event(RegistryEvent::Registered {
             service_id: id,
@@ -288,7 +310,8 @@ impl ServiceRegistry {
     pub fn check_expirations(&mut self, now_ms: u64) -> Vec<String> {
         let mut expired = Vec::new();
 
-        let expired_ids: Vec<(String, String)> = self.instances
+        let expired_ids: Vec<(String, String)> = self
+            .instances
             .iter()
             .filter(|(_, inst)| inst.is_expired(now_ms) && inst.health != ServiceHealth::Critical)
             .map(|(id, inst)| (id.clone(), inst.name.clone()))
@@ -311,10 +334,7 @@ impl ServiceRegistry {
     /// Look up all instances of a service by name.
     pub fn lookup(&self, name: &str) -> Vec<&ServiceInstance> {
         match self.by_name.get(name) {
-            Some(ids) => ids
-                .iter()
-                .filter_map(|id| self.instances.get(id))
-                .collect(),
+            Some(ids) => ids.iter().filter_map(|id| self.instances.get(id)).collect(),
             None => Vec::new(),
         }
     }
@@ -329,10 +349,7 @@ impl ServiceRegistry {
 
     /// Look up instances by tag.
     pub fn lookup_by_tag(&self, tag: &str) -> Vec<&ServiceInstance> {
-        self.instances
-            .values()
-            .filter(|i| i.has_tag(tag))
-            .collect()
+        self.instances.values().filter(|i| i.has_tag(tag)).collect()
     }
 
     /// Look up instances by name and tag.
@@ -388,18 +405,16 @@ impl ServiceRegistry {
         let service_name = match &event {
             RegistryEvent::Registered { service_name, .. } => service_name.clone(),
             RegistryEvent::Deregistered { service_name, .. } => service_name.clone(),
-            RegistryEvent::HealthChanged { service_id, .. } => {
-                self.instances
-                    .get(service_id)
-                    .map(|i| i.name.clone())
-                    .unwrap_or_default()
-            }
-            RegistryEvent::HeartbeatReceived { service_id } => {
-                self.instances
-                    .get(service_id)
-                    .map(|i| i.name.clone())
-                    .unwrap_or_default()
-            }
+            RegistryEvent::HealthChanged { service_id, .. } => self
+                .instances
+                .get(service_id)
+                .map(|i| i.name.clone())
+                .unwrap_or_default(),
+            RegistryEvent::HeartbeatReceived { service_id } => self
+                .instances
+                .get(service_id)
+                .map(|i| i.name.clone())
+                .unwrap_or_default(),
             RegistryEvent::Expired { service_name, .. } => service_name.clone(),
         };
 
@@ -412,7 +427,8 @@ impl ServiceRegistry {
 
     /// Deregister all expired instances and return their IDs.
     pub fn prune_expired(&mut self, now_ms: u64) -> Vec<String> {
-        let expired_ids: Vec<String> = self.instances
+        let expired_ids: Vec<String> = self
+            .instances
             .iter()
             .filter(|(_, inst)| inst.is_expired(now_ms))
             .map(|(id, _)| id.clone())
@@ -533,12 +549,11 @@ mod tests {
     #[test]
     fn test_tag_based_lookup() {
         let mut reg = ServiceRegistry::new();
-        let inst = make_instance("web-1", "web", 8080)
-            .with_tags(vec!["production".into(), "v2".into()]);
+        let inst =
+            make_instance("web-1", "web", 8080).with_tags(vec!["production".into(), "v2".into()]);
         reg.register(inst, 1000);
 
-        let inst2 = make_instance("web-2", "web", 8081)
-            .with_tags(vec!["staging".into()]);
+        let inst2 = make_instance("web-2", "web", 8081).with_tags(vec!["staging".into()]);
         reg.register(inst2, 1000);
 
         let prod = reg.lookup_by_tag("production");

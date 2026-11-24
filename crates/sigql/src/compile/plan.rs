@@ -2,9 +2,14 @@
 //!
 //! The intermediate representation between AST and executable code.
 
-
 #[cfg(not(feature = "std"))]
-use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use smol_str::SmolStr;
 
 use super::Target;
@@ -205,7 +210,8 @@ impl ExecutionPlan {
                 max_lag_samples, ..
             } => {
                 // Direct correlation: O(n * lags); usize::MAX means "all lags".
-                n.saturating_mul((*max_lag_samples).min(n)).saturating_mul(2)
+                n.saturating_mul((*max_lag_samples).min(n))
+                    .saturating_mul(2)
             }
             PlanStep::BandPower { .. } => {
                 // Sum of squared magnitudes in band
@@ -440,7 +446,6 @@ pub enum PlanStep {
     },
 
     // ====== MediaQL Plan Steps ======
-
     /// 2D FFT (image frequency transform)
     Fft2d {
         input: RegisterId,
@@ -644,9 +649,12 @@ impl ExecutionPlan {
                 PlanStep::Fft2d { output, .. } | PlanStep::Ifft2d { output, .. } => {
                     (Some(output.0), 1024 * 1024 * core::mem::size_of::<f64>())
                 }
-                PlanStep::Dct2d { output, block_size, .. } => {
-                    (Some(output.0), block_size * block_size * core::mem::size_of::<f64>())
-                }
+                PlanStep::Dct2d {
+                    output, block_size, ..
+                } => (
+                    Some(output.0),
+                    block_size * block_size * core::mem::size_of::<f64>(),
+                ),
                 PlanStep::Idct2d { output, .. } => {
                     (Some(output.0), 1024 * 1024 * core::mem::size_of::<f64>())
                 }

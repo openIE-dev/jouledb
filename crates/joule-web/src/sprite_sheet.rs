@@ -342,12 +342,7 @@ pub fn pack_atlas(sprites: &[(u32, u32)], max_width: u32) -> PackResult {
 // ---------------------------------------------------------------------------
 
 /// Create a uniform-grid sprite sheet (all frames same size).
-pub fn grid_sheet(
-    atlas_w: u32,
-    atlas_h: u32,
-    frame_w: u32,
-    frame_h: u32,
-) -> SpriteSheet {
+pub fn grid_sheet(atlas_w: u32, atlas_h: u32, frame_w: u32, frame_h: u32) -> SpriteSheet {
     let mut sheet = SpriteSheet::new(atlas_w, atlas_h);
     let cols = atlas_w / frame_w;
     let rows = atlas_h / frame_h;
@@ -391,7 +386,9 @@ mod tests {
     #[test]
     fn test_animation_basic() {
         let mut anim = Animation::new("walk", true);
-        anim.add_frame(0, 100); anim.add_frame(1, 100); anim.add_frame(2, 100);
+        anim.add_frame(0, 100);
+        anim.add_frame(1, 100);
+        anim.add_frame(2, 100);
         assert_eq!(anim.frame_count(), 3);
         assert_eq!(anim.total_duration_ms(), 300);
     }
@@ -467,7 +464,8 @@ mod tests {
         sheet.add_frame(FrameRect::new(0, 0, 64, 64));
         sheet.add_frame(FrameRect::new(64, 0, 64, 64));
         let mut anim = Animation::new("walk", true);
-        anim.add_frame(0, 100); anim.add_frame(1, 100);
+        anim.add_frame(0, 100);
+        anim.add_frame(1, 100);
         sheet.add_animation(anim);
         let mut state = PlaybackState::new("walk");
         assert!(state.playing);
@@ -479,11 +477,14 @@ mod tests {
     #[test]
     fn test_playback_controls() {
         let mut state = PlaybackState::new("a");
-        state.pause(); state.advance(200);
+        state.pause();
+        state.advance(200);
         assert_eq!(state.elapsed_ms, 0);
-        state.resume(); state.advance(50);
+        state.resume();
+        state.advance(50);
         assert_eq!(state.elapsed_ms, 50);
-        state.speed = 2.0; state.advance(100);
+        state.speed = 2.0;
+        state.advance(100);
         assert_eq!(state.elapsed_ms, 250);
         state.reset();
         assert_eq!(state.elapsed_ms, 0);

@@ -59,13 +59,7 @@ fn list(output: &Output, domain: Option<&str>) -> Result<()> {
 
     let rows: Vec<Vec<String>> = entries
         .iter()
-        .map(|e| {
-            vec![
-                e.name.to_string(),
-                e.domain.to_string(),
-                e.doc.to_string(),
-            ]
-        })
+        .map(|e| vec![e.name.to_string(), e.domain.to_string(), e.doc.to_string()])
         .collect();
 
     output.table(vec!["Module", "Domain", "Description"], rows);

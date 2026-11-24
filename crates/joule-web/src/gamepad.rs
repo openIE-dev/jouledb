@@ -100,11 +100,7 @@ impl GamepadManager {
 
     /// Apply dead-zone: values within `[-deadzone, deadzone]` become 0.
     pub fn apply_deadzone(value: f64, deadzone: f64) -> f64 {
-        if value.abs() < deadzone {
-            0.0
-        } else {
-            value
-        }
+        if value.abs() < deadzone { 0.0 } else { value }
     }
 
     /// Check if a button is pressed on a specific gamepad.
@@ -134,7 +130,11 @@ fn make_gamepad(index: u32) -> Gamepad {
         index,
         connected: true,
         buttons: vec![
-            GamepadButton { pressed: false, value: 0.0, touched: false };
+            GamepadButton {
+                pressed: false,
+                value: 0.0,
+                touched: false
+            };
             16
         ],
         axes: vec![0.0; 4],
@@ -172,7 +172,7 @@ mod tests {
         let mut mgr = GamepadManager::new(0.15);
         let mut gp = make_gamepad(0);
         gp.axes[AXIS_LEFT_X] = 0.05; // within deadzone
-        gp.axes[AXIS_LEFT_Y] = 0.8;  // outside deadzone
+        gp.axes[AXIS_LEFT_Y] = 0.8; // outside deadzone
         mgr.connect(gp);
         assert!((mgr.get_axis(0, AXIS_LEFT_X) - 0.0).abs() < f64::EPSILON);
         assert!((mgr.get_axis(0, AXIS_LEFT_Y) - 0.8).abs() < f64::EPSILON);
@@ -212,7 +212,11 @@ mod tests {
         assert!(!mgr.is_button_pressed(0, BUTTON_X));
 
         let mut new_buttons = vec![
-            GamepadButton { pressed: false, value: 0.0, touched: false };
+            GamepadButton {
+                pressed: false,
+                value: 0.0,
+                touched: false
+            };
             16
         ];
         new_buttons[BUTTON_X].pressed = true;

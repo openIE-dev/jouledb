@@ -253,20 +253,38 @@ pub fn is_server_error(code: u16) -> bool {
 /// Generate a JSON error response filtered by detail level.
 pub fn json_error_response(info: &ErrorInfo, level: DetailLevel) -> serde_json::Value {
     let mut obj = serde_json::Map::new();
-    obj.insert("error".into(), serde_json::Value::String(info.status_text.clone()));
-    obj.insert("status".into(), serde_json::Value::Number(info.status.into()));
+    obj.insert(
+        "error".into(),
+        serde_json::Value::String(info.status_text.clone()),
+    );
+    obj.insert(
+        "status".into(),
+        serde_json::Value::Number(info.status.into()),
+    );
 
     match level {
         DetailLevel::Minimal => {
             // Only generic error and status
         }
         DetailLevel::Standard => {
-            obj.insert("message".into(), serde_json::Value::String(info.message.clone()));
-            obj.insert("error_id".into(), serde_json::Value::String(info.error_id.clone()));
+            obj.insert(
+                "message".into(),
+                serde_json::Value::String(info.message.clone()),
+            );
+            obj.insert(
+                "error_id".into(),
+                serde_json::Value::String(info.error_id.clone()),
+            );
         }
         DetailLevel::Detailed => {
-            obj.insert("message".into(), serde_json::Value::String(info.message.clone()));
-            obj.insert("error_id".into(), serde_json::Value::String(info.error_id.clone()));
+            obj.insert(
+                "message".into(),
+                serde_json::Value::String(info.message.clone()),
+            );
+            obj.insert(
+                "error_id".into(),
+                serde_json::Value::String(info.error_id.clone()),
+            );
             if let Some(ref detail) = info.detail {
                 obj.insert("detail".into(), serde_json::Value::String(detail.clone()));
             }
@@ -274,15 +292,23 @@ pub fn json_error_response(info: &ErrorInfo, level: DetailLevel) -> serde_json::
                 obj.insert("error_code".into(), serde_json::Value::String(code.clone()));
             }
             if !info.context.is_empty() {
-                let ctx: serde_json::Map<String, serde_json::Value> = info.context.iter()
+                let ctx: serde_json::Map<String, serde_json::Value> = info
+                    .context
+                    .iter()
                     .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
                     .collect();
                 obj.insert("context".into(), serde_json::Value::Object(ctx));
             }
         }
         DetailLevel::Full => {
-            obj.insert("message".into(), serde_json::Value::String(info.message.clone()));
-            obj.insert("error_id".into(), serde_json::Value::String(info.error_id.clone()));
+            obj.insert(
+                "message".into(),
+                serde_json::Value::String(info.message.clone()),
+            );
+            obj.insert(
+                "error_id".into(),
+                serde_json::Value::String(info.error_id.clone()),
+            );
             if let Some(ref detail) = info.detail {
                 obj.insert("detail".into(), serde_json::Value::String(detail.clone()));
             }
@@ -290,7 +316,9 @@ pub fn json_error_response(info: &ErrorInfo, level: DetailLevel) -> serde_json::
                 obj.insert("error_code".into(), serde_json::Value::String(code.clone()));
             }
             if !info.context.is_empty() {
-                let ctx: serde_json::Map<String, serde_json::Value> = info.context.iter()
+                let ctx: serde_json::Map<String, serde_json::Value> = info
+                    .context
+                    .iter()
                     .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
                     .collect();
                 obj.insert("context".into(), serde_json::Value::Object(ctx));
@@ -299,9 +327,15 @@ pub fn json_error_response(info: &ErrorInfo, level: DetailLevel) -> serde_json::
                 let trace = format_stack_trace(&info.stack_trace);
                 obj.insert("stack_trace".into(), serde_json::Value::String(trace));
             }
-            obj.insert("timestamp".into(), serde_json::Value::String(info.timestamp.clone()));
+            obj.insert(
+                "timestamp".into(),
+                serde_json::Value::String(info.timestamp.clone()),
+            );
             if let Some(ref path) = info.request_path {
-                obj.insert("request_path".into(), serde_json::Value::String(path.clone()));
+                obj.insert(
+                    "request_path".into(),
+                    serde_json::Value::String(path.clone()),
+                );
             }
         }
     }
@@ -315,7 +349,10 @@ pub fn json_error_response(info: &ErrorInfo, level: DetailLevel) -> serde_json::
 pub fn html_error_page(info: &ErrorInfo, level: DetailLevel) -> String {
     let mut body = String::new();
     body.push_str("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n");
-    body.push_str(&format!("  <title>{} {}</title>\n", info.status, info.status_text));
+    body.push_str(&format!(
+        "  <title>{} {}</title>\n",
+        info.status, info.status_text
+    ));
     body.push_str("  <meta charset=\"utf-8\">\n");
     body.push_str("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
     body.push_str("  <style>\n");
@@ -326,7 +363,10 @@ pub fn html_error_page(info: &ErrorInfo, level: DetailLevel) -> String {
     body.push_str("    pre { background: #1a1a2e; color: #eee; padding: 1rem; overflow-x: auto; border-radius: 4px; }\n");
     body.push_str("  </style>\n");
     body.push_str("</head>\n<body>\n");
-    body.push_str(&format!("  <h1>{} {}</h1>\n", info.status, info.status_text));
+    body.push_str(&format!(
+        "  <h1>{} {}</h1>\n",
+        info.status, info.status_text
+    ));
 
     match level {
         DetailLevel::Minimal => {
@@ -368,9 +408,15 @@ pub fn html_error_page(info: &ErrorInfo, level: DetailLevel) -> String {
                 let trace = format_stack_trace(&info.stack_trace);
                 body.push_str(&format!("  <pre>{}</pre>\n", html_escape(&trace)));
             }
-            body.push_str(&format!("  <p><small>Timestamp: {}</small></p>\n", html_escape(&info.timestamp)));
+            body.push_str(&format!(
+                "  <p><small>Timestamp: {}</small></p>\n",
+                html_escape(&info.timestamp)
+            ));
             if let Some(ref path) = info.request_path {
-                body.push_str(&format!("  <p><small>Path: {}</small></p>\n", html_escape(path)));
+                body.push_str(&format!(
+                    "  <p><small>Path: {}</small></p>\n",
+                    html_escape(path)
+                ));
             }
         }
     }
@@ -547,8 +593,18 @@ mod tests {
     #[test]
     fn test_format_stack_trace() {
         let frames = vec![
-            StackFrame { function: "a".to_string(), file: None, line: None, column: None },
-            StackFrame { function: "b".to_string(), file: Some("x.rs".to_string()), line: Some(1), column: None },
+            StackFrame {
+                function: "a".to_string(),
+                file: None,
+                line: None,
+                column: None,
+            },
+            StackFrame {
+                function: "b".to_string(),
+                file: Some("x.rs".to_string()),
+                line: Some(1),
+                column: None,
+            },
         ];
         let trace = format_stack_trace(&frames);
         assert!(trace.contains("a"));
@@ -571,7 +627,10 @@ mod tests {
     fn test_json_standard() {
         let info = sample_error();
         let json = json_error_response(&info, DetailLevel::Standard);
-        assert_eq!(json.get("message").unwrap().as_str().unwrap(), "Something went wrong");
+        assert_eq!(
+            json.get("message").unwrap().as_str().unwrap(),
+            "Something went wrong"
+        );
         assert_eq!(json.get("error_id").unwrap().as_str().unwrap(), "err-123");
         assert!(json.get("stack_trace").is_none());
         assert!(json.get("detail").is_none());
@@ -640,8 +699,7 @@ mod tests {
 
     #[test]
     fn test_html_escape() {
-        let info = ErrorInfo::new(400, "invalid <script>alert(1)</script>")
-            .with_error_id("e1");
+        let info = ErrorInfo::new(400, "invalid <script>alert(1)</script>").with_error_id("e1");
         let html = html_error_page(&info, DetailLevel::Standard);
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;"));
@@ -738,7 +796,9 @@ mod tests {
 
     #[test]
     fn test_all_common_status_codes() {
-        let codes = [400, 401, 403, 404, 405, 408, 409, 410, 413, 415, 422, 429, 500, 501, 502, 503, 504];
+        let codes = [
+            400, 401, 403, 404, 405, 408, 409, 410, 413, 415, 422, 429, 500, 501, 502, 503, 504,
+        ];
         for code in codes {
             let text = status_text(code);
             assert_ne!(text, "Unknown Error", "missing text for {code}");

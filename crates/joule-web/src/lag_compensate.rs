@@ -17,7 +17,11 @@ pub enum LagCompError {
     /// Entity has no recorded history.
     NoHistory { entity_id: u64 },
     /// Requested tick is older than the earliest recorded.
-    TickTooOld { entity_id: u64, requested: u64, oldest: u64 },
+    TickTooOld {
+        entity_id: u64,
+        requested: u64,
+        oldest: u64,
+    },
     /// Requested tick exceeds max rewind window.
     RewindExceeded { requested_ticks: u32, max: u32 },
     /// Entity not registered.
@@ -28,10 +32,20 @@ impl fmt::Display for LagCompError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NoHistory { entity_id } => write!(f, "no history for entity {entity_id}"),
-            Self::TickTooOld { entity_id, requested, oldest } => {
-                write!(f, "entity {entity_id}: tick {requested} too old (oldest={oldest})")
+            Self::TickTooOld {
+                entity_id,
+                requested,
+                oldest,
+            } => {
+                write!(
+                    f,
+                    "entity {entity_id}: tick {requested} too old (oldest={oldest})"
+                )
             }
-            Self::RewindExceeded { requested_ticks, max } => {
+            Self::RewindExceeded {
+                requested_ticks,
+                max,
+            } => {
                 write!(f, "rewind {requested_ticks} ticks exceeds max {max}")
             }
             Self::EntityNotFound { entity_id } => write!(f, "entity {entity_id} not found"),
@@ -80,7 +94,11 @@ impl PositionSnapshot {
 
 impl fmt::Display for PositionSnapshot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Pos(tick={}, ({:.2},{:.2},{:.2}))", self.tick, self.x, self.y, self.z)
+        write!(
+            f,
+            "Pos(tick={}, ({:.2},{:.2},{:.2}))",
+            self.tick, self.x, self.y, self.z
+        )
     }
 }
 
@@ -96,11 +114,19 @@ pub struct BoundingBox {
 
 impl BoundingBox {
     pub fn new(hw: f64, hh: f64, hd: f64) -> Self {
-        Self { half_width: hw, half_height: hh, half_depth: hd }
+        Self {
+            half_width: hw,
+            half_height: hh,
+            half_depth: hd,
+        }
     }
 
     pub fn cube(half: f64) -> Self {
-        Self { half_width: half, half_height: half, half_depth: half }
+        Self {
+            half_width: half,
+            half_height: half,
+            half_depth: half,
+        }
     }
 
     /// Check if a point (px, py, pz) is inside this box centered at (cx, cy, cz).
@@ -124,9 +150,21 @@ impl BoundingBox {
         ray_dy: f64,
         ray_dz: f64,
     ) -> bool {
-        let inv_dx = if ray_dx.abs() > 1e-12 { 1.0 / ray_dx } else { f64::MAX };
-        let inv_dy = if ray_dy.abs() > 1e-12 { 1.0 / ray_dy } else { f64::MAX };
-        let inv_dz = if ray_dz.abs() > 1e-12 { 1.0 / ray_dz } else { f64::MAX };
+        let inv_dx = if ray_dx.abs() > 1e-12 {
+            1.0 / ray_dx
+        } else {
+            f64::MAX
+        };
+        let inv_dy = if ray_dy.abs() > 1e-12 {
+            1.0 / ray_dy
+        } else {
+            f64::MAX
+        };
+        let inv_dz = if ray_dz.abs() > 1e-12 {
+            1.0 / ray_dz
+        } else {
+            f64::MAX
+        };
 
         let t1 = ((cx - self.half_width) - ray_ox) * inv_dx;
         let t2 = ((cx + self.half_width) - ray_ox) * inv_dx;
@@ -155,7 +193,12 @@ pub struct EntityHistory {
 
 impl EntityHistory {
     pub fn new(entity_id: u64, bbox: BoundingBox, max_history: usize) -> Self {
-        Self { entity_id, bounding_box: bbox, snapshots: Vec::with_capacity(max_history), max_history }
+        Self {
+            entity_id,
+            bounding_box: bbox,
+            snapshots: Vec::with_capacity(max_history),
+            max_history,
+        }
     }
 
     /// Record a position at a given tick.
@@ -209,9 +252,17 @@ impl EntityHistory {
 #[derive(Debug, Clone, PartialEq)]
 pub enum HitResult {
     /// Hit confirmed at the rewound position.
-    Hit { entity_id: u64, tick: u64, distance: f64 },
+    Hit {
+        entity_id: u64,
+        tick: u64,
+        distance: f64,
+    },
     /// Shot missed the entity.
-    Miss { entity_id: u64, tick: u64, closest_distance: f64 },
+    Miss {
+        entity_id: u64,
+        tick: u64,
+        closest_distance: f64,
+    },
     /// Target tick was out of rewind range.
     OutOfRange { entity_id: u64, reason: String },
 }
@@ -219,11 +270,25 @@ pub enum HitResult {
 impl fmt::Display for HitResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Hit { entity_id, tick, distance } => {
-                write!(f, "HIT entity {entity_id} at tick {tick} (dist={distance:.3})")
+            Self::Hit {
+                entity_id,
+                tick,
+                distance,
+            } => {
+                write!(
+                    f,
+                    "HIT entity {entity_id} at tick {tick} (dist={distance:.3})"
+                )
             }
-            Self::Miss { entity_id, tick, closest_distance } => {
-                write!(f, "MISS entity {entity_id} at tick {tick} (closest={closest_distance:.3})")
+            Self::Miss {
+                entity_id,
+                tick,
+                closest_distance,
+            } => {
+                write!(
+                    f,
+                    "MISS entity {entity_id} at tick {tick} (closest={closest_distance:.3})"
+                )
             }
             Self::OutOfRange { entity_id, reason } => {
                 write!(f, "OUT_OF_RANGE entity {entity_id}: {reason}")
@@ -244,7 +309,11 @@ pub struct LagCompConfig {
 
 impl LagCompConfig {
     pub fn new() -> Self {
-        Self { max_rewind_ticks: 30, history_size: 128, current_tick: 0 }
+        Self {
+            max_rewind_ticks: 30,
+            history_size: 128,
+            current_tick: 0,
+        }
     }
 
     pub fn with_max_rewind(mut self, ticks: u32) -> Self {
@@ -296,8 +365,17 @@ impl LagCompensator {
     }
 
     /// Record a position for an entity at the current tick.
-    pub fn record_position(&mut self, entity_id: u64, x: f64, y: f64, z: f64) -> Result<(), LagCompError> {
-        let history = self.entities.get_mut(&entity_id).ok_or(LagCompError::EntityNotFound { entity_id })?;
+    pub fn record_position(
+        &mut self,
+        entity_id: u64,
+        x: f64,
+        y: f64,
+        z: f64,
+    ) -> Result<(), LagCompError> {
+        let history = self
+            .entities
+            .get_mut(&entity_id)
+            .ok_or(LagCompError::EntityNotFound { entity_id })?;
         history.record(PositionSnapshot::new(self.current_tick, x, y, z));
         Ok(())
     }
@@ -326,25 +404,43 @@ impl LagCompensator {
         if rewind > self.config.max_rewind_ticks {
             return Ok(HitResult::OutOfRange {
                 entity_id,
-                reason: format!("rewind {rewind} exceeds max {}", self.config.max_rewind_ticks),
+                reason: format!(
+                    "rewind {rewind} exceeds max {}",
+                    self.config.max_rewind_ticks
+                ),
             });
         }
 
-        let history = self.entities.get(&entity_id).ok_or(LagCompError::EntityNotFound { entity_id })?;
-        let pos = history.at_tick(target_tick).ok_or(LagCompError::TickTooOld {
-            entity_id,
-            requested: target_tick,
-            oldest: history.oldest_tick().unwrap_or(0),
-        })?;
+        let history = self
+            .entities
+            .get(&entity_id)
+            .ok_or(LagCompError::EntityNotFound { entity_id })?;
+        let pos = history
+            .at_tick(target_tick)
+            .ok_or(LagCompError::TickTooOld {
+                entity_id,
+                requested: target_tick,
+                oldest: history.oldest_tick().unwrap_or(0),
+            })?;
 
-        let hit = history.bounding_box.contains(pos.x, pos.y, pos.z, point_x, point_y, point_z);
+        let hit = history
+            .bounding_box
+            .contains(pos.x, pos.y, pos.z, point_x, point_y, point_z);
         let dist = pos.distance_sq_to(point_x, point_y, point_z).sqrt();
 
         if hit {
             self.total_hits += 1;
-            Ok(HitResult::Hit { entity_id, tick: target_tick, distance: dist })
+            Ok(HitResult::Hit {
+                entity_id,
+                tick: target_tick,
+                distance: dist,
+            })
         } else {
-            Ok(HitResult::Miss { entity_id, tick: target_tick, closest_distance: dist })
+            Ok(HitResult::Miss {
+                entity_id,
+                tick: target_tick,
+                closest_distance: dist,
+            })
         }
     }
 
@@ -366,16 +462,24 @@ impl LagCompensator {
         if rewind > self.config.max_rewind_ticks {
             return Ok(HitResult::OutOfRange {
                 entity_id,
-                reason: format!("rewind {rewind} exceeds max {}", self.config.max_rewind_ticks),
+                reason: format!(
+                    "rewind {rewind} exceeds max {}",
+                    self.config.max_rewind_ticks
+                ),
             });
         }
 
-        let history = self.entities.get(&entity_id).ok_or(LagCompError::EntityNotFound { entity_id })?;
-        let pos = history.at_tick(target_tick).ok_or(LagCompError::TickTooOld {
-            entity_id,
-            requested: target_tick,
-            oldest: history.oldest_tick().unwrap_or(0),
-        })?;
+        let history = self
+            .entities
+            .get(&entity_id)
+            .ok_or(LagCompError::EntityNotFound { entity_id })?;
+        let pos = history
+            .at_tick(target_tick)
+            .ok_or(LagCompError::TickTooOld {
+                entity_id,
+                requested: target_tick,
+                oldest: history.oldest_tick().unwrap_or(0),
+            })?;
 
         let hit = history.bounding_box.ray_intersects(
             pos.x, pos.y, pos.z, ray_ox, ray_oy, ray_oz, ray_dx, ray_dy, ray_dz,
@@ -384,9 +488,17 @@ impl LagCompensator {
 
         if hit {
             self.total_hits += 1;
-            Ok(HitResult::Hit { entity_id, tick: target_tick, distance: dist })
+            Ok(HitResult::Hit {
+                entity_id,
+                tick: target_tick,
+                distance: dist,
+            })
         } else {
-            Ok(HitResult::Miss { entity_id, tick: target_tick, closest_distance: dist })
+            Ok(HitResult::Miss {
+                entity_id,
+                tick: target_tick,
+                closest_distance: dist,
+            })
         }
     }
 
@@ -401,18 +513,33 @@ impl LagCompensator {
     ) -> Result<HitResult, LagCompError> {
         self.total_checks += 1;
 
-        let history = self.entities.get(&entity_id).ok_or(LagCompError::EntityNotFound { entity_id })?;
-        let pos = history.at_fractional_tick(fractional_tick).ok_or(LagCompError::NoHistory { entity_id })?;
+        let history = self
+            .entities
+            .get(&entity_id)
+            .ok_or(LagCompError::EntityNotFound { entity_id })?;
+        let pos = history
+            .at_fractional_tick(fractional_tick)
+            .ok_or(LagCompError::NoHistory { entity_id })?;
         let tick = fractional_tick.round() as u64;
 
-        let hit = history.bounding_box.contains(pos.x, pos.y, pos.z, point_x, point_y, point_z);
+        let hit = history
+            .bounding_box
+            .contains(pos.x, pos.y, pos.z, point_x, point_y, point_z);
         let dist = pos.distance_sq_to(point_x, point_y, point_z).sqrt();
 
         if hit {
             self.total_hits += 1;
-            Ok(HitResult::Hit { entity_id, tick, distance: dist })
+            Ok(HitResult::Hit {
+                entity_id,
+                tick,
+                distance: dist,
+            })
         } else {
-            Ok(HitResult::Miss { entity_id, tick, closest_distance: dist })
+            Ok(HitResult::Miss {
+                entity_id,
+                tick,
+                closest_distance: dist,
+            })
         }
     }
 
@@ -429,7 +556,11 @@ impl LagCompensator {
     }
 
     pub fn hit_rate(&self) -> f64 {
-        if self.total_checks == 0 { 0.0 } else { self.total_hits as f64 / self.total_checks as f64 }
+        if self.total_checks == 0 {
+            0.0
+        } else {
+            self.total_hits as f64 / self.total_checks as f64
+        }
     }
 
     pub fn current_tick(&self) -> u64 {
@@ -557,7 +688,9 @@ mod tests {
     fn compensator_ray_hit() {
         let mut comp = setup_compensator();
         comp.record_position(1, 5.0, 0.0, 0.0).unwrap();
-        let result = comp.check_hit_ray(1, 0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0).unwrap();
+        let result = comp
+            .check_hit_ray(1, 0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+            .unwrap();
         matches!(result, HitResult::Hit { .. });
     }
 
@@ -582,7 +715,11 @@ mod tests {
 
     #[test]
     fn hit_result_display() {
-        let hit = HitResult::Hit { entity_id: 1, tick: 5, distance: 0.5 };
+        let hit = HitResult::Hit {
+            entity_id: 1,
+            tick: 5,
+            distance: 0.5,
+        };
         let s = format!("{hit}");
         assert!(s.contains("HIT"));
         assert!(s.contains("entity 1"));

@@ -17,9 +17,17 @@ pub enum EntityError {
     /// Entity already deleted.
     AlreadyDeleted(String),
     /// Version conflict for optimistic concurrency.
-    VersionConflict { id: String, expected: u64, actual: u64 },
+    VersionConflict {
+        id: String,
+        expected: u64,
+        actual: u64,
+    },
     /// Invalid state transition.
-    InvalidTransition { id: String, from: EntityLifecycle, to: EntityLifecycle },
+    InvalidTransition {
+        id: String,
+        from: EntityLifecycle,
+        to: EntityLifecycle,
+    },
     /// Validation failed.
     ValidationFailed { id: String, reason: String },
     /// Entity not found.
@@ -32,8 +40,15 @@ impl std::fmt::Display for EntityError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::AlreadyDeleted(id) => write!(f, "entity already deleted: {id}"),
-            Self::VersionConflict { id, expected, actual } => {
-                write!(f, "version conflict for {id}: expected {expected}, got {actual}")
+            Self::VersionConflict {
+                id,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "version conflict for {id}: expected {expected}, got {actual}"
+                )
             }
             Self::InvalidTransition { id, from, to } => {
                 write!(f, "invalid transition for {id}: {from:?} -> {to:?}")
@@ -220,7 +235,8 @@ impl Entity {
         payload.insert("key".to_string(), key);
         payload.insert("value".to_string(), value);
         payload.insert("by".to_string(), by);
-        self.events.push(DomainEventRecord::new("attribute_changed", payload));
+        self.events
+            .push(DomainEventRecord::new("attribute_changed", payload));
         Ok(())
     }
 
@@ -243,7 +259,8 @@ impl Entity {
             let mut payload = HashMap::new();
             payload.insert("key".to_string(), key.to_string());
             payload.insert("by".to_string(), by);
-            self.events.push(DomainEventRecord::new("attribute_removed", payload));
+            self.events
+                .push(DomainEventRecord::new("attribute_removed", payload));
         }
         Ok(removed)
     }
@@ -326,7 +343,10 @@ impl Entity {
 
     /// Whether the entity is dirty (new or modified).
     pub fn is_dirty(&self) -> bool {
-        matches!(self.lifecycle, EntityLifecycle::New | EntityLifecycle::Modified)
+        matches!(
+            self.lifecycle,
+            EntityLifecycle::New | EntityLifecycle::Modified
+        )
     }
 
     /// Whether the entity is deleted.
@@ -360,7 +380,9 @@ pub struct EntityCollection {
 
 impl EntityCollection {
     pub fn new() -> Self {
-        Self { entities: Vec::new() }
+        Self {
+            entities: Vec::new(),
+        }
     }
 
     /// Add an entity. Returns error if duplicate id.

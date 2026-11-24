@@ -132,9 +132,7 @@ impl DeBruijnGraph {
             .or_insert_with(NodeInfo::new)
             .out_edges
             .push(edge_idx);
-        self.nodes
-            .entry(to.clone())
-            .or_insert_with(NodeInfo::new);
+        self.nodes.entry(to.clone()).or_insert_with(NodeInfo::new);
         // Update degrees.
         let from_key = &self.edges[edge_idx].from;
         self.nodes.get_mut(from_key).unwrap().out_degree += 1;
@@ -176,8 +174,7 @@ impl DeBruijnGraph {
             }
         }
         // Either Eulerian circuit (all balanced) or path (one +1, one -1).
-        (start_nodes == 0 && end_nodes == 0)
-            || (start_nodes == 1 && end_nodes == 1)
+        (start_nodes == 0 && end_nodes == 0) || (start_nodes == 1 && end_nodes == 1)
     }
 
     /// Find an Eulerian path using Hierholzer's algorithm.
@@ -502,10 +499,7 @@ mod tests {
 
     #[test]
     fn test_display_graph() {
-        let g = DeBruijnBuilder::new(3)
-            .with_string("ACGT")
-            .build()
-            .unwrap();
+        let g = DeBruijnBuilder::new(3).with_string("ACGT").build().unwrap();
         let s = format!("{g}");
         assert!(s.contains("DeBruijnGraph"));
     }

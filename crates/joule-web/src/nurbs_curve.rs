@@ -63,9 +63,19 @@ impl WeightedPoint {
     pub fn from_homogeneous(h: [f64; 4]) -> Self {
         let w = h[3];
         if w.abs() < 1e-15 {
-            Self { x: 0.0, y: 0.0, z: 0.0, w: 0.0 }
+            Self {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 0.0,
+            }
         } else {
-            Self { x: h[0] / w, y: h[1] / w, z: h[2] / w, w }
+            Self {
+                x: h[0] / w,
+                y: h[1] / w,
+                z: h[2] / w,
+                w,
+            }
         }
     }
 
@@ -80,7 +90,11 @@ impl WeightedPoint {
 
 impl fmt::Display for WeightedPoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({:.4}, {:.4}, {:.4}; w={:.4})", self.x, self.y, self.z, self.w)
+        write!(
+            f,
+            "({:.4}, {:.4}, {:.4}; w={:.4})",
+            self.x, self.y, self.z, self.w
+        )
     }
 }
 
@@ -152,8 +166,13 @@ impl NurbsCurveConfig {
 
 impl fmt::Display for NurbsCurveConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "NurbsCurveConfig(degree={}, points={}, knots={})",
-            self.degree, self.control_points.len(), self.knots.len())
+        write!(
+            f,
+            "NurbsCurveConfig(degree={}, points={}, knots={})",
+            self.degree,
+            self.control_points.len(),
+            self.knots.len()
+        )
     }
 }
 
@@ -179,15 +198,20 @@ impl NurbsCurve {
         }
         let n = control_points.len();
         if n < degree + 1 {
-            return Err(NurbsError::InsufficientPoints(
-                format!("need at least {} points for degree {}, got {}", degree + 1, degree, n),
-            ));
+            return Err(NurbsError::InsufficientPoints(format!(
+                "need at least {} points for degree {}, got {}",
+                degree + 1,
+                degree,
+                n
+            )));
         }
         let expected_knots = n + degree + 1;
         if knots.len() != expected_knots {
-            return Err(NurbsError::InvalidKnotVector(
-                format!("expected {} knots, got {}", expected_knots, knots.len()),
-            ));
+            return Err(NurbsError::InvalidKnotVector(format!(
+                "expected {} knots, got {}",
+                expected_knots,
+                knots.len()
+            )));
         }
         // Check non-decreasing
         for i in 1..knots.len() {
@@ -200,12 +224,17 @@ impl NurbsCurve {
         // Check weights
         for (i, pt) in control_points.iter().enumerate() {
             if pt.w <= 0.0 {
-                return Err(NurbsError::InvalidWeight(
-                    format!("weight at index {} must be positive, got {}", i, pt.w),
-                ));
+                return Err(NurbsError::InvalidWeight(format!(
+                    "weight at index {} must be positive, got {}",
+                    i, pt.w
+                )));
             }
         }
-        Ok(Self { control_points, knots, degree })
+        Ok(Self {
+            control_points,
+            knots,
+            degree,
+        })
     }
 
     pub fn degree(&self) -> usize {
@@ -338,9 +367,10 @@ impl NurbsCurve {
     pub fn insert_knot(&mut self, u: f64) -> Result<(), NurbsError> {
         let (u_min, u_max) = self.domain();
         if u < u_min || u > u_max {
-            return Err(NurbsError::ParameterOutOfRange(
-                format!("u={} outside domain [{}, {}]", u, u_min, u_max),
-            ));
+            return Err(NurbsError::ParameterOutOfRange(format!(
+                "u={} outside domain [{}, {}]",
+                u, u_min, u_max
+            )));
         }
         let span = self.find_span(u);
         let p = self.degree;
@@ -395,9 +425,10 @@ impl NurbsCurve {
     pub fn split(&self, u: f64) -> Result<(NurbsCurve, NurbsCurve), NurbsError> {
         let (u_min, u_max) = self.domain();
         if u <= u_min || u >= u_max {
-            return Err(NurbsError::SplitFailed(
-                format!("split parameter {} must be strictly inside domain ({}, {})", u, u_min, u_max),
-            ));
+            return Err(NurbsError::SplitFailed(format!(
+                "split parameter {} must be strictly inside domain ({}, {})",
+                u, u_min, u_max
+            )));
         }
         let p = self.degree;
 
@@ -466,8 +497,14 @@ impl NurbsCurve {
 impl fmt::Display for NurbsCurve {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (u_min, u_max) = self.domain();
-        write!(f, "NurbsCurve(degree={}, points={}, domain=[{:.4}, {:.4}])",
-            self.degree, self.control_points.len(), u_min, u_max)
+        write!(
+            f,
+            "NurbsCurve(degree={}, points={}, domain=[{:.4}, {:.4}])",
+            self.degree,
+            self.control_points.len(),
+            u_min,
+            u_max
+        )
     }
 }
 

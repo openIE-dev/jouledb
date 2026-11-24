@@ -27,15 +27,15 @@ impl CrossfadeCurve {
         let t = t.clamp(0.0, 1.0);
         match self {
             CrossfadeCurve::Linear => t,
-            CrossfadeCurve::EqualPower => {
-                (t * std::f64::consts::FRAC_PI_2).sin()
-            }
+            CrossfadeCurve::EqualPower => (t * std::f64::consts::FRAC_PI_2).sin(),
             CrossfadeCurve::SCurve => {
                 // Hermite-style S-curve: 3t^2 - 2t^3
                 3.0 * t * t - 2.0 * t * t * t
             }
             CrossfadeCurve::Logarithmic => {
-                if t < 1e-12 { return 0.0; }
+                if t < 1e-12 {
+                    return 0.0;
+                }
                 let log_min = 0.001f64.ln();
                 let log_val = (t.max(0.001)).ln();
                 1.0 - (log_val / log_min).clamp(0.0, 1.0)
@@ -48,16 +48,12 @@ impl CrossfadeCurve {
         let t = t.clamp(0.0, 1.0);
         match self {
             CrossfadeCurve::Linear => 1.0 - t,
-            CrossfadeCurve::EqualPower => {
-                ((1.0 - t) * std::f64::consts::FRAC_PI_2).sin()
-            }
+            CrossfadeCurve::EqualPower => ((1.0 - t) * std::f64::consts::FRAC_PI_2).sin(),
             CrossfadeCurve::SCurve => {
                 let s = 1.0 - t;
                 3.0 * s * s - 2.0 * s * s * s
             }
-            CrossfadeCurve::Logarithmic => {
-                1.0 - self.incoming_gain(t)
-            }
+            CrossfadeCurve::Logarithmic => 1.0 - self.incoming_gain(t),
         }
     }
 }
@@ -107,8 +103,11 @@ impl Crossfade {
     }
 
     /// Create with a specific position mode.
-    pub fn with_position(curve: CrossfadeCurve, duration_samples: usize,
-                         position: CrossfadePosition) -> Self {
+    pub fn with_position(
+        curve: CrossfadeCurve,
+        duration_samples: usize,
+        position: CrossfadePosition,
+    ) -> Self {
         Self {
             curve,
             duration_samples,
@@ -132,7 +131,9 @@ impl Crossfade {
 
     /// Current progress (0.0 to 1.0).
     pub fn progress(&self) -> f64 {
-        if self.duration_samples == 0 { return 1.0; }
+        if self.duration_samples == 0 {
+            return 1.0;
+        }
         (self.elapsed_samples as f64 / self.duration_samples as f64).clamp(0.0, 1.0)
     }
 
@@ -387,7 +388,9 @@ impl CrossfadePlaylist {
         if self.auto_crossfade && self.active_crossfade.is_none() {
             let track = &self.tracks[current_idx];
             if !track.looping {
-                let remaining = track.duration_samples().saturating_sub(self.current_position);
+                let remaining = track
+                    .duration_samples()
+                    .saturating_sub(self.current_position);
                 if remaining <= self.crossfade_duration && remaining > 0 {
                     let next_idx = if current_idx + 1 < self.tracks.len() {
                         Some(current_idx + 1)
@@ -585,9 +588,7 @@ mod tests {
 
     #[test]
     fn test_crossfade_cut_mode() {
-        let mut cf = Crossfade::with_position(
-            CrossfadeCurve::Linear, 100, CrossfadePosition::Cut,
-        );
+        let mut cf = Crossfade::with_position(CrossfadeCurve::Linear, 100, CrossfadePosition::Cut);
         cf.start();
         // First frame: should hear outgoing only
         let (out, inc) = cf.process_frame();

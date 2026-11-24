@@ -36,8 +36,13 @@ impl Fold {
 
 impl fmt::Display for Fold {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Fold(idx={}, train={}, test={})",
-               self.fold_index, self.train_size(), self.test_size())
+        write!(
+            f,
+            "Fold(idx={}, train={}, test={})",
+            self.fold_index,
+            self.train_size(),
+            self.test_size()
+        )
     }
 }
 
@@ -53,7 +58,11 @@ pub struct KFold {
 
 impl KFold {
     pub fn new(k: usize) -> Self {
-        Self { k: k.max(2), shuffle: false, seed: 42 }
+        Self {
+            k: k.max(2),
+            shuffle: false,
+            seed: 42,
+        }
     }
 
     pub fn with_shuffle(mut self, shuffle: bool) -> Self {
@@ -115,7 +124,11 @@ pub struct StratifiedKFold {
 
 impl StratifiedKFold {
     pub fn new(k: usize) -> Self {
-        Self { k: k.max(2), shuffle: false, seed: 42 }
+        Self {
+            k: k.max(2),
+            shuffle: false,
+            seed: 42,
+        }
     }
 
     pub fn with_shuffle(mut self, shuffle: bool) -> Self {
@@ -286,7 +299,11 @@ impl TimeSeriesSplit {
 
 impl fmt::Display for TimeSeriesSplit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TimeSeriesSplit(splits={}, gap={})", self.n_splits, self.gap)
+        write!(
+            f,
+            "TimeSeriesSplit(splits={}, gap={})",
+            self.n_splits, self.gap
+        )
     }
 }
 
@@ -362,7 +379,11 @@ impl NestedCV {
 
 impl fmt::Display for NestedCV {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "NestedCV(outer={}, inner={})", self.outer_k, self.inner_k)
+        write!(
+            f,
+            "NestedCV(outer={}, inner={})",
+            self.outer_k, self.inner_k
+        )
     }
 }
 
@@ -378,7 +399,11 @@ pub struct RepeatedKFold {
 
 impl RepeatedKFold {
     pub fn new(k: usize, n_repeats: usize) -> Self {
-        Self { k: k.max(2), n_repeats: n_repeats.max(1), seed: 42 }
+        Self {
+            k: k.max(2),
+            n_repeats: n_repeats.max(1),
+            seed: 42,
+        }
     }
 
     pub fn with_seed(mut self, seed: u64) -> Self {
@@ -451,7 +476,10 @@ impl CvResults {
     }
 
     pub fn max(&self) -> f64 {
-        self.scores.iter().cloned().fold(f64::NEG_INFINITY, f64::max)
+        self.scores
+            .iter()
+            .cloned()
+            .fold(f64::NEG_INFINITY, f64::max)
     }
 
     pub fn num_folds(&self) -> usize {
@@ -461,7 +489,13 @@ impl CvResults {
 
 impl fmt::Display for CvResults {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CV(mean={:.4} +/- {:.4}, n={})", self.mean(), self.std_dev(), self.num_folds())
+        write!(
+            f,
+            "CV(mean={:.4} +/- {:.4}, n={})",
+            self.mean(),
+            self.std_dev(),
+            self.num_folds()
+        )
     }
 }
 
@@ -474,7 +508,9 @@ fn deterministic_shuffle(data: &mut [usize], seed: u64) {
     }
     let mut state = seed.wrapping_add(1);
     for i in (1..n).rev() {
-        state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let j = (state >> 33) as usize % (i + 1);
         data.swap(i, j);
     }

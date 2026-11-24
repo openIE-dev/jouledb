@@ -102,11 +102,21 @@ pub struct ModuleEntry {
 pub enum LoaderError {
     ModuleNotFound(String),
     CircularDependency(Vec<String>),
-    LoadFailed { path: String, reason: String },
+    LoadFailed {
+        path: String,
+        reason: String,
+    },
     AlreadyLoaded(String),
     InvalidPath(String),
-    DependencyFailed { path: String, dependency: String },
-    VersionConflict { path: String, existing: String, requested: String },
+    DependencyFailed {
+        path: String,
+        dependency: String,
+    },
+    VersionConflict {
+        path: String,
+        existing: String,
+        requested: String,
+    },
 }
 
 impl fmt::Display for LoaderError {

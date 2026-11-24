@@ -18,7 +18,11 @@ pub struct Tab {
 }
 
 impl Tab {
-    pub fn new(id: impl Into<String>, label: impl Into<String>, content: impl Into<String>) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        label: impl Into<String>,
+        content: impl Into<String>,
+    ) -> Self {
         Self {
             id: id.into(),
             label: label.into(),
@@ -30,10 +34,22 @@ impl Tab {
         }
     }
 
-    pub fn closable(mut self, v: bool) -> Self { self.closable = v; self }
-    pub fn disabled(mut self, v: bool) -> Self { self.disabled = v; self }
-    pub fn icon(mut self, i: impl Into<String>) -> Self { self.icon = Some(i.into()); self }
-    pub fn badge(mut self, b: impl Into<String>) -> Self { self.badge = Some(b.into()); self }
+    pub fn closable(mut self, v: bool) -> Self {
+        self.closable = v;
+        self
+    }
+    pub fn disabled(mut self, v: bool) -> Self {
+        self.disabled = v;
+        self
+    }
+    pub fn icon(mut self, i: impl Into<String>) -> Self {
+        self.icon = Some(i.into());
+        self
+    }
+    pub fn badge(mut self, b: impl Into<String>) -> Self {
+        self.badge = Some(b.into());
+        self
+    }
 }
 
 /// Manages an ordered collection of tabs.
@@ -48,14 +64,20 @@ pub struct TabGroup {
 
 impl TabGroup {
     pub fn new() -> Self {
-        Self { tabs: Vec::new(), active_id: None, closable_default: true }
+        Self {
+            tabs: Vec::new(),
+            active_id: None,
+            closable_default: true,
+        }
     }
 
     pub fn add_tab(&mut self, tab: Tab) {
         let activate = self.tabs.is_empty() && !tab.disabled;
         let id = tab.id.clone();
         self.tabs.push(tab);
-        if activate { self.active_id = Some(id); }
+        if activate {
+            self.active_id = Some(id);
+        }
     }
 
     /// Remove a tab by id. If it was active, activate nearest enabled neighbor.
@@ -84,15 +106,21 @@ impl TabGroup {
     }
 
     pub fn active_tab(&self) -> Option<&Tab> {
-        self.active_id.as_ref().and_then(|id| self.tabs.iter().find(|t| t.id == *id))
+        self.active_id
+            .as_ref()
+            .and_then(|id| self.tabs.iter().find(|t| t.id == *id))
     }
 
     pub fn active_index(&self) -> Option<usize> {
-        self.active_id.as_ref().and_then(|id| self.tabs.iter().position(|t| t.id == *id))
+        self.active_id
+            .as_ref()
+            .and_then(|id| self.tabs.iter().position(|t| t.id == *id))
     }
 
     pub fn next_tab(&mut self) {
-        let Some(cur) = self.active_index() else { return };
+        let Some(cur) = self.active_index() else {
+            return;
+        };
         let n = self.tabs.len();
         for offset in 1..=n {
             let idx = (cur + offset) % n;
@@ -104,7 +132,9 @@ impl TabGroup {
     }
 
     pub fn previous_tab(&mut self) {
-        let Some(cur) = self.active_index() else { return };
+        let Some(cur) = self.active_index() else {
+            return;
+        };
         let n = self.tabs.len();
         for offset in 1..=n {
             let idx = (cur + n - offset) % n;
@@ -116,7 +146,9 @@ impl TabGroup {
     }
 
     pub fn move_tab(&mut self, from_idx: usize, to_idx: usize) {
-        if from_idx >= self.tabs.len() || to_idx >= self.tabs.len() { return; }
+        if from_idx >= self.tabs.len() || to_idx >= self.tabs.len() {
+            return;
+        }
         let tab = self.tabs.remove(from_idx);
         self.tabs.insert(to_idx, tab);
     }
@@ -127,19 +159,27 @@ impl TabGroup {
         if closable { self.remove_tab(id) } else { None }
     }
 
-    pub fn len(&self) -> usize { self.tabs.len() }
-    pub fn is_empty(&self) -> bool { self.tabs.is_empty() }
+    pub fn len(&self) -> usize {
+        self.tabs.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.tabs.is_empty()
+    }
 
     pub fn tab_ids(&self) -> Vec<&str> {
         self.tabs.iter().map(|t| t.id.as_str()).collect()
     }
 
-    pub fn tabs(&self) -> &[Tab] { &self.tabs }
+    pub fn tabs(&self) -> &[Tab] {
+        &self.tabs
+    }
 
     // ── Internal ────────────────────────────────────────────────
 
     fn activate_nearest(&mut self, removed_pos: usize) {
-        if self.tabs.is_empty() { return; }
+        if self.tabs.is_empty() {
+            return;
+        }
         let n = self.tabs.len();
         let start = removed_pos.min(n - 1);
         for i in start..n {
@@ -158,7 +198,9 @@ impl TabGroup {
 }
 
 impl Default for TabGroup {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────

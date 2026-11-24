@@ -250,53 +250,61 @@ impl Condition {
                     None => return false,
                 };
                 match self.operator {
-                    Operator::Equals => {
-                        self.value.first().map_or(false, |v| v == attr_val)
-                    }
-                    Operator::NotEquals => {
-                        self.value.first().map_or(true, |v| v != attr_val)
-                    }
-                    Operator::Contains => {
-                        self.value.first().map_or(false, |v| attr_val.contains(v.as_str()))
-                    }
-                    Operator::StartsWith => {
-                        self.value.first().map_or(false, |v| attr_val.starts_with(v.as_str()))
-                    }
-                    Operator::EndsWith => {
-                        self.value.first().map_or(false, |v| attr_val.ends_with(v.as_str()))
-                    }
+                    Operator::Equals => self.value.first().map_or(false, |v| v == attr_val),
+                    Operator::NotEquals => self.value.first().map_or(true, |v| v != attr_val),
+                    Operator::Contains => self
+                        .value
+                        .first()
+                        .map_or(false, |v| attr_val.contains(v.as_str())),
+                    Operator::StartsWith => self
+                        .value
+                        .first()
+                        .map_or(false, |v| attr_val.starts_with(v.as_str())),
+                    Operator::EndsWith => self
+                        .value
+                        .first()
+                        .map_or(false, |v| attr_val.ends_with(v.as_str())),
                     Operator::In => self.value.contains(attr_val),
-                    Operator::GreaterThan => {
-                        self.value.first().and_then(|v| {
+                    Operator::GreaterThan => self
+                        .value
+                        .first()
+                        .and_then(|v| {
                             let a: f64 = attr_val.parse().ok()?;
                             let b: f64 = v.parse().ok()?;
                             Some(a > b)
-                        }).unwrap_or(false)
-                    }
-                    Operator::LessThan => {
-                        self.value.first().and_then(|v| {
+                        })
+                        .unwrap_or(false),
+                    Operator::LessThan => self
+                        .value
+                        .first()
+                        .and_then(|v| {
                             let a: f64 = attr_val.parse().ok()?;
                             let b: f64 = v.parse().ok()?;
                             Some(a < b)
-                        }).unwrap_or(false)
-                    }
-                    Operator::GreaterThanOrEqual => {
-                        self.value.first().and_then(|v| {
+                        })
+                        .unwrap_or(false),
+                    Operator::GreaterThanOrEqual => self
+                        .value
+                        .first()
+                        .and_then(|v| {
                             let a: f64 = attr_val.parse().ok()?;
                             let b: f64 = v.parse().ok()?;
                             Some(a >= b)
-                        }).unwrap_or(false)
-                    }
-                    Operator::LessThanOrEqual => {
-                        self.value.first().and_then(|v| {
+                        })
+                        .unwrap_or(false),
+                    Operator::LessThanOrEqual => self
+                        .value
+                        .first()
+                        .and_then(|v| {
                             let a: f64 = attr_val.parse().ok()?;
                             let b: f64 = v.parse().ok()?;
                             Some(a <= b)
-                        }).unwrap_or(false)
-                    }
-                    Operator::Matches => {
-                        self.value.first().map_or(false, |pat| glob_match(pat, attr_val))
-                    }
+                        })
+                        .unwrap_or(false),
+                    Operator::Matches => self
+                        .value
+                        .first()
+                        .map_or(false, |pat| glob_match(pat, attr_val)),
                     Operator::Exists => unreachable!(),
                 }
             }
@@ -318,7 +326,11 @@ fn glob_match(pattern: &str, value: &str) -> bool {
     prev[0] = true;
 
     for i in 1..=pn {
-        curr[0] = if p_bytes[i - 1] == b'*' { prev[0] } else { false };
+        curr[0] = if p_bytes[i - 1] == b'*' {
+            prev[0]
+        } else {
+            false
+        };
         for j in 1..=vn {
             if p_bytes[i - 1] == b'*' {
                 // * can match zero chars (prev[j]) or one more char (curr[j-1])
@@ -909,8 +921,11 @@ mod tests {
 
     #[test]
     fn test_policy_rule_deny() {
-        let rule = PolicyRule::new("r1", Decision::Deny)
-            .with_target(Condition::equals("resource", "classification", "secret"));
+        let rule = PolicyRule::new("r1", Decision::Deny).with_target(Condition::equals(
+            "resource",
+            "classification",
+            "secret",
+        ));
         let attrs = AttributeSet::new()
             .with_resource("classification", "secret")
             .with_subject("role", "admin");
@@ -920,7 +935,10 @@ mod tests {
     #[test]
     fn test_deny_overrides_combining() {
         let decisions = vec![Decision::Permit, Decision::Deny, Decision::Permit];
-        assert_eq!(combine(&decisions, CombiningAlgorithm::DenyOverrides), Decision::Deny);
+        assert_eq!(
+            combine(&decisions, CombiningAlgorithm::DenyOverrides),
+            Decision::Deny
+        );
     }
 
     #[test]
@@ -944,9 +962,15 @@ mod tests {
     #[test]
     fn test_unanimous_permit() {
         let d1 = vec![Decision::Permit, Decision::Permit];
-        assert_eq!(combine(&d1, CombiningAlgorithm::UnanimousPermit), Decision::Permit);
+        assert_eq!(
+            combine(&d1, CombiningAlgorithm::UnanimousPermit),
+            Decision::Permit
+        );
         let d2 = vec![Decision::Permit, Decision::Deny];
-        assert_eq!(combine(&d2, CombiningAlgorithm::UnanimousPermit), Decision::Deny);
+        assert_eq!(
+            combine(&d2, CombiningAlgorithm::UnanimousPermit),
+            Decision::Deny
+        );
     }
 
     #[test]
@@ -958,8 +982,11 @@ mod tests {
                     .with_condition(Condition::equals("action", "type", "read")),
             )
             .with_rule(
-                PolicyRule::new("deny-secret", Decision::Deny)
-                    .with_target(Condition::equals("resource", "classification", "secret")),
+                PolicyRule::new("deny-secret", Decision::Deny).with_target(Condition::equals(
+                    "resource",
+                    "classification",
+                    "secret",
+                )),
             );
         assert_eq!(policy.evaluate(&admin_request()), Decision::Permit);
     }
@@ -967,11 +994,10 @@ mod tests {
     #[test]
     fn test_engine_evaluate() {
         let mut engine = AbacEngine::new();
-        let policy = Policy::new("p1", CombiningAlgorithm::FirstApplicable)
-            .with_rule(
-                PolicyRule::new("allow-read", Decision::Permit)
-                    .with_target(Condition::equals("action", "type", "read")),
-            );
+        let policy = Policy::new("p1", CombiningAlgorithm::FirstApplicable).with_rule(
+            PolicyRule::new("allow-read", Decision::Permit)
+                .with_target(Condition::equals("action", "type", "read")),
+        );
         engine.add_policy(policy).unwrap();
         let result = engine.evaluate(&admin_request(), 1000);
         assert_eq!(result, Decision::Permit);
@@ -990,11 +1016,10 @@ mod tests {
     #[test]
     fn test_engine_dry_run() {
         let mut engine = AbacEngine::new();
-        let policy = Policy::new("p1", CombiningAlgorithm::PermitOverrides)
-            .with_rule(
-                PolicyRule::new("allow-all", Decision::Permit)
-                    .with_target(Condition::equals("action", "type", "read")),
-            );
+        let policy = Policy::new("p1", CombiningAlgorithm::PermitOverrides).with_rule(
+            PolicyRule::new("allow-all", Decision::Permit)
+                .with_target(Condition::equals("action", "type", "read")),
+        );
         engine.add_policy(policy).unwrap();
         let result = engine.evaluate_dry_run(&admin_request());
         assert_eq!(result, Decision::Permit);
@@ -1027,11 +1052,10 @@ mod tests {
     #[test]
     fn test_disabled_policy() {
         let mut engine = AbacEngine::new();
-        let policy = Policy::new("p1", CombiningAlgorithm::FirstApplicable)
-            .with_rule(
-                PolicyRule::new("allow-all", Decision::Permit)
-                    .with_target(Condition::equals("action", "type", "read")),
-            );
+        let policy = Policy::new("p1", CombiningAlgorithm::FirstApplicable).with_rule(
+            PolicyRule::new("allow-all", Decision::Permit)
+                .with_target(Condition::equals("action", "type", "read")),
+        );
         engine.add_policy(policy).unwrap();
         engine.set_policy_enabled("p1", false).unwrap();
         let result = engine.evaluate(&admin_request(), 1000);
@@ -1041,16 +1065,17 @@ mod tests {
 
     #[test]
     fn test_policy_set_evaluation() {
-        let p1 = Policy::new("p-allow", CombiningAlgorithm::FirstApplicable)
-            .with_rule(
-                PolicyRule::new("r1", Decision::Permit)
-                    .with_target(Condition::equals("subject", "role", "admin")),
-            );
-        let p2 = Policy::new("p-deny-secret", CombiningAlgorithm::FirstApplicable)
-            .with_rule(
-                PolicyRule::new("r2", Decision::Deny)
-                    .with_target(Condition::equals("resource", "classification", "secret")),
-            );
+        let p1 = Policy::new("p-allow", CombiningAlgorithm::FirstApplicable).with_rule(
+            PolicyRule::new("r1", Decision::Permit)
+                .with_target(Condition::equals("subject", "role", "admin")),
+        );
+        let p2 = Policy::new("p-deny-secret", CombiningAlgorithm::FirstApplicable).with_rule(
+            PolicyRule::new("r2", Decision::Deny).with_target(Condition::equals(
+                "resource",
+                "classification",
+                "secret",
+            )),
+        );
         let ps = PolicySet::new("ps1", CombiningAlgorithm::DenyOverrides)
             .with_policy(p1)
             .with_policy(p2);

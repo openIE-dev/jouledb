@@ -243,8 +243,7 @@ impl HNSWIndex {
                             // Keep results bounded to ef
                             if results.len() > ef {
                                 results.sort_by(|a, b| {
-                                    a.1.partial_cmp(&b.1)
-                                        .unwrap_or(std::cmp::Ordering::Equal)
+                                    a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal)
                                 });
                                 results.truncate(ef);
                             }
@@ -599,9 +598,7 @@ mod tests {
         let mut index = HNSWIndex::new(dim, 8, 32);
 
         for i in 0..200 {
-            let point: Vec<f32> = (0..dim)
-                .map(|d| ((i * 7 + d * 13) as f32).sin())
-                .collect();
+            let point: Vec<f32> = (0..dim).map(|d| ((i * 7 + d * 13) as f32).sin()).collect();
             index.insert(format!("p{}", i), point).unwrap();
         }
 

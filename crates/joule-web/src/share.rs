@@ -100,41 +100,27 @@ impl ShareData {
         let encoded_text = url_encode(&self.text);
 
         match target {
-            ShareTarget::Twitter => {
-                Some(format!(
-                    "https://twitter.com/intent/tweet?text={encoded_text}&url={encoded_url}"
-                ))
-            }
-            ShareTarget::Facebook => {
-                Some(format!(
-                    "https://www.facebook.com/sharer/sharer.php?u={encoded_url}"
-                ))
-            }
-            ShareTarget::LinkedIn => {
-                Some(format!(
-                    "https://www.linkedin.com/sharing/share-offsite/?url={encoded_url}"
-                ))
-            }
-            ShareTarget::Reddit => {
-                Some(format!(
-                    "https://www.reddit.com/submit?url={encoded_url}&title={encoded_title}"
-                ))
-            }
-            ShareTarget::Email => {
-                Some(format!(
-                    "mailto:?subject={encoded_title}&body={encoded_text}%0A{encoded_url}"
-                ))
-            }
-            ShareTarget::WhatsApp => {
-                Some(format!(
-                    "https://api.whatsapp.com/send?text={encoded_text}%20{encoded_url}"
-                ))
-            }
-            ShareTarget::Telegram => {
-                Some(format!(
-                    "https://t.me/share/url?url={encoded_url}&text={encoded_text}"
-                ))
-            }
+            ShareTarget::Twitter => Some(format!(
+                "https://twitter.com/intent/tweet?text={encoded_text}&url={encoded_url}"
+            )),
+            ShareTarget::Facebook => Some(format!(
+                "https://www.facebook.com/sharer/sharer.php?u={encoded_url}"
+            )),
+            ShareTarget::LinkedIn => Some(format!(
+                "https://www.linkedin.com/sharing/share-offsite/?url={encoded_url}"
+            )),
+            ShareTarget::Reddit => Some(format!(
+                "https://www.reddit.com/submit?url={encoded_url}&title={encoded_title}"
+            )),
+            ShareTarget::Email => Some(format!(
+                "mailto:?subject={encoded_title}&body={encoded_text}%0A{encoded_url}"
+            )),
+            ShareTarget::WhatsApp => Some(format!(
+                "https://api.whatsapp.com/send?text={encoded_text}%20{encoded_url}"
+            )),
+            ShareTarget::Telegram => Some(format!(
+                "https://t.me/share/url?url={encoded_url}&text={encoded_text}"
+            )),
             ShareTarget::Copy => None, // Copy is handled client-side
         }
     }
@@ -309,10 +295,7 @@ impl ShareCountTracker {
 
     /// Get total shares for a URL.
     pub fn total_for_url(&self, url: &str) -> u64 {
-        self.counts
-            .get(url)
-            .map(|m| m.values().sum())
-            .unwrap_or(0)
+        self.counts.get(url).map(|m| m.values().sum()).unwrap_or(0)
     }
 
     /// Get shares for a URL on a specific target.

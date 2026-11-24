@@ -17,7 +17,10 @@ pub struct Property {
 
 impl Property {
     pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
-        Self { name: name.into(), value: value.into() }
+        Self {
+            name: name.into(),
+            value: value.into(),
+        }
     }
 }
 
@@ -87,18 +90,27 @@ impl fmt::Display for Pseudo {
 /// A single keyframe step.
 #[derive(Debug, Clone)]
 pub struct KeyframeStep {
-    pub position: String,  // "0%", "50%", "from", "to"
+    pub position: String, // "0%", "50%", "from", "to"
     pub properties: Vec<Property>,
 }
 
 impl KeyframeStep {
     pub fn new(position: impl Into<String>) -> Self {
-        Self { position: position.into(), properties: Vec::new() }
+        Self {
+            position: position.into(),
+            properties: Vec::new(),
+        }
     }
 
-    pub fn at(pct: u8) -> Self { Self::new(format!("{pct}%")) }
-    pub fn from() -> Self { Self::new("from") }
-    pub fn to() -> Self { Self::new("to") }
+    pub fn at(pct: u8) -> Self {
+        Self::new(format!("{pct}%"))
+    }
+    pub fn from() -> Self {
+        Self::new("from")
+    }
+    pub fn to() -> Self {
+        Self::new("to")
+    }
 
     pub fn prop(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
         self.properties.push(Property::new(name, value));
@@ -125,7 +137,10 @@ pub struct Keyframes {
 
 impl Keyframes {
     pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), steps: Vec::new() }
+        Self {
+            name: name.into(),
+            steps: Vec::new(),
+        }
     }
 
     pub fn step(mut self, step: KeyframeStep) -> Self {
@@ -172,7 +187,12 @@ impl StyleRule {
     }
 
     /// Add property under a pseudo-class/element.
-    pub fn pseudo(mut self, pseudo: Pseudo, name: impl Into<String>, value: impl Into<String>) -> Self {
+    pub fn pseudo(
+        mut self,
+        pseudo: Pseudo,
+        name: impl Into<String>,
+        value: impl Into<String>,
+    ) -> Self {
         self.pseudo_rules
             .entry(pseudo)
             .or_default()
@@ -181,7 +201,12 @@ impl StyleRule {
     }
 
     /// Add property under a media query.
-    pub fn media(mut self, query: impl Into<String>, name: impl Into<String>, value: impl Into<String>) -> Self {
+    pub fn media(
+        mut self,
+        query: impl Into<String>,
+        name: impl Into<String>,
+        value: impl Into<String>,
+    ) -> Self {
         let q = query.into();
         if let Some(entry) = self.media_rules.iter_mut().find(|(mq, _)| mq == &q) {
             entry.1.push(Property::new(name, value));
@@ -228,7 +253,9 @@ impl StyleRule {
     }
 
     /// Count of base properties.
-    pub fn property_count(&self) -> usize { self.properties.len() }
+    pub fn property_count(&self) -> usize {
+        self.properties.len()
+    }
 }
 
 // ── Class Name Generator ─────────────────────────────────────────
@@ -241,7 +268,10 @@ pub struct ClassNameGenerator {
 
 impl ClassNameGenerator {
     pub fn new(prefix: impl Into<String>) -> Self {
-        Self { prefix: prefix.into(), counter: 0 }
+        Self {
+            prefix: prefix.into(),
+            counter: 0,
+        }
     }
 
     /// Generate a unique class name.
@@ -267,7 +297,9 @@ fn simple_hash(s: &str) -> u64 {
 }
 
 fn to_base36(mut n: u64) -> String {
-    if n == 0 { return "0".to_string(); }
+    if n == 0 {
+        return "0".to_string();
+    }
     let chars: Vec<char> = "0123456789abcdefghijklmnopqrstuvwxyz".chars().collect();
     let mut result = Vec::new();
     while n > 0 {
@@ -290,7 +322,11 @@ pub struct StyleSheet {
 
 impl StyleSheet {
     pub fn new() -> Self {
-        Self { rules: Vec::new(), keyframes: Vec::new(), global_vars: BTreeMap::new() }
+        Self {
+            rules: Vec::new(),
+            keyframes: Vec::new(),
+            global_vars: BTreeMap::new(),
+        }
     }
 
     /// Add a style rule.
@@ -338,29 +374,55 @@ impl StyleSheet {
     }
 
     /// Number of rules.
-    pub fn rule_count(&self) -> usize { self.rules.len() }
+    pub fn rule_count(&self) -> usize {
+        self.rules.len()
+    }
 
     /// Number of keyframe animations.
-    pub fn keyframe_count(&self) -> usize { self.keyframes.len() }
+    pub fn keyframe_count(&self) -> usize {
+        self.keyframes.len()
+    }
 }
 
 impl Default for StyleSheet {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Convenience Builders ─────────────────────────────────────────
 
 /// Quick display property.
-pub fn display(value: &str) -> Property { Property::new("display", value) }
-pub fn flex() -> Property { Property::new("display", "flex") }
-pub fn grid() -> Property { Property::new("display", "grid") }
-pub fn margin(value: &str) -> Property { Property::new("margin", value) }
-pub fn padding(value: &str) -> Property { Property::new("padding", value) }
-pub fn color(value: &str) -> Property { Property::new("color", value) }
-pub fn background(value: &str) -> Property { Property::new("background", value) }
-pub fn font_size(value: &str) -> Property { Property::new("font-size", value) }
-pub fn width(value: &str) -> Property { Property::new("width", value) }
-pub fn height(value: &str) -> Property { Property::new("height", value) }
+pub fn display(value: &str) -> Property {
+    Property::new("display", value)
+}
+pub fn flex() -> Property {
+    Property::new("display", "flex")
+}
+pub fn grid() -> Property {
+    Property::new("display", "grid")
+}
+pub fn margin(value: &str) -> Property {
+    Property::new("margin", value)
+}
+pub fn padding(value: &str) -> Property {
+    Property::new("padding", value)
+}
+pub fn color(value: &str) -> Property {
+    Property::new("color", value)
+}
+pub fn background(value: &str) -> Property {
+    Property::new("background", value)
+}
+pub fn font_size(value: &str) -> Property {
+    Property::new("font-size", value)
+}
+pub fn width(value: &str) -> Property {
+    Property::new("width", value)
+}
+pub fn height(value: &str) -> Property {
+    Property::new("height", value)
+}
 
 /// Create a fade-in animation.
 pub fn fade_in(name: &str, duration_ms: u32) -> (Keyframes, Property) {
@@ -374,12 +436,16 @@ pub fn fade_in(name: &str, duration_ms: u32) -> (Keyframes, Property) {
 /// Create a slide-in-from-bottom animation.
 pub fn slide_in_up(name: &str, distance_px: u32, duration_ms: u32) -> (Keyframes, Property) {
     let kf = Keyframes::new(name)
-        .step(KeyframeStep::from()
-            .prop("transform", format!("translateY({distance_px}px)"))
-            .prop("opacity", "0"))
-        .step(KeyframeStep::to()
-            .prop("transform", "translateY(0)")
-            .prop("opacity", "1"));
+        .step(
+            KeyframeStep::from()
+                .prop("transform", format!("translateY({distance_px}px)"))
+                .prop("opacity", "0"),
+        )
+        .step(
+            KeyframeStep::to()
+                .prop("transform", "translateY(0)")
+                .prop("opacity", "1"),
+        );
     let anim = Property::new("animation", format!("{name} {duration_ms}ms ease-out"));
     (kf, anim)
 }
@@ -486,13 +552,17 @@ mod tests {
         let sheet = StyleSheet::new()
             .var("primary", "#007bff")
             .var("spacing", "8px")
-            .keyframes(Keyframes::new("fadeIn")
-                .step(KeyframeStep::from().prop("opacity", "0"))
-                .step(KeyframeStep::to().prop("opacity", "1")))
-            .rule(StyleRule::new(".card")
-                .prop("padding", "var(--spacing)")
-                .prop("background", "white")
-                .pseudo(Pseudo::Hover, "box-shadow", "0 2px 8px rgba(0,0,0,0.1)"));
+            .keyframes(
+                Keyframes::new("fadeIn")
+                    .step(KeyframeStep::from().prop("opacity", "0"))
+                    .step(KeyframeStep::to().prop("opacity", "1")),
+            )
+            .rule(
+                StyleRule::new(".card")
+                    .prop("padding", "var(--spacing)")
+                    .prop("background", "white")
+                    .pseudo(Pseudo::Hover, "box-shadow", "0 2px 8px rgba(0,0,0,0.1)"),
+            );
 
         let css = sheet.to_css();
         assert!(css.contains(":root {"));
@@ -519,7 +589,10 @@ mod tests {
         assert_eq!(Pseudo::Before.to_string(), "::before");
         assert_eq!(Pseudo::After.to_string(), "::after");
         assert_eq!(Pseudo::FocusVisible.to_string(), ":focus-visible");
-        assert_eq!(Pseudo::NthChild("2n+1".into()).to_string(), ":nth-child(2n+1)");
+        assert_eq!(
+            Pseudo::NthChild("2n+1".into()).to_string(),
+            ":nth-child(2n+1)"
+        );
         assert_eq!(Pseudo::Selection.to_string(), "::selection");
         assert_eq!(Pseudo::Marker.to_string(), "::marker");
     }
@@ -587,8 +660,11 @@ mod tests {
 
     #[test]
     fn test_custom_pseudo() {
-        let rule = StyleRule::new(".nav")
-            .pseudo(Pseudo::Custom(":is(.active, .current)".into()), "font-weight", "bold");
+        let rule = StyleRule::new(".nav").pseudo(
+            Pseudo::Custom(":is(.active, .current)".into()),
+            "font-weight",
+            "bold",
+        );
 
         let css = rule.to_css();
         assert!(css.contains(".nav:is(.active, .current) {"));
@@ -624,9 +700,7 @@ mod tests {
 
     #[test]
     fn test_stylesheet_vars_only() {
-        let sheet = StyleSheet::new()
-            .var("bg", "white")
-            .var("fg", "black");
+        let sheet = StyleSheet::new().var("bg", "white").var("fg", "black");
 
         let css = sheet.to_css();
         assert!(css.contains(":root {"));

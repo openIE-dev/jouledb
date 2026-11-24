@@ -126,19 +126,37 @@ impl Default for ProjectionConfig {
 
 impl ProjectionConfig {
     pub fn new(kind: ProjectionKind) -> Self {
-        Self { kind, ..Default::default() }
+        Self {
+            kind,
+            ..Default::default()
+        }
     }
 
-    pub fn with_central_meridian(mut self, cm: f64) -> Self { self.central_meridian = cm; self }
-    pub fn with_lat_origin(mut self, lo: f64) -> Self { self.lat_origin = lo; self }
+    pub fn with_central_meridian(mut self, cm: f64) -> Self {
+        self.central_meridian = cm;
+        self
+    }
+    pub fn with_lat_origin(mut self, lo: f64) -> Self {
+        self.lat_origin = lo;
+        self
+    }
     pub fn with_std_parallels(mut self, p1: f64, p2: f64) -> Self {
         self.std_parallel_1 = p1;
         self.std_parallel_2 = p2;
         self
     }
-    pub fn with_scale_factor(mut self, k: f64) -> Self { self.scale_factor = k; self }
-    pub fn with_false_easting(mut self, fe: f64) -> Self { self.false_easting = fe; self }
-    pub fn with_false_northing(mut self, fn_: f64) -> Self { self.false_northing = fn_; self }
+    pub fn with_scale_factor(mut self, k: f64) -> Self {
+        self.scale_factor = k;
+        self
+    }
+    pub fn with_false_easting(mut self, fe: f64) -> Self {
+        self.false_easting = fe;
+        self
+    }
+    pub fn with_false_northing(mut self, fn_: f64) -> Self {
+        self.false_northing = fn_;
+        self
+    }
     pub fn with_ellipsoid(mut self, a: f64, e2: f64) -> Self {
         self.semi_major = a;
         self.ecc_sq = e2;
@@ -149,7 +167,11 @@ impl ProjectionConfig {
 // ── Forward transforms ─────────────────────────────────────────
 
 /// Forward projection: geographic (degrees) → projected (metres).
-pub fn forward(cfg: &ProjectionConfig, lat_deg: f64, lon_deg: f64) -> Result<ProjectedPoint, ProjectionError> {
+pub fn forward(
+    cfg: &ProjectionConfig,
+    lat_deg: f64,
+    lon_deg: f64,
+) -> Result<ProjectedPoint, ProjectionError> {
     match cfg.kind {
         ProjectionKind::Mercator => forward_mercator(cfg, lat_deg, lon_deg),
         ProjectionKind::TransverseMercator => forward_tm(cfg, lat_deg, lon_deg),
@@ -160,7 +182,11 @@ pub fn forward(cfg: &ProjectionConfig, lat_deg: f64, lon_deg: f64) -> Result<Pro
 }
 
 /// Inverse projection: projected (metres) → geographic (degrees).
-pub fn inverse(cfg: &ProjectionConfig, easting: f64, northing: f64) -> Result<(f64, f64), ProjectionError> {
+pub fn inverse(
+    cfg: &ProjectionConfig,
+    easting: f64,
+    northing: f64,
+) -> Result<(f64, f64), ProjectionError> {
     match cfg.kind {
         ProjectionKind::Mercator => inverse_mercator(cfg, easting, northing),
         ProjectionKind::TransverseMercator => inverse_tm(cfg, easting, northing),
@@ -181,9 +207,15 @@ pub fn scale_at(cfg: &ProjectionConfig, lat_deg: f64) -> f64 {
 
 // ── Mercator ───────────────────────────────────────────────────
 
-fn forward_mercator(cfg: &ProjectionConfig, lat_deg: f64, lon_deg: f64) -> Result<ProjectedPoint, ProjectionError> {
+fn forward_mercator(
+    cfg: &ProjectionConfig,
+    lat_deg: f64,
+    lon_deg: f64,
+) -> Result<ProjectedPoint, ProjectionError> {
     if lat_deg.abs() > 85.051_129 {
-        return Err(ProjectionError::DomainError("latitude beyond Mercator limit".into()));
+        return Err(ProjectionError::DomainError(
+            "latitude beyond Mercator limit".into(),
+        ));
     }
     let lat = lat_deg * DEG;
     let lon = lon_deg * DEG;
@@ -191,13 +223,18 @@ fn forward_mercator(cfg: &ProjectionConfig, lat_deg: f64, lon_deg: f64) -> Resul
     let e = cfg.ecc_sq.sqrt();
     let esin = e * lat.sin();
     let x = cfg.semi_major * cfg.scale_factor * (lon - cm) + cfg.false_easting;
-    let y = cfg.semi_major * cfg.scale_factor
+    let y = cfg.semi_major
+        * cfg.scale_factor
         * ((PI / 4.0 + lat / 2.0).tan() * ((1.0 - esin) / (1.0 + esin)).powf(e / 2.0)).ln()
         + cfg.false_northing;
     Ok(ProjectedPoint::new(x, y))
 }
 
-fn inverse_mercator(cfg: &ProjectionConfig, easting: f64, northing: f64) -> Result<(f64, f64), ProjectionError> {
+fn inverse_mercator(
+    cfg: &ProjectionConfig,
+    easting: f64,
+    northing: f64,
+) -> Result<(f64, f64), ProjectionError> {
     let x = (easting - cfg.false_easting) / (cfg.semi_major * cfg.scale_factor);
     let y = (northing - cfg.false_northing) / (cfg.semi_major * cfg.scale_factor);
     let lon = x / DEG + cfg.central_meridian;
@@ -212,7 +249,11 @@ fn inverse_mercator(cfg: &ProjectionConfig, easting: f64, northing: f64) -> Resu
 
 // ── Transverse Mercator ────────────────────────────────────────
 
-fn forward_tm(cfg: &ProjectionConfig, lat_deg: f64, lon_deg: f64) -> Result<ProjectedPoint, ProjectionError> {
+fn forward_tm(
+    cfg: &ProjectionConfig,
+    lat_deg: f64,
+    lon_deg: f64,
+) -> Result<ProjectedPoint, ProjectionError> {
     let lat = lat_deg * DEG;
     let lon = lon_deg * DEG;
     let cm = cfg.central_meridian * DEG;
@@ -227,7 +268,8 @@ fn forward_tm(cfg: &ProjectionConfig, lat_deg: f64, lon_deg: f64) -> Result<Proj
     let m0 = meridional_arc(cfg.semi_major, e2, cfg.lat_origin * DEG);
 
     let x = cfg.false_easting
-        + cfg.scale_factor * n_val
+        + cfg.scale_factor
+            * n_val
             * (a_val
                 + a_val.powi(3) / 6.0 * (1.0 - t * t + c)
                 + a_val.powi(5) / 120.0 * (5.0 - 18.0 * t * t + t.powi(4)));
@@ -235,19 +277,25 @@ fn forward_tm(cfg: &ProjectionConfig, lat_deg: f64, lon_deg: f64) -> Result<Proj
     let y = cfg.false_northing
         + cfg.scale_factor
             * (m - m0
-                + n_val * t
+                + n_val
+                    * t
                     * (a_val * a_val / 2.0
                         + a_val.powi(4) / 24.0 * (5.0 - t * t + 9.0 * c + 4.0 * c * c)));
 
     Ok(ProjectedPoint::new(x, y))
 }
 
-fn inverse_tm(cfg: &ProjectionConfig, easting: f64, northing: f64) -> Result<(f64, f64), ProjectionError> {
+fn inverse_tm(
+    cfg: &ProjectionConfig,
+    easting: f64,
+    northing: f64,
+) -> Result<(f64, f64), ProjectionError> {
     let e2 = cfg.ecc_sq;
     let ep2 = e2 / (1.0 - e2);
     let m0 = meridional_arc(cfg.semi_major, e2, cfg.lat_origin * DEG);
     let m = m0 + (northing - cfg.false_northing) / cfg.scale_factor;
-    let mu = m / (cfg.semi_major * (1.0 - e2 / 4.0 - 3.0 * e2 * e2 / 64.0 - 5.0 * e2.powi(3) / 256.0));
+    let mu =
+        m / (cfg.semi_major * (1.0 - e2 / 4.0 - 3.0 * e2 * e2 / 64.0 - 5.0 * e2.powi(3) / 256.0));
     let e1 = (1.0 - (1.0 - e2).sqrt()) / (1.0 + (1.0 - e2).sqrt());
     let phi1 = mu
         + (3.0 * e1 / 2.0 - 27.0 * e1.powi(3) / 32.0) * (2.0 * mu).sin()
@@ -261,7 +309,8 @@ fn inverse_tm(cfg: &ProjectionConfig, easting: f64, northing: f64) -> Result<(f6
 
     let lat = phi1
         - n1 * t1 / r1
-            * (d * d / 2.0 - d.powi(4) / 24.0 * (5.0 + 3.0 * t1 * t1 + 10.0 * c1 - 4.0 * c1 * c1 - 9.0 * ep2));
+            * (d * d / 2.0
+                - d.powi(4) / 24.0 * (5.0 + 3.0 * t1 * t1 + 10.0 * c1 - 4.0 * c1 * c1 - 9.0 * ep2));
     let lon = cfg.central_meridian * DEG
         + (d - d.powi(3) / 6.0 * (1.0 + 2.0 * t1 * t1 + c1)) / phi1.cos();
 
@@ -288,7 +337,11 @@ fn lcc_m(lat: f64, e2: f64) -> f64 {
     lat.cos() / (1.0 - e2 * lat.sin().powi(2)).sqrt()
 }
 
-fn forward_lcc(cfg: &ProjectionConfig, lat_deg: f64, lon_deg: f64) -> Result<ProjectedPoint, ProjectionError> {
+fn forward_lcc(
+    cfg: &ProjectionConfig,
+    lat_deg: f64,
+    lon_deg: f64,
+) -> Result<ProjectedPoint, ProjectionError> {
     let e = cfg.ecc_sq.sqrt();
     let phi = lat_deg * DEG;
     let lam = lon_deg * DEG;
@@ -314,7 +367,11 @@ fn forward_lcc(cfg: &ProjectionConfig, lat_deg: f64, lon_deg: f64) -> Result<Pro
     Ok(ProjectedPoint::new(x, y))
 }
 
-fn inverse_lcc(cfg: &ProjectionConfig, easting: f64, northing: f64) -> Result<(f64, f64), ProjectionError> {
+fn inverse_lcc(
+    cfg: &ProjectionConfig,
+    easting: f64,
+    northing: f64,
+) -> Result<(f64, f64), ProjectionError> {
     let e = cfg.ecc_sq.sqrt();
     let phi1 = cfg.std_parallel_1 * DEG;
     let phi2 = cfg.std_parallel_2 * DEG;
@@ -349,11 +406,15 @@ fn inverse_lcc(cfg: &ProjectionConfig, easting: f64, northing: f64) -> Result<(f
 
 fn albers_q(sin_lat: f64, e: f64) -> f64 {
     let esin = e * sin_lat;
-    (1.0 - e * e) * (sin_lat / (1.0 - esin * esin)
-        - (1.0 / (2.0 * e)) * ((1.0 - esin) / (1.0 + esin)).ln())
+    (1.0 - e * e)
+        * (sin_lat / (1.0 - esin * esin) - (1.0 / (2.0 * e)) * ((1.0 - esin) / (1.0 + esin)).ln())
 }
 
-fn forward_albers(cfg: &ProjectionConfig, lat_deg: f64, lon_deg: f64) -> Result<ProjectedPoint, ProjectionError> {
+fn forward_albers(
+    cfg: &ProjectionConfig,
+    lat_deg: f64,
+    lon_deg: f64,
+) -> Result<ProjectedPoint, ProjectionError> {
     let e = cfg.ecc_sq.sqrt();
     let phi = lat_deg * DEG;
     let lam = lon_deg * DEG;
@@ -379,7 +440,11 @@ fn forward_albers(cfg: &ProjectionConfig, lat_deg: f64, lon_deg: f64) -> Result<
     Ok(ProjectedPoint::new(x, y))
 }
 
-fn inverse_albers(cfg: &ProjectionConfig, easting: f64, northing: f64) -> Result<(f64, f64), ProjectionError> {
+fn inverse_albers(
+    cfg: &ProjectionConfig,
+    easting: f64,
+    northing: f64,
+) -> Result<(f64, f64), ProjectionError> {
     let e = cfg.ecc_sq.sqrt();
     let phi1 = cfg.std_parallel_1 * DEG;
     let phi2 = cfg.std_parallel_2 * DEG;
@@ -417,7 +482,11 @@ fn inverse_albers(cfg: &ProjectionConfig, easting: f64, northing: f64) -> Result
 
 // ── Stereographic ──────────────────────────────────────────────
 
-fn forward_stereo(cfg: &ProjectionConfig, lat_deg: f64, lon_deg: f64) -> Result<ProjectedPoint, ProjectionError> {
+fn forward_stereo(
+    cfg: &ProjectionConfig,
+    lat_deg: f64,
+    lon_deg: f64,
+) -> Result<ProjectedPoint, ProjectionError> {
     let phi = lat_deg * DEG;
     let lam = lon_deg * DEG;
     let phi0 = cfg.lat_origin * DEG;
@@ -431,11 +500,16 @@ fn forward_stereo(cfg: &ProjectionConfig, lat_deg: f64, lon_deg: f64) -> Result<
     }
     let k = r / denom;
     let x = cfg.false_easting + k * phi.cos() * (lam - lam0).sin();
-    let y = cfg.false_northing + k * (phi0.cos() * phi.sin() - phi0.sin() * phi.cos() * (lam - lam0).cos());
+    let y = cfg.false_northing
+        + k * (phi0.cos() * phi.sin() - phi0.sin() * phi.cos() * (lam - lam0).cos());
     Ok(ProjectedPoint::new(x, y))
 }
 
-fn inverse_stereo(cfg: &ProjectionConfig, easting: f64, northing: f64) -> Result<(f64, f64), ProjectionError> {
+fn inverse_stereo(
+    cfg: &ProjectionConfig,
+    easting: f64,
+    northing: f64,
+) -> Result<(f64, f64), ProjectionError> {
     let phi0 = cfg.lat_origin * DEG;
     let lam0 = cfg.central_meridian * DEG;
     let k0 = cfg.scale_factor;
@@ -449,8 +523,7 @@ fn inverse_stereo(cfg: &ProjectionConfig, easting: f64, northing: f64) -> Result
     }
     let c = 2.0 * (rho / r).atan();
     let lat = (c.cos() * phi0.sin() + dy * c.sin() * phi0.cos() / rho).asin();
-    let lon = lam0
-        + (dx * c.sin()).atan2(rho * phi0.cos() * c.cos() - dy * phi0.sin() * c.sin());
+    let lon = lam0 + (dx * c.sin()).atan2(rho * phi0.cos() * c.cos() - dy * phi0.sin() * c.sin());
     Ok((lat / DEG, lon / DEG))
 }
 
@@ -554,10 +627,18 @@ mod tests {
         // Equal-area means projected area is proportional to true surface area.
         // True area of a 1x1 degree cell scales with cos(lat).
         // Verify the ratio of projected areas matches the ratio of true areas.
-        let c1 = [forward(&cfg, 30.0, -90.0).unwrap(), forward(&cfg, 30.0, -89.0).unwrap(),
-                  forward(&cfg, 31.0, -89.0).unwrap(), forward(&cfg, 31.0, -90.0).unwrap()];
-        let c2 = [forward(&cfg, 40.0, -90.0).unwrap(), forward(&cfg, 40.0, -89.0).unwrap(),
-                  forward(&cfg, 41.0, -89.0).unwrap(), forward(&cfg, 41.0, -90.0).unwrap()];
+        let c1 = [
+            forward(&cfg, 30.0, -90.0).unwrap(),
+            forward(&cfg, 30.0, -89.0).unwrap(),
+            forward(&cfg, 31.0, -89.0).unwrap(),
+            forward(&cfg, 31.0, -90.0).unwrap(),
+        ];
+        let c2 = [
+            forward(&cfg, 40.0, -90.0).unwrap(),
+            forward(&cfg, 40.0, -89.0).unwrap(),
+            forward(&cfg, 41.0, -89.0).unwrap(),
+            forward(&cfg, 41.0, -90.0).unwrap(),
+        ];
         let shoelace = |pts: &[ProjectedPoint]| -> f64 {
             let n = pts.len();
             let mut s = 0.0;
@@ -571,8 +652,10 @@ mod tests {
         let area2 = shoelace(&c2);
         let projected_ratio = area1 / area2;
         let true_ratio = (30.5_f64 * DEG).cos() / (40.5_f64 * DEG).cos();
-        assert!((projected_ratio - true_ratio).abs() / true_ratio < 0.02,
-            "projected ratio {projected_ratio:.4} vs true ratio {true_ratio:.4}");
+        assert!(
+            (projected_ratio - true_ratio).abs() / true_ratio < 0.02,
+            "projected ratio {projected_ratio:.4} vs true ratio {true_ratio:.4}"
+        );
     }
 
     #[test]
@@ -603,7 +686,10 @@ mod tests {
     #[test]
     fn test_projection_kind_display() {
         assert_eq!(format!("{}", ProjectionKind::Mercator), "Mercator");
-        assert_eq!(format!("{}", ProjectionKind::TransverseMercator), "Transverse Mercator");
+        assert_eq!(
+            format!("{}", ProjectionKind::TransverseMercator),
+            "Transverse Mercator"
+        );
     }
 
     #[test]
@@ -617,8 +703,7 @@ mod tests {
 
     #[test]
     fn test_mercator_false_easting() {
-        let cfg = ProjectionConfig::new(ProjectionKind::Mercator)
-            .with_false_easting(500000.0);
+        let cfg = ProjectionConfig::new(ProjectionKind::Mercator).with_false_easting(500000.0);
         let p = forward(&cfg, 0.0, 0.0).unwrap();
         assert!((p.easting - 500000.0).abs() < TOL_M);
     }

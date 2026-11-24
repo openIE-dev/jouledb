@@ -12,35 +12,84 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0 } }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+    pub fn zero() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
 
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y }
-    pub fn cross(self, o: Self) -> f64 { self.x * o.y - self.y * o.x }
-    pub fn length(self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
-    pub fn length_sq(self) -> f64 { self.x * self.x + self.y * self.y }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y
+    }
+    pub fn cross(self, o: Self) -> f64 {
+        self.x * o.y - self.y * o.x
+    }
+    pub fn length(self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+    pub fn length_sq(self) -> f64 {
+        self.x * self.x + self.y * self.y
+    }
 
     pub fn normalized(self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { Self { x: self.x / len, y: self.y / len } }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+            }
+        }
     }
 
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y } }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s } }
-    pub fn negate(self) -> Self { Self { x: -self.x, y: -self.y } }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+        }
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
+    pub fn negate(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+        }
+    }
 
-    pub fn perpendicular(self) -> Self { Self { x: -self.y, y: self.x } }
+    pub fn perpendicular(self) -> Self {
+        Self {
+            x: -self.y,
+            y: self.x,
+        }
+    }
 
     pub fn rotate(self, angle: f64) -> Self {
         let c = angle.cos();
         let s = angle.sin();
-        Self { x: self.x * c - self.y * s, y: self.x * s + self.y * c }
+        Self {
+            x: self.x * c - self.y * s,
+            y: self.x * s + self.y * c,
+        }
     }
 }
 
 impl Default for Vec2 {
-    fn default() -> Self { Self::zero() }
+    fn default() -> Self {
+        Self::zero()
+    }
 }
 
 // ── Material ─────────────────────────────────────────────────
@@ -58,18 +107,34 @@ pub struct Material {
 
 impl Material {
     pub fn new(restitution: f64, static_friction: f64, dynamic_friction: f64) -> Self {
-        Self { restitution, static_friction, dynamic_friction }
+        Self {
+            restitution,
+            static_friction,
+            dynamic_friction,
+        }
     }
 
-    pub fn rubber() -> Self { Self::new(0.8, 0.9, 0.7) }
-    pub fn ice() -> Self { Self::new(0.05, 0.05, 0.02) }
-    pub fn steel() -> Self { Self::new(0.4, 0.6, 0.4) }
-    pub fn wood() -> Self { Self::new(0.3, 0.5, 0.3) }
-    pub fn bouncy() -> Self { Self::new(1.0, 0.0, 0.0) }
+    pub fn rubber() -> Self {
+        Self::new(0.8, 0.9, 0.7)
+    }
+    pub fn ice() -> Self {
+        Self::new(0.05, 0.05, 0.02)
+    }
+    pub fn steel() -> Self {
+        Self::new(0.4, 0.6, 0.4)
+    }
+    pub fn wood() -> Self {
+        Self::new(0.3, 0.5, 0.3)
+    }
+    pub fn bouncy() -> Self {
+        Self::new(1.0, 0.0, 0.0)
+    }
 }
 
 impl Default for Material {
-    fn default() -> Self { Self::new(0.3, 0.5, 0.3) }
+    fn default() -> Self {
+        Self::new(0.3, 0.5, 0.3)
+    }
 }
 
 // ── RigidBody ────────────────────────────────────────────────
@@ -114,8 +179,16 @@ pub struct RigidBody {
 impl RigidBody {
     /// Create a dynamic body with given mass and moment of inertia.
     pub fn new(mass: f64, inertia: f64) -> Self {
-        let (m, im) = if mass <= 0.0 { (0.0, 0.0) } else { (mass, 1.0 / mass) };
-        let (i, ii) = if inertia <= 0.0 { (0.0, 0.0) } else { (inertia, 1.0 / inertia) };
+        let (m, im) = if mass <= 0.0 {
+            (0.0, 0.0)
+        } else {
+            (mass, 1.0 / mass)
+        };
+        let (i, ii) = if inertia <= 0.0 {
+            (0.0, 0.0)
+        } else {
+            (inertia, 1.0 / inertia)
+        };
         Self {
             position: Vec2::zero(),
             velocity: Vec2::zero(),
@@ -157,10 +230,18 @@ impl RigidBody {
         Self::new(mass, inertia)
     }
 
-    pub fn mass(&self) -> f64 { self.mass }
-    pub fn inv_mass(&self) -> f64 { self.inv_mass }
-    pub fn inertia(&self) -> f64 { self.inertia }
-    pub fn inv_inertia(&self) -> f64 { self.inv_inertia }
+    pub fn mass(&self) -> f64 {
+        self.mass
+    }
+    pub fn inv_mass(&self) -> f64 {
+        self.inv_mass
+    }
+    pub fn inertia(&self) -> f64 {
+        self.inertia
+    }
+    pub fn inv_inertia(&self) -> f64 {
+        self.inv_inertia
+    }
 
     pub fn set_mass(&mut self, mass: f64) {
         if mass <= 0.0 {
@@ -194,13 +275,17 @@ impl RigidBody {
 
     /// Apply a force at center of mass (accumulated until next step).
     pub fn apply_force(&mut self, force: Vec2) {
-        if self.is_static { return; }
+        if self.is_static {
+            return;
+        }
         self.force = self.force.add(force);
     }
 
     /// Apply a force at a world-space point, generating both force and torque.
     pub fn apply_force_at_point(&mut self, force: Vec2, point: Vec2) {
-        if self.is_static { return; }
+        if self.is_static {
+            return;
+        }
         self.force = self.force.add(force);
         let r = point.sub(self.position);
         self.torque += r.cross(force);
@@ -208,19 +293,25 @@ impl RigidBody {
 
     /// Apply a torque (accumulated until next step).
     pub fn apply_torque(&mut self, torque: f64) {
-        if self.is_static { return; }
+        if self.is_static {
+            return;
+        }
         self.torque += torque;
     }
 
     /// Apply an instantaneous impulse at center of mass.
     pub fn apply_impulse(&mut self, impulse: Vec2) {
-        if self.is_static { return; }
+        if self.is_static {
+            return;
+        }
         self.velocity = self.velocity.add(impulse.scale(self.inv_mass));
     }
 
     /// Apply an impulse at a world-space point.
     pub fn apply_impulse_at_point(&mut self, impulse: Vec2, point: Vec2) {
-        if self.is_static { return; }
+        if self.is_static {
+            return;
+        }
         self.velocity = self.velocity.add(impulse.scale(self.inv_mass));
         let r = point.sub(self.position);
         self.angular_velocity += r.cross(impulse) * self.inv_inertia;
@@ -228,7 +319,9 @@ impl RigidBody {
 
     /// Semi-implicit Euler integration step.
     pub fn integrate(&mut self, dt: f64) {
-        if self.is_static { return; }
+        if self.is_static {
+            return;
+        }
 
         // Linear: F = ma => a = F/m
         let linear_accel = self.force.scale(self.inv_mass).add(self.acceleration);
@@ -248,8 +341,12 @@ impl RigidBody {
 
         self.angle += self.angular_velocity * dt;
         // Normalize angle to [-PI, PI]
-        while self.angle > PI { self.angle -= 2.0 * PI; }
-        while self.angle < -PI { self.angle += 2.0 * PI; }
+        while self.angle > PI {
+            self.angle -= 2.0 * PI;
+        }
+        while self.angle < -PI {
+            self.angle += 2.0 * PI;
+        }
 
         // Clear accumulated forces
         self.force = Vec2::zero();
@@ -302,7 +399,9 @@ pub fn resolve_collision(
     contact: Vec2,
 ) {
     let inv_mass_sum = a.inv_mass + b.inv_mass;
-    if inv_mass_sum < 1e-12 { return; }
+    if inv_mass_sum < 1e-12 {
+        return;
+    }
 
     // Positional correction (push apart)
     let correction_pct = 0.4;
@@ -315,13 +414,21 @@ pub fn resolve_collision(
     // Relative velocity at contact point
     let ra = contact.sub(a.position);
     let rb = contact.sub(b.position);
-    let va = a.velocity.add(Vec2::new(-a.angular_velocity * ra.y, a.angular_velocity * ra.x));
-    let vb = b.velocity.add(Vec2::new(-b.angular_velocity * rb.y, b.angular_velocity * rb.x));
+    let va = a.velocity.add(Vec2::new(
+        -a.angular_velocity * ra.y,
+        a.angular_velocity * ra.x,
+    ));
+    let vb = b.velocity.add(Vec2::new(
+        -b.angular_velocity * rb.y,
+        b.angular_velocity * rb.x,
+    ));
     let relative_vel = vb.sub(va);
 
     let vel_along_normal = relative_vel.dot(normal);
     // Don't resolve if separating
-    if vel_along_normal > 0.0 { return; }
+    if vel_along_normal > 0.0 {
+        return;
+    }
 
     // Restitution (use minimum)
     let e = a.material.restitution.min(b.material.restitution);
@@ -343,7 +450,9 @@ pub fn resolve_collision(
     // Friction impulse
     let tangent_vel = relative_vel.sub(normal.scale(vel_along_normal));
     let tangent_len = tangent_vel.length();
-    if tangent_len < 1e-12 { return; }
+    if tangent_len < 1e-12 {
+        return;
+    }
     let tangent = tangent_vel.scale(-1.0 / tangent_len);
 
     let ra_cross_t = ra.cross(tangent);
@@ -356,9 +465,11 @@ pub fn resolve_collision(
 
     // Coulomb friction: clamp tangential impulse
     let mu_s = (a.material.static_friction * a.material.static_friction
-        + b.material.static_friction * b.material.static_friction).sqrt();
+        + b.material.static_friction * b.material.static_friction)
+        .sqrt();
     let mu_d = (a.material.dynamic_friction * a.material.dynamic_friction
-        + b.material.dynamic_friction * b.material.dynamic_friction).sqrt();
+        + b.material.dynamic_friction * b.material.dynamic_friction)
+        .sqrt();
 
     let friction_impulse = if jt.abs() < j * mu_s {
         tangent.scale(jt)
@@ -384,7 +495,10 @@ pub struct PhysicsWorld {
 
 impl PhysicsWorld {
     pub fn new(gravity: Vec2) -> Self {
-        Self { bodies: Vec::new(), gravity }
+        Self {
+            bodies: Vec::new(),
+            gravity,
+        }
     }
 
     /// Add a body, returns its index.
@@ -414,7 +528,9 @@ impl PhysicsWorld {
 
     /// Total momentum of all bodies.
     pub fn total_momentum(&self) -> Vec2 {
-        self.bodies.iter().fold(Vec2::zero(), |acc, b| acc.add(b.momentum()))
+        self.bodies
+            .iter()
+            .fold(Vec2::zero(), |acc, b| acc.add(b.momentum()))
     }
 }
 
@@ -424,7 +540,9 @@ impl PhysicsWorld {
 mod tests {
     use super::*;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < 0.05 }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < 0.05
+    }
 
     #[test]
     fn create_dynamic_body() {

@@ -169,13 +169,8 @@ fn main() {
     let space_ok = scrubbed == 1 && bi.joules_reclaimed_uj == 150_000;
 
     let elapsed_us = t0.elapsed().as_micros();
-    let all_ok = rabitq_ok
-        && embodied_asof_ok
-        && se3_ok
-        && living_ok
-        && alp_ok
-        && capsule_ok
-        && space_ok;
+    let all_ok =
+        rabitq_ok && embodied_asof_ok && se3_ok && living_ok && alp_ok && capsule_ok && space_ok;
 
     let report = serde_json::json!({
         "all_ok": all_ok,

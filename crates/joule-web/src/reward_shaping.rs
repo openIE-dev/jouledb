@@ -97,7 +97,9 @@ pub struct PotentialShaping {
 impl PotentialShaping {
     pub fn new(potential: PotentialFunction, gamma: f64) -> Result<Self, RewardShapingError> {
         if gamma < 0.0 || gamma > 1.0 {
-            return Err(RewardShapingError::InvalidParameter("gamma must be in [0,1]".into()));
+            return Err(RewardShapingError::InvalidParameter(
+                "gamma must be in [0,1]".into(),
+            ));
         }
         Ok(Self {
             potential,
@@ -148,7 +150,9 @@ pub struct CountBasedBonus {
 impl CountBasedBonus {
     pub fn new(scale: f64) -> Result<Self, RewardShapingError> {
         if scale < 0.0 {
-            return Err(RewardShapingError::InvalidParameter("scale must be >= 0".into()));
+            return Err(RewardShapingError::InvalidParameter(
+                "scale must be >= 0".into(),
+            ));
         }
         Ok(Self {
             counts: HashMap::new(),
@@ -237,7 +241,9 @@ impl CuriosityModule {
             ));
         }
         if lr <= 0.0 {
-            return Err(RewardShapingError::InvalidParameter("lr must be > 0".into()));
+            return Err(RewardShapingError::InvalidParameter(
+                "lr must be > 0".into(),
+            ));
         }
         let input_dim = feature_dim + num_actions;
         let weights = vec![vec![0.0; input_dim]; feature_dim];
@@ -276,12 +282,7 @@ impl CuriosityModule {
     }
 
     /// Compute intrinsic reward from prediction error and update the predictor.
-    pub fn compute_reward(
-        &mut self,
-        state: &[f64],
-        action: usize,
-        next_state: &[f64],
-    ) -> f64 {
+    pub fn compute_reward(&mut self, state: &[f64], action: usize, next_state: &[f64]) -> f64 {
         let state_clamped = if state.len() >= self.feature_dim {
             &state[..self.feature_dim]
         } else {
@@ -491,7 +492,9 @@ mod tests {
     use super::*;
 
     const EPS: f64 = 1e-6;
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     #[test]
     fn test_potential_function_default() {
@@ -514,8 +517,8 @@ mod tests {
     fn test_potential_from_distances() {
         let distances = vec![(0, 4.0), (1, 3.0), (2, 2.0), (3, 1.0), (4, 0.0)];
         let pf = PotentialFunction::from_goal_distances(&distances, 4.0);
-        assert!(approx(pf.get(0), 0.0));  // 4 - 4
-        assert!(approx(pf.get(4), 4.0));  // 4 - 0
+        assert!(approx(pf.get(0), 0.0)); // 4 - 4
+        assert!(approx(pf.get(4), 4.0)); // 4 - 0
     }
 
     #[test]
@@ -632,8 +635,7 @@ mod tests {
     #[test]
     fn test_composite_reward() {
         let cb = CountBasedBonus::new(0.5).unwrap();
-        let mut comp = CompositeReward::new(1.0)
-            .with_count_bonus(cb, 1.0);
+        let mut comp = CompositeReward::new(1.0).with_count_bonus(cb, 1.0);
         let r = comp.compute(1.0, 0);
         // 1.0 * 1.0 + 1.0 * 0.5/sqrt(1) = 1.5
         assert!(approx(r, 1.5));

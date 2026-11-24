@@ -201,12 +201,8 @@ impl BinaryResonator {
         }
 
         // Identify winners
-        let (idx_x, label_x, conf_x) = codebook_x
-            .closest(&guess_x)
-            .unwrap_or((0, "", 0.0));
-        let (idx_y, label_y, conf_y) = codebook_y
-            .closest(&guess_y)
-            .unwrap_or((0, "", 0.0));
+        let (idx_x, label_x, conf_x) = codebook_x.closest(&guess_x).unwrap_or((0, "", 0.0));
+        let (idx_y, label_y, conf_y) = codebook_y.closest(&guess_y).unwrap_or((0, "", 0.0));
 
         ResonatorResult {
             factor_x: FactorResult {
@@ -290,7 +286,8 @@ mod tests {
 
         // Create two codebooks
         let codebook_x = BinaryCodebook::from_labels("colors", &["red", "green", "blue"], dim);
-        let codebook_y = BinaryCodebook::from_labels("shapes", &["circle", "square", "triangle"], dim);
+        let codebook_y =
+            BinaryCodebook::from_labels("shapes", &["circle", "square", "triangle"], dim);
 
         // Create a binding: "red" ⊗ "circle"
         let red = BinaryHV::from_hash(b"red", dim);

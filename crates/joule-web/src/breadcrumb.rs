@@ -3,7 +3,7 @@
 //! Generates breadcrumb trails from URL paths, supports ellipsis-based
 //! collapse for deep hierarchies, and emits BreadcrumbList structured data.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 // ── Core Types ──────────────────────────────────────────────────
 
@@ -45,7 +45,9 @@ impl BreadcrumbTrail {
     }
 
     pub fn push(&mut self, label: impl Into<String>, href: impl Into<String>) {
-        if let Some(last) = self.items.last_mut() { last.active = false; }
+        if let Some(last) = self.items.last_mut() {
+            last.active = false;
+        }
         self.items.push(Breadcrumb {
             label: label.into(),
             href: Some(href.into()),
@@ -55,7 +57,9 @@ impl BreadcrumbTrail {
     }
 
     pub fn push_active(&mut self, label: impl Into<String>) {
-        if let Some(last) = self.items.last_mut() { last.active = false; }
+        if let Some(last) = self.items.last_mut() {
+            last.active = false;
+        }
         self.items.push(Breadcrumb {
             label: label.into(),
             href: None,
@@ -66,21 +70,27 @@ impl BreadcrumbTrail {
 
     pub fn pop(&mut self) -> Option<Breadcrumb> {
         let item = self.items.pop();
-        if let Some(last) = self.items.last_mut() { last.active = true; }
+        if let Some(last) = self.items.last_mut() {
+            last.active = true;
+        }
         item
     }
 
-    pub fn clear(&mut self) { self.items.clear(); }
+    pub fn clear(&mut self) {
+        self.items.clear();
+    }
 
-    pub fn len(&self) -> usize { self.items.len() }
-    pub fn is_empty(&self) -> bool { self.items.is_empty() }
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
 
     /// Build a trail from a URL path like "/a/b/c".
     pub fn from_path(path: &str) -> Self {
         let mut trail = Self::new();
-        let segments: Vec<&str> = path.split('/')
-            .filter(|s| !s.is_empty())
-            .collect();
+        let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
         let mut href_acc = String::new();
         for (i, seg) in segments.iter().enumerate() {
             href_acc.push('/');
@@ -98,11 +108,21 @@ impl BreadcrumbTrail {
     /// if len() > collapse_after.
     pub fn visible_items(&self) -> Vec<BreadcrumbView> {
         let Some(collapse) = self.collapse_after else {
-            return self.items.iter().cloned().map(BreadcrumbView::Item).collect();
+            return self
+                .items
+                .iter()
+                .cloned()
+                .map(BreadcrumbView::Item)
+                .collect();
         };
         let n = self.items.len();
         if n <= collapse {
-            return self.items.iter().cloned().map(BreadcrumbView::Item).collect();
+            return self
+                .items
+                .iter()
+                .cloned()
+                .map(BreadcrumbView::Item)
+                .collect();
         }
         // Show first item, ellipsis, last (collapse - 1) items.
         let tail_count = collapse.saturating_sub(1).max(1);
@@ -116,18 +136,25 @@ impl BreadcrumbTrail {
     }
 
     /// Items as a slice.
-    pub fn items(&self) -> &[Breadcrumb] { &self.items }
+    pub fn items(&self) -> &[Breadcrumb] {
+        &self.items
+    }
 
     /// Emit BreadcrumbList JSON-LD structured data for SEO.
     pub fn to_schema_json(&self) -> Value {
-        let list: Vec<Value> = self.items.iter().enumerate().map(|(i, b)| {
-            json!({
-                "@type": "ListItem",
-                "position": i + 1,
-                "name": b.label,
-                "item": b.href.as_deref().unwrap_or("")
+        let list: Vec<Value> = self
+            .items
+            .iter()
+            .enumerate()
+            .map(|(i, b)| {
+                json!({
+                    "@type": "ListItem",
+                    "position": i + 1,
+                    "name": b.label,
+                    "item": b.href.as_deref().unwrap_or("")
+                })
             })
-        }).collect();
+            .collect();
         json!({
             "@context": "https://schema.org",
             "@type": "BreadcrumbList",
@@ -137,7 +164,9 @@ impl BreadcrumbTrail {
 }
 
 impl Default for BreadcrumbTrail {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 fn capitalize(s: &str) -> String {

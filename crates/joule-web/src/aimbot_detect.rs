@@ -65,7 +65,10 @@ impl fmt::Display for AimSample {
         write!(
             f,
             "aim(delta={:.3}rad dt={:.4}s dist={:.1} vel={:.1}rad/s)",
-            self.angle_delta, self.time_delta, self.target_distance, self.angular_velocity()
+            self.angle_delta,
+            self.time_delta,
+            self.target_distance,
+            self.angular_velocity()
         )
     }
 }
@@ -103,7 +106,12 @@ pub struct AimbotDetection {
 }
 
 impl AimbotDetection {
-    pub fn new(player_id: u64, indicator: AimbotIndicator, confidence: f64, timestamp: u64) -> Self {
+    pub fn new(
+        player_id: u64,
+        indicator: AimbotIndicator,
+        confidence: f64,
+        timestamp: u64,
+    ) -> Self {
         Self {
             player_id,
             indicator,
@@ -301,7 +309,10 @@ impl AimbotDetector {
             let conf = ((ratio - 1.0) * 0.5).clamp(0.2, 0.95);
             detections.push(
                 AimbotDetection::new(player_id, AimbotIndicator::InhumanReactionTime, conf, ts)
-                    .with_evidence(&format!("dt={:.4}s < min={:.4}s", sample.time_delta, self.config.reaction_time_min)),
+                    .with_evidence(&format!(
+                        "dt={:.4}s < min={:.4}s",
+                        sample.time_delta, self.config.reaction_time_min
+                    )),
             );
         }
 
@@ -310,7 +321,8 @@ impl AimbotDetector {
         if tracking_var < self.config.perfect_tracking_max_variance
             && tracking_var < self.config.human_profile.tracking_variance_min
         {
-            let conf = (1.0 - tracking_var / self.config.human_profile.tracking_variance_min).clamp(0.3, 0.95);
+            let conf = (1.0 - tracking_var / self.config.human_profile.tracking_variance_min)
+                .clamp(0.3, 0.95);
             detections.push(
                 AimbotDetection::new(player_id, AimbotIndicator::PerfectTracking, conf, ts)
                     .with_evidence(&format!("variance={:.6}", tracking_var)),
@@ -324,7 +336,12 @@ impl AimbotDetector {
             let conf = (snap_ratio * 0.9).clamp(0.2, 0.95);
             detections.push(
                 AimbotDetection::new(player_id, AimbotIndicator::SnapToTarget, conf, ts)
-                    .with_evidence(&format!("snap_ratio={:.2} ({}/{})", snap_ratio, snap_count, data.samples.len())),
+                    .with_evidence(&format!(
+                        "snap_ratio={:.2} ({}/{})",
+                        snap_ratio,
+                        snap_count,
+                        data.samples.len()
+                    )),
             );
         }
 
@@ -448,7 +465,11 @@ mod tests {
         let mut det = AimbotDetector::with_default_config();
         fill_human_samples(&mut det, 1, 10);
         let results = det.submit_sample(1, sample(1.0, 0.02, 50.0, 100));
-        assert!(results.iter().any(|d| d.indicator == AimbotIndicator::InhumanReactionTime));
+        assert!(
+            results
+                .iter()
+                .any(|d| d.indicator == AimbotIndicator::InhumanReactionTime)
+        );
     }
 
     #[test]
@@ -456,19 +477,28 @@ mod tests {
         let mut det = AimbotDetector::with_default_config();
         fill_human_samples(&mut det, 1, 10);
         let results = det.submit_sample(1, sample(0.3, 0.25, 50.0, 100));
-        assert!(!results.iter().any(|d| d.indicator == AimbotIndicator::InhumanReactionTime));
+        assert!(
+            !results
+                .iter()
+                .any(|d| d.indicator == AimbotIndicator::InhumanReactionTime)
+        );
     }
 
     #[test]
     fn test_snap_to_target() {
-        let cfg = AimbotDetectorConfig::default().with_snap_threshold(10.0).with_min_samples(3);
+        let cfg = AimbotDetectorConfig::default()
+            .with_snap_threshold(10.0)
+            .with_min_samples(3);
         let mut det = AimbotDetector::new(cfg);
         for i in 0..10 {
             det.submit_sample(1, sample(5.0, 0.01, 50.0, i));
         }
         let total = det.player_detection_count(1);
         let dets = det.player_detections(1).unwrap();
-        assert!(dets.iter().any(|d| d.indicator == AimbotIndicator::SnapToTarget));
+        assert!(
+            dets.iter()
+                .any(|d| d.indicator == AimbotIndicator::SnapToTarget)
+        );
         assert!(total > 0);
     }
 
@@ -485,7 +515,10 @@ mod tests {
             det.submit_sample(1, sample(0.001, 0.2, 50.0, i));
         }
         let dets = det.player_detections(1).unwrap();
-        assert!(dets.iter().any(|d| d.indicator == AimbotIndicator::PerfectTracking));
+        assert!(
+            dets.iter()
+                .any(|d| d.indicator == AimbotIndicator::PerfectTracking)
+        );
     }
 
     #[test]
@@ -509,7 +542,10 @@ mod tests {
     #[test]
     fn test_player_not_found() {
         let det = AimbotDetector::with_default_config();
-        assert!(matches!(det.player_detections(99), Err(AimbotError::PlayerNotFound(99))));
+        assert!(matches!(
+            det.player_detections(99),
+            Err(AimbotError::PlayerNotFound(99))
+        ));
     }
 
     #[test]
@@ -548,8 +584,14 @@ mod tests {
 
     #[test]
     fn test_indicator_display() {
-        assert_eq!(format!("{}", AimbotIndicator::PerfectTracking), "PerfectTracking");
-        assert_eq!(format!("{}", AimbotIndicator::AbnormalAccuracy), "AbnormalAccuracy");
+        assert_eq!(
+            format!("{}", AimbotIndicator::PerfectTracking),
+            "PerfectTracking"
+        );
+        assert_eq!(
+            format!("{}", AimbotIndicator::AbnormalAccuracy),
+            "AbnormalAccuracy"
+        );
     }
 
     #[test]

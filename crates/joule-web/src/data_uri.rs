@@ -181,10 +181,7 @@ impl DataUri {
 
     /// Get the main media type (before the slash).
     pub fn main_type(&self) -> &str {
-        self.media_type
-            .split('/')
-            .next()
-            .unwrap_or("application")
+        self.media_type.split('/').next().unwrap_or("application")
     }
 
     /// Get the sub type (after the slash).
@@ -270,10 +267,7 @@ fn base64_encode(data: &[u8]) -> String {
 }
 
 fn base64_decode(input: &str) -> Option<Vec<u8>> {
-    let clean: String = input
-        .chars()
-        .filter(|c| !c.is_ascii_whitespace())
-        .collect();
+    let clean: String = input.chars().filter(|c| !c.is_ascii_whitespace()).collect();
 
     if clean.is_empty() {
         return Some(Vec::new());

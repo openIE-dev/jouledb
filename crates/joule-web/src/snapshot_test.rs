@@ -15,7 +15,11 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SnapshotError {
     /// Snapshot mismatch — expected vs actual differ.
-    Mismatch { name: String, expected: String, actual: String },
+    Mismatch {
+        name: String,
+        expected: String,
+        actual: String,
+    },
     /// Snapshot not found (first run).
     NotFound(String),
     /// Duplicate snapshot name within the same suite.
@@ -31,8 +35,15 @@ pub enum SnapshotError {
 impl fmt::Display for SnapshotError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Mismatch { name, expected, actual } => {
-                write!(f, "snapshot mismatch for '{name}':\n  expected: {expected}\n  actual:   {actual}")
+            Self::Mismatch {
+                name,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "snapshot mismatch for '{name}':\n  expected: {expected}\n  actual:   {actual}"
+                )
             }
             Self::NotFound(name) => write!(f, "snapshot not found: {name}"),
             Self::DuplicateName(name) => write!(f, "duplicate snapshot name: {name}"),
@@ -428,7 +439,10 @@ impl SnapshotSuite {
                     UpdateMode::AutoAccept | UpdateMode::Interactive => {
                         let old = existing.value.clone();
                         file.set(snapshot_name, actual_str.clone());
-                        Ok(SnapshotResult::Updated { old, new: actual_str })
+                        Ok(SnapshotResult::Updated {
+                            old,
+                            new: actual_str,
+                        })
                     }
                 }
             }
@@ -466,12 +480,10 @@ impl SnapshotSuite {
                     self.mismatch_count += 1;
                     Ok(SnapshotResult::Mismatch { diff })
                 }
-                UpdateMode::AutoAccept | UpdateMode::Interactive => {
-                    Ok(SnapshotResult::Updated {
-                        old: expected.to_string(),
-                        new: actual_str,
-                    })
-                }
+                UpdateMode::AutoAccept | UpdateMode::Interactive => Ok(SnapshotResult::Updated {
+                    old: expected.to_string(),
+                    new: actual_str,
+                }),
             }
         }
     }
@@ -538,22 +550,30 @@ mod tests {
     #[test]
     fn test_diff_added_line() {
         let diff = compute_diff("hello", "hello\nworld");
-        let has_added = diff.iter().any(|d| matches!(d, DiffLine::Added(s) if s == "world"));
+        let has_added = diff
+            .iter()
+            .any(|d| matches!(d, DiffLine::Added(s) if s == "world"));
         assert!(has_added);
     }
 
     #[test]
     fn test_diff_removed_line() {
         let diff = compute_diff("hello\nworld", "hello");
-        let has_removed = diff.iter().any(|d| matches!(d, DiffLine::Removed(s) if s == "world"));
+        let has_removed = diff
+            .iter()
+            .any(|d| matches!(d, DiffLine::Removed(s) if s == "world"));
         assert!(has_removed);
     }
 
     #[test]
     fn test_diff_changed_line() {
         let diff = compute_diff("hello\nfoo", "hello\nbar");
-        let has_removed = diff.iter().any(|d| matches!(d, DiffLine::Removed(s) if s == "foo"));
-        let has_added = diff.iter().any(|d| matches!(d, DiffLine::Added(s) if s == "bar"));
+        let has_removed = diff
+            .iter()
+            .any(|d| matches!(d, DiffLine::Removed(s) if s == "foo"));
+        let has_added = diff
+            .iter()
+            .any(|d| matches!(d, DiffLine::Added(s) if s == "bar"));
         assert!(has_removed);
         assert!(has_added);
     }
@@ -561,7 +581,10 @@ mod tests {
     #[test]
     fn test_diff_empty_to_content() {
         let diff = compute_diff("", "line1\nline2");
-        let added_count = diff.iter().filter(|d| matches!(d, DiffLine::Added(_))).count();
+        let added_count = diff
+            .iter()
+            .filter(|d| matches!(d, DiffLine::Added(_)))
+            .count();
         assert_eq!(added_count, 2);
     }
 
@@ -660,7 +683,10 @@ mod tests {
         let parsed = SnapshotFile::parse("roundtrip.snap", &serialized).unwrap();
 
         assert_eq!(parsed.get("first").unwrap().value, "value one");
-        assert_eq!(parsed.get("second").unwrap().value, "value two\nwith newlines");
+        assert_eq!(
+            parsed.get("second").unwrap().value,
+            "value two\nwith newlines"
+        );
     }
 
     #[test]
@@ -676,42 +702,55 @@ mod tests {
     #[test]
     fn test_suite_snapshot_match() {
         let mut suite = SnapshotSuite::new("my_tests");
-        suite.assert_snapshot("test.snap", "val", &json!(42)).unwrap();
-        let result = suite.assert_snapshot("test.snap", "val", &json!(42)).unwrap();
+        suite
+            .assert_snapshot("test.snap", "val", &json!(42))
+            .unwrap();
+        let result = suite
+            .assert_snapshot("test.snap", "val", &json!(42))
+            .unwrap();
         assert_eq!(result, SnapshotResult::Match);
     }
 
     #[test]
     fn test_suite_snapshot_mismatch_strict() {
-        let mut suite = SnapshotSuite::new("my_tests")
-            .with_update_mode(UpdateMode::Strict);
-        suite.assert_snapshot("test.snap", "val", &json!(1)).unwrap();
-        let result = suite.assert_snapshot("test.snap", "val", &json!(2)).unwrap();
+        let mut suite = SnapshotSuite::new("my_tests").with_update_mode(UpdateMode::Strict);
+        suite
+            .assert_snapshot("test.snap", "val", &json!(1))
+            .unwrap();
+        let result = suite
+            .assert_snapshot("test.snap", "val", &json!(2))
+            .unwrap();
         assert!(matches!(result, SnapshotResult::Mismatch { .. }));
         assert_eq!(suite.stats().mismatches, 1);
     }
 
     #[test]
     fn test_suite_snapshot_auto_update() {
-        let mut suite = SnapshotSuite::new("my_tests")
-            .with_update_mode(UpdateMode::AutoAccept);
-        suite.assert_snapshot("test.snap", "val", &json!("old")).unwrap();
-        let result = suite.assert_snapshot("test.snap", "val", &json!("new")).unwrap();
+        let mut suite = SnapshotSuite::new("my_tests").with_update_mode(UpdateMode::AutoAccept);
+        suite
+            .assert_snapshot("test.snap", "val", &json!("old"))
+            .unwrap();
+        let result = suite
+            .assert_snapshot("test.snap", "val", &json!("new"))
+            .unwrap();
         assert!(matches!(result, SnapshotResult::Updated { .. }));
     }
 
     #[test]
     fn test_suite_inline_match() {
         let mut suite = SnapshotSuite::new("inline_tests");
-        let result = suite.assert_inline("test.rs", 10, "42", &json!(42)).unwrap();
+        let result = suite
+            .assert_inline("test.rs", 10, "42", &json!(42))
+            .unwrap();
         assert_eq!(result, SnapshotResult::Match);
     }
 
     #[test]
     fn test_suite_inline_mismatch() {
-        let mut suite = SnapshotSuite::new("inline_tests")
-            .with_update_mode(UpdateMode::Strict);
-        let result = suite.assert_inline("test.rs", 10, "42", &json!(99)).unwrap();
+        let mut suite = SnapshotSuite::new("inline_tests").with_update_mode(UpdateMode::Strict);
+        let result = suite
+            .assert_inline("test.rs", 10, "42", &json!(99))
+            .unwrap();
         assert!(matches!(result, SnapshotResult::Mismatch { .. }));
     }
 
@@ -749,9 +788,10 @@ mod tests {
 
     #[test]
     fn test_suite_with_serializer() {
-        let mut suite = SnapshotSuite::new("raw_test")
-            .with_serializer(SnapshotSerializer::Display);
-        let result = suite.assert_snapshot("test.snap", "num", &json!(42)).unwrap();
+        let mut suite = SnapshotSuite::new("raw_test").with_serializer(SnapshotSerializer::Display);
+        let result = suite
+            .assert_snapshot("test.snap", "num", &json!(42))
+            .unwrap();
         assert_eq!(result, SnapshotResult::Created);
         let file = suite.file("test.snap").unwrap();
         assert_eq!(file.get("num").unwrap().value, "42");
@@ -810,7 +850,9 @@ mod tests {
         let old = "line1\nline2\nline3";
         let new = "line1\nmodified\nline3\nline4";
         let diff = compute_diff(old, new);
-        let has_context = diff.iter().any(|d| matches!(d, DiffLine::Context(s) if s == "line1"));
+        let has_context = diff
+            .iter()
+            .any(|d| matches!(d, DiffLine::Context(s) if s == "line1"));
         assert!(has_context);
     }
 }

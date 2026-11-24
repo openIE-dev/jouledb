@@ -154,7 +154,8 @@ pub fn compare_events(a: &StampedEvent, b: &StampedEvent) -> HappensBefore {
 /// Total order comparison: first by timestamp, then by node_id.
 /// Returns std::cmp::Ordering for use in sorting.
 pub fn total_order(a: &StampedEvent, b: &StampedEvent) -> std::cmp::Ordering {
-    a.timestamp.cmp(&b.timestamp)
+    a.timestamp
+        .cmp(&b.timestamp)
         .then(a.node_id.cmp(&b.node_id))
 }
 
@@ -169,9 +170,7 @@ pub struct EventLog {
 impl EventLog {
     /// Create a new empty event log.
     pub fn new() -> Self {
-        Self {
-            events: Vec::new(),
-        }
+        Self { events: Vec::new() }
     }
 
     /// Record an event.
@@ -203,7 +202,8 @@ impl EventLog {
 
     /// Get all events from a specific node, in timestamp order.
     pub fn events_for_node(&self, node_id: &str) -> Vec<&StampedEvent> {
-        let mut events: Vec<&StampedEvent> = self.events
+        let mut events: Vec<&StampedEvent> = self
+            .events
             .iter()
             .filter(|e| e.node_id == node_id)
             .collect();
@@ -213,7 +213,8 @@ impl EventLog {
 
     /// Get all events within a timestamp range (inclusive).
     pub fn events_in_range(&self, from: u64, to: u64) -> Vec<&StampedEvent> {
-        let mut events: Vec<&StampedEvent> = self.events
+        let mut events: Vec<&StampedEvent> = self
+            .events
             .iter()
             .filter(|e| e.timestamp >= from && e.timestamp <= to)
             .collect();
@@ -235,9 +236,7 @@ impl EventLog {
     pub fn events_by_node(&self) -> HashMap<&str, Vec<&StampedEvent>> {
         let mut map: HashMap<&str, Vec<&StampedEvent>> = HashMap::new();
         for event in &self.events {
-            map.entry(event.node_id.as_str())
-                .or_default()
-                .push(event);
+            map.entry(event.node_id.as_str()).or_default().push(event);
         }
         // Sort each node's events by timestamp.
         for events in map.values_mut() {
@@ -309,17 +308,16 @@ impl ClockSystem {
 
     /// Register a node in the system.
     pub fn add_node(&mut self, node_id: &str) {
-        self.clocks.insert(
-            node_id.to_string(),
-            LamportClock::new(node_id),
-        );
+        self.clocks
+            .insert(node_id.to_string(), LamportClock::new(node_id));
     }
 
     /// Record a local event on a node.
     pub fn local_event(&mut self, node_id: &str, payload: &str) -> Option<u64> {
         let clock = self.clocks.get_mut(node_id)?;
         let ts = clock.tick();
-        self.log.record(StampedEvent::new(ts, node_id, payload, EventKind::Local));
+        self.log
+            .record(StampedEvent::new(ts, node_id, payload, EventKind::Local));
         Some(ts)
     }
 
@@ -328,7 +326,8 @@ impl ClockSystem {
     pub fn send_event(&mut self, from: &str, payload: &str) -> Option<u64> {
         let clock = self.clocks.get_mut(from)?;
         let ts = clock.send();
-        self.log.record(StampedEvent::new(ts, from, payload, EventKind::Send));
+        self.log
+            .record(StampedEvent::new(ts, from, payload, EventKind::Send));
         Some(ts)
     }
 
@@ -336,7 +335,8 @@ impl ClockSystem {
     pub fn receive_event(&mut self, to: &str, sent_ts: u64, payload: &str) -> Option<u64> {
         let clock = self.clocks.get_mut(to)?;
         let ts = clock.receive(sent_ts);
-        self.log.record(StampedEvent::new(ts, to, payload, EventKind::Receive));
+        self.log
+            .record(StampedEvent::new(ts, to, payload, EventKind::Receive));
         Some(ts)
     }
 
@@ -502,7 +502,12 @@ mod tests {
     fn event_log_range_query() {
         let mut log = EventLog::new();
         for i in 1..=10 {
-            log.record(StampedEvent::new(i, "n1", &format!("e{}", i), EventKind::Local));
+            log.record(StampedEvent::new(
+                i,
+                "n1",
+                &format!("e{}", i),
+                EventKind::Local,
+            ));
         }
         let range = log.events_in_range(3, 7);
         assert_eq!(range.len(), 5);

@@ -247,11 +247,7 @@ impl MetalCommandBuffer {
             encoder.set_buffer(i as u64, Some(buf.metal_buffer()), 0);
         }
 
-        let grid = metal::MTLSize::new(
-            grid_size.0 as u64,
-            grid_size.1 as u64,
-            grid_size.2 as u64,
-        );
+        let grid = metal::MTLSize::new(grid_size.0 as u64, grid_size.1 as u64, grid_size.2 as u64);
         let block = metal::MTLSize::new(
             block_size.0 as u64,
             block_size.1 as u64,
@@ -470,7 +466,9 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn test_command_queue_and_buffer() {
-        let Some(device) = crate::device_or_skip("test_command_queue_and_buffer") else { return };
+        let Some(device) = crate::device_or_skip("test_command_queue_and_buffer") else {
+            return;
+        };
         let queue = device.create_command_queue().unwrap();
         let cmd_buf = queue.create_command_buffer().unwrap();
         assert_eq!(cmd_buf.status(), CommandBufferStatus::NotEnqueued);

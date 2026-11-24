@@ -13,15 +13,33 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0 } }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y } }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y } }
-    pub fn length(self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+    pub fn zero() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+        }
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+        }
+    }
+    pub fn length(self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
 }
 
 impl Default for Vec2 {
-    fn default() -> Self { Self::zero() }
+    fn default() -> Self {
+        Self::zero()
+    }
 }
 
 // ── AABB ─────────────────────────────────────────────────────
@@ -51,8 +69,12 @@ impl AABB {
         Self::new(cx - r, cy - r, cx + r, cy + r)
     }
 
-    pub fn width(&self) -> f64 { self.max.x - self.min.x }
-    pub fn height(&self) -> f64 { self.max.y - self.min.y }
+    pub fn width(&self) -> f64 {
+        self.max.x - self.min.x
+    }
+    pub fn height(&self) -> f64 {
+        self.max.y - self.min.y
+    }
 
     pub fn center(&self) -> Vec2 {
         Vec2::new(
@@ -62,13 +84,14 @@ impl AABB {
     }
 
     pub fn intersects(&self, other: &AABB) -> bool {
-        self.min.x <= other.max.x && self.max.x >= other.min.x &&
-        self.min.y <= other.max.y && self.max.y >= other.min.y
+        self.min.x <= other.max.x
+            && self.max.x >= other.min.x
+            && self.min.y <= other.max.y
+            && self.max.y >= other.min.y
     }
 
     pub fn contains_point(&self, p: Vec2) -> bool {
-        p.x >= self.min.x && p.x <= self.max.x &&
-        p.y >= self.min.y && p.y <= self.max.y
+        p.x >= self.min.x && p.x <= self.max.x && p.y >= self.min.y && p.y <= self.max.y
     }
 
     pub fn merged(&self, other: &AABB) -> AABB {
@@ -86,7 +109,10 @@ impl AABB {
 type CellKey = (i32, i32);
 
 fn cell_key(x: f64, y: f64, cell_size: f64) -> CellKey {
-    ((x / cell_size).floor() as i32, (y / cell_size).floor() as i32)
+    (
+        (x / cell_size).floor() as i32,
+        (y / cell_size).floor() as i32,
+    )
 }
 
 fn aabb_cells(aabb: &AABB, cell_size: f64) -> Vec<CellKey> {
@@ -136,13 +162,19 @@ impl SpatialHash {
     }
 
     /// Cell size.
-    pub fn cell_size(&self) -> f64 { self.cell_size }
+    pub fn cell_size(&self) -> f64 {
+        self.cell_size
+    }
 
     /// Number of stored objects.
-    pub fn len(&self) -> usize { self.count }
+    pub fn len(&self) -> usize {
+        self.count
+    }
 
     /// Whether the hash is empty.
-    pub fn is_empty(&self) -> bool { self.count == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
+    }
 
     /// Number of non-empty cells.
     pub fn cell_count(&self) -> usize {
@@ -185,8 +217,7 @@ impl SpatialHash {
             let old_cells = &tracked.cells;
 
             // Check if cells actually changed
-            if old_cells.len() == new_cells.len()
-                && old_cells.iter().all(|c| new_cells.contains(c))
+            if old_cells.len() == new_cells.len() && old_cells.iter().all(|c| new_cells.contains(c))
             {
                 // Same cells, just update the AABB
                 if let Some(t) = self.objects.get_mut(&id) {
@@ -230,13 +261,16 @@ impl SpatialHash {
             }
         }
         // Fine check: verify actual AABB overlap
-        candidates.into_iter().filter(|id| {
-            if let Some(tracked) = self.objects.get(id) {
-                tracked.aabb.intersects(region)
-            } else {
-                false
-            }
-        }).collect()
+        candidates
+            .into_iter()
+            .filter(|id| {
+                if let Some(tracked) = self.objects.get(id) {
+                    tracked.aabb.intersects(region)
+                } else {
+                    false
+                }
+            })
+            .collect()
     }
 
     /// Query all neighbors of a given object (objects in the same or adjacent cells).
@@ -312,9 +346,7 @@ pub fn optimal_cell_size(aabbs: &[AABB]) -> f64 {
     if aabbs.is_empty() {
         return 1.0;
     }
-    let total_size: f64 = aabbs.iter()
-        .map(|a| a.width().max(a.height()))
-        .sum();
+    let total_size: f64 = aabbs.iter().map(|a| a.width().max(a.height())).sum();
     let avg = total_size / aabbs.len() as f64;
     (avg * 2.0).max(0.1)
 }
@@ -322,7 +354,9 @@ pub fn optimal_cell_size(aabbs: &[AABB]) -> f64 {
 /// Compute the average number of objects per cell (load factor).
 pub fn load_factor(hash: &SpatialHash) -> f64 {
     let cells = hash.cell_count();
-    if cells == 0 { return 0.0; }
+    if cells == 0 {
+        return 0.0;
+    }
     hash.len() as f64 / cells as f64
 }
 

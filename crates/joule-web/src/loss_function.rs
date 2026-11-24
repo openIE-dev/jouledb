@@ -31,7 +31,12 @@ impl LossResult {
 
 impl fmt::Display for LossResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "LossResult(loss={:.6}, grad_dim={})", self.loss, self.grad.len())
+        write!(
+            f,
+            "LossResult(loss={:.6}, grad_dim={})",
+            self.loss,
+            self.grad.len()
+        )
     }
 }
 
@@ -225,8 +230,7 @@ impl BinaryCrossEntropyLoss {
         for (&p, &t) in predictions.iter().zip(targets.iter()) {
             let p_clamped = p.clamp(1e-15, 1.0 - 1e-15);
             let w = if t > 0.5 { self.pos_weight } else { 1.0 };
-            let sample_loss =
-                -w * (t * safe_ln(p_clamped) + (1.0 - t) * safe_ln(1.0 - p_clamped));
+            let sample_loss = -w * (t * safe_ln(p_clamped) + (1.0 - t) * safe_ln(1.0 - p_clamped));
             total += sample_loss;
             // Gradient: -w * (t/p - (1-t)/(1-p))
             let g = -w * (t / p_clamped - (1.0 - t) / (1.0 - p_clamped));
@@ -423,7 +427,11 @@ impl ContrastiveLoss {
             let hinge = (self.margin - dist).max(0.0);
             let l = 0.5 * hinge * hinge;
             // Gradient direction: push apart if within margin
-            let s = if hinge > 0.0 { hinge / dist.max(1e-15) } else { 0.0 };
+            let s = if hinge > 0.0 {
+                hinge / dist.max(1e-15)
+            } else {
+                0.0
+            };
             (l, s)
         } else {
             let l = 0.5 * dist * dist;
@@ -470,12 +478,7 @@ impl TripletLoss {
         self
     }
 
-    pub fn forward(
-        &self,
-        anchor: &[f64],
-        positive: &[f64],
-        negative: &[f64],
-    ) -> LossResult {
+    pub fn forward(&self, anchor: &[f64], positive: &[f64], negative: &[f64]) -> LossResult {
         assert_eq!(anchor.len(), positive.len());
         assert_eq!(anchor.len(), negative.len());
 
@@ -491,9 +494,7 @@ impl TripletLoss {
             anchor
                 .iter()
                 .zip(positive.iter().zip(negative.iter()))
-                .map(|(a, (p, n))| {
-                    (a - p) / d_pos_safe - (a - n) / d_neg_safe
-                })
+                .map(|(a, (p, n))| (a - p) / d_pos_safe - (a - n) / d_neg_safe)
                 .collect()
         } else {
             vec![0.0; anchor.len()]

@@ -14,7 +14,10 @@ pub struct CarouselItem {
 
 impl CarouselItem {
     pub fn new(id: impl Into<String>, content: impl Into<String>) -> Self {
-        Self { id: id.into(), content: content.into() }
+        Self {
+            id: id.into(),
+            content: content.into(),
+        }
     }
 }
 
@@ -69,7 +72,9 @@ impl Carousel {
 
     /// Advance to next slide. Returns false if at end and not looping.
     pub fn next(&mut self) -> bool {
-        if self.items.is_empty() { return false; }
+        if self.items.is_empty() {
+            return false;
+        }
         if self.current_index + 1 < self.items.len() {
             self.current_index += 1;
             self.elapsed_ms = 0;
@@ -85,7 +90,9 @@ impl Carousel {
 
     /// Go to previous slide. Returns false if at start and not looping.
     pub fn previous(&mut self) -> bool {
-        if self.items.is_empty() { return false; }
+        if self.items.is_empty() {
+            return false;
+        }
         if self.current_index > 0 {
             self.current_index -= 1;
             self.elapsed_ms = 0;
@@ -110,8 +117,12 @@ impl Carousel {
         self.items.get(self.current_index)
     }
 
-    pub fn current_index(&self) -> usize { self.current_index }
-    pub fn total_slides(&self) -> usize { self.items.len() }
+    pub fn current_index(&self) -> usize {
+        self.current_index
+    }
+    pub fn total_slides(&self) -> usize {
+        self.items.len()
+    }
 
     /// Advance time. If auto_play and not paused, auto-advance when interval reached.
     /// Returns true if the slide advanced.
@@ -128,20 +139,30 @@ impl Carousel {
         }
     }
 
-    pub fn pause(&mut self) { self.paused = true; }
-    pub fn resume(&mut self) { self.paused = false; }
-    pub fn is_paused(&self) -> bool { self.paused }
+    pub fn pause(&mut self) {
+        self.paused = true;
+    }
+    pub fn resume(&mut self) {
+        self.paused = false;
+    }
+    pub fn is_paused(&self) -> bool {
+        self.paused
+    }
 
     /// Indices of currently visible slides based on slides_per_view.
     pub fn visible_indices(&self) -> Vec<usize> {
-        if self.items.is_empty() { return Vec::new(); }
+        if self.items.is_empty() {
+            return Vec::new();
+        }
         let end = (self.current_index + self.config.slides_per_view).min(self.items.len());
         (self.current_index..end).collect()
     }
 
     /// Number of pagination dots (total slides accounting for slides_per_view).
     pub fn dot_count(&self) -> usize {
-        if self.items.is_empty() || self.config.slides_per_view == 0 { return 0; }
+        if self.items.is_empty() || self.config.slides_per_view == 0 {
+            return 0;
+        }
         let n = self.items.len();
         let spv = self.config.slides_per_view;
         if n <= spv { 1 } else { n - spv + 1 }
@@ -149,12 +170,18 @@ impl Carousel {
 
     /// Progress through the carousel: 0.0 at start, 1.0 at end.
     pub fn progress(&self) -> f64 {
-        if self.items.len() <= 1 { return 0.0; }
+        if self.items.len() <= 1 {
+            return 0.0;
+        }
         self.current_index as f64 / (self.items.len() - 1) as f64
     }
 
-    pub fn items(&self) -> &[CarouselItem] { &self.items }
-    pub fn config(&self) -> &CarouselConfig { &self.config }
+    pub fn items(&self) -> &[CarouselItem] {
+        &self.items
+    }
+    pub fn config(&self) -> &CarouselConfig {
+        &self.config
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────

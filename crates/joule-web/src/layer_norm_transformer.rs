@@ -163,14 +163,18 @@ impl LayerNorm {
                 let normed = self.forward(input, seq_len);
                 let sublayer_out = sublayer(&normed, seq_len);
                 // Residual add
-                input.iter().zip(sublayer_out.iter())
+                input
+                    .iter()
+                    .zip(sublayer_out.iter())
                     .map(|(a, b)| a + b)
                     .collect()
             }
             NormPosition::Post => {
                 let sublayer_out = sublayer(input, seq_len);
                 // Residual add then normalize
-                let residual: Vec<f64> = input.iter().zip(sublayer_out.iter())
+                let residual: Vec<f64> = input
+                    .iter()
+                    .zip(sublayer_out.iter())
                     .map(|(a, b)| a + b)
                     .collect();
                 self.forward(&residual, seq_len)
@@ -180,7 +184,11 @@ impl LayerNorm {
 
     /// Retrieve running statistics for monitoring.
     pub fn running_stats(&self) -> (f64, f64, usize) {
-        (self.running_mean_of_means, self.running_mean_of_vars, self.stat_count)
+        (
+            self.running_mean_of_means,
+            self.running_mean_of_vars,
+            self.stat_count,
+        )
     }
 
     /// Reset running statistics.
@@ -205,10 +213,7 @@ impl fmt::Display for LayerNorm {
         write!(
             f,
             "LayerNorm(shape={}, eps={:.0e}, affine={}, pos={})",
-            self.config.normalized_shape,
-            self.config.eps,
-            self.config.affine,
-            self.config.position
+            self.config.normalized_shape, self.config.eps, self.config.affine, self.config.position
         )
     }
 }
@@ -256,7 +261,9 @@ impl RmsNorm {
         assert_eq!(input.len(), n, "input length must match normalized_shape");
         let rms_val = Self::rms(input);
         let inv_rms = 1.0 / (rms_val + self.eps);
-        input.iter().enumerate()
+        input
+            .iter()
+            .enumerate()
             .map(|(i, &x)| self.gamma[i] * x * inv_rms)
             .collect()
     }
@@ -282,7 +289,11 @@ impl RmsNorm {
 
 impl fmt::Display for RmsNorm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RMSNorm(shape={}, eps={:.0e})", self.normalized_shape, self.eps)
+        write!(
+            f,
+            "RMSNorm(shape={}, eps={:.0e})",
+            self.normalized_shape, self.eps
+        )
     }
 }
 
@@ -301,7 +312,11 @@ impl FeatureStats {
     ///
     /// data: (batch_size * seq_len, d_model), total_positions = batch_size * seq_len.
     pub fn compute(data: &[f64], d_model: usize, total_positions: usize) -> Self {
-        assert_eq!(data.len(), total_positions * d_model, "data length mismatch");
+        assert_eq!(
+            data.len(),
+            total_positions * d_model,
+            "data length mismatch"
+        );
 
         let mut means = vec![0.0; d_model];
         let mut vars = vec![0.0; d_model];
@@ -327,7 +342,11 @@ impl FeatureStats {
             *v /= total_positions as f64;
         }
 
-        Self { feature_means: means, feature_vars: vars, feature_count: d_model }
+        Self {
+            feature_means: means,
+            feature_vars: vars,
+            feature_count: d_model,
+        }
     }
 
     /// Max variance across features — useful for detecting exploding activations.
@@ -456,7 +475,9 @@ mod tests {
 
     #[test]
     fn test_pre_norm_residual() {
-        let cfg = LayerNormConfig::new(4).with_position(NormPosition::Pre).with_affine(false);
+        let cfg = LayerNormConfig::new(4)
+            .with_position(NormPosition::Pre)
+            .with_affine(false);
         let mut ln = LayerNorm::new(cfg);
         let input = vec![1.0, 2.0, 3.0, 4.0];
         let output = ln.apply_with_residual(&input, 1, |x, _| x.to_vec());
@@ -466,7 +487,9 @@ mod tests {
 
     #[test]
     fn test_post_norm_residual() {
-        let cfg = LayerNormConfig::new(4).with_position(NormPosition::Post).with_affine(false);
+        let cfg = LayerNormConfig::new(4)
+            .with_position(NormPosition::Post)
+            .with_affine(false);
         let mut ln = LayerNorm::new(cfg);
         let input = vec![1.0, 2.0, 3.0, 4.0];
         let output = ln.apply_with_residual(&input, 1, |x, _| x.to_vec());

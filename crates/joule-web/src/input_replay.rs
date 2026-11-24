@@ -15,10 +15,24 @@ pub enum ReplayEventKind {
     KeyUp(String),
     MouseDown(u8),
     MouseUp(u8),
-    MouseMove { x: f64, y: f64 },
-    MouseScroll { dx: f64, dy: f64 },
-    GamepadButton { pad: u8, button: String, pressed: bool },
-    GamepadAxis { pad: u8, axis: String, value: f64 },
+    MouseMove {
+        x: f64,
+        y: f64,
+    },
+    MouseScroll {
+        dx: f64,
+        dy: f64,
+    },
+    GamepadButton {
+        pad: u8,
+        button: String,
+        pressed: bool,
+    },
+    GamepadAxis {
+        pad: u8,
+        axis: String,
+        value: f64,
+    },
 }
 
 /// A timestamped input event.
@@ -34,7 +48,11 @@ pub struct ReplayEvent {
 
 impl ReplayEvent {
     pub fn new(frame: u64, timestamp_us: u64, kind: ReplayEventKind) -> Self {
-        Self { frame, timestamp_us, kind }
+        Self {
+            frame,
+            timestamp_us,
+            kind,
+        }
     }
 }
 
@@ -96,7 +114,8 @@ impl ReplayData {
 
     /// Events within a frame range (inclusive).
     pub fn events_in_range(&self, start_frame: u64, end_frame: u64) -> Vec<&ReplayEvent> {
-        self.events.iter()
+        self.events
+            .iter()
             .filter(|e| e.frame >= start_frame && e.frame <= end_frame)
             .collect()
     }
@@ -167,7 +186,11 @@ fn serialize_event_kind(kind: &ReplayEventKind, bytes: &mut Vec<u8>) {
             bytes.extend_from_slice(&dx.to_le_bytes());
             bytes.extend_from_slice(&dy.to_le_bytes());
         }
-        ReplayEventKind::GamepadButton { pad, button, pressed } => {
+        ReplayEventKind::GamepadButton {
+            pad,
+            button,
+            pressed,
+        } => {
             bytes.push(6);
             bytes.push(*pad);
             let bb = button.as_bytes();
@@ -237,8 +260,14 @@ fn deserialize_event_kind(bytes: &[u8], pos: &mut usize) -> Result<ReplayEventKi
             let key = read_string(bytes, pos, len)?;
             Ok(ReplayEventKind::KeyUp(key))
         }
-        2 => { let btn = read_u8(bytes, pos)?; Ok(ReplayEventKind::MouseDown(btn)) }
-        3 => { let btn = read_u8(bytes, pos)?; Ok(ReplayEventKind::MouseUp(btn)) }
+        2 => {
+            let btn = read_u8(bytes, pos)?;
+            Ok(ReplayEventKind::MouseDown(btn))
+        }
+        3 => {
+            let btn = read_u8(bytes, pos)?;
+            Ok(ReplayEventKind::MouseUp(btn))
+        }
         4 => {
             let x = read_f64(bytes, pos)?;
             let y = read_f64(bytes, pos)?;
@@ -254,7 +283,11 @@ fn deserialize_event_kind(bytes: &[u8], pos: &mut usize) -> Result<ReplayEventKi
             let len = read_u16(bytes, pos)? as usize;
             let button = read_string(bytes, pos, len)?;
             let pressed = read_u8(bytes, pos)? != 0;
-            Ok(ReplayEventKind::GamepadButton { pad, button, pressed })
+            Ok(ReplayEventKind::GamepadButton {
+                pad,
+                button,
+                pressed,
+            })
         }
         7 => {
             let pad = read_u8(bytes, pos)?;
@@ -268,28 +301,41 @@ fn deserialize_event_kind(bytes: &[u8], pos: &mut usize) -> Result<ReplayEventKi
 }
 
 fn read_u8(bytes: &[u8], pos: &mut usize) -> Result<u8, String> {
-    if *pos >= bytes.len() { return Err("Unexpected end of data".to_string()); }
+    if *pos >= bytes.len() {
+        return Err("Unexpected end of data".to_string());
+    }
     let v = bytes[*pos];
     *pos += 1;
     Ok(v)
 }
 
 fn read_u16(bytes: &[u8], pos: &mut usize) -> Result<u16, String> {
-    if *pos + 2 > bytes.len() { return Err("Unexpected end of data".to_string()); }
+    if *pos + 2 > bytes.len() {
+        return Err("Unexpected end of data".to_string());
+    }
     let v = u16::from_le_bytes([bytes[*pos], bytes[*pos + 1]]);
     *pos += 2;
     Ok(v)
 }
 
 fn read_u32(bytes: &[u8], pos: &mut usize) -> Result<u32, String> {
-    if *pos + 4 > bytes.len() { return Err("Unexpected end of data".to_string()); }
-    let v = u32::from_le_bytes([bytes[*pos], bytes[*pos+1], bytes[*pos+2], bytes[*pos+3]]);
+    if *pos + 4 > bytes.len() {
+        return Err("Unexpected end of data".to_string());
+    }
+    let v = u32::from_le_bytes([
+        bytes[*pos],
+        bytes[*pos + 1],
+        bytes[*pos + 2],
+        bytes[*pos + 3],
+    ]);
     *pos += 4;
     Ok(v)
 }
 
 fn read_u64(bytes: &[u8], pos: &mut usize) -> Result<u64, String> {
-    if *pos + 8 > bytes.len() { return Err("Unexpected end of data".to_string()); }
+    if *pos + 8 > bytes.len() {
+        return Err("Unexpected end of data".to_string());
+    }
     let mut arr = [0u8; 8];
     arr.copy_from_slice(&bytes[*pos..*pos + 8]);
     *pos += 8;
@@ -297,7 +343,9 @@ fn read_u64(bytes: &[u8], pos: &mut usize) -> Result<u64, String> {
 }
 
 fn read_f64(bytes: &[u8], pos: &mut usize) -> Result<f64, String> {
-    if *pos + 8 > bytes.len() { return Err("Unexpected end of data".to_string()); }
+    if *pos + 8 > bytes.len() {
+        return Err("Unexpected end of data".to_string());
+    }
     let mut arr = [0u8; 8];
     arr.copy_from_slice(&bytes[*pos..*pos + 8]);
     *pos += 8;
@@ -305,7 +353,9 @@ fn read_f64(bytes: &[u8], pos: &mut usize) -> Result<f64, String> {
 }
 
 fn read_string(bytes: &[u8], pos: &mut usize, len: usize) -> Result<String, String> {
-    if *pos + len > bytes.len() { return Err("Unexpected end of data".to_string()); }
+    if *pos + len > bytes.len() {
+        return Err("Unexpected end of data".to_string());
+    }
     let s = String::from_utf8(bytes[*pos..*pos + len].to_vec())
         .map_err(|e| format!("Invalid UTF-8: {}", e))?;
     *pos += len;
@@ -400,14 +450,17 @@ impl InputRecorder {
 
     /// Record an event at the current frame.
     pub fn record(&mut self, kind: ReplayEventKind) {
-        if !self.recording { return; }
+        if !self.recording {
+            return;
+        }
         let rel_frame = self.current_frame - self.start_frame;
         let timestamp_us = if self.frame_rate > 0.0 {
             ((rel_frame as f64 / self.frame_rate) * 1_000_000.0) as u64
         } else {
             0
         };
-        self.events.push(ReplayEvent::new(rel_frame, timestamp_us, kind));
+        self.events
+            .push(ReplayEvent::new(rel_frame, timestamp_us, kind));
     }
 
     /// Advance to the next frame.
@@ -416,10 +469,14 @@ impl InputRecorder {
     }
 
     /// Is the recorder currently recording?
-    pub fn is_recording(&self) -> bool { self.recording }
+    pub fn is_recording(&self) -> bool {
+        self.recording
+    }
 
     /// Number of events recorded so far.
-    pub fn event_count(&self) -> usize { self.events.len() }
+    pub fn event_count(&self) -> usize {
+        self.events.len()
+    }
 }
 
 // ── Player ──────────────────────────────────────────────────────
@@ -462,13 +519,19 @@ impl InputPlayer {
     }
 
     /// Current playback speed.
-    pub fn speed(&self) -> f64 { self.speed }
+    pub fn speed(&self) -> f64 {
+        self.speed
+    }
 
     /// Current frame in the replay.
-    pub fn current_frame(&self) -> u64 { self.current_frame }
+    pub fn current_frame(&self) -> u64 {
+        self.current_frame
+    }
 
     /// Is playback active?
-    pub fn is_playing(&self) -> bool { self.playing }
+    pub fn is_playing(&self) -> bool {
+        self.playing
+    }
 
     /// Is the replay finished?
     pub fn is_finished(&self) -> bool {
@@ -529,7 +592,9 @@ impl InputPlayer {
 
     /// Progress as 0.0..1.0.
     pub fn progress(&self) -> f64 {
-        if self.data.header.total_frames == 0 { return 1.0; }
+        if self.data.header.total_frames == 0 {
+            return 1.0;
+        }
         self.current_frame as f64 / self.data.header.total_frames as f64
     }
 
@@ -550,7 +615,11 @@ mod tests {
         vec![
             ReplayEvent::new(0, 0, ReplayEventKind::KeyDown("w".into())),
             ReplayEvent::new(5, 83333, ReplayEventKind::KeyUp("w".into())),
-            ReplayEvent::new(10, 166666, ReplayEventKind::MouseMove { x: 100.0, y: 200.0 }),
+            ReplayEvent::new(
+                10,
+                166666,
+                ReplayEventKind::MouseMove { x: 100.0, y: 200.0 },
+            ),
             ReplayEvent::new(15, 250000, ReplayEventKind::MouseDown(0)),
             ReplayEvent::new(20, 333333, ReplayEventKind::MouseUp(0)),
         ]
@@ -630,7 +699,9 @@ mod tests {
         while !player.is_finished() {
             player.tick();
             ticks += 1;
-            if ticks > 100 { break; }
+            if ticks > 100 {
+                break;
+            }
         }
         assert!(ticks <= 35);
     }
@@ -645,7 +716,9 @@ mod tests {
         while !player.is_finished() {
             player.tick();
             ticks += 1;
-            if ticks > 200 { break; }
+            if ticks > 200 {
+                break;
+            }
         }
         assert!(ticks >= 110);
     }
@@ -701,12 +774,8 @@ mod tests {
 
     #[test]
     fn test_checksum_different_data() {
-        let events1 = vec![
-            ReplayEvent::new(0, 0, ReplayEventKind::KeyDown("a".into())),
-        ];
-        let events2 = vec![
-            ReplayEvent::new(0, 0, ReplayEventKind::KeyDown("b".into())),
-        ];
+        let events1 = vec![ReplayEvent::new(0, 0, ReplayEventKind::KeyDown("a".into()))];
+        let events2 = vec![ReplayEvent::new(0, 0, ReplayEventKind::KeyDown("b".into()))];
         // Different key name but checksum hashes frame/timestamp/tag, not content.
         // Same tag (KeyDown=0), same frame/timestamp, so checksums ARE the same here.
         // This is expected: the checksum is a structural integrity check.
@@ -717,12 +786,8 @@ mod tests {
 
     #[test]
     fn test_checksum_different_structure() {
-        let events1 = vec![
-            ReplayEvent::new(0, 0, ReplayEventKind::KeyDown("a".into())),
-        ];
-        let events2 = vec![
-            ReplayEvent::new(1, 0, ReplayEventKind::KeyDown("a".into())),
-        ];
+        let events1 = vec![ReplayEvent::new(0, 0, ReplayEventKind::KeyDown("a".into()))];
+        let events2 = vec![ReplayEvent::new(1, 0, ReplayEventKind::KeyDown("a".into()))];
         let c1 = compute_checksum(&events1);
         let c2 = compute_checksum(&events2);
         assert_ne!(c1, c2);
@@ -784,7 +849,9 @@ mod tests {
     fn test_recorder_stop_calculates_duration() {
         let mut rec = InputRecorder::new("test", 60.0);
         rec.start(0);
-        for _ in 0..60 { rec.advance_frame(); }
+        for _ in 0..60 {
+            rec.advance_frame();
+        }
         let data = rec.stop();
         assert_eq!(data.header.total_frames, 60);
         assert_eq!(data.header.total_duration_us, 1_000_000);
@@ -799,18 +866,51 @@ mod tests {
             ReplayEvent::new(3, 3000, ReplayEventKind::MouseUp(0)),
             ReplayEvent::new(4, 4000, ReplayEventKind::MouseMove { x: 10.0, y: 20.0 }),
             ReplayEvent::new(5, 5000, ReplayEventKind::MouseScroll { dx: 0.0, dy: 3.0 }),
-            ReplayEvent::new(6, 6000, ReplayEventKind::GamepadButton { pad: 0, button: "A".into(), pressed: true }),
-            ReplayEvent::new(7, 7000, ReplayEventKind::GamepadAxis { pad: 0, axis: "LX".into(), value: 0.5 }),
+            ReplayEvent::new(
+                6,
+                6000,
+                ReplayEventKind::GamepadButton {
+                    pad: 0,
+                    button: "A".into(),
+                    pressed: true,
+                },
+            ),
+            ReplayEvent::new(
+                7,
+                7000,
+                ReplayEventKind::GamepadAxis {
+                    pad: 0,
+                    axis: "LX".into(),
+                    value: 0.5,
+                },
+            ),
         ];
         let checksum = compute_checksum(&events);
-        let header = ReplayHeader { version: 1, title: "all".into(), total_frames: 8,
-            total_duration_us: 8000, frame_rate: 60.0, checksum, metadata: HashMap::new() };
+        let header = ReplayHeader {
+            version: 1,
+            title: "all".into(),
+            total_frames: 8,
+            total_duration_us: 8000,
+            frame_rate: 60.0,
+            checksum,
+            metadata: HashMap::new(),
+        };
         let data = ReplayData::new(header, events);
         let bytes = serialize_replay(&data);
         let restored = deserialize_replay(&bytes).unwrap();
         assert_eq!(restored.event_count(), 8);
-        assert_eq!(restored.events[0].kind, ReplayEventKind::KeyDown("w".into()));
-        assert_eq!(restored.events[6].kind, ReplayEventKind::GamepadButton { pad: 0, button: "A".into(), pressed: true });
+        assert_eq!(
+            restored.events[0].kind,
+            ReplayEventKind::KeyDown("w".into())
+        );
+        assert_eq!(
+            restored.events[6].kind,
+            ReplayEventKind::GamepadButton {
+                pad: 0,
+                button: "A".into(),
+                pressed: true
+            }
+        );
     }
 
     #[test]

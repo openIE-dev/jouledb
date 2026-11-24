@@ -78,11 +78,8 @@ impl StructuralEncoder {
 
     /// Record a relationship for structural encoding.
     pub fn record(&mut self, subject: &str, relation: RelationType, object: &str) {
-        self.relationships.push((
-            subject.to_lowercase(),
-            relation,
-            object.to_lowercase(),
-        ));
+        self.relationships
+            .push((subject.to_lowercase(), relation, object.to_lowercase()));
         self.compiled = false;
 
         // Ensure seeds exist
@@ -108,9 +105,15 @@ impl StructuralEncoder {
 
         for (subject, relation, object) in &self.relationships {
             let relation_hv = self.codebook.get(relation).clone();
-            let object_seed = self.seeds.get(object).cloned()
+            let object_seed = self
+                .seeds
+                .get(object)
+                .cloned()
                 .unwrap_or_else(|| BinaryHV::random(self.dim, 0));
-            let subject_seed = self.seeds.get(subject).cloned()
+            let subject_seed = self
+                .seeds
+                .get(subject)
+                .cloned()
                 .unwrap_or_else(|| BinaryHV::random(self.dim, 0));
 
             // Subject's structural vector gets: relation ⊗ object_seed
@@ -147,7 +150,9 @@ impl StructuralEncoder {
                 return sv.clone();
             }
         }
-        self.seeds.get(&key).cloned()
+        self.seeds
+            .get(&key)
+            .cloned()
             .unwrap_or_else(|| BinaryHV::zeros(self.dim))
     }
 
@@ -160,7 +165,11 @@ impl StructuralEncoder {
 
     /// Find the K concepts most structurally similar to a query vector.
     pub fn nearest(&self, query: &BinaryHV, k: usize) -> Vec<(String, f32)> {
-        let source = if self.compiled { &self.structural } else { &self.seeds };
+        let source = if self.compiled {
+            &self.structural
+        } else {
+            &self.seeds
+        };
         let mut scored: Vec<(String, f32)> = source
             .iter()
             .map(|(label, hv)| (label.clone(), hv.similarity(query)))

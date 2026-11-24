@@ -18,7 +18,11 @@ pub enum TxPoolError {
     /// Invalid gas price (must be > 0).
     InvalidGasPrice,
     /// Invalid nonce (less than expected).
-    NonceTooLow { account: String, expected: u64, got: u64 },
+    NonceTooLow {
+        account: String,
+        expected: u64,
+        got: u64,
+    },
     /// Transaction not found.
     TxNotFound(String),
     /// Gas limit too high.
@@ -35,8 +39,15 @@ impl fmt::Display for TxPoolError {
             }
             Self::DuplicateTx(hash) => write!(f, "duplicate transaction: {hash}"),
             Self::InvalidGasPrice => write!(f, "gas price must be greater than zero"),
-            Self::NonceTooLow { account, expected, got } => {
-                write!(f, "nonce too low for {account}: expected {expected}, got {got}")
+            Self::NonceTooLow {
+                account,
+                expected,
+                got,
+            } => {
+                write!(
+                    f,
+                    "nonce too low for {account}: expected {expected}, got {got}"
+                )
             }
             Self::TxNotFound(hash) => write!(f, "transaction not found: {hash}"),
             Self::GasLimitExceeded { limit, max } => {
@@ -275,10 +286,7 @@ impl TxPool {
         }
 
         self.transactions.insert(hash.clone(), tx);
-        self.sender_txs
-            .entry(sender)
-            .or_default()
-            .push(hash);
+        self.sender_txs.entry(sender).or_default().push(hash);
 
         // Promote queued transactions if this filled a nonce gap
         self.promote_queued();
@@ -334,7 +342,8 @@ impl TxPool {
 
     /// Get transactions for a specific sender, sorted by nonce.
     pub fn sender_transactions(&self, sender: &str) -> Vec<&PoolTransaction> {
-        let mut txs: Vec<&PoolTransaction> = self.sender_txs
+        let mut txs: Vec<&PoolTransaction> = self
+            .sender_txs
             .get(sender)
             .map(|hashes| {
                 hashes
@@ -661,7 +670,10 @@ mod tests {
 
     #[test]
     fn test_pool_error_display() {
-        let err = TxPoolError::PoolFull { capacity: 10, current: 10 };
+        let err = TxPoolError::PoolFull {
+            capacity: 10,
+            current: 10,
+        };
         let msg = format!("{err}");
         assert!(msg.contains("10"));
     }

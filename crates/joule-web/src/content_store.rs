@@ -215,7 +215,10 @@ pub fn release_chunked(store: &mut ContentStore, manifest: &ChunkManifest) {
 }
 
 /// Verify all chunks in a manifest.
-pub fn verify_chunked(store: &ContentStore, manifest: &ChunkManifest) -> Vec<(usize, VerifyResult)> {
+pub fn verify_chunked(
+    store: &ContentStore,
+    manifest: &ChunkManifest,
+) -> Vec<(usize, VerifyResult)> {
     manifest
         .chunk_hashes
         .iter()

@@ -19,12 +19,20 @@ pub struct BinaryImage {
 
 impl BinaryImage {
     pub fn new(width: u32, height: u32) -> Self {
-        Self { width, height, data: vec![false; width as usize * height as usize] }
+        Self {
+            width,
+            height,
+            data: vec![false; width as usize * height as usize],
+        }
     }
 
     pub fn from_data(width: u32, height: u32, data: Vec<bool>) -> Self {
         assert_eq!(data.len(), width as usize * height as usize);
-        Self { width, height, data }
+        Self {
+            width,
+            height,
+            data,
+        }
     }
 
     pub fn get(&self, x: u32, y: u32) -> bool {
@@ -50,9 +58,14 @@ impl Connectivity {
         match self {
             Self::Four => &[(-1, 0), (1, 0), (0, -1), (0, 1)],
             Self::Eight => &[
-                (-1, -1), (0, -1), (1, -1),
-                (-1, 0),           (1, 0),
-                (-1, 1),  (0, 1),  (1, 1),
+                (-1, -1),
+                (0, -1),
+                (1, -1),
+                (-1, 0),
+                (1, 0),
+                (-1, 1),
+                (0, 1),
+                (1, 1),
             ],
         }
     }
@@ -84,7 +97,9 @@ impl UnionFind {
     fn union(&mut self, a: u32, b: u32) {
         let ra = self.find(a);
         let rb = self.find(b);
-        if ra == rb { return; }
+        if ra == rb {
+            return;
+        }
         if self.rank[ra as usize] < self.rank[rb as usize] {
             self.parent[ra as usize] = rb;
         } else if self.rank[ra as usize] > self.rank[rb as usize] {
@@ -211,7 +226,9 @@ pub fn component_stats(label_map: &LabelMap) -> Vec<ComponentStats> {
     for y in 0..label_map.height {
         for x in 0..label_map.width {
             let label = label_map.get(x, y);
-            if label == 0 { continue; }
+            if label == 0 {
+                continue;
+            }
             let entry = stats.entry(label).or_insert((0, 0.0, 0.0, x, y, x, y));
             entry.0 += 1;
             entry.1 += x as f64;
@@ -223,18 +240,21 @@ pub fn component_stats(label_map: &LabelMap) -> Vec<ComponentStats> {
         }
     }
 
-    let mut result: Vec<_> = stats.into_iter().map(|(label, (area, sx, sy, minx, miny, maxx, maxy))| {
-        ComponentStats {
-            label,
-            area,
-            centroid_x: sx / area as f64,
-            centroid_y: sy / area as f64,
-            bbox_x: minx,
-            bbox_y: miny,
-            bbox_w: maxx - minx + 1,
-            bbox_h: maxy - miny + 1,
-        }
-    }).collect();
+    let mut result: Vec<_> = stats
+        .into_iter()
+        .map(
+            |(label, (area, sx, sy, minx, miny, maxx, maxy))| ComponentStats {
+                label,
+                area,
+                centroid_x: sx / area as f64,
+                centroid_y: sy / area as f64,
+                bbox_x: minx,
+                bbox_y: miny,
+                bbox_w: maxx - minx + 1,
+                bbox_h: maxy - miny + 1,
+            },
+        )
+        .collect();
     result.sort_by_key(|s| s.label);
     result
 }
@@ -245,7 +265,11 @@ pub fn largest_component(stats: &[ComponentStats]) -> Option<&ComponentStats> {
 }
 
 /// Filter components by minimum area, returning a new binary image.
-pub fn filter_by_size(label_map: &LabelMap, stats: &[ComponentStats], min_area: u32) -> BinaryImage {
+pub fn filter_by_size(
+    label_map: &LabelMap,
+    stats: &[ComponentStats],
+    min_area: u32,
+) -> BinaryImage {
     let keep: std::collections::HashSet<u32> = stats
         .iter()
         .filter(|s| s.area >= min_area)
@@ -277,10 +301,14 @@ pub fn flood_fill(
 
     while let Some((x, y)) = stack.pop() {
         let idx = y as usize * img.width as usize + x as usize;
-        if visited[idx] { continue; }
+        if visited[idx] {
+            continue;
+        }
         visited[idx] = true;
 
-        if !img.get(x, y) { continue; }
+        if !img.get(x, y) {
+            continue;
+        }
         out.set(x, y, true);
 
         for &(dx, dy) in connectivity.neighbor_offsets() {

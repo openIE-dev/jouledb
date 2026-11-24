@@ -302,10 +302,7 @@ impl DatalogParser {
                 // Check if this is an aggregate function call (e.g., count(X))
                 if self.peek_char() == Some('(') {
                     let func = ident.to_lowercase();
-                    if matches!(
-                        func.as_str(),
-                        "count" | "sum" | "min" | "max" | "avg"
-                    ) {
+                    if matches!(func.as_str(), "count" | "sum" | "min" | "max" | "avg") {
                         self.advance(1); // (
                         self.skip_whitespace();
                         let var = self.parse_identifier()?;
@@ -316,7 +313,12 @@ impl DatalogParser {
                 }
 
                 // Variable if starts with uppercase, constant otherwise
-                if ident.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+                if ident
+                    .chars()
+                    .next()
+                    .map(|c| c.is_uppercase())
+                    .unwrap_or(false)
+                {
                     Ok(DatalogTerm::Variable(ident))
                 } else {
                     // Treat as string constant (unquoted atom)
@@ -378,7 +380,12 @@ impl DatalogParser {
         // Check for comparison operator
         if let Some(op) = self.try_parse_comparison_op() {
             self.skip_whitespace();
-            let left = if ident.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+            let left = if ident
+                .chars()
+                .next()
+                .map(|c| c.is_uppercase())
+                .unwrap_or(false)
+            {
                 DatalogTerm::Variable(ident)
             } else {
                 DatalogTerm::String(ident)
@@ -553,14 +560,8 @@ pub fn evaluate(program: &DatalogProgram) -> QueryResult<DatalogResult> {
     let mut db: HashMap<String, Vec<Vec<Value>>> = HashMap::new();
 
     for fact in &program.facts {
-        let values: Vec<Value> = fact
-            .terms
-            .iter()
-            .map(|t| term_to_value(t))
-            .collect();
-        db.entry(fact.predicate.clone())
-            .or_default()
-            .push(values);
+        let values: Vec<Value> = fact.terms.iter().map(|t| term_to_value(t)).collect();
+        db.entry(fact.predicate.clone()).or_default().push(values);
     }
 
     // Compute strata for stratified negation.
@@ -620,7 +621,10 @@ pub fn evaluate(program: &DatalogProgram) -> QueryResult<DatalogResult> {
                     let pred = &rule.head.predicate;
                     let set = seen.entry(pred.clone()).or_default();
                     if set.insert(fact_key(&fact)) {
-                        new_delta.entry(pred.clone()).or_default().push(fact.clone());
+                        new_delta
+                            .entry(pred.clone())
+                            .or_default()
+                            .push(fact.clone());
                         db.entry(pred.clone()).or_default().push(fact);
                         any_new = true;
                     }
@@ -862,9 +866,7 @@ fn apply_filters_and_project(
             .terms
             .iter()
             .map(|term| match term {
-                DatalogTerm::Variable(v) => {
-                    binding.get(v).cloned().unwrap_or(Value::Null)
-                }
+                DatalogTerm::Variable(v) => binding.get(v).cloned().unwrap_or(Value::Null),
                 DatalogTerm::String(s) => Value::String(s.clone()),
                 DatalogTerm::Integer(n) => Value::Int(*n),
                 DatalogTerm::Float(f) => Value::Float(*f),
@@ -873,7 +875,11 @@ fn apply_filters_and_project(
             })
             .collect();
 
-        let key: String = row.iter().map(|v| format!("{:?}", v)).collect::<Vec<_>>().join("|");
+        let key: String = row
+            .iter()
+            .map(|v| format!("{:?}", v))
+            .collect::<Vec<_>>()
+            .join("|");
         if result_keys.insert(key) {
             results.push(row);
         }
@@ -921,7 +927,7 @@ fn try_unify(
                     return None;
                 }
             }
-            DatalogTerm::Wildcard => {} // matches anything
+            DatalogTerm::Wildcard => {}        // matches anything
             DatalogTerm::Aggregate(_, _) => {} // skip
         }
     }
@@ -1061,9 +1067,7 @@ mod tests {
     #[test]
     fn test_parse_facts() {
         let mut parser = DatalogParser::new();
-        let prog = parser
-            .parse(r#"edge("a", "b"). edge("b", "c")."#)
-            .unwrap();
+        let prog = parser.parse(r#"edge("a", "b"). edge("b", "c")."#).unwrap();
         assert_eq!(prog.facts.len(), 2);
         assert_eq!(prog.facts[0].predicate, "edge");
         assert_eq!(prog.facts[0].terms.len(), 2);
@@ -1072,9 +1076,7 @@ mod tests {
     #[test]
     fn test_parse_rule() {
         let mut parser = DatalogParser::new();
-        let prog = parser
-            .parse("reachable(X, Y) :- edge(X, Y).")
-            .unwrap();
+        let prog = parser.parse("reachable(X, Y) :- edge(X, Y).").unwrap();
         assert_eq!(prog.rules.len(), 1);
         assert_eq!(prog.rules[0].head.predicate, "reachable");
         assert_eq!(prog.rules[0].body.len(), 1);
@@ -1096,9 +1098,7 @@ mod tests {
     #[test]
     fn test_parse_query() {
         let mut parser = DatalogParser::new();
-        let prog = parser
-            .parse(r#"?- reachable("a", X)."#)
-            .unwrap();
+        let prog = parser.parse(r#"?- reachable("a", X)."#).unwrap();
         assert_eq!(prog.queries.len(), 1);
         assert_eq!(prog.queries[0].literals.len(), 1);
     }

@@ -12,7 +12,11 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
@@ -37,14 +41,22 @@ impl Vec3 {
 impl std::ops::Add for Vec3 {
     type Output = Self;
     fn add(self, rhs: Self) -> Self {
-        Self { x: self.x + rhs.x, y: self.y + rhs.y, z: self.z + rhs.z }
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+        }
     }
 }
 
 impl std::ops::Mul<f32> for Vec3 {
     type Output = Self;
     fn mul(self, s: f32) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 }
 
@@ -58,7 +70,12 @@ pub struct Color {
 }
 
 impl Color {
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+        a: 1.0,
+    };
 
     pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }
@@ -96,7 +113,11 @@ impl Particle {
 
     /// Normalized age in [0, 1].
     pub fn normalized_age(&self) -> f32 {
-        if self.lifetime <= 0.0 { 1.0 } else { (self.age / self.lifetime).min(1.0) }
+        if self.lifetime <= 0.0 {
+            1.0
+        } else {
+            (self.age / self.lifetime).min(1.0)
+        }
     }
 }
 
@@ -386,10 +407,7 @@ impl GpuParticleSystem {
 
     /// Iterate over alive particles.
     pub fn alive_particles(&self) -> impl Iterator<Item = (usize, &Particle)> {
-        self.particles
-            .iter()
-            .enumerate()
-            .filter(|(_, p)| p.alive)
+        self.particles.iter().enumerate().filter(|(_, p)| p.alive)
     }
 }
 
@@ -504,7 +522,10 @@ mod tests {
     fn test_particle_dies_when_age_exceeds_lifetime() {
         let mut sys = GpuParticleSystem::new(10);
         sys.set_gravity(Vec3::ZERO);
-        let params = SpawnParams { lifetime: 1.0, ..Default::default() };
+        let params = SpawnParams {
+            lifetime: 1.0,
+            ..Default::default()
+        };
         sys.spawn_one(&params);
         assert_eq!(sys.alive_count(), 1);
         sys.update(1.5);
@@ -516,7 +537,10 @@ mod tests {
     fn test_dead_particles_recycled() {
         let mut sys = GpuParticleSystem::new(2);
         sys.set_gravity(Vec3::ZERO);
-        let params = SpawnParams { lifetime: 0.5, ..Default::default() };
+        let params = SpawnParams {
+            lifetime: 0.5,
+            ..Default::default()
+        };
         sys.spawn_burst(&params, 2);
         assert_eq!(sys.alive_count(), 2);
         assert_eq!(sys.dead_count(), 0);
@@ -583,7 +607,10 @@ mod tests {
         let mut sys = GpuParticleSystem::new(10);
         sys.set_gravity(Vec3::ZERO);
         sys.set_sort_mode(SortMode::OldestFirst);
-        let params = SpawnParams { lifetime: 10.0, ..Default::default() };
+        let params = SpawnParams {
+            lifetime: 10.0,
+            ..Default::default()
+        };
         let first = sys.spawn_one(&params).unwrap();
         sys.update(1.0);
         let second = sys.spawn_one(&params).unwrap();
@@ -648,7 +675,10 @@ mod tests {
     fn test_per_particle_energy_cost() {
         let mut sys = GpuParticleSystem::new(10);
         sys.set_gravity(Vec3::ZERO);
-        let params = SpawnParams { lifetime: 10.0, ..Default::default() };
+        let params = SpawnParams {
+            lifetime: 10.0,
+            ..Default::default()
+        };
         let idx = sys.spawn_one(&params).unwrap();
         sys.update(0.1);
         let p = sys.get_particle(idx).unwrap();
@@ -667,7 +697,11 @@ mod tests {
 
     #[test]
     fn test_normalized_age_zero_lifetime() {
-        let p = Particle { lifetime: 0.0, age: 1.0, ..Particle::dead() };
+        let p = Particle {
+            lifetime: 0.0,
+            age: 1.0,
+            ..Particle::dead()
+        };
         assert!((p.normalized_age() - 1.0).abs() < 1e-6);
     }
 

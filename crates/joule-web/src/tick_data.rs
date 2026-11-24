@@ -80,12 +80,18 @@ impl TickDataConfig {
 }
 
 impl Default for TickDataConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for TickDataConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TickDataConfig(price={0:.4}, volume={1:.4}, timestamp_ms={2}, is_trade={3})", self.price, self.volume, self.timestamp_ms, self.is_trade)
+        write!(
+            f,
+            "TickDataConfig(price={0:.4}, volume={1:.4}, timestamp_ms={2}, is_trade={3})",
+            self.price, self.volume, self.timestamp_ms, self.is_trade
+        )
     }
 }
 
@@ -129,7 +135,10 @@ pub struct TickData {
 impl TickData {
     pub fn new(config: TickDataConfig) -> Result<Self, TickDataError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -141,34 +150,57 @@ impl TickData {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &TickDataConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &TickDataConfig {
+        &self.config
+    }
 
     /// Remove outlier ticks.
     pub fn filter_outliers(&self) -> Vec<TickEntry> {
-        self.data.iter().enumerate().map(|(i, &v)| TickEntry {
-            value: v, label: format!("item_{i}")
-        }).collect()
+        self.data
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| TickEntry {
+                value: v,
+                label: format!("item_{i}"),
+            })
+            .collect()
     }
 
     /// Aggregate ticks to bars.
     pub fn aggregate(&self) -> Vec<Bar> {
-        self.data.iter().enumerate().map(|(i, &v)| Bar {
-            value: v, label: format!("item_{i}")
-        }).collect()
+        self.data
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| Bar {
+                value: v,
+                label: format!("item_{i}"),
+            })
+            .collect()
     }
 
     /// Normalize tick format.
     pub fn normalize(&self) -> Vec<TickEntry> {
-        self.data.iter().enumerate().map(|(i, &v)| TickEntry {
-            value: v, label: format!("item_{i}")
-        }).collect()
+        self.data
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| TickEntry {
+                value: v,
+                label: format!("item_{i}"),
+            })
+            .collect()
     }
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -180,7 +212,9 @@ impl TickData {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -192,7 +226,11 @@ impl TickData {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -265,7 +303,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = TickData::new(TickDataConfig::new()).unwrap()
+        let e = TickData::new(TickDataConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -281,7 +320,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = TickData::new(TickDataConfig::new()).unwrap()
+        let e = TickData::new(TickDataConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("TickData"));
@@ -289,7 +329,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = TickData::new(TickDataConfig::new()).unwrap()
+        let e = TickData::new(TickDataConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -300,7 +341,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = TickData::new(TickDataConfig::new()).unwrap()
+        let e = TickData::new(TickDataConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -308,7 +350,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = TickData::new(TickDataConfig::new()).unwrap()
+        let e = TickData::new(TickDataConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -325,7 +368,8 @@ mod tests {
 
     #[test]
     fn test_filter_outliers() {
-        let e = TickData::new(TickDataConfig::new()).unwrap()
+        let e = TickData::new(TickDataConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.filter_outliers();
         assert!(!result.is_empty());
@@ -333,7 +377,8 @@ mod tests {
 
     #[test]
     fn test_aggregate() {
-        let e = TickData::new(TickDataConfig::new()).unwrap()
+        let e = TickData::new(TickDataConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.aggregate();
         assert!(!result.is_empty());
@@ -341,7 +386,8 @@ mod tests {
 
     #[test]
     fn test_normalize() {
-        let e = TickData::new(TickDataConfig::new()).unwrap()
+        let e = TickData::new(TickDataConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.normalize();
         assert!(!result.is_empty());

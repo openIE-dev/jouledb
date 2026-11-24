@@ -448,11 +448,11 @@ impl MetalDevice {
         library: &MetalLibrary,
         function_name: &str,
     ) -> MetalResult<MetalComputePipeline> {
-        let function = library
-            .get_metal_function(function_name)
-            .map_err(|e| MetalError::FunctionNotFound {
+        let function = library.get_metal_function(function_name).map_err(|e| {
+            MetalError::FunctionNotFound {
                 name: format!("{function_name}: {e}"),
-            })?;
+            }
+        })?;
         let pipeline = self
             .handle
             .new_compute_pipeline_state_with_function(&function)

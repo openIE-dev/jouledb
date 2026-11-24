@@ -20,12 +20,21 @@ pub enum Alignment {
 #[derive(Debug, Clone, PartialEq)]
 pub enum MdNode {
     Document(Vec<MdNode>),
-    Heading { level: u8, children: Vec<MdNode> },
+    Heading {
+        level: u8,
+        children: Vec<MdNode>,
+    },
     Paragraph(Vec<MdNode>),
     BlockQuote(Vec<MdNode>),
-    CodeBlock { language: Option<String>, code: String },
+    CodeBlock {
+        language: Option<String>,
+        code: String,
+    },
     UnorderedList(Vec<MdNode>),
-    OrderedList { start: u32, items: Vec<MdNode> },
+    OrderedList {
+        start: u32,
+        items: Vec<MdNode>,
+    },
     ListItem(Vec<MdNode>),
     ThematicBreak,
     Table {
@@ -39,8 +48,16 @@ pub enum MdNode {
     Italic(Vec<MdNode>),
     StrikeThrough(Vec<MdNode>),
     Code(String),
-    Link { url: String, title: Option<String>, children: Vec<MdNode> },
-    Image { url: String, alt: String, title: Option<String> },
+    Link {
+        url: String,
+        title: Option<String>,
+        children: Vec<MdNode>,
+    },
+    Image {
+        url: String,
+        alt: String,
+        title: Option<String>,
+    },
     LineBreak,
     HtmlInline(String),
 }
@@ -230,9 +247,7 @@ fn parse_block_quote(lines: &[&str]) -> (MdNode, usize) {
 }
 
 fn is_unordered_list_marker(trimmed: &str) -> bool {
-    trimmed.starts_with("- ")
-        || trimmed.starts_with("* ")
-        || trimmed.starts_with("+ ")
+    trimmed.starts_with("- ") || trimmed.starts_with("* ") || trimmed.starts_with("+ ")
 }
 
 fn parse_unordered_list(lines: &[&str]) -> (MdNode, usize) {
@@ -293,13 +308,7 @@ fn parse_ordered_list(lines: &[&str]) -> (MdNode, usize) {
         items.push(MdNode::ListItem(children));
         i += 1;
     }
-    (
-        MdNode::OrderedList {
-            start,
-            items,
-        },
-        i,
-    )
+    (MdNode::OrderedList { start, items }, i)
 }
 
 fn parse_indented_code(lines: &[&str]) -> (MdNode, usize) {
@@ -323,7 +332,13 @@ fn parse_indented_code(lines: &[&str]) -> (MdNode, usize) {
         code_lines.pop();
     }
     let code = code_lines.join("\n");
-    (MdNode::CodeBlock { language: None, code }, i)
+    (
+        MdNode::CodeBlock {
+            language: None,
+            code,
+        },
+        i,
+    )
 }
 
 fn is_table_separator(line: &str) -> bool {
@@ -341,8 +356,7 @@ fn is_table_separator(line: &str) -> bool {
         if c.is_empty() {
             return true;
         }
-        c.chars().all(|ch| ch == '-' || ch == ':' || ch == ' ')
-            && c.contains('-')
+        c.chars().all(|ch| ch == '-' || ch == ':' || ch == ' ') && c.contains('-')
     })
 }
 
@@ -617,9 +631,7 @@ fn scan_delimited(
                 let cc = close_chars[0];
                 let next = i + 1;
                 let prev = if i > 0 { Some(chars[i - 1]) } else { None };
-                if (next < chars.len() && chars[next] == cc)
-                    || (prev == Some(cc))
-                {
+                if (next < chars.len() && chars[next] == cc) || (prev == Some(cc)) {
                     content.push(chars[i]);
                     i += 1;
                     continue;
@@ -850,10 +862,7 @@ fn render_html_inner(node: &MdNode, out: &mut String) {
                 for (i, cell) in row.iter().enumerate() {
                     let align = alignments.get(i).copied().unwrap_or(Alignment::None_);
                     if align != Alignment::None_ {
-                        out.push_str(&format!(
-                            "<td style=\"text-align: {}\">",
-                            align_str(align)
-                        ));
+                        out.push_str(&format!("<td style=\"text-align: {}\">", align_str(align)));
                     } else {
                         out.push_str("<td>");
                     }
@@ -982,9 +991,7 @@ fn render_plain_inner(node: &MdNode, out: &mut String) {
             out.push('\n');
         }
         MdNode::ThematicBreak => out.push('\n'),
-        MdNode::Table {
-            headers, rows, ..
-        } => {
+        MdNode::Table { headers, rows, .. } => {
             for h in headers {
                 render_plain_inner(h, out);
                 out.push('\t');

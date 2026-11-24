@@ -14,12 +14,23 @@ use std::fmt;
 enum Ast {
     Literal(char),
     Dot,
-    CharClass { ranges: Vec<(char, char)>, negated: bool },
+    CharClass {
+        ranges: Vec<(char, char)>,
+        negated: bool,
+    },
     Anchor(Anchor),
     Concat(Vec<Ast>),
     Alt(Vec<Ast>),
-    Repeat { child: Box<Ast>, min: u32, max: Option<u32>, lazy: bool },
-    Group { child: Box<Ast>, index: usize },
+    Repeat {
+        child: Box<Ast>,
+        min: u32,
+        max: Option<u32>,
+        lazy: bool,
+    },
+    Group {
+        child: Box<Ast>,
+        index: usize,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,7 +47,10 @@ type StateId = usize;
 enum Transition {
     Char(char),
     Dot,
-    CharClass { ranges: Vec<(char, char)>, negated: bool },
+    CharClass {
+        ranges: Vec<(char, char)>,
+        negated: bool,
+    },
     Epsilon,
     AnchorStart,
     AnchorEnd,
@@ -58,7 +72,9 @@ struct Nfa {
 impl Nfa {
     fn new_state(&mut self) -> StateId {
         let id = self.states.len();
-        self.states.push(NfaState { transitions: vec![] });
+        self.states.push(NfaState {
+            transitions: vec![],
+        });
         id
     }
 
@@ -77,7 +93,11 @@ struct Parser {
 
 impl Parser {
     fn new(pattern: &str) -> Self {
-        Self { chars: pattern.chars().collect(), pos: 0, group_count: 0 }
+        Self {
+            chars: pattern.chars().collect(),
+            pos: 0,
+            group_count: 0,
+        }
     }
 
     fn peek(&self) -> Option<char> {
@@ -86,7 +106,9 @@ impl Parser {
 
     fn advance(&mut self) -> Option<char> {
         let c = self.chars.get(self.pos).copied();
-        if c.is_some() { self.pos += 1; }
+        if c.is_some() {
+            self.pos += 1;
+        }
         c
     }
 
@@ -104,13 +126,19 @@ impl Parser {
             self.advance();
             branches.push(self.parse_concat()?);
         }
-        if branches.len() == 1 { Ok(branches.remove(0)) } else { Ok(Ast::Alt(branches)) }
+        if branches.len() == 1 {
+            Ok(branches.remove(0))
+        } else {
+            Ok(Ast::Alt(branches))
+        }
     }
 
     fn parse_concat(&mut self) -> Result<Ast, String> {
         let mut parts = vec![];
         while let Some(c) = self.peek() {
-            if c == '|' || c == ')' { break; }
+            if c == '|' || c == ')' {
+                break;
+            }
             parts.push(self.parse_quantifier()?);
         }
         if parts.is_empty() {
@@ -125,30 +153,76 @@ impl Parser {
     fn parse_quantifier(&mut self) -> Result<Ast, String> {
         let atom = self.parse_atom()?;
         match self.peek() {
-            Some('*') => { self.advance(); let lazy = self.eat_lazy(); Ok(Ast::Repeat { child: Box::new(atom), min: 0, max: None, lazy }) }
-            Some('+') => { self.advance(); let lazy = self.eat_lazy(); Ok(Ast::Repeat { child: Box::new(atom), min: 1, max: None, lazy }) }
-            Some('?') => { self.advance(); let lazy = self.eat_lazy(); Ok(Ast::Repeat { child: Box::new(atom), min: 0, max: Some(1), lazy }) }
+            Some('*') => {
+                self.advance();
+                let lazy = self.eat_lazy();
+                Ok(Ast::Repeat {
+                    child: Box::new(atom),
+                    min: 0,
+                    max: None,
+                    lazy,
+                })
+            }
+            Some('+') => {
+                self.advance();
+                let lazy = self.eat_lazy();
+                Ok(Ast::Repeat {
+                    child: Box::new(atom),
+                    min: 1,
+                    max: None,
+                    lazy,
+                })
+            }
+            Some('?') => {
+                self.advance();
+                let lazy = self.eat_lazy();
+                Ok(Ast::Repeat {
+                    child: Box::new(atom),
+                    min: 0,
+                    max: Some(1),
+                    lazy,
+                })
+            }
             _ => Ok(atom),
         }
     }
 
     fn eat_lazy(&mut self) -> bool {
-        if self.peek() == Some('?') { self.advance(); true } else { false }
+        if self.peek() == Some('?') {
+            self.advance();
+            true
+        } else {
+            false
+        }
     }
 
     fn parse_atom(&mut self) -> Result<Ast, String> {
         match self.peek() {
             None => Err("unexpected end of pattern".into()),
-            Some('.') => { self.advance(); Ok(Ast::Dot) }
-            Some('^') => { self.advance(); Ok(Ast::Anchor(Anchor::Start)) }
-            Some('$') => { self.advance(); Ok(Ast::Anchor(Anchor::End)) }
+            Some('.') => {
+                self.advance();
+                Ok(Ast::Dot)
+            }
+            Some('^') => {
+                self.advance();
+                Ok(Ast::Anchor(Anchor::Start))
+            }
+            Some('$') => {
+                self.advance();
+                Ok(Ast::Anchor(Anchor::End))
+            }
             Some('(') => {
                 self.advance();
                 self.group_count += 1;
                 let idx = self.group_count;
                 let inner = self.parse_alt()?;
-                if self.advance() != Some(')') { return Err("unmatched (".into()); }
-                Ok(Ast::Group { child: Box::new(inner), index: idx })
+                if self.advance() != Some(')') {
+                    return Err("unmatched (".into());
+                }
+                Ok(Ast::Group {
+                    child: Box::new(inner),
+                    index: idx,
+                })
             }
             Some('[') => self.parse_char_class(),
             Some('\\') => {
@@ -156,22 +230,37 @@ impl Parser {
                 let c = self.advance().ok_or("trailing backslash")?;
                 Ok(Ast::Literal(c))
             }
-            Some(c) => { self.advance(); Ok(Ast::Literal(c)) }
+            Some(c) => {
+                self.advance();
+                Ok(Ast::Literal(c))
+            }
         }
     }
 
     fn parse_char_class(&mut self) -> Result<Ast, String> {
         self.advance(); // eat '['
-        let negated = if self.peek() == Some('^') { self.advance(); true } else { false };
+        let negated = if self.peek() == Some('^') {
+            self.advance();
+            true
+        } else {
+            false
+        };
         let mut ranges: Vec<(char, char)> = vec![];
         let mut first = true;
         loop {
             match self.peek() {
                 None => return Err("unterminated character class".into()),
-                Some(']') if !first => { self.advance(); break; }
+                Some(']') if !first => {
+                    self.advance();
+                    break;
+                }
                 Some(c) => {
                     self.advance();
-                    let ch = if c == '\\' { self.advance().ok_or("trailing backslash in class")? } else { c };
+                    let ch = if c == '\\' {
+                        self.advance().ok_or("trailing backslash in class")?
+                    } else {
+                        c
+                    };
                     if self.peek() == Some('-') {
                         // Check if next-next is ']' — if so, '-' is literal
                         if self.chars.get(self.pos + 1) == Some(&']') {
@@ -179,7 +268,11 @@ impl Parser {
                         } else {
                             self.advance(); // eat '-'
                             let end = self.advance().ok_or("unterminated range")?;
-                            let end = if end == '\\' { self.advance().ok_or("trailing backslash")? } else { end };
+                            let end = if end == '\\' {
+                                self.advance().ok_or("trailing backslash")?
+                            } else {
+                                end
+                            };
                             ranges.push((ch, end));
                         }
                     } else {
@@ -212,7 +305,14 @@ fn compile(ast: &Ast, nfa: &mut Nfa) -> (StateId, StateId) {
         Ast::CharClass { ranges, negated } => {
             let s = nfa.new_state();
             let e = nfa.new_state();
-            nfa.add_transition(s, Transition::CharClass { ranges: ranges.clone(), negated: *negated }, e);
+            nfa.add_transition(
+                s,
+                Transition::CharClass {
+                    ranges: ranges.clone(),
+                    negated: *negated,
+                },
+                e,
+            );
             (s, e)
         }
         Ast::Anchor(Anchor::Start) => {
@@ -251,7 +351,12 @@ fn compile(ast: &Ast, nfa: &mut Nfa) -> (StateId, StateId) {
             }
             (s, e)
         }
-        Ast::Repeat { child, min, max, lazy } => {
+        Ast::Repeat {
+            child,
+            min,
+            max,
+            lazy,
+        } => {
             // Build chain of min required copies
             let s = nfa.new_state();
             let e = nfa.new_state();
@@ -334,7 +439,9 @@ impl Match {
 
     /// Return a captured group's text.
     pub fn group<'a>(&self, i: usize, input: &'a str) -> Option<&'a str> {
-        self.groups.get(i).and_then(|g| g.map(|(s, e)| &input[s..e]))
+        self.groups
+            .get(i)
+            .and_then(|g| g.map(|(s, e)| &input[s..e]))
     }
 }
 
@@ -398,23 +505,52 @@ impl Regex {
             // Find the end position by trying longest match
             let mut best_end = start;
             let mut full_groups = groups.clone();
-            self.backtrack_full(chars, self.nfa.start, start, len, &mut full_groups, &mut best_end);
+            self.backtrack_full(
+                chars,
+                self.nfa.start,
+                start,
+                len,
+                &mut full_groups,
+                &mut best_end,
+            );
             // Use groups from backtrack (correct captures) with end from backtrack_full (longest)
             // Update group ends that were found in the simpler backtrack pass
-            Some(Match { start, end: best_end, groups })
+            Some(Match {
+                start,
+                end: best_end,
+                groups,
+            })
         } else {
             None
         }
     }
 
-    fn backtrack(&self, chars: &[char], state: StateId, pos: usize, len: usize, groups: &mut Vec<Option<(usize, usize)>>) -> bool {
+    fn backtrack(
+        &self,
+        chars: &[char],
+        state: StateId,
+        pos: usize,
+        len: usize,
+        groups: &mut Vec<Option<(usize, usize)>>,
+    ) -> bool {
         self.backtrack_inner(chars, state, pos, len, groups, &mut BTreeSet::new())
     }
 
-    fn backtrack_inner(&self, chars: &[char], state: StateId, pos: usize, len: usize,
-                       groups: &mut Vec<Option<(usize, usize)>>, visited: &mut BTreeSet<(StateId, usize)>) -> bool {
-        if state == self.nfa.accept { return true; }
-        if !visited.insert((state, pos)) { return false; }
+    fn backtrack_inner(
+        &self,
+        chars: &[char],
+        state: StateId,
+        pos: usize,
+        len: usize,
+        groups: &mut Vec<Option<(usize, usize)>>,
+        visited: &mut BTreeSet<(StateId, usize)>,
+    ) -> bool {
+        if state == self.nfa.accept {
+            return true;
+        }
+        if !visited.insert((state, pos)) {
+            return false;
+        }
 
         for (trans, next) in &self.nfa.states[state].transitions {
             match trans {
@@ -481,43 +617,98 @@ impl Regex {
         false
     }
 
-    fn find_end(&self, chars: &[char], state: StateId, pos: usize, len: usize, groups: &mut Vec<Option<(usize, usize)>>) -> usize {
+    fn find_end(
+        &self,
+        chars: &[char],
+        state: StateId,
+        pos: usize,
+        len: usize,
+        groups: &mut Vec<Option<(usize, usize)>>,
+    ) -> usize {
         let mut best = pos;
         self.backtrack_full(chars, state, pos, len, groups, &mut best);
         best
     }
 
-    fn backtrack_full(&self, chars: &[char], state: StateId, pos: usize, len: usize,
-                      groups: &mut Vec<Option<(usize, usize)>>, best_end: &mut usize) {
-        self.backtrack_full_inner(chars, state, pos, len, groups, best_end, &mut BTreeSet::new());
+    fn backtrack_full(
+        &self,
+        chars: &[char],
+        state: StateId,
+        pos: usize,
+        len: usize,
+        groups: &mut Vec<Option<(usize, usize)>>,
+        best_end: &mut usize,
+    ) {
+        self.backtrack_full_inner(
+            chars,
+            state,
+            pos,
+            len,
+            groups,
+            best_end,
+            &mut BTreeSet::new(),
+        );
     }
 
-    fn backtrack_full_inner(&self, chars: &[char], state: StateId, pos: usize, len: usize,
-                            groups: &mut Vec<Option<(usize, usize)>>, best_end: &mut usize,
-                            visited: &mut BTreeSet<(StateId, usize)>) {
+    fn backtrack_full_inner(
+        &self,
+        chars: &[char],
+        state: StateId,
+        pos: usize,
+        len: usize,
+        groups: &mut Vec<Option<(usize, usize)>>,
+        best_end: &mut usize,
+        visited: &mut BTreeSet<(StateId, usize)>,
+    ) {
         if state == self.nfa.accept {
             if pos >= *best_end {
                 *best_end = pos;
             }
             return;
         }
-        if !visited.insert((state, pos)) { return; }
+        if !visited.insert((state, pos)) {
+            return;
+        }
 
         for (trans, next) in &self.nfa.states[state].transitions {
             match trans {
                 Transition::Char(c) => {
                     if pos < len && chars[pos] == *c {
-                        self.backtrack_full_inner(chars, *next, pos + 1, len, groups, best_end, visited);
+                        self.backtrack_full_inner(
+                            chars,
+                            *next,
+                            pos + 1,
+                            len,
+                            groups,
+                            best_end,
+                            visited,
+                        );
                     }
                 }
                 Transition::Dot => {
                     if pos < len && chars[pos] != '\n' {
-                        self.backtrack_full_inner(chars, *next, pos + 1, len, groups, best_end, visited);
+                        self.backtrack_full_inner(
+                            chars,
+                            *next,
+                            pos + 1,
+                            len,
+                            groups,
+                            best_end,
+                            visited,
+                        );
                     }
                 }
                 Transition::CharClass { ranges, negated } => {
                     if pos < len && char_in_class(chars[pos], ranges, *negated) {
-                        self.backtrack_full_inner(chars, *next, pos + 1, len, groups, best_end, visited);
+                        self.backtrack_full_inner(
+                            chars,
+                            *next,
+                            pos + 1,
+                            len,
+                            groups,
+                            best_end,
+                            visited,
+                        );
                     }
                 }
                 Transition::Epsilon => {
@@ -525,12 +716,16 @@ impl Regex {
                 }
                 Transition::AnchorStart => {
                     if pos == 0 {
-                        self.backtrack_full_inner(chars, *next, pos, len, groups, best_end, visited);
+                        self.backtrack_full_inner(
+                            chars, *next, pos, len, groups, best_end, visited,
+                        );
                     }
                 }
                 Transition::AnchorEnd => {
                     if pos == len {
-                        self.backtrack_full_inner(chars, *next, pos, len, groups, best_end, visited);
+                        self.backtrack_full_inner(
+                            chars, *next, pos, len, groups, best_end, visited,
+                        );
                     }
                 }
                 Transition::GroupOpen(idx) => {
@@ -554,7 +749,12 @@ impl Regex {
 
 impl fmt::Display for Regex {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Regex({} states, {} groups)", self.nfa.states.len(), self.num_groups)
+        write!(
+            f,
+            "Regex({} states, {} groups)",
+            self.nfa.states.len(),
+            self.num_groups
+        )
     }
 }
 

@@ -177,11 +177,7 @@ pub struct ValidationRule {
 
 impl ValidationRule {
     /// Create a new validation rule.
-    pub fn new(
-        name: impl Into<String>,
-        field: impl Into<String>,
-        kind: RuleKind,
-    ) -> Self {
+    pub fn new(name: impl Into<String>, field: impl Into<String>, kind: RuleKind) -> Self {
         Self {
             name: name.into(),
             field: field.into(),
@@ -204,7 +200,10 @@ impl ValidationRule {
     }
 
     /// Validate a record (key-value map).
-    pub fn validate(&self, record: &HashMap<String, serde_json::Value>) -> Option<ValidationFinding> {
+    pub fn validate(
+        &self,
+        record: &HashMap<String, serde_json::Value>,
+    ) -> Option<ValidationFinding> {
         let value = record.get(&self.field);
 
         let failed = match &self.kind {
@@ -216,48 +215,34 @@ impl ValidationRule {
                     Some(v) => !expected.matches(v),
                 }
             }
-            RuleKind::Range { min, max } => {
-                match value.and_then(|v| v.as_f64()) {
-                    None => false,
-                    Some(n) => n < *min || n > *max,
-                }
-            }
-            RuleKind::Pattern(pat) => {
-                match value.and_then(|v| v.as_str()) {
-                    None => false,
-                    Some(s) => !pat.matches(s),
-                }
-            }
-            RuleKind::StringLength { min, max } => {
-                match value.and_then(|v| v.as_str()) {
-                    None => false,
-                    Some(s) => s.len() < *min || s.len() > *max,
-                }
-            }
-            RuleKind::ArrayLength { min, max } => {
-                match value.and_then(|v| v.as_array()) {
-                    None => false,
-                    Some(a) => a.len() < *min || a.len() > *max,
-                }
-            }
-            RuleKind::OneOf(allowed) => {
-                match value {
-                    None => false,
-                    Some(v) => !allowed.contains(v),
-                }
-            }
-            RuleKind::NoneOf(disallowed) => {
-                match value {
-                    None => false,
-                    Some(v) => disallowed.contains(v),
-                }
-            }
-            RuleKind::Custom { validator, .. } => {
-                match value {
-                    None => false,
-                    Some(v) => !validator(v),
-                }
-            }
+            RuleKind::Range { min, max } => match value.and_then(|v| v.as_f64()) {
+                None => false,
+                Some(n) => n < *min || n > *max,
+            },
+            RuleKind::Pattern(pat) => match value.and_then(|v| v.as_str()) {
+                None => false,
+                Some(s) => !pat.matches(s),
+            },
+            RuleKind::StringLength { min, max } => match value.and_then(|v| v.as_str()) {
+                None => false,
+                Some(s) => s.len() < *min || s.len() > *max,
+            },
+            RuleKind::ArrayLength { min, max } => match value.and_then(|v| v.as_array()) {
+                None => false,
+                Some(a) => a.len() < *min || a.len() > *max,
+            },
+            RuleKind::OneOf(allowed) => match value {
+                None => false,
+                Some(v) => !allowed.contains(v),
+            },
+            RuleKind::NoneOf(disallowed) => match value {
+                None => false,
+                Some(v) => disallowed.contains(v),
+            },
+            RuleKind::Custom { validator, .. } => match value {
+                None => false,
+                Some(v) => !validator(v),
+            },
         };
 
         if failed {
@@ -294,16 +279,10 @@ impl ValidationRule {
                 )
             }
             RuleKind::StringLength { min, max } => {
-                format!(
-                    "field '{}' string length not in [{min}, {max}]",
-                    self.field
-                )
+                format!("field '{}' string length not in [{min}, {max}]", self.field)
             }
             RuleKind::ArrayLength { min, max } => {
-                format!(
-                    "field '{}' array length not in [{min}, {max}]",
-                    self.field
-                )
+                format!("field '{}' array length not in [{min}, {max}]", self.field)
             }
             RuleKind::OneOf(_) => format!("field '{}' value not in allowed set", self.field),
             RuleKind::NoneOf(_) => format!("field '{}' value is in disallowed set", self.field),
@@ -355,7 +334,10 @@ impl RowResult {
 
     /// Count findings by severity.
     pub fn count_by_severity(&self, severity: Severity) -> usize {
-        self.findings.iter().filter(|f| f.severity == severity).count()
+        self.findings
+            .iter()
+            .filter(|f| f.severity == severity)
+            .count()
     }
 }
 
@@ -482,14 +464,14 @@ impl DataValidator {
             }
         }
 
-        RowResult { row_index, findings }
+        RowResult {
+            row_index,
+            findings,
+        }
     }
 
     /// Validate a dataset (slice of records).
-    pub fn validate(
-        &self,
-        data: &[HashMap<String, serde_json::Value>],
-    ) -> ValidationReport {
+    pub fn validate(&self, data: &[HashMap<String, serde_json::Value>]) -> ValidationReport {
         let mut rows = Vec::with_capacity(data.len());
         let mut summary = ValidationSummary {
             total_rows: data.len(),
@@ -511,8 +493,14 @@ impl DataValidator {
                     Severity::Warning => summary.warning_count += 1,
                     Severity::Info => summary.info_count += 1,
                 }
-                *summary.rule_failures.entry(finding.rule_name.clone()).or_insert(0) += 1;
-                *summary.field_failures.entry(finding.field.clone()).or_insert(0) += 1;
+                *summary
+                    .rule_failures
+                    .entry(finding.rule_name.clone())
+                    .or_insert(0) += 1;
+                *summary
+                    .field_failures
+                    .entry(finding.field.clone())
+                    .or_insert(0) += 1;
             }
 
             rows.push(row_result);
@@ -551,7 +539,11 @@ pub fn range(field: impl Into<String>, min: f64, max: f64) -> ValidationRule {
 /// Create a string-length rule.
 pub fn string_length(field: impl Into<String>, min: usize, max: usize) -> ValidationRule {
     let f: String = field.into();
-    ValidationRule::new(format!("{f}_strlen"), f, RuleKind::StringLength { min, max })
+    ValidationRule::new(
+        format!("{f}_strlen"),
+        f,
+        RuleKind::StringLength { min, max },
+    )
 }
 
 /// Create a pattern rule.
@@ -565,10 +557,7 @@ pub fn pattern(
     ValidationRule::new(
         format!("{f}_pattern"),
         f,
-        RuleKind::Pattern(PatternRule {
-            kind,
-            pattern: p,
-        }),
+        RuleKind::Pattern(PatternRule { kind, pattern: p }),
     )
 }
 
@@ -579,7 +568,10 @@ mod tests {
     use super::*;
 
     fn row(pairs: &[(&str, serde_json::Value)]) -> HashMap<String, serde_json::Value> {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.clone())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
     }
 
     #[test]
@@ -748,9 +740,15 @@ mod tests {
         validator.add_rule(range("age", 0.0, 150.0));
 
         let data = vec![
-            row(&[("name", serde_json::json!("Alice")), ("age", serde_json::json!(30))]),
+            row(&[
+                ("name", serde_json::json!("Alice")),
+                ("age", serde_json::json!(30)),
+            ]),
             row(&[("age", serde_json::json!(25))]), // missing name
-            row(&[("name", serde_json::json!("Bob")), ("age", serde_json::json!(200))]), // age out of range
+            row(&[
+                ("name", serde_json::json!("Bob")),
+                ("age", serde_json::json!(200)),
+            ]), // age out of range
         ];
 
         let report = validator.validate(&data);
@@ -764,9 +762,7 @@ mod tests {
     fn validation_report_queries() {
         let mut validator = DataValidator::new();
         validator.add_rule(required("name"));
-        validator.add_rule(
-            range("score", 0.0, 100.0).with_severity(Severity::Warning),
-        );
+        validator.add_rule(range("score", 0.0, 100.0).with_severity(Severity::Warning));
 
         let data = vec![
             row(&[("score", serde_json::json!(150))]), // missing name (error) + score out of range (warning)
@@ -784,9 +780,7 @@ mod tests {
         validator.add_rule(required("email"));
         validator.add_rule(pattern("email", PatternKind::Contains, "@"));
 
-        let data = vec![
-            row(&[("email", serde_json::json!("bad"))]),
-        ];
+        let data = vec![row(&[("email", serde_json::json!("bad"))])];
 
         let report = validator.validate(&data);
         let email_findings = report.findings_for_field("email");
@@ -874,11 +868,7 @@ mod tests {
 
     #[test]
     fn array_length_rule() {
-        let r = ValidationRule::new(
-            "tags_len",
-            "tags",
-            RuleKind::ArrayLength { min: 1, max: 5 },
-        );
+        let r = ValidationRule::new("tags_len", "tags", RuleKind::ArrayLength { min: 1, max: 5 });
         let good = row(&[("tags", serde_json::json!(["a", "b"]))]);
         let too_many = row(&[("tags", serde_json::json!(["a", "b", "c", "d", "e", "f"]))]);
         let empty = row(&[("tags", serde_json::json!([]))]);

@@ -127,19 +127,11 @@ impl BucketHistogram {
     }
 
     pub fn min(&self) -> f64 {
-        if self.count == 0 {
-            0.0
-        } else {
-            self.min
-        }
+        if self.count == 0 { 0.0 } else { self.min }
     }
 
     pub fn max(&self) -> f64 {
-        if self.count == 0 {
-            0.0
-        } else {
-            self.max
-        }
+        if self.count == 0 { 0.0 } else { self.max }
     }
 
     pub fn mean(&self) -> f64 {

@@ -19,7 +19,12 @@ pub struct MatchResult {
 
 impl MatchResult {
     pub fn new(x: usize, y: usize, score: f64) -> Self {
-        Self { x, y, score, scale: 1.0 }
+        Self {
+            x,
+            y,
+            score,
+            scale: 1.0,
+        }
     }
 
     pub fn with_scale(mut self, scale: f64) -> Self {
@@ -37,8 +42,11 @@ impl MatchResult {
 
 impl fmt::Display for MatchResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MatchResult(({}, {}) score={:.4} scale={:.2})",
-               self.x, self.y, self.score, self.scale)
+        write!(
+            f,
+            "MatchResult(({}, {}) score={:.4} scale={:.2})",
+            self.x, self.y, self.score, self.scale
+        )
     }
 }
 
@@ -109,8 +117,14 @@ impl TemplateMatchConfig {
 
 impl fmt::Display for TemplateMatchConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TemplateMatchConfig(method={}, scales={}, top_k={}, nms={})",
-               self.method, self.scales.len(), self.top_k, self.nms_radius)
+        write!(
+            f,
+            "TemplateMatchConfig(method={}, scales={}, top_k={}, nms={})",
+            self.method,
+            self.scales.len(),
+            self.top_k,
+            self.nms_radius
+        )
     }
 }
 
@@ -118,9 +132,13 @@ impl fmt::Display for TemplateMatchConfig {
 
 /// Compute the SSD score at a single position.
 fn ssd_at(
-    image: &[f64], img_w: usize,
-    template: &[f64], tmpl_w: usize, tmpl_h: usize,
-    tx: usize, ty: usize,
+    image: &[f64],
+    img_w: usize,
+    template: &[f64],
+    tmpl_w: usize,
+    tmpl_h: usize,
+    tx: usize,
+    ty: usize,
 ) -> f64 {
     let mut sum = 0.0_f64;
     for tr in 0..tmpl_h {
@@ -136,8 +154,12 @@ fn ssd_at(
 
 /// Compute SSD score map over the entire image.
 pub fn ssd_map(
-    image: &[f64], img_w: usize, img_h: usize,
-    template: &[f64], tmpl_w: usize, tmpl_h: usize,
+    image: &[f64],
+    img_w: usize,
+    img_h: usize,
+    template: &[f64],
+    tmpl_w: usize,
+    tmpl_h: usize,
 ) -> Vec<f64> {
     let out_w = img_w - tmpl_w + 1;
     let out_h = img_h - tmpl_h + 1;
@@ -153,9 +175,13 @@ pub fn ssd_map(
 
 /// Compute NCC at a single position.
 fn ncc_at(
-    image: &[f64], img_w: usize,
-    template: &[f64], tmpl_w: usize, tmpl_h: usize,
-    tx: usize, ty: usize,
+    image: &[f64],
+    img_w: usize,
+    template: &[f64],
+    tmpl_w: usize,
+    tmpl_h: usize,
+    tx: usize,
+    ty: usize,
 ) -> f64 {
     let n = (tmpl_w * tmpl_h) as f64;
     let mut sum_i = 0.0_f64;
@@ -186,8 +212,12 @@ fn ncc_at(
 
 /// Compute NCC score map.
 pub fn ncc_map(
-    image: &[f64], img_w: usize, img_h: usize,
-    template: &[f64], tmpl_w: usize, tmpl_h: usize,
+    image: &[f64],
+    img_w: usize,
+    img_h: usize,
+    template: &[f64],
+    tmpl_w: usize,
+    tmpl_h: usize,
 ) -> Vec<f64> {
     let out_w = img_w - tmpl_w + 1;
     let out_h = img_h - tmpl_h + 1;
@@ -203,9 +233,13 @@ pub fn ncc_map(
 
 /// Compute ZNCC at a single position (zero-mean NCC).
 fn zncc_at(
-    image: &[f64], img_w: usize,
-    template: &[f64], tmpl_w: usize, tmpl_h: usize,
-    tx: usize, ty: usize,
+    image: &[f64],
+    img_w: usize,
+    template: &[f64],
+    tmpl_w: usize,
+    tmpl_h: usize,
+    tx: usize,
+    ty: usize,
 ) -> f64 {
     let n = (tmpl_w * tmpl_h) as f64;
 
@@ -241,8 +275,12 @@ fn zncc_at(
 
 /// Compute ZNCC score map.
 pub fn zncc_map(
-    image: &[f64], img_w: usize, img_h: usize,
-    template: &[f64], tmpl_w: usize, tmpl_h: usize,
+    image: &[f64],
+    img_w: usize,
+    img_h: usize,
+    template: &[f64],
+    tmpl_w: usize,
+    tmpl_h: usize,
 ) -> Vec<f64> {
     let out_w = img_w - tmpl_w + 1;
     let out_h = img_h - tmpl_h + 1;
@@ -282,14 +320,21 @@ pub fn find_best(map: &[f64], map_w: usize, method: MatchMethod) -> MatchResult 
 
 /// Find the top-K matches with optional NMS.
 pub fn find_top_k(
-    map: &[f64], map_w: usize, method: MatchMethod,
-    top_k: usize, nms_radius: usize,
+    map: &[f64],
+    map_w: usize,
+    method: MatchMethod,
+    top_k: usize,
+    nms_radius: usize,
 ) -> Vec<MatchResult> {
     let mut indexed: Vec<(usize, f64)> = map.iter().cloned().enumerate().collect();
 
     match method {
-        MatchMethod::Ssd => indexed.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal)),
-        MatchMethod::Ncc | MatchMethod::Zncc => indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)),
+        MatchMethod::Ssd => {
+            indexed.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+        }
+        MatchMethod::Ncc | MatchMethod::Zncc => {
+            indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal))
+        }
     }
 
     let mut results = Vec::new();
@@ -322,8 +367,11 @@ pub fn find_top_k(
 
 /// Bilinear resize of a grayscale image buffer.
 fn resize_bilinear(
-    src: &[f64], src_w: usize, src_h: usize,
-    dst_w: usize, dst_h: usize,
+    src: &[f64],
+    src_w: usize,
+    src_h: usize,
+    dst_w: usize,
+    dst_h: usize,
 ) -> Vec<f64> {
     let mut dst = vec![0.0_f64; dst_w * dst_h];
 
@@ -346,9 +394,9 @@ fn resize_bilinear(
             let v11 = src[y1 * src_w + x1];
 
             dst[dr * dst_w + dc] = v00 * (1.0 - fx) * (1.0 - fy)
-                                 + v10 * fx * (1.0 - fy)
-                                 + v01 * (1.0 - fx) * fy
-                                 + v11 * fx * fy;
+                + v10 * fx * (1.0 - fy)
+                + v01 * (1.0 - fx) * fy
+                + v11 * fx * fy;
         }
     }
     dst
@@ -358,8 +406,12 @@ fn resize_bilinear(
 
 /// Perform multi-scale template matching.
 pub fn match_template(
-    image: &[f64], img_w: usize, img_h: usize,
-    template: &[f64], tmpl_w: usize, tmpl_h: usize,
+    image: &[f64],
+    img_w: usize,
+    img_h: usize,
+    template: &[f64],
+    tmpl_w: usize,
+    tmpl_h: usize,
     config: &TemplateMatchConfig,
 ) -> Vec<MatchResult> {
     let mut all_results = Vec::new();
@@ -394,8 +446,16 @@ pub fn match_template(
 
     // Sort all results across scales
     match config.method {
-        MatchMethod::Ssd => all_results.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap_or(std::cmp::Ordering::Equal)),
-        MatchMethod::Ncc | MatchMethod::Zncc => all_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal)),
+        MatchMethod::Ssd => all_results.sort_by(|a, b| {
+            a.score
+                .partial_cmp(&b.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }),
+        MatchMethod::Ncc | MatchMethod::Zncc => all_results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }),
     }
 
     all_results.truncate(config.top_k);
@@ -495,10 +555,19 @@ mod tests {
     #[test]
     fn test_ncc_identical() {
         let img = checkerboard(10, 10, 2);
-        let tmpl: Vec<f64> = img[..3].iter().chain(img[10..13].iter()).chain(img[20..23].iter()).cloned().collect();
+        let tmpl: Vec<f64> = img[..3]
+            .iter()
+            .chain(img[10..13].iter())
+            .chain(img[20..23].iter())
+            .cloned()
+            .collect();
         // NCC of a patch with itself at position (0,0) should be 1.0
         let score = ncc_at(&img, 10, &tmpl, 3, 3, 0, 0);
-        assert!((score - 1.0).abs() < 1e-6, "NCC of patch with itself should be 1.0, got {}", score);
+        assert!(
+            (score - 1.0).abs() < 1e-6,
+            "NCC of patch with itself should be 1.0, got {}",
+            score
+        );
     }
 
     #[test]
@@ -507,7 +576,11 @@ mod tests {
         let tmpl = checkerboard(3, 3, 1);
         let map = ncc_map(&img, 10, 10, &tmpl, 3, 3);
         for &v in &map {
-            assert!(v >= -1.0 - 1e-6 && v <= 1.0 + 1e-6, "NCC should be in [-1, 1], got {}", v);
+            assert!(
+                v >= -1.0 - 1e-6 && v <= 1.0 + 1e-6,
+                "NCC should be in [-1, 1], got {}",
+                v
+            );
         }
     }
 
@@ -515,7 +588,11 @@ mod tests {
     fn test_zncc_self_match() {
         let data = vec![10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0];
         let score = zncc_at(&data, 3, &data, 3, 3, 0, 0);
-        assert!((score - 1.0).abs() < 1e-6, "ZNCC of patch with itself = 1.0, got {}", score);
+        assert!(
+            (score - 1.0).abs() < 1e-6,
+            "ZNCC of patch with itself = 1.0, got {}",
+            score
+        );
     }
 
     #[test]
@@ -578,11 +655,7 @@ mod tests {
 
     #[test]
     fn test_nms_top_k() {
-        let map = vec![
-            0.1, 0.9, 0.8,
-            0.2, 0.3, 0.7,
-            0.0, 0.1, 0.2,
-        ];
+        let map = vec![0.1, 0.9, 0.8, 0.2, 0.3, 0.7, 0.0, 0.1, 0.2];
         let top = find_top_k(&map, 3, MatchMethod::Ncc, 2, 2);
         // With NMS radius 2, only 1 result should survive from cluster
         assert!(top.len() <= 2);

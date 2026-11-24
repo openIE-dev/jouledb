@@ -79,7 +79,10 @@ pub struct OneHotEncoder {
 
 impl OneHotEncoder {
     pub fn new(num_categories: usize) -> Self {
-        Self { num_categories, drop_first: false }
+        Self {
+            num_categories,
+            drop_first: false,
+        }
     }
 
     pub fn with_drop_first(mut self, drop: bool) -> Self {
@@ -133,7 +136,11 @@ impl OneHotEncoder {
 
 impl fmt::Display for OneHotEncoder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "OneHotEncoder(cats={}, drop_first={})", self.num_categories, self.drop_first)
+        write!(
+            f,
+            "OneHotEncoder(cats={}, drop_first={})",
+            self.num_categories, self.drop_first
+        )
     }
 }
 
@@ -233,7 +240,11 @@ impl Binner {
 
 impl fmt::Display for Binner {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Binner(bins={}, strategy={})", self.num_bins, self.strategy)
+        write!(
+            f,
+            "Binner(bins={}, strategy={})",
+            self.num_bins, self.strategy
+        )
     }
 }
 
@@ -322,8 +333,11 @@ impl PolynomialFeatures {
 
 impl fmt::Display for PolynomialFeatures {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PolynomialFeatures(degree={}, bias={}, interact_only={})",
-               self.degree, self.include_bias, self.interaction_only)
+        write!(
+            f,
+            "PolynomialFeatures(degree={}, bias={}, interact_only={})",
+            self.degree, self.include_bias, self.interaction_only
+        )
     }
 }
 
@@ -454,7 +468,10 @@ impl TargetEncoder {
 
     /// Encode a single category.
     pub fn encode(&self, category: &str) -> f64 {
-        self.mappings.get(category).copied().unwrap_or(self.global_mean)
+        self.mappings
+            .get(category)
+            .copied()
+            .unwrap_or(self.global_mean)
     }
 
     /// Encode a batch.
@@ -465,7 +482,12 @@ impl TargetEncoder {
 
 impl fmt::Display for TargetEncoder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TargetEncoder(cats={}, smooth={:.1})", self.mappings.len(), self.smoothing)
+        write!(
+            f,
+            "TargetEncoder(cats={}, smooth={:.1})",
+            self.mappings.len(),
+            self.smoothing
+        )
     }
 }
 
@@ -569,7 +591,9 @@ mod tests {
 
     #[test]
     fn polynomial_interaction_only() {
-        let pf = PolynomialFeatures::new(2).with_bias(false).with_interaction_only(true);
+        let pf = PolynomialFeatures::new(2)
+            .with_bias(false)
+            .with_interaction_only(true);
         let result = pf.transform(&[2.0, 3.0, 5.0]);
         // original: [2, 3, 5], interactions: [6, 10, 15]
         assert_eq!(result.len(), 6);

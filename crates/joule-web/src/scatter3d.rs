@@ -228,8 +228,8 @@ pub fn render_grid_plane(
 // ── Cluster coloring ─────────────────────────────────────────────
 
 const GROUP_COLORS: &[&str] = &[
-    "#3498db", "#e74c3c", "#2ecc71", "#f1c40f", "#9b59b6",
-    "#1abc9c", "#e67e22", "#34495e", "#e91e63", "#00bcd4",
+    "#3498db", "#e74c3c", "#2ecc71", "#f1c40f", "#9b59b6", "#1abc9c", "#e67e22", "#34495e",
+    "#e91e63", "#00bcd4",
 ];
 
 /// Pick a color for a group index.
@@ -288,13 +288,34 @@ pub fn render_scatter3d(points: &[Point3D], cfg: &Scatter3DConfig) -> String {
 
     // Grid planes
     if cfg.show_grid_xy {
-        svg.push_str(&render_grid_plane(GridPlane::XY, cfg.grid_divisions, &cfg.view, screen_cx, screen_cy, scale));
+        svg.push_str(&render_grid_plane(
+            GridPlane::XY,
+            cfg.grid_divisions,
+            &cfg.view,
+            screen_cx,
+            screen_cy,
+            scale,
+        ));
     }
     if cfg.show_grid_xz {
-        svg.push_str(&render_grid_plane(GridPlane::XZ, cfg.grid_divisions, &cfg.view, screen_cx, screen_cy, scale));
+        svg.push_str(&render_grid_plane(
+            GridPlane::XZ,
+            cfg.grid_divisions,
+            &cfg.view,
+            screen_cx,
+            screen_cy,
+            scale,
+        ));
     }
     if cfg.show_grid_yz {
-        svg.push_str(&render_grid_plane(GridPlane::YZ, cfg.grid_divisions, &cfg.view, screen_cx, screen_cy, scale));
+        svg.push_str(&render_grid_plane(
+            GridPlane::YZ,
+            cfg.grid_divisions,
+            &cfg.view,
+            screen_cx,
+            screen_cy,
+            scale,
+        ));
     }
 
     // Axis lines
@@ -334,7 +355,11 @@ pub fn render_scatter3d(points: &[Point3D], cfg: &Scatter3DConfig) -> String {
         })
         .collect();
 
-    projected.sort_by(|a, b| b.depth.partial_cmp(&a.depth).unwrap_or(std::cmp::Ordering::Equal));
+    projected.sort_by(|a, b| {
+        b.depth
+            .partial_cmp(&a.depth)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     // Draw points
     for proj in &projected {

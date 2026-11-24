@@ -43,7 +43,11 @@ impl StandardScaler {
             *s = (*s / n).sqrt().max(1e-10);
         }
 
-        Self { means, stds, n_features }
+        Self {
+            means,
+            stds,
+            n_features,
+        }
     }
 
     /// Transform data using the fitted parameters.
@@ -120,7 +124,11 @@ impl MinMaxScaler {
                 }
             }
         }
-        Self { mins, maxs, n_features }
+        Self {
+            mins,
+            maxs,
+            n_features,
+        }
     }
 
     /// Transform data to [0, 1] range.
@@ -131,7 +139,11 @@ impl MinMaxScaler {
                     .enumerate()
                     .map(|(j, v)| {
                         let range = self.maxs[j] - self.mins[j];
-                        if range.abs() < 1e-15 { 0.0 } else { (v - self.mins[j]) / range }
+                        if range.abs() < 1e-15 {
+                            0.0
+                        } else {
+                            (v - self.mins[j]) / range
+                        }
                     })
                     .collect()
             })
@@ -247,13 +259,14 @@ impl PCA {
     pub fn transform(&self, data: &[Vec<f64>]) -> Vec<Vec<f64>> {
         data.iter()
             .map(|row| {
-                let centered: Vec<f64> =
-                    row.iter().enumerate().map(|(j, v)| v - self.mean[j]).collect();
+                let centered: Vec<f64> = row
+                    .iter()
+                    .enumerate()
+                    .map(|(j, v)| v - self.mean[j])
+                    .collect();
                 self.components
                     .iter()
-                    .map(|comp| {
-                        comp.iter().zip(centered.iter()).map(|(c, x)| c * x).sum()
-                    })
+                    .map(|comp| comp.iter().zip(centered.iter()).map(|(c, x)| c * x).sum())
                     .collect()
             })
             .collect()
@@ -394,7 +407,10 @@ impl Default for TSNE {
 impl TSNE {
     /// Create with custom perplexity.
     pub fn with_perplexity(perplexity: f64) -> Self {
-        Self { perplexity, ..Default::default() }
+        Self {
+            perplexity,
+            ..Default::default()
+        }
     }
 
     /// Run t-SNE, reducing data to 2D.
@@ -465,8 +481,8 @@ impl TSNE {
                     } else {
                         gains[i][d] + 0.2
                     };
-                    y_delta[i][d] = momentum * y_delta[i][d]
-                        - self.learning_rate * gains[i][d] * grad[i][d];
+                    y_delta[i][d] =
+                        momentum * y_delta[i][d] - self.learning_rate * gains[i][d] * grad[i][d];
                     y[i][d] += y_delta[i][d];
                 }
             }
@@ -648,9 +664,7 @@ impl RandomProjection {
             .map(|row| {
                 self.projection_matrix
                     .iter()
-                    .map(|proj_row| {
-                        proj_row.iter().zip(row.iter()).map(|(p, x)| p * x).sum()
-                    })
+                    .map(|proj_row| proj_row.iter().zip(row.iter()).map(|(p, x)| p * x).sum())
                     .collect()
             })
             .collect()
@@ -716,8 +730,12 @@ mod tests {
 
     fn clustered_data() -> Vec<Vec<f64>> {
         vec![
-            vec![0.1, 0.1, 0.0], vec![0.2, 0.0, 0.1], vec![0.0, 0.2, 0.1],
-            vec![10.0, 10.0, 10.0], vec![10.1, 10.2, 10.0], vec![10.0, 9.9, 10.1],
+            vec![0.1, 0.1, 0.0],
+            vec![0.2, 0.0, 0.1],
+            vec![0.0, 0.2, 0.1],
+            vec![10.0, 10.0, 10.0],
+            vec![10.1, 10.2, 10.0],
+            vec![10.0, 9.9, 10.1],
         ]
     }
 
@@ -842,7 +860,11 @@ mod tests {
     #[test]
     fn test_tsne_basic() {
         let data = clustered_data();
-        let tsne = TSNE { n_iter: 100, seed: 42, ..Default::default() };
+        let tsne = TSNE {
+            n_iter: 100,
+            seed: 42,
+            ..Default::default()
+        };
         let result = tsne.fit_transform(&data);
         assert_eq!(result.len(), 6);
         assert_eq!(result[0].len(), 2);
@@ -857,7 +879,11 @@ mod tests {
     #[test]
     fn test_tsne_separation() {
         let data = clustered_data();
-        let tsne = TSNE { n_iter: 200, seed: 42, ..Default::default() };
+        let tsne = TSNE {
+            n_iter: 200,
+            seed: 42,
+            ..Default::default()
+        };
         let result = tsne.fit_transform(&data);
         // Cluster 0 (first 3) should be closer together than to cluster 1 (last 3)
         let c0_center = [
@@ -868,7 +894,8 @@ mod tests {
             (result[3][0] + result[4][0] + result[5][0]) / 3.0,
             (result[3][1] + result[4][1] + result[5][1]) / 3.0,
         ];
-        let inter_dist = (c0_center[0] - c1_center[0]).powi(2) + (c0_center[1] - c1_center[1]).powi(2);
+        let inter_dist =
+            (c0_center[0] - c1_center[0]).powi(2) + (c0_center[1] - c1_center[1]).powi(2);
         assert!(inter_dist > 0.0); // clusters should be separated
     }
 

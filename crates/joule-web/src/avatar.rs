@@ -210,7 +210,11 @@ impl Avatar {
             "<div class=\"avatar avatar--{} avatar--{}\" role=\"img\" aria-label=\"{}\">\
              {}{}</div>",
             size_class,
-            if self.shape == AvatarShape::Circle { "circle" } else { "rounded" },
+            if self.shape == AvatarShape::Circle {
+                "circle"
+            } else {
+                "rounded"
+            },
             self.alt.as_deref().unwrap_or(&self.name),
             inner,
             status_html,
@@ -272,7 +276,11 @@ impl AvatarGroup {
             } else {
                 String::new()
             };
-            html.push_str(&format!("<div class=\"avatar-group-item\"{}>{}</div>", offset, avatar.render()));
+            html.push_str(&format!(
+                "<div class=\"avatar-group-item\"{}>{}</div>",
+                offset,
+                avatar.render()
+            ));
         }
 
         let overflow = self.overflow_count();

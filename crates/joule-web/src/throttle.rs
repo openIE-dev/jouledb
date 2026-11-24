@@ -14,9 +14,7 @@ use std::time::{Duration, Instant};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RateLimitError {
     /// Request exceeds the rate limit.
-    LimitExceeded {
-        retry_after: Duration,
-    },
+    LimitExceeded { retry_after: Duration },
     /// No tokens available.
     NoTokens,
 }
@@ -220,7 +218,8 @@ impl SlidingWindow {
     /// Remaining requests allowed.
     pub fn remaining(&mut self, now: Instant) -> u64 {
         self.prune(now);
-        self.max_requests.saturating_sub(self.timestamps.len() as u64)
+        self.max_requests
+            .saturating_sub(self.timestamps.len() as u64)
     }
 }
 
@@ -373,8 +372,7 @@ impl AdaptiveRateLimiter {
 
     /// Signal success — increase the limit.
     pub fn on_success(&mut self) {
-        self.current_limit =
-            (self.current_limit + self.increase_step).min(self.max_limit);
+        self.current_limit = (self.current_limit + self.increase_step).min(self.max_limit);
         self.counter.max_requests = self.current_limit;
     }
 
@@ -544,10 +542,7 @@ mod tests {
 
     #[test]
     fn rate_limit_headers_exceeded() {
-        let headers = vec![
-            ("ratelimit-limit", "10"),
-            ("ratelimit-remaining", "0"),
-        ];
+        let headers = vec![("ratelimit-limit", "10"), ("ratelimit-remaining", "0")];
         let parsed = RateLimitHeaders::from_headers(&headers).unwrap();
         assert!(parsed.is_exceeded());
     }

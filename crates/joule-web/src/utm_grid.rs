@@ -172,23 +172,29 @@ pub fn latlon_to_utm_zone(lat_deg: f64, lon_deg: f64, zone: u8) -> Result<UtmCoo
     let m = meridional_arc(lat);
 
     let easting = UTM_FE
-        + UTM_K0 * n
+        + UTM_K0
+            * n
             * (a + a.powi(3) / 6.0 * (1.0 - t * t + c)
                 + a.powi(5) / 120.0 * (5.0 - 18.0 * t * t + t.powi(4) + 72.0 * c - 58.0 * ep2));
 
     let mut northing = UTM_K0
-        * (m + n * t
+        * (m + n
+            * t
             * (a * a / 2.0
                 + a.powi(4) / 24.0 * (5.0 - t * t + 9.0 * c + 4.0 * c * c)
-                + a.powi(6) / 720.0
-                    * (61.0 - 58.0 * t * t + t.powi(4) + 600.0 * c - 330.0 * ep2)));
+                + a.powi(6) / 720.0 * (61.0 - 58.0 * t * t + t.powi(4) + 600.0 * c - 330.0 * ep2)));
 
     let hemi = hemisphere_from_lat(lat_deg);
     if hemi == Hemisphere::South {
         northing += UTM_FN_SOUTH;
     }
 
-    Ok(UtmCoord { zone, hemisphere: hemi, easting, northing })
+    Ok(UtmCoord {
+        zone,
+        hemisphere: hemi,
+        easting,
+        northing,
+    })
 }
 
 // ── UTM → Lat/Lon ──────────────────────────────────────────────
@@ -225,8 +231,7 @@ pub fn utm_to_latlon(utm: &UtmCoord) -> Result<(f64, f64), UtmError> {
     let lat = phi1
         - n1 * t1 / r1
             * (d * d / 2.0
-                - d.powi(4) / 24.0
-                    * (5.0 + 3.0 * t1 * t1 + 10.0 * c1 - 4.0 * c1 * c1 - 9.0 * ep2)
+                - d.powi(4) / 24.0 * (5.0 + 3.0 * t1 * t1 + 10.0 * c1 - 4.0 * c1 * c1 - 9.0 * ep2)
                 + d.powi(6) / 720.0
                     * (61.0 + 90.0 * t1 * t1 + 298.0 * c1 + 45.0 * t1.powi(4)
                         - 252.0 * ep2
@@ -235,7 +240,8 @@ pub fn utm_to_latlon(utm: &UtmCoord) -> Result<(f64, f64), UtmError> {
     let lon_rad = cm * DEG
         + (d - d.powi(3) / 6.0 * (1.0 + 2.0 * t1 * t1 + c1)
             + d.powi(5) / 120.0
-                * (5.0 - 2.0 * c1 + 28.0 * t1 * t1 - 3.0 * c1 * c1 + 8.0 * ep2
+                * (5.0 - 2.0 * c1 + 28.0 * t1 * t1 - 3.0 * c1 * c1
+                    + 8.0 * ep2
                     + 24.0 * t1.powi(4)))
             / phi1.cos();
 

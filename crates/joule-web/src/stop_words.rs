@@ -6,28 +6,180 @@ use std::collections::HashSet;
 // ── Built-in English stop words (125+) ───────────────────────────
 
 const ENGLISH_STOP_WORDS: &[&str] = &[
-    "a", "about", "above", "after", "again", "against", "all", "am", "an",
-    "and", "any", "are", "aren't", "as", "at", "be", "because", "been",
-    "before", "being", "below", "between", "both", "but", "by", "can",
-    "can't", "cannot", "could", "couldn't", "did", "didn't", "do", "does",
-    "doesn't", "doing", "don't", "down", "during", "each", "few", "for",
-    "from", "further", "get", "got", "had", "hadn't", "has", "hasn't",
-    "have", "haven't", "having", "he", "her", "here", "hers", "herself",
-    "him", "himself", "his", "how", "i", "if", "in", "into", "is",
-    "isn't", "it", "it's", "its", "itself", "just", "let's", "like", "me",
-    "might", "more", "most", "mustn't", "my", "myself", "no", "nor",
-    "not", "of", "off", "on", "once", "only", "or", "other", "ought",
-    "our", "ours", "ourselves", "out", "over", "own", "same", "shall",
-    "shan't", "she", "she'd", "she'll", "she's", "should", "shouldn't",
-    "so", "some", "such", "than", "that", "that's", "the", "their",
-    "theirs", "them", "themselves", "then", "there", "there's", "these",
-    "they", "they'd", "they'll", "they're", "they've", "this", "those",
-    "through", "to", "too", "under", "until", "up", "us", "very", "was",
-    "wasn't", "we", "we'd", "we'll", "we're", "we've", "were", "weren't",
-    "what", "what's", "when", "when's", "where", "where's", "which",
-    "while", "who", "who's", "whom", "why", "why's", "will", "with",
-    "won't", "would", "wouldn't", "you", "you'd", "you'll", "you're",
-    "you've", "your", "yours", "yourself", "yourselves",
+    "a",
+    "about",
+    "above",
+    "after",
+    "again",
+    "against",
+    "all",
+    "am",
+    "an",
+    "and",
+    "any",
+    "are",
+    "aren't",
+    "as",
+    "at",
+    "be",
+    "because",
+    "been",
+    "before",
+    "being",
+    "below",
+    "between",
+    "both",
+    "but",
+    "by",
+    "can",
+    "can't",
+    "cannot",
+    "could",
+    "couldn't",
+    "did",
+    "didn't",
+    "do",
+    "does",
+    "doesn't",
+    "doing",
+    "don't",
+    "down",
+    "during",
+    "each",
+    "few",
+    "for",
+    "from",
+    "further",
+    "get",
+    "got",
+    "had",
+    "hadn't",
+    "has",
+    "hasn't",
+    "have",
+    "haven't",
+    "having",
+    "he",
+    "her",
+    "here",
+    "hers",
+    "herself",
+    "him",
+    "himself",
+    "his",
+    "how",
+    "i",
+    "if",
+    "in",
+    "into",
+    "is",
+    "isn't",
+    "it",
+    "it's",
+    "its",
+    "itself",
+    "just",
+    "let's",
+    "like",
+    "me",
+    "might",
+    "more",
+    "most",
+    "mustn't",
+    "my",
+    "myself",
+    "no",
+    "nor",
+    "not",
+    "of",
+    "off",
+    "on",
+    "once",
+    "only",
+    "or",
+    "other",
+    "ought",
+    "our",
+    "ours",
+    "ourselves",
+    "out",
+    "over",
+    "own",
+    "same",
+    "shall",
+    "shan't",
+    "she",
+    "she'd",
+    "she'll",
+    "she's",
+    "should",
+    "shouldn't",
+    "so",
+    "some",
+    "such",
+    "than",
+    "that",
+    "that's",
+    "the",
+    "their",
+    "theirs",
+    "them",
+    "themselves",
+    "then",
+    "there",
+    "there's",
+    "these",
+    "they",
+    "they'd",
+    "they'll",
+    "they're",
+    "they've",
+    "this",
+    "those",
+    "through",
+    "to",
+    "too",
+    "under",
+    "until",
+    "up",
+    "us",
+    "very",
+    "was",
+    "wasn't",
+    "we",
+    "we'd",
+    "we'll",
+    "we're",
+    "we've",
+    "were",
+    "weren't",
+    "what",
+    "what's",
+    "when",
+    "when's",
+    "where",
+    "where's",
+    "which",
+    "while",
+    "who",
+    "who's",
+    "whom",
+    "why",
+    "why's",
+    "will",
+    "with",
+    "won't",
+    "would",
+    "wouldn't",
+    "you",
+    "you'd",
+    "you'll",
+    "you're",
+    "you've",
+    "your",
+    "yours",
+    "yourself",
+    "yourselves",
 ];
 
 /// Hint for which language's stop words to use.
@@ -84,15 +236,13 @@ impl StopWordSet {
     /// Create a Spanish stop word set (common subset).
     pub fn spanish() -> Self {
         let words: &[&str] = &[
-            "de", "la", "que", "el", "en", "y", "a", "los", "del", "se",
-            "las", "por", "un", "para", "con", "no", "una", "su", "al",
-            "lo", "como", "mas", "pero", "sus", "le", "ya", "o", "este",
-            "si", "porque", "esta", "entre", "cuando", "muy", "sin",
-            "sobre", "tambien", "me", "hasta", "hay", "donde", "quien",
-            "desde", "todo", "nos", "durante", "todos", "uno", "les",
-            "ni", "contra", "otros", "ese", "eso", "ante", "ellos",
-            "esto", "mi", "antes", "algunos", "que", "unos", "yo",
-            "otro", "otras", "otra", "el", "tan", "poco", "ella",
+            "de", "la", "que", "el", "en", "y", "a", "los", "del", "se", "las", "por", "un",
+            "para", "con", "no", "una", "su", "al", "lo", "como", "mas", "pero", "sus", "le", "ya",
+            "o", "este", "si", "porque", "esta", "entre", "cuando", "muy", "sin", "sobre",
+            "tambien", "me", "hasta", "hay", "donde", "quien", "desde", "todo", "nos", "durante",
+            "todos", "uno", "les", "ni", "contra", "otros", "ese", "eso", "ante", "ellos", "esto",
+            "mi", "antes", "algunos", "que", "unos", "yo", "otro", "otras", "otra", "el", "tan",
+            "poco", "ella",
         ];
         Self::from_words(words, Language::Spanish)
     }
@@ -100,12 +250,10 @@ impl StopWordSet {
     /// Create a French stop word set (common subset).
     pub fn french() -> Self {
         let words: &[&str] = &[
-            "le", "la", "les", "de", "des", "du", "un", "une", "et",
-            "en", "que", "qui", "dans", "ce", "il", "je", "ne", "se",
-            "pas", "plus", "son", "par", "au", "sur", "avec", "tout",
-            "mais", "ou", "comme", "on", "pour", "nous", "vous", "elle",
-            "est", "sont", "leur", "cette", "ces", "ont", "sa", "ses",
-            "mon", "mes", "aux", "te", "lui", "me", "si", "tu",
+            "le", "la", "les", "de", "des", "du", "un", "une", "et", "en", "que", "qui", "dans",
+            "ce", "il", "je", "ne", "se", "pas", "plus", "son", "par", "au", "sur", "avec", "tout",
+            "mais", "ou", "comme", "on", "pour", "nous", "vous", "elle", "est", "sont", "leur",
+            "cette", "ces", "ont", "sa", "ses", "mon", "mes", "aux", "te", "lui", "me", "si", "tu",
         ];
         Self::from_words(words, Language::French)
     }
@@ -113,11 +261,10 @@ impl StopWordSet {
     /// Create a German stop word set (common subset).
     pub fn german() -> Self {
         let words: &[&str] = &[
-            "der", "die", "das", "und", "in", "den", "von", "zu", "mit",
-            "ist", "auf", "ein", "eine", "dem", "nicht", "sich", "des",
-            "es", "als", "an", "auch", "so", "dass", "kann", "aber",
-            "um", "am", "aus", "wenn", "wie", "man", "nach", "noch",
-            "nur", "da", "hat", "bei", "im", "ich", "er", "sie", "wir",
+            "der", "die", "das", "und", "in", "den", "von", "zu", "mit", "ist", "auf", "ein",
+            "eine", "dem", "nicht", "sich", "des", "es", "als", "an", "auch", "so", "dass", "kann",
+            "aber", "um", "am", "aus", "wenn", "wie", "man", "nach", "noch", "nur", "da", "hat",
+            "bei", "im", "ich", "er", "sie", "wir",
         ];
         Self::from_words(words, Language::German)
     }
@@ -204,7 +351,10 @@ pub fn remove_stop_words_text(text: &str, stop_words: &StopWordSet) -> String {
         .into_iter()
         .filter(|w| {
             // Strip punctuation for matching but keep the original form.
-            let clean: String = w.chars().filter(|c| c.is_alphanumeric() || *c == '\'').collect();
+            let clean: String = w
+                .chars()
+                .filter(|c| c.is_alphanumeric() || *c == '\'')
+                .collect();
             !stop_words.is_stop_word(&clean)
         })
         .collect();
@@ -215,10 +365,7 @@ pub fn remove_stop_words_text(text: &str, stop_words: &StopWordSet) -> String {
 
 /// A simple heuristic to guess the language of a text based on stop word frequency.
 pub fn detect_language_hint(text: &str) -> Language {
-    let words: Vec<String> = text
-        .split_whitespace()
-        .map(|w| w.to_lowercase())
-        .collect();
+    let words: Vec<String> = text.split_whitespace().map(|w| w.to_lowercase()).collect();
 
     if words.is_empty() {
         return Language::English;
@@ -265,7 +412,11 @@ mod tests {
     #[test]
     fn test_english_stop_words_count() {
         let set = StopWordSet::english();
-        assert!(set.len() >= 100, "Expected 100+ stop words, got {}", set.len());
+        assert!(
+            set.len() >= 100,
+            "Expected 100+ stop words, got {}",
+            set.len()
+        );
     }
 
     #[test]
@@ -305,11 +456,31 @@ mod tests {
     fn test_remove_stop_words_tokens() {
         let set = StopWordSet::english();
         let tokens = vec![
-            TextToken { text: "The".to_string(), start: 0, end: 3 },
-            TextToken { text: "quick".to_string(), start: 4, end: 9 },
-            TextToken { text: "fox".to_string(), start: 10, end: 13 },
-            TextToken { text: "is".to_string(), start: 14, end: 16 },
-            TextToken { text: "here".to_string(), start: 17, end: 21 },
+            TextToken {
+                text: "The".to_string(),
+                start: 0,
+                end: 3,
+            },
+            TextToken {
+                text: "quick".to_string(),
+                start: 4,
+                end: 9,
+            },
+            TextToken {
+                text: "fox".to_string(),
+                start: 10,
+                end: 13,
+            },
+            TextToken {
+                text: "is".to_string(),
+                start: 14,
+                end: 16,
+            },
+            TextToken {
+                text: "here".to_string(),
+                start: 17,
+                end: 21,
+            },
         ];
         let filtered = remove_stop_words(&tokens, &set);
         let texts: Vec<&str> = filtered.iter().map(|t| t.text.as_str()).collect();

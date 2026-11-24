@@ -19,9 +19,24 @@ pub struct Color {
 }
 
 impl Color {
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
-    pub const BLACK: Self = Self { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
-    pub const TRANSPARENT: Self = Self { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+        a: 1.0,
+    };
+    pub const BLACK: Self = Self {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
+    pub const TRANSPARENT: Self = Self {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 0.0,
+    };
 
     pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }
@@ -55,7 +70,11 @@ impl Default for Color {
 
 impl fmt::Display for Color {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({:.3}, {:.3}, {:.3}, {:.3})", self.r, self.g, self.b, self.a)
+        write!(
+            f,
+            "({:.3}, {:.3}, {:.3}, {:.3})",
+            self.r, self.g, self.b, self.a
+        )
     }
 }
 
@@ -110,10 +129,16 @@ pub struct Emissive {
 }
 
 impl Emissive {
-    pub const OFF: Self = Self { color: Color::BLACK, intensity: 0.0 };
+    pub const OFF: Self = Self {
+        color: Color::BLACK,
+        intensity: 0.0,
+    };
 
     pub fn new(r: f32, g: f32, b: f32, intensity: f32) -> Self {
-        Self { color: Color::rgb(r, g, b), intensity }
+        Self {
+            color: Color::rgb(r, g, b),
+            intensity,
+        }
     }
 
     /// Effective emissive contribution (color * intensity).
@@ -221,7 +246,11 @@ impl PbrMaterial {
         match self.alpha_mode {
             AlphaMode::Opaque => 1.0,
             AlphaMode::Mask => {
-                if alpha >= self.alpha_cutoff { 1.0 } else { 0.0 }
+                if alpha >= self.alpha_cutoff {
+                    1.0
+                } else {
+                    0.0
+                }
             }
             AlphaMode::Blend => alpha.clamp(0.0, 1.0),
         }
@@ -290,7 +319,11 @@ impl PbrMaterial {
     ///   [44..0]  material id hash (45 bits)
     pub fn sort_key(&self, depth: f32, max_depth: f32) -> u64 {
         let alpha_bits = (self.alpha_mode.sort_priority() as u64) << 62;
-        let d = if max_depth > 0.0 { (depth / max_depth).clamp(0.0, 1.0) } else { 0.0 };
+        let d = if max_depth > 0.0 {
+            (depth / max_depth).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
         let depth_bits = ((d * 65535.0) as u64) << 45;
         let name_hash = {
             let mut h: u64 = 5381;
@@ -309,11 +342,17 @@ impl PbrMaterial {
         format!(
             r#"{{"name":"{}","base_color":[{},{},{},{}],"metallic":{},"roughness":{},"normal_map_strength":{},"emissive":[{},{},{},{}],"alpha_mode":"{}","alpha_cutoff":{},"double_sided":{}}}"#,
             self.name,
-            self.base_color.r, self.base_color.g, self.base_color.b, self.base_color.a,
+            self.base_color.r,
+            self.base_color.g,
+            self.base_color.b,
+            self.base_color.a,
             self.metallic,
             self.roughness,
             self.normal_map_strength,
-            self.emissive.color.r, self.emissive.color.g, self.emissive.color.b, self.emissive.intensity,
+            self.emissive.color.r,
+            self.emissive.color.g,
+            self.emissive.color.b,
+            self.emissive.intensity,
             self.alpha_mode,
             self.alpha_cutoff,
             self.double_sided,
@@ -324,39 +363,60 @@ impl PbrMaterial {
     pub fn from_json(s: &str) -> Result<Self, String> {
         fn extract_str<'a>(s: &'a str, key: &str) -> Result<&'a str, String> {
             let pattern = format!("\"{}\":\"", key);
-            let start = s.find(&pattern)
+            let start = s
+                .find(&pattern)
                 .ok_or_else(|| format!("missing key: {key}"))?
                 + pattern.len();
-            let end = s[start..].find('"').ok_or_else(|| format!("unterminated string for {key}"))? + start;
+            let end = s[start..]
+                .find('"')
+                .ok_or_else(|| format!("unterminated string for {key}"))?
+                + start;
             Ok(&s[start..end])
         }
         fn extract_array(s: &str, key: &str) -> Result<Vec<f32>, String> {
             let pattern = format!("\"{}\":[", key);
-            let start = s.find(&pattern)
+            let start = s
+                .find(&pattern)
                 .ok_or_else(|| format!("missing key: {key}"))?
                 + pattern.len();
-            let end = s[start..].find(']').ok_or_else(|| format!("unterminated array for {key}"))? + start;
+            let end = s[start..]
+                .find(']')
+                .ok_or_else(|| format!("unterminated array for {key}"))?
+                + start;
             s[start..end]
                 .split(',')
-                .map(|v| v.trim().parse::<f32>().map_err(|e| format!("bad float in {key}: {e}")))
+                .map(|v| {
+                    v.trim()
+                        .parse::<f32>()
+                        .map_err(|e| format!("bad float in {key}: {e}"))
+                })
                 .collect()
         }
         fn extract_f32(s: &str, key: &str) -> Result<f32, String> {
             let pattern = format!("\"{}\":", key);
-            let start = s.find(&pattern)
+            let start = s
+                .find(&pattern)
                 .ok_or_else(|| format!("missing key: {key}"))?
                 + pattern.len();
             let rest = &s[start..];
-            let end = rest.find(|c: char| c == ',' || c == '}').unwrap_or(rest.len());
-            rest[..end].trim().parse::<f32>().map_err(|e| format!("bad float for {key}: {e}"))
+            let end = rest
+                .find(|c: char| c == ',' || c == '}')
+                .unwrap_or(rest.len());
+            rest[..end]
+                .trim()
+                .parse::<f32>()
+                .map_err(|e| format!("bad float for {key}: {e}"))
         }
         fn extract_bool(s: &str, key: &str) -> Result<bool, String> {
             let pattern = format!("\"{}\":", key);
-            let start = s.find(&pattern)
+            let start = s
+                .find(&pattern)
                 .ok_or_else(|| format!("missing key: {key}"))?
                 + pattern.len();
             let rest = &s[start..];
-            let end = rest.find(|c: char| c == ',' || c == '}').unwrap_or(rest.len());
+            let end = rest
+                .find(|c: char| c == ',' || c == '}')
+                .unwrap_or(rest.len());
             match rest[..end].trim() {
                 "true" => Ok(true),
                 "false" => Ok(false),
@@ -366,9 +426,13 @@ impl PbrMaterial {
 
         let name = extract_str(s, "name")?.to_owned();
         let bc = extract_array(s, "base_color")?;
-        if bc.len() != 4 { return Err("base_color needs 4 elements".into()); }
+        if bc.len() != 4 {
+            return Err("base_color needs 4 elements".into());
+        }
         let em = extract_array(s, "emissive")?;
-        if em.len() != 4 { return Err("emissive needs 4 elements".into()); }
+        if em.len() != 4 {
+            return Err("emissive needs 4 elements".into());
+        }
         let alpha_str = extract_str(s, "alpha_mode")?;
         let alpha_mode = match alpha_str {
             "Opaque" => AlphaMode::Opaque,
@@ -383,7 +447,10 @@ impl PbrMaterial {
             metallic: extract_f32(s, "metallic")?,
             roughness: extract_f32(s, "roughness")?,
             normal_map_strength: extract_f32(s, "normal_map_strength")?,
-            emissive: Emissive { color: Color::rgb(em[0], em[1], em[2]), intensity: em[3] },
+            emissive: Emissive {
+                color: Color::rgb(em[0], em[1], em[2]),
+                intensity: em[3],
+            },
             alpha_mode,
             alpha_cutoff: extract_f32(s, "alpha_cutoff")?,
             double_sided: extract_bool(s, "double_sided")?,

@@ -12,7 +12,11 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
@@ -24,7 +28,15 @@ impl Vec3 {
 
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-10 { Self::ZERO } else { Self { x: self.x / l, y: self.y / l, z: self.z / l } }
+        if l < 1e-10 {
+            Self::ZERO
+        } else {
+            Self {
+                x: self.x / l,
+                y: self.y / l,
+                z: self.z / l,
+            }
+        }
     }
 
     pub fn cross(self, o: Self) -> Self {
@@ -50,15 +62,33 @@ impl Vec3 {
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 impl std::ops::Mul<f32> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f32) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f32) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 
 /// RGBA color.
@@ -71,8 +101,18 @@ pub struct Color {
 }
 
 impl Color {
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
-    pub const TRANSPARENT: Self = Self { r: 1.0, g: 1.0, b: 1.0, a: 0.0 };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+        a: 1.0,
+    };
+    pub const TRANSPARENT: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+        a: 0.0,
+    };
 
     pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }
@@ -124,23 +164,37 @@ pub struct WidthCurve {
 
 impl WidthCurve {
     pub fn constant(w: f32) -> Self {
-        Self { keys: vec![(0.0, w), (1.0, w)] }
+        Self {
+            keys: vec![(0.0, w), (1.0, w)],
+        }
     }
 
     pub fn tapered(base_width: f32) -> Self {
-        Self { keys: vec![(0.0, base_width), (1.0, 0.0)] }
+        Self {
+            keys: vec![(0.0, base_width), (1.0, 0.0)],
+        }
     }
 
     pub fn sample(&self, t: f32) -> f32 {
-        if self.keys.is_empty() { return 1.0; }
-        if self.keys.len() == 1 || t <= self.keys[0].0 { return self.keys[0].1; }
+        if self.keys.is_empty() {
+            return 1.0;
+        }
+        if self.keys.len() == 1 || t <= self.keys[0].0 {
+            return self.keys[0].1;
+        }
         let last = self.keys.len() - 1;
-        if t >= self.keys[last].0 { return self.keys[last].1; }
+        if t >= self.keys[last].0 {
+            return self.keys[last].1;
+        }
         for i in 0..last {
             let (t0, v0) = self.keys[i];
             let (t1, v1) = self.keys[i + 1];
             if t >= t0 && t <= t1 {
-                let frac = if (t1 - t0).abs() < 1e-9 { 0.0 } else { (t - t0) / (t1 - t0) };
+                let frac = if (t1 - t0).abs() < 1e-9 {
+                    0.0
+                } else {
+                    (t - t0) / (t1 - t0)
+                };
                 return v0 + (v1 - v0) * frac;
             }
         }
@@ -166,15 +220,25 @@ impl ColorGradient {
     }
 
     pub fn sample(&self, t: f32) -> Color {
-        if self.stops.is_empty() { return Color::WHITE; }
-        if self.stops.len() == 1 || t <= self.stops[0].0 { return self.stops[0].1; }
+        if self.stops.is_empty() {
+            return Color::WHITE;
+        }
+        if self.stops.len() == 1 || t <= self.stops[0].0 {
+            return self.stops[0].1;
+        }
         let last = self.stops.len() - 1;
-        if t >= self.stops[last].0 { return self.stops[last].1; }
+        if t >= self.stops[last].0 {
+            return self.stops[last].1;
+        }
         for i in 0..last {
             let (t0, c0) = self.stops[i];
             let (t1, c1) = self.stops[i + 1];
             if t >= t0 && t <= t1 {
-                let frac = if (t1 - t0).abs() < 1e-9 { 0.0 } else { (t - t0) / (t1 - t0) };
+                let frac = if (t1 - t0).abs() < 1e-9 {
+                    0.0
+                } else {
+                    (t - t0) / (t1 - t0)
+                };
                 return c0.lerp(c1, frac);
             }
         }
@@ -218,9 +282,21 @@ fn catmull_rom(p0: Vec3, p1: Vec3, p2: Vec3, p3: Vec3, t: f32) -> Vec3 {
     let t2 = t * t;
     let t3 = t2 * t;
     Vec3 {
-        x: 0.5 * ((2.0 * p1.x) + (-p0.x + p2.x) * t + (2.0 * p0.x - 5.0 * p1.x + 4.0 * p2.x - p3.x) * t2 + (-p0.x + 3.0 * p1.x - 3.0 * p2.x + p3.x) * t3),
-        y: 0.5 * ((2.0 * p1.y) + (-p0.y + p2.y) * t + (2.0 * p0.y - 5.0 * p1.y + 4.0 * p2.y - p3.y) * t2 + (-p0.y + 3.0 * p1.y - 3.0 * p2.y + p3.y) * t3),
-        z: 0.5 * ((2.0 * p1.z) + (-p0.z + p2.z) * t + (2.0 * p0.z - 5.0 * p1.z + 4.0 * p2.z - p3.z) * t2 + (-p0.z + 3.0 * p1.z - 3.0 * p2.z + p3.z) * t3),
+        x: 0.5
+            * ((2.0 * p1.x)
+                + (-p0.x + p2.x) * t
+                + (2.0 * p0.x - 5.0 * p1.x + 4.0 * p2.x - p3.x) * t2
+                + (-p0.x + 3.0 * p1.x - 3.0 * p2.x + p3.x) * t3),
+        y: 0.5
+            * ((2.0 * p1.y)
+                + (-p0.y + p2.y) * t
+                + (2.0 * p0.y - 5.0 * p1.y + 4.0 * p2.y - p3.y) * t2
+                + (-p0.y + 3.0 * p1.y - 3.0 * p2.y + p3.y) * t3),
+        z: 0.5
+            * ((2.0 * p1.z)
+                + (-p0.z + p2.z) * t
+                + (2.0 * p0.z - 5.0 * p1.z + 4.0 * p2.z - p3.z) * t2
+                + (-p0.z + 3.0 * p1.z - 3.0 * p2.z + p3.z) * t3),
     }
 }
 
@@ -328,8 +404,12 @@ impl RibbonTrail {
     /// Get Catmull-Rom interpolated position at a fractional sample index.
     pub fn interpolated_position(&self, index_f: f32) -> Vec3 {
         let n = self.samples.len();
-        if n == 0 { return Vec3::ZERO; }
-        if n == 1 { return self.samples[0].position; }
+        if n == 0 {
+            return Vec3::ZERO;
+        }
+        if n == 1 {
+            return self.samples[0].position;
+        }
 
         let idx = index_f.floor() as i64;
         let t = index_f - index_f.floor();
@@ -652,7 +732,10 @@ mod tests {
         };
         let mut trail = RibbonTrail::new(cfg);
         for i in 0..20 {
-            trail.add_sample(Vec3::new(i as f32 * 0.5, (i as f32 * 0.3).sin(), 0.0), i as f32 * 0.1);
+            trail.add_sample(
+                Vec3::new(i as f32 * 0.5, (i as f32 * 0.3).sin(), 0.0),
+                i as f32 * 0.1,
+            );
         }
         let geo = trail.build_geometry(Vec3::new(0.0, 0.0, 10.0));
         assert_eq!(geo.len(), trail.sample_count() * 2);

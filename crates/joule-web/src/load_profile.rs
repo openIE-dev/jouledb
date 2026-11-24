@@ -249,9 +249,15 @@ impl LatencyTracker {
 
     /// Get sorted latencies for a specific label.
     fn sorted_latencies_for(&self, label: &str) -> Vec<u64> {
-        let mut lats: Vec<u64> = self.labels
+        let mut lats: Vec<u64> = self
+            .labels
             .get(label)
-            .map(|indices| indices.iter().map(|i| self.samples[*i].latency_us).collect())
+            .map(|indices| {
+                indices
+                    .iter()
+                    .map(|i| self.samples[*i].latency_us)
+                    .collect()
+            })
             .unwrap_or_default();
         lats.sort_unstable();
         lats
@@ -294,12 +300,20 @@ impl LatencyTracker {
 
     /// Minimum latency in microseconds.
     pub fn min_us(&self) -> Result<u64, LoadProfileError> {
-        self.samples.iter().map(|s| s.latency_us).min().ok_or(LoadProfileError::NoData)
+        self.samples
+            .iter()
+            .map(|s| s.latency_us)
+            .min()
+            .ok_or(LoadProfileError::NoData)
     }
 
     /// Maximum latency in microseconds.
     pub fn max_us(&self) -> Result<u64, LoadProfileError> {
-        self.samples.iter().map(|s| s.latency_us).max().ok_or(LoadProfileError::NoData)
+        self.samples
+            .iter()
+            .map(|s| s.latency_us)
+            .max()
+            .ok_or(LoadProfileError::NoData)
     }
 
     /// Compute throughput (requests per second) over the test duration.
@@ -307,8 +321,18 @@ impl LatencyTracker {
         if self.samples.is_empty() {
             return Err(LoadProfileError::NoData);
         }
-        let min_ts = self.samples.iter().map(|s| s.timestamp_ms).min().unwrap_or(0);
-        let max_ts = self.samples.iter().map(|s| s.timestamp_ms).max().unwrap_or(0);
+        let min_ts = self
+            .samples
+            .iter()
+            .map(|s| s.timestamp_ms)
+            .min()
+            .unwrap_or(0);
+        let max_ts = self
+            .samples
+            .iter()
+            .map(|s| s.timestamp_ms)
+            .max()
+            .unwrap_or(0);
         let duration_secs = (max_ts - min_ts) as f64 / 1000.0;
         if duration_secs <= 0.0 {
             return Ok(self.samples.len() as f64);
@@ -564,7 +588,10 @@ mod tests {
     #[test]
     fn test_tracker_percentile_invalid() {
         let t = LatencyTracker::new();
-        assert!(matches!(t.percentile(101), Err(LoadProfileError::InvalidPercentile(101))));
+        assert!(matches!(
+            t.percentile(101),
+            Err(LoadProfileError::InvalidPercentile(101))
+        ));
     }
 
     #[test]

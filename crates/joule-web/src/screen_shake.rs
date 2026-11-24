@@ -428,8 +428,7 @@ mod tests {
 
     #[test]
     fn shake_source_linear_decay_factor() {
-        let mut s = ShakeSource::new("test")
-            .with_decay(DecayMode::Linear, 1.0);
+        let mut s = ShakeSource::new("test").with_decay(DecayMode::Linear, 1.0);
         s.elapsed = 0.5;
         let f = s.decay_factor();
         assert!((f - 0.5).abs() < EPS);
@@ -437,8 +436,8 @@ mod tests {
 
     #[test]
     fn shake_source_exponential_decay() {
-        let mut s = ShakeSource::new("exp")
-            .with_decay(DecayMode::Exponential { half_life: 1.0 }, 0.0);
+        let mut s =
+            ShakeSource::new("exp").with_decay(DecayMode::Exponential { half_life: 1.0 }, 0.0);
         s.elapsed = 1.0;
         let f = s.decay_factor();
         assert!((f - 0.5).abs() < 0.01);
@@ -446,8 +445,7 @@ mod tests {
 
     #[test]
     fn shake_source_no_decay() {
-        let mut s = ShakeSource::new("perm")
-            .with_decay(DecayMode::None, 0.0);
+        let mut s = ShakeSource::new("perm").with_decay(DecayMode::None, 0.0);
         s.elapsed = 100.0;
         let f = s.decay_factor();
         assert!((f - 1.0).abs() < EPS);
@@ -503,10 +501,7 @@ mod tests {
     #[test]
     fn system_sources_expire() {
         let mut sys = ScreenShakeSystem::new();
-        sys.add_source(
-            ShakeSource::new("short")
-                .with_decay(DecayMode::Linear, 0.1),
-        );
+        sys.add_source(ShakeSource::new("short").with_decay(DecayMode::Linear, 0.1));
         sys.update(0.2);
         assert_eq!(sys.active_source_count(), 0);
     }

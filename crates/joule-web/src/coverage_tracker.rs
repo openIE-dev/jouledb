@@ -194,7 +194,8 @@ impl FileCoverage {
 
     /// Add a branch to track.
     pub fn add_branch(&mut self, line: u32, branch_index: u32, label: &str) {
-        self.branches.push(BranchCoverage::new(line, branch_index, label));
+        self.branches
+            .push(BranchCoverage::new(line, branch_index, label));
     }
 
     /// Record a hit on a branch.
@@ -210,7 +211,8 @@ impl FileCoverage {
 
     /// Add a function to track.
     pub fn add_function(&mut self, name: &str, start_line: u32, end_line: u32) {
-        self.functions.push(FunctionCoverage::new(name, start_line, end_line));
+        self.functions
+            .push(FunctionCoverage::new(name, start_line, end_line));
     }
 
     /// Record a hit on a function.
@@ -434,7 +436,11 @@ impl CoverageReport {
             if let Some(our_file) = self.files.get_mut(path) {
                 // Merge line coverage
                 for other_line in &other_file.lines {
-                    if let Some(our_line) = our_file.lines.iter_mut().find(|l| l.line == other_line.line) {
+                    if let Some(our_line) = our_file
+                        .lines
+                        .iter_mut()
+                        .find(|l| l.line == other_line.line)
+                    {
                         our_line.hit_count += other_line.hit_count;
                     } else {
                         our_file.lines.push(other_line.clone());
@@ -452,7 +458,11 @@ impl CoverageReport {
                 }
                 // Merge function coverage
                 for other_fn in &other_file.functions {
-                    if let Some(our_fn) = our_file.functions.iter_mut().find(|f| f.name == other_fn.name) {
+                    if let Some(our_fn) = our_file
+                        .functions
+                        .iter_mut()
+                        .find(|f| f.name == other_fn.name)
+                    {
                         our_fn.hit_count += other_fn.hit_count;
                     } else {
                         our_file.functions.push(other_fn.clone());

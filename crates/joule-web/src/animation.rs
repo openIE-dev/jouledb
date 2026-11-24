@@ -16,7 +16,11 @@ pub enum Easing {
     EaseOut,
     EaseInOut,
     CubicBezier(f64, f64, f64, f64),
-    Spring { stiffness: f64, damping: f64, mass: f64 },
+    Spring {
+        stiffness: f64,
+        damping: f64,
+        mass: f64,
+    },
     Steps(u32),
 }
 
@@ -39,15 +43,19 @@ impl Easing {
                     1.0 - v * v * v / 2.0
                 }
             }
-            Easing::CubicBezier(x1, y1, x2, y2) => {
-                cubic_bezier_sample(*x1, *y1, *x2, *y2, t)
-            }
-            Easing::Spring { stiffness, damping, mass } => {
+            Easing::CubicBezier(x1, y1, x2, y2) => cubic_bezier_sample(*x1, *y1, *x2, *y2, t),
+            Easing::Spring {
+                stiffness,
+                damping,
+                mass,
+            } => {
                 let time = t * 4.0;
                 1.0 - spring_position(time, *stiffness, *damping, *mass)
             }
             Easing::Steps(n) => {
-                if *n == 0 { return t; }
+                if *n == 0 {
+                    return t;
+                }
                 let nf = *n as f64;
                 (t * nf).floor() / nf
             }
@@ -61,7 +69,9 @@ fn cubic_bezier_sample(x1: f64, y1: f64, x2: f64, y2: f64, x: f64) -> f64 {
     for _ in 0..5 {
         let bx = bezier_component(x1, x2, t);
         let dx = bezier_derivative(x1, x2, t);
-        if dx.abs() < 1e-12 { break; }
+        if dx.abs() < 1e-12 {
+            break;
+        }
         t -= (bx - x) / dx;
         t = t.clamp(0.0, 1.0);
     }
@@ -125,30 +135,49 @@ pub struct Track {
 
 impl Track {
     pub fn new(property: &str) -> Self {
-        Self { property_name: property.to_string(), keyframes: Vec::new() }
+        Self {
+            property_name: property.to_string(),
+            keyframes: Vec::new(),
+        }
     }
 
     pub fn keyframe(mut self, time: f64, value: f64, easing: Easing) -> Self {
-        self.keyframes.push(Keyframe { time, value, easing });
-        self.keyframes.sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap_or(std::cmp::Ordering::Equal));
+        self.keyframes.push(Keyframe {
+            time,
+            value,
+            easing,
+        });
+        self.keyframes.sort_by(|a, b| {
+            a.time
+                .partial_cmp(&b.time)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         self
     }
 
     /// Sample the track at normalized time `t` in [0.0, 1.0].
     pub fn sample(&self, t: f64) -> f64 {
-        if self.keyframes.is_empty() { return 0.0; }
+        if self.keyframes.is_empty() {
+            return 0.0;
+        }
         let t = t.clamp(0.0, 1.0);
 
-        if t <= self.keyframes[0].time { return self.keyframes[0].value; }
+        if t <= self.keyframes[0].time {
+            return self.keyframes[0].value;
+        }
         let last = self.keyframes.len() - 1;
-        if t >= self.keyframes[last].time { return self.keyframes[last].value; }
+        if t >= self.keyframes[last].time {
+            return self.keyframes[last].value;
+        }
 
         for i in 0..last {
             let kf0 = &self.keyframes[i];
             let kf1 = &self.keyframes[i + 1];
             if t >= kf0.time && t <= kf1.time {
                 let span = kf1.time - kf0.time;
-                if span.abs() < f64::EPSILON { return kf1.value; }
+                if span.abs() < f64::EPSILON {
+                    return kf1.value;
+                }
                 let local_t = (t - kf0.time) / span;
                 let eased = kf1.easing.interpolate(local_t);
                 return kf0.value + (kf1.value - kf0.value) * eased;
@@ -161,13 +190,26 @@ impl Track {
 // ── Animation ───────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum RepeatMode { Once, Count(u32), Infinite }
+pub enum RepeatMode {
+    Once,
+    Count(u32),
+    Infinite,
+}
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Direction { Normal, Reverse, Alternate }
+pub enum Direction {
+    Normal,
+    Reverse,
+    Alternate,
+}
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum AnimState { Idle, Playing, Paused, Finished }
+pub enum AnimState {
+    Idle,
+    Playing,
+    Paused,
+    Finished,
+}
 
 /// A multi-track animation with timing, repeat, and direction.
 #[derive(Debug, Clone)]
@@ -185,37 +227,76 @@ pub struct Animation {
 impl Animation {
     pub fn new(duration_ms: u64) -> Self {
         Self {
-            tracks: Vec::new(), duration_ms, delay_ms: 0,
-            repeat: RepeatMode::Once, direction: Direction::Normal,
-            state: AnimState::Idle, elapsed_ms: 0, iteration: 0,
+            tracks: Vec::new(),
+            duration_ms,
+            delay_ms: 0,
+            repeat: RepeatMode::Once,
+            direction: Direction::Normal,
+            state: AnimState::Idle,
+            elapsed_ms: 0,
+            iteration: 0,
         }
     }
 
-    pub fn track(mut self, track: Track) -> Self { self.tracks.push(track); self }
-    pub fn delay(mut self, ms: u64) -> Self { self.delay_ms = ms; self }
-    pub fn repeat(mut self, mode: RepeatMode) -> Self { self.repeat = mode; self }
-    pub fn direction(mut self, dir: Direction) -> Self { self.direction = dir; self }
+    pub fn track(mut self, track: Track) -> Self {
+        self.tracks.push(track);
+        self
+    }
+    pub fn delay(mut self, ms: u64) -> Self {
+        self.delay_ms = ms;
+        self
+    }
+    pub fn repeat(mut self, mode: RepeatMode) -> Self {
+        self.repeat = mode;
+        self
+    }
+    pub fn direction(mut self, dir: Direction) -> Self {
+        self.direction = dir;
+        self
+    }
 
-    pub fn play(&mut self) { self.state = AnimState::Playing; }
-    pub fn pause(&mut self) { if self.state == AnimState::Playing { self.state = AnimState::Paused; } }
-    pub fn reset(&mut self) { self.elapsed_ms = 0; self.iteration = 0; self.state = AnimState::Idle; }
-    pub fn is_finished(&self) -> bool { self.state == AnimState::Finished }
+    pub fn play(&mut self) {
+        self.state = AnimState::Playing;
+    }
+    pub fn pause(&mut self) {
+        if self.state == AnimState::Playing {
+            self.state = AnimState::Paused;
+        }
+    }
+    pub fn reset(&mut self) {
+        self.elapsed_ms = 0;
+        self.iteration = 0;
+        self.state = AnimState::Idle;
+    }
+    pub fn is_finished(&self) -> bool {
+        self.state == AnimState::Finished
+    }
 
     pub fn progress(&self) -> f64 {
-        if self.duration_ms == 0 { return 1.0; }
+        if self.duration_ms == 0 {
+            return 1.0;
+        }
         let after_delay = self.elapsed_ms.saturating_sub(self.delay_ms);
         (after_delay as f64 / self.duration_ms as f64).clamp(0.0, 1.0)
     }
 
     /// Advance the animation and return current track values.
     pub fn tick(&mut self, elapsed_ms: u64) -> HashMap<String, f64> {
-        if self.state != AnimState::Playing { return self.sample_at(self.progress()); }
+        if self.state != AnimState::Playing {
+            return self.sample_at(self.progress());
+        }
 
         self.elapsed_ms += elapsed_ms;
-        if self.elapsed_ms < self.delay_ms { return self.sample_at(0.0); }
+        if self.elapsed_ms < self.delay_ms {
+            return self.sample_at(0.0);
+        }
 
         let after_delay = self.elapsed_ms - self.delay_ms;
-        let cycles = if self.duration_ms > 0 { after_delay / self.duration_ms } else { 0 };
+        let cycles = if self.duration_ms > 0 {
+            after_delay / self.duration_ms
+        } else {
+            0
+        };
 
         let max_iterations = match self.repeat {
             RepeatMode::Once => 1,
@@ -232,13 +313,19 @@ impl Animation {
         self.iteration = cycles as u32;
         let within_cycle = if self.duration_ms > 0 {
             (after_delay % self.duration_ms) as f64 / self.duration_ms as f64
-        } else { 1.0 };
+        } else {
+            1.0
+        };
 
         let t = match self.direction {
             Direction::Normal => within_cycle,
             Direction::Reverse => 1.0 - within_cycle,
             Direction::Alternate => {
-                if cycles % 2 == 0 { within_cycle } else { 1.0 - within_cycle }
+                if cycles % 2 == 0 {
+                    within_cycle
+                } else {
+                    1.0 - within_cycle
+                }
             }
         };
 
@@ -246,7 +333,10 @@ impl Animation {
     }
 
     fn sample_at(&self, t: f64) -> HashMap<String, f64> {
-        self.tracks.iter().map(|track| (track.property_name.clone(), track.sample(t))).collect()
+        self.tracks
+            .iter()
+            .map(|track| (track.property_name.clone(), track.sample(t)))
+            .collect()
     }
 }
 
@@ -266,21 +356,33 @@ pub struct Timeline {
 }
 
 impl Default for Timeline {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Timeline {
-    pub fn new() -> Self { Self { entries: Vec::new(), elapsed_ms: 0 } }
+    pub fn new() -> Self {
+        Self {
+            entries: Vec::new(),
+            elapsed_ms: 0,
+        }
+    }
 
     pub fn add(mut self, animation: Animation, start_ms: u64) -> Self {
-        self.entries.push(TimelineEntry { animation, start_ms });
+        self.entries.push(TimelineEntry {
+            animation,
+            start_ms,
+        });
         self
     }
 
     pub fn total_duration_ms(&self) -> u64 {
-        self.entries.iter()
+        self.entries
+            .iter()
             .map(|e| e.start_ms + e.animation.delay_ms + e.animation.duration_ms)
-            .max().unwrap_or(0)
+            .max()
+            .unwrap_or(0)
     }
 
     pub fn is_finished(&self) -> bool {
@@ -291,8 +393,12 @@ impl Timeline {
         self.elapsed_ms += elapsed_ms;
         let mut results = Vec::new();
         for (i, entry) in self.entries.iter_mut().enumerate() {
-            if self.elapsed_ms < entry.start_ms { continue; }
-            if entry.animation.state == AnimState::Idle { entry.animation.play(); }
+            if self.elapsed_ms < entry.start_ms {
+                continue;
+            }
+            if entry.animation.state == AnimState::Idle {
+                entry.animation.play();
+            }
             let local_elapsed = if self.elapsed_ms >= entry.start_ms + elapsed_ms {
                 elapsed_ms
             } else {
@@ -338,7 +444,10 @@ mod tests {
     fn ease_in_out_symmetric() {
         let e = Easing::EaseInOut;
         let v_mid = e.interpolate(0.5);
-        assert!((v_mid - 0.5).abs() < 1e-10, "midpoint should be 0.5, got {v_mid}");
+        assert!(
+            (v_mid - 0.5).abs() < 1e-10,
+            "midpoint should be 0.5, got {v_mid}"
+        );
     }
 
     #[test]
@@ -403,10 +512,13 @@ mod tests {
 
     #[test]
     fn animation_repeat_loops() {
-        let track = Track::new("v")
-            .keyframe(0.0, 0.0, Easing::Linear)
-            .keyframe(1.0, 1.0, Easing::Linear);
-        let mut anim = Animation::new(100).track(track).repeat(RepeatMode::Count(3));
+        let track =
+            Track::new("v")
+                .keyframe(0.0, 0.0, Easing::Linear)
+                .keyframe(1.0, 1.0, Easing::Linear);
+        let mut anim = Animation::new(100)
+            .track(track)
+            .repeat(RepeatMode::Count(3));
         anim.play();
         anim.tick(50);
         assert!(!anim.is_finished());
@@ -416,9 +528,10 @@ mod tests {
 
     #[test]
     fn alternate_direction_reverses() {
-        let track = Track::new("x")
-            .keyframe(0.0, 0.0, Easing::Linear)
-            .keyframe(1.0, 100.0, Easing::Linear);
+        let track =
+            Track::new("x")
+                .keyframe(0.0, 0.0, Easing::Linear)
+                .keyframe(1.0, 100.0, Easing::Linear);
         let mut anim = Animation::new(100)
             .track(track)
             .direction(Direction::Alternate)
@@ -434,8 +547,14 @@ mod tests {
 
     #[test]
     fn timeline_staggers_animations() {
-        let t1 = Track::new("a").keyframe(0.0, 0.0, Easing::Linear).keyframe(1.0, 1.0, Easing::Linear);
-        let t2 = Track::new("b").keyframe(0.0, 0.0, Easing::Linear).keyframe(1.0, 1.0, Easing::Linear);
+        let t1 =
+            Track::new("a")
+                .keyframe(0.0, 0.0, Easing::Linear)
+                .keyframe(1.0, 1.0, Easing::Linear);
+        let t2 =
+            Track::new("b")
+                .keyframe(0.0, 0.0, Easing::Linear)
+                .keyframe(1.0, 1.0, Easing::Linear);
         let a1 = Animation::new(100).track(t1);
         let a2 = Animation::new(100).track(t2);
         let mut timeline = Timeline::new().add(a1, 0).add(a2, 200);
@@ -449,9 +568,10 @@ mod tests {
 
     #[test]
     fn animation_delay() {
-        let track = Track::new("v")
-            .keyframe(0.0, 0.0, Easing::Linear)
-            .keyframe(1.0, 100.0, Easing::Linear);
+        let track =
+            Track::new("v")
+                .keyframe(0.0, 0.0, Easing::Linear)
+                .keyframe(1.0, 100.0, Easing::Linear);
         let mut anim = Animation::new(100).track(track).delay(50);
         anim.play();
         let v1 = anim.tick(25);

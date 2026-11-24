@@ -235,21 +235,11 @@ pub fn render_svg(groups: &[BoxGroup], config: &BoxPlotConfig) -> String {
     // Find global min/max.
     let global_min = stats
         .iter()
-        .map(|s| {
-            s.outliers
-                .iter()
-                .copied()
-                .fold(s.whisker_lo, f64::min)
-        })
+        .map(|s| s.outliers.iter().copied().fold(s.whisker_lo, f64::min))
         .fold(f64::INFINITY, f64::min);
     let global_max = stats
         .iter()
-        .map(|s| {
-            s.outliers
-                .iter()
-                .copied()
-                .fold(s.whisker_hi, f64::max)
-        })
+        .map(|s| s.outliers.iter().copied().fold(s.whisker_hi, f64::max))
         .fold(f64::NEG_INFINITY, f64::max);
     let data_range = (global_max - global_min).max(f64::EPSILON);
 
@@ -309,7 +299,8 @@ pub fn render_svg(groups: &[BoxGroup], config: &BoxPlotConfig) -> String {
                 let _ = write!(
                     svg,
                     r#"<line x1="{:.1}" y1="{med_px:.1}" x2="{:.1}" y2="{med_px:.1}" stroke="black" stroke-width="2"/>"#,
-                    center - half_box, center + half_box,
+                    center - half_box,
+                    center + half_box,
                 );
             }
             Orientation::Horizontal => {
@@ -329,7 +320,8 @@ pub fn render_svg(groups: &[BoxGroup], config: &BoxPlotConfig) -> String {
                 let _ = write!(
                     svg,
                     r#"<line x1="{med_px:.1}" y1="{:.1}" x2="{med_px:.1}" y2="{:.1}" stroke="black" stroke-width="2"/>"#,
-                    center - half_box, center + half_box,
+                    center - half_box,
+                    center + half_box,
                 );
             }
         }
@@ -370,8 +362,7 @@ mod tests {
 
     fn sample() -> Vec<f64> {
         vec![
-            2.0, 3.0, 5.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 18.0, 22.0,
-            50.0,
+            2.0, 3.0, 5.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 18.0, 22.0, 50.0,
         ]
     }
 
@@ -443,13 +434,11 @@ mod tests {
 
     #[test]
     fn render_vertical() {
-        let groups = vec![
-            BoxGroup {
-                name: "A".into(),
-                data: sample(),
-                color: "#3498db".into(),
-            },
-        ];
+        let groups = vec![BoxGroup {
+            name: "A".into(),
+            data: sample(),
+            color: "#3498db".into(),
+        }];
         let svg = render_svg(&groups, &BoxPlotConfig::default());
         assert!(svg.starts_with("<svg"));
         assert!(svg.contains("<rect"));
@@ -458,13 +447,11 @@ mod tests {
 
     #[test]
     fn render_horizontal() {
-        let groups = vec![
-            BoxGroup {
-                name: "A".into(),
-                data: sample(),
-                color: "#e74c3c".into(),
-            },
-        ];
+        let groups = vec![BoxGroup {
+            name: "A".into(),
+            data: sample(),
+            color: "#e74c3c".into(),
+        }];
         let cfg = BoxPlotConfig {
             orientation: Orientation::Horizontal,
             ..Default::default()

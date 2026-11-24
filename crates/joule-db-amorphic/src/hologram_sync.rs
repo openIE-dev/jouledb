@@ -16,7 +16,7 @@ use joule_db_hdc::BinaryHV;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::{AmorphicRecord, RecordId, Value, DIMENSION};
+use crate::{AmorphicRecord, DIMENSION, RecordId, Value};
 
 /// A hologram delta: the XOR difference between two record versions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -162,10 +162,7 @@ impl CatalogSync {
     }
 
     /// Create a catalog sync with only essential metadata fields.
-    pub fn from_records_with_fields(
-        records: &[AmorphicRecord],
-        fields: &[&str],
-    ) -> Self {
+    pub fn from_records_with_fields(records: &[AmorphicRecord], fields: &[&str]) -> Self {
         let entries = records
             .iter()
             .map(|r| {
@@ -209,9 +206,9 @@ impl CatalogSync {
             return None;
         }
 
-        let entry_count =
-            u64::from_le_bytes([data[4], data[5], data[6], data[7], data[8], data[9], data[10], data[11]])
-                as usize;
+        let entry_count = u64::from_le_bytes([
+            data[4], data[5], data[6], data[7], data[8], data[9], data[10], data[11],
+        ]) as usize;
 
         let mut entries = Vec::with_capacity(entry_count);
         let mut pos = 12;
@@ -233,8 +230,9 @@ impl CatalogSync {
             ]) as RecordId;
             pos += 8;
 
-            let word_count = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
-                as usize;
+            let word_count =
+                u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                    as usize;
             pos += 4;
 
             let mut words = Vec::with_capacity(word_count);
@@ -313,11 +311,7 @@ pub fn export_client_cache(records: &[AmorphicRecord]) -> Vec<u8> {
 
 /// Search within a client cache blob.
 /// Returns (record_id, similarity) pairs sorted by similarity descending.
-pub fn client_cache_search(
-    cache: &[u8],
-    query_words: &[u64],
-    k: usize,
-) -> Vec<(RecordId, f32)> {
+pub fn client_cache_search(cache: &[u8], query_words: &[u64], k: usize) -> Vec<(RecordId, f32)> {
     if cache.len() < 12 || &cache[0..4] != b"HCCH" {
         return Vec::new();
     }
@@ -336,8 +330,14 @@ pub fn client_cache_search(
         }
 
         let record_id = u64::from_le_bytes([
-            cache[pos], cache[pos + 1], cache[pos + 2], cache[pos + 3],
-            cache[pos + 4], cache[pos + 5], cache[pos + 6], cache[pos + 7],
+            cache[pos],
+            cache[pos + 1],
+            cache[pos + 2],
+            cache[pos + 3],
+            cache[pos + 4],
+            cache[pos + 5],
+            cache[pos + 6],
+            cache[pos + 7],
         ]) as RecordId;
         pos += 8;
 

@@ -4,7 +4,7 @@
 //! aggregate statistics (count, total, mean, min, max, p50, p95, p99), and
 //! exports to Chrome Trace Event JSON format.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -253,10 +253,7 @@ impl ProfileSession {
             }
         } else {
             // Recurse into the heaviest child
-            let heaviest = children
-                .iter()
-                .max_by_key(|c| c.duration_us)
-                .unwrap();
+            let heaviest = children.iter().max_by_key(|c| c.duration_us).unwrap();
             self.walk_hot_path(&heaviest.id, current_path, best_path, best_time);
         }
 
@@ -352,9 +349,7 @@ mod tests {
     fn test_chrome_trace_export() {
         let mut sess = ProfileSession::new();
         sess.start_recording();
-        sess.record(
-            ProfileEvent::new("paint", "render", 0, 500).with_arg("layer", "main"),
-        );
+        sess.record(ProfileEvent::new("paint", "render", 0, 500).with_arg("layer", "main"));
         let trace = sess.to_chrome_trace_json();
         let events = trace["traceEvents"].as_array().unwrap();
         assert_eq!(events.len(), 1);

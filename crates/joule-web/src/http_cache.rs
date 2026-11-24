@@ -21,7 +21,11 @@ pub enum CacheError {
     /// Cache miss.
     CacheMiss(String),
     /// Stale entry.
-    StaleEntry { key: String, age_secs: u64, max_age: u64 },
+    StaleEntry {
+        key: String,
+        age_secs: u64,
+        max_age: u64,
+    },
     /// Parse error.
     ParseError(String),
 }
@@ -32,7 +36,11 @@ impl fmt::Display for CacheError {
             Self::InvalidDirective(d) => write!(f, "invalid Cache-Control directive: {d}"),
             Self::InvalidETag(e) => write!(f, "invalid ETag: {e}"),
             Self::CacheMiss(k) => write!(f, "cache miss: {k}"),
-            Self::StaleEntry { key, age_secs, max_age } => {
+            Self::StaleEntry {
+                key,
+                age_secs,
+                max_age,
+            } => {
                 write!(f, "stale: {key} age={age_secs}s max-age={max_age}s")
             }
             Self::ParseError(msg) => write!(f, "parse error: {msg}"),
@@ -91,30 +99,30 @@ impl CacheControl {
                 match key.as_str() {
                     "max-age" => {
                         cc.max_age = Some(
-                            value.parse::<u64>().map_err(|_| {
-                                CacheError::InvalidDirective(trimmed.to_string())
-                            })?,
+                            value
+                                .parse::<u64>()
+                                .map_err(|_| CacheError::InvalidDirective(trimmed.to_string()))?,
                         );
                     }
                     "s-maxage" => {
                         cc.s_maxage = Some(
-                            value.parse::<u64>().map_err(|_| {
-                                CacheError::InvalidDirective(trimmed.to_string())
-                            })?,
+                            value
+                                .parse::<u64>()
+                                .map_err(|_| CacheError::InvalidDirective(trimmed.to_string()))?,
                         );
                     }
                     "stale-while-revalidate" => {
                         cc.stale_while_revalidate = Some(
-                            value.parse::<u64>().map_err(|_| {
-                                CacheError::InvalidDirective(trimmed.to_string())
-                            })?,
+                            value
+                                .parse::<u64>()
+                                .map_err(|_| CacheError::InvalidDirective(trimmed.to_string()))?,
                         );
                     }
                     "stale-if-error" => {
                         cc.stale_if_error = Some(
-                            value.parse::<u64>().map_err(|_| {
-                                CacheError::InvalidDirective(trimmed.to_string())
-                            })?,
+                            value
+                                .parse::<u64>()
+                                .map_err(|_| CacheError::InvalidDirective(trimmed.to_string()))?,
                         );
                     }
                     _ => {
@@ -225,12 +233,18 @@ pub struct ETag {
 impl ETag {
     /// Create a strong ETag.
     pub fn strong(value: &str) -> Self {
-        Self { value: value.to_string(), weak: false }
+        Self {
+            value: value.to_string(),
+            weak: false,
+        }
     }
 
     /// Create a weak ETag.
     pub fn weak(value: &str) -> Self {
-        Self { value: value.to_string(), weak: true }
+        Self {
+            value: value.to_string(),
+            weak: true,
+        }
     }
 
     /// Parse an ETag from a header value.
@@ -241,13 +255,19 @@ impl ETag {
             if val.is_empty() {
                 return Err(CacheError::InvalidETag(header.to_string()));
             }
-            Ok(Self { value: val.to_string(), weak: true })
+            Ok(Self {
+                value: val.to_string(),
+                weak: true,
+            })
         } else {
             let val = trimmed.trim_matches('"');
             if val.is_empty() {
                 return Err(CacheError::InvalidETag(header.to_string()));
             }
-            Ok(Self { value: val.to_string(), weak: false })
+            Ok(Self {
+                value: val.to_string(),
+                weak: false,
+            })
         }
     }
 
@@ -334,14 +354,20 @@ impl VaryHeader {
     pub fn parse(header: &str) -> Self {
         let trimmed = header.trim();
         if trimmed == "*" {
-            return Self { headers: Vec::new(), wildcard: true };
+            return Self {
+                headers: Vec::new(),
+                wildcard: true,
+            };
         }
         let headers: Vec<String> = trimmed
             .split(',')
             .map(|h| h.trim().to_lowercase())
             .filter(|h| !h.is_empty())
             .collect();
-        Self { headers, wildcard: false }
+        Self {
+            headers,
+            wildcard: false,
+        }
     }
 
     /// Format as a Vary header value.
@@ -596,8 +622,9 @@ mod tests {
     #[test]
     fn test_parse_cache_control_all_directives() {
         let cc = CacheControl::parse(
-            "private, must-revalidate, no-transform, immutable, stale-while-revalidate=60"
-        ).unwrap();
+            "private, must-revalidate, no-transform, immutable, stale-while-revalidate=60",
+        )
+        .unwrap();
         assert!(cc.private);
         assert!(cc.must_revalidate);
         assert!(cc.no_transform);

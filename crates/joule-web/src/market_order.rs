@@ -86,7 +86,9 @@ pub struct PriceLadderLevel {
 }
 
 impl PriceLadderLevel {
-    pub fn new(price: f64, available: f64) -> Self { Self { price, available } }
+    pub fn new(price: f64, available: f64) -> Self {
+        Self { price, available }
+    }
 }
 
 impl fmt::Display for PriceLadderLevel {
@@ -106,13 +108,18 @@ pub struct MarketFill {
 }
 
 impl MarketFill {
-    pub fn notional(&self) -> f64 { self.level_price * self.quantity }
+    pub fn notional(&self) -> f64 {
+        self.level_price * self.quantity
+    }
 }
 
 impl fmt::Display for MarketFill {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MarketFill({:.4}@{:.2}, cum={:.4})",
-            self.quantity, self.level_price, self.cumulative_qty)
+        write!(
+            f,
+            "MarketFill({:.4}@{:.2}, cum={:.4})",
+            self.quantity, self.level_price, self.cumulative_qty
+        )
     }
 }
 
@@ -133,8 +140,11 @@ pub struct FillResult {
 
 impl fmt::Display for FillResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "FillResult(filled={:.4}, avg={:.4}, slippage={:.1}bps, levels={})",
-            self.total_filled, self.avg_price, self.slippage_bps, self.levels_consumed)
+        write!(
+            f,
+            "FillResult(filled={:.4}, avg={:.4}, slippage={:.1}bps, levels={})",
+            self.total_filled, self.avg_price, self.slippage_bps, self.levels_consumed
+        )
     }
 }
 
@@ -153,8 +163,11 @@ pub struct SlippageEstimate {
 
 impl fmt::Display for SlippageEstimate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Slippage(est_avg={:.4}, ref={:.4}, bps={:.1}, can_fill={})",
-            self.estimated_avg_price, self.reference_price, self.slippage_bps, self.can_fill)
+        write!(
+            f,
+            "Slippage(est_avg={:.4}, ref={:.4}, bps={:.1}, can_fill={})",
+            self.estimated_avg_price, self.reference_price, self.slippage_bps, self.can_fill
+        )
     }
 }
 
@@ -207,15 +220,20 @@ impl MarketOrder {
     /// Validate the order.
     pub fn validate(&self) -> Result<(), MarketOrderError> {
         if self.quantity <= 0.0 {
-            return Err(MarketOrderError::InvalidQuantity(format!("{}", self.quantity)));
+            return Err(MarketOrderError::InvalidQuantity(format!(
+                "{}",
+                self.quantity
+            )));
         }
         Ok(())
     }
 
     /// Simulate filling against a price ladder.
-    pub fn simulate_fill(&self, ladder: &[PriceLadderLevel], ref_price: f64)
-        -> Result<FillResult, MarketOrderError>
-    {
+    pub fn simulate_fill(
+        &self,
+        ladder: &[PriceLadderLevel],
+        ref_price: f64,
+    ) -> Result<FillResult, MarketOrderError> {
         if ladder.is_empty() {
             return Err(MarketOrderError::EmptyLadder);
         }
@@ -226,7 +244,9 @@ impl MarketOrder {
         let mut levels_used = 0;
 
         for level in ladder {
-            if remaining <= 1e-12 { break; }
+            if remaining <= 1e-12 {
+                break;
+            }
             let take = remaining.min(level.available);
             cumulative += take;
             total_notional += take * level.price;
@@ -240,7 +260,11 @@ impl MarketOrder {
         }
 
         let total_filled = self.quantity - remaining;
-        let avg = if total_filled > 1e-12 { total_notional / total_filled } else { 0.0 };
+        let avg = if total_filled > 1e-12 {
+            total_notional / total_filled
+        } else {
+            0.0
+        };
         let slippage_bps = if ref_price.abs() > 1e-12 {
             ((avg - ref_price).abs() / ref_price) * 10_000.0
         } else {
@@ -267,13 +291,16 @@ impl MarketOrder {
         if let Some(max_bps) = self.max_slippage_bps {
             if result.slippage_bps > max_bps {
                 self.status = MarketOrderStatus::Rejected;
-                return Err(MarketOrderError::NegativeSlippage(
-                    format!("slippage {:.1}bps exceeds max {:.1}bps",
-                        result.slippage_bps, max_bps)));
+                return Err(MarketOrderError::NegativeSlippage(format!(
+                    "slippage {:.1}bps exceeds max {:.1}bps",
+                    result.slippage_bps, max_bps
+                )));
             }
         }
         self.remaining -= result.total_filled;
-        if self.remaining < 1e-12 { self.remaining = 0.0; }
+        if self.remaining < 1e-12 {
+            self.remaining = 0.0;
+        }
         self.fills.extend(result.fills.iter().cloned());
         self.status = if self.remaining <= 1e-12 {
             MarketOrderStatus::Filled
@@ -284,9 +311,11 @@ impl MarketOrder {
     }
 
     /// Estimate slippage without executing.
-    pub fn estimate_slippage(&self, ladder: &[PriceLadderLevel], ref_price: f64)
-        -> Result<SlippageEstimate, MarketOrderError>
-    {
+    pub fn estimate_slippage(
+        &self,
+        ladder: &[PriceLadderLevel],
+        ref_price: f64,
+    ) -> Result<SlippageEstimate, MarketOrderError> {
         let result = self.simulate_fill(ladder, ref_price)?;
         let slippage_abs = (result.avg_price - ref_price).abs();
         Ok(SlippageEstimate {
@@ -300,23 +329,35 @@ impl MarketOrder {
     }
 
     /// Filled quantity.
-    pub fn filled_quantity(&self) -> f64 { self.quantity - self.remaining }
+    pub fn filled_quantity(&self) -> f64 {
+        self.quantity - self.remaining
+    }
 
     /// Fill ratio.
     pub fn fill_ratio(&self) -> f64 {
-        if self.quantity <= 0.0 { 0.0 } else { self.filled_quantity() / self.quantity }
+        if self.quantity <= 0.0 {
+            0.0
+        } else {
+            self.filled_quantity() / self.quantity
+        }
     }
 
     /// Average fill price.
     pub fn avg_fill_price(&self) -> Option<f64> {
         let total_n: f64 = self.fills.iter().map(|f| f.notional()).sum();
         let total_q: f64 = self.fills.iter().map(|f| f.quantity).sum();
-        if total_q > 1e-12 { Some(total_n / total_q) } else { None }
+        if total_q > 1e-12 {
+            Some(total_n / total_q)
+        } else {
+            None
+        }
     }
 
     /// Price impact: difference between worst fill and best fill.
     pub fn price_impact(&self) -> Option<f64> {
-        if self.fills.len() < 2 { return None; }
+        if self.fills.len() < 2 {
+            return None;
+        }
         let prices: Vec<f64> = self.fills.iter().map(|f| f.level_price).collect();
         let min = prices.iter().cloned().fold(f64::INFINITY, f64::min);
         let max = prices.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
@@ -326,8 +367,15 @@ impl MarketOrder {
 
 impl fmt::Display for MarketOrder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MarketOrder(id={}, {} qty={:.4}, status={}, filled={:.4})",
-            self.order_id, self.side, self.quantity, self.status, self.filled_quantity())
+        write!(
+            f,
+            "MarketOrder(id={}, {} qty={:.4}, status={}, filled={:.4})",
+            self.order_id,
+            self.side,
+            self.quantity,
+            self.status,
+            self.filled_quantity()
+        )
     }
 }
 
@@ -419,8 +467,7 @@ mod tests {
 
     #[test]
     fn test_max_slippage_reject() {
-        let mut o = MarketOrder::new(1, MarketSide::Buy, 100.0)
-            .with_max_slippage_bps(1.0);
+        let mut o = MarketOrder::new(1, MarketSide::Buy, 100.0).with_max_slippage_bps(1.0);
         let ladder = vec![
             PriceLadderLevel::new(100.0, 10.0),
             PriceLadderLevel::new(110.0, 100.0),

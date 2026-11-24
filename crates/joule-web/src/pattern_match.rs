@@ -251,24 +251,18 @@ fn do_match(pattern: &Pattern, value: &Value, caps: &mut Captures) -> bool {
                 false
             }
         }
-        Pattern::StringPrefix(prefix) => {
-            value
-                .as_str()
-                .map(|s| s.starts_with(prefix.as_str()))
-                .unwrap_or(false)
-        }
-        Pattern::StringSuffix(suffix) => {
-            value
-                .as_str()
-                .map(|s| s.ends_with(suffix.as_str()))
-                .unwrap_or(false)
-        }
-        Pattern::NumberRange(lo, hi) => {
-            value
-                .as_f64()
-                .map(|n| n >= *lo && n <= *hi)
-                .unwrap_or(false)
-        }
+        Pattern::StringPrefix(prefix) => value
+            .as_str()
+            .map(|s| s.starts_with(prefix.as_str()))
+            .unwrap_or(false),
+        Pattern::StringSuffix(suffix) => value
+            .as_str()
+            .map(|s| s.ends_with(suffix.as_str()))
+            .unwrap_or(false),
+        Pattern::NumberRange(lo, hi) => value
+            .as_f64()
+            .map(|n| n >= *lo && n <= *hi)
+            .unwrap_or(false),
     }
 }
 
@@ -385,16 +379,24 @@ fn collect_covered(pattern: &Pattern, covered: &mut std::collections::HashSet<Va
                 covered.insert(c);
             }
         }
-        Pattern::Null => { covered.insert(ValueCategory::Null); }
-        Pattern::AnyBool => { covered.insert(ValueCategory::Bool); }
-        Pattern::AnyNumber | Pattern::NumberRange(_, _) => { covered.insert(ValueCategory::Number); }
+        Pattern::Null => {
+            covered.insert(ValueCategory::Null);
+        }
+        Pattern::AnyBool => {
+            covered.insert(ValueCategory::Bool);
+        }
+        Pattern::AnyNumber | Pattern::NumberRange(_, _) => {
+            covered.insert(ValueCategory::Number);
+        }
         Pattern::AnyString | Pattern::StringPrefix(_) | Pattern::StringSuffix(_) => {
             covered.insert(ValueCategory::String);
         }
         Pattern::AnyArray | Pattern::Array(_) | Pattern::ArrayAll(_) => {
             covered.insert(ValueCategory::Array);
         }
-        Pattern::AnyObject | Pattern::Object(_) => { covered.insert(ValueCategory::Object); }
+        Pattern::AnyObject | Pattern::Object(_) => {
+            covered.insert(ValueCategory::Object);
+        }
         Pattern::Literal(v) => {
             let cat = match v {
                 Value::Null => ValueCategory::Null,
@@ -433,8 +435,7 @@ pub fn is_exhaustive(patterns: &[Pattern]) -> bool {
 
 /// Return the missing categories.
 pub fn missing_categories(patterns: &[Pattern]) -> Vec<ValueCategory> {
-    let covered: std::collections::HashSet<_> =
-        covered_categories(patterns).into_iter().collect();
+    let covered: std::collections::HashSet<_> = covered_categories(patterns).into_iter().collect();
     let mut missing: Vec<ValueCategory> = ValueCategory::all()
         .into_iter()
         .filter(|c| !covered.contains(c))
@@ -531,10 +532,7 @@ mod tests {
 
     #[test]
     fn object_pattern() {
-        let pat = obj(vec![
-            ("name", var("n")),
-            ("age", Pattern::AnyNumber),
-        ]);
+        let pat = obj(vec![("name", var("n")), ("age", Pattern::AnyNumber)]);
         let val = json!({"name": "Alice", "age": 30, "extra": true});
         let caps = match_pattern(&pat, &val).unwrap();
         assert_eq!(caps.get("n"), Some(&json!("Alice")));
@@ -548,12 +546,13 @@ mod tests {
 
     #[test]
     fn nested_pattern() {
-        let pat = obj(vec![
-            ("user", obj(vec![
+        let pat = obj(vec![(
+            "user",
+            obj(vec![
                 ("name", var("name")),
                 ("address", obj(vec![("city", var("city"))])),
-            ])),
-        ]);
+            ]),
+        )]);
         let val = json!({
             "user": {
                 "name": "Alice",
@@ -567,10 +566,7 @@ mod tests {
 
     #[test]
     fn or_pattern() {
-        let pat = Pattern::Or(
-            Box::new(lit(json!(1))),
-            Box::new(lit(json!(2))),
-        );
+        let pat = Pattern::Or(Box::new(lit(json!(1))), Box::new(lit(json!(2))));
         assert!(match_pattern(&pat, &json!(1)).is_some());
         assert!(match_pattern(&pat, &json!(2)).is_some());
         assert!(match_pattern(&pat, &json!(3)).is_none());
@@ -596,9 +592,7 @@ mod tests {
 
     #[test]
     fn guard_pattern() {
-        let guard = GuardFn::new(|v, _caps| {
-            v.as_i64().map(|n| n > 10).unwrap_or(false)
-        });
+        let guard = GuardFn::new(|v, _caps| v.as_i64().map(|n| n > 10).unwrap_or(false));
         let pat = Pattern::Guard(Box::new(Pattern::AnyNumber), guard);
         assert!(match_pattern(&pat, &json!(20)).is_some());
         assert!(match_pattern(&pat, &json!(5)).is_none());
@@ -634,18 +628,15 @@ mod tests {
 
     #[test]
     fn match_expr_no_default_no_match() {
-        let expr: MatchExpr<i32> = MatchExpr::new()
-            .arm(Pattern::AnyNumber, |_, _| 1);
+        let expr: MatchExpr<i32> = MatchExpr::new().arm(Pattern::AnyNumber, |_, _| 1);
         assert_eq!(expr.eval(&json!("hi")), None);
     }
 
     #[test]
     fn match_expr_with_captures() {
-        let expr = MatchExpr::new()
-            .arm(
-                obj(vec![("name", var("n"))]),
-                |_v, caps| caps.get("n").unwrap().as_str().unwrap().to_string(),
-            );
+        let expr = MatchExpr::new().arm(obj(vec![("name", var("n"))]), |_v, caps| {
+            caps.get("n").unwrap().as_str().unwrap().to_string()
+        });
         assert_eq!(
             expr.eval(&json!({"name": "Alice"})),
             Some("Alice".to_string())

@@ -8,7 +8,7 @@
 use joule_db_hdc::{BinaryHV, BundleAccumulator};
 
 use super::traits::HolographicInference;
-use crate::{AmorphicStore, RecordId, DIMENSION};
+use crate::{AmorphicStore, DIMENSION, RecordId};
 
 /// Holographic inference engine — Tier 1 implementation.
 ///
@@ -42,18 +42,9 @@ impl HoloEngine {
 
         // Character-level 3-gram encoding
         for window in chars.windows(3) {
-            let c0 = BinaryHV::from_hash(
-                &[window[0] as u8],
-                self.dimension,
-            );
-            let c1 = BinaryHV::from_hash(
-                &[window[1] as u8],
-                self.dimension,
-            );
-            let c2 = BinaryHV::from_hash(
-                &[window[2] as u8],
-                self.dimension,
-            );
+            let c0 = BinaryHV::from_hash(&[window[0] as u8], self.dimension);
+            let c1 = BinaryHV::from_hash(&[window[1] as u8], self.dimension);
+            let c2 = BinaryHV::from_hash(&[window[2] as u8], self.dimension);
 
             // Positional binding: c0 ⊗ perm(c1) ⊗ perm²(c2)
             let p1 = c1.permute_words(1);
@@ -133,9 +124,18 @@ mod tests {
         let engine = HoloEngine::new();
 
         let categories = vec![
-            ("sports".to_string(), engine.text_to_hologram("football soccer basketball game")),
-            ("tech".to_string(), engine.text_to_hologram("computer software programming code")),
-            ("food".to_string(), engine.text_to_hologram("cooking recipe kitchen chef")),
+            (
+                "sports".to_string(),
+                engine.text_to_hologram("football soccer basketball game"),
+            ),
+            (
+                "tech".to_string(),
+                engine.text_to_hologram("computer software programming code"),
+            ),
+            (
+                "food".to_string(),
+                engine.text_to_hologram("cooking recipe kitchen chef"),
+            ),
         ];
 
         let input = engine.text_to_hologram("the basketball game was exciting");

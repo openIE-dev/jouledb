@@ -21,7 +21,11 @@ pub enum LifecycleError {
     /// Error boundary caught an error.
     BoundaryCaught { boundary_id: u64, error_msg: String },
     /// Hook invocation failed.
-    HookFailed { component_id: u64, hook: HookType, reason: String },
+    HookFailed {
+        component_id: u64,
+        hook: HookType,
+        reason: String,
+    },
     /// Duplicate component ID.
     DuplicateId(u64),
 }
@@ -32,10 +36,17 @@ impl std::fmt::Display for LifecycleError {
             Self::NotFound(id) => write!(f, "component not found: {id}"),
             Self::AlreadyMounted(id) => write!(f, "component {id} already mounted"),
             Self::NotMounted(id) => write!(f, "component {id} not mounted"),
-            Self::BoundaryCaught { boundary_id, error_msg } => {
+            Self::BoundaryCaught {
+                boundary_id,
+                error_msg,
+            } => {
                 write!(f, "error boundary {boundary_id}: {error_msg}")
             }
-            Self::HookFailed { component_id, hook, reason } => {
+            Self::HookFailed {
+                component_id,
+                hook,
+                reason,
+            } => {
                 write!(f, "hook {hook:?} failed on {component_id}: {reason}")
             }
             Self::DuplicateId(id) => write!(f, "duplicate component id: {id}"),
@@ -88,7 +99,9 @@ pub struct Props {
 
 impl Props {
     pub fn new() -> Self {
-        Self { values: HashMap::new() }
+        Self {
+            values: HashMap::new(),
+        }
     }
 
     pub fn set(&mut self, key: &str, value: &str) {
@@ -229,7 +242,10 @@ impl ComponentTree {
 
     /// Set a component as an error boundary.
     pub fn set_error_boundary(&mut self, id: u64, fallback: &str) -> Result<(), LifecycleError> {
-        let comp = self.components.get_mut(&id).ok_or(LifecycleError::NotFound(id))?;
+        let comp = self
+            .components
+            .get_mut(&id)
+            .ok_or(LifecycleError::NotFound(id))?;
         comp.is_error_boundary = true;
         comp.error_fallback = Some(fallback.to_string());
         Ok(())
@@ -238,7 +254,10 @@ impl ComponentTree {
     /// Mount a component (Created -> Mounted).
     pub fn mount(&mut self, id: u64) -> Result<(), LifecycleError> {
         let phase = {
-            let comp = self.components.get(&id).ok_or(LifecycleError::NotFound(id))?;
+            let comp = self
+                .components
+                .get(&id)
+                .ok_or(LifecycleError::NotFound(id))?;
             comp.phase
         };
         if phase != Phase::Created {
@@ -257,7 +276,10 @@ impl ComponentTree {
     /// Update a component with new props.
     pub fn update(&mut self, id: u64, new_props: Props) -> Result<bool, LifecycleError> {
         let (phase, should) = {
-            let comp = self.components.get(&id).ok_or(LifecycleError::NotFound(id))?;
+            let comp = self
+                .components
+                .get(&id)
+                .ok_or(LifecycleError::NotFound(id))?;
             (comp.phase, comp.props.differs_from(&new_props))
         };
 
@@ -286,7 +308,10 @@ impl ComponentTree {
     /// Unmount a component (and its subtree).
     pub fn unmount(&mut self, id: u64) -> Result<(), LifecycleError> {
         let (phase, children) = {
-            let comp = self.components.get(&id).ok_or(LifecycleError::NotFound(id))?;
+            let comp = self
+                .components
+                .get(&id)
+                .ok_or(LifecycleError::NotFound(id))?;
             (comp.phase, comp.children_ids.clone())
         };
 
@@ -367,7 +392,10 @@ impl ComponentTree {
 
     /// Set state on a component.
     pub fn set_state(&mut self, id: u64, key: &str, value: &str) -> Result<(), LifecycleError> {
-        let comp = self.components.get_mut(&id).ok_or(LifecycleError::NotFound(id))?;
+        let comp = self
+            .components
+            .get_mut(&id)
+            .ok_or(LifecycleError::NotFound(id))?;
         comp.state.set(key, value);
         Ok(())
     }
@@ -601,14 +629,17 @@ mod tests {
 
         let events = tree.events();
         let hooks: Vec<HookType> = events.iter().map(|e| e.hook).collect();
-        assert_eq!(hooks, vec![
-            HookType::OnBeforeMount,
-            HookType::OnMounted,
-            HookType::OnBeforeUpdate,
-            HookType::OnUpdated,
-            HookType::OnBeforeUnmount,
-            HookType::OnUnmounted,
-        ]);
+        assert_eq!(
+            hooks,
+            vec![
+                HookType::OnBeforeMount,
+                HookType::OnMounted,
+                HookType::OnBeforeUpdate,
+                HookType::OnUpdated,
+                HookType::OnBeforeUnmount,
+                HookType::OnUnmounted,
+            ]
+        );
     }
 
     #[test]

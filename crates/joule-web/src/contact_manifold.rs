@@ -13,9 +13,17 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn dot(self, r: Self) -> f64 { self.x * r.x + self.y * r.y + self.z * r.z }
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn dot(self, r: Self) -> f64 {
+        self.x * r.x + self.y * r.y + self.z * r.z
+    }
     pub fn cross(self, r: Self) -> Self {
         Self {
             x: self.y * r.z - self.z * r.y,
@@ -23,29 +31,61 @@ impl Vec3 {
             z: self.x * r.y - self.y * r.x,
         }
     }
-    pub fn length_sq(self) -> f64 { self.dot(self) }
-    pub fn length(self) -> f64 { self.length_sq().sqrt() }
+    pub fn length_sq(self) -> f64 {
+        self.dot(self)
+    }
+    pub fn length(self) -> f64 {
+        self.length_sq().sqrt()
+    }
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-12 { Self::ZERO } else { self * (1.0 / l) }
+        if l < 1e-12 {
+            Self::ZERO
+        } else {
+            self * (1.0 / l)
+        }
     }
 }
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 impl std::ops::Mul<f64> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 impl std::ops::Neg for Vec3 {
     type Output = Self;
-    fn neg(self) -> Self { Self { x: -self.x, y: -self.y, z: -self.z } }
+    fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
 }
 
 // ── Contact Point ────────────────────────────────────────────
@@ -156,9 +196,7 @@ impl ContactManifold {
     pub fn add_contact(&mut self, contact: ContactPoint) {
         // Try to match existing contact by feature ID
         if let Some(fid) = contact.feature_id {
-            if let Some(existing) = self.contacts.iter_mut()
-                .find(|c| c.feature_id == Some(fid))
-            {
+            if let Some(existing) = self.contacts.iter_mut().find(|c| c.feature_id == Some(fid)) {
                 // Preserve accumulated impulses (warm-starting)
                 let ni = existing.normal_impulse;
                 let ti1 = existing.tangent_impulse_1;
@@ -260,9 +298,11 @@ impl ContactManifold {
 
     /// Get the deepest contact.
     pub fn deepest_contact(&self) -> Option<&ContactPoint> {
-        self.contacts.iter().max_by(|a, b|
-            a.depth.partial_cmp(&b.depth).unwrap_or(std::cmp::Ordering::Equal)
-        )
+        self.contacts.iter().max_by(|a, b| {
+            a.depth
+                .partial_cmp(&b.depth)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     }
 
     /// Total accumulated normal impulse.
@@ -272,7 +312,9 @@ impl ContactManifold {
 
     /// Average contact normal.
     pub fn average_normal(&self) -> Vec3 {
-        if self.contacts.is_empty() { return Vec3::ZERO; }
+        if self.contacts.is_empty() {
+            return Vec3::ZERO;
+        }
         let mut sum = Vec3::ZERO;
         for c in &self.contacts {
             sum = sum + c.normal;
@@ -283,7 +325,9 @@ impl ContactManifold {
 
 /// Compute the area of a contact patch (convex hull of projected points).
 fn contact_patch_area(points: &[Vec3]) -> f64 {
-    if points.len() < 2 { return 0.0; }
+    if points.len() < 2 {
+        return 0.0;
+    }
     if points.len() == 2 {
         return (points[1] - points[0]).length();
     }
@@ -308,12 +352,19 @@ pub struct ManifoldTable {
 
 impl ManifoldTable {
     pub fn new(max_stale_frames: u32) -> Self {
-        Self { manifolds: Vec::new(), max_stale_frames }
+        Self {
+            manifolds: Vec::new(),
+            max_stale_frames,
+        }
     }
 
     /// Get or create a manifold for the given body pair.
     pub fn get_or_create(&mut self, body_a: u64, body_b: u64) -> &mut ContactManifold {
-        let (a, b) = if body_a <= body_b { (body_a, body_b) } else { (body_b, body_a) };
+        let (a, b) = if body_a <= body_b {
+            (body_a, body_b)
+        } else {
+            (body_b, body_a)
+        };
 
         if let Some(pos) = self.manifolds.iter().position(|m| m.pair_id() == (a, b)) {
             return &mut self.manifolds[pos];
@@ -325,13 +376,21 @@ impl ManifoldTable {
 
     /// Find manifold for a pair (if it exists).
     pub fn find(&self, body_a: u64, body_b: u64) -> Option<&ContactManifold> {
-        let (a, b) = if body_a <= body_b { (body_a, body_b) } else { (body_b, body_a) };
+        let (a, b) = if body_a <= body_b {
+            (body_a, body_b)
+        } else {
+            (body_b, body_a)
+        };
         self.manifolds.iter().find(|m| m.pair_id() == (a, b))
     }
 
     /// Find manifold for a pair (mutable, if it exists).
     pub fn find_mut(&mut self, body_a: u64, body_b: u64) -> Option<&mut ContactManifold> {
-        let (a, b) = if body_a <= body_b { (body_a, body_b) } else { (body_b, body_a) };
+        let (a, b) = if body_a <= body_b {
+            (body_a, body_b)
+        } else {
+            (body_b, body_a)
+        };
         self.manifolds.iter_mut().find(|m| m.pair_id() == (a, b))
     }
 
@@ -346,13 +405,18 @@ impl ManifoldTable {
 
     /// Remove manifold for a body pair.
     pub fn remove(&mut self, body_a: u64, body_b: u64) {
-        let (a, b) = if body_a <= body_b { (body_a, body_b) } else { (body_b, body_a) };
+        let (a, b) = if body_a <= body_b {
+            (body_a, body_b)
+        } else {
+            (body_b, body_a)
+        };
         self.manifolds.retain(|m| m.pair_id() != (a, b));
     }
 
     /// Remove all manifolds involving a specific body.
     pub fn remove_body(&mut self, body: u64) {
-        self.manifolds.retain(|m| m.body_a != body && m.body_b != body);
+        self.manifolds
+            .retain(|m| m.body_a != body && m.body_b != body);
     }
 
     /// Number of active manifolds.
@@ -388,14 +452,22 @@ pub fn reduce_contacts(contacts: &[ContactPoint]) -> Vec<ContactPoint> {
     let mut result: Vec<ContactPoint> = Vec::with_capacity(MAX_CONTACTS);
 
     // 1. Keep the deepest contact
-    let deepest_idx = contacts.iter().enumerate()
-        .max_by(|a, b| a.1.depth.partial_cmp(&b.1.depth).unwrap_or(std::cmp::Ordering::Equal))
+    let deepest_idx = contacts
+        .iter()
+        .enumerate()
+        .max_by(|a, b| {
+            a.1.depth
+                .partial_cmp(&b.1.depth)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
         .map(|(i, _)| i)
         .unwrap_or(0);
     result.push(contacts[deepest_idx]);
 
     // 2. Keep the farthest point from the first
-    let farthest_idx = contacts.iter().enumerate()
+    let farthest_idx = contacts
+        .iter()
+        .enumerate()
         .max_by(|a, b| {
             let da = (a.1.world_point() - result[0].world_point()).length_sq();
             let db = (b.1.world_point() - result[0].world_point()).length_sq();
@@ -413,9 +485,10 @@ pub fn reduce_contacts(contacts: &[ContactPoint]) -> Vec<ContactPoint> {
         let mut best_area = -1.0;
 
         for (i, c) in contacts.iter().enumerate() {
-            if result.iter().any(|r| {
-                (r.world_point() - c.world_point()).length_sq() < 1e-10
-            }) {
+            if result
+                .iter()
+                .any(|r| (r.world_point() - c.world_point()).length_sq() < 1e-10)
+            {
                 continue;
             }
             let mut pts: Vec<Vec3> = result.iter().map(|r| r.world_point()).collect();
@@ -446,7 +519,9 @@ mod tests {
 
     const EPS: f64 = 1e-6;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     fn make_contact(x: f64, y: f64, depth: f64) -> ContactPoint {
         ContactPoint::new(
@@ -484,10 +559,12 @@ mod tests {
 
     #[test]
     fn test_feature_id() {
-        let fid = FeatureId { body_a_feature: 1, body_b_feature: 2 };
-        let cp = ContactPoint::new(
-            Vec3::ZERO, Vec3::ZERO, Vec3::new(0.0, 1.0, 0.0), 0.05,
-        ).with_feature_id(fid);
+        let fid = FeatureId {
+            body_a_feature: 1,
+            body_b_feature: 2,
+        };
+        let cp = ContactPoint::new(Vec3::ZERO, Vec3::ZERO, Vec3::new(0.0, 1.0, 0.0), 0.05)
+            .with_feature_id(fid);
         assert_eq!(cp.feature_id, Some(fid));
     }
 
@@ -520,7 +597,10 @@ mod tests {
     #[test]
     fn test_manifold_feature_id_matching() {
         let mut m = ContactManifold::new(1, 2);
-        let fid = FeatureId { body_a_feature: 5, body_b_feature: 7 };
+        let fid = FeatureId {
+            body_a_feature: 5,
+            body_b_feature: 7,
+        };
         let mut c1 = make_contact(0.0, 0.0, 0.1);
         c1.feature_id = Some(fid);
         c1.normal_impulse = 5.0;
@@ -602,11 +682,16 @@ mod tests {
     fn test_average_normal() {
         let mut m = ContactManifold::new(1, 2);
         m.add_contact(ContactPoint::new(
-            Vec3::ZERO, Vec3::ZERO, Vec3::new(0.0, 1.0, 0.0), 0.1,
+            Vec3::ZERO,
+            Vec3::ZERO,
+            Vec3::new(0.0, 1.0, 0.0),
+            0.1,
         ));
         m.add_contact(ContactPoint::new(
-            Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0), 0.1,
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            0.1,
         ));
         let n = m.average_normal();
         assert!(approx(n.y, 1.0));
@@ -635,8 +720,12 @@ mod tests {
     #[test]
     fn test_manifold_table_remove() {
         let mut table = ManifoldTable::new(10);
-        table.get_or_create(1, 2).add_contact(make_contact(0.0, 0.0, 0.1));
-        table.get_or_create(3, 4).add_contact(make_contact(0.0, 0.0, 0.1));
+        table
+            .get_or_create(1, 2)
+            .add_contact(make_contact(0.0, 0.0, 0.1));
+        table
+            .get_or_create(3, 4)
+            .add_contact(make_contact(0.0, 0.0, 0.1));
         table.remove(1, 2);
         assert_eq!(table.manifold_count(), 1);
     }
@@ -644,9 +733,15 @@ mod tests {
     #[test]
     fn test_manifold_table_remove_body() {
         let mut table = ManifoldTable::new(10);
-        table.get_or_create(1, 2).add_contact(make_contact(0.0, 0.0, 0.1));
-        table.get_or_create(1, 3).add_contact(make_contact(0.0, 0.0, 0.1));
-        table.get_or_create(4, 5).add_contact(make_contact(0.0, 0.0, 0.1));
+        table
+            .get_or_create(1, 2)
+            .add_contact(make_contact(0.0, 0.0, 0.1));
+        table
+            .get_or_create(1, 3)
+            .add_contact(make_contact(0.0, 0.0, 0.1));
+        table
+            .get_or_create(4, 5)
+            .add_contact(make_contact(0.0, 0.0, 0.1));
         table.remove_body(1);
         assert_eq!(table.manifold_count(), 1);
     }
@@ -654,7 +749,9 @@ mod tests {
     #[test]
     fn test_manifold_table_update_removes_stale() {
         let mut table = ManifoldTable::new(2);
-        table.get_or_create(1, 2).add_contact(make_contact(0.0, 0.0, 0.1));
+        table
+            .get_or_create(1, 2)
+            .add_contact(make_contact(0.0, 0.0, 0.1));
         table.update();
         table.update();
         table.update(); // age is now 3, stale limit is 2
@@ -664,9 +761,15 @@ mod tests {
     #[test]
     fn test_manifold_table_total_contacts() {
         let mut table = ManifoldTable::new(10);
-        table.get_or_create(1, 2).add_contact(make_contact(0.0, 0.0, 0.1));
-        table.get_or_create(1, 2).add_contact(make_contact(1.0, 0.0, 0.1));
-        table.get_or_create(3, 4).add_contact(make_contact(0.0, 0.0, 0.1));
+        table
+            .get_or_create(1, 2)
+            .add_contact(make_contact(0.0, 0.0, 0.1));
+        table
+            .get_or_create(1, 2)
+            .add_contact(make_contact(1.0, 0.0, 0.1));
+        table
+            .get_or_create(3, 4)
+            .add_contact(make_contact(0.0, 0.0, 0.1));
         assert_eq!(table.total_contacts(), 3);
     }
 
@@ -691,9 +794,8 @@ mod tests {
 
     #[test]
     fn test_reduce_contacts_keeps_deepest() {
-        let mut contacts: Vec<ContactPoint> = (0..6)
-            .map(|i| make_contact(i as f64, 0.0, 0.1))
-            .collect();
+        let mut contacts: Vec<ContactPoint> =
+            (0..6).map(|i| make_contact(i as f64, 0.0, 0.1)).collect();
         contacts[3].depth = 5.0; // make one much deeper
         let reduced = reduce_contacts(&contacts);
         assert!(reduced.iter().any(|c| approx(c.depth, 5.0)));

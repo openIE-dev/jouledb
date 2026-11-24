@@ -70,22 +70,32 @@ impl FleetRouteConfig {
 
     pub fn validate(&self) -> Result<(), FleetRouteError> {
         if self.vehicle_capacity.is_nan() {
-            return Err(FleetRouteError::InvalidConfig("vehicle_capacity is NaN".into()));
+            return Err(FleetRouteError::InvalidConfig(
+                "vehicle_capacity is NaN".into(),
+            ));
         }
         if self.max_route_time.is_nan() {
-            return Err(FleetRouteError::InvalidConfig("max_route_time is NaN".into()));
+            return Err(FleetRouteError::InvalidConfig(
+                "max_route_time is NaN".into(),
+            ));
         }
         Ok(())
     }
 }
 
 impl Default for FleetRouteConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for FleetRouteConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "FleetRouteConfig(vehicle_capacity={0:.4}, max_route_time={1:.4}, num_vehicles={2}, depot_count={3})", self.vehicle_capacity, self.max_route_time, self.num_vehicles, self.depot_count)
+        write!(
+            f,
+            "FleetRouteConfig(vehicle_capacity={0:.4}, max_route_time={1:.4}, num_vehicles={2}, depot_count={3})",
+            self.vehicle_capacity, self.max_route_time, self.num_vehicles, self.depot_count
+        )
     }
 }
 
@@ -101,7 +111,10 @@ pub struct FleetRoute {
 impl FleetRoute {
     pub fn new(config: FleetRouteConfig) -> Result<Self, FleetRouteError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -113,26 +126,38 @@ impl FleetRoute {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &FleetRouteConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &FleetRouteConfig {
+        &self.config
+    }
 
     /// Solve vehicle routing problem.
     pub fn solve_vrp(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// 2-opt route optimization.
     pub fn optimize_2opt(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Total fleet distance.
     pub fn total_distance(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -142,7 +167,9 @@ impl FleetRoute {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -154,7 +181,9 @@ impl FleetRoute {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -166,7 +195,11 @@ impl FleetRoute {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -239,7 +272,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = FleetRoute::new(FleetRouteConfig::new()).unwrap()
+        let e = FleetRoute::new(FleetRouteConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -255,7 +289,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = FleetRoute::new(FleetRouteConfig::new()).unwrap()
+        let e = FleetRoute::new(FleetRouteConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("FleetRoute"));
@@ -263,7 +298,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = FleetRoute::new(FleetRouteConfig::new()).unwrap()
+        let e = FleetRoute::new(FleetRouteConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -274,7 +310,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = FleetRoute::new(FleetRouteConfig::new()).unwrap()
+        let e = FleetRoute::new(FleetRouteConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -282,7 +319,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = FleetRoute::new(FleetRouteConfig::new()).unwrap()
+        let e = FleetRoute::new(FleetRouteConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -299,7 +337,8 @@ mod tests {
 
     #[test]
     fn test_solve_vrp() {
-        let e = FleetRoute::new(FleetRouteConfig::new()).unwrap()
+        let e = FleetRoute::new(FleetRouteConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.solve_vrp();
         assert!(!result.is_empty());
@@ -307,7 +346,8 @@ mod tests {
 
     #[test]
     fn test_optimize_2opt() {
-        let e = FleetRoute::new(FleetRouteConfig::new()).unwrap()
+        let e = FleetRoute::new(FleetRouteConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.optimize_2opt();
         assert!(!result.is_empty());
@@ -315,7 +355,8 @@ mod tests {
 
     #[test]
     fn test_total_distance() {
-        let e = FleetRoute::new(FleetRouteConfig::new()).unwrap()
+        let e = FleetRoute::new(FleetRouteConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.total_distance();
         assert!(result.is_finite());

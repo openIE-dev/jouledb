@@ -221,7 +221,10 @@ impl MirrorTracker {
     }
 
     pub fn results_for_target(&self, name: &str) -> Vec<&MirrorResult> {
-        self.results.iter().filter(|r| r.target_name == name).collect()
+        self.results
+            .iter()
+            .filter(|r| r.target_name == name)
+            .collect()
     }
 
     pub fn clear(&mut self) {

@@ -146,12 +146,15 @@ impl MotionPath {
             PathSegment::LineTo(p) => *p,
             PathSegment::QuadraticTo(_, p) => *p,
             PathSegment::CubicTo(_, _, p) => *p,
-            PathSegment::ArcTo { center, radius, end_angle, .. } => {
-                Point::new(
-                    center.x + radius * end_angle.cos(),
-                    center.y + radius * end_angle.sin(),
-                )
-            }
+            PathSegment::ArcTo {
+                center,
+                radius,
+                end_angle,
+                ..
+            } => Point::new(
+                center.x + radius * end_angle.cos(),
+                center.y + radius * end_angle.sin(),
+            ),
         }
     }
 
@@ -173,7 +176,13 @@ impl MotionPath {
                 let e = b.lerp(c, t);
                 d.lerp(e, t)
             }
-            PathSegment::ArcTo { center, radius, start_angle, end_angle, clockwise } => {
+            PathSegment::ArcTo {
+                center,
+                radius,
+                start_angle,
+                end_angle,
+                clockwise,
+            } => {
                 let sweep = if *clockwise {
                     if end_angle > start_angle {
                         end_angle - start_angle
@@ -190,7 +199,10 @@ impl MotionPath {
                 } else {
                     start_angle - sweep * t
                 };
-                Point::new(center.x + radius * angle.cos(), center.y + radius * angle.sin())
+                Point::new(
+                    center.x + radius * angle.cos(),
+                    center.y + radius * angle.sin(),
+                )
             }
         }
     }
@@ -218,11 +230,18 @@ impl MotionPath {
             return (0, 0.0);
         }
         if distance >= self.total_length {
-            return self.segments.len().checked_sub(1).map_or((0, 0.0), |i| (i, 1.0));
+            return self
+                .segments
+                .len()
+                .checked_sub(1)
+                .map_or((0, 0.0), |i| (i, 1.0));
         }
 
         // Binary search in the LUT.
-        let idx = match self.lut_distances.binary_search_by(|d| d.partial_cmp(&distance).unwrap()) {
+        let idx = match self
+            .lut_distances
+            .binary_search_by(|d| d.partial_cmp(&distance).unwrap())
+        {
             Ok(i) => i,
             Err(i) => i.min(self.lut_distances.len() - 1),
         };
@@ -284,7 +303,10 @@ impl MotionPath {
     pub fn animate(&self, progress: f64) -> (Point, f64) {
         let progress = progress.clamp(0.0, 1.0);
         let dist = progress * self.total_length;
-        (self.point_at_distance(dist), self.tangent_angle_at_distance(dist))
+        (
+            self.point_at_distance(dist),
+            self.tangent_angle_at_distance(dist),
+        )
     }
 }
 
@@ -329,7 +351,10 @@ mod tests {
     fn line_tangent_is_horizontal() {
         let path = line_path();
         let angle = path.tangent_angle_at_progress(0.5);
-        assert!(angle.abs() < 0.01, "Horizontal line tangent should be ~0 rad");
+        assert!(
+            angle.abs() < 0.01,
+            "Horizontal line tangent should be ~0 rad"
+        );
     }
 
     #[test]

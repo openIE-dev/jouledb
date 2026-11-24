@@ -29,9 +29,7 @@ pub struct AvlTree<K: Ord, V> {
 
 impl<K: Ord + fmt::Debug, V: fmt::Debug> fmt::Debug for AvlTree<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("AvlTree")
-            .field("len", &self.len)
-            .finish()
+        f.debug_struct("AvlTree").field("len", &self.len).finish()
     }
 }
 
@@ -256,7 +254,13 @@ impl<K: Ord, V> AvlTree<K, V> {
         idx
     }
 
-    fn insert_rec(&mut self, node: Option<usize>, key: K, value: V, old: &mut Option<V>) -> Option<usize> {
+    fn insert_rec(
+        &mut self,
+        node: Option<usize>,
+        key: K,
+        value: V,
+        old: &mut Option<V>,
+    ) -> Option<usize> {
         let idx = match node {
             None => {
                 let i = self.arena.len();
@@ -321,9 +325,8 @@ impl<K: Ord, V> AvlTree<K, V> {
                 // Find in-order successor (min of right subtree)
                 let succ = self.find_min(right.unwrap());
                 // Remove successor from right subtree
-                let succ_key_matches = |this: &Self, check: &K| -> bool {
-                    this.arena[succ].key == *check
-                };
+                let succ_key_matches =
+                    |this: &Self, check: &K| -> bool { this.arena[succ].key == *check };
                 let sk = succ_key_matches(self, &self.arena[succ].key);
                 if sk {
                     let mut dummy = false;
@@ -572,7 +575,18 @@ mod tests {
             tree.insert(v, v * 10);
         }
         let pairs: Vec<_> = tree.iter().map(|(k, v)| (*k, *v)).collect();
-        assert_eq!(pairs, vec![(1, 10), (3, 30), (4, 40), (5, 50), (6, 60), (7, 70), (8, 80)]);
+        assert_eq!(
+            pairs,
+            vec![
+                (1, 10),
+                (3, 30),
+                (4, 40),
+                (5, 50),
+                (6, 60),
+                (7, 70),
+                (8, 80)
+            ]
+        );
     }
 
     #[test]

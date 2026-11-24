@@ -77,10 +77,8 @@ pub struct MetricKey {
 
 impl MetricKey {
     pub fn new(name: &str, labels: &HashMap<String, String>) -> Self {
-        let mut sorted: Vec<(String, String)> = labels
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
+        let mut sorted: Vec<(String, String)> =
+            labels.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         sorted.sort_by(|a, b| a.0.cmp(&b.0));
         Self {
             name: name.to_string(),
@@ -101,7 +99,11 @@ impl fmt::Display for MetricKey {
         if self.labels.is_empty() {
             write!(f, "{}", self.name)
         } else {
-            let parts: Vec<String> = self.labels.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
+            let parts: Vec<String> = self
+                .labels
+                .iter()
+                .map(|(k, v)| format!("{}={}", k, v))
+                .collect();
             write!(f, "{}[{}]", self.name, parts.join(","))
         }
     }
@@ -127,19 +129,31 @@ impl RegistrySnapshot {
 
     /// Filter entries by kind.
     pub fn counters(&self) -> Vec<&MetricEntry> {
-        self.entries.iter().filter(|e| matches!(e.value, MetricValue::Counter(_))).collect()
+        self.entries
+            .iter()
+            .filter(|e| matches!(e.value, MetricValue::Counter(_)))
+            .collect()
     }
 
     pub fn gauges(&self) -> Vec<&MetricEntry> {
-        self.entries.iter().filter(|e| matches!(e.value, MetricValue::Gauge(_))).collect()
+        self.entries
+            .iter()
+            .filter(|e| matches!(e.value, MetricValue::Gauge(_)))
+            .collect()
     }
 
     pub fn histograms(&self) -> Vec<&MetricEntry> {
-        self.entries.iter().filter(|e| matches!(e.value, MetricValue::Histogram { .. })).collect()
+        self.entries
+            .iter()
+            .filter(|e| matches!(e.value, MetricValue::Histogram { .. }))
+            .collect()
     }
 
     pub fn timers(&self) -> Vec<&MetricEntry> {
-        self.entries.iter().filter(|e| matches!(e.value, MetricValue::Timer { .. })).collect()
+        self.entries
+            .iter()
+            .filter(|e| matches!(e.value, MetricValue::Timer { .. }))
+            .collect()
     }
 
     /// Find by name.
@@ -238,12 +252,7 @@ impl MetricRegistry {
     }
 
     /// Register a histogram with explicit bounds.
-    pub fn register_histogram(
-        &mut self,
-        name: &str,
-        description: Option<&str>,
-        bounds: &[f64],
-    ) {
+    pub fn register_histogram(&mut self, name: &str, description: Option<&str>, bounds: &[f64]) {
         self.register_histogram_with_labels(name, description, bounds, HashMap::new());
     }
 
@@ -435,7 +444,11 @@ impl MetricRegistry {
     }
 
     /// Look up a metric by name and labels.
-    pub fn get_with_labels(&self, name: &str, labels: &HashMap<String, String>) -> Option<&MetricEntry> {
+    pub fn get_with_labels(
+        &self,
+        name: &str,
+        labels: &HashMap<String, String>,
+    ) -> Option<&MetricEntry> {
         let full_name = self.prefixed(name);
         let key = MetricKey::new(&full_name, labels);
         self.metrics.get(&key)
@@ -486,7 +499,8 @@ impl MetricRegistry {
     /// Remove all metrics whose names start with a prefix.
     pub fn remove_by_prefix(&mut self, prefix: &str) {
         let full_prefix = self.prefixed(prefix);
-        self.metrics.retain(|k, _| !k.name.starts_with(&full_prefix));
+        self.metrics
+            .retain(|k, _| !k.name.starts_with(&full_prefix));
     }
 
     // ── Snapshot & Merge ────────────────────────────────────
@@ -597,7 +611,13 @@ mod tests {
         reg.timer_record("handler_time", 1_000_000);
         reg.timer_record("handler_time", 2_000_000);
         let entry = reg.get("handler_time").unwrap();
-        if let MetricValue::Timer { sum_ns, count, min_ns, max_ns } = &entry.value {
+        if let MetricValue::Timer {
+            sum_ns,
+            count,
+            min_ns,
+            max_ns,
+        } = &entry.value
+        {
             assert_eq!(*sum_ns, 3_000_000);
             assert_eq!(*count, 2);
             assert_eq!(*min_ns, 1_000_000);

@@ -181,14 +181,22 @@ impl Scheduler {
     }
 
     /// Is the resource free during the given time range?
-    pub fn is_available(&self, resource_id: &str, start: NaiveDateTime, end: NaiveDateTime) -> bool {
+    pub fn is_available(
+        &self,
+        resource_id: &str,
+        start: NaiveDateTime,
+        end: NaiveDateTime,
+    ) -> bool {
         let probe = SchedulerEvent::new("__probe__", "", start, end, resource_id);
         self.find_conflicts(&probe).is_empty()
     }
 
     /// Events on a specific resource.
     pub fn events_for_resource(&self, resource_id: &str) -> Vec<&SchedulerEvent> {
-        self.events.iter().filter(|e| e.resource_id == resource_id).collect()
+        self.events
+            .iter()
+            .filter(|e| e.resource_id == resource_id)
+            .collect()
     }
 
     /// Events on a specific date across all resources.
@@ -273,7 +281,10 @@ pub fn day_view(scheduler: &Scheduler, date: NaiveDate) -> Vec<(&Resource, Vec<&
 }
 
 /// Week view: events for 7 days starting from `start_date`.
-pub fn week_view(scheduler: &Scheduler, start_date: NaiveDate) -> Vec<(NaiveDate, Vec<&SchedulerEvent>)> {
+pub fn week_view(
+    scheduler: &Scheduler,
+    start_date: NaiveDate,
+) -> Vec<(NaiveDate, Vec<&SchedulerEvent>)> {
     (0..7)
         .map(|offset| {
             let date = start_date + chrono::Duration::days(offset);
@@ -290,8 +301,10 @@ mod tests {
     use super::*;
 
     fn dt(y: i32, m: u32, day: u32, h: u32, mi: u32) -> NaiveDateTime {
-        NaiveDate::from_ymd_opt(y, m, day).unwrap()
-            .and_hms_opt(h, mi, 0).unwrap()
+        NaiveDate::from_ymd_opt(y, m, day)
+            .unwrap()
+            .and_hms_opt(h, mi, 0)
+            .unwrap()
     }
 
     fn d(y: i32, m: u32, day: u32) -> NaiveDate {
@@ -304,10 +317,22 @@ mod tests {
         sched.add_resource(Resource::new("r1", "Room A"));
         sched.add_resource(Resource::new("r2", "Room B"));
 
-        let c1 = sched.add_event(SchedulerEvent::new("1", "Meeting", dt(2026, 3, 8, 10, 0), dt(2026, 3, 8, 11, 0), "r1"));
+        let c1 = sched.add_event(SchedulerEvent::new(
+            "1",
+            "Meeting",
+            dt(2026, 3, 8, 10, 0),
+            dt(2026, 3, 8, 11, 0),
+            "r1",
+        ));
         assert!(c1.is_empty());
 
-        let c2 = sched.add_event(SchedulerEvent::new("2", "Workshop", dt(2026, 3, 8, 10, 0), dt(2026, 3, 8, 11, 0), "r2"));
+        let c2 = sched.add_event(SchedulerEvent::new(
+            "2",
+            "Workshop",
+            dt(2026, 3, 8, 10, 0),
+            dt(2026, 3, 8, 11, 0),
+            "r2",
+        ));
         assert!(c2.is_empty());
     }
 
@@ -315,9 +340,21 @@ mod tests {
     fn conflict_same_resource_overlapping() {
         let mut sched = Scheduler::new();
         sched.add_resource(Resource::new("r1", "Room A"));
-        sched.add_event(SchedulerEvent::new("1", "A", dt(2026, 3, 8, 10, 0), dt(2026, 3, 8, 12, 0), "r1"));
+        sched.add_event(SchedulerEvent::new(
+            "1",
+            "A",
+            dt(2026, 3, 8, 10, 0),
+            dt(2026, 3, 8, 12, 0),
+            "r1",
+        ));
 
-        let conflicts = sched.add_event(SchedulerEvent::new("2", "B", dt(2026, 3, 8, 11, 0), dt(2026, 3, 8, 13, 0), "r1"));
+        let conflicts = sched.add_event(SchedulerEvent::new(
+            "2",
+            "B",
+            dt(2026, 3, 8, 11, 0),
+            dt(2026, 3, 8, 13, 0),
+            "r1",
+        ));
         assert_eq!(conflicts, vec!["1"]);
     }
 
@@ -325,10 +362,22 @@ mod tests {
     fn no_conflict_adjacent() {
         let mut sched = Scheduler::new();
         sched.add_resource(Resource::new("r1", "Room A"));
-        sched.add_event(SchedulerEvent::new("1", "A", dt(2026, 3, 8, 10, 0), dt(2026, 3, 8, 11, 0), "r1"));
+        sched.add_event(SchedulerEvent::new(
+            "1",
+            "A",
+            dt(2026, 3, 8, 10, 0),
+            dt(2026, 3, 8, 11, 0),
+            "r1",
+        ));
 
         // Starts exactly when the other ends — no overlap.
-        let c = sched.add_event(SchedulerEvent::new("2", "B", dt(2026, 3, 8, 11, 0), dt(2026, 3, 8, 12, 0), "r1"));
+        let c = sched.add_event(SchedulerEvent::new(
+            "2",
+            "B",
+            dt(2026, 3, 8, 11, 0),
+            dt(2026, 3, 8, 12, 0),
+            "r1",
+        ));
         assert!(c.is_empty());
     }
 
@@ -336,7 +385,13 @@ mod tests {
     fn availability_check() {
         let mut sched = Scheduler::new();
         sched.add_resource(Resource::new("r1", "Room A"));
-        sched.add_event(SchedulerEvent::new("1", "A", dt(2026, 3, 8, 10, 0), dt(2026, 3, 8, 12, 0), "r1"));
+        sched.add_event(SchedulerEvent::new(
+            "1",
+            "A",
+            dt(2026, 3, 8, 10, 0),
+            dt(2026, 3, 8, 12, 0),
+            "r1",
+        ));
 
         assert!(!sched.is_available("r1", dt(2026, 3, 8, 11, 0), dt(2026, 3, 8, 13, 0)));
         assert!(sched.is_available("r1", dt(2026, 3, 8, 12, 0), dt(2026, 3, 8, 14, 0)));
@@ -347,8 +402,20 @@ mod tests {
     fn events_on_date() {
         let mut sched = Scheduler::new();
         sched.add_resource(Resource::new("r1", "Room A"));
-        sched.add_event(SchedulerEvent::new("1", "A", dt(2026, 3, 8, 10, 0), dt(2026, 3, 8, 11, 0), "r1"));
-        sched.add_event(SchedulerEvent::new("2", "B", dt(2026, 3, 9, 10, 0), dt(2026, 3, 9, 11, 0), "r1"));
+        sched.add_event(SchedulerEvent::new(
+            "1",
+            "A",
+            dt(2026, 3, 8, 10, 0),
+            dt(2026, 3, 8, 11, 0),
+            "r1",
+        ));
+        sched.add_event(SchedulerEvent::new(
+            "2",
+            "B",
+            dt(2026, 3, 9, 10, 0),
+            dt(2026, 3, 9, 11, 0),
+            "r1",
+        ));
 
         let on_8 = sched.events_on_date(d(2026, 3, 8));
         assert_eq!(on_8.len(), 1);
@@ -373,7 +440,13 @@ mod tests {
     fn move_event() {
         let mut sched = Scheduler::new().with_snap(SnapInterval::ThirtyMin);
         sched.add_resource(Resource::new("r1", "Room A"));
-        sched.add_event(SchedulerEvent::new("1", "A", dt(2026, 3, 8, 10, 0), dt(2026, 3, 8, 11, 0), "r1"));
+        sched.add_event(SchedulerEvent::new(
+            "1",
+            "A",
+            dt(2026, 3, 8, 10, 0),
+            dt(2026, 3, 8, 11, 0),
+            "r1",
+        ));
 
         let conflicts = sched.move_event("1", dt(2026, 3, 8, 14, 17)).unwrap();
         assert!(conflicts.is_empty());
@@ -386,7 +459,13 @@ mod tests {
     fn resize_event() {
         let mut sched = Scheduler::new();
         sched.add_resource(Resource::new("r1", "Room A"));
-        sched.add_event(SchedulerEvent::new("1", "A", dt(2026, 3, 8, 10, 0), dt(2026, 3, 8, 11, 0), "r1"));
+        sched.add_event(SchedulerEvent::new(
+            "1",
+            "A",
+            dt(2026, 3, 8, 10, 0),
+            dt(2026, 3, 8, 11, 0),
+            "r1",
+        ));
 
         let conflicts = sched.resize_event("1", dt(2026, 3, 8, 12, 30)).unwrap();
         assert!(conflicts.is_empty());
@@ -409,8 +488,20 @@ mod tests {
         let mut sched = Scheduler::new();
         sched.add_resource(Resource::new("r1", "Room A"));
         sched.add_resource(Resource::new("r2", "Room B"));
-        sched.add_event(SchedulerEvent::new("1", "A", dt(2026, 3, 8, 10, 0), dt(2026, 3, 8, 11, 0), "r1"));
-        sched.add_event(SchedulerEvent::new("2", "B", dt(2026, 3, 8, 14, 0), dt(2026, 3, 8, 15, 0), "r2"));
+        sched.add_event(SchedulerEvent::new(
+            "1",
+            "A",
+            dt(2026, 3, 8, 10, 0),
+            dt(2026, 3, 8, 11, 0),
+            "r1",
+        ));
+        sched.add_event(SchedulerEvent::new(
+            "2",
+            "B",
+            dt(2026, 3, 8, 14, 0),
+            dt(2026, 3, 8, 15, 0),
+            "r2",
+        ));
 
         let view = day_view(&sched, d(2026, 3, 8));
         assert_eq!(view.len(), 2);
@@ -422,7 +513,13 @@ mod tests {
 
     #[test]
     fn duration_minutes() {
-        let evt = SchedulerEvent::new("1", "A", dt(2026, 3, 8, 10, 0), dt(2026, 3, 8, 11, 30), "r1");
+        let evt = SchedulerEvent::new(
+            "1",
+            "A",
+            dt(2026, 3, 8, 10, 0),
+            dt(2026, 3, 8, 11, 30),
+            "r1",
+        );
         assert_eq!(evt.duration_minutes(), 90);
     }
 
@@ -430,7 +527,13 @@ mod tests {
     fn remove_event() {
         let mut sched = Scheduler::new();
         sched.add_resource(Resource::new("r1", "Room A"));
-        sched.add_event(SchedulerEvent::new("1", "A", dt(2026, 3, 8, 10, 0), dt(2026, 3, 8, 11, 0), "r1"));
+        sched.add_event(SchedulerEvent::new(
+            "1",
+            "A",
+            dt(2026, 3, 8, 10, 0),
+            dt(2026, 3, 8, 11, 0),
+            "r1",
+        ));
         assert_eq!(sched.events.len(), 1);
         sched.remove_event("1");
         assert_eq!(sched.events.len(), 0);

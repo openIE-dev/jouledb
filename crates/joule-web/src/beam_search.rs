@@ -5,8 +5,8 @@
 //! n-gram repetition blocking, top-k and top-p (nucleus) filtering,
 //! and early stopping when all beams have produced an end-of-sequence token.
 
-use std::fmt;
 use std::collections::HashMap;
+use std::fmt;
 
 // ── Beam Hypothesis ──────────────────────────────────────────────
 
@@ -44,7 +44,11 @@ impl Hypothesis {
 
     /// Length of the generated sequence (excluding BOS).
     pub fn output_length(&self) -> usize {
-        if self.tokens.is_empty() { 0 } else { self.tokens.len() - 1 }
+        if self.tokens.is_empty() {
+            0
+        } else {
+            self.tokens.len() - 1
+        }
     }
 
     /// Compute length-normalized score.
@@ -60,7 +64,9 @@ impl Hypothesis {
         }
         // Build the candidate n-gram: last (n-1) tokens + new token
         let start = self.tokens.len() - (n - 1);
-        let candidate: Vec<usize> = self.tokens[start..].iter().copied()
+        let candidate: Vec<usize> = self.tokens[start..]
+            .iter()
+            .copied()
             .chain(std::iter::once(token))
             .collect();
 
@@ -196,10 +202,7 @@ fn apply_temperature(logits: &[f64], temp: f64) -> Vec<f64> {
 /// Convert logits to log-probabilities (log-softmax).
 fn log_softmax(logits: &[f64]) -> Vec<f64> {
     let max_val = logits.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-    let log_sum_exp = logits.iter()
-        .map(|l| (l - max_val).exp())
-        .sum::<f64>()
-        .ln() + max_val;
+    let log_sum_exp = logits.iter().map(|l| (l - max_val).exp()).sum::<f64>().ln() + max_val;
     logits.iter().map(|l| l - log_sum_exp).collect()
 }
 
@@ -216,14 +219,19 @@ fn top_k_filter(logits: &[f64], k: usize) -> Vec<f64> {
     if k == 0 || k >= logits.len() {
         return logits.to_vec();
     }
-    let mut indexed: Vec<(usize, f64)> = logits.iter().enumerate()
-        .map(|(i, &v)| (i, v))
-        .collect();
+    let mut indexed: Vec<(usize, f64)> = logits.iter().enumerate().map(|(i, &v)| (i, v)).collect();
     indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     let threshold = indexed[k - 1].1;
-    logits.iter().map(|v| {
-        if *v >= threshold { *v } else { f64::NEG_INFINITY }
-    }).collect()
+    logits
+        .iter()
+        .map(|v| {
+            if *v >= threshold {
+                *v
+            } else {
+                f64::NEG_INFINITY
+            }
+        })
+        .collect()
 }
 
 /// Top-p (nucleus) filtering.
@@ -232,9 +240,7 @@ fn top_p_filter(logits: &[f64], p: f64) -> Vec<f64> {
         return logits.to_vec();
     }
     let probs = softmax(logits);
-    let mut indexed: Vec<(usize, f64)> = probs.iter().enumerate()
-        .map(|(i, &v)| (i, v))
-        .collect();
+    let mut indexed: Vec<(usize, f64)> = probs.iter().enumerate().map(|(i, &v)| (i, v)).collect();
     indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
     let mut cumsum = 0.0;
@@ -247,9 +253,11 @@ fn top_p_filter(logits: &[f64], p: f64) -> Vec<f64> {
         }
     }
 
-    logits.iter().enumerate().map(|(i, &v)| {
-        if keep[i] { v } else { f64::NEG_INFINITY }
-    }).collect()
+    logits
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| if keep[i] { v } else { f64::NEG_INFINITY })
+        .collect()
 }
 
 // ── Beam Search Engine ───────────────────────────────────────────
@@ -301,8 +309,11 @@ impl BeamSearch {
 
                 // Get logits for this beam's token sequence
                 let mut logits = score_fn(&beam.tokens);
-                assert_eq!(logits.len(), self.config.vocab_size,
-                    "score_fn must return vocab_size logits");
+                assert_eq!(
+                    logits.len(),
+                    self.config.vocab_size,
+                    "score_fn must return vocab_size logits"
+                );
 
                 // Apply temperature
                 logits = apply_temperature(&logits, self.config.temperature);
@@ -326,11 +337,14 @@ impl BeamSearch {
                 let log_probs = log_softmax(&logits);
 
                 // Collect top beam_width candidates from this beam
-                let mut token_scores: Vec<(usize, f64)> = log_probs.iter().enumerate()
+                let mut token_scores: Vec<(usize, f64)> = log_probs
+                    .iter()
+                    .enumerate()
                     .map(|(i, &lp)| (i, lp))
                     .filter(|(_, lp)| lp.is_finite())
                     .collect();
-                token_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                token_scores
+                    .sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
                 token_scores.truncate(bw);
 
                 for (token, lp) in token_scores {
@@ -415,7 +429,11 @@ pub struct DiverseBeamSearch {
 
 impl DiverseBeamSearch {
     pub fn new(config: BeamSearchConfig, num_groups: usize, diversity_penalty: f64) -> Self {
-        Self { config, num_groups, diversity_penalty }
+        Self {
+            config,
+            num_groups,
+            diversity_penalty,
+        }
     }
 
     /// Run diverse beam search.
@@ -458,11 +476,14 @@ impl DiverseBeamSearch {
                     logits = apply_temperature(&logits, self.config.temperature);
                     let log_probs = log_softmax(&logits);
 
-                    let mut token_scores: Vec<(usize, f64)> = log_probs.iter().enumerate()
+                    let mut token_scores: Vec<(usize, f64)> = log_probs
+                        .iter()
+                        .enumerate()
                         .map(|(i, &lp)| (i, lp))
                         .filter(|(_, lp)| lp.is_finite())
                         .collect();
-                    token_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                    token_scores
+                        .sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
                     token_scores.truncate(beams_per_group);
 
                     for (token, lp) in token_scores {
@@ -564,7 +585,10 @@ mod tests {
 
     #[test]
     fn test_ngram_blocking_trigram() {
-        let h = Hypothesis::new(0).extend(1, -0.1).extend(2, -0.1).extend(1, -0.1);
+        let h = Hypothesis::new(0)
+            .extend(1, -0.1)
+            .extend(2, -0.1)
+            .extend(1, -0.1);
         // Tokens: [0, 1, 2, 1]. Adding 2 creates trigram (2,1,2) -- check for (1,2,1) at start: no
         // Need to check: trigram (2, 1, 2) vs existing trigrams: (0,1,2), (1,2,1)
         assert!(!h.would_repeat_ngram(2, 3));
@@ -639,9 +663,7 @@ mod tests {
             .with_early_stopping(false);
         let mut bs = BeamSearch::new(cfg);
         // Simple scoring: prefer token 2
-        let results = bs.search(|_tokens| {
-            vec![0.0, -1.0, 5.0, -1.0, -1.0]
-        });
+        let results = bs.search(|_tokens| vec![0.0, -1.0, 5.0, -1.0, -1.0]);
         assert!(!results.is_empty());
         let best = &results[0];
         // Should have generated mostly token 2
@@ -656,9 +678,7 @@ mod tests {
             .with_eos_token(1);
         let mut bs = BeamSearch::new(cfg);
         // Always output EOS immediately
-        let results = bs.search(|_tokens| {
-            vec![-10.0, 10.0, -10.0, -10.0, -10.0]
-        });
+        let results = bs.search(|_tokens| vec![-10.0, 10.0, -10.0, -10.0, -10.0]);
         let best = results.first().unwrap();
         assert!(best.finished);
         assert_eq!(best.tokens.len(), 2); // BOS + EOS
@@ -670,9 +690,7 @@ mod tests {
             .with_beam_width(3)
             .with_max_length(2);
         let mut bs = BeamSearch::new(cfg);
-        bs.search(|_| {
-            vec![0.0, 1.0, 2.0, 1.5, 0.5]
-        });
+        bs.search(|_| vec![0.0, 1.0, 2.0, 1.5, 0.5]);
         let top2 = bs.n_best(2);
         assert!(top2.len() <= 2);
     }

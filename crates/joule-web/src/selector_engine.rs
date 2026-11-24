@@ -37,12 +37,12 @@ pub struct AttrSelector {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AttrOp {
-    Equals,       // =
-    Contains,     // *=
-    StartsWith,   // ^=
-    EndsWith,     // $=
-    DashMatch,    // |=
-    Includes,     // ~=
+    Equals,     // =
+    Contains,   // *=
+    StartsWith, // ^=
+    EndsWith,   // $=
+    DashMatch,  // |=
+    Includes,   // ~=
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -81,10 +81,10 @@ impl NthExpr {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CombinatorKind {
-    Descendant,   // space
-    Child,        // >
-    Adjacent,     // +
-    Sibling,      // ~
+    Descendant, // space
+    Child,      // >
+    Adjacent,   // +
+    Sibling,    // ~
 }
 
 // ── Simple DOM Node ─────────────────────────────────────────────
@@ -191,9 +191,7 @@ fn parse_combinator_chain(input: &str) -> Result<Selector, String> {
     Ok(left)
 }
 
-fn tokenize_combinators(
-    input: &str,
-) -> Result<Vec<(String, Option<CombinatorKind>)>, String> {
+fn tokenize_combinators(input: &str) -> Result<Vec<(String, Option<CombinatorKind>)>, String> {
     let mut tokens: Vec<(String, Option<CombinatorKind>)> = Vec::new();
     let mut current = String::new();
     let mut chars = input.chars().peekable();
@@ -219,7 +217,10 @@ fn tokenize_combinators(
                     // Peek ahead to see if there's an explicit combinator
                     let rest: String = chars.clone().collect();
                     let rest_trimmed = rest.trim_start();
-                    if rest_trimmed.starts_with('>') || rest_trimmed.starts_with('+') || rest_trimmed.starts_with('~') {
+                    if rest_trimmed.starts_with('>')
+                        || rest_trimmed.starts_with('+')
+                        || rest_trimmed.starts_with('~')
+                    {
                         // Spacing before explicit combinator — not a descendant
                         tokens.push((current.trim().to_string(), last_combinator.take()));
                         current.clear();
@@ -351,7 +352,11 @@ fn parse_attr_selector(
     let op = match chars.peek() {
         Some(']') => {
             chars.next();
-            return Ok(AttrSelector { name, op: None, value: None });
+            return Ok(AttrSelector {
+                name,
+                op: None,
+                value: None,
+            });
         }
         Some('=') => {
             chars.next();
@@ -511,7 +516,11 @@ fn parse_nth_expr(s: &str) -> Result<NthExpr, String> {
         let b = if after.is_empty() {
             0
         } else {
-            after.replace('+', "").replace(' ', "").parse::<i32>().map_err(|e| e.to_string())?
+            after
+                .replace('+', "")
+                .replace(' ', "")
+                .parse::<i32>()
+                .map_err(|e| e.to_string())?
         };
 
         Ok(NthExpr { a, b })
@@ -539,9 +548,7 @@ pub fn matches(selector: &Selector, node: &DomNode) -> bool {
                 return false;
             }
             match kind {
-                CombinatorKind::Child => {
-                    node.parent.as_ref().is_some_and(|p| matches(left, p))
-                }
+                CombinatorKind::Child => node.parent.as_ref().is_some_and(|p| matches(left, p)),
                 CombinatorKind::Descendant => {
                     let mut ancestor = node.parent.as_ref();
                     while let Some(anc) = ancestor {
@@ -555,9 +562,7 @@ pub fn matches(selector: &Selector, node: &DomNode) -> bool {
                 CombinatorKind::Adjacent => {
                     node.prev_siblings.last().is_some_and(|s| matches(left, s))
                 }
-                CombinatorKind::Sibling => {
-                    node.prev_siblings.iter().any(|s| matches(left, s))
-                }
+                CombinatorKind::Sibling => node.prev_siblings.iter().any(|s| matches(left, s)),
             }
         }
     }

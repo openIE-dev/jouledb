@@ -433,9 +433,10 @@ mod tests {
     #[test]
     fn spawn_single_entity() {
         let mut store = ArchetypeStorage::new();
-        let comps = make_components(vec![
-            (TypeId::of::<Pos>(), Box::new(Pos { x: 1.0, y: 2.0 })),
-        ]);
+        let comps = make_components(vec![(
+            TypeId::of::<Pos>(),
+            Box::new(Pos { x: 1.0, y: 2.0 }),
+        )]);
         store.spawn(1, comps).unwrap();
         assert_eq!(store.entity_count(), 1);
     }
@@ -443,12 +444,14 @@ mod tests {
     #[test]
     fn spawn_duplicate_error() {
         let mut store = ArchetypeStorage::new();
-        let comps1 = make_components(vec![
-            (TypeId::of::<Pos>(), Box::new(Pos { x: 0.0, y: 0.0 })),
-        ]);
-        let comps2 = make_components(vec![
-            (TypeId::of::<Pos>(), Box::new(Pos { x: 1.0, y: 1.0 })),
-        ]);
+        let comps1 = make_components(vec![(
+            TypeId::of::<Pos>(),
+            Box::new(Pos { x: 0.0, y: 0.0 }),
+        )]);
+        let comps2 = make_components(vec![(
+            TypeId::of::<Pos>(),
+            Box::new(Pos { x: 1.0, y: 1.0 }),
+        )]);
         store.spawn(1, comps1).unwrap();
         assert!(store.spawn(1, comps2).is_err());
     }
@@ -456,9 +459,10 @@ mod tests {
     #[test]
     fn despawn_entity() {
         let mut store = ArchetypeStorage::new();
-        let comps = make_components(vec![
-            (TypeId::of::<Pos>(), Box::new(Pos { x: 0.0, y: 0.0 })),
-        ]);
+        let comps = make_components(vec![(
+            TypeId::of::<Pos>(),
+            Box::new(Pos { x: 0.0, y: 0.0 }),
+        )]);
         store.spawn(1, comps).unwrap();
         assert!(store.despawn(1));
         assert!(!store.despawn(1));
@@ -468,9 +472,10 @@ mod tests {
     #[test]
     fn get_component() {
         let mut store = ArchetypeStorage::new();
-        let comps = make_components(vec![
-            (TypeId::of::<Pos>(), Box::new(Pos { x: 3.0, y: 4.0 })),
-        ]);
+        let comps = make_components(vec![(
+            TypeId::of::<Pos>(),
+            Box::new(Pos { x: 3.0, y: 4.0 }),
+        )]);
         store.spawn(1, comps).unwrap();
         let pos = store.get_component::<Pos>(1).unwrap();
         assert!((pos.x - 3.0).abs() < 1e-9);
@@ -480,9 +485,10 @@ mod tests {
     #[test]
     fn get_component_mut() {
         let mut store = ArchetypeStorage::new();
-        let comps = make_components(vec![
-            (TypeId::of::<Pos>(), Box::new(Pos { x: 0.0, y: 0.0 })),
-        ]);
+        let comps = make_components(vec![(
+            TypeId::of::<Pos>(),
+            Box::new(Pos { x: 0.0, y: 0.0 }),
+        )]);
         store.spawn(1, comps).unwrap();
         let pos = store.get_component_mut::<Pos>(1).unwrap();
         pos.x = 99.0;
@@ -492,9 +498,10 @@ mod tests {
     #[test]
     fn has_component() {
         let mut store = ArchetypeStorage::new();
-        let comps = make_components(vec![
-            (TypeId::of::<Pos>(), Box::new(Pos { x: 0.0, y: 0.0 })),
-        ]);
+        let comps = make_components(vec![(
+            TypeId::of::<Pos>(),
+            Box::new(Pos { x: 0.0, y: 0.0 }),
+        )]);
         store.spawn(1, comps).unwrap();
         assert!(store.has_component::<Pos>(1));
         assert!(!store.has_component::<Vel>(1));
@@ -503,9 +510,10 @@ mod tests {
     #[test]
     fn add_component_migration() {
         let mut store = ArchetypeStorage::new();
-        let comps = make_components(vec![
-            (TypeId::of::<Pos>(), Box::new(Pos { x: 1.0, y: 2.0 })),
-        ]);
+        let comps = make_components(vec![(
+            TypeId::of::<Pos>(),
+            Box::new(Pos { x: 1.0, y: 2.0 }),
+        )]);
         store.spawn(1, comps).unwrap();
         store
             .add_component(1, TypeId::of::<Vel>(), Box::new(Vel { dx: 3.0, dy: 4.0 }))
@@ -522,9 +530,7 @@ mod tests {
     #[test]
     fn add_existing_component_replaces() {
         let mut store = ArchetypeStorage::new();
-        let comps = make_components(vec![
-            (TypeId::of::<Hp>(), Box::new(Hp(100))),
-        ]);
+        let comps = make_components(vec![(TypeId::of::<Hp>(), Box::new(Hp(100)))]);
         store.spawn(1, comps).unwrap();
         store
             .add_component(1, TypeId::of::<Hp>(), Box::new(Hp(50)))
@@ -555,9 +561,10 @@ mod tests {
     #[test]
     fn remove_component_not_present() {
         let mut store = ArchetypeStorage::new();
-        let comps = make_components(vec![
-            (TypeId::of::<Pos>(), Box::new(Pos { x: 0.0, y: 0.0 })),
-        ]);
+        let comps = make_components(vec![(
+            TypeId::of::<Pos>(),
+            Box::new(Pos { x: 0.0, y: 0.0 }),
+        )]);
         store.spawn(1, comps).unwrap();
         assert!(store.remove_component(1, &TypeId::of::<Vel>()).is_err());
     }
@@ -582,12 +589,14 @@ mod tests {
     #[test]
     fn different_archetypes() {
         let mut store = ArchetypeStorage::new();
-        let comps1 = make_components(vec![
-            (TypeId::of::<Pos>(), Box::new(Pos { x: 0.0, y: 0.0 })),
-        ]);
-        let comps2 = make_components(vec![
-            (TypeId::of::<Vel>(), Box::new(Vel { dx: 0.0, dy: 0.0 })),
-        ]);
+        let comps1 = make_components(vec![(
+            TypeId::of::<Pos>(),
+            Box::new(Pos { x: 0.0, y: 0.0 }),
+        )]);
+        let comps2 = make_components(vec![(
+            TypeId::of::<Vel>(),
+            Box::new(Vel { dx: 0.0, dy: 0.0 }),
+        )]);
         store.spawn(1, comps1).unwrap();
         store.spawn(2, comps2).unwrap();
         assert_eq!(store.archetype_count(), 2);
@@ -600,9 +609,10 @@ mod tests {
             (TypeId::of::<Pos>(), Box::new(Pos { x: 0.0, y: 0.0 })),
             (TypeId::of::<Vel>(), Box::new(Vel { dx: 0.0, dy: 0.0 })),
         ]);
-        let comps2 = make_components(vec![
-            (TypeId::of::<Pos>(), Box::new(Pos { x: 0.0, y: 0.0 })),
-        ]);
+        let comps2 = make_components(vec![(
+            TypeId::of::<Pos>(),
+            Box::new(Pos { x: 0.0, y: 0.0 }),
+        )]);
         store.spawn(1, comps1).unwrap();
         store.spawn(2, comps2).unwrap();
         let required: BTreeSet<TypeId> = [TypeId::of::<Pos>(), TypeId::of::<Vel>()]
@@ -619,9 +629,10 @@ mod tests {
             (TypeId::of::<Pos>(), Box::new(Pos { x: 0.0, y: 0.0 })),
             (TypeId::of::<Hp>(), Box::new(Hp(100))),
         ]);
-        let comps2 = make_components(vec![
-            (TypeId::of::<Pos>(), Box::new(Pos { x: 0.0, y: 0.0 })),
-        ]);
+        let comps2 = make_components(vec![(
+            TypeId::of::<Pos>(),
+            Box::new(Pos { x: 0.0, y: 0.0 }),
+        )]);
         store.spawn(1, comps1).unwrap();
         store.spawn(2, comps2).unwrap();
         let required: BTreeSet<TypeId> = [TypeId::of::<Pos>()].into_iter().collect();
@@ -632,8 +643,9 @@ mod tests {
 
     #[test]
     fn archetype_id_with_without() {
-        let types: BTreeSet<TypeId> =
-            [TypeId::of::<Pos>(), TypeId::of::<Vel>()].into_iter().collect();
+        let types: BTreeSet<TypeId> = [TypeId::of::<Pos>(), TypeId::of::<Vel>()]
+            .into_iter()
+            .collect();
         let id = ArchetypeId::from_types(&types);
         assert_eq!(id.component_count(), 2);
 
@@ -649,9 +661,11 @@ mod tests {
     #[test]
     fn add_component_to_nonexistent_entity() {
         let mut store = ArchetypeStorage::new();
-        assert!(store
-            .add_component(999, TypeId::of::<Pos>(), Box::new(Pos { x: 0.0, y: 0.0 }))
-            .is_err());
+        assert!(
+            store
+                .add_component(999, TypeId::of::<Pos>(), Box::new(Pos { x: 0.0, y: 0.0 }))
+                .is_err()
+        );
     }
 
     #[test]
@@ -664,9 +678,7 @@ mod tests {
     fn swap_remove_preserves_other_entities() {
         let mut store = ArchetypeStorage::new();
         for i in 0..5 {
-            let comps = make_components(vec![
-                (TypeId::of::<Hp>(), Box::new(Hp(i as u32))),
-            ]);
+            let comps = make_components(vec![(TypeId::of::<Hp>(), Box::new(Hp(i as u32)))]);
             store.spawn(i, comps).unwrap();
         }
         // Remove entity in the middle.
@@ -682,9 +694,7 @@ mod tests {
     fn all_entities_list() {
         let mut store = ArchetypeStorage::new();
         for i in 0..3 {
-            let comps = make_components(vec![
-                (TypeId::of::<Hp>(), Box::new(Hp(i))),
-            ]);
+            let comps = make_components(vec![(TypeId::of::<Hp>(), Box::new(Hp(i)))]);
             store.spawn(i as u64, comps).unwrap();
         }
         let mut all = store.all_entities();

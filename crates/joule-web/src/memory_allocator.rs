@@ -36,7 +36,10 @@ pub struct AllocHandle(pub u64);
 /// Allocator errors.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AllocError {
-    OutOfMemory { requested: usize, largest_free: usize },
+    OutOfMemory {
+        requested: usize,
+        largest_free: usize,
+    },
     InvalidHandle(AllocHandle),
     DoubleFree(AllocHandle),
     InvalidSize(String),
@@ -45,7 +48,10 @@ pub enum AllocError {
 impl std::fmt::Display for AllocError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AllocError::OutOfMemory { requested, largest_free } => {
+            AllocError::OutOfMemory {
+                requested,
+                largest_free,
+            } => {
                 write!(f, "OOM: requested {requested}, largest free {largest_free}")
             }
             AllocError::InvalidHandle(h) => write!(f, "invalid handle: {}", h.0),
@@ -177,20 +183,8 @@ impl MemoryAllocator {
 
         let idx = match self.strategy {
             AllocStrategy::FirstFit => candidates[0].0,
-            AllocStrategy::BestFit => {
-                candidates
-                    .iter()
-                    .min_by_key(|(_, sz)| *sz)
-                    .unwrap()
-                    .0
-            }
-            AllocStrategy::WorstFit => {
-                candidates
-                    .iter()
-                    .max_by_key(|(_, sz)| *sz)
-                    .unwrap()
-                    .0
-            }
+            AllocStrategy::BestFit => candidates.iter().min_by_key(|(_, sz)| *sz).unwrap().0,
+            AllocStrategy::WorstFit => candidates.iter().max_by_key(|(_, sz)| *sz).unwrap().0,
         };
 
         Ok(idx)
@@ -234,12 +228,7 @@ impl MemoryAllocator {
 
     /// Get allocation statistics.
     pub fn stats(&self) -> AllocStats {
-        let allocated_bytes: usize = self
-            .blocks
-            .iter()
-            .filter(|b| !b.free)
-            .map(|b| b.size)
-            .sum();
+        let allocated_bytes: usize = self.blocks.iter().filter(|b| !b.free).map(|b| b.size).sum();
         let free_bytes = self.total_size - allocated_bytes;
         let num_free_blocks = self.blocks.iter().filter(|b| b.free).count();
         let num_allocations = self.blocks.iter().filter(|b| !b.free).count();
@@ -280,7 +269,10 @@ impl MemoryAllocator {
     pub fn render_map(&self, width: usize) -> String {
         let mut output = String::new();
         for block in &self.blocks {
-            let chars = std::cmp::max(1, (block.size as f64 / self.total_size as f64 * width as f64) as usize);
+            let chars = std::cmp::max(
+                1,
+                (block.size as f64 / self.total_size as f64 * width as f64) as usize,
+            );
             let ch = if block.free { '.' } else { '#' };
             for _ in 0..chars {
                 output.push(ch);

@@ -10,14 +10,10 @@
 //! - **Human-to-Machine Interface (`SigQL` Frequency & Uncertainty Stream Decoder)**:
 //!   `POST /api/v1/hmi/sigql`
 
-use axum::{
-    Json, Router,
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    routing::post,
+use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::post};
+use joule_db_core::embodied::{
+    AsofJoinSpec, EctStore, HybridLogicalClock, Transform3D, TransformTree,
 };
-use joule_db_core::embodied::{AsofJoinSpec, EctStore, HybridLogicalClock, Transform3D, TransformTree};
 use joule_db_core::living::{HomeostaticMetabolism, PerceptionOutcome, SensoryFrame, SurpriseGate};
 use serde::Deserialize;
 use sigql::compile::Target;

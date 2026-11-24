@@ -114,12 +114,7 @@ impl AutocompleteEngine {
     }
 
     /// Insert a term with frequency and category.
-    pub fn insert_with_category(
-        &mut self,
-        text: &str,
-        frequency: u64,
-        category: Option<&str>,
-    ) {
+    pub fn insert_with_category(&mut self, text: &str, frequency: u64, category: Option<&str>) {
         let lower = text.to_lowercase();
         let mut node = &mut self.root;
         for ch in lower.chars() {
@@ -284,12 +279,7 @@ impl AutocompleteEngine {
     }
 
     /// Suggest with category filter.
-    pub fn suggest_in_category(
-        &self,
-        prefix: &str,
-        category: &str,
-        k: usize,
-    ) -> Vec<AcSuggestion> {
+    pub fn suggest_in_category(&self, prefix: &str, category: &str, k: usize) -> Vec<AcSuggestion> {
         let all = self.suggest(prefix, usize::MAX);
         all.into_iter()
             .filter(|s| s.category.as_deref() == Some(category))
@@ -354,10 +344,12 @@ impl AutocompleteEngine {
         for i in 1..=n {
             curr[0] = i;
             for j in 1..=m {
-                let cost = if a_chars[i - 1] == b_chars[j - 1] { 0 } else { 1 };
-                curr[j] = (prev[j] + 1)
-                    .min(curr[j - 1] + 1)
-                    .min(prev[j - 1] + cost);
+                let cost = if a_chars[i - 1] == b_chars[j - 1] {
+                    0
+                } else {
+                    1
+                };
+                curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
             }
             std::mem::swap(&mut prev, &mut curr);
         }
@@ -507,8 +499,7 @@ mod tests {
 
     #[test]
     fn test_highlight_custom_tags() {
-        let e = AutocompleteEngine::new()
-            .with_highlight("<em>", "</em>");
+        let e = AutocompleteEngine::new().with_highlight("<em>", "</em>");
         let mut eng = e;
         eng.insert("hello", 10);
         let sugs = eng.suggest("hel", 1);

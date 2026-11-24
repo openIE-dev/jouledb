@@ -108,22 +108,46 @@ pub struct RpcMessage {
 impl RpcMessage {
     /// Build a request message.
     pub fn request(method_id: u32, correlation_id: u64, payload: Vec<u8>) -> Self {
-        Self { kind: MessageKind::Request, method_id, correlation_id, status: StatusCode::Ok, payload }
+        Self {
+            kind: MessageKind::Request,
+            method_id,
+            correlation_id,
+            status: StatusCode::Ok,
+            payload,
+        }
     }
 
     /// Build a response message.
     pub fn response(correlation_id: u64, payload: Vec<u8>) -> Self {
-        Self { kind: MessageKind::Response, method_id: 0, correlation_id, status: StatusCode::Ok, payload }
+        Self {
+            kind: MessageKind::Response,
+            method_id: 0,
+            correlation_id,
+            status: StatusCode::Ok,
+            payload,
+        }
     }
 
     /// Build a notification (one-way, no response expected).
     pub fn notification(method_id: u32, payload: Vec<u8>) -> Self {
-        Self { kind: MessageKind::Notification, method_id, correlation_id: 0, status: StatusCode::Ok, payload }
+        Self {
+            kind: MessageKind::Notification,
+            method_id,
+            correlation_id: 0,
+            status: StatusCode::Ok,
+            payload,
+        }
     }
 
     /// Build an error response.
     pub fn error(correlation_id: u64, status: StatusCode, detail: Vec<u8>) -> Self {
-        Self { kind: MessageKind::Error, method_id: 0, correlation_id, status, payload: detail }
+        Self {
+            kind: MessageKind::Error,
+            method_id: 0,
+            correlation_id,
+            status,
+            payload: detail,
+        }
     }
 
     /// Total wire size (header + payload).
@@ -135,8 +159,15 @@ impl RpcMessage {
 
 impl fmt::Display for RpcMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}[method={}, corr={}, status={}, {}B payload]",
-            self.kind, self.method_id, self.correlation_id, self.status, self.payload.len())
+        write!(
+            f,
+            "{}[method={}, corr={}, status={}, {}B payload]",
+            self.kind,
+            self.method_id,
+            self.correlation_id,
+            self.status,
+            self.payload.len()
+        )
     }
 }
 
@@ -155,13 +186,16 @@ pub enum CodecError {
 impl fmt::Display for CodecError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::BufferTooSmall { needed, available } =>
-                write!(f, "buffer too small: need {needed}, have {available}"),
+            Self::BufferTooSmall { needed, available } => {
+                write!(f, "buffer too small: need {needed}, have {available}")
+            }
             Self::InvalidKindTag(t) => write!(f, "invalid message kind tag: 0x{t:02x}"),
-            Self::IncompleteFrame { needed, available } =>
-                write!(f, "incomplete frame: need {needed}, have {available}"),
-            Self::PayloadTooLarge { size, limit } =>
-                write!(f, "payload too large: {size} > {limit}"),
+            Self::IncompleteFrame { needed, available } => {
+                write!(f, "incomplete frame: need {needed}, have {available}")
+            }
+            Self::PayloadTooLarge { size, limit } => {
+                write!(f, "payload too large: {size} > {limit}")
+            }
             Self::CorruptedFrame => write!(f, "corrupted frame data"),
         }
     }
@@ -228,19 +262,24 @@ impl RpcCodec {
     /// Decode one message from a byte buffer. Returns the message and bytes consumed.
     pub fn decode(&mut self, data: &[u8]) -> Result<(RpcMessage, usize), CodecError> {
         if data.len() < 4 {
-            return Err(CodecError::IncompleteFrame { needed: 4, available: data.len() });
+            return Err(CodecError::IncompleteFrame {
+                needed: 4,
+                available: data.len(),
+            });
         }
         let frame_len = u32::from_be_bytes([data[0], data[1], data[2], data[3]]) as usize;
         let total = 4 + frame_len;
         if data.len() < total {
-            return Err(CodecError::IncompleteFrame { needed: total, available: data.len() });
+            return Err(CodecError::IncompleteFrame {
+                needed: total,
+                available: data.len(),
+            });
         }
         if frame_len < Self::HEADER_SIZE {
             return Err(CodecError::CorruptedFrame);
         }
         let body = &data[4..total];
-        let kind = MessageKind::from_tag(body[0])
-            .ok_or(CodecError::InvalidKindTag(body[0]))?;
+        let kind = MessageKind::from_tag(body[0]).ok_or(CodecError::InvalidKindTag(body[0]))?;
         let method_id = u32::from_be_bytes([body[1], body[2], body[3], body[4]]);
         let correlation_id = u64::from_be_bytes([
             body[5], body[6], body[7], body[8], body[9], body[10], body[11], body[12],
@@ -257,7 +296,16 @@ impl RpcCodec {
 
         self.bytes_decoded += total as u64;
         self.messages_decoded += 1;
-        Ok((RpcMessage { kind, method_id, correlation_id, status, payload }, total))
+        Ok((
+            RpcMessage {
+                kind,
+                method_id,
+                correlation_id,
+                status,
+                payload,
+            },
+            total,
+        ))
     }
 
     /// Try to decode all complete messages from a buffer.
@@ -276,10 +324,18 @@ impl RpcCodec {
         (messages, offset)
     }
 
-    pub fn bytes_encoded(&self) -> u64 { self.bytes_encoded }
-    pub fn bytes_decoded(&self) -> u64 { self.bytes_decoded }
-    pub fn messages_encoded(&self) -> u64 { self.messages_encoded }
-    pub fn messages_decoded(&self) -> u64 { self.messages_decoded }
+    pub fn bytes_encoded(&self) -> u64 {
+        self.bytes_encoded
+    }
+    pub fn bytes_decoded(&self) -> u64 {
+        self.bytes_decoded
+    }
+    pub fn messages_encoded(&self) -> u64 {
+        self.messages_encoded
+    }
+    pub fn messages_decoded(&self) -> u64 {
+        self.messages_decoded
+    }
 }
 
 // ── Handler Result ─────────────────────────────────────────────
@@ -305,7 +361,10 @@ pub struct MethodRegistry {
 
 impl MethodRegistry {
     pub fn new() -> Self {
-        Self { handlers: HashMap::new(), names: HashMap::new() }
+        Self {
+            handlers: HashMap::new(),
+            names: HashMap::new(),
+        }
     }
 
     /// Register a handler for the given method ID.
@@ -330,10 +389,14 @@ impl MethodRegistry {
     }
 
     /// Number of registered methods.
-    pub fn len(&self) -> usize { self.handlers.len() }
+    pub fn len(&self) -> usize {
+        self.handlers.len()
+    }
 
     /// Whether the registry is empty.
-    pub fn is_empty(&self) -> bool { self.handlers.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.handlers.is_empty()
+    }
 
     /// List all registered method IDs.
     pub fn method_ids(&self) -> Vec<u32> {
@@ -344,7 +407,9 @@ impl MethodRegistry {
 }
 
 impl Default for MethodRegistry {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── RPC Server ─────────────────────────────────────────────────
@@ -425,10 +490,18 @@ impl RpcServer {
         }
     }
 
-    pub fn requests_handled(&self) -> u64 { self.requests_handled }
-    pub fn errors_returned(&self) -> u64 { self.errors_returned }
-    pub fn notifications_received(&self) -> u64 { self.notifications_received }
-    pub fn registry(&self) -> &MethodRegistry { &self.registry }
+    pub fn requests_handled(&self) -> u64 {
+        self.requests_handled
+    }
+    pub fn errors_returned(&self) -> u64 {
+        self.errors_returned
+    }
+    pub fn notifications_received(&self) -> u64 {
+        self.notifications_received
+    }
+    pub fn registry(&self) -> &MethodRegistry {
+        &self.registry
+    }
 }
 
 // ── Request/Response Correlator ────────────────────────────────
@@ -450,14 +523,24 @@ pub struct PendingRequest {
 
 impl Correlator {
     pub fn new() -> Self {
-        Self { next_id: 1, pending: HashMap::new() }
+        Self {
+            next_id: 1,
+            pending: HashMap::new(),
+        }
     }
 
     /// Allocate a new correlation ID and track the request.
     pub fn track(&mut self, method_id: u32, sent_at_ms: u64, timeout_ms: u64) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
-        self.pending.insert(id, PendingRequest { method_id, sent_at_ms, timeout_ms });
+        self.pending.insert(
+            id,
+            PendingRequest {
+                method_id,
+                sent_at_ms,
+                timeout_ms,
+            },
+        );
         id
     }
 
@@ -481,14 +564,20 @@ impl Correlator {
     }
 
     /// Number of pending requests.
-    pub fn pending_count(&self) -> usize { self.pending.len() }
+    pub fn pending_count(&self) -> usize {
+        self.pending.len()
+    }
 
     /// Check if a correlation ID is pending.
-    pub fn is_pending(&self, id: u64) -> bool { self.pending.contains_key(&id) }
+    pub fn is_pending(&self, id: u64) -> bool {
+        self.pending.contains_key(&id)
+    }
 }
 
 impl Default for Correlator {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ──────────────────────────────────────────────────────
@@ -498,11 +587,17 @@ mod tests {
     use super::*;
 
     fn echo_handler(payload: &[u8]) -> HandlerResult {
-        HandlerResult { status: StatusCode::Ok, payload: payload.to_vec() }
+        HandlerResult {
+            status: StatusCode::Ok,
+            payload: payload.to_vec(),
+        }
     }
 
     fn error_handler(_payload: &[u8]) -> HandlerResult {
-        HandlerResult { status: StatusCode::InternalError, payload: b"boom".to_vec() }
+        HandlerResult {
+            status: StatusCode::InternalError,
+            payload: b"boom".to_vec(),
+        }
     }
 
     #[test]
@@ -546,13 +641,19 @@ mod tests {
     fn payload_too_large_on_encode() {
         let mut codec = RpcCodec::new(4);
         let msg = RpcMessage::request(1, 1, vec![0; 10]);
-        assert!(matches!(codec.encode(&msg), Err(CodecError::PayloadTooLarge { .. })));
+        assert!(matches!(
+            codec.encode(&msg),
+            Err(CodecError::PayloadTooLarge { .. })
+        ));
     }
 
     #[test]
     fn incomplete_frame_on_short_data() {
         let mut codec = RpcCodec::new(1024);
-        assert!(matches!(codec.decode(&[0, 0]), Err(CodecError::IncompleteFrame { .. })));
+        assert!(matches!(
+            codec.decode(&[0, 0]),
+            Err(CodecError::IncompleteFrame { .. })
+        ));
     }
 
     #[test]
@@ -561,7 +662,10 @@ mod tests {
         // length says 100 bytes but only provide header
         let mut data = vec![0, 0, 0, 100];
         data.extend_from_slice(&[0; 10]);
-        assert!(matches!(codec.decode(&data), Err(CodecError::IncompleteFrame { .. })));
+        assert!(matches!(
+            codec.decode(&data),
+            Err(CodecError::IncompleteFrame { .. })
+        ));
     }
 
     #[test]
@@ -569,7 +673,10 @@ mod tests {
         let mut codec = RpcCodec::new(1024);
         // frame_len = 2 < HEADER_SIZE
         let data = [0, 0, 0, 2, 0, 0];
-        assert!(matches!(codec.decode(&data), Err(CodecError::CorruptedFrame)));
+        assert!(matches!(
+            codec.decode(&data),
+            Err(CodecError::CorruptedFrame)
+        ));
     }
 
     #[test]
@@ -717,7 +824,11 @@ mod tests {
 
     #[test]
     fn status_code_roundtrip() {
-        for code in [StatusCode::Ok, StatusCode::Timeout, StatusCode::PayloadTooLarge] {
+        for code in [
+            StatusCode::Ok,
+            StatusCode::Timeout,
+            StatusCode::PayloadTooLarge,
+        ] {
             assert_eq!(StatusCode::from_u16(code.as_u16()), code);
         }
     }

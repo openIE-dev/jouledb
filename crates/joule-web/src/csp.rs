@@ -243,7 +243,8 @@ impl CspPolicy {
 
     /// Set a directive with multiple sources at once.
     pub fn set(&mut self, directive: Directive, sources: Vec<Source>) -> &mut Self {
-        self.directives.insert(directive.as_str().to_string(), sources);
+        self.directives
+            .insert(directive.as_str().to_string(), sources);
         self
     }
 
@@ -286,10 +287,8 @@ impl CspPolicy {
 
     /// Enable block-all-mixed-content.
     pub fn block_mixed_content(&mut self) -> &mut Self {
-        self.directives.insert(
-            Directive::BlockAllMixedContent.as_str().to_string(),
-            vec![],
-        );
+        self.directives
+            .insert(Directive::BlockAllMixedContent.as_str().to_string(), vec![]);
         self
     }
 
@@ -332,7 +331,9 @@ impl CspPolicy {
             // Validate directive name.
             let _ = Directive::from_str_name(directive_name)?;
             let sources: Vec<Source> = tokens[1..].iter().map(|t| parse_source(t)).collect();
-            policy.directives.insert(directive_name.to_string(), sources);
+            policy
+                .directives
+                .insert(directive_name.to_string(), sources);
         }
         Ok(policy)
     }
@@ -410,14 +411,14 @@ fn parse_source(s: &str) -> Source {
         _ if s.starts_with("'nonce-") && s.ends_with('\'') => {
             Source::Nonce(s[7..s.len() - 1].to_string())
         }
-        _ if (s.starts_with("'sha256-") || s.starts_with("'sha384-") || s.starts_with("'sha512-"))
+        _ if (s.starts_with("'sha256-")
+            || s.starts_with("'sha384-")
+            || s.starts_with("'sha512-"))
             && s.ends_with('\'') =>
         {
             Source::Hash(s[1..s.len() - 1].to_string())
         }
-        _ if s.ends_with(':') && !s.contains('/') => {
-            Source::Scheme(s[..s.len() - 1].to_string())
-        }
+        _ if s.ends_with(':') && !s.contains('/') => Source::Scheme(s[..s.len() - 1].to_string()),
         _ => Source::Host(s.to_string()),
     }
 }
@@ -449,7 +450,10 @@ mod tests {
     fn test_add_sources() {
         let mut p = CspPolicy::new();
         p.add(Directive::ScriptSrc, Source::CSelf);
-        p.add(Directive::ScriptSrc, Source::Host("https://cdn.example.com".to_string()));
+        p.add(
+            Directive::ScriptSrc,
+            Source::Host("https://cdn.example.com".to_string()),
+        );
         let header = p.to_header_value();
         assert!(header.contains("script-src 'self' https://cdn.example.com"));
     }
@@ -513,7 +517,10 @@ mod tests {
     #[test]
     fn test_allows_host() {
         let mut p = CspPolicy::new();
-        p.add(Directive::ScriptSrc, Source::Host("https://cdn.example.com".to_string()));
+        p.add(
+            Directive::ScriptSrc,
+            Source::Host("https://cdn.example.com".to_string()),
+        );
         assert!(p.allows(Directive::ScriptSrc, "https://cdn.example.com"));
         assert!(!p.allows(Directive::ScriptSrc, "https://evil.com"));
     }

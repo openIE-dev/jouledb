@@ -636,10 +636,7 @@ impl Materializer {
     /// returns the cached resolution at zero resolver cost.
     ///
     /// Returns `None` if no resolver is registered for the query's kind.
-    pub fn materialize_attractor(
-        &mut self,
-        query: &AttractorQuery,
-    ) -> Option<MaterializeResult> {
+    pub fn materialize_attractor(&mut self, query: &AttractorQuery) -> Option<MaterializeResult> {
         let start = Instant::now();
         let resolution = self
             .attractor_tier
@@ -662,9 +659,7 @@ impl Materializer {
             .or_insert(0) += 1;
 
         let actual_pj = (resolution.energy_joules * 1e12).max(0.0) as u64;
-        let native_floor_pj = resolution
-            .native_floor_pj
-            .unwrap_or(actual_pj.max(1));
+        let native_floor_pj = resolution.native_floor_pj.unwrap_or(actual_pj.max(1));
         let receipt = super::energy_receipt::EnergyReceipt::for_tier_with_floor(
             Source::Attractor,
             actual_pj,
@@ -812,7 +807,10 @@ mod tests {
 
     fn raw_magnitude_pattern(s: &str) -> Option<AttractorKind> {
         let lower = s.to_lowercase();
-        if lower.contains("magnitude:") || lower.contains("distance:") || lower.contains("intensity:") {
+        if lower.contains("magnitude:")
+            || lower.contains("distance:")
+            || lower.contains("intensity:")
+        {
             Some(AttractorKind::RawExternalMagnitude)
         } else {
             None
@@ -1102,11 +1100,31 @@ mod tests {
         // string path.
         let queries: &[(&str, AttractorKind, u64)] = &[
             // (query_string, expected_kind, expected_native_floor_pj)
-            ("value:42 threshold:10 above threshold", AttractorKind::ThresholdCrossing, 5),
-            ("magnitude:1.5 unit:m", AttractorKind::RawExternalMagnitude, 5),
-            ("contrast left:1.2 right:3.4", AttractorKind::ShallowMagnitudeContrast, 20),
-            ("samples:1,2,5,10,4,3 compute gradient", AttractorKind::SpatialGradient, 20),
-            ("argmax over apple:0.3 banana:0.7 cherry:0.5", AttractorKind::CompetitiveComparison, 200),
+            (
+                "value:42 threshold:10 above threshold",
+                AttractorKind::ThresholdCrossing,
+                5,
+            ),
+            (
+                "magnitude:1.5 unit:m",
+                AttractorKind::RawExternalMagnitude,
+                5,
+            ),
+            (
+                "contrast left:1.2 right:3.4",
+                AttractorKind::ShallowMagnitudeContrast,
+                20,
+            ),
+            (
+                "samples:1,2,5,10,4,3 compute gradient",
+                AttractorKind::SpatialGradient,
+                20,
+            ),
+            (
+                "argmax over apple:0.3 banana:0.7 cherry:0.5",
+                AttractorKind::CompetitiveComparison,
+                200,
+            ),
         ];
 
         let mut total_actual_pj = 0u64;
@@ -1194,19 +1212,19 @@ mod tests {
         // A realistic robot perception loop, one 100 ms cycle:
         let cycle: &[&str] = &[
             // T0 — raw sensor reads
-            "distance:1.2 unit:m",                                  // lidar forward
-            "distance:0.8 unit:m",                                  // lidar left
-            "intensity:0.35",                                       // ambient light
+            "distance:1.2 unit:m", // lidar forward
+            "distance:0.8 unit:m", // lidar left
+            "intensity:0.35",      // ambient light
             // T1 — feature extraction
-            "contrast left:0.8 right:1.2",                          // differential range
-            "samples:0.1,0.2,0.5,1.0,0.4,0.2 compute gradient",     // 1D depth edge
-            "samples:0.9,0.9,0.8,0.8,0.3,0.2 compute edge",         // silhouette detection
+            "contrast left:0.8 right:1.2", // differential range
+            "samples:0.1,0.2,0.5,1.0,0.4,0.2 compute gradient", // 1D depth edge
+            "samples:0.9,0.9,0.8,0.8,0.3,0.2 compute edge", // silhouette detection
             // T0 — threshold classifications
-            "value:1.2 threshold:0.5 above threshold",              // obstacle?
-            "value:0.2 threshold:0.5 below threshold",              // clear path?
+            "value:1.2 threshold:0.5 above threshold", // obstacle?
+            "value:0.2 threshold:0.5 below threshold", // clear path?
             // T2 — attention selection
-            "argmax over ball:0.9 chair:0.2 wall:0.4",              // what's in view?
-            "argmax over approach:0.7 stop:0.2 backup:0.1",         // next action
+            "argmax over ball:0.9 chair:0.2 wall:0.4", // what's in view?
+            "argmax over approach:0.7 stop:0.2 backup:0.1", // next action
         ];
 
         let mut total_actual_pj = 0u64;
@@ -1275,7 +1293,11 @@ mod tests {
         // negligible energy in the attractor tier.
         let per_day_pj = per_second_pj * 60 * 60 * 24;
         // < 1 mJ per day for the attractor dispatch work.
-        assert!(per_day_pj < 1_000_000_000, "per-day picojoules too high: {}", per_day_pj);
+        assert!(
+            per_day_pj < 1_000_000_000,
+            "per-day picojoules too high: {}",
+            per_day_pj
+        );
 
         // Final sanity: native floors are at most 1 per query above
         // total actual cost (because some resolvers report actual ==
@@ -1411,7 +1433,7 @@ mod tests {
     fn native_floor_monotonic_in_tier() {
         // T0 < T1 < T2 < T3 floors on average
         let t0 = AttractorKind::ThresholdCrossing.native_floor_picojoules(); // 5
-        let t1 = AttractorKind::SpatialGradient.native_floor_picojoules();    // 20
+        let t1 = AttractorKind::SpatialGradient.native_floor_picojoules(); // 20
         let t2 = AttractorKind::DeepStructuralTemplate.native_floor_picojoules(); // 250
         let t3 = AttractorKind::DeepCausalModelError.native_floor_picojoules(); // 2000
         assert!(t0 < t1);
@@ -1466,11 +1488,10 @@ mod tests {
         let mut tier = AttractorTier::new();
         tier.register_resolver(Box::new(ThresholdResolver));
 
-        let query = AttractorQuery::new(
-            AttractorKind::ThresholdCrossing,
-            "value:42 threshold:10",
-        );
-        let resolution = tier.dispatch_typed(&query).expect("resolver should succeed");
+        let query = AttractorQuery::new(AttractorKind::ThresholdCrossing, "value:42 threshold:10");
+        let resolution = tier
+            .dispatch_typed(&query)
+            .expect("resolver should succeed");
         assert_eq!(resolution.output, "above threshold");
         assert!(resolution.confidence > 0.5);
         // Energy equals the native floor (the resolver uses the theoretical cost)
@@ -1481,10 +1502,7 @@ mod tests {
     #[test]
     fn tier_dispatch_unknown_resolver_returns_none() {
         let mut tier = AttractorTier::new();
-        let query = AttractorQuery::new(
-            AttractorKind::DeepCausalModelError,
-            "input",
-        );
+        let query = AttractorQuery::new(AttractorKind::DeepCausalModelError, "input");
         assert!(tier.dispatch_typed(&query).is_none());
     }
 
@@ -1496,10 +1514,7 @@ mod tests {
         m.set_attractor_tier(tier);
         assert!(m.has_attractor_tier());
 
-        let query = AttractorQuery::new(
-            AttractorKind::ThresholdCrossing,
-            "value:42 threshold:10",
-        );
+        let query = AttractorQuery::new(AttractorKind::ThresholdCrossing, "value:42 threshold:10");
         let result = m.materialize_attractor(&query).expect("dispatch success");
         assert_eq!(result.source, Source::Attractor);
         assert_eq!(result.output, "above threshold");
@@ -1514,10 +1529,7 @@ mod tests {
     #[test]
     fn materialize_attractor_without_tier_returns_none() {
         let mut m = Materializer::new();
-        let query = AttractorQuery::new(
-            AttractorKind::ThresholdCrossing,
-            "value:42 threshold:10",
-        );
+        let query = AttractorQuery::new(AttractorKind::ThresholdCrossing, "value:42 threshold:10");
         assert!(m.materialize_attractor(&query).is_none());
     }
 
@@ -1530,8 +1542,7 @@ mod tests {
     fn attractor_dispatch_cheaper_than_neural() {
         // The whole point: attractor primitives at picojoule cost should
         // be dramatically cheaper than neural (estimated at 1 mJ per query).
-        let threshold_cost =
-            AttractorKind::ThresholdCrossing.native_floor_joules();
+        let threshold_cost = AttractorKind::ThresholdCrossing.native_floor_joules();
         let neural_estimate = 0.001; // 1 mJ from materializer.rs neural fallback
         let ratio = neural_estimate / threshold_cost;
         // Should be > 10^6× savings
@@ -1581,14 +1592,8 @@ mod tests {
 
     #[test]
     fn cache_key_same_for_identical_queries() {
-        let q1 = AttractorQuery::new(
-            AttractorKind::ThresholdCrossing,
-            "value:42 threshold:10",
-        );
-        let q2 = AttractorQuery::new(
-            AttractorKind::ThresholdCrossing,
-            "value:42 threshold:10",
-        );
+        let q1 = AttractorQuery::new(AttractorKind::ThresholdCrossing, "value:42 threshold:10");
+        let q2 = AttractorQuery::new(AttractorKind::ThresholdCrossing, "value:42 threshold:10");
         assert_eq!(
             AttractorCacheKey::from_query(&q1),
             AttractorCacheKey::from_query(&q2)
@@ -1658,10 +1663,7 @@ mod tests {
         let mut tier = AttractorTier::new();
         tier.register_resolver(Box::new(ThresholdResolver));
 
-        let query = AttractorQuery::new(
-            AttractorKind::ThresholdCrossing,
-            "value:42 threshold:10",
-        );
+        let query = AttractorQuery::new(AttractorKind::ThresholdCrossing, "value:42 threshold:10");
 
         // First dispatch is a miss → resolver runs
         let r1 = tier.dispatch_typed(&query).unwrap();
@@ -1692,10 +1694,7 @@ mod tests {
         tier.register_resolver(Box::new(ThresholdResolver));
 
         // Two queries with the same input but different kinds
-        let q1 = AttractorQuery::new(
-            AttractorKind::ThresholdCrossing,
-            "value:42 threshold:10",
-        );
+        let q1 = AttractorQuery::new(AttractorKind::ThresholdCrossing, "value:42 threshold:10");
         let q2 = AttractorQuery::new(
             AttractorKind::ThresholdCrossing, // intentionally same kind
             "value:42 threshold:10",
@@ -1715,8 +1714,12 @@ mod tests {
         tier.register_resolver(Box::new(ThresholdResolver));
 
         // Same string twice — second is a cache hit
-        let r1 = tier.dispatch_string("is value:42 above threshold:10").unwrap();
-        let r2 = tier.dispatch_string("is value:42 above threshold:10").unwrap();
+        let r1 = tier
+            .dispatch_string("is value:42 above threshold:10")
+            .unwrap();
+        let r2 = tier
+            .dispatch_string("is value:42 above threshold:10")
+            .unwrap();
         assert_eq!(r1.output, r2.output);
         assert_eq!(tier.cache().hits(), 1);
         assert_eq!(tier.cache().misses(), 1);
@@ -1771,10 +1774,7 @@ mod tests {
         // Dispatch each unique query 100 times = 500 total dispatches
         for round in 0..100 {
             for input in &unique_queries {
-                let query = AttractorQuery::new(
-                    AttractorKind::ThresholdCrossing,
-                    *input,
-                );
+                let query = AttractorQuery::new(AttractorKind::ThresholdCrossing, *input);
                 let result = m.materialize_attractor(&query).unwrap();
                 assert_eq!(result.source, Source::Attractor);
                 let _ = round;

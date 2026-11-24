@@ -38,7 +38,11 @@ impl fmt::Display for Tensor {
 impl Tensor {
     /// Create a new tensor. Panics if `data.len() != product(shape)`.
     pub fn new(shape: Vec<usize>, data: Vec<f64>) -> Self {
-        let expected: usize = if shape.is_empty() { 1 } else { shape.iter().product() };
+        let expected: usize = if shape.is_empty() {
+            1
+        } else {
+            shape.iter().product()
+        };
         assert_eq!(
             data.len(),
             expected,
@@ -51,25 +55,49 @@ impl Tensor {
 
     /// Tensor filled with zeros.
     pub fn zeros(shape: Vec<usize>) -> Self {
-        let n: usize = if shape.is_empty() { 1 } else { shape.iter().product() };
-        Self { shape, data: vec![0.0; n] }
+        let n: usize = if shape.is_empty() {
+            1
+        } else {
+            shape.iter().product()
+        };
+        Self {
+            shape,
+            data: vec![0.0; n],
+        }
     }
 
     /// Tensor filled with ones.
     pub fn ones(shape: Vec<usize>) -> Self {
-        let n: usize = if shape.is_empty() { 1 } else { shape.iter().product() };
-        Self { shape, data: vec![1.0; n] }
+        let n: usize = if shape.is_empty() {
+            1
+        } else {
+            shape.iter().product()
+        };
+        Self {
+            shape,
+            data: vec![1.0; n],
+        }
     }
 
     /// Tensor filled with a constant value.
     pub fn full(shape: Vec<usize>, value: f64) -> Self {
-        let n: usize = if shape.is_empty() { 1 } else { shape.iter().product() };
-        Self { shape, data: vec![value; n] }
+        let n: usize = if shape.is_empty() {
+            1
+        } else {
+            shape.iter().product()
+        };
+        Self {
+            shape,
+            data: vec![value; n],
+        }
     }
 
     /// Scalar tensor (shape = []).
     pub fn scalar(value: f64) -> Self {
-        Self { shape: vec![], data: vec![value] }
+        Self {
+            shape: vec![],
+            data: vec![value],
+        }
     }
 
     /// 1D tensor from a range [start, stop) with given step.
@@ -81,20 +109,32 @@ impl Tensor {
             v += step;
         }
         let n = data.len();
-        Self { shape: vec![n], data }
+        Self {
+            shape: vec![n],
+            data,
+        }
     }
 
     /// 1D tensor with n evenly spaced values from start to stop (inclusive).
     pub fn linspace(start: f64, stop: f64, n: usize) -> Self {
         if n == 0 {
-            return Self { shape: vec![0], data: vec![] };
+            return Self {
+                shape: vec![0],
+                data: vec![],
+            };
         }
         if n == 1 {
-            return Self { shape: vec![1], data: vec![start] };
+            return Self {
+                shape: vec![1],
+                data: vec![start],
+            };
         }
         let step = (stop - start) / (n - 1) as f64;
         let data: Vec<f64> = (0..n).map(|i| start + i as f64 * step).collect();
-        Self { shape: vec![n], data }
+        Self {
+            shape: vec![n],
+            data,
+        }
     }
 
     /// Identity matrix of size n x n.
@@ -103,7 +143,10 @@ impl Tensor {
         for i in 0..n {
             data[i * n + i] = 1.0;
         }
-        Self { shape: vec![n, n], data }
+        Self {
+            shape: vec![n, n],
+            data,
+        }
     }
 
     /// Diagonal matrix from a 1D tensor.
@@ -113,7 +156,10 @@ impl Tensor {
         for i in 0..n {
             data[i * n + i] = values[i];
         }
-        Self { shape: vec![n, n], data }
+        Self {
+            shape: vec![n, n],
+            data,
+        }
     }
 
     /// Total number of elements.
@@ -193,8 +239,16 @@ impl Tensor {
         let max_rank = a.len().max(b.len());
         let mut result = vec![0usize; max_rank];
         for i in 0..max_rank {
-            let da = if i < max_rank - a.len() { 1 } else { a[i - (max_rank - a.len())] };
-            let db = if i < max_rank - b.len() { 1 } else { b[i - (max_rank - b.len())] };
+            let da = if i < max_rank - a.len() {
+                1
+            } else {
+                a[i - (max_rank - a.len())]
+            };
+            let db = if i < max_rank - b.len() {
+                1
+            } else {
+                b[i - (max_rank - b.len())]
+            };
             assert!(
                 da == db || da == 1 || db == 1,
                 "incompatible broadcast dims {} vs {}",
@@ -233,7 +287,10 @@ impl Tensor {
             let bi = Self::broadcast_index(&other.shape, &out_shape, i);
             data.push(op(self.data[ai], other.data[bi]));
         }
-        Tensor { shape: out_shape, data }
+        Tensor {
+            shape: out_shape,
+            data,
+        }
     }
 
     // ── Matrix multiply (2D) ────────────────────────────────────
@@ -256,7 +313,10 @@ impl Tensor {
                 data[i * n + j] = sum;
             }
         }
-        Tensor { shape: vec![m, n], data }
+        Tensor {
+            shape: vec![m, n],
+            data,
+        }
     }
 
     // ── Reshape / transpose / squeeze / unsqueeze ───────────────
@@ -265,7 +325,10 @@ impl Tensor {
     pub fn reshape(&self, new_shape: Vec<usize>) -> Tensor {
         let n: usize = new_shape.iter().product();
         assert_eq!(n, self.numel(), "reshape: element count mismatch");
-        Tensor { shape: new_shape, data: self.data.clone() }
+        Tensor {
+            shape: new_shape,
+            data: self.data.clone(),
+        }
     }
 
     /// Transpose a 2D tensor.
@@ -278,14 +341,24 @@ impl Tensor {
                 data[c * rows + r] = self.data[r * cols + c];
             }
         }
-        Tensor { shape: vec![cols, rows], data }
+        Tensor {
+            shape: vec![cols, rows],
+            data,
+        }
     }
 
     /// Remove all dimensions of size 1.
     pub fn squeeze(&self) -> Tensor {
         let new_shape: Vec<usize> = self.shape.iter().copied().filter(|d| *d != 1).collect();
-        let new_shape = if new_shape.is_empty() { vec![1] } else { new_shape };
-        Tensor { shape: new_shape, data: self.data.clone() }
+        let new_shape = if new_shape.is_empty() {
+            vec![1]
+        } else {
+            new_shape
+        };
+        Tensor {
+            shape: new_shape,
+            data: self.data.clone(),
+        }
     }
 
     /// Insert a dimension of size 1 at the given axis.
@@ -293,12 +366,18 @@ impl Tensor {
         assert!(axis <= self.ndim(), "axis out of range");
         let mut new_shape = self.shape.clone();
         new_shape.insert(axis, 1);
-        Tensor { shape: new_shape, data: self.data.clone() }
+        Tensor {
+            shape: new_shape,
+            data: self.data.clone(),
+        }
     }
 
     /// Flatten to 1D.
     pub fn flatten(&self) -> Tensor {
-        Tensor { shape: vec![self.numel()], data: self.data.clone() }
+        Tensor {
+            shape: vec![self.numel()],
+            data: self.data.clone(),
+        }
     }
 
     // ── Reductions ──────────────────────────────────────────────
@@ -372,7 +451,10 @@ impl Tensor {
                 data.push(reducer(&tmp));
             }
         }
-        Tensor { shape: new_shape, data }
+        Tensor {
+            shape: new_shape,
+            data,
+        }
     }
 
     // ── Activations ─────────────────────────────────────────────
@@ -398,7 +480,10 @@ impl Tensor {
                 *v /= sum;
             }
         }
-        Tensor { shape: self.shape.clone(), data }
+        Tensor {
+            shape: self.shape.clone(),
+            data,
+        }
     }
 
     /// ReLU activation (max(0, x)).
@@ -421,7 +506,10 @@ impl Tensor {
     /// Slice along the first axis: returns tensor[start..end].
     pub fn slice(&self, axis: usize, start: usize, end: usize) -> Tensor {
         assert!(axis < self.ndim(), "axis out of range");
-        assert!(start < end && end <= self.shape[axis], "invalid slice range");
+        assert!(
+            start < end && end <= self.shape[axis],
+            "invalid slice range"
+        );
 
         let outer: usize = self.shape[..axis].iter().product();
         let inner: usize = self.shape[axis + 1..].iter().product();
@@ -438,7 +526,10 @@ impl Tensor {
 
         let mut new_shape = self.shape.clone();
         new_shape[axis] = slice_len;
-        Tensor { shape: new_shape, data }
+        Tensor {
+            shape: new_shape,
+            data,
+        }
     }
 
     /// Get a single element by multi-dimensional index.
@@ -497,7 +588,10 @@ impl Tensor {
             }
         }
 
-        Tensor { shape: new_shape, data }
+        Tensor {
+            shape: new_shape,
+            data,
+        }
     }
 }
 
@@ -512,7 +606,11 @@ mod tests {
     }
 
     fn tensors_close(a: &Tensor, b: &Tensor) -> bool {
-        a.shape == b.shape && a.data.iter().zip(b.data.iter()).all(|(x, y)| approx_eq(*x, *y))
+        a.shape == b.shape
+            && a.data
+                .iter()
+                .zip(b.data.iter())
+                .all(|(x, y)| approx_eq(*x, *y))
     }
 
     #[test]
@@ -643,7 +741,10 @@ mod tests {
 
         let m = t.mean_axis(0);
         assert_eq!(m.shape, vec![3]);
-        assert!(tensors_close(&m, &Tensor::new(vec![3], vec![2.5, 3.5, 4.5])));
+        assert!(tensors_close(
+            &m,
+            &Tensor::new(vec![3], vec![2.5, 3.5, 4.5])
+        ));
 
         let mx = t.max_axis(1);
         assert_eq!(mx.data, vec![3.0, 6.0]);

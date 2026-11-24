@@ -9,10 +9,14 @@ use std::collections::HashMap;
 
 // ── Seeded RNG ──
 
-struct Rng { state: u64 }
+struct Rng {
+    state: u64,
+}
 
 impl Rng {
-    fn new(seed: u64) -> Self { Self { state: seed } }
+    fn new(seed: u64) -> Self {
+        Self { state: seed }
+    }
     fn next_u64(&mut self) -> u64 {
         self.state = self.state.wrapping_add(0x9e3779b97f4a7c15);
         let mut z = self.state;
@@ -36,7 +40,10 @@ pub struct Symbol {
 
 impl Symbol {
     pub fn new(ch: char) -> Self {
-        Self { ch, params: Vec::new() }
+        Self {
+            ch,
+            params: Vec::new(),
+        }
     }
 
     pub fn with_params(ch: char, params: Vec<f64>) -> Self {
@@ -77,7 +84,10 @@ impl ProductionRule {
     pub fn stochastic(symbol: char, replacements: &[(&str, f64)]) -> Self {
         Self {
             symbol,
-            replacements: replacements.iter().map(|(s, w)| (s.to_string(), *w)).collect(),
+            replacements: replacements
+                .iter()
+                .map(|(s, w)| (s.to_string(), *w))
+                .collect(),
         }
     }
 
@@ -86,12 +96,16 @@ impl ProductionRule {
             return &self.replacements[0].0;
         }
         let total: f64 = self.replacements.iter().map(|(_, w)| w).sum();
-        if total <= 0.0 { return &self.replacements[0].0; }
+        if total <= 0.0 {
+            return &self.replacements[0].0;
+        }
         let roll = rng.next_f64() * total;
         let mut cum = 0.0;
         for (rep, w) in &self.replacements {
             cum += w;
-            if roll < cum { return rep; }
+            if roll < cum {
+                return rep;
+            }
         }
         &self.replacements.last().unwrap().0
     }
@@ -172,7 +186,12 @@ pub struct TurtleState {
 
 impl TurtleState {
     pub fn new() -> Self {
-        Self { x: 0.0, y: 0.0, angle: 90.0_f64.to_radians(), step_size: 10.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            angle: 90.0_f64.to_radians(),
+            step_size: 10.0,
+        }
     }
 
     pub fn with_step(mut self, step: f64) -> Self {
@@ -253,8 +272,10 @@ pub fn interpret(lsys_string: &str, config: &TurtleConfig) -> Vec<LineSegment> {
                 let x2 = state.x + state.angle.cos() * state.step_size;
                 let y2 = state.y + state.angle.sin() * state.step_size;
                 segments.push(LineSegment {
-                    x1: state.x, y1: state.y,
-                    x2, y2,
+                    x1: state.x,
+                    y1: state.y,
+                    x2,
+                    y2,
                     depth,
                 });
                 state.x = x2;
@@ -341,11 +362,14 @@ pub fn sierpinski_triangle(iterations: u32) -> LSystem {
 /// Stochastic tree (randomized branch angles).
 pub fn stochastic_tree(iterations: u32) -> LSystem {
     LSystem::new("F")
-        .add_rule(ProductionRule::stochastic('F', &[
-            ("F[+F]F[-F]F", 0.33),
-            ("F[+F][-F]", 0.34),
-            ("F[-F]F[+F]F", 0.33),
-        ]))
+        .add_rule(ProductionRule::stochastic(
+            'F',
+            &[
+                ("F[+F]F[-F]F", 0.33),
+                ("F[+F][-F]", 0.34),
+                ("F[-F]F[+F]F", 0.33),
+            ],
+        ))
         .with_iterations(iterations)
 }
 
@@ -544,8 +568,12 @@ mod tests {
         let segments = interpret("F[+F]", &config);
         // Inside bracket, step should be scaled
         if segments.len() >= 2 {
-            let len1 = ((segments[0].x2 - segments[0].x1).powi(2) + (segments[0].y2 - segments[0].y1).powi(2)).sqrt();
-            let len2 = ((segments[1].x2 - segments[1].x1).powi(2) + (segments[1].y2 - segments[1].y1).powi(2)).sqrt();
+            let len1 = ((segments[0].x2 - segments[0].x1).powi(2)
+                + (segments[0].y2 - segments[0].y1).powi(2))
+            .sqrt();
+            let len2 = ((segments[1].x2 - segments[1].x1).powi(2)
+                + (segments[1].y2 - segments[1].y1).powi(2))
+            .sqrt();
             assert!((len1 - 10.0).abs() < 1e-6);
             assert!((len2 - 7.0).abs() < 1e-6);
         }
@@ -556,8 +584,12 @@ mod tests {
         let config = TurtleConfig::new(25.0, 10.0);
         let segments = interpret("F[+F[+F]]", &config);
         assert_eq!(segments[0].depth, 0);
-        if segments.len() > 1 { assert_eq!(segments[1].depth, 1); }
-        if segments.len() > 2 { assert_eq!(segments[2].depth, 2); }
+        if segments.len() > 1 {
+            assert_eq!(segments[1].depth, 1);
+        }
+        if segments.len() > 2 {
+            assert_eq!(segments[2].depth, 2);
+        }
     }
 
     #[test]

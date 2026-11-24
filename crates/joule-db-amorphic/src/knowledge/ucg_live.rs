@@ -14,7 +14,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use super::eigenbasis::{Eigenbasis, PatternScores, NUM_PATTERNS, PATTERN_NAMES};
+use super::eigenbasis::{Eigenbasis, NUM_PATTERNS, PATTERN_NAMES, PatternScores};
 use super::oracle::OracleBackend;
 use super::relation::RelationType;
 use super::tier0::Tier0;
@@ -115,8 +115,7 @@ impl UcgLive {
 
     /// Load graph.json: nodes + edges.
     fn load_graph(&mut self, path: &Path) -> Result<(), String> {
-        let content =
-            std::fs::read_to_string(path).map_err(|e| format!("read graph.json: {e}"))?;
+        let content = std::fs::read_to_string(path).map_err(|e| format!("read graph.json: {e}"))?;
         let json: serde_json::Value =
             serde_json::from_str(&content).map_err(|e| format!("parse graph.json: {e}"))?;
 
@@ -167,12 +166,10 @@ impl UcgLive {
                     ingested_at: 0, // bootstrap from graph.json
                 };
 
-                self.name_to_id
-                    .insert(name.to_lowercase(), id.to_string());
+                self.name_to_id.insert(name.to_lowercase(), id.to_string());
                 // Also map last segment of ID (e.g., "david" from "entity.person.david")
                 if let Some(short) = id.split('.').last() {
-                    self.name_to_id
-                        .insert(short.to_lowercase(), id.to_string());
+                    self.name_to_id.insert(short.to_lowercase(), id.to_string());
                 }
                 self.concepts.insert(id.to_string(), concept);
             }
@@ -301,10 +298,11 @@ impl UcgLive {
 
         // Register edges in the edge_index.
         for (target, relation, weight) in &concept.edges {
-            self.edge_index
-                .entry(id.clone())
-                .or_default()
-                .push((target.clone(), relation.clone(), *weight));
+            self.edge_index.entry(id.clone()).or_default().push((
+                target.clone(),
+                relation.clone(),
+                *weight,
+            ));
         }
 
         self.concepts.insert(id, concept);
@@ -319,7 +317,8 @@ impl UcgLive {
         if let Some(c) = self.concepts.get_mut(source) {
             let already = c.edges.iter().any(|(t, r, _)| t == target && r == relation);
             if !already {
-                c.edges.push((target.to_string(), relation.to_string(), weight));
+                c.edges
+                    .push((target.to_string(), relation.to_string(), weight));
             }
         }
         // Add to edge_index.
@@ -354,7 +353,9 @@ fn map_relation(rel: &str) -> RelationType {
 impl OracleBackend for UcgLive {
     fn lookup_orbits(&self, concept: &str) -> Option<Vec<f64>> {
         let c = self.get(concept)?;
-        c.motifs.as_ref().map(|m| m.iter().map(|&v| v as f64).collect())
+        c.motifs
+            .as_ref()
+            .map(|m| m.iter().map(|&v| v as f64).collect())
     }
 
     fn lookup_topology(&self, _concept: &str) -> Option<Vec<f32>> {
@@ -421,10 +422,7 @@ mod tests {
                     chair.patterns.num_scored() > 0,
                     "chair should have pattern scores"
                 );
-                eprintln!(
-                    "Chair patterns: {} scored",
-                    chair.patterns.num_scored()
-                );
+                eprintln!("Chair patterns: {} scored", chair.patterns.num_scored());
 
                 // Test edge lookup
                 let related = ucg.lookup_related("chair", 5);

@@ -270,10 +270,8 @@ mod tests {
 
     #[test]
     fn test_from_tuples() {
-        let triples = ConceptNetParser::from_tuples(&[
-            ("sun", "IsA", "star"),
-            ("earth", "IsA", "planet"),
-        ]);
+        let triples =
+            ConceptNetParser::from_tuples(&[("sun", "IsA", "star"), ("earth", "IsA", "planet")]);
         assert_eq!(triples.len(), 2);
         assert_eq!(triples[0].relation, RelationType::IsA);
     }

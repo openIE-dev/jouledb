@@ -98,7 +98,12 @@ pub struct FilterRegion {
 
 impl FilterRegion {
     pub fn new(x: f64, y: f64, width: f64, height: f64) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     /// Union of two regions.
@@ -185,7 +190,12 @@ pub struct ArithmeticCoeffs {
 
 impl Default for ArithmeticCoeffs {
     fn default() -> Self {
-        Self { k1: 0.0, k2: 1.0, k3: 0.0, k4: 0.0 }
+        Self {
+            k1: 0.0,
+            k2: 1.0,
+            k3: 0.0,
+            k4: 0.0,
+        }
     }
 }
 
@@ -242,16 +252,38 @@ impl Default for TurbulenceParams {
 /// Light source for feDiffuseLighting / feSpecularLighting.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LightSource {
-    Distant { azimuth: f64, elevation: f64 },
-    Point { x: f64, y: f64, z: f64 },
-    Spot { x: f64, y: f64, z: f64, px: f64, py: f64, pz: f64, specular_exponent: f64 },
+    Distant {
+        azimuth: f64,
+        elevation: f64,
+    },
+    Point {
+        x: f64,
+        y: f64,
+        z: f64,
+    },
+    Spot {
+        x: f64,
+        y: f64,
+        z: f64,
+        px: f64,
+        py: f64,
+        pz: f64,
+        specular_exponent: f64,
+    },
 }
 
 /// Lighting type.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LightingType {
-    Diffuse { surface_scale: f64, diffuse_constant: f64 },
-    Specular { surface_scale: f64, specular_constant: f64, specular_exponent: f64 },
+    Diffuse {
+        surface_scale: f64,
+        diffuse_constant: f64,
+    },
+    Specular {
+        surface_scale: f64,
+        specular_constant: f64,
+        specular_exponent: f64,
+    },
 }
 
 // ── Filter Primitive ───────────────────────────────────────────
@@ -416,15 +448,28 @@ impl FilterChain {
         last: &ImageBuffer,
     ) -> ImageBuffer {
         match prim {
-            FilterPrimitive::GaussianBlur { input, std_dev_x, std_dev_y, .. } => {
+            FilterPrimitive::GaussianBlur {
+                input,
+                std_dev_x,
+                std_dev_y,
+                ..
+            } => {
                 let src = Self::resolve_input(input, source, source_alpha, named, last);
                 apply_gaussian_blur(src, *std_dev_x, *std_dev_y)
             }
-            FilterPrimitive::ColorMatrix { input, matrix_type, .. } => {
+            FilterPrimitive::ColorMatrix {
+                input, matrix_type, ..
+            } => {
                 let src = Self::resolve_input(input, source, source_alpha, named, last);
                 apply_color_matrix(src, matrix_type)
             }
-            FilterPrimitive::Composite { input1, input2, operator, coeffs, .. } => {
+            FilterPrimitive::Composite {
+                input1,
+                input2,
+                operator,
+                coeffs,
+                ..
+            } => {
                 let a = Self::resolve_input(input1, source, source_alpha, named, last);
                 let b = Self::resolve_input(input2, source, source_alpha, named, last);
                 apply_composite(a, b, *operator, coeffs)
@@ -439,12 +484,24 @@ impl FilterChain {
             FilterPrimitive::Turbulence { params, .. } => {
                 generate_turbulence(source.width, source.height, params)
             }
-            FilterPrimitive::DisplacementMap { input1, input2, scale, x_channel, y_channel, .. } => {
+            FilterPrimitive::DisplacementMap {
+                input1,
+                input2,
+                scale,
+                x_channel,
+                y_channel,
+                ..
+            } => {
                 let src = Self::resolve_input(input1, source, source_alpha, named, last);
                 let map = Self::resolve_input(input2, source, source_alpha, named, last);
                 apply_displacement_map(src, map, *scale, *x_channel, *y_channel)
             }
-            FilterPrimitive::Lighting { input, light, lighting_type, .. } => {
+            FilterPrimitive::Lighting {
+                input,
+                light,
+                lighting_type,
+                ..
+            } => {
                 let src = Self::resolve_input(input, source, source_alpha, named, last);
                 apply_lighting(src, light, lighting_type)
             }
@@ -491,7 +548,10 @@ fn horizontal_box_blur(buf: &mut ImageBuffer, radius: usize) {
         let mut sa = 0.0;
         for dx in 0..=radius.min(w - 1) {
             let p = buf.get(dx, y);
-            sr += p.r; sg += p.g; sb += p.b; sa += p.a;
+            sr += p.r;
+            sg += p.g;
+            sb += p.b;
+            sa += p.a;
         }
         for x in 0..w {
             let count = {
@@ -505,11 +565,17 @@ fn horizontal_box_blur(buf: &mut ImageBuffer, radius: usize) {
             let rem_x = if x >= radius { x - radius } else { usize::MAX };
             if add_x < w {
                 let p = buf.get(add_x, y);
-                sr += p.r; sg += p.g; sb += p.b; sa += p.a;
+                sr += p.r;
+                sg += p.g;
+                sb += p.b;
+                sa += p.a;
             }
             if rem_x < w {
                 let p = buf.get(rem_x, y);
-                sr -= p.r; sg -= p.g; sb -= p.b; sa -= p.a;
+                sr -= p.r;
+                sg -= p.g;
+                sb -= p.b;
+                sa -= p.a;
             }
         }
         for x in 0..w {
@@ -532,7 +598,10 @@ fn vertical_box_blur(buf: &mut ImageBuffer, radius: usize) {
         let mut sa = 0.0;
         for dy in 0..=radius.min(h - 1) {
             let p = buf.get(x, dy);
-            sr += p.r; sg += p.g; sb += p.b; sa += p.a;
+            sr += p.r;
+            sg += p.g;
+            sb += p.b;
+            sa += p.a;
         }
         for y in 0..h {
             let count = {
@@ -545,11 +614,17 @@ fn vertical_box_blur(buf: &mut ImageBuffer, radius: usize) {
             let rem_y = if y >= radius { y - radius } else { usize::MAX };
             if add_y < h {
                 let p = buf.get(x, add_y);
-                sr += p.r; sg += p.g; sb += p.b; sa += p.a;
+                sr += p.r;
+                sg += p.g;
+                sb += p.b;
+                sa += p.a;
             }
             if rem_y < h {
                 let p = buf.get(x, rem_y);
-                sr -= p.r; sg -= p.g; sb -= p.b; sa -= p.a;
+                sr -= p.r;
+                sg -= p.g;
+                sb -= p.b;
+                sa -= p.a;
             }
         }
         for y in 0..h {
@@ -568,10 +643,14 @@ fn apply_color_matrix(src: &ImageBuffer, mat: &ColorMatrixType) -> ImageBuffer {
     };
     for px in out.pixels.iter_mut() {
         let (r, g, b, a) = (px.r, px.g, px.b, px.a);
-        px.r = (matrix[0] * r + matrix[1] * g + matrix[2] * b + matrix[3] * a + matrix[4]).clamp(0.0, 1.0);
-        px.g = (matrix[5] * r + matrix[6] * g + matrix[7] * b + matrix[8] * a + matrix[9]).clamp(0.0, 1.0);
-        px.b = (matrix[10] * r + matrix[11] * g + matrix[12] * b + matrix[13] * a + matrix[14]).clamp(0.0, 1.0);
-        px.a = (matrix[15] * r + matrix[16] * g + matrix[17] * b + matrix[18] * a + matrix[19]).clamp(0.0, 1.0);
+        px.r = (matrix[0] * r + matrix[1] * g + matrix[2] * b + matrix[3] * a + matrix[4])
+            .clamp(0.0, 1.0);
+        px.g = (matrix[5] * r + matrix[6] * g + matrix[7] * b + matrix[8] * a + matrix[9])
+            .clamp(0.0, 1.0);
+        px.b = (matrix[10] * r + matrix[11] * g + matrix[12] * b + matrix[13] * a + matrix[14])
+            .clamp(0.0, 1.0);
+        px.a = (matrix[15] * r + matrix[16] * g + matrix[17] * b + matrix[18] * a + matrix[19])
+            .clamp(0.0, 1.0);
     }
     out
 }
@@ -617,7 +696,12 @@ fn luminance_to_alpha_matrix() -> [f64; 20] {
     m
 }
 
-fn apply_composite(a: &ImageBuffer, b: &ImageBuffer, op: CompositeOp, coeffs: &ArithmeticCoeffs) -> ImageBuffer {
+fn apply_composite(
+    a: &ImageBuffer,
+    b: &ImageBuffer,
+    op: CompositeOp,
+    coeffs: &ArithmeticCoeffs,
+) -> ImageBuffer {
     let w = a.width.min(b.width);
     let h = a.height.min(b.height);
     let mut out = ImageBuffer::new(w, h);
@@ -641,7 +725,9 @@ fn apply_composite(a: &ImageBuffer, b: &ImageBuffer, op: CompositeOp, coeffs: &A
 
 fn composite_over(a: Pixel, b: Pixel) -> Pixel {
     let oa = a.a + b.a * (1.0 - a.a);
-    if oa < 1e-10 { return Pixel::transparent(); }
+    if oa < 1e-10 {
+        return Pixel::transparent();
+    }
     Pixel::new(
         (a.r * a.a + b.r * b.a * (1.0 - a.a)) / oa,
         (a.g * a.a + b.g * b.a * (1.0 - a.a)) / oa,
@@ -670,7 +756,9 @@ fn composite_atop(a: Pixel, b: Pixel) -> Pixel {
 
 fn composite_xor(a: Pixel, b: Pixel) -> Pixel {
     let oa = a.a * (1.0 - b.a) + b.a * (1.0 - a.a);
-    if oa < 1e-10 { return Pixel::transparent(); }
+    if oa < 1e-10 {
+        return Pixel::transparent();
+    }
     Pixel::new(
         (a.r * a.a * (1.0 - b.a) + b.r * b.a * (1.0 - a.a)) / oa,
         (a.g * a.a * (1.0 - b.a) + b.g * b.a * (1.0 - a.a)) / oa,
@@ -819,17 +907,23 @@ fn apply_lighting(src: &ImageBuffer, light: &LightSource, lt: &LightingType) -> 
 
             let intensity = if is_specular {
                 let spec_exp = match lt {
-                    LightingType::Specular { specular_exponent, .. } => *specular_exponent,
+                    LightingType::Specular {
+                        specular_exponent, ..
+                    } => *specular_exponent,
                     _ => 1.0,
                 };
                 let sc = match lt {
-                    LightingType::Specular { specular_constant, .. } => *specular_constant,
+                    LightingType::Specular {
+                        specular_constant, ..
+                    } => *specular_constant,
                     _ => 1.0,
                 };
                 sc * dot.powf(spec_exp)
             } else {
                 let dc = match lt {
-                    LightingType::Diffuse { diffuse_constant, .. } => *diffuse_constant,
+                    LightingType::Diffuse {
+                        diffuse_constant, ..
+                    } => *diffuse_constant,
                     _ => 1.0,
                 };
                 dc * dot
@@ -854,14 +948,22 @@ fn light_direction(light: &LightSource, _px: f64, _py: f64) -> (f64, f64, f64) {
             let dy = y - _py;
             let dz = *z;
             let l = (dx * dx + dy * dy + dz * dz).sqrt();
-            if l < 1e-10 { (0.0, 0.0, 1.0) } else { (dx / l, dy / l, dz / l) }
+            if l < 1e-10 {
+                (0.0, 0.0, 1.0)
+            } else {
+                (dx / l, dy / l, dz / l)
+            }
         }
         LightSource::Spot { x, y, z, .. } => {
             let dx = x - _px;
             let dy = y - _py;
             let dz = *z;
             let l = (dx * dx + dy * dy + dz * dz).sqrt();
-            if l < 1e-10 { (0.0, 0.0, 1.0) } else { (dx / l, dy / l, dz / l) }
+            if l < 1e-10 {
+                (0.0, 0.0, 1.0)
+            } else {
+                (dx / l, dy / l, dz / l)
+            }
         }
     }
 }
@@ -1045,7 +1147,12 @@ mod tests {
     fn test_composite_arithmetic() {
         let a = Pixel::new(0.5, 0.5, 0.5, 1.0);
         let b = Pixel::new(0.5, 0.5, 0.5, 1.0);
-        let coeffs = ArithmeticCoeffs { k1: 1.0, k2: 0.0, k3: 0.0, k4: 0.0 };
+        let coeffs = ArithmeticCoeffs {
+            k1: 1.0,
+            k2: 0.0,
+            k3: 0.0,
+            k4: 0.0,
+        };
         let r = composite_arithmetic(a, b, &coeffs);
         assert!((r.r - 0.25).abs() < 1e-10); // 0.5 * 0.5
     }

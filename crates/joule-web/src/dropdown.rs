@@ -381,7 +381,9 @@ mod tests {
 
     #[test]
     fn test_multi_select() {
-        let mut dd = Dropdown::new().with_items(sample_items()).multi_select(true);
+        let mut dd = Dropdown::new()
+            .with_items(sample_items())
+            .multi_select(true);
         dd.toggle();
         dd.select_index(0);
         dd.select_index(1);

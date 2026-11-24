@@ -75,11 +75,7 @@ impl HybridLogicalClock {
 
     /// Merge a remote [`HlcTimestamp`] upon message receipt, advancing causal time or returning
     /// `Err` if the remote node's physical clock exceeds `physical_ns + max_drift_ns`.
-    pub fn observe(
-        &self,
-        remote: HlcTimestamp,
-        physical_ns: u64,
-    ) -> Result<HlcTimestamp, String> {
+    pub fn observe(&self, remote: HlcTimestamp, physical_ns: u64) -> Result<HlcTimestamp, String> {
         if remote.wall_time_ns > physical_ns.saturating_add(self.max_drift_ns) {
             return Err(format!(
                 "HLC clock drift exceeded: remote={} ns > physical={} ns + max_drift={} ns",
@@ -220,7 +216,10 @@ impl EctStore {
                 .entry((entity.to_string(), component.to_string()))
                 .or_default();
             // Fast path: append in-order; otherwise binary-search insert to keep sorted!
-            if vec.last().is_none_or(|last| last.timestamp_ns <= calibrated_ns) {
+            if vec
+                .last()
+                .is_none_or(|last| last.timestamp_ns <= calibrated_ns)
+            {
                 vec.push(sample);
             } else {
                 let pos = vec.partition_point(|s| s.timestamp_ns <= calibrated_ns);
@@ -526,9 +525,7 @@ impl TransformTree {
             }
             drop(edges);
 
-            if is_new_edge
-                && let Ok(mut adj) = self.adj.write()
-            {
+            if is_new_edge && let Ok(mut adj) = self.adj.write() {
                 adj.entry(parent_frame.to_string())
                     .or_default()
                     .push((child_frame.to_string(), true));
@@ -539,10 +536,7 @@ impl TransformTree {
         }
     }
 
-    fn sample_edge(
-        timeline: &BTreeMap<u64, Transform3D>,
-        at_time_ns: u64,
-    ) -> Option<Transform3D> {
+    fn sample_edge(timeline: &BTreeMap<u64, Transform3D>, at_time_ns: u64) -> Option<Transform3D> {
         let prev = timeline.range(..=at_time_ns).next_back();
         let next = timeline.range(at_time_ns..).next();
         match (prev, next) {

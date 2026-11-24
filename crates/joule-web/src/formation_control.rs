@@ -66,7 +66,10 @@ impl Vec2 {
         if n < 1e-12 {
             Self::zero()
         } else {
-            Self { x: self.x / n, y: self.y / n }
+            Self {
+                x: self.x / n,
+                y: self.y / n,
+            }
         }
     }
 
@@ -77,15 +80,24 @@ impl Vec2 {
     }
 
     pub fn add(&self, other: &Vec2) -> Vec2 {
-        Vec2 { x: self.x + other.x, y: self.y + other.y }
+        Vec2 {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
     }
 
     pub fn sub(&self, other: &Vec2) -> Vec2 {
-        Vec2 { x: self.x - other.x, y: self.y - other.y }
+        Vec2 {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
     }
 
     pub fn scale(&self, s: f64) -> Vec2 {
-        Vec2 { x: self.x * s, y: self.y * s }
+        Vec2 {
+            x: self.x * s,
+            y: self.y * s,
+        }
     }
 
     pub fn dot(&self, other: &Vec2) -> f64 {
@@ -196,7 +208,9 @@ pub struct DesiredShape {
 
 impl DesiredShape {
     pub fn new() -> Self {
-        Self { offsets: HashMap::new() }
+        Self {
+            offsets: HashMap::new(),
+        }
     }
 
     pub fn with_offset(mut self, robot_id: u64, offset: Vec2) -> Self {
@@ -411,16 +425,26 @@ impl FormationController {
                 count += 1;
             }
         }
-        if count == 0 { 0.0 } else { (sse / count as f64).sqrt() }
+        if count == 0 {
+            0.0
+        } else {
+            (sse / count as f64).sqrt()
+        }
     }
 
     /// Step the formation by one time increment.
     pub fn step(&mut self, dt: f64) -> Result<(), FormationError> {
         let robot_ids: Vec<u64> = self.robots.keys().copied().collect();
-        let old_positions: HashMap<u64, Vec2> =
-            self.robots.iter().map(|(&id, r)| (id, r.position)).collect();
-        let old_velocities: HashMap<u64, Vec2> =
-            self.robots.iter().map(|(&id, r)| (id, r.velocity)).collect();
+        let old_positions: HashMap<u64, Vec2> = self
+            .robots
+            .iter()
+            .map(|(&id, r)| (id, r.position))
+            .collect();
+        let old_velocities: HashMap<u64, Vec2> = self
+            .robots
+            .iter()
+            .map(|(&id, r)| (id, r.velocity))
+            .collect();
 
         match self.strategy {
             FormationStrategy::LeaderFollower => {
@@ -453,9 +477,11 @@ impl FormationController {
         dt: f64,
     ) -> Result<(), FormationError> {
         // Find leader position (advance toward waypoint).
-        let leader_id = ids.iter().find(|&&id| {
-            self.robots.get(&id).map(|r| r.is_leader).unwrap_or(false)
-        }).copied().ok_or(FormationError::NoLeader)?;
+        let leader_id = ids
+            .iter()
+            .find(|&&id| self.robots.get(&id).map(|r| r.is_leader).unwrap_or(false))
+            .copied()
+            .ok_or(FormationError::NoLeader)?;
 
         let leader_pos = positions[&leader_id];
 
@@ -475,8 +501,11 @@ impl FormationController {
             }
         }
 
-        let leader_pos_current =
-            self.robots.get(&leader_id).map(|r| r.position).unwrap_or(leader_pos);
+        let leader_pos_current = self
+            .robots
+            .get(&leader_id)
+            .map(|r| r.position)
+            .unwrap_or(leader_pos);
 
         // Followers track desired offset from leader.
         for &id in ids {
@@ -487,7 +516,11 @@ impl FormationController {
                 let desired = leader_pos_current.add(offset);
                 let pos = positions[&id];
                 let error = desired.sub(&pos);
-                let vel = self.robots.get(&id).map(|r| r.velocity).unwrap_or(Vec2::zero());
+                let vel = self
+                    .robots
+                    .get(&id)
+                    .map(|r| r.velocity)
+                    .unwrap_or(Vec2::zero());
                 let cmd = error.scale(self.kp).sub(&vel.scale(self.kd));
                 if let Some(robot) = self.robots.get_mut(&id) {
                     robot.velocity = cmd;
@@ -498,16 +531,15 @@ impl FormationController {
         Ok(())
     }
 
-    fn step_virtual_structure(
-        &mut self,
-        ids: &[u64],
-        positions: &HashMap<u64, Vec2>,
-        _dt: f64,
-    ) {
+    fn step_virtual_structure(&mut self, ids: &[u64], positions: &HashMap<u64, Vec2>, _dt: f64) {
         // Virtual structure center = current centroid.
         let center = self.centroid();
         // Move center toward first waypoint (if any).
-        let target = self.leader_waypoints.get(self.waypoint_idx).copied().unwrap_or(center);
+        let target = self
+            .leader_waypoints
+            .get(self.waypoint_idx)
+            .copied()
+            .unwrap_or(center);
         let center_vel = target.sub(&center).scale(self.kp * 0.5);
 
         // Advance waypoint.
@@ -524,8 +556,11 @@ impl FormationController {
                 let desired = new_center.add(offset);
                 let pos = positions[&id];
                 let error = desired.sub(&pos);
-                let vel =
-                    self.robots.get(&id).map(|r| r.velocity).unwrap_or(Vec2::zero());
+                let vel = self
+                    .robots
+                    .get(&id)
+                    .map(|r| r.velocity)
+                    .unwrap_or(Vec2::zero());
                 let cmd = error.scale(self.kp).sub(&vel.scale(self.kd));
                 if let Some(robot) = self.robots.get_mut(&id) {
                     robot.velocity = cmd;
@@ -562,8 +597,12 @@ impl FormationController {
             }
 
             // Cohesion: steer toward formation-desired position.
-            let desired_offset =
-                self.desired_shape.offsets.get(&id).copied().unwrap_or(Vec2::zero());
+            let desired_offset = self
+                .desired_shape
+                .offsets
+                .get(&id)
+                .copied()
+                .unwrap_or(Vec2::zero());
             let desired_pos = center.add(&desired_offset);
             let coh = desired_pos.sub(&pos);
 
@@ -579,7 +618,8 @@ impl FormationController {
                 align = align.sub(&vel);
             }
 
-            let cmd = sep.scale(self.separation_weight)
+            let cmd = sep
+                .scale(self.separation_weight)
                 .add(&coh.scale(self.cohesion_weight))
                 .add(&align.scale(self.alignment_weight));
 
@@ -589,24 +629,27 @@ impl FormationController {
         }
     }
 
-    fn step_consensus(
-        &mut self,
-        ids: &[u64],
-        positions: &HashMap<u64, Vec2>,
-        _dt: f64,
-    ) {
+    fn step_consensus(&mut self, ids: &[u64], positions: &HashMap<u64, Vec2>, _dt: f64) {
         // Laplacian-based consensus: u_i = -gain * sum_{j in N_i} (x_i - x_j - (d_i - d_j))
         for &id in ids {
             let pos = positions[&id];
-            let desired_i =
-                self.desired_shape.offsets.get(&id).copied().unwrap_or(Vec2::zero());
+            let desired_i = self
+                .desired_shape
+                .offsets
+                .get(&id)
+                .copied()
+                .unwrap_or(Vec2::zero());
             let nbr_ids = self.neighbors.get(&id).cloned().unwrap_or_default();
 
             let mut control = Vec2::zero();
             for &nid in &nbr_ids {
                 let npos = positions.get(&nid).copied().unwrap_or(Vec2::zero());
-                let desired_j =
-                    self.desired_shape.offsets.get(&nid).copied().unwrap_or(Vec2::zero());
+                let desired_j = self
+                    .desired_shape
+                    .offsets
+                    .get(&nid)
+                    .copied()
+                    .unwrap_or(Vec2::zero());
                 // Consensus error.
                 let rel_err = pos.sub(&npos).sub(&desired_i.sub(&desired_j));
                 control = control.sub(&rel_err);
@@ -622,9 +665,10 @@ impl FormationController {
     /// Check if the formation has converged to within a tolerance.
     pub fn is_converged(&self, tolerance: f64) -> bool {
         let reference = match self.strategy {
-            FormationStrategy::LeaderFollower => {
-                self.leader().map(|l| l.position).unwrap_or_else(|| self.centroid())
-            }
+            FormationStrategy::LeaderFollower => self
+                .leader()
+                .map(|l| l.position)
+                .unwrap_or_else(|| self.centroid()),
             _ => self.centroid(),
         };
         self.formation_error(&reference) < tolerance
@@ -658,7 +702,11 @@ pub struct ShapeMaintainer {
 
 impl ShapeMaintainer {
     pub fn new(stiffness: f64, damping: f64) -> Self {
-        Self { desired_edges: Vec::new(), stiffness, damping }
+        Self {
+            desired_edges: Vec::new(),
+            stiffness,
+            damping,
+        }
     }
 
     pub fn with_edge(mut self, a: u64, b: u64, distance: f64) -> Self {
@@ -815,7 +863,8 @@ mod tests {
     #[test]
     fn test_formation_add_robot() {
         let mut ctrl = FormationController::new(FormationStrategy::LeaderFollower);
-        ctrl.add_robot(RobotState::new(1, Vec2::new(0.0, 0.0))).unwrap();
+        ctrl.add_robot(RobotState::new(1, Vec2::new(0.0, 0.0)))
+            .unwrap();
         assert_eq!(ctrl.robots.len(), 1);
     }
 
@@ -830,24 +879,33 @@ mod tests {
     #[test]
     fn test_formation_centroid() {
         let mut ctrl = FormationController::new(FormationStrategy::Consensus);
-        ctrl.add_robot(RobotState::new(1, Vec2::new(0.0, 0.0))).unwrap();
-        ctrl.add_robot(RobotState::new(2, Vec2::new(4.0, 0.0))).unwrap();
+        ctrl.add_robot(RobotState::new(1, Vec2::new(0.0, 0.0)))
+            .unwrap();
+        ctrl.add_robot(RobotState::new(2, Vec2::new(4.0, 0.0)))
+            .unwrap();
         let c = ctrl.centroid();
         assert!((c.x - 2.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_leader_follower_convergence() {
-        let mut ctrl = FormationController::new(FormationStrategy::LeaderFollower)
-            .with_gains(2.0, 0.8);
+        let mut ctrl =
+            FormationController::new(FormationStrategy::LeaderFollower).with_gains(2.0, 0.8);
         let shape = DesiredShape::new()
             .with_offset(1, Vec2::zero())
             .with_offset(2, Vec2::new(2.0, 0.0))
             .with_offset(3, Vec2::new(-2.0, 0.0));
         ctrl.desired_shape = shape;
-        ctrl.add_robot(RobotState::new(1, Vec2::zero()).with_leader(true).with_max_speed(5.0)).unwrap();
-        ctrl.add_robot(RobotState::new(2, Vec2::new(10.0, 5.0)).with_max_speed(5.0)).unwrap();
-        ctrl.add_robot(RobotState::new(3, Vec2::new(-10.0, -5.0)).with_max_speed(5.0)).unwrap();
+        ctrl.add_robot(
+            RobotState::new(1, Vec2::zero())
+                .with_leader(true)
+                .with_max_speed(5.0),
+        )
+        .unwrap();
+        ctrl.add_robot(RobotState::new(2, Vec2::new(10.0, 5.0)).with_max_speed(5.0))
+            .unwrap();
+        ctrl.add_robot(RobotState::new(3, Vec2::new(-10.0, -5.0)).with_max_speed(5.0))
+            .unwrap();
         ctrl.fully_connect();
 
         for _ in 0..200 {
@@ -859,13 +917,16 @@ mod tests {
 
     #[test]
     fn test_consensus_convergence() {
-        let mut ctrl = FormationController::new(FormationStrategy::Consensus)
-            .with_consensus_gain(0.8);
+        let mut ctrl =
+            FormationController::new(FormationStrategy::Consensus).with_consensus_gain(0.8);
         let shape = DesiredShape::regular_polygon(&[1, 2, 3], 3.0);
         ctrl.desired_shape = shape;
-        ctrl.add_robot(RobotState::new(1, Vec2::new(10.0, 0.0)).with_max_speed(10.0)).unwrap();
-        ctrl.add_robot(RobotState::new(2, Vec2::new(0.0, 10.0)).with_max_speed(10.0)).unwrap();
-        ctrl.add_robot(RobotState::new(3, Vec2::new(-5.0, -5.0)).with_max_speed(10.0)).unwrap();
+        ctrl.add_robot(RobotState::new(1, Vec2::new(10.0, 0.0)).with_max_speed(10.0))
+            .unwrap();
+        ctrl.add_robot(RobotState::new(2, Vec2::new(0.0, 10.0)).with_max_speed(10.0))
+            .unwrap();
+        ctrl.add_robot(RobotState::new(3, Vec2::new(-5.0, -5.0)).with_max_speed(10.0))
+            .unwrap();
         ctrl.fully_connect();
 
         for _ in 0..300 {
@@ -882,8 +943,10 @@ mod tests {
             .with_waypoints(vec![Vec2::new(20.0, 0.0)]);
         let shape = DesiredShape::line(&[1, 2], 4.0);
         ctrl.desired_shape = shape;
-        ctrl.add_robot(RobotState::new(1, Vec2::new(0.0, 0.0)).with_max_speed(5.0)).unwrap();
-        ctrl.add_robot(RobotState::new(2, Vec2::new(1.0, 0.0)).with_max_speed(5.0)).unwrap();
+        ctrl.add_robot(RobotState::new(1, Vec2::new(0.0, 0.0)).with_max_speed(5.0))
+            .unwrap();
+        ctrl.add_robot(RobotState::new(2, Vec2::new(1.0, 0.0)).with_max_speed(5.0))
+            .unwrap();
 
         for _ in 0..100 {
             ctrl.step(0.05).unwrap();
@@ -901,8 +964,10 @@ mod tests {
             .with_offset(1, Vec2::zero())
             .with_offset(2, Vec2::zero());
         ctrl.desired_shape = shape;
-        ctrl.add_robot(RobotState::new(1, Vec2::new(0.0, 0.0)).with_max_speed(5.0)).unwrap();
-        ctrl.add_robot(RobotState::new(2, Vec2::new(0.5, 0.0)).with_max_speed(5.0)).unwrap();
+        ctrl.add_robot(RobotState::new(1, Vec2::new(0.0, 0.0)).with_max_speed(5.0))
+            .unwrap();
+        ctrl.add_robot(RobotState::new(2, Vec2::new(0.5, 0.0)).with_max_speed(5.0))
+            .unwrap();
         ctrl.fully_connect();
 
         ctrl.step(0.1).unwrap();
@@ -914,8 +979,7 @@ mod tests {
 
     #[test]
     fn test_shape_maintainer_spring() {
-        let sm = ShapeMaintainer::new(10.0, 1.0)
-            .with_edge(1, 2, 5.0);
+        let sm = ShapeMaintainer::new(10.0, 1.0).with_edge(1, 2, 5.0);
         let mut positions = HashMap::new();
         positions.insert(1, Vec2::new(0.0, 0.0));
         positions.insert(2, Vec2::new(3.0, 0.0)); // Too close by 2.

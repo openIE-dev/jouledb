@@ -38,7 +38,7 @@ use joule_db_hdc::{BinaryHV, BundleAccumulator};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::{AmorphicStore, RecordId, Value, DIMENSION};
+use crate::{AmorphicStore, DIMENSION, RecordId, Value};
 
 /// A discovered hidden dimension — something the store was unaware of.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -237,20 +237,15 @@ impl AwarenessPromoter {
     ///
     /// After promotion, the Question Layer can detect that these records
     /// have a new field that other records are missing, and ask about it.
-    pub fn promote(
-        &mut self,
-        discovery: &DiscoveredDimension,
-        store: &mut AmorphicStore,
-    ) -> usize {
+    pub fn promote(&mut self, discovery: &DiscoveredDimension, store: &mut AmorphicStore) -> usize {
         let mut promoted = 0;
 
         for &record_id in &discovery.member_record_ids {
             if let Some(record) = store.records.get_mut(&record_id) {
                 let sim = record.hologram.similarity(&discovery.prototype);
-                record.fields.insert(
-                    discovery.name.clone(),
-                    Value::Float(sim as f64),
-                );
+                record
+                    .fields
+                    .insert(discovery.name.clone(), Value::Float(sim as f64));
                 promoted += 1;
             }
         }
@@ -363,13 +358,16 @@ impl AwarenessPromoter {
                 let prototype = acc.threshold();
 
                 // Compute average unexplained similarity as confidence
-                let avg_sim: f32 = unexplained_pairs.iter()
+                let avg_sim: f32 = unexplained_pairs
+                    .iter()
                     .filter(|(a, b, _)| group.contains(a) && group.contains(b))
                     .map(|(_, _, s)| s)
                     .sum::<f32>()
-                    / unexplained_pairs.iter()
+                    / unexplained_pairs
+                        .iter()
                         .filter(|(a, b, _)| group.contains(a) && group.contains(b))
-                        .count().max(1) as f32;
+                        .count()
+                        .max(1) as f32;
 
                 dim_counter += 1;
                 self.discoveries.push(DiscoveredDimension {
@@ -402,7 +400,10 @@ impl AwarenessPromoter {
 
         // K-medoids clustering on the residuals in hamming space.
         // K = min(max_residual_clusters, len/min_cluster_size)
-        let k = self.max_residual_clusters.min(residuals.len() / self.min_cluster_size).max(1);
+        let k = self
+            .max_residual_clusters
+            .min(residuals.len() / self.min_cluster_size)
+            .max(1);
 
         if k <= 1 {
             // Only one possible cluster — fall back to single bundle
@@ -413,7 +414,10 @@ impl AwarenessPromoter {
         // Initialize medoids: pick residuals with highest deviation
         let mut sorted_by_dev: Vec<usize> = (0..residuals.len()).collect();
         sorted_by_dev.sort_by(|&a, &b| {
-            residuals[b].2.partial_cmp(&residuals[a].2).unwrap_or(std::cmp::Ordering::Equal)
+            residuals[b]
+                .2
+                .partial_cmp(&residuals[a].2)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         let mut medoid_indices: Vec<usize> = sorted_by_dev.iter().take(k).copied().collect();
@@ -446,7 +450,9 @@ impl AwarenessPromoter {
 
             // Update medoids: pick member with minimum total distance to others in cluster
             for mi in 0..k {
-                let members: Vec<usize> = assignments.iter().enumerate()
+                let members: Vec<usize> = assignments
+                    .iter()
+                    .enumerate()
                     .filter(|&(_, &a)| a == mi)
                     .map(|(i, _)| i)
                     .collect();
@@ -458,7 +464,8 @@ impl AwarenessPromoter {
                 let mut best_total_sim = -1.0f64;
                 let mut best_member = members[0];
                 for &candidate in &members {
-                    let total_sim: f64 = members.iter()
+                    let total_sim: f64 = members
+                        .iter()
                         .map(|&other| residuals[candidate].1.similarity(&residuals[other].1) as f64)
                         .sum();
                     if total_sim > best_total_sim {
@@ -472,7 +479,9 @@ impl AwarenessPromoter {
 
         // Convert clusters into discovered dimensions
         for mi in 0..k {
-            let members: Vec<usize> = assignments.iter().enumerate()
+            let members: Vec<usize> = assignments
+                .iter()
+                .enumerate()
                 .filter(|&(_, &a)| a == mi)
                 .map(|(i, _)| i)
                 .collect();
@@ -497,9 +506,11 @@ impl AwarenessPromoter {
 
             // Measure cluster tightness as confidence
             let medoid_idx = medoid_indices[mi];
-            let avg_sim: f64 = members.iter()
+            let avg_sim: f64 = members
+                .iter()
                 .map(|&idx| residuals[idx].1.similarity(&residuals[medoid_idx].1) as f64)
-                .sum::<f64>() / members.len() as f64;
+                .sum::<f64>()
+                / members.len() as f64;
 
             // Confidence: deviation indicates signal, similarity indicates coherence
             let confidence = ((avg_deviation * avg_sim) * 3.0).min(1.0) as f32;
@@ -681,7 +692,11 @@ impl AwarenessPromoter {
             let reconstructed = reconstructed_acc.threshold();
             let residual = record.hologram.bind(&reconstructed);
 
-            let popcount = residual.as_words().iter().map(|w| w.count_ones()).sum::<u32>();
+            let popcount = residual
+                .as_words()
+                .iter()
+                .map(|w| w.count_ones())
+                .sum::<u32>();
             let expected = DIMENSION as u32 / 2;
             let deviation = (popcount as f64 - expected as f64).abs() / expected as f64;
 
@@ -732,7 +747,9 @@ impl AwarenessPromoter {
                 if !keep[j] {
                     continue;
                 }
-                let sim = self.discoveries[i].prototype.similarity(&self.discoveries[j].prototype);
+                let sim = self.discoveries[i]
+                    .prototype
+                    .similarity(&self.discoveries[j].prototype);
                 if sim > 0.8 {
                     // Very similar prototypes — keep the one with higher confidence
                     if self.discoveries[i].confidence >= self.discoveries[j].confidence {
@@ -754,11 +771,7 @@ impl AwarenessPromoter {
     }
 
     /// Compute field value overlap between two records (0.0 = nothing in common, 1.0 = identical).
-    fn compute_field_overlap(
-        &self,
-        a: &crate::AmorphicRecord,
-        b: &crate::AmorphicRecord,
-    ) -> f64 {
+    fn compute_field_overlap(&self, a: &crate::AmorphicRecord, b: &crate::AmorphicRecord) -> f64 {
         if a.fields.is_empty() && b.fields.is_empty() {
             return 1.0;
         }
@@ -773,7 +786,9 @@ impl AwarenessPromoter {
         let matching = all_fields
             .iter()
             .filter(|&&f| {
-                a.fields.get(f) == b.fields.get(f) && a.fields.contains_key(f) && b.fields.contains_key(f)
+                a.fields.get(f) == b.fields.get(f)
+                    && a.fields.contains_key(f)
+                    && b.fields.contains_key(f)
             })
             .count();
 
@@ -796,16 +811,32 @@ mod tests {
         let mut store = AmorphicStore::new();
 
         // Group A: same hidden trait (encoded in name pattern), different visible fields
-        store.ingest_json(r#"{"name": "alpha_spark_1", "color": "red", "size": 10}"#).unwrap();
-        store.ingest_json(r#"{"name": "alpha_spark_2", "color": "blue", "size": 20}"#).unwrap();
-        store.ingest_json(r#"{"name": "alpha_spark_3", "color": "green", "size": 30}"#).unwrap();
-        store.ingest_json(r#"{"name": "alpha_spark_4", "color": "yellow", "size": 40}"#).unwrap();
+        store
+            .ingest_json(r#"{"name": "alpha_spark_1", "color": "red", "size": 10}"#)
+            .unwrap();
+        store
+            .ingest_json(r#"{"name": "alpha_spark_2", "color": "blue", "size": 20}"#)
+            .unwrap();
+        store
+            .ingest_json(r#"{"name": "alpha_spark_3", "color": "green", "size": 30}"#)
+            .unwrap();
+        store
+            .ingest_json(r#"{"name": "alpha_spark_4", "color": "yellow", "size": 40}"#)
+            .unwrap();
 
         // Group B: completely different pattern
-        store.ingest_json(r#"{"name": "beta_wave_1", "color": "red", "size": 100}"#).unwrap();
-        store.ingest_json(r#"{"name": "beta_wave_2", "color": "blue", "size": 200}"#).unwrap();
-        store.ingest_json(r#"{"name": "beta_wave_3", "color": "green", "size": 300}"#).unwrap();
-        store.ingest_json(r#"{"name": "beta_wave_4", "color": "yellow", "size": 400}"#).unwrap();
+        store
+            .ingest_json(r#"{"name": "beta_wave_1", "color": "red", "size": 100}"#)
+            .unwrap();
+        store
+            .ingest_json(r#"{"name": "beta_wave_2", "color": "blue", "size": 200}"#)
+            .unwrap();
+        store
+            .ingest_json(r#"{"name": "beta_wave_3", "color": "green", "size": 300}"#)
+            .unwrap();
+        store
+            .ingest_json(r#"{"name": "beta_wave_4", "color": "yellow", "size": 400}"#)
+            .unwrap();
 
         let mut promoter = AwarenessPromoter::new();
         promoter.min_cluster_size = 2;
@@ -827,7 +858,8 @@ mod tests {
             store
                 .ingest_json(&format!(
                     r#"{{"name": "item_{}", "category": "type_a", "hidden_trait": "xyz_{}"  }}"#,
-                    i, i % 3
+                    i,
+                    i % 3
                 ))
                 .unwrap();
         }
@@ -879,9 +911,12 @@ mod tests {
         let mut store = AmorphicStore::new();
 
         for i in 0..6 {
-            store.ingest_json(&format!(
-                r#"{{"name": "spike_{}", "signal": "anomaly_type_a"}}"#, i
-            )).unwrap();
+            store
+                .ingest_json(&format!(
+                    r#"{{"name": "spike_{}", "signal": "anomaly_type_a"}}"#,
+                    i
+                ))
+                .unwrap();
         }
 
         let spiked_ids: Vec<RecordId> = (1..=6).collect();
@@ -904,7 +939,9 @@ mod tests {
 
         // Initial records
         for i in 0..5 {
-            store.ingest_json(&format!(r#"{{"name": "old_{}", "era": "past"}}"#, i)).unwrap();
+            store
+                .ingest_json(&format!(r#"{{"name": "old_{}", "era": "past"}}"#, i))
+                .unwrap();
         }
 
         let mut promoter = AwarenessPromoter::new();
@@ -916,7 +953,9 @@ mod tests {
 
         // Add new records that shift the store
         for i in 0..5 {
-            store.ingest_json(&format!(r#"{{"name": "new_{}", "era": "future"}}"#, i)).unwrap();
+            store
+                .ingest_json(&format!(r#"{{"name": "new_{}", "era": "future"}}"#, i))
+                .unwrap();
         }
 
         // Snapshot new centroid

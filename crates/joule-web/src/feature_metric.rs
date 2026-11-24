@@ -3,7 +3,7 @@
 //! statistical significance testing (chi-squared), and feature adoption rate.
 
 use chrono::{DateTime, Utc};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -307,9 +307,9 @@ pub fn cohort_lift(control: &Cohort, treatment: &Cohort) -> f64 {
 /// Perform a chi-squared test for two cohorts (2x2 contingency table).
 /// Returns (chi2_statistic, p_value_approximate, is_significant_at_005).
 pub fn chi_squared_test(control: &Cohort, treatment: &Cohort) -> (f64, f64, bool) {
-    let a = control.conversion_count as f64;       // control converted
+    let a = control.conversion_count as f64; // control converted
     let b = (control.user_count - control.conversion_count) as f64; // control not
-    let c = treatment.conversion_count as f64;      // treatment converted
+    let c = treatment.conversion_count as f64; // treatment converted
     let d = (treatment.user_count - treatment.conversion_count) as f64; // treatment not
 
     let n = a + b + c + d;
@@ -360,14 +360,10 @@ fn normal_cdf(x: f64) -> f64 {
     let t = 1.0 / (1.0 + 0.2316419 * x.abs());
     let d = 0.3989422804014327; // 1/sqrt(2*pi)
     let p = d * (-x * x / 2.0).exp();
-    let poly = t * (0.319381530
-        + t * (-0.356563782
-            + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
-    if x >= 0.0 {
-        1.0 - p * poly
-    } else {
-        p * poly
-    }
+    let poly = t
+        * (0.319381530
+            + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+    if x >= 0.0 { 1.0 - p * poly } else { p * poly }
 }
 
 // ── Feature Adoption Rate ──
@@ -430,8 +426,8 @@ mod tests {
 
     #[test]
     fn test_flag_evaluation() {
-        let eval = FlagEvaluation::new("dark_mode", "enabled", "user-1")
-            .with_context("platform", "ios");
+        let eval =
+            FlagEvaluation::new("dark_mode", "enabled", "user-1").with_context("platform", "ios");
         assert_eq!(eval.flag_name, "dark_mode");
         assert_eq!(eval.variant, "enabled");
         assert_eq!(eval.context["platform"], "ios");

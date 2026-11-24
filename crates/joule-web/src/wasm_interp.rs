@@ -709,7 +709,10 @@ impl Interpreter {
 
     /// Perform a branch to the given label depth.
     fn do_branch(&mut self, depth: u32) -> Result<(), Trap> {
-        let frame = self.call_stack.last_mut().ok_or(Trap::LabelStackUnderflow)?;
+        let frame = self
+            .call_stack
+            .last_mut()
+            .ok_or(Trap::LabelStackUnderflow)?;
         let label_count = frame.labels.len() as u32;
         if depth >= label_count {
             return Err(Trap::InvalidBranchDepth {
@@ -737,7 +740,9 @@ impl Interpreter {
 
         // Remove labels up to and including the target.
         let frame = self.call_stack.last_mut().unwrap();
-        frame.labels.truncate(label_idx + if label.is_loop { 1 } else { 0 });
+        frame
+            .labels
+            .truncate(label_idx + if label.is_loop { 1 } else { 0 });
 
         // Jump.
         if label.is_loop {
@@ -855,7 +860,9 @@ mod tests {
     fn simple_add() {
         // func(a: i32, b: i32) -> i32 { a + b }
         let func = FuncDef::new(
-            2, 0, 1,
+            2,
+            0,
+            1,
             vec![
                 Instruction::LocalGet(0),
                 Instruction::LocalGet(1),
@@ -863,14 +870,18 @@ mod tests {
             ],
         );
         let mut interp = make_interp(vec![func]);
-        let result = interp.invoke(0, &[WasmValue::I32(3), WasmValue::I32(7)]).unwrap();
+        let result = interp
+            .invoke(0, &[WasmValue::I32(3), WasmValue::I32(7)])
+            .unwrap();
         assert_eq!(result, vec![WasmValue::I32(10)]);
     }
 
     #[test]
     fn subtraction() {
         let func = FuncDef::new(
-            2, 0, 1,
+            2,
+            0,
+            1,
             vec![
                 Instruction::LocalGet(0),
                 Instruction::LocalGet(1),
@@ -878,14 +889,18 @@ mod tests {
             ],
         );
         let mut interp = make_interp(vec![func]);
-        let result = interp.invoke(0, &[WasmValue::I32(10), WasmValue::I32(4)]).unwrap();
+        let result = interp
+            .invoke(0, &[WasmValue::I32(10), WasmValue::I32(4)])
+            .unwrap();
         assert_eq!(result, vec![WasmValue::I32(6)]);
     }
 
     #[test]
     fn multiplication() {
         let func = FuncDef::new(
-            2, 0, 1,
+            2,
+            0,
+            1,
             vec![
                 Instruction::LocalGet(0),
                 Instruction::LocalGet(1),
@@ -893,14 +908,18 @@ mod tests {
             ],
         );
         let mut interp = make_interp(vec![func]);
-        let result = interp.invoke(0, &[WasmValue::I32(6), WasmValue::I32(7)]).unwrap();
+        let result = interp
+            .invoke(0, &[WasmValue::I32(6), WasmValue::I32(7)])
+            .unwrap();
         assert_eq!(result, vec![WasmValue::I32(42)]);
     }
 
     #[test]
     fn division_by_zero_traps() {
         let func = FuncDef::new(
-            2, 0, 1,
+            2,
+            0,
+            1,
             vec![
                 Instruction::LocalGet(0),
                 Instruction::LocalGet(1),
@@ -915,7 +934,9 @@ mod tests {
     #[test]
     fn i32_min_div_neg1_traps() {
         let func = FuncDef::new(
-            2, 0, 1,
+            2,
+            0,
+            1,
             vec![
                 Instruction::LocalGet(0),
                 Instruction::LocalGet(1),
@@ -931,7 +952,9 @@ mod tests {
     fn local_set_and_get() {
         // func(a: i32) -> i32 { let local0 = a + 1; local0 * 2 }
         let func = FuncDef::new(
-            1, 1, 1,
+            1,
+            1,
+            1,
             vec![
                 Instruction::LocalGet(0),
                 Instruction::I32Const(1),
@@ -959,7 +982,9 @@ mod tests {
     fn function_call() {
         // func0(a, b) -> i32 { a + b }
         let add = FuncDef::new(
-            2, 0, 1,
+            2,
+            0,
+            1,
             vec![
                 Instruction::LocalGet(0),
                 Instruction::LocalGet(1),
@@ -968,7 +993,9 @@ mod tests {
         );
         // func1(x) -> i32 { call func0(x, 10) }
         let caller = FuncDef::new(
-            1, 0, 1,
+            1,
+            0,
+            1,
             vec![
                 Instruction::LocalGet(0),
                 Instruction::I32Const(10),
@@ -990,7 +1017,9 @@ mod tests {
         //   }
         // }
         let func = FuncDef::new(
-            0, 0, 1,
+            0,
+            0,
+            1,
             vec![
                 Instruction::Block(1),
                 Instruction::I32Const(42),
@@ -1017,24 +1046,26 @@ mod tests {
         //   sum
         // }
         let func = FuncDef::new(
-            0, 2, 1,
+            0,
+            2,
+            1,
             vec![
                 Instruction::Loop(0),
-                  // counter += 1
-                  Instruction::LocalGet(1),
-                  Instruction::I32Const(1),
-                  Instruction::I32Add,
-                  Instruction::LocalSet(1),
-                  // sum += counter
-                  Instruction::LocalGet(0),
-                  Instruction::LocalGet(1),
-                  Instruction::I32Add,
-                  Instruction::LocalSet(0),
-                  // if counter < 5
-                  Instruction::LocalGet(1),
-                  Instruction::I32Const(5),
-                  Instruction::I32LtS,
-                  Instruction::BrIf(0),
+                // counter += 1
+                Instruction::LocalGet(1),
+                Instruction::I32Const(1),
+                Instruction::I32Add,
+                Instruction::LocalSet(1),
+                // sum += counter
+                Instruction::LocalGet(0),
+                Instruction::LocalGet(1),
+                Instruction::I32Add,
+                Instruction::LocalSet(0),
+                // if counter < 5
+                Instruction::LocalGet(1),
+                Instruction::I32Const(5),
+                Instruction::I32LtS,
+                Instruction::BrIf(0),
                 Instruction::End,
                 Instruction::LocalGet(0),
             ],
@@ -1048,7 +1079,9 @@ mod tests {
     fn if_else_true_branch() {
         // func(x: i32) -> i32 { if x then 1 else 0 }
         let func = FuncDef::new(
-            1, 0, 1,
+            1,
+            0,
+            1,
             vec![
                 Instruction::LocalGet(0),
                 Instruction::If(1),
@@ -1066,7 +1099,9 @@ mod tests {
     #[test]
     fn if_else_false_branch() {
         let func = FuncDef::new(
-            1, 0, 1,
+            1,
+            0,
+            1,
             vec![
                 Instruction::LocalGet(0),
                 Instruction::If(1),
@@ -1084,7 +1119,9 @@ mod tests {
     #[test]
     fn select_instruction() {
         let func = FuncDef::new(
-            1, 0, 1,
+            1,
+            0,
+            1,
             vec![
                 Instruction::I32Const(10),
                 Instruction::I32Const(20),
@@ -1102,7 +1139,9 @@ mod tests {
     #[test]
     fn drop_instruction() {
         let func = FuncDef::new(
-            0, 0, 1,
+            0,
+            0,
+            1,
             vec![
                 Instruction::I32Const(42),
                 Instruction::I32Const(99),
@@ -1117,12 +1156,10 @@ mod tests {
     #[test]
     fn instruction_limit() {
         let func = FuncDef::new(
-            0, 0, 0,
-            vec![
-                Instruction::Loop(0),
-                Instruction::Br(0),
-                Instruction::End,
-            ],
+            0,
+            0,
+            0,
+            vec![Instruction::Loop(0), Instruction::Br(0), Instruction::End],
         );
         let config = InterpreterConfig {
             max_instructions: 100,
@@ -1149,7 +1186,9 @@ mod tests {
     #[test]
     fn stats_tracking() {
         let func = FuncDef::new(
-            0, 0, 1,
+            0,
+            0,
+            1,
             vec![
                 Instruction::I32Const(1),
                 Instruction::I32Const(2),
@@ -1174,7 +1213,9 @@ mod tests {
     fn local_tee() {
         // func(a: i32) -> i32 { local_tee stores and keeps value on stack }
         let func = FuncDef::new(
-            1, 1, 1,
+            1,
+            1,
+            1,
             vec![
                 Instruction::I32Const(99),
                 Instruction::LocalTee(1),
@@ -1190,7 +1231,9 @@ mod tests {
     #[test]
     fn i32_comparison_ops() {
         let func = FuncDef::new(
-            0, 0, 1,
+            0,
+            0,
+            1,
             vec![
                 Instruction::I32Const(5),
                 Instruction::I32Const(10),
@@ -1219,7 +1262,9 @@ mod tests {
     #[test]
     fn bitwise_ops() {
         let func = FuncDef::new(
-            0, 0, 1,
+            0,
+            0,
+            1,
             vec![
                 Instruction::I32Const(0b1100),
                 Instruction::I32Const(0b1010),

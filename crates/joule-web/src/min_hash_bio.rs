@@ -124,7 +124,11 @@ impl MinHasher {
         let seeds: Vec<u64> = (0..num_hashes as u64)
             .map(|i| i.wrapping_mul(0x9e3779b97f4a7c15).wrapping_add(1))
             .collect();
-        Self { k, num_hashes, seeds }
+        Self {
+            k,
+            num_hashes,
+            seeds,
+        }
     }
 
     /// Set k-mer size.
@@ -213,10 +217,7 @@ impl MinHasher {
     }
 
     /// Pairwise Jaccard matrix for a collection of sequences.
-    pub fn pairwise_jaccard(
-        &self,
-        sequences: &[&[u8]],
-    ) -> Result<Vec<Vec<f64>>, MinHashError> {
+    pub fn pairwise_jaccard(&self, sequences: &[&[u8]]) -> Result<Vec<Vec<f64>>, MinHashError> {
         let sketches: Vec<Sketch> = sequences
             .iter()
             .map(|s| self.sketch(s))

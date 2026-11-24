@@ -7,7 +7,7 @@
 
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -71,7 +71,11 @@ impl Severity {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AuditLogError {
     /// Hash chain integrity violation.
-    ChainBroken { sequence: u64, expected: String, got: String },
+    ChainBroken {
+        sequence: u64,
+        expected: String,
+        got: String,
+    },
     /// Entry tampered (hash mismatch).
     EntryTampered { sequence: u64 },
     /// Sequence number gap.
@@ -83,8 +87,15 @@ pub enum AuditLogError {
 impl std::fmt::Display for AuditLogError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::ChainBroken { sequence, expected, got } => {
-                write!(f, "chain broken at seq {sequence}: expected {expected}, got {got}")
+            Self::ChainBroken {
+                sequence,
+                expected,
+                got,
+            } => {
+                write!(
+                    f,
+                    "chain broken at seq {sequence}: expected {expected}, got {got}"
+                )
             }
             Self::EntryTampered { sequence } => {
                 write!(f, "entry tampered at sequence {sequence}")
@@ -316,10 +327,7 @@ impl AuditLog {
     }
 
     /// Append an event using the builder.
-    pub fn append_event(
-        &mut self,
-        builder: AuditEventBuilder,
-    ) -> Result<String, AuditLogError> {
+    pub fn append_event(&mut self, builder: AuditEventBuilder) -> Result<String, AuditLogError> {
         if self.sealed {
             return Err(AuditLogError::LogSealed);
         }
@@ -430,11 +438,7 @@ impl AuditLog {
     }
 
     /// Query by time range (inclusive).
-    pub fn by_time_range(
-        &self,
-        from: DateTime<Utc>,
-        to: DateTime<Utc>,
-    ) -> Vec<&AuditEntry> {
+    pub fn by_time_range(&self, from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<&AuditEntry> {
         self.entries
             .iter()
             .filter(|e| e.timestamp >= from && e.timestamp <= to)
@@ -669,11 +673,8 @@ mod tests {
                 .severity(Severity::Warning),
         )
         .unwrap();
-        log.append_event(
-            AuditEventBuilder::new("a", "read", "file")
-                .severity(Severity::Info),
-        )
-        .unwrap();
+        log.append_event(AuditEventBuilder::new("a", "read", "file").severity(Severity::Info))
+            .unwrap();
         assert_eq!(log.by_severity(Severity::Warning).len(), 1);
         assert_eq!(log.by_severity(Severity::Info).len(), 1);
     }
@@ -681,16 +682,10 @@ mod tests {
     #[test]
     fn test_correlation_id() {
         let mut log = AuditLog::new();
-        log.append_event(
-            AuditEventBuilder::new("a", "step1", "flow")
-                .correlation_id("tx-123"),
-        )
-        .unwrap();
-        log.append_event(
-            AuditEventBuilder::new("a", "step2", "flow")
-                .correlation_id("tx-123"),
-        )
-        .unwrap();
+        log.append_event(AuditEventBuilder::new("a", "step1", "flow").correlation_id("tx-123"))
+            .unwrap();
+        log.append_event(AuditEventBuilder::new("a", "step2", "flow").correlation_id("tx-123"))
+            .unwrap();
         log.append_event(AuditEventBuilder::new("b", "other", "x"))
             .unwrap();
         assert_eq!(log.by_correlation_id("tx-123").len(), 2);
@@ -708,11 +703,16 @@ mod tests {
 
     #[test]
     fn test_retention_max_entries() {
-        let mut log =
-            AuditLog::new().with_retention(RetentionPolicy::new().with_max_entries(2));
+        let mut log = AuditLog::new().with_retention(RetentionPolicy::new().with_max_entries(2));
         for i in 0..5 {
-            log.append(&format!("a{i}"), "x", "r", AuditOutcome::Success, HashMap::new())
-                .unwrap();
+            log.append(
+                &format!("a{i}"),
+                "x",
+                "r",
+                AuditOutcome::Success,
+                HashMap::new(),
+            )
+            .unwrap();
         }
         log.apply_retention();
         assert_eq!(log.len(), 2);
@@ -762,8 +762,14 @@ mod tests {
     #[test]
     fn test_export_filtered() {
         let mut log = AuditLog::new();
-        log.append("admin", "delete", "r", AuditOutcome::Success, HashMap::new())
-            .unwrap();
+        log.append(
+            "admin",
+            "delete",
+            "r",
+            AuditOutcome::Success,
+            HashMap::new(),
+        )
+        .unwrap();
         log.append("user", "read", "r", AuditOutcome::Success, HashMap::new())
             .unwrap();
         let json = log.export_filtered(|e| e.actor == "admin");
@@ -776,8 +782,14 @@ mod tests {
         let mut log = AuditLog::new();
         let mut details = HashMap::new();
         details.insert("ip".to_string(), json!("10.0.0.1"));
-        log.append("admin", "login", "session:1", AuditOutcome::Success, details)
-            .unwrap();
+        log.append(
+            "admin",
+            "login",
+            "session:1",
+            AuditOutcome::Success,
+            details,
+        )
+        .unwrap();
         let j = log.entries()[0].to_json();
         assert_eq!(j["actor"], "admin");
         assert_eq!(j["action"], "login");

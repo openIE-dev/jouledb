@@ -327,7 +327,10 @@ mod tests {
         let path = Path::new("/tmp/jouledb-testdata/ai_graph_classification/data/WN18RR/train.txt");
         if path.exists() {
             let triples = load_triples(path).unwrap();
-            assert!(triples.len() > 80000, "WN18RR train should have ~86K triples");
+            assert!(
+                triples.len() > 80000,
+                "WN18RR train should have ~86K triples"
+            );
 
             // Check format
             assert!(!triples[0].subject.is_empty());
@@ -373,8 +376,10 @@ mod tests {
 
     #[test]
     fn test_wn18rr_benchmark_if_available() {
-        let train_path = Path::new("/tmp/jouledb-testdata/ai_graph_classification/data/WN18RR/train.txt");
-        let test_path = Path::new("/tmp/jouledb-testdata/ai_graph_classification/data/WN18RR/test.txt");
+        let train_path =
+            Path::new("/tmp/jouledb-testdata/ai_graph_classification/data/WN18RR/train.txt");
+        let test_path =
+            Path::new("/tmp/jouledb-testdata/ai_graph_classification/data/WN18RR/test.txt");
 
         if !train_path.exists() || !test_path.exists() {
             eprintln!("WN18RR not available, skipping benchmark");
@@ -430,14 +435,20 @@ mod tests {
             if let Some(recovered) = core.query_object(&triple.subject, triple.relation) {
                 let top5 = core.nearest_concepts(&recovered, 5);
                 let correct = triple.object.to_lowercase().replace(' ', "_");
-                let rank = core.nearest_concepts(&recovered, 100)
+                let rank = core
+                    .nearest_concepts(&recovered, 100)
                     .iter()
                     .position(|(l, _)| *l == correct)
                     .map(|p| p + 1);
                 eprintln!(
                     "  ({}, {:?}, {}) → top5: {:?} | correct rank: {:?}",
-                    triple.subject, triple.relation, triple.object,
-                    top5.iter().take(3).map(|(l, s)| format!("{}({:.3})", l, s)).collect::<Vec<_>>(),
+                    triple.subject,
+                    triple.relation,
+                    triple.object,
+                    top5.iter()
+                        .take(3)
+                        .map(|(l, s)| format!("{}({:.3})", l, s))
+                        .collect::<Vec<_>>(),
                     rank
                 );
             }
@@ -446,8 +457,10 @@ mod tests {
 
     #[test]
     fn test_structural_benchmark_if_available() {
-        let train_path = Path::new("/tmp/jouledb-testdata/ai_graph_classification/data/WN18RR/train.txt");
-        let test_path = Path::new("/tmp/jouledb-testdata/ai_graph_classification/data/WN18RR/test.txt");
+        let train_path =
+            Path::new("/tmp/jouledb-testdata/ai_graph_classification/data/WN18RR/train.txt");
+        let test_path =
+            Path::new("/tmp/jouledb-testdata/ai_graph_classification/data/WN18RR/test.txt");
 
         if !train_path.exists() || !test_path.exists() {
             eprintln!("WN18RR not available, skipping structural benchmark");
@@ -460,7 +473,11 @@ mod tests {
         let train = convert_triples(&train_bt);
         let test = convert_triples(&test_bt);
 
-        eprintln!("STRUCTURAL WN18RR: {} train, {} test triples", train.len(), test.len());
+        eprintln!(
+            "STRUCTURAL WN18RR: {} train, {} test triples",
+            train.len(),
+            test.len()
+        );
 
         let results = evaluate_structural(&train, &test, 100);
 

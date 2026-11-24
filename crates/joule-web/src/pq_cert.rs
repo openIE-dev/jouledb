@@ -73,7 +73,10 @@ impl PqAlgorithm {
 
     /// Whether this algorithm is a signature scheme.
     pub fn is_signature(&self) -> bool {
-        matches!(self, Self::MlDsa65 | Self::MlDsa87 | Self::SlhDsa128s | Self::SlhDsa256f)
+        matches!(
+            self,
+            Self::MlDsa65 | Self::MlDsa87 | Self::SlhDsa128s | Self::SlhDsa256f
+        )
     }
 
     /// Whether this algorithm is a KEM.
@@ -106,7 +109,10 @@ pub struct Validity {
 
 impl Validity {
     pub fn new(not_before: u64, not_after: u64) -> Self {
-        Self { not_before, not_after }
+        Self {
+            not_before,
+            not_after,
+        }
     }
 
     /// Check whether the given timestamp falls within the validity window.
@@ -202,7 +208,10 @@ pub struct PqPublicKey {
 
 impl PqPublicKey {
     pub fn new(algorithm: PqAlgorithm, key_bytes: Vec<u8>) -> Self {
-        Self { algorithm, key_bytes }
+        Self {
+            algorithm,
+            key_bytes,
+        }
     }
 
     /// Fingerprint: simple 8-byte hash of the key material.
@@ -232,7 +241,13 @@ impl PqPublicKey {
 
 impl fmt::Display for PqPublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PqPubKey({}, {} bytes, fp={:016x})", self.algorithm, self.key_bytes.len(), self.fingerprint())
+        write!(
+            f,
+            "PqPubKey({}, {} bytes, fp={:016x})",
+            self.algorithm,
+            self.key_bytes.len(),
+            self.fingerprint()
+        )
     }
 }
 
@@ -247,13 +262,21 @@ pub struct PqSignature {
 
 impl PqSignature {
     pub fn new(algorithm: PqAlgorithm, sig_bytes: Vec<u8>) -> Self {
-        Self { algorithm, sig_bytes }
+        Self {
+            algorithm,
+            sig_bytes,
+        }
     }
 }
 
 impl fmt::Display for PqSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PqSig({}, {} bytes)", self.algorithm, self.sig_bytes.len())
+        write!(
+            f,
+            "PqSig({}, {} bytes)",
+            self.algorithm,
+            self.sig_bytes.len()
+        )
     }
 }
 
@@ -487,8 +510,12 @@ impl PqCertConfig {
         issuer: DistinguishedName,
         not_before: u64,
     ) -> PqCertificate {
-        let key_size = self.key_size_override.unwrap_or(self.algorithm.public_key_size());
-        let key_bytes: Vec<u8> = (0..key_size).map(|i| ((serial.wrapping_mul(31).wrapping_add(i as u64)) & 0xff) as u8).collect();
+        let key_size = self
+            .key_size_override
+            .unwrap_or(self.algorithm.public_key_size());
+        let key_bytes: Vec<u8> = (0..key_size)
+            .map(|i| ((serial.wrapping_mul(31).wrapping_add(i as u64)) & 0xff) as u8)
+            .collect();
         let public_key = PqPublicKey::new(self.algorithm, key_bytes);
 
         let validity = Validity::new(not_before, not_before + self.validity_secs);
@@ -553,7 +580,12 @@ mod tests {
             .with_algorithm(PqAlgorithm::MlDsa65)
             .with_ca(true)
             .with_validity_secs(3600 * 24 * 365)
-            .build_certificate(1, DistinguishedName::new("RootCA"), DistinguishedName::new("RootCA"), 1000)
+            .build_certificate(
+                1,
+                DistinguishedName::new("RootCA"),
+                DistinguishedName::new("RootCA"),
+                1000,
+            )
     }
 
     #[test]

@@ -44,7 +44,9 @@ impl PerlinNoise {
         // Fisher-Yates shuffle seeded by a simple LCG
         let mut rng = seed;
         for i in (1..256).rev() {
-            rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            rng = rng
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let j = (rng >> 33) as usize % (i + 1);
             table.swap(i, j);
         }
@@ -199,15 +201,7 @@ impl PerlinNoise {
     }
 
     /// 3D tiling / periodic noise.
-    pub fn noise3d_tiling(
-        &self,
-        x: f64,
-        y: f64,
-        z: f64,
-        px: u32,
-        py: u32,
-        pz: u32,
-    ) -> f64 {
+    pub fn noise3d_tiling(&self, x: f64, y: f64, z: f64, px: u32, py: u32, pz: u32) -> f64 {
         let ppx = px.max(1) as usize;
         let ppy = py.max(1) as usize;
         let ppz = pz.max(1) as usize;
@@ -432,7 +426,10 @@ mod tests {
             let y = i as f64 * 0.37;
             let a = p.noise2d_tiling(0.5, y, period, period);
             let b = p.noise2d_tiling(0.5 + period as f64, y, period, period);
-            assert!((a - b).abs() < 1e-10, "tiling mismatch at y={y}: {a} vs {b}");
+            assert!(
+                (a - b).abs() < 1e-10,
+                "tiling mismatch at y={y}: {a} vs {b}"
+            );
         }
     }
 
@@ -451,7 +448,10 @@ mod tests {
         for i in 0..200 {
             let x = i as f64 * 0.13;
             let v = p.octave_noise2d(x, x * 0.9, 6, 2.0, 0.5);
-            assert!(v >= -1.0 - 1e-6 && v <= 1.0 + 1e-6, "octave out of range: {v}");
+            assert!(
+                v >= -1.0 - 1e-6 && v <= 1.0 + 1e-6,
+                "octave out of range: {v}"
+            );
         }
     }
 

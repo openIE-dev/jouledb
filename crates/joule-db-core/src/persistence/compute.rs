@@ -575,7 +575,10 @@ impl ComputeBackend for CpuComputeBackend {
         let output_buffer = self.create_buffer(output_size, BufferUsage::STORAGE_WRITE, None)?;
 
         // Aggregates read the input buffer (packed f64 little-endian) and write one f64 result.
-        if let ComputeOp::Aggregate { agg_type, num_items } = &op
+        if let ComputeOp::Aggregate {
+            agg_type,
+            num_items,
+        } = &op
             && let Some(input) = inputs.first()
         {
             let nbytes = (*num_items as u64).saturating_mul(8);

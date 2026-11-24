@@ -69,7 +69,10 @@ pub struct SubstitutionMatrix {
 impl SubstitutionMatrix {
     /// Create an empty matrix of the given kind.
     fn new(kind: MatrixKind) -> Self {
-        Self { kind, scores: HashMap::new() }
+        Self {
+            kind,
+            scores: HashMap::new(),
+        }
     }
 
     /// Insert a symmetric score for residue pair `(a, b)`.
@@ -196,7 +199,12 @@ impl SubstitutionMatrix {
 
 impl fmt::Display for SubstitutionMatrix {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SubstitutionMatrix({}, {} entries)", self.kind, self.scores.len())
+        write!(
+            f,
+            "SubstitutionMatrix({}, {} entries)",
+            self.kind,
+            self.scores.len()
+        )
     }
 }
 
@@ -219,7 +227,10 @@ impl GapPenalty {
 
     /// Create an affine gap penalty.
     pub fn affine(open: f64, extend: f64) -> Self {
-        Self::Affine { gap_open: open, gap_extend: extend }
+        Self::Affine {
+            gap_open: open,
+            gap_extend: extend,
+        }
     }
 
     /// Compute total penalty for a gap of `length` residues.
@@ -229,9 +240,10 @@ impl GapPenalty {
         }
         match self {
             Self::Linear { gap_open } => gap_open * length as f64,
-            Self::Affine { gap_open, gap_extend } => {
-                gap_open + gap_extend * (length as f64 - 1.0)
-            }
+            Self::Affine {
+                gap_open,
+                gap_extend,
+            } => gap_open + gap_extend * (length as f64 - 1.0),
         }
     }
 }
@@ -240,7 +252,10 @@ impl fmt::Display for GapPenalty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Linear { gap_open } => write!(f, "Linear(gap={gap_open})"),
-            Self::Affine { gap_open, gap_extend } => {
+            Self::Affine {
+                gap_open,
+                gap_extend,
+            } => {
                 write!(f, "Affine(open={gap_open}, ext={gap_extend})")
             }
         }
@@ -277,8 +292,12 @@ impl AlignScoreConfig {
         self
     }
 
-    pub fn matrix(&self) -> &SubstitutionMatrix { &self.matrix }
-    pub fn gap_penalty(&self) -> &GapPenalty { &self.gap_penalty }
+    pub fn matrix(&self) -> &SubstitutionMatrix {
+        &self.matrix
+    }
+    pub fn gap_penalty(&self) -> &GapPenalty {
+        &self.gap_penalty
+    }
 }
 
 impl fmt::Display for AlignScoreConfig {
@@ -323,7 +342,11 @@ impl AlignmentScorer {
     /// Score a single residue pair.
     pub fn score_pair(&self, a: u8, b: u8) -> Result<ScoredPair, AlignScoreError> {
         let score = self.config.matrix.score(a, b)?;
-        Ok(ScoredPair { residue_a: a, residue_b: b, score })
+        Ok(ScoredPair {
+            residue_a: a,
+            residue_b: b,
+            score,
+        })
     }
 
     /// Score an aligned pair (with gaps represented by b'-').
@@ -384,10 +407,16 @@ impl AlignmentScorer {
         let matches = aligned_a
             .iter()
             .zip(aligned_b.iter())
-            .filter(|(a, b)| **a != b'-' && **b != b'-' && a.to_ascii_uppercase() == b.to_ascii_uppercase())
+            .filter(|(a, b)| {
+                **a != b'-' && **b != b'-' && a.to_ascii_uppercase() == b.to_ascii_uppercase()
+            })
             .count();
         let cols = aligned_a.len().max(aligned_b.len());
-        if cols == 0 { 0.0 } else { matches as f64 / cols as f64 * 100.0 }
+        if cols == 0 {
+            0.0
+        } else {
+            matches as f64 / cols as f64 * 100.0
+        }
     }
 
     /// Count gaps in an aligned sequence.

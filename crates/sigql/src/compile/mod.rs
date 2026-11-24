@@ -2,9 +2,14 @@
 //!
 //! Transforms AST into executable plans for various backends.
 
-
 #[cfg(not(feature = "std"))]
-use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 pub mod codegen;
 pub mod gpu;
 pub mod optimize;
@@ -288,9 +293,7 @@ impl Compiler {
                 Ok(output)
             }
             FromClause::Graph {
-                start_node,
-                alias,
-                ..
+                start_node, alias, ..
             } => {
                 // Graph traversal: load starting node signals
                 let output = self.alloc_register();
@@ -820,7 +823,10 @@ mod tests {
                 _ => None,
             })
             .collect();
-        assert!(loads.contains(&"eeg.c3") && loads.contains(&"eeg.c4"), "{loads:?}");
+        assert!(
+            loads.contains(&"eeg.c3") && loads.contains(&"eeg.c4"),
+            "{loads:?}"
+        );
         let xcorr = plan
             .steps
             .iter()

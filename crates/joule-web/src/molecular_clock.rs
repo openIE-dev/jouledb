@@ -103,7 +103,12 @@ impl CalibrationPoint {
 impl fmt::Display for CalibrationPoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.fixed {
-            write!(f, "{}: {:.2} Ma (fixed)", self.node_label, self.midpoint_age())
+            write!(
+                f,
+                "{}: {:.2} Ma (fixed)",
+                self.node_label,
+                self.midpoint_age()
+            )
         } else {
             write!(
                 f,
@@ -131,11 +136,21 @@ impl BranchRate {
         if time < 0.0 {
             return Err(ClockError::NegativeTime);
         }
-        let rate = if time > 0.0 { branch_length / time } else { 0.0 };
+        let rate = if time > 0.0 {
+            branch_length / time
+        } else {
+            0.0
+        };
         if rate < 0.0 {
             return Err(ClockError::NegativeRate);
         }
-        Ok(Self { node_id, label: None, branch_length, time, rate })
+        Ok(Self {
+            node_id,
+            label: None,
+            branch_length,
+            time,
+            rate,
+        })
     }
 
     pub fn with_label(mut self, label: &str) -> Self {
@@ -312,10 +327,7 @@ impl fmt::Display for ClockNode {
 ///
 /// `root_to_tip` — distance from root to each leaf.
 /// `tip_dates` — sampling dates (in the same units, e.g. Myr before present).
-pub fn strict_clock(
-    root_to_tip: &[f64],
-    tip_dates: &[f64],
-) -> Result<ClockResult, ClockError> {
+pub fn strict_clock(root_to_tip: &[f64], tip_dates: &[f64]) -> Result<ClockResult, ClockError> {
     let n = root_to_tip.len();
     if n < 2 || tip_dates.len() != n {
         return Err(ClockError::InsufficientData(
@@ -346,7 +358,11 @@ pub fn strict_clock(
         return Err(ClockError::NegativeRate);
     }
 
-    let root_age = if rate.abs() > 1e-15 { -intercept / rate } else { 0.0 };
+    let root_age = if rate.abs() > 1e-15 {
+        -intercept / rate
+    } else {
+        0.0
+    };
 
     // Residual variance
     let mut ss_res = 0.0;
@@ -363,7 +379,11 @@ pub fn strict_clock(
         let diff = d - mean_d;
         ss_tot += diff * diff;
     }
-    let r_squared = if ss_tot > 1e-15 { 1.0 - ss_res / ss_tot } else { 1.0 };
+    let r_squared = if ss_tot > 1e-15 {
+        1.0 - ss_res / ss_tot
+    } else {
+        1.0
+    };
     let clock_like = r_squared > 0.8;
 
     Ok(ClockResult {
@@ -379,11 +399,7 @@ pub fn strict_clock(
 // ── Divergence time from calibrated node ────────────────────────
 
 /// Estimate divergence time given a branch length, rate, and parent time.
-pub fn divergence_time(
-    branch_length: f64,
-    rate: f64,
-    parent_time: f64,
-) -> Result<f64, ClockError> {
+pub fn divergence_time(branch_length: f64, rate: f64, parent_time: f64) -> Result<f64, ClockError> {
     if rate <= 0.0 {
         return Err(ClockError::NegativeRate);
     }
@@ -564,7 +580,9 @@ mod tests {
 
     #[test]
     fn test_branch_rate() {
-        let br = BranchRate::new(0, 0.05, 10.0).unwrap().with_label("species_A");
+        let br = BranchRate::new(0, 0.05, 10.0)
+            .unwrap()
+            .with_label("species_A");
         assert!((br.rate - 0.005).abs() < 1e-9);
         assert!(format!("{br}").contains("species_A"));
     }
@@ -628,7 +646,10 @@ mod tests {
     #[test]
     fn test_clock_model_display() {
         assert_eq!(format!("{}", ClockModel::Strict), "strict");
-        assert_eq!(format!("{}", ClockModel::RelaxedLogNormal), "relaxed (log-normal)");
+        assert_eq!(
+            format!("{}", ClockModel::RelaxedLogNormal),
+            "relaxed (log-normal)"
+        );
     }
 
     #[test]

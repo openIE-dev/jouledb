@@ -73,7 +73,9 @@ impl AlleleCounts {
     /// Alternate allele frequency (p_alt).
     pub fn alt_frequency(&self) -> f64 {
         let t = self.total();
-        if t == 0 { return 0.0; }
+        if t == 0 {
+            return 0.0;
+        }
         self.alt_count as f64 / t as f64
     }
 
@@ -348,7 +350,10 @@ impl SiteFrequencySpectrum {
         if total == 0 {
             return vec![0.0; self.counts.len()];
         }
-        self.counts.iter().map(|c| *c as f64 / total as f64).collect()
+        self.counts
+            .iter()
+            .map(|c| *c as f64 / total as f64)
+            .collect()
     }
 }
 
@@ -420,7 +425,11 @@ pub fn observed_het(genotypes: &[Genotype]) -> f64 {
             het += 1;
         }
     }
-    if total == 0 { 0.0 } else { het as f64 / total as f64 }
+    if total == 0 {
+        0.0
+    } else {
+        het as f64 / total as f64
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────────
@@ -457,7 +466,11 @@ mod tests {
 
     #[test]
     fn test_maf_calculation() {
-        let ac = AlleleCounts { ref_count: 18, alt_count: 2, missing: 0 };
+        let ac = AlleleCounts {
+            ref_count: 18,
+            alt_count: 2,
+            missing: 0,
+        };
         assert!((ac.maf() - 0.1).abs() < EPS);
         assert!(ac.alt_is_minor());
     }
@@ -493,7 +506,11 @@ mod tests {
     #[test]
     fn test_call_rate_filter() {
         let est = FrequencyEstimator::new().with_min_call_rate(0.8);
-        let ac = AlleleCounts { ref_count: 10, alt_count: 2, missing: 4 };
+        let ac = AlleleCounts {
+            ref_count: 10,
+            alt_count: 2,
+            missing: 4,
+        };
         // 6 individuals out of 10 total = 0.6 < 0.8
         assert!(!est.passes_filters(&ac, 10));
     }
@@ -501,14 +518,22 @@ mod tests {
     #[test]
     fn test_maf_filter() {
         let est = FrequencyEstimator::new().with_maf_threshold(0.05);
-        let ac = AlleleCounts { ref_count: 99, alt_count: 1, missing: 0 };
+        let ac = AlleleCounts {
+            ref_count: 99,
+            alt_count: 1,
+            missing: 0,
+        };
         assert!(!est.passes_filters(&ac, 50));
     }
 
     #[test]
     fn test_wilson_ci() {
         let est = FrequencyEstimator::new();
-        let ac = AlleleCounts { ref_count: 80, alt_count: 20, missing: 0 };
+        let ac = AlleleCounts {
+            ref_count: 80,
+            alt_count: 20,
+            missing: 0,
+        };
         let fe = est.frequency_with_ci(&ac);
         assert!((fe.frequency - 0.2).abs() < EPS);
         assert!(fe.lower_95 < 0.2);
@@ -521,9 +546,21 @@ mod tests {
     fn test_sfs_construction() {
         // 5 individuals = 10 alleles
         let counts = vec![
-            AlleleCounts { ref_count: 8, alt_count: 2, missing: 0 },
-            AlleleCounts { ref_count: 6, alt_count: 4, missing: 0 },
-            AlleleCounts { ref_count: 10, alt_count: 0, missing: 0 },
+            AlleleCounts {
+                ref_count: 8,
+                alt_count: 2,
+                missing: 0,
+            },
+            AlleleCounts {
+                ref_count: 6,
+                alt_count: 4,
+                missing: 0,
+            },
+            AlleleCounts {
+                ref_count: 10,
+                alt_count: 0,
+                missing: 0,
+            },
         ];
         let sfs = SiteFrequencySpectrum::from_counts(&counts, 5);
         assert_eq!(sfs.counts.len(), 11); // 0..=10
@@ -536,8 +573,16 @@ mod tests {
     #[test]
     fn test_sfs_fold() {
         let counts = vec![
-            AlleleCounts { ref_count: 8, alt_count: 2, missing: 0 },
-            AlleleCounts { ref_count: 2, alt_count: 8, missing: 0 },
+            AlleleCounts {
+                ref_count: 8,
+                alt_count: 2,
+                missing: 0,
+            },
+            AlleleCounts {
+                ref_count: 2,
+                alt_count: 8,
+                missing: 0,
+            },
         ];
         let sfs = SiteFrequencySpectrum::from_counts(&counts, 5);
         let folded = sfs.fold();
@@ -547,9 +592,11 @@ mod tests {
 
     #[test]
     fn test_pi_monomorphic() {
-        let counts = vec![
-            AlleleCounts { ref_count: 10, alt_count: 0, missing: 0 },
-        ];
+        let counts = vec![AlleleCounts {
+            ref_count: 10,
+            alt_count: 0,
+            missing: 0,
+        }];
         let sfs = SiteFrequencySpectrum::from_counts(&counts, 5);
         assert!((sfs.pi() - 0.0).abs() < EPS);
     }
@@ -557,8 +604,16 @@ mod tests {
     #[test]
     fn test_theta_w() {
         let counts = vec![
-            AlleleCounts { ref_count: 8, alt_count: 2, missing: 0 },
-            AlleleCounts { ref_count: 6, alt_count: 4, missing: 0 },
+            AlleleCounts {
+                ref_count: 8,
+                alt_count: 2,
+                missing: 0,
+            },
+            AlleleCounts {
+                ref_count: 6,
+                alt_count: 4,
+                missing: 0,
+            },
         ];
         let sfs = SiteFrequencySpectrum::from_counts(&counts, 5);
         let tw = sfs.theta_w();
@@ -575,7 +630,12 @@ mod tests {
 
     #[test]
     fn test_observed_het() {
-        let genos = vec![Genotype::HomRef, Genotype::Het, Genotype::Het, Genotype::HomAlt];
+        let genos = vec![
+            Genotype::HomRef,
+            Genotype::Het,
+            Genotype::Het,
+            Genotype::HomAlt,
+        ];
         assert!((observed_het(&genos) - 0.5).abs() < EPS);
     }
 
@@ -597,7 +657,9 @@ mod tests {
 
     #[test]
     fn test_estimator_display() {
-        let est = FrequencyEstimator::new().with_min_call_rate(0.95).with_maf_threshold(0.01);
+        let est = FrequencyEstimator::new()
+            .with_min_call_rate(0.95)
+            .with_maf_threshold(0.01);
         let s = format!("{}", est);
         assert!(s.contains("0.95"));
         assert!(s.contains("0.01"));
@@ -606,8 +668,16 @@ mod tests {
     #[test]
     fn test_sfs_normalized() {
         let counts = vec![
-            AlleleCounts { ref_count: 8, alt_count: 2, missing: 0 },
-            AlleleCounts { ref_count: 6, alt_count: 4, missing: 0 },
+            AlleleCounts {
+                ref_count: 8,
+                alt_count: 2,
+                missing: 0,
+            },
+            AlleleCounts {
+                ref_count: 6,
+                alt_count: 4,
+                missing: 0,
+            },
         ];
         let sfs = SiteFrequencySpectrum::from_counts(&counts, 5);
         let norm = sfs.normalized();

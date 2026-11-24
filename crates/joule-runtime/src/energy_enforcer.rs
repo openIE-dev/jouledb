@@ -13,8 +13,8 @@
 use inv_energy::meter::{EnergyMeter, EnergyMeterError};
 use inv_energy::receipt::EnergyReceipt;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 /// Configuration for the energy enforcer.
@@ -281,10 +281,7 @@ impl EnergyEnforcer {
                         if config.hard_kill {
                             if let Some(pid) = config.target_pid {
                                 kill_process(pid);
-                                log::error!(
-                                    "Energy enforcer: SIGKILL sent to PID {}",
-                                    pid
-                                );
+                                log::error!("Energy enforcer: SIGKILL sent to PID {}", pid);
                             }
                         }
 
@@ -299,7 +296,9 @@ impl EnergyEnforcer {
                     }
                 }
             })
-            .map_err(|e| EnergyMeterError::ReadFailed(format!("failed to spawn enforcer thread: {}", e)))?;
+            .map_err(|e| {
+                EnergyMeterError::ReadFailed(format!("failed to spawn enforcer thread: {}", e))
+            })?;
 
         self.thread_handle = Some(handle);
         Ok(())

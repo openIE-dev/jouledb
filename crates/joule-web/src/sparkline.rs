@@ -369,7 +369,11 @@ mod tests {
     #[test]
     fn reference_lines() {
         let cfg = SparklineConfig {
-            reference_lines: vec![ReferenceLine::Min, ReferenceLine::Max, ReferenceLine::Average],
+            reference_lines: vec![
+                ReferenceLine::Min,
+                ReferenceLine::Max,
+                ReferenceLine::Average,
+            ],
             ..Default::default()
         };
         let svg = render_svg(&sample(), &cfg);
@@ -428,8 +432,16 @@ mod tests {
         let data = sample();
         let cfg = SparklineConfig {
             highlights: vec![
-                Highlight { index: 0, color: "#ff0000".into(), radius: 3.0 },
-                Highlight { index: 8, color: "#00ff00".into(), radius: 3.0 },
+                Highlight {
+                    index: 0,
+                    color: "#ff0000".into(),
+                    radius: 3.0,
+                },
+                Highlight {
+                    index: 8,
+                    color: "#00ff00".into(),
+                    radius: 3.0,
+                },
             ],
             ..Default::default()
         };

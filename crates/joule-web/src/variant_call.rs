@@ -6,8 +6,8 @@
 //! frequency estimation, variant filtering by quality and depth,
 //! and VCF-style variant representation.
 
-use std::fmt;
 use std::collections::HashMap;
+use std::fmt;
 
 // ── Variant Type ────────────────────────────────────────────────
 
@@ -116,7 +116,9 @@ impl fmt::Display for AlleleObs {
         write!(
             f,
             "{}(Q={:.0}, MQ={:.0}, {})",
-            self.base, self.quality, self.mapping_quality,
+            self.base,
+            self.quality,
+            self.mapping_quality,
             if self.is_forward { "+" } else { "-" },
         )
     }
@@ -164,7 +166,8 @@ impl PileupColumn {
     /// Most frequent non-reference allele.
     pub fn alt_allele(&self) -> Option<(char, usize)> {
         let counts = self.allele_counts();
-        counts.into_iter()
+        counts
+            .into_iter()
             .filter(|(base, _)| *base != self.ref_base)
             .max_by_key(|(_, count)| *count)
     }
@@ -185,7 +188,9 @@ impl PileupColumn {
             return 0.5;
         }
         let alt_base = alt.unwrap().0;
-        let alt_obs: Vec<&AlleleObs> = self.observations.iter()
+        let alt_obs: Vec<&AlleleObs> = self
+            .observations
+            .iter()
             .filter(|o| o.base == alt_base)
             .collect();
         if alt_obs.is_empty() {
@@ -201,7 +206,10 @@ impl fmt::Display for PileupColumn {
         write!(
             f,
             "Pileup({}:{}, ref={}, depth={})",
-            self.chrom, self.position, self.ref_base, self.depth(),
+            self.chrom,
+            self.position,
+            self.ref_base,
+            self.depth(),
         )
     }
 }
@@ -347,10 +355,16 @@ impl VariantRecord {
     pub fn to_vcf_line(&self) -> String {
         format!(
             "{}\t{}\t{}\t{}\t{}\t{:.1}\t{}\tGT:GQ:DP\t{}:{:.0}:{}",
-            self.chrom, self.position, self.id,
-            self.ref_allele, self.alt_allele,
-            self.quality, self.filter,
-            self.genotype, self.genotype_quality, self.depth,
+            self.chrom,
+            self.position,
+            self.id,
+            self.ref_allele,
+            self.alt_allele,
+            self.quality,
+            self.filter,
+            self.genotype,
+            self.genotype_quality,
+            self.depth,
         )
     }
 }
@@ -360,10 +374,14 @@ impl fmt::Display for VariantRecord {
         write!(
             f,
             "{}:{} {}>{}({}, {}, Q={:.1}, DP={})",
-            self.chrom, self.position,
-            self.ref_allele, self.alt_allele,
-            self.variant_type, self.genotype,
-            self.quality, self.depth,
+            self.chrom,
+            self.position,
+            self.ref_allele,
+            self.alt_allele,
+            self.variant_type,
+            self.genotype,
+            self.quality,
+            self.depth,
         )
     }
 }
@@ -468,8 +486,11 @@ impl fmt::Display for VariantFilter {
         write!(
             f,
             "VariantFilter(Q>={:.0}, DP>={}, AD>={}, AF>={:.2}, GQ>={:.0})",
-            self.min_quality, self.min_depth, self.min_alt_depth,
-            self.min_allele_frequency, self.min_genotype_quality,
+            self.min_quality,
+            self.min_depth,
+            self.min_alt_depth,
+            self.min_allele_frequency,
+            self.min_genotype_quality,
         )
     }
 }
@@ -575,8 +596,12 @@ mod tests {
     #[test]
     fn test_pileup_alt_frequency() {
         let mut pileup = PileupColumn::new("chr1", 100, 'A');
-        for _ in 0..5 { pileup.add_observation(AlleleObs::new('A', 30.0)); }
-        for _ in 0..5 { pileup.add_observation(AlleleObs::new('G', 30.0)); }
+        for _ in 0..5 {
+            pileup.add_observation(AlleleObs::new('A', 30.0));
+        }
+        for _ in 0..5 {
+            pileup.add_observation(AlleleObs::new('G', 30.0));
+        }
         assert!((pileup.alt_frequency() - 0.5).abs() < 1e-9);
     }
 
@@ -598,7 +623,9 @@ mod tests {
     #[test]
     fn test_genotype_likelihood_hom_ref() {
         let mut pileup = PileupColumn::new("chr1", 100, 'A');
-        for _ in 0..20 { pileup.add_observation(AlleleObs::new('A', 30.0)); }
+        for _ in 0..20 {
+            pileup.add_observation(AlleleObs::new('A', 30.0));
+        }
         pileup.add_observation(AlleleObs::new('G', 10.0)); // noise
         let (pl_rr, pl_ra, pl_aa) = genotype_likelihoods(&pileup);
         assert!(pl_rr < pl_ra);
@@ -608,7 +635,9 @@ mod tests {
     #[test]
     fn test_genotype_likelihood_hom_alt() {
         let mut pileup = PileupColumn::new("chr1", 100, 'A');
-        for _ in 0..20 { pileup.add_observation(AlleleObs::new('G', 30.0)); }
+        for _ in 0..20 {
+            pileup.add_observation(AlleleObs::new('G', 30.0));
+        }
         let (pl_rr, _pl_ra, pl_aa) = genotype_likelihoods(&pileup);
         assert!(pl_aa < pl_rr);
     }
@@ -616,8 +645,12 @@ mod tests {
     #[test]
     fn test_call_genotype_het() {
         let mut pileup = PileupColumn::new("chr1", 100, 'A');
-        for _ in 0..10 { pileup.add_observation(AlleleObs::new('A', 30.0)); }
-        for _ in 0..10 { pileup.add_observation(AlleleObs::new('G', 30.0)); }
+        for _ in 0..10 {
+            pileup.add_observation(AlleleObs::new('A', 30.0));
+        }
+        for _ in 0..10 {
+            pileup.add_observation(AlleleObs::new('G', 30.0));
+        }
         let (gt, _gq) = call_genotype(&pileup);
         assert_eq!(gt, Genotype::Het);
     }

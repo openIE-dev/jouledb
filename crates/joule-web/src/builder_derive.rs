@@ -23,7 +23,11 @@ pub enum BuilderError {
     /// Unknown field name.
     UnknownField(String),
     /// Type mismatch for a field.
-    TypeMismatch { field: String, expected: String, got: String },
+    TypeMismatch {
+        field: String,
+        expected: String,
+        got: String,
+    },
     /// Multiple errors accumulated.
     Multiple(Vec<BuilderError>),
 }
@@ -37,8 +41,15 @@ impl fmt::Display for BuilderError {
             }
             Self::DuplicateField(name) => write!(f, "field set more than once: {name}"),
             Self::UnknownField(name) => write!(f, "unknown field: {name}"),
-            Self::TypeMismatch { field, expected, got } => {
-                write!(f, "type mismatch for {field}: expected {expected}, got {got}")
+            Self::TypeMismatch {
+                field,
+                expected,
+                got,
+            } => {
+                write!(
+                    f,
+                    "type mismatch for {field}: expected {expected}, got {got}"
+                )
             }
             Self::Multiple(errs) => {
                 write!(f, "{} builder errors:", errs.len())?;
@@ -312,7 +323,8 @@ impl<'a> Builder<'a> {
                 }
             }
         } else if self.schema.strict {
-            self.errors.push(BuilderError::UnknownField(name.to_string()));
+            self.errors
+                .push(BuilderError::UnknownField(name.to_string()));
             return;
         }
         self.values.insert(name.to_string(), value);
@@ -353,7 +365,8 @@ impl<'a> Builder<'a> {
         // Check required fields.
         for def in &self.schema.fields {
             if def.required && !self.values.contains_key(&def.name) {
-                self.errors.push(BuilderError::MissingField(def.name.clone()));
+                self.errors
+                    .push(BuilderError::MissingField(def.name.clone()));
             }
         }
 
@@ -435,7 +448,9 @@ pub struct QuickBuilder {
 impl QuickBuilder {
     /// Create a new quick builder.
     pub fn new() -> Self {
-        Self { values: HashMap::new() }
+        Self {
+            values: HashMap::new(),
+        }
     }
 
     /// Set a value.
@@ -481,15 +496,9 @@ mod tests {
     fn user_schema() -> BuilderSchema {
         BuilderSchema::new("User")
             .with_field(FieldDef::required("name", FieldType::Str))
-            .with_field(
-                FieldDef::optional("age", FieldType::Int)
-                    .with_default(json!(0)),
-            )
+            .with_field(FieldDef::optional("age", FieldType::Int).with_default(json!(0)))
             .with_field(FieldDef::optional("email", FieldType::Str))
-            .with_field(
-                FieldDef::optional("active", FieldType::Bool)
-                    .with_default(json!(true)),
-            )
+            .with_field(FieldDef::optional("active", FieldType::Bool).with_default(json!(true)))
     }
 
     #[test]
@@ -580,9 +589,7 @@ mod tests {
 
         let schema = BuilderSchema::new("User")
             .with_field(FieldDef::required("name", FieldType::Str))
-            .with_field(
-                FieldDef::optional("age", FieldType::Int).with_validator(validate_age),
-            );
+            .with_field(FieldDef::optional("age", FieldType::Int).with_validator(validate_age));
 
         let result = schema
             .builder()
@@ -610,10 +617,18 @@ mod tests {
             .with_field(FieldDef::required("max", FieldType::Int))
             .with_global_validator(check_consistency);
 
-        let result = schema.builder().set_int("min", 10).set_int("max", 5).build();
+        let result = schema
+            .builder()
+            .set_int("min", 10)
+            .set_int("max", 5)
+            .build();
         assert!(result.is_err());
 
-        let result = schema.builder().set_int("min", 1).set_int("max", 10).build();
+        let result = schema
+            .builder()
+            .set_int("min", 1)
+            .set_int("max", 10)
+            .build();
         assert!(result.is_ok());
     }
 
@@ -719,8 +734,7 @@ mod tests {
 
     #[test]
     fn test_field_description() {
-        let f = FieldDef::required("name", FieldType::Str)
-            .with_description("User's full name");
+        let f = FieldDef::required("name", FieldType::Str).with_description("User's full name");
         assert_eq!(f.description.as_deref(), Some("User's full name"));
     }
 

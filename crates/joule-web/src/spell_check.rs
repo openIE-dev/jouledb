@@ -32,9 +32,7 @@ pub fn levenshtein(a: &str, b: &str) -> usize {
             } else {
                 1
             };
-            curr[j] = (prev[j] + 1)
-                .min(curr[j - 1] + 1)
-                .min(prev[j - 1] + cost);
+            curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
         }
         std::mem::swap(&mut prev, &mut curr);
     }
@@ -266,8 +264,7 @@ impl SpellChecker {
 
     /// Associate a word with affix flags.
     pub fn set_word_flags(&mut self, word: &str, flags: &[char]) {
-        self.word_flags
-            .insert(word.to_lowercase(), flags.to_vec());
+        self.word_flags.insert(word.to_lowercase(), flags.to_vec());
     }
 
     /// Check if a word is correctly spelled.
@@ -457,7 +454,8 @@ mod tests {
     #[test]
     fn ignores_urls_emails_numbers() {
         let checker = basic_checker();
-        let results = checker.check_text("visit https://example.com or email user@test.com or call 12345");
+        let results =
+            checker.check_text("visit https://example.com or email user@test.com or call 12345");
         // None of these should be flagged
         for r in &results {
             assert!(
@@ -498,10 +496,7 @@ mod tests {
     #[test]
     fn affix_suffix_with_strip() {
         let mut checker = SpellChecker::new(&["happy"]);
-        checker.add_affix_rule(
-            'Y',
-            AffixRule::suffix_with_condition("y", "ily", "y"),
-        );
+        checker.add_affix_rule('Y', AffixRule::suffix_with_condition("y", "ily", "y"));
         checker.set_word_flags("happy", &['Y']);
         assert!(checker.is_correct("happily"));
     }

@@ -171,16 +171,12 @@ impl LivenessResult {
 
     /// Whether a variable is live-in at a block.
     pub fn is_live_in(&self, var: &str, block: BlockId) -> bool {
-        self.live_in
-            .get(&block)
-            .map_or(false, |s| s.contains(var))
+        self.live_in.get(&block).map_or(false, |s| s.contains(var))
     }
 
     /// Whether a variable is live-out at a block.
     pub fn is_live_out(&self, var: &str, block: BlockId) -> bool {
-        self.live_out
-            .get(&block)
-            .map_or(false, |s| s.contains(var))
+        self.live_out.get(&block).map_or(false, |s| s.contains(var))
     }
 
     /// All variables that appear in any live set.
@@ -312,7 +308,13 @@ pub struct LiveRange {
 
 impl LiveRange {
     /// Create a new live range.
-    pub fn new(var: &str, start_block: BlockId, start_index: u32, end_block: BlockId, end_index: u32) -> Self {
+    pub fn new(
+        var: &str,
+        start_block: BlockId,
+        start_index: u32,
+        end_block: BlockId,
+        end_index: u32,
+    ) -> Self {
         Self {
             var: var.to_string(),
             start_block,
@@ -498,7 +500,12 @@ mod tests {
     fn simple_blocks() -> Vec<BasicBlock> {
         let mut b0 = BasicBlock::new(0, "entry");
         b0.add_instruction(Instruction::new(0, "li", vec!["x".into()], vec![]));
-        b0.add_instruction(Instruction::new(1, "add", vec!["y".into()], vec!["x".into()]));
+        b0.add_instruction(Instruction::new(
+            1,
+            "add",
+            vec!["y".into()],
+            vec!["x".into()],
+        ));
         b0.add_instruction(Instruction::new(2, "ret", vec![], vec!["y".into()]));
         vec![b0]
     }
@@ -515,12 +522,22 @@ mod tests {
         b0.successors = vec![1, 2];
 
         let mut b1 = BasicBlock::new(1, "then");
-        b1.add_instruction(Instruction::new(0, "add", vec!["y1".into()], vec!["x".into()]));
+        b1.add_instruction(Instruction::new(
+            0,
+            "add",
+            vec!["y1".into()],
+            vec!["x".into()],
+        ));
         b1.successors = vec![3];
         b1.predecessors = vec![0];
 
         let mut b2 = BasicBlock::new(2, "else");
-        b2.add_instruction(Instruction::new(0, "add", vec!["y2".into()], vec!["x".into()]));
+        b2.add_instruction(Instruction::new(
+            0,
+            "add",
+            vec!["y2".into()],
+            vec!["x".into()],
+        ));
         b2.successors = vec![3];
         b2.predecessors = vec![0];
 

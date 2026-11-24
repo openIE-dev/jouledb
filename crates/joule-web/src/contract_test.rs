@@ -24,7 +24,11 @@ pub enum ContractError {
     /// Missing required field.
     MissingField(String),
     /// Type mismatch.
-    TypeMismatch { field: String, expected: String, actual: String },
+    TypeMismatch {
+        field: String,
+        expected: String,
+        actual: String,
+    },
 }
 
 impl fmt::Display for ContractError {
@@ -33,12 +37,23 @@ impl fmt::Display for ContractError {
             Self::NotFound(id) => write!(f, "contract not found: {id}"),
             Self::Duplicate(id) => write!(f, "duplicate contract: {id}"),
             Self::VerificationFailed(violations) => {
-                write!(f, "contract verification failed ({} violations)", violations.len())
+                write!(
+                    f,
+                    "contract verification failed ({} violations)",
+                    violations.len()
+                )
             }
             Self::IncompatibleSchema(msg) => write!(f, "incompatible schema: {msg}"),
             Self::MissingField(field) => write!(f, "missing required field: {field}"),
-            Self::TypeMismatch { field, expected, actual } => {
-                write!(f, "type mismatch for '{field}': expected {expected}, got {actual}")
+            Self::TypeMismatch {
+                field,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "type mismatch for '{field}': expected {expected}, got {actual}"
+                )
             }
         }
     }
@@ -274,13 +289,21 @@ fn check_compat_recursive(
                     Some(nf) => {
                         // Check type change
                         if of.field_type != nf.field_type {
-                            check_compat_recursive(&of.field_type, &nf.field_type, &field_path, changes);
+                            check_compat_recursive(
+                                &of.field_type,
+                                &nf.field_type,
+                                &field_path,
+                                changes,
+                            );
                         }
                         // Check required change: optional -> required is breaking
                         if !of.required && nf.required {
                             changes.push(BreakingChange {
                                 interaction: field_path,
-                                description: format!("field '{}' changed from optional to required", of.name),
+                                description: format!(
+                                    "field '{}' changed from optional to required",
+                                    of.name
+                                ),
                                 severity: ChangeSeverity::Breaking,
                             });
                         }
@@ -407,7 +430,9 @@ fn validate_recursive(
                         format!("{path}.{}", field.name)
                     };
                     match obj.get(&field.name) {
-                        Some(v) => validate_recursive(v, &field.field_type, &field_path, violations),
+                        Some(v) => {
+                            validate_recursive(v, &field.field_type, &field_path, violations)
+                        }
                         None if field.required => {
                             violations.push(ContractViolation {
                                 interaction: field_path,
@@ -457,7 +482,9 @@ pub struct ContractRegistry {
 impl ContractRegistry {
     /// Create a new empty registry.
     pub fn new() -> Self {
-        Self { contracts: HashMap::new() }
+        Self {
+            contracts: HashMap::new(),
+        }
     }
 
     /// Register a contract.
@@ -488,7 +515,9 @@ impl ContractRegistry {
 
     /// Find contracts by consumer name.
     pub fn find_by_consumer(&self, consumer: &str) -> Vec<&Contract> {
-        let mut results: Vec<&Contract> = self.contracts.values()
+        let mut results: Vec<&Contract> = self
+            .contracts
+            .values()
             .filter(|c| c.consumer == consumer)
             .collect();
         results.sort_by(|a, b| a.id.cmp(&b.id));
@@ -497,7 +526,9 @@ impl ContractRegistry {
 
     /// Find contracts by provider name.
     pub fn find_by_provider(&self, provider: &str) -> Vec<&Contract> {
-        let mut results: Vec<&Contract> = self.contracts.values()
+        let mut results: Vec<&Contract> = self
+            .contracts
+            .values()
             .filter(|c| c.provider == provider)
             .collect();
         results.sort_by(|a, b| a.id.cmp(&b.id));
@@ -670,11 +701,17 @@ mod tests {
     #[test]
     fn test_compat_removed_field_breaking() {
         let old = user_schema();
-        let new = SchemaType::Object(vec![
-            SchemaField { name: "id".to_string(), field_type: SchemaType::Integer, required: true, description: None },
-        ]);
+        let new = SchemaType::Object(vec![SchemaField {
+            name: "id".to_string(),
+            field_type: SchemaType::Integer,
+            required: true,
+            description: None,
+        }]);
         let changes = check_schema_compatibility(&old, &new);
-        let breaking = changes.iter().filter(|c| c.severity == ChangeSeverity::Breaking).count();
+        let breaking = changes
+            .iter()
+            .filter(|c| c.severity == ChangeSeverity::Breaking)
+            .count();
         assert!(breaking >= 1); // "name" removed
     }
 
@@ -682,41 +719,84 @@ mod tests {
     fn test_compat_new_required_field_warning() {
         let old = user_schema();
         let mut new_fields = vec![
-            SchemaField { name: "id".to_string(), field_type: SchemaType::Integer, required: true, description: None },
-            SchemaField { name: "name".to_string(), field_type: SchemaType::String, required: true, description: None },
-            SchemaField { name: "role".to_string(), field_type: SchemaType::String, required: true, description: None },
+            SchemaField {
+                name: "id".to_string(),
+                field_type: SchemaType::Integer,
+                required: true,
+                description: None,
+            },
+            SchemaField {
+                name: "name".to_string(),
+                field_type: SchemaType::String,
+                required: true,
+                description: None,
+            },
+            SchemaField {
+                name: "role".to_string(),
+                field_type: SchemaType::String,
+                required: true,
+                description: None,
+            },
         ];
         // Keep email as optional
-        new_fields.push(SchemaField { name: "email".to_string(), field_type: SchemaType::String, required: false, description: None });
+        new_fields.push(SchemaField {
+            name: "email".to_string(),
+            field_type: SchemaType::String,
+            required: false,
+            description: None,
+        });
         let new = SchemaType::Object(new_fields);
         let changes = check_schema_compatibility(&old, &new);
-        let warnings = changes.iter().filter(|c| c.severity == ChangeSeverity::Warning).count();
+        let warnings = changes
+            .iter()
+            .filter(|c| c.severity == ChangeSeverity::Warning)
+            .count();
         assert!(warnings >= 1); // "role" is new required
     }
 
     #[test]
     fn test_compat_type_change_breaking() {
-        let old = SchemaType::Object(vec![
-            SchemaField { name: "count".to_string(), field_type: SchemaType::Integer, required: true, description: None },
-        ]);
-        let new = SchemaType::Object(vec![
-            SchemaField { name: "count".to_string(), field_type: SchemaType::String, required: true, description: None },
-        ]);
+        let old = SchemaType::Object(vec![SchemaField {
+            name: "count".to_string(),
+            field_type: SchemaType::Integer,
+            required: true,
+            description: None,
+        }]);
+        let new = SchemaType::Object(vec![SchemaField {
+            name: "count".to_string(),
+            field_type: SchemaType::String,
+            required: true,
+            description: None,
+        }]);
         let changes = check_schema_compatibility(&old, &new);
         assert!(!changes.is_empty());
-        assert!(changes.iter().any(|c| c.severity == ChangeSeverity::Breaking));
+        assert!(
+            changes
+                .iter()
+                .any(|c| c.severity == ChangeSeverity::Breaking)
+        );
     }
 
     #[test]
     fn test_compat_optional_to_required_breaking() {
-        let old = SchemaType::Object(vec![
-            SchemaField { name: "x".to_string(), field_type: SchemaType::String, required: false, description: None },
-        ]);
-        let new = SchemaType::Object(vec![
-            SchemaField { name: "x".to_string(), field_type: SchemaType::String, required: true, description: None },
-        ]);
+        let old = SchemaType::Object(vec![SchemaField {
+            name: "x".to_string(),
+            field_type: SchemaType::String,
+            required: false,
+            description: None,
+        }]);
+        let new = SchemaType::Object(vec![SchemaField {
+            name: "x".to_string(),
+            field_type: SchemaType::String,
+            required: true,
+            description: None,
+        }]);
         let changes = check_schema_compatibility(&old, &new);
-        assert!(changes.iter().any(|c| c.severity == ChangeSeverity::Breaking));
+        assert!(
+            changes
+                .iter()
+                .any(|c| c.severity == ChangeSeverity::Breaking)
+        );
     }
 
     #[test]
@@ -732,7 +812,11 @@ mod tests {
         let old = SchemaType::Any;
         let new = SchemaType::String;
         let changes = check_schema_compatibility(&old, &new);
-        assert!(changes.iter().any(|c| c.severity == ChangeSeverity::Warning));
+        assert!(
+            changes
+                .iter()
+                .any(|c| c.severity == ChangeSeverity::Warning)
+        );
     }
 
     #[test]
@@ -753,8 +837,7 @@ mod tests {
 
     #[test]
     fn test_contract_metadata() {
-        let c = Contract::new("c1", "a", "b", "1.0")
-            .with_metadata("tool", "joule-web");
+        let c = Contract::new("c1", "a", "b", "1.0").with_metadata("tool", "joule-web");
         assert_eq!(c.metadata.get("tool").unwrap(), "joule-web");
     }
 
@@ -818,8 +901,14 @@ mod tests {
     fn test_schema_type_display() {
         assert_eq!(format!("{}", SchemaType::String), "string");
         assert_eq!(format!("{}", SchemaType::Integer), "integer");
-        assert_eq!(format!("{}", SchemaType::Array(Box::new(SchemaType::String))), "array<string>");
-        assert_eq!(format!("{}", SchemaType::Nullable(Box::new(SchemaType::Boolean))), "nullable<boolean>");
+        assert_eq!(
+            format!("{}", SchemaType::Array(Box::new(SchemaType::String))),
+            "array<string>"
+        );
+        assert_eq!(
+            format!("{}", SchemaType::Nullable(Box::new(SchemaType::Boolean))),
+            "nullable<boolean>"
+        );
     }
 
     #[test]

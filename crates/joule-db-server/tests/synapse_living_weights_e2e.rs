@@ -172,7 +172,9 @@ async fn test_live_http_titans_surprise_gated_plastic_weights_poisoning_rollback
     let dir = tempfile::tempdir().expect("tempdir");
     let server = boot_test_server(dir.path());
 
-    let key: Vec<f32> = (0..16).map(|i| if i % 2 == 0 { 0.75 } else { -0.5 }).collect();
+    let key: Vec<f32> = (0..16)
+        .map(|i| if i % 2 == 0 { 0.75 } else { -0.5 })
+        .collect();
     let target: Vec<f32> = (0..16).map(|i| ((i as f32) * 0.3).sin()).collect();
 
     // 1. Converge plastic fast weights until surprise gate habituates
@@ -193,8 +195,14 @@ async fn test_live_http_titans_surprise_gated_plastic_weights_poisoning_rollback
             break;
         }
     }
-    assert!(saw_adapted, "Novel input must trigger live Titans plastic weight update");
-    assert!(saw_habituated, "Converged predictable input must habituate with 0 writes");
+    assert!(
+        saw_adapted,
+        "Novel input must trigger live Titans plastic weight update"
+    );
+    assert!(
+        saw_habituated,
+        "Converged predictable input must habituate with 0 writes"
+    );
 
     let (_, clean_fwd) = post_json(
         &server,
@@ -410,7 +418,9 @@ async fn test_live_http_joule_harness_observation_cas_mooncake_kv_prefix_seal_an
     let ckpt_id = ckpt["checkpoint_id"].as_u64().expect("ckpt_id");
 
     let key_vec: Vec<f32> = (0..16).map(|i| if i < 8 { 1.0 } else { -0.5 }).collect();
-    let target_vec: Vec<f32> = (0..16).map(|i| if i % 2 == 0 { 0.9 } else { -0.9 }).collect();
+    let target_vec: Vec<f32> = (0..16)
+        .map(|i| if i % 2 == 0 { 0.9 } else { -0.9 })
+        .collect();
     let (_, pre_fwd) = post_json(
         &server,
         "/api/v1/synapse/titans/forward",
@@ -464,7 +474,8 @@ async fn test_live_http_joule_harness_observation_cas_mooncake_kv_prefix_seal_an
 }
 
 #[tokio::test]
-async fn test_live_http_safetensors_living_ingest_sql_introspection_and_hardware_metal_wgpu_popcnt() {
+async fn test_live_http_safetensors_living_ingest_sql_introspection_and_hardware_metal_wgpu_popcnt()
+{
     use joule_db_weights::checkpoint_ingest::{
         SafetensorBuildEntry, SafetensorDtype, build_safetensors_bytes,
     };
@@ -485,7 +496,8 @@ async fn test_live_http_safetensors_living_ingest_sql_introspection_and_hardware
     for i in 0..rows {
         for j in 0..cols {
             attn_q.push(if (i + j) % 2 == 0 { 1.4f32 } else { -1.4f32 });
-            mlp_gate.push(if i < 64 { 0.9f32 } else { -0.9f32 } * if j % 3 == 0 { 1.2 } else { -0.8 });
+            mlp_gate
+                .push(if i < 64 { 0.9f32 } else { -0.9f32 } * if j % 3 == 0 { 1.2 } else { -0.8 });
         }
     }
 
@@ -623,9 +635,13 @@ async fn test_live_http_safetensors_living_ingest_sql_introspection_and_hardware
 #[tokio::test]
 async fn test_live_http_synapse_durable_persistence_across_server_crash_restart() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let key_vec: Vec<f32> = (0..16).map(|i| if i % 2 == 0 { 0.8 } else { -0.4 }).collect();
+    let key_vec: Vec<f32> = (0..16)
+        .map(|i| if i % 2 == 0 { 0.8 } else { -0.4 })
+        .collect();
     let target_vec: Vec<f32> = (0..16).map(|i| ((i as f32) * 0.2).cos()).collect();
-    let x_in: Vec<f32> = (0..64).map(|j| if j % 2 == 0 { 0.5 } else { -0.5 }).collect();
+    let x_in: Vec<f32> = (0..64)
+        .map(|j| if j % 2 == 0 { 0.5 } else { -0.5 })
+        .collect();
 
     let (expected_gpu_out, expected_titans_out) = {
         let server1 = boot_test_server(dir.path());

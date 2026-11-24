@@ -62,7 +62,9 @@ pub struct FuzzyMatcher {
 impl FuzzyMatcher {
     /// Create a matcher with default config.
     pub fn new() -> Self {
-        Self { config: FuzzyConfig::default() }
+        Self {
+            config: FuzzyConfig::default(),
+        }
     }
 
     /// Create a matcher with custom config.
@@ -115,9 +117,8 @@ impl FuzzyMatcher {
 
     /// Sort a list of texts by match score against a query. Best first.
     pub fn rank(&self, query: &str, texts: &[&str]) -> Vec<FuzzyResult> {
-        let mut results: Vec<FuzzyResult> = texts.iter()
-            .filter_map(|t| self.score(query, t))
-            .collect();
+        let mut results: Vec<FuzzyResult> =
+            texts.iter().filter_map(|t| self.score(query, t)).collect();
         results.sort_by(|a, b| b.score.cmp(&a.score));
         results
     }
@@ -127,19 +128,28 @@ impl FuzzyMatcher {
         let result = self.score(query, text)?;
         let chars: Vec<char> = text.chars().collect();
         let mut out = String::new();
-        let matched_set: std::collections::HashSet<usize> = result.matched_indices.iter().copied().collect();
+        let matched_set: std::collections::HashSet<usize> =
+            result.matched_indices.iter().copied().collect();
         let mut in_highlight = false;
 
         for (i, ch) in chars.iter().enumerate() {
             if matched_set.contains(&i) {
-                if !in_highlight { out.push('['); in_highlight = true; }
+                if !in_highlight {
+                    out.push('[');
+                    in_highlight = true;
+                }
                 out.push(*ch);
             } else {
-                if in_highlight { out.push(']'); in_highlight = false; }
+                if in_highlight {
+                    out.push(']');
+                    in_highlight = false;
+                }
                 out.push(*ch);
             }
         }
-        if in_highlight { out.push(']'); }
+        if in_highlight {
+            out.push(']');
+        }
         Some(out)
     }
 
@@ -147,7 +157,9 @@ impl FuzzyMatcher {
         indices.clear();
         let mut qi = 0;
         for (ti, tc) in text.iter().enumerate() {
-            if qi >= query.len() { break; }
+            if qi >= query.len() {
+                break;
+            }
             if *tc == query[qi] {
                 indices.push(ti);
                 qi += 1;
@@ -156,9 +168,13 @@ impl FuzzyMatcher {
         qi == query.len()
     }
 
-    fn optimize_match(&self, query_orig: &[char], query: &[char], text_orig: &[char], text: &[char])
-        -> Option<(i64, Vec<usize>)>
-    {
+    fn optimize_match(
+        &self,
+        query_orig: &[char],
+        query: &[char],
+        text_orig: &[char],
+        text: &[char],
+    ) -> Option<(i64, Vec<usize>)> {
         let qlen = query.len();
         let tlen = text.len();
 
@@ -168,19 +184,41 @@ impl FuzzyMatcher {
         let mut best_indices = vec![];
         let mut current = vec![];
 
-        self.dfs_match(query_orig, query, text_orig, text, 0, 0, 0, false,
-                       &mut current, &mut best_score, &mut best_indices);
+        self.dfs_match(
+            query_orig,
+            query,
+            text_orig,
+            text,
+            0,
+            0,
+            0,
+            false,
+            &mut current,
+            &mut best_score,
+            &mut best_indices,
+        );
 
-        if best_score == i64::MIN { None } else { Some((best_score, best_indices)) }
+        if best_score == i64::MIN {
+            None
+        } else {
+            Some((best_score, best_indices))
+        }
     }
 
-    fn dfs_match(&self,
-                 query_orig: &[char], query: &[char],
-                 text_orig: &[char], text: &[char],
-                 qi: usize, ti: usize, score: i64, prev_matched: bool,
-                 current: &mut Vec<usize>,
-                 best_score: &mut i64, best_indices: &mut Vec<usize>)
-    {
+    fn dfs_match(
+        &self,
+        query_orig: &[char],
+        query: &[char],
+        text_orig: &[char],
+        text: &[char],
+        qi: usize,
+        ti: usize,
+        score: i64,
+        prev_matched: bool,
+        current: &mut Vec<usize>,
+        best_score: &mut i64,
+        best_indices: &mut Vec<usize>,
+    ) {
         if qi == query.len() {
             if score > *best_score {
                 *best_score = score;
@@ -188,19 +226,30 @@ impl FuzzyMatcher {
             }
             return;
         }
-        if ti >= text.len() { return; }
+        if ti >= text.len() {
+            return;
+        }
         // Remaining chars check
-        if text.len() - ti < query.len() - qi { return; }
+        if text.len() - ti < query.len() - qi {
+            return;
+        }
 
         // Pruning: if we can't possibly beat the best, skip
         let remaining_q = query.len() - qi;
-        let max_possible = score + (remaining_q as i64) * (self.config.consecutive_bonus + self.config.separator_bonus + self.config.first_char_bonus + self.config.case_match_bonus);
+        let max_possible = score
+            + (remaining_q as i64)
+                * (self.config.consecutive_bonus
+                    + self.config.separator_bonus
+                    + self.config.first_char_bonus
+                    + self.config.case_match_bonus);
         if max_possible < *best_score && *best_score != i64::MIN {
             return;
         }
 
         for t in ti..text.len() {
-            if text.len() - t < query.len() - qi { break; }
+            if text.len() - t < query.len() - qi {
+                break;
+            }
 
             if text[t] == query[qi] {
                 let mut s = score;
@@ -210,7 +259,9 @@ impl FuzzyMatcher {
                 s += pos_factor / (text.len() as i64 + 1);
 
                 // First char bonus
-                if t == 0 { s += self.config.first_char_bonus; }
+                if t == 0 {
+                    s += self.config.first_char_bonus;
+                }
 
                 // Consecutive bonus
                 if prev_matched && current.last() == Some(&(t - 1)) {
@@ -228,7 +279,10 @@ impl FuzzyMatcher {
                 }
 
                 // Case match bonus
-                if self.config.case_insensitive && qi < query_orig.len() && query_orig[qi] == text_orig[t] {
+                if self.config.case_insensitive
+                    && qi < query_orig.len()
+                    && query_orig[qi] == text_orig[t]
+                {
                     s += self.config.case_match_bonus;
                 }
 
@@ -241,9 +295,19 @@ impl FuzzyMatcher {
                 }
 
                 current.push(t);
-                self.dfs_match(query_orig, query, text_orig, text,
-                               qi + 1, t + 1, s, true,
-                               current, best_score, best_indices);
+                self.dfs_match(
+                    query_orig,
+                    query,
+                    text_orig,
+                    text,
+                    qi + 1,
+                    t + 1,
+                    s,
+                    true,
+                    current,
+                    best_score,
+                    best_indices,
+                );
                 current.pop();
             }
         }
@@ -260,7 +324,9 @@ fn is_separator(c: char) -> bool {
 mod tests {
     use super::*;
 
-    fn matcher() -> FuzzyMatcher { FuzzyMatcher::new() }
+    fn matcher() -> FuzzyMatcher {
+        FuzzyMatcher::new()
+    }
 
     #[test]
     fn test_exact_match() {
@@ -296,7 +362,10 @@ mod tests {
         let m = matcher();
         let exact = m.score("abc", "abc").unwrap();
         let spread = m.score("abc", "aXbXc").unwrap();
-        assert!(exact.score > spread.score, "consecutive should score higher");
+        assert!(
+            exact.score > spread.score,
+            "consecutive should score higher"
+        );
     }
 
     #[test]
@@ -304,7 +373,10 @@ mod tests {
         let m = matcher();
         let sep = m.score("fb", "foo_bar").unwrap();
         let nosep = m.score("fb", "fxobar").unwrap();
-        assert!(sep.score > nosep.score, "separator boundary should score higher");
+        assert!(
+            sep.score > nosep.score,
+            "separator boundary should score higher"
+        );
     }
 
     #[test]

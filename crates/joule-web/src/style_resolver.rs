@@ -20,11 +20,21 @@ pub struct Specificity {
 
 impl Specificity {
     pub fn new(inline: u16, ids: u16, classes: u16, elements: u16) -> Self {
-        Self { inline, ids, classes, elements }
+        Self {
+            inline,
+            ids,
+            classes,
+            elements,
+        }
     }
 
     pub fn zero() -> Self {
-        Self { inline: 0, ids: 0, classes: 0, elements: 0 }
+        Self {
+            inline: 0,
+            ids: 0,
+            classes: 0,
+            elements: 0,
+        }
     }
 
     /// Numeric value for comparison (inline*1000000 + ids*10000 + classes*100 + elements).
@@ -129,7 +139,12 @@ impl Specificity {
             }
         }
 
-        Self { inline: 0, ids, classes, elements }
+        Self {
+            inline: 0,
+            ids,
+            classes,
+            elements,
+        }
     }
 }
 
@@ -176,11 +191,17 @@ pub struct PropertyValue {
 
 impl PropertyValue {
     pub fn new(value: &str) -> Self {
-        Self { value: value.to_string(), important: false }
+        Self {
+            value: value.to_string(),
+            important: false,
+        }
     }
 
     pub fn important(value: &str) -> Self {
-        Self { value: value.to_string(), important: true }
+        Self {
+            value: value.to_string(),
+            important: true,
+        }
     }
 }
 
@@ -204,12 +225,14 @@ impl StyleRule {
     }
 
     pub fn with_property(mut self, property: &str, value: &str) -> Self {
-        self.declarations.insert(property.to_string(), PropertyValue::new(value));
+        self.declarations
+            .insert(property.to_string(), PropertyValue::new(value));
         self
     }
 
     pub fn with_important(mut self, property: &str, value: &str) -> Self {
-        self.declarations.insert(property.to_string(), PropertyValue::important(value));
+        self.declarations
+            .insert(property.to_string(), PropertyValue::important(value));
         self
     }
 
@@ -385,9 +408,20 @@ fn simple_part_matches(part: &SelectorPart, element: &Element) -> bool {
 
 /// Properties known to be inherited by default in CSS.
 const INHERITED_PROPERTIES: &[&str] = &[
-    "color", "font-family", "font-size", "font-style", "font-weight",
-    "line-height", "text-align", "visibility", "cursor", "letter-spacing",
-    "word-spacing", "white-space", "direction", "list-style",
+    "color",
+    "font-family",
+    "font-size",
+    "font-style",
+    "font-weight",
+    "line-height",
+    "text-align",
+    "visibility",
+    "cursor",
+    "letter-spacing",
+    "word-spacing",
+    "white-space",
+    "direction",
+    "list-style",
 ];
 
 /// Default property values.
@@ -429,7 +463,9 @@ pub struct ComputedStyle {
 
 impl ComputedStyle {
     pub fn new() -> Self {
-        Self { properties: HashMap::new() }
+        Self {
+            properties: HashMap::new(),
+        }
     }
 
     pub fn get(&self, property: &str) -> Option<&str> {
@@ -437,7 +473,8 @@ impl ComputedStyle {
     }
 
     pub fn set(&mut self, property: &str, value: &str) {
-        self.properties.insert(property.to_string(), value.to_string());
+        self.properties
+            .insert(property.to_string(), value.to_string());
     }
 }
 
@@ -496,7 +533,8 @@ pub fn resolve_style(
 
     // Sort by cascade: origin, specificity, source_order
     entries.sort_by(|a, b| {
-        a.origin.cmp(&b.origin)
+        a.origin
+            .cmp(&b.origin)
             .then(a.specificity.cmp(&b.specificity))
             .then(a.source_order.cmp(&b.source_order))
     });
@@ -526,7 +564,9 @@ pub fn resolve_style(
         }
     }
 
-    ComputedStyle { properties: property_map }
+    ComputedStyle {
+        properties: property_map,
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────
@@ -641,10 +681,8 @@ mod tests {
     fn cascade_last_wins() {
         let el = Element::new("div");
         let rules = vec![
-            StyleRule::new("div", CascadeOrigin::Author, 0)
-                .with_property("color", "red"),
-            StyleRule::new("div", CascadeOrigin::Author, 1)
-                .with_property("color", "blue"),
+            StyleRule::new("div", CascadeOrigin::Author, 0).with_property("color", "red"),
+            StyleRule::new("div", CascadeOrigin::Author, 1).with_property("color", "blue"),
         ];
         let style = resolve_style(&el, &rules, None);
         assert_eq!(style.get("color"), Some("blue"));
@@ -654,10 +692,8 @@ mod tests {
     fn cascade_specificity_wins() {
         let el = Element::new("div").with_class("special");
         let rules = vec![
-            StyleRule::new("div", CascadeOrigin::Author, 0)
-                .with_property("color", "red"),
-            StyleRule::new(".special", CascadeOrigin::Author, 1)
-                .with_property("color", "blue"),
+            StyleRule::new("div", CascadeOrigin::Author, 0).with_property("color", "red"),
+            StyleRule::new(".special", CascadeOrigin::Author, 1).with_property("color", "blue"),
         ];
         let style = resolve_style(&el, &rules, None);
         assert_eq!(style.get("color"), Some("blue"));
@@ -667,10 +703,8 @@ mod tests {
     fn cascade_important_wins() {
         let el = Element::new("div");
         let rules = vec![
-            StyleRule::new("div", CascadeOrigin::Author, 0)
-                .with_important("color", "red"),
-            StyleRule::new("div", CascadeOrigin::Author, 1)
-                .with_property("color", "blue"),
+            StyleRule::new("div", CascadeOrigin::Author, 0).with_important("color", "red"),
+            StyleRule::new("div", CascadeOrigin::Author, 1).with_property("color", "blue"),
         ];
         let style = resolve_style(&el, &rules, None);
         assert_eq!(style.get("color"), Some("red"));

@@ -116,7 +116,11 @@ impl KnowledgeCore {
     /// Query: "what do I know about this concept?"
     /// Returns the per-concept bundle — the superposition of all triples involving this concept.
     pub fn query_concept(&mut self, label: &str) -> Option<BinaryHV> {
-        let normalized = label.to_lowercase().split_whitespace().collect::<Vec<_>>().join("_");
+        let normalized = label
+            .to_lowercase()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join("_");
         self.concept_bundles
             .get(&normalized)
             .map(|acc| acc.threshold())
@@ -125,11 +129,7 @@ impl KnowledgeCore {
     /// Query: "what is the object in (subject, relation, ?)?"
     /// Uses relation-specific bundle if available (less interference),
     /// falls back to general concept bundle.
-    pub fn query_object(
-        &mut self,
-        subject: &str,
-        relation: RelationType,
-    ) -> Option<BinaryHV> {
+    pub fn query_object(&mut self, subject: &str, relation: RelationType) -> Option<BinaryHV> {
         let concept_bundle = self.query_concept(subject)?;
         let subject_hv = self.encoder.encode(subject).vector;
         let relation_hv = self.codebook.get(&relation).clone();
@@ -141,12 +141,12 @@ impl KnowledgeCore {
     }
 
     /// Query: "what is the subject in (?, relation, object)?"
-    pub fn query_subject(
-        &mut self,
-        relation: RelationType,
-        object: &str,
-    ) -> Option<BinaryHV> {
-        let normalized = object.to_lowercase().split_whitespace().collect::<Vec<_>>().join("_");
+    pub fn query_subject(&mut self, relation: RelationType, object: &str) -> Option<BinaryHV> {
+        let normalized = object
+            .to_lowercase()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join("_");
         let object_hv = self.encoder.encode(object).vector;
         let relation_hv = self.codebook.get(&relation).clone();
 
@@ -230,7 +230,11 @@ impl KnowledgeCore {
 
     /// Get an encoded concept by label.
     pub fn get_concept(&self, label: &str) -> Option<&BinaryHV> {
-        let normalized = label.to_lowercase().split_whitespace().collect::<Vec<_>>().join("_");
+        let normalized = label
+            .to_lowercase()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join("_");
         self.concept_index.get(&normalized)
     }
 
@@ -251,22 +255,34 @@ impl KnowledgeCore {
         if !self.concept_index.contains_key(&normalized) {
             // Register in cleanup memory for denoising
             self.cleanup.register(&normalized, encoded.vector.clone());
-            self.concept_index
-                .insert(normalized, encoded.vector);
+            self.concept_index.insert(normalized, encoded.vector);
             self.concept_count += 1;
         }
     }
 
     fn add_to_concept_bundle(&mut self, label: &str, triple_hv: &BinaryHV) {
-        let normalized = label.to_lowercase().split_whitespace().collect::<Vec<_>>().join("_");
+        let normalized = label
+            .to_lowercase()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join("_");
         self.concept_bundles
             .entry(normalized)
             .or_insert_with(|| BundleAccumulator::new(self.dim))
             .add(triple_hv);
     }
 
-    fn add_to_relation_bundle(&mut self, label: &str, relation: RelationType, triple_hv: &BinaryHV) {
-        let normalized = label.to_lowercase().split_whitespace().collect::<Vec<_>>().join("_");
+    fn add_to_relation_bundle(
+        &mut self,
+        label: &str,
+        relation: RelationType,
+        triple_hv: &BinaryHV,
+    ) {
+        let normalized = label
+            .to_lowercase()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join("_");
         let key = (normalized, relation);
         self.relation_bundles
             .entry(key.clone())
@@ -351,7 +367,10 @@ mod tests {
         let animal_hv = core.get_concept("animal").unwrap();
         let sim = recovered.unwrap().similarity(animal_hv);
         // With multiple triples bundled, recovery is noisy but should be above chance
-        assert!(sim > 0.45, "recovered object should resemble 'animal': {sim}");
+        assert!(
+            sim > 0.45,
+            "recovered object should resemble 'animal': {sim}"
+        );
     }
 
     #[test]

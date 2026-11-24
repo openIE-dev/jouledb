@@ -46,7 +46,11 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
@@ -64,21 +68,33 @@ impl Vec3 {
 impl std::ops::Add for Vec3 {
     type Output = Self;
     fn add(self, rhs: Self) -> Self {
-        Self { x: self.x + rhs.x, y: self.y + rhs.y, z: self.z + rhs.z }
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+        }
     }
 }
 
 impl std::ops::Sub for Vec3 {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self {
-        Self { x: self.x - rhs.x, y: self.y - rhs.y, z: self.z - rhs.z }
+        Self {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            z: self.z - rhs.z,
+        }
     }
 }
 
 impl std::ops::Mul<f64> for Vec3 {
     type Output = Self;
     fn mul(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 }
 
@@ -116,9 +132,15 @@ impl BBox {
     /// Which octant (0-7) does the point fall into?
     pub fn octant(&self, pos: Vec3) -> usize {
         let mut idx = 0;
-        if pos.x >= self.center.x { idx |= 1; }
-        if pos.y >= self.center.y { idx |= 2; }
-        if pos.z >= self.center.z { idx |= 4; }
+        if pos.x >= self.center.x {
+            idx |= 1;
+        }
+        if pos.y >= self.center.y {
+            idx |= 2;
+        }
+        if pos.z >= self.center.z {
+            idx |= 4;
+        }
         idx
     }
 
@@ -196,14 +218,24 @@ impl Octree {
         if bounds.half_size < 1e-30 {
             // All particles at same point; give minimal box.
             let b = BBox::new(bounds.center, 1.0);
-            let mut tree = Self { root: OctreeNode::Empty, bounds: b, node_count: 0, max_depth: 0 };
+            let mut tree = Self {
+                root: OctreeNode::Empty,
+                bounds: b,
+                node_count: 0,
+                max_depth: 0,
+            };
             for p in particles {
                 tree.insert(*p, 0);
             }
             tree.compute_mass_distribution();
             return Ok(tree);
         }
-        let mut tree = Self { root: OctreeNode::Empty, bounds, node_count: 0, max_depth: 0 };
+        let mut tree = Self {
+            root: OctreeNode::Empty,
+            bounds,
+            node_count: 0,
+            max_depth: 0,
+        };
         for p in particles {
             tree.insert(*p, 0);
         }
@@ -235,7 +267,13 @@ impl Octree {
 
     fn insert(&mut self, particle: Particle, depth: usize) {
         self.max_depth = self.max_depth.max(depth);
-        Self::insert_into(&mut self.root, &self.bounds.clone(), particle, depth, &mut self.node_count);
+        Self::insert_into(
+            &mut self.root,
+            &self.bounds.clone(),
+            particle,
+            depth,
+            &mut self.node_count,
+        );
     }
 
     fn insert_into(
@@ -255,9 +293,13 @@ impl Octree {
                 if depth >= MAX_DEPTH {
                     // Just merge at this depth.
                     let total = existing.mass + particle.mass;
-                    let com = (existing.position * existing.mass + particle.position * particle.mass)
+                    let com = (existing.position * existing.mass
+                        + particle.position * particle.mass)
                         * (1.0 / total);
-                    *existing = Particle { position: com, mass: total };
+                    *existing = Particle {
+                        position: com,
+                        mass: total,
+                    };
                     return;
                 }
                 let old = *existing;
@@ -275,7 +317,13 @@ impl Octree {
             OctreeNode::Internal { children, .. } => {
                 let oct = bbox.octant(particle.position);
                 let child_bbox = bbox.child(oct);
-                Self::insert_into(&mut children[oct], &child_bbox, particle, depth + 1, node_count);
+                Self::insert_into(
+                    &mut children[oct],
+                    &child_bbox,
+                    particle,
+                    depth + 1,
+                    node_count,
+                );
             }
         }
     }
@@ -288,7 +336,11 @@ impl Octree {
         match node {
             OctreeNode::Empty => (0.0, Vec3::ZERO),
             OctreeNode::Leaf(p) => (p.mass, p.position * p.mass),
-            OctreeNode::Internal { children, total_mass, center_of_mass } => {
+            OctreeNode::Internal {
+                children,
+                total_mass,
+                center_of_mass,
+            } => {
                 let mut mass_sum = 0.0;
                 let mut weighted_pos = Vec3::ZERO;
                 for child in children.iter_mut() {
@@ -343,7 +395,11 @@ pub struct BarnesHutConfig {
 
 impl Default for BarnesHutConfig {
     fn default() -> Self {
-        Self { theta: 0.5, g_constant: 1.0, softening: 0.01 }
+        Self {
+            theta: 0.5,
+            g_constant: 1.0,
+            softening: 0.01,
+        }
     }
 }
 
@@ -380,14 +436,12 @@ impl BarnesHutSolver {
     ) -> Result<(Vec<Vec3>, ForceStats), BarnesHutError> {
         let tree = Octree::build(particles)?;
         let mut accels = vec![Vec3::ZERO; particles.len()];
-        let mut stats = ForceStats { direct_evals: 0, approx_evals: 0 };
+        let mut stats = ForceStats {
+            direct_evals: 0,
+            approx_evals: 0,
+        };
         for (i, p) in particles.iter().enumerate() {
-            accels[i] = self.compute_accel_for(
-                p,
-                &tree.root,
-                &tree.bounds,
-                &mut stats,
-            );
+            accels[i] = self.compute_accel_for(p, &tree.root, &tree.bounds, &mut stats);
         }
         Ok((accels, stats))
     }
@@ -414,7 +468,11 @@ impl BarnesHutSolver {
                 let inv_r3 = 1.0 / (r2 * r2.sqrt());
                 dx * (self.config.g_constant * p.mass * inv_r3)
             }
-            OctreeNode::Internal { children, total_mass, center_of_mass } => {
+            OctreeNode::Internal {
+                children,
+                total_mass,
+                center_of_mass,
+            } => {
                 let dx = *center_of_mass - target.position;
                 let dist = dx.magnitude();
                 let cell_size = bbox.half_size * 2.0;
@@ -463,7 +521,11 @@ impl BarnesHutSolver {
                 let r = (dist2 + eps2).sqrt();
                 -self.config.g_constant * target.mass * p.mass / r
             }
-            OctreeNode::Internal { children, total_mass, center_of_mass } => {
+            OctreeNode::Internal {
+                children,
+                total_mass,
+                center_of_mass,
+            } => {
                 let dx = *center_of_mass - target.position;
                 let dist = dx.magnitude();
                 let cell_size = bbox.half_size * 2.0;
@@ -524,7 +586,9 @@ mod tests {
         for i in 0..side {
             for j in 0..side {
                 for k in 0..side {
-                    if count >= n { break; }
+                    if count >= n {
+                        break;
+                    }
                     particles.push(Particle {
                         position: Vec3::new(i as f64, j as f64, k as f64),
                         mass: 1.0,
@@ -538,7 +602,10 @@ mod tests {
 
     #[test]
     fn tree_build_single() {
-        let ps = vec![Particle { position: Vec3::new(1.0, 2.0, 3.0), mass: 5.0 }];
+        let ps = vec![Particle {
+            position: Vec3::new(1.0, 2.0, 3.0),
+            mass: 5.0,
+        }];
         let tree = Octree::build(&ps).unwrap();
         assert!(approx_eq(tree.total_mass(), 5.0, 1e-10));
     }
@@ -546,8 +613,14 @@ mod tests {
     #[test]
     fn tree_build_two() {
         let ps = vec![
-            Particle { position: Vec3::new(0.0, 0.0, 0.0), mass: 1.0 },
-            Particle { position: Vec3::new(10.0, 0.0, 0.0), mass: 1.0 },
+            Particle {
+                position: Vec3::new(0.0, 0.0, 0.0),
+                mass: 1.0,
+            },
+            Particle {
+                position: Vec3::new(10.0, 0.0, 0.0),
+                mass: 1.0,
+            },
         ];
         let tree = Octree::build(&ps).unwrap();
         assert!(approx_eq(tree.total_mass(), 2.0, 1e-10));
@@ -570,23 +643,39 @@ mod tests {
 
     #[test]
     fn solver_invalid_theta() {
-        let cfg = BarnesHutConfig { theta: -1.0, ..Default::default() };
+        let cfg = BarnesHutConfig {
+            theta: -1.0,
+            ..Default::default()
+        };
         assert!(BarnesHutSolver::new(cfg).is_err());
     }
 
     #[test]
     fn solver_negative_softening() {
-        let cfg = BarnesHutConfig { softening: -0.01, ..Default::default() };
+        let cfg = BarnesHutConfig {
+            softening: -0.01,
+            ..Default::default()
+        };
         assert!(BarnesHutSolver::new(cfg).is_err());
     }
 
     #[test]
     fn two_body_force_direction() {
         let ps = vec![
-            Particle { position: Vec3::ZERO, mass: 1.0 },
-            Particle { position: Vec3::new(10.0, 0.0, 0.0), mass: 1.0 },
+            Particle {
+                position: Vec3::ZERO,
+                mass: 1.0,
+            },
+            Particle {
+                position: Vec3::new(10.0, 0.0, 0.0),
+                mass: 1.0,
+            },
         ];
-        let cfg = BarnesHutConfig { theta: 0.5, g_constant: 1.0, softening: 0.0 };
+        let cfg = BarnesHutConfig {
+            theta: 0.5,
+            g_constant: 1.0,
+            softening: 0.0,
+        };
         let solver = BarnesHutSolver::new(cfg).unwrap();
         let (accels, _stats) = solver.compute_forces(&ps).unwrap();
         // Particle 0 should be accelerated in +x.
@@ -598,7 +687,11 @@ mod tests {
     #[test]
     fn force_accuracy_vs_direct() {
         let ps = make_particles(27);
-        let cfg = BarnesHutConfig { theta: 0.3, g_constant: 1.0, softening: 0.01 };
+        let cfg = BarnesHutConfig {
+            theta: 0.3,
+            g_constant: 1.0,
+            softening: 0.01,
+        };
         let solver = BarnesHutSolver::new(cfg).unwrap();
         let (bh_accels, _stats) = solver.compute_forces(&ps).unwrap();
         let direct = direct_forces(&ps, 1.0, 0.01);
@@ -614,24 +707,43 @@ mod tests {
     #[test]
     fn large_theta_fewer_evals() {
         let ps = make_particles(64);
-        let cfg_small = BarnesHutConfig { theta: 0.3, ..Default::default() };
-        let cfg_large = BarnesHutConfig { theta: 1.5, ..Default::default() };
+        let cfg_small = BarnesHutConfig {
+            theta: 0.3,
+            ..Default::default()
+        };
+        let cfg_large = BarnesHutConfig {
+            theta: 1.5,
+            ..Default::default()
+        };
         let s1 = BarnesHutSolver::new(cfg_small).unwrap();
         let s2 = BarnesHutSolver::new(cfg_large).unwrap();
         let (_a1, stats1) = s1.compute_forces(&ps).unwrap();
         let (_a2, stats2) = s2.compute_forces(&ps).unwrap();
         let total1 = stats1.direct_evals + stats1.approx_evals;
         let total2 = stats2.direct_evals + stats2.approx_evals;
-        assert!(total2 <= total1, "larger theta should mean fewer evaluations");
+        assert!(
+            total2 <= total1,
+            "larger theta should mean fewer evaluations"
+        );
     }
 
     #[test]
     fn potential_energy_two_body() {
         let ps = vec![
-            Particle { position: Vec3::ZERO, mass: 1.0 },
-            Particle { position: Vec3::new(1.0, 0.0, 0.0), mass: 1.0 },
+            Particle {
+                position: Vec3::ZERO,
+                mass: 1.0,
+            },
+            Particle {
+                position: Vec3::new(1.0, 0.0, 0.0),
+                mass: 1.0,
+            },
         ];
-        let cfg = BarnesHutConfig { theta: 0.5, g_constant: 1.0, softening: 0.0 };
+        let cfg = BarnesHutConfig {
+            theta: 0.5,
+            g_constant: 1.0,
+            softening: 0.0,
+        };
         let solver = BarnesHutSolver::new(cfg).unwrap();
         let pe = solver.potential_energy(&ps).unwrap();
         // -G*m1*m2/r = -1.0
@@ -658,9 +770,18 @@ mod tests {
     #[test]
     fn coincident_particles() {
         let ps = vec![
-            Particle { position: Vec3::ZERO, mass: 1.0 },
-            Particle { position: Vec3::ZERO, mass: 2.0 },
-            Particle { position: Vec3::ZERO, mass: 3.0 },
+            Particle {
+                position: Vec3::ZERO,
+                mass: 1.0,
+            },
+            Particle {
+                position: Vec3::ZERO,
+                mass: 2.0,
+            },
+            Particle {
+                position: Vec3::ZERO,
+                mass: 3.0,
+            },
         ];
         let tree = Octree::build(&ps).unwrap();
         assert!(approx_eq(tree.total_mass(), 6.0, 1e-10));
@@ -676,8 +797,14 @@ mod tests {
     #[test]
     fn direct_force_symmetric() {
         let ps = vec![
-            Particle { position: Vec3::ZERO, mass: 1.0 },
-            Particle { position: Vec3::new(1.0, 0.0, 0.0), mass: 1.0 },
+            Particle {
+                position: Vec3::ZERO,
+                mass: 1.0,
+            },
+            Particle {
+                position: Vec3::new(1.0, 0.0, 0.0),
+                mass: 1.0,
+            },
         ];
         let accels = direct_forces(&ps, 1.0, 0.0);
         // Equal and opposite.
@@ -691,11 +818,25 @@ mod tests {
     #[test]
     fn g_constant_scaling() {
         let ps = vec![
-            Particle { position: Vec3::ZERO, mass: 1.0 },
-            Particle { position: Vec3::new(5.0, 0.0, 0.0), mass: 1.0 },
+            Particle {
+                position: Vec3::ZERO,
+                mass: 1.0,
+            },
+            Particle {
+                position: Vec3::new(5.0, 0.0, 0.0),
+                mass: 1.0,
+            },
         ];
-        let cfg1 = BarnesHutConfig { g_constant: 1.0, theta: 0.5, softening: 0.0 };
-        let cfg2 = BarnesHutConfig { g_constant: 2.0, theta: 0.5, softening: 0.0 };
+        let cfg1 = BarnesHutConfig {
+            g_constant: 1.0,
+            theta: 0.5,
+            softening: 0.0,
+        };
+        let cfg2 = BarnesHutConfig {
+            g_constant: 2.0,
+            theta: 0.5,
+            softening: 0.0,
+        };
         let s1 = BarnesHutSolver::new(cfg1).unwrap();
         let s2 = BarnesHutSolver::new(cfg2).unwrap();
         let (a1, _) = s1.compute_forces(&ps).unwrap();
@@ -706,11 +847,25 @@ mod tests {
     #[test]
     fn softening_reduces_peak_force() {
         let ps = vec![
-            Particle { position: Vec3::ZERO, mass: 1.0 },
-            Particle { position: Vec3::new(0.01, 0.0, 0.0), mass: 1.0 },
+            Particle {
+                position: Vec3::ZERO,
+                mass: 1.0,
+            },
+            Particle {
+                position: Vec3::new(0.01, 0.0, 0.0),
+                mass: 1.0,
+            },
         ];
-        let cfg_hard = BarnesHutConfig { softening: 0.0, theta: 0.5, g_constant: 1.0 };
-        let cfg_soft = BarnesHutConfig { softening: 1.0, theta: 0.5, g_constant: 1.0 };
+        let cfg_hard = BarnesHutConfig {
+            softening: 0.0,
+            theta: 0.5,
+            g_constant: 1.0,
+        };
+        let cfg_soft = BarnesHutConfig {
+            softening: 1.0,
+            theta: 0.5,
+            g_constant: 1.0,
+        };
         let s1 = BarnesHutSolver::new(cfg_hard).unwrap();
         let s2 = BarnesHutSolver::new(cfg_soft).unwrap();
         let (a1, _) = s1.compute_forces(&ps).unwrap();
@@ -721,7 +876,10 @@ mod tests {
     #[test]
     fn stats_nonzero_for_many_particles() {
         let ps = make_particles(64);
-        let cfg = BarnesHutConfig { theta: 0.5, ..Default::default() };
+        let cfg = BarnesHutConfig {
+            theta: 0.5,
+            ..Default::default()
+        };
         let solver = BarnesHutSolver::new(cfg).unwrap();
         let (_accels, stats) = solver.compute_forces(&ps).unwrap();
         assert!(stats.direct_evals > 0 || stats.approx_evals > 0);
@@ -740,7 +898,10 @@ mod tests {
 
     #[test]
     fn single_particle_zero_force() {
-        let ps = vec![Particle { position: Vec3::new(5.0, 3.0, 1.0), mass: 10.0 }];
+        let ps = vec![Particle {
+            position: Vec3::new(5.0, 3.0, 1.0),
+            mass: 10.0,
+        }];
         let cfg = BarnesHutConfig::default();
         let solver = BarnesHutSolver::new(cfg).unwrap();
         let (accels, _) = solver.compute_forces(&ps).unwrap();
@@ -750,8 +911,14 @@ mod tests {
     #[test]
     fn center_of_mass_weighted() {
         let ps = vec![
-            Particle { position: Vec3::new(0.0, 0.0, 0.0), mass: 3.0 },
-            Particle { position: Vec3::new(10.0, 0.0, 0.0), mass: 1.0 },
+            Particle {
+                position: Vec3::new(0.0, 0.0, 0.0),
+                mass: 3.0,
+            },
+            Particle {
+                position: Vec3::new(10.0, 0.0, 0.0),
+                mass: 1.0,
+            },
         ];
         let tree = Octree::build(&ps).unwrap();
         // CoM at 7.5 from origin? No: (0*3 + 10*1)/(3+1) = 2.5

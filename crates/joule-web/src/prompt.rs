@@ -125,7 +125,9 @@ impl TextPrompt {
 
     /// Render the prompt line.
     pub fn render(&self) -> String {
-        let default_hint = self.default.as_ref()
+        let default_hint = self
+            .default
+            .as_ref()
             .map(|d| format!(" ({d})"))
             .unwrap_or_default();
         let display = if self.input.is_empty() && !self.placeholder.is_empty() {
@@ -133,7 +135,9 @@ impl TextPrompt {
         } else {
             self.input.clone()
         };
-        let err_line = self.error.as_ref()
+        let err_line = self
+            .error
+            .as_ref()
             .map(|e| format!("\n\x1b[31m  {e}\x1b[0m"))
             .unwrap_or_default();
         format!("? {}{default_hint}: {display}{err_line}", self.label)
@@ -231,7 +235,10 @@ impl ConfirmPrompt {
             Some(false) => "(y/N)",
             None => "(y/n)",
         };
-        let ans = self.answer.map(|a| if a { "Yes" } else { "No" }).unwrap_or("");
+        let ans = self
+            .answer
+            .map(|a| if a { "Yes" } else { "No" })
+            .unwrap_or("");
         format!("? {} {hint}: {ans}", self.label)
     }
 }
@@ -350,13 +357,19 @@ impl MultiSelectPrompt {
     }
 
     pub fn move_up(&mut self) {
-        if self.cursor > 0 { self.cursor -= 1; }
-        else { self.cursor = self.options.len().saturating_sub(1); }
+        if self.cursor > 0 {
+            self.cursor -= 1;
+        } else {
+            self.cursor = self.options.len().saturating_sub(1);
+        }
     }
 
     pub fn move_down(&mut self) {
-        if self.cursor + 1 < self.options.len() { self.cursor += 1; }
-        else { self.cursor = 0; }
+        if self.cursor + 1 < self.options.len() {
+            self.cursor += 1;
+        } else {
+            self.cursor = 0;
+        }
     }
 
     /// Toggle the item at cursor.
@@ -369,7 +382,9 @@ impl MultiSelectPrompt {
                 // Check max.
                 let count = self.selected.iter().filter(|&&s| s).count();
                 if let Some(max) = self.max_selections {
-                    if count >= max { return; }
+                    if count >= max {
+                        return;
+                    }
                 }
                 self.selected[self.cursor] = true;
             }
@@ -378,12 +393,16 @@ impl MultiSelectPrompt {
 
     /// Select all.
     pub fn select_all(&mut self) {
-        for s in &mut self.selected { *s = true; }
+        for s in &mut self.selected {
+            *s = true;
+        }
     }
 
     /// Deselect all.
     pub fn deselect_all(&mut self) {
-        for s in &mut self.selected { *s = false; }
+        for s in &mut self.selected {
+            *s = false;
+        }
     }
 
     /// Number of selected items.
@@ -393,7 +412,9 @@ impl MultiSelectPrompt {
 
     /// Get all selected values.
     pub fn selected_values(&self) -> Vec<&str> {
-        self.options.iter().zip(&self.selected)
+        self.options
+            .iter()
+            .zip(&self.selected)
             .filter(|(_, sel)| **sel)
             .map(|(opt, _)| opt.as_str())
             .collect()
@@ -403,15 +424,14 @@ impl MultiSelectPrompt {
     pub fn validate(&self) -> ValidationResult {
         let count = self.selected_count();
         if count < self.min_selections {
-            return ValidationResult::Invalid(
-                format!("Select at least {} item(s)", self.min_selections)
-            );
+            return ValidationResult::Invalid(format!(
+                "Select at least {} item(s)",
+                self.min_selections
+            ));
         }
         if let Some(max) = self.max_selections {
             if count > max {
-                return ValidationResult::Invalid(
-                    format!("Select at most {max} item(s)")
-                );
+                return ValidationResult::Invalid(format!("Select at most {max} item(s)"));
             }
         }
         ValidationResult::Valid
@@ -470,7 +490,10 @@ impl NumberPrompt {
     }
 
     pub fn push_char(&mut self, ch: char) {
-        if ch.is_ascii_digit() || (ch == '.' && self.allow_float) || (ch == '-' && self.input.is_empty()) {
+        if ch.is_ascii_digit()
+            || (ch == '.' && self.allow_float)
+            || (ch == '-' && self.input.is_empty())
+        {
             self.input.push(ch);
             self.error = None;
         }
@@ -495,15 +518,13 @@ impl NumberPrompt {
         };
 
         match text.parse::<f64>() {
-            Ok(val) => {
-                match self.validator.validate(val) {
-                    ValidationResult::Valid => Ok(val),
-                    ValidationResult::Invalid(e) => {
-                        self.error = Some(e.clone());
-                        Err(e)
-                    }
+            Ok(val) => match self.validator.validate(val) {
+                ValidationResult::Valid => Ok(val),
+                ValidationResult::Invalid(e) => {
+                    self.error = Some(e.clone());
+                    Err(e)
                 }
-            }
+            },
             Err(_) => {
                 let err = "Invalid number".to_string();
                 self.error = Some(err.clone());
@@ -513,10 +534,10 @@ impl NumberPrompt {
     }
 
     pub fn render(&self) -> String {
-        let default_hint = self.default
-            .map(|d| format!(" ({d})"))
-            .unwrap_or_default();
-        let err_line = self.error.as_ref()
+        let default_hint = self.default.map(|d| format!(" ({d})")).unwrap_or_default();
+        let err_line = self
+            .error
+            .as_ref()
             .map(|e| format!("\n\x1b[31m  {e}\x1b[0m"))
             .unwrap_or_default();
         format!("? {}{default_hint}: {}{err_line}", self.label, self.input)
@@ -545,11 +566,17 @@ impl Autocomplete {
     /// Filter suggestions by prefix.
     pub fn filter(&mut self, prefix: &str) {
         let lower = prefix.to_ascii_lowercase();
-        self.filtered = self.suggestions.iter()
+        self.filtered = self
+            .suggestions
+            .iter()
             .filter(|s| s.to_ascii_lowercase().starts_with(&lower))
             .cloned()
             .collect();
-        self.cursor = if self.filtered.is_empty() { None } else { Some(0) };
+        self.cursor = if self.filtered.is_empty() {
+            None
+        } else {
+            Some(0)
+        };
     }
 
     /// Move cursor down in filtered list.
@@ -572,7 +599,8 @@ impl Autocomplete {
 
     /// Get the currently highlighted suggestion.
     pub fn current(&self) -> Option<&str> {
-        self.cursor.and_then(|c| self.filtered.get(c).map(|s| s.as_str()))
+        self.cursor
+            .and_then(|c| self.filtered.get(c).map(|s| s.as_str()))
     }
 }
 
@@ -670,8 +698,8 @@ mod tests {
 
     #[test]
     fn multi_select_max() {
-        let mut ms = MultiSelectPrompt::new("Pick", vec!["X".into(), "Y".into(), "Z".into()])
-            .with_max(1);
+        let mut ms =
+            MultiSelectPrompt::new("Pick", vec!["X".into(), "Y".into(), "Z".into()]).with_max(1);
         ms.toggle(); // select X
         ms.move_down();
         ms.toggle(); // try select Y — should fail
@@ -682,7 +710,10 @@ mod tests {
     #[test]
     fn multi_select_validate_min() {
         let ms = MultiSelectPrompt::new("Pick", vec!["A".into()]).with_min(1);
-        assert_eq!(ms.validate(), ValidationResult::Invalid("Select at least 1 item(s)".into()));
+        assert_eq!(
+            ms.validate(),
+            ValidationResult::Invalid("Select at least 1 item(s)".into())
+        );
     }
 
     #[test]

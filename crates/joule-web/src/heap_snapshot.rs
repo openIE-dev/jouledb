@@ -299,7 +299,10 @@ impl HeapSnapshot {
     /// Top N objects by retained size.
     pub fn top_retained(&self, n: usize) -> Vec<(u64, usize)> {
         let ids = self.object_ids();
-        let mut sizes: Vec<(u64, usize)> = ids.iter().map(|id| (*id, self.retained_size(*id))).collect();
+        let mut sizes: Vec<(u64, usize)> = ids
+            .iter()
+            .map(|id| (*id, self.retained_size(*id)))
+            .collect();
         sizes.sort_by(|a, b| b.1.cmp(&a.1));
         sizes.truncate(n);
         sizes
@@ -442,9 +445,7 @@ mod tests {
 
     #[test]
     fn test_diff_new_objects() {
-        let old = HeapSnapshot::new(vec![
-            HeapObject::new(1, "A", 100),
-        ]);
+        let old = HeapSnapshot::new(vec![HeapObject::new(1, "A", 100)]);
         let new_snap = HeapSnapshot::new(vec![
             HeapObject::new(1, "A", 100),
             HeapObject::new(2, "B", 200),
@@ -461,9 +462,7 @@ mod tests {
             HeapObject::new(1, "A", 100),
             HeapObject::new(2, "B", 200),
         ]);
-        let new_snap = HeapSnapshot::new(vec![
-            HeapObject::new(1, "A", 100),
-        ]);
+        let new_snap = HeapSnapshot::new(vec![HeapObject::new(1, "A", 100)]);
         let diff = HeapSnapshot::diff(&old, &new_snap);
         assert!(diff.new_objects.is_empty());
         assert_eq!(diff.removed_objects, vec![2]);
@@ -472,9 +471,7 @@ mod tests {
 
     #[test]
     fn test_diff_size_by_type() {
-        let old = HeapSnapshot::new(vec![
-            HeapObject::new(1, "String", 100),
-        ]);
+        let old = HeapSnapshot::new(vec![HeapObject::new(1, "String", 100)]);
         let new_snap = HeapSnapshot::new(vec![
             HeapObject::new(1, "String", 100),
             HeapObject::new(2, "String", 300),

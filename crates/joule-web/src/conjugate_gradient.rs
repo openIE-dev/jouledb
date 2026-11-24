@@ -235,12 +235,7 @@ where
 }
 
 /// BiCGSTAB solver for non-symmetric systems Ax = b.
-pub fn bicgstab<F>(
-    matvec: F,
-    b: &[f64],
-    x0: Option<&[f64]>,
-    config: &SolverConfig,
-) -> SolveResult
+pub fn bicgstab<F>(matvec: F, b: &[f64], x0: Option<&[f64]>, config: &SolverConfig) -> SolveResult
 where
     F: Fn(&[f64]) -> Vec<f64>,
 {
@@ -378,7 +373,10 @@ mod tests {
     #[test]
     fn test_cg_simple() {
         let b = vec![1.0, 2.0];
-        let cfg = SolverConfig { max_iter: 100, tol: 1e-10 };
+        let cfg = SolverConfig {
+            max_iter: 100,
+            tol: 1e-10,
+        };
         let res = conjugate_gradient(spd_matvec, &b, None, &cfg);
         assert!(res.converged);
         // Verify Ax = b
@@ -390,7 +388,10 @@ mod tests {
     fn test_cg_known_solution() {
         // [[4,1],[1,3]] x = [1,1] => b = [5,4]
         let b = vec![5.0, 4.0];
-        let cfg = SolverConfig { max_iter: 100, tol: 1e-10 };
+        let cfg = SolverConfig {
+            max_iter: 100,
+            tol: 1e-10,
+        };
         let res = conjugate_gradient(spd_matvec, &b, None, &cfg);
         assert!(res.converged);
         assert!(approx_vec(&res.x, &[1.0, 1.0], 1e-6));
@@ -399,7 +400,10 @@ mod tests {
     #[test]
     fn test_cg_3x3() {
         let b = vec![1.0, 2.0, 3.0];
-        let cfg = SolverConfig { max_iter: 100, tol: 1e-10 };
+        let cfg = SolverConfig {
+            max_iter: 100,
+            tol: 1e-10,
+        };
         let res = conjugate_gradient(spd3_matvec, &b, None, &cfg);
         assert!(res.converged);
         let ax = spd3_matvec(&res.x);
@@ -410,7 +414,10 @@ mod tests {
     fn test_cg_with_initial_guess() {
         let b = vec![5.0, 4.0];
         let x0 = vec![0.5, 0.5];
-        let cfg = SolverConfig { max_iter: 100, tol: 1e-10 };
+        let cfg = SolverConfig {
+            max_iter: 100,
+            tol: 1e-10,
+        };
         let res = conjugate_gradient(spd_matvec, &b, Some(&x0), &cfg);
         assert!(res.converged);
         assert!(approx_vec(&res.x, &[1.0, 1.0], 1e-6));
@@ -428,7 +435,10 @@ mod tests {
     #[test]
     fn test_cg_convergence_history() {
         let b = vec![1.0, 2.0];
-        let cfg = SolverConfig { max_iter: 100, tol: 1e-10 };
+        let cfg = SolverConfig {
+            max_iter: 100,
+            tol: 1e-10,
+        };
         let res = conjugate_gradient(spd_matvec, &b, None, &cfg);
         assert!(res.converged);
         assert!(!res.history.is_empty());
@@ -443,7 +453,10 @@ mod tests {
     fn test_cg_identity_matvec() {
         let id_matvec = |v: &[f64]| v.to_vec();
         let b = vec![3.0, 7.0, 11.0];
-        let cfg = SolverConfig { max_iter: 100, tol: 1e-10 };
+        let cfg = SolverConfig {
+            max_iter: 100,
+            tol: 1e-10,
+        };
         let res = conjugate_gradient(id_matvec, &b, None, &cfg);
         assert!(res.converged);
         assert!(approx_vec(&res.x, &b, 1e-6));
@@ -453,7 +466,10 @@ mod tests {
     fn test_pcg_simple() {
         let b = vec![1.0, 2.0];
         let diag = vec![4.0, 3.0];
-        let cfg = SolverConfig { max_iter: 100, tol: 1e-10 };
+        let cfg = SolverConfig {
+            max_iter: 100,
+            tol: 1e-10,
+        };
         let res = preconditioned_cg(spd_matvec, &b, &diag, None, &cfg);
         assert!(res.converged);
         let ax = spd_matvec(&res.x);
@@ -464,7 +480,10 @@ mod tests {
     fn test_pcg_3x3() {
         let b = vec![1.0, 2.0, 3.0];
         let diag = vec![6.0, 5.0, 4.0];
-        let cfg = SolverConfig { max_iter: 100, tol: 1e-10 };
+        let cfg = SolverConfig {
+            max_iter: 100,
+            tol: 1e-10,
+        };
         let res = preconditioned_cg(spd3_matvec, &b, &diag, None, &cfg);
         assert!(res.converged);
         let ax = spd3_matvec(&res.x);
@@ -485,7 +504,10 @@ mod tests {
         let b = vec![5.0, 4.0];
         let diag = vec![4.0, 3.0];
         let x0 = vec![0.9, 0.9];
-        let cfg = SolverConfig { max_iter: 100, tol: 1e-10 };
+        let cfg = SolverConfig {
+            max_iter: 100,
+            tol: 1e-10,
+        };
         let res = preconditioned_cg(spd_matvec, &b, &diag, Some(&x0), &cfg);
         assert!(res.converged);
         assert!(approx_vec(&res.x, &[1.0, 1.0], 1e-6));
@@ -495,7 +517,10 @@ mod tests {
     fn test_bicgstab_nonsymmetric() {
         // [[2,1],[0,3]] x = [1, 2/3] => b = [2+2/3, 2] = [8/3, 2]
         let b = vec![8.0 / 3.0, 2.0];
-        let cfg = SolverConfig { max_iter: 200, tol: 1e-10 };
+        let cfg = SolverConfig {
+            max_iter: 200,
+            tol: 1e-10,
+        };
         let res = bicgstab(nonsym_matvec, &b, None, &cfg);
         assert!(res.converged);
         let ax = nonsym_matvec(&res.x);
@@ -506,7 +531,10 @@ mod tests {
     fn test_bicgstab_symmetric_system() {
         // BiCGSTAB should also work on SPD systems.
         let b = vec![5.0, 4.0];
-        let cfg = SolverConfig { max_iter: 200, tol: 1e-10 };
+        let cfg = SolverConfig {
+            max_iter: 200,
+            tol: 1e-10,
+        };
         let res = bicgstab(spd_matvec, &b, None, &cfg);
         assert!(res.converged);
         assert!(approx_vec(&res.x, &[1.0, 1.0], 1e-6));
@@ -523,15 +551,12 @@ mod tests {
     #[test]
     fn test_bicgstab_3x3() {
         // Non-symmetric 3x3: [[3,1,0],[0,4,1],[1,0,2]]
-        let mv = |v: &[f64]| {
-            vec![
-                3.0 * v[0] + v[1],
-                4.0 * v[1] + v[2],
-                v[0] + 2.0 * v[2],
-            ]
-        };
+        let mv = |v: &[f64]| vec![3.0 * v[0] + v[1], 4.0 * v[1] + v[2], v[0] + 2.0 * v[2]];
         let b = vec![4.0, 5.0, 3.0];
-        let cfg = SolverConfig { max_iter: 200, tol: 1e-10 };
+        let cfg = SolverConfig {
+            max_iter: 200,
+            tol: 1e-10,
+        };
         let res = bicgstab(mv, &b, None, &cfg);
         assert!(res.converged);
         let ax = mv(&res.x);
@@ -542,7 +567,10 @@ mod tests {
     fn test_bicgstab_with_initial_guess() {
         let b = vec![5.0, 4.0];
         let x0 = vec![1.1, 0.9];
-        let cfg = SolverConfig { max_iter: 200, tol: 1e-10 };
+        let cfg = SolverConfig {
+            max_iter: 200,
+            tol: 1e-10,
+        };
         let res = bicgstab(spd_matvec, &b, Some(&x0), &cfg);
         assert!(res.converged);
         assert!(approx_vec(&res.x, &[1.0, 1.0], 1e-6));
@@ -551,7 +579,10 @@ mod tests {
     #[test]
     fn test_cg_max_iter_exceeded() {
         let b = vec![1.0, 2.0];
-        let cfg = SolverConfig { max_iter: 1, tol: 1e-15 };
+        let cfg = SolverConfig {
+            max_iter: 1,
+            tol: 1e-15,
+        };
         let res = conjugate_gradient(spd_matvec, &b, None, &cfg);
         // With only 1 iteration, 2x2 SPD might or might not converge
         // but iterations should be limited
@@ -561,7 +592,10 @@ mod tests {
     #[test]
     fn test_solver_result_fields() {
         let b = vec![1.0, 2.0];
-        let cfg = SolverConfig { max_iter: 100, tol: 1e-10 };
+        let cfg = SolverConfig {
+            max_iter: 100,
+            tol: 1e-10,
+        };
         let res = conjugate_gradient(spd_matvec, &b, None, &cfg);
         assert_eq!(res.x.len(), 2);
         assert!(res.residual_norm >= 0.0);
@@ -580,7 +614,10 @@ mod tests {
         // Diagonal 3x3: trivial but verifies correctness
         let diag_mv = |v: &[f64]| vec![2.0 * v[0], 5.0 * v[1], 10.0 * v[2]];
         let b = vec![4.0, 15.0, 30.0];
-        let cfg = SolverConfig { max_iter: 100, tol: 1e-12 };
+        let cfg = SolverConfig {
+            max_iter: 100,
+            tol: 1e-12,
+        };
         let res = conjugate_gradient(diag_mv, &b, None, &cfg);
         assert!(res.converged);
         assert!(approx_vec(&res.x, &[2.0, 3.0, 3.0], 1e-6));
@@ -590,7 +627,10 @@ mod tests {
     fn test_pcg_vs_cg_same_answer() {
         let b = vec![5.0, 4.0];
         let diag = vec![4.0, 3.0];
-        let cfg = SolverConfig { max_iter: 100, tol: 1e-10 };
+        let cfg = SolverConfig {
+            max_iter: 100,
+            tol: 1e-10,
+        };
         let cg = conjugate_gradient(spd_matvec, &b, None, &cfg);
         let pcg = preconditioned_cg(spd_matvec, &b, &diag, None, &cfg);
         assert!(approx_vec(&cg.x, &pcg.x, 1e-6));

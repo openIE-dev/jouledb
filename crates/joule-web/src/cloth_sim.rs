@@ -45,7 +45,11 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
@@ -57,7 +61,11 @@ impl Vec3 {
 
     pub fn normalized(self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::ZERO } else { self.scale(1.0 / len) }
+        if len < 1e-12 {
+            Self::ZERO
+        } else {
+            self.scale(1.0 / len)
+        }
     }
 
     pub fn dot(self, o: Self) -> f64 {
@@ -73,15 +81,27 @@ impl Vec3 {
     }
 
     pub fn scale(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn add(self, o: Self) -> Self {
-        Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z }
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
     }
 
     pub fn sub(self, o: Self) -> Self {
-        Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z }
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
     }
 }
 
@@ -196,7 +216,10 @@ struct SpatialHash {
 
 impl SpatialHash {
     fn new(cell_size: f64) -> Self {
-        Self { cell_size, cells: HashMap::new() }
+        Self {
+            cell_size,
+            cells: HashMap::new(),
+        }
     }
 
     fn cell_key(&self, pos: Vec3) -> (i64, i64, i64) {
@@ -260,11 +283,7 @@ impl ClothSim {
         let mut particles = Vec::with_capacity(config.rows * config.cols);
         for r in 0..config.rows {
             for c in 0..config.cols {
-                let pos = Vec3::new(
-                    c as f64 * config.spacing,
-                    0.0,
-                    r as f64 * config.spacing,
-                );
+                let pos = Vec3::new(c as f64 * config.spacing, 0.0, r as f64 * config.spacing);
                 particles.push(ClothParticle::new(pos, config.particle_mass, false));
             }
         }
@@ -275,51 +294,93 @@ impl ClothSim {
         for r in 0..config.rows {
             for c in 0..config.cols {
                 if c + 1 < config.cols {
-                    let rl = particles[idx(r, c)].position.sub(particles[idx(r, c + 1)].position).length();
+                    let rl = particles[idx(r, c)]
+                        .position
+                        .sub(particles[idx(r, c + 1)].position)
+                        .length();
                     springs.push(ClothSpring {
-                        a: idx(r, c), b: idx(r, c + 1),
-                        rest_length: rl, stiffness: config.structural_stiffness,
-                        damping: config.damping, kind: SpringType::Structural, active: true,
+                        a: idx(r, c),
+                        b: idx(r, c + 1),
+                        rest_length: rl,
+                        stiffness: config.structural_stiffness,
+                        damping: config.damping,
+                        kind: SpringType::Structural,
+                        active: true,
                     });
                 }
                 if r + 1 < config.rows {
-                    let rl = particles[idx(r, c)].position.sub(particles[idx(r + 1, c)].position).length();
+                    let rl = particles[idx(r, c)]
+                        .position
+                        .sub(particles[idx(r + 1, c)].position)
+                        .length();
                     springs.push(ClothSpring {
-                        a: idx(r, c), b: idx(r + 1, c),
-                        rest_length: rl, stiffness: config.structural_stiffness,
-                        damping: config.damping, kind: SpringType::Structural, active: true,
+                        a: idx(r, c),
+                        b: idx(r + 1, c),
+                        rest_length: rl,
+                        stiffness: config.structural_stiffness,
+                        damping: config.damping,
+                        kind: SpringType::Structural,
+                        active: true,
                     });
                 }
                 if r + 1 < config.rows && c + 1 < config.cols {
-                    let rl = particles[idx(r, c)].position.sub(particles[idx(r + 1, c + 1)].position).length();
+                    let rl = particles[idx(r, c)]
+                        .position
+                        .sub(particles[idx(r + 1, c + 1)].position)
+                        .length();
                     springs.push(ClothSpring {
-                        a: idx(r, c), b: idx(r + 1, c + 1),
-                        rest_length: rl, stiffness: config.shear_stiffness,
-                        damping: config.damping, kind: SpringType::Shear, active: true,
+                        a: idx(r, c),
+                        b: idx(r + 1, c + 1),
+                        rest_length: rl,
+                        stiffness: config.shear_stiffness,
+                        damping: config.damping,
+                        kind: SpringType::Shear,
+                        active: true,
                     });
                 }
                 if r + 1 < config.rows && c > 0 {
-                    let rl = particles[idx(r, c)].position.sub(particles[idx(r + 1, c - 1)].position).length();
+                    let rl = particles[idx(r, c)]
+                        .position
+                        .sub(particles[idx(r + 1, c - 1)].position)
+                        .length();
                     springs.push(ClothSpring {
-                        a: idx(r, c), b: idx(r + 1, c - 1),
-                        rest_length: rl, stiffness: config.shear_stiffness,
-                        damping: config.damping, kind: SpringType::Shear, active: true,
+                        a: idx(r, c),
+                        b: idx(r + 1, c - 1),
+                        rest_length: rl,
+                        stiffness: config.shear_stiffness,
+                        damping: config.damping,
+                        kind: SpringType::Shear,
+                        active: true,
                     });
                 }
                 if c + 2 < config.cols {
-                    let rl = particles[idx(r, c)].position.sub(particles[idx(r, c + 2)].position).length();
+                    let rl = particles[idx(r, c)]
+                        .position
+                        .sub(particles[idx(r, c + 2)].position)
+                        .length();
                     springs.push(ClothSpring {
-                        a: idx(r, c), b: idx(r, c + 2),
-                        rest_length: rl, stiffness: config.bend_stiffness,
-                        damping: config.damping, kind: SpringType::Bend, active: true,
+                        a: idx(r, c),
+                        b: idx(r, c + 2),
+                        rest_length: rl,
+                        stiffness: config.bend_stiffness,
+                        damping: config.damping,
+                        kind: SpringType::Bend,
+                        active: true,
                     });
                 }
                 if r + 2 < config.rows {
-                    let rl = particles[idx(r, c)].position.sub(particles[idx(r + 2, c)].position).length();
+                    let rl = particles[idx(r, c)]
+                        .position
+                        .sub(particles[idx(r + 2, c)].position)
+                        .length();
                     springs.push(ClothSpring {
-                        a: idx(r, c), b: idx(r + 2, c),
-                        rest_length: rl, stiffness: config.bend_stiffness,
-                        damping: config.damping, kind: SpringType::Bend, active: true,
+                        a: idx(r, c),
+                        b: idx(r + 2, c),
+                        rest_length: rl,
+                        stiffness: config.bend_stiffness,
+                        damping: config.damping,
+                        kind: SpringType::Bend,
+                        active: true,
                     });
                 }
             }
@@ -422,9 +483,9 @@ impl ClothSim {
 
                 for &idx in &[i0, i1, i2] {
                     if !self.particles[idx].pinned {
-                        self.particles[idx].acceleration = self.particles[idx].acceleration.add(
-                            force.scale(self.particles[idx].inv_mass),
-                        );
+                        self.particles[idx].acceleration = self.particles[idx]
+                            .acceleration
+                            .add(force.scale(self.particles[idx].inv_mass));
                     }
                 }
             }
@@ -456,10 +517,12 @@ impl ClothSim {
                 let correction = diff.scale((dist - rest) / (dist * w_sum));
 
                 if !self.particles[a].pinned {
-                    self.particles[a].position = self.particles[a].position.add(correction.scale(inv_a));
+                    self.particles[a].position =
+                        self.particles[a].position.add(correction.scale(inv_a));
                 }
                 if !self.particles[b].pinned {
-                    self.particles[b].position = self.particles[b].position.sub(correction.scale(inv_b));
+                    self.particles[b].position =
+                        self.particles[b].position.sub(correction.scale(inv_b));
                 }
             }
         }
@@ -475,7 +538,8 @@ impl ClothSim {
             let a = s.a;
             let b = s.b;
             // We'll check directly
-            let _ = a; let _ = b;
+            let _ = a;
+            let _ = b;
             // Mark for tear check
         }
         // Two-pass to avoid borrow issues
@@ -554,8 +618,12 @@ impl ClothSim {
                         continue;
                     }
                     let correction = diff.normalized().scale(overlap / w);
-                    self.particles[i].position = self.particles[i].position.sub(correction.scale(inv_masses[i]));
-                    self.particles[j].position = self.particles[j].position.add(correction.scale(inv_masses[j]));
+                    self.particles[i].position = self.particles[i]
+                        .position
+                        .sub(correction.scale(inv_masses[i]));
+                    self.particles[j].position = self.particles[j]
+                        .position
+                        .add(correction.scale(inv_masses[j]));
                 }
             }
         }
@@ -568,7 +636,11 @@ impl ClothSim {
 
         // Apply forces (gravity + wind) via acceleration
         for p in &mut self.particles {
-            p.acceleration = if p.pinned { Vec3::ZERO } else { self.config.gravity };
+            p.acceleration = if p.pinned {
+                Vec3::ZERO
+            } else {
+                self.config.gravity
+            };
         }
         self.apply_wind_force();
 
@@ -578,7 +650,8 @@ impl ClothSim {
             if p.pinned {
                 continue;
             }
-            let new_pos = p.position
+            let new_pos = p
+                .position
                 .scale(2.0)
                 .sub(p.prev_position.scale(damp))
                 .add(p.acceleration.scale(dt * dt));
@@ -606,7 +679,9 @@ impl ClothSim {
         let mut sh = 0;
         let mut b = 0;
         for sp in &self.springs {
-            if !sp.active { continue; }
+            if !sp.active {
+                continue;
+            }
             match sp.kind {
                 SpringType::Structural => s += 1,
                 SpringType::Shear => sh += 1,
@@ -627,12 +702,24 @@ impl ClothSim {
         let mut min = Vec3::new(f64::MAX, f64::MAX, f64::MAX);
         let mut max = Vec3::new(f64::MIN, f64::MIN, f64::MIN);
         for p in &self.particles {
-            if p.position.x < min.x { min.x = p.position.x; }
-            if p.position.y < min.y { min.y = p.position.y; }
-            if p.position.z < min.z { min.z = p.position.z; }
-            if p.position.x > max.x { max.x = p.position.x; }
-            if p.position.y > max.y { max.y = p.position.y; }
-            if p.position.z > max.z { max.z = p.position.z; }
+            if p.position.x < min.x {
+                min.x = p.position.x;
+            }
+            if p.position.y < min.y {
+                min.y = p.position.y;
+            }
+            if p.position.z < min.z {
+                min.z = p.position.z;
+            }
+            if p.position.x > max.x {
+                max.x = p.position.x;
+            }
+            if p.position.y > max.y {
+                max.y = p.position.y;
+            }
+            if p.position.z > max.z {
+                max.z = p.position.z;
+            }
         }
         (min, max)
     }
@@ -661,7 +748,11 @@ mod tests {
 
     #[test]
     fn test_invalid_dimension() {
-        let r = ClothSim::new(ClothConfig { rows: 1, cols: 10, ..Default::default() });
+        let r = ClothSim::new(ClothConfig {
+            rows: 1,
+            cols: 10,
+            ..Default::default()
+        });
         assert!(r.is_err());
     }
 
@@ -728,7 +819,10 @@ mod tests {
     #[test]
     fn test_sphere_collision() {
         let mut cloth = default_cloth();
-        cloth.add_sphere(Sphere { center: Vec3::new(4.5, -2.0, 4.5), radius: 3.0 });
+        cloth.add_sphere(Sphere {
+            center: Vec3::new(4.5, -2.0, 4.5),
+            radius: 3.0,
+        });
         cloth.pin_top_row();
         for _ in 0..100 {
             cloth.step(0.01).unwrap();
@@ -764,7 +858,8 @@ mod tests {
             cols: 3,
             tear_threshold: 1.5,
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
         // Pin top-left, drag bottom-right far away
         cloth.pin(0).unwrap();
         cloth.particles[8].position = Vec3::new(100.0, 100.0, 100.0);
@@ -777,7 +872,8 @@ mod tests {
         let mut cloth = ClothSim::new(ClothConfig {
             wind: Vec3::new(10.0, 0.0, 0.0),
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
         cloth.pin_top_row();
         let mid = cloth.particle_index(5, 5).unwrap();
         let x0 = cloth.particles[mid].position.x;
@@ -834,13 +930,17 @@ mod tests {
             cols: 3,
             self_collision_radius: 0.5,
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
         // Push two non-adjacent particles to same spot
         cloth.particles[0].position = Vec3::new(5.0, 0.0, 5.0);
         cloth.particles[8].position = Vec3::new(5.0, 0.0, 5.0);
         cloth.step(0.01).unwrap();
         // After self-collision, they should be separated
-        let d = cloth.particles[0].position.sub(cloth.particles[8].position).length();
+        let d = cloth.particles[0]
+            .position
+            .sub(cloth.particles[8].position)
+            .length();
         assert!(d > 0.0);
     }
 
@@ -850,7 +950,8 @@ mod tests {
             rows: 2,
             cols: 2,
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
         assert_eq!(cloth.particles.len(), 4);
         // 2 structural h, 2 structural v, 2 shear = minimum
         let (s, sh, _b) = cloth.spring_count_by_type();
@@ -864,7 +965,8 @@ mod tests {
             wind: Vec3::new(5.0, 0.0, 0.0),
             wind_turbulence: 2.0,
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
         cloth.pin_top_row();
         for _ in 0..10 {
             cloth.step(0.01).unwrap();
@@ -881,7 +983,8 @@ mod tests {
             rows: 3,
             cols: 3,
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
         cloth_few.pin(0).unwrap();
 
         let mut cloth_many = ClothSim::new(ClothConfig {
@@ -889,7 +992,8 @@ mod tests {
             rows: 3,
             cols: 3,
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
         cloth_many.pin(0).unwrap();
 
         for _ in 0..20 {

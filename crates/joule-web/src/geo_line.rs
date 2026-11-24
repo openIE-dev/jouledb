@@ -117,12 +117,7 @@ pub fn segment_intersect(a1: Point2, a2: Point2, b1: Point2, b2: Point2) -> Segm
 }
 
 /// Infinite-line intersection of lines through `(a1–a2)` and `(b1–b2)`.
-pub fn line_intersect(
-    a1: Point2,
-    a2: Point2,
-    b1: Point2,
-    b2: Point2,
-) -> Result<Point2, LineError> {
+pub fn line_intersect(a1: Point2, a2: Point2, b1: Point2, b2: Point2) -> Result<Point2, LineError> {
     let d1x = a2.x - a1.x;
     let d1y = a2.y - a1.y;
     let d2x = b2.x - b1.x;
@@ -175,10 +170,18 @@ impl LineString {
         let mut max_x = f64::NEG_INFINITY;
         let mut max_y = f64::NEG_INFINITY;
         for v in &self.points {
-            if v.x < min_x { min_x = v.x; }
-            if v.y < min_y { min_y = v.y; }
-            if v.x > max_x { max_x = v.x; }
-            if v.y > max_y { max_y = v.y; }
+            if v.x < min_x {
+                min_x = v.x;
+            }
+            if v.y < min_y {
+                min_y = v.y;
+            }
+            if v.x > max_x {
+                max_x = v.x;
+            }
+            if v.y > max_y {
+                max_y = v.y;
+            }
         }
         (Point2::new(min_x, min_y), Point2::new(max_x, max_y))
     }
@@ -306,7 +309,12 @@ impl LineString {
 
 impl fmt::Display for LineString {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "LineString({} pts, len={:.4})", self.points.len(), self.length())
+        write!(
+            f,
+            "LineString({} pts, len={:.4})",
+            self.points.len(),
+            self.length()
+        )
     }
 }
 
@@ -540,11 +548,7 @@ mod tests {
 
     #[test]
     fn test_linestring_offset() {
-        let ls = LineString::new(vec![
-            Point2::new(0.0, 0.0),
-            Point2::new(4.0, 0.0),
-        ])
-        .unwrap();
+        let ls = LineString::new(vec![Point2::new(0.0, 0.0), Point2::new(4.0, 0.0)]).unwrap();
         let off = ls.offset(1.0).unwrap();
         assert!(approx(off.points[0].y, 1.0));
         assert!(approx(off.points[1].y, 1.0));
@@ -567,10 +571,7 @@ mod tests {
     #[test]
     fn test_intersect_segment() {
         let ls = sample_line();
-        let hits = ls.intersect_segment(
-            Point2::new(1.5, -1.0),
-            Point2::new(1.5, 1.0),
-        );
+        let hits = ls.intersect_segment(Point2::new(1.5, -1.0), Point2::new(1.5, 1.0));
         assert_eq!(hits.len(), 1);
         assert!(approx(hits[0].x, 1.5));
     }

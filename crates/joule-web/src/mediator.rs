@@ -289,7 +289,10 @@ mod tests {
     fn echo_colleague(id: &str) -> Colleague {
         let id_owned = id.to_string();
         Colleague::new(id, move |msg| {
-            Some(Value::String(format!("{} received: {}", id_owned, msg.event)))
+            Some(Value::String(format!(
+                "{} received: {}",
+                id_owned, msg.event
+            )))
         })
     }
 

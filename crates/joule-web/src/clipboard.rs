@@ -291,35 +291,23 @@ mod tests {
 
     #[test]
     fn detect_format_url() {
-        assert_eq!(
-            detect_format("https://example.com"),
-            ClipboardFormat::Url
-        );
+        assert_eq!(detect_format("https://example.com"), ClipboardFormat::Url);
     }
 
     #[test]
     fn detect_format_html() {
-        assert_eq!(
-            detect_format("<div>hello</div>"),
-            ClipboardFormat::Html
-        );
+        assert_eq!(detect_format("<div>hello</div>"), ClipboardFormat::Html);
     }
 
     #[test]
     fn detect_format_json() {
-        assert_eq!(
-            detect_format("{\"key\": \"value\"}"),
-            ClipboardFormat::Json
-        );
+        assert_eq!(detect_format("{\"key\": \"value\"}"), ClipboardFormat::Json);
         assert_eq!(detect_format("[1, 2, 3]"), ClipboardFormat::Json);
     }
 
     #[test]
     fn detect_format_email() {
-        assert_eq!(
-            detect_format("user@example.com"),
-            ClipboardFormat::Email
-        );
+        assert_eq!(detect_format("user@example.com"), ClipboardFormat::Email);
     }
 
     #[test]

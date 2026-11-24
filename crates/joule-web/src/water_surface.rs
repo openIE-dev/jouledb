@@ -197,11 +197,7 @@ impl WaveSystem {
         let mut bitangent = Vec3::new(0.0, 0.0, 1.0);
         for wave in &self.waves {
             let (t, b) = wave.tangent_bitangent(x, z, time);
-            tangent = Vec3::new(
-                tangent.x + t.x - 1.0,
-                tangent.y + t.y,
-                tangent.z + t.z,
-            );
+            tangent = Vec3::new(tangent.x + t.x - 1.0, tangent.y + t.y, tangent.z + t.z);
             bitangent = Vec3::new(
                 bitangent.x + b.x,
                 bitangent.y + b.y,
@@ -501,10 +497,7 @@ mod tests {
         let w = GerstnerWave::new(1.0, 10.0, 2.0, 1.0, 0.0);
         let d0 = w.evaluate(0.0, 0.0, 0.0);
         let d1 = w.evaluate(0.0, 0.0, 1.0);
-        assert!(
-            (d0.y - d1.y).abs() > 1e-6,
-            "wave should change over time"
-        );
+        assert!((d0.y - d1.y).abs() > 1e-6, "wave should change over time");
     }
 
     #[test]
@@ -520,7 +513,10 @@ mod tests {
         ws.add_wave(GerstnerWave::new(0.5, 8.0, 1.0, 1.0, 0.0));
         ws.add_wave(GerstnerWave::new(0.3, 4.0, 2.0, 0.0, 1.0));
         let h = ws.height_at(3.0, 3.0, 1.0);
-        assert!(h.abs() <= 1.0, "combined height should be within sum of amplitudes");
+        assert!(
+            h.abs() <= 1.0,
+            "combined height should be within sum of amplitudes"
+        );
     }
 
     #[test]

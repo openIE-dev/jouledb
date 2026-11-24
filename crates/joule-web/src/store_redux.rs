@@ -244,10 +244,7 @@ pub fn combine_reducers(
     move |state: &HashMap<String, serde_json::Value>, action: &Action| {
         let mut new_state = state.clone();
         for (key, reducer) in &reducers {
-            let current = state
-                .get(key)
-                .cloned()
-                .unwrap_or(serde_json::Value::Null);
+            let current = state.get(key).cloned().unwrap_or(serde_json::Value::Null);
             let next = reducer(&current, action);
             new_state.insert(key.clone(), next);
         }
@@ -533,10 +530,7 @@ mod tests {
                 "name".to_string(),
                 Box::new(|state: &serde_json::Value, action: &Action| {
                     match action.action_type.as_str() {
-                        "SET_NAME" => action
-                            .payload
-                            .clone()
-                            .unwrap_or(serde_json::Value::Null),
+                        "SET_NAME" => action.payload.clone().unwrap_or(serde_json::Value::Null),
                         _ => state.clone(),
                     }
                 }),
@@ -605,10 +599,12 @@ mod tests {
         assert_eq!(*store.get_state(), 1);
 
         // Replace with a reducer that doubles on INCREMENT
-        store.replace_reducer(|state: &i32, action: &Action| match action.action_type.as_str() {
-            "INCREMENT" => state + 2,
-            _ => *state,
-        });
+        store.replace_reducer(
+            |state: &i32, action: &Action| match action.action_type.as_str() {
+                "INCREMENT" => state + 2,
+                _ => *state,
+            },
+        );
         store.dispatch(Action::new("INCREMENT"));
         assert_eq!(*store.get_state(), 3);
     }

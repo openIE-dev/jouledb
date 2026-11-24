@@ -67,21 +67,43 @@ impl WireFlags {
     pub const CHECKSUM: Self = Self(0x04);
     pub const FRAGMENTED: Self = Self(0x08);
 
-    pub fn new(bits: u8) -> Self { Self(bits) }
-    pub fn bits(self) -> u8 { self.0 }
-    pub fn has(self, flag: WireFlags) -> bool { self.0 & flag.0 != 0 }
-    pub fn set(self, flag: WireFlags) -> Self { Self(self.0 | flag.0) }
-    pub fn clear(self, flag: WireFlags) -> Self { Self(self.0 & !flag.0) }
+    pub fn new(bits: u8) -> Self {
+        Self(bits)
+    }
+    pub fn bits(self) -> u8 {
+        self.0
+    }
+    pub fn has(self, flag: WireFlags) -> bool {
+        self.0 & flag.0 != 0
+    }
+    pub fn set(self, flag: WireFlags) -> Self {
+        Self(self.0 | flag.0)
+    }
+    pub fn clear(self, flag: WireFlags) -> Self {
+        Self(self.0 & !flag.0)
+    }
 }
 
 impl fmt::Display for WireFlags {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut parts = Vec::new();
-        if self.has(Self::COMPRESSED) { parts.push("COMPRESSED"); }
-        if self.has(Self::ENCRYPTED) { parts.push("ENCRYPTED"); }
-        if self.has(Self::CHECKSUM) { parts.push("CHECKSUM"); }
-        if self.has(Self::FRAGMENTED) { parts.push("FRAGMENTED"); }
-        if parts.is_empty() { write!(f, "NONE") } else { write!(f, "{}", parts.join("|")) }
+        if self.has(Self::COMPRESSED) {
+            parts.push("COMPRESSED");
+        }
+        if self.has(Self::ENCRYPTED) {
+            parts.push("ENCRYPTED");
+        }
+        if self.has(Self::CHECKSUM) {
+            parts.push("CHECKSUM");
+        }
+        if self.has(Self::FRAGMENTED) {
+            parts.push("FRAGMENTED");
+        }
+        if parts.is_empty() {
+            write!(f, "NONE")
+        } else {
+            write!(f, "{}", parts.join("|"))
+        }
     }
 }
 
@@ -113,7 +135,8 @@ impl WireHeader {
     }
 
     pub fn with_flags(mut self, flags: WireFlags) -> Self {
-        self.flags = flags; self
+        self.flags = flags;
+        self
     }
 
     pub fn with_checksum(mut self, checksum: u32) -> Self {
@@ -138,7 +161,10 @@ impl WireHeader {
     /// Deserialize header from bytes.
     pub fn deserialize(data: &[u8]) -> Result<Self, WireError> {
         if data.len() < HEADER_SIZE {
-            return Err(WireError::IncompleteHeader { needed: HEADER_SIZE, available: data.len() });
+            return Err(WireError::IncompleteHeader {
+                needed: HEADER_SIZE,
+                available: data.len(),
+            });
         }
         let magic = u16::from_be_bytes([data[0], data[1]]);
         if magic != WIRE_MAGIC {
@@ -146,11 +172,17 @@ impl WireHeader {
         }
         let version = data[2];
         let flags = WireFlags::new(data[3]);
-        let msg_type = MessageType::from_u8(data[4])
-            .ok_or(WireError::InvalidMessageType(data[4]))?;
+        let msg_type =
+            MessageType::from_u8(data[4]).ok_or(WireError::InvalidMessageType(data[4]))?;
         let payload_length = u32::from_be_bytes([data[8], data[9], data[10], data[11]]);
         let checksum = u32::from_be_bytes([data[12], data[13], data[14], data[15]]);
-        Ok(Self { version, flags, msg_type, payload_length, checksum })
+        Ok(Self {
+            version,
+            flags,
+            msg_type,
+            payload_length,
+            checksum,
+        })
     }
 }
 
@@ -171,7 +203,11 @@ impl WireMessage {
 
     /// Create a handshake message containing supported version range.
     pub fn handshake(version: u8, min_version: u8, max_version: u8) -> Self {
-        Self::new(version, MessageType::Handshake, vec![min_version, max_version])
+        Self::new(
+            version,
+            MessageType::Handshake,
+            vec![min_version, max_version],
+        )
     }
 
     /// Create a heartbeat message.
@@ -230,13 +266,21 @@ impl WireMessage {
     }
 
     /// Total wire size.
-    pub fn wire_size(&self) -> usize { HEADER_SIZE + self.payload.len() }
+    pub fn wire_size(&self) -> usize {
+        HEADER_SIZE + self.payload.len()
+    }
 }
 
 impl fmt::Display for WireMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Wire[v{} {} flags={} {}B]",
-            self.header.version, self.header.msg_type, self.header.flags, self.payload.len())
+        write!(
+            f,
+            "Wire[v{} {} flags={} {}B]",
+            self.header.version,
+            self.header.msg_type,
+            self.header.flags,
+            self.payload.len()
+        )
     }
 }
 
@@ -256,16 +300,21 @@ pub enum WireError {
 impl fmt::Display for WireError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::IncompleteHeader { needed, available } =>
-                write!(f, "incomplete header: need {needed}, have {available}"),
-            Self::IncompletePayload { needed, available } =>
-                write!(f, "incomplete payload: need {needed}, have {available}"),
+            Self::IncompleteHeader { needed, available } => {
+                write!(f, "incomplete header: need {needed}, have {available}")
+            }
+            Self::IncompletePayload { needed, available } => {
+                write!(f, "incomplete payload: need {needed}, have {available}")
+            }
             Self::InvalidMagic(m) => write!(f, "invalid magic: 0x{m:04x}"),
             Self::InvalidMessageType(t) => write!(f, "invalid message type: 0x{t:02x}"),
-            Self::ChecksumMismatch { expected, computed } =>
-                write!(f, "checksum mismatch: expected 0x{expected:08x}, computed 0x{computed:08x}"),
-            Self::VersionMismatch { local, remote } =>
-                write!(f, "version mismatch: local={local}, remote={remote}"),
+            Self::ChecksumMismatch { expected, computed } => write!(
+                f,
+                "checksum mismatch: expected 0x{expected:08x}, computed 0x{computed:08x}"
+            ),
+            Self::VersionMismatch { local, remote } => {
+                write!(f, "version mismatch: local={local}, remote={remote}")
+            }
             Self::FragmentError(msg) => write!(f, "fragment error: {msg}"),
         }
     }
@@ -293,8 +342,10 @@ pub fn crc32_simple(data: &[u8]) -> u32 {
 
 /// Negotiate a common version between two peers.
 pub fn negotiate_version(
-    local_min: u8, local_max: u8,
-    remote_min: u8, remote_max: u8,
+    local_min: u8,
+    local_max: u8,
+    remote_min: u8,
+    remote_max: u8,
 ) -> Option<u8> {
     let low = local_min.max(remote_min);
     let high = local_max.min(remote_max);
@@ -383,7 +434,9 @@ struct FragmentBuffer {
 
 impl Reassembler {
     pub fn new() -> Self {
-        Self { pending: HashMap::new() }
+        Self {
+            pending: HashMap::new(),
+        }
     }
 
     /// Feed a fragment wire message. Returns the reassembled payload when all
@@ -395,7 +448,9 @@ impl Reassembler {
         let frag_hdr = FragmentHeader::deserialize(&msg.payload)?;
         let data = msg.payload[FragmentHeader::SIZE..].to_vec();
 
-        let buf = self.pending.entry(frag_hdr.message_id)
+        let buf = self
+            .pending
+            .entry(frag_hdr.message_id)
             .or_insert_with(|| FragmentBuffer {
                 total: frag_hdr.total_fragments,
                 received: HashMap::new(),
@@ -418,11 +473,15 @@ impl Reassembler {
         }
     }
 
-    pub fn pending_count(&self) -> usize { self.pending.len() }
+    pub fn pending_count(&self) -> usize {
+        self.pending.len()
+    }
 }
 
 impl Default for Reassembler {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ──────────────────────────────────────────────────────
@@ -530,7 +589,9 @@ mod tests {
 
     #[test]
     fn wire_flags_operations() {
-        let f = WireFlags::NONE.set(WireFlags::COMPRESSED).set(WireFlags::CHECKSUM);
+        let f = WireFlags::NONE
+            .set(WireFlags::COMPRESSED)
+            .set(WireFlags::CHECKSUM);
         assert!(f.has(WireFlags::COMPRESSED));
         assert!(f.has(WireFlags::CHECKSUM));
         assert!(!f.has(WireFlags::ENCRYPTED));

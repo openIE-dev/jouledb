@@ -326,7 +326,9 @@ impl DurableAmorphicStore {
     pub fn plan_catch_up(
         &self,
         max: usize,
-        run: impl FnOnce(&(dyn Fn() -> Vec<Option<joule_db_hdc::BinaryHV>> + Sync)) -> Vec<Option<joule_db_hdc::BinaryHV>>,
+        run: impl FnOnce(
+            &(dyn Fn() -> Vec<Option<joule_db_hdc::BinaryHV>> + Sync),
+        ) -> Vec<Option<joule_db_hdc::BinaryHV>>,
     ) -> Option<(Vec<RecordId>, Vec<Option<joule_db_hdc::BinaryHV>>)> {
         self.store.plan_catch_up(max, run)
     }
@@ -336,7 +338,9 @@ impl DurableAmorphicStore {
         &self,
         max: usize,
         stop: &(dyn Fn() -> bool + Sync),
-        run: impl FnOnce(&(dyn Fn() -> Vec<Option<joule_db_hdc::BinaryHV>> + Sync)) -> Vec<Option<joule_db_hdc::BinaryHV>>,
+        run: impl FnOnce(
+            &(dyn Fn() -> Vec<Option<joule_db_hdc::BinaryHV>> + Sync),
+        ) -> Vec<Option<joule_db_hdc::BinaryHV>>,
     ) -> Option<(Vec<RecordId>, Vec<Option<joule_db_hdc::BinaryHV>>)> {
         self.store.plan_catch_up_until(max, stop, run)
     }
@@ -367,7 +371,8 @@ impl DurableAmorphicStore {
         &mut self,
         rows: Vec<HashMap<String, Value>>,
     ) -> AmorphicResult<Vec<RecordId>> {
-        self.ingest_fields_batch_with(rows, |_| ()).map(|(ids, ())| ids)
+        self.ingest_fields_batch_with(rows, |_| ())
+            .map(|(ids, ())| ids)
     }
 
     /// `ingest_fields_batch` that also runs `extra` over the batch's
@@ -431,10 +436,13 @@ impl DurableAmorphicStore {
         let t_log = std::time::Instant::now();
         let r = wal.log_page_writes_owned(tx_id, writes);
         if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
-            eprintln!("wal encode={:?} frame+write={:?}", t_log - t_enc, t_log.elapsed());
+            eprintln!(
+                "wal encode={:?} frame+write={:?}",
+                t_log - t_enc,
+                t_log.elapsed()
+            );
         }
-        r
-            .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))
+        r.map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))
     }
 
     /// Ingest a row (columns + values) with durability
@@ -814,7 +822,10 @@ impl DurableAmorphicStore {
         use rayon::prelude::*;
         batch.validate().map_err(AmorphicError::IngestionError)?;
         if batch.cols.len() + 1 > crate::MAX_FIELDS_ERROR {
-            return Err(AmorphicError::FieldCountExceeded(batch.cols.len() + 1, crate::MAX_FIELDS_ERROR));
+            return Err(AmorphicError::FieldCountExceeded(
+                batch.cols.len() + 1,
+                crate::MAX_FIELDS_ERROR,
+            ));
         }
         let first = self.store.reserve_ids(batch.len);
         batch.first_id = first;
@@ -827,7 +838,12 @@ impl DurableAmorphicStore {
                     .step_by(CHUNK)
                     .collect::<Vec<_>>()
                     .into_par_iter()
-                    .map(|s| (b.first_id + s as u64, b.encode_chunk(s, (s + CHUNK).min(b.len))))
+                    .map(|s| {
+                        (
+                            b.first_id + s as u64,
+                            b.encode_chunk(s, (s + CHUNK).min(b.len)),
+                        )
+                    })
                     .collect::<Vec<(RecordId, Vec<u8>)>>()
             },
             || extra(b),
@@ -873,7 +889,9 @@ impl DurableAmorphicStore {
     pub fn materialize_pending(&mut self, max_rows: usize) -> AmorphicResult<usize> {
         let mut done = 0;
         while done < max_rows {
-            let Some(b) = self.pending.front().cloned() else { break };
+            let Some(b) = self.pending.front().cloned() else {
+                break;
+            };
             let from = self.pending_off;
             let to = b.len.min(from.saturating_add(max_rows - done));
             if to > from {
@@ -1229,7 +1247,10 @@ mod tests {
             };
             let bytes = serde_json::to_vec(&op).unwrap();
             assert_eq!(bytes[0], b'{');
-            store.wal.log_page_writes_owned(tx, vec![(old_ids[0], bytes)]).unwrap();
+            store
+                .wal
+                .log_page_writes_owned(tx, vec![(old_ids[0], bytes)])
+                .unwrap();
             store.wal.log_commit(tx).unwrap();
             std::mem::forget(store);
         }
@@ -1245,9 +1266,19 @@ mod tests {
         assert_eq!(store.len(), 10_002);
     }
 
-        fn rows_of(store: &DurableAmorphicStore, ids: impl Iterator<Item = RecordId>) -> Vec<(RecordId, HashMap<String, Value>)> {
+    fn rows_of(
+        store: &DurableAmorphicStore,
+        ids: impl Iterator<Item = RecordId>,
+    ) -> Vec<(RecordId, HashMap<String, Value>)> {
         ids.filter_map(|id| {
-            store.get(id).map(|r| (id, r.fields_iter().map(|(k, v)| (k.to_string(), v.clone())).collect()))
+            store.get(id).map(|r| {
+                (
+                    id,
+                    r.fields_iter()
+                        .map(|(k, v)| (k.to_string(), v.clone()))
+                        .collect(),
+                )
+            })
         })
         .collect()
     }
@@ -1266,13 +1297,21 @@ mod tests {
             first_id: 0,
             len: n,
             cols: vec![
-                BatchColumn { name: "id".into(), data: ColData::Int((0..n as i64).collect()), valid: None },
+                BatchColumn {
+                    name: "id".into(),
+                    data: ColData::Int((0..n as i64).collect()),
+                    valid: None,
+                },
                 BatchColumn {
                     name: "d".into(),
                     data: ColData::Float((0..n).map(|i| i as f64 * 0.25).collect()),
                     valid: Some((0..n).map(|i| i % 9 != 0).collect()),
                 },
-                BatchColumn { name: "url".into(), data: ColData::Str { offsets, bytes }, valid: None },
+                BatchColumn {
+                    name: "url".into(),
+                    data: ColData::Str { offsets, bytes },
+                    valid: None,
+                },
             ],
         }
     }
@@ -1284,7 +1323,11 @@ mod tests {
         let ref_dir = TempDir::new().unwrap();
         let reference = {
             let mut s = DurableAmorphicStore::open(ref_dir.path()).unwrap();
-            let rows: Vec<HashMap<String, Value>> = col_batch(n).rows(0, n).into_iter().map(|(_, f)| f).collect();
+            let rows: Vec<HashMap<String, Value>> = col_batch(n)
+                .rows(0, n)
+                .into_iter()
+                .map(|(_, f)| f)
+                .collect();
             let ids = s.ingest_fields_batch(rows).unwrap();
             rows_of(&s, ids.into_iter())
         };
@@ -1296,7 +1339,10 @@ mod tests {
                 assert_eq!(s.len(), n);
                 assert_eq!(s.pending_rows(), n);
                 let g = s.generation();
-                assert_eq!(s.materialize_pending(materialize_first).unwrap(), materialize_first);
+                assert_eq!(
+                    s.materialize_pending(materialize_first).unwrap(),
+                    materialize_first
+                );
                 // materializing changes no visible data, so no generation change
                 assert_eq!(s.generation(), g);
                 assert_eq!(s.pending_rows(), n - materialize_first);
@@ -1319,7 +1365,12 @@ mod tests {
                 assert_eq!(a, b);
             }
             assert_eq!(s.query_equals("id", &Value::Int(9_999)).records.len(), 1);
-            assert_eq!(s.query_equals("_table", &Value::String("hits".into())).records.len(), n);
+            assert_eq!(
+                s.query_equals("_table", &Value::String("hits".into()))
+                    .records
+                    .len(),
+                n
+            );
         }
     }
 
@@ -1338,7 +1389,10 @@ mod tests {
         let s = DurableAmorphicStore::open(dir.path()).unwrap();
         assert_eq!(s.len(), 99);
         assert!(s.get(first + 5).is_none());
-        assert_eq!(s.get(first + 6).unwrap().get("d"), Some(&Value::Float(-1.0)));
+        assert_eq!(
+            s.get(first + 6).unwrap().get("d"),
+            Some(&Value::Float(-1.0))
+        );
     }
 
     #[test]
@@ -1369,7 +1423,12 @@ mod tests {
             store.delete(ids[42]).unwrap();
             for id in &ids {
                 if let Some(r) = store.get(*id) {
-                    before.push((*id, r.fields_iter().map(|(k, v)| (k.to_string(), v.clone())).collect()));
+                    before.push((
+                        *id,
+                        r.fields_iter()
+                            .map(|(k, v)| (k.to_string(), v.clone()))
+                            .collect(),
+                    ));
                 }
             }
             // simulated crash: drop without checkpoint
@@ -1378,7 +1437,10 @@ mod tests {
         assert_eq!(store.len(), n as usize - 1);
         for (id, fields) in &before {
             let r = store.get(*id).expect("record replayed");
-            let got: HashMap<String, Value> = r.fields_iter().map(|(k, v)| (k.to_string(), v.clone())).collect();
+            let got: HashMap<String, Value> = r
+                .fields_iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect();
             assert_eq!(&got, fields, "record {id}");
         }
         assert_eq!(store.query_equals("i", &Value::Int(9_999)).records.len(), 1);

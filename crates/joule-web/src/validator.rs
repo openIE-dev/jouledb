@@ -271,11 +271,7 @@ impl FieldValidator {
         let mut result = ValidationResult::ok();
         for (i, rule) in self.rules.iter().enumerate() {
             if let Err(default_msg) = rule.validate(value) {
-                let message = self
-                    .custom_messages
-                    .get(&i)
-                    .cloned()
-                    .unwrap_or(default_msg);
+                let message = self.custom_messages.get(&i).cloned().unwrap_or(default_msg);
                 result.errors.push(ValidationError {
                     field: self.field.clone(),
                     rule: rule.name().to_string(),

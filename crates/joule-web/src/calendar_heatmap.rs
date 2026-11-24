@@ -214,10 +214,7 @@ pub struct DayCell {
 }
 
 /// Compute the grid of day cells for a year.
-pub fn compute_cells(
-    data: &[DayValue],
-    cfg: &CalendarHeatmapConfig,
-) -> Vec<DayCell> {
+pub fn compute_cells(data: &[DayValue], cfg: &CalendarHeatmapConfig) -> Vec<DayCell> {
     // Build lookup: day_of_year -> &DayValue
     let lookup: std::collections::HashMap<u32, &DayValue> = data
         .iter()
@@ -251,7 +248,11 @@ pub fn compute_cells(
         let y = cfg.padding_top + dow as f64 * step;
 
         let (color, value, tooltip) = if let Some(dv) = lookup.get(&doy) {
-            let norm = if val_range.abs() < f64::EPSILON { 1.0 } else { (dv.value - min_val) / val_range };
+            let norm = if val_range.abs() < f64::EPSILON {
+                1.0
+            } else {
+                (dv.value - min_val) / val_range
+            };
             let c = cfg.color_scale.color_for(norm);
             (c.to_string(), dv.value, dv.tooltip.clone())
         } else {
@@ -290,8 +291,7 @@ pub fn compute_cells(
 /// Month labels along the top.
 fn render_month_labels(cfg: &CalendarHeatmapConfig) -> String {
     let month_names = [
-        "", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct",
-        "Nov", "Dec",
+        "", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     ];
     let jan1_dow = day_of_week(cfg.year, 1, 1);
     let step = cfg.cell_size + cfg.cell_gap;
@@ -354,10 +354,7 @@ fn render_day_labels(cfg: &CalendarHeatmapConfig) -> String {
 }
 
 /// Render the complete calendar heatmap as SVG.
-pub fn render_calendar_heatmap(
-    data: &[DayValue],
-    cfg: &CalendarHeatmapConfig,
-) -> String {
+pub fn render_calendar_heatmap(data: &[DayValue], cfg: &CalendarHeatmapConfig) -> String {
     let cells = compute_cells(data, cfg);
     let w = cfg.svg_width();
     let h = cfg.svg_height();
@@ -521,10 +518,7 @@ mod tests {
         let data = vec![DayValue::new(2026, 6, 15, 100.0)];
         let cfg = CalendarHeatmapConfig::default();
         let cells = compute_cells(&data, &cfg);
-        let june15 = cells
-            .iter()
-            .find(|c| c.month == 6 && c.day == 15)
-            .unwrap();
+        let june15 = cells.iter().find(|c| c.month == 6 && c.day == 15).unwrap();
         assert_eq!(june15.color, "darkgreen"); // max value
     }
 

@@ -42,8 +42,14 @@ fn get_u32_le(data: &[u8], i: usize) -> u32 {
 
 fn get_u64_le(data: &[u8], i: usize) -> u64 {
     u64::from_le_bytes([
-        data[i], data[i + 1], data[i + 2], data[i + 3],
-        data[i + 4], data[i + 5], data[i + 6], data[i + 7],
+        data[i],
+        data[i + 1],
+        data[i + 2],
+        data[i + 3],
+        data[i + 4],
+        data[i + 5],
+        data[i + 6],
+        data[i + 7],
     ])
 }
 
@@ -74,8 +80,12 @@ pub fn murmur3_32(data: &[u8], seed: u32) -> u32 {
     let tail = &data[nblocks * 4..];
     let mut k1: u32 = 0;
 
-    if tail.len() >= 3 { k1 ^= (tail[2] as u32) << 16; }
-    if tail.len() >= 2 { k1 ^= (tail[1] as u32) << 8; }
+    if tail.len() >= 3 {
+        k1 ^= (tail[2] as u32) << 16;
+    }
+    if tail.len() >= 2 {
+        k1 ^= (tail[1] as u32) << 8;
+    }
     if !tail.is_empty() {
         k1 ^= tail[0] as u32;
         k1 = k1.wrapping_mul(C1_32);
@@ -134,20 +144,36 @@ pub fn murmur3_128_x86(data: &[u8], seed: u32) -> Hash128 {
         let mut k3 = get_u32_le(data, i * 16 + 8);
         let mut k4 = get_u32_le(data, i * 16 + 12);
 
-        k1 = k1.wrapping_mul(c1); k1 = rotl32(k1, 15); k1 = k1.wrapping_mul(c2); h1 ^= k1;
-        h1 = rotl32(h1, 19); h1 = h1.wrapping_add(h2);
+        k1 = k1.wrapping_mul(c1);
+        k1 = rotl32(k1, 15);
+        k1 = k1.wrapping_mul(c2);
+        h1 ^= k1;
+        h1 = rotl32(h1, 19);
+        h1 = h1.wrapping_add(h2);
         h1 = h1.wrapping_mul(5).wrapping_add(0x561ccd1b);
 
-        k2 = k2.wrapping_mul(c2); k2 = rotl32(k2, 16); k2 = k2.wrapping_mul(c3); h2 ^= k2;
-        h2 = rotl32(h2, 17); h2 = h2.wrapping_add(h3);
+        k2 = k2.wrapping_mul(c2);
+        k2 = rotl32(k2, 16);
+        k2 = k2.wrapping_mul(c3);
+        h2 ^= k2;
+        h2 = rotl32(h2, 17);
+        h2 = h2.wrapping_add(h3);
         h2 = h2.wrapping_mul(5).wrapping_add(0x0bcaa747);
 
-        k3 = k3.wrapping_mul(c3); k3 = rotl32(k3, 17); k3 = k3.wrapping_mul(c4); h3 ^= k3;
-        h3 = rotl32(h3, 15); h3 = h3.wrapping_add(h4);
+        k3 = k3.wrapping_mul(c3);
+        k3 = rotl32(k3, 17);
+        k3 = k3.wrapping_mul(c4);
+        h3 ^= k3;
+        h3 = rotl32(h3, 15);
+        h3 = h3.wrapping_add(h4);
         h3 = h3.wrapping_mul(5).wrapping_add(0x96cd1c35);
 
-        k4 = k4.wrapping_mul(c4); k4 = rotl32(k4, 18); k4 = k4.wrapping_mul(c1); h4 ^= k4;
-        h4 = rotl32(h4, 13); h4 = h4.wrapping_add(h1);
+        k4 = k4.wrapping_mul(c4);
+        k4 = rotl32(k4, 18);
+        k4 = k4.wrapping_mul(c1);
+        h4 ^= k4;
+        h4 = rotl32(h4, 13);
+        h4 = h4.wrapping_add(h1);
         h4 = h4.wrapping_mul(5).wrapping_add(0x32ac3b17);
     }
 
@@ -159,25 +185,74 @@ pub fn murmur3_128_x86(data: &[u8], seed: u32) -> Hash128 {
     let mut k4: u32 = 0;
 
     let tlen = tail.len();
-    if tlen >= 15 { k4 ^= (tail[14] as u32) << 16; }
-    if tlen >= 14 { k4 ^= (tail[13] as u32) << 8; }
-    if tlen >= 13 { k4 ^= tail[12] as u32; k4 = k4.wrapping_mul(c4); k4 = rotl32(k4, 18); k4 = k4.wrapping_mul(c1); h4 ^= k4; }
-    if tlen >= 12 { k3 ^= (tail[11] as u32) << 24; }
-    if tlen >= 11 { k3 ^= (tail[10] as u32) << 16; }
-    if tlen >= 10 { k3 ^= (tail[9] as u32) << 8; }
-    if tlen >= 9 { k3 ^= tail[8] as u32; k3 = k3.wrapping_mul(c3); k3 = rotl32(k3, 17); k3 = k3.wrapping_mul(c4); h3 ^= k3; }
-    if tlen >= 8 { k2 ^= (tail[7] as u32) << 24; }
-    if tlen >= 7 { k2 ^= (tail[6] as u32) << 16; }
-    if tlen >= 6 { k2 ^= (tail[5] as u32) << 8; }
-    if tlen >= 5 { k2 ^= tail[4] as u32; k2 = k2.wrapping_mul(c2); k2 = rotl32(k2, 16); k2 = k2.wrapping_mul(c3); h2 ^= k2; }
-    if tlen >= 4 { k1 ^= (tail[3] as u32) << 24; }
-    if tlen >= 3 { k1 ^= (tail[2] as u32) << 16; }
-    if tlen >= 2 { k1 ^= (tail[1] as u32) << 8; }
-    if tlen >= 1 { k1 ^= tail[0] as u32; k1 = k1.wrapping_mul(c1); k1 = rotl32(k1, 15); k1 = k1.wrapping_mul(c2); h1 ^= k1; }
+    if tlen >= 15 {
+        k4 ^= (tail[14] as u32) << 16;
+    }
+    if tlen >= 14 {
+        k4 ^= (tail[13] as u32) << 8;
+    }
+    if tlen >= 13 {
+        k4 ^= tail[12] as u32;
+        k4 = k4.wrapping_mul(c4);
+        k4 = rotl32(k4, 18);
+        k4 = k4.wrapping_mul(c1);
+        h4 ^= k4;
+    }
+    if tlen >= 12 {
+        k3 ^= (tail[11] as u32) << 24;
+    }
+    if tlen >= 11 {
+        k3 ^= (tail[10] as u32) << 16;
+    }
+    if tlen >= 10 {
+        k3 ^= (tail[9] as u32) << 8;
+    }
+    if tlen >= 9 {
+        k3 ^= tail[8] as u32;
+        k3 = k3.wrapping_mul(c3);
+        k3 = rotl32(k3, 17);
+        k3 = k3.wrapping_mul(c4);
+        h3 ^= k3;
+    }
+    if tlen >= 8 {
+        k2 ^= (tail[7] as u32) << 24;
+    }
+    if tlen >= 7 {
+        k2 ^= (tail[6] as u32) << 16;
+    }
+    if tlen >= 6 {
+        k2 ^= (tail[5] as u32) << 8;
+    }
+    if tlen >= 5 {
+        k2 ^= tail[4] as u32;
+        k2 = k2.wrapping_mul(c2);
+        k2 = rotl32(k2, 16);
+        k2 = k2.wrapping_mul(c3);
+        h2 ^= k2;
+    }
+    if tlen >= 4 {
+        k1 ^= (tail[3] as u32) << 24;
+    }
+    if tlen >= 3 {
+        k1 ^= (tail[2] as u32) << 16;
+    }
+    if tlen >= 2 {
+        k1 ^= (tail[1] as u32) << 8;
+    }
+    if tlen >= 1 {
+        k1 ^= tail[0] as u32;
+        k1 = k1.wrapping_mul(c1);
+        k1 = rotl32(k1, 15);
+        k1 = k1.wrapping_mul(c2);
+        h1 ^= k1;
+    }
 
     // Finalization
     let l = len as u32;
-    h1 ^= l; h2 ^= l; h3 ^= l; h4 ^= l;
+    h1 ^= l;
+    h2 ^= l;
+    h3 ^= l;
+    h4 ^= l;
     h1 = h1.wrapping_add(h2).wrapping_add(h3).wrapping_add(h4);
     h2 = h2.wrapping_add(h1);
     h3 = h3.wrapping_add(h1);
@@ -214,12 +289,20 @@ pub fn murmur3_128_x64(data: &[u8], seed: u64) -> Hash128 {
         let mut k1 = get_u64_le(data, i * 16);
         let mut k2 = get_u64_le(data, i * 16 + 8);
 
-        k1 = k1.wrapping_mul(c1); k1 = rotl64(k1, 31); k1 = k1.wrapping_mul(c2); h1 ^= k1;
-        h1 = rotl64(h1, 27); h1 = h1.wrapping_add(h2);
+        k1 = k1.wrapping_mul(c1);
+        k1 = rotl64(k1, 31);
+        k1 = k1.wrapping_mul(c2);
+        h1 ^= k1;
+        h1 = rotl64(h1, 27);
+        h1 = h1.wrapping_add(h2);
         h1 = h1.wrapping_mul(5).wrapping_add(0x52dce729);
 
-        k2 = k2.wrapping_mul(c2); k2 = rotl64(k2, 33); k2 = k2.wrapping_mul(c1); h2 ^= k2;
-        h2 = rotl64(h2, 31); h2 = h2.wrapping_add(h1);
+        k2 = k2.wrapping_mul(c2);
+        k2 = rotl64(k2, 33);
+        k2 = k2.wrapping_mul(c1);
+        h2 ^= k2;
+        h2 = rotl64(h2, 31);
+        h2 = h2.wrapping_add(h1);
         h2 = h2.wrapping_mul(5).wrapping_add(0x38495ab5);
     }
 
@@ -229,26 +312,58 @@ pub fn murmur3_128_x64(data: &[u8], seed: u64) -> Hash128 {
     let mut k2: u64 = 0;
     let tlen = tail.len();
 
-    if tlen >= 15 { k2 ^= (tail[14] as u64) << 48; }
-    if tlen >= 14 { k2 ^= (tail[13] as u64) << 40; }
-    if tlen >= 13 { k2 ^= (tail[12] as u64) << 32; }
-    if tlen >= 12 { k2 ^= (tail[11] as u64) << 24; }
-    if tlen >= 11 { k2 ^= (tail[10] as u64) << 16; }
-    if tlen >= 10 { k2 ^= (tail[9] as u64) << 8; }
+    if tlen >= 15 {
+        k2 ^= (tail[14] as u64) << 48;
+    }
+    if tlen >= 14 {
+        k2 ^= (tail[13] as u64) << 40;
+    }
+    if tlen >= 13 {
+        k2 ^= (tail[12] as u64) << 32;
+    }
+    if tlen >= 12 {
+        k2 ^= (tail[11] as u64) << 24;
+    }
+    if tlen >= 11 {
+        k2 ^= (tail[10] as u64) << 16;
+    }
+    if tlen >= 10 {
+        k2 ^= (tail[9] as u64) << 8;
+    }
     if tlen >= 9 {
         k2 ^= tail[8] as u64;
-        k2 = k2.wrapping_mul(c2); k2 = rotl64(k2, 33); k2 = k2.wrapping_mul(c1); h2 ^= k2;
+        k2 = k2.wrapping_mul(c2);
+        k2 = rotl64(k2, 33);
+        k2 = k2.wrapping_mul(c1);
+        h2 ^= k2;
     }
-    if tlen >= 8 { k1 ^= (tail[7] as u64) << 56; }
-    if tlen >= 7 { k1 ^= (tail[6] as u64) << 48; }
-    if tlen >= 6 { k1 ^= (tail[5] as u64) << 40; }
-    if tlen >= 5 { k1 ^= (tail[4] as u64) << 32; }
-    if tlen >= 4 { k1 ^= (tail[3] as u64) << 24; }
-    if tlen >= 3 { k1 ^= (tail[2] as u64) << 16; }
-    if tlen >= 2 { k1 ^= (tail[1] as u64) << 8; }
+    if tlen >= 8 {
+        k1 ^= (tail[7] as u64) << 56;
+    }
+    if tlen >= 7 {
+        k1 ^= (tail[6] as u64) << 48;
+    }
+    if tlen >= 6 {
+        k1 ^= (tail[5] as u64) << 40;
+    }
+    if tlen >= 5 {
+        k1 ^= (tail[4] as u64) << 32;
+    }
+    if tlen >= 4 {
+        k1 ^= (tail[3] as u64) << 24;
+    }
+    if tlen >= 3 {
+        k1 ^= (tail[2] as u64) << 16;
+    }
+    if tlen >= 2 {
+        k1 ^= (tail[1] as u64) << 8;
+    }
     if tlen >= 1 {
         k1 ^= tail[0] as u64;
-        k1 = k1.wrapping_mul(c1); k1 = rotl64(k1, 31); k1 = k1.wrapping_mul(c2); h1 ^= k1;
+        k1 = k1.wrapping_mul(c1);
+        k1 = rotl64(k1, 31);
+        k1 = k1.wrapping_mul(c2);
+        h1 ^= k1;
     }
 
     // Finalization
@@ -274,7 +389,10 @@ pub struct Murmur3Hasher32 {
 
 impl Murmur3Hasher32 {
     pub fn new(seed: u32) -> Self {
-        Self { seed, buffer: Vec::new() }
+        Self {
+            seed,
+            buffer: Vec::new(),
+        }
     }
 
     pub fn update(&mut self, data: &[u8]) {
@@ -298,7 +416,10 @@ pub struct Murmur3Hasher128 {
 
 impl Murmur3Hasher128 {
     pub fn new(seed: u64) -> Self {
-        Self { seed, buffer: Vec::new() }
+        Self {
+            seed,
+            buffer: Vec::new(),
+        }
     }
 
     pub fn update(&mut self, data: &[u8]) {
@@ -323,7 +444,10 @@ pub fn bulk_hash_32(items: &[&[u8]], seed: u32) -> Vec<u32> {
 
 /// Hash multiple items and return 128-bit hashes.
 pub fn bulk_hash_128(items: &[&[u8]], seed: u64) -> Vec<Hash128> {
-    items.iter().map(|item| murmur3_128_x64(item, seed)).collect()
+    items
+        .iter()
+        .map(|item| murmur3_128_x64(item, seed))
+        .collect()
 }
 
 // ── Distribution Analysis ────────────────────────────────────────
@@ -338,9 +462,14 @@ pub fn analyze_distribution(hashes: &[u32], num_buckets: u32) -> (usize, usize, 
     let min = buckets.iter().copied().min().unwrap_or(0);
     let max = buckets.iter().copied().max().unwrap_or(0);
     let mean = hashes.len() as f64 / num_buckets as f64;
-    let variance = buckets.iter()
-        .map(|c| { let d = *c as f64 - mean; d * d })
-        .sum::<f64>() / num_buckets as f64;
+    let variance = buckets
+        .iter()
+        .map(|c| {
+            let d = *c as f64 - mean;
+            d * d
+        })
+        .sum::<f64>()
+        / num_buckets as f64;
     (min, max, variance.sqrt())
 }
 
@@ -434,7 +563,9 @@ mod tests {
     #[test]
     fn test_distribution() {
         // Hash 1000 sequential strings into 10 buckets
-        let hashes: Vec<u32> = (0..1000u32).map(|i| murmur3_32(&i.to_le_bytes(), 0)).collect();
+        let hashes: Vec<u32> = (0..1000u32)
+            .map(|i| murmur3_32(&i.to_le_bytes(), 0))
+            .collect();
         let (min, max, std_dev) = analyze_distribution(&hashes, 10);
         // Expect roughly uniform: each bucket ~100
         assert!(min > 50, "min={} too low", min);

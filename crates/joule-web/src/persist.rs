@@ -182,8 +182,8 @@ impl<B: StorageBackend> PersistStore<B> {
                 let filtered: serde_json::Map<String, serde_json::Value> = map
                     .into_iter()
                     .filter(|(k, _)| {
-                        let allowed = self.config.allowlist.is_empty()
-                            || self.config.allowlist.contains(k);
+                        let allowed =
+                            self.config.allowlist.is_empty() || self.config.allowlist.contains(k);
                         let not_blocked = !self.config.blocklist.contains(k);
                         allowed && not_blocked
                     })
@@ -327,8 +327,7 @@ mod tests {
     #[test]
     fn debounced_save() {
         let config = PersistConfig::new("app");
-        let mut store = PersistStore::new(config, MemoryStorage::new())
-            .with_debounce(3);
+        let mut store = PersistStore::new(config, MemoryStorage::new()).with_debounce(3);
 
         store.save("a");
         assert!(store.has_pending());
@@ -345,8 +344,7 @@ mod tests {
     #[test]
     fn manual_flush() {
         let config = PersistConfig::new("app");
-        let mut store = PersistStore::new(config, MemoryStorage::new())
-            .with_debounce(100);
+        let mut store = PersistStore::new(config, MemoryStorage::new()).with_debounce(100);
 
         store.save("data");
         assert_eq!(store.write_count(), 0);
@@ -357,8 +355,7 @@ mod tests {
 
     #[test]
     fn allowlist_filtering() {
-        let config = PersistConfig::new("app")
-            .with_allowlist(vec!["name".into(), "age".into()]);
+        let config = PersistConfig::new("app").with_allowlist(vec!["name".into(), "age".into()]);
         let mut store = PersistStore::new(config, MemoryStorage::new());
         store.save(r#"{"name":"Alice","age":30,"secret":"hidden"}"#);
         let restored = store.restore().unwrap();
@@ -369,8 +366,7 @@ mod tests {
 
     #[test]
     fn blocklist_filtering() {
-        let config = PersistConfig::new("app")
-            .with_blocklist(vec!["password".into()]);
+        let config = PersistConfig::new("app").with_blocklist(vec!["password".into()]);
         let mut store = PersistStore::new(config, MemoryStorage::new());
         store.save(r#"{"user":"bob","password":"123"}"#);
         let restored = store.restore().unwrap();
@@ -385,9 +381,7 @@ mod tests {
                 // Simple ROT13-ish: reverse the string
                 data.chars().rev().collect()
             })
-            .with_decrypt(|data| {
-                data.chars().rev().collect()
-            });
+            .with_decrypt(|data| data.chars().rev().collect());
         let mut store = PersistStore::new(config, MemoryStorage::new());
         store.save("hello");
 
@@ -430,8 +424,7 @@ mod tests {
     #[test]
     fn debounce_latest_value_wins() {
         let config = PersistConfig::new("app");
-        let mut store = PersistStore::new(config, MemoryStorage::new())
-            .with_debounce(3);
+        let mut store = PersistStore::new(config, MemoryStorage::new()).with_debounce(3);
 
         store.save("first");
         store.save("second");

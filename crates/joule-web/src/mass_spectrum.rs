@@ -53,9 +53,15 @@ impl fmt::Display for SpectrumKind {
 pub struct MsLevel(pub u8);
 
 impl MsLevel {
-    pub fn ms1() -> Self { Self(1) }
-    pub fn ms2() -> Self { Self(2) }
-    pub fn ms3() -> Self { Self(3) }
+    pub fn ms1() -> Self {
+        Self(1)
+    }
+    pub fn ms2() -> Self {
+        Self(2)
+    }
+    pub fn ms3() -> Self {
+        Self(3)
+    }
 }
 
 impl fmt::Display for MsLevel {
@@ -135,8 +141,16 @@ impl MassSpectrum {
         if self.points.is_empty() {
             return None;
         }
-        let min = self.points.iter().map(|p| p.mz).fold(f64::INFINITY, f64::min);
-        let max = self.points.iter().map(|p| p.mz).fold(f64::NEG_INFINITY, f64::max);
+        let min = self
+            .points
+            .iter()
+            .map(|p| p.mz)
+            .fold(f64::INFINITY, f64::min);
+        let max = self
+            .points
+            .iter()
+            .map(|p| p.mz)
+            .fold(f64::NEG_INFINITY, f64::max);
         Some((min, max))
     }
 
@@ -263,7 +277,12 @@ pub struct DetectedPeak {
 
 impl DetectedPeak {
     pub fn new(mz: f64, intensity: f64, snr: f64, fwhm: f64) -> Self {
-        Self { mz, intensity, snr, fwhm }
+        Self {
+            mz,
+            intensity,
+            snr,
+            fwhm,
+        }
     }
 }
 
@@ -394,7 +413,9 @@ pub fn estimate_noise_median(spectrum: &MassSpectrum) -> f64 {
 
 /// Compute signal-to-noise ratio for a given intensity.
 pub fn compute_snr(intensity: f64, noise: f64) -> f64 {
-    if noise <= 0.0 { return f64::INFINITY; }
+    if noise <= 0.0 {
+        return f64::INFINITY;
+    }
     intensity / noise
 }
 
@@ -414,7 +435,9 @@ pub fn ppm_to_da(mz: f64, ppm: f64) -> f64 {
 
 /// Convert Dalton tolerance to ppm at a given m/z.
 pub fn da_to_ppm(mz: f64, da: f64) -> f64 {
-    if mz <= 0.0 { return 0.0; }
+    if mz <= 0.0 {
+        return 0.0;
+    }
     da / mz * 1e6
 }
 

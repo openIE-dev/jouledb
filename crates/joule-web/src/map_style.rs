@@ -21,7 +21,12 @@ impl Color {
     }
 
     pub fn rgba(r: u8, g: u8, b: u8, a: f64) -> Self {
-        Self { r, g, b, a: a.clamp(0.0, 1.0) }
+        Self {
+            r,
+            g,
+            b,
+            a: a.clamp(0.0, 1.0),
+        }
     }
 
     pub fn white() -> Self {
@@ -94,38 +99,47 @@ impl ColorRamp {
 
     /// Built-in sequential blue ramp.
     pub fn blues() -> Self {
-        Self::new(RampKind::Sequential, vec![
-            Color::rgb(239, 243, 255),
-            Color::rgb(189, 215, 231),
-            Color::rgb(107, 174, 214),
-            Color::rgb(49, 130, 189),
-            Color::rgb(8, 81, 156),
-        ])
+        Self::new(
+            RampKind::Sequential,
+            vec![
+                Color::rgb(239, 243, 255),
+                Color::rgb(189, 215, 231),
+                Color::rgb(107, 174, 214),
+                Color::rgb(49, 130, 189),
+                Color::rgb(8, 81, 156),
+            ],
+        )
     }
 
     /// Built-in diverging red-blue ramp.
     pub fn red_blue() -> Self {
-        Self::new(RampKind::Diverging, vec![
-            Color::rgb(178, 24, 43),
-            Color::rgb(239, 138, 98),
-            Color::rgb(247, 247, 247),
-            Color::rgb(103, 169, 207),
-            Color::rgb(33, 102, 172),
-        ])
+        Self::new(
+            RampKind::Diverging,
+            vec![
+                Color::rgb(178, 24, 43),
+                Color::rgb(239, 138, 98),
+                Color::rgb(247, 247, 247),
+                Color::rgb(103, 169, 207),
+                Color::rgb(33, 102, 172),
+            ],
+        )
     }
 
     /// Built-in qualitative palette (8 colors).
     pub fn qualitative8() -> Self {
-        Self::new(RampKind::Qualitative, vec![
-            Color::rgb(31, 119, 180),
-            Color::rgb(255, 127, 14),
-            Color::rgb(44, 160, 44),
-            Color::rgb(214, 39, 40),
-            Color::rgb(148, 103, 189),
-            Color::rgb(140, 86, 75),
-            Color::rgb(227, 119, 194),
-            Color::rgb(127, 127, 127),
-        ])
+        Self::new(
+            RampKind::Qualitative,
+            vec![
+                Color::rgb(31, 119, 180),
+                Color::rgb(255, 127, 14),
+                Color::rgb(44, 160, 44),
+                Color::rgb(214, 39, 40),
+                Color::rgb(148, 103, 189),
+                Color::rgb(140, 86, 75),
+                Color::rgb(227, 119, 194),
+                Color::rgb(127, 127, 127),
+            ],
+        )
     }
 
     /// Sample the ramp at `t` in [0, 1].
@@ -150,7 +164,9 @@ impl ColorRamp {
         if n == 1 {
             return vec![self.sample(0.5)];
         }
-        (0..n).map(|i| self.sample(i as f64 / (n - 1) as f64)).collect()
+        (0..n)
+            .map(|i| self.sample(i as f64 / (n - 1) as f64))
+            .collect()
     }
 }
 
@@ -171,7 +187,10 @@ pub struct FillStyle {
 
 impl Default for FillStyle {
     fn default() -> Self {
-        Self { color: Color::rgb(100, 149, 237), opacity: 0.6 }
+        Self {
+            color: Color::rgb(100, 149, 237),
+            opacity: 0.6,
+        }
     }
 }
 
@@ -192,7 +211,12 @@ pub struct StrokeStyle {
 
 impl Default for StrokeStyle {
     fn default() -> Self {
-        Self { color: Color::black(), width: 1.0, opacity: 1.0, dash_array: None }
+        Self {
+            color: Color::black(),
+            width: 1.0,
+            opacity: 1.0,
+            dash_array: None,
+        }
     }
 }
 
@@ -237,7 +261,12 @@ pub struct DataDrivenRule {
 
 impl DataDrivenRule {
     pub fn new(property: &str, comparison: Comparison) -> Self {
-        Self { property: property.to_string(), comparison, fill: None, stroke: None }
+        Self {
+            property: property.to_string(),
+            comparison,
+            fill: None,
+            stroke: None,
+        }
     }
 
     pub fn with_fill(mut self, fill: FillStyle) -> Self {
@@ -474,7 +503,13 @@ impl StyleConfig {
 
 impl fmt::Display for StyleConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "StyleConfig(z{}-{}, {} rules)", self.min_zoom, self.max_zoom, self.rules.len())
+        write!(
+            f,
+            "StyleConfig(z{}-{}, {} rules)",
+            self.min_zoom,
+            self.max_zoom,
+            self.rules.len()
+        )
     }
 }
 
@@ -576,8 +611,14 @@ mod tests {
     #[test]
     fn zoom_interpolation_clamp() {
         let z = ZoomInterpolation::new(vec![
-            ZoomStop { zoom: 5.0, value: 1.0 },
-            ZoomStop { zoom: 15.0, value: 5.0 },
+            ZoomStop {
+                zoom: 5.0,
+                value: 1.0,
+            },
+            ZoomStop {
+                zoom: 15.0,
+                value: 5.0,
+            },
         ]);
         assert!((z.evaluate(0.0) - 1.0).abs() < 1e-6);
         assert!((z.evaluate(20.0) - 5.0).abs() < 1e-6);
@@ -586,8 +627,14 @@ mod tests {
     #[test]
     fn zoom_interpolation_midpoint() {
         let z = ZoomInterpolation::new(vec![
-            ZoomStop { zoom: 0.0, value: 0.0 },
-            ZoomStop { zoom: 10.0, value: 100.0 },
+            ZoomStop {
+                zoom: 0.0,
+                value: 0.0,
+            },
+            ZoomStop {
+                zoom: 10.0,
+                value: 100.0,
+            },
         ]);
         assert!((z.evaluate(5.0) - 50.0).abs() < 1e-6);
     }
@@ -603,8 +650,14 @@ mod tests {
     #[test]
     fn style_config_effective_width() {
         let z = ZoomInterpolation::new(vec![
-            ZoomStop { zoom: 0.0, value: 1.0 },
-            ZoomStop { zoom: 20.0, value: 10.0 },
+            ZoomStop {
+                zoom: 0.0,
+                value: 1.0,
+            },
+            ZoomStop {
+                zoom: 20.0,
+                value: 10.0,
+            },
         ]);
         let cfg = StyleConfig::new().with_zoom_width(z);
         assert!((cfg.effective_width(10.0) - 5.5).abs() < 1e-6);
@@ -612,8 +665,12 @@ mod tests {
 
     #[test]
     fn style_config_match_rule() {
-        let rule = DataDrivenRule::new("class", Comparison::Equal("water".to_string()))
-            .with_fill(FillStyle { color: Color::rgb(0, 0, 200), opacity: 0.8 });
+        let rule = DataDrivenRule::new("class", Comparison::Equal("water".to_string())).with_fill(
+            FillStyle {
+                color: Color::rgb(0, 0, 200),
+                opacity: 0.8,
+            },
+        );
         let cfg = StyleConfig::new().with_rule(rule);
         assert!(cfg.match_str_rule("water").is_some());
         assert!(cfg.match_str_rule("land").is_none());

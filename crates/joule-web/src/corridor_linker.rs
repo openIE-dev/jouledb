@@ -5,15 +5,19 @@
 //! placement at room entries, corridor straightening, dead-end pruning,
 //! and intersection widening.
 
-use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 
 // ── Seeded RNG ──
 
-struct Rng { state: u64 }
+struct Rng {
+    state: u64,
+}
 
 impl Rng {
-    fn new(seed: u64) -> Self { Self { state: seed } }
+    fn new(seed: u64) -> Self {
+        Self { state: seed }
+    }
     fn next_u64(&mut self) -> u64 {
         self.state = self.state.wrapping_add(0x9e3779b97f4a7c15);
         let mut z = self.state;
@@ -22,11 +26,17 @@ impl Rng {
         z ^ (z >> 31)
     }
     fn range(&mut self, lo: usize, hi: usize) -> usize {
-        if lo >= hi { return lo; }
+        if lo >= hi {
+            return lo;
+        }
         lo + (self.next_u64() % (hi - lo) as u64) as usize
     }
-    fn coin(&mut self) -> bool { self.next_u64() & 1 == 0 }
-    fn chance(&mut self, pct: u64) -> bool { self.next_u64() % 100 < pct }
+    fn coin(&mut self) -> bool {
+        self.next_u64() & 1 == 0
+    }
+    fn chance(&mut self, pct: u64) -> bool {
+        self.next_u64() % 100 < pct
+    }
 }
 
 // ── Tile ──
@@ -62,31 +72,51 @@ pub struct Grid {
 
 impl Grid {
     pub fn new(width: usize, height: usize) -> Self {
-        Self { width, height, tiles: vec![vec![Tile::Empty; width]; height] }
+        Self {
+            width,
+            height,
+            tiles: vec![vec![Tile::Empty; width]; height],
+        }
     }
 
     pub fn get(&self, x: usize, y: usize) -> Tile {
-        if x < self.width && y < self.height { self.tiles[y][x] } else { Tile::Wall }
+        if x < self.width && y < self.height {
+            self.tiles[y][x]
+        } else {
+            Tile::Wall
+        }
     }
 
     pub fn set(&mut self, x: usize, y: usize, tile: Tile) {
-        if x < self.width && y < self.height { self.tiles[y][x] = tile; }
+        if x < self.width && y < self.height {
+            self.tiles[y][x] = tile;
+        }
     }
 
     pub fn count(&self, tile: Tile) -> usize {
-        self.tiles.iter().flat_map(|r| r.iter()).filter(|&&t| t == tile).count()
+        self.tiles
+            .iter()
+            .flat_map(|r| r.iter())
+            .filter(|&&t| t == tile)
+            .count()
     }
 
     pub fn to_string_grid(&self) -> String {
-        self.tiles.iter().map(|row| {
-            row.iter().map(|t| match t {
-                Tile::Wall => '#',
-                Tile::Floor => '.',
-                Tile::Corridor => ',',
-                Tile::Door => 'D',
-                Tile::Empty => ' ',
-            }).collect::<String>()
-        }).collect::<Vec<_>>().join("\n")
+        self.tiles
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|t| match t {
+                        Tile::Wall => '#',
+                        Tile::Floor => '.',
+                        Tile::Corridor => ',',
+                        Tile::Door => 'D',
+                        Tile::Empty => ' ',
+                    })
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 }
 
@@ -99,7 +129,9 @@ pub struct Endpoint {
 }
 
 impl Endpoint {
-    pub fn new(x: usize, y: usize) -> Self { Self { x, y } }
+    pub fn new(x: usize, y: usize) -> Self {
+        Self { x, y }
+    }
 }
 
 // ── CorridorResult ──
@@ -121,10 +153,14 @@ struct ANode {
     y: usize,
 }
 impl Ord for ANode {
-    fn cmp(&self, other: &Self) -> Ordering { other.f.cmp(&self.f) }
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.f.cmp(&self.f)
+    }
 }
 impl PartialOrd for ANode {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 fn astar(grid: &Grid, start: Endpoint, goal: Endpoint) -> Vec<(usize, usize)> {
@@ -139,20 +175,31 @@ fn astar(grid: &Grid, start: Endpoint, goal: Endpoint) -> Vec<(usize, usize)> {
     let mut heap = BinaryHeap::new();
 
     g_map.insert((start.x, start.y), 0);
-    heap.push(ANode { f: heuristic(start.x, start.y), g: 0, x: start.x, y: start.y });
+    heap.push(ANode {
+        f: heuristic(start.x, start.y),
+        g: 0,
+        x: start.x,
+        y: start.y,
+    });
 
     while let Some(node) = heap.pop() {
         if node.x == goal.x && node.y == goal.y {
             return reconstruct(&parent, start, goal);
         }
-        if node.g > *g_map.get(&(node.x, node.y)).unwrap_or(&usize::MAX) { continue; }
+        if node.g > *g_map.get(&(node.x, node.y)).unwrap_or(&usize::MAX) {
+            continue;
+        }
 
         for (dx, dy) in &[(1isize, 0isize), (-1, 0), (0, 1), (0, -1)] {
             let nx = node.x as isize + dx;
             let ny = node.y as isize + dy;
-            if nx < 0 || ny < 0 { continue; }
+            if nx < 0 || ny < 0 {
+                continue;
+            }
             let (ux, uy) = (nx as usize, ny as usize);
-            if ux >= grid.width || uy >= grid.height { continue; }
+            if ux >= grid.width || uy >= grid.height {
+                continue;
+            }
 
             let step = match grid.tiles[uy][ux] {
                 Tile::Floor | Tile::Corridor | Tile::Door => 1,
@@ -163,7 +210,12 @@ fn astar(grid: &Grid, start: Endpoint, goal: Endpoint) -> Vec<(usize, usize)> {
             if ng < *g_map.get(&(ux, uy)).unwrap_or(&usize::MAX) {
                 g_map.insert((ux, uy), ng);
                 parent.insert((ux, uy), (node.x, node.y));
-                heap.push(ANode { f: ng + heuristic(ux, uy), g: ng, x: ux, y: uy });
+                heap.push(ANode {
+                    f: ng + heuristic(ux, uy),
+                    g: ng,
+                    x: ux,
+                    y: uy,
+                });
             }
         }
     }
@@ -180,7 +232,10 @@ fn reconstruct(
     let mut cur = (goal.x, goal.y);
     while cur != (start.x, start.y) {
         match parent.get(&cur) {
-            Some(&p) => { path.push(p); cur = p; }
+            Some(&p) => {
+                path.push(p);
+                cur = p;
+            }
             None => break,
         }
     }
@@ -192,11 +247,39 @@ fn l_path(start: Endpoint, goal: Endpoint, horizontal_first: bool) -> Vec<(usize
     let mut path = Vec::new();
     let (mut cx, mut cy) = (start.x, start.y);
     if horizontal_first {
-        while cx != goal.x { path.push((cx, cy)); if cx < goal.x { cx += 1; } else { cx -= 1; } }
-        while cy != goal.y { path.push((cx, cy)); if cy < goal.y { cy += 1; } else { cy -= 1; } }
+        while cx != goal.x {
+            path.push((cx, cy));
+            if cx < goal.x {
+                cx += 1;
+            } else {
+                cx -= 1;
+            }
+        }
+        while cy != goal.y {
+            path.push((cx, cy));
+            if cy < goal.y {
+                cy += 1;
+            } else {
+                cy -= 1;
+            }
+        }
     } else {
-        while cy != goal.y { path.push((cx, cy)); if cy < goal.y { cy += 1; } else { cy -= 1; } }
-        while cx != goal.x { path.push((cx, cy)); if cx < goal.x { cx += 1; } else { cx -= 1; } }
+        while cy != goal.y {
+            path.push((cx, cy));
+            if cy < goal.y {
+                cy += 1;
+            } else {
+                cy -= 1;
+            }
+        }
+        while cx != goal.x {
+            path.push((cx, cy));
+            if cx < goal.x {
+                cx += 1;
+            } else {
+                cx -= 1;
+            }
+        }
     }
     path.push((goal.x, goal.y));
     path
@@ -211,11 +294,32 @@ fn z_path(start: Endpoint, goal: Endpoint) -> Vec<(usize, usize)> {
     let mut path = Vec::new();
     let (mut cx, mut cy) = (start.x, start.y);
     // Vertical to mid
-    while cy != mid_y { path.push((cx, cy)); if cy < mid_y { cy += 1; } else { cy -= 1; } }
+    while cy != mid_y {
+        path.push((cx, cy));
+        if cy < mid_y {
+            cy += 1;
+        } else {
+            cy -= 1;
+        }
+    }
     // Horizontal
-    while cx != goal.x { path.push((cx, cy)); if cx < goal.x { cx += 1; } else { cx -= 1; } }
+    while cx != goal.x {
+        path.push((cx, cy));
+        if cx < goal.x {
+            cx += 1;
+        } else {
+            cx -= 1;
+        }
+    }
     // Vertical to goal
-    while cy != goal.y { path.push((cx, cy)); if cy < goal.y { cy += 1; } else { cy -= 1; } }
+    while cy != goal.y {
+        path.push((cx, cy));
+        if cy < goal.y {
+            cy += 1;
+        } else {
+            cy -= 1;
+        }
+    }
     path.push((goal.x, goal.y));
     path
 }
@@ -239,9 +343,17 @@ fn organic_path(start: Endpoint, goal: Endpoint, rng: &mut Rng) -> Vec<(usize, u
         } else {
             match rng.range(0, 4) {
                 0 => cx += 1,
-                1 => { if cx > 0 { cx -= 1; } }
+                1 => {
+                    if cx > 0 {
+                        cx -= 1;
+                    }
+                }
                 2 => cy += 1,
-                _ => { if cy > 0 { cy -= 1; } }
+                _ => {
+                    if cy > 0 {
+                        cy -= 1;
+                    }
+                }
             }
         }
         // Prevent going too far off course
@@ -251,9 +363,15 @@ fn organic_path(start: Endpoint, goal: Endpoint, rng: &mut Rng) -> Vec<(usize, u
             // Snap back toward goal
             let dx = (gx - cx).signum();
             let dy = (gy - cy).signum();
-            if dx != 0 { cx += dx; } else { cy += dy; }
+            if dx != 0 {
+                cx += dx;
+            } else {
+                cy += dy;
+            }
         }
-        if path.len() > (orig as usize + 1) * 4 { break; } // safety
+        if path.len() > (orig as usize + 1) * 4 {
+            break;
+        } // safety
     }
     path.push((goal.x, goal.y));
     path
@@ -284,7 +402,9 @@ pub fn link_corridor(
     for &(px, py) in &path {
         if px < grid.width && py < grid.height {
             let current = grid.tiles[py][px];
-            if current == Tile::Floor { continue; } // Don't overwrite rooms
+            if current == Tile::Floor {
+                continue;
+            } // Don't overwrite rooms
 
             let at_room_edge = is_adjacent_to(grid, px, py, Tile::Floor);
             if at_room_edge && current != Tile::Door {
@@ -343,7 +463,9 @@ fn widen_corridor(grid: &mut Grid, path: &[(usize, usize)]) {
 
 /// Remove unnecessary turns from a path (straightening pass).
 pub fn straighten_path(path: &[(usize, usize)]) -> Vec<(usize, usize)> {
-    if path.len() <= 2 { return path.to_vec(); }
+    if path.len() <= 2 {
+        return path.to_vec();
+    }
     let mut result = vec![path[0]];
     for i in 1..path.len() - 1 {
         let (px, py) = path[i - 1];
@@ -371,12 +493,17 @@ pub fn straighten_path(path: &[(usize, usize)]) -> Vec<(usize, usize)> {
         let gy = y2 as isize;
         while cx != gx || cy != gy {
             full.push((cx as usize, cy as usize));
-            if cx != gx { cx += (gx - cx).signum(); }
-            else { cy += (gy - cy).signum(); }
+            if cx != gx {
+                cx += (gx - cx).signum();
+            } else {
+                cy += (gy - cy).signum();
+            }
         }
     }
     if let Some(&last) = path.last() {
-        if full.last().copied() != Some(last) { full.push(last); }
+        if full.last().copied() != Some(last) {
+            full.push(last);
+        }
     }
     full
 }
@@ -386,7 +513,9 @@ pub fn widen_intersections(grid: &mut Grid) {
     let snapshot: Vec<Vec<Tile>> = grid.tiles.clone();
     for y in 1..grid.height.saturating_sub(1) {
         for x in 1..grid.width.saturating_sub(1) {
-            if snapshot[y][x] != Tile::Corridor { continue; }
+            if snapshot[y][x] != Tile::Corridor {
+                continue;
+            }
             let adj_corridors = [(1isize, 0isize), (-1, 0), (0, 1), (0, -1)]
                 .iter()
                 .filter(|&&(dx, dy)| {
@@ -416,7 +545,9 @@ pub fn prune_dead_ends(grid: &mut Grid) {
         changed = false;
         for y in 0..grid.height {
             for x in 0..grid.width {
-                if grid.tiles[y][x] != Tile::Corridor { continue; }
+                if grid.tiles[y][x] != Tile::Corridor {
+                    continue;
+                }
                 let adj = [(1isize, 0isize), (-1, 0), (0, 1), (0, -1)]
                     .iter()
                     .filter(|&&(dx, dy)| {
@@ -424,9 +555,15 @@ pub fn prune_dead_ends(grid: &mut Grid) {
                         let ny = y as isize + dy;
                         if nx >= 0 && ny >= 0 {
                             let (ux, uy) = (nx as usize, ny as usize);
-                            ux < grid.width && uy < grid.height
-                                && matches!(grid.tiles[uy][ux], Tile::Corridor | Tile::Floor | Tile::Door)
-                        } else { false }
+                            ux < grid.width
+                                && uy < grid.height
+                                && matches!(
+                                    grid.tiles[uy][ux],
+                                    Tile::Corridor | Tile::Floor | Tile::Door
+                                )
+                        } else {
+                            false
+                        }
                     })
                     .count();
                 if adj <= 1 {
@@ -444,7 +581,9 @@ pub fn place_doors(grid: &mut Grid) -> Vec<(usize, usize)> {
     let snapshot: Vec<Vec<Tile>> = grid.tiles.clone();
     for y in 0..grid.height {
         for x in 0..grid.width {
-            if snapshot[y][x] != Tile::Corridor { continue; }
+            if snapshot[y][x] != Tile::Corridor {
+                continue;
+            }
             if is_adjacent_to_snapshot(&snapshot, x, y, Tile::Floor, grid.width, grid.height) {
                 grid.set(x, y, Tile::Door);
                 doors.push((x, y));
@@ -454,13 +593,22 @@ pub fn place_doors(grid: &mut Grid) -> Vec<(usize, usize)> {
     doors
 }
 
-fn is_adjacent_to_snapshot(tiles: &[Vec<Tile>], x: usize, y: usize, tile: Tile, w: usize, h: usize) -> bool {
+fn is_adjacent_to_snapshot(
+    tiles: &[Vec<Tile>],
+    x: usize,
+    y: usize,
+    tile: Tile,
+    w: usize,
+    h: usize,
+) -> bool {
     for (dx, dy) in &[(1isize, 0isize), (-1, 0), (0, 1), (0, -1)] {
         let nx = x as isize + dx;
         let ny = y as isize + dy;
         if nx >= 0 && ny >= 0 {
             let (ux, uy) = (nx as usize, ny as usize);
-            if ux < w && uy < h && tiles[uy][ux] == tile { return true; }
+            if ux < w && uy < h && tiles[uy][ux] == tile {
+                return true;
+            }
         }
     }
     false
@@ -475,9 +623,17 @@ mod tests {
     fn make_grid_with_rooms() -> Grid {
         let mut grid = Grid::new(30, 20);
         // Room A at (2,2)-(7,7)
-        for y in 2..8 { for x in 2..8 { grid.set(x, y, Tile::Floor); } }
+        for y in 2..8 {
+            for x in 2..8 {
+                grid.set(x, y, Tile::Floor);
+            }
+        }
         // Room B at (20,12)-(27,17)
-        for y in 12..18 { for x in 20..28 { grid.set(x, y, Tile::Floor); } }
+        for y in 12..18 {
+            for x in 20..28 {
+                grid.set(x, y, Tile::Floor);
+            }
+        }
         grid
     }
 
@@ -562,7 +718,10 @@ mod tests {
             CorridorStyle::Straight,
             42,
         );
-        assert!(!result.doors.is_empty(), "doors should be placed at room entries");
+        assert!(
+            !result.doors.is_empty(),
+            "doors should be placed at room entries"
+        );
         for &(dx, dy) in &result.doors {
             assert_eq!(grid.tiles[dy][dx], Tile::Door);
         }
@@ -587,7 +746,9 @@ mod tests {
     fn test_prune_dead_ends() {
         let mut grid = Grid::new(10, 10);
         // Create a corridor with a dead end
-        for x in 2..8 { grid.set(x, 5, Tile::Corridor); }
+        for x in 2..8 {
+            grid.set(x, 5, Tile::Corridor);
+        }
         grid.set(7, 4, Tile::Corridor); // dead end
         grid.set(7, 3, Tile::Corridor); // dead end extension
         prune_dead_ends(&mut grid);
@@ -614,8 +775,14 @@ mod tests {
     #[test]
     fn test_place_doors_function() {
         let mut grid = Grid::new(15, 15);
-        for y in 2..6 { for x in 2..6 { grid.set(x, y, Tile::Floor); } }
-        for x in 6..10 { grid.set(x, 3, Tile::Corridor); }
+        for y in 2..6 {
+            for x in 2..6 {
+                grid.set(x, y, Tile::Floor);
+            }
+        }
+        for x in 6..10 {
+            grid.set(x, 3, Tile::Corridor);
+        }
         let doors = place_doors(&mut grid);
         assert!(!doors.is_empty());
     }
@@ -631,7 +798,9 @@ mod tests {
     #[test]
     fn test_grid_count() {
         let mut grid = Grid::new(10, 10);
-        for x in 0..10 { grid.set(x, 5, Tile::Corridor); }
+        for x in 0..10 {
+            grid.set(x, 5, Tile::Corridor);
+        }
         assert_eq!(grid.count(Tile::Corridor), 10);
         assert_eq!(grid.count(Tile::Empty), 90);
     }
@@ -640,8 +809,20 @@ mod tests {
     fn test_seed_determinism() {
         let mut g1 = Grid::new(20, 20);
         let mut g2 = Grid::new(20, 20);
-        link_corridor(&mut g1, Endpoint::new(2, 2), Endpoint::new(17, 17), CorridorStyle::Organic, 42);
-        link_corridor(&mut g2, Endpoint::new(2, 2), Endpoint::new(17, 17), CorridorStyle::Organic, 42);
+        link_corridor(
+            &mut g1,
+            Endpoint::new(2, 2),
+            Endpoint::new(17, 17),
+            CorridorStyle::Organic,
+            42,
+        );
+        link_corridor(
+            &mut g2,
+            Endpoint::new(2, 2),
+            Endpoint::new(17, 17),
+            CorridorStyle::Organic,
+            42,
+        );
         assert_eq!(g1.tiles, g2.tiles);
     }
 
@@ -656,7 +837,11 @@ mod tests {
             42,
         );
         // Room A tiles should still be floor
-        for y in 3..7 { for x in 3..7 { assert_eq!(grid.tiles[y][x], Tile::Floor); } }
+        for y in 3..7 {
+            for x in 3..7 {
+                assert_eq!(grid.tiles[y][x], Tile::Floor);
+            }
+        }
     }
 
     #[test]
@@ -688,12 +873,36 @@ mod tests {
     #[test]
     fn test_multiple_corridors() {
         let mut grid = Grid::new(30, 30);
-        for y in 2..6 { for x in 2..6 { grid.set(x, y, Tile::Floor); } }
-        for y in 2..6 { for x in 20..26 { grid.set(x, y, Tile::Floor); } }
-        for y in 20..26 { for x in 2..6 { grid.set(x, y, Tile::Floor); } }
+        for y in 2..6 {
+            for x in 2..6 {
+                grid.set(x, y, Tile::Floor);
+            }
+        }
+        for y in 2..6 {
+            for x in 20..26 {
+                grid.set(x, y, Tile::Floor);
+            }
+        }
+        for y in 20..26 {
+            for x in 2..6 {
+                grid.set(x, y, Tile::Floor);
+            }
+        }
 
-        link_corridor(&mut grid, Endpoint::new(4, 4), Endpoint::new(22, 4), CorridorStyle::Straight, 1);
-        link_corridor(&mut grid, Endpoint::new(4, 4), Endpoint::new(4, 22), CorridorStyle::Straight, 2);
+        link_corridor(
+            &mut grid,
+            Endpoint::new(4, 4),
+            Endpoint::new(22, 4),
+            CorridorStyle::Straight,
+            1,
+        );
+        link_corridor(
+            &mut grid,
+            Endpoint::new(4, 4),
+            Endpoint::new(4, 22),
+            CorridorStyle::Straight,
+            2,
+        );
         assert!(grid.count(Tile::Corridor) > 0 || grid.count(Tile::Door) > 0);
     }
 

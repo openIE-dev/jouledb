@@ -16,7 +16,10 @@ pub enum DlqError {
     /// Message not found.
     MessageNotFound(String),
     /// Max retries exceeded.
-    MaxRetriesExceeded { message_id: String, max_retries: u32 },
+    MaxRetriesExceeded {
+        message_id: String,
+        max_retries: u32,
+    },
     /// Message already expired.
     MessageExpired(String),
     /// Queue not found.
@@ -31,7 +34,10 @@ impl std::fmt::Display for DlqError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::MessageNotFound(id) => write!(f, "message not found: {id}"),
-            Self::MaxRetriesExceeded { message_id, max_retries } => {
+            Self::MaxRetriesExceeded {
+                message_id,
+                max_retries,
+            } => {
                 write!(f, "max retries ({max_retries}) exceeded for {message_id}")
             }
             Self::MessageExpired(id) => write!(f, "message expired: {id}"),
@@ -269,7 +275,9 @@ impl DlqManager {
 
     /// Get a message by id.
     pub fn get_message(&self, message_id: &str) -> Option<&DeadLetter> {
-        self.message_index.get(message_id).map(|idx| &self.messages[*idx])
+        self.message_index
+            .get(message_id)
+            .map(|idx| &self.messages[*idx])
     }
 
     /// List pending messages for a queue.
@@ -310,12 +318,26 @@ impl DlqManager {
             .collect();
 
         let total = msgs.len() as u64;
-        let pending = msgs.iter().filter(|m| m.state == DlqMessageState::Pending).count() as u64;
-        let retrying = msgs.iter().filter(|m| m.state == DlqMessageState::Retrying).count() as u64;
-        let resolved = msgs.iter().filter(|m| m.state == DlqMessageState::Resolved).count() as u64;
-        let discarded =
-            msgs.iter().filter(|m| m.state == DlqMessageState::Discarded).count() as u64;
-        let expired = msgs.iter().filter(|m| m.state == DlqMessageState::Expired).count() as u64;
+        let pending = msgs
+            .iter()
+            .filter(|m| m.state == DlqMessageState::Pending)
+            .count() as u64;
+        let retrying = msgs
+            .iter()
+            .filter(|m| m.state == DlqMessageState::Retrying)
+            .count() as u64;
+        let resolved = msgs
+            .iter()
+            .filter(|m| m.state == DlqMessageState::Resolved)
+            .count() as u64;
+        let discarded = msgs
+            .iter()
+            .filter(|m| m.state == DlqMessageState::Discarded)
+            .count() as u64;
+        let expired = msgs
+            .iter()
+            .filter(|m| m.state == DlqMessageState::Expired)
+            .count() as u64;
 
         let total_retries: u32 = msgs.iter().map(|m| m.retry_count).sum();
         let avg_retry_count = if total > 0 {
@@ -496,7 +518,10 @@ mod tests {
 
         let expired = mgr.expire_old_messages();
         assert_eq!(expired, 1);
-        assert_eq!(mgr.get_message("m1").unwrap().state, DlqMessageState::Expired);
+        assert_eq!(
+            mgr.get_message("m1").unwrap().state,
+            DlqMessageState::Expired
+        );
     }
 
     #[test]
@@ -688,9 +713,6 @@ mod tests {
         let mut mgr = setup();
         enqueue_msg(&mut mgr, "m1");
         mgr.discard("m1").unwrap();
-        assert!(matches!(
-            mgr.retry("m1"),
-            Err(DlqError::MessageNotFound(_))
-        ));
+        assert!(matches!(mgr.retry("m1"), Err(DlqError::MessageNotFound(_))));
     }
 }

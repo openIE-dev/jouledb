@@ -288,14 +288,14 @@ enum Token {
     FloatValue(f64),
     StringValue(String),
     Punctuation(char),
-    Spread,   // "..."
-    Dollar,   // "$"
-    At,       // "@"
-    Equals,   // "="
-    Colon,    // ":"
-    Bang,     // "!"
-    Pipe,     // "|"
-    Amp,      // "&"
+    Spread, // "..."
+    Dollar, // "$"
+    At,     // "@"
+    Equals, // "="
+    Colon,  // ":"
+    Bang,   // "!"
+    Pipe,   // "|"
+    Amp,    // "&"
     Eof,
 }
 
@@ -338,13 +338,34 @@ impl Lexer {
                 self.advance();
                 Ok(Token::Punctuation(ch))
             }
-            '$' => { self.advance(); Ok(Token::Dollar) }
-            '@' => { self.advance(); Ok(Token::At) }
-            '=' => { self.advance(); Ok(Token::Equals) }
-            ':' => { self.advance(); Ok(Token::Colon) }
-            '!' => { self.advance(); Ok(Token::Bang) }
-            '|' => { self.advance(); Ok(Token::Pipe) }
-            '&' => { self.advance(); Ok(Token::Amp) }
+            '$' => {
+                self.advance();
+                Ok(Token::Dollar)
+            }
+            '@' => {
+                self.advance();
+                Ok(Token::At)
+            }
+            '=' => {
+                self.advance();
+                Ok(Token::Equals)
+            }
+            ':' => {
+                self.advance();
+                Ok(Token::Colon)
+            }
+            '!' => {
+                self.advance();
+                Ok(Token::Bang)
+            }
+            '|' => {
+                self.advance();
+                Ok(Token::Pipe)
+            }
+            '&' => {
+                self.advance();
+                Ok(Token::Amp)
+            }
             '.' => {
                 if self.pos + 2 < self.chars.len()
                     && self.chars[self.pos + 1] == '.'
@@ -523,33 +544,32 @@ pub fn parse(input: &str) -> Result<Document, ParseError> {
                 let name_lower = n.to_lowercase();
                 match name_lower.as_str() {
                     "query" | "mutation" | "subscription" => {
-                        definitions.push(Definition::Operation(
-                            parse_operation_definition(&mut lexer)?,
-                        ));
+                        definitions.push(Definition::Operation(parse_operation_definition(
+                            &mut lexer,
+                        )?));
                     }
                     "fragment" => {
-                        definitions.push(Definition::Fragment(
-                            parse_fragment_definition(&mut lexer)?,
-                        ));
+                        definitions
+                            .push(Definition::Fragment(parse_fragment_definition(&mut lexer)?));
                     }
                     "schema" => {
-                        definitions.push(Definition::TypeSystem(
-                            parse_type_system_definition(&mut lexer)?,
-                        ));
+                        definitions.push(Definition::TypeSystem(parse_type_system_definition(
+                            &mut lexer,
+                        )?));
                     }
                     "scalar" | "type" | "interface" | "union" | "enum" | "input" => {
-                        definitions.push(Definition::TypeSystem(
-                            parse_type_system_definition(&mut lexer)?,
-                        ));
+                        definitions.push(Definition::TypeSystem(parse_type_system_definition(
+                            &mut lexer,
+                        )?));
                     }
                     _ => return Err(lexer.error(&format!("unexpected keyword: {n}"))),
                 }
             }
             Token::StringValue(_) => {
                 // description string before type definition
-                definitions.push(Definition::TypeSystem(
-                    parse_type_system_definition(&mut lexer)?,
-                ));
+                definitions.push(Definition::TypeSystem(parse_type_system_definition(
+                    &mut lexer,
+                )?));
             }
             _ => return Err(lexer.error(&format!("unexpected token: {tok:?}"))),
         }
@@ -668,7 +688,10 @@ fn parse_selection(lexer: &mut Lexer) -> Result<Selection, ParseError> {
             Token::Name(ref n) if n != "on" => {
                 let name = lexer.expect_name()?;
                 let directives = parse_directives(lexer)?;
-                Ok(Selection::FragmentSpread(FragmentSpread { name, directives }))
+                Ok(Selection::FragmentSpread(FragmentSpread {
+                    name,
+                    directives,
+                }))
             }
             _ => {
                 // inline fragment
@@ -867,9 +890,7 @@ fn parse_optional_description(lexer: &mut Lexer) -> Result<Option<String>, Parse
     Ok(None)
 }
 
-fn parse_type_system_definition(
-    lexer: &mut Lexer,
-) -> Result<TypeSystemDefinition, ParseError> {
+fn parse_type_system_definition(lexer: &mut Lexer) -> Result<TypeSystemDefinition, ParseError> {
     let description = parse_optional_description(lexer)?;
     let keyword = lexer.expect_name()?;
     match keyword.as_str() {
@@ -882,8 +903,7 @@ fn parse_type_system_definition(
         "union" => parse_union_definition(lexer, description).map(TypeSystemDefinition::Union),
         "enum" => parse_enum_definition(lexer, description).map(TypeSystemDefinition::Enum),
         "input" => {
-            parse_input_object_definition(lexer, description)
-                .map(TypeSystemDefinition::InputObject)
+            parse_input_object_definition(lexer, description).map(TypeSystemDefinition::InputObject)
         }
         _ => Err(lexer.error(&format!("unexpected type system keyword: {keyword}"))),
     }
@@ -1296,12 +1316,15 @@ mod tests {
 
     #[test]
     fn parse_variables() {
-        let doc = parse("query Get($id: ID!, $limit: Int = 10) { user(id: $id) { name } }")
-            .unwrap();
+        let doc =
+            parse("query Get($id: ID!, $limit: Int = 10) { user(id: $id) { name } }").unwrap();
         if let Definition::Operation(op) = &doc.definitions[0] {
             assert_eq!(op.variables.len(), 2);
             assert_eq!(op.variables[0].name, "id");
-            assert_eq!(op.variables[0].var_type, TypeRef::NonNull(Box::new(TypeRef::Named("ID".into()))));
+            assert_eq!(
+                op.variables[0].var_type,
+                TypeRef::NonNull(Box::new(TypeRef::Named("ID".into())))
+            );
             assert_eq!(op.variables[1].name, "limit");
             assert_eq!(op.variables[1].default_value, Some(Value::Int(10)));
         } else {
@@ -1381,9 +1404,10 @@ mod tests {
         let doc = parse(input).unwrap();
         if let Definition::Operation(op) = &doc.definitions[0] {
             if let Selection::Field(f) = &op.selection_set.selections[0] {
-                assert_eq!(f.arguments[0].value, Value::List(vec![
-                    Value::Int(1), Value::Int(2), Value::Int(3),
-                ]));
+                assert_eq!(
+                    f.arguments[0].value,
+                    Value::List(vec![Value::Int(1), Value::Int(2), Value::Int(3),])
+                );
             } else {
                 panic!("expected field");
             }
@@ -1524,7 +1548,11 @@ mod tests {
     fn validate_undefined_fragment() {
         let doc = parse("{ user { ...MissingFragment } }").unwrap();
         let errors = validate(&doc);
-        assert!(errors.iter().any(|e| e.message.contains("undefined fragment")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.message.contains("undefined fragment"))
+        );
     }
 
     #[test]
@@ -1540,7 +1568,11 @@ mod tests {
         let input = "query Foo { a } query Foo { b }";
         let doc = parse(input).unwrap();
         let errors = validate(&doc);
-        assert!(errors.iter().any(|e| e.message.contains("duplicate operation name")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.message.contains("duplicate operation name"))
+        );
     }
 
     #[test]
@@ -1593,7 +1625,9 @@ mod tests {
 
     #[test]
     fn type_ref_display() {
-        let t = TypeRef::NonNull(Box::new(TypeRef::List(Box::new(TypeRef::Named("String".into())))));
+        let t = TypeRef::NonNull(Box::new(TypeRef::List(Box::new(TypeRef::Named(
+            "String".into(),
+        )))));
         assert_eq!(t.to_string(), "[String]!");
     }
 
@@ -1622,7 +1656,10 @@ mod tests {
         let doc = parse(input).unwrap();
         if let Definition::Operation(op) = &doc.definitions[0] {
             if let Selection::Field(f) = &op.selection_set.selections[0] {
-                assert_eq!(f.arguments[0].value, Value::StringValue("hello\nworld".into()));
+                assert_eq!(
+                    f.arguments[0].value,
+                    Value::StringValue("hello\nworld".into())
+                );
             } else {
                 panic!("expected field");
             }

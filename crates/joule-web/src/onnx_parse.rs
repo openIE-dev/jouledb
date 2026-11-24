@@ -13,10 +13,10 @@ use std::fmt;
 /// Protobuf wire types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WireType {
-    Varint,         // 0
-    Fixed64,        // 1
-    LengthDelim,    // 2
-    Fixed32,        // 5
+    Varint,      // 0
+    Fixed64,     // 1
+    LengthDelim, // 2
+    Fixed32,     // 5
 }
 
 impl WireType {
@@ -77,12 +77,19 @@ pub fn read_tag(data: &[u8], offset: usize) -> Result<(u32, WireType, usize), St
 }
 
 /// Read a length-delimited field (returns the byte slice and bytes consumed).
-pub fn read_length_delimited<'a>(data: &'a [u8], offset: usize) -> Result<(&'a [u8], usize), String> {
+pub fn read_length_delimited<'a>(
+    data: &'a [u8],
+    offset: usize,
+) -> Result<(&'a [u8], usize), String> {
     let (length, len_bytes) = read_varint(data, offset)?;
     let start = offset + len_bytes;
     let end = start + length as usize;
     if end > data.len() {
-        return Err(format!("length-delimited field extends past end: {} > {}", end, data.len()));
+        return Err(format!(
+            "length-delimited field extends past end: {} > {}",
+            end,
+            data.len()
+        ));
     }
     Ok((&data[start..end], len_bytes + length as usize))
 }
@@ -170,7 +177,10 @@ impl OnnxTensor {
         if self.dims.is_empty() {
             return 0;
         }
-        self.dims.iter().map(|d| d.unsigned_abs() as usize).product()
+        self.dims
+            .iter()
+            .map(|d| d.unsigned_abs() as usize)
+            .product()
     }
 
     /// Extract float32 data from raw bytes.
@@ -192,7 +202,11 @@ impl OnnxTensor {
 
 impl fmt::Display for OnnxTensor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "OnnxTensor('{}', dtype={}, dims={:?})", self.name, self.data_type, self.dims)
+        write!(
+            f,
+            "OnnxTensor('{}', dtype={}, dims={:?})",
+            self.name, self.data_type, self.dims
+        )
     }
 }
 
@@ -441,7 +455,10 @@ impl OnnxModel {
     }
 
     pub fn with_opset(mut self, domain: impl Into<String>, version: i64) -> Self {
-        self.opset_imports.push(OpSetImport { domain: domain.into(), version });
+        self.opset_imports.push(OpSetImport {
+            domain: domain.into(),
+            version,
+        });
         self
     }
 
@@ -556,7 +573,10 @@ mod tests {
     fn test_onnx_data_type_from_id() {
         assert_eq!(OnnxDataType::from_id(1), OnnxDataType::Float);
         assert_eq!(OnnxDataType::from_id(7), OnnxDataType::Int64);
-        assert!(matches!(OnnxDataType::from_id(99), OnnxDataType::Unknown(99)));
+        assert!(matches!(
+            OnnxDataType::from_id(99),
+            OnnxDataType::Unknown(99)
+        ));
     }
 
     #[test]
@@ -608,8 +628,18 @@ mod tests {
     #[test]
     fn test_onnx_graph_topo_sort() {
         let mut g = OnnxGraph::new("test");
-        g.nodes.push(OnnxNode::new("Relu").with_name("relu1").with_input("conv_out").with_output("relu_out"));
-        g.nodes.push(OnnxNode::new("Conv").with_name("conv1").with_input("x").with_output("conv_out"));
+        g.nodes.push(
+            OnnxNode::new("Relu")
+                .with_name("relu1")
+                .with_input("conv_out")
+                .with_output("relu_out"),
+        );
+        g.nodes.push(
+            OnnxNode::new("Conv")
+                .with_name("conv1")
+                .with_input("x")
+                .with_output("conv_out"),
+        );
         let order = g.topological_sort();
         // conv1 (idx 1) should come before relu1 (idx 0)
         let pos_conv = order.iter().position(|i| *i == 1).unwrap();
@@ -642,7 +672,9 @@ mod tests {
 
     #[test]
     fn test_onnx_model_summary() {
-        let model = OnnxModel::new().with_ir_version(9).with_producer("joule", "0.1");
+        let model = OnnxModel::new()
+            .with_ir_version(9)
+            .with_producer("joule", "0.1");
         let s = model.summary();
         assert!(s.contains("IR v9"));
         assert!(s.contains("joule"));
@@ -652,13 +684,21 @@ mod tests {
     fn test_display_impls() {
         assert!(format!("{}", WireType::Varint).contains("varint"));
         assert!(format!("{}", OnnxDataType::Float).contains("float32"));
-        let t = OnnxTensor { name: "w".into(), data_type: OnnxDataType::Float, dims: vec![2, 3], raw_data: vec![] };
+        let t = OnnxTensor {
+            name: "w".into(),
+            data_type: OnnxDataType::Float,
+            dims: vec![2, 3],
+            raw_data: vec![],
+        };
         assert!(format!("{t}").contains("[2, 3]"));
         let n = OnnxNode::new("Add").with_name("add1");
         assert!(format!("{n}").contains("Add"));
         let a = OnnxAttr::Int(42);
         assert!(format!("{a}").contains("42"));
-        let o = OpSetImport { domain: String::new(), version: 13 };
+        let o = OpSetImport {
+            domain: String::new(),
+            version: 13,
+        };
         assert!(format!("{o}").contains("v13"));
         let g = OnnxGraph::new("g");
         assert!(format!("{g}").contains("OnnxGraph"));

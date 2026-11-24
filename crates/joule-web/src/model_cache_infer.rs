@@ -130,8 +130,7 @@ impl CacheEntry {
             self.avg_latency_us = latency_us;
         } else {
             // Running average.
-            self.avg_latency_us =
-                self.avg_latency_us * ((n - 1.0) / n) + latency_us / n;
+            self.avg_latency_us = self.avg_latency_us * ((n - 1.0) / n) + latency_us / n;
         }
     }
 
@@ -281,7 +280,8 @@ impl ModelCache {
         }
 
         let size = meta.size_bytes;
-        self.entries.insert(key, CacheEntry::new(meta, payload_hash));
+        self.entries
+            .insert(key, CacheEntry::new(meta, payload_hash));
         self.used_bytes += size;
         Ok(())
     }
@@ -366,30 +366,26 @@ impl ModelCache {
     /// Evict one model according to the configured policy.
     fn evict_one(&mut self) -> bool {
         let victim_key = match self.policy {
-            EvictionPolicy::Lru => {
-                self.entries
-                    .iter()
-                    .max_by_key(|(_, e)| e.idle_duration())
-                    .map(|(k, _)| k.clone())
-            }
-            EvictionPolicy::LargestFirst => {
-                self.entries
-                    .iter()
-                    .max_by_key(|(_, e)| e.size())
-                    .map(|(k, _)| k.clone())
-            }
-            EvictionPolicy::Lfu => {
-                self.entries
-                    .iter()
-                    .min_by_key(|(_, e)| e.inference_count)
-                    .map(|(k, _)| k.clone())
-            }
-            EvictionPolicy::Fifo => {
-                self.entries
-                    .iter()
-                    .min_by_key(|(_, e)| e.loaded_at)
-                    .map(|(k, _)| k.clone())
-            }
+            EvictionPolicy::Lru => self
+                .entries
+                .iter()
+                .max_by_key(|(_, e)| e.idle_duration())
+                .map(|(k, _)| k.clone()),
+            EvictionPolicy::LargestFirst => self
+                .entries
+                .iter()
+                .max_by_key(|(_, e)| e.size())
+                .map(|(k, _)| k.clone()),
+            EvictionPolicy::Lfu => self
+                .entries
+                .iter()
+                .min_by_key(|(_, e)| e.inference_count)
+                .map(|(k, _)| k.clone()),
+            EvictionPolicy::Fifo => self
+                .entries
+                .iter()
+                .min_by_key(|(_, e)| e.loaded_at)
+                .map(|(k, _)| k.clone()),
         };
 
         if let Some(key) = victim_key {
@@ -434,7 +430,9 @@ struct VersionEntry {
 
 impl VersionRegistry {
     pub fn new() -> Self {
-        Self { versions: HashMap::new() }
+        Self {
+            versions: HashMap::new(),
+        }
     }
 
     /// Register a new version for a model.
@@ -657,8 +655,12 @@ mod tests {
         assert!(format!("{cache}").contains("ModelCache"));
 
         let stats = CacheStats {
-            total_models: 0, total_memory_bytes: 0, budget_bytes: 100,
-            hits: 0, misses: 0, evictions: 0,
+            total_models: 0,
+            total_memory_bytes: 0,
+            budget_bytes: 100,
+            hits: 0,
+            misses: 0,
+            evictions: 0,
         };
         assert!(format!("{stats}").contains("CacheStats"));
 

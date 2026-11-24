@@ -203,19 +203,27 @@ pub enum MiddlewareKind {
 impl MiddlewareUnit {
     /// Create a logger middleware.
     pub fn logger() -> Self {
-        Self { name: "logger".to_string(), kind: MiddlewareKind::Logger }
+        Self {
+            name: "logger".to_string(),
+            kind: MiddlewareKind::Logger,
+        }
     }
 
     /// Create a timing middleware.
     pub fn timing() -> Self {
-        Self { name: "timing".to_string(), kind: MiddlewareKind::Timing }
+        Self {
+            name: "timing".to_string(),
+            kind: MiddlewareKind::Timing,
+        }
     }
 
     /// Create an auth middleware.
     pub fn auth(token: &str) -> Self {
         Self {
             name: "auth".to_string(),
-            kind: MiddlewareKind::Auth { token: token.to_string() },
+            kind: MiddlewareKind::Auth {
+                token: token.to_string(),
+            },
         }
     }
 
@@ -231,12 +239,18 @@ impl MiddlewareUnit {
 
     /// Create a compression middleware.
     pub fn compression() -> Self {
-        Self { name: "compression".to_string(), kind: MiddlewareKind::Compression }
+        Self {
+            name: "compression".to_string(),
+            kind: MiddlewareKind::Compression,
+        }
     }
 
     /// Create a request ID middleware.
     pub fn request_id() -> Self {
-        Self { name: "request-id".to_string(), kind: MiddlewareKind::RequestId }
+        Self {
+            name: "request-id".to_string(),
+            kind: MiddlewareKind::RequestId,
+        }
     }
 
     /// Create a custom header injection middleware.
@@ -252,7 +266,10 @@ impl MiddlewareUnit {
 
     /// Create security headers middleware.
     pub fn security() -> Self {
-        Self { name: "security".to_string(), kind: MiddlewareKind::Security }
+        Self {
+            name: "security".to_string(),
+            kind: MiddlewareKind::Security,
+        }
     }
 
     /// Process a request (pre-handler).
@@ -267,32 +284,28 @@ impl MiddlewareUnit {
             }
             MiddlewareKind::Timing => {
                 // Record a "start" marker; real timing would use an actual clock.
-                request.extensions.insert("timing_started".to_string(), "true".to_string());
+                request
+                    .extensions
+                    .insert("timing_started".to_string(), "true".to_string());
                 MiddlewareOutcome::Continue(request)
             }
-            MiddlewareKind::Auth { token } => {
-                match request.header("authorization") {
-                    Some(auth_val) => {
-                        let expected = format!("Bearer {token}");
-                        if auth_val == expected {
-                            request.extensions.insert(
-                                "authenticated".to_string(),
-                                "true".to_string(),
-                            );
-                            MiddlewareOutcome::Continue(request)
-                        } else {
-                            MiddlewareOutcome::ShortCircuit(
-                                Response::with_status(401, "Invalid token"),
-                            )
-                        }
-                    }
-                    None => {
-                        MiddlewareOutcome::ShortCircuit(
-                            Response::with_status(401, "Authorization required"),
-                        )
+            MiddlewareKind::Auth { token } => match request.header("authorization") {
+                Some(auth_val) => {
+                    let expected = format!("Bearer {token}");
+                    if auth_val == expected {
+                        request
+                            .extensions
+                            .insert("authenticated".to_string(), "true".to_string());
+                        MiddlewareOutcome::Continue(request)
+                    } else {
+                        MiddlewareOutcome::ShortCircuit(Response::with_status(401, "Invalid token"))
                     }
                 }
-            }
+                None => MiddlewareOutcome::ShortCircuit(Response::with_status(
+                    401,
+                    "Authorization required",
+                )),
+            },
             MiddlewareKind::Cors { .. } => {
                 // CORS preflight check
                 if request.method == "OPTIONS" {
@@ -307,10 +320,9 @@ impl MiddlewareUnit {
                     .header("accept-encoding")
                     .unwrap_or("")
                     .contains("gzip");
-                request.extensions.insert(
-                    "accepts_gzip".to_string(),
-                    accepts.to_string(),
-                );
+                request
+                    .extensions
+                    .insert("accepts_gzip".to_string(), accepts.to_string());
                 MiddlewareOutcome::Continue(request)
             }
             MiddlewareKind::RequestId => {
@@ -318,21 +330,13 @@ impl MiddlewareUnit {
                 request.extensions.insert("request_id".to_string(), id);
                 MiddlewareOutcome::Continue(request)
             }
-            MiddlewareKind::CustomHeader { .. } => {
-                MiddlewareOutcome::Continue(request)
-            }
-            MiddlewareKind::Security => {
-                MiddlewareOutcome::Continue(request)
-            }
+            MiddlewareKind::CustomHeader { .. } => MiddlewareOutcome::Continue(request),
+            MiddlewareKind::Security => MiddlewareOutcome::Continue(request),
         }
     }
 
     /// Process a response (post-handler).
-    pub fn process_response(
-        &self,
-        request: &Request,
-        mut response: Response,
-    ) -> PostProcessResult {
+    pub fn process_response(&self, request: &Request, mut response: Response) -> PostProcessResult {
         let mut log_entries = Vec::new();
 
         match &self.kind {
@@ -344,10 +348,9 @@ impl MiddlewareUnit {
             MiddlewareKind::Timing => {
                 if request.extensions.get("timing_started").is_some() {
                     // Simulated timing — in production you'd measure real elapsed.
-                    response.headers.insert(
-                        "x-response-time".to_string(),
-                        "0ms".to_string(),
-                    );
+                    response
+                        .headers
+                        .insert("x-response-time".to_string(), "0ms".to_string());
                 }
             }
             MiddlewareKind::Auth { .. } => {}
@@ -362,10 +365,9 @@ impl MiddlewareUnit {
                 } else {
                     "*".to_string()
                 };
-                response.headers.insert(
-                    "access-control-allow-origin".to_string(),
-                    allowed,
-                );
+                response
+                    .headers
+                    .insert("access-control-allow-origin".to_string(), allowed);
                 response.headers.insert(
                     "access-control-allow-methods".to_string(),
                     "GET, POST, PUT, DELETE, OPTIONS".to_string(),
@@ -378,40 +380,38 @@ impl MiddlewareUnit {
                     .map(|v| v == "true")
                     .unwrap_or(false);
                 if accepts_gzip && response.body.len() > 128 {
-                    response.headers.insert(
-                        "content-encoding".to_string(),
-                        "gzip".to_string(),
-                    );
+                    response
+                        .headers
+                        .insert("content-encoding".to_string(), "gzip".to_string());
                 }
             }
             MiddlewareKind::RequestId => {
                 if let Some(id) = request.extensions.get("request_id") {
-                    response.headers.insert(
-                        "x-request-id".to_string(),
-                        id.clone(),
-                    );
+                    response
+                        .headers
+                        .insert("x-request-id".to_string(), id.clone());
                 }
             }
             MiddlewareKind::CustomHeader { key, value } => {
                 response.headers.insert(key.to_lowercase(), value.clone());
             }
             MiddlewareKind::Security => {
-                response.headers.insert(
-                    "x-content-type-options".to_string(),
-                    "nosniff".to_string(),
-                );
-                response.headers.insert(
-                    "x-frame-options".to_string(),
-                    "DENY".to_string(),
-                );
-                response.headers.insert(
-                    "x-xss-protection".to_string(),
-                    "1; mode=block".to_string(),
-                );
+                response
+                    .headers
+                    .insert("x-content-type-options".to_string(), "nosniff".to_string());
+                response
+                    .headers
+                    .insert("x-frame-options".to_string(), "DENY".to_string());
+                response
+                    .headers
+                    .insert("x-xss-protection".to_string(), "1; mode=block".to_string());
             }
         }
 
-        PostProcessResult { response, log_entries }
+        PostProcessResult {
+            response,
+            log_entries,
+        }
     }
 }
 
@@ -442,10 +442,7 @@ impl MiddlewareChain {
 
     /// Process a request through the chain, returning the (possibly modified)
     /// request, or a short-circuit response.
-    pub fn process_request(
-        &self,
-        mut request: Request,
-    ) -> Result<Request, Response> {
+    pub fn process_request(&self, mut request: Request) -> Result<Request, Response> {
         for unit in &self.units {
             match unit.process_request(request) {
                 MiddlewareOutcome::Continue(req) => {
@@ -649,7 +646,11 @@ mod tests {
         let resp = Response::ok("data");
         let result = cors.process_response(&req, resp);
         assert_eq!(
-            result.response.headers.get("access-control-allow-origin").unwrap(),
+            result
+                .response
+                .headers
+                .get("access-control-allow-origin")
+                .unwrap(),
             "https://example.com"
         );
     }
@@ -696,7 +697,11 @@ mod tests {
         let resp = Response::ok("ok");
         let result = sec.process_response(&req, resp);
         assert_eq!(
-            result.response.headers.get("x-content-type-options").unwrap(),
+            result
+                .response
+                .headers
+                .get("x-content-type-options")
+                .unwrap(),
             "nosniff"
         );
         assert_eq!(

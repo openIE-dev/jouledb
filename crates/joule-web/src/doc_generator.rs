@@ -275,7 +275,11 @@ fn apply_section(doc: &mut DocComment, section: &str, content: &str) {
         "arguments" | "params" | "parameters" => {
             // Parse `* `name` — description` lines.
             for line in content_trimmed.lines() {
-                let trimmed = line.trim().trim_start_matches('*').trim_start_matches('-').trim();
+                let trimmed = line
+                    .trim()
+                    .trim_start_matches('*')
+                    .trim_start_matches('-')
+                    .trim();
                 if let Some(rest) = trimmed.strip_prefix('`') {
                     if let Some(end_tick) = rest.find('`') {
                         let name = &rest[..end_tick];
@@ -308,7 +312,11 @@ fn apply_section(doc: &mut DocComment, section: &str, content: &str) {
         }
         "see also" => {
             for line in content_trimmed.lines() {
-                let item = line.trim().trim_start_matches('*').trim_start_matches('-').trim();
+                let item = line
+                    .trim()
+                    .trim_start_matches('*')
+                    .trim_start_matches('-')
+                    .trim();
                 if !item.is_empty() {
                     doc.see_also.push(item.to_string());
                 }
@@ -388,9 +396,7 @@ pub fn resolve_cross_refs(text: &str, items: &HashMap<String, DocItem>) -> Vec<C
             if let Some(end) = text[start..].find("`]") {
                 let ref_text = &text[start..start + end];
                 let resolved = items.contains_key(ref_text)
-                    || items
-                        .values()
-                        .any(|item| item.name == ref_text);
+                    || items.values().any(|item| item.name == ref_text);
                 refs.push(CrossRef {
                     text: format!("[`{ref_text}`]"),
                     target: ref_text.to_string(),
@@ -487,10 +493,7 @@ pub fn enumerate_api(items: &[DocItem]) -> ApiSurface {
     let count = |kind: &ItemKind| public.iter().filter(|i| &i.kind == kind).count();
 
     let total = public.len();
-    let documented = public
-        .iter()
-        .filter(|i| !i.doc.summary.is_empty())
-        .count();
+    let documented = public.iter().filter(|i| !i.doc.summary.is_empty()).count();
 
     ApiSurface {
         modules: count(&ItemKind::Module),
@@ -963,7 +966,12 @@ fn private_fn() {}
 
     #[test]
     fn doc_with_safety_section() {
-        let lines = vec!["Unsafe fn.", "", "# Safety", "Caller must ensure alignment."];
+        let lines = vec![
+            "Unsafe fn.",
+            "",
+            "# Safety",
+            "Caller must ensure alignment.",
+        ];
         let doc = parse_doc_comment(&lines);
         assert!(doc.safety.is_some());
         assert!(doc.safety.unwrap().contains("alignment"));

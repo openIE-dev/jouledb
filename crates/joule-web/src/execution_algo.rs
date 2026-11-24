@@ -5,8 +5,8 @@
 //! rate controls, order slicing, and execution quality analytics with
 //! implementation shortfall measurement.
 
-use std::fmt;
 use std::collections::VecDeque;
+use std::fmt;
 
 // ── Core Types ──
 
@@ -183,8 +183,7 @@ impl fmt::Display for ChildSlice {
         write!(
             f,
             "Slice(target={:.4} limit={:.2} filled={:.4} avg={:.2})",
-            self.target_quantity, self.limit_price,
-            self.filled_quantity, self.avg_fill_price,
+            self.target_quantity, self.limit_price, self.filled_quantity, self.avg_fill_price,
         )
     }
 }
@@ -249,7 +248,9 @@ impl ParticipationController {
 
     /// Participation rate within the rolling window.
     pub fn window_rate(&self) -> f64 {
-        let (mkt, algo): (f64, f64) = self.window_volumes.iter()
+        let (mkt, algo): (f64, f64) = self
+            .window_volumes
+            .iter()
             .fold((0.0, 0.0), |(m, a), &(_, mv, av)| (m + mv, a + av));
         if mkt > 1e-12 { algo / mkt } else { 0.0 }
     }
@@ -284,8 +285,10 @@ impl fmt::Display for ParticipationController {
         write!(
             f,
             "Participation(target={:.1}% current={:.1}% mkt={:.0} algo={:.0})",
-            self.target_rate * 100.0, self.current_rate() * 100.0,
-            self.market_volume, self.algo_volume,
+            self.target_rate * 100.0,
+            self.current_rate() * 100.0,
+            self.market_volume,
+            self.algo_volume,
         )
     }
 }
@@ -332,7 +335,9 @@ impl ExecutionQuality {
 
     /// Implementation shortfall in basis points.
     pub fn shortfall_bps(&self) -> f64 {
-        if self.benchmark_price < 1e-12 { return 0.0; }
+        if self.benchmark_price < 1e-12 {
+            return 0.0;
+        }
         let avg = self.avg_price();
         let diff = match self.side {
             ExecSide::Buy => avg - self.benchmark_price,
@@ -343,21 +348,30 @@ impl ExecutionQuality {
 
     /// Standard deviation of fill prices.
     pub fn price_std_dev(&self) -> f64 {
-        if self.fills.len() < 2 { return 0.0; }
+        if self.fills.len() < 2 {
+            return 0.0;
+        }
         let avg = self.avg_price();
-        let var: f64 = self.fills.iter()
+        let var: f64 = self
+            .fills
+            .iter()
             .map(|f| {
                 let d = f.price - avg;
                 d * d * f.quantity
             })
-            .sum::<f64>() / self.total_quantity;
+            .sum::<f64>()
+            / self.total_quantity;
         var.sqrt()
     }
 
     /// Fraction of fills that were aggressive.
     pub fn aggression_rate(&self) -> f64 {
-        if self.fills.is_empty() { return 0.0; }
-        let agg_qty: f64 = self.fills.iter()
+        if self.fills.is_empty() {
+            return 0.0;
+        }
+        let agg_qty: f64 = self
+            .fills
+            .iter()
             .filter(|f| f.is_aggressive)
             .map(|f| f.quantity)
             .sum();
@@ -374,8 +388,11 @@ impl fmt::Display for ExecutionQuality {
         write!(
             f,
             "ExecQuality({} bench={:.2} avg={:.2} shortfall={:.1}bps fills={})",
-            self.benchmark, self.benchmark_price, self.avg_price(),
-            self.shortfall_bps(), self.fills.len(),
+            self.benchmark,
+            self.benchmark_price,
+            self.avg_price(),
+            self.shortfall_bps(),
+            self.fills.len(),
         )
     }
 }
@@ -428,18 +445,34 @@ impl ExecutionStrategy {
     }
 
     /// Generate evenly-spaced time slices.
-    pub fn generate_slices(&mut self, num_slices: usize, limit_price: f64,
-                           start_ns: u64, end_ns: u64) {
-        if num_slices == 0 { return; }
+    pub fn generate_slices(
+        &mut self,
+        num_slices: usize,
+        limit_price: f64,
+        start_ns: u64,
+        end_ns: u64,
+    ) {
+        if num_slices == 0 {
+            return;
+        }
         let qty_per = self.total_quantity / num_slices as f64;
         let duration = end_ns.saturating_sub(start_ns);
-        let interval = if num_slices > 1 { duration / num_slices as u64 } else { duration };
+        let interval = if num_slices > 1 {
+            duration / num_slices as u64
+        } else {
+            duration
+        };
 
         self.slices.clear();
         for i in 0..num_slices {
             let s = start_ns + interval * i as u64;
-            let e = if i + 1 < num_slices { s + interval } else { end_ns };
-            self.slices.push(ChildSlice::new(qty_per, limit_price, s, e));
+            let e = if i + 1 < num_slices {
+                s + interval
+            } else {
+                end_ns
+            };
+            self.slices
+                .push(ChildSlice::new(qty_per, limit_price, s, e));
         }
     }
 
@@ -475,8 +508,12 @@ impl fmt::Display for ExecutionStrategy {
         write!(
             f,
             "Strategy({} {} {:.0} urgency={} complete={:.1}% shortfall={:.1}bps)",
-            self.symbol, self.side, self.total_quantity, self.urgency,
-            self.completion_pct(), self.quality.shortfall_bps(),
+            self.symbol,
+            self.side,
+            self.total_quantity,
+            self.urgency,
+            self.completion_pct(),
+            self.quality.shortfall_bps(),
         )
     }
 }

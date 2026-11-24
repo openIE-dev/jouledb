@@ -4,8 +4,8 @@
 //! Pure-Rust shortest-path algorithms for road networks, operating on an
 //! adjacency-list representation with multi-weight edges.
 
-use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::fmt;
 
 // ── Errors ──────────────────────────────────────────────────────
@@ -63,7 +63,9 @@ pub struct GeoNode {
 }
 
 impl GeoNode {
-    pub fn new(id: u64, lat: f64, lon: f64) -> Self { Self { id, lat, lon } }
+    pub fn new(id: u64, lat: f64, lon: f64) -> Self {
+        Self { id, lat, lon }
+    }
 }
 
 impl fmt::Display for GeoNode {
@@ -93,13 +95,21 @@ pub struct TurnRestriction {
 
 impl TurnRestriction {
     pub fn new(via_from: u64, via_node: u64, to: u64) -> Self {
-        Self { via_from, via_node, to }
+        Self {
+            via_from,
+            via_node,
+            to,
+        }
     }
 }
 
 impl fmt::Display for TurnRestriction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "NoTurn({}->{}->{})", self.via_from, self.via_node, self.to)
+        write!(
+            f,
+            "NoTurn({}->{}->{})",
+            self.via_from, self.via_node, self.to
+        )
     }
 }
 
@@ -115,14 +125,24 @@ pub struct PathResult {
 
 impl PathResult {
     pub fn hop_count(&self) -> usize {
-        if self.nodes.is_empty() { 0 } else { self.nodes.len() - 1 }
+        if self.nodes.is_empty() {
+            0
+        } else {
+            self.nodes.len() - 1
+        }
     }
 }
 
 impl fmt::Display for PathResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Path(hops={} cost={:.2} algo={} visited={})",
-            self.hop_count(), self.total_cost, self.algorithm, self.nodes_visited)
+        write!(
+            f,
+            "Path(hops={} cost={:.2} algo={} visited={})",
+            self.hop_count(),
+            self.total_cost,
+            self.algorithm,
+            self.nodes_visited
+        )
     }
 }
 
@@ -138,12 +158,17 @@ impl Eq for State {}
 
 impl Ord for State {
     fn cmp(&self, other: &Self) -> Ordering {
-        other.cost.partial_cmp(&self.cost).unwrap_or(Ordering::Equal)
+        other
+            .cost
+            .partial_cmp(&self.cost)
+            .unwrap_or(Ordering::Equal)
     }
 }
 
 impl PartialOrd for State {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 // ── Road network ────────────────────────────────────────────────
@@ -158,24 +183,45 @@ pub struct GeoGraph {
 
 impl GeoGraph {
     pub fn new() -> Self {
-        Self { nodes: HashMap::new(), adj: HashMap::new(), restrictions: HashSet::new(), ch_order: Vec::new() }
-    }
-
-    pub fn add_node(&mut self, n: GeoNode) { self.nodes.insert(n.id, n); self.adj.entry(n.id).or_default(); }
-
-    pub fn add_edge(&mut self, from: u64, to: u64, weight: f64, one_way: bool) {
-        self.adj.entry(from).or_default().push(WEdge { to, weight, one_way });
-        if !one_way {
-            self.adj.entry(to).or_default().push(WEdge { to: from, weight, one_way: false });
+        Self {
+            nodes: HashMap::new(),
+            adj: HashMap::new(),
+            restrictions: HashSet::new(),
+            ch_order: Vec::new(),
         }
     }
 
-    pub fn add_restriction(&mut self, r: TurnRestriction) { self.restrictions.insert(r); }
+    pub fn add_node(&mut self, n: GeoNode) {
+        self.nodes.insert(n.id, n);
+        self.adj.entry(n.id).or_default();
+    }
 
-    pub fn node_count(&self) -> usize { self.nodes.len() }
+    pub fn add_edge(&mut self, from: u64, to: u64, weight: f64, one_way: bool) {
+        self.adj.entry(from).or_default().push(WEdge {
+            to,
+            weight,
+            one_way,
+        });
+        if !one_way {
+            self.adj.entry(to).or_default().push(WEdge {
+                to: from,
+                weight,
+                one_way: false,
+            });
+        }
+    }
+
+    pub fn add_restriction(&mut self, r: TurnRestriction) {
+        self.restrictions.insert(r);
+    }
+
+    pub fn node_count(&self) -> usize {
+        self.nodes.len()
+    }
 
     fn is_restricted(&self, prev: u64, cur: u64, next: u64) -> bool {
-        self.restrictions.contains(&TurnRestriction::new(prev, cur, next))
+        self.restrictions
+            .contains(&TurnRestriction::new(prev, cur, next))
     }
 
     fn neighbors(&self, id: u64) -> &[WEdge] {
@@ -183,22 +229,35 @@ impl GeoGraph {
     }
 
     fn haversine_h(&self, a: u64, b: u64) -> f64 {
-        let na = match self.nodes.get(&a) { Some(n) => n, None => return 0.0 };
-        let nb = match self.nodes.get(&b) { Some(n) => n, None => return 0.0 };
+        let na = match self.nodes.get(&a) {
+            Some(n) => n,
+            None => return 0.0,
+        };
+        let nb = match self.nodes.get(&b) {
+            Some(n) => n,
+            None => return 0.0,
+        };
         haversine_m(na.lat, na.lon, nb.lat, nb.lon)
     }
 
     // ── Dijkstra ────────────────────────────────────────────────
 
     pub fn dijkstra(&self, src: u64, dst: u64) -> Result<PathResult, PathError> {
-        if !self.nodes.contains_key(&src) { return Err(PathError::NodeNotFound(src)); }
-        if !self.nodes.contains_key(&dst) { return Err(PathError::NodeNotFound(dst)); }
+        if !self.nodes.contains_key(&src) {
+            return Err(PathError::NodeNotFound(src));
+        }
+        if !self.nodes.contains_key(&dst) {
+            return Err(PathError::NodeNotFound(dst));
+        }
         let mut dist: HashMap<u64, f64> = HashMap::new();
         let mut prev: HashMap<u64, u64> = HashMap::new();
         let mut heap = BinaryHeap::new();
         let mut visited = 0usize;
         dist.insert(src, 0.0);
-        heap.push(State { cost: 0.0, node: src });
+        heap.push(State {
+            cost: 0.0,
+            node: src,
+        });
         while let Some(State { cost, node }) = heap.pop() {
             if node == dst {
                 return Ok(PathResult {
@@ -208,17 +267,24 @@ impl GeoGraph {
                     algorithm: PathAlgorithm::Dijkstra,
                 });
             }
-            if cost > *dist.get(&node).unwrap_or(&f64::INFINITY) { continue; }
+            if cost > *dist.get(&node).unwrap_or(&f64::INFINITY) {
+                continue;
+            }
             visited += 1;
             for e in self.neighbors(node) {
                 if let Some(&p) = prev.get(&node) {
-                    if self.is_restricted(p, node, e.to) { continue; }
+                    if self.is_restricted(p, node, e.to) {
+                        continue;
+                    }
                 }
                 let nc = cost + e.weight;
                 if nc < *dist.get(&e.to).unwrap_or(&f64::INFINITY) {
                     dist.insert(e.to, nc);
                     prev.insert(e.to, node);
-                    heap.push(State { cost: nc, node: e.to });
+                    heap.push(State {
+                        cost: nc,
+                        node: e.to,
+                    });
                 }
             }
         }
@@ -228,14 +294,21 @@ impl GeoGraph {
     // ── A* ──────────────────────────────────────────────────────
 
     pub fn a_star(&self, src: u64, dst: u64) -> Result<PathResult, PathError> {
-        if !self.nodes.contains_key(&src) { return Err(PathError::NodeNotFound(src)); }
-        if !self.nodes.contains_key(&dst) { return Err(PathError::NodeNotFound(dst)); }
+        if !self.nodes.contains_key(&src) {
+            return Err(PathError::NodeNotFound(src));
+        }
+        if !self.nodes.contains_key(&dst) {
+            return Err(PathError::NodeNotFound(dst));
+        }
         let mut g_score: HashMap<u64, f64> = HashMap::new();
         let mut prev: HashMap<u64, u64> = HashMap::new();
         let mut heap = BinaryHeap::new();
         let mut visited = 0usize;
         g_score.insert(src, 0.0);
-        heap.push(State { cost: self.haversine_h(src, dst), node: src });
+        heap.push(State {
+            cost: self.haversine_h(src, dst),
+            node: src,
+        });
         while let Some(State { node, .. }) = heap.pop() {
             let g = *g_score.get(&node).unwrap_or(&f64::INFINITY);
             if node == dst {
@@ -253,7 +326,10 @@ impl GeoGraph {
                     g_score.insert(e.to, tentative);
                     prev.insert(e.to, node);
                     let f = tentative + self.haversine_h(e.to, dst);
-                    heap.push(State { cost: f, node: e.to });
+                    heap.push(State {
+                        cost: f,
+                        node: e.to,
+                    });
                 }
             }
         }
@@ -263,8 +339,12 @@ impl GeoGraph {
     // ── Bidirectional Dijkstra ──────────────────────────────────
 
     pub fn bidirectional_dijkstra(&self, src: u64, dst: u64) -> Result<PathResult, PathError> {
-        if !self.nodes.contains_key(&src) { return Err(PathError::NodeNotFound(src)); }
-        if !self.nodes.contains_key(&dst) { return Err(PathError::NodeNotFound(dst)); }
+        if !self.nodes.contains_key(&src) {
+            return Err(PathError::NodeNotFound(src));
+        }
+        if !self.nodes.contains_key(&dst) {
+            return Err(PathError::NodeNotFound(dst));
+        }
         let mut dist_f: HashMap<u64, f64> = HashMap::new();
         let mut dist_b: HashMap<u64, f64> = HashMap::new();
         let mut prev_f: HashMap<u64, u64> = HashMap::new();
@@ -279,8 +359,14 @@ impl GeoGraph {
 
         dist_f.insert(src, 0.0);
         dist_b.insert(dst, 0.0);
-        heap_f.push(State { cost: 0.0, node: src });
-        heap_b.push(State { cost: 0.0, node: dst });
+        heap_f.push(State {
+            cost: 0.0,
+            node: src,
+        });
+        heap_b.push(State {
+            cost: 0.0,
+            node: dst,
+        });
 
         while !heap_f.is_empty() || !heap_b.is_empty() {
             // forward step
@@ -291,14 +377,20 @@ impl GeoGraph {
                         visited += 1;
                         if settled_b.contains(&node) {
                             let total = cost + dist_b.get(&node).unwrap_or(&f64::INFINITY);
-                            if total < mu { mu = total; meeting = node; }
+                            if total < mu {
+                                mu = total;
+                                meeting = node;
+                            }
                         }
                         for e in self.neighbors(node) {
                             let nc = cost + e.weight;
                             if nc < *dist_f.get(&e.to).unwrap_or(&f64::INFINITY) {
                                 dist_f.insert(e.to, nc);
                                 prev_f.insert(e.to, node);
-                                heap_f.push(State { cost: nc, node: e.to });
+                                heap_f.push(State {
+                                    cost: nc,
+                                    node: e.to,
+                                });
                             }
                         }
                     }
@@ -312,14 +404,20 @@ impl GeoGraph {
                         visited += 1;
                         if settled_f.contains(&node) {
                             let total = cost + dist_f.get(&node).unwrap_or(&f64::INFINITY);
-                            if total < mu { mu = total; meeting = node; }
+                            if total < mu {
+                                mu = total;
+                                meeting = node;
+                            }
                         }
                         for e in self.neighbors(node) {
                             let nc = cost + e.weight;
                             if nc < *dist_b.get(&e.to).unwrap_or(&f64::INFINITY) {
                                 dist_b.insert(e.to, nc);
                                 prev_b.insert(e.to, node);
-                                heap_b.push(State { cost: nc, node: e.to });
+                                heap_b.push(State {
+                                    cost: nc,
+                                    node: e.to,
+                                });
                             }
                         }
                     }
@@ -327,18 +425,26 @@ impl GeoGraph {
             }
             let min_f = heap_f.peek().map(|s| s.cost).unwrap_or(f64::INFINITY);
             let min_b = heap_b.peek().map(|s| s.cost).unwrap_or(f64::INFINITY);
-            if min_f + min_b >= mu { break; }
+            if min_f + min_b >= mu {
+                break;
+            }
         }
 
-        if mu == f64::INFINITY { return Err(PathError::NoPathFound); }
+        if mu == f64::INFINITY {
+            return Err(PathError::NoPathFound);
+        }
         let mut path_front = reconstruct(&prev_f, src, meeting);
         let mut back = reconstruct_rev(&prev_b, dst, meeting);
         back.reverse();
-        if !back.is_empty() { back.remove(0); }
+        if !back.is_empty() {
+            back.remove(0);
+        }
         path_front.extend(back);
         Ok(PathResult {
-            nodes: path_front, total_cost: mu,
-            nodes_visited: visited, algorithm: PathAlgorithm::BidirectionalDijkstra,
+            nodes: path_front,
+            total_cost: mu,
+            nodes_visited: visited,
+            algorithm: PathAlgorithm::BidirectionalDijkstra,
         })
     }
 
@@ -353,24 +459,38 @@ impl GeoGraph {
     pub fn ch_query(&self, src: u64, dst: u64) -> Result<PathResult, PathError> {
         // Simplified CH: use node order to prioritise search
         if self.ch_order.is_empty() {
-            return self.dijkstra(src, dst).map(|mut r| { r.algorithm = PathAlgorithm::ContractionHierarchy; r });
+            return self.dijkstra(src, dst).map(|mut r| {
+                r.algorithm = PathAlgorithm::ContractionHierarchy;
+                r
+            });
         }
-        let rank: HashMap<u64, usize> = self.ch_order.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+        let rank: HashMap<u64, usize> = self
+            .ch_order
+            .iter()
+            .enumerate()
+            .map(|(i, &id)| (id, i))
+            .collect();
         let mut dist: HashMap<u64, f64> = HashMap::new();
         let mut prev: HashMap<u64, u64> = HashMap::new();
         let mut heap = BinaryHeap::new();
         let mut visited = 0usize;
         dist.insert(src, 0.0);
-        heap.push(State { cost: 0.0, node: src });
+        heap.push(State {
+            cost: 0.0,
+            node: src,
+        });
         while let Some(State { cost, node }) = heap.pop() {
             if node == dst {
                 return Ok(PathResult {
                     nodes: reconstruct(&prev, src, dst),
-                    total_cost: cost, nodes_visited: visited,
+                    total_cost: cost,
+                    nodes_visited: visited,
                     algorithm: PathAlgorithm::ContractionHierarchy,
                 });
             }
-            if cost > *dist.get(&node).unwrap_or(&f64::INFINITY) { continue; }
+            if cost > *dist.get(&node).unwrap_or(&f64::INFINITY) {
+                continue;
+            }
             visited += 1;
             let node_rank = rank.get(&node).copied().unwrap_or(0);
             for e in self.neighbors(node) {
@@ -380,19 +500,30 @@ impl GeoGraph {
                     if nc < *dist.get(&e.to).unwrap_or(&f64::INFINITY) {
                         dist.insert(e.to, nc);
                         prev.insert(e.to, node);
-                        heap.push(State { cost: nc, node: e.to });
+                        heap.push(State {
+                            cost: nc,
+                            node: e.to,
+                        });
                     }
                 }
             }
         }
         // Fallback to Dijkstra if upward-only search finds no path
-        self.dijkstra(src, dst).map(|mut r| { r.algorithm = PathAlgorithm::ContractionHierarchy; r })
+        self.dijkstra(src, dst).map(|mut r| {
+            r.algorithm = PathAlgorithm::ContractionHierarchy;
+            r
+        })
     }
 }
 
 impl fmt::Display for GeoGraph {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "GeoGraph(nodes={} restrictions={})", self.node_count(), self.restrictions.len())
+        write!(
+            f,
+            "GeoGraph(nodes={} restrictions={})",
+            self.node_count(),
+            self.restrictions.len()
+        )
     }
 }
 
@@ -403,7 +534,10 @@ fn reconstruct(prev: &HashMap<u64, u64>, src: u64, dst: u64) -> Vec<u64> {
     let mut cur = dst;
     while cur != src {
         match prev.get(&cur) {
-            Some(&p) => { path.push(p); cur = p; }
+            Some(&p) => {
+                path.push(p);
+                cur = p;
+            }
             None => return path,
         }
     }
@@ -416,7 +550,10 @@ fn reconstruct_rev(prev: &HashMap<u64, u64>, dst: u64, meeting: u64) -> Vec<u64>
     let mut cur = meeting;
     while cur != dst {
         match prev.get(&cur) {
-            Some(&p) => { path.push(p); cur = p; }
+            Some(&p) => {
+                path.push(p);
+                cur = p;
+            }
             None => break,
         }
     }
@@ -545,13 +682,23 @@ mod tests {
 
     #[test]
     fn test_path_result_hop_count() {
-        let r = PathResult { nodes: vec![0, 1, 2], total_cost: 2.0, nodes_visited: 3, algorithm: PathAlgorithm::Dijkstra };
+        let r = PathResult {
+            nodes: vec![0, 1, 2],
+            total_cost: 2.0,
+            nodes_visited: 3,
+            algorithm: PathAlgorithm::Dijkstra,
+        };
         assert_eq!(r.hop_count(), 2);
     }
 
     #[test]
     fn test_path_result_display() {
-        let r = PathResult { nodes: vec![0, 1], total_cost: 1.0, nodes_visited: 2, algorithm: PathAlgorithm::AStar };
+        let r = PathResult {
+            nodes: vec![0, 1],
+            total_cost: 1.0,
+            nodes_visited: 2,
+            algorithm: PathAlgorithm::AStar,
+        };
         let s = format!("{r}");
         assert!(s.contains("a-star"));
     }

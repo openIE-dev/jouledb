@@ -239,11 +239,7 @@ impl<T: Poolable> ObjectPool<T> {
         let mut removed = 0;
         while self.entries.len() > target_total {
             // Find last inactive entry.
-            if let Some(idx) = self
-                .entries
-                .iter()
-                .rposition(|e| !e.active)
-            {
+            if let Some(idx) = self.entries.iter().rposition(|e| !e.active) {
                 self.entries.remove(idx);
                 removed += 1;
             } else {

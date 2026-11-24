@@ -67,7 +67,11 @@ pub fn compute_tf(text: &str, mode: TfMode) -> HashMap<String, f64> {
                     }
                 }
                 TfMode::Boolean => {
-                    if count > 0 { 1.0 } else { 0.0 }
+                    if count > 0 {
+                        1.0
+                    } else {
+                        0.0
+                    }
                 }
                 TfMode::Augmented => 0.5 + 0.5 * (count as f64 / max_count),
             };
@@ -468,7 +472,11 @@ mod tests {
 
     #[test]
     fn test_top_features() {
-        let docs = &["unique rare special", "common common common", "unique common"];
+        let docs = &[
+            "unique rare special",
+            "common common common",
+            "unique common",
+        ];
         let matrix = TfidfMatrix::build(docs, TfMode::Raw, IdfMode::Smooth);
         let features = top_features(&matrix, 5);
         assert!(!features.is_empty());

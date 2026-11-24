@@ -15,12 +15,19 @@ const NOTE_NAMES: [&str; 12] = [
 /// Parse a note name to pitch class (0-11). C=0.
 pub fn note_to_pc(name: &str) -> Option<u8> {
     let name = name.trim();
-    if name.is_empty() { return None; }
+    if name.is_empty() {
+        return None;
+    }
     // Handle flats
     if name.len() >= 2 && name.as_bytes()[1] == b'b' {
         let sharp_equiv = match name.as_bytes()[0] {
-            b'D' => "C#", b'E' => "D#", b'G' => "F#",
-            b'A' => "G#", b'B' => "A#", b'C' => "B", b'F' => "E",
+            b'D' => "C#",
+            b'E' => "D#",
+            b'G' => "F#",
+            b'A' => "G#",
+            b'B' => "A#",
+            b'C' => "B",
+            b'F' => "E",
             _ => return None,
         };
         return note_to_pc(sharp_equiv);
@@ -106,19 +113,27 @@ impl ChordType {
 /// A chord: root pitch class + quality + optional inversion.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Chord {
-    pub root: u8,       // pitch class 0-11
+    pub root: u8, // pitch class 0-11
     pub chord_type: ChordType,
-    pub inversion: u8,  // 0 = root, 1 = first, 2 = second, etc.
+    pub inversion: u8, // 0 = root, 1 = first, 2 = second, etc.
 }
 
 impl Chord {
     pub fn new(root: u8, chord_type: ChordType) -> Self {
-        Self { root: root % 12, chord_type, inversion: 0 }
+        Self {
+            root: root % 12,
+            chord_type,
+            inversion: 0,
+        }
     }
 
     pub fn with_inversion(root: u8, chord_type: ChordType, inversion: u8) -> Self {
         let max_inv = chord_type.intervals().len().saturating_sub(1) as u8;
-        Self { root: root % 12, chord_type, inversion: inversion.min(max_inv) }
+        Self {
+            root: root % 12,
+            chord_type,
+            inversion: inversion.min(max_inv),
+        }
     }
 
     /// Get the pitch classes of the chord notes.
@@ -155,7 +170,12 @@ impl Chord {
                 format!("/{}", pc_to_note(bass_pc))
             }
         };
-        format!("{}{}{}", pc_to_note(self.root), self.chord_type.suffix(), inv_str)
+        format!(
+            "{}{}{}",
+            pc_to_note(self.root),
+            self.chord_type.suffix(),
+            inv_str
+        )
     }
 }
 
@@ -172,10 +192,19 @@ pub fn recognize_chord(pitch_classes: &[u8]) -> Option<(u8, ChordType)> {
     }
 
     let all_types = [
-        ChordType::Major, ChordType::Minor, ChordType::Diminished,
-        ChordType::Augmented, ChordType::Dominant7, ChordType::Major7,
-        ChordType::Minor7, ChordType::Diminished7, ChordType::HalfDiminished7,
-        ChordType::Sus2, ChordType::Sus4, ChordType::Add9, ChordType::Power,
+        ChordType::Major,
+        ChordType::Minor,
+        ChordType::Diminished,
+        ChordType::Augmented,
+        ChordType::Dominant7,
+        ChordType::Major7,
+        ChordType::Minor7,
+        ChordType::Diminished7,
+        ChordType::HalfDiminished7,
+        ChordType::Sus2,
+        ChordType::Sus4,
+        ChordType::Add9,
+        ChordType::Power,
     ];
 
     // Try each pitch class as root
@@ -205,14 +234,24 @@ const MINOR_SCALE: [u8; 7] = [0, 2, 3, 5, 7, 8, 10];
 
 /// Chord qualities for each degree of the major scale.
 const MAJOR_SCALE_CHORDS: [ChordType; 7] = [
-    ChordType::Major, ChordType::Minor, ChordType::Minor,
-    ChordType::Major, ChordType::Major, ChordType::Minor, ChordType::Diminished,
+    ChordType::Major,
+    ChordType::Minor,
+    ChordType::Minor,
+    ChordType::Major,
+    ChordType::Major,
+    ChordType::Minor,
+    ChordType::Diminished,
 ];
 
 /// Chord qualities for each degree of the natural minor scale.
 const MINOR_SCALE_CHORDS: [ChordType; 7] = [
-    ChordType::Minor, ChordType::Diminished, ChordType::Major,
-    ChordType::Minor, ChordType::Minor, ChordType::Major, ChordType::Major,
+    ChordType::Minor,
+    ChordType::Diminished,
+    ChordType::Major,
+    ChordType::Minor,
+    ChordType::Minor,
+    ChordType::Major,
+    ChordType::Major,
 ];
 
 /// Roman numeral symbols.
@@ -221,7 +260,9 @@ const ROMAN_LOWER: [&str; 7] = ["i", "ii", "iii", "iv", "v", "vi", "vii"];
 
 /// Get the diatonic chord at a scale degree in a major key.
 pub fn major_key_chord(key_root: u8, degree: usize) -> Option<Chord> {
-    if degree == 0 || degree > 7 { return None; }
+    if degree == 0 || degree > 7 {
+        return None;
+    }
     let idx = degree - 1;
     let root = (key_root + MAJOR_SCALE[idx]) % 12;
     Some(Chord::new(root, MAJOR_SCALE_CHORDS[idx]))
@@ -229,7 +270,9 @@ pub fn major_key_chord(key_root: u8, degree: usize) -> Option<Chord> {
 
 /// Get the diatonic chord at a scale degree in a minor key.
 pub fn minor_key_chord(key_root: u8, degree: usize) -> Option<Chord> {
-    if degree == 0 || degree > 7 { return None; }
+    if degree == 0 || degree > 7 {
+        return None;
+    }
     let idx = degree - 1;
     let root = (key_root + MINOR_SCALE[idx]) % 12;
     Some(Chord::new(root, MINOR_SCALE_CHORDS[idx]))
@@ -281,12 +324,18 @@ pub fn common_progressions() -> Vec<(&'static str, Vec<usize>)> {
 
 /// Generate a chord progression in a major key from degree sequence.
 pub fn progression_in_major(key_root: u8, degrees: &[usize]) -> Vec<Chord> {
-    degrees.iter().filter_map(|d| major_key_chord(key_root, *d)).collect()
+    degrees
+        .iter()
+        .filter_map(|d| major_key_chord(key_root, *d))
+        .collect()
 }
 
 /// Generate a chord progression in a minor key from degree sequence.
 pub fn progression_in_minor(key_root: u8, degrees: &[usize]) -> Vec<Chord> {
-    degrees.iter().filter_map(|d| minor_key_chord(key_root, *d)).collect()
+    degrees
+        .iter()
+        .filter_map(|d| minor_key_chord(key_root, *d))
+        .collect()
 }
 
 // ── Voice Leading ────────────────────────────────────────────────
@@ -345,7 +394,9 @@ pub fn to_nashville(key_root: u8, chord: &Chord) -> Option<String> {
 
 /// Parse Nashville number to chord in key.
 pub fn from_nashville(key_root: u8, number: usize, chord_type: ChordType) -> Option<Chord> {
-    if number == 0 || number > 7 { return None; }
+    if number == 0 || number > 7 {
+        return None;
+    }
     let root = (key_root + MAJOR_SCALE[number - 1]) % 12;
     Some(Chord::new(root, chord_type))
 }
@@ -441,10 +492,10 @@ mod tests {
     fn test_progression_1_4_5_1() {
         let prog = progression_in_major(0, &[1, 4, 5, 1]);
         assert_eq!(prog.len(), 4);
-        assert_eq!(prog[0].root, 0);  // C
-        assert_eq!(prog[1].root, 5);  // F
-        assert_eq!(prog[2].root, 7);  // G
-        assert_eq!(prog[3].root, 0);  // C
+        assert_eq!(prog[0].root, 0); // C
+        assert_eq!(prog[1].root, 5); // F
+        assert_eq!(prog[2].root, 7); // G
+        assert_eq!(prog[3].root, 0); // C
     }
 
     #[test]
@@ -498,9 +549,9 @@ mod tests {
         // A minor: Am, Bdim, C, Dm, Em, F, G
         let chords: Vec<Chord> = (1..=7).filter_map(|d| minor_key_chord(9, d)).collect();
         assert_eq!(chords.len(), 7);
-        assert_eq!(chords[0].chord_type, ChordType::Minor);      // i
-        assert_eq!(chords[1].chord_type, ChordType::Diminished);  // ii°
-        assert_eq!(chords[2].chord_type, ChordType::Major);       // III
+        assert_eq!(chords[0].chord_type, ChordType::Minor); // i
+        assert_eq!(chords[1].chord_type, ChordType::Diminished); // ii°
+        assert_eq!(chords[2].chord_type, ChordType::Major); // III
     }
 
     #[test]
@@ -539,8 +590,8 @@ mod tests {
     fn test_progression_in_minor() {
         let prog = progression_in_minor(9, &[1, 4, 5, 1]); // Am, Dm, Em, Am
         assert_eq!(prog.len(), 4);
-        assert_eq!(prog[0].root, 9);  // A
-        assert_eq!(prog[1].root, 2);  // D
+        assert_eq!(prog[0].root, 9); // A
+        assert_eq!(prog[1].root, 2); // D
     }
 
     #[test]

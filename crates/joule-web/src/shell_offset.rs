@@ -80,12 +80,18 @@ impl ShellOffsetConfig {
 }
 
 impl Default for ShellOffsetConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for ShellOffsetConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ShellOffsetConfig(thickness={0:.4}, inner_offset={1}, tolerance={2:.4}, exclude_faces={3})", self.thickness, self.inner_offset, self.tolerance, self.exclude_faces)
+        write!(
+            f,
+            "ShellOffsetConfig(thickness={0:.4}, inner_offset={1}, tolerance={2:.4}, exclude_faces={3})",
+            self.thickness, self.inner_offset, self.tolerance, self.exclude_faces
+        )
     }
 }
 
@@ -101,7 +107,10 @@ pub struct ShellOffset {
 impl ShellOffset {
     pub fn new(config: ShellOffsetConfig) -> Result<Self, ShellOffsetError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -113,19 +122,29 @@ impl ShellOffset {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &ShellOffsetConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &ShellOffsetConfig {
+        &self.config
+    }
 
     /// Create shell from solid.
     pub fn create_shell(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Offset solid surface.
     pub fn offset_solid(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
@@ -136,7 +155,9 @@ impl ShellOffset {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -148,7 +169,9 @@ impl ShellOffset {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -160,7 +183,11 @@ impl ShellOffset {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -233,7 +260,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = ShellOffset::new(ShellOffsetConfig::new()).unwrap()
+        let e = ShellOffset::new(ShellOffsetConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -249,7 +277,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = ShellOffset::new(ShellOffsetConfig::new()).unwrap()
+        let e = ShellOffset::new(ShellOffsetConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("ShellOffset"));
@@ -257,7 +286,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = ShellOffset::new(ShellOffsetConfig::new()).unwrap()
+        let e = ShellOffset::new(ShellOffsetConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -268,7 +298,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = ShellOffset::new(ShellOffsetConfig::new()).unwrap()
+        let e = ShellOffset::new(ShellOffsetConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -276,7 +307,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = ShellOffset::new(ShellOffsetConfig::new()).unwrap()
+        let e = ShellOffset::new(ShellOffsetConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -293,7 +325,8 @@ mod tests {
 
     #[test]
     fn test_create_shell() {
-        let e = ShellOffset::new(ShellOffsetConfig::new()).unwrap()
+        let e = ShellOffset::new(ShellOffsetConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.create_shell();
         assert!(!result.is_empty());
@@ -301,7 +334,8 @@ mod tests {
 
     #[test]
     fn test_offset_solid() {
-        let e = ShellOffset::new(ShellOffsetConfig::new()).unwrap()
+        let e = ShellOffset::new(ShellOffsetConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.offset_solid();
         assert!(!result.is_empty());
@@ -309,7 +343,8 @@ mod tests {
 
     #[test]
     fn test_check_self_int() {
-        let e = ShellOffset::new(ShellOffsetConfig::new()).unwrap()
+        let e = ShellOffset::new(ShellOffsetConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.check_self_int();
         assert!(result);

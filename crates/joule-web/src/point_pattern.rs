@@ -72,7 +72,12 @@ impl Extent {
                 "({x_min},{y_min})-({x_max},{y_max})"
             )));
         }
-        Ok(Self { x_min, y_min, x_max, y_max })
+        Ok(Self {
+            x_min,
+            y_min,
+            x_max,
+            y_max,
+        })
     }
 
     pub fn area(&self) -> f64 {
@@ -122,7 +127,9 @@ struct Prng {
 
 impl Prng {
     fn new(seed: u64) -> Self {
-        Self { state: seed.wrapping_add(1) }
+        Self {
+            state: seed.wrapping_add(1),
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -171,7 +178,9 @@ pub fn quadrat_analysis(
         return Err(PointPatternError::TooFewPoints(points.len()));
     }
     if rows == 0 || cols == 0 {
-        return Err(PointPatternError::InvalidParameter("rows and cols must be > 0".into()));
+        return Err(PointPatternError::InvalidParameter(
+            "rows and cols must be > 0".into(),
+        ));
     }
 
     let cell_w = extent.width() / cols as f64;
@@ -198,8 +207,16 @@ pub fn quadrat_analysis(
         })
         .sum();
     let mean_count = expected;
-    let variance = counts.iter().map(|c| (*c as f64 - mean_count).powi(2)).sum::<f64>() / k as f64;
-    let vmi = if mean_count > 1e-15 { variance / mean_count } else { 0.0 };
+    let variance = counts
+        .iter()
+        .map(|c| (*c as f64 - mean_count).powi(2))
+        .sum::<f64>()
+        / k as f64;
+    let vmi = if mean_count > 1e-15 {
+        variance / mean_count
+    } else {
+        0.0
+    };
 
     Ok(QuadratResult {
         rows,
@@ -325,7 +342,9 @@ pub fn ripleys_k(
         return Err(PointPatternError::TooFewPoints(n));
     }
     if n_bins == 0 || max_dist <= 0.0 {
-        return Err(PointPatternError::InvalidParameter("max_dist and n_bins must be > 0".into()));
+        return Err(PointPatternError::InvalidParameter(
+            "max_dist and n_bins must be > 0".into(),
+        ));
     }
 
     let area = extent.area();
@@ -425,7 +444,13 @@ pub fn kernel_density(
         }
     }
 
-    Ok(KdeResult { grid_x, grid_y, density, rows: grid_size, cols: grid_size })
+    Ok(KdeResult {
+        grid_x,
+        grid_y,
+        density,
+        rows: grid_size,
+        cols: grid_size,
+    })
 }
 
 // ── CSR simulation ──────────────────────────────────────────────

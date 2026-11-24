@@ -17,7 +17,9 @@ pub struct Point {
 }
 
 impl Point {
-    pub fn new(id: u64, x: f64, y: f64) -> Self { Self { id, x, y } }
+    pub fn new(id: u64, x: f64, y: f64) -> Self {
+        Self { id, x, y }
+    }
 }
 
 /// Axis-aligned bounding rectangle.
@@ -30,7 +32,9 @@ pub struct Rect {
 }
 
 impl Rect {
-    pub fn new(x: f64, y: f64, w: f64, h: f64) -> Self { Self { x, y, w, h } }
+    pub fn new(x: f64, y: f64, w: f64, h: f64) -> Self {
+        Self { x, y, w, h }
+    }
 
     pub fn contains(&self, px: f64, py: f64) -> bool {
         px >= self.x && px < self.x + self.w && py >= self.y && py < self.y + self.h
@@ -233,7 +237,9 @@ impl Quadtree {
     pub fn point_in_region(&self, x: f64, y: f64, radius: f64) -> bool {
         let range = Rect::new(x - radius, y - radius, radius * 2.0, radius * 2.0);
         let candidates = self.query_range(&range);
-        candidates.iter().any(|p| dist_sq(x, y, p.x, p.y) <= radius * radius)
+        candidates
+            .iter()
+            .any(|p| dist_sq(x, y, p.x, p.y) <= radius * radius)
     }
 
     /// Total number of points in the tree.
@@ -269,12 +275,25 @@ impl Quadtree {
         let mut seen: HashSet<(u64, u64)> = HashSet::new();
 
         for p in &all {
-            let range = Rect::new(p.x - distance, p.y - distance, distance * 2.0, distance * 2.0);
+            let range = Rect::new(
+                p.x - distance,
+                p.y - distance,
+                distance * 2.0,
+                distance * 2.0,
+            );
             let nearby = self.query_range(&range);
             for q in &nearby {
-                if p.id == q.id { continue; }
-                let key = if p.id < q.id { (p.id, q.id) } else { (q.id, p.id) };
-                if seen.contains(&key) { continue; }
+                if p.id == q.id {
+                    continue;
+                }
+                let key = if p.id < q.id {
+                    (p.id, q.id)
+                } else {
+                    (q.id, p.id)
+                };
+                if seen.contains(&key) {
+                    continue;
+                }
                 if dist_sq(p.x, p.y, q.x, q.y) <= dist_sq_threshold {
                     pairs.push((*p, *q));
                     seen.insert(key);
@@ -296,7 +315,9 @@ pub struct QuadtreeIter {
 
 impl Quadtree {
     pub fn iter(&self) -> QuadtreeIter {
-        QuadtreeIter { stack: self.all_points() }
+        QuadtreeIter {
+            stack: self.all_points(),
+        }
     }
 }
 

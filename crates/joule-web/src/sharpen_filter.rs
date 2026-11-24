@@ -72,7 +72,11 @@ impl ImageBuf {
         if pixels.len() != width * height {
             return None;
         }
-        Some(Self { pixels, width, height })
+        Some(Self {
+            pixels,
+            width,
+            height,
+        })
     }
 
     pub fn get(&self, x: usize, y: usize) -> Pixel {
@@ -164,12 +168,16 @@ fn gaussian_blur_5x5(image: &ImageBuf) -> ImageBuf {
                 }
             }
 
-            result.set(x, y, Pixel::new(
-                r / total_weight,
-                g / total_weight,
-                b / total_weight,
-                a / total_weight,
-            ));
+            result.set(
+                x,
+                y,
+                Pixel::new(
+                    r / total_weight,
+                    g / total_weight,
+                    b / total_weight,
+                    a / total_weight,
+                ),
+            );
         }
     }
     result
@@ -246,12 +254,16 @@ pub fn cas_sharpen(image: &ImageBuf, strength: &SharpenStrength) -> ImageBuf {
             let sharp_g = center.g + amp_g * (center.g - neighbors_g);
             let sharp_b = center.b + amp_b * (center.b - neighbors_b);
 
-            result.set(x, y, Pixel::new(
-                sharp_r.clamp(0.0, 1.0),
-                sharp_g.clamp(0.0, 1.0),
-                sharp_b.clamp(0.0, 1.0),
-                center.a,
-            ));
+            result.set(
+                x,
+                y,
+                Pixel::new(
+                    sharp_r.clamp(0.0, 1.0),
+                    sharp_g.clamp(0.0, 1.0),
+                    sharp_b.clamp(0.0, 1.0),
+                    center.a,
+                ),
+            );
         }
     }
 
@@ -498,11 +510,17 @@ mod tests {
         let orig_mid = img.get(8, 8).luminance();
         let sharp_mid = result.get(8, 8).luminance();
         // The exact value depends on position, but interior gradient pixels should change.
-        let total_change: f32 = img.pixels.iter().zip(result.pixels.iter())
+        let total_change: f32 = img
+            .pixels
+            .iter()
+            .zip(result.pixels.iter())
             .map(|(a, b)| (a.luminance() - b.luminance()).abs())
             .sum();
         let _ = (orig_mid, sharp_mid);
-        assert!(total_change > 0.0, "unsharp mask should change gradient image");
+        assert!(
+            total_change > 0.0,
+            "unsharp mask should change gradient image"
+        );
     }
 
     #[test]
@@ -554,7 +572,10 @@ mod tests {
         let img = gradient_image(16, 16);
         let strength = SharpenStrength::new(1.0);
         let result = high_pass_sharpen(&img, &strength);
-        let changed = img.pixels.iter().zip(result.pixels.iter())
+        let changed = img
+            .pixels
+            .iter()
+            .zip(result.pixels.iter())
             .filter(|(a, b)| (a.r - b.r).abs() > 1e-4)
             .count();
         assert!(changed > 0, "high-pass should modify gradient image pixels");
@@ -571,7 +592,11 @@ mod tests {
     fn test_edge_magnitude_edge() {
         let img = edge_image(16, 16);
         let mag = edge_magnitude(&img, 8, 8);
-        assert!(mag > 0.1, "edge magnitude should be high at boundary: {}", mag);
+        assert!(
+            mag > 0.1,
+            "edge magnitude should be high at boundary: {}",
+            mag
+        );
     }
 
     #[test]
@@ -612,7 +637,12 @@ mod tests {
             assert_eq!(result.height, 8);
             // All pixels should be valid.
             for p in &result.pixels {
-                assert!(p.r >= 0.0 && p.r <= 1.0, "method {:?} produced out-of-range r: {}", method, p.r);
+                assert!(
+                    p.r >= 0.0 && p.r <= 1.0,
+                    "method {:?} produced out-of-range r: {}",
+                    method,
+                    p.r
+                );
             }
         }
     }

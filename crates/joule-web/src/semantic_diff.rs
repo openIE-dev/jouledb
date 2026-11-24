@@ -140,9 +140,17 @@ pub enum SemanticOp {
         new_value: Option<String>,
     },
     /// Move a node from one position to another.
-    Move { from_path: String, to_path: String, node: TreeNode },
+    Move {
+        from_path: String,
+        to_path: String,
+        node: TreeNode,
+    },
     /// Rename a node (label change).
-    Rename { path: String, old_label: String, new_label: String },
+    Rename {
+        path: String,
+        old_label: String,
+        new_label: String,
+    },
 }
 
 /// The result of a semantic diff.
@@ -247,9 +255,7 @@ fn parse_xml_node(xml: &str, pos: &mut usize) -> Result<TreeNode, SemanticDiffEr
             node.add_child(child);
         } else {
             // Text content.
-            let text_end = xml[*pos..]
-                .find('<')
-                .unwrap_or(xml.len() - *pos);
+            let text_end = xml[*pos..].find('<').unwrap_or(xml.len() - *pos);
             text_content.push_str(xml[*pos..*pos + text_end].trim());
             *pos += text_end;
         }
@@ -353,12 +359,7 @@ pub fn diff_trees(old: &TreeNode, new: &TreeNode) -> SemanticDiffResult {
     }
 }
 
-fn diff_trees_recursive(
-    old: &TreeNode,
-    new: &TreeNode,
-    path: &str,
-    ops: &mut Vec<SemanticOp>,
-) {
+fn diff_trees_recursive(old: &TreeNode, new: &TreeNode, path: &str, ops: &mut Vec<SemanticOp>) {
     let current_path = if path.is_empty() {
         old.label.clone()
     } else {
@@ -520,12 +521,20 @@ pub fn render_diff(result: &SemanticDiffResult) -> String {
             SemanticOp::Delete { path, node } => {
                 out.push_str(&format!("- DELETE at {}: {}\n", path, node_summary(node)));
             }
-            SemanticOp::Update { path, old_value, new_value } => {
+            SemanticOp::Update {
+                path,
+                old_value,
+                new_value,
+            } => {
                 let old = old_value.as_deref().unwrap_or("<none>");
                 let new = new_value.as_deref().unwrap_or("<none>");
                 out.push_str(&format!("~ UPDATE at {}: {} -> {}\n", path, old, new));
             }
-            SemanticOp::Move { from_path, to_path, node } => {
+            SemanticOp::Move {
+                from_path,
+                to_path,
+                node,
+            } => {
                 out.push_str(&format!(
                     "> MOVE {} -> {}: {}\n",
                     from_path,
@@ -533,7 +542,11 @@ pub fn render_diff(result: &SemanticDiffResult) -> String {
                     node_summary(node)
                 ));
             }
-            SemanticOp::Rename { path, old_label, new_label } => {
+            SemanticOp::Rename {
+                path,
+                old_label,
+                new_label,
+            } => {
                 out.push_str(&format!(
                     "* RENAME at {}: {} -> {}\n",
                     path, old_label, new_label
@@ -691,10 +704,12 @@ mod tests {
         let old = TreeNode::leaf("name", "alice");
         let new = TreeNode::leaf("name", "bob");
         let result = diff_trees(&old, &new);
-        assert!(result
-            .operations
-            .iter()
-            .any(|op| matches!(op, SemanticOp::Update { .. })));
+        assert!(
+            result
+                .operations
+                .iter()
+                .any(|op| matches!(op, SemanticOp::Update { .. }))
+        );
     }
 
     #[test]
@@ -705,10 +720,12 @@ mod tests {
             vec![TreeNode::leaf("a", "1"), TreeNode::leaf("b", "2")],
         );
         let result = diff_trees(&old, &new);
-        assert!(result
-            .operations
-            .iter()
-            .any(|op| matches!(op, SemanticOp::Insert { .. })));
+        assert!(
+            result
+                .operations
+                .iter()
+                .any(|op| matches!(op, SemanticOp::Insert { .. }))
+        );
     }
 
     #[test]
@@ -719,10 +736,12 @@ mod tests {
         );
         let new = TreeNode::with_children("r", vec![TreeNode::leaf("a", "1")]);
         let result = diff_trees(&old, &new);
-        assert!(result
-            .operations
-            .iter()
-            .any(|op| matches!(op, SemanticOp::Delete { .. })));
+        assert!(
+            result
+                .operations
+                .iter()
+                .any(|op| matches!(op, SemanticOp::Delete { .. }))
+        );
     }
 
     #[test]
@@ -804,10 +823,7 @@ mod tests {
 
     #[test]
     fn tree_display() {
-        let node = TreeNode::with_children(
-            "root",
-            vec![TreeNode::leaf("child", "value")],
-        );
+        let node = TreeNode::with_children("root", vec![TreeNode::leaf("child", "value")]);
         let s = format!("{}", node);
         assert!(s.contains("root"));
         assert!(s.contains("child"));

@@ -19,7 +19,11 @@ impl Vec3 {
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn length(&self) -> f64 {
@@ -31,7 +35,11 @@ impl Vec3 {
         if len < 1e-12 {
             Self::zero()
         } else {
-            Self { x: self.x / len, y: self.y / len, z: self.z / len }
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+                z: self.z / len,
+            }
         }
     }
 
@@ -48,15 +56,27 @@ impl Vec3 {
     }
 
     pub fn sub(&self, other: &Vec3) -> Vec3 {
-        Vec3 { x: self.x - other.x, y: self.y - other.y, z: self.z - other.z }
+        Vec3 {
+            x: self.x - other.x,
+            y: self.y - other.y,
+            z: self.z - other.z,
+        }
     }
 
     pub fn add(&self, other: &Vec3) -> Vec3 {
-        Vec3 { x: self.x + other.x, y: self.y + other.y, z: self.z + other.z }
+        Vec3 {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
     }
 
     pub fn scale(&self, s: f64) -> Vec3 {
-        Vec3 { x: self.x * s, y: self.y * s, z: self.z * s }
+        Vec3 {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 }
 
@@ -95,7 +115,11 @@ impl Listener {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DistanceModel {
     /// Linear: gain = 1 - rolloff * (distance - ref) / (max - ref)
-    Linear { ref_distance: f64, max_distance: f64, rolloff: f64 },
+    Linear {
+        ref_distance: f64,
+        max_distance: f64,
+        rolloff: f64,
+    },
     /// Inverse: gain = ref / (ref + rolloff * (distance - ref))
     Inverse { ref_distance: f64, rolloff: f64 },
     /// Exponential: gain = (distance / ref)^(-rolloff)
@@ -106,19 +130,33 @@ impl DistanceModel {
     /// Compute gain for a given distance.
     pub fn attenuation(&self, distance: f64) -> f64 {
         match self {
-            DistanceModel::Linear { ref_distance, max_distance, rolloff } => {
+            DistanceModel::Linear {
+                ref_distance,
+                max_distance,
+                rolloff,
+            } => {
                 let d = distance.clamp(*ref_distance, *max_distance);
                 let range = *max_distance - *ref_distance;
-                if range < 1e-12 { return 1.0; }
+                if range < 1e-12 {
+                    return 1.0;
+                }
                 (1.0 - rolloff * (d - ref_distance) / range).max(0.0)
             }
-            DistanceModel::Inverse { ref_distance, rolloff } => {
+            DistanceModel::Inverse {
+                ref_distance,
+                rolloff,
+            } => {
                 let d = distance.max(*ref_distance);
                 *ref_distance / (*ref_distance + rolloff * (d - ref_distance))
             }
-            DistanceModel::Exponential { ref_distance, rolloff } => {
+            DistanceModel::Exponential {
+                ref_distance,
+                rolloff,
+            } => {
                 let d = distance.max(*ref_distance);
-                if *ref_distance < 1e-12 { return 0.0; }
+                if *ref_distance < 1e-12 {
+                    return 0.0;
+                }
                 (d / ref_distance).powf(-rolloff)
             }
         }
@@ -164,7 +202,10 @@ impl AudioSource3D {
             velocity: Vec3::zero(),
             direction: Vec3::new(0.0, 0.0, -1.0),
             cone: None,
-            distance_model: DistanceModel::Inverse { ref_distance: 1.0, rolloff: 1.0 },
+            distance_model: DistanceModel::Inverse {
+                ref_distance: 1.0,
+                rolloff: 1.0,
+            },
             volume: 1.0,
             priority: 0,
             occlusion: 0.0,
@@ -269,7 +310,9 @@ impl SpatialAudio3D {
     pub fn compute_elevation(&self, source_pos: &Vec3) -> f64 {
         let to_source = source_pos.sub(&self.listener.position);
         let len = to_source.length();
-        if len < 1e-12 { return 0.0; }
+        if len < 1e-12 {
+            return 0.0;
+        }
         let up = self.listener.up.normalized();
         let proj_up = to_source.dot(&up);
         (proj_up / len).clamp(-1.0, 1.0).asin()
@@ -282,10 +325,14 @@ impl SpatialAudio3D {
 
     /// Compute doppler pitch shift.
     pub fn compute_doppler(&self, source: &AudioSource3D) -> f64 {
-        if self.doppler_factor < 1e-12 { return 1.0; }
+        if self.doppler_factor < 1e-12 {
+            return 1.0;
+        }
         let to_listener = self.listener.position.sub(&source.position);
         let dist = to_listener.length();
-        if dist < 1e-12 { return 1.0; }
+        if dist < 1e-12 {
+            return 1.0;
+        }
         let dir = to_listener.normalized();
         let v_listener = self.listener.velocity.dot(&dir);
         let v_source = source.velocity.dot(&dir);
@@ -296,7 +343,9 @@ impl SpatialAudio3D {
         // so negate for the denominator.
         let num = vs + v_listener * self.doppler_factor;
         let den = vs - v_source * self.doppler_factor;
-        if den.abs() < 1e-12 { return 1.0; }
+        if den.abs() < 1e-12 {
+            return 1.0;
+        }
         (num / den).clamp(0.5, 2.0)
     }
 
@@ -308,7 +357,9 @@ impl SpatialAudio3D {
         };
         let to_listener = listener_pos.sub(&source.position);
         let dist = to_listener.length();
-        if dist < 1e-12 { return 1.0; }
+        if dist < 1e-12 {
+            return 1.0;
+        }
         let dir = to_listener.normalized();
         let src_dir = source.direction.normalized();
         let angle = dir.dot(&src_dir).clamp(-1.0, 1.0).acos();
@@ -319,7 +370,9 @@ impl SpatialAudio3D {
             cone.outer_gain
         } else {
             let range = cone.outer_angle - cone.inner_angle;
-            if range < 1e-12 { return 1.0; }
+            if range < 1e-12 {
+                return 1.0;
+            }
             let t = (angle - cone.inner_angle) / range;
             1.0 + (cone.outer_gain - 1.0) * t
         }
@@ -328,41 +381,41 @@ impl SpatialAudio3D {
     /// Process all sources, returning spatial parameters for active voices.
     /// Priority-limited to max_voices.
     pub fn process(&self) -> Vec<SpatialResult> {
-        let mut active: Vec<&AudioSource3D> = self.sources.values()
-            .filter(|s| s.active)
-            .collect();
+        let mut active: Vec<&AudioSource3D> = self.sources.values().filter(|s| s.active).collect();
 
         // Sort by priority (descending), then by distance (ascending)
         let listener_pos = self.listener.position;
         active.sort_by(|a, b| {
-            b.priority.cmp(&a.priority)
-                .then_with(|| {
-                    let da = a.position.sub(&listener_pos).length();
-                    let db = b.position.sub(&listener_pos).length();
-                    da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
-                })
+            b.priority.cmp(&a.priority).then_with(|| {
+                let da = a.position.sub(&listener_pos).length();
+                let db = b.position.sub(&listener_pos).length();
+                da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+            })
         });
 
         active.truncate(self.max_voices);
 
-        active.iter().map(|src| {
-            let distance = src.position.sub(&self.listener.position).length();
-            let dist_gain = src.distance_model.attenuation(distance);
-            let cone_gain = Self::compute_cone_gain(src, &self.listener.position);
-            let occlusion_gain = 1.0 - src.occlusion.clamp(0.0, 1.0);
-            let gain = src.volume * dist_gain * cone_gain * occlusion_gain;
-            let azimuth = self.compute_azimuth(&src.position);
-            let pan = Self::azimuth_to_pan(azimuth);
-            let doppler_pitch = self.compute_doppler(src);
+        active
+            .iter()
+            .map(|src| {
+                let distance = src.position.sub(&self.listener.position).length();
+                let dist_gain = src.distance_model.attenuation(distance);
+                let cone_gain = Self::compute_cone_gain(src, &self.listener.position);
+                let occlusion_gain = 1.0 - src.occlusion.clamp(0.0, 1.0);
+                let gain = src.volume * dist_gain * cone_gain * occlusion_gain;
+                let azimuth = self.compute_azimuth(&src.position);
+                let pan = Self::azimuth_to_pan(azimuth);
+                let doppler_pitch = self.compute_doppler(src);
 
-            SpatialResult {
-                source_id: src.id,
-                gain,
-                pan,
-                doppler_pitch,
-                distance,
-            }
-        }).collect()
+                SpatialResult {
+                    source_id: src.id,
+                    gain,
+                    pan,
+                    doppler_pitch,
+                    distance,
+                }
+            })
+            .collect()
     }
 }
 
@@ -411,7 +464,11 @@ mod tests {
 
     #[test]
     fn test_distance_linear() {
-        let model = DistanceModel::Linear { ref_distance: 1.0, max_distance: 10.0, rolloff: 1.0 };
+        let model = DistanceModel::Linear {
+            ref_distance: 1.0,
+            max_distance: 10.0,
+            rolloff: 1.0,
+        };
         assert!((model.attenuation(1.0) - 1.0).abs() < 1e-10);
         assert!((model.attenuation(10.0) - 0.0).abs() < 1e-10);
         assert!((model.attenuation(5.5) - 0.5).abs() < 0.1);
@@ -419,14 +476,20 @@ mod tests {
 
     #[test]
     fn test_distance_inverse() {
-        let model = DistanceModel::Inverse { ref_distance: 1.0, rolloff: 1.0 };
+        let model = DistanceModel::Inverse {
+            ref_distance: 1.0,
+            rolloff: 1.0,
+        };
         assert!((model.attenuation(1.0) - 1.0).abs() < 1e-10);
         assert!((model.attenuation(2.0) - 0.5).abs() < 1e-10);
     }
 
     #[test]
     fn test_distance_exponential() {
-        let model = DistanceModel::Exponential { ref_distance: 1.0, rolloff: 2.0 };
+        let model = DistanceModel::Exponential {
+            ref_distance: 1.0,
+            rolloff: 2.0,
+        };
         assert!((model.attenuation(1.0) - 1.0).abs() < 1e-10);
         assert!((model.attenuation(2.0) - 0.25).abs() < 1e-10);
     }

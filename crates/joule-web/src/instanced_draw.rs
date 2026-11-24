@@ -14,16 +14,60 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0, z: 0.0 } }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z } }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
-    pub fn length(self) -> f64 { self.dot(self).sqrt() }
-    pub fn distance(self, o: Self) -> f64 { self.sub(o).length() }
-    pub fn min_comp(self, o: Self) -> Self { Self { x: self.x.min(o.x), y: self.y.min(o.y), z: self.z.min(o.z) } }
-    pub fn max_comp(self, o: Self) -> Self { Self { x: self.x.max(o.x), y: self.y.max(o.y), z: self.z.max(o.z) } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
+    pub fn length(self) -> f64 {
+        self.dot(self).sqrt()
+    }
+    pub fn distance(self, o: Self) -> f64 {
+        self.sub(o).length()
+    }
+    pub fn min_comp(self, o: Self) -> Self {
+        Self {
+            x: self.x.min(o.x),
+            y: self.y.min(o.y),
+            z: self.z.min(o.z),
+        }
+    }
+    pub fn max_comp(self, o: Self) -> Self {
+        Self {
+            x: self.x.max(o.x),
+            y: self.y.max(o.y),
+            z: self.z.max(o.z),
+        }
+    }
 }
 
 // ── Mat4 ─────────────────────────────────────────────────────
@@ -35,23 +79,29 @@ pub struct Mat4 {
 
 impl Mat4 {
     pub fn identity() -> Self {
-        Self { m: [
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ]}
+        Self {
+            m: [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+        }
     }
 
     pub fn translation(v: Vec3) -> Self {
         let mut m = Self::identity();
-        m.m[0][3] = v.x; m.m[1][3] = v.y; m.m[2][3] = v.z;
+        m.m[0][3] = v.x;
+        m.m[1][3] = v.y;
+        m.m[2][3] = v.z;
         m
     }
 
     pub fn scaling(v: Vec3) -> Self {
         let mut m = Self::identity();
-        m.m[0][0] = v.x; m.m[1][1] = v.y; m.m[2][2] = v.z;
+        m.m[0][0] = v.x;
+        m.m[1][1] = v.y;
+        m.m[2][2] = v.z;
         m
     }
 
@@ -73,9 +123,9 @@ impl Mat4 {
 
     pub fn transform_point(self, v: Vec3) -> Vec3 {
         Vec3::new(
-            self.m[0][0]*v.x + self.m[0][1]*v.y + self.m[0][2]*v.z + self.m[0][3],
-            self.m[1][0]*v.x + self.m[1][1]*v.y + self.m[1][2]*v.z + self.m[1][3],
-            self.m[2][0]*v.x + self.m[2][1]*v.y + self.m[2][2]*v.z + self.m[2][3],
+            self.m[0][0] * v.x + self.m[0][1] * v.y + self.m[0][2] * v.z + self.m[0][3],
+            self.m[1][0] * v.x + self.m[1][1] * v.y + self.m[1][2] * v.z + self.m[1][3],
+            self.m[2][0] * v.x + self.m[2][1] * v.y + self.m[2][2] * v.z + self.m[2][3],
         )
     }
 }
@@ -122,9 +172,20 @@ pub struct Color {
 }
 
 impl Color {
-    pub fn white() -> Self { Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 } }
-    pub fn new(r: f64, g: f64, b: f64, a: f64) -> Self { Self { r, g, b, a } }
-    pub fn is_transparent(&self) -> bool { self.a < 1.0 - 1e-9 }
+    pub fn white() -> Self {
+        Self {
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+            a: 1.0,
+        }
+    }
+    pub fn new(r: f64, g: f64, b: f64, a: f64) -> Self {
+        Self { r, g, b, a }
+    }
+    pub fn is_transparent(&self) -> bool {
+        self.a < 1.0 - 1e-9
+    }
 }
 
 // ── InstanceData ─────────────────────────────────────────────
@@ -149,12 +210,25 @@ impl InstanceData {
         }
     }
 
-    pub fn with_color(mut self, color: Color) -> Self { self.color_tint = color; self }
-    pub fn with_custom(mut self, data: Vec<f64>) -> Self { self.custom = data; self }
-    pub fn with_radius(mut self, r: f64) -> Self { self.bounding_radius = r; self }
+    pub fn with_color(mut self, color: Color) -> Self {
+        self.color_tint = color;
+        self
+    }
+    pub fn with_custom(mut self, data: Vec<f64>) -> Self {
+        self.custom = data;
+        self
+    }
+    pub fn with_radius(mut self, r: f64) -> Self {
+        self.bounding_radius = r;
+        self
+    }
 
-    pub fn position(&self) -> Vec3 { self.transform.get_translation() }
-    pub fn is_transparent(&self) -> bool { self.color_tint.is_transparent() }
+    pub fn position(&self) -> Vec3 {
+        self.transform.get_translation()
+    }
+    pub fn is_transparent(&self) -> bool {
+        self.color_tint.is_transparent()
+    }
 }
 
 // ── MeshMaterialKey ──────────────────────────────────────────
@@ -166,7 +240,12 @@ pub struct MeshMaterialKey {
 }
 
 impl MeshMaterialKey {
-    pub fn new(mesh_id: u64, material_id: u64) -> Self { Self { mesh_id, material_id } }
+    pub fn new(mesh_id: u64, material_id: u64) -> Self {
+        Self {
+            mesh_id,
+            material_id,
+        }
+    }
 }
 
 // ── InstanceSet ──────────────────────────────────────────────
@@ -188,7 +267,13 @@ pub struct InstanceSet {
 
 impl InstanceSet {
     pub fn new(key: MeshMaterialKey, mode: InstanceSetMode) -> Self {
-        Self { key, instances: Vec::new(), mode, capacity: 0, dirty: true }
+        Self {
+            key,
+            instances: Vec::new(),
+            mode,
+            capacity: 0,
+            dirty: true,
+        }
     }
 
     pub fn add(&mut self, instance: InstanceData) -> usize {
@@ -205,8 +290,12 @@ impl InstanceSet {
         }
     }
 
-    pub fn len(&self) -> usize { self.instances.len() }
-    pub fn is_empty(&self) -> bool { self.instances.is_empty() }
+    pub fn len(&self) -> usize {
+        self.instances.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.instances.is_empty()
+    }
 
     pub fn visible_count(&self) -> usize {
         self.instances.iter().filter(|i| i.visible).count()
@@ -257,7 +346,9 @@ impl InstanceSet {
 
     /// Reset all instances to visible.
     pub fn reset_visibility(&mut self) {
-        for inst in &mut self.instances { inst.visible = true; }
+        for inst in &mut self.instances {
+            inst.visible = true;
+        }
     }
 }
 
@@ -297,7 +388,9 @@ pub struct InstancedRenderer {
 }
 
 impl InstancedRenderer {
-    pub fn new() -> Self { Self { sets: Vec::new() } }
+    pub fn new() -> Self {
+        Self { sets: Vec::new() }
+    }
 
     pub fn add_set(&mut self, set: InstanceSet) -> usize {
         let idx = self.sets.len();
@@ -305,13 +398,19 @@ impl InstancedRenderer {
         idx
     }
 
-    pub fn get_set(&self, index: usize) -> Option<&InstanceSet> { self.sets.get(index) }
-    pub fn get_set_mut(&mut self, index: usize) -> Option<&mut InstanceSet> { self.sets.get_mut(index) }
+    pub fn get_set(&self, index: usize) -> Option<&InstanceSet> {
+        self.sets.get(index)
+    }
+    pub fn get_set_mut(&mut self, index: usize) -> Option<&mut InstanceSet> {
+        self.sets.get_mut(index)
+    }
 
     /// Find or create a set for the given mesh+material.
     pub fn get_or_create_set(&mut self, key: MeshMaterialKey, mode: InstanceSetMode) -> usize {
         for (i, set) in self.sets.iter().enumerate() {
-            if set.key == key { return i; }
+            if set.key == key {
+                return i;
+            }
         }
         self.add_set(InstanceSet::new(key, mode))
     }
@@ -338,8 +437,13 @@ impl InstancedRenderer {
         let mut calls = Vec::new();
         for set in &self.sets {
             let visible = set.visible_count();
-            if visible == 0 { continue; }
-            let is_transparent = set.instances.iter().any(|i| i.visible && i.is_transparent());
+            if visible == 0 {
+                continue;
+            }
+            let is_transparent = set
+                .instances
+                .iter()
+                .any(|i| i.visible && i.is_transparent());
             calls.push(DrawCall {
                 key: set.key,
                 instance_count: visible,
@@ -355,8 +459,16 @@ impl InstancedRenderer {
         let visible: usize = self.sets.iter().map(|s| s.visible_count()).sum();
         let culled = total - visible;
         let draw_calls = self.generate_draw_calls().len();
-        let saved = if total > 0 { total.saturating_sub(draw_calls) } else { 0 };
-        let opaque = self.generate_draw_calls().iter().filter(|d| !d.is_transparent).count();
+        let saved = if total > 0 {
+            total.saturating_sub(draw_calls)
+        } else {
+            0
+        };
+        let opaque = self
+            .generate_draw_calls()
+            .iter()
+            .filter(|d| !d.is_transparent)
+            .count();
         let transparent = draw_calls - opaque;
         InstancedDrawStats {
             total_instances: total,
@@ -385,7 +497,9 @@ impl InstancedRenderer {
         }
     }
 
-    pub fn set_count(&self) -> usize { self.sets.len() }
+    pub fn set_count(&self) -> usize {
+        self.sets.len()
+    }
     pub fn total_instance_count(&self) -> usize {
         self.sets.iter().map(|s| s.len()).sum()
     }
@@ -401,12 +515,30 @@ mod tests {
         // Frustum that includes everything (planes far away)
         Frustum {
             planes: [
-                Plane { normal: Vec3::new( 1.0, 0.0, 0.0), distance: 1000.0 },
-                Plane { normal: Vec3::new(-1.0, 0.0, 0.0), distance: 1000.0 },
-                Plane { normal: Vec3::new(0.0,  1.0, 0.0), distance: 1000.0 },
-                Plane { normal: Vec3::new(0.0, -1.0, 0.0), distance: 1000.0 },
-                Plane { normal: Vec3::new(0.0, 0.0,  1.0), distance: 1000.0 },
-                Plane { normal: Vec3::new(0.0, 0.0, -1.0), distance: 1000.0 },
+                Plane {
+                    normal: Vec3::new(1.0, 0.0, 0.0),
+                    distance: 1000.0,
+                },
+                Plane {
+                    normal: Vec3::new(-1.0, 0.0, 0.0),
+                    distance: 1000.0,
+                },
+                Plane {
+                    normal: Vec3::new(0.0, 1.0, 0.0),
+                    distance: 1000.0,
+                },
+                Plane {
+                    normal: Vec3::new(0.0, -1.0, 0.0),
+                    distance: 1000.0,
+                },
+                Plane {
+                    normal: Vec3::new(0.0, 0.0, 1.0),
+                    distance: 1000.0,
+                },
+                Plane {
+                    normal: Vec3::new(0.0, 0.0, -1.0),
+                    distance: 1000.0,
+                },
             ],
         }
     }
@@ -415,17 +547,37 @@ mod tests {
         // Tight frustum around origin (roughly -5 to 5 on all axes)
         Frustum {
             planes: [
-                Plane { normal: Vec3::new( 1.0, 0.0, 0.0), distance: 5.0 },
-                Plane { normal: Vec3::new(-1.0, 0.0, 0.0), distance: 5.0 },
-                Plane { normal: Vec3::new(0.0,  1.0, 0.0), distance: 5.0 },
-                Plane { normal: Vec3::new(0.0, -1.0, 0.0), distance: 5.0 },
-                Plane { normal: Vec3::new(0.0, 0.0,  1.0), distance: 5.0 },
-                Plane { normal: Vec3::new(0.0, 0.0, -1.0), distance: 5.0 },
+                Plane {
+                    normal: Vec3::new(1.0, 0.0, 0.0),
+                    distance: 5.0,
+                },
+                Plane {
+                    normal: Vec3::new(-1.0, 0.0, 0.0),
+                    distance: 5.0,
+                },
+                Plane {
+                    normal: Vec3::new(0.0, 1.0, 0.0),
+                    distance: 5.0,
+                },
+                Plane {
+                    normal: Vec3::new(0.0, -1.0, 0.0),
+                    distance: 5.0,
+                },
+                Plane {
+                    normal: Vec3::new(0.0, 0.0, 1.0),
+                    distance: 5.0,
+                },
+                Plane {
+                    normal: Vec3::new(0.0, 0.0, -1.0),
+                    distance: 5.0,
+                },
             ],
         }
     }
 
-    fn key(m: u64, mat: u64) -> MeshMaterialKey { MeshMaterialKey::new(m, mat) }
+    fn key(m: u64, mat: u64) -> MeshMaterialKey {
+        MeshMaterialKey::new(m, mat)
+    }
 
     #[test]
     fn test_instance_data_position() {
@@ -437,8 +589,7 @@ mod tests {
 
     #[test]
     fn test_instance_transparency() {
-        let inst = InstanceData::new(Mat4::identity())
-            .with_color(Color::new(1.0, 1.0, 1.0, 0.5));
+        let inst = InstanceData::new(Mat4::identity()).with_color(Color::new(1.0, 1.0, 1.0, 0.5));
         assert!(inst.is_transparent());
     }
 
@@ -460,7 +611,9 @@ mod tests {
     fn test_instance_set_remove() {
         let mut set = InstanceSet::new(key(1, 1), InstanceSetMode::Dynamic);
         set.add(InstanceData::new(Mat4::identity()));
-        set.add(InstanceData::new(Mat4::translation(Vec3::new(1.0, 0.0, 0.0))));
+        set.add(InstanceData::new(Mat4::translation(Vec3::new(
+            1.0, 0.0, 0.0,
+        ))));
         set.remove(0);
         assert_eq!(set.len(), 1);
     }
@@ -470,7 +623,9 @@ mod tests {
         let frustum = make_frustum_all_visible();
         let mut set = InstanceSet::new(key(1, 1), InstanceSetMode::Dynamic);
         set.add(InstanceData::new(Mat4::identity()));
-        set.add(InstanceData::new(Mat4::translation(Vec3::new(1.0, 0.0, 0.0))));
+        set.add(InstanceData::new(Mat4::translation(Vec3::new(
+            1.0, 0.0, 0.0,
+        ))));
         let result = set.frustum_cull(&frustum);
         assert_eq!(result.visible, 2);
         assert_eq!(result.culled, 0);
@@ -481,7 +636,9 @@ mod tests {
         let frustum = make_tight_frustum();
         let mut set = InstanceSet::new(key(1, 1), InstanceSetMode::Dynamic);
         set.add(InstanceData::new(Mat4::identity())); // inside
-        set.add(InstanceData::new(Mat4::translation(Vec3::new(100.0, 0.0, 0.0)))); // outside
+        set.add(InstanceData::new(Mat4::translation(Vec3::new(
+            100.0, 0.0, 0.0,
+        )))); // outside
         let result = set.frustum_cull(&frustum);
         assert_eq!(result.visible, 1);
         assert_eq!(result.culled, 1);
@@ -490,9 +647,15 @@ mod tests {
     #[test]
     fn test_sort_by_distance() {
         let mut set = InstanceSet::new(key(1, 1), InstanceSetMode::Dynamic);
-        set.add(InstanceData::new(Mat4::translation(Vec3::new(1.0, 0.0, 0.0))));
-        set.add(InstanceData::new(Mat4::translation(Vec3::new(10.0, 0.0, 0.0))));
-        set.add(InstanceData::new(Mat4::translation(Vec3::new(5.0, 0.0, 0.0))));
+        set.add(InstanceData::new(Mat4::translation(Vec3::new(
+            1.0, 0.0, 0.0,
+        ))));
+        set.add(InstanceData::new(Mat4::translation(Vec3::new(
+            10.0, 0.0, 0.0,
+        ))));
+        set.add(InstanceData::new(Mat4::translation(Vec3::new(
+            5.0, 0.0, 0.0,
+        ))));
         set.sort_by_distance(Vec3::zero());
         // Back-to-front: 10, 5, 1
         assert!((set.instances[0].position().x - 10.0).abs() < 1e-9);
@@ -582,7 +745,9 @@ mod tests {
         let mut renderer = InstancedRenderer::new();
         let mut set = InstanceSet::new(key(1, 1), InstanceSetMode::Dynamic);
         set.add(InstanceData::new(Mat4::identity()));
-        set.add(InstanceData::new(Mat4::translation(Vec3::new(100.0, 0.0, 0.0))));
+        set.add(InstanceData::new(Mat4::translation(Vec3::new(
+            100.0, 0.0, 0.0,
+        ))));
         renderer.add_set(set);
         renderer.frustum_cull_all(&make_tight_frustum());
         let stats = renderer.stats();
@@ -594,7 +759,9 @@ mod tests {
     fn test_reset_visibility() {
         let mut renderer = InstancedRenderer::new();
         let mut set = InstanceSet::new(key(1, 1), InstanceSetMode::Dynamic);
-        set.add(InstanceData::new(Mat4::translation(Vec3::new(100.0, 0.0, 0.0))));
+        set.add(InstanceData::new(Mat4::translation(Vec3::new(
+            100.0, 0.0, 0.0,
+        ))));
         renderer.add_set(set);
         renderer.frustum_cull_all(&make_tight_frustum());
         assert_eq!(renderer.stats().visible_instances, 0);
@@ -606,8 +773,7 @@ mod tests {
     fn test_transparent_draw_calls() {
         let mut renderer = InstancedRenderer::new();
         let mut set = InstanceSet::new(key(1, 1), InstanceSetMode::Dynamic);
-        set.add(InstanceData::new(Mat4::identity())
-            .with_color(Color::new(1.0, 0.0, 0.0, 0.5)));
+        set.add(InstanceData::new(Mat4::identity()).with_color(Color::new(1.0, 0.0, 0.0, 0.5)));
         renderer.add_set(set);
         let stats = renderer.stats();
         assert_eq!(stats.transparent_draw_calls, 1);
@@ -616,8 +782,7 @@ mod tests {
 
     #[test]
     fn test_custom_data() {
-        let inst = InstanceData::new(Mat4::identity())
-            .with_custom(vec![1.0, 2.0, 3.0]);
+        let inst = InstanceData::new(Mat4::identity()).with_custom(vec![1.0, 2.0, 3.0]);
         assert_eq!(inst.custom.len(), 3);
         assert!((inst.custom[0] - 1.0).abs() < 1e-9);
     }

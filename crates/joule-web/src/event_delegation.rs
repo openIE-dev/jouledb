@@ -379,9 +379,7 @@ impl EventDelegation {
             .iter()
             .enumerate()
             .filter(|(_, h)| {
-                h.node_id == node_id
-                    && h.event_type == event.event_type
-                    && h.capture == capture
+                h.node_id == node_id && h.event_type == event.event_type && h.capture == capture
             })
             .map(|(i, _)| i)
             .collect();
@@ -429,7 +427,12 @@ impl Default for EventDelegation {
 // ── Custom events ───────────────────────────────────────────────────────
 
 /// Create a custom (non-standard) event with arbitrary data.
-pub fn custom_event(event_type: &str, target_id: u64, timestamp: u64, data: HashMap<String, String>) -> SyntheticEvent {
+pub fn custom_event(
+    event_type: &str,
+    target_id: u64,
+    timestamp: u64,
+    data: HashMap<String, String>,
+) -> SyntheticEvent {
     let mut event = SyntheticEvent::new(event_type, target_id, timestamp);
     event.data = data;
     event

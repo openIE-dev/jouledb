@@ -309,8 +309,7 @@ pub fn parse_midi_message(data: &[u8], running_status: u8) -> Option<(MidiMessag
                     // Tempo
                     if remaining.len() >= data_end && length >= 3 {
                         let d = &remaining[data_start..data_end];
-                        let usec =
-                            ((d[0] as u32) << 16) | ((d[1] as u32) << 8) | (d[2] as u32);
+                        let usec = ((d[0] as u32) << 16) | ((d[1] as u32) << 8) | (d[2] as u32);
                         Some((
                             MidiMessage::MetaTempo {
                                 microseconds_per_beat: usec,
@@ -588,10 +587,7 @@ fn read_u16_be(data: &[u8]) -> u16 {
 }
 
 fn read_u32_be(data: &[u8]) -> u32 {
-    ((data[0] as u32) << 24)
-        | ((data[1] as u32) << 16)
-        | ((data[2] as u32) << 8)
-        | (data[3] as u32)
+    ((data[0] as u32) << 24) | ((data[1] as u32) << 16) | ((data[2] as u32) << 8) | (data[3] as u32)
 }
 
 // ── Tempo Map ───────────────────────────────────────────────────
@@ -1027,7 +1023,13 @@ mod tests {
     fn parse_pitch_bend_center() {
         let data = [0xE0, 0x00, 0x40];
         let (msg, _) = parse_midi_message(&data, 0).unwrap();
-        assert_eq!(msg, MidiMessage::PitchBend { channel: 0, value: 0 });
+        assert_eq!(
+            msg,
+            MidiMessage::PitchBend {
+                channel: 0,
+                value: 0
+            }
+        );
     }
 
     #[test]

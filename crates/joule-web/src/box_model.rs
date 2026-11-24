@@ -14,11 +14,21 @@ pub struct Edge {
 
 impl Edge {
     pub fn new(top: f64, right: f64, bottom: f64, left: f64) -> Self {
-        Self { top, right, bottom, left }
+        Self {
+            top,
+            right,
+            bottom,
+            left,
+        }
     }
 
     pub fn uniform(value: f64) -> Self {
-        Self { top: value, right: value, bottom: value, left: value }
+        Self {
+            top: value,
+            right: value,
+            bottom: value,
+            left: value,
+        }
     }
 
     pub fn zero() -> Self {
@@ -75,11 +85,21 @@ pub struct Rect {
 
 impl Rect {
     pub fn new(x: f64, y: f64, width: f64, height: f64) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, width: 0.0, height: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            width: 0.0,
+            height: 0.0,
+        }
     }
 
     pub fn right(&self) -> f64 {
@@ -189,20 +209,23 @@ impl BoxDimensions {
     /// includes padding and border, so content dimensions are smaller.
     pub fn apply_box_sizing(mut self, sizing: BoxSizing) -> Self {
         if sizing == BoxSizing::BorderBox {
-            self.content_width = (self.content_width
-                - self.padding.horizontal()
-                - self.border.horizontal())
-            .max(0.0);
-            self.content_height = (self.content_height
-                - self.padding.vertical()
-                - self.border.vertical())
-            .max(0.0);
+            self.content_width =
+                (self.content_width - self.padding.horizontal() - self.border.horizontal())
+                    .max(0.0);
+            self.content_height =
+                (self.content_height - self.padding.vertical() - self.border.vertical()).max(0.0);
         }
         self
     }
 
     /// Clamp content dimensions to min/max constraints.
-    pub fn clamp(mut self, min_w: Option<f64>, max_w: Option<f64>, min_h: Option<f64>, max_h: Option<f64>) -> Self {
+    pub fn clamp(
+        mut self,
+        min_w: Option<f64>,
+        max_w: Option<f64>,
+        min_h: Option<f64>,
+        max_h: Option<f64>,
+    ) -> Self {
         if let Some(min) = min_w {
             self.content_width = self.content_width.max(min);
         }
@@ -343,8 +366,8 @@ mod tests {
 
     #[test]
     fn test_clamp() {
-        let b = BoxDimensions::new(50.0, 300.0)
-            .clamp(Some(100.0), Some(400.0), Some(0.0), Some(200.0));
+        let b =
+            BoxDimensions::new(50.0, 300.0).clamp(Some(100.0), Some(400.0), Some(0.0), Some(200.0));
 
         assert_eq!(b.content_width, 100.0);
         assert_eq!(b.content_height, 200.0);

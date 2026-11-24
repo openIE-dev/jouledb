@@ -36,11 +36,17 @@ impl fmt::Display for FactoryError {
             Self::NotFound(name) => write!(f, "factory not found: {name}"),
             Self::Duplicate(name) => write!(f, "duplicate factory: {name}"),
             Self::MissingAttribute(attr) => write!(f, "missing required attribute: {attr}"),
-            Self::TraitNotFound { factory, trait_name } => {
+            Self::TraitNotFound {
+                factory,
+                trait_name,
+            } => {
                 write!(f, "trait '{trait_name}' not found in factory '{factory}'")
             }
             Self::SequenceOverflow(name) => write!(f, "sequence overflow: {name}"),
-            Self::InvalidType { attribute, expected } => {
+            Self::InvalidType {
+                attribute,
+                expected,
+            } => {
                 write!(f, "invalid type for '{attribute}': expected {expected}")
             }
             Self::AssociationNotFound { source, target } => {
@@ -62,7 +68,10 @@ pub enum AttributeValue {
     /// Sequence-based (template with `{n}` placeholder).
     Sequence { template: String },
     /// Derived from another attribute (attribute name).
-    Derived { from: String, transform: DeriveTransform },
+    Derived {
+        from: String,
+        transform: DeriveTransform,
+    },
     /// Reference to another factory (association).
     Association { factory_name: String },
 }
@@ -87,12 +96,8 @@ impl DeriveTransform {
     pub fn apply(&self, value: &Value) -> Value {
         match self {
             Self::Identity => value.clone(),
-            Self::Uppercase => {
-                Value::String(value.as_str().unwrap_or("").to_uppercase())
-            }
-            Self::Lowercase => {
-                Value::String(value.as_str().unwrap_or("").to_lowercase())
-            }
+            Self::Uppercase => Value::String(value.as_str().unwrap_or("").to_uppercase()),
+            Self::Lowercase => Value::String(value.as_str().unwrap_or("").to_lowercase()),
             Self::Prefix(p) => {
                 let s = value.as_str().unwrap_or("");
                 Value::String(format!("{p}{s}"))
@@ -162,7 +167,8 @@ impl FactoryDefinition {
 
     /// Add a static attribute.
     pub fn attr_static(mut self, name: impl Into<String>, value: Value) -> Self {
-        self.attributes.insert(name.into(), AttributeValue::Static(value));
+        self.attributes
+            .insert(name.into(), AttributeValue::Static(value));
         self
     }
 
@@ -170,7 +176,9 @@ impl FactoryDefinition {
     pub fn attr_sequence(mut self, name: impl Into<String>, template: impl Into<String>) -> Self {
         self.attributes.insert(
             name.into(),
-            AttributeValue::Sequence { template: template.into() },
+            AttributeValue::Sequence {
+                template: template.into(),
+            },
         );
         self
     }
@@ -193,10 +201,16 @@ impl FactoryDefinition {
     }
 
     /// Add an association attribute.
-    pub fn attr_association(mut self, name: impl Into<String>, factory_name: impl Into<String>) -> Self {
+    pub fn attr_association(
+        mut self,
+        name: impl Into<String>,
+        factory_name: impl Into<String>,
+    ) -> Self {
         self.attributes.insert(
             name.into(),
-            AttributeValue::Association { factory_name: factory_name.into() },
+            AttributeValue::Association {
+                factory_name: factory_name.into(),
+            },
         );
         self
     }
@@ -354,24 +368,29 @@ impl FactoryRegistry {
             }
         }
         for (name, attr_val) in &non_derived {
-            let value = self.resolve_attribute(attr_val, seq, &resolved, factory_name, overrides)?;
+            let value =
+                self.resolve_attribute(attr_val, seq, &resolved, factory_name, overrides)?;
             resolved.insert(name.clone(), value);
         }
         for (name, attr_val) in &derived {
-            let value = self.resolve_attribute(attr_val, seq, &resolved, factory_name, overrides)?;
+            let value =
+                self.resolve_attribute(attr_val, seq, &resolved, factory_name, overrides)?;
             resolved.insert(name.clone(), value);
         }
 
         // Apply traits in order
         for trait_name in trait_names {
-            let trait_def = factory.traits.get(*trait_name).ok_or_else(|| {
-                FactoryError::TraitNotFound {
-                    factory: factory_name.to_string(),
-                    trait_name: trait_name.to_string(),
-                }
-            })?;
+            let trait_def =
+                factory
+                    .traits
+                    .get(*trait_name)
+                    .ok_or_else(|| FactoryError::TraitNotFound {
+                        factory: factory_name.to_string(),
+                        trait_name: trait_name.to_string(),
+                    })?;
             for (name, attr_val) in &trait_def.overrides {
-                let value = self.resolve_attribute(attr_val, seq, &resolved, factory_name, overrides)?;
+                let value =
+                    self.resolve_attribute(attr_val, seq, &resolved, factory_name, overrides)?;
                 resolved.insert(name.clone(), value);
             }
         }
@@ -431,7 +450,9 @@ impl FactoryRegistry {
                     .ok_or_else(|| FactoryError::MissingAttribute(from.clone()))?;
                 Ok(transform.apply(source))
             }
-            AttributeValue::Association { factory_name: target } => {
+            AttributeValue::Association {
+                factory_name: target,
+            } => {
                 if !self.factories.contains_key(target) {
                     return Err(FactoryError::AssociationNotFound {
                         source: factory_name.to_string(),
@@ -571,7 +592,11 @@ mod tests {
         let mut reg = FactoryRegistry::new();
         let factory = FactoryDefinition::new("item")
             .attr_static("name", json!("widget"))
-            .attr_derived("display", "name", DeriveTransform::Prefix("Item: ".to_string()));
+            .attr_derived(
+                "display",
+                "name",
+                DeriveTransform::Prefix("Item: ".to_string()),
+            );
         reg.register(factory).unwrap();
         let fixture = reg.build("item", &HashMap::new(), &[]).unwrap();
         assert_eq!(fixture.get_str("display").unwrap(), "Item: widget");
@@ -598,8 +623,7 @@ mod tests {
     #[test]
     fn test_association() {
         let mut reg = FactoryRegistry::new();
-        let team_factory = FactoryDefinition::new("team")
-            .attr_static("name", json!("Engineering"));
+        let team_factory = FactoryDefinition::new("team").attr_static("name", json!("Engineering"));
         let member_factory = FactoryDefinition::new("member")
             .attr_static("name", json!("Alice"))
             .attr_association("team", "team");
@@ -615,11 +639,13 @@ mod tests {
     #[test]
     fn test_association_not_found() {
         let mut reg = FactoryRegistry::new();
-        let factory = FactoryDefinition::new("item")
-            .attr_association("ref", "nonexistent");
+        let factory = FactoryDefinition::new("item").attr_association("ref", "nonexistent");
         reg.register(factory).unwrap();
         let result = reg.build("item", &HashMap::new(), &[]);
-        assert!(matches!(result, Err(FactoryError::AssociationNotFound { .. })));
+        assert!(matches!(
+            result,
+            Err(FactoryError::AssociationNotFound { .. })
+        ));
     }
 
     #[test]
@@ -712,9 +738,10 @@ mod tests {
         let mut reg = FactoryRegistry::new();
         let factory = user_factory().add_trait(FactoryTrait {
             name: "admin".to_string(),
-            overrides: HashMap::from([
-                ("name".to_string(), AttributeValue::Static(json!("Admin User"))),
-            ]),
+            overrides: HashMap::from([(
+                "name".to_string(),
+                AttributeValue::Static(json!("Admin User")),
+            )]),
         });
         reg.register(factory).unwrap();
         let overrides = HashMap::from([("name".to_string(), json!("Override"))]);

@@ -125,11 +125,21 @@ impl Frame {
         if end_stream {
             flags.set(FrameFlags::END_STREAM);
         }
-        Self { frame_type: FrameType::Data, stream_id, flags, payload }
+        Self {
+            frame_type: FrameType::Data,
+            stream_id,
+            flags,
+            payload,
+        }
     }
 
     /// Create a HEADERS frame.
-    pub fn headers(stream_id: u32, header_block: Vec<u8>, end_stream: bool, end_headers: bool) -> Self {
+    pub fn headers(
+        stream_id: u32,
+        header_block: Vec<u8>,
+        end_stream: bool,
+        end_headers: bool,
+    ) -> Self {
         let mut flags = FrameFlags::default();
         if end_stream {
             flags.set(FrameFlags::END_STREAM);
@@ -137,7 +147,12 @@ impl Frame {
         if end_headers {
             flags.set(FrameFlags::END_HEADERS);
         }
-        Self { frame_type: FrameType::Headers, stream_id, flags, payload: header_block }
+        Self {
+            frame_type: FrameType::Headers,
+            stream_id,
+            flags,
+            payload: header_block,
+        }
     }
 
     /// Create a RST_STREAM frame.
@@ -219,18 +234,18 @@ impl Frame {
     /// Extract error code from RST_STREAM or GOAWAY payload.
     pub fn error_code(&self) -> Option<u32> {
         match self.frame_type {
-            FrameType::RstStream if self.payload.len() >= 4 => {
-                Some(u32::from_be_bytes([
-                    self.payload[0], self.payload[1],
-                    self.payload[2], self.payload[3],
-                ]))
-            }
-            FrameType::GoAway if self.payload.len() >= 8 => {
-                Some(u32::from_be_bytes([
-                    self.payload[4], self.payload[5],
-                    self.payload[6], self.payload[7],
-                ]))
-            }
+            FrameType::RstStream if self.payload.len() >= 4 => Some(u32::from_be_bytes([
+                self.payload[0],
+                self.payload[1],
+                self.payload[2],
+                self.payload[3],
+            ])),
+            FrameType::GoAway if self.payload.len() >= 8 => Some(u32::from_be_bytes([
+                self.payload[4],
+                self.payload[5],
+                self.payload[6],
+                self.payload[7],
+            ])),
             _ => None,
         }
     }
@@ -238,10 +253,14 @@ impl Frame {
     /// Extract window increment from WINDOW_UPDATE payload.
     pub fn window_increment(&self) -> Option<u32> {
         if self.frame_type == FrameType::WindowUpdate && self.payload.len() >= 4 {
-            Some(u32::from_be_bytes([
-                self.payload[0], self.payload[1],
-                self.payload[2], self.payload[3],
-            ]) & 0x7FFF_FFFF)
+            Some(
+                u32::from_be_bytes([
+                    self.payload[0],
+                    self.payload[1],
+                    self.payload[2],
+                    self.payload[3],
+                ]) & 0x7FFF_FFFF,
+            )
         } else {
             None
         }
@@ -321,8 +340,10 @@ impl MuxStream {
 
     /// Whether the stream can send data.
     pub fn can_send(&self) -> bool {
-        matches!(self.state, StreamState::Open | StreamState::HalfClosedRemote)
-            && self.send_window > 0
+        matches!(
+            self.state,
+            StreamState::Open | StreamState::HalfClosedRemote
+        ) && self.send_window > 0
     }
 
     /// Whether the stream can receive data.
@@ -365,29 +386,41 @@ impl MuxStream {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MuxError {
-    StreamNotFound { stream_id: u32 },
-    StreamClosed { stream_id: u32 },
-    FlowControlError { stream_id: u32, window: i64, requested: u32 },
+    StreamNotFound {
+        stream_id: u32,
+    },
+    StreamClosed {
+        stream_id: u32,
+    },
+    FlowControlError {
+        stream_id: u32,
+        window: i64,
+        requested: u32,
+    },
     InvalidStreamId,
-    MaxStreamsExceeded { max: u32 },
+    MaxStreamsExceeded {
+        max: u32,
+    },
     ProtocolError(String),
 }
 
 impl fmt::Display for MuxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::StreamNotFound { stream_id } =>
-                write!(f, "stream {} not found", stream_id),
-            Self::StreamClosed { stream_id } =>
-                write!(f, "stream {} is closed", stream_id),
-            Self::FlowControlError { stream_id, window, requested } =>
-                write!(f, "flow control: stream {} window={}, requested={}", stream_id, window, requested),
-            Self::InvalidStreamId =>
-                write!(f, "invalid stream ID"),
-            Self::MaxStreamsExceeded { max } =>
-                write!(f, "maximum streams exceeded: {}", max),
-            Self::ProtocolError(msg) =>
-                write!(f, "protocol error: {}", msg),
+            Self::StreamNotFound { stream_id } => write!(f, "stream {} not found", stream_id),
+            Self::StreamClosed { stream_id } => write!(f, "stream {} is closed", stream_id),
+            Self::FlowControlError {
+                stream_id,
+                window,
+                requested,
+            } => write!(
+                f,
+                "flow control: stream {} window={}, requested={}",
+                stream_id, window, requested
+            ),
+            Self::InvalidStreamId => write!(f, "invalid stream ID"),
+            Self::MaxStreamsExceeded { max } => write!(f, "maximum streams exceeded: {}", max),
+            Self::ProtocolError(msg) => write!(f, "protocol error: {}", msg),
         }
     }
 }
@@ -441,11 +474,15 @@ impl ProtocolMux {
         if self.goaway_sent {
             return Err(MuxError::ProtocolError("GOAWAY sent".into()));
         }
-        let active = self.streams.values()
+        let active = self
+            .streams
+            .values()
             .filter(|s| !matches!(s.state, StreamState::Closed | StreamState::Idle))
             .count() as u32;
         if active >= self.max_concurrent_streams {
-            return Err(MuxError::MaxStreamsExceeded { max: self.max_concurrent_streams });
+            return Err(MuxError::MaxStreamsExceeded {
+                max: self.max_concurrent_streams,
+            });
         }
 
         let id = self.next_stream_id;
@@ -468,7 +505,12 @@ impl ProtocolMux {
     }
 
     /// Send data on a stream.
-    pub fn send_data(&mut self, stream_id: u32, data: Vec<u8>, end_stream: bool) -> Result<(), MuxError> {
+    pub fn send_data(
+        &mut self,
+        stream_id: u32,
+        data: Vec<u8>,
+        end_stream: bool,
+    ) -> Result<(), MuxError> {
         let data_len = data.len() as u32;
 
         // Check connection-level window.
@@ -480,7 +522,9 @@ impl ProtocolMux {
             });
         }
 
-        let stream = self.streams.get_mut(&stream_id)
+        let stream = self
+            .streams
+            .get_mut(&stream_id)
             .ok_or(MuxError::StreamNotFound { stream_id })?;
 
         if !stream.can_send() {
@@ -511,8 +555,15 @@ impl ProtocolMux {
     }
 
     /// Send headers on a stream.
-    pub fn send_headers(&mut self, stream_id: u32, headers: Vec<u8>, end_stream: bool) -> Result<(), MuxError> {
-        let stream = self.streams.get_mut(&stream_id)
+    pub fn send_headers(
+        &mut self,
+        stream_id: u32,
+        headers: Vec<u8>,
+        end_stream: bool,
+    ) -> Result<(), MuxError> {
+        let stream = self
+            .streams
+            .get_mut(&stream_id)
             .ok_or(MuxError::StreamNotFound { stream_id })?;
 
         if matches!(stream.state, StreamState::Closed) {
@@ -527,13 +578,16 @@ impl ProtocolMux {
             };
         }
 
-        self.outbound.push(Frame::headers(stream_id, headers, end_stream, true));
+        self.outbound
+            .push(Frame::headers(stream_id, headers, end_stream, true));
         Ok(())
     }
 
     /// Reset a stream.
     pub fn reset_stream(&mut self, stream_id: u32, error_code: u32) -> Result<(), MuxError> {
-        let stream = self.streams.get_mut(&stream_id)
+        let stream = self
+            .streams
+            .get_mut(&stream_id)
             .ok_or(MuxError::StreamNotFound { stream_id })?;
         stream.state = StreamState::Closed;
         self.outbound.push(Frame::rst_stream(stream_id, error_code));
@@ -573,7 +627,9 @@ impl ProtocolMux {
 
         self.connection_recv_window -= data_len as i64;
 
-        let stream = self.streams.get_mut(&stream_id)
+        let stream = self
+            .streams
+            .get_mut(&stream_id)
             .ok_or(MuxError::StreamNotFound { stream_id })?;
 
         if !stream.can_recv() {
@@ -620,7 +676,9 @@ impl ProtocolMux {
 
     fn handle_rst(&mut self, frame: Frame) -> Result<(), MuxError> {
         let stream_id = frame.stream_id;
-        let stream = self.streams.get_mut(&stream_id)
+        let stream = self
+            .streams
+            .get_mut(&stream_id)
             .ok_or(MuxError::StreamNotFound { stream_id })?;
         stream.state = StreamState::Closed;
         Ok(())
@@ -647,8 +705,12 @@ impl ProtocolMux {
         if frame.stream_id == 0 {
             self.connection_send_window += increment as i64;
         } else {
-            let stream = self.streams.get_mut(&frame.stream_id)
-                .ok_or(MuxError::StreamNotFound { stream_id: frame.stream_id })?;
+            let stream =
+                self.streams
+                    .get_mut(&frame.stream_id)
+                    .ok_or(MuxError::StreamNotFound {
+                        stream_id: frame.stream_id,
+                    })?;
             stream.increase_send_window(increment);
         }
         Ok(())
@@ -657,8 +719,10 @@ impl ProtocolMux {
     fn handle_goaway(&mut self, frame: Frame) -> Result<(), MuxError> {
         if frame.payload.len() >= 4 {
             let last_id = u32::from_be_bytes([
-                frame.payload[0], frame.payload[1],
-                frame.payload[2], frame.payload[3],
+                frame.payload[0],
+                frame.payload[1],
+                frame.payload[2],
+                frame.payload[3],
             ]);
             // Close all streams with ID > last_id.
             for (id, stream) in &mut self.streams {
@@ -687,7 +751,8 @@ impl ProtocolMux {
 
     /// Number of active (non-closed) streams.
     pub fn active_streams(&self) -> usize {
-        self.streams.values()
+        self.streams
+            .values()
             .filter(|s| !matches!(s.state, StreamState::Closed | StreamState::Idle))
             .count()
     }
@@ -910,8 +975,10 @@ mod tests {
     fn test_recv_goaway_closes_higher_streams() {
         let mut mux = ProtocolMux::new(false);
         // Receive headers for stream 1 and 3.
-        mux.recv_frame(Frame::headers(1, vec![], false, true)).unwrap();
-        mux.recv_frame(Frame::headers(3, vec![], false, true)).unwrap();
+        mux.recv_frame(Frame::headers(1, vec![], false, true))
+            .unwrap();
+        mux.recv_frame(Frame::headers(3, vec![], false, true))
+            .unwrap();
 
         // GOAWAY with last_stream_id=1 closes stream 3.
         mux.recv_frame(Frame::goaway(1, 0)).unwrap();
@@ -942,9 +1009,16 @@ mod tests {
 
     #[test]
     fn test_frame_type_roundtrip() {
-        for ft in [FrameType::Data, FrameType::Headers, FrameType::RstStream,
-                   FrameType::Settings, FrameType::Ping, FrameType::GoAway,
-                   FrameType::WindowUpdate, FrameType::Priority] {
+        for ft in [
+            FrameType::Data,
+            FrameType::Headers,
+            FrameType::RstStream,
+            FrameType::Settings,
+            FrameType::Ping,
+            FrameType::GoAway,
+            FrameType::WindowUpdate,
+            FrameType::Priority,
+        ] {
             let id = ft.type_id();
             assert_eq!(FrameType::from_id(id), Some(ft));
         }

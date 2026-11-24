@@ -51,7 +51,10 @@ pub struct RpcError {
 
 impl RpcError {
     pub fn new(code: RpcCode, message: impl Into<String>) -> Self {
-        Self { code, message: message.into() }
+        Self {
+            code,
+            message: message.into(),
+        }
     }
 }
 
@@ -70,19 +73,31 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    pub fn new() -> Self { Self { entries: Vec::new() } }
+    pub fn new() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
 
     pub fn insert(&mut self, key: impl Into<String>, value: impl Into<String>) {
-        self.entries.push((key.into().to_ascii_lowercase(), value.into()));
+        self.entries
+            .push((key.into().to_ascii_lowercase(), value.into()));
     }
 
     pub fn get(&self, key: &str) -> Option<&str> {
         let k = key.to_ascii_lowercase();
-        self.entries.iter().find(|(ek, _)| *ek == k).map(|(_, v)| v.as_str())
+        self.entries
+            .iter()
+            .find(|(ek, _)| *ek == k)
+            .map(|(_, v)| v.as_str())
     }
 
-    pub fn len(&self) -> usize { self.entries.len() }
-    pub fn is_empty(&self) -> bool { self.entries.is_empty() }
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
 }
 
 // ── Captured Request ─────────────────────────────────────────
@@ -290,8 +305,16 @@ impl MockService {
     }
 
     /// Stub a method to return an error.
-    pub fn stub_error(&mut self, path: impl Into<String>, code: RpcCode, message: impl Into<String>) {
-        self.add_rule(StubRule::new(path, StubResponse::Error(code, message.into())));
+    pub fn stub_error(
+        &mut self,
+        path: impl Into<String>,
+        code: RpcCode,
+        message: impl Into<String>,
+    ) {
+        self.add_rule(StubRule::new(
+            path,
+            StubResponse::Error(code, message.into()),
+        ));
     }
 
     /// Stub a streaming response.
@@ -343,10 +366,16 @@ impl MockService {
                 // For a simple call, return the first response.
                 Ok(responses.first().cloned().unwrap_or_default())
             }
-            StubResponse::DeadlineExceeded => {
-                Err(RpcError::new(RpcCode::DeadlineExceeded, "deadline exceeded"))
-            }
-            StubResponse::FailThenOk { fail_count, fail_code, fail_message, ok_body } => {
+            StubResponse::DeadlineExceeded => Err(RpcError::new(
+                RpcCode::DeadlineExceeded,
+                "deadline exceeded",
+            )),
+            StubResponse::FailThenOk {
+                fail_count,
+                fail_code,
+                fail_message,
+                ok_body,
+            } => {
                 if call_count <= *fail_count {
                     Err(RpcError::new(*fail_code, fail_message.clone()))
                 } else {
@@ -745,7 +774,9 @@ pub struct DeadlineTest {
 
 impl DeadlineTest {
     pub fn new(start_ms: u64) -> Self {
-        Self { current_time_ms: start_ms }
+        Self {
+            current_time_ms: start_ms,
+        }
     }
 
     /// Advance time.
@@ -788,7 +819,10 @@ pub struct CallVerifier<'a> {
 
 impl<'a> CallVerifier<'a> {
     pub fn new(captures: &'a [CapturedRequest]) -> Self {
-        Self { captures, path_filter: None }
+        Self {
+            captures,
+            path_filter: None,
+        }
     }
 
     /// Filter to a specific path.
@@ -964,9 +998,7 @@ mod tests {
     #[test]
     fn stub_rule_max_uses() {
         let mut mock = MockService::new("svc");
-        mock.add_rule(
-            StubRule::new("/svc/A", StubResponse::Ok(b"limited".to_vec())).times(2),
-        );
+        mock.add_rule(StubRule::new("/svc/A", StubResponse::Ok(b"limited".to_vec())).times(2));
         mock.stub_ok("/svc/A", b"fallback".to_vec());
 
         let md = Metadata::new();
@@ -988,12 +1020,15 @@ mod tests {
     #[test]
     fn fail_then_ok_stub() {
         let mut mock = MockService::new("svc");
-        mock.add_rule(StubRule::new("/svc/retry", StubResponse::FailThenOk {
-            fail_count: 2,
-            fail_code: RpcCode::Unavailable,
-            fail_message: "down".to_string(),
-            ok_body: b"recovered".to_vec(),
-        }));
+        mock.add_rule(StubRule::new(
+            "/svc/retry",
+            StubResponse::FailThenOk {
+                fail_count: 2,
+                fail_code: RpcCode::Unavailable,
+                fail_message: "down".to_string(),
+                ok_body: b"recovered".to_vec(),
+            },
+        ));
         let md = Metadata::new();
         assert!(mock.call("/svc/retry", b"", &md, 0).is_err());
         assert!(mock.call("/svc/retry", b"", &md, 0).is_err());
@@ -1037,10 +1072,10 @@ mod tests {
         let mut inj = ErrorInjector::new(RpcCode::Unavailable, "down").every(3);
         assert!(!inj.should_inject()); // call 1
         assert!(!inj.should_inject()); // call 2
-        assert!(inj.should_inject());  // call 3
+        assert!(inj.should_inject()); // call 3
         assert!(!inj.should_inject()); // call 4
         assert!(!inj.should_inject()); // call 5
-        assert!(inj.should_inject());  // call 6
+        assert!(inj.should_inject()); // call 6
     }
 
     #[test]
@@ -1105,8 +1140,7 @@ mod tests {
         mock.stub_ok("/svc/A", vec![]);
 
         let injector = ErrorInjector::new(RpcCode::Unavailable, "injected");
-        let mut client = TestClientBuilder::new("svc")
-            .with_error_injector(injector);
+        let mut client = TestClientBuilder::new("svc").with_error_injector(injector);
 
         let err = client.call(&mut mock, "/svc/A", b"").unwrap_err();
         assert_eq!(err.code, RpcCode::Unavailable);
@@ -1221,7 +1255,10 @@ mod tests {
         mock.stub_ok("/svc/A", b"generic".to_vec());
 
         let md = Metadata::new();
-        assert_eq!(mock.call("/svc/A", b"specific", &md, 0).unwrap(), b"body_matched");
+        assert_eq!(
+            mock.call("/svc/A", b"specific", &md, 0).unwrap(),
+            b"body_matched"
+        );
         assert_eq!(mock.call("/svc/A", b"other", &md, 0).unwrap(), b"generic");
     }
 

@@ -43,7 +43,9 @@ pub struct Cell {
 }
 
 impl Cell {
-    pub fn new(x: usize, y: usize, z: usize) -> Self { Self { x, y, z } }
+    pub fn new(x: usize, y: usize, z: usize) -> Self {
+        Self { x, y, z }
+    }
 
     /// Euclidean distance to another cell.
     pub fn distance_to(self, other: Cell) -> f64 {
@@ -124,9 +126,12 @@ impl Connectivity {
     fn offsets(self) -> &'static [(i32, i32, i32)] {
         match self {
             Self::Six => &[
-                (1, 0, 0), (-1, 0, 0),
-                (0, 1, 0), (0, -1, 0),
-                (0, 0, 1), (0, 0, -1),
+                (1, 0, 0),
+                (-1, 0, 0),
+                (0, 1, 0),
+                (0, -1, 0),
+                (0, 0, 1),
+                (0, 0, -1),
             ],
             Self::TwentySix => &OFFSETS_26,
         }
@@ -164,7 +169,9 @@ struct AStarEntry {
 }
 
 impl PartialEq for AStarEntry {
-    fn eq(&self, other: &Self) -> bool { self.f_score == other.f_score }
+    fn eq(&self, other: &Self) -> bool {
+        self.f_score == other.f_score
+    }
 }
 impl Eq for AStarEntry {}
 
@@ -176,7 +183,10 @@ impl PartialOrd for AStarEntry {
 
 impl Ord for AStarEntry {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        other.f_score.partial_cmp(&self.f_score).unwrap_or(std::cmp::Ordering::Equal)
+        other
+            .f_score
+            .partial_cmp(&self.f_score)
+            .unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 
@@ -196,20 +206,29 @@ pub struct VoxelGrid {
 impl VoxelGrid {
     pub fn new(sx: usize, sy: usize, sz: usize) -> Result<Self, AStarError> {
         if sx == 0 || sy == 0 || sz == 0 {
-            return Err(AStarError::InvalidDimensions("all dimensions must be > 0".into()));
+            return Err(AStarError::InvalidDimensions(
+                "all dimensions must be > 0".into(),
+            ));
         }
         let total = sx * sy * sz;
         Ok(Self {
-            sx, sy, sz,
+            sx,
+            sy,
+            sz,
             blocked: vec![false; total],
             costs: vec![1.0; total],
             cell_size: 1.0,
         })
     }
 
-    pub fn with_cell_size(mut self, size: f64) -> Self { self.cell_size = size; self }
+    pub fn with_cell_size(mut self, size: f64) -> Self {
+        self.cell_size = size;
+        self
+    }
 
-    fn idx(&self, c: Cell) -> usize { c.z * self.sx * self.sy + c.y * self.sx + c.x }
+    fn idx(&self, c: Cell) -> usize {
+        c.z * self.sx * self.sy + c.y * self.sx + c.x
+    }
 
     pub fn in_bounds(&self, c: Cell) -> bool {
         c.x < self.sx && c.y < self.sy && c.z < self.sz
@@ -225,7 +244,9 @@ impl VoxelGrid {
     }
 
     pub fn is_blocked(&self, c: Cell) -> bool {
-        if !self.in_bounds(c) { return true; }
+        if !self.in_bounds(c) {
+            return true;
+        }
         self.blocked[self.idx(c)]
     }
 
@@ -239,7 +260,9 @@ impl VoxelGrid {
     }
 
     pub fn get_cost(&self, c: Cell) -> f64 {
-        if !self.in_bounds(c) { return f64::MAX; }
+        if !self.in_bounds(c) {
+            return f64::MAX;
+        }
         self.costs[self.idx(c)]
     }
 
@@ -255,24 +278,39 @@ impl VoxelGrid {
         }
     }
 
-    pub fn size_x(&self) -> usize { self.sx }
-    pub fn size_y(&self) -> usize { self.sy }
-    pub fn size_z(&self) -> usize { self.sz }
-    pub fn cell_size(&self) -> f64 { self.cell_size }
+    pub fn size_x(&self) -> usize {
+        self.sx
+    }
+    pub fn size_y(&self) -> usize {
+        self.sy
+    }
+    pub fn size_z(&self) -> usize {
+        self.sz
+    }
+    pub fn cell_size(&self) -> f64 {
+        self.cell_size
+    }
 
     pub fn blocked_count(&self) -> usize {
         self.blocked.iter().filter(|&&b| b).count()
     }
 
-    pub fn total_cells(&self) -> usize { self.sx * self.sy * self.sz }
+    pub fn total_cells(&self) -> usize {
+        self.sx * self.sy * self.sz
+    }
 }
 
 impl fmt::Display for VoxelGrid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "VoxelGrid({}x{}x{}, cell={:.2}, blocked={}/{})",
-            self.sx, self.sy, self.sz, self.cell_size,
-            self.blocked_count(), self.total_cells(),
+            f,
+            "VoxelGrid({}x{}x{}, cell={:.2}, blocked={}/{})",
+            self.sx,
+            self.sy,
+            self.sz,
+            self.cell_size,
+            self.blocked_count(),
+            self.total_cells(),
         )
     }
 }
@@ -290,7 +328,9 @@ pub struct AStarResult {
 impl AStarResult {
     /// Smooth the path by removing redundant waypoints using line-of-sight.
     pub fn smooth(&self, grid: &VoxelGrid) -> Vec<Cell> {
-        if self.path.len() <= 2 { return self.path.clone(); }
+        if self.path.len() <= 2 {
+            return self.path.clone();
+        }
         let mut smoothed = vec![self.path[0]];
         let mut anchor = 0;
         let mut current = 1;
@@ -313,7 +353,10 @@ impl fmt::Display for AStarResult {
         write!(
             f,
             "AStarResult(waypoints={}, cost={:.3}, expanded={}, length={:.3})",
-            self.path.len(), self.cost, self.nodes_expanded, self.path_length_world,
+            self.path.len(),
+            self.cost,
+            self.nodes_expanded,
+            self.path_length_world,
         )
     }
 }
@@ -325,14 +368,18 @@ fn line_of_sight(grid: &VoxelGrid, a: Cell, b: Cell) -> bool {
     let dy = b.y as i64 - a.y as i64;
     let dz = b.z as i64 - a.z as i64;
     let steps = dx.abs().max(dy.abs()).max(dz.abs());
-    if steps == 0 { return true; }
+    if steps == 0 {
+        return true;
+    }
 
     for i in 1..steps {
         let t = i as f64 / steps as f64;
         let x = (a.x as f64 + dx as f64 * t).round() as usize;
         let y = (a.y as f64 + dy as f64 * t).round() as usize;
         let z = (a.z as f64 + dz as f64 * t).round() as usize;
-        if grid.is_blocked(Cell::new(x, y, z)) { return false; }
+        if grid.is_blocked(Cell::new(x, y, z)) {
+            return false;
+        }
     }
     true
 }
@@ -355,19 +402,37 @@ impl AStar3D {
         }
     }
 
-    pub fn with_heuristic(mut self, h: Heuristic) -> Self { self.heuristic = h; self }
-    pub fn with_connectivity(mut self, c: Connectivity) -> Self { self.connectivity = c; self }
-    pub fn with_weight(mut self, w: f64) -> Self { self.weight = w; self }
+    pub fn with_heuristic(mut self, h: Heuristic) -> Self {
+        self.heuristic = h;
+        self
+    }
+    pub fn with_connectivity(mut self, c: Connectivity) -> Self {
+        self.connectivity = c;
+        self
+    }
+    pub fn with_weight(mut self, w: f64) -> Self {
+        self.weight = w;
+        self
+    }
 
-    pub fn plan(&self, grid: &VoxelGrid, start: Cell, goal: Cell) -> Result<AStarResult, AStarError> {
+    pub fn plan(
+        &self,
+        grid: &VoxelGrid,
+        start: Cell,
+        goal: Cell,
+    ) -> Result<AStarResult, AStarError> {
         if !grid.in_bounds(start) {
             return Err(AStarError::OutOfBounds(format!("start {start}")));
         }
         if !grid.in_bounds(goal) {
             return Err(AStarError::OutOfBounds(format!("goal {goal}")));
         }
-        if grid.is_blocked(start) { return Err(AStarError::StartBlocked); }
-        if grid.is_blocked(goal) { return Err(AStarError::GoalBlocked); }
+        if grid.is_blocked(start) {
+            return Err(AStarError::StartBlocked);
+        }
+        if grid.is_blocked(goal) {
+            return Err(AStarError::GoalBlocked);
+        }
 
         let total = grid.total_cells();
         let mut g_score = vec![f64::MAX; total];
@@ -389,7 +454,8 @@ impl AStar3D {
             let ci = grid.idx(cell);
             if ci == goal_idx {
                 let path = self.reconstruct(grid, &came_from, goal_idx);
-                let path_length_world = path.windows(2)
+                let path_length_world = path
+                    .windows(2)
                     .map(|w| w[0].distance_to(w[1]) * grid.cell_size())
                     .sum();
                 return Ok(AStarResult {
@@ -399,7 +465,9 @@ impl AStar3D {
                     path,
                 });
             }
-            if closed[ci] { continue; }
+            if closed[ci] {
+                continue;
+            }
             closed[ci] = true;
             nodes_expanded += 1;
 
@@ -407,19 +475,30 @@ impl AStar3D {
                 let nx = cell.x as i32 + dx;
                 let ny = cell.y as i32 + dy;
                 let nz = cell.z as i32 + dz;
-                if nx < 0 || ny < 0 || nz < 0 { continue; }
+                if nx < 0 || ny < 0 || nz < 0 {
+                    continue;
+                }
                 let neighbor = Cell::new(nx as usize, ny as usize, nz as usize);
-                if !grid.in_bounds(neighbor) || grid.is_blocked(neighbor) { continue; }
+                if !grid.in_bounds(neighbor) || grid.is_blocked(neighbor) {
+                    continue;
+                }
                 let ni = grid.idx(neighbor);
-                if closed[ni] { continue; }
+                if closed[ni] {
+                    continue;
+                }
 
-                let move_cost = cell.distance_to(neighbor) * grid.cell_size() * grid.get_cost(neighbor);
+                let move_cost =
+                    cell.distance_to(neighbor) * grid.cell_size() * grid.get_cost(neighbor);
                 let tentative_g = g_score[ci] + move_cost;
                 if tentative_g < g_score[ni] {
                     g_score[ni] = tentative_g;
                     came_from[ni] = Some(ci);
-                    let h = self.weight * self.heuristic.estimate(neighbor, goal) * grid.cell_size();
-                    open.push(AStarEntry { cell: neighbor, f_score: tentative_g + h });
+                    let h =
+                        self.weight * self.heuristic.estimate(neighbor, goal) * grid.cell_size();
+                    open.push(AStarEntry {
+                        cell: neighbor,
+                        f_score: tentative_g + h,
+                    });
                 }
             }
         }
@@ -427,7 +506,12 @@ impl AStar3D {
         Err(AStarError::NoPathFound)
     }
 
-    fn reconstruct(&self, grid: &VoxelGrid, came_from: &[Option<usize>], goal_idx: usize) -> Vec<Cell> {
+    fn reconstruct(
+        &self,
+        grid: &VoxelGrid,
+        came_from: &[Option<usize>],
+        goal_idx: usize,
+    ) -> Vec<Cell> {
         let mut path = Vec::new();
         let mut idx = Some(goal_idx);
         while let Some(ci) = idx {
@@ -445,7 +529,11 @@ impl AStar3D {
 
 impl fmt::Display for AStar3D {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "AStar3D(heuristic={}, weight={:.1})", self.heuristic, self.weight)
+        write!(
+            f,
+            "AStar3D(heuristic={}, weight={:.1})",
+            self.heuristic, self.weight
+        )
     }
 }
 
@@ -528,7 +616,9 @@ mod tests {
     fn test_simple_path_6conn() {
         let g = VoxelGrid::new(10, 10, 10).unwrap();
         let planner = AStar3D::new().with_connectivity(Connectivity::Six);
-        let result = planner.plan(&g, Cell::new(0, 0, 0), Cell::new(5, 5, 5)).unwrap();
+        let result = planner
+            .plan(&g, Cell::new(0, 0, 0), Cell::new(5, 5, 5))
+            .unwrap();
         assert!(result.path.len() >= 2);
         assert_eq!(result.path[0], Cell::new(0, 0, 0));
         assert_eq!(*result.path.last().unwrap(), Cell::new(5, 5, 5));
@@ -538,11 +628,15 @@ mod tests {
     fn test_simple_path_26conn() {
         let g = VoxelGrid::new(10, 10, 10).unwrap();
         let planner = AStar3D::new().with_connectivity(Connectivity::TwentySix);
-        let result = planner.plan(&g, Cell::new(0, 0, 0), Cell::new(5, 5, 5)).unwrap();
+        let result = planner
+            .plan(&g, Cell::new(0, 0, 0), Cell::new(5, 5, 5))
+            .unwrap();
         assert!(result.path.len() >= 2);
         // 26-connected path should be shorter or equal
         let planner6 = AStar3D::new().with_connectivity(Connectivity::Six);
-        let result6 = planner6.plan(&g, Cell::new(0, 0, 0), Cell::new(5, 5, 5)).unwrap();
+        let result6 = planner6
+            .plan(&g, Cell::new(0, 0, 0), Cell::new(5, 5, 5))
+            .unwrap();
         assert!(result.path.len() <= result6.path.len());
     }
 
@@ -556,7 +650,9 @@ mod tests {
             }
         }
         let planner = AStar3D::new();
-        let result = planner.plan(&g, Cell::new(5, 5, 0), Cell::new(5, 5, 4)).unwrap();
+        let result = planner
+            .plan(&g, Cell::new(5, 5, 0), Cell::new(5, 5, 4))
+            .unwrap();
         assert!(result.path.len() >= 2);
     }
 
@@ -570,7 +666,11 @@ mod tests {
             }
         }
         let planner = AStar3D::new();
-        assert!(planner.plan(&g, Cell::new(2, 2, 0), Cell::new(2, 2, 4)).is_err());
+        assert!(
+            planner
+                .plan(&g, Cell::new(2, 2, 0), Cell::new(2, 2, 4))
+                .is_err()
+        );
     }
 
     #[test]
@@ -578,14 +678,20 @@ mod tests {
         let mut g = VoxelGrid::new(5, 5, 5).unwrap();
         g.set_blocked(Cell::new(0, 0, 0), true).unwrap();
         let planner = AStar3D::new();
-        assert!(planner.plan(&g, Cell::new(0, 0, 0), Cell::new(4, 4, 4)).is_err());
+        assert!(
+            planner
+                .plan(&g, Cell::new(0, 0, 0), Cell::new(4, 4, 4))
+                .is_err()
+        );
     }
 
     #[test]
     fn test_path_smoothing() {
         let g = VoxelGrid::new(10, 10, 5).unwrap();
         let planner = AStar3D::new().with_connectivity(Connectivity::Six);
-        let result = planner.plan(&g, Cell::new(0, 0, 0), Cell::new(9, 9, 4)).unwrap();
+        let result = planner
+            .plan(&g, Cell::new(0, 0, 0), Cell::new(9, 9, 4))
+            .unwrap();
         let smoothed = result.smooth(&g);
         assert!(smoothed.len() <= result.path.len());
         assert_eq!(smoothed[0], Cell::new(0, 0, 0));
@@ -596,10 +702,14 @@ mod tests {
     fn test_weighted_heuristic() {
         let g = VoxelGrid::new(10, 10, 5).unwrap();
         let planner = AStar3D::new().with_weight(2.0);
-        let result = planner.plan(&g, Cell::new(0, 0, 0), Cell::new(9, 9, 4)).unwrap();
+        let result = planner
+            .plan(&g, Cell::new(0, 0, 0), Cell::new(9, 9, 4))
+            .unwrap();
         // Weighted A* may expand fewer nodes
         let planner1 = AStar3D::new().with_weight(1.0);
-        let result1 = planner1.plan(&g, Cell::new(0, 0, 0), Cell::new(9, 9, 4)).unwrap();
+        let result1 = planner1
+            .plan(&g, Cell::new(0, 0, 0), Cell::new(9, 9, 4))
+            .unwrap();
         assert!(result.nodes_expanded <= result1.nodes_expanded + 1);
     }
 

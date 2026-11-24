@@ -2,9 +2,14 @@
 //!
 //! The recursive expression structure that represents signal operations.
 
-
 #[cfg(not(feature = "std"))]
-use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use smol_str::SmolStr;
 
 use crate::types::{FrequencyBand, Hertz, SampleRate, Seconds};
@@ -179,7 +184,6 @@ pub enum TransformOp {
     Offset(f64),
 
     // ====== MediaQL: 2D Frequency Transforms ======
-
     /// 2D FFT for image data
     Fft2d(Fft2dParams),
     /// Inverse 2D FFT
@@ -192,7 +196,6 @@ pub enum TransformOp {
     Dwt2d(Dwt2dParams),
 
     // ====== MediaQL: Audio-Specific ======
-
     /// Mel-frequency cepstral coefficients
     Mfcc(MfccParams),
     /// Chroma features (pitch class profile)
@@ -201,7 +204,6 @@ pub enum TransformOp {
     AudioFingerprint(FingerprintParams),
 
     // ====== MediaQL: Image-Specific ======
-
     /// Perceptual hash (DCT-based content fingerprint)
     PerceptualHash(PHashParams),
     /// Edge detection (Sobel, Canny)
@@ -212,7 +214,6 @@ pub enum TransformOp {
     ColorConvert(ColorSpace),
 
     // ====== MediaQL: Video-Specific ======
-
     /// Optical flow between frames
     OpticalFlow(OpticalFlowParams),
     /// Shot/scene boundary detection
@@ -850,18 +851,18 @@ pub enum AggregateOp {
     },
 
     // ====== MediaQL: Image Aggregations ======
-
     /// Spatial frequency content of an image region
     SpatialFrequencyContent,
     /// Texture entropy (randomness measure)
     TextureEntropy,
     /// Color histogram distribution
-    ColorHistogram { bins: usize },
+    ColorHistogram {
+        bins: usize,
+    },
     /// Edge density (fraction of edge pixels)
     EdgeDensity,
 
     // ====== MediaQL: Audio Aggregations ======
-
     /// Pitch contour over time
     PitchContour,
     /// Onset detection strength
@@ -872,7 +873,6 @@ pub enum AggregateOp {
     Loudness,
 
     // ====== MediaQL: Video Aggregations ======
-
     /// Scene change count in a video segment
     SceneChangeCount,
     /// Average motion magnitude across frames
@@ -881,9 +881,10 @@ pub enum AggregateOp {
     FlickerMetric,
 
     // ====== MediaQL: Cross-Modal ======
-
     /// Content-based similarity score
-    MediaSimilarity { metric: SimilarityMetric },
+    MediaSimilarity {
+        metric: SimilarityMetric,
+    },
 
     // Custom
     Custom {

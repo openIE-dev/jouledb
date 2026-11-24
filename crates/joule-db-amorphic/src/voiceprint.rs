@@ -14,12 +14,12 @@
 //! RETURNING top(1) WITH confidence(0.95)
 //! ```
 
-use joule_db_hdc::{BinaryHV, BundleAccumulator, HNSWIndex};
 use joule_db_hdc::manifold::DistanceMetric;
+use joule_db_hdc::{BinaryHV, BundleAccumulator, HNSWIndex};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::{AmorphicResult, AmorphicError, DIMENSION};
+use crate::{AmorphicError, AmorphicResult, DIMENSION};
 
 /// A stored voiceprint: the holographic encoding of a speaker's voice.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -162,10 +162,7 @@ impl VoiceFeatures {
     pub fn to_hologram(&self) -> BinaryHV {
         let features = self.to_feature_vector();
         // Convert f64 to bytes for hashing
-        let bytes: Vec<u8> = features
-            .iter()
-            .flat_map(|f| f.to_le_bytes())
-            .collect();
+        let bytes: Vec<u8> = features.iter().flat_map(|f| f.to_le_bytes()).collect();
         BinaryHV::from_data(&bytes, DIMENSION)
     }
 
@@ -267,8 +264,7 @@ impl VoiceprintStore {
                     last_verified_ms: None,
                 },
             );
-            self.holograms
-                .insert(speaker_id.to_string(), hologram);
+            self.holograms.insert(speaker_id.to_string(), hologram);
         }
 
         Ok(())
@@ -386,22 +382,18 @@ impl CallQualityMetrics {
 
         // RMS and loudness
         let rms = (samples.iter().map(|s| s * s).sum::<f64>() / n).sqrt();
-        let loudness_dbfs = if rms > 0.0 {
-            20.0 * rms.log10()
-        } else {
-            -96.0
-        };
+        let loudness_dbfs = if rms > 0.0 { 20.0 * rms.log10() } else { -96.0 };
 
         // Silence detection (samples below -60dBFS)
         let silence_threshold = 0.001; // ~-60dBFS
-        let silence_count = samples.iter().filter(|s| s.abs() < silence_threshold).count();
+        let silence_count = samples
+            .iter()
+            .filter(|s| s.abs() < silence_threshold)
+            .count();
         let silence_ratio = silence_count as f64 / n;
 
         // Clipping detection (samples at ±1.0)
-        let clip_count = samples
-            .iter()
-            .filter(|s| s.abs() > 0.99)
-            .count() as u32;
+        let clip_count = samples.iter().filter(|s| s.abs() > 0.99).count() as u32;
 
         // Simple SNR estimation: signal power / noise floor estimate
         let signal_power = rms * rms;
@@ -568,7 +560,9 @@ mod tests {
         let bob_features =
             VoiceFeatures::from_mfcc_frames(&make_mfcc_frames(100, 13, 100.0)).unwrap();
 
-        store.enroll("alice", "Alice", &alice_features, 1000).unwrap();
+        store
+            .enroll("alice", "Alice", &alice_features, 1000)
+            .unwrap();
         store.enroll("bob", "Bob", &bob_features, 2000).unwrap();
 
         assert_eq!(store.speaker_count(), 2);
@@ -583,13 +577,11 @@ mod tests {
     fn test_re_enrollment_improves() {
         let mut store = VoiceprintStore::new();
 
-        let features1 =
-            VoiceFeatures::from_mfcc_frames(&make_mfcc_frames(100, 13, 1.0)).unwrap();
+        let features1 = VoiceFeatures::from_mfcc_frames(&make_mfcc_frames(100, 13, 1.0)).unwrap();
         store.enroll("alice", "Alice", &features1, 1000).unwrap();
 
         // Re-enroll with slightly different sample
-        let features2 =
-            VoiceFeatures::from_mfcc_frames(&make_mfcc_frames(100, 13, 1.1)).unwrap();
+        let features2 = VoiceFeatures::from_mfcc_frames(&make_mfcc_frames(100, 13, 1.1)).unwrap();
         store.enroll("alice", "Alice", &features2, 2000).unwrap();
 
         let vp = store.get_speaker("alice").unwrap();
@@ -614,11 +606,16 @@ mod tests {
         // Clean sine wave
         let sample_rate = 8000;
         let samples: Vec<f64> = (0..sample_rate)
-            .map(|i| (2.0 * std::f64::consts::PI * 440.0 * i as f64 / sample_rate as f64).sin() * 0.5)
+            .map(|i| {
+                (2.0 * std::f64::consts::PI * 440.0 * i as f64 / sample_rate as f64).sin() * 0.5
+            })
             .collect();
 
         let metrics = CallQualityMetrics::from_samples(&samples, sample_rate as u32);
-        assert!(metrics.estimated_mos >= 3.0, "Clean signal should have decent MOS");
+        assert!(
+            metrics.estimated_mos >= 3.0,
+            "Clean signal should have decent MOS"
+        );
         assert!(metrics.snr_db > 10.0);
         assert_eq!(metrics.clip_count, 0);
     }
@@ -641,18 +638,21 @@ mod tests {
 
         // Enroll 5 speakers
         for i in 0..5 {
-            let features = VoiceFeatures::from_mfcc_frames(
-                &make_mfcc_frames(100, 13, i as f64 * 50.0),
-            )
-            .unwrap();
+            let features =
+                VoiceFeatures::from_mfcc_frames(&make_mfcc_frames(100, 13, i as f64 * 50.0))
+                    .unwrap();
             store
-                .enroll(&format!("speaker_{}", i), &format!("Speaker {}", i), &features, 1000)
+                .enroll(
+                    &format!("speaker_{}", i),
+                    &format!("Speaker {}", i),
+                    &features,
+                    1000,
+                )
                 .unwrap();
         }
 
         // Identify: should return top-3 candidates
-        let query =
-            VoiceFeatures::from_mfcc_frames(&make_mfcc_frames(100, 13, 0.0)).unwrap();
+        let query = VoiceFeatures::from_mfcc_frames(&make_mfcc_frames(100, 13, 0.0)).unwrap();
         let candidates = store.identify(&query, 3);
         assert_eq!(candidates.len(), 3);
         // First candidate should be speaker_0 (closest seed)

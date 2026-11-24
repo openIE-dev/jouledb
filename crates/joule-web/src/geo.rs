@@ -83,10 +83,7 @@ impl GeoState {
         self.history
             .windows(2)
             .map(|w| {
-                haversine_distance(
-                    w[0].latitude, w[0].longitude,
-                    w[1].latitude, w[1].longitude,
-                )
+                haversine_distance(w[0].latitude, w[0].longitude, w[1].latitude, w[1].longitude)
             })
             .sum()
     }
@@ -126,8 +123,7 @@ pub fn haversine_distance(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     let lat1_r = lat1.to_radians();
     let lat2_r = lat2.to_radians();
 
-    let a = (d_lat / 2.0).sin().powi(2)
-        + lat1_r.cos() * lat2_r.cos() * (d_lon / 2.0).sin().powi(2);
+    let a = (d_lat / 2.0).sin().powi(2) + lat1_r.cos() * lat2_r.cos() * (d_lon / 2.0).sin().powi(2);
     let c = 2.0 * a.sqrt().asin();
     EARTH_RADIUS_M * c
 }
@@ -145,8 +141,10 @@ impl GeoFence {
     /// True if the position is inside the fence.
     pub fn contains(&self, pos: &GeoPosition) -> bool {
         let d = haversine_distance(
-            self.center.latitude, self.center.longitude,
-            pos.latitude, pos.longitude,
+            self.center.latitude,
+            self.center.longitude,
+            pos.latitude,
+            pos.longitude,
         );
         d <= self.radius_meters
     }
@@ -154,8 +152,10 @@ impl GeoFence {
     /// Signed distance to the fence edge (negative = inside, positive = outside).
     pub fn distance_to_edge(&self, pos: &GeoPosition) -> f64 {
         let d = haversine_distance(
-            self.center.latitude, self.center.longitude,
-            pos.latitude, pos.longitude,
+            self.center.latitude,
+            self.center.longitude,
+            pos.latitude,
+            pos.longitude,
         );
         d - self.radius_meters
     }

@@ -19,13 +19,23 @@ pub enum InputId {
 }
 
 impl InputId {
-    pub fn key(k: &str) -> Self { Self::Key(k.to_lowercase()) }
-    pub fn mouse(b: u8) -> Self { Self::MouseButton(b) }
+    pub fn key(k: &str) -> Self {
+        Self::Key(k.to_lowercase())
+    }
+    pub fn mouse(b: u8) -> Self {
+        Self::MouseButton(b)
+    }
     pub fn gamepad_btn(pad: u8, btn: &str) -> Self {
-        Self::GamepadButton { pad, button: btn.to_string() }
+        Self::GamepadButton {
+            pad,
+            button: btn.to_string(),
+        }
     }
     pub fn gamepad_axis(pad: u8, axis: &str) -> Self {
-        Self::GamepadAxis { pad, axis: axis.to_string() }
+        Self::GamepadAxis {
+            pad,
+            axis: axis.to_string(),
+        }
     }
 }
 
@@ -38,7 +48,9 @@ pub struct ActionBinding {
 }
 
 impl ActionBinding {
-    pub fn new(input: InputId) -> Self { Self { input } }
+    pub fn new(input: InputId) -> Self {
+        Self { input }
+    }
 }
 
 // ── Axis Binding ────────────────────────────────────────────────
@@ -52,7 +64,9 @@ pub struct AxisBinding {
 }
 
 impl AxisBinding {
-    pub fn new(input: InputId, scale: f32) -> Self { Self { input, scale } }
+    pub fn new(input: InputId, scale: f32) -> Self {
+        Self { input, scale }
+    }
 }
 
 // ── Action Definition ───────────────────────────────────────────
@@ -67,7 +81,11 @@ pub struct ActionDef {
 
 impl ActionDef {
     pub fn new(name: &str) -> Self {
-        Self { name: name.to_string(), bindings: Vec::new(), consumed: false }
+        Self {
+            name: name.to_string(),
+            bindings: Vec::new(),
+            consumed: false,
+        }
     }
 
     pub fn add_binding(&mut self, input: InputId) {
@@ -86,7 +104,10 @@ pub struct AxisDef {
 
 impl AxisDef {
     pub fn new(name: &str) -> Self {
-        Self { name: name.to_string(), bindings: Vec::new() }
+        Self {
+            name: name.to_string(),
+            bindings: Vec::new(),
+        }
     }
 
     pub fn add_binding(&mut self, input: InputId, scale: f32) {
@@ -153,7 +174,11 @@ pub struct ActionState {
 
 impl Default for ActionState {
     fn default() -> Self {
-        Self { active: false, just_activated: false, just_deactivated: false }
+        Self {
+            active: false,
+            just_activated: false,
+            just_deactivated: false,
+        }
     }
 }
 
@@ -245,18 +270,26 @@ impl ActionMappingSystem {
         // Process contexts in priority order (already sorted, highest first)
         let contexts = self.contexts.clone();
         for ctx in &contexts {
-            if !ctx.enabled { continue; }
+            if !ctx.enabled {
+                continue;
+            }
 
             // Resolve actions
             for (name, action_def) in &ctx.actions {
-                if self.action_cache.contains_key(name) { continue; }
+                if self.action_cache.contains_key(name) {
+                    continue;
+                }
 
                 let mut active = false;
                 for binding in &action_def.bindings {
                     if self.consumed.get(&binding.input).copied().unwrap_or(false) {
                         continue;
                     }
-                    let val = self.input_states.get(&binding.input).copied().unwrap_or(0.0);
+                    let val = self
+                        .input_states
+                        .get(&binding.input)
+                        .copied()
+                        .unwrap_or(0.0);
                     if val > 0.5 {
                         active = true;
                         if ctx.consumes_input {
@@ -269,29 +302,45 @@ impl ActionMappingSystem {
                 let prev_active = {
                     let mut prev = false;
                     for binding in &action_def.bindings {
-                        let val = self.prev_input_states.get(&binding.input).copied().unwrap_or(0.0);
-                        if val > 0.5 { prev = true; break; }
+                        let val = self
+                            .prev_input_states
+                            .get(&binding.input)
+                            .copied()
+                            .unwrap_or(0.0);
+                        if val > 0.5 {
+                            prev = true;
+                            break;
+                        }
                     }
                     prev
                 };
 
-                self.action_cache.insert(name.clone(), ActionState {
-                    active,
-                    just_activated: active && !prev_active,
-                    just_deactivated: !active && prev_active,
-                });
+                self.action_cache.insert(
+                    name.clone(),
+                    ActionState {
+                        active,
+                        just_activated: active && !prev_active,
+                        just_deactivated: !active && prev_active,
+                    },
+                );
             }
 
             // Resolve axes
             for (name, axis_def) in &ctx.axes {
-                if self.axis_cache.contains_key(name) { continue; }
+                if self.axis_cache.contains_key(name) {
+                    continue;
+                }
 
                 let mut total: f32 = 0.0;
                 for binding in &axis_def.bindings {
                     if self.consumed.get(&binding.input).copied().unwrap_or(false) {
                         continue;
                     }
-                    let val = self.input_states.get(&binding.input).copied().unwrap_or(0.0);
+                    let val = self
+                        .input_states
+                        .get(&binding.input)
+                        .copied()
+                        .unwrap_or(0.0);
                     total += val * binding.scale;
                     if ctx.consumes_input && val.abs() > 0.01 {
                         self.consumed.insert(binding.input.clone(), true);
@@ -330,7 +379,8 @@ impl ActionMappingSystem {
 
     /// Names of enabled contexts, sorted by priority (highest first).
     pub fn enabled_context_names(&self) -> Vec<String> {
-        self.contexts.iter()
+        self.contexts
+            .iter()
             .filter(|c| c.enabled)
             .map(|c| c.name.clone())
             .collect()
@@ -338,7 +388,9 @@ impl ActionMappingSystem {
 }
 
 impl Default for ActionMappingSystem {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────

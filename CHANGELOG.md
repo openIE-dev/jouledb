@@ -4,6 +4,14 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-11-24
+
+### Added
+- **Peer-Review `.jsyn` Rank-Sweep Quality-vs-Joules Evaluator, Empirical-Bayes `SVF` Shrinkage & Unified Ecosystem Documentation (`rank_sweep_bench`, `synapse`, `synapse_routes`, `docs/JSYN-LIVING-WEIGHTS-SPEC.md`, `docs/WHITEPAPER-JOULEDB-2026-11.md`)**:
+  - **Out-of-Sample Rank-Sweep Pareto Engine (`POST /api/v1/synapse/bench/rank_sweep`):** Evaluates coupled multi-scale binary low-rank `.jsyn` projections (`target_rank = 8 -> 32 -> 64 -> 128`) against dense `FP32`/`FP16`/`BF16`/`FP8` and packed `NVFP4` Mixture-of-Experts checkpoints on disjoint calibration and evaluation activations (`BPW`, `compression_vs_fp16`, `weight_cosine`, held-out `MSE`, Softmax logit `KL-divergence`, `Top-1`/`Top-5` agreement, latency, and UMA `nJ`).
+  - **Sample-Size-Aware Empirical-Bayes `SVF` Calibration (`calibrate_activation_aware_svf`):** Recomputes exact per-sweep row-scale Gram denominators and applies prior shrinkage toward `1.0` so small calibration batches never overfit when `num_samples < rank`.
+  - **Canonical `.jsyn` Living-Weights Specification, Updated November 2026 Whitepaper & 82-Model Hugging Face Hub Narrative:** Added `docs/JSYN-LIVING-WEIGHTS-SPEC.md`, `docs/WHITEPAPER-JOULEDB-2026-11.md`, and refreshed `README.md` + `crates.io` metadata (`jouledb.org`).
+
 ## [0.2.8] - 2026-11-24
 
 ### Added

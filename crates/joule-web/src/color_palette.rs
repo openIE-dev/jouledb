@@ -460,10 +460,7 @@ mod tests {
     fn test_rgba_from_hex() {
         assert_eq!(Rgba::from_hex("#ff8800"), Some(Rgba::rgb(255, 136, 0)));
         assert_eq!(Rgba::from_hex("f80"), Some(Rgba::rgb(255, 136, 0)));
-        assert_eq!(
-            Rgba::from_hex("#00000080"),
-            Some(Rgba::new(0, 0, 0, 128))
-        );
+        assert_eq!(Rgba::from_hex("#00000080"), Some(Rgba::new(0, 0, 0, 128)));
         assert_eq!(Rgba::from_hex("xyz"), None);
     }
 

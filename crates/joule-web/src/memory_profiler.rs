@@ -30,7 +30,8 @@ impl Allocation {
 
     /// Duration this allocation was live (in microseconds), if freed.
     pub fn lifetime_us(&self) -> Option<u64> {
-        self.freed_at_us.map(|ft| ft.saturating_sub(self.timestamp_us))
+        self.freed_at_us
+            .map(|ft| ft.saturating_sub(self.timestamp_us))
     }
 }
 
@@ -199,7 +200,11 @@ impl MemoryProfiler {
                 age_us: current_time_us.saturating_sub(a.timestamp_us),
             })
             .collect();
-        leaks.sort_by(|a, b| b.size.cmp(&a.size).then_with(|| a.allocation_id.cmp(&b.allocation_id)));
+        leaks.sort_by(|a, b| {
+            b.size
+                .cmp(&a.size)
+                .then_with(|| a.allocation_id.cmp(&b.allocation_id))
+        });
         leaks
     }
 
@@ -245,7 +250,10 @@ impl MemoryProfiler {
     pub fn top_allocators(&self, n: usize) -> Vec<AllocatorSummary> {
         let mut by_location: HashMap<&str, Vec<&Allocation>> = HashMap::new();
         for alloc in self.allocations.values() {
-            by_location.entry(alloc.location.as_str()).or_default().push(alloc);
+            by_location
+                .entry(alloc.location.as_str())
+                .or_default()
+                .push(alloc);
         }
 
         let mut summaries: Vec<AllocatorSummary> = by_location
@@ -275,7 +283,11 @@ impl MemoryProfiler {
             })
             .collect();
 
-        summaries.sort_by(|a, b| b.total_bytes.cmp(&a.total_bytes).then_with(|| a.location.cmp(&b.location)));
+        summaries.sort_by(|a, b| {
+            b.total_bytes
+                .cmp(&a.total_bytes)
+                .then_with(|| a.location.cmp(&b.location))
+        });
         summaries.truncate(n);
         summaries
     }

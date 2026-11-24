@@ -22,14 +22,35 @@ pub enum JournalMode {
 /// Type of filesystem operation being journaled.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OpKind {
-    CreateFile { path: String, size: u64 },
-    WriteData { path: String, offset: u64, data: Vec<u8> },
-    DeleteFile { path: String },
-    Rename { old_path: String, new_path: String },
-    Mkdir { path: String },
-    UpdateMetadata { path: String, new_size: u64 },
-    AllocateBlock { block_id: u64 },
-    FreeBlock { block_id: u64 },
+    CreateFile {
+        path: String,
+        size: u64,
+    },
+    WriteData {
+        path: String,
+        offset: u64,
+        data: Vec<u8>,
+    },
+    DeleteFile {
+        path: String,
+    },
+    Rename {
+        old_path: String,
+        new_path: String,
+    },
+    Mkdir {
+        path: String,
+    },
+    UpdateMetadata {
+        path: String,
+        new_size: u64,
+    },
+    AllocateBlock {
+        block_id: u64,
+    },
+    FreeBlock {
+        block_id: u64,
+    },
 }
 
 impl OpKind {
@@ -150,10 +171,7 @@ impl DiskState {
             OpKind::DeleteFile { path } => {
                 self.files.remove(path);
             }
-            OpKind::Rename {
-                old_path,
-                new_path,
-            } => {
+            OpKind::Rename { old_path, new_path } => {
                 if let Some(content) = self.files.remove(old_path) {
                     self.files.insert(new_path.clone(), content);
                 }
@@ -246,11 +264,7 @@ impl FsJournal {
     }
 
     /// Add an operation to a transaction.
-    pub fn add_operation(
-        &mut self,
-        tx_id: u64,
-        operation: OpKind,
-    ) -> Result<u64, JournalError> {
+    pub fn add_operation(&mut self, tx_id: u64, operation: OpKind) -> Result<u64, JournalError> {
         let tx = self
             .transactions
             .get(&tx_id)
@@ -350,8 +364,7 @@ impl FsJournal {
         let entry_seqs: Vec<u64> = tx.entries.clone();
 
         // Remove entries for this transaction
-        self.entries
-            .retain(|e| !entry_seqs.contains(&e.sequence));
+        self.entries.retain(|e| !entry_seqs.contains(&e.sequence));
 
         if let Some(tx) = self.transactions.get_mut(&tx_id) {
             tx.state = TxState::Aborted;
@@ -655,7 +668,12 @@ mod tests {
             )
             .unwrap();
         journal.commit(tx).unwrap();
-        assert!(journal.disk_state().directories.contains(&"/data".to_string()));
+        assert!(
+            journal
+                .disk_state()
+                .directories
+                .contains(&"/data".to_string())
+        );
     }
 
     #[test]

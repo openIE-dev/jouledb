@@ -380,21 +380,13 @@ impl ProfilerReport {
                 let ac = after_p.map_or(0, |p| p.call_count);
 
                 let inclusive_change_pct = if bi == 0 {
-                    if ai == 0 {
-                        0.0
-                    } else {
-                        100.0
-                    }
+                    if ai == 0 { 0.0 } else { 100.0 }
                 } else {
                     ((ai as f64 - bi as f64) / bi as f64) * 100.0
                 };
 
                 let exclusive_change_pct = if be == 0 {
-                    if ae == 0 {
-                        0.0
-                    } else {
-                        100.0
-                    }
+                    if ae == 0 { 0.0 } else { 100.0 }
                 } else {
                     ((ae as f64 - be as f64) / be as f64) * 100.0
                 };
@@ -540,8 +532,7 @@ mod tests {
         let samples = vec![
             ProfilingSample::new("compute", 500, 500)
                 .with_stack(vec!["main".to_string(), "process".to_string()]),
-            ProfilingSample::new("io_read", 300, 300)
-                .with_stack(vec!["main".to_string()]),
+            ProfilingSample::new("io_read", 300, 300).with_stack(vec!["main".to_string()]),
         ];
         let folded = ProfilerReport::to_folded_stacks(&samples);
         assert!(folded.contains("main;process;compute 500"));
@@ -639,10 +630,8 @@ mod tests {
     #[test]
     fn test_folded_merges_same_stack() {
         let samples = vec![
-            ProfilingSample::new("leaf", 100, 100)
-                .with_stack(vec!["root".to_string()]),
-            ProfilingSample::new("leaf", 200, 200)
-                .with_stack(vec!["root".to_string()]),
+            ProfilingSample::new("leaf", 100, 100).with_stack(vec!["root".to_string()]),
+            ProfilingSample::new("leaf", 200, 200).with_stack(vec!["root".to_string()]),
         ];
         let folded = ProfilerReport::to_folded_stacks(&samples);
         assert!(folded.contains("root;leaf 300"));

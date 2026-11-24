@@ -22,7 +22,12 @@ pub enum PipelineError {
     /// Stage failed.
     StageFailed { stage: String, reason: String },
     /// Type mismatch between stages.
-    TypeMismatch { from_stage: String, to_stage: String, expected: String, got: String },
+    TypeMismatch {
+        from_stage: String,
+        to_stage: String,
+        expected: String,
+        got: String,
+    },
     /// Pipeline already running.
     AlreadyRunning(String),
     /// Backpressure limit reached.
@@ -38,8 +43,16 @@ impl std::fmt::Display for PipelineError {
             Self::PipelineNotFound(id) => write!(f, "pipeline not found: {id}"),
             Self::DuplicateStage(id) => write!(f, "duplicate stage: {id}"),
             Self::StageFailed { stage, reason } => write!(f, "stage {stage} failed: {reason}"),
-            Self::TypeMismatch { from_stage, to_stage, expected, got } => {
-                write!(f, "type mismatch {from_stage}->{to_stage}: expected {expected}, got {got}")
+            Self::TypeMismatch {
+                from_stage,
+                to_stage,
+                expected,
+                got,
+            } => {
+                write!(
+                    f,
+                    "type mismatch {from_stage}->{to_stage}: expected {expected}, got {got}"
+                )
             }
             Self::AlreadyRunning(id) => write!(f, "pipeline {id} already running"),
             Self::BackpressureLimit { stage, limit } => {
@@ -202,10 +215,12 @@ impl StageMetrics {
         self.items_out += 1;
         self.total_processing_ms += processing_ms;
         self.min_processing_ms = Some(
-            self.min_processing_ms.map_or(processing_ms, |m| m.min(processing_ms)),
+            self.min_processing_ms
+                .map_or(processing_ms, |m| m.min(processing_ms)),
         );
         self.max_processing_ms = Some(
-            self.max_processing_ms.map_or(processing_ms, |m| m.max(processing_ms)),
+            self.max_processing_ms
+                .map_or(processing_ms, |m| m.max(processing_ms)),
         );
     }
 
@@ -319,7 +334,9 @@ pub struct PipelineInstance {
 
 impl PipelineInstance {
     pub fn new(instance_id: impl Into<String>, definition: &PipelineDefinition) -> Self {
-        let execs = definition.stages.iter()
+        let execs = definition
+            .stages
+            .iter()
             .map(|s| StageExecution::new(&s.id))
             .collect();
         Self {
@@ -442,7 +459,9 @@ impl PipelineInstance {
 
         // Push to next stage buffer.
         if stage_index + 1 < self.stage_executions.len() {
-            self.stage_executions[stage_index + 1].buffer.extend(outputs.clone());
+            self.stage_executions[stage_index + 1]
+                .buffer
+                .extend(outputs.clone());
         }
 
         Ok(outputs)
@@ -462,14 +481,16 @@ impl PipelineInstance {
 
     /// Get aggregate metrics.
     pub fn aggregate_metrics(&self) -> HashMap<String, StageMetrics> {
-        self.stage_executions.iter()
+        self.stage_executions
+            .iter()
             .map(|e| (e.stage_id.clone(), e.metrics.clone()))
             .collect()
     }
 
     /// Get all dead-letter items across stages.
     pub fn dead_letter_items(&self) -> Vec<&DataItem> {
-        self.stage_executions.iter()
+        self.stage_executions
+            .iter()
             .flat_map(|e| e.dead_letter.iter())
             .collect()
     }
@@ -514,9 +535,17 @@ mod tests {
 
     fn etl_pipeline() -> PipelineDefinition {
         let mut def = PipelineDefinition::new("etl", "ETL Pipeline");
-        def.add_stage(StageDefinition::new("extract", "Extract", "raw", "raw")).unwrap();
-        def.add_stage(StageDefinition::new("transform", "Transform", "raw", "clean")).unwrap();
-        def.add_stage(StageDefinition::new("load", "Load", "clean", "clean")).unwrap();
+        def.add_stage(StageDefinition::new("extract", "Extract", "raw", "raw"))
+            .unwrap();
+        def.add_stage(StageDefinition::new(
+            "transform",
+            "Transform",
+            "raw",
+            "clean",
+        ))
+        .unwrap();
+        def.add_stage(StageDefinition::new("load", "Load", "clean", "clean"))
+            .unwrap();
         def
     }
 
@@ -529,7 +558,8 @@ mod tests {
     #[test]
     fn test_duplicate_stage() {
         let mut def = PipelineDefinition::new("p", "P");
-        def.add_stage(StageDefinition::new("a", "A", "x", "y")).unwrap();
+        def.add_stage(StageDefinition::new("a", "A", "x", "y"))
+            .unwrap();
         assert!(matches!(
             def.add_stage(StageDefinition::new("a", "A2", "x", "y")),
             Err(PipelineError::DuplicateStage(_))
@@ -539,9 +569,14 @@ mod tests {
     #[test]
     fn test_type_validation() {
         let mut def = PipelineDefinition::new("p", "P");
-        def.add_stage(StageDefinition::new("s1", "S1", "a", "b")).unwrap();
-        def.add_stage(StageDefinition::new("s2", "S2", "c", "d")).unwrap();
-        assert!(matches!(def.validate_types(), Err(PipelineError::TypeMismatch { .. })));
+        def.add_stage(StageDefinition::new("s1", "S1", "a", "b"))
+            .unwrap();
+        def.add_stage(StageDefinition::new("s2", "S2", "c", "d"))
+            .unwrap();
+        assert!(matches!(
+            def.validate_types(),
+            Err(PipelineError::TypeMismatch { .. })
+        ));
 
         let def2 = etl_pipeline();
         // raw->raw OK, raw->clean OK
@@ -561,17 +596,21 @@ mod tests {
         ];
         inst.feed(items).unwrap();
 
-        let out = inst.process_stage(0, &def, |item| Ok(item.clone())).unwrap();
+        let out = inst
+            .process_stage(0, &def, |item| Ok(item.clone()))
+            .unwrap();
         assert_eq!(out.len(), 2);
 
-        let out = inst.process_stage(1, &def, |item| {
-            let mut o = item.clone();
-            o.data_type = "clean".into();
-            if let Some(v) = o.payload.get("val").cloned() {
-                o.payload.insert("val".to_string(), v.to_uppercase());
-            }
-            Ok(o)
-        }).unwrap();
+        let out = inst
+            .process_stage(1, &def, |item| {
+                let mut o = item.clone();
+                o.data_type = "clean".into();
+                if let Some(v) = o.payload.get("val").cloned() {
+                    o.payload.insert("val".to_string(), v.to_uppercase());
+                }
+                Ok(o)
+            })
+            .unwrap();
         assert_eq!(out[0].payload.get("val"), Some(&"HELLO".to_string()));
 
         inst.complete();
@@ -585,7 +624,9 @@ mod tests {
         inst.start().unwrap();
         inst.feed(vec![DataItem::new("1", "raw")]).unwrap();
 
-        let err = inst.process_stage(0, &def, |_| Err("boom".into())).unwrap_err();
+        let err = inst
+            .process_stage(0, &def, |_| Err("boom".into()))
+            .unwrap_err();
         assert!(matches!(err, PipelineError::StageFailed { .. }));
     }
 
@@ -593,16 +634,23 @@ mod tests {
     fn test_skip_item_strategy() {
         let mut def = PipelineDefinition::new("p", "P");
         def.add_stage(
-            StageDefinition::new("s1", "S1", "a", "a")
-                .with_error_strategy(ErrorStrategy::SkipItem),
-        ).unwrap();
+            StageDefinition::new("s1", "S1", "a", "a").with_error_strategy(ErrorStrategy::SkipItem),
+        )
+        .unwrap();
         let mut inst = PipelineInstance::new("i", &def);
         inst.start().unwrap();
-        inst.feed(vec![DataItem::new("1", "a"), DataItem::new("2", "a")]).unwrap();
+        inst.feed(vec![DataItem::new("1", "a"), DataItem::new("2", "a")])
+            .unwrap();
 
-        let out = inst.process_stage(0, &def, |item| {
-            if item.id == "1" { Err("skip".into()) } else { Ok(item.clone()) }
-        }).unwrap();
+        let out = inst
+            .process_stage(0, &def, |item| {
+                if item.id == "1" {
+                    Err("skip".into())
+                } else {
+                    Ok(item.clone())
+                }
+            })
+            .unwrap();
         assert_eq!(out.len(), 1);
         assert_eq!(inst.stage_executions[0].metrics.items_skipped, 1);
     }
@@ -613,7 +661,8 @@ mod tests {
         def.add_stage(
             StageDefinition::new("s1", "S1", "a", "a")
                 .with_error_strategy(ErrorStrategy::DeadLetterQueue),
-        ).unwrap();
+        )
+        .unwrap();
         let mut inst = PipelineInstance::new("i", &def);
         inst.start().unwrap();
         inst.feed(vec![DataItem::new("1", "a")]).unwrap();
@@ -625,12 +674,12 @@ mod tests {
     #[test]
     fn test_backpressure() {
         let mut def = PipelineDefinition::new("p", "P");
-        def.add_stage(
-            StageDefinition::new("s1", "S1", "a", "a").with_backpressure(1),
-        ).unwrap();
+        def.add_stage(StageDefinition::new("s1", "S1", "a", "a").with_backpressure(1))
+            .unwrap();
         let mut inst = PipelineInstance::new("i", &def);
         inst.start().unwrap();
-        inst.feed(vec![DataItem::new("1", "a"), DataItem::new("2", "a")]).unwrap();
+        inst.feed(vec![DataItem::new("1", "a"), DataItem::new("2", "a")])
+            .unwrap();
 
         let err = inst.process_stage(0, &def, |i| Ok(i.clone())).unwrap_err();
         assert!(matches!(err, PipelineError::BackpressureLimit { .. }));
@@ -643,7 +692,9 @@ mod tests {
         inst.start().unwrap();
         inst.feed(vec![DataItem::new("1", "raw")]).unwrap();
 
-        let out = inst.process_stage(0, &def, |_| Err("would fail".into())).unwrap();
+        let out = inst
+            .process_stage(0, &def, |_| Err("would fail".into()))
+            .unwrap();
         // Dry run passes items through without calling transform.
         assert_eq!(out.len(), 1);
     }
@@ -653,7 +704,8 @@ mod tests {
         let def = etl_pipeline();
         let mut inst = PipelineInstance::new("i", &def);
         inst.start().unwrap();
-        inst.feed(vec![DataItem::new("1", "raw"), DataItem::new("2", "raw")]).unwrap();
+        inst.feed(vec![DataItem::new("1", "raw"), DataItem::new("2", "raw")])
+            .unwrap();
 
         inst.process_stage(0, &def, |i| Ok(i.clone())).unwrap();
         let metrics = inst.aggregate_metrics();
@@ -663,9 +715,11 @@ mod tests {
     #[test]
     fn test_compose_pipelines() {
         let mut a = PipelineDefinition::new("a", "A");
-        a.add_stage(StageDefinition::new("s1", "S1", "raw", "mid")).unwrap();
+        a.add_stage(StageDefinition::new("s1", "S1", "raw", "mid"))
+            .unwrap();
         let mut b = PipelineDefinition::new("b", "B");
-        b.add_stage(StageDefinition::new("s2", "S2", "mid", "final")).unwrap();
+        b.add_stage(StageDefinition::new("s2", "S2", "mid", "final"))
+            .unwrap();
 
         let combined = compose(&a, &b, "ab", "AB").unwrap();
         assert_eq!(combined.stages.len(), 2);
@@ -674,17 +728,23 @@ mod tests {
     #[test]
     fn test_compose_type_mismatch() {
         let mut a = PipelineDefinition::new("a", "A");
-        a.add_stage(StageDefinition::new("s1", "S1", "raw", "mid")).unwrap();
+        a.add_stage(StageDefinition::new("s1", "S1", "raw", "mid"))
+            .unwrap();
         let mut b = PipelineDefinition::new("b", "B");
-        b.add_stage(StageDefinition::new("s2", "S2", "other", "final")).unwrap();
+        b.add_stage(StageDefinition::new("s2", "S2", "other", "final"))
+            .unwrap();
 
-        assert!(matches!(compose(&a, &b, "ab", "AB"), Err(PipelineError::TypeMismatch { .. })));
+        assert!(matches!(
+            compose(&a, &b, "ab", "AB"),
+            Err(PipelineError::TypeMismatch { .. })
+        ));
     }
 
     #[test]
     fn test_fan_out_topology() {
-        let stage = StageDefinition::new("s", "S", "a", "b")
-            .with_topology(StageTopology::FanOut { output_stages: vec!["s2".into(), "s3".into()] });
+        let stage = StageDefinition::new("s", "S", "a", "b").with_topology(StageTopology::FanOut {
+            output_stages: vec!["s2".into(), "s3".into()],
+        });
         assert!(matches!(stage.topology, StageTopology::FanOut { .. }));
     }
 }

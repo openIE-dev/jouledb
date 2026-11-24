@@ -8,22 +8,40 @@ use std::fmt;
 // ── Error Correction Levels ─────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EcLevel { L, M, Q, H }
+pub enum EcLevel {
+    L,
+    M,
+    Q,
+    H,
+}
 
 impl EcLevel {
     fn format_bits(&self) -> u8 {
-        match self { EcLevel::L => 0b01, EcLevel::M => 0b00, EcLevel::Q => 0b11, EcLevel::H => 0b10 }
+        match self {
+            EcLevel::L => 0b01,
+            EcLevel::M => 0b00,
+            EcLevel::Q => 0b11,
+            EcLevel::H => 0b10,
+        }
     }
 }
 
 // ── Encoding Mode ───────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Mode { Numeric, Alphanumeric, Byte }
+pub enum Mode {
+    Numeric,
+    Alphanumeric,
+    Byte,
+}
 
 impl Mode {
     fn indicator(&self) -> u8 {
-        match self { Mode::Numeric => 0b0001, Mode::Alphanumeric => 0b0010, Mode::Byte => 0b0100 }
+        match self {
+            Mode::Numeric => 0b0001,
+            Mode::Alphanumeric => 0b0010,
+            Mode::Byte => 0b0100,
+        }
     }
 
     fn char_count_bits(&self, version: u8) -> usize {
@@ -50,13 +68,16 @@ pub fn detect_mode(data: &str) -> Mode {
 }
 
 const ALPHANUMERIC_TABLE: &[char] = &[
-    '0','1','2','3','4','5','6','7','8','9',
-    'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
-    ' ','$','%','*','+','-','.','/',':',
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I',
+    'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', ' ', '$',
+    '%', '*', '+', '-', '.', '/', ':',
 ];
 
 fn alphanumeric_value(c: char) -> u16 {
-    ALPHANUMERIC_TABLE.iter().position(|ch| *ch == c).unwrap_or(0) as u16
+    ALPHANUMERIC_TABLE
+        .iter()
+        .position(|ch| *ch == c)
+        .unwrap_or(0) as u16
 }
 
 // ── Version/Capacity ────────────────────────────────────────────
@@ -79,23 +100,28 @@ const CAPACITY: [[u16; 4]; 10] = [
 
 /// EC codewords per block for versions 1-10.
 const EC_CODEWORDS_PER_BLOCK: [[u8; 4]; 10] = [
-    [7, 10, 13, 17],     // v1
-    [10, 16, 22, 28],    // v2
-    [15, 26, 18, 22],    // v3
-    [20, 18, 26, 16],    // v4
-    [26, 24, 18, 22],    // v5
-    [18, 16, 24, 28],    // v6
-    [20, 18, 18, 26],    // v7
-    [24, 22, 22, 26],    // v8
-    [30, 22, 20, 24],    // v9
-    [18, 26, 24, 28],    // v10
+    [7, 10, 13, 17],  // v1
+    [10, 16, 22, 28], // v2
+    [15, 26, 18, 22], // v3
+    [20, 18, 26, 16], // v4
+    [26, 24, 18, 22], // v5
+    [18, 16, 24, 28], // v6
+    [20, 18, 18, 26], // v7
+    [24, 22, 22, 26], // v8
+    [30, 22, 20, 24], // v9
+    [18, 26, 24, 28], // v10
 ];
 
 /// Total codewords for versions 1-10.
 const TOTAL_CODEWORDS: [u16; 10] = [26, 44, 70, 100, 134, 172, 196, 242, 292, 346];
 
 fn ec_level_index(ec: EcLevel) -> usize {
-    match ec { EcLevel::L => 0, EcLevel::M => 1, EcLevel::Q => 2, EcLevel::H => 3 }
+    match ec {
+        EcLevel::L => 0,
+        EcLevel::M => 1,
+        EcLevel::Q => 2,
+        EcLevel::H => 3,
+    }
 }
 
 /// Module count for a version (side length).
@@ -126,19 +152,25 @@ struct BitBuffer {
 }
 
 impl BitBuffer {
-    fn new() -> Self { Self { bits: Vec::new() } }
+    fn new() -> Self {
+        Self { bits: Vec::new() }
+    }
     fn push_bits(&mut self, value: u32, count: usize) {
         for i in (0..count).rev() {
             self.bits.push((value >> i) & 1 == 1);
         }
     }
-    fn len(&self) -> usize { self.bits.len() }
+    fn len(&self) -> usize {
+        self.bits.len()
+    }
     fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         for chunk in self.bits.chunks(8) {
             let mut byte = 0u8;
             for (i, &bit) in chunk.iter().enumerate() {
-                if bit { byte |= 1 << (7 - i); }
+                if bit {
+                    byte |= 1 << (7 - i);
+                }
             }
             bytes.push(byte);
         }
@@ -195,7 +227,9 @@ fn encode_data(data: &str, mode: Mode, version: u8, ec: EcLevel) -> Vec<u8> {
     buf.push_bits(0, remaining.min(4));
 
     // Pad to byte boundary
-    while buf.len() % 8 != 0 { buf.push_bits(0, 1); }
+    while buf.len() % 8 != 0 {
+        buf.push_bits(0, 1);
+    }
 
     // Pad codewords
     let pad_bytes = [0xEC, 0x11];
@@ -211,15 +245,21 @@ fn encode_data(data: &str, mode: Mode, version: u8, ec: EcLevel) -> Vec<u8> {
 // ── Reed-Solomon (simplified GF(256)) ───────────────────────────
 
 fn gf256_mul(a: u8, b: u8) -> u8 {
-    if a == 0 || b == 0 { return 0; }
+    if a == 0 || b == 0 {
+        return 0;
+    }
     let mut result = 0u16;
     let mut a16 = a as u16;
     let mut b16 = b as u16;
     for _ in 0..8 {
-        if b16 & 1 != 0 { result ^= a16; }
+        if b16 & 1 != 0 {
+            result ^= a16;
+        }
         let carry = a16 & 0x80 != 0;
         a16 <<= 1;
-        if carry { a16 ^= 0x11D; }
+        if carry {
+            a16 ^= 0x11D;
+        }
         b16 >>= 1;
     }
     result as u8
@@ -253,7 +293,11 @@ fn rs_encode(data: &[u8], ec_count: usize) -> Vec<u8> {
 
 /// A module in the QR matrix.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Module { Light, Dark, Reserved }
+pub enum Module {
+    Light,
+    Dark,
+    Reserved,
+}
 
 /// The QR code matrix.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -267,7 +311,11 @@ pub struct QrMatrix {
 
 impl QrMatrix {
     fn new(size: usize) -> Self {
-        Self { size, modules: vec![vec![Module::Light; size]; size], protected: vec![vec![false; size]; size] }
+        Self {
+            size,
+            modules: vec![vec![Module::Light; size]; size],
+            protected: vec![vec![false; size]; size],
+        }
     }
 
     fn protect(&mut self, x: usize, y: usize) {
@@ -303,7 +351,11 @@ impl QrMatrix {
         while y < rows {
             for x in 0..self.size {
                 let top = self.modules[y][x] == Module::Dark;
-                let bottom = if y + 1 < rows { self.modules[y + 1][x] == Module::Dark } else { false };
+                let bottom = if y + 1 < rows {
+                    self.modules[y + 1][x] == Module::Dark
+                } else {
+                    false
+                };
                 match (top, bottom) {
                     (true, true) => s.push('\u{2588}'),
                     (true, false) => s.push('\u{2580}'),
@@ -350,7 +402,9 @@ pub fn generate(data: &str, ec: EcLevel) -> Result<QrMatrix, QrError> {
 
 /// Generate a QR code with a specific version.
 pub fn generate_with_version(data: &str, version: u8, ec: EcLevel) -> Result<QrMatrix, QrError> {
-    if version < 1 || version > 10 { return Err(QrError::InvalidVersion(version)); }
+    if version < 1 || version > 10 {
+        return Err(QrError::InvalidVersion(version));
+    }
 
     let mode = detect_mode(data);
     let size = module_count(version);
@@ -369,7 +423,9 @@ pub fn generate_with_version(data: &str, version: u8, ec: EcLevel) -> Result<QrM
         let positions = alignment_positions(version);
         for &r in &positions {
             for &c in &positions {
-                if is_finder_area(r, c, size) { continue; }
+                if is_finder_area(r, c, size) {
+                    continue;
+                }
                 place_alignment_pattern(&mut matrix, c as usize, r as usize);
             }
         }
@@ -405,10 +461,16 @@ fn place_finder_pattern(matrix: &mut QrMatrix, x: i32, y: i32) {
         for dx in 0..7 {
             let px = (x + dx) as usize;
             let py = (y + dy) as usize;
-            if px >= matrix.size || py >= matrix.size { continue; }
+            if px >= matrix.size || py >= matrix.size {
+                continue;
+            }
             let is_border = dx == 0 || dx == 6 || dy == 0 || dy == 6;
             let is_inner = dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4;
-            matrix.modules[py][px] = if is_border || is_inner { Module::Dark } else { Module::Light };
+            matrix.modules[py][px] = if is_border || is_inner {
+                Module::Dark
+            } else {
+                Module::Light
+            };
             matrix.protect(px, py);
         }
     }
@@ -431,10 +493,18 @@ fn place_finder_pattern(matrix: &mut QrMatrix, x: i32, y: i32) {
 
 fn place_timing_patterns(matrix: &mut QrMatrix, size: usize) {
     for i in 8..size - 8 {
-        let m = if i % 2 == 0 { Module::Dark } else { Module::Light };
-        if matrix.modules[6][i] == Module::Light { matrix.modules[6][i] = m; }
+        let m = if i % 2 == 0 {
+            Module::Dark
+        } else {
+            Module::Light
+        };
+        if matrix.modules[6][i] == Module::Light {
+            matrix.modules[6][i] = m;
+        }
         matrix.protect(i, 6);
-        if matrix.modules[i][6] == Module::Light { matrix.modules[i][6] = m; }
+        if matrix.modules[i][6] == Module::Light {
+            matrix.modules[i][6] = m;
+        }
         matrix.protect(6, i);
     }
 }
@@ -446,7 +516,11 @@ fn place_alignment_pattern(matrix: &mut QrMatrix, cx: usize, cy: usize) {
             let py = (cy as i32 + dy) as usize;
             let is_border = dx.abs() == 2 || dy.abs() == 2;
             let is_center = dx == 0 && dy == 0;
-            matrix.modules[py][px] = if is_border || is_center { Module::Dark } else { Module::Light };
+            matrix.modules[py][px] = if is_border || is_center {
+                Module::Dark
+            } else {
+                Module::Light
+            };
             matrix.protect(px, py);
         }
     }
@@ -475,8 +549,14 @@ fn is_finder_area(r: i32, c: i32, size: usize) -> bool {
 fn reserve_format_areas(matrix: &mut QrMatrix, size: usize) {
     // Around top-left finder
     for i in 0..=8 {
-        if i < size { matrix.modules[8][i] = Module::Reserved; matrix.protect(i, 8); }
-        if i < size { matrix.modules[i][8] = Module::Reserved; matrix.protect(8, i); }
+        if i < size {
+            matrix.modules[8][i] = Module::Reserved;
+            matrix.protect(i, 8);
+        }
+        if i < size {
+            matrix.modules[i][8] = Module::Reserved;
+            matrix.protect(8, i);
+        }
     }
     // Around top-right finder
     for i in 0..8 {
@@ -506,8 +586,12 @@ fn place_data_bits(matrix: &mut QrMatrix, data: &[u8], size: usize) {
     let mut upward = true;
 
     while x >= 0 {
-        if x == 6 { x -= 1; } // skip timing column
-        if x < 0 { break; }
+        if x == 6 {
+            x -= 1;
+        } // skip timing column
+        if x < 0 {
+            break;
+        }
 
         let col_range: Vec<usize> = if upward {
             (0..size).rev().collect()
@@ -518,13 +602,23 @@ fn place_data_bits(matrix: &mut QrMatrix, data: &[u8], size: usize) {
         for y in col_range {
             for dx in &[0i32, -1i32] {
                 let cx = (x + dx) as usize;
-                if cx >= size { continue; }
-                if matrix.modules[y][cx] != Module::Light && matrix.modules[y][cx] != Module::Reserved {
+                if cx >= size {
                     continue;
                 }
-                if matrix.modules[y][cx] == Module::Reserved { continue; }
+                if matrix.modules[y][cx] != Module::Light
+                    && matrix.modules[y][cx] != Module::Reserved
+                {
+                    continue;
+                }
+                if matrix.modules[y][cx] == Module::Reserved {
+                    continue;
+                }
                 if bit_idx < bits.len() {
-                    matrix.modules[y][cx] = if bits[bit_idx] { Module::Dark } else { Module::Light };
+                    matrix.modules[y][cx] = if bits[bit_idx] {
+                        Module::Dark
+                    } else {
+                        Module::Light
+                    };
                     bit_idx += 1;
                 }
             }
@@ -538,8 +632,12 @@ fn apply_mask(matrix: &mut QrMatrix, mask_pattern: u8) {
     let size = matrix.size;
     for y in 0..size {
         for x in 0..size {
-            if matrix.protected[y][x] { continue; }
-            if matrix.modules[y][x] == Module::Reserved { continue; }
+            if matrix.protected[y][x] {
+                continue;
+            }
+            if matrix.modules[y][x] == Module::Reserved {
+                continue;
+            }
             // Check if this is a data module (not part of function patterns)
             let should_flip = match mask_pattern {
                 0 => (y + x) % 2 == 0,
@@ -570,8 +668,40 @@ fn write_format_info(matrix: &mut QrMatrix, ec: EcLevel, mask: u8, size: usize) 
     let masked = format_bits ^ 0b101010000010010;
 
     // Write around top-left
-    let positions_h: [usize; 15] = [0, 1, 2, 3, 4, 5, 7, 8, size - 8, size - 7, size - 6, size - 5, size - 4, size - 3, size - 2];
-    let positions_v: [usize; 15] = [size - 1, size - 2, size - 3, size - 4, size - 5, size - 6, size - 7, size - 8, 7, 5, 4, 3, 2, 1, 0];
+    let positions_h: [usize; 15] = [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        7,
+        8,
+        size - 8,
+        size - 7,
+        size - 6,
+        size - 5,
+        size - 4,
+        size - 3,
+        size - 2,
+    ];
+    let positions_v: [usize; 15] = [
+        size - 1,
+        size - 2,
+        size - 3,
+        size - 4,
+        size - 5,
+        size - 6,
+        size - 7,
+        size - 8,
+        7,
+        5,
+        4,
+        3,
+        2,
+        1,
+        0,
+    ];
 
     for i in 0..15 {
         let bit = (masked >> (14 - i)) & 1 == 1;
@@ -668,8 +798,14 @@ mod tests {
 
     #[test]
     fn error_invalid_version() {
-        assert_eq!(generate_with_version("test", 0, EcLevel::M), Err(QrError::InvalidVersion(0)));
-        assert_eq!(generate_with_version("test", 11, EcLevel::M), Err(QrError::InvalidVersion(11)));
+        assert_eq!(
+            generate_with_version("test", 0, EcLevel::M),
+            Err(QrError::InvalidVersion(0))
+        );
+        assert_eq!(
+            generate_with_version("test", 11, EcLevel::M),
+            Err(QrError::InvalidVersion(11))
+        );
     }
 
     #[test]
@@ -756,8 +892,14 @@ mod tests {
 
     #[test]
     fn error_display() {
-        assert_eq!(format!("{}", QrError::DataTooLong), "data too long for QR code versions 1-10");
-        assert_eq!(format!("{}", QrError::InvalidVersion(99)), "invalid version: 99 (must be 1-10)");
+        assert_eq!(
+            format!("{}", QrError::DataTooLong),
+            "data too long for QR code versions 1-10"
+        );
+        assert_eq!(
+            format!("{}", QrError::InvalidVersion(99)),
+            "invalid version: 99 (must be 1-10)"
+        );
     }
 
     #[test]

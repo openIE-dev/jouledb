@@ -170,8 +170,7 @@ impl PermissionCache {
                 .or_default()
                 .push(subject_id.to_string());
         }
-        self.subject_roles
-            .insert(subject_id.to_string(), roles);
+        self.subject_roles.insert(subject_id.to_string(), roles);
     }
 
     /// Look up a cached permission decision.
@@ -184,13 +183,10 @@ impl PermissionCache {
     ) -> Result<CachedDecision, CacheError> {
         let key = CacheKey::new(subject_id, resource, action);
 
-        let entry = self
-            .entries
-            .get_mut(&key)
-            .ok_or_else(|| {
-                self.stats.misses += 1;
-                CacheError::NotFound(key.as_string())
-            })?;
+        let entry = self.entries.get_mut(&key).ok_or_else(|| {
+            self.stats.misses += 1;
+            CacheError::NotFound(key.as_string())
+        })?;
 
         if entry.is_expired(now_secs) {
             let key_str = key.as_string();
@@ -215,7 +211,14 @@ impl PermissionCache {
         decision: CachedDecision,
         now_secs: u64,
     ) -> Result<(), CacheError> {
-        self.put_with_ttl(subject_id, resource, action, decision, now_secs, self.config.default_ttl_secs)
+        self.put_with_ttl(
+            subject_id,
+            resource,
+            action,
+            decision,
+            now_secs,
+            self.config.default_ttl_secs,
+        )
     }
 
     /// Store with a custom TTL.
@@ -281,8 +284,7 @@ impl PermissionCache {
     /// Invalidate all cached entries for a subject.
     pub fn invalidate_subject(&mut self, subject_id: &str) {
         let before = self.entries.len();
-        self.entries
-            .retain(|key, _| key.subject_id != subject_id);
+        self.entries.retain(|key, _| key.subject_id != subject_id);
         let removed = before - self.entries.len();
         self.stats.invalidations += removed as u64;
         self.stats.entries = self.entries.len();
@@ -295,11 +297,8 @@ impl PermissionCache {
             return;
         }
 
-        let affected_subjects: Vec<String> = self
-            .role_subjects
-            .get(role_id)
-            .cloned()
-            .unwrap_or_default();
+        let affected_subjects: Vec<String> =
+            self.role_subjects.get(role_id).cloned().unwrap_or_default();
 
         for subject_id in &affected_subjects {
             self.invalidate_subject(subject_id);
@@ -569,8 +568,18 @@ mod tests {
     fn test_warm_cache() {
         let mut cache = PermissionCache::new(small_config());
         let entries = vec![
-            ("alice".to_string(), "docs".to_string(), "read".to_string(), decision(true)),
-            ("bob".to_string(), "docs".to_string(), "write".to_string(), decision(false)),
+            (
+                "alice".to_string(),
+                "docs".to_string(),
+                "read".to_string(),
+                decision(true),
+            ),
+            (
+                "bob".to_string(),
+                "docs".to_string(),
+                "write".to_string(),
+                decision(false),
+            ),
         ];
 
         let warmed = cache.warm(entries, 1000);

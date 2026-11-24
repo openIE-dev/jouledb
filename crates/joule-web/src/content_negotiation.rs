@@ -61,9 +61,9 @@ impl MediaType {
         let parts: Vec<&str> = trimmed.split(';').collect();
 
         let type_part = parts[0].trim();
-        let slash_pos = type_part
-            .find('/')
-            .ok_or_else(|| NegotiationError::InvalidHeader(format!("missing '/' in: {type_part}")))?;
+        let slash_pos = type_part.find('/').ok_or_else(|| {
+            NegotiationError::InvalidHeader(format!("missing '/' in: {type_part}"))
+        })?;
 
         let main_type = type_part[..slash_pos].trim().to_lowercase();
         let subtype = type_part[slash_pos + 1..].trim().to_lowercase();
@@ -266,9 +266,7 @@ pub fn negotiate_language(
         // Prefix match (e.g., "en" matches "en-US")
         for avail in available {
             let avail_lower = avail.to_lowercase();
-            if avail_lower.starts_with(&lang_tag.tag)
-                || lang_tag.tag.starts_with(&avail_lower)
-            {
+            if avail_lower.starts_with(&lang_tag.tag) || lang_tag.tag.starts_with(&avail_lower) {
                 return Ok(avail.to_string());
             }
         }
@@ -446,8 +444,9 @@ pub fn serialize_by_type(
     format: SerializationFormat,
 ) -> Result<String, NegotiationError> {
     match format {
-        SerializationFormat::Json => Ok(serde_json::to_string_pretty(data)
-            .unwrap_or_else(|_| "null".to_string())),
+        SerializationFormat::Json => {
+            Ok(serde_json::to_string_pretty(data).unwrap_or_else(|_| "null".to_string()))
+        }
         SerializationFormat::PlainText => Ok(format_as_text(data)),
         SerializationFormat::Html => Ok(format_as_html(data)),
         SerializationFormat::Csv => Ok(format_as_csv(data)),
@@ -455,7 +454,10 @@ pub fn serialize_by_type(
         SerializationFormat::Yaml => Ok(format_as_yaml(data)),
         SerializationFormat::MessagePack => {
             // Represent as hex-encoded JSON for demonstration
-            Ok(format!("msgpack:{}", serde_json::to_string(data).unwrap_or_default()))
+            Ok(format!(
+                "msgpack:{}",
+                serde_json::to_string(data).unwrap_or_default()
+            ))
         }
     }
 }
@@ -466,18 +468,16 @@ fn format_as_text(data: &serde_json::Value) -> String {
         serde_json::Value::Null => "null".to_string(),
         serde_json::Value::Bool(b) => b.to_string(),
         serde_json::Value::Number(n) => n.to_string(),
-        serde_json::Value::Array(arr) => {
-            arr.iter()
-                .map(|v| format_as_text(v))
-                .collect::<Vec<_>>()
-                .join("\n")
-        }
-        serde_json::Value::Object(obj) => {
-            obj.iter()
-                .map(|(k, v)| format!("{k}: {}", format_as_text(v)))
-                .collect::<Vec<_>>()
-                .join("\n")
-        }
+        serde_json::Value::Array(arr) => arr
+            .iter()
+            .map(|v| format_as_text(v))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        serde_json::Value::Object(obj) => obj
+            .iter()
+            .map(|(k, v)| format!("{k}: {}", format_as_text(v)))
+            .collect::<Vec<_>>()
+            .join("\n"),
     }
 }
 
@@ -491,10 +491,7 @@ fn format_as_html(data: &serde_json::Value) -> String {
             format!("<table>{rows}</table>")
         }
         serde_json::Value::Array(arr) => {
-            let items: String = arr
-                .iter()
-                .map(|v| format!("<li>{v}</li>"))
-                .collect();
+            let items: String = arr.iter().map(|v| format!("<li>{v}</li>")).collect();
             format!("<ul>{items}</ul>")
         }
         other => format!("<p>{other}</p>"),
@@ -510,7 +507,11 @@ fn format_as_csv(data: &serde_json::Value) -> String {
                 if let serde_json::Value::Object(obj) = first {
                     let header: Vec<&String> = obj.keys().collect();
                     lines.push(
-                        header.iter().map(|k| k.as_str()).collect::<Vec<_>>().join(","),
+                        header
+                            .iter()
+                            .map(|k| k.as_str())
+                            .collect::<Vec<_>>()
+                            .join(","),
                     );
                     for item in arr {
                         if let serde_json::Value::Object(row) = item {
@@ -672,10 +673,11 @@ pub fn negotiate_and_serialize(
     available_types: &[&str],
 ) -> Result<NegotiatedResponse, NegotiationError> {
     let content_type = negotiate_content_type(accept_header, available_types)?;
-    let format = SerializationFormat::from_media_type(&content_type)
-        .ok_or_else(|| NegotiationError::NotAcceptable {
+    let format = SerializationFormat::from_media_type(&content_type).ok_or_else(|| {
+        NegotiationError::NotAcceptable {
             available: available_types.iter().map(|s| s.to_string()).collect(),
-        })?;
+        }
+    })?;
     let body = serialize_by_type(data, format)?;
 
     let mut vary = VaryBuilder::new();
@@ -777,21 +779,17 @@ mod tests {
 
     #[test]
     fn negotiate_wildcard() {
-        let result = negotiate_content_type(
-            "*/*",
-            &["application/json", "text/html"],
-        )
-        .unwrap();
+        let result = negotiate_content_type("*/*", &["application/json", "text/html"]).unwrap();
         assert_eq!(result, "application/json");
     }
 
     #[test]
     fn negotiate_not_acceptable() {
-        let result = negotiate_content_type(
-            "application/xml",
-            &["application/json", "text/html"],
-        );
-        assert!(matches!(result, Err(NegotiationError::NotAcceptable { .. })));
+        let result = negotiate_content_type("application/xml", &["application/json", "text/html"]);
+        assert!(matches!(
+            result,
+            Err(NegotiationError::NotAcceptable { .. })
+        ));
     }
 
     #[test]
@@ -833,7 +831,10 @@ mod tests {
     #[test]
     fn negotiate_language_none() {
         let result = negotiate_language("de", &["en", "fr"]);
-        assert!(matches!(result, Err(NegotiationError::NoAcceptableLanguage)));
+        assert!(matches!(
+            result,
+            Err(NegotiationError::NoAcceptableLanguage)
+        ));
     }
 
     #[test]
@@ -845,8 +846,7 @@ mod tests {
 
     #[test]
     fn negotiate_encoding_match() {
-        let result =
-            negotiate_encoding("gzip, br;q=0.9", &["identity", "gzip", "br"]).unwrap();
+        let result = negotiate_encoding("gzip, br;q=0.9", &["identity", "gzip", "br"]).unwrap();
         assert_eq!(result, "gzip");
     }
 

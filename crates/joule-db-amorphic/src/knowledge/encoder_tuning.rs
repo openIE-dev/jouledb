@@ -170,10 +170,7 @@ impl AdaptiveEncoder {
 
     /// Perturb a vector by XORing with a sparse random mask.
     fn perturb(&self, vector: &BinaryHV, attempt: u64) -> BinaryHV {
-        let noise = BinaryHV::random(
-            self.dim,
-            self.seed.wrapping_add(attempt).wrapping_mul(7919),
-        );
+        let noise = BinaryHV::random(self.dim, self.seed.wrapping_add(attempt).wrapping_mul(7919));
         // XOR with noise flips ~50% of bits — too aggressive.
         // AND two random vectors to get ~25% mask, then XOR.
         let noise2 = BinaryHV::random(

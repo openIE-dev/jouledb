@@ -53,11 +53,7 @@ pub struct ChartEdge {
 }
 
 impl ChartEdge {
-    pub fn new(
-        source: impl Into<String>,
-        target: impl Into<String>,
-        value: f64,
-    ) -> Self {
+    pub fn new(source: impl Into<String>, target: impl Into<String>, value: f64) -> Self {
         Self {
             source_id: source.into(),
             target_id: target.into(),
@@ -151,7 +147,8 @@ impl GraphChart {
             return;
         }
         for (i, node) in self.nodes.iter_mut().enumerate() {
-            let angle = 2.0 * std::f64::consts::PI * i as f64 / n as f64 - std::f64::consts::FRAC_PI_2;
+            let angle =
+                2.0 * std::f64::consts::PI * i as f64 / n as f64 - std::f64::consts::FRAC_PI_2;
             node.x = center_x + radius * angle.cos();
             node.y = center_y + radius * angle.sin();
         }
@@ -233,8 +230,7 @@ impl GraphChart {
     /// Adjacency check.
     pub fn are_adjacent(&self, a: &str, b: &str) -> bool {
         self.edges.iter().any(|e| {
-            (e.source_id == a && e.target_id == b)
-                || (e.source_id == b && e.target_id == a)
+            (e.source_id == a && e.target_id == b) || (e.source_id == b && e.target_id == a)
         })
     }
 

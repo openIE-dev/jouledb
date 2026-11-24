@@ -167,7 +167,8 @@ impl MetricFilter {
     }
 
     pub fn require_label(mut self, key: &str, value: &str) -> Self {
-        self.required_labels.insert(key.to_string(), value.to_string());
+        self.required_labels
+            .insert(key.to_string(), value.to_string());
         self
     }
 
@@ -416,10 +417,7 @@ pub fn export_statsd(points: &[MetricPoint]) -> String {
         if !p.labels.is_empty() {
             let mut sorted: Vec<(&String, &String)> = p.labels.iter().collect();
             sorted.sort_by_key(|(k, _)| k.as_str());
-            let tags: Vec<String> = sorted
-                .iter()
-                .map(|(k, v)| format!("{}:{}", k, v))
-                .collect();
+            let tags: Vec<String> = sorted.iter().map(|(k, v)| format!("{}:{}", k, v)).collect();
             line.push_str(&format!("|#{}", tags.join(",")));
         }
 
@@ -477,9 +475,9 @@ pub fn export_otlp(points: &[MetricPoint]) -> String {
         let data_type = match p.kind {
             MetricKind::Counter => "Sum",
             MetricKind::Gauge => "Gauge",
-            MetricKind::HistogramSum
-            | MetricKind::HistogramCount
-            | MetricKind::HistogramBucket => "Histogram",
+            MetricKind::HistogramSum | MetricKind::HistogramCount | MetricKind::HistogramBucket => {
+                "Histogram"
+            }
             MetricKind::Summary => "Summary",
             MetricKind::Untyped => "Gauge",
         };
@@ -492,7 +490,10 @@ pub fn export_otlp(points: &[MetricPoint]) -> String {
             format!("{}", p.value)
         };
         out.push_str(&format!("        value: {}\n", value_str));
-        out.push_str(&format!("        time_unix_nano: {}\n", p.timestamp_ms as u64 * 1_000_000));
+        out.push_str(&format!(
+            "        time_unix_nano: {}\n",
+            p.timestamp_ms as u64 * 1_000_000
+        ));
 
         if !p.labels.is_empty() {
             out.push_str("        attributes: [");
@@ -541,7 +542,9 @@ impl ExportFormat {
     pub fn content_type(&self) -> &'static str {
         match self {
             ExportFormat::Json => "application/json",
-            ExportFormat::OpenMetrics => "application/openmetrics-text; version=1.0.0; charset=utf-8",
+            ExportFormat::OpenMetrics => {
+                "application/openmetrics-text; version=1.0.0; charset=utf-8"
+            }
             ExportFormat::StatsD => "text/plain",
             ExportFormat::Graphite => "text/plain",
             ExportFormat::Otlp => "text/plain",
@@ -717,8 +720,7 @@ mod tests {
             MetricPoint::counter("http_requests_total", 1027.0, 1700000000000)
                 .with_label("method", "GET")
                 .with_label("code", "200"),
-            MetricPoint::gauge("temperature", 22.5, 1700000000000)
-                .with_description("Current temp"),
+            MetricPoint::gauge("temperature", 22.5, 1700000000000).with_description("Current temp"),
             MetricPoint::counter("http_requests_total", 3.0, 1700000000000)
                 .with_label("method", "POST")
                 .with_label("code", "201"),
@@ -754,9 +756,7 @@ mod tests {
 
     #[test]
     fn test_export_json() {
-        let points = vec![
-            MetricPoint::counter("hits", 42.0, 1000),
-        ];
+        let points = vec![MetricPoint::counter("hits", 42.0, 1000)];
         let json = export_json(&points);
         assert!(json.contains("\"name\":\"hits\""));
         assert!(json.contains("\"value\":42"));
@@ -766,10 +766,7 @@ mod tests {
 
     #[test]
     fn test_export_json_with_labels() {
-        let points = vec![
-            MetricPoint::counter("req", 5.0, 1000)
-                .with_label("method", "GET"),
-        ];
+        let points = vec![MetricPoint::counter("req", 5.0, 1000).with_label("method", "GET")];
         let json = export_json(&points);
         assert!(json.contains("\"labels\":{"));
         assert!(json.contains("\"method\":\"GET\""));
@@ -789,8 +786,7 @@ mod tests {
     #[test]
     fn test_export_openmetrics() {
         let points = vec![
-            MetricPoint::counter("requests_total", 100.0, 1000)
-                .with_description("Total requests"),
+            MetricPoint::counter("requests_total", 100.0, 1000).with_description("Total requests"),
         ];
         let text = export_openmetrics(&points);
         assert!(text.contains("# HELP requests Total requests"));
@@ -803,8 +799,7 @@ mod tests {
     fn test_export_statsd() {
         let points = vec![
             MetricPoint::counter("hits", 10.0, 0),
-            MetricPoint::gauge("temp", 22.5, 0)
-                .with_label("host", "web01"),
+            MetricPoint::gauge("temp", 22.5, 0).with_label("host", "web01"),
         ];
         let text = export_statsd(&points);
         assert!(text.contains("hits:10|c"));
@@ -813,19 +808,15 @@ mod tests {
 
     #[test]
     fn test_export_graphite() {
-        let points = vec![
-            MetricPoint::counter("app.requests", 42.0, 1700000000000),
-        ];
+        let points = vec![MetricPoint::counter("app.requests", 42.0, 1700000000000)];
         let text = export_graphite(&points);
         assert!(text.contains("app.requests 42 1700000000"));
     }
 
     #[test]
     fn test_export_graphite_with_labels() {
-        let points = vec![
-            MetricPoint::counter("requests", 5.0, 1000000)
-                .with_label("host", "web01"),
-        ];
+        let points =
+            vec![MetricPoint::counter("requests", 5.0, 1000000).with_label("host", "web01")];
         let text = export_graphite(&points);
         assert!(text.contains("requests.host.web01 5 1000"));
     }
@@ -916,8 +907,7 @@ mod tests {
 
     #[test]
     fn test_batch_exporter_with_prefix() {
-        let config = ExportConfig::new(ExportFormat::StatsD)
-            .with_prefix("myapp");
+        let config = ExportConfig::new(ExportFormat::StatsD).with_prefix("myapp");
         let mut exporter = BatchExporter::new(config);
         exporter.add(MetricPoint::counter("req", 1.0, 0));
         let output = exporter.flush();
@@ -944,7 +934,11 @@ mod tests {
     #[test]
     fn test_export_format_content_type() {
         assert_eq!(ExportFormat::Json.content_type(), "application/json");
-        assert!(ExportFormat::OpenMetrics.content_type().contains("openmetrics"));
+        assert!(
+            ExportFormat::OpenMetrics
+                .content_type()
+                .contains("openmetrics")
+        );
     }
 
     #[test]

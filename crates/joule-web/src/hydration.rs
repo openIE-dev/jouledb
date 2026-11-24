@@ -52,21 +52,32 @@ impl HydrationNode {
     }
 
     pub fn with_child(mut self, child: HydrationNode) -> Self {
-        if let HydrationNode::Element { ref mut children, .. } = self {
+        if let HydrationNode::Element {
+            ref mut children, ..
+        } = self
+        {
             children.push(child);
         }
         self
     }
 
     pub fn with_key(mut self, key: &str) -> Self {
-        if let HydrationNode::Element { ref mut hydration_key, .. } = self {
+        if let HydrationNode::Element {
+            ref mut hydration_key,
+            ..
+        } = self
+        {
             *hydration_key = Some(key.to_string());
         }
         self
     }
 
     pub fn with_interactive(mut self) -> Self {
-        if let HydrationNode::Element { ref mut interactive, .. } = self {
+        if let HydrationNode::Element {
+            ref mut interactive,
+            ..
+        } = self
+        {
             *interactive = true;
         }
         self
@@ -86,9 +97,17 @@ impl HydrationNode {
     pub fn interactive_count(&self) -> usize {
         match self {
             HydrationNode::Text(_) | HydrationNode::Comment(_) => 0,
-            HydrationNode::Element { interactive, children, .. } => {
+            HydrationNode::Element {
+                interactive,
+                children,
+                ..
+            } => {
                 let self_count = if *interactive { 1 } else { 0 };
-                self_count + children.iter().map(|c| c.interactive_count()).sum::<usize>()
+                self_count
+                    + children
+                        .iter()
+                        .map(|c| c.interactive_count())
+                        .sum::<usize>()
             }
         }
     }
@@ -98,8 +117,8 @@ impl HydrationNode {
 
 /// Void elements that should not have closing tags.
 const VOID_ELEMENTS: &[&str] = &[
-    "area", "base", "br", "col", "embed", "hr", "img", "input",
-    "link", "meta", "param", "source", "track", "wbr",
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
+    "track", "wbr",
 ];
 
 /// Render a hydration node tree to an HTML string (server-side rendering).
@@ -126,7 +145,12 @@ fn render_node(node: &HydrationNode, buf: &mut String, depth: usize) {
             buf.push_str(text);
             buf.push_str("-->");
         }
-        HydrationNode::Element { tag, attrs, children, .. } => {
+        HydrationNode::Element {
+            tag,
+            attrs,
+            children,
+            ..
+        } => {
             buf.push('<');
             buf.push_str(tag);
 
@@ -176,7 +200,13 @@ fn render_node_with_markers(
             buf.push_str(text);
             buf.push_str("-->");
         }
-        HydrationNode::Element { tag, attrs, children, hydration_key, .. } => {
+        HydrationNode::Element {
+            tag,
+            attrs,
+            children,
+            hydration_key,
+            ..
+        } => {
             buf.push('<');
             buf.push_str(tag);
 
@@ -290,10 +320,7 @@ pub enum HydrationMismatch {
 }
 
 /// Compare a server-rendered tree with a client-rendered tree and find mismatches.
-pub fn detect_mismatches(
-    server: &HydrationNode,
-    client: &HydrationNode,
-) -> Vec<HydrationMismatch> {
+pub fn detect_mismatches(server: &HydrationNode, client: &HydrationNode) -> Vec<HydrationMismatch> {
     let mut mismatches = Vec::new();
     detect_recursive(server, client, &[], &mut mismatches);
     mismatches
@@ -324,8 +351,18 @@ fn detect_recursive(
             }
         }
         (
-            HydrationNode::Element { tag: stag, attrs: sattrs, children: schildren, .. },
-            HydrationNode::Element { tag: ctag, attrs: cattrs, children: cchildren, .. },
+            HydrationNode::Element {
+                tag: stag,
+                attrs: sattrs,
+                children: schildren,
+                ..
+            },
+            HydrationNode::Element {
+                tag: ctag,
+                attrs: cattrs,
+                children: cchildren,
+                ..
+            },
         ) => {
             if stag != ctag {
                 mismatches.push(HydrationMismatch::TagMismatch {
@@ -410,11 +447,21 @@ fn assign_hints_recursive(
     hints: &mut Vec<(Vec<usize>, HydrationHint)>,
 ) {
     match node {
-        HydrationNode::Element { interactive, children, .. } => {
+        HydrationNode::Element {
+            interactive,
+            children,
+            ..
+        } => {
             let hint = if *interactive {
                 HydrationHint::Eager
             } else if children.iter().any(|c| {
-                matches!(c, HydrationNode::Element { interactive: true, .. })
+                matches!(
+                    c,
+                    HydrationNode::Element {
+                        interactive: true,
+                        ..
+                    }
+                )
             }) {
                 HydrationHint::Visible
             } else {
@@ -452,10 +499,7 @@ pub struct HydrationStats {
 
 impl HydrationStats {
     /// Compute stats from a node tree and optional mismatch list.
-    pub fn compute(
-        node: &HydrationNode,
-        mismatches: &[HydrationMismatch],
-    ) -> Self {
+    pub fn compute(node: &HydrationNode, mismatches: &[HydrationMismatch]) -> Self {
         let mut stats = Self::default();
         stats.mismatch_count = mismatches.len();
         count_stats(node, &mut stats);
@@ -480,7 +524,11 @@ fn count_stats(node: &HydrationNode, stats: &mut HydrationStats) {
             stats.text_nodes += 1;
         }
         HydrationNode::Comment(_) => {}
-        HydrationNode::Element { interactive, children, .. } => {
+        HydrationNode::Element {
+            interactive,
+            children,
+            ..
+        } => {
             stats.elements_hydrated += 1;
             if *interactive {
                 stats.interactive_nodes += 1;
@@ -508,7 +556,12 @@ fn extract_interactive_recursive(
     path: &[usize],
     result: &mut Vec<(Vec<usize>, HydrationNode)>,
 ) {
-    if let HydrationNode::Element { interactive, children, .. } = node {
+    if let HydrationNode::Element {
+        interactive,
+        children,
+        ..
+    } = node
+    {
         if *interactive {
             result.push((path.to_vec(), node.clone()));
         }
@@ -546,8 +599,7 @@ mod tests {
 
     #[test]
     fn render_element_with_attrs() {
-        let node = HydrationNode::element("div")
-            .with_attr("class", "red");
+        let node = HydrationNode::element("div").with_attr("class", "red");
         let html = render_to_html(&node);
         assert!(html.contains("<div"));
         assert!(html.contains("class=\"red\""));
@@ -581,8 +633,7 @@ mod tests {
 
     #[test]
     fn render_escapes_attributes() {
-        let node = HydrationNode::element("div")
-            .with_attr("title", "say \"hello\"");
+        let node = HydrationNode::element("div").with_attr("title", "say \"hello\"");
         let html = render_to_html(&node);
         assert!(html.contains("&quot;hello&quot;"));
     }
@@ -596,8 +647,7 @@ mod tests {
 
     #[test]
     fn render_with_markers_adds_hid() {
-        let node = HydrationNode::element("div")
-            .with_child(HydrationNode::element("span"));
+        let node = HydrationNode::element("div").with_child(HydrationNode::element("span"));
         let html = render_to_html_with_markers(&node);
         assert!(html.contains("data-hid=\"0\""));
         assert!(html.contains("data-hid=\"1\""));
@@ -623,7 +673,10 @@ mod tests {
         let client = HydrationNode::text("world");
         let mismatches = detect_mismatches(&server, &client);
         assert_eq!(mismatches.len(), 1);
-        assert!(matches!(&mismatches[0], HydrationMismatch::TextMismatch { .. }));
+        assert!(matches!(
+            &mismatches[0],
+            HydrationMismatch::TextMismatch { .. }
+        ));
     }
 
     #[test]
@@ -632,7 +685,10 @@ mod tests {
         let client = HydrationNode::element("span");
         let mismatches = detect_mismatches(&server, &client);
         assert_eq!(mismatches.len(), 1);
-        assert!(matches!(&mismatches[0], HydrationMismatch::TagMismatch { .. }));
+        assert!(matches!(
+            &mismatches[0],
+            HydrationMismatch::TagMismatch { .. }
+        ));
     }
 
     #[test]
@@ -641,18 +697,24 @@ mod tests {
         let client = HydrationNode::element("div").with_attr("class", "b");
         let mismatches = detect_mismatches(&server, &client);
         assert_eq!(mismatches.len(), 1);
-        assert!(matches!(&mismatches[0], HydrationMismatch::AttrMismatch { .. }));
+        assert!(matches!(
+            &mismatches[0],
+            HydrationMismatch::AttrMismatch { .. }
+        ));
     }
 
     #[test]
     fn detect_child_count_mismatch() {
-        let server = HydrationNode::element("div")
-            .with_child(HydrationNode::text("a"));
+        let server = HydrationNode::element("div").with_child(HydrationNode::text("a"));
         let client = HydrationNode::element("div")
             .with_child(HydrationNode::text("a"))
             .with_child(HydrationNode::text("b"));
         let mismatches = detect_mismatches(&server, &client);
-        assert!(mismatches.iter().any(|m| matches!(m, HydrationMismatch::ChildCountMismatch { .. })));
+        assert!(
+            mismatches
+                .iter()
+                .any(|m| matches!(m, HydrationMismatch::ChildCountMismatch { .. }))
+        );
     }
 
     #[test]
@@ -661,7 +723,10 @@ mod tests {
         let client = HydrationNode::text("text");
         let mismatches = detect_mismatches(&server, &client);
         assert_eq!(mismatches.len(), 1);
-        assert!(matches!(&mismatches[0], HydrationMismatch::TypeMismatch { .. }));
+        assert!(matches!(
+            &mismatches[0],
+            HydrationMismatch::TypeMismatch { .. }
+        ));
     }
 
     #[test]
@@ -677,13 +742,11 @@ mod tests {
     #[test]
     fn hydration_stats_with_mismatches() {
         let tree = sample_tree();
-        let mismatches = vec![
-            HydrationMismatch::TextMismatch {
-                path: vec![0],
-                server_text: "a".to_string(),
-                client_text: "b".to_string(),
-            },
-        ];
+        let mismatches = vec![HydrationMismatch::TextMismatch {
+            path: vec![0],
+            server_text: "a".to_string(),
+            client_text: "b".to_string(),
+        }];
         let stats = HydrationStats::compute(&tree, &mismatches);
         assert_eq!(stats.mismatch_count, 1);
         assert!(stats.success_rate() < 1.0);

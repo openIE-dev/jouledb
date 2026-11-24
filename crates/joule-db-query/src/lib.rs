@@ -20,9 +20,9 @@
 //! ```
 
 pub mod ast;
+pub mod error;
 pub mod like;
 pub mod vector_scan;
-pub mod error;
 
 #[cfg(feature = "sql")]
 pub mod sql;
@@ -62,12 +62,12 @@ pub mod jsonb;
 pub mod morsel_spill;
 pub mod planner;
 pub mod prepared;
+pub mod secdb_napa;
 pub mod timeout;
 pub mod triggers;
 pub mod vector;
 pub mod wcoj;
 pub mod wcoj_cost;
-pub mod secdb_napa;
 pub mod zonemap_scan;
 
 #[cfg(feature = "analytical")]

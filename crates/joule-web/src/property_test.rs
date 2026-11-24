@@ -101,7 +101,10 @@ impl IntRangeGen {
     }
 
     pub fn full() -> Self {
-        Self { lo: i64::MIN / 2, hi: i64::MAX / 2 }
+        Self {
+            lo: i64::MIN / 2,
+            hi: i64::MAX / 2,
+        }
     }
 }
 
@@ -292,7 +295,11 @@ impl StringGen {
         } else {
             (max_len, min_len)
         };
-        Self { min_len, max_len, char_class }
+        Self {
+            min_len,
+            max_len,
+            char_class,
+        }
     }
 
     pub fn ascii(min_len: usize, max_len: usize) -> Self {
@@ -363,7 +370,11 @@ impl<G> VecGen<G> {
         } else {
             (max_len, min_len)
         };
-        Self { inner, min_len, max_len }
+        Self {
+            inner,
+            min_len,
+            max_len,
+        }
     }
 }
 
@@ -373,11 +384,17 @@ impl<G: Generator> Generator for VecGen<G> {
     fn generate(&self, seed: u64, size: usize) -> Vec<G::Value> {
         let mut rng = Rng::new(seed);
         let range = self.max_len - self.min_len;
-        let scaled = if range == 0 { 0 } else { (range * size.min(100)) / 100 };
+        let scaled = if range == 0 {
+            0
+        } else {
+            (range * size.min(100)) / 100
+        };
         let len = self.min_len + (rng.next_u64() as usize) % (scaled + 1);
         (0..len)
             .map(|i| {
-                let child_seed = seed.wrapping_add(i as u64).wrapping_mul(6364136223846793005);
+                let child_seed = seed
+                    .wrapping_add(i as u64)
+                    .wrapping_mul(6364136223846793005);
                 self.inner.generate(child_seed, size)
             })
             .collect()
@@ -421,7 +438,10 @@ pub struct OptionGen<G> {
 
 impl<G> OptionGen<G> {
     pub fn new(inner: G) -> Self {
-        Self { inner, some_probability: 0.75 }
+        Self {
+            inner,
+            some_probability: 0.75,
+        }
     }
 
     pub fn with_probability(inner: G, some_probability: f64) -> Self {
@@ -657,7 +677,8 @@ pub fn forall<G: Generator>(
 
         if !property(&value) {
             // Shrink
-            let (shrunk, shrink_steps) = shrink_value(generator, &value, &property, config.max_shrinks);
+            let (shrunk, shrink_steps) =
+                shrink_value(generator, &value, &property, config.max_shrinks);
             return PropertyResult::Failed {
                 original: value,
                 shrunk,
@@ -793,7 +814,10 @@ where
     F: Fn(G::Value) -> T,
     T: Clone + fmt::Debug,
 {
-    MappedGen { inner: source, map_fn: f }
+    MappedGen {
+        inner: source,
+        map_fn: f,
+    }
 }
 
 // ── Filter Generator ─────────────────────────────────────────────
@@ -829,7 +853,9 @@ where
             if (self.predicate)(&value) {
                 return value;
             }
-            attempt_seed = attempt_seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+            attempt_seed = attempt_seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1);
         }
         // Last resort: just return whatever we get
         self.inner.generate(seed, size)
@@ -884,9 +910,13 @@ impl TestReport {
             PropertyResult::Passed { num_tests } => {
                 (true, *num_tests, format!("OK, passed {num_tests} tests"))
             }
-            PropertyResult::Failed { num_passed, seed, .. } => {
-                (false, *num_passed, format!("FAILED after {num_passed} tests (seed={seed})"))
-            }
+            PropertyResult::Failed {
+                num_passed, seed, ..
+            } => (
+                false,
+                *num_passed,
+                format!("FAILED after {num_passed} tests (seed={seed})"),
+            ),
         };
         self.entries.push(ReportEntry {
             name: name.to_string(),

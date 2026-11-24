@@ -16,7 +16,12 @@ pub enum CaError {
     /// Grid dimensions are zero.
     ZeroDimension,
     /// Coordinates out of bounds.
-    OutOfBounds { x: usize, y: usize, width: usize, height: usize },
+    OutOfBounds {
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    },
     /// Invalid rule number for elementary automaton.
     InvalidRule(u16),
     /// Grid size mismatch.
@@ -27,7 +32,12 @@ impl fmt::Display for CaError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ZeroDimension => write!(f, "grid dimensions must be non-zero"),
-            Self::OutOfBounds { x, y, width, height } => {
+            Self::OutOfBounds {
+                x,
+                y,
+                width,
+                height,
+            } => {
                 write!(f, "({x}, {y}) out of bounds for {width}x{height} grid")
             }
             Self::InvalidRule(r) => write!(f, "invalid rule number: {r} (must be 0..=255)"),
@@ -103,7 +113,10 @@ impl ElementaryAutomaton {
     pub fn set(&mut self, pos: usize, state: CellState) -> Result<(), CaError> {
         if pos >= self.cells.len() {
             return Err(CaError::OutOfBounds {
-                x: pos, y: 0, width: self.cells.len(), height: 1,
+                x: pos,
+                y: 0,
+                width: self.cells.len(),
+                height: 1,
             });
         }
         self.cells[pos] = state;
@@ -193,7 +206,10 @@ impl ElementaryAutomaton {
 
     /// Render the current row as a string ('.' dead, '#' alive).
     pub fn render_row(&self) -> String {
-        self.cells.iter().map(|c| if *c != 0 { '#' } else { '.' }).collect()
+        self.cells
+            .iter()
+            .map(|c| if *c != 0 { '#' } else { '.' })
+            .collect()
     }
 }
 
@@ -250,16 +266,27 @@ impl Grid2D {
     }
 
     /// Dimensions.
-    pub fn width(&self) -> usize { self.width }
-    pub fn height(&self) -> usize { self.height }
+    pub fn width(&self) -> usize {
+        self.width
+    }
+    pub fn height(&self) -> usize {
+        self.height
+    }
 
     /// Current generation.
-    pub fn generation(&self) -> u64 { self.generation }
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
 
     /// Get cell state at (x, y).
     pub fn get(&self, x: usize, y: usize) -> Result<CellState, CaError> {
         if x >= self.width || y >= self.height {
-            return Err(CaError::OutOfBounds { x, y, width: self.width, height: self.height });
+            return Err(CaError::OutOfBounds {
+                x,
+                y,
+                width: self.width,
+                height: self.height,
+            });
         }
         Ok(self.cells[y * self.width + x])
     }
@@ -267,7 +294,12 @@ impl Grid2D {
     /// Set cell state at (x, y).
     pub fn set(&mut self, x: usize, y: usize, state: CellState) -> Result<(), CaError> {
         if x >= self.width || y >= self.height {
-            return Err(CaError::OutOfBounds { x, y, width: self.width, height: self.height });
+            return Err(CaError::OutOfBounds {
+                x,
+                y,
+                width: self.width,
+                height: self.height,
+            });
         }
         self.cells[y * self.width + x] = state;
         Ok(())
@@ -280,7 +312,9 @@ impl Grid2D {
     }
 
     /// Raw cell data.
-    pub fn cells(&self) -> &[CellState] { &self.cells }
+    pub fn cells(&self) -> &[CellState] {
+        &self.cells
+    }
 
     /// Load cells from a flat slice.
     pub fn load(&mut self, data: &[CellState]) -> Result<(), CaError> {
@@ -308,15 +342,16 @@ impl Grid2D {
     pub fn count_neighbors(&self, x: usize, y: usize) -> u8 {
         let offsets: &[(i32, i32)] = match self.neighborhood {
             Neighborhood::Moore => &[
-                (-1, -1), (0, -1), (1, -1),
-                (-1,  0),          (1,  0),
-                (-1,  1), (0,  1), (1,  1),
+                (-1, -1),
+                (0, -1),
+                (1, -1),
+                (-1, 0),
+                (1, 0),
+                (-1, 1),
+                (0, 1),
+                (1, 1),
             ],
-            Neighborhood::VonNeumann => &[
-                         (0, -1),
-                (-1,  0),          (1,  0),
-                         (0,  1),
-            ],
+            Neighborhood::VonNeumann => &[(0, -1), (-1, 0), (1, 0), (0, 1)],
         };
 
         let mut count = 0u8;
@@ -378,7 +413,12 @@ impl Grid2D {
     }
 
     /// Place a pattern at (ox, oy). Pattern is a list of (dx, dy) offsets.
-    pub fn place_pattern(&mut self, ox: usize, oy: usize, pattern: &[(usize, usize)]) -> Result<(), CaError> {
+    pub fn place_pattern(
+        &mut self,
+        ox: usize,
+        oy: usize,
+        pattern: &[(usize, usize)],
+    ) -> Result<(), CaError> {
         for &(dx, dy) in pattern {
             let x = ox + dx;
             let y = oy + dy;
@@ -392,7 +432,11 @@ impl Grid2D {
         let mut out = String::with_capacity((self.width + 1) * self.height);
         for y in 0..self.height {
             for x in 0..self.width {
-                out.push(if self.cells[y * self.width + x] != 0 { '#' } else { '.' });
+                out.push(if self.cells[y * self.width + x] != 0 {
+                    '#'
+                } else {
+                    '.'
+                });
             }
             if y < self.height - 1 {
                 out.push('\n');
@@ -726,7 +770,8 @@ mod tests {
     #[test]
     fn test_custom_rules() {
         // Highlife: B36/S23.
-        let mut grid = Grid2D::game_of_life(10, 10).unwrap()
+        let mut grid = Grid2D::game_of_life(10, 10)
+            .unwrap()
             .with_rules(vec![3, 6], vec![2, 3]);
         grid.set(2, 2, 1).unwrap();
         grid.step();

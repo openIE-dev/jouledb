@@ -331,7 +331,8 @@ impl EditorState {
         // Insert image node after current position's parent block
         if pos.path.len() >= 2 {
             let parent_path = &pos.path[..pos.path.len() - 1];
-            let block_parent = &parent_path[..parent_path.len().max(1) - if parent_path.is_empty() { 0 } else { 1 }];
+            let block_parent = &parent_path
+                [..parent_path.len().max(1) - if parent_path.is_empty() { 0 } else { 1 }];
             let idx = if parent_path.is_empty() {
                 0
             } else {
@@ -339,8 +340,7 @@ impl EditorState {
             };
             if let Some(container) = self.document.node_at_mut(block_parent) {
                 if let Some(children) = container.children_mut() {
-                    let img_para =
-                        Node::paragraph(vec![Node::image(src, alt)]);
+                    let img_para = Node::paragraph(vec![Node::image(src, alt)]);
                     let insert_at = (idx + 1).min(children.len());
                     children.insert(insert_at, img_para);
                     return Ok(());
@@ -355,7 +355,8 @@ impl EditorState {
         let pos = self.selection.head();
         if pos.path.len() >= 2 {
             let block_path = &pos.path[..pos.path.len() - 1];
-            let parent_path = &block_path[..block_path.len().max(1) - if block_path.is_empty() { 0 } else { 1 }];
+            let parent_path =
+                &block_path[..block_path.len().max(1) - if block_path.is_empty() { 0 } else { 1 }];
             let idx = if block_path.is_empty() {
                 0
             } else {
@@ -638,9 +639,7 @@ mod tests {
         let mut editor = make_editor();
         editor.max_history = 3;
         for i in 0..5 {
-            editor
-                .execute(Command::InsertText(format!("{i}")))
-                .unwrap();
+            editor.execute(Command::InsertText(format!("{i}"))).unwrap();
         }
         assert!(editor.undo_stack.len() <= 3);
     }

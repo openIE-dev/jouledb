@@ -18,9 +18,17 @@ pub struct Point3 {
 }
 
 impl Point3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
 
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0, z: 0.0 } }
+    pub fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
 
     pub fn distance_to(&self, other: &Point3) -> f64 {
         let dx = self.x - other.x;
@@ -54,20 +62,38 @@ impl Point3 {
 
     pub fn normalized(&self) -> Point3 {
         let n = self.norm();
-        if n < 1e-15 { return Point3::zero(); }
-        Point3 { x: self.x / n, y: self.y / n, z: self.z / n }
+        if n < 1e-15 {
+            return Point3::zero();
+        }
+        Point3 {
+            x: self.x / n,
+            y: self.y / n,
+            z: self.z / n,
+        }
     }
 
     pub fn add(&self, other: &Point3) -> Point3 {
-        Point3 { x: self.x + other.x, y: self.y + other.y, z: self.z + other.z }
+        Point3 {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
     }
 
     pub fn sub(&self, other: &Point3) -> Point3 {
-        Point3 { x: self.x - other.x, y: self.y - other.y, z: self.z - other.z }
+        Point3 {
+            x: self.x - other.x,
+            y: self.y - other.y,
+            z: self.z - other.z,
+        }
     }
 
     pub fn scale(&self, s: f64) -> Point3 {
-        Point3 { x: self.x * s, y: self.y * s, z: self.z * s }
+        Point3 {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 }
 
@@ -86,19 +112,31 @@ pub struct PointCloud {
 }
 
 impl PointCloud {
-    pub fn new() -> Self { Self { points: Vec::new() } }
+    pub fn new() -> Self {
+        Self { points: Vec::new() }
+    }
 
-    pub fn from_points(points: Vec<Point3>) -> Self { Self { points } }
+    pub fn from_points(points: Vec<Point3>) -> Self {
+        Self { points }
+    }
 
-    pub fn len(&self) -> usize { self.points.len() }
+    pub fn len(&self) -> usize {
+        self.points.len()
+    }
 
-    pub fn is_empty(&self) -> bool { self.points.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.points.is_empty()
+    }
 
-    pub fn push(&mut self, p: Point3) { self.points.push(p); }
+    pub fn push(&mut self, p: Point3) {
+        self.points.push(p);
+    }
 
     /// Centroid (arithmetic mean).
     pub fn centroid(&self) -> Point3 {
-        if self.points.is_empty() { return Point3::zero(); }
+        if self.points.is_empty() {
+            return Point3::zero();
+        }
         let n = self.points.len() as f64;
         let mut sx = 0.0;
         let mut sy = 0.0;
@@ -119,12 +157,24 @@ impl PointCloud {
         let mut min = self.points[0];
         let mut max = self.points[0];
         for p in &self.points[1..] {
-            if p.x < min.x { min.x = p.x; }
-            if p.y < min.y { min.y = p.y; }
-            if p.z < min.z { min.z = p.z; }
-            if p.x > max.x { max.x = p.x; }
-            if p.y > max.y { max.y = p.y; }
-            if p.z > max.z { max.z = p.z; }
+            if p.x < min.x {
+                min.x = p.x;
+            }
+            if p.y < min.y {
+                min.y = p.y;
+            }
+            if p.z < min.z {
+                min.z = p.z;
+            }
+            if p.x > max.x {
+                max.x = p.x;
+            }
+            if p.y > max.y {
+                max.y = p.y;
+            }
+            if p.z > max.z {
+                max.z = p.z;
+            }
         }
         (min, max)
     }
@@ -192,19 +242,29 @@ pub fn estimate_normals(cloud: &PointCloud, k: usize) -> Vec<Point3> {
 
 /// Fit a plane normal via covariance PCA (power iteration on 3×3 covariance).
 fn fit_plane_normal(center: &Point3, neighbors: &[usize], points: &[Point3]) -> Point3 {
-    if neighbors.len() < 2 { return Point3::new(0.0, 0.0, 1.0); }
+    if neighbors.len() < 2 {
+        return Point3::new(0.0, 0.0, 1.0);
+    }
 
     // Compute 3×3 covariance
     let mut cov = [0.0f64; 9];
     let mut count = 0.0;
     for &idx in neighbors {
         let d = points[idx].sub(center);
-        cov[0] += d.x * d.x; cov[1] += d.x * d.y; cov[2] += d.x * d.z;
-        cov[3] += d.y * d.x; cov[4] += d.y * d.y; cov[5] += d.y * d.z;
-        cov[6] += d.z * d.x; cov[7] += d.z * d.y; cov[8] += d.z * d.z;
+        cov[0] += d.x * d.x;
+        cov[1] += d.x * d.y;
+        cov[2] += d.x * d.z;
+        cov[3] += d.y * d.x;
+        cov[4] += d.y * d.y;
+        cov[5] += d.y * d.z;
+        cov[6] += d.z * d.x;
+        cov[7] += d.z * d.y;
+        cov[8] += d.z * d.z;
         count += 1.0;
     }
-    for v in &mut cov { *v /= count; }
+    for v in &mut cov {
+        *v /= count;
+    }
 
     // Power iteration to find smallest eigenvector (normal)
     // We find the largest eigenvector, then use cross products
@@ -222,7 +282,9 @@ fn fit_plane_normal(center: &Point3, neighbors: &[usize], points: &[Point3]) -> 
         let vi = [v1.x, v1.y, v1.z][i];
         for j in 0..3 {
             let vj = [v1.x, v1.y, v1.z][j];
-            let lam = cov[0] * v1.x * v1.x + cov[4] * v1.y * v1.y + cov[8] * v1.z * v1.z
+            let lam = cov[0] * v1.x * v1.x
+                + cov[4] * v1.y * v1.y
+                + cov[8] * v1.z * v1.z
                 + 2.0 * (cov[1] * v1.x * v1.y + cov[2] * v1.x * v1.z + cov[5] * v1.y * v1.z);
             cov2[i * 3 + j] = cov[i * 3 + j] - lam * vi * vj;
         }
@@ -261,16 +323,29 @@ impl PlaneModel {
 
 impl fmt::Display for PlaneModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Plane({:.4}x + {:.4}y + {:.4}z + {:.4} = 0)", self.a, self.b, self.c, self.d)
+        write!(
+            f,
+            "Plane({:.4}x + {:.4}y + {:.4}z + {:.4} = 0)",
+            self.a, self.b, self.c, self.d
+        )
     }
 }
 
 /// Simple LCG RNG for RANSAC.
-struct SimpleRng { state: u64 }
+struct SimpleRng {
+    state: u64,
+}
 impl SimpleRng {
-    fn new(seed: u64) -> Self { Self { state: seed.wrapping_add(1) } }
+    fn new(seed: u64) -> Self {
+        Self {
+            state: seed.wrapping_add(1),
+        }
+    }
     fn next(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.state
     }
     fn range(&mut self, max: usize) -> usize {
@@ -286,17 +361,26 @@ pub fn ransac_plane(
     seed: u64,
 ) -> Option<(Vec<usize>, PlaneModel)> {
     let n = cloud.len();
-    if n < 3 { return None; }
+    if n < 3 {
+        return None;
+    }
 
     let mut rng = SimpleRng::new(seed);
     let mut best_inliers: Vec<usize> = Vec::new();
-    let mut best_plane = PlaneModel { a: 0.0, b: 0.0, c: 0.0, d: 0.0 };
+    let mut best_plane = PlaneModel {
+        a: 0.0,
+        b: 0.0,
+        c: 0.0,
+        d: 0.0,
+    };
 
     for _ in 0..max_iterations {
         let i0 = rng.range(n);
         let i1 = rng.range(n);
         let i2 = rng.range(n);
-        if i0 == i1 || i1 == i2 || i0 == i2 { continue; }
+        if i0 == i1 || i1 == i2 || i0 == i2 {
+            continue;
+        }
 
         let p0 = &cloud.points[i0];
         let p1 = &cloud.points[i1];
@@ -306,11 +390,18 @@ pub fn ransac_plane(
         let v2 = p2.sub(p0);
         let normal = v1.cross(&v2);
         let norm_len = normal.norm();
-        if norm_len < 1e-12 { continue; }
+        if norm_len < 1e-12 {
+            continue;
+        }
 
         let nn = normal.scale(1.0 / norm_len);
         let d = -(nn.x * p0.x + nn.y * p0.y + nn.z * p0.z);
-        let plane = PlaneModel { a: nn.x, b: nn.y, c: nn.z, d };
+        let plane = PlaneModel {
+            a: nn.x,
+            b: nn.y,
+            c: nn.z,
+            d,
+        };
 
         let inliers: Vec<usize> = (0..n)
             .filter(|j| plane.distance(&cloud.points[*j]) < distance_threshold)
@@ -340,14 +431,18 @@ pub fn dbscan(cloud: &PointCloud, eps: f64, min_pts: usize) -> Vec<i32> {
     let mut cluster_id: i32 = 0;
 
     for i in 0..n {
-        if labels[i] != -1 { continue; }
+        if labels[i] != -1 {
+            continue;
+        }
 
         // Region query
         let neighbors: Vec<usize> = (0..n)
             .filter(|j| cloud.points[i].distance_sq(&cloud.points[*j]) <= eps_sq)
             .collect();
 
-        if neighbors.len() < min_pts { continue; }
+        if neighbors.len() < min_pts {
+            continue;
+        }
 
         labels[i] = cluster_id;
         let mut seed_set: Vec<usize> = neighbors.into_iter().filter(|j| *j != i).collect();
@@ -389,7 +484,9 @@ pub fn dbscan(cloud: &PointCloud, eps: f64, min_pts: usize) -> Vec<i32> {
 pub fn cluster_count(labels: &[i32]) -> usize {
     let mut max_id = -1i32;
     for &l in labels {
-        if l > max_id { max_id = l; }
+        if l > max_id {
+            max_id = l;
+        }
     }
     if max_id < 0 { 0 } else { (max_id + 1) as usize }
 }
@@ -492,14 +589,24 @@ mod tests {
 
     #[test]
     fn test_plane_distance() {
-        let plane = PlaneModel { a: 0.0, b: 0.0, c: 1.0, d: 0.0 };
+        let plane = PlaneModel {
+            a: 0.0,
+            b: 0.0,
+            c: 1.0,
+            d: 0.0,
+        };
         let p = Point3::new(5.0, 3.0, 2.0);
         assert!((plane.distance(&p) - 2.0).abs() < 1e-10);
     }
 
     #[test]
     fn test_plane_display() {
-        let plane = PlaneModel { a: 0.0, b: 0.0, c: 1.0, d: -1.0 };
+        let plane = PlaneModel {
+            a: 0.0,
+            b: 0.0,
+            c: 1.0,
+            d: -1.0,
+        };
         let s = format!("{}", plane);
         assert!(s.contains("Plane"));
     }
@@ -509,7 +616,11 @@ mod tests {
         let mut pc = PointCloud::new();
         // Ground plane z=0
         for i in 0..200 {
-            pc.push(Point3::new(i as f64 * 0.05, (i * 7 % 100) as f64 * 0.05, 0.0));
+            pc.push(Point3::new(
+                i as f64 * 0.05,
+                (i * 7 % 100) as f64 * 0.05,
+                0.0,
+            ));
         }
         // Outliers
         for _ in 0..20 {

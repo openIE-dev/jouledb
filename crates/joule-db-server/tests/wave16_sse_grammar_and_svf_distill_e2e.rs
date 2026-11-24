@@ -146,8 +146,12 @@ async fn test_svf_self_distillation_sse_token_streaming_and_grammar_tool_calls_e
     .await;
     assert_eq!(status, StatusCode::OK, "ing: {ing}");
     assert_eq!(ing["report"]["svf_distilled"], true);
-    let pre_mse = ing["report"]["pre_distill_probe_mse"].as_f64().unwrap_or(1.0);
-    let post_mse = ing["report"]["post_distill_probe_mse"].as_f64().unwrap_or(2.0);
+    let pre_mse = ing["report"]["pre_distill_probe_mse"]
+        .as_f64()
+        .unwrap_or(1.0);
+    let post_mse = ing["report"]["post_distill_probe_mse"]
+        .as_f64()
+        .unwrap_or(2.0);
     assert!(
         post_mse <= pre_mse,
         "expected post_mse ({post_mse}) <= pre_mse ({pre_mse})"

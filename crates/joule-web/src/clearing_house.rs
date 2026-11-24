@@ -327,9 +327,7 @@ impl ClearingHouse {
     /// Register a clearing member.
     pub fn add_member(&mut self, member: ClearingMember) -> Result<(), ClearingError> {
         if member.tier == MemberTier::NonClearing && member.sponsor_id.is_none() {
-            return Err(ClearingError::ConfigError(
-                "NCM requires a sponsor".into(),
-            ));
+            return Err(ClearingError::ConfigError("NCM requires a sponsor".into()));
         }
         self.members.insert(member.id.clone(), member);
         Ok(())
@@ -400,9 +398,10 @@ impl ClearingHouse {
         quantity: f64,
         price: f64,
     ) {
-        let pos = self.positions.iter_mut().find(|p| {
-            p.member_id == member_id && p.security_id == security_id
-        });
+        let pos = self
+            .positions
+            .iter_mut()
+            .find(|p| p.member_id == member_id && p.security_id == security_id);
 
         if let Some(p) = pos {
             p.apply_fill(side, quantity, price);
@@ -435,7 +434,11 @@ impl ClearingHouse {
     }
 
     /// Default waterfall: allocate loss through layers.
-    pub fn default_waterfall(&self, defaulter_id: &str, loss: f64) -> Result<Vec<WaterfallLayer>, ClearingError> {
+    pub fn default_waterfall(
+        &self,
+        defaulter_id: &str,
+        loss: f64,
+    ) -> Result<Vec<WaterfallLayer>, ClearingError> {
         let defaulter = self
             .members
             .get(defaulter_id)
@@ -443,7 +446,10 @@ impl ClearingHouse {
 
         let mut layers = vec![
             WaterfallLayer::new("Defaulter Margin", defaulter.margin_deposited),
-            WaterfallLayer::new("Defaulter Default Fund", defaulter.default_fund_contribution),
+            WaterfallLayer::new(
+                "Defaulter Default Fund",
+                defaulter.default_fund_contribution,
+            ),
             WaterfallLayer::new("CCP Skin-in-the-Game", self.ccp_skin_in_the_game),
         ];
 
@@ -468,11 +474,7 @@ impl ClearingHouse {
     }
 
     /// Collect required margin from a member. Returns shortfall if any.
-    pub fn collect_margin(
-        &mut self,
-        member_id: &str,
-        required: f64,
-    ) -> Result<f64, ClearingError> {
+    pub fn collect_margin(&mut self, member_id: &str, required: f64) -> Result<f64, ClearingError> {
         let m = self
             .members
             .get(member_id)
@@ -494,7 +496,10 @@ impl ClearingHouse {
     }
 
     pub fn total_default_fund(&self) -> f64 {
-        self.members.values().map(|m| m.default_fund_contribution).sum()
+        self.members
+            .values()
+            .map(|m| m.default_fund_contribution)
+            .sum()
     }
 }
 
@@ -522,19 +527,22 @@ mod tests {
             ClearingMember::new("M1", "Acme", MemberTier::General)
                 .with_default_fund(500_000.0)
                 .with_margin(1_000_000.0),
-        ).unwrap();
+        )
+        .unwrap();
         ch.add_member(
             ClearingMember::new("M2", "Beta", MemberTier::General)
                 .with_default_fund(400_000.0)
                 .with_margin(800_000.0),
-        ).unwrap();
+        )
+        .unwrap();
         ch
     }
 
     #[test]
     fn test_add_member() {
         let mut ch = ClearingHouse::new();
-        ch.add_member(ClearingMember::new("M1", "Acme", MemberTier::General)).unwrap();
+        ch.add_member(ClearingMember::new("M1", "Acme", MemberTier::General))
+            .unwrap();
         assert_eq!(ch.member_count(), 1);
     }
 
@@ -548,10 +556,12 @@ mod tests {
     #[test]
     fn test_ncm_with_sponsor_ok() {
         let mut ch = ClearingHouse::new();
-        ch.add_member(ClearingMember::new("M1", "Acme", MemberTier::General)).unwrap();
+        ch.add_member(ClearingMember::new("M1", "Acme", MemberTier::General))
+            .unwrap();
         ch.add_member(
             ClearingMember::new("N1", "Small", MemberTier::NonClearing).with_sponsor("M1"),
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(ch.member_count(), 2);
     }
 

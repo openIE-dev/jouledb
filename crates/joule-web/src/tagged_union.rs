@@ -24,7 +24,11 @@ pub enum TaggedUnionError {
     /// Deserialization failure.
     DeserializeFailed(String),
     /// Payload type mismatch.
-    PayloadMismatch { variant: String, expected: String, got: String },
+    PayloadMismatch {
+        variant: String,
+        expected: String,
+        got: String,
+    },
     /// Tag field not found.
     TagFieldMissing(String),
 }
@@ -38,8 +42,15 @@ impl fmt::Display for TaggedUnionError {
                 write!(f, "non-exhaustive match, missing: {}", missing.join(", "))
             }
             Self::DeserializeFailed(msg) => write!(f, "deserialize failed: {msg}"),
-            Self::PayloadMismatch { variant, expected, got } => {
-                write!(f, "payload mismatch for {variant}: expected {expected}, got {got}")
+            Self::PayloadMismatch {
+                variant,
+                expected,
+                got,
+            } => {
+                write!(
+                    f,
+                    "payload mismatch for {variant}: expected {expected}, got {got}"
+                )
             }
             Self::TagFieldMissing(field) => write!(f, "tag field missing: {field}"),
         }
@@ -123,22 +134,38 @@ pub struct VariantDef {
 impl VariantDef {
     /// Create a unit variant definition.
     pub fn unit(name: impl Into<String>) -> Self {
-        Self { name: name.into(), shape: VariantShape::Unit, description: None }
+        Self {
+            name: name.into(),
+            shape: VariantShape::Unit,
+            description: None,
+        }
     }
 
     /// Create a single-value variant definition.
     pub fn single(name: impl Into<String>) -> Self {
-        Self { name: name.into(), shape: VariantShape::Single, description: None }
+        Self {
+            name: name.into(),
+            shape: VariantShape::Single,
+            description: None,
+        }
     }
 
     /// Create a struct variant definition with field names.
     pub fn with_fields(name: impl Into<String>, fields: Vec<String>) -> Self {
-        Self { name: name.into(), shape: VariantShape::Struct(fields), description: None }
+        Self {
+            name: name.into(),
+            shape: VariantShape::Struct(fields),
+            description: None,
+        }
     }
 
     /// Create a tuple variant definition.
     pub fn tuple(name: impl Into<String>, arity: usize) -> Self {
-        Self { name: name.into(), shape: VariantShape::Tuple(arity), description: None }
+        Self {
+            name: name.into(),
+            shape: VariantShape::Tuple(arity),
+            description: None,
+        }
     }
 
     /// Set description.
@@ -162,22 +189,34 @@ pub struct TaggedValue {
 impl TaggedValue {
     /// Create a unit tagged value.
     pub fn unit(variant: impl Into<String>) -> Self {
-        Self { variant: variant.into(), payload: PayloadKind::Unit }
+        Self {
+            variant: variant.into(),
+            payload: PayloadKind::Unit,
+        }
     }
 
     /// Create a single-value tagged value.
     pub fn single(variant: impl Into<String>, value: Value) -> Self {
-        Self { variant: variant.into(), payload: PayloadKind::Single(value) }
+        Self {
+            variant: variant.into(),
+            payload: PayloadKind::Single(value),
+        }
     }
 
     /// Create a struct tagged value.
     pub fn with_fields(variant: impl Into<String>, fields: HashMap<String, Value>) -> Self {
-        Self { variant: variant.into(), payload: PayloadKind::Struct(fields) }
+        Self {
+            variant: variant.into(),
+            payload: PayloadKind::Struct(fields),
+        }
     }
 
     /// Create a tuple tagged value.
     pub fn tuple(variant: impl Into<String>, values: Vec<Value>) -> Self {
-        Self { variant: variant.into(), payload: PayloadKind::Tuple(values) }
+        Self {
+            variant: variant.into(),
+            payload: PayloadKind::Tuple(values),
+        }
     }
 
     /// Map the payload (if single) through a function.
@@ -187,7 +226,10 @@ impl TaggedValue {
                 variant: self.variant,
                 payload: PayloadKind::Single(f(v)),
             },
-            other => Self { variant: self.variant, payload: other },
+            other => Self {
+                variant: self.variant,
+                payload: other,
+            },
         }
     }
 }
@@ -198,10 +240,8 @@ impl fmt::Display for TaggedValue {
             PayloadKind::Unit => write!(f, "{}", self.variant),
             PayloadKind::Single(v) => write!(f, "{}({})", self.variant, v),
             PayloadKind::Struct(fields) => {
-                let entries: Vec<String> = fields
-                    .iter()
-                    .map(|(k, v)| format!("{k}: {v}"))
-                    .collect();
+                let entries: Vec<String> =
+                    fields.iter().map(|(k, v)| format!("{k}: {v}")).collect();
                 write!(f, "{} {{ {} }}", self.variant, entries.join(", "))
             }
             PayloadKind::Tuple(vals) => {
@@ -222,7 +262,10 @@ pub enum TaggingStrategy {
     /// Internally tagged: `{"type": "VariantName", ...fields}`.
     Internal { tag_field: String },
     /// Adjacently tagged: `{"type": "VariantName", "value": payload}`.
-    Adjacent { tag_field: String, content_field: String },
+    Adjacent {
+        tag_field: String,
+        content_field: String,
+    },
     /// Untagged: tries each variant shape in order.
     Untagged,
 }
@@ -349,7 +392,10 @@ impl TaggedUnionDef {
                 map.insert(tag_field.clone(), Value::String(value.variant.clone()));
                 Ok(Value::Object(map))
             }
-            TaggingStrategy::Adjacent { tag_field, content_field } => {
+            TaggingStrategy::Adjacent {
+                tag_field,
+                content_field,
+            } => {
                 let payload_json = payload_to_json(&value.payload);
                 let mut map = serde_json::Map::new();
                 map.insert(tag_field.clone(), Value::String(value.variant.clone()));
@@ -375,11 +421,14 @@ impl TaggedUnionDef {
                     ));
                 }
                 let (variant_name, payload_json) = obj.iter().next().unwrap();
-                let def = self.get_variant(variant_name).ok_or_else(|| {
-                    TaggedUnionError::UnknownVariant(variant_name.clone())
-                })?;
+                let def = self
+                    .get_variant(variant_name)
+                    .ok_or_else(|| TaggedUnionError::UnknownVariant(variant_name.clone()))?;
                 let payload = json_to_payload(payload_json, &def.shape);
-                Ok(TaggedValue { variant: variant_name.clone(), payload })
+                Ok(TaggedValue {
+                    variant: variant_name.clone(),
+                    payload,
+                })
             }
             TaggingStrategy::Internal { tag_field } => {
                 let obj = json.as_object().ok_or_else(|| {
@@ -389,9 +438,9 @@ impl TaggedUnionDef {
                     .get(tag_field)
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| TaggedUnionError::TagFieldMissing(tag_field.clone()))?;
-                let def = self.get_variant(variant_name).ok_or_else(|| {
-                    TaggedUnionError::UnknownVariant(variant_name.to_string())
-                })?;
+                let def = self
+                    .get_variant(variant_name)
+                    .ok_or_else(|| TaggedUnionError::UnknownVariant(variant_name.to_string()))?;
                 let payload = match &def.shape {
                     VariantShape::Unit => PayloadKind::Unit,
                     VariantShape::Single => {
@@ -416,9 +465,15 @@ impl TaggedUnionDef {
                         PayloadKind::Tuple(vals)
                     }
                 };
-                Ok(TaggedValue { variant: variant_name.to_string(), payload })
+                Ok(TaggedValue {
+                    variant: variant_name.to_string(),
+                    payload,
+                })
             }
-            TaggingStrategy::Adjacent { tag_field, content_field } => {
+            TaggingStrategy::Adjacent {
+                tag_field,
+                content_field,
+            } => {
                 let obj = json.as_object().ok_or_else(|| {
                     TaggedUnionError::DeserializeFailed("expected object".to_string())
                 })?;
@@ -426,21 +481,27 @@ impl TaggedUnionDef {
                     .get(tag_field)
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| TaggedUnionError::TagFieldMissing(tag_field.clone()))?;
-                let def = self.get_variant(variant_name).ok_or_else(|| {
-                    TaggedUnionError::UnknownVariant(variant_name.to_string())
-                })?;
+                let def = self
+                    .get_variant(variant_name)
+                    .ok_or_else(|| TaggedUnionError::UnknownVariant(variant_name.to_string()))?;
                 let content = obj.get(content_field);
                 let payload = match content {
                     Some(v) => json_to_payload(v, &def.shape),
                     None => PayloadKind::Unit,
                 };
-                Ok(TaggedValue { variant: variant_name.to_string(), payload })
+                Ok(TaggedValue {
+                    variant: variant_name.to_string(),
+                    payload,
+                })
             }
             TaggingStrategy::Untagged => {
                 // Try each variant in order.
                 for def in &self.variants {
                     let payload = json_to_payload(json, &def.shape);
-                    let val = TaggedValue { variant: def.name.clone(), payload };
+                    let val = TaggedValue {
+                        variant: def.name.clone(),
+                        payload,
+                    };
                     if self.validate(&val).is_ok() {
                         return Ok(val);
                     }
@@ -458,10 +519,8 @@ fn payload_to_json(payload: &PayloadKind) -> Value {
         PayloadKind::Unit => Value::Null,
         PayloadKind::Single(v) => v.clone(),
         PayloadKind::Struct(map) => {
-            let obj: serde_json::Map<String, Value> = map
-                .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect();
+            let obj: serde_json::Map<String, Value> =
+                map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
             Value::Object(obj)
         }
         PayloadKind::Tuple(vals) => Value::Array(vals.clone()),
@@ -514,11 +573,18 @@ pub struct MatchBuilder<T> {
 impl<T> MatchBuilder<T> {
     /// Create a new match builder.
     pub fn new() -> Self {
-        Self { arms: Vec::new(), default: None }
+        Self {
+            arms: Vec::new(),
+            default: None,
+        }
     }
 
     /// Add a match arm for a variant.
-    pub fn on(mut self, variant: impl Into<String>, handler: impl Fn(&PayloadKind) -> T + 'static) -> Self {
+    pub fn on(
+        mut self,
+        variant: impl Into<String>,
+        handler: impl Fn(&PayloadKind) -> T + 'static,
+    ) -> Self {
         self.arms.push(MatchArm {
             variant: variant.into(),
             handler: Box::new(handler),
@@ -602,10 +668,7 @@ pub trait TaggedVisitor {
 // ── Fold / Map ──────────────────────────────────────────────────
 
 /// Map a function over the single-value payloads in a collection of tagged values.
-pub fn map_payloads(
-    values: &[TaggedValue],
-    f: impl Fn(&str, &Value) -> Value,
-) -> Vec<TaggedValue> {
+pub fn map_payloads(values: &[TaggedValue], f: impl Fn(&str, &Value) -> Value) -> Vec<TaggedValue> {
     values
         .iter()
         .map(|tv| match &tv.payload {
@@ -624,7 +687,9 @@ pub fn fold_payloads<A>(
     init: A,
     f: impl Fn(A, &str, &PayloadKind) -> A,
 ) -> A {
-    values.iter().fold(init, |acc, tv| f(acc, &tv.variant, &tv.payload))
+    values
+        .iter()
+        .fold(init, |acc, tv| f(acc, &tv.variant, &tv.payload))
 }
 
 /// Filter tagged values by variant name.
@@ -695,7 +760,10 @@ mod tests {
         let def = shape_def();
         let val = TaggedValue::unit("Triangle");
         let err = def.validate(&val).unwrap_err();
-        assert_eq!(err, TaggedUnionError::UnknownVariant("Triangle".to_string()));
+        assert_eq!(
+            err,
+            TaggedUnionError::UnknownVariant("Triangle".to_string())
+        );
     }
 
     #[test]
@@ -725,7 +793,9 @@ mod tests {
     #[test]
     fn test_internal_tagging_roundtrip() {
         let def = TaggedUnionDef::new("Event")
-            .with_strategy(TaggingStrategy::Internal { tag_field: "type".to_string() })
+            .with_strategy(TaggingStrategy::Internal {
+                tag_field: "type".to_string(),
+            })
             .with_variant(VariantDef::unit("Click"))
             .with_variant(VariantDef::with_fields(
                 "Move",
@@ -771,7 +841,9 @@ mod tests {
         let result = matcher.dispatch(&TaggedValue::unit("Circle")).unwrap();
         assert_eq!(result, "circle");
 
-        let result = matcher.dispatch(&TaggedValue::single("Square", json!(5))).unwrap();
+        let result = matcher
+            .dispatch(&TaggedValue::single("Square", json!(5)))
+            .unwrap();
         assert_eq!(result, "square(5)");
     }
 
@@ -787,8 +859,7 @@ mod tests {
 
     #[test]
     fn test_match_no_handler() {
-        let matcher = MatchBuilder::<String>::new()
-            .on("A", |_| "a".to_string());
+        let matcher = MatchBuilder::<String>::new().on("A", |_| "a".to_string());
         let err = matcher.dispatch(&TaggedValue::unit("B")).unwrap_err();
         assert_eq!(err, TaggedUnionError::UnknownVariant("B".to_string()));
     }
@@ -798,9 +869,7 @@ mod tests {
         let def = TaggedUnionDef::new("AB")
             .with_variant(VariantDef::unit("A"))
             .with_variant(VariantDef::unit("B"));
-        let matcher = MatchBuilder::<()>::new()
-            .on("A", |_| ())
-            .on("B", |_| ());
+        let matcher = MatchBuilder::<()>::new().on("A", |_| ()).on("B", |_| ());
         assert!(matcher.check_exhaustive(&def).is_ok());
     }
 
@@ -809,10 +878,11 @@ mod tests {
         let def = TaggedUnionDef::new("AB")
             .with_variant(VariantDef::unit("A"))
             .with_variant(VariantDef::unit("B"));
-        let matcher = MatchBuilder::<()>::new()
-            .on("A", |_| ());
+        let matcher = MatchBuilder::<()>::new().on("A", |_| ());
         let err = matcher.check_exhaustive(&def).unwrap_err();
-        assert!(matches!(err, TaggedUnionError::NonExhaustiveMatch { missing } if missing == vec!["B"]));
+        assert!(
+            matches!(err, TaggedUnionError::NonExhaustiveMatch { missing } if missing == vec!["B"])
+        );
     }
 
     #[test]
@@ -831,12 +901,18 @@ mod tests {
         struct CountVisitor;
         impl TaggedVisitor for CountVisitor {
             type Output = usize;
-            fn visit_unit(&self, _variant: &str) -> usize { 0 }
-            fn visit_single(&self, _variant: &str, _value: &Value) -> usize { 1 }
+            fn visit_unit(&self, _variant: &str) -> usize {
+                0
+            }
+            fn visit_single(&self, _variant: &str, _value: &Value) -> usize {
+                1
+            }
             fn visit_struct(&self, _variant: &str, fields: &HashMap<String, Value>) -> usize {
                 fields.len()
             }
-            fn visit_tuple(&self, _variant: &str, values: &[Value]) -> usize { values.len() }
+            fn visit_tuple(&self, _variant: &str, values: &[Value]) -> usize {
+                values.len()
+            }
         }
         let v = CountVisitor;
         assert_eq!(v.visit(&TaggedValue::unit("A")), 0);
@@ -854,9 +930,7 @@ mod tests {
             TaggedValue::single("B", json!(2)),
             TaggedValue::unit("C"),
         ];
-        let mapped = map_payloads(&values, |_variant, v| {
-            json!(v.as_i64().unwrap_or(0) * 10)
-        });
+        let mapped = map_payloads(&values, |_variant, v| json!(v.as_i64().unwrap_or(0) * 10));
         assert_eq!(mapped[0].payload.as_single(), Some(&json!(10)));
         assert_eq!(mapped[1].payload.as_single(), Some(&json!(20)));
         assert!(mapped[2].payload.is_unit());
@@ -905,7 +979,10 @@ mod tests {
     #[test]
     fn test_tagged_value_display() {
         assert_eq!(TaggedValue::unit("None").to_string(), "None");
-        assert_eq!(TaggedValue::single("Some", json!(42)).to_string(), "Some(42)");
+        assert_eq!(
+            TaggedValue::single("Some", json!(42)).to_string(),
+            "Some(42)"
+        );
     }
 
     #[test]
@@ -918,7 +995,10 @@ mod tests {
     #[test]
     fn test_variant_names() {
         let def = shape_def();
-        assert_eq!(def.variant_names(), vec!["Circle", "Square", "Rectangle", "Point"]);
+        assert_eq!(
+            def.variant_names(),
+            vec!["Circle", "Square", "Rectangle", "Point"]
+        );
     }
 
     #[test]

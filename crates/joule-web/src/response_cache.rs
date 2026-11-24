@@ -104,18 +104,42 @@ impl CacheControl {
     /// Serialize back to a Cache-Control header string.
     pub fn to_header(&self) -> String {
         let mut parts = Vec::new();
-        if self.public { parts.push("public".to_string()); }
-        if self.private { parts.push("private".to_string()); }
-        if self.no_cache { parts.push("no-cache".to_string()); }
-        if self.no_store { parts.push("no-store".to_string()); }
-        if self.must_revalidate { parts.push("must-revalidate".to_string()); }
-        if self.proxy_revalidate { parts.push("proxy-revalidate".to_string()); }
-        if self.immutable { parts.push("immutable".to_string()); }
-        if self.no_transform { parts.push("no-transform".to_string()); }
-        if let Some(v) = self.max_age { parts.push(format!("max-age={v}")); }
-        if let Some(v) = self.s_maxage { parts.push(format!("s-maxage={v}")); }
-        if let Some(v) = self.stale_while_revalidate { parts.push(format!("stale-while-revalidate={v}")); }
-        if let Some(v) = self.stale_if_error { parts.push(format!("stale-if-error={v}")); }
+        if self.public {
+            parts.push("public".to_string());
+        }
+        if self.private {
+            parts.push("private".to_string());
+        }
+        if self.no_cache {
+            parts.push("no-cache".to_string());
+        }
+        if self.no_store {
+            parts.push("no-store".to_string());
+        }
+        if self.must_revalidate {
+            parts.push("must-revalidate".to_string());
+        }
+        if self.proxy_revalidate {
+            parts.push("proxy-revalidate".to_string());
+        }
+        if self.immutable {
+            parts.push("immutable".to_string());
+        }
+        if self.no_transform {
+            parts.push("no-transform".to_string());
+        }
+        if let Some(v) = self.max_age {
+            parts.push(format!("max-age={v}"));
+        }
+        if let Some(v) = self.s_maxage {
+            parts.push(format!("s-maxage={v}"));
+        }
+        if let Some(v) = self.stale_while_revalidate {
+            parts.push(format!("stale-while-revalidate={v}"));
+        }
+        if let Some(v) = self.stale_if_error {
+            parts.push(format!("stale-if-error={v}"));
+        }
         parts.join(", ")
     }
 }
@@ -130,7 +154,8 @@ impl fmt::Display for CacheControl {
 
 /// Parse a Vary header into its field names.
 pub fn parse_vary(header: &str) -> Vec<String> {
-    header.split(',')
+    header
+        .split(',')
         .map(|s| s.trim().to_lowercase())
         .filter(|s| !s.is_empty())
         .collect()
@@ -144,14 +169,20 @@ pub fn vary_is_wildcard(header: &str) -> bool {
 // ── Cache key ───────────────────────────────────────────────────
 
 /// Generate a cache key from method, URL, and vary fields.
-pub fn cache_key(method: &str, url: &str, vary_fields: &[String], request_headers: &HashMap<String, String>) -> String {
+pub fn cache_key(
+    method: &str,
+    url: &str,
+    vary_fields: &[String],
+    request_headers: &HashMap<String, String>,
+) -> String {
     let mut key = format!("{method}:{url}");
     if !vary_fields.is_empty() {
         key.push_str(":vary(");
         let mut parts = Vec::new();
         for field in vary_fields {
             let lower = field.to_lowercase();
-            let val = request_headers.iter()
+            let val = request_headers
+                .iter()
                 .find(|(k, _)| k.to_lowercase() == lower)
                 .map(|(_, v)| v.as_str())
                 .unwrap_or("");
@@ -180,11 +211,7 @@ pub enum Freshness {
 }
 
 /// Calculate freshness of a cached entry.
-pub fn check_freshness(
-    cc: &CacheControl,
-    age_secs: u64,
-    is_shared_cache: bool,
-) -> Freshness {
+pub fn check_freshness(cc: &CacheControl, age_secs: u64, is_shared_cache: bool) -> Freshness {
     let max_age = if is_shared_cache {
         cc.effective_max_age_shared()
     } else {
@@ -296,11 +323,17 @@ impl ResponseCache {
             match freshness {
                 Freshness::Fresh => {
                     self.hits += 1;
-                    Some(CacheLookup { entry: entry.clone(), freshness })
+                    Some(CacheLookup {
+                        entry: entry.clone(),
+                        freshness,
+                    })
                 }
                 Freshness::StaleWhileRevalidate | Freshness::StaleIfError => {
                     self.stale_hits += 1;
-                    Some(CacheLookup { entry: entry.clone(), freshness })
+                    Some(CacheLookup {
+                        entry: entry.clone(),
+                        freshness,
+                    })
                 }
                 Freshness::Stale => {
                     self.misses += 1;
@@ -324,7 +357,9 @@ impl ResponseCache {
     }
 
     fn evict_oldest(&mut self) {
-        if let Some(oldest_key) = self.entries.iter()
+        if let Some(oldest_key) = self
+            .entries
+            .iter()
             .min_by_key(|(_, e)| e.stored_at_secs)
             .map(|(k, _)| k.clone())
         {
@@ -332,15 +367,29 @@ impl ResponseCache {
         }
     }
 
-    pub fn len(&self) -> usize { self.entries.len() }
-    pub fn is_empty(&self) -> bool { self.entries.is_empty() }
-    pub fn hits(&self) -> u64 { self.hits }
-    pub fn misses(&self) -> u64 { self.misses }
-    pub fn stale_hits(&self) -> u64 { self.stale_hits }
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+    pub fn hits(&self) -> u64 {
+        self.hits
+    }
+    pub fn misses(&self) -> u64 {
+        self.misses
+    }
+    pub fn stale_hits(&self) -> u64 {
+        self.stale_hits
+    }
 
     pub fn hit_rate(&self) -> f64 {
         let total = self.hits + self.misses + self.stale_hits;
-        if total == 0 { 0.0 } else { self.hits as f64 / total as f64 }
+        if total == 0 {
+            0.0
+        } else {
+            self.hits as f64 / total as f64
+        }
     }
 }
 
@@ -357,7 +406,9 @@ pub struct CacheLookup {
 mod tests {
     use super::*;
 
-    fn make_headers() -> HashMap<String, String> { HashMap::new() }
+    fn make_headers() -> HashMap<String, String> {
+        HashMap::new()
+    }
 
     #[test]
     fn test_parse_max_age() {
@@ -518,7 +569,10 @@ mod tests {
     #[test]
     fn test_freshness_stale_while_revalidate() {
         let cc = CacheControl::parse("max-age=300, stale-while-revalidate=60");
-        assert_eq!(check_freshness(&cc, 350, false), Freshness::StaleWhileRevalidate);
+        assert_eq!(
+            check_freshness(&cc, 350, false),
+            Freshness::StaleWhileRevalidate
+        );
         assert_eq!(check_freshness(&cc, 400, false), Freshness::Stale);
     }
 
@@ -743,8 +797,8 @@ mod tests {
             vary_fields: vec![],
         };
         cache.store(entry);
-        cache.get("k", 100);   // hit
-        cache.get("k", 100);   // hit
+        cache.get("k", 100); // hit
+        cache.get("k", 100); // hit
         cache.get("miss", 100); // miss
 
         let rate = cache.hit_rate();

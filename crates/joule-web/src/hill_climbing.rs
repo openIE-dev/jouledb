@@ -11,7 +11,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -133,9 +135,17 @@ impl HillClimber {
         Self {
             rng: Rng::new(config.seed),
             current: vec![0.0; dims],
-            current_value: if config.maximize { f64::NEG_INFINITY } else { f64::INFINITY },
+            current_value: if config.maximize {
+                f64::NEG_INFINITY
+            } else {
+                f64::INFINITY
+            },
             best: vec![0.0; dims],
-            best_value: if config.maximize { f64::NEG_INFINITY } else { f64::INFINITY },
+            best_value: if config.maximize {
+                f64::NEG_INFINITY
+            } else {
+                f64::INFINITY
+            },
             iteration: 0,
             plateau_count: 0,
             value_history: Vec::new(),
@@ -152,7 +162,11 @@ impl HillClimber {
         self.best = self.current.clone();
         self.iteration = 0;
         self.plateau_count = 0;
-        self.current_value = if self.config.maximize { f64::NEG_INFINITY } else { f64::INFINITY };
+        self.current_value = if self.config.maximize {
+            f64::NEG_INFINITY
+        } else {
+            f64::INFINITY
+        };
         self.best_value = self.current_value;
     }
 
@@ -162,7 +176,11 @@ impl HillClimber {
         self.best = start;
         self.iteration = 0;
         self.plateau_count = 0;
-        self.current_value = if self.config.maximize { f64::NEG_INFINITY } else { f64::INFINITY };
+        self.current_value = if self.config.maximize {
+            f64::NEG_INFINITY
+        } else {
+            f64::INFINITY
+        };
         self.best_value = self.current_value;
     }
 
@@ -175,21 +193,27 @@ impl HillClimber {
     fn is_better(&self, a: f64, b: f64) -> bool {
         // Require a meaningful improvement to avoid false positives from floating-point noise
         let threshold = b.abs() * 1e-12 + 1e-30;
-        if self.config.maximize { a > b + threshold } else { a < b - threshold }
+        if self.config.maximize {
+            a > b + threshold
+        } else {
+            a < b - threshold
+        }
     }
 
     fn generate_neighbor_continuous(&mut self, base: &[f64]) -> Vec<f64> {
         let (lo, hi) = self.config.bounds;
         match self.config.neighborhood {
-            NeighborhoodType::Gaussian(sigma) => {
-                base.iter().map(|x| (x + self.rng.next_gaussian() * sigma).clamp(lo, hi)).collect()
-            }
-            NeighborhoodType::UniformStep(step) => {
-                base.iter().map(|x| {
+            NeighborhoodType::Gaussian(sigma) => base
+                .iter()
+                .map(|x| (x + self.rng.next_gaussian() * sigma).clamp(lo, hi))
+                .collect(),
+            NeighborhoodType::UniformStep(step) => base
+                .iter()
+                .map(|x| {
                     let delta = (self.rng.next_f64() * 2.0 - 1.0) * step;
                     (x + delta).clamp(lo, hi)
-                }).collect()
-            }
+                })
+                .collect(),
             NeighborhoodType::SingleDimension(sigma) => {
                 let mut neighbor = base.to_vec();
                 let dim = self.rng.next_usize(neighbor.len().max(1));
@@ -211,7 +235,9 @@ impl HillClimber {
                 if n >= 2 {
                     let mut i = self.rng.next_usize(n);
                     let mut j = self.rng.next_usize(n);
-                    if i > j { std::mem::swap(&mut i, &mut j); }
+                    if i > j {
+                        std::mem::swap(&mut i, &mut j);
+                    }
                     neighbor[i..=j].reverse();
                 }
                 neighbor
@@ -331,9 +357,15 @@ impl HillClimber {
         }
     }
 
-    pub fn best_value(&self) -> f64 { self.best_value }
-    pub fn best_solution(&self) -> &[f64] { &self.best }
-    pub fn iteration(&self) -> usize { self.iteration }
+    pub fn best_value(&self) -> f64 {
+        self.best_value
+    }
+    pub fn best_solution(&self) -> &[f64] {
+        &self.best
+    }
+    pub fn iteration(&self) -> usize {
+        self.iteration
+    }
 }
 
 // ── Random restart hill climbing ─────────────────────────────────
@@ -385,10 +417,7 @@ pub struct IlsConfig {
 }
 
 /// Iterated Local Search: perturb → local search → acceptance.
-pub fn iterated_local_search<F: Fn(&[f64]) -> f64>(
-    config: IlsConfig,
-    obj_fn: &F,
-) -> HcResult {
+pub fn iterated_local_search<F: Fn(&[f64]) -> f64>(config: IlsConfig, obj_fn: &F) -> HcResult {
     let mut rng = Rng::new(config.seed);
     let (lo, hi) = config.hc_config.bounds;
     let maximize = config.hc_config.maximize;
@@ -400,10 +429,14 @@ pub fn iterated_local_search<F: Fn(&[f64]) -> f64>(
 
     for ils_iter in 0..config.max_ils_iterations {
         // Perturbation: add large random offset to best solution
-        let perturbed: Vec<f64> = best_result.best_solution.iter().map(|x| {
-            let delta = rng.next_gaussian() * config.perturbation_strength;
-            (x + delta).clamp(lo, hi)
-        }).collect();
+        let perturbed: Vec<f64> = best_result
+            .best_solution
+            .iter()
+            .map(|x| {
+                let delta = rng.next_gaussian() * config.perturbation_strength;
+                (x + delta).clamp(lo, hi)
+            })
+            .collect();
 
         // Local search from perturbed point
         let mut cfg = config.hc_config.clone();
@@ -451,7 +484,10 @@ mod tests {
 
     #[test]
     fn test_initialize_random() {
-        let config = HcConfig { dimensions: 3, ..Default::default() };
+        let config = HcConfig {
+            dimensions: 3,
+            ..Default::default()
+        };
         let mut hc = HillClimber::new(config);
         hc.initialize();
         assert_eq!(hc.best_solution().len(), 3);
@@ -459,7 +495,10 @@ mod tests {
 
     #[test]
     fn test_initialize_at() {
-        let config = HcConfig { dimensions: 2, ..Default::default() };
+        let config = HcConfig {
+            dimensions: 2,
+            ..Default::default()
+        };
         let mut hc = HillClimber::new(config);
         hc.initialize_at(vec![3.0, 4.0]);
         hc.evaluate(&sphere);
@@ -657,7 +696,11 @@ mod tests {
 
     #[test]
     fn test_iteration_counter() {
-        let config = HcConfig { dimensions: 2, max_iterations: 10, ..Default::default() };
+        let config = HcConfig {
+            dimensions: 2,
+            max_iterations: 10,
+            ..Default::default()
+        };
         let mut hc = HillClimber::new(config);
         hc.initialize();
         hc.evaluate(&sphere);
@@ -668,7 +711,11 @@ mod tests {
 
     #[test]
     fn test_value_history() {
-        let config = HcConfig { dimensions: 2, max_iterations: 20, ..Default::default() };
+        let config = HcConfig {
+            dimensions: 2,
+            max_iterations: 20,
+            ..Default::default()
+        };
         let mut hc = HillClimber::new(config);
         hc.initialize();
         let result = hc.run(&sphere);
@@ -711,7 +758,10 @@ mod tests {
 
     #[test]
     fn test_step_returns_improvement_flag() {
-        let config = HcConfig { dimensions: 2, ..Default::default() };
+        let config = HcConfig {
+            dimensions: 2,
+            ..Default::default()
+        };
         let mut hc = HillClimber::new(config);
         hc.initialize();
         hc.evaluate(&sphere);

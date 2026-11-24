@@ -15,8 +15,12 @@ pub fn levenshtein(a: &str, b: &str) -> usize {
     let m = a_chars.len();
     let n = b_chars.len();
 
-    if m == 0 { return n; }
-    if n == 0 { return m; }
+    if m == 0 {
+        return n;
+    }
+    if n == 0 {
+        return m;
+    }
 
     let mut prev = (0..=n).collect::<Vec<usize>>();
     let mut curr = vec![0; n + 1];
@@ -24,11 +28,12 @@ pub fn levenshtein(a: &str, b: &str) -> usize {
     for i in 1..=m {
         curr[0] = i;
         for j in 1..=n {
-            let cost = if a_chars[i - 1] == b_chars[j - 1] { 0 } else { 1 };
-            curr[j] = cmp::min(
-                cmp::min(prev[j] + 1, curr[j - 1] + 1),
-                prev[j - 1] + cost,
-            );
+            let cost = if a_chars[i - 1] == b_chars[j - 1] {
+                0
+            } else {
+                1
+            };
+            curr[j] = cmp::min(cmp::min(prev[j] + 1, curr[j - 1] + 1), prev[j - 1] + cost);
         }
         std::mem::swap(&mut prev, &mut curr);
     }
@@ -39,7 +44,9 @@ pub fn levenshtein(a: &str, b: &str) -> usize {
 /// 0.0 = identical, 1.0 = completely different.
 pub fn levenshtein_normalized(a: &str, b: &str) -> f64 {
     let max_len = cmp::max(a.chars().count(), b.chars().count());
-    if max_len == 0 { return 0.0; }
+    if max_len == 0 {
+        return 0.0;
+    }
     levenshtein(a, b) as f64 / max_len as f64
 }
 
@@ -52,21 +59,37 @@ pub fn damerau_levenshtein(a: &str, b: &str) -> usize {
     let m = a_chars.len();
     let n = b_chars.len();
 
-    if m == 0 { return n; }
-    if n == 0 { return m; }
+    if m == 0 {
+        return n;
+    }
+    if n == 0 {
+        return m;
+    }
 
     let mut matrix = vec![vec![0usize; n + 1]; m + 1];
-    for i in 0..=m { matrix[i][0] = i; }
-    for j in 0..=n { matrix[0][j] = j; }
+    for i in 0..=m {
+        matrix[i][0] = i;
+    }
+    for j in 0..=n {
+        matrix[0][j] = j;
+    }
 
     for i in 1..=m {
         for j in 1..=n {
-            let cost = if a_chars[i - 1] == b_chars[j - 1] { 0 } else { 1 };
+            let cost = if a_chars[i - 1] == b_chars[j - 1] {
+                0
+            } else {
+                1
+            };
             matrix[i][j] = cmp::min(
                 cmp::min(matrix[i - 1][j] + 1, matrix[i][j - 1] + 1),
                 matrix[i - 1][j - 1] + cost,
             );
-            if i > 1 && j > 1 && a_chars[i - 1] == b_chars[j - 2] && a_chars[i - 2] == b_chars[j - 1] {
+            if i > 1
+                && j > 1
+                && a_chars[i - 1] == b_chars[j - 2]
+                && a_chars[i - 2] == b_chars[j - 1]
+            {
                 matrix[i][j] = cmp::min(matrix[i][j], matrix[i - 2][j - 2] + cost);
             }
         }
@@ -80,8 +103,16 @@ pub fn damerau_levenshtein(a: &str, b: &str) -> usize {
 pub fn hamming(a: &str, b: &str) -> Option<usize> {
     let a_chars: Vec<char> = a.chars().collect();
     let b_chars: Vec<char> = b.chars().collect();
-    if a_chars.len() != b_chars.len() { return None; }
-    Some(a_chars.iter().zip(b_chars.iter()).filter(|(x, y)| x != y).count())
+    if a_chars.len() != b_chars.len() {
+        return None;
+    }
+    Some(
+        a_chars
+            .iter()
+            .zip(b_chars.iter())
+            .filter(|(x, y)| x != y)
+            .count(),
+    )
 }
 
 // ── Jaro ─────────────────────────────────────────────────────────
@@ -93,11 +124,19 @@ pub fn jaro(a: &str, b: &str) -> f64 {
     let a_len = a_chars.len();
     let b_len = b_chars.len();
 
-    if a_len == 0 && b_len == 0 { return 1.0; }
-    if a_len == 0 || b_len == 0 { return 0.0; }
+    if a_len == 0 && b_len == 0 {
+        return 1.0;
+    }
+    if a_len == 0 || b_len == 0 {
+        return 0.0;
+    }
 
     let match_distance = cmp::max(a_len, b_len) / 2;
-    let match_distance = if match_distance > 0 { match_distance - 1 } else { 0 };
+    let match_distance = if match_distance > 0 {
+        match_distance - 1
+    } else {
+        0
+    };
 
     let mut a_matched = vec![false; a_len];
     let mut b_matched = vec![false; b_len];
@@ -105,10 +144,16 @@ pub fn jaro(a: &str, b: &str) -> f64 {
     let mut transpositions = 0usize;
 
     for i in 0..a_len {
-        let start = if i > match_distance { i - match_distance } else { 0 };
+        let start = if i > match_distance {
+            i - match_distance
+        } else {
+            0
+        };
         let end = cmp::min(i + match_distance + 1, b_len);
         for j in start..end {
-            if b_matched[j] || a_chars[i] != b_chars[j] { continue; }
+            if b_matched[j] || a_chars[i] != b_chars[j] {
+                continue;
+            }
             a_matched[i] = true;
             b_matched[j] = true;
             matches += 1;
@@ -116,13 +161,21 @@ pub fn jaro(a: &str, b: &str) -> f64 {
         }
     }
 
-    if matches == 0 { return 0.0; }
+    if matches == 0 {
+        return 0.0;
+    }
 
     let mut k = 0;
     for i in 0..a_len {
-        if !a_matched[i] { continue; }
-        while !b_matched[k] { k += 1; }
-        if a_chars[i] != b_chars[k] { transpositions += 1; }
+        if !a_matched[i] {
+            continue;
+        }
+        while !b_matched[k] {
+            k += 1;
+        }
+        if a_chars[i] != b_chars[k] {
+            transpositions += 1;
+        }
         k += 1;
     }
 
@@ -137,7 +190,9 @@ pub fn jaro_winkler(a: &str, b: &str) -> f64 {
     let jaro_sim = jaro(a, b);
     let a_chars: Vec<char> = a.chars().collect();
     let b_chars: Vec<char> = b.chars().collect();
-    let prefix_len = a_chars.iter().zip(b_chars.iter())
+    let prefix_len = a_chars
+        .iter()
+        .zip(b_chars.iter())
         .take(4)
         .take_while(|(x, y)| x == y)
         .count();
@@ -237,14 +292,18 @@ pub fn longest_common_substring(a: &str, b: &str) -> String {
         curr.fill(0);
     }
 
-    if max_len == 0 { return String::new(); }
+    if max_len == 0 {
+        return String::new();
+    }
     a_chars[end_idx - max_len..end_idx].iter().collect()
 }
 
 /// Normalized string distance: 1.0 - (LCS length / max length).
 pub fn normalized_distance(a: &str, b: &str) -> f64 {
     let max_len = cmp::max(a.chars().count(), b.chars().count());
-    if max_len == 0 { return 0.0; }
+    if max_len == 0 {
+        return 0.0;
+    }
     1.0 - lcs_length(a, b) as f64 / max_len as f64
 }
 
@@ -315,8 +374,11 @@ mod tests {
         let result = lcs("ABCBDAB", "BDCABA");
         assert_eq!(result.len(), 4);
         // One valid LCS is "BCBA"
-        assert!(result == "BDAB" || result == "BCBA" || result == "BCAB",
-                "got lcs = {}", result);
+        assert!(
+            result == "BDAB" || result == "BCBA" || result == "BCAB",
+            "got lcs = {}",
+            result
+        );
     }
 
     #[test]

@@ -319,10 +319,7 @@ impl ParametricEq {
     }
 
     /// Compute frequency response at multiple points for plotting.
-    pub fn frequency_response_curve(
-        &self,
-        frequencies: &[f64],
-    ) -> Vec<(f64, f64)> {
+    pub fn frequency_response_curve(&self, frequencies: &[f64]) -> Vec<(f64, f64)> {
         frequencies
             .iter()
             .map(|f| (*f, self.frequency_response_db(*f)))
@@ -364,7 +361,11 @@ mod tests {
         let params = BandParams::notch(1000.0, 10.0);
         let coeffs = BiquadCoeffs::compute(&params, 44100.0);
         let mag = coeffs.magnitude_response(1000.0, 44100.0);
-        assert!(mag < 0.2, "Notch at center should be near zero, got {}", mag);
+        assert!(
+            mag < 0.2,
+            "Notch at center should be near zero, got {}",
+            mag
+        );
     }
 
     #[test]
@@ -374,14 +375,15 @@ mod tests {
         let mut filter = BiquadFilter::new(coeffs);
 
         let mut samples: Vec<f32> = (0..1000)
-            .map(|i| {
-                (2.0 * std::f32::consts::PI * 1000.0 * i as f32 / 44100.0).sin()
-            })
+            .map(|i| (2.0 * std::f32::consts::PI * 1000.0 * i as f32 / 44100.0).sin())
             .collect();
         let input_energy: f64 = samples.iter().map(|s| (*s as f64) * (*s as f64)).sum();
         filter.process(&mut samples);
         let output_energy: f64 = samples.iter().map(|s| (*s as f64) * (*s as f64)).sum();
-        assert!(output_energy > input_energy, "Peak filter should boost signal at center freq");
+        assert!(
+            output_energy > input_energy,
+            "Peak filter should boost signal at center freq"
+        );
     }
 
     #[test]
@@ -412,9 +414,7 @@ mod tests {
         eq.add_band(BandParams::peak(1000.0, 6.0, 1.0));
 
         let mut samples: Vec<f32> = (0..500)
-            .map(|i| {
-                (2.0 * std::f32::consts::PI * 1000.0 * i as f32 / 44100.0).sin()
-            })
+            .map(|i| (2.0 * std::f32::consts::PI * 1000.0 * i as f32 / 44100.0).sin())
             .collect();
         eq.process(&mut samples);
         // Should have non-zero output
@@ -428,7 +428,11 @@ mod tests {
         eq.add_band(BandParams::peak(1000.0, 12.0, 1.0));
         let response = eq.frequency_response_db(1000.0);
         // Should be around +12 dB at the center frequency
-        assert!(response > 5.0, "Expected boost at center, got {} dB", response);
+        assert!(
+            response > 5.0,
+            "Expected boost at center, got {} dB",
+            response
+        );
     }
 
     #[test]

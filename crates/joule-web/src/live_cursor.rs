@@ -61,13 +61,20 @@ pub struct Viewport {
 
 impl Viewport {
     pub fn new(x: f64, y: f64, width: f64, height: f64) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     /// Whether a cursor position is within this viewport.
     pub fn contains(&self, pos: &CursorPos) -> bool {
-        pos.x >= self.x && pos.x <= self.x + self.width
-            && pos.y >= self.y && pos.y <= self.y + self.height
+        pos.x >= self.x
+            && pos.x <= self.x + self.width
+            && pos.y >= self.y
+            && pos.y <= self.y + self.height
     }
 
     /// Whether two viewports overlap.
@@ -83,16 +90,15 @@ impl Viewport {
 
 /// A set of colors to cycle through for user assignment.
 const PALETTE: &[&str] = &[
-    "#E63946", "#457B9D", "#2A9D8F", "#E9C46A",
-    "#F4A261", "#264653", "#D62828", "#023E8A",
+    "#E63946", "#457B9D", "#2A9D8F", "#E9C46A", "#F4A261", "#264653", "#D62828", "#023E8A",
     "#6A0572", "#1B998B", "#FF6B6B", "#4ECDC4",
 ];
 
 /// Assigns a deterministic color to a user based on their ID.
 pub fn assign_color(user_id: &str) -> &'static str {
-    let hash = user_id.bytes().fold(0u64, |acc, b| {
-        acc.wrapping_mul(31).wrapping_add(b as u64)
-    });
+    let hash = user_id
+        .bytes()
+        .fold(0u64, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u64));
     PALETTE[(hash as usize) % PALETTE.len()]
 }
 
@@ -182,7 +188,10 @@ pub enum CursorEvent {
     /// A cursor update should be sent to peers.
     Broadcast(CursorUpdate),
     /// A remote cursor was added.
-    CursorJoined { user_id: String, color: &'static str },
+    CursorJoined {
+        user_id: String,
+        color: &'static str,
+    },
     /// A remote cursor was removed.
     CursorLeft { user_id: String },
     /// A remote cursor timed out (no updates for a while).
@@ -250,9 +259,14 @@ impl CursorManager {
     /// Update the local cursor position. Returns true if a broadcast was queued.
     pub fn move_local(&mut self, pos: CursorPos, now_ms: u64) -> bool {
         self.local_position = pos;
-        let first_send = self.throttle.last_sent_ms == 0 && self.throttle.last_sent_pos.x == 0.0 && self.throttle.last_sent_pos.y == 0.0 && (pos.x != 0.0 || pos.y != 0.0);
-        let time_ok = now_ms.saturating_sub(self.throttle.last_sent_ms) >= self.config.throttle.interval_ms;
-        let dist_ok = pos.distance_to(&self.throttle.last_sent_pos) >= self.config.throttle.min_distance;
+        let first_send = self.throttle.last_sent_ms == 0
+            && self.throttle.last_sent_pos.x == 0.0
+            && self.throttle.last_sent_pos.y == 0.0
+            && (pos.x != 0.0 || pos.y != 0.0);
+        let time_ok =
+            now_ms.saturating_sub(self.throttle.last_sent_ms) >= self.config.throttle.interval_ms;
+        let dist_ok =
+            pos.distance_to(&self.throttle.last_sent_pos) >= self.config.throttle.min_distance;
 
         if first_send || (time_ok && dist_ok) {
             self.throttle.last_sent_pos = pos;
@@ -279,14 +293,19 @@ impl CursorManager {
         let uid: String = user_id.into();
         let cursor = RemoteCursor::new(&uid, display_name);
         let color = cursor.color;
-        self.events.push(CursorEvent::CursorJoined { user_id: uid.clone(), color });
+        self.events.push(CursorEvent::CursorJoined {
+            user_id: uid.clone(),
+            color,
+        });
         self.remotes.insert(uid, cursor);
     }
 
     /// Remove a remote cursor.
     pub fn remove_remote(&mut self, user_id: &str) {
         if self.remotes.remove(user_id).is_some() {
-            self.events.push(CursorEvent::CursorLeft { user_id: user_id.to_string() });
+            self.events.push(CursorEvent::CursorLeft {
+                user_id: user_id.to_string(),
+            });
         }
     }
 
@@ -333,7 +352,8 @@ impl CursorManager {
 
         for uid in timed_out {
             self.remotes.remove(&uid);
-            self.events.push(CursorEvent::CursorTimedOut { user_id: uid });
+            self.events
+                .push(CursorEvent::CursorTimedOut { user_id: uid });
         }
     }
 
@@ -469,7 +489,10 @@ mod tests {
     #[test]
     fn throttle_time_gate() {
         let config = CursorManagerConfig {
-            throttle: ThrottleConfig { interval_ms: 100, min_distance: 0.0 },
+            throttle: ThrottleConfig {
+                interval_ms: 100,
+                min_distance: 0.0,
+            },
             ..Default::default()
         };
         let mut mgr = CursorManager::new("me", config);
@@ -484,7 +507,10 @@ mod tests {
     #[test]
     fn throttle_distance_gate() {
         let config = CursorManagerConfig {
-            throttle: ThrottleConfig { interval_ms: 0, min_distance: 10.0 },
+            throttle: ThrottleConfig {
+                interval_ms: 0,
+                min_distance: 10.0,
+            },
             ..Default::default()
         };
         let mut mgr = CursorManager::new("me", config);
@@ -499,7 +525,10 @@ mod tests {
     #[test]
     fn move_local_generates_broadcast() {
         let config = CursorManagerConfig {
-            throttle: ThrottleConfig { interval_ms: 0, min_distance: 0.0 },
+            throttle: ThrottleConfig {
+                interval_ms: 0,
+                min_distance: 0.0,
+            },
             ..Default::default()
         };
         let mut mgr = CursorManager::new("me", config);
@@ -528,8 +557,16 @@ mod tests {
         assert_eq!(mgr.remote_count(), 0);
 
         let events = mgr.take_events();
-        assert!(events.iter().any(|e| matches!(e, CursorEvent::CursorJoined { user_id, .. } if user_id == "alice")));
-        assert!(events.iter().any(|e| matches!(e, CursorEvent::CursorLeft { user_id } if user_id == "alice")));
+        assert!(
+            events.iter().any(
+                |e| matches!(e, CursorEvent::CursorJoined { user_id, .. } if user_id == "alice")
+            )
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, CursorEvent::CursorLeft { user_id } if user_id == "alice"))
+        );
     }
 
     #[test]
@@ -598,7 +635,11 @@ mod tests {
         mgr.tick_stale(200);
         assert_eq!(mgr.remote_count(), 0);
         let events = mgr.take_events();
-        assert!(events.iter().any(|e| matches!(e, CursorEvent::CursorTimedOut { user_id } if user_id == "alice")));
+        assert!(
+            events.iter().any(
+                |e| matches!(e, CursorEvent::CursorTimedOut { user_id } if user_id == "alice")
+            )
+        );
     }
 
     #[test]
@@ -668,10 +709,16 @@ mod tests {
 
     #[test]
     fn local_position_getter() {
-        let mut mgr = CursorManager::new("me", CursorManagerConfig {
-            throttle: ThrottleConfig { interval_ms: 0, min_distance: 0.0 },
-            ..Default::default()
-        });
+        let mut mgr = CursorManager::new(
+            "me",
+            CursorManagerConfig {
+                throttle: ThrottleConfig {
+                    interval_ms: 0,
+                    min_distance: 0.0,
+                },
+                ..Default::default()
+            },
+        );
         mgr.move_local(CursorPos::new(42.0, 99.0), 0);
         let p = mgr.local_position();
         assert!((p.x - 42.0).abs() < 1e-10);
@@ -688,7 +735,10 @@ mod tests {
     #[test]
     fn viewport_included_in_broadcast() {
         let config = CursorManagerConfig {
-            throttle: ThrottleConfig { interval_ms: 0, min_distance: 0.0 },
+            throttle: ThrottleConfig {
+                interval_ms: 0,
+                min_distance: 0.0,
+            },
             ..Default::default()
         };
         let mut mgr = CursorManager::new("me", config);

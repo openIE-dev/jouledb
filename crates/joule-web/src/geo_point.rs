@@ -71,7 +71,12 @@ pub struct BBox {
 
 impl BBox {
     pub fn new(min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> Self {
-        Self { min_x, min_y, max_x, max_y }
+        Self {
+            min_x,
+            min_y,
+            max_x,
+            max_y,
+        }
     }
 
     /// Build a bbox from a set of points.
@@ -86,10 +91,18 @@ impl BBox {
             max_y: f64::NEG_INFINITY,
         };
         for p in pts {
-            if p.x < b.min_x { b.min_x = p.x; }
-            if p.y < b.min_y { b.min_y = p.y; }
-            if p.x > b.max_x { b.max_x = p.x; }
-            if p.y > b.max_y { b.max_y = p.y; }
+            if p.x < b.min_x {
+                b.min_x = p.x;
+            }
+            if p.y < b.min_y {
+                b.min_y = p.y;
+            }
+            if p.x > b.max_x {
+                b.max_x = p.x;
+            }
+            if p.y > b.max_y {
+                b.max_y = p.y;
+            }
         }
         Some(b)
     }
@@ -166,12 +179,18 @@ impl fmt::Display for ClusterLabel {
 /// DBSCAN-style density-based clustering.
 ///
 /// Returns a label per input point.
-pub fn dbscan(points: &[Point2], eps: f64, min_pts: usize) -> Result<Vec<ClusterLabel>, PointError> {
+pub fn dbscan(
+    points: &[Point2],
+    eps: f64,
+    min_pts: usize,
+) -> Result<Vec<ClusterLabel>, PointError> {
     if points.is_empty() {
         return Err(PointError::EmptyInput);
     }
     if eps <= 0.0 {
-        return Err(PointError::InvalidParameter(format!("eps must be >0, got {eps}")));
+        return Err(PointError::InvalidParameter(format!(
+            "eps must be >0, got {eps}"
+        )));
     }
     if min_pts == 0 {
         return Err(PointError::InvalidParameter("min_pts must be >0".into()));
@@ -329,7 +348,11 @@ pub fn convex_hull(points: &[Point2]) -> Result<Vec<Point2>, PointError> {
         return Err(PointError::TooFewPoints(points.len()));
     }
     let mut pts = points.to_vec();
-    pts.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap().then(a.y.partial_cmp(&b.y).unwrap()));
+    pts.sort_by(|a, b| {
+        a.x.partial_cmp(&b.x)
+            .unwrap()
+            .then(a.y.partial_cmp(&b.y).unwrap())
+    });
 
     let mut lower: Vec<Point2> = Vec::new();
     for &p in &pts {
@@ -414,8 +437,16 @@ impl PointSetBuilder {
     }
 
     pub fn with_grid(mut self, bbox: &BBox, nx: usize, ny: usize) -> Self {
-        let dx = if nx > 1 { bbox.width() / (nx - 1) as f64 } else { 0.0 };
-        let dy = if ny > 1 { bbox.height() / (ny - 1) as f64 } else { 0.0 };
+        let dx = if nx > 1 {
+            bbox.width() / (nx - 1) as f64
+        } else {
+            0.0
+        };
+        let dy = if ny > 1 {
+            bbox.height() / (ny - 1) as f64
+        } else {
+            0.0
+        };
         for iy in 0..ny {
             for ix in 0..nx {
                 self.points.push(Point2::new(
@@ -512,10 +543,7 @@ mod tests {
 
     #[test]
     fn test_dbscan_noise() {
-        let pts = vec![
-            Point2::new(0.0, 0.0),
-            Point2::new(100.0, 100.0),
-        ];
+        let pts = vec![Point2::new(0.0, 0.0), Point2::new(100.0, 100.0)];
         let labels = dbscan(&pts, 1.0, 2).unwrap();
         assert!(labels.iter().all(|l| *l == ClusterLabel::Noise));
     }

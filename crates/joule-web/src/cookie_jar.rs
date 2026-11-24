@@ -334,9 +334,7 @@ impl CookieJar {
     /// Remove a specific cookie by name, domain, path.
     pub fn remove(&mut self, name: &str, domain: Option<&str>, path: Option<&str>) {
         self.cookies.retain(|c| {
-            !(c.name == name
-                && c.domain.as_deref() == domain
-                && c.path.as_deref() == path)
+            !(c.name == name && c.domain.as_deref() == domain && c.path.as_deref() == path)
         });
     }
 
@@ -387,8 +385,7 @@ mod tests {
 
     #[test]
     fn cookie_expiry_max_age() {
-        let c = Cookie::new("a", "1")
-            .max_age_seconds(100);
+        let c = Cookie::new("a", "1").max_age_seconds(100);
         // Created at epoch 0, so expires at epoch 100.
         assert!(!c.is_expired(50));
         assert!(c.is_expired(101));
@@ -523,10 +520,7 @@ mod tests {
     #[test]
     fn insert_from_set_cookie_header() {
         let mut jar = CookieJar::new();
-        assert!(jar.insert_set_cookie(
-            "token=abc; Domain=api.com; Path=/v1; Secure",
-            100,
-        ));
+        assert!(jar.insert_set_cookie("token=abc; Domain=api.com; Path=/v1; Secure", 100,));
         assert_eq!(jar.len(), 1);
         let c = jar.iter().next().unwrap();
         assert_eq!(c.name, "token");

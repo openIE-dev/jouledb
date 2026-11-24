@@ -23,7 +23,11 @@ pub enum ApiKeyError {
     /// Key lacks required permission.
     InsufficientScope { key_id: String, required: String },
     /// Rate limit exceeded for this key.
-    RateLimited { key_id: String, limit: u64, window_ms: u64 },
+    RateLimited {
+        key_id: String,
+        limit: u64,
+        window_ms: u64,
+    },
     /// Duplicate key prefix.
     DuplicatePrefix(String),
     /// Invalid key format.
@@ -34,14 +38,21 @@ impl fmt::Display for ApiKeyError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::KeyNotFound(id) => write!(f, "API key not found: {id}"),
-            Self::KeyExpired { key_id, expired_at_ms } => {
+            Self::KeyExpired {
+                key_id,
+                expired_at_ms,
+            } => {
                 write!(f, "API key {key_id} expired at {expired_at_ms}")
             }
             Self::KeyRevoked(id) => write!(f, "API key revoked: {id}"),
             Self::InsufficientScope { key_id, required } => {
                 write!(f, "key {key_id} lacks scope: {required}")
             }
-            Self::RateLimited { key_id, limit, window_ms } => {
+            Self::RateLimited {
+                key_id,
+                limit,
+                window_ms,
+            } => {
                 write!(f, "key {key_id} rate limited: {limit} req/{window_ms}ms")
             }
             Self::DuplicatePrefix(p) => write!(f, "duplicate key prefix: {p}"),
@@ -419,7 +430,10 @@ impl ApiKeyManager {
 
     /// List active keys.
     pub fn active_keys(&self) -> Vec<&ApiKeyRecord> {
-        self.keys.values().filter(|k| k.status.is_active()).collect()
+        self.keys
+            .values()
+            .filter(|k| k.status.is_active())
+            .collect()
     }
 
     /// Add metadata to a key.
@@ -451,7 +465,9 @@ fn generate_key_body(seed: u64, counter: u64) -> String {
     h = h.wrapping_mul(0x100000001b3);
     h ^= counter;
     h = h.wrapping_mul(0x100000001b3);
-    let h2 = h.wrapping_mul(0x517cc1b727220a95).wrapping_add(0x6c62272e07bb0142);
+    let h2 = h
+        .wrapping_mul(0x517cc1b727220a95)
+        .wrapping_add(0x6c62272e07bb0142);
     format!("{h:016x}{h2:016x}")
 }
 
@@ -493,7 +509,9 @@ mod tests {
     fn test_validate_wrong_key() {
         let mut mgr = ApiKeyManager::new();
         mgr.generate_key("sk", "alice", "test", 42);
-        let err = mgr.validate("sk_wrong_key_value", "any", "read", 1000).unwrap_err();
+        let err = mgr
+            .validate("sk_wrong_key_value", "any", "read", 1000)
+            .unwrap_err();
         match err {
             ApiKeyError::KeyNotFound(_) => {}
             other => panic!("expected KeyNotFound, got: {other}"),
@@ -537,12 +555,15 @@ mod tests {
         let generated = mgr.generate_key("sk", "alice", "test", 42);
         let key_id = generated.record.id.clone();
         let full_key = generated.full_key.clone();
-        mgr.add_scope(&key_id, KeyScope::new("documents", &["read"])).unwrap();
+        mgr.add_scope(&key_id, KeyScope::new("documents", &["read"]))
+            .unwrap();
 
         // Allowed
         assert!(mgr.validate(&full_key, "documents", "read", 1000).is_ok());
         // Denied (wrong action)
-        let err = mgr.validate(&full_key, "documents", "delete", 2000).unwrap_err();
+        let err = mgr
+            .validate(&full_key, "documents", "delete", 2000)
+            .unwrap_err();
         match err {
             ApiKeyError::InsufficientScope { .. } => {}
             other => panic!("expected InsufficientScope, got: {other}"),
@@ -556,7 +577,10 @@ mod tests {
         let key_id = generated.record.id.clone();
         let full_key = generated.full_key.clone();
         mgr.add_scope(&key_id, KeyScope::new("*", &["*"])).unwrap();
-        assert!(mgr.validate(&full_key, "anything", "any_action", 1000).is_ok());
+        assert!(
+            mgr.validate(&full_key, "anything", "any_action", 1000)
+                .is_ok()
+        );
     }
 
     #[test]
@@ -607,7 +631,8 @@ mod tests {
         let generated = mgr.generate_key("sk", "alice", "test", 42);
         let old_id = generated.record.id.clone();
         let old_key = generated.full_key.clone();
-        mgr.add_scope(&old_id, KeyScope::new("docs", &["read"])).unwrap();
+        mgr.add_scope(&old_id, KeyScope::new("docs", &["read"]))
+            .unwrap();
 
         let new_gen = mgr.rotate_key(&old_id, 5000, 99).unwrap();
         let new_key = new_gen.full_key;
@@ -667,9 +692,13 @@ mod tests {
         let mut mgr = ApiKeyManager::new();
         let generated = mgr.generate_key("sk", "alice", "test", 42);
         let key_id = generated.record.id.clone();
-        mgr.set_metadata(&key_id, "environment", "production").unwrap();
+        mgr.set_metadata(&key_id, "environment", "production")
+            .unwrap();
         let rec = mgr.get_key(&key_id).unwrap();
-        assert_eq!(rec.metadata.get("environment"), Some(&"production".to_string()));
+        assert_eq!(
+            rec.metadata.get("environment"),
+            Some(&"production".to_string())
+        );
     }
 
     #[test]

@@ -19,11 +19,17 @@ pub enum FilterType {
     Notch,
     AllPass,
     /// Peaking EQ with gain_db.
-    PeakingEQ { gain_db: f64 },
+    PeakingEQ {
+        gain_db: f64,
+    },
     /// Low shelf with gain_db.
-    LowShelf { gain_db: f64 },
+    LowShelf {
+        gain_db: f64,
+    },
     /// High shelf with gain_db.
-    HighShelf { gain_db: f64 },
+    HighShelf {
+        gain_db: f64,
+    },
 }
 
 // ── Biquad Coefficients ─────────────────────────────────────────
@@ -176,7 +182,8 @@ impl BiquadFilter {
 
     /// Recalculate coefficients (call after changing cutoff/Q/type).
     pub fn update_coefficients(&mut self) {
-        self.coeffs = BiquadCoeffs::compute(self.filter_type, self.cutoff_hz, self.q, self.sample_rate);
+        self.coeffs =
+            BiquadCoeffs::compute(self.filter_type, self.cutoff_hz, self.q, self.sample_rate);
     }
 
     /// Reset the filter state (delay line).
@@ -190,8 +197,8 @@ impl BiquadFilter {
     /// Process a single input sample and return the filtered output.
     pub fn process(&mut self, input: f64) -> f64 {
         let c = &self.coeffs;
-        let output = c.b0 * input + c.b1 * self.x1 + c.b2 * self.x2
-            - c.a1 * self.y1 - c.a2 * self.y2;
+        let output =
+            c.b0 * input + c.b1 * self.x1 + c.b2 * self.x2 - c.a1 * self.y1 - c.a2 * self.y2;
         self.x2 = self.x1;
         self.x1 = input;
         self.y2 = self.y1;
@@ -222,7 +229,13 @@ pub struct CascadeFilter {
 
 impl CascadeFilter {
     /// Create a cascade of `order` identical biquad stages (each is 2nd order).
-    pub fn new(filter_type: FilterType, cutoff_hz: f64, q: f64, sample_rate: f64, stages: usize) -> Self {
+    pub fn new(
+        filter_type: FilterType,
+        cutoff_hz: f64,
+        q: f64,
+        sample_rate: f64,
+        stages: usize,
+    ) -> Self {
         let stages_vec = (0..stages.max(1))
             .map(|_| BiquadFilter::new(filter_type, cutoff_hz, q, sample_rate))
             .collect();
@@ -341,7 +354,13 @@ pub struct SvfOutput {
 impl StateVariableFilter {
     /// Create a new SVF.
     pub fn new(cutoff_hz: f64, q: f64, sample_rate: f64) -> Self {
-        Self { cutoff_hz, q, sample_rate, ic1eq: 0.0, ic2eq: 0.0 }
+        Self {
+            cutoff_hz,
+            q,
+            sample_rate,
+            ic1eq: 0.0,
+            ic2eq: 0.0,
+        }
     }
 
     /// Reset internal state.
@@ -425,7 +444,10 @@ mod tests {
         let input_rms = rms(&signal);
         filter.process_block(&mut signal);
         let output_rms = rms(&signal);
-        assert!(output_rms < input_rms * 0.2, "LP should attenuate 5kHz: in={input_rms} out={output_rms}");
+        assert!(
+            output_rms < input_rms * 0.2,
+            "LP should attenuate 5kHz: in={input_rms} out={output_rms}"
+        );
     }
 
     #[test]
@@ -436,7 +458,10 @@ mod tests {
         let input_rms = rms(&signal);
         filter.process_block(&mut signal);
         let output_rms = rms(&signal);
-        assert!(output_rms > input_rms * 0.8, "LP should pass 100Hz: in={input_rms} out={output_rms}");
+        assert!(
+            output_rms > input_rms * 0.8,
+            "LP should pass 100Hz: in={input_rms} out={output_rms}"
+        );
     }
 
     #[test]
@@ -446,7 +471,10 @@ mod tests {
         let input_rms = rms(&signal);
         filter.process_block(&mut signal);
         let output_rms = rms(&signal);
-        assert!(output_rms < input_rms * 0.2, "HP should attenuate 100Hz: in={input_rms} out={output_rms}");
+        assert!(
+            output_rms < input_rms * 0.2,
+            "HP should attenuate 100Hz: in={input_rms} out={output_rms}"
+        );
     }
 
     #[test]
@@ -456,7 +484,10 @@ mod tests {
         let input_rms = rms(&signal);
         filter.process_block(&mut signal);
         let output_rms = rms(&signal);
-        assert!(output_rms > input_rms * 0.7, "HP should pass 5kHz: in={input_rms} out={output_rms}");
+        assert!(
+            output_rms > input_rms * 0.7,
+            "HP should pass 5kHz: in={input_rms} out={output_rms}"
+        );
     }
 
     #[test]
@@ -467,7 +498,10 @@ mod tests {
         let input_rms = rms(&signal);
         filter.process_block(&mut signal);
         let output_rms = rms(&signal);
-        assert!(output_rms > input_rms * 0.3, "BP should pass 1kHz: in={input_rms} out={output_rms}");
+        assert!(
+            output_rms > input_rms * 0.3,
+            "BP should pass 1kHz: in={input_rms} out={output_rms}"
+        );
     }
 
     #[test]
@@ -477,7 +511,10 @@ mod tests {
         let input_rms = rms(&signal);
         filter.process_block(&mut signal);
         let output_rms = rms(&signal);
-        assert!(output_rms < input_rms * 0.2, "Notch should reject 1kHz: in={input_rms} out={output_rms}");
+        assert!(
+            output_rms < input_rms * 0.2,
+            "Notch should reject 1kHz: in={input_rms} out={output_rms}"
+        );
     }
 
     #[test]
@@ -487,18 +524,24 @@ mod tests {
         let input_rms = rms(&signal);
         filter.process_block(&mut signal);
         let output_rms = rms(&signal);
-        assert!((output_rms - input_rms).abs() < input_rms * 0.1,
-            "AllPass should preserve amplitude: in={input_rms} out={output_rms}");
+        assert!(
+            (output_rms - input_rms).abs() < input_rms * 0.1,
+            "AllPass should preserve amplitude: in={input_rms} out={output_rms}"
+        );
     }
 
     #[test]
     fn test_peaking_eq_boost() {
-        let mut filter = BiquadFilter::new(FilterType::PeakingEQ { gain_db: 12.0 }, 1000.0, 1.0, SR);
+        let mut filter =
+            BiquadFilter::new(FilterType::PeakingEQ { gain_db: 12.0 }, 1000.0, 1.0, SR);
         let mut signal = sine_tone(1000.0, SR, 8192);
         let input_rms = rms(&signal);
         filter.process_block(&mut signal);
         let output_rms = rms(&signal);
-        assert!(output_rms > input_rms * 1.5, "PeakingEQ +12dB should boost: in={input_rms} out={output_rms}");
+        assert!(
+            output_rms > input_rms * 1.5,
+            "PeakingEQ +12dB should boost: in={input_rms} out={output_rms}"
+        );
     }
 
     #[test]
@@ -515,7 +558,10 @@ mod tests {
         cascade.process_block(&mut signal2);
         let rms2 = rms(&signal2);
 
-        assert!(rms2 < rms1, "cascade should have steeper rolloff: single={rms1} cascade={rms2}");
+        assert!(
+            rms2 < rms1,
+            "cascade should have steeper rolloff: single={rms1} cascade={rms2}"
+        );
     }
 
     #[test]
@@ -572,7 +618,10 @@ mod tests {
         let input_rms = rms(&signal);
         svf.process_block_hp(&mut signal);
         let output_rms = rms(&signal);
-        assert!(output_rms < input_rms * 0.3, "SVF HP should attenuate 100Hz");
+        assert!(
+            output_rms < input_rms * 0.3,
+            "SVF HP should attenuate 100Hz"
+        );
     }
 
     #[test]
@@ -582,7 +631,10 @@ mod tests {
         let input_rms = rms(&signal);
         svf.process_block_bp(&mut signal);
         let output_rms = rms(&signal);
-        assert!(output_rms > input_rms * 0.1, "SVF BP should pass center freq");
+        assert!(
+            output_rms > input_rms * 0.1,
+            "SVF BP should pass center freq"
+        );
     }
 
     #[test]
@@ -619,22 +671,30 @@ mod tests {
 
     #[test]
     fn test_lowshelf_boost() {
-        let mut filter = BiquadFilter::new(FilterType::LowShelf { gain_db: 12.0 }, 500.0, 0.707, SR);
+        let mut filter =
+            BiquadFilter::new(FilterType::LowShelf { gain_db: 12.0 }, 500.0, 0.707, SR);
         let mut signal = sine_tone(100.0, SR, 8192);
         let input_rms = rms(&signal);
         filter.process_block(&mut signal);
         let output_rms = rms(&signal);
-        assert!(output_rms > input_rms * 1.2, "LowShelf +12dB should boost low freq");
+        assert!(
+            output_rms > input_rms * 1.2,
+            "LowShelf +12dB should boost low freq"
+        );
     }
 
     #[test]
     fn test_highshelf_boost() {
-        let mut filter = BiquadFilter::new(FilterType::HighShelf { gain_db: 12.0 }, 5000.0, 0.707, SR);
+        let mut filter =
+            BiquadFilter::new(FilterType::HighShelf { gain_db: 12.0 }, 5000.0, 0.707, SR);
         let mut signal = sine_tone(10000.0, SR, 8192);
         let input_rms = rms(&signal);
         filter.process_block(&mut signal);
         let output_rms = rms(&signal);
-        assert!(output_rms > input_rms * 1.2, "HighShelf +12dB should boost high freq");
+        assert!(
+            output_rms > input_rms * 1.2,
+            "HighShelf +12dB should boost high freq"
+        );
     }
 
     #[test]
@@ -644,7 +704,10 @@ mod tests {
         filter.cutoff_hz = 5000.0;
         filter.update_coefficients();
         let coeffs2 = filter.coefficients();
-        assert!((coeffs1.b0 - coeffs2.b0).abs() > EPS, "coefficients should change");
+        assert!(
+            (coeffs1.b0 - coeffs2.b0).abs() > EPS,
+            "coefficients should change"
+        );
     }
 
     #[test]

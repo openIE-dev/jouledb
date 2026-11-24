@@ -16,13 +16,29 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0, z: 0.0 } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
 
-    pub fn add(&self, o: &Vec3) -> Vec3 { Vec3::new(self.x + o.x, self.y + o.y, self.z + o.z) }
-    pub fn sub(&self, o: &Vec3) -> Vec3 { Vec3::new(self.x - o.x, self.y - o.y, self.z - o.z) }
-    pub fn scale(&self, s: f64) -> Vec3 { Vec3::new(self.x * s, self.y * s, self.z * s) }
-    pub fn dot(&self, o: &Vec3) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
+    pub fn add(&self, o: &Vec3) -> Vec3 {
+        Vec3::new(self.x + o.x, self.y + o.y, self.z + o.z)
+    }
+    pub fn sub(&self, o: &Vec3) -> Vec3 {
+        Vec3::new(self.x - o.x, self.y - o.y, self.z - o.z)
+    }
+    pub fn scale(&self, s: f64) -> Vec3 {
+        Vec3::new(self.x * s, self.y * s, self.z * s)
+    }
+    pub fn dot(&self, o: &Vec3) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
     pub fn cross(&self, o: &Vec3) -> Vec3 {
         Vec3::new(
             self.y * o.z - self.z * o.y,
@@ -30,11 +46,19 @@ impl Vec3 {
             self.x * o.y - self.y * o.x,
         )
     }
-    pub fn norm_sq(&self) -> f64 { self.dot(self) }
-    pub fn norm(&self) -> f64 { self.norm_sq().sqrt() }
+    pub fn norm_sq(&self) -> f64 {
+        self.dot(self)
+    }
+    pub fn norm(&self) -> f64 {
+        self.norm_sq().sqrt()
+    }
     pub fn normalized(&self) -> Vec3 {
         let n = self.norm();
-        if n < 1e-15 { Vec3::zero() } else { self.scale(1.0 / n) }
+        if n < 1e-15 {
+            Vec3::zero()
+        } else {
+            self.scale(1.0 / n)
+        }
     }
 }
 
@@ -53,11 +77,19 @@ pub struct Mat3 {
 }
 
 impl Mat3 {
-    pub fn identity() -> Self { Self { data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0] } }
+    pub fn identity() -> Self {
+        Self {
+            data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+        }
+    }
 
-    pub fn get(&self, r: usize, c: usize) -> f64 { self.data[r * 3 + c] }
+    pub fn get(&self, r: usize, c: usize) -> f64 {
+        self.data[r * 3 + c]
+    }
 
-    pub fn set(&mut self, r: usize, c: usize, v: f64) { self.data[r * 3 + c] = v; }
+    pub fn set(&mut self, r: usize, c: usize, v: f64) {
+        self.data[r * 3 + c] = v;
+    }
 
     pub fn mul_vec(&self, v: &Vec3) -> Vec3 {
         Vec3::new(
@@ -72,7 +104,9 @@ impl Mat3 {
         for i in 0..3 {
             for j in 0..3 {
                 let mut s = 0.0;
-                for k in 0..3 { s += self.get(i, k) * o.get(k, j); }
+                for k in 0..3 {
+                    s += self.get(i, k) * o.get(k, j);
+                }
                 out.set(i, j, s);
             }
         }
@@ -81,7 +115,11 @@ impl Mat3 {
 
     pub fn transpose(&self) -> Mat3 {
         let mut out = Mat3 { data: [0.0; 9] };
-        for i in 0..3 { for j in 0..3 { out.set(i, j, self.get(j, i)); } }
+        for i in 0..3 {
+            for j in 0..3 {
+                out.set(i, j, self.get(j, i));
+            }
+        }
         out
     }
 
@@ -96,7 +134,9 @@ impl Mat3 {
             // For orthogonality: R_new = 0.5*(R + inv(R^T))
             // Approximate inv(R^T) with cofactor/det
             let det = r.determinant();
-            if det.abs() < 1e-15 { return Mat3::identity(); }
+            if det.abs() < 1e-15 {
+                return Mat3::identity();
+            }
             let adj = r.adjugate();
             let inv_rt_data: [f64; 9] = {
                 let mut d = [0.0; 9];
@@ -118,14 +158,18 @@ impl Mat3 {
             // Check convergence
             let diff: f64 = (0..9).map(|i| (new_r.data[i] - r.data[i]).abs()).sum();
             r = new_r;
-            if diff < 1e-12 { break; }
+            if diff < 1e-12 {
+                break;
+            }
             let _ = rt; // suppress unused
         }
 
         // Ensure proper rotation (det = +1)
         if r.determinant() < 0.0 {
             // Negate the column with smallest singular value (approximate)
-            for i in 0..3 { r.set(i, 2, -r.get(i, 2)); }
+            for i in 0..3 {
+                r.set(i, 2, -r.get(i, 2));
+            }
         }
         r
     }
@@ -138,15 +182,51 @@ impl Mat3 {
 
     pub fn adjugate(&self) -> Mat3 {
         let mut adj = Mat3 { data: [0.0; 9] };
-        adj.set(0, 0, self.get(1, 1) * self.get(2, 2) - self.get(1, 2) * self.get(2, 1));
-        adj.set(0, 1, -(self.get(1, 0) * self.get(2, 2) - self.get(1, 2) * self.get(2, 0)));
-        adj.set(0, 2, self.get(1, 0) * self.get(2, 1) - self.get(1, 1) * self.get(2, 0));
-        adj.set(1, 0, -(self.get(0, 1) * self.get(2, 2) - self.get(0, 2) * self.get(2, 1)));
-        adj.set(1, 1, self.get(0, 0) * self.get(2, 2) - self.get(0, 2) * self.get(2, 0));
-        adj.set(1, 2, -(self.get(0, 0) * self.get(2, 1) - self.get(0, 1) * self.get(2, 0)));
-        adj.set(2, 0, self.get(0, 1) * self.get(1, 2) - self.get(0, 2) * self.get(1, 1));
-        adj.set(2, 1, -(self.get(0, 0) * self.get(1, 2) - self.get(0, 2) * self.get(1, 0)));
-        adj.set(2, 2, self.get(0, 0) * self.get(1, 1) - self.get(0, 1) * self.get(1, 0));
+        adj.set(
+            0,
+            0,
+            self.get(1, 1) * self.get(2, 2) - self.get(1, 2) * self.get(2, 1),
+        );
+        adj.set(
+            0,
+            1,
+            -(self.get(1, 0) * self.get(2, 2) - self.get(1, 2) * self.get(2, 0)),
+        );
+        adj.set(
+            0,
+            2,
+            self.get(1, 0) * self.get(2, 1) - self.get(1, 1) * self.get(2, 0),
+        );
+        adj.set(
+            1,
+            0,
+            -(self.get(0, 1) * self.get(2, 2) - self.get(0, 2) * self.get(2, 1)),
+        );
+        adj.set(
+            1,
+            1,
+            self.get(0, 0) * self.get(2, 2) - self.get(0, 2) * self.get(2, 0),
+        );
+        adj.set(
+            1,
+            2,
+            -(self.get(0, 0) * self.get(2, 1) - self.get(0, 1) * self.get(2, 0)),
+        );
+        adj.set(
+            2,
+            0,
+            self.get(0, 1) * self.get(1, 2) - self.get(0, 2) * self.get(1, 1),
+        );
+        adj.set(
+            2,
+            1,
+            -(self.get(0, 0) * self.get(1, 2) - self.get(0, 2) * self.get(1, 0)),
+        );
+        adj.set(
+            2,
+            2,
+            self.get(0, 0) * self.get(1, 1) - self.get(0, 1) * self.get(1, 0),
+        );
         adj
     }
 }
@@ -155,8 +235,16 @@ impl Mat3 {
 
 #[derive(Debug)]
 enum KdNode {
-    Leaf { point: Vec3, index: usize },
-    Split { axis: usize, median: f64, left: Box<KdNode>, right: Box<KdNode> },
+    Leaf {
+        point: Vec3,
+        index: usize,
+    },
+    Split {
+        axis: usize,
+        median: f64,
+        left: Box<KdNode>,
+        right: Box<KdNode>,
+    },
 }
 
 /// A 3-D KD-tree for nearest-neighbor queries.
@@ -169,15 +257,28 @@ pub struct KdTree {
 impl KdTree {
     /// Build a KD-tree from a slice of points.
     pub fn build(points: &[Vec3]) -> Self {
-        let mut indices: Vec<(Vec3, usize)> = points.iter().copied().enumerate().map(|(i, p)| (p, i)).collect();
+        let mut indices: Vec<(Vec3, usize)> = points
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(i, p)| (p, i))
+            .collect();
         let root = Self::build_recursive(&mut indices, 0);
-        KdTree { root, size: points.len() }
+        KdTree {
+            root,
+            size: points.len(),
+        }
     }
 
     fn build_recursive(pts: &mut [(Vec3, usize)], depth: usize) -> Option<KdNode> {
-        if pts.is_empty() { return None; }
+        if pts.is_empty() {
+            return None;
+        }
         if pts.len() == 1 {
-            return Some(KdNode::Leaf { point: pts[0].0, index: pts[0].1 });
+            return Some(KdNode::Leaf {
+                point: pts[0].0,
+                index: pts[0].1,
+            });
         }
 
         let axis = depth % 3;
@@ -196,8 +297,14 @@ impl KdTree {
         Some(KdNode::Split {
             axis,
             median,
-            left: Box::new(left.unwrap_or(KdNode::Leaf { point: Vec3::zero(), index: 0 })),
-            right: Box::new(right.unwrap_or(KdNode::Leaf { point: Vec3::zero(), index: 0 })),
+            left: Box::new(left.unwrap_or(KdNode::Leaf {
+                point: Vec3::zero(),
+                index: 0,
+            })),
+            right: Box::new(right.unwrap_or(KdNode::Leaf {
+                point: Vec3::zero(),
+                index: 0,
+            })),
         })
     }
 
@@ -208,18 +315,40 @@ impl KdTree {
         if let Some(ref root) = self.root {
             Self::nn_search(root, query, 0, &mut best_idx, &mut best_dist);
         }
-        if best_dist < f64::MAX { Some((best_idx, best_dist)) } else { None }
+        if best_dist < f64::MAX {
+            Some((best_idx, best_dist))
+        } else {
+            None
+        }
     }
 
-    fn nn_search(node: &KdNode, query: &Vec3, depth: usize, best_idx: &mut usize, best_dist: &mut f64) {
+    fn nn_search(
+        node: &KdNode,
+        query: &Vec3,
+        depth: usize,
+        best_idx: &mut usize,
+        best_dist: &mut f64,
+    ) {
         match node {
             KdNode::Leaf { point, index } => {
                 let d = query.sub(point).norm_sq();
-                if d < *best_dist { *best_dist = d; *best_idx = *index; }
+                if d < *best_dist {
+                    *best_dist = d;
+                    *best_idx = *index;
+                }
             }
-            KdNode::Split { axis, median, left, right } => {
+            KdNode::Split {
+                axis,
+                median,
+                left,
+                right,
+            } => {
                 let qval = [query.x, query.y, query.z][*axis];
-                let (first, second) = if qval < *median { (left, right) } else { (right, left) };
+                let (first, second) = if qval < *median {
+                    (left, right)
+                } else {
+                    (right, left)
+                };
 
                 Self::nn_search(first, query, depth + 1, best_idx, best_dist);
 
@@ -277,11 +406,25 @@ impl Default for IcpConfig {
 }
 
 impl IcpConfig {
-    pub fn new() -> Self { Self::default() }
-    pub fn with_max_iterations(mut self, n: usize) -> Self { self.max_iterations = n; self }
-    pub fn with_tolerance(mut self, t: f64) -> Self { self.tolerance = t; self }
-    pub fn with_max_correspondence_dist(mut self, d: f64) -> Self { self.max_correspondence_dist = d; self }
-    pub fn with_variant(mut self, v: IcpVariant) -> Self { self.variant = v; self }
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn with_max_iterations(mut self, n: usize) -> Self {
+        self.max_iterations = n;
+        self
+    }
+    pub fn with_tolerance(mut self, t: f64) -> Self {
+        self.tolerance = t;
+        self
+    }
+    pub fn with_max_correspondence_dist(mut self, d: f64) -> Self {
+        self.max_correspondence_dist = d;
+        self
+    }
+    pub fn with_variant(mut self, v: IcpVariant) -> Self {
+        self.variant = v;
+        self
+    }
 }
 
 // ── ICP result ────────────────────────────────────────────────────
@@ -335,22 +478,40 @@ pub fn icp_align(source: &[Vec3], target: &[Vec3], config: &IcpConfig) -> IcpRes
         }
 
         if src_matched.len() < 3 {
-            return IcpResult { rotation: rot, translation: trans, iterations: iter, final_error: prev_error, converged: false };
+            return IcpResult {
+                rotation: rot,
+                translation: trans,
+                iterations: iter,
+                final_error: prev_error,
+                converged: false,
+            };
         }
 
         // Compute centroids
         let n = src_matched.len() as f64;
-        let src_centroid = src_matched.iter().fold(Vec3::zero(), |a, b| a.add(b)).scale(1.0 / n);
-        let tgt_centroid = tgt_matched.iter().fold(Vec3::zero(), |a, b| a.add(b)).scale(1.0 / n);
+        let src_centroid = src_matched
+            .iter()
+            .fold(Vec3::zero(), |a, b| a.add(b))
+            .scale(1.0 / n);
+        let tgt_centroid = tgt_matched
+            .iter()
+            .fold(Vec3::zero(), |a, b| a.add(b))
+            .scale(1.0 / n);
 
         // Cross-covariance
         let mut h = Mat3 { data: [0.0; 9] };
         for i in 0..src_matched.len() {
             let s = src_matched[i].sub(&src_centroid);
             let t = tgt_matched[i].sub(&tgt_centroid);
-            h.data[0] += s.x * t.x; h.data[1] += s.x * t.y; h.data[2] += s.x * t.z;
-            h.data[3] += s.y * t.x; h.data[4] += s.y * t.y; h.data[5] += s.y * t.z;
-            h.data[6] += s.z * t.x; h.data[7] += s.z * t.y; h.data[8] += s.z * t.z;
+            h.data[0] += s.x * t.x;
+            h.data[1] += s.x * t.y;
+            h.data[2] += s.x * t.z;
+            h.data[3] += s.y * t.x;
+            h.data[4] += s.y * t.y;
+            h.data[5] += s.y * t.z;
+            h.data[6] += s.z * t.x;
+            h.data[7] += s.z * t.y;
+            h.data[8] += s.z * t.z;
         }
 
         let r_step = Mat3::rotation_from_cross_covariance(&h);
@@ -376,20 +537,39 @@ pub fn icp_align(source: &[Vec3], target: &[Vec3], config: &IcpConfig) -> IcpRes
                 }
             }
         }
-        let mean_err = if count > 0 { total_err / count as f64 } else { f64::MAX };
+        let mean_err = if count > 0 {
+            total_err / count as f64
+        } else {
+            f64::MAX
+        };
 
         if (prev_error - mean_err).abs() < config.tolerance {
-            return IcpResult { rotation: rot, translation: trans, iterations: iter + 1, final_error: mean_err, converged: true };
+            return IcpResult {
+                rotation: rot,
+                translation: trans,
+                iterations: iter + 1,
+                final_error: mean_err,
+                converged: true,
+            };
         }
         prev_error = mean_err;
     }
 
-    IcpResult { rotation: rot, translation: trans, iterations: config.max_iterations, final_error: prev_error, converged: false }
+    IcpResult {
+        rotation: rot,
+        translation: trans,
+        iterations: config.max_iterations,
+        final_error: prev_error,
+        converged: false,
+    }
 }
 
 /// Apply rigid transform (R, t) to a point set.
 pub fn transform_points(points: &[Vec3], rotation: &Mat3, translation: &Vec3) -> Vec<Vec3> {
-    points.iter().map(|p| rotation.mul_vec(p).add(translation)).collect()
+    points
+        .iter()
+        .map(|p| rotation.mul_vec(p).add(translation))
+        .collect()
 }
 
 // ── Tests ─────────────────────────────────────────────────────────
@@ -488,7 +668,9 @@ mod tests {
         let src = cube_points();
         let offset = Vec3::new(0.1, 0.0, 0.0);
         let tgt: Vec<Vec3> = src.iter().map(|p| p.add(&offset)).collect();
-        let config = IcpConfig::new().with_max_iterations(50).with_tolerance(1e-8);
+        let config = IcpConfig::new()
+            .with_max_iterations(50)
+            .with_tolerance(1e-8);
         let result = icp_align(&src, &tgt, &config);
         assert!(result.final_error < 0.01, "error={}", result.final_error);
     }
@@ -543,7 +725,12 @@ mod tests {
         // H = I should yield R = I
         let r = Mat3::rotation_from_cross_covariance(&Mat3::identity());
         for i in 0..3 {
-            assert!((r.get(i, i) - 1.0).abs() < 0.1, "diag[{}]={}", i, r.get(i, i));
+            assert!(
+                (r.get(i, i) - 1.0).abs() < 0.1,
+                "diag[{}]={}",
+                i,
+                r.get(i, i)
+            );
         }
     }
 

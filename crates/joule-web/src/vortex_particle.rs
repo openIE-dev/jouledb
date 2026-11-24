@@ -56,7 +56,11 @@ impl Vec3 {
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn length_sq(&self) -> f64 {
@@ -68,15 +72,27 @@ impl Vec3 {
     }
 
     pub fn add(&self, other: &Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y, z: self.z + other.z }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
     }
 
     pub fn sub(&self, other: &Self) -> Self {
-        Self { x: self.x - other.x, y: self.y - other.y, z: self.z - other.z }
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+            z: self.z - other.z,
+        }
     }
 
     pub fn scale(&self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn dot(&self, other: &Self) -> f64 {
@@ -110,10 +126,16 @@ fn kernel_factor(kernel: RegularizationKernel, r_sq: f64, sigma: f64) -> f64 {
     match kernel {
         RegularizationKernel::RosenheadMoore => {
             let denom = (r_sq + sigma_sq).powf(1.5);
-            if denom < 1e-30 { 0.0 } else { r_sq.sqrt().powi(2) / denom }
+            if denom < 1e-30 {
+                0.0
+            } else {
+                r_sq.sqrt().powi(2) / denom
+            }
         }
         RegularizationKernel::LambOseen => {
-            if sigma_sq < 1e-30 { return 1.0; }
+            if sigma_sq < 1e-30 {
+                return 1.0;
+            }
             1.0 - (-r_sq / sigma_sq).exp()
         }
     }
@@ -147,7 +169,12 @@ impl VortexElement {
 
     /// Create a 3D vortex element.
     pub fn vortex_3d(id: usize, pos: Vec3, vorticity: Vec3, core_radius: f64) -> Self {
-        Self { position: pos, vorticity, core_radius, id }
+        Self {
+            position: pos,
+            vorticity,
+            core_radius,
+            id,
+        }
     }
 
     /// Circulation magnitude (length of vorticity vector).
@@ -235,7 +262,13 @@ impl VortexSimulation {
     pub fn add_vortex_2d(&mut self, x: f64, y: f64, circulation: f64, core_radius: f64) -> usize {
         let id = self.next_id;
         self.next_id += 1;
-        self.vortices.push(VortexElement::point_vortex_2d(id, x, y, circulation, core_radius));
+        self.vortices.push(VortexElement::point_vortex_2d(
+            id,
+            x,
+            y,
+            circulation,
+            core_radius,
+        ));
         id
     }
 
@@ -243,7 +276,8 @@ impl VortexSimulation {
     pub fn add_vortex_3d(&mut self, pos: Vec3, vorticity: Vec3, core_radius: f64) -> usize {
         let id = self.next_id;
         self.next_id += 1;
-        self.vortices.push(VortexElement::vortex_3d(id, pos, vorticity, core_radius));
+        self.vortices
+            .push(VortexElement::vortex_3d(id, pos, vorticity, core_radius));
         id
     }
 
@@ -293,7 +327,8 @@ impl VortexSimulation {
 
     /// Compute induced velocities at all vortex positions (direct O(N^2)).
     fn compute_velocities_direct(&self) -> Vec<Vec3> {
-        self.vortices.iter()
+        self.vortices
+            .iter()
             .map(|v| self.velocity_at(&v.position))
             .collect()
     }
@@ -321,7 +356,9 @@ impl VortexSimulation {
             center = center.scale(1.0 / total_gamma);
         }
 
-        let max_dist = self.vortices.iter()
+        let max_dist = self
+            .vortices
+            .iter()
             .map(|v| v.position.sub(&center).length())
             .fold(0.0_f64, f64::max);
 
@@ -366,7 +403,9 @@ impl VortexSimulation {
             let mut min_dist = f64::MAX;
             let mut nearest_idx = 0;
             for j in 0..n {
-                if i == j { continue; }
+                if i == j {
+                    continue;
+                }
                 let d = self.vortices[j].position.sub(&pos).length();
                 if d < min_dist {
                     min_dist = d;
@@ -415,13 +454,22 @@ impl VortexSimulation {
         let mut merges = 0;
 
         for i in 0..n {
-            if merged[i] { continue; }
-            if self.vortices[i].circulation() > min_circ * 10.0 { continue; }
+            if merged[i] {
+                continue;
+            }
+            if self.vortices[i].circulation() > min_circ * 10.0 {
+                continue;
+            }
 
             for j in (i + 1)..n {
-                if merged[j] { continue; }
+                if merged[j] {
+                    continue;
+                }
 
-                let dist = self.vortices[i].position.sub(&self.vortices[j].position).length();
+                let dist = self.vortices[i]
+                    .position
+                    .sub(&self.vortices[j].position)
+                    .length();
                 if dist < dist_thresh {
                     let ci = self.vortices[i].circulation();
                     let cj = self.vortices[j].circulation();
@@ -429,10 +477,13 @@ impl VortexSimulation {
 
                     if total.abs() > 1e-30 {
                         // Weighted average position
-                        let new_pos = self.vortices[i].position.scale(ci / total)
+                        let new_pos = self.vortices[i]
+                            .position
+                            .scale(ci / total)
                             .add(&self.vortices[j].position.scale(cj / total));
                         let new_vort = self.vortices[i].vorticity.add(&self.vortices[j].vorticity);
-                        let new_sigma = (self.vortices[i].core_radius + self.vortices[j].core_radius) * 0.5;
+                        let new_sigma =
+                            (self.vortices[i].core_radius + self.vortices[j].core_radius) * 0.5;
 
                         self.vortices[i].position = new_pos;
                         self.vortices[i].vorticity = new_vort;
@@ -493,7 +544,10 @@ impl VortexSimulation {
         self.step_count += 1;
 
         // Compute stats
-        let max_vel = velocities.iter().map(|v| v.length()).fold(0.0_f64, f64::max);
+        let max_vel = velocities
+            .iter()
+            .map(|v| v.length())
+            .fold(0.0_f64, f64::max);
         let total_circ: f64 = self.vortices.iter().map(|v| v.vorticity.z).sum();
         let total_energy: f64 = self.vortices.iter().map(|v| v.energy_contribution()).sum();
 
@@ -536,7 +590,9 @@ impl VortexSimulation {
 
     /// Get a vortex by index.
     pub fn get_vortex(&self, idx: usize) -> Result<&VortexElement, VortexError> {
-        self.vortices.get(idx).ok_or(VortexError::IndexOutOfRange(idx))
+        self.vortices
+            .get(idx)
+            .ok_or(VortexError::IndexOutOfRange(idx))
     }
 }
 

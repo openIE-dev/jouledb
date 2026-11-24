@@ -5,8 +5,8 @@
 //! Replaces JavaScript navmesh libraries (nav2d, yuka navmesh) with a pure-Rust
 //! navigation mesh for 2D game worlds.
 
-use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 
 // ── 2D Vector ───────────────────────────────────────────────────
 
@@ -18,14 +18,19 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
 
     pub fn dist(&self, other: Vec2) -> f64 {
         ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
     }
 
     pub fn lerp(&self, other: Vec2, t: f64) -> Vec2 {
-        Vec2::new(self.x + (other.x - self.x) * t, self.y + (other.y - self.y) * t)
+        Vec2::new(
+            self.x + (other.x - self.x) * t,
+            self.y + (other.y - self.y) * t,
+        )
     }
 }
 
@@ -158,19 +163,24 @@ impl NavMesh {
     /// Find which polygon contains a point, considering agent radius.
     /// The point must be at least `radius` away from all polygon edges.
     pub fn find_polygon_with_radius(&self, p: Vec2, radius: f64) -> Option<usize> {
-        self.polygons.iter().find(|poly| {
-            if poly.blocked || !poly.contains(p) { return false; }
-            // Check distance to each edge.
-            let n = poly.vertices.len();
-            for i in 0..n {
-                let a = poly.vertices[i];
-                let b = poly.vertices[(i + 1) % n];
-                if point_to_segment_dist(p, a, b) < radius {
+        self.polygons
+            .iter()
+            .find(|poly| {
+                if poly.blocked || !poly.contains(p) {
                     return false;
                 }
-            }
-            true
-        }).map(|poly| poly.id)
+                // Check distance to each edge.
+                let n = poly.vertices.len();
+                for i in 0..n {
+                    let a = poly.vertices[i];
+                    let b = poly.vertices[(i + 1) % n];
+                    if point_to_segment_dist(p, a, b) < radius {
+                        return false;
+                    }
+                }
+                true
+            })
+            .map(|poly| poly.id)
     }
 
     /// A* pathfinding on the polygon graph. Returns list of polygon ids.
@@ -188,29 +198,48 @@ impl NavMesh {
         let mut closed: HashSet<usize> = HashSet::new();
 
         g_score.insert(start_poly, 0.0);
-        let h = self.polygons[start_poly].centroid().dist(self.polygons[goal_poly].centroid());
-        open.push(NavHeapEntry { cost: h, poly_id: start_poly });
+        let h = self.polygons[start_poly]
+            .centroid()
+            .dist(self.polygons[goal_poly].centroid());
+        open.push(NavHeapEntry {
+            cost: h,
+            poly_id: start_poly,
+        });
 
-        while let Some(NavHeapEntry { poly_id: current, .. }) = open.pop() {
+        while let Some(NavHeapEntry {
+            poly_id: current, ..
+        }) = open.pop()
+        {
             if current == goal_poly {
                 return Some(reconstruct(came_from, current));
             }
-            if !closed.insert(current) { continue; }
+            if !closed.insert(current) {
+                continue;
+            }
 
             let current_g = g_score[&current];
             let poly = &self.polygons[current];
 
             // Regular neighbors.
             for neighbor_id in poly.neighbors.iter().filter_map(|n| *n) {
-                if closed.contains(&neighbor_id) { continue; }
-                if self.polygons[neighbor_id].blocked { continue; }
+                if closed.contains(&neighbor_id) {
+                    continue;
+                }
+                if self.polygons[neighbor_id].blocked {
+                    continue;
+                }
                 let edge_cost = poly.centroid().dist(self.polygons[neighbor_id].centroid());
                 let tentative_g = current_g + edge_cost;
                 if tentative_g < *g_score.get(&neighbor_id).unwrap_or(&f64::INFINITY) {
                     g_score.insert(neighbor_id, tentative_g);
                     came_from.insert(neighbor_id, current);
-                    let h = self.polygons[neighbor_id].centroid().dist(self.polygons[goal_poly].centroid());
-                    open.push(NavHeapEntry { cost: tentative_g + h, poly_id: neighbor_id });
+                    let h = self.polygons[neighbor_id]
+                        .centroid()
+                        .dist(self.polygons[goal_poly].centroid());
+                    open.push(NavHeapEntry {
+                        cost: tentative_g + h,
+                        poly_id: neighbor_id,
+                    });
                 }
             }
 
@@ -223,13 +252,20 @@ impl NavMesh {
                 } else {
                     continue;
                 };
-                if closed.contains(&neighbor_id) || self.polygons[neighbor_id].blocked { continue; }
+                if closed.contains(&neighbor_id) || self.polygons[neighbor_id].blocked {
+                    continue;
+                }
                 let tentative_g = current_g + link.cost;
                 if tentative_g < *g_score.get(&neighbor_id).unwrap_or(&f64::INFINITY) {
                     g_score.insert(neighbor_id, tentative_g);
                     came_from.insert(neighbor_id, current);
-                    let h = self.polygons[neighbor_id].centroid().dist(self.polygons[goal_poly].centroid());
-                    open.push(NavHeapEntry { cost: tentative_g + h, poly_id: neighbor_id });
+                    let h = self.polygons[neighbor_id]
+                        .centroid()
+                        .dist(self.polygons[goal_poly].centroid());
+                    open.push(NavHeapEntry {
+                        cost: tentative_g + h,
+                        poly_id: neighbor_id,
+                    });
                 }
             }
         }
@@ -256,7 +292,10 @@ impl NavMesh {
                     if link.from_poly == poly_path[i] && link.to_poly == poly_path[i + 1] {
                         portals.push((link.from_point, link.to_point));
                         break;
-                    } else if link.bidirectional && link.to_poly == poly_path[i] && link.from_poly == poly_path[i + 1] {
+                    } else if link.bidirectional
+                        && link.to_poly == poly_path[i]
+                        && link.from_poly == poly_path[i + 1]
+                    {
                         portals.push((link.to_point, link.from_point));
                         break;
                     }
@@ -270,14 +309,20 @@ impl NavMesh {
 }
 
 impl Default for NavMesh {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Funnel algorithm (string pulling) ───────────────────────────
 
 fn funnel_algorithm(portals: &[(Vec2, Vec2)]) -> Vec<Vec2> {
-    if portals.is_empty() { return Vec::new(); }
-    if portals.len() == 1 { return vec![portals[0].0]; }
+    if portals.is_empty() {
+        return Vec::new();
+    }
+    if portals.len() == 1 {
+        return vec![portals[0].0];
+    }
 
     let mut path = vec![portals[0].0];
     let mut apex = portals[0].0;
@@ -346,15 +391,22 @@ struct NavHeapEntry {
 }
 
 impl PartialEq for NavHeapEntry {
-    fn eq(&self, other: &Self) -> bool { self.cost == other.cost }
+    fn eq(&self, other: &Self) -> bool {
+        self.cost == other.cost
+    }
 }
 impl Eq for NavHeapEntry {}
 impl PartialOrd for NavHeapEntry {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 impl Ord for NavHeapEntry {
     fn cmp(&self, other: &Self) -> Ordering {
-        other.cost.partial_cmp(&self.cost).unwrap_or(Ordering::Equal)
+        other
+            .cost
+            .partial_cmp(&self.cost)
+            .unwrap_or(Ordering::Equal)
     }
 }
 
@@ -374,7 +426,9 @@ fn point_to_segment_dist(p: Vec2, a: Vec2, b: Vec2) -> f64 {
     let ap_x = p.x - a.x;
     let ap_y = p.y - a.y;
     let ab_sq = ab_x * ab_x + ab_y * ab_y;
-    if ab_sq < 1e-12 { return p.dist(a); }
+    if ab_sq < 1e-12 {
+        return p.dist(a);
+    }
     let t = ((ap_x * ab_x + ap_y * ab_y) / ab_sq).clamp(0.0, 1.0);
     let proj = Vec2::new(a.x + t * ab_x, a.y + t * ab_y);
     p.dist(proj)
@@ -428,21 +482,27 @@ mod tests {
     #[test]
     fn path_same_polygon() {
         let mesh = simple_mesh();
-        let path = mesh.find_path(Vec2::new(5.0, 2.0), Vec2::new(8.0, 3.0)).unwrap();
+        let path = mesh
+            .find_path(Vec2::new(5.0, 2.0), Vec2::new(8.0, 3.0))
+            .unwrap();
         assert_eq!(path.len(), 2);
     }
 
     #[test]
     fn path_across_polygons() {
         let mesh = simple_mesh();
-        let polys = mesh.find_path_polys(Vec2::new(5.0, 2.0), Vec2::new(2.0, 8.0)).unwrap();
+        let polys = mesh
+            .find_path_polys(Vec2::new(5.0, 2.0), Vec2::new(2.0, 8.0))
+            .unwrap();
         assert_eq!(polys, vec![0, 1]);
     }
 
     #[test]
     fn path_with_string_pulling() {
         let mesh = simple_mesh();
-        let path = mesh.find_path(Vec2::new(5.0, 2.0), Vec2::new(2.0, 8.0)).unwrap();
+        let path = mesh
+            .find_path(Vec2::new(5.0, 2.0), Vec2::new(2.0, 8.0))
+            .unwrap();
         assert!(!path.is_empty());
         assert_eq!(path.first().unwrap().x, 5.0);
         assert_eq!(path.last().unwrap().x, 2.0);
@@ -461,12 +521,16 @@ mod tests {
     fn off_mesh_link() {
         let mut mesh = NavMesh::new();
         mesh.add_polygon(vec![
-            Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0),
-            Vec2::new(10.0, 10.0), Vec2::new(0.0, 10.0),
+            Vec2::new(0.0, 0.0),
+            Vec2::new(10.0, 0.0),
+            Vec2::new(10.0, 10.0),
+            Vec2::new(0.0, 10.0),
         ]);
         mesh.add_polygon(vec![
-            Vec2::new(50.0, 50.0), Vec2::new(60.0, 50.0),
-            Vec2::new(60.0, 60.0), Vec2::new(50.0, 60.0),
+            Vec2::new(50.0, 50.0),
+            Vec2::new(60.0, 50.0),
+            Vec2::new(60.0, 60.0),
+            Vec2::new(50.0, 60.0),
         ]);
         mesh.add_off_mesh_link(OffMeshLink {
             from_poly: 0,
@@ -476,7 +540,9 @@ mod tests {
             cost: 10.0,
             bidirectional: true,
         });
-        let polys = mesh.find_path_polys(Vec2::new(5.0, 5.0), Vec2::new(55.0, 55.0)).unwrap();
+        let polys = mesh
+            .find_path_polys(Vec2::new(5.0, 5.0), Vec2::new(55.0, 55.0))
+            .unwrap();
         assert_eq!(polys, vec![0, 1]);
     }
 
@@ -521,12 +587,16 @@ mod tests {
     fn no_path_disconnected() {
         let mut mesh = NavMesh::new();
         mesh.add_polygon(vec![
-            Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0),
-            Vec2::new(10.0, 10.0), Vec2::new(0.0, 10.0),
+            Vec2::new(0.0, 0.0),
+            Vec2::new(10.0, 0.0),
+            Vec2::new(10.0, 10.0),
+            Vec2::new(0.0, 10.0),
         ]);
         mesh.add_polygon(vec![
-            Vec2::new(50.0, 50.0), Vec2::new(60.0, 50.0),
-            Vec2::new(60.0, 60.0), Vec2::new(50.0, 60.0),
+            Vec2::new(50.0, 50.0),
+            Vec2::new(60.0, 50.0),
+            Vec2::new(60.0, 60.0),
+            Vec2::new(50.0, 60.0),
         ]);
         // No connection, no off-mesh link.
         let path = mesh.find_path_polys(Vec2::new(5.0, 5.0), Vec2::new(55.0, 55.0));

@@ -17,10 +17,15 @@ struct Rng {
 }
 
 impl Rng {
-    fn new(seed: u64) -> Self { Self { state: seed } }
+    fn new(seed: u64) -> Self {
+        Self { state: seed }
+    }
 
     fn next(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.state
     }
 
@@ -48,13 +53,25 @@ pub struct ImageBuffer {
 
 impl ImageBuffer {
     pub fn new(width: usize, height: usize, channels: usize) -> Self {
-        Self { width, height, channels, data: vec![0.0; width * height * channels] }
+        Self {
+            width,
+            height,
+            channels,
+            data: vec![0.0; width * height * channels],
+        }
     }
 
     pub fn from_noise(width: usize, height: usize, channels: usize, seed: u64) -> Self {
         let mut rng = Rng::new(seed);
-        let data: Vec<f64> = (0..width * height * channels).map(|_| rng.normal()).collect();
-        Self { width, height, channels, data }
+        let data: Vec<f64> = (0..width * height * channels)
+            .map(|_| rng.normal())
+            .collect();
+        Self {
+            width,
+            height,
+            channels,
+            data,
+        }
     }
 
     /// Get pixel value at (x, y, channel).
@@ -97,7 +114,9 @@ impl ImageBuffer {
     }
 
     /// Total number of elements.
-    pub fn size(&self) -> usize { self.data.len() }
+    pub fn size(&self) -> usize {
+        self.data.len()
+    }
 
     /// Create a tiled version of the image.
     pub fn tile(&self, tiles_x: usize, tiles_y: usize) -> ImageBuffer {
@@ -109,7 +128,12 @@ impl ImageBuffer {
                 for y in 0..self.height {
                     for x in 0..self.width {
                         for c in 0..self.channels {
-                            tiled.set(tx * self.width + x, ty * self.height + y, c, self.at(x, y, c));
+                            tiled.set(
+                                tx * self.width + x,
+                                ty * self.height + y,
+                                c,
+                                self.at(x, y, c),
+                            );
                         }
                     }
                 }
@@ -121,8 +145,15 @@ impl ImageBuffer {
 
 impl fmt::Display for ImageBuffer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ImageBuffer({}x{}x{}, mean={:.4}, std={:.4})",
-            self.width, self.height, self.channels, self.mean(), self.std_dev())
+        write!(
+            f,
+            "ImageBuffer({}x{}x{}, mean={:.4}, std={:.4})",
+            self.width,
+            self.height,
+            self.channels,
+            self.mean(),
+            self.std_dev()
+        )
     }
 }
 
@@ -170,23 +201,35 @@ pub enum SamplingStrategy {
 impl SamplingStrategy {
     /// Apply one step of the sampling strategy.
     /// `x`: current state, `predicted_noise`: model output, `sigma`: noise level.
-    pub fn step(&self, x: &[f64], predicted_noise: &[f64], sigma: f64, sigma_next: f64, rng: &mut Rng) -> Vec<f64> {
+    pub fn step(
+        &self,
+        x: &[f64],
+        predicted_noise: &[f64],
+        sigma: f64,
+        sigma_next: f64,
+        rng: &mut Rng,
+    ) -> Vec<f64> {
         match self {
             SamplingStrategy::Euler => {
                 // x_{t-1} = x_t - (sigma - sigma_next) * noise_pred
                 let dt = sigma - sigma_next;
-                x.iter().zip(predicted_noise.iter())
+                x.iter()
+                    .zip(predicted_noise.iter())
                     .map(|(xi, ni)| xi - dt * ni)
                     .collect()
             }
             SamplingStrategy::Heun => {
                 // Heun's method: predictor-corrector.
                 let dt = sigma - sigma_next;
-                let x_pred: Vec<f64> = x.iter().zip(predicted_noise.iter())
+                let x_pred: Vec<f64> = x
+                    .iter()
+                    .zip(predicted_noise.iter())
                     .map(|(xi, ni)| xi - dt * ni)
                     .collect();
                 // Average the derivative at both endpoints.
-                x.iter().zip(predicted_noise.iter()).zip(x_pred.iter())
+                x.iter()
+                    .zip(predicted_noise.iter())
+                    .zip(x_pred.iter())
                     .map(|((xi, ni), x_pi)| {
                         let d_avg = (ni + (xi - x_pi) / dt.max(1e-10)) / 2.0;
                         xi - dt * d_avg
@@ -199,17 +242,21 @@ impl SamplingStrategy {
                 let lambda_next = -(sigma_next.max(1e-10).ln());
                 let h = lambda_next - lambda;
                 let coeff = (-h).exp();
-                x.iter().zip(predicted_noise.iter())
+                x.iter()
+                    .zip(predicted_noise.iter())
                     .map(|(xi, ni)| coeff * xi + (1.0 - coeff) * ni)
                     .collect()
             }
             SamplingStrategy::Ancestral => {
                 // Euler step + noise injection.
                 let dt = sigma - sigma_next;
-                let sigma_up = (sigma_next.powi(2) * (sigma.powi(2) - sigma_next.powi(2)) / sigma.powi(2).max(1e-10)).sqrt();
+                let sigma_up = (sigma_next.powi(2) * (sigma.powi(2) - sigma_next.powi(2))
+                    / sigma.powi(2).max(1e-10))
+                .sqrt();
                 let sigma_down = (sigma_next.powi(2) - sigma_up.powi(2)).max(0.0).sqrt();
                 let _ = sigma_down; // Used in full implementation.
-                x.iter().zip(predicted_noise.iter())
+                x.iter()
+                    .zip(predicted_noise.iter())
                     .map(|(xi, ni)| xi - dt * ni + sigma_up * rng.normal())
                     .collect()
             }
@@ -237,7 +284,9 @@ pub fn classifier_free_guidance(
     conditional: &[f64],
     guidance_scale: f64,
 ) -> Vec<f64> {
-    unconditional.iter().zip(conditional.iter())
+    unconditional
+        .iter()
+        .zip(conditional.iter())
         .map(|(u, c)| u + guidance_scale * (c - u))
         .collect()
 }
@@ -248,7 +297,9 @@ pub fn negative_prompt_guidance(
     conditional: &[f64],
     guidance_scale: f64,
 ) -> Vec<f64> {
-    negative.iter().zip(conditional.iter())
+    negative
+        .iter()
+        .zip(conditional.iter())
         .map(|(n, c)| n + guidance_scale * (c - n))
         .collect()
 }
@@ -286,7 +337,9 @@ impl SigmaSchedule {
         Self { sigmas }
     }
 
-    pub fn steps(&self) -> usize { self.sigmas.len().saturating_sub(1) }
+    pub fn steps(&self) -> usize {
+        self.sigmas.len().saturating_sub(1)
+    }
 }
 
 impl fmt::Display for SigmaSchedule {
@@ -332,11 +385,26 @@ impl GenerationConfig {
         }
     }
 
-    pub fn with_channels(mut self, c: usize) -> Self { self.channels = c; self }
-    pub fn with_steps(mut self, n: usize) -> Self { self.num_steps = n; self }
-    pub fn with_guidance_scale(mut self, s: f64) -> Self { self.guidance_scale = s; self }
-    pub fn with_strategy(mut self, s: SamplingStrategy) -> Self { self.strategy = s; self }
-    pub fn with_seed(mut self, s: u64) -> Self { self.seed = s; self }
+    pub fn with_channels(mut self, c: usize) -> Self {
+        self.channels = c;
+        self
+    }
+    pub fn with_steps(mut self, n: usize) -> Self {
+        self.num_steps = n;
+        self
+    }
+    pub fn with_guidance_scale(mut self, s: f64) -> Self {
+        self.guidance_scale = s;
+        self
+    }
+    pub fn with_strategy(mut self, s: SamplingStrategy) -> Self {
+        self.strategy = s;
+        self
+    }
+    pub fn with_seed(mut self, s: u64) -> Self {
+        self.seed = s;
+        self
+    }
 }
 
 impl fmt::Display for GenerationConfig {
@@ -344,8 +412,12 @@ impl fmt::Display for GenerationConfig {
         write!(
             f,
             "GenerationConfig({}x{}x{}, steps={}, cfg={:.1}, strategy={})",
-            self.width, self.height, self.channels,
-            self.num_steps, self.guidance_scale, self.strategy,
+            self.width,
+            self.height,
+            self.channels,
+            self.num_steps,
+            self.guidance_scale,
+            self.strategy,
         )
     }
 }
@@ -363,7 +435,8 @@ pub struct ImagePipeline {
 
 impl ImagePipeline {
     pub fn new(config: GenerationConfig) -> Self {
-        let schedule = SigmaSchedule::karras(config.num_steps, config.sigma_max, config.sigma_min, 7.0);
+        let schedule =
+            SigmaSchedule::karras(config.num_steps, config.sigma_max, config.sigma_min, 7.0);
         let data_dim = config.width * config.height * config.channels;
         let hidden = data_dim.min(32);
         let seed = config.seed;
@@ -371,11 +444,21 @@ impl ImagePipeline {
         let scale = (2.0 / (data_dim + hidden) as f64).sqrt();
 
         let denoiser_weights = (0..data_dim)
-            .map(|_| (0..data_dim.min(32)).map(|_| rng.normal() * scale).collect())
+            .map(|_| {
+                (0..data_dim.min(32))
+                    .map(|_| rng.normal() * scale)
+                    .collect()
+            })
             .collect();
         let denoiser_biases = vec![0.0; data_dim];
 
-        Self { config, schedule, rng: Rng::new(seed), denoiser_weights, denoiser_biases }
+        Self {
+            config,
+            schedule,
+            rng: Rng::new(seed),
+            denoiser_weights,
+            denoiser_biases,
+        }
     }
 
     pub fn with_schedule(mut self, schedule: SigmaSchedule) -> Self {
@@ -386,7 +469,8 @@ impl ImagePipeline {
     /// Simplified denoiser prediction.
     fn predict_noise(&self, x: &[f64], _sigma: f64) -> Vec<f64> {
         let hidden_dim = self.denoiser_weights[0].len();
-        x.iter().enumerate()
+        x.iter()
+            .enumerate()
             .map(|(j, _)| {
                 let mut val = self.denoiser_biases[j];
                 for k in 0..hidden_dim {
@@ -400,13 +484,18 @@ impl ImagePipeline {
     /// Generate an image unconditionally.
     pub fn generate_unconditional(&mut self) -> ImageBuffer {
         let data_dim = self.config.width * self.config.height * self.config.channels;
-        let mut x: Vec<f64> = (0..data_dim).map(|_| self.rng.normal() * self.config.sigma_max).collect();
+        let mut x: Vec<f64> = (0..data_dim)
+            .map(|_| self.rng.normal() * self.config.sigma_max)
+            .collect();
 
         for i in 0..self.schedule.steps() {
             let sigma = self.schedule.sigmas[i];
             let sigma_next = self.schedule.sigmas[i + 1];
             let noise_pred = self.predict_noise(&x, sigma);
-            x = self.config.strategy.step(&x, &noise_pred, sigma, sigma_next, &mut self.rng);
+            x = self
+                .config
+                .strategy
+                .step(&x, &noise_pred, sigma, sigma_next, &mut self.rng);
         }
 
         let mut img = ImageBuffer {
@@ -422,7 +511,9 @@ impl ImagePipeline {
     /// Generate with classifier-free guidance.
     pub fn generate_guided(&mut self, condition: &Condition) -> ImageBuffer {
         let data_dim = self.config.width * self.config.height * self.config.channels;
-        let mut x: Vec<f64> = (0..data_dim).map(|_| self.rng.normal() * self.config.sigma_max).collect();
+        let mut x: Vec<f64> = (0..data_dim)
+            .map(|_| self.rng.normal() * self.config.sigma_max)
+            .collect();
 
         let cond_bias: f64 = match condition {
             Condition::None => 0.0,
@@ -436,12 +527,14 @@ impl ImagePipeline {
             let sigma_next = self.schedule.sigmas[i + 1];
 
             let uncond_pred = self.predict_noise(&x, sigma);
-            let cond_pred: Vec<f64> = uncond_pred.iter()
-                .map(|n| n + cond_bias * 0.1)
-                .collect();
+            let cond_pred: Vec<f64> = uncond_pred.iter().map(|n| n + cond_bias * 0.1).collect();
 
-            let guided = classifier_free_guidance(&uncond_pred, &cond_pred, self.config.guidance_scale);
-            x = self.config.strategy.step(&x, &guided, sigma, sigma_next, &mut self.rng);
+            let guided =
+                classifier_free_guidance(&uncond_pred, &cond_pred, self.config.guidance_scale);
+            x = self
+                .config
+                .strategy
+                .step(&x, &guided, sigma, sigma_next, &mut self.rng);
         }
 
         let mut img = ImageBuffer {
@@ -459,7 +552,9 @@ impl ImagePipeline {
         (0..count).map(|_| self.generate_unconditional()).collect()
     }
 
-    pub fn config(&self) -> &GenerationConfig { &self.config }
+    pub fn config(&self) -> &GenerationConfig {
+        &self.config
+    }
 }
 
 impl fmt::Display for ImagePipeline {

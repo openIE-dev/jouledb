@@ -10,9 +10,7 @@ use axum::{
 };
 use joule_db_energy::{
     ThermalState,
-    fabric::{
-        FabricNodeClass, FabricNodeDescriptor, InterconnectKind, MemoryBusKind, SiliconLane,
-    },
+    fabric::{FabricNodeClass, FabricNodeDescriptor, InterconnectKind, MemoryBusKind, SiliconLane},
 };
 use joule_db_server::{Server, ServerConfig};
 use serde_json::{Value as JsonValue, json};
@@ -268,7 +266,9 @@ async fn test_joule_synapse_mesh_multi_node_byzantine_krum_live_sync_e2e() {
     assert_eq!(st, StatusCode::OK);
 
     // Online-adapt Sakana `SVF` expert `"terrain_grip"` on `node_a`
-    let x_in: Vec<f32> = (0..64).map(|i| if i % 2 == 0 { 0.25 } else { -0.25 }).collect();
+    let x_in: Vec<f32> = (0..64)
+        .map(|i| if i % 2 == 0 { 0.25 } else { -0.25 })
+        .collect();
     let y_tgt: Vec<f32> = (0..128).map(|i| ((i as f32) * 0.05).cos() * 0.3).collect();
     let (st, _) = post_json(
         &node_a,

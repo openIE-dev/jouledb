@@ -1606,11 +1606,12 @@ impl<S: TableStorage + 'static> QueryEngine<S> {
                             for (pos, &idx) in sorted_indices.iter().enumerate() {
                                 let (start, end) = frame.frame_range(pos, sorted_indices.len());
                                 let end = end.min(sorted_indices.len().saturating_sub(1));
-                                let frame_indices: Vec<usize> = if start <= end && end < sorted_indices.len() {
-                                    sorted_indices[start..=end].to_vec()
-                                } else {
-                                    Vec::new()
-                                };
+                                let frame_indices: Vec<usize> =
+                                    if start <= end && end < sorted_indices.len() {
+                                        sorted_indices[start..=end].to_vec()
+                                    } else {
+                                        Vec::new()
+                                    };
                                 let agg_value = self.compute_partition_aggregate(
                                     &result,
                                     &frame_indices,
@@ -3305,7 +3306,8 @@ mod tests {
             returning: vec![],
             ctes: vec![],
             derived_columns: derived,
-            distinct: false, source_alias: None,
+            distinct: false,
+            source_alias: None,
         };
 
         let row = RowData::new(vec!["price".to_string()], vec![Value::Int(25)]);
@@ -3340,7 +3342,8 @@ mod tests {
             returning: vec![],
             ctes: vec![],
             derived_columns: HashMap::new(),
-            distinct: false, source_alias: None,
+            distinct: false,
+            source_alias: None,
         };
 
         let row = RowData::new(vec![], vec![]);
@@ -3375,7 +3378,8 @@ mod tests {
             returning: vec![],
             ctes: vec![],
             derived_columns: HashMap::new(),
-            distinct: false, source_alias: None,
+            distinct: false,
+            source_alias: None,
         };
 
         let row = RowData::new(vec![], vec![]);
@@ -3406,7 +3410,8 @@ mod tests {
             returning: vec![],
             ctes: vec![],
             derived_columns: HashMap::new(),
-            distinct: false, source_alias: None,
+            distinct: false,
+            source_alias: None,
         };
 
         // Product 1 is in orders
@@ -3455,7 +3460,8 @@ mod tests {
             returning: vec![],
             ctes: vec![],
             derived_columns: HashMap::new(),
-            distinct: false, source_alias: None,
+            distinct: false,
+            source_alias: None,
         };
 
         // Product 1 has orders
@@ -3507,7 +3513,8 @@ mod tests {
             returning: vec![],
             ctes: vec![],
             derived_columns: HashMap::new(),
-            distinct: false, source_alias: None,
+            distinct: false,
+            source_alias: None,
         };
 
         let row = RowData::new(vec![], vec![]);

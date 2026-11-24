@@ -38,7 +38,10 @@ impl fmt::Display for SyncError {
                 write!(f, "checksum mismatch: expected={expected}, actual={actual}")
             }
             Self::BandwidthExceeded { budget, required } => {
-                write!(f, "bandwidth exceeded: budget={budget}, required={required}")
+                write!(
+                    f,
+                    "bandwidth exceeded: budget={budget}, required={required}"
+                )
             }
             Self::KeyNotFound(k) => write!(f, "key not found: {k}"),
             Self::SyncInProgress(id) => write!(f, "sync already in progress for peer {id}"),
@@ -80,7 +83,11 @@ pub struct SyncState {
 
 impl SyncState {
     pub fn new() -> Self {
-        Self { version: 0, checksum: 0, data: HashMap::new() }
+        Self {
+            version: 0,
+            checksum: 0,
+            data: HashMap::new(),
+        }
     }
 
     /// Set a key and bump version + recompute checksum.
@@ -140,7 +147,13 @@ impl Default for SyncState {
 
 impl fmt::Display for SyncState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SyncState(v{}, {} keys, cksum={:#x})", self.version, self.data.len(), self.checksum)
+        write!(
+            f,
+            "SyncState(v{}, {} keys, cksum={:#x})",
+            self.version,
+            self.data.len(),
+            self.checksum
+        )
     }
 }
 
@@ -297,11 +310,14 @@ impl StateSyncManager {
 
     /// Register a remote peer.
     pub fn add_peer(&mut self, peer_id: u64) {
-        self.peers.insert(peer_id, PeerRecord {
-            last_known_version: 0,
-            last_known_checksum: 0,
-            syncing: false,
-        });
+        self.peers.insert(
+            peer_id,
+            PeerRecord {
+                last_known_version: 0,
+                last_known_checksum: 0,
+                syncing: false,
+            },
+        );
     }
 
     /// Remove a remote peer.
@@ -325,14 +341,18 @@ impl StateSyncManager {
     pub fn remove(&mut self, key: &str) -> Option<Vec<u8>> {
         let removed = self.local_state.remove(key);
         if removed.is_some() {
-            self.change_log.push((self.local_state.version, key.to_string(), true));
+            self.change_log
+                .push((self.local_state.version, key.to_string(), true));
         }
         removed
     }
 
     /// Build a sync request for a given peer.
     pub fn build_request(&self, peer_id: u64) -> Result<SyncRequest, SyncError> {
-        let peer = self.peers.get(&peer_id).ok_or(SyncError::PeerNotFound(peer_id))?;
+        let peer = self
+            .peers
+            .get(&peer_id)
+            .ok_or(SyncError::PeerNotFound(peer_id))?;
         if peer.syncing {
             return Err(SyncError::SyncInProgress(peer_id));
         }
@@ -426,13 +446,13 @@ impl StateSyncManager {
 
     /// Apply a sync response to our local knowledge of a peer.
     pub fn apply_response(&mut self, resp: &SyncResponse) -> Result<(), SyncError> {
-        let peer = self.peers.get_mut(&resp.from_peer)
+        let peer = self
+            .peers
+            .get_mut(&resp.from_peer)
             .ok_or(SyncError::PeerNotFound(resp.from_peer))?;
 
         // Detect conflict: peer version diverged from what we last knew.
-        if peer.last_known_version > 0
-            && resp.version < peer.last_known_version
-        {
+        if peer.last_known_version > 0 && resp.version < peer.last_known_version {
             self.stats.conflicts_detected += 1;
             if self.config.auto_resolve_conflicts {
                 self.stats.conflicts_resolved += 1;
@@ -475,13 +495,17 @@ impl StateSyncManager {
 
     /// Detect if a peer is out of sync.
     pub fn is_peer_stale(&self, peer_id: u64) -> Result<bool, SyncError> {
-        let peer = self.peers.get(&peer_id).ok_or(SyncError::PeerNotFound(peer_id))?;
+        let peer = self
+            .peers
+            .get(&peer_id)
+            .ok_or(SyncError::PeerNotFound(peer_id))?;
         Ok(peer.last_known_version < self.local_state.version)
     }
 
     /// Get changes since a given version.
     pub fn changes_since(&self, version: u64) -> Vec<(u64, String, bool)> {
-        self.change_log.iter()
+        self.change_log
+            .iter()
             .filter(|(v, _, _)| *v > version)
             .cloned()
             .collect()
@@ -586,7 +610,7 @@ mod tests {
         let changes = mgr.changes_since(0);
         assert_eq!(changes.len(), 2);
         assert!(!changes[0].2); // set
-        assert!(changes[1].2);  // delete
+        assert!(changes[1].2); // delete
     }
 
     #[test]
@@ -600,7 +624,10 @@ mod tests {
     #[test]
     fn build_request_unknown_peer_errors() {
         let mgr = StateSyncManager::new(1);
-        assert!(matches!(mgr.build_request(99), Err(SyncError::PeerNotFound(99))));
+        assert!(matches!(
+            mgr.build_request(99),
+            Err(SyncError::PeerNotFound(99))
+        ));
     }
 
     #[test]
@@ -609,8 +636,11 @@ mod tests {
         mgr.set("a", vec![1]);
         mgr.set("b", vec![2]);
         let req = SyncRequest {
-            from_peer: 2, to_peer: 1, mode: SyncMode::Full,
-            since_version: 0, max_bytes: None,
+            from_peer: 2,
+            to_peer: 1,
+            mode: SyncMode::Full,
+            since_version: 0,
+            max_bytes: None,
         };
         let resp = mgr.handle_request(&req);
         assert_eq!(resp.updates.len(), 2);
@@ -622,8 +652,11 @@ mod tests {
         let mut mgr = StateSyncManager::new(1);
         mgr.set("long_key", vec![0; 100]);
         let req = SyncRequest {
-            from_peer: 2, to_peer: 1, mode: SyncMode::Full,
-            since_version: 0, max_bytes: Some(10),
+            from_peer: 2,
+            to_peer: 1,
+            mode: SyncMode::Full,
+            since_version: 0,
+            max_bytes: Some(10),
         };
         let resp = mgr.handle_request(&req);
         assert!(resp.truncated);
@@ -635,8 +668,11 @@ mod tests {
         mgr.set("a", vec![1]);
         mgr.set("b", vec![2]);
         let req = SyncRequest {
-            from_peer: 2, to_peer: 1, mode: SyncMode::Incremental,
-            since_version: 1, max_bytes: None,
+            from_peer: 2,
+            to_peer: 1,
+            mode: SyncMode::Incremental,
+            since_version: 1,
+            max_bytes: None,
         };
         let resp = mgr.handle_request(&req);
         assert_eq!(resp.updates.len(), 1); // only "b"
@@ -647,7 +683,9 @@ mod tests {
         let mut mgr = StateSyncManager::new(1);
         mgr.add_peer(2);
         let resp = SyncResponse {
-            from_peer: 2, version: 5, checksum: 0,
+            from_peer: 2,
+            version: 5,
+            checksum: 0,
             updates: vec![("x".into(), vec![10])],
             deletions: vec![],
             truncated: false,
@@ -660,10 +698,17 @@ mod tests {
     fn apply_response_unknown_peer_errors() {
         let mut mgr = StateSyncManager::new(1);
         let resp = SyncResponse {
-            from_peer: 99, version: 1, checksum: 0,
-            updates: vec![], deletions: vec![], truncated: false,
+            from_peer: 99,
+            version: 1,
+            checksum: 0,
+            updates: vec![],
+            deletions: vec![],
+            truncated: false,
         };
-        assert!(matches!(mgr.apply_response(&resp), Err(SyncError::PeerNotFound(99))));
+        assert!(matches!(
+            mgr.apply_response(&resp),
+            Err(SyncError::PeerNotFound(99))
+        ));
     }
 
     #[test]
@@ -681,9 +726,12 @@ mod tests {
         mgr.add_peer(2);
         mgr.set("data", vec![1, 2, 3]);
         let resp = SyncResponse {
-            from_peer: 2, version: 1, checksum: 0,
+            from_peer: 2,
+            version: 1,
+            checksum: 0,
             updates: vec![("k".into(), vec![9, 8])],
-            deletions: vec![], truncated: false,
+            deletions: vec![],
+            truncated: false,
         };
         mgr.apply_response(&resp).unwrap();
         assert!(mgr.stats.bytes_received > 0);

@@ -69,12 +69,14 @@ fn bench_art_index() {
     let btree_get = start.elapsed();
 
     println!("  {:>12} │ {:>12} │ {:>12}", "", "ART", "BTree");
-    println!("  {:>12} │ {:>9.2}ms │ {:>9.2}ms",
+    println!(
+        "  {:>12} │ {:>9.2}ms │ {:>9.2}ms",
         "Insert 100K",
         art_insert.as_secs_f64() * 1000.0,
         btree_insert.as_secs_f64() * 1000.0,
     );
-    println!("  {:>12} │ {:>9.2}ms │ {:>9.2}ms",
+    println!(
+        "  {:>12} │ {:>9.2}ms │ {:>9.2}ms",
         "Lookup 100K",
         art_get.as_secs_f64() * 1000.0,
         btree_get.as_secs_f64() * 1000.0,
@@ -89,17 +91,24 @@ fn bench_art_index() {
 // ---------------------------------------------------------------------------
 
 fn bench_minhash_lsh() {
-    use joule_db_core::index::minhash_lsh::{MinHashLshConfig, MinHashLshIndex};
     use joule_db_core::index::Index;
+    use joule_db_core::index::minhash_lsh::{MinHashLshConfig, MinHashLshIndex};
 
     println!("── MinHash-LSH ────────────────────────────────────────────");
-    let config = MinHashLshConfig { num_hashes: 64, bands: 8, rows: 8 };
+    let config = MinHashLshConfig {
+        num_hashes: 64,
+        bands: 8,
+        rows: 8,
+    };
     let mut idx = MinHashLshIndex::new(config);
 
     // Insert 1000 documents.
     let start = Instant::now();
     for i in 0..1000u32 {
-        let doc = format!("document number {} with some content to generate trigrams for hashing", i);
+        let doc = format!(
+            "document number {} with some content to generate trigrams for hashing",
+            i
+        );
         idx.insert(doc.as_bytes(), &i.to_le_bytes()).unwrap();
     }
     let insert_time = start.elapsed();
@@ -110,8 +119,15 @@ fn bench_minhash_lsh() {
     let results = idx.find_similar(query, 10).unwrap();
     let query_time = start.elapsed();
 
-    println!("  Insert 1K docs: {:.2}ms", insert_time.as_secs_f64() * 1000.0);
-    println!("  Query (top-10):  {:.3}ms ({} candidates)", query_time.as_secs_f64() * 1000.0, results.len());
+    println!(
+        "  Insert 1K docs: {:.2}ms",
+        insert_time.as_secs_f64() * 1000.0
+    );
+    println!(
+        "  Query (top-10):  {:.3}ms ({} candidates)",
+        query_time.as_secs_f64() * 1000.0,
+        results.len()
+    );
     if let Some((_, sim)) = results.first() {
         println!("  Best match sim:  {:.3}", sim);
     }
@@ -142,16 +158,22 @@ fn bench_wcoj() {
         }
     }
 
-    let edges = Relation::new(
-        vec!["src".into(), "dst".into()],
-        edge_tuples,
-    );
+    let edges = Relation::new(vec!["src".into(), "dst".into()], edge_tuples);
 
     let query = WcojQuery {
         atoms: vec![
-            Atom { relation_name: "edges".into(), variables: vec!["X".into(), "Y".into()] },
-            Atom { relation_name: "edges".into(), variables: vec!["Y".into(), "Z".into()] },
-            Atom { relation_name: "edges".into(), variables: vec!["Z".into(), "X".into()] },
+            Atom {
+                relation_name: "edges".into(),
+                variables: vec!["X".into(), "Y".into()],
+            },
+            Atom {
+                relation_name: "edges".into(),
+                variables: vec!["Y".into(), "Z".into()],
+            },
+            Atom {
+                relation_name: "edges".into(),
+                variables: vec!["Z".into(), "X".into()],
+            },
         ],
         output_variables: vec!["X".into(), "Y".into(), "Z".into()],
     };
@@ -221,7 +243,9 @@ fn bench_sparql() {
     }
 
     let mut parser = SparqlParser::new();
-    let query = parser.parse(r#"SELECT ?name WHERE { ?person <name> ?name } LIMIT 100"#).unwrap();
+    let query = parser
+        .parse(r#"SELECT ?name WHERE { ?person <name> ?name } LIMIT 100"#)
+        .unwrap();
 
     let start = Instant::now();
     let result = evaluate_sparql(&query, &triples).unwrap();
@@ -262,9 +286,16 @@ fn bench_gremlin() {
 
     let total = iterations * queries.len();
     let per_query_ns = elapsed.as_nanos() as f64 / total as f64;
-    println!("  Parsed {} queries in {:.2}ms", total, elapsed.as_secs_f64() * 1000.0);
+    println!(
+        "  Parsed {} queries in {:.2}ms",
+        total,
+        elapsed.as_secs_f64() * 1000.0
+    );
     println!("  Per query: {:.0}ns", per_query_ns);
-    println!("  Throughput: {:.0}K queries/sec", total as f64 / elapsed.as_secs_f64() / 1000.0);
+    println!(
+        "  Throughput: {:.0}K queries/sec",
+        total as f64 / elapsed.as_secs_f64() / 1000.0
+    );
     println!();
 }
 
@@ -273,7 +304,7 @@ fn bench_gremlin() {
 // ---------------------------------------------------------------------------
 
 fn bench_temporal() {
-    use joule_db_core::temporal::{TemporalTable, TemporalClause};
+    use joule_db_core::temporal::{TemporalClause, TemporalTable};
 
     println!("── Temporal (Time-Travel Queries) ───────────────────────────");
 
@@ -308,10 +339,26 @@ fn bench_temporal() {
     let current = table.scan_current().unwrap();
     let current_time = start.elapsed();
 
-    println!("  Insert {}:     {:.2}ms", n, insert_time.as_secs_f64() * 1000.0);
-    println!("  Update {}:    {:.2}ms", n / 2, update_time.as_secs_f64() * 1000.0);
-    println!("  AS OF (t=500): {:.2}ms ({} rows)", asof_time.as_secs_f64() * 1000.0, historical.len());
-    println!("  Current scan:  {:.2}ms ({} rows)", current_time.as_secs_f64() * 1000.0, current.len());
+    println!(
+        "  Insert {}:     {:.2}ms",
+        n,
+        insert_time.as_secs_f64() * 1000.0
+    );
+    println!(
+        "  Update {}:    {:.2}ms",
+        n / 2,
+        update_time.as_secs_f64() * 1000.0
+    );
+    println!(
+        "  AS OF (t=500): {:.2}ms ({} rows)",
+        asof_time.as_secs_f64() * 1000.0,
+        historical.len()
+    );
+    println!(
+        "  Current scan:  {:.2}ms ({} rows)",
+        current_time.as_secs_f64() * 1000.0,
+        current.len()
+    );
     println!("  Total versions: {}", table.version_count());
     println!();
 }

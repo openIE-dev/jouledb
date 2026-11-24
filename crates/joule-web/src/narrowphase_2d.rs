@@ -13,25 +13,71 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0 } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y }
-    pub fn cross(self, o: Self) -> f64 { self.x * o.y - self.y * o.x }
-    pub fn length(self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
-    pub fn length_sq(self) -> f64 { self.x * self.x + self.y * self.y }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+    pub fn zero() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y
+    }
+    pub fn cross(self, o: Self) -> f64 {
+        self.x * o.y - self.y * o.x
+    }
+    pub fn length(self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+    pub fn length_sq(self) -> f64 {
+        self.x * self.x + self.y * self.y
+    }
     pub fn normalized(self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { Self { x: self.x / len, y: self.y / len } }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+            }
+        }
     }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y } }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s } }
-    pub fn negate(self) -> Self { Self { x: -self.x, y: -self.y } }
-    pub fn perpendicular(self) -> Self { Self { x: -self.y, y: self.x } }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+        }
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
+    pub fn negate(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+        }
+    }
+    pub fn perpendicular(self) -> Self {
+        Self {
+            x: -self.y,
+            y: self.x,
+        }
+    }
 }
 
 impl Default for Vec2 {
-    fn default() -> Self { Self::zero() }
+    fn default() -> Self {
+        Self::zero()
+    }
 }
 
 // ── Contact classification ───────────────────────────────────
@@ -57,7 +103,14 @@ pub struct ContactPoint {
 
 impl ContactPoint {
     pub fn new(position: Vec2, normal: Vec2, depth: f64, contact_type: ContactType) -> Self {
-        Self { position, normal, depth, contact_type, normal_impulse: 0.0, tangent_impulse: 0.0 }
+        Self {
+            position,
+            normal,
+            depth,
+            contact_type,
+            normal_impulse: 0.0,
+            tangent_impulse: 0.0,
+        }
     }
 }
 
@@ -71,7 +124,11 @@ pub struct ContactManifold {
 
 impl ContactManifold {
     pub fn new(a: u64, b: u64) -> Self {
-        Self { body_a: a, body_b: b, points: Vec::new() }
+        Self {
+            body_a: a,
+            body_b: b,
+            points: Vec::new(),
+        }
     }
 
     pub fn add_point(&mut self, point: ContactPoint) {
@@ -79,7 +136,10 @@ impl ContactManifold {
             self.points.push(point);
         } else {
             // Replace the shallowest point if the new one is deeper.
-            let idx = self.points.iter().enumerate()
+            let idx = self
+                .points
+                .iter()
+                .enumerate()
                 .min_by(|(_, a), (_, b)| a.depth.partial_cmp(&b.depth).unwrap())
                 .map(|(i, _)| i)
                 .unwrap_or(0);
@@ -112,13 +172,17 @@ fn project_polygon(verts: &[Vec2], axis: Vec2) -> (f64, f64) {
 
 fn polygon_centroid(verts: &[Vec2]) -> Vec2 {
     let mut c = Vec2::zero();
-    for v in verts { c = c.add(*v); }
+    for v in verts {
+        c = c.add(*v);
+    }
     c.scale(1.0 / verts.len() as f64)
 }
 
 /// Run SAT on two convex polygons.  Returns MTV if overlapping.
 pub fn sat_polygons(va: &[Vec2], vb: &[Vec2]) -> Option<SatResult> {
-    if va.len() < 3 || vb.len() < 3 { return None; }
+    if va.len() < 3 || vb.len() < 3 {
+        return None;
+    }
 
     let mut min_depth = f64::MAX;
     let mut best_axis = Vec2::new(1.0, 0.0);
@@ -129,12 +193,16 @@ pub fn sat_polygons(va: &[Vec2], vb: &[Vec2]) -> Option<SatResult> {
             let j = (i + 1) % n;
             let edge = verts[j].sub(verts[i]);
             let axis = edge.perpendicular().normalized();
-            if axis.length_sq() < 1e-12 { continue; }
+            if axis.length_sq() < 1e-12 {
+                continue;
+            }
 
             let (min_a, max_a) = project_polygon(va, axis);
             let (min_b, max_b) = project_polygon(vb, axis);
             let overlap = max_a.min(max_b) - min_a.max(min_b);
-            if overlap <= 0.0 { return None; }
+            if overlap <= 0.0 {
+                return None;
+            }
             if overlap < min_depth {
                 min_depth = overlap;
                 best_axis = axis;
@@ -148,7 +216,10 @@ pub fn sat_polygons(va: &[Vec2], vb: &[Vec2]) -> Option<SatResult> {
         best_axis = best_axis.negate();
     }
 
-    Some(SatResult { normal: best_axis, depth: min_depth })
+    Some(SatResult {
+        normal: best_axis,
+        depth: min_depth,
+    })
 }
 
 // ── Circle-Polygon MTV ──────────────────────────────────────
@@ -156,7 +227,9 @@ pub fn sat_polygons(va: &[Vec2], vb: &[Vec2]) -> Option<SatResult> {
 fn closest_point_on_segment(p: Vec2, a: Vec2, b: Vec2) -> Vec2 {
     let ab = b.sub(a);
     let len_sq = ab.length_sq();
-    if len_sq < 1e-12 { return a; }
+    if len_sq < 1e-12 {
+        return a;
+    }
     let t = p.sub(a).dot(ab) / len_sq;
     let t = t.clamp(0.0, 1.0);
     a.add(ab.scale(t))
@@ -164,14 +237,20 @@ fn closest_point_on_segment(p: Vec2, a: Vec2, b: Vec2) -> Vec2 {
 
 fn point_in_polygon(p: Vec2, verts: &[Vec2]) -> bool {
     let n = verts.len();
-    if n < 3 { return false; }
+    if n < 3 {
+        return false;
+    }
     let mut sign = None;
     for i in 0..n {
         let j = (i + 1) % n;
         let c = verts[j].sub(verts[i]).cross(p.sub(verts[i]));
         match sign {
             None => sign = Some(c >= 0.0),
-            Some(s) => { if (c >= 0.0) != s { return false; } }
+            Some(s) => {
+                if (c >= 0.0) != s {
+                    return false;
+                }
+            }
         }
     }
     true
@@ -180,7 +259,9 @@ fn point_in_polygon(p: Vec2, verts: &[Vec2]) -> bool {
 /// Circle-polygon overlap with MTV.
 pub fn circle_polygon_mtv(center: Vec2, radius: f64, verts: &[Vec2]) -> Option<SatResult> {
     let n = verts.len();
-    if n < 3 { return None; }
+    if n < 3 {
+        return None;
+    }
 
     let mut min_dist_sq = f64::MAX;
     let mut closest = center;
@@ -196,7 +277,9 @@ pub fn circle_polygon_mtv(center: Vec2, radius: f64, verts: &[Vec2]) -> Option<S
     let dist = min_dist_sq.sqrt();
     let inside = point_in_polygon(center, verts);
 
-    if !inside && dist > radius { return None; }
+    if !inside && dist > radius {
+        return None;
+    }
 
     let diff = center.sub(closest);
     let normal = if diff.length_sq() < 1e-12 {
@@ -239,7 +322,11 @@ fn minkowski_support(va: &[Vec2], vb: &[Vec2], dir: Vec2) -> Vec2 {
 /// EPA penetration depth for overlapping convex polygons.
 pub fn epa_penetration(va: &[Vec2], vb: &[Vec2], max_iter: usize) -> Option<SatResult> {
     // Start with a triangle on the Minkowski difference boundary.
-    let dirs = [Vec2::new(1.0, 0.0), Vec2::new(-0.5, 0.866), Vec2::new(-0.5, -0.866)];
+    let dirs = [
+        Vec2::new(1.0, 0.0),
+        Vec2::new(-0.5, 0.866),
+        Vec2::new(-0.5, -0.866),
+    ];
     let mut simplex: Vec<Vec2> = dirs.iter().map(|d| minkowski_support(va, vb, *d)).collect();
 
     // Check that origin is inside simplex (convex hull).
@@ -267,7 +354,10 @@ pub fn epa_penetration(va: &[Vec2], vb: &[Vec2], max_iter: usize) -> Option<SatR
         let new_point = minkowski_support(va, vb, best_normal);
         let new_dist = new_point.dot(best_normal);
         if (new_dist - min_dist).abs() < 1e-6 {
-            return Some(SatResult { normal: best_normal, depth: min_dist.abs() });
+            return Some(SatResult {
+                normal: best_normal,
+                depth: min_dist.abs(),
+            });
         }
 
         simplex.insert(best_idx, new_point);
@@ -280,7 +370,12 @@ pub fn epa_penetration(va: &[Vec2], vb: &[Vec2], max_iter: usize) -> Option<SatR
 // ── Contact manifold generation ──────────────────────────────
 
 /// Generate a contact manifold between two convex polygons.
-pub fn generate_manifold_polygons(body_a: u64, body_b: u64, va: &[Vec2], vb: &[Vec2]) -> Option<ContactManifold> {
+pub fn generate_manifold_polygons(
+    body_a: u64,
+    body_b: u64,
+    va: &[Vec2],
+    vb: &[Vec2],
+) -> Option<ContactManifold> {
     let sat = sat_polygons(va, vb)?;
     let mut manifold = ContactManifold::new(body_a, body_b);
 
@@ -306,12 +401,22 @@ pub fn generate_manifold_polygons(body_a: u64, body_b: u64, va: &[Vec2], vb: &[V
 
     // Contact point 1: deepest vertex of B along -normal.
     let depth1 = sat.depth;
-    manifold.add_point(ContactPoint::new(v1, sat.normal, depth1, ContactType::EdgeEdge));
+    manifold.add_point(ContactPoint::new(
+        v1,
+        sat.normal,
+        depth1,
+        ContactType::EdgeEdge,
+    ));
 
     // Check if second vertex also penetrates.
     let d2 = sat.normal.negate().dot(v2.sub(polygon_centroid(va)));
     if d2 > -sat.depth * 0.5 {
-        manifold.add_point(ContactPoint::new(v2, sat.normal, sat.depth * 0.8, ContactType::EdgeEdge));
+        manifold.add_point(ContactPoint::new(
+            v2,
+            sat.normal,
+            sat.depth * 0.8,
+            ContactType::EdgeEdge,
+        ));
     }
 
     Some(manifold)
@@ -319,29 +424,52 @@ pub fn generate_manifold_polygons(body_a: u64, body_b: u64, va: &[Vec2], vb: &[V
 
 /// Generate manifold for circle vs polygon.
 pub fn generate_manifold_circle_polygon(
-    body_a: u64, body_b: u64, center: Vec2, radius: f64, verts: &[Vec2]
+    body_a: u64,
+    body_b: u64,
+    center: Vec2,
+    radius: f64,
+    verts: &[Vec2],
 ) -> Option<ContactManifold> {
     let mtv = circle_polygon_mtv(center, radius, verts)?;
     let mut manifold = ContactManifold::new(body_a, body_b);
     let contact_point = center.add(mtv.normal.negate().scale(radius));
     manifold.add_point(ContactPoint::new(
-        contact_point, mtv.normal, mtv.depth, ContactType::VertexFace,
+        contact_point,
+        mtv.normal,
+        mtv.depth,
+        ContactType::VertexFace,
     ));
     Some(manifold)
 }
 
 /// Generate manifold for two circles.
 pub fn generate_manifold_circles(
-    body_a: u64, body_b: u64, c1: Vec2, r1: f64, c2: Vec2, r2: f64,
+    body_a: u64,
+    body_b: u64,
+    c1: Vec2,
+    r1: f64,
+    c2: Vec2,
+    r2: f64,
 ) -> Option<ContactManifold> {
     let d = c2.sub(c1);
     let dist = d.length();
-    if dist > r1 + r2 { return None; }
-    let normal = if dist < 1e-12 { Vec2::new(1.0, 0.0) } else { d.scale(1.0 / dist) };
+    if dist > r1 + r2 {
+        return None;
+    }
+    let normal = if dist < 1e-12 {
+        Vec2::new(1.0, 0.0)
+    } else {
+        d.scale(1.0 / dist)
+    };
     let depth = r1 + r2 - dist;
     let point = c1.add(normal.scale(r1 - depth * 0.5));
     let mut manifold = ContactManifold::new(body_a, body_b);
-    manifold.add_point(ContactPoint::new(point, normal, depth, ContactType::VertexFace));
+    manifold.add_point(ContactPoint::new(
+        point,
+        normal,
+        depth,
+        ContactType::VertexFace,
+    ));
     Some(manifold)
 }
 
@@ -354,7 +482,11 @@ pub struct ManifoldCache {
 }
 
 impl ManifoldCache {
-    pub fn new() -> Self { Self { cache: HashMap::new() } }
+    pub fn new() -> Self {
+        Self {
+            cache: HashMap::new(),
+        }
+    }
 
     fn key(a: u64, b: u64) -> (u64, u64) {
         if a < b { (a, b) } else { (b, a) }
@@ -393,9 +525,15 @@ impl ManifoldCache {
         self.cache.get(&key)
     }
 
-    pub fn clear(&mut self) { self.cache.clear(); }
-    pub fn len(&self) -> usize { self.cache.len() }
-    pub fn is_empty(&self) -> bool { self.cache.is_empty() }
+    pub fn clear(&mut self) {
+        self.cache.clear();
+    }
+    pub fn len(&self) -> usize {
+        self.cache.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.cache.is_empty()
+    }
 
     pub fn iter(&self) -> impl Iterator<Item = &ContactManifold> {
         self.cache.values()
@@ -403,7 +541,9 @@ impl ManifoldCache {
 }
 
 impl Default for ManifoldCache {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ────────────────────────────────────────────────────
@@ -413,17 +553,24 @@ mod tests {
     use super::*;
 
     const EPS: f64 = 1e-4;
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     fn unit_square() -> Vec<Vec2> {
         vec![
-            Vec2::new(0.0, 0.0), Vec2::new(1.0, 0.0),
-            Vec2::new(1.0, 1.0), Vec2::new(0.0, 1.0),
+            Vec2::new(0.0, 0.0),
+            Vec2::new(1.0, 0.0),
+            Vec2::new(1.0, 1.0),
+            Vec2::new(0.0, 1.0),
         ]
     }
 
     fn shifted_square(dx: f64, dy: f64) -> Vec<Vec2> {
-        unit_square().iter().map(|v| v.add(Vec2::new(dx, dy))).collect()
+        unit_square()
+            .iter()
+            .map(|v| v.add(Vec2::new(dx, dy)))
+            .collect()
     }
 
     // ── SAT ──
@@ -457,8 +604,16 @@ mod tests {
 
     #[test]
     fn sat_triangle() {
-        let a = vec![Vec2::new(0.0, 0.0), Vec2::new(2.0, 0.0), Vec2::new(1.0, 2.0)];
-        let b = vec![Vec2::new(0.5, 0.5), Vec2::new(2.5, 0.5), Vec2::new(1.5, 2.5)];
+        let a = vec![
+            Vec2::new(0.0, 0.0),
+            Vec2::new(2.0, 0.0),
+            Vec2::new(1.0, 2.0),
+        ];
+        let b = vec![
+            Vec2::new(0.5, 0.5),
+            Vec2::new(2.5, 0.5),
+            Vec2::new(1.5, 2.5),
+        ];
         assert!(sat_polygons(&a, &b).is_some());
     }
 
@@ -489,8 +644,10 @@ mod tests {
     #[test]
     fn circle_inside_polygon() {
         let sq = vec![
-            Vec2::new(-2.0, -2.0), Vec2::new(2.0, -2.0),
-            Vec2::new(2.0, 2.0), Vec2::new(-2.0, 2.0),
+            Vec2::new(-2.0, -2.0),
+            Vec2::new(2.0, -2.0),
+            Vec2::new(2.0, 2.0),
+            Vec2::new(-2.0, 2.0),
         ];
         let r = circle_polygon_mtv(Vec2::new(0.0, 0.0), 0.5, &sq).unwrap();
         assert!(r.depth > 0.0);
@@ -517,14 +674,17 @@ mod tests {
 
     #[test]
     fn manifold_circles() {
-        let m = generate_manifold_circles(1, 2, Vec2::zero(), 1.0, Vec2::new(1.5, 0.0), 1.0).unwrap();
+        let m =
+            generate_manifold_circles(1, 2, Vec2::zero(), 1.0, Vec2::new(1.5, 0.0), 1.0).unwrap();
         assert_eq!(m.points.len(), 1);
         assert!(approx(m.points[0].depth, 0.5));
     }
 
     #[test]
     fn manifold_circles_miss() {
-        assert!(generate_manifold_circles(1, 2, Vec2::zero(), 1.0, Vec2::new(5.0, 0.0), 1.0).is_none());
+        assert!(
+            generate_manifold_circles(1, 2, Vec2::zero(), 1.0, Vec2::new(5.0, 0.0), 1.0).is_none()
+        );
     }
 
     #[test]
@@ -532,8 +692,10 @@ mod tests {
         let mut m = ContactManifold::new(1, 2);
         for i in 0..5 {
             m.add_point(ContactPoint::new(
-                Vec2::new(i as f64, 0.0), Vec2::new(0.0, 1.0),
-                0.1 * i as f64, ContactType::EdgeEdge,
+                Vec2::new(i as f64, 0.0),
+                Vec2::new(0.0, 1.0),
+                0.1 * i as f64,
+                ContactType::EdgeEdge,
             ));
         }
         assert!(m.points.len() <= 2);
@@ -544,7 +706,8 @@ mod tests {
     #[test]
     fn cache_store_retrieve() {
         let mut cache = ManifoldCache::new();
-        let m = generate_manifold_circles(1, 2, Vec2::zero(), 1.0, Vec2::new(1.5, 0.0), 1.0).unwrap();
+        let m =
+            generate_manifold_circles(1, 2, Vec2::zero(), 1.0, Vec2::new(1.5, 0.0), 1.0).unwrap();
         cache.update(m.clone());
         assert!(cache.get(1, 2).is_some());
         assert!(cache.get(2, 1).is_some()); // symmetric
@@ -553,12 +716,14 @@ mod tests {
     #[test]
     fn cache_warm_start() {
         let mut cache = ManifoldCache::new();
-        let mut m = generate_manifold_circles(1, 2, Vec2::zero(), 1.0, Vec2::new(1.5, 0.0), 1.0).unwrap();
+        let mut m =
+            generate_manifold_circles(1, 2, Vec2::zero(), 1.0, Vec2::new(1.5, 0.0), 1.0).unwrap();
         m.points[0].normal_impulse = 42.0;
         cache.update(m);
 
         // Update with new manifold at same position.
-        let m2 = generate_manifold_circles(1, 2, Vec2::zero(), 1.0, Vec2::new(1.5, 0.0), 1.0).unwrap();
+        let m2 =
+            generate_manifold_circles(1, 2, Vec2::zero(), 1.0, Vec2::new(1.5, 0.0), 1.0).unwrap();
         cache.update(m2);
         let cached = cache.get(1, 2).unwrap();
         assert!(approx(cached.points[0].normal_impulse, 42.0));
@@ -567,7 +732,8 @@ mod tests {
     #[test]
     fn cache_remove() {
         let mut cache = ManifoldCache::new();
-        let m = generate_manifold_circles(1, 2, Vec2::zero(), 1.0, Vec2::new(1.5, 0.0), 1.0).unwrap();
+        let m =
+            generate_manifold_circles(1, 2, Vec2::zero(), 1.0, Vec2::new(1.5, 0.0), 1.0).unwrap();
         cache.update(m);
         cache.remove(1, 2);
         assert!(cache.is_empty());
@@ -576,8 +742,12 @@ mod tests {
     #[test]
     fn cache_clear() {
         let mut cache = ManifoldCache::new();
-        cache.update(generate_manifold_circles(1, 2, Vec2::zero(), 1.0, Vec2::new(1.5, 0.0), 1.0).unwrap());
-        cache.update(generate_manifold_circles(3, 4, Vec2::zero(), 1.0, Vec2::new(1.5, 0.0), 1.0).unwrap());
+        cache.update(
+            generate_manifold_circles(1, 2, Vec2::zero(), 1.0, Vec2::new(1.5, 0.0), 1.0).unwrap(),
+        );
+        cache.update(
+            generate_manifold_circles(3, 4, Vec2::zero(), 1.0, Vec2::new(1.5, 0.0), 1.0).unwrap(),
+        );
         assert_eq!(cache.len(), 2);
         cache.clear();
         assert!(cache.is_empty());

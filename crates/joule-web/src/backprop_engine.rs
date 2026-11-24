@@ -340,10 +340,8 @@ impl ComputeGraph {
                     // d(a*b)/da = b, d(a*b)/db = a
                     let va = &self.nodes[a.0 as usize].value;
                     let vb = &self.nodes[b.0 as usize].value;
-                    let ga: Vec<f64> =
-                        upstream.iter().zip(vb.iter()).map(|(u, v)| u * v).collect();
-                    let gb: Vec<f64> =
-                        upstream.iter().zip(va.iter()).map(|(u, v)| u * v).collect();
+                    let ga: Vec<f64> = upstream.iter().zip(vb.iter()).map(|(u, v)| u * v).collect();
+                    let gb: Vec<f64> = upstream.iter().zip(va.iter()).map(|(u, v)| u * v).collect();
                     accumulate_grad(&mut grads, *a, &ga);
                     accumulate_grad(&mut grads, *b, &gb);
                 }
@@ -464,7 +462,10 @@ impl GradAccumulator {
     /// Add gradients from one backward pass.
     pub fn add(&mut self, grads: &HashMap<NodeId, Vec<f64>>) {
         for (id, grad) in grads {
-            let entry = self.accumulated.entry(*id).or_insert_with(|| vec![0.0; grad.len()]);
+            let entry = self
+                .accumulated
+                .entry(*id)
+                .or_insert_with(|| vec![0.0; grad.len()]);
             for (a, g) in entry.iter_mut().zip(grad.iter()) {
                 *a += g;
             }

@@ -50,7 +50,9 @@ struct Xorshift64 {
 
 impl Xorshift64 {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_f64(&mut self) -> f64 {
@@ -79,7 +81,15 @@ struct PinkFilter {
 
 impl PinkFilter {
     fn new() -> Self {
-        Self { b0: 0.0, b1: 0.0, b2: 0.0, b3: 0.0, b4: 0.0, b5: 0.0, b6: 0.0 }
+        Self {
+            b0: 0.0,
+            b1: 0.0,
+            b2: 0.0,
+            b3: 0.0,
+            b4: 0.0,
+            b5: 0.0,
+            b6: 0.0,
+        }
     }
 
     fn process(&mut self, white: f64) -> f64 {
@@ -89,7 +99,8 @@ impl PinkFilter {
         self.b3 = 0.86650 * self.b3 + white * 0.3104856;
         self.b4 = 0.55000 * self.b4 + white * 0.5329522;
         self.b5 = -0.7616 * self.b5 - white * 0.0168980;
-        let pink = self.b0 + self.b1 + self.b2 + self.b3 + self.b4 + self.b5 + self.b6 + white * 0.5362;
+        let pink =
+            self.b0 + self.b1 + self.b2 + self.b3 + self.b4 + self.b5 + self.b6 + white * 0.5362;
         self.b6 = white * 0.115926;
         pink * 0.11 // normalise roughly to -1..1
     }
@@ -377,14 +388,20 @@ mod tests {
     fn test_sine_at_zero_phase() {
         let mut osc = Oscillator::new(Waveform::Sine, 440.0, SR);
         let sample = osc.sample_at_phase(0.0, osc.dt());
-        assert!((sample - 0.0).abs() < EPS, "sine(0) should be ~0, got {sample}");
+        assert!(
+            (sample - 0.0).abs() < EPS,
+            "sine(0) should be ~0, got {sample}"
+        );
     }
 
     #[test]
     fn test_sine_at_quarter_phase() {
         let mut osc = Oscillator::new(Waveform::Sine, 440.0, SR);
         let sample = osc.sample_at_phase(0.25, osc.dt());
-        assert!((sample - 1.0).abs() < EPS, "sine(pi/2) should be ~1, got {sample}");
+        assert!(
+            (sample - 1.0).abs() < EPS,
+            "sine(pi/2) should be ~1, got {sample}"
+        );
     }
 
     #[test]
@@ -403,8 +420,12 @@ mod tests {
         let mut saw_negative = false;
         for _ in 0..1000 {
             let s = osc.next_sample();
-            if s > 0.5 { saw_positive = true; }
-            if s < -0.5 { saw_negative = true; }
+            if s > 0.5 {
+                saw_positive = true;
+            }
+            if s < -0.5 {
+                saw_negative = true;
+            }
         }
         assert!(saw_positive, "square should produce positive samples");
         assert!(saw_negative, "square should produce negative samples");
@@ -431,7 +452,10 @@ mod tests {
         }
         // ~25% should be positive (with some PolyBLEP blurring at transitions)
         let ratio = positive_count as f64 / total as f64;
-        assert!((ratio - 0.25).abs() < 0.05, "pulse duty ratio should be ~0.25, got {ratio}");
+        assert!(
+            (ratio - 0.25).abs() < 0.05,
+            "pulse duty ratio should be ~0.25, got {ratio}"
+        );
     }
 
     #[test]

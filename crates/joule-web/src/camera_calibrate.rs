@@ -46,9 +46,8 @@ impl Point3D {
     }
 
     pub fn distance(&self, other: &Point3D) -> f64 {
-        ((self.x - other.x).powi(2)
-        + (self.y - other.y).powi(2)
-        + (self.z - other.z).powi(2)).sqrt()
+        ((self.x - other.x).powi(2) + (self.y - other.y).powi(2) + (self.z - other.z).powi(2))
+            .sqrt()
     }
 }
 
@@ -77,7 +76,13 @@ pub struct IntrinsicMatrix {
 
 impl IntrinsicMatrix {
     pub fn new(fx: f64, fy: f64, cx: f64, cy: f64) -> Self {
-        Self { fx, fy, cx, cy, skew: 0.0 }
+        Self {
+            fx,
+            fy,
+            cx,
+            cy,
+            skew: 0.0,
+        }
     }
 
     pub fn with_skew(mut self, skew: f64) -> Self {
@@ -88,9 +93,7 @@ impl IntrinsicMatrix {
     /// Return the 3x3 matrix in row-major order.
     pub fn to_matrix(&self) -> [f64; 9] {
         [
-            self.fx, self.skew, self.cx,
-            0.0,     self.fy,   self.cy,
-            0.0,     0.0,       1.0,
+            self.fx, self.skew, self.cx, 0.0, self.fy, self.cy, 0.0, 0.0, 1.0,
         ]
     }
 
@@ -112,8 +115,11 @@ impl IntrinsicMatrix {
 
 impl fmt::Display for IntrinsicMatrix {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Intrinsic(fx={:.1} fy={:.1} cx={:.1} cy={:.1})",
-               self.fx, self.fy, self.cx, self.cy)
+        write!(
+            f,
+            "Intrinsic(fx={:.1} fy={:.1} cx={:.1} cy={:.1})",
+            self.fx, self.fy, self.cx, self.cy
+        )
     }
 }
 
@@ -133,7 +139,13 @@ pub struct DistortionCoeffs {
 
 impl DistortionCoeffs {
     pub fn zero() -> Self {
-        Self { k1: 0.0, k2: 0.0, k3: 0.0, p1: 0.0, p2: 0.0 }
+        Self {
+            k1: 0.0,
+            k2: 0.0,
+            k3: 0.0,
+            p1: 0.0,
+            p2: 0.0,
+        }
     }
 
     pub fn new(k1: f64, k2: f64, k3: f64, p1: f64, p2: f64) -> Self {
@@ -190,8 +202,11 @@ impl DistortionCoeffs {
 
 impl fmt::Display for DistortionCoeffs {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Distortion(k1={:.4e} k2={:.4e} k3={:.4e} p1={:.4e} p2={:.4e})",
-               self.k1, self.k2, self.k3, self.p1, self.p2)
+        write!(
+            f,
+            "Distortion(k1={:.4e} k2={:.4e} k3={:.4e} p1={:.4e} p2={:.4e})",
+            self.k1, self.k2, self.k3, self.p1, self.p2
+        )
     }
 }
 
@@ -208,7 +223,10 @@ pub struct Extrinsics {
 
 impl Extrinsics {
     pub fn identity() -> Self {
-        Self { rvec: [0.0; 3], tvec: [0.0; 3] }
+        Self {
+            rvec: [0.0; 3],
+            tvec: [0.0; 3],
+        }
     }
 
     pub fn new(rvec: [f64; 3], tvec: [f64; 3]) -> Self {
@@ -222,15 +240,25 @@ impl Extrinsics {
             return [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
         }
 
-        let k = [self.rvec[0] / theta, self.rvec[1] / theta, self.rvec[2] / theta];
+        let k = [
+            self.rvec[0] / theta,
+            self.rvec[1] / theta,
+            self.rvec[2] / theta,
+        ];
         let c = theta.cos();
         let s = theta.sin();
         let v = 1.0 - c;
 
         [
-            c + k[0] * k[0] * v,         k[0] * k[1] * v - k[2] * s, k[0] * k[2] * v + k[1] * s,
-            k[1] * k[0] * v + k[2] * s,  c + k[1] * k[1] * v,         k[1] * k[2] * v - k[0] * s,
-            k[2] * k[0] * v - k[1] * s,  k[2] * k[1] * v + k[0] * s, c + k[2] * k[2] * v,
+            c + k[0] * k[0] * v,
+            k[0] * k[1] * v - k[2] * s,
+            k[0] * k[2] * v + k[1] * s,
+            k[1] * k[0] * v + k[2] * s,
+            c + k[1] * k[1] * v,
+            k[1] * k[2] * v - k[0] * s,
+            k[2] * k[0] * v - k[1] * s,
+            k[2] * k[1] * v + k[0] * s,
+            c + k[2] * k[2] * v,
         ]
     }
 
@@ -247,9 +275,11 @@ impl Extrinsics {
 
 impl fmt::Display for Extrinsics {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Extrinsics(rvec=[{:.3},{:.3},{:.3}] tvec=[{:.3},{:.3},{:.3}])",
-               self.rvec[0], self.rvec[1], self.rvec[2],
-               self.tvec[0], self.tvec[1], self.tvec[2])
+        write!(
+            f,
+            "Extrinsics(rvec=[{:.3},{:.3},{:.3}] tvec=[{:.3},{:.3},{:.3}])",
+            self.rvec[0], self.rvec[1], self.rvec[2], self.tvec[0], self.tvec[1], self.tvec[2]
+        )
     }
 }
 
@@ -297,11 +327,17 @@ impl CameraModel {
     /// Reprojection error for a set of 3D-2D correspondences.
     pub fn reprojection_error(&self, world: &[Point3D], image: &[Point2D]) -> f64 {
         assert_eq!(world.len(), image.len());
-        if world.is_empty() { return 0.0; }
-        let sum: f64 = world.iter().zip(image.iter()).map(|(w, i)| {
-            let proj = self.project(w);
-            proj.distance(i)
-        }).sum();
+        if world.is_empty() {
+            return 0.0;
+        }
+        let sum: f64 = world
+            .iter()
+            .zip(image.iter())
+            .map(|(w, i)| {
+                let proj = self.project(w);
+                proj.distance(i)
+            })
+            .sum();
         sum / world.len() as f64
     }
 }
@@ -327,7 +363,11 @@ pub struct CheckerboardPattern {
 
 impl CheckerboardPattern {
     pub fn new(cols: usize, rows: usize, square_size: f64) -> Self {
-        Self { cols, rows, square_size }
+        Self {
+            cols,
+            rows,
+            square_size,
+        }
     }
 
     /// Generate ideal 3D corner positions (Z=0 plane).
@@ -353,14 +393,20 @@ impl CheckerboardPattern {
 
 impl fmt::Display for CheckerboardPattern {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Checkerboard({}x{} sq={:.3})", self.cols, self.rows, self.square_size)
+        write!(
+            f,
+            "Checkerboard({}x{} sq={:.3})",
+            self.cols, self.rows, self.square_size
+        )
     }
 }
 
 /// Detect checkerboard corners in a grayscale image using Harris
 /// corner detection on a binary-thresholded image.
 pub fn detect_checkerboard_corners(
-    pixels: &[f64], width: usize, height: usize,
+    pixels: &[f64],
+    width: usize,
+    height: usize,
     _pattern: &CheckerboardPattern,
     harris_threshold: f64,
 ) -> Vec<Point2D> {
@@ -380,13 +426,14 @@ pub fn detect_checkerboard_corners(
                     let y = r + wr - 1;
                     let x = c + wc - 1;
                     let idx = |rr: usize, cc: usize| pixels[rr * width + cc];
-                    let gx = -idx(y - 1, x - 1) + idx(y - 1, x + 1)
-                           - 2.0 * idx(y, x - 1) + 2.0 * idx(y, x + 1)
-                           - idx(y + 1, x - 1) + idx(y + 1, x + 1);
-                    let gy = -idx(y - 1, x - 1) - 2.0 * idx(y - 1, x)
-                           - idx(y - 1, x + 1)
-                           + idx(y + 1, x - 1) + 2.0 * idx(y + 1, x)
-                           + idx(y + 1, x + 1);
+                    let gx = -idx(y - 1, x - 1) + idx(y - 1, x + 1) - 2.0 * idx(y, x - 1)
+                        + 2.0 * idx(y, x + 1)
+                        - idx(y + 1, x - 1)
+                        + idx(y + 1, x + 1);
+                    let gy = -idx(y - 1, x - 1) - 2.0 * idx(y - 1, x) - idx(y - 1, x + 1)
+                        + idx(y + 1, x - 1)
+                        + 2.0 * idx(y + 1, x)
+                        + idx(y + 1, x + 1);
                     sxx += gx * gx;
                     syy += gy * gy;
                     sxy += gx * gy;
@@ -402,7 +449,9 @@ pub fn detect_checkerboard_corners(
                 let mut is_max = true;
                 for dr in -1i32..=1 {
                     for dc in -1i32..=1 {
-                        if dr == 0 && dc == 0 { continue; }
+                        if dr == 0 && dc == 0 {
+                            continue;
+                        }
                         let nr = (r as i32 + dr) as usize;
                         let nc = (c as i32 + dc) as usize;
                         // We'd need to recompute for neighbors; simplified: skip
@@ -420,8 +469,11 @@ pub fn detect_checkerboard_corners(
 
 /// Sub-pixel corner refinement using gradient-based optimization.
 pub fn refine_corner_subpixel(
-    pixels: &[f64], width: usize, height: usize,
-    corner: &Point2D, window: usize,
+    pixels: &[f64],
+    width: usize,
+    height: usize,
+    corner: &Point2D,
+    window: usize,
 ) -> Point2D {
     let half = window as i32 / 2;
     let cx = corner.x.round() as i32;
@@ -476,14 +528,22 @@ pub struct CalibrationResult {
 
 impl CalibrationResult {
     pub fn new(camera: CameraModel, rms_error: f64, num_images: usize, num_points: usize) -> Self {
-        Self { camera, rms_error, num_images, num_points }
+        Self {
+            camera,
+            rms_error,
+            num_images,
+            num_points,
+        }
     }
 }
 
 impl fmt::Display for CalibrationResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CalibResult(rms={:.4} images={} points={} {})",
-               self.rms_error, self.num_images, self.num_points, self.camera)
+        write!(
+            f,
+            "CalibResult(rms={:.4} images={} points={} {})",
+            self.rms_error, self.num_images, self.num_points, self.camera
+        )
     }
 }
 

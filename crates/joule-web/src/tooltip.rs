@@ -270,12 +270,7 @@ impl Tooltip {
     }
 
     /// Compute position relative to an anchor rect, within a viewport.
-    pub fn compute_position(
-        &mut self,
-        anchor: Rect,
-        tooltip_size: (f64, f64),
-        viewport: Rect,
-    ) {
+    pub fn compute_position(&mut self, anchor: Rect, tooltip_size: (f64, f64), viewport: Rect) {
         let (tw, th) = tooltip_size;
         let offset = self.config.offset;
 
@@ -286,13 +281,9 @@ impl Tooltip {
             let fits = |p: TooltipPlacement| -> bool {
                 match p {
                     TooltipPlacement::Top => anchor.y - th - offset >= viewport.y,
-                    TooltipPlacement::Bottom => {
-                        anchor.bottom() + th + offset <= viewport.bottom()
-                    }
+                    TooltipPlacement::Bottom => anchor.bottom() + th + offset <= viewport.bottom(),
                     TooltipPlacement::Left => anchor.x - tw - offset >= viewport.x,
-                    TooltipPlacement::Right => {
-                        anchor.right() + tw + offset <= viewport.right()
-                    }
+                    TooltipPlacement::Right => anchor.right() + tw + offset <= viewport.right(),
                 }
             };
 
@@ -303,13 +294,9 @@ impl Tooltip {
 
         let (x, y) = match placement {
             TooltipPlacement::Top => (anchor.center_x() - tw / 2.0, anchor.y - th - offset),
-            TooltipPlacement::Bottom => {
-                (anchor.center_x() - tw / 2.0, anchor.bottom() + offset)
-            }
+            TooltipPlacement::Bottom => (anchor.center_x() - tw / 2.0, anchor.bottom() + offset),
             TooltipPlacement::Left => (anchor.x - tw - offset, anchor.center_y() - th / 2.0),
-            TooltipPlacement::Right => {
-                (anchor.right() + offset, anchor.center_y() - th / 2.0)
-            }
+            TooltipPlacement::Right => (anchor.right() + offset, anchor.center_y() - th / 2.0),
         };
 
         self.resolved_placement = placement;
@@ -430,9 +417,7 @@ mod tests {
 
     #[test]
     fn test_auto_flip() {
-        let mut tt = Tooltip::new(
-            TooltipConfig::new("Tip").placement(TooltipPlacement::Top),
-        );
+        let mut tt = Tooltip::new(TooltipConfig::new("Tip").placement(TooltipPlacement::Top));
         let anchor = Rect::new(100.0, 10.0, 50.0, 20.0);
         let viewport = Rect::new(0.0, 0.0, 500.0, 500.0);
         // Not enough room above (anchor.y=10, tooltip height=30+8=38 > 10)
@@ -443,7 +428,9 @@ mod tests {
     #[test]
     fn test_position_bottom() {
         let mut tt = Tooltip::new(
-            TooltipConfig::new("Tip").placement(TooltipPlacement::Bottom).offset(10.0),
+            TooltipConfig::new("Tip")
+                .placement(TooltipPlacement::Bottom)
+                .offset(10.0),
         );
         let anchor = Rect::new(100.0, 50.0, 40.0, 20.0);
         let viewport = Rect::new(0.0, 0.0, 800.0, 600.0);

@@ -18,12 +18,24 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
-    pub const UP: Self = Self { x: 0.0, y: 1.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub const UP: Self = Self {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    };
 
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
 
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
 
     pub fn cross(self, o: Self) -> Self {
         Self {
@@ -33,21 +45,53 @@ impl Vec3 {
         }
     }
 
-    pub fn length(self) -> f64 { self.dot(self).sqrt() }
+    pub fn length(self) -> f64 {
+        self.dot(self).sqrt()
+    }
 
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-12 { return Self::ZERO; }
-        Self { x: self.x / l, y: self.y / l, z: self.z / l }
+        if l < 1e-12 {
+            return Self::ZERO;
+        }
+        Self {
+            x: self.x / l,
+            y: self.y / l,
+            z: self.z / l,
+        }
     }
 
-    pub fn neg(self) -> Self { Self { x: -self.x, y: -self.y, z: -self.z } }
+    pub fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
 
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z } }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
+    }
 
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z } }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
+    }
 }
 
 /// 4-component vector.
@@ -60,7 +104,9 @@ pub struct Vec4 {
 }
 
 impl Vec4 {
-    pub fn new(x: f64, y: f64, z: f64, w: f64) -> Self { Self { x, y, z, w } }
+    pub fn new(x: f64, y: f64, z: f64, w: f64) -> Self {
+        Self { x, y, z, w }
+    }
 }
 
 /// Row-major 4×4 matrix.
@@ -72,15 +118,14 @@ pub struct Mat4 {
 impl Mat4 {
     pub const IDENTITY: Self = Self {
         m: [
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 1.0,
+            1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
         ],
     };
 
     /// Column-access helper: element at (row, col).
-    pub fn at(&self, row: usize, col: usize) -> f64 { self.m[row * 4 + col] }
+    pub fn at(&self, row: usize, col: usize) -> f64 {
+        self.m[row * 4 + col]
+    }
 
     /// Build a look-at (view) matrix: eye looking at center, with up hint.
     pub fn look_at(eye: Vec3, center: Vec3, up: Vec3) -> Self {
@@ -89,10 +134,22 @@ impl Mat4 {
         let u = s.cross(f);
         Self {
             m: [
-                s.x,  s.y,  s.z, -s.dot(eye),
-                u.x,  u.y,  u.z, -u.dot(eye),
-               -f.x, -f.y, -f.z,  f.dot(eye),
-                0.0,  0.0,  0.0,  1.0,
+                s.x,
+                s.y,
+                s.z,
+                -s.dot(eye),
+                u.x,
+                u.y,
+                u.z,
+                -u.dot(eye),
+                -f.x,
+                -f.y,
+                -f.z,
+                f.dot(eye),
+                0.0,
+                0.0,
+                0.0,
+                1.0,
             ],
         }
     }
@@ -104,10 +161,22 @@ impl Mat4 {
         let d = far - near;
         Self {
             m: [
-                2.0 / w, 0.0,     0.0,      -(right + left) / w,
-                0.0,     2.0 / h, 0.0,      -(top + bottom) / h,
-                0.0,     0.0,    -2.0 / d,  -(far + near) / d,
-                0.0,     0.0,     0.0,       1.0,
+                2.0 / w,
+                0.0,
+                0.0,
+                -(right + left) / w,
+                0.0,
+                2.0 / h,
+                0.0,
+                -(top + bottom) / h,
+                0.0,
+                0.0,
+                -2.0 / d,
+                -(far + near) / d,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
             ],
         }
     }
@@ -149,12 +218,28 @@ pub struct Color {
 }
 
 impl Color {
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0 };
-    pub const BLACK: Self = Self { r: 0.0, g: 0.0, b: 0.0 };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+    };
+    pub const BLACK: Self = Self {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+    };
 
-    pub fn new(r: f64, g: f64, b: f64) -> Self { Self { r, g, b } }
+    pub fn new(r: f64, g: f64, b: f64) -> Self {
+        Self { r, g, b }
+    }
 
-    pub fn scale(self, s: f64) -> Self { Self { r: self.r * s, g: self.g * s, b: self.b * s } }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
+    }
 
     pub fn lerp(self, other: Self, t: f64) -> Self {
         let t = t.clamp(0.0, 1.0);
@@ -186,7 +271,11 @@ impl CascadeParams {
         for i in 0..=cascade_count {
             splits.push(near + (far - near) * (i as f64 / cascade_count as f64));
         }
-        Self { cascade_count, split_distances: splits, resolution }
+        Self {
+            cascade_count,
+            split_distances: splits,
+            resolution,
+        }
     }
 
     /// Create with logarithmic split distances.
@@ -197,11 +286,21 @@ impl CascadeParams {
             let t = i as f64 / cascade_count as f64;
             splits.push(n * (far / n).powf(t));
         }
-        Self { cascade_count, split_distances: splits, resolution }
+        Self {
+            cascade_count,
+            split_distances: splits,
+            resolution,
+        }
     }
 
     /// Practical (PSSM) split: blend between uniform and logarithmic.
-    pub fn practical(cascade_count: u32, near: f64, far: f64, lambda: f64, resolution: u32) -> Self {
+    pub fn practical(
+        cascade_count: u32,
+        near: f64,
+        far: f64,
+        lambda: f64,
+        resolution: u32,
+    ) -> Self {
         let uniform = Self::uniform(cascade_count, near, far, resolution);
         let log = Self::logarithmic(cascade_count, near, far, resolution);
         let lambda = lambda.clamp(0.0, 1.0);
@@ -211,7 +310,11 @@ impl CascadeParams {
             .zip(log.split_distances.iter())
             .map(|(u, l)| lambda * l + (1.0 - lambda) * u)
             .collect();
-        Self { cascade_count, split_distances: splits, resolution }
+        Self {
+            cascade_count,
+            split_distances: splits,
+            resolution,
+        }
     }
 }
 
@@ -329,9 +432,12 @@ impl DirectionalLight {
         };
         let view = Mat4::look_at(light_pos, scene_center, up);
         let proj = Mat4::ortho(
-            -scene_radius, scene_radius,
-            -scene_radius, scene_radius,
-            0.0, 2.0 * scene_radius,
+            -scene_radius,
+            scene_radius,
+            -scene_radius,
+            scene_radius,
+            0.0,
+            2.0 * scene_radius,
         );
         proj.mul(&view)
     }
@@ -387,7 +493,9 @@ mod tests {
 
     const EPS: f64 = 1e-6;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
     fn color_approx(a: Color, b: Color) -> bool {
         approx(a.r, b.r) && approx(a.g, b.g) && approx(a.b, b.b)
     }
@@ -479,11 +587,7 @@ mod tests {
 
     #[test]
     fn directional_light_effective_color() {
-        let l = DirectionalLight::new(
-            Vec3::new(0.0, -1.0, 0.0),
-            Color::new(1.0, 0.8, 0.6),
-            2.0,
-        );
+        let l = DirectionalLight::new(Vec3::new(0.0, -1.0, 0.0), Color::new(1.0, 0.8, 0.6), 2.0);
         let c = l.effective_color();
         assert!(approx(c.r, 2.0));
         assert!(approx(c.g, 1.6));
@@ -491,8 +595,8 @@ mod tests {
 
     #[test]
     fn directional_light_ambient_color() {
-        let l = DirectionalLight::new(Vec3::new(0.0, -1.0, 0.0), Color::WHITE, 1.0)
-            .with_ambient(0.1);
+        let l =
+            DirectionalLight::new(Vec3::new(0.0, -1.0, 0.0), Color::WHITE, 1.0).with_ambient(0.1);
         let a = l.ambient_color();
         assert!(approx(a.r, 0.1));
     }

@@ -300,8 +300,7 @@ fn merge_hunks(
                         }
                     } else {
                         // Genuine conflict.
-                        let base_region: Vec<String> = base
-                            [o.base_start..max_end.min(base.len())]
+                        let base_region: Vec<String> = base[o.base_start..max_end.min(base.len())]
                             .iter()
                             .map(|s| s.to_string())
                             .collect();
@@ -650,7 +649,7 @@ mod tests {
     #[test]
     fn clean_merge_no_conflicts() {
         let base = "a\nb\nc\nd\ne";
-        let ours = "a\nX\nc\nd\ne";   // changed line 2
+        let ours = "a\nX\nc\nd\ne"; // changed line 2
         let theirs = "a\nb\nc\nY\ne"; // changed line 4
         let result = merge(base, ours, theirs);
         assert!(result.clean);

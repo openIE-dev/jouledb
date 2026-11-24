@@ -1615,7 +1615,11 @@ impl StorageExecutor {
             Expression::QualifiedColumn { column, .. } => {
                 row.get(column).cloned().unwrap_or(Value::Null)
             }
-            Expression::Case { operand, when_clauses, else_clause } => {
+            Expression::Case {
+                operand,
+                when_clauses,
+                else_clause,
+            } => {
                 if let Some(op_expr) = operand {
                     // Simple CASE: CASE expr WHEN val THEN result ...
                     let op_val = self.eval_order_expr(op_expr, row);
@@ -1668,7 +1672,12 @@ impl StorageExecutor {
                 let is_null = matches!(val, Value::Null);
                 Value::Bool(if *negated { !is_null } else { is_null })
             }
-            Expression::Between { expr, low, high, negated } => {
+            Expression::Between {
+                expr,
+                low,
+                high,
+                negated,
+            } => {
                 let val = self.eval_order_expr(expr, row);
                 let low_val = self.eval_order_expr(low, row);
                 let high_val = self.eval_order_expr(high, row);
@@ -1683,47 +1692,47 @@ impl StorageExecutor {
     /// Evaluate a predicate expression as a boolean for CASE WHEN conditions
     fn eval_predicate_bool(&self, expr: &Expression, row: &RowData) -> bool {
         match expr {
-            Expression::Binary { left, op, right } => {
-                match op {
-                    crate::ast::Operator::And => {
-                        self.eval_predicate_bool(left, row) && self.eval_predicate_bool(right, row)
-                    }
-                    crate::ast::Operator::Or => {
-                        self.eval_predicate_bool(left, row) || self.eval_predicate_bool(right, row)
-                    }
-                    crate::ast::Operator::Eq | crate::ast::Operator::Ne |
-                    crate::ast::Operator::Lt | crate::ast::Operator::Le |
-                    crate::ast::Operator::Gt | crate::ast::Operator::Ge => {
-                        let l = self.eval_order_expr(left, row);
-                        let r = self.eval_order_expr(right, row);
-                        let cmp = self.compare_values(&l, &r);
-                        match op {
-                            crate::ast::Operator::Eq => cmp == std::cmp::Ordering::Equal,
-                            crate::ast::Operator::Ne => cmp != std::cmp::Ordering::Equal,
-                            crate::ast::Operator::Lt => cmp == std::cmp::Ordering::Less,
-                            crate::ast::Operator::Le => cmp != std::cmp::Ordering::Greater,
-                            crate::ast::Operator::Gt => cmp == std::cmp::Ordering::Greater,
-                            crate::ast::Operator::Ge => cmp != std::cmp::Ordering::Less,
-                            _ => false,
-                        }
-                    }
-                    _ => false,
+            Expression::Binary { left, op, right } => match op {
+                crate::ast::Operator::And => {
+                    self.eval_predicate_bool(left, row) && self.eval_predicate_bool(right, row)
                 }
-            }
+                crate::ast::Operator::Or => {
+                    self.eval_predicate_bool(left, row) || self.eval_predicate_bool(right, row)
+                }
+                crate::ast::Operator::Eq
+                | crate::ast::Operator::Ne
+                | crate::ast::Operator::Lt
+                | crate::ast::Operator::Le
+                | crate::ast::Operator::Gt
+                | crate::ast::Operator::Ge => {
+                    let l = self.eval_order_expr(left, row);
+                    let r = self.eval_order_expr(right, row);
+                    let cmp = self.compare_values(&l, &r);
+                    match op {
+                        crate::ast::Operator::Eq => cmp == std::cmp::Ordering::Equal,
+                        crate::ast::Operator::Ne => cmp != std::cmp::Ordering::Equal,
+                        crate::ast::Operator::Lt => cmp == std::cmp::Ordering::Less,
+                        crate::ast::Operator::Le => cmp != std::cmp::Ordering::Greater,
+                        crate::ast::Operator::Gt => cmp == std::cmp::Ordering::Greater,
+                        crate::ast::Operator::Ge => cmp != std::cmp::Ordering::Less,
+                        _ => false,
+                    }
+                }
+                _ => false,
+            },
             Expression::IsNull { expr, negated } => {
                 let val = self.eval_order_expr(expr, row);
                 let is_null = matches!(val, Value::Null);
                 if *negated { !is_null } else { is_null }
             }
-            Expression::Unary { op: crate::ast::UnaryOperator::Not, expr } => {
-                !self.eval_predicate_bool(expr, row)
-            }
-            _ => {
-                match self.eval_order_expr(expr, row) {
-                    Value::Bool(b) => b,
-                    _ => false,
-                }
-            }
+            Expression::Unary {
+                op: crate::ast::UnaryOperator::Not,
+                expr,
+            } => !self.eval_predicate_bool(expr, row),
+            _ => match self.eval_order_expr(expr, row) {
+                Value::Bool(b) => b,
+                _ => false,
+            },
         }
     }
 
@@ -2292,10 +2301,12 @@ impl StorageExecutor {
         context: &QueryContext,
     ) -> QueryResult<ResultSet> {
         // Determine result column names
-        let col_names: Vec<String> = if columns
-            .iter()
-            .any(|c| matches!(c.expr, Expression::Wildcard | Expression::QualifiedWildcard(_)))
-        {
+        let col_names: Vec<String> = if columns.iter().any(|c| {
+            matches!(
+                c.expr,
+                Expression::Wildcard | Expression::QualifiedWildcard(_)
+            )
+        }) {
             // If wildcard, use columns from first row
             if let Some(row) = rows.first() {
                 row.columns.clone()
@@ -2319,10 +2330,12 @@ impl StorageExecutor {
         let mut result = ResultSet::with_columns(col_names.clone());
 
         for row in rows {
-            let values: Vec<Value> = if columns
-                .iter()
-                .any(|c| matches!(c.expr, Expression::Wildcard | Expression::QualifiedWildcard(_)))
-            {
+            let values: Vec<Value> = if columns.iter().any(|c| {
+                matches!(
+                    c.expr,
+                    Expression::Wildcard | Expression::QualifiedWildcard(_)
+                )
+            }) {
                 row.values.clone()
             } else {
                 columns
@@ -2573,7 +2586,11 @@ impl StorageExecutor {
                     Ok(Value::Bool(false))
                 }
             }
-            Expression::RegexMatch { expr, pattern, negated } => {
+            Expression::RegexMatch {
+                expr,
+                pattern,
+                negated,
+            } => {
                 let val = self.evaluate_expression(expr, row, context)?;
                 if let Value::String(s) = val {
                     let matched = crate::like::regex_is_match(pattern, &s);

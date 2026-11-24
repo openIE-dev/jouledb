@@ -459,10 +459,7 @@ mod tests {
     fn threshold_fail() {
         let report = sample_report();
         let result = report.check_threshold(80.0);
-        assert!(matches!(
-            result,
-            Err(CoverageError::BelowThreshold { .. })
-        ));
+        assert!(matches!(result, Err(CoverageError::BelowThreshold { .. })));
     }
 
     #[test]
@@ -476,11 +473,7 @@ mod tests {
         r1.merge(&r2);
         let file = r1.get_file("src/main.rs").unwrap();
         // Region 11-20 should now have hit_count = 0 + 2 = 2
-        let region = file
-            .regions
-            .iter()
-            .find(|r| r.start_line == 11)
-            .unwrap();
+        let region = file.regions.iter().find(|r| r.start_line == 11).unwrap();
         assert_eq!(region.hit_count, 2);
     }
 

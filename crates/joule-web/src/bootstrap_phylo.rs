@@ -43,12 +43,17 @@ struct Lcg {
 
 impl Lcg {
     fn new(seed: u64) -> Self {
-        Self { state: seed.wrapping_add(1) }
+        Self {
+            state: seed.wrapping_add(1),
+        }
     }
 
     fn next_usize(&mut self, bound: usize) -> usize {
         // LCG constants from Numerical Recipes
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         ((self.state >> 33) as usize) % bound
     }
 }
@@ -96,7 +101,10 @@ impl Alignment {
                 new_s.push(s[col]);
             }
         }
-        Self { labels: self.labels.clone(), sequences: new_seqs }
+        Self {
+            labels: self.labels.clone(),
+            sequences: new_seqs,
+        }
     }
 }
 
@@ -179,7 +187,11 @@ impl BootstrapSupport {
             .iter()
             .filter_map(|(split, &count)| {
                 let s = count as f64 / self.total_replicates.max(1) as f64;
-                if s >= threshold { Some((split, s)) } else { None }
+                if s >= threshold {
+                    Some((split, s))
+                } else {
+                    None
+                }
             })
             .collect()
     }
@@ -331,7 +343,10 @@ pub fn build_consensus(
     let root_id = next_id;
     let mut root = ConsensusNode::internal(root_id, 1.0);
     // Attach all leaves or top-level internal nodes
-    let claimed: HashSet<usize> = nodes.iter().flat_map(|n| n.children.iter().copied()).collect();
+    let claimed: HashSet<usize> = nodes
+        .iter()
+        .flat_map(|n| n.children.iter().copied())
+        .collect();
     for i in 0..next_id {
         if !claimed.contains(&i) {
             root.children.push(i);
@@ -339,7 +354,11 @@ pub fn build_consensus(
     }
     nodes.push(root);
 
-    Ok(ConsensusTree { nodes, root: root_id, threshold })
+    Ok(ConsensusTree {
+        nodes,
+        root: root_id,
+        threshold,
+    })
 }
 
 // ── Bootstrap pipeline ──────────────────────────────────────────
@@ -520,8 +539,12 @@ mod tests {
         let mut bs = BootstrapSupport::new(100);
         let s1 = Split::new(vec!["A".into(), "B".into()]);
         let s2 = Split::new(vec!["C".into(), "D".into()]);
-        for _ in 0..80 { bs.record_split(s1.clone()); }
-        for _ in 0..30 { bs.record_split(s2.clone()); }
+        for _ in 0..80 {
+            bs.record_split(s1.clone());
+        }
+        for _ in 0..30 {
+            bs.record_split(s2.clone());
+        }
         let supported = bs.supported_splits(0.5);
         assert_eq!(supported.len(), 1);
     }
@@ -551,7 +574,9 @@ mod tests {
     fn test_build_consensus() {
         let mut bs = BootstrapSupport::new(100);
         let split = Split::new(vec!["A".into(), "B".into()]);
-        for _ in 0..60 { bs.record_split(split.clone()); }
+        for _ in 0..60 {
+            bs.record_split(split.clone());
+        }
         let tree = build_consensus(&["A", "B", "C"], &bs, 0.5).unwrap();
         assert!(tree.leaf_count() >= 3);
     }

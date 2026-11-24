@@ -39,27 +39,49 @@ impl Vec2 {
 
     pub fn normalized(self) -> Self {
         let len = self.length();
-        if len < 1e-10 { Self::zero() } else { Self { x: self.x / len, y: self.y / len } }
+        if len < 1e-10 {
+            Self::zero()
+        } else {
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+            }
+        }
     }
 
     pub fn perpendicular(self) -> Self {
-        Self { x: -self.y, y: self.x }
+        Self {
+            x: -self.y,
+            y: self.x,
+        }
     }
 
     pub fn add(self, other: Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
     }
 
     pub fn sub(self, other: Self) -> Self {
-        Self { x: self.x - other.x, y: self.y - other.y }
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
     }
 
     pub fn scale(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
     }
 
     pub fn negate(self) -> Self {
-        Self { x: -self.x, y: -self.y }
+        Self {
+            x: -self.x,
+            y: -self.y,
+        }
     }
 }
 
@@ -84,14 +106,20 @@ impl Shape {
     }
 
     pub fn aabb(half_width: f64, half_height: f64) -> Self {
-        Self::AABB { half_width, half_height }
+        Self::AABB {
+            half_width,
+            half_height,
+        }
     }
 
     /// Compute the moment of inertia for a given mass.
     pub fn moment_of_inertia(&self, mass: f64) -> f64 {
         match self {
             Shape::Circle { radius } => 0.5 * mass * radius * radius,
-            Shape::AABB { half_width, half_height } => {
+            Shape::AABB {
+                half_width,
+                half_height,
+            } => {
                 let w = half_width * 2.0;
                 let h = half_height * 2.0;
                 mass * (w * w + h * h) / 12.0
@@ -148,7 +176,11 @@ impl Body2D {
             BodyType::Static | BodyType::Kinematic => 0.0,
         };
         let inv_mass = if mass > 0.0 { 1.0 / mass } else { 0.0 };
-        let inertia = if mass > 0.0 { shape.moment_of_inertia(mass) } else { 0.0 };
+        let inertia = if mass > 0.0 {
+            shape.moment_of_inertia(mass)
+        } else {
+            0.0
+        };
         let inv_inertia = if inertia > 0.0 { 1.0 / inertia } else { 0.0 };
 
         Self {
@@ -187,8 +219,16 @@ impl Body2D {
     pub fn with_mass(mut self, mass: f64) -> Self {
         self.mass = mass;
         self.inv_mass = if mass > 0.0 { 1.0 / mass } else { 0.0 };
-        self.inertia = if mass > 0.0 { self.shape.moment_of_inertia(mass) } else { 0.0 };
-        self.inv_inertia = if self.inertia > 0.0 { 1.0 / self.inertia } else { 0.0 };
+        self.inertia = if mass > 0.0 {
+            self.shape.moment_of_inertia(mass)
+        } else {
+            0.0
+        };
+        self.inv_inertia = if self.inertia > 0.0 {
+            1.0 / self.inertia
+        } else {
+            0.0
+        };
         self
     }
 
@@ -204,21 +244,27 @@ impl Body2D {
 
     /// Apply a force at the center of mass.
     pub fn apply_force(&mut self, force: Vec2) {
-        if self.body_type != BodyType::Dynamic { return; }
+        if self.body_type != BodyType::Dynamic {
+            return;
+        }
         self.force = self.force.add(force);
         self.wake();
     }
 
     /// Apply an instantaneous impulse at the center of mass.
     pub fn apply_impulse(&mut self, impulse: Vec2) {
-        if self.body_type != BodyType::Dynamic { return; }
+        if self.body_type != BodyType::Dynamic {
+            return;
+        }
         self.velocity = self.velocity.add(impulse.scale(self.inv_mass));
         self.wake();
     }
 
     /// Apply torque.
     pub fn apply_torque(&mut self, torque: f64) {
-        if self.body_type != BodyType::Dynamic { return; }
+        if self.body_type != BodyType::Dynamic {
+            return;
+        }
         self.torque += torque;
         self.wake();
     }
@@ -237,7 +283,9 @@ impl Body2D {
     }
 
     fn try_sleep(&mut self, dt: f64) {
-        if self.body_type != BodyType::Dynamic { return; }
+        if self.body_type != BodyType::Dynamic {
+            return;
+        }
         let speed = self.velocity.length() + self.angular_velocity.abs();
         if speed < self.velocity_threshold {
             self.sleep_timer += dt;
@@ -362,8 +410,7 @@ impl World2D {
     pub fn create_static(&mut self, shape: Shape, x: f64, y: f64) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
-        let body = Body2D::new(id, shape, BodyType::Static)
-            .with_position(x, y);
+        let body = Body2D::new(id, shape, BodyType::Static).with_position(x, y);
         self.add_body(body)
     }
 
@@ -464,7 +511,13 @@ impl World2D {
         contacts
     }
 
-    fn test_pair(&self, a: &Body2D, b: &Body2D, idx_a: usize, idx_b: usize) -> Option<PhysicsContact> {
+    fn test_pair(
+        &self,
+        a: &Body2D,
+        b: &Body2D,
+        idx_a: usize,
+        idx_b: usize,
+    ) -> Option<PhysicsContact> {
         match (&a.shape, &b.shape) {
             (Shape::Circle { radius: ra }, Shape::Circle { radius: rb }) => {
                 let diff = b.position.sub(a.position);
@@ -475,7 +528,11 @@ impl World2D {
                     return None;
                 }
 
-                let normal = if dist < 1e-10 { Vec2::new(1.0, 0.0) } else { diff.normalized() };
+                let normal = if dist < 1e-10 {
+                    Vec2::new(1.0, 0.0)
+                } else {
+                    diff.normalized()
+                };
                 let penetration = sum_r - dist;
                 let point = a.position.add(normal.scale(*ra));
 
@@ -487,8 +544,16 @@ impl World2D {
                     point,
                 })
             }
-            (Shape::AABB { half_width: hw_a, half_height: hh_a },
-             Shape::AABB { half_width: hw_b, half_height: hh_b }) => {
+            (
+                Shape::AABB {
+                    half_width: hw_a,
+                    half_height: hh_a,
+                },
+                Shape::AABB {
+                    half_width: hw_b,
+                    half_height: hh_b,
+                },
+            ) => {
                 let diff = b.position.sub(a.position);
                 let overlap_x = hw_a + hw_b - diff.x.abs();
                 let overlap_y = hh_a + hh_b - diff.y.abs();
@@ -498,9 +563,15 @@ impl World2D {
                 }
 
                 let (normal, penetration) = if overlap_x < overlap_y {
-                    (Vec2::new(if diff.x > 0.0 { 1.0 } else { -1.0 }, 0.0), overlap_x)
+                    (
+                        Vec2::new(if diff.x > 0.0 { 1.0 } else { -1.0 }, 0.0),
+                        overlap_x,
+                    )
                 } else {
-                    (Vec2::new(0.0, if diff.y > 0.0 { 1.0 } else { -1.0 }), overlap_y)
+                    (
+                        Vec2::new(0.0, if diff.y > 0.0 { 1.0 } else { -1.0 }),
+                        overlap_y,
+                    )
                 };
 
                 let point = a.position.add(b.position).scale(0.5);
@@ -513,7 +584,13 @@ impl World2D {
                     point,
                 })
             }
-            (Shape::Circle { radius }, Shape::AABB { half_width, half_height }) => {
+            (
+                Shape::Circle { radius },
+                Shape::AABB {
+                    half_width,
+                    half_height,
+                },
+            ) => {
                 let diff = a.position.sub(b.position);
                 let closest = Vec2::new(
                     diff.x.clamp(-half_width, *half_width),
@@ -526,7 +603,11 @@ impl World2D {
                     return None;
                 }
 
-                let normal = if dist < 1e-10 { Vec2::new(1.0, 0.0) } else { delta.normalized() };
+                let normal = if dist < 1e-10 {
+                    Vec2::new(1.0, 0.0)
+                } else {
+                    delta.normalized()
+                };
 
                 Some(PhysicsContact {
                     body_a: idx_a,
@@ -595,7 +676,8 @@ impl World2D {
         };
 
         let relative_vel2 = vel_b2.sub(vel_a2);
-        let tangent_vel = relative_vel2.sub(contact.normal.scale(relative_vel2.dot(contact.normal)));
+        let tangent_vel =
+            relative_vel2.sub(contact.normal.scale(relative_vel2.dot(contact.normal)));
         let tangent_len = tangent_vel.length();
 
         if tangent_len > 1e-10 {
@@ -630,9 +712,9 @@ impl World2D {
             return;
         }
 
-        let correction = contact.normal.scale(
-            ((contact.penetration - slop).max(0.0) / inv_mass_sum) * percent
-        );
+        let correction = contact
+            .normal
+            .scale(((contact.penetration - slop).max(0.0) / inv_mass_sum) * percent);
 
         if self.bodies[contact.body_a].body_type == BodyType::Dynamic {
             let corr_a = correction.scale(inv_mass_a);
@@ -646,7 +728,15 @@ impl World2D {
 
     fn solve_constraint(&mut self, constraint: &Constraint, dt: f64) {
         match constraint {
-            Constraint::Distance { body_a, body_b, anchor_a, anchor_b, target_distance, stiffness, damping } => {
+            Constraint::Distance {
+                body_a,
+                body_b,
+                anchor_a,
+                anchor_b,
+                target_distance,
+                stiffness,
+                damping,
+            } => {
                 let (idx_a, idx_b) = match (self.body_index(*body_a), self.body_index(*body_b)) {
                     (Some(a), Some(b)) => (a, b),
                     _ => return,
@@ -682,13 +772,21 @@ impl World2D {
                 let force = normal.scale(force_mag * dt);
 
                 if self.bodies[idx_a].body_type == BodyType::Dynamic {
-                    self.bodies[idx_a].velocity = self.bodies[idx_a].velocity.add(force.scale(inv_mass_a));
+                    self.bodies[idx_a].velocity =
+                        self.bodies[idx_a].velocity.add(force.scale(inv_mass_a));
                 }
                 if self.bodies[idx_b].body_type == BodyType::Dynamic {
-                    self.bodies[idx_b].velocity = self.bodies[idx_b].velocity.sub(force.scale(inv_mass_b));
+                    self.bodies[idx_b].velocity =
+                        self.bodies[idx_b].velocity.sub(force.scale(inv_mass_b));
                 }
             }
-            Constraint::Pin { body, anchor, world_point, stiffness, damping } => {
+            Constraint::Pin {
+                body,
+                anchor,
+                world_point,
+                stiffness,
+                damping,
+            } => {
                 let idx = match self.body_index(*body) {
                     Some(i) => i,
                     None => return,
@@ -705,7 +803,9 @@ impl World2D {
                 let damp_force = body_ref.velocity.scale(-damping);
 
                 let total = spring_force.add(damp_force).scale(dt);
-                self.bodies[idx].velocity = self.bodies[idx].velocity.add(total.scale(self.bodies[idx].inv_mass));
+                self.bodies[idx].velocity = self.bodies[idx]
+                    .velocity
+                    .add(total.scale(self.bodies[idx].inv_mass));
             }
         }
     }
@@ -750,8 +850,7 @@ mod tests {
 
     #[test]
     fn apply_impulse() {
-        let mut body = Body2D::new(1, Shape::circle(1.0), BodyType::Dynamic)
-            .with_mass(2.0);
+        let mut body = Body2D::new(1, Shape::circle(1.0), BodyType::Dynamic).with_mass(2.0);
         body.apply_impulse(Vec2::new(10.0, 0.0));
         assert!(approx(body.velocity.x, 5.0, 0.001)); // 10 / 2
     }
@@ -857,7 +956,10 @@ mod tests {
         }
         assert!(world.get_body(id).unwrap().sleeping);
 
-        world.get_body_mut(id).unwrap().apply_impulse(Vec2::new(10.0, 0.0));
+        world
+            .get_body_mut(id)
+            .unwrap()
+            .apply_impulse(Vec2::new(10.0, 0.0));
         assert!(!world.get_body(id).unwrap().sleeping);
     }
 
@@ -878,7 +980,10 @@ mod tests {
         let pos_b = world.get_body(b).unwrap().position;
         let dist = pos_b.sub(pos_a).length();
         // Should be close to target distance (within tolerance due to spring behavior)
-        assert!(dist < 15.0, "distance should converge toward 10, got {dist}");
+        assert!(
+            dist < 15.0,
+            "distance should converge toward 10, got {dist}"
+        );
     }
 
     #[test]
@@ -900,7 +1005,11 @@ mod tests {
 
         let pos = world.get_body(id).unwrap().position;
         // Should be pulled toward (0,0)
-        assert!(pos.length() < 5.0, "body should approach pin point, distance is {}", pos.length());
+        assert!(
+            pos.length() < 5.0,
+            "body should approach pin point, distance is {}",
+            pos.length()
+        );
     }
 
     #[test]

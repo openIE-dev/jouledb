@@ -3834,7 +3834,9 @@ mod add_batch_tests {
     #[test]
     fn add_batch_matches_add() {
         for n in [0usize, 1, 7, 255, 256, 600] {
-            let hvs: Vec<BinaryHV> = (0..n).map(|i| BinaryHV::random(10000, i as u64 + 1)).collect();
+            let hvs: Vec<BinaryHV> = (0..n)
+                .map(|i| BinaryHV::random(10000, i as u64 + 1))
+                .collect();
             let mut a = BundleAccumulator::new(10000);
             for h in &hvs {
                 a.add(h);
@@ -3846,7 +3848,6 @@ mod add_batch_tests {
         }
     }
 }
-
 
 /// Add word `w` of every vector in `chunk` (at most 255) into the 64 (or
 /// fewer, for the tail word) counters `counts`, via bit-sliced vertical
@@ -3901,7 +3902,9 @@ mod add_batch_par_tests {
         let hvs: Vec<BinaryHV> = (0..1200).map(|i| BinaryHV::random(10_000, i)).collect();
         let refs: Vec<&BinaryHV> = hvs.iter().collect();
         let mut a = BundleAccumulator::new(10_000);
-        for h in &hvs { a.add(h); }
+        for h in &hvs {
+            a.add(h);
+        }
         let mut b = BundleAccumulator::new(10_000);
         b.add_batch(&refs);
         assert_eq!(a.counts, b.counts);

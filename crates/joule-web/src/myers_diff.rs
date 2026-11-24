@@ -117,9 +117,7 @@ fn myers_shortest_edit(old: &[&str], new: &[&str], eq: &EqualityConfig) -> Vec<E
         let mut k = -d;
         while k <= d {
             let idx = (k + max as isize) as usize;
-            let mut x = if k == -d
-                || (k != d && v[idx.wrapping_sub(1)] < v[idx + 1])
-            {
+            let mut x = if k == -d || (k != d && v[idx.wrapping_sub(1)] < v[idx + 1]) {
                 v[idx + 1]
             } else {
                 v[idx.wrapping_sub(1)] + 1
@@ -170,13 +168,12 @@ fn backtrack(
         let k = x as isize - y as isize;
         let idx = (k + max as isize) as usize;
 
-        let prev_k = if k == -(d as isize)
-            || (k != d as isize && v[idx.wrapping_sub(1)] < v[idx + 1])
-        {
-            k + 1
-        } else {
-            k - 1
-        };
+        let prev_k =
+            if k == -(d as isize) || (k != d as isize && v[idx.wrapping_sub(1)] < v[idx + 1]) {
+                k + 1
+            } else {
+                k - 1
+            };
 
         let prev_idx = (prev_k + max as isize) as usize;
         let prev_x = v[prev_idx];
@@ -370,11 +367,7 @@ fn patience_diff_lines(old: &[&str], new: &[&str]) -> Vec<EditOp> {
 
     // Tail segment.
     if old_pos < old.len() || new_pos < new.len() {
-        let sub = myers_shortest_edit(
-            &old[old_pos..],
-            &new[new_pos..],
-            &EqualityConfig::default(),
-        );
+        let sub = myers_shortest_edit(&old[old_pos..], &new[new_pos..], &EqualityConfig::default());
         ops.extend(sub);
     }
 
@@ -531,7 +524,9 @@ mod tests {
     fn change_line() {
         let result = diff_lines("a\nb\nc", "a\nx\nc");
         // b->x counts as a change (delete + insert pair).
-        assert!(result.stats.changes > 0 || (result.stats.deletions > 0 && result.stats.additions > 0));
+        assert!(
+            result.stats.changes > 0 || (result.stats.deletions > 0 && result.stats.additions > 0)
+        );
     }
 
     #[test]
@@ -658,7 +653,10 @@ mod tests {
 
     #[test]
     fn large_diff() {
-        let old: String = (0..50).map(|i| format!("line{}", i)).collect::<Vec<_>>().join("\n");
+        let old: String = (0..50)
+            .map(|i| format!("line{}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
         let new: String = (0..50)
             .map(|i| {
                 if i == 25 {

@@ -112,7 +112,11 @@ pub struct ScenarioResult {
 
 impl fmt::Display for ScenarioResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let flag = if self.breaches_threshold { " [BREACH]" } else { "" };
+        let flag = if self.breaches_threshold {
+            " [BREACH]"
+        } else {
+            ""
+        };
         write!(
             f,
             "{}: P&L={:+.2} ({:+.2}%){}",
@@ -194,12 +198,13 @@ impl HistoricalScenario {
                     ScenarioShock::new("credit_spread", 0.035),
                 ],
             ),
-            CrisisType::Custom => (
-                "Custom Scenario".to_string(),
-                Vec::new(),
-            ),
+            CrisisType::Custom => ("Custom Scenario".to_string(), Vec::new()),
         };
-        Self { crisis, name, shocks }
+        Self {
+            crisis,
+            name,
+            shocks,
+        }
     }
 
     /// Apply scenario to portfolio exposures. Returns P&L impact.
@@ -222,7 +227,12 @@ impl HistoricalScenario {
 
 impl fmt::Display for HistoricalScenario {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "HistoricalScenario({}, {} shocks)", self.name, self.shocks.len())
+        write!(
+            f,
+            "HistoricalScenario({}, {} shocks)",
+            self.name,
+            self.shocks.len()
+        )
     }
 }
 
@@ -256,7 +266,12 @@ impl HypotheticalScenario {
     }
 
     /// Apply this scenario to portfolio factor exposures.
-    pub fn apply(&self, exposures: &[(&str, f64)], portfolio_value: f64, threshold: f64) -> ScenarioResult {
+    pub fn apply(
+        &self,
+        exposures: &[(&str, f64)],
+        portfolio_value: f64,
+        threshold: f64,
+    ) -> ScenarioResult {
         let mut total_impact = 0.0;
         for (factor, exposure) in exposures {
             if let Some(shock) = self.shocks.iter().find(|s| s.factor_name == *factor) {
@@ -275,7 +290,12 @@ impl HypotheticalScenario {
 
 impl fmt::Display for HypotheticalScenario {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Hypothetical({}): {} shocks", self.name, self.shocks.len())
+        write!(
+            f,
+            "Hypothetical({}): {} shocks",
+            self.name,
+            self.shocks.len()
+        )
     }
 }
 
@@ -295,7 +315,9 @@ impl fmt::Display for SensitivityPoint {
         write!(
             f,
             "{}@{:+.0}bps → P&L={:+.4}%",
-            self.factor, self.bump_bps, self.pnl_pct * 100.0,
+            self.factor,
+            self.bump_bps,
+            self.pnl_pct * 100.0,
         )
     }
 }
@@ -505,7 +527,11 @@ impl StressTestSuite {
 
     /// Run a custom hypothetical scenario.
     pub fn run_hypothetical(&mut self, scenario: &HypotheticalScenario, exposures: &[(&str, f64)]) {
-        let result = scenario.apply(exposures, self.config.portfolio_value, self.config.loss_threshold);
+        let result = scenario.apply(
+            exposures,
+            self.config.portfolio_value,
+            self.config.loss_threshold,
+        );
         self.results.push(result);
     }
 
@@ -516,14 +542,19 @@ impl StressTestSuite {
 
     /// Get scenarios that breached the loss threshold.
     pub fn breaches(&self) -> Vec<&ScenarioResult> {
-        self.results.iter().filter(|r| r.breaches_threshold).collect()
+        self.results
+            .iter()
+            .filter(|r| r.breaches_threshold)
+            .collect()
     }
 
     /// Worst-case scenario result.
     pub fn worst_case(&self) -> Option<&ScenarioResult> {
-        self.results
-            .iter()
-            .min_by(|a, b| a.pnl.partial_cmp(&b.pnl).unwrap_or(std::cmp::Ordering::Equal))
+        self.results.iter().min_by(|a, b| {
+            a.pnl
+                .partial_cmp(&b.pnl)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     }
 }
 
@@ -595,7 +626,11 @@ mod tests {
         ];
         for crisis in &crises {
             let scenario = HistoricalScenario::standard(*crisis);
-            assert!(!scenario.shocks.is_empty(), "Should have shocks for {}", scenario.name);
+            assert!(
+                !scenario.shocks.is_empty(),
+                "Should have shocks for {}",
+                scenario.name
+            );
         }
     }
 
@@ -610,8 +645,7 @@ mod tests {
 
     #[test]
     fn test_hypothetical_apply() {
-        let scenario = HypotheticalScenario::new("Equity Crash")
-            .with_shock("equity", -0.30);
+        let scenario = HypotheticalScenario::new("Equity Crash").with_shock("equity", -0.30);
         let exposures = vec![("equity", 0.80)];
         let result = scenario.apply(&exposures, 1_000_000.0, 0.10);
         assert!(result.pnl < 0.0);
@@ -620,7 +654,9 @@ mod tests {
 
     #[test]
     fn test_sensitivity_symmetric() {
-        let cfg = StressConfig::new().with_num_bumps(3).with_bump_size_bps(25.0);
+        let cfg = StressConfig::new()
+            .with_num_bumps(3)
+            .with_bump_size_bps(25.0);
         let sa = SensitivityAnalysis::new(cfg);
         let points = sa.analyze_factor("equity", 0.5, 1_000_000.0);
         assert_eq!(points.len(), 7, "Should have 2*3+1=7 symmetric points");
@@ -670,7 +706,10 @@ mod tests {
             .with_loss_threshold(0.10);
         let rst = ReverseStressTest::new(cfg);
         let result = rst.find_break_point("equity", 0.80);
-        assert!(result.required_shock_pct < 0.0, "Should be negative shock for long exposure");
+        assert!(
+            result.required_shock_pct < 0.0,
+            "Should be negative shock for long exposure"
+        );
     }
 
     #[test]
@@ -688,7 +727,11 @@ mod tests {
         let factors = vec![("equity", 0.80), ("rates", 0.10), ("credit", 0.05)];
         let vuln = rst.most_vulnerable(&factors);
         assert!(vuln.is_some());
-        assert_eq!(vuln.unwrap().factor, "equity", "Equity should be most vulnerable");
+        assert_eq!(
+            vuln.unwrap().factor,
+            "equity",
+            "Equity should be most vulnerable"
+        );
     }
 
     #[test]
@@ -715,8 +758,7 @@ mod tests {
             .with_portfolio_value(1_000_000.0)
             .with_loss_threshold(0.05);
         let mut suite = StressTestSuite::new(cfg);
-        let hyp = HypotheticalScenario::new("Custom")
-            .with_shock("equity", -0.20);
+        let hyp = HypotheticalScenario::new("Custom").with_shock("equity", -0.20);
         suite.run_hypothetical(&hyp, &sample_exposures());
         assert_eq!(suite.results().len(), 1);
     }
@@ -732,6 +774,9 @@ mod tests {
     #[test]
     fn test_crisis_type_display() {
         assert_eq!(format!("{}", CrisisType::Gfc2008), "GFC 2008");
-        assert_eq!(format!("{}", CrisisType::CovidCrash2020), "COVID Crash 2020");
+        assert_eq!(
+            format!("{}", CrisisType::CovidCrash2020),
+            "COVID Crash 2020"
+        );
     }
 }

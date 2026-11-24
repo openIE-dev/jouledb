@@ -54,10 +54,20 @@ impl Color {
         Self { r, g, b, a }
     }
     pub fn black() -> Self {
-        Self { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }
+        Self {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 1.0,
+        }
     }
     pub fn white() -> Self {
-        Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }
+        Self {
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+            a: 1.0,
+        }
     }
     pub fn lerp(&self, other: &Color, t: f32) -> Color {
         let t = t.clamp(0.0, 1.0);
@@ -69,7 +79,12 @@ impl Color {
         }
     }
     pub fn add(&self, o: &Color) -> Color {
-        Color::new(self.r + o.r, self.g + o.g, self.b + o.b, (self.a + o.a).min(1.0))
+        Color::new(
+            self.r + o.r,
+            self.g + o.g,
+            self.b + o.b,
+            (self.a + o.a).min(1.0),
+        )
     }
     pub fn scale(&self, s: f32) -> Color {
         Color::new(self.r * s, self.g * s, self.b * s, self.a)
@@ -275,11 +290,7 @@ impl Default for CloudControls {
 // ── Cloud density sampler ────────────────────────────────────────
 
 /// Sample cloud density at a 3D point.
-pub fn sample_cloud_density(
-    point: &Vec3,
-    layer: &CloudLayer,
-    controls: &CloudControls,
-) -> f32 {
+pub fn sample_cloud_density(point: &Vec3, layer: &CloudLayer, controls: &CloudControls) -> f32 {
     if !layer.contains(point.y) {
         return 0.0;
     }
@@ -308,8 +319,8 @@ pub fn sample_cloud_density(
     let shape = (base - detail * 0.3).clamp(0.0, 1.0);
 
     // Apply coverage (remap so low-density areas disappear first)
-    let coverage_remap = ((shape - (1.0 - controls.coverage)) / controls.coverage.max(0.01))
-        .clamp(0.0, 1.0);
+    let coverage_remap =
+        ((shape - (1.0 - controls.coverage)) / controls.coverage.max(0.01)).clamp(0.0, 1.0);
 
     coverage_remap * height_profile * controls.density_scale
 }
@@ -369,11 +380,21 @@ pub fn raymarch_clouds(
     let hit = layer.intersect_ray(ray_origin.y, dir.y);
     let (t_enter, t_exit) = match hit {
         Some((a, b)) => (a, b),
-        None => return CloudSample { color: Color::new(0.0, 0.0, 0.0, 0.0), transmittance: 1.0 },
+        None => {
+            return CloudSample {
+                color: Color::new(0.0, 0.0, 0.0, 0.0),
+                transmittance: 1.0,
+            };
+        }
     };
 
     let cos_theta = Vec3::dot(&dir, &config.sun_direction);
-    let phase = dual_lobe_phase(cos_theta, config.phase_g_forward, config.phase_g_back, config.phase_blend);
+    let phase = dual_lobe_phase(
+        cos_theta,
+        config.phase_g_forward,
+        config.phase_g_back,
+        config.phase_blend,
+    );
 
     let mut accumulated_color = Color::new(0.0, 0.0, 0.0, 0.0);
     let mut transmittance = 1.0f32;
@@ -466,7 +487,8 @@ impl TemporalCache {
         let old = self.get(x, y);
         let blended = CloudSample {
             color: old.color.lerp(&new_sample.color, blend_factor),
-            transmittance: old.transmittance + (new_sample.transmittance - old.transmittance) * blend_factor,
+            transmittance: old.transmittance
+                + (new_sample.transmittance - old.transmittance) * blend_factor,
         };
         self.store(x, y, &blended);
     }
@@ -666,8 +688,14 @@ mod tests {
     #[test]
     fn temporal_cache_blend() {
         let mut cache = TemporalCache::new(4, 4);
-        let s1 = CloudSample { color: Color::new(0.0, 0.0, 0.0, 1.0), transmittance: 1.0 };
-        let s2 = CloudSample { color: Color::new(1.0, 1.0, 1.0, 1.0), transmittance: 0.0 };
+        let s1 = CloudSample {
+            color: Color::new(0.0, 0.0, 0.0, 1.0),
+            transmittance: 1.0,
+        };
+        let s2 = CloudSample {
+            color: Color::new(1.0, 1.0, 1.0, 1.0),
+            transmittance: 0.0,
+        };
         cache.store(0, 0, &s1);
         cache.blend(0, 0, &s2, 0.5);
         let got = cache.get(0, 0);

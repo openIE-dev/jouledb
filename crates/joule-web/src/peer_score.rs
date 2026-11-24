@@ -39,7 +39,11 @@ pub struct ScoreThresholds {
 
 impl Default for ScoreThresholds {
     fn default() -> Self {
-        Self { basic: 25.0, trusted: 50.0, preferred: 75.0 }
+        Self {
+            basic: 25.0,
+            trusted: 50.0,
+            preferred: 75.0,
+        }
     }
 }
 
@@ -70,7 +74,12 @@ pub struct MetricWeights {
 
 impl Default for MetricWeights {
     fn default() -> Self {
-        Self { uptime: 0.25, latency: 0.25, reliability: 0.30, bandwidth: 0.20 }
+        Self {
+            uptime: 0.25,
+            latency: 0.25,
+            reliability: 0.30,
+            bandwidth: 0.20,
+        }
     }
 }
 
@@ -98,7 +107,12 @@ pub struct PeerMetrics {
 
 impl PeerMetrics {
     pub fn new() -> Self {
-        Self { uptime: 0.0, latency_ms: 1000.0, reliability: 0.0, bandwidth: 0.0 }
+        Self {
+            uptime: 0.0,
+            latency_ms: 1000.0,
+            reliability: 0.0,
+            bandwidth: 0.0,
+        }
     }
 
     /// Normalize latency to a 0-100 score (lower latency = higher score).
@@ -225,7 +239,10 @@ impl ReputationManager {
 
     /// Update raw metrics for a peer and recompute composite score.
     pub fn update_metrics(&mut self, peer_id: &str, metrics: PeerMetrics) {
-        let entry = self.scores.entry(peer_id.to_string()).or_insert_with(|| PeerScore::new(peer_id));
+        let entry = self
+            .scores
+            .entry(peer_id.to_string())
+            .or_insert_with(|| PeerScore::new(peer_id));
         entry.metrics = metrics;
         self.recompute(peer_id);
     }
@@ -361,11 +378,21 @@ mod tests {
     use super::*;
 
     fn good_metrics() -> PeerMetrics {
-        PeerMetrics { uptime: 0.99, latency_ms: 50.0, reliability: 0.98, bandwidth: 80.0 }
+        PeerMetrics {
+            uptime: 0.99,
+            latency_ms: 50.0,
+            reliability: 0.98,
+            bandwidth: 80.0,
+        }
     }
 
     fn poor_metrics() -> PeerMetrics {
-        PeerMetrics { uptime: 0.3, latency_ms: 800.0, reliability: 0.4, bandwidth: 10.0 }
+        PeerMetrics {
+            uptime: 0.3,
+            latency_ms: 800.0,
+            reliability: 0.4,
+            bandwidth: 10.0,
+        }
     }
 
     #[test]
@@ -392,11 +419,20 @@ mod tests {
 
     #[test]
     fn test_latency_score() {
-        let m = PeerMetrics { latency_ms: 0.0, ..Default::default() };
+        let m = PeerMetrics {
+            latency_ms: 0.0,
+            ..Default::default()
+        };
         assert!((m.latency_score() - 100.0).abs() < 0.001);
-        let m2 = PeerMetrics { latency_ms: 1000.0, ..Default::default() };
+        let m2 = PeerMetrics {
+            latency_ms: 1000.0,
+            ..Default::default()
+        };
         assert!((m2.latency_score() - 0.0).abs() < 0.001);
-        let m3 = PeerMetrics { latency_ms: 500.0, ..Default::default() };
+        let m3 = PeerMetrics {
+            latency_ms: 500.0,
+            ..Default::default()
+        };
         assert!((m3.latency_score() - 50.0).abs() < 0.001);
     }
 
@@ -438,7 +474,15 @@ mod tests {
     #[test]
     fn test_reward_raises_score() {
         let mut rm = ReputationManager::new();
-        rm.update_metrics("alice", PeerMetrics { uptime: 0.5, latency_ms: 200.0, reliability: 0.5, bandwidth: 50.0 });
+        rm.update_metrics(
+            "alice",
+            PeerMetrics {
+                uptime: 0.5,
+                latency_ms: 200.0,
+                reliability: 0.5,
+                bandwidth: 50.0,
+            },
+        );
         let before = rm.get_score("alice").unwrap().composite;
         rm.reward_good_relay("alice");
         let after = rm.get_score("alice").unwrap().composite;
@@ -512,16 +556,33 @@ mod tests {
 
     #[test]
     fn test_custom_weights() {
-        let w = MetricWeights { uptime: 1.0, latency: 0.0, reliability: 0.0, bandwidth: 0.0 };
+        let w = MetricWeights {
+            uptime: 1.0,
+            latency: 0.0,
+            reliability: 0.0,
+            bandwidth: 0.0,
+        };
         let mut rm = ReputationManager::new().with_weights(w);
-        rm.update_metrics("a", PeerMetrics { uptime: 1.0, latency_ms: 999.0, reliability: 0.0, bandwidth: 0.0 });
+        rm.update_metrics(
+            "a",
+            PeerMetrics {
+                uptime: 1.0,
+                latency_ms: 999.0,
+                reliability: 0.0,
+                bandwidth: 0.0,
+            },
+        );
         let score = rm.get_score("a").unwrap();
         assert!((score.composite - 100.0).abs() < 0.01);
     }
 
     #[test]
     fn test_custom_thresholds() {
-        let t = ScoreThresholds { basic: 10.0, trusted: 20.0, preferred: 90.0 };
+        let t = ScoreThresholds {
+            basic: 10.0,
+            trusted: 20.0,
+            preferred: 90.0,
+        };
         let mut rm = ReputationManager::new().with_thresholds(t);
         rm.update_metrics("a", good_metrics());
         // Score should be high but maybe not 90+

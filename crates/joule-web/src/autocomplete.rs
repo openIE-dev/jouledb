@@ -92,16 +92,12 @@ impl CompletionItem {
 
     /// Get the effective sort key.
     fn effective_sort_key(&self) -> &str {
-        self.sort_key
-            .as_deref()
-            .unwrap_or(&self.label)
+        self.sort_key.as_deref().unwrap_or(&self.label)
     }
 
     /// Get the effective insert text.
     pub fn effective_insert_text(&self) -> &str {
-        self.insert_text
-            .as_deref()
-            .unwrap_or(&self.label)
+        self.insert_text.as_deref().unwrap_or(&self.label)
     }
 }
 
@@ -121,8 +117,14 @@ pub fn fuzzy_match(query: &str, target: &str) -> Option<u32> {
         return Some(0);
     }
 
-    let query_lower: Vec<char> = query.chars().map(|c| c.to_lowercase().next().unwrap_or(c)).collect();
-    let target_lower: Vec<char> = target.chars().map(|c| c.to_lowercase().next().unwrap_or(c)).collect();
+    let query_lower: Vec<char> = query
+        .chars()
+        .map(|c| c.to_lowercase().next().unwrap_or(c))
+        .collect();
+    let target_lower: Vec<char> = target
+        .chars()
+        .map(|c| c.to_lowercase().next().unwrap_or(c))
+        .collect();
     let target_chars: Vec<char> = target.chars().collect();
 
     let mut qi = 0;
@@ -461,9 +463,7 @@ impl CompletionList {
         let mut results: Vec<(&CompletionItem, u32)> = self
             .items
             .iter()
-            .filter_map(|item| {
-                fuzzy_match(query, &item.label).map(|score| (item, score))
-            })
+            .filter_map(|item| fuzzy_match(query, &item.label).map(|score| (item, score)))
             .collect();
         results.sort_by(|a, b| {
             a.1.cmp(&b.1)

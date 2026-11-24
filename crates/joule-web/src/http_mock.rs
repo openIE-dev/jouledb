@@ -16,7 +16,11 @@ pub enum MockError {
     /// No mock matched the request.
     NoMatchFound(String),
     /// Mock expectation not met.
-    ExpectationNotMet { mock_id: String, expected: u32, actual: u32 },
+    ExpectationNotMet {
+        mock_id: String,
+        expected: u32,
+        actual: u32,
+    },
     /// Duplicate mock ID.
     DuplicateMockId(String),
     /// Mock server not started.
@@ -29,8 +33,15 @@ impl fmt::Display for MockError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NoMatchFound(url) => write!(f, "no mock matched request: {url}"),
-            Self::ExpectationNotMet { mock_id, expected, actual } => {
-                write!(f, "mock '{mock_id}': expected {expected} calls, got {actual}")
+            Self::ExpectationNotMet {
+                mock_id,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "mock '{mock_id}': expected {expected} calls, got {actual}"
+                )
             }
             Self::DuplicateMockId(id) => write!(f, "duplicate mock ID: {id}"),
             Self::NotStarted => write!(f, "mock server not started"),
@@ -172,7 +183,8 @@ impl MockResponse {
     /// Add a JSON response body.
     pub fn with_json(mut self, value: &serde_json::Value) -> Self {
         self.body = Some(serde_json::to_string(value).unwrap_or_default());
-        self.headers.insert("content-type".to_string(), "application/json".to_string());
+        self.headers
+            .insert("content-type".to_string(), "application/json".to_string());
         self
     }
 
@@ -215,15 +227,11 @@ impl RequestMatcher {
             Self::ExactUrl(url) => req.url == *url,
             Self::UrlPrefix(prefix) => req.url.starts_with(prefix),
             Self::UrlContains(sub) => req.url.contains(sub),
-            Self::Header { key, value } => {
-                req.headers.get(key).map_or(false, |v| v == value)
-            }
+            Self::Header { key, value } => req.headers.get(key).map_or(false, |v| v == value),
             Self::QueryParam { key, value } => {
                 req.query_params.get(key).map_or(false, |v| v == value)
             }
-            Self::BodyContains(sub) => {
-                req.body.as_ref().map_or(false, |b| b.contains(sub))
-            }
+            Self::BodyContains(sub) => req.body.as_ref().map_or(false, |b| b.contains(sub)),
             Self::Method(method) => req.method == *method,
             Self::All(matchers) => matchers.iter().all(|m| m.matches(req)),
             Self::Any(matchers) => matchers.iter().any(|m| m.matches(req)),
@@ -501,7 +509,10 @@ mod tests {
     fn test_mock_response_json() {
         let resp = MockResponse::ok().with_json(&json!({"status": "ok"}));
         assert!(resp.body.unwrap().contains("ok"));
-        assert_eq!(resp.headers.get("content-type").unwrap(), "application/json");
+        assert_eq!(
+            resp.headers.get("content-type").unwrap(),
+            "application/json"
+        );
     }
 
     #[test]
@@ -668,8 +679,16 @@ mod tests {
     #[test]
     fn test_server_duplicate_mock() {
         let mut server = started_server();
-        let mock1 = MockDefinition::new("m1", RequestMatcher::ExactUrl("/a".to_string()), MockResponse::ok());
-        let mock2 = MockDefinition::new("m1", RequestMatcher::ExactUrl("/b".to_string()), MockResponse::ok());
+        let mock1 = MockDefinition::new(
+            "m1",
+            RequestMatcher::ExactUrl("/a".to_string()),
+            MockResponse::ok(),
+        );
+        let mock2 = MockDefinition::new(
+            "m1",
+            RequestMatcher::ExactUrl("/b".to_string()),
+            MockResponse::ok(),
+        );
         server.register(mock1).unwrap();
         let result = server.register(mock2);
         assert!(matches!(result, Err(MockError::DuplicateMockId(_))));
@@ -747,7 +766,11 @@ mod tests {
     #[test]
     fn test_server_remove_mock() {
         let mut server = started_server();
-        let mock = MockDefinition::new("rm", RequestMatcher::ExactUrl("/x".to_string()), MockResponse::ok());
+        let mock = MockDefinition::new(
+            "rm",
+            RequestMatcher::ExactUrl("/x".to_string()),
+            MockResponse::ok(),
+        );
         server.register(mock).unwrap();
         assert_eq!(server.mock_count(), 1);
         assert!(server.remove("rm"));
@@ -758,7 +781,11 @@ mod tests {
     #[test]
     fn test_server_reset() {
         let mut server = started_server();
-        let mock = MockDefinition::new("m", RequestMatcher::UrlPrefix("/".to_string()), MockResponse::ok());
+        let mock = MockDefinition::new(
+            "m",
+            RequestMatcher::UrlPrefix("/".to_string()),
+            MockResponse::ok(),
+        );
         server.register(mock).unwrap();
         server.handle(MockRequest::get("/")).unwrap();
         server.reset();

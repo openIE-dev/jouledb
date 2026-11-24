@@ -60,7 +60,10 @@ impl VNode {
     }
 
     pub fn child(mut self, node: VNode) -> Self {
-        if let VNode::Element { ref mut children, .. } = self {
+        if let VNode::Element {
+            ref mut children, ..
+        } = self
+        {
             children.push(node);
         }
         self
@@ -74,7 +77,11 @@ impl VNode {
     }
 
     pub fn on(mut self, event: &str, handler_id: u64) -> Self {
-        if let VNode::Element { ref mut event_handlers, .. } = self {
+        if let VNode::Element {
+            ref mut event_handlers,
+            ..
+        } = self
+        {
             event_handlers.push(EventBinding {
                 event_name: event.to_string(),
                 handler_id,
@@ -126,12 +133,7 @@ pub fn diff(old: &VNode, new: &VNode) -> Vec<Patch> {
     patches
 }
 
-fn diff_recursive(
-    old: &VNode,
-    new: &VNode,
-    path: &mut Vec<usize>,
-    patches: &mut Vec<Patch>,
-) {
+fn diff_recursive(old: &VNode, new: &VNode, path: &mut Vec<usize>, patches: &mut Vec<Patch>) {
     match (old, new) {
         // ── Both text ──
         (VNode::Text(a), VNode::Text(b)) => {
@@ -226,12 +228,7 @@ fn diff_attrs(
 
 /// Diff two child lists using keyed LIS-based diffing when keys are present,
 /// falling back to index-based diffing otherwise.
-fn diff_children(
-    old: &[VNode],
-    new: &[VNode],
-    path: &mut Vec<usize>,
-    patches: &mut Vec<Patch>,
-) {
+fn diff_children(old: &[VNode], new: &[VNode], path: &mut Vec<usize>, patches: &mut Vec<Patch>) {
     let old_keys = extract_keys(old);
     let new_keys = extract_keys(new);
 
@@ -353,8 +350,7 @@ fn diff_children_keyed(
         // old indices in new order
         let old_indices: Vec<usize> = matched.iter().map(|&(_, o)| o).collect();
         let lis = longest_increasing_subsequence(&old_indices);
-        let lis_set: std::collections::HashSet<usize> =
-            lis.into_iter().collect();
+        let lis_set: std::collections::HashSet<usize> = lis.into_iter().collect();
 
         let mut moves = Vec::new();
         for (seq_idx, &(new_idx, old_idx)) in matched.iter().enumerate() {
@@ -526,11 +522,22 @@ mod tests {
             .child(el("li").key("b").child(VNode::text("B")));
         let patches = diff(&old, &new);
         // Should produce a ReorderChildren, not 3 removes + 3 inserts
-        let has_reorder = patches.iter().any(|p| matches!(p, Patch::ReorderChildren { .. }));
-        assert!(has_reorder, "expected ReorderChildren patch, got: {patches:?}");
+        let has_reorder = patches
+            .iter()
+            .any(|p| matches!(p, Patch::ReorderChildren { .. }));
+        assert!(
+            has_reorder,
+            "expected ReorderChildren patch, got: {patches:?}"
+        );
         // Should NOT have any Remove+Insert patches
-        let removes = patches.iter().filter(|p| matches!(p, Patch::RemoveChild { .. })).count();
-        let inserts = patches.iter().filter(|p| matches!(p, Patch::InsertChild { .. })).count();
+        let removes = patches
+            .iter()
+            .filter(|p| matches!(p, Patch::RemoveChild { .. }))
+            .count();
+        let inserts = patches
+            .iter()
+            .filter(|p| matches!(p, Patch::InsertChild { .. }))
+            .count();
         assert_eq!(removes, 0);
         assert_eq!(inserts, 0);
     }

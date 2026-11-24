@@ -18,9 +18,7 @@ pub enum Command {
         components: Vec<(TypeId, Box<dyn Any>)>,
     },
     /// Despawn an entity.
-    Despawn {
-        entity_id: u64,
-    },
+    Despawn { entity_id: u64 },
     /// Insert or replace a component on an entity.
     InsertComponent {
         entity_id: u64,
@@ -28,14 +26,9 @@ pub enum Command {
         value: Box<dyn Any>,
     },
     /// Remove a component from an entity.
-    RemoveComponent {
-        entity_id: u64,
-        type_id: TypeId,
-    },
+    RemoveComponent { entity_id: u64, type_id: TypeId },
     /// Remove all components from an entity (but keep it alive).
-    ClearComponents {
-        entity_id: u64,
-    },
+    ClearComponents { entity_id: u64 },
     /// Custom command with a boxed closure.
     Custom(Box<dyn FnOnce(&mut CommandWorld) -> Result<(), CommandError>>),
 }
@@ -50,10 +43,7 @@ pub enum CommandError {
     /// Entity not found (on Despawn/Insert/Remove).
     EntityNotFound(u64),
     /// Component not found on entity.
-    ComponentNotFound {
-        entity_id: u64,
-        type_name: String,
-    },
+    ComponentNotFound { entity_id: u64, type_name: String },
     /// Custom error message.
     Custom(String),
 }
@@ -63,7 +53,10 @@ impl std::fmt::Display for CommandError {
         match self {
             Self::EntityAlreadyExists(id) => write!(f, "entity {id} already exists"),
             Self::EntityNotFound(id) => write!(f, "entity {id} not found"),
-            Self::ComponentNotFound { entity_id, type_name } => {
+            Self::ComponentNotFound {
+                entity_id,
+                type_name,
+            } => {
                 write!(f, "component {type_name} not found on entity {entity_id}")
             }
             Self::Custom(msg) => write!(f, "{msg}"),
@@ -129,10 +122,12 @@ impl CommandWorld {
             .entities
             .get_mut(&entity_id)
             .ok_or(CommandError::EntityNotFound(entity_id))?;
-        comps.remove(&type_id).ok_or(CommandError::ComponentNotFound {
-            entity_id,
-            type_name: format!("{:?}", type_id),
-        })
+        comps
+            .remove(&type_id)
+            .ok_or(CommandError::ComponentNotFound {
+                entity_id,
+                type_name: format!("{:?}", type_id),
+            })
     }
 
     pub fn clear_components(&mut self, entity_id: u64) -> Result<(), CommandError> {
@@ -163,10 +158,7 @@ impl CommandWorld {
     }
 
     pub fn component_count(&self, entity_id: u64) -> usize {
-        self.entities
-            .get(&entity_id)
-            .map(|c| c.len())
-            .unwrap_or(0)
+        self.entities.get(&entity_id).map(|c| c.len()).unwrap_or(0)
     }
 }
 
@@ -234,11 +226,7 @@ impl CommandBuffer {
     }
 
     /// Queue a spawn command with initial components.
-    pub fn spawn_with(
-        &mut self,
-        entity_id: u64,
-        components: Vec<(TypeId, Box<dyn Any>)>,
-    ) {
+    pub fn spawn_with(&mut self, entity_id: u64, components: Vec<(TypeId, Box<dyn Any>)>) {
         self.commands.push(Command::Spawn {
             entity_id,
             components,
@@ -344,9 +332,7 @@ impl CommandBuffer {
                 }
                 Ok(())
             }
-            Command::Despawn { entity_id } => {
-                world.despawn_entity(entity_id)
-            }
+            Command::Despawn { entity_id } => world.despawn_entity(entity_id),
             Command::InsertComponent {
                 entity_id,
                 type_id,
@@ -359,9 +345,7 @@ impl CommandBuffer {
                 world.remove_component(entity_id, type_id)?;
                 Ok(())
             }
-            Command::ClearComponents { entity_id } => {
-                world.clear_components(entity_id)
-            }
+            Command::ClearComponents { entity_id } => world.clear_components(entity_id),
             Command::Custom(f) => f(world),
         }
     }
@@ -418,10 +402,13 @@ mod tests {
     fn spawn_with_components() {
         let mut buf = CommandBuffer::new();
         let mut world = CommandWorld::new();
-        buf.spawn_with(1, vec![
-            (TypeId::of::<Pos>(), Box::new(Pos { x: 1.0, y: 2.0 })),
-            (TypeId::of::<Hp>(), Box::new(Hp(100))),
-        ]);
+        buf.spawn_with(
+            1,
+            vec![
+                (TypeId::of::<Pos>(), Box::new(Pos { x: 1.0, y: 2.0 })),
+                (TypeId::of::<Hp>(), Box::new(Hp(100))),
+            ],
+        );
         buf.apply(&mut world).unwrap();
         assert!(world.has_entity(1));
         assert_eq!(world.component_count(1), 2);

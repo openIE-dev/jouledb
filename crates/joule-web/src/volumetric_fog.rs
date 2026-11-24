@@ -10,7 +10,11 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
@@ -22,7 +26,15 @@ impl Vec3 {
 
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-10 { Self::ZERO } else { Self { x: self.x / l, y: self.y / l, z: self.z / l } }
+        if l < 1e-10 {
+            Self::ZERO
+        } else {
+            Self {
+                x: self.x / l,
+                y: self.y / l,
+                z: self.z / l,
+            }
+        }
     }
 
     pub fn dot(self, o: Self) -> f32 {
@@ -40,15 +52,33 @@ impl Vec3 {
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 impl std::ops::Mul<f32> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f32) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f32) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 
 /// RGB color.
@@ -60,21 +90,43 @@ pub struct Color3 {
 }
 
 impl Color3 {
-    pub const BLACK: Self = Self { r: 0.0, g: 0.0, b: 0.0 };
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0 };
+    pub const BLACK: Self = Self {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+    };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+    };
 
-    pub fn new(r: f32, g: f32, b: f32) -> Self { Self { r, g, b } }
+    pub fn new(r: f32, g: f32, b: f32) -> Self {
+        Self { r, g, b }
+    }
 
     pub fn scale(self, s: f32) -> Self {
-        Self { r: self.r * s, g: self.g * s, b: self.b * s }
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
     }
 
     pub fn add(self, o: Self) -> Self {
-        Self { r: self.r + o.r, g: self.g + o.g, b: self.b + o.b }
+        Self {
+            r: self.r + o.r,
+            g: self.g + o.g,
+            b: self.b + o.b,
+        }
     }
 
     pub fn mul(self, o: Self) -> Self {
-        Self { r: self.r * o.r, g: self.g * o.g, b: self.b * o.b }
+        Self {
+            r: self.r * o.r,
+            g: self.g * o.g,
+            b: self.b * o.b,
+        }
     }
 
     pub fn lerp(self, o: Self, t: f32) -> Self {
@@ -96,8 +148,17 @@ pub struct Color4 {
 }
 
 impl Color4 {
-    pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self { Self { r, g, b, a } }
-    pub fn transparent() -> Self { Self { r: 0.0, g: 0.0, b: 0.0, a: 0.0 } }
+    pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
+        Self { r, g, b, a }
+    }
+    pub fn transparent() -> Self {
+        Self {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 0.0,
+        }
+    }
 }
 
 /// Data stored per froxel.
@@ -138,13 +199,13 @@ impl PhaseFunction {
     /// Evaluate the phase function given cos(theta) between view and light directions.
     pub fn evaluate(&self, cos_theta: f32) -> f32 {
         match self {
-            PhaseFunction::Isotropic => {
-                1.0 / (4.0 * std::f32::consts::PI)
-            }
+            PhaseFunction::Isotropic => 1.0 / (4.0 * std::f32::consts::PI),
             PhaseFunction::HenyeyGreenstein { g_param } => {
                 let g2 = g_param * g_param;
                 let denom = 1.0 + g2 - 2.0 * g_param * cos_theta;
-                if denom < 1e-9 { return 1.0 / (4.0 * std::f32::consts::PI); }
+                if denom < 1e-9 {
+                    return 1.0 / (4.0 * std::f32::consts::PI);
+                }
                 (1.0 - g2) / (4.0 * std::f32::consts::PI * denom * denom.sqrt())
             }
         }
@@ -274,14 +335,10 @@ impl FroxelGrid {
         let fy = (y as f32 + 0.5) / self.config.grid_y as f32;
         let fz = (z as f32 + 0.5) / self.config.grid_z as f32;
         // Exponential depth distribution
-        let depth = self.config.near_plane
-            * (self.config.far_plane / self.config.near_plane).powf(fz);
+        let depth =
+            self.config.near_plane * (self.config.far_plane / self.config.near_plane).powf(fz);
         // Map XY to [-1, 1] frustum space * depth
-        Vec3::new(
-            (fx * 2.0 - 1.0) * depth,
-            (fy * 2.0 - 1.0) * depth,
-            depth,
-        )
+        Vec3::new((fx * 2.0 - 1.0) * depth, (fy * 2.0 - 1.0) * depth, depth)
     }
 
     /// Inject fog sources into the froxel grid.
@@ -296,36 +353,47 @@ impl FroxelGrid {
                     for source in sources {
                         match source {
                             FogSource::HeightExponential {
-                                base_density, height_falloff, base_height, scattering_color,
+                                base_density,
+                                height_falloff,
+                                base_height,
+                                scattering_color,
                             } => {
                                 let h = world_pos.y - *base_height;
                                 let d = base_density * (-h * height_falloff).exp();
                                 froxel.density += d;
-                                froxel.scattering_color = froxel.scattering_color.add(
-                                    scattering_color.scale(d),
-                                );
+                                froxel.scattering_color =
+                                    froxel.scattering_color.add(scattering_color.scale(d));
                             }
-                            FogSource::BoxVolume { center, half_extents, density, scattering_color } => {
+                            FogSource::BoxVolume {
+                                center,
+                                half_extents,
+                                density,
+                                scattering_color,
+                            } => {
                                 let rel = world_pos - *center;
                                 if rel.x.abs() <= half_extents.x
                                     && rel.y.abs() <= half_extents.y
                                     && rel.z.abs() <= half_extents.z
                                 {
                                     froxel.density += density;
-                                    froxel.scattering_color = froxel.scattering_color.add(
-                                        scattering_color.scale(*density),
-                                    );
+                                    froxel.scattering_color = froxel
+                                        .scattering_color
+                                        .add(scattering_color.scale(*density));
                                 }
                             }
-                            FogSource::SphereVolume { center, radius, density, scattering_color } => {
+                            FogSource::SphereVolume {
+                                center,
+                                radius,
+                                density,
+                                scattering_color,
+                            } => {
                                 let dist = (world_pos - *center).length();
                                 if dist <= *radius {
                                     let falloff = 1.0 - dist / *radius;
                                     let d = density * falloff;
                                     froxel.density += d;
-                                    froxel.scattering_color = froxel.scattering_color.add(
-                                        scattering_color.scale(d),
-                                    );
+                                    froxel.scattering_color =
+                                        froxel.scattering_color.add(scattering_color.scale(d));
                                 }
                             }
                         }
@@ -383,7 +451,9 @@ impl FroxelGrid {
             let prev = &self.history[i];
             let blended = FroxelData {
                 density: prev.density * blend + current.density * (1.0 - blend),
-                scattering_color: prev.scattering_color.lerp(current.scattering_color, 1.0 - blend),
+                scattering_color: prev
+                    .scattering_color
+                    .lerp(current.scattering_color, 1.0 - blend),
                 absorption: prev.absorption * blend + current.absorption * (1.0 - blend),
                 in_scatter: prev.in_scatter.lerp(current.in_scatter, 1.0 - blend),
             };
@@ -408,7 +478,9 @@ impl FroxelGrid {
             let froxel = self.get(cx, cy, z_idx);
 
             let extinction = froxel.extinction() * step_size;
-            let scatter = froxel.in_scatter.add(froxel.scattering_color.scale(froxel.density));
+            let scatter = froxel
+                .in_scatter
+                .add(froxel.scattering_color.scale(froxel.density));
 
             accum_color = accum_color.add(scatter.scale(transmittance * step_size));
             transmittance *= (-extinction).exp();
@@ -418,7 +490,12 @@ impl FroxelGrid {
             }
         }
 
-        Color4::new(accum_color.r, accum_color.g, accum_color.b, 1.0 - transmittance)
+        Color4::new(
+            accum_color.r,
+            accum_color.g,
+            accum_color.b,
+            1.0 - transmittance,
+        )
     }
 
     /// Get a depth-slice density for debugging.
@@ -487,12 +564,17 @@ mod tests {
     #[test]
     fn test_froxel_clear() {
         let mut grid = FroxelGrid::new(small_config());
-        grid.set(0, 0, 0, FroxelData {
-            density: 1.0,
-            scattering_color: Color3::WHITE,
-            absorption: 0.0,
-            in_scatter: Color3::BLACK,
-        });
+        grid.set(
+            0,
+            0,
+            0,
+            FroxelData {
+                density: 1.0,
+                scattering_color: Color3::WHITE,
+                absorption: 0.0,
+                in_scatter: Color3::BLACK,
+            },
+        );
         grid.clear();
         assert!((grid.get(0, 0, 0).density).abs() < 1e-6);
     }

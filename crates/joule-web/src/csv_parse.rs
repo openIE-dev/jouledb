@@ -17,7 +17,11 @@ pub enum CsvParseError {
     #[error("unexpected quote at row {row}, col {col}")]
     UnexpectedQuote { row: usize, col: usize },
     #[error("column count mismatch: expected {expected}, got {got} at row {row}")]
-    ColumnMismatch { expected: usize, got: usize, row: usize },
+    ColumnMismatch {
+        expected: usize,
+        got: usize,
+        row: usize,
+    },
     #[error("header '{0}' not found")]
     HeaderNotFound(String),
     #[error("index {0} out of bounds (columns: {1})")]
@@ -113,9 +117,15 @@ impl CsvRecord {
 
     /// Get a field by header name.
     pub fn get_by_name(&self, name: &str) -> Result<&str, CsvParseError> {
-        let map = self.header_map.as_ref().ok_or_else(|| CsvParseError::HeaderNotFound(name.to_string()))?;
-        let idx = map.get(name).ok_or_else(|| CsvParseError::HeaderNotFound(name.to_string()))?;
-        self.fields.get(*idx)
+        let map = self
+            .header_map
+            .as_ref()
+            .ok_or_else(|| CsvParseError::HeaderNotFound(name.to_string()))?;
+        let idx = map
+            .get(name)
+            .ok_or_else(|| CsvParseError::HeaderNotFound(name.to_string()))?;
+        self.fields
+            .get(*idx)
             .map(|s| s.as_str())
             .ok_or(CsvParseError::IndexOutOfBounds(*idx, self.fields.len()))
     }
@@ -163,14 +173,21 @@ impl CsvDocument {
 
     /// Infer the column type for each column by scanning all rows.
     pub fn infer_types(&self) -> Vec<ColumnType> {
-        let ncols = self.headers.as_ref().map(|h| h.len())
+        let ncols = self
+            .headers
+            .as_ref()
+            .map(|h| h.len())
             .unwrap_or_else(|| self.records.first().map(|r| r.len()).unwrap_or(0));
         let mut types = vec![ColumnType::Integer; ncols];
         for record in &self.records {
             for (i, field) in record.fields.iter().enumerate() {
-                if i >= ncols { break; }
+                if i >= ncols {
+                    break;
+                }
                 let trimmed = field.trim();
-                if trimmed.is_empty() { continue; }
+                if trimmed.is_empty() {
+                    continue;
+                }
                 let current = types[i];
                 types[i] = match current {
                     ColumnType::Integer => {
@@ -216,12 +233,17 @@ impl CsvDocument {
 }
 
 fn is_bool(s: &str) -> bool {
-    matches!(s.to_lowercase().as_str(), "true" | "false" | "yes" | "no" | "1" | "0")
+    matches!(
+        s.to_lowercase().as_str(),
+        "true" | "false" | "yes" | "no" | "1" | "0"
+    )
 }
 
 fn is_date_like(s: &str) -> bool {
     // Simple YYYY-MM-DD or YYYY/MM/DD check
-    if s.len() < 8 { return false; }
+    if s.len() < 8 {
+        return false;
+    }
     let parts: Vec<&str> = if s.contains('-') {
         s.split('-').collect()
     } else if s.contains('/') {
@@ -229,8 +251,11 @@ fn is_date_like(s: &str) -> bool {
     } else {
         return false;
     };
-    if parts.len() != 3 { return false; }
-    parts[0].len() == 4 && parts[0].parse::<u32>().is_ok()
+    if parts.len() != 3 {
+        return false;
+    }
+    parts[0].len() == 4
+        && parts[0].parse::<u32>().is_ok()
         && parts[1].parse::<u32>().is_ok()
         && parts[2].parse::<u32>().is_ok()
 }
@@ -253,7 +278,10 @@ pub fn parse_with(input: &str, config: &CsvParseConfig) -> Result<CsvDocument, C
     };
 
     let header_map = headers.as_ref().map(|hdrs| {
-        hdrs.iter().enumerate().map(|(i, h)| (h.clone(), i)).collect::<HashMap<String, usize>>()
+        hdrs.iter()
+            .enumerate()
+            .map(|(i, h)| (h.clone(), i))
+            .collect::<HashMap<String, usize>>()
     });
 
     let expected_cols = headers.as_ref().map(|h| h.len());
@@ -324,7 +352,11 @@ fn parse_raw_rows(input: &str, config: &CsvParseConfig) -> Result<Vec<Vec<String
         }
 
         if c == delim {
-            let field = if config.trim_fields { current_field.trim().to_string() } else { current_field.clone() };
+            let field = if config.trim_fields {
+                current_field.trim().to_string()
+            } else {
+                current_field.clone()
+            };
             current_row.push(field);
             current_field.clear();
             col_num += 1;
@@ -334,7 +366,11 @@ fn parse_raw_rows(input: &str, config: &CsvParseConfig) -> Result<Vec<Vec<String
 
         if c == '\r' && i + 1 < chars.len() && chars[i + 1] == '\n' {
             // CRLF
-            let field = if config.trim_fields { current_field.trim().to_string() } else { current_field.clone() };
+            let field = if config.trim_fields {
+                current_field.trim().to_string()
+            } else {
+                current_field.clone()
+            };
             current_row.push(field);
             current_field.clear();
             finish_row(&mut rows, &mut current_row, config);
@@ -345,7 +381,11 @@ fn parse_raw_rows(input: &str, config: &CsvParseConfig) -> Result<Vec<Vec<String
         }
 
         if c == '\n' {
-            let field = if config.trim_fields { current_field.trim().to_string() } else { current_field.clone() };
+            let field = if config.trim_fields {
+                current_field.trim().to_string()
+            } else {
+                current_field.clone()
+            };
             current_row.push(field);
             current_field.clear();
             finish_row(&mut rows, &mut current_row, config);
@@ -356,12 +396,17 @@ fn parse_raw_rows(input: &str, config: &CsvParseConfig) -> Result<Vec<Vec<String
         }
 
         // Comment lines
-        if c == config.comment_char.unwrap_or('\0') && current_field.is_empty() && current_row.is_empty() {
+        if c == config.comment_char.unwrap_or('\0')
+            && current_field.is_empty()
+            && current_row.is_empty()
+        {
             // Skip to end of line
             while i < chars.len() && chars[i] != '\n' {
                 i += 1;
             }
-            if i < chars.len() { i += 1; }
+            if i < chars.len() {
+                i += 1;
+            }
             row_num += 1;
             continue;
         }
@@ -371,12 +416,19 @@ fn parse_raw_rows(input: &str, config: &CsvParseConfig) -> Result<Vec<Vec<String
     }
 
     if in_quotes {
-        return Err(CsvParseError::UnterminatedQuote { row: row_num, col: col_num });
+        return Err(CsvParseError::UnterminatedQuote {
+            row: row_num,
+            col: col_num,
+        });
     }
 
     // Last field / row
     if !current_field.is_empty() || !current_row.is_empty() {
-        let field = if config.trim_fields { current_field.trim().to_string() } else { current_field };
+        let field = if config.trim_fields {
+            current_field.trim().to_string()
+        } else {
+            current_field
+        };
         current_row.push(field);
         finish_row(&mut rows, &mut current_row, config);
     }
@@ -421,7 +473,8 @@ impl<'a> CsvRowIter<'a> {
         };
         if config.has_headers {
             if let Some(header_fields) = iter.next_raw_row()? {
-                let map: HashMap<String, usize> = header_fields.iter()
+                let map: HashMap<String, usize> = header_fields
+                    .iter()
                     .enumerate()
                     .map(|(i, h)| (h.clone(), i))
                     .collect();
@@ -439,14 +492,14 @@ impl<'a> CsvRowIter<'a> {
 
     /// Read the next row, returning None at EOF.
     pub fn next_record(&mut self) -> Result<Option<CsvRecord>, CsvParseError> {
-        if self.done { return Ok(None); }
+        if self.done {
+            return Ok(None);
+        }
         match self.next_raw_row()? {
-            Some(fields) => {
-                Ok(Some(CsvRecord {
-                    fields,
-                    header_map: self.header_map.clone(),
-                }))
-            }
+            Some(fields) => Ok(Some(CsvRecord {
+                fields,
+                header_map: self.header_map.clone(),
+            })),
             None => {
                 self.done = true;
                 Ok(None)
@@ -456,7 +509,9 @@ impl<'a> CsvRowIter<'a> {
 
     fn next_raw_row(&mut self) -> Result<Option<Vec<String>>, CsvParseError> {
         loop {
-            if self.pos >= self.chars.len() { return Ok(None); }
+            if self.pos >= self.chars.len() {
+                return Ok(None);
+            }
 
             // Skip comment lines
             if let Some(cc) = self.config.comment_char {
@@ -464,7 +519,9 @@ impl<'a> CsvRowIter<'a> {
                     while self.pos < self.chars.len() && self.chars[self.pos] != '\n' {
                         self.pos += 1;
                     }
-                    if self.pos < self.chars.len() { self.pos += 1; }
+                    if self.pos < self.chars.len() {
+                        self.pos += 1;
+                    }
                     self.row_num += 1;
                     continue;
                 }
@@ -502,14 +559,19 @@ impl<'a> CsvRowIter<'a> {
                 }
 
                 if c == delim {
-                    let f = if self.config.trim_fields { field.trim().to_string() } else { field.clone() };
+                    let f = if self.config.trim_fields {
+                        field.trim().to_string()
+                    } else {
+                        field.clone()
+                    };
                     fields.push(f);
                     field.clear();
                     self.pos += 1;
                     continue;
                 }
 
-                if c == '\r' && self.pos + 1 < self.chars.len() && self.chars[self.pos + 1] == '\n' {
+                if c == '\r' && self.pos + 1 < self.chars.len() && self.chars[self.pos + 1] == '\n'
+                {
                     self.pos += 2;
                     break;
                 }
@@ -524,10 +586,17 @@ impl<'a> CsvRowIter<'a> {
             }
 
             if in_quotes {
-                return Err(CsvParseError::UnterminatedQuote { row: self.row_num, col: fields.len() + 1 });
+                return Err(CsvParseError::UnterminatedQuote {
+                    row: self.row_num,
+                    col: fields.len() + 1,
+                });
             }
 
-            let f = if self.config.trim_fields { field.trim().to_string() } else { field };
+            let f = if self.config.trim_fields {
+                field.trim().to_string()
+            } else {
+                field
+            };
             fields.push(f);
             self.row_num += 1;
 
@@ -590,8 +659,8 @@ impl CsvWriter {
     fn quote_field(&self, field: &str) -> String {
         let q = self.config.quote_char;
         let d = self.config.delimiter;
-        let needs_quoting = field.contains(d) || field.contains(q)
-            || field.contains('\n') || field.contains('\r');
+        let needs_quoting =
+            field.contains(d) || field.contains(q) || field.contains('\n') || field.contains('\r');
         if needs_quoting {
             let escaped = field.replace(q, &format!("{}{}", q, q));
             format!("{}{}{}", q, escaped, q)
@@ -664,7 +733,10 @@ mod tests {
 
     #[test]
     fn test_custom_delimiter() {
-        let config = CsvParseConfig { delimiter: '\t', ..Default::default() };
+        let config = CsvParseConfig {
+            delimiter: '\t',
+            ..Default::default()
+        };
         let csv = "a\tb\n1\t2";
         let doc = parse_with(csv, &config).unwrap();
         assert_eq!(doc.get(0).unwrap().get(0), Some("1"));
@@ -673,7 +745,10 @@ mod tests {
 
     #[test]
     fn test_no_headers() {
-        let config = CsvParseConfig { has_headers: false, ..Default::default() };
+        let config = CsvParseConfig {
+            has_headers: false,
+            ..Default::default()
+        };
         let csv = "a,b\nc,d";
         let doc = parse_with(csv, &config).unwrap();
         assert!(doc.headers.is_none());
@@ -705,7 +780,10 @@ mod tests {
 
     #[test]
     fn test_trim_fields() {
-        let config = CsvParseConfig { trim_fields: true, ..Default::default() };
+        let config = CsvParseConfig {
+            trim_fields: true,
+            ..Default::default()
+        };
         let csv = "a , b \n 1 , 2 ";
         let doc = parse_with(csv, &config).unwrap();
         assert_eq!(doc.headers.as_ref().unwrap(), &["a", "b"]);
@@ -714,7 +792,10 @@ mod tests {
 
     #[test]
     fn test_comment_lines() {
-        let config = CsvParseConfig { comment_char: Some('#'), ..Default::default() };
+        let config = CsvParseConfig {
+            comment_char: Some('#'),
+            ..Default::default()
+        };
         let csv = "a,b\n# this is a comment\n1,2";
         let doc = parse_with(csv, &config).unwrap();
         assert_eq!(doc.len(), 1);
@@ -801,7 +882,10 @@ mod tests {
 
     #[test]
     fn test_strict_mode() {
-        let config = CsvParseConfig { strict: true, ..Default::default() };
+        let config = CsvParseConfig {
+            strict: true,
+            ..Default::default()
+        };
         let csv = "a,b\n1,2,3";
         let result = parse_with(csv, &config);
         assert!(result.is_err());

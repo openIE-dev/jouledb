@@ -27,9 +27,7 @@ impl WindowFunction {
     pub fn evaluate(&self, t: f64) -> f64 {
         let t = t.clamp(0.0, 1.0);
         match self {
-            WindowFunction::Hanning => {
-                0.5 * (1.0 - (2.0 * PI * t).cos())
-            }
+            WindowFunction::Hanning => 0.5 * (1.0 - (2.0 * PI * t).cos()),
             WindowFunction::Gaussian => {
                 let sigma = 0.4;
                 let x = (t - 0.5) / sigma;
@@ -168,7 +166,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     /// Next value in 0.0..1.0.
@@ -314,7 +314,14 @@ impl GrainCloud {
 
         let pan = self.rng.next_bipolar() * self.config.pan_spread;
 
-        let grain = Grain::new(position, duration_samples, rate, amp, pan, self.config.window);
+        let grain = Grain::new(
+            position,
+            duration_samples,
+            rate,
+            amp,
+            pan,
+            self.config.window,
+        );
         self.grains.push(grain);
     }
 
@@ -428,7 +435,10 @@ mod tests {
     fn test_gaussian_window_peak() {
         let w = WindowFunction::Gaussian;
         let peak = w.evaluate(0.5);
-        assert!((peak - 1.0).abs() < EPS, "gaussian peak should be ~1, got {peak}");
+        assert!(
+            (peak - 1.0).abs() < EPS,
+            "gaussian peak should be ~1, got {peak}"
+        );
     }
 
     #[test]
@@ -442,7 +452,10 @@ mod tests {
     #[test]
     fn test_trapezoid_window_flat_top() {
         let w = WindowFunction::Trapezoid { ramp_fraction: 0.1 };
-        assert!((w.evaluate(0.5) - 1.0).abs() < EPS, "flat region should be 1.0");
+        assert!(
+            (w.evaluate(0.5) - 1.0).abs() < EPS,
+            "flat region should be 1.0"
+        );
         assert!(w.evaluate(0.05) < 1.0, "ramp region should be < 1.0");
     }
 
@@ -467,7 +480,10 @@ mod tests {
         for _ in 0..20 {
             grain.next_sample(&source);
         }
-        assert!(!grain.is_active(), "grain should be inactive after duration");
+        assert!(
+            !grain.is_active(),
+            "grain should be inactive after duration"
+        );
     }
 
     #[test]
@@ -479,7 +495,14 @@ mod tests {
     #[test]
     fn test_grain_pan_left() {
         let source = vec![1.0; 100];
-        let mut grain = Grain::new(0.0, 50, 1.0, 1.0, -1.0, WindowFunction::Trapezoid { ramp_fraction: 0.1 });
+        let mut grain = Grain::new(
+            0.0,
+            50,
+            1.0,
+            1.0,
+            -1.0,
+            WindowFunction::Trapezoid { ramp_fraction: 0.1 },
+        );
         // Skip ramp
         for _ in 0..10 {
             grain.next_sample(&source);
@@ -491,7 +514,14 @@ mod tests {
     #[test]
     fn test_grain_pan_right() {
         let source = vec![1.0; 100];
-        let mut grain = Grain::new(0.0, 50, 1.0, 1.0, 1.0, WindowFunction::Trapezoid { ramp_fraction: 0.1 });
+        let mut grain = Grain::new(
+            0.0,
+            50,
+            1.0,
+            1.0,
+            1.0,
+            WindowFunction::Trapezoid { ramp_fraction: 0.1 },
+        );
         for _ in 0..10 {
             grain.next_sample(&source);
         }
@@ -502,7 +532,10 @@ mod tests {
     #[test]
     fn test_grain_cloud_spawns_grains() {
         let source = sine_source(440.0, SR, 44100);
-        let config = GrainCloudConfig { density: 100.0, ..GrainCloudConfig::default() };
+        let config = GrainCloudConfig {
+            density: 100.0,
+            ..GrainCloudConfig::default()
+        };
         let mut cloud = GrainCloud::new(config, SR, source.len());
         for _ in 0..4410 {
             cloud.next_sample(&source);
@@ -567,7 +600,10 @@ mod tests {
         let source = vec![0.0, 1.0, 0.0, -1.0];
         let val = interpolate_source(&source, 4.5);
         // 4.5 mod 4 = 0.5 → interp between source[0]=0.0 and source[1]=1.0 → 0.5
-        assert!((val - 0.5).abs() < EPS, "should wrap and interpolate, got {val}");
+        assert!(
+            (val - 0.5).abs() < EPS,
+            "should wrap and interpolate, got {val}"
+        );
     }
 
     #[test]
@@ -585,9 +621,15 @@ mod tests {
     #[test]
     fn test_pitch_shift_rate() {
         let rate = pitch_shift_rate(12.0);
-        assert!((rate - 2.0).abs() < EPS, "12 semitones = octave up = 2x: {rate}");
+        assert!(
+            (rate - 2.0).abs() < EPS,
+            "12 semitones = octave up = 2x: {rate}"
+        );
         let rate_down = pitch_shift_rate(-12.0);
-        assert!((rate_down - 0.5).abs() < EPS, "-12 semitones = octave down = 0.5x: {rate_down}");
+        assert!(
+            (rate_down - 0.5).abs() < EPS,
+            "-12 semitones = octave down = 0.5x: {rate_down}"
+        );
     }
 
     #[test]
@@ -625,10 +667,15 @@ mod tests {
             samples2.push(l2);
         }
         // With spray, output should differ from no-spray.
-        let diff: f64 = samples1.iter().zip(samples2.iter())
+        let diff: f64 = samples1
+            .iter()
+            .zip(samples2.iter())
             .map(|(a, b)| (a - b).abs())
             .sum();
-        assert!(diff > 0.01, "spray should cause different output: diff={diff}");
+        assert!(
+            diff > 0.01,
+            "spray should cause different output: diff={diff}"
+        );
     }
 
     #[test]

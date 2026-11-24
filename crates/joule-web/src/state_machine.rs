@@ -19,7 +19,11 @@ pub enum StateMachineError {
     /// Event not handled in current state.
     EventNotHandled { state: String, event: String },
     /// Guard rejected the transition.
-    GuardRejected { from: String, to: String, guard: String },
+    GuardRejected {
+        from: String,
+        to: String,
+        guard: String,
+    },
     /// Duplicate state ID.
     DuplicateState(String),
     /// Duplicate transition.
@@ -76,7 +80,9 @@ impl Guard {
 
     /// Evaluate the guard against context.
     pub fn evaluate(&self, context: &HashMap<String, String>) -> bool {
-        context.get(&self.context_key).map_or(false, |v| v == &self.expected_value)
+        context
+            .get(&self.context_key)
+            .map_or(false, |v| v == &self.expected_value)
     }
 }
 
@@ -101,17 +107,26 @@ pub struct Action {
 }
 
 impl Action {
-    pub fn set_context(id: impl Into<String>, key: impl Into<String>, val: impl Into<String>) -> Self {
+    pub fn set_context(
+        id: impl Into<String>,
+        key: impl Into<String>,
+        val: impl Into<String>,
+    ) -> Self {
         Self {
             id: id.into(),
-            kind: ActionKind::SetContext { key: key.into(), value: val.into() },
+            kind: ActionKind::SetContext {
+                key: key.into(),
+                value: val.into(),
+            },
         }
     }
 
     pub fn log(id: impl Into<String>, msg: impl Into<String>) -> Self {
         Self {
             id: id.into(),
-            kind: ActionKind::Log { message: msg.into() },
+            kind: ActionKind::Log {
+                message: msg.into(),
+            },
         }
     }
 
@@ -320,13 +335,17 @@ impl StateMachine {
 
     /// Get the current state ID.
     pub fn current(&self) -> Result<&str, StateMachineError> {
-        self.current_state.as_deref().ok_or(StateMachineError::NotStarted)
+        self.current_state
+            .as_deref()
+            .ok_or(StateMachineError::NotStarted)
     }
 
     /// Check if the machine is in a final state.
     pub fn is_final(&self) -> bool {
         if let Some(current) = &self.current_state {
-            self.states.get(current).map_or(false, |s| s.state_type == StateType::Final)
+            self.states
+                .get(current)
+                .map_or(false, |s| s.state_type == StateType::Final)
         } else {
             false
         }
@@ -341,11 +360,15 @@ impl StateMachine {
             return Err(StateMachineError::AlreadyFinalized);
         }
 
-        let current = self.current_state.clone()
+        let current = self
+            .current_state
+            .clone()
             .ok_or(StateMachineError::NotStarted)?;
 
         // Find matching transition.
-        let transition = self.transitions.iter()
+        let transition = self
+            .transitions
+            .iter()
             .find(|t| t.from == current && t.event == event)
             .cloned()
             .ok_or_else(|| StateMachineError::EventNotHandled {
@@ -447,7 +470,10 @@ impl StateMachine {
 
     /// Get all states of a given type.
     pub fn states_of_type(&self, st: StateType) -> Vec<&StateDefinition> {
-        self.states.values().filter(|s| s.state_type == st).collect()
+        self.states
+            .values()
+            .filter(|s| s.state_type == st)
+            .collect()
     }
 }
 
@@ -505,14 +531,21 @@ mod tests {
 
     fn traffic_light() -> StateMachine {
         let mut sm = StateMachine::new("traffic", "green");
-        sm.add_state(StateDefinition::new("green", StateType::Atomic)
-            .with_entry_action(Action::set_context("enter-green", "light", "green")))
+        sm.add_state(
+            StateDefinition::new("green", StateType::Atomic)
+                .with_entry_action(Action::set_context("enter-green", "light", "green")),
+        )
+        .unwrap();
+        sm.add_state(StateDefinition::new("yellow", StateType::Atomic))
             .unwrap();
-        sm.add_state(StateDefinition::new("yellow", StateType::Atomic)).unwrap();
-        sm.add_state(StateDefinition::new("red", StateType::Atomic)).unwrap();
-        sm.add_transition(Transition::new("green", "timer", "yellow")).unwrap();
-        sm.add_transition(Transition::new("yellow", "timer", "red")).unwrap();
-        sm.add_transition(Transition::new("red", "timer", "green")).unwrap();
+        sm.add_state(StateDefinition::new("red", StateType::Atomic))
+            .unwrap();
+        sm.add_transition(Transition::new("green", "timer", "yellow"))
+            .unwrap();
+        sm.add_transition(Transition::new("yellow", "timer", "red"))
+            .unwrap();
+        sm.add_transition(Transition::new("red", "timer", "green"))
+            .unwrap();
         sm
     }
 
@@ -550,12 +583,18 @@ mod tests {
     #[test]
     fn test_guard_condition() {
         let mut sm = StateMachine::new("guarded", "locked");
-        sm.add_state(StateDefinition::new("locked", StateType::Atomic)).unwrap();
-        sm.add_state(StateDefinition::new("unlocked", StateType::Atomic)).unwrap();
+        sm.add_state(StateDefinition::new("locked", StateType::Atomic))
+            .unwrap();
+        sm.add_state(StateDefinition::new("unlocked", StateType::Atomic))
+            .unwrap();
         sm.add_transition(
-            Transition::new("locked", "coin", "unlocked")
-                .with_guard(Guard::new("has_coin", "coin_inserted", "true")),
-        ).unwrap();
+            Transition::new("locked", "coin", "unlocked").with_guard(Guard::new(
+                "has_coin",
+                "coin_inserted",
+                "true",
+            )),
+        )
+        .unwrap();
         sm.start().unwrap();
 
         // Without coin in context → guard rejects.
@@ -571,9 +610,12 @@ mod tests {
     #[test]
     fn test_final_state() {
         let mut sm = StateMachine::new("process", "running");
-        sm.add_state(StateDefinition::new("running", StateType::Atomic)).unwrap();
-        sm.add_state(StateDefinition::new("done", StateType::Final)).unwrap();
-        sm.add_transition(Transition::new("running", "finish", "done")).unwrap();
+        sm.add_state(StateDefinition::new("running", StateType::Atomic))
+            .unwrap();
+        sm.add_state(StateDefinition::new("done", StateType::Final))
+            .unwrap();
+        sm.add_transition(Transition::new("running", "finish", "done"))
+            .unwrap();
         sm.start().unwrap();
 
         sm.send("finish").unwrap();
@@ -585,23 +627,23 @@ mod tests {
     #[test]
     fn test_composite_state() {
         let mut sm = StateMachine::new("app", "idle");
-        sm.add_state(StateDefinition::new("idle", StateType::Atomic)).unwrap();
+        sm.add_state(StateDefinition::new("idle", StateType::Atomic))
+            .unwrap();
         sm.add_state(
             StateDefinition::new("active", StateType::Composite)
                 .with_initial_child("sub_a")
                 .with_child("sub_a")
                 .with_child("sub_b"),
-        ).unwrap();
-        sm.add_state(
-            StateDefinition::new("sub_a", StateType::Atomic)
-                .with_parent("active"),
-        ).unwrap();
-        sm.add_state(
-            StateDefinition::new("sub_b", StateType::Atomic)
-                .with_parent("active"),
-        ).unwrap();
-        sm.add_transition(Transition::new("idle", "activate", "active")).unwrap();
-        sm.add_transition(Transition::new("sub_a", "next", "sub_b")).unwrap();
+        )
+        .unwrap();
+        sm.add_state(StateDefinition::new("sub_a", StateType::Atomic).with_parent("active"))
+            .unwrap();
+        sm.add_state(StateDefinition::new("sub_b", StateType::Atomic).with_parent("active"))
+            .unwrap();
+        sm.add_transition(Transition::new("idle", "activate", "active"))
+            .unwrap();
+        sm.add_transition(Transition::new("sub_a", "next", "sub_b"))
+            .unwrap();
         sm.start().unwrap();
 
         sm.send("activate").unwrap();
@@ -631,12 +673,18 @@ mod tests {
                 .with_initial_child("a")
                 .with_child("a")
                 .with_child("b"),
-        ).unwrap();
-        sm.add_state(StateDefinition::new("a", StateType::Atomic).with_parent("parent")).unwrap();
-        sm.add_state(StateDefinition::new("b", StateType::Atomic).with_parent("parent")).unwrap();
-        sm.add_state(StateDefinition::new("outside", StateType::Atomic)).unwrap();
-        sm.add_transition(Transition::new("a", "next", "b")).unwrap();
-        sm.add_transition(Transition::new("b", "leave", "outside")).unwrap();
+        )
+        .unwrap();
+        sm.add_state(StateDefinition::new("a", StateType::Atomic).with_parent("parent"))
+            .unwrap();
+        sm.add_state(StateDefinition::new("b", StateType::Atomic).with_parent("parent"))
+            .unwrap();
+        sm.add_state(StateDefinition::new("outside", StateType::Atomic))
+            .unwrap();
+        sm.add_transition(Transition::new("a", "next", "b"))
+            .unwrap();
+        sm.add_transition(Transition::new("b", "leave", "outside"))
+            .unwrap();
         sm.start().unwrap();
 
         sm.send("next").unwrap(); // a → b
@@ -648,12 +696,14 @@ mod tests {
     #[test]
     fn test_transition_actions() {
         let mut sm = StateMachine::new("act", "s1");
-        sm.add_state(StateDefinition::new("s1", StateType::Atomic)).unwrap();
-        sm.add_state(StateDefinition::new("s2", StateType::Atomic)).unwrap();
+        sm.add_state(StateDefinition::new("s1", StateType::Atomic))
+            .unwrap();
+        sm.add_state(StateDefinition::new("s2", StateType::Atomic))
+            .unwrap();
         sm.add_transition(
-            Transition::new("s1", "go", "s2")
-                .with_action(Action::set_context("set-x", "x", "42")),
-        ).unwrap();
+            Transition::new("s1", "go", "s2").with_action(Action::set_context("set-x", "x", "42")),
+        )
+        .unwrap();
         sm.start().unwrap();
         sm.send("go").unwrap();
         assert_eq!(sm.context.get("x"), Some(&"42".to_string()));
@@ -668,17 +718,23 @@ mod tests {
     #[test]
     fn test_duplicate_state() {
         let mut sm = StateMachine::new("d", "a");
-        sm.add_state(StateDefinition::new("a", StateType::Atomic)).unwrap();
-        let err = sm.add_state(StateDefinition::new("a", StateType::Atomic)).unwrap_err();
+        sm.add_state(StateDefinition::new("a", StateType::Atomic))
+            .unwrap();
+        let err = sm
+            .add_state(StateDefinition::new("a", StateType::Atomic))
+            .unwrap_err();
         assert!(matches!(err, StateMachineError::DuplicateState(_)));
     }
 
     #[test]
     fn test_ancestors() {
         let mut sm = StateMachine::new("anc", "c");
-        sm.add_state(StateDefinition::new("root", StateType::Composite)).unwrap();
-        sm.add_state(StateDefinition::new("mid", StateType::Composite).with_parent("root")).unwrap();
-        sm.add_state(StateDefinition::new("c", StateType::Atomic).with_parent("mid")).unwrap();
+        sm.add_state(StateDefinition::new("root", StateType::Composite))
+            .unwrap();
+        sm.add_state(StateDefinition::new("mid", StateType::Composite).with_parent("root"))
+            .unwrap();
+        sm.add_state(StateDefinition::new("c", StateType::Atomic).with_parent("mid"))
+            .unwrap();
         let ancs = sm.ancestors("c");
         assert_eq!(ancs, vec!["mid", "root"]);
     }
@@ -686,12 +742,15 @@ mod tests {
     #[test]
     fn test_compose_machines() {
         let mut a = StateMachine::new("a", "s1");
-        a.add_state(StateDefinition::new("s1", StateType::Atomic)).unwrap();
-        a.add_state(StateDefinition::new("s2", StateType::Atomic)).unwrap();
+        a.add_state(StateDefinition::new("s1", StateType::Atomic))
+            .unwrap();
+        a.add_state(StateDefinition::new("s2", StateType::Atomic))
+            .unwrap();
         a.add_transition(Transition::new("s1", "go", "s2")).unwrap();
 
         let mut b = StateMachine::new("b", "x1");
-        b.add_state(StateDefinition::new("x1", StateType::Atomic)).unwrap();
+        b.add_state(StateDefinition::new("x1", StateType::Atomic))
+            .unwrap();
 
         let combined = compose(&a, &b, "combined", "a_s1");
         assert!(combined.states.contains_key("a_s1"));

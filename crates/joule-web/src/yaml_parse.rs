@@ -54,13 +54,21 @@ impl Parser {
                 Line { indent, content }
             })
             .collect();
-        Self { lines, pos: 0, anchors: HashMap::new() }
+        Self {
+            lines,
+            pos: 0,
+            anchors: HashMap::new(),
+        }
     }
 
     fn skip_empty(&mut self) {
         while self.pos < self.lines.len() {
             let c = &self.lines[self.pos].content;
-            if c.is_empty() || c.starts_with('#') { self.pos += 1; } else { break; }
+            if c.is_empty() || c.starts_with('#') {
+                self.pos += 1;
+            } else {
+                break;
+            }
         }
     }
 
@@ -81,9 +89,14 @@ impl Parser {
     fn parse_document(&mut self) -> Result<Value, YamlError> {
         self.skip_empty();
         if let Some((c, _)) = self.peek() {
-            if c == "---" { self.pos += 1; self.skip_empty(); }
+            if c == "---" {
+                self.pos += 1;
+                self.skip_empty();
+            }
         }
-        if self.pos >= self.lines.len() { return Ok(Value::Null); }
+        if self.pos >= self.lines.len() {
+            return Ok(Value::Null);
+        }
         self.parse_node(0)
     }
 
@@ -93,18 +106,30 @@ impl Parser {
             Some((c, i)) => (c.to_string(), i),
             None => return Ok(Value::Null),
         };
-        if indent < min_indent { return Ok(Value::Null); }
+        if indent < min_indent {
+            return Ok(Value::Null);
+        }
 
         // Anchor
-        if content.starts_with('&') { return self.parse_anchor(min_indent); }
+        if content.starts_with('&') {
+            return self.parse_anchor(min_indent);
+        }
         // Alias
-        if content.starts_with('*') { return self.parse_alias(); }
+        if content.starts_with('*') {
+            return self.parse_alias();
+        }
         // Block sequence
-        if content.starts_with("- ") || content == "-" { return self.parse_block_seq(indent); }
+        if content.starts_with("- ") || content == "-" {
+            return self.parse_block_seq(indent);
+        }
         // Flow sequence
-        if content.starts_with('[') { return self.parse_flow_value(); }
+        if content.starts_with('[') {
+            return self.parse_flow_value();
+        }
         // Flow mapping
-        if content.starts_with('{') { return self.parse_flow_value(); }
+        if content.starts_with('{') {
+            return self.parse_flow_value();
+        }
         // Literal block
         if content == "|" || content.starts_with("| ") {
             self.pos += 1;
@@ -116,7 +141,9 @@ impl Parser {
             return self.parse_folded_block(indent);
         }
         // Block mapping
-        if find_colon(&content).is_some() { return self.parse_block_map(indent); }
+        if find_colon(&content).is_some() {
+            return self.parse_block_map(indent);
+        }
         // Plain scalar
         self.pos += 1;
         Ok(parse_scalar(&content))
@@ -132,7 +159,9 @@ impl Parser {
                 Some((c, i)) => (c.to_string(), i),
                 None => break,
             };
-            if indent != seq_indent || !content.starts_with('-') { break; }
+            if indent != seq_indent || !content.starts_with('-') {
+                break;
+            }
             self.pos += 1;
             let rest = content[1..].trim_start();
             if rest.is_empty() {
@@ -149,7 +178,11 @@ impl Parser {
         Ok(Value::Array(items))
     }
 
-    fn parse_inline_map_in_seq(&mut self, first_line: &str, seq_indent: usize) -> Result<Value, YamlError> {
+    fn parse_inline_map_in_seq(
+        &mut self,
+        first_line: &str,
+        seq_indent: usize,
+    ) -> Result<Value, YamlError> {
         let mut map = Map::new();
         // Parse first k:v from the dash line
         if let Some(cp) = find_colon(first_line) {
@@ -171,7 +204,9 @@ impl Parser {
                 Some((c, i)) => (c.to_string(), i),
                 None => break,
             };
-            if i <= seq_indent || c.starts_with('-') { break; }
+            if i <= seq_indent || c.starts_with('-') {
+                break;
+            }
             if let Some(cp) = find_colon(&c) {
                 let k = c[..cp].trim().to_string();
                 let v_str = c[cp + 1..].trim().to_string();
@@ -205,7 +240,9 @@ impl Parser {
                 Some((c, i)) => (c.to_string(), i),
                 None => break,
             };
-            if indent != map_indent { break; }
+            if indent != map_indent {
+                break;
+            }
             let cp = match find_colon(&content) {
                 Some(p) => p,
                 None => break,
@@ -238,7 +275,8 @@ impl Parser {
                 self.parse_folded_block(map_indent)?
             } else if v_str.starts_with('*') {
                 let alias = v_str[1..].trim();
-                self.anchors.get(alias)
+                self.anchors
+                    .get(alias)
                     .cloned()
                     .ok_or_else(|| YamlError::UndefinedAlias(alias.into()))?
             } else if v_str.starts_with('&') {
@@ -274,14 +312,20 @@ impl Parser {
                 self.pos += 1;
                 continue;
             }
-            if ln.indent <= base_indent { break; }
-            if block_indent.is_none() { block_indent = Some(ln.indent); }
+            if ln.indent <= base_indent {
+                break;
+            }
+            if block_indent.is_none() {
+                block_indent = Some(ln.indent);
+            }
             let bi = block_indent.unwrap();
             let extra = ln.indent.saturating_sub(bi);
             lines.push(format!("{}{}", " ".repeat(extra), ln.content));
             self.pos += 1;
         }
-        while lines.last().map_or(false, |l| l.is_empty()) { lines.pop(); }
+        while lines.last().map_or(false, |l| l.is_empty()) {
+            lines.pop();
+        }
         Ok(Value::String(lines.join("\n") + "\n"))
     }
 
@@ -292,19 +336,32 @@ impl Parser {
         while self.pos < self.lines.len() {
             let ln = &self.lines[self.pos];
             if ln.content.is_empty() {
-                if !current.is_empty() { paragraphs.push(current.clone()); current.clear(); }
+                if !current.is_empty() {
+                    paragraphs.push(current.clone());
+                    current.clear();
+                }
                 paragraphs.push(String::new());
                 self.pos += 1;
                 continue;
             }
-            if ln.indent <= base_indent { break; }
-            if _block_indent.is_none() { _block_indent = Some(ln.indent); }
-            if !current.is_empty() { current.push(' '); }
+            if ln.indent <= base_indent {
+                break;
+            }
+            if _block_indent.is_none() {
+                _block_indent = Some(ln.indent);
+            }
+            if !current.is_empty() {
+                current.push(' ');
+            }
             current.push_str(&ln.content);
             self.pos += 1;
         }
-        if !current.is_empty() { paragraphs.push(current); }
-        while paragraphs.last().map_or(false, |l| l.is_empty()) { paragraphs.pop(); }
+        if !current.is_empty() {
+            paragraphs.push(current);
+        }
+        while paragraphs.last().map_or(false, |l| l.is_empty()) {
+            paragraphs.pop();
+        }
         Ok(Value::String(paragraphs.join("\n") + "\n"))
     }
 
@@ -322,7 +379,10 @@ impl Parser {
             Ok(val)
         } else {
             let indent = self.lines[self.pos].indent;
-            self.lines[self.pos] = Line { indent, content: remainder.to_string() };
+            self.lines[self.pos] = Line {
+                indent,
+                content: remainder.to_string(),
+            };
             let val = self.parse_node(min_indent)?;
             self.anchors.insert(anchor_name, val.clone());
             Ok(val)
@@ -333,7 +393,10 @@ impl Parser {
         let content = &self.lines[self.pos].content;
         let name = content[1..].trim().to_string();
         self.pos += 1;
-        self.anchors.get(&name).cloned().ok_or_else(|| YamlError::UndefinedAlias(name))
+        self.anchors
+            .get(&name)
+            .cloned()
+            .ok_or_else(|| YamlError::UndefinedAlias(name))
     }
 
     fn parse_flow_value(&mut self) -> Result<Value, YamlError> {
@@ -386,25 +449,41 @@ fn parse_scalar(s: &str) -> Value {
     if s.is_empty() || s == "~" || s == "null" || s == "Null" || s == "NULL" {
         return Value::Null;
     }
-    if s == "true" || s == "True" || s == "TRUE" { return Value::Bool(true); }
-    if s == "false" || s == "False" || s == "FALSE" { return Value::Bool(false); }
+    if s == "true" || s == "True" || s == "TRUE" {
+        return Value::Bool(true);
+    }
+    if s == "false" || s == "False" || s == "FALSE" {
+        return Value::Bool(false);
+    }
 
     // Quoted strings
     if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
         return Value::String(s[1..s.len() - 1].to_string());
     }
     // Integer
-    if let Ok(n) = s.parse::<i64>() { return serde_json::json!(n); }
+    if let Ok(n) = s.parse::<i64>() {
+        return serde_json::json!(n);
+    }
     // Hex
     if let Some(hex) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
-        if let Ok(n) = i64::from_str_radix(hex, 16) { return serde_json::json!(n); }
+        if let Ok(n) = i64::from_str_radix(hex, 16) {
+            return serde_json::json!(n);
+        }
     }
     // Float
-    if let Ok(f) = s.parse::<f64>() { return serde_json::json!(f); }
+    if let Ok(f) = s.parse::<f64>() {
+        return serde_json::json!(f);
+    }
     // Special floats
-    if s == ".inf" || s == ".Inf" || s == ".INF" { return serde_json::json!(f64::INFINITY); }
-    if s == "-.inf" || s == "-.Inf" || s == "-.INF" { return serde_json::json!(f64::NEG_INFINITY); }
-    if s == ".nan" || s == ".NaN" || s == ".NAN" { return Value::Null; }
+    if s == ".inf" || s == ".Inf" || s == ".INF" {
+        return serde_json::json!(f64::INFINITY);
+    }
+    if s == "-.inf" || s == "-.Inf" || s == "-.INF" {
+        return serde_json::json!(f64::NEG_INFINITY);
+    }
+    if s == ".nan" || s == ".NaN" || s == ".NAN" {
+        return Value::Null;
+    }
 
     Value::String(s.to_string())
 }
@@ -414,7 +493,8 @@ fn parse_flow_value(s: &str) -> Result<Value, YamlError> {
     if s.starts_with('[') && s.ends_with(']') {
         let inner = &s[1..s.len() - 1];
         let items = split_flow(inner);
-        let values: Result<Vec<_>, _> = items.iter()
+        let values: Result<Vec<_>, _> = items
+            .iter()
             .filter(|i| !i.trim().is_empty())
             .map(|item| {
                 let t = item.trim();
@@ -432,7 +512,9 @@ fn parse_flow_value(s: &str) -> Result<Value, YamlError> {
         let mut map = Map::new();
         for item in &items {
             let t = item.trim();
-            if t.is_empty() { continue; }
+            if t.is_empty() {
+                continue;
+            }
             if let Some(cp) = find_colon(t) {
                 let k = t[..cp].trim();
                 let v = t[cp + 1..].trim();
@@ -460,13 +542,24 @@ fn split_flow(s: &str) -> Vec<String> {
     let mut current = String::new();
     for c in s.chars() {
         match c {
-            '[' | '{' => { depth += 1; current.push(c); }
-            ']' | '}' => { depth -= 1; current.push(c); }
-            ',' if depth == 0 => { items.push(current.clone()); current.clear(); }
+            '[' | '{' => {
+                depth += 1;
+                current.push(c);
+            }
+            ']' | '}' => {
+                depth -= 1;
+                current.push(c);
+            }
+            ',' if depth == 0 => {
+                items.push(current.clone());
+                current.clear();
+            }
             _ => current.push(c),
         }
     }
-    if !current.is_empty() { items.push(current); }
+    if !current.is_empty() {
+        items.push(current);
+    }
     items
 }
 

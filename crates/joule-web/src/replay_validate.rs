@@ -15,8 +15,15 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReplayError {
     EmptyReplay,
-    CorruptChecksum { tick: u64, expected: u64, actual: u64 },
-    MissingTicks { from: u64, to: u64 },
+    CorruptChecksum {
+        tick: u64,
+        expected: u64,
+        actual: u64,
+    },
+    MissingTicks {
+        from: u64,
+        to: u64,
+    },
     InvalidEvent(String),
 }
 
@@ -24,8 +31,15 @@ impl fmt::Display for ReplayError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyReplay => write!(f, "empty replay"),
-            Self::CorruptChecksum { tick, expected, actual } => {
-                write!(f, "checksum mismatch at tick {tick}: expected {expected}, got {actual}")
+            Self::CorruptChecksum {
+                tick,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "checksum mismatch at tick {tick}: expected {expected}, got {actual}"
+                )
             }
             Self::MissingTicks { from, to } => write!(f, "missing ticks {from}..{to}"),
             Self::InvalidEvent(msg) => write!(f, "invalid event: {msg}"),
@@ -111,7 +125,11 @@ impl ReplayEvent {
 
 impl fmt::Display for ReplayEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[tick={}] player={} {}", self.tick, self.player_id, self.event_type)
+        write!(
+            f,
+            "[tick={}] player={} {}",
+            self.tick, self.player_id, self.event_type
+        )
     }
 }
 
@@ -157,7 +175,11 @@ impl ValidationFlag {
 
 impl fmt::Display for ValidationFlag {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}] tick={} idx={}: {}", self.severity, self.tick, self.event_index, self.message)
+        write!(
+            f,
+            "[{}] tick={} idx={}: {}",
+            self.severity, self.tick, self.event_index, self.message
+        )
     }
 }
 
@@ -202,7 +224,10 @@ impl fmt::Display for ValidationReport {
         write!(
             f,
             "ReplayReport: events={} ticks={} flags={} valid={}",
-            self.total_events, self.total_ticks, self.flags.len(), self.is_valid
+            self.total_events,
+            self.total_ticks,
+            self.flags.len(),
+            self.is_valid
         )
     }
 }
@@ -358,7 +383,10 @@ impl ReplayValidator {
                     tick,
                     0,
                     FlagSeverity::Violation,
-                    &format!("{count} events in one tick (max {})", self.max_events_per_tick),
+                    &format!(
+                        "{count} events in one tick (max {})",
+                        self.max_events_per_tick
+                    ),
                 ));
             }
         }
@@ -367,7 +395,9 @@ impl ReplayValidator {
         for (i, evt) in events.iter().enumerate() {
             for rule in &self.rules {
                 if let Some(msg) = rule.check(evt) {
-                    report.flags.push(ValidationFlag::new(evt.tick, i, rule.severity, &msg));
+                    report
+                        .flags
+                        .push(ValidationFlag::new(evt.tick, i, rule.severity, &msg));
                 }
             }
         }
@@ -383,8 +413,10 @@ impl ReplayValidator {
             let (idx_b, b) = &pair[1];
             if a.player_id == b.player_id && b.tick == a.tick + 1 {
                 if let (Some(ax), Some(ay), Some(bx), Some(by)) = (
-                    a.get_data("x"), a.get_data("y"),
-                    b.get_data("x"), b.get_data("y"),
+                    a.get_data("x"),
+                    a.get_data("y"),
+                    b.get_data("x"),
+                    b.get_data("y"),
                 ) {
                     let dist = ((bx - ax).powi(2) + (by - ay).powi(2)).sqrt();
                     if dist > self.max_movement_per_tick {
@@ -392,7 +424,10 @@ impl ReplayValidator {
                             b.tick,
                             *idx_b,
                             FlagSeverity::Violation,
-                            &format!("movement {dist:.2} exceeds max {:.2}", self.max_movement_per_tick),
+                            &format!(
+                                "movement {dist:.2} exceeds max {:.2}",
+                                self.max_movement_per_tick
+                            ),
                         ));
                     }
                 }
@@ -413,7 +448,10 @@ impl ReplayValidator {
                         cp.tick,
                         0,
                         FlagSeverity::Critical,
-                        &format!("checksum mismatch: expected {}, got {}", cp.checksum, actual),
+                        &format!(
+                            "checksum mismatch: expected {}, got {}",
+                            cp.checksum, actual
+                        ),
                     ));
                     report.is_valid = false;
                 }
@@ -481,10 +519,7 @@ mod tests {
     #[test]
     fn test_tick_gap_detected() {
         let v = ReplayValidator::new();
-        let events = vec![
-            movement(0, 1, 0.0, 0.0),
-            movement(5, 1, 5.0, 0.0),
-        ];
+        let events = vec![movement(0, 1, 0.0, 0.0), movement(5, 1, 5.0, 0.0)];
         let report = v.validate(&events).unwrap();
         assert_eq!(report.tick_gaps.len(), 1);
         assert_eq!(report.tick_gaps[0], (1, 4));
@@ -493,22 +528,21 @@ mod tests {
     #[test]
     fn test_backward_tick_flagged() {
         let v = ReplayValidator::new();
-        let events = vec![
-            movement(5, 1, 0.0, 0.0),
-            movement(3, 1, 1.0, 0.0),
-        ];
+        let events = vec![movement(5, 1, 0.0, 0.0), movement(3, 1, 1.0, 0.0)];
         let report = v.validate(&events).unwrap();
         assert!(!report.is_valid);
-        assert!(report.flags.iter().any(|f| f.severity == FlagSeverity::Critical));
+        assert!(
+            report
+                .flags
+                .iter()
+                .any(|f| f.severity == FlagSeverity::Critical)
+        );
     }
 
     #[test]
     fn test_excessive_movement_flagged() {
         let v = ReplayValidator::new().with_max_movement(10.0);
-        let events = vec![
-            movement(0, 1, 0.0, 0.0),
-            movement(1, 1, 100.0, 0.0),
-        ];
+        let events = vec![movement(0, 1, 0.0, 0.0), movement(1, 1, 100.0, 0.0)];
         let report = v.validate(&events).unwrap();
         assert!(report.violation_count() > 0);
     }
@@ -534,25 +568,23 @@ mod tests {
     #[test]
     fn test_events_per_tick_limit() {
         let v = ReplayValidator::new().with_max_events_per_tick(2);
-        let events = vec![
-            damage(0, 1, 10.0),
-            damage(0, 2, 10.0),
-            damage(0, 3, 10.0),
-        ];
+        let events = vec![damage(0, 1, 10.0), damage(0, 2, 10.0), damage(0, 3, 10.0)];
         let report = v.validate(&events).unwrap();
-        assert!(report.flags.iter().any(|f| f.message.contains("events in one tick")));
+        assert!(
+            report
+                .flags
+                .iter()
+                .any(|f| f.message.contains("events in one tick"))
+        );
     }
 
     #[test]
     fn test_checkpoint_mismatch() {
         let cp_evt = ReplayEvent::new(5, EventType::Checkpoint, 0).with_data("state", 42.0);
         let checksum = cp_evt.checksum();
-        let v = ReplayValidator::new()
-            .with_checkpoint(Checkpoint::new(5, checksum.wrapping_add(1)));
-        let events = vec![
-            movement(0, 1, 0.0, 0.0),
-            cp_evt,
-        ];
+        let v =
+            ReplayValidator::new().with_checkpoint(Checkpoint::new(5, checksum.wrapping_add(1)));
+        let events = vec![movement(0, 1, 0.0, 0.0), cp_evt];
         let report = v.validate(&events).unwrap();
         assert!(!report.is_valid);
         assert!(report.checksum_mismatches > 0);
@@ -563,10 +595,7 @@ mod tests {
         let cp_evt = ReplayEvent::new(5, EventType::Checkpoint, 0).with_data("state", 42.0);
         let checksum = cp_evt.checksum();
         let v = ReplayValidator::new().with_checkpoint(Checkpoint::new(5, checksum));
-        let events = vec![
-            movement(0, 1, 0.0, 0.0),
-            cp_evt,
-        ];
+        let events = vec![movement(0, 1, 0.0, 0.0), cp_evt];
         let report = v.validate(&events).unwrap();
         assert_eq!(report.checksum_mismatches, 0);
     }
@@ -621,7 +650,12 @@ mod tests {
     #[test]
     fn test_validator_add_rule() {
         let mut v = ReplayValidator::new();
-        v.add_rule(ValidationRule::new("r1", EventType::Damage, "amount", 100.0));
+        v.add_rule(ValidationRule::new(
+            "r1",
+            EventType::Damage,
+            "amount",
+            100.0,
+        ));
         v.add_rule(ValidationRule::new("r2", EventType::Heal, "amount", 200.0));
         assert_eq!(v.rule_count(), 2);
     }

@@ -225,9 +225,7 @@ impl EffectScheduler {
         let mut queued: Vec<(Priority, EffectId)> = self
             .batch_queue
             .drain(..)
-            .filter_map(|id| {
-                self.effects.get(&id).map(|e| (e.priority, id))
-            })
+            .filter_map(|id| self.effects.get(&id).map(|e| (e.priority, id)))
             .collect();
         queued.sort_by_key(|(pri, id)| (*pri, *id));
 
@@ -338,16 +336,22 @@ mod tests {
         let mut sched = EffectScheduler::new();
 
         let o1 = order.clone();
-        sched.schedule(Effect::new(1, None, move || {
-            o1.borrow_mut().push("low");
-            None
-        }).with_priority(10));
+        sched.schedule(
+            Effect::new(1, None, move || {
+                o1.borrow_mut().push("low");
+                None
+            })
+            .with_priority(10),
+        );
 
         let o2 = order.clone();
-        sched.schedule(Effect::new(2, None, move || {
-            o2.borrow_mut().push("high");
-            None
-        }).with_priority(1));
+        sched.schedule(
+            Effect::new(2, None, move || {
+                o2.borrow_mut().push("high");
+                None
+            })
+            .with_priority(1),
+        );
 
         // Both ran on schedule (not batched). Clear and use flush.
         order.borrow_mut().clear();
@@ -358,14 +362,20 @@ mod tests {
         let o4 = order.clone();
         let mut sched2 = EffectScheduler::new();
         sched2.begin_batch();
-        sched2.schedule(Effect::new(1, None, move || {
-            o3.borrow_mut().push("low");
-            None
-        }).with_priority(10));
-        sched2.schedule(Effect::new(2, None, move || {
-            o4.borrow_mut().push("high");
-            None
-        }).with_priority(1));
+        sched2.schedule(
+            Effect::new(1, None, move || {
+                o3.borrow_mut().push("low");
+                None
+            })
+            .with_priority(10),
+        );
+        sched2.schedule(
+            Effect::new(2, None, move || {
+                o4.borrow_mut().push("high");
+                None
+            })
+            .with_priority(1),
+        );
         sched2.end_batch();
 
         assert_eq!(*order.borrow(), vec!["high", "low"]);

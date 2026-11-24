@@ -19,7 +19,11 @@ pub struct PrPoint {
 
 impl PrPoint {
     pub fn new(precision: f64, recall: f64, threshold: f64) -> Self {
-        Self { precision, recall, threshold }
+        Self {
+            precision,
+            recall,
+            threshold,
+        }
     }
 
     /// F-beta score at this operating point.
@@ -40,7 +44,11 @@ impl PrPoint {
 
 impl fmt::Display for PrPoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PR(p={:.4}, r={:.4}, thr={:.4})", self.precision, self.recall, self.threshold)
+        write!(
+            f,
+            "PR(p={:.4}, r={:.4}, thr={:.4})",
+            self.precision, self.recall, self.threshold
+        )
     }
 }
 
@@ -57,7 +65,10 @@ impl PrCurve {
     /// Compute PR curve from parallel score and label arrays.
     pub fn from_scores(scores: &[f64], labels: &[bool]) -> Self {
         if scores.is_empty() {
-            return Self { points: Vec::new(), ap: 0.0 };
+            return Self {
+                points: Vec::new(),
+                ap: 0.0,
+            };
         }
         // Sort by descending score
         let mut pairs: Vec<(f64, bool)> = scores
@@ -69,7 +80,10 @@ impl PrCurve {
 
         let total_pos = pairs.iter().filter(|(_, l)| *l).count() as f64;
         if total_pos == 0.0 {
-            return Self { points: Vec::new(), ap: 0.0 };
+            return Self {
+                points: Vec::new(),
+                ap: 0.0,
+            };
         }
 
         let mut tp = 0.0;
@@ -97,9 +111,11 @@ impl PrCurve {
 
     /// Find the point maximizing F1.
     pub fn best_f1_point(&self) -> Option<&PrPoint> {
-        self.points
-            .iter()
-            .max_by(|a, b| a.f1().partial_cmp(&b.f1()).unwrap_or(std::cmp::Ordering::Equal))
+        self.points.iter().max_by(|a, b| {
+            a.f1()
+                .partial_cmp(&b.f1())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     }
 
     /// Find the point maximizing F-beta.
@@ -116,7 +132,11 @@ impl PrCurve {
         self.points
             .iter()
             .filter(|p| p.precision >= target)
-            .max_by(|a, b| a.recall.partial_cmp(&b.recall).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|a, b| {
+                a.recall
+                    .partial_cmp(&b.recall)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
     }
 
     /// Threshold at a target recall.
@@ -124,7 +144,11 @@ impl PrCurve {
         self.points
             .iter()
             .filter(|p| p.recall >= target)
-            .max_by(|a, b| a.precision.partial_cmp(&b.precision).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|a, b| {
+                a.precision
+                    .partial_cmp(&b.precision)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
     }
 
     /// Interpolated precision at given recall levels (11-point interpolation).
@@ -157,7 +181,12 @@ impl PrCurve {
 
 impl fmt::Display for PrCurve {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PrCurve(ap={:.4}, points={})", self.ap, self.points.len())
+        write!(
+            f,
+            "PrCurve(ap={:.4}, points={})",
+            self.ap,
+            self.points.len()
+        )
     }
 }
 
@@ -185,7 +214,11 @@ pub fn average_precision_interpolated(points: &[PrPoint]) -> f64 {
     }
     // Reverse order: from high recall to low
     let mut sorted: Vec<PrPoint> = points.to_vec();
-    sorted.sort_by(|a, b| b.recall.partial_cmp(&a.recall).unwrap_or(std::cmp::Ordering::Equal));
+    sorted.sort_by(|a, b| {
+        b.recall
+            .partial_cmp(&a.recall)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     // Compute monotone-decreasing envelope of precision
     let mut max_prec = 0.0_f64;
@@ -249,18 +282,17 @@ pub struct PerClassMetrics {
 
 impl fmt::Display for PerClassMetrics {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Class {} (P={:.4}, R={:.4}, F1={:.4}, n={})",
-               self.class, self.precision, self.recall, self.f1, self.support)
+        write!(
+            f,
+            "Class {} (P={:.4}, R={:.4}, F1={:.4}, n={})",
+            self.class, self.precision, self.recall, self.f1, self.support
+        )
     }
 }
 
 /// Compute per-class metrics from predictions and ground truth.
 pub fn per_class_metrics(predictions: &[usize], actuals: &[usize]) -> Vec<PerClassMetrics> {
-    let mut all_labels: Vec<usize> = predictions
-        .iter()
-        .chain(actuals.iter())
-        .copied()
-        .collect();
+    let mut all_labels: Vec<usize> = predictions.iter().chain(actuals.iter()).copied().collect();
     all_labels.sort();
     all_labels.dedup();
 
@@ -279,10 +311,24 @@ pub fn per_class_metrics(predictions: &[usize], actuals: &[usize]) -> Vec<PerCla
                     fn_ += 1;
                 }
             }
-            let precision = if tp + fp > 0 { tp as f64 / (tp + fp) as f64 } else { 0.0 };
-            let recall = if tp + fn_ > 0 { tp as f64 / (tp + fn_) as f64 } else { 0.0 };
+            let precision = if tp + fp > 0 {
+                tp as f64 / (tp + fp) as f64
+            } else {
+                0.0
+            };
+            let recall = if tp + fn_ > 0 {
+                tp as f64 / (tp + fn_) as f64
+            } else {
+                0.0
+            };
             let f1 = f1_score(precision, recall);
-            PerClassMetrics { class: *cls, precision, recall, f1, support: tp + fn_ }
+            PerClassMetrics {
+                class: *cls,
+                precision,
+                recall,
+                f1,
+                support: tp + fn_,
+            }
         })
         .collect()
 }
@@ -299,7 +345,11 @@ impl MacroAverage {
     pub fn compute(per_class: &[PerClassMetrics]) -> Self {
         let n = per_class.len() as f64;
         if n == 0.0 {
-            return Self { precision: 0.0, recall: 0.0, f1: 0.0 };
+            return Self {
+                precision: 0.0,
+                recall: 0.0,
+                f1: 0.0,
+            };
         }
         Self {
             precision: per_class.iter().map(|m| m.precision).sum::<f64>() / n,
@@ -311,7 +361,11 @@ impl MacroAverage {
 
 impl fmt::Display for MacroAverage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Macro(P={:.4}, R={:.4}, F1={:.4})", self.precision, self.recall, self.f1)
+        write!(
+            f,
+            "Macro(P={:.4}, R={:.4}, F1={:.4})",
+            self.precision, self.recall, self.f1
+        )
     }
 }
 
@@ -325,11 +379,7 @@ pub struct MicroAverage {
 
 impl MicroAverage {
     pub fn compute(predictions: &[usize], actuals: &[usize]) -> Self {
-        let mut classes: Vec<usize> = predictions
-            .iter()
-            .chain(actuals.iter())
-            .copied()
-            .collect();
+        let mut classes: Vec<usize> = predictions.iter().chain(actuals.iter()).copied().collect();
         classes.sort();
         classes.dedup();
 
@@ -360,13 +410,21 @@ impl MicroAverage {
             0.0
         };
         let f1 = f1_score(precision, recall);
-        Self { precision, recall, f1 }
+        Self {
+            precision,
+            recall,
+            f1,
+        }
     }
 }
 
 impl fmt::Display for MicroAverage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Micro(P={:.4}, R={:.4}, F1={:.4})", self.precision, self.recall, self.f1)
+        write!(
+            f,
+            "Micro(P={:.4}, R={:.4}, F1={:.4})",
+            self.precision, self.recall, self.f1
+        )
     }
 }
 
@@ -406,7 +464,10 @@ impl MeanAveragePrecision {
         } else {
             per_class_ap.values().sum::<f64>() / per_class_ap.len() as f64
         };
-        Self { per_class_ap, map_score }
+        Self {
+            per_class_ap,
+            map_score,
+        }
     }
 
     pub fn num_classes(&self) -> usize {
@@ -416,7 +477,12 @@ impl MeanAveragePrecision {
 
 impl fmt::Display for MeanAveragePrecision {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "mAP={:.4} (classes={})", self.map_score, self.num_classes())
+        write!(
+            f,
+            "mAP={:.4} (classes={})",
+            self.map_score,
+            self.num_classes()
+        )
     }
 }
 
@@ -550,7 +616,11 @@ mod tests {
 
     #[test]
     fn macro_display() {
-        let m = MacroAverage { precision: 0.85, recall: 0.9, f1: 0.874 };
+        let m = MacroAverage {
+            precision: 0.85,
+            recall: 0.9,
+            f1: 0.874,
+        };
         assert!(format!("{}", m).contains("Macro"));
     }
 
@@ -564,7 +634,11 @@ mod tests {
 
     #[test]
     fn micro_display() {
-        let m = MicroAverage { precision: 0.8, recall: 0.75, f1: 0.774 };
+        let m = MicroAverage {
+            precision: 0.8,
+            recall: 0.75,
+            f1: 0.774,
+        };
         assert!(format!("{}", m).contains("Micro"));
     }
 

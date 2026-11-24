@@ -85,7 +85,9 @@ impl RAPLReader {
     /// Read core (PP0) energy in joules, if the package exposes a `core`
     /// subdomain.
     pub fn read_core_energy(&self) -> Result<Option<f64>> {
-        let Some(base) = self.package_energy_path.parent() else { return Ok(None) };
+        let Some(base) = self.package_energy_path.parent() else {
+            return Ok(None);
+        };
         for i in 0..4 {
             let dir = base.join(format!("intel-rapl:0:{i}"));
             let is_core = fs::read_to_string(dir.join("name")).is_ok_and(|n| n.trim() == "core");

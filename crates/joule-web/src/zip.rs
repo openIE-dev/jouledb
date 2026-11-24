@@ -4,7 +4,7 @@
 //! generates valid ZIP files using the Stored method (no compression
 //! library required).
 
-use chrono::{DateTime, Utc, Datelike, Timelike};
+use chrono::{DateTime, Datelike, Timelike, Utc};
 
 // ── CRC-32 ─────────────────────────────────────────────────────────
 
@@ -239,12 +239,9 @@ pub fn parse_zip(data: &[u8]) -> Result<ZipArchive, ZipError> {
             data[pos + 22],
             data[pos + 23],
         ]) as usize;
-        let name_len =
-            u16::from_le_bytes([data[pos + 28], data[pos + 29]]) as usize;
-        let extra_len =
-            u16::from_le_bytes([data[pos + 30], data[pos + 31]]) as usize;
-        let comment_len =
-            u16::from_le_bytes([data[pos + 32], data[pos + 33]]) as usize;
+        let name_len = u16::from_le_bytes([data[pos + 28], data[pos + 29]]) as usize;
+        let extra_len = u16::from_le_bytes([data[pos + 30], data[pos + 31]]) as usize;
+        let comment_len = u16::from_le_bytes([data[pos + 32], data[pos + 33]]) as usize;
         let local_offset = u32::from_le_bytes([
             data[pos + 42],
             data[pos + 43],
@@ -253,8 +250,7 @@ pub fn parse_zip(data: &[u8]) -> Result<ZipArchive, ZipError> {
         ]) as usize;
 
         let name_start = pos + 46;
-        let name =
-            String::from_utf8_lossy(&data[name_start..name_start + name_len]).to_string();
+        let name = String::from_utf8_lossy(&data[name_start..name_start + name_len]).to_string();
 
         // Read data from local file header
         let local_name_len =

@@ -498,7 +498,14 @@ impl RaftCluster {
             node.start_election()
         };
 
-        let peers: Vec<u64> = self.nodes.get(&candidate_id).unwrap().peers.iter().copied().collect();
+        let peers: Vec<u64> = self
+            .nodes
+            .get(&candidate_id)
+            .unwrap()
+            .peers
+            .iter()
+            .copied()
+            .collect();
 
         for &peer_id in &peers {
             let resp = {
@@ -522,7 +529,14 @@ impl RaftCluster {
 
     /// Replicate a command from the leader to all followers.
     pub fn replicate(&mut self, leader_id: u64) {
-        let peers: Vec<u64> = self.nodes.get(&leader_id).unwrap().peers.iter().copied().collect();
+        let peers: Vec<u64> = self
+            .nodes
+            .get(&leader_id)
+            .unwrap()
+            .peers
+            .iter()
+            .copied()
+            .collect();
 
         for &peer_id in &peers {
             let req = {

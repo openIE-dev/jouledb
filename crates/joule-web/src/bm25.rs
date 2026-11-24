@@ -126,7 +126,10 @@ impl Bm25Scorer {
         for (field_name, text) in fields {
             let tokens = Self::tokenize(text);
 
-            *self.total_field_lengths.entry(field_name.clone()).or_insert(0) += tokens.len();
+            *self
+                .total_field_lengths
+                .entry(field_name.clone())
+                .or_insert(0) += tokens.len();
             *self.field_doc_counts.entry(field_name.clone()).or_insert(0) += 1;
 
             all_terms_for_doc.extend(tokens.clone());
@@ -144,10 +147,8 @@ impl Bm25Scorer {
                 .push(doc_id.to_string());
         }
 
-        self.documents.insert(
-            doc_id.to_string(),
-            DocumentEntry { field_tokens },
-        );
+        self.documents
+            .insert(doc_id.to_string(), DocumentEntry { field_tokens });
     }
 
     /// Remove a document.
@@ -283,7 +284,11 @@ impl Bm25Scorer {
             .filter(|r| r.score > 0.0)
             .collect();
 
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results
     }
 
@@ -299,7 +304,11 @@ impl Bm25Scorer {
             .filter(|r| r.score > 0.0)
             .collect();
 
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results
     }
 
@@ -446,7 +455,10 @@ mod tests {
         let mut s = Bm25Scorer::new();
         let mut fields = HashMap::new();
         fields.insert("title".to_string(), "rust programming".to_string());
-        fields.insert("body".to_string(), "a book about the rust programming language".to_string());
+        fields.insert(
+            "body".to_string(),
+            "a book about the rust programming language".to_string(),
+        );
         s.add_document_fields("d1", &fields);
 
         let score = s.score("d1", "rust");
@@ -458,12 +470,21 @@ mod tests {
         let mut s = Bm25Scorer::new();
         let mut fields = HashMap::new();
         fields.insert("title".to_string(), "rust programming".to_string());
-        fields.insert("body".to_string(), "a book about the rust programming language".to_string());
+        fields.insert(
+            "body".to_string(),
+            "a book about the rust programming language".to_string(),
+        );
         s.add_document_fields("d1", &fields);
 
         let weights = vec![
-            FieldWeight { field: "title".to_string(), weight: 3.0 },
-            FieldWeight { field: "body".to_string(), weight: 1.0 },
+            FieldWeight {
+                field: "title".to_string(),
+                weight: 3.0,
+            },
+            FieldWeight {
+                field: "body".to_string(),
+                weight: 1.0,
+            },
         ];
         let weighted = s.score_weighted("d1", "rust", &weights);
         let uniform = s.score("d1", "rust");
@@ -556,8 +577,14 @@ mod tests {
         s.add_document_fields("d2", &f2);
 
         let weights = vec![
-            FieldWeight { field: "title".to_string(), weight: 5.0 },
-            FieldWeight { field: "body".to_string(), weight: 1.0 },
+            FieldWeight {
+                field: "title".to_string(),
+                weight: 5.0,
+            },
+            FieldWeight {
+                field: "body".to_string(),
+                weight: 1.0,
+            },
         ];
         let results = s.search_weighted("rust", &weights);
         assert!(!results.is_empty());

@@ -40,7 +40,10 @@ impl fmt::Display for TrajectoryError {
             Self::LambertNoConverge => write!(f, "Lambert solver did not converge"),
             Self::NonPositiveVelocity(v) => write!(f, "velocity must be positive, got {v}"),
             Self::InvalidPeriapsis(rp) => write!(f, "invalid periapsis: {rp}"),
-            Self::BudgetExceeded { available, required } => {
+            Self::BudgetExceeded {
+                available,
+                required,
+            } => {
                 write!(f, "dv budget exceeded: need {required}, have {available}")
             }
             Self::EmptySequence => write!(f, "maneuver sequence is empty"),
@@ -61,7 +64,11 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
@@ -89,28 +96,56 @@ impl Vec3 {
 
     pub fn normalized(self) -> Self {
         let m = self.magnitude();
-        if m < 1e-30 { Self::ZERO } else { self * (1.0 / m) }
+        if m < 1e-30 {
+            Self::ZERO
+        } else {
+            self * (1.0 / m)
+        }
     }
 }
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 
 impl std::ops::Mul<f64> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 
 impl std::ops::Neg for Vec3 {
     type Output = Self;
-    fn neg(self) -> Self { Self { x: -self.x, y: -self.y, z: -self.z } }
+    fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
 }
 
 // ── Impulsive Maneuver ──────────────────────────────────────────
@@ -147,7 +182,9 @@ pub struct ManeuverSequence {
 
 impl ManeuverSequence {
     pub fn new() -> Self {
-        Self { maneuvers: Vec::new() }
+        Self {
+            maneuvers: Vec::new(),
+        }
     }
 
     pub fn add(&mut self, m: ImpulsiveManeuver) {
@@ -169,8 +206,16 @@ impl ManeuverSequence {
         if self.maneuvers.is_empty() {
             return 0.0;
         }
-        let t_min = self.maneuvers.iter().map(|m| m.time).fold(f64::MAX, f64::min);
-        let t_max = self.maneuvers.iter().map(|m| m.time).fold(f64::MIN, f64::max);
+        let t_min = self
+            .maneuvers
+            .iter()
+            .map(|m| m.time)
+            .fold(f64::MAX, f64::min);
+        let t_max = self
+            .maneuvers
+            .iter()
+            .map(|m| m.time)
+            .fold(f64::MIN, f64::max);
         t_max - t_min
     }
 
@@ -178,7 +223,10 @@ impl ManeuverSequence {
     pub fn check_budget(&self, budget: f64) -> Result<f64, TrajectoryError> {
         let total = self.total_dv();
         if total > budget {
-            Err(TrajectoryError::BudgetExceeded { available: budget, required: total })
+            Err(TrajectoryError::BudgetExceeded {
+                available: budget,
+                required: total,
+            })
         } else {
             Ok(budget - total)
         }
@@ -198,9 +246,15 @@ pub struct HohmannResult {
 }
 
 pub fn hohmann_transfer(r1: f64, r2: f64, mu: f64) -> Result<HohmannResult, TrajectoryError> {
-    if r1 <= 0.0 { return Err(TrajectoryError::NonPositiveRadius(r1)); }
-    if r2 <= 0.0 { return Err(TrajectoryError::NonPositiveRadius(r2)); }
-    if mu <= 0.0 { return Err(TrajectoryError::NonPositiveMu(mu)); }
+    if r1 <= 0.0 {
+        return Err(TrajectoryError::NonPositiveRadius(r1));
+    }
+    if r2 <= 0.0 {
+        return Err(TrajectoryError::NonPositiveRadius(r2));
+    }
+    if mu <= 0.0 {
+        return Err(TrajectoryError::NonPositiveMu(mu));
+    }
     let a_t = (r1 + r2) / 2.0;
     let v1 = (mu / r1).sqrt();
     let v2 = (mu / r2).sqrt();
@@ -209,7 +263,13 @@ pub fn hohmann_transfer(r1: f64, r2: f64, mu: f64) -> Result<HohmannResult, Traj
     let dv1 = (v_t1 - v1).abs();
     let dv2 = (v2 - v_t2).abs();
     let tt = PI * (a_t.powi(3) / mu).sqrt();
-    Ok(HohmannResult { dv1, dv2, total_dv: dv1 + dv2, transfer_time: tt, transfer_sma: a_t })
+    Ok(HohmannResult {
+        dv1,
+        dv2,
+        total_dv: dv1 + dv2,
+        transfer_time: tt,
+        transfer_sma: a_t,
+    })
 }
 
 // ── Bi-Elliptic Transfer ────────────────────────────────────────
@@ -230,10 +290,18 @@ pub fn bi_elliptic_transfer(
     r_intermediate: f64,
     mu: f64,
 ) -> Result<BiEllipticResult, TrajectoryError> {
-    if r1 <= 0.0 { return Err(TrajectoryError::NonPositiveRadius(r1)); }
-    if r2 <= 0.0 { return Err(TrajectoryError::NonPositiveRadius(r2)); }
-    if r_intermediate <= 0.0 { return Err(TrajectoryError::NonPositiveRadius(r_intermediate)); }
-    if mu <= 0.0 { return Err(TrajectoryError::NonPositiveMu(mu)); }
+    if r1 <= 0.0 {
+        return Err(TrajectoryError::NonPositiveRadius(r1));
+    }
+    if r2 <= 0.0 {
+        return Err(TrajectoryError::NonPositiveRadius(r2));
+    }
+    if r_intermediate <= 0.0 {
+        return Err(TrajectoryError::NonPositiveRadius(r_intermediate));
+    }
+    if mu <= 0.0 {
+        return Err(TrajectoryError::NonPositiveMu(mu));
+    }
 
     let a1 = (r1 + r_intermediate) / 2.0;
     let a2 = (r2 + r_intermediate) / 2.0;
@@ -250,7 +318,13 @@ pub fn bi_elliptic_transfer(
     let dv3 = (v_c2 - v_t2_peri).abs();
     let tt = PI * (a1.powi(3) / mu).sqrt() + PI * (a2.powi(3) / mu).sqrt();
 
-    Ok(BiEllipticResult { dv1, dv2, dv3, total_dv: dv1 + dv2 + dv3, transfer_time: tt })
+    Ok(BiEllipticResult {
+        dv1,
+        dv2,
+        dv3,
+        total_dv: dv1 + dv2 + dv3,
+        transfer_time: tt,
+    })
 }
 
 // ── Gravity Assist ──────────────────────────────────────────────
@@ -276,9 +350,15 @@ pub fn gravity_assist(
     mu_planet: f64,
     v_planet: f64,
 ) -> Result<GravityAssist, TrajectoryError> {
-    if v_inf <= 0.0 { return Err(TrajectoryError::NonPositiveVelocity(v_inf)); }
-    if r_periapsis <= 0.0 { return Err(TrajectoryError::InvalidPeriapsis(r_periapsis)); }
-    if mu_planet <= 0.0 { return Err(TrajectoryError::NonPositiveMu(mu_planet)); }
+    if v_inf <= 0.0 {
+        return Err(TrajectoryError::NonPositiveVelocity(v_inf));
+    }
+    if r_periapsis <= 0.0 {
+        return Err(TrajectoryError::InvalidPeriapsis(r_periapsis));
+    }
+    if mu_planet <= 0.0 {
+        return Err(TrajectoryError::NonPositiveMu(mu_planet));
+    }
 
     // Semi-major axis of hyperbola: a = -mu / v_inf^2
     let _a = mu_planet / (v_inf * v_inf);
@@ -291,7 +371,11 @@ pub fn gravity_assist(
     // True dv_gained depends on geometry; use simplified estimate.
     let dv_gained = if v_planet > 0.0 { dv } else { dv };
 
-    Ok(GravityAssist { deflection, dv_gained: dv_gained.min(2.0 * v_inf), periapsis: r_periapsis })
+    Ok(GravityAssist {
+        deflection,
+        dv_gained: dv_gained.min(2.0 * v_inf),
+        periapsis: r_periapsis,
+    })
 }
 
 // ── Lambert's Problem ───────────────────────────────────────────
@@ -316,8 +400,12 @@ pub fn solve_lambert(
     mu: f64,
     prograde: bool,
 ) -> Result<LambertSolution, TrajectoryError> {
-    if tof <= 0.0 { return Err(TrajectoryError::NonPositiveToF(tof)); }
-    if mu <= 0.0 { return Err(TrajectoryError::NonPositiveMu(mu)); }
+    if tof <= 0.0 {
+        return Err(TrajectoryError::NonPositiveToF(tof));
+    }
+    if mu <= 0.0 {
+        return Err(TrajectoryError::NonPositiveMu(mu));
+    }
 
     let r1_mag = r1.magnitude();
     let r2_mag = r2.magnitude();
@@ -350,10 +438,14 @@ pub fn solve_lambert(
         let f_val = 1.0 - r2_mag / p * (1.0 - cos_dnu);
         let g_val = r1_mag * r2_mag * dnu.sin() / (mu * p).sqrt();
         let g_dot = 1.0 - r1_mag / p * (1.0 - cos_dnu);
-        let a = mu / (2.0 * mu / r1_mag - (r2_mag - f_val * r1_mag).powi(2) / (g_val * g_val)
-            - (g_dot * g_val - f_val * r1_mag).powi(2) / (g_val * g_val * mu / r1_mag)).max(1e-10);
+        let a = mu
+            / (2.0 * mu / r1_mag
+                - (r2_mag - f_val * r1_mag).powi(2) / (g_val * g_val)
+                - (g_dot * g_val - f_val * r1_mag).powi(2) / (g_val * g_val * mu / r1_mag))
+                .max(1e-10);
         // Approximate: tof ≈ g / (1 if circular) or more complex for elliptical
-        g_val.abs() / (1.0 - (1.0 - r1_mag / a) * (1.0 - f_val) / (1.0 - cos_dnu).max(1e-10)).max(0.01)
+        g_val.abs()
+            / (1.0 - (1.0 - r1_mag / a) * (1.0 - f_val) / (1.0 - cos_dnu).max(1e-10)).max(0.01)
     };
 
     // Bisection to find p that matches the TOF.
@@ -387,9 +479,16 @@ pub fn solve_lambert(
 
     let v1 = (r2 - r1 * f_val) * (1.0 / g_val);
     let v2 = (r2 * g_dot - r1) * (1.0 / g_val);
-    let sma = p / (1.0 - (1.0 - p / r1_mag).powi(2) - (v1.magnitude_sq() * p / mu - 1.0).powi(2)).abs().max(1e-10);
+    let sma = p
+        / (1.0 - (1.0 - p / r1_mag).powi(2) - (v1.magnitude_sq() * p / mu - 1.0).powi(2))
+            .abs()
+            .max(1e-10);
 
-    Ok(LambertSolution { v1, v2, sma: sma.abs() })
+    Ok(LambertSolution {
+        v1,
+        v2,
+        sma: sma.abs(),
+    })
 }
 
 // ── Porkchop Plot ───────────────────────────────────────────────
@@ -420,15 +519,29 @@ pub fn porkchop_plot(
     n_depart: usize,
     n_arrive: usize,
 ) -> Result<Vec<PorkchopEntry>, TrajectoryError> {
-    if r1 <= 0.0 { return Err(TrajectoryError::NonPositiveRadius(r1)); }
-    if r2 <= 0.0 { return Err(TrajectoryError::NonPositiveRadius(r2)); }
-    if mu <= 0.0 { return Err(TrajectoryError::NonPositiveMu(mu)); }
+    if r1 <= 0.0 {
+        return Err(TrajectoryError::NonPositiveRadius(r1));
+    }
+    if r2 <= 0.0 {
+        return Err(TrajectoryError::NonPositiveRadius(r2));
+    }
+    if mu <= 0.0 {
+        return Err(TrajectoryError::NonPositiveMu(mu));
+    }
     if n_depart == 0 || n_arrive == 0 {
         return Err(TrajectoryError::EmptySequence);
     }
 
-    let dt_dep = if n_depart > 1 { (t_depart_range.1 - t_depart_range.0) / (n_depart - 1) as f64 } else { 0.0 };
-    let dt_arr = if n_arrive > 1 { (t_arrive_range.1 - t_arrive_range.0) / (n_arrive - 1) as f64 } else { 0.0 };
+    let dt_dep = if n_depart > 1 {
+        (t_depart_range.1 - t_depart_range.0) / (n_depart - 1) as f64
+    } else {
+        0.0
+    };
+    let dt_arr = if n_arrive > 1 {
+        (t_arrive_range.1 - t_arrive_range.0) / (n_arrive - 1) as f64
+    } else {
+        0.0
+    };
     let v_c1 = (mu / r1).sqrt();
     let v_c2 = (mu / r2).sqrt();
 
@@ -453,8 +566,10 @@ pub fn porkchop_plot(
             let pos2 = Vec3::new(r2 * theta2.cos(), r2 * theta2.sin(), 0.0);
 
             if let Ok(sol) = solve_lambert(pos1, pos2, tof, mu, true) {
-                let dv_dep = (sol.v1 - Vec3::new(-v_c1 * theta1.sin(), v_c1 * theta1.cos(), 0.0)).magnitude();
-                let dv_arr = (sol.v2 - Vec3::new(-v_c2 * theta2.sin(), v_c2 * theta2.cos(), 0.0)).magnitude();
+                let dv_dep = (sol.v1 - Vec3::new(-v_c1 * theta1.sin(), v_c1 * theta1.cos(), 0.0))
+                    .magnitude();
+                let dv_arr = (sol.v2 - Vec3::new(-v_c2 * theta2.sin(), v_c2 * theta2.cos(), 0.0))
+                    .magnitude();
                 entries.push(PorkchopEntry {
                     t_depart: t_dep,
                     t_arrive: t_arr,
@@ -486,10 +601,18 @@ pub fn low_thrust_spiral(
     mu: f64,
     thrust_accel: f64,
 ) -> Result<LowThrustResult, TrajectoryError> {
-    if r1 <= 0.0 { return Err(TrajectoryError::NonPositiveRadius(r1)); }
-    if r2 <= 0.0 { return Err(TrajectoryError::NonPositiveRadius(r2)); }
-    if mu <= 0.0 { return Err(TrajectoryError::NonPositiveMu(mu)); }
-    if thrust_accel <= 0.0 { return Err(TrajectoryError::NonPositiveVelocity(thrust_accel)); }
+    if r1 <= 0.0 {
+        return Err(TrajectoryError::NonPositiveRadius(r1));
+    }
+    if r2 <= 0.0 {
+        return Err(TrajectoryError::NonPositiveRadius(r2));
+    }
+    if mu <= 0.0 {
+        return Err(TrajectoryError::NonPositiveMu(mu));
+    }
+    if thrust_accel <= 0.0 {
+        return Err(TrajectoryError::NonPositiveVelocity(thrust_accel));
+    }
 
     let v1 = (mu / r1).sqrt();
     let v2 = (mu / r2).sqrt();
@@ -500,7 +623,11 @@ pub fn low_thrust_spiral(
     let avg_period = PI * ((r1 + r2) / 2.0).powf(1.5) / mu.sqrt();
     let revolutions = transfer_time / avg_period;
 
-    Ok(LowThrustResult { dv, transfer_time, revolutions })
+    Ok(LowThrustResult {
+        dv,
+        transfer_time,
+        revolutions,
+    })
 }
 
 // ── Escape / Capture ────────────────────────────────────────────
@@ -601,8 +728,16 @@ mod tests {
     #[test]
     fn maneuver_sequence_total_dv() {
         let mut seq = ManeuverSequence::new();
-        seq.add(ImpulsiveManeuver::new(Vec3::new(1.0, 0.0, 0.0), 0.0, "burn1"));
-        seq.add(ImpulsiveManeuver::new(Vec3::new(0.0, 2.0, 0.0), 100.0, "burn2"));
+        seq.add(ImpulsiveManeuver::new(
+            Vec3::new(1.0, 0.0, 0.0),
+            0.0,
+            "burn1",
+        ));
+        seq.add(ImpulsiveManeuver::new(
+            Vec3::new(0.0, 2.0, 0.0),
+            100.0,
+            "burn2",
+        ));
         assert!(approx_eq(seq.total_dv(), 3.0, 1e-10));
         assert_eq!(seq.burn_count(), 2);
         assert!(approx_eq(seq.time_span(), 100.0, 1e-10));
@@ -611,7 +746,11 @@ mod tests {
     #[test]
     fn budget_check_pass() {
         let mut seq = ManeuverSequence::new();
-        seq.add(ImpulsiveManeuver::new(Vec3::new(1.0, 0.0, 0.0), 0.0, "burn"));
+        seq.add(ImpulsiveManeuver::new(
+            Vec3::new(1.0, 0.0, 0.0),
+            0.0,
+            "burn",
+        ));
         let remaining = seq.check_budget(5.0).unwrap();
         assert!(approx_eq(remaining, 4.0, 1e-10));
     }
@@ -619,7 +758,11 @@ mod tests {
     #[test]
     fn budget_check_fail() {
         let mut seq = ManeuverSequence::new();
-        seq.add(ImpulsiveManeuver::new(Vec3::new(3.0, 4.0, 0.0), 0.0, "burn"));
+        seq.add(ImpulsiveManeuver::new(
+            Vec3::new(3.0, 4.0, 0.0),
+            0.0,
+            "burn",
+        ));
         assert!(seq.check_budget(4.0).is_err());
     }
 
@@ -639,12 +782,30 @@ mod tests {
 
     #[test]
     fn lambert_invalid_tof() {
-        assert!(solve_lambert(Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), -1.0, 1.0, true).is_err());
+        assert!(
+            solve_lambert(
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                -1.0,
+                1.0,
+                true
+            )
+            .is_err()
+        );
     }
 
     #[test]
     fn lambert_invalid_mu() {
-        assert!(solve_lambert(Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), 1.0, -1.0, true).is_err());
+        assert!(
+            solve_lambert(
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                1.0,
+                -1.0,
+                true
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -673,7 +834,11 @@ mod tests {
     fn capture_equals_escape() {
         let v_inf = 3.0;
         let v_c = 7.0;
-        assert!(approx_eq(escape_dv(v_inf, v_c), capture_dv(v_inf, v_c), 1e-10));
+        assert!(approx_eq(
+            escape_dv(v_inf, v_c),
+            capture_dv(v_inf, v_c),
+            1e-10
+        ));
     }
 
     #[test]

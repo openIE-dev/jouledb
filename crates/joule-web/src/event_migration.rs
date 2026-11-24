@@ -15,49 +15,112 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MigrationError {
     /// Upcaster not found for event type / version pair.
-    UpcasterNotFound { event_type: String, from_version: u32 },
+    UpcasterNotFound {
+        event_type: String,
+        from_version: u32,
+    },
     /// Downcaster not found.
-    DowncasterNotFound { event_type: String, from_version: u32 },
+    DowncasterNotFound {
+        event_type: String,
+        from_version: u32,
+    },
     /// Upcaster chain broken (gap in versions).
-    ChainBroken { event_type: String, from: u32, to: u32 },
+    ChainBroken {
+        event_type: String,
+        from: u32,
+        to: u32,
+    },
     /// Migration failed during transformation.
-    TransformError { event_type: String, version: u32, reason: String },
+    TransformError {
+        event_type: String,
+        version: u32,
+        reason: String,
+    },
     /// Breaking change detected.
-    BreakingChange { event_type: String, field: String, description: String },
+    BreakingChange {
+        event_type: String,
+        field: String,
+        description: String,
+    },
     /// Duplicate upcaster registration.
-    DuplicateUpcaster { event_type: String, from_version: u32 },
+    DuplicateUpcaster {
+        event_type: String,
+        from_version: u32,
+    },
     /// Invalid version.
-    InvalidVersion { event_type: String, version: u32, reason: String },
+    InvalidVersion {
+        event_type: String,
+        version: u32,
+        reason: String,
+    },
     /// Dry-run failure.
-    DryRunFailure { event_type: String, failures: Vec<String> },
+    DryRunFailure {
+        event_type: String,
+        failures: Vec<String>,
+    },
 }
 
 impl std::fmt::Display for MigrationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UpcasterNotFound { event_type, from_version } => {
+            Self::UpcasterNotFound {
+                event_type,
+                from_version,
+            } => {
                 write!(f, "no upcaster for {event_type} v{from_version}")
             }
-            Self::DowncasterNotFound { event_type, from_version } => {
+            Self::DowncasterNotFound {
+                event_type,
+                from_version,
+            } => {
                 write!(f, "no downcaster for {event_type} v{from_version}")
             }
-            Self::ChainBroken { event_type, from, to } => {
-                write!(f, "upcaster chain broken for {event_type}: v{from} -> v{to}")
+            Self::ChainBroken {
+                event_type,
+                from,
+                to,
+            } => {
+                write!(
+                    f,
+                    "upcaster chain broken for {event_type}: v{from} -> v{to}"
+                )
             }
-            Self::TransformError { event_type, version, reason } => {
+            Self::TransformError {
+                event_type,
+                version,
+                reason,
+            } => {
                 write!(f, "transform error for {event_type} v{version}: {reason}")
             }
-            Self::BreakingChange { event_type, field, description } => {
+            Self::BreakingChange {
+                event_type,
+                field,
+                description,
+            } => {
                 write!(f, "breaking change in {event_type}.{field}: {description}")
             }
-            Self::DuplicateUpcaster { event_type, from_version } => {
+            Self::DuplicateUpcaster {
+                event_type,
+                from_version,
+            } => {
                 write!(f, "duplicate upcaster for {event_type} v{from_version}")
             }
-            Self::InvalidVersion { event_type, version, reason } => {
+            Self::InvalidVersion {
+                event_type,
+                version,
+                reason,
+            } => {
                 write!(f, "invalid version for {event_type} v{version}: {reason}")
             }
-            Self::DryRunFailure { event_type, failures } => {
-                write!(f, "dry-run failed for {event_type}: {} issues", failures.len())
+            Self::DryRunFailure {
+                event_type,
+                failures,
+            } => {
+                write!(
+                    f,
+                    "dry-run failed for {event_type}: {} issues",
+                    failures.len()
+                )
             }
         }
     }
@@ -86,7 +149,12 @@ impl VersionedEvent {
     ) -> Self {
         let et = event_type.into();
         Self {
-            event_id: format!("{}-v{}-{}", et, schema_version, Utc::now().timestamp_nanos_opt().unwrap_or(0)),
+            event_id: format!(
+                "{}-v{}-{}",
+                et,
+                schema_version,
+                Utc::now().timestamp_nanos_opt().unwrap_or(0)
+            ),
             event_type: et,
             schema_version,
             data,
@@ -119,13 +187,20 @@ impl VersionedEvent {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SchemaChange {
     /// A field was added (with a default value).
-    FieldAdded { field: String, default_value: String },
+    FieldAdded {
+        field: String,
+        default_value: String,
+    },
     /// A field was removed.
     FieldRemoved { field: String },
     /// A field was renamed.
     FieldRenamed { old_name: String, new_name: String },
     /// A field type changed.
-    FieldTypeChanged { field: String, old_type: String, new_type: String },
+    FieldTypeChanged {
+        field: String,
+        old_type: String,
+        new_type: String,
+    },
     /// A field value was transformed.
     FieldTransformed { field: String, description: String },
 }
@@ -135,8 +210,7 @@ impl SchemaChange {
     pub fn is_breaking(&self) -> bool {
         matches!(
             self,
-            SchemaChange::FieldRemoved { .. }
-                | SchemaChange::FieldTypeChanged { .. }
+            SchemaChange::FieldRemoved { .. } | SchemaChange::FieldTypeChanged { .. }
         )
     }
 }
@@ -170,7 +244,10 @@ impl Upcaster {
         }
     }
 
-    pub fn transform(&self, data: &HashMap<String, String>) -> Result<HashMap<String, String>, String> {
+    pub fn transform(
+        &self,
+        data: &HashMap<String, String>,
+    ) -> Result<HashMap<String, String>, String> {
         (self.transform_fn)(data)
     }
 }
@@ -212,7 +289,10 @@ impl Downcaster {
         }
     }
 
-    pub fn transform(&self, data: &HashMap<String, String>) -> Result<HashMap<String, String>, String> {
+    pub fn transform(
+        &self,
+        data: &HashMap<String, String>,
+    ) -> Result<HashMap<String, String>, String> {
         (self.transform_fn)(data)
     }
 }
@@ -327,13 +407,13 @@ impl EventMigrationRegistry {
 
         while current.schema_version < target_version {
             let key = (current.event_type.clone(), current.schema_version);
-            let upcaster = self
-                .upcasters
-                .get(&key)
-                .ok_or_else(|| MigrationError::UpcasterNotFound {
-                    event_type: current.event_type.clone(),
-                    from_version: current.schema_version,
-                })?;
+            let upcaster =
+                self.upcasters
+                    .get(&key)
+                    .ok_or_else(|| MigrationError::UpcasterNotFound {
+                        event_type: current.event_type.clone(),
+                        from_version: current.schema_version,
+                    })?;
 
             // Validate chain continuity.
             if upcaster.to_version != current.schema_version + 1 {
@@ -389,13 +469,13 @@ impl EventMigrationRegistry {
 
         while current.schema_version > target_version {
             let key = (current.event_type.clone(), current.schema_version);
-            let downcaster = self
-                .downcasters
-                .get(&key)
-                .ok_or_else(|| MigrationError::DowncasterNotFound {
-                    event_type: current.event_type.clone(),
-                    from_version: current.schema_version,
-                })?;
+            let downcaster =
+                self.downcasters
+                    .get(&key)
+                    .ok_or_else(|| MigrationError::DowncasterNotFound {
+                        event_type: current.event_type.clone(),
+                        from_version: current.schema_version,
+                    })?;
 
             let new_data = downcaster.transform(&current.data).map_err(|reason| {
                 MigrationError::TransformError {
@@ -434,11 +514,7 @@ impl EventMigrationRegistry {
     }
 
     /// Run migration on a batch of events.
-    pub fn migrate_batch(
-        &self,
-        events: &[VersionedEvent],
-        target_version: u32,
-    ) -> MigrationResult {
+    pub fn migrate_batch(&self, events: &[VersionedEvent], target_version: u32) -> MigrationResult {
         let mut result = MigrationResult {
             events_processed: events.len(),
             events_migrated: 0,
@@ -466,11 +542,7 @@ impl EventMigrationRegistry {
     }
 
     /// Dry-run a migration (check without applying).
-    pub fn dry_run(
-        &self,
-        events: &[VersionedEvent],
-        target_version: u32,
-    ) -> DryRunResult {
+    pub fn dry_run(&self, events: &[VersionedEvent], target_version: u32) -> DryRunResult {
         let mut result = DryRunResult {
             events_checked: events.len(),
             would_migrate: 0,
@@ -558,7 +630,9 @@ mod tests {
     fn v1_to_v2(data: &HashMap<String, String>) -> Result<HashMap<String, String>, String> {
         let mut new_data = data.clone();
         // v2 adds "email" field with default.
-        new_data.entry("email".to_string()).or_insert_with(|| "unknown@example.com".to_string());
+        new_data
+            .entry("email".to_string())
+            .or_insert_with(|| "unknown@example.com".to_string());
         Ok(new_data)
     }
 
@@ -627,7 +701,10 @@ mod tests {
 
         assert_eq!(upcasted.schema_version, 2);
         assert_eq!(upcasted.data.get("name").map(|s| s.as_str()), Some("Alice"));
-        assert_eq!(upcasted.data.get("email").map(|s| s.as_str()), Some("unknown@example.com"));
+        assert_eq!(
+            upcasted.data.get("email").map(|s| s.as_str()),
+            Some("unknown@example.com")
+        );
     }
 
     #[test]
@@ -637,8 +714,14 @@ mod tests {
         let upcasted = reg.upcast(&event, 3).unwrap();
 
         assert_eq!(upcasted.schema_version, 3);
-        assert_eq!(upcasted.data.get("full_name").map(|s| s.as_str()), Some("Alice"));
-        assert_eq!(upcasted.data.get("email").map(|s| s.as_str()), Some("unknown@example.com"));
+        assert_eq!(
+            upcasted.data.get("full_name").map(|s| s.as_str()),
+            Some("Alice")
+        );
+        assert_eq!(
+            upcasted.data.get("email").map(|s| s.as_str()),
+            Some("unknown@example.com")
+        );
         assert!(upcasted.data.get("name").is_none()); // Renamed.
     }
 
@@ -678,7 +761,10 @@ mod tests {
 
         let downcasted = reg.downcast(&event, 1).unwrap();
         assert_eq!(downcasted.schema_version, 1);
-        assert_eq!(downcasted.data.get("name").map(|s| s.as_str()), Some("Alice"));
+        assert_eq!(
+            downcasted.data.get("name").map(|s| s.as_str()),
+            Some("Alice")
+        );
         assert!(downcasted.data.get("email").is_none());
         assert!(downcasted.data.get("full_name").is_none());
     }
@@ -725,7 +811,9 @@ mod tests {
             "OrderPlaced",
             1,
             2,
-            vec![SchemaChange::FieldRemoved { field: "legacy_id".to_string() }],
+            vec![SchemaChange::FieldRemoved {
+                field: "legacy_id".to_string(),
+            }],
             |data| {
                 let mut d = data.clone();
                 d.remove("legacy_id");
@@ -741,15 +829,29 @@ mod tests {
 
     #[test]
     fn test_schema_change_is_breaking() {
-        assert!(!SchemaChange::FieldAdded { field: "x".into(), default_value: "".into() }.is_breaking());
-        assert!(!SchemaChange::FieldRenamed { old_name: "a".into(), new_name: "b".into() }.is_breaking());
+        assert!(
+            !SchemaChange::FieldAdded {
+                field: "x".into(),
+                default_value: "".into()
+            }
+            .is_breaking()
+        );
+        assert!(
+            !SchemaChange::FieldRenamed {
+                old_name: "a".into(),
+                new_name: "b".into()
+            }
+            .is_breaking()
+        );
         assert!(SchemaChange::FieldRemoved { field: "x".into() }.is_breaking());
-        assert!(SchemaChange::FieldTypeChanged {
-            field: "x".into(),
-            old_type: "str".into(),
-            new_type: "int".into(),
-        }
-        .is_breaking());
+        assert!(
+            SchemaChange::FieldTypeChanged {
+                field: "x".into(),
+                old_type: "str".into(),
+                new_type: "int".into(),
+            }
+            .is_breaking()
+        );
     }
 
     #[test]
@@ -775,10 +877,7 @@ mod tests {
     #[test]
     fn test_dry_run_safe() {
         let reg = build_registry();
-        let events = vec![
-            make_v1_event("name", "Alice"),
-            make_v1_event("name", "Bob"),
-        ];
+        let events = vec![make_v1_event("name", "Alice"), make_v1_event("name", "Bob")];
 
         let result = reg.dry_run(&events, 3);
         assert!(result.is_safe());
@@ -794,7 +893,9 @@ mod tests {
             "Order",
             1,
             2,
-            vec![SchemaChange::FieldRemoved { field: "old".into() }],
+            vec![SchemaChange::FieldRemoved {
+                field: "old".into(),
+            }],
             |data| Ok(data.clone()),
         ))
         .unwrap();
@@ -833,19 +934,18 @@ mod tests {
         let mut meta = HashMap::new();
         meta.insert("source".to_string(), "test".to_string());
         let event = make_v1_event("name", "Alice").with_metadata(meta);
-        assert_eq!(event.metadata.get("source").map(|s| s.as_str()), Some("test"));
+        assert_eq!(
+            event.metadata.get("source").map(|s| s.as_str()),
+            Some("test")
+        );
     }
 
     #[test]
     fn test_transform_error() {
         let mut reg = EventMigrationRegistry::new();
-        reg.register_upcaster(Upcaster::new(
-            "Bad",
-            1,
-            2,
-            vec![],
-            |_| Err("bad transform".to_string()),
-        ))
+        reg.register_upcaster(Upcaster::new("Bad", 1, 2, vec![], |_| {
+            Err("bad transform".to_string())
+        }))
         .unwrap();
 
         let event = VersionedEvent::new("Bad", 1, HashMap::new());

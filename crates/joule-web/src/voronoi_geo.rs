@@ -86,12 +86,18 @@ impl VoronoiGeoConfig {
 }
 
 impl Default for VoronoiGeoConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for VoronoiGeoConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "VoronoiGeoConfig(bound_min_x={0:.4}, bound_max_x={1:.4}, bound_min_y={2:.4}, bound_max_y={3:.4})", self.bound_min_x, self.bound_max_x, self.bound_min_y, self.bound_max_y)
+        write!(
+            f,
+            "VoronoiGeoConfig(bound_min_x={0:.4}, bound_max_x={1:.4}, bound_min_y={2:.4}, bound_max_y={3:.4})",
+            self.bound_min_x, self.bound_max_x, self.bound_min_y, self.bound_max_y
+        )
     }
 }
 
@@ -107,7 +113,10 @@ pub struct VoronoiGeo {
 impl VoronoiGeo {
     pub fn new(config: VoronoiGeoConfig) -> Result<Self, VoronoiGeoError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -119,32 +128,46 @@ impl VoronoiGeo {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &VoronoiGeoConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &VoronoiGeoConfig {
+        &self.config
+    }
 
     /// Compute Voronoi cells.
     pub fn compute_voronoi(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Compute Delaunay triangulation.
     pub fn delaunay(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Find nearest Voronoi site.
     pub fn nearest_site(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -156,7 +179,9 @@ impl VoronoiGeo {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -168,7 +193,11 @@ impl VoronoiGeo {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -241,7 +270,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = VoronoiGeo::new(VoronoiGeoConfig::new()).unwrap()
+        let e = VoronoiGeo::new(VoronoiGeoConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -257,7 +287,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = VoronoiGeo::new(VoronoiGeoConfig::new()).unwrap()
+        let e = VoronoiGeo::new(VoronoiGeoConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("VoronoiGeo"));
@@ -265,7 +296,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = VoronoiGeo::new(VoronoiGeoConfig::new()).unwrap()
+        let e = VoronoiGeo::new(VoronoiGeoConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -276,7 +308,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = VoronoiGeo::new(VoronoiGeoConfig::new()).unwrap()
+        let e = VoronoiGeo::new(VoronoiGeoConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -284,7 +317,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = VoronoiGeo::new(VoronoiGeoConfig::new()).unwrap()
+        let e = VoronoiGeo::new(VoronoiGeoConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -301,7 +335,8 @@ mod tests {
 
     #[test]
     fn test_compute_voronoi() {
-        let e = VoronoiGeo::new(VoronoiGeoConfig::new()).unwrap()
+        let e = VoronoiGeo::new(VoronoiGeoConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.compute_voronoi();
         assert!(!result.is_empty());
@@ -309,7 +344,8 @@ mod tests {
 
     #[test]
     fn test_delaunay() {
-        let e = VoronoiGeo::new(VoronoiGeoConfig::new()).unwrap()
+        let e = VoronoiGeo::new(VoronoiGeoConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.delaunay();
         assert!(!result.is_empty());
@@ -317,7 +353,8 @@ mod tests {
 
     #[test]
     fn test_nearest_site() {
-        let e = VoronoiGeo::new(VoronoiGeoConfig::new()).unwrap()
+        let e = VoronoiGeo::new(VoronoiGeoConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.nearest_site();
         assert!(!result.is_empty());

@@ -13,18 +13,31 @@ pub struct DenseMat {
 
 impl DenseMat {
     pub fn zeros(rows: usize, cols: usize) -> Self {
-        Self { rows, cols, data: vec![0.0; rows * cols] }
+        Self {
+            rows,
+            cols,
+            data: vec![0.0; rows * cols],
+        }
     }
     pub fn from_data(rows: usize, cols: usize, data: Vec<f64>) -> Self {
-        assert_eq!(data.len(), rows * cols); Self { rows, cols, data }
+        assert_eq!(data.len(), rows * cols);
+        Self { rows, cols, data }
     }
     pub fn identity(n: usize) -> Self {
         let mut m = Self::zeros(n, n);
-        for i in 0..n { m.set(i, i, 1.0); }
+        for i in 0..n {
+            m.set(i, i, 1.0);
+        }
         m
     }
-    #[inline] pub fn get(&self, r: usize, c: usize) -> f64 { self.data[r * self.cols + c] }
-    #[inline] pub fn set(&mut self, r: usize, c: usize, v: f64) { self.data[r * self.cols + c] = v; }
+    #[inline]
+    pub fn get(&self, r: usize, c: usize) -> f64 {
+        self.data[r * self.cols + c]
+    }
+    #[inline]
+    pub fn set(&mut self, r: usize, c: usize, v: f64) {
+        self.data[r * self.cols + c] = v;
+    }
 
     pub fn mul(&self, other: &Self) -> Self {
         assert_eq!(self.cols, other.rows);
@@ -32,7 +45,9 @@ impl DenseMat {
         for i in 0..self.rows {
             for j in 0..other.cols {
                 let mut s = 0.0;
-                for k in 0..self.cols { s += self.get(i, k) * other.get(k, j); }
+                for k in 0..self.cols {
+                    s += self.get(i, k) * other.get(k, j);
+                }
                 c.set(i, j, s);
             }
         }
@@ -41,7 +56,11 @@ impl DenseMat {
 
     pub fn transpose(&self) -> Self {
         let mut t = Self::zeros(self.cols, self.rows);
-        for i in 0..self.rows { for j in 0..self.cols { t.set(j, i, self.get(i, j)); } }
+        for i in 0..self.rows {
+            for j in 0..self.cols {
+                t.set(j, i, self.get(i, j));
+            }
+        }
         t
     }
 
@@ -59,9 +78,15 @@ impl DenseMat {
 
 // ── Vector helpers ────────────────────────────────────────────
 
-fn vec_norm(v: &[f64]) -> f64 { v.iter().map(|x| x * x).sum::<f64>().sqrt() }
-fn vec_dot(a: &[f64], b: &[f64]) -> f64 { a.iter().zip(b.iter()).map(|(x, y)| x * y).sum() }
-fn vec_scale(s: f64, v: &[f64]) -> Vec<f64> { v.iter().map(|x| s * x).collect() }
+fn vec_norm(v: &[f64]) -> f64 {
+    v.iter().map(|x| x * x).sum::<f64>().sqrt()
+}
+fn vec_dot(a: &[f64], b: &[f64]) -> f64 {
+    a.iter().zip(b.iter()).map(|(x, y)| x * y).sum()
+}
+fn vec_scale(s: f64, v: &[f64]) -> Vec<f64> {
+    v.iter().map(|x| s * x).collect()
+}
 fn vec_sub(a: &[f64], b: &[f64]) -> Vec<f64> {
     a.iter().zip(b.iter()).map(|(x, y)| x - y).collect()
 }
@@ -87,7 +112,9 @@ pub fn power_iteration(a: &DenseMat, max_iter: usize, tol: f64) -> EigenPair {
         let w = a.matvec(&v);
         let new_ev = vec_dot(&w, &v);
         let nw = vec_norm(&w);
-        if nw < 1e-30 { break; }
+        if nw < 1e-30 {
+            break;
+        }
         v = vec_scale(1.0 / nw, &w);
         if (new_ev - eigenvalue).abs() < tol {
             eigenvalue = new_ev;
@@ -95,7 +122,10 @@ pub fn power_iteration(a: &DenseMat, max_iter: usize, tol: f64) -> EigenPair {
         }
         eigenvalue = new_ev;
     }
-    EigenPair { value: eigenvalue, vector: v }
+    EigenPair {
+        value: eigenvalue,
+        vector: v,
+    }
 }
 
 /// Inverse iteration: find eigenvalue nearest to `shift` and its eigenvector.
@@ -119,7 +149,9 @@ pub fn inverse_iteration(a: &DenseMat, shift: f64, max_iter: usize, tol: f64) ->
         // Solve (A - shift*I) w = v  via simple Gaussian elimination.
         let w = solve_linear(&shifted, &v);
         let nw = vec_norm(&w);
-        if nw < 1e-30 { break; }
+        if nw < 1e-30 {
+            break;
+        }
         let new_v = vec_scale(1.0 / nw, &w);
         let av = a.matvec(&new_v);
         let new_ev = vec_dot(&av, &new_v);
@@ -132,7 +164,10 @@ pub fn inverse_iteration(a: &DenseMat, shift: f64, max_iter: usize, tol: f64) ->
         v = new_v;
     }
 
-    EigenPair { value: eigenvalue, vector: v }
+    EigenPair {
+        value: eigenvalue,
+        vector: v,
+    }
 }
 
 /// Simple Gaussian elimination (no pivoting) for inverse iteration.
@@ -152,7 +187,10 @@ fn solve_linear(a: &DenseMat, b: &[f64]) -> Vec<f64> {
         let mut max_val = aug[k * (n + 1) + k].abs();
         for i in (k + 1)..n {
             let v = aug[i * (n + 1) + k].abs();
-            if v > max_val { max_val = v; max_row = i; }
+            if v > max_val {
+                max_val = v;
+                max_row = i;
+            }
         }
         if max_row != k {
             for j in 0..=(n) {
@@ -162,7 +200,9 @@ fn solve_linear(a: &DenseMat, b: &[f64]) -> Vec<f64> {
             }
         }
         let pivot = aug[k * (n + 1) + k];
-        if pivot.abs() < 1e-30 { continue; }
+        if pivot.abs() < 1e-30 {
+            continue;
+        }
         for i in (k + 1)..n {
             let factor = aug[i * (n + 1) + k] / pivot;
             for j in k..=(n) {
@@ -174,7 +214,9 @@ fn solve_linear(a: &DenseMat, b: &[f64]) -> Vec<f64> {
     let mut x = vec![0.0; n];
     for i in (0..n).rev() {
         let diag = aug[i * (n + 1) + i];
-        if diag.abs() < 1e-30 { continue; }
+        if diag.abs() < 1e-30 {
+            continue;
+        }
         let mut s = aug[i * (n + 1) + n];
         for j in (i + 1)..n {
             s -= aug[i * (n + 1) + j] * x[j];
@@ -196,17 +238,23 @@ pub fn hessenberg(a: &DenseMat) -> (DenseMat, DenseMat) {
     for k in 0..(n.saturating_sub(2)) {
         let mut col: Vec<f64> = ((k + 1)..n).map(|i| h.get(i, k)).collect();
         let norm_col = vec_norm(&col);
-        if norm_col < 1e-15 { continue; }
+        if norm_col < 1e-15 {
+            continue;
+        }
 
         let sign = if col[0] >= 0.0 { 1.0 } else { -1.0 };
         col[0] += sign * norm_col;
         let v_norm_sq: f64 = col.iter().map(|x| x * x).sum();
-        if v_norm_sq < 1e-30 { continue; }
+        if v_norm_sq < 1e-30 {
+            continue;
+        }
 
         // H <- (I - 2vv^T/||v||^2) * H
         for j in k..n {
             let mut dot_val = 0.0;
-            for i in 0..col.len() { dot_val += col[i] * h.get(i + k + 1, j); }
+            for i in 0..col.len() {
+                dot_val += col[i] * h.get(i + k + 1, j);
+            }
             let coeff = 2.0 * dot_val / v_norm_sq;
             for i in 0..col.len() {
                 let old = h.get(i + k + 1, j);
@@ -216,7 +264,9 @@ pub fn hessenberg(a: &DenseMat) -> (DenseMat, DenseMat) {
         // H <- H * (I - 2vv^T/||v||^2)
         for i in 0..n {
             let mut dot_val = 0.0;
-            for j in 0..col.len() { dot_val += h.get(i, j + k + 1) * col[j]; }
+            for j in 0..col.len() {
+                dot_val += h.get(i, j + k + 1) * col[j];
+            }
             let coeff = 2.0 * dot_val / v_norm_sq;
             for j in 0..col.len() {
                 let old = h.get(i, j + k + 1);
@@ -226,7 +276,9 @@ pub fn hessenberg(a: &DenseMat) -> (DenseMat, DenseMat) {
         // Accumulate Q.
         for i in 0..n {
             let mut dot_val = 0.0;
-            for j in 0..col.len() { dot_val += q.get(i, j + k + 1) * col[j]; }
+            for j in 0..col.len() {
+                dot_val += q.get(i, j + k + 1) * col[j];
+            }
             let coeff = 2.0 * dot_val / v_norm_sq;
             for j in 0..col.len() {
                 let old = q.get(i, j + k + 1);
@@ -243,8 +295,12 @@ pub fn hessenberg(a: &DenseMat) -> (DenseMat, DenseMat) {
 /// Returns eigenvalues (real parts only — complex eigenvalues give approximate real part).
 pub fn qr_eigenvalues(a: &DenseMat, max_iter: usize) -> Vec<f64> {
     let n = a.rows;
-    if n == 0 { return Vec::new(); }
-    if n == 1 { return vec![a.get(0, 0)]; }
+    if n == 0 {
+        return Vec::new();
+    }
+    if n == 1 {
+        return vec![a.get(0, 0)];
+    }
 
     let (mut h, _) = hessenberg(a);
 
@@ -261,13 +317,19 @@ pub fn qr_eigenvalues(a: &DenseMat, max_iter: usize) -> Vec<f64> {
         let shift = if disc >= 0.0 {
             let s1 = (trace + disc.sqrt()) / 2.0;
             let s2 = (trace - disc.sqrt()) / 2.0;
-            if (s1 - a22).abs() < (s2 - a22).abs() { s1 } else { s2 }
+            if (s1 - a22).abs() < (s2 - a22).abs() {
+                s1
+            } else {
+                s2
+            }
         } else {
             a22
         };
 
         // Shift.
-        for i in 0..n { h.set(i, i, h.get(i, i) - shift); }
+        for i in 0..n {
+            h.set(i, i, h.get(i, i) - shift);
+        }
 
         // QR step via Givens rotations.
         let mut cs = Vec::with_capacity(n - 1);
@@ -276,7 +338,11 @@ pub fn qr_eigenvalues(a: &DenseMat, max_iter: usize) -> Vec<f64> {
             let a_val = h.get(i, i);
             let b_val = h.get(i + 1, i);
             let r = (a_val * a_val + b_val * b_val).sqrt();
-            let (c, s) = if r > 1e-30 { (a_val / r, -b_val / r) } else { (1.0, 0.0) };
+            let (c, s) = if r > 1e-30 {
+                (a_val / r, -b_val / r)
+            } else {
+                (1.0, 0.0)
+            };
             cs.push(c);
             sn.push(s);
             // Apply G^T from left.
@@ -299,7 +365,9 @@ pub fn qr_eigenvalues(a: &DenseMat, max_iter: usize) -> Vec<f64> {
             }
         }
         // Unshift.
-        for i in 0..n { h.set(i, i, h.get(i, i) + shift); }
+        for i in 0..n {
+            h.set(i, i, h.get(i, i) + shift);
+        }
 
         // Check for convergence: sub-diagonal near zero.
         let mut done = true;
@@ -309,7 +377,9 @@ pub fn qr_eigenvalues(a: &DenseMat, max_iter: usize) -> Vec<f64> {
                 break;
             }
         }
-        if done { break; }
+        if done {
+            break;
+        }
     }
 
     // Read eigenvalues from diagonal (with 2x2 block detection).
@@ -344,44 +414,66 @@ pub fn tridiagonalize(a: &DenseMat) -> (Vec<f64>, Vec<f64>, DenseMat) {
     for k in 0..(n.saturating_sub(2)) {
         let mut col: Vec<f64> = ((k + 1)..n).map(|i| t.get(i, k)).collect();
         let norm_col = vec_norm(&col);
-        if norm_col < 1e-15 { continue; }
+        if norm_col < 1e-15 {
+            continue;
+        }
 
         let sign = if col[0] >= 0.0 { 1.0 } else { -1.0 };
         col[0] += sign * norm_col;
         let v_norm_sq: f64 = col.iter().map(|x| x * x).sum();
-        if v_norm_sq < 1e-30 { continue; }
+        if v_norm_sq < 1e-30 {
+            continue;
+        }
 
         // T <- H * T * H (symmetric Householder).
         for j in k..n {
             let mut dot_val = 0.0;
-            for i in 0..col.len() { dot_val += col[i] * t.get(i + k + 1, j); }
+            for i in 0..col.len() {
+                dot_val += col[i] * t.get(i + k + 1, j);
+            }
             let coeff = 2.0 * dot_val / v_norm_sq;
-            for i in 0..col.len() { t.set(i + k + 1, j, t.get(i + k + 1, j) - coeff * col[i]); }
+            for i in 0..col.len() {
+                t.set(i + k + 1, j, t.get(i + k + 1, j) - coeff * col[i]);
+            }
         }
         for i in 0..n {
             let mut dot_val = 0.0;
-            for j in 0..col.len() { dot_val += t.get(i, j + k + 1) * col[j]; }
+            for j in 0..col.len() {
+                dot_val += t.get(i, j + k + 1) * col[j];
+            }
             let coeff = 2.0 * dot_val / v_norm_sq;
-            for j in 0..col.len() { t.set(i, j + k + 1, t.get(i, j + k + 1) - coeff * col[j]); }
+            for j in 0..col.len() {
+                t.set(i, j + k + 1, t.get(i, j + k + 1) - coeff * col[j]);
+            }
         }
         for i in 0..n {
             let mut dot_val = 0.0;
-            for j in 0..col.len() { dot_val += q.get(i, j + k + 1) * col[j]; }
+            for j in 0..col.len() {
+                dot_val += q.get(i, j + k + 1) * col[j];
+            }
             let coeff = 2.0 * dot_val / v_norm_sq;
-            for j in 0..col.len() { q.set(i, j + k + 1, q.get(i, j + k + 1) - coeff * col[j]); }
+            for j in 0..col.len() {
+                q.set(i, j + k + 1, q.get(i, j + k + 1) - coeff * col[j]);
+            }
         }
     }
 
     let diag: Vec<f64> = (0..n).map(|i| t.get(i, i)).collect();
-    let sub_diag: Vec<f64> = (0..(n.saturating_sub(1))).map(|i| t.get(i + 1, i)).collect();
+    let sub_diag: Vec<f64> = (0..(n.saturating_sub(1)))
+        .map(|i| t.get(i + 1, i))
+        .collect();
     (diag, sub_diag, q)
 }
 
 /// Symmetric eigenvalues via tridiagonal QR with Wilkinson shifts.
 pub fn symmetric_eigenvalues(a: &DenseMat, max_iter: usize) -> Vec<f64> {
     let n = a.rows;
-    if n == 0 { return Vec::new(); }
-    if n == 1 { return vec![a.get(0, 0)]; }
+    if n == 0 {
+        return Vec::new();
+    }
+    if n == 1 {
+        return vec![a.get(0, 0)];
+    }
 
     let (mut diag, mut sub, _) = tridiagonalize(a);
 
@@ -393,21 +485,26 @@ pub fn symmetric_eigenvalues(a: &DenseMat, max_iter: usize) -> Vec<f64> {
                 break;
             }
         }
-        if converged { break; }
+        if converged {
+            break;
+        }
 
         // Wilkinson shift from trailing 2x2.
         let m = diag.len();
         let d = (diag[m - 2] - diag[m - 1]) / 2.0;
         let mu = diag[m - 1]
-            - sub[m - 2] * sub[m - 2]
-                / (d + d.signum() * (d * d + sub[m - 2] * sub[m - 2]).sqrt());
+            - sub[m - 2] * sub[m - 2] / (d + d.signum() * (d * d + sub[m - 2] * sub[m - 2]).sqrt());
 
         // Implicit QR step (Givens).
         let mut x = diag[0] - mu;
         let mut z = sub[0];
         for k in 0..(m - 1) {
             let r = (x * x + z * z).sqrt();
-            let (c, s) = if r > 1e-30 { (x / r, -z / r) } else { (1.0, 0.0) };
+            let (c, s) = if r > 1e-30 {
+                (x / r, -z / r)
+            } else {
+                (1.0, 0.0)
+            };
 
             // Update tridiagonal.
             if k > 0 {
@@ -442,7 +539,11 @@ pub fn spectral_radius(a: &DenseMat) -> f64 {
 
 /// Sort eigenvalues by magnitude (descending).
 pub fn sort_by_magnitude(eigenvalues: &mut [f64]) {
-    eigenvalues.sort_by(|a, b| b.abs().partial_cmp(&a.abs()).unwrap_or(std::cmp::Ordering::Equal));
+    eigenvalues.sort_by(|a, b| {
+        b.abs()
+            .partial_cmp(&a.abs())
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 }
 
 /// Sort eigenvalues by real value (ascending).
@@ -452,11 +553,15 @@ pub fn sort_by_real(eigenvalues: &mut [f64]) {
 
 /// Check if matrix is symmetric positive definite (all eigenvalues > 0).
 pub fn is_spd(a: &DenseMat, tol: f64) -> bool {
-    if a.rows != a.cols { return false; }
+    if a.rows != a.cols {
+        return false;
+    }
     // Check symmetry.
     for i in 0..a.rows {
         for j in 0..i {
-            if (a.get(i, j) - a.get(j, i)).abs() > tol { return false; }
+            if (a.get(i, j) - a.get(j, i)).abs() > tol {
+                return false;
+            }
         }
     }
     let eigs = symmetric_eigenvalues(a, 200);
@@ -496,19 +601,27 @@ pub fn characteristic_polynomial(a: &DenseMat) -> Vec<f64> {
             for k in 1..=n {
                 m = a.mul(&m);
                 if k > 1 {
-                    for i in 0..n { m.set(i, i, m.get(i, i) + coeffs[n - k + 1]); }
+                    for i in 0..n {
+                        m.set(i, i, m.get(i, i) + coeffs[n - k + 1]);
+                    }
                     m = a.mul(&m);
                 }
                 let mut tr_val = 0.0;
-                for i in 0..n { tr_val += m.get(i, i); }
+                for i in 0..n {
+                    tr_val += m.get(i, i);
+                }
                 coeffs[n - k] = -tr_val / k as f64;
                 // Reset M = A^k + c_{n-1} A^{k-1} + ... using the recurrence.
                 m = a.clone();
                 let mut acc = a.clone();
-                for i in 0..n { acc.set(i, i, acc.get(i, i) + coeffs[n - 1]); }
+                for i in 0..n {
+                    acc.set(i, i, acc.get(i, i) + coeffs[n - 1]);
+                }
                 for j in 2..=k {
                     acc = a.mul(&acc);
-                    for i in 0..n { acc.set(i, i, acc.get(i, i) + coeffs[n - j]); }
+                    for i in 0..n {
+                        acc.set(i, i, acc.get(i, i) + coeffs[n - j]);
+                    }
                 }
                 m = acc;
             }
@@ -523,15 +636,13 @@ pub fn characteristic_polynomial(a: &DenseMat) -> Vec<f64> {
 mod tests {
     use super::*;
 
-    fn approx_eq(a: f64, b: f64, eps: f64) -> bool { (a - b).abs() < eps }
+    fn approx_eq(a: f64, b: f64, eps: f64) -> bool {
+        (a - b).abs() < eps
+    }
 
     #[test]
     fn test_power_iteration_diagonal() {
-        let a = DenseMat::from_data(3, 3, vec![
-            5.0, 0.0, 0.0,
-            0.0, 3.0, 0.0,
-            0.0, 0.0, 1.0,
-        ]);
+        let a = DenseMat::from_data(3, 3, vec![5.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 1.0]);
         let ep = power_iteration(&a, 1000, 1e-12);
         assert!(approx_eq(ep.value, 5.0, 1e-6));
     }
@@ -545,33 +656,21 @@ mod tests {
 
     #[test]
     fn test_inverse_iteration() {
-        let a = DenseMat::from_data(3, 3, vec![
-            5.0, 0.0, 0.0,
-            0.0, 3.0, 0.0,
-            0.0, 0.0, 1.0,
-        ]);
+        let a = DenseMat::from_data(3, 3, vec![5.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 1.0]);
         let ep = inverse_iteration(&a, 0.9, 1000, 1e-10);
         assert!(approx_eq(ep.value, 1.0, 1e-4));
     }
 
     #[test]
     fn test_inverse_iteration_middle_eigenvalue() {
-        let a = DenseMat::from_data(3, 3, vec![
-            5.0, 0.0, 0.0,
-            0.0, 3.0, 0.0,
-            0.0, 0.0, 1.0,
-        ]);
+        let a = DenseMat::from_data(3, 3, vec![5.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 1.0]);
         let ep = inverse_iteration(&a, 2.9, 1000, 1e-10);
         assert!(approx_eq(ep.value, 3.0, 1e-4));
     }
 
     #[test]
     fn test_hessenberg_form() {
-        let a = DenseMat::from_data(3, 3, vec![
-            1.0, 2.0, 3.0,
-            4.0, 5.0, 6.0,
-            7.0, 8.0, 9.0,
-        ]);
+        let a = DenseMat::from_data(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
         let (h, _q) = hessenberg(&a);
         // Below sub-diagonal should be zero.
         for i in 2..3 {
@@ -583,11 +682,7 @@ mod tests {
 
     #[test]
     fn test_hessenberg_preserves_eigenvalues() {
-        let a = DenseMat::from_data(3, 3, vec![
-            1.0, 2.0, 3.0,
-            4.0, 5.0, 6.0,
-            7.0, 8.0, 9.0,
-        ]);
+        let a = DenseMat::from_data(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
         let (h, q) = hessenberg(&a);
         // Q^T A Q should equal H.
         let qt_a_q = q.transpose().mul(&a).mul(&q);
@@ -600,11 +695,7 @@ mod tests {
 
     #[test]
     fn test_qr_eigenvalues_diagonal() {
-        let a = DenseMat::from_data(3, 3, vec![
-            7.0, 0.0, 0.0,
-            0.0, 3.0, 0.0,
-            0.0, 0.0, 1.0,
-        ]);
+        let a = DenseMat::from_data(3, 3, vec![7.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 1.0]);
         let mut eigs = qr_eigenvalues(&a, 200);
         sort_by_magnitude(&mut eigs);
         assert!(approx_eq(eigs[0], 7.0, 1e-6));
@@ -623,11 +714,7 @@ mod tests {
 
     #[test]
     fn test_symmetric_eigenvalues() {
-        let a = DenseMat::from_data(3, 3, vec![
-            4.0, 1.0, 0.0,
-            1.0, 3.0, 1.0,
-            0.0, 1.0, 2.0,
-        ]);
+        let a = DenseMat::from_data(3, 3, vec![4.0, 1.0, 0.0, 1.0, 3.0, 1.0, 0.0, 1.0, 2.0]);
         let eigs = symmetric_eigenvalues(&a, 300);
         // Sum of eigenvalues = trace = 9.
         let sum: f64 = eigs.iter().sum();
@@ -636,11 +723,7 @@ mod tests {
 
     #[test]
     fn test_tridiagonalize_preserves_structure() {
-        let a = DenseMat::from_data(3, 3, vec![
-            4.0, 1.0, 2.0,
-            1.0, 3.0, 1.0,
-            2.0, 1.0, 2.0,
-        ]);
+        let a = DenseMat::from_data(3, 3, vec![4.0, 1.0, 2.0, 1.0, 3.0, 1.0, 2.0, 1.0, 2.0]);
         let (diag, sub, _) = tridiagonalize(&a);
         assert_eq!(diag.len(), 3);
         assert_eq!(sub.len(), 2);
@@ -707,11 +790,7 @@ mod tests {
 
     #[test]
     fn test_char_poly_3x3_trace() {
-        let a = DenseMat::from_data(3, 3, vec![
-            1.0, 0.0, 0.0,
-            0.0, 2.0, 0.0,
-            0.0, 0.0, 3.0,
-        ]);
+        let a = DenseMat::from_data(3, 3, vec![1.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 3.0]);
         let p = characteristic_polynomial(&a);
         // Coefficient of lambda^2 = -(trace) = -6
         assert!(approx_eq(p[2], -6.0, 1e-8));

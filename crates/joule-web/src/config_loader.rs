@@ -208,11 +208,14 @@ impl ConfigLoader {
     /// Set a value at the given dot-separated key from the given source.
     pub fn set(&mut self, key_path: &str, value: ConfigValue, source: ConfigSource) {
         let is_secret = self.secret_keys.iter().any(|k| k == key_path);
-        let entry = self.entries.entry(key_path.to_string()).or_insert(ConfigEntry {
-            value: ConfigValue::Null,
-            source: ConfigSource::Default,
-            secret: is_secret,
-        });
+        let entry = self
+            .entries
+            .entry(key_path.to_string())
+            .or_insert(ConfigEntry {
+                value: ConfigValue::Null,
+                source: ConfigSource::Default,
+                secret: is_secret,
+            });
         // Only overwrite if new source has higher or equal priority.
         if source >= entry.source {
             entry.value = value;
@@ -481,7 +484,11 @@ mod tests {
     #[test]
     fn set_and_get() {
         let mut cfg = ConfigLoader::new();
-        cfg.set("db.host", ConfigValue::Str("localhost".into()), ConfigSource::Default);
+        cfg.set(
+            "db.host",
+            ConfigValue::Str("localhost".into()),
+            ConfigSource::Default,
+        );
         assert_eq!(cfg.get_str("db.host"), Some("localhost"));
     }
 
@@ -557,7 +564,11 @@ mod tests {
     #[test]
     fn apply_profile() {
         let mut cfg = ConfigLoader::new();
-        cfg.set("db.host", ConfigValue::Str("prod-db".into()), ConfigSource::Default);
+        cfg.set(
+            "db.host",
+            ConfigValue::Str("prod-db".into()),
+            ConfigSource::Default,
+        );
 
         let mut dev_vals = HashMap::new();
         dev_vals.insert("db.host".into(), ConfigValue::Str("localhost".into()));
@@ -573,7 +584,11 @@ mod tests {
     #[test]
     fn validate_required_present() {
         let mut cfg = ConfigLoader::new();
-        cfg.set("name", ConfigValue::Str("app".into()), ConfigSource::Default);
+        cfg.set(
+            "name",
+            ConfigValue::Str("app".into()),
+            ConfigSource::Default,
+        );
         cfg.add_validation("name", ValidationRule::Required);
         assert!(cfg.validate().is_empty());
     }
@@ -645,7 +660,11 @@ mod tests {
     #[test]
     fn validate_one_of_fail() {
         let mut cfg = ConfigLoader::new();
-        cfg.set("env", ConfigValue::Str("test".into()), ConfigSource::Default);
+        cfg.set(
+            "env",
+            ConfigValue::Str("test".into()),
+            ConfigSource::Default,
+        );
         cfg.add_validation(
             "env",
             ValidationRule::OneOf(vec!["dev".into(), "prod".into()]),
@@ -658,7 +677,11 @@ mod tests {
     #[test]
     fn validate_non_empty_ok() {
         let mut cfg = ConfigLoader::new();
-        cfg.set("name", ConfigValue::Str("app".into()), ConfigSource::Default);
+        cfg.set(
+            "name",
+            ConfigValue::Str("app".into()),
+            ConfigSource::Default,
+        );
         cfg.add_validation("name", ValidationRule::NonEmpty);
         assert!(cfg.validate().is_empty());
     }
@@ -666,7 +689,11 @@ mod tests {
     #[test]
     fn validate_non_empty_fail() {
         let mut cfg = ConfigLoader::new();
-        cfg.set("name", ConfigValue::Str(String::new()), ConfigSource::Default);
+        cfg.set(
+            "name",
+            ConfigValue::Str(String::new()),
+            ConfigSource::Default,
+        );
         cfg.add_validation("name", ValidationRule::NonEmpty);
         let errs = cfg.validate();
         assert_eq!(errs.len(), 1);
@@ -692,7 +719,11 @@ mod tests {
     fn dump_sorted_and_masked() {
         let mut cfg = ConfigLoader::new();
         cfg.mark_secret("password");
-        cfg.set("host", ConfigValue::Str("localhost".into()), ConfigSource::Default);
+        cfg.set(
+            "host",
+            ConfigValue::Str("localhost".into()),
+            ConfigSource::Default,
+        );
         cfg.set(
             "password",
             ConfigValue::Str("s3cr3t".into()),
@@ -700,7 +731,10 @@ mod tests {
         );
         let dump = cfg.dump();
         assert_eq!(dump.len(), 2);
-        assert_eq!(dump[0], ("host".into(), "localhost".into(), "default".into()));
+        assert_eq!(
+            dump[0],
+            ("host".into(), "localhost".into(), "default".into())
+        );
         assert_eq!(dump[1], ("password".into(), "****".into(), "env".into()));
     }
 

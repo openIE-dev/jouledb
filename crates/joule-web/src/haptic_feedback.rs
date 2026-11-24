@@ -23,7 +23,10 @@ pub enum WaveformType {
     /// Constant intensity for the duration.
     Constant,
     /// Linear ramp from start_intensity to end_intensity.
-    Ramp { start_intensity: f64, end_intensity: f64 },
+    Ramp {
+        start_intensity: f64,
+        end_intensity: f64,
+    },
     /// Sine wave oscillation.
     Sine { frequency_hz: f64 },
     /// Custom waveform: list of (time_fraction 0..1, intensity 0..1) points.
@@ -47,7 +50,13 @@ pub struct HapticEffect {
 }
 
 impl HapticEffect {
-    pub fn new(id: u64, channel: HapticChannel, waveform: WaveformType, intensity: f64, duration_ms: f64) -> Self {
+    pub fn new(
+        id: u64,
+        channel: HapticChannel,
+        waveform: WaveformType,
+        intensity: f64,
+        duration_ms: f64,
+    ) -> Self {
         Self {
             id,
             channel,
@@ -62,27 +71,30 @@ impl HapticEffect {
 
     /// Sample the effect intensity at the current time.
     pub fn sample(&self) -> f64 {
-        if !self.active || self.duration_ms <= 0.0 { return 0.0; }
+        if !self.active || self.duration_ms <= 0.0 {
+            return 0.0;
+        }
         let t = (self.elapsed_ms / self.duration_ms).clamp(0.0, 1.0);
         let wave = match &self.waveform {
             WaveformType::Constant => 1.0,
-            WaveformType::Ramp { start_intensity, end_intensity } => {
-                start_intensity + (end_intensity - start_intensity) * t
-            }
+            WaveformType::Ramp {
+                start_intensity,
+                end_intensity,
+            } => start_intensity + (end_intensity - start_intensity) * t,
             WaveformType::Sine { frequency_hz } => {
                 let cycles = frequency_hz * (self.elapsed_ms / 1000.0);
                 (cycles * 2.0 * std::f64::consts::PI).sin() * 0.5 + 0.5
             }
-            WaveformType::Custom { points } => {
-                interpolate_custom(points, t)
-            }
+            WaveformType::Custom { points } => interpolate_custom(points, t),
         };
         (wave * self.intensity).clamp(0.0, 1.0)
     }
 
     /// Advance the effect by dt milliseconds. Returns the energy consumed in this step.
     pub fn advance(&mut self, dt_ms: f64) -> f64 {
-        if !self.active { return 0.0; }
+        if !self.active {
+            return 0.0;
+        }
         let sample_before = self.sample();
         self.elapsed_ms += dt_ms;
         if self.elapsed_ms >= self.duration_ms {
@@ -97,7 +109,9 @@ impl HapticEffect {
 
     /// Progress fraction (0.0 to 1.0).
     pub fn progress(&self) -> f64 {
-        if self.duration_ms <= 0.0 { return 1.0; }
+        if self.duration_ms <= 0.0 {
+            return 1.0;
+        }
         (self.elapsed_ms / self.duration_ms).clamp(0.0, 1.0)
     }
 
@@ -108,17 +122,29 @@ impl HapticEffect {
 }
 
 fn interpolate_custom(points: &[(f64, f64)], t: f64) -> f64 {
-    if points.is_empty() { return 0.0; }
-    if points.len() == 1 { return points[0].1.clamp(0.0, 1.0); }
-    if t <= points[0].0 { return points[0].1.clamp(0.0, 1.0); }
+    if points.is_empty() {
+        return 0.0;
+    }
+    if points.len() == 1 {
+        return points[0].1.clamp(0.0, 1.0);
+    }
+    if t <= points[0].0 {
+        return points[0].1.clamp(0.0, 1.0);
+    }
     let last = points.len() - 1;
-    if t >= points[last].0 { return points[last].1.clamp(0.0, 1.0); }
+    if t >= points[last].0 {
+        return points[last].1.clamp(0.0, 1.0);
+    }
 
     for i in 0..last {
         let (t0, v0) = points[i];
         let (t1, v1) = points[i + 1];
         if t >= t0 && t <= t1 {
-            let frac = if (t1 - t0).abs() < 1e-12 { 0.0 } else { (t - t0) / (t1 - t0) };
+            let frac = if (t1 - t0).abs() < 1e-12 {
+                0.0
+            } else {
+                (t - t0) / (t1 - t0)
+            };
             return (v0 + (v1 - v0) * frac).clamp(0.0, 1.0);
         }
     }
@@ -138,14 +164,25 @@ impl HapticPatterns {
 
     /// Explosion feedback.
     pub fn explosion() -> (WaveformType, f64, f64) {
-        (WaveformType::Ramp { start_intensity: 1.0, end_intensity: 0.0 }, 1.0, 500.0)
+        (
+            WaveformType::Ramp {
+                start_intensity: 1.0,
+                end_intensity: 0.0,
+            },
+            1.0,
+            500.0,
+        )
     }
 
     /// Heartbeat pattern.
     pub fn heartbeat() -> (WaveformType, f64, f64) {
         let points = vec![
-            (0.0, 0.0), (0.1, 1.0), (0.2, 0.0),
-            (0.35, 0.7), (0.45, 0.0), (1.0, 0.0),
+            (0.0, 0.0),
+            (0.1, 1.0),
+            (0.2, 0.0),
+            (0.35, 0.7),
+            (0.45, 0.0),
+            (1.0, 0.0),
         ];
         (WaveformType::Custom { points }, 0.8, 600.0)
     }
@@ -157,14 +194,19 @@ impl HapticPatterns {
 
     /// Soft landing.
     pub fn soft_landing() -> (WaveformType, f64, f64) {
-        (WaveformType::Ramp { start_intensity: 0.5, end_intensity: 0.0 }, 0.5, 150.0)
+        (
+            WaveformType::Ramp {
+                start_intensity: 0.5,
+                end_intensity: 0.0,
+            },
+            0.5,
+            150.0,
+        )
     }
 
     /// Damage taken.
     pub fn damage() -> (WaveformType, f64, f64) {
-        let points = vec![
-            (0.0, 1.0), (0.15, 0.2), (0.3, 0.8), (0.5, 0.1), (1.0, 0.0),
-        ];
+        let points = vec![(0.0, 1.0), (0.15, 0.2), (0.3, 0.8), (0.5, 0.1), (1.0, 0.0)];
         (WaveformType::Custom { points }, 0.9, 400.0)
     }
 }
@@ -195,7 +237,13 @@ impl HapticSystem {
     }
 
     /// Play a haptic effect. Returns the effect ID.
-    pub fn play(&mut self, channel: HapticChannel, waveform: WaveformType, intensity: f64, duration_ms: f64) -> u64 {
+    pub fn play(
+        &mut self,
+        channel: HapticChannel,
+        waveform: WaveformType,
+        intensity: f64,
+        duration_ms: f64,
+    ) -> u64 {
         // Remove inactive effects first
         self.effects.retain(|e| e.active);
 
@@ -208,12 +256,22 @@ impl HapticSystem {
 
         let id = self.next_id;
         self.next_id += 1;
-        self.effects.push(HapticEffect::new(id, channel, waveform, intensity, duration_ms));
+        self.effects.push(HapticEffect::new(
+            id,
+            channel,
+            waveform,
+            intensity,
+            duration_ms,
+        ));
         id
     }
 
     /// Play a predefined pattern.
-    pub fn play_pattern(&mut self, channel: HapticChannel, pattern: (WaveformType, f64, f64)) -> u64 {
+    pub fn play_pattern(
+        &mut self,
+        channel: HapticChannel,
+        pattern: (WaveformType, f64, f64),
+    ) -> u64 {
         self.play(channel, pattern.0, pattern.1, pattern.2)
     }
 
@@ -246,7 +304,10 @@ impl HapticSystem {
             match effect.channel {
                 HapticChannel::Left => left += sample,
                 HapticChannel::Right => right += sample,
-                HapticChannel::Both => { left += sample; right += sample; }
+                HapticChannel::Both => {
+                    left += sample;
+                    right += sample;
+                }
             }
         }
 
@@ -258,10 +319,14 @@ impl HapticSystem {
     }
 
     /// Combined left motor intensity (0.0 to 1.0).
-    pub fn left_intensity(&self) -> f64 { self.left_intensity }
+    pub fn left_intensity(&self) -> f64 {
+        self.left_intensity
+    }
 
     /// Combined right motor intensity (0.0 to 1.0).
-    pub fn right_intensity(&self) -> f64 { self.right_intensity }
+    pub fn right_intensity(&self) -> f64 {
+        self.right_intensity
+    }
 
     /// Number of currently active effects.
     pub fn active_count(&self) -> usize {
@@ -269,7 +334,9 @@ impl HapticSystem {
     }
 
     /// Total energy consumed in microjoules.
-    pub fn total_energy_uj(&self) -> f64 { self.total_energy_uj }
+    pub fn total_energy_uj(&self) -> f64 {
+        self.total_energy_uj
+    }
 
     /// Reset energy counter.
     pub fn reset_energy(&mut self) {
@@ -283,7 +350,9 @@ impl HapticSystem {
 }
 
 impl Default for HapticSystem {
-    fn default() -> Self { Self::new(8) }
+    fn default() -> Self {
+        Self::new(8)
+    }
 }
 
 // ── Tests ───────────────────────────────────────────────────────
@@ -300,8 +369,16 @@ mod tests {
 
     #[test]
     fn test_ramp_effect() {
-        let mut effect = HapticEffect::new(1, HapticChannel::Both,
-            WaveformType::Ramp { start_intensity: 1.0, end_intensity: 0.0 }, 1.0, 100.0);
+        let mut effect = HapticEffect::new(
+            1,
+            HapticChannel::Both,
+            WaveformType::Ramp {
+                start_intensity: 1.0,
+                end_intensity: 0.0,
+            },
+            1.0,
+            100.0,
+        );
         assert!((effect.sample() - 1.0).abs() < 1e-6);
         effect.advance(50.0);
         assert!((effect.sample() - 0.5).abs() < 1e-6);
@@ -312,8 +389,13 @@ mod tests {
 
     #[test]
     fn test_sine_effect() {
-        let effect = HapticEffect::new(1, HapticChannel::Left,
-            WaveformType::Sine { frequency_hz: 10.0 }, 1.0, 1000.0);
+        let effect = HapticEffect::new(
+            1,
+            HapticChannel::Left,
+            WaveformType::Sine { frequency_hz: 10.0 },
+            1.0,
+            1000.0,
+        );
         let s = effect.sample();
         // At t=0, sin(0) = 0 => 0*0.5 + 0.5 = 0.5
         assert!((s - 0.5).abs() < 1e-6);
@@ -322,8 +404,13 @@ mod tests {
     #[test]
     fn test_custom_waveform() {
         let points = vec![(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)];
-        let mut effect = HapticEffect::new(1, HapticChannel::Right,
-            WaveformType::Custom { points }, 1.0, 100.0);
+        let mut effect = HapticEffect::new(
+            1,
+            HapticChannel::Right,
+            WaveformType::Custom { points },
+            1.0,
+            100.0,
+        );
         assert!((effect.sample() - 0.0).abs() < 1e-6);
         effect.advance(50.0);
         assert!((effect.sample() - 1.0).abs() < 1e-6);
@@ -333,8 +420,8 @@ mod tests {
 
     #[test]
     fn test_effect_completes() {
-        let mut effect = HapticEffect::new(1, HapticChannel::Both,
-            WaveformType::Constant, 1.0, 50.0);
+        let mut effect =
+            HapticEffect::new(1, HapticChannel::Both, WaveformType::Constant, 1.0, 50.0);
         assert!(effect.active);
         effect.advance(60.0);
         assert!(!effect.active);
@@ -342,8 +429,8 @@ mod tests {
 
     #[test]
     fn test_effect_progress() {
-        let mut effect = HapticEffect::new(1, HapticChannel::Both,
-            WaveformType::Constant, 1.0, 100.0);
+        let mut effect =
+            HapticEffect::new(1, HapticChannel::Both, WaveformType::Constant, 1.0, 100.0);
         assert!((effect.progress() - 0.0).abs() < 1e-9);
         effect.advance(50.0);
         assert!((effect.progress() - 0.5).abs() < 1e-9);
@@ -351,8 +438,8 @@ mod tests {
 
     #[test]
     fn test_effect_remaining() {
-        let mut effect = HapticEffect::new(1, HapticChannel::Both,
-            WaveformType::Constant, 1.0, 100.0);
+        let mut effect =
+            HapticEffect::new(1, HapticChannel::Both, WaveformType::Constant, 1.0, 100.0);
         assert!((effect.remaining_ms() - 100.0).abs() < 1e-9);
         effect.advance(40.0);
         assert!((effect.remaining_ms() - 60.0).abs() < 1e-9);
@@ -360,19 +447,18 @@ mod tests {
 
     #[test]
     fn test_energy_tracking() {
-        let mut effect = HapticEffect::new(1, HapticChannel::Both,
-            WaveformType::Constant, 1.0, 100.0);
+        let mut effect =
+            HapticEffect::new(1, HapticChannel::Both, WaveformType::Constant, 1.0, 100.0);
         effect.advance(100.0);
         assert!(effect.energy_uj > 0.0);
     }
 
     #[test]
     fn test_intensity_clamped() {
-        let effect = HapticEffect::new(1, HapticChannel::Both,
-            WaveformType::Constant, 1.5, 100.0);
+        let effect = HapticEffect::new(1, HapticChannel::Both, WaveformType::Constant, 1.5, 100.0);
         assert!((effect.intensity - 1.0).abs() < 1e-9);
-        let effect2 = HapticEffect::new(2, HapticChannel::Both,
-            WaveformType::Constant, -0.5, 100.0);
+        let effect2 =
+            HapticEffect::new(2, HapticChannel::Both, WaveformType::Constant, -0.5, 100.0);
         assert!((effect2.intensity - 0.0).abs() < 1e-9);
     }
 

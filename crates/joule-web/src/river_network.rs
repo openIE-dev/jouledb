@@ -23,21 +23,27 @@ impl FlowDir {
     /// Offset (dx, dy) for this direction.
     pub fn offset(&self) -> (i64, i64) {
         match self {
-            Self::North     => ( 0, -1),
-            Self::NorthEast => ( 1, -1),
-            Self::East      => ( 1,  0),
-            Self::SouthEast => ( 1,  1),
-            Self::South     => ( 0,  1),
-            Self::SouthWest => (-1,  1),
-            Self::West      => (-1,  0),
+            Self::North => (0, -1),
+            Self::NorthEast => (1, -1),
+            Self::East => (1, 0),
+            Self::SouthEast => (1, 1),
+            Self::South => (0, 1),
+            Self::SouthWest => (-1, 1),
+            Self::West => (-1, 0),
             Self::NorthWest => (-1, -1),
-            Self::Sink      => ( 0,  0),
+            Self::Sink => (0, 0),
         }
     }
 
     const ALL_DIRS: [FlowDir; 8] = [
-        Self::North, Self::NorthEast, Self::East, Self::SouthEast,
-        Self::South, Self::SouthWest, Self::West, Self::NorthWest,
+        Self::North,
+        Self::NorthEast,
+        Self::East,
+        Self::SouthEast,
+        Self::South,
+        Self::SouthWest,
+        Self::West,
+        Self::NorthWest,
     ];
 }
 
@@ -130,7 +136,13 @@ impl RiverNetwork {
     pub fn new(width: usize, height: usize, heightmap: Vec<f64>, config: RiverConfig) -> Self {
         assert_eq!(heightmap.len(), width * height);
         let cells = vec![RiverCell::default(); width * height];
-        Self { width, height, cells, config, heightmap }
+        Self {
+            width,
+            height,
+            cells,
+            config,
+            heightmap,
+        }
     }
 
     pub fn config(&self) -> &RiverConfig {
@@ -163,7 +175,11 @@ impl RiverNetwork {
                     let nh = self.height_at(nx as usize, ny as usize);
                     let drop = h - nh;
                     // For diagonals, divide by sqrt(2) for accurate slope
-                    let dist = if dx.abs() + dy.abs() == 2 { std::f64::consts::SQRT_2 } else { 1.0 };
+                    let dist = if dx.abs() + dy.abs() == 2 {
+                        std::f64::consts::SQRT_2
+                    } else {
+                        1.0
+                    };
                     let slope = drop / dist;
                     if slope > best_drop {
                         best_drop = slope;
@@ -188,14 +204,18 @@ impl RiverNetwork {
         let mut order: Vec<usize> = (0..self.width * self.height).collect();
         let hm = &self.heightmap;
         order.sort_by(|&a, &b| {
-            hm[b].partial_cmp(&hm[a]).unwrap_or(std::cmp::Ordering::Equal)
+            hm[b]
+                .partial_cmp(&hm[a])
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         for &idx in &order {
             let x = idx % self.width;
             let y = idx / self.width;
             let dir = self.cells[idx].flow_dir;
-            if dir == FlowDir::Sink { continue; }
+            if dir == FlowDir::Sink {
+                continue;
+            }
 
             let (dx, dy) = dir.offset();
             let nx = x as i64 + dx;
@@ -227,16 +247,22 @@ impl RiverNetwork {
         let mut order: Vec<usize> = (0..self.width * self.height).collect();
         let hm = &self.heightmap;
         order.sort_by(|&a, &b| {
-            hm[b].partial_cmp(&hm[a]).unwrap_or(std::cmp::Ordering::Equal)
+            hm[b]
+                .partial_cmp(&hm[a])
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         for &idx in &order {
-            if !self.cells[idx].is_river { continue; }
+            if !self.cells[idx].is_river {
+                continue;
+            }
 
             let x = idx % self.width;
             let y = idx / self.width;
             let dir = self.cells[idx].flow_dir;
-            if dir == FlowDir::Sink { continue; }
+            if dir == FlowDir::Sink {
+                continue;
+            }
 
             let (dx, dy) = dir.offset();
             let nx = x as i64 + dx;
@@ -246,7 +272,9 @@ impl RiverNetwork {
             }
 
             let ni = ny as usize * self.width + nx as usize;
-            if !self.cells[ni].is_river { continue; }
+            if !self.cells[ni].is_river {
+                continue;
+            }
 
             let my_order = self.cells[idx].strahler_order;
             let target_order = self.cells[ni].strahler_order;
@@ -309,10 +337,14 @@ impl RiverNetwork {
         for y in 0..self.height {
             for x in 0..self.width {
                 let idx = self.idx(x, y);
-                if !self.cells[idx].is_river { continue; }
+                if !self.cells[idx].is_river {
+                    continue;
+                }
 
                 let dir = self.cells[idx].flow_dir;
-                if dir == FlowDir::Sink { continue; }
+                if dir == FlowDir::Sink {
+                    continue;
+                }
 
                 let (dx, dy) = dir.offset();
                 let nx = x as i64 + dx;
@@ -329,7 +361,9 @@ impl RiverNetwork {
 
     /// Step 7: Compute river width proportional to flow accumulation.
     pub fn compute_widths(&mut self) {
-        let max_acc = self.cells.iter()
+        let max_acc = self
+            .cells
+            .iter()
             .filter(|c| c.is_river)
             .map(|c| c.accumulation)
             .max()
@@ -379,12 +413,16 @@ impl RiverNetwork {
 
         loop {
             let idx = self.idx(x, y);
-            if visited[idx] { break; }
+            if visited[idx] {
+                break;
+            }
             visited[idx] = true;
             path.push((x, y));
 
             let dir = self.cells[idx].flow_dir;
-            if dir == FlowDir::Sink { break; }
+            if dir == FlowDir::Sink {
+                break;
+            }
 
             let (dx, dy) = dir.offset();
             let nx = x as i64 + dx;
@@ -401,7 +439,10 @@ impl RiverNetwork {
     /// Generate meander points along a river path using cubic Bezier curves.
     pub fn meander_path(&self, path: &[(usize, usize)]) -> Vec<Point2D> {
         if path.len() < 2 {
-            return path.iter().map(|&(x, y)| Point2D::new(x as f64, y as f64)).collect();
+            return path
+                .iter()
+                .map(|&(x, y)| Point2D::new(x as f64, y as f64))
+                .collect();
         }
 
         let amp = self.config.meander_amplitude;
@@ -415,7 +456,9 @@ impl RiverNetwork {
             let dx = x1 - x0;
             let dy = y1 - y0;
             let len = (dx * dx + dy * dy).sqrt();
-            if len < 1e-10 { continue; }
+            if len < 1e-10 {
+                continue;
+            }
 
             // Perpendicular direction for meandering offset
             let nx = -dy / len;
@@ -539,10 +582,15 @@ mod tests {
         let w = 32;
         let h = 32;
         let hm = make_sloped_heightmap(w, h);
-        let mut rn = RiverNetwork::new(w, h, hm, RiverConfig {
-            river_threshold: 10,
-            ..RiverConfig::default()
-        });
+        let mut rn = RiverNetwork::new(
+            w,
+            h,
+            hm,
+            RiverConfig {
+                river_threshold: 10,
+                ..RiverConfig::default()
+            },
+        );
         rn.compute_flow_directions();
         rn.compute_accumulation();
         rn.mark_rivers();
@@ -554,10 +602,15 @@ mod tests {
         let w = 32;
         let h = 32;
         let hm = make_valley_heightmap(w, h);
-        let mut rn = RiverNetwork::new(w, h, hm, RiverConfig {
-            river_threshold: 5,
-            ..RiverConfig::default()
-        });
+        let mut rn = RiverNetwork::new(
+            w,
+            h,
+            hm,
+            RiverConfig {
+                river_threshold: 5,
+                ..RiverConfig::default()
+            },
+        );
         rn.compute_flow_directions();
         rn.compute_accumulation();
         rn.mark_rivers();
@@ -578,11 +631,16 @@ mod tests {
                 hm[y * w + x] -= 0.3;
             }
         }
-        let mut rn = RiverNetwork::new(w, h, hm, RiverConfig {
-            river_threshold: 3,
-            waterfall_height_diff: 0.1,
-            ..RiverConfig::default()
-        });
+        let mut rn = RiverNetwork::new(
+            w,
+            h,
+            hm,
+            RiverConfig {
+                river_threshold: 3,
+                waterfall_height_diff: 0.1,
+                ..RiverConfig::default()
+            },
+        );
         rn.generate();
         // There should be some waterfalls near the cliff
         // (depends on flow paths hitting the cliff edge)
@@ -593,10 +651,15 @@ mod tests {
         let w = 32;
         let h = 32;
         let hm = make_sloped_heightmap(w, h);
-        let mut rn = RiverNetwork::new(w, h, hm, RiverConfig {
-            river_threshold: 10,
-            ..RiverConfig::default()
-        });
+        let mut rn = RiverNetwork::new(
+            w,
+            h,
+            hm,
+            RiverConfig {
+                river_threshold: 10,
+                ..RiverConfig::default()
+            },
+        );
         rn.generate();
 
         for cell in &rn.cells {
@@ -656,10 +719,15 @@ mod tests {
         let w = 32;
         let h = 32;
         let hm = make_sloped_heightmap(w, h);
-        let mut rn = RiverNetwork::new(w, h, hm, RiverConfig {
-            river_threshold: 10,
-            ..RiverConfig::default()
-        });
+        let mut rn = RiverNetwork::new(
+            w,
+            h,
+            hm,
+            RiverConfig {
+                river_threshold: 10,
+                ..RiverConfig::default()
+            },
+        );
         rn.generate();
         assert!(rn.river_count() > 0);
     }
@@ -706,10 +774,15 @@ mod tests {
                 hm[y * w + x] = (dx * dx + dy * dy).sqrt() / cx;
             }
         }
-        let mut rn = RiverNetwork::new(w, h, hm, RiverConfig {
-            river_threshold: 3,
-            ..RiverConfig::default()
-        });
+        let mut rn = RiverNetwork::new(
+            w,
+            h,
+            hm,
+            RiverConfig {
+                river_threshold: 3,
+                ..RiverConfig::default()
+            },
+        );
         rn.generate();
         // Center should be a sink with accumulation
     }

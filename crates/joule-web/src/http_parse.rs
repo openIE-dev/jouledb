@@ -119,7 +119,9 @@ impl HttpVersion {
         match s {
             "HTTP/1.0" => Ok(Self::Http10),
             "HTTP/1.1" => Ok(Self::Http11),
-            _ => Err(HttpParseError::InvalidRequestLine(format!("unknown version: {s}"))),
+            _ => Err(HttpParseError::InvalidRequestLine(format!(
+                "unknown version: {s}"
+            ))),
         }
     }
 
@@ -141,7 +143,9 @@ pub struct Headers {
 
 impl Headers {
     pub fn new() -> Self {
-        Self { entries: Vec::new() }
+        Self {
+            entries: Vec::new(),
+        }
     }
 
     /// Add a header (appends; does not replace).
@@ -294,8 +298,8 @@ fn parse_headers(header_text: &str) -> Result<Headers, HttpParseError> {
 /// Parse an HTTP request from raw bytes.
 pub fn parse_request(data: &[u8]) -> Result<(HttpRequest, usize), HttpParseError> {
     let header_end = find_header_end(data).ok_or(HttpParseError::Incomplete)?;
-    let header_block = std::str::from_utf8(&data[..header_end])
-        .map_err(|_| HttpParseError::InvalidHeaderValue)?;
+    let header_block =
+        std::str::from_utf8(&data[..header_end]).map_err(|_| HttpParseError::InvalidHeaderValue)?;
 
     let first_line_end = header_block
         .find("\r\n")
@@ -316,7 +320,13 @@ pub fn parse_request(data: &[u8]) -> Result<(HttpRequest, usize), HttpParseError
     let (body, total) = read_body(data, header_end, &headers)?;
 
     Ok((
-        HttpRequest { method, uri, version, headers, body },
+        HttpRequest {
+            method,
+            uri,
+            version,
+            headers,
+            body,
+        },
         total,
     ))
 }
@@ -324,8 +334,8 @@ pub fn parse_request(data: &[u8]) -> Result<(HttpRequest, usize), HttpParseError
 /// Parse an HTTP response from raw bytes.
 pub fn parse_response(data: &[u8]) -> Result<(HttpResponse, usize), HttpParseError> {
     let header_end = find_header_end(data).ok_or(HttpParseError::Incomplete)?;
-    let header_block = std::str::from_utf8(&data[..header_end])
-        .map_err(|_| HttpParseError::InvalidHeaderValue)?;
+    let header_block =
+        std::str::from_utf8(&data[..header_end]).map_err(|_| HttpParseError::InvalidHeaderValue)?;
 
     let first_line_end = header_block
         .find("\r\n")
@@ -341,7 +351,11 @@ pub fn parse_response(data: &[u8]) -> Result<(HttpResponse, usize), HttpParseErr
     let status_code: u16 = parts[1]
         .parse()
         .map_err(|_| HttpParseError::InvalidStatusLine(status_line.to_string()))?;
-    let reason = if parts.len() == 3 { parts[2].to_string() } else { String::new() };
+    let reason = if parts.len() == 3 {
+        parts[2].to_string()
+    } else {
+        String::new()
+    };
 
     let header_text = &header_block[first_line_end + 2..header_end - 4];
     let headers = parse_headers(header_text)?;
@@ -349,7 +363,13 @@ pub fn parse_response(data: &[u8]) -> Result<(HttpResponse, usize), HttpParseErr
     let (body, total) = read_body(data, header_end, &headers)?;
 
     Ok((
-        HttpResponse { version, status_code, reason, headers, body },
+        HttpResponse {
+            version,
+            status_code,
+            reason,
+            headers,
+            body,
+        },
         total,
     ))
 }
@@ -363,9 +383,8 @@ fn read_body(
     // Check for chunked transfer encoding
     if let Some(te) = headers.get("Transfer-Encoding") {
         if te.to_lowercase().contains("chunked") {
-            return decode_chunked(&data[body_start..]).map(|(body, consumed)| {
-                (body, body_start + consumed)
-            });
+            return decode_chunked(&data[body_start..])
+                .map(|(body, consumed)| (body, body_start + consumed));
         }
     }
 

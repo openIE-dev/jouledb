@@ -250,8 +250,7 @@ pub fn decode_all_frames(buf: &[u8]) -> Vec<GrpcFrame> {
 
 // ── Base64 (for gRPC-Web text mode) ────────────────────────────
 
-const B64_CHARS: &[u8; 64] =
-    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const B64_CHARS: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 /// Base64 encode.
 pub fn base64_encode(data: &[u8]) -> String {
@@ -363,7 +362,11 @@ pub fn build_unary_request(message: &[u8]) -> Vec<u8> {
 }
 
 /// Build a unary gRPC-Web response body (data + trailers).
-pub fn build_unary_response(message: &[u8], status: StatusCode, message_text: Option<&str>) -> Vec<u8> {
+pub fn build_unary_response(
+    message: &[u8],
+    status: StatusCode,
+    message_text: Option<&str>,
+) -> Vec<u8> {
     let mut buf = encode_data_frame(message);
 
     let mut trailers = Metadata::new();

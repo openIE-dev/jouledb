@@ -70,7 +70,11 @@ impl MipLevel {
         if pixels.len() != width * height {
             return None;
         }
-        Some(Self { pixels, width, height })
+        Some(Self {
+            pixels,
+            width,
+            height,
+        })
     }
 
     pub fn get(&self, x: usize, y: usize) -> Pixel {
@@ -415,12 +419,16 @@ pub fn downsample_alpha_weighted(src: &MipLevel) -> MipLevel {
 
             if avg_alpha > 1e-6 {
                 // Recover straight color from premultiplied sum.
-                dst.set(x, y, Pixel::new(
-                    (r_sum / a_sum).clamp(0.0, 1.0),
-                    (g_sum / a_sum).clamp(0.0, 1.0),
-                    (b_sum / a_sum).clamp(0.0, 1.0),
-                    avg_alpha,
-                ));
+                dst.set(
+                    x,
+                    y,
+                    Pixel::new(
+                        (r_sum / a_sum).clamp(0.0, 1.0),
+                        (g_sum / a_sum).clamp(0.0, 1.0),
+                        (b_sum / a_sum).clamp(0.0, 1.0),
+                        avg_alpha,
+                    ),
+                );
             } else {
                 dst.set(x, y, Pixel::new(0.0, 0.0, 0.0, 0.0));
             }
@@ -579,7 +587,12 @@ mod tests {
             let v = i as f32 / 10.0;
             let linear = srgb_to_linear(v);
             let back = linear_to_srgb(linear);
-            assert!((back - v).abs() < 1e-4, "sRGB roundtrip failed for {}: got {}", v, back);
+            assert!(
+                (back - v).abs() < 1e-4,
+                "sRGB roundtrip failed for {}: got {}",
+                v,
+                back
+            );
         }
     }
 
@@ -600,7 +613,11 @@ mod tests {
         // Solid color should survive sRGB round-trip.
         for level in &chain.levels {
             for p in &level.pixels {
-                assert!((p.r - 0.5).abs() < 0.02, "sRGB mip solid deviation: {}", p.r);
+                assert!(
+                    (p.r - 0.5).abs() < 0.02,
+                    "sRGB mip solid deviation: {}",
+                    p.r
+                );
             }
         }
     }
@@ -610,7 +627,11 @@ mod tests {
         // Pixel encoding up normal: (0.5, 0.5, 1.0) = (0, 0, 1) in normal space.
         let up = Pixel::new(0.5, 0.5, 1.0, 1.0);
         let n = normalize_normal(&up);
-        assert!((n.b - 1.0).abs() < 1e-3, "up normal z should be ~1.0: {}", n.b);
+        assert!(
+            (n.b - 1.0).abs() < 1e-3,
+            "up normal z should be ~1.0: {}",
+            n.b
+        );
         assert!((n.r - 0.5).abs() < 1e-3);
     }
 
@@ -626,7 +647,11 @@ mod tests {
                 let ny = p.g * 2.0 - 1.0;
                 let nz = p.b * 2.0 - 1.0;
                 let len = (nx * nx + ny * ny + nz * nz).sqrt();
-                assert!((len - 1.0).abs() < 0.05, "normal should be unit length: {}", len);
+                assert!(
+                    (len - 1.0).abs() < 0.05,
+                    "normal should be unit length: {}",
+                    len
+                );
             }
         }
     }

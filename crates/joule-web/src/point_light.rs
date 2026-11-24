@@ -17,30 +17,62 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
 
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
 
-    pub fn length(self) -> f64 { self.dot(self).sqrt() }
+    pub fn length(self) -> f64 {
+        self.dot(self).sqrt()
+    }
 
-    pub fn length_sq(self) -> f64 { self.dot(self) }
+    pub fn length_sq(self) -> f64 {
+        self.dot(self)
+    }
 
     pub fn sub(self, o: Self) -> Self {
-        Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z }
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
     }
 
     pub fn add(self, o: Self) -> Self {
-        Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z }
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
     }
 
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-12 { return Self::ZERO; }
-        Self { x: self.x / l, y: self.y / l, z: self.z / l }
+        if l < 1e-12 {
+            return Self::ZERO;
+        }
+        Self {
+            x: self.x / l,
+            y: self.y / l,
+            z: self.z / l,
+        }
     }
 }
 
@@ -53,12 +85,28 @@ pub struct Color {
 }
 
 impl Color {
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0 };
-    pub const BLACK: Self = Self { r: 0.0, g: 0.0, b: 0.0 };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+    };
+    pub const BLACK: Self = Self {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+    };
 
-    pub fn new(r: f64, g: f64, b: f64) -> Self { Self { r, g, b } }
+    pub fn new(r: f64, g: f64, b: f64) -> Self {
+        Self { r, g, b }
+    }
 
-    pub fn scale(self, s: f64) -> Self { Self { r: self.r * s, g: self.g * s, b: self.b * s } }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
+    }
 }
 
 // ── Attenuation models ─────────────────────────────────────────
@@ -73,17 +121,21 @@ pub enum Attenuation {
     /// UE4-style: `1 / (d^2 + 1)` with smooth window.
     Ue4 { falloff_exponent: f64 },
     /// Custom constant/linear/quadratic coefficients.
-    Custom { constant: f64, linear: f64, quadratic: f64 },
+    Custom {
+        constant: f64,
+        linear: f64,
+        quadratic: f64,
+    },
 }
 
 impl Attenuation {
     /// Evaluate raw attenuation at the given distance.
     pub fn evaluate(&self, distance: f64) -> f64 {
-        if distance < 0.0 { return 1.0; }
+        if distance < 0.0 {
+            return 1.0;
+        }
         match self {
-            Attenuation::InverseSquare => {
-                1.0 / (distance * distance).max(1e-6)
-            }
+            Attenuation::InverseSquare => 1.0 / (distance * distance).max(1e-6),
             Attenuation::InverseSquareClamped { min_dist } => {
                 let d = distance.max(*min_dist);
                 1.0 / (d * d)
@@ -92,9 +144,15 @@ impl Attenuation {
                 let d2 = distance * distance;
                 1.0 / (d2 + 1.0).powf(*falloff_exponent)
             }
-            Attenuation::Custom { constant, linear, quadratic } => {
+            Attenuation::Custom {
+                constant,
+                linear,
+                quadratic,
+            } => {
                 let denom = constant + linear * distance + quadratic * distance * distance;
-                if denom < 1e-12 { return 1.0; }
+                if denom < 1e-12 {
+                    return 1.0;
+                }
                 1.0 / denom
             }
         }
@@ -105,9 +163,13 @@ impl Attenuation {
 /// Returns a factor in [0, 1] that smoothly goes to 0 at `max_range`.
 /// Uses the UE4-style window: `saturate(1 - (d/R)^4)^2`.
 fn window_function(distance: f64, max_range: f64) -> f64 {
-    if max_range <= 0.0 { return 0.0; }
+    if max_range <= 0.0 {
+        return 0.0;
+    }
     let ratio = distance / max_range;
-    if ratio >= 1.0 { return 0.0; }
+    if ratio >= 1.0 {
+        return 0.0;
+    }
     let r4 = ratio * ratio * ratio * ratio;
     let v = (1.0 - r4).max(0.0);
     v * v
@@ -168,7 +230,9 @@ pub struct AABB {
 }
 
 impl AABB {
-    pub fn new(min: Vec3, max: Vec3) -> Self { Self { min, max } }
+    pub fn new(min: Vec3, max: Vec3) -> Self {
+        Self { min, max }
+    }
 
     /// Test if a sphere (center + radius) intersects this AABB.
     pub fn intersects_sphere(&self, center: Vec3, radius: f64) -> bool {
@@ -193,7 +257,12 @@ pub struct ClusterGrid {
 
 impl ClusterGrid {
     pub fn new(divisions_x: u32, divisions_y: u32, divisions_z: u32, bounds: AABB) -> Self {
-        Self { divisions_x, divisions_y, divisions_z, bounds }
+        Self {
+            divisions_x,
+            divisions_y,
+            divisions_z,
+            bounds,
+        }
     }
 
     /// Total number of clusters.
@@ -282,7 +351,9 @@ impl PointLight {
     /// Includes the smooth windowing function for range cutoff.
     pub fn intensity_at(&self, world_pos: Vec3) -> f64 {
         let dist = world_pos.sub(self.position).length();
-        if dist >= self.range { return 0.0; }
+        if dist >= self.range {
+            return 0.0;
+        }
         let raw = self.attenuation.evaluate(dist);
         let window = window_function(dist, self.range);
         self.intensity * raw * window
@@ -299,7 +370,9 @@ impl PointLight {
     pub fn diffuse_at(&self, surface_pos: Vec3, surface_normal: Vec3) -> Color {
         let to_light = self.position.sub(surface_pos);
         let dist = to_light.length();
-        if dist >= self.range || dist < 1e-12 { return Color::BLACK; }
+        if dist >= self.range || dist < 1e-12 {
+            return Color::BLACK;
+        }
         let dir = to_light.scale(1.0 / dist);
         let n_dot_l = surface_normal.normalized().dot(dir).max(0.0);
         let atten = self.attenuation.evaluate(dist) * window_function(dist, self.range);
@@ -307,7 +380,9 @@ impl PointLight {
     }
 
     /// Light volume bounding sphere radius (for culling).
-    pub fn bounding_radius(&self) -> f64 { self.range }
+    pub fn bounding_radius(&self) -> f64 {
+        self.range
+    }
 
     /// Test whether a point is inside the light volume.
     pub fn contains_point(&self, p: Vec3) -> bool {
@@ -333,7 +408,9 @@ mod tests {
 
     const EPS: f64 = 1e-6;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     #[test]
     fn attenuation_inverse_square_at_1() {
@@ -357,7 +434,11 @@ mod tests {
 
     #[test]
     fn attenuation_custom() {
-        let a = Attenuation::Custom { constant: 1.0, linear: 0.0, quadratic: 1.0 };
+        let a = Attenuation::Custom {
+            constant: 1.0,
+            linear: 0.0,
+            quadratic: 1.0,
+        };
         assert!(approx(a.evaluate(1.0), 0.5));
     }
 
@@ -446,8 +527,7 @@ mod tests {
 
     #[test]
     fn shadow_faces_count() {
-        let l = PointLight::new(Vec3::ZERO, Color::WHITE, 1.0, 10.0)
-            .with_shadows(1024);
+        let l = PointLight::new(Vec3::ZERO, Color::WHITE, 1.0, 10.0).with_shadows(1024);
         assert!(l.casts_shadows);
         assert_eq!(l.shadow_faces().len(), 6);
     }
@@ -455,7 +535,9 @@ mod tests {
     #[test]
     fn cluster_assignment_basic() {
         let grid = ClusterGrid::new(
-            2, 2, 2,
+            2,
+            2,
+            2,
             AABB::new(Vec3::new(-10.0, -10.0, -10.0), Vec3::new(10.0, 10.0, 10.0)),
         );
         let l = PointLight::new(Vec3::ZERO, Color::WHITE, 1.0, 5.0);
@@ -466,10 +548,7 @@ mod tests {
 
     #[test]
     fn cluster_assignment_corner() {
-        let grid = ClusterGrid::new(
-            4, 4, 4,
-            AABB::new(Vec3::ZERO, Vec3::new(40.0, 40.0, 40.0)),
-        );
+        let grid = ClusterGrid::new(4, 4, 4, AABB::new(Vec3::ZERO, Vec3::new(40.0, 40.0, 40.0)));
         let l = PointLight::new(Vec3::new(5.0, 5.0, 5.0), Color::WHITE, 1.0, 1.0);
         let clusters = l.cluster_assignment(&grid);
         // Small light in one corner cell.
@@ -500,7 +579,9 @@ mod tests {
 
     #[test]
     fn attenuation_ue4() {
-        let a = Attenuation::Ue4 { falloff_exponent: 1.0 };
+        let a = Attenuation::Ue4 {
+            falloff_exponent: 1.0,
+        };
         let v = a.evaluate(0.0);
         assert!(approx(v, 1.0));
         let v2 = a.evaluate(1.0);

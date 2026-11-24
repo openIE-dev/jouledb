@@ -87,11 +87,21 @@ pub struct VersionedValue {
 
 impl VersionedValue {
     pub fn new(data: Vec<u8>, lamport_ts: u64, origin_node: u64) -> Self {
-        Self { data, lamport_ts, origin_node, is_tombstone: false }
+        Self {
+            data,
+            lamport_ts,
+            origin_node,
+            is_tombstone: false,
+        }
     }
 
     pub fn tombstone(lamport_ts: u64, origin_node: u64) -> Self {
-        Self { data: Vec::new(), lamport_ts, origin_node, is_tombstone: true }
+        Self {
+            data: Vec::new(),
+            lamport_ts,
+            origin_node,
+            is_tombstone: true,
+        }
     }
 
     /// Is this value newer than another? Tie-break by node ID.
@@ -107,9 +117,19 @@ impl VersionedValue {
 impl fmt::Display for VersionedValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.is_tombstone {
-            write!(f, "Tombstone(ts={}, node={})", self.lamport_ts, self.origin_node)
+            write!(
+                f,
+                "Tombstone(ts={}, node={})",
+                self.lamport_ts, self.origin_node
+            )
         } else {
-            write!(f, "Value(ts={}, node={}, {}B)", self.lamport_ts, self.origin_node, self.data.len())
+            write!(
+                f,
+                "Value(ts={}, node={}, {}B)",
+                self.lamport_ts,
+                self.origin_node,
+                self.data.len()
+            )
         }
     }
 }
@@ -126,7 +146,10 @@ pub struct Digest {
 
 impl Digest {
     pub fn new(node_id: u64) -> Self {
-        Self { node_id, entries: HashMap::new() }
+        Self {
+            node_id,
+            entries: HashMap::new(),
+        }
     }
 }
 
@@ -246,7 +269,8 @@ impl EventualStore {
         if let Some(local) = self.store.get(key) {
             if local.is_newer_than(stale) {
                 self.repairs += 1;
-                self.repair_log.push((key.to_string(), stale.lamport_ts, local.lamport_ts));
+                self.repair_log
+                    .push((key.to_string(), stale.lamport_ts, local.lamport_ts));
                 return Some(local.clone());
             }
         }
@@ -271,7 +295,10 @@ impl EventualStore {
                 updates.push((k.clone(), v.clone()));
             }
         }
-        AntiEntropyDelta { from_node: self.node_id, updates }
+        AntiEntropyDelta {
+            from_node: self.node_id,
+            updates,
+        }
     }
 
     /// Apply an anti-entropy delta from a remote node. Returns number of updates applied.
@@ -303,11 +330,10 @@ impl EventualStore {
         if digests.is_empty() {
             return true;
         }
-        let all_keys: HashSet<&String> = digests.iter()
-            .flat_map(|d| d.entries.keys())
-            .collect();
+        let all_keys: HashSet<&String> = digests.iter().flat_map(|d| d.entries.keys()).collect();
         for key in all_keys {
-            let timestamps: HashSet<u64> = digests.iter()
+            let timestamps: HashSet<u64> = digests
+                .iter()
                 .filter_map(|d| d.entries.get(key).copied())
                 .collect();
             if timestamps.len() > 1 {
@@ -319,7 +345,9 @@ impl EventualStore {
 
     /// Purge tombstones older than a given Lamport timestamp.
     pub fn purge_tombstones(&mut self, older_than_ts: u64) -> usize {
-        let keys_to_remove: Vec<String> = self.store.iter()
+        let keys_to_remove: Vec<String> = self
+            .store
+            .iter()
             .filter(|(_, v)| v.is_tombstone && v.lamport_ts < older_than_ts)
             .map(|(k, _)| k.clone())
             .collect();
@@ -432,7 +460,10 @@ mod tests {
     #[test]
     fn store_read_missing_key() {
         let mut store = EventualStore::new(1, 3);
-        assert!(matches!(store.read("nope"), Err(ConsistencyError::KeyNotFound(_))));
+        assert!(matches!(
+            store.read("nope"),
+            Err(ConsistencyError::KeyNotFound(_))
+        ));
     }
 
     #[test]
@@ -440,7 +471,10 @@ mod tests {
         let mut store = EventualStore::new(1, 3);
         store.write("k", vec![1]);
         store.delete("k");
-        assert!(matches!(store.read("k"), Err(ConsistencyError::Tombstoned(_))));
+        assert!(matches!(
+            store.read("k"),
+            Err(ConsistencyError::Tombstoned(_))
+        ));
     }
 
     #[test]

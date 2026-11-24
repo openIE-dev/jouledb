@@ -22,11 +22,11 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::BinaryHV;
 use super::concept::ConceptEncoder;
 use super::core::KnowledgeCore;
 use super::relation::RelationType;
 use super::triple::Triple;
+use crate::BinaryHV;
 
 /// A structural lookup result from the Oracle.
 #[derive(Clone, Debug)]
@@ -73,7 +73,7 @@ pub trait OracleBackend: Send + Sync {
 
     /// Find concepts related to the query.
     fn lookup_related(&self, concept: &str, max_results: usize)
-        -> Vec<(String, RelationType, f64)>;
+    -> Vec<(String, RelationType, f64)>;
 
     /// Name of this backend.
     fn name(&self) -> &str;
@@ -175,8 +175,7 @@ impl Oracle {
 
         // Convert related concepts into triples and ingest
         for (related_concept, relation, weight) in &result.related {
-            let triple = Triple::new(concept, *relation, related_concept)
-                .with_weight(*weight);
+            let triple = Triple::new(concept, *relation, related_concept).with_weight(*weight);
             core.ingest_triple(&triple);
             added += 1;
         }
@@ -301,8 +300,8 @@ impl OracleBackend for InMemoryBackend {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::ingest::ConceptNetParser;
+    use super::*;
 
     fn build_test_backend() -> InMemoryBackend {
         let mut backend = InMemoryBackend::new("test_ucg");
@@ -405,7 +404,10 @@ mod tests {
 
         // "whale" should now be queryable in the core
         let whale = core.query_concept("whale");
-        assert!(whale.is_some(), "whale should be in core after oracle ingest");
+        assert!(
+            whale.is_some(),
+            "whale should be in core after oracle ingest"
+        );
     }
 
     #[test]

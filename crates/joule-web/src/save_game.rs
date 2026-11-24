@@ -14,13 +14,22 @@ use std::fmt;
 pub enum SaveError {
     CorruptedData(String),
     InvalidMagic,
-    ChecksumMismatch { expected: u32, actual: u32 },
-    VersionTooNew { save_version: u32, max_supported: u32 },
+    ChecksumMismatch {
+        expected: u32,
+        actual: u32,
+    },
+    VersionTooNew {
+        save_version: u32,
+        max_supported: u32,
+    },
     SlotNotFound(String),
     SlotFull(String),
     SectionNotFound(String),
     SerializationError(String),
-    DataTooLarge { size: usize, limit: usize },
+    DataTooLarge {
+        size: usize,
+        limit: usize,
+    },
 }
 
 impl fmt::Display for SaveError {
@@ -29,10 +38,19 @@ impl fmt::Display for SaveError {
             Self::CorruptedData(msg) => write!(f, "corrupted save data: {msg}"),
             Self::InvalidMagic => write!(f, "invalid save file magic number"),
             Self::ChecksumMismatch { expected, actual } => {
-                write!(f, "checksum mismatch: expected {expected:#010x}, got {actual:#010x}")
+                write!(
+                    f,
+                    "checksum mismatch: expected {expected:#010x}, got {actual:#010x}"
+                )
             }
-            Self::VersionTooNew { save_version, max_supported } => {
-                write!(f, "save version {save_version} > max supported {max_supported}")
+            Self::VersionTooNew {
+                save_version,
+                max_supported,
+            } => {
+                write!(
+                    f,
+                    "save version {save_version} > max supported {max_supported}"
+                )
             }
             Self::SlotNotFound(name) => write!(f, "save slot not found: {name}"),
             Self::SlotFull(name) => write!(f, "save slot is full: {name}"),
@@ -95,7 +113,10 @@ pub struct DataSection {
 
 impl DataSection {
     pub fn new(name: &str, data: Vec<u8>) -> Self {
-        Self { name: name.to_string(), data }
+        Self {
+            name: name.to_string(),
+            data,
+        }
     }
 
     fn encode(&self) -> Vec<u8> {
@@ -110,10 +131,15 @@ impl DataSection {
 
     fn decode(data: &[u8], offset: &mut usize) -> Result<Self, SaveError> {
         if *offset + 4 > data.len() {
-            return Err(SaveError::CorruptedData("truncated section name length".into()));
+            return Err(SaveError::CorruptedData(
+                "truncated section name length".into(),
+            ));
         }
         let name_len = u32::from_le_bytes([
-            data[*offset], data[*offset + 1], data[*offset + 2], data[*offset + 3],
+            data[*offset],
+            data[*offset + 1],
+            data[*offset + 2],
+            data[*offset + 3],
         ]) as usize;
         *offset += 4;
         if *offset + name_len > data.len() {
@@ -123,10 +149,15 @@ impl DataSection {
             .map_err(|_| SaveError::CorruptedData("invalid section name encoding".into()))?;
         *offset += name_len;
         if *offset + 4 > data.len() {
-            return Err(SaveError::CorruptedData("truncated section data length".into()));
+            return Err(SaveError::CorruptedData(
+                "truncated section data length".into(),
+            ));
         }
         let data_len = u32::from_le_bytes([
-            data[*offset], data[*offset + 1], data[*offset + 2], data[*offset + 3],
+            data[*offset],
+            data[*offset + 1],
+            data[*offset + 2],
+            data[*offset + 3],
         ]) as usize;
         *offset += 4;
         if *offset + data_len > data.len() {
@@ -134,7 +165,10 @@ impl DataSection {
         }
         let section_data = data[*offset..*offset + data_len].to_vec();
         *offset += data_len;
-        Ok(Self { name, data: section_data })
+        Ok(Self {
+            name,
+            data: section_data,
+        })
     }
 }
 
@@ -160,10 +194,22 @@ impl SaveMetadata {
         }
     }
 
-    pub fn with_play_time(mut self, ms: u64) -> Self { self.play_time_ms = ms; self }
-    pub fn with_level(mut self, lvl: u32) -> Self { self.player_level = lvl; self }
-    pub fn with_name(mut self, name: &str) -> Self { self.player_name = name.to_string(); self }
-    pub fn with_screenshot(mut self, data: Vec<u8>) -> Self { self.screenshot_placeholder = data; self }
+    pub fn with_play_time(mut self, ms: u64) -> Self {
+        self.play_time_ms = ms;
+        self
+    }
+    pub fn with_level(mut self, lvl: u32) -> Self {
+        self.player_level = lvl;
+        self
+    }
+    pub fn with_name(mut self, name: &str) -> Self {
+        self.player_name = name.to_string();
+        self
+    }
+    pub fn with_screenshot(mut self, data: Vec<u8>) -> Self {
+        self.screenshot_placeholder = data;
+        self
+    }
 
     fn encode(&self) -> Vec<u8> {
         let mut buf = Vec::new();
@@ -189,20 +235,35 @@ impl SaveMetadata {
         *offset += 8;
         let player_level = u32::from_le_bytes(data[*offset..*offset + 4].try_into().unwrap());
         *offset += 4;
-        if *offset + 4 > data.len() { return Err(err("truncated name length")); }
+        if *offset + 4 > data.len() {
+            return Err(err("truncated name length"));
+        }
         let name_len = u32::from_le_bytes(data[*offset..*offset + 4].try_into().unwrap()) as usize;
         *offset += 4;
-        if *offset + name_len > data.len() { return Err(err("truncated name")); }
+        if *offset + name_len > data.len() {
+            return Err(err("truncated name"));
+        }
         let player_name = String::from_utf8(data[*offset..*offset + name_len].to_vec())
             .map_err(|_| err("invalid name encoding"))?;
         *offset += name_len;
-        if *offset + 4 > data.len() { return Err(err("truncated screenshot length")); }
-        let screenshot_len = u32::from_le_bytes(data[*offset..*offset + 4].try_into().unwrap()) as usize;
+        if *offset + 4 > data.len() {
+            return Err(err("truncated screenshot length"));
+        }
+        let screenshot_len =
+            u32::from_le_bytes(data[*offset..*offset + 4].try_into().unwrap()) as usize;
         *offset += 4;
-        if *offset + screenshot_len > data.len() { return Err(err("truncated screenshot")); }
+        if *offset + screenshot_len > data.len() {
+            return Err(err("truncated screenshot"));
+        }
         let screenshot_placeholder = data[*offset..*offset + screenshot_len].to_vec();
         *offset += screenshot_len;
-        Ok(Self { timestamp_ms, play_time_ms, player_level, player_name, screenshot_placeholder })
+        Ok(Self {
+            timestamp_ms,
+            play_time_ms,
+            player_level,
+            player_name,
+            screenshot_placeholder,
+        })
     }
 }
 
@@ -217,7 +278,11 @@ pub struct SaveFile {
 
 impl SaveFile {
     pub fn new(metadata: SaveMetadata) -> Self {
-        Self { version: CURRENT_VERSION, metadata, sections: Vec::new() }
+        Self {
+            version: CURRENT_VERSION,
+            metadata,
+            sections: Vec::new(),
+        }
     }
 
     pub fn add_section(&mut self, section: DataSection) {
@@ -256,7 +321,10 @@ impl SaveFile {
         }
         // Check size
         if buf.len() > MAX_SAVE_SIZE {
-            return Err(SaveError::DataTooLarge { size: buf.len(), limit: MAX_SAVE_SIZE });
+            return Err(SaveError::DataTooLarge {
+                size: buf.len(),
+                limit: MAX_SAVE_SIZE,
+            });
         }
         // Compute checksum over everything after the checksum field
         let checksum = crc32(&buf[checksum_offset + 4..]);
@@ -276,14 +344,18 @@ impl SaveFile {
         // Version
         let version = u32::from_le_bytes([data[4], data[5], data[6], data[7]]);
         if version > CURRENT_VERSION {
-            return Err(SaveError::VersionTooNew { save_version: version, max_supported: CURRENT_VERSION });
+            return Err(SaveError::VersionTooNew {
+                save_version: version,
+                max_supported: CURRENT_VERSION,
+            });
         }
         // Checksum
         let stored_checksum = u32::from_le_bytes([data[8], data[9], data[10], data[11]]);
         let computed_checksum = crc32(&data[12..]);
         if stored_checksum != computed_checksum {
             return Err(SaveError::ChecksumMismatch {
-                expected: stored_checksum, actual: computed_checksum,
+                expected: stored_checksum,
+                actual: computed_checksum,
             });
         }
         let mut offset = 12;
@@ -292,7 +364,10 @@ impl SaveFile {
         // Apply version migrations
         let metadata = if version < 2 {
             // V1 didn't have play_time, default to 0
-            SaveMetadata { play_time_ms: 0, ..metadata }
+            SaveMetadata {
+                play_time_ms: 0,
+                ..metadata
+            }
         } else {
             metadata
         };
@@ -300,13 +375,18 @@ impl SaveFile {
         if offset + 4 > data.len() {
             return Err(SaveError::CorruptedData("truncated section count".into()));
         }
-        let section_count = u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
+        let section_count =
+            u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
         offset += 4;
         let mut sections = Vec::with_capacity(section_count);
         for _ in 0..section_count {
             sections.push(DataSection::decode(data, &mut offset)?);
         }
-        Ok(Self { version, metadata, sections })
+        Ok(Self {
+            version,
+            metadata,
+            sections,
+        })
     }
 
     pub fn file_size(&self) -> Result<usize, SaveError> {
@@ -341,7 +421,10 @@ impl SaveSlotManager {
 
     pub fn save_to_slot(&mut self, slot_name: &str, save: &SaveFile) -> Result<usize, SaveError> {
         // quicksave doesn't count toward max slots
-        if slot_name != QUICKSAVE_SLOT && !self.slots.contains_key(slot_name) && self.slots.len() >= self.max_slots {
+        if slot_name != QUICKSAVE_SLOT
+            && !self.slots.contains_key(slot_name)
+            && self.slots.len() >= self.max_slots
+        {
             return Err(SaveError::SlotFull(slot_name.to_string()));
         }
         let data = save.encode()?;
@@ -351,7 +434,9 @@ impl SaveSlotManager {
     }
 
     pub fn load_from_slot(&self, slot_name: &str) -> Result<SaveFile, SaveError> {
-        let data = self.slots.get(slot_name)
+        let data = self
+            .slots
+            .get(slot_name)
             .ok_or_else(|| SaveError::SlotNotFound(slot_name.to_string()))?;
         SaveFile::decode(data)
     }
@@ -381,7 +466,9 @@ impl SaveSlotManager {
         self.slots.values().map(|d| d.len()).sum()
     }
 
-    pub fn slot_count(&self) -> usize { self.slots.len() }
+    pub fn slot_count(&self) -> usize {
+        self.slots.len()
+    }
 
     pub fn quick_save(&mut self, save: &SaveFile) -> Result<usize, SaveError> {
         self.save_to_slot(QUICKSAVE_SLOT, save)
@@ -395,7 +482,11 @@ impl SaveSlotManager {
         current_time_ms >= self.last_auto_save_ms + self.auto_save_interval_ms
     }
 
-    pub fn auto_save(&mut self, save: &SaveFile, current_time_ms: u64) -> Result<Option<usize>, SaveError> {
+    pub fn auto_save(
+        &mut self,
+        save: &SaveFile,
+        current_time_ms: u64,
+    ) -> Result<Option<usize>, SaveError> {
         if self.should_auto_save(current_time_ms) {
             self.last_auto_save_ms = current_time_ms;
             let size = self.save_to_slot("__autosave__", save)?;
@@ -580,8 +671,7 @@ mod tests {
 
     #[test]
     fn auto_save_trigger() {
-        let mut mgr = SaveSlotManager::new(10)
-            .with_auto_save_interval(60_000);
+        let mut mgr = SaveSlotManager::new(10).with_auto_save_interval(60_000);
         let save = test_save();
         // First auto-save at t=60_000 (>= 0 + 60_000)
         let result = mgr.auto_save(&save, 60_000).unwrap();
@@ -596,8 +686,7 @@ mod tests {
 
     #[test]
     fn should_auto_save() {
-        let mgr = SaveSlotManager::new(10)
-            .with_auto_save_interval(60_000);
+        let mgr = SaveSlotManager::new(10).with_auto_save_interval(60_000);
         assert!(mgr.should_auto_save(60_000));
         assert!(!mgr.should_auto_save(30_000));
     }
@@ -632,13 +721,15 @@ mod tests {
 
     #[test]
     fn metadata_with_screenshot() {
-        let meta = SaveMetadata::new(100)
-            .with_screenshot(vec![0xFF, 0xD8, 0xFF]); // fake JPEG header
+        let meta = SaveMetadata::new(100).with_screenshot(vec![0xFF, 0xD8, 0xFF]); // fake JPEG header
         let mut save = SaveFile::new(meta);
         save.add_section(DataSection::new("test", vec![1]));
         let encoded = save.encode().unwrap();
         let decoded = SaveFile::decode(&encoded).unwrap();
-        assert_eq!(decoded.metadata.screenshot_placeholder, vec![0xFF, 0xD8, 0xFF]);
+        assert_eq!(
+            decoded.metadata.screenshot_placeholder,
+            vec![0xFF, 0xD8, 0xFF]
+        );
     }
 
     #[test]

@@ -83,12 +83,18 @@ impl DoseCalcConfig {
 }
 
 impl Default for DoseCalcConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for DoseCalcConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "DoseCalcConfig(weight_kg={0:.4}, height_cm={1:.4}, age_years={2:.4}, renal_adjustment={3})", self.weight_kg, self.height_cm, self.age_years, self.renal_adjustment)
+        write!(
+            f,
+            "DoseCalcConfig(weight_kg={0:.4}, height_cm={1:.4}, age_years={2:.4}, renal_adjustment={3})",
+            self.weight_kg, self.height_cm, self.age_years, self.renal_adjustment
+        )
     }
 }
 
@@ -104,7 +110,10 @@ pub struct DoseCalc {
 impl DoseCalc {
     pub fn new(config: DoseCalcConfig) -> Result<Self, DoseCalcError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -116,13 +125,21 @@ impl DoseCalc {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &DoseCalcConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &DoseCalcConfig {
+        &self.config
+    }
 
     /// Calculate weight-based dose.
     pub fn weight_based_dose(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -132,7 +149,9 @@ impl DoseCalc {
 
     /// BSA-based dose (Mosteller).
     pub fn bsa_dose(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -142,7 +161,9 @@ impl DoseCalc {
 
     /// Cockcroft-Gault CrCl.
     pub fn creatinine_clearance(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -152,7 +173,9 @@ impl DoseCalc {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -164,7 +187,9 @@ impl DoseCalc {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -176,7 +201,11 @@ impl DoseCalc {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -249,7 +278,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = DoseCalc::new(DoseCalcConfig::new()).unwrap()
+        let e = DoseCalc::new(DoseCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -265,7 +295,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = DoseCalc::new(DoseCalcConfig::new()).unwrap()
+        let e = DoseCalc::new(DoseCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("DoseCalc"));
@@ -273,7 +304,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = DoseCalc::new(DoseCalcConfig::new()).unwrap()
+        let e = DoseCalc::new(DoseCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -284,7 +316,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = DoseCalc::new(DoseCalcConfig::new()).unwrap()
+        let e = DoseCalc::new(DoseCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -292,7 +325,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = DoseCalc::new(DoseCalcConfig::new()).unwrap()
+        let e = DoseCalc::new(DoseCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -309,7 +343,8 @@ mod tests {
 
     #[test]
     fn test_weight_based_dose() {
-        let e = DoseCalc::new(DoseCalcConfig::new()).unwrap()
+        let e = DoseCalc::new(DoseCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.weight_based_dose();
         assert!(result.is_finite());
@@ -317,7 +352,8 @@ mod tests {
 
     #[test]
     fn test_bsa_dose() {
-        let e = DoseCalc::new(DoseCalcConfig::new()).unwrap()
+        let e = DoseCalc::new(DoseCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.bsa_dose();
         assert!(result.is_finite());
@@ -325,7 +361,8 @@ mod tests {
 
     #[test]
     fn test_creatinine_clearance() {
-        let e = DoseCalc::new(DoseCalcConfig::new()).unwrap()
+        let e = DoseCalc::new(DoseCalcConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.creatinine_clearance();
         assert!(result.is_finite());

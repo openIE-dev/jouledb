@@ -27,7 +27,9 @@ impl Rng {
     }
 
     fn range(&mut self, lo: usize, hi: usize) -> usize {
-        if lo >= hi { return lo; }
+        if lo >= hi {
+            return lo;
+        }
         lo + (self.next_u64() % (hi - lo) as u64) as usize
     }
 
@@ -73,7 +75,12 @@ impl Direction {
     }
 
     fn all() -> [Direction; 4] {
-        [Direction::North, Direction::South, Direction::East, Direction::West]
+        [
+            Direction::North,
+            Direction::South,
+            Direction::East,
+            Direction::West,
+        ]
     }
 }
 
@@ -98,7 +105,9 @@ pub struct Cell {
 
 impl Cell {
     fn new() -> Self {
-        Self { passages: [false; 4] }
+        Self {
+            passages: [false; 4],
+        }
     }
 
     fn has_passage(&self, dir: Direction) -> bool {
@@ -124,7 +133,13 @@ pub struct Maze {
 impl Maze {
     fn new(width: usize, height: usize) -> Self {
         let cells = vec![vec![Cell::new(); width]; height];
-        Self { width, height, cells, start: (0, 0), end_pos: (width - 1, height - 1) }
+        Self {
+            width,
+            height,
+            cells,
+            start: (0, 0),
+            end_pos: (width - 1, height - 1),
+        }
     }
 
     fn neighbor(&self, x: usize, y: usize, dir: Direction) -> Option<(usize, usize)> {
@@ -176,8 +191,12 @@ impl Maze {
         let mut count = 0;
         for y in 0..self.height {
             for x in 0..self.width {
-                if self.cells[y][x].has_passage(Direction::East) { count += 1; }
-                if self.cells[y][x].has_passage(Direction::South) { count += 1; }
+                if self.cells[y][x].has_passage(Direction::East) {
+                    count += 1;
+                }
+                if self.cells[y][x].has_passage(Direction::South) {
+                    count += 1;
+                }
             }
         }
         count
@@ -189,7 +208,9 @@ impl Maze {
         for y in 0..self.height {
             for x in 0..self.width {
                 let passages: usize = self.cells[y][x].passages.iter().filter(|&&p| p).count();
-                if passages == 1 { count += 1; }
+                if passages == 1 {
+                    count += 1;
+                }
             }
         }
         count
@@ -198,7 +219,8 @@ impl Maze {
     /// Solve the maze via BFS, returning the path from start to end.
     pub fn solve(&self) -> Option<Vec<(usize, usize)>> {
         let mut visited = vec![vec![false; self.width]; self.height];
-        let mut parent: Vec<Vec<Option<(usize, usize)>>> = vec![vec![None; self.width]; self.height];
+        let mut parent: Vec<Vec<Option<(usize, usize)>>> =
+            vec![vec![None; self.width]; self.height];
         let mut queue = VecDeque::new();
         let (sx, sy) = self.start;
         visited[sy][sx] = true;
@@ -255,7 +277,10 @@ impl Maze {
         let (ex, ey) = self.end_pos;
         grid[ey * 2 + 1][ex * 2 + 1] = 'E';
 
-        grid.iter().map(|row| row.iter().collect::<String>()).collect::<Vec<_>>().join("\n")
+        grid.iter()
+            .map(|row| row.iter().collect::<String>())
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 }
 
@@ -317,7 +342,9 @@ fn kruskal(maze: &mut Maze, rng: &mut Rng) {
     fn union(parent: &mut Vec<usize>, a: usize, b: usize) -> bool {
         let ra = find(parent, a);
         let rb = find(parent, b);
-        if ra == rb { return false; }
+        if ra == rb {
+            return false;
+        }
         parent[ra] = rb;
         true
     }
@@ -325,8 +352,12 @@ fn kruskal(maze: &mut Maze, rng: &mut Rng) {
     let mut edges: Vec<(usize, usize, Direction)> = Vec::new();
     for y in 0..maze.height {
         for x in 0..maze.width {
-            if x + 1 < maze.width { edges.push((x, y, Direction::East)); }
-            if y + 1 < maze.height { edges.push((x, y, Direction::South)); }
+            if x + 1 < maze.width {
+                edges.push((x, y, Direction::East));
+            }
+            if y + 1 < maze.height {
+                edges.push((x, y, Direction::South));
+            }
         }
     }
     rng.shuffle(&mut edges);
@@ -364,7 +395,13 @@ fn prim(maze: &mut Maze, rng: &mut Rng) {
     }
 }
 
-fn add_frontier(maze: &Maze, x: usize, y: usize, in_maze: &[Vec<bool>], frontier: &mut Vec<(usize, usize, Direction)>) {
+fn add_frontier(
+    maze: &Maze,
+    x: usize,
+    y: usize,
+    in_maze: &[Vec<bool>],
+    frontier: &mut Vec<(usize, usize, Direction)>,
+) {
     for dir in Direction::all() {
         if let Some((nx, ny)) = maze.neighbor(x, y, dir) {
             if !in_maze[ny][nx] {
@@ -389,7 +426,9 @@ fn eller(maze: &mut Maze, rng: &mut Rng) {
                 let old = sets[x + 1];
                 let new = sets[x];
                 for i in 0..w {
-                    if sets[i] == old { sets[i] = new; }
+                    if sets[i] == old {
+                        sets[i] = new;
+                    }
                 }
             }
         }
@@ -439,7 +478,11 @@ fn binary_tree(maze: &mut Maze, rng: &mut Rng) {
             let can_n = y > 0;
             let can_e = x + 1 < maze.width;
             if can_n && can_e {
-                if rng.coin() { maze.link(x, y, Direction::North); } else { maze.link(x, y, Direction::East); }
+                if rng.coin() {
+                    maze.link(x, y, Direction::North);
+                } else {
+                    maze.link(x, y, Direction::East);
+                }
             } else if can_n {
                 maze.link(x, y, Direction::North);
             } else if can_e {
@@ -518,7 +561,9 @@ pub fn remove_dead_ends(maze: &mut Maze, fraction: f64, seed: u64) {
         let x = rng.range(0, maze.width);
         let y = rng.range(0, maze.height);
         let passages: usize = maze.cells[y][x].passages.iter().filter(|&&p| p).count();
-        if passages != 1 { continue; }
+        if passages != 1 {
+            continue;
+        }
 
         let mut dirs = Direction::all();
         rng.shuffle(&mut dirs);
@@ -672,7 +717,11 @@ mod tests {
         ];
         for algo in algos {
             let m = build(8, 8, algo, 42);
-            assert!(m.solve().is_some(), "{:?} should produce solvable maze", algo);
+            assert!(
+                m.solve().is_some(),
+                "{:?} should produce solvable maze",
+                algo
+            );
         }
     }
 

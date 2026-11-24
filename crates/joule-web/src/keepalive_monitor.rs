@@ -216,14 +216,17 @@ impl KeepaliveMonitor {
 
     /// Unregister a connection.
     pub fn unregister(&mut self, connection_id: u64) -> Result<(), KeepaliveError> {
-        self.connections.remove(&connection_id)
+        self.connections
+            .remove(&connection_id)
             .ok_or(KeepaliveError::ConnectionNotFound(connection_id))?;
         Ok(())
     }
 
     /// Record that a heartbeat was sent to a connection.
     pub fn send_heartbeat(&mut self, connection_id: u64) -> Result<(), KeepaliveError> {
-        let state = self.connections.get_mut(&connection_id)
+        let state = self
+            .connections
+            .get_mut(&connection_id)
             .ok_or(KeepaliveError::ConnectionNotFound(connection_id))?;
         if state.disconnected {
             return Err(KeepaliveError::AlreadyDisconnected(connection_id));
@@ -235,7 +238,9 @@ impl KeepaliveMonitor {
 
     /// Record that a heartbeat response was received from a connection.
     pub fn receive_heartbeat(&mut self, connection_id: u64) -> Result<(), KeepaliveError> {
-        let state = self.connections.get_mut(&connection_id)
+        let state = self
+            .connections
+            .get_mut(&connection_id)
             .ok_or(KeepaliveError::ConnectionNotFound(connection_id))?;
         if state.disconnected {
             return Err(KeepaliveError::AlreadyDisconnected(connection_id));
@@ -251,15 +256,17 @@ impl KeepaliveMonitor {
     pub fn record_activity(&mut self, connection_id: u64) -> Result<(), KeepaliveError> {
         let config = &self.config;
         let tick = self.current_tick;
-        let state = self.connections.get_mut(&connection_id)
+        let state = self
+            .connections
+            .get_mut(&connection_id)
             .ok_or(KeepaliveError::ConnectionNotFound(connection_id))?;
         state.last_activity_tick = tick;
 
         // Adaptive interval: more active connections get longer intervals.
         if config.adaptive {
-            state.effective_interval = ((config.interval_ms as f64
-                * (1.0 + config.activity_boost_factor)) as u64)
-                .clamp(config.min_interval_ms, config.max_interval_ms);
+            state.effective_interval =
+                ((config.interval_ms as f64 * (1.0 + config.activity_boost_factor)) as u64)
+                    .clamp(config.min_interval_ms, config.max_interval_ms);
         }
 
         Ok(())
@@ -267,11 +274,13 @@ impl KeepaliveMonitor {
 
     /// Check all connections and return IDs that need heartbeats sent.
     pub fn connections_needing_heartbeat(&self) -> Vec<u64> {
-        self.connections.iter()
+        self.connections
+            .iter()
             .filter(|(_, state)| {
                 !state.disconnected
                     && state.timed_out_at.is_none()
-                    && self.current_tick.saturating_sub(state.last_heartbeat_tick) >= state.effective_interval
+                    && self.current_tick.saturating_sub(state.last_heartbeat_tick)
+                        >= state.effective_interval
             })
             .map(|(&id, _)| id)
             .collect()
@@ -324,7 +333,9 @@ impl KeepaliveMonitor {
 
     /// Get the health status of a connection.
     pub fn health(&self, connection_id: u64) -> Result<HealthStatus, KeepaliveError> {
-        let state = self.connections.get(&connection_id)
+        let state = self
+            .connections
+            .get(&connection_id)
             .ok_or(KeepaliveError::ConnectionNotFound(connection_id))?;
 
         if state.disconnected {
@@ -348,7 +359,9 @@ impl KeepaliveMonitor {
 
     /// Compute a health score for a connection (0.0 = dead, 1.0 = perfect).
     pub fn health_score(&self, connection_id: u64) -> Result<f64, KeepaliveError> {
-        let state = self.connections.get(&connection_id)
+        let state = self
+            .connections
+            .get(&connection_id)
             .ok_or(KeepaliveError::ConnectionNotFound(connection_id))?;
 
         if state.disconnected {
@@ -373,16 +386,15 @@ impl KeepaliveMonitor {
 
     /// Number of healthy connections (not timed out or disconnected).
     pub fn healthy_count(&self) -> usize {
-        self.connections.values()
+        self.connections
+            .values()
             .filter(|s| !s.disconnected && s.timed_out_at.is_none())
             .count()
     }
 
     /// Number of disconnected connections.
     pub fn disconnected_count(&self) -> usize {
-        self.connections.values()
-            .filter(|s| s.disconnected)
-            .count()
+        self.connections.values().filter(|s| s.disconnected).count()
     }
 
     /// Get statistics.
@@ -556,7 +568,9 @@ mod tests {
 
     #[test]
     fn health_score_zero_for_dead() {
-        let config = KeepaliveConfig::default().with_timeout(100).with_grace_period(50);
+        let config = KeepaliveConfig::default()
+            .with_timeout(100)
+            .with_grace_period(50);
         let mut m = KeepaliveMonitor::new(config);
         m.tick(0);
         m.register(1).unwrap();
@@ -598,7 +612,9 @@ mod tests {
 
     #[test]
     fn disconnected_count() {
-        let config = KeepaliveConfig::default().with_timeout(100).with_grace_period(50);
+        let config = KeepaliveConfig::default()
+            .with_timeout(100)
+            .with_grace_period(50);
         let mut m = KeepaliveMonitor::new(config);
         m.tick(0);
         m.register(1).unwrap();
@@ -620,7 +636,9 @@ mod tests {
 
     #[test]
     fn send_on_disconnected_fails() {
-        let config = KeepaliveConfig::default().with_timeout(100).with_grace_period(0);
+        let config = KeepaliveConfig::default()
+            .with_timeout(100)
+            .with_grace_period(0);
         let mut m = KeepaliveMonitor::new(config);
         m.tick(0);
         m.register(1).unwrap();

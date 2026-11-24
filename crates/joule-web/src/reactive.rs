@@ -62,12 +62,16 @@ pub struct WriteSignal<T: 'static> {
 }
 
 impl<T: 'static> Clone for ReadSignal<T> {
-    fn clone(&self) -> Self { *self }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 impl<T: 'static> Copy for ReadSignal<T> {}
 
 impl<T: 'static> Clone for WriteSignal<T> {
-    fn clone(&self) -> Self { *self }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 impl<T: 'static> Copy for WriteSignal<T> {}
 
@@ -83,8 +87,14 @@ pub fn create_signal<T: 'static>(value: T) -> (ReadSignal<T>, WriteSignal<T>) {
         id
     });
     (
-        ReadSignal { id, _marker: std::marker::PhantomData },
-        WriteSignal { id, _marker: std::marker::PhantomData },
+        ReadSignal {
+            id,
+            _marker: std::marker::PhantomData,
+        },
+        WriteSignal {
+            id,
+            _marker: std::marker::PhantomData,
+        },
     )
 }
 

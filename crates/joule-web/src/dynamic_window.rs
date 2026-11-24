@@ -34,18 +34,39 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0 } }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+    pub fn zero() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
 
-    pub fn magnitude(self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
+    pub fn magnitude(self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
 
     pub fn distance_to(self, o: Vec2) -> f64 {
         ((self.x - o.x).powi(2) + (self.y - o.y).powi(2)).sqrt()
     }
 
-    pub fn add(self, o: Vec2) -> Vec2 { Vec2 { x: self.x + o.x, y: self.y + o.y } }
-    pub fn sub(self, o: Vec2) -> Vec2 { Vec2 { x: self.x - o.x, y: self.y - o.y } }
-    pub fn scale(self, s: f64) -> Vec2 { Vec2 { x: self.x * s, y: self.y * s } }
+    pub fn add(self, o: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x + o.x,
+            y: self.y + o.y,
+        }
+    }
+    pub fn sub(self, o: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x - o.x,
+            y: self.y - o.y,
+        }
+    }
+    pub fn scale(self, s: f64) -> Vec2 {
+        Vec2 {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
 }
 
 impl fmt::Display for Vec2 {
@@ -68,7 +89,13 @@ pub struct RobotState {
 
 impl RobotState {
     pub fn new(x: f64, y: f64, theta: f64) -> Self {
-        Self { x, y, theta, v: 0.0, omega: 0.0 }
+        Self {
+            x,
+            y,
+            theta,
+            v: 0.0,
+            omega: 0.0,
+        }
     }
 
     pub fn with_velocity(mut self, v: f64, omega: f64) -> Self {
@@ -77,7 +104,9 @@ impl RobotState {
         self
     }
 
-    pub fn position(&self) -> Vec2 { Vec2::new(self.x, self.y) }
+    pub fn position(&self) -> Vec2 {
+        Vec2::new(self.x, self.y)
+    }
 
     /// Simulate forward one timestep with given velocity commands.
     pub fn simulate_step(&self, v: f64, omega: f64, dt: f64) -> Self {
@@ -92,7 +121,13 @@ impl RobotState {
             x_new = self.x + r * ((self.theta + omega * dt).sin() - self.theta.sin());
             y_new = self.y - r * ((self.theta + omega * dt).cos() - self.theta.cos());
         }
-        Self { x: x_new, y: y_new, theta: theta_new, v, omega }
+        Self {
+            x: x_new,
+            y: y_new,
+            theta: theta_new,
+            v,
+            omega,
+        }
     }
 }
 
@@ -117,7 +152,10 @@ pub struct CircleObstacle {
 
 impl CircleObstacle {
     pub fn new(x: f64, y: f64, r: f64) -> Self {
-        Self { center: Vec2::new(x, y), radius: r }
+        Self {
+            center: Vec2::new(x, y),
+            radius: r,
+        }
     }
 
     pub fn distance_to_point(&self, p: Vec2) -> f64 {
@@ -141,7 +179,7 @@ pub struct DwaConfig {
     pub min_v: f64,
     pub max_omega: f64,
     pub max_accel: f64,
-    pub max_alpha: f64,  // max angular acceleration
+    pub max_alpha: f64, // max angular acceleration
 
     // Simulation
     pub dt: f64,
@@ -181,21 +219,66 @@ impl DwaConfig {
         }
     }
 
-    pub fn with_max_v(mut self, v: f64) -> Self { self.max_v = v; self }
-    pub fn with_min_v(mut self, v: f64) -> Self { self.min_v = v; self }
-    pub fn with_max_omega(mut self, o: f64) -> Self { self.max_omega = o; self }
-    pub fn with_max_accel(mut self, a: f64) -> Self { self.max_accel = a; self }
-    pub fn with_max_alpha(mut self, a: f64) -> Self { self.max_alpha = a; self }
-    pub fn with_dt(mut self, dt: f64) -> Self { self.dt = dt; self }
-    pub fn with_predict_time(mut self, t: f64) -> Self { self.predict_time = t; self }
-    pub fn with_v_resolution(mut self, r: f64) -> Self { self.v_resolution = r; self }
-    pub fn with_omega_resolution(mut self, r: f64) -> Self { self.omega_resolution = r; self }
-    pub fn with_heading_weight(mut self, w: f64) -> Self { self.heading_weight = w; self }
-    pub fn with_distance_weight(mut self, w: f64) -> Self { self.distance_weight = w; self }
-    pub fn with_velocity_weight(mut self, w: f64) -> Self { self.velocity_weight = w; self }
-    pub fn with_clearance_weight(mut self, w: f64) -> Self { self.clearance_weight = w; self }
-    pub fn with_robot_radius(mut self, r: f64) -> Self { self.robot_radius = r; self }
-    pub fn with_min_clearance(mut self, c: f64) -> Self { self.min_clearance = c; self }
+    pub fn with_max_v(mut self, v: f64) -> Self {
+        self.max_v = v;
+        self
+    }
+    pub fn with_min_v(mut self, v: f64) -> Self {
+        self.min_v = v;
+        self
+    }
+    pub fn with_max_omega(mut self, o: f64) -> Self {
+        self.max_omega = o;
+        self
+    }
+    pub fn with_max_accel(mut self, a: f64) -> Self {
+        self.max_accel = a;
+        self
+    }
+    pub fn with_max_alpha(mut self, a: f64) -> Self {
+        self.max_alpha = a;
+        self
+    }
+    pub fn with_dt(mut self, dt: f64) -> Self {
+        self.dt = dt;
+        self
+    }
+    pub fn with_predict_time(mut self, t: f64) -> Self {
+        self.predict_time = t;
+        self
+    }
+    pub fn with_v_resolution(mut self, r: f64) -> Self {
+        self.v_resolution = r;
+        self
+    }
+    pub fn with_omega_resolution(mut self, r: f64) -> Self {
+        self.omega_resolution = r;
+        self
+    }
+    pub fn with_heading_weight(mut self, w: f64) -> Self {
+        self.heading_weight = w;
+        self
+    }
+    pub fn with_distance_weight(mut self, w: f64) -> Self {
+        self.distance_weight = w;
+        self
+    }
+    pub fn with_velocity_weight(mut self, w: f64) -> Self {
+        self.velocity_weight = w;
+        self
+    }
+    pub fn with_clearance_weight(mut self, w: f64) -> Self {
+        self.clearance_weight = w;
+        self
+    }
+    pub fn with_robot_radius(mut self, r: f64) -> Self {
+        self.robot_radius = r;
+        self
+    }
+    pub fn with_min_clearance(mut self, c: f64) -> Self {
+        self.min_clearance = c;
+        self
+    }
 }
 
 impl fmt::Display for DwaConfig {
@@ -224,8 +307,12 @@ pub struct Trajectory {
 }
 
 impl Trajectory {
-    pub fn end_state(&self) -> Option<&RobotState> { self.states.last() }
-    pub fn length(&self) -> usize { self.states.len() }
+    pub fn end_state(&self) -> Option<&RobotState> {
+        self.states.last()
+    }
+    pub fn length(&self) -> usize {
+        self.states.len()
+    }
 }
 
 impl fmt::Display for Trajectory {
@@ -233,7 +320,10 @@ impl fmt::Display for Trajectory {
         write!(
             f,
             "Trajectory(v={:.3}, omega={:.3}, score={:.3}, len={})",
-            self.v_cmd, self.omega_cmd, self.total_score, self.states.len(),
+            self.v_cmd,
+            self.omega_cmd,
+            self.total_score,
+            self.states.len(),
         )
     }
 }
@@ -255,8 +345,11 @@ impl fmt::Display for DwaResult {
         write!(
             f,
             "DwaResult(v={:.3}, omega={:.3}, score={:.3}, eval={}, admissible={})",
-            self.best_v, self.best_omega, self.best_score,
-            self.candidates_evaluated, self.candidates_admissible,
+            self.best_v,
+            self.best_omega,
+            self.best_score,
+            self.candidates_evaluated,
+            self.candidates_admissible,
         )
     }
 }
@@ -271,7 +364,10 @@ pub struct DwaPlanner {
 
 impl DwaPlanner {
     pub fn new(config: DwaConfig) -> Self {
-        Self { config, obstacles: Vec::new() }
+        Self {
+            config,
+            obstacles: Vec::new(),
+        }
     }
 
     pub fn with_obstacles(mut self, obs: Vec<CircleObstacle>) -> Self {
@@ -291,8 +387,10 @@ impl DwaPlanner {
     fn dynamic_window(&self, state: &RobotState) -> (f64, f64, f64, f64) {
         let v_min = (state.v - self.config.max_accel * self.config.dt).max(self.config.min_v);
         let v_max = (state.v + self.config.max_accel * self.config.dt).min(self.config.max_v);
-        let omega_min = (state.omega - self.config.max_alpha * self.config.dt).max(-self.config.max_omega);
-        let omega_max = (state.omega + self.config.max_alpha * self.config.dt).min(self.config.max_omega);
+        let omega_min =
+            (state.omega - self.config.max_alpha * self.config.dt).max(-self.config.max_omega);
+        let omega_max =
+            (state.omega + self.config.max_alpha * self.config.dt).min(self.config.max_omega);
         (v_min, v_max, omega_min, omega_max)
     }
 
@@ -316,7 +414,9 @@ impl DwaPlanner {
             let pos = st.position();
             for obs in &self.obstacles {
                 let d = obs.distance_to_point(pos) - self.config.robot_radius;
-                if d < min_d { min_d = d; }
+                if d < min_d {
+                    min_d = d;
+                }
             }
         }
         min_d
@@ -339,13 +439,19 @@ impl DwaPlanner {
 
     /// Velocity score: prefer faster forward motion.
     fn velocity_score(&self, v: f64) -> f64 {
-        if self.config.max_v > 0.0 { v / self.config.max_v } else { 0.0 }
+        if self.config.max_v > 0.0 {
+            v / self.config.max_v
+        } else {
+            0.0
+        }
     }
 
     /// Clearance score: distance to nearest obstacle.
     fn clearance_score(&self, traj: &[RobotState]) -> f64 {
         let c = self.trajectory_clearance(traj);
-        if c < self.config.min_clearance { return 0.0; }
+        if c < self.config.min_clearance {
+            return 0.0;
+        }
         (c / (c + 1.0)).min(1.0)
     }
 
@@ -415,14 +521,18 @@ impl DwaPlanner {
         }
     }
 
-    pub fn obstacle_count(&self) -> usize { self.obstacles.len() }
+    pub fn obstacle_count(&self) -> usize {
+        self.obstacles.len()
+    }
 }
 
 impl fmt::Display for DwaPlanner {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "DwaPlanner(obstacles={}, {})",
-            self.obstacles.len(), self.config,
+            f,
+            "DwaPlanner(obstacles={}, {})",
+            self.obstacles.len(),
+            self.config,
         )
     }
 }
@@ -431,8 +541,12 @@ impl fmt::Display for DwaPlanner {
 
 fn normalize_angle(a: f64) -> f64 {
     let mut angle = a % (2.0 * std::f64::consts::PI);
-    if angle > std::f64::consts::PI { angle -= 2.0 * std::f64::consts::PI; }
-    if angle < -std::f64::consts::PI { angle += 2.0 * std::f64::consts::PI; }
+    if angle > std::f64::consts::PI {
+        angle -= 2.0 * std::f64::consts::PI;
+    }
+    if angle < -std::f64::consts::PI {
+        angle += 2.0 * std::f64::consts::PI;
+    }
     angle
 }
 
@@ -442,7 +556,9 @@ fn normalize_angle(a: f64) -> f64 {
 mod tests {
     use super::*;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < 1e-6 }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < 1e-6
+    }
 
     #[test]
     fn test_vec2_distance() {
@@ -557,7 +673,10 @@ mod tests {
     fn test_normalize_angle() {
         assert!(approx(normalize_angle(0.0), 0.0));
         assert!(approx(normalize_angle(4.0 * std::f64::consts::PI), 0.0));
-        assert!(approx(normalize_angle(std::f64::consts::PI + 0.1), -std::f64::consts::PI + 0.1));
+        assert!(approx(
+            normalize_angle(std::f64::consts::PI + 0.1),
+            -std::f64::consts::PI + 0.1
+        ));
     }
 
     #[test]
@@ -590,9 +709,12 @@ mod tests {
             best_score: 3.0,
             best_trajectory: Trajectory {
                 states: vec![RobotState::new(0.0, 0.0, 0.0)],
-                v_cmd: 0.5, omega_cmd: 0.1,
-                heading_score: 1.0, distance_score: 1.0,
-                velocity_score: 0.5, clearance_score: 0.5,
+                v_cmd: 0.5,
+                omega_cmd: 0.1,
+                heading_score: 1.0,
+                distance_score: 1.0,
+                velocity_score: 0.5,
+                clearance_score: 0.5,
                 total_score: 3.0,
             },
             candidates_evaluated: 100,

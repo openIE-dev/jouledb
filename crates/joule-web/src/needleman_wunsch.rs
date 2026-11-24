@@ -67,13 +67,34 @@ impl NwConfig {
         }
     }
 
-    pub fn with_match_score(mut self, s: f64) -> Self { self.match_score = s; self }
-    pub fn with_mismatch_penalty(mut self, p: f64) -> Self { self.mismatch_penalty = p; self }
-    pub fn with_gap_open(mut self, g: f64) -> Self { self.gap_open = g; self }
-    pub fn with_gap_extend(mut self, g: f64) -> Self { self.gap_extend = g; self }
-    pub fn with_affine(mut self, a: bool) -> Self { self.use_affine = a; self }
-    pub fn with_bandwidth(mut self, b: usize) -> Self { self.bandwidth = Some(b); self }
-    pub fn with_end_gap_free(mut self, e: bool) -> Self { self.end_gap_free = e; self }
+    pub fn with_match_score(mut self, s: f64) -> Self {
+        self.match_score = s;
+        self
+    }
+    pub fn with_mismatch_penalty(mut self, p: f64) -> Self {
+        self.mismatch_penalty = p;
+        self
+    }
+    pub fn with_gap_open(mut self, g: f64) -> Self {
+        self.gap_open = g;
+        self
+    }
+    pub fn with_gap_extend(mut self, g: f64) -> Self {
+        self.gap_extend = g;
+        self
+    }
+    pub fn with_affine(mut self, a: bool) -> Self {
+        self.use_affine = a;
+        self
+    }
+    pub fn with_bandwidth(mut self, b: usize) -> Self {
+        self.bandwidth = Some(b);
+        self
+    }
+    pub fn with_end_gap_free(mut self, e: bool) -> Self {
+        self.end_gap_free = e;
+        self
+    }
 
     pub fn with_custom_score(mut self, func: fn(u8, u8) -> f64) -> Self {
         self.custom_score_fn = Some(func);
@@ -92,7 +113,9 @@ impl NwConfig {
 }
 
 impl Default for NwConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for NwConfig {
@@ -100,8 +123,12 @@ impl fmt::Display for NwConfig {
         write!(
             f,
             "NwConfig(match={}, mis={}, open={}, ext={}, affine={}, band={:?})",
-            self.match_score, self.mismatch_penalty,
-            self.gap_open, self.gap_extend, self.use_affine, self.bandwidth
+            self.match_score,
+            self.mismatch_penalty,
+            self.gap_open,
+            self.gap_extend,
+            self.use_affine,
+            self.bandwidth
         )
     }
 }
@@ -131,8 +158,7 @@ impl NwAlignment {
             .iter()
             .zip(self.aligned_b.iter())
             .filter(|(a, b)| {
-                **a != b'-' && **b != b'-'
-                    && a.to_ascii_uppercase() == b.to_ascii_uppercase()
+                **a != b'-' && **b != b'-' && a.to_ascii_uppercase() == b.to_ascii_uppercase()
             })
             .count()
     }
@@ -164,8 +190,7 @@ impl fmt::Display for NwAlignment {
         write!(
             f,
             "NW(score={:.1}, id={:.1}%, gaps={}, mis={})\n  {}\n  {}\n  {}",
-            self.score, self.identity, self.num_gaps, self.num_mismatches,
-            a_str, m_str, b_str
+            self.score, self.identity, self.num_gaps, self.num_mismatches, a_str, m_str, b_str
         )
     }
 }
@@ -207,11 +232,19 @@ impl NeedlemanWunsch {
 
         // Initialize borders.
         for i in 1..=m {
-            h[i][0] = if self.config.end_gap_free { 0.0 } else { gap * i as f64 };
+            h[i][0] = if self.config.end_gap_free {
+                0.0
+            } else {
+                gap * i as f64
+            };
             trace[i][0] = TraceDir::Up;
         }
         for j in 1..=n {
-            h[0][j] = if self.config.end_gap_free { 0.0 } else { gap * j as f64 };
+            h[0][j] = if self.config.end_gap_free {
+                0.0
+            } else {
+                gap * j as f64
+            };
             trace[0][j] = TraceDir::Left;
         }
 
@@ -281,8 +314,7 @@ impl NeedlemanWunsch {
                     iy[i][j - 1] + self.config.gap_extend,
                 );
 
-                let diag =
-                    h[i - 1][j - 1] + self.config.score_pair(seq_a[i - 1], seq_b[j - 1]);
+                let diag = h[i - 1][j - 1] + self.config.score_pair(seq_a[i - 1], seq_b[j - 1]);
 
                 let (best, dir) = if diag >= ix[i][j] && diag >= iy[i][j] {
                     (diag, TraceDir::Diagonal)
@@ -338,20 +370,26 @@ impl NeedlemanWunsch {
             .iter()
             .zip(al_b.iter())
             .filter(|(a, b)| {
-                **a != b'-' && **b != b'-'
-                    && a.to_ascii_uppercase() == b.to_ascii_uppercase()
+                **a != b'-' && **b != b'-' && a.to_ascii_uppercase() == b.to_ascii_uppercase()
             })
             .count();
-        let gaps = al_a.iter().chain(al_b.iter()).filter(|&&c| c == b'-').count();
+        let gaps = al_a
+            .iter()
+            .chain(al_b.iter())
+            .filter(|&&c| c == b'-')
+            .count();
         let mismatches = al_a
             .iter()
             .zip(al_b.iter())
             .filter(|(a, b)| {
-                **a != b'-' && **b != b'-'
-                    && a.to_ascii_uppercase() != b.to_ascii_uppercase()
+                **a != b'-' && **b != b'-' && a.to_ascii_uppercase() != b.to_ascii_uppercase()
             })
             .count();
-        let identity = if aln_len > 0 { matches as f64 / aln_len as f64 * 100.0 } else { 0.0 };
+        let identity = if aln_len > 0 {
+            matches as f64 / aln_len as f64 * 100.0
+        } else {
+            0.0
+        };
 
         Ok(NwAlignment {
             aligned_a: al_a,
@@ -400,8 +438,7 @@ impl NeedlemanWunsch {
         for i in 1..=m {
             curr[0] = i;
             for j in 1..=n {
-                let cost = if seq_a[i - 1].to_ascii_uppercase()
-                    == seq_b[j - 1].to_ascii_uppercase()
+                let cost = if seq_a[i - 1].to_ascii_uppercase() == seq_b[j - 1].to_ascii_uppercase()
                 {
                     0
                 } else {

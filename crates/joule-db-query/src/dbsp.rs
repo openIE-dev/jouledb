@@ -123,9 +123,7 @@ pub struct IncrementalEquiJoin<K: Ord + Clone, V1: Ord + Clone, V2: Ord + Clone>
     total_delta_tuples_emitted: u64,
 }
 
-impl<K: Ord + Clone, V1: Ord + Clone, V2: Ord + Clone> Default
-    for IncrementalEquiJoin<K, V1, V2>
-{
+impl<K: Ord + Clone, V1: Ord + Clone, V2: Ord + Clone> Default for IncrementalEquiJoin<K, V1, V2> {
     fn default() -> Self {
         Self::new()
     }
@@ -262,7 +260,7 @@ mod tests {
 
     #[test]
     fn test_dbsp_bilinear_incremental_join_matches_full_materialized_join_under_updates_and_deletes()
-    {
+     {
         let mut circuit = IncrementalEquiJoin::<String, String, String>::new();
         let mut materialized_view = ZSet::new();
 
@@ -271,10 +269,8 @@ mod tests {
             (("zone_a".to_string(), "bot_1".to_string()), 1),
             (("zone_b".to_string(), "bot_2".to_string()), 1),
         ]);
-        let d_hazards_1 = ZSet::from_weighted([(
-            ("zone_a".to_string(), "wet_floor".to_string()),
-            1,
-        )]);
+        let d_hazards_1 =
+            ZSet::from_weighted([(("zone_a".to_string(), "wet_floor".to_string()), 1)]);
 
         let out_1 = circuit.step(&d_robots_1, &d_hazards_1);
         materialized_view = materialized_view.add(&out_1);
@@ -285,10 +281,7 @@ mod tests {
             (("zone_a".to_string(), "bot_1".to_string()), -1),
             (("zone_b".to_string(), "bot_1".to_string()), 1),
         ]);
-        let d_hazards_2 = ZSet::from_weighted([(
-            ("zone_b".to_string(), "sparks".to_string()),
-            1,
-        )]);
+        let d_hazards_2 = ZSet::from_weighted([(("zone_b".to_string(), "sparks".to_string()), 1)]);
 
         let out_2 = circuit.step(&d_robots_2, &d_hazards_2);
         materialized_view = materialized_view.add(&out_2);
@@ -298,11 +291,11 @@ mod tests {
         assert_eq!(items.len(), 2);
         assert_eq!(
             items[0],
-            (&( "zone_b".into(), "bot_1".into(), "sparks".into() ), 1)
+            (&("zone_b".into(), "bot_1".into(), "sparks".into()), 1)
         );
         assert_eq!(
             items[1],
-            (&( "zone_b".into(), "bot_2".into(), "sparks".into() ), 1)
+            (&("zone_b".into(), "bot_2".into(), "sparks".into()), 1)
         );
     }
 

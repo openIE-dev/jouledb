@@ -121,7 +121,12 @@ pub struct ChannelGroup {
 
 impl ChannelGroup {
     pub fn new(id: GroupId, name: &str) -> Self {
-        Self { id, name: name.to_string(), volume: 1.0, mute: false }
+        Self {
+            id,
+            name: name.to_string(),
+            volume: 1.0,
+            mute: false,
+        }
     }
 }
 
@@ -137,7 +142,13 @@ pub struct MasterChannel {
 
 impl Default for MasterChannel {
     fn default() -> Self {
-        Self { volume: 1.0, mute: false, peak_left: 0.0, peak_right: 0.0, clipping: false }
+        Self {
+            volume: 1.0,
+            mute: false,
+            peak_left: 0.0,
+            peak_right: 0.0,
+            clipping: false,
+        }
     }
 }
 
@@ -265,7 +276,9 @@ impl AudioMixer {
 
     /// Assign a channel to a group.
     pub fn assign_to_group(&mut self, channel_id: ChannelId, group_id: GroupId) -> bool {
-        if !self.groups.contains_key(&group_id) { return false; }
+        if !self.groups.contains_key(&group_id) {
+            return false;
+        }
         if let Some(ch) = self.channels.get_mut(&channel_id) {
             ch.group_id = Some(group_id);
             true
@@ -275,8 +288,13 @@ impl AudioMixer {
     }
 
     /// Start a fade on a channel.
-    pub fn fade_channel(&mut self, id: ChannelId, to_volume: f32,
-                        duration_ms: f32, curve: FadeCurve) -> bool {
+    pub fn fade_channel(
+        &mut self,
+        id: ChannelId,
+        to_volume: f32,
+        duration_ms: f32,
+        curve: FadeCurve,
+    ) -> bool {
         if let Some(ch) = self.channels.get_mut(&id) {
             let duration_samples = (duration_ms / 1000.0 * self.sample_rate as f32) as usize;
             ch.fade = Some(FadeState {
@@ -327,19 +345,27 @@ impl AudioMixer {
         let any_solo = self.channels.values().any(|ch| ch.solo);
 
         // Snapshot group data to avoid borrow issues
-        let groups: HashMap<GroupId, (f32, bool)> = self.groups.iter()
+        let groups: HashMap<GroupId, (f32, bool)> = self
+            .groups
+            .iter()
             .map(|(&gid, g)| (gid, (g.volume, g.mute)))
             .collect();
 
         for ch in self.channels.values_mut() {
             // Skip muted channels
-            if ch.mute { continue; }
+            if ch.mute {
+                continue;
+            }
             // If any channel is solo'd, skip non-solo channels
-            if any_solo && !ch.solo { continue; }
+            if any_solo && !ch.solo {
+                continue;
+            }
             // Check group mute
             if let Some(gid) = ch.group_id {
                 if let Some((_, group_mute)) = groups.get(&gid) {
-                    if *group_mute { continue; }
+                    if *group_mute {
+                        continue;
+                    }
                 }
             }
 
@@ -349,7 +375,8 @@ impl AudioMixer {
             };
 
             let (gain_l, gain_r) = ch.stereo_gains();
-            let group_volume = ch.group_id
+            let group_volume = ch
+                .group_id
                 .and_then(|gid| groups.get(&gid))
                 .map(|(v, _)| *v)
                 .unwrap_or(1.0);
@@ -361,7 +388,11 @@ impl AudioMixer {
 
             for frame in 0..frames {
                 let vol = ch.effective_volume() * group_volume;
-                let sample = if frame < input.len() { input[frame] } else { 0.0 };
+                let sample = if frame < input.len() {
+                    input[frame]
+                } else {
+                    0.0
+                };
                 let left = sample * vol * gain_l;
                 let right = sample * vol * gain_r;
 

@@ -59,26 +59,32 @@ pub enum Criteria {
 impl Criteria {
     pub fn is_met(&self, stats: &StatsBackend) -> bool {
         match self {
-            Self::Counter { key, threshold } => {
-                stats.get_counter(key) >= *threshold
-            }
+            Self::Counter { key, threshold } => stats.get_counter(key) >= *threshold,
             Self::Flag { key } => stats.get_flag(key),
-            Self::MultiFlag { keys } => {
-                keys.iter().all(|k| stats.get_flag(k))
-            }
+            Self::MultiFlag { keys } => keys.iter().all(|k| stats.get_flag(k)),
         }
     }
 
     pub fn progress(&self, stats: &StatsBackend) -> f64 {
         match self {
             Self::Counter { key, threshold } => {
-                if *threshold == 0 { return 1.0; }
+                if *threshold == 0 {
+                    return 1.0;
+                }
                 let val = stats.get_counter(key) as f64;
                 (val / *threshold as f64).min(1.0)
             }
-            Self::Flag { key } => if stats.get_flag(key) { 1.0 } else { 0.0 },
+            Self::Flag { key } => {
+                if stats.get_flag(key) {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
             Self::MultiFlag { keys } => {
-                if keys.is_empty() { return 1.0; }
+                if keys.is_empty() {
+                    return 1.0;
+                }
                 let set = keys.iter().filter(|k| stats.get_flag(k)).count();
                 set as f64 / keys.len() as f64
             }
@@ -120,10 +126,22 @@ impl Achievement {
         }
     }
 
-    pub fn with_icon(mut self, icon: &str) -> Self { self.icon = icon.to_string(); self }
-    pub fn with_hidden(mut self, h: bool) -> Self { self.hidden = h; self }
-    pub fn with_category(mut self, c: AchievementCategory) -> Self { self.category = c; self }
-    pub fn with_reward(mut self, r: AchievementReward) -> Self { self.rewards.push(r); self }
+    pub fn with_icon(mut self, icon: &str) -> Self {
+        self.icon = icon.to_string();
+        self
+    }
+    pub fn with_hidden(mut self, h: bool) -> Self {
+        self.hidden = h;
+        self
+    }
+    pub fn with_category(mut self, c: AchievementCategory) -> Self {
+        self.category = c;
+        self
+    }
+    pub fn with_reward(mut self, r: AchievementReward) -> Self {
+        self.rewards.push(r);
+        self
+    }
 }
 
 // ── Stats Backend ───────────────────────────────────────────────
@@ -136,7 +154,10 @@ pub struct StatsBackend {
 
 impl StatsBackend {
     pub fn new() -> Self {
-        Self { counters: HashMap::new(), flags: HashMap::new() }
+        Self {
+            counters: HashMap::new(),
+            flags: HashMap::new(),
+        }
     }
 
     pub fn increment_counter(&mut self, key: &str, amount: u64) -> u64 {
@@ -174,11 +195,11 @@ impl StatsBackend {
     }
 
     pub fn serialize(&self) -> SerializedStats {
-        let mut counters: Vec<(String, u64)> = self.counters.iter()
-            .map(|(k, v)| (k.clone(), *v)).collect();
+        let mut counters: Vec<(String, u64)> =
+            self.counters.iter().map(|(k, v)| (k.clone(), *v)).collect();
         counters.sort_by(|a, b| a.0.cmp(&b.0));
-        let mut flags: Vec<(String, bool)> = self.flags.iter()
-            .map(|(k, v)| (k.clone(), *v)).collect();
+        let mut flags: Vec<(String, bool)> =
+            self.flags.iter().map(|(k, v)| (k.clone(), *v)).collect();
         flags.sort_by(|a, b| a.0.cmp(&b.0));
         SerializedStats { counters, flags }
     }
@@ -233,9 +254,12 @@ impl AchievementSystem {
 
     pub fn register(&mut self, achievement: Achievement) -> Result<(), AchievementError> {
         if self.achievements.contains_key(&achievement.id) {
-            return Err(AchievementError::DuplicateAchievement(achievement.id.clone()));
+            return Err(AchievementError::DuplicateAchievement(
+                achievement.id.clone(),
+            ));
         }
-        self.achievements.insert(achievement.id.clone(), achievement);
+        self.achievements
+            .insert(achievement.id.clone(), achievement);
         Ok(())
     }
 
@@ -251,11 +275,20 @@ impl AchievementSystem {
         self.unlocked.get(id)
     }
 
-    pub fn stats(&self) -> &StatsBackend { &self.stats }
-    pub fn stats_mut(&mut self) -> &mut StatsBackend { &mut self.stats }
+    pub fn stats(&self) -> &StatsBackend {
+        &self.stats
+    }
+    pub fn stats_mut(&mut self) -> &mut StatsBackend {
+        &mut self.stats
+    }
 
     /// Increment a counter and check for newly unlocked achievements.
-    pub fn increment_and_check(&mut self, key: &str, amount: u64, current_time_ms: u64) -> Vec<String> {
+    pub fn increment_and_check(
+        &mut self,
+        key: &str,
+        amount: u64,
+        current_time_ms: u64,
+    ) -> Vec<String> {
         self.stats.increment_counter(key, amount);
         self.check_all(current_time_ms)
     }
@@ -271,13 +304,18 @@ impl AchievementSystem {
         let mut newly_unlocked = Vec::new();
         let ids: Vec<String> = self.achievements.keys().cloned().collect();
         for id in ids {
-            if self.unlocked.contains_key(&id) { continue; }
+            if self.unlocked.contains_key(&id) {
+                continue;
+            }
             let criteria = self.achievements[&id].criteria.clone();
             if criteria.is_met(&self.stats) {
-                self.unlocked.insert(id.clone(), UnlockRecord {
-                    achievement_id: id.clone(),
-                    unlocked_at_ms: current_time_ms,
-                });
+                self.unlocked.insert(
+                    id.clone(),
+                    UnlockRecord {
+                        achievement_id: id.clone(),
+                        unlocked_at_ms: current_time_ms,
+                    },
+                );
                 *self.unlock_counts.entry(id.clone()).or_insert(0) += 1;
                 newly_unlocked.push(id);
             }
@@ -288,8 +326,12 @@ impl AchievementSystem {
 
     /// Get progress for an achievement (0.0 to 1.0).
     pub fn progress(&self, id: &str) -> Result<f64, AchievementError> {
-        if self.unlocked.contains_key(id) { return Ok(1.0); }
-        let ach = self.achievements.get(id)
+        if self.unlocked.contains_key(id) {
+            return Ok(1.0);
+        }
+        let ach = self
+            .achievements
+            .get(id)
             .ok_or_else(|| AchievementError::AchievementNotFound(id.to_string()))?;
         Ok(ach.criteria.progress(&self.stats))
     }
@@ -307,7 +349,9 @@ impl AchievementSystem {
     }
 
     pub fn by_category(&self, cat: AchievementCategory) -> Vec<&Achievement> {
-        let mut results: Vec<&Achievement> = self.achievements.values()
+        let mut results: Vec<&Achievement> = self
+            .achievements
+            .values()
             .filter(|a| a.category == cat)
             .collect();
         results.sort_by(|a, b| a.id.cmp(&b.id));
@@ -315,7 +359,9 @@ impl AchievementSystem {
     }
 
     pub fn visible_achievements(&self) -> Vec<&Achievement> {
-        let mut results: Vec<&Achievement> = self.achievements.values()
+        let mut results: Vec<&Achievement> = self
+            .achievements
+            .values()
             .filter(|a| !a.hidden || self.unlocked.contains_key(&a.id))
             .collect();
         results.sort_by(|a, b| a.id.cmp(&b.id));
@@ -328,11 +374,17 @@ impl AchievementSystem {
         results
     }
 
-    pub fn unlocked_count(&self) -> usize { self.unlocked.len() }
-    pub fn total_count(&self) -> usize { self.achievements.len() }
+    pub fn unlocked_count(&self) -> usize {
+        self.unlocked.len()
+    }
+    pub fn total_count(&self) -> usize {
+        self.achievements.len()
+    }
 
     pub fn completion_percentage(&self) -> f64 {
-        if self.achievements.is_empty() { return 0.0; }
+        if self.achievements.is_empty() {
+            return 0.0;
+        }
         self.unlocked.len() as f64 / self.achievements.len() as f64 * 100.0
     }
 
@@ -342,7 +394,9 @@ impl AchievementSystem {
 
     /// Serialize progress (unlocks + stats).
     pub fn serialize_progress(&self) -> SerializedProgress {
-        let mut unlocks: Vec<(String, u64)> = self.unlocked.values()
+        let mut unlocks: Vec<(String, u64)> = self
+            .unlocked
+            .values()
             .map(|r| (r.achievement_id.clone(), r.unlocked_at_ms))
             .collect();
         unlocks.sort_by(|a, b| a.0.cmp(&b.0));
@@ -356,10 +410,13 @@ impl AchievementSystem {
         self.stats = StatsBackend::deserialize(&data.stats);
         self.unlocked.clear();
         for (id, ts) in &data.unlocks {
-            self.unlocked.insert(id.clone(), UnlockRecord {
-                achievement_id: id.clone(),
-                unlocked_at_ms: *ts,
-            });
+            self.unlocked.insert(
+                id.clone(),
+                UnlockRecord {
+                    achievement_id: id.clone(),
+                    unlocked_at_ms: *ts,
+                },
+            );
         }
     }
 }
@@ -379,38 +436,75 @@ mod tests {
     fn setup() -> AchievementSystem {
         let mut sys = AchievementSystem::new();
         sys.register(
-            Achievement::new("first_kill", "First Blood", "Kill your first enemy",
-                Criteria::Counter { key: "kills".to_string(), threshold: 1 })
-                .with_category(AchievementCategory::Combat)
-                .with_reward(AchievementReward::Title("Warrior".to_string()))
-        ).unwrap();
+            Achievement::new(
+                "first_kill",
+                "First Blood",
+                "Kill your first enemy",
+                Criteria::Counter {
+                    key: "kills".to_string(),
+                    threshold: 1,
+                },
+            )
+            .with_category(AchievementCategory::Combat)
+            .with_reward(AchievementReward::Title("Warrior".to_string())),
+        )
+        .unwrap();
         sys.register(
-            Achievement::new("explorer", "Explorer", "Visit all regions",
-                Criteria::MultiFlag { keys: vec![
-                    "visited_forest".to_string(),
-                    "visited_desert".to_string(),
-                    "visited_mountain".to_string(),
-                ]})
-                .with_category(AchievementCategory::Exploration)
-        ).unwrap();
+            Achievement::new(
+                "explorer",
+                "Explorer",
+                "Visit all regions",
+                Criteria::MultiFlag {
+                    keys: vec![
+                        "visited_forest".to_string(),
+                        "visited_desert".to_string(),
+                        "visited_mountain".to_string(),
+                    ],
+                },
+            )
+            .with_category(AchievementCategory::Exploration),
+        )
+        .unwrap();
         sys.register(
-            Achievement::new("crafter", "Master Crafter", "Craft 100 items",
-                Criteria::Counter { key: "items_crafted".to_string(), threshold: 100 })
-                .with_category(AchievementCategory::Crafting)
-        ).unwrap();
+            Achievement::new(
+                "crafter",
+                "Master Crafter",
+                "Craft 100 items",
+                Criteria::Counter {
+                    key: "items_crafted".to_string(),
+                    threshold: 100,
+                },
+            )
+            .with_category(AchievementCategory::Crafting),
+        )
+        .unwrap();
         sys.register(
-            Achievement::new("secret", "Hidden Secret", "Find the secret",
-                Criteria::Flag { key: "found_secret".to_string() })
-                .with_hidden(true)
-                .with_category(AchievementCategory::Exploration)
-                .with_reward(AchievementReward::Badge("secret_badge".to_string()))
-        ).unwrap();
+            Achievement::new(
+                "secret",
+                "Hidden Secret",
+                "Find the secret",
+                Criteria::Flag {
+                    key: "found_secret".to_string(),
+                },
+            )
+            .with_hidden(true)
+            .with_category(AchievementCategory::Exploration)
+            .with_reward(AchievementReward::Badge("secret_badge".to_string())),
+        )
+        .unwrap();
         sys.register(
-            Achievement::new("social", "Friendly", "Make a friend",
-                Criteria::Flag { key: "made_friend".to_string() })
-                .with_category(AchievementCategory::Social)
-                .with_reward(AchievementReward::Currency(500))
-        ).unwrap();
+            Achievement::new(
+                "social",
+                "Friendly",
+                "Make a friend",
+                Criteria::Flag {
+                    key: "made_friend".to_string(),
+                },
+            )
+            .with_category(AchievementCategory::Social)
+            .with_reward(AchievementReward::Currency(500)),
+        )
+        .unwrap();
         sys
     }
 
@@ -423,9 +517,16 @@ mod tests {
     #[test]
     fn duplicate_achievement() {
         let mut sys = setup();
-        let err = sys.register(
-            Achievement::new("first_kill", "Dup", "Dup", Criteria::Flag { key: "x".to_string() })
-        ).unwrap_err();
+        let err = sys
+            .register(Achievement::new(
+                "first_kill",
+                "Dup",
+                "Dup",
+                Criteria::Flag {
+                    key: "x".to_string(),
+                },
+            ))
+            .unwrap_err();
         assert!(matches!(err, AchievementError::DuplicateAchievement(_)));
     }
 
@@ -598,9 +699,15 @@ mod tests {
 
     #[test]
     fn icon_and_builder() {
-        let a = Achievement::new("test", "Test", "Testing",
-            Criteria::Flag { key: "t".to_string() })
-            .with_icon("trophy.png");
+        let a = Achievement::new(
+            "test",
+            "Test",
+            "Testing",
+            Criteria::Flag {
+                key: "t".to_string(),
+            },
+        )
+        .with_icon("trophy.png");
         assert_eq!(a.icon, "trophy.png");
     }
 
@@ -615,7 +722,10 @@ mod tests {
     #[test]
     fn zero_threshold_counter() {
         let stats = StatsBackend::new();
-        let criteria = Criteria::Counter { key: "x".to_string(), threshold: 0 };
+        let criteria = Criteria::Counter {
+            key: "x".to_string(),
+            threshold: 0,
+        };
         assert!(criteria.is_met(&stats));
         assert!((criteria.progress(&stats) - 1.0).abs() < 1e-6);
     }

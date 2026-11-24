@@ -147,7 +147,9 @@ impl WorleyNoise {
                 for p in 0..self.points_per_cell {
                     let ph = base_hash.wrapping_add(p as u64).wrapping_mul(2654435761);
                     let px = cx as f64 + 0.5 + (Self::hash_to_float(ph) - 0.5) * self.jitter;
-                    let py = cy as f64 + 0.5 + (Self::hash_to_float(ph.wrapping_mul(3)) - 0.5) * self.jitter;
+                    let py = cy as f64
+                        + 0.5
+                        + (Self::hash_to_float(ph.wrapping_mul(3)) - 0.5) * self.jitter;
                     let d = self.distance2d(x - px, y - py);
 
                     if d < f1 {
@@ -167,7 +169,10 @@ impl WorleyNoise {
             WorleyOutput::F2MinusF1 => f2 - f1,
         };
 
-        WorleyResult { value, cell_id: nearest_cell_id }
+        WorleyResult {
+            value,
+            cell_id: nearest_cell_id,
+        }
     }
 
     /// 2D Worley noise returning just the value.
@@ -196,8 +201,12 @@ impl WorleyNoise {
                     for p in 0..self.points_per_cell {
                         let ph = base_hash.wrapping_add(p as u64).wrapping_mul(2654435761);
                         let px = cx as f64 + 0.5 + (Self::hash_to_float(ph) - 0.5) * self.jitter;
-                        let py = cy as f64 + 0.5 + (Self::hash_to_float(ph.wrapping_mul(3)) - 0.5) * self.jitter;
-                        let pz = cz as f64 + 0.5 + (Self::hash_to_float(ph.wrapping_mul(7)) - 0.5) * self.jitter;
+                        let py = cy as f64
+                            + 0.5
+                            + (Self::hash_to_float(ph.wrapping_mul(3)) - 0.5) * self.jitter;
+                        let pz = cz as f64
+                            + 0.5
+                            + (Self::hash_to_float(ph.wrapping_mul(7)) - 0.5) * self.jitter;
                         let d = self.distance3d(x - px, y - py, z - pz);
 
                         if d < f1 {
@@ -218,7 +227,10 @@ impl WorleyNoise {
             WorleyOutput::F2MinusF1 => f2 - f1,
         };
 
-        WorleyResult { value, cell_id: nearest_cell_id }
+        WorleyResult {
+            value,
+            cell_id: nearest_cell_id,
+        }
     }
 
     /// 3D Worley noise returning just the value.
@@ -247,7 +259,9 @@ impl WorleyNoise {
                 for p in 0..self.points_per_cell {
                     let ph = base_hash.wrapping_add(p as u64).wrapping_mul(2654435761);
                     let fpx = actual_x as f64 + 0.5 + (Self::hash_to_float(ph) - 0.5) * self.jitter;
-                    let fpy = actual_y as f64 + 0.5 + (Self::hash_to_float(ph.wrapping_mul(3)) - 0.5) * self.jitter;
+                    let fpy = actual_y as f64
+                        + 0.5
+                        + (Self::hash_to_float(ph.wrapping_mul(3)) - 0.5) * self.jitter;
                     let d = self.distance2d(x - fpx, y - fpy);
 
                     if d < f1 {
@@ -390,7 +404,10 @@ mod tests {
         let w = WorleyNoise::new(42).with_jitter(0.0);
         // At cell center (0.5, 0.5) with zero jitter, distance to nearest point = 0
         let v = w.noise2d(0.5, 0.5);
-        assert!(v < 1e-6, "at cell center with no jitter, F1 should be ~0: {v}");
+        assert!(
+            v < 1e-6,
+            "at cell center with no jitter, F1 should be ~0: {v}"
+        );
     }
 
     #[test]
@@ -406,7 +423,10 @@ mod tests {
                 less_count += 1;
             }
         }
-        assert!(less_count > 30, "more points should usually give smaller F1");
+        assert!(
+            less_count > 30,
+            "more points should usually give smaller F1"
+        );
     }
 
     #[test]
@@ -482,8 +502,14 @@ mod tests {
 
     #[test]
     fn test_worley_result_partial_eq() {
-        let r1 = WorleyResult { value: 1.0, cell_id: 42 };
-        let r2 = WorleyResult { value: 1.0, cell_id: 42 };
+        let r1 = WorleyResult {
+            value: 1.0,
+            cell_id: 42,
+        };
+        let r2 = WorleyResult {
+            value: 1.0,
+            cell_id: 42,
+        };
         assert_eq!(r1, r2);
     }
 
@@ -494,7 +520,9 @@ mod tests {
         let base = w.noise2d(0.5, 0.5);
         for i in 1..20 {
             let v = w.noise2d(0.5 + i as f64 * 1.7, 0.5 + i as f64 * 1.3);
-            if (v - base).abs() > 1e-6 { distinct += 1; }
+            if (v - base).abs() > 1e-6 {
+                distinct += 1;
+            }
         }
         assert!(distinct > 10);
     }

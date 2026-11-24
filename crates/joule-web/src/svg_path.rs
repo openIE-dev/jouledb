@@ -85,41 +85,50 @@ pub enum PathCommand {
     VerticalToRel { dy: f64 },
     /// C x1 y1 x2 y2 x y
     CubicTo {
-        x1: f64, y1: f64,
-        x2: f64, y2: f64,
-        x: f64, y: f64,
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+        x: f64,
+        y: f64,
     },
     /// c dx1 dy1 dx2 dy2 dx dy
     CubicToRel {
-        dx1: f64, dy1: f64,
-        dx2: f64, dy2: f64,
-        dx: f64, dy: f64,
+        dx1: f64,
+        dy1: f64,
+        dx2: f64,
+        dy2: f64,
+        dx: f64,
+        dy: f64,
     },
     /// Q x1 y1 x y
-    QuadTo {
-        x1: f64, y1: f64,
-        x: f64, y: f64,
-    },
+    QuadTo { x1: f64, y1: f64, x: f64, y: f64 },
     /// q dx1 dy1 dx dy
     QuadToRel {
-        dx1: f64, dy1: f64,
-        dx: f64, dy: f64,
+        dx1: f64,
+        dy1: f64,
+        dx: f64,
+        dy: f64,
     },
     /// A rx ry x_rotation large_arc sweep x y
     ArcTo {
-        rx: f64, ry: f64,
+        rx: f64,
+        ry: f64,
         x_rotation: f64,
         large_arc: bool,
         sweep: bool,
-        x: f64, y: f64,
+        x: f64,
+        y: f64,
     },
     /// a rx ry x_rotation large_arc sweep dx dy
     ArcToRel {
-        rx: f64, ry: f64,
+        rx: f64,
+        ry: f64,
         x_rotation: f64,
         large_arc: bool,
         sweep: bool,
-        dx: f64, dy: f64,
+        dx: f64,
+        dy: f64,
     },
     /// Z / z
     Close,
@@ -135,7 +144,9 @@ pub struct SvgPath {
 
 impl SvgPath {
     pub fn new() -> Self {
-        Self { commands: Vec::new() }
+        Self {
+            commands: Vec::new(),
+        }
     }
 
     /// Parse an SVG path data string.
@@ -207,7 +218,14 @@ impl SvgPath {
                     let y2 = parse_num(&tokens, &mut i)?;
                     let x = parse_num(&tokens, &mut i)?;
                     let y = parse_num(&tokens, &mut i)?;
-                    commands.push(PathCommand::CubicTo { x1, y1, x2, y2, x, y });
+                    commands.push(PathCommand::CubicTo {
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        x,
+                        y,
+                    });
                 }
                 'c' => {
                     let dx1 = parse_num(&tokens, &mut i)?;
@@ -216,7 +234,14 @@ impl SvgPath {
                     let dy2 = parse_num(&tokens, &mut i)?;
                     let dx = parse_num(&tokens, &mut i)?;
                     let dy = parse_num(&tokens, &mut i)?;
-                    commands.push(PathCommand::CubicToRel { dx1, dy1, dx2, dy2, dx, dy });
+                    commands.push(PathCommand::CubicToRel {
+                        dx1,
+                        dy1,
+                        dx2,
+                        dy2,
+                        dx,
+                        dy,
+                    });
                 }
                 'Q' => {
                     let x1 = parse_num(&tokens, &mut i)?;
@@ -240,7 +265,15 @@ impl SvgPath {
                     let sweep = parse_num(&tokens, &mut i)? != 0.0;
                     let x = parse_num(&tokens, &mut i)?;
                     let y = parse_num(&tokens, &mut i)?;
-                    commands.push(PathCommand::ArcTo { rx, ry, x_rotation, large_arc, sweep, x, y });
+                    commands.push(PathCommand::ArcTo {
+                        rx,
+                        ry,
+                        x_rotation,
+                        large_arc,
+                        sweep,
+                        x,
+                        y,
+                    });
                 }
                 'a' => {
                     let rx = parse_num(&tokens, &mut i)?;
@@ -250,7 +283,15 @@ impl SvgPath {
                     let sweep = parse_num(&tokens, &mut i)? != 0.0;
                     let dx = parse_num(&tokens, &mut i)?;
                     let dy = parse_num(&tokens, &mut i)?;
-                    commands.push(PathCommand::ArcToRel { rx, ry, x_rotation, large_arc, sweep, dx, dy });
+                    commands.push(PathCommand::ArcToRel {
+                        rx,
+                        ry,
+                        x_rotation,
+                        large_arc,
+                        sweep,
+                        dx,
+                        dy,
+                    });
                 }
                 _ => return Err(PathError::UnknownCommand(cmd)),
             }
@@ -270,21 +311,27 @@ impl SvgPath {
         for cmd in &self.commands {
             match *cmd {
                 PathCommand::MoveTo { x, y } => {
-                    cx = x; cy = y;
-                    start_x = x; start_y = y;
+                    cx = x;
+                    cy = y;
+                    start_x = x;
+                    start_y = y;
                     result.push(PathCommand::MoveTo { x, y });
                 }
                 PathCommand::MoveToRel { dx, dy } => {
-                    cx += dx; cy += dy;
-                    start_x = cx; start_y = cy;
+                    cx += dx;
+                    cy += dy;
+                    start_x = cx;
+                    start_y = cy;
                     result.push(PathCommand::MoveTo { x: cx, y: cy });
                 }
                 PathCommand::LineTo { x, y } => {
-                    cx = x; cy = y;
+                    cx = x;
+                    cy = y;
                     result.push(PathCommand::LineTo { x, y });
                 }
                 PathCommand::LineToRel { dx, dy } => {
-                    cx += dx; cy += dy;
+                    cx += dx;
+                    cy += dy;
                     result.push(PathCommand::LineTo { x: cx, y: cy });
                 }
                 PathCommand::HorizontalTo { x } => {
@@ -303,35 +350,110 @@ impl SvgPath {
                     cy += dy;
                     result.push(PathCommand::LineTo { x: cx, y: cy });
                 }
-                PathCommand::CubicTo { x1, y1, x2, y2, x, y } => {
-                    cx = x; cy = y;
-                    result.push(PathCommand::CubicTo { x1, y1, x2, y2, x, y });
+                PathCommand::CubicTo {
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    x,
+                    y,
+                } => {
+                    cx = x;
+                    cy = y;
+                    result.push(PathCommand::CubicTo {
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        x,
+                        y,
+                    });
                 }
-                PathCommand::CubicToRel { dx1, dy1, dx2, dy2, dx, dy } => {
-                    let x1 = cx + dx1; let y1 = cy + dy1;
-                    let x2 = cx + dx2; let y2 = cy + dy2;
-                    cx += dx; cy += dy;
-                    result.push(PathCommand::CubicTo { x1, y1, x2, y2, x: cx, y: cy });
+                PathCommand::CubicToRel {
+                    dx1,
+                    dy1,
+                    dx2,
+                    dy2,
+                    dx,
+                    dy,
+                } => {
+                    let x1 = cx + dx1;
+                    let y1 = cy + dy1;
+                    let x2 = cx + dx2;
+                    let y2 = cy + dy2;
+                    cx += dx;
+                    cy += dy;
+                    result.push(PathCommand::CubicTo {
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        x: cx,
+                        y: cy,
+                    });
                 }
                 PathCommand::QuadTo { x1, y1, x, y } => {
-                    cx = x; cy = y;
+                    cx = x;
+                    cy = y;
                     result.push(PathCommand::QuadTo { x1, y1, x, y });
                 }
                 PathCommand::QuadToRel { dx1, dy1, dx, dy } => {
-                    let x1 = cx + dx1; let y1 = cy + dy1;
-                    cx += dx; cy += dy;
-                    result.push(PathCommand::QuadTo { x1, y1, x: cx, y: cy });
+                    let x1 = cx + dx1;
+                    let y1 = cy + dy1;
+                    cx += dx;
+                    cy += dy;
+                    result.push(PathCommand::QuadTo {
+                        x1,
+                        y1,
+                        x: cx,
+                        y: cy,
+                    });
                 }
-                PathCommand::ArcTo { rx, ry, x_rotation, large_arc, sweep, x, y } => {
-                    cx = x; cy = y;
-                    result.push(PathCommand::ArcTo { rx, ry, x_rotation, large_arc, sweep, x, y });
+                PathCommand::ArcTo {
+                    rx,
+                    ry,
+                    x_rotation,
+                    large_arc,
+                    sweep,
+                    x,
+                    y,
+                } => {
+                    cx = x;
+                    cy = y;
+                    result.push(PathCommand::ArcTo {
+                        rx,
+                        ry,
+                        x_rotation,
+                        large_arc,
+                        sweep,
+                        x,
+                        y,
+                    });
                 }
-                PathCommand::ArcToRel { rx, ry, x_rotation, large_arc, sweep, dx, dy } => {
-                    cx += dx; cy += dy;
-                    result.push(PathCommand::ArcTo { rx, ry, x_rotation, large_arc, sweep, x: cx, y: cy });
+                PathCommand::ArcToRel {
+                    rx,
+                    ry,
+                    x_rotation,
+                    large_arc,
+                    sweep,
+                    dx,
+                    dy,
+                } => {
+                    cx += dx;
+                    cy += dy;
+                    result.push(PathCommand::ArcTo {
+                        rx,
+                        ry,
+                        x_rotation,
+                        large_arc,
+                        sweep,
+                        x: cx,
+                        y: cy,
+                    });
                 }
                 PathCommand::Close => {
-                    cx = start_x; cy = start_y;
+                    cx = start_x;
+                    cy = start_y;
                     result.push(PathCommand::Close);
                 }
             }
@@ -347,11 +469,17 @@ impl SvgPath {
 
         for cmd in &abs.commands {
             match *cmd {
-                PathCommand::MoveTo { x, y }
-                | PathCommand::LineTo { x, y } => {
+                PathCommand::MoveTo { x, y } | PathCommand::LineTo { x, y } => {
                     bb.expand(x, y);
                 }
-                PathCommand::CubicTo { x1, y1, x2, y2, x, y } => {
+                PathCommand::CubicTo {
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    x,
+                    y,
+                } => {
                     bb.expand(x1, y1);
                     bb.expand(x2, y2);
                     bb.expand(x, y);
@@ -384,29 +512,43 @@ impl SvgPath {
         for cmd in &abs.commands {
             match *cmd {
                 PathCommand::MoveTo { x, y } => {
-                    cx = x; cy = y;
-                    start_x = x; start_y = y;
+                    cx = x;
+                    cy = y;
+                    start_x = x;
+                    start_y = y;
                 }
                 PathCommand::LineTo { x, y } => {
                     len += Point::new(cx, cy).distance_to(Point::new(x, y));
-                    cx = x; cy = y;
+                    cx = x;
+                    cy = y;
                 }
-                PathCommand::CubicTo { x1, y1, x2, y2, x, y } => {
+                PathCommand::CubicTo {
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    x,
+                    y,
+                } => {
                     len += cubic_length(cx, cy, x1, y1, x2, y2, x, y, 16);
-                    cx = x; cy = y;
+                    cx = x;
+                    cy = y;
                 }
                 PathCommand::QuadTo { x1, y1, x, y } => {
                     len += quad_length(cx, cy, x1, y1, x, y, 16);
-                    cx = x; cy = y;
+                    cx = x;
+                    cy = y;
                 }
                 PathCommand::ArcTo { x, y, .. } => {
                     // Approximate arc as line for simplicity
                     len += Point::new(cx, cy).distance_to(Point::new(x, y));
-                    cx = x; cy = y;
+                    cx = x;
+                    cy = y;
                 }
                 PathCommand::Close => {
                     len += Point::new(cx, cy).distance_to(Point::new(start_x, start_y));
-                    cx = start_x; cy = start_y;
+                    cx = start_x;
+                    cy = start_y;
                 }
                 _ => {}
             }
@@ -427,29 +569,37 @@ impl SvgPath {
         for cmd in &abs.commands {
             match *cmd {
                 PathCommand::MoveTo { x, y } => {
-                    cx = x; cy = y;
-                    start_x = x; start_y = y;
+                    cx = x;
+                    cy = y;
+                    start_x = x;
+                    start_y = y;
                 }
                 PathCommand::LineTo { x, y } => {
                     let seg_len = Point::new(cx, cy).distance_to(Point::new(x, y));
                     if traveled + seg_len >= target {
                         let t = (target - traveled) / seg_len;
-                        return Some(Point::new(
-                            cx + (x - cx) * t,
-                            cy + (y - cy) * t,
-                        ));
+                        return Some(Point::new(cx + (x - cx) * t, cy + (y - cy) * t));
                     }
                     traveled += seg_len;
-                    cx = x; cy = y;
+                    cx = x;
+                    cy = y;
                 }
-                PathCommand::CubicTo { x1, y1, x2, y2, x, y } => {
+                PathCommand::CubicTo {
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    x,
+                    y,
+                } => {
                     let seg_len = cubic_length(cx, cy, x1, y1, x2, y2, x, y, 16);
                     if traveled + seg_len >= target {
                         let t = (target - traveled) / seg_len;
                         return Some(cubic_point_at(cx, cy, x1, y1, x2, y2, x, y, t));
                     }
                     traveled += seg_len;
-                    cx = x; cy = y;
+                    cx = x;
+                    cy = y;
                 }
                 PathCommand::QuadTo { x1, y1, x, y } => {
                     let seg_len = quad_length(cx, cy, x1, y1, x, y, 16);
@@ -458,19 +608,18 @@ impl SvgPath {
                         return Some(quad_point_at(cx, cy, x1, y1, x, y, t));
                     }
                     traveled += seg_len;
-                    cx = x; cy = y;
+                    cx = x;
+                    cy = y;
                 }
                 PathCommand::Close => {
                     let seg_len = Point::new(cx, cy).distance_to(Point::new(start_x, start_y));
                     if traveled + seg_len >= target {
                         let t = (target - traveled) / seg_len;
-                        return Some(Point::new(
-                            cx + (start_x - cx) * t,
-                            cy + (start_y - cy) * t,
-                        ));
+                        return Some(Point::new(cx + (start_x - cx) * t, cy + (start_y - cy) * t));
                     }
                     traveled += seg_len;
-                    cx = start_x; cy = start_y;
+                    cx = start_x;
+                    cy = start_y;
                 }
                 _ => {}
             }
@@ -482,54 +631,120 @@ impl SvgPath {
     /// Translate all commands by (tx, ty).
     pub fn translate(&self, tx: f64, ty: f64) -> Self {
         let abs = self.to_absolute();
-        let commands = abs.commands.iter().map(|cmd| {
-            match *cmd {
-                PathCommand::MoveTo { x, y } => PathCommand::MoveTo { x: x + tx, y: y + ty },
-                PathCommand::LineTo { x, y } => PathCommand::LineTo { x: x + tx, y: y + ty },
-                PathCommand::CubicTo { x1, y1, x2, y2, x, y } => PathCommand::CubicTo {
-                    x1: x1 + tx, y1: y1 + ty,
-                    x2: x2 + tx, y2: y2 + ty,
-                    x: x + tx, y: y + ty,
+        let commands = abs
+            .commands
+            .iter()
+            .map(|cmd| match *cmd {
+                PathCommand::MoveTo { x, y } => PathCommand::MoveTo {
+                    x: x + tx,
+                    y: y + ty,
+                },
+                PathCommand::LineTo { x, y } => PathCommand::LineTo {
+                    x: x + tx,
+                    y: y + ty,
+                },
+                PathCommand::CubicTo {
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    x,
+                    y,
+                } => PathCommand::CubicTo {
+                    x1: x1 + tx,
+                    y1: y1 + ty,
+                    x2: x2 + tx,
+                    y2: y2 + ty,
+                    x: x + tx,
+                    y: y + ty,
                 },
                 PathCommand::QuadTo { x1, y1, x, y } => PathCommand::QuadTo {
-                    x1: x1 + tx, y1: y1 + ty,
-                    x: x + tx, y: y + ty,
+                    x1: x1 + tx,
+                    y1: y1 + ty,
+                    x: x + tx,
+                    y: y + ty,
                 },
-                PathCommand::ArcTo { rx, ry, x_rotation, large_arc, sweep, x, y } => PathCommand::ArcTo {
-                    rx, ry, x_rotation, large_arc, sweep,
-                    x: x + tx, y: y + ty,
+                PathCommand::ArcTo {
+                    rx,
+                    ry,
+                    x_rotation,
+                    large_arc,
+                    sweep,
+                    x,
+                    y,
+                } => PathCommand::ArcTo {
+                    rx,
+                    ry,
+                    x_rotation,
+                    large_arc,
+                    sweep,
+                    x: x + tx,
+                    y: y + ty,
                 },
                 PathCommand::Close => PathCommand::Close,
                 _ => *cmd,
-            }
-        }).collect();
+            })
+            .collect();
         Self { commands }
     }
 
     /// Scale all commands by (sx, sy).
     pub fn scale(&self, sx: f64, sy: f64) -> Self {
         let abs = self.to_absolute();
-        let commands = abs.commands.iter().map(|cmd| {
-            match *cmd {
-                PathCommand::MoveTo { x, y } => PathCommand::MoveTo { x: x * sx, y: y * sy },
-                PathCommand::LineTo { x, y } => PathCommand::LineTo { x: x * sx, y: y * sy },
-                PathCommand::CubicTo { x1, y1, x2, y2, x, y } => PathCommand::CubicTo {
-                    x1: x1 * sx, y1: y1 * sy,
-                    x2: x2 * sx, y2: y2 * sy,
-                    x: x * sx, y: y * sy,
+        let commands = abs
+            .commands
+            .iter()
+            .map(|cmd| match *cmd {
+                PathCommand::MoveTo { x, y } => PathCommand::MoveTo {
+                    x: x * sx,
+                    y: y * sy,
+                },
+                PathCommand::LineTo { x, y } => PathCommand::LineTo {
+                    x: x * sx,
+                    y: y * sy,
+                },
+                PathCommand::CubicTo {
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    x,
+                    y,
+                } => PathCommand::CubicTo {
+                    x1: x1 * sx,
+                    y1: y1 * sy,
+                    x2: x2 * sx,
+                    y2: y2 * sy,
+                    x: x * sx,
+                    y: y * sy,
                 },
                 PathCommand::QuadTo { x1, y1, x, y } => PathCommand::QuadTo {
-                    x1: x1 * sx, y1: y1 * sy,
-                    x: x * sx, y: y * sy,
+                    x1: x1 * sx,
+                    y1: y1 * sy,
+                    x: x * sx,
+                    y: y * sy,
                 },
-                PathCommand::ArcTo { rx, ry, x_rotation, large_arc, sweep, x, y } => PathCommand::ArcTo {
-                    rx: rx * sx, ry: ry * sy, x_rotation, large_arc, sweep,
-                    x: x * sx, y: y * sy,
+                PathCommand::ArcTo {
+                    rx,
+                    ry,
+                    x_rotation,
+                    large_arc,
+                    sweep,
+                    x,
+                    y,
+                } => PathCommand::ArcTo {
+                    rx: rx * sx,
+                    ry: ry * sy,
+                    x_rotation,
+                    large_arc,
+                    sweep,
+                    x: x * sx,
+                    y: y * sy,
                 },
                 PathCommand::Close => PathCommand::Close,
                 _ => *cmd,
-            }
-        }).collect();
+            })
+            .collect();
         Self { commands }
     }
 
@@ -539,12 +754,12 @@ impl SvgPath {
         let cos_a = angle.cos();
         let sin_a = angle.sin();
 
-        let rot = |x: f64, y: f64| -> (f64, f64) {
-            (x * cos_a - y * sin_a, x * sin_a + y * cos_a)
-        };
+        let rot = |x: f64, y: f64| -> (f64, f64) { (x * cos_a - y * sin_a, x * sin_a + y * cos_a) };
 
-        let commands = abs.commands.iter().map(|cmd| {
-            match *cmd {
+        let commands = abs
+            .commands
+            .iter()
+            .map(|cmd| match *cmd {
                 PathCommand::MoveTo { x, y } => {
                     let (rx, ry) = rot(x, y);
                     PathCommand::MoveTo { x: rx, y: ry }
@@ -553,30 +768,60 @@ impl SvgPath {
                     let (rx, ry) = rot(x, y);
                     PathCommand::LineTo { x: rx, y: ry }
                 }
-                PathCommand::CubicTo { x1, y1, x2, y2, x, y } => {
+                PathCommand::CubicTo {
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    x,
+                    y,
+                } => {
                     let (rx1, ry1) = rot(x1, y1);
                     let (rx2, ry2) = rot(x2, y2);
                     let (rx, ry) = rot(x, y);
-                    PathCommand::CubicTo { x1: rx1, y1: ry1, x2: rx2, y2: ry2, x: rx, y: ry }
+                    PathCommand::CubicTo {
+                        x1: rx1,
+                        y1: ry1,
+                        x2: rx2,
+                        y2: ry2,
+                        x: rx,
+                        y: ry,
+                    }
                 }
                 PathCommand::QuadTo { x1, y1, x, y } => {
                     let (rx1, ry1) = rot(x1, y1);
                     let (rx, ry) = rot(x, y);
-                    PathCommand::QuadTo { x1: rx1, y1: ry1, x: rx, y: ry }
+                    PathCommand::QuadTo {
+                        x1: rx1,
+                        y1: ry1,
+                        x: rx,
+                        y: ry,
+                    }
                 }
-                PathCommand::ArcTo { rx, ry, x_rotation, large_arc, sweep, x, y } => {
+                PathCommand::ArcTo {
+                    rx,
+                    ry,
+                    x_rotation,
+                    large_arc,
+                    sweep,
+                    x,
+                    y,
+                } => {
                     let (rotx, roty) = rot(x, y);
                     PathCommand::ArcTo {
-                        rx, ry,
+                        rx,
+                        ry,
                         x_rotation: x_rotation + angle.to_degrees(),
-                        large_arc, sweep,
-                        x: rotx, y: roty,
+                        large_arc,
+                        sweep,
+                        x: rotx,
+                        y: roty,
                     }
                 }
                 PathCommand::Close => PathCommand::Close,
                 _ => *cmd,
-            }
-        }).collect();
+            })
+            .collect();
         Self { commands }
     }
 
@@ -584,7 +829,9 @@ impl SvgPath {
     pub fn reverse(&self) -> Self {
         let abs = self.to_absolute();
         if abs.commands.is_empty() {
-            return Self { commands: Vec::new() };
+            return Self {
+                commands: Vec::new(),
+            };
         }
 
         // Collect endpoints
@@ -596,7 +843,8 @@ impl SvgPath {
             match *cmd {
                 PathCommand::MoveTo { x, y } => {
                     points.push(Point::new(x, y));
-                    start_x = x; start_y = y;
+                    start_x = x;
+                    start_y = y;
                 }
                 PathCommand::LineTo { x, y }
                 | PathCommand::CubicTo { x, y, .. }
@@ -614,7 +862,10 @@ impl SvgPath {
         // Build reversed: MoveTo last endpoint, then LineTo in reverse order
         let mut result = Vec::new();
         if let Some(last) = points.last() {
-            result.push(PathCommand::MoveTo { x: last.x, y: last.y });
+            result.push(PathCommand::MoveTo {
+                x: last.x,
+                y: last.y,
+            });
         }
         for pt in points.iter().rev().skip(1) {
             result.push(PathCommand::LineTo { x: pt.x, y: pt.y });
@@ -632,33 +883,99 @@ impl SvgPath {
             }
             match *cmd {
                 PathCommand::MoveTo { x, y } => write!(s, "M {} {}", fmtf(x), fmtf(y)).unwrap(),
-                PathCommand::MoveToRel { dx, dy } => write!(s, "m {} {}", fmtf(dx), fmtf(dy)).unwrap(),
+                PathCommand::MoveToRel { dx, dy } => {
+                    write!(s, "m {} {}", fmtf(dx), fmtf(dy)).unwrap()
+                }
                 PathCommand::LineTo { x, y } => write!(s, "L {} {}", fmtf(x), fmtf(y)).unwrap(),
-                PathCommand::LineToRel { dx, dy } => write!(s, "l {} {}", fmtf(dx), fmtf(dy)).unwrap(),
+                PathCommand::LineToRel { dx, dy } => {
+                    write!(s, "l {} {}", fmtf(dx), fmtf(dy)).unwrap()
+                }
                 PathCommand::HorizontalTo { x } => write!(s, "H {}", fmtf(x)).unwrap(),
                 PathCommand::HorizontalToRel { dx } => write!(s, "h {}", fmtf(dx)).unwrap(),
                 PathCommand::VerticalTo { y } => write!(s, "V {}", fmtf(y)).unwrap(),
                 PathCommand::VerticalToRel { dy } => write!(s, "v {}", fmtf(dy)).unwrap(),
-                PathCommand::CubicTo { x1, y1, x2, y2, x, y } =>
-                    write!(s, "C {} {} {} {} {} {}", fmtf(x1), fmtf(y1), fmtf(x2), fmtf(y2), fmtf(x), fmtf(y)).unwrap(),
-                PathCommand::CubicToRel { dx1, dy1, dx2, dy2, dx, dy } =>
-                    write!(s, "c {} {} {} {} {} {}", fmtf(dx1), fmtf(dy1), fmtf(dx2), fmtf(dy2), fmtf(dx), fmtf(dy)).unwrap(),
-                PathCommand::QuadTo { x1, y1, x, y } =>
-                    write!(s, "Q {} {} {} {}", fmtf(x1), fmtf(y1), fmtf(x), fmtf(y)).unwrap(),
-                PathCommand::QuadToRel { dx1, dy1, dx, dy } =>
-                    write!(s, "q {} {} {} {}", fmtf(dx1), fmtf(dy1), fmtf(dx), fmtf(dy)).unwrap(),
-                PathCommand::ArcTo { rx, ry, x_rotation, large_arc, sweep, x, y } =>
-                    write!(s, "A {} {} {} {} {} {} {}",
-                        fmtf(rx), fmtf(ry), fmtf(x_rotation),
-                        if large_arc { 1 } else { 0 },
-                        if sweep { 1 } else { 0 },
-                        fmtf(x), fmtf(y)).unwrap(),
-                PathCommand::ArcToRel { rx, ry, x_rotation, large_arc, sweep, dx, dy } =>
-                    write!(s, "a {} {} {} {} {} {} {}",
-                        fmtf(rx), fmtf(ry), fmtf(x_rotation),
-                        if large_arc { 1 } else { 0 },
-                        if sweep { 1 } else { 0 },
-                        fmtf(dx), fmtf(dy)).unwrap(),
+                PathCommand::CubicTo {
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    x,
+                    y,
+                } => write!(
+                    s,
+                    "C {} {} {} {} {} {}",
+                    fmtf(x1),
+                    fmtf(y1),
+                    fmtf(x2),
+                    fmtf(y2),
+                    fmtf(x),
+                    fmtf(y)
+                )
+                .unwrap(),
+                PathCommand::CubicToRel {
+                    dx1,
+                    dy1,
+                    dx2,
+                    dy2,
+                    dx,
+                    dy,
+                } => write!(
+                    s,
+                    "c {} {} {} {} {} {}",
+                    fmtf(dx1),
+                    fmtf(dy1),
+                    fmtf(dx2),
+                    fmtf(dy2),
+                    fmtf(dx),
+                    fmtf(dy)
+                )
+                .unwrap(),
+                PathCommand::QuadTo { x1, y1, x, y } => {
+                    write!(s, "Q {} {} {} {}", fmtf(x1), fmtf(y1), fmtf(x), fmtf(y)).unwrap()
+                }
+                PathCommand::QuadToRel { dx1, dy1, dx, dy } => {
+                    write!(s, "q {} {} {} {}", fmtf(dx1), fmtf(dy1), fmtf(dx), fmtf(dy)).unwrap()
+                }
+                PathCommand::ArcTo {
+                    rx,
+                    ry,
+                    x_rotation,
+                    large_arc,
+                    sweep,
+                    x,
+                    y,
+                } => write!(
+                    s,
+                    "A {} {} {} {} {} {} {}",
+                    fmtf(rx),
+                    fmtf(ry),
+                    fmtf(x_rotation),
+                    if large_arc { 1 } else { 0 },
+                    if sweep { 1 } else { 0 },
+                    fmtf(x),
+                    fmtf(y)
+                )
+                .unwrap(),
+                PathCommand::ArcToRel {
+                    rx,
+                    ry,
+                    x_rotation,
+                    large_arc,
+                    sweep,
+                    dx,
+                    dy,
+                } => write!(
+                    s,
+                    "a {} {} {} {} {} {} {}",
+                    fmtf(rx),
+                    fmtf(ry),
+                    fmtf(x_rotation),
+                    if large_arc { 1 } else { 0 },
+                    if sweep { 1 } else { 0 },
+                    fmtf(dx),
+                    fmtf(dy)
+                )
+                .unwrap(),
                 PathCommand::Close => s.push('Z'),
             }
         }
@@ -707,7 +1024,10 @@ fn fmtf(v: f64) -> String {
     if v == v.trunc() {
         format!("{}", v as i64)
     } else {
-        format!("{:.4}", v).trim_end_matches('0').trim_end_matches('.').to_string()
+        format!("{:.4}", v)
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
     }
 }
 
@@ -789,10 +1109,21 @@ fn parse_num(tokens: &[String], i: &mut usize) -> Result<f64, PathError> {
     }
     let s = &tokens[*i];
     *i += 1;
-    s.parse::<f64>().map_err(|_| PathError::InvalidNumber(s.clone()))
+    s.parse::<f64>()
+        .map_err(|_| PathError::InvalidNumber(s.clone()))
 }
 
-fn cubic_point_at(x0: f64, y0: f64, x1: f64, y1: f64, x2: f64, y2: f64, x3: f64, y3: f64, t: f64) -> Point {
+fn cubic_point_at(
+    x0: f64,
+    y0: f64,
+    x1: f64,
+    y1: f64,
+    x2: f64,
+    y2: f64,
+    x3: f64,
+    y3: f64,
+    t: f64,
+) -> Point {
     let u = 1.0 - t;
     let x = u * u * u * x0 + 3.0 * u * u * t * x1 + 3.0 * u * t * t * x2 + t * t * t * x3;
     let y = u * u * u * y0 + 3.0 * u * u * t * y1 + 3.0 * u * t * t * y2 + t * t * t * y3;
@@ -806,7 +1137,17 @@ fn quad_point_at(x0: f64, y0: f64, x1: f64, y1: f64, x2: f64, y2: f64, t: f64) -
     Point::new(x, y)
 }
 
-fn cubic_length(x0: f64, y0: f64, x1: f64, y1: f64, x2: f64, y2: f64, x3: f64, y3: f64, steps: usize) -> f64 {
+fn cubic_length(
+    x0: f64,
+    y0: f64,
+    x1: f64,
+    y1: f64,
+    x2: f64,
+    y2: f64,
+    x3: f64,
+    y3: f64,
+    steps: usize,
+) -> f64 {
     let mut len = 0.0;
     let mut prev = Point::new(x0, y0);
     for i in 1..=steps {
@@ -854,7 +1195,14 @@ mod tests {
         let path = SvgPath::parse("M 0 0 C 10 20 30 40 50 60").unwrap();
         assert_eq!(path.commands.len(), 2);
         match path.commands[1] {
-            PathCommand::CubicTo { x1, y1, x2, y2, x, y } => {
+            PathCommand::CubicTo {
+                x1,
+                y1,
+                x2,
+                y2,
+                x,
+                y,
+            } => {
                 assert_eq!((x1, y1, x2, y2, x, y), (10.0, 20.0, 30.0, 40.0, 50.0, 60.0));
             }
             _ => panic!("expected CubicTo"),
@@ -876,7 +1224,15 @@ mod tests {
     fn parse_arc() {
         let path = SvgPath::parse("M 0 0 A 25 25 0 1 1 50 25").unwrap();
         match path.commands[1] {
-            PathCommand::ArcTo { rx, ry, x_rotation, large_arc, sweep, x, y } => {
+            PathCommand::ArcTo {
+                rx,
+                ry,
+                x_rotation,
+                large_arc,
+                sweep,
+                x,
+                y,
+            } => {
                 assert_eq!(rx, 25.0);
                 assert_eq!(ry, 25.0);
                 assert_eq!(x_rotation, 0.0);
@@ -892,8 +1248,14 @@ mod tests {
     #[test]
     fn parse_relative() {
         let path = SvgPath::parse("m 10 10 l 20 20").unwrap();
-        assert_eq!(path.commands[0], PathCommand::MoveToRel { dx: 10.0, dy: 10.0 });
-        assert_eq!(path.commands[1], PathCommand::LineToRel { dx: 20.0, dy: 20.0 });
+        assert_eq!(
+            path.commands[0],
+            PathCommand::MoveToRel { dx: 10.0, dy: 10.0 }
+        );
+        assert_eq!(
+            path.commands[1],
+            PathCommand::LineToRel { dx: 20.0, dy: 20.0 }
+        );
     }
 
     #[test]

@@ -104,7 +104,11 @@ impl Entity {
 
 impl fmt::Display for Entity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Entity({}, pos={}, r={:.1})", self.id, self.position, self.relevance_radius)
+        write!(
+            f,
+            "Entity({}, pos={}, r={:.1})",
+            self.id, self.position, self.relevance_radius
+        )
     }
 }
 
@@ -122,10 +126,16 @@ pub enum InterestEvent {
 impl fmt::Display for InterestEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Enter { observer_id, entity_id } => {
+            Self::Enter {
+                observer_id,
+                entity_id,
+            } => {
                 write!(f, "Enter(observer={observer_id}, entity={entity_id})")
             }
-            Self::Exit { observer_id, entity_id } => {
+            Self::Exit {
+                observer_id,
+                entity_id,
+            } => {
                 write!(f, "Exit(observer={observer_id}, entity={entity_id})")
             }
         }
@@ -209,7 +219,10 @@ impl InterestManager {
 
     /// Remove an entity.
     pub fn remove_entity(&mut self, id: u64) -> Result<Entity, InterestError> {
-        let entity = self.entities.remove(&id).ok_or(InterestError::EntityNotFound(id))?;
+        let entity = self
+            .entities
+            .remove(&id)
+            .ok_or(InterestError::EntityNotFound(id))?;
         let cell = self.cell_for(&entity.position);
         if let Some(set) = self.grid.get_mut(&cell) {
             set.remove(&id);
@@ -223,7 +236,10 @@ impl InterestManager {
 
     /// Move an entity to a new position. Returns generated events.
     pub fn move_entity(&mut self, id: u64, new_x: f64, new_y: f64) -> Result<(), InterestError> {
-        let entity = self.entities.get_mut(&id).ok_or(InterestError::EntityNotFound(id))?;
+        let entity = self
+            .entities
+            .get_mut(&id)
+            .ok_or(InterestError::EntityNotFound(id))?;
         let old_pos = entity.position.clone();
         entity.position = Position::new(new_x, new_y);
         let new_pos = entity.position.clone();
@@ -247,7 +263,10 @@ impl InterestManager {
         if radius <= 0.0 {
             return Err(InterestError::InvalidRadius(radius));
         }
-        let entity = self.entities.get_mut(&id).ok_or(InterestError::EntityNotFound(id))?;
+        let entity = self
+            .entities
+            .get_mut(&id)
+            .ok_or(InterestError::EntityNotFound(id))?;
         entity.relevance_radius = radius;
         Ok(())
     }
@@ -276,13 +295,16 @@ impl InterestManager {
         let mut events = Vec::new();
 
         // Collect observer info to avoid borrow issues.
-        let observers: Vec<(u64, Position, f64)> = self.entities.values()
+        let observers: Vec<(u64, Position, f64)> = self
+            .entities
+            .values()
             .filter(|e| e.is_observer)
             .map(|e| (e.id, e.position, e.relevance_radius))
             .collect();
 
         for (obs_id, obs_pos, obs_radius) in &observers {
-            let nearby: HashSet<u64> = self.query_nearby(obs_pos, *obs_radius)
+            let nearby: HashSet<u64> = self
+                .query_nearby(obs_pos, *obs_radius)
                 .into_iter()
                 .filter(|eid| *eid != *obs_id)
                 .collect();
@@ -292,13 +314,19 @@ impl InterestManager {
             // Enter events.
             for &eid in &nearby {
                 if !old_set.contains(&eid) {
-                    events.push(InterestEvent::Enter { observer_id: *obs_id, entity_id: eid });
+                    events.push(InterestEvent::Enter {
+                        observer_id: *obs_id,
+                        entity_id: eid,
+                    });
                 }
             }
             // Exit events.
             for &eid in old_set.iter() {
                 if !nearby.contains(&eid) {
-                    events.push(InterestEvent::Exit { observer_id: *obs_id, entity_id: eid });
+                    events.push(InterestEvent::Exit {
+                        observer_id: *obs_id,
+                        entity_id: eid,
+                    });
                 }
             }
             *old_set = nearby;
@@ -366,7 +394,9 @@ mod tests {
 
     #[test]
     fn entity_builder() {
-        let e = Entity::new(1, 10.0, 20.0, 50.0).observer().with_radius(100.0);
+        let e = Entity::new(1, 10.0, 20.0, 50.0)
+            .observer()
+            .with_radius(100.0);
         assert!(e.is_observer);
         assert_eq!(e.relevance_radius, 100.0);
     }
@@ -399,7 +429,10 @@ mod tests {
     #[test]
     fn remove_nonexistent_error() {
         let mut mgr = InterestManager::new(100.0).unwrap();
-        assert!(matches!(mgr.remove_entity(999), Err(InterestError::EntityNotFound(999))));
+        assert!(matches!(
+            mgr.remove_entity(999),
+            Err(InterestError::EntityNotFound(999))
+        ));
     }
 
     #[test]
@@ -428,7 +461,10 @@ mod tests {
     #[test]
     fn move_nonexistent_entity_error() {
         let mut mgr = InterestManager::new(100.0).unwrap();
-        assert!(matches!(mgr.move_entity(999, 0.0, 0.0), Err(InterestError::EntityNotFound(999))));
+        assert!(matches!(
+            mgr.move_entity(999, 0.0, 0.0),
+            Err(InterestError::EntityNotFound(999))
+        ));
     }
 
     #[test]
@@ -443,33 +479,51 @@ mod tests {
     fn set_radius_invalid() {
         let mut mgr = InterestManager::new(100.0).unwrap();
         mgr.add_entity(Entity::new(1, 0.0, 0.0, 50.0)).unwrap();
-        assert!(matches!(mgr.set_radius(1, -1.0), Err(InterestError::InvalidRadius(_))));
+        assert!(matches!(
+            mgr.set_radius(1, -1.0),
+            Err(InterestError::InvalidRadius(_))
+        ));
     }
 
     #[test]
     fn interest_enter_events() {
         let mut mgr = InterestManager::new(100.0).unwrap();
-        mgr.add_entity(Entity::new(1, 0.0, 0.0, 100.0).observer()).unwrap();
+        mgr.add_entity(Entity::new(1, 0.0, 0.0, 100.0).observer())
+            .unwrap();
         mgr.add_entity(Entity::new(2, 50.0, 50.0, 10.0)).unwrap();
         let events = mgr.update_interests();
-        assert!(events.iter().any(|e| matches!(e, InterestEvent::Enter { observer_id: 1, entity_id: 2 })));
+        assert!(events.iter().any(|e| matches!(
+            e,
+            InterestEvent::Enter {
+                observer_id: 1,
+                entity_id: 2
+            }
+        )));
     }
 
     #[test]
     fn interest_exit_events() {
         let mut mgr = InterestManager::new(100.0).unwrap();
-        mgr.add_entity(Entity::new(1, 0.0, 0.0, 100.0).observer()).unwrap();
+        mgr.add_entity(Entity::new(1, 0.0, 0.0, 100.0).observer())
+            .unwrap();
         mgr.add_entity(Entity::new(2, 50.0, 0.0, 10.0)).unwrap();
         mgr.update_interests(); // entity 2 enters
         mgr.move_entity(2, 5000.0, 5000.0).unwrap();
         let events = mgr.update_interests();
-        assert!(events.iter().any(|e| matches!(e, InterestEvent::Exit { observer_id: 1, entity_id: 2 })));
+        assert!(events.iter().any(|e| matches!(
+            e,
+            InterestEvent::Exit {
+                observer_id: 1,
+                entity_id: 2
+            }
+        )));
     }
 
     #[test]
     fn interest_set_tracking() {
         let mut mgr = InterestManager::new(100.0).unwrap();
-        mgr.add_entity(Entity::new(1, 0.0, 0.0, 100.0).observer()).unwrap();
+        mgr.add_entity(Entity::new(1, 0.0, 0.0, 100.0).observer())
+            .unwrap();
         mgr.add_entity(Entity::new(2, 10.0, 10.0, 10.0)).unwrap();
         mgr.update_interests();
         let set = mgr.interest_set(1).unwrap();
@@ -489,7 +543,8 @@ mod tests {
     #[test]
     fn no_self_interest() {
         let mut mgr = InterestManager::new(100.0).unwrap();
-        mgr.add_entity(Entity::new(1, 0.0, 0.0, 1000.0).observer()).unwrap();
+        mgr.add_entity(Entity::new(1, 0.0, 0.0, 1000.0).observer())
+            .unwrap();
         mgr.update_interests();
         let set = mgr.interest_set(1).unwrap();
         assert!(!set.contains(&1));
@@ -497,7 +552,10 @@ mod tests {
 
     #[test]
     fn interest_event_display() {
-        let e = InterestEvent::Enter { observer_id: 1, entity_id: 2 };
+        let e = InterestEvent::Enter {
+            observer_id: 1,
+            entity_id: 2,
+        };
         assert!(format!("{e}").contains("Enter"));
     }
 

@@ -41,7 +41,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -58,7 +60,9 @@ impl Rng {
     }
 
     fn next_usize(&mut self, upper: usize) -> usize {
-        if upper == 0 { return 0; }
+        if upper == 0 {
+            return 0;
+        }
         (self.next_u64() % upper as u64) as usize
     }
 
@@ -118,7 +122,11 @@ pub struct ArmStats {
 
 impl ArmStats {
     fn new() -> Self {
-        Self { pulls: 0, total_reward: 0.0, sum_sq: 0.0 }
+        Self {
+            pulls: 0,
+            total_reward: 0.0,
+            sum_sq: 0.0,
+        }
     }
 
     fn update(&mut self, reward: f64) {
@@ -128,7 +136,11 @@ impl ArmStats {
     }
 
     pub fn mean(&self) -> f64 {
-        if self.pulls == 0 { 0.0 } else { self.total_reward / self.pulls as f64 }
+        if self.pulls == 0 {
+            0.0
+        } else {
+            self.total_reward / self.pulls as f64
+        }
     }
 
     pub fn variance(&self) -> f64 {
@@ -239,7 +251,9 @@ impl EpsilonGreedyBandit {
             return Err(BanditError::NoArms);
         }
         if epsilon < 0.0 || epsilon > 1.0 {
-            return Err(BanditError::InvalidParameter("epsilon must be in [0, 1]".into()));
+            return Err(BanditError::InvalidParameter(
+                "epsilon must be in [0, 1]".into(),
+            ));
         }
         Ok(Self {
             arms: (0..num_arms).map(|_| ArmStats::new()).collect(),
@@ -357,9 +371,8 @@ impl Ucb1Bandit {
             return f64::MAX;
         }
         let exploitation = arm.mean();
-        let exploration = (self.exploration_factor * (self.total_rounds as f64).ln()
-            / arm.pulls as f64)
-            .sqrt();
+        let exploration =
+            (self.exploration_factor * (self.total_rounds as f64).ln() / arm.pulls as f64).sqrt();
         exploitation + exploration
     }
 
@@ -542,7 +555,9 @@ impl LinUcbBandit {
             return Err(BanditError::NoArms);
         }
         if dim == 0 {
-            return Err(BanditError::InvalidParameter("dimension must be > 0".into()));
+            return Err(BanditError::InvalidParameter(
+                "dimension must be > 0".into(),
+            ));
         }
         let mut a_matrices = Vec::with_capacity(num_arms);
         for _ in 0..num_arms {
@@ -608,7 +623,10 @@ impl LinUcbBandit {
             let theta = self.solve_linear(&self.a_matrices[arm], &self.b_vectors[arm]);
             let exploitation: f64 = theta.iter().zip(context.iter()).map(|(t, c)| t * c).sum();
             let exploration = self.alpha
-                * self.quadratic_form(&self.a_matrices[arm], context).abs().sqrt();
+                * self
+                    .quadratic_form(&self.a_matrices[arm], context)
+                    .abs()
+                    .sqrt();
             let score = exploitation + exploration;
             if score > best_score {
                 best_score = score;
@@ -683,7 +701,9 @@ mod tests {
     use super::*;
 
     const EPS: f64 = 1e-6;
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     #[test]
     fn test_arm_stats() {
@@ -760,7 +780,10 @@ mod tests {
             let reward = if arm == 2 { 1.0 } else { 0.0 };
             b.update(arm, reward).unwrap();
         }
-        assert!(b.arm_stats(2).unwrap().pulls() > 50, "best arm should be pulled most");
+        assert!(
+            b.arm_stats(2).unwrap().pulls() > 50,
+            "best arm should be pulled most"
+        );
     }
 
     #[test]

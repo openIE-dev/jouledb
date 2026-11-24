@@ -72,7 +72,10 @@ pub struct EncodingQuality {
 
 impl EncodingQuality {
     pub fn new(encoding: Encoding, quality: f32) -> Self {
-        Self { encoding, quality: quality.clamp(0.0, 1.0) }
+        Self {
+            encoding,
+            quality: quality.clamp(0.0, 1.0),
+        }
     }
 
     /// Whether this encoding is acceptable (quality > 0).
@@ -93,7 +96,9 @@ pub fn parse_accept_encoding(header: &str) -> Vec<EncodingQuality> {
 
     for part in header.split(',') {
         let trimmed = part.trim();
-        if trimmed.is_empty() { continue; }
+        if trimmed.is_empty() {
+            continue;
+        }
 
         let (token, quality) = parse_token_quality(trimmed);
 
@@ -111,7 +116,13 @@ pub fn parse_accept_encoding(header: &str) -> Vec<EncodingQuality> {
     // If wildcard present, add missing encodings at wildcard quality.
     if has_wildcard {
         let present: Vec<Encoding> = result.iter().map(|eq| eq.encoding).collect();
-        let all_encodings = [Encoding::Gzip, Encoding::Brotli, Encoding::Deflate, Encoding::Zstd, Encoding::Identity];
+        let all_encodings = [
+            Encoding::Gzip,
+            Encoding::Brotli,
+            Encoding::Deflate,
+            Encoding::Zstd,
+            Encoding::Identity,
+        ];
         for enc in &all_encodings {
             if !present.contains(enc) {
                 result.push(EncodingQuality::new(*enc, wildcard_quality));
@@ -128,7 +139,10 @@ fn parse_token_quality(s: &str) -> (&str, f32) {
     let token = parts[0].trim();
     let quality = if parts.len() > 1 {
         let q_part = parts[1].trim();
-        if let Some(val) = q_part.strip_prefix("q=").or_else(|| q_part.strip_prefix("Q=")) {
+        if let Some(val) = q_part
+            .strip_prefix("q=")
+            .or_else(|| q_part.strip_prefix("Q="))
+        {
             val.trim().parse::<f32>().unwrap_or(1.0).clamp(0.0, 1.0)
         } else {
             1.0
@@ -156,7 +170,12 @@ impl NegotiationConfig {
     /// Default config: support zstd, br, gzip, deflate; min 1024 bytes.
     pub fn default_config() -> Self {
         Self {
-            supported: vec![Encoding::Zstd, Encoding::Brotli, Encoding::Gzip, Encoding::Deflate],
+            supported: vec![
+                Encoding::Zstd,
+                Encoding::Brotli,
+                Encoding::Gzip,
+                Encoding::Deflate,
+            ],
             min_size: 1024,
             compressible_types: vec![
                 "text/".to_string(),
@@ -172,7 +191,9 @@ impl NegotiationConfig {
     /// Check if a MIME type is compressible.
     pub fn is_compressible(&self, content_type: &str) -> bool {
         let lower = content_type.to_lowercase();
-        self.compressible_types.iter().any(|prefix| lower.starts_with(prefix))
+        self.compressible_types
+            .iter()
+            .any(|prefix| lower.starts_with(prefix))
     }
 }
 
@@ -265,7 +286,8 @@ pub fn negotiate(
                         // Prefer higher client quality, then server priority.
                         if client_eq.quality > *bq
                             || (client_eq.quality == *bq
-                                && client_eq.encoding.server_priority() < best.unwrap().0.server_priority())
+                                && client_eq.encoding.server_priority()
+                                    < best.unwrap().0.server_priority())
                         {
                             best = Some((client_eq.encoding, client_eq.quality));
                         }
@@ -370,16 +392,29 @@ mod tests {
     fn test_parse_accept_encoding_simple() {
         let result = parse_accept_encoding("gzip, br, deflate");
         assert_eq!(result.len(), 3);
-        assert!(result.iter().any(|eq| eq.encoding == Encoding::Gzip && (eq.quality - 1.0).abs() < 0.001));
+        assert!(
+            result
+                .iter()
+                .any(|eq| eq.encoding == Encoding::Gzip && (eq.quality - 1.0).abs() < 0.001)
+        );
         assert!(result.iter().any(|eq| eq.encoding == Encoding::Brotli));
     }
 
     #[test]
     fn test_parse_accept_encoding_with_quality() {
         let result = parse_accept_encoding("gzip;q=1.0, br;q=0.8, deflate;q=0.5");
-        let gzip = result.iter().find(|eq| eq.encoding == Encoding::Gzip).unwrap();
-        let br = result.iter().find(|eq| eq.encoding == Encoding::Brotli).unwrap();
-        let deflate = result.iter().find(|eq| eq.encoding == Encoding::Deflate).unwrap();
+        let gzip = result
+            .iter()
+            .find(|eq| eq.encoding == Encoding::Gzip)
+            .unwrap();
+        let br = result
+            .iter()
+            .find(|eq| eq.encoding == Encoding::Brotli)
+            .unwrap();
+        let deflate = result
+            .iter()
+            .find(|eq| eq.encoding == Encoding::Deflate)
+            .unwrap();
         assert!((gzip.quality - 1.0).abs() < 0.001);
         assert!((br.quality - 0.8).abs() < 0.001);
         assert!((deflate.quality - 0.5).abs() < 0.001);
@@ -390,7 +425,10 @@ mod tests {
         let result = parse_accept_encoding("gzip, *;q=0.1");
         // Should have gzip at 1.0 plus all others at 0.1
         assert!(result.len() >= 5);
-        let br = result.iter().find(|eq| eq.encoding == Encoding::Brotli).unwrap();
+        let br = result
+            .iter()
+            .find(|eq| eq.encoding == Encoding::Brotli)
+            .unwrap();
         assert!((br.quality - 0.1).abs() < 0.001);
     }
 
@@ -403,7 +441,10 @@ mod tests {
     #[test]
     fn test_parse_accept_encoding_zero_quality() {
         let result = parse_accept_encoding("gzip;q=0, br;q=1.0");
-        let gzip = result.iter().find(|eq| eq.encoding == Encoding::Gzip).unwrap();
+        let gzip = result
+            .iter()
+            .find(|eq| eq.encoding == Encoding::Gzip)
+            .unwrap();
         assert!(!gzip.is_acceptable());
     }
 
@@ -529,9 +570,18 @@ mod tests {
     #[test]
     fn test_negotiation_reason_display() {
         assert_eq!(NegotiationReason::Negotiated.to_string(), "negotiated");
-        assert_eq!(NegotiationReason::BelowMinSize.to_string(), "below_min_size");
-        assert_eq!(NegotiationReason::NotCompressible.to_string(), "not_compressible");
-        assert_eq!(NegotiationReason::NoAcceptableEncoding.to_string(), "no_acceptable_encoding");
+        assert_eq!(
+            NegotiationReason::BelowMinSize.to_string(),
+            "below_min_size"
+        );
+        assert_eq!(
+            NegotiationReason::NotCompressible.to_string(),
+            "not_compressible"
+        );
+        assert_eq!(
+            NegotiationReason::NoAcceptableEncoding.to_string(),
+            "no_acceptable_encoding"
+        );
         assert_eq!(NegotiationReason::NoHeader.to_string(), "no_header");
     }
 }

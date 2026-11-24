@@ -38,8 +38,16 @@ fn coreml_hdc_scores_match_cpu_hamming_exactly() {
     for (layout, n, d, k) in cases {
         let q = bipolar(n * d, 0x1234 + d as u64);
         let m = bipolar(k * d, 0xBEEF + d as u64);
-        let run = hdc_similarity(&q, &m, d, HdcOptions { layout, power: PowerSampling::Off })
-            .unwrap_or_else(|e| panic!("Core ML run failed for {layout:?} d={d}: {e}"));
+        let run = hdc_similarity(
+            &q,
+            &m,
+            d,
+            HdcOptions {
+                layout,
+                power: PowerSampling::Off,
+            },
+        )
+        .unwrap_or_else(|e| panic!("Core ML run failed for {layout:?} d={d}: {e}"));
         let want = cpu_dot_scores(&q, &m, d);
         let want_h: Vec<u32> = want.iter().map(|s| hamming_from_dot(*s, d)).collect();
         let exact = run.scores == want && run.hamming() == want_h;
@@ -55,7 +63,10 @@ fn coreml_hdc_scores_match_cpu_hamming_exactly() {
         for line in run.placement.lines() {
             println!("  plan op: {line}");
         }
-        assert!(exact, "Core ML scores differ from CPU Hamming for {layout:?} d={d}");
+        assert!(
+            exact,
+            "Core ML scores differ from CPU Hamming for {layout:?} d={d}"
+        );
     }
 }
 
@@ -93,12 +104,20 @@ fn coreml_hdc_auto_layout_and_power() {
         again.setup_performed, again.setup_s, again.compile_s, again.predict_s
     );
     assert_eq!(again.scores, run.scores);
-    assert!(!again.setup_performed, "same shape + codebook must reuse the loaded model");
+    assert!(
+        !again.setup_performed,
+        "same shape + codebook must reuse the loaded model"
+    );
     assert_eq!(again.setup_s, 0.0);
     match &run.power {
         Some(p) => println!(
             "ane_hdc_power energy_source={} mean_ane_watts={:.4} joules_per_prediction={:.3e} samples={} predictions={} window_s={:.3}",
-            p.source, p.mean_ane_watts, p.joules_per_prediction, p.samples, p.predictions, p.window_s
+            p.source,
+            p.mean_ane_watts,
+            p.joules_per_prediction,
+            p.samples,
+            p.predictions,
+            p.window_s
         ),
         None => println!(
             "ane_hdc_power energy_source=estimate (powermetrics_available={})",
@@ -113,7 +132,16 @@ fn ane_lane_is_not_available_off_macos() {
     let q = bipolar(16, 1);
     let m = bipolar(32, 2);
     for layout in [Layout::MatMul, Layout::ChannelsFirstConv] {
-        let err = hdc_similarity(&q, &m, 16, HdcOptions { layout, power: PowerSampling::Always }).unwrap_err();
+        let err = hdc_similarity(
+            &q,
+            &m,
+            16,
+            HdcOptions {
+                layout,
+                power: PowerSampling::Always,
+            },
+        )
+        .unwrap_err();
         assert!(matches!(err, AneError::NotAvailable { .. }), "{err}");
     }
     assert!(matches!(

@@ -136,7 +136,11 @@ impl BatchNormLayer {
 
     /// Number of trainable parameters.
     pub fn param_count(&self) -> usize {
-        if self.config.affine { self.config.num_features * 2 } else { 0 }
+        if self.config.affine {
+            self.config.num_features * 2
+        } else {
+            0
+        }
     }
 
     /// Forward pass for 1D input: `[batch_size, num_features]` flattened row-major.
@@ -183,12 +187,10 @@ impl BatchNormLayer {
                 for b in 0..batch_size {
                     for f_idx in 0..n {
                         let idx = b * n + f_idx;
-                        normalized[idx] =
-                            (input[idx] - batch_mean[f_idx]) * std_inv[f_idx];
+                        normalized[idx] = (input[idx] - batch_mean[f_idx]) * std_inv[f_idx];
 
                         if self.config.affine {
-                            output[idx] =
-                                self.gamma[f_idx] * normalized[idx] + self.beta[f_idx];
+                            output[idx] = self.gamma[f_idx] * normalized[idx] + self.beta[f_idx];
                         } else {
                             output[idx] = normalized[idx];
                         }
@@ -282,10 +284,7 @@ impl BatchNormLayer {
     }
 
     /// Backward pass: compute gradients for gamma, beta, and input.
-    pub fn backward(
-        &self,
-        grad_output: &[f64],
-    ) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+    pub fn backward(&self, grad_output: &[f64]) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
         let n = self.config.num_features;
         let batch_size = self.last_batch_size;
         let bs_f = batch_size as f64;
@@ -305,7 +304,11 @@ impl BatchNormLayer {
 
         // Compute grad_input
         for f_idx in 0..n {
-            let gamma_val = if self.config.affine { self.gamma[f_idx] } else { 1.0 };
+            let gamma_val = if self.config.affine {
+                self.gamma[f_idx]
+            } else {
+                1.0
+            };
             let sinv = self.last_std_inv[f_idx];
 
             let mut sum_grad = 0.0;
@@ -337,8 +340,16 @@ impl BatchNormLayer {
 
         for i in 0..n {
             let std_val = (self.running_var[i] + self.config.epsilon).sqrt();
-            let g = if self.config.affine { self.gamma[i] } else { 1.0 };
-            let b = if self.config.affine { self.beta[i] } else { 0.0 };
+            let g = if self.config.affine {
+                self.gamma[i]
+            } else {
+                1.0
+            };
+            let b = if self.config.affine {
+                self.beta[i]
+            } else {
+                0.0
+            };
 
             scale[i] = g / std_val;
             offset[i] = b - g * self.running_mean[i] / std_val;

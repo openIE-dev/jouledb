@@ -51,7 +51,11 @@ impl GrayImage {
         if width == 0 || height == 0 {
             return Err(LaneError::InvalidImage("dimensions must be > 0".into()));
         }
-        Ok(Self { width, height, pixels: vec![0; width * height] })
+        Ok(Self {
+            width,
+            height,
+            pixels: vec![0; width * height],
+        })
     }
 
     pub fn from_data(width: usize, height: usize, pixels: Vec<u8>) -> Result<Self, LaneError> {
@@ -65,7 +69,11 @@ impl GrayImage {
                 pixels.len()
             )));
         }
-        Ok(Self { width, height, pixels })
+        Ok(Self {
+            width,
+            height,
+            pixels,
+        })
     }
 
     #[inline]
@@ -129,7 +137,11 @@ impl HoughLine {
 
 impl fmt::Display for HoughLine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "HoughLine(ρ={:.1}, θ={:.3}, votes={})", self.rho, self.theta, self.votes)
+        write!(
+            f,
+            "HoughLine(ρ={:.1}, θ={:.3}, votes={})",
+            self.rho, self.theta, self.votes
+        )
     }
 }
 
@@ -213,7 +225,11 @@ impl HoughTransform {
                 let votes = accum[ri * theta_steps + ti];
                 if votes >= self.vote_threshold {
                     let rho = ri as f64 * self.rho_resolution - max_rho;
-                    lines.push(HoughLine { rho, theta: thetas[ti], votes });
+                    lines.push(HoughLine {
+                        rho,
+                        theta: thetas[ti],
+                        votes,
+                    });
                 }
             }
         }
@@ -268,11 +284,7 @@ impl SlidingWindow {
 
     /// Detect lane pixels starting from a base column `start_x`.
     /// Returns a list of (x, y) pixel coordinates belonging to the lane.
-    pub fn detect(
-        &self,
-        image: &GrayImage,
-        start_x: usize,
-    ) -> Vec<(usize, usize)> {
+    pub fn detect(&self, image: &GrayImage, start_x: usize) -> Vec<(usize, usize)> {
         let win_h = image.height / self.num_windows;
         let half_w = self.window_width / 2;
         let mut current_x = start_x;
@@ -382,11 +394,7 @@ pub fn fit_poly2(points: &[(f64, f64)]) -> Result<LanePoly, LaneError> {
     }
 
     // Solve 3x3 system using Cramer's rule.
-    let mat = [
-        [s[4], s[3], s[2]],
-        [s[3], s[2], s[1]],
-        [s[2], s[1], s[0]],
-    ];
+    let mat = [[s[4], s[3], s[2]], [s[3], s[2], s[1]], [s[2], s[1], s[0]]];
     let det = determinant_3x3(&mat);
     if det.abs() < 1e-12 {
         return Err(LaneError::FitFailed);
@@ -497,21 +505,33 @@ mod tests {
 
     #[test]
     fn test_hough_line_slope() {
-        let line = HoughLine { rho: 100.0, theta: std::f64::consts::FRAC_PI_4, votes: 50 };
+        let line = HoughLine {
+            rho: 100.0,
+            theta: std::f64::consts::FRAC_PI_4,
+            votes: 50,
+        };
         let slope = line.slope().unwrap();
         assert!((slope - (-1.0)).abs() < 1e-9);
     }
 
     #[test]
     fn test_hough_line_vertical() {
-        let line = HoughLine { rho: 50.0, theta: 0.0, votes: 30 };
+        let line = HoughLine {
+            rho: 50.0,
+            theta: 0.0,
+            votes: 30,
+        };
         assert!(line.y_at_x(10.0).is_none());
         assert!(line.slope().is_none());
     }
 
     #[test]
     fn test_hough_line_display() {
-        let line = HoughLine { rho: 10.0, theta: 1.5, votes: 42 };
+        let line = HoughLine {
+            rho: 10.0,
+            theta: 1.5,
+            votes: 42,
+        };
         assert!(format!("{line}").contains("votes=42"));
     }
 
@@ -582,20 +602,32 @@ mod tests {
 
     #[test]
     fn test_lane_poly_eval() {
-        let poly = LanePoly { a: 1.0, b: 0.0, c: 0.0 };
+        let poly = LanePoly {
+            a: 1.0,
+            b: 0.0,
+            c: 0.0,
+        };
         assert!((poly.eval(3.0) - 9.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_lane_poly_curvature() {
-        let poly = LanePoly { a: 0.0, b: 1.0, c: 0.0 };
+        let poly = LanePoly {
+            a: 0.0,
+            b: 1.0,
+            c: 0.0,
+        };
         let k = poly.curvature(0.0);
         assert!(k.abs() < 1e-9); // straight line
     }
 
     #[test]
     fn test_lane_poly_radius() {
-        let poly = LanePoly { a: 0.5, b: 0.0, c: 0.0 };
+        let poly = LanePoly {
+            a: 0.5,
+            b: 0.0,
+            c: 0.0,
+        };
         let r = poly.radius(0.0);
         assert!(r.is_finite());
         assert!(r > 0.0);
@@ -604,7 +636,11 @@ mod tests {
     #[test]
     fn test_curvature_estimator() {
         let est = CurvatureEstimator::new(0.03, 0.03);
-        let poly = LanePoly { a: 0.001, b: 0.0, c: 320.0 };
+        let poly = LanePoly {
+            a: 0.001,
+            b: 0.0,
+            c: 320.0,
+        };
         let k = est.curvature_at(&poly, 500.0);
         assert!(k >= 0.0);
     }
@@ -612,8 +648,16 @@ mod tests {
     #[test]
     fn test_centre_offset() {
         let est = CurvatureEstimator::new(0.03, 0.03);
-        let left = LanePoly { a: 0.0, b: 0.0, c: 200.0 };
-        let right = LanePoly { a: 0.0, b: 0.0, c: 400.0 };
+        let left = LanePoly {
+            a: 0.0,
+            b: 0.0,
+            c: 200.0,
+        };
+        let right = LanePoly {
+            a: 0.0,
+            b: 0.0,
+            c: 400.0,
+        };
         let offset = est.centre_offset(&left, &right, 500.0, 300.0);
         assert!(offset.abs() < 1e-9); // centered
     }

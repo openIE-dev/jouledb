@@ -719,11 +719,16 @@ impl RaftWal {
                         break;
                     }
 
-                    let Ok((entry, _)): Result<(LogEntry, _), _> = bincode::serde::decode_from_slice(
-                        &data[cursor..cursor + len],
-                        bincode::config::standard(),
-                    ) else {
-                        tracing::warn!("WAL: corrupt bincode entry at offset {}, stopping", record_start);
+                    let Ok((entry, _)): Result<(LogEntry, _), _> =
+                        bincode::serde::decode_from_slice(
+                            &data[cursor..cursor + len],
+                            bincode::config::standard(),
+                        )
+                    else {
+                        tracing::warn!(
+                            "WAL: corrupt bincode entry at offset {}, stopping",
+                            record_start
+                        );
                         break;
                     };
 
@@ -771,8 +776,12 @@ impl RaftWal {
                             tracing::warn!("WAL: truncated voted_for string at offset {}", cursor);
                             break;
                         }
-                        let Ok(id) = String::from_utf8(data[cursor..cursor + id_len].to_vec()) else {
-                            tracing::warn!("WAL: invalid UTF-8 voted_for at offset {}, stopping", record_start);
+                        let Ok(id) = String::from_utf8(data[cursor..cursor + id_len].to_vec())
+                        else {
+                            tracing::warn!(
+                                "WAL: invalid UTF-8 voted_for at offset {}, stopping",
+                                record_start
+                            );
                             break;
                         };
                         cursor += id_len;
@@ -780,7 +789,11 @@ impl RaftWal {
                     } else if has_voted == 0 {
                         None
                     } else {
-                        tracing::warn!("WAL: invalid has_voted flag {} at offset {}, stopping", has_voted, record_start);
+                        tracing::warn!(
+                            "WAL: invalid has_voted flag {} at offset {}, stopping",
+                            has_voted,
+                            record_start
+                        );
                         break;
                     };
 

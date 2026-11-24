@@ -2,11 +2,16 @@
 //!
 //! Implements IIR (biquad) filters with various design methods.
 
-
-#[cfg(not(feature = "std"))]
-use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 use super::{DspError, DspOperation, DspResult};
 use crate::types::{DynSignal, Hertz, SampleRate};
+#[cfg(not(feature = "std"))]
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use core::f64::consts::PI;
 
 /// Filter types

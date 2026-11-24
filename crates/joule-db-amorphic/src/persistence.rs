@@ -71,9 +71,8 @@ impl CheckpointManager {
             return Ok(false);
         }
 
-        let data = std::fs::read(&path).map_err(|e| {
-            AmorphicError::IngestionError(format!("Checkpoint read failed: {}", e))
-        })?;
+        let data = std::fs::read(&path)
+            .map_err(|e| AmorphicError::IngestionError(format!("Checkpoint read failed: {}", e)))?;
 
         module.restore(&data)?;
         Ok(true)
@@ -128,7 +127,10 @@ impl CheckpointManager {
 /// Serializable snapshot of TemporalStore.
 #[derive(Serialize, Deserialize)]
 struct TemporalSnapshot {
-    fields: Vec<((RecordId, String), Vec<crate::temporal_fields::TemporalField>)>,
+    fields: Vec<(
+        (RecordId, String),
+        Vec<crate::temporal_fields::TemporalField>,
+    )>,
 }
 
 impl Persistable for crate::temporal_fields::TemporalStore {
@@ -177,15 +179,13 @@ impl Persistable for crate::accessibility::CaptionStore {
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect(),
         };
-        serde_json::to_vec(&snapshot).map_err(|e| {
-            AmorphicError::IngestionError(format!("Caption checkpoint failed: {}", e))
-        })
+        serde_json::to_vec(&snapshot)
+            .map_err(|e| AmorphicError::IngestionError(format!("Caption checkpoint failed: {}", e)))
     }
 
     fn restore(&mut self, data: &[u8]) -> AmorphicResult<()> {
-        let snapshot: CaptionSnapshot = serde_json::from_slice(data).map_err(|e| {
-            AmorphicError::IngestionError(format!("Caption restore failed: {}", e))
-        })?;
+        let snapshot: CaptionSnapshot = serde_json::from_slice(data)
+            .map_err(|e| AmorphicError::IngestionError(format!("Caption restore failed: {}", e)))?;
         self.tracks.clear();
         for (k, v) in snapshot.tracks {
             self.tracks.insert(k, v);

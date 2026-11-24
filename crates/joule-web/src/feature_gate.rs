@@ -42,7 +42,10 @@ pub enum TargetRule {
     /// Match if attribute equals a specific value.
     AttributeEquals { attribute: String, value: String },
     /// Match if attribute is in a set of values.
-    AttributeIn { attribute: String, values: Vec<String> },
+    AttributeIn {
+        attribute: String,
+        values: Vec<String>,
+    },
     /// Percentage rollout: user_id is hashed to decide inclusion.
     Percentage(u8),
     /// Always evaluates to a fixed result (useful in rule chains).
@@ -68,15 +71,12 @@ impl TargetRule {
                 }
             }
             Self::AttributeEquals { attribute, value } => {
-                ctx.attributes
-                    .get(attribute)
-                    .map(|v| v == value)
+                ctx.attributes.get(attribute).map(|v| v == value)
             }
-            Self::AttributeIn { attribute, values } => {
-                ctx.attributes
-                    .get(attribute)
-                    .map(|v| values.iter().any(|val| val == v))
-            }
+            Self::AttributeIn { attribute, values } => ctx
+                .attributes
+                .get(attribute)
+                .map(|v| values.iter().any(|val| val == v)),
             Self::Percentage(pct) => {
                 let hash = deterministic_hash(&ctx.user_id);
                 let bucket = (hash % 100) as u8;
@@ -386,10 +386,7 @@ impl FeatureGate {
     pub fn evaluate_all(&self, ctx: &EvalContext) -> Vec<EvalResult> {
         let mut names: Vec<&String> = self.flags.keys().collect();
         names.sort();
-        names
-            .iter()
-            .map(|name| self.evaluate(name, ctx))
-            .collect()
+        names.iter().map(|name| self.evaluate(name, ctx)).collect()
     }
 
     /// Count how many flags are in each status.
@@ -520,10 +517,9 @@ mod tests {
     #[test]
     fn user_allow_list() {
         let mut gate = FeatureGate::new();
-        gate.register(
-            FeatureFlag::new("beta", "beta feature")
-                .with_rule(TargetRule::UserAllowList(vec!["alice".into(), "bob".into()])),
-        );
+        gate.register(FeatureFlag::new("beta", "beta feature").with_rule(
+            TargetRule::UserAllowList(vec!["alice".into(), "bob".into()]),
+        ));
 
         assert!(gate.is_enabled("beta", &EvalContext::new("alice")));
         assert!(gate.is_enabled("beta", &EvalContext::new("bob")));
@@ -546,12 +542,12 @@ mod tests {
     #[test]
     fn attribute_equals() {
         let mut gate = FeatureGate::new();
-        gate.register(
-            FeatureFlag::new("pro_feature", "pro only").with_rule(TargetRule::AttributeEquals {
+        gate.register(FeatureFlag::new("pro_feature", "pro only").with_rule(
+            TargetRule::AttributeEquals {
                 attribute: "plan".into(),
                 value: "pro".into(),
-            }),
-        );
+            },
+        ));
 
         let pro_ctx = EvalContext::new("u1").with_attribute("plan", "pro");
         let free_ctx = EvalContext::new("u2").with_attribute("plan", "free");
@@ -566,12 +562,12 @@ mod tests {
     #[test]
     fn attribute_in_set() {
         let mut gate = FeatureGate::new();
-        gate.register(
-            FeatureFlag::new("us_feature", "US regions").with_rule(TargetRule::AttributeIn {
+        gate.register(FeatureFlag::new("us_feature", "US regions").with_rule(
+            TargetRule::AttributeIn {
                 attribute: "region".into(),
                 values: vec!["us-east".into(), "us-west".into()],
-            }),
-        );
+            },
+        ));
 
         let east = EvalContext::new("u1").with_attribute("region", "us-east");
         let eu = EvalContext::new("u2").with_attribute("region", "eu-west");
@@ -597,9 +593,7 @@ mod tests {
     #[test]
     fn percentage_100_always_on() {
         let mut gate = FeatureGate::new();
-        gate.register(
-            FeatureFlag::new("all", "everyone").with_rule(TargetRule::Percentage(100)),
-        );
+        gate.register(FeatureFlag::new("all", "everyone").with_rule(TargetRule::Percentage(100)));
 
         for i in 0..50 {
             let ctx = EvalContext::new(&format!("user_{i}"));
@@ -610,9 +604,7 @@ mod tests {
     #[test]
     fn percentage_0_always_off() {
         let mut gate = FeatureGate::new();
-        gate.register(
-            FeatureFlag::new("none", "nobody").with_rule(TargetRule::Percentage(0)),
-        );
+        gate.register(FeatureFlag::new("none", "nobody").with_rule(TargetRule::Percentage(0)));
 
         for i in 0..50 {
             let ctx = EvalContext::new(&format!("user_{i}"));

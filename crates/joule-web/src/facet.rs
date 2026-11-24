@@ -42,16 +42,27 @@ impl Default for FacetConfig {
 /// Compose multiple SVG panels into a facet grid.
 pub fn facet_grid(panels: &[Panel], config: &FacetConfig) -> String {
     let n = panels.len();
-    if n == 0 { return "<svg></svg>".to_string(); }
+    if n == 0 {
+        return "<svg></svg>".to_string();
+    }
 
     let ncols = config.ncols.max(1);
     let nrows = (n + ncols - 1) / ncols;
     let title_h = if config.title.is_some() { 30.0 } else { 0.0 };
-    let label_h = if config.shared_x_label.is_some() { 25.0 } else { 0.0 };
-    let label_w = if config.shared_y_label.is_some() { 25.0 } else { 0.0 };
+    let label_h = if config.shared_x_label.is_some() {
+        25.0
+    } else {
+        0.0
+    };
+    let label_w = if config.shared_y_label.is_some() {
+        25.0
+    } else {
+        0.0
+    };
 
     let panel_w = (config.total_width - label_w - (ncols - 1) as f64 * config.gap_x) / ncols as f64;
-    let panel_h = (config.total_height - title_h - label_h - (nrows - 1) as f64 * config.gap_y) / nrows as f64;
+    let panel_h = (config.total_height - title_h - label_h - (nrows - 1) as f64 * config.gap_y)
+        / nrows as f64;
 
     let mut svg = format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\">",
@@ -96,7 +107,8 @@ pub fn facet_grid(panels: &[Panel], config: &FacetConfig) -> String {
     if let Some(xl) = &config.shared_x_label {
         svg.push_str(&format!(
             "<text x=\"{}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"12\">{xl}</text>",
-            config.total_width / 2.0, config.total_height - 5.0
+            config.total_width / 2.0,
+            config.total_height - 5.0
         ));
     }
 
@@ -125,11 +137,20 @@ pub fn facet_wrap<F>(labels: &[&str], ncols: usize, render_fn: F, config: &Facet
 where
     F: Fn(&str) -> String,
 {
-    let panels: Vec<Panel> = labels.iter().map(|&label| Panel {
-        svg: render_fn(label),
-        title: Some(label.to_string()),
-    }).collect();
-    facet_grid(&panels, &FacetConfig { ncols, ..config.clone() })
+    let panels: Vec<Panel> = labels
+        .iter()
+        .map(|&label| Panel {
+            svg: render_fn(label),
+            title: Some(label.to_string()),
+        })
+        .collect();
+    facet_grid(
+        &panels,
+        &FacetConfig {
+            ncols,
+            ..config.clone()
+        },
+    )
 }
 
 #[cfg(test)]
@@ -143,10 +164,22 @@ mod tests {
     #[test]
     fn facet_basic() {
         let panels = vec![
-            Panel { svg: dummy_svg(), title: Some("A".into()) },
-            Panel { svg: dummy_svg(), title: Some("B".into()) },
-            Panel { svg: dummy_svg(), title: Some("C".into()) },
-            Panel { svg: dummy_svg(), title: Some("D".into()) },
+            Panel {
+                svg: dummy_svg(),
+                title: Some("A".into()),
+            },
+            Panel {
+                svg: dummy_svg(),
+                title: Some("B".into()),
+            },
+            Panel {
+                svg: dummy_svg(),
+                title: Some("C".into()),
+            },
+            Panel {
+                svg: dummy_svg(),
+                title: Some("D".into()),
+            },
         ];
         let svg = facet_grid(&panels, &FacetConfig::default());
         assert!(svg.contains("<svg"));
@@ -156,7 +189,13 @@ mod tests {
 
     #[test]
     fn facet_with_labels() {
-        let panels = vec![Panel { svg: dummy_svg(), title: None }; 6];
+        let panels = vec![
+            Panel {
+                svg: dummy_svg(),
+                title: None
+            };
+            6
+        ];
         let config = FacetConfig {
             ncols: 3,
             title: Some("My Grid".into()),

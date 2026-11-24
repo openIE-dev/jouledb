@@ -82,11 +82,7 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(
-        name: impl Into<String>,
-        value: TokenValue,
-        category: TokenCategory,
-    ) -> Self {
+    pub fn new(name: impl Into<String>, value: TokenValue, category: TokenCategory) -> Self {
         Self {
             name: name.into(),
             value,
@@ -296,7 +292,9 @@ impl TokenStore {
         let mut store = TokenStore::new();
 
         for (name, val) in obj {
-            let token_obj = val.as_object().ok_or(format!("Expected object for {name}"))?;
+            let token_obj = val
+                .as_object()
+                .ok_or(format!("Expected object for {name}"))?;
             let category_str = token_obj
                 .get("category")
                 .and_then(|v| v.as_str())
@@ -386,13 +384,21 @@ mod tests {
 
     #[test]
     fn test_token_css_property_name() {
-        let t = Token::new("color.primary.500", TokenValue::Color("#f00".into()), TokenCategory::Color);
+        let t = Token::new(
+            "color.primary.500",
+            TokenValue::Color("#f00".into()),
+            TokenCategory::Color,
+        );
         assert_eq!(t.css_property_name(), "--color-primary-500");
     }
 
     #[test]
     fn test_token_css_declaration() {
-        let t = Token::new("spacing.md", TokenValue::Dimension(16.0, "px".into()), TokenCategory::Spacing);
+        let t = Token::new(
+            "spacing.md",
+            TokenValue::Dimension(16.0, "px".into()),
+            TokenCategory::Spacing,
+        );
         assert_eq!(t.to_css_declaration(), "--spacing-md: 16px;");
     }
 
@@ -406,8 +412,7 @@ mod tests {
     #[test]
     fn test_theme_override() {
         let mut store = sample_store();
-        let dark = Theme::new("dark")
-            .set("color.bg", TokenValue::Color("#1a1a2e".into()));
+        let dark = Theme::new("dark").set("color.bg", TokenValue::Color("#1a1a2e".into()));
         store.add_theme(dark);
         store.set_active_theme("dark");
         let val = store.resolve("color.bg").unwrap();
@@ -417,8 +422,16 @@ mod tests {
     #[test]
     fn test_alias_resolution() {
         let mut store = TokenStore::new();
-        store.register(Token::new("color.blue.500", TokenValue::Color("#3b82f6".into()), TokenCategory::Color));
-        store.register(Token::new("color.primary", TokenValue::Alias("color.blue.500".into()), TokenCategory::Color));
+        store.register(Token::new(
+            "color.blue.500",
+            TokenValue::Color("#3b82f6".into()),
+            TokenCategory::Color,
+        ));
+        store.register(Token::new(
+            "color.primary",
+            TokenValue::Alias("color.blue.500".into()),
+            TokenCategory::Color,
+        ));
         let val = store.resolve("color.primary").unwrap();
         assert_eq!(val.css_value(), "#3b82f6");
     }
@@ -435,8 +448,7 @@ mod tests {
     #[test]
     fn test_theme_css() {
         let mut store = sample_store();
-        let dark = Theme::new("dark")
-            .set("color.bg", TokenValue::Color("#111".into()));
+        let dark = Theme::new("dark").set("color.bg", TokenValue::Color("#111".into()));
         store.add_theme(dark);
         let css = store.theme_css("dark").unwrap();
         assert!(css.contains("[data-theme=\"dark\"]"));
@@ -464,8 +476,16 @@ mod tests {
     #[test]
     fn test_token_group() {
         let group = TokenGroup::new("colors")
-            .add(Token::new("color.red", TokenValue::Color("#f00".into()), TokenCategory::Color))
-            .add(Token::new("color.blue", TokenValue::Color("#00f".into()), TokenCategory::Color));
+            .add(Token::new(
+                "color.red",
+                TokenValue::Color("#f00".into()),
+                TokenCategory::Color,
+            ))
+            .add(Token::new(
+                "color.blue",
+                TokenValue::Color("#00f".into()),
+                TokenCategory::Color,
+            ));
         assert_eq!(group.tokens.len(), 2);
         assert!(group.get("color.red").is_some());
         let css = group.to_css();

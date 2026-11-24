@@ -42,7 +42,9 @@ impl<T> TreeNode<T> {
     }
 
     pub fn find(&self, id: &str) -> Option<&TreeNode<T>> {
-        if self.id == id { return Some(self); }
+        if self.id == id {
+            return Some(self);
+        }
         for child in &self.children {
             if let Some(found) = child.find(id) {
                 return Some(found);
@@ -52,7 +54,9 @@ impl<T> TreeNode<T> {
     }
 
     pub fn find_mut(&mut self, id: &str) -> Option<&mut TreeNode<T>> {
-        if self.id == id { return Some(self); }
+        if self.id == id {
+            return Some(self);
+        }
         for child in &mut self.children {
             if let Some(found) = child.find_mut(id) {
                 return Some(found);
@@ -69,9 +73,13 @@ impl<T> TreeNode<T> {
         }
     }
 
-    pub fn is_leaf(&self) -> bool { self.children.is_empty() }
+    pub fn is_leaf(&self) -> bool {
+        self.children.is_empty()
+    }
 
-    pub fn child_count(&self) -> usize { self.children.len() }
+    pub fn child_count(&self) -> usize {
+        self.children.len()
+    }
 }
 
 // ── FlatNode ───────────────────────────────────────────────────
@@ -97,12 +105,17 @@ pub struct Tree<T> {
 }
 
 impl<T> Default for Tree<T> {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T> Tree<T> {
     pub fn new() -> Self {
-        Self { root: Vec::new(), multi_select: false }
+        Self {
+            root: Vec::new(),
+            multi_select: false,
+        }
     }
 
     pub fn add_root(&mut self, node: TreeNode<T>) {
@@ -111,14 +124,18 @@ impl<T> Tree<T> {
 
     pub fn find(&self, id: &str) -> Option<&TreeNode<T>> {
         for r in &self.root {
-            if let Some(n) = r.find(id) { return Some(n); }
+            if let Some(n) = r.find(id) {
+                return Some(n);
+            }
         }
         None
     }
 
     pub fn find_mut(&mut self, id: &str) -> Option<&mut TreeNode<T>> {
         for r in &mut self.root {
-            if let Some(n) = r.find_mut(id) { return Some(n); }
+            if let Some(n) = r.find_mut(id) {
+                return Some(n);
+            }
         }
         None
     }
@@ -132,17 +149,25 @@ impl<T> Tree<T> {
     pub fn expand_all(&mut self) {
         fn expand_recursive<T>(node: &mut TreeNode<T>) {
             node.expanded = true;
-            for c in &mut node.children { expand_recursive(c); }
+            for c in &mut node.children {
+                expand_recursive(c);
+            }
         }
-        for r in &mut self.root { expand_recursive(r); }
+        for r in &mut self.root {
+            expand_recursive(r);
+        }
     }
 
     pub fn collapse_all(&mut self) {
         fn collapse_recursive<T>(node: &mut TreeNode<T>) {
             node.expanded = false;
-            for c in &mut node.children { collapse_recursive(c); }
+            for c in &mut node.children {
+                collapse_recursive(c);
+            }
         }
-        for r in &mut self.root { collapse_recursive(r); }
+        for r in &mut self.root {
+            collapse_recursive(r);
+        }
     }
 
     pub fn select(&mut self, id: &str) {
@@ -173,10 +198,16 @@ impl<T> Tree<T> {
     pub fn selected_ids(&self) -> Vec<&str> {
         let mut ids = Vec::new();
         fn collect<'a, T>(node: &'a TreeNode<T>, ids: &mut Vec<&'a str>) {
-            if node.selected { ids.push(&node.id); }
-            for c in &node.children { collect(c, ids); }
+            if node.selected {
+                ids.push(&node.id);
+            }
+            for c in &node.children {
+                collect(c, ids);
+            }
         }
-        for r in &self.root { collect(r, &mut ids); }
+        for r in &self.root {
+            collect(r, &mut ids);
+        }
         ids
     }
 
@@ -198,7 +229,9 @@ impl<T> Tree<T> {
                 }
             }
         }
-        for r in &self.root { recurse(r, 0, &mut flat); }
+        for r in &self.root {
+            recurse(r, 0, &mut flat);
+        }
         flat
     }
 
@@ -230,9 +263,13 @@ impl<T> Tree<T> {
     pub fn walk(&self, mut f: impl FnMut(&TreeNode<T>, usize)) {
         fn recurse<T>(node: &TreeNode<T>, depth: usize, f: &mut impl FnMut(&TreeNode<T>, usize)) {
             f(node, depth);
-            for c in &node.children { recurse(c, depth + 1, f); }
+            for c in &node.children {
+                recurse(c, depth + 1, f);
+            }
         }
-        for r in &self.root { recurse(r, 0, &mut f); }
+        for r in &self.root {
+            recurse(r, 0, &mut f);
+        }
     }
 
     // ── private helpers ───────────────────────────────────────
@@ -240,9 +277,13 @@ impl<T> Tree<T> {
     fn deselect_all(&mut self) {
         fn desel<T>(node: &mut TreeNode<T>) {
             node.selected = false;
-            for c in &mut node.children { desel(c); }
+            for c in &mut node.children {
+                desel(c);
+            }
         }
-        for r in &mut self.root { desel(r); }
+        for r in &mut self.root {
+            desel(r);
+        }
     }
 
     fn remove_from_anywhere(&mut self, id: &str) -> Option<TreeNode<T>> {

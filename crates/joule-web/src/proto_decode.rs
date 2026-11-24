@@ -28,7 +28,11 @@ pub enum DecodeError {
     /// UTF-8 string decoding failed.
     InvalidUtf8,
     /// Field type mismatch.
-    TypeMismatch { field: u32, expected: &'static str, got: &'static str },
+    TypeMismatch {
+        field: u32,
+        expected: &'static str,
+        got: &'static str,
+    },
     /// Trailing data after message.
     TrailingData { consumed: usize, total: usize },
 }
@@ -41,11 +45,21 @@ impl fmt::Display for DecodeError {
             Self::UnknownWireType(w) => write!(f, "unknown wire type {w}"),
             Self::InvalidFieldNumber => f.write_str("field number must be >= 1"),
             Self::NestingTooDeep => f.write_str("nesting exceeds maximum depth"),
-            Self::LengthExceeded { expected, available } => {
-                write!(f, "length-delimited: need {expected} bytes, only {available} available")
+            Self::LengthExceeded {
+                expected,
+                available,
+            } => {
+                write!(
+                    f,
+                    "length-delimited: need {expected} bytes, only {available} available"
+                )
             }
             Self::InvalidUtf8 => f.write_str("invalid UTF-8 in string field"),
-            Self::TypeMismatch { field, expected, got } => {
+            Self::TypeMismatch {
+                field,
+                expected,
+                got,
+            } => {
                 write!(f, "field {field}: expected {expected}, got {got}")
             }
             Self::TrailingData { consumed, total } => {
@@ -224,11 +238,9 @@ impl RawValue {
     /// Interpret as UTF-8 string.
     pub fn as_str(&self) -> Result<Option<&str>, DecodeError> {
         match self {
-            Self::LengthDelimited(b) => {
-                std::str::from_utf8(b)
-                    .map(Some)
-                    .map_err(|_| DecodeError::InvalidUtf8)
-            }
+            Self::LengthDelimited(b) => std::str::from_utf8(b)
+                .map(Some)
+                .map_err(|_| DecodeError::InvalidUtf8),
             _ => Ok(None),
         }
     }
@@ -286,7 +298,13 @@ pub fn decode_tag(data: &[u8], offset: usize) -> Result<(FieldTag, usize), Decod
         return Err(DecodeError::InvalidFieldNumber);
     }
     let wire_type = WireType::from_u8(wire_raw)?;
-    Ok((FieldTag { field_number, wire_type }, new_offset))
+    Ok((
+        FieldTag {
+            field_number,
+            wire_type,
+        },
+        new_offset,
+    ))
 }
 
 // ── Decoded Message ──────────────────────────────────────────
@@ -372,7 +390,10 @@ impl DecodedMessage {
 
     /// Get all values for a field.
     pub fn get_all(&self, field_number: u32) -> &[RawValue] {
-        self.fields.get(&field_number).map(|v| v.as_slice()).unwrap_or(&[])
+        self.fields
+            .get(&field_number)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
     }
 
     /// Get a uint64 value.
@@ -565,7 +586,10 @@ impl DecodedMessage {
 
     /// Decode a map<string, string> field. Each entry is a sub-message with
     /// field 1 = key, field 2 = value.
-    pub fn get_map_string_string(&self, field_number: u32) -> Result<HashMap<String, String>, DecodeError> {
+    pub fn get_map_string_string(
+        &self,
+        field_number: u32,
+    ) -> Result<HashMap<String, String>, DecodeError> {
         let mut map = HashMap::new();
         for val in self.get_all(field_number) {
             if let RawValue::LengthDelimited(bytes) = val {
@@ -676,9 +700,13 @@ mod tests {
         loop {
             let mut byte = (value & 0x7F) as u8;
             value >>= 7;
-            if value != 0 { byte |= 0x80; }
+            if value != 0 {
+                byte |= 0x80;
+            }
             buf.push(byte);
-            if value == 0 { break; }
+            if value == 0 {
+                break;
+            }
         }
     }
 
@@ -727,13 +755,19 @@ mod tests {
     fn decode_varint_overflow() {
         // 11 continuation bytes
         let data = vec![0xFF; 11];
-        assert!(matches!(decode_varint(&data, 0), Err(DecodeError::VarintOverflow)));
+        assert!(matches!(
+            decode_varint(&data, 0),
+            Err(DecodeError::VarintOverflow)
+        ));
     }
 
     #[test]
     fn decode_varint_eof() {
         let data: &[u8] = &[];
-        assert!(matches!(decode_varint(data, 0), Err(DecodeError::UnexpectedEof)));
+        assert!(matches!(
+            decode_varint(data, 0),
+            Err(DecodeError::UnexpectedEof)
+        ));
     }
 
     #[test]
@@ -754,7 +788,10 @@ mod tests {
     #[test]
     fn decode_tag_field_zero() {
         let data = [0x00];
-        assert!(matches!(decode_tag(&data, 0), Err(DecodeError::InvalidFieldNumber)));
+        assert!(matches!(
+            decode_tag(&data, 0),
+            Err(DecodeError::InvalidFieldNumber)
+        ));
     }
 
     #[test]
@@ -975,7 +1012,10 @@ mod tests {
         assert_eq!(RawValue::Varint(0).wire_type(), WireType::Varint);
         assert_eq!(RawValue::Fixed32([0; 4]).wire_type(), WireType::Fixed32);
         assert_eq!(RawValue::Fixed64([0; 8]).wire_type(), WireType::Fixed64);
-        assert_eq!(RawValue::LengthDelimited(vec![]).wire_type(), WireType::LengthDelimited);
+        assert_eq!(
+            RawValue::LengthDelimited(vec![]).wire_type(),
+            WireType::LengthDelimited
+        );
     }
 
     #[test]

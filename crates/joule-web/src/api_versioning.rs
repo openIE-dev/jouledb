@@ -16,7 +16,10 @@ pub enum VersionError {
     /// Version not found or unsupported.
     UnsupportedVersion(String),
     /// Version has been sunset (removed).
-    VersionSunset { version: String, sunset_date: String },
+    VersionSunset {
+        version: String,
+        sunset_date: String,
+    },
     /// No version specified in request.
     NoVersionSpecified,
     /// Invalid version format.
@@ -33,7 +36,10 @@ impl fmt::Display for VersionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnsupportedVersion(v) => write!(f, "unsupported API version: {v}"),
-            Self::VersionSunset { version, sunset_date } => {
+            Self::VersionSunset {
+                version,
+                sunset_date,
+            } => {
                 write!(f, "API version {version} was sunset on {sunset_date}")
             }
             Self::NoVersionSpecified => write!(f, "no API version specified in request"),
@@ -67,22 +73,30 @@ pub enum VersionStrategy {
 impl VersionStrategy {
     /// URL path strategy with default "/v" prefix.
     pub fn url_path() -> Self {
-        Self::UrlPath { prefix: "/v".to_string() }
+        Self::UrlPath {
+            prefix: "/v".to_string(),
+        }
     }
 
     /// Header strategy with default "Accept-Version" header.
     pub fn header() -> Self {
-        Self::Header { name: "Accept-Version".to_string() }
+        Self::Header {
+            name: "Accept-Version".to_string(),
+        }
     }
 
     /// Query param strategy with default "version" param.
     pub fn query_param() -> Self {
-        Self::QueryParam { param: "version".to_string() }
+        Self::QueryParam {
+            param: "version".to_string(),
+        }
     }
 
     /// Media type strategy.
     pub fn media_type(vendor: impl Into<String>) -> Self {
-        Self::MediaType { vendor: vendor.into() }
+        Self::MediaType {
+            vendor: vendor.into(),
+        }
     }
 
     /// Extract version string from request components.
@@ -97,7 +111,10 @@ impl VersionStrategy {
                 // Look for /v1/, /v2/, etc.
                 if let Some(rest) = path.strip_prefix(prefix) {
                     // Take digits until next slash or end
-                    let version: String = rest.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
+                    let version: String = rest
+                        .chars()
+                        .take_while(|c| c.is_ascii_digit() || *c == '.')
+                        .collect();
                     if !version.is_empty() {
                         return Some(version);
                     }
@@ -107,7 +124,8 @@ impl VersionStrategy {
             Self::Header { name } => {
                 // Case-insensitive header lookup
                 let lower = name.to_lowercase();
-                headers.iter()
+                headers
+                    .iter()
                     .find(|(k, _)| k.to_lowercase() == lower)
                     .map(|(_, v)| v.clone())
             }
@@ -118,7 +136,10 @@ impl VersionStrategy {
                 let pattern = format!("vnd.{vendor}.v");
                 if let Some(pos) = accept.find(&pattern) {
                     let after = &accept[pos + pattern.len()..];
-                    let version: String = after.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
+                    let version: String = after
+                        .chars()
+                        .take_while(|c| c.is_ascii_digit() || *c == '.')
+                        .collect();
                     if !version.is_empty() {
                         return Some(version);
                     }
@@ -337,7 +358,9 @@ impl VersionRouter {
 
     /// List active versions.
     pub fn active_versions(&self) -> Vec<&ApiVersion> {
-        let mut versions: Vec<&ApiVersion> = self.versions.values()
+        let mut versions: Vec<&ApiVersion> = self
+            .versions
+            .values()
             .filter(|v| v.status == VersionStatus::Active)
             .collect();
         versions.sort_by(|a, b| a.version.cmp(&b.version));
@@ -351,7 +374,9 @@ impl VersionRouter {
 
     /// Get migration path between two versions.
     pub fn migration_path(&self, from: &str, to: &str) -> Option<&MigrationPath> {
-        self.migrations.iter().find(|m| m.from == from && m.to == to)
+        self.migrations
+            .iter()
+            .find(|m| m.from == from && m.to == to)
     }
 
     /// Resolve a version from request components.
@@ -411,14 +436,16 @@ mod tests {
     use super::*;
 
     fn make_router() -> VersionRouter {
-        let mut router = VersionRouter::new(VersionStrategy::url_path())
-            .with_default("1");
-        router.register(ApiVersion::new("1").with_description("Initial release")).unwrap();
-        router.register(ApiVersion::new("2").with_description("Major update")).unwrap();
-        router.register(
-            ApiVersion::new("0")
-                .deprecated("2025-01-01", "1"),
-        ).unwrap();
+        let mut router = VersionRouter::new(VersionStrategy::url_path()).with_default("1");
+        router
+            .register(ApiVersion::new("1").with_description("Initial release"))
+            .unwrap();
+        router
+            .register(ApiVersion::new("2").with_description("Major update"))
+            .unwrap();
+        router
+            .register(ApiVersion::new("0").deprecated("2025-01-01", "1"))
+            .unwrap();
         router
     }
 
@@ -427,9 +454,18 @@ mod tests {
         let strategy = VersionStrategy::url_path();
         let headers = HashMap::new();
         let query = HashMap::new();
-        assert_eq!(strategy.extract("/v1/users", &headers, &query), Some("1".to_string()));
-        assert_eq!(strategy.extract("/v2/posts", &headers, &query), Some("2".to_string()));
-        assert_eq!(strategy.extract("/v2.1/items", &headers, &query), Some("2.1".to_string()));
+        assert_eq!(
+            strategy.extract("/v1/users", &headers, &query),
+            Some("1".to_string())
+        );
+        assert_eq!(
+            strategy.extract("/v2/posts", &headers, &query),
+            Some("2".to_string())
+        );
+        assert_eq!(
+            strategy.extract("/v2.1/items", &headers, &query),
+            Some("2.1".to_string())
+        );
         assert_eq!(strategy.extract("/users", &headers, &query), None);
     }
 
@@ -438,7 +474,10 @@ mod tests {
         let strategy = VersionStrategy::header();
         let mut headers = HashMap::new();
         headers.insert("Accept-Version".to_string(), "2".to_string());
-        assert_eq!(strategy.extract("/users", &headers, &HashMap::new()), Some("2".to_string()));
+        assert_eq!(
+            strategy.extract("/users", &headers, &HashMap::new()),
+            Some("2".to_string())
+        );
     }
 
     #[test]
@@ -446,7 +485,10 @@ mod tests {
         let strategy = VersionStrategy::header();
         let mut headers = HashMap::new();
         headers.insert("accept-version".to_string(), "3".to_string());
-        assert_eq!(strategy.extract("/users", &headers, &HashMap::new()), Some("3".to_string()));
+        assert_eq!(
+            strategy.extract("/users", &headers, &HashMap::new()),
+            Some("3".to_string())
+        );
     }
 
     #[test]
@@ -454,21 +496,32 @@ mod tests {
         let strategy = VersionStrategy::query_param();
         let mut query = HashMap::new();
         query.insert("version".to_string(), "1".to_string());
-        assert_eq!(strategy.extract("/users", &HashMap::new(), &query), Some("1".to_string()));
+        assert_eq!(
+            strategy.extract("/users", &HashMap::new(), &query),
+            Some("1".to_string())
+        );
     }
 
     #[test]
     fn test_media_type_extraction() {
         let strategy = VersionStrategy::media_type("myapi");
         let mut headers = HashMap::new();
-        headers.insert("Accept".to_string(), "application/vnd.myapi.v2+json".to_string());
-        assert_eq!(strategy.extract("/users", &headers, &HashMap::new()), Some("2".to_string()));
+        headers.insert(
+            "Accept".to_string(),
+            "application/vnd.myapi.v2+json".to_string(),
+        );
+        assert_eq!(
+            strategy.extract("/users", &headers, &HashMap::new()),
+            Some("2".to_string())
+        );
     }
 
     #[test]
     fn test_resolve_active_version() {
         let router = make_router();
-        let result = router.resolve("/v1/users", &HashMap::new(), &HashMap::new()).unwrap();
+        let result = router
+            .resolve("/v1/users", &HashMap::new(), &HashMap::new())
+            .unwrap();
         assert_eq!(result.version, "1");
         assert!(result.deprecation.is_none());
         assert_eq!(result.headers.get("API-Version").unwrap(), "1");
@@ -477,7 +530,9 @@ mod tests {
     #[test]
     fn test_resolve_deprecated_version() {
         let router = make_router();
-        let result = router.resolve("/v0/users", &HashMap::new(), &HashMap::new()).unwrap();
+        let result = router
+            .resolve("/v0/users", &HashMap::new(), &HashMap::new())
+            .unwrap();
         assert_eq!(result.version, "0");
         assert!(result.deprecation.is_some());
         let dep = result.deprecation.unwrap();
@@ -487,7 +542,9 @@ mod tests {
     #[test]
     fn test_resolve_sunset_version() {
         let mut router = VersionRouter::new(VersionStrategy::url_path());
-        router.register(ApiVersion::new("9").sunset("2024-01-01")).unwrap();
+        router
+            .register(ApiVersion::new("9").sunset("2024-01-01"))
+            .unwrap();
         let result = router.resolve("/v9/users", &HashMap::new(), &HashMap::new());
         assert!(matches!(result, Err(VersionError::VersionSunset { .. })));
     }
@@ -496,7 +553,9 @@ mod tests {
     fn test_resolve_default_version() {
         let router = make_router();
         // No version in path, should use default
-        let result = router.resolve("/users", &HashMap::new(), &HashMap::new()).unwrap();
+        let result = router
+            .resolve("/users", &HashMap::new(), &HashMap::new())
+            .unwrap();
         assert_eq!(result.version, "1");
     }
 
@@ -525,21 +584,33 @@ mod tests {
     #[test]
     fn test_all_versions_sorted() {
         let router = make_router();
-        let versions: Vec<String> = router.all_versions().iter().map(|v| v.version.clone()).collect();
+        let versions: Vec<String> = router
+            .all_versions()
+            .iter()
+            .map(|v| v.version.clone())
+            .collect();
         assert_eq!(versions, vec!["0", "1", "2"]);
     }
 
     #[test]
     fn test_active_versions() {
         let router = make_router();
-        let active: Vec<String> = router.active_versions().iter().map(|v| v.version.clone()).collect();
+        let active: Vec<String> = router
+            .active_versions()
+            .iter()
+            .map(|v| v.version.clone())
+            .collect();
         assert_eq!(active, vec!["1", "2"]);
     }
 
     #[test]
     fn test_version_is_usable() {
         assert!(ApiVersion::new("1").is_usable());
-        assert!(ApiVersion::new("1").deprecated("2025-01-01", "2").is_usable());
+        assert!(
+            ApiVersion::new("1")
+                .deprecated("2025-01-01", "2")
+                .is_usable()
+        );
         assert!(ApiVersion::new("1").beta().is_usable());
         assert!(!ApiVersion::new("1").sunset("2024-01-01").is_usable());
     }
@@ -593,7 +664,11 @@ mod tests {
     #[test]
     fn test_header_strategy_missing() {
         let strategy = VersionStrategy::header();
-        assert!(strategy.extract("/users", &HashMap::new(), &HashMap::new()).is_none());
+        assert!(
+            strategy
+                .extract("/users", &HashMap::new(), &HashMap::new())
+                .is_none()
+        );
     }
 
     #[test]
@@ -601,7 +676,11 @@ mod tests {
         let strategy = VersionStrategy::media_type("myapi");
         let mut headers = HashMap::new();
         headers.insert("Accept".to_string(), "application/json".to_string());
-        assert!(strategy.extract("/users", &headers, &HashMap::new()).is_none());
+        assert!(
+            strategy
+                .extract("/users", &headers, &HashMap::new())
+                .is_none()
+        );
     }
 
     #[test]

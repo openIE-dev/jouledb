@@ -29,9 +29,21 @@ impl PyramidLevel {
         }
     }
 
-    pub fn from_data(data: Vec<f64>, width: usize, height: usize, scale: f64, octave: usize) -> Self {
+    pub fn from_data(
+        data: Vec<f64>,
+        width: usize,
+        height: usize,
+        scale: f64,
+        octave: usize,
+    ) -> Self {
         assert_eq!(data.len(), width * height);
-        Self { data, width, height, scale, octave }
+        Self {
+            data,
+            width,
+            height,
+            scale,
+            octave,
+        }
     }
 
     pub fn get(&self, x: usize, y: usize) -> f64 {
@@ -55,7 +67,11 @@ impl PyramidLevel {
 
 impl fmt::Display for PyramidLevel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Level({}x{}, scale={:.3}, oct={})", self.width, self.height, self.scale, self.octave)
+        write!(
+            f,
+            "Level({}x{}, scale={:.3}, oct={})",
+            self.width, self.height, self.scale, self.octave
+        )
     }
 }
 
@@ -160,7 +176,13 @@ fn upsample(level: &PyramidLevel, target_w: usize, target_h: usize) -> PyramidLe
                 + v11 * fx * fy;
         }
     }
-    PyramidLevel::from_data(data, target_w, target_h, level.scale / 2.0, level.octave.saturating_sub(1))
+    PyramidLevel::from_data(
+        data,
+        target_w,
+        target_h,
+        level.scale / 2.0,
+        level.octave.saturating_sub(1),
+    )
 }
 
 // ── Gaussian Pyramid ──
@@ -174,7 +196,13 @@ pub struct GaussianPyramid {
 }
 
 impl GaussianPyramid {
-    pub fn build(image: &[f64], width: usize, height: usize, num_levels: usize, sigma: f64) -> Self {
+    pub fn build(
+        image: &[f64],
+        width: usize,
+        height: usize,
+        num_levels: usize,
+        sigma: f64,
+    ) -> Self {
         let mut levels = Vec::with_capacity(num_levels);
         let base = PyramidLevel::from_data(image.to_vec(), width, height, 1.0, 0);
         levels.push(base);
@@ -189,7 +217,11 @@ impl GaussianPyramid {
             levels.push(down);
         }
 
-        Self { levels, sigma, num_levels }
+        Self {
+            levels,
+            sigma,
+            num_levels,
+        }
     }
 
     pub fn level(&self, idx: usize) -> Option<&PyramidLevel> {
@@ -207,7 +239,12 @@ impl GaussianPyramid {
 
 impl fmt::Display for GaussianPyramid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "GaussianPyramid({} levels, sigma={:.2})", self.levels.len(), self.sigma)
+        write!(
+            f,
+            "GaussianPyramid({} levels, sigma={:.2})",
+            self.levels.len(),
+            self.sigma
+        )
     }
 }
 
@@ -234,10 +271,20 @@ impl LaplacianPyramid {
             for (j, d) in diff_data.iter_mut().enumerate() {
                 *d = current.data[j] - upsampled.data[j];
             }
-            levels.push(PyramidLevel::from_data(diff_data, current.width, current.height, current.scale, current.octave));
+            levels.push(PyramidLevel::from_data(
+                diff_data,
+                current.width,
+                current.height,
+                current.scale,
+                current.octave,
+            ));
         }
 
-        let residual = gauss.levels.last().cloned().unwrap_or_else(|| PyramidLevel::new(1, 1, 1.0, 0));
+        let residual = gauss
+            .levels
+            .last()
+            .cloned()
+            .unwrap_or_else(|| PyramidLevel::new(1, 1, 1.0, 0));
         Self { levels, residual }
     }
 
@@ -251,7 +298,8 @@ impl LaplacianPyramid {
             for (j, d) in data.iter_mut().enumerate() {
                 *d = upsampled.data[j] + level.data[j];
             }
-            current = PyramidLevel::from_data(data, level.width, level.height, level.scale, level.octave);
+            current =
+                PyramidLevel::from_data(data, level.width, level.height, level.scale, level.octave);
         }
 
         current
@@ -264,7 +312,11 @@ impl LaplacianPyramid {
 
 impl fmt::Display for LaplacianPyramid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "LaplacianPyramid({} bands + residual)", self.levels.len())
+        write!(
+            f,
+            "LaplacianPyramid({} bands + residual)",
+            self.levels.len()
+        )
     }
 }
 
@@ -312,7 +364,11 @@ impl ScaleSpace {
             base_level = downsample(ref_level);
         }
 
-        Self { octaves, scales_per_octave, base_sigma }
+        Self {
+            octaves,
+            scales_per_octave,
+            base_sigma,
+        }
     }
 
     pub fn num_octaves(&self) -> usize {
@@ -332,7 +388,9 @@ impl ScaleSpace {
             for (j, d) in data.iter_mut().enumerate() {
                 *d = b.data[j] - a.data[j];
             }
-            dogs.push(PyramidLevel::from_data(data, a.width, a.height, a.scale, octave));
+            dogs.push(PyramidLevel::from_data(
+                data, a.width, a.height, a.scale, octave,
+            ));
         }
         dogs
     }
@@ -340,8 +398,13 @@ impl ScaleSpace {
 
 impl fmt::Display for ScaleSpace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ScaleSpace({} octaves, {} scales/oct, sigma={:.2})",
-            self.octaves.len(), self.scales_per_octave, self.base_sigma)
+        write!(
+            f,
+            "ScaleSpace({} octaves, {} scales/oct, sigma={:.2})",
+            self.octaves.len(),
+            self.scales_per_octave,
+            self.base_sigma
+        )
     }
 }
 
@@ -349,8 +412,13 @@ impl fmt::Display for ScaleSpace {
 
 /// Blend two images using Laplacian pyramid blending.
 pub fn pyramid_blend(
-    img_a: &[f64], img_b: &[f64], mask: &[f64],
-    width: usize, height: usize, num_levels: usize, sigma: f64,
+    img_a: &[f64],
+    img_b: &[f64],
+    mask: &[f64],
+    width: usize,
+    height: usize,
+    num_levels: usize,
+    sigma: f64,
 ) -> Vec<f64> {
     let ga = GaussianPyramid::build(img_a, width, height, num_levels, sigma);
     let gb = GaussianPyramid::build(img_b, width, height, num_levels, sigma);
@@ -370,7 +438,13 @@ pub fn pyramid_blend(
             let m = m_l.data.get(j).copied().unwrap_or(0.5);
             *d = la_l.data[j] * m + lb_l.data[j] * (1.0 - m);
         }
-        blended_levels.push(PyramidLevel::from_data(data, la_l.width, la_l.height, la_l.scale, la_l.octave));
+        blended_levels.push(PyramidLevel::from_data(
+            data,
+            la_l.width,
+            la_l.height,
+            la_l.scale,
+            la_l.octave,
+        ));
     }
 
     // Blend residual
@@ -382,7 +456,8 @@ pub fn pyramid_blend(
         let m = rm.data.get(j).copied().unwrap_or(0.5);
         *d = ra.data[j] * m + rb.data[j] * (1.0 - m);
     }
-    let blended_residual = PyramidLevel::from_data(res_data, ra.width, ra.height, ra.scale, ra.octave);
+    let blended_residual =
+        PyramidLevel::from_data(res_data, ra.width, ra.height, ra.scale, ra.octave);
 
     let blended_lap = LaplacianPyramid {
         levels: blended_levels,
@@ -457,8 +532,11 @@ impl Default for PyramidConfig {
 
 impl fmt::Display for PyramidConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PyramidConfig(levels={}, sigma={:.2}, scales/oct={}, min={})",
-            self.num_levels, self.sigma, self.scales_per_octave, self.min_size)
+        write!(
+            f,
+            "PyramidConfig(levels={}, sigma={:.2}, scales/oct={}, min={})",
+            self.num_levels, self.sigma, self.scales_per_octave, self.min_size
+        )
     }
 }
 
@@ -572,7 +650,9 @@ mod tests {
         assert_eq!(recon.width, 32);
         assert_eq!(recon.height, 32);
         // Reconstruction should be close to original
-        let max_err: f64 = img.iter().zip(recon.data.iter())
+        let max_err: f64 = img
+            .iter()
+            .zip(recon.data.iter())
             .map(|(a, b)| (a - b).abs())
             .fold(0.0, f64::max);
         assert!(max_err < 0.1, "max reconstruction error: {max_err}");

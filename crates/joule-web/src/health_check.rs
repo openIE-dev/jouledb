@@ -447,8 +447,13 @@ impl HealthReport {
                         r#"{{"name":"{}","status":"{}","latency_us":{},"message":{},"#,
                         r#""critical":{},"consecutive_failures":{},"consecutive_successes":{}}}"#,
                     ),
-                    d.name, d.status, lat, msg, d.critical,
-                    d.consecutive_failures, d.consecutive_successes
+                    d.name,
+                    d.status,
+                    lat,
+                    msg,
+                    d.critical,
+                    d.consecutive_failures,
+                    d.consecutive_successes
                 )
             })
             .collect();

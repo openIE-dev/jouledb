@@ -56,14 +56,14 @@ impl CandleInterval {
     /// Duration in microseconds.
     pub fn duration_us(self) -> u64 {
         match self {
-            Self::Minute1  =>        60_000_000,
-            Self::Minute5  =>       300_000_000,
-            Self::Minute15 =>       900_000_000,
-            Self::Minute30 =>     1_800_000_000,
-            Self::Hour1    =>     3_600_000_000,
-            Self::Hour4    =>    14_400_000_000,
-            Self::Day1     =>    86_400_000_000,
-            Self::Week1    =>   604_800_000_000,
+            Self::Minute1 => 60_000_000,
+            Self::Minute5 => 300_000_000,
+            Self::Minute15 => 900_000_000,
+            Self::Minute30 => 1_800_000_000,
+            Self::Hour1 => 3_600_000_000,
+            Self::Hour4 => 14_400_000_000,
+            Self::Day1 => 86_400_000_000,
+            Self::Week1 => 604_800_000_000,
         }
     }
 
@@ -77,14 +77,14 @@ impl CandleInterval {
 impl fmt::Display for CandleInterval {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Minute1  => write!(f, "1m"),
-            Self::Minute5  => write!(f, "5m"),
+            Self::Minute1 => write!(f, "1m"),
+            Self::Minute5 => write!(f, "5m"),
             Self::Minute15 => write!(f, "15m"),
             Self::Minute30 => write!(f, "30m"),
-            Self::Hour1    => write!(f, "1h"),
-            Self::Hour4    => write!(f, "4h"),
-            Self::Day1     => write!(f, "1d"),
-            Self::Week1    => write!(f, "1w"),
+            Self::Hour1 => write!(f, "1h"),
+            Self::Hour4 => write!(f, "4h"),
+            Self::Day1 => write!(f, "1d"),
+            Self::Week1 => write!(f, "1w"),
         }
     }
 }
@@ -108,16 +108,26 @@ pub struct OhlcvCandle {
 impl OhlcvCandle {
     pub fn new(open: f64, start_us: u64) -> Self {
         Self {
-            open, high: open, low: open, close: open,
-            volume: 0.0, trade_count: 0, start_us, end_us: start_us,
+            open,
+            high: open,
+            low: open,
+            close: open,
+            volume: 0.0,
+            trade_count: 0,
+            start_us,
+            end_us: start_us,
             vwap: 0.0,
         }
     }
 
     /// Update the candle with a new trade tick.
     pub fn update(&mut self, price: f64, size: f64, timestamp_us: u64) {
-        if price > self.high { self.high = price; }
-        if price < self.low { self.low = price; }
+        if price > self.high {
+            self.high = price;
+        }
+        if price < self.low {
+            self.low = price;
+        }
         self.close = price;
         let prev_notional = self.vwap * self.volume;
         self.volume += size;
@@ -128,13 +138,21 @@ impl OhlcvCandle {
         self.end_us = timestamp_us;
     }
 
-    pub fn range(&self) -> f64 { self.high - self.low }
+    pub fn range(&self) -> f64 {
+        self.high - self.low
+    }
 
-    pub fn body(&self) -> f64 { (self.close - self.open).abs() }
+    pub fn body(&self) -> f64 {
+        (self.close - self.open).abs()
+    }
 
-    pub fn is_bullish(&self) -> bool { self.close >= self.open }
+    pub fn is_bullish(&self) -> bool {
+        self.close >= self.open
+    }
 
-    pub fn is_bearish(&self) -> bool { self.close < self.open }
+    pub fn is_bearish(&self) -> bool {
+        self.close < self.open
+    }
 
     /// Upper shadow length.
     pub fn upper_shadow(&self) -> f64 {
@@ -149,15 +167,20 @@ impl OhlcvCandle {
     /// Body-to-range ratio (0.0 = doji, 1.0 = marubozu).
     pub fn body_ratio(&self) -> f64 {
         let r = self.range();
-        if r == 0.0 { return 0.0; }
+        if r == 0.0 {
+            return 0.0;
+        }
         self.body() / r
     }
 }
 
 impl fmt::Display for OhlcvCandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "OHLCV[O={:.4} H={:.4} L={:.4} C={:.4} V={:.0} n={}]",
-               self.open, self.high, self.low, self.close, self.volume, self.trade_count)
+        write!(
+            f,
+            "OHLCV[O={:.4} H={:.4} L={:.4} C={:.4} V={:.0} n={}]",
+            self.open, self.high, self.low, self.close, self.volume, self.trade_count
+        )
     }
 }
 
@@ -173,7 +196,12 @@ pub struct CandleBuilder {
 
 impl CandleBuilder {
     pub fn new(interval: CandleInterval) -> Self {
-        Self { interval, current: None, current_bucket: 0, completed: Vec::new() }
+        Self {
+            interval,
+            current: None,
+            current_bucket: 0,
+            completed: Vec::new(),
+        }
     }
 
     pub fn with_interval(mut self, interval: CandleInterval) -> Self {
@@ -199,7 +227,11 @@ impl CandleBuilder {
         }
 
         // Return last completed candle if we just rotated
-        if self.completed.last().map_or(false, |c| c.end_us < timestamp_us) {
+        if self
+            .completed
+            .last()
+            .map_or(false, |c| c.end_us < timestamp_us)
+        {
             self.completed.last()
         } else {
             None
@@ -213,15 +245,24 @@ impl CandleBuilder {
         })
     }
 
-    pub fn completed_candles(&self) -> &[OhlcvCandle] { &self.completed }
+    pub fn completed_candles(&self) -> &[OhlcvCandle] {
+        &self.completed
+    }
 
-    pub fn current_candle(&self) -> Option<&OhlcvCandle> { self.current.as_ref() }
+    pub fn current_candle(&self) -> Option<&OhlcvCandle> {
+        self.current.as_ref()
+    }
 }
 
 impl fmt::Display for CandleBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CandleBuilder[{} completed={} active={}]",
-               self.interval, self.completed.len(), self.current.is_some())
+        write!(
+            f,
+            "CandleBuilder[{} completed={} active={}]",
+            self.interval,
+            self.completed.len(),
+            self.current.is_some()
+        )
     }
 }
 
@@ -236,7 +277,11 @@ pub struct VolumeCandleBuilder {
 
 impl VolumeCandleBuilder {
     pub fn new(target_volume: f64) -> Self {
-        Self { target_volume, current: None, completed: Vec::new() }
+        Self {
+            target_volume,
+            current: None,
+            completed: Vec::new(),
+        }
     }
 
     pub fn with_target_volume(mut self, v: f64) -> Self {
@@ -261,15 +306,23 @@ impl VolumeCandleBuilder {
         None
     }
 
-    pub fn completed_candles(&self) -> &[OhlcvCandle] { &self.completed }
+    pub fn completed_candles(&self) -> &[OhlcvCandle] {
+        &self.completed
+    }
 
-    pub fn flush(&mut self) -> Option<OhlcvCandle> { self.current.take() }
+    pub fn flush(&mut self) -> Option<OhlcvCandle> {
+        self.current.take()
+    }
 }
 
 impl fmt::Display for VolumeCandleBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "VolumeCandleBuilder[target={:.0} completed={}]",
-               self.target_volume, self.completed.len())
+        write!(
+            f,
+            "VolumeCandleBuilder[target={:.0} completed={}]",
+            self.target_volume,
+            self.completed.len()
+        )
     }
 }
 
@@ -302,7 +355,11 @@ pub struct RenkoBrick {
 
 impl fmt::Display for RenkoBrick {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Renko[{} {:.4}->{:.4}]", self.direction, self.open, self.close)
+        write!(
+            f,
+            "Renko[{} {:.4}->{:.4}]",
+            self.direction, self.open, self.close
+        )
     }
 }
 
@@ -316,10 +373,15 @@ pub struct RenkoBrickBuilder {
 impl RenkoBrickBuilder {
     pub fn new(brick_size: f64) -> Result<Self, CandleError> {
         if brick_size <= 0.0 {
-            return Err(CandleError::InvalidBrickSize(
-                format!("brick size must be positive, got {brick_size}")));
+            return Err(CandleError::InvalidBrickSize(format!(
+                "brick size must be positive, got {brick_size}"
+            )));
         }
-        Ok(Self { brick_size, last_close: None, bricks: Vec::new() })
+        Ok(Self {
+            brick_size,
+            last_close: None,
+            bricks: Vec::new(),
+        })
     }
 
     pub fn on_price(&mut self, price: f64, timestamp_us: u64) -> Vec<RenkoBrick> {
@@ -340,7 +402,10 @@ impl RenkoBrickBuilder {
                 let open = base + (i as f64) * self.brick_size;
                 let close = open + self.brick_size;
                 let brick = RenkoBrick {
-                    open, close, direction: BrickDirection::Up, timestamp_us,
+                    open,
+                    close,
+                    direction: BrickDirection::Up,
+                    timestamp_us,
                 };
                 new_bricks.push(brick);
             }
@@ -349,7 +414,10 @@ impl RenkoBrickBuilder {
                 let open = base - (i as f64) * self.brick_size;
                 let close = open - self.brick_size;
                 let brick = RenkoBrick {
-                    open, close, direction: BrickDirection::Down, timestamp_us,
+                    open,
+                    close,
+                    direction: BrickDirection::Down,
+                    timestamp_us,
                 };
                 new_bricks.push(brick);
             }
@@ -362,13 +430,19 @@ impl RenkoBrickBuilder {
         new_bricks
     }
 
-    pub fn bricks(&self) -> &[RenkoBrick] { &self.bricks }
+    pub fn bricks(&self) -> &[RenkoBrick] {
+        &self.bricks
+    }
 }
 
 impl fmt::Display for RenkoBrickBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RenkoBrickBuilder[size={:.4} bricks={}]",
-               self.brick_size, self.bricks.len())
+        write!(
+            f,
+            "RenkoBrickBuilder[size={:.4} bricks={}]",
+            self.brick_size,
+            self.bricks.len()
+        )
     }
 }
 
@@ -381,7 +455,12 @@ pub struct HeikinAshi {
 }
 
 impl HeikinAshi {
-    pub fn new() -> Self { Self { prev_ha_open: None, prev_ha_close: None } }
+    pub fn new() -> Self {
+        Self {
+            prev_ha_open: None,
+            prev_ha_close: None,
+        }
+    }
 
     pub fn transform(&mut self, candle: &OhlcvCandle) -> OhlcvCandle {
         let ha_close = (candle.open + candle.high + candle.low + candle.close) / 4.0;
@@ -455,8 +534,14 @@ pub struct Gap {
 
 impl fmt::Display for Gap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Gap[{} {:.4} ({:.2}%) at {}]",
-               self.gap_type, self.gap_size, self.gap_pct * 100.0, self.index)
+        write!(
+            f,
+            "Gap[{} {:.4} ({:.2}%) at {}]",
+            self.gap_type,
+            self.gap_size,
+            self.gap_pct * 100.0,
+            self.index
+        )
     }
 }
 
@@ -466,7 +551,9 @@ pub struct GapDetector {
 }
 
 impl GapDetector {
-    pub fn new(min_gap_pct: f64) -> Self { Self { min_gap_pct } }
+    pub fn new(min_gap_pct: f64) -> Self {
+        Self { min_gap_pct }
+    }
 
     pub fn with_min_gap_pct(mut self, pct: f64) -> Self {
         self.min_gap_pct = pct;
@@ -478,12 +565,25 @@ impl GapDetector {
         for i in 1..candles.len() {
             let prev_close = candles[i - 1].close;
             let next_open = candles[i].open;
-            if prev_close == 0.0 { continue; }
+            if prev_close == 0.0 {
+                continue;
+            }
             let gap_size = next_open - prev_close;
             let gap_pct = gap_size / prev_close;
             if gap_pct.abs() >= self.min_gap_pct {
-                let gap_type = if gap_pct > 0.0 { GapType::GapUp } else { GapType::GapDown };
-                gaps.push(Gap { gap_type, gap_size, gap_pct, prev_close, next_open, index: i });
+                let gap_type = if gap_pct > 0.0 {
+                    GapType::GapUp
+                } else {
+                    GapType::GapDown
+                };
+                gaps.push(Gap {
+                    gap_type,
+                    gap_size,
+                    gap_pct,
+                    prev_close,
+                    next_open,
+                    index: i,
+                });
             }
         }
         gaps
@@ -504,8 +604,15 @@ mod tests {
 
     fn make_candle(o: f64, h: f64, l: f64, c: f64, v: f64, start: u64, end: u64) -> OhlcvCandle {
         OhlcvCandle {
-            open: o, high: h, low: l, close: c, volume: v,
-            trade_count: 1, start_us: start, end_us: end, vwap: c,
+            open: o,
+            high: h,
+            low: l,
+            close: c,
+            volume: v,
+            trade_count: 1,
+            start_us: start,
+            end_us: end,
+            vwap: c,
         }
     }
 
@@ -622,7 +729,7 @@ mod tests {
         let c = make_candle(100.0, 110.0, 95.0, 105.0, 1000.0, 0, 1);
         let hac = ha.transform(&c);
         assert!((hac.close - 102.5).abs() < 1e-9); // (100+110+95+105)/4
-        assert!((hac.open - 102.5).abs() < 1e-9);  // (100+105)/2
+        assert!((hac.open - 102.5).abs() < 1e-9); // (100+105)/2
     }
 
     #[test]

@@ -251,7 +251,11 @@ pub enum CmpOp {
 impl HavingFilter {
     fn evaluate(&self, agg_results: &[Value]) -> bool {
         match self {
-            Self::Compare { agg_index, op, value } => {
+            Self::Compare {
+                agg_index,
+                op,
+                value,
+            } => {
                 if *agg_index >= agg_results.len() {
                     return false;
                 }
@@ -400,10 +404,7 @@ pub fn group_by(
 }
 
 /// Compute aggregates over the entire input (no GROUP BY).
-pub fn aggregate_all(
-    rows: &[Row],
-    agg_specs: &[AggSpec],
-) -> Result<Vec<Value>, AggError> {
+pub fn aggregate_all(rows: &[Row], agg_specs: &[AggSpec]) -> Result<Vec<Value>, AggError> {
     if let Some(first) = rows.first() {
         for spec in agg_specs {
             if spec.column >= first.len() {
@@ -562,13 +563,8 @@ mod tests {
 
     #[test]
     fn sum_by_department() {
-        let result = group_by(
-            &sample_data(),
-            &[0],
-            &[AggSpec::new(AggFunc::Sum, 2)],
-            None,
-        )
-        .unwrap();
+        let result =
+            group_by(&sample_data(), &[0], &[AggSpec::new(AggFunc::Sum, 2)], None).unwrap();
         for g in &result.groups {
             if g.key[0] == Value::Text("Engineering".into()) {
                 assert_eq!(g.aggregates[0], Value::Float(210_000.0));
@@ -578,11 +574,7 @@ mod tests {
 
     #[test]
     fn avg_overall() {
-        let result = aggregate_all(
-            &sample_data(),
-            &[AggSpec::new(AggFunc::Avg, 2)],
-        )
-        .unwrap();
+        let result = aggregate_all(&sample_data(), &[AggSpec::new(AggFunc::Avg, 2)]).unwrap();
         let avg = match &result[0] {
             Value::Float(v) => *v,
             _ => panic!("expected Float"),
@@ -595,10 +587,7 @@ mod tests {
     fn min_max() {
         let result = aggregate_all(
             &sample_data(),
-            &[
-                AggSpec::new(AggFunc::Min, 2),
-                AggSpec::new(AggFunc::Max, 2),
-            ],
+            &[AggSpec::new(AggFunc::Min, 2), AggSpec::new(AggFunc::Max, 2)],
         )
         .unwrap();
         assert_eq!(result[0], Value::Int(70_000));
@@ -670,25 +659,13 @@ mod tests {
             vec![Value::Text("A".into()), Value::Int(2), Value::Int(30)],
             vec![Value::Text("B".into()), Value::Int(1), Value::Int(40)],
         ];
-        let result = group_by(
-            &data,
-            &[0, 1],
-            &[AggSpec::new(AggFunc::Sum, 2)],
-            None,
-        )
-        .unwrap();
+        let result = group_by(&data, &[0, 1], &[AggSpec::new(AggFunc::Sum, 2)], None).unwrap();
         assert_eq!(result.groups.len(), 3);
     }
 
     #[test]
     fn empty_input_produces_no_groups() {
-        let result = group_by(
-            &[],
-            &[0],
-            &[AggSpec::new(AggFunc::Count, 0)],
-            None,
-        )
-        .unwrap();
+        let result = group_by(&[], &[0], &[AggSpec::new(AggFunc::Count, 0)], None).unwrap();
         assert!(result.groups.is_empty());
     }
 
@@ -760,7 +737,10 @@ mod tests {
         let result = group_by(
             &data,
             &[0],
-            &[AggSpec::new(AggFunc::Count, 1), AggSpec::new(AggFunc::Sum, 1)],
+            &[
+                AggSpec::new(AggFunc::Count, 1),
+                AggSpec::new(AggFunc::Sum, 1),
+            ],
             None,
         )
         .unwrap();

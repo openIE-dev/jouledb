@@ -82,15 +82,27 @@ pub struct RestingOrder {
 
 impl RestingOrder {
     pub fn new(order_id: u64, side: MatchSide, price: f64, remaining: f64, ts: u64) -> Self {
-        Self { order_id, side, price, remaining, timestamp_ns: ts }
+        Self {
+            order_id,
+            side,
+            price,
+            remaining,
+            timestamp_ns: ts,
+        }
     }
 
-    pub fn is_filled(&self) -> bool { self.remaining <= 1e-12 }
+    pub fn is_filled(&self) -> bool {
+        self.remaining <= 1e-12
+    }
 }
 
 impl fmt::Display for RestingOrder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Resting(id={}, {} {:.4}@{:.2})", self.order_id, self.side, self.remaining, self.price)
+        write!(
+            f,
+            "Resting(id={}, {} {:.4}@{:.2})",
+            self.order_id, self.side, self.remaining, self.price
+        )
     }
 }
 
@@ -110,15 +122,31 @@ pub struct IncomingOrder {
 impl IncomingOrder {
     /// Limit aggressor.
     pub fn limit(order_id: u64, side: MatchSide, price: f64, qty: f64, ts: u64) -> Self {
-        Self { order_id, side, price: Some(price), quantity: qty, remaining: qty, timestamp_ns: ts }
+        Self {
+            order_id,
+            side,
+            price: Some(price),
+            quantity: qty,
+            remaining: qty,
+            timestamp_ns: ts,
+        }
     }
 
     /// Market aggressor (no price limit).
     pub fn market(order_id: u64, side: MatchSide, qty: f64, ts: u64) -> Self {
-        Self { order_id, side, price: None, quantity: qty, remaining: qty, timestamp_ns: ts }
+        Self {
+            order_id,
+            side,
+            price: None,
+            quantity: qty,
+            remaining: qty,
+            timestamp_ns: ts,
+        }
     }
 
-    pub fn is_filled(&self) -> bool { self.remaining <= 1e-12 }
+    pub fn is_filled(&self) -> bool {
+        self.remaining <= 1e-12
+    }
 
     /// Whether this order can match at the given price.
     pub fn can_match_at(&self, resting_price: f64) -> bool {
@@ -135,7 +163,11 @@ impl IncomingOrder {
 impl fmt::Display for IncomingOrder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let px = self.price.map_or("MKT".into(), |p| format!("{p:.2}"));
-        write!(f, "Incoming(id={}, {} {:.4}@{px})", self.order_id, self.side, self.remaining)
+        write!(
+            f,
+            "Incoming(id={}, {} {:.4}@{px})",
+            self.order_id, self.side, self.remaining
+        )
     }
 }
 
@@ -154,13 +186,18 @@ pub struct Trade {
 }
 
 impl Trade {
-    pub fn notional(&self) -> f64 { self.price * self.quantity }
+    pub fn notional(&self) -> f64 {
+        self.price * self.quantity
+    }
 }
 
 impl fmt::Display for Trade {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Trade(id={}, {:.4}@{:.2}, agg={}, rest={})",
-            self.trade_id, self.quantity, self.price, self.aggressor_id, self.resting_id)
+        write!(
+            f,
+            "Trade(id={}, {:.4}@{:.2}, agg={}, rest={})",
+            self.trade_id, self.quantity, self.price, self.aggressor_id, self.resting_id
+        )
     }
 }
 
@@ -177,13 +214,21 @@ pub struct MatchResult {
 }
 
 impl MatchResult {
-    pub fn is_complete(&self) -> bool { self.unfilled < 1e-12 }
+    pub fn is_complete(&self) -> bool {
+        self.unfilled < 1e-12
+    }
 }
 
 impl fmt::Display for MatchResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MatchResult(trades={}, filled={:.4}, unfilled={:.4}, avg={:.4})",
-            self.trades.len(), self.total_filled, self.unfilled, self.avg_price)
+        write!(
+            f,
+            "MatchResult(trades={}, filled={:.4}, unfilled={:.4}, avg={:.4})",
+            self.trades.len(),
+            self.total_filled,
+            self.unfilled,
+            self.avg_price
+        )
     }
 }
 
@@ -203,27 +248,44 @@ pub struct MatchStats {
 impl MatchStats {
     fn new() -> Self {
         Self {
-            total_trades: 0, total_volume: 0.0, total_notional: 0.0,
-            orders_processed: 0, full_fills: 0, partial_fills: 0,
+            total_trades: 0,
+            total_volume: 0.0,
+            total_notional: 0.0,
+            orders_processed: 0,
+            full_fills: 0,
+            partial_fills: 0,
         }
     }
 
     /// Average trade size.
     pub fn avg_trade_size(&self) -> f64 {
-        if self.total_trades == 0 { 0.0 } else { self.total_volume / self.total_trades as f64 }
+        if self.total_trades == 0 {
+            0.0
+        } else {
+            self.total_volume / self.total_trades as f64
+        }
     }
 
     /// Fill ratio (full fills / orders processed).
     pub fn fill_rate(&self) -> f64 {
-        if self.orders_processed == 0 { 0.0 }
-        else { self.full_fills as f64 / self.orders_processed as f64 }
+        if self.orders_processed == 0 {
+            0.0
+        } else {
+            self.full_fills as f64 / self.orders_processed as f64
+        }
     }
 }
 
 impl fmt::Display for MatchStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Stats(trades={}, vol={:.2}, notional={:.2}, fill_rate={:.1}%)",
-            self.total_trades, self.total_volume, self.total_notional, self.fill_rate() * 100.0)
+        write!(
+            f,
+            "Stats(trades={}, vol={:.2}, notional={:.2}, fill_rate={:.1}%)",
+            self.total_trades,
+            self.total_volume,
+            self.total_notional,
+            self.fill_rate() * 100.0
+        )
     }
 }
 
@@ -286,17 +348,27 @@ impl OrderMatchEngine {
         };
         let total_filled: f64 = trades.iter().map(|t| t.quantity).sum();
         let total_notional: f64 = trades.iter().map(|t| t.notional()).sum();
-        let avg_price = if total_filled > 1e-12 { total_notional / total_filled } else { 0.0 };
-        let levels = trades.iter().map(|t| to_ticks(t.price, self.tick_size))
-            .collect::<std::collections::HashSet<_>>().len();
+        let avg_price = if total_filled > 1e-12 {
+            total_notional / total_filled
+        } else {
+            0.0
+        };
+        let levels = trades
+            .iter()
+            .map(|t| to_ticks(t.price, self.tick_size))
+            .collect::<std::collections::HashSet<_>>()
+            .len();
 
         // update stats
         self.stats.total_trades += trades.len() as u64;
         self.stats.total_volume += total_filled;
         self.stats.total_notional += total_notional;
         self.stats.orders_processed += 1;
-        if incoming.is_filled() { self.stats.full_fills += 1; }
-        else if total_filled > 1e-12 { self.stats.partial_fills += 1; }
+        if incoming.is_filled() {
+            self.stats.full_fills += 1;
+        } else if total_filled > 1e-12 {
+            self.stats.partial_fills += 1;
+        }
 
         Ok(MatchResult {
             trades,
@@ -320,9 +392,13 @@ impl OrderMatchEngine {
         };
 
         for ticks in price_keys {
-            if incoming.is_filled() { break; }
+            if incoming.is_filled() {
+                break;
+            }
             let resting_price = from_ticks(ticks, self.tick_size);
-            if !incoming.can_match_at(resting_price) { break; }
+            if !incoming.can_match_at(resting_price) {
+                break;
+            }
 
             if let Some(orders) = opposite.get_mut(&ticks) {
                 let mut i = 0;
@@ -371,9 +447,13 @@ impl OrderMatchEngine {
         };
 
         for ticks in price_keys {
-            if incoming.is_filled() { break; }
+            if incoming.is_filled() {
+                break;
+            }
             let resting_price = from_ticks(ticks, self.tick_size);
-            if !incoming.can_match_at(resting_price) { break; }
+            if !incoming.can_match_at(resting_price) {
+                break;
+            }
 
             if let Some(orders) = opposite.get_mut(&ticks) {
                 let total_at_level: f64 = orders.iter().map(|o| o.remaining).sum();
@@ -412,9 +492,13 @@ impl OrderMatchEngine {
         Ok(trades)
     }
 
-    pub fn stats(&self) -> &MatchStats { &self.stats }
+    pub fn stats(&self) -> &MatchStats {
+        &self.stats
+    }
 
-    pub fn mode(&self) -> MatchMode { self.mode }
+    pub fn mode(&self) -> MatchMode {
+        self.mode
+    }
 
     /// Count of resting orders on each side.
     pub fn resting_count(&self) -> (usize, usize) {
@@ -427,8 +511,11 @@ impl OrderMatchEngine {
 impl fmt::Display for OrderMatchEngine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (b, a) = self.resting_count();
-        write!(f, "MatchEngine(mode={}, bids={b}, asks={a}, trades={})",
-            self.mode, self.stats.total_trades)
+        write!(
+            f,
+            "MatchEngine(mode={}, bids={b}, asks={a}, trades={})",
+            self.mode, self.stats.total_trades
+        )
     }
 }
 
@@ -545,8 +632,12 @@ mod tests {
     #[test]
     fn test_trade_display() {
         let t = Trade {
-            trade_id: 1, aggressor_id: 2, resting_id: 3,
-            price: 100.0, quantity: 50.0, timestamp_ns: 1000,
+            trade_id: 1,
+            aggressor_id: 2,
+            resting_id: 3,
+            price: 100.0,
+            quantity: 50.0,
+            timestamp_ns: 1000,
             aggressor_side: MatchSide::Buy,
         };
         let s = format!("{t}");
@@ -557,8 +648,11 @@ mod tests {
     #[test]
     fn test_match_result_display() {
         let r = MatchResult {
-            trades: vec![], total_filled: 50.0, unfilled: 10.0,
-            levels_consumed: 2, avg_price: 100.0,
+            trades: vec![],
+            total_filled: 50.0,
+            unfilled: 10.0,
+            levels_consumed: 2,
+            avg_price: 100.0,
         };
         let s = format!("{r}");
         assert!(s.contains("50.0000"));
@@ -589,8 +683,11 @@ mod tests {
     #[test]
     fn test_match_result_complete() {
         let r = MatchResult {
-            trades: vec![], total_filled: 50.0, unfilled: 0.0,
-            levels_consumed: 1, avg_price: 100.0,
+            trades: vec![],
+            total_filled: 50.0,
+            unfilled: 0.0,
+            levels_consumed: 1,
+            avg_price: 100.0,
         };
         assert!(r.is_complete());
     }

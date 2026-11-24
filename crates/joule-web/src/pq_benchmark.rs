@@ -74,12 +74,18 @@ impl PqBenchmarkConfig {
 }
 
 impl Default for PqBenchmarkConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for PqBenchmarkConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PqBenchmarkConfig(iterations={0}, warmup={1}, measure_memory={2}, report_percentiles={3})", self.iterations, self.warmup, self.measure_memory, self.report_percentiles)
+        write!(
+            f,
+            "PqBenchmarkConfig(iterations={0}, warmup={1}, measure_memory={2}, report_percentiles={3})",
+            self.iterations, self.warmup, self.measure_memory, self.report_percentiles
+        )
     }
 }
 
@@ -95,7 +101,10 @@ pub struct PqBenchmark {
 impl PqBenchmark {
     pub fn new(config: PqBenchmarkConfig) -> Result<Self, PqBenchmarkError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -107,32 +116,48 @@ impl PqBenchmark {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &PqBenchmarkConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &PqBenchmarkConfig {
+        &self.config
+    }
 
     /// Benchmark key generation.
     pub fn benchmark_keygen(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Benchmark signing.
     pub fn benchmark_sign(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Generate comparison table.
     pub fn comparison_table(&self) -> String {
-        format!("{}: {} records", stringify!(comparison_table), self.data.len())
+        format!(
+            "{}: {} records",
+            stringify!(comparison_table),
+            self.data.len()
+        )
     }
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -144,7 +169,9 @@ impl PqBenchmark {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -156,7 +183,11 @@ impl PqBenchmark {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -229,7 +260,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = PqBenchmark::new(PqBenchmarkConfig::new()).unwrap()
+        let e = PqBenchmark::new(PqBenchmarkConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -245,7 +277,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = PqBenchmark::new(PqBenchmarkConfig::new()).unwrap()
+        let e = PqBenchmark::new(PqBenchmarkConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("PqBenchmark"));
@@ -253,7 +286,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = PqBenchmark::new(PqBenchmarkConfig::new()).unwrap()
+        let e = PqBenchmark::new(PqBenchmarkConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -264,7 +298,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = PqBenchmark::new(PqBenchmarkConfig::new()).unwrap()
+        let e = PqBenchmark::new(PqBenchmarkConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -272,7 +307,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = PqBenchmark::new(PqBenchmarkConfig::new()).unwrap()
+        let e = PqBenchmark::new(PqBenchmarkConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -289,7 +325,8 @@ mod tests {
 
     #[test]
     fn test_benchmark_keygen() {
-        let e = PqBenchmark::new(PqBenchmarkConfig::new()).unwrap()
+        let e = PqBenchmark::new(PqBenchmarkConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.benchmark_keygen();
         assert!(!result.is_empty());
@@ -297,7 +334,8 @@ mod tests {
 
     #[test]
     fn test_benchmark_sign() {
-        let e = PqBenchmark::new(PqBenchmarkConfig::new()).unwrap()
+        let e = PqBenchmark::new(PqBenchmarkConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.benchmark_sign();
         assert!(!result.is_empty());
@@ -305,7 +343,8 @@ mod tests {
 
     #[test]
     fn test_comparison_table() {
-        let e = PqBenchmark::new(PqBenchmarkConfig::new()).unwrap()
+        let e = PqBenchmark::new(PqBenchmarkConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.comparison_table();
         assert!(!result.is_empty());

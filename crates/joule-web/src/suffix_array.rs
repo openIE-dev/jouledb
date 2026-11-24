@@ -109,11 +109,7 @@ impl SuffixArray {
         }
         let left = self.lower_bound(pattern);
         let right = self.upper_bound(pattern);
-        if left > right {
-            0
-        } else {
-            right - left + 1
-        }
+        if left > right { 0 } else { right - left + 1 }
     }
 
     /// Find the longest repeated substring. Returns (start, length).

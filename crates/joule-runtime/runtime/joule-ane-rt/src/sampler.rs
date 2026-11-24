@@ -40,7 +40,11 @@ impl Rails {
     }
 
     fn scaled(&self, k: f64) -> Rails {
-        Rails { cpu_w: self.cpu_w * k, gpu_w: self.gpu_w * k, ane_w: self.ane_w * k }
+        Rails {
+            cpu_w: self.cpu_w * k,
+            gpu_w: self.gpu_w * k,
+            ane_w: self.ane_w * k,
+        }
     }
 
     fn add(&mut self, o: &Rails) {
@@ -187,7 +191,12 @@ impl PowerRing {
 
     /// Median sample length, seconds.
     pub fn typical_interval(&self) -> Option<f64> {
-        let mut d: Vec<f64> = self.samples.iter().map(|s| s.end - s.start).filter(|d| *d > 0.0).collect();
+        let mut d: Vec<f64> = self
+            .samples
+            .iter()
+            .map(|s| s.end - s.start)
+            .filter(|d| *d > 0.0)
+            .collect();
         if d.is_empty() {
             return None;
         }
@@ -197,8 +206,11 @@ impl PowerRing {
 
     /// Per-rail percentile over the samples ending in `[now - horizon, now]`.
     pub fn percentile_baseline(&self, now: f64, horizon: f64, q: f64) -> Option<Rails> {
-        let recent: Vec<&RailSample> =
-            self.samples.iter().filter(|s| s.end <= now && s.end >= now - horizon).collect();
+        let recent: Vec<&RailSample> = self
+            .samples
+            .iter()
+            .filter(|s| s.end <= now && s.end >= now - horizon)
+            .collect();
         if recent.len() < BASELINE_MIN_SAMPLES {
             return None;
         }
@@ -239,7 +251,11 @@ impl PowerRing {
     /// Integrate `[start, end]` against the samples, subtracting `baseline`.
     /// `None` when no sample overlaps the window.
     pub fn integrate_with(&self, start: f64, end: f64, baseline: Rails) -> Option<WindowEnergy> {
-        let (start, end) = if end < start { (end, start) } else { (start, end) };
+        let (start, end) = if end < start {
+            (end, start)
+        } else {
+            (start, end)
+        };
         let seconds = end - start;
         let mut joules = Rails::default();
         let mut incremental = Rails::default();
@@ -292,7 +308,16 @@ impl PowerRing {
         } else {
             Confidence::Interpolated
         };
-        Some(WindowEnergy { seconds, joules, incremental, watts, baseline, coverage, samples: used, confidence })
+        Some(WindowEnergy {
+            seconds,
+            joules,
+            incremental,
+            watts,
+            baseline,
+            coverage,
+            samples: used,
+            confidence,
+        })
     }
 
     /// Register a job that started at `start`; returns its id.
@@ -302,7 +327,12 @@ impl PowerRing {
         }
         let id = self.next_job;
         self.next_job += 1;
-        self.jobs.push_back(Job { id, start, end: None, holes: Vec::new() });
+        self.jobs.push_back(Job {
+            id,
+            start,
+            end: None,
+            holes: Vec::new(),
+        });
         id
     }
 
@@ -336,12 +366,23 @@ impl PowerRing {
     /// above the baseline times this job's share of the job-time in that
     /// sample (jobs still running count up to the sample end). `None` when
     /// no sample overlaps.
-    pub fn integrate_job_with(&self, id: u64, start: f64, end: f64, baseline: Rails) -> Option<WindowEnergy> {
+    pub fn integrate_job_with(
+        &self,
+        id: u64,
+        start: f64,
+        end: f64,
+        baseline: Rails,
+    ) -> Option<WindowEnergy> {
         let me = Job {
             id,
             start,
             end: Some(end),
-            holes: self.jobs.iter().find(|j| j.id == id).map(|j| j.holes.clone()).unwrap_or_default(),
+            holes: self
+                .jobs
+                .iter()
+                .find(|j| j.id == id)
+                .map(|j| j.holes.clone())
+                .unwrap_or_default(),
         };
         let seconds = me.overlap(start, end);
         if seconds == 0.0 {
@@ -355,7 +396,12 @@ impl PowerRing {
             if mine <= 0.0 {
                 continue;
             }
-            let others: f64 = self.jobs.iter().filter(|j| j.id != id).map(|j| j.overlap(s.start, s.end)).sum();
+            let others: f64 = self
+                .jobs
+                .iter()
+                .filter(|j| j.id != id)
+                .map(|j| j.overlap(s.start, s.end))
+                .sum();
             let share = mine / (mine + others);
             incremental.add(&s.rails.above(&baseline).scaled((s.end - s.start) * share));
             covered += mine;
@@ -423,9 +469,18 @@ pub struct ParsedSample {
 
 fn milliwatts(rest: &str) -> Option<f64> {
     let rest = rest.trim();
-    let num: String = rest.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
+    let num: String = rest
+        .chars()
+        .take_while(|c| c.is_ascii_digit() || *c == '.')
+        .collect();
     let value = num.parse::<f64>().ok()?;
-    Some(if rest.ends_with("mW") { value } else if rest.ends_with('W') { value * 1000.0 } else { value })
+    Some(if rest.ends_with("mW") {
+        value
+    } else if rest.ends_with('W') {
+        value * 1000.0
+    } else {
+        value
+    })
 }
 
 /// `(20.51ms elapsed)` from a sample header.
@@ -463,7 +518,10 @@ impl RailParser {
     pub fn feed(&mut self, line: &str) -> (Option<ParsedSample>, bool) {
         if let Some(ms) = header_elapsed_ms(line) {
             let prev = self.take();
-            *self = RailParser { elapsed_ms: Some(ms), ..Default::default() };
+            *self = RailParser {
+                elapsed_ms: Some(ms),
+                ..Default::default()
+            };
             return (prev, true);
         }
         if self.done {
@@ -513,7 +571,11 @@ pub const RING_CAPACITY: usize = 12_000;
 impl PowerSampler {
     /// A sampler with no feed (tests / injected samples).
     pub fn detached(interval_ms: u32) -> Self {
-        Self { ring: Mutex::new(PowerRing::new(RING_CAPACITY)), epoch: std::time::Instant::now(), interval_ms }
+        Self {
+            ring: Mutex::new(PowerRing::new(RING_CAPACITY)),
+            epoch: std::time::Instant::now(),
+            interval_ms,
+        }
     }
 
     /// Seconds on the sampler clock.
@@ -600,7 +662,8 @@ impl PowerSampler {
     /// only). `JOULE_POWER_SAMPLER=off` disables it;
     /// `JOULE_POWERMETRICS_INTERVAL_MS` sets the interval (default 5).
     pub fn global() -> Option<&'static PowerSampler> {
-        static GLOBAL: std::sync::OnceLock<Option<&'static PowerSampler>> = std::sync::OnceLock::new();
+        static GLOBAL: std::sync::OnceLock<Option<&'static PowerSampler>> =
+            std::sync::OnceLock::new();
         *GLOBAL.get_or_init(|| {
             if std::env::var("JOULE_POWER_SAMPLER").is_ok_and(|v| v == "off" || v == "0") {
                 return None;
@@ -615,7 +678,8 @@ impl PowerSampler {
                 // `-i 5` gives ~19-23 ms real samples on M3/M4 (`-i 20`
                 // gives ~39 ms); shorter samples split ms-scale jobs better.
                 .unwrap_or(5);
-            let sampler: &'static PowerSampler = Box::leak(Box::new(PowerSampler::detached(interval_ms)));
+            let sampler: &'static PowerSampler =
+                Box::leak(Box::new(PowerSampler::detached(interval_ms)));
             sampler.spawn_feed().then_some(sampler)
         })
     }
@@ -642,39 +706,46 @@ impl PowerSampler {
             let _ = child.kill();
             return false;
         };
-        let spawned = std::thread::Builder::new().name("joule-powermetrics".into()).spawn(move || {
-            let mut parser = RailParser::default();
-            let mut header_at: Option<f64> = None;
-            let mut prev_end: Option<f64> = None;
-            let reader = std::io::BufReader::new(stdout);
-            for line in reader.lines() {
-                let Ok(line) = line else { break };
-                let arrived = self.now();
-                let (done, header) = parser.feed(&line);
-                if let Some(p) = done {
-                    if let Some(end) = header_at {
-                        let mut start = end - p.elapsed_ms / 1000.0;
-                        // Samples are back to back; do not overlap the previous one.
-                        if let Some(pe) = prev_end {
-                            start = start.max(pe);
-                        }
-                        if end > start {
-                            self.with_ring(|r| {
-                                r.push(RailSample { start, end, rails: p.rails, combined_w: p.combined_w })
-                            });
-                            prev_end = Some(end);
+        let spawned = std::thread::Builder::new()
+            .name("joule-powermetrics".into())
+            .spawn(move || {
+                let mut parser = RailParser::default();
+                let mut header_at: Option<f64> = None;
+                let mut prev_end: Option<f64> = None;
+                let reader = std::io::BufReader::new(stdout);
+                for line in reader.lines() {
+                    let Ok(line) = line else { break };
+                    let arrived = self.now();
+                    let (done, header) = parser.feed(&line);
+                    if let Some(p) = done {
+                        if let Some(end) = header_at {
+                            let mut start = end - p.elapsed_ms / 1000.0;
+                            // Samples are back to back; do not overlap the previous one.
+                            if let Some(pe) = prev_end {
+                                start = start.max(pe);
+                            }
+                            if end > start {
+                                self.with_ring(|r| {
+                                    r.push(RailSample {
+                                        start,
+                                        end,
+                                        rails: p.rails,
+                                        combined_w: p.combined_w,
+                                    })
+                                });
+                                prev_end = Some(end);
+                            }
                         }
                     }
+                    if header {
+                        // powermetrics prints a sample right after its interval
+                        // ends, so the header's arrival is the interval end.
+                        header_at = Some(arrived);
+                    }
                 }
-                if header {
-                    // powermetrics prints a sample right after its interval
-                    // ends, so the header's arrival is the interval end.
-                    header_at = Some(arrived);
-                }
-            }
-            let _ = child.kill();
-            let _ = child.wait();
-        });
+                let _ = child.kill();
+                let _ = child.wait();
+            });
         spawned.is_ok()
     }
 
@@ -689,7 +760,16 @@ mod tests {
     use super::*;
 
     fn sample(start: f64, end: f64, cpu: f64, gpu: f64, ane: f64) -> RailSample {
-        RailSample { start, end, rails: Rails { cpu_w: cpu, gpu_w: gpu, ane_w: ane }, combined_w: None }
+        RailSample {
+            start,
+            end,
+            rails: Rails {
+                cpu_w: cpu,
+                gpu_w: gpu,
+                ane_w: ane,
+            },
+            combined_w: None,
+        }
     }
 
     fn close(a: f64, b: f64) -> bool {
@@ -714,7 +794,11 @@ mod tests {
     #[test]
     fn integrates_whole_samples_deterministically() {
         let r = ring();
-        let base = Rails { cpu_w: 2.0, gpu_w: 0.1, ane_w: 0.0 };
+        let base = Rails {
+            cpu_w: 2.0,
+            gpu_w: 0.1,
+            ane_w: 0.0,
+        };
         let w = r.integrate_with(0.20, 0.24, base).expect("covered");
         assert_eq!(w.confidence, Confidence::Measured);
         assert_eq!(w.samples, 2);
@@ -729,7 +813,11 @@ mod tests {
     #[test]
     fn short_jobs_are_apportioned_and_labelled_interpolated() {
         let r = ring();
-        let base = Rails { cpu_w: 2.0, gpu_w: 0.1, ane_w: 0.0 };
+        let base = Rails {
+            cpu_w: 2.0,
+            gpu_w: 0.1,
+            ane_w: 0.0,
+        };
         // 5 ms inside one GPU sample.
         let w = r.integrate_with(0.205, 0.210, base).expect("covered");
         assert_eq!(w.confidence, Confidence::Interpolated);
@@ -747,13 +835,19 @@ mod tests {
     #[test]
     fn sub_interval_jobs_split_the_sample_excess() {
         let mut r = ring();
-        let base = Rails { cpu_w: 2.0, gpu_w: 0.1, ane_w: 0.0 };
+        let base = Rails {
+            cpu_w: 2.0,
+            gpu_w: 0.1,
+            ane_w: 0.0,
+        };
         // GPU sample 0.20..0.22: excess (1 W CPU + 11.9 W GPU) x 20 ms.
         let excess = 12.9 * 0.02;
         // A lone 5 ms job is charged the whole excess, plus idle for 5 ms.
         let a = r.begin_job(0.205);
         r.end_job(a, 0.205, 0.210);
-        let w = r.integrate_job_with(a, 0.205, 0.210, base).expect("covered");
+        let w = r
+            .integrate_job_with(a, 0.205, 0.210, base)
+            .expect("covered");
         assert_eq!(w.confidence, Confidence::Interpolated);
         assert!(close(w.incremental.total(), excess), "{w:?}");
         assert!(close(w.joules.total(), excess + 2.1 * 0.005));
@@ -761,8 +855,12 @@ mod tests {
         // A second 15 ms job in the same sample: 1/4 and 3/4.
         let b = r.begin_job(0.2);
         r.end_job(b, 0.200, 0.215);
-        let wa = r.integrate_job_with(a, 0.205, 0.210, base).expect("covered");
-        let wb = r.integrate_job_with(b, 0.200, 0.215, base).expect("covered");
+        let wa = r
+            .integrate_job_with(a, 0.205, 0.210, base)
+            .expect("covered");
+        let wb = r
+            .integrate_job_with(b, 0.200, 0.215, base)
+            .expect("covered");
         assert!(close(wa.incremental.total(), excess * 0.25), "{wa:?}");
         assert!(close(wb.incremental.total(), excess * 0.75), "{wb:?}");
         // A long job over whole samples gets their whole excess: same as time integration.
@@ -778,7 +876,11 @@ mod tests {
     #[test]
     fn verification_inside_a_job_is_billed_to_its_own_job() {
         let mut r = ring();
-        let base = Rails { cpu_w: 2.0, gpu_w: 0.1, ane_w: 0.0 };
+        let base = Rails {
+            cpu_w: 2.0,
+            gpu_w: 0.1,
+            ane_w: 0.0,
+        };
         // Job 0.0..0.2; its last 100 ms is a CPU cross-check of its result.
         let job = r.begin_job(0.0);
         let verify = r.begin_job(0.1);
@@ -786,23 +888,37 @@ mod tests {
         r.exclude_from_job(job, 0.1, 0.2);
         r.end_job(job, 0.0, 0.2);
         let wj = r.integrate_job_with(job, 0.0, 0.2, base).expect("covered");
-        let wv = r.integrate_job_with(verify, 0.1, 0.2, base).expect("covered");
+        let wv = r
+            .integrate_job_with(verify, 0.1, 0.2, base)
+            .expect("covered");
         let first = r.integrate_with(0.0, 0.1, base).expect("covered");
         let second = r.integrate_with(0.1, 0.2, base).expect("covered");
         // The job is charged only its own 100 ms; the verify job the rest.
         assert!(close(wj.seconds, 0.1), "{wj:?}");
-        assert!(close(wj.joules.total(), first.joules.total()), "{wj:?} vs {first:?}");
-        assert!(close(wv.joules.total(), second.joules.total()), "{wv:?} vs {second:?}");
+        assert!(
+            close(wj.joules.total(), first.joules.total()),
+            "{wj:?} vs {first:?}"
+        );
+        assert!(
+            close(wv.joules.total(), second.joules.total()),
+            "{wv:?} vs {second:?}"
+        );
         // Nothing lost or double-counted.
         let all = r.integrate_with(0.0, 0.2, base).expect("covered");
-        assert!(close(wj.joules.total() + wv.joules.total(), all.joules.total()));
+        assert!(close(
+            wj.joules.total() + wv.joules.total(),
+            all.joules.total()
+        ));
     }
 
     #[test]
     fn baseline_is_low_percentile_and_refreshed() {
         let mut r = ring();
         let b = r.baseline(0.26);
-        assert!(close(b.cpu_w, 2.0) && close(b.gpu_w, 0.1) && close(b.ane_w, 0.0), "{b:?}");
+        assert!(
+            close(b.cpu_w, 2.0) && close(b.gpu_w, 0.1) && close(b.ane_w, 0.0),
+            "{b:?}"
+        );
         // Cached until the refresh period passes.
         for i in 0..20 {
             let t = 0.26 + i as f64 * 0.02;
@@ -817,7 +933,17 @@ mod tests {
         }
         assert!(close(r.baseline(later).cpu_w, 4.0));
         // Incremental never goes negative.
-        let w = r.integrate_with(0.0, 0.02, Rails { cpu_w: 9.0, gpu_w: 9.0, ane_w: 9.0 }).expect("covered");
+        let w = r
+            .integrate_with(
+                0.0,
+                0.02,
+                Rails {
+                    cpu_w: 9.0,
+                    gpu_w: 9.0,
+                    ane_w: 9.0,
+                },
+            )
+            .expect("covered");
         assert_eq!(w.incremental.total(), 0.0);
     }
 
@@ -826,7 +952,9 @@ mod tests {
         let r = ring();
         assert!(r.integrate_with(5.0, 5.1, Rails::default()).is_none());
         // Half past the newest sample: scaled to the window, interpolated.
-        let w = r.integrate_with(0.25, 0.27, Rails::default()).expect("partly covered");
+        let w = r
+            .integrate_with(0.25, 0.27, Rails::default())
+            .expect("partly covered");
         assert!(close(w.coverage, 0.5));
         assert_eq!(w.confidence, Confidence::Interpolated);
         assert!(close(w.joules.ane_w, 1.5 * 0.02));

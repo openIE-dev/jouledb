@@ -17,11 +17,23 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
-    pub const UP: Self = Self { x: 0.0, y: 1.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub const UP: Self = Self {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    };
 
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
     pub fn cross(self, o: Self) -> Self {
         Self {
             x: self.y * o.z - self.z * o.y,
@@ -29,17 +41,51 @@ impl Vec3 {
             z: self.x * o.y - self.y * o.x,
         }
     }
-    pub fn length(self) -> f64 { self.dot(self).sqrt() }
-    pub fn length_sq(self) -> f64 { self.dot(self) }
+    pub fn length(self) -> f64 {
+        self.dot(self).sqrt()
+    }
+    pub fn length_sq(self) -> f64 {
+        self.dot(self)
+    }
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-12 { return Self::ZERO; }
-        Self { x: self.x / l, y: self.y / l, z: self.z / l }
+        if l < 1e-12 {
+            return Self::ZERO;
+        }
+        Self {
+            x: self.x / l,
+            y: self.y / l,
+            z: self.z / l,
+        }
     }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z } }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
-    pub fn neg(self) -> Self { Self { x: -self.x, y: -self.y, z: -self.z } }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
+    pub fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -51,7 +97,9 @@ pub struct Vec4 {
 }
 
 impl Vec4 {
-    pub fn new(x: f64, y: f64, z: f64, w: f64) -> Self { Self { x, y, z, w } }
+    pub fn new(x: f64, y: f64, z: f64, w: f64) -> Self {
+        Self { x, y, z, w }
+    }
 }
 
 /// Row-major 4×4 matrix.
@@ -63,10 +111,7 @@ pub struct Mat4 {
 impl Mat4 {
     pub const IDENTITY: Self = Self {
         m: [
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 1.0,
+            1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
         ],
     };
 
@@ -76,10 +121,22 @@ impl Mat4 {
         let u = s.cross(f);
         Self {
             m: [
-                s.x,  s.y,  s.z, -s.dot(eye),
-                u.x,  u.y,  u.z, -u.dot(eye),
-               -f.x, -f.y, -f.z,  f.dot(eye),
-                0.0,  0.0,  0.0,  1.0,
+                s.x,
+                s.y,
+                s.z,
+                -s.dot(eye),
+                u.x,
+                u.y,
+                u.z,
+                -u.dot(eye),
+                -f.x,
+                -f.y,
+                -f.z,
+                f.dot(eye),
+                0.0,
+                0.0,
+                0.0,
+                1.0,
             ],
         }
     }
@@ -90,10 +147,22 @@ impl Mat4 {
         let nf = near - far;
         Self {
             m: [
-                f / aspect, 0.0, 0.0,                    0.0,
-                0.0,        f,   0.0,                    0.0,
-                0.0,        0.0, (far + near) / nf,     2.0 * far * near / nf,
-                0.0,        0.0, -1.0,                   0.0,
+                f / aspect,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                f,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                (far + near) / nf,
+                2.0 * far * near / nf,
+                0.0,
+                0.0,
+                -1.0,
+                0.0,
             ],
         }
     }
@@ -103,7 +172,9 @@ impl Mat4 {
         for row in 0..4 {
             for col in 0..4 {
                 let mut sum = 0.0;
-                for k in 0..4 { sum += self.m[row * 4 + k] * o.m[k * 4 + col]; }
+                for k in 0..4 {
+                    sum += self.m[row * 4 + k] * o.m[k * 4 + col];
+                }
                 r[row * 4 + col] = sum;
             }
         }
@@ -130,33 +201,57 @@ pub struct Color {
 }
 
 impl Color {
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0 };
-    pub const BLACK: Self = Self { r: 0.0, g: 0.0, b: 0.0 };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+    };
+    pub const BLACK: Self = Self {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+    };
 
-    pub fn new(r: f64, g: f64, b: f64) -> Self { Self { r, g, b } }
-    pub fn scale(self, s: f64) -> Self { Self { r: self.r * s, g: self.g * s, b: self.b * s } }
+    pub fn new(r: f64, g: f64, b: f64) -> Self {
+        Self { r, g, b }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
+    }
 }
 
 // ── Window / Attenuation helpers ───────────────────────────────
 
 /// Smooth distance windowing: saturate(1 - (d/R)^4)^2.
 fn distance_window(dist: f64, range: f64) -> f64 {
-    if range <= 0.0 { return 0.0; }
+    if range <= 0.0 {
+        return 0.0;
+    }
     let ratio = dist / range;
-    if ratio >= 1.0 { return 0.0; }
+    if ratio >= 1.0 {
+        return 0.0;
+    }
     let r4 = ratio * ratio * ratio * ratio;
     let v = (1.0 - r4).max(0.0);
     v * v
 }
 
 /// Inverse-square attenuation.
-fn inverse_square(dist: f64) -> f64 { 1.0 / (dist * dist).max(1e-6) }
+fn inverse_square(dist: f64) -> f64 {
+    1.0 / (dist * dist).max(1e-6)
+}
 
 /// Smooth angular falloff between inner and outer cone angles.
 /// `cos_theta` is the cosine of the angle from the light axis.
 /// Returns 0..1.
 fn angular_falloff(cos_theta: f64, cos_inner: f64, cos_outer: f64) -> f64 {
-    if cos_inner <= cos_outer { return if cos_theta >= cos_inner { 1.0 } else { 0.0 }; }
+    if cos_inner <= cos_outer {
+        return if cos_theta >= cos_inner { 1.0 } else { 0.0 };
+    }
     let t = ((cos_theta - cos_outer) / (cos_inner - cos_outer)).clamp(0.0, 1.0);
     // Smooth Hermite interpolation.
     t * t * (3.0 - 2.0 * t)
@@ -177,7 +272,11 @@ pub struct CookieTexture {
 impl CookieTexture {
     /// Create a solid (fully transparent / no-mask) cookie.
     pub fn solid(width: u32, height: u32) -> Self {
-        Self { width, height, pixels: vec![1.0; (width * height) as usize] }
+        Self {
+            width,
+            height,
+            pixels: vec![1.0; (width * height) as usize],
+        }
     }
 
     /// Create a circular falloff cookie.
@@ -194,13 +293,19 @@ impl CookieTexture {
                 pixels.push(v * v);
             }
         }
-        Self { width: size, height: size, pixels }
+        Self {
+            width: size,
+            height: size,
+            pixels,
+        }
     }
 
     /// Sample the cookie at normalized UV coordinates (0..1, 0..1).
     /// Returns intensity multiplier [0, 1].
     pub fn sample(&self, u: f64, v: f64) -> f64 {
-        if self.width == 0 || self.height == 0 { return 1.0; }
+        if self.width == 0 || self.height == 0 {
+            return 1.0;
+        }
         let u = u.clamp(0.0, 1.0);
         let v = v.clamp(0.0, 1.0);
         let px = ((u * self.width as f64) as u32).min(self.width - 1);
@@ -275,7 +380,9 @@ impl SpotLight {
     pub fn intensity_at(&self, world_pos: Vec3) -> f64 {
         let to_point = world_pos.sub(self.position);
         let dist = to_point.length();
-        if dist >= self.range || dist < 1e-12 { return 0.0; }
+        if dist >= self.range || dist < 1e-12 {
+            return 0.0;
+        }
 
         let dir_to_point = to_point.scale(1.0 / dist);
         let cos_theta = dir_to_point.dot(self.direction);
@@ -283,7 +390,9 @@ impl SpotLight {
         let cos_inner = self.inner_angle.cos();
         let cos_outer = self.outer_angle.cos();
 
-        if cos_theta < cos_outer { return 0.0; }
+        if cos_theta < cos_outer {
+            return 0.0;
+        }
 
         let angular = angular_falloff(cos_theta, cos_inner, cos_outer);
         let dist_atten = inverse_square(dist) * distance_window(dist, self.range);
@@ -300,7 +409,9 @@ impl SpotLight {
     pub fn diffuse_at(&self, surface_pos: Vec3, surface_normal: Vec3) -> Color {
         let to_light = self.position.sub(surface_pos);
         let dist = to_light.length();
-        if dist >= self.range || dist < 1e-12 { return Color::BLACK; }
+        if dist >= self.range || dist < 1e-12 {
+            return Color::BLACK;
+        }
 
         let dir = to_light.scale(1.0 / dist);
         let n_dot_l = surface_normal.normalized().dot(dir).max(0.0);
@@ -349,10 +460,14 @@ impl SpotLight {
     pub fn project_to_cookie_uv(&self, world_pos: Vec3) -> Option<(f64, f64)> {
         let to_point = world_pos.sub(self.position);
         let dist_along = to_point.dot(self.direction);
-        if dist_along <= 0.0 { return None; }
+        if dist_along <= 0.0 {
+            return None;
+        }
 
         let cos_theta = dist_along / to_point.length();
-        if cos_theta < self.outer_angle.cos() { return None; }
+        if cos_theta < self.outer_angle.cos() {
+            return None;
+        }
 
         // Build a local coordinate frame.
         let up = if self.direction.cross(Vec3::UP).length() < 1e-6 {
@@ -365,7 +480,9 @@ impl SpotLight {
 
         let lateral = to_point.sub(self.direction.scale(dist_along));
         let half_spread = dist_along * self.outer_angle.tan();
-        if half_spread < 1e-12 { return Some((0.5, 0.5)); }
+        if half_spread < 1e-12 {
+            return Some((0.5, 0.5));
+        }
 
         let u = 0.5 + lateral.dot(right) / (2.0 * half_spread);
         let v = 0.5 + lateral.dot(local_up) / (2.0 * half_spread);
@@ -381,7 +498,9 @@ mod tests {
 
     const EPS: f64 = 1e-5;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     fn make_spot() -> SpotLight {
         SpotLight::new(
@@ -390,8 +509,8 @@ mod tests {
             Color::WHITE,
             100.0,
             50.0,
-            PI / 8.0,   // 22.5° inner
-            PI / 4.0,   // 45° outer
+            PI / 8.0, // 22.5° inner
+            PI / 4.0, // 45° outer
         )
     }
 

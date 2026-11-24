@@ -152,9 +152,9 @@ pub fn approx_grapheme_clusters(s: &str) -> Vec<(usize, usize)> {
     while let Some((idx, ch)) = chars.next() {
         let _ = idx;
         // Peek at the next character.
-        let next_is_combining = chars.peek().is_some_and(|&(_, next_ch)| {
-            is_combining_mark(next_ch) || is_emoji_modifier(next_ch)
-        });
+        let next_is_combining = chars
+            .peek()
+            .is_some_and(|&(_, next_ch)| is_combining_mark(next_ch) || is_emoji_modifier(next_ch));
 
         if !next_is_combining {
             // End of cluster.
@@ -217,7 +217,7 @@ fn is_emoji_modifier(ch: char) -> bool {
     // Emoji skin tone modifiers and ZWJ
     (0x1F3FB..=0x1F3FF).contains(&cp)
         || cp == 0x200D  // ZWJ
-        || cp == 0xFE0F  // Variation Selector-16 (emoji presentation)
+        || cp == 0xFE0F // Variation Selector-16 (emoji presentation)
 }
 
 // ── Simplified Normalization ────────────────────────────────────────
@@ -388,23 +388,23 @@ pub enum Script {
 pub fn detect_script(cp: u32) -> Script {
     match cp {
         0x0041..=0x005A | 0x0061..=0x007A => Script::Latin,
-        0x00C0..=0x024F => Script::Latin,  // Latin Extended
-        0x1E00..=0x1EFF => Script::Latin,  // Latin Extended Additional
+        0x00C0..=0x024F => Script::Latin, // Latin Extended
+        0x1E00..=0x1EFF => Script::Latin, // Latin Extended Additional
         0x0370..=0x03FF => Script::Greek,
-        0x1F00..=0x1FFF => Script::Greek,  // Greek Extended
+        0x1F00..=0x1FFF => Script::Greek, // Greek Extended
         0x0400..=0x04FF => Script::Cyrillic,
         0x0500..=0x052F => Script::Cyrillic, // Cyrillic Supplement
         0x0600..=0x06FF => Script::Arabic,
-        0x0750..=0x077F => Script::Arabic,  // Arabic Supplement
-        0xFB50..=0xFDFF => Script::Arabic,  // Arabic Presentation Forms
+        0x0750..=0x077F => Script::Arabic, // Arabic Supplement
+        0xFB50..=0xFDFF => Script::Arabic, // Arabic Presentation Forms
         0x0590..=0x05FF => Script::Hebrew,
-        0xFB1D..=0xFB4F => Script::Hebrew,  // Hebrew Presentation Forms
+        0xFB1D..=0xFB4F => Script::Hebrew, // Hebrew Presentation Forms
         0x0900..=0x097F => Script::Devanagari,
-        0x4E00..=0x9FFF => Script::Han,     // CJK Unified Ideographs
-        0x3400..=0x4DBF => Script::Han,     // CJK Extension A
-        0x20000..=0x2A6DF => Script::Han,   // CJK Extension B
-        0x2A700..=0x2B73F => Script::Han,   // CJK Extension C
-        0xF900..=0xFAFF => Script::Han,     // CJK Compatibility
+        0x4E00..=0x9FFF => Script::Han,   // CJK Unified Ideographs
+        0x3400..=0x4DBF => Script::Han,   // CJK Extension A
+        0x20000..=0x2A6DF => Script::Han, // CJK Extension B
+        0x2A700..=0x2B73F => Script::Han, // CJK Extension C
+        0xF900..=0xFAFF => Script::Han,   // CJK Compatibility
         0x3040..=0x309F => Script::Hiragana,
         0x30A0..=0x30FF => Script::Katakana,
         0x31F0..=0x31FF => Script::Katakana, // Katakana Phonetic Extensions
@@ -545,7 +545,8 @@ pub fn char_width(ch: char) -> usize {
         || cp == 0x200D  // ZWJ
         || cp == 0xFEFF  // BOM
         || (0xFE00..=0xFE0F).contains(&cp)  // Variation Selectors
-        || (0xE0100..=0xE01EF).contains(&cp) // Variation Selectors Supplement
+        || (0xE0100..=0xE01EF).contains(&cp)
+    // Variation Selectors Supplement
     {
         return 0;
     }
@@ -654,8 +655,8 @@ mod tests {
 
     #[test]
     fn validate_invalid_codepoints() {
-        assert!(!is_valid_codepoint(0xD800));  // surrogate
-        assert!(!is_valid_codepoint(0xDFFF));  // surrogate
+        assert!(!is_valid_codepoint(0xD800)); // surrogate
+        assert!(!is_valid_codepoint(0xDFFF)); // surrogate
         assert!(!is_valid_codepoint(0x110000)); // out of range
     }
 
@@ -777,7 +778,10 @@ mod tests {
 
     #[test]
     fn detect_dominant_script_japanese() {
-        assert_eq!(detect_dominant_script("\u{3053}\u{3093}\u{306B}\u{3061}\u{306F}"), Script::Hiragana);
+        assert_eq!(
+            detect_dominant_script("\u{3053}\u{3093}\u{306B}\u{3061}\u{306F}"),
+            Script::Hiragana
+        );
     }
 
     // ── Bidi ────────────────────────────────────────────────────────

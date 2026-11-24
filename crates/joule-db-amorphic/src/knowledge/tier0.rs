@@ -20,7 +20,7 @@
 
 use std::collections::HashMap;
 
-use super::eigenbasis::{Eigenbasis, PatternScores, NUM_PATTERNS};
+use super::eigenbasis::{Eigenbasis, NUM_PATTERNS, PatternScores};
 
 /// Query classification: what kind of question is this?
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -142,9 +142,14 @@ impl Tier0 {
         let words: Vec<&str> = lower.split_whitespace().collect();
 
         // Pattern: "what is X" / "what's X" / "define X"
-        if lower.starts_with("what is ") || lower.starts_with("what's ") || lower.starts_with("define ")
+        if lower.starts_with("what is ")
+            || lower.starts_with("what's ")
+            || lower.starts_with("define ")
         {
-            let subject = words[2..].join(" ").trim_matches(|c: char| !c.is_alphanumeric() && c != '_').to_string();
+            let subject = words[2..]
+                .join(" ")
+                .trim_matches(|c: char| !c.is_alphanumeric() && c != '_')
+                .to_string();
             // Check if it's in the fact store
             if self.facts.contains_key(&subject) {
                 return QueryType::ExactLookup(subject);
@@ -157,7 +162,9 @@ impl Tier0 {
         }
 
         // Pattern: "how are X and Y related" / "compare X and Y" / "X vs Y"
-        if lower.contains(" and ") && (lower.contains("related") || lower.contains("compare") || lower.contains("similar")) {
+        if lower.contains(" and ")
+            && (lower.contains("related") || lower.contains("compare") || lower.contains("similar"))
+        {
             let parts: Vec<&str> = lower.split(" and ").collect();
             if parts.len() >= 2 {
                 let a = extract_concept(parts[0]);
@@ -215,7 +222,7 @@ impl Tier0 {
                     source: Tier0Source::None,
                     energy: 0.000_000_1,
                     escalate: true,
-                }
+                };
             }
         };
 
@@ -273,7 +280,7 @@ impl Tier0 {
                     source: Tier0Source::None,
                     energy: 0.000_000_1,
                     escalate: true,
-                }
+                };
             }
         };
 
@@ -286,7 +293,7 @@ impl Tier0 {
                     source: Tier0Source::None,
                     energy: 0.000_000_1,
                     escalate: true,
-                }
+                };
             }
         };
 
@@ -361,7 +368,7 @@ impl Tier0 {
                     source: Tier0Source::None,
                     energy: 0.000_000_1,
                     escalate: true,
-                }
+                };
             }
         };
 
@@ -436,8 +443,8 @@ impl Default for Tier0 {
 /// Extract a concept name from a phrase (strip stop words, punctuation).
 fn extract_concept(phrase: &str) -> String {
     let stop = [
-        "how", "are", "is", "the", "a", "an", "what", "compare", "related",
-        "similar", "between", "to", "and", "or",
+        "how", "are", "is", "the", "a", "an", "what", "compare", "related", "similar", "between",
+        "to", "and", "or",
     ];
     phrase
         .split_whitespace()
@@ -465,8 +472,8 @@ fn cosine_sim(a: &[f64], b: &[f64]) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::eigenbasis::{Eigenbasis, PatternScores};
+    use super::*;
 
     fn build_tier0() -> Tier0 {
         let mut t0 = Tier0::new();
@@ -516,7 +523,11 @@ mod tests {
 
         // Build eigenbasis from these concepts
         let all_scores = vec![
-            cancer.clone(), war.clone(), brain.clone(), internet.clone(), lens.clone(),
+            cancer.clone(),
+            war.clone(),
+            brain.clone(),
+            internet.clone(),
+            lens.clone(),
         ];
         let basis = Eigenbasis::from_scores(&all_scores, 0.80);
         t0.set_eigenbasis(basis);
@@ -596,7 +607,8 @@ mod tests {
         assert!(
             r1.confidence > r2.confidence,
             "cancer~war ({}) should be more confident than cancer~lens ({})",
-            r1.confidence, r2.confidence
+            r1.confidence,
+            r2.confidence
         );
     }
 
@@ -607,7 +619,9 @@ mod tests {
         assert!(result.answer.is_some(), "brain vs internet should work");
         let answer = result.answer.unwrap();
         assert!(
-            answer.contains("network") || answer.contains("similar") || answer.contains("structurally"),
+            answer.contains("network")
+                || answer.contains("similar")
+                || answer.contains("structurally"),
             "brain~internet should mention structure: {}",
             answer
         );

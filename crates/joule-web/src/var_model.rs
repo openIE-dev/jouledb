@@ -271,8 +271,7 @@ impl ParametricVaR {
             }
         };
         let horizon_scale = (self.config.horizon_days as f64).sqrt();
-        let var_pct = self.mean_return * horizon_scale as f64
-            - z * self.volatility * horizon_scale;
+        let var_pct = self.mean_return * horizon_scale as f64 - z * self.volatility * horizon_scale;
         (-var_pct * self.portfolio_value).max(0.0)
     }
 }
@@ -328,7 +327,9 @@ impl ConditionalVaR {
 
     /// Ratio of CVaR to VaR (always >= 1 for coherent measures).
     pub fn cvar_var_ratio(&self, pnl: &[f64]) -> f64 {
-        let hist_var = HistoricalVaR::new(self.config.clone()).with_pnl(pnl).compute();
+        let hist_var = HistoricalVaR::new(self.config.clone())
+            .with_pnl(pnl)
+            .compute();
         let cvar = self.compute_historical(pnl);
         if hist_var > 1e-15 {
             cvar / hist_var
@@ -525,10 +526,9 @@ mod tests {
 
     fn sample_pnl() -> Vec<f64> {
         vec![
-            -0.03, 0.01, -0.02, 0.005, -0.015, 0.02, -0.01, 0.008,
-            -0.025, 0.012, -0.005, 0.015, -0.018, 0.003, -0.022,
-            0.007, -0.012, 0.009, -0.028, 0.004, -0.008, 0.011,
-            -0.014, 0.006, -0.019,
+            -0.03, 0.01, -0.02, 0.005, -0.015, 0.02, -0.01, 0.008, -0.025, 0.012, -0.005, 0.015,
+            -0.018, 0.003, -0.022, 0.007, -0.012, 0.009, -0.028, 0.004, -0.008, 0.011, -0.014,
+            0.006, -0.019,
         ]
     }
 
@@ -592,9 +592,7 @@ mod tests {
         let normal_var = ParametricVaR::new(VarConfig::new().with_confidence(0.95))
             .with_volatility(0.02)
             .compute();
-        let t_var = ParametricVaR::new(cfg)
-            .with_volatility(0.02)
-            .compute();
+        let t_var = ParametricVaR::new(cfg).with_volatility(0.02).compute();
         assert!(t_var > normal_var, "Student-t VaR should exceed Normal VaR");
     }
 
@@ -613,7 +611,10 @@ mod tests {
         let cfg = VarConfig::new().with_confidence(0.95);
         let var = HistoricalVaR::new(cfg.clone()).with_pnl(&pnl).compute();
         let cvar = ConditionalVaR::new(cfg).compute_historical(&pnl);
-        assert!(cvar >= var - 1e-10, "CVaR should >= VaR: cvar={cvar}, var={var}");
+        assert!(
+            cvar >= var - 1e-10,
+            "CVaR should >= VaR: cvar={cvar}, var={var}"
+        );
     }
 
     #[test]
@@ -626,8 +627,8 @@ mod tests {
     #[test]
     fn test_cvar_var_ratio() {
         let pnl = sample_pnl();
-        let ratio = ConditionalVaR::new(VarConfig::new().with_confidence(0.95))
-            .cvar_var_ratio(&pnl);
+        let ratio =
+            ConditionalVaR::new(VarConfig::new().with_confidence(0.95)).cvar_var_ratio(&pnl);
         assert!(ratio >= 1.0, "CVaR/VaR ratio should be >= 1: {ratio}");
     }
 
@@ -644,16 +645,16 @@ mod tests {
     #[test]
     fn test_portfolio_var_diversification() {
         let cfg = VarConfig::new().with_confidence(0.95);
-        let corr = vec![
-            vec![1.0, 0.3],
-            vec![0.3, 1.0],
-        ];
+        let corr = vec![vec![1.0, 0.3], vec![0.3, 1.0]];
         let vols = vec![0.02, 0.03];
         let pvar = PortfolioVaR::new(cfg)
             .with_weights(&[0.5, 0.5])
             .with_correlation_and_vols(&corr, &vols);
         let benefit = pvar.diversification_benefit();
-        assert!(benefit > 0.0, "Should have diversification benefit: {benefit}");
+        assert!(
+            benefit > 0.0,
+            "Should have diversification benefit: {benefit}"
+        );
     }
 
     #[test]
@@ -661,10 +662,7 @@ mod tests {
         let cfg = VarConfig::new().with_confidence(0.95);
         let pvar = PortfolioVaR::new(cfg)
             .with_weights(&[0.6, 0.4])
-            .with_covariance(vec![
-                vec![0.0004, 0.0001],
-                vec![0.0001, 0.0009],
-            ]);
+            .with_covariance(vec![vec![0.0004, 0.0001], vec![0.0001, 0.0009]]);
         let comp_var: f64 = pvar.component_var().iter().sum();
         let total = pvar.compute();
         assert!(
@@ -694,7 +692,10 @@ mod tests {
     fn test_inv_normal_cdf_symmetry() {
         let z95 = inv_normal_cdf(0.95);
         let z05 = inv_normal_cdf(0.05);
-        assert!((z95 + z05).abs() < 0.05, "Should be approximately symmetric");
+        assert!(
+            (z95 + z05).abs() < 0.05,
+            "Should be approximately symmetric"
+        );
     }
 
     #[test]

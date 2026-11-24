@@ -28,7 +28,10 @@ pub enum BrokerError {
     /// Prefetch limit reached.
     PrefetchLimitReached { consumer: String, limit: usize },
     /// No route for routing key.
-    NoRoute { exchange: String, routing_key: String },
+    NoRoute {
+        exchange: String,
+        routing_key: String,
+    },
     /// Binding already exists.
     DuplicateBinding { exchange: String, queue: String },
 }
@@ -359,11 +362,7 @@ impl MessageBroker {
     }
 
     /// Unbind a queue from an exchange.
-    pub fn unbind(
-        &mut self,
-        exchange_name: &str,
-        queue_name: &str,
-    ) -> Result<(), BrokerError> {
+    pub fn unbind(&mut self, exchange_name: &str, queue_name: &str) -> Result<(), BrokerError> {
         let exchange = self
             .exchanges
             .get_mut(exchange_name)
@@ -495,11 +494,7 @@ impl MessageBroker {
     // ── Acknowledge ──────────────────────────────────────────
 
     /// Acknowledge a message.
-    pub fn acknowledge(
-        &mut self,
-        consumer_id: &str,
-        message_id: &str,
-    ) -> Result<(), BrokerError> {
+    pub fn acknowledge(&mut self, consumer_id: &str, message_id: &str) -> Result<(), BrokerError> {
         let consumer = self
             .consumers
             .get_mut(consumer_id)
@@ -609,9 +604,15 @@ mod tests {
 
     fn setup_direct() -> MessageBroker {
         let mut broker = MessageBroker::new();
-        broker.declare_exchange("orders", ExchangeType::Direct).unwrap();
-        broker.declare_queue(BrokerQueue::new("order-queue")).unwrap();
-        broker.bind("orders", "order-queue", "order.created").unwrap();
+        broker
+            .declare_exchange("orders", ExchangeType::Direct)
+            .unwrap();
+        broker
+            .declare_queue(BrokerQueue::new("order-queue"))
+            .unwrap();
+        broker
+            .bind("orders", "order-queue", "order.created")
+            .unwrap();
         broker
     }
 
@@ -637,7 +638,9 @@ mod tests {
     #[test]
     fn test_fanout_exchange() {
         let mut broker = MessageBroker::new();
-        broker.declare_exchange("events", ExchangeType::Fanout).unwrap();
+        broker
+            .declare_exchange("events", ExchangeType::Fanout)
+            .unwrap();
         broker.declare_queue(BrokerQueue::new("q1")).unwrap();
         broker.declare_queue(BrokerQueue::new("q2")).unwrap();
         broker.bind("events", "q1", "").unwrap();
@@ -649,9 +652,13 @@ mod tests {
     #[test]
     fn test_topic_exchange() {
         let mut broker = MessageBroker::new();
-        broker.declare_exchange("logs", ExchangeType::Topic).unwrap();
+        broker
+            .declare_exchange("logs", ExchangeType::Topic)
+            .unwrap();
         broker.declare_queue(BrokerQueue::new("all-logs")).unwrap();
-        broker.declare_queue(BrokerQueue::new("error-logs")).unwrap();
+        broker
+            .declare_queue(BrokerQueue::new("error-logs"))
+            .unwrap();
         broker.bind("logs", "all-logs", "#").unwrap();
         broker.bind("logs", "error-logs", "*.error").unwrap();
         let q1 = broker.publish("logs", "app.error", "err").unwrap();
@@ -678,12 +685,8 @@ mod tests {
         broker
             .register_consumer(Consumer::new("c1", "order-queue", 1))
             .unwrap();
-        broker
-            .publish("orders", "order.created", "p1")
-            .unwrap();
-        broker
-            .publish("orders", "order.created", "p2")
-            .unwrap();
+        broker.publish("orders", "order.created", "p1").unwrap();
+        broker.publish("orders", "order.created", "p2").unwrap();
         broker.consume("c1").unwrap(); // takes one
         assert!(matches!(
             broker.consume("c1"),
@@ -697,9 +700,7 @@ mod tests {
         broker
             .register_consumer(Consumer::new("c1", "order-queue", 10))
             .unwrap();
-        broker
-            .publish("orders", "order.created", "data")
-            .unwrap();
+        broker.publish("orders", "order.created", "data").unwrap();
         let msg = broker.consume("c1").unwrap().unwrap();
         broker.acknowledge("c1", &msg.id).unwrap();
         assert!(broker.get_consumer("c1").unwrap().unacked.is_empty());
@@ -711,9 +712,7 @@ mod tests {
         broker
             .register_consumer(Consumer::new("c1", "order-queue", 10))
             .unwrap();
-        broker
-            .publish("orders", "order.created", "data")
-            .unwrap();
+        broker.publish("orders", "order.created", "data").unwrap();
         let msg = broker.consume("c1").unwrap().unwrap();
         let msg_id = msg.id.clone();
         let requeued = broker.nack("c1", &msg_id, msg).unwrap();
@@ -724,8 +723,12 @@ mod tests {
     #[test]
     fn test_dead_letter_routing() {
         let mut broker = MessageBroker::new();
-        broker.declare_exchange("main", ExchangeType::Direct).unwrap();
-        broker.declare_exchange("dlx", ExchangeType::Direct).unwrap();
+        broker
+            .declare_exchange("main", ExchangeType::Direct)
+            .unwrap();
+        broker
+            .declare_exchange("dlx", ExchangeType::Direct)
+            .unwrap();
         broker
             .declare_queue(
                 BrokerQueue::new("work")
@@ -733,7 +736,9 @@ mod tests {
                     .with_max_delivery_attempts(1),
             )
             .unwrap();
-        broker.declare_queue(BrokerQueue::new("dead-letters")).unwrap();
+        broker
+            .declare_queue(BrokerQueue::new("dead-letters"))
+            .unwrap();
         broker.bind("main", "work", "job").unwrap();
         broker.bind("dlx", "dead-letters", "dead").unwrap();
         broker
@@ -794,9 +799,7 @@ mod tests {
     fn test_unbind() {
         let mut broker = setup_direct();
         broker.unbind("orders", "order-queue").unwrap();
-        let queues = broker
-            .publish("orders", "order.created", "data")
-            .unwrap();
+        let queues = broker.publish("orders", "order.created", "data").unwrap();
         assert!(queues.is_empty());
     }
 

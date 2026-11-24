@@ -51,13 +51,33 @@ impl MarkovChain {
     pub fn build_diatonic_defaults(&mut self) {
         // Common melodic movements
         let moves: &[(u8, u8, f64)] = &[
-            (1, 2, 3.0), (1, 3, 2.0), (1, 5, 2.0), (1, 7, 1.0),
-            (2, 1, 2.0), (2, 3, 3.0), (2, 4, 1.0), (2, 5, 1.0),
-            (3, 2, 2.0), (3, 4, 3.0), (3, 1, 2.0), (3, 5, 1.0),
-            (4, 3, 2.0), (4, 5, 3.0), (4, 2, 1.0), (4, 6, 1.0),
-            (5, 4, 2.0), (5, 6, 2.0), (5, 1, 3.0), (5, 3, 1.0),
-            (6, 5, 2.0), (6, 7, 2.0), (6, 4, 1.0), (6, 1, 1.0),
-            (7, 1, 4.0), (7, 6, 1.0), (7, 5, 1.0),
+            (1, 2, 3.0),
+            (1, 3, 2.0),
+            (1, 5, 2.0),
+            (1, 7, 1.0),
+            (2, 1, 2.0),
+            (2, 3, 3.0),
+            (2, 4, 1.0),
+            (2, 5, 1.0),
+            (3, 2, 2.0),
+            (3, 4, 3.0),
+            (3, 1, 2.0),
+            (3, 5, 1.0),
+            (4, 3, 2.0),
+            (4, 5, 3.0),
+            (4, 2, 1.0),
+            (4, 6, 1.0),
+            (5, 4, 2.0),
+            (5, 6, 2.0),
+            (5, 1, 3.0),
+            (5, 3, 1.0),
+            (6, 5, 2.0),
+            (6, 7, 2.0),
+            (6, 4, 1.0),
+            (6, 1, 1.0),
+            (7, 1, 4.0),
+            (7, 6, 1.0),
+            (7, 5, 1.0),
         ];
         for &(from, to, w) in moves {
             self.add_transition(from, to, w);
@@ -84,7 +104,9 @@ impl MarkovChain {
         };
 
         let total: f64 = transitions.iter().map(|(_, w)| w).sum();
-        if total < 1e-12 { return current; }
+        if total < 1e-12 {
+            return current;
+        }
 
         let r = self.next_random() * total;
         let mut cumulative = 0.0;
@@ -108,7 +130,10 @@ pub fn degrees_to_midi(degrees: &[u8], root: u8, octave: u8, scale_intervals: &[
             }
             let idx = ((deg - 1) as usize) % scale_intervals.len();
             let extra_oct = ((deg - 1) as usize) / scale_intervals.len();
-            let midi = (octave as u16 + 1) * 12 + root as u16 + scale_intervals[idx] as u16 + extra_oct as u16 * 12;
+            let midi = (octave as u16 + 1) * 12
+                + root as u16
+                + scale_intervals[idx] as u16
+                + extra_oct as u16 * 12;
             midi.min(127) as u8
         })
         .collect()
@@ -186,7 +211,9 @@ pub fn euclidean_rhythm(onsets: usize, steps: usize) -> Vec<bool> {
 
 /// Rotate a rhythm pattern by N steps.
 pub fn rotate_rhythm(pattern: &[bool], rotation: usize) -> Vec<bool> {
-    if pattern.is_empty() { return Vec::new(); }
+    if pattern.is_empty() {
+        return Vec::new();
+    }
     let r = rotation % pattern.len();
     let mut rotated = pattern[r..].to_vec();
     rotated.extend_from_slice(&pattern[..r]);
@@ -323,14 +350,18 @@ pub fn generate_accompaniment(
 /// Energy level for procedural music.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EnergyState {
-    pub intensity: f64,  // 0.0 (calm) to 1.0 (maximum)
-    pub tension: f64,    // 0.0 (resolved) to 1.0 (maximum dissonance)
-    pub density: f64,    // 0.0 (sparse) to 1.0 (dense)
+    pub intensity: f64, // 0.0 (calm) to 1.0 (maximum)
+    pub tension: f64,   // 0.0 (resolved) to 1.0 (maximum dissonance)
+    pub density: f64,   // 0.0 (sparse) to 1.0 (dense)
 }
 
 impl Default for EnergyState {
     fn default() -> Self {
-        Self { intensity: 0.5, tension: 0.3, density: 0.5 }
+        Self {
+            intensity: 0.5,
+            tension: 0.3,
+            density: 0.5,
+        }
     }
 }
 
@@ -339,9 +370,9 @@ impl Default for EnergyState {
 pub struct MusicParams {
     pub tempo_bpm: f64,
     pub velocity: u8,
-    pub note_density: f64,  // fraction of steps with notes
+    pub note_density: f64, // fraction of steps with notes
     pub octave_range: u8,
-    pub consonance: f64,    // 0=dissonant, 1=consonant
+    pub consonance: f64, // 0=dissonant, 1=consonant
 }
 
 /// Map an energy state to music parameters.
@@ -386,35 +417,107 @@ pub struct Section {
 /// Generate a standard song structure.
 pub fn standard_structure() -> Vec<Section> {
     vec![
-        Section { section_type: SectionType::Intro, bars: 4, energy: EnergyState { intensity: 0.3, tension: 0.2, density: 0.3 } },
-        Section { section_type: SectionType::Verse, bars: 8, energy: EnergyState { intensity: 0.5, tension: 0.3, density: 0.5 } },
-        Section { section_type: SectionType::Chorus, bars: 8, energy: EnergyState { intensity: 0.8, tension: 0.4, density: 0.7 } },
-        Section { section_type: SectionType::Verse, bars: 8, energy: EnergyState { intensity: 0.5, tension: 0.3, density: 0.5 } },
-        Section { section_type: SectionType::Chorus, bars: 8, energy: EnergyState { intensity: 0.9, tension: 0.5, density: 0.8 } },
-        Section { section_type: SectionType::Bridge, bars: 4, energy: EnergyState { intensity: 0.6, tension: 0.6, density: 0.4 } },
-        Section { section_type: SectionType::Chorus, bars: 8, energy: EnergyState { intensity: 1.0, tension: 0.4, density: 0.9 } },
-        Section { section_type: SectionType::Outro, bars: 4, energy: EnergyState { intensity: 0.2, tension: 0.1, density: 0.2 } },
+        Section {
+            section_type: SectionType::Intro,
+            bars: 4,
+            energy: EnergyState {
+                intensity: 0.3,
+                tension: 0.2,
+                density: 0.3,
+            },
+        },
+        Section {
+            section_type: SectionType::Verse,
+            bars: 8,
+            energy: EnergyState {
+                intensity: 0.5,
+                tension: 0.3,
+                density: 0.5,
+            },
+        },
+        Section {
+            section_type: SectionType::Chorus,
+            bars: 8,
+            energy: EnergyState {
+                intensity: 0.8,
+                tension: 0.4,
+                density: 0.7,
+            },
+        },
+        Section {
+            section_type: SectionType::Verse,
+            bars: 8,
+            energy: EnergyState {
+                intensity: 0.5,
+                tension: 0.3,
+                density: 0.5,
+            },
+        },
+        Section {
+            section_type: SectionType::Chorus,
+            bars: 8,
+            energy: EnergyState {
+                intensity: 0.9,
+                tension: 0.5,
+                density: 0.8,
+            },
+        },
+        Section {
+            section_type: SectionType::Bridge,
+            bars: 4,
+            energy: EnergyState {
+                intensity: 0.6,
+                tension: 0.6,
+                density: 0.4,
+            },
+        },
+        Section {
+            section_type: SectionType::Chorus,
+            bars: 8,
+            energy: EnergyState {
+                intensity: 1.0,
+                tension: 0.4,
+                density: 0.9,
+            },
+        },
+        Section {
+            section_type: SectionType::Outro,
+            bars: 4,
+            energy: EnergyState {
+                intensity: 0.2,
+                tension: 0.1,
+                density: 0.2,
+            },
+        },
     ]
 }
 
 /// Generate a game-oriented adaptive structure.
 pub fn adaptive_structure(energy_curve: &[f64]) -> Vec<Section> {
-    energy_curve.iter().enumerate().map(|(i, &e)| {
-        let st = if e < 0.2 {
-            SectionType::Breakdown
-        } else if e < 0.4 {
-            SectionType::Verse
-        } else if e < 0.7 {
-            SectionType::Chorus
-        } else {
-            SectionType::Buildup
-        };
-        Section {
-            section_type: st,
-            bars: 4,
-            energy: EnergyState { intensity: e, tension: e * 0.5, density: e * 0.8 },
-        }
-    }).collect()
+    energy_curve
+        .iter()
+        .enumerate()
+        .map(|(i, &e)| {
+            let st = if e < 0.2 {
+                SectionType::Breakdown
+            } else if e < 0.4 {
+                SectionType::Verse
+            } else if e < 0.7 {
+                SectionType::Chorus
+            } else {
+                SectionType::Buildup
+            };
+            Section {
+                section_type: st,
+                bars: 4,
+                energy: EnergyState {
+                    intensity: e,
+                    tension: e * 0.5,
+                    density: e * 0.8,
+                },
+            }
+        })
+        .collect()
 }
 
 // ── Drum Pattern Generator ───────────────────────────────────────
@@ -457,7 +560,10 @@ pub struct DrumPattern {
 
 impl DrumPattern {
     pub fn new(steps: u8) -> Self {
-        Self { steps, parts: Vec::new() }
+        Self {
+            steps,
+            parts: Vec::new(),
+        }
     }
 
     pub fn add_part(&mut self, part: DrumPart, pattern: Vec<bool>) {
@@ -470,28 +576,45 @@ impl DrumPattern {
     pub fn basic_rock() -> Self {
         let mut dp = DrumPattern::new(16);
         // Kick on 1 and 9 (beats 1 and 3)
-        dp.add_part(DrumPart::Kick, vec![
-            true, false, false, false, false, false, false, false,
-            true, false, false, false, false, false, false, false,
-        ]);
+        dp.add_part(
+            DrumPart::Kick,
+            vec![
+                true, false, false, false, false, false, false, false, true, false, false, false,
+                false, false, false, false,
+            ],
+        );
         // Snare on 5 and 13 (beats 2 and 4)
-        dp.add_part(DrumPart::Snare, vec![
-            false, false, false, false, true, false, false, false,
-            false, false, false, false, true, false, false, false,
-        ]);
+        dp.add_part(
+            DrumPart::Snare,
+            vec![
+                false, false, false, false, true, false, false, false, false, false, false, false,
+                true, false, false, false,
+            ],
+        );
         // Hi-hat on every even step
-        dp.add_part(DrumPart::ClosedHat, vec![
-            true, false, true, false, true, false, true, false,
-            true, false, true, false, true, false, true, false,
-        ]);
+        dp.add_part(
+            DrumPart::ClosedHat,
+            vec![
+                true, false, true, false, true, false, true, false, true, false, true, false, true,
+                false, true, false,
+            ],
+        );
         dp
     }
 
     /// Generate from Euclidean rhythms.
-    pub fn euclidean(kick_onsets: usize, snare_onsets: usize, hat_onsets: usize, steps: usize) -> Self {
+    pub fn euclidean(
+        kick_onsets: usize,
+        snare_onsets: usize,
+        hat_onsets: usize,
+        steps: usize,
+    ) -> Self {
         let mut dp = DrumPattern::new(steps as u8);
         dp.add_part(DrumPart::Kick, euclidean_rhythm(kick_onsets, steps));
-        dp.add_part(DrumPart::Snare, rotate_rhythm(&euclidean_rhythm(snare_onsets, steps), steps / 4));
+        dp.add_part(
+            DrumPart::Snare,
+            rotate_rhythm(&euclidean_rhythm(snare_onsets, steps), steps / 4),
+        );
         dp.add_part(DrumPart::ClosedHat, euclidean_rhythm(hat_onsets, steps));
         dp
     }
@@ -525,7 +648,7 @@ pub fn drum_pattern_for_energy(energy: f64, steps: usize) -> DrumPattern {
 #[derive(Debug, Clone, PartialEq)]
 pub struct MixLevel {
     pub name: String,
-    pub volume: f64,   // 0.0 to 1.0
+    pub volume: f64, // 0.0 to 1.0
     pub active: bool,
 }
 
@@ -641,7 +764,7 @@ mod tests {
         let line = bass_line_from_chords(&roots, 4, 2, &rhythm);
         assert_eq!(line.len(), 16);
         assert_eq!(line[0], Some(36)); // C2
-        assert_eq!(line[1], None);     // rest
+        assert_eq!(line[1], None); // rest
     }
 
     #[test]
@@ -683,13 +806,21 @@ mod tests {
 
     #[test]
     fn test_energy_to_params() {
-        let calm = EnergyState { intensity: 0.0, tension: 0.0, density: 0.0 };
+        let calm = EnergyState {
+            intensity: 0.0,
+            tension: 0.0,
+            density: 0.0,
+        };
         let p = energy_to_params(&calm);
         assert!((p.tempo_bpm - 80.0).abs() < 1e-6);
         assert!(p.velocity <= 70);
         assert!((p.consonance - 1.0).abs() < 1e-6);
 
-        let intense = EnergyState { intensity: 1.0, tension: 1.0, density: 1.0 };
+        let intense = EnergyState {
+            intensity: 1.0,
+            tension: 1.0,
+            density: 1.0,
+        };
         let p2 = energy_to_params(&intense);
         assert!((p2.tempo_bpm - 160.0).abs() < 1e-6);
         assert!(p2.velocity >= 120);
@@ -709,7 +840,7 @@ mod tests {
         let structure = adaptive_structure(&curve);
         assert_eq!(structure.len(), 7);
         assert_eq!(structure[0].section_type, SectionType::Breakdown); // low energy
-        assert_eq!(structure[3].section_type, SectionType::Buildup);   // high energy
+        assert_eq!(structure[3].section_type, SectionType::Buildup); // high energy
     }
 
     #[test]
@@ -737,7 +868,11 @@ mod tests {
 
     #[test]
     fn test_energy_mix() {
-        let energy = EnergyState { intensity: 0.8, tension: 0.5, density: 0.7 };
+        let energy = EnergyState {
+            intensity: 0.8,
+            tension: 0.5,
+            density: 0.7,
+        };
         let mix = energy_mix(&energy);
         assert_eq!(mix.len(), 5);
         assert!(mix[0].active); // drums active at high energy
@@ -745,7 +880,11 @@ mod tests {
 
     #[test]
     fn test_energy_mix_low() {
-        let energy = EnergyState { intensity: 0.05, tension: 0.1, density: 0.1 };
+        let energy = EnergyState {
+            intensity: 0.05,
+            tension: 0.1,
+            density: 0.1,
+        };
         let mix = energy_mix(&energy);
         assert!(!mix[0].active); // drums inactive at very low energy
     }

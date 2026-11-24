@@ -16,7 +16,7 @@ use std::f64::consts::PI;
 pub struct SurfaceData {
     pub x: Vec<f64>,
     pub y: Vec<f64>,
-    pub z: Vec<Vec<f64>>,   // z[iy][ix]
+    pub z: Vec<Vec<f64>>, // z[iy][ix]
 }
 
 impl SurfaceData {
@@ -28,9 +28,16 @@ impl SurfaceData {
         ny: usize,
         f: impl Fn(f64, f64) -> f64,
     ) -> Self {
-        let x: Vec<f64> = (0..nx).map(|i| x_range.0 + (x_range.1 - x_range.0) * i as f64 / (nx - 1) as f64).collect();
-        let y: Vec<f64> = (0..ny).map(|j| y_range.0 + (y_range.1 - y_range.0) * j as f64 / (ny - 1) as f64).collect();
-        let z: Vec<Vec<f64>> = y.iter().map(|&yv| x.iter().map(|&xv| f(xv, yv)).collect()).collect();
+        let x: Vec<f64> = (0..nx)
+            .map(|i| x_range.0 + (x_range.1 - x_range.0) * i as f64 / (nx - 1) as f64)
+            .collect();
+        let y: Vec<f64> = (0..ny)
+            .map(|j| y_range.0 + (y_range.1 - y_range.0) * j as f64 / (ny - 1) as f64)
+            .collect();
+        let z: Vec<Vec<f64>> = y
+            .iter()
+            .map(|&yv| x.iter().map(|&xv| f(xv, yv)).collect())
+            .collect();
         Self { x, y, z }
     }
 
@@ -39,8 +46,12 @@ impl SurfaceData {
         let mut max = f64::NEG_INFINITY;
         for row in &self.z {
             for &v in row {
-                if v < min { min = v; }
-                if v > max { max = v; }
+                if v < min {
+                    min = v;
+                }
+                if v > max {
+                    max = v;
+                }
             }
         }
         (min, max)
@@ -58,9 +69,9 @@ pub struct ContourLevel {
 /// 3D projection parameters.
 #[derive(Debug, Clone)]
 pub struct View3D {
-    pub azimuth: f64,      // degrees, rotation around Z
-    pub elevation: f64,    // degrees, tilt from XY plane
-    pub distance: f64,     // camera distance
+    pub azimuth: f64,   // degrees, rotation around Z
+    pub elevation: f64, // degrees, tilt from XY plane
+    pub distance: f64,  // camera distance
     pub width: f64,
     pub height: f64,
 }
@@ -153,7 +164,9 @@ impl Colormap {
 
     /// Generate N evenly spaced colors from this colormap.
     pub fn palette(&self, n: usize) -> Vec<String> {
-        (0..n).map(|i| self.color(i as f64 / (n.max(1) - 1).max(1) as f64)).collect()
+        (0..n)
+            .map(|i| self.color(i as f64 / (n.max(1) - 1).max(1) as f64))
+            .collect()
     }
 }
 
@@ -210,15 +223,19 @@ pub fn surface_svg(data: &SurfaceData, config: &SurfaceConfig) -> String {
             ];
 
             // Normalize to [-1, 1]
-            let norm_corners: Vec<(f64, f64, f64)> = corners.iter().map(|&(cx, cy, cz)| {
-                let nx = (cx - x_min) / x_range * 2.0 - 1.0;
-                let ny = (cy - y_min) / y_range * 2.0 - 1.0;
-                let nz = (cz - z_min) / z_range * 2.0 - 1.0;
-                (nx, ny, nz)
-            }).collect();
+            let norm_corners: Vec<(f64, f64, f64)> = corners
+                .iter()
+                .map(|&(cx, cy, cz)| {
+                    let nx = (cx - x_min) / x_range * 2.0 - 1.0;
+                    let ny = (cy - y_min) / y_range * 2.0 - 1.0;
+                    let nz = (cz - z_min) / z_range * 2.0 - 1.0;
+                    (nx, ny, nz)
+                })
+                .collect();
 
             // Project to screen
-            let projected: Vec<(f64, f64, f64)> = norm_corners.iter()
+            let projected: Vec<(f64, f64, f64)> = norm_corners
+                .iter()
                 .map(|&(nx, ny, nz)| project(nx, ny, nz, &config.view))
                 .collect();
 
@@ -227,21 +244,28 @@ pub fn surface_svg(data: &SurfaceData, config: &SurfaceConfig) -> String {
             let t = (avg_z - z_min) / z_range;
             let fill = config.colormap.color(t);
 
-            let points: String = projected.iter()
+            let points: String = projected
+                .iter()
                 .map(|(sx, sy, _)| format!("{:.1},{:.1}", sx, sy))
                 .collect::<Vec<_>>()
                 .join(" ");
 
             let wireframe = if config.show_wireframe {
-                format!(" stroke=\"{}\" stroke-width=\"0.5\"", config.wireframe_color)
+                format!(
+                    " stroke=\"{}\" stroke-width=\"0.5\"",
+                    config.wireframe_color
+                )
             } else {
                 String::new()
             };
 
-            quads.push((avg_depth, format!(
-                "<polygon points=\"{points}\" fill=\"{fill}\" opacity=\"{:.2}\"{wireframe}/>",
-                config.opacity
-            )));
+            quads.push((
+                avg_depth,
+                format!(
+                    "<polygon points=\"{points}\" fill=\"{fill}\" opacity=\"{:.2}\"{wireframe}/>",
+                    config.opacity
+                ),
+            ));
         }
     }
 
@@ -268,8 +292,13 @@ pub fn surface_svg(data: &SurfaceData, config: &SurfaceConfig) -> String {
     // Colorbar
     if config.show_colorbar {
         svg.push_str(&colorbar_svg(
-            config.view.width - 60.0, 40.0, 20.0, config.view.height - 80.0,
-            z_min, z_max, &config.colormap,
+            config.view.width - 60.0,
+            40.0,
+            20.0,
+            config.view.height - 80.0,
+            z_min,
+            z_max,
+            &config.colormap,
         ));
     }
 
@@ -280,18 +309,24 @@ pub fn surface_svg(data: &SurfaceData, config: &SurfaceConfig) -> String {
 // ── Contour rendering ──────────────────────────────────────────────
 
 /// Generate contour levels automatically.
-pub fn auto_contour_levels(data: &SurfaceData, n_levels: usize, colormap: &Colormap) -> Vec<ContourLevel> {
+pub fn auto_contour_levels(
+    data: &SurfaceData,
+    n_levels: usize,
+    colormap: &Colormap,
+) -> Vec<ContourLevel> {
     let (z_min, z_max) = data.z_range();
     let z_range = z_max - z_min;
-    (0..n_levels).map(|i| {
-        let t = i as f64 / (n_levels - 1).max(1) as f64;
-        let value = z_min + t * z_range;
-        ContourLevel {
-            value,
-            color: colormap.color(t),
-            label: Some(format!("{:.2}", value)),
-        }
-    }).collect()
+    (0..n_levels)
+        .map(|i| {
+            let t = i as f64 / (n_levels - 1).max(1) as f64;
+            let value = z_min + t * z_range;
+            ContourLevel {
+                value,
+                color: colormap.color(t),
+                label: Some(format!("{:.2}", value)),
+            }
+        })
+        .collect()
 }
 
 /// Render a contour plot to SVG using marching squares.
@@ -308,10 +343,11 @@ pub fn contour_svg(
     let plot_w = width - 2.0 * padding;
     let plot_h = height - 2.0 * padding;
 
-    let mut svg = format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\">"
-    );
-    svg.push_str(&format!("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>"));
+    let mut svg =
+        format!("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\">");
+    svg.push_str(&format!(
+        "<rect width=\"100%\" height=\"100%\" fill=\"white\"/>"
+    ));
 
     if let Some(t) = title {
         svg.push_str(&format!(
@@ -339,11 +375,17 @@ pub fn contour_svg(
                     | (((z11 >= threshold) as u8) << 2)
                     | (((z01 >= threshold) as u8) << 3);
 
-                if case == 0 || case == 15 { continue; }
+                if case == 0 || case == 15 {
+                    continue;
+                }
 
                 // Interpolate edge crossings
                 let lerp = |a: f64, b: f64| -> f64 {
-                    if (b - a).abs() < 1e-15 { 0.5 } else { (threshold - a) / (b - a) }
+                    if (b - a).abs() < 1e-15 {
+                        0.5
+                    } else {
+                        (threshold - a) / (b - a)
+                    }
                 };
 
                 let x0 = padding + ix as f64 / (nx - 1) as f64 * plot_w;
@@ -391,7 +433,12 @@ pub fn contour_svg(
 // ── Wireframe rendering ────────────────────────────────────────────
 
 /// Render a 3D wireframe (mesh) plot to SVG.
-pub fn wireframe_svg(data: &SurfaceData, view: &View3D, color: &str, title: Option<&str>) -> String {
+pub fn wireframe_svg(
+    data: &SurfaceData,
+    view: &View3D,
+    color: &str,
+    title: Option<&str>,
+) -> String {
     let (z_min, z_max) = data.z_range();
     let z_range = (z_max - z_min).max(1e-10);
     let nx = data.x.len();
@@ -430,7 +477,9 @@ pub fn wireframe_svg(data: &SurfaceData, view: &View3D, color: &str, title: Opti
                 path.push_str(&format!(" L{sx:.1},{sy:.1}"));
             }
         }
-        svg.push_str(&format!("<path d=\"{path}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"0.8\"/>"));
+        svg.push_str(&format!(
+            "<path d=\"{path}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"0.8\"/>"
+        ));
     }
 
     // Draw grid lines in Y direction
@@ -447,7 +496,9 @@ pub fn wireframe_svg(data: &SurfaceData, view: &View3D, color: &str, title: Opti
                 path.push_str(&format!(" L{sx:.1},{sy:.1}"));
             }
         }
-        svg.push_str(&format!("<path d=\"{path}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"0.8\"/>"));
+        svg.push_str(&format!(
+            "<path d=\"{path}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"0.8\"/>"
+        ));
     }
 
     svg.push_str("</svg>");
@@ -483,7 +534,9 @@ fn colorbar_svg(x: f64, y: f64, w: f64, h: f64, min: f64, max: f64, cmap: &Color
         let ly = y + t * h;
         svg.push_str(&format!(
             "<text x=\"{}\" y=\"{:.1}\" font-size=\"9\" dominant-baseline=\"middle\">{:.2}</text>",
-            x + w + 4.0, ly, val
+            x + w + 4.0,
+            ly,
+            val
         ));
     }
 
@@ -500,8 +553,15 @@ fn lerp_color(t: f64, c0: (u8, u8, u8), c1: (u8, u8, u8)) -> String {
 }
 
 fn lerp3(t: f64, stops: &[(f64, (u8, u8, u8))]) -> String {
-    if stops.is_empty() { return "#000000".to_string(); }
-    if t <= stops[0].0 { return format!("#{:02x}{:02x}{:02x}", stops[0].1.0, stops[0].1.1, stops[0].1.2); }
+    if stops.is_empty() {
+        return "#000000".to_string();
+    }
+    if t <= stops[0].0 {
+        return format!(
+            "#{:02x}{:02x}{:02x}",
+            stops[0].1.0, stops[0].1.1, stops[0].1.2
+        );
+    }
     for i in 1..stops.len() {
         if t <= stops[i].0 {
             let frac = (t - stops[i - 1].0) / (stops[i].0 - stops[i - 1].0);
@@ -513,57 +573,115 @@ fn lerp3(t: f64, stops: &[(f64, (u8, u8, u8))]) -> String {
 }
 
 fn viridis(t: f64) -> String {
-    lerp3(t, &[
-        (0.00, (68, 1, 84)), (0.13, (72, 35, 116)), (0.25, (64, 67, 135)),
-        (0.38, (52, 94, 141)), (0.50, (33, 144, 140)), (0.63, (53, 183, 121)),
-        (0.75, (109, 205, 89)), (0.88, (180, 222, 44)), (1.00, (253, 231, 37)),
-    ])
+    lerp3(
+        t,
+        &[
+            (0.00, (68, 1, 84)),
+            (0.13, (72, 35, 116)),
+            (0.25, (64, 67, 135)),
+            (0.38, (52, 94, 141)),
+            (0.50, (33, 144, 140)),
+            (0.63, (53, 183, 121)),
+            (0.75, (109, 205, 89)),
+            (0.88, (180, 222, 44)),
+            (1.00, (253, 231, 37)),
+        ],
+    )
 }
 
 fn plasma(t: f64) -> String {
-    lerp3(t, &[
-        (0.00, (13, 8, 135)), (0.13, (75, 3, 161)), (0.25, (125, 3, 168)),
-        (0.38, (168, 34, 150)), (0.50, (203, 70, 121)), (0.63, (229, 107, 93)),
-        (0.75, (248, 148, 65)), (0.88, (253, 195, 40)), (1.00, (240, 249, 33)),
-    ])
+    lerp3(
+        t,
+        &[
+            (0.00, (13, 8, 135)),
+            (0.13, (75, 3, 161)),
+            (0.25, (125, 3, 168)),
+            (0.38, (168, 34, 150)),
+            (0.50, (203, 70, 121)),
+            (0.63, (229, 107, 93)),
+            (0.75, (248, 148, 65)),
+            (0.88, (253, 195, 40)),
+            (1.00, (240, 249, 33)),
+        ],
+    )
 }
 
 fn inferno(t: f64) -> String {
-    lerp3(t, &[
-        (0.00, (0, 0, 4)), (0.13, (22, 11, 57)), (0.25, (66, 10, 104)),
-        (0.38, (106, 23, 110)), (0.50, (147, 38, 103)), (0.63, (188, 55, 84)),
-        (0.75, (221, 81, 58)), (0.88, (243, 131, 29)), (1.00, (252, 255, 164)),
-    ])
+    lerp3(
+        t,
+        &[
+            (0.00, (0, 0, 4)),
+            (0.13, (22, 11, 57)),
+            (0.25, (66, 10, 104)),
+            (0.38, (106, 23, 110)),
+            (0.50, (147, 38, 103)),
+            (0.63, (188, 55, 84)),
+            (0.75, (221, 81, 58)),
+            (0.88, (243, 131, 29)),
+            (1.00, (252, 255, 164)),
+        ],
+    )
 }
 
 fn magma(t: f64) -> String {
-    lerp3(t, &[
-        (0.00, (0, 0, 4)), (0.13, (18, 13, 50)), (0.25, (51, 16, 104)),
-        (0.38, (89, 26, 130)), (0.50, (131, 37, 142)), (0.63, (173, 49, 144)),
-        (0.75, (214, 72, 131)), (0.88, (244, 136, 128)), (1.00, (252, 253, 191)),
-    ])
+    lerp3(
+        t,
+        &[
+            (0.00, (0, 0, 4)),
+            (0.13, (18, 13, 50)),
+            (0.25, (51, 16, 104)),
+            (0.38, (89, 26, 130)),
+            (0.50, (131, 37, 142)),
+            (0.63, (173, 49, 144)),
+            (0.75, (214, 72, 131)),
+            (0.88, (244, 136, 128)),
+            (1.00, (252, 253, 191)),
+        ],
+    )
 }
 
 fn cividis(t: f64) -> String {
-    lerp3(t, &[
-        (0.00, (0, 32, 76)), (0.25, (57, 77, 107)), (0.50, (127, 127, 127)),
-        (0.75, (186, 174, 87)), (1.00, (253, 231, 37)),
-    ])
+    lerp3(
+        t,
+        &[
+            (0.00, (0, 32, 76)),
+            (0.25, (57, 77, 107)),
+            (0.50, (127, 127, 127)),
+            (0.75, (186, 174, 87)),
+            (1.00, (253, 231, 37)),
+        ],
+    )
 }
 
 fn turbo(t: f64) -> String {
-    lerp3(t, &[
-        (0.00, (48, 18, 59)), (0.10, (67, 84, 190)), (0.20, (45, 152, 218)),
-        (0.30, (32, 207, 162)), (0.40, (87, 238, 96)), (0.50, (167, 252, 39)),
-        (0.60, (225, 234, 25)), (0.70, (254, 188, 43)), (0.80, (247, 127, 42)),
-        (0.90, (209, 56, 21)), (1.00, (122, 4, 3)),
-    ])
+    lerp3(
+        t,
+        &[
+            (0.00, (48, 18, 59)),
+            (0.10, (67, 84, 190)),
+            (0.20, (45, 152, 218)),
+            (0.30, (32, 207, 162)),
+            (0.40, (87, 238, 96)),
+            (0.50, (167, 252, 39)),
+            (0.60, (225, 234, 25)),
+            (0.70, (254, 188, 43)),
+            (0.80, (247, 127, 42)),
+            (0.90, (209, 56, 21)),
+            (1.00, (122, 4, 3)),
+        ],
+    )
 }
 
 fn hot(t: f64) -> String {
-    lerp3(t, &[
-        (0.00, (10, 0, 0)), (0.33, (255, 0, 0)), (0.67, (255, 255, 0)), (1.00, (255, 255, 255)),
-    ])
+    lerp3(
+        t,
+        &[
+            (0.00, (10, 0, 0)),
+            (0.33, (255, 0, 0)),
+            (0.67, (255, 255, 0)),
+            (1.00, (255, 255, 255)),
+        ],
+    )
 }
 
 fn cool(t: f64) -> String {
@@ -573,11 +691,18 @@ fn cool(t: f64) -> String {
 }
 
 fn jet(t: f64) -> String {
-    lerp3(t, &[
-        (0.00, (0, 0, 127)), (0.11, (0, 0, 255)), (0.35, (0, 255, 255)),
-        (0.50, (0, 255, 0)), (0.65, (255, 255, 0)), (0.89, (255, 0, 0)),
-        (1.00, (127, 0, 0)),
-    ])
+    lerp3(
+        t,
+        &[
+            (0.00, (0, 0, 127)),
+            (0.11, (0, 0, 255)),
+            (0.35, (0, 255, 255)),
+            (0.50, (0, 255, 0)),
+            (0.65, (255, 255, 0)),
+            (0.89, (255, 0, 0)),
+            (1.00, (127, 0, 0)),
+        ],
+    )
 }
 
 #[cfg(test)]
@@ -624,9 +749,20 @@ mod tests {
 
     #[test]
     fn colormaps_produce_valid_hex() {
-        for cmap in &[Colormap::Viridis, Colormap::Plasma, Colormap::Inferno, Colormap::Magma,
-                      Colormap::Cividis, Colormap::Turbo, Colormap::Hot, Colormap::Cool,
-                      Colormap::Jet, Colormap::Grayscale, Colormap::BlueRed, Colormap::GreenYellow] {
+        for cmap in &[
+            Colormap::Viridis,
+            Colormap::Plasma,
+            Colormap::Inferno,
+            Colormap::Magma,
+            Colormap::Cividis,
+            Colormap::Turbo,
+            Colormap::Hot,
+            Colormap::Cool,
+            Colormap::Jet,
+            Colormap::Grayscale,
+            Colormap::BlueRed,
+            Colormap::GreenYellow,
+        ] {
             for i in 0..=10 {
                 let c = cmap.color(i as f64 / 10.0);
                 assert!(c.starts_with('#'), "colormap {:?} at {}: {}", cmap, i, c);

@@ -11,18 +11,34 @@ use super::holo::HoloEngine;
 use super::receipt::{AiReceipt, EnergyProvenance};
 use super::tier::InferenceTier;
 use super::traits::{
-    AiError, AiMessage, AiTool, EmbeddedInference, Entity, FrontierInference,
-    HolographicInference, LocalInference, ReasoningResult, Sentiment, SentimentLabel,
+    AiError, AiMessage, AiTool, EmbeddedInference, Entity, FrontierInference, HolographicInference,
+    LocalInference, ReasoningResult, Sentiment, SentimentLabel,
 };
 use crate::knowledge::{Materializer, Source};
 use joule_db_hdc::BinaryHV;
 
 const POSITIVE: &[&str] = &[
-    "good", "great", "excellent", "happy", "love", "wonderful", "best", "amazing", "pleasant",
+    "good",
+    "great",
+    "excellent",
+    "happy",
+    "love",
+    "wonderful",
+    "best",
+    "amazing",
+    "pleasant",
     "joy",
 ];
 const NEGATIVE: &[&str] = &[
-    "bad", "terrible", "awful", "hate", "worst", "horrible", "poor", "sad", "angry",
+    "bad",
+    "terrible",
+    "awful",
+    "hate",
+    "worst",
+    "horrible",
+    "poor",
+    "sad",
+    "angry",
     "disappointing",
 ];
 
@@ -168,7 +184,9 @@ impl EmbeddedInference for HdcEmbedded {
         let mut entities = Vec::new();
         let raw_tokens = tokenize_spans(text);
         let person = self.holo.encode_text("person human individual named");
-        let org = self.holo.encode_text("organization company corporation works at");
+        let org = self
+            .holo
+            .encode_text("organization company corporation works at");
         let place = self.holo.encode_text("place city country location in from");
 
         for (idx, (token, start, end)) in raw_tokens.iter().enumerate() {
@@ -206,7 +224,11 @@ impl EmbeddedInference for HdcEmbedded {
                 _ => ("person", &person),
             };
             let ctx = format!("{} {}", prev.unwrap_or_default(), token);
-            let confidence = self.holo.encode_text(&ctx).similarity(proto).clamp(0.0, 1.0);
+            let confidence = self
+                .holo
+                .encode_text(&ctx)
+                .similarity(proto)
+                .clamp(0.0, 1.0);
             entities.push(Entity {
                 text: token.clone(),
                 entity_type: entity_type.to_string(),
@@ -217,12 +239,7 @@ impl EmbeddedInference for HdcEmbedded {
         }
         Ok((
             entities,
-            receipt(
-                InferenceTier::Embedded,
-                "hdc-span-ner",
-                0.000_001,
-                started,
-            ),
+            receipt(InferenceTier::Embedded, "hdc-span-ner", 0.000_001, started),
         ))
     }
 
@@ -298,7 +315,8 @@ fn tokenize_spans(text: &str) -> Vec<(String, usize, usize)> {
         while i < bytes.len() && !bytes[i].is_ascii_whitespace() && !is_sep(bytes[i]) {
             i += 1;
         }
-        let token = text[start..i].trim_matches(|c: char| matches!(c, '.' | ',' | ';' | ':' | '!' | '?' | '"' | '\''));
+        let token = text[start..i]
+            .trim_matches(|c: char| matches!(c, '.' | ',' | ';' | ':' | '!' | '?' | '"' | '\''));
         if !token.is_empty() {
             let rel = text[start..i].find(token).unwrap_or(0);
             let s = start + rel;
@@ -374,7 +392,10 @@ impl LocalInference for CascadeLocal {
         let nl_l = nl.to_lowercase();
         let chosen = tables
             .iter()
-            .find(|t| nl_l.split(|c: char| !c.is_alphanumeric()).any(|w| w == t.name))
+            .find(|t| {
+                nl_l.split(|c: char| !c.is_alphanumeric())
+                    .any(|w| w == t.name)
+            })
             .cloned()
             .unwrap_or_else(|| {
                 let q = self.holo.encode_text(nl);
@@ -392,7 +413,10 @@ impl LocalInference for CascadeLocal {
             .columns
             .iter()
             .map(|c| c.as_str())
-            .filter(|c| nl_l.split(|ch: char| !ch.is_alphanumeric()).any(|w| w == *c))
+            .filter(|c| {
+                nl_l.split(|ch: char| !ch.is_alphanumeric())
+                    .any(|w| w == *c)
+            })
             .collect();
         let projection = if mentioned.is_empty() {
             "*".to_string()
@@ -406,12 +430,7 @@ impl LocalInference for CascadeLocal {
         }
         Ok((
             sql,
-            receipt(
-                InferenceTier::Local,
-                "hdc-schema-nl2sql",
-                0.000_01,
-                started,
-            ),
+            receipt(InferenceTier::Local, "hdc-schema-nl2sql", 0.000_01, started),
         ))
     }
 
@@ -549,9 +568,9 @@ fn predicate_from_nl(nl: &str, columns: &[String]) -> Option<(String, String)> {
             || op.eq_ignore_ascii_case("equals")
             || op == "=="
         {
-            let value = tokens.get(i + 2)?.trim_matches(|c: char| {
-                matches!(c, ',' | '.' | ';' | '?' | '!' | '"' | '\'')
-            });
+            let value = tokens
+                .get(i + 2)?
+                .trim_matches(|c: char| matches!(c, ',' | '.' | ';' | '?' | '!' | '"' | '\''));
             if !value.is_empty() {
                 return Some((col.clone(), value.to_string()));
             }
@@ -693,7 +712,11 @@ impl FrontierInference for CascadeFrontier {
         let mut mat = self.lock();
         if let Some((answer, joules, source)) = cascade_hit(&mut mat, &combined) {
             let q_hv = self.holo.encode_text(question);
-            let c_hv = self.holo.encode_text(if context.is_empty() { question } else { context });
+            let c_hv = self.holo.encode_text(if context.is_empty() {
+                question
+            } else {
+                context
+            });
             let agreement = q_hv.similarity(&c_hv);
             return Ok((
                 ReasoningResult {
@@ -770,7 +793,10 @@ fn bind_named_tool(prompt: &str, tools: &[AiTool]) -> Option<String> {
             if after.is_empty() {
                 return None;
             }
-            args.insert(required[0].clone(), serde_json::Value::String(after.to_string()));
+            args.insert(
+                required[0].clone(),
+                serde_json::Value::String(after.to_string()),
+            );
         } else {
             // Multiple required params cannot be recovered without a schema
             // parser that knows types and a real model. Refuse.
@@ -808,13 +834,18 @@ mod tests {
         let (label, conf, _) = emb
             .classify(
                 "basketball game was exciting",
-                &["sports football soccer basketball".into(), "cooking recipe kitchen".into()],
+                &[
+                    "sports football soccer basketball".into(),
+                    "cooking recipe kitchen".into(),
+                ],
             )
             .unwrap();
         assert_eq!(label, "sports football soccer basketball");
         assert!(conf > 0.5, "conf {conf}");
 
-        let (pos, _) = emb.sentiment("I love this excellent wonderful day").unwrap();
+        let (pos, _) = emb
+            .sentiment("I love this excellent wonderful day")
+            .unwrap();
         let (neg, _) = emb.sentiment("this is terrible awful horrible").unwrap();
         assert!(
             pos.score > neg.score,
@@ -831,8 +862,14 @@ mod tests {
         let emb = HdcEmbedded::new();
         let text = "Ada Lovelace works at NASA in Paris";
         let (ents, _) = emb.extract_entities(text).unwrap();
-        assert!(ents.iter().any(|e| e.text == "NASA" && e.entity_type == "organization"));
-        assert!(ents.iter().any(|e| e.text == "Paris" && e.entity_type == "place"));
+        assert!(
+            ents.iter()
+                .any(|e| e.text == "NASA" && e.entity_type == "organization")
+        );
+        assert!(
+            ents.iter()
+                .any(|e| e.text == "Paris" && e.entity_type == "place")
+        );
         assert!(ents.iter().all(|e| text[e.start..e.end] == e.text));
     }
 
@@ -841,7 +878,9 @@ mod tests {
         let local = CascadeLocal::new();
         let (text, _) = local.generate("2 + 3", 16).unwrap();
         assert_eq!(text, "5");
-        let err = local.generate("Write me a sonnet about entropy", 32).unwrap_err();
+        let err = local
+            .generate("Write me a sonnet about entropy", 32)
+            .unwrap_err();
         match err {
             AiError::ModelNotLoaded(msg) => {
                 assert!(msg.contains("local-generate"), "{msg}");

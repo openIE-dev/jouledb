@@ -146,7 +146,13 @@ impl WtNode {
             None
         };
 
-        WtNode { bitvec: bv, left, right, lo, hi }
+        WtNode {
+            bitvec: bv,
+            left,
+            right,
+            lo,
+            hi,
+        }
     }
 
     fn access(&self, mut pos: usize) -> u8 {
@@ -201,7 +207,9 @@ impl WtNode {
             let child_pos = match &self.left {
                 Some(child) => child.select(c, occ)?,
                 None => {
-                    if occ == 0 { return None; }
+                    if occ == 0 {
+                        return None;
+                    }
                     occ - 1
                 }
             };
@@ -211,7 +219,9 @@ impl WtNode {
             let child_pos = match &self.right {
                 Some(child) => child.select(c, occ)?,
                 None => {
-                    if occ == 0 { return None; }
+                    if occ == 0 {
+                        return None;
+                    }
                     occ - 1
                 }
             };
@@ -258,8 +268,12 @@ impl WaveletTree {
         let mut hi = 0u8;
         for &b in data {
             symbol_counts[b as usize] += 1;
-            if b < lo { lo = b; }
-            if b > hi { hi = b; }
+            if b < lo {
+                lo = b;
+            }
+            if b > hi {
+                hi = b;
+            }
         }
         let alphabet: Vec<u8> = (0..=255u8)
             .filter(|c| symbol_counts[*c as usize] > 0)
@@ -305,11 +319,17 @@ impl WaveletTree {
             return Err(WaveletError::SymbolNotFound(c));
         }
         if occ == 0 || occ > self.symbol_counts[c as usize] {
-            return Err(WaveletError::OccurrenceNotFound { symbol: c, occurrence: occ });
+            return Err(WaveletError::OccurrenceNotFound {
+                symbol: c,
+                occurrence: occ,
+            });
         }
         self.root
             .select(c, occ)
-            .ok_or(WaveletError::OccurrenceNotFound { symbol: c, occurrence: occ })
+            .ok_or(WaveletError::OccurrenceNotFound {
+                symbol: c,
+                occurrence: occ,
+            })
     }
 
     /// Length of the indexed sequence.
@@ -554,7 +574,10 @@ mod tests {
     fn test_error_display() {
         let e = WaveletError::EmptySequence;
         assert_eq!(format!("{e}"), "sequence must not be empty");
-        let e2 = WaveletError::IndexOutOfBounds { index: 5, length: 3 };
+        let e2 = WaveletError::IndexOutOfBounds {
+            index: 5,
+            length: 3,
+        };
         assert!(format!("{e2}").contains("5"));
     }
 

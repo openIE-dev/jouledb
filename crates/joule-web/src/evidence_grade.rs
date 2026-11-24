@@ -74,12 +74,21 @@ impl EvidenceGradeConfig {
 }
 
 impl Default for EvidenceGradeConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for EvidenceGradeConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "EvidenceGradeConfig(default_quality={0}, include_rationale={1}, recommendation_strength={2}, num_studies={3})", self.default_quality, self.include_rationale, self.recommendation_strength, self.num_studies)
+        write!(
+            f,
+            "EvidenceGradeConfig(default_quality={0}, include_rationale={1}, recommendation_strength={2}, num_studies={3})",
+            self.default_quality,
+            self.include_rationale,
+            self.recommendation_strength,
+            self.num_studies
+        )
     }
 }
 
@@ -95,7 +104,10 @@ pub struct EvidenceGrade {
 impl EvidenceGrade {
     pub fn new(config: EvidenceGradeConfig) -> Result<Self, EvidenceGradeError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -107,23 +119,39 @@ impl EvidenceGrade {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &EvidenceGradeConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &EvidenceGradeConfig {
+        &self.config
+    }
 
     /// Grade evidence quality.
     pub fn grade_evidence(&self) -> String {
-        format!("{}: {} records", stringify!(grade_evidence), self.data.len())
+        format!(
+            "{}: {} records",
+            stringify!(grade_evidence),
+            self.data.len()
+        )
     }
 
     /// Generate recommendation.
     pub fn recommendation(&self) -> String {
-        format!("{}: {} records", stringify!(recommendation), self.data.len())
+        format!(
+            "{}: {} records",
+            stringify!(recommendation),
+            self.data.len()
+        )
     }
 
     /// Numeric quality score.
     pub fn quality_score(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -133,7 +161,9 @@ impl EvidenceGrade {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -145,7 +175,9 @@ impl EvidenceGrade {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -157,7 +189,11 @@ impl EvidenceGrade {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -230,7 +266,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = EvidenceGrade::new(EvidenceGradeConfig::new()).unwrap()
+        let e = EvidenceGrade::new(EvidenceGradeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -246,7 +283,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = EvidenceGrade::new(EvidenceGradeConfig::new()).unwrap()
+        let e = EvidenceGrade::new(EvidenceGradeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("EvidenceGrade"));
@@ -254,7 +292,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = EvidenceGrade::new(EvidenceGradeConfig::new()).unwrap()
+        let e = EvidenceGrade::new(EvidenceGradeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -265,7 +304,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = EvidenceGrade::new(EvidenceGradeConfig::new()).unwrap()
+        let e = EvidenceGrade::new(EvidenceGradeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -273,7 +313,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = EvidenceGrade::new(EvidenceGradeConfig::new()).unwrap()
+        let e = EvidenceGrade::new(EvidenceGradeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -290,7 +331,8 @@ mod tests {
 
     #[test]
     fn test_grade_evidence() {
-        let e = EvidenceGrade::new(EvidenceGradeConfig::new()).unwrap()
+        let e = EvidenceGrade::new(EvidenceGradeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.grade_evidence();
         assert!(!result.is_empty());
@@ -298,7 +340,8 @@ mod tests {
 
     #[test]
     fn test_recommendation() {
-        let e = EvidenceGrade::new(EvidenceGradeConfig::new()).unwrap()
+        let e = EvidenceGrade::new(EvidenceGradeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.recommendation();
         assert!(!result.is_empty());
@@ -306,7 +349,8 @@ mod tests {
 
     #[test]
     fn test_quality_score() {
-        let e = EvidenceGrade::new(EvidenceGradeConfig::new()).unwrap()
+        let e = EvidenceGrade::new(EvidenceGradeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.quality_score();
         assert!(result.is_finite());

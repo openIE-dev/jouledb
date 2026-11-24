@@ -74,7 +74,11 @@ impl ImageBuf {
         if pixels.len() != width * height {
             return None;
         }
-        Some(Self { pixels, width, height })
+        Some(Self {
+            pixels,
+            width,
+            height,
+        })
     }
 
     pub fn get(&self, x: usize, y: usize) -> Pixel {
@@ -133,9 +137,15 @@ impl ScaleFactor {
         Self(factor.max(1.0))
     }
 
-    pub fn x1_5() -> Self { Self(1.5) }
-    pub fn x2() -> Self { Self(2.0) }
-    pub fn x4() -> Self { Self(4.0) }
+    pub fn x1_5() -> Self {
+        Self(1.5)
+    }
+    pub fn x2() -> Self {
+        Self(2.0)
+    }
+    pub fn x4() -> Self {
+        Self(4.0)
+    }
 
     pub fn output_size(&self, width: usize, height: usize) -> (usize, usize) {
         let w = (width as f32 * self.0).round() as usize;
@@ -526,7 +536,11 @@ mod tests {
         let src = solid_image(4, 4, Pixel::new(0.4, 0.4, 0.4, 1.0));
         let dst = upscale_lanczos2(&src, ScaleFactor::x2());
         for p in &dst.pixels {
-            assert!((p.r - 0.4).abs() < 0.02, "lanczos2 solid deviation: {}", p.r);
+            assert!(
+                (p.r - 0.4).abs() < 0.02,
+                "lanczos2 solid deviation: {}",
+                p.r
+            );
         }
     }
 
@@ -535,7 +549,11 @@ mod tests {
         let src = solid_image(4, 4, Pixel::new(0.6, 0.6, 0.6, 1.0));
         let dst = upscale_lanczos3(&src, ScaleFactor::x2());
         for p in &dst.pixels {
-            assert!((p.r - 0.6).abs() < 0.02, "lanczos3 solid deviation: {}", p.r);
+            assert!(
+                (p.r - 0.6).abs() < 0.02,
+                "lanczos3 solid deviation: {}",
+                p.r
+            );
         }
     }
 
@@ -560,7 +578,10 @@ mod tests {
         let nn_smooth = row_smoothness(&nn);
         let l3_smooth = row_smoothness(&l3);
         // Both are gradients; Lanczos should not have more discontinuities.
-        assert!(l3_smooth <= nn_smooth + 0.1, "lanczos should be at least as smooth");
+        assert!(
+            l3_smooth <= nn_smooth + 0.1,
+            "lanczos should be at least as smooth"
+        );
     }
 
     #[test]
@@ -608,9 +629,18 @@ mod tests {
 
     #[test]
     fn test_quality_suggestions() {
-        assert_eq!(UpscaleQuality::Fast.suggested_method(), UpscaleMethod::NearestNeighbor);
-        assert_eq!(UpscaleQuality::Balanced.suggested_method(), UpscaleMethod::Bilinear);
-        assert_eq!(UpscaleQuality::HighQuality.suggested_method(), UpscaleMethod::Lanczos3);
+        assert_eq!(
+            UpscaleQuality::Fast.suggested_method(),
+            UpscaleMethod::NearestNeighbor
+        );
+        assert_eq!(
+            UpscaleQuality::Balanced.suggested_method(),
+            UpscaleMethod::Bilinear
+        );
+        assert_eq!(
+            UpscaleQuality::HighQuality.suggested_method(),
+            UpscaleMethod::Lanczos3
+        );
     }
 
     #[test]

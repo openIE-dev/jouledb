@@ -26,7 +26,10 @@ impl fmt::Display for PdbError {
             Self::InvalidResidue(s) => write!(f, "invalid residue: {s}"),
             Self::InvalidChain(s) => write!(f, "invalid chain: {s}"),
             Self::CoordinateOverflow { atom, axis, value } => {
-                write!(f, "atom {atom}: {axis} coordinate {value} exceeds PDB range")
+                write!(
+                    f,
+                    "atom {atom}: {axis} coordinate {value} exceeds PDB range"
+                )
             }
             Self::SerialOverflow(n) => write!(f, "serial number {n} exceeds 99999"),
         }
@@ -64,8 +67,16 @@ pub struct Coord {
 }
 
 impl Coord {
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0, z: 0.0 } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
 
     /// Euclidean distance to another coordinate.
     pub fn distance_to(self, other: Coord) -> f64 {
@@ -121,7 +132,14 @@ pub struct AtomRecord {
 }
 
 impl AtomRecord {
-    pub fn new(serial: usize, name: &str, residue: &str, chain: char, seq: i32, coord: Coord) -> Self {
+    pub fn new(
+        serial: usize,
+        name: &str,
+        residue: &str,
+        chain: char,
+        seq: i32,
+        coord: Coord,
+    ) -> Self {
         Self {
             record_type: RecordType::Atom,
             serial,
@@ -144,18 +162,37 @@ impl AtomRecord {
         self
     }
 
-    pub fn with_alt_loc(mut self, a: char) -> Self { self.alt_loc = a; self }
-    pub fn with_occupancy(mut self, o: f64) -> Self { self.occupancy = o; self }
-    pub fn with_b_factor(mut self, b: f64) -> Self { self.b_factor = b; self }
-    pub fn with_element(mut self, e: &str) -> Self { self.element = e.to_string(); self }
-    pub fn with_charge(mut self, c: &str) -> Self { self.charge = c.to_string(); self }
+    pub fn with_alt_loc(mut self, a: char) -> Self {
+        self.alt_loc = a;
+        self
+    }
+    pub fn with_occupancy(mut self, o: f64) -> Self {
+        self.occupancy = o;
+        self
+    }
+    pub fn with_b_factor(mut self, b: f64) -> Self {
+        self.b_factor = b;
+        self
+    }
+    pub fn with_element(mut self, e: &str) -> Self {
+        self.element = e.to_string();
+        self
+    }
+    pub fn with_charge(mut self, c: &str) -> Self {
+        self.charge = c.to_string();
+        self
+    }
 
     /// Format as a PDB ATOM/HETATM record (80-char fixed-width).
     pub fn to_pdb_line(&self) -> Result<String, PdbError> {
         if self.serial > 99999 {
             return Err(PdbError::SerialOverflow(self.serial));
         }
-        for (axis, val) in [('x', self.coord.x), ('y', self.coord.y), ('z', self.coord.z)] {
+        for (axis, val) in [
+            ('x', self.coord.x),
+            ('y', self.coord.y),
+            ('z', self.coord.z),
+        ] {
             if val.abs() > 9999.999 {
                 return Err(PdbError::CoordinateOverflow {
                     atom: self.serial,
@@ -211,10 +248,17 @@ impl AtomRecord {
 
 impl fmt::Display for AtomRecord {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {:>5} {} {} {}{:>4} {}",
-               self.record_type, self.serial, self.name,
-               self.residue_name, self.chain_id, self.residue_seq,
-               self.coord)
+        write!(
+            f,
+            "{} {:>5} {} {} {}{:>4} {}",
+            self.record_type,
+            self.serial,
+            self.name,
+            self.residue_name,
+            self.chain_id,
+            self.residue_seq,
+            self.coord
+        )
     }
 }
 
@@ -236,7 +280,11 @@ fn guess_element(name: &str) -> String {
         return String::new();
     }
     // First non-digit character is often the element
-    let first_alpha: String = trimmed.chars().filter(|c| c.is_ascii_alphabetic()).take(1).collect();
+    let first_alpha: String = trimmed
+        .chars()
+        .filter(|c| c.is_ascii_alphabetic())
+        .take(1)
+        .collect();
     first_alpha.to_uppercase()
 }
 
@@ -251,7 +299,10 @@ pub struct ConectRecord {
 
 impl ConectRecord {
     pub fn new(serial: usize) -> Self {
-        Self { atom_serial: serial, bonded: Vec::new() }
+        Self {
+            atom_serial: serial,
+            bonded: Vec::new(),
+        }
     }
 
     pub fn with_bond(mut self, other: usize) -> Self {
@@ -300,7 +351,10 @@ impl PdbDocument {
         }
     }
 
-    pub fn with_title(mut self, t: &str) -> Self { self.title = Some(t.to_string()); self }
+    pub fn with_title(mut self, t: &str) -> Self {
+        self.title = Some(t.to_string());
+        self
+    }
 
     pub fn with_model(mut self, model: PdbModel) -> Self {
         self.models.push(model);
@@ -323,7 +377,9 @@ impl PdbDocument {
             Some(m) => &m.atoms,
             None => return Coord::zero(),
         };
-        if atoms.is_empty() { return Coord::zero(); }
+        if atoms.is_empty() {
+            return Coord::zero();
+        }
         let n = atoms.len() as f64;
         let sum_x: f64 = atoms.iter().map(|a| a.coord.x).sum();
         let sum_y: f64 = atoms.iter().map(|a| a.coord.y).sum();
@@ -337,16 +393,30 @@ impl PdbDocument {
             Some(m) => &m.atoms,
             None => return (Coord::zero(), Coord::zero()),
         };
-        if atoms.is_empty() { return (Coord::zero(), Coord::zero()); }
+        if atoms.is_empty() {
+            return (Coord::zero(), Coord::zero());
+        }
         let mut min = Coord::new(f64::MAX, f64::MAX, f64::MAX);
         let mut max = Coord::new(f64::MIN, f64::MIN, f64::MIN);
         for a in atoms {
-            if a.coord.x < min.x { min.x = a.coord.x; }
-            if a.coord.y < min.y { min.y = a.coord.y; }
-            if a.coord.z < min.z { min.z = a.coord.z; }
-            if a.coord.x > max.x { max.x = a.coord.x; }
-            if a.coord.y > max.y { max.y = a.coord.y; }
-            if a.coord.z > max.z { max.z = a.coord.z; }
+            if a.coord.x < min.x {
+                min.x = a.coord.x;
+            }
+            if a.coord.y < min.y {
+                min.y = a.coord.y;
+            }
+            if a.coord.z < min.z {
+                min.z = a.coord.z;
+            }
+            if a.coord.x > max.x {
+                max.x = a.coord.x;
+            }
+            if a.coord.y > max.y {
+                max.y = a.coord.y;
+            }
+            if a.coord.z > max.z {
+                max.z = a.coord.z;
+            }
         }
         (min, max)
     }
@@ -393,13 +463,21 @@ impl PdbDocument {
 
 impl fmt::Display for PdbDocument {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PdbDocument(models={}, atoms={})", self.models.len(), self.atom_count())
+        write!(
+            f,
+            "PdbDocument(models={}, atoms={})",
+            self.models.len(),
+            self.atom_count()
+        )
     }
 }
 
 impl PdbModel {
     pub fn new(number: usize) -> Self {
-        Self { model_number: number, atoms: Vec::new() }
+        Self {
+            model_number: number,
+            atoms: Vec::new(),
+        }
     }
 
     pub fn with_atom(mut self, atom: AtomRecord) -> Self {
@@ -410,7 +488,12 @@ impl PdbModel {
 
 impl fmt::Display for PdbModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Model {} ({} atoms)", self.model_number, self.atoms.len())
+        write!(
+            f,
+            "Model {} ({} atoms)",
+            self.model_number,
+            self.atoms.len()
+        )
     }
 }
 
@@ -434,8 +517,7 @@ mod tests {
 
     #[test]
     fn t02_hetatm() {
-        let atom = sample_atom(1, "O", 0.0, 0.0, 0.0)
-            .with_record_type(RecordType::Hetatm);
+        let atom = sample_atom(1, "O", 0.0, 0.0, 0.0).with_record_type(RecordType::Hetatm);
         let line = atom.to_pdb_line().unwrap();
         assert!(line.starts_with("HETATM"));
     }
@@ -443,13 +525,19 @@ mod tests {
     #[test]
     fn t03_serial_overflow() {
         let atom = sample_atom(100000, "CA", 0.0, 0.0, 0.0);
-        assert!(matches!(atom.to_pdb_line(), Err(PdbError::SerialOverflow(_))));
+        assert!(matches!(
+            atom.to_pdb_line(),
+            Err(PdbError::SerialOverflow(_))
+        ));
     }
 
     #[test]
     fn t04_coordinate_overflow() {
         let atom = sample_atom(1, "CA", 99999.0, 0.0, 0.0);
-        assert!(matches!(atom.to_pdb_line(), Err(PdbError::CoordinateOverflow { .. })));
+        assert!(matches!(
+            atom.to_pdb_line(),
+            Err(PdbError::CoordinateOverflow { .. })
+        ));
     }
 
     #[test]
@@ -476,9 +564,7 @@ mod tests {
         let model = PdbModel::new(1)
             .with_atom(sample_atom(1, "N", 0.0, 0.0, 0.0))
             .with_atom(sample_atom(2, "CA", 1.5, 0.0, 0.0));
-        let doc = PdbDocument::new()
-            .with_title("Test")
-            .with_model(model);
+        let doc = PdbDocument::new().with_title("Test").with_model(model);
         let pdb = doc.to_pdb().unwrap();
         assert!(pdb.contains("TITLE     Test"));
         assert!(pdb.contains("END"));

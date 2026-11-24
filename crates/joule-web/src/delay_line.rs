@@ -152,7 +152,12 @@ impl FeedbackDelay {
     }
 
     /// Create from time values.
-    pub fn from_time(delay_secs: f64, max_delay_secs: f64, feedback: f32, sample_rate: f64) -> Self {
+    pub fn from_time(
+        delay_secs: f64,
+        max_delay_secs: f64,
+        feedback: f32,
+        sample_rate: f64,
+    ) -> Self {
         let delay_samples = (delay_secs * sample_rate) as usize;
         let max_samples = (max_delay_secs * sample_rate) as usize;
         Self::new(delay_samples, max_samples, feedback)
@@ -815,7 +820,10 @@ mod tests {
             td.tick_mono(0.0);
         }
         let echo = td.tick_mono(0.0);
-        assert!(echo.abs() > 0.5, "tap delay should produce echo, got {echo}");
+        assert!(
+            echo.abs() > 0.5,
+            "tap delay should produce echo, got {echo}"
+        );
     }
 
     #[test]

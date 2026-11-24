@@ -102,9 +102,12 @@ impl fmt::Display for RelayStats {
         write!(
             f,
             "RelayStats(active={}, created={}, expired={}, bytes={}, ops={}, denied={})",
-            self.active_allocations, self.total_allocations_created,
-            self.total_allocations_expired, self.total_bytes_relayed,
-            self.total_relay_operations, self.denied_operations,
+            self.active_allocations,
+            self.total_allocations_created,
+            self.total_allocations_expired,
+            self.total_bytes_relayed,
+            self.total_relay_operations,
+            self.denied_operations,
         )
     }
 }
@@ -460,7 +463,11 @@ mod tests {
     fn test_stats_after_relay() {
         let mut srv = RelayServer::new();
         srv.create_allocation("x");
-        let data = RelayData { from_client: "x".into(), to_peer: "y".into(), payload: vec![0; 10] };
+        let data = RelayData {
+            from_client: "x".into(),
+            to_peer: "y".into(),
+            payload: vec![0; 10],
+        };
         srv.relay_data(&data).unwrap();
         let s = srv.stats();
         assert_eq!(s.total_relay_operations, 1);
@@ -470,7 +477,11 @@ mod tests {
     #[test]
     fn test_stats_denied_count() {
         let mut srv = RelayServer::new();
-        let data = RelayData { from_client: "x".into(), to_peer: "y".into(), payload: vec![1] };
+        let data = RelayData {
+            from_client: "x".into(),
+            to_peer: "y".into(),
+            payload: vec![1],
+        };
         let _ = srv.relay_data(&data);
         assert_eq!(srv.stats().denied_operations, 0); // no alloc = no denial counter (error before check)
     }

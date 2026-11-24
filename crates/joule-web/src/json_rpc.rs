@@ -179,22 +179,32 @@ impl Request {
             obj.insert("params".into(), params.clone());
         }
         if let Some(id) = &self.id {
-            obj.insert("id".into(), match id {
-                Id::Number(n) => Value::Number((*n).into()),
-                Id::String(s) => Value::String(s.clone()),
-            });
+            obj.insert(
+                "id".into(),
+                match id {
+                    Id::Number(n) => Value::Number((*n).into()),
+                    Id::String(s) => Value::String(s.clone()),
+                },
+            );
         }
         Value::Object(obj)
     }
 
     /// Parse from JSON value.
     pub fn from_json(val: &Value) -> Result<Self, RpcError> {
-        let obj = val.as_object().ok_or_else(|| RpcError::new(ErrorCode::InvalidRequest))?;
+        let obj = val
+            .as_object()
+            .ok_or_else(|| RpcError::new(ErrorCode::InvalidRequest))?;
 
         // Check jsonrpc version
         match obj.get("jsonrpc").and_then(|v| v.as_str()) {
             Some("2.0") => {}
-            _ => return Err(RpcError::with_message(ErrorCode::InvalidRequest, "jsonrpc must be \"2.0\"")),
+            _ => {
+                return Err(RpcError::with_message(
+                    ErrorCode::InvalidRequest,
+                    "jsonrpc must be \"2.0\"",
+                ));
+            }
         }
 
         let method = obj
@@ -260,10 +270,13 @@ impl Response {
         }
 
         if let Some(id) = &self.id {
-            obj.insert("id".into(), match id {
-                Id::Number(n) => Value::Number((*n).into()),
-                Id::String(s) => Value::String(s.clone()),
-            });
+            obj.insert(
+                "id".into(),
+                match id {
+                    Id::Number(n) => Value::Number((*n).into()),
+                    Id::String(s) => Value::String(s.clone()),
+                },
+            );
         } else {
             obj.insert("id".into(), Value::Null);
         }
@@ -273,7 +286,9 @@ impl Response {
 
     /// Parse from JSON value.
     pub fn from_json(val: &Value) -> Result<Self, RpcError> {
-        let obj = val.as_object().ok_or_else(|| RpcError::new(ErrorCode::InvalidRequest))?;
+        let obj = val
+            .as_object()
+            .ok_or_else(|| RpcError::new(ErrorCode::InvalidRequest))?;
 
         let id = obj.get("id").and_then(|v| {
             if v.is_null() {
@@ -288,15 +303,18 @@ impl Response {
         if let Some(error_val) = obj.get("error") {
             let rpc_error: RpcError = serde_json::from_value(error_val.clone())
                 .map_err(|_| RpcError::new(ErrorCode::InternalError))?;
-            return Ok(Self { id, result: Err(rpc_error) });
+            return Ok(Self {
+                id,
+                result: Err(rpc_error),
+            });
         }
 
-        let result = obj
-            .get("result")
-            .cloned()
-            .unwrap_or(Value::Null);
+        let result = obj.get("result").cloned().unwrap_or(Value::Null);
 
-        Ok(Self { id, result: Ok(result) })
+        Ok(Self {
+            id,
+            result: Ok(result),
+        })
     }
 }
 
@@ -310,7 +328,9 @@ pub struct BatchRequest {
 
 impl BatchRequest {
     pub fn new() -> Self {
-        Self { requests: Vec::new() }
+        Self {
+            requests: Vec::new(),
+        }
     }
 
     pub fn add(mut self, req: Request) -> Self {
@@ -323,9 +343,14 @@ impl BatchRequest {
     }
 
     pub fn from_json(val: &Value) -> Result<Self, RpcError> {
-        let arr = val.as_array().ok_or_else(|| RpcError::new(ErrorCode::InvalidRequest))?;
+        let arr = val
+            .as_array()
+            .ok_or_else(|| RpcError::new(ErrorCode::InvalidRequest))?;
         if arr.is_empty() {
-            return Err(RpcError::with_message(ErrorCode::InvalidRequest, "empty batch"));
+            return Err(RpcError::with_message(
+                ErrorCode::InvalidRequest,
+                "empty batch",
+            ));
         }
         let mut requests = Vec::new();
         for item in arr {
@@ -343,7 +368,9 @@ pub struct BatchResponse {
 
 impl BatchResponse {
     pub fn new() -> Self {
-        Self { responses: Vec::new() }
+        Self {
+            responses: Vec::new(),
+        }
     }
 
     pub fn add(mut self, resp: Response) -> Self {
@@ -365,15 +392,17 @@ impl BatchResponse {
 
 /// Parse a JSON-RPC message (request, batch, or response).
 pub fn parse_message(json: &str) -> Result<MessageKind, RpcError> {
-    let val: Value = serde_json::from_str(json)
-        .map_err(|_| RpcError::new(ErrorCode::ParseError))?;
+    let val: Value =
+        serde_json::from_str(json).map_err(|_| RpcError::new(ErrorCode::ParseError))?;
 
     if val.is_array() {
         let batch = BatchRequest::from_json(&val)?;
         return Ok(MessageKind::BatchRequest(batch));
     }
 
-    let obj = val.as_object().ok_or_else(|| RpcError::new(ErrorCode::InvalidRequest))?;
+    let obj = val
+        .as_object()
+        .ok_or_else(|| RpcError::new(ErrorCode::InvalidRequest))?;
 
     // If it has "method", it's a request/notification
     if obj.contains_key("method") {
@@ -453,8 +482,8 @@ mod tests {
 
     #[test]
     fn error_with_data() {
-        let err = RpcError::new(ErrorCode::InternalError)
-            .with_data(json!({"details": "stack overflow"}));
+        let err =
+            RpcError::new(ErrorCode::InternalError).with_data(json!({"details": "stack overflow"}));
         assert!(err.data.is_some());
     }
 
@@ -491,7 +520,8 @@ mod tests {
 
     #[test]
     fn parse_message_batch() {
-        let json_str = r#"[{"jsonrpc":"2.0","method":"a","id":1},{"jsonrpc":"2.0","method":"b","id":2}]"#;
+        let json_str =
+            r#"[{"jsonrpc":"2.0","method":"a","id":1},{"jsonrpc":"2.0","method":"b","id":2}]"#;
         match parse_message(json_str).unwrap() {
             MessageKind::BatchRequest(b) => assert_eq!(b.requests.len(), 2),
             _ => panic!("expected batch"),

@@ -53,10 +53,10 @@ impl PromotionTarget {
     /// Estimated post-promotion energy cost in microjoules.
     pub fn post_promotion_cost_uj(&self) -> u64 {
         match self {
-            Self::ToolPattern => 1,         // ~1 µJ: hash lookup
-            Self::PlanTemplate => 1,        // ~1 µJ: template expansion
-            Self::ConceptMapping => 10,     // ~10 µJ: similarity computation
-            Self::IntentResolution => 1,    // ~1 µJ: table lookup
+            Self::ToolPattern => 1,            // ~1 µJ: hash lookup
+            Self::PlanTemplate => 1,           // ~1 µJ: template expansion
+            Self::ConceptMapping => 10,        // ~10 µJ: similarity computation
+            Self::IntentResolution => 1,       // ~1 µJ: table lookup
             Self::NovelReasoning => 1_000_000, // ~1 kJ: still needs LLM
         }
     }
@@ -425,7 +425,10 @@ mod tests {
     #[test]
     fn test_promotion_target_cost() {
         assert_eq!(PromotionTarget::ToolPattern.post_promotion_cost_uj(), 1);
-        assert_eq!(PromotionTarget::NovelReasoning.post_promotion_cost_uj(), 1_000_000);
+        assert_eq!(
+            PromotionTarget::NovelReasoning.post_promotion_cost_uj(),
+            1_000_000
+        );
     }
 
     #[test]
@@ -698,8 +701,22 @@ mod tests {
 
         // Promote in two different domains
         for _ in 0..3 {
-            pipeline.record_llm_result("status", "git status", "git", PromotionTarget::ToolPattern, true, 1_000_000);
-            pipeline.record_llm_result("build", "cargo build", "rust", PromotionTarget::ToolPattern, true, 1_000_000);
+            pipeline.record_llm_result(
+                "status",
+                "git status",
+                "git",
+                PromotionTarget::ToolPattern,
+                true,
+                1_000_000,
+            );
+            pipeline.record_llm_result(
+                "build",
+                "cargo build",
+                "rust",
+                PromotionTarget::ToolPattern,
+                true,
+                1_000_000,
+            );
         }
 
         assert_eq!(pipeline.promoted_count(), 2);

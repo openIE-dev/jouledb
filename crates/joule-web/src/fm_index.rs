@@ -28,7 +28,10 @@ impl fmt::Display for FmIndexError {
             Self::InvalidSampleRate(n) => {
                 write!(f, "sample rate must be > 0, got {n}")
             }
-            Self::PatternTooLong { pattern_len, text_len } => {
+            Self::PatternTooLong {
+                pattern_len,
+                text_len,
+            } => {
                 write!(
                     f,
                     "pattern length {pattern_len} exceeds text length {text_len}"
@@ -185,10 +188,7 @@ impl FmIndex {
 
     /// Size of the index in bytes (approximate).
     pub fn size_bytes(&self) -> usize {
-        self.bwt.len()
-            + self.occ.checkpoints.len() * 256 * 4
-            + self.sa_sample.len() * 16
-            + 256 * 8
+        self.bwt.len() + self.occ.checkpoints.len() * 256 * 4 + self.sa_sample.len() * 16 + 256 * 8
     }
 
     // ── Internal ────────────────────────────────────────────────
@@ -436,9 +436,7 @@ mod tests {
 
     #[test]
     fn test_builder_invalid_sample_rate() {
-        let result = FmIndexBuilder::new()
-            .with_sa_sample_rate(0)
-            .build(b"ABC");
+        let result = FmIndexBuilder::new().with_sa_sample_rate(0).build(b"ABC");
         assert!(result.is_err());
     }
 

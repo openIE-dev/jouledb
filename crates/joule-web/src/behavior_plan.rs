@@ -214,19 +214,71 @@ pub struct BehaviorFsm {
 impl BehaviorFsm {
     pub fn new() -> Self {
         let transitions = vec![
-            (FsmState::Cruising, TransitionCond::LeadTooClose, FsmState::Following),
-            (FsmState::Cruising, TransitionCond::MustStop, FsmState::Stopping),
-            (FsmState::Cruising, TransitionCond::IntersectionNear, FsmState::IntersectionWait),
-            (FsmState::Following, TransitionCond::LeadFarEnough, FsmState::Cruising),
-            (FsmState::Following, TransitionCond::LaneChangePossible, FsmState::PrepareLaneChange),
-            (FsmState::Following, TransitionCond::MustStop, FsmState::Stopping),
-            (FsmState::PrepareLaneChange, TransitionCond::Always, FsmState::LaneChanging),
-            (FsmState::LaneChanging, TransitionCond::LaneChangeComplete, FsmState::Cruising),
-            (FsmState::Stopping, TransitionCond::StoppedComplete, FsmState::Stopped),
-            (FsmState::Stopped, TransitionCond::LeadFarEnough, FsmState::Cruising),
-            (FsmState::Stopped, TransitionCond::IntersectionClear, FsmState::Cruising),
-            (FsmState::IntersectionWait, TransitionCond::IntersectionClear, FsmState::Cruising),
-            (FsmState::IntersectionWait, TransitionCond::MustStop, FsmState::Stopping),
+            (
+                FsmState::Cruising,
+                TransitionCond::LeadTooClose,
+                FsmState::Following,
+            ),
+            (
+                FsmState::Cruising,
+                TransitionCond::MustStop,
+                FsmState::Stopping,
+            ),
+            (
+                FsmState::Cruising,
+                TransitionCond::IntersectionNear,
+                FsmState::IntersectionWait,
+            ),
+            (
+                FsmState::Following,
+                TransitionCond::LeadFarEnough,
+                FsmState::Cruising,
+            ),
+            (
+                FsmState::Following,
+                TransitionCond::LaneChangePossible,
+                FsmState::PrepareLaneChange,
+            ),
+            (
+                FsmState::Following,
+                TransitionCond::MustStop,
+                FsmState::Stopping,
+            ),
+            (
+                FsmState::PrepareLaneChange,
+                TransitionCond::Always,
+                FsmState::LaneChanging,
+            ),
+            (
+                FsmState::LaneChanging,
+                TransitionCond::LaneChangeComplete,
+                FsmState::Cruising,
+            ),
+            (
+                FsmState::Stopping,
+                TransitionCond::StoppedComplete,
+                FsmState::Stopped,
+            ),
+            (
+                FsmState::Stopped,
+                TransitionCond::LeadFarEnough,
+                FsmState::Cruising,
+            ),
+            (
+                FsmState::Stopped,
+                TransitionCond::IntersectionClear,
+                FsmState::Cruising,
+            ),
+            (
+                FsmState::IntersectionWait,
+                TransitionCond::IntersectionClear,
+                FsmState::Cruising,
+            ),
+            (
+                FsmState::IntersectionWait,
+                TransitionCond::MustStop,
+                FsmState::Stopping,
+            ),
         ];
         Self {
             current: FsmState::Cruising,
@@ -270,28 +322,26 @@ impl BehaviorFsm {
 
     fn evaluate_cond(&self, cond: TransitionCond, ctx: &DrivingContext) -> bool {
         match cond {
-            TransitionCond::LeadTooClose => {
-                ctx.lead_distance.map_or(false, |d| d < self.follow_distance)
-            }
-            TransitionCond::LeadFarEnough => {
-                ctx.lead_distance.map_or(true, |d| d > self.follow_distance * 1.5)
-            }
+            TransitionCond::LeadTooClose => ctx
+                .lead_distance
+                .map_or(false, |d| d < self.follow_distance),
+            TransitionCond::LeadFarEnough => ctx
+                .lead_distance
+                .map_or(true, |d| d > self.follow_distance * 1.5),
             TransitionCond::LaneChangePossible => {
                 ctx.time_since_lane_change > self.lane_change_cooldown
                     && (ctx.left_clear || ctx.right_clear)
-                    && ctx.lead_distance.map_or(false, |d| d < self.follow_distance)
+                    && ctx
+                        .lead_distance
+                        .map_or(false, |d| d < self.follow_distance)
             }
             TransitionCond::LaneChangeComplete => true,
-            TransitionCond::MustStop => {
-                ctx.traffic_light_stop || ctx.stop_sign_detected
-            }
+            TransitionCond::MustStop => ctx.traffic_light_stop || ctx.stop_sign_detected,
             TransitionCond::StoppedComplete => ctx.speed < 0.1,
-            TransitionCond::IntersectionNear => {
-                ctx.intersection_distance.map_or(false, |d| d < self.intersection_slow_dist)
-            }
-            TransitionCond::IntersectionClear => {
-                !ctx.traffic_light_stop && !ctx.stop_sign_detected
-            }
+            TransitionCond::IntersectionNear => ctx
+                .intersection_distance
+                .map_or(false, |d| d < self.intersection_slow_dist),
+            TransitionCond::IntersectionClear => !ctx.traffic_light_stop && !ctx.stop_sign_detected,
             TransitionCond::Always => true,
         }
     }
@@ -366,9 +416,7 @@ impl DecisionCondition {
             Self::StopSignDetected => ctx.stop_sign_detected,
             Self::LeftLaneClear => ctx.left_clear,
             Self::RightLaneClear => ctx.right_clear,
-            Self::IntersectionWithin(d) => {
-                ctx.intersection_distance.map_or(false, |id| id < *d)
-            }
+            Self::IntersectionWithin(d) => ctx.intersection_distance.map_or(false, |id| id < *d),
         }
     }
 }
@@ -378,7 +426,11 @@ impl DecisionNode {
     pub fn evaluate(&self, ctx: &DrivingContext) -> BehaviorCmd {
         match self {
             Self::Leaf(cmd) => *cmd,
-            Self::Branch { condition, if_true, if_false } => {
+            Self::Branch {
+                condition,
+                if_true,
+                if_false,
+            } => {
                 if condition.evaluate(ctx) {
                     if_true.evaluate(ctx)
                 } else {
@@ -456,9 +508,9 @@ impl LaneChangeRules {
             return None;
         }
         let dominated = ctx.lead_distance.map_or(false, |d| d < self.min_gap);
-        let slow_lead = ctx.lead_speed.map_or(false, |ls| {
-            ctx.speed - ls > self.min_speed_advantage
-        });
+        let slow_lead = ctx
+            .lead_speed
+            .map_or(false, |ls| ctx.speed - ls > self.min_speed_advantage);
 
         if !dominated && !slow_lead {
             return None;
@@ -476,7 +528,11 @@ impl LaneChangeRules {
 
 impl fmt::Display for LaneChangeRules {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "LaneChangeRules(gap={:.1}, cd={:.1})", self.min_gap, self.cooldown)
+        write!(
+            f,
+            "LaneChangeRules(gap={:.1}, cd={:.1})",
+            self.min_gap, self.cooldown
+        )
     }
 }
 

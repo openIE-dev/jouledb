@@ -96,7 +96,10 @@ impl ContentIdIndex {
         // Index video frame hashes
         for (i, &hash) in video_hashes.iter().enumerate() {
             let point_id = format!("{}:v:{}", ref_id, i);
-            let packed = vec![f32::from_bits(hash as u32), f32::from_bits((hash >> 32) as u32)];
+            let packed = vec![
+                f32::from_bits(hash as u32),
+                f32::from_bits((hash >> 32) as u32),
+            ];
             let _ = self.video_index.insert(point_id, packed);
         }
 
@@ -122,7 +125,10 @@ impl ContentIdIndex {
         let mut frame_matches: Vec<Option<(String, f32)>> = Vec::with_capacity(frame_hashes.len());
 
         for &hash in frame_hashes {
-            let packed = vec![f32::from_bits(hash as u32), f32::from_bits((hash >> 32) as u32)];
+            let packed = vec![
+                f32::from_bits(hash as u32),
+                f32::from_bits((hash >> 32) as u32),
+            ];
             let results = self.video_index.query(&packed, 1);
 
             if let Some(best) = results.first() {
@@ -193,8 +199,7 @@ impl ContentIdIndex {
                         if let Some(ref_id) = &current_ref {
                             if let Some(reference) = self.references.get(ref_id) {
                                 let avg_dist = run_total_dist / run_count as f32;
-                                let confidence =
-                                    1.0 - (avg_dist / self.match_threshold).min(1.0);
+                                let confidence = 1.0 - (avg_dist / self.match_threshold).min(1.0);
                                 matches.push(ContentMatch {
                                     reference: reference.clone(),
                                     confidence,
@@ -216,8 +221,7 @@ impl ContentIdIndex {
                         if let Some(ref_id) = &current_ref {
                             if let Some(reference) = self.references.get(ref_id) {
                                 let avg_dist = run_total_dist / run_count as f32;
-                                let confidence =
-                                    1.0 - (avg_dist / self.match_threshold).min(1.0);
+                                let confidence = 1.0 - (avg_dist / self.match_threshold).min(1.0);
                                 matches.push(ContentMatch {
                                     reference: reference.clone(),
                                     confidence,

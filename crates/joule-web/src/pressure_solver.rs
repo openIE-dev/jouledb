@@ -17,7 +17,10 @@ pub enum PressureSolverError {
     /// Solver failed to converge within max iterations.
     NotConverged { iterations: usize, residual: f64 },
     /// Dimension mismatch between fields.
-    DimensionMismatch { expected: (usize, usize), got: (usize, usize) },
+    DimensionMismatch {
+        expected: (usize, usize),
+        got: (usize, usize),
+    },
     /// Numerical issue (division by zero, etc.).
     NumericalError(String),
 }
@@ -26,11 +29,21 @@ impl fmt::Display for PressureSolverError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidGrid(msg) => write!(f, "invalid grid: {msg}"),
-            Self::NotConverged { iterations, residual } => {
-                write!(f, "not converged after {iterations} iterations, residual={residual:.2e}")
+            Self::NotConverged {
+                iterations,
+                residual,
+            } => {
+                write!(
+                    f,
+                    "not converged after {iterations} iterations, residual={residual:.2e}"
+                )
             }
             Self::DimensionMismatch { expected, got } => {
-                write!(f, "dimension mismatch: expected {}x{}, got {}x{}", expected.0, expected.1, got.0, got.1)
+                write!(
+                    f,
+                    "dimension mismatch: expected {}x{}, got {}x{}",
+                    expected.0, expected.1, got.0, got.1
+                )
             }
             Self::NumericalError(msg) => write!(f, "numerical error: {msg}"),
         }
@@ -51,11 +64,19 @@ pub struct Grid2D {
 
 impl Grid2D {
     pub fn new(nx: usize, ny: usize) -> Self {
-        Self { data: vec![0.0; nx * ny], nx, ny }
+        Self {
+            data: vec![0.0; nx * ny],
+            nx,
+            ny,
+        }
     }
 
     pub fn filled(nx: usize, ny: usize, val: f64) -> Self {
-        Self { data: vec![val; nx * ny], nx, ny }
+        Self {
+            data: vec![val; nx * ny],
+            nx,
+            ny,
+        }
     }
 
     pub fn get(&self, x: usize, y: usize) -> f64 {
@@ -88,7 +109,11 @@ impl Grid2D {
 
     /// Dot product with another grid (element-wise).
     pub fn dot(&self, other: &Grid2D) -> f64 {
-        self.data.iter().zip(other.data.iter()).map(|(a, b)| a * b).sum()
+        self.data
+            .iter()
+            .zip(other.data.iter())
+            .map(|(a, b)| a * b)
+            .sum()
     }
 
     /// Elementwise: self += alpha * other.
@@ -164,7 +189,11 @@ impl BoundaryMask {
 
     /// All cells are fluid (no boundary encoding).
     pub fn all_fluid(nx: usize, ny: usize) -> Self {
-        Self { cells: vec![CellType::Fluid; nx * ny], nx, ny }
+        Self {
+            cells: vec![CellType::Fluid; nx * ny],
+            nx,
+            ny,
+        }
     }
 
     pub fn get(&self, x: usize, y: usize) -> CellType {
@@ -287,7 +316,12 @@ pub fn solve_jacobi(
         }
     }
 
-    Ok(SolverStats::new("jacobi", max_iters, residual_norm, residual_norm < tolerance))
+    Ok(SolverStats::new(
+        "jacobi",
+        max_iters,
+        residual_norm,
+        residual_norm < tolerance,
+    ))
 }
 
 // ── Gauss-Seidel Red-Black ────────────────────────────────────
@@ -354,11 +388,21 @@ pub fn solve_gauss_seidel_rb(
         let res = compute_residual(pressure, rhs, mask);
         residual_norm = res.linf_norm();
         if residual_norm < tolerance {
-            return Ok(SolverStats::new("gauss_seidel_rb", iter + 1, residual_norm, true));
+            return Ok(SolverStats::new(
+                "gauss_seidel_rb",
+                iter + 1,
+                residual_norm,
+                true,
+            ));
         }
     }
 
-    Ok(SolverStats::new("gauss_seidel_rb", max_iters, residual_norm, residual_norm < tolerance))
+    Ok(SolverStats::new(
+        "gauss_seidel_rb",
+        max_iters,
+        residual_norm,
+        residual_norm < tolerance,
+    ))
 }
 
 // ── Conjugate Gradient ────────────────────────────────────────
@@ -375,10 +419,22 @@ fn apply_laplacian(x: &Grid2D, mask: &BoundaryMask) -> Grid2D {
             }
             let mut count = 0.0;
             let mut sum = 0.0;
-            if mask.get(x_coord - 1, y) != CellType::Solid { sum += x.get(x_coord - 1, y); count += 1.0; }
-            if mask.get(x_coord + 1, y) != CellType::Solid { sum += x.get(x_coord + 1, y); count += 1.0; }
-            if mask.get(x_coord, y - 1) != CellType::Solid { sum += x.get(x_coord, y - 1); count += 1.0; }
-            if mask.get(x_coord, y + 1) != CellType::Solid { sum += x.get(x_coord, y + 1); count += 1.0; }
+            if mask.get(x_coord - 1, y) != CellType::Solid {
+                sum += x.get(x_coord - 1, y);
+                count += 1.0;
+            }
+            if mask.get(x_coord + 1, y) != CellType::Solid {
+                sum += x.get(x_coord + 1, y);
+                count += 1.0;
+            }
+            if mask.get(x_coord, y - 1) != CellType::Solid {
+                sum += x.get(x_coord, y - 1);
+                count += 1.0;
+            }
+            if mask.get(x_coord, y + 1) != CellType::Solid {
+                sum += x.get(x_coord, y + 1);
+                count += 1.0;
+            }
             result.set(x_coord, y, sum - count * x.get(x_coord, y));
         }
     }
@@ -394,10 +450,18 @@ fn precondition_diagonal(r: &Grid2D, mask: &BoundaryMask) -> Grid2D {
                 continue;
             }
             let mut count = 0.0;
-            if mask.get(x - 1, y) != CellType::Solid { count += 1.0; }
-            if mask.get(x + 1, y) != CellType::Solid { count += 1.0; }
-            if mask.get(x, y - 1) != CellType::Solid { count += 1.0; }
-            if mask.get(x, y + 1) != CellType::Solid { count += 1.0; }
+            if mask.get(x - 1, y) != CellType::Solid {
+                count += 1.0;
+            }
+            if mask.get(x + 1, y) != CellType::Solid {
+                count += 1.0;
+            }
+            if mask.get(x, y - 1) != CellType::Solid {
+                count += 1.0;
+            }
+            if mask.get(x, y + 1) != CellType::Solid {
+                count += 1.0;
+            }
             if count > 0.0 {
                 z.set(x, y, r.get(x, y) / (-count));
             }
@@ -416,10 +480,18 @@ fn precondition_ic(r: &Grid2D, mask: &BoundaryMask) -> Grid2D {
                 continue;
             }
             let mut count = 0.0;
-            if mask.get(x - 1, y) != CellType::Solid { count += 1.0; }
-            if mask.get(x + 1, y) != CellType::Solid { count += 1.0; }
-            if mask.get(x, y - 1) != CellType::Solid { count += 1.0; }
-            if mask.get(x, y + 1) != CellType::Solid { count += 1.0; }
+            if mask.get(x - 1, y) != CellType::Solid {
+                count += 1.0;
+            }
+            if mask.get(x + 1, y) != CellType::Solid {
+                count += 1.0;
+            }
+            if mask.get(x, y - 1) != CellType::Solid {
+                count += 1.0;
+            }
+            if mask.get(x, y + 1) != CellType::Solid {
+                count += 1.0;
+            }
             if count > 0.0 {
                 // IC0 uses a correction factor of ~0.97
                 z.set(x, y, r.get(x, y) / (-count * 0.97));
@@ -477,13 +549,23 @@ pub fn solve_conjugate_gradient(
 
     for iter in 0..max_iters {
         if residual_norm < tolerance {
-            return Ok(SolverStats::new("conjugate_gradient", iter, residual_norm, true));
+            return Ok(SolverStats::new(
+                "conjugate_gradient",
+                iter,
+                residual_norm,
+                true,
+            ));
         }
 
         let ap = apply_laplacian(&p, mask);
         let p_ap = p.dot(&ap);
         if p_ap.abs() < 1e-30 {
-            return Ok(SolverStats::new("conjugate_gradient", iter, residual_norm, residual_norm < tolerance));
+            return Ok(SolverStats::new(
+                "conjugate_gradient",
+                iter,
+                residual_norm,
+                residual_norm < tolerance,
+            ));
         }
         let alpha = rz / p_ap;
 
@@ -492,7 +574,12 @@ pub fn solve_conjugate_gradient(
 
         residual_norm = r.l2_norm();
         if residual_norm < tolerance {
-            return Ok(SolverStats::new("conjugate_gradient", iter + 1, residual_norm, true));
+            return Ok(SolverStats::new(
+                "conjugate_gradient",
+                iter + 1,
+                residual_norm,
+                true,
+            ));
         }
 
         z = apply_precond(&r);
@@ -505,7 +592,12 @@ pub fn solve_conjugate_gradient(
         }
     }
 
-    Ok(SolverStats::new("conjugate_gradient", max_iters, residual_norm, residual_norm < tolerance))
+    Ok(SolverStats::new(
+        "conjugate_gradient",
+        max_iters,
+        residual_norm,
+        residual_norm < tolerance,
+    ))
 }
 
 // ── Multigrid V-Cycle ─────────────────────────────────────────
@@ -523,8 +615,11 @@ fn restrict(fine: &Grid2D) -> Grid2D {
             let fx = cx * 2;
             let fy = cy * 2;
             // Full-weighting: average of 2x2 fine cells
-            let val = (fine.get(fx, fy) + fine.get(fx + 1, fy)
-                + fine.get(fx, fy + 1) + fine.get(fx + 1, fy + 1)) / 4.0;
+            let val = (fine.get(fx, fy)
+                + fine.get(fx + 1, fy)
+                + fine.get(fx, fy + 1)
+                + fine.get(fx + 1, fy + 1))
+                / 4.0;
             coarse.set(cx, cy, val);
         }
     }
@@ -567,10 +662,22 @@ fn smooth_jacobi(p: &mut Grid2D, rhs: &Grid2D, mask: &BoundaryMask, iters: usize
                 }
                 let mut count = 0.0;
                 let mut sum = 0.0;
-                if x > 0 && mask.get(x - 1, y) != CellType::Solid { sum += old.get(x - 1, y); count += 1.0; }
-                if x + 1 < nx && mask.get(x + 1, y) != CellType::Solid { sum += old.get(x + 1, y); count += 1.0; }
-                if y > 0 && mask.get(x, y - 1) != CellType::Solid { sum += old.get(x, y - 1); count += 1.0; }
-                if y + 1 < ny && mask.get(x, y + 1) != CellType::Solid { sum += old.get(x, y + 1); count += 1.0; }
+                if x > 0 && mask.get(x - 1, y) != CellType::Solid {
+                    sum += old.get(x - 1, y);
+                    count += 1.0;
+                }
+                if x + 1 < nx && mask.get(x + 1, y) != CellType::Solid {
+                    sum += old.get(x + 1, y);
+                    count += 1.0;
+                }
+                if y > 0 && mask.get(x, y - 1) != CellType::Solid {
+                    sum += old.get(x, y - 1);
+                    count += 1.0;
+                }
+                if y + 1 < ny && mask.get(x, y + 1) != CellType::Solid {
+                    sum += old.get(x, y + 1);
+                    count += 1.0;
+                }
                 if count > 0.0 {
                     p.set(x, y, (sum - rhs.get(x, y)) / count);
                 }
@@ -606,7 +713,12 @@ pub fn solve_multigrid_vcycle(
         let res = compute_residual(pressure, rhs, mask);
         residual_norm = res.linf_norm();
         if residual_norm < tolerance {
-            return Ok(SolverStats::new("multigrid_vcycle", cycle + 1, residual_norm, true));
+            return Ok(SolverStats::new(
+                "multigrid_vcycle",
+                cycle + 1,
+                residual_norm,
+                true,
+            ));
         }
 
         // Restrict residual to coarse grid
@@ -634,11 +746,21 @@ pub fn solve_multigrid_vcycle(
         let res = compute_residual(pressure, rhs, mask);
         residual_norm = res.linf_norm();
         if residual_norm < tolerance {
-            return Ok(SolverStats::new("multigrid_vcycle", cycle + 1, residual_norm, true));
+            return Ok(SolverStats::new(
+                "multigrid_vcycle",
+                cycle + 1,
+                residual_norm,
+                true,
+            ));
         }
     }
 
-    Ok(SolverStats::new("multigrid_vcycle", v_cycles, residual_norm, residual_norm < tolerance))
+    Ok(SolverStats::new(
+        "multigrid_vcycle",
+        v_cycles,
+        residual_norm,
+        residual_norm < tolerance,
+    ))
 }
 
 // ── Tests ─────────────────────────────────────────────────────
@@ -681,8 +803,10 @@ mod tests {
     fn test_grid2d_dot() {
         let mut a = Grid2D::new(2, 2);
         let mut b = Grid2D::new(2, 2);
-        a.set(0, 0, 1.0); a.set(1, 0, 2.0);
-        b.set(0, 0, 3.0); b.set(1, 0, 4.0);
+        a.set(0, 0, 1.0);
+        a.set(1, 0, 2.0);
+        b.set(0, 0, 3.0);
+        b.set(1, 0, 4.0);
         assert!((a.dot(&b) - 11.0).abs() < 1e-10);
     }
 
@@ -766,7 +890,8 @@ mod tests {
         let mut p = Grid2D::new(8, 8);
         let rhs = Grid2D::new(8, 8);
         let mask = BoundaryMask::solid_walls(8, 8);
-        let stats = solve_conjugate_gradient(&mut p, &rhs, &mask, 100, 1e-6, Preconditioner::None).unwrap();
+        let stats =
+            solve_conjugate_gradient(&mut p, &rhs, &mask, 100, 1e-6, Preconditioner::None).unwrap();
         assert!(stats.converged || stats.final_residual < 1e-4);
     }
 
@@ -780,9 +905,9 @@ mod tests {
         solve_jacobi(&mut p_jacobi, &rhs, &mask, 500, 1e-6).unwrap();
 
         let mut p_cg = Grid2D::new(16, 16);
-        let stats = solve_conjugate_gradient(
-            &mut p_cg, &rhs, &mask, 500, 1e-6, Preconditioner::Diagonal,
-        ).unwrap();
+        let stats =
+            solve_conjugate_gradient(&mut p_cg, &rhs, &mask, 500, 1e-6, Preconditioner::Diagonal)
+                .unwrap();
         // CG should run and produce a result
         assert!(stats.iterations > 0);
         // Both solvers should produce qualitatively similar results
@@ -860,8 +985,14 @@ mod tests {
         rhs.set(8, 8, 1.0);
         let mask = BoundaryMask::solid_walls(16, 16);
         let stats = solve_conjugate_gradient(
-            &mut p, &rhs, &mask, 500, 1e-6, Preconditioner::IncompleteCholesky,
-        ).unwrap();
+            &mut p,
+            &rhs,
+            &mask,
+            500,
+            1e-6,
+            Preconditioner::IncompleteCholesky,
+        )
+        .unwrap();
         assert!(stats.iterations > 0);
         assert!(stats.solver_name == "conjugate_gradient");
     }

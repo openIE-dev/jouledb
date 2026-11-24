@@ -77,7 +77,12 @@ impl SseEvent {
 
 impl fmt::Display for SseEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SSE[type={}, data_len={}]", self.event_type, self.data.len())
+        write!(
+            f,
+            "SSE[type={}, data_len={}]",
+            self.event_type,
+            self.data.len()
+        )
     }
 }
 
@@ -152,7 +157,9 @@ impl SseParser {
             // Parse field: value.
             let (field, value) = if let Some(colon) = line.find(':') {
                 let f = &line[..colon];
-                let v = line[colon + 1..].strip_prefix(' ').unwrap_or(&line[colon + 1..]);
+                let v = line[colon + 1..]
+                    .strip_prefix(' ')
+                    .unwrap_or(&line[colon + 1..]);
                 (f.to_string(), v.to_string())
             } else {
                 // Field with no value.
@@ -473,9 +480,7 @@ mod tests {
 
     #[test]
     fn event_serialization() {
-        let event = SseEvent::new("hello world")
-            .with_type("chat")
-            .with_id("1");
+        let event = SseEvent::new("hello world").with_type("chat").with_id("1");
         let serialized = event.serialize();
         assert!(serialized.contains("event: chat\n"));
         assert!(serialized.contains("id: 1\n"));

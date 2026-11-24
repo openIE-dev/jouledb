@@ -203,7 +203,9 @@ pub fn substitute(template: &str, vars: &HashMap<String, String>) -> Result<Stri
                 }
                 end += 1;
             }
-            if end + 1 >= chars.len() && !(chars[end] == '}' && end + 1 < chars.len() && chars[end + 1] == '}') {
+            if end + 1 >= chars.len()
+                && !(chars[end] == '}' && end + 1 < chars.len() && chars[end + 1] == '}')
+            {
                 return Err(ScaffoldError::TemplateSyntaxError {
                     position: i,
                     message: "unclosed {{ placeholder".to_string(),
@@ -338,10 +340,7 @@ pub enum DirEntry {
         children: Vec<DirEntry>,
     },
     /// A file.
-    File {
-        name: String,
-        template_idx: usize,
-    },
+    File { name: String, template_idx: usize },
 }
 
 impl DirEntry {
@@ -511,7 +510,10 @@ impl ProjectTemplate {
 
     /// Get all prompts needed for this template.
     pub fn prompts(&self) -> Vec<PromptDef> {
-        self.variables.iter().map(|v| PromptDef::from_var(v)).collect()
+        self.variables
+            .iter()
+            .map(|v| PromptDef::from_var(v))
+            .collect()
     }
 
     /// Validate the template: check that all referenced variables are defined.
@@ -786,9 +788,15 @@ mod tests {
     fn conditional_file_excluded() {
         let tmpl = ProjectTemplate::new("test", "Test")
             .var(VariableDef::optional("name", "Name", "x"))
-            .var(VariableDef::optional("with_tests", "Include tests?", "false"))
+            .var(VariableDef::optional(
+                "with_tests",
+                "Include tests?",
+                "false",
+            ))
             .file(FileTemplate::new("src/main.rs", "fn main() {}"))
-            .file(FileTemplate::new("tests/test.rs", "#[test] fn it_works() {}").when("with_tests"));
+            .file(
+                FileTemplate::new("tests/test.rs", "#[test] fn it_works() {}").when("with_tests"),
+            );
         let mut vars = HashMap::new();
         vars.insert("name".to_string(), "proj".to_string());
         vars.insert("with_tests".to_string(), "false".to_string());
@@ -800,9 +808,15 @@ mod tests {
     fn conditional_file_included() {
         let tmpl = ProjectTemplate::new("test", "Test")
             .var(VariableDef::optional("name", "Name", "x"))
-            .var(VariableDef::optional("with_tests", "Include tests?", "true"))
+            .var(VariableDef::optional(
+                "with_tests",
+                "Include tests?",
+                "true",
+            ))
             .file(FileTemplate::new("src/main.rs", "fn main() {}"))
-            .file(FileTemplate::new("tests/test.rs", "#[test] fn it_works() {}").when("with_tests"));
+            .file(
+                FileTemplate::new("tests/test.rs", "#[test] fn it_works() {}").when("with_tests"),
+            );
         let mut vars = HashMap::new();
         vars.insert("name".to_string(), "proj".to_string());
         vars.insert("with_tests".to_string(), "true".to_string());
@@ -887,7 +901,10 @@ mod tests {
                 VariableDef::required("project_name", "Name")
                     .with_transform(VariableTransform::SnakeCase),
             )
-            .file(FileTemplate::new("{{project_name}}.rs", "// {{project_name}}"));
+            .file(FileTemplate::new(
+                "{{project_name}}.rs",
+                "// {{project_name}}",
+            ));
         let mut vars = HashMap::new();
         vars.insert("project_name".to_string(), "MyProject".to_string());
         let plan = tmpl.generate(&vars).unwrap();

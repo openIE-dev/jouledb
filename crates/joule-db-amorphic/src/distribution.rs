@@ -180,7 +180,11 @@ impl DistributionManager {
     }
 
     /// Get all active distributions for a content item.
-    pub fn active_distributions(&self, content_id: &str, now_ms: u64) -> Vec<&PlatformDistribution> {
+    pub fn active_distributions(
+        &self,
+        content_id: &str,
+        now_ms: u64,
+    ) -> Vec<&PlatformDistribution> {
         self.manifests
             .get(content_id)
             .map(|m| {
@@ -262,10 +266,13 @@ mod tests {
                 hdr: false,
             }],
             max_file_size: 128_000_000_000, // 128GB
-            field_mapping: [("title", "snippet.title"), ("description", "snippet.description")]
-                .iter()
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect(),
+            field_mapping: [
+                ("title", "snippet.title"),
+                ("description", "snippet.description"),
+            ]
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
         }
     }
 
@@ -296,13 +303,11 @@ mod tests {
         mgr.register_platform(youtube_platform());
         mgr.register_platform(tiktok_platform());
 
-        let metadata: HashMap<String, String> = [
-            ("title", "My Video"),
-            ("description", "A great video"),
-        ]
-        .iter()
-        .map(|(k, v)| (k.to_string(), v.to_string()))
-        .collect();
+        let metadata: HashMap<String, String> =
+            [("title", "My Video"), ("description", "A great video")]
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect();
 
         let manifest = mgr.create_manifest(
             "video_1",
@@ -314,7 +319,10 @@ mod tests {
         );
 
         assert_eq!(manifest.distributions.len(), 2);
-        assert_eq!(manifest.distributions[0].status, DistributionStatus::Pending);
+        assert_eq!(
+            manifest.distributions[0].status,
+            DistributionStatus::Pending
+        );
     }
 
     #[test]
@@ -343,8 +351,10 @@ mod tests {
         mgr.register_platform(youtube_platform());
 
         // Missing "description"
-        let metadata: HashMap<String, String> =
-            [("title", "test")].iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        let metadata: HashMap<String, String> = [("title", "test")]
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
 
         let missing = mgr.validate_metadata("youtube", &metadata);
         assert_eq!(missing, vec!["description"]);

@@ -583,10 +583,7 @@ mod tests {
             output_variables: vec!["X".to_string(), "Y".to_string(), "Z".to_string()],
         };
 
-        let relations = vec![
-            ("R".to_string(), r),
-            ("S".to_string(), s),
-        ];
+        let relations = vec![("R".to_string(), r), ("S".to_string(), s)];
         let mut results = execute_wcoj(&query, &relations);
         results.sort();
 
@@ -681,10 +678,7 @@ mod tests {
             output_variables: vec!["X".to_string(), "Y".to_string(), "Z".to_string()],
         };
 
-        let relations = vec![
-            ("R".to_string(), r),
-            ("S".to_string(), s),
-        ];
+        let relations = vec![("R".to_string(), r), ("S".to_string(), s)];
         let results = execute_wcoj(&query, &relations);
         assert!(results.is_empty());
     }
@@ -827,10 +821,7 @@ mod tests {
     fn test_single_atom_no_join() {
         let r = Relation::new(
             vec!["a".to_string(), "b".to_string()],
-            vec![
-                vec![val("1"), val("2")],
-                vec![val("3"), val("4")],
-            ],
+            vec![vec![val("1"), val("2")], vec![val("3"), val("4")]],
         );
 
         let query = WcojQuery {
@@ -851,24 +842,15 @@ mod tests {
         // Star pattern: R(X, Y), S(X, Z), T(X, W) — all share X.
         let r = Relation::new(
             vec!["a".to_string(), "b".to_string()],
-            vec![
-                vec![val("1"), val("a")],
-                vec![val("2"), val("b")],
-            ],
+            vec![vec![val("1"), val("a")], vec![val("2"), val("b")]],
         );
         let s = Relation::new(
             vec!["c".to_string(), "d".to_string()],
-            vec![
-                vec![val("1"), val("c")],
-                vec![val("3"), val("d")],
-            ],
+            vec![vec![val("1"), val("c")], vec![val("3"), val("d")]],
         );
         let t = Relation::new(
             vec!["e".to_string(), "f".to_string()],
-            vec![
-                vec![val("1"), val("e")],
-                vec![val("2"), val("f")],
-            ],
+            vec![vec![val("1"), val("e")], vec![val("2"), val("f")]],
         );
 
         let query = WcojQuery {
@@ -930,16 +912,34 @@ mod tests {
         }
         let query = WcojQuery {
             atoms: vec![
-                Atom { relation_name: "e1".into(), variables: vec!["X".into(), "Y".into()] },
-                Atom { relation_name: "e2".into(), variables: vec!["Y".into(), "Z".into()] },
-                Atom { relation_name: "e3".into(), variables: vec!["Z".into(), "X".into()] },
+                Atom {
+                    relation_name: "e1".into(),
+                    variables: vec!["X".into(), "Y".into()],
+                },
+                Atom {
+                    relation_name: "e2".into(),
+                    variables: vec!["Y".into(), "Z".into()],
+                },
+                Atom {
+                    relation_name: "e3".into(),
+                    variables: vec!["Z".into(), "X".into()],
+                },
             ],
             output_variables: vec!["X".into(), "Y".into(), "Z".into()],
         };
         let rels = vec![
-            ("e1".to_string(), Relation::new(vec!["src".into(), "dst".into()], e1)),
-            ("e2".to_string(), Relation::new(vec!["src".into(), "dst".into()], e2)),
-            ("e3".to_string(), Relation::new(vec!["src".into(), "dst".into()], e3)),
+            (
+                "e1".to_string(),
+                Relation::new(vec!["src".into(), "dst".into()], e1),
+            ),
+            (
+                "e2".to_string(),
+                Relation::new(vec!["src".into(), "dst".into()], e2),
+            ),
+            (
+                "e3".to_string(),
+                Relation::new(vec!["src".into(), "dst".into()], e3),
+            ),
         ];
         (query, rels)
     }
@@ -1052,7 +1052,10 @@ mod tests {
         // 3. Convergence: the learned order is at (or very near) the
         //    optimum — strictly better than the baseline on this skewed
         //    workload, where the baseline is demonstrably suboptimal.
-        assert!(baseline_work > optimal_work, "test setup: baseline should be suboptimal here");
+        assert!(
+            baseline_work > optimal_work,
+            "test setup: baseline should be suboptimal here"
+        );
         assert!(
             chosen_work <= optimal_work + (optimal_work / 20).max(1),
             "learned order did not converge: chosen {chosen_work}, optimal {optimal_work}, baseline {baseline_work}"

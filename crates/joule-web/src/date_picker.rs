@@ -332,8 +332,7 @@ mod tests {
 
     #[test]
     fn select_disabled_date_fails() {
-        let mut picker = DatePickerState::new(2026, 3)
-            .with_min(d(2026, 3, 5));
+        let mut picker = DatePickerState::new(2026, 3).with_min(d(2026, 3, 5));
         assert!(!picker.select(d(2026, 3, 1)));
         assert!(picker.selected_date.is_none());
     }
@@ -352,8 +351,7 @@ mod tests {
     #[test]
     fn custom_disabled_fn() {
         // Disable the 13th of any month.
-        let picker = DatePickerState::new(2026, 3)
-            .with_disabled_fn(|d| d.day() == 13);
+        let picker = DatePickerState::new(2026, 3).with_disabled_fn(|d| d.day() == 13);
         assert!(picker.is_disabled(d(2026, 3, 13)));
         assert!(!picker.is_disabled(d(2026, 3, 14)));
     }

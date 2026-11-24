@@ -72,8 +72,8 @@ pub struct ArpNote {
 pub struct ArpConfig {
     pub mode: ArpMode,
     pub rate: ArpRate,
-    pub octave_range: u8,    // 1-4
-    pub gate_percent: f64,   // 0.0..=1.0
+    pub octave_range: u8,  // 1-4
+    pub gate_percent: f64, // 0.0..=1.0
     pub latch: bool,
     pub chord_mode: bool,
     pub base_velocity: u8,
@@ -236,7 +236,12 @@ impl Arpeggiator {
             // Play all notes simultaneously
             let notes: Vec<ArpNote> = sequence
                 .iter()
-                .map(|note| ArpNote { note: *note, velocity, gate_ticks, is_tie })
+                .map(|note| ArpNote {
+                    note: *note,
+                    velocity,
+                    gate_ticks,
+                    is_tie,
+                })
                 .collect();
             self.step_index += 1;
             return notes;
@@ -246,28 +251,25 @@ impl Arpeggiator {
         let note = sequence[note_idx];
         self.advance_step(sequence.len());
 
-        vec![ArpNote { note, velocity, gate_ticks, is_tie }]
+        vec![ArpNote {
+            note,
+            velocity,
+            gate_ticks,
+            is_tie,
+        }]
     }
 
     fn compute_note_index(&mut self, seq_len: usize) -> usize {
         match self.config.mode {
-            ArpMode::Up | ArpMode::PlayedOrder => {
-                self.step_index % seq_len
-            }
-            ArpMode::Down => {
-                (seq_len - 1) - (self.step_index % seq_len)
-            }
+            ArpMode::Up | ArpMode::PlayedOrder => self.step_index % seq_len,
+            ArpMode::Down => (seq_len - 1) - (self.step_index % seq_len),
             ArpMode::UpDown => {
                 if seq_len <= 1 {
                     return 0;
                 }
                 let cycle = 2 * (seq_len - 1);
                 let pos = self.step_index % cycle;
-                if pos < seq_len {
-                    pos
-                } else {
-                    cycle - pos
-                }
+                if pos < seq_len { pos } else { cycle - pos }
             }
             ArpMode::DownUp => {
                 if seq_len <= 1 {
@@ -319,7 +321,12 @@ impl Arpeggiator {
 }
 
 /// Generate N steps of arpeggiator output for preview.
-pub fn preview_arp(config: &ArpConfig, notes: &[u8], num_steps: usize, ppq: u32) -> Vec<Vec<ArpNote>> {
+pub fn preview_arp(
+    config: &ArpConfig,
+    notes: &[u8],
+    num_steps: usize,
+    ppq: u32,
+) -> Vec<Vec<ArpNote>> {
     let mut arp = Arpeggiator::new(config.clone());
     for &n in notes {
         arp.note_on(n);
@@ -366,7 +373,10 @@ mod tests {
 
     #[test]
     fn test_up_mode() {
-        let config = ArpConfig { mode: ArpMode::Up, ..Default::default() };
+        let config = ArpConfig {
+            mode: ArpMode::Up,
+            ..Default::default()
+        };
         let steps = preview_arp(&config, &c_major_triad(), 6, 480);
         let notes: Vec<u8> = steps.iter().map(|s| s[0].note).collect();
         assert_eq!(notes, vec![60, 64, 67, 60, 64, 67]);
@@ -374,7 +384,10 @@ mod tests {
 
     #[test]
     fn test_down_mode() {
-        let config = ArpConfig { mode: ArpMode::Down, ..Default::default() };
+        let config = ArpConfig {
+            mode: ArpMode::Down,
+            ..Default::default()
+        };
         let steps = preview_arp(&config, &c_major_triad(), 6, 480);
         let notes: Vec<u8> = steps.iter().map(|s| s[0].note).collect();
         assert_eq!(notes, vec![67, 64, 60, 67, 64, 60]);
@@ -382,7 +395,10 @@ mod tests {
 
     #[test]
     fn test_up_down_mode() {
-        let config = ArpConfig { mode: ArpMode::UpDown, ..Default::default() };
+        let config = ArpConfig {
+            mode: ArpMode::UpDown,
+            ..Default::default()
+        };
         let steps = preview_arp(&config, &c_major_triad(), 8, 480);
         let notes: Vec<u8> = steps.iter().map(|s| s[0].note).collect();
         // Up: 60, 64, 67 then Down: 64, 60 then Up: 64, 67 then Down: 64
@@ -391,7 +407,10 @@ mod tests {
 
     #[test]
     fn test_down_up_mode() {
-        let config = ArpConfig { mode: ArpMode::DownUp, ..Default::default() };
+        let config = ArpConfig {
+            mode: ArpMode::DownUp,
+            ..Default::default()
+        };
         let steps = preview_arp(&config, &c_major_triad(), 6, 480);
         let notes: Vec<u8> = steps.iter().map(|s| s[0].note).collect();
         // Down: 67, 64, 60, Up: 64, 67, Down: 64
@@ -400,7 +419,10 @@ mod tests {
 
     #[test]
     fn test_random_mode_deterministic() {
-        let config = ArpConfig { mode: ArpMode::Random, ..Default::default() };
+        let config = ArpConfig {
+            mode: ArpMode::Random,
+            ..Default::default()
+        };
         let steps1 = preview_arp(&config, &c_major_triad(), 10, 480);
         let steps2 = preview_arp(&config, &c_major_triad(), 10, 480);
         // Same seed -> same sequence
@@ -411,7 +433,11 @@ mod tests {
 
     #[test]
     fn test_octave_range() {
-        let config = ArpConfig { mode: ArpMode::Up, octave_range: 2, ..Default::default() };
+        let config = ArpConfig {
+            mode: ArpMode::Up,
+            octave_range: 2,
+            ..Default::default()
+        };
         let steps = preview_arp(&config, &[60, 64, 67], 6, 480);
         let notes: Vec<u8> = steps.iter().map(|s| s[0].note).collect();
         assert_eq!(notes, vec![60, 64, 67, 72, 76, 79]);
@@ -419,7 +445,10 @@ mod tests {
 
     #[test]
     fn test_gate_length() {
-        let config = ArpConfig { gate_percent: 0.75, ..Default::default() };
+        let config = ArpConfig {
+            gate_percent: 0.75,
+            ..Default::default()
+        };
         let steps = preview_arp(&config, &[60], 1, 480);
         // Eighth note = 240 ticks, gate 75% = 180
         assert_eq!(steps[0][0].gate_ticks, 180);
@@ -427,7 +456,10 @@ mod tests {
 
     #[test]
     fn test_chord_mode() {
-        let config = ArpConfig { chord_mode: true, ..Default::default() };
+        let config = ArpConfig {
+            chord_mode: true,
+            ..Default::default()
+        };
         let steps = preview_arp(&config, &c_major_triad(), 2, 480);
         assert_eq!(steps[0].len(), 3);
         assert_eq!(steps[1].len(), 3);
@@ -435,7 +467,10 @@ mod tests {
 
     #[test]
     fn test_latch_mode() {
-        let mut arp = Arpeggiator::new(ArpConfig { latch: true, ..Default::default() });
+        let mut arp = Arpeggiator::new(ArpConfig {
+            latch: true,
+            ..Default::default()
+        });
         arp.note_on(60);
         arp.note_on(64);
         arp.note_off(60);
@@ -447,7 +482,10 @@ mod tests {
 
     #[test]
     fn test_clear_latch() {
-        let mut arp = Arpeggiator::new(ArpConfig { latch: true, ..Default::default() });
+        let mut arp = Arpeggiator::new(ArpConfig {
+            latch: true,
+            ..Default::default()
+        });
         arp.note_on(60);
         arp.note_off(60);
         assert!(!arp.active_notes().is_empty());
@@ -493,7 +531,10 @@ mod tests {
 
     #[test]
     fn test_played_order_mode() {
-        let mut arp = Arpeggiator::new(ArpConfig { mode: ArpMode::PlayedOrder, ..Default::default() });
+        let mut arp = Arpeggiator::new(ArpConfig {
+            mode: ArpMode::PlayedOrder,
+            ..Default::default()
+        });
         arp.note_on(67); // G first
         arp.note_on(60); // C second
         arp.note_on(64); // E third
@@ -516,7 +557,10 @@ mod tests {
     #[test]
     fn test_single_note_up_down() {
         // With only one note, up-down should just repeat it
-        let config = ArpConfig { mode: ArpMode::UpDown, ..Default::default() };
+        let config = ArpConfig {
+            mode: ArpMode::UpDown,
+            ..Default::default()
+        };
         let steps = preview_arp(&config, &[60], 4, 480);
         let notes: Vec<u8> = steps.iter().map(|s| s[0].note).collect();
         assert_eq!(notes, vec![60, 60, 60, 60]);
@@ -525,7 +569,11 @@ mod tests {
     #[test]
     fn test_octave_range_clipping() {
         // High note + 3 octaves should clip at 127
-        let config = ArpConfig { mode: ArpMode::Up, octave_range: 4, ..Default::default() };
+        let config = ArpConfig {
+            mode: ArpMode::Up,
+            octave_range: 4,
+            ..Default::default()
+        };
         let steps = preview_arp(&config, &[120], 4, 480);
         for s in &steps {
             for n in s {

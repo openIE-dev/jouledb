@@ -175,18 +175,36 @@ fn weekday_full(w: Weekday) -> &'static str {
 
 fn month_short(m: u32) -> &'static str {
     match m {
-        1 => "Jan", 2 => "Feb", 3 => "Mar", 4 => "Apr",
-        5 => "May", 6 => "Jun", 7 => "Jul", 8 => "Aug",
-        9 => "Sep", 10 => "Oct", 11 => "Nov", 12 => "Dec",
+        1 => "Jan",
+        2 => "Feb",
+        3 => "Mar",
+        4 => "Apr",
+        5 => "May",
+        6 => "Jun",
+        7 => "Jul",
+        8 => "Aug",
+        9 => "Sep",
+        10 => "Oct",
+        11 => "Nov",
+        12 => "Dec",
         _ => "???",
     }
 }
 
 fn month_full(m: u32) -> &'static str {
     match m {
-        1 => "January", 2 => "February", 3 => "March", 4 => "April",
-        5 => "May", 6 => "June", 7 => "July", 8 => "August",
-        9 => "September", 10 => "October", 11 => "November", 12 => "December",
+        1 => "January",
+        2 => "February",
+        3 => "March",
+        4 => "April",
+        5 => "May",
+        6 => "June",
+        7 => "July",
+        8 => "August",
+        9 => "September",
+        10 => "October",
+        11 => "November",
+        12 => "December",
         _ => "Unknown",
     }
 }
@@ -229,7 +247,11 @@ pub fn duration_between(a: &DateTime<Utc>, b: &DateTime<Utc>) -> DurationParts {
     }
     if days < 0 {
         months -= 1;
-        let prev_month = if later.month() == 1 { 12 } else { later.month() - 1 };
+        let prev_month = if later.month() == 1 {
+            12
+        } else {
+            later.month() - 1
+        };
         let prev_year = if later.month() == 1 {
             later.year() - 1
         } else {
@@ -406,11 +428,7 @@ pub fn calendar_month(year: i32, month: u32) -> CalendarMonth {
         weeks.push(row);
     }
 
-    CalendarMonth {
-        year,
-        month,
-        weeks,
-    }
+    CalendarMonth { year, month, weeks }
 }
 
 // ── Date Range ──────────────────────────────────────────────────

@@ -30,7 +30,10 @@ pub fn log_spaced_bands(num_bands: usize, low_hz: f64, high_hz: f64, q: f64) -> 
         .map(|i| {
             let t = i as f64 / (num_bands.max(1) - 1).max(1) as f64;
             let center = (log_low + t * (log_high - log_low)).exp();
-            BandConfig { center_hz: center, q }
+            BandConfig {
+                center_hz: center,
+                q,
+            }
         })
         .collect()
 }
@@ -80,7 +83,8 @@ impl BandPassFilter {
 
     fn process(&mut self, input: f64) -> f64 {
         let out = self.b0 * input + self.b1 * self.x1 + self.b2 * self.x2
-            - self.a1 * self.y1 - self.a2 * self.y2;
+            - self.a1 * self.y1
+            - self.a2 * self.y2;
         self.x2 = self.x1;
         self.x1 = input;
         self.y2 = self.y1;
@@ -140,7 +144,8 @@ impl HighPassFilter {
 
     fn process(&mut self, input: f64) -> f64 {
         let out = self.b0 * input + self.b1 * self.x1 + self.b2 * self.x2
-            - self.a1 * self.y1 - self.a2 * self.y2;
+            - self.a1 * self.y1
+            - self.a2 * self.y2;
         self.x2 = self.x1;
         self.x1 = input;
         self.y2 = self.y1;
@@ -175,7 +180,11 @@ impl EnvelopeFollower {
     pub fn new(attack_ms: f64, release_ms: f64, sample_rate: f64) -> Self {
         let attack_coeff = (-1.0 / (attack_ms * 0.001 * sample_rate)).exp();
         let release_coeff = (-1.0 / (release_ms * 0.001 * sample_rate)).exp();
-        Self { attack_coeff, release_coeff, level: 0.0 }
+        Self {
+            attack_coeff,
+            release_coeff,
+            level: 0.0,
+        }
     }
 
     /// Process a rectified input sample and return the smoothed envelope.
@@ -302,20 +311,40 @@ pub struct Vocoder {
 impl Vocoder {
     /// Create a new vocoder from configuration.
     pub fn new(config: VocoderConfig) -> Self {
-        let channels = config.bands.iter().map(|band| {
-            // Apply formant shift to carrier filter centre frequency.
-            let shifted_center = band.center_hz * 2.0_f64.powf(config.formant_shift_semitones / 12.0);
-            let carrier_band = BandConfig { center_hz: shifted_center, q: band.q };
-            let mut ch = VocoderChannel::new(band, config.sample_rate, config.attack_ms, config.release_ms);
-            ch.car_filter = BandPassFilter::new(carrier_band.center_hz, carrier_band.q, config.sample_rate);
-            ch
-        }).collect();
+        let channels = config
+            .bands
+            .iter()
+            .map(|band| {
+                // Apply formant shift to carrier filter centre frequency.
+                let shifted_center =
+                    band.center_hz * 2.0_f64.powf(config.formant_shift_semitones / 12.0);
+                let carrier_band = BandConfig {
+                    center_hz: shifted_center,
+                    q: band.q,
+                };
+                let mut ch = VocoderChannel::new(
+                    band,
+                    config.sample_rate,
+                    config.attack_ms,
+                    config.release_ms,
+                );
+                ch.car_filter =
+                    BandPassFilter::new(carrier_band.center_hz, carrier_band.q, config.sample_rate);
+                ch
+            })
+            .collect();
 
         let sibilance_hp = HighPassFilter::new(5000.0, 0.707, config.sample_rate);
         let sibilance_envelope = EnvelopeFollower::new(1.0, 10.0, config.sample_rate);
         let fullband_envelope = EnvelopeFollower::new(1.0, 10.0, config.sample_rate);
 
-        Self { channels, sibilance_hp, sibilance_envelope, fullband_envelope, config }
+        Self {
+            channels,
+            sibilance_hp,
+            sibilance_envelope,
+            fullband_envelope,
+            config,
+        }
     }
 
     /// Number of bands.
@@ -353,7 +382,11 @@ impl Vocoder {
             let sib_level = self.sibilance_envelope.process(hp_signal);
             let full_level = self.fullband_envelope.process(modulator);
 
-            let ratio = if full_level > 1e-10 { sib_level / full_level } else { 0.0 };
+            let ratio = if full_level > 1e-10 {
+                sib_level / full_level
+            } else {
+                0.0
+            };
             if ratio > self.config.sibilance_threshold {
                 output += hp_signal * self.config.sibilance_mix;
             }
@@ -405,7 +438,9 @@ mod tests {
     const EPS: f64 = 1e-4;
 
     fn sine_tone(freq: f64, sr: f64, n: usize) -> Vec<f64> {
-        (0..n).map(|i| (2.0 * PI * freq * i as f64 / sr).sin()).collect()
+        (0..n)
+            .map(|i| (2.0 * PI * freq * i as f64 / sr).sin())
+            .collect()
     }
 
     fn rms(buf: &[f64]) -> f64 {
@@ -430,8 +465,12 @@ mod tests {
     fn test_log_spaced_bands_ascending() {
         let bands = log_spaced_bands(16, 100.0, 8000.0, 8.0);
         for i in 1..bands.len() {
-            assert!(bands[i].center_hz > bands[i - 1].center_hz,
-                "bands should be ascending: {} vs {}", bands[i - 1].center_hz, bands[i].center_hz);
+            assert!(
+                bands[i].center_hz > bands[i - 1].center_hz,
+                "bands should be ascending: {} vs {}",
+                bands[i - 1].center_hz,
+                bands[i].center_hz
+            );
         }
     }
 
@@ -449,7 +488,11 @@ mod tests {
         for _ in 0..1000 {
             ef.process(1.0);
         }
-        assert!(ef.level() > 0.8, "envelope should track input: level={}", ef.level());
+        assert!(
+            ef.level() > 0.8,
+            "envelope should track input: level={}",
+            ef.level()
+        );
     }
 
     #[test]
@@ -462,7 +505,12 @@ mod tests {
         for _ in 0..1000 {
             ef.process(0.0);
         }
-        assert!(ef.level() < peak * 0.5, "envelope should release: {} vs peak {}", ef.level(), peak);
+        assert!(
+            ef.level() < peak * 0.5,
+            "envelope should release: {} vs peak {}",
+            ef.level(),
+            peak
+        );
     }
 
     #[test]
@@ -494,7 +542,10 @@ mod tests {
         let config = VocoderConfig::default_16_band(SR);
         let mut vocoder = Vocoder::new(config);
         let out = vocoder.process(0.0, 0.0);
-        assert!((out - 0.0).abs() < EPS, "silence in should give silence out");
+        assert!(
+            (out - 0.0).abs() < EPS,
+            "silence in should give silence out"
+        );
     }
 
     #[test]
@@ -506,7 +557,10 @@ mod tests {
         let mut output = vec![0.0; 4096];
         vocoder.process_block(&modulator, &carrier, &mut output);
         let out_rms = rms(&output);
-        assert!(out_rms > 0.001, "vocoder should produce nonzero output: rms={out_rms}");
+        assert!(
+            out_rms > 0.001,
+            "vocoder should produce nonzero output: rms={out_rms}"
+        );
     }
 
     #[test]
@@ -524,7 +578,10 @@ mod tests {
         let mut output2 = vec![0.0; 4096];
         vocoder2.process_block(&modulator, &carrier, &mut output2);
         let out_rms = rms(&output2);
-        assert!(out_rms < 0.01, "no carrier + no sibilance should be near silent: rms={out_rms}");
+        assert!(
+            out_rms < 0.01,
+            "no carrier + no sibilance should be near silent: rms={out_rms}"
+        );
     }
 
     #[test]
@@ -554,7 +611,10 @@ mod tests {
         vocoder.reset();
         let levels = vocoder.envelope_levels();
         for l in &levels {
-            assert!((*l - 0.0).abs() < EPS, "all levels should be zero after reset, got {l}");
+            assert!(
+                (*l - 0.0).abs() < EPS,
+                "all levels should be zero after reset, got {l}"
+            );
         }
     }
 
@@ -569,7 +629,10 @@ mod tests {
         let mut output = vec![0.0; 2048];
         vocoder.process_block(&modulator, &carrier, &mut output);
         let out_rms = rms(&output);
-        assert!(out_rms > 0.0, "formant-shifted vocoder should produce output: {out_rms}");
+        assert!(
+            out_rms > 0.0,
+            "formant-shifted vocoder should produce output: {out_rms}"
+        );
     }
 
     #[test]
@@ -590,7 +653,10 @@ mod tests {
         let filtered: Vec<f64> = signal.iter().map(|s| bp.process(*s)).collect();
         let out_rms = rms(&filtered);
         let in_rms = rms(&signal);
-        assert!(out_rms > in_rms * 0.1, "BP should pass center freq: in={in_rms} out={out_rms}");
+        assert!(
+            out_rms > in_rms * 0.1,
+            "BP should pass center freq: in={in_rms} out={out_rms}"
+        );
     }
 
     #[test]
@@ -600,7 +666,10 @@ mod tests {
         let filtered: Vec<f64> = signal.iter().map(|s| bp.process(*s)).collect();
         let out_rms = rms(&filtered);
         let in_rms = rms(&signal);
-        assert!(out_rms < in_rms * 0.3, "BP should reject far freq: in={in_rms} out={out_rms}");
+        assert!(
+            out_rms < in_rms * 0.3,
+            "BP should reject far freq: in={in_rms} out={out_rms}"
+        );
     }
 
     #[test]
@@ -636,7 +705,10 @@ mod tests {
         let filtered: Vec<f64> = signal.iter().map(|s| hp.process(*s)).collect();
         let out_rms = rms(&filtered);
         let in_rms = rms(&signal);
-        assert!(out_rms > in_rms * 0.5, "HP should pass 5kHz: in={in_rms} out={out_rms}");
+        assert!(
+            out_rms > in_rms * 0.5,
+            "HP should pass 5kHz: in={in_rms} out={out_rms}"
+        );
     }
 
     #[test]
@@ -646,6 +718,9 @@ mod tests {
         let filtered: Vec<f64> = signal.iter().map(|s| hp.process(*s)).collect();
         let out_rms = rms(&filtered);
         let in_rms = rms(&signal);
-        assert!(out_rms < in_rms * 0.2, "HP should reject 100Hz: in={in_rms} out={out_rms}");
+        assert!(
+            out_rms < in_rms * 0.2,
+            "HP should reject 100Hz: in={in_rms} out={out_rms}"
+        );
     }
 }

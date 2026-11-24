@@ -336,7 +336,7 @@ impl GpuKernel {
                 return Err(format!(
                     "{} has no GPU kernel",
                     super::codegen::step_label(other)
-                ))
+                ));
             }
         };
         Ok(Some(kernel))
@@ -495,13 +495,24 @@ impl GpuKernel {
     /// run faster with fewer, longer chunks; other kernels are unchanged.
     pub fn with_iir_chunk_target(self, n: usize, target: usize) -> Self {
         match self {
-            Self::Iir { sections, chunks: Some(_) } => {
+            Self::Iir {
+                sections,
+                chunks: Some(_),
+            } => {
                 let chunks = Some(IirChunks::with_chunks(&sections, n, target));
                 Self::Iir { sections, chunks }
             }
-            Self::Decimate { factor, sections, chunks: Some(_) } => {
+            Self::Decimate {
+                factor,
+                sections,
+                chunks: Some(_),
+            } => {
                 let chunks = Some(IirChunks::with_chunks(&sections, n, target));
-                Self::Decimate { factor, sections, chunks }
+                Self::Decimate {
+                    factor,
+                    sections,
+                    chunks,
+                }
             }
             other => other,
         }
@@ -511,7 +522,12 @@ impl GpuKernel {
     /// previous one's writes (WebGPU orders dispatches on shared buffers).
     pub fn passes(&self, n: usize) -> Vec<(&'static str, u32)> {
         match self {
-            Self::Iir { chunks: Some(c), .. } | Self::Decimate { chunks: Some(c), .. } => {
+            Self::Iir {
+                chunks: Some(c), ..
+            }
+            | Self::Decimate {
+                chunks: Some(c), ..
+            } => {
                 let groups = c.chunks.div_ceil(WORKGROUP);
                 let mut passes = vec![("chunk_state", groups), ("scan_block", groups)];
                 let block_groups = c.blocks().div_ceil(WORKGROUP);
@@ -550,7 +566,9 @@ impl GpuKernel {
         match self {
             Self::ZScore => 2,
             Self::Stats { op: ReduceOp::Std } => 2,
-            Self::Stats { op: ReduceOp::Kurtosis } => 4,
+            Self::Stats {
+                op: ReduceOp::Kurtosis,
+            } => 4,
             Self::Detrend { order } if *order > 0 => 2,
             _ => 1,
         }
@@ -586,16 +604,15 @@ impl GpuKernel {
         let v: Vec<f32> = match self {
             Self::Fir { taps } => taps.iter().map(|&t| t as f32).collect(),
             Self::Spectrum { window, .. } => window.iter().map(|&w| w as f32).collect(),
-            Self::Iir { chunks: Some(c), .. } | Self::Decimate { chunks: Some(c), .. } => {
-                c.powers.iter().map(|&m| m as f32).collect()
+            Self::Iir {
+                chunks: Some(c), ..
             }
+            | Self::Decimate {
+                chunks: Some(c), ..
+            } => c.powers.iter().map(|&m| m as f32).collect(),
             _ => Vec::new(),
         };
-        if v.is_empty() {
-            alloc_vec_one()
-        } else {
-            v
-        }
+        if v.is_empty() { alloc_vec_one() } else { v }
     }
 
     /// The `params` uniform: `[n, aux_len, size, scale_bits, p4, p5, p6, p7]`.
@@ -723,11 +740,7 @@ impl GpuKernel {
 fn ceil_to_usize(x: f64) -> usize {
     // `f64::ceil` needs std; saturating casts match `x.ceil() as usize`.
     let t = x as usize;
-    if (t as f64) < x {
-        t + 1
-    } else {
-        t
-    }
+    if (t as f64) < x { t + 1 } else { t }
 }
 
 fn floor_to_usize(x: f64) -> usize {
@@ -748,7 +761,18 @@ pub fn reduce_from_stats(
         return None;
     }
     let nf = n as f64;
-    let [sum, sum_sq, max, min, crossings, dev2, sq_dev2, dev3, dev4, xy] = [
+    let [
+        sum,
+        sum_sq,
+        max,
+        min,
+        crossings,
+        dev2,
+        sq_dev2,
+        dev3,
+        dev4,
+        xy,
+    ] = [
         stats[0], stats[1], stats[2], stats[3], stats[4], stats[5], stats[6], stats[7], stats[8],
         stats[9],
     ];
@@ -1215,7 +1239,9 @@ fn iir_parallel(sections: &[[f64; 6]], carry: IirCarry) -> String {
         ));
     }
     let d = 2 * sections.len();
-    let mut s = format!("const D: u32 = {d}u;\n\nfn filt(x: f32, s: ptr<function, array<f32, {d}>>) -> f32 {{\n    var y = x;\n");
+    let mut s = format!(
+        "const D: u32 = {d}u;\n\nfn filt(x: f32, s: ptr<function, array<f32, {d}>>) -> f32 {{\n    var y = x;\n"
+    );
     for (k, sec) in sections.iter().enumerate() {
         let [b0, b1, b2, _a0, a1, a2] = *sec;
         let (z1, z2) = (2 * k, 2 * k + 1);
@@ -1548,7 +1574,13 @@ mod tests {
         };
         let mut kernels: Vec<GpuKernel> = steps
             .iter()
-            .map(|s| GpuKernel::from_step(s).unwrap().unwrap().bind(&input).unwrap())
+            .map(|s| {
+                GpuKernel::from_step(s)
+                    .unwrap()
+                    .unwrap()
+                    .bind(&input)
+                    .unwrap()
+            })
             .collect();
         let band = PlanStep::BandPower {
             input: r,
@@ -1619,7 +1651,12 @@ mod tests {
             let module = validate_wgsl(bound.name(), &bound.wgsl());
             let passes = bound.passes(input.len);
             let levels = match &bound {
-                GpuKernel::Iir { chunks: Some(c), .. } | GpuKernel::Decimate { chunks: Some(c), .. } => c.levels,
+                GpuKernel::Iir {
+                    chunks: Some(c), ..
+                }
+                | GpuKernel::Decimate {
+                    chunks: Some(c), ..
+                } => c.levels,
                 other => panic!("{other:?} is not chunked"),
             };
             assert!(levels >= 1);
@@ -1636,7 +1673,10 @@ mod tests {
         validate_wgsl("sequential iir", &sequential_iir_wgsl(&sections));
         let serial = validate_wgsl("serial carry iir", &serial_carry_iir_wgsl(&sections));
         for entry in ["chunk_state", "carry", "main"] {
-            assert!(serial.entry_points.iter().any(|e| e.name == entry), "{entry}");
+            assert!(
+                serial.entry_points.iter().any(|e| e.name == entry),
+                "{entry}"
+            );
         }
     }
 
@@ -1672,7 +1712,10 @@ mod tests {
                 .map(|i| (i as f64 * 0.013).sin() + 0.3 * (i as f64 * 0.41).cos())
                 .collect();
             let mut st = vec![0.0; d];
-            let want: Vec<f64> = x.iter().map(|&v| cascade_step(&sections, v, &mut st)).collect();
+            let want: Vec<f64> = x
+                .iter()
+                .map(|&v| cascade_step(&sections, v, &mut st))
+                .collect();
 
             let plan = match target {
                 Some(t) => IirChunks::with_chunks(&sections, n, t),
@@ -1695,9 +1738,13 @@ mod tests {
             assert!(plan.levels == 0 || 1usize << (plan.levels - 1) < blocks);
             let dd = d * d;
             let matvec = |m: &[f64], v: &[f64]| -> Vec<f64> {
-                (0..d).map(|r| (0..d).map(|q| m[r * d + q] * v[q]).sum()).collect()
+                (0..d)
+                    .map(|r| (0..d).map(|q| m[r * d + q] * v[q]).sum())
+                    .collect()
             };
-            let add = |a: &[f64], b: &[f64]| -> Vec<f64> { a.iter().zip(b).map(|(x, y)| x + y).collect() };
+            let add = |a: &[f64], b: &[f64]| -> Vec<f64> {
+                a.iter().zip(b).map(|(x, y)| x + y).collect()
+            };
             // scan_block: Hillis-Steele inside each block with M^shift.
             let mut prefix = local.clone();
             let mut shift = 1;
@@ -1722,7 +1769,13 @@ mod tests {
                 let pow = &plan.powers[(IIR_SCAN_BLOCK + k) * dd..(IIR_SCAN_BLOCK + k + 1) * dd];
                 let shift = 1 << k;
                 totals = (0..blocks)
-                    .map(|b| if b >= shift { add(&totals[b], &matvec(pow, &totals[b - shift])) } else { totals[b].clone() })
+                    .map(|b| {
+                        if b >= shift {
+                            add(&totals[b], &matvec(pow, &totals[b - shift]))
+                        } else {
+                            totals[b].clone()
+                        }
+                    })
                     .collect();
             }
             // main's entry state.
@@ -1737,7 +1790,10 @@ mod tests {
                         prefix[e].clone()
                     } else {
                         let off = e % IIR_SCAN_BLOCK;
-                        add(&prefix[e], &matvec(&plan.powers[off * dd..(off + 1) * dd], &totals[b - 1]))
+                        add(
+                            &prefix[e],
+                            &matvec(&plan.powers[off * dd..(off + 1) * dd], &totals[b - 1]),
+                        )
                     }
                 })
                 .collect();
@@ -1749,7 +1805,10 @@ mod tests {
                 }
             }
             for (i, (a, b)) in got.iter().zip(&want).enumerate() {
-                assert!((a - b).abs() <= 1e-9 * (1.0 + b.abs()), "n={n} i={i}: {a} vs {b}");
+                assert!(
+                    (a - b).abs() <= 1e-9 * (1.0 + b.abs()),
+                    "n={n} i={i}: {a} vs {b}"
+                );
             }
         }
     }
@@ -1806,10 +1865,12 @@ mod tests {
             is_spectrum: true,
             ..input
         };
-        assert!(GpuKernel::Envelope
-            .bind(&spectrum_in)
-            .unwrap_err()
-            .contains("time-domain"));
+        assert!(
+            GpuKernel::Envelope
+                .bind(&spectrum_in)
+                .unwrap_err()
+                .contains("time-domain")
+        );
     }
 
     /// The host-side formulas must reproduce the CPU runtime's scalars when

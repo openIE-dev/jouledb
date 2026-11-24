@@ -152,11 +152,7 @@ impl MontgomeryCurve {
     pub fn j_invariant(&self) -> Result<u64, IsogenyError> {
         let a_sq = mod_mul(self.a, self.a, self.p);
         let num_base = mod_sub(a_sq, 3 % self.p, self.p);
-        let num_cubed = mod_mul(
-            mod_mul(num_base, num_base, self.p),
-            num_base,
-            self.p,
-        );
+        let num_cubed = mod_mul(mod_mul(num_base, num_base, self.p), num_base, self.p);
         let numerator = mod_mul(256 % self.p, num_cubed, self.p);
         let denominator = mod_sub(a_sq, 4 % self.p, self.p);
         let inv_den = mod_inv(denominator, self.p)?;
@@ -260,24 +256,11 @@ pub fn xdbl(p_pt: &XPoint, curve: &MontgomeryCurve) -> XPoint {
 ///
 /// Given P, Q and their difference P-Q, compute P+Q.
 /// Requires the x-coordinate of P-Q to resolve the sign ambiguity.
-pub fn xadd(
-    p_pt: &XPoint,
-    q_pt: &XPoint,
-    diff: &XPoint,
-    curve: &MontgomeryCurve,
-) -> XPoint {
+pub fn xadd(p_pt: &XPoint, q_pt: &XPoint, diff: &XPoint, curve: &MontgomeryCurve) -> XPoint {
     let p = curve.p;
 
-    let u = mod_mul(
-        mod_sub(p_pt.x, p_pt.z, p),
-        mod_add(q_pt.x, q_pt.z, p),
-        p,
-    );
-    let v = mod_mul(
-        mod_add(p_pt.x, p_pt.z, p),
-        mod_sub(q_pt.x, q_pt.z, p),
-        p,
-    );
+    let u = mod_mul(mod_sub(p_pt.x, p_pt.z, p), mod_add(q_pt.x, q_pt.z, p), p);
+    let v = mod_mul(mod_add(p_pt.x, p_pt.z, p), mod_sub(q_pt.x, q_pt.z, p), p);
 
     let sum = mod_add(u, v, p);
     let sub = mod_sub(u, v, p);
@@ -294,11 +277,7 @@ pub fn xadd(
 ///
 /// Computes [k]P on the given curve using x-only arithmetic.
 /// Constant-time w.r.t. the scalar (no branching on bits).
-pub fn scalar_mul(
-    k: u64,
-    base: &XPoint,
-    curve: &MontgomeryCurve,
-) -> Result<XPoint, IsogenyError> {
+pub fn scalar_mul(k: u64, base: &XPoint, curve: &MontgomeryCurve) -> Result<XPoint, IsogenyError> {
     if k == 0 {
         return Ok(XPoint::infinity());
     }

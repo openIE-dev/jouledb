@@ -77,7 +77,11 @@ pub struct DistanceMatrix {
 impl DistanceMatrix {
     pub fn new(labels: Vec<String>) -> Self {
         let n = labels.len();
-        Self { labels, data: vec![0.0; n * n], n }
+        Self {
+            labels,
+            data: vec![0.0; n * n],
+            n,
+        }
     }
 
     pub fn with_data(labels: Vec<String>, data: Vec<f64>) -> Result<Self, DistanceError> {
@@ -260,7 +264,9 @@ pub fn poisson_distance(seq_a: &[u8], seq_b: &[u8]) -> Result<f64, DistanceError
     let p = p_distance(seq_a, seq_b)?;
     let arg = 1.0 - p;
     if arg <= 0.0 {
-        return Err(DistanceError::UndefinedDistance("Poisson saturation".into()));
+        return Err(DistanceError::UndefinedDistance(
+            "Poisson saturation".into(),
+        ));
     }
     Ok(-arg.ln())
 }
@@ -302,9 +308,7 @@ pub fn compute_distance_matrix(
                 SubstitutionModel::JukesCantor => jukes_cantor(sequences[i], sequences[j])?,
                 SubstitutionModel::Kimura2P => kimura_2p(sequences[i], sequences[j])?,
                 SubstitutionModel::Poisson => poisson_distance(sequences[i], sequences[j])?,
-                SubstitutionModel::Hamming => {
-                    hamming_distance(sequences[i], sequences[j])? as f64
-                }
+                SubstitutionModel::Hamming => hamming_distance(sequences[i], sequences[j])? as f64,
             };
             dm.set(i, j, d)?;
         }
@@ -453,7 +457,10 @@ mod tests {
 
     #[test]
     fn test_model_display() {
-        assert_eq!(format!("{}", SubstitutionModel::JukesCantor), "Jukes-Cantor");
+        assert_eq!(
+            format!("{}", SubstitutionModel::JukesCantor),
+            "Jukes-Cantor"
+        );
         assert_eq!(format!("{}", SubstitutionModel::Kimura2P), "Kimura-2P");
     }
 }

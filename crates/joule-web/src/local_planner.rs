@@ -102,7 +102,13 @@ pub struct DynamicObstacle {
 
 impl DynamicObstacle {
     pub fn new(x: f64, y: f64, radius: f64) -> Self {
-        Self { x, y, vx: 0.0, vy: 0.0, radius }
+        Self {
+            x,
+            y,
+            vx: 0.0,
+            vy: 0.0,
+            radius,
+        }
     }
 
     pub fn with_velocity(mut self, vx: f64, vy: f64) -> Self {
@@ -119,7 +125,11 @@ impl DynamicObstacle {
 
 impl fmt::Display for DynamicObstacle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Obstacle({:.1},{:.1} r={:.2})", self.x, self.y, self.radius)
+        write!(
+            f,
+            "Obstacle({:.1},{:.1} r={:.2})",
+            self.x, self.y, self.radius
+        )
     }
 }
 
@@ -136,7 +146,12 @@ pub struct Trajectory {
 
 impl Trajectory {
     fn new(cmd: VelCmd) -> Self {
-        Self { cmd, poses: Vec::new(), score: 0.0, collides: false }
+        Self {
+            cmd,
+            poses: Vec::new(),
+            score: 0.0,
+            collides: false,
+        }
     }
 }
 
@@ -288,10 +303,11 @@ impl LocalPlanner {
         global_path: &[(f64, f64)],
     ) -> Result<VelCmd, LocalPlannerError> {
         let trajectories = self.sample_trajectories(pose, cur_vel, goal, obstacles, global_path);
-        let best = trajectories
-            .iter()
-            .filter(|t| !t.collides)
-            .max_by(|a, b| a.score.partial_cmp(&b.score).unwrap_or(std::cmp::Ordering::Equal));
+        let best = trajectories.iter().filter(|t| !t.collides).max_by(|a, b| {
+            a.score
+                .partial_cmp(&b.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         match best {
             Some(t) => Ok(t.cmd),
             None => {
@@ -383,7 +399,11 @@ impl LocalPlanner {
         obstacles: &[DynamicObstacle],
         global_path: &[(f64, f64)],
     ) -> f64 {
-        let end = traj.poses.last().copied().unwrap_or(Pose2D::new(0.0, 0.0, 0.0));
+        let end = traj
+            .poses
+            .last()
+            .copied()
+            .unwrap_or(Pose2D::new(0.0, 0.0, 0.0));
 
         // Goal heading alignment: cos of angle to goal from endpoint.
         let to_goal = (goal.y - end.y).atan2(goal.x - end.x);
@@ -453,7 +473,9 @@ mod tests {
 
     fn basic_planner() -> LocalPlanner {
         let limits = VelocityLimits::new(1.0, 1.5);
-        LocalPlanner::new(limits).with_samples(5, 10).with_sim_time(1.0)
+        LocalPlanner::new(limits)
+            .with_samples(5, 10)
+            .with_sim_time(1.0)
     }
 
     #[test]
@@ -597,7 +619,12 @@ mod tests {
 
     #[test]
     fn test_trajectory_display() {
-        let t = Trajectory { cmd: VelCmd::new(1.0, 0.5), poses: vec![], score: 0.75, collides: false };
+        let t = Trajectory {
+            cmd: VelCmd::new(1.0, 0.5),
+            poses: vec![],
+            score: 0.75,
+            collides: false,
+        };
         let s = format!("{t}");
         assert!(s.contains("0.750"));
     }

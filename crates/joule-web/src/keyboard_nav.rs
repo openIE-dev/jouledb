@@ -34,8 +34,18 @@ pub struct Modifiers {
 }
 
 impl Modifiers {
-    pub const NONE: Modifiers = Modifiers { shift: false, ctrl: false, alt: false, meta: false };
-    pub const SHIFT: Modifiers = Modifiers { shift: true, ctrl: false, alt: false, meta: false };
+    pub const NONE: Modifiers = Modifiers {
+        shift: false,
+        ctrl: false,
+        alt: false,
+        meta: false,
+    };
+    pub const SHIFT: Modifiers = Modifiers {
+        shift: true,
+        ctrl: false,
+        alt: false,
+        meta: false,
+    };
 }
 
 /// A keyboard event for navigation.
@@ -47,7 +57,10 @@ pub struct NavKeyEvent {
 
 impl NavKeyEvent {
     pub fn new(key: NavKey) -> Self {
-        Self { key, modifiers: Modifiers::NONE }
+        Self {
+            key,
+            modifiers: Modifiers::NONE,
+        }
     }
 
     pub fn with_shift(mut self) -> Self {
@@ -67,7 +80,9 @@ pub struct FocusVisibleTracker {
 
 impl FocusVisibleTracker {
     pub fn new() -> Self {
-        Self { keyboard_active: false }
+        Self {
+            keyboard_active: false,
+        }
     }
 
     /// Record a keyboard interaction.
@@ -434,7 +449,11 @@ impl KeyboardNavigator {
             if item.disabled {
                 continue;
             }
-            if item.label.to_lowercase().starts_with(&self.typeahead_buffer) {
+            if item
+                .label
+                .to_lowercase()
+                .starts_with(&self.typeahead_buffer)
+            {
                 self.current_index = Some(idx);
                 return NavAction::Focus(item.id.clone());
             }
@@ -519,27 +538,42 @@ mod tests {
     #[test]
     fn linear_arrow_down() {
         let mut nav = linear_nav();
-        assert_eq!(nav.handle_key(&NavKeyEvent::new(NavKey::ArrowDown)), NavAction::Focus("item-1".into()));
+        assert_eq!(
+            nav.handle_key(&NavKeyEvent::new(NavKey::ArrowDown)),
+            NavAction::Focus("item-1".into())
+        );
     }
 
     #[test]
     fn linear_arrow_up_wraps() {
         let mut nav = linear_nav();
-        assert_eq!(nav.handle_key(&NavKeyEvent::new(NavKey::ArrowUp)), NavAction::Focus("item-2".into()));
+        assert_eq!(
+            nav.handle_key(&NavKeyEvent::new(NavKey::ArrowUp)),
+            NavAction::Focus("item-2".into())
+        );
     }
 
     #[test]
     fn linear_home_end() {
         let mut nav = linear_nav();
         nav.set_current(1);
-        assert_eq!(nav.handle_key(&NavKeyEvent::new(NavKey::Home)), NavAction::Focus("item-0".into()));
-        assert_eq!(nav.handle_key(&NavKeyEvent::new(NavKey::End)), NavAction::Focus("item-2".into()));
+        assert_eq!(
+            nav.handle_key(&NavKeyEvent::new(NavKey::Home)),
+            NavAction::Focus("item-0".into())
+        );
+        assert_eq!(
+            nav.handle_key(&NavKeyEvent::new(NavKey::End)),
+            NavAction::Focus("item-2".into())
+        );
     }
 
     #[test]
     fn linear_activate() {
         let mut nav = linear_nav();
-        assert_eq!(nav.handle_key(&NavKeyEvent::new(NavKey::Enter)), NavAction::Activate("item-0".into()));
+        assert_eq!(
+            nav.handle_key(&NavKeyEvent::new(NavKey::Enter)),
+            NavAction::Activate("item-0".into())
+        );
     }
 
     #[test]
@@ -549,7 +583,10 @@ mod tests {
         nav.add_item(NavItem::new("b", "B").with_disabled(true));
         nav.add_item(NavItem::new("c", "C"));
         nav.set_current(0);
-        assert_eq!(nav.handle_key(&NavKeyEvent::new(NavKey::ArrowDown)), NavAction::Focus("c".into()));
+        assert_eq!(
+            nav.handle_key(&NavKeyEvent::new(NavKey::ArrowDown)),
+            NavAction::Focus("c".into())
+        );
     }
 
     #[test]
@@ -560,9 +597,15 @@ mod tests {
         }
         nav.set_current(0);
         // Move right.
-        assert_eq!(nav.handle_key(&NavKeyEvent::new(NavKey::ArrowRight)), NavAction::Focus("cell-1".into()));
+        assert_eq!(
+            nav.handle_key(&NavKeyEvent::new(NavKey::ArrowRight)),
+            NavAction::Focus("cell-1".into())
+        );
         // Move down from cell-1 (index 1) should go to cell-4 (index 4).
-        assert_eq!(nav.handle_key(&NavKeyEvent::new(NavKey::ArrowDown)), NavAction::Focus("cell-4".into()));
+        assert_eq!(
+            nav.handle_key(&NavKeyEvent::new(NavKey::ArrowDown)),
+            NavAction::Focus("cell-4".into())
+        );
     }
 
     #[test]
@@ -633,12 +676,25 @@ mod tests {
         let mut reg = ShortcutRegistry::new();
         reg.register(KeyboardShortcut {
             key: "s".into(),
-            modifiers: Modifiers { shift: false, ctrl: true, alt: false, meta: false },
+            modifiers: Modifiers {
+                shift: false,
+                ctrl: true,
+                alt: false,
+                meta: false,
+            },
             action_id: "save".into(),
             description: "Save".into(),
             enabled: true,
         });
-        let found = reg.find("s", Modifiers { shift: false, ctrl: true, alt: false, meta: false });
+        let found = reg.find(
+            "s",
+            Modifiers {
+                shift: false,
+                ctrl: true,
+                alt: false,
+                meta: false,
+            },
+        );
         assert!(found.is_some());
         assert_eq!(found.unwrap().action_id, "save");
     }

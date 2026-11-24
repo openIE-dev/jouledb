@@ -16,7 +16,9 @@ pub enum PinPosition {
 }
 
 impl Default for PinPosition {
-    fn default() -> Self { PinPosition::None }
+    fn default() -> Self {
+        PinPosition::None
+    }
 }
 
 // ── ColumnDef ───────────────────────────────────────────────────
@@ -84,11 +86,13 @@ pub struct ColumnConfig {
 
 impl ColumnConfig {
     pub fn new(defs: Vec<ColumnDef>) -> Self {
-        let runtime_widths: HashMap<String, f64> = defs
-            .iter()
-            .map(|d| (d.field.clone(), d.width))
-            .collect();
-        Self { defs, groups: Vec::new(), runtime_widths }
+        let runtime_widths: HashMap<String, f64> =
+            defs.iter().map(|d| (d.field.clone(), d.width)).collect();
+        Self {
+            defs,
+            groups: Vec::new(),
+            runtime_widths,
+        }
     }
 
     /// Get the current runtime width of a column.
@@ -146,7 +150,10 @@ impl ColumnConfig {
 
     /// Add a column group.
     pub fn add_group(&mut self, header: impl Into<String>, children: Vec<String>) {
-        self.groups.push(ColumnGroup { header: header.into(), children });
+        self.groups.push(ColumnGroup {
+            header: header.into(),
+            children,
+        });
     }
 
     /// Columns belonging to a named group.
@@ -168,7 +175,11 @@ impl ColumnConfig {
             .enumerate()
             .map(|(i, d)| ColumnState {
                 field: d.field.clone(),
-                width: self.runtime_widths.get(&d.field).copied().unwrap_or(d.width),
+                width: self
+                    .runtime_widths
+                    .get(&d.field)
+                    .copied()
+                    .unwrap_or(d.width),
                 hidden: d.hidden,
                 pinned: d.pinned,
                 order: i,
@@ -178,10 +189,8 @@ impl ColumnConfig {
 
     /// Restore from a previously saved state snapshot.
     pub fn restore_state(&mut self, states: &[ColumnState]) {
-        let field_order: HashMap<&str, &ColumnState> = states
-            .iter()
-            .map(|s| (s.field.as_str(), s))
-            .collect();
+        let field_order: HashMap<&str, &ColumnState> =
+            states.iter().map(|s| (s.field.as_str(), s)).collect();
 
         // Apply individual states.
         for def in &mut self.defs {
@@ -193,10 +202,14 @@ impl ColumnConfig {
         }
 
         // Reorder by saved order.
-        let mut ordered: Vec<(usize, ColumnDef)> = self.defs
+        let mut ordered: Vec<(usize, ColumnDef)> = self
+            .defs
             .drain(..)
             .map(|d| {
-                let order = field_order.get(d.field.as_str()).map(|s| s.order).unwrap_or(usize::MAX);
+                let order = field_order
+                    .get(d.field.as_str())
+                    .map(|s| s.order)
+                    .unwrap_or(usize::MAX);
                 (order, d)
             })
             .collect();
@@ -206,19 +219,30 @@ impl ColumnConfig {
 
     /// Distribute remaining space among flex columns.
     pub fn apply_flex(&mut self, total_width: f64) {
-        let fixed_total: f64 = self.defs.iter()
+        let fixed_total: f64 = self
+            .defs
+            .iter()
             .filter(|d| !d.hidden && d.flex == 0.0)
-            .map(|d| self.runtime_widths.get(&d.field).copied().unwrap_or(d.width))
+            .map(|d| {
+                self.runtime_widths
+                    .get(&d.field)
+                    .copied()
+                    .unwrap_or(d.width)
+            })
             .sum();
         let remaining = (total_width - fixed_total).max(0.0);
-        let flex_sum: f64 = self.defs.iter()
+        let flex_sum: f64 = self
+            .defs
+            .iter()
             .filter(|d| !d.hidden && d.flex > 0.0)
             .map(|d| d.flex)
             .sum();
         if flex_sum <= 0.0 {
             return;
         }
-        let flex_fields: Vec<(String, f64)> = self.defs.iter()
+        let flex_fields: Vec<(String, f64)> = self
+            .defs
+            .iter()
             .filter(|d| !d.hidden && d.flex > 0.0)
             .map(|d| (d.field.clone(), d.flex))
             .collect();
@@ -325,10 +349,7 @@ mod tests {
 
     #[test]
     fn flex_distributes_space() {
-        let mut defs = vec![
-            ColumnDef::new("a", "A"),
-            ColumnDef::new("b", "B"),
-        ];
+        let mut defs = vec![ColumnDef::new("a", "A"), ColumnDef::new("b", "B")];
         defs[0].width = 100.0;
         defs[0].flex = 0.0;
         defs[1].flex = 1.0;

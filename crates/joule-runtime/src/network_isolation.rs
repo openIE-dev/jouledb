@@ -192,16 +192,15 @@ impl NetworkIsolationEnforcer {
 
         if cfg!(target_os = "linux") {
             // Linux: create network namespace, only allow loopback + JWP socket
-            let netns_name = format!("joule-{}", &instance_id.as_str()[..8.min(instance_id.as_str().len())]);
-            args.pre_exec_commands.push(format!(
-                "ip netns add {} 2>/dev/null || true",
-                netns_name
-            ));
+            let netns_name = format!(
+                "joule-{}",
+                &instance_id.as_str()[..8.min(instance_id.as_str().len())]
+            );
+            args.pre_exec_commands
+                .push(format!("ip netns add {} 2>/dev/null || true", netns_name));
             // Bring up loopback in the namespace
-            args.pre_exec_commands.push(format!(
-                "ip netns exec {} ip link set lo up",
-                netns_name
-            ));
+            args.pre_exec_commands
+                .push(format!("ip netns exec {} ip link set lo up", netns_name));
 
             if policy.deny_all_egress {
                 // Drop all outbound except loopback
@@ -229,12 +228,7 @@ impl NetworkIsolationEnforcer {
                     .insert("JWP_SOCKET".to_string(), path.display().to_string());
             }
 
-            Ok((
-                args,
-                IsolationCleanup::LinuxNetns {
-                    netns_name,
-                },
-            ))
+            Ok((args, IsolationCleanup::LinuxNetns { netns_name }))
         } else if cfg!(target_os = "macos") {
             // macOS: pfctl anchor rules
             let anchor_name = format!(
@@ -244,9 +238,7 @@ impl NetworkIsolationEnforcer {
 
             if policy.deny_all_egress {
                 // Create pf anchor that blocks all egress except loopback
-                let rules = format!(
-                    "block out quick on ! lo0 all\npass out quick on lo0 all\n"
-                );
+                let rules = format!("block out quick on ! lo0 all\npass out quick on lo0 all\n");
                 args.pre_exec_commands.push(format!(
                     "echo '{}' | pfctl -a {} -f - 2>/dev/null || true",
                     rules, anchor_name
@@ -258,12 +250,7 @@ impl NetworkIsolationEnforcer {
                     .insert("JWP_SOCKET".to_string(), path.display().to_string());
             }
 
-            Ok((
-                args,
-                IsolationCleanup::MacosPf {
-                    anchor_name,
-                },
-            ))
+            Ok((args, IsolationCleanup::MacosPf { anchor_name }))
         } else {
             // Unsupported platform: rely on JWP channel env var only
             if let JwpChannel::UnixSocket { ref path } = policy.jwp_channel {

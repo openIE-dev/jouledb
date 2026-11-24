@@ -79,19 +79,27 @@ impl BondPriceConfig {
             return Err(BondPriceError::InvalidConfig("yield_rate is NaN".into()));
         }
         if self.maturity_years.is_nan() {
-            return Err(BondPriceError::InvalidConfig("maturity_years is NaN".into()));
+            return Err(BondPriceError::InvalidConfig(
+                "maturity_years is NaN".into(),
+            ));
         }
         Ok(())
     }
 }
 
 impl Default for BondPriceConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for BondPriceConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "BondPriceConfig(face_value={0:.4}, coupon_rate={1:.4}, yield_rate={2:.4}, maturity_years={3:.4})", self.face_value, self.coupon_rate, self.yield_rate, self.maturity_years)
+        write!(
+            f,
+            "BondPriceConfig(face_value={0:.4}, coupon_rate={1:.4}, yield_rate={2:.4}, maturity_years={3:.4})",
+            self.face_value, self.coupon_rate, self.yield_rate, self.maturity_years
+        )
     }
 }
 
@@ -107,7 +115,10 @@ pub struct BondPrice {
 impl BondPrice {
     pub fn new(config: BondPriceConfig) -> Result<Self, BondPriceError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -119,13 +130,21 @@ impl BondPrice {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &BondPriceConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &BondPriceConfig {
+        &self.config
+    }
 
     /// Clean bond price.
     pub fn clean_price(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -135,7 +154,9 @@ impl BondPrice {
 
     /// Dirty price with accrued interest.
     pub fn dirty_price(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -145,7 +166,9 @@ impl BondPrice {
 
     /// Modified duration.
     pub fn modified_duration(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -155,7 +178,9 @@ impl BondPrice {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -167,7 +192,9 @@ impl BondPrice {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -179,7 +206,11 @@ impl BondPrice {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -252,7 +283,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = BondPrice::new(BondPriceConfig::new()).unwrap()
+        let e = BondPrice::new(BondPriceConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -268,7 +300,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = BondPrice::new(BondPriceConfig::new()).unwrap()
+        let e = BondPrice::new(BondPriceConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("BondPrice"));
@@ -276,7 +309,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = BondPrice::new(BondPriceConfig::new()).unwrap()
+        let e = BondPrice::new(BondPriceConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -287,7 +321,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = BondPrice::new(BondPriceConfig::new()).unwrap()
+        let e = BondPrice::new(BondPriceConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -295,7 +330,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = BondPrice::new(BondPriceConfig::new()).unwrap()
+        let e = BondPrice::new(BondPriceConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -312,7 +348,8 @@ mod tests {
 
     #[test]
     fn test_clean_price() {
-        let e = BondPrice::new(BondPriceConfig::new()).unwrap()
+        let e = BondPrice::new(BondPriceConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.clean_price();
         assert!(result.is_finite());
@@ -320,7 +357,8 @@ mod tests {
 
     #[test]
     fn test_dirty_price() {
-        let e = BondPrice::new(BondPriceConfig::new()).unwrap()
+        let e = BondPrice::new(BondPriceConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.dirty_price();
         assert!(result.is_finite());
@@ -328,7 +366,8 @@ mod tests {
 
     #[test]
     fn test_modified_duration() {
-        let e = BondPrice::new(BondPriceConfig::new()).unwrap()
+        let e = BondPrice::new(BondPriceConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.modified_duration();
         assert!(result.is_finite());

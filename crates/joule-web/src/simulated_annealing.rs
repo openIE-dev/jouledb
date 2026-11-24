@@ -11,7 +11,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -201,10 +203,9 @@ impl SimulatedAnnealing {
                 let frac = self.iteration as f64 / self.config.max_iterations as f64;
                 (t0 - frac * (t0 - t_min)).max(t_min)
             }
-            CoolingSchedule::Exponential { alpha } => {
-                (self.config.initial_temperature * alpha.powi(self.iteration as i32))
-                    .max(self.config.min_temperature)
-            }
+            CoolingSchedule::Exponential { alpha } => (self.config.initial_temperature
+                * alpha.powi(self.iteration as i32))
+            .max(self.config.min_temperature),
             CoolingSchedule::Logarithmic { alpha } => {
                 let t0 = self.config.initial_temperature;
                 (t0 / (1.0 + alpha * (1.0 + self.iteration as f64).ln()))
@@ -223,10 +224,13 @@ impl SimulatedAnnealing {
             AnnealingVariant::Fast => self.step_size * t_ratio * range * 0.1,
         };
 
-        self.current.iter().map(|x| {
-            let delta = self.rng.next_gaussian() * scale;
-            (x + delta).clamp(lo, hi)
-        }).collect()
+        self.current
+            .iter()
+            .map(|x| {
+                let delta = self.rng.next_gaussian() * scale;
+                (x + delta).clamp(lo, hi)
+            })
+            .collect()
     }
 
     /// Acceptance probability for a given energy delta.
@@ -274,7 +278,8 @@ impl SimulatedAnnealing {
         }
 
         // Reheating check
-        if self.config.reheat_threshold > 0 && self.stagnation_count >= self.config.reheat_threshold {
+        if self.config.reheat_threshold > 0 && self.stagnation_count >= self.config.reheat_threshold
+        {
             self.temperature = self.config.initial_temperature * self.config.reheat_factor;
             self.stagnation_count = 0;
         }
@@ -303,7 +308,11 @@ impl SimulatedAnnealing {
             iterations_run: self.iteration,
             energy_history: self.energy_history.clone(),
             temperature_history: self.temperature_history.clone(),
-            acceptance_rate: if total > 0.0 { self.acceptances as f64 / total } else { 0.0 },
+            acceptance_rate: if total > 0.0 {
+                self.acceptances as f64 / total
+            } else {
+                0.0
+            },
         }
     }
 
@@ -342,13 +351,21 @@ impl ParallelTempering {
     /// Create with a list of temperatures (one chain per temperature).
     pub fn new(base_config: SaConfig, temperatures: &[f64], swap_interval: usize) -> Self {
         let mut rng = Rng::new(base_config.seed);
-        let chains: Vec<SimulatedAnnealing> = temperatures.iter().enumerate().map(|(i, &temp)| {
-            let mut cfg = base_config.clone();
-            cfg.initial_temperature = temp;
-            cfg.seed = base_config.seed.wrapping_add(i as u64 * 7919);
-            SimulatedAnnealing::new(cfg)
-        }).collect();
-        Self { chains, swap_interval, rng }
+        let chains: Vec<SimulatedAnnealing> = temperatures
+            .iter()
+            .enumerate()
+            .map(|(i, &temp)| {
+                let mut cfg = base_config.clone();
+                cfg.initial_temperature = temp;
+                cfg.seed = base_config.seed.wrapping_add(i as u64 * 7919);
+                SimulatedAnnealing::new(cfg)
+            })
+            .collect();
+        Self {
+            chains,
+            swap_interval,
+            rng,
+        }
     }
 
     /// Initialize all chains.
@@ -414,7 +431,11 @@ impl ParallelTempering {
             temperature_history: best_chain.temperature_history.clone(),
             acceptance_rate: {
                 let total = (best_chain.acceptances + best_chain.rejections) as f64;
-                if total > 0.0 { best_chain.acceptances as f64 / total } else { 0.0 }
+                if total > 0.0 {
+                    best_chain.acceptances as f64 / total
+                } else {
+                    0.0
+                }
             },
         }
     }
@@ -426,7 +447,10 @@ impl ParallelTempering {
 
     /// Best energy across all chains.
     pub fn best_energy(&self) -> f64 {
-        self.chains.iter().map(|c| c.best_energy).fold(f64::INFINITY, f64::min)
+        self.chains
+            .iter()
+            .map(|c| c.best_energy)
+            .fold(f64::INFINITY, f64::min)
     }
 }
 
@@ -483,7 +507,10 @@ mod tests {
 
     #[test]
     fn test_initialize_random() {
-        let config = SaConfig { dimensions: 3, ..Default::default() };
+        let config = SaConfig {
+            dimensions: 3,
+            ..Default::default()
+        };
         let mut sa = SimulatedAnnealing::new(config);
         sa.initialize();
         assert_eq!(sa.best_solution().len(), 3);
@@ -491,7 +518,10 @@ mod tests {
 
     #[test]
     fn test_initialize_at() {
-        let config = SaConfig { dimensions: 2, ..Default::default() };
+        let config = SaConfig {
+            dimensions: 2,
+            ..Default::default()
+        };
         let mut sa = SimulatedAnnealing::new(config);
         sa.initialize_at(vec![1.0, 2.0]);
         assert!((sa.best_solution()[0] - 1.0).abs() < 1e-10);
@@ -500,7 +530,10 @@ mod tests {
 
     #[test]
     fn test_step_increases_iteration() {
-        let config = SaConfig { dimensions: 2, ..Default::default() };
+        let config = SaConfig {
+            dimensions: 2,
+            ..Default::default()
+        };
         let mut sa = SimulatedAnnealing::new(config);
         sa.initialize();
         sa.evaluate(&sphere);
@@ -566,12 +599,20 @@ mod tests {
         let mut sa = SimulatedAnnealing::new(config);
         sa.initialize();
         let result = sa.run(&sphere);
-        assert!(result.best_energy < 10.0, "Expected < 10.0, got {}", result.best_energy);
+        assert!(
+            result.best_energy < 10.0,
+            "Expected < 10.0, got {}",
+            result.best_energy
+        );
     }
 
     #[test]
     fn test_best_energy_monotonic() {
-        let config = SaConfig { dimensions: 2, max_iterations: 100, ..Default::default() };
+        let config = SaConfig {
+            dimensions: 2,
+            max_iterations: 100,
+            ..Default::default()
+        };
         let mut sa = SimulatedAnnealing::new(config);
         sa.initialize();
         let result = sa.run(&sphere);
@@ -642,7 +683,11 @@ mod tests {
 
     #[test]
     fn test_energy_history_length() {
-        let config = SaConfig { dimensions: 2, max_iterations: 50, ..Default::default() };
+        let config = SaConfig {
+            dimensions: 2,
+            max_iterations: 50,
+            ..Default::default()
+        };
         let mut sa = SimulatedAnnealing::new(config);
         sa.initialize();
         let result = sa.run(&sphere);
@@ -660,7 +705,11 @@ mod tests {
         let mut pt = ParallelTempering::new(config, &temps, 10);
         pt.initialize();
         let result = pt.run(&sphere, 200);
-        assert!(result.best_energy < 50.0, "PT best energy too high: {}", result.best_energy);
+        assert!(
+            result.best_energy < 50.0,
+            "PT best energy too high: {}",
+            result.best_energy
+        );
     }
 
     #[test]
@@ -672,7 +721,11 @@ mod tests {
 
     #[test]
     fn test_parallel_tempering_best_energy() {
-        let config = SaConfig { dimensions: 2, bounds: (-3.0, 3.0), ..Default::default() };
+        let config = SaConfig {
+            dimensions: 2,
+            bounds: (-3.0, 3.0),
+            ..Default::default()
+        };
         let mut pt = ParallelTempering::new(config, &[50.0, 5.0], 10);
         pt.initialize();
         pt.run(&sphere, 50);

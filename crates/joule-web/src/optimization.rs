@@ -81,11 +81,19 @@ pub enum LrSchedule {
     /// Constant learning rate.
     Constant(f64),
     /// Step decay: lr * decay^(step / step_size).
-    Step { initial_lr: f64, decay: f64, step_size: usize },
+    Step {
+        initial_lr: f64,
+        decay: f64,
+        step_size: usize,
+    },
     /// Exponential decay: lr * exp(-decay * step).
     Exponential { initial_lr: f64, decay: f64 },
     /// Cosine annealing: lr_min + 0.5*(lr_max - lr_min)*(1 + cos(pi * step / total)).
-    Cosine { lr_max: f64, lr_min: f64, total_steps: usize },
+    Cosine {
+        lr_max: f64,
+        lr_min: f64,
+        total_steps: usize,
+    },
 }
 
 impl LrSchedule {
@@ -93,14 +101,22 @@ impl LrSchedule {
     pub fn get_lr(&self, step: usize) -> f64 {
         match self {
             Self::Constant(lr) => *lr,
-            Self::Step { initial_lr, decay, step_size } => {
-                initial_lr * decay.powi((step / step_size) as i32)
-            }
-            Self::Exponential { initial_lr, decay } => {
-                initial_lr * (-decay * step as f64).exp()
-            }
-            Self::Cosine { lr_max, lr_min, total_steps } => {
-                let t = if *total_steps == 0 { 0.0 } else { step as f64 / *total_steps as f64 };
+            Self::Step {
+                initial_lr,
+                decay,
+                step_size,
+            } => initial_lr * decay.powi((step / step_size) as i32),
+            Self::Exponential { initial_lr, decay } => initial_lr * (-decay * step as f64).exp(),
+            Self::Cosine {
+                lr_max,
+                lr_min,
+                total_steps,
+            } => {
+                let t = if *total_steps == 0 {
+                    0.0
+                } else {
+                    step as f64 / *total_steps as f64
+                };
                 lr_min + 0.5 * (lr_max - lr_min) * (1.0 + (std::f64::consts::PI * t).cos())
             }
         }
@@ -111,12 +127,27 @@ impl fmt::Display for LrSchedule {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Constant(lr) => write!(f, "Constant(lr={})", lr),
-            Self::Step { initial_lr, decay, step_size } =>
-                write!(f, "Step(lr={}, decay={}, step={})", initial_lr, decay, step_size),
-            Self::Exponential { initial_lr, decay } =>
-                write!(f, "Exponential(lr={}, decay={})", initial_lr, decay),
-            Self::Cosine { lr_max, lr_min, total_steps } =>
-                write!(f, "Cosine(max={}, min={}, steps={})", lr_max, lr_min, total_steps),
+            Self::Step {
+                initial_lr,
+                decay,
+                step_size,
+            } => write!(
+                f,
+                "Step(lr={}, decay={}, step={})",
+                initial_lr, decay, step_size
+            ),
+            Self::Exponential { initial_lr, decay } => {
+                write!(f, "Exponential(lr={}, decay={})", initial_lr, decay)
+            }
+            Self::Cosine {
+                lr_max,
+                lr_min,
+                total_steps,
+            } => write!(
+                f,
+                "Cosine(max={}, min={}, steps={})",
+                lr_max, lr_min, total_steps
+            ),
         }
     }
 }
@@ -193,7 +224,13 @@ pub fn gradient_descent(
         f_history.push(f_val);
 
         if status != ConvergenceStatus::Running {
-            return OptResult { params, f_val, iterations: iter + 1, status, f_history };
+            return OptResult {
+                params,
+                f_val,
+                iterations: iter + 1,
+                status,
+                f_history,
+            };
         }
     }
 
@@ -351,7 +388,13 @@ pub fn adam_optimize(
         f_history.push(f_val);
 
         if status != ConvergenceStatus::Running {
-            return OptResult { params, f_val, iterations: iter + 1, status, f_history };
+            return OptResult {
+                params,
+                f_val,
+                iterations: iter + 1,
+                status,
+                f_history,
+            };
         }
     }
 
@@ -384,7 +427,11 @@ pub fn armijo_line_search(
     let mut alpha = 1.0;
 
     for _ in 0..max_iter {
-        let new_x: Vec<f64> = x.iter().zip(direction.iter()).map(|(xi, di)| xi + alpha * di).collect();
+        let new_x: Vec<f64> = x
+            .iter()
+            .zip(direction.iter())
+            .map(|(xi, di)| xi + alpha * di)
+            .collect();
         let f_new = f(&new_x);
         if f_new <= f0 + c * alpha * slope {
             return alpha;
@@ -514,21 +561,31 @@ mod tests {
 
     #[test]
     fn test_convergence_criteria_max_iter() {
-        let c = ConvergenceCriteria { max_iter: 10, ..Default::default() };
+        let c = ConvergenceCriteria {
+            max_iter: 10,
+            ..Default::default()
+        };
         let status = c.check(10, 1.0, 0.9, 1.0, 1.0);
         assert_eq!(status, ConvergenceStatus::MaxIterations);
     }
 
     #[test]
     fn test_convergence_criteria_value() {
-        let c = ConvergenceCriteria { ftol: 0.1, ..Default::default() };
+        let c = ConvergenceCriteria {
+            ftol: 0.1,
+            ..Default::default()
+        };
         let status = c.check(1, 1.0, 1.05, 1.0, 1.0);
         assert_eq!(status, ConvergenceStatus::ConvergedValue);
     }
 
     #[test]
     fn test_convergence_criteria_gradient() {
-        let c = ConvergenceCriteria { gtol: 0.1, ftol: 1e-20, ..Default::default() };
+        let c = ConvergenceCriteria {
+            gtol: 0.1,
+            ftol: 1e-20,
+            ..Default::default()
+        };
         let status = c.check(1, 1.0, 0.5, 0.05, 1.0);
         assert_eq!(status, ConvergenceStatus::ConvergedGradient);
     }
@@ -542,7 +599,11 @@ mod tests {
 
     #[test]
     fn test_lr_step() {
-        let lr = LrSchedule::Step { initial_lr: 0.1, decay: 0.5, step_size: 10 };
+        let lr = LrSchedule::Step {
+            initial_lr: 0.1,
+            decay: 0.5,
+            step_size: 10,
+        };
         assert!((lr.get_lr(0) - 0.1).abs() < 1e-10);
         assert!((lr.get_lr(10) - 0.05).abs() < 1e-10);
         assert!((lr.get_lr(20) - 0.025).abs() < 1e-10);
@@ -550,14 +611,21 @@ mod tests {
 
     #[test]
     fn test_lr_exponential() {
-        let lr = LrSchedule::Exponential { initial_lr: 0.1, decay: 0.01 };
+        let lr = LrSchedule::Exponential {
+            initial_lr: 0.1,
+            decay: 0.01,
+        };
         assert!((lr.get_lr(0) - 0.1).abs() < 1e-10);
         assert!(lr.get_lr(100) < lr.get_lr(0));
     }
 
     #[test]
     fn test_lr_cosine() {
-        let lr = LrSchedule::Cosine { lr_max: 0.1, lr_min: 0.001, total_steps: 100 };
+        let lr = LrSchedule::Cosine {
+            lr_max: 0.1,
+            lr_min: 0.001,
+            total_steps: 100,
+        };
         assert!((lr.get_lr(0) - 0.1).abs() < 1e-10);
         let mid = lr.get_lr(50);
         assert!(mid > 0.001 && mid < 0.1);
@@ -574,8 +642,17 @@ mod tests {
     #[test]
     fn test_gradient_descent_quadratic() {
         let schedule = LrSchedule::Constant(0.1);
-        let criteria = ConvergenceCriteria { max_iter: 500, ..Default::default() };
-        let result = gradient_descent(&quadratic, &quadratic_grad, &[5.0, 3.0], &schedule, &criteria);
+        let criteria = ConvergenceCriteria {
+            max_iter: 500,
+            ..Default::default()
+        };
+        let result = gradient_descent(
+            &quadratic,
+            &quadratic_grad,
+            &[5.0, 3.0],
+            &schedule,
+            &criteria,
+        );
         assert!(result.f_val < 1e-4);
     }
 
@@ -588,7 +665,11 @@ mod tests {
 
     #[test]
     fn test_adam_basic() {
-        let criteria = ConvergenceCriteria { max_iter: 2000, ftol: 1e-10, ..Default::default() };
+        let criteria = ConvergenceCriteria {
+            max_iter: 2000,
+            ftol: 1e-10,
+            ..Default::default()
+        };
         let result = adam_optimize(&quadratic, &quadratic_grad, &[5.0, 3.0], 0.1, &criteria);
         assert!(result.f_val < 0.1);
     }
@@ -664,22 +745,25 @@ mod tests {
     #[test]
     fn test_sgd_basic() {
         let n_samples = 4;
-        let grad_fn = |params: &[f64], _idx: usize| -> Vec<f64> {
-            vec![2.0 * params[0], 2.0 * params[1]]
-        };
-        let loss_fn = |params: &[f64]| -> f64 {
-            params[0] * params[0] + params[1] * params[1]
-        };
+        let grad_fn =
+            |params: &[f64], _idx: usize| -> Vec<f64> { vec![2.0 * params[0], 2.0 * params[1]] };
+        let loss_fn = |params: &[f64]| -> f64 { params[0] * params[0] + params[1] * params[1] };
         let schedule = LrSchedule::Constant(0.01);
-        let result = sgd(&grad_fn, &loss_fn, &[5.0, 3.0], n_samples, &schedule, 0.0, 100);
+        let result = sgd(
+            &grad_fn,
+            &loss_fn,
+            &[5.0, 3.0],
+            n_samples,
+            &schedule,
+            0.0,
+            100,
+        );
         assert!(result.f_val < 1.0);
     }
 
     #[test]
     fn test_sgd_with_momentum() {
-        let grad_fn = |params: &[f64], _idx: usize| -> Vec<f64> {
-            vec![2.0 * params[0]]
-        };
+        let grad_fn = |params: &[f64], _idx: usize| -> Vec<f64> { vec![2.0 * params[0]] };
         let loss_fn = |params: &[f64]| -> f64 { params[0] * params[0] };
         let schedule = LrSchedule::Constant(0.01);
         let result = sgd(&grad_fn, &loss_fn, &[5.0], 1, &schedule, 0.9, 200);
@@ -689,7 +773,10 @@ mod tests {
     #[test]
     fn test_gradient_descent_history() {
         let schedule = LrSchedule::Constant(0.1);
-        let criteria = ConvergenceCriteria { max_iter: 10, ..Default::default() };
+        let criteria = ConvergenceCriteria {
+            max_iter: 10,
+            ..Default::default()
+        };
         let result = gradient_descent(&quadratic, &quadratic_grad, &[5.0], &schedule, &criteria);
         assert!(!result.f_history.is_empty());
         // Function values should generally decrease
@@ -698,7 +785,12 @@ mod tests {
 
     #[test]
     fn test_rosenbrock_adam() {
-        let criteria = ConvergenceCriteria { max_iter: 5000, ftol: 1e-12, gtol: 1e-8, ..Default::default() };
+        let criteria = ConvergenceCriteria {
+            max_iter: 5000,
+            ftol: 1e-12,
+            gtol: 1e-8,
+            ..Default::default()
+        };
         let result = adam_optimize(&rosenbrock, &rosenbrock_grad, &[0.0, 0.0], 0.01, &criteria);
         // Adam should make progress toward (1, 1) minimum
         assert!(result.f_val < rosenbrock(&[0.0, 0.0]));

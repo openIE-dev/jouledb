@@ -208,9 +208,7 @@ impl InvertedIndex {
     /// Document frequency: how many documents contain the term.
     pub fn document_frequency(&self, term: &str) -> usize {
         let normalized = term.to_lowercase();
-        self.postings
-            .get(&normalized)
-            .map_or(0, |docs| docs.len())
+        self.postings.get(&normalized).map_or(0, |docs| docs.len())
     }
 
     /// Term frequency: how many times a term appears in a specific document.
@@ -257,7 +255,11 @@ impl InvertedIndex {
             })
             .collect();
 
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results
     }
 
@@ -282,7 +284,11 @@ impl InvertedIndex {
             .into_iter()
             .map(|(doc_id, score)| ScoredResult { doc_id, score })
             .collect();
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         Ok(results)
     }
 
@@ -377,7 +383,9 @@ impl InvertedIndex {
             postings.insert(term.clone(), entries);
         }
 
-        let doc_lengths: BTreeMap<String, usize> = self.doc_lengths.iter()
+        let doc_lengths: BTreeMap<String, usize> = self
+            .doc_lengths
+            .iter()
             .map(|(k, v)| (k.clone(), *v))
             .collect();
 
@@ -467,9 +475,12 @@ mod tests {
 
     fn build_index() -> InvertedIndex {
         let mut idx = InvertedIndex::new();
-        idx.add_document("d1", "the quick brown fox jumps over the lazy dog").unwrap();
-        idx.add_document("d2", "the quick brown cat sits on the mat").unwrap();
-        idx.add_document("d3", "a fox and a dog are friends").unwrap();
+        idx.add_document("d1", "the quick brown fox jumps over the lazy dog")
+            .unwrap();
+        idx.add_document("d2", "the quick brown cat sits on the mat")
+            .unwrap();
+        idx.add_document("d3", "a fox and a dog are friends")
+            .unwrap();
         idx
     }
 
@@ -582,8 +593,14 @@ mod tests {
     fn test_boolean_and() {
         let idx = build_index();
         let clauses = vec![
-            BooleanClause { term: "fox".to_string(), op: BooleanOp::And },
-            BooleanClause { term: "dog".to_string(), op: BooleanOp::And },
+            BooleanClause {
+                term: "fox".to_string(),
+                op: BooleanOp::And,
+            },
+            BooleanClause {
+                term: "dog".to_string(),
+                op: BooleanOp::And,
+            },
         ];
         let results = idx.boolean_search(&clauses).unwrap();
         // d1 has both fox and dog, d3 has both fox and dog
@@ -596,8 +613,14 @@ mod tests {
     fn test_boolean_or() {
         let idx = build_index();
         let clauses = vec![
-            BooleanClause { term: "cat".to_string(), op: BooleanOp::Or },
-            BooleanClause { term: "fox".to_string(), op: BooleanOp::Or },
+            BooleanClause {
+                term: "cat".to_string(),
+                op: BooleanOp::Or,
+            },
+            BooleanClause {
+                term: "fox".to_string(),
+                op: BooleanOp::Or,
+            },
         ];
         let results = idx.boolean_search(&clauses).unwrap();
         // cat is in d2, fox in d1 and d3
@@ -608,8 +631,14 @@ mod tests {
     fn test_boolean_not() {
         let idx = build_index();
         let clauses = vec![
-            BooleanClause { term: "fox".to_string(), op: BooleanOp::And },
-            BooleanClause { term: "cat".to_string(), op: BooleanOp::Not },
+            BooleanClause {
+                term: "fox".to_string(),
+                op: BooleanOp::And,
+            },
+            BooleanClause {
+                term: "cat".to_string(),
+                op: BooleanOp::Not,
+            },
         ];
         let results = idx.boolean_search(&clauses).unwrap();
         // fox in d1, d3; exclude docs with cat (d2) — but d1,d3 don't have cat anyway

@@ -79,7 +79,12 @@ impl TileSet {
         let row = local_id / self.columns;
         let x = self.margin + col * (self.tile_width + self.spacing);
         let y = self.margin + row * (self.tile_height + self.spacing);
-        Some(TileRect { x, y, width: self.tile_width, height: self.tile_height })
+        Some(TileRect {
+            x,
+            y,
+            width: self.tile_width,
+            height: self.tile_height,
+        })
     }
 
     /// Get the source rectangle for a global tile ID.
@@ -130,7 +135,10 @@ impl TileProperties {
     }
 
     pub fn solid() -> Self {
-        Self { solid: true, ..Self::new() }
+        Self {
+            solid: true,
+            ..Self::new()
+        }
     }
 
     pub fn animated(frames: Vec<AnimationFrame>) -> Self {
@@ -277,9 +285,7 @@ impl TileMap {
                 let ty = (world_y / self.tile_height as f32).floor() as i32;
                 (tx, ty)
             }
-            MapOrientation::Isometric => {
-                self.iso_world_to_tile(world_x, world_y)
-            }
+            MapOrientation::Isometric => self.iso_world_to_tile(world_x, world_y),
         }
     }
 
@@ -291,9 +297,7 @@ impl TileMap {
                 let wy = tile_y as f32 * self.tile_height as f32;
                 (wx, wy)
             }
-            MapOrientation::Isometric => {
-                self.iso_tile_to_world(tile_x, tile_y)
-            }
+            MapOrientation::Isometric => self.iso_tile_to_world(tile_x, tile_y),
         }
     }
 
@@ -401,15 +405,14 @@ mod tests {
         let mut ts = test_tileset();
         ts.set_properties(1, TileProperties::solid());
 
-        let layer = TileLayer::new("ground", 10, 10)
-            .with_data({
-                let mut d = vec![0u32; 100];
-                d[0] = 1;  // (0,0) = tile 1
-                d[1] = 2;  // (1,0) = tile 2 (solid)
-                d[11] = 3; // (1,1) = tile 3
-                d[55] = 4; // (5,5) = tile 4
-                d
-            });
+        let layer = TileLayer::new("ground", 10, 10).with_data({
+            let mut d = vec![0u32; 100];
+            d[0] = 1; // (0,0) = tile 1
+            d[1] = 2; // (1,0) = tile 2 (solid)
+            d[11] = 3; // (1,1) = tile 3
+            d[55] = 4; // (5,5) = tile 4
+            d
+        });
 
         let mut map = TileMap::new(16, 16);
         map.add_tile_set(ts);
@@ -526,11 +529,23 @@ mod tests {
     #[test]
     fn tile_properties_animated() {
         let mut ts = test_tileset();
-        ts.set_properties(5, TileProperties::animated(vec![
-            AnimationFrame { tile_id: 5, duration_ms: 100 },
-            AnimationFrame { tile_id: 6, duration_ms: 100 },
-            AnimationFrame { tile_id: 7, duration_ms: 100 },
-        ]));
+        ts.set_properties(
+            5,
+            TileProperties::animated(vec![
+                AnimationFrame {
+                    tile_id: 5,
+                    duration_ms: 100,
+                },
+                AnimationFrame {
+                    tile_id: 6,
+                    duration_ms: 100,
+                },
+                AnimationFrame {
+                    tile_id: 7,
+                    duration_ms: 100,
+                },
+            ]),
+        );
         let props = ts.get_properties(5).unwrap();
         assert!(props.animated);
         assert_eq!(props.animation_frames.len(), 3);
@@ -562,7 +577,9 @@ mod tests {
 
     #[test]
     fn tileset_with_spacing() {
-        let ts = TileSet::new("spaced", 1, 16, 16, 4, 4).with_spacing(2).with_margin(1);
+        let ts = TileSet::new("spaced", 1, 16, 16, 4, 4)
+            .with_spacing(2)
+            .with_margin(1);
         let r = ts.tile_rect(1).unwrap();
         assert_eq!(r.x, 19);
         assert_eq!(r.y, 1);

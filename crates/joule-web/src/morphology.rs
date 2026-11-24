@@ -19,12 +19,20 @@ pub struct BinaryImage {
 
 impl BinaryImage {
     pub fn new(width: u32, height: u32) -> Self {
-        Self { width, height, data: vec![false; width as usize * height as usize] }
+        Self {
+            width,
+            height,
+            data: vec![false; width as usize * height as usize],
+        }
     }
 
     pub fn from_data(width: u32, height: u32, data: Vec<bool>) -> Self {
         assert_eq!(data.len(), width as usize * height as usize);
-        Self { width, height, data }
+        Self {
+            width,
+            height,
+            data,
+        }
     }
 
     /// Threshold a grayscale buffer into a binary image.
@@ -71,12 +79,20 @@ pub struct GrayImage {
 
 impl GrayImage {
     pub fn new(width: u32, height: u32) -> Self {
-        Self { width, height, data: vec![0u8; width as usize * height as usize] }
+        Self {
+            width,
+            height,
+            data: vec![0u8; width as usize * height as usize],
+        }
     }
 
     pub fn from_data(width: u32, height: u32, data: Vec<u8>) -> Self {
         assert_eq!(data.len(), width as usize * height as usize);
-        Self { width, height, data }
+        Self {
+            width,
+            height,
+            data,
+        }
     }
 
     pub fn get(&self, x: u32, y: u32) -> u8 {
@@ -126,7 +142,13 @@ impl StructuringElement {
             data[mid as usize * size as usize + i as usize] = true; // horizontal
             data[i as usize * size as usize + mid as usize] = true; // vertical
         }
-        Self { width: size, height: size, data, anchor_x: mid, anchor_y: mid }
+        Self {
+            width: size,
+            height: size,
+            data,
+            anchor_x: mid,
+            anchor_y: mid,
+        }
     }
 
     /// Create a circular (disk) structuring element.
@@ -143,7 +165,13 @@ impl StructuringElement {
                 }
             }
         }
-        Self { width: size, height: size, data, anchor_x: radius, anchor_y: radius }
+        Self {
+            width: size,
+            height: size,
+            data,
+            anchor_x: radius,
+            anchor_y: radius,
+        }
     }
 
     fn get(&self, x: u32, y: u32) -> bool {
@@ -156,7 +184,10 @@ impl StructuringElement {
         for y in 0..self.height {
             for x in 0..self.width {
                 if self.get(x, y) {
-                    v.push((x as i32 - self.anchor_x as i32, y as i32 - self.anchor_y as i32));
+                    v.push((
+                        x as i32 - self.anchor_x as i32,
+                        y as i32 - self.anchor_y as i32,
+                    ));
                 }
             }
         }
@@ -172,9 +203,9 @@ pub fn erode(img: &BinaryImage, se: &StructuringElement) -> BinaryImage {
     let mut out = BinaryImage::new(img.width, img.height);
     for y in 0..img.height {
         for x in 0..img.width {
-            let all_set = offsets.iter().all(|&(dx, dy)| {
-                img.get_safe(x as i32 + dx, y as i32 + dy)
-            });
+            let all_set = offsets
+                .iter()
+                .all(|&(dx, dy)| img.get_safe(x as i32 + dx, y as i32 + dy));
             out.set(x, y, all_set);
         }
     }
@@ -187,9 +218,9 @@ pub fn dilate(img: &BinaryImage, se: &StructuringElement) -> BinaryImage {
     let mut out = BinaryImage::new(img.width, img.height);
     for y in 0..img.height {
         for x in 0..img.width {
-            let any_set = offsets.iter().any(|&(dx, dy)| {
-                img.get_safe(x as i32 + dx, y as i32 + dy)
-            });
+            let any_set = offsets
+                .iter()
+                .any(|&(dx, dy)| img.get_safe(x as i32 + dx, y as i32 + dy));
             out.set(x, y, any_set);
         }
     }
@@ -269,7 +300,9 @@ pub fn erode_gray(img: &GrayImage, se: &StructuringElement) -> GrayImage {
             let mut min_v = 255u8;
             for &(dx, dy) in &offsets {
                 let v = img.get_clamped(x as i32 + dx, y as i32 + dy);
-                if v < min_v { min_v = v; }
+                if v < min_v {
+                    min_v = v;
+                }
             }
             out.set(x, y, min_v);
         }
@@ -286,7 +319,9 @@ pub fn dilate_gray(img: &GrayImage, se: &StructuringElement) -> GrayImage {
             let mut max_v = 0u8;
             for &(dx, dy) in &offsets {
                 let v = img.get_clamped(x as i32 + dx, y as i32 + dy);
-                if v > max_v { max_v = v; }
+                if v > max_v {
+                    max_v = v;
+                }
             }
             out.set(x, y, max_v);
         }
@@ -422,11 +457,7 @@ mod tests {
 
     #[test]
     fn test_grayscale_erode() {
-        let img = GrayImage::from_data(3, 3, vec![
-            100, 200, 100,
-            200, 250, 200,
-            100, 200, 100,
-        ]);
+        let img = GrayImage::from_data(3, 3, vec![100, 200, 100, 200, 250, 200, 100, 200, 100]);
         let se = StructuringElement::square(3);
         let eroded = erode_gray(&img, &se);
         assert_eq!(eroded.get(1, 1), 100); // min of neighborhood
@@ -434,11 +465,7 @@ mod tests {
 
     #[test]
     fn test_grayscale_dilate() {
-        let img = GrayImage::from_data(3, 3, vec![
-            100, 50, 100,
-            50, 10, 50,
-            100, 50, 100,
-        ]);
+        let img = GrayImage::from_data(3, 3, vec![100, 50, 100, 50, 10, 50, 100, 50, 100]);
         let se = StructuringElement::square(3);
         let dilated = dilate_gray(&img, &se);
         assert_eq!(dilated.get(1, 1), 100); // max of neighborhood

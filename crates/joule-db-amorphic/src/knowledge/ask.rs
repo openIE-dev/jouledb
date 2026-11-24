@@ -13,10 +13,10 @@
 use super::concept::ConceptEncoder;
 use super::context::ContextWindow;
 use super::core::KnowledgeCore;
-use super::generate::{Generator, GenerationResult};
+use super::generate::{GenerationResult, Generator};
 use super::oracle::{Oracle, OracleSource};
 use super::relation::RelationType;
-use super::traverse::{Traverser, TraversalResult};
+use super::traverse::{TraversalResult, Traverser};
 
 /// The full pipeline: question → answer.
 pub struct Ask {
@@ -77,7 +77,9 @@ impl Ask {
         // Step 3: Oracle expansion if novel
         let mut oracle_used = false;
         if novelty > self.novelty_threshold || !subject_known {
-            let (result, added) = self.oracle.query_and_ingest(&parsed.subject, &mut self.core);
+            let (result, added) = self
+                .oracle
+                .query_and_ingest(&parsed.subject, &mut self.core);
             oracle_used = true;
             trace.push(format!(
                 "ORACLE: source={:?}, triples_added={}, related={}",
@@ -143,13 +145,23 @@ impl Ask {
         // Intent detection
         let intent = if lower.starts_with("what is") || lower.starts_with("what's") {
             Intent::WhatIs
-        } else if lower.contains("related") || lower.contains("connection") || lower.contains("between") {
+        } else if lower.contains("related")
+            || lower.contains("connection")
+            || lower.contains("between")
+        {
             Intent::HowRelated
-        } else if lower.starts_with("can") || lower.contains("capable") || lower.contains("able to") {
+        } else if lower.starts_with("can") || lower.contains("capable") || lower.contains("able to")
+        {
             Intent::CanIt
-        } else if lower.starts_with("where") || lower.contains("location") || lower.contains("found") {
+        } else if lower.starts_with("where")
+            || lower.contains("location")
+            || lower.contains("found")
+        {
             Intent::WhereIs
-        } else if lower.starts_with("tell me about") || lower.starts_with("describe") || lower.starts_with("explain") {
+        } else if lower.starts_with("tell me about")
+            || lower.starts_with("describe")
+            || lower.starts_with("explain")
+        {
             Intent::Generate
         } else {
             Intent::Unknown
@@ -157,10 +169,38 @@ impl Ask {
 
         // Extract subject: the most content-bearing word(s)
         let stop_words = [
-            "what", "is", "a", "an", "the", "are", "how", "can", "does", "do",
-            "where", "why", "tell", "me", "about", "describe", "explain", "and",
-            "or", "of", "to", "in", "at", "on", "for", "with", "between",
-            "related", "connection", "capable", "able", "it",
+            "what",
+            "is",
+            "a",
+            "an",
+            "the",
+            "are",
+            "how",
+            "can",
+            "does",
+            "do",
+            "where",
+            "why",
+            "tell",
+            "me",
+            "about",
+            "describe",
+            "explain",
+            "and",
+            "or",
+            "of",
+            "to",
+            "in",
+            "at",
+            "on",
+            "for",
+            "with",
+            "between",
+            "related",
+            "connection",
+            "capable",
+            "able",
+            "it",
         ];
 
         let keywords: Vec<String> = words
@@ -184,9 +224,15 @@ impl Ask {
     // Answer strategies
     // ================================================================
 
-    fn answer_what_is(&mut self, parsed: &ParsedQuestion, trace: &mut Vec<String>) -> (String, String) {
+    fn answer_what_is(
+        &mut self,
+        parsed: &ParsedQuestion,
+        trace: &mut Vec<String>,
+    ) -> (String, String) {
         // Query with cleanup: "subject IsA ?" → denoise → clean concept
-        let is_a_results = self.core.query_object_clean(&parsed.subject, RelationType::IsA, 3);
+        let is_a_results = self
+            .core
+            .query_object_clean(&parsed.subject, RelationType::IsA, 3);
         trace.push(format!("WHAT_IS: cleaned IsA results: {:?}", is_a_results));
 
         if let Some((concept, sim)) = is_a_results.first() {
@@ -244,7 +290,11 @@ impl Ask {
                 })
                 .collect();
             (
-                format!("{} is related to: {}", parsed.subject, connections.join(", ")),
+                format!(
+                    "{} is related to: {}",
+                    parsed.subject,
+                    connections.join(", ")
+                ),
                 "what_is_traversal".to_string(),
             )
         } else {
@@ -255,7 +305,11 @@ impl Ask {
         }
     }
 
-    fn answer_how_related(&mut self, parsed: &ParsedQuestion, trace: &mut Vec<String>) -> (String, String) {
+    fn answer_how_related(
+        &mut self,
+        parsed: &ParsedQuestion,
+        trace: &mut Vec<String>,
+    ) -> (String, String) {
         if parsed.keywords.len() < 2 {
             return (
                 "I need two concepts to compare.".to_string(),
@@ -298,9 +352,15 @@ impl Ask {
         }
     }
 
-    fn answer_can_it(&mut self, parsed: &ParsedQuestion, trace: &mut Vec<String>) -> (String, String) {
+    fn answer_can_it(
+        &mut self,
+        parsed: &ParsedQuestion,
+        trace: &mut Vec<String>,
+    ) -> (String, String) {
         // Try cleanup first
-        let clean_results = self.core.query_object_clean(&parsed.subject, RelationType::CapableOf, 5);
+        let clean_results =
+            self.core
+                .query_object_clean(&parsed.subject, RelationType::CapableOf, 5);
         trace.push(format!("CAN_IT: cleaned CapableOf: {:?}", clean_results));
 
         if !clean_results.is_empty() {
@@ -312,7 +372,10 @@ impl Ask {
         }
 
         // Fallback: raw unbind
-        if let Some(recovered) = self.core.query_object(&parsed.subject, RelationType::CapableOf) {
+        if let Some(recovered) = self
+            .core
+            .query_object(&parsed.subject, RelationType::CapableOf)
+        {
             let nearest = self.core.nearest_concepts(&recovered, 5);
             let capabilities: Vec<String> = nearest
                 .iter()
@@ -333,9 +396,15 @@ impl Ask {
         )
     }
 
-    fn answer_where_is(&mut self, parsed: &ParsedQuestion, trace: &mut Vec<String>) -> (String, String) {
+    fn answer_where_is(
+        &mut self,
+        parsed: &ParsedQuestion,
+        trace: &mut Vec<String>,
+    ) -> (String, String) {
         // Try cleanup first
-        let clean_results = self.core.query_object_clean(&parsed.subject, RelationType::AtLocation, 3);
+        let clean_results =
+            self.core
+                .query_object_clean(&parsed.subject, RelationType::AtLocation, 3);
         trace.push(format!("WHERE_IS: cleaned AtLocation: {:?}", clean_results));
 
         if let Some((location, sim)) = clean_results.first() {
@@ -346,7 +415,10 @@ impl Ask {
         }
 
         // Fallback: raw unbind
-        if let Some(recovered) = self.core.query_object(&parsed.subject, RelationType::AtLocation) {
+        if let Some(recovered) = self
+            .core
+            .query_object(&parsed.subject, RelationType::AtLocation)
+        {
             let nearest = self.core.nearest_concepts(&recovered, 3);
             if let Some((location, sim)) = nearest.first() {
                 if *sim > 0.45 {
@@ -364,7 +436,11 @@ impl Ask {
         )
     }
 
-    fn answer_generate(&mut self, parsed: &ParsedQuestion, trace: &mut Vec<String>) -> (String, String) {
+    fn answer_generate(
+        &mut self,
+        parsed: &ParsedQuestion,
+        trace: &mut Vec<String>,
+    ) -> (String, String) {
         // Use the full generator with knowledge core fallback
         let prompt = if parsed.keywords.is_empty() {
             parsed.raw.clone()
@@ -372,7 +448,9 @@ impl Ask {
             parsed.keywords.join(" ")
         };
 
-        let result = self.generator.generate(&prompt, &mut self.encoder, Some(&mut self.core));
+        let result = self
+            .generator
+            .generate(&prompt, &mut self.encoder, Some(&mut self.core));
         trace.push(format!(
             "GENERATE: {} words, confidence={:.3}",
             result.length(),
@@ -389,7 +467,11 @@ impl Ask {
         (result.render(), "generate".to_string())
     }
 
-    fn answer_fallback(&mut self, parsed: &ParsedQuestion, trace: &mut Vec<String>) -> (String, String) {
+    fn answer_fallback(
+        &mut self,
+        parsed: &ParsedQuestion,
+        trace: &mut Vec<String>,
+    ) -> (String, String) {
         // Try traversal from subject, then generation
         if !parsed.subject.is_empty() {
             let traversal = self.traverser.traverse(&mut self.core, &parsed.subject);
@@ -542,8 +624,8 @@ const SEED_CORPUS: [&str; 30] = [
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::oracle::InMemoryBackend;
+    use super::*;
 
     fn build_ask_with_oracle() -> Ask {
         let mut ask = Ask::new();

@@ -161,10 +161,7 @@ pub enum Expr {
         else_expr: Box<Expr>,
     },
     /// Function call.
-    FnCall {
-        name: String,
-        args: Vec<Expr>,
-    },
+    FnCall { name: String, args: Vec<Expr> },
 }
 
 // ── Constructors ───────────────────────────────────────────────────
@@ -191,55 +188,107 @@ impl Expr {
     }
 
     pub fn add(left: Expr, right: Expr) -> Self {
-        Expr::Arith { op: ArithOp::Add, left: Box::new(left), right: Box::new(right) }
+        Expr::Arith {
+            op: ArithOp::Add,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
     }
 
     pub fn sub(left: Expr, right: Expr) -> Self {
-        Expr::Arith { op: ArithOp::Sub, left: Box::new(left), right: Box::new(right) }
+        Expr::Arith {
+            op: ArithOp::Sub,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
     }
 
     pub fn mul(left: Expr, right: Expr) -> Self {
-        Expr::Arith { op: ArithOp::Mul, left: Box::new(left), right: Box::new(right) }
+        Expr::Arith {
+            op: ArithOp::Mul,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
     }
 
     pub fn div(left: Expr, right: Expr) -> Self {
-        Expr::Arith { op: ArithOp::Div, left: Box::new(left), right: Box::new(right) }
+        Expr::Arith {
+            op: ArithOp::Div,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
     }
 
     pub fn modulo(left: Expr, right: Expr) -> Self {
-        Expr::Arith { op: ArithOp::Mod, left: Box::new(left), right: Box::new(right) }
+        Expr::Arith {
+            op: ArithOp::Mod,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
     }
 
     pub fn eq(left: Expr, right: Expr) -> Self {
-        Expr::Cmp { op: CmpOp::Eq, left: Box::new(left), right: Box::new(right) }
+        Expr::Cmp {
+            op: CmpOp::Eq,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
     }
 
     pub fn ne(left: Expr, right: Expr) -> Self {
-        Expr::Cmp { op: CmpOp::Ne, left: Box::new(left), right: Box::new(right) }
+        Expr::Cmp {
+            op: CmpOp::Ne,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
     }
 
     pub fn lt(left: Expr, right: Expr) -> Self {
-        Expr::Cmp { op: CmpOp::Lt, left: Box::new(left), right: Box::new(right) }
+        Expr::Cmp {
+            op: CmpOp::Lt,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
     }
 
     pub fn le(left: Expr, right: Expr) -> Self {
-        Expr::Cmp { op: CmpOp::Le, left: Box::new(left), right: Box::new(right) }
+        Expr::Cmp {
+            op: CmpOp::Le,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
     }
 
     pub fn gt(left: Expr, right: Expr) -> Self {
-        Expr::Cmp { op: CmpOp::Gt, left: Box::new(left), right: Box::new(right) }
+        Expr::Cmp {
+            op: CmpOp::Gt,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
     }
 
     pub fn ge(left: Expr, right: Expr) -> Self {
-        Expr::Cmp { op: CmpOp::Ge, left: Box::new(left), right: Box::new(right) }
+        Expr::Cmp {
+            op: CmpOp::Ge,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
     }
 
     pub fn and(left: Expr, right: Expr) -> Self {
-        Expr::BoolExpr { op: BoolOp::And, left: Box::new(left), right: Box::new(right) }
+        Expr::BoolExpr {
+            op: BoolOp::And,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
     }
 
     pub fn or(left: Expr, right: Expr) -> Self {
-        Expr::BoolExpr { op: BoolOp::Or, left: Box::new(left), right: Box::new(right) }
+        Expr::BoolExpr {
+            op: BoolOp::Or,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
     }
 
     pub fn not(expr: Expr) -> Self {
@@ -259,7 +308,10 @@ impl Expr {
     }
 
     pub fn call(name: impl Into<String>, args: Vec<Expr>) -> Self {
-        Expr::FnCall { name: name.into(), args }
+        Expr::FnCall {
+            name: name.into(),
+            args,
+        }
     }
 }
 
@@ -321,7 +373,11 @@ impl Expr {
             }
             Expr::Not(inner) => format!("{pad}(!\n{})", inner.pp_indent(depth + 1)),
             Expr::Neg(inner) => format!("{pad}(neg\n{})", inner.pp_indent(depth + 1)),
-            Expr::IfElse { cond, then_expr, else_expr } => {
+            Expr::IfElse {
+                cond,
+                then_expr,
+                else_expr,
+            } => {
                 format!(
                     "{pad}(if\n{}\n{pad}  then\n{}\n{pad}  else\n{})",
                     cond.pp_indent(depth + 1),
@@ -330,8 +386,7 @@ impl Expr {
                 )
             }
             Expr::FnCall { name, args } => {
-                let arg_strs: Vec<String> =
-                    args.iter().map(|a| a.pp_indent(depth + 1)).collect();
+                let arg_strs: Vec<String> = args.iter().map(|a| a.pp_indent(depth + 1)).collect();
                 if arg_strs.is_empty() {
                     format!("{pad}({name})")
                 } else {
@@ -452,9 +507,9 @@ impl Context {
 
             Expr::Not(inner) => {
                 let v = self.eval(inner)?;
-                let b = v.as_bool().ok_or_else(|| {
-                    EvalError::TypeError("expected bool for not".to_string())
-                })?;
+                let b = v
+                    .as_bool()
+                    .ok_or_else(|| EvalError::TypeError("expected bool for not".to_string()))?;
                 Ok(Val::Bool(!b))
             }
 
@@ -463,15 +518,21 @@ impl Context {
                 match v {
                     Val::Int(n) => Ok(Val::Int(-n)),
                     Val::Float(n) => Ok(Val::Float(-n)),
-                    _ => Err(EvalError::TypeError("expected numeric for negation".to_string())),
+                    _ => Err(EvalError::TypeError(
+                        "expected numeric for negation".to_string(),
+                    )),
                 }
             }
 
-            Expr::IfElse { cond, then_expr, else_expr } => {
+            Expr::IfElse {
+                cond,
+                then_expr,
+                else_expr,
+            } => {
                 let cv = self.eval(cond)?;
-                let b = cv.as_bool().ok_or_else(|| {
-                    EvalError::TypeError("if condition must be bool".to_string())
-                })?;
+                let b = cv
+                    .as_bool()
+                    .ok_or_else(|| EvalError::TypeError("if condition must be bool".to_string()))?;
                 if b {
                     self.eval(then_expr)
                 } else {
@@ -502,12 +563,12 @@ impl Context {
         let use_float = matches!(lv, Val::Float(_)) || matches!(rv, Val::Float(_));
 
         if use_float {
-            let a = lv.as_float().ok_or_else(|| {
-                EvalError::TypeError("expected numeric".to_string())
-            })?;
-            let b = rv.as_float().ok_or_else(|| {
-                EvalError::TypeError("expected numeric".to_string())
-            })?;
+            let a = lv
+                .as_float()
+                .ok_or_else(|| EvalError::TypeError("expected numeric".to_string()))?;
+            let b = rv
+                .as_float()
+                .ok_or_else(|| EvalError::TypeError("expected numeric".to_string()))?;
             match op {
                 ArithOp::Add => Ok(Val::Float(a + b)),
                 ArithOp::Sub => Ok(Val::Float(a - b)),
@@ -528,12 +589,12 @@ impl Context {
                 }
             }
         } else {
-            let a = lv.as_int().ok_or_else(|| {
-                EvalError::TypeError("expected numeric".to_string())
-            })?;
-            let b = rv.as_int().ok_or_else(|| {
-                EvalError::TypeError("expected numeric".to_string())
-            })?;
+            let a = lv
+                .as_int()
+                .ok_or_else(|| EvalError::TypeError("expected numeric".to_string()))?;
+            let b = rv
+                .as_int()
+                .ok_or_else(|| EvalError::TypeError("expected numeric".to_string()))?;
             match op {
                 ArithOp::Add => Ok(Val::Int(a + b)),
                 ArithOp::Sub => Ok(Val::Int(a - b)),
@@ -591,13 +652,15 @@ impl Context {
                 _ => {
                     return Err(EvalError::TypeError(
                         "ordered comparison not supported for booleans".to_string(),
-                    ))
+                    ));
                 }
             };
             return Ok(Val::Bool(result));
         }
 
-        Err(EvalError::TypeError("incompatible types for comparison".to_string()))
+        Err(EvalError::TypeError(
+            "incompatible types for comparison".to_string(),
+        ))
     }
 }
 
@@ -768,10 +831,7 @@ mod tests {
     #[test]
     fn eval_negation() {
         let ctx = Context::new();
-        assert_eq!(
-            ctx.eval(&Expr::neg(Expr::int(42))).unwrap(),
-            Val::Int(-42)
-        );
+        assert_eq!(ctx.eval(&Expr::neg(Expr::int(42))).unwrap(), Val::Int(-42));
         assert_eq!(
             ctx.eval(&Expr::neg(Expr::float(1.5))).unwrap(),
             Val::Float(-1.5)
@@ -781,18 +841,10 @@ mod tests {
     #[test]
     fn eval_if_else() {
         let ctx = Context::new();
-        let expr = Expr::if_else(
-            Expr::bool_val(true),
-            Expr::int(1),
-            Expr::int(2),
-        );
+        let expr = Expr::if_else(Expr::bool_val(true), Expr::int(1), Expr::int(2));
         assert_eq!(ctx.eval(&expr).unwrap(), Val::Int(1));
 
-        let expr2 = Expr::if_else(
-            Expr::bool_val(false),
-            Expr::int(1),
-            Expr::int(2),
-        );
+        let expr2 = Expr::if_else(Expr::bool_val(false), Expr::int(1), Expr::int(2));
         assert_eq!(ctx.eval(&expr2).unwrap(), Val::Int(2));
     }
 
@@ -800,9 +852,9 @@ mod tests {
     fn eval_custom_function() {
         let mut ctx = Context::new();
         ctx.register_fn("double", 1, |args| {
-            let v = args[0].as_int().ok_or_else(|| {
-                EvalError::TypeError("expected int".to_string())
-            })?;
+            let v = args[0]
+                .as_int()
+                .ok_or_else(|| EvalError::TypeError("expected int".to_string()))?;
             Ok(Val::Int(v * 2))
         });
         let expr = Expr::call("double", vec![Expr::int(21)]);
@@ -816,7 +868,10 @@ mod tests {
         let expr = Expr::call("noop", vec![Expr::int(1)]);
         assert_eq!(
             ctx.eval(&expr).unwrap_err(),
-            EvalError::ArityMismatch { expected: 0, got: 1 }
+            EvalError::ArityMismatch {
+                expected: 0,
+                got: 1
+            }
         );
     }
 
@@ -837,10 +892,7 @@ mod tests {
         ctx.set_var("y", Val::Int(3));
         // (x + y) * 2 - 1 = 25
         let expr = Expr::sub(
-            Expr::mul(
-                Expr::add(Expr::var("x"), Expr::var("y")),
-                Expr::int(2),
-            ),
+            Expr::mul(Expr::add(Expr::var("x"), Expr::var("y")), Expr::int(2)),
             Expr::int(1),
         );
         assert_eq!(ctx.eval(&expr).unwrap(), Val::Int(25));

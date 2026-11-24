@@ -452,7 +452,10 @@ impl DuckLakeCatalog {
     }
 
     /// Resolve the latest snapshot committed at or before `timestamp_ms` (`FOR TIMESTAMP AS OF`).
-    pub fn snapshot_at_timestamp(&self, timestamp_ms: u64) -> Result<DuckLakeSnapshot, DuckLakeError> {
+    pub fn snapshot_at_timestamp(
+        &self,
+        timestamp_ms: u64,
+    ) -> Result<DuckLakeSnapshot, DuckLakeError> {
         let st = self
             .state
             .read()
@@ -640,23 +643,25 @@ pub fn ducklake_routes(catalog: std::sync::Arc<DuckLakeCatalog>) -> axum::Router
     axum::Router::new()
         .route(
             "/api/v1/ducklake/snapshot",
-            get(|State(cat): State<std::sync::Arc<DuckLakeCatalog>>| async move {
-                match (cat.current_snapshot(), cat.total_catalog_energy_uj()) {
-                    (Ok(snap), Ok(total_uj)) => (
-                        StatusCode::OK,
-                        Json(serde_json::json!({
-                            "snapshot": snap,
-                            "total_catalog_energy_uj": total_uj,
-                        })),
-                    )
-                        .into_response(),
-                    (Err(e), _) | (_, Err(e)) => (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({ "error": e.to_string() })),
-                    )
-                        .into_response(),
-                }
-            }),
+            get(
+                |State(cat): State<std::sync::Arc<DuckLakeCatalog>>| async move {
+                    match (cat.current_snapshot(), cat.total_catalog_energy_uj()) {
+                        (Ok(snap), Ok(total_uj)) => (
+                            StatusCode::OK,
+                            Json(serde_json::json!({
+                                "snapshot": snap,
+                                "total_catalog_energy_uj": total_uj,
+                            })),
+                        )
+                            .into_response(),
+                        (Err(e), _) | (_, Err(e)) => (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(serde_json::json!({ "error": e.to_string() })),
+                        )
+                            .into_response(),
+                    }
+                },
+            ),
         )
         .route(
             "/api/v1/ducklake/tables",
@@ -762,10 +767,7 @@ mod tests {
             .create_table(
                 "main",
                 "events",
-                &[
-                    ("event_id", "BIGINT", false),
-                    ("payload", "VARIANT", true),
-                ],
+                &[("event_id", "BIGINT", false), ("payload", "VARIANT", true)],
                 1_100,
             )
             .unwrap();

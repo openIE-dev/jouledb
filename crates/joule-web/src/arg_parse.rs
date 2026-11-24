@@ -119,10 +119,14 @@ impl Arg {
     /// Check if this arg matches a token like `--name` or `-n`.
     fn matches_token(&self, token: &str) -> bool {
         if let Some(long) = &self.long {
-            if token == long { return true; }
+            if token == long {
+                return true;
+            }
         }
         if let Some(short) = self.short {
-            if token == format!("-{short}") { return true; }
+            if token == format!("-{short}") {
+                return true;
+            }
         }
         false
     }
@@ -224,14 +228,20 @@ impl Command {
         for a in &self.args {
             if let Some(def) = &a.default {
                 match a.kind {
-                    ArgKind::Option => { result.options.insert(a.name.clone(), def.clone()); }
-                    ArgKind::Flag => { result.flags.insert(a.name.clone(), def == "true"); }
+                    ArgKind::Option => {
+                        result.options.insert(a.name.clone(), def.clone());
+                    }
+                    ArgKind::Flag => {
+                        result.flags.insert(a.name.clone(), def == "true");
+                    }
                     _ => {}
                 }
             }
         }
 
-        let positional_args: Vec<&Arg> = self.args.iter()
+        let positional_args: Vec<&Arg> = self
+            .args
+            .iter()
             .filter(|a| a.kind == ArgKind::Positional)
             .collect();
 
@@ -269,7 +279,8 @@ impl Command {
                 if let Some(a) = self.args.iter().find(|a| a.long.as_deref() == Some(key)) {
                     if !a.choices.is_empty() && !a.choices.iter().any(|c| c == val) {
                         result.errors.push(format!(
-                            "Invalid value '{}' for {}. Valid: {:?}", val, a.name, a.choices
+                            "Invalid value '{}' for {}. Valid: {:?}",
+                            val, a.name, a.choices
                         ));
                     }
                     result.options.insert(a.name.clone(), val.to_string());
@@ -293,7 +304,8 @@ impl Command {
                                 let val = args[i + 1];
                                 if !a.choices.is_empty() && !a.choices.iter().any(|c| c == val) {
                                     result.errors.push(format!(
-                                        "Invalid value '{}' for {}. Valid: {:?}", val, a.name, a.choices
+                                        "Invalid value '{}' for {}. Valid: {:?}",
+                                        val, a.name, a.choices
                                     ));
                                 }
                                 result.options.insert(a.name.clone(), val.to_string());
@@ -303,7 +315,9 @@ impl Command {
                                 i += 1;
                             }
                         }
-                        _ => { i += 1; }
+                        _ => {
+                            i += 1;
+                        }
                     }
                 } else {
                     result.errors.push(format!("Unknown flag: {token}"));
@@ -323,16 +337,21 @@ impl Command {
                 match a.kind {
                     ArgKind::Positional => {
                         // Find index of this positional.
-                        let idx = positional_args.iter()
+                        let idx = positional_args
+                            .iter()
                             .position(|p| p.name == a.name)
                             .unwrap_or(0);
                         if result.positionals.get(idx).is_none() {
-                            result.errors.push(format!("Missing required argument: {}", a.name));
+                            result
+                                .errors
+                                .push(format!("Missing required argument: {}", a.name));
                         }
                     }
                     ArgKind::Option => {
                         if !result.options.contains_key(&a.name) {
-                            result.errors.push(format!("Missing required option: --{}", a.name));
+                            result
+                                .errors
+                                .push(format!("Missing required option: --{}", a.name));
                         }
                     }
                     _ => {}
@@ -361,15 +380,23 @@ impl Command {
 
         // Usage.
         out.push_str(&format!("USAGE:\n    {}", self.name));
-        let positionals: Vec<&Arg> = self.args.iter()
+        let positionals: Vec<&Arg> = self
+            .args
+            .iter()
             .filter(|a| a.kind == ArgKind::Positional)
             .collect();
-        let named: Vec<&Arg> = self.args.iter()
+        let named: Vec<&Arg> = self
+            .args
+            .iter()
             .filter(|a| a.kind != ArgKind::Positional)
             .collect();
 
-        if !named.is_empty() { out.push_str(" [OPTIONS]"); }
-        if !self.subcommands.is_empty() { out.push_str(" <COMMAND>"); }
+        if !named.is_empty() {
+            out.push_str(" [OPTIONS]");
+        }
+        if !self.subcommands.is_empty() {
+            out.push_str(" <COMMAND>");
+        }
         for p in &positionals {
             if p.required {
                 out.push_str(&format!(" <{}>", p.name.to_uppercase()));
@@ -383,9 +410,7 @@ impl Command {
         if !positionals.is_empty() {
             out.push_str("ARGUMENTS:\n");
             for p in &positionals {
-                out.push_str(&format!("    {:<20} {}\n",
-                    format!("<{}>", p.name), p.help
-                ));
+                out.push_str(&format!("    {:<20} {}\n", format!("<{}>", p.name), p.help));
             }
             out.push('\n');
         }
@@ -394,13 +419,18 @@ impl Command {
         if !named.is_empty() {
             out.push_str("OPTIONS:\n");
             for a in &named {
-                let short = a.short.map(|c| format!("-{c}, ")).unwrap_or_else(|| "    ".to_string());
+                let short = a
+                    .short
+                    .map(|c| format!("-{c}, "))
+                    .unwrap_or_else(|| "    ".to_string());
                 let long = a.long.as_deref().unwrap_or("");
                 let val = match a.kind {
                     ArgKind::Option => format!(" <{}>", a.value_name.as_deref().unwrap_or("VALUE")),
                     _ => String::new(),
                 };
-                let default = a.default.as_ref()
+                let default = a
+                    .default
+                    .as_ref()
                     .map(|d| format!(" [default: {d}]"))
                     .unwrap_or_default();
                 out.push_str(&format!("    {short}{long}{val:<12} {}{default}\n", a.help));
@@ -438,8 +468,17 @@ mod tests {
             .version("1.0.0")
             .description("A test CLI app")
             .arg(Arg::positional("input").help("Input file"))
-            .arg(Arg::flag("verbose").short('v').help("Enable verbose output"))
-            .arg(Arg::option("output").short('o').help("Output file").value_name("FILE"))
+            .arg(
+                Arg::flag("verbose")
+                    .short('v')
+                    .help("Enable verbose output"),
+            )
+            .arg(
+                Arg::option("output")
+                    .short('o')
+                    .help("Output file")
+                    .value_name("FILE"),
+            )
     }
 
     #[test]
@@ -487,24 +526,21 @@ mod tests {
 
     #[test]
     fn parse_default_value() {
-        let cmd = Command::new("app")
-            .arg(Arg::option("format").default_value("json"));
+        let cmd = Command::new("app").arg(Arg::option("format").default_value("json"));
         let result = cmd.parse(&[]);
         assert_eq!(result.get_option("format"), Some("json"));
     }
 
     #[test]
     fn parse_override_default() {
-        let cmd = Command::new("app")
-            .arg(Arg::option("format").default_value("json"));
+        let cmd = Command::new("app").arg(Arg::option("format").default_value("json"));
         let result = cmd.parse(&["--format", "csv"]);
         assert_eq!(result.get_option("format"), Some("csv"));
     }
 
     #[test]
     fn parse_equals_syntax() {
-        let cmd = Command::new("app")
-            .arg(Arg::option("output").short('o'));
+        let cmd = Command::new("app").arg(Arg::option("output").short('o'));
         let result = cmd.parse(&["--output=file.txt"]);
         assert_eq!(result.get_option("output"), Some("file.txt"));
     }
@@ -512,10 +548,7 @@ mod tests {
     #[test]
     fn parse_subcommand() {
         let cmd = Command::new("git")
-            .subcommand(
-                Command::new("commit")
-                    .arg(Arg::option("message").short('m'))
-            );
+            .subcommand(Command::new("commit").arg(Arg::option("message").short('m')));
         let result = cmd.parse(&["commit", "-m", "initial"]);
         assert!(result.subcommand.is_some());
         let (name, sub) = result.subcommand.unwrap();
@@ -532,8 +565,7 @@ mod tests {
 
     #[test]
     fn parse_choices_valid() {
-        let cmd = Command::new("app")
-            .arg(Arg::option("color").choices(&["red", "green", "blue"]));
+        let cmd = Command::new("app").arg(Arg::option("color").choices(&["red", "green", "blue"]));
         let result = cmd.parse(&["--color", "red"]);
         assert!(!result.has_errors());
         assert_eq!(result.get_option("color"), Some("red"));
@@ -541,8 +573,7 @@ mod tests {
 
     #[test]
     fn parse_choices_invalid() {
-        let cmd = Command::new("app")
-            .arg(Arg::option("color").choices(&["red", "green", "blue"]));
+        let cmd = Command::new("app").arg(Arg::option("color").choices(&["red", "green", "blue"]));
         let result = cmd.parse(&["--color", "purple"]);
         assert!(result.has_errors());
     }

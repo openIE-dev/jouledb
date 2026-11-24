@@ -391,9 +391,9 @@ impl QitPriors {
     pub fn landauer_floor_for(&self, label: &str) -> f64 {
         let (regime, _) = self.prior_for(label);
         match regime {
-            QitRegime::Coherent => 0.0,                    // Pure state, nothing to erase
+            QitRegime::Coherent => 0.0, // Pure state, nothing to erase
             QitRegime::Decoherent => LANDAUER_FLOOR * 10.0, // ~10 bits typical
-            QitRegime::Thermal => LANDAUER_FLOOR * 1000.0,  // ~1000 bits for open-ended
+            QitRegime::Thermal => LANDAUER_FLOOR * 1000.0, // ~1000 bits for open-ended
         }
     }
 }
@@ -435,7 +435,12 @@ impl FlowQitEngine {
     }
 
     /// Perform a measurement on a tracked state.
-    pub fn measure(&mut self, state_idx: usize, strength: f64, timestamp_ms: u64) -> Option<MeasurementResult> {
+    pub fn measure(
+        &mut self,
+        state_idx: usize,
+        strength: f64,
+        timestamp_ms: u64,
+    ) -> Option<MeasurementResult> {
         if state_idx >= self.states.len() {
             return None;
         }
@@ -563,7 +568,10 @@ mod tests {
 
         // Recognition rate should be negative (entropy decreasing)
         let rate = dynamics.contrast_recognition_rate();
-        assert!(rate < 0.0, "recognition rate should be negative (learning), got {rate}");
+        assert!(
+            rate < 0.0,
+            "recognition rate should be negative (learning), got {rate}"
+        );
 
         // Information gain rate should be positive
         let igr = dynamics.information_gain_rate();

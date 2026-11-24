@@ -95,7 +95,10 @@ impl ServiceIdentity {
 
     /// SPIFFE-style URI.
     pub fn spiffe_id(&self) -> String {
-        format!("spiffe://mesh/{}/{}/{}", self.namespace, self.name, self.version)
+        format!(
+            "spiffe://mesh/{}/{}/{}",
+            self.namespace, self.name, self.version
+        )
     }
 }
 
@@ -186,7 +189,9 @@ impl RetryPolicy {
         if attempt == 0 {
             return 0;
         }
-        let exp = 1u64.checked_shl(attempt.saturating_sub(1)).unwrap_or(u64::MAX);
+        let exp = 1u64
+            .checked_shl(attempt.saturating_sub(1))
+            .unwrap_or(u64::MAX);
         let delay = self.base_delay_ms.saturating_mul(exp);
         delay.min(self.max_delay_ms)
     }
@@ -414,7 +419,9 @@ pub struct ServiceMesh {
 impl ServiceMesh {
     /// Create a new empty mesh.
     pub fn new() -> Self {
-        Self { services: HashMap::new() }
+        Self {
+            services: HashMap::new(),
+        }
     }
 
     /// Register a service with default policies.
@@ -427,16 +434,19 @@ impl ServiceMesh {
         if self.services.contains_key(&key) {
             return Err(MeshError::DuplicateService(key));
         }
-        self.services.insert(key, ServiceEntry {
-            identity,
-            mtls: MtlsConfig::default(),
-            retry: RetryPolicy::default(),
-            timeout: TimeoutPolicy::default(),
-            circuit_breaker: CircuitBreaker::new(CircuitBreakerConfig::default()),
-            traffic_policy: TrafficPolicy::default(),
-            sidecar: SidecarConfig::default(),
-            endpoints,
-        });
+        self.services.insert(
+            key,
+            ServiceEntry {
+                identity,
+                mtls: MtlsConfig::default(),
+                retry: RetryPolicy::default(),
+                timeout: TimeoutPolicy::default(),
+                circuit_breaker: CircuitBreaker::new(CircuitBreakerConfig::default()),
+                traffic_policy: TrafficPolicy::default(),
+                sidecar: SidecarConfig::default(),
+                endpoints,
+            },
+        );
         Ok(())
     }
 
@@ -455,21 +465,13 @@ impl ServiceMesh {
     }
 
     /// Set the mTLS config for a service.
-    pub fn set_mtls(
-        &mut self,
-        service_key: &str,
-        config: MtlsConfig,
-    ) -> Result<(), MeshError> {
+    pub fn set_mtls(&mut self, service_key: &str, config: MtlsConfig) -> Result<(), MeshError> {
         self.get_mut(service_key)?.mtls = config;
         Ok(())
     }
 
     /// Set the retry policy for a service.
-    pub fn set_retry(
-        &mut self,
-        service_key: &str,
-        policy: RetryPolicy,
-    ) -> Result<(), MeshError> {
+    pub fn set_retry(&mut self, service_key: &str, policy: RetryPolicy) -> Result<(), MeshError> {
         self.get_mut(service_key)?.retry = policy;
         Ok(())
     }
@@ -495,11 +497,7 @@ impl ServiceMesh {
     }
 
     /// Check if a request to a service is allowed (circuit breaker check).
-    pub fn allow_request(
-        &mut self,
-        service_key: &str,
-        now_ms: u64,
-    ) -> Result<bool, MeshError> {
+    pub fn allow_request(&mut self, service_key: &str, now_ms: u64) -> Result<bool, MeshError> {
         let entry = self.get_mut(service_key)?;
         Ok(entry.circuit_breaker.allow_request(now_ms))
     }
@@ -511,27 +509,19 @@ impl ServiceMesh {
     }
 
     /// Record a failure for a service's circuit breaker.
-    pub fn record_failure(
-        &mut self,
-        service_key: &str,
-        now_ms: u64,
-    ) -> Result<(), MeshError> {
-        self.get_mut(service_key)?.circuit_breaker.record_failure(now_ms);
+    pub fn record_failure(&mut self, service_key: &str, now_ms: u64) -> Result<(), MeshError> {
+        self.get_mut(service_key)?
+            .circuit_breaker
+            .record_failure(now_ms);
         Ok(())
     }
 
     /// Validate mTLS peer authorization.
-    pub fn authorize_peer(
-        &self,
-        service_key: &str,
-        peer_spiffe: &str,
-    ) -> Result<bool, MeshError> {
+    pub fn authorize_peer(&self, service_key: &str, peer_spiffe: &str) -> Result<bool, MeshError> {
         let entry = self.get(service_key)?;
         match entry.mtls.mode {
             MtlsMode::Disabled => Ok(true),
-            MtlsMode::Permissive | MtlsMode::Strict => {
-                Ok(entry.mtls.is_peer_allowed(peer_spiffe))
-            }
+            MtlsMode::Permissive | MtlsMode::Strict => Ok(entry.mtls.is_peer_allowed(peer_spiffe)),
         }
     }
 
@@ -554,7 +544,13 @@ impl ServiceMesh {
     pub fn select_by_label(&self, key: &str, value: &str) -> Vec<&ServiceEntry> {
         self.services
             .values()
-            .filter(|e| e.identity.labels.get(key).map(|v| v == value).unwrap_or(false))
+            .filter(|e| {
+                e.identity
+                    .labels
+                    .get(key)
+                    .map(|v| v == value)
+                    .unwrap_or(false)
+            })
             .collect()
     }
 
@@ -604,7 +600,9 @@ mod tests {
 
     #[test]
     fn identity_with_labels() {
-        let id = identity("api").with_label("env", "prod").with_label("team", "platform");
+        let id = identity("api")
+            .with_label("env", "prod")
+            .with_label("team", "platform");
         assert_eq!(id.labels.get("env").unwrap(), "prod");
         assert_eq!(id.labels.get("team").unwrap(), "platform");
     }
@@ -770,7 +768,10 @@ mod tests {
     #[test]
     fn service_not_found_error() {
         let mesh = ServiceMesh::new();
-        assert!(matches!(mesh.get("nope"), Err(MeshError::ServiceNotFound(_))));
+        assert!(matches!(
+            mesh.get("nope"),
+            Err(MeshError::ServiceNotFound(_))
+        ));
     }
 
     #[test]
@@ -783,7 +784,10 @@ mod tests {
     #[test]
     fn deregister_not_found() {
         let mut mesh = ServiceMesh::new();
-        assert!(matches!(mesh.deregister("nope"), Err(MeshError::ServiceNotFound(_))));
+        assert!(matches!(
+            mesh.deregister("nope"),
+            Err(MeshError::ServiceNotFound(_))
+        ));
     }
 
     // ── Policy configuration tests ──
@@ -791,12 +795,15 @@ mod tests {
     #[test]
     fn set_mtls_config() {
         let (mut mesh, key) = mesh_with_service("api");
-        mesh.set_mtls(&key, MtlsConfig {
-            mode: MtlsMode::Strict,
-            cert_fingerprint: Some("abcdef".into()),
-            allowed_peers: vec!["spiffe://mesh/prod/web/v1".into()],
-            min_tls_version: "1.3".into(),
-        })
+        mesh.set_mtls(
+            &key,
+            MtlsConfig {
+                mode: MtlsMode::Strict,
+                cert_fingerprint: Some("abcdef".into()),
+                allowed_peers: vec!["spiffe://mesh/prod/web/v1".into()],
+                min_tls_version: "1.3".into(),
+            },
+        )
         .unwrap();
 
         let entry = mesh.get(&key).unwrap();
@@ -806,10 +813,13 @@ mod tests {
     #[test]
     fn set_retry_policy() {
         let (mut mesh, key) = mesh_with_service("api");
-        mesh.set_retry(&key, RetryPolicy {
-            max_retries: 5,
-            ..Default::default()
-        })
+        mesh.set_retry(
+            &key,
+            RetryPolicy {
+                max_retries: 5,
+                ..Default::default()
+            },
+        )
         .unwrap();
         assert_eq!(mesh.get(&key).unwrap().retry.max_retries, 5);
     }
@@ -817,11 +827,14 @@ mod tests {
     #[test]
     fn set_timeout_policy() {
         let (mut mesh, key) = mesh_with_service("api");
-        mesh.set_timeout(&key, TimeoutPolicy {
-            request_timeout_ms: 60_000,
-            connect_timeout_ms: 10_000,
-            idle_timeout_ms: 120_000,
-        })
+        mesh.set_timeout(
+            &key,
+            TimeoutPolicy {
+                request_timeout_ms: 60_000,
+                connect_timeout_ms: 10_000,
+                idle_timeout_ms: 120_000,
+            },
+        )
         .unwrap();
         assert_eq!(mesh.get(&key).unwrap().timeout.request_timeout_ms, 60_000);
     }
@@ -829,12 +842,22 @@ mod tests {
     #[test]
     fn set_circuit_breaker_config() {
         let (mut mesh, key) = mesh_with_service("api");
-        mesh.set_circuit_breaker(&key, CircuitBreakerConfig {
-            failure_threshold: 10,
-            ..Default::default()
-        })
+        mesh.set_circuit_breaker(
+            &key,
+            CircuitBreakerConfig {
+                failure_threshold: 10,
+                ..Default::default()
+            },
+        )
         .unwrap();
-        assert_eq!(mesh.get(&key).unwrap().circuit_breaker.config.failure_threshold, 10);
+        assert_eq!(
+            mesh.get(&key)
+                .unwrap()
+                .circuit_breaker
+                .config
+                .failure_threshold,
+            10
+        );
     }
 
     // ── Circuit breaker via mesh ──
@@ -842,11 +865,14 @@ mod tests {
     #[test]
     fn mesh_circuit_breaker_integration() {
         let (mut mesh, key) = mesh_with_service("api");
-        mesh.set_circuit_breaker(&key, CircuitBreakerConfig {
-            failure_threshold: 2,
-            open_duration_ms: 1000,
-            ..Default::default()
-        })
+        mesh.set_circuit_breaker(
+            &key,
+            CircuitBreakerConfig {
+                failure_threshold: 2,
+                open_duration_ms: 1000,
+                ..Default::default()
+            },
+        )
         .unwrap();
 
         assert!(mesh.allow_request(&key, 0).unwrap());
@@ -869,10 +895,13 @@ mod tests {
     #[test]
     fn authorize_peer_disabled_mtls() {
         let (mut mesh, key) = mesh_with_service("api");
-        mesh.set_mtls(&key, MtlsConfig {
-            mode: MtlsMode::Disabled,
-            ..Default::default()
-        })
+        mesh.set_mtls(
+            &key,
+            MtlsConfig {
+                mode: MtlsMode::Disabled,
+                ..Default::default()
+            },
+        )
         .unwrap();
         assert!(mesh.authorize_peer(&key, "anyone").unwrap());
     }
@@ -880,15 +909,25 @@ mod tests {
     #[test]
     fn authorize_peer_strict_with_allowlist() {
         let (mut mesh, key) = mesh_with_service("api");
-        mesh.set_mtls(&key, MtlsConfig {
-            mode: MtlsMode::Strict,
-            allowed_peers: vec!["spiffe://mesh/prod/web/v1".into()],
-            ..Default::default()
-        })
+        mesh.set_mtls(
+            &key,
+            MtlsConfig {
+                mode: MtlsMode::Strict,
+                allowed_peers: vec!["spiffe://mesh/prod/web/v1".into()],
+                ..Default::default()
+            },
+        )
         .unwrap();
 
-        assert!(mesh.authorize_peer(&key, "spiffe://mesh/prod/web/v1").unwrap());
-        assert!(!mesh.authorize_peer(&key, "spiffe://mesh/prod/evil/v1").unwrap());
+        assert!(
+            mesh.authorize_peer(&key, "spiffe://mesh/prod/web/v1")
+                .unwrap()
+        );
+        assert!(
+            !mesh
+                .authorize_peer(&key, "spiffe://mesh/prod/evil/v1")
+                .unwrap()
+        );
     }
 
     // ── Label selection ──
@@ -934,8 +973,14 @@ mod tests {
             MeshError::ServiceNotFound("svc".into()),
             MeshError::DuplicateService("svc".into()),
             MeshError::InvalidConfig("bad".into()),
-            MeshError::CircuitOpen { service: "svc".into(), failures: 5 },
-            MeshError::RetryExhausted { service: "svc".into(), attempts: 3 },
+            MeshError::CircuitOpen {
+                service: "svc".into(),
+                failures: 5,
+            },
+            MeshError::RetryExhausted {
+                service: "svc".into(),
+                attempts: 3,
+            },
             MeshError::MtlsFailure("cert".into()),
         ];
         for e in &errs {

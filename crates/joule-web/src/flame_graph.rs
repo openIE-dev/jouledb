@@ -122,8 +122,11 @@ impl FlameNode {
     /// Filter: return a new tree keeping only nodes matching the query
     /// (and their ancestors).
     pub fn filter(&self, query: &str) -> Option<FlameNode> {
-        let child_matches: Vec<FlameNode> =
-            self.children.iter().filter_map(|c| c.filter(query)).collect();
+        let child_matches: Vec<FlameNode> = self
+            .children
+            .iter()
+            .filter_map(|c| c.filter(query))
+            .collect();
 
         if self.name.contains(query) || !child_matches.is_empty() {
             let mut node = FlameNode::new(&self.name, self.depth);
@@ -302,7 +305,11 @@ pub fn top_functions(root: &FlameNode, n: usize) -> Vec<TopFunction> {
         })
         .collect();
 
-    funcs.sort_by(|a, b| b.self_count.cmp(&a.self_count).then_with(|| a.name.cmp(&b.name)));
+    funcs.sort_by(|a, b| {
+        b.self_count
+            .cmp(&a.self_count)
+            .then_with(|| a.name.cmp(&b.name))
+    });
     funcs.truncate(n);
     funcs
 }
@@ -349,13 +356,7 @@ pub fn generate_svg_rects(root: &FlameNode, config: &SvgConfig) -> Vec<SvgRect> 
     rects
 }
 
-fn emit_rects(
-    node: &FlameNode,
-    x: f64,
-    width: f64,
-    config: &SvgConfig,
-    rects: &mut Vec<SvgRect>,
-) {
+fn emit_rects(node: &FlameNode, x: f64, width: f64, config: &SvgConfig, rects: &mut Vec<SvgRect>) {
     if width < config.min_width {
         return;
     }
@@ -397,7 +398,12 @@ pub fn render_svg(rects: &[SvgRect], config: &SvgConfig, max_depth: usize) -> St
     svg.push('\n');
 
     for rect in rects {
-        let hue = (rect.name.bytes().fold(0u32, |a, b| a.wrapping_add(b as u32)) % 60) + 10;
+        let hue = (rect
+            .name
+            .bytes()
+            .fold(0u32, |a, b| a.wrapping_add(b as u32))
+            % 60)
+            + 10;
         svg.push_str(&format!(
             "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"hsl({}, 70%, 55%)\" />",
             rect.x, rect.y, rect.width, rect.height, hue
@@ -715,10 +721,7 @@ mod tests {
     #[test]
     fn test_sample_leaf() {
         let s = Sample::new(
-            vec![
-                StackFrame::new("a", "", 0),
-                StackFrame::new("b", "", 0),
-            ],
+            vec![StackFrame::new("a", "", 0), StackFrame::new("b", "", 0)],
             1,
         );
         assert_eq!(s.leaf().unwrap().name, "b");

@@ -13,10 +13,18 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn dot(self, r: Self) -> f64 { self.x * r.x + self.y * r.y + self.z * r.z }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn dot(self, r: Self) -> f64 {
+        self.x * r.x + self.y * r.y + self.z * r.z
+    }
 
     pub fn cross(self, r: Self) -> Self {
         Self {
@@ -26,12 +34,20 @@ impl Vec3 {
         }
     }
 
-    pub fn length_sq(self) -> f64 { self.dot(self) }
-    pub fn length(self) -> f64 { self.length_sq().sqrt() }
+    pub fn length_sq(self) -> f64 {
+        self.dot(self)
+    }
+    pub fn length(self) -> f64 {
+        self.length_sq().sqrt()
+    }
 
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-12 { Self::ZERO } else { self * (1.0 / l) }
+        if l < 1e-12 {
+            Self::ZERO
+        } else {
+            self * (1.0 / l)
+        }
     }
 
     pub fn triple_product(a: Self, b: Self, c: Self) -> Self {
@@ -42,19 +58,43 @@ impl Vec3 {
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 impl std::ops::Mul<f64> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 impl std::ops::Neg for Vec3 {
     type Output = Self;
-    fn neg(self) -> Self { Self { x: -self.x, y: -self.y, z: -self.z } }
+    fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
 }
 
 // ── Convex Shape Trait ───────────────────────────────────────
@@ -90,9 +130,24 @@ pub struct GjkBox {
 impl ConvexSupport for GjkBox {
     fn support(&self, d: Vec3) -> Vec3 {
         Vec3::new(
-            self.center.x + if d.x >= 0.0 { self.half_extents.x } else { -self.half_extents.x },
-            self.center.y + if d.y >= 0.0 { self.half_extents.y } else { -self.half_extents.y },
-            self.center.z + if d.z >= 0.0 { self.half_extents.z } else { -self.half_extents.z },
+            self.center.x
+                + if d.x >= 0.0 {
+                    self.half_extents.x
+                } else {
+                    -self.half_extents.x
+                },
+            self.center.y
+                + if d.y >= 0.0 {
+                    self.half_extents.y
+                } else {
+                    -self.half_extents.y
+                },
+            self.center.z
+                + if d.z >= 0.0 {
+                    self.half_extents.z
+                } else {
+                    -self.half_extents.z
+                },
         )
     }
 }
@@ -195,20 +250,36 @@ pub fn gjk_intersect(
 
     for iteration in 0..config.gjk_max_iterations {
         if d.length_sq() < 1e-20 {
-            return GjkResult { intersecting: true, simplex, iterations: iteration };
+            return GjkResult {
+                intersecting: true,
+                simplex,
+                iterations: iteration,
+            };
         }
         let new_pt = minkowski_support(a, b, d);
         if new_pt.dot(d) < 0.0 {
-            return GjkResult { intersecting: false, simplex, iterations: iteration };
+            return GjkResult {
+                intersecting: false,
+                simplex,
+                iterations: iteration,
+            };
         }
         simplex.push(new_pt);
 
         if do_simplex(&mut simplex, &mut d) {
-            return GjkResult { intersecting: true, simplex, iterations: iteration };
+            return GjkResult {
+                intersecting: true,
+                simplex,
+                iterations: iteration,
+            };
         }
     }
 
-    GjkResult { intersecting: false, simplex, iterations: config.gjk_max_iterations }
+    GjkResult {
+        intersecting: false,
+        simplex,
+        iterations: config.gjk_max_iterations,
+    }
 }
 
 fn do_simplex(simplex: &mut Vec<Vec3>, d: &mut Vec3) -> bool {
@@ -339,22 +410,30 @@ pub fn epa_penetration(
         if distance < 0.0 {
             // Flip winding
             faces.push(EpaFace {
-                a: fi[0], b: fi[2], c: fi[1],
-                normal: -normal, distance: -distance,
+                a: fi[0],
+                b: fi[2],
+                c: fi[1],
+                normal: -normal,
+                distance: -distance,
             });
         } else {
             faces.push(EpaFace {
-                a: fi[0], b: fi[1], c: fi[2],
-                normal, distance,
+                a: fi[0],
+                b: fi[1],
+                c: fi[2],
+                normal,
+                distance,
             });
         }
     }
 
     for _iteration in 0..config.epa_max_iterations {
         // Find face closest to origin
-        let (closest_idx, closest_face) = match faces.iter().enumerate()
-            .min_by(|a, b| a.1.distance.partial_cmp(&b.1.distance).unwrap_or(std::cmp::Ordering::Equal))
-        {
+        let (closest_idx, closest_face) = match faces.iter().enumerate().min_by(|a, b| {
+            a.1.distance
+                .partial_cmp(&b.1.distance)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }) {
             Some((i, f)) => (i, f.clone()),
             None => return None,
         };
@@ -394,13 +473,19 @@ pub fn epa_penetration(
             let distance = normal.dot(vertices[ea]);
             if distance < 0.0 {
                 faces.push(EpaFace {
-                    a: ea, b: new_vtx, c: eb,
-                    normal: -normal, distance: -distance,
+                    a: ea,
+                    b: new_vtx,
+                    c: eb,
+                    normal: -normal,
+                    distance: -distance,
                 });
             } else {
                 faces.push(EpaFace {
-                    a: ea, b: eb, c: new_vtx,
-                    normal, distance,
+                    a: ea,
+                    b: eb,
+                    c: new_vtx,
+                    normal,
+                    distance,
                 });
             }
         }
@@ -410,9 +495,17 @@ pub fn epa_penetration(
     }
 
     // Fallback: return best face found
-    faces.iter()
-        .min_by(|a, b| a.distance.partial_cmp(&b.distance).unwrap_or(std::cmp::Ordering::Equal))
-        .map(|f| EpaResult { normal: f.normal, depth: f.distance })
+    faces
+        .iter()
+        .min_by(|a, b| {
+            a.distance
+                .partial_cmp(&b.distance)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .map(|f| EpaResult {
+            normal: f.normal,
+            depth: f.distance,
+        })
 }
 
 fn compute_face_normal(vertices: &[Vec3], a: usize, b: usize, c: usize) -> Vec3 {
@@ -433,10 +526,7 @@ fn add_edge(edges: &mut Vec<(usize, usize)>, a: usize, b: usize) {
 // ── Convenience: full GJK+EPA ────────────────────────────────
 
 /// Full collision test: GJK for intersection, then EPA for penetration info.
-pub fn collision_test(
-    a: &dyn ConvexSupport,
-    b: &dyn ConvexSupport,
-) -> Option<EpaResult> {
+pub fn collision_test(a: &dyn ConvexSupport, b: &dyn ConvexSupport) -> Option<EpaResult> {
     let config = GjkConfig::default();
     let gjk = gjk_intersect(a, b, &config);
     if !gjk.intersecting {
@@ -446,10 +536,7 @@ pub fn collision_test(
 }
 
 /// Closest distance between two non-intersecting convex shapes (GJK only).
-pub fn gjk_distance(
-    a: &dyn ConvexSupport,
-    b: &dyn ConvexSupport,
-) -> f64 {
+pub fn gjk_distance(a: &dyn ConvexSupport, b: &dyn ConvexSupport) -> f64 {
     let config = GjkConfig::default();
     let gjk = gjk_intersect(a, b, &config);
     if gjk.intersecting {
@@ -487,12 +574,16 @@ fn closest_point_on_triangle_to_origin(a: Vec3, b: Vec3, c: Vec3) -> Vec3 {
 
     let d1 = ab.dot(ao);
     let d2 = ac.dot(ao);
-    if d1 <= 0.0 && d2 <= 0.0 { return a; }
+    if d1 <= 0.0 && d2 <= 0.0 {
+        return a;
+    }
 
     let bo = -b;
     let d3 = ab.dot(bo);
     let d4 = ac.dot(bo);
-    if d3 >= 0.0 && d4 <= d3 { return b; }
+    if d3 >= 0.0 && d4 <= d3 {
+        return b;
+    }
 
     let vc = d1 * d4 - d3 * d2;
     if vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0 {
@@ -503,7 +594,9 @@ fn closest_point_on_triangle_to_origin(a: Vec3, b: Vec3, c: Vec3) -> Vec3 {
     let co = -c;
     let d5 = ab.dot(co);
     let d6 = ac.dot(co);
-    if d6 >= 0.0 && d5 <= d6 { return c; }
+    if d6 >= 0.0 && d5 <= d6 {
+        return c;
+    }
 
     let vb = d5 * d2 - d1 * d6;
     if vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0 {
@@ -533,26 +626,39 @@ mod tests {
 
     const EPS: f64 = 1e-4;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
-    fn v3_approx(a: Vec3, b: Vec3) -> bool { approx(a.x, b.x) && approx(a.y, b.y) && approx(a.z, b.z) }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
+    fn v3_approx(a: Vec3, b: Vec3) -> bool {
+        approx(a.x, b.x) && approx(a.y, b.y) && approx(a.z, b.z)
+    }
 
     #[test]
     fn test_sphere_support() {
-        let s = GjkSphere { center: Vec3::ZERO, radius: 2.0 };
+        let s = GjkSphere {
+            center: Vec3::ZERO,
+            radius: 2.0,
+        };
         let sup = s.support(Vec3::new(1.0, 0.0, 0.0));
         assert!(v3_approx(sup, Vec3::new(2.0, 0.0, 0.0)));
     }
 
     #[test]
     fn test_box_support() {
-        let b = GjkBox { center: Vec3::ZERO, half_extents: Vec3::new(1.0, 2.0, 3.0) };
+        let b = GjkBox {
+            center: Vec3::ZERO,
+            half_extents: Vec3::new(1.0, 2.0, 3.0),
+        };
         let sup = b.support(Vec3::new(1.0, 1.0, 1.0));
         assert!(v3_approx(sup, Vec3::new(1.0, 2.0, 3.0)));
     }
 
     #[test]
     fn test_box_support_negative() {
-        let b = GjkBox { center: Vec3::ZERO, half_extents: Vec3::new(1.0, 2.0, 3.0) };
+        let b = GjkBox {
+            center: Vec3::ZERO,
+            half_extents: Vec3::new(1.0, 2.0, 3.0),
+        };
         let sup = b.support(Vec3::new(-1.0, -1.0, -1.0));
         assert!(v3_approx(sup, Vec3::new(-1.0, -2.0, -3.0)));
     }
@@ -584,8 +690,14 @@ mod tests {
 
     #[test]
     fn test_gjk_spheres_intersecting() {
-        let a = GjkSphere { center: Vec3::ZERO, radius: 1.0 };
-        let b = GjkSphere { center: Vec3::new(1.0, 0.0, 0.0), radius: 1.0 };
+        let a = GjkSphere {
+            center: Vec3::ZERO,
+            radius: 1.0,
+        };
+        let b = GjkSphere {
+            center: Vec3::new(1.0, 0.0, 0.0),
+            radius: 1.0,
+        };
         let config = GjkConfig::default();
         let result = gjk_intersect(&a, &b, &config);
         assert!(result.intersecting);
@@ -593,8 +705,14 @@ mod tests {
 
     #[test]
     fn test_gjk_spheres_separated() {
-        let a = GjkSphere { center: Vec3::ZERO, radius: 1.0 };
-        let b = GjkSphere { center: Vec3::new(5.0, 0.0, 0.0), radius: 1.0 };
+        let a = GjkSphere {
+            center: Vec3::ZERO,
+            radius: 1.0,
+        };
+        let b = GjkSphere {
+            center: Vec3::new(5.0, 0.0, 0.0),
+            radius: 1.0,
+        };
         let config = GjkConfig::default();
         let result = gjk_intersect(&a, &b, &config);
         assert!(!result.intersecting);
@@ -602,8 +720,14 @@ mod tests {
 
     #[test]
     fn test_gjk_boxes_intersecting() {
-        let a = GjkBox { center: Vec3::ZERO, half_extents: Vec3::new(1.0, 1.0, 1.0) };
-        let b = GjkBox { center: Vec3::new(1.5, 0.0, 0.0), half_extents: Vec3::new(1.0, 1.0, 1.0) };
+        let a = GjkBox {
+            center: Vec3::ZERO,
+            half_extents: Vec3::new(1.0, 1.0, 1.0),
+        };
+        let b = GjkBox {
+            center: Vec3::new(1.5, 0.0, 0.0),
+            half_extents: Vec3::new(1.0, 1.0, 1.0),
+        };
         let config = GjkConfig::default();
         let result = gjk_intersect(&a, &b, &config);
         assert!(result.intersecting);
@@ -611,8 +735,14 @@ mod tests {
 
     #[test]
     fn test_gjk_boxes_separated() {
-        let a = GjkBox { center: Vec3::ZERO, half_extents: Vec3::new(1.0, 1.0, 1.0) };
-        let b = GjkBox { center: Vec3::new(5.0, 0.0, 0.0), half_extents: Vec3::new(1.0, 1.0, 1.0) };
+        let a = GjkBox {
+            center: Vec3::ZERO,
+            half_extents: Vec3::new(1.0, 1.0, 1.0),
+        };
+        let b = GjkBox {
+            center: Vec3::new(5.0, 0.0, 0.0),
+            half_extents: Vec3::new(1.0, 1.0, 1.0),
+        };
         let config = GjkConfig::default();
         let result = gjk_intersect(&a, &b, &config);
         assert!(!result.intersecting);
@@ -620,8 +750,14 @@ mod tests {
 
     #[test]
     fn test_gjk_sphere_box_intersect() {
-        let a = GjkSphere { center: Vec3::ZERO, radius: 1.0 };
-        let b = GjkBox { center: Vec3::new(0.5, 0.0, 0.0), half_extents: Vec3::new(1.0, 1.0, 1.0) };
+        let a = GjkSphere {
+            center: Vec3::ZERO,
+            radius: 1.0,
+        };
+        let b = GjkBox {
+            center: Vec3::new(0.5, 0.0, 0.0),
+            half_extents: Vec3::new(1.0, 1.0, 1.0),
+        };
         let config = GjkConfig::default();
         let result = gjk_intersect(&a, &b, &config);
         assert!(result.intersecting);
@@ -629,8 +765,16 @@ mod tests {
 
     #[test]
     fn test_gjk_capsule_capsule() {
-        let a = GjkCapsule { a: Vec3::new(0.0, -1.0, 0.0), b: Vec3::new(0.0, 1.0, 0.0), radius: 0.5 };
-        let b = GjkCapsule { a: Vec3::new(0.8, -1.0, 0.0), b: Vec3::new(0.8, 1.0, 0.0), radius: 0.5 };
+        let a = GjkCapsule {
+            a: Vec3::new(0.0, -1.0, 0.0),
+            b: Vec3::new(0.0, 1.0, 0.0),
+            radius: 0.5,
+        };
+        let b = GjkCapsule {
+            a: Vec3::new(0.8, -1.0, 0.0),
+            b: Vec3::new(0.8, 1.0, 0.0),
+            radius: 0.5,
+        };
         let config = GjkConfig::default();
         let result = gjk_intersect(&a, &b, &config);
         assert!(result.intersecting);
@@ -638,8 +782,14 @@ mod tests {
 
     #[test]
     fn test_epa_spheres() {
-        let a = GjkSphere { center: Vec3::ZERO, radius: 1.0 };
-        let b = GjkSphere { center: Vec3::new(1.0, 0.0, 0.0), radius: 1.0 };
+        let a = GjkSphere {
+            center: Vec3::ZERO,
+            radius: 1.0,
+        };
+        let b = GjkSphere {
+            center: Vec3::new(1.0, 0.0, 0.0),
+            radius: 1.0,
+        };
         let result = collision_test(&a, &b);
         assert!(result.is_some());
         let epa = result.unwrap();
@@ -650,8 +800,14 @@ mod tests {
 
     #[test]
     fn test_epa_boxes() {
-        let a = GjkBox { center: Vec3::ZERO, half_extents: Vec3::new(1.0, 1.0, 1.0) };
-        let b = GjkBox { center: Vec3::new(1.5, 0.0, 0.0), half_extents: Vec3::new(1.0, 1.0, 1.0) };
+        let a = GjkBox {
+            center: Vec3::ZERO,
+            half_extents: Vec3::new(1.0, 1.0, 1.0),
+        };
+        let b = GjkBox {
+            center: Vec3::new(1.5, 0.0, 0.0),
+            half_extents: Vec3::new(1.0, 1.0, 1.0),
+        };
         let result = collision_test(&a, &b);
         assert!(result.is_some());
         let epa = result.unwrap();
@@ -662,8 +818,14 @@ mod tests {
 
     #[test]
     fn test_gjk_distance_separated_spheres() {
-        let a = GjkSphere { center: Vec3::ZERO, radius: 1.0 };
-        let b = GjkSphere { center: Vec3::new(5.0, 0.0, 0.0), radius: 1.0 };
+        let a = GjkSphere {
+            center: Vec3::ZERO,
+            radius: 1.0,
+        };
+        let b = GjkSphere {
+            center: Vec3::new(5.0, 0.0, 0.0),
+            radius: 1.0,
+        };
         let d = gjk_distance(&a, &b);
         // Distance should be approximately 3.0 (5.0 - 1.0 - 1.0)
         assert!(d > 2.0);
@@ -671,16 +833,28 @@ mod tests {
 
     #[test]
     fn test_gjk_distance_intersecting() {
-        let a = GjkSphere { center: Vec3::ZERO, radius: 2.0 };
-        let b = GjkSphere { center: Vec3::new(1.0, 0.0, 0.0), radius: 2.0 };
+        let a = GjkSphere {
+            center: Vec3::ZERO,
+            radius: 2.0,
+        };
+        let b = GjkSphere {
+            center: Vec3::new(1.0, 0.0, 0.0),
+            radius: 2.0,
+        };
         let d = gjk_distance(&a, &b);
         assert!(approx(d, 0.0));
     }
 
     #[test]
     fn test_collision_test_no_collision() {
-        let a = GjkSphere { center: Vec3::ZERO, radius: 1.0 };
-        let b = GjkSphere { center: Vec3::new(10.0, 0.0, 0.0), radius: 1.0 };
+        let a = GjkSphere {
+            center: Vec3::ZERO,
+            radius: 1.0,
+        };
+        let b = GjkSphere {
+            center: Vec3::new(10.0, 0.0, 0.0),
+            radius: 1.0,
+        };
         let result = collision_test(&a, &b);
         assert!(result.is_none());
     }
@@ -697,8 +871,14 @@ mod tests {
 
     #[test]
     fn test_minkowski_support() {
-        let a = GjkSphere { center: Vec3::new(1.0, 0.0, 0.0), radius: 1.0 };
-        let b = GjkSphere { center: Vec3::new(-1.0, 0.0, 0.0), radius: 1.0 };
+        let a = GjkSphere {
+            center: Vec3::new(1.0, 0.0, 0.0),
+            radius: 1.0,
+        };
+        let b = GjkSphere {
+            center: Vec3::new(-1.0, 0.0, 0.0),
+            radius: 1.0,
+        };
         let sup = minkowski_support(&a, &b, Vec3::new(1.0, 0.0, 0.0));
         // a.support(+x) = (2,0,0), b.support(-x) = (-2,0,0), diff = (4,0,0)
         assert!(v3_approx(sup, Vec3::new(4.0, 0.0, 0.0)));
@@ -737,18 +917,22 @@ mod tests {
 
     #[test]
     fn test_closest_point_on_line_to_origin_basic() {
-        let cp = closest_point_on_line_to_origin(
-            Vec3::new(-1.0, 1.0, 0.0),
-            Vec3::new(1.0, 1.0, 0.0),
-        );
+        let cp =
+            closest_point_on_line_to_origin(Vec3::new(-1.0, 1.0, 0.0), Vec3::new(1.0, 1.0, 0.0));
         // Closest point to origin on the line y=1 between x=-1 and x=1 is (0,1,0)
         assert!(v3_approx(cp, Vec3::new(0.0, 1.0, 0.0)));
     }
 
     #[test]
     fn test_epa_normal_direction() {
-        let a = GjkSphere { center: Vec3::ZERO, radius: 1.0 };
-        let b = GjkSphere { center: Vec3::new(0.5, 0.0, 0.0), radius: 1.0 };
+        let a = GjkSphere {
+            center: Vec3::ZERO,
+            radius: 1.0,
+        };
+        let b = GjkSphere {
+            center: Vec3::new(0.5, 0.0, 0.0),
+            radius: 1.0,
+        };
         let result = collision_test(&a, &b);
         assert!(result.is_some());
         let epa = result.unwrap();

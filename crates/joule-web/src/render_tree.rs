@@ -57,11 +57,21 @@ pub struct EdgeSizes {
 
 impl EdgeSizes {
     pub fn zero() -> Self {
-        Self { top: 0.0, right: 0.0, bottom: 0.0, left: 0.0 }
+        Self {
+            top: 0.0,
+            right: 0.0,
+            bottom: 0.0,
+            left: 0.0,
+        }
     }
 
     pub fn uniform(v: f64) -> Self {
-        Self { top: v, right: v, bottom: v, left: v }
+        Self {
+            top: v,
+            right: v,
+            bottom: v,
+            left: v,
+        }
     }
 
     pub fn horizontal(&self) -> f64 {
@@ -159,7 +169,10 @@ impl Position {
     }
 
     pub fn offset(&self, dx: f64, dy: f64) -> Self {
-        Self { x: self.x + dx, y: self.y + dy }
+        Self {
+            x: self.x + dx,
+            y: self.y + dy,
+        }
     }
 }
 
@@ -357,7 +370,11 @@ fn build_recursive(input: &InputNode, next_id: &mut u64, offset: Position) -> Re
     let mut child_y = content_start.y;
     for child_input in &input.children {
         if child_input.display == DisplayType::None {
-            let child = build_recursive(child_input, next_id, Position::new(content_start.x, child_y));
+            let child = build_recursive(
+                child_input,
+                next_id,
+                Position::new(content_start.x, child_y),
+            );
             obj.children.push(child);
             continue;
         }
@@ -393,7 +410,8 @@ pub fn compute_paint_order(root: &RenderObject) -> Vec<PaintEntry> {
     collect_paint_entries(root, 0, &mut entries);
     // Sort by layer, then z-index, then id for stability
     entries.sort_by(|a, b| {
-        a.layer.cmp(&b.layer)
+        a.layer
+            .cmp(&b.layer)
             .then(a.z_index.cmp(&b.z_index))
             .then(a.render_id.cmp(&b.render_id))
     });
@@ -405,7 +423,11 @@ fn collect_paint_entries(obj: &RenderObject, layer: u32, entries: &mut Vec<Paint
         return;
     }
 
-    let current_layer = if obj.creates_stacking_context { layer + 1 } else { layer };
+    let current_layer = if obj.creates_stacking_context {
+        layer + 1
+    } else {
+        layer
+    };
 
     entries.push(PaintEntry {
         render_id: obj.id,
@@ -557,8 +579,8 @@ mod tests {
 
     #[test]
     fn paint_order_simple() {
-        let input = InputNode::new("div", 200.0, 100.0)
-            .with_child(InputNode::new("span", 50.0, 20.0));
+        let input =
+            InputNode::new("div", 200.0, 100.0).with_child(InputNode::new("span", 50.0, 20.0));
         let tree = build_render_tree(&input);
         let paint = compute_paint_order(&tree);
         assert_eq!(paint.len(), 2);
@@ -573,7 +595,10 @@ mod tests {
         let paint = compute_paint_order(&tree);
         // The parent is layer 0 z=0. Children create stacking contexts (layer 1).
         // b (z=1) should come before a (z=10) in paint order.
-        let child_entries: Vec<_> = paint.iter().filter(|e| e.tag == "a" || e.tag == "b").collect();
+        let child_entries: Vec<_> = paint
+            .iter()
+            .filter(|e| e.tag == "a" || e.tag == "b")
+            .collect();
         assert_eq!(child_entries.len(), 2);
         assert!(child_entries[0].z_index <= child_entries[1].z_index);
     }

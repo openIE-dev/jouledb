@@ -20,7 +20,11 @@ impl CascadeSpecificity {
     }
 
     pub fn zero() -> Self {
-        Self { id: 0, class: 0, tag: 0 }
+        Self {
+            id: 0,
+            class: 0,
+            tag: 0,
+        }
     }
 }
 
@@ -248,8 +252,11 @@ fn initial_value(property: &str) -> &str {
         "position" => "static",
         "margin" | "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => "0",
         "padding" | "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => "0",
-        "border-width" | "border-top-width" | "border-right-width"
-        | "border-bottom-width" | "border-left-width" => "medium",
+        "border-width"
+        | "border-top-width"
+        | "border-right-width"
+        | "border-bottom-width"
+        | "border-left-width" => "medium",
         "background-color" => "transparent",
         "opacity" => "1",
         "width" | "height" => "auto",
@@ -340,7 +347,11 @@ impl CascadeResolver {
             }
         }
         // Sort by specificity then source order (stable)
-        matched.sort_by(|a, b| a.specificity.cmp(&b.specificity).then(a.source_order.cmp(&b.source_order)));
+        matched.sort_by(|a, b| {
+            a.specificity
+                .cmp(&b.specificity)
+                .then(a.source_order.cmp(&b.source_order))
+        });
         matched
     }
 
@@ -406,7 +417,10 @@ mod tests {
     fn rule(selector: &str, decls: &[(&str, &str)]) -> StyleRule {
         StyleRule {
             selector_text: selector.to_string(),
-            declarations: decls.iter().map(|(p, v)| (p.to_string(), v.to_string())).collect(),
+            declarations: decls
+                .iter()
+                .map(|(p, v)| (p.to_string(), v.to_string()))
+                .collect(),
         }
     }
 
@@ -457,9 +471,9 @@ mod tests {
     #[test]
     fn test_specificity_ordering() {
         let mut resolver = CascadeResolver::new();
-        resolver.add_rule(rule("div", &[("color", "red")]));         // (0,0,1)
-        resolver.add_rule(rule(".cls", &[("color", "green")]));      // (0,1,0)
-        resolver.add_rule(rule("#id", &[("color", "blue")]));        // (1,0,0)
+        resolver.add_rule(rule("div", &[("color", "red")])); // (0,0,1)
+        resolver.add_rule(rule(".cls", &[("color", "green")])); // (0,1,0)
+        resolver.add_rule(rule("#id", &[("color", "blue")])); // (1,0,0)
 
         let el = ElementInfo::new("div").with_class("cls").with_id("id");
         let matched = resolver.match_rules(&el);
@@ -511,8 +525,14 @@ mod tests {
         let expanded = expand_shorthand("padding", "1px 2px 3px 4px");
         assert_eq!(expanded.len(), 4);
         assert_eq!(expanded[0], ("padding-top".to_string(), "1px".to_string()));
-        assert_eq!(expanded[1], ("padding-right".to_string(), "2px".to_string()));
-        assert_eq!(expanded[2], ("padding-bottom".to_string(), "3px".to_string()));
+        assert_eq!(
+            expanded[1],
+            ("padding-right".to_string(), "2px".to_string())
+        );
+        assert_eq!(
+            expanded[2],
+            ("padding-bottom".to_string(), "3px".to_string())
+        );
         assert_eq!(expanded[3], ("padding-left".to_string(), "4px".to_string()));
     }
 

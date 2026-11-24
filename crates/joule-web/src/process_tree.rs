@@ -280,11 +280,15 @@ impl ProcessTree {
         }
 
         // Find a zombie child
-        let zombie_pid = parent.children.iter().find(|cpid| {
-            self.processes
-                .get(cpid)
-                .is_some_and(|c| c.state == ProcessState::Zombie)
-        }).copied();
+        let zombie_pid = parent
+            .children
+            .iter()
+            .find(|cpid| {
+                self.processes
+                    .get(cpid)
+                    .is_some_and(|c| c.state == ProcessState::Zombie)
+            })
+            .copied();
 
         if let Some(zpid) = zombie_pid {
             let exit_code = self.processes[&zpid].exit_code.unwrap_or(0);
@@ -455,7 +459,13 @@ impl ProcessTree {
         let Some(proc) = self.processes.get(&pid) else {
             return;
         };
-        let connector = if pid == 1 { "" } else if is_last { "`-- " } else { "|-- " };
+        let connector = if pid == 1 {
+            ""
+        } else if is_last {
+            "`-- "
+        } else {
+            "|-- "
+        };
         output.push_str(&format!(
             "{prefix}{connector}[{}] {} ({})\n",
             proc.pid, proc.name, proc.state
@@ -482,13 +492,21 @@ impl ProcessTree {
         let mut count = 0;
         // Kill descendants in reverse order (leaves first)
         for dpid in desc.iter().rev() {
-            if self.processes.get(dpid).is_some_and(|p| p.state != ProcessState::Zombie) {
+            if self
+                .processes
+                .get(dpid)
+                .is_some_and(|p| p.state != ProcessState::Zombie)
+            {
                 let _ = self.kill(*dpid);
                 count += 1;
             }
         }
         // Kill the root
-        if self.processes.get(&pid).is_some_and(|p| p.state != ProcessState::Zombie) {
+        if self
+            .processes
+            .get(&pid)
+            .is_some_and(|p| p.state != ProcessState::Zombie)
+        {
             self.kill(pid)?;
             count += 1;
         }

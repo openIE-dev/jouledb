@@ -10,48 +10,99 @@ use std::f64::consts::PI;
 // ── Mini FFT for overlap-save ───────────────────────────────────
 
 #[derive(Clone, Copy)]
-struct Cpx { re: f64, im: f64 }
+struct Cpx {
+    re: f64,
+    im: f64,
+}
 
 impl Cpx {
-    fn new(re: f64, im: f64) -> Self { Self { re, im } }
-    fn zero() -> Self { Self { re: 0.0, im: 0.0 } }
-    fn polar(r: f64, t: f64) -> Self { Self { re: r * t.cos(), im: r * t.sin() } }
-    fn mag(&self) -> f64 { (self.re * self.re + self.im * self.im).sqrt() }
-    fn phase(&self) -> f64 { self.im.atan2(self.re) }
+    fn new(re: f64, im: f64) -> Self {
+        Self { re, im }
+    }
+    fn zero() -> Self {
+        Self { re: 0.0, im: 0.0 }
+    }
+    fn polar(r: f64, t: f64) -> Self {
+        Self {
+            re: r * t.cos(),
+            im: r * t.sin(),
+        }
+    }
+    fn mag(&self) -> f64 {
+        (self.re * self.re + self.im * self.im).sqrt()
+    }
+    fn phase(&self) -> f64 {
+        self.im.atan2(self.re)
+    }
 }
 
 impl std::ops::Add for Cpx {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { re: self.re + r.re, im: self.im + r.im } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            re: self.re + r.re,
+            im: self.im + r.im,
+        }
+    }
 }
 impl std::ops::Sub for Cpx {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { re: self.re - r.re, im: self.im - r.im } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            re: self.re - r.re,
+            im: self.im - r.im,
+        }
+    }
 }
 impl std::ops::Mul for Cpx {
     type Output = Self;
     fn mul(self, r: Self) -> Self {
-        Self { re: self.re * r.re - self.im * r.im, im: self.re * r.im + self.im * r.re }
+        Self {
+            re: self.re * r.re - self.im * r.im,
+            im: self.re * r.im + self.im * r.re,
+        }
     }
 }
 impl std::ops::Mul<f64> for Cpx {
     type Output = Self;
-    fn mul(self, r: f64) -> Self { Self { re: self.re * r, im: self.im * r } }
+    fn mul(self, r: f64) -> Self {
+        Self {
+            re: self.re * r,
+            im: self.im * r,
+        }
+    }
 }
 
-fn next_pow2(n: usize) -> usize { let mut p = 1; while p < n { p <<= 1; } p }
+fn next_pow2(n: usize) -> usize {
+    let mut p = 1;
+    while p < n {
+        p <<= 1;
+    }
+    p
+}
 
 fn bit_rev(i: usize, bits: u32) -> usize {
-    let mut r = 0; let mut v = i;
-    for _ in 0..bits { r = (r << 1) | (v & 1); v >>= 1; }
+    let mut r = 0;
+    let mut v = i;
+    for _ in 0..bits {
+        r = (r << 1) | (v & 1);
+        v >>= 1;
+    }
     r
 }
 
 fn fft_ip(data: &mut [Cpx], inv: bool) {
     let n = data.len();
-    if n <= 1 { return; }
+    if n <= 1 {
+        return;
+    }
     let lg = (n as f64).log2() as u32;
-    for i in 0..n { let j = bit_rev(i, lg); if i < j { data.swap(i, j); } }
+    for i in 0..n {
+        let j = bit_rev(i, lg);
+        if i < j {
+            data.swap(i, j);
+        }
+    }
     let mut len = 2;
     while len <= n {
         let half = len / 2;
@@ -68,7 +119,12 @@ fn fft_ip(data: &mut [Cpx], inv: bool) {
         }
         len <<= 1;
     }
-    if inv { let s = 1.0 / n as f64; for d in data.iter_mut() { *d = *d * s; } }
+    if inv {
+        let s = 1.0 / n as f64;
+        for d in data.iter_mut() {
+            *d = *d * s;
+        }
+    }
 }
 
 // ── Errors ──────────────────────────────────────────────────────
@@ -104,7 +160,9 @@ pub enum FirWindow {
 }
 
 fn make_window(win: FirWindow, n: usize) -> Vec<f64> {
-    if n <= 1 { return vec![1.0]; }
+    if n <= 1 {
+        return vec![1.0];
+    }
     match win {
         FirWindow::Rectangular => vec![1.0; n],
         FirWindow::Hamming => (0..n)
@@ -118,15 +176,21 @@ fn make_window(win: FirWindow, n: usize) -> Vec<f64> {
             .collect(),
         FirWindow::Kaiser(beta) => {
             fn bessel_i0(x: f64) -> f64 {
-                let mut s = 1.0; let mut t = 1.0;
-                for k in 1..=25 { t *= (x / (2.0 * k as f64)).powi(2); s += t; }
+                let mut s = 1.0;
+                let mut t = 1.0;
+                for k in 1..=25 {
+                    t *= (x / (2.0 * k as f64)).powi(2);
+                    s += t;
+                }
                 s
             }
             let d = bessel_i0(beta);
-            (0..n).map(|i| {
-                let r = 2.0 * i as f64 / (n - 1) as f64 - 1.0;
-                bessel_i0(beta * (1.0 - r * r).max(0.0).sqrt()) / d
-            }).collect()
+            (0..n)
+                .map(|i| {
+                    let r = 2.0 * i as f64 / (n - 1) as f64 - 1.0;
+                    bessel_i0(beta * (1.0 - r * r).max(0.0).sqrt()) / d
+                })
+                .collect()
         }
         FirWindow::Hann => (0..n)
             .map(|i| 0.5 * (1.0 - (2.0 * PI * i as f64 / (n - 1) as f64).cos()))
@@ -141,7 +205,9 @@ fn make_window(win: FirWindow, n: usize) -> Vec<f64> {
 /// `order`: filter order (taps = order + 1, even recommended).
 pub fn design_lowpass(cutoff: f64, order: usize, window: FirWindow) -> Result<Vec<f64>, FirError> {
     if cutoff <= 0.0 || cutoff >= 0.5 {
-        return Err(FirError::InvalidFrequency(format!("cutoff {cutoff} not in (0, 0.5)")));
+        return Err(FirError::InvalidFrequency(format!(
+            "cutoff {cutoff} not in (0, 0.5)"
+        )));
     }
     if order < 1 {
         return Err(FirError::InvalidOrder("order must be >= 1".into()));
@@ -152,12 +218,20 @@ pub fn design_lowpass(cutoff: f64, order: usize, window: FirWindow) -> Result<Ve
     let mut kernel: Vec<f64> = (0..n)
         .map(|i| {
             let x = i as f64 - mid;
-            let sinc = if x.abs() < 1e-12 { 2.0 * cutoff } else { (2.0 * PI * cutoff * x).sin() / (PI * x) };
+            let sinc = if x.abs() < 1e-12 {
+                2.0 * cutoff
+            } else {
+                (2.0 * PI * cutoff * x).sin() / (PI * x)
+            };
             sinc * win[i]
         })
         .collect();
     let sum: f64 = kernel.iter().sum();
-    if sum.abs() > 1e-12 { for k in kernel.iter_mut() { *k /= sum; } }
+    if sum.abs() > 1e-12 {
+        for k in kernel.iter_mut() {
+            *k /= sum;
+        }
+    }
     Ok(kernel)
 }
 
@@ -165,7 +239,9 @@ pub fn design_lowpass(cutoff: f64, order: usize, window: FirWindow) -> Result<Ve
 pub fn design_highpass(cutoff: f64, order: usize, window: FirWindow) -> Result<Vec<f64>, FirError> {
     let mut lp = design_lowpass(cutoff, order, window)?;
     let mid = lp.len() / 2;
-    for v in lp.iter_mut() { *v = -*v; }
+    for v in lp.iter_mut() {
+        *v = -*v;
+    }
     lp[mid] += 1.0;
     Ok(lp)
 }
@@ -273,7 +349,9 @@ pub fn design_parks_mcclellan(
             }
         }
 
-        if max_error < 1e-6 { break; }
+        if max_error < 1e-6 {
+            break;
+        }
     }
     Ok(kernel)
 }
@@ -486,7 +564,11 @@ pub fn frequency_response(taps: &[f64], n_points: usize) -> (Vec<f64>, Vec<f64>,
 /// Compute group delay at `n_points` frequencies.
 /// For linear-phase FIR, this is constant = (N-1)/2.
 pub fn group_delay(taps: &[f64], n_points: usize) -> Vec<f64> {
-    let weighted: Vec<f64> = taps.iter().enumerate().map(|(i, &h)| i as f64 * h).collect();
+    let weighted: Vec<f64> = taps
+        .iter()
+        .enumerate()
+        .map(|(i, &h)| i as f64 * h)
+        .collect();
     let mut delays = Vec::with_capacity(n_points);
 
     for i in 0..n_points {
@@ -508,7 +590,11 @@ pub fn group_delay(taps: &[f64], n_points: usize) -> Vec<f64> {
         }
 
         let denom = hr * hr + hi * hi;
-        delays.push(if denom > 1e-12 { (wr * hr + wi * hi) / denom } else { 0.0 });
+        delays.push(if denom > 1e-12 {
+            (wr * hr + wi * hi) / denom
+        } else {
+            0.0
+        });
     }
     delays
 }
@@ -521,7 +607,9 @@ mod tests {
 
     const EPS: f64 = 1e-4;
 
-    fn approx_eq(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx_eq(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     #[test]
     fn test_lowpass_dc_gain() {
@@ -566,8 +654,8 @@ mod tests {
     #[test]
     fn test_parks_mcclellan_basic() {
         let bands = vec![
-            (0.0, 0.15, 1.0, 1.0),   // passband
-            (0.25, 0.5, 0.0, 1.0),    // stopband
+            (0.0, 0.15, 1.0, 1.0), // passband
+            (0.25, 0.5, 0.0, 1.0), // stopband
         ];
         let taps = design_parks_mcclellan(32, &bands).unwrap();
         assert_eq!(taps.len(), 33);
@@ -712,8 +800,13 @@ mod tests {
 
     #[test]
     fn test_window_types() {
-        for win in [FirWindow::Rectangular, FirWindow::Hamming, FirWindow::Blackman,
-                    FirWindow::Kaiser(5.0), FirWindow::Hann] {
+        for win in [
+            FirWindow::Rectangular,
+            FirWindow::Hamming,
+            FirWindow::Blackman,
+            FirWindow::Kaiser(5.0),
+            FirWindow::Hann,
+        ] {
             let taps = design_lowpass(0.25, 16, win).unwrap();
             let sum: f64 = taps.iter().sum();
             assert!(approx_eq(sum, 1.0), "DC gain with {:?} = {sum}", win);

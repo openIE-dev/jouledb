@@ -24,7 +24,9 @@ use arrow_flight::sql::server::{FlightSqlService, PeekableFlightDataStream};
 use arrow_flight::sql::{
     CommandStatementQuery, CommandStatementUpdate, ProstMessageExt, SqlInfo, TicketStatementQuery,
 };
-use arrow_flight::{FlightDescriptor, FlightEndpoint, FlightInfo, HandshakeRequest, HandshakeResponse, Ticket};
+use arrow_flight::{
+    FlightDescriptor, FlightEndpoint, FlightInfo, HandshakeRequest, HandshakeResponse, Ticket,
+};
 use futures::{Stream, TryStreamExt};
 use prost::Message;
 use tonic::{Request, Response, Status, Streaming};
@@ -41,15 +43,23 @@ pub struct JouleFlightSql {
 
 impl JouleFlightSql {
     pub fn new(executor: Arc<dyn QueryExecutor>) -> Self {
-        Self { executor, results: Arc::new(Mutex::new(HashMap::new())) }
+        Self {
+            executor,
+            results: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 
     async fn run(&self, sql: String) -> Result<QueryResponse, Status> {
         let ex = self.executor.clone();
-        tokio::task::spawn_blocking(move || ex.execute(&QueryRequest { sql, ..Default::default() }))
-            .await
-            .map_err(|e| Status::internal(e.to_string()))?
-            .map_err(|e| Status::invalid_argument(e.message))
+        tokio::task::spawn_blocking(move || {
+            ex.execute(&QueryRequest {
+                sql,
+                ..Default::default()
+            })
+        })
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?
+        .map_err(|e| Status::invalid_argument(e.message))
     }
 }
 
@@ -75,9 +85,14 @@ impl FlightSqlService for JouleFlightSql {
     async fn do_handshake(
         &self,
         _request: Request<Streaming<HandshakeRequest>>,
-    ) -> Result<Response<Pin<Box<dyn Stream<Item = Result<HandshakeResponse, Status>> + Send>>>, Status>
-    {
-        let out = futures::stream::iter(vec![Ok(HandshakeResponse { protocol_version: 0, payload: Default::default() })]);
+    ) -> Result<
+        Response<Pin<Box<dyn Stream<Item = Result<HandshakeResponse, Status>> + Send>>>,
+        Status,
+    > {
+        let out = futures::stream::iter(vec![Ok(HandshakeResponse {
+            protocol_version: 0,
+            payload: Default::default(),
+        })]);
         Ok(Response::new(Box::pin(out)))
     }
 
@@ -95,8 +110,11 @@ impl FlightSqlService for JouleFlightSql {
             m.retain(|_, (t, _)| t.elapsed() < RESULT_TTL);
             m.insert(handle.clone(), (Instant::now(), batch.clone()));
         }
-        let ticket = TicketStatementQuery { statement_handle: handle.into_bytes().into() };
-        let endpoint = FlightEndpoint::new().with_ticket(Ticket::new(ticket.as_any().encode_to_vec()));
+        let ticket = TicketStatementQuery {
+            statement_handle: handle.into_bytes().into(),
+        };
+        let endpoint =
+            FlightEndpoint::new().with_ticket(Ticket::new(ticket.as_any().encode_to_vec()));
         let info = FlightInfo::new()
             .try_with_schema(&batch.schema())
             .map_err(|e| Status::internal(e.to_string()))?
@@ -142,7 +160,10 @@ impl FlightSqlService for JouleFlightSql {
 }
 
 /// Serve Flight SQL on `addr` until the process exits.
-pub async fn serve(addr: std::net::SocketAddr, executor: Arc<dyn QueryExecutor>) -> Result<(), String> {
+pub async fn serve(
+    addr: std::net::SocketAddr,
+    executor: Arc<dyn QueryExecutor>,
+) -> Result<(), String> {
     tonic::transport::Server::builder()
         .add_service(FlightServiceServer::new(JouleFlightSql::new(executor)))
         .serve(addr)

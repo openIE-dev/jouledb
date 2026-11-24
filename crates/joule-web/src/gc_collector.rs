@@ -232,7 +232,10 @@ impl GarbageCollector {
             if self.stats.current_heap_bytes + size_bytes > self.config.max_heap_bytes {
                 return Err(GcError::OutOfMemory {
                     requested: size_bytes,
-                    available: self.config.max_heap_bytes.saturating_sub(self.stats.current_heap_bytes),
+                    available: self
+                        .config
+                        .max_heap_bytes
+                        .saturating_sub(self.stats.current_heap_bytes),
                 });
             }
         }
@@ -292,7 +295,8 @@ impl GarbageCollector {
             .ok_or(GcError::ObjectNotFound(from))?;
         obj.references.retain(|r| *r != to);
         // Clean remembered set.
-        self.remembered_set.retain(|r| !(r.old_id == from && r.young_id == to));
+        self.remembered_set
+            .retain(|r| !(r.old_id == from && r.young_id == to));
         Ok(())
     }
 
@@ -363,8 +367,9 @@ impl GarbageCollector {
         }
 
         // Clean remembered set.
-        self.remembered_set
-            .retain(|r| self.objects.contains_key(&r.old_id) && self.objects.contains_key(&r.young_id));
+        self.remembered_set.retain(|r| {
+            self.objects.contains_key(&r.old_id) && self.objects.contains_key(&r.young_id)
+        });
 
         (reclaimed_bytes, reclaimed_count)
     }
@@ -398,9 +403,7 @@ impl GarbageCollector {
         let surviving_young: Vec<u64> = self
             .objects
             .iter()
-            .filter(|(_, obj)| {
-                obj.generation == Generation::Young && obj.color != Color::White
-            })
+            .filter(|(_, obj)| obj.generation == Generation::Young && obj.color != Color::White)
             .map(|(&id, _)| id)
             .collect();
 

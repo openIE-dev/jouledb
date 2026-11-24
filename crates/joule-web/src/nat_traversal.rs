@@ -19,7 +19,10 @@ pub struct TransportAddr {
 
 impl TransportAddr {
     pub fn new(ip: impl Into<String>, port: u16) -> Self {
-        Self { ip: ip.into(), port }
+        Self {
+            ip: ip.into(),
+            port,
+        }
     }
 }
 
@@ -350,7 +353,10 @@ impl CandidatePair {
         let m = max_val.min(min_val);
         let mx = max_val.max(min_val);
         let tie = if g > d { 1u64 } else { 0u64 };
-        (1u64 << 32).saturating_mul(m).saturating_add(2 * mx).saturating_add(tie)
+        (1u64 << 32)
+            .saturating_mul(m)
+            .saturating_add(2 * mx)
+            .saturating_add(tie)
     }
 }
 
@@ -379,7 +385,9 @@ impl CandidatePairList {
 
     /// Get the next pair to check (first Waiting pair).
     pub fn next_to_check(&mut self) -> Option<&mut CandidatePair> {
-        self.pairs.iter_mut().find(|p| p.state == PairState::Waiting)
+        self.pairs
+            .iter_mut()
+            .find(|p| p.state == PairState::Waiting)
     }
 
     /// Unfreeze all Frozen pairs (set to Waiting).
@@ -401,7 +409,9 @@ impl CandidatePairList {
 
     /// Get the nominated pair.
     pub fn nominated(&self) -> Option<&CandidatePair> {
-        self.pairs.iter().find(|p| p.nominated && p.state == PairState::Succeeded)
+        self.pairs
+            .iter()
+            .find(|p| p.nominated && p.state == PairState::Succeeded)
     }
 
     /// Count pairs in a given state.
@@ -725,7 +735,13 @@ mod tests {
 
     #[test]
     fn test_candidate_pair_list() {
-        let local = Candidate::new(addr("192.168.1.1", 5000), CandidateType::Host, 1000, "f1", 1);
+        let local = Candidate::new(
+            addr("192.168.1.1", 5000),
+            CandidateType::Host,
+            1000,
+            "f1",
+            1,
+        );
         let remote = Candidate::new(addr("10.0.0.1", 5000), CandidateType::Host, 900, "f2", 1);
         let pair = CandidatePair::new(local, remote, true);
 
@@ -737,7 +753,13 @@ mod tests {
 
     #[test]
     fn test_candidate_pair_unfreeze() {
-        let local = Candidate::new(addr("192.168.1.1", 5000), CandidateType::Host, 1000, "f1", 1);
+        let local = Candidate::new(
+            addr("192.168.1.1", 5000),
+            CandidateType::Host,
+            1000,
+            "f1",
+            1,
+        );
         let remote = Candidate::new(addr("10.0.0.1", 5000), CandidateType::Host, 900, "f2", 1);
         let pair = CandidatePair::new(local, remote, true);
 
@@ -750,7 +772,13 @@ mod tests {
 
     #[test]
     fn test_candidate_pair_succeeded() {
-        let local = Candidate::new(addr("192.168.1.1", 5000), CandidateType::Host, 1000, "f1", 1);
+        let local = Candidate::new(
+            addr("192.168.1.1", 5000),
+            CandidateType::Host,
+            1000,
+            "f1",
+            1,
+        );
         let remote = Candidate::new(addr("10.0.0.1", 5000), CandidateType::Host, 900, "f2", 1);
         let mut pair = CandidatePair::new(local, remote, true);
         pair.state = PairState::Succeeded;

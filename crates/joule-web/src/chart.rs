@@ -99,14 +99,8 @@ pub struct LinearScale {
 impl LinearScale {
     /// Auto-range from data values.
     pub fn from_data(values: &[f64], pixel_range: (f64, f64)) -> Self {
-        let min = values
-            .iter()
-            .copied()
-            .fold(f64::INFINITY, f64::min);
-        let max = values
-            .iter()
-            .copied()
-            .fold(f64::NEG_INFINITY, f64::max);
+        let min = values.iter().copied().fold(f64::INFINITY, f64::min);
+        let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         let (min, max) = if (max - min).abs() < f64::EPSILON {
             (min - 1.0, max + 1.0)
         } else {
@@ -248,11 +242,7 @@ impl Axis {
 
 // ── Grid ─────────────────────────────────────────────────────────
 
-fn render_grid(
-    x_scale: &LinearScale,
-    y_scale: &LinearScale,
-    config: &ChartConfig,
-) -> String {
+fn render_grid(x_scale: &LinearScale, y_scale: &LinearScale, config: &ChartConfig) -> String {
     if !config.show_grid {
         return String::new();
     }
@@ -330,18 +320,46 @@ fn svg_open(config: &ChartConfig) -> String {
 // ── Scales from series ───────────────────────────────────────────
 
 fn scales_from_series(series: &[Series], config: &ChartConfig) -> (LinearScale, LinearScale) {
-    let xs: Vec<f64> = series.iter().flat_map(|s| s.data.iter().map(|d| d.x)).collect();
-    let ys: Vec<f64> = series.iter().flat_map(|s| s.data.iter().map(|d| d.y)).collect();
+    let xs: Vec<f64> = series
+        .iter()
+        .flat_map(|s| s.data.iter().map(|d| d.x))
+        .collect();
+    let ys: Vec<f64> = series
+        .iter()
+        .flat_map(|s| s.data.iter().map(|d| d.y))
+        .collect();
     let x_scale = if xs.is_empty() {
-        LinearScale { min: 0.0, max: 1.0, pixel_min: config.padding.left, pixel_max: config.padding.left + config.plot_width() }
+        LinearScale {
+            min: 0.0,
+            max: 1.0,
+            pixel_min: config.padding.left,
+            pixel_max: config.padding.left + config.plot_width(),
+        }
     } else {
-        LinearScale::from_data(&xs, (config.padding.left, config.padding.left + config.plot_width()))
+        LinearScale::from_data(
+            &xs,
+            (
+                config.padding.left,
+                config.padding.left + config.plot_width(),
+            ),
+        )
     };
     // Y axis is inverted (pixel 0 is top)
     let y_scale = if ys.is_empty() {
-        LinearScale { min: 0.0, max: 1.0, pixel_min: config.padding.top + config.plot_height(), pixel_max: config.padding.top }
+        LinearScale {
+            min: 0.0,
+            max: 1.0,
+            pixel_min: config.padding.top + config.plot_height(),
+            pixel_max: config.padding.top,
+        }
     } else {
-        LinearScale::from_data(&ys, (config.padding.top + config.plot_height(), config.padding.top))
+        LinearScale::from_data(
+            &ys,
+            (
+                config.padding.top + config.plot_height(),
+                config.padding.top,
+            ),
+        )
     };
     (x_scale, y_scale)
 }
@@ -609,10 +627,26 @@ mod tests {
         vec![Series {
             name: "Sales".into(),
             data: vec![
-                DataPoint { x: 1.0, y: 10.0, label: None },
-                DataPoint { x: 2.0, y: 20.0, label: None },
-                DataPoint { x: 3.0, y: 15.0, label: None },
-                DataPoint { x: 4.0, y: 30.0, label: None },
+                DataPoint {
+                    x: 1.0,
+                    y: 10.0,
+                    label: None,
+                },
+                DataPoint {
+                    x: 2.0,
+                    y: 20.0,
+                    label: None,
+                },
+                DataPoint {
+                    x: 3.0,
+                    y: 15.0,
+                    label: None,
+                },
+                DataPoint {
+                    x: 4.0,
+                    y: 30.0,
+                    label: None,
+                },
             ],
             color: "#3498db".into(),
         }]

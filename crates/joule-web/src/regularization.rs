@@ -197,11 +197,7 @@ impl ElasticNetRegularizer {
 
 impl fmt::Display for ElasticNetRegularizer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "ElasticNet(λ={:.6}, α={:.4})",
-            self.lambda, self.alpha
-        )
+        write!(f, "ElasticNet(λ={:.6}, α={:.4})", self.lambda, self.alpha)
     }
 }
 
@@ -249,12 +245,7 @@ impl WeightDecay {
     }
 
     /// Apply decay selectively — `is_bias[i]` marks bias parameters.
-    pub fn apply_selective(
-        &mut self,
-        params: &mut [f64],
-        is_bias: &[bool],
-        learning_rate: f64,
-    ) {
+    pub fn apply_selective(&mut self, params: &mut [f64], is_bias: &[bool], learning_rate: f64) {
         assert_eq!(params.len(), is_bias.len());
         let factor = 1.0 - learning_rate * self.decay_rate;
         for (p, &bias) in params.iter_mut().zip(is_bias.iter()) {
@@ -505,11 +496,7 @@ impl DropoutMask {
         (0..n)
             .map(|_| {
                 let r = self.next_f64();
-                if r < self.drop_prob {
-                    0.0
-                } else {
-                    scale
-                }
+                if r < self.drop_prob { 0.0 } else { scale }
             })
             .collect()
     }
@@ -527,7 +514,8 @@ impl DropoutMask {
     }
 
     fn next_f64(&mut self) -> f64 {
-        self.rng_state = self.rng_state
+        self.rng_state = self
+            .rng_state
             .wrapping_mul(6364136223846793005)
             .wrapping_add(1442695040888963407);
         ((self.rng_state >> 33) as f64) / ((1u64 << 31) as f64)
@@ -560,7 +548,7 @@ mod tests {
         let weights = vec![2.0, -1.0, 0.0];
         let mut grads = vec![0.0, 0.0, 0.0];
         reg.add_gradient(&weights, &mut grads);
-        assert!((grads[0] - 0.5).abs() < 1e-10);  // sign(2) * 0.5
+        assert!((grads[0] - 0.5).abs() < 1e-10); // sign(2) * 0.5
         assert!((grads[1] - (-0.5)).abs() < 1e-10); // sign(-1) * 0.5
     }
 

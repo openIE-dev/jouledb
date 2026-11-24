@@ -153,7 +153,8 @@ impl Default for BulletConfig {
 /// Render one or more bullet charts to SVG.
 pub fn render_svg(specs: &[BulletSpec], config: &BulletConfig) -> String {
     let n = specs.len();
-    let total_height = n as f64 * config.bar_height + (n.saturating_sub(1)) as f64 * config.spacing + 20.0;
+    let total_height =
+        n as f64 * config.bar_height + (n.saturating_sub(1)) as f64 * config.spacing + 20.0;
     let mut svg = String::new();
 
     match config.orientation {
@@ -169,7 +170,8 @@ pub fn render_svg(specs: &[BulletSpec], config: &BulletConfig) -> String {
             }
         }
         Orientation::Vertical => {
-            let total_width = n as f64 * config.bar_height + (n.saturating_sub(1)) as f64 * config.spacing + 20.0;
+            let total_width =
+                n as f64 * config.bar_height + (n.saturating_sub(1)) as f64 * config.spacing + 20.0;
             let _ = write!(
                 svg,
                 r#"<svg xmlns="http://www.w3.org/2000/svg" width="{total_width}" height="{}">"#,
@@ -263,12 +265,7 @@ fn render_horizontal_bullet(
     }
 }
 
-fn render_vertical_bullet(
-    svg: &mut String,
-    spec: &BulletSpec,
-    config: &BulletConfig,
-    x_off: f64,
-) {
+fn render_vertical_bullet(svg: &mut String, spec: &BulletSpec, config: &BulletConfig, x_off: f64) {
     let plot_h = config.width - config.label_width - 20.0;
     let scale_max = spec.scale_max().max(f64::EPSILON);
     let bot = config.width - 20.0;
@@ -281,7 +278,9 @@ fn render_vertical_bullet(
         let _ = write!(
             svg,
             r#"<rect x="{x_off:.1}" y="{:.1}" width="{:.1}" height="{h:.1}" fill="{}"/>"#,
-            bot - h, config.bar_height, range.color,
+            bot - h,
+            config.bar_height,
+            range.color,
         );
     }
 
@@ -335,8 +334,7 @@ mod tests {
 
     #[test]
     fn scale_max_exceeds_ranges() {
-        let s = BulletSpec::new("X", 400.0, 350.0)
-            .with_standard_ranges(100.0, 200.0, 300.0);
+        let s = BulletSpec::new("X", 400.0, 350.0).with_standard_ranges(100.0, 200.0, 300.0);
         assert!((s.scale_max() - 400.0).abs() < 1e-9);
     }
 
@@ -386,8 +384,7 @@ mod tests {
     fn multiple_bullets() {
         let specs = vec![
             sample_spec(),
-            BulletSpec::new("Profit", 22.0, 26.0)
-                .with_standard_ranges(15.0, 20.0, 30.0),
+            BulletSpec::new("Profit", 22.0, 26.0).with_standard_ranges(15.0, 20.0, 30.0),
         ];
         let svg = render_svg(&specs, &BulletConfig::default());
         assert!(svg.contains("Revenue"));

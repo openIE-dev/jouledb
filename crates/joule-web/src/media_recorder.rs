@@ -101,7 +101,8 @@ impl MediaRecorder {
                 // Flush any remaining data
                 if !self.current_chunk.is_empty() {
                     let chunk = std::mem::take(&mut self.current_chunk);
-                    self.events.push_back(RecorderEvent::DataAvailable(chunk.clone()));
+                    self.events
+                        .push_back(RecorderEvent::DataAvailable(chunk.clone()));
                     self.chunks.push(chunk);
                 }
                 self.state = RecordingState::Inactive;
@@ -147,7 +148,8 @@ impl MediaRecorder {
                 self.last_flush_ms += self.config.timeslice_ms;
                 if !self.current_chunk.is_empty() {
                     let chunk = std::mem::take(&mut self.current_chunk);
-                    self.events.push_back(RecorderEvent::DataAvailable(chunk.clone()));
+                    self.events
+                        .push_back(RecorderEvent::DataAvailable(chunk.clone()));
                     self.chunks.push(chunk);
                 }
             }
@@ -159,7 +161,8 @@ impl MediaRecorder {
         if self.state == RecordingState::Recording || self.state == RecordingState::Paused {
             if !self.current_chunk.is_empty() {
                 let chunk = std::mem::take(&mut self.current_chunk);
-                self.events.push_back(RecorderEvent::DataAvailable(chunk.clone()));
+                self.events
+                    .push_back(RecorderEvent::DataAvailable(chunk.clone()));
                 self.chunks.push(chunk);
             }
         }
@@ -318,7 +321,10 @@ mod tests {
         r.report_error("stream ended unexpectedly");
         assert_eq!(r.state, RecordingState::Inactive);
         let evts = r.drain_events();
-        assert!(evts.iter().any(|e| matches!(e, RecorderEvent::Error(m) if m.contains("stream ended"))));
+        assert!(
+            evts.iter()
+                .any(|e| matches!(e, RecorderEvent::Error(m) if m.contains("stream ended")))
+        );
     }
 
     #[test]

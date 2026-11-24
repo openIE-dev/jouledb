@@ -20,7 +20,11 @@ impl TmColor {
     }
 
     pub fn black() -> Self {
-        Self { r: 0.0, g: 0.0, b: 0.0 }
+        Self {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+        }
     }
 
     pub fn luminance(&self) -> f64 {
@@ -28,7 +32,11 @@ impl TmColor {
     }
 
     pub fn scale(&self, s: f64) -> Self {
-        Self { r: self.r * s, g: self.g * s, b: self.b * s }
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
     }
 
     pub fn clamp(&self, lo: f64, hi: f64) -> Self {
@@ -40,7 +48,11 @@ impl TmColor {
     }
 
     pub fn apply_fn(&self, f: impl Fn(f64) -> f64) -> Self {
-        Self { r: f(self.r), g: f(self.g), b: f(self.b) }
+        Self {
+            r: f(self.r),
+            g: f(self.g),
+            b: f(self.b),
+        }
     }
 }
 
@@ -163,7 +175,11 @@ impl Default for ToneMapConfig {
 
 impl fmt::Display for ToneMapConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ToneMapConfig(algo={}, exp={})", self.algorithm, self.exposure)
+        write!(
+            f,
+            "ToneMapConfig(algo={}, exp={})",
+            self.algorithm, self.exposure
+        )
     }
 }
 
@@ -303,11 +319,7 @@ impl LuminanceHistogram {
     /// Find the EV corresponding to the histogram's weighted average.
     pub fn compute_ev(&self, total_pixels: usize) -> f64 {
         let avg = self.average_log_luminance(total_pixels);
-        if avg > 1e-10 {
-            avg.log2()
-        } else {
-            -10.0
-        }
+        if avg > 1e-10 { avg.log2() } else { -10.0 }
     }
 }
 
@@ -352,22 +364,14 @@ pub fn apply_exposure(color: &TmColor, ev: f64) -> TmColor {
 /// Tone map a single color using the specified algorithm.
 pub fn tonemap_color(color: &TmColor, algorithm: &ToneMapAlgorithm) -> TmColor {
     match algorithm {
-        ToneMapAlgorithm::ReinhardSimple => {
-            color.apply_fn(reinhard_simple)
-        }
+        ToneMapAlgorithm::ReinhardSimple => color.apply_fn(reinhard_simple),
         ToneMapAlgorithm::ReinhardExtended { white_point } => {
             let w_sq = white_point * white_point;
             color.apply_fn(|c| reinhard_extended(c, w_sq))
         }
-        ToneMapAlgorithm::AcesFilmic => {
-            color.apply_fn(aces_filmic)
-        }
-        ToneMapAlgorithm::Uncharted2 => {
-            color.apply_fn(uncharted2)
-        }
-        ToneMapAlgorithm::AgX => {
-            color.apply_fn(agx_tonemap)
-        }
+        ToneMapAlgorithm::AcesFilmic => color.apply_fn(aces_filmic),
+        ToneMapAlgorithm::Uncharted2 => color.apply_fn(uncharted2),
+        ToneMapAlgorithm::AgX => color.apply_fn(agx_tonemap),
         ToneMapAlgorithm::ExposureBased => {
             // Just clamp to [0, 1] — exposure is applied externally
             color.clamp(0.0, 1.0)
@@ -384,9 +388,12 @@ pub fn apply_tone_mapping(buf: &TmBuffer, config: &ToneMapConfig) -> TmBuffer {
     // Determine exposure
     let ev = match &config.exposure {
         ExposureMode::Manual { ev } => *ev,
-        ExposureMode::Auto { min_ev, max_ev, adaptation_speed, prev_ev } => {
-            compute_auto_exposure(buf, *min_ev, *max_ev, *adaptation_speed, *prev_ev)
-        }
+        ExposureMode::Auto {
+            min_ev,
+            max_ev,
+            adaptation_speed,
+            prev_ev,
+        } => compute_auto_exposure(buf, *min_ev, *max_ev, *adaptation_speed, *prev_ev),
     };
 
     for y in 0..h {

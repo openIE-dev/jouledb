@@ -91,7 +91,10 @@ pub enum BtNode {
     Selector(Vec<BtNode>),
 
     /// Run N children simultaneously. Succeed if `required` succeed.
-    Parallel { children: Vec<BtNode>, required: usize },
+    Parallel {
+        children: Vec<BtNode>,
+        required: usize,
+    },
 
     /// Invert child result (Success<->Failure, Running unchanged).
     Inverter(Box<BtNode>),
@@ -103,10 +106,19 @@ pub enum BtNode {
     RepeatUntilFail(Box<BtNode>),
 
     /// Only tick child if enough time has passed since last execution.
-    Cooldown { child: Box<BtNode>, cooldown_ms: u64, last_tick_ms: u64 },
+    Cooldown {
+        child: Box<BtNode>,
+        cooldown_ms: u64,
+        last_tick_ms: u64,
+    },
 
     /// Limit child execution to N times per period.
-    RateLimit { child: Box<BtNode>, max_per_period: usize, period_ms: u64, history: Vec<u64> },
+    RateLimit {
+        child: Box<BtNode>,
+        max_per_period: usize,
+        period_ms: u64,
+        history: Vec<u64>,
+    },
 
     /// Leaf: action that reads/writes blackboard.
     Action(ActionFn),
@@ -134,8 +146,12 @@ impl std::fmt::Debug for BtNode {
         match self {
             BtNode::Sequence(c) => write!(f, "Sequence({} children)", c.len()),
             BtNode::Selector(c) => write!(f, "Selector({} children)", c.len()),
-            BtNode::Parallel { children, required } =>
-                write!(f, "Parallel({} children, {} required)", children.len(), required),
+            BtNode::Parallel { children, required } => write!(
+                f,
+                "Parallel({} children, {} required)",
+                children.len(),
+                required
+            ),
             BtNode::Inverter(_) => write!(f, "Inverter"),
             BtNode::Repeater { count, .. } => write!(f, "Repeater({})", count),
             BtNode::RepeatUntilFail(_) => write!(f, "RepeatUntilFail"),
@@ -195,13 +211,11 @@ pub fn tick(node: &mut BtNode, bb: &mut Blackboard, time_ms: u64) -> Status {
             }
         }
 
-        BtNode::Inverter(child) => {
-            match tick(child, bb, time_ms) {
-                Status::Success => Status::Failure,
-                Status::Failure => Status::Success,
-                Status::Running => Status::Running,
-            }
-        }
+        BtNode::Inverter(child) => match tick(child, bb, time_ms) {
+            Status::Success => Status::Failure,
+            Status::Failure => Status::Success,
+            Status::Running => Status::Running,
+        },
 
         BtNode::Repeater { child, count } => {
             if *count == 0 {
@@ -222,14 +236,16 @@ pub fn tick(node: &mut BtNode, bb: &mut Blackboard, time_ms: u64) -> Status {
             }
         }
 
-        BtNode::RepeatUntilFail(child) => {
-            match tick(child, bb, time_ms) {
-                Status::Failure => Status::Success,
-                _ => Status::Running,
-            }
-        }
+        BtNode::RepeatUntilFail(child) => match tick(child, bb, time_ms) {
+            Status::Failure => Status::Success,
+            _ => Status::Running,
+        },
 
-        BtNode::Cooldown { child, cooldown_ms, last_tick_ms } => {
+        BtNode::Cooldown {
+            child,
+            cooldown_ms,
+            last_tick_ms,
+        } => {
             if time_ms.saturating_sub(*last_tick_ms) >= *cooldown_ms {
                 *last_tick_ms = time_ms;
                 tick(child, bb, time_ms)
@@ -238,7 +254,12 @@ pub fn tick(node: &mut BtNode, bb: &mut Blackboard, time_ms: u64) -> Status {
             }
         }
 
-        BtNode::RateLimit { child, max_per_period, period_ms, history } => {
+        BtNode::RateLimit {
+            child,
+            max_per_period,
+            period_ms,
+            history,
+        } => {
             // Prune old entries
             let cutoff = time_ms.saturating_sub(*period_ms);
             history.retain(|t| *t > cutoff);
@@ -250,9 +271,7 @@ pub fn tick(node: &mut BtNode, bb: &mut Blackboard, time_ms: u64) -> Status {
             }
         }
 
-        BtNode::Action(action_fn) => {
-            (action_fn.func)(bb)
-        }
+        BtNode::Action(action_fn) => (action_fn.func)(bb),
 
         BtNode::Condition(cond_fn) => {
             if (cond_fn.func)(bb) {
@@ -273,7 +292,9 @@ pub struct BtBuilder {
 
 impl BtBuilder {
     pub fn new() -> Self {
-        Self { stack: vec![Vec::new()] }
+        Self {
+            stack: vec![Vec::new()],
+        }
     }
 
     /// Begin a Sequence composite.
@@ -310,7 +331,10 @@ impl BtBuilder {
 
     /// Add an action leaf.
     pub fn action(mut self, name: &str, func: fn(&mut Blackboard) -> Status) -> Self {
-        let node = BtNode::Action(ActionFn { name: name.to_string(), func });
+        let node = BtNode::Action(ActionFn {
+            name: name.to_string(),
+            func,
+        });
         if let Some(current) = self.stack.last_mut() {
             current.push(node);
         }
@@ -319,7 +343,10 @@ impl BtBuilder {
 
     /// Add a condition leaf.
     pub fn condition(mut self, name: &str, func: fn(&Blackboard) -> bool) -> Self {
-        let node = BtNode::Condition(ConditionFn { name: name.to_string(), func });
+        let node = BtNode::Condition(ConditionFn {
+            name: name.to_string(),
+            func,
+        });
         if let Some(current) = self.stack.last_mut() {
             current.push(node);
         }
@@ -355,9 +382,13 @@ impl BtBuilder {
             }
         }
         self.stack.pop().and_then(|mut v| {
-            if v.len() == 1 { Some(v.remove(0)) }
-            else if v.is_empty() { None }
-            else { Some(BtNode::Sequence(v)) }
+            if v.len() == 1 {
+                Some(v.remove(0))
+            } else if v.is_empty() {
+                None
+            } else {
+                Some(BtNode::Sequence(v))
+            }
         })
     }
 }
@@ -366,12 +397,18 @@ impl BtBuilder {
 
 /// Create an action node.
 pub fn action(name: &str, func: fn(&mut Blackboard) -> Status) -> BtNode {
-    BtNode::Action(ActionFn { name: name.to_string(), func })
+    BtNode::Action(ActionFn {
+        name: name.to_string(),
+        func,
+    })
 }
 
 /// Create a condition node.
 pub fn condition(name: &str, func: fn(&Blackboard) -> bool) -> BtNode {
-    BtNode::Condition(ConditionFn { name: name.to_string(), func })
+    BtNode::Condition(ConditionFn {
+        name: name.to_string(),
+        func,
+    })
 }
 
 /// Create a sequence node.
@@ -387,17 +424,13 @@ pub fn selector(children: Vec<BtNode>) -> BtNode {
 /// Count total nodes in a tree.
 pub fn node_count(node: &BtNode) -> usize {
     match node {
-        BtNode::Sequence(c) | BtNode::Selector(c) => {
-            1 + c.iter().map(node_count).sum::<usize>()
-        }
-        BtNode::Parallel { children, .. } => {
-            1 + children.iter().map(node_count).sum::<usize>()
-        }
-        BtNode::Inverter(c) | BtNode::Repeater { child: c, .. }
-        | BtNode::RepeatUntilFail(c) | BtNode::Cooldown { child: c, .. }
-        | BtNode::RateLimit { child: c, .. } => {
-            1 + node_count(c)
-        }
+        BtNode::Sequence(c) | BtNode::Selector(c) => 1 + c.iter().map(node_count).sum::<usize>(),
+        BtNode::Parallel { children, .. } => 1 + children.iter().map(node_count).sum::<usize>(),
+        BtNode::Inverter(c)
+        | BtNode::Repeater { child: c, .. }
+        | BtNode::RepeatUntilFail(c)
+        | BtNode::Cooldown { child: c, .. }
+        | BtNode::RateLimit { child: c, .. } => 1 + node_count(c),
         BtNode::Action(_) | BtNode::Condition(_) => 1,
     }
 }
@@ -408,16 +441,26 @@ pub fn node_count(node: &BtNode) -> usize {
 mod tests {
     use super::*;
 
-    fn success_action(_bb: &mut Blackboard) -> Status { Status::Success }
-    fn failure_action(_bb: &mut Blackboard) -> Status { Status::Failure }
-    fn running_action(_bb: &mut Blackboard) -> Status { Status::Running }
+    fn success_action(_bb: &mut Blackboard) -> Status {
+        Status::Success
+    }
+    fn failure_action(_bb: &mut Blackboard) -> Status {
+        Status::Failure
+    }
+    fn running_action(_bb: &mut Blackboard) -> Status {
+        Status::Running
+    }
     fn increment_action(bb: &mut Blackboard) -> Status {
         let v = bb.get_int("counter").unwrap_or(0);
         bb.set_int("counter", v + 1);
         Status::Success
     }
-    fn true_condition(_bb: &Blackboard) -> bool { true }
-    fn false_condition(_bb: &Blackboard) -> bool { false }
+    fn true_condition(_bb: &Blackboard) -> bool {
+        true
+    }
+    fn false_condition(_bb: &Blackboard) -> bool {
+        false
+    }
     fn check_counter(bb: &Blackboard) -> bool {
         bb.get_int("counter").unwrap_or(0) > 0
     }
@@ -631,8 +674,8 @@ mod tests {
     fn test_builder_simple() {
         let tree = BtBuilder::new()
             .sequence()
-                .action("a", success_action)
-                .action("b", success_action)
+            .action("a", success_action)
+            .action("b", success_action)
             .end_sequence()
             .build();
         assert!(tree.is_some());
@@ -645,11 +688,11 @@ mod tests {
     fn test_builder_nested() {
         let tree = BtBuilder::new()
             .selector()
-                .action("fail", failure_action)
-                .sequence()
-                    .action("s1", success_action)
-                    .action("s2", success_action)
-                .end_sequence()
+            .action("fail", failure_action)
+            .sequence()
+            .action("s1", success_action)
+            .action("s2", success_action)
+            .end_sequence()
             .end_selector()
             .build();
         assert!(tree.is_some());

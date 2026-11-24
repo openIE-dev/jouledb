@@ -12,25 +12,92 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
-    pub const UP: Self = Self { x: 0.0, y: 1.0, z: 0.0 };
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn dot(self, r: Self) -> f64 { self.x * r.x + self.y * r.y + self.z * r.z }
-    pub fn cross(self, r: Self) -> Self {
-        Self { x: self.y*r.z - self.z*r.y, y: self.z*r.x - self.x*r.z, z: self.x*r.y - self.y*r.x }
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub const UP: Self = Self {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    };
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
     }
-    pub fn length_sq(self) -> f64 { self.dot(self) }
-    pub fn length(self) -> f64 { self.length_sq().sqrt() }
+    pub fn dot(self, r: Self) -> f64 {
+        self.x * r.x + self.y * r.y + self.z * r.z
+    }
+    pub fn cross(self, r: Self) -> Self {
+        Self {
+            x: self.y * r.z - self.z * r.y,
+            y: self.z * r.x - self.x * r.z,
+            z: self.x * r.y - self.y * r.x,
+        }
+    }
+    pub fn length_sq(self) -> f64 {
+        self.dot(self)
+    }
+    pub fn length(self) -> f64 {
+        self.length_sq().sqrt()
+    }
     pub fn normalized(self) -> Self {
-        let l = self.length(); if l < 1e-12 { Self::ZERO } else { self * (1.0 / l) }
+        let l = self.length();
+        if l < 1e-12 {
+            Self::ZERO
+        } else {
+            self * (1.0 / l)
+        }
     }
 }
 
-impl std::ops::Add for Vec3 { type Output = Self; fn add(self, r: Self) -> Self { Self { x: self.x+r.x, y: self.y+r.y, z: self.z+r.z } } }
-impl std::ops::Sub for Vec3 { type Output = Self; fn sub(self, r: Self) -> Self { Self { x: self.x-r.x, y: self.y-r.y, z: self.z-r.z } } }
-impl std::ops::Mul<f64> for Vec3 { type Output = Self; fn mul(self, s: f64) -> Self { Self { x: self.x*s, y: self.y*s, z: self.z*s } } }
-impl std::ops::Neg for Vec3 { type Output = Self; fn neg(self) -> Self { Self { x: -self.x, y: -self.y, z: -self.z } } }
-impl std::ops::AddAssign for Vec3 { fn add_assign(&mut self, r: Self) { self.x += r.x; self.y += r.y; self.z += r.z; } }
+impl std::ops::Add for Vec3 {
+    type Output = Self;
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
+}
+impl std::ops::Sub for Vec3 {
+    type Output = Self;
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
+}
+impl std::ops::Mul<f64> for Vec3 {
+    type Output = Self;
+    fn mul(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
+}
+impl std::ops::Neg for Vec3 {
+    type Output = Self;
+    fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
+}
+impl std::ops::AddAssign for Vec3 {
+    fn add_assign(&mut self, r: Self) {
+        self.x += r.x;
+        self.y += r.y;
+        self.z += r.z;
+    }
+}
 
 // ── Differential Type ────────────────────────────────────────
 
@@ -200,7 +267,7 @@ pub struct Vehicle {
     pub differential: DifferentialType,
     pub front_drive_ratio: f64, // 0.0 = RWD, 1.0 = FWD, 0.5 = AWD
     pub engine_torque: f64,
-    pub brake_input: f64, // 0..1
+    pub brake_input: f64,    // 0..1
     pub steering_input: f64, // -1..1
     pub max_steer_angle: f64,
     pub max_brake_torque: f64,
@@ -290,7 +357,11 @@ impl Vehicle {
 
     /// Step the vehicle simulation.
     pub fn step(&mut self, dt: f64) {
-        let inv_mass = if self.mass > 1e-12 { 1.0 / self.mass } else { 0.0 };
+        let inv_mass = if self.mass > 1e-12 {
+            1.0 / self.mass
+        } else {
+            0.0
+        };
         let fwd_speed = self.forward_speed();
 
         // Update steering angles (Ackermann approximation)
@@ -322,27 +393,34 @@ impl Vehicle {
         };
 
         let long_transfer = self.mass * accel * self.cg_height / self.wheelbase;
-        let lat_transfer = self.mass * self.lateral_speed().abs() * self.yaw_rate.abs()
-            * self.cg_height / self.track_width;
+        let lat_transfer =
+            self.mass * self.lateral_speed().abs() * self.yaw_rate.abs() * self.cg_height
+                / self.track_width;
 
         // Assign normal loads
         if self.wheels.len() >= 4 {
-            self.wheels[0].normal_load = (base_load + long_transfer * 0.5 - lat_transfer * 0.5).max(0.0);
-            self.wheels[1].normal_load = (base_load + long_transfer * 0.5 + lat_transfer * 0.5).max(0.0);
-            self.wheels[2].normal_load = (base_load - long_transfer * 0.5 - lat_transfer * 0.5).max(0.0);
-            self.wheels[3].normal_load = (base_load - long_transfer * 0.5 + lat_transfer * 0.5).max(0.0);
+            self.wheels[0].normal_load =
+                (base_load + long_transfer * 0.5 - lat_transfer * 0.5).max(0.0);
+            self.wheels[1].normal_load =
+                (base_load + long_transfer * 0.5 + lat_transfer * 0.5).max(0.0);
+            self.wheels[2].normal_load =
+                (base_load - long_transfer * 0.5 - lat_transfer * 0.5).max(0.0);
+            self.wheels[3].normal_load =
+                (base_load - long_transfer * 0.5 + lat_transfer * 0.5).max(0.0);
         }
 
         // Anti-roll bar
         if self.wheels.len() >= 4 {
-            let front_diff = self.wheels[0].suspension_compression - self.wheels[1].suspension_compression;
+            let front_diff =
+                self.wheels[0].suspension_compression - self.wheels[1].suspension_compression;
             let front_arb = front_diff * self.front_anti_roll;
             self.wheels[0].normal_load -= front_arb;
             self.wheels[1].normal_load += front_arb;
             self.wheels[0].normal_load = self.wheels[0].normal_load.max(0.0);
             self.wheels[1].normal_load = self.wheels[1].normal_load.max(0.0);
 
-            let rear_diff = self.wheels[2].suspension_compression - self.wheels[3].suspension_compression;
+            let rear_diff =
+                self.wheels[2].suspension_compression - self.wheels[3].suspension_compression;
             let rear_arb = rear_diff * self.rear_anti_roll;
             self.wheels[2].normal_load -= rear_arb;
             self.wheels[3].normal_load += rear_arb;
@@ -386,8 +464,12 @@ impl Vehicle {
             }
 
             // Tire forces
-            wheel.longitudinal_force = wheel.tire.longitudinal_force(wheel.slip_ratio, wheel.normal_load);
-            wheel.lateral_force = wheel.tire.lateral_force(wheel.slip_angle, wheel.normal_load);
+            wheel.longitudinal_force = wheel
+                .tire
+                .longitudinal_force(wheel.slip_ratio, wheel.normal_load);
+            wheel.lateral_force = wheel
+                .tire
+                .lateral_force(wheel.slip_angle, wheel.normal_load);
 
             // Net force from this wheel
             let cos_s = wheel.steering_angle.cos();
@@ -413,7 +495,10 @@ impl Vehicle {
                 wheel.angular_velocity += (net_torque / inertia) * dt;
             }
             // Brake can stop the wheel
-            if wheel.brake_torque > 0.0 && wheel.angular_velocity.abs() < 0.1 && wheel.drive_torque.abs() < wheel.brake_torque {
+            if wheel.brake_torque > 0.0
+                && wheel.angular_velocity.abs() < 0.1
+                && wheel.drive_torque.abs() < wheel.brake_torque
+            {
                 wheel.angular_velocity = 0.0;
             }
         }
@@ -534,7 +619,9 @@ mod tests {
     use super::*;
 
     const EPS: f64 = 1e-4;
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     #[test]
     fn test_tire_model_default() {
@@ -730,8 +817,7 @@ mod tests {
 
     #[test]
     fn test_wheel_with_suspension() {
-        let w = Wheel::new(Vec3::ZERO, 0.33)
-            .with_suspension(0.4, 30000.0, 4000.0);
+        let w = Wheel::new(Vec3::ZERO, 0.33).with_suspension(0.4, 30000.0, 4000.0);
         assert!(approx(w.suspension_rest, 0.4));
         assert!(approx(w.spring_rate, 30000.0));
         assert!(approx(w.damper_rate, 4000.0));

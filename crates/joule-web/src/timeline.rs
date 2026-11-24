@@ -147,9 +147,7 @@ pub fn assign_lanes(events: &[TimelineEvent]) -> Vec<usize> {
     for (orig_idx, event) in &indexed {
         let ev_end = event.effective_end();
         // Find first lane where the event fits.
-        let lane = lane_ends
-            .iter()
-            .position(|end| event.start >= *end);
+        let lane = lane_ends.iter().position(|end| event.start >= *end);
         match lane {
             Some(l) => {
                 lane_ends[l] = ev_end.add_days(1);
@@ -176,7 +174,10 @@ pub fn lane_count(lanes: &[usize]) -> usize {
 pub fn group_by_category(events: &[TimelineEvent]) -> Vec<(String, Vec<usize>)> {
     let mut groups: Vec<(String, Vec<usize>)> = Vec::new();
     for (i, ev) in events.iter().enumerate() {
-        let cat = ev.category.clone().unwrap_or_else(|| "Uncategorized".into());
+        let cat = ev
+            .category
+            .clone()
+            .unwrap_or_else(|| "Uncategorized".into());
         if let Some(grp) = groups.iter_mut().find(|(c, _)| *c == cat) {
             grp.1.push(i);
         } else {
@@ -221,14 +222,16 @@ pub fn render_svg(events: &[TimelineEvent], config: &TimelineConfig) -> String {
     if events.is_empty() {
         return format!(
             r#"<svg xmlns="http://www.w3.org/2000/svg" width="{}" height="{}"></svg>"#,
-            config.width, config.margin * 2.0 + config.header_height,
+            config.width,
+            config.margin * 2.0 + config.header_height,
         );
     }
 
     let lanes = assign_lanes(events);
     let n_lanes = lane_count(&lanes);
 
-    let total_h = config.margin + config.header_height + n_lanes as f64 * config.lane_height + config.margin;
+    let total_h =
+        config.margin + config.header_height + n_lanes as f64 * config.lane_height + config.margin;
 
     // Time range.
     let t_min = events.iter().map(|e| e.start).min().unwrap();
@@ -236,9 +239,7 @@ pub fn render_svg(events: &[TimelineEvent], config: &TimelineConfig) -> String {
     let t_range = (t_max.0 - t_min.0).max(1) as f64;
     let plot_w = config.width - 2.0 * config.margin;
 
-    let to_x = |t: TimeStamp| -> f64 {
-        config.margin + (t.0 - t_min.0) as f64 / t_range * plot_w
-    };
+    let to_x = |t: TimeStamp| -> f64 { config.margin + (t.0 - t_min.0) as f64 / t_range * plot_w };
 
     let mut svg = String::new();
     let _ = write!(
@@ -293,12 +294,22 @@ pub fn render_svg(events: &[TimelineEvent], config: &TimelineConfig) -> String {
             let _ = write!(
                 svg,
                 r#"<polygon points="{:.1},{:.1} {:.1},{:.1} {:.1},{:.1} {:.1},{:.1}" fill="{}"/>"#,
-                cx, cy - r, cx + r, cy, cx, cy + r, cx - r, cy, ev.color,
+                cx,
+                cy - r,
+                cx + r,
+                cy,
+                cx,
+                cy + r,
+                cx - r,
+                cy,
+                ev.color,
             );
             let _ = write!(
                 svg,
                 r#"<text x="{:.1}" y="{:.1}" text-anchor="start" font-size="10">{}</text>"#,
-                cx + r + 3.0, cy + 4.0, ev.label,
+                cx + r + 3.0,
+                cy + 4.0,
+                ev.label,
             );
         } else {
             let x1 = to_x(ev.start);
@@ -332,10 +343,28 @@ mod tests {
 
     fn sample_events() -> Vec<TimelineEvent> {
         vec![
-            TimelineEvent::duration("a", "Project A", TimeStamp::ymd(2026, 1, 1), TimeStamp::ymd(2026, 3, 15), "#3498db"),
-            TimelineEvent::duration("b", "Project B", TimeStamp::ymd(2026, 2, 1), TimeStamp::ymd(2026, 5, 1), "#2ecc71"),
+            TimelineEvent::duration(
+                "a",
+                "Project A",
+                TimeStamp::ymd(2026, 1, 1),
+                TimeStamp::ymd(2026, 3, 15),
+                "#3498db",
+            ),
+            TimelineEvent::duration(
+                "b",
+                "Project B",
+                TimeStamp::ymd(2026, 2, 1),
+                TimeStamp::ymd(2026, 5, 1),
+                "#2ecc71",
+            ),
             TimelineEvent::milestone("m1", "Launch", TimeStamp::ymd(2026, 4, 1), "#e74c3c"),
-            TimelineEvent::duration("c", "Phase 2", TimeStamp::ymd(2026, 4, 15), TimeStamp::ymd(2026, 6, 30), "#9b59b6"),
+            TimelineEvent::duration(
+                "c",
+                "Phase 2",
+                TimeStamp::ymd(2026, 4, 15),
+                TimeStamp::ymd(2026, 6, 30),
+                "#9b59b6",
+            ),
         ]
     }
 
@@ -361,7 +390,13 @@ mod tests {
 
     #[test]
     fn event_duration_days() {
-        let ev = TimelineEvent::duration("x", "X", TimeStamp::ymd(2026, 1, 1), TimeStamp::ymd(2026, 2, 1), "#000");
+        let ev = TimelineEvent::duration(
+            "x",
+            "X",
+            TimeStamp::ymd(2026, 1, 1),
+            TimeStamp::ymd(2026, 2, 1),
+            "#000",
+        );
         assert!(ev.duration_days() > 0);
     }
 
@@ -393,10 +428,22 @@ mod tests {
     #[test]
     fn group_by_category_works() {
         let events = vec![
-            TimelineEvent::duration("a", "A", TimeStamp::ymd(2026, 1, 1), TimeStamp::ymd(2026, 2, 1), "#000")
-                .with_category("Dev"),
-            TimelineEvent::duration("b", "B", TimeStamp::ymd(2026, 2, 1), TimeStamp::ymd(2026, 3, 1), "#000")
-                .with_category("Dev"),
+            TimelineEvent::duration(
+                "a",
+                "A",
+                TimeStamp::ymd(2026, 1, 1),
+                TimeStamp::ymd(2026, 2, 1),
+                "#000",
+            )
+            .with_category("Dev"),
+            TimelineEvent::duration(
+                "b",
+                "B",
+                TimeStamp::ymd(2026, 2, 1),
+                TimeStamp::ymd(2026, 3, 1),
+                "#000",
+            )
+            .with_category("Dev"),
             TimelineEvent::milestone("c", "C", TimeStamp::ymd(2026, 3, 1), "#000")
                 .with_category("Ops"),
         ];
@@ -411,8 +458,8 @@ mod tests {
         let events = sample_events();
         let svg = render_svg(&events, &TimelineConfig::default());
         assert!(svg.starts_with("<svg"));
-        assert!(svg.contains("<rect"));      // duration bars
-        assert!(svg.contains("<polygon"));   // milestone diamond
+        assert!(svg.contains("<rect")); // duration bars
+        assert!(svg.contains("<polygon")); // milestone diamond
     }
 
     #[test]
@@ -443,8 +490,20 @@ mod tests {
     #[test]
     fn non_overlapping_share_lane() {
         let events = vec![
-            TimelineEvent::duration("a", "A", TimeStamp::ymd(2026, 1, 1), TimeStamp::ymd(2026, 2, 1), "#000"),
-            TimelineEvent::duration("b", "B", TimeStamp::ymd(2026, 3, 1), TimeStamp::ymd(2026, 4, 1), "#000"),
+            TimelineEvent::duration(
+                "a",
+                "A",
+                TimeStamp::ymd(2026, 1, 1),
+                TimeStamp::ymd(2026, 2, 1),
+                "#000",
+            ),
+            TimelineEvent::duration(
+                "b",
+                "B",
+                TimeStamp::ymd(2026, 3, 1),
+                TimeStamp::ymd(2026, 4, 1),
+                "#000",
+            ),
         ];
         let lanes = assign_lanes(&events);
         assert_eq!(lanes[0], lanes[1]); // no overlap → same lane
@@ -452,9 +511,12 @@ mod tests {
 
     #[test]
     fn uncategorized_default() {
-        let events = vec![
-            TimelineEvent::milestone("x", "X", TimeStamp::ymd(2026, 6, 1), "#000"),
-        ];
+        let events = vec![TimelineEvent::milestone(
+            "x",
+            "X",
+            TimeStamp::ymd(2026, 6, 1),
+            "#000",
+        )];
         let groups = group_by_category(&events);
         assert_eq!(groups[0].0, "Uncategorized");
     }

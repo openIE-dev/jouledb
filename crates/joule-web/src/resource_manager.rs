@@ -38,10 +38,17 @@ pub enum ResourceError {
     ResourceNotFound(String),
     ProcessNotFound(u32),
     AlreadyExists(String),
-    InsufficientResources { resource: String, requested: u32, available: u32 },
+    InsufficientResources {
+        resource: String,
+        requested: u32,
+        available: u32,
+    },
     DeadlockDetected(Vec<u32>),
     UnsafeState(String),
-    InvalidRelease { resource: String, process: u32 },
+    InvalidRelease {
+        resource: String,
+        process: u32,
+    },
 }
 
 impl std::fmt::Display for ResourceError {
@@ -123,7 +130,12 @@ impl ResourceManager {
     }
 
     /// Register a process.
-    pub fn add_process(&mut self, pid: u32, name: &str, priority: u32) -> Result<(), ResourceError> {
+    pub fn add_process(
+        &mut self,
+        pid: u32,
+        name: &str,
+        priority: u32,
+    ) -> Result<(), ResourceError> {
         if self.processes.contains_key(&pid) {
             return Err(ResourceError::AlreadyExists(format!("pid {pid}")));
         }
@@ -160,12 +172,7 @@ impl ResourceManager {
     }
 
     /// Request (allocate) resources. Grants immediately if available.
-    pub fn request(
-        &mut self,
-        pid: u32,
-        resource: &str,
-        count: u32,
-    ) -> Result<(), ResourceError> {
+    pub fn request(&mut self, pid: u32, resource: &str, count: u32) -> Result<(), ResourceError> {
         if !self.processes.contains_key(&pid) {
             return Err(ResourceError::ProcessNotFound(pid));
         }
@@ -200,12 +207,7 @@ impl ResourceManager {
     }
 
     /// Release resources held by a process.
-    pub fn release(
-        &mut self,
-        pid: u32,
-        resource: &str,
-        count: u32,
-    ) -> Result<(), ResourceError> {
+    pub fn release(&mut self, pid: u32, resource: &str, count: u32) -> Result<(), ResourceError> {
         let proc = self
             .processes
             .get(&pid)
@@ -346,10 +348,7 @@ impl ResourceManager {
                     continue;
                 }
                 // Check if need[i] <= available
-                let can_finish = need[i]
-                    .iter()
-                    .zip(available.iter())
-                    .all(|(n, a)| *n <= *a);
+                let can_finish = need[i].iter().zip(available.iter()).all(|(n, a)| *n <= *a);
 
                 if can_finish {
                     // Process can finish — release its resources

@@ -38,7 +38,10 @@ pub struct SessionDescription {
 
 impl SessionDescription {
     pub fn new(sdp_type: SdpType, sdp: impl Into<String>) -> Self {
-        Self { sdp_type, sdp: sdp.into() }
+        Self {
+            sdp_type,
+            sdp: sdp.into(),
+        }
     }
 }
 
@@ -185,7 +188,9 @@ impl ParsedSdp {
 
             match kind_byte {
                 b'v' => {
-                    version = value.parse::<u8>().map_err(|_| SdpParseError::InvalidVersion)?;
+                    version = value
+                        .parse::<u8>()
+                        .map_err(|_| SdpParseError::InvalidVersion)?;
                 }
                 b's' => {
                     session_name = value.to_string();
@@ -233,10 +238,17 @@ impl ParsedSdp {
                                         if let Ok(pt) = pt_str.parse::<u8>() {
                                             let parts: Vec<&str> = codec_info.split('/').collect();
                                             let name = parts.first().unwrap_or(&"").to_string();
-                                            let clock = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
+                                            let clock = parts
+                                                .get(1)
+                                                .and_then(|s| s.parse().ok())
+                                                .unwrap_or(0);
                                             let ch = parts.get(2).and_then(|s| s.parse().ok());
                                             // Update existing codec stub or add new
-                                            if let Some(c) = section.codecs.iter_mut().find(|c| c.payload_type == pt) {
+                                            if let Some(c) = section
+                                                .codecs
+                                                .iter_mut()
+                                                .find(|c| c.payload_type == pt)
+                                            {
                                                 c.name = name;
                                                 c.clock_rate = clock;
                                                 c.channels = ch;
@@ -255,7 +267,9 @@ impl ParsedSdp {
                                 }
                             }
                             "sendrecv" | "sendonly" | "recvonly" | "inactive" => {}
-                            _ => { attributes.insert(attr_name.to_string(), attr_val.to_string()); }
+                            _ => {
+                                attributes.insert(attr_name.to_string(), attr_val.to_string());
+                            }
                         }
                     } else {
                         // Attribute-only flags like a=sendrecv
@@ -380,8 +394,13 @@ impl IceCandidate {
         };
         format!(
             "candidate:{} {} {} {} {} {} typ {}",
-            self.foundation, self.component, proto_str, self.priority,
-            self.address, self.port, typ_str
+            self.foundation,
+            self.component,
+            proto_str,
+            self.priority,
+            self.address,
+            self.port,
+            typ_str
         )
     }
 }
@@ -530,12 +549,19 @@ impl StunMessage {
                 break;
             }
             let value = data[offset..offset + al].to_vec();
-            attributes.push(StunAttribute { attr_type: at, value });
+            attributes.push(StunAttribute {
+                attr_type: at,
+                value,
+            });
             offset += al;
             offset += (4 - (al % 4)) % 4; // skip padding
         }
 
-        Some(Self { msg_type, transaction_id: tid, attributes })
+        Some(Self {
+            msg_type,
+            transaction_id: tid,
+            attributes,
+        })
     }
 }
 
@@ -684,7 +710,8 @@ impl SignalingMachine {
 
     /// Add a local ICE candidate.
     pub fn add_local_candidate(&mut self, candidate: IceCandidate) {
-        self.events.push(SignalEvent::AddIceCandidate(candidate.clone()));
+        self.events
+            .push(SignalEvent::AddIceCandidate(candidate.clone()));
         self.local_candidates.push(candidate);
     }
 
@@ -876,7 +903,11 @@ mod tests {
 
     #[test]
     fn stun_message_type_roundtrip() {
-        for mt in [StunMessageType::BindingRequest, StunMessageType::BindingResponse, StunMessageType::BindingErrorResponse] {
+        for mt in [
+            StunMessageType::BindingRequest,
+            StunMessageType::BindingResponse,
+            StunMessageType::BindingErrorResponse,
+        ] {
             assert_eq!(StunMessageType::from_u16(mt.to_u16()), Some(mt));
         }
     }
@@ -891,7 +922,10 @@ mod tests {
         let tid = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
         let mut msg = StunMessage::new_binding_request(tid);
         msg.add_attribute(StunAttrType::Username.to_u16(), b"user:pass".to_vec());
-        msg.add_attribute(StunAttrType::Priority.to_u16(), 100u32.to_be_bytes().to_vec());
+        msg.add_attribute(
+            StunAttrType::Priority.to_u16(),
+            100u32.to_be_bytes().to_vec(),
+        );
 
         let bytes = msg.to_bytes();
         assert!(bytes.len() >= 20);
@@ -980,7 +1014,11 @@ mod tests {
         sm.set_remote_description(SessionDescription::new(SdpType::Answer, "answer-sdp"));
         assert_eq!(sm.state, SignalingState::Stable);
         let events = sm.take_events();
-        assert!(events.iter().any(|e| matches!(e, SignalEvent::NegotiationComplete)));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, SignalEvent::NegotiationComplete))
+        );
     }
 
     #[test]
@@ -993,8 +1031,16 @@ mod tests {
         sm.set_local_description(SessionDescription::new(SdpType::Answer, "local-answer"));
         assert_eq!(sm.state, SignalingState::Stable);
         let events = sm.take_events();
-        assert!(events.iter().any(|e| matches!(e, SignalEvent::NegotiationComplete)));
-        assert!(events.iter().any(|e| matches!(e, SignalEvent::SendAnswer(_))));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, SignalEvent::NegotiationComplete))
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, SignalEvent::SendAnswer(_)))
+        );
     }
 
     #[test]
@@ -1058,8 +1104,14 @@ mod tests {
 
     #[test]
     fn sdp_parse_error_display() {
-        assert_eq!(SdpParseError::InvalidVersion.to_string(), "invalid SDP version");
-        assert_eq!(SdpParseError::InvalidMediaLine.to_string(), "invalid SDP media line");
+        assert_eq!(
+            SdpParseError::InvalidVersion.to_string(),
+            "invalid SDP version"
+        );
+        assert_eq!(
+            SdpParseError::InvalidMediaLine.to_string(),
+            "invalid SDP media line"
+        );
     }
 
     #[test]

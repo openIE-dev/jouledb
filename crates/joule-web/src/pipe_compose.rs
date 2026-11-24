@@ -226,9 +226,7 @@ pub fn curry3_rc<A: Clone + 'static, B: Clone + 'static, C: 'static, D: 'static>
 }
 
 /// Uncurry a curried binary function.
-pub fn uncurry2<A, B, C>(
-    f: impl Fn(A) -> Box<dyn Fn(B) -> C> + 'static,
-) -> Box<dyn Fn(A, B) -> C> {
+pub fn uncurry2<A, B, C>(f: impl Fn(A) -> Box<dyn Fn(B) -> C> + 'static) -> Box<dyn Fn(A, B) -> C> {
     Box::new(move |a, b| f(a)(b))
 }
 
@@ -319,26 +317,19 @@ mod tests {
 
     #[test]
     fn pipeline_basic() {
-        let result = Pipeline::of(10)
-            .pipe(|x| x * 2)
-            .pipe(|x| x + 1)
-            .value();
+        let result = Pipeline::of(10).pipe(|x| x * 2).pipe(|x| x + 1).value();
         assert_eq!(result, 21);
     }
 
     #[test]
     fn pipeline_pipe_if_true() {
-        let result = Pipeline::of(10)
-            .pipe_if(true, |x| x * 2)
-            .value();
+        let result = Pipeline::of(10).pipe_if(true, |x| x * 2).value();
         assert_eq!(result, 20);
     }
 
     #[test]
     fn pipeline_pipe_if_false() {
-        let result = Pipeline::of(10)
-            .pipe_if(false, |x| x * 2)
-            .value();
+        let result = Pipeline::of(10).pipe_if(false, |x| x * 2).value();
         assert_eq!(result, 10);
     }
 
@@ -353,8 +344,7 @@ mod tests {
 
     #[test]
     fn pipeline_try_pipe_err() {
-        let result = Pipeline::of(10)
-            .try_pipe(|_| Err::<i32, &str>("oops"));
+        let result = Pipeline::of(10).try_pipe(|_| Err::<i32, &str>("oops"));
         assert!(result.is_err());
     }
 
@@ -363,7 +353,9 @@ mod tests {
         let log = Rc::new(RefCell::new(0));
         let log_ref = log.clone();
         let result = Pipeline::of(42)
-            .tap(move |x| { *log_ref.borrow_mut() = *x; })
+            .tap(move |x| {
+                *log_ref.borrow_mut() = *x;
+            })
             .value();
         assert_eq!(result, 42);
         assert_eq!(*log.borrow(), 42);
@@ -371,9 +363,7 @@ mod tests {
 
     #[test]
     fn pipeline_tap_mut() {
-        let result = Pipeline::of(vec![1, 2])
-            .tap_mut(|v| v.push(3))
-            .value();
+        let result = Pipeline::of(vec![1, 2]).tap_mut(|v| v.push(3)).value();
         assert_eq!(result, vec![1, 2, 3]);
     }
 
@@ -488,10 +478,7 @@ mod tests {
 
     #[test]
     fn on_fn() {
-        let compare_abs = on(
-            |a: i32, b: i32| a.cmp(&b),
-            |x: i32| x.abs(),
-        );
+        let compare_abs = on(|a: i32, b: i32| a.cmp(&b), |x: i32| x.abs());
         assert_eq!(compare_abs(-5, 5), std::cmp::Ordering::Equal);
         assert_eq!(compare_abs(-3, 5), std::cmp::Ordering::Less);
     }

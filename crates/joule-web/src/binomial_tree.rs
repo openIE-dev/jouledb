@@ -181,8 +181,14 @@ impl fmt::Display for TreeConfig {
         write!(
             f,
             "TreeConfig(S={:.2}, K={:.2}, r={:.4}, σ={:.4}, T={:.4}, steps={}, {}, {})",
-            self.spot, self.strike, self.rate, self.volatility, self.expiry,
-            self.steps, self.kind, self.exercise,
+            self.spot,
+            self.strike,
+            self.rate,
+            self.volatility,
+            self.expiry,
+            self.steps,
+            self.kind,
+            self.exercise,
         )
     }
 }
@@ -393,7 +399,11 @@ impl BinomialTree {
 
         // Apply discrete dividends
         for div in &self.config.dividends {
-            if let Dividend::Discrete { step: div_step, amount } = div {
+            if let Dividend::Discrete {
+                step: div_step,
+                amount,
+            } = div
+            {
                 if *div_step <= step {
                     s -= amount;
                 }
@@ -443,7 +453,11 @@ mod tests {
             .with_exercise(ExerciseStyle::European);
         let r = BinomialTree::new(cfg).price().unwrap();
         // Should be close to BS ≈ 10.45
-        assert!(r.price > 9.5 && r.price < 11.5, "european call = {}", r.price);
+        assert!(
+            r.price > 9.5 && r.price < 11.5,
+            "european call = {}",
+            r.price
+        );
     }
 
     #[test]
@@ -478,7 +492,10 @@ mod tests {
             .with_kind(OptionKind::Put)
             .with_exercise(ExerciseStyle::American);
         let r = BinomialTree::new(cfg).price().unwrap();
-        assert!(r.early_exercise_nodes > 0, "should have early exercise nodes");
+        assert!(
+            r.early_exercise_nodes > 0,
+            "should have early exercise nodes"
+        );
     }
 
     #[test]
@@ -521,7 +538,10 @@ mod tests {
         let v = BinomialTree::new(vanilla_cfg).price().unwrap().price;
         let ko = BinomialTree::new(ko_cfg).price().unwrap().price;
         let ki = BinomialTree::new(ki_cfg).price().unwrap().price;
-        assert!(approx(ki + ko, v, 0.5), "KI + KO ≈ vanilla: {ki}+{ko} vs {v}");
+        assert!(
+            approx(ki + ko, v, 0.5),
+            "KI + KO ≈ vanilla: {ki}+{ko} vs {v}"
+        );
     }
 
     #[test]
@@ -609,7 +629,11 @@ mod tests {
             .with_kind(OptionKind::Put)
             .with_exercise(ExerciseStyle::European);
         let r = BinomialTree::new(cfg).price().unwrap();
-        assert!(r.price > 0.0 && r.price < 100.0, "stable price = {}", r.price);
+        assert!(
+            r.price > 0.0 && r.price < 100.0,
+            "stable price = {}",
+            r.price
+        );
     }
 
     #[test]
@@ -618,6 +642,10 @@ mod tests {
             .with_steps(100)
             .with_kind(OptionKind::Put);
         let r = BinomialTree::new(cfg).price().unwrap();
-        assert!(r.price < 0.1, "deep OTM put should be near 0, got {}", r.price);
+        assert!(
+            r.price < 0.1,
+            "deep OTM put should be near 0, got {}",
+            r.price
+        );
     }
 }

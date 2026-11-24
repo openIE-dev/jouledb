@@ -126,7 +126,10 @@ impl fmt::Display for SiteModification {
         write!(
             f,
             "{}({}{}): {:.4} Da",
-            self.mod_type, self.residue, self.position + 1, self.mass_shift
+            self.mod_type,
+            self.residue,
+            self.position + 1,
+            self.mass_shift
         )
     }
 }
@@ -273,10 +276,7 @@ pub fn candidate_sites(sequence: &str, mod_type: ModificationType) -> Vec<usize>
 /// Enumerate all modified peptide forms given variable mods.
 ///
 /// Returns a list of modification combinations up to `max_mods`.
-pub fn enumerate_modifications(
-    sequence: &str,
-    config: &ModSearchConfig,
-) -> Vec<ModifiedPeptide> {
+pub fn enumerate_modifications(sequence: &str, config: &ModSearchConfig) -> Vec<ModifiedPeptide> {
     // Apply fixed modifications first.
     let mut base_mods = Vec::new();
     for fixed in &config.fixed_mods {
@@ -363,7 +363,12 @@ pub struct LocalisationScore {
 
 impl LocalisationScore {
     pub fn new(position: usize, residue: char, score: f64) -> Self {
-        Self { position, residue, score, probability: 0.0 }
+        Self {
+            position,
+            residue,
+            score,
+            probability: 0.0,
+        }
     }
 
     pub fn with_probability(mut self, p: f64) -> Self {
@@ -390,9 +395,7 @@ impl fmt::Display for LocalisationScore {
 /// is the true modification site.
 ///
 /// `site_scores` is a slice of (position, residue, raw_score).
-pub fn compute_localisation(
-    site_scores: &[(usize, char, f64)],
-) -> Vec<LocalisationScore> {
+pub fn compute_localisation(site_scores: &[(usize, char, f64)]) -> Vec<LocalisationScore> {
     if site_scores.is_empty() {
         return Vec::new();
     }
@@ -481,11 +484,11 @@ mod tests {
     fn test_modified_peptide_total_shift() {
         let pep = ModifiedPeptide::new("PEPTIDE")
             .with_modification(SiteModification::new(
-                ModificationType::Phosphorylation, 0, 'P',
+                ModificationType::Phosphorylation,
+                0,
+                'P',
             ))
-            .with_modification(SiteModification::new(
-                ModificationType::Oxidation, 3, 'T',
-            ));
+            .with_modification(SiteModification::new(ModificationType::Oxidation, 3, 'T'));
         let shift = pep.total_mass_shift();
         let expected = 79.966_331 + 15.994_915;
         assert!((shift - expected).abs() < 0.001);
@@ -493,18 +496,18 @@ mod tests {
 
     #[test]
     fn test_modified_peptide_display() {
-        let pep = ModifiedPeptide::new("MST")
-            .with_modification(SiteModification::new(
-                ModificationType::Oxidation, 0, 'M',
-            ));
+        let pep = ModifiedPeptide::new("MST").with_modification(SiteModification::new(
+            ModificationType::Oxidation,
+            0,
+            'M',
+        ));
         let d = format!("{}", pep);
         assert!(d.contains("M[Oxidation]"));
     }
 
     #[test]
     fn test_nterm_mod_display() {
-        let pep = ModifiedPeptide::new("PEPTIDE")
-            .with_n_term(ModificationType::Acetylation);
+        let pep = ModifiedPeptide::new("PEPTIDE").with_n_term(ModificationType::Acetylation);
         let d = format!("{}", pep);
         assert!(d.contains("[Acetyl]-"));
     }
@@ -513,7 +516,9 @@ mod tests {
     fn test_mod_count() {
         let pep = ModifiedPeptide::new("PEPTIDE")
             .with_modification(SiteModification::new(
-                ModificationType::Phosphorylation, 0, 'P',
+                ModificationType::Phosphorylation,
+                0,
+                'P',
             ))
             .with_n_term(ModificationType::Acetylation);
         assert_eq!(pep.mod_count(), 2);
@@ -521,10 +526,11 @@ mod tests {
 
     #[test]
     fn test_is_modified_at() {
-        let pep = ModifiedPeptide::new("ABC")
-            .with_modification(SiteModification::new(
-                ModificationType::Oxidation, 1, 'B',
-            ));
+        let pep = ModifiedPeptide::new("ABC").with_modification(SiteModification::new(
+            ModificationType::Oxidation,
+            1,
+            'B',
+        ));
         assert!(pep.is_modified_at(1));
         assert!(!pep.is_modified_at(0));
     }
@@ -532,8 +538,16 @@ mod tests {
     #[test]
     fn test_positions_of() {
         let pep = ModifiedPeptide::new("STSYS")
-            .with_modification(SiteModification::new(ModificationType::Phosphorylation, 0, 'S'))
-            .with_modification(SiteModification::new(ModificationType::Phosphorylation, 2, 'S'));
+            .with_modification(SiteModification::new(
+                ModificationType::Phosphorylation,
+                0,
+                'S',
+            ))
+            .with_modification(SiteModification::new(
+                ModificationType::Phosphorylation,
+                2,
+                'S',
+            ));
         let pos = pep.positions_of(ModificationType::Phosphorylation);
         assert_eq!(pos, vec![0, 2]);
     }
@@ -572,7 +586,9 @@ mod tests {
         let forms = enumerate_modifications("STSST", &cfg);
         // 1 unmodified + C(n,1) single-mod forms.
         for form in &forms {
-            let var_count = form.modifications.iter()
+            let var_count = form
+                .modifications
+                .iter()
                 .filter(|m| m.mod_type == ModificationType::Phosphorylation)
                 .count();
             assert!(var_count <= 1);
@@ -581,11 +597,7 @@ mod tests {
 
     #[test]
     fn test_localisation_scoring() {
-        let scores = compute_localisation(&[
-            (0, 'S', 10.0),
-            (2, 'T', 5.0),
-            (4, 'S', 3.0),
-        ]);
+        let scores = compute_localisation(&[(0, 'S', 10.0), (2, 'T', 5.0), (4, 'S', 3.0)]);
         assert_eq!(scores.len(), 3);
         let total_p: f64 = scores.iter().map(|s| s.probability).sum();
         assert!((total_p - 1.0).abs() < 1e-6);
@@ -595,20 +607,14 @@ mod tests {
 
     #[test]
     fn test_best_site() {
-        let scores = compute_localisation(&[
-            (0, 'S', 10.0),
-            (2, 'T', 15.0),
-        ]);
+        let scores = compute_localisation(&[(0, 'S', 10.0), (2, 'T', 15.0)]);
         let best = best_site(&scores).unwrap();
         assert_eq!(best.position, 2);
     }
 
     #[test]
     fn test_localisation_delta() {
-        let scores = compute_localisation(&[
-            (0, 'S', 10.0),
-            (2, 'T', 5.0),
-        ]);
+        let scores = compute_localisation(&[(0, 'S', 10.0), (2, 'T', 5.0)]);
         let delta = localisation_delta(&scores);
         assert!((delta - 5.0).abs() < 1e-6);
     }
@@ -621,8 +627,7 @@ mod tests {
 
     #[test]
     fn test_custom_mass_shift() {
-        let sm = SiteModification::new(ModificationType::Custom, 0, 'X')
-            .with_custom_mass(42.0);
+        let sm = SiteModification::new(ModificationType::Custom, 0, 'X').with_custom_mass(42.0);
         assert!((sm.mass_shift - 42.0).abs() < 1e-9);
     }
 }

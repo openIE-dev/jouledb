@@ -94,8 +94,12 @@ impl Heightmap {
         let mut min = f64::MAX;
         let mut max = f64::MIN;
         for &h in &self.heights {
-            if h < min { min = h; }
-            if h > max { max = h; }
+            if h < min {
+                min = h;
+            }
+            if h > max {
+                max = h;
+            }
         }
         if self.heights.is_empty() {
             (0.0, 0.0)
@@ -280,7 +284,9 @@ struct DsRng {
 
 impl DsRng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -362,7 +368,10 @@ mod tests {
         assert_eq!(hm.width, 17);
         assert_eq!(hm.depth, 17);
         let (min, max) = hm.height_range();
-        assert!(max > min, "terrain should have variation: min={min}, max={max}");
+        assert!(
+            max > min,
+            "terrain should have variation: min={min}, max={max}"
+        );
     }
 
     #[test]

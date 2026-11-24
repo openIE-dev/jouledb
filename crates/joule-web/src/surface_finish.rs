@@ -73,19 +73,27 @@ impl SurfaceFinishConfig {
             return Err(SurfaceFinishError::InvalidConfig("cutoff_mm is NaN".into()));
         }
         if self.evaluation_length.is_nan() {
-            return Err(SurfaceFinishError::InvalidConfig("evaluation_length is NaN".into()));
+            return Err(SurfaceFinishError::InvalidConfig(
+                "evaluation_length is NaN".into(),
+            ));
         }
         Ok(())
     }
 }
 
 impl Default for SurfaceFinishConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for SurfaceFinishConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SurfaceFinishConfig(cutoff_mm={0:.4}, evaluation_length={1:.4}, profile_filter={2}, lay_direction={3})", self.cutoff_mm, self.evaluation_length, self.profile_filter, self.lay_direction)
+        write!(
+            f,
+            "SurfaceFinishConfig(cutoff_mm={0:.4}, evaluation_length={1:.4}, profile_filter={2}, lay_direction={3})",
+            self.cutoff_mm, self.evaluation_length, self.profile_filter, self.lay_direction
+        )
     }
 }
 
@@ -101,7 +109,10 @@ pub struct SurfaceFinish {
 impl SurfaceFinish {
     pub fn new(config: SurfaceFinishConfig) -> Result<Self, SurfaceFinishError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -113,13 +124,21 @@ impl SurfaceFinish {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &SurfaceFinishConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &SurfaceFinishConfig {
+        &self.config
+    }
 
     /// Average roughness Ra.
     pub fn roughness_ra(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -129,7 +148,9 @@ impl SurfaceFinish {
 
     /// Mean peak-to-valley Rz.
     pub fn roughness_rz(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -139,7 +160,9 @@ impl SurfaceFinish {
 
     /// RMS roughness Rq.
     pub fn roughness_rq(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -149,7 +172,9 @@ impl SurfaceFinish {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -161,7 +186,9 @@ impl SurfaceFinish {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -173,7 +200,11 @@ impl SurfaceFinish {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -246,7 +277,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = SurfaceFinish::new(SurfaceFinishConfig::new()).unwrap()
+        let e = SurfaceFinish::new(SurfaceFinishConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -262,7 +294,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = SurfaceFinish::new(SurfaceFinishConfig::new()).unwrap()
+        let e = SurfaceFinish::new(SurfaceFinishConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("SurfaceFinish"));
@@ -270,7 +303,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = SurfaceFinish::new(SurfaceFinishConfig::new()).unwrap()
+        let e = SurfaceFinish::new(SurfaceFinishConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -281,7 +315,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = SurfaceFinish::new(SurfaceFinishConfig::new()).unwrap()
+        let e = SurfaceFinish::new(SurfaceFinishConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -289,7 +324,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = SurfaceFinish::new(SurfaceFinishConfig::new()).unwrap()
+        let e = SurfaceFinish::new(SurfaceFinishConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -306,7 +342,8 @@ mod tests {
 
     #[test]
     fn test_roughness_ra() {
-        let e = SurfaceFinish::new(SurfaceFinishConfig::new()).unwrap()
+        let e = SurfaceFinish::new(SurfaceFinishConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.roughness_ra();
         assert!(result.is_finite());
@@ -314,7 +351,8 @@ mod tests {
 
     #[test]
     fn test_roughness_rz() {
-        let e = SurfaceFinish::new(SurfaceFinishConfig::new()).unwrap()
+        let e = SurfaceFinish::new(SurfaceFinishConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.roughness_rz();
         assert!(result.is_finite());
@@ -322,7 +360,8 @@ mod tests {
 
     #[test]
     fn test_roughness_rq() {
-        let e = SurfaceFinish::new(SurfaceFinishConfig::new()).unwrap()
+        let e = SurfaceFinish::new(SurfaceFinishConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.roughness_rq();
         assert!(result.is_finite());

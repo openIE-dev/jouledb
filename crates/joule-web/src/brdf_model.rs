@@ -15,9 +15,19 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0, z: 0.0 } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
     pub fn cross(self, o: Self) -> Self {
         Self {
             x: self.y * o.z - self.z * o.y,
@@ -25,11 +35,19 @@ impl Vec3 {
             z: self.x * o.y - self.y * o.x,
         }
     }
-    pub fn length(self) -> f64 { self.dot(self).sqrt() }
-    pub fn length_squared(self) -> f64 { self.dot(self) }
+    pub fn length(self) -> f64 {
+        self.dot(self).sqrt()
+    }
+    pub fn length_squared(self) -> f64 {
+        self.dot(self)
+    }
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-15 { Self::zero() } else { self * (1.0 / l) }
+        if l < 1e-15 {
+            Self::zero()
+        } else {
+            self * (1.0 / l)
+        }
     }
     pub fn reflect(self, n: Self) -> Self {
         self - n * (2.0 * self.dot(n))
@@ -38,19 +56,43 @@ impl Vec3 {
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+            z: self.z + r.z,
+        }
+    }
 }
 impl std::ops::Sub for Vec3 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+            z: self.z - r.z,
+        }
+    }
 }
 impl std::ops::Mul<f64> for Vec3 {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
 }
 impl std::ops::Neg for Vec3 {
     type Output = Self;
-    fn neg(self) -> Self { Self { x: -self.x, y: -self.y, z: -self.z } }
+    fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
 }
 
 impl fmt::Display for Vec3 {
@@ -68,36 +110,82 @@ pub struct Color {
 }
 
 impl Color {
-    pub fn new(r: f64, g: f64, b: f64) -> Self { Self { r, g, b } }
-    pub fn black() -> Self { Self { r: 0.0, g: 0.0, b: 0.0 } }
-    pub fn white() -> Self { Self { r: 1.0, g: 1.0, b: 1.0 } }
-    pub fn splat(v: f64) -> Self { Self { r: v, g: v, b: v } }
-    pub fn luminance(self) -> f64 { 0.2126 * self.r + 0.7152 * self.g + 0.0722 * self.b }
-    pub fn max_channel(self) -> f64 { self.r.max(self.g).max(self.b) }
+    pub fn new(r: f64, g: f64, b: f64) -> Self {
+        Self { r, g, b }
+    }
+    pub fn black() -> Self {
+        Self {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+        }
+    }
+    pub fn white() -> Self {
+        Self {
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+        }
+    }
+    pub fn splat(v: f64) -> Self {
+        Self { r: v, g: v, b: v }
+    }
+    pub fn luminance(self) -> f64 {
+        0.2126 * self.r + 0.7152 * self.g + 0.0722 * self.b
+    }
+    pub fn max_channel(self) -> f64 {
+        self.r.max(self.g).max(self.b)
+    }
 }
 
 impl std::ops::Add for Color {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { r: self.r + r.r, g: self.g + r.g, b: self.b + r.b } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            r: self.r + r.r,
+            g: self.g + r.g,
+            b: self.b + r.b,
+        }
+    }
 }
 impl std::ops::Sub for Color {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { r: self.r - r.r, g: self.g - r.g, b: self.b - r.b } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            r: self.r - r.r,
+            g: self.g - r.g,
+            b: self.b - r.b,
+        }
+    }
 }
 impl std::ops::Mul<f64> for Color {
     type Output = Self;
-    fn mul(self, s: f64) -> Self { Self { r: self.r * s, g: self.g * s, b: self.b * s } }
+    fn mul(self, s: f64) -> Self {
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
+    }
 }
 impl std::ops::Mul for Color {
     type Output = Self;
-    fn mul(self, o: Self) -> Self { Self { r: self.r * o.r, g: self.g * o.g, b: self.b * o.b } }
+    fn mul(self, o: Self) -> Self {
+        Self {
+            r: self.r * o.r,
+            g: self.g * o.g,
+            b: self.b * o.b,
+        }
+    }
 }
 
 // ─── NDF (Normal Distribution Functions) ───
 
 /// GGX/Trowbridge-Reitz NDF: D(h, alpha).
 pub fn ggx_ndf(n_dot_h: f64, roughness: f64) -> f64 {
-    if n_dot_h <= 0.0 { return 0.0; }
+    if n_dot_h <= 0.0 {
+        return 0.0;
+    }
     let a = roughness * roughness;
     let a2 = a * a;
     let cos2 = n_dot_h * n_dot_h;
@@ -107,7 +195,9 @@ pub fn ggx_ndf(n_dot_h: f64, roughness: f64) -> f64 {
 
 /// Beckmann NDF.
 pub fn beckmann_ndf(n_dot_h: f64, roughness: f64) -> f64 {
-    if n_dot_h <= 0.0 { return 0.0; }
+    if n_dot_h <= 0.0 {
+        return 0.0;
+    }
     let a = roughness * roughness;
     let a2 = a * a;
     let cos2 = n_dot_h * n_dot_h;
@@ -133,7 +223,9 @@ pub fn fresnel_schlick(cos_theta: f64, f0: Color) -> Color {
 
 /// Smith GGX G1 (single-direction masking function).
 fn smith_ggx_g1(n_dot_v: f64, roughness: f64) -> f64 {
-    if n_dot_v <= 0.0 { return 0.0; }
+    if n_dot_v <= 0.0 {
+        return 0.0;
+    }
     let a = roughness * roughness;
     let a2 = a * a;
     let n_dot_v2 = n_dot_v * n_dot_v;
@@ -150,7 +242,9 @@ pub fn smith_ggx_g2(n_dot_l: f64, n_dot_v: f64, roughness: f64) -> f64 {
 
 /// Smith-Beckmann G1.
 fn smith_beckmann_g1(n_dot_v: f64, roughness: f64) -> f64 {
-    if n_dot_v <= 0.0 { return 0.0; }
+    if n_dot_v <= 0.0 {
+        return 0.0;
+    }
     let a = roughness * roughness;
     let cos2 = n_dot_v * n_dot_v;
     let tan_theta = ((1.0 - cos2) / cos2).sqrt();
@@ -240,12 +334,7 @@ impl PbrMaterial {
 
 /// Full PBR BRDF: diffuse + specular with energy conservation.
 /// Metallic surfaces have no diffuse component.
-pub fn pbr_brdf(
-    wi: Vec3,
-    wo: Vec3,
-    normal: Vec3,
-    material: &PbrMaterial,
-) -> Color {
+pub fn pbr_brdf(wi: Vec3, wo: Vec3, normal: Vec3, material: &PbrMaterial) -> Color {
     let n = normal.normalized();
     let h = (wi + wo).normalized();
     let n_dot_l = n.dot(wi).max(0.0);
@@ -272,13 +361,7 @@ pub fn pbr_brdf(
 // ─── Oren-Nayar ───
 
 /// Oren-Nayar rough diffuse model.
-pub fn oren_nayar(
-    wi: Vec3,
-    wo: Vec3,
-    normal: Vec3,
-    albedo: Color,
-    roughness: f64,
-) -> Color {
+pub fn oren_nayar(wi: Vec3, wo: Vec3, normal: Vec3, albedo: Color, roughness: f64) -> Color {
     let n = normal.normalized();
     let n_dot_l = n.dot(wi).max(0.0);
     let n_dot_v = n.dot(wo).max(0.0);
@@ -312,7 +395,11 @@ pub fn oren_nayar(
 /// Build orthonormal basis from normal.
 fn build_onb(n: Vec3) -> (Vec3, Vec3, Vec3) {
     let w = n.normalized();
-    let a = if w.x.abs() > 0.9 { Vec3::new(0.0, 1.0, 0.0) } else { Vec3::new(1.0, 0.0, 0.0) };
+    let a = if w.x.abs() > 0.9 {
+        Vec3::new(0.0, 1.0, 0.0)
+    } else {
+        Vec3::new(1.0, 0.0, 0.0)
+    };
     let v = w.cross(a).normalized();
     let u = w.cross(v);
     (u, v, w)
@@ -320,13 +407,7 @@ fn build_onb(n: Vec3) -> (Vec3, Vec3, Vec3) {
 
 /// Sample BRDF direction by importance sampling the GGX NDF.
 /// Returns (sampled_direction, pdf).
-pub fn sample_ggx_brdf(
-    wo: Vec3,
-    normal: Vec3,
-    roughness: f64,
-    r1: f64,
-    r2: f64,
-) -> (Vec3, f64) {
+pub fn sample_ggx_brdf(wo: Vec3, normal: Vec3, roughness: f64, r1: f64, r2: f64) -> (Vec3, f64) {
     let (u, v, w) = build_onb(normal);
     let a = roughness * roughness;
     let a2 = a * a;
@@ -346,18 +427,18 @@ pub fn sample_ggx_brdf(
     let v_dot_h = wo.dot(h).max(0.0);
 
     let d = ggx_ndf(n_dot_h, roughness);
-    let pdf = if v_dot_h > 0.0 { d * n_dot_h / (4.0 * v_dot_h) } else { 0.0 };
+    let pdf = if v_dot_h > 0.0 {
+        d * n_dot_h / (4.0 * v_dot_h)
+    } else {
+        0.0
+    };
 
     (wi, pdf)
 }
 
 /// Sample cosine-weighted hemisphere for diffuse BRDF.
 /// Returns (sampled_direction, pdf).
-pub fn sample_cosine_brdf(
-    normal: Vec3,
-    r1: f64,
-    r2: f64,
-) -> (Vec3, f64) {
+pub fn sample_cosine_brdf(normal: Vec3, r1: f64, r2: f64) -> (Vec3, f64) {
     let (u, v, w) = build_onb(normal);
     let r = r1.sqrt();
     let phi = TWO_PI * r2;
@@ -373,16 +454,13 @@ pub fn sample_cosine_brdf(
 }
 
 /// PDF for a given direction sampled from GGX NDF.
-pub fn pdf_ggx_brdf(
-    wo: Vec3,
-    wi: Vec3,
-    normal: Vec3,
-    roughness: f64,
-) -> f64 {
+pub fn pdf_ggx_brdf(wo: Vec3, wi: Vec3, normal: Vec3, roughness: f64) -> f64 {
     let h = (wi + wo).normalized();
     let n_dot_h = normal.normalized().dot(h).max(0.0);
     let v_dot_h = wo.dot(h).max(0.0);
-    if v_dot_h <= 0.0 { return 0.0; }
+    if v_dot_h <= 0.0 {
+        return 0.0;
+    }
     let d = ggx_ndf(n_dot_h, roughness);
     d * n_dot_h / (4.0 * v_dot_h)
 }
@@ -397,7 +475,9 @@ pub fn pdf_cosine_brdf(wi: Vec3, normal: Vec3) -> f64 {
 mod tests {
     use super::*;
 
-    fn approx_eq(a: f64, b: f64, eps: f64) -> bool { (a - b).abs() < eps }
+    fn approx_eq(a: f64, b: f64, eps: f64) -> bool {
+        (a - b).abs() < eps
+    }
 
     fn color_approx(a: Color, b: Color, eps: f64) -> bool {
         approx_eq(a.r, b.r, eps) && approx_eq(a.g, b.g, eps) && approx_eq(a.b, b.b, eps)
@@ -571,11 +651,20 @@ mod tests {
     fn test_sample_ggx_brdf_on_hemisphere() {
         let n = Vec3::new(0.0, 1.0, 0.0);
         let wo = Vec3::new(0.2, 0.8, 0.1).normalized();
-        struct TestRng { state: u64 }
+        struct TestRng {
+            state: u64,
+        }
         impl TestRng {
-            fn new(s: u64) -> Self { Self { state: s.wrapping_add(1) } }
+            fn new(s: u64) -> Self {
+                Self {
+                    state: s.wrapping_add(1),
+                }
+            }
             fn next_f64(&mut self) -> f64 {
-                self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                self.state = self
+                    .state
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
                 (self.state >> 11) as f64 / (1u64 << 53) as f64
             }
         }
@@ -592,11 +681,20 @@ mod tests {
     #[test]
     fn test_sample_cosine_brdf_on_hemisphere() {
         let n = Vec3::new(0.0, 0.0, 1.0);
-        struct TestRng { state: u64 }
+        struct TestRng {
+            state: u64,
+        }
         impl TestRng {
-            fn new(s: u64) -> Self { Self { state: s.wrapping_add(1) } }
+            fn new(s: u64) -> Self {
+                Self {
+                    state: s.wrapping_add(1),
+                }
+            }
             fn next_f64(&mut self) -> f64 {
-                self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                self.state = self
+                    .state
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
                 (self.state >> 11) as f64 / (1u64 << 53) as f64
             }
         }
@@ -649,11 +747,20 @@ mod tests {
         let wo = Vec3::new(0.0, 1.0, 0.0);
         let mat = PbrMaterial::new(Color::new(0.8, 0.8, 0.8), 0.0, 0.5);
 
-        struct TestRng { state: u64 }
+        struct TestRng {
+            state: u64,
+        }
         impl TestRng {
-            fn new(s: u64) -> Self { Self { state: s.wrapping_add(1) } }
+            fn new(s: u64) -> Self {
+                Self {
+                    state: s.wrapping_add(1),
+                }
+            }
             fn next_f64(&mut self) -> f64 {
-                self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                self.state = self
+                    .state
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
                 (self.state >> 11) as f64 / (1u64 << 53) as f64
             }
         }

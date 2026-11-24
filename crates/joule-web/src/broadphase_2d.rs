@@ -19,12 +19,19 @@ pub struct AABB {
 
 impl AABB {
     pub fn new(min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> Self {
-        Self { min_x, min_y, max_x, max_y }
+        Self {
+            min_x,
+            min_y,
+            max_x,
+            max_y,
+        }
     }
 
     pub fn overlaps(&self, other: &AABB) -> bool {
-        self.min_x <= other.max_x && self.max_x >= other.min_x
-            && self.min_y <= other.max_y && self.max_y >= other.min_y
+        self.min_x <= other.max_x
+            && self.max_x >= other.min_x
+            && self.min_y <= other.max_y
+            && self.max_y >= other.min_y
     }
 }
 
@@ -120,10 +127,18 @@ impl SpatialHashBroadphase {
                     let a = ids[i];
                     let b = ids[j];
                     let pair = Pair::new(a, b);
-                    if self.pair_cache.contains(&pair) { continue; }
+                    if self.pair_cache.contains(&pair) {
+                        continue;
+                    }
                     // AABB overlap check
-                    let pa = match self.proxies.get(&a) { Some(p) => &p.aabb, None => continue };
-                    let pb = match self.proxies.get(&b) { Some(p) => &p.aabb, None => continue };
+                    let pa = match self.proxies.get(&a) {
+                        Some(p) => &p.aabb,
+                        None => continue,
+                    };
+                    let pb = match self.proxies.get(&b) {
+                        Some(p) => &p.aabb,
+                        None => continue,
+                    };
                     if pa.overlaps(pb) {
                         self.pair_cache.insert(pair);
                     }
@@ -134,16 +149,25 @@ impl SpatialHashBroadphase {
     }
 
     /// Return the number of proxies.
-    pub fn len(&self) -> usize { self.proxies.len() }
-    pub fn is_empty(&self) -> bool { self.proxies.is_empty() }
+    pub fn len(&self) -> usize {
+        self.proxies.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.proxies.is_empty()
+    }
 
     /// Number of occupied cells.
-    pub fn cell_count(&self) -> usize { self.cells.len() }
+    pub fn cell_count(&self) -> usize {
+        self.cells.len()
+    }
 
     // ── internal ──
 
     fn cell_key(&self, x: f64, y: f64) -> (i64, i64) {
-        ((x * self.inv_cell).floor() as i64, (y * self.inv_cell).floor() as i64)
+        (
+            (x * self.inv_cell).floor() as i64,
+            (y * self.inv_cell).floor() as i64,
+        )
     }
 
     fn add_to_cells(&mut self, id: BodyId, aabb: &AABB) {
@@ -179,9 +203,15 @@ pub struct SweepAndPrune {
 }
 
 impl SweepAndPrune {
-    pub fn new() -> Self { Self { proxies: Vec::new() } }
+    pub fn new() -> Self {
+        Self {
+            proxies: Vec::new(),
+        }
+    }
 
-    pub fn clear(&mut self) { self.proxies.clear(); }
+    pub fn clear(&mut self) {
+        self.proxies.clear();
+    }
 
     pub fn insert(&mut self, id: BodyId, aabb: AABB) {
         self.proxies.push((id, aabb));
@@ -189,14 +219,17 @@ impl SweepAndPrune {
 
     /// Sort on X-axis and sweep to find overlapping pairs.
     pub fn compute_pairs(&mut self) -> Vec<Pair> {
-        self.proxies.sort_by(|a, b| a.1.min_x.partial_cmp(&b.1.min_x).unwrap());
+        self.proxies
+            .sort_by(|a, b| a.1.min_x.partial_cmp(&b.1.min_x).unwrap());
         let mut pairs = Vec::new();
         let n = self.proxies.len();
         for i in 0..n {
             let (id_a, ref aabb_a) = self.proxies[i];
             for j in (i + 1)..n {
                 let (id_b, ref aabb_b) = self.proxies[j];
-                if aabb_b.min_x > aabb_a.max_x { break; }
+                if aabb_b.min_x > aabb_a.max_x {
+                    break;
+                }
                 // Overlap on X confirmed by sweep; check Y.
                 if aabb_a.min_y <= aabb_b.max_y && aabb_a.max_y >= aabb_b.min_y {
                     pairs.push(Pair::new(id_a, id_b));
@@ -206,12 +239,18 @@ impl SweepAndPrune {
         pairs
     }
 
-    pub fn len(&self) -> usize { self.proxies.len() }
-    pub fn is_empty(&self) -> bool { self.proxies.is_empty() }
+    pub fn len(&self) -> usize {
+        self.proxies.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.proxies.is_empty()
+    }
 }
 
 impl Default for SweepAndPrune {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Grid Broadphase ──────────────────────────────────────────
@@ -282,8 +321,13 @@ impl GridBroadphase {
                 for j in (i + 1)..dyn_ids.len() {
                     let p = Pair::new(dyn_ids[i], dyn_ids[j]);
                     if seen.insert(p) {
-                        if let (Some(a), Some(b)) = (self.dynamics.get(&dyn_ids[i]), self.dynamics.get(&dyn_ids[j])) {
-                            if a.overlaps(b) { pairs.push(p); }
+                        if let (Some(a), Some(b)) = (
+                            self.dynamics.get(&dyn_ids[i]),
+                            self.dynamics.get(&dyn_ids[j]),
+                        ) {
+                            if a.overlaps(b) {
+                                pairs.push(p);
+                            }
                         }
                     }
                 }
@@ -294,8 +338,12 @@ impl GridBroadphase {
                     for &s in stat_ids.iter() {
                         let p = Pair::new(d, s);
                         if seen.insert(p) {
-                            if let (Some(a), Some(b)) = (self.dynamics.get(&d), self.statics.get(&s)) {
-                                if a.overlaps(b) { pairs.push(p); }
+                            if let (Some(a), Some(b)) =
+                                (self.dynamics.get(&d), self.statics.get(&s))
+                            {
+                                if a.overlaps(b) {
+                                    pairs.push(p);
+                                }
                             }
                         }
                     }
@@ -305,13 +353,20 @@ impl GridBroadphase {
         pairs
     }
 
-    pub fn len(&self) -> usize { self.statics.len() + self.dynamics.len() }
-    pub fn is_empty(&self) -> bool { self.statics.is_empty() && self.dynamics.is_empty() }
+    pub fn len(&self) -> usize {
+        self.statics.len() + self.dynamics.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.statics.is_empty() && self.dynamics.is_empty()
+    }
 
     // ── internal ──
 
     fn cell_key(&self, x: f64, y: f64) -> (i64, i64) {
-        ((x * self.inv_cell).floor() as i64, (y * self.inv_cell).floor() as i64)
+        (
+            (x * self.inv_cell).floor() as i64,
+            (y * self.inv_cell).floor() as i64,
+        )
     }
 
     fn add_to_map(&mut self, aabb: &AABB, id: BodyId, is_static: bool) {

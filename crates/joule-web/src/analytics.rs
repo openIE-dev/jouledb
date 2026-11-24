@@ -41,11 +41,18 @@ pub struct ConsentManager {
 
 impl ConsentManager {
     pub fn new(level: ConsentLevel) -> Self {
-        Self { level, categories: HashMap::new() }
+        Self {
+            level,
+            categories: HashMap::new(),
+        }
     }
 
-    pub fn set_level(&mut self, level: ConsentLevel) { self.level = level; }
-    pub fn level(&self) -> ConsentLevel { self.level }
+    pub fn set_level(&mut self, level: ConsentLevel) {
+        self.level = level;
+    }
+    pub fn level(&self) -> ConsentLevel {
+        self.level
+    }
 
     /// Set consent for a specific category (e.g., "marketing", "performance").
     pub fn set_category(&mut self, cat: &str, allowed: bool) {
@@ -110,13 +117,26 @@ impl Event {
         }
     }
 
-    pub fn category(mut self, c: impl Into<String>) -> Self { self.category = Some(c.into()); self }
-    pub fn action(mut self, a: impl Into<String>) -> Self { self.action = Some(a.into()); self }
-    pub fn label(mut self, l: impl Into<String>) -> Self { self.label = Some(l.into()); self }
-    pub fn value(mut self, v: f64) -> Self { self.value = Some(v); self }
+    pub fn category(mut self, c: impl Into<String>) -> Self {
+        self.category = Some(c.into());
+        self
+    }
+    pub fn action(mut self, a: impl Into<String>) -> Self {
+        self.action = Some(a.into());
+        self
+    }
+    pub fn label(mut self, l: impl Into<String>) -> Self {
+        self.label = Some(l.into());
+        self
+    }
+    pub fn value(mut self, v: f64) -> Self {
+        self.value = Some(v);
+        self
+    }
 
     pub fn set_str(mut self, key: impl Into<String>, val: impl Into<String>) -> Self {
-        self.properties.insert(key.into(), EventValue::Str(val.into()));
+        self.properties
+            .insert(key.into(), EventValue::Str(val.into()));
         self
     }
 
@@ -133,7 +153,10 @@ impl Event {
     /// Required consent level: events with PII need Full, basic events need Essential.
     pub fn min_consent(&self) -> ConsentLevel {
         if self.properties.keys().any(|k| {
-            k.contains("email") || k.contains("user_id") || k.contains("phone") || k.contains("name")
+            k.contains("email")
+                || k.contains("user_id")
+                || k.contains("phone")
+                || k.contains("name")
         }) {
             ConsentLevel::Full
         } else {
@@ -155,16 +178,26 @@ pub struct PageView {
 
 impl PageView {
     pub fn new(path: impl Into<String>, timestamp_ms: u64) -> Self {
-        Self { path: path.into(), title: None, referrer: None, timestamp_ms }
+        Self {
+            path: path.into(),
+            title: None,
+            referrer: None,
+            timestamp_ms,
+        }
     }
 
-    pub fn title(mut self, t: impl Into<String>) -> Self { self.title = Some(t.into()); self }
-    pub fn referrer(mut self, r: impl Into<String>) -> Self { self.referrer = Some(r.into()); self }
+    pub fn title(mut self, t: impl Into<String>) -> Self {
+        self.title = Some(t.into());
+        self
+    }
+    pub fn referrer(mut self, r: impl Into<String>) -> Self {
+        self.referrer = Some(r.into());
+        self
+    }
 
     /// Convert to a generic event.
     pub fn to_event(&self) -> Event {
-        let mut e = Event::new("page_view", self.timestamp_ms)
-            .set_str("path", &self.path);
+        let mut e = Event::new("page_view", self.timestamp_ms).set_str("path", &self.path);
         if let Some(ref t) = self.title {
             e = e.set_str("title", t);
         }
@@ -184,7 +217,9 @@ pub struct UserProperties {
 }
 
 impl UserProperties {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn set(mut self, key: impl Into<String>, val: EventValue) -> Self {
         self.props.insert(key.into(), val);
@@ -203,7 +238,9 @@ impl UserProperties {
         self.props.get(key)
     }
 
-    pub fn count(&self) -> usize { self.props.len() }
+    pub fn count(&self) -> usize {
+        self.props.len()
+    }
 }
 
 // ── Session ──────────────────────────────────────────────────────
@@ -231,7 +268,10 @@ impl Session {
         }
     }
 
-    pub fn with_timeout(mut self, ms: u64) -> Self { self.timeout_ms = ms; self }
+    pub fn with_timeout(mut self, ms: u64) -> Self {
+        self.timeout_ms = ms;
+        self
+    }
 
     /// Record activity at a given timestamp.
     pub fn touch(&mut self, timestamp_ms: u64) {
@@ -280,13 +320,20 @@ pub struct FunnelStep {
 
 impl FunnelStep {
     pub fn new(name: impl Into<String>, event_name: impl Into<String>) -> Self {
-        Self { name: name.into(), event_name: event_name.into(), count: 0 }
+        Self {
+            name: name.into(),
+            event_name: event_name.into(),
+            count: 0,
+        }
     }
 }
 
 impl Funnel {
     pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), steps: Vec::new() }
+        Self {
+            name: name.into(),
+            steps: Vec::new(),
+        }
     }
 
     pub fn step(mut self, s: FunnelStep) -> Self {
@@ -327,22 +374,33 @@ impl Funnel {
 
     /// Overall funnel conversion (first step to last step).
     pub fn overall_conversion(&self) -> f64 {
-        if self.steps.len() < 2 { return 0.0; }
+        if self.steps.len() < 2 {
+            return 0.0;
+        }
         let first = self.steps.first().unwrap().count;
         let last = self.steps.last().unwrap().count;
-        if first > 0 { last as f64 / first as f64 } else { 0.0 }
+        if first > 0 {
+            last as f64 / first as f64
+        } else {
+            0.0
+        }
     }
 
     /// Drop-off count between each step.
     pub fn dropoffs(&self) -> Vec<(String, u64)> {
-        self.steps.windows(2).map(|w| {
-            let drop = w[0].count.saturating_sub(w[1].count);
-            (w[0].name.clone(), drop)
-        }).collect()
+        self.steps
+            .windows(2)
+            .map(|w| {
+                let drop = w[0].count.saturating_sub(w[1].count);
+                (w[0].name.clone(), drop)
+            })
+            .collect()
     }
 
     /// Number of steps.
-    pub fn step_count(&self) -> usize { self.steps.len() }
+    pub fn step_count(&self) -> usize {
+        self.steps.len()
+    }
 }
 
 /// Conversion data between two funnel steps.
@@ -366,7 +424,10 @@ pub struct Cohort {
 
 impl Cohort {
     pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), members: Vec::new() }
+        Self {
+            name: name.into(),
+            members: Vec::new(),
+        }
     }
 
     pub fn add_member(&mut self, user_id: impl Into<String>) {
@@ -380,13 +441,17 @@ impl Cohort {
         self.members.iter().any(|m| m == user_id)
     }
 
-    pub fn size(&self) -> usize { self.members.len() }
+    pub fn size(&self) -> usize {
+        self.members.len()
+    }
 }
 
 /// Assign users to weekly cohorts based on signup timestamp.
 pub fn weekly_cohort(signup_day: u32, user_id: &str, cohorts: &mut HashMap<u32, Cohort>) {
     let week = signup_day / 7;
-    let cohort = cohorts.entry(week).or_insert_with(|| Cohort::new(format!("week-{week}")));
+    let cohort = cohorts
+        .entry(week)
+        .or_insert_with(|| Cohort::new(format!("week-{week}")));
     cohort.add_member(user_id);
 }
 
@@ -402,10 +467,17 @@ pub struct EventCollector {
 
 impl EventCollector {
     pub fn new(consent: ConsentManager) -> Self {
-        Self { events: Vec::new(), consent, max_batch_size: 100 }
+        Self {
+            events: Vec::new(),
+            consent,
+            max_batch_size: 100,
+        }
     }
 
-    pub fn with_batch_size(mut self, size: usize) -> Self { self.max_batch_size = size; self }
+    pub fn with_batch_size(mut self, size: usize) -> Self {
+        self.max_batch_size = size;
+        self
+    }
 
     /// Track an event, respecting consent.
     pub fn track(&mut self, event: Event) -> bool {
@@ -432,7 +504,9 @@ impl EventCollector {
     }
 
     /// Number of pending events.
-    pub fn pending_count(&self) -> usize { self.events.len() }
+    pub fn pending_count(&self) -> usize {
+        self.events.len()
+    }
 
     /// Update consent level.
     pub fn set_consent(&mut self, level: ConsentLevel) {
@@ -440,10 +514,14 @@ impl EventCollector {
     }
 
     /// Current consent level.
-    pub fn consent_level(&self) -> ConsentLevel { self.consent.level() }
+    pub fn consent_level(&self) -> ConsentLevel {
+        self.consent.level()
+    }
 
     /// Clear all pending events.
-    pub fn clear(&mut self) { self.events.clear(); }
+    pub fn clear(&mut self) {
+        self.events.clear();
+    }
 }
 
 // ── Tests ────────────────────────────────────────────────────────
@@ -491,7 +569,10 @@ mod tests {
 
         assert_eq!(e.name, "click");
         assert_eq!(e.category.as_deref(), Some("ui"));
-        assert_eq!(e.properties.get("page"), Some(&EventValue::Str("/home".into())));
+        assert_eq!(
+            e.properties.get("page"),
+            Some(&EventValue::Str("/home".into()))
+        );
         assert_eq!(e.properties.get("x"), Some(&EventValue::Num(100.0)));
     }
 
@@ -503,8 +584,7 @@ mod tests {
 
     #[test]
     fn test_event_min_consent_pii() {
-        let e = Event::new("signup", 1000)
-            .set_str("email", "user@example.com");
+        let e = Event::new("signup", 1000).set_str("email", "user@example.com");
         assert_eq!(e.min_consent(), ConsentLevel::Full);
     }
 
@@ -519,7 +599,10 @@ mod tests {
 
         let event = pv.to_event();
         assert_eq!(event.name, "page_view");
-        assert_eq!(event.properties.get("path"), Some(&EventValue::Str("/about".into())));
+        assert_eq!(
+            event.properties.get("path"),
+            Some(&EventValue::Str("/about".into()))
+        );
     }
 
     #[test]
@@ -565,9 +648,15 @@ mod tests {
             .step(FunnelStep::new("Sign Up Form", "signup_start"))
             .step(FunnelStep::new("Completed", "signup_complete"));
 
-        for _ in 0..100 { funnel.record("page_view"); }
-        for _ in 0..60 { funnel.record("signup_start"); }
-        for _ in 0..30 { funnel.record("signup_complete"); }
+        for _ in 0..100 {
+            funnel.record("page_view");
+        }
+        for _ in 0..60 {
+            funnel.record("signup_start");
+        }
+        for _ in 0..30 {
+            funnel.record("signup_complete");
+        }
 
         let rates = funnel.conversion_rates();
         assert_eq!(rates.len(), 2);
@@ -584,9 +673,15 @@ mod tests {
             .step(FunnelStep::new("Shipping", "enter_shipping"))
             .step(FunnelStep::new("Payment", "enter_payment"));
 
-        for _ in 0..100 { funnel.record("view_cart"); }
-        for _ in 0..70 { funnel.record("enter_shipping"); }
-        for _ in 0..50 { funnel.record("enter_payment"); }
+        for _ in 0..100 {
+            funnel.record("view_cart");
+        }
+        for _ in 0..70 {
+            funnel.record("enter_shipping");
+        }
+        for _ in 0..50 {
+            funnel.record("enter_payment");
+        }
 
         let dropoffs = funnel.dropoffs();
         assert_eq!(dropoffs[0].1, 30); // cart->shipping

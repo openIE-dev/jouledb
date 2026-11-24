@@ -51,7 +51,12 @@ impl Color {
         Self { r, g, b, a }
     }
     pub fn black() -> Self {
-        Self { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }
+        Self {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 1.0,
+        }
     }
     pub fn lerp(&self, other: &Color, t: f32) -> Color {
         let t = t.clamp(0.0, 1.0);
@@ -63,7 +68,12 @@ impl Color {
         }
     }
     pub fn add(&self, o: &Color) -> Color {
-        Color::new(self.r + o.r, self.g + o.g, self.b + o.b, (self.a + o.a).min(1.0))
+        Color::new(
+            self.r + o.r,
+            self.g + o.g,
+            self.b + o.b,
+            (self.a + o.a).min(1.0),
+        )
     }
     pub fn scale(&self, s: f32) -> Color {
         Color::new(self.r * s, self.g * s, self.b * s, self.a)
@@ -195,11 +205,9 @@ impl TransmittanceLut {
 
     /// Bilinear lookup given altitude (km) and zenith cosine [-1, 1].
     pub fn sample(&self, altitude_km: f32, cos_zenith: f32) -> (f32, f32, f32) {
-        let af = (altitude_km / self.max_altitude.max(0.01))
-            .clamp(0.0, 1.0)
+        let af = (altitude_km / self.max_altitude.max(0.01)).clamp(0.0, 1.0)
             * (self.altitude_steps as f32 - 1.0);
-        let zf = ((cos_zenith + 1.0) * 0.5).clamp(0.0, 1.0)
-            * (self.zenith_steps as f32 - 1.0);
+        let zf = ((cos_zenith + 1.0) * 0.5).clamp(0.0, 1.0) * (self.zenith_steps as f32 - 1.0);
         let ai0 = af.floor() as usize;
         let ai1 = (ai0 + 1).min(self.altitude_steps.saturating_sub(1));
         let zi0 = zf.floor() as usize;
@@ -221,8 +229,7 @@ impl TransmittanceLut {
     /// Precompute the LUT from scattering parameters.
     pub fn precompute(&mut self) {
         for ai in 0..self.altitude_steps {
-            let alt = (ai as f32 / (self.altitude_steps as f32 - 1.0).max(1.0))
-                * self.max_altitude;
+            let alt = (ai as f32 / (self.altitude_steps as f32 - 1.0).max(1.0)) * self.max_altitude;
             for zi in 0..self.zenith_steps {
                 let cos_z = (zi as f32 / (self.zenith_steps as f32 - 1.0).max(1.0)) * 2.0 - 1.0;
                 // Path length through atmosphere approximation
@@ -254,7 +261,10 @@ pub fn aerial_perspective(
     density: f32,
 ) -> Color {
     let t = (-density * distance_km).exp();
-    object_color.scale(t).add(&fog_color.scale(1.0 - t)).clamp01()
+    object_color
+        .scale(t)
+        .add(&fog_color.scale(1.0 - t))
+        .clamp01()
 }
 
 // ── Night sky ────────────────────────────────────────────────────
@@ -344,7 +354,12 @@ impl SkyAtmosphere {
         );
         // Mie inscattering
         let mp = mie_phase(cos_theta, self.mie_asymmetry);
-        let mie = Color::new(MIE_BETA * mp * tr, MIE_BETA * mp * tg, MIE_BETA * mp * tb, 1.0);
+        let mie = Color::new(
+            MIE_BETA * mp * tr,
+            MIE_BETA * mp * tg,
+            MIE_BETA * mp * tb,
+            1.0,
+        );
         let scatter = rayleigh.add(&mie).scale(self.sun_intensity);
         // Sun disc
         let disc = sun_disc(&view, &sun, self.sun_angular_radius);
@@ -479,7 +494,10 @@ mod tests {
         lut.precompute();
         let (r_low, _, _) = lut.sample(0.0, 0.5);
         let (r_high, _, _) = lut.sample(40.0, 0.5);
-        assert!(r_high >= r_low, "higher altitude should have better transmittance");
+        assert!(
+            r_high >= r_low,
+            "higher altitude should have better transmittance"
+        );
     }
 
     #[test]

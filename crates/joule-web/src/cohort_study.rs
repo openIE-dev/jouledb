@@ -70,19 +70,27 @@ impl CohortStudyConfig {
 
     pub fn validate(&self) -> Result<(), CohortStudyError> {
         if self.follow_up_years.is_nan() {
-            return Err(CohortStudyError::InvalidConfig("follow_up_years is NaN".into()));
+            return Err(CohortStudyError::InvalidConfig(
+                "follow_up_years is NaN".into(),
+            ));
         }
         Ok(())
     }
 }
 
 impl Default for CohortStudyConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for CohortStudyConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CohortStudyConfig(exposed={0}, unexposed={1}, follow_up_years={2:.4}, stratify={3})", self.exposed, self.unexposed, self.follow_up_years, self.stratify)
+        write!(
+            f,
+            "CohortStudyConfig(exposed={0}, unexposed={1}, follow_up_years={2:.4}, stratify={3})",
+            self.exposed, self.unexposed, self.follow_up_years, self.stratify
+        )
     }
 }
 
@@ -98,7 +106,10 @@ pub struct CohortStudy {
 impl CohortStudy {
     pub fn new(config: CohortStudyConfig) -> Result<Self, CohortStudyError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -110,13 +121,21 @@ impl CohortStudy {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &CohortStudyConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &CohortStudyConfig {
+        &self.config
+    }
 
     /// Calculate relative risk.
     pub fn relative_risk(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -126,7 +145,9 @@ impl CohortStudy {
 
     /// Attributable risk.
     pub fn attributable_risk(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -136,7 +157,9 @@ impl CohortStudy {
 
     /// Number needed to treat.
     pub fn nnt(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -146,7 +169,9 @@ impl CohortStudy {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -158,7 +183,9 @@ impl CohortStudy {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -170,7 +197,11 @@ impl CohortStudy {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -243,7 +274,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = CohortStudy::new(CohortStudyConfig::new()).unwrap()
+        let e = CohortStudy::new(CohortStudyConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -259,7 +291,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = CohortStudy::new(CohortStudyConfig::new()).unwrap()
+        let e = CohortStudy::new(CohortStudyConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("CohortStudy"));
@@ -267,7 +300,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = CohortStudy::new(CohortStudyConfig::new()).unwrap()
+        let e = CohortStudy::new(CohortStudyConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -278,7 +312,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = CohortStudy::new(CohortStudyConfig::new()).unwrap()
+        let e = CohortStudy::new(CohortStudyConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -286,7 +321,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = CohortStudy::new(CohortStudyConfig::new()).unwrap()
+        let e = CohortStudy::new(CohortStudyConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -303,7 +339,8 @@ mod tests {
 
     #[test]
     fn test_relative_risk() {
-        let e = CohortStudy::new(CohortStudyConfig::new()).unwrap()
+        let e = CohortStudy::new(CohortStudyConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.relative_risk();
         assert!(result.is_finite());
@@ -311,7 +348,8 @@ mod tests {
 
     #[test]
     fn test_attributable_risk() {
-        let e = CohortStudy::new(CohortStudyConfig::new()).unwrap()
+        let e = CohortStudy::new(CohortStudyConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.attributable_risk();
         assert!(result.is_finite());
@@ -319,7 +357,8 @@ mod tests {
 
     #[test]
     fn test_nnt() {
-        let e = CohortStudy::new(CohortStudyConfig::new()).unwrap()
+        let e = CohortStudy::new(CohortStudyConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.nnt();
         assert!(result.is_finite());

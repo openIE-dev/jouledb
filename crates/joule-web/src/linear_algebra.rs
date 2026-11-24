@@ -375,9 +375,7 @@ impl Mat2 {
         m: [[1.0, 0.0], [0.0, 1.0]],
     };
 
-    pub const ZERO: Self = Self {
-        m: [[0.0; 2]; 2],
-    };
+    pub const ZERO: Self = Self { m: [[0.0; 2]; 2] };
 
     pub const fn new(m00: f64, m01: f64, m10: f64, m11: f64) -> Self {
         Self {
@@ -452,9 +450,7 @@ impl Mat3 {
         m: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
     };
 
-    pub const ZERO: Self = Self {
-        m: [[0.0; 3]; 3],
-    };
+    pub const ZERO: Self = Self { m: [[0.0; 3]; 3] };
 
     pub fn from_cols(c0: [f64; 3], c1: [f64; 3], c2: [f64; 3]) -> Self {
         Self { m: [c0, c1, c2] }
@@ -543,8 +539,9 @@ impl Mul for Mat3 {
         let mut out = Self::ZERO;
         for c in 0..3 {
             for r in 0..3 {
-                out.m[c][r] =
-                    self.m[0][r] * rhs.m[c][0] + self.m[1][r] * rhs.m[c][1] + self.m[2][r] * rhs.m[c][2];
+                out.m[c][r] = self.m[0][r] * rhs.m[c][0]
+                    + self.m[1][r] * rhs.m[c][1]
+                    + self.m[2][r] * rhs.m[c][2];
             }
         }
         out
@@ -563,12 +560,12 @@ impl Mat4 {
         ],
     };
 
-    pub const ZERO: Self = Self {
-        m: [[0.0; 4]; 4],
-    };
+    pub const ZERO: Self = Self { m: [[0.0; 4]; 4] };
 
     pub fn from_cols(c0: [f64; 4], c1: [f64; 4], c2: [f64; 4], c3: [f64; 4]) -> Self {
-        Self { m: [c0, c1, c2, c3] }
+        Self {
+            m: [c0, c1, c2, c3],
+        }
     }
 
     pub fn transpose(self) -> Self {
@@ -869,7 +866,11 @@ mod tests {
         for c in 0..3 {
             for r in 0..3 {
                 let expected = if c == r { 1.0 } else { 0.0 };
-                assert!(approx_eq(id.m[c][r], expected, EPS), "m[{c}][{r}] = {} expected {expected}", id.m[c][r]);
+                assert!(
+                    approx_eq(id.m[c][r], expected, EPS),
+                    "m[{c}][{r}] = {} expected {expected}",
+                    id.m[c][r]
+                );
             }
         }
     }

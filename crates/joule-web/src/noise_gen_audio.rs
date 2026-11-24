@@ -14,7 +14,9 @@ struct Xorshift64 {
 
 impl Xorshift64 {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     /// Uniform f64 in -1.0..1.0.
@@ -44,7 +46,10 @@ pub struct WhiteNoise {
 
 impl WhiteNoise {
     pub fn new(seed: u64) -> Self {
-        Self { rng: Xorshift64::new(seed), amplitude: 1.0 }
+        Self {
+            rng: Xorshift64::new(seed),
+            amplitude: 1.0,
+        }
     }
 
     pub fn next_sample(&mut self) -> f64 {
@@ -82,7 +87,13 @@ impl PinkNoise {
     pub fn new(seed: u64) -> Self {
         Self {
             rng: Xorshift64::new(seed),
-            b0: 0.0, b1: 0.0, b2: 0.0, b3: 0.0, b4: 0.0, b5: 0.0, b6: 0.0,
+            b0: 0.0,
+            b1: 0.0,
+            b2: 0.0,
+            b3: 0.0,
+            b4: 0.0,
+            b5: 0.0,
+            b6: 0.0,
             amplitude: 1.0,
         }
     }
@@ -95,7 +106,8 @@ impl PinkNoise {
         self.b3 = 0.86650 * self.b3 + white * 0.3104856;
         self.b4 = 0.55000 * self.b4 + white * 0.5329522;
         self.b5 = -0.7616 * self.b5 - white * 0.0168980;
-        let pink = self.b0 + self.b1 + self.b2 + self.b3 + self.b4 + self.b5 + self.b6 + white * 0.5362;
+        let pink =
+            self.b0 + self.b1 + self.b2 + self.b3 + self.b4 + self.b5 + self.b6 + white * 0.5362;
         self.b6 = white * 0.115926;
         (pink * 0.11).clamp(-1.0, 1.0) * self.amplitude
     }
@@ -132,7 +144,12 @@ pub struct BrownNoise {
 
 impl BrownNoise {
     pub fn new(seed: u64) -> Self {
-        Self { rng: Xorshift64::new(seed), state: 0.0, leak: 0.98, amplitude: 1.0 }
+        Self {
+            rng: Xorshift64::new(seed),
+            state: 0.0,
+            leak: 0.98,
+            amplitude: 1.0,
+        }
     }
 
     pub fn next_sample(&mut self) -> f64 {
@@ -166,7 +183,11 @@ pub struct BlueNoise {
 
 impl BlueNoise {
     pub fn new(seed: u64) -> Self {
-        Self { rng: Xorshift64::new(seed), prev: 0.0, amplitude: 1.0 }
+        Self {
+            rng: Xorshift64::new(seed),
+            prev: 0.0,
+            amplitude: 1.0,
+        }
     }
 
     pub fn next_sample(&mut self) -> f64 {
@@ -202,7 +223,12 @@ pub struct VelvetNoise {
 
 impl VelvetNoise {
     pub fn new(density: f64, sample_rate: f64, seed: u64) -> Self {
-        Self { rng: Xorshift64::new(seed), density, sample_rate, amplitude: 1.0 }
+        Self {
+            rng: Xorshift64::new(seed),
+            density,
+            sample_rate,
+            amplitude: 1.0,
+        }
     }
 
     pub fn next_sample(&mut self) -> f64 {
@@ -213,7 +239,11 @@ impl VelvetNoise {
         let r = self.rng.next_unipolar();
         if r < prob {
             // Random sign.
-            let sign = if self.rng.next_bipolar() > 0.0 { 1.0 } else { -1.0 };
+            let sign = if self.rng.next_bipolar() > 0.0 {
+                1.0
+            } else {
+                -1.0
+            };
             sign * self.amplitude
         } else {
             0.0
@@ -471,7 +501,10 @@ mod tests {
         let mut wn = WhiteNoise::new(42);
         for _ in 0..10000 {
             let s = wn.next_sample();
-            assert!(s >= -1.0 - EPS && s <= 1.0 + EPS, "white noise out of range: {s}");
+            assert!(
+                s >= -1.0 - EPS && s <= 1.0 + EPS,
+                "white noise out of range: {s}"
+            );
         }
     }
 
@@ -497,7 +530,10 @@ mod tests {
         let mut pn = PinkNoise::new(42);
         for _ in 0..10000 {
             let s = pn.next_sample();
-            assert!(s >= -1.0 - EPS && s <= 1.0 + EPS, "pink noise out of range: {s}");
+            assert!(
+                s >= -1.0 - EPS && s <= 1.0 + EPS,
+                "pink noise out of range: {s}"
+            );
         }
     }
 
@@ -514,7 +550,10 @@ mod tests {
         let mut bn = BrownNoise::new(42);
         for _ in 0..10000 {
             let s = bn.next_sample();
-            assert!(s >= -1.0 - EPS && s <= 1.0 + EPS, "brown noise out of range: {s}");
+            assert!(
+                s >= -1.0 - EPS && s <= 1.0 + EPS,
+                "brown noise out of range: {s}"
+            );
         }
     }
 
@@ -531,7 +570,10 @@ mod tests {
         let mut bn = BlueNoise::new(42);
         for _ in 0..10000 {
             let s = bn.next_sample();
-            assert!(s >= -1.0 - EPS && s <= 1.0 + EPS, "blue noise out of range: {s}");
+            assert!(
+                s >= -1.0 - EPS && s <= 1.0 + EPS,
+                "blue noise out of range: {s}"
+            );
         }
     }
 
@@ -546,8 +588,10 @@ mod tests {
             }
         }
         // At 100 impulses/sec over 1 sec, expect ~100 nonzero samples.
-        assert!(nonzero_count > 50 && nonzero_count < 300,
-            "velvet noise should be sparse: {nonzero_count} nonzero out of {total}");
+        assert!(
+            nonzero_count > 50 && nonzero_count < 300,
+            "velvet noise should be sparse: {nonzero_count} nonzero out of {total}"
+        );
     }
 
     #[test]
@@ -566,7 +610,10 @@ mod tests {
         let v0 = pn.evaluate(0.0);
         let v1 = pn.evaluate(0.01);
         // Adjacent samples should be similar (smooth).
-        assert!((v0 - v1).abs() < 0.5, "Perlin noise should be smooth: {v0} vs {v1}");
+        assert!(
+            (v0 - v1).abs() < 0.5,
+            "Perlin noise should be smooth: {v0} vs {v1}"
+        );
     }
 
     #[test]
@@ -576,7 +623,10 @@ mod tests {
         pn.generate_block(&mut buf);
         let min = buf.iter().fold(f64::MAX, |a, &b| a.min(b));
         let max = buf.iter().fold(f64::MIN, |a, &b| a.max(b));
-        assert!(max - min > 0.01, "Perlin noise should vary: min={min} max={max}");
+        assert!(
+            max - min > 0.01,
+            "Perlin noise should vary: min={min} max={max}"
+        );
     }
 
     #[test]
@@ -588,7 +638,10 @@ mod tests {
         }
         pn.reset();
         let after_reset = pn.next_sample();
-        assert!((first - after_reset).abs() < EPS, "reset should reproduce first sample");
+        assert!(
+            (first - after_reset).abs() < EPS,
+            "reset should reproduce first sample"
+        );
     }
 
     #[test]
@@ -601,8 +654,10 @@ mod tests {
             }
         }
         // ~1% probability, expect some nonzero but mostly silence.
-        assert!(nonzero > 10 && nonzero < 2000,
-            "crackle should be sparse: {nonzero} nonzero in 10000");
+        assert!(
+            nonzero > 10 && nonzero < 2000,
+            "crackle should be sparse: {nonzero} nonzero in 10000"
+        );
     }
 
     #[test]
@@ -613,15 +668,22 @@ mod tests {
         let second = cn.next_sample();
         // After decay, amplitude should be much lower (unless retriggered).
         // At prob=1, it retriggers every sample, but decay still affects current.
-        assert!(first.abs() > 0.0 || second.abs() > 0.0, "crackle should produce output");
+        assert!(
+            first.abs() > 0.0 || second.abs() > 0.0,
+            "crackle should produce output"
+        );
     }
 
     #[test]
     fn test_noise_generator_switch_types() {
         let mut ng = NoiseGenerator::new(SR, 42);
         let types = [
-            NoiseType::White, NoiseType::Pink, NoiseType::Brown,
-            NoiseType::Blue, NoiseType::Velvet, NoiseType::Perlin,
+            NoiseType::White,
+            NoiseType::Pink,
+            NoiseType::Brown,
+            NoiseType::Blue,
+            NoiseType::Velvet,
+            NoiseType::Perlin,
             NoiseType::Crackle,
         ];
         for nt in types {
@@ -650,7 +712,10 @@ mod tests {
         wn.set_seed(42);
         let second_run: Vec<f64> = (0..10).map(|_| wn.next_sample()).collect();
         for (a, b) in first_run.iter().zip(second_run.iter()) {
-            assert!((a - b).abs() < EPS, "same seed should produce same sequence");
+            assert!(
+                (a - b).abs() < EPS,
+                "same seed should produce same sequence"
+            );
         }
     }
 
@@ -660,7 +725,10 @@ mod tests {
         bn.leak = 0.5; // Fast leak = less low-frequency content.
         let mut buf = vec![0.0; BLOCK];
         bn.generate_block(&mut buf);
-        assert!(rms(&buf) > 0.001, "brown with low leak should still produce output");
+        assert!(
+            rms(&buf) > 0.001,
+            "brown with low leak should still produce output"
+        );
     }
 
     #[test]
@@ -678,8 +746,10 @@ mod tests {
             - var_slow.iter().fold(f64::MAX, |a, &b| a.min(b));
         let range_fast = var_fast.iter().fold(f64::MIN, |a, &b| a.max(b))
             - var_fast.iter().fold(f64::MAX, |a, &b| a.min(b));
-        assert!(range_fast > range_slow,
-            "fast step should show more range: slow={range_slow} fast={range_fast}");
+        assert!(
+            range_fast > range_slow,
+            "fast step should show more range: slow={range_slow} fast={range_fast}"
+        );
     }
 
     #[test]

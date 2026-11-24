@@ -104,7 +104,11 @@ impl MetalLibrary {
     /// Create a MetalLibrary from a real metal::Library (macOS only).
     #[cfg(target_os = "macos")]
     pub(crate) fn from_metal(library: metal::Library) -> Self {
-        let function_names = library.function_names().iter().map(|s| s.to_string()).collect();
+        let function_names = library
+            .function_names()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         Self {
             function_names,
             handle: library,
@@ -125,10 +129,7 @@ impl MetalLibrary {
 
     /// Get a metal::Function by name (macOS only).
     #[cfg(target_os = "macos")]
-    pub(crate) fn get_metal_function(
-        &self,
-        name: &str,
-    ) -> Result<metal::Function, String> {
+    pub(crate) fn get_metal_function(&self, name: &str) -> Result<metal::Function, String> {
         self.handle.get_function(name, None)
     }
 
@@ -181,10 +182,7 @@ impl std::fmt::Debug for MetalComputePipeline {
 impl MetalComputePipeline {
     /// Create a MetalComputePipeline from a real metal::ComputePipelineState (macOS only).
     #[cfg(target_os = "macos")]
-    pub(crate) fn from_metal(
-        pipeline: metal::ComputePipelineState,
-        function_name: String,
-    ) -> Self {
+    pub(crate) fn from_metal(pipeline: metal::ComputePipelineState, function_name: String) -> Self {
         let max_total = pipeline.max_total_threads_per_threadgroup() as u32;
         let exec_width = pipeline.thread_execution_width() as u32;
         let static_mem = pipeline.static_threadgroup_memory_length() as u32;
@@ -318,7 +316,9 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn test_library_from_source() {
-        let Some(device) = crate::device_or_skip("test_library_from_source") else { return };
+        let Some(device) = crate::device_or_skip("test_library_from_source") else {
+            return;
+        };
         let source = r#"
             #include <metal_stdlib>
             using namespace metal;

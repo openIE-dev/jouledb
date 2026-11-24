@@ -41,11 +41,7 @@ pub fn central_diff_4th(f: fn(f64) -> f64, x: f64, h: f64) -> f64 {
 
 /// Approximate the gradient of f: R^n → R using central differences.
 /// Returns ∇f(x) as a vector.
-pub fn gradient(
-    f: fn(&[f64]) -> f64,
-    x: &[f64],
-    h: f64,
-) -> Vec<f64> {
+pub fn gradient(f: fn(&[f64]) -> f64, x: &[f64], h: f64) -> Vec<f64> {
     let n = x.len();
     let mut grad = vec![0.0; n];
     let mut x_plus = x.to_vec();
@@ -63,11 +59,7 @@ pub fn gradient(
 }
 
 /// Approximate gradient using forward differences (cheaper but less accurate).
-pub fn gradient_forward(
-    f: fn(&[f64]) -> f64,
-    x: &[f64],
-    h: f64,
-) -> Vec<f64> {
+pub fn gradient_forward(f: fn(&[f64]) -> f64, x: &[f64], h: f64) -> Vec<f64> {
     let n = x.len();
     let f0 = f(x);
     let mut grad = vec![0.0; n];
@@ -86,11 +78,7 @@ pub fn gradient_forward(
 
 /// Approximate the Hessian matrix of f: R^n → R using central differences.
 /// Returns H[i][j] = ∂²f/∂x_i∂x_j.
-pub fn hessian(
-    f: fn(&[f64]) -> f64,
-    x: &[f64],
-    h: f64,
-) -> Vec<Vec<f64>> {
+pub fn hessian(f: fn(&[f64]) -> f64, x: &[f64], h: f64) -> Vec<Vec<f64>> {
     let n = x.len();
     let mut hess = vec![vec![0.0; n]; n];
     let mut xp = x.to_vec();
@@ -138,11 +126,7 @@ pub fn hessian(
 
 /// Approximate the Jacobian of F: R^n → R^m using central differences.
 /// Returns J[i][j] = ∂F_i/∂x_j.
-pub fn jacobian(
-    f: fn(&[f64]) -> Vec<f64>,
-    x: &[f64],
-    h: f64,
-) -> Vec<Vec<f64>> {
+pub fn jacobian(f: fn(&[f64]) -> Vec<f64>, x: &[f64], h: f64) -> Vec<Vec<f64>> {
     let n = x.len();
     let f0 = f(x);
     let m = f0.len();
@@ -167,11 +151,7 @@ pub fn jacobian(
 }
 
 /// Approximate Jacobian using forward differences.
-pub fn jacobian_forward(
-    f: fn(&[f64]) -> Vec<f64>,
-    x: &[f64],
-    h: f64,
-) -> Vec<Vec<f64>> {
+pub fn jacobian_forward(f: fn(&[f64]) -> Vec<f64>, x: &[f64], h: f64) -> Vec<Vec<f64>> {
     let n = x.len();
     let f0 = f(x);
     let m = f0.len();
@@ -199,12 +179,7 @@ pub fn jacobian_forward(
 /// cancel the leading error term.
 ///
 /// Returns the extrapolated value.
-pub fn richardson_extrapolation(
-    compute: fn(f64) -> f64,
-    h: f64,
-    r: f64,
-    order: usize,
-) -> f64 {
+pub fn richardson_extrapolation(compute: fn(f64) -> f64, h: f64, r: f64, order: usize) -> f64 {
     let rp = r.powi(order as i32);
     let d_h = compute(h);
     let d_hr = compute(h / r);
@@ -213,12 +188,7 @@ pub fn richardson_extrapolation(
 
 /// Richardson table: progressively refine estimates.
 /// Returns a table where entry[k] is the k-th level extrapolation.
-pub fn richardson_table(
-    compute: fn(f64) -> f64,
-    h0: f64,
-    r: f64,
-    levels: usize,
-) -> Vec<Vec<f64>> {
+pub fn richardson_table(compute: fn(f64) -> f64, h0: f64, r: f64, levels: usize) -> Vec<Vec<f64>> {
     let mut table = vec![vec![0.0; levels]; levels];
 
     // First column: direct evaluations at h, h/r, h/r^2, ...
@@ -281,13 +251,7 @@ impl Stencil {
             }),
             (2, 4) => Some(Self {
                 offsets: vec![-2, -1, 0, 1, 2],
-                coefficients: vec![
-                    -1.0 / 12.0,
-                    4.0 / 3.0,
-                    -5.0 / 2.0,
-                    4.0 / 3.0,
-                    -1.0 / 12.0,
-                ],
+                coefficients: vec![-1.0 / 12.0, 4.0 / 3.0, -5.0 / 2.0, 4.0 / 3.0, -1.0 / 12.0],
                 deriv_order: 2,
                 accuracy_order: 4,
             }),
@@ -403,12 +367,7 @@ impl fmt::Display for ErrorOrderResult {
 // ── Partial derivatives ──────────────────────────────────────────
 
 /// Partial derivative ∂f/∂x_i using central differences.
-pub fn partial_derivative(
-    f: fn(&[f64]) -> f64,
-    x: &[f64],
-    i: usize,
-    h: f64,
-) -> f64 {
+pub fn partial_derivative(f: fn(&[f64]) -> f64, x: &[f64], i: usize, h: f64) -> f64 {
     let mut x_plus = x.to_vec();
     let mut x_minus = x.to_vec();
     x_plus[i] = x[i] + h;
@@ -417,13 +376,7 @@ pub fn partial_derivative(
 }
 
 /// Mixed partial derivative ∂²f/∂x_i∂x_j.
-pub fn mixed_partial(
-    f: fn(&[f64]) -> f64,
-    x: &[f64],
-    i: usize,
-    j: usize,
-    h: f64,
-) -> f64 {
+pub fn mixed_partial(f: fn(&[f64]) -> f64, x: &[f64], i: usize, j: usize, h: f64) -> f64 {
     let mut xpp = x.to_vec();
     let mut xpm = x.to_vec();
     let mut xmp = x.to_vec();

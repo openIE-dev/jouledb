@@ -149,7 +149,11 @@ pub enum OutputSlot {
 pub enum NodeKind {
     Input(InputSemantic),
     Math(MathOp),
-    Texture { width: u32, height: u32, data: Vec<[u8; 4]> },
+    Texture {
+        width: u32,
+        height: u32,
+        data: Vec<[u8; 4]>,
+    },
     Output(OutputSlot),
     Constant(Value),
 }
@@ -190,14 +194,22 @@ pub struct ShaderGraph {
 
 impl ShaderGraph {
     pub fn new() -> Self {
-        Self { nodes: Vec::new(), connections: Vec::new(), next_id: 0 }
+        Self {
+            nodes: Vec::new(),
+            connections: Vec::new(),
+            next_id: 0,
+        }
     }
 
     /// Add a node and return its id.
     pub fn add_node(&mut self, kind: NodeKind, label: impl Into<String>) -> NodeId {
         let id = self.next_id;
         self.next_id += 1;
-        self.nodes.push(Node { id, kind, label: label.into() });
+        self.nodes.push(Node {
+            id,
+            kind,
+            label: label.into(),
+        });
         id
     }
 
@@ -218,7 +230,12 @@ impl ShaderGraph {
         if from_node == to_node {
             return Err("self-loop not allowed".into());
         }
-        self.connections.push(Connection { from_node, from_slot, to_node, to_slot });
+        self.connections.push(Connection {
+            from_node,
+            from_slot,
+            to_node,
+            to_slot,
+        });
         Ok(())
     }
 
@@ -252,7 +269,11 @@ impl ShaderGraph {
             visited.insert(n.id, 0);
         }
 
-        fn dfs(node: NodeId, adj: &HashMap<NodeId, Vec<NodeId>>, vis: &mut HashMap<NodeId, u8>) -> bool {
+        fn dfs(
+            node: NodeId,
+            adj: &HashMap<NodeId, Vec<NodeId>>,
+            vis: &mut HashMap<NodeId, u8>,
+        ) -> bool {
             vis.insert(node, 1);
             if let Some(neighbours) = adj.get(&node) {
                 for &nb in neighbours {
@@ -286,7 +307,10 @@ impl ShaderGraph {
         let mut missing = Vec::new();
         for n in &self.nodes {
             if let NodeKind::Output(slot) = &n.kind {
-                let has_input = self.connections.iter().any(|c| c.to_node == n.id && c.to_slot == 0);
+                let has_input = self
+                    .connections
+                    .iter()
+                    .any(|c| c.to_node == n.id && c.to_slot == 0);
                 if !has_input {
                     missing.push((n.id, *slot));
                 }
@@ -304,7 +328,11 @@ impl ShaderGraph {
         for (id, slot) in self.outputs_connected() {
             errors.push(format!("output node {id} ({slot:?}) has no input"));
         }
-        if errors.is_empty() { Ok(()) } else { Err(errors) }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
     }
 
     // ── Topological sort ────────────────────────────────────────
@@ -321,7 +349,8 @@ impl ShaderGraph {
 
         let mut queue: Vec<NodeId> = Vec::new();
         // Collect nodes with in-degree 0 and sort for determinism.
-        let mut zero_deg: Vec<NodeId> = in_degree.iter()
+        let mut zero_deg: Vec<NodeId> = in_degree
+            .iter()
             .filter(|&(_, d)| *d == 0)
             .map(|(&id, _)| id)
             .collect();
@@ -332,7 +361,8 @@ impl ShaderGraph {
         while let Some(node) = queue.pop() {
             order.push(node);
             // Collect neighbours and sort for deterministic output.
-            let mut neighbours: Vec<NodeId> = self.connections
+            let mut neighbours: Vec<NodeId> = self
+                .connections
                 .iter()
                 .filter(|c| c.from_node == node)
                 .map(|c| c.to_node)
@@ -358,23 +388,26 @@ impl ShaderGraph {
     // ── Evaluation ──────────────────────────────────────────────
 
     /// Evaluate the graph with the given inputs and return output values.
-    pub fn evaluate(&self, inputs: &HashMap<InputSemantic, Value>) -> Result<HashMap<OutputSlot, Value>, String> {
+    pub fn evaluate(
+        &self,
+        inputs: &HashMap<InputSemantic, Value>,
+    ) -> Result<HashMap<OutputSlot, Value>, String> {
         let order = self.topological_sort()?;
         let mut values: HashMap<NodeId, Value> = HashMap::new();
 
         for &nid in &order {
-            let node = self.find_node(nid).ok_or_else(|| format!("node {nid} missing"))?;
+            let node = self
+                .find_node(nid)
+                .ok_or_else(|| format!("node {nid} missing"))?;
             let val = match &node.kind {
                 NodeKind::Constant(v) => *v,
-                NodeKind::Input(sem) => {
-                    inputs.get(sem).copied().unwrap_or(Value::Float(0.0))
-                }
-                NodeKind::Math(op) => {
-                    self.eval_math(*op, nid, &values)?
-                }
-                NodeKind::Texture { width, height, data } => {
-                    self.eval_texture(*width, *height, data, nid, &values)?
-                }
+                NodeKind::Input(sem) => inputs.get(sem).copied().unwrap_or(Value::Float(0.0)),
+                NodeKind::Math(op) => self.eval_math(*op, nid, &values)?,
+                NodeKind::Texture {
+                    width,
+                    height,
+                    data,
+                } => self.eval_texture(*width, *height, data, nid, &values)?,
                 NodeKind::Output(_) => {
                     // Pass through slot 0.
                     self.get_input_value(nid, 0, &values)?
@@ -394,30 +427,52 @@ impl ShaderGraph {
         Ok(outputs)
     }
 
-    fn get_input_value(&self, to_node: NodeId, to_slot: u8, values: &HashMap<NodeId, Value>) -> Result<Value, String> {
+    fn get_input_value(
+        &self,
+        to_node: NodeId,
+        to_slot: u8,
+        values: &HashMap<NodeId, Value>,
+    ) -> Result<Value, String> {
         for c in &self.connections {
             if c.to_node == to_node && c.to_slot == to_slot {
-                return values.get(&c.from_node).copied()
+                return values
+                    .get(&c.from_node)
+                    .copied()
                     .ok_or_else(|| format!("no value for node {}", c.from_node));
             }
         }
         Ok(Value::Float(0.0))
     }
 
-    fn eval_math(&self, op: MathOp, nid: NodeId, values: &HashMap<NodeId, Value>) -> Result<Value, String> {
+    fn eval_math(
+        &self,
+        op: MathOp,
+        nid: NodeId,
+        values: &HashMap<NodeId, Value>,
+    ) -> Result<Value, String> {
         let a = self.get_input_value(nid, 0, values)?;
         match op {
             MathOp::Add => {
                 let b = self.get_input_value(nid, 1, values)?;
                 let av = a.as_vec4();
                 let bv = b.as_vec4();
-                Ok(Value::Vec4([av[0]+bv[0], av[1]+bv[1], av[2]+bv[2], av[3]+bv[3]]))
+                Ok(Value::Vec4([
+                    av[0] + bv[0],
+                    av[1] + bv[1],
+                    av[2] + bv[2],
+                    av[3] + bv[3],
+                ]))
             }
             MathOp::Multiply => {
                 let b = self.get_input_value(nid, 1, values)?;
                 let av = a.as_vec4();
                 let bv = b.as_vec4();
-                Ok(Value::Vec4([av[0]*bv[0], av[1]*bv[1], av[2]*bv[2], av[3]*bv[3]]))
+                Ok(Value::Vec4([
+                    av[0] * bv[0],
+                    av[1] * bv[1],
+                    av[2] * bv[2],
+                    av[3] * bv[3],
+                ]))
             }
             MathOp::Lerp => {
                 let b = self.get_input_value(nid, 1, values)?;
@@ -425,26 +480,26 @@ impl ShaderGraph {
                 let av = a.as_vec4();
                 let bv = b.as_vec4();
                 Ok(Value::Vec4([
-                    av[0] + (bv[0]-av[0]) * t,
-                    av[1] + (bv[1]-av[1]) * t,
-                    av[2] + (bv[2]-av[2]) * t,
-                    av[3] + (bv[3]-av[3]) * t,
+                    av[0] + (bv[0] - av[0]) * t,
+                    av[1] + (bv[1] - av[1]) * t,
+                    av[2] + (bv[2] - av[2]) * t,
+                    av[3] + (bv[3] - av[3]) * t,
                 ]))
             }
             MathOp::Dot => {
                 let b = self.get_input_value(nid, 1, values)?;
                 let av = a.as_vec3();
                 let bv = b.as_vec3();
-                Ok(Value::Float(av[0]*bv[0] + av[1]*bv[1] + av[2]*bv[2]))
+                Ok(Value::Float(av[0] * bv[0] + av[1] * bv[1] + av[2] * bv[2]))
             }
             MathOp::Cross => {
                 let b = self.get_input_value(nid, 1, values)?;
                 let av = a.as_vec3();
                 let bv = b.as_vec3();
                 Ok(Value::Vec3([
-                    av[1]*bv[2] - av[2]*bv[1],
-                    av[2]*bv[0] - av[0]*bv[2],
-                    av[0]*bv[1] - av[1]*bv[0],
+                    av[1] * bv[2] - av[2] * bv[1],
+                    av[2] * bv[0] - av[0] * bv[2],
+                    av[0] * bv[1] - av[1] * bv[0],
                 ]))
             }
             MathOp::Pow => {
@@ -465,7 +520,14 @@ impl ShaderGraph {
         }
     }
 
-    fn eval_texture(&self, width: u32, height: u32, data: &[[u8; 4]], nid: NodeId, values: &HashMap<NodeId, Value>) -> Result<Value, String> {
+    fn eval_texture(
+        &self,
+        width: u32,
+        height: u32,
+        data: &[[u8; 4]],
+        nid: NodeId,
+        values: &HashMap<NodeId, Value>,
+    ) -> Result<Value, String> {
         let uv_val = self.get_input_value(nid, 0, values)?;
         let uv = match uv_val {
             Value::Vec2(v) => v,
@@ -768,7 +830,14 @@ mod tests {
             [255, 255, 0, 255],
         ];
         let uv = g.add_node(NodeKind::Constant(Value::Vec2([0.0, 0.0])), "uv");
-        let tex = g.add_node(NodeKind::Texture { width: 2, height: 2, data }, "tex");
+        let tex = g.add_node(
+            NodeKind::Texture {
+                width: 2,
+                height: 2,
+                data,
+            },
+            "tex",
+        );
         let out = g.add_node(NodeKind::Output(OutputSlot::Color), "out");
         g.connect(uv, 0, tex, 0).unwrap();
         g.connect(tex, 0, out, 0).unwrap();

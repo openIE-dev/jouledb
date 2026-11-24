@@ -40,14 +40,30 @@ impl Blackboard {
         }
     }
 
-    pub fn set_int(&mut self, key: &str, val: i64) { self.ints.insert(key.to_string(), val); }
-    pub fn get_int(&self, key: &str) -> Option<i64> { self.ints.get(key).copied() }
-    pub fn set_float(&mut self, key: &str, val: f64) { self.floats.insert(key.to_string(), val); }
-    pub fn get_float(&self, key: &str) -> Option<f64> { self.floats.get(key).copied() }
-    pub fn set_string(&mut self, key: &str, val: &str) { self.strings.insert(key.to_string(), val.to_string()); }
-    pub fn get_string(&self, key: &str) -> Option<&str> { self.strings.get(key).map(|s| s.as_str()) }
-    pub fn set_bool(&mut self, key: &str, val: bool) { self.bools.insert(key.to_string(), val); }
-    pub fn get_bool(&self, key: &str) -> Option<bool> { self.bools.get(key).copied() }
+    pub fn set_int(&mut self, key: &str, val: i64) {
+        self.ints.insert(key.to_string(), val);
+    }
+    pub fn get_int(&self, key: &str) -> Option<i64> {
+        self.ints.get(key).copied()
+    }
+    pub fn set_float(&mut self, key: &str, val: f64) {
+        self.floats.insert(key.to_string(), val);
+    }
+    pub fn get_float(&self, key: &str) -> Option<f64> {
+        self.floats.get(key).copied()
+    }
+    pub fn set_string(&mut self, key: &str, val: &str) {
+        self.strings.insert(key.to_string(), val.to_string());
+    }
+    pub fn get_string(&self, key: &str) -> Option<&str> {
+        self.strings.get(key).map(|s| s.as_str())
+    }
+    pub fn set_bool(&mut self, key: &str, val: bool) {
+        self.bools.insert(key.to_string(), val);
+    }
+    pub fn get_bool(&self, key: &str) -> Option<bool> {
+        self.bools.get(key).copied()
+    }
     pub fn clear(&mut self) {
         self.ints.clear();
         self.floats.clear();
@@ -57,7 +73,9 @@ impl Blackboard {
 }
 
 impl Default for Blackboard {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Decorator kind ──────────────────────────────────────────────
@@ -94,15 +112,9 @@ pub enum ParallelPolicy {
 #[derive(Debug, Clone)]
 pub enum Node {
     /// Run children in order; fail on first failure.
-    Sequence {
-        name: String,
-        children: Vec<Node>,
-    },
+    Sequence { name: String, children: Vec<Node> },
     /// Try children in order; succeed on first success.
-    Selector {
-        name: String,
-        children: Vec<Node>,
-    },
+    Selector { name: String, children: Vec<Node> },
     /// Run all children each tick.
     Parallel {
         name: String,
@@ -117,9 +129,7 @@ pub enum Node {
         child: Box<Node>,
     },
     /// Leaf node that performs an action via a named function.
-    Action {
-        name: String,
-    },
+    Action { name: String },
     /// Leaf node that checks a condition on the blackboard.
     Condition {
         name: String,
@@ -132,15 +142,25 @@ pub enum Node {
 
 impl Node {
     pub fn sequence(name: &str, children: Vec<Node>) -> Self {
-        Self::Sequence { name: name.to_string(), children }
+        Self::Sequence {
+            name: name.to_string(),
+            children,
+        }
     }
 
     pub fn selector(name: &str, children: Vec<Node>) -> Self {
-        Self::Selector { name: name.to_string(), children }
+        Self::Selector {
+            name: name.to_string(),
+            children,
+        }
     }
 
     pub fn parallel(name: &str, policy: ParallelPolicy, children: Vec<Node>) -> Self {
-        Self::Parallel { name: name.to_string(), policy, children }
+        Self::Parallel {
+            name: name.to_string(),
+            policy,
+            children,
+        }
     }
 
     pub fn decorator(name: &str, kind: DecoratorKind, child: Node) -> Self {
@@ -171,7 +191,9 @@ impl Node {
     }
 
     pub fn action(name: &str) -> Self {
-        Self::Action { name: name.to_string() }
+        Self::Action {
+            name: name.to_string(),
+        }
     }
 
     pub fn condition(name: &str, key: &str, expected: bool) -> Self {
@@ -209,7 +231,10 @@ pub struct BehaviorTree {
 impl BehaviorTree {
     /// Create a new tree with the given root node.
     pub fn new(root: Node) -> Self {
-        Self { root, actions: HashMap::new() }
+        Self {
+            root,
+            actions: HashMap::new(),
+        }
     }
 
     /// Register an action handler.
@@ -244,7 +269,9 @@ impl BehaviorTree {
                 }
                 Status::Failure
             }
-            Node::Parallel { policy, children, .. } => {
+            Node::Parallel {
+                policy, children, ..
+            } => {
                 let mut successes = 0;
                 let mut failures = 0;
                 let mut running = 0;
@@ -257,54 +284,73 @@ impl BehaviorTree {
                 }
                 match policy {
                     ParallelPolicy::RequireAll => {
-                        if failures > 0 { Status::Failure }
-                        else if running > 0 { Status::Running }
-                        else { Status::Success }
+                        if failures > 0 {
+                            Status::Failure
+                        } else if running > 0 {
+                            Status::Running
+                        } else {
+                            Status::Success
+                        }
                     }
                     ParallelPolicy::RequireOne => {
-                        if successes > 0 { Status::Success }
-                        else if running > 0 { Status::Running }
-                        else { Status::Failure }
+                        if successes > 0 {
+                            Status::Success
+                        } else if running > 0 {
+                            Status::Running
+                        } else {
+                            Status::Failure
+                        }
                     }
                 }
             }
-            Node::Decorator { kind, repeat_count, child, .. } => {
-                match kind {
-                    DecoratorKind::Inverter => match self.tick_node(child, bb) {
-                        Status::Success => Status::Failure,
-                        Status::Failure => Status::Success,
-                        Status::Running => Status::Running,
-                    },
-                    DecoratorKind::AlwaysSucceed => {
-                        let s = self.tick_node(child, bb);
-                        if s == Status::Running { Status::Running } else { Status::Success }
-                    }
-                    DecoratorKind::AlwaysFail => {
-                        let s = self.tick_node(child, bb);
-                        if s == Status::Running { Status::Running } else { Status::Failure }
-                    }
-                    DecoratorKind::Repeat => {
-                        for _ in 0..*repeat_count {
-                            match self.tick_node(child, bb) {
-                                Status::Running => return Status::Running,
-                                Status::Failure => return Status::Failure,
-                                Status::Success => {}
-                            }
-                        }
+            Node::Decorator {
+                kind,
+                repeat_count,
+                child,
+                ..
+            } => match kind {
+                DecoratorKind::Inverter => match self.tick_node(child, bb) {
+                    Status::Success => Status::Failure,
+                    Status::Failure => Status::Success,
+                    Status::Running => Status::Running,
+                },
+                DecoratorKind::AlwaysSucceed => {
+                    let s = self.tick_node(child, bb);
+                    if s == Status::Running {
+                        Status::Running
+                    } else {
                         Status::Success
                     }
-                    DecoratorKind::RetryOnFailure => {
-                        for _ in 0..*repeat_count {
-                            match self.tick_node(child, bb) {
-                                Status::Success => return Status::Success,
-                                Status::Running => return Status::Running,
-                                Status::Failure => {}
-                            }
-                        }
+                }
+                DecoratorKind::AlwaysFail => {
+                    let s = self.tick_node(child, bb);
+                    if s == Status::Running {
+                        Status::Running
+                    } else {
                         Status::Failure
                     }
                 }
-            }
+                DecoratorKind::Repeat => {
+                    for _ in 0..*repeat_count {
+                        match self.tick_node(child, bb) {
+                            Status::Running => return Status::Running,
+                            Status::Failure => return Status::Failure,
+                            Status::Success => {}
+                        }
+                    }
+                    Status::Success
+                }
+                DecoratorKind::RetryOnFailure => {
+                    for _ in 0..*repeat_count {
+                        match self.tick_node(child, bb) {
+                            Status::Success => return Status::Success,
+                            Status::Running => return Status::Running,
+                            Status::Failure => {}
+                        }
+                    }
+                    Status::Failure
+                }
+            },
             Node::Action { name } => {
                 if let Some(handler) = self.actions.get(name) {
                     handler(bb)
@@ -312,12 +358,10 @@ impl BehaviorTree {
                     Status::Failure
                 }
             }
-            Node::Condition { key, expected, .. } => {
-                match bb.get_bool(key) {
-                    Some(val) if val == *expected => Status::Success,
-                    _ => Status::Failure,
-                }
-            }
+            Node::Condition { key, expected, .. } => match bb.get_bool(key) {
+                Some(val) if val == *expected => Status::Success,
+                _ => Status::Failure,
+            },
         }
     }
 }
@@ -339,10 +383,10 @@ mod tests {
     #[test]
     fn sequence_all_succeed() {
         let mut bb = Blackboard::new();
-        let tree = BehaviorTree::new(Node::sequence("root", vec![
-            Node::action("a"),
-            Node::action("b"),
-        ]));
+        let tree = BehaviorTree::new(Node::sequence(
+            "root",
+            vec![Node::action("a"), Node::action("b")],
+        ));
         // No handlers registered → failure on first action.
         assert_eq!(tree.tick(&mut bb), Status::Failure);
     }
@@ -350,10 +394,10 @@ mod tests {
     #[test]
     fn sequence_succeeds_with_handlers() {
         let mut bb = Blackboard::new();
-        let mut tree = BehaviorTree::new(Node::sequence("root", vec![
-            Node::action("a"),
-            Node::action("b"),
-        ]));
+        let mut tree = BehaviorTree::new(Node::sequence(
+            "root",
+            vec![Node::action("a"), Node::action("b")],
+        ));
         tree.register_action("a", |_| Status::Success);
         tree.register_action("b", |_| Status::Success);
         assert_eq!(tree.tick(&mut bb), Status::Success);
@@ -362,10 +406,10 @@ mod tests {
     #[test]
     fn selector_first_success() {
         let mut bb = Blackboard::new();
-        let mut tree = BehaviorTree::new(Node::selector("root", vec![
-            Node::action("fail"),
-            Node::action("ok"),
-        ]));
+        let mut tree = BehaviorTree::new(Node::selector(
+            "root",
+            vec![Node::action("fail"), Node::action("ok")],
+        ));
         tree.register_action("fail", |_| Status::Failure);
         tree.register_action("ok", |_| Status::Success);
         assert_eq!(tree.tick(&mut bb), Status::Success);
@@ -384,9 +428,11 @@ mod tests {
     #[test]
     fn inverter_decorator() {
         let mut bb = Blackboard::new();
-        let mut tree = BehaviorTree::new(
-            Node::decorator("inv", DecoratorKind::Inverter, Node::action("ok")),
-        );
+        let mut tree = BehaviorTree::new(Node::decorator(
+            "inv",
+            DecoratorKind::Inverter,
+            Node::action("ok"),
+        ));
         tree.register_action("ok", |_| Status::Success);
         assert_eq!(tree.tick(&mut bb), Status::Failure);
     }
@@ -394,9 +440,11 @@ mod tests {
     #[test]
     fn always_succeed_decorator() {
         let mut bb = Blackboard::new();
-        let tree = BehaviorTree::new(
-            Node::decorator("always", DecoratorKind::AlwaysSucceed, Node::action("missing")),
-        );
+        let tree = BehaviorTree::new(Node::decorator(
+            "always",
+            DecoratorKind::AlwaysSucceed,
+            Node::action("missing"),
+        ));
         assert_eq!(tree.tick(&mut bb), Status::Success);
     }
 
@@ -444,16 +492,28 @@ mod tests {
     fn priority_selector_ordering() {
         let mut bb = Blackboard::new();
         bb.set_int("called", 0);
-        let node = priority_selector("prio", vec![
-            (1, Node::action("low")),
-            (10, Node::action("high")),
-            (5, Node::action("mid")),
-        ]);
+        let node = priority_selector(
+            "prio",
+            vec![
+                (1, Node::action("low")),
+                (10, Node::action("high")),
+                (5, Node::action("mid")),
+            ],
+        );
         let mut tree = BehaviorTree::new(node);
         // high runs first — it succeeds, so low/mid never run.
-        tree.register_action("high", |bb| { bb.set_int("called", 10); Status::Success });
-        tree.register_action("mid", |bb| { bb.set_int("called", 5); Status::Success });
-        tree.register_action("low", |bb| { bb.set_int("called", 1); Status::Success });
+        tree.register_action("high", |bb| {
+            bb.set_int("called", 10);
+            Status::Success
+        });
+        tree.register_action("mid", |bb| {
+            bb.set_int("called", 5);
+            Status::Success
+        });
+        tree.register_action("low", |bb| {
+            bb.set_int("called", 1);
+            Status::Success
+        });
         assert_eq!(tree.tick(&mut bb), Status::Success);
         assert_eq!(bb.get_int("called"), Some(10));
     }
@@ -481,7 +541,11 @@ mod tests {
         tree.register_action("flaky", |bb| {
             let a = bb.get_int("attempts").unwrap_or(0);
             bb.set_int("attempts", a + 1);
-            if a < 2 { Status::Failure } else { Status::Success }
+            if a < 2 {
+                Status::Failure
+            } else {
+                Status::Success
+            }
         });
         assert_eq!(tree.tick(&mut bb), Status::Success);
         assert_eq!(bb.get_int("attempts"), Some(3));
@@ -489,18 +553,24 @@ mod tests {
 
     #[test]
     fn subtree_reuse() {
-        let patrol = Node::sequence("patrol", vec![
-            Node::action("move_to_waypoint"),
-            Node::action("wait"),
-        ]);
+        let patrol = Node::sequence(
+            "patrol",
+            vec![Node::action("move_to_waypoint"), Node::action("wait")],
+        );
         // Reuse the same subtree pattern via clone.
-        let root = Node::selector("root", vec![
-            Node::sequence("combat", vec![
-                Node::condition("check_enemy", "enemy_near", true),
-                Node::action("attack"),
-            ]),
-            patrol.clone(),
-        ]);
+        let root = Node::selector(
+            "root",
+            vec![
+                Node::sequence(
+                    "combat",
+                    vec![
+                        Node::condition("check_enemy", "enemy_near", true),
+                        Node::action("attack"),
+                    ],
+                ),
+                patrol.clone(),
+            ],
+        );
         let mut bb = Blackboard::new();
         let mut tree = BehaviorTree::new(root);
         tree.register_action("move_to_waypoint", |_| Status::Success);

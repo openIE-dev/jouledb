@@ -561,7 +561,12 @@ mod tests {
     #[test]
     fn test_groups_by_min_severity() {
         let mut tracker = ErrorTracker::new();
-        tracker.track(ErrorOccurrence::new(0, "warn", ErrorSeverity::Warning, 1000));
+        tracker.track(ErrorOccurrence::new(
+            0,
+            "warn",
+            ErrorSeverity::Warning,
+            1000,
+        ));
         tracker.track(ErrorOccurrence::new(0, "fatal", ErrorSeverity::Fatal, 2000));
         let fatal = tracker.groups_by_min_severity(ErrorSeverity::Fatal);
         assert_eq!(fatal.len(), 1);
@@ -612,10 +617,7 @@ mod tests {
             tracker.get_group(fp1).unwrap().status,
             ErrorStatus::Resolved
         );
-        assert_eq!(
-            tracker.get_group(fp2).unwrap().status,
-            ErrorStatus::Ignored
-        ); // unchanged
+        assert_eq!(tracker.get_group(fp2).unwrap().status, ErrorStatus::Ignored); // unchanged
     }
 
     #[test]
@@ -658,12 +660,7 @@ mod tests {
     #[test]
     fn test_severity_escalation() {
         let mut tracker = ErrorTracker::new();
-        let (_, fp) = tracker.track(ErrorOccurrence::new(
-            0,
-            "err",
-            ErrorSeverity::Warning,
-            1000,
-        ));
+        let (_, fp) = tracker.track(ErrorOccurrence::new(0, "err", ErrorSeverity::Warning, 1000));
         tracker.track(ErrorOccurrence::new(0, "err", ErrorSeverity::Fatal, 2000));
         let group = tracker.get_group(fp).unwrap();
         // Severity should have been escalated

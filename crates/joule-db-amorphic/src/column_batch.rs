@@ -18,7 +18,10 @@ pub enum ColData {
     Float(Vec<f64>),
     Bool(Vec<bool>),
     /// UTF-8 text: `offsets` has len + 1 entries into `bytes`
-    Str { offsets: Vec<u32>, bytes: Vec<u8> },
+    Str {
+        offsets: Vec<u32>,
+        bytes: Vec<u8>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -82,7 +85,10 @@ impl ColumnBatch {
             let n = match &c.data {
                 ColData::Int(v) => v.len(),
                 ColData::Float(v) => {
-                    if v.iter().enumerate().any(|(i, x)| !x.is_finite() && !c.is_null(i)) {
+                    if v.iter()
+                        .enumerate()
+                        .any(|(i, x)| !x.is_finite() && !c.is_null(i))
+                    {
                         return Err(format!("column {}: non-finite float", c.name));
                     }
                     v.len()
@@ -96,7 +102,9 @@ impl ColumnBatch {
                         return Err(format!("column {}: bad offsets", c.name));
                     }
                     for i in 0..self.len {
-                        if std::str::from_utf8(&bytes[offsets[i] as usize..offsets[i + 1] as usize]).is_err() {
+                        if std::str::from_utf8(&bytes[offsets[i] as usize..offsets[i + 1] as usize])
+                            .is_err()
+                        {
                             return Err(format!("column {}: invalid UTF-8", c.name));
                         }
                     }
@@ -104,7 +112,10 @@ impl ColumnBatch {
                 }
             };
             if n != self.len || c.valid.as_ref().is_some_and(|v| v.len() != self.len) {
-                return Err(format!("column {}: {} rows, batch has {}", c.name, n, self.len));
+                return Err(format!(
+                    "column {}: {} rows, batch has {}",
+                    c.name, n, self.len
+                ));
             }
             if c.name == self.table_field {
                 return Err(format!("column {} collides with the table tag", c.name));
@@ -233,14 +244,26 @@ mod tests {
             first_id: 10,
             len: n,
             cols: vec![
-                BatchColumn { name: "id".into(), data: ColData::Int((0..n as i64).collect()), valid: None },
+                BatchColumn {
+                    name: "id".into(),
+                    data: ColData::Int((0..n as i64).collect()),
+                    valid: None,
+                },
                 BatchColumn {
                     name: "d".into(),
                     data: ColData::Float((0..n).map(|i| i as f64 / 3.0).collect()),
                     valid: Some((0..n).map(|i| i % 5 != 0).collect()),
                 },
-                BatchColumn { name: "s".into(), data: ColData::Str { offsets, bytes }, valid: None },
-                BatchColumn { name: "b".into(), data: ColData::Bool((0..n).map(|i| i % 2 == 0).collect()), valid: None },
+                BatchColumn {
+                    name: "s".into(),
+                    data: ColData::Str { offsets, bytes },
+                    valid: None,
+                },
+                BatchColumn {
+                    name: "b".into(),
+                    data: ColData::Bool((0..n).map(|i| i % 2 == 0).collect()),
+                    valid: None,
+                },
             ],
         }
     }

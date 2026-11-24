@@ -64,7 +64,11 @@ impl fmt::Display for HaplotypeCounts {
         write!(
             f,
             "AB={:.4} Ab={:.4} aB={:.4} ab={:.4} (n={})",
-            fa, fb, fc, fd, self.total()
+            fa,
+            fb,
+            fc,
+            fd,
+            self.total()
         )
     }
 }
@@ -143,7 +147,10 @@ impl LdCalculator {
         let n = haps.total() as f64;
         if n < self.min_sample as f64 {
             return LdMeasure {
-                d: 0.0, d_prime: 0.0, r_squared: 0.0, chi_squared: 0.0,
+                d: 0.0,
+                d_prime: 0.0,
+                r_squared: 0.0,
+                chi_squared: 0.0,
                 n_haplotypes: haps.total(),
             };
         }
@@ -162,7 +169,11 @@ impl LdCalculator {
         } else {
             (p_a * p_b).min(p_a2 * p_b2)
         };
-        let d_prime = if d_max.abs() > 1e-15 { (d / d_max).clamp(-1.0, 1.0) } else { 0.0 };
+        let d_prime = if d_max.abs() > 1e-15 {
+            (d / d_max).clamp(-1.0, 1.0)
+        } else {
+            0.0
+        };
 
         // r² = D² / (p_A * p_a * p_B * p_b)
         let denom = p_a * p_a2 * p_b * p_b2;
@@ -203,10 +214,7 @@ impl LdCalculator {
     }
 
     /// Filter LD pairs above the r-squared threshold.
-    pub fn significant_pairs(
-        &self,
-        loci_genos: &[Vec<i32>],
-    ) -> Vec<(usize, usize, LdMeasure)> {
+    pub fn significant_pairs(&self, loci_genos: &[Vec<i32>]) -> Vec<(usize, usize, LdMeasure)> {
         let n = loci_genos.len();
         let mut result = Vec::new();
         for i in 0..n {
@@ -243,7 +251,11 @@ pub struct LdDecayPoint {
 
 impl fmt::Display for LdDecayPoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}bp r²={:.4} (n={})", self.distance_bp, self.mean_r_squared, self.n_pairs)
+        write!(
+            f,
+            "{}bp r²={:.4} (n={})",
+            self.distance_bp, self.mean_r_squared, self.n_pairs
+        )
     }
 }
 
@@ -281,10 +293,7 @@ pub fn ld_decay_curve(
 /// Fit exponential LD decay: r² = a * exp(-distance / c).
 /// Returns (a, c) estimated by log-linear regression.
 pub fn fit_ld_decay(points: &[LdDecayPoint]) -> (f64, f64) {
-    let filtered: Vec<&LdDecayPoint> = points
-        .iter()
-        .filter(|p| p.mean_r_squared > 1e-10)
-        .collect();
+    let filtered: Vec<&LdDecayPoint> = points.iter().filter(|p| p.mean_r_squared > 1e-10).collect();
 
     if filtered.len() < 2 {
         return (0.0, 1.0);
@@ -314,7 +323,11 @@ pub fn fit_ld_decay(points: &[LdDecayPoint]) -> (f64, f64) {
     let intercept = (sum_y - slope * sum_x) / n;
 
     let a = intercept.exp();
-    let c = if slope.abs() > 1e-15 { -1.0 / slope } else { 1.0 };
+    let c = if slope.abs() > 1e-15 {
+        -1.0 / slope
+    } else {
+        1.0
+    };
 
     (a, c.abs())
 }
@@ -322,11 +335,7 @@ pub fn fit_ld_decay(points: &[LdDecayPoint]) -> (f64, f64) {
 // ── EM Haplotype Estimation ─────────────────────────────────────────
 
 /// Estimate haplotype frequencies from unphased genotype data using EM.
-pub fn estimate_haplotypes_em(
-    geno1: &[i32],
-    geno2: &[i32],
-    max_iter: usize,
-) -> HaplotypeCounts {
+pub fn estimate_haplotypes_em(geno1: &[i32], geno2: &[i32], max_iter: usize) -> HaplotypeCounts {
     let n = geno1.len().min(geno2.len());
     if n == 0 {
         return HaplotypeCounts::new(0, 0, 0, 0);
@@ -348,13 +357,25 @@ pub fn estimate_haplotypes_em(
         total += 2.0;
         match (g1, g2) {
             (0, 0) => n_ab += 2.0,
-            (0, 1) => { n_ab += 1.0; n_a_b += 1.0; }
+            (0, 1) => {
+                n_ab += 1.0;
+                n_a_b += 1.0;
+            }
             (0, 2) => n_a_b += 2.0,
-            (1, 0) => { n_ab += 1.0; n_a_b2 += 1.0; }
+            (1, 0) => {
+                n_ab += 1.0;
+                n_a_b2 += 1.0;
+            }
             (1, 1) => n_dhet += 2.0, // ambiguous
-            (1, 2) => { n_a_b += 1.0; n_lower_ab += 1.0; }
+            (1, 2) => {
+                n_a_b += 1.0;
+                n_lower_ab += 1.0;
+            }
             (2, 0) => n_a_b2 += 2.0,
-            (2, 1) => { n_a_b2 += 1.0; n_lower_ab += 1.0; }
+            (2, 1) => {
+                n_a_b2 += 1.0;
+                n_lower_ab += 1.0;
+            }
             (2, 2) => n_lower_ab += 2.0,
             _ => {}
         }
@@ -515,9 +536,21 @@ mod tests {
     #[test]
     fn test_fit_ld_decay() {
         let points = vec![
-            LdDecayPoint { distance_bp: 500, mean_r_squared: 0.8, n_pairs: 10 },
-            LdDecayPoint { distance_bp: 5000, mean_r_squared: 0.4, n_pairs: 10 },
-            LdDecayPoint { distance_bp: 50000, mean_r_squared: 0.05, n_pairs: 10 },
+            LdDecayPoint {
+                distance_bp: 500,
+                mean_r_squared: 0.8,
+                n_pairs: 10,
+            },
+            LdDecayPoint {
+                distance_bp: 5000,
+                mean_r_squared: 0.4,
+                n_pairs: 10,
+            },
+            LdDecayPoint {
+                distance_bp: 50000,
+                mean_r_squared: 0.05,
+                n_pairs: 10,
+            },
         ];
         let (a, c) = fit_ld_decay(&points);
         assert!(a > 0.0);
@@ -553,8 +586,11 @@ mod tests {
     #[test]
     fn test_ld_measure_display() {
         let ld = LdMeasure {
-            d: 0.05, d_prime: 0.8, r_squared: 0.64,
-            chi_squared: 128.0, n_haplotypes: 200,
+            d: 0.05,
+            d_prime: 0.8,
+            r_squared: 0.64,
+            chi_squared: 128.0,
+            n_haplotypes: 200,
         };
         let s = format!("{}", ld);
         assert!(s.contains("r²="));
@@ -576,7 +612,11 @@ mod tests {
 
     #[test]
     fn test_decay_point_display() {
-        let p = LdDecayPoint { distance_bp: 1000, mean_r_squared: 0.5, n_pairs: 42 };
+        let p = LdDecayPoint {
+            distance_bp: 1000,
+            mean_r_squared: 0.5,
+            n_pairs: 42,
+        };
         let s = format!("{}", p);
         assert!(s.contains("1000bp"));
     }

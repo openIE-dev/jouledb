@@ -49,19 +49,19 @@ pub mod windows;
 
 pub use domains::{
     BandwidthStats, CpuDomainReader, DomainCorrelations, DomainReader, DomainSample,
-    DomainTelemetry, DramDomainReader, EstimatedDomainReader, FrequencyStats, GroqDomainReader,
-    GpuDomainReader, HardwareDomain, MultiDomainMonitor, MultiDomainTelemetry,
-    NeuronDomainReader, SystemAggregate, TpuDomainReader, UtilizationStats,
+    DomainTelemetry, DramDomainReader, EstimatedDomainReader, FrequencyStats, GpuDomainReader,
+    GroqDomainReader, HardwareDomain, MultiDomainMonitor, MultiDomainTelemetry, NeuronDomainReader,
+    SystemAggregate, TpuDomainReader, UtilizationStats,
 };
 // Accelerator readers gated behind the "accelerators" feature
-#[cfg(feature = "accelerators")]
-pub use domains::NvmlDomainReader;
-#[cfg(feature = "accelerators")]
-pub use domains::LevelZeroDomainReader;
-#[cfg(all(target_os = "linux", feature = "accelerators"))]
-pub use domains::RocmDomainReader;
 #[cfg(all(target_os = "linux", feature = "accelerators"))]
 pub use domains::HlmlDomainReader;
+#[cfg(feature = "accelerators")]
+pub use domains::LevelZeroDomainReader;
+#[cfg(feature = "accelerators")]
+pub use domains::NvmlDomainReader;
+#[cfg(all(target_os = "linux", feature = "accelerators"))]
+pub use domains::RocmDomainReader;
 pub use error::{Error, Result};
 pub use kinematics::{
     DerivativeChain, DerivativeComputer, EfficiencyMetrics, EnergyDerivatives, KinematicConfig,

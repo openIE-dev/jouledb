@@ -19,7 +19,12 @@ pub struct BinaryConfusion {
 
 impl BinaryConfusion {
     pub fn new() -> Self {
-        Self { tp: 0, fp: 0, tn: 0, fn_count: 0 }
+        Self {
+            tp: 0,
+            fp: 0,
+            tn: 0,
+            fn_count: 0,
+        }
     }
 
     /// Build from prediction and ground-truth slices (1 = positive, 0 = negative).
@@ -42,32 +47,42 @@ impl BinaryConfusion {
 
     pub fn accuracy(&self) -> f64 {
         let total = self.total();
-        if total == 0 { return 0.0; }
+        if total == 0 {
+            return 0.0;
+        }
         (self.tp + self.tn) as f64 / total as f64
     }
 
     pub fn precision(&self) -> f64 {
         let denom = self.tp + self.fp;
-        if denom == 0 { return 0.0; }
+        if denom == 0 {
+            return 0.0;
+        }
         self.tp as f64 / denom as f64
     }
 
     pub fn recall(&self) -> f64 {
         let denom = self.tp + self.fn_count;
-        if denom == 0 { return 0.0; }
+        if denom == 0 {
+            return 0.0;
+        }
         self.tp as f64 / denom as f64
     }
 
     pub fn specificity(&self) -> f64 {
         let denom = self.tn + self.fp;
-        if denom == 0 { return 0.0; }
+        if denom == 0 {
+            return 0.0;
+        }
         self.tn as f64 / denom as f64
     }
 
     pub fn f1_score(&self) -> f64 {
         let p = self.precision();
         let r = self.recall();
-        if p + r == 0.0 { return 0.0; }
+        if p + r == 0.0 {
+            return 0.0;
+        }
         2.0 * p * r / (p + r)
     }
 
@@ -77,7 +92,9 @@ impl BinaryConfusion {
         let r = self.recall();
         let b2 = beta * beta;
         let denom = b2 * p + r;
-        if denom == 0.0 { return 0.0; }
+        if denom == 0.0 {
+            return 0.0;
+        }
         (1.0 + b2) * p * r / denom
     }
 
@@ -88,7 +105,9 @@ impl BinaryConfusion {
         let fp = self.fp as f64;
         let fn_ = self.fn_count as f64;
         let denom = ((tp + fp) * (tp + fn_) * (tn + fp) * (tn + fn_)).sqrt();
-        if denom == 0.0 { return 0.0; }
+        if denom == 0.0 {
+            return 0.0;
+        }
         (tp * tn - fp * fn_) / denom
     }
 
@@ -105,15 +124,24 @@ impl BinaryConfusion {
     /// Negative predictive value.
     pub fn npv(&self) -> f64 {
         let denom = self.tn + self.fn_count;
-        if denom == 0 { return 0.0; }
+        if denom == 0 {
+            return 0.0;
+        }
         self.tn as f64 / denom as f64
     }
 }
 
 impl fmt::Display for BinaryConfusion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "BinaryConfusion(tp={}, fp={}, tn={}, fn={}, acc={:.4})",
-               self.tp, self.fp, self.tn, self.fn_count, self.accuracy())
+        write!(
+            f,
+            "BinaryConfusion(tp={}, fp={}, tn={}, fn={}, acc={:.4})",
+            self.tp,
+            self.fp,
+            self.tn,
+            self.fn_count,
+            self.accuracy()
+        )
     }
 }
 
@@ -142,11 +170,8 @@ impl MultiClassConfusion {
 
     /// Build from prediction and ground-truth slices.
     pub fn from_predictions(predictions: &[usize], actuals: &[usize]) -> Self {
-        let mut all_labels: Vec<usize> = predictions
-            .iter()
-            .chain(actuals.iter())
-            .copied()
-            .collect();
+        let mut all_labels: Vec<usize> =
+            predictions.iter().chain(actuals.iter()).copied().collect();
         all_labels.sort();
         all_labels.dedup();
         let mut cm = Self::new(all_labels);
@@ -158,7 +183,10 @@ impl MultiClassConfusion {
 
     /// Record a single prediction.
     pub fn record(&mut self, actual: usize, predicted: usize) {
-        if let (Some(&ai), Some(&pi)) = (self.label_to_idx.get(&actual), self.label_to_idx.get(&predicted)) {
+        if let (Some(&ai), Some(&pi)) = (
+            self.label_to_idx.get(&actual),
+            self.label_to_idx.get(&predicted),
+        ) {
             self.matrix[ai][pi] += 1;
         }
     }
@@ -182,7 +210,9 @@ impl MultiClassConfusion {
     /// Overall accuracy.
     pub fn accuracy(&self) -> f64 {
         let total = self.total();
-        if total == 0 { return 0.0; }
+        if total == 0 {
+            return 0.0;
+        }
         let correct: usize = (0..self.labels.len()).map(|i| self.matrix[i][i]).sum();
         correct as f64 / total as f64
     }
@@ -194,52 +224,100 @@ impl MultiClassConfusion {
             None => return ClassMetrics::zero(class),
         };
         let tp = self.matrix[idx][idx];
-        let fp: usize = (0..self.labels.len()).filter(|i| *i != idx).map(|i| self.matrix[i][idx]).sum();
-        let fn_: usize = (0..self.labels.len()).filter(|j| *j != idx).map(|j| self.matrix[idx][j]).sum();
+        let fp: usize = (0..self.labels.len())
+            .filter(|i| *i != idx)
+            .map(|i| self.matrix[i][idx])
+            .sum();
+        let fn_: usize = (0..self.labels.len())
+            .filter(|j| *j != idx)
+            .map(|j| self.matrix[idx][j])
+            .sum();
         let support = tp + fn_;
-        let precision = if tp + fp > 0 { tp as f64 / (tp + fp) as f64 } else { 0.0 };
-        let recall = if tp + fn_ > 0 { tp as f64 / (tp + fn_) as f64 } else { 0.0 };
-        let f1 = if precision + recall > 0.0 { 2.0 * precision * recall / (precision + recall) } else { 0.0 };
-        ClassMetrics { class, precision, recall, f1, support }
+        let precision = if tp + fp > 0 {
+            tp as f64 / (tp + fp) as f64
+        } else {
+            0.0
+        };
+        let recall = if tp + fn_ > 0 {
+            tp as f64 / (tp + fn_) as f64
+        } else {
+            0.0
+        };
+        let f1 = if precision + recall > 0.0 {
+            2.0 * precision * recall / (precision + recall)
+        } else {
+            0.0
+        };
+        ClassMetrics {
+            class,
+            precision,
+            recall,
+            f1,
+            support,
+        }
     }
 
     /// Macro-averaged precision (unweighted average across classes).
     pub fn macro_precision(&self) -> f64 {
         let n = self.labels.len() as f64;
-        if n == 0.0 { return 0.0; }
-        self.labels.iter().map(|c| self.class_metrics(*c).precision).sum::<f64>() / n
+        if n == 0.0 {
+            return 0.0;
+        }
+        self.labels
+            .iter()
+            .map(|c| self.class_metrics(*c).precision)
+            .sum::<f64>()
+            / n
     }
 
     /// Macro-averaged recall.
     pub fn macro_recall(&self) -> f64 {
         let n = self.labels.len() as f64;
-        if n == 0.0 { return 0.0; }
-        self.labels.iter().map(|c| self.class_metrics(*c).recall).sum::<f64>() / n
+        if n == 0.0 {
+            return 0.0;
+        }
+        self.labels
+            .iter()
+            .map(|c| self.class_metrics(*c).recall)
+            .sum::<f64>()
+            / n
     }
 
     /// Macro-averaged F1.
     pub fn macro_f1(&self) -> f64 {
         let n = self.labels.len() as f64;
-        if n == 0.0 { return 0.0; }
-        self.labels.iter().map(|c| self.class_metrics(*c).f1).sum::<f64>() / n
+        if n == 0.0 {
+            return 0.0;
+        }
+        self.labels
+            .iter()
+            .map(|c| self.class_metrics(*c).f1)
+            .sum::<f64>()
+            / n
     }
 
     /// Weighted-averaged F1 (weighted by class support).
     pub fn weighted_f1(&self) -> f64 {
         let total = self.total() as f64;
-        if total == 0.0 { return 0.0; }
-        self.labels.iter()
+        if total == 0.0 {
+            return 0.0;
+        }
+        self.labels
+            .iter()
             .map(|c| {
                 let m = self.class_metrics(*c);
                 m.f1 * m.support as f64
             })
-            .sum::<f64>() / total
+            .sum::<f64>()
+            / total
     }
 
     /// Cohen's Kappa coefficient.
     pub fn cohen_kappa(&self) -> f64 {
         let n = self.total() as f64;
-        if n == 0.0 { return 0.0; }
+        if n == 0.0 {
+            return 0.0;
+        }
         let p0 = self.accuracy();
         let mut pe = 0.0;
         for i in 0..self.labels.len() {
@@ -247,7 +325,9 @@ impl MultiClassConfusion {
             let col_sum: usize = (0..self.labels.len()).map(|j| self.matrix[j][i]).sum();
             pe += (row_sum as f64 / n) * (col_sum as f64 / n);
         }
-        if (1.0 - pe).abs() < 1e-15 { return 1.0; }
+        if (1.0 - pe).abs() < 1e-15 {
+            return 1.0;
+        }
         (p0 - pe) / (1.0 - pe)
     }
 
@@ -259,7 +339,12 @@ impl MultiClassConfusion {
 
 impl fmt::Display for MultiClassConfusion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MultiClassConfusion(classes={}, acc={:.4})", self.num_classes(), self.accuracy())
+        write!(
+            f,
+            "MultiClassConfusion(classes={}, acc={:.4})",
+            self.num_classes(),
+            self.accuracy()
+        )
     }
 }
 
@@ -277,14 +362,23 @@ pub struct ClassMetrics {
 
 impl ClassMetrics {
     fn zero(class: usize) -> Self {
-        Self { class, precision: 0.0, recall: 0.0, f1: 0.0, support: 0 }
+        Self {
+            class,
+            precision: 0.0,
+            recall: 0.0,
+            f1: 0.0,
+            support: 0,
+        }
     }
 }
 
 impl fmt::Display for ClassMetrics {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Class {} (P={:.3}, R={:.3}, F1={:.3}, n={})",
-               self.class, self.precision, self.recall, self.f1, self.support)
+        write!(
+            f,
+            "Class {} (P={:.3}, R={:.3}, F1={:.3}, n={})",
+            self.class, self.precision, self.recall, self.f1, self.support
+        )
     }
 }
 
@@ -303,7 +397,8 @@ pub struct ClassificationReport {
 impl ClassificationReport {
     /// Build a report from a confusion matrix.
     pub fn from_confusion(cm: &MultiClassConfusion) -> Self {
-        let class_metrics: Vec<ClassMetrics> = cm.labels.iter().map(|c| cm.class_metrics(*c)).collect();
+        let class_metrics: Vec<ClassMetrics> =
+            cm.labels.iter().map(|c| cm.class_metrics(*c)).collect();
         Self {
             class_metrics,
             accuracy: cm.accuracy(),
@@ -317,10 +412,17 @@ impl ClassificationReport {
 impl fmt::Display for ClassificationReport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Classification Report (n={}):", self.total_samples)?;
-        writeln!(f, "{:<10} {:>9} {:>9} {:>9} {:>9}", "Class", "Precision", "Recall", "F1", "Support")?;
+        writeln!(
+            f,
+            "{:<10} {:>9} {:>9} {:>9} {:>9}",
+            "Class", "Precision", "Recall", "F1", "Support"
+        )?;
         for m in &self.class_metrics {
-            writeln!(f, "{:<10} {:>9.4} {:>9.4} {:>9.4} {:>9}",
-                     m.class, m.precision, m.recall, m.f1, m.support)?;
+            writeln!(
+                f,
+                "{:<10} {:>9.4} {:>9.4} {:>9.4} {:>9}",
+                m.class, m.precision, m.recall, m.f1, m.support
+            )?;
         }
         writeln!(f, "")?;
         writeln!(f, "Accuracy: {:.4}", self.accuracy)?;
@@ -337,7 +439,12 @@ mod tests {
 
     #[test]
     fn binary_perfect() {
-        let cm = BinaryConfusion { tp: 50, fp: 0, tn: 50, fn_count: 0 };
+        let cm = BinaryConfusion {
+            tp: 50,
+            fp: 0,
+            tn: 50,
+            fn_count: 0,
+        };
         assert!((cm.accuracy() - 1.0).abs() < 1e-9);
         assert!((cm.precision() - 1.0).abs() < 1e-9);
         assert!((cm.recall() - 1.0).abs() < 1e-9);
@@ -357,14 +464,24 @@ mod tests {
 
     #[test]
     fn binary_precision_recall() {
-        let cm = BinaryConfusion { tp: 40, fp: 10, tn: 45, fn_count: 5 };
+        let cm = BinaryConfusion {
+            tp: 40,
+            fp: 10,
+            tn: 45,
+            fn_count: 5,
+        };
         assert!((cm.precision() - 0.8).abs() < 1e-9);
         assert!((cm.recall() - 40.0 / 45.0).abs() < 1e-9);
     }
 
     #[test]
     fn binary_f_beta() {
-        let cm = BinaryConfusion { tp: 30, fp: 10, tn: 50, fn_count: 10 };
+        let cm = BinaryConfusion {
+            tp: 30,
+            fp: 10,
+            tn: 50,
+            fn_count: 10,
+        };
         let f1 = cm.f1_score();
         let f1_via_beta = cm.f_beta(1.0);
         assert!((f1 - f1_via_beta).abs() < 1e-9);
@@ -372,32 +489,57 @@ mod tests {
 
     #[test]
     fn binary_mcc_perfect() {
-        let cm = BinaryConfusion { tp: 50, fp: 0, tn: 50, fn_count: 0 };
+        let cm = BinaryConfusion {
+            tp: 50,
+            fp: 0,
+            tn: 50,
+            fn_count: 0,
+        };
         assert!((cm.mcc() - 1.0).abs() < 1e-9);
     }
 
     #[test]
     fn binary_mcc_random() {
-        let cm = BinaryConfusion { tp: 25, fp: 25, tn: 25, fn_count: 25 };
+        let cm = BinaryConfusion {
+            tp: 25,
+            fp: 25,
+            tn: 25,
+            fn_count: 25,
+        };
         assert!((cm.mcc() - 0.0).abs() < 1e-9);
     }
 
     #[test]
     fn binary_specificity() {
-        let cm = BinaryConfusion { tp: 40, fp: 5, tn: 45, fn_count: 10 };
+        let cm = BinaryConfusion {
+            tp: 40,
+            fp: 5,
+            tn: 45,
+            fn_count: 10,
+        };
         assert!((cm.specificity() - 0.9).abs() < 1e-9);
     }
 
     #[test]
     fn binary_npv() {
-        let cm = BinaryConfusion { tp: 40, fp: 5, tn: 45, fn_count: 10 };
+        let cm = BinaryConfusion {
+            tp: 40,
+            fp: 5,
+            tn: 45,
+            fn_count: 10,
+        };
         let expected = 45.0 / 55.0;
         assert!((cm.npv() - expected).abs() < 1e-9);
     }
 
     #[test]
     fn binary_display() {
-        let cm = BinaryConfusion { tp: 10, fp: 2, tn: 8, fn_count: 0 };
+        let cm = BinaryConfusion {
+            tp: 10,
+            fp: 2,
+            tn: 8,
+            fn_count: 0,
+        };
         let txt = format!("{}", cm);
         assert!(txt.contains("tp=10"));
     }
@@ -467,7 +609,13 @@ mod tests {
 
     #[test]
     fn class_metrics_display() {
-        let m = ClassMetrics { class: 1, precision: 0.85, recall: 0.9, f1: 0.874, support: 20 };
+        let m = ClassMetrics {
+            class: 1,
+            precision: 0.85,
+            recall: 0.9,
+            f1: 0.874,
+            support: 20,
+        };
         let txt = format!("{}", m);
         assert!(txt.contains("Class 1"));
     }

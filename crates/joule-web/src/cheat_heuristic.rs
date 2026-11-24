@@ -53,7 +53,11 @@ impl BehaviorSample {
 
 impl fmt::Display for BehaviorSample {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}={:.3} @t={}", self.metric_name, self.value, self.timestamp)
+        write!(
+            f,
+            "{}={:.3} @t={}",
+            self.metric_name, self.value, self.timestamp
+        )
     }
 }
 
@@ -341,13 +345,19 @@ impl HeuristicDetector {
     }
 
     pub fn enable_rule(&mut self, name: &str) -> Result<(), HeuristicError> {
-        let rule = self.rules.get_mut(name).ok_or_else(|| HeuristicError::RuleNotFound(name.to_string()))?;
+        let rule = self
+            .rules
+            .get_mut(name)
+            .ok_or_else(|| HeuristicError::RuleNotFound(name.to_string()))?;
         rule.enabled = true;
         Ok(())
     }
 
     pub fn disable_rule(&mut self, name: &str) -> Result<(), HeuristicError> {
-        let rule = self.rules.get_mut(name).ok_or_else(|| HeuristicError::RuleNotFound(name.to_string()))?;
+        let rule = self
+            .rules
+            .get_mut(name)
+            .ok_or_else(|| HeuristicError::RuleNotFound(name.to_string()))?;
         rule.enabled = false;
         Ok(())
     }
@@ -398,8 +408,8 @@ impl HeuristicDetector {
             if violated {
                 *consec += 1;
                 if *consec >= rule.consecutive_count {
-                    let confidence = (*consec as f64 / (rule.consecutive_count as f64 * 2.0))
-                        .clamp(0.3, 0.95);
+                    let confidence =
+                        (*consec as f64 / (rule.consecutive_count as f64 * 2.0)).clamp(0.3, 0.95);
                     let alert = HeuristicAlert::new(player_id, &rule.name, confidence, timestamp)
                         .with_details(&format!(
                             "{} {} {} for {} consecutive samples",
@@ -448,8 +458,9 @@ impl HeuristicDetector {
 
             if spike_count >= cr.min_spike_count {
                 let conf = (spike_count as f64 / cr.metrics.len() as f64).clamp(0.3, 0.95);
-                let alert = HeuristicAlert::new(player_id, &cr.name, conf, timestamp)
-                    .with_details(&format!("{}/{} metrics spiking", spike_count, cr.metrics.len()));
+                let alert = HeuristicAlert::new(player_id, &cr.name, conf, timestamp).with_details(
+                    &format!("{}/{} metrics spiking", spike_count, cr.metrics.len()),
+                );
                 alerts.push(alert);
             }
         }
@@ -504,8 +515,13 @@ mod tests {
 
     fn setup_detector() -> HeuristicDetector {
         let mut det = HeuristicDetector::new(100);
-        det.add_rule(ThresholdRule::new("high_speed", "speed", RuleCondition::GreaterThan, 50.0))
-            .unwrap();
+        det.add_rule(ThresholdRule::new(
+            "high_speed",
+            "speed",
+            RuleCondition::GreaterThan,
+            50.0,
+        ))
+        .unwrap();
         det
     }
 
@@ -527,15 +543,34 @@ mod tests {
     #[test]
     fn test_add_rule() {
         let mut det = HeuristicDetector::new(100);
-        det.add_rule(ThresholdRule::new("r1", "speed", RuleCondition::GreaterThan, 10.0)).unwrap();
+        det.add_rule(ThresholdRule::new(
+            "r1",
+            "speed",
+            RuleCondition::GreaterThan,
+            10.0,
+        ))
+        .unwrap();
         assert_eq!(det.rule_count(), 1);
     }
 
     #[test]
     fn test_duplicate_rule_rejected() {
         let mut det = HeuristicDetector::new(100);
-        det.add_rule(ThresholdRule::new("r1", "speed", RuleCondition::GreaterThan, 10.0)).unwrap();
-        let err = det.add_rule(ThresholdRule::new("r1", "speed", RuleCondition::LessThan, 5.0)).unwrap_err();
+        det.add_rule(ThresholdRule::new(
+            "r1",
+            "speed",
+            RuleCondition::GreaterThan,
+            10.0,
+        ))
+        .unwrap();
+        let err = det
+            .add_rule(ThresholdRule::new(
+                "r1",
+                "speed",
+                RuleCondition::LessThan,
+                5.0,
+            ))
+            .unwrap_err();
         assert!(matches!(err, HeuristicError::DuplicateRule(_)));
     }
 
@@ -608,7 +643,13 @@ mod tests {
     #[test]
     fn test_enable_disable_rule() {
         let mut det = HeuristicDetector::new(100);
-        det.add_rule(ThresholdRule::new("hs", "speed", RuleCondition::GreaterThan, 50.0)).unwrap();
+        det.add_rule(ThresholdRule::new(
+            "hs",
+            "speed",
+            RuleCondition::GreaterThan,
+            50.0,
+        ))
+        .unwrap();
         det.disable_rule("hs").unwrap();
         let a1 = det.submit_sample(1, sample("speed", 100.0, 1));
         assert!(a1.iter().all(|a| a.rule_name != "hs"));
@@ -658,7 +699,10 @@ mod tests {
     #[test]
     fn test_player_not_found() {
         let det = HeuristicDetector::new(100);
-        assert!(matches!(det.player_alerts(999), Err(HeuristicError::PlayerNotFound(999))));
+        assert!(matches!(
+            det.player_alerts(999),
+            Err(HeuristicError::PlayerNotFound(999))
+        ));
     }
 
     #[test]

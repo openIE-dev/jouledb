@@ -234,7 +234,9 @@ impl ReverbEngine {
 
         let combs_left: Vec<CombFilter> = (0..comb_count)
             .map(|i| {
-                let delay = ((COMB_DELAYS[i] as f64 * scale * (0.8 + params.room_size * 0.4)) as usize).max(1);
+                let delay = ((COMB_DELAYS[i] as f64 * scale * (0.8 + params.room_size * 0.4))
+                    as usize)
+                    .max(1);
                 CombFilter::new(delay, freeze_feedback, params.damping)
             })
             .collect();
@@ -242,7 +244,8 @@ impl ReverbEngine {
         let combs_right: Vec<CombFilter> = (0..comb_count)
             .map(|i| {
                 let base = COMB_DELAYS[i] + (STEREO_OFFSET as f64 * params.stereo_spread) as usize;
-                let delay = ((base as f64 * scale * (0.8 + params.room_size * 0.4)) as usize).max(1);
+                let delay =
+                    ((base as f64 * scale * (0.8 + params.room_size * 0.4)) as usize).max(1);
                 CombFilter::new(delay, freeze_feedback, params.damping)
             })
             .collect();
@@ -256,7 +259,8 @@ impl ReverbEngine {
 
         let allpasses_right: Vec<AllpassFilter> = (0..allpass_count)
             .map(|i| {
-                let delay = ((ALLPASS_DELAYS[i] as f64 * scale) as usize + STEREO_OFFSET / 2).max(1);
+                let delay =
+                    ((ALLPASS_DELAYS[i] as f64 * scale) as usize + STEREO_OFFSET / 2).max(1);
                 AllpassFilter::new(delay, 0.5)
             })
             .collect();
@@ -265,8 +269,12 @@ impl ReverbEngine {
         let max_er_delay = (0.05 * sample_rate as f64) as usize; // 50ms max
         let mut early_reflections = TappedDelayLine::new(max_er_delay.max(1));
         let er_taps = [
-            (0.005, 0.8), (0.012, 0.6), (0.020, 0.5),
-            (0.028, 0.4), (0.035, 0.3), (0.042, 0.25),
+            (0.005, 0.8),
+            (0.012, 0.6),
+            (0.020, 0.5),
+            (0.028, 0.4),
+            (0.035, 0.3),
+            (0.042, 0.25),
         ];
         for &(time, gain) in &er_taps {
             let samp = (time * sample_rate as f64) as usize;
@@ -300,18 +308,28 @@ impl ReverbEngine {
     /// Set room size (rebuilds feedback).
     pub fn set_room_size(&mut self, room_size: f64) {
         self.params.room_size = room_size.clamp(0.0, 1.0);
-        let fb = if self.params.freeze { 1.0 } else {
+        let fb = if self.params.freeze {
+            1.0
+        } else {
             compute_feedback(self.params.room_size, self.params.decay_time)
         };
-        for c in &mut self.combs_left { c.set_feedback(fb); }
-        for c in &mut self.combs_right { c.set_feedback(fb); }
+        for c in &mut self.combs_left {
+            c.set_feedback(fb);
+        }
+        for c in &mut self.combs_right {
+            c.set_feedback(fb);
+        }
     }
 
     /// Set damping.
     pub fn set_damping(&mut self, damping: f64) {
         self.params.damping = damping.clamp(0.0, 1.0);
-        for c in &mut self.combs_left { c.set_damping(self.params.damping); }
-        for c in &mut self.combs_right { c.set_damping(self.params.damping); }
+        for c in &mut self.combs_left {
+            c.set_damping(self.params.damping);
+        }
+        for c in &mut self.combs_right {
+            c.set_damping(self.params.damping);
+        }
     }
 
     /// Set wet/dry mix.
@@ -322,11 +340,17 @@ impl ReverbEngine {
     /// Enable/disable freeze mode.
     pub fn set_freeze(&mut self, freeze: bool) {
         self.params.freeze = freeze;
-        let fb = if freeze { 1.0 } else {
+        let fb = if freeze {
+            1.0
+        } else {
             compute_feedback(self.params.room_size, self.params.decay_time)
         };
-        for c in &mut self.combs_left { c.set_feedback(fb); }
-        for c in &mut self.combs_right { c.set_feedback(fb); }
+        for c in &mut self.combs_left {
+            c.set_feedback(fb);
+        }
+        for c in &mut self.combs_right {
+            c.set_feedback(fb);
+        }
     }
 
     /// Process a mono input buffer, returning stereo output (left, right).
@@ -403,10 +427,18 @@ impl ReverbEngine {
 
     /// Reset all internal state.
     pub fn reset(&mut self) {
-        for c in &mut self.combs_left { c.reset(); }
-        for c in &mut self.combs_right { c.reset(); }
-        for a in &mut self.allpasses_left { a.reset(); }
-        for a in &mut self.allpasses_right { a.reset(); }
+        for c in &mut self.combs_left {
+            c.reset();
+        }
+        for c in &mut self.combs_right {
+            c.reset();
+        }
+        for a in &mut self.allpasses_left {
+            a.reset();
+        }
+        for a in &mut self.allpasses_right {
+            a.reset();
+        }
         self.early_reflections.reset();
         self.pre_delay_buffer.fill(0.0);
         self.pre_delay_write_pos = 0;
@@ -557,8 +589,11 @@ mod tests {
         input[0] = 1.0;
         let (left, right) = engine.process_mono(&input);
         // Should have reverb tail
-        let tail_energy: f64 = left[256..].iter().chain(right[256..].iter())
-            .map(|s| s * s).sum();
+        let tail_energy: f64 = left[256..]
+            .iter()
+            .chain(right[256..].iter())
+            .map(|s| s * s)
+            .sum();
         assert!(tail_energy > 1e-6);
     }
 

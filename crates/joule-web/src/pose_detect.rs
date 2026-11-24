@@ -173,7 +173,10 @@ impl Skeleton {
 
     /// Number of keypoints above a confidence threshold.
     pub fn visible_count(&self, threshold: f64) -> usize {
-        self.keypoints.iter().filter(|kp| kp.confidence >= threshold).count()
+        self.keypoints
+            .iter()
+            .filter(|kp| kp.confidence >= threshold)
+            .count()
     }
 
     /// Bounding box [x_min, y_min, x_max, y_max] from visible keypoints.
@@ -188,8 +191,14 @@ impl Skeleton {
         }
         let x_min = visible.iter().map(|kp| kp.x).fold(f64::INFINITY, f64::min);
         let y_min = visible.iter().map(|kp| kp.y).fold(f64::INFINITY, f64::min);
-        let x_max = visible.iter().map(|kp| kp.x).fold(f64::NEG_INFINITY, f64::max);
-        let y_max = visible.iter().map(|kp| kp.y).fold(f64::NEG_INFINITY, f64::max);
+        let x_max = visible
+            .iter()
+            .map(|kp| kp.x)
+            .fold(f64::NEG_INFINITY, f64::max);
+        let y_max = visible
+            .iter()
+            .map(|kp| kp.y)
+            .fold(f64::NEG_INFINITY, f64::max);
         Some([x_min, y_min, x_max, y_max])
     }
 }
@@ -232,7 +241,11 @@ pub fn iou(a: &[f64; 4], b: &[f64; 4]) -> f64 {
     let area_b = b[2] * b[3];
     let union = area_a + area_b - inter_area;
 
-    if union < 1e-12 { 0.0 } else { inter_area / union }
+    if union < 1e-12 {
+        0.0
+    } else {
+        inter_area / union
+    }
 }
 
 /// Non-maximum suppression on person detections.

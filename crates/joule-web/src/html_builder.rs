@@ -13,8 +13,8 @@ use std::fmt::Write as FmtWrite;
 
 /// HTML void elements (self-closing tags).
 const VOID_ELEMENTS: &[&str] = &[
-    "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
-    "meta", "param", "source", "track", "wbr",
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
+    "track", "wbr",
 ];
 
 /// Raw text elements (content is not escaped).
@@ -187,9 +187,7 @@ impl HtmlNode {
             HtmlNode::Element { children, .. } => {
                 1 + children.iter().map(|c| c.element_count()).sum::<usize>()
             }
-            HtmlNode::Fragment(children) => {
-                children.iter().map(|c| c.element_count()).sum()
-            }
+            HtmlNode::Fragment(children) => children.iter().map(|c| c.element_count()).sum(),
             _ => 0,
         }
     }
@@ -240,10 +238,7 @@ impl Element {
     /// Add a CSS class. Multiple calls append classes.
     pub fn class(mut self, cls: &str) -> Self {
         // Find existing class attribute or create one.
-        let existing = self
-            .attrs
-            .iter_mut()
-            .find(|(k, _)| k == "class");
+        let existing = self.attrs.iter_mut().find(|(k, _)| k == "class");
 
         if let Some((_, Some(val))) = existing {
             if !val.is_empty() {
@@ -267,10 +262,7 @@ impl Element {
 
     /// Set a CSS style property.
     pub fn style(mut self, property: &str, value: &str) -> Self {
-        let existing = self
-            .attrs
-            .iter_mut()
-            .find(|(k, _)| k == "style");
+        let existing = self.attrs.iter_mut().find(|(k, _)| k == "style");
 
         let decl = format!("{property}: {value}");
         if let Some((_, Some(val))) = existing {
@@ -280,8 +272,7 @@ impl Element {
             val.push_str(" ");
             val.push_str(&decl);
         } else {
-            self.attrs
-                .push(("style".to_string(), Some(decl)));
+            self.attrs.push(("style".to_string(), Some(decl)));
         }
         self
     }
@@ -417,8 +408,7 @@ impl DocumentBuilder {
 
     /// Add a meta tag.
     pub fn meta(mut self, name: &str, content: &str) -> Self {
-        self.meta_tags
-            .push((name.to_string(), content.to_string()));
+        self.meta_tags.push((name.to_string(), content.to_string()));
         self
     }
 
@@ -464,11 +454,7 @@ impl DocumentBuilder {
         let mut head_children: Vec<HtmlNode> = Vec::new();
 
         // Charset meta.
-        head_children.push(
-            Element::new("meta")
-                .attr("charset", &self.charset)
-                .build(),
-        );
+        head_children.push(Element::new("meta").attr("charset", &self.charset).build());
 
         // Viewport meta.
         head_children.push(
@@ -531,10 +517,7 @@ impl DocumentBuilder {
             .child(head)
             .child(body);
 
-        HtmlNode::Fragment(vec![
-            HtmlNode::Doctype("html".to_string()),
-            html.build(),
-        ])
+        HtmlNode::Fragment(vec![HtmlNode::Doctype("html".to_string()), html.build()])
     }
 }
 
@@ -875,10 +858,7 @@ mod tests {
 
     #[test]
     fn test_fragment() {
-        let frag = fragment(vec![
-            p().text("One").build(),
-            p().text("Two").build(),
-        ]);
+        let frag = fragment(vec![p().text("One").build(), p().text("Two").build()]);
         let html = frag.to_html();
         assert!(html.contains("<p>One</p>"));
         assert!(html.contains("<p>Two</p>"));
@@ -915,12 +895,9 @@ mod tests {
 
     #[test]
     fn test_table_helper() {
-        let html = table(
-            &["Name", "Age"],
-            &[vec!["Alice", "30"], vec!["Bob", "25"]],
-        )
-        .build()
-        .to_html();
+        let html = table(&["Name", "Age"], &[vec!["Alice", "30"], vec!["Bob", "25"]])
+            .build()
+            .to_html();
         assert!(html.contains("<table>"));
         assert!(html.contains("<th>Name</th>"));
         assert!(html.contains("<td>Alice</td>"));
@@ -943,10 +920,7 @@ mod tests {
 
     #[test]
     fn test_element_count() {
-        let node = div()
-            .child(p().text("A"))
-            .child(p().text("B"))
-            .build();
+        let node = div().child(p().text("A")).child(p().text("B")).build();
         assert_eq!(node.element_count(), 3); // div + 2 p
     }
 

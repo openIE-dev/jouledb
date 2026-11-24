@@ -24,7 +24,10 @@ pub enum ProfileError {
     /// Version conflict during update.
     VersionConflict { expected: u64, actual: u64 },
     /// Avatar too large.
-    AvatarTooLarge { max_bytes: usize, actual_bytes: usize },
+    AvatarTooLarge {
+        max_bytes: usize,
+        actual_bytes: usize,
+    },
     /// Invalid preference key.
     InvalidPreference(String),
 }
@@ -164,10 +167,7 @@ pub struct CompletenessScore {
 // ── Validation ─────────────────────────────────────────────────
 
 /// Validate a field value against a definition.
-fn validate_field(
-    def: &FieldDefinition,
-    value: &FieldValue,
-) -> Result<(), ProfileError> {
+fn validate_field(def: &FieldDefinition, value: &FieldValue) -> Result<(), ProfileError> {
     match value {
         FieldValue::Text(s) | FieldValue::Url(s) | FieldValue::Date(s) => {
             if let Some(max) = def.max_length {
@@ -260,8 +260,7 @@ impl ProfileEngine {
             fields: HashMap::new(),
             change_summary: "profile created".to_string(),
         };
-        self.versions
-            .insert(user_id.to_string(), vec![version]);
+        self.versions.insert(user_id.to_string(), vec![version]);
 
         Ok(self.profiles.get(user_id).unwrap())
     }
@@ -296,7 +295,12 @@ impl ProfileEngine {
 
         // Validate fields against definitions.
         for (name, value) in &fields {
-            if let Some(def) = self.config.field_definitions.iter().find(|d| d.name == *name) {
+            if let Some(def) = self
+                .config
+                .field_definitions
+                .iter()
+                .find(|d| d.name == *name)
+            {
                 validate_field(def, value)?;
             }
         }
@@ -396,12 +400,7 @@ impl ProfileEngine {
     }
 
     /// Set bio.
-    pub fn set_bio(
-        &mut self,
-        user_id: &str,
-        bio: &str,
-        now_secs: u64,
-    ) -> Result<(), ProfileError> {
+    pub fn set_bio(&mut self, user_id: &str, bio: &str, now_secs: u64) -> Result<(), ProfileError> {
         let profile = self
             .profiles
             .get_mut(user_id)
@@ -639,10 +638,7 @@ mod tests {
         engine.create_profile("u1", "Alice", 1000).unwrap();
 
         let mut fields = HashMap::new();
-        fields.insert(
-            "location".to_string(),
-            FieldValue::Text("NYC".to_string()),
-        );
+        fields.insert("location".to_string(), FieldValue::Text("NYC".to_string()));
 
         let profile = engine
             .update_fields("u1", fields, 1, 2000, "added location")
@@ -668,10 +664,7 @@ mod tests {
         engine.create_profile("u1", "Alice", 1000).unwrap();
 
         let mut fields = HashMap::new();
-        fields.insert(
-            "location".to_string(),
-            FieldValue::Text("x".repeat(200)),
-        );
+        fields.insert("location".to_string(), FieldValue::Text("x".repeat(200)));
 
         let err = engine
             .update_fields("u1", fields, 1, 2000, "test")
@@ -685,10 +678,7 @@ mod tests {
         engine.create_profile("u1", "Alice", 1000).unwrap();
 
         let mut fields = HashMap::new();
-        fields.insert(
-            "website".to_string(),
-            FieldValue::Text("ab".to_string()),
-        );
+        fields.insert("website".to_string(), FieldValue::Text("ab".to_string()));
 
         let err = engine
             .update_fields("u1", fields, 1, 2000, "test")
@@ -784,9 +774,7 @@ mod tests {
     fn test_preference_invalid_key() {
         let mut engine = ProfileEngine::default();
         engine.create_profile("u1", "Alice", 1000).unwrap();
-        let err = engine
-            .set_preference("u1", "", "value", "cat")
-            .unwrap_err();
+        let err = engine.set_preference("u1", "", "value", "cat").unwrap_err();
         assert!(matches!(err, ProfileError::InvalidPreference(_)));
     }
 
@@ -816,16 +804,19 @@ mod tests {
         engine.set_bio("u1", "Hi!", 1003).unwrap();
 
         let mut fields = HashMap::new();
-        fields.insert(
-            "location".to_string(),
-            FieldValue::Text("NYC".to_string()),
-        );
+        fields.insert("location".to_string(), FieldValue::Text("NYC".to_string()));
         fields.insert(
             "website".to_string(),
             FieldValue::Url("https://example.com".to_string()),
         );
         engine
-            .update_fields("u1", fields, engine.get_profile("u1").unwrap().version, 1004, "add fields")
+            .update_fields(
+                "u1",
+                fields,
+                engine.get_profile("u1").unwrap().version,
+                1004,
+                "add fields",
+            )
             .unwrap();
 
         let score = engine.completeness("u1").unwrap();
@@ -858,7 +849,13 @@ mod tests {
         for i in 1..=5 {
             let v = engine.get_profile("u1").unwrap().version;
             engine
-                .update_fields("u1", HashMap::new(), v, 1000 + i * 100, &format!("v{}", i + 1))
+                .update_fields(
+                    "u1",
+                    HashMap::new(),
+                    v,
+                    1000 + i * 100,
+                    &format!("v{}", i + 1),
+                )
                 .unwrap();
         }
 

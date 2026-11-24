@@ -14,47 +14,47 @@
 //! println!("Tier: {:?}, Energy: {} J", result.receipt.tier, result.receipt.energy_joules);
 //! ```
 
+pub mod backends;
+pub mod contrast;
+pub mod facade;
+pub mod flow_bridge;
+pub mod flowqit;
+pub mod holo;
+pub mod metabolic;
+pub mod pattern_bridge;
+pub mod promoter;
+pub mod question;
 pub mod receipt;
+pub mod selector;
 pub mod tier;
 pub mod traits;
-pub mod holo;
-pub mod selector;
-pub mod facade;
-pub mod question;
-pub mod promoter;
-pub mod contrast;
-pub mod metabolic;
-pub mod vector_bridge;
 pub mod ucg;
-pub mod flow_bridge;
-pub mod pattern_bridge;
-pub mod flowqit;
-pub mod backends;
+pub mod vector_bridge;
 
-pub use facade::JouleDbAi;
 pub use backends::{CascadeFrontier, CascadeLocal, HdcEmbedded};
+pub use contrast::{Contrast, ContrastEngine, ContrastSource, FieldContrast, SpikeCluster};
+pub use facade::JouleDbAi;
+pub use flow_bridge::{
+    ComputeRegime, DomainLut, FlowGraph, FlowGraphBuilder, FlowNode, FlowNodeKind, FlowReasoning,
+    FlowResult, FlowWire, LocalFlowReasoner, TraceStep, WireKind,
+};
+pub use flowqit::{
+    ContrastDynamics, DensityState, FlowQitEngine, LANDAUER_FLOOR, MeasurementResult, QitPriors,
+    QitRegime, QitSummary,
+};
+pub use metabolic::{ComputeBudget, MetabolicController, MetabolicState};
+pub use pattern_bridge::{
+    MatchKind, OodaPosition, PatternBridge, PatternMatch, PatternResolution, PatternResolver,
+};
+pub use promoter::{AwarenessPromoter, DiscoveredDimension, DiscoverySource};
+pub use question::{Frontier, FrontierSource, Question, QuestionEngine, QuestionOutcome};
 pub use receipt::{AiReceipt, EnergyProvenance, TokenCount};
+pub use selector::{ComplexityScore, HardwareProfile, TierAvailability, classify_complexity};
 pub use tier::{InferenceTier, TierConstraints};
 pub use traits::{
     AiError, AiMessage, AiOutput, AiResult, AiTool, EmbeddedInference, EnrichedFields, Entity,
     FrontierInference, HolographicInference, LocalInference, ReasoningResult, Sentiment,
     SentimentLabel,
 };
-pub use selector::{ComplexityScore, HardwareProfile, TierAvailability, classify_complexity};
-pub use question::{Frontier, FrontierSource, Question, QuestionEngine, QuestionOutcome};
-pub use promoter::{AwarenessPromoter, DiscoveredDimension, DiscoverySource};
-pub use contrast::{Contrast, ContrastEngine, ContrastSource, FieldContrast, SpikeCluster};
-pub use metabolic::{ComputeBudget, MetabolicController, MetabolicState};
-pub use vector_bridge::{PhasorVector, binaryhv_to_phasor, phasor_to_binaryhv, cross_similarity};
-pub use ucg::{ContrastMap, ContrastState, OrbitScores, OrbitWeights, UcgEngine, NUM_ORBITS};
-pub use flow_bridge::{
-    ComputeRegime, DomainLut, FlowGraph, FlowGraphBuilder, FlowNode, FlowNodeKind, FlowReasoning,
-    FlowResult, FlowWire, LocalFlowReasoner, TraceStep, WireKind,
-};
-pub use pattern_bridge::{
-    MatchKind, OodaPosition, PatternBridge, PatternMatch, PatternResolution, PatternResolver,
-};
-pub use flowqit::{
-    ContrastDynamics, DensityState, FlowQitEngine, MeasurementResult, QitPriors, QitRegime,
-    QitSummary, LANDAUER_FLOOR,
-};
+pub use ucg::{ContrastMap, ContrastState, NUM_ORBITS, OrbitScores, OrbitWeights, UcgEngine};
+pub use vector_bridge::{PhasorVector, binaryhv_to_phasor, cross_similarity, phasor_to_binaryhv};

@@ -34,7 +34,10 @@ impl GraphqlRequest {
     /// Serialize this request as a JSON value suitable for HTTP POST.
     pub fn to_json(&self) -> serde_json::Value {
         let mut map = serde_json::Map::new();
-        map.insert("query".to_string(), serde_json::Value::String(self.query.clone()));
+        map.insert(
+            "query".to_string(),
+            serde_json::Value::String(self.query.clone()),
+        );
         if !self.variables.is_null() {
             map.insert("variables".to_string(), self.variables.clone());
         }

@@ -71,30 +71,48 @@ impl Vec2 {
         if n < 1e-12 {
             None
         } else {
-            Some(Self { x: self.x / n, y: self.y / n })
+            Some(Self {
+                x: self.x / n,
+                y: self.y / n,
+            })
         }
     }
 
     pub fn scale(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
     }
 
     pub fn add(self, other: Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
     }
 
     pub fn sub(self, other: Self) -> Self {
-        Self { x: self.x - other.x, y: self.y - other.y }
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
     }
 
     pub fn rotate(self, angle: f64) -> Self {
         let (s, c) = angle.sin_cos();
-        Self { x: c * self.x - s * self.y, y: s * self.x + c * self.y }
+        Self {
+            x: c * self.x - s * self.y,
+            y: s * self.x + c * self.y,
+        }
     }
 
     /// Perpendicular vector (90 deg counter-clockwise).
     pub fn perp(self) -> Self {
-        Self { x: -self.y, y: self.x }
+        Self {
+            x: -self.y,
+            y: self.x,
+        }
     }
 }
 
@@ -121,7 +139,12 @@ pub struct SliderState {
 
 impl SliderState {
     pub fn new(position: Vec2, theta: f64) -> Self {
-        Self { position, theta, velocity: Vec2::zero(), omega: 0.0 }
+        Self {
+            position,
+            theta,
+            velocity: Vec2::zero(),
+            omega: 0.0,
+        }
     }
 
     pub fn with_velocity(mut self, vel: Vec2, omega: f64) -> Self {
@@ -137,7 +160,10 @@ impl SliderState {
 
     /// World-frame normal at a contact point (outward from slider).
     pub fn outward_normal(&self, contact_local: Vec2) -> Vec2 {
-        contact_local.rotate(self.theta).normalized().unwrap_or(Vec2::new(1.0, 0.0))
+        contact_local
+            .rotate(self.theta)
+            .normalized()
+            .unwrap_or(Vec2::new(1.0, 0.0))
     }
 }
 
@@ -173,15 +199,24 @@ impl LimitSurface {
             return Err(PushError::InvalidParameter("mass must be positive".into()));
         }
         if mu <= 0.0 {
-            return Err(PushError::InvalidParameter("friction must be positive".into()));
+            return Err(PushError::InvalidParameter(
+                "friction must be positive".into(),
+            ));
         }
         if support_radius <= 0.0 {
-            return Err(PushError::InvalidParameter("support radius must be positive".into()));
+            return Err(PushError::InvalidParameter(
+                "support radius must be positive".into(),
+            ));
         }
         let f_max = mu * mass * 9.81;
         // For a uniform disk, tau_max = (2/3) * mu * m * g * R
         let tau_max = (2.0 / 3.0) * mu * mass * 9.81 * support_radius;
-        Ok(Self { f_max, tau_max, mass, mu })
+        Ok(Self {
+            f_max,
+            tau_max,
+            mass,
+            mu,
+        })
     }
 
     /// Map an applied wrench (fx, fy, tau) to the generalised velocity (vx, vy, omega).
@@ -237,7 +272,11 @@ impl PushContact {
         if mu < 0.0 {
             return Err(PushError::InvalidParameter("negative friction".into()));
         }
-        Ok(Self { local_position, local_normal, mu })
+        Ok(Self {
+            local_position,
+            local_normal,
+            mu,
+        })
     }
 
     /// Compute the friction cone edges in the body frame.
@@ -416,7 +455,9 @@ impl PushSimulator {
         push_force: f64,
     ) -> Result<&SliderState, PushError> {
         if push_force < 0.0 {
-            return Err(PushError::InvalidParameter("push force must be non-negative".into()));
+            return Err(PushError::InvalidParameter(
+                "push force must be non-negative".into(),
+            ));
         }
         // Push direction is opposite to the outward normal
         let push_dir = contact.local_normal.scale(-1.0);
@@ -431,9 +472,10 @@ impl PushSimulator {
         let scaled_omega = omega * self.config.dt;
 
         // Integrate position
-        let new_pos = self.state.position.add(
-            Vec2::new(scaled_vx, scaled_vy).rotate(self.state.theta),
-        );
+        let new_pos = self
+            .state
+            .position
+            .add(Vec2::new(scaled_vx, scaled_vy).rotate(self.state.theta));
         let new_theta = self.state.theta + scaled_omega;
 
         // Check for divergence
@@ -503,7 +545,9 @@ pub struct PushPlan {
 
 impl PushPlan {
     pub fn new() -> Self {
-        Self { actions: Vec::new() }
+        Self {
+            actions: Vec::new(),
+        }
     }
 
     pub fn add_action(&mut self, contact: PushContact, force: f64, steps: usize) {
@@ -521,7 +565,12 @@ impl PushPlan {
 
 impl fmt::Display for PushPlan {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PushPlan(actions={}, total_steps={})", self.num_actions(), self.total_steps())
+        write!(
+            f,
+            "PushPlan(actions={}, total_steps={})",
+            self.num_actions(),
+            self.total_steps()
+        )
     }
 }
 
@@ -603,30 +652,17 @@ mod tests {
 
     #[test]
     fn test_push_mode_classification() {
-        let contact = PushContact::new(
-            Vec2::new(0.05, 0.0),
-            Vec2::new(1.0, 0.0),
-            0.3,
-        )
-        .unwrap();
+        let contact = PushContact::new(Vec2::new(0.05, 0.0), Vec2::new(1.0, 0.0), 0.3).unwrap();
         let push_dir = Vec2::new(-1.0, 0.0);
         // Support points symmetric about push line => PureTranslation
-        let supports = vec![
-            Vec2::new(0.0, 0.05),
-            Vec2::new(0.0, -0.05),
-        ];
+        let supports = vec![Vec2::new(0.0, 0.05), Vec2::new(0.0, -0.05)];
         let mode = classify_push_mode(&contact, push_dir, &supports);
         assert_eq!(mode, PushMode::PureTranslation);
     }
 
     #[test]
     fn test_push_mode_asymmetric() {
-        let contact = PushContact::new(
-            Vec2::new(0.05, 0.0),
-            Vec2::new(1.0, 0.0),
-            0.3,
-        )
-        .unwrap();
+        let contact = PushContact::new(Vec2::new(0.05, 0.0), Vec2::new(1.0, 0.0), 0.3).unwrap();
         let push_dir = Vec2::new(-1.0, 0.0);
         // All support points on one side => rotation
         let supports = vec![

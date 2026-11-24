@@ -18,12 +18,20 @@ pub struct GrayImage {
 
 impl GrayImage {
     pub fn new(width: u32, height: u32) -> Self {
-        Self { width, height, data: vec![0u8; width as usize * height as usize] }
+        Self {
+            width,
+            height,
+            data: vec![0u8; width as usize * height as usize],
+        }
     }
 
     pub fn from_data(width: u32, height: u32, data: Vec<u8>) -> Self {
         assert_eq!(data.len(), width as usize * height as usize);
-        Self { width, height, data }
+        Self {
+            width,
+            height,
+            data,
+        }
     }
 
     pub fn get(&self, x: u32, y: u32) -> u8 {
@@ -73,12 +81,21 @@ pub struct ColorImage {
 
 impl ColorImage {
     pub fn new(width: u32, height: u32) -> Self {
-        Self { width, height, data: vec![0u8; width as usize * height as usize * 4] }
+        Self {
+            width,
+            height,
+            data: vec![0u8; width as usize * height as usize * 4],
+        }
     }
 
     pub fn get(&self, x: u32, y: u32) -> Rgba {
         let off = (y as usize * self.width as usize + x as usize) * 4;
-        Rgba::new(self.data[off], self.data[off + 1], self.data[off + 2], self.data[off + 3])
+        Rgba::new(
+            self.data[off],
+            self.data[off + 1],
+            self.data[off + 2],
+            self.data[off + 3],
+        )
     }
 
     pub fn set(&mut self, x: u32, y: u32, c: Rgba) {
@@ -154,11 +171,7 @@ pub fn atkinson(img: &GrayImage) -> GrayImage {
             let err = (old - new_val) / 8.0;
 
             // Atkinson distributes error/8 to 6 neighbors (= 6/8 = 3/4 total)
-            let neighbors: [(i32, i32); 6] = [
-                (1, 0), (2, 0),
-                (-1, 1), (0, 1), (1, 1),
-                (0, 2),
-            ];
+            let neighbors: [(i32, i32); 6] = [(1, 0), (2, 0), (-1, 1), (0, 1), (1, 1), (0, 2)];
             for (dx, dy) in neighbors {
                 let nx = x as i32 + dx;
                 let ny = y as i32 + dy;
@@ -176,32 +189,31 @@ pub fn atkinson(img: &GrayImage) -> GrayImage {
 /// Generate a Bayer dithering matrix of the given order (2, 4, or 8).
 pub fn bayer_matrix(order: u32) -> Vec<Vec<f64>> {
     match order {
-        2 => vec![
-            vec![0.0, 2.0],
-            vec![3.0, 1.0],
-        ].into_iter().map(|row| row.into_iter().map(|v| (v + 0.5) / 4.0).collect()).collect(),
+        2 => vec![vec![0.0, 2.0], vec![3.0, 1.0]]
+            .into_iter()
+            .map(|row| row.into_iter().map(|v| (v + 0.5) / 4.0).collect())
+            .collect(),
         4 => {
-            let m4 = [
-                [0, 8, 2, 10],
-                [12, 4, 14, 6],
-                [3, 11, 1, 9],
-                [15, 7, 13, 5],
-            ];
-            m4.iter().map(|row| row.iter().map(|v| (*v as f64 + 0.5) / 16.0).collect()).collect()
+            let m4 = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+            m4.iter()
+                .map(|row| row.iter().map(|v| (*v as f64 + 0.5) / 16.0).collect())
+                .collect()
         }
         _ => {
             // 8x8
             let m8 = [
-                [ 0, 32,  8, 40,  2, 34, 10, 42],
+                [0, 32, 8, 40, 2, 34, 10, 42],
                 [48, 16, 56, 24, 50, 18, 58, 26],
-                [12, 44,  4, 36, 14, 46,  6, 38],
+                [12, 44, 4, 36, 14, 46, 6, 38],
                 [60, 28, 52, 20, 62, 30, 54, 22],
-                [ 3, 35, 11, 43,  1, 33,  9, 41],
+                [3, 35, 11, 43, 1, 33, 9, 41],
                 [51, 19, 59, 27, 49, 17, 57, 25],
-                [15, 47,  7, 39, 13, 45,  5, 37],
+                [15, 47, 7, 39, 13, 45, 5, 37],
                 [63, 31, 55, 23, 61, 29, 53, 21],
             ];
-            m8.iter().map(|row| row.iter().map(|v| (*v as f64 + 0.5) / 64.0).collect()).collect()
+            m8.iter()
+                .map(|row| row.iter().map(|v| (*v as f64 + 0.5) / 64.0).collect())
+                .collect()
         }
     }
 }
@@ -279,13 +291,18 @@ pub fn median_cut(pixels: &[Rgba], target_colors: usize) -> Palette {
         let mut best_channel = 0usize; // 0=r, 1=g, 2=b
 
         for (i, bucket) in buckets.iter().enumerate() {
-            if bucket.len() < 2 { continue; }
+            if bucket.len() < 2 {
+                continue;
+            }
             for ch in 0..3 {
-                let vals: Vec<u8> = bucket.iter().map(|c| match ch {
-                    0 => c.r,
-                    1 => c.g,
-                    _ => c.b,
-                }).collect();
+                let vals: Vec<u8> = bucket
+                    .iter()
+                    .map(|c| match ch {
+                        0 => c.r,
+                        1 => c.g,
+                        _ => c.b,
+                    })
+                    .collect();
                 let range = *vals.iter().max().unwrap() as u32 - *vals.iter().min().unwrap() as u32;
                 if range > best_range {
                     best_range = range;
@@ -295,7 +312,9 @@ pub fn median_cut(pixels: &[Rgba], target_colors: usize) -> Palette {
             }
         }
 
-        if best_range == 0 { break; }
+        if best_range == 0 {
+            break;
+        }
 
         let mut bucket = buckets.remove(best_idx);
         bucket.sort_by_key(|c| match best_channel {
@@ -310,13 +329,17 @@ pub fn median_cut(pixels: &[Rgba], target_colors: usize) -> Palette {
     }
 
     // Average each bucket to get palette color
-    let colors: Vec<Rgba> = buckets.iter().filter(|b| !b.is_empty()).map(|bucket| {
-        let n = bucket.len() as u32;
-        let r = bucket.iter().map(|c| c.r as u32).sum::<u32>() / n;
-        let g = bucket.iter().map(|c| c.g as u32).sum::<u32>() / n;
-        let b = bucket.iter().map(|c| c.b as u32).sum::<u32>() / n;
-        Rgba::rgb(r as u8, g as u8, b as u8)
-    }).collect();
+    let colors: Vec<Rgba> = buckets
+        .iter()
+        .filter(|b| !b.is_empty())
+        .map(|bucket| {
+            let n = bucket.len() as u32;
+            let r = bucket.iter().map(|c| c.r as u32).sum::<u32>() / n;
+            let g = bucket.iter().map(|c| c.g as u32).sum::<u32>() / n;
+            let b = bucket.iter().map(|c| c.b as u32).sum::<u32>() / n;
+            Rgba::rgb(r as u8, g as u8, b as u8)
+        })
+        .collect();
 
     Palette::new(colors)
 }
@@ -360,7 +383,11 @@ pub fn floyd_steinberg_color(img: &ColorImage, palette: &Palette) -> ColorImage 
 
             let old_color = Rgba::rgb(old_r as u8, old_g as u8, old_b as u8);
             let new_color = palette.nearest(old_color);
-            out.set(x as u32, y as u32, Rgba::new(new_color.r, new_color.g, new_color.b, img.data[idx * 4 + 3]));
+            out.set(
+                x as u32,
+                y as u32,
+                Rgba::new(new_color.r, new_color.g, new_color.b, img.data[idx * 4 + 3]),
+            );
 
             let err_r = old_r - new_color.r as f64;
             let err_g = old_g - new_color.g as f64;
@@ -477,11 +504,11 @@ mod tests {
 
     #[test]
     fn test_palette_nearest() {
-        let palette = Palette::new(vec![
-            Rgba::rgb(0, 0, 0),
-            Rgba::rgb(255, 255, 255),
-        ]);
-        assert_eq!(palette.nearest(Rgba::rgb(200, 200, 200)), Rgba::rgb(255, 255, 255));
+        let palette = Palette::new(vec![Rgba::rgb(0, 0, 0), Rgba::rgb(255, 255, 255)]);
+        assert_eq!(
+            palette.nearest(Rgba::rgb(200, 200, 200)),
+            Rgba::rgb(255, 255, 255)
+        );
         assert_eq!(palette.nearest(Rgba::rgb(50, 50, 50)), Rgba::rgb(0, 0, 0));
     }
 
@@ -504,11 +531,11 @@ mod tests {
         let mut img = ColorImage::new(4, 4);
         for y in 0..4 {
             for x in 0..4 {
-                img.set(x, y, Rgba::rgb(
-                    (x * 60 + 30) as u8,
-                    (y * 60 + 30) as u8,
-                    128,
-                ));
+                img.set(
+                    x,
+                    y,
+                    Rgba::rgb((x * 60 + 30) as u8, (y * 60 + 30) as u8, 128),
+                );
             }
         }
         let palette = Palette::new(vec![
@@ -522,8 +549,15 @@ mod tests {
         for y in 0..4 {
             for x in 0..4 {
                 let c = dithered.get(x, y);
-                let in_palette = palette.colors.iter().any(|pc| pc.r == c.r && pc.g == c.g && pc.b == c.b);
-                assert!(in_palette, "pixel ({x},{y}) = ({},{},{}) not in palette", c.r, c.g, c.b);
+                let in_palette = palette
+                    .colors
+                    .iter()
+                    .any(|pc| pc.r == c.r && pc.g == c.g && pc.b == c.b);
+                assert!(
+                    in_palette,
+                    "pixel ({x},{y}) = ({},{},{}) not in palette",
+                    c.r, c.g, c.b
+                );
             }
         }
     }

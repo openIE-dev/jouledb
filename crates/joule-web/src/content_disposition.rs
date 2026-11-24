@@ -102,9 +102,7 @@ impl ContentDisposition {
 
     /// Get the best filename: prefer filename* (RFC 5987) over filename.
     pub fn best_filename(&self) -> Option<&str> {
-        self.filename_star
-            .as_deref()
-            .or(self.filename.as_deref())
+        self.filename_star.as_deref().or(self.filename.as_deref())
     }
 
     /// Parse a Content-Disposition header value.
@@ -235,14 +233,15 @@ impl fmt::Display for ContentDisposition {
 
 /// Check if a filename contains only ASCII-safe characters.
 fn is_ascii_safe(s: &str) -> bool {
-    s.chars()
-        .all(|c| c.is_ascii() && c != '\0')
+    s.chars().all(|c| c.is_ascii() && c != '\0')
 }
 
 /// Remove surrounding quotes from a value.
 fn unquote(s: &str) -> String {
     if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
-        s[1..s.len() - 1].replace("\\\"", "\"").replace("\\\\", "\\")
+        s[1..s.len() - 1]
+            .replace("\\\"", "\"")
+            .replace("\\\\", "\\")
     } else {
         s.to_string()
     }
@@ -368,7 +367,8 @@ mod tests {
 
     #[test]
     fn parse_form_data() {
-        let cd = ContentDisposition::parse("form-data; name=\"file\"; filename=\"photo.jpg\"").unwrap();
+        let cd =
+            ContentDisposition::parse("form-data; name=\"file\"; filename=\"photo.jpg\"").unwrap();
         assert_eq!(cd.disposition, DispositionType::FormData);
         assert_eq!(cd.name.as_deref(), Some("file"));
         assert_eq!(cd.filename.as_deref(), Some("photo.jpg"));
@@ -376,17 +376,17 @@ mod tests {
 
     #[test]
     fn parse_filename_star() {
-        let cd = ContentDisposition::parse(
-            "attachment; filename*=UTF-8''%E4%B8%AD%E6%96%87.pdf"
-        ).unwrap();
+        let cd = ContentDisposition::parse("attachment; filename*=UTF-8''%E4%B8%AD%E6%96%87.pdf")
+            .unwrap();
         assert_eq!(cd.filename_star.as_deref(), Some("\u{4e2d}\u{6587}.pdf"));
     }
 
     #[test]
     fn parse_both_filenames() {
         let cd = ContentDisposition::parse(
-            "attachment; filename=\"fallback.pdf\"; filename*=UTF-8''%C3%BCber.pdf"
-        ).unwrap();
+            "attachment; filename=\"fallback.pdf\"; filename*=UTF-8''%C3%BCber.pdf",
+        )
+        .unwrap();
         assert_eq!(cd.filename.as_deref(), Some("fallback.pdf"));
         assert_eq!(cd.filename_star.as_deref(), Some("\u{00fc}ber.pdf"));
         assert_eq!(cd.best_filename(), Some("\u{00fc}ber.pdf"));

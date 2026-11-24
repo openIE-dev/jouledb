@@ -70,7 +70,9 @@ pub fn validate_email(address: &str) -> Result<(), SmtpError> {
     // Check for basic invalid chars in local part
     for ch in local.chars() {
         if ch.is_control() || ch == ' ' {
-            return Err(SmtpError::InvalidAddress(format!("invalid char in local: {ch:?}")));
+            return Err(SmtpError::InvalidAddress(format!(
+                "invalid char in local: {ch:?}"
+            )));
         }
     }
     // Domain labels
@@ -92,15 +94,24 @@ pub fn validate_email(address: &str) -> Result<(), SmtpError> {
 pub enum SmtpCommand {
     Ehlo(String),
     Helo(String),
-    MailFrom { address: String, params: Vec<String> },
-    RcptTo { address: String, params: Vec<String> },
+    MailFrom {
+        address: String,
+        params: Vec<String>,
+    },
+    RcptTo {
+        address: String,
+        params: Vec<String>,
+    },
     Data,
     Rset,
     Quit,
     Noop,
     Vrfy(String),
     StartTls,
-    Auth { mechanism: String, initial_response: Option<String> },
+    Auth {
+        mechanism: String,
+        initial_response: Option<String>,
+    },
 }
 
 impl SmtpCommand {
@@ -133,7 +144,10 @@ impl SmtpCommand {
             Self::Noop => "NOOP\r\n".to_string(),
             Self::Vrfy(addr) => format!("VRFY {addr}\r\n"),
             Self::StartTls => "STARTTLS\r\n".to_string(),
-            Self::Auth { mechanism, initial_response } => {
+            Self::Auth {
+                mechanism,
+                initial_response,
+            } => {
                 if let Some(resp) = initial_response {
                     format!("AUTH {mechanism} {resp}\r\n")
                 } else {
@@ -157,12 +171,18 @@ impl SmtpCommand {
         if upper.starts_with("MAIL FROM:") {
             let rest = line[10..].trim();
             let (addr, params) = parse_angle_address(rest)?;
-            return Ok(Self::MailFrom { address: addr, params });
+            return Ok(Self::MailFrom {
+                address: addr,
+                params,
+            });
         }
         if upper.starts_with("RCPT TO:") {
             let rest = line[8..].trim();
             let (addr, params) = parse_angle_address(rest)?;
-            return Ok(Self::RcptTo { address: addr, params });
+            return Ok(Self::RcptTo {
+                address: addr,
+                params,
+            });
         }
         if upper == "DATA" {
             return Ok(Self::Data);
@@ -189,7 +209,9 @@ impl SmtpCommand {
                 initial_response: parts.get(1).map(|s| s.to_string()),
             });
         }
-        Err(SmtpError::InvalidResponse(format!("unknown command: {line}")))
+        Err(SmtpError::InvalidResponse(format!(
+            "unknown command: {line}"
+        )))
     }
 }
 
@@ -234,14 +256,18 @@ impl SmtpResponse {
                 .map_err(|_| SmtpError::InvalidResponse(line.to_string()))?;
             if let Some(c) = code {
                 if c != line_code {
-                    return Err(SmtpError::InvalidResponse(
-                        format!("inconsistent codes: {c} vs {line_code}"),
-                    ));
+                    return Err(SmtpError::InvalidResponse(format!(
+                        "inconsistent codes: {c} vs {line_code}"
+                    )));
                 }
             } else {
                 code = Some(line_code);
             }
-            let text = if line.len() > 4 { line[4..].to_string() } else { String::new() };
+            let text = if line.len() > 4 {
+                line[4..].to_string()
+            } else {
+                String::new()
+            };
             lines.push(text);
         }
 
@@ -280,8 +306,16 @@ pub fn base64_encode(data: &[u8]) -> String {
     let mut i = 0;
     while i < data.len() {
         let b0 = data[i] as u32;
-        let b1 = if i + 1 < data.len() { data[i + 1] as u32 } else { 0 };
-        let b2 = if i + 2 < data.len() { data[i + 2] as u32 } else { 0 };
+        let b1 = if i + 1 < data.len() {
+            data[i + 1] as u32
+        } else {
+            0
+        };
+        let b2 = if i + 2 < data.len() {
+            data[i + 2] as u32
+        } else {
+            0
+        };
         let triple = (b0 << 16) | (b1 << 8) | b2;
 
         out.push(B64_CHARS[((triple >> 18) & 0x3F) as usize] as char);
@@ -306,7 +340,9 @@ pub fn base64_encode(data: &[u8]) -> String {
 pub fn base64_decode(s: &str) -> Result<Vec<u8>, SmtpError> {
     let s: String = s.chars().filter(|c| !c.is_whitespace()).collect();
     if s.len() % 4 != 0 {
-        return Err(SmtpError::InvalidResponse("base64 length not multiple of 4".into()));
+        return Err(SmtpError::InvalidResponse(
+            "base64 length not multiple of 4".into(),
+        ));
     }
     let mut out = Vec::new();
     let chars: Vec<u8> = s.bytes().collect();
@@ -338,7 +374,9 @@ fn b64_val(ch: u8) -> Result<u32, SmtpError> {
         b'0'..=b'9' => Ok((ch - b'0' + 52) as u32),
         b'+' => Ok(62),
         b'/' => Ok(63),
-        _ => Err(SmtpError::InvalidResponse(format!("invalid base64 char: {ch}"))),
+        _ => Err(SmtpError::InvalidResponse(format!(
+            "invalid base64 char: {ch}"
+        ))),
     }
 }
 
@@ -576,7 +614,10 @@ mod tests {
             address: "sender@example.com".into(),
             params: vec!["SIZE=1024".into()],
         };
-        assert_eq!(cmd.to_string(), "MAIL FROM:<sender@example.com> SIZE=1024\r\n");
+        assert_eq!(
+            cmd.to_string(),
+            "MAIL FROM:<sender@example.com> SIZE=1024\r\n"
+        );
     }
 
     #[test]
@@ -593,7 +634,10 @@ mod tests {
         let parsed = SmtpCommand::parse("MAIL FROM:<test@test.com>").unwrap();
         assert_eq!(
             parsed,
-            SmtpCommand::MailFrom { address: "test@test.com".into(), params: Vec::new() }
+            SmtpCommand::MailFrom {
+                address: "test@test.com".into(),
+                params: Vec::new()
+            }
         );
     }
 
@@ -607,7 +651,8 @@ mod tests {
 
     #[test]
     fn smtp_response_multiline() {
-        let resp = SmtpResponse::parse("250-mail.example.com\n250-SIZE 10240000\n250 AUTH PLAIN").unwrap();
+        let resp =
+            SmtpResponse::parse("250-mail.example.com\n250-SIZE 10240000\n250 AUTH PLAIN").unwrap();
         assert_eq!(resp.code, 250);
         assert_eq!(resp.lines.len(), 3);
         assert_eq!(resp.text(), "AUTH PLAIN");
@@ -650,7 +695,11 @@ mod tests {
     fn mime_multipart() {
         let msg = MimeMessage::new("a@b.com", "c@d.com", "Multi")
             .add_part(MimePart::text("body text"))
-            .add_part(MimePart::attachment("doc.pdf", "application/pdf", b"\x25PDF"));
+            .add_part(MimePart::attachment(
+                "doc.pdf",
+                "application/pdf",
+                b"\x25PDF",
+            ));
         let rendered = msg.render(42);
         assert!(rendered.contains("multipart/mixed"));
         assert!(rendered.contains("body text"));

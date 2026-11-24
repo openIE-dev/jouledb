@@ -16,10 +16,26 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
-    pub const UP: Self = Self { x: 0.0, y: 1.0, z: 0.0 };
-    pub const RIGHT: Self = Self { x: 1.0, y: 0.0, z: 0.0 };
-    pub const FORWARD: Self = Self { x: 0.0, y: 0.0, z: 1.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub const UP: Self = Self {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    };
+    pub const RIGHT: Self = Self {
+        x: 1.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub const FORWARD: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 1.0,
+    };
 
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
@@ -55,35 +71,55 @@ impl Vec3 {
     }
 
     pub fn scale(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 }
 
 impl std::ops::Add for Vec3 {
     type Output = Self;
     fn add(self, rhs: Self) -> Self {
-        Self { x: self.x + rhs.x, y: self.y + rhs.y, z: self.z + rhs.z }
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+        }
     }
 }
 
 impl std::ops::Sub for Vec3 {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self {
-        Self { x: self.x - rhs.x, y: self.y - rhs.y, z: self.z - rhs.z }
+        Self {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            z: self.z - rhs.z,
+        }
     }
 }
 
 impl std::ops::Mul<f64> for Vec3 {
     type Output = Self;
     fn mul(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 }
 
 impl std::ops::Neg for Vec3 {
     type Output = Self;
     fn neg(self) -> Self {
-        Self { x: -self.x, y: -self.y, z: -self.z }
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
     }
 }
 
@@ -107,7 +143,12 @@ pub struct Quaternion {
 }
 
 impl Quaternion {
-    pub const IDENTITY: Self = Self { w: 1.0, x: 0.0, y: 0.0, z: 0.0 };
+    pub const IDENTITY: Self = Self {
+        w: 1.0,
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     pub fn new(w: f64, x: f64, y: f64, z: f64) -> Self {
         Self { w, x, y, z }
@@ -117,7 +158,12 @@ impl Quaternion {
     pub fn from_axis_angle(axis: Vec3, angle: f64) -> Self {
         let half = angle * 0.5;
         let s = half.sin();
-        Self { w: half.cos(), x: axis.x * s, y: axis.y * s, z: axis.z * s }
+        Self {
+            w: half.cos(),
+            x: axis.x * s,
+            y: axis.y * s,
+            z: axis.z * s,
+        }
     }
 
     pub fn length_sq(self) -> f64 {
@@ -130,12 +176,22 @@ impl Quaternion {
             Self::IDENTITY
         } else {
             let inv = 1.0 / len;
-            Self { w: self.w * inv, x: self.x * inv, y: self.y * inv, z: self.z * inv }
+            Self {
+                w: self.w * inv,
+                x: self.x * inv,
+                y: self.y * inv,
+                z: self.z * inv,
+            }
         }
     }
 
     pub fn conjugate(self) -> Self {
-        Self { w: self.w, x: -self.x, y: -self.y, z: -self.z }
+        Self {
+            w: self.w,
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
     }
 
     /// Rotate a vector by this quaternion: q * v * q^-1.
@@ -163,9 +219,9 @@ impl Quaternion {
         let (wx, wy, wz) = (self.w * self.x, self.w * self.y, self.w * self.z);
         Mat3 {
             m: [
-                [1.0 - 2.0 * (yy + zz), 2.0 * (xy - wz),       2.0 * (xz + wy)],
-                [2.0 * (xy + wz),       1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx)],
-                [2.0 * (xz - wy),       2.0 * (yz + wx),       1.0 - 2.0 * (xx + yy)],
+                [1.0 - 2.0 * (yy + zz), 2.0 * (xy - wz), 2.0 * (xz + wy)],
+                [2.0 * (xy + wz), 1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx)],
+                [2.0 * (xz - wy), 2.0 * (yz + wx), 1.0 - 2.0 * (xx + yy)],
             ],
         }
     }
@@ -180,7 +236,9 @@ pub struct Mat3 {
 }
 
 impl Mat3 {
-    pub const IDENTITY: Self = Self { m: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]] };
+    pub const IDENTITY: Self = Self {
+        m: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+    };
     pub const ZERO: Self = Self { m: [[0.0; 3]; 3] };
 
     pub fn new(m: [[f64; 3]; 3]) -> Self {
@@ -189,7 +247,9 @@ impl Mat3 {
 
     /// Diagonal matrix from 3 values (for principal inertia tensor).
     pub fn diagonal(a: f64, b: f64, c: f64) -> Self {
-        Self { m: [[a, 0.0, 0.0], [0.0, b, 0.0], [0.0, 0.0, c]] }
+        Self {
+            m: [[a, 0.0, 0.0], [0.0, b, 0.0], [0.0, 0.0, c]],
+        }
     }
 
     pub fn mul_vec(self, v: Vec3) -> Vec3 {
@@ -216,8 +276,8 @@ impl Mat3 {
         for i in 0..3 {
             for j in 0..3 {
                 r[i][j] = self.m[i][0] * rhs.m[0][j]
-                         + self.m[i][1] * rhs.m[1][j]
-                         + self.m[i][2] * rhs.m[2][j];
+                    + self.m[i][1] * rhs.m[1][j]
+                    + self.m[i][2] * rhs.m[2][j];
             }
         }
         Self { m: r }
@@ -226,8 +286,8 @@ impl Mat3 {
     /// Inverse of a 3x3 matrix. Returns ZERO if singular.
     pub fn inverse(self) -> Self {
         let det = self.m[0][0] * (self.m[1][1] * self.m[2][2] - self.m[1][2] * self.m[2][1])
-                - self.m[0][1] * (self.m[1][0] * self.m[2][2] - self.m[1][2] * self.m[2][0])
-                + self.m[0][2] * (self.m[1][0] * self.m[2][1] - self.m[1][1] * self.m[2][0]);
+            - self.m[0][1] * (self.m[1][0] * self.m[2][2] - self.m[1][2] * self.m[2][0])
+            + self.m[0][2] * (self.m[1][0] * self.m[2][1] - self.m[1][1] * self.m[2][0]);
         if det.abs() < 1e-12 {
             return Self::ZERO;
         }
@@ -444,9 +504,10 @@ impl RigidBody3D {
     /// Kinetic energy = 0.5 * m * v^2 + 0.5 * omega^T * I * omega.
     pub fn kinetic_energy(&self) -> f64 {
         let lin = 0.5 * self.mass * self.linear_velocity.length_sq();
-        let ang = 0.5 * self.angular_velocity.dot(
-            self.local_inertia.mul_vec(self.angular_velocity),
-        );
+        let ang = 0.5
+            * self
+                .angular_velocity
+                .dot(self.local_inertia.mul_vec(self.angular_velocity));
         lin + ang
     }
 
@@ -497,7 +558,8 @@ impl RigidBody3D {
             x: self.orientation.x + dq.x * 0.5 * dt,
             y: self.orientation.y + dq.y * 0.5 * dt,
             z: self.orientation.z + dq.z * 0.5 * dt,
-        }.normalized();
+        }
+        .normalized();
 
         self.update_inertia_world();
         self.clear_forces();
@@ -530,7 +592,9 @@ impl RigidBody3D {
 
     /// Transform a world-space point to local space.
     pub fn world_to_local(&self, world: Vec3) -> Vec3 {
-        self.orientation.conjugate().rotate_vec(world - self.position)
+        self.orientation
+            .conjugate()
+            .rotate_vec(world - self.position)
     }
 }
 
@@ -545,7 +609,11 @@ pub struct PhysicsWorld3D {
 
 impl PhysicsWorld3D {
     pub fn new(gravity: Vec3) -> Self {
-        Self { bodies: HashMap::new(), gravity, next_id: 1 }
+        Self {
+            bodies: HashMap::new(),
+            gravity,
+            next_id: 1,
+        }
     }
 
     pub fn gravity(&self) -> Vec3 {
@@ -897,7 +965,8 @@ mod tests {
     #[test]
     fn test_physics_world_step() {
         let mut world = PhysicsWorld3D::new(Vec3::new(0.0, -9.81, 0.0));
-        let mut b = RigidBody3D::new_dynamic(0, Vec3::new(0.0, 10.0, 0.0), 1.0, sphere_inertia(1.0, 0.5));
+        let mut b =
+            RigidBody3D::new_dynamic(0, Vec3::new(0.0, 10.0, 0.0), 1.0, sphere_inertia(1.0, 0.5));
         b.linear_damping = 0.0;
         b.sleep_threshold = 0.0;
         let id = world.add_body(b);
@@ -919,7 +988,9 @@ mod tests {
     fn test_box_inertia_values() {
         let i = box_inertia(12.0, 1.0, 2.0, 3.0);
         // Ix = m/12 * (h^2 + d^2) = 12/12 * (16+36) = 52
-        let sx = 4.0; let sy = 16.0; let sz = 36.0;
+        let sx = 4.0;
+        let sy = 16.0;
+        let sz = 36.0;
         assert!(approx_eq(i.m[0][0], 1.0 * (sy + sz)));
         assert!(approx_eq(i.m[1][1], 1.0 * (sx + sz)));
     }

@@ -74,12 +74,18 @@ impl CoordConvertConfig {
 }
 
 impl Default for CoordConvertConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for CoordConvertConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CoordConvertConfig(src_epsg={0}, dst_epsg={1}, precision={2}, swap_xy={3})", self.src_epsg, self.dst_epsg, self.precision, self.swap_xy)
+        write!(
+            f,
+            "CoordConvertConfig(src_epsg={0}, dst_epsg={1}, precision={2}, swap_xy={3})",
+            self.src_epsg, self.dst_epsg, self.precision, self.swap_xy
+        )
     }
 }
 
@@ -95,7 +101,10 @@ pub struct CoordConvert {
 impl CoordConvert {
     pub fn new(config: CoordConvertConfig) -> Result<Self, CoordConvertError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -107,13 +116,21 @@ impl CoordConvert {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &CoordConvertConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &CoordConvertConfig {
+        &self.config
+    }
 
     /// DMS to decimal degrees.
     pub fn dms_to_decimal(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -123,12 +140,18 @@ impl CoordConvert {
 
     /// Decimal to DMS string.
     pub fn decimal_to_dms(&self) -> String {
-        format!("{}: {} records", stringify!(decimal_to_dms), self.data.len())
+        format!(
+            "{}: {} records",
+            stringify!(decimal_to_dms),
+            self.data.len()
+        )
     }
 
     /// Cartesian to polar.
     pub fn cartesian_to_polar(&self) -> (f64, f64) {
-        if self.data.len() < 2 { return (0.0, 0.0); }
+        if self.data.len() < 2 {
+            return (0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         (sum / n, sum)
@@ -136,7 +159,9 @@ impl CoordConvert {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -148,7 +173,9 @@ impl CoordConvert {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -160,7 +187,11 @@ impl CoordConvert {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -233,7 +264,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = CoordConvert::new(CoordConvertConfig::new()).unwrap()
+        let e = CoordConvert::new(CoordConvertConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -249,7 +281,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = CoordConvert::new(CoordConvertConfig::new()).unwrap()
+        let e = CoordConvert::new(CoordConvertConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("CoordConvert"));
@@ -257,7 +290,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = CoordConvert::new(CoordConvertConfig::new()).unwrap()
+        let e = CoordConvert::new(CoordConvertConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -268,7 +302,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = CoordConvert::new(CoordConvertConfig::new()).unwrap()
+        let e = CoordConvert::new(CoordConvertConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -276,7 +311,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = CoordConvert::new(CoordConvertConfig::new()).unwrap()
+        let e = CoordConvert::new(CoordConvertConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -293,7 +329,8 @@ mod tests {
 
     #[test]
     fn test_dms_to_decimal() {
-        let e = CoordConvert::new(CoordConvertConfig::new()).unwrap()
+        let e = CoordConvert::new(CoordConvertConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.dms_to_decimal();
         assert!(result.is_finite());
@@ -301,7 +338,8 @@ mod tests {
 
     #[test]
     fn test_decimal_to_dms() {
-        let e = CoordConvert::new(CoordConvertConfig::new()).unwrap()
+        let e = CoordConvert::new(CoordConvertConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.decimal_to_dms();
         assert!(!result.is_empty());
@@ -309,7 +347,8 @@ mod tests {
 
     #[test]
     fn test_cartesian_to_polar() {
-        let e = CoordConvert::new(CoordConvertConfig::new()).unwrap()
+        let e = CoordConvert::new(CoordConvertConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (a, b) = e.cartesian_to_polar();
         assert!(a.is_finite());

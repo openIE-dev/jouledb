@@ -26,7 +26,10 @@ impl fmt::Display for BanError {
         match self {
             Self::BanNotFound(id) => write!(f, "ban not found: {id}"),
             Self::PlayerNotFound(id) => write!(f, "player not found: {id}"),
-            Self::AlreadyBanned { player_id, ban_type } => {
+            Self::AlreadyBanned {
+                player_id,
+                ban_type,
+            } => {
                 write!(f, "player {player_id} already has {ban_type} ban")
             }
             Self::AppealNotFound(id) => write!(f, "appeal not found: {id}"),
@@ -145,7 +148,8 @@ impl Ban {
     }
 
     pub fn duration(&self) -> Option<u64> {
-        self.expires_at.map(|exp| exp.saturating_sub(self.issued_at))
+        self.expires_at
+            .map(|exp| exp.saturating_sub(self.issued_at))
     }
 }
 
@@ -290,7 +294,13 @@ impl BanManager {
         self.current_time = t;
     }
 
-    pub fn issue_ban(&mut self, player_id: u64, ban_type: BanType, reason: &str, duration: Option<u64>) -> Ban {
+    pub fn issue_ban(
+        &mut self,
+        player_id: u64,
+        ban_type: BanType,
+        reason: &str,
+        duration: Option<u64>,
+    ) -> Ban {
         let id = self.next_ban_id;
         self.next_ban_id += 1;
         let expires_at = duration.map(|d| self.current_time + d);
@@ -306,7 +316,14 @@ impl BanManager {
         ban
     }
 
-    pub fn issue_ban_with_hardware(&mut self, player_id: u64, ban_type: BanType, reason: &str, duration: Option<u64>, hw_id: &str) -> Ban {
+    pub fn issue_ban_with_hardware(
+        &mut self,
+        player_id: u64,
+        ban_type: BanType,
+        reason: &str,
+        duration: Option<u64>,
+        hw_id: &str,
+    ) -> Ban {
         let mut ban = self.issue_ban(player_id, ban_type, reason, duration);
         ban.hardware_id = Some(hw_id.to_string());
         // Update the ban in storage
@@ -370,7 +387,10 @@ impl BanManager {
     }
 
     pub fn player_bans(&self, player_id: u64) -> Vec<&Ban> {
-        self.bans.iter().filter(|b| b.player_id == player_id).collect()
+        self.bans
+            .iter()
+            .filter(|b| b.player_id == player_id)
+            .collect()
     }
 
     pub fn player_active_bans(&self, player_id: u64) -> Vec<&Ban> {
@@ -381,7 +401,10 @@ impl BanManager {
     }
 
     pub fn bans_by_type(&self, ban_type: BanType) -> Vec<&Ban> {
-        self.bans.iter().filter(|b| b.ban_type == ban_type).collect()
+        self.bans
+            .iter()
+            .filter(|b| b.ban_type == ban_type)
+            .collect()
     }
 
     pub fn bans_in_range(&self, from: u64, to: u64) -> Vec<&Ban> {
@@ -398,7 +421,12 @@ impl BanManager {
             .collect()
     }
 
-    pub fn submit_appeal(&mut self, ban_id: u64, player_id: u64, reason: &str) -> Result<Appeal, BanError> {
+    pub fn submit_appeal(
+        &mut self,
+        ban_id: u64,
+        player_id: u64,
+        reason: &str,
+    ) -> Result<Appeal, BanError> {
         if !self.bans.iter().any(|b| b.id == ban_id) {
             return Err(BanError::BanNotFound(ban_id));
         }

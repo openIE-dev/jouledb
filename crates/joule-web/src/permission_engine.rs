@@ -119,7 +119,9 @@ fn pattern_matches(pattern: &str, value: &str) -> bool {
         return true;
     }
     if let Some(prefix) = pattern.strip_suffix(":*") {
-        return value.starts_with(prefix) && value.len() > prefix.len() && value.as_bytes()[prefix.len()] == b':';
+        return value.starts_with(prefix)
+            && value.len() > prefix.len()
+            && value.as_bytes()[prefix.len()] == b':';
     }
     if pattern.contains('*') {
         // General glob: split on '*' and check prefix/suffix.
@@ -303,12 +305,7 @@ impl PermissionEngine {
     ///
     /// Uses deny-overrides-allow: if any deny matches, the result is Deny,
     /// regardless of allow rules.
-    pub fn evaluate(
-        &self,
-        actor: &str,
-        action: &str,
-        resource: &str,
-    ) -> Decision {
+    pub fn evaluate(&self, actor: &str, action: &str, resource: &str) -> Decision {
         self.evaluate_with_context(actor, action, resource, &HashMap::new())
     }
 
@@ -345,12 +342,7 @@ impl PermissionEngine {
     }
 
     /// Check access, returning an error if denied.
-    pub fn check(
-        &self,
-        actor: &str,
-        action: &str,
-        resource: &str,
-    ) -> Result<(), PermissionError> {
+    pub fn check(&self, actor: &str, action: &str, resource: &str) -> Result<(), PermissionError> {
         if self.evaluate(actor, action, resource).is_allowed() {
             Ok(())
         } else {
@@ -445,9 +437,17 @@ mod tests {
         let mut engine = setup_engine();
         engine.assign_role("charlie", "editor");
         // Editor inherits viewer's read.
-        assert!(engine.evaluate("charlie", "read", "document:1").is_allowed());
+        assert!(
+            engine
+                .evaluate("charlie", "read", "document:1")
+                .is_allowed()
+        );
         // Editor has write on documents.
-        assert!(engine.evaluate("charlie", "write", "document:1").is_allowed());
+        assert!(
+            engine
+                .evaluate("charlie", "write", "document:1")
+                .is_allowed()
+        );
     }
 
     #[test]
@@ -506,15 +506,19 @@ mod tests {
 
         let mut ctx_east = HashMap::new();
         ctx_east.insert("region".to_string(), "us-east".to_string());
-        assert!(engine
-            .evaluate_with_context("geo-user", "read", "data:sales", &ctx_east)
-            .is_allowed());
+        assert!(
+            engine
+                .evaluate_with_context("geo-user", "read", "data:sales", &ctx_east)
+                .is_allowed()
+        );
 
         let mut ctx_west = HashMap::new();
         ctx_west.insert("region".to_string(), "us-west".to_string());
-        assert!(!engine
-            .evaluate_with_context("geo-user", "read", "data:sales", &ctx_west)
-            .is_allowed());
+        assert!(
+            !engine
+                .evaluate_with_context("geo-user", "read", "data:sales", &ctx_west)
+                .is_allowed()
+        );
     }
 
     #[test]

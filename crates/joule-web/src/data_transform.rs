@@ -16,7 +16,11 @@ pub enum TransformError {
     /// Field not found in the record.
     FieldNotFound(String),
     /// Type cast failed.
-    CastFailed { field: String, target: String, reason: String },
+    CastFailed {
+        field: String,
+        target: String,
+        reason: String,
+    },
     /// Invalid transform configuration.
     InvalidConfig(String),
     /// Flatten/unflatten failed.
@@ -27,7 +31,11 @@ impl fmt::Display for TransformError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::FieldNotFound(field) => write!(f, "field not found: {field}"),
-            Self::CastFailed { field, target, reason } => {
+            Self::CastFailed {
+                field,
+                target,
+                reason,
+            } => {
                 write!(f, "cast {field} to {target} failed: {reason}")
             }
             Self::InvalidConfig(msg) => write!(f, "invalid config: {msg}"),
@@ -55,13 +63,19 @@ pub enum TransformOp {
     /// Cast a field to a different type.
     Cast { field: String, target: CastTarget },
     /// Add a field with a constant value.
-    AddConstant { field: String, value: serde_json::Value },
+    AddConstant {
+        field: String,
+        value: serde_json::Value,
+    },
     /// Copy one field to another.
     Copy { from: String, to: String },
     /// String transform on a field.
     StringTransform { field: String, op: StringOp },
     /// Replace null with a default value.
-    DefaultValue { field: String, default: serde_json::Value },
+    DefaultValue {
+        field: String,
+        default: serde_json::Value,
+    },
     /// Coalesce: use the first non-null value from a list of fields.
     Coalesce { fields: Vec<String>, output: String },
     /// Conditional transform: if condition field matches value, apply transform.
@@ -211,7 +225,10 @@ impl TransformEngine {
                 }
                 Ok(())
             }
-            TransformOp::StringTransform { field, op: string_op } => {
+            TransformOp::StringTransform {
+                field,
+                op: string_op,
+            } => {
                 if let Some(serde_json::Value::String(s)) = row.get(field) {
                     let transformed = apply_string_op(s, string_op);
                     row.insert(field.clone(), serde_json::Value::String(transformed));
@@ -259,7 +276,8 @@ impl TransformEngine {
             }
             TransformOp::Flatten { field, separator } => {
                 if let Some(serde_json::Value::Object(obj)) = row.remove(field) {
-                    let flattened = flatten_object(&serde_json::Value::Object(obj), field, separator);
+                    let flattened =
+                        flatten_object(&serde_json::Value::Object(obj), field, separator);
                     for (k, v) in flattened {
                         row.insert(k, v);
                     }
@@ -293,10 +311,7 @@ impl Default for TransformEngine {
 // ── Helper functions ─────────────────────────────────────────────
 
 /// Cast a JSON value to the target type.
-fn cast_value(
-    value: &serde_json::Value,
-    target: CastTarget,
-) -> Result<serde_json::Value, String> {
+fn cast_value(value: &serde_json::Value, target: CastTarget) -> Result<serde_json::Value, String> {
     match target {
         CastTarget::String => match value {
             serde_json::Value::String(_) => Ok(value.clone()),
@@ -365,19 +380,29 @@ fn apply_string_op(s: &str, op: &StringOp) -> String {
         }
         StringOp::Prepend(prefix) => format!("{prefix}{s}"),
         StringOp::Append(suffix) => format!("{s}{suffix}"),
-        StringOp::PadLeft { min_length, pad_char } => {
+        StringOp::PadLeft {
+            min_length,
+            pad_char,
+        } => {
             if s.len() >= *min_length {
                 s.to_string()
             } else {
-                let padding: String = std::iter::repeat(*pad_char).take(min_length - s.len()).collect();
+                let padding: String = std::iter::repeat(*pad_char)
+                    .take(min_length - s.len())
+                    .collect();
                 format!("{padding}{s}")
             }
         }
-        StringOp::PadRight { min_length, pad_char } => {
+        StringOp::PadRight {
+            min_length,
+            pad_char,
+        } => {
             if s.len() >= *min_length {
                 s.to_string()
             } else {
-                let padding: String = std::iter::repeat(*pad_char).take(min_length - s.len()).collect();
+                let padding: String = std::iter::repeat(*pad_char)
+                    .take(min_length - s.len())
+                    .collect();
                 format!("{s}{padding}")
             }
         }
@@ -407,12 +432,7 @@ fn flatten_object(
 }
 
 /// Unflatten a dot-separated key into nested objects in the row.
-fn unflatten_key(
-    row: &mut Row,
-    key: &str,
-    separator: &str,
-    value: serde_json::Value,
-) {
+fn unflatten_key(row: &mut Row, key: &str, separator: &str, value: serde_json::Value) {
     let parts: Vec<&str> = key.splitn(2, separator).collect();
     if parts.len() == 1 {
         row.insert(key.to_string(), value);
@@ -429,9 +449,7 @@ fn unflatten_key(
     if let serde_json::Value::Object(map) = entry {
         let mut sub_row: Row = map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         unflatten_key(&mut sub_row, rest, separator, value);
-        *entry = serde_json::Value::Object(
-            sub_row.into_iter().collect(),
-        );
+        *entry = serde_json::Value::Object(sub_row.into_iter().collect());
     }
 }
 
@@ -476,7 +494,10 @@ mod tests {
     use super::*;
 
     fn row(pairs: &[(&str, serde_json::Value)]) -> Row {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.clone())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
     }
 
     #[test]
@@ -644,7 +665,10 @@ mod tests {
         let mut engine = TransformEngine::new();
         engine.add_op(string_transform(
             "code",
-            StringOp::Substring { start: 0, length: 3 },
+            StringOp::Substring {
+                start: 0,
+                length: 3,
+            },
         ));
 
         let input = row(&[("code", serde_json::json!("ABCDEF"))]);
@@ -657,7 +681,10 @@ mod tests {
         let mut engine = TransformEngine::new();
         engine.add_op(string_transform(
             "id",
-            StringOp::PadLeft { min_length: 5, pad_char: '0' },
+            StringOp::PadLeft {
+                min_length: 5,
+                pad_char: '0',
+            },
         ));
 
         let input = row(&[("id", serde_json::json!("42"))]);
@@ -831,7 +858,10 @@ mod tests {
 
         let input = row(&[("name", serde_json::json!("Smith"))]);
         let output = engine.transform_row(&input).unwrap();
-        assert_eq!(output.get("name"), Some(&serde_json::json!("Mr. Smith Jr.")));
+        assert_eq!(
+            output.get("name"),
+            Some(&serde_json::json!("Mr. Smith Jr."))
+        );
     }
 
     #[test]

@@ -201,7 +201,9 @@ impl WsConnection {
 
     /// Exponential-backoff delay for the next reconnect.
     pub fn next_reconnect_delay_ms(&self) -> u64 {
-        let multiplier = self.config.reconnect_backoff_multiplier
+        let multiplier = self
+            .config
+            .reconnect_backoff_multiplier
             .powi(self.reconnect_attempts as i32);
         (self.config.reconnect_delay_ms as f64 * multiplier) as u64
     }
@@ -284,10 +286,7 @@ impl WsChannelManager {
             .channels
             .entry(channel.to_string())
             .or_insert_with(|| WsChannel::new(channel));
-        let handlers = ch
-            .subscriptions
-            .entry(event.to_string())
-            .or_default();
+        let handlers = ch.subscriptions.entry(event.to_string()).or_default();
         if !handlers.contains(&handler_id) {
             handlers.push(handler_id);
         }

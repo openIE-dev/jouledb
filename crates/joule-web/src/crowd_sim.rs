@@ -41,35 +41,74 @@ pub struct Vec2 {
 impl Vec2 {
     pub const ZERO: Vec2 = Vec2 { x: 0.0, y: 0.0 };
 
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
 
-    pub fn length(&self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
+    pub fn length(&self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
 
-    pub fn length_sq(&self) -> f64 { self.x * self.x + self.y * self.y }
+    pub fn length_sq(&self) -> f64 {
+        self.x * self.x + self.y * self.y
+    }
 
     pub fn normalize(&self) -> Self {
         let len = self.length();
-        if len < 1e-12 { return Self::ZERO; }
-        Self { x: self.x / len, y: self.y / len }
+        if len < 1e-12 {
+            return Self::ZERO;
+        }
+        Self {
+            x: self.x / len,
+            y: self.y / len,
+        }
     }
 
-    pub fn scale(&self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s } }
+    pub fn scale(&self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
 
-    pub fn add(&self, other: &Self) -> Self { Self { x: self.x + other.x, y: self.y + other.y } }
+    pub fn add(&self, other: &Self) -> Self {
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
 
-    pub fn sub(&self, other: &Self) -> Self { Self { x: self.x - other.x, y: self.y - other.y } }
+    pub fn sub(&self, other: &Self) -> Self {
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
+    }
 
-    pub fn dot(&self, other: &Self) -> f64 { self.x * other.x + self.y * other.y }
+    pub fn dot(&self, other: &Self) -> f64 {
+        self.x * other.x + self.y * other.y
+    }
 
-    pub fn distance(&self, other: &Self) -> f64 { self.sub(other).length() }
+    pub fn distance(&self, other: &Self) -> f64 {
+        self.sub(other).length()
+    }
 
     pub fn clamp_length(&self, max: f64) -> Self {
         let len = self.length();
-        if len <= max { *self } else { self.normalize().scale(max) }
+        if len <= max {
+            *self
+        } else {
+            self.normalize().scale(max)
+        }
     }
 
     /// Perpendicular vector (rotated 90 degrees CCW).
-    pub fn perp(&self) -> Self { Self { x: -self.y, y: self.x } }
+    pub fn perp(&self) -> Self {
+        Self {
+            x: -self.y,
+            y: self.x,
+        }
+    }
 }
 
 // ── Wall ───────────────────────────────────────────────────────
@@ -82,7 +121,9 @@ pub struct Wall {
 }
 
 impl Wall {
-    pub fn new(start: Vec2, end: Vec2) -> Self { Self { start, end } }
+    pub fn new(start: Vec2, end: Vec2) -> Self {
+        Self { start, end }
+    }
 
     /// Closest point on the wall to a given point.
     pub fn closest_point(&self, point: &Vec2) -> Vec2 {
@@ -115,7 +156,9 @@ pub struct Exit {
 }
 
 impl Exit {
-    pub fn new(position: Vec2, width: f64) -> Self { Self { position, width } }
+    pub fn new(position: Vec2, width: f64) -> Self {
+        Self { position, width }
+    }
 }
 
 // ── Agent ──────────────────────────────────────────────────────
@@ -153,10 +196,22 @@ impl Agent {
         }
     }
 
-    pub fn with_radius(mut self, r: f64) -> Self { self.radius = r; self }
-    pub fn with_speed(mut self, s: f64) -> Self { self.desired_speed = s; self }
-    pub fn with_group(mut self, g: u32) -> Self { self.group_id = Some(g); self }
-    pub fn with_panic(mut self, p: f64) -> Self { self.panic_level = p.clamp(0.0, 1.0); self }
+    pub fn with_radius(mut self, r: f64) -> Self {
+        self.radius = r;
+        self
+    }
+    pub fn with_speed(mut self, s: f64) -> Self {
+        self.desired_speed = s;
+        self
+    }
+    pub fn with_group(mut self, g: u32) -> Self {
+        self.group_id = Some(g);
+        self
+    }
+    pub fn with_panic(mut self, p: f64) -> Self {
+        self.panic_level = p.clamp(0.0, 1.0);
+        self
+    }
 
     /// Speed including panic modifier.
     pub fn effective_desired_speed(&self) -> f64 {
@@ -223,18 +278,28 @@ pub struct CrossSection {
 
 impl CrossSection {
     pub fn new(start: Vec2, end: Vec2) -> Self {
-        Self { start, end, crossings: 0, accumulated_density: 0.0, measurements: 0 }
+        Self {
+            start,
+            end,
+            crossings: 0,
+            accumulated_density: 0.0,
+            measurements: 0,
+        }
     }
 
     /// Average density at this cross-section.
     pub fn average_density(&self) -> f64 {
-        if self.measurements == 0 { return 0.0; }
+        if self.measurements == 0 {
+            return 0.0;
+        }
         self.accumulated_density / self.measurements as f64
     }
 
     /// Flow rate (crossings per measurement).
     pub fn flow_rate(&self) -> f64 {
-        if self.measurements == 0 { return 0.0; }
+        if self.measurements == 0 {
+            return 0.0;
+        }
         self.crossings as f64 / self.measurements as f64
     }
 }
@@ -274,7 +339,10 @@ impl CrowdSim {
     }
 
     fn next_rand(&mut self) -> f64 {
-        self.rng_state = self.rng_state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.rng_state = self
+            .rng_state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         ((self.rng_state >> 33) as f64) / (u32::MAX as f64)
     }
 
@@ -310,11 +378,21 @@ impl CrowdSim {
         idx
     }
 
-    pub fn agent_count(&self) -> usize { self.agents.len() }
-    pub fn active_agents(&self) -> usize { self.agents.iter().filter(|a| !a.reached_goal).count() }
-    pub fn step_count(&self) -> u64 { self.step_count }
-    pub fn agents(&self) -> &[Agent] { &self.agents }
-    pub fn cross_sections(&self) -> &[CrossSection] { &self.cross_sections }
+    pub fn agent_count(&self) -> usize {
+        self.agents.len()
+    }
+    pub fn active_agents(&self) -> usize {
+        self.agents.iter().filter(|a| !a.reached_goal).count()
+    }
+    pub fn step_count(&self) -> u64 {
+        self.step_count
+    }
+    pub fn agents(&self) -> &[Agent] {
+        &self.agents
+    }
+    pub fn cross_sections(&self) -> &[CrossSection] {
+        &self.cross_sections
+    }
 
     /// Compute local density around an agent.
     fn local_density(&self, agent_idx: usize, radius: f64) -> f64 {
@@ -322,7 +400,9 @@ impl CrowdSim {
         let r2 = radius * radius;
         let mut count = 0;
         for (j, other) in self.agents.iter().enumerate() {
-            if j == agent_idx || other.reached_goal { continue; }
+            if j == agent_idx || other.reached_goal {
+                continue;
+            }
             if pos.sub(&other.position).length_sq() < r2 {
                 count += 1;
             }
@@ -335,12 +415,26 @@ impl CrowdSim {
         let n = self.agents.len();
         let mut forces = vec![Vec2::ZERO; n];
 
-        let agents_snapshot: Vec<(Vec2, Vec2, f64, f64, Option<u32>, bool, f64)> = self.agents.iter().map(|a| {
-            (a.position, a.velocity, a.radius, a.effective_desired_speed(), a.group_id, a.reached_goal, a.mass)
-        }).collect();
+        let agents_snapshot: Vec<(Vec2, Vec2, f64, f64, Option<u32>, bool, f64)> = self
+            .agents
+            .iter()
+            .map(|a| {
+                (
+                    a.position,
+                    a.velocity,
+                    a.radius,
+                    a.effective_desired_speed(),
+                    a.group_id,
+                    a.reached_goal,
+                    a.mass,
+                )
+            })
+            .collect();
 
         for i in 0..n {
-            if agents_snapshot[i].5 { continue; } // reached goal
+            if agents_snapshot[i].5 {
+                continue;
+            } // reached goal
 
             let (pos_i, vel_i, rad_i, desired_speed_i, group_i, _, mass_i) = agents_snapshot[i];
 
@@ -364,14 +458,18 @@ impl CrowdSim {
 
             // 2. Agent-agent repulsion
             for j in 0..n {
-                if i == j || agents_snapshot[j].5 { continue; }
+                if i == j || agents_snapshot[j].5 {
+                    continue;
+                }
                 let (pos_j, _, rad_j, _, group_j, _, _) = agents_snapshot[j];
 
                 let d_ij = pos_i.sub(&pos_j);
                 let dist = d_ij.length();
                 let r_sum = (rad_i + rad_j) * self.params.personal_space;
 
-                if dist < 1e-6 { continue; }
+                if dist < 1e-6 {
+                    continue;
+                }
 
                 let overlap = r_sum - dist;
                 let n_ij = d_ij.normalize();
@@ -408,7 +506,9 @@ impl CrowdSim {
                 let closest = wall.closest_point(&pos_i);
                 let d_w = pos_i.sub(&closest);
                 let dist = d_w.length();
-                if dist < 1e-6 { continue; }
+                if dist < 1e-6 {
+                    continue;
+                }
 
                 let overlap = rad_i - dist;
                 let n_w = d_w.normalize();
@@ -436,13 +536,17 @@ impl CrowdSim {
         // Update velocities and positions
         let dt = self.params.dt;
         for i in 0..n {
-            if self.agents[i].reached_goal { continue; }
+            if self.agents[i].reached_goal {
+                continue;
+            }
 
             let accel = forces[i].scale(1.0 / self.agents[i].mass);
             self.agents[i].velocity = self.agents[i].velocity.add(&accel.scale(dt));
             let max_spd = self.agents[i].max_speed * (1.0 + self.agents[i].panic_level * 0.5);
             self.agents[i].velocity = self.agents[i].velocity.clamp_length(max_spd);
-            self.agents[i].position = self.agents[i].position.add(&self.agents[i].velocity.scale(dt));
+            self.agents[i].position = self.agents[i]
+                .position
+                .add(&self.agents[i].velocity.scale(dt));
         }
 
         // Update cross-section measurements
@@ -453,7 +557,9 @@ impl CrowdSim {
             let cs_length = cs.start.distance(&cs.end);
             let mut local_count = 0;
             for agent in &self.agents {
-                if agent.reached_goal { continue; }
+                if agent.reached_goal {
+                    continue;
+                }
                 if agent.position.distance(&cs_center) < cs_length {
                     local_count += 1;
                 }
@@ -474,7 +580,9 @@ impl CrowdSim {
     /// Average speed of active agents.
     pub fn average_speed(&self) -> f64 {
         let active: Vec<&Agent> = self.agents.iter().filter(|a| !a.reached_goal).collect();
-        if active.is_empty() { return 0.0; }
+        if active.is_empty() {
+            return 0.0;
+        }
         let total: f64 = active.iter().map(|a| a.velocity.length()).sum();
         total / active.len() as f64
     }
@@ -482,17 +590,27 @@ impl CrowdSim {
     /// Overall density (agents per unit area in the bounding box).
     pub fn density(&self) -> f64 {
         let active: Vec<&Agent> = self.agents.iter().filter(|a| !a.reached_goal).collect();
-        if active.len() < 2 { return 0.0; }
+        if active.len() < 2 {
+            return 0.0;
+        }
 
         let mut min_x = f64::MAX;
         let mut min_y = f64::MAX;
         let mut max_x = f64::MIN;
         let mut max_y = f64::MIN;
         for a in &active {
-            if a.position.x < min_x { min_x = a.position.x; }
-            if a.position.y < min_y { min_y = a.position.y; }
-            if a.position.x > max_x { max_x = a.position.x; }
-            if a.position.y > max_y { max_y = a.position.y; }
+            if a.position.x < min_x {
+                min_x = a.position.x;
+            }
+            if a.position.y < min_y {
+                min_y = a.position.y;
+            }
+            if a.position.x > max_x {
+                max_x = a.position.x;
+            }
+            if a.position.y > max_y {
+                max_y = a.position.y;
+            }
         }
         let area = (max_x - min_x).max(0.1) * (max_y - min_y).max(0.1);
         active.len() as f64 / area
@@ -519,15 +637,24 @@ impl CrowdSim {
 
         // Add walls (room boundary minus exit)
         sim.add_wall(Vec2::new(0.0, 0.0), Vec2::new(room_width, 0.0)); // top
-        sim.add_wall(Vec2::new(0.0, room_height), Vec2::new(room_width, room_height)); // bottom
+        sim.add_wall(
+            Vec2::new(0.0, room_height),
+            Vec2::new(room_width, room_height),
+        ); // bottom
         sim.add_wall(Vec2::new(0.0, 0.0), Vec2::new(0.0, room_height)); // left
         // Right wall with gap for exit
         let half_exit = exit_width / 2.0;
         if exit_position.y - half_exit > 0.0 {
-            sim.add_wall(Vec2::new(room_width, 0.0), Vec2::new(room_width, exit_position.y - half_exit));
+            sim.add_wall(
+                Vec2::new(room_width, 0.0),
+                Vec2::new(room_width, exit_position.y - half_exit),
+            );
         }
         if exit_position.y + half_exit < room_height {
-            sim.add_wall(Vec2::new(room_width, exit_position.y + half_exit), Vec2::new(room_width, room_height));
+            sim.add_wall(
+                Vec2::new(room_width, exit_position.y + half_exit),
+                Vec2::new(room_width, room_height),
+            );
         }
 
         sim.add_exit(exit_position, exit_width);
@@ -537,9 +664,13 @@ impl CrowdSim {
         for i in 0..num_agents {
             let seed = 42u64.wrapping_add(i as u64 * 997);
             let mut rng = seed;
-            rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            rng = rng
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let fx = ((rng >> 33) as f64) / (u32::MAX as f64);
-            rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            rng = rng
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let fy = ((rng >> 33) as f64) / (u32::MAX as f64);
 
             let x = 1.0 + fx * (room_width - 3.0);
@@ -555,8 +686,13 @@ impl CrowdSim {
 
 impl fmt::Display for CrowdSim {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CrowdSim(agents={}, active={}, step={})",
-            self.agent_count(), self.active_agents(), self.step_count)
+        write!(
+            f,
+            "CrowdSim(agents={}, active={}, step={})",
+            self.agent_count(),
+            self.active_agents(),
+            self.step_count
+        )
     }
 }
 
@@ -568,7 +704,9 @@ mod tests {
 
     const EPS: f64 = 1e-6;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
 
     #[test]
     fn test_vec2_basics() {
@@ -724,10 +862,7 @@ mod tests {
     fn test_density() {
         let mut sim = CrowdSim::default_sim();
         for i in 0..10 {
-            sim.add_agent(
-                Vec2::new(i as f64 * 0.5, 0.0),
-                Vec2::new(20.0, 0.0),
-            );
+            sim.add_agent(Vec2::new(i as f64 * 0.5, 0.0), Vec2::new(20.0, 0.0));
         }
         sim.step();
         assert!(sim.density() > 0.0);
@@ -745,20 +880,16 @@ mod tests {
 
     #[test]
     fn test_evacuation_scenario() {
-        let sim = CrowdSim::evacuation_scenario(
-            10, 10.0, 10.0,
-            Vec2::new(10.0, 5.0), 2.0, 0.0,
-        ).unwrap();
+        let sim =
+            CrowdSim::evacuation_scenario(10, 10.0, 10.0, Vec2::new(10.0, 5.0), 2.0, 0.0).unwrap();
         assert_eq!(sim.agent_count(), 10);
         assert!(sim.walls.len() >= 3);
     }
 
     #[test]
     fn test_evacuation_with_panic() {
-        let mut sim = CrowdSim::evacuation_scenario(
-            5, 8.0, 8.0,
-            Vec2::new(8.0, 4.0), 2.0, 0.8,
-        ).unwrap();
+        let mut sim =
+            CrowdSim::evacuation_scenario(5, 8.0, 8.0, Vec2::new(8.0, 4.0), 2.0, 0.8).unwrap();
         sim.step_n(50);
         // With panic, agents should still move
         assert!(sim.average_speed() > 0.0);

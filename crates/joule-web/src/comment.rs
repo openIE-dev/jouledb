@@ -160,7 +160,10 @@ impl CommentThread {
 
     /// Count of top-level comments.
     pub fn top_level_count(&self) -> usize {
-        self.comments.iter().filter(|c| c.parent_id.is_none()).count()
+        self.comments
+            .iter()
+            .filter(|c| c.parent_id.is_none())
+            .count()
     }
 
     /// Count direct replies to a comment.
@@ -217,9 +220,7 @@ impl CommentThread {
             CommentSort::Newest => top.sort_by(|a, b| b.timestamp.cmp(&a.timestamp)),
             CommentSort::Oldest => top.sort_by(|a, b| a.timestamp.cmp(&b.timestamp)),
             CommentSort::MostReplies => {
-                top.sort_by(|a, b| {
-                    self.reply_count(b.id).cmp(&self.reply_count(a.id))
-                });
+                top.sort_by(|a, b| self.reply_count(b.id).cmp(&self.reply_count(a.id)));
             }
         }
         top

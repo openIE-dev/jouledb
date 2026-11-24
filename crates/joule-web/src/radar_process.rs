@@ -27,7 +27,10 @@ impl Complex {
     }
 
     pub fn from_polar(mag: f64, phase: f64) -> Self {
-        Self { re: mag * phase.cos(), im: mag * phase.sin() }
+        Self {
+            re: mag * phase.cos(),
+            im: mag * phase.sin(),
+        }
     }
 
     pub fn magnitude(&self) -> f64 {
@@ -43,7 +46,10 @@ impl Complex {
     }
 
     pub fn conjugate(&self) -> Self {
-        Self { re: self.re, im: -self.im }
+        Self {
+            re: self.re,
+            im: -self.im,
+        }
     }
 
     pub fn mul(&self, other: &Complex) -> Complex {
@@ -54,15 +60,24 @@ impl Complex {
     }
 
     pub fn add(&self, other: &Complex) -> Complex {
-        Complex { re: self.re + other.re, im: self.im + other.im }
+        Complex {
+            re: self.re + other.re,
+            im: self.im + other.im,
+        }
     }
 
     pub fn sub(&self, other: &Complex) -> Complex {
-        Complex { re: self.re - other.re, im: self.im - other.im }
+        Complex {
+            re: self.re - other.re,
+            im: self.im - other.im,
+        }
     }
 
     pub fn scale(&self, s: f64) -> Complex {
-        Complex { re: self.re * s, im: self.im * s }
+        Complex {
+            re: self.re * s,
+            im: self.im * s,
+        }
     }
 }
 
@@ -448,7 +463,10 @@ impl fmt::Display for RadarDetection {
         write!(
             f,
             "Det(r={:.1}m, v={:.1}m/s, az={:.1}deg, snr={:.1}dB)",
-            self.range_m, self.velocity_mps, self.azimuth_rad.to_degrees(), self.snr_db
+            self.range_m,
+            self.velocity_mps,
+            self.azimuth_rad.to_degrees(),
+            self.snr_db
         )
     }
 }
@@ -534,18 +552,31 @@ pub struct MtiFilter {
 impl MtiFilter {
     /// Single-pulse canceller (order 1): y[n] = x[n] - x[n-1].
     pub fn single_canceller() -> Self {
-        Self { order: 1, coefficients: vec![1.0, -1.0] }
+        Self {
+            order: 1,
+            coefficients: vec![1.0, -1.0],
+        }
     }
 
     /// Double-pulse canceller (order 2): y[n] = x[n] - 2x[n-1] + x[n-2].
     pub fn double_canceller() -> Self {
-        Self { order: 2, coefficients: vec![1.0, -2.0, 1.0] }
+        Self {
+            order: 2,
+            coefficients: vec![1.0, -2.0, 1.0],
+        }
     }
 
     /// Custom canceller with given coefficients.
     pub fn with_coefficients(coefficients: Vec<f64>) -> Self {
-        let order = if coefficients.is_empty() { 0 } else { coefficients.len() - 1 };
-        Self { order, coefficients }
+        let order = if coefficients.is_empty() {
+            0
+        } else {
+            coefficients.len() - 1
+        };
+        Self {
+            order,
+            coefficients,
+        }
     }
 
     /// Apply MTI filter to a sequence of pulse returns at the same range bin.
@@ -584,7 +615,12 @@ impl MtiFilter {
 
 impl fmt::Display for MtiFilter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MTI(order={}, taps={})", self.order, self.coefficients.len())
+        write!(
+            f,
+            "MTI(order={}, taps={})",
+            self.order,
+            self.coefficients.len()
+        )
     }
 }
 
@@ -707,8 +743,7 @@ mod tests {
 
     #[test]
     fn test_tracker_predict() {
-        let tracker = AlphaBetaTracker::new(0, 0.5, 0.1)
-            .with_initial_state(100.0, 10.0, 0.0);
+        let tracker = AlphaBetaTracker::new(0, 0.5, 0.1).with_initial_state(100.0, 10.0, 0.0);
         let (pred_r, pred_dr) = tracker.predict(1.0);
         assert!((pred_r - 110.0).abs() < 1e-10);
         assert!((pred_dr - 10.0).abs() < 1e-10);
@@ -716,8 +751,7 @@ mod tests {
 
     #[test]
     fn test_tracker_update() {
-        let mut tracker = AlphaBetaTracker::new(1, 0.8, 0.2)
-            .with_initial_state(100.0, 10.0, 0.0);
+        let mut tracker = AlphaBetaTracker::new(1, 0.8, 0.2).with_initial_state(100.0, 10.0, 0.0);
         tracker.update(112.0, 1.0);
         assert!(tracker.update_count == 1);
         assert!((tracker.range - 100.0).abs() < 20.0);
@@ -725,8 +759,7 @@ mod tests {
 
     #[test]
     fn test_tracker_display() {
-        let tracker = AlphaBetaTracker::new(5, 0.5, 0.1)
-            .with_initial_state(500.0, 20.0, 0.0);
+        let tracker = AlphaBetaTracker::new(5, 0.5, 0.1).with_initial_state(500.0, 20.0, 0.0);
         let s = format!("{tracker}");
         assert!(s.contains("Track"));
         assert!(s.contains("id=5"));

@@ -30,7 +30,11 @@ impl TreeNode {
         }
     }
 
-    pub fn branch(id: impl Into<String>, label: impl Into<String>, children: Vec<TreeNode>) -> Self {
+    pub fn branch(
+        id: impl Into<String>,
+        label: impl Into<String>,
+        children: Vec<TreeNode>,
+    ) -> Self {
         let value: f64 = children.iter().map(|c| c.total_value()).sum();
         Self {
             id: id.into(),
@@ -205,8 +209,7 @@ fn layout_recursive(
 ) {
     if node.is_leaf() {
         let color = resolve_color(node, config);
-        let label_fits =
-            bounds.w >= config.min_label_size && bounds.h >= config.min_label_size;
+        let label_fits = bounds.w >= config.min_label_size && bounds.h >= config.min_label_size;
         out.push(LayoutCell {
             id: node.id.clone(),
             label: node.label.clone(),
@@ -232,16 +235,21 @@ fn layout_recursive(
 
     match config.algorithm {
         LayoutAlgorithm::Squarified => {
-            let mut items: Vec<(&TreeNode, f64)> = node
-                .children
-                .iter()
-                .map(|c| (c, c.total_value()))
-                .collect();
+            let mut items: Vec<(&TreeNode, f64)> =
+                node.children.iter().map(|c| (c, c.total_value())).collect();
             items.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
             squarify(&items, inner, total, depth + 1, config, out);
         }
         LayoutAlgorithm::SliceAndDice => {
-            slice_and_dice(&node.children, inner, total, depth + 1, depth % 2 == 0, config, out);
+            slice_and_dice(
+                &node.children,
+                inner,
+                total,
+                depth + 1,
+                depth % 2 == 0,
+                config,
+                out,
+            );
         }
     }
 }
@@ -522,10 +530,11 @@ mod tests {
 
     #[test]
     fn total_value_nested() {
-        let inner = TreeNode::branch("inner", "Inner", vec![
-            TreeNode::leaf("x", "X", 5.0),
-            TreeNode::leaf("y", "Y", 3.0),
-        ]);
+        let inner = TreeNode::branch(
+            "inner",
+            "Inner",
+            vec![TreeNode::leaf("x", "X", 5.0), TreeNode::leaf("y", "Y", 3.0)],
+        );
         let root = TreeNode::branch("root", "Root", vec![inner, TreeNode::leaf("z", "Z", 2.0)]);
         assert!((root.total_value() - 10.0).abs() < 1e-9);
     }
@@ -588,7 +597,10 @@ mod tests {
     #[test]
     fn hover_state() {
         let tree = sample_tree();
-        let config = TreemapConfig { padding: 0.0, ..Default::default() };
+        let config = TreemapConfig {
+            padding: 0.0,
+            ..Default::default()
+        };
         let mut cells = layout(&tree, &config);
         apply_hover(&mut cells, 10.0, 10.0);
         assert!(cells.iter().any(|c| c.state == CellState::Hovered));
@@ -597,7 +609,10 @@ mod tests {
     #[test]
     fn selection_toggle() {
         let tree = sample_tree();
-        let config = TreemapConfig { padding: 0.0, ..Default::default() };
+        let config = TreemapConfig {
+            padding: 0.0,
+            ..Default::default()
+        };
         let mut cells = layout(&tree, &config);
         toggle_selection(&mut cells, 10.0, 10.0);
         assert!(cells.iter().any(|c| c.state == CellState::Selected));
@@ -626,7 +641,10 @@ mod tests {
     #[test]
     fn tooltip_generation() {
         let tree = sample_tree();
-        let config = TreemapConfig { padding: 0.0, ..Default::default() };
+        let config = TreemapConfig {
+            padding: 0.0,
+            ..Default::default()
+        };
         let cells = layout(&tree, &config);
         let tip = tooltip(&cells, 10.0, 10.0);
         assert!(tip.is_some());
@@ -641,10 +659,14 @@ mod tests {
             padding: 0.0,
             ..Default::default()
         };
-        let tree = TreeNode::branch("r", "R", vec![
-            TreeNode::leaf("a", "A", 5.0).with_category("tech"),
-            TreeNode::leaf("b", "B", 3.0).with_category("other"),
-        ]);
+        let tree = TreeNode::branch(
+            "r",
+            "R",
+            vec![
+                TreeNode::leaf("a", "A", 5.0).with_category("tech"),
+                TreeNode::leaf("b", "B", 3.0).with_category("other"),
+            ],
+        );
         let cells = layout(&tree, &config);
         let a_cell = cells.iter().find(|c| c.id == "a").unwrap();
         assert_eq!(a_cell.color, "#e74c3c");
@@ -654,15 +676,16 @@ mod tests {
 
     #[test]
     fn nested_treemap_layout() {
-        let inner = TreeNode::branch("grp", "Group", vec![
-            TreeNode::leaf("x", "X", 4.0),
-            TreeNode::leaf("y", "Y", 2.0),
-        ]);
-        let root = TreeNode::branch("root", "Root", vec![
-            inner,
-            TreeNode::leaf("z", "Z", 4.0),
-        ]);
-        let config = TreemapConfig { padding: 0.0, ..Default::default() };
+        let inner = TreeNode::branch(
+            "grp",
+            "Group",
+            vec![TreeNode::leaf("x", "X", 4.0), TreeNode::leaf("y", "Y", 2.0)],
+        );
+        let root = TreeNode::branch("root", "Root", vec![inner, TreeNode::leaf("z", "Z", 4.0)]);
+        let config = TreemapConfig {
+            padding: 0.0,
+            ..Default::default()
+        };
         let cells = layout(&root, &config);
         assert_eq!(cells.len(), 3);
     }

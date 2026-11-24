@@ -25,7 +25,11 @@ pub enum PolicyEngineError {
     /// Condition evaluation error.
     ConditionError(String),
     /// Version conflict.
-    VersionConflict { policy_id: String, expected: u64, actual: u64 },
+    VersionConflict {
+        policy_id: String,
+        expected: u64,
+        actual: u64,
+    },
     /// Policy set not found.
     PolicySetNotFound(String),
     /// Invalid JSON in rule definition.
@@ -39,8 +43,15 @@ impl fmt::Display for PolicyEngineError {
             Self::DuplicatePolicy(id) => write!(f, "duplicate policy: {id}"),
             Self::InvalidRule(msg) => write!(f, "invalid rule: {msg}"),
             Self::ConditionError(msg) => write!(f, "condition error: {msg}"),
-            Self::VersionConflict { policy_id, expected, actual } => {
-                write!(f, "version conflict for policy {policy_id}: expected {expected}, actual {actual}")
+            Self::VersionConflict {
+                policy_id,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "version conflict for policy {policy_id}: expected {expected}, actual {actual}"
+                )
             }
             Self::PolicySetNotFound(id) => write!(f, "policy set not found: {id}"),
             Self::InvalidJson(msg) => write!(f, "invalid JSON: {msg}"),
@@ -166,7 +177,9 @@ impl RuleCondition {
                     ConditionOp::Gte => compare_numeric(field_val, &self.value, |a, b| a >= b),
                     ConditionOp::Lte => compare_numeric(field_val, &self.value, |a, b| a <= b),
                     ConditionOp::Contains => {
-                        if let (Some(haystack), Some(needle)) = (field_val.as_str(), self.value.as_str()) {
+                        if let (Some(haystack), Some(needle)) =
+                            (field_val.as_str(), self.value.as_str())
+                        {
                             haystack.contains(needle)
                         } else if let Some(arr) = field_val.as_array() {
                             arr.contains(&self.value)
@@ -174,18 +187,14 @@ impl RuleCondition {
                             false
                         }
                     }
-                    ConditionOp::StartsWith => {
-                        match (field_val.as_str(), self.value.as_str()) {
-                            (Some(s), Some(prefix)) => s.starts_with(prefix),
-                            _ => false,
-                        }
-                    }
-                    ConditionOp::EndsWith => {
-                        match (field_val.as_str(), self.value.as_str()) {
-                            (Some(s), Some(suffix)) => s.ends_with(suffix),
-                            _ => false,
-                        }
-                    }
+                    ConditionOp::StartsWith => match (field_val.as_str(), self.value.as_str()) {
+                        (Some(s), Some(prefix)) => s.starts_with(prefix),
+                        _ => false,
+                    },
+                    ConditionOp::EndsWith => match (field_val.as_str(), self.value.as_str()) {
+                        (Some(s), Some(suffix)) => s.ends_with(suffix),
+                        _ => false,
+                    },
                     ConditionOp::In => {
                         if let Some(arr) = self.value.as_array() {
                             arr.contains(field_val)
@@ -224,9 +233,10 @@ fn resolve_path<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
 fn values_equal(a: &Value, b: &Value) -> bool {
     match (a, b) {
         (Value::String(a), Value::String(b)) => a == b,
-        (Value::Number(a), Value::Number(b)) => {
-            a.as_f64().zip(b.as_f64()).map_or(false, |(x, y)| (x - y).abs() < f64::EPSILON)
-        }
+        (Value::Number(a), Value::Number(b)) => a
+            .as_f64()
+            .zip(b.as_f64())
+            .map_or(false, |(x, y)| (x - y).abs() < f64::EPSILON),
         (Value::Bool(a), Value::Bool(b)) => a == b,
         (Value::Null, Value::Null) => true,
         _ => a == b,
@@ -246,10 +256,10 @@ fn simple_pattern_match(pattern: &str, value: &str) -> bool {
     let anchored_start = pattern.starts_with('^');
     let anchored_end = pattern.ends_with('$');
     let core = pattern
-        .strip_prefix('^').unwrap_or(pattern)
-        .strip_suffix('$').unwrap_or_else(|| {
-            pattern.strip_prefix('^').unwrap_or(pattern)
-        });
+        .strip_prefix('^')
+        .unwrap_or(pattern)
+        .strip_suffix('$')
+        .unwrap_or_else(|| pattern.strip_prefix('^').unwrap_or(pattern));
 
     if core.contains('*') {
         // Split on `*` and check each part appears in order
@@ -377,18 +387,24 @@ impl Rule {
 
     /// Create a rule from a JSON definition.
     pub fn from_json(json: &Value) -> Result<Self, PolicyEngineError> {
-        let id = json.get("id")
+        let id = json
+            .get("id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| PolicyEngineError::InvalidRule("missing 'id'".into()))?;
 
-        let effect_str = json.get("effect")
+        let effect_str = json
+            .get("effect")
             .and_then(|v| v.as_str())
             .ok_or_else(|| PolicyEngineError::InvalidRule("missing 'effect'".into()))?;
 
         let effect = match effect_str {
             "allow" => Effect::Allow,
             "deny" => Effect::Deny,
-            other => return Err(PolicyEngineError::InvalidRule(format!("unknown effect: {other}"))),
+            other => {
+                return Err(PolicyEngineError::InvalidRule(format!(
+                    "unknown effect: {other}"
+                )));
+            }
         };
 
         let mut rule = Rule::new(id, effect);
@@ -403,12 +419,18 @@ impl Rule {
 
         if let Some(conditions) = json.get("conditions").and_then(|v| v.as_array()) {
             for cond_json in conditions {
-                let field = cond_json.get("field")
+                let field = cond_json
+                    .get("field")
                     .and_then(|v| v.as_str())
-                    .ok_or_else(|| PolicyEngineError::InvalidRule("condition missing 'field'".into()))?;
-                let op_str = cond_json.get("op")
+                    .ok_or_else(|| {
+                        PolicyEngineError::InvalidRule("condition missing 'field'".into())
+                    })?;
+                let op_str = cond_json
+                    .get("op")
                     .and_then(|v| v.as_str())
-                    .ok_or_else(|| PolicyEngineError::InvalidRule("condition missing 'op'".into()))?;
+                    .ok_or_else(|| {
+                        PolicyEngineError::InvalidRule("condition missing 'op'".into())
+                    })?;
                 let op = parse_op(op_str)?;
                 let value = cond_json.get("value").cloned().unwrap_or(Value::Null);
                 rule.conditions.push(RuleCondition::new(field, op, value));
@@ -434,7 +456,9 @@ fn parse_op(s: &str) -> Result<ConditionOp, PolicyEngineError> {
         "exists" => Ok(ConditionOp::Exists),
         "not_exists" => Ok(ConditionOp::NotExists),
         "regex" | "matches" => Ok(ConditionOp::Regex),
-        other => Err(PolicyEngineError::InvalidRule(format!("unknown operator: {other}"))),
+        other => Err(PolicyEngineError::InvalidRule(format!(
+            "unknown operator: {other}"
+        ))),
     }
 }
 
@@ -538,11 +562,13 @@ impl Policy {
 
     /// Parse a policy from JSON.
     pub fn from_json(json: &Value) -> Result<Self, PolicyEngineError> {
-        let id = json.get("id")
+        let id = json
+            .get("id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| PolicyEngineError::InvalidJson("missing 'id'".into()))?;
 
-        let combine_str = json.get("combine")
+        let combine_str = json
+            .get("combine")
             .and_then(|v| v.as_str())
             .unwrap_or("deny_overrides");
 
@@ -552,9 +578,9 @@ impl Policy {
             "first_match" => CombineStrategy::FirstMatch,
             "all_must_allow" => CombineStrategy::AllMustAllow,
             other => {
-                return Err(PolicyEngineError::InvalidJson(
-                    format!("unknown combine strategy: {other}"),
-                ));
+                return Err(PolicyEngineError::InvalidJson(format!(
+                    "unknown combine strategy: {other}"
+                )));
             }
         };
 
@@ -916,7 +942,13 @@ impl Default for PolicyEngine {
 fn summarize_context(context: &Value) -> String {
     if let Some(obj) = context.as_object() {
         let keys: Vec<&String> = obj.keys().take(5).collect();
-        format!("keys: [{}]", keys.iter().map(|k| k.as_str()).collect::<Vec<_>>().join(", "))
+        format!(
+            "keys: [{}]",
+            keys.iter()
+                .map(|k| k.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
     } else {
         "non-object context".to_string()
     }
@@ -1008,48 +1040,61 @@ mod tests {
     #[test]
     fn test_rule_evaluate_match() {
         let rule = Rule::new("r1", Effect::Allow)
-            .with_condition(RuleCondition::new("subject.role", ConditionOp::Eq, json!("admin")))
-            .with_condition(RuleCondition::new("action.type", ConditionOp::Eq, json!("read")));
+            .with_condition(RuleCondition::new(
+                "subject.role",
+                ConditionOp::Eq,
+                json!("admin"),
+            ))
+            .with_condition(RuleCondition::new(
+                "action.type",
+                ConditionOp::Eq,
+                json!("read"),
+            ));
         assert!(rule.evaluate(&sample_context()).is_allow());
     }
 
     #[test]
     fn test_rule_evaluate_no_match() {
-        let rule = Rule::new("r1", Effect::Allow)
-            .with_condition(RuleCondition::new("subject.role", ConditionOp::Eq, json!("viewer")));
+        let rule = Rule::new("r1", Effect::Allow).with_condition(RuleCondition::new(
+            "subject.role",
+            ConditionOp::Eq,
+            json!("viewer"),
+        ));
         assert_eq!(rule.evaluate(&sample_context()), EvalResult::NotMatched);
     }
 
     #[test]
     fn test_policy_deny_overrides() {
-        let policy = Policy::new("p1", CombineStrategy::DenyOverrides)
-            .with_rule(
-                Rule::new("allow-admin", Effect::Allow)
-                    .with_condition(RuleCondition::new("subject.role", ConditionOp::Eq, json!("admin"))),
-            )
-            .with_rule(
-                Rule::new("deny-classified", Effect::Deny)
-                    .with_condition(RuleCondition::new(
+        let policy =
+            Policy::new("p1", CombineStrategy::DenyOverrides)
+                .with_rule(Rule::new("allow-admin", Effect::Allow).with_condition(
+                    RuleCondition::new("subject.role", ConditionOp::Eq, json!("admin")),
+                ))
+                .with_rule(Rule::new("deny-classified", Effect::Deny).with_condition(
+                    RuleCondition::new(
                         "resource.classification",
                         ConditionOp::Eq,
                         json!("internal"),
-                    )),
-            );
+                    ),
+                ));
         let result = policy.evaluate(&sample_context());
         assert!(result.is_denied());
     }
 
     #[test]
     fn test_policy_allow_overrides() {
-        let policy = Policy::new("p1", CombineStrategy::AllowOverrides)
-            .with_rule(
-                Rule::new("allow-admin", Effect::Allow)
-                    .with_condition(RuleCondition::new("subject.role", ConditionOp::Eq, json!("admin"))),
-            )
-            .with_rule(
-                Rule::new("deny-all", Effect::Deny)
-                    .with_condition(RuleCondition::new("action.type", ConditionOp::Eq, json!("read"))),
-            );
+        let policy =
+            Policy::new("p1", CombineStrategy::AllowOverrides)
+                .with_rule(Rule::new("allow-admin", Effect::Allow).with_condition(
+                    RuleCondition::new("subject.role", ConditionOp::Eq, json!("admin")),
+                ))
+                .with_rule(
+                    Rule::new("deny-all", Effect::Deny).with_condition(RuleCondition::new(
+                        "action.type",
+                        ConditionOp::Eq,
+                        json!("read"),
+                    )),
+                );
         let result = policy.evaluate(&sample_context());
         assert!(result.is_allowed());
     }
@@ -1059,12 +1104,20 @@ mod tests {
         let policy = Policy::new("p1", CombineStrategy::FirstMatch)
             .with_rule(
                 Rule::new("deny-first", Effect::Deny)
-                    .with_condition(RuleCondition::new("action.type", ConditionOp::Eq, json!("read")))
+                    .with_condition(RuleCondition::new(
+                        "action.type",
+                        ConditionOp::Eq,
+                        json!("read"),
+                    ))
                     .with_priority(1),
             )
             .with_rule(
                 Rule::new("allow-admin", Effect::Allow)
-                    .with_condition(RuleCondition::new("subject.role", ConditionOp::Eq, json!("admin")))
+                    .with_condition(RuleCondition::new(
+                        "subject.role",
+                        ConditionOp::Eq,
+                        json!("admin"),
+                    ))
                     .with_priority(2),
             );
         let result = policy.evaluate(&sample_context());
@@ -1074,11 +1127,13 @@ mod tests {
     #[test]
     fn test_engine_add_and_evaluate() {
         let mut engine = PolicyEngine::new();
-        let policy = Policy::new("p1", CombineStrategy::FirstMatch)
-            .with_rule(
-                Rule::new("allow-read", Effect::Allow)
-                    .with_condition(RuleCondition::new("action.type", ConditionOp::Eq, json!("read"))),
-            );
+        let policy = Policy::new("p1", CombineStrategy::FirstMatch).with_rule(
+            Rule::new("allow-read", Effect::Allow).with_condition(RuleCondition::new(
+                "action.type",
+                ConditionOp::Eq,
+                json!("read"),
+            )),
+        );
         engine.add_policy(policy).unwrap();
         let result = engine.evaluate("p1", &sample_context()).unwrap();
         assert!(result.is_allowed());
@@ -1088,15 +1143,21 @@ mod tests {
     #[test]
     fn test_engine_duplicate_policy() {
         let mut engine = PolicyEngine::new();
-        engine.add_policy(Policy::new("p1", CombineStrategy::DenyOverrides)).unwrap();
-        let err = engine.add_policy(Policy::new("p1", CombineStrategy::DenyOverrides)).unwrap_err();
+        engine
+            .add_policy(Policy::new("p1", CombineStrategy::DenyOverrides))
+            .unwrap();
+        let err = engine
+            .add_policy(Policy::new("p1", CombineStrategy::DenyOverrides))
+            .unwrap_err();
         assert_eq!(err, PolicyEngineError::DuplicatePolicy("p1".into()));
     }
 
     #[test]
     fn test_engine_remove_policy() {
         let mut engine = PolicyEngine::new();
-        engine.add_policy(Policy::new("p1", CombineStrategy::DenyOverrides)).unwrap();
+        engine
+            .add_policy(Policy::new("p1", CombineStrategy::DenyOverrides))
+            .unwrap();
         engine.remove_policy("p1").unwrap();
         assert_eq!(engine.policy_count(), 0);
     }
@@ -1104,12 +1165,18 @@ mod tests {
     #[test]
     fn test_engine_version_conflict() {
         let mut engine = PolicyEngine::new();
-        engine.add_policy(Policy::new("p1", CombineStrategy::DenyOverrides)).unwrap();
+        engine
+            .add_policy(Policy::new("p1", CombineStrategy::DenyOverrides))
+            .unwrap();
         let mut updated = Policy::new("p1", CombineStrategy::AllowOverrides);
         updated.version = 2;
         let err = engine.update_policy(updated, 99).unwrap_err();
         match err {
-            PolicyEngineError::VersionConflict { expected: 99, actual: 1, .. } => {}
+            PolicyEngineError::VersionConflict {
+                expected: 99,
+                actual: 1,
+                ..
+            } => {}
             other => panic!("unexpected error: {other:?}"),
         }
     }
@@ -1119,12 +1186,18 @@ mod tests {
         let mut engine = PolicyEngine::new();
         let policy = Policy::new("p1", CombineStrategy::FirstMatch)
             .with_rule(
-                Rule::new("r1", Effect::Allow)
-                    .with_condition(RuleCondition::new("subject.role", ConditionOp::Eq, json!("admin"))),
+                Rule::new("r1", Effect::Allow).with_condition(RuleCondition::new(
+                    "subject.role",
+                    ConditionOp::Eq,
+                    json!("admin"),
+                )),
             )
             .with_rule(
-                Rule::new("r2", Effect::Deny)
-                    .with_condition(RuleCondition::new("subject.role", ConditionOp::Eq, json!("guest"))),
+                Rule::new("r2", Effect::Deny).with_condition(RuleCondition::new(
+                    "subject.role",
+                    ConditionOp::Eq,
+                    json!("guest"),
+                )),
             );
         engine.add_policy(policy).unwrap();
         let sim = engine.simulate("p1", &sample_context()).unwrap();
@@ -1139,11 +1212,13 @@ mod tests {
     #[test]
     fn test_disabled_policy() {
         let mut engine = PolicyEngine::new();
-        let policy = Policy::new("p1", CombineStrategy::FirstMatch)
-            .with_rule(
-                Rule::new("r1", Effect::Allow)
-                    .with_condition(RuleCondition::new("action.type", ConditionOp::Eq, json!("read"))),
-            );
+        let policy = Policy::new("p1", CombineStrategy::FirstMatch).with_rule(
+            Rule::new("r1", Effect::Allow).with_condition(RuleCondition::new(
+                "action.type",
+                ConditionOp::Eq,
+                json!("read"),
+            )),
+        );
         engine.add_policy(policy).unwrap();
         engine.set_enabled("p1", false).unwrap();
         let result = engine.evaluate("p1", &sample_context()).unwrap();
@@ -1153,10 +1228,13 @@ mod tests {
     #[test]
     fn test_obligations() {
         let rule = Rule::new("r1", Effect::Allow)
-            .with_condition(RuleCondition::new("action.type", ConditionOp::Eq, json!("read")))
+            .with_condition(RuleCondition::new(
+                "action.type",
+                ConditionOp::Eq,
+                json!("read"),
+            ))
             .with_obligation(
-                Obligation::new("log-access", "log", true)
-                    .with_param("level", "info"),
+                Obligation::new("log-access", "log", true).with_param("level", "info"),
             );
         let policy = Policy::new("p1", CombineStrategy::FirstMatch).with_rule(rule);
         let result = policy.evaluate(&sample_context());
@@ -1219,20 +1297,20 @@ mod tests {
 
     #[test]
     fn test_policy_set_evaluation() {
-        let p1 = Policy::new("p1", CombineStrategy::FirstMatch)
-            .with_rule(
-                Rule::new("r1", Effect::Allow)
-                    .with_condition(RuleCondition::new("subject.role", ConditionOp::Eq, json!("admin"))),
-            );
-        let p2 = Policy::new("p2", CombineStrategy::FirstMatch)
-            .with_rule(
-                Rule::new("r2", Effect::Deny)
-                    .with_condition(RuleCondition::new(
-                        "resource.classification",
-                        ConditionOp::Eq,
-                        json!("internal"),
-                    )),
-            );
+        let p1 = Policy::new("p1", CombineStrategy::FirstMatch).with_rule(
+            Rule::new("r1", Effect::Allow).with_condition(RuleCondition::new(
+                "subject.role",
+                ConditionOp::Eq,
+                json!("admin"),
+            )),
+        );
+        let p2 = Policy::new("p2", CombineStrategy::FirstMatch).with_rule(
+            Rule::new("r2", Effect::Deny).with_condition(RuleCondition::new(
+                "resource.classification",
+                ConditionOp::Eq,
+                json!("internal"),
+            )),
+        );
         let ps = PolicySet::new("ps1", CombineStrategy::DenyOverrides)
             .with_policy(p1)
             .with_policy(p2);
@@ -1243,9 +1321,15 @@ mod tests {
     #[test]
     fn test_all_must_allow() {
         let effects = vec![Effect::Allow, Effect::Allow, Effect::Deny];
-        assert_eq!(combine_effects(&effects, CombineStrategy::AllMustAllow), Some(Effect::Deny));
+        assert_eq!(
+            combine_effects(&effects, CombineStrategy::AllMustAllow),
+            Some(Effect::Deny)
+        );
         let effects2 = vec![Effect::Allow, Effect::Allow];
-        assert_eq!(combine_effects(&effects2, CombineStrategy::AllMustAllow), Some(Effect::Allow));
+        assert_eq!(
+            combine_effects(&effects2, CombineStrategy::AllMustAllow),
+            Some(Effect::Allow)
+        );
     }
 
     #[test]
@@ -1271,7 +1355,9 @@ mod tests {
     #[test]
     fn test_engine_clear_log() {
         let mut engine = PolicyEngine::new();
-        engine.add_policy(Policy::new("p1", CombineStrategy::DenyOverrides)).unwrap();
+        engine
+            .add_policy(Policy::new("p1", CombineStrategy::DenyOverrides))
+            .unwrap();
         let _ = engine.evaluate("p1", &sample_context());
         assert!(!engine.log().is_empty());
         engine.clear_log();

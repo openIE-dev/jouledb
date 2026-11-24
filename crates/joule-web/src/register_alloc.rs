@@ -134,8 +134,7 @@ impl InterferenceGraph {
         }
         for i in 0..intervals.len() {
             for j in (i + 1)..intervals.len() {
-                if intervals[i].overlaps(&intervals[j])
-                    && intervals[i].class == intervals[j].class
+                if intervals[i].overlaps(&intervals[j]) && intervals[i].class == intervals[j].class
                 {
                     graph.add_edge(intervals[i].vreg, intervals[j].vreg);
                 }
@@ -152,9 +151,7 @@ impl InterferenceGraph {
 
     /// Whether two vregs interfere.
     pub fn interferes(&self, a: VirtReg, b: VirtReg) -> bool {
-        self.adjacency
-            .get(&a)
-            .map_or(false, |s| s.contains(&b))
+        self.adjacency.get(&a).map_or(false, |s| s.contains(&b))
     }
 
     /// Degree of a vreg (number of interferences).
@@ -171,9 +168,10 @@ impl InterferenceGraph {
 
     /// Neighbors of a vreg.
     pub fn neighbors(&self, v: VirtReg) -> Vec<VirtReg> {
-        let mut n: Vec<_> = self.adjacency.get(&v).map_or(Vec::new(), |s| {
-            s.iter().copied().collect()
-        });
+        let mut n: Vec<_> = self
+            .adjacency
+            .get(&v)
+            .map_or(Vec::new(), |s| s.iter().copied().collect());
         n.sort();
         n
     }
@@ -269,10 +267,13 @@ pub fn compute_live_intervals(
         // Process defs
         for op in &instr.defs {
             if let Operand::Virtual(v) = op {
-                let class = classes.get(v).copied().unwrap_or(RegisterClass::GeneralPurpose);
-                intervals.entry(*v).or_insert_with(|| {
-                    LiveInterval::new(*v, instr.index, instr.index + 1, class)
-                });
+                let class = classes
+                    .get(v)
+                    .copied()
+                    .unwrap_or(RegisterClass::GeneralPurpose);
+                intervals
+                    .entry(*v)
+                    .or_insert_with(|| LiveInterval::new(*v, instr.index, instr.index + 1, class));
                 // Def starts the interval if not yet started
                 let iv = intervals.get_mut(v).unwrap();
                 if instr.index < iv.start {
@@ -284,10 +285,13 @@ pub fn compute_live_intervals(
         // Process uses
         for op in &instr.uses {
             if let Operand::Virtual(v) = op {
-                let class = classes.get(v).copied().unwrap_or(RegisterClass::GeneralPurpose);
-                let iv = intervals.entry(*v).or_insert_with(|| {
-                    LiveInterval::new(*v, instr.index, instr.index + 1, class)
-                });
+                let class = classes
+                    .get(v)
+                    .copied()
+                    .unwrap_or(RegisterClass::GeneralPurpose);
+                let iv = intervals
+                    .entry(*v)
+                    .or_insert_with(|| LiveInterval::new(*v, instr.index, instr.index + 1, class));
                 // Extend end to cover this use
                 if instr.index + 1 > iv.end {
                     iv.end = instr.index + 1;
@@ -465,10 +469,7 @@ impl LinearScanAllocator {
                 let expired = self.active.remove(i);
                 // Return the register to the free pool
                 if let Some(Allocation::Register(reg)) = self.allocation.get(&expired.vreg) {
-                    self.free_regs
-                        .entry(expired.class)
-                        .or_default()
-                        .push(*reg);
+                    self.free_regs.entry(expired.class).or_default().push(*reg);
                 }
             } else {
                 i += 1;
@@ -479,7 +480,10 @@ impl LinearScanAllocator {
     /// Spill: either the current interval or the active one with the farthest end.
     fn spill_at_interval(&mut self, current: &LiveInterval) {
         // Find the active interval with the farthest end in the same class
-        let candidate_idx = self.active.iter().enumerate()
+        let candidate_idx = self
+            .active
+            .iter()
+            .enumerate()
             .filter(|(_, a)| a.class == current.class)
             .max_by_key(|(_, a)| a.end)
             .map(|(idx, _)| idx);
@@ -764,10 +768,7 @@ mod tests {
 
     #[test]
     fn test_allocation_mixed_classes() {
-        let intervals = vec![
-            gp_interval(0, 0, 10),
-            fp_interval(1, 0, 10),
-        ];
+        let intervals = vec![gp_interval(0, 0, 10), fp_interval(1, 0, 10)];
         let mut alloc = LinearScanAllocator::with_counts(1, 1);
         let result = alloc.allocate(&intervals);
 
@@ -785,12 +786,24 @@ mod tests {
     #[test]
     fn test_compute_live_intervals() {
         let instructions = vec![
-            Instruction::new(0, "mov", vec![Operand::Virtual(VirtReg(0))], vec![Operand::Immediate(42)]),
-            Instruction::new(1, "mov", vec![Operand::Virtual(VirtReg(1))], vec![Operand::Immediate(10)]),
-            Instruction::new(2, "add", vec![Operand::Virtual(VirtReg(2))], vec![
-                Operand::Virtual(VirtReg(0)),
-                Operand::Virtual(VirtReg(1)),
-            ]),
+            Instruction::new(
+                0,
+                "mov",
+                vec![Operand::Virtual(VirtReg(0))],
+                vec![Operand::Immediate(42)],
+            ),
+            Instruction::new(
+                1,
+                "mov",
+                vec![Operand::Virtual(VirtReg(1))],
+                vec![Operand::Immediate(10)],
+            ),
+            Instruction::new(
+                2,
+                "add",
+                vec![Operand::Virtual(VirtReg(2))],
+                vec![Operand::Virtual(VirtReg(0)), Operand::Virtual(VirtReg(1))],
+            ),
         ];
         let classes = HashMap::new();
         let intervals = compute_live_intervals(&instructions, &classes);
@@ -903,9 +916,7 @@ mod tests {
     #[test]
     fn test_heavy_spill_pressure() {
         // 5 overlapping intervals, 1 register
-        let intervals: Vec<_> = (0..5)
-            .map(|i| gp_interval(i, 0, 20))
-            .collect();
+        let intervals: Vec<_> = (0..5).map(|i| gp_interval(i, 0, 20)).collect();
         let mut alloc = LinearScanAllocator::with_counts(1, 0);
         let result = alloc.allocate(&intervals);
 

@@ -289,12 +289,11 @@ impl MatchQueue {
 
         // Sort by effective score descending.
         let boost = self.config.age_boost_per_sec;
-        self.entries
-            .sort_by(|a, b| {
-                b.effective_score(now_ms, boost)
-                    .partial_cmp(&a.effective_score(now_ms, boost))
-                    .unwrap()
-            });
+        self.entries.sort_by(|a, b| {
+            b.effective_score(now_ms, boost)
+                .partial_cmp(&a.effective_score(now_ms, boost))
+                .unwrap()
+        });
         self.rebuild_index();
 
         // Take top N.
@@ -410,7 +409,8 @@ mod tests {
     fn vip_priority() {
         let mut q = MatchQueue::new(QueueConfig::new("ranked", 2).with_age_boost(0.0));
         q.enqueue(entry("normal", 0)).unwrap();
-        q.enqueue(entry("vip", 0).with_priority(Priority::VIP)).unwrap();
+        q.enqueue(entry("vip", 0).with_priority(Priority::VIP))
+            .unwrap();
         q.enqueue(entry("also_normal", 0)).unwrap();
         let m = q.try_dequeue(0).unwrap();
         assert!(m.players.contains(&"vip".to_string()));
@@ -421,7 +421,8 @@ mod tests {
         let mut q = MatchQueue::new(QueueConfig::new("ranked", 2).with_age_boost(100.0));
         q.enqueue(entry("old", 0)).unwrap(); // 10s old at now=10000
         q.enqueue(entry("new", 9000)).unwrap(); // 1s old
-        q.enqueue(entry("high", 9000).with_priority(Priority::High)).unwrap();
+        q.enqueue(entry("high", 9000).with_priority(Priority::High))
+            .unwrap();
         let m = q.try_dequeue(10_000).unwrap();
         // "high" has 1000 base + 100 age boost, "old" has 0 + 1000 age boost
         assert!(m.players.contains(&"old".to_string()));

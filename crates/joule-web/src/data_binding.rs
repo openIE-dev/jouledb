@@ -127,10 +127,7 @@ pub struct Converter<A, B> {
 }
 
 impl<A, B> Converter<A, B> {
-    pub fn new(
-        forward: impl Fn(&A) -> B + 'static,
-        backward: impl Fn(&B) -> A + 'static,
-    ) -> Self {
+    pub fn new(forward: impl Fn(&A) -> B + 'static, backward: impl Fn(&B) -> A + 'static) -> Self {
         Self {
             forward: Box::new(forward),
             backward: Box::new(backward),
@@ -262,11 +259,7 @@ impl BindingGroup {
     }
 
     /// Add a binding from source to target.
-    pub fn add_binding(
-        &mut self,
-        source_key: impl Into<String>,
-        target_key: impl Into<String>,
-    ) {
+    pub fn add_binding(&mut self, source_key: impl Into<String>, target_key: impl Into<String>) {
         self.bindings.push(BindingEntry {
             source_key: source_key.into(),
             target_key: target_key.into(),
@@ -373,9 +366,7 @@ impl BindingEngine {
 
     /// Get a property value by name.
     pub fn get_value(&self, name: &str) -> Option<String> {
-        self.properties
-            .get(name)
-            .map(|p| p.borrow().get().clone())
+        self.properties.get(name).map(|p| p.borrow().get().clone())
     }
 
     /// Set a property value by name. Propagates to bound properties.
@@ -432,8 +423,7 @@ impl BindingEngine {
 
     /// Remove a binding between two properties.
     pub fn unbind(&mut self, source: &str, target: &str) {
-        self.bindings
-            .retain(|(s, t)| !(s == source && t == target));
+        self.bindings.retain(|(s, t)| !(s == source && t == target));
     }
 
     /// Number of active bindings.
@@ -515,10 +505,7 @@ mod tests {
         });
         prop.set(200);
         assert!(!prop.validation_state().is_valid());
-        assert_eq!(
-            prop.validation_state().error_message(),
-            Some("too large")
-        );
+        assert_eq!(prop.validation_state().error_message(), Some("too large"));
     }
 
     #[test]
@@ -578,10 +565,7 @@ mod tests {
         let mut ctx = HashMap::new();
         ctx.insert("name".into(), "Alice".into());
         ctx.insert("age".into(), "30".into());
-        assert_eq!(
-            expr.evaluate(&ctx),
-            "Hello, Alice! You are 30 years old."
-        );
+        assert_eq!(expr.evaluate(&ctx), "Hello, Alice! You are 30 years old.");
     }
 
     #[test]

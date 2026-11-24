@@ -92,7 +92,9 @@ pub struct PresenceDiff {
 
 impl PresenceDiff {
     pub fn new() -> Self {
-        Self { changes: Vec::new() }
+        Self {
+            changes: Vec::new(),
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -100,17 +102,23 @@ impl PresenceDiff {
     }
 
     pub fn joins(&self) -> Vec<&str> {
-        self.changes.iter().filter_map(|c| match c {
-            PresenceChange::Joined { user_id, .. } => Some(user_id.as_str()),
-            _ => None,
-        }).collect()
+        self.changes
+            .iter()
+            .filter_map(|c| match c {
+                PresenceChange::Joined { user_id, .. } => Some(user_id.as_str()),
+                _ => None,
+            })
+            .collect()
     }
 
     pub fn leaves(&self) -> Vec<&str> {
-        self.changes.iter().filter_map(|c| match c {
-            PresenceChange::Left { user_id } => Some(user_id.as_str()),
-            _ => None,
-        }).collect()
+        self.changes
+            .iter()
+            .filter_map(|c| match c {
+                PresenceChange::Left { user_id } => Some(user_id.as_str()),
+                _ => None,
+            })
+            .collect()
     }
 }
 
@@ -185,7 +193,10 @@ impl PresenceChannel {
         self.eviction_queue.remove(&uid);
 
         let was_present = self.users.contains_key(&uid);
-        let entry = self.users.entry(uid.clone()).or_insert_with(|| UserPresence::new(&uid, now_ms));
+        let entry = self
+            .users
+            .entry(uid.clone())
+            .or_insert_with(|| UserPresence::new(&uid, now_ms));
         let old_status = entry.status;
         entry.status = PresenceStatus::Online;
         entry.last_heartbeat_ms = now_ms;
@@ -197,11 +208,13 @@ impl PresenceChannel {
                 status: PresenceStatus::Online,
             });
         } else if old_status != PresenceStatus::Online {
-            self.pending_diff.changes.push(PresenceChange::StatusChanged {
-                user_id: uid,
-                old: old_status,
-                new: PresenceStatus::Online,
-            });
+            self.pending_diff
+                .changes
+                .push(PresenceChange::StatusChanged {
+                    user_id: uid,
+                    old: old_status,
+                    new: PresenceStatus::Online,
+                });
         }
         true
     }
@@ -223,11 +236,13 @@ impl PresenceChannel {
             if user.status == PresenceStatus::Away {
                 let old = user.status;
                 user.status = PresenceStatus::Online;
-                self.pending_diff.changes.push(PresenceChange::StatusChanged {
-                    user_id: user_id.to_string(),
-                    old,
-                    new: PresenceStatus::Online,
-                });
+                self.pending_diff
+                    .changes
+                    .push(PresenceChange::StatusChanged {
+                        user_id: user_id.to_string(),
+                        old,
+                        new: PresenceStatus::Online,
+                    });
             }
             true
         } else {
@@ -246,11 +261,13 @@ impl PresenceChannel {
                         user_id: user_id.to_string(),
                     });
                 } else {
-                    self.pending_diff.changes.push(PresenceChange::StatusChanged {
-                        user_id: user_id.to_string(),
-                        old,
-                        new: status,
-                    });
+                    self.pending_diff
+                        .changes
+                        .push(PresenceChange::StatusChanged {
+                            user_id: user_id.to_string(),
+                            old,
+                            new: status,
+                        });
                 }
             }
             true
@@ -276,7 +293,10 @@ impl PresenceChannel {
 
     /// Get all active users in sorted order.
     pub fn active_users(&self) -> Vec<&UserPresence> {
-        self.users.values().filter(|u| u.status.is_active()).collect()
+        self.users
+            .values()
+            .filter(|u| u.status.is_active())
+            .collect()
     }
 
     /// Get all users (including offline) in sorted order.
@@ -300,7 +320,8 @@ impl PresenceChannel {
             let elapsed = now_ms.saturating_sub(user.last_heartbeat_ms);
             if elapsed >= timeout {
                 to_offline.push(uid.clone());
-            } else if auto_away > 0 && elapsed >= auto_away && user.status == PresenceStatus::Online {
+            } else if auto_away > 0 && elapsed >= auto_away && user.status == PresenceStatus::Online
+            {
                 to_away.push(uid.clone());
             }
         }
@@ -309,11 +330,13 @@ impl PresenceChannel {
             if let Some(user) = self.users.get_mut(&uid) {
                 let old = user.status;
                 user.status = PresenceStatus::Away;
-                self.pending_diff.changes.push(PresenceChange::StatusChanged {
-                    user_id: uid,
-                    old,
-                    new: PresenceStatus::Away,
-                });
+                self.pending_diff
+                    .changes
+                    .push(PresenceChange::StatusChanged {
+                        user_id: uid,
+                        old,
+                        new: PresenceStatus::Away,
+                    });
             }
         }
 
@@ -321,17 +344,22 @@ impl PresenceChannel {
             if let Some(user) = self.users.get_mut(&uid) {
                 let old = user.status;
                 user.status = PresenceStatus::Offline;
-                self.eviction_queue.insert(uid.clone(), now_ms + eviction_delay);
-                self.pending_diff.changes.push(PresenceChange::StatusChanged {
-                    user_id: uid,
-                    old,
-                    new: PresenceStatus::Offline,
-                });
+                self.eviction_queue
+                    .insert(uid.clone(), now_ms + eviction_delay);
+                self.pending_diff
+                    .changes
+                    .push(PresenceChange::StatusChanged {
+                        user_id: uid,
+                        old,
+                        new: PresenceStatus::Offline,
+                    });
             }
         }
 
         // Evict users past eviction deadline
-        let to_evict: Vec<String> = self.eviction_queue.iter()
+        let to_evict: Vec<String> = self
+            .eviction_queue
+            .iter()
             .filter(|&(_, evict_at)| now_ms >= *evict_at)
             .map(|(uid, _)| uid.clone())
             .collect();
@@ -374,7 +402,8 @@ impl PresenceTracker {
     /// Get or create a channel.
     pub fn channel(&mut self, name: &str) -> &mut PresenceChannel {
         let config = self.default_config.clone();
-        self.channels.entry(name.to_string())
+        self.channels
+            .entry(name.to_string())
             .or_insert_with(|| PresenceChannel::new(name, config))
     }
 
@@ -404,10 +433,10 @@ impl PresenceTracker {
 
     /// Find which channels a user is active in.
     pub fn user_channels(&self, user_id: &str) -> Vec<&str> {
-        let mut result: Vec<&str> = self.channels.iter()
-            .filter(|(_, ch)| {
-                ch.get_user(user_id).is_some_and(|u| u.status.is_active())
-            })
+        let mut result: Vec<&str> = self
+            .channels
+            .iter()
+            .filter(|(_, ch)| ch.get_user(user_id).is_some_and(|u| u.status.is_active()))
             .map(|(name, _)| name.as_str())
             .collect();
         result.sort();
@@ -464,9 +493,17 @@ mod tests {
     #[test]
     fn diff_joins_and_leaves() {
         let mut diff = PresenceDiff::new();
-        diff.changes.push(PresenceChange::Joined { user_id: "a".into(), status: PresenceStatus::Online });
-        diff.changes.push(PresenceChange::Left { user_id: "b".into() });
-        diff.changes.push(PresenceChange::Joined { user_id: "c".into(), status: PresenceStatus::Online });
+        diff.changes.push(PresenceChange::Joined {
+            user_id: "a".into(),
+            status: PresenceStatus::Online,
+        });
+        diff.changes.push(PresenceChange::Left {
+            user_id: "b".into(),
+        });
+        diff.changes.push(PresenceChange::Joined {
+            user_id: "c".into(),
+            status: PresenceStatus::Online,
+        });
 
         assert_eq!(diff.joins(), vec!["a", "c"]);
         assert_eq!(diff.leaves(), vec!["b"]);
@@ -515,7 +552,10 @@ mod tests {
 
     #[test]
     fn channel_max_users() {
-        let config = PresenceConfig { max_users: 2, ..Default::default() };
+        let config = PresenceConfig {
+            max_users: 2,
+            ..Default::default()
+        };
         let mut ch = PresenceChannel::new("room", config);
         assert!(ch.join("a", 0));
         assert!(ch.join("b", 0));
@@ -525,7 +565,10 @@ mod tests {
 
     #[test]
     fn channel_rejoin_existing_user_when_full() {
-        let config = PresenceConfig { max_users: 1, ..Default::default() };
+        let config = PresenceConfig {
+            max_users: 1,
+            ..Default::default()
+        };
         let mut ch = PresenceChannel::new("room", config);
         assert!(ch.join("a", 0));
         // Re-joining same user should succeed even when "full"
@@ -557,8 +600,13 @@ mod tests {
         ch.heartbeat("alice", 100);
         assert_eq!(ch.get_user("alice").unwrap().status, PresenceStatus::Online);
         let diff = ch.take_diff();
-        assert!(diff.changes.iter().any(|c| matches!(c,
-            PresenceChange::StatusChanged { new: PresenceStatus::Online, .. })));
+        assert!(diff.changes.iter().any(|c| matches!(
+            c,
+            PresenceChange::StatusChanged {
+                new: PresenceStatus::Online,
+                ..
+            }
+        )));
     }
 
     // ── Status management ──────────────────────────────────────────
@@ -572,8 +620,14 @@ mod tests {
         assert_eq!(ch.get_user("alice").unwrap().status, PresenceStatus::Busy);
 
         let diff = ch.take_diff();
-        assert!(diff.changes.iter().any(|c| matches!(c,
-            PresenceChange::StatusChanged { old: PresenceStatus::Online, new: PresenceStatus::Busy, .. })));
+        assert!(diff.changes.iter().any(|c| matches!(
+            c,
+            PresenceChange::StatusChanged {
+                old: PresenceStatus::Online,
+                new: PresenceStatus::Busy,
+                ..
+            }
+        )));
     }
 
     #[test]
@@ -596,7 +650,10 @@ mod tests {
         let mut ch = PresenceChannel::new("room", PresenceConfig::default());
         ch.join("alice", 0);
         assert!(ch.set_status_text("alice", Some("In a meeting".into())));
-        assert_eq!(ch.get_user("alice").unwrap().status_text.as_deref(), Some("In a meeting"));
+        assert_eq!(
+            ch.get_user("alice").unwrap().status_text.as_deref(),
+            Some("In a meeting")
+        );
         assert!(ch.set_status_text("alice", None));
         assert!(ch.get_user("alice").unwrap().status_text.is_none());
     }
@@ -605,7 +662,11 @@ mod tests {
 
     #[test]
     fn tick_timeout() {
-        let config = PresenceConfig { heartbeat_timeout_ms: 100, eviction_delay_ms: 200, ..Default::default() };
+        let config = PresenceConfig {
+            heartbeat_timeout_ms: 100,
+            eviction_delay_ms: 200,
+            ..Default::default()
+        };
         let mut ch = PresenceChannel::new("room", config);
         ch.join("alice", 0);
         ch.take_diff();
@@ -614,15 +675,27 @@ mod tests {
         assert_eq!(ch.get_user("alice").unwrap().status, PresenceStatus::Online);
 
         ch.tick(101);
-        assert_eq!(ch.get_user("alice").unwrap().status, PresenceStatus::Offline);
+        assert_eq!(
+            ch.get_user("alice").unwrap().status,
+            PresenceStatus::Offline
+        );
         let diff = ch.take_diff();
-        assert!(diff.changes.iter().any(|c| matches!(c,
-            PresenceChange::StatusChanged { new: PresenceStatus::Offline, .. })));
+        assert!(diff.changes.iter().any(|c| matches!(
+            c,
+            PresenceChange::StatusChanged {
+                new: PresenceStatus::Offline,
+                ..
+            }
+        )));
     }
 
     #[test]
     fn tick_eviction() {
-        let config = PresenceConfig { heartbeat_timeout_ms: 10, eviction_delay_ms: 50, ..Default::default() };
+        let config = PresenceConfig {
+            heartbeat_timeout_ms: 10,
+            eviction_delay_ms: 50,
+            ..Default::default()
+        };
         let mut ch = PresenceChannel::new("room", config);
         ch.join("alice", 0);
 
@@ -651,8 +724,13 @@ mod tests {
         ch.tick(51);
         assert_eq!(ch.get_user("alice").unwrap().status, PresenceStatus::Away);
         let diff = ch.take_diff();
-        assert!(diff.changes.iter().any(|c| matches!(c,
-            PresenceChange::StatusChanged { new: PresenceStatus::Away, .. })));
+        assert!(diff.changes.iter().any(|c| matches!(
+            c,
+            PresenceChange::StatusChanged {
+                new: PresenceStatus::Away,
+                ..
+            }
+        )));
     }
 
     // ── User listing ───────────────────────────────────────────────
@@ -704,7 +782,11 @@ mod tests {
 
     #[test]
     fn tracker_tick_all() {
-        let config = PresenceConfig { heartbeat_timeout_ms: 10, eviction_delay_ms: 5, ..Default::default() };
+        let config = PresenceConfig {
+            heartbeat_timeout_ms: 10,
+            eviction_delay_ms: 5,
+            ..Default::default()
+        };
         let mut tracker = PresenceTracker::with_default_config(config);
         tracker.channel("a").join("alice", 0);
         tracker.channel("b").join("bob", 0);
@@ -728,11 +810,18 @@ mod tests {
 
     #[test]
     fn rejoin_after_offline_clears_eviction() {
-        let config = PresenceConfig { heartbeat_timeout_ms: 10, eviction_delay_ms: 100, ..Default::default() };
+        let config = PresenceConfig {
+            heartbeat_timeout_ms: 10,
+            eviction_delay_ms: 100,
+            ..Default::default()
+        };
         let mut ch = PresenceChannel::new("room", config);
         ch.join("alice", 0);
         ch.tick(20); // goes offline, evict at 120
-        assert_eq!(ch.get_user("alice").unwrap().status, PresenceStatus::Offline);
+        assert_eq!(
+            ch.get_user("alice").unwrap().status,
+            PresenceStatus::Offline
+        );
 
         ch.join("alice", 30); // rejoin
         assert_eq!(ch.get_user("alice").unwrap().status, PresenceStatus::Online);
@@ -763,6 +852,9 @@ mod tests {
         if let Some(user) = ch.users.get_mut("alice") {
             user.metadata.insert("role".into(), "admin".into());
         }
-        assert_eq!(ch.get_user("alice").unwrap().metadata.get("role").unwrap(), "admin");
+        assert_eq!(
+            ch.get_user("alice").unwrap().metadata.get("role").unwrap(),
+            "admin"
+        );
     }
 }

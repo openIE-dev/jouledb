@@ -165,8 +165,7 @@ impl DiskScheduler {
             DiskAlgorithm::CLook => self.schedule_clook(&requests),
         };
 
-        let (total_seek, seek_sequence, max_seek) =
-            self.compute_seeks(&visit_order);
+        let (total_seek, seek_sequence, max_seek) = self.compute_seeks(&visit_order);
 
         let avg_seek = if !visit_order.is_empty() {
             total_seek as f64 / visit_order.len() as f64
@@ -252,7 +251,12 @@ impl DiskScheduler {
             Direction::Up => {
                 // Go up to max_cylinder-1, then down
                 let up: Vec<u32> = cylinders.iter().copied().filter(|c| *c >= pos).collect();
-                let down: Vec<u32> = cylinders.iter().copied().filter(|c| *c < pos).rev().collect();
+                let down: Vec<u32> = cylinders
+                    .iter()
+                    .copied()
+                    .filter(|c| *c < pos)
+                    .rev()
+                    .collect();
                 result.extend(up);
                 if !down.is_empty() {
                     // SCAN goes to end of disk before reversing
@@ -263,7 +267,12 @@ impl DiskScheduler {
                 }
             }
             Direction::Down => {
-                let down: Vec<u32> = cylinders.iter().copied().filter(|c| *c <= pos).rev().collect();
+                let down: Vec<u32> = cylinders
+                    .iter()
+                    .copied()
+                    .filter(|c| *c <= pos)
+                    .rev()
+                    .collect();
                 let up: Vec<u32> = cylinders.iter().copied().filter(|c| *c > pos).collect();
                 result.extend(down);
                 if !up.is_empty() {
@@ -317,12 +326,22 @@ impl DiskScheduler {
         match self.direction {
             Direction::Up => {
                 let up: Vec<u32> = cylinders.iter().copied().filter(|c| *c >= pos).collect();
-                let down: Vec<u32> = cylinders.iter().copied().filter(|c| *c < pos).rev().collect();
+                let down: Vec<u32> = cylinders
+                    .iter()
+                    .copied()
+                    .filter(|c| *c < pos)
+                    .rev()
+                    .collect();
                 result.extend(up);
                 result.extend(down);
             }
             Direction::Down => {
-                let down: Vec<u32> = cylinders.iter().copied().filter(|c| *c <= pos).rev().collect();
+                let down: Vec<u32> = cylinders
+                    .iter()
+                    .copied()
+                    .filter(|c| *c <= pos)
+                    .rev()
+                    .collect();
                 let up: Vec<u32> = cylinders.iter().copied().filter(|c| *c > pos).collect();
                 result.extend(down);
                 result.extend(up);

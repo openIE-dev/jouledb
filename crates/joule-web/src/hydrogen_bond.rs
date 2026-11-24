@@ -50,8 +50,20 @@ pub struct HBondAtom {
 }
 
 impl HBondAtom {
-    pub fn new(index: usize, name: &str, residue: usize, coords: [f64; 3], role: HBondRole) -> Self {
-        Self { index, name: name.to_string(), residue, coords, role }
+    pub fn new(
+        index: usize,
+        name: &str,
+        residue: usize,
+        coords: [f64; 3],
+        role: HBondRole,
+    ) -> Self {
+        Self {
+            index,
+            name: name.to_string(),
+            residue,
+            coords,
+            role,
+        }
     }
 
     /// Distance to another atom.
@@ -65,7 +77,11 @@ impl HBondAtom {
 
 impl fmt::Display for HBondAtom {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}[{}] res={} ({})", self.name, self.index, self.residue, self.role)
+        write!(
+            f,
+            "{}[{}] res={} ({})",
+            self.name, self.index, self.residue, self.role
+        )
     }
 }
 
@@ -372,7 +388,9 @@ impl fmt::Display for HBondNetwork {
         write!(
             f,
             "HBondNetwork(n={}, E={:.1} kcal/mol, avg_d={:.2}Å)",
-            self.count(), self.total_energy(), self.average_distance(),
+            self.count(),
+            self.total_energy(),
+            self.average_distance(),
         )
     }
 }
@@ -448,9 +466,14 @@ mod tests {
     #[test]
     fn test_hydrogen_bond_separation() {
         let hb = HydrogenBond {
-            donor_idx: 0, hydrogen_idx: None, acceptor_idx: 1,
-            donor_residue: 5, acceptor_residue: 9,
-            da_distance: 2.9, dha_angle: None, energy: -1.5,
+            donor_idx: 0,
+            hydrogen_idx: None,
+            acceptor_idx: 1,
+            donor_residue: 5,
+            acceptor_residue: 9,
+            da_distance: 2.9,
+            dha_angle: None,
+            energy: -1.5,
         };
         assert_eq!(hb.residue_separation(), 4);
         assert!(hb.is_alpha_pattern());
@@ -460,9 +483,14 @@ mod tests {
     #[test]
     fn test_hydrogen_bond_310() {
         let hb = HydrogenBond {
-            donor_idx: 0, hydrogen_idx: None, acceptor_idx: 1,
-            donor_residue: 10, acceptor_residue: 7,
-            da_distance: 3.0, dha_angle: None, energy: -1.0,
+            donor_idx: 0,
+            hydrogen_idx: None,
+            acceptor_idx: 1,
+            donor_residue: 10,
+            acceptor_residue: 7,
+            da_distance: 3.0,
+            dha_angle: None,
+            energy: -1.0,
         };
         assert!(hb.is_310_pattern());
     }
@@ -470,9 +498,14 @@ mod tests {
     #[test]
     fn test_hydrogen_bond_quality_strong() {
         let hb = HydrogenBond {
-            donor_idx: 0, hydrogen_idx: None, acceptor_idx: 1,
-            donor_residue: 0, acceptor_residue: 4,
-            da_distance: 2.7, dha_angle: Some(165.0), energy: -2.0,
+            donor_idx: 0,
+            hydrogen_idx: None,
+            acceptor_idx: 1,
+            donor_residue: 0,
+            acceptor_residue: 4,
+            da_distance: 2.7,
+            dha_angle: Some(165.0),
+            energy: -2.0,
         };
         assert_eq!(hb.quality(), HBondQuality::Strong);
     }
@@ -480,9 +513,14 @@ mod tests {
     #[test]
     fn test_hydrogen_bond_quality_weak() {
         let hb = HydrogenBond {
-            donor_idx: 0, hydrogen_idx: None, acceptor_idx: 1,
-            donor_residue: 0, acceptor_residue: 4,
-            da_distance: 3.1, dha_angle: Some(165.0), energy: -0.5,
+            donor_idx: 0,
+            hydrogen_idx: None,
+            acceptor_idx: 1,
+            donor_residue: 0,
+            acceptor_residue: 4,
+            da_distance: 3.1,
+            dha_angle: Some(165.0),
+            energy: -0.5,
         };
         assert_eq!(hb.quality(), HBondQuality::Weak);
     }
@@ -490,9 +528,14 @@ mod tests {
     #[test]
     fn test_hydrogen_bond_display() {
         let hb = HydrogenBond {
-            donor_idx: 0, hydrogen_idx: None, acceptor_idx: 1,
-            donor_residue: 0, acceptor_residue: 4,
-            da_distance: 2.9, dha_angle: None, energy: -1.5,
+            donor_idx: 0,
+            hydrogen_idx: None,
+            acceptor_idx: 1,
+            donor_residue: 0,
+            acceptor_residue: 4,
+            da_distance: 2.9,
+            dha_angle: None,
+            energy: -1.5,
         };
         assert!(hb.to_string().contains("HBond"));
     }
@@ -505,12 +548,14 @@ mod tests {
 
     #[test]
     fn test_detector_basic() {
-        let donors = vec![
-            HBondAtom::new(0, "N", 0, [0.0, 0.0, 0.0], HBondRole::Donor),
-        ];
-        let acceptors = vec![
-            HBondAtom::new(1, "O", 4, [2.8, 0.0, 0.0], HBondRole::Acceptor),
-        ];
+        let donors = vec![HBondAtom::new(0, "N", 0, [0.0, 0.0, 0.0], HBondRole::Donor)];
+        let acceptors = vec![HBondAtom::new(
+            1,
+            "O",
+            4,
+            [2.8, 0.0, 0.0],
+            HBondRole::Acceptor,
+        )];
         let detector = HBondDetector::new();
         let bonds = detector.detect(&donors, &acceptors, None);
         assert_eq!(bonds.len(), 1);
@@ -519,12 +564,14 @@ mod tests {
 
     #[test]
     fn test_detector_too_far() {
-        let donors = vec![
-            HBondAtom::new(0, "N", 0, [0.0, 0.0, 0.0], HBondRole::Donor),
-        ];
-        let acceptors = vec![
-            HBondAtom::new(1, "O", 4, [10.0, 0.0, 0.0], HBondRole::Acceptor),
-        ];
+        let donors = vec![HBondAtom::new(0, "N", 0, [0.0, 0.0, 0.0], HBondRole::Donor)];
+        let acceptors = vec![HBondAtom::new(
+            1,
+            "O",
+            4,
+            [10.0, 0.0, 0.0],
+            HBondRole::Acceptor,
+        )];
         let detector = HBondDetector::new();
         let bonds = detector.detect(&donors, &acceptors, None);
         assert!(bonds.is_empty());
@@ -533,7 +580,13 @@ mod tests {
     #[test]
     fn test_detector_same_residue_skipped() {
         let donors = vec![HBondAtom::new(0, "N", 5, [0.0, 0.0, 0.0], HBondRole::Donor)];
-        let acceptors = vec![HBondAtom::new(1, "O", 5, [2.8, 0.0, 0.0], HBondRole::Acceptor)];
+        let acceptors = vec![HBondAtom::new(
+            1,
+            "O",
+            5,
+            [2.8, 0.0, 0.0],
+            HBondRole::Acceptor,
+        )];
         let detector = HBondDetector::new();
         let bonds = detector.detect(&donors, &acceptors, None);
         assert!(bonds.is_empty());
@@ -558,14 +611,24 @@ mod tests {
     fn test_network_total_energy() {
         let bonds = vec![
             HydrogenBond {
-                donor_idx: 0, hydrogen_idx: None, acceptor_idx: 1,
-                donor_residue: 0, acceptor_residue: 4,
-                da_distance: 2.9, dha_angle: None, energy: -1.5,
+                donor_idx: 0,
+                hydrogen_idx: None,
+                acceptor_idx: 1,
+                donor_residue: 0,
+                acceptor_residue: 4,
+                da_distance: 2.9,
+                dha_angle: None,
+                energy: -1.5,
             },
             HydrogenBond {
-                donor_idx: 2, hydrogen_idx: None, acceptor_idx: 3,
-                donor_residue: 1, acceptor_residue: 5,
-                da_distance: 3.0, dha_angle: None, energy: -1.0,
+                donor_idx: 2,
+                hydrogen_idx: None,
+                acceptor_idx: 3,
+                donor_residue: 1,
+                acceptor_residue: 5,
+                da_distance: 3.0,
+                dha_angle: None,
+                energy: -1.0,
             },
         ];
         let net = HBondNetwork::new(bonds);
@@ -577,14 +640,24 @@ mod tests {
     fn test_network_average_distance() {
         let bonds = vec![
             HydrogenBond {
-                donor_idx: 0, hydrogen_idx: None, acceptor_idx: 1,
-                donor_residue: 0, acceptor_residue: 4,
-                da_distance: 2.8, dha_angle: None, energy: -1.5,
+                donor_idx: 0,
+                hydrogen_idx: None,
+                acceptor_idx: 1,
+                donor_residue: 0,
+                acceptor_residue: 4,
+                da_distance: 2.8,
+                dha_angle: None,
+                energy: -1.5,
             },
             HydrogenBond {
-                donor_idx: 2, hydrogen_idx: None, acceptor_idx: 3,
-                donor_residue: 1, acceptor_residue: 5,
-                da_distance: 3.2, dha_angle: None, energy: -1.0,
+                donor_idx: 2,
+                hydrogen_idx: None,
+                acceptor_idx: 3,
+                donor_residue: 1,
+                acceptor_residue: 5,
+                da_distance: 3.2,
+                dha_angle: None,
+                energy: -1.0,
             },
         ];
         let net = HBondNetwork::new(bonds);

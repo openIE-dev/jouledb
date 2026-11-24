@@ -124,7 +124,11 @@ impl Cfg {
 
 impl fmt::Display for Cfg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "CFG ({} blocks, entry={}):", self.num_blocks, self.names[self.entry])?;
+        writeln!(
+            f,
+            "CFG ({} blocks, entry={}):",
+            self.num_blocks, self.names[self.entry]
+        )?;
         for i in 0..self.num_blocks {
             let succs: Vec<&str> = self.successors[i]
                 .iter()

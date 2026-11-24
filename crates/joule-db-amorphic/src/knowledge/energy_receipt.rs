@@ -297,11 +297,7 @@ mod tests {
         // Attractor dispatch at 12 pJ vs 10 mJ LLM = 833M× savings.
         let r = EnergyReceipt::for_tier_with_floor(Source::Attractor, 12, 5);
         let s = r.savings_vs_llm();
-        assert!(
-            s > 8e8 && s < 9e8,
-            "expected ~833M× savings, got {}",
-            s
-        );
+        assert!(s > 8e8 && s < 9e8, "expected ~833M× savings, got {}", s);
     }
 
     #[test]
@@ -352,7 +348,13 @@ mod tests {
     fn format_verbose_has_all_fields() {
         let r = EnergyReceipt::for_tier_with_floor(Source::Attractor, 12, 5);
         let s = r.format_verbose();
-        for field in ["tier", "actual", "native floor", "gpu baseline", "llm baseline"] {
+        for field in [
+            "tier",
+            "actual",
+            "native floor",
+            "gpu baseline",
+            "llm baseline",
+        ] {
             assert!(s.contains(field), "missing {} in {}", field, s);
         }
         assert!(s.contains("impedance"));

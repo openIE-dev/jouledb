@@ -47,7 +47,10 @@ pub struct PeerIdentity {
 
 impl PeerIdentity {
     pub fn new(key_hash: impl Into<String>, label: impl Into<String>) -> Self {
-        Self { key_hash: key_hash.into(), label: label.into() }
+        Self {
+            key_hash: key_hash.into(),
+            label: label.into(),
+        }
     }
 
     /// Simplified hash from raw bytes — uses a basic FNV-1a hash for simulation.
@@ -62,7 +65,12 @@ impl PeerIdentity {
 
 impl fmt::Display for PeerIdentity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PeerIdentity({}:{})", self.label, &self.key_hash[..8.min(self.key_hash.len())])
+        write!(
+            f,
+            "PeerIdentity({}:{})",
+            self.label,
+            &self.key_hash[..8.min(self.key_hash.len())]
+        )
     }
 }
 
@@ -142,7 +150,12 @@ impl DhKeyPair {
         let prime: u64 = 104729; // small prime for demo
         let generator: u64 = 2;
         let public_key = mod_exp(generator, private_key, prime);
-        Self { private_key, public_key, prime, generator }
+        Self {
+            private_key,
+            public_key,
+            prime,
+            generator,
+        }
     }
 
     /// Derive shared secret from the other party's public key.
@@ -153,7 +166,9 @@ impl DhKeyPair {
 
 /// Modular exponentiation: base^exp mod modulus.
 fn mod_exp(mut base: u64, mut exp: u64, modulus: u64) -> u64 {
-    if modulus == 1 { return 0; }
+    if modulus == 1 {
+        return 0;
+    }
     let mut result: u128 = 1;
     let mut b = (base as u128) % (modulus as u128);
     while exp > 0 {
@@ -249,7 +264,12 @@ impl AuthManager {
         let pid = peer_id.into();
         let nonce = self.next_nonce;
         self.next_nonce += 1;
-        let challenge = AuthChallenge::new(nonce, &self.self_id, self.current_tick, self.challenge_timeout);
+        let challenge = AuthChallenge::new(
+            nonce,
+            &self.self_id,
+            self.current_tick,
+            self.challenge_timeout,
+        );
         let mut session = AuthSession::new(&pid, self.current_tick);
         session.state = AuthState::Challenged;
         session.challenge = Some(challenge.clone());
@@ -309,7 +329,11 @@ impl AuthManager {
     /// Get the session key for an authenticated peer.
     pub fn session_key(&self, peer_id: &str) -> Option<u64> {
         self.sessions.get(peer_id).and_then(|s| {
-            if s.state == AuthState::Authenticated { s.session_key } else { None }
+            if s.state == AuthState::Authenticated {
+                s.session_key
+            } else {
+                None
+            }
         })
     }
 
@@ -327,7 +351,10 @@ impl AuthManager {
 
     /// Number of active authenticated sessions.
     pub fn authenticated_count(&self) -> usize {
-        self.sessions.values().filter(|s| s.state == AuthState::Authenticated).count()
+        self.sessions
+            .values()
+            .filter(|s| s.state == AuthState::Authenticated)
+            .count()
     }
 
     /// Total success count.
@@ -446,8 +473,7 @@ mod tests {
 
     #[test]
     fn test_session_expiry() {
-        let mut mgr = AuthManager::new("s", b"s".to_vec())
-            .with_session_lifetime(10);
+        let mut mgr = AuthManager::new("s", b"s".to_vec()).with_session_lifetime(10);
         mgr.tick(0);
         let ch = mgr.create_challenge("c");
         let resp = AuthResponse::new(ch.nonce, "c", b"k");

@@ -196,10 +196,7 @@ impl VersionedStore {
         let version = self.current_version;
         self.total_writes += 1;
 
-        let chain = self
-            .data
-            .entry(key)
-            .or_insert_with(VersionChain::new);
+        let chain = self.data.entry(key).or_insert_with(VersionChain::new);
         chain.put(Some(value), version);
         version
     }
@@ -245,12 +242,12 @@ impl VersionedStore {
             .data
             .get(key)
             .ok_or_else(|| VersionedStoreError::KeyNotFound(key.to_string()))?;
-        let entry = chain.read_at(version).ok_or_else(|| {
-            VersionedStoreError::VersionNotFound {
+        let entry = chain
+            .read_at(version)
+            .ok_or_else(|| VersionedStoreError::VersionNotFound {
                 key: key.to_string(),
                 version,
-            }
-        })?;
+            })?;
         entry
             .value
             .clone()
@@ -272,10 +269,7 @@ impl VersionedStore {
     }
 
     /// Get all versions of a key.
-    pub fn all_versions(
-        &self,
-        key: &str,
-    ) -> Result<&[VersionedValue], VersionedStoreError> {
+    pub fn all_versions(&self, key: &str) -> Result<&[VersionedValue], VersionedStoreError> {
         let chain = self
             .data
             .get(key)
@@ -285,9 +279,7 @@ impl VersionedStore {
 
     /// Number of versions for a key.
     pub fn version_count(&self, key: &str) -> usize {
-        self.data
-            .get(key)
-            .map_or(0, |c| c.version_count())
+        self.data.get(key).map_or(0, |c| c.version_count())
     }
 
     /// Create a snapshot at the current version.
@@ -392,8 +384,7 @@ impl VersionedStore {
             .data
             .iter()
             .filter(|(_, chain)| {
-                chain.version_count() == 1
-                    && chain.latest().is_some_and(|v| v.value.is_none())
+                chain.version_count() == 1 && chain.latest().is_some_and(|v| v.value.is_none())
             })
             .map(|(k, _)| k.clone())
             .collect();
@@ -543,7 +534,9 @@ mod tests {
         let mut store = VersionedStore::new();
         store.put("k".into(), b"v1".to_vec());
         let snap = store.snapshot();
-        store.snapshot_put(snap, "k".into(), b"v2".to_vec()).unwrap();
+        store
+            .snapshot_put(snap, "k".into(), b"v2".to_vec())
+            .unwrap();
         assert_eq!(store.get("k").unwrap(), b"v2");
     }
 

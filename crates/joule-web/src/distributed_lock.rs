@@ -23,11 +23,19 @@ pub enum LockError {
     /// Fencing token mismatch.
     FencingTokenMismatch { expected: u64, actual: u64 },
     /// Only the owner can release or renew.
-    NotOwner { resource: String, owner: String, actual_owner: String },
+    NotOwner {
+        resource: String,
+        owner: String,
+        actual_owner: String,
+    },
     /// Deadlock detected.
     DeadlockDetected { cycle: Vec<String> },
     /// CAS conflict.
-    CasConflict { resource: String, expected: u64, actual: u64 },
+    CasConflict {
+        resource: String,
+        expected: u64,
+        actual: u64,
+    },
     /// Election already in progress.
     ElectionInProgress(String),
 }
@@ -41,16 +49,33 @@ impl fmt::Display for LockError {
             Self::NotFound(r) => write!(f, "lock not found: {r}"),
             Self::Expired(r) => write!(f, "lock expired: {r}"),
             Self::FencingTokenMismatch { expected, actual } => {
-                write!(f, "fencing token mismatch: expected {expected}, got {actual}")
+                write!(
+                    f,
+                    "fencing token mismatch: expected {expected}, got {actual}"
+                )
             }
-            Self::NotOwner { resource, owner, actual_owner } => {
-                write!(f, "{owner} is not owner of {resource} (owner: {actual_owner})")
+            Self::NotOwner {
+                resource,
+                owner,
+                actual_owner,
+            } => {
+                write!(
+                    f,
+                    "{owner} is not owner of {resource} (owner: {actual_owner})"
+                )
             }
             Self::DeadlockDetected { cycle } => {
                 write!(f, "deadlock detected: {}", cycle.join(" -> "))
             }
-            Self::CasConflict { resource, expected, actual } => {
-                write!(f, "CAS conflict on {resource}: expected version {expected}, got {actual}")
+            Self::CasConflict {
+                resource,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "CAS conflict on {resource}: expected version {expected}, got {actual}"
+                )
             }
             Self::ElectionInProgress(group) => {
                 write!(f, "election already in progress for group {group}")
@@ -222,11 +247,7 @@ impl LockManager {
     }
 
     /// Validate a fencing token for a resource.
-    pub fn validate_fencing_token(
-        &self,
-        resource: &str,
-        token: u64,
-    ) -> Result<(), LockError> {
+    pub fn validate_fencing_token(&self, resource: &str, token: u64) -> Result<(), LockError> {
         let lock = self
             .locks
             .get(resource)
@@ -274,7 +295,14 @@ impl LockManager {
             }
             let mut path = Vec::new();
             let mut path_set = HashSet::new();
-            self.dfs_cycle(start, &graph, &mut path, &mut path_set, &mut visited, &mut cycles);
+            self.dfs_cycle(
+                start,
+                &graph,
+                &mut path,
+                &mut path_set,
+                &mut visited,
+                &mut cycles,
+            );
         }
         cycles
     }
@@ -375,16 +403,17 @@ impl LockManager {
 
     /// Register a candidate for leader election.
     pub fn register_candidate(&mut self, group: &str, candidate: &str, leader_ttl_ms: u64) {
-        let entry = self.elections.entry(group.to_string()).or_insert_with(|| {
-            ElectionGroup {
+        let entry = self
+            .elections
+            .entry(group.to_string())
+            .or_insert_with(|| ElectionGroup {
                 group_name: group.into(),
                 leader: None,
                 candidates: Vec::new(),
                 term: 0,
                 elected_at_ms: 0,
                 leader_ttl_ms,
-            }
-        });
+            });
         if !entry.candidates.contains(&candidate.to_string()) {
             entry.candidates.push(candidate.into());
         }

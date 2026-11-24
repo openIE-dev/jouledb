@@ -20,10 +20,7 @@ pub struct Lens<A, B> {
 
 impl<A: 'static, B: 'static> Lens<A, B> {
     /// Create a lens from a getter and a setter.
-    pub fn new(
-        getter: impl Fn(&A) -> B + 'static,
-        setter: impl Fn(&A, B) -> A + 'static,
-    ) -> Self {
+    pub fn new(getter: impl Fn(&A) -> B + 'static, setter: impl Fn(&A, B) -> A + 'static) -> Self {
         Self {
             getter: Box::new(getter),
             setter: Box::new(setter),
@@ -661,9 +658,7 @@ mod tests {
     fn json_lens_over() {
         let data = json!({"count": 10});
         let lens = JsonLens::new("count");
-        let result = lens.over(&data, |v| {
-            json!(v.as_i64().unwrap_or(0) + 1)
-        });
+        let result = lens.over(&data, |v| json!(v.as_i64().unwrap_or(0) + 1));
         assert_eq!(result, json!({"count": 11}));
     }
 

@@ -45,7 +45,12 @@ impl BpeTokenizer {
             .enumerate()
             .map(|(i, (a, b))| ((a.clone(), b.clone()), i))
             .collect();
-        Self { vocab, id_to_token, merges, merge_rank }
+        Self {
+            vocab,
+            id_to_token,
+            merges,
+            merge_rank,
+        }
     }
 
     /// Build a simple tokenizer from a list of tokens and merge rules.
@@ -291,16 +296,19 @@ mod tests {
     fn make_bpe() -> BpeTokenizer {
         // Vocab: individual chars + merged tokens.
         BpeTokenizer::from_tokens(
-            &["h", "e", "l", "o", "w", "r", "d", "he", "ll", "lo", "hell", "hello", "wo", "wor", "world"],
             &[
-                ("h", "e"),      // he
-                ("l", "l"),      // ll
-                ("l", "o"),      // lo
-                ("he", "ll"),    // hell
-                ("hell", "o"),   // hello
-                ("w", "o"),      // wo
-                ("wo", "r"),     // wor
-                ("wor", "ld"),   // world — but "ld" not in vocab, so this won't fire
+                "h", "e", "l", "o", "w", "r", "d", "he", "ll", "lo", "hell", "hello", "wo", "wor",
+                "world",
+            ],
+            &[
+                ("h", "e"),    // he
+                ("l", "l"),    // ll
+                ("l", "o"),    // lo
+                ("he", "ll"),  // hell
+                ("hell", "o"), // hello
+                ("w", "o"),    // wo
+                ("wo", "r"),   // wor
+                ("wor", "ld"), // world — but "ld" not in vocab, so this won't fire
             ],
         )
     }
@@ -348,9 +356,8 @@ mod tests {
 
     #[test]
     fn test_wordpiece_basic() {
-        let tok = WordPieceTokenizer::from_tokens(&[
-            "hello", "world", "##ing", "##ed", "play", "un",
-        ]);
+        let tok =
+            WordPieceTokenizer::from_tokens(&["hello", "world", "##ing", "##ed", "play", "un"]);
         let ids = tok.encode("hello");
         let decoded = tok.decode(&ids);
         assert_eq!(decoded, "hello");
@@ -358,9 +365,7 @@ mod tests {
 
     #[test]
     fn test_wordpiece_continuation() {
-        let tok = WordPieceTokenizer::from_tokens(&[
-            "play", "##ing", "##ed", "##s",
-        ]);
+        let tok = WordPieceTokenizer::from_tokens(&["play", "##ing", "##ed", "##s"]);
         let ids = tok.encode("playing");
         let decoded = tok.decode(&ids);
         assert_eq!(decoded, "playing");

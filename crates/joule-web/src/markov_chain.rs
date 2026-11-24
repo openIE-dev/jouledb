@@ -39,7 +39,10 @@ impl fmt::Display for MarkovError {
             }
             Self::EmptyChain => write!(f, "chain is empty"),
             Self::NotConverged { iterations } => {
-                write!(f, "power iteration did not converge after {iterations} iterations")
+                write!(
+                    f,
+                    "power iteration did not converge after {iterations} iterations"
+                )
             }
             Self::TokenNotFound(t) => write!(f, "token not found: {t}"),
         }
@@ -58,7 +61,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_f64(&mut self) -> f64 {
@@ -93,7 +98,10 @@ impl MarkovChain {
         }
         for (i, row) in matrix.iter().enumerate() {
             if row.len() != n {
-                return Err(MarkovError::InvalidDimension { expected: n, got: row.len() });
+                return Err(MarkovError::InvalidDimension {
+                    expected: n,
+                    got: row.len(),
+                });
             }
             let sum: f64 = row.iter().sum();
             if (sum - 1.0).abs() > 0.01 {
@@ -117,17 +125,24 @@ impl MarkovChain {
     /// Set human-readable state names.
     pub fn with_names(mut self, names: Vec<String>) -> Result<Self, MarkovError> {
         if names.len() != self.n {
-            return Err(MarkovError::InvalidDimension { expected: self.n, got: names.len() });
+            return Err(MarkovError::InvalidDimension {
+                expected: self.n,
+                got: names.len(),
+            });
         }
         self.state_names = names;
         Ok(self)
     }
 
     /// Number of states.
-    pub fn state_count(&self) -> usize { self.n }
+    pub fn state_count(&self) -> usize {
+        self.n
+    }
 
     /// Current state index.
-    pub fn current_state(&self) -> usize { self.current_state }
+    pub fn current_state(&self) -> usize {
+        self.current_state
+    }
 
     /// Name of a state.
     pub fn state_name(&self, idx: usize) -> Option<&str> {
@@ -135,7 +150,9 @@ impl MarkovChain {
     }
 
     /// Steps taken so far.
-    pub fn step_count(&self) -> u64 { self.step_count }
+    pub fn step_count(&self) -> u64 {
+        self.step_count
+    }
 
     /// Set the current state.
     pub fn set_state(&mut self, state: usize) -> Result<(), MarkovError> {
@@ -201,7 +218,11 @@ impl MarkovChain {
     }
 
     /// Compute the stationary distribution using power iteration.
-    pub fn stationary_distribution(&self, max_iter: usize, tolerance: f64) -> Result<Vec<f64>, MarkovError> {
+    pub fn stationary_distribution(
+        &self,
+        max_iter: usize,
+        tolerance: f64,
+    ) -> Result<Vec<f64>, MarkovError> {
         if self.n == 0 {
             return Err(MarkovError::EmptyChain);
         }
@@ -219,7 +240,9 @@ impl MarkovChain {
                 return Ok(pi);
             }
         }
-        Err(MarkovError::NotConverged { iterations: max_iter })
+        Err(MarkovError::NotConverged {
+            iterations: max_iter,
+        })
     }
 
     /// Classify an absorbing state (a state whose self-transition is 1.0).
@@ -229,7 +252,9 @@ impl MarkovChain {
 
     /// Find all absorbing states.
     pub fn absorbing_states(&self) -> Vec<usize> {
-        (0..self.n).filter(|s| self.is_absorbing_state(*s)).collect()
+        (0..self.n)
+            .filter(|s| self.is_absorbing_state(*s))
+            .collect()
     }
 
     /// Check if the chain is absorbing (has at least one absorbing state
@@ -239,9 +264,7 @@ impl MarkovChain {
         if absorbing.is_empty() {
             return false;
         }
-        let non_absorbing: Vec<usize> = (0..self.n)
-            .filter(|s| !absorbing.contains(s))
-            .collect();
+        let non_absorbing: Vec<usize> = (0..self.n).filter(|s| !absorbing.contains(s)).collect();
         for &s in &non_absorbing {
             if !self.can_reach_any(s, &absorbing) {
                 return false;
@@ -278,9 +301,18 @@ impl MarkovChain {
     }
 
     /// Mean first passage time from state i to state j using simulation.
-    pub fn mean_first_passage_time(&mut self, from: usize, to: usize, trials: usize) -> Result<f64, MarkovError> {
+    pub fn mean_first_passage_time(
+        &mut self,
+        from: usize,
+        to: usize,
+        trials: usize,
+    ) -> Result<f64, MarkovError> {
         if from >= self.n || to >= self.n {
-            return Err(MarkovError::StateNotFound(if from >= self.n { from } else { to }));
+            return Err(MarkovError::StateNotFound(if from >= self.n {
+                from
+            } else {
+                to
+            }));
         }
         let mut total_steps = 0u64;
         let max_steps_per_trial = self.n as u64 * 1000;
@@ -408,10 +440,7 @@ mod tests {
     use super::*;
 
     fn two_state_chain(seed: u64) -> MarkovChain {
-        MarkovChain::new(vec![
-            vec![0.7, 0.3],
-            vec![0.4, 0.6],
-        ], seed).unwrap()
+        MarkovChain::new(vec![vec![0.7, 0.3], vec![0.4, 0.6]], seed).unwrap()
     }
 
     #[test]
@@ -429,34 +458,28 @@ mod tests {
 
     #[test]
     fn test_invalid_row_length() {
-        let result = MarkovChain::new(vec![
-            vec![0.5, 0.5],
-            vec![1.0],
-        ], 42);
+        let result = MarkovChain::new(vec![vec![0.5, 0.5], vec![1.0]], 42);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_invalid_row_sum() {
-        let result = MarkovChain::new(vec![
-            vec![0.5, 0.3],
-            vec![0.4, 0.6],
-        ], 42);
+        let result = MarkovChain::new(vec![vec![0.5, 0.3], vec![0.4, 0.6]], 42);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_with_names() {
         let mc = two_state_chain(42)
-            .with_names(vec!["Rain".into(), "Sun".into()]).unwrap();
+            .with_names(vec!["Rain".into(), "Sun".into()])
+            .unwrap();
         assert_eq!(mc.state_name(0), Some("Rain"));
         assert_eq!(mc.state_name(1), Some("Sun"));
     }
 
     #[test]
     fn test_names_wrong_count() {
-        let result = two_state_chain(42)
-            .with_names(vec!["A".into()]);
+        let result = two_state_chain(42).with_names(vec!["A".into()]);
         assert!(result.is_err());
     }
 
@@ -530,11 +553,15 @@ mod tests {
 
     #[test]
     fn test_absorbing_state() {
-        let mc = MarkovChain::new(vec![
-            vec![0.5, 0.5, 0.0],
-            vec![0.0, 1.0, 0.0],
-            vec![0.0, 0.0, 1.0],
-        ], 42).unwrap();
+        let mc = MarkovChain::new(
+            vec![
+                vec![0.5, 0.5, 0.0],
+                vec![0.0, 1.0, 0.0],
+                vec![0.0, 0.0, 1.0],
+            ],
+            42,
+        )
+        .unwrap();
         assert!(!mc.is_absorbing_state(0));
         assert!(mc.is_absorbing_state(1));
         assert!(mc.is_absorbing_state(2));
@@ -542,11 +569,15 @@ mod tests {
 
     #[test]
     fn test_absorbing_chain() {
-        let mc = MarkovChain::new(vec![
-            vec![0.0, 0.5, 0.5],
-            vec![0.0, 1.0, 0.0],
-            vec![0.0, 0.0, 1.0],
-        ], 42).unwrap();
+        let mc = MarkovChain::new(
+            vec![
+                vec![0.0, 0.5, 0.5],
+                vec![0.0, 1.0, 0.0],
+                vec![0.0, 0.0, 1.0],
+            ],
+            42,
+        )
+        .unwrap();
         assert!(mc.is_absorbing_chain());
     }
 
@@ -559,10 +590,7 @@ mod tests {
     #[test]
     fn test_non_ergodic_chain() {
         // Two absorbing states — not ergodic.
-        let mc = MarkovChain::new(vec![
-            vec![1.0, 0.0],
-            vec![0.0, 1.0],
-        ], 42).unwrap();
+        let mc = MarkovChain::new(vec![vec![1.0, 0.0], vec![0.0, 1.0]], 42).unwrap();
         assert!(!mc.is_ergodic());
     }
 

@@ -368,8 +368,9 @@ impl<T: Copy> TypedPool<T> {
     /// Allocate and store a value.
     pub fn alloc(&mut self, value: T) -> Result<BlockHandle, PoolError> {
         let handle = self.inner.alloc()?;
-        let bytes =
-            unsafe { std::slice::from_raw_parts(&value as *const T as *const u8, std::mem::size_of::<T>()) };
+        let bytes = unsafe {
+            std::slice::from_raw_parts(&value as *const T as *const u8, std::mem::size_of::<T>())
+        };
         self.inner.write(&handle, bytes)?;
         Ok(handle)
     }

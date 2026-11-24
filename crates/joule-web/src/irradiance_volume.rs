@@ -17,18 +17,52 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
-    pub fn dot(self, o: Self) -> f64 { self.x * o.x + self.y * o.y + self.z * o.z }
-    pub fn length(self) -> f64 { self.dot(self).sqrt() }
-    pub fn sub(self, o: Self) -> Self { Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z } }
-    pub fn add(self, o: Self) -> Self { Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z } }
-    pub fn scale(self, s: f64) -> Self { Self { x: self.x * s, y: self.y * s, z: self.z * s } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+    pub fn dot(self, o: Self) -> f64 {
+        self.x * o.x + self.y * o.y + self.z * o.z
+    }
+    pub fn length(self) -> f64 {
+        self.dot(self).sqrt()
+    }
+    pub fn sub(self, o: Self) -> Self {
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
+    }
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-12 { return Self::ZERO; }
-        Self { x: self.x / l, y: self.y / l, z: self.z / l }
+        if l < 1e-12 {
+            return Self::ZERO;
+        }
+        Self {
+            x: self.x / l,
+            y: self.y / l,
+            z: self.z / l,
+        }
     }
 }
 
@@ -41,12 +75,34 @@ pub struct Color {
 }
 
 impl Color {
-    pub const BLACK: Self = Self { r: 0.0, g: 0.0, b: 0.0 };
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0 };
+    pub const BLACK: Self = Self {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+    };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+    };
 
-    pub fn new(r: f64, g: f64, b: f64) -> Self { Self { r, g, b } }
-    pub fn scale(self, s: f64) -> Self { Self { r: self.r * s, g: self.g * s, b: self.b * s } }
-    pub fn add(self, o: Self) -> Self { Self { r: self.r + o.r, g: self.g + o.g, b: self.b + o.b } }
+    pub fn new(r: f64, g: f64, b: f64) -> Self {
+        Self { r, g, b }
+    }
+    pub fn scale(self, s: f64) -> Self {
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
+    }
+    pub fn add(self, o: Self) -> Self {
+        Self {
+            r: self.r + o.r,
+            g: self.g + o.g,
+            b: self.b + o.b,
+        }
+    }
     pub fn lerp(self, o: Self, t: f64) -> Self {
         let t = t.clamp(0.0, 1.0);
         Self {
@@ -85,7 +141,9 @@ pub struct ShCoeffs {
 
 impl ShCoeffs {
     pub fn zero(order: ShOrder) -> Self {
-        Self { coeffs: vec![0.0; order.coeff_count()] }
+        Self {
+            coeffs: vec![0.0; order.coeff_count()],
+        }
     }
 
     /// Evaluate for a given direction.
@@ -96,17 +154,35 @@ impl ShCoeffs {
         let mut sum = 0.0;
 
         // Band 0
-        if n > 0 { sum += self.coeffs[0] * 0.282094791773878; }
+        if n > 0 {
+            sum += self.coeffs[0] * 0.282094791773878;
+        }
         // Band 1
-        if n > 1 { sum += self.coeffs[1] * 0.488602511902920 * y; }
-        if n > 2 { sum += self.coeffs[2] * 0.488602511902920 * z; }
-        if n > 3 { sum += self.coeffs[3] * 0.488602511902920 * x; }
+        if n > 1 {
+            sum += self.coeffs[1] * 0.488602511902920 * y;
+        }
+        if n > 2 {
+            sum += self.coeffs[2] * 0.488602511902920 * z;
+        }
+        if n > 3 {
+            sum += self.coeffs[3] * 0.488602511902920 * x;
+        }
         // Band 2
-        if n > 4 { sum += self.coeffs[4] * 1.092548430592079 * x * y; }
-        if n > 5 { sum += self.coeffs[5] * 1.092548430592079 * y * z; }
-        if n > 6 { sum += self.coeffs[6] * 0.315391565252520 * (3.0 * z * z - 1.0); }
-        if n > 7 { sum += self.coeffs[7] * 1.092548430592079 * x * z; }
-        if n > 8 { sum += self.coeffs[8] * 0.546274215296040 * (x * x - y * y); }
+        if n > 4 {
+            sum += self.coeffs[4] * 1.092548430592079 * x * y;
+        }
+        if n > 5 {
+            sum += self.coeffs[5] * 1.092548430592079 * y * z;
+        }
+        if n > 6 {
+            sum += self.coeffs[6] * 0.315391565252520 * (3.0 * z * z - 1.0);
+        }
+        if n > 7 {
+            sum += self.coeffs[7] * 1.092548430592079 * x * z;
+        }
+        if n > 8 {
+            sum += self.coeffs[8] * 0.546274215296040 * (x * x - y * y);
+        }
 
         sum
     }
@@ -119,7 +195,9 @@ impl ShCoeffs {
     }
 
     pub fn scale(&mut self, s: f64) {
-        for c in &mut self.coeffs { *c *= s; }
+        for c in &mut self.coeffs {
+            *c *= s;
+        }
     }
 }
 
@@ -132,9 +210,13 @@ pub struct AABB {
 }
 
 impl AABB {
-    pub fn new(min: Vec3, max: Vec3) -> Self { Self { min, max } }
+    pub fn new(min: Vec3, max: Vec3) -> Self {
+        Self { min, max }
+    }
 
-    pub fn extent(&self) -> Vec3 { self.max.sub(self.min) }
+    pub fn extent(&self) -> Vec3 {
+        self.max.sub(self.min)
+    }
 
     pub fn center(&self) -> Vec3 {
         Vec3::new(
@@ -145,9 +227,12 @@ impl AABB {
     }
 
     pub fn contains(&self, p: Vec3) -> bool {
-        p.x >= self.min.x && p.x <= self.max.x
-            && p.y >= self.min.y && p.y <= self.max.y
-            && p.z >= self.min.z && p.z <= self.max.z
+        p.x >= self.min.x
+            && p.x <= self.max.x
+            && p.y >= self.min.y
+            && p.y <= self.max.y
+            && p.z >= self.min.z
+            && p.z <= self.max.z
     }
 }
 
@@ -179,7 +264,9 @@ impl IrradianceProbe {
 
     /// Evaluate irradiance for a given normal direction.
     pub fn evaluate(&self, normal: Vec3) -> Color {
-        if !self.valid { return Color::BLACK; }
+        if !self.valid {
+            return Color::BLACK;
+        }
         Color::new(
             self.sh_r.evaluate(normal).max(0.0),
             self.sh_g.evaluate(normal).max(0.0),
@@ -215,9 +302,21 @@ impl IrradianceVolume {
     pub fn new(bounds: AABB, res_x: u32, res_y: u32, res_z: u32, order: ShOrder) -> Self {
         let count = (res_x * res_y * res_z) as usize;
         let ext = bounds.extent();
-        let dx = if res_x > 1 { ext.x / (res_x - 1) as f64 } else { 0.0 };
-        let dy = if res_y > 1 { ext.y / (res_y - 1) as f64 } else { 0.0 };
-        let dz = if res_z > 1 { ext.z / (res_z - 1) as f64 } else { 0.0 };
+        let dx = if res_x > 1 {
+            ext.x / (res_x - 1) as f64
+        } else {
+            0.0
+        };
+        let dy = if res_y > 1 {
+            ext.y / (res_y - 1) as f64
+        } else {
+            0.0
+        };
+        let dz = if res_z > 1 {
+            ext.z / (res_z - 1) as f64
+        } else {
+            0.0
+        };
 
         let mut probes = Vec::with_capacity(count);
         for iz in 0..res_z {
@@ -232,22 +331,35 @@ impl IrradianceVolume {
                 }
             }
         }
-        Self { bounds, res_x, res_y, res_z, sh_order: order, probes }
+        Self {
+            bounds,
+            res_x,
+            res_y,
+            res_z,
+            sh_order: order,
+            probes,
+        }
     }
 
-    pub fn count(&self) -> usize { self.probes.len() }
+    pub fn count(&self) -> usize {
+        self.probes.len()
+    }
 
     pub fn index(&self, ix: u32, iy: u32, iz: u32) -> usize {
         (iz * self.res_y * self.res_x + iy * self.res_x + ix) as usize
     }
 
     pub fn get(&self, ix: u32, iy: u32, iz: u32) -> Option<&IrradianceProbe> {
-        if ix >= self.res_x || iy >= self.res_y || iz >= self.res_z { return None; }
+        if ix >= self.res_x || iy >= self.res_y || iz >= self.res_z {
+            return None;
+        }
         self.probes.get(self.index(ix, iy, iz))
     }
 
     pub fn get_mut(&mut self, ix: u32, iy: u32, iz: u32) -> Option<&mut IrradianceProbe> {
-        if ix >= self.res_x || iy >= self.res_y || iz >= self.res_z { return None; }
+        if ix >= self.res_x || iy >= self.res_y || iz >= self.res_z {
+            return None;
+        }
         let idx = self.index(ix, iy, iz);
         self.probes.get_mut(idx)
     }
@@ -275,15 +387,21 @@ impl IrradianceVolume {
         let nx = if ext.x > 1e-12 {
             ((world_pos.x - self.bounds.min.x) / ext.x * (self.res_x - 1).max(1) as f64)
                 .clamp(0.0, (self.res_x - 1) as f64)
-        } else { 0.0 };
+        } else {
+            0.0
+        };
         let ny = if ext.y > 1e-12 {
             ((world_pos.y - self.bounds.min.y) / ext.y * (self.res_y - 1).max(1) as f64)
                 .clamp(0.0, (self.res_y - 1) as f64)
-        } else { 0.0 };
+        } else {
+            0.0
+        };
         let nz = if ext.z > 1e-12 {
             ((world_pos.z - self.bounds.min.z) / ext.z * (self.res_z - 1).max(1) as f64)
                 .clamp(0.0, (self.res_z - 1) as f64)
-        } else { 0.0 };
+        } else {
+            0.0
+        };
 
         let ix0 = (nx.floor() as u32).min(self.res_x.saturating_sub(1));
         let iy0 = (ny.floor() as u32).min(self.res_y.saturating_sub(1));
@@ -331,9 +449,21 @@ impl IrradianceVolume {
     pub fn spacing(&self) -> Vec3 {
         let ext = self.bounds.extent();
         Vec3::new(
-            if self.res_x > 1 { ext.x / (self.res_x - 1) as f64 } else { ext.x },
-            if self.res_y > 1 { ext.y / (self.res_y - 1) as f64 } else { ext.y },
-            if self.res_z > 1 { ext.z / (self.res_z - 1) as f64 } else { ext.z },
+            if self.res_x > 1 {
+                ext.x / (self.res_x - 1) as f64
+            } else {
+                ext.x
+            },
+            if self.res_y > 1 {
+                ext.y / (self.res_y - 1) as f64
+            } else {
+                ext.y
+            },
+            if self.res_z > 1 {
+                ext.z / (self.res_z - 1) as f64
+            } else {
+                ext.z
+            },
         )
     }
 }
@@ -349,7 +479,11 @@ pub struct CascadedIrradianceVolumes {
 }
 
 impl CascadedIrradianceVolumes {
-    pub fn new() -> Self { Self { volumes: Vec::new() } }
+    pub fn new() -> Self {
+        Self {
+            volumes: Vec::new(),
+        }
+    }
 
     pub fn add_volume(&mut self, volume: IrradianceVolume) {
         self.volumes.push(volume);
@@ -368,8 +502,16 @@ impl CascadedIrradianceVolumes {
             let scale = (1u32 << i) as f64;
             let half_ext = base_extent * scale * 0.5;
             let bounds = AABB::new(
-                Vec3::new(center.x - half_ext, center.y - half_ext, center.z - half_ext),
-                Vec3::new(center.x + half_ext, center.y + half_ext, center.z + half_ext),
+                Vec3::new(
+                    center.x - half_ext,
+                    center.y - half_ext,
+                    center.z - half_ext,
+                ),
+                Vec3::new(
+                    center.x + half_ext,
+                    center.y + half_ext,
+                    center.z + half_ext,
+                ),
             );
             // Resolution stays constant or decreases slightly.
             let res = (base_resolution / (1u32 << i)).max(2);
@@ -429,7 +571,9 @@ mod tests {
 
     const EPS: f64 = 1e-5;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < EPS }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < EPS
+    }
     fn color_approx(a: Color, b: Color) -> bool {
         approx(a.r, b.r) && approx(a.g, b.g) && approx(a.b, b.b)
     }
@@ -513,7 +657,9 @@ mod tests {
     fn volume_count() {
         let v = IrradianceVolume::new(
             AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)),
-            3, 3, 3,
+            3,
+            3,
+            3,
             ShOrder::L2,
         );
         assert_eq!(v.count(), 27);
@@ -523,7 +669,9 @@ mod tests {
     fn volume_valid_count() {
         let mut v = IrradianceVolume::new(
             AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)),
-            2, 2, 2,
+            2,
+            2,
+            2,
             ShOrder::L1,
         );
         assert_eq!(v.valid_count(), 8);
@@ -536,7 +684,9 @@ mod tests {
     fn volume_contains() {
         let v = IrradianceVolume::new(
             AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)),
-            2, 2, 2,
+            2,
+            2,
+            2,
             ShOrder::L1,
         );
         assert!(v.contains(Vec3::new(5.0, 5.0, 5.0)));
@@ -547,7 +697,9 @@ mod tests {
     fn volume_spacing() {
         let v = IrradianceVolume::new(
             AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)),
-            3, 3, 3,
+            3,
+            3,
+            3,
             ShOrder::L1,
         );
         let s = v.spacing();
@@ -560,7 +712,9 @@ mod tests {
     fn volume_sample_zero_probes() {
         let v = IrradianceVolume::new(
             AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)),
-            2, 2, 2,
+            2,
+            2,
+            2,
             ShOrder::L2,
         );
         let c = v.sample(Vec3::new(5.0, 5.0, 5.0), Vec3::new(0.0, 0.0, 1.0));
@@ -571,7 +725,9 @@ mod tests {
     fn volume_sample_with_data() {
         let mut v = IrradianceVolume::new(
             AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)),
-            2, 2, 2,
+            2,
+            2,
+            2,
             ShOrder::L1,
         );
         // Set constant illumination on all probes.
@@ -589,7 +745,9 @@ mod tests {
     fn volume_sample_skips_invalid() {
         let mut v = IrradianceVolume::new(
             AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)),
-            2, 2, 2,
+            2,
+            2,
+            2,
             ShOrder::L1,
         );
         let band0 = 1.0 / 0.282094791773878;
@@ -610,7 +768,9 @@ mod tests {
     fn volume_sample_outside_clamps() {
         let v = IrradianceVolume::new(
             AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)),
-            2, 2, 2,
+            2,
+            2,
+            2,
             ShOrder::L1,
         );
         // Should not panic.
@@ -619,13 +779,7 @@ mod tests {
 
     #[test]
     fn cascaded_create() {
-        let cv = CascadedIrradianceVolumes::create_cascaded(
-            Vec3::ZERO,
-            3,
-            10.0,
-            8,
-            ShOrder::L1,
-        );
+        let cv = CascadedIrradianceVolumes::create_cascaded(Vec3::ZERO, 3, 10.0, 8, ShOrder::L1);
         assert_eq!(cv.volumes.len(), 3);
         // First volume should be smallest.
         let ext0 = cv.volumes[0].bounds.extent();
@@ -635,25 +789,13 @@ mod tests {
 
     #[test]
     fn cascaded_total_probes() {
-        let cv = CascadedIrradianceVolumes::create_cascaded(
-            Vec3::ZERO,
-            2,
-            10.0,
-            4,
-            ShOrder::L1,
-        );
+        let cv = CascadedIrradianceVolumes::create_cascaded(Vec3::ZERO, 2, 10.0, 4, ShOrder::L1);
         assert!(cv.total_probes() > 0);
     }
 
     #[test]
     fn cascaded_sample_center() {
-        let cv = CascadedIrradianceVolumes::create_cascaded(
-            Vec3::ZERO,
-            2,
-            10.0,
-            4,
-            ShOrder::L1,
-        );
+        let cv = CascadedIrradianceVolumes::create_cascaded(Vec3::ZERO, 2, 10.0, 4, ShOrder::L1);
         // Zero probes, should return black.
         let c = cv.sample(Vec3::ZERO, Vec3::new(0.0, 0.0, 1.0));
         assert!(color_approx(c, Color::BLACK));
@@ -661,13 +803,7 @@ mod tests {
 
     #[test]
     fn cascaded_sample_outside_all() {
-        let cv = CascadedIrradianceVolumes::create_cascaded(
-            Vec3::ZERO,
-            2,
-            10.0,
-            4,
-            ShOrder::L1,
-        );
+        let cv = CascadedIrradianceVolumes::create_cascaded(Vec3::ZERO, 2, 10.0, 4, ShOrder::L1);
         let _c = cv.sample(Vec3::new(1000.0, 1000.0, 1000.0), Vec3::new(0.0, 0.0, 1.0));
     }
 
@@ -688,7 +824,9 @@ mod tests {
     fn volume_get_out_of_bounds() {
         let v = IrradianceVolume::new(
             AABB::new(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)),
-            2, 2, 2,
+            2,
+            2,
+            2,
             ShOrder::L1,
         );
         assert!(v.get(5, 0, 0).is_none());
@@ -696,13 +834,7 @@ mod tests {
 
     #[test]
     fn cascaded_higher_res_first() {
-        let cv = CascadedIrradianceVolumes::create_cascaded(
-            Vec3::ZERO,
-            3,
-            10.0,
-            16,
-            ShOrder::L2,
-        );
+        let cv = CascadedIrradianceVolumes::create_cascaded(Vec3::ZERO, 3, 10.0, 16, ShOrder::L2);
         // First volume should have higher resolution.
         assert!(cv.volumes[0].res_x >= cv.volumes[1].res_x);
         assert!(cv.volumes[1].res_x >= cv.volumes[2].res_x);

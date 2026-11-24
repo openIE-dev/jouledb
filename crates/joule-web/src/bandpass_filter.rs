@@ -17,14 +17,18 @@ pub enum FilterWindow {
 }
 
 fn hamming_window(n: usize) -> Vec<f64> {
-    if n <= 1 { return vec![1.0]; }
+    if n <= 1 {
+        return vec![1.0];
+    }
     (0..n)
         .map(|i| 0.54 - 0.46 * (2.0 * PI * i as f64 / (n - 1) as f64).cos())
         .collect()
 }
 
 fn blackman_window(n: usize) -> Vec<f64> {
-    if n <= 1 { return vec![1.0]; }
+    if n <= 1 {
+        return vec![1.0];
+    }
     (0..n)
         .map(|i| {
             let x = 2.0 * PI * i as f64 / (n - 1) as f64;
@@ -40,13 +44,17 @@ fn bessel_i0(x: f64) -> f64 {
     for k in 1..=25 {
         term *= (x / (2.0 * k as f64)) * (x / (2.0 * k as f64));
         sum += term;
-        if term < 1e-15 { break; }
+        if term < 1e-15 {
+            break;
+        }
     }
     sum
 }
 
 fn kaiser_window(n: usize, beta: f64) -> Vec<f64> {
-    if n <= 1 { return vec![1.0]; }
+    if n <= 1 {
+        return vec![1.0];
+    }
     let denom = bessel_i0(beta);
     (0..n)
         .map(|i| {
@@ -142,7 +150,11 @@ pub fn design_bandpass(
     let lp_high = lowpass_sinc(f_high, order, window);
     let lp_low = lowpass_sinc(f_low, order, window);
 
-    let bp: Vec<f64> = lp_high.iter().zip(lp_low.iter()).map(|(h, l)| h - l).collect();
+    let bp: Vec<f64> = lp_high
+        .iter()
+        .zip(lp_low.iter())
+        .map(|(h, l)| h - l)
+        .collect();
     Ok(bp)
 }
 
@@ -269,7 +281,11 @@ pub fn group_delay(kernel: &[f64], n_points: usize) -> Vec<f64> {
     let mut delays = Vec::with_capacity(n_points);
 
     // Weighted kernel: n * h[n]
-    let weighted: Vec<f64> = kernel.iter().enumerate().map(|(i, &h)| i as f64 * h).collect();
+    let weighted: Vec<f64> = kernel
+        .iter()
+        .enumerate()
+        .map(|(i, &h)| i as f64 * h)
+        .collect();
 
     for i in 0..n_points {
         let f = 0.5 * i as f64 / (n_points - 1).max(1) as f64;
@@ -402,8 +418,14 @@ mod tests {
     #[test]
     fn test_multiband() {
         let bands = vec![
-            BandSpec { f_low: 0.05, f_high: 0.15 },
-            BandSpec { f_low: 0.30, f_high: 0.45 },
+            BandSpec {
+                f_low: 0.05,
+                f_high: 0.15,
+            },
+            BandSpec {
+                f_low: 0.30,
+                f_high: 0.45,
+            },
         ];
         let mb = design_multiband(&bands, 64, FilterWindow::Hamming).unwrap();
         assert_eq!(mb.len(), 65);

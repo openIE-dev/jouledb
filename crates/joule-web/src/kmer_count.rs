@@ -68,12 +68,24 @@ pub struct KmerCounter {
 
 impl KmerCounter {
     pub fn new(k: usize) -> Self {
-        Self { k, use_canonical: false, min_count: 1 }
+        Self {
+            k,
+            use_canonical: false,
+            min_count: 1,
+        }
     }
 
-    pub fn with_canonical(mut self, c: bool) -> Self { self.use_canonical = c; self }
-    pub fn with_min_count(mut self, m: usize) -> Self { self.min_count = m; self }
-    pub fn k(&self) -> usize { self.k }
+    pub fn with_canonical(mut self, c: bool) -> Self {
+        self.use_canonical = c;
+        self
+    }
+    pub fn with_min_count(mut self, m: usize) -> Self {
+        self.min_count = m;
+        self
+    }
+    pub fn k(&self) -> usize {
+        self.k
+    }
 
     /// Count k-mers in the given sequence.
     pub fn count(&self, seq: &[u8]) -> Result<KmerSpectrum, KmerError> {
@@ -184,7 +196,9 @@ impl KmerSpectrum {
         }
         let n = self.total_kmers as f64;
         self.counts.values().fold(0.0, |acc, &c| {
-            if c == 0 { return acc; }
+            if c == 0 {
+                return acc;
+            }
             let p = c as f64 / n;
             acc - p * p.ln()
         })
@@ -196,7 +210,11 @@ impl KmerSpectrum {
         let set_b: std::collections::HashSet<_> = other.counts.keys().collect();
         let intersection = set_a.intersection(&set_b).count();
         let union = set_a.union(&set_b).count();
-        if union == 0 { 0.0 } else { intersection as f64 / union as f64 }
+        if union == 0 {
+            0.0
+        } else {
+            intersection as f64 / union as f64
+        }
     }
 
     /// Cosine similarity between two spectra (count-based).
@@ -224,7 +242,10 @@ impl fmt::Display for KmerSpectrum {
         write!(
             f,
             "KmerSpectrum(k={}, distinct={}, total={}, canonical={})",
-            self.k, self.distinct(), self.total_kmers, self.canonical
+            self.k,
+            self.distinct(),
+            self.total_kmers,
+            self.canonical
         )
     }
 }
@@ -241,10 +262,17 @@ pub struct MinimizerSelector {
 
 impl MinimizerSelector {
     pub fn new(k: usize, window: usize) -> Self {
-        Self { k, window, use_canonical: true }
+        Self {
+            k,
+            window,
+            use_canonical: true,
+        }
     }
 
-    pub fn with_canonical(mut self, c: bool) -> Self { self.use_canonical = c; self }
+    pub fn with_canonical(mut self, c: bool) -> Self {
+        self.use_canonical = c;
+        self
+    }
 
     /// Select minimizers: (position, k-mer) for each window.
     pub fn select(&self, seq: &[u8]) -> Result<Vec<(usize, Vec<u8>)>, KmerError> {
@@ -257,7 +285,9 @@ impl MinimizerSelector {
         if self.window == 0 || self.window + self.k - 1 > seq.len() {
             return Err(KmerError::InvalidWindowSize(format!(
                 "window={}, k={}, seq_len={}",
-                self.window, self.k, seq.len()
+                self.window,
+                self.k,
+                seq.len()
             )));
         }
 
@@ -301,7 +331,11 @@ impl MinimizerSelector {
 
 impl fmt::Display for MinimizerSelector {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MinimizerSelector(k={}, w={}, canonical={})", self.k, self.window, self.use_canonical)
+        write!(
+            f,
+            "MinimizerSelector(k={}, w={}, canonical={})",
+            self.k, self.window, self.use_canonical
+        )
     }
 }
 

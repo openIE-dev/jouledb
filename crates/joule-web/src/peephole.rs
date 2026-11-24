@@ -591,8 +591,7 @@ impl PeepholeOptimizer {
         // neg(neg(x)) -> mov x
         if self.enabled_rules.contains(&RuleName::DoubleNeg) {
             if first.opcode == Opcode::Neg && second.opcode == Opcode::Neg {
-                if let (Some(first_dest), Some(second_src)) =
-                    (&first.dest, second.sources.first())
+                if let (Some(first_dest), Some(second_src)) = (&first.dest, second.sources.first())
                 {
                     if first_dest == second_src {
                         self.stats.record(RuleName::DoubleNeg);
@@ -833,11 +832,7 @@ mod tests {
     #[test]
     fn test_statistics() {
         let mut opt = PeepholeOptimizer::new();
-        let instrs = vec![
-            add_imm(0, 1, 0),
-            mul_imm(2, 3, 1),
-            mul_imm(4, 5, 8),
-        ];
+        let instrs = vec![add_imm(0, 1, 0), mul_imm(2, 3, 1), mul_imm(4, 5, 8)];
         opt.optimize(&instrs);
         let stats = opt.statistics();
         assert_eq!(stats.total_applications(), 3);

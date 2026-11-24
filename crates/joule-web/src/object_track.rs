@@ -22,7 +22,14 @@ pub struct Detection {
 
 impl Detection {
     pub fn new(x: f64, y: f64, w: f64, h: f64, confidence: f64) -> Self {
-        Self { x, y, w, h, confidence, class_id: 0 }
+        Self {
+            x,
+            y,
+            w,
+            h,
+            confidence,
+            class_id: 0,
+        }
     }
 
     pub fn with_class(mut self, class_id: u32) -> Self {
@@ -52,8 +59,11 @@ impl Detection {
 
 impl fmt::Display for Detection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Det([{:.0},{:.0},{:.0},{:.0}] c={:.2} cls={})",
-               self.x, self.y, self.w, self.h, self.confidence, self.class_id)
+        write!(
+            f,
+            "Det([{:.0},{:.0},{:.0},{:.0}] c={:.2} cls={})",
+            self.x, self.y, self.w, self.h, self.confidence, self.class_id
+        )
     }
 }
 
@@ -88,7 +98,12 @@ impl KalmanFilter {
             cov[i][i] = if i < MEAS_DIM { 10.0 } else { 100.0 };
         }
 
-        Self { state, covariance: cov, process_noise: 1.0, measurement_noise: 1.0 }
+        Self {
+            state,
+            covariance: cov,
+            process_noise: 1.0,
+            measurement_noise: 1.0,
+        }
     }
 
     pub fn with_process_noise(mut self, noise: f64) -> Self {
@@ -224,7 +239,9 @@ fn invert_4x4(mat: &[[f64; 4]; 4]) -> [[f64; 4]; 4] {
         if pivot.abs() < 1e-12 {
             // Near-singular: return identity
             let mut result = [[0.0_f64; 4]; 4];
-            for i in 0..4 { result[i][i] = 1.0; }
+            for i in 0..4 {
+                result[i][i] = 1.0;
+            }
             return result;
         }
 
@@ -233,7 +250,9 @@ fn invert_4x4(mat: &[[f64; 4]; 4]) -> [[f64; 4]; 4] {
         }
 
         for row in 0..4 {
-            if row == col { continue; }
+            if row == col {
+                continue;
+            }
             let factor = aug[row][col];
             for j in 0..8 {
                 aug[row][j] -= factor * aug[col][j];
@@ -255,9 +274,7 @@ fn invert_4x4(mat: &[[f64; 4]; 4]) -> [[f64; 4]; 4] {
 /// Solve the assignment problem using the Hungarian algorithm.
 /// `cost_matrix` is row-major, `rows` x `cols`. Returns assignment
 /// pairs `(row, col)` that minimize total cost.
-pub fn hungarian_assignment(
-    cost_matrix: &[f64], rows: usize, cols: usize,
-) -> Vec<(usize, usize)> {
+pub fn hungarian_assignment(cost_matrix: &[f64], rows: usize, cols: usize) -> Vec<(usize, usize)> {
     if rows == 0 || cols == 0 {
         return Vec::new();
     }
@@ -403,8 +420,11 @@ impl Track {
 impl fmt::Display for Track {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let det = self.current_detection();
-        write!(f, "Track(id={} {} hits={} miss={} {})",
-               self.id, self.state, self.hits, self.misses, det)
+        write!(
+            f,
+            "Track(id={} {} hits={} miss={} {})",
+            self.id, self.state, self.hits, self.misses, det
+        )
     }
 }
 
@@ -420,7 +440,11 @@ pub struct TrackerConfig {
 
 impl TrackerConfig {
     pub fn new() -> Self {
-        Self { iou_threshold: 0.3, max_misses: 5, min_hits_to_confirm: 3 }
+        Self {
+            iou_threshold: 0.3,
+            max_misses: 5,
+            min_hits_to_confirm: 3,
+        }
     }
 
     pub fn with_iou_threshold(mut self, thr: f64) -> Self {
@@ -441,8 +465,11 @@ impl TrackerConfig {
 
 impl fmt::Display for TrackerConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TrackerConfig(iou={}, max_miss={}, min_hits={})",
-               self.iou_threshold, self.max_misses, self.min_hits_to_confirm)
+        write!(
+            f,
+            "TrackerConfig(iou={}, max_miss={}, min_hits={})",
+            self.iou_threshold, self.max_misses, self.min_hits_to_confirm
+        )
     }
 }
 
@@ -456,7 +483,11 @@ pub struct MultiTracker {
 
 impl MultiTracker {
     pub fn new(config: TrackerConfig) -> Self {
-        Self { tracks: Vec::new(), config, next_id: 1 }
+        Self {
+            tracks: Vec::new(),
+            config,
+            next_id: 1,
+        }
     }
 
     /// Process a new frame of detections.
@@ -547,19 +578,29 @@ impl MultiTracker {
 
     /// Get all confirmed tracks.
     pub fn confirmed_tracks(&self) -> Vec<&Track> {
-        self.tracks.iter().filter(|t| t.state == TrackState::Confirmed).collect()
+        self.tracks
+            .iter()
+            .filter(|t| t.state == TrackState::Confirmed)
+            .collect()
     }
 
     /// Get all active (non-deleted) tracks.
     pub fn active_tracks(&self) -> Vec<&Track> {
-        self.tracks.iter().filter(|t| t.state != TrackState::Deleted).collect()
+        self.tracks
+            .iter()
+            .filter(|t| t.state != TrackState::Deleted)
+            .collect()
     }
 }
 
 impl fmt::Display for MultiTracker {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MultiTracker({} tracks, {} confirmed)",
-               self.tracks.len(), self.confirmed_tracks().len())
+        write!(
+            f,
+            "MultiTracker({} tracks, {} confirmed)",
+            self.tracks.len(),
+            self.confirmed_tracks().len()
+        )
     }
 }
 
@@ -710,17 +751,16 @@ mod tests {
     fn test_multi_tracker_two_objects() {
         let cfg = TrackerConfig::new().with_min_hits(1);
         let mut tracker = MultiTracker::new(cfg);
-        let dets = vec![
-            det(10.0, 10.0, 20.0, 20.0),
-            det(200.0, 200.0, 30.0, 30.0),
-        ];
+        let dets = vec![det(10.0, 10.0, 20.0, 20.0), det(200.0, 200.0, 30.0, 30.0)];
         tracker.update(&dets);
         assert_eq!(tracker.tracks.len(), 2);
     }
 
     #[test]
     fn test_multi_tracker_association() {
-        let cfg = TrackerConfig::new().with_min_hits(1).with_iou_threshold(0.1);
+        let cfg = TrackerConfig::new()
+            .with_min_hits(1)
+            .with_iou_threshold(0.1);
         let mut tracker = MultiTracker::new(cfg);
 
         // Frame 1

@@ -206,11 +206,7 @@ impl<L, R> Either<L, R> {
     }
 
     /// Bi-map: map both sides.
-    pub fn bimap<A, B>(
-        self,
-        fl: impl FnOnce(L) -> A,
-        fr: impl FnOnce(R) -> B,
-    ) -> Either<A, B> {
+    pub fn bimap<A, B>(self, fl: impl FnOnce(L) -> A, fr: impl FnOnce(R) -> B) -> Either<A, B> {
         match self {
             Either::Left(l) => Either::Left(fl(l)),
             Either::Right(r) => Either::Right(fr(r)),
@@ -592,7 +588,11 @@ mod tests {
     #[test]
     fn maybe_flat_map() {
         let safe_div = |x: i32| -> Maybe<i32> {
-            if x == 0 { Maybe::Nothing } else { Maybe::Just(100 / x) }
+            if x == 0 {
+                Maybe::Nothing
+            } else {
+                Maybe::Just(100 / x)
+            }
         };
         assert_eq!(Maybe::just(5).flat_map(safe_div), Maybe::Just(20));
         assert_eq!(Maybe::just(0).flat_map(safe_div), Maybe::Nothing);
@@ -723,9 +723,7 @@ mod tests {
     #[test]
     fn io_chain_deferred() {
         // Verify computations are deferred until run().
-        let io = IO::new(|| 1)
-            .map(|x| x + 2)
-            .flat_map(|x| IO::pure(x * 10));
+        let io = IO::new(|| 1).map(|x| x + 2).flat_map(|x| IO::pure(x * 10));
         // Nothing has executed yet. Now run:
         assert_eq!(io.run(), 30);
     }
@@ -769,7 +767,11 @@ mod tests {
     #[test]
     fn compose_maybe_fn() {
         let f = |x: i32| -> Maybe<i32> {
-            if x >= 0 { Maybe::Just(x) } else { Maybe::Nothing }
+            if x >= 0 {
+                Maybe::Just(x)
+            } else {
+                Maybe::Nothing
+            }
         };
         let g = |x: i32| -> Maybe<String> { Maybe::Just(format!("val={x}")) };
         let composed = compose_maybe(f, g);
@@ -887,10 +889,7 @@ mod tests {
 
     #[test]
     fn either_debug_format() {
-        assert_eq!(
-            format!("{:?}", Either::<&str, i32>::Right(42)),
-            "Right(42)"
-        );
+        assert_eq!(format!("{:?}", Either::<&str, i32>::Right(42)), "Right(42)");
         assert_eq!(
             format!("{:?}", Either::<&str, i32>::Left("err")),
             "Left(\"err\")"

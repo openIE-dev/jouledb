@@ -179,9 +179,7 @@ impl DragManager {
     /// Cancel the current drag and return to idle.
     pub fn cancel(&mut self) {
         let info = match &self.state {
-            DragState::Dragging {
-                item, current, ..
-            } => Some((item.id.clone(), *current)),
+            DragState::Dragging { item, current, .. } => Some((item.id.clone(), *current)),
             DragState::DragOver { item, .. } => {
                 Some((item.id.clone(), Position { x: 0.0, y: 0.0 }))
             }
@@ -429,22 +427,14 @@ mod tests {
 
     #[test]
     fn sortable_move_item() {
-        let mut list = SortableList::new(vec![
-            ("a".into(), 1),
-            ("b".into(), 2),
-            ("c".into(), 3),
-        ]);
+        let mut list = SortableList::new(vec![("a".into(), 1), ("b".into(), 2), ("c".into(), 3)]);
         assert!(list.move_item(0, 2));
         assert_eq!(list.ids(), vec!["b", "c", "a"]);
     }
 
     #[test]
     fn sortable_swap() {
-        let mut list = SortableList::new(vec![
-            ("a".into(), 1),
-            ("b".into(), 2),
-            ("c".into(), 3),
-        ]);
+        let mut list = SortableList::new(vec![("a".into(), 1), ("b".into(), 2), ("c".into(), 3)]);
         assert!(list.swap(0, 2));
         assert_eq!(list.ids(), vec!["c", "b", "a"]);
     }

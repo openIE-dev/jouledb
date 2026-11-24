@@ -26,11 +26,17 @@ impl Vec2 {
     }
 
     pub fn scale(&self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
     }
 
     pub fn add(&self, other: &Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
     }
 
     pub fn normalized(&self) -> Self {
@@ -58,11 +64,21 @@ impl Color {
     }
 
     pub fn black() -> Self {
-        Self { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }
+        Self {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 1.0,
+        }
     }
 
     pub fn scale(&self, s: f64) -> Self {
-        Self { r: self.r * s, g: self.g * s, b: self.b * s, a: self.a }
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+            a: self.a,
+        }
     }
 
     pub fn add_weighted(&self, other: &Self, w: f64) -> Self {
@@ -248,7 +264,11 @@ impl Default for MotionBlurConfig {
 
 impl fmt::Display for MotionBlurConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MotionBlurConfig(samples={}, intensity={:.2})", self.sample_count, self.intensity)
+        write!(
+            f,
+            "MotionBlurConfig(samples={}, intensity={:.2})",
+            self.sample_count, self.intensity
+        )
     }
 }
 
@@ -444,8 +464,11 @@ impl fmt::Display for VelocityStats {
         write!(
             f,
             "VelocityStats(min={:.4}, max={:.4}, avg={:.4}, static={}, moving={})",
-            self.min_magnitude, self.max_magnitude, self.avg_magnitude,
-            self.static_pixel_count, self.moving_pixel_count
+            self.min_magnitude,
+            self.max_magnitude,
+            self.avg_magnitude,
+            self.static_pixel_count,
+            self.moving_pixel_count
         )
     }
 }
@@ -459,8 +482,12 @@ pub fn compute_velocity_stats(vbuf: &VelocityBuffer, threshold: f64) -> Velocity
 
     for v in &vbuf.velocities {
         let mag = v.length();
-        if mag < min_mag { min_mag = mag; }
-        if mag > max_mag { max_mag = mag; }
+        if mag < min_mag {
+            min_mag = mag;
+        }
+        if mag > max_mag {
+            max_mag = mag;
+        }
         total_mag += mag;
         if mag < threshold {
             static_count += 1;

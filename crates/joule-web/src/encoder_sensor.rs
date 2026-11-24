@@ -125,8 +125,8 @@ impl QuadDecoder {
         let diff = (new_gray as i8 - old_gray as i8 + 4) % 4;
 
         let direction = match diff {
-            1 => 1i32,   // Forward
-            3 => -1i32,  // Backward (equivalent to -1 in mod 4)
+            1 => 1i32,  // Forward
+            3 => -1i32, // Backward (equivalent to -1 in mod 4)
             _ => {
                 // Invalid transition (skipped state = noise/error)
                 self.errors += 1;
@@ -317,18 +317,14 @@ impl VelocityEstimator {
                 } else {
                     // No edge — decay toward zero for timeout detection
                     let dt = timestamp_s - self.last_edge_time;
-                    if dt > 0.1 {
-                        0.0
-                    } else {
-                        self.velocity_cps
-                    }
+                    if dt > 0.1 { 0.0 } else { self.velocity_cps }
                 }
             }
         };
 
         // Low-pass filter
-        self.velocity_cps = self.filter_alpha * raw_velocity
-            + (1.0 - self.filter_alpha) * self.velocity_cps;
+        self.velocity_cps =
+            self.filter_alpha * raw_velocity + (1.0 - self.filter_alpha) * self.velocity_cps;
         self.last_count = count;
         self.last_time = timestamp_s;
         self.velocity_cps
@@ -513,7 +509,13 @@ mod tests {
         let mut dec = QuadDecoder::new(CountMode::X4);
         // Quadrature sequence: 00 -> 10 -> 11 -> 01 -> 00
         // Gray codes: 0 -> 3 -> 2 -> 1 -> 0, diffs are 3 (=-1 mod 4) each
-        let sequence = [(false, false), (true, false), (true, true), (false, true), (false, false)];
+        let sequence = [
+            (false, false),
+            (true, false),
+            (true, true),
+            (false, true),
+            (false, false),
+        ];
         for &(a, b) in &sequence {
             dec.update(a, b);
         }
@@ -525,7 +527,13 @@ mod tests {
         let mut dec = QuadDecoder::new(CountMode::X4);
         // Reverse sequence: 00 -> 01 -> 11 -> 10 -> 00
         // Gray codes: 0 -> 1 -> 2 -> 3 -> 0, diffs are 1 (=+1 mod 4) each
-        let sequence = [(false, false), (false, true), (true, true), (true, false), (false, false)];
+        let sequence = [
+            (false, false),
+            (false, true),
+            (true, true),
+            (true, false),
+            (false, false),
+        ];
         for &(a, b) in &sequence {
             dec.update(a, b);
         }
@@ -537,7 +545,13 @@ mod tests {
         let mut dec = QuadDecoder::new(CountMode::X1);
         // Sequence: 00 -> 10 -> 11 -> 01 -> 00
         // Gray code direction is -1, X1 counts on A rising edge (00->10)
-        let sequence = [(false, false), (true, false), (true, true), (false, true), (false, false)];
+        let sequence = [
+            (false, false),
+            (true, false),
+            (true, true),
+            (false, true),
+            (false, false),
+        ];
         for &(a, b) in &sequence {
             dec.update(a, b);
         }
@@ -593,8 +607,8 @@ mod tests {
 
     #[test]
     fn test_velocity_finite_diff() {
-        let mut est = VelocityEstimator::new(VelocityMethod::FiniteDifference)
-            .with_filter_alpha(1.0);
+        let mut est =
+            VelocityEstimator::new(VelocityMethod::FiniteDifference).with_filter_alpha(1.0);
         est.update(0, 0.0);
         let vel = est.update(100, 0.1);
         assert!((vel - 1000.0).abs() < 1e-6);
@@ -602,8 +616,8 @@ mod tests {
 
     #[test]
     fn test_velocity_period() {
-        let mut est = VelocityEstimator::new(VelocityMethod::PeriodMeasurement)
-            .with_filter_alpha(1.0);
+        let mut est =
+            VelocityEstimator::new(VelocityMethod::PeriodMeasurement).with_filter_alpha(1.0);
         est.update(0, 0.0);
         let vel = est.update(1, 0.01);
         assert!((vel - 100.0).abs() < 1e-6);
@@ -611,8 +625,8 @@ mod tests {
 
     #[test]
     fn test_velocity_filtering() {
-        let mut est = VelocityEstimator::new(VelocityMethod::FiniteDifference)
-            .with_filter_alpha(0.5);
+        let mut est =
+            VelocityEstimator::new(VelocityMethod::FiniteDifference).with_filter_alpha(0.5);
         est.update(0, 0.0);
         est.update(100, 0.1); // 1000 cps raw
         // Filtered = 0.5 * 1000 + 0.5 * 0 = 500
@@ -622,8 +636,8 @@ mod tests {
     #[test]
     fn test_velocity_rad_s() {
         let config = EncoderConfig::new(1000);
-        let mut est = VelocityEstimator::new(VelocityMethod::FiniteDifference)
-            .with_filter_alpha(1.0);
+        let mut est =
+            VelocityEstimator::new(VelocityMethod::FiniteDifference).with_filter_alpha(1.0);
         est.update(0, 0.0);
         est.update(4000, 1.0); // 4000 counts/s in X4 mode
         let rad_s = est.velocity_rad_s(&config, CountMode::X4);

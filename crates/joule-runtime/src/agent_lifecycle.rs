@@ -13,11 +13,11 @@
 //! Most agents (95%+) will cooperate. The energy trace diagnostics detect
 //! the rare ones that don't.
 
+use crate::attestation::AttestationKey;
 use crate::contract::{
     ContractError, ContractProposal, ContractResponse, ExtensionPolicy, ExtensionRequest,
     ExtensionResponse, ReturnTerms, SignedContract, WorkScope,
 };
-use crate::attestation::AttestationKey;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -183,9 +183,7 @@ impl ManagedAgent {
 
         if response.contract_id() != proposal.contract_id {
             self.pending_proposal = Some(proposal);
-            return Err(ContractError::NotFound(
-                "contract ID mismatch".into(),
-            ));
+            return Err(ContractError::NotFound("contract ID mismatch".into()));
         }
 
         match response {
@@ -305,10 +303,7 @@ impl ManagedAgent {
 
     /// Force-recall an agent (budget exceeded, timeout, anomaly detected).
     pub fn recall(&mut self, reason: &str) -> AgentFindings {
-        let wall_time = self
-            .engaged_at
-            .map(|t| t.elapsed())
-            .unwrap_or_default();
+        let wall_time = self.engaged_at.map(|t| t.elapsed()).unwrap_or_default();
 
         let findings = AgentFindings {
             summary: format!("Recalled: {}", reason),
@@ -418,9 +413,9 @@ impl AgentPool {
             .ok_or(ContractError::NotFound(agent_id.clone()))?;
 
         {
-            let mut a = agent.lock().map_err(|_| {
-                ContractError::NotFound("agent lock poisoned".into())
-            })?;
+            let mut a = agent
+                .lock()
+                .map_err(|_| ContractError::NotFound("agent lock poisoned".into()))?;
             a.propose(proposal)?;
         }
 
@@ -552,13 +547,23 @@ mod tests {
         agent.propose(proposal).unwrap();
 
         // Counter 1
-        let response =
-            ContractResponse::counter_propose("c-max-rounds", Some(100_000_000), None, None, "more");
+        let response = ContractResponse::counter_propose(
+            "c-max-rounds",
+            Some(100_000_000),
+            None,
+            None,
+            "more",
+        );
         agent.process_response(response, &key).unwrap();
 
         // Counter 2 → should fail (max rounds reached)
-        let response =
-            ContractResponse::counter_propose("c-max-rounds", Some(200_000_000), None, None, "even more");
+        let response = ContractResponse::counter_propose(
+            "c-max-rounds",
+            Some(200_000_000),
+            None,
+            None,
+            "even more",
+        );
         let result = agent.process_response(response, &key);
         assert!(matches!(result, Err(ContractError::NegotiationFailed(2))));
         assert_eq!(agent.phase(), AgentPhase::Pooled);

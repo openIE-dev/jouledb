@@ -1102,9 +1102,7 @@ impl RocmDomainReader {
         };
 
         let fn_get_temp = unsafe {
-            let sym: libloading::Symbol<
-                unsafe extern "C" fn(u32, u32, u32, *mut i64) -> i32,
-            > = lib
+            let sym: libloading::Symbol<unsafe extern "C" fn(u32, u32, u32, *mut i64) -> i32> = lib
                 .get(b"rsmi_dev_temp_metric_get\0")
                 .map_err(|e| Error::Unsupported(format!("temperature function: {}", e)))?;
             *sym
@@ -1183,8 +1181,7 @@ impl DomainReader for RocmDomainReader {
     fn read_temperature(&self) -> Result<Option<f64>> {
         let mut temp_millideg: i64 = 0;
         // RSMI_TEMP_TYPE_EDGE = 0, RSMI_TEMP_CURRENT = 0
-        let ret =
-            unsafe { (self.fn_get_temp)(self.device_index, 0, 0, &mut temp_millideg) };
+        let ret = unsafe { (self.fn_get_temp)(self.device_index, 0, 0, &mut temp_millideg) };
         if ret != 0 {
             return Ok(None);
         }
@@ -1303,15 +1300,18 @@ impl LevelZeroDomainReader {
         // Note: Sysman uses zes* prefix. Device enumeration can also be done via
         // zeDeviceGet, but for Sysman power API we need zes handles.
         let fn_device_get: libloading::Symbol<
-            unsafe extern "C" fn(*mut std::ffi::c_void, *mut u32, *mut *mut std::ffi::c_void) -> i32,
+            unsafe extern "C" fn(
+                *mut std::ffi::c_void,
+                *mut u32,
+                *mut *mut std::ffi::c_void,
+            ) -> i32,
         > = unsafe {
             lib.get(b"zeDeviceGet\0")
                 .map_err(|e| Error::Unsupported(format!("zeDeviceGet: {}", e)))?
         };
 
         let mut device_count: u32 = 0;
-        let ret =
-            unsafe { fn_device_get(driver_handle, &mut device_count, std::ptr::null_mut()) };
+        let ret = unsafe { fn_device_get(driver_handle, &mut device_count, std::ptr::null_mut()) };
         if ret != 0 || device_count == 0 {
             return Err(Error::Unsupported(
                 "No Level Zero devices found".to_string(),
@@ -1326,8 +1326,7 @@ impl LevelZeroDomainReader {
         }
 
         let mut devices = vec![std::ptr::null_mut(); device_count as usize];
-        let ret =
-            unsafe { fn_device_get(driver_handle, &mut device_count, devices.as_mut_ptr()) };
+        let ret = unsafe { fn_device_get(driver_handle, &mut device_count, devices.as_mut_ptr()) };
         if ret != 0 {
             return Err(Error::Unsupported(format!(
                 "zeDeviceGet failed: code {}",
@@ -1339,15 +1338,18 @@ impl LevelZeroDomainReader {
 
         // zesPowerGet(device, *mut count, *mut power_handles) -> ze_result_t
         let fn_power_get: libloading::Symbol<
-            unsafe extern "C" fn(*mut std::ffi::c_void, *mut u32, *mut *mut std::ffi::c_void) -> i32,
+            unsafe extern "C" fn(
+                *mut std::ffi::c_void,
+                *mut u32,
+                *mut *mut std::ffi::c_void,
+            ) -> i32,
         > = unsafe {
             lib.get(b"zesPowerGet\0")
                 .map_err(|e| Error::Unsupported(format!("zesPowerGet: {}", e)))?
         };
 
         let mut power_count: u32 = 0;
-        let ret =
-            unsafe { fn_power_get(device_handle, &mut power_count, std::ptr::null_mut()) };
+        let ret = unsafe { fn_power_get(device_handle, &mut power_count, std::ptr::null_mut()) };
         if ret != 0 || power_count == 0 {
             return Err(Error::Unsupported(
                 "No Level Zero power domains found".to_string(),
@@ -1355,13 +1357,8 @@ impl LevelZeroDomainReader {
         }
 
         let mut power_handles = vec![std::ptr::null_mut(); power_count as usize];
-        let ret = unsafe {
-            fn_power_get(
-                device_handle,
-                &mut power_count,
-                power_handles.as_mut_ptr(),
-            )
-        };
+        let ret =
+            unsafe { fn_power_get(device_handle, &mut power_count, power_handles.as_mut_ptr()) };
         if ret != 0 {
             return Err(Error::Unsupported(format!(
                 "zesPowerGet failed: code {}",

@@ -24,15 +24,33 @@ pub struct Duration {
 }
 
 impl Duration {
-    pub const ZERO: Duration = Duration { years: 0, months: 0, days: 0, hours: 0, minutes: 0, seconds: 0 };
+    pub const ZERO: Duration = Duration {
+        years: 0,
+        months: 0,
+        days: 0,
+        hours: 0,
+        minutes: 0,
+        seconds: 0,
+    };
 
     pub fn new(years: u32, months: u32, days: u32, hours: u32, minutes: u32, seconds: u32) -> Self {
-        Self { years, months, days, hours, minutes, seconds }
+        Self {
+            years,
+            months,
+            days,
+            hours,
+            minutes,
+            seconds,
+        }
     }
 
     /// Create from hours and minutes only.
     pub fn hm(hours: u32, minutes: u32) -> Self {
-        Self { hours, minutes, ..Self::ZERO }
+        Self {
+            hours,
+            minutes,
+            ..Self::ZERO
+        }
     }
 
     /// Create from days only.
@@ -42,7 +60,10 @@ impl Duration {
 
     /// Create from seconds only.
     pub fn from_seconds(seconds: u32) -> Self {
-        Self { seconds, ..Self::ZERO }
+        Self {
+            seconds,
+            ..Self::ZERO
+        }
     }
 
     /// Is this a zero duration?
@@ -95,7 +116,14 @@ impl Duration {
         mo += d / 30; // approximate
         d %= 30;
 
-        Self { years: y + mo / 12, months: mo % 12, days: d, hours: h, minutes: mi, seconds: s }
+        Self {
+            years: y + mo / 12,
+            months: mo % 12,
+            days: d,
+            hours: h,
+            minutes: mi,
+            seconds: s,
+        }
     }
 
     /// Add two durations component-wise.
@@ -130,7 +158,13 @@ impl Duration {
         let hours = ((total_secs % 86400) / 3600) as u32;
         let minutes = ((total_secs % 3600) / 60) as u32;
         let seconds = (total_secs % 60) as u32;
-        Self { days, hours, minutes, seconds, ..Self::ZERO }
+        Self {
+            days,
+            hours,
+            minutes,
+            seconds,
+            ..Self::ZERO
+        }
     }
 }
 
@@ -176,14 +210,20 @@ pub fn parse_iso(input: &str) -> Result<Duration, ParseError> {
         if ch.is_ascii_digit() {
             num_buf.push(ch);
         } else {
-            let n: u32 = num_buf.parse().map_err(|_| ParseError::InvalidNumber(num_buf.clone()))?;
+            let n: u32 = num_buf
+                .parse()
+                .map_err(|_| ParseError::InvalidNumber(num_buf.clone()))?;
             num_buf.clear();
             match ch {
                 'Y' => dur.years = n,
                 'M' => dur.months = n,
                 'D' => dur.days = n,
                 'W' => dur.days = n * 7,
-                _ => return Err(ParseError::InvalidFormat(format!("unexpected '{ch}' in date part"))),
+                _ => {
+                    return Err(ParseError::InvalidFormat(format!(
+                        "unexpected '{ch}' in date part"
+                    )));
+                }
             }
         }
     }
@@ -195,13 +235,19 @@ pub fn parse_iso(input: &str) -> Result<Duration, ParseError> {
             if ch.is_ascii_digit() {
                 num_buf.push(ch);
             } else {
-                let n: u32 = num_buf.parse().map_err(|_| ParseError::InvalidNumber(num_buf.clone()))?;
+                let n: u32 = num_buf
+                    .parse()
+                    .map_err(|_| ParseError::InvalidNumber(num_buf.clone()))?;
                 num_buf.clear();
                 match ch {
                     'H' => dur.hours = n,
                     'M' => dur.minutes = n,
                     'S' => dur.seconds = n,
-                    _ => return Err(ParseError::InvalidFormat(format!("unexpected '{ch}' in time part"))),
+                    _ => {
+                        return Err(ParseError::InvalidFormat(format!(
+                            "unexpected '{ch}' in time part"
+                        )));
+                    }
                 }
             }
         }
@@ -242,7 +288,9 @@ pub fn parse_human(input: &str) -> Result<Duration, ParseError> {
         let (num_part, unit_part) = split_number_unit(token);
 
         if let Some(num_str) = num_part {
-            let n: u32 = num_str.parse().map_err(|_| ParseError::InvalidNumber(num_str.to_string()))?;
+            let n: u32 = num_str
+                .parse()
+                .map_err(|_| ParseError::InvalidNumber(num_str.to_string()))?;
             let unit = if let Some(u) = unit_part {
                 u.to_string()
             } else if i + 1 < tokens.len() {
@@ -269,7 +317,9 @@ pub fn parse_human(input: &str) -> Result<Duration, ParseError> {
     }
 
     if !found_any {
-        return Err(ParseError::InvalidFormat("no duration components found".into()));
+        return Err(ParseError::InvalidFormat(
+            "no duration components found".into(),
+        ));
     }
 
     Ok(dur)
@@ -282,7 +332,11 @@ fn split_number_unit(s: &str) -> (Option<&str>, Option<&str>) {
         return (None, None);
     }
     let num = &s[..boundary];
-    let unit = if boundary < s.len() { Some(&s[boundary..]) } else { None };
+    let unit = if boundary < s.len() {
+        Some(&s[boundary..])
+    } else {
+        None
+    };
     (Some(num), unit)
 }
 
@@ -291,14 +345,26 @@ fn split_number_unit(s: &str) -> (Option<&str>, Option<&str>) {
 /// Format as ISO 8601 duration (e.g. "P1Y2M3DT4H5M6S").
 pub fn format_iso(d: &Duration) -> String {
     let mut out = String::from("P");
-    if d.years > 0 { out.push_str(&format!("{}Y", d.years)); }
-    if d.months > 0 { out.push_str(&format!("{}M", d.months)); }
-    if d.days > 0 { out.push_str(&format!("{}D", d.days)); }
+    if d.years > 0 {
+        out.push_str(&format!("{}Y", d.years));
+    }
+    if d.months > 0 {
+        out.push_str(&format!("{}M", d.months));
+    }
+    if d.days > 0 {
+        out.push_str(&format!("{}D", d.days));
+    }
     if d.hours > 0 || d.minutes > 0 || d.seconds > 0 {
         out.push('T');
-        if d.hours > 0 { out.push_str(&format!("{}H", d.hours)); }
-        if d.minutes > 0 { out.push_str(&format!("{}M", d.minutes)); }
-        if d.seconds > 0 { out.push_str(&format!("{}S", d.seconds)); }
+        if d.hours > 0 {
+            out.push_str(&format!("{}H", d.hours));
+        }
+        if d.minutes > 0 {
+            out.push_str(&format!("{}M", d.minutes));
+        }
+        if d.seconds > 0 {
+            out.push_str(&format!("{}S", d.seconds));
+        }
     }
     if out == "P" {
         out.push_str("T0S");
@@ -313,12 +379,24 @@ fn plural(n: u32) -> &'static str {
 /// Format as human-readable (e.g. "1 year 2 months 3 days 4 hours 5 minutes 6 seconds").
 pub fn format_human(d: &Duration) -> String {
     let mut parts = Vec::new();
-    if d.years > 0 { parts.push(format!("{} year{}", d.years, plural(d.years))); }
-    if d.months > 0 { parts.push(format!("{} month{}", d.months, plural(d.months))); }
-    if d.days > 0 { parts.push(format!("{} day{}", d.days, plural(d.days))); }
-    if d.hours > 0 { parts.push(format!("{} hour{}", d.hours, plural(d.hours))); }
-    if d.minutes > 0 { parts.push(format!("{} minute{}", d.minutes, plural(d.minutes))); }
-    if d.seconds > 0 { parts.push(format!("{} second{}", d.seconds, plural(d.seconds))); }
+    if d.years > 0 {
+        parts.push(format!("{} year{}", d.years, plural(d.years)));
+    }
+    if d.months > 0 {
+        parts.push(format!("{} month{}", d.months, plural(d.months)));
+    }
+    if d.days > 0 {
+        parts.push(format!("{} day{}", d.days, plural(d.days)));
+    }
+    if d.hours > 0 {
+        parts.push(format!("{} hour{}", d.hours, plural(d.hours)));
+    }
+    if d.minutes > 0 {
+        parts.push(format!("{} minute{}", d.minutes, plural(d.minutes)));
+    }
+    if d.seconds > 0 {
+        parts.push(format!("{} second{}", d.seconds, plural(d.seconds)));
+    }
     if parts.is_empty() {
         "0 seconds".to_string()
     } else {
@@ -329,12 +407,24 @@ pub fn format_human(d: &Duration) -> String {
 /// Format as short human-readable (e.g. "1y 2mo 3d 4h 5m 6s").
 pub fn format_short(d: &Duration) -> String {
     let mut parts = Vec::new();
-    if d.years > 0 { parts.push(format!("{}y", d.years)); }
-    if d.months > 0 { parts.push(format!("{}mo", d.months)); }
-    if d.days > 0 { parts.push(format!("{}d", d.days)); }
-    if d.hours > 0 { parts.push(format!("{}h", d.hours)); }
-    if d.minutes > 0 { parts.push(format!("{}m", d.minutes)); }
-    if d.seconds > 0 { parts.push(format!("{}s", d.seconds)); }
+    if d.years > 0 {
+        parts.push(format!("{}y", d.years));
+    }
+    if d.months > 0 {
+        parts.push(format!("{}mo", d.months));
+    }
+    if d.days > 0 {
+        parts.push(format!("{}d", d.days));
+    }
+    if d.hours > 0 {
+        parts.push(format!("{}h", d.hours));
+    }
+    if d.minutes > 0 {
+        parts.push(format!("{}m", d.minutes));
+    }
+    if d.seconds > 0 {
+        parts.push(format!("{}s", d.seconds));
+    }
     if parts.is_empty() {
         "0s".to_string()
     } else {
@@ -369,7 +459,10 @@ mod tests {
     use chrono::NaiveDate;
 
     fn dt(y: i32, m: u32, d: u32, h: u32, mi: u32, s: u32) -> NaiveDateTime {
-        NaiveDate::from_ymd_opt(y, m, d).unwrap().and_hms_opt(h, mi, s).unwrap()
+        NaiveDate::from_ymd_opt(y, m, d)
+            .unwrap()
+            .and_hms_opt(h, mi, s)
+            .unwrap()
     }
 
     #[test]

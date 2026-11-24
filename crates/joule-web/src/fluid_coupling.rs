@@ -63,19 +63,35 @@ impl Vec2 {
 
     pub fn normalized(&self) -> Self {
         let len = self.length();
-        if len < 1e-15 { Self::zero() } else { Self { x: self.x / len, y: self.y / len } }
+        if len < 1e-15 {
+            Self::zero()
+        } else {
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+            }
+        }
     }
 
     pub fn add(&self, other: &Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
     }
 
     pub fn sub(&self, other: &Self) -> Self {
-        Self { x: self.x - other.x, y: self.y - other.y }
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
     }
 
     pub fn scale(&self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
     }
 
     pub fn dot(&self, other: &Self) -> f64 {
@@ -104,7 +120,10 @@ impl BodyShape {
     pub fn area(&self) -> f64 {
         match self {
             Self::Circle { radius } => std::f64::consts::PI * radius * radius,
-            Self::Rectangle { half_width, half_height } => 4.0 * half_width * half_height,
+            Self::Rectangle {
+                half_width,
+                half_height,
+            } => 4.0 * half_width * half_height,
         }
     }
 
@@ -120,7 +139,10 @@ impl BodyShape {
     pub fn perimeter(&self) -> f64 {
         match self {
             Self::Circle { radius } => 2.0 * std::f64::consts::PI * radius,
-            Self::Rectangle { half_width, half_height } => 4.0 * (half_width + half_height),
+            Self::Rectangle {
+                half_width,
+                half_height,
+            } => 4.0 * (half_width + half_height),
         }
     }
 
@@ -128,9 +150,10 @@ impl BodyShape {
     pub fn contains(&self, px: f64, py: f64) -> bool {
         match self {
             Self::Circle { radius } => px * px + py * py <= radius * radius,
-            Self::Rectangle { half_width, half_height } => {
-                px.abs() <= *half_width && py.abs() <= *half_height
-            }
+            Self::Rectangle {
+                half_width,
+                half_height,
+            } => px.abs() <= *half_width && py.abs() <= *half_height,
         }
     }
 
@@ -146,7 +169,10 @@ impl BodyShape {
                     + y_clamped * (r * r - y_clamped * y_clamped).max(0.0).sqrt();
                 segment.max(0.0)
             }
-            Self::Rectangle { half_width, half_height } => {
+            Self::Rectangle {
+                half_width,
+                half_height,
+            } => {
                 let h = *half_height;
                 let w = *half_width;
                 let submerged_h = (waterline_y + h).clamp(0.0, 2.0 * h);
@@ -159,7 +185,10 @@ impl BodyShape {
     pub fn moment_of_inertia(&self, mass: f64) -> f64 {
         match self {
             Self::Circle { radius } => 0.5 * mass * radius * radius,
-            Self::Rectangle { half_width, half_height } => {
+            Self::Rectangle {
+                half_width,
+                half_height,
+            } => {
                 let w = 2.0 * half_width;
                 let h = 2.0 * half_height;
                 mass * (w * w + h * h) / 12.0
@@ -337,10 +366,7 @@ pub fn drag_coefficient(re: f64) -> f64 {
 // ── Force Computations ────────────────────────────────────────
 
 /// Compute buoyancy force on a body (Archimedes principle).
-pub fn buoyancy_force(
-    body: &RigidBody,
-    fluid: &FluidProperties,
-) -> Vec2 {
+pub fn buoyancy_force(body: &RigidBody, fluid: &FluidProperties) -> Vec2 {
     let waterline_local = fluid.surface_level - body.position.y;
     let submerged = body.shape.submerged_area(waterline_local);
     let displaced_mass = fluid.density * submerged;
@@ -348,10 +374,7 @@ pub fn buoyancy_force(
 }
 
 /// Compute drag force on a body.
-pub fn drag_force(
-    body: &RigidBody,
-    fluid: &FluidProperties,
-) -> Vec2 {
+pub fn drag_force(body: &RigidBody, fluid: &FluidProperties) -> Vec2 {
     let relative_vel = fluid.freestream.sub(&body.velocity);
     let speed = relative_vel.length();
     if speed < 1e-15 {
@@ -371,10 +394,7 @@ pub fn drag_force(
 }
 
 /// Compute viscous skin friction force.
-pub fn viscous_force(
-    body: &RigidBody,
-    fluid: &FluidProperties,
-) -> Vec2 {
+pub fn viscous_force(body: &RigidBody, fluid: &FluidProperties) -> Vec2 {
     let relative_vel = fluid.freestream.sub(&body.velocity);
     let speed = relative_vel.length();
     if speed < 1e-15 {
@@ -404,10 +424,7 @@ pub fn added_mass_force(
 
 /// Compute the waterline for a floating body (equilibrium position).
 /// Returns the y-position where buoyancy equals weight.
-pub fn waterline_y(
-    body: &RigidBody,
-    fluid: &FluidProperties,
-) -> f64 {
+pub fn waterline_y(body: &RigidBody, fluid: &FluidProperties) -> f64 {
     let weight = body.mass * fluid.gravity;
     let target_submerged_area = weight / (fluid.density * fluid.gravity);
 
@@ -487,12 +504,18 @@ impl FluidCoupling {
 
     /// Get a body by id.
     pub fn get_body(&self, id: u64) -> Result<&RigidBody, CouplingError> {
-        self.bodies.iter().find(|b| b.id == id).ok_or(CouplingError::BodyNotFound(id))
+        self.bodies
+            .iter()
+            .find(|b| b.id == id)
+            .ok_or(CouplingError::BodyNotFound(id))
     }
 
     /// Get a mutable body by id.
     pub fn get_body_mut(&mut self, id: u64) -> Result<&mut RigidBody, CouplingError> {
-        self.bodies.iter_mut().find(|b| b.id == id).ok_or(CouplingError::BodyNotFound(id))
+        self.bodies
+            .iter_mut()
+            .find(|b| b.id == id)
+            .ok_or(CouplingError::BodyNotFound(id))
     }
 
     pub fn body_count(&self) -> usize {
@@ -559,14 +582,21 @@ impl FluidCoupling {
         // Check for divergence
         for body in &self.bodies {
             if !body.position.x.is_finite() || !body.position.y.is_finite() {
-                return Err(CouplingError::Diverged(format!("body {} position NaN/Inf", body.id)));
+                return Err(CouplingError::Diverged(format!(
+                    "body {} position NaN/Inf",
+                    body.id
+                )));
             }
         }
 
         self.step_count += 1;
 
         let total_ke: f64 = self.bodies.iter().map(|b| b.kinetic_energy()).sum();
-        let max_speed = self.bodies.iter().map(|b| b.velocity.length()).fold(0.0_f64, f64::max);
+        let max_speed = self
+            .bodies
+            .iter()
+            .map(|b| b.velocity.length())
+            .fold(0.0_f64, f64::max);
 
         Ok(CouplingStats {
             step: self.step_count,
@@ -588,7 +618,11 @@ impl FluidCoupling {
     }
 
     /// Velocity boundary condition: what velocity should the fluid have at a body surface point.
-    pub fn surface_velocity(&self, body_id: u64, surface_point: Vec2) -> Result<Vec2, CouplingError> {
+    pub fn surface_velocity(
+        &self,
+        body_id: u64,
+        surface_point: Vec2,
+    ) -> Result<Vec2, CouplingError> {
         let body = self.get_body(body_id)?;
         // v_surface = v_body + omega x r
         let r = surface_point.sub(&body.position);
@@ -640,7 +674,10 @@ mod tests {
 
     #[test]
     fn test_rectangle_area() {
-        let r = BodyShape::Rectangle { half_width: 2.0, half_height: 3.0 };
+        let r = BodyShape::Rectangle {
+            half_width: 2.0,
+            half_height: 3.0,
+        };
         assert!((r.area() - 24.0).abs() < 1e-10);
     }
 
@@ -653,7 +690,10 @@ mod tests {
 
     #[test]
     fn test_rectangle_contains() {
-        let r = BodyShape::Rectangle { half_width: 1.0, half_height: 1.0 };
+        let r = BodyShape::Rectangle {
+            half_width: 1.0,
+            half_height: 1.0,
+        };
         assert!(r.contains(0.5, 0.5));
         assert!(!r.contains(1.5, 0.5));
     }
@@ -683,8 +723,12 @@ mod tests {
 
     #[test]
     fn test_buoyancy_fully_submerged_rect() {
-        let body = RigidBody::new(0,
-            BodyShape::Rectangle { half_width: 0.5, half_height: 0.5 },
+        let body = RigidBody::new(
+            0,
+            BodyShape::Rectangle {
+                half_width: 0.5,
+                half_height: 0.5,
+            },
             Vec2::new(0.0, -2.0), // Well below surface
             1.0,
         );
@@ -696,8 +740,12 @@ mod tests {
 
     #[test]
     fn test_buoyancy_above_surface() {
-        let body = RigidBody::new(0,
-            BodyShape::Rectangle { half_width: 0.5, half_height: 0.5 },
+        let body = RigidBody::new(
+            0,
+            BodyShape::Rectangle {
+                half_width: 0.5,
+                half_height: 0.5,
+            },
             Vec2::new(0.0, 10.0), // Well above surface
             1.0,
         );
@@ -709,11 +757,7 @@ mod tests {
 
     #[test]
     fn test_drag_force_stationary() {
-        let body = RigidBody::new(0,
-            BodyShape::Circle { radius: 0.1 },
-            Vec2::zero(),
-            1.0,
-        );
+        let body = RigidBody::new(0, BodyShape::Circle { radius: 0.1 }, Vec2::zero(), 1.0);
         let fluid = default_fluid(); // freestream = 0
         let d = drag_force(&body, &fluid);
         assert!(d.length() < 1e-10);
@@ -721,11 +765,7 @@ mod tests {
 
     #[test]
     fn test_drag_force_moving() {
-        let mut body = RigidBody::new(0,
-            BodyShape::Circle { radius: 0.1 },
-            Vec2::zero(),
-            1.0,
-        );
+        let mut body = RigidBody::new(0, BodyShape::Circle { radius: 0.1 }, Vec2::zero(), 1.0);
         body.velocity = Vec2::new(1.0, 0.0);
         let fluid = default_fluid();
         let d = drag_force(&body, &fluid);
@@ -735,11 +775,7 @@ mod tests {
 
     #[test]
     fn test_viscous_force_moving() {
-        let mut body = RigidBody::new(0,
-            BodyShape::Circle { radius: 0.1 },
-            Vec2::zero(),
-            1.0,
-        );
+        let mut body = RigidBody::new(0, BodyShape::Circle { radius: 0.1 }, Vec2::zero(), 1.0);
         body.velocity = Vec2::new(1.0, 0.0);
         let fluid = default_fluid();
         let v = viscous_force(&body, &fluid);
@@ -748,21 +784,13 @@ mod tests {
 
     #[test]
     fn test_rigid_body_kinetic_energy_at_rest() {
-        let body = RigidBody::new(0,
-            BodyShape::Circle { radius: 1.0 },
-            Vec2::zero(),
-            1.0,
-        );
+        let body = RigidBody::new(0, BodyShape::Circle { radius: 1.0 }, Vec2::zero(), 1.0);
         assert!((body.kinetic_energy()).abs() < 1e-12);
     }
 
     #[test]
     fn test_rigid_body_kinetic_energy_moving() {
-        let mut body = RigidBody::new(0,
-            BodyShape::Circle { radius: 1.0 },
-            Vec2::zero(),
-            2.0,
-        );
+        let mut body = RigidBody::new(0, BodyShape::Circle { radius: 1.0 }, Vec2::zero(), 2.0);
         body.velocity = Vec2::new(3.0, 4.0);
         let ke = body.kinetic_energy();
         // 0.5 * 2 * 25 = 25
@@ -795,7 +823,11 @@ mod tests {
     #[test]
     fn test_step_falling_body() {
         let mut sim = FluidCoupling::new(
-            FluidProperties { surface_level: -1000.0, gravity: 9.81, ..Default::default() },
+            FluidProperties {
+                surface_level: -1000.0,
+                gravity: 9.81,
+                ..Default::default()
+            },
             0.01,
         );
         sim.enable_added_mass = false;
@@ -803,8 +835,12 @@ mod tests {
         let initial_y = sim.bodies[0].position.y;
         sim.run(50).unwrap();
         // Body should fall under gravity (no water to resist)
-        assert!(sim.bodies[0].position.y < initial_y,
-            "body y={} should be < initial {}", sim.bodies[0].position.y, initial_y);
+        assert!(
+            sim.bodies[0].position.y < initial_y,
+            "body y={} should be < initial {}",
+            sim.bodies[0].position.y,
+            initial_y
+        );
     }
 
     #[test]
@@ -838,13 +874,20 @@ mod tests {
     #[test]
     fn test_get_body_not_found() {
         let sim = default_coupling();
-        assert!(matches!(sim.get_body(99), Err(CouplingError::BodyNotFound(99))));
+        assert!(matches!(
+            sim.get_body(99),
+            Err(CouplingError::BodyNotFound(99))
+        ));
     }
 
     #[test]
     fn test_waterline_rect() {
-        let body = RigidBody::new(0,
-            BodyShape::Rectangle { half_width: 1.0, half_height: 0.5 },
+        let body = RigidBody::new(
+            0,
+            BodyShape::Rectangle {
+                half_width: 1.0,
+                half_height: 0.5,
+            },
             Vec2::zero(),
             500.0, // Half the density of water
         );
@@ -857,11 +900,7 @@ mod tests {
 
     #[test]
     fn test_added_mass_force() {
-        let body = RigidBody::new(0,
-            BodyShape::Circle { radius: 0.1 },
-            Vec2::zero(),
-            1.0,
-        );
+        let body = RigidBody::new(0, BodyShape::Circle { radius: 0.1 }, Vec2::zero(), 1.0);
         let fluid = default_fluid();
         let accel = Vec2::new(1.0, 0.0);
         let am = added_mass_force(&body, &fluid, accel, 0.5);

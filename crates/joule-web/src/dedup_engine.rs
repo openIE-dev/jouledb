@@ -26,7 +26,10 @@ impl fmt::Display for DedupError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NoKeyFields => write!(f, "no key fields configured"),
-            Self::FieldNotFound { record_index, field } => {
+            Self::FieldNotFound {
+                record_index,
+                field,
+            } => {
                 write!(f, "field '{field}' not found in record {record_index}")
             }
             Self::InvalidConfig(msg) => write!(f, "invalid config: {msg}"),
@@ -288,11 +291,7 @@ impl DedupEngine {
     }
 
     /// Fuzzy dedup using edit distance.
-    fn dedup_fuzzy(
-        &self,
-        data: &[Row],
-        max_distance: usize,
-    ) -> Result<DedupResult, DedupError> {
+    fn dedup_fuzzy(&self, data: &[Row], max_distance: usize) -> Result<DedupResult, DedupError> {
         let keys: Vec<String> = data.iter().map(|r| self.extract_key(r)).collect();
         let mut used = vec![false; data.len()];
         let mut groups: Vec<Vec<usize>> = Vec::new();
@@ -537,9 +536,7 @@ fn edit_distance(a: &str, b: &str) -> usize {
             } else {
                 1
             };
-            curr[j] = (prev[j] + 1)
-                .min(curr[j - 1] + 1)
-                .min(prev[j - 1] + cost);
+            curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
         }
         std::mem::swap(&mut prev, &mut curr);
     }
@@ -554,7 +551,10 @@ mod tests {
     use super::*;
 
     fn row(pairs: &[(&str, serde_json::Value)]) -> Row {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.clone())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
     }
 
     #[test]
@@ -579,31 +579,48 @@ mod tests {
 
     #[test]
     fn exact_dedup_keep_first() {
-        let engine = DedupEngine::new(vec!["name".into()])
-            .with_strategy(ResolutionStrategy::KeepFirst);
+        let engine =
+            DedupEngine::new(vec!["name".into()]).with_strategy(ResolutionStrategy::KeepFirst);
 
         let data = vec![
-            row(&[("name", serde_json::json!("Alice")), ("age", serde_json::json!(30))]),
-            row(&[("name", serde_json::json!("Bob")), ("age", serde_json::json!(25))]),
-            row(&[("name", serde_json::json!("Alice")), ("age", serde_json::json!(31))]),
+            row(&[
+                ("name", serde_json::json!("Alice")),
+                ("age", serde_json::json!(30)),
+            ]),
+            row(&[
+                ("name", serde_json::json!("Bob")),
+                ("age", serde_json::json!(25)),
+            ]),
+            row(&[
+                ("name", serde_json::json!("Alice")),
+                ("age", serde_json::json!(31)),
+            ]),
         ];
         let result = engine.dedup(&data).unwrap();
         assert_eq!(result.records.len(), 2);
         // First Alice should be kept.
-        let alice = result.records.iter().find(|r| {
-            r.get("name") == Some(&serde_json::json!("Alice"))
-        }).unwrap();
+        let alice = result
+            .records
+            .iter()
+            .find(|r| r.get("name") == Some(&serde_json::json!("Alice")))
+            .unwrap();
         assert_eq!(alice.get("age"), Some(&serde_json::json!(30)));
     }
 
     #[test]
     fn exact_dedup_keep_last() {
-        let engine = DedupEngine::new(vec!["name".into()])
-            .with_strategy(ResolutionStrategy::KeepLast);
+        let engine =
+            DedupEngine::new(vec!["name".into()]).with_strategy(ResolutionStrategy::KeepLast);
 
         let data = vec![
-            row(&[("name", serde_json::json!("Alice")), ("age", serde_json::json!(30))]),
-            row(&[("name", serde_json::json!("Alice")), ("age", serde_json::json!(31))]),
+            row(&[
+                ("name", serde_json::json!("Alice")),
+                ("age", serde_json::json!(30)),
+            ]),
+            row(&[
+                ("name", serde_json::json!("Alice")),
+                ("age", serde_json::json!(31)),
+            ]),
         ];
         let result = engine.dedup(&data).unwrap();
         assert_eq!(result.records.len(), 1);
@@ -612,8 +629,8 @@ mod tests {
 
     #[test]
     fn exact_dedup_merge_last() {
-        let engine = DedupEngine::new(vec!["id".into()])
-            .with_strategy(ResolutionStrategy::MergeLast);
+        let engine =
+            DedupEngine::new(vec!["id".into()]).with_strategy(ResolutionStrategy::MergeLast);
 
         let data = vec![
             row(&[("id", serde_json::json!(1)), ("a", serde_json::json!("x"))]),
@@ -629,17 +646,26 @@ mod tests {
 
     #[test]
     fn exact_dedup_merge_first() {
-        let engine = DedupEngine::new(vec!["id".into()])
-            .with_strategy(ResolutionStrategy::MergeFirst);
+        let engine =
+            DedupEngine::new(vec!["id".into()]).with_strategy(ResolutionStrategy::MergeFirst);
 
         let data = vec![
-            row(&[("id", serde_json::json!(1)), ("val", serde_json::json!("first"))]),
-            row(&[("id", serde_json::json!(1)), ("val", serde_json::json!("second"))]),
+            row(&[
+                ("id", serde_json::json!(1)),
+                ("val", serde_json::json!("first")),
+            ]),
+            row(&[
+                ("id", serde_json::json!(1)),
+                ("val", serde_json::json!("second")),
+            ]),
         ];
         let result = engine.dedup(&data).unwrap();
         assert_eq!(result.records.len(), 1);
         // MergeFirst: first value wins for conflicts.
-        assert_eq!(result.records[0].get("val"), Some(&serde_json::json!("first")));
+        assert_eq!(
+            result.records[0].get("val"),
+            Some(&serde_json::json!("first"))
+        );
     }
 
     #[test]
@@ -647,9 +673,18 @@ mod tests {
         let engine = DedupEngine::new(vec!["first".into(), "last".into()]);
 
         let data = vec![
-            row(&[("first", serde_json::json!("Alice")), ("last", serde_json::json!("Smith"))]),
-            row(&[("first", serde_json::json!("Alice")), ("last", serde_json::json!("Jones"))]),
-            row(&[("first", serde_json::json!("Alice")), ("last", serde_json::json!("Smith"))]),
+            row(&[
+                ("first", serde_json::json!("Alice")),
+                ("last", serde_json::json!("Smith")),
+            ]),
+            row(&[
+                ("first", serde_json::json!("Alice")),
+                ("last", serde_json::json!("Jones")),
+            ]),
+            row(&[
+                ("first", serde_json::json!("Alice")),
+                ("last", serde_json::json!("Smith")),
+            ]),
         ];
         let result = engine.dedup(&data).unwrap();
         assert_eq!(result.records.len(), 2);
@@ -658,8 +693,7 @@ mod tests {
 
     #[test]
     fn case_insensitive_dedup() {
-        let engine = DedupEngine::new(vec!["name".into()])
-            .with_case_insensitive(true);
+        let engine = DedupEngine::new(vec!["name".into()]).with_case_insensitive(true);
 
         let data = vec![
             row(&[("name", serde_json::json!("Alice"))]),
@@ -678,8 +712,8 @@ mod tests {
 
         let data = vec![
             row(&[("name", serde_json::json!("Alice"))]),
-            row(&[("name", serde_json::json!("Alce"))]),   // distance 1 from Alice
-            row(&[("name", serde_json::json!("Bob"))]),     // different
+            row(&[("name", serde_json::json!("Alce"))]), // distance 1 from Alice
+            row(&[("name", serde_json::json!("Bob"))]),  // different
         ];
         let result = engine.dedup(&data).unwrap();
         assert_eq!(result.records.len(), 2); // Alice+Alce merged, Bob separate
@@ -806,8 +840,7 @@ mod tests {
 
     #[test]
     fn sliding_window_case_insensitive() {
-        let mut sw = SlidingWindowDedup::new(vec!["name".into()], 10)
-            .with_case_insensitive(true);
+        let mut sw = SlidingWindowDedup::new(vec!["name".into()], 10).with_case_insensitive(true);
 
         let r1 = row(&[("name", serde_json::json!("Alice"))]);
         let r2 = row(&[("name", serde_json::json!("alice"))]);

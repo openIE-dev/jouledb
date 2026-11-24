@@ -222,11 +222,7 @@ impl EventBus {
     }
 
     /// Register a handler that will simulate failure with a given error.
-    pub fn on_failing(
-        &mut self,
-        event_type: impl Into<String>,
-        error: impl Into<String>,
-    ) -> u64 {
+    pub fn on_failing(&mut self, event_type: impl Into<String>, error: impl Into<String>) -> u64 {
         let id = self.next_handler_id;
         self.next_handler_id += 1;
         self.handlers.push(HandlerEntry {
@@ -252,17 +248,16 @@ impl EventBus {
 
     /// Get invocation count for a handler.
     pub fn handler_invocations(&self, handler_id: u64) -> Option<u64> {
-        self.handlers.iter().find(|h| h.id == handler_id).map(|h| h.invocations)
+        self.handlers
+            .iter()
+            .find(|h| h.id == handler_id)
+            .map(|h| h.invocations)
     }
 
     // ── Hooks ────────────────────────────────────────────────
 
     /// Register a before or after hook. If event_type is None, it runs for all events.
-    pub fn add_hook(
-        &mut self,
-        phase: HookPhase,
-        event_type: Option<String>,
-    ) -> u64 {
+    pub fn add_hook(&mut self, phase: HookPhase, event_type: Option<String>) -> u64 {
         let id = self.next_hook_id;
         self.next_hook_id += 1;
         self.hooks.push(HookEntry {
@@ -323,10 +318,7 @@ impl EventBus {
             if hook.phase != HookPhase::Before {
                 continue;
             }
-            let matches = hook
-                .event_type
-                .as_ref()
-                .map_or(true, |t| t == &event_type);
+            let matches = hook.event_type.as_ref().map_or(true, |t| t == &event_type);
             if !matches {
                 continue;
             }
@@ -369,10 +361,7 @@ impl EventBus {
             if hook.phase != HookPhase::After {
                 continue;
             }
-            let matches = hook
-                .event_type
-                .as_ref()
-                .map_or(true, |t| t == &event_type);
+            let matches = hook.event_type.as_ref().map_or(true, |t| t == &event_type);
             if !matches {
                 continue;
             }
@@ -529,7 +518,10 @@ mod tests {
     #[test]
     fn test_deregister_not_found() {
         let mut bus = EventBus::new();
-        assert!(matches!(bus.off(999), Err(EventBusError::HandlerNotFound(999))));
+        assert!(matches!(
+            bus.off(999),
+            Err(EventBusError::HandlerNotFound(999))
+        ));
     }
 
     #[test]
@@ -605,7 +597,8 @@ mod tests {
         let mut bus = EventBus::new().with_history_limit(3);
         bus.on("e");
         for i in 0..5 {
-            bus.dispatch(Event::new("e", format!("payload-{i}"))).unwrap();
+            bus.dispatch(Event::new("e", format!("payload-{i}")))
+                .unwrap();
         }
         assert_eq!(bus.history().len(), 3);
         // Oldest events are dropped.

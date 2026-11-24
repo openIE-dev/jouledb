@@ -15,10 +15,20 @@ pub enum LeaderboardError {
     BoardNotFound(String),
     DuplicateBoard(String),
     PlayerNotFound(String),
-    ScoreOutOfBounds { score: i64, min: i64, max: i64 },
-    RateLimited { player_id: String, cooldown_remaining_ms: u64 },
+    ScoreOutOfBounds {
+        score: i64,
+        min: i64,
+        max: i64,
+    },
+    RateLimited {
+        player_id: String,
+        cooldown_remaining_ms: u64,
+    },
     InvalidPageSize(usize),
-    InvalidPage { page: usize, max_page: usize },
+    InvalidPage {
+        page: usize,
+        max_page: usize,
+    },
     EmptyBoard(String),
 }
 
@@ -31,8 +41,14 @@ impl fmt::Display for LeaderboardError {
             Self::ScoreOutOfBounds { score, min, max } => {
                 write!(f, "score {score} out of bounds [{min}, {max}]")
             }
-            Self::RateLimited { player_id, cooldown_remaining_ms } => {
-                write!(f, "player {player_id} rate limited ({cooldown_remaining_ms}ms remaining)")
+            Self::RateLimited {
+                player_id,
+                cooldown_remaining_ms,
+            } => {
+                write!(
+                    f,
+                    "player {player_id} rate limited ({cooldown_remaining_ms}ms remaining)"
+                )
             }
             Self::InvalidPageSize(s) => write!(f, "invalid page size: {s}"),
             Self::InvalidPage { page, max_page } => {
@@ -100,12 +116,19 @@ impl ScoreBounds {
     }
 
     pub fn unbounded() -> Self {
-        Self { min: i64::MIN, max: i64::MAX }
+        Self {
+            min: i64::MIN,
+            max: i64::MAX,
+        }
     }
 
     pub fn validate(&self, score: i64) -> Result<(), LeaderboardError> {
         if score < self.min || score > self.max {
-            Err(LeaderboardError::ScoreOutOfBounds { score, min: self.min, max: self.max })
+            Err(LeaderboardError::ScoreOutOfBounds {
+                score,
+                min: self.min,
+                max: self.max,
+            })
         } else {
             Ok(())
         }
@@ -122,11 +145,16 @@ struct RateLimiter {
 
 impl RateLimiter {
     fn new(cooldown_ms: u64) -> Self {
-        Self { cooldown_ms, last_submission: HashMap::new() }
+        Self {
+            cooldown_ms,
+            last_submission: HashMap::new(),
+        }
     }
 
     fn check(&self, player_id: &str, current_time_ms: u64) -> Result<(), LeaderboardError> {
-        if self.cooldown_ms == 0 { return Ok(()); }
+        if self.cooldown_ms == 0 {
+            return Ok(());
+        }
         if let Some(&last) = self.last_submission.get(player_id) {
             if current_time_ms < last + self.cooldown_ms {
                 return Err(LeaderboardError::RateLimited {
@@ -139,7 +167,8 @@ impl RateLimiter {
     }
 
     fn record(&mut self, player_id: &str, current_time_ms: u64) {
-        self.last_submission.insert(player_id.to_string(), current_time_ms);
+        self.last_submission
+            .insert(player_id.to_string(), current_time_ms);
     }
 }
 
@@ -175,23 +204,43 @@ impl Leaderboard {
         self
     }
 
-    pub fn name(&self) -> &str { &self.name }
-    pub fn sort_order(&self) -> SortOrder { self.sort_order }
-    pub fn entry_count(&self) -> usize { self.entries.len() }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    pub fn sort_order(&self) -> SortOrder {
+        self.sort_order
+    }
+    pub fn entry_count(&self) -> usize {
+        self.entries.len()
+    }
 
     fn sort_entries(&mut self) {
         match self.sort_order {
             SortOrder::HighestFirst => {
-                self.entries.sort_by(|a, b| b.score.cmp(&a.score).then(a.timestamp_ms.cmp(&b.timestamp_ms)));
+                self.entries.sort_by(|a, b| {
+                    b.score
+                        .cmp(&a.score)
+                        .then(a.timestamp_ms.cmp(&b.timestamp_ms))
+                });
             }
             SortOrder::LowestFirst => {
-                self.entries.sort_by(|a, b| a.score.cmp(&b.score).then(a.timestamp_ms.cmp(&b.timestamp_ms)));
+                self.entries.sort_by(|a, b| {
+                    a.score
+                        .cmp(&b.score)
+                        .then(a.timestamp_ms.cmp(&b.timestamp_ms))
+                });
             }
         }
     }
 
     /// Submit a score. Updates only if better (or first submission).
-    pub fn submit(&mut self, player_id: &str, score: i64, timestamp_ms: u64, metadata: &str) -> Result<bool, LeaderboardError> {
+    pub fn submit(
+        &mut self,
+        player_id: &str,
+        score: i64,
+        timestamp_ms: u64,
+        metadata: &str,
+    ) -> Result<bool, LeaderboardError> {
         self.bounds.validate(score)?;
         self.rate_limiter.check(player_id, timestamp_ms)?;
         self.rate_limiter.record(player_id, timestamp_ms);
@@ -222,7 +271,13 @@ impl Leaderboard {
     }
 
     /// Force-set a score regardless of whether it's better.
-    pub fn set_score(&mut self, player_id: &str, score: i64, timestamp_ms: u64, metadata: &str) -> Result<(), LeaderboardError> {
+    pub fn set_score(
+        &mut self,
+        player_id: &str,
+        score: i64,
+        timestamp_ms: u64,
+        metadata: &str,
+    ) -> Result<(), LeaderboardError> {
         self.bounds.validate(score)?;
         if let Some(existing) = self.entries.iter_mut().find(|e| e.player_id == player_id) {
             existing.score = score;
@@ -242,7 +297,9 @@ impl Leaderboard {
 
     /// Compute ranks (1-based, with ties sharing rank).
     fn ranked_entries(&self) -> Vec<RankedEntry> {
-        if self.entries.is_empty() { return Vec::new(); }
+        if self.entries.is_empty() {
+            return Vec::new();
+        }
         let mut ranked = Vec::with_capacity(self.entries.len());
         let mut current_rank = 1usize;
         for (i, entry) in self.entries.iter().enumerate() {
@@ -267,7 +324,9 @@ impl Leaderboard {
 
     pub fn player_rank(&self, player_id: &str) -> Result<RankedEntry, LeaderboardError> {
         let ranked = self.ranked_entries();
-        ranked.into_iter().find(|e| e.player_id == player_id)
+        ranked
+            .into_iter()
+            .find(|e| e.player_id == player_id)
             .ok_or_else(|| LeaderboardError::PlayerNotFound(player_id.to_string()))
     }
 
@@ -277,9 +336,16 @@ impl Leaderboard {
         }
         let ranked = self.ranked_entries();
         let total = ranked.len();
-        let total_pages = if total == 0 { 1 } else { (total + page_size - 1) / page_size };
+        let total_pages = if total == 0 {
+            1
+        } else {
+            (total + page_size - 1) / page_size
+        };
         if page >= total_pages {
-            return Err(LeaderboardError::InvalidPage { page, max_page: total_pages.saturating_sub(1) });
+            return Err(LeaderboardError::InvalidPage {
+                page,
+                max_page: total_pages.saturating_sub(1),
+            });
         }
         let start = page * page_size;
         let end = (start + page_size).min(total);
@@ -294,7 +360,10 @@ impl Leaderboard {
     /// Get entries in a rank range (1-based, inclusive).
     pub fn rank_range(&self, from_rank: usize, to_rank: usize) -> Vec<RankedEntry> {
         let ranked = self.ranked_entries();
-        ranked.into_iter().filter(|e| e.rank >= from_rank && e.rank <= to_rank).collect()
+        ranked
+            .into_iter()
+            .filter(|e| e.rank >= from_rank && e.rank <= to_rank)
+            .collect()
     }
 
     /// Percentile of a player (0.0 = worst, 100.0 = best).
@@ -328,7 +397,9 @@ pub struct LeaderboardManager {
 
 impl LeaderboardManager {
     pub fn new() -> Self {
-        Self { boards: HashMap::new() }
+        Self {
+            boards: HashMap::new(),
+        }
     }
 
     pub fn create(&mut self, board: Leaderboard) -> Result<(), LeaderboardError> {
@@ -341,15 +412,21 @@ impl LeaderboardManager {
     }
 
     pub fn get(&self, name: &str) -> Result<&Leaderboard, LeaderboardError> {
-        self.boards.get(name).ok_or_else(|| LeaderboardError::BoardNotFound(name.to_string()))
+        self.boards
+            .get(name)
+            .ok_or_else(|| LeaderboardError::BoardNotFound(name.to_string()))
     }
 
     pub fn get_mut(&mut self, name: &str) -> Result<&mut Leaderboard, LeaderboardError> {
-        self.boards.get_mut(name).ok_or_else(|| LeaderboardError::BoardNotFound(name.to_string()))
+        self.boards
+            .get_mut(name)
+            .ok_or_else(|| LeaderboardError::BoardNotFound(name.to_string()))
     }
 
     pub fn remove(&mut self, name: &str) -> Result<Leaderboard, LeaderboardError> {
-        self.boards.remove(name).ok_or_else(|| LeaderboardError::BoardNotFound(name.to_string()))
+        self.boards
+            .remove(name)
+            .ok_or_else(|| LeaderboardError::BoardNotFound(name.to_string()))
     }
 
     pub fn board_names(&self) -> Vec<String> {
@@ -358,10 +435,16 @@ impl LeaderboardManager {
         names
     }
 
-    pub fn board_count(&self) -> usize { self.boards.len() }
+    pub fn board_count(&self) -> usize {
+        self.boards.len()
+    }
 
     /// Create time-windowed boards (daily, weekly, all-time) for a base name.
-    pub fn create_windowed(&mut self, base_name: &str, sort_order: SortOrder) -> Result<(), LeaderboardError> {
+    pub fn create_windowed(
+        &mut self,
+        base_name: &str,
+        sort_order: SortOrder,
+    ) -> Result<(), LeaderboardError> {
         let windows = [
             (TimeWindow::Daily, "daily"),
             (TimeWindow::Weekly, "weekly"),
@@ -372,7 +455,8 @@ impl LeaderboardManager {
             if self.boards.contains_key(&name) {
                 return Err(LeaderboardError::DuplicateBoard(name));
             }
-            self.boards.insert(name.clone(), Leaderboard::new(&name, sort_order));
+            self.boards
+                .insert(name.clone(), Leaderboard::new(&name, sort_order));
         }
         Ok(())
     }
@@ -399,7 +483,11 @@ impl LeaderboardManager {
     }
 
     /// Reset a time-windowed board (e.g., daily reset).
-    pub fn reset_window(&mut self, base_name: &str, window: TimeWindow) -> Result<(), LeaderboardError> {
+    pub fn reset_window(
+        &mut self,
+        base_name: &str,
+        window: TimeWindow,
+    ) -> Result<(), LeaderboardError> {
         let suffix = match window {
             TimeWindow::Daily => "daily",
             TimeWindow::Weekly => "weekly",
@@ -407,7 +495,9 @@ impl LeaderboardManager {
             TimeWindow::AllTime => "all_time",
         };
         let name = format!("{base_name}_{suffix}");
-        let board = self.boards.get_mut(&name)
+        let board = self
+            .boards
+            .get_mut(&name)
             .ok_or_else(|| LeaderboardError::BoardNotFound(name.clone()))?;
         board.clear();
         Ok(())
@@ -499,8 +589,7 @@ mod tests {
 
     #[test]
     fn rate_limiting() {
-        let mut board = Leaderboard::new("rated", SortOrder::HighestFirst)
-            .with_rate_limit(10_000); // 10 second cooldown
+        let mut board = Leaderboard::new("rated", SortOrder::HighestFirst).with_rate_limit(10_000); // 10 second cooldown
         board.submit("p1", 100, 1000, "").unwrap();
         let err = board.submit("p1", 200, 5000, "").unwrap_err();
         assert!(matches!(err, LeaderboardError::RateLimited { .. }));
@@ -587,7 +676,8 @@ mod tests {
     #[test]
     fn manager_create_and_get() {
         let mut mgr = LeaderboardManager::new();
-        mgr.create(Leaderboard::new("scores", SortOrder::HighestFirst)).unwrap();
+        mgr.create(Leaderboard::new("scores", SortOrder::HighestFirst))
+            .unwrap();
         assert!(mgr.get("scores").is_ok());
         assert!(mgr.get("missing").is_err());
     }
@@ -595,15 +685,19 @@ mod tests {
     #[test]
     fn manager_duplicate() {
         let mut mgr = LeaderboardManager::new();
-        mgr.create(Leaderboard::new("scores", SortOrder::HighestFirst)).unwrap();
-        let err = mgr.create(Leaderboard::new("scores", SortOrder::HighestFirst)).unwrap_err();
+        mgr.create(Leaderboard::new("scores", SortOrder::HighestFirst))
+            .unwrap();
+        let err = mgr
+            .create(Leaderboard::new("scores", SortOrder::HighestFirst))
+            .unwrap_err();
         assert!(matches!(err, LeaderboardError::DuplicateBoard(_)));
     }
 
     #[test]
     fn manager_windowed_boards() {
         let mut mgr = LeaderboardManager::new();
-        mgr.create_windowed("scores", SortOrder::HighestFirst).unwrap();
+        mgr.create_windowed("scores", SortOrder::HighestFirst)
+            .unwrap();
         assert_eq!(mgr.board_count(), 3);
         let names = mgr.board_names();
         assert!(names.contains(&"scores_daily".to_string()));
@@ -614,7 +708,8 @@ mod tests {
     #[test]
     fn submit_windowed() {
         let mut mgr = LeaderboardManager::new();
-        mgr.create_windowed("scores", SortOrder::HighestFirst).unwrap();
+        mgr.create_windowed("scores", SortOrder::HighestFirst)
+            .unwrap();
         let results = mgr.submit_windowed("scores", "p1", 1000, 100, "").unwrap();
         assert_eq!(results.len(), 3);
         assert!(results.iter().all(|(_, updated)| *updated));
@@ -628,7 +723,8 @@ mod tests {
     #[test]
     fn reset_window() {
         let mut mgr = LeaderboardManager::new();
-        mgr.create_windowed("scores", SortOrder::HighestFirst).unwrap();
+        mgr.create_windowed("scores", SortOrder::HighestFirst)
+            .unwrap();
         mgr.submit_windowed("scores", "p1", 1000, 100, "").unwrap();
         mgr.reset_window("scores", TimeWindow::Daily).unwrap();
         assert_eq!(mgr.get("scores_daily").unwrap().entry_count(), 0);
@@ -638,7 +734,8 @@ mod tests {
     #[test]
     fn manager_remove_board() {
         let mut mgr = LeaderboardManager::new();
-        mgr.create(Leaderboard::new("temp", SortOrder::HighestFirst)).unwrap();
+        mgr.create(Leaderboard::new("temp", SortOrder::HighestFirst))
+            .unwrap();
         let removed = mgr.remove("temp").unwrap();
         assert_eq!(removed.name(), "temp");
         assert!(mgr.get("temp").is_err());

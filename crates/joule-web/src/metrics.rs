@@ -157,16 +157,15 @@ impl Histogram {
         Self::new(
             name,
             help,
-            vec![0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0],
+            vec![
+                0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+            ],
         )
     }
 
     pub fn observe(&mut self, labels: &Labels, val: f64) {
         let key = labels_key(labels);
-        self.observations
-            .entry(key.clone())
-            .or_default()
-            .push(val);
+        self.observations.entry(key.clone()).or_default().push(val);
         self.labels_map.entry(key).or_insert_with(|| labels.clone());
     }
 
@@ -234,10 +233,7 @@ impl Summary {
 
     pub fn observe(&mut self, labels: &Labels, val: f64) {
         let key = labels_key(labels);
-        self.observations
-            .entry(key.clone())
-            .or_default()
-            .push(val);
+        self.observations.entry(key.clone()).or_default().push(val);
         self.labels_map.entry(key).or_insert_with(|| labels.clone());
     }
 

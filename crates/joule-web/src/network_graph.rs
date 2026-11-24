@@ -269,11 +269,7 @@ pub fn simulation_tick(
 }
 
 /// Run the full simulation for the configured number of iterations.
-pub fn simulate(
-    nodes: &mut [NetworkNode],
-    edges: &[NetworkEdge],
-    cfg: &NetworkGraphConfig,
-) {
+pub fn simulate(nodes: &mut [NetworkNode], edges: &[NetworkEdge], cfg: &NetworkGraphConfig) {
     let (cx, cy) = cfg.center();
     let init_r = cfg.width.min(cfg.height) * 0.3;
     init_positions(nodes, cx, cy, init_r);
@@ -285,11 +281,7 @@ pub fn simulate(
 
 /// Compute total kinetic energy of the system (convergence metric).
 pub fn kinetic_energy(nodes: &[NetworkNode]) -> f64 {
-    nodes
-        .iter()
-        .map(|n| n.vx * n.vx + n.vy * n.vy)
-        .sum::<f64>()
-        * 0.5
+    nodes.iter().map(|n| n.vx * n.vx + n.vy * n.vy).sum::<f64>() * 0.5
 }
 
 // ── Rendering ───────────────────────────────────────────────────
@@ -312,10 +304,7 @@ pub fn render_network_graph(
         nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
     // Edge weight range for width scaling
-    let min_w = edges
-        .iter()
-        .map(|e| e.weight)
-        .fold(f64::INFINITY, f64::min);
+    let min_w = edges.iter().map(|e| e.weight).fold(f64::INFINITY, f64::min);
     let max_w = edges
         .iter()
         .map(|e| e.weight)
@@ -330,8 +319,7 @@ pub fn render_network_graph(
         if let (Some(s), Some(t)) = (src, tgt) {
             let stroke_w = if edges.len() > 1 {
                 cfg.min_edge_width
-                    + (edge.weight - min_w) / w_range
-                        * (cfg.max_edge_width - cfg.min_edge_width)
+                    + (edge.weight - min_w) / w_range * (cfg.max_edge_width - cfg.min_edge_width)
             } else {
                 (cfg.min_edge_width + cfg.max_edge_width) / 2.0
             };

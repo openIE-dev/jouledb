@@ -66,7 +66,9 @@ pub struct Context {
 
 impl Context {
     pub fn new() -> Self {
-        Self { values: HashMap::new() }
+        Self {
+            values: HashMap::new(),
+        }
     }
 
     pub fn set(&mut self, key: &str, value: Value) {
@@ -80,7 +82,9 @@ impl Context {
     /// Resolve a dotted path like "user.name".
     pub fn resolve(&self, path: &str) -> Value {
         let parts: Vec<&str> = path.split('.').collect();
-        if parts.is_empty() { return Value::Null; }
+        if parts.is_empty() {
+            return Value::Null;
+        }
 
         let mut current = match self.values.get(parts[0]) {
             Some(v) => v.clone(),
@@ -154,7 +158,9 @@ impl fmt::Display for TemplateError {
 impl Template {
     /// Create a template from a source string.
     pub fn new(source: &str) -> Self {
-        Self { source: source.to_string() }
+        Self {
+            source: source.to_string(),
+        }
     }
 
     /// Render the template with the given context.
@@ -167,11 +173,11 @@ impl Template {
 #[derive(Debug, Clone)]
 enum TplToken {
     Text(String),
-    Expr(String),       // ${expr}
-    If(String),         // ${if cond}
-    EndIf,              // ${endif}
-    For(String, String),// ${for item in list}
-    EndFor,             // ${endfor}
+    Expr(String),        // ${expr}
+    If(String),          // ${if cond}
+    EndIf,               // ${endif}
+    For(String, String), // ${for item in list}
+    EndFor,              // ${endfor}
 }
 
 fn tokenize(source: &str) -> Vec<TplToken> {
@@ -199,7 +205,7 @@ fn tokenize(source: &str) -> Vec<TplToken> {
                     let list = body[in_pos + 4..].trim().to_string();
                     tokens.push(TplToken::For(var, list));
                 } else {
-                    tokens.push(TplToken::Text(format!("${{{}}}",  expr)));
+                    tokens.push(TplToken::Text(format!("${{{}}}", expr)));
                 }
             } else if expr == "endfor" {
                 tokens.push(TplToken::EndFor);
@@ -223,7 +229,10 @@ fn render_tokens(tokens: &[TplToken], ctx: &Context) -> Result<String, TemplateE
     let mut i = 0;
     while i < tokens.len() {
         match &tokens[i] {
-            TplToken::Text(s) => { output.push_str(s); i += 1; }
+            TplToken::Text(s) => {
+                output.push_str(s);
+                i += 1;
+            }
             TplToken::Expr(expr) => {
                 output.push_str(&eval_expr(expr, ctx));
                 i += 1;
@@ -249,16 +258,22 @@ fn render_tokens(tokens: &[TplToken], ctx: &Context) -> Result<String, TemplateE
                 }
                 i = end_idx + 1;
             }
-            TplToken::EndIf => { return Err(TemplateError::UnmatchedEndif); }
-            TplToken::EndFor => { return Err(TemplateError::UnmatchedEndfor); }
+            TplToken::EndIf => {
+                return Err(TemplateError::UnmatchedEndif);
+            }
+            TplToken::EndFor => {
+                return Err(TemplateError::UnmatchedEndfor);
+            }
         }
     }
     Ok(output)
 }
 
-fn find_block_end(tokens: &[TplToken], start: usize, kind: &str)
-    -> Result<(Vec<TplToken>, usize), TemplateError>
-{
+fn find_block_end(
+    tokens: &[TplToken],
+    start: usize,
+    kind: &str,
+) -> Result<(Vec<TplToken>, usize), TemplateError> {
     let mut depth = 1;
     let mut i = start;
     while i < tokens.len() {
@@ -266,12 +281,16 @@ fn find_block_end(tokens: &[TplToken], start: usize, kind: &str)
             TplToken::If(_) if kind == "if" => depth += 1,
             TplToken::EndIf if kind == "if" => {
                 depth -= 1;
-                if depth == 0 { return Ok((tokens[start..i].to_vec(), i)); }
+                if depth == 0 {
+                    return Ok((tokens[start..i].to_vec(), i));
+                }
             }
             TplToken::For(_, _) if kind == "for" => depth += 1,
             TplToken::EndFor if kind == "for" => {
                 depth -= 1;
-                if depth == 0 { return Ok((tokens[start..i].to_vec(), i)); }
+                if depth == 0 {
+                    return Ok((tokens[start..i].to_vec(), i));
+                }
             }
             _ => {}
         }
@@ -305,12 +324,10 @@ fn eval_expr(expr: &str, ctx: &Context) -> String {
 
     let val = ctx.resolve(var_name);
     let mut result = match &val {
-        Value::Null => {
-            match default {
-                Some(d) => return d.to_string(),
-                None => String::new(),
-            }
-        }
+        Value::Null => match default {
+            Some(d) => return d.to_string(),
+            None => String::new(),
+        },
         v => v.as_str(),
     };
 
@@ -328,7 +345,9 @@ mod tests {
 
     fn ctx_with(pairs: &[(&str, Value)]) -> Context {
         let mut ctx = Context::new();
-        for (k, v) in pairs { ctx.set(k, v.clone()); }
+        for (k, v) in pairs {
+            ctx.set(k, v.clone());
+        }
         ctx
     }
 
@@ -392,11 +411,14 @@ mod tests {
 
     #[test]
     fn test_loop() {
-        let ctx = ctx_with(&[("items", Value::List(vec![
-            Value::Str("a".into()),
-            Value::Str("b".into()),
-            Value::Str("c".into()),
-        ]))]);
+        let ctx = ctx_with(&[(
+            "items",
+            Value::List(vec![
+                Value::Str("a".into()),
+                Value::Str("b".into()),
+                Value::Str("c".into()),
+            ]),
+        )]);
         let tpl = Template::new("${for item in items}[${item}]${endfor}");
         assert_eq!(tpl.render(&ctx).unwrap(), "[a][b][c]");
     }

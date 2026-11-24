@@ -164,10 +164,16 @@ impl fmt::Display for ProvenanceError {
             Self::NegativeSiliconEnergy => write!(f, "local silicon energy cannot be negative"),
             Self::NegativeExternalCost => write!(f, "external API USD cost cannot be negative"),
             Self::MeasuredSiliconZeroWithPositiveStageSum => {
-                write!(f, "total silicon energy is 0 while stage breakdown is positive")
+                write!(
+                    f,
+                    "total silicon energy is 0 while stage breakdown is positive"
+                )
             }
             Self::ChannelSumExceedsTotalSiliconEnergy => {
-                write!(f, "hardware channel sum exceeds reported total silicon energy")
+                write!(
+                    f,
+                    "hardware channel sum exceeds reported total silicon energy"
+                )
             }
         }
     }

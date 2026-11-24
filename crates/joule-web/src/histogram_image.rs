@@ -17,7 +17,10 @@ pub struct Histogram {
 
 impl Histogram {
     pub fn new() -> Self {
-        Self { bins: [0u32; 256], total: 0 }
+        Self {
+            bins: [0u32; 256],
+            total: 0,
+        }
     }
 
     /// Build histogram from raw channel data.
@@ -78,7 +81,12 @@ impl Histogram {
         if self.total == 0 {
             return 0.0;
         }
-        let sum: u64 = self.bins.iter().enumerate().map(|(i, &c)| i as u64 * c as u64).sum();
+        let sum: u64 = self
+            .bins
+            .iter()
+            .enumerate()
+            .map(|(i, &c)| i as u64 * c as u64)
+            .sum();
         sum as f64 / self.total as f64
     }
 
@@ -143,7 +151,8 @@ pub fn compute_luminance_histogram(rgba_data: &[u8]) -> Histogram {
         let off = i * 4;
         let lum = (rgba_data[off] as u32 * 299
             + rgba_data[off + 1] as u32 * 587
-            + rgba_data[off + 2] as u32 * 114) / 1000;
+            + rgba_data[off + 2] as u32 * 114)
+            / 1000;
         h.bins[lum as usize] += 1;
         h.total += 1;
     }
@@ -162,7 +171,9 @@ pub fn equalization_lut(hist: &Histogram) -> [u8; 256] {
     }
     let denom = (hist.total - cdf_min) as f64;
     for i in 0..256 {
-        let v = ((cdf[i] as f64 - cdf_min as f64) / denom * 255.0).round().clamp(0.0, 255.0);
+        let v = ((cdf[i] as f64 - cdf_min as f64) / denom * 255.0)
+            .round()
+            .clamp(0.0, 255.0);
         lut[i] = v as u8;
     }
     lut
@@ -374,11 +385,7 @@ mod tests {
 
     #[test]
     fn test_rgb_histograms() {
-        let rgba = vec![
-            255, 0, 0, 255,
-            0, 255, 0, 255,
-            0, 0, 255, 255,
-        ];
+        let rgba = vec![255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255];
         let (r, g, b) = compute_rgb_histograms(&rgba);
         assert_eq!(r.bins[255], 1);
         assert_eq!(g.bins[255], 1);
@@ -431,10 +438,7 @@ mod tests {
     #[test]
     fn test_equalize_rgba() {
         let mut data = vec![
-            50, 50, 50, 255,
-            100, 100, 100, 255,
-            150, 150, 150, 255,
-            200, 200, 200, 255,
+            50, 50, 50, 255, 100, 100, 100, 255, 150, 150, 150, 255, 200, 200, 200, 255,
         ];
         equalize_rgba(&mut data);
         // Alpha should be preserved

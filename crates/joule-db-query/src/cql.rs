@@ -35,7 +35,8 @@ impl CqlQuery {
                 returning: Vec::new(),
                 ctes: Vec::new(),
                 derived_columns: HashMap::new(),
-                distinct: false, source_alias: None,
+                distinct: false,
+                source_alias: None,
             },
             _ => Query {
                 query_type: QueryType::Select,
@@ -52,7 +53,8 @@ impl CqlQuery {
                 returning: Vec::new(),
                 ctes: Vec::new(),
                 derived_columns: HashMap::new(),
-                distinct: false, source_alias: None,
+                distinct: false,
+                source_alias: None,
             },
         }
     }

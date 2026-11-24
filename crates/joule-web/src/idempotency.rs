@@ -20,7 +20,11 @@ pub enum IdempotencyError {
     /// Key has expired.
     KeyExpired(String),
     /// Fingerprint mismatch (same key, different request body).
-    FingerprintMismatch { key: String, expected: String, got: String },
+    FingerprintMismatch {
+        key: String,
+        expected: String,
+        got: String,
+    },
     /// Key already completed — use cached response.
     AlreadyCompleted(String),
     /// Invalid TTL.
@@ -397,7 +401,8 @@ mod tests {
     fn test_fingerprint_mismatch() {
         let mut s = store();
         s.begin("key1", "fp1", None).unwrap();
-        s.complete("key1", 200, serde_json::json!(null), None).unwrap();
+        s.complete("key1", 200, serde_json::json!(null), None)
+            .unwrap();
 
         let result = s.begin("key1", "different_fp", None);
         assert!(matches!(
@@ -413,7 +418,8 @@ mod tests {
             ..Default::default()
         });
         s.begin("key1", "fp1", None).unwrap();
-        s.complete("key1", 200, serde_json::json!(null), None).unwrap();
+        s.complete("key1", 200, serde_json::json!(null), None)
+            .unwrap();
 
         // Different fingerprint succeeds when not enforced.
         let result = s.begin("key1", "different", None).unwrap();
@@ -445,20 +451,24 @@ mod tests {
     fn test_double_complete() {
         let mut s = store();
         s.begin("key1", "fp1", None).unwrap();
-        s.complete("key1", 200, serde_json::json!(null), None).unwrap();
+        s.complete("key1", 200, serde_json::json!(null), None)
+            .unwrap();
         let result = s.complete("key1", 200, serde_json::json!(null), None);
-        assert_eq!(result, Err(IdempotencyError::AlreadyCompleted("key1".into())));
+        assert_eq!(
+            result,
+            Err(IdempotencyError::AlreadyCompleted("key1".into()))
+        );
     }
 
     #[test]
     fn test_ttl_expiration() {
         let mut s = store();
         s.begin("key1", "fp1", Some(1)).unwrap();
-        s.complete("key1", 200, serde_json::json!(null), None).unwrap();
+        s.complete("key1", 200, serde_json::json!(null), None)
+            .unwrap();
 
         // Manually expire.
-        s.records.get_mut("key1").unwrap().expires_at =
-            Utc::now() - Duration::seconds(10);
+        s.records.get_mut("key1").unwrap().expires_at = Utc::now() - Duration::seconds(10);
 
         assert!(!s.exists("key1"));
         assert!(s.get("key1").is_none());
@@ -471,8 +481,7 @@ mod tests {
         s.begin("key2", "fp2", Some(1)).unwrap();
 
         // Expire key1.
-        s.records.get_mut("key1").unwrap().expires_at =
-            Utc::now() - Duration::seconds(10);
+        s.records.get_mut("key1").unwrap().expires_at = Utc::now() - Duration::seconds(10);
 
         let removed = s.cleanup();
         assert_eq!(removed, 1);
@@ -517,7 +526,8 @@ mod tests {
     fn test_total_duplicates() {
         let mut s = store();
         s.begin("key1", "fp1", None).unwrap();
-        s.complete("key1", 200, serde_json::json!(null), None).unwrap();
+        s.complete("key1", 200, serde_json::json!(null), None)
+            .unwrap();
 
         s.begin("key1", "fp1", None).unwrap(); // dup 1
         s.begin("key1", "fp1", None).unwrap(); // dup 2
@@ -572,11 +582,11 @@ mod tests {
     fn test_expired_key_reusable() {
         let mut s = store();
         s.begin("key1", "fp1", Some(1)).unwrap();
-        s.complete("key1", 200, serde_json::json!(null), None).unwrap();
+        s.complete("key1", 200, serde_json::json!(null), None)
+            .unwrap();
 
         // Expire it.
-        s.records.get_mut("key1").unwrap().expires_at =
-            Utc::now() - Duration::seconds(10);
+        s.records.get_mut("key1").unwrap().expires_at = Utc::now() - Duration::seconds(10);
 
         // Should be able to reuse the key.
         let result = s.begin("key1", "fp_new", None).unwrap();

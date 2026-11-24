@@ -7,14 +7,14 @@
 //! - Platform API sync → distribution manifests
 //! - SMPTE ST 2110 → essence metadata
 
-pub mod scte35;
-pub mod mxf;
 pub mod fast;
+pub mod mxf;
 pub mod platform;
+pub mod scte35;
 pub mod smpte2110;
 
-pub use scte35::{Scte35Marker, Scte35Parser, SpliceCommand};
-pub use mxf::{MxfMetadata, MxfExtractor};
 pub use fast::{FastScheduler, ScheduleSlot, SlotType};
+pub use mxf::{MxfExtractor, MxfMetadata};
 pub use platform::{PlatformConnector, PlatformType, SyncStatus};
+pub use scte35::{Scte35Marker, Scte35Parser, SpliceCommand};
 pub use smpte2110::{EssenceMetadata, St2110Stream};

@@ -24,7 +24,10 @@ impl ProposalNumber {
 
     /// The "zero" proposal — lower than any real proposal.
     pub fn zero() -> Self {
-        Self { round: 0, node_id: 0 }
+        Self {
+            round: 0,
+            node_id: 0,
+        }
     }
 }
 
@@ -36,7 +39,8 @@ impl PartialOrd for ProposalNumber {
 
 impl Ord for ProposalNumber {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.round.cmp(&other.round)
+        self.round
+            .cmp(&other.round)
             .then(self.node_id.cmp(&other.node_id))
     }
 }
@@ -197,13 +201,16 @@ impl PaxosNode {
     pub fn propose_for_instance(&mut self, instance_id: u64, value: &str) -> Vec<PaxosMessage> {
         self.current_round += 1;
         let proposal = ProposalNumber::new(self.current_round, self.node_id);
-        self.proposer_states.insert(instance_id, ProposerState {
-            proposal,
-            value: value.to_string(),
-            promises: Vec::new(),
-            accepted_count: 0,
-            phase: ProposerPhase::Preparing,
-        });
+        self.proposer_states.insert(
+            instance_id,
+            ProposerState {
+                proposal,
+                value: value.to_string(),
+                promises: Vec::new(),
+                accepted_count: 0,
+                phase: ProposerPhase::Preparing,
+            },
+        );
         // Ensure instance state exists.
         let _ = self.get_instance(instance_id);
         // Generate Prepare messages for all nodes.
@@ -350,7 +357,8 @@ impl PaxosNode {
 
     /// Get the decided value for an instance, if any.
     pub fn decided_value(&self, instance_id: u64) -> Option<&str> {
-        self.instances.get(&instance_id)
+        self.instances
+            .get(&instance_id)
             .and_then(|i| i.decided_value.as_deref())
     }
 
@@ -361,10 +369,10 @@ impl PaxosNode {
 
     /// Get all decided instances as (instance_id, value) pairs.
     pub fn decided_instances(&self) -> Vec<(u64, &str)> {
-        let mut result: Vec<(u64, &str)> = self.instances.iter()
-            .filter_map(|(id, inst)| {
-                inst.decided_value.as_deref().map(|v| (*id, v))
-            })
+        let mut result: Vec<(u64, &str)> = self
+            .instances
+            .iter()
+            .filter_map(|(id, inst)| inst.decided_value.as_deref().map(|v| (*id, v)))
             .collect();
         result.sort_by_key(|(id, _)| *id);
         result

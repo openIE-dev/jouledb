@@ -51,39 +51,83 @@ impl GrayScottParams {
     /// Custom parameters.
     pub fn new(feed: f64, kill: f64, du: f64, dv: f64, dt: f64) -> Result<Self, RdError> {
         if feed < 0.0 || kill < 0.0 || du < 0.0 || dv < 0.0 || dt <= 0.0 {
-            return Err(RdError::InvalidParameter("all rates must be non-negative, dt > 0".into()));
+            return Err(RdError::InvalidParameter(
+                "all rates must be non-negative, dt > 0".into(),
+            ));
         }
-        Ok(Self { feed, kill, du, dv, dt })
+        Ok(Self {
+            feed,
+            kill,
+            du,
+            dv,
+            dt,
+        })
     }
 
     /// Spots pattern preset.
     pub fn spots() -> Self {
-        Self { feed: 0.035, kill: 0.065, du: 0.16, dv: 0.08, dt: 1.0 }
+        Self {
+            feed: 0.035,
+            kill: 0.065,
+            du: 0.16,
+            dv: 0.08,
+            dt: 1.0,
+        }
     }
 
     /// Stripes pattern preset.
     pub fn stripes() -> Self {
-        Self { feed: 0.025, kill: 0.060, du: 0.16, dv: 0.08, dt: 1.0 }
+        Self {
+            feed: 0.025,
+            kill: 0.060,
+            du: 0.16,
+            dv: 0.08,
+            dt: 1.0,
+        }
     }
 
     /// Waves / spirals pattern preset.
     pub fn waves() -> Self {
-        Self { feed: 0.014, kill: 0.054, du: 0.16, dv: 0.08, dt: 1.0 }
+        Self {
+            feed: 0.014,
+            kill: 0.054,
+            du: 0.16,
+            dv: 0.08,
+            dt: 1.0,
+        }
     }
 
     /// Mitosis (cell-splitting) pattern preset.
     pub fn mitosis() -> Self {
-        Self { feed: 0.028, kill: 0.062, du: 0.16, dv: 0.08, dt: 1.0 }
+        Self {
+            feed: 0.028,
+            kill: 0.062,
+            du: 0.16,
+            dv: 0.08,
+            dt: 1.0,
+        }
     }
 
     /// Coral growth preset.
     pub fn coral() -> Self {
-        Self { feed: 0.055, kill: 0.062, du: 0.16, dv: 0.08, dt: 1.0 }
+        Self {
+            feed: 0.055,
+            kill: 0.062,
+            du: 0.16,
+            dv: 0.08,
+            dt: 1.0,
+        }
     }
 
     /// Worms / maze-like pattern.
     pub fn worms() -> Self {
-        Self { feed: 0.046, kill: 0.063, du: 0.16, dv: 0.08, dt: 1.0 }
+        Self {
+            feed: 0.046,
+            kill: 0.063,
+            du: 0.16,
+            dv: 0.08,
+            dt: 1.0,
+        }
     }
 }
 
@@ -130,10 +174,18 @@ impl GrayScottGrid {
         })
     }
 
-    pub fn width(&self) -> usize { self.width }
-    pub fn height(&self) -> usize { self.height }
-    pub fn generation(&self) -> u64 { self.generation }
-    pub fn params(&self) -> &GrayScottParams { &self.params }
+    pub fn width(&self) -> usize {
+        self.width
+    }
+    pub fn height(&self) -> usize {
+        self.height
+    }
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+    pub fn params(&self) -> &GrayScottParams {
+        &self.params
+    }
 
     /// Set parameters.
     pub fn set_params(&mut self, params: GrayScottParams) {
@@ -141,10 +193,14 @@ impl GrayScottGrid {
     }
 
     /// Access U grid.
-    pub fn u_grid(&self) -> &[f64] { &self.u_grid }
+    pub fn u_grid(&self) -> &[f64] {
+        &self.u_grid
+    }
 
     /// Access V grid.
-    pub fn v_grid(&self) -> &[f64] { &self.v_grid }
+    pub fn v_grid(&self) -> &[f64] {
+        &self.v_grid
+    }
 
     /// Get U value at (x, y).
     pub fn get_u(&self, x: usize, y: usize) -> f64 {
@@ -217,7 +273,9 @@ impl GrayScottGrid {
     pub fn seed_random(&mut self, density: f64, seed: u64) {
         let mut rng = seed;
         for idx in 0..self.u_grid.len() {
-            rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            rng = rng
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let val = ((rng >> 33) as f64) / (u32::MAX as f64);
             if val < density {
                 self.u_grid[idx] = 0.5;
@@ -318,7 +376,15 @@ impl GrayScottGrid {
         for y in 0..self.height {
             for x in 0..self.width {
                 let v = self.v_grid[y * self.width + x];
-                let ch = if v < 0.05 { ' ' } else if v < 0.15 { '.' } else if v < 0.3 { 'o' } else { '#' };
+                let ch = if v < 0.05 {
+                    ' '
+                } else if v < 0.15 {
+                    '.'
+                } else if v < 0.3 {
+                    'o'
+                } else {
+                    '#'
+                };
                 s.push(ch);
             }
             if y + 1 < self.height {
@@ -338,8 +404,11 @@ impl GrayScottGrid {
 
 impl fmt::Display for GrayScottGrid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "GrayScott({}x{}, gen={}, f={:.4}, k={:.4})",
-            self.width, self.height, self.generation, self.params.feed, self.params.kill)
+        write!(
+            f,
+            "GrayScott({}x{}, gen={}, f={:.4}, k={:.4})",
+            self.width, self.height, self.generation, self.params.feed, self.params.kill
+        )
     }
 }
 

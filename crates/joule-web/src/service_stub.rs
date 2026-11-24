@@ -44,28 +44,39 @@ pub struct MethodMetadata {
 
 impl MethodMetadata {
     pub fn new() -> Self {
-        Self { timeout_ms: None, idempotent: false, deprecated: false, description: String::new() }
+        Self {
+            timeout_ms: None,
+            idempotent: false,
+            deprecated: false,
+            description: String::new(),
+        }
     }
 
     pub fn with_timeout_ms(mut self, ms: u64) -> Self {
-        self.timeout_ms = Some(ms); self
+        self.timeout_ms = Some(ms);
+        self
     }
 
     pub fn with_idempotent(mut self, v: bool) -> Self {
-        self.idempotent = v; self
+        self.idempotent = v;
+        self
     }
 
     pub fn with_deprecated(mut self, v: bool) -> Self {
-        self.deprecated = v; self
+        self.deprecated = v;
+        self
     }
 
     pub fn with_description(mut self, desc: impl Into<String>) -> Self {
-        self.description = desc.into(); self
+        self.description = desc.into();
+        self
     }
 }
 
 impl Default for MethodMetadata {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Method Definition ──────────────────────────────────────────
@@ -92,11 +103,13 @@ impl MethodDef {
     }
 
     pub fn with_kind(mut self, kind: MethodKind) -> Self {
-        self.kind = kind; self
+        self.kind = kind;
+        self
     }
 
     pub fn with_metadata(mut self, meta: MethodMetadata) -> Self {
-        self.metadata = meta; self
+        self.metadata = meta;
+        self
     }
 
     /// Whether this is a streaming method.
@@ -107,7 +120,11 @@ impl MethodDef {
 
 impl fmt::Display for MethodDef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}({}) -> {} [{}]", self.name, self.request_type, self.response_type, self.kind)
+        write!(
+            f,
+            "{}({}) -> {} [{}]",
+            self.name, self.request_type, self.response_type, self.kind
+        )
     }
 }
 
@@ -123,7 +140,11 @@ pub struct ServiceVersion {
 
 impl ServiceVersion {
     pub fn new(major: u32, minor: u32, patch: u32) -> Self {
-        Self { major, minor, patch }
+        Self {
+            major,
+            minor,
+            patch,
+        }
     }
 
     /// Whether two versions are compatible (same major version).
@@ -160,7 +181,8 @@ impl ServiceDefinition {
     }
 
     pub fn with_description(mut self, desc: impl Into<String>) -> Self {
-        self.description = desc.into(); self
+        self.description = desc.into();
+        self
     }
 
     pub fn add_method(&mut self, method: MethodDef) {
@@ -180,14 +202,19 @@ impl ServiceDefinition {
         });
     }
 
-    pub fn method_count(&self) -> usize { self.methods.len() }
+    pub fn method_count(&self) -> usize {
+        self.methods.len()
+    }
 
     pub fn find_method(&self, name: &str) -> Option<&MethodDef> {
         self.methods.iter().find(|m| m.name == name)
     }
 
     pub fn unary_methods(&self) -> Vec<&MethodDef> {
-        self.methods.iter().filter(|m| m.kind == MethodKind::Unary).collect()
+        self.methods
+            .iter()
+            .filter(|m| m.kind == MethodKind::Unary)
+            .collect()
     }
 
     pub fn streaming_methods(&self) -> Vec<&MethodDef> {
@@ -197,7 +224,13 @@ impl ServiceDefinition {
 
 impl fmt::Display for ServiceDefinition {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} v{} ({} methods)", self.name, self.version, self.methods.len())
+        write!(
+            f,
+            "{} v{} ({} methods)",
+            self.name,
+            self.version,
+            self.methods.len()
+        )
     }
 }
 
@@ -212,15 +245,20 @@ pub struct StubGenerator {
 
 impl StubGenerator {
     pub fn new() -> Self {
-        Self { indent: "    ".to_string(), include_docs: true }
+        Self {
+            indent: "    ".to_string(),
+            include_docs: true,
+        }
     }
 
     pub fn with_indent(mut self, indent: impl Into<String>) -> Self {
-        self.indent = indent.into(); self
+        self.indent = indent.into();
+        self
     }
 
     pub fn with_docs(mut self, include: bool) -> Self {
-        self.include_docs = include; self
+        self.include_docs = include;
+        self
     }
 
     /// Generate client stub code as a string.
@@ -228,7 +266,10 @@ impl StubGenerator {
         let mut out = String::new();
         let ind = &self.indent;
         if self.include_docs {
-            out.push_str(&format!("/// Client stub for {} v{}.\n", service.name, service.version));
+            out.push_str(&format!(
+                "/// Client stub for {} v{}.\n",
+                service.name, service.version
+            ));
         }
         out.push_str(&format!("pub struct {}Client {{\n", service.name));
         out.push_str(&format!("{ind}// connection handle\n"));
@@ -271,7 +312,10 @@ impl StubGenerator {
         let mut out = String::new();
         let ind = &self.indent;
         if self.include_docs {
-            out.push_str(&format!("/// Server trait for {} v{}.\n", service.name, service.version));
+            out.push_str(&format!(
+                "/// Server trait for {} v{}.\n",
+                service.name, service.version
+            ));
         }
         out.push_str(&format!("pub trait {}Server {{\n", service.name));
         for method in &service.methods {
@@ -289,7 +333,9 @@ impl StubGenerator {
 }
 
 impl Default for StubGenerator {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Service Registry ───────────────────────────────────────────
@@ -302,25 +348,32 @@ pub struct ServiceRegistry {
 
 impl ServiceRegistry {
     pub fn new() -> Self {
-        Self { services: HashMap::new() }
+        Self {
+            services: HashMap::new(),
+        }
     }
 
     /// Register a service definition.
     pub fn register(&mut self, service: ServiceDefinition) {
-        self.services.entry(service.name.clone())
+        self.services
+            .entry(service.name.clone())
             .or_default()
             .push(service);
     }
 
     /// Look up a service by name (latest version).
     pub fn lookup(&self, name: &str) -> Option<&ServiceDefinition> {
-        self.services.get(name)
-            .and_then(|versions| versions.last())
+        self.services.get(name).and_then(|versions| versions.last())
     }
 
     /// Look up a specific version of a service.
-    pub fn lookup_version(&self, name: &str, version: &ServiceVersion) -> Option<&ServiceDefinition> {
-        self.services.get(name)
+    pub fn lookup_version(
+        &self,
+        name: &str,
+        version: &ServiceVersion,
+    ) -> Option<&ServiceDefinition> {
+        self.services
+            .get(name)
             .and_then(|versions| versions.iter().find(|s| &s.version == version))
     }
 
@@ -341,7 +394,9 @@ impl ServiceRegistry {
 }
 
 impl Default for ServiceRegistry {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ──────────────────────────────────────────────────────
@@ -355,7 +410,7 @@ mod tests {
         svc.add_method(MethodDef::new("say_hello", "HelloRequest", "HelloResponse"));
         svc.add_method(
             MethodDef::new("stream_greetings", "HelloRequest", "HelloResponse")
-                .with_kind(MethodKind::ServerStream)
+                .with_kind(MethodKind::ServerStream),
         );
         svc
     }
@@ -474,7 +529,9 @@ mod tests {
         v2.version = ServiceVersion::new(2, 0, 0);
         reg.register(v1);
         reg.register(v2);
-        let found = reg.lookup_version("Greeter", &ServiceVersion::new(1, 0, 0)).unwrap();
+        let found = reg
+            .lookup_version("Greeter", &ServiceVersion::new(1, 0, 0))
+            .unwrap();
         assert_eq!(found.version.major, 1);
     }
 
@@ -524,7 +581,7 @@ mod tests {
         let mut svc = ServiceDefinition::new("Svc", ServiceVersion::new(1, 0, 0));
         svc.add_method(
             MethodDef::new("old_method", "Req", "Resp")
-                .with_metadata(MethodMetadata::new().with_deprecated(true))
+                .with_metadata(MethodMetadata::new().with_deprecated(true)),
         );
         let generator = StubGenerator::new();
         let code = generator.generate_client_stub(&svc);

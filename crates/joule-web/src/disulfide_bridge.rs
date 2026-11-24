@@ -62,8 +62,11 @@ pub struct CysteineResidue {
 impl CysteineResidue {
     pub fn new(residue: usize, chain: char, sg_coords: [f64; 3]) -> Self {
         Self {
-            residue, chain, sg_coords,
-            cb_coords: None, ca_coords: None,
+            residue,
+            chain,
+            sg_coords,
+            cb_coords: None,
+            ca_coords: None,
             state: OxidationState::Unknown,
         }
     }
@@ -110,8 +113,11 @@ impl fmt::Display for CysteineResidue {
         write!(
             f,
             "Cys {} {} SG=({:.2},{:.2},{:.2}) [{}]",
-            self.chain, self.residue,
-            self.sg_coords[0], self.sg_coords[1], self.sg_coords[2],
+            self.chain,
+            self.residue,
+            self.sg_coords[0],
+            self.sg_coords[1],
+            self.sg_coords[2],
             self.state,
         )
     }
@@ -171,9 +177,12 @@ impl fmt::Display for DisulfideBridge {
         write!(
             f,
             "SS({}{}-{}{}, d={:.2}Å, {})",
-            self.cys1_chain, self.cys1_residue,
-            self.cys2_chain, self.cys2_residue,
-            self.ss_distance, self.bridge_type,
+            self.cys1_chain,
+            self.cys1_residue,
+            self.cys2_chain,
+            self.cys2_residue,
+            self.ss_distance,
+            self.bridge_type,
         )
     }
 }
@@ -268,7 +277,9 @@ impl BridgeDetector {
                 let dist = cysteines[i].sg_distance(&cysteines[j]);
                 if dist >= self.min_ss_distance && dist <= self.max_ss_distance {
                     let chi3 = compute_chi3(&cysteines[i], &cysteines[j]);
-                    let bridge_type = chi3.map(BridgeType::from_chi3).unwrap_or(BridgeType::Unknown);
+                    let bridge_type = chi3
+                        .map(BridgeType::from_chi3)
+                        .unwrap_or(BridgeType::Unknown);
 
                     bridges.push(DisulfideBridge {
                         cys1_residue: cysteines[i].residue,
@@ -341,7 +352,11 @@ impl BridgeSummary {
         let intra = bridges.iter().filter(|b| b.is_intrachain()).count();
         let inter = bridges.iter().filter(|b| b.is_interchain()).count();
         let bonded = bridges.len() * 2;
-        let free = if total_cysteines >= bonded { total_cysteines - bonded } else { 0 };
+        let free = if total_cysteines >= bonded {
+            total_cysteines - bonded
+        } else {
+            0
+        };
 
         let avg_d = if bridges.is_empty() {
             0.0
@@ -365,8 +380,11 @@ impl fmt::Display for BridgeSummary {
         write!(
             f,
             "Bridges(n={}, intra={}, inter={}, free_cys={}, avg_d={:.2}Å)",
-            self.bridge_count, self.intrachain_count, self.interchain_count,
-            self.free_cysteines, self.average_ss_distance,
+            self.bridge_count,
+            self.intrachain_count,
+            self.interchain_count,
+            self.free_cysteines,
+            self.average_ss_distance,
         )
     }
 }
@@ -402,7 +420,11 @@ fn dihedral_angle(p1: [f64; 3], p2: [f64; 3], p3: [f64; 3], p4: [f64; 3]) -> f64
 }
 
 fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
-    [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
 }
 
 fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
@@ -459,8 +481,7 @@ mod tests {
 
     #[test]
     fn test_cysteine_cb_sg_distance() {
-        let c = CysteineResidue::new(0, 'A', [0.0, 0.0, 0.0])
-            .with_cb([1.81, 0.0, 0.0]);
+        let c = CysteineResidue::new(0, 'A', [0.0, 0.0, 0.0]).with_cb([1.81, 0.0, 0.0]);
         assert!(approx(c.cb_sg_distance().unwrap(), 1.81, 1e-10));
     }
 
@@ -487,9 +508,13 @@ mod tests {
     #[test]
     fn test_bridge_interchain() {
         let b = DisulfideBridge {
-            cys1_residue: 10, cys1_chain: 'A',
-            cys2_residue: 20, cys2_chain: 'B',
-            ss_distance: 2.03, chi3_angle: None, bridge_type: BridgeType::Unknown,
+            cys1_residue: 10,
+            cys1_chain: 'A',
+            cys2_residue: 20,
+            cys2_chain: 'B',
+            ss_distance: 2.03,
+            chi3_angle: None,
+            bridge_type: BridgeType::Unknown,
         };
         assert!(b.is_interchain());
         assert!(!b.is_intrachain());
@@ -499,9 +524,13 @@ mod tests {
     #[test]
     fn test_bridge_intrachain() {
         let b = DisulfideBridge {
-            cys1_residue: 10, cys1_chain: 'A',
-            cys2_residue: 50, cys2_chain: 'A',
-            ss_distance: 2.03, chi3_angle: None, bridge_type: BridgeType::Unknown,
+            cys1_residue: 10,
+            cys1_chain: 'A',
+            cys2_residue: 50,
+            cys2_chain: 'A',
+            ss_distance: 2.03,
+            chi3_angle: None,
+            bridge_type: BridgeType::Unknown,
         };
         assert!(b.is_intrachain());
         assert_eq!(b.sequence_separation(), Some(40));
@@ -510,16 +539,24 @@ mod tests {
     #[test]
     fn test_bridge_valid() {
         let b = DisulfideBridge {
-            cys1_residue: 0, cys1_chain: 'A',
-            cys2_residue: 1, cys2_chain: 'A',
-            ss_distance: 2.03, chi3_angle: None, bridge_type: BridgeType::Unknown,
+            cys1_residue: 0,
+            cys1_chain: 'A',
+            cys2_residue: 1,
+            cys2_chain: 'A',
+            ss_distance: 2.03,
+            chi3_angle: None,
+            bridge_type: BridgeType::Unknown,
         };
         assert!(b.is_valid());
 
         let bad = DisulfideBridge {
-            cys1_residue: 0, cys1_chain: 'A',
-            cys2_residue: 1, cys2_chain: 'A',
-            ss_distance: 3.0, chi3_angle: None, bridge_type: BridgeType::Unknown,
+            cys1_residue: 0,
+            cys1_chain: 'A',
+            cys2_residue: 1,
+            cys2_chain: 'A',
+            ss_distance: 3.0,
+            chi3_angle: None,
+            bridge_type: BridgeType::Unknown,
         };
         assert!(!bad.is_valid());
     }
@@ -527,9 +564,13 @@ mod tests {
     #[test]
     fn test_bridge_display() {
         let b = DisulfideBridge {
-            cys1_residue: 10, cys1_chain: 'A',
-            cys2_residue: 50, cys2_chain: 'A',
-            ss_distance: 2.03, chi3_angle: None, bridge_type: BridgeType::Spiral,
+            cys1_residue: 10,
+            cys1_chain: 'A',
+            cys2_residue: 50,
+            cys2_chain: 'A',
+            ss_distance: 2.03,
+            chi3_angle: None,
+            bridge_type: BridgeType::Spiral,
         };
         let s = b.to_string();
         assert!(s.contains("SS("));
@@ -569,9 +610,13 @@ mod tests {
     #[test]
     fn test_bridge_summary() {
         let bridges = vec![DisulfideBridge {
-            cys1_residue: 10, cys1_chain: 'A',
-            cys2_residue: 50, cys2_chain: 'A',
-            ss_distance: 2.03, chi3_angle: None, bridge_type: BridgeType::Spiral,
+            cys1_residue: 10,
+            cys1_chain: 'A',
+            cys2_residue: 50,
+            cys2_chain: 'A',
+            ss_distance: 2.03,
+            chi3_angle: None,
+            bridge_type: BridgeType::Spiral,
         }];
         let summary = BridgeSummary::from_bridges(&bridges, 5);
         assert_eq!(summary.bridge_count, 1);

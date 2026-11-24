@@ -359,7 +359,9 @@ impl ThemeManager {
     }
 
     pub fn current_theme(&self) -> &Theme {
-        self.themes.get(&self.current).expect("current theme must exist")
+        self.themes
+            .get(&self.current)
+            .expect("current theme must exist")
     }
 
     pub fn override_token(&mut self, key: &str, value: &str) {

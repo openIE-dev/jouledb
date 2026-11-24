@@ -270,7 +270,10 @@ impl AssemblyGraph {
     }
 
     /// Add a precedence constraint.
-    pub fn add_constraint(&mut self, constraint: PrecedenceConstraint) -> Result<(), AssemblyError> {
+    pub fn add_constraint(
+        &mut self,
+        constraint: PrecedenceConstraint,
+    ) -> Result<(), AssemblyError> {
         if !self.parts.contains_key(&constraint.before) {
             return Err(AssemblyError::PartNotFound(constraint.before.clone()));
         }
@@ -414,11 +417,7 @@ impl SequenceCost {
 }
 
 /// Evaluate the cost of an assembly sequence.
-pub fn evaluate_sequence(
-    sequence: &[String],
-    graph: &AssemblyGraph,
-    cost: &SequenceCost,
-) -> f64 {
+pub fn evaluate_sequence(sequence: &[String], graph: &AssemblyGraph, cost: &SequenceCost) -> f64 {
     let mut total_cost = 0.0;
     let mut prev_mating: Option<&MatingType> = None;
     let mut prev_dir: Option<[f64; 3]> = None;
@@ -453,10 +452,7 @@ pub fn evaluate_sequence(
 }
 
 /// Verify that a sequence respects all precedence constraints.
-pub fn verify_sequence(
-    sequence: &[String],
-    graph: &AssemblyGraph,
-) -> Result<bool, AssemblyError> {
+pub fn verify_sequence(sequence: &[String], graph: &AssemblyGraph) -> Result<bool, AssemblyError> {
     let mut assembled: HashSet<String> = HashSet::new();
     for part_id in sequence {
         if !graph.parts.contains_key(part_id) {
@@ -532,7 +528,8 @@ mod tests {
 
     fn make_graph() -> AssemblyGraph {
         let mut g = AssemblyGraph::new();
-        g.add_part(Part::new("base", "Base Plate", 2.0, [0.2, 0.2, 0.01])).unwrap();
+        g.add_part(Part::new("base", "Base Plate", 2.0, [0.2, 0.2, 0.01]))
+            .unwrap();
         g.add_part(
             Part::new("motor", "Motor", 0.5, [0.05, 0.05, 0.08])
                 .with_mating_type(MatingType::Screw),
@@ -548,16 +545,36 @@ mod tests {
                 .with_mating_type(MatingType::SnapFit),
         )
         .unwrap();
-        g.add_constraint(PrecedenceConstraint::new("base", "motor", "motor mounts on base"))
-            .unwrap();
-        g.add_constraint(PrecedenceConstraint::new("motor", "gear", "gear attaches to motor"))
-            .unwrap();
-        g.add_constraint(PrecedenceConstraint::new("base", "cover", "cover goes on base"))
-            .unwrap();
-        g.add_constraint(PrecedenceConstraint::new("motor", "cover", "cover after motor"))
-            .unwrap();
-        g.add_constraint(PrecedenceConstraint::new("gear", "cover", "cover after gear"))
-            .unwrap();
+        g.add_constraint(PrecedenceConstraint::new(
+            "base",
+            "motor",
+            "motor mounts on base",
+        ))
+        .unwrap();
+        g.add_constraint(PrecedenceConstraint::new(
+            "motor",
+            "gear",
+            "gear attaches to motor",
+        ))
+        .unwrap();
+        g.add_constraint(PrecedenceConstraint::new(
+            "base",
+            "cover",
+            "cover goes on base",
+        ))
+        .unwrap();
+        g.add_constraint(PrecedenceConstraint::new(
+            "motor",
+            "cover",
+            "cover after motor",
+        ))
+        .unwrap();
+        g.add_constraint(PrecedenceConstraint::new(
+            "gear",
+            "cover",
+            "cover after gear",
+        ))
+        .unwrap();
         g
     }
 
@@ -595,16 +612,22 @@ mod tests {
     #[test]
     fn test_duplicate_part() {
         let mut g = AssemblyGraph::new();
-        g.add_part(Part::new("a", "A", 1.0, [0.1, 0.1, 0.1])).unwrap();
-        assert!(g.add_part(Part::new("a", "A2", 2.0, [0.2, 0.2, 0.2])).is_err());
+        g.add_part(Part::new("a", "A", 1.0, [0.1, 0.1, 0.1]))
+            .unwrap();
+        assert!(
+            g.add_part(Part::new("a", "A2", 2.0, [0.2, 0.2, 0.2]))
+                .is_err()
+        );
     }
 
     #[test]
     fn test_constraint_missing_part() {
         let mut g = AssemblyGraph::new();
-        g.add_part(Part::new("a", "A", 1.0, [0.1, 0.1, 0.1])).unwrap();
+        g.add_part(Part::new("a", "A", 1.0, [0.1, 0.1, 0.1]))
+            .unwrap();
         assert!(
-            g.add_constraint(PrecedenceConstraint::new("a", "b", "test")).is_err()
+            g.add_constraint(PrecedenceConstraint::new("a", "b", "test"))
+                .is_err()
         );
     }
 

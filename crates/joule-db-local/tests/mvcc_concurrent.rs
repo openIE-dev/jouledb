@@ -103,18 +103,16 @@ fn single_writer_many_readers_no_torn_reads() {
                         .get(key.as_bytes())
                         .expect("repeat snapshot get must not error");
                     assert_eq!(
-                        v1, v2,
+                        v1,
+                        v2,
                         "reader {} saw torn read for key {} at snapshot v={}",
                         reader_id,
                         key,
                         snap.version()
                     );
                     let bytes = v1.expect("key must exist");
-                    let s = std::str::from_utf8(&bytes)
-                        .expect("value must be valid UTF-8");
-                    let _: u64 = s
-                        .parse()
-                        .expect("value must parse as a u64 batch number");
+                    let s = std::str::from_utf8(&bytes).expect("value must be valid UTF-8");
+                    let _: u64 = s.parse().expect("value must parse as a u64 batch number");
                     reads += 1;
                 }
                 // Occasionally refresh — exercises the in-process
@@ -366,8 +364,7 @@ fn snapshot_range_scan_pinned_to_committed_root() {
         .collect();
     assert_eq!(still_seen.len(), 3, "snap must not see v2 work:0004");
     assert_eq!(
-        still_seen[0],
-        b"v1-a",
+        still_seen[0], b"v1-a",
         "snap must not see v2 overwrite of work:0001"
     );
 
@@ -427,9 +424,7 @@ fn merge_does_not_overflow_page_under_byte_fat_values() {
     // Sanity: data round-trips before any deletes.
     for i in 0..200u32 {
         assert!(
-            db.get(format!("k{:05}", i).as_bytes())
-                .unwrap()
-                .is_some(),
+            db.get(format!("k{:05}", i).as_bytes()).unwrap().is_some(),
             "seed key k{:05} must exist",
             i
         );
@@ -448,11 +443,7 @@ fn merge_does_not_overflow_page_under_byte_fat_values() {
             .get(format!("k{:05}", i).as_bytes())
             .unwrap()
             .expect("surviving key must exist");
-        assert_eq!(
-            val, big_val,
-            "surviving key k{:05} value corrupted",
-            i
-        );
+        assert_eq!(val, big_val, "surviving key k{:05} value corrupted", i);
     }
 
     // Deleted keys must be gone.
@@ -652,14 +643,8 @@ fn snapshot_preserves_multi_key_invariant_under_writer_churn() {
                     .get(b"acct_b")
                     .unwrap()
                     .expect("acct_b must exist in snapshot");
-                let a: i64 = std::str::from_utf8(&a_bytes)
-                    .unwrap()
-                    .parse()
-                    .unwrap();
-                let b: i64 = std::str::from_utf8(&b_bytes)
-                    .unwrap()
-                    .parse()
-                    .unwrap();
+                let a: i64 = std::str::from_utf8(&a_bytes).unwrap().parse().unwrap();
+                let b: i64 = std::str::from_utf8(&b_bytes).unwrap().parse().unwrap();
                 assert_eq!(
                     a + b,
                     1000,

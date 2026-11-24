@@ -128,10 +128,7 @@ pub enum ScheduleError {
     /// A dependency cycle was detected.
     CyclicDependency(Vec<String>),
     /// A system depends on a non-existent system.
-    MissingDependency {
-        system: String,
-        missing: String,
-    },
+    MissingDependency { system: String, missing: String },
     /// A system depends on a system in a later phase.
     CrossPhaseDependency {
         system: String,
@@ -426,9 +423,7 @@ mod tests {
     fn dependency_ordering() {
         let mut sched = SystemScheduler::new();
         sched
-            .add_system(
-                SystemDescriptor::new("movement", RunPhase::Update).depends_on("physics"),
-            )
+            .add_system(SystemDescriptor::new("movement", RunPhase::Update).depends_on("physics"))
             .unwrap();
         sched
             .add_system(SystemDescriptor::new("physics", RunPhase::Update))
@@ -462,9 +457,7 @@ mod tests {
     fn missing_dependency() {
         let mut sched = SystemScheduler::new();
         sched
-            .add_system(
-                SystemDescriptor::new("a", RunPhase::Update).depends_on("nonexistent"),
-            )
+            .add_system(SystemDescriptor::new("a", RunPhase::Update).depends_on("nonexistent"))
             .unwrap();
         let err = sched.build_schedule().unwrap_err();
         match err {
@@ -480,9 +473,7 @@ mod tests {
     fn cross_phase_dependency_error() {
         let mut sched = SystemScheduler::new();
         sched
-            .add_system(
-                SystemDescriptor::new("early", RunPhase::PreUpdate).depends_on("late"),
-            )
+            .add_system(SystemDescriptor::new("early", RunPhase::PreUpdate).depends_on("late"))
             .unwrap();
         sched
             .add_system(SystemDescriptor::new("late", RunPhase::Render))
@@ -631,9 +622,7 @@ mod tests {
             .add_system(SystemDescriptor::new("early", RunPhase::PreUpdate))
             .unwrap();
         sched
-            .add_system(
-                SystemDescriptor::new("late", RunPhase::Update).depends_on("early"),
-            )
+            .add_system(SystemDescriptor::new("late", RunPhase::Update).depends_on("early"))
             .unwrap();
         let order = sched.execution_order().unwrap();
         let early_pos = order.iter().position(|s| s == "early").unwrap();
@@ -668,9 +657,15 @@ mod tests {
     #[test]
     fn three_node_cycle() {
         let mut sched = SystemScheduler::new();
-        sched.add_system(SystemDescriptor::new("a", RunPhase::Update).depends_on("c")).unwrap();
-        sched.add_system(SystemDescriptor::new("b", RunPhase::Update).depends_on("a")).unwrap();
-        sched.add_system(SystemDescriptor::new("c", RunPhase::Update).depends_on("b")).unwrap();
+        sched
+            .add_system(SystemDescriptor::new("a", RunPhase::Update).depends_on("c"))
+            .unwrap();
+        sched
+            .add_system(SystemDescriptor::new("b", RunPhase::Update).depends_on("a"))
+            .unwrap();
+        sched
+            .add_system(SystemDescriptor::new("c", RunPhase::Update).depends_on("b"))
+            .unwrap();
         let err = sched.build_schedule().unwrap_err();
         match err {
             ScheduleError::CyclicDependency(_) => {}

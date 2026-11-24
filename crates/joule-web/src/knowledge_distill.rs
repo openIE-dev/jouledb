@@ -12,7 +12,11 @@ use std::fmt;
 
 /// Apply temperature scaling to logits and compute softmax.
 pub fn softmax_with_temperature(logits: &[f64], temperature: f64) -> Vec<f64> {
-    let t = if temperature <= 0.0 { 1e-8 } else { temperature };
+    let t = if temperature <= 0.0 {
+        1e-8
+    } else {
+        temperature
+    };
     let scaled: Vec<f64> = logits.iter().map(|l| l / t).collect();
     let max_val = scaled.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
     let exps: Vec<f64> = scaled.iter().map(|s| (s - max_val).exp()).collect();
@@ -141,10 +145,7 @@ pub struct FeatureMatch {
 }
 
 impl FeatureMatch {
-    pub fn new(
-        teacher_layer: impl Into<String>,
-        student_layer: impl Into<String>,
-    ) -> Self {
+    pub fn new(teacher_layer: impl Into<String>, student_layer: impl Into<String>) -> Self {
         Self {
             teacher_layer: teacher_layer.into(),
             student_layer: student_layer.into(),
@@ -387,11 +388,12 @@ impl DistillHistory {
             return true;
         }
         let q = self.steps.len() / 4;
-        let first_avg: f64 =
-            self.steps[..q].iter().map(|s| s.total_loss).sum::<f64>() / q as f64;
-        let last_avg: f64 =
-            self.steps[self.steps.len() - q..].iter().map(|s| s.total_loss).sum::<f64>()
-                / q as f64;
+        let first_avg: f64 = self.steps[..q].iter().map(|s| s.total_loss).sum::<f64>() / q as f64;
+        let last_avg: f64 = self.steps[self.steps.len() - q..]
+            .iter()
+            .map(|s| s.total_loss)
+            .sum::<f64>()
+            / q as f64;
         last_avg < first_avg
     }
 }

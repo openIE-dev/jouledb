@@ -24,71 +24,83 @@
 //! - Traverse: follow relation chains through repeated unbind + compare
 //! - Contrast: measure novelty against the core centroid
 
-pub mod concept;
-pub mod relation;
-pub mod triple;
-pub mod core;
-pub mod traverse;
-pub mod ingest;
-pub mod generate;
-pub mod expand;
-pub mod oracle;
-pub mod ghrr;
-pub mod cleanup;
-pub mod context;
-pub mod encoder_tuning;
-pub mod eigenbasis;
-pub mod tier0;
-pub mod ucg_live;
-pub mod decoder;
-pub mod mamba_decoder;
-pub mod pattern_resolver;
-pub mod materializer;
-pub mod energy_receipt;
-pub mod spatial_tier;
+pub mod ask;
 pub mod attractor_tier;
-pub mod cortex_gen;
-pub mod flowr_executor;
-pub mod structural_encoder;
-pub mod pathstore;
-pub mod ucg_backend;
-pub mod bpe;
-pub mod negative;
-pub mod grounded;
 pub mod awareness;
 pub mod benchmark;
+pub mod bpe;
+pub mod cleanup;
+pub mod concept;
+pub mod context;
+pub mod core;
+pub mod cortex_gen;
+pub mod decoder;
+pub mod eigenbasis;
+pub mod encoder_tuning;
+pub mod energy_receipt;
+pub mod expand;
+pub mod flowr_executor;
+pub mod generate;
+pub mod ghrr;
+pub mod grounded;
+pub mod ingest;
 pub mod live;
+pub mod mamba_decoder;
+pub mod materializer;
+pub mod negative;
+pub mod oracle;
+pub mod pathstore;
+pub mod pattern_resolver;
+pub mod relation;
 pub mod runtime;
-pub mod ask;
+pub mod spatial_tier;
+pub mod structural_encoder;
+pub mod tier0;
+pub mod traverse;
+pub mod triple;
+pub mod ucg_backend;
+pub mod ucg_live;
 
-pub use concept::{ConceptEncoder, EncodedConcept};
-pub use relation::{RelationType, RelationCodebook};
-pub use triple::{Triple, EncodedTriple};
-pub use core::KnowledgeCore;
-pub use traverse::{Traverser, TraversalResult, TraversalStep};
-pub use ingest::ConceptNetParser;
-pub use generate::{Generator, GenerationResult, SequenceMemory};
-pub use expand::{Expander, ExpansionResult, KnowledgeSource, TextSource, WebSearchSource};
-pub use oracle::{Oracle, OracleBackend, OracleResult, OracleSource, InMemoryBackend};
-pub use ghrr::GhrrVector;
-pub use cleanup::{CleanupMemory, CleanupResult};
-pub use context::ContextWindow;
-pub use eigenbasis::{Eigenbasis, PatternScores, PATTERN_NAMES, NUM_PATTERNS, NUM_EIGENDIMS};
-pub use tier0::{Tier0, Tier0Result, Tier0Source, QueryType};
-pub use ucg_live::UcgLive;
-pub use decoder::{TextDecoder, DecoderContext, DecoderResult, DecoderStyle, TemplateDecoder, build_prompt};
-pub use mamba_decoder::MambaDecoder;
-pub use pattern_resolver::PatternLangResolver;
-pub use materializer::{Materializer, MaterializeResult, EntropyLevel, Source, Skill};
-pub use energy_receipt::{EnergyReceipt, tier_native_floor_pj, format_picojoules, format_ratio, GPU_BASELINE_PJ, LLM_BASELINE_PJ};
-pub use encoder_tuning::{AdaptiveEncoder, EncoderMetrics, measure_encoding, recommended_dimension};
-pub use structural_encoder::StructuralEncoder;
-pub use pathstore::PathStore;
-pub use ucg_backend::{UcgConfig, UcgFileBackend};
+pub use ask::{Answer, Ask};
+pub use awareness::{
+    Action, ActionTrigger, Awareness, Reflection as AwarenessReflection, SensorChannel, SensorState,
+};
 pub use bpe::BpeTokenizer;
-pub use negative::{NegationOperator, NegativeKnowledge, Absence};
-pub use grounded::{GroundedInput, Modality, Groundable, encode_numeric, encode_structured, encode_audio_frame, encode_image_patch, encode_sensor, fuse_modalities};
-pub use awareness::{Awareness, SensorState, SensorChannel, Action, ActionTrigger, Reflection as AwarenessReflection};
+pub use cleanup::{CleanupMemory, CleanupResult};
+pub use concept::{ConceptEncoder, EncodedConcept};
+pub use context::ContextWindow;
+pub use core::KnowledgeCore;
+pub use decoder::{
+    DecoderContext, DecoderResult, DecoderStyle, TemplateDecoder, TextDecoder, build_prompt,
+};
+pub use eigenbasis::{Eigenbasis, NUM_EIGENDIMS, NUM_PATTERNS, PATTERN_NAMES, PatternScores};
+pub use encoder_tuning::{
+    AdaptiveEncoder, EncoderMetrics, measure_encoding, recommended_dimension,
+};
+pub use energy_receipt::{
+    EnergyReceipt, GPU_BASELINE_PJ, LLM_BASELINE_PJ, format_picojoules, format_ratio,
+    tier_native_floor_pj,
+};
+pub use expand::{Expander, ExpansionResult, KnowledgeSource, TextSource, WebSearchSource};
+pub use generate::{GenerationResult, Generator, SequenceMemory};
+pub use ghrr::GhrrVector;
+pub use grounded::{
+    Groundable, GroundedInput, Modality, encode_audio_frame, encode_image_patch, encode_numeric,
+    encode_sensor, encode_structured, fuse_modalities,
+};
+pub use ingest::ConceptNetParser;
 pub use live::LiveIntelligence;
+pub use mamba_decoder::MambaDecoder;
+pub use materializer::{EntropyLevel, MaterializeResult, Materializer, Skill, Source};
+pub use negative::{Absence, NegationOperator, NegativeKnowledge};
+pub use oracle::{InMemoryBackend, Oracle, OracleBackend, OracleResult, OracleSource};
+pub use pathstore::PathStore;
+pub use pattern_resolver::PatternLangResolver;
+pub use relation::{RelationCodebook, RelationType};
 pub use runtime::{Runtime, RuntimeStatus};
-pub use ask::{Ask, Answer};
+pub use structural_encoder::StructuralEncoder;
+pub use tier0::{QueryType, Tier0, Tier0Result, Tier0Source};
+pub use traverse::{TraversalResult, TraversalStep, Traverser};
+pub use triple::{EncodedTriple, Triple};
+pub use ucg_backend::{UcgConfig, UcgFileBackend};
+pub use ucg_live::UcgLive;

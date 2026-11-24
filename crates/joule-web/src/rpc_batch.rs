@@ -95,11 +95,13 @@ impl BatchCall {
     }
 
     pub fn with_priority(mut self, priority: Priority) -> Self {
-        self.priority = priority; self
+        self.priority = priority;
+        self
     }
 
     pub fn with_idempotent(mut self, idempotent: bool) -> Self {
-        self.idempotent = idempotent; self
+        self.idempotent = idempotent;
+        self
     }
 
     /// Compute a deduplication key from method + params.
@@ -110,7 +112,13 @@ impl BatchCall {
 
 impl fmt::Display for BatchCall {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}({}B, {})", self.method, self.params.len(), self.priority)
+        write!(
+            f,
+            "{}({}B, {})",
+            self.method,
+            self.params.len(),
+            self.priority
+        )
     }
 }
 
@@ -128,7 +136,11 @@ pub struct BatchCallResult {
 
 impl fmt::Display for BatchCallResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}] {} -> {} ({}us)", self.index, self.method, self.status, self.duration_us)
+        write!(
+            f,
+            "[{}] {} -> {} ({}us)",
+            self.index, self.method, self.status, self.duration_us
+        )
     }
 }
 
@@ -146,10 +158,11 @@ impl fmt::Display for BatchError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Empty => write!(f, "batch is empty"),
-            Self::TooLarge { size, limit } =>
-                write!(f, "batch too large: {size} > {limit}"),
-            Self::AtomicFailure { failed_index, error } =>
-                write!(f, "atomic batch failed at index {failed_index}: {error}"),
+            Self::TooLarge { size, limit } => write!(f, "batch too large: {size} > {limit}"),
+            Self::AtomicFailure {
+                failed_index,
+                error,
+            } => write!(f, "atomic batch failed at index {failed_index}: {error}"),
             Self::AllFailed => write!(f, "all calls in batch failed"),
         }
     }
@@ -177,21 +190,27 @@ impl BatchRequest {
     }
 
     pub fn with_mode(mut self, mode: ExecutionMode) -> Self {
-        self.mode = mode; self
+        self.mode = mode;
+        self
     }
 
     pub fn with_max_size(mut self, size: usize) -> Self {
-        self.max_size = size; self
+        self.max_size = size;
+        self
     }
 
     pub fn with_dedup(mut self, enable: bool) -> Self {
-        self.dedup = enable; self
+        self.dedup = enable;
+        self
     }
 
     /// Add a call to the batch.
     pub fn add(&mut self, call: BatchCall) -> Result<usize, BatchError> {
         if self.calls.len() >= self.max_size {
-            return Err(BatchError::TooLarge { size: self.calls.len() + 1, limit: self.max_size });
+            return Err(BatchError::TooLarge {
+                size: self.calls.len() + 1,
+                limit: self.max_size,
+            });
         }
         let idx = self.calls.len();
         self.calls.push(call);
@@ -199,10 +218,18 @@ impl BatchRequest {
     }
 
     /// Number of calls in the batch.
-    pub fn len(&self) -> usize { self.calls.len() }
-    pub fn is_empty(&self) -> bool { self.calls.is_empty() }
-    pub fn mode(&self) -> ExecutionMode { self.mode }
-    pub fn calls(&self) -> &[BatchCall] { &self.calls }
+    pub fn len(&self) -> usize {
+        self.calls.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.calls.is_empty()
+    }
+    pub fn mode(&self) -> ExecutionMode {
+        self.mode
+    }
+    pub fn calls(&self) -> &[BatchCall] {
+        &self.calls
+    }
 
     /// Sort calls by priority (highest first).
     pub fn sort_by_priority(&mut self) {
@@ -230,7 +257,9 @@ impl BatchRequest {
 }
 
 impl Default for BatchRequest {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Batch Response ─────────────────────────────────────────────
@@ -245,7 +274,11 @@ pub struct BatchResponse {
 
 impl BatchResponse {
     pub fn new(mode: ExecutionMode) -> Self {
-        Self { results: Vec::new(), mode, total_duration_us: 0 }
+        Self {
+            results: Vec::new(),
+            mode,
+            total_duration_us: 0,
+        }
     }
 
     pub fn add_result(&mut self, result: BatchCallResult) {
@@ -253,27 +286,46 @@ impl BatchResponse {
         self.results.push(result);
     }
 
-    pub fn results(&self) -> &[BatchCallResult] { &self.results }
-    pub fn mode(&self) -> ExecutionMode { self.mode }
-    pub fn total_duration_us(&self) -> u64 { self.total_duration_us }
+    pub fn results(&self) -> &[BatchCallResult] {
+        &self.results
+    }
+    pub fn mode(&self) -> ExecutionMode {
+        self.mode
+    }
+    pub fn total_duration_us(&self) -> u64 {
+        self.total_duration_us
+    }
 
     pub fn success_count(&self) -> usize {
-        self.results.iter().filter(|r| r.status == CallStatus::Success).count()
+        self.results
+            .iter()
+            .filter(|r| r.status == CallStatus::Success)
+            .count()
     }
 
     pub fn error_count(&self) -> usize {
-        self.results.iter().filter(|r| matches!(r.status, CallStatus::Error(_))).count()
+        self.results
+            .iter()
+            .filter(|r| matches!(r.status, CallStatus::Error(_)))
+            .count()
     }
 
     pub fn dedup_count(&self) -> usize {
-        self.results.iter().filter(|r| matches!(r.status, CallStatus::Deduplicated(_))).count()
+        self.results
+            .iter()
+            .filter(|r| matches!(r.status, CallStatus::Deduplicated(_)))
+            .count()
     }
 
     /// Whether all calls succeeded.
-    pub fn all_succeeded(&self) -> bool { self.error_count() == 0 }
+    pub fn all_succeeded(&self) -> bool {
+        self.error_count() == 0
+    }
 
     /// Get a specific result by index.
-    pub fn get(&self, idx: usize) -> Option<&BatchCallResult> { self.results.get(idx) }
+    pub fn get(&self, idx: usize) -> Option<&BatchCallResult> {
+        self.results.get(idx)
+    }
 }
 
 // ── Batch Executor ─────────────────────────────────────────────
@@ -377,7 +429,9 @@ pub struct BatchStats {
 }
 
 impl BatchStats {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn record(&mut self, response: &BatchResponse) {
         self.batches_executed += 1;
@@ -392,12 +446,16 @@ impl BatchStats {
     }
 
     pub fn avg_batch_size(&self) -> f64 {
-        if self.batches_executed == 0 { return 0.0; }
+        if self.batches_executed == 0 {
+            return 0.0;
+        }
         self.total_calls as f64 / self.batches_executed as f64
     }
 
     pub fn avg_duration_us(&self) -> f64 {
-        if self.batches_executed == 0 { return 0.0; }
+        if self.batches_executed == 0 {
+            return 0.0;
+        }
         self.total_duration_us as f64 / self.batches_executed as f64
     }
 }
@@ -415,7 +473,12 @@ pub struct BatchCollector {
 
 impl BatchCollector {
     pub fn new(window_ms: u64, max_size: usize) -> Self {
-        Self { pending: Vec::new(), window_ms, max_size, window_start_ms: None }
+        Self {
+            pending: Vec::new(),
+            window_ms,
+            max_size,
+            window_start_ms: None,
+        }
     }
 
     /// Submit a call. Returns a ready batch if the window has elapsed or size limit is reached.
@@ -441,7 +504,9 @@ impl BatchCollector {
         std::mem::take(&mut self.pending)
     }
 
-    pub fn pending_count(&self) -> usize { self.pending.len() }
+    pub fn pending_count(&self) -> usize {
+        self.pending.len()
+    }
 }
 
 // ── Tests ──────────────────────────────────────────────────────
@@ -459,7 +524,11 @@ mod tests {
     }
 
     fn selective_handler(method: &str, params: &[u8]) -> Result<Vec<u8>, String> {
-        if method == "fail" { Err("fail".into()) } else { Ok(params.to_vec()) }
+        if method == "fail" {
+            Err("fail".into())
+        } else {
+            Ok(params.to_vec())
+        }
     }
 
     #[test]
@@ -483,7 +552,10 @@ mod tests {
     #[test]
     fn batch_empty_execution_fails() {
         let mut batch = BatchRequest::new();
-        assert!(matches!(execute_batch(&mut batch, ok_handler), Err(BatchError::Empty)));
+        assert!(matches!(
+            execute_batch(&mut batch, ok_handler),
+            Err(BatchError::Empty)
+        ));
     }
 
     #[test]
@@ -520,9 +592,15 @@ mod tests {
     #[test]
     fn priority_ordering() {
         let mut batch = BatchRequest::new();
-        batch.add(BatchCall::new("low", vec![]).with_priority(Priority::Low)).unwrap();
-        batch.add(BatchCall::new("high", vec![]).with_priority(Priority::High)).unwrap();
-        batch.add(BatchCall::new("normal", vec![]).with_priority(Priority::Normal)).unwrap();
+        batch
+            .add(BatchCall::new("low", vec![]).with_priority(Priority::Low))
+            .unwrap();
+        batch
+            .add(BatchCall::new("high", vec![]).with_priority(Priority::High))
+            .unwrap();
+        batch
+            .add(BatchCall::new("normal", vec![]).with_priority(Priority::Normal))
+            .unwrap();
         batch.sort_by_priority();
         assert_eq!(batch.calls()[0].method, "high");
         assert_eq!(batch.calls()[1].method, "normal");
@@ -536,9 +614,9 @@ mod tests {
         batch.add(BatchCall::new("bar", vec![3])).unwrap();
         batch.add(BatchCall::new("foo", vec![1, 2])).unwrap(); // duplicate
         let map = batch.deduplicate();
-        assert_eq!(map[0], None);       // canonical
-        assert_eq!(map[1], None);       // unique
-        assert_eq!(map[2], Some(0));    // duplicate of 0
+        assert_eq!(map[0], None); // canonical
+        assert_eq!(map[1], None); // unique
+        assert_eq!(map[2], Some(0)); // duplicate of 0
     }
 
     #[test]
@@ -554,8 +632,11 @@ mod tests {
     fn batch_response_access() {
         let mut resp = BatchResponse::new(ExecutionMode::Independent);
         resp.add_result(BatchCallResult {
-            index: 0, method: "a".into(), status: CallStatus::Success,
-            response: vec![1], duration_us: 100,
+            index: 0,
+            method: "a".into(),
+            status: CallStatus::Success,
+            response: vec![1],
+            duration_us: 100,
         });
         assert_eq!(resp.get(0).unwrap().method, "a");
         assert_eq!(resp.total_duration_us(), 100);
@@ -566,12 +647,18 @@ mod tests {
         let mut stats = BatchStats::new();
         let mut resp = BatchResponse::new(ExecutionMode::Independent);
         resp.add_result(BatchCallResult {
-            index: 0, method: "a".into(), status: CallStatus::Success,
-            response: vec![], duration_us: 50,
+            index: 0,
+            method: "a".into(),
+            status: CallStatus::Success,
+            response: vec![],
+            duration_us: 50,
         });
         resp.add_result(BatchCallResult {
-            index: 1, method: "b".into(), status: CallStatus::Error("x".into()),
-            response: vec![], duration_us: 30,
+            index: 1,
+            method: "b".into(),
+            status: CallStatus::Error("x".into()),
+            response: vec![],
+            duration_us: 30,
         });
         stats.record(&resp);
         assert_eq!(stats.batches_executed, 1);

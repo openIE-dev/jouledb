@@ -142,10 +142,7 @@ impl FontFace {
     /// Generate a `@font-face` CSS rule for this face.
     pub fn to_css(&self) -> String {
         let mut css = String::from("@font-face {\n");
-        css.push_str(&format!(
-            "  font-family: {};\n",
-            self.family.css_value()
-        ));
+        css.push_str(&format!("  font-family: {};\n", self.family.css_value()));
         css.push_str(&format!("  font-weight: {};\n", self.weight));
         css.push_str(&format!("  font-style: {};\n", self.style));
 
@@ -194,12 +191,7 @@ impl FontRegistry {
     }
 
     /// Look up a font face by family, weight, and style.
-    pub fn lookup(
-        &self,
-        family: &str,
-        weight: FontWeight,
-        style: FontStyle,
-    ) -> Option<&FontFace> {
+    pub fn lookup(&self, family: &str, weight: FontWeight, style: FontStyle) -> Option<&FontFace> {
         let key = (family.to_lowercase(), weight, style);
         self.faces.iter().find(|f| f.lookup_key() == key)
     }
@@ -229,8 +221,7 @@ impl FontRegistry {
 
     /// Define a fallback chain for a family.
     pub fn set_fallback_chain(&mut self, family: &str, chain: Vec<FontFamily>) {
-        self.fallback_chains
-            .insert(family.to_lowercase(), chain);
+        self.fallback_chains.insert(family.to_lowercase(), chain);
     }
 
     /// Get all registered faces for a family.
@@ -244,7 +235,11 @@ impl FontRegistry {
 
     /// Generate all `@font-face` CSS rules.
     pub fn to_css(&self) -> String {
-        self.faces.iter().map(|f| f.to_css()).collect::<Vec<_>>().join("\n")
+        self.faces
+            .iter()
+            .map(|f| f.to_css())
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     /// Total number of registered faces.
@@ -330,7 +325,11 @@ impl SystemFontStack {
 
     /// Generate CSS `font-family` value from a stack.
     pub fn to_css_value(stack: &[FontFamily]) -> String {
-        stack.iter().map(|f| f.css_value()).collect::<Vec<_>>().join(", ")
+        stack
+            .iter()
+            .map(|f| f.css_value())
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 }
 
@@ -402,9 +401,10 @@ mod tests {
         assert!(face.is_some());
         assert_eq!(face.unwrap().source_url, "/fonts/inter-400.woff2");
 
-        assert!(reg
-            .lookup("Inter", FontWeight::NORMAL, FontStyle::Italic)
-            .is_none());
+        assert!(
+            reg.lookup("Inter", FontWeight::NORMAL, FontStyle::Italic)
+                .is_none()
+        );
     }
 
     #[test]
@@ -416,8 +416,14 @@ mod tests {
             FontStyle::Normal,
             "/fonts/inter.woff2",
         ));
-        assert!(reg.lookup("inter", FontWeight::NORMAL, FontStyle::Normal).is_some());
-        assert!(reg.lookup("INTER", FontWeight::NORMAL, FontStyle::Normal).is_some());
+        assert!(
+            reg.lookup("inter", FontWeight::NORMAL, FontStyle::Normal)
+                .is_some()
+        );
+        assert!(
+            reg.lookup("INTER", FontWeight::NORMAL, FontStyle::Normal)
+                .is_some()
+        );
     }
 
     #[test]
@@ -429,21 +435,15 @@ mod tests {
             FontStyle::Normal,
             "/fonts/fallback.woff2",
         ));
-        reg.set_fallback_chain(
-            "Primary Sans",
-            vec![FontFamily::new("Fallback Sans")],
-        );
+        reg.set_fallback_chain("Primary Sans", vec![FontFamily::new("Fallback Sans")]);
 
         // Direct lookup fails.
-        assert!(reg
-            .lookup("Primary Sans", FontWeight::NORMAL, FontStyle::Normal)
-            .is_none());
-        // Fallback succeeds.
-        let face = reg.lookup_with_fallback(
-            "Primary Sans",
-            FontWeight::NORMAL,
-            FontStyle::Normal,
+        assert!(
+            reg.lookup("Primary Sans", FontWeight::NORMAL, FontStyle::Normal)
+                .is_none()
         );
+        // Fallback succeeds.
+        let face = reg.lookup_with_fallback("Primary Sans", FontWeight::NORMAL, FontStyle::Normal);
         assert!(face.is_some());
         assert_eq!(face.unwrap().family.0, "Fallback Sans");
     }
@@ -457,25 +457,61 @@ mod tests {
             FontStyle::Normal,
             "/test.woff2",
         ));
-        let face = reg.lookup("Test", FontWeight::NORMAL, FontStyle::Normal).unwrap();
+        let face = reg
+            .lookup("Test", FontWeight::NORMAL, FontStyle::Normal)
+            .unwrap();
         assert_eq!(face.load_state, FontLoadState::Unloaded);
 
-        reg.set_load_state("Test", FontWeight::NORMAL, FontStyle::Normal, FontLoadState::Loading);
-        let face = reg.lookup("Test", FontWeight::NORMAL, FontStyle::Normal).unwrap();
+        reg.set_load_state(
+            "Test",
+            FontWeight::NORMAL,
+            FontStyle::Normal,
+            FontLoadState::Loading,
+        );
+        let face = reg
+            .lookup("Test", FontWeight::NORMAL, FontStyle::Normal)
+            .unwrap();
         assert_eq!(face.load_state, FontLoadState::Loading);
 
-        reg.set_load_state("Test", FontWeight::NORMAL, FontStyle::Normal, FontLoadState::Loaded);
-        let face = reg.lookup("Test", FontWeight::NORMAL, FontStyle::Normal).unwrap();
+        reg.set_load_state(
+            "Test",
+            FontWeight::NORMAL,
+            FontStyle::Normal,
+            FontLoadState::Loaded,
+        );
+        let face = reg
+            .lookup("Test", FontWeight::NORMAL, FontStyle::Normal)
+            .unwrap();
         assert_eq!(face.load_state, FontLoadState::Loaded);
     }
 
     #[test]
     fn faces_for_family() {
         let mut reg = FontRegistry::new();
-        reg.register(FontFace::new("Roboto", FontWeight::LIGHT, FontStyle::Normal, "/r300.woff2"));
-        reg.register(FontFace::new("Roboto", FontWeight::NORMAL, FontStyle::Normal, "/r400.woff2"));
-        reg.register(FontFace::new("Roboto", FontWeight::BOLD, FontStyle::Normal, "/r700.woff2"));
-        reg.register(FontFace::new("Open Sans", FontWeight::NORMAL, FontStyle::Normal, "/os.woff2"));
+        reg.register(FontFace::new(
+            "Roboto",
+            FontWeight::LIGHT,
+            FontStyle::Normal,
+            "/r300.woff2",
+        ));
+        reg.register(FontFace::new(
+            "Roboto",
+            FontWeight::NORMAL,
+            FontStyle::Normal,
+            "/r400.woff2",
+        ));
+        reg.register(FontFace::new(
+            "Roboto",
+            FontWeight::BOLD,
+            FontStyle::Normal,
+            "/r700.woff2",
+        ));
+        reg.register(FontFace::new(
+            "Open Sans",
+            FontWeight::NORMAL,
+            FontStyle::Normal,
+            "/os.woff2",
+        ));
 
         assert_eq!(reg.faces_for_family("Roboto").len(), 3);
         assert_eq!(reg.faces_for_family("Open Sans").len(), 1);
@@ -498,8 +534,18 @@ mod tests {
     #[test]
     fn generate_all_css() {
         let mut reg = FontRegistry::new();
-        reg.register(FontFace::new("A", FontWeight::NORMAL, FontStyle::Normal, "/a.woff2"));
-        reg.register(FontFace::new("B", FontWeight::BOLD, FontStyle::Italic, "/b.woff2"));
+        reg.register(FontFace::new(
+            "A",
+            FontWeight::NORMAL,
+            FontStyle::Normal,
+            "/a.woff2",
+        ));
+        reg.register(FontFace::new(
+            "B",
+            FontWeight::BOLD,
+            FontStyle::Italic,
+            "/b.woff2",
+        ));
         let css = reg.to_css();
         assert!(css.contains("font-family: A;"));
         assert!(css.contains("font-family: B;"));

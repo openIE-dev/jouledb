@@ -47,20 +47,38 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
-    pub fn new(x: f64, y: f64, z: f64) -> Self { Self { x, y, z } }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
 
     pub fn add(self, o: Self) -> Self {
-        Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z }
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
     }
 
     pub fn sub(self, o: Self) -> Self {
-        Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z }
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
     }
 
     pub fn scale(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn length(self) -> f64 {
@@ -77,7 +95,11 @@ impl Vec3 {
 
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-12 { Self::ZERO } else { self.scale(1.0 / l) }
+        if l < 1e-12 {
+            Self::ZERO
+        } else {
+            self.scale(1.0 / l)
+        }
     }
 }
 
@@ -162,8 +184,12 @@ pub struct TearSim {
 impl TearSim {
     pub fn new(criterion: FractureCriterion) -> Result<Self, TearError> {
         match criterion {
-            FractureCriterion::MaxStress(t) | FractureCriterion::MaxStrain(t) | FractureCriterion::MaxEnergy(t) => {
-                if t <= 0.0 { return Err(TearError::InvalidThreshold); }
+            FractureCriterion::MaxStress(t)
+            | FractureCriterion::MaxStrain(t)
+            | FractureCriterion::MaxEnergy(t) => {
+                if t <= 0.0 {
+                    return Err(TearError::InvalidThreshold);
+                }
             }
         }
         Ok(Self {
@@ -201,16 +227,30 @@ impl TearSim {
         damping: f64,
         toughness: f64,
     ) -> Result<usize, TearError> {
-        if a >= self.particles.len() { return Err(TearError::ParticleNotFound(a)); }
-        if b >= self.particles.len() { return Err(TearError::ParticleNotFound(b)); }
-        if stiffness <= 0.0 { return Err(TearError::InvalidStiffness); }
-        if damping < 0.0 { return Err(TearError::InvalidDamping); }
-        if toughness <= 0.0 { return Err(TearError::InvalidToughness); }
+        if a >= self.particles.len() {
+            return Err(TearError::ParticleNotFound(a));
+        }
+        if b >= self.particles.len() {
+            return Err(TearError::ParticleNotFound(b));
+        }
+        if stiffness <= 0.0 {
+            return Err(TearError::InvalidStiffness);
+        }
+        if damping < 0.0 {
+            return Err(TearError::InvalidDamping);
+        }
+        if toughness <= 0.0 {
+            return Err(TearError::InvalidToughness);
+        }
 
-        let rest = self.particles[a].position.sub(self.particles[b].position).length();
+        let rest = self.particles[a]
+            .position
+            .sub(self.particles[b].position)
+            .length();
         let idx = self.springs.len();
         self.springs.push(TearSpring {
-            a, b,
+            a,
+            b,
             rest_length: rest,
             stiffness,
             damping,
@@ -233,7 +273,9 @@ impl TearSim {
 
     fn spring_stress(&self, si: usize) -> f64 {
         let s = &self.springs[si];
-        let diff = self.particles[s.a].position.sub(self.particles[s.b].position);
+        let diff = self.particles[s.a]
+            .position
+            .sub(self.particles[s.b].position);
         let dist = diff.length();
         let extension = dist - s.rest_length;
         // Stress = force / cross_section ≈ stiffness * extension (assume unit cross-section)
@@ -242,15 +284,21 @@ impl TearSim {
 
     fn spring_strain(&self, si: usize) -> f64 {
         let s = &self.springs[si];
-        let diff = self.particles[s.a].position.sub(self.particles[s.b].position);
+        let diff = self.particles[s.a]
+            .position
+            .sub(self.particles[s.b].position);
         let dist = diff.length();
-        if s.rest_length < 1e-12 { return 0.0; }
+        if s.rest_length < 1e-12 {
+            return 0.0;
+        }
         ((dist - s.rest_length) / s.rest_length).abs()
     }
 
     fn spring_energy(&self, si: usize) -> f64 {
         let s = &self.springs[si];
-        let diff = self.particles[s.a].position.sub(self.particles[s.b].position);
+        let diff = self.particles[s.a]
+            .position
+            .sub(self.particles[s.b].position);
         let dist = diff.length();
         let ext = dist - s.rest_length;
         0.5 * s.stiffness * s.integrity * ext * ext
@@ -266,9 +314,9 @@ impl TearSim {
 
     fn threshold(&self) -> f64 {
         match self.criterion {
-            FractureCriterion::MaxStress(t) |
-            FractureCriterion::MaxStrain(t) |
-            FractureCriterion::MaxEnergy(t) => t,
+            FractureCriterion::MaxStress(t)
+            | FractureCriterion::MaxStrain(t)
+            | FractureCriterion::MaxEnergy(t) => t,
         }
     }
 
@@ -293,10 +341,12 @@ impl TearSim {
                 self.total_tears += 1;
 
                 // Record crack tip
-                let mid = self.particles[self.springs[si].a].position
+                let mid = self.particles[self.springs[si].a]
+                    .position
                     .add(self.particles[self.springs[si].b].position)
                     .scale(0.5);
-                let dir = self.particles[self.springs[si].b].position
+                let dir = self.particles[self.springs[si].b]
+                    .position
                     .sub(self.particles[self.springs[si].a].position)
                     .normalized();
                 self.crack_tips.push(CrackTip {
@@ -311,7 +361,8 @@ impl TearSim {
                     self.total_weakened += 1;
                 }
                 let frac = (value - effective_weaken) / (effective_threshold - effective_weaken);
-                self.springs[si].damage = (self.springs[si].damage + self.damage_rate * frac).min(1.0);
+                self.springs[si].damage =
+                    (self.springs[si].damage + self.damage_rate * frac).min(1.0);
                 self.springs[si].integrity = 1.0 - self.springs[si].damage;
                 if self.springs[si].integrity <= 0.01 {
                     self.springs[si].state = SpringState::Broken;
@@ -325,13 +376,21 @@ impl TearSim {
     fn compute_spring_forces(&self) -> Vec<Vec3> {
         let mut forces = vec![Vec3::ZERO; self.particles.len()];
         for s in &self.springs {
-            if s.state == SpringState::Broken { continue; }
-            let diff = self.particles[s.b].position.sub(self.particles[s.a].position);
+            if s.state == SpringState::Broken {
+                continue;
+            }
+            let diff = self.particles[s.b]
+                .position
+                .sub(self.particles[s.a].position);
             let dist = diff.length();
-            if dist < 1e-12 { continue; }
+            if dist < 1e-12 {
+                continue;
+            }
             let dir = diff.scale(1.0 / dist);
             let extension = dist - s.rest_length;
-            let rel_vel = self.particles[s.b].velocity.sub(self.particles[s.a].velocity);
+            let rel_vel = self.particles[s.b]
+                .velocity
+                .sub(self.particles[s.a].velocity);
             let vel_along = rel_vel.dot(dir);
             let force_mag = s.stiffness * s.integrity * extension + s.damping * vel_along;
             let force = dir.scale(force_mag);
@@ -368,7 +427,9 @@ impl TearSim {
         // to point to the new vertex instead (only the ones on the "other side")
         let a_idx = self.springs[spring_idx].a;
         for s in &mut self.springs {
-            if s.state == SpringState::Broken { continue; }
+            if s.state == SpringState::Broken {
+                continue;
+            }
             // If a spring shares b_idx and also connects to a_idx, rewire
             if s.b == b_idx && s.a != a_idx {
                 // Check if this spring is "adjacent" to the broken one
@@ -390,12 +451,18 @@ impl TearSim {
 
         // Integrate (semi-implicit Euler)
         for i in 0..self.particles.len() {
-            if self.particles[i].fixed { continue; }
-            let accel = forces[i].scale(1.0 / self.particles[i].mass)
+            if self.particles[i].fixed {
+                continue;
+            }
+            let accel = forces[i]
+                .scale(1.0 / self.particles[i].mass)
                 .add(self.gravity);
             self.particles[i].velocity = self.particles[i].velocity.add(accel.scale(dt));
-            self.particles[i].velocity = self.particles[i].velocity.scale(1.0 - self.global_damping);
-            self.particles[i].position = self.particles[i].position.add(self.particles[i].velocity.scale(dt));
+            self.particles[i].velocity =
+                self.particles[i].velocity.scale(1.0 - self.global_damping);
+            self.particles[i].position = self.particles[i]
+                .position
+                .add(self.particles[i].velocity.scale(dt));
         }
 
         // Process fracture
@@ -406,15 +473,24 @@ impl TearSim {
     }
 
     pub fn intact_count(&self) -> usize {
-        self.springs.iter().filter(|s| s.state == SpringState::Intact).count()
+        self.springs
+            .iter()
+            .filter(|s| s.state == SpringState::Intact)
+            .count()
     }
 
     pub fn weakened_count(&self) -> usize {
-        self.springs.iter().filter(|s| s.state == SpringState::Weakened).count()
+        self.springs
+            .iter()
+            .filter(|s| s.state == SpringState::Weakened)
+            .count()
     }
 
     pub fn broken_count(&self) -> usize {
-        self.springs.iter().filter(|s| s.state == SpringState::Broken).count()
+        self.springs
+            .iter()
+            .filter(|s| s.state == SpringState::Broken)
+            .count()
     }
 
     pub fn total_elastic_energy(&self) -> f64 {
@@ -534,14 +610,24 @@ mod tests {
 
     #[test]
     fn test_chain_creation() {
-        let sim = TearSim::build_chain(5, 1.0, 100.0, 1.0, 1.0, FractureCriterion::MaxStrain(2.0)).unwrap();
+        let sim = TearSim::build_chain(5, 1.0, 100.0, 1.0, 1.0, FractureCriterion::MaxStrain(2.0))
+            .unwrap();
         assert_eq!(sim.particles.len(), 5);
         assert_eq!(sim.springs.len(), 4);
     }
 
     #[test]
     fn test_grid_creation() {
-        let sim = TearSim::build_grid(3, 4, 1.0, 100.0, 1.0, 1.0, FractureCriterion::MaxStrain(2.0)).unwrap();
+        let sim = TearSim::build_grid(
+            3,
+            4,
+            1.0,
+            100.0,
+            1.0,
+            1.0,
+            FractureCriterion::MaxStrain(2.0),
+        )
+        .unwrap();
         assert_eq!(sim.particles.len(), 12);
         // horizontal: 3*3=9, vertical: 2*4=8 = 17
         assert_eq!(sim.springs.len(), 17);
@@ -549,7 +635,9 @@ mod tests {
 
     #[test]
     fn test_strain_tear() {
-        let mut sim = TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(0.5)).unwrap();
+        let mut sim =
+            TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(0.5))
+                .unwrap();
         sim.gravity = Vec3::ZERO;
         sim.particles[0].fixed = true;
         // Pull last particle far away
@@ -560,7 +648,9 @@ mod tests {
 
     #[test]
     fn test_stress_tear() {
-        let mut sim = TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStress(50.0)).unwrap();
+        let mut sim =
+            TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStress(50.0))
+                .unwrap();
         sim.gravity = Vec3::ZERO;
         sim.particles[0].fixed = true;
         sim.particles[2].position = Vec3::new(10.0, 0.0, 0.0);
@@ -570,7 +660,9 @@ mod tests {
 
     #[test]
     fn test_energy_tear() {
-        let mut sim = TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxEnergy(10.0)).unwrap();
+        let mut sim =
+            TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxEnergy(10.0))
+                .unwrap();
         sim.gravity = Vec3::ZERO;
         sim.particles[0].fixed = true;
         sim.particles[2].position = Vec3::new(10.0, 0.0, 0.0);
@@ -580,7 +672,9 @@ mod tests {
 
     #[test]
     fn test_no_tear_under_threshold() {
-        let mut sim = TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(100.0)).unwrap();
+        let mut sim =
+            TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(100.0))
+                .unwrap();
         sim.gravity = Vec3::ZERO;
         sim.particles[0].fixed = true;
         sim.particles[2].position = Vec3::new(1.5, 0.0, 0.0); // small extension
@@ -590,7 +684,9 @@ mod tests {
 
     #[test]
     fn test_partial_tear_weakening() {
-        let mut sim = TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(2.0)).unwrap();
+        let mut sim =
+            TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(2.0))
+                .unwrap();
         sim.gravity = Vec3::ZERO;
         sim.weaken_ratio = 0.5;
         sim.particles[0].fixed = true;
@@ -602,7 +698,9 @@ mod tests {
 
     #[test]
     fn test_crack_tip_tracking() {
-        let mut sim = TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(0.5)).unwrap();
+        let mut sim =
+            TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(0.5))
+                .unwrap();
         sim.gravity = Vec3::ZERO;
         sim.particles[0].fixed = true;
         sim.particles[2].position = Vec3::new(10.0, 0.0, 0.0);
@@ -612,7 +710,9 @@ mod tests {
 
     #[test]
     fn test_fixed_particle_stays() {
-        let mut sim = TearSim::build_chain(3, 1.0, 100.0, 1.0, 1.0, FractureCriterion::MaxStrain(10.0)).unwrap();
+        let mut sim =
+            TearSim::build_chain(3, 1.0, 100.0, 1.0, 1.0, FractureCriterion::MaxStrain(10.0))
+                .unwrap();
         sim.particles[0].fixed = true;
         let pos0 = sim.particles[0].position;
         for _ in 0..20 {
@@ -630,7 +730,9 @@ mod tests {
 
     #[test]
     fn test_elastic_energy() {
-        let mut sim = TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(10.0)).unwrap();
+        let mut sim =
+            TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(10.0))
+                .unwrap();
         sim.gravity = Vec3::ZERO;
         assert!(approx(sim.total_elastic_energy(), 0.0, 1e-10));
         sim.particles[2].position = Vec3::new(3.0, 0.0, 0.0); // stretch
@@ -639,7 +741,9 @@ mod tests {
 
     #[test]
     fn test_max_strain() {
-        let mut sim = TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(10.0)).unwrap();
+        let mut sim =
+            TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(10.0))
+                .unwrap();
         sim.gravity = Vec3::ZERO;
         sim.particles[2].position = Vec3::new(3.0, 0.0, 0.0);
         assert!(sim.max_strain() > 0.0);
@@ -647,7 +751,9 @@ mod tests {
 
     #[test]
     fn test_toughness_map() {
-        let mut sim = TearSim::build_chain(5, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(1.0)).unwrap();
+        let mut sim =
+            TearSim::build_chain(5, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(1.0))
+                .unwrap();
         sim.set_toughness_map(|i| if i == 2 { 10.0 } else { 1.0 });
         assert!(approx(sim.springs[2].toughness, 10.0, 1e-10));
         assert!(approx(sim.springs[0].toughness, 1.0, 1e-10));
@@ -655,14 +761,19 @@ mod tests {
 
     #[test]
     fn test_split_at_tear() {
-        let mut sim = TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(0.5)).unwrap();
+        let mut sim =
+            TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(0.5))
+                .unwrap();
         sim.gravity = Vec3::ZERO;
         sim.particles[0].fixed = true;
         sim.particles[2].position = Vec3::new(10.0, 0.0, 0.0);
         sim.step(0.01).unwrap();
 
         // Find a broken spring and split
-        let broken_idx = sim.springs.iter().position(|s| s.state == SpringState::Broken);
+        let broken_idx = sim
+            .springs
+            .iter()
+            .position(|s| s.state == SpringState::Broken);
         if let Some(bi) = broken_idx {
             let result = sim.split_at_tear(bi).unwrap();
             assert!(result.is_some());
@@ -673,7 +784,9 @@ mod tests {
 
     #[test]
     fn test_split_intact_spring() {
-        let mut sim = TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(10.0)).unwrap();
+        let mut sim =
+            TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(10.0))
+                .unwrap();
         let result = sim.split_at_tear(0).unwrap();
         assert!(result.is_none()); // not broken, no split
     }
@@ -686,7 +799,9 @@ mod tests {
 
     #[test]
     fn test_integrity_degrades() {
-        let mut sim = TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(5.0)).unwrap();
+        let mut sim =
+            TearSim::build_chain(3, 1.0, 100.0, 0.0, 1.0, FractureCriterion::MaxStrain(5.0))
+                .unwrap();
         sim.gravity = Vec3::ZERO;
         sim.weaken_ratio = 0.3;
         sim.particles[0].fixed = true;
@@ -699,7 +814,9 @@ mod tests {
 
     #[test]
     fn test_gravity_affects_particles() {
-        let mut sim = TearSim::build_chain(3, 1.0, 100.0, 1.0, 1.0, FractureCriterion::MaxStrain(100.0)).unwrap();
+        let mut sim =
+            TearSim::build_chain(3, 1.0, 100.0, 1.0, 1.0, FractureCriterion::MaxStrain(100.0))
+                .unwrap();
         let y0 = sim.particles[1].position.y;
         for _ in 0..50 {
             sim.step(0.01).unwrap();
@@ -709,7 +826,9 @@ mod tests {
 
     #[test]
     fn test_high_toughness_resists_tear() {
-        let mut sim = TearSim::build_chain(3, 1.0, 100.0, 0.0, 10.0, FractureCriterion::MaxStrain(1.0)).unwrap();
+        let mut sim =
+            TearSim::build_chain(3, 1.0, 100.0, 0.0, 10.0, FractureCriterion::MaxStrain(1.0))
+                .unwrap();
         sim.gravity = Vec3::ZERO;
         sim.particles[0].fixed = true;
         sim.particles[2].position = Vec3::new(2.5, 0.0, 0.0);

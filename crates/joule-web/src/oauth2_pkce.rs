@@ -4,7 +4,7 @@
 //! Handles code verifier/challenge generation, authorization requests,
 //! token exchange, refresh flow, and CSRF state parameter protection.
 
-use crate::crypto::{sha256, base64_encode};
+use crate::crypto::{base64_encode, sha256};
 use std::fmt;
 use std::time::Duration;
 
@@ -180,10 +180,13 @@ impl AuthorizationRequest {
             ("scope", self.scope.as_str()),
             ("state", self.state.as_str()),
             ("code_challenge", self.code_challenge.value.as_str()),
-            ("code_challenge_method", match self.code_challenge.method {
-                ChallengeMethod::Plain => "plain",
-                ChallengeMethod::S256 => "S256",
-            }),
+            (
+                "code_challenge_method",
+                match self.code_challenge.method {
+                    ChallengeMethod::Plain => "plain",
+                    ChallengeMethod::S256 => "S256",
+                },
+            ),
         ];
 
         // Collect references to extra params.
@@ -200,7 +203,11 @@ impl AuthorizationRequest {
             .collect::<Vec<_>>()
             .join("&");
 
-        let sep = if authorize_endpoint.contains('?') { "&" } else { "?" };
+        let sep = if authorize_endpoint.contains('?') {
+            "&"
+        } else {
+            "?"
+        };
         format!("{authorize_endpoint}{sep}{query}")
     }
 }
@@ -296,10 +303,7 @@ pub struct RefreshTokenRequest {
 }
 
 impl RefreshTokenRequest {
-    pub fn new(
-        refresh_token: impl Into<String>,
-        client_id: impl Into<String>,
-    ) -> Self {
+    pub fn new(refresh_token: impl Into<String>, client_id: impl Into<String>) -> Self {
         Self {
             grant_type: "refresh_token".into(),
             refresh_token: refresh_token.into(),
@@ -346,9 +350,7 @@ mod tests {
 
     fn make_verifier() -> CodeVerifier {
         // 43+ chars from unreserved set.
-        CodeVerifier::from_string(
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstu"
-        ).unwrap()
+        CodeVerifier::from_string("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstu").unwrap()
     }
 
     #[test]
@@ -450,8 +452,7 @@ mod tests {
 
     #[test]
     fn refresh_token_request() {
-        let req = RefreshTokenRequest::new("refresh-xyz", "my-client")
-            .scope("openid profile");
+        let req = RefreshTokenRequest::new("refresh-xyz", "my-client").scope("openid profile");
         let body = req.to_form_body();
         assert!(body.contains("grant_type=refresh_token"));
         assert!(body.contains("refresh_token=refresh-xyz"));

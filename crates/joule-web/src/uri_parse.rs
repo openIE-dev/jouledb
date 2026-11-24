@@ -199,7 +199,15 @@ impl Uri {
 
         let path = remaining.to_string();
 
-        Ok(Self { scheme, userinfo, host, port, path, query, fragment })
+        Ok(Self {
+            scheme,
+            userinfo,
+            host,
+            port,
+            path,
+            query,
+            fragment,
+        })
     }
 
     /// Whether this URI has an authority component.
@@ -362,9 +370,9 @@ fn is_valid_scheme(s: &str) -> bool {
     if !bytes[0].is_ascii_alphabetic() {
         return false;
     }
-    bytes[1..].iter().all(|b| {
-        b.is_ascii_alphanumeric() || *b == b'+' || *b == b'-' || *b == b'.'
-    })
+    bytes[1..]
+        .iter()
+        .all(|b| b.is_ascii_alphanumeric() || *b == b'+' || *b == b'-' || *b == b'.')
 }
 
 /// Remove dot segments from a path (RFC 3986 Section 5.2.4).

@@ -54,16 +54,13 @@ impl JsonPointer {
         for i in 0..bytes.len() {
             if bytes[i] == b'~' {
                 if i + 1 >= bytes.len() || (bytes[i + 1] != b'0' && bytes[i + 1] != b'1') {
-                    return Err(PointerError::InvalidSyntax(
-                        format!("invalid escape at position {i}"),
-                    ));
+                    return Err(PointerError::InvalidSyntax(format!(
+                        "invalid escape at position {i}"
+                    )));
                 }
             }
         }
-        let segments = input[1..]
-            .split('/')
-            .map(|seg| unescape(seg))
-            .collect();
+        let segments = input[1..].split('/').map(|seg| unescape(seg)).collect();
         Ok(Self { segments })
     }
 
@@ -166,7 +163,10 @@ impl JsonPointer {
         if self.segments.len() > other.segments.len() {
             return false;
         }
-        self.segments.iter().zip(&other.segments).all(|(a, b)| a == b)
+        self.segments
+            .iter()
+            .zip(&other.segments)
+            .all(|(a, b)| a == b)
     }
 
     /// Return the relative path from self to descendant.
@@ -227,14 +227,20 @@ impl RelativePointer {
             .map_err(|_| PointerError::InvalidSyntax("bad integer".into()))?;
         let rest = &input[digit_end..];
         if rest == "#" {
-            Ok(Self { up, kind: RelativeKind::Key })
+            Ok(Self {
+                up,
+                kind: RelativeKind::Key,
+            })
         } else {
             let ptr = if rest.is_empty() {
                 JsonPointer::root()
             } else {
                 JsonPointer::parse(rest)?
             };
-            Ok(Self { up, kind: RelativeKind::Pointer(ptr) })
+            Ok(Self {
+                up,
+                kind: RelativeKind::Pointer(ptr),
+            })
         }
     }
 
@@ -245,9 +251,7 @@ impl RelativePointer {
         current_path: &JsonPointer,
     ) -> Result<RelativeResult<'a>, PointerError> {
         if self.up > current_path.len() {
-            return Err(PointerError::InvalidSyntax(
-                "cannot go above root".into(),
-            ));
+            return Err(PointerError::InvalidSyntax("cannot go above root".into()));
         }
         let base_segs = &current_path.segments()[..current_path.len() - self.up];
         match &self.kind {
@@ -313,10 +317,8 @@ fn descend_mut<'a>(val: &'a mut Value, seg: &str) -> Result<&'a mut Value, Point
             let idx: usize = seg
                 .parse()
                 .map_err(|_| PointerError::InvalidIndex(seg.into()))?;
-            arr.get_mut(idx).ok_or(PointerError::IndexOutOfBounds {
-                index: idx,
-                len,
-            })
+            arr.get_mut(idx)
+                .ok_or(PointerError::IndexOutOfBounds { index: idx, len })
         }
         _ => Err(PointerError::NotFound(seg.into())),
     }

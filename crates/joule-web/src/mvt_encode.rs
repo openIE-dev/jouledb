@@ -70,19 +70,27 @@ impl MvtEncodeConfig {
 
     pub fn validate(&self) -> Result<(), MvtEncodeError> {
         if self.simplify_tolerance.is_nan() {
-            return Err(MvtEncodeError::InvalidConfig("simplify_tolerance is NaN".into()));
+            return Err(MvtEncodeError::InvalidConfig(
+                "simplify_tolerance is NaN".into(),
+            ));
         }
         Ok(())
     }
 }
 
 impl Default for MvtEncodeConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for MvtEncodeConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MvtEncodeConfig(extent={0}, buffer={1}, simplify_tolerance={2:.4}, quantize={3})", self.extent, self.buffer, self.simplify_tolerance, self.quantize)
+        write!(
+            f,
+            "MvtEncodeConfig(extent={0}, buffer={1}, simplify_tolerance={2:.4}, quantize={3})",
+            self.extent, self.buffer, self.simplify_tolerance, self.quantize
+        )
     }
 }
 
@@ -98,7 +106,10 @@ pub struct MvtEncode {
 impl MvtEncode {
     pub fn new(config: MvtEncodeConfig) -> Result<Self, MvtEncodeError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -110,33 +121,47 @@ impl MvtEncode {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &MvtEncodeConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &MvtEncodeConfig {
+        &self.config
+    }
 
     /// Encode a tile layer.
     pub fn encode_layer(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Decode a vector tile.
     pub fn decode_tile(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Quantize coordinates to tile extent.
     pub fn quantize_coords(&self) -> Vec<f64> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         let n = self.data.len() as f64;
         self.data.iter().map(|x| x / n).collect()
     }
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -148,7 +173,9 @@ impl MvtEncode {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -160,7 +187,11 @@ impl MvtEncode {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -233,7 +264,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = MvtEncode::new(MvtEncodeConfig::new()).unwrap()
+        let e = MvtEncode::new(MvtEncodeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -249,7 +281,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = MvtEncode::new(MvtEncodeConfig::new()).unwrap()
+        let e = MvtEncode::new(MvtEncodeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("MvtEncode"));
@@ -257,7 +290,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = MvtEncode::new(MvtEncodeConfig::new()).unwrap()
+        let e = MvtEncode::new(MvtEncodeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -268,7 +302,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = MvtEncode::new(MvtEncodeConfig::new()).unwrap()
+        let e = MvtEncode::new(MvtEncodeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -276,7 +311,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = MvtEncode::new(MvtEncodeConfig::new()).unwrap()
+        let e = MvtEncode::new(MvtEncodeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -293,7 +329,8 @@ mod tests {
 
     #[test]
     fn test_encode_layer() {
-        let e = MvtEncode::new(MvtEncodeConfig::new()).unwrap()
+        let e = MvtEncode::new(MvtEncodeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.encode_layer();
         assert!(!result.is_empty());
@@ -301,7 +338,8 @@ mod tests {
 
     #[test]
     fn test_decode_tile() {
-        let e = MvtEncode::new(MvtEncodeConfig::new()).unwrap()
+        let e = MvtEncode::new(MvtEncodeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.decode_tile();
         assert!(!result.is_empty());
@@ -309,7 +347,8 @@ mod tests {
 
     #[test]
     fn test_quantize_coords() {
-        let e = MvtEncode::new(MvtEncodeConfig::new()).unwrap()
+        let e = MvtEncode::new(MvtEncodeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.quantize_coords();
         assert!(!result.is_empty());

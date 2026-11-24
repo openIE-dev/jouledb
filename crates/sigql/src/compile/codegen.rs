@@ -5,13 +5,18 @@
 //! - CUDA PTX (NVIDIA GPU kernels)
 //! - SIMD (CPU vectorized code using SSE4.2, AVX2, NEON)
 
-
-#[cfg(not(feature = "std"))]
-use alloc::{boxed::Box, format, string::{String, ToString}, vec, vec::Vec};
 use super::plan::{
     ElementWiseOp, ExecutionPlan, FirCoeffs, IirCoeffs, PlanStep, ReduceOp, RegisterId,
 };
 use super::{CompileError, Target};
+#[cfg(not(feature = "std"))]
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 
 /// Generated code for a specific target
 pub enum GeneratedCode {

@@ -70,22 +70,32 @@ impl ReconcileTradeConfig {
 
     pub fn validate(&self) -> Result<(), ReconcileTradeError> {
         if self.tolerance_price.is_nan() {
-            return Err(ReconcileTradeError::InvalidConfig("tolerance_price is NaN".into()));
+            return Err(ReconcileTradeError::InvalidConfig(
+                "tolerance_price is NaN".into(),
+            ));
         }
         if self.tolerance_qty.is_nan() {
-            return Err(ReconcileTradeError::InvalidConfig("tolerance_qty is NaN".into()));
+            return Err(ReconcileTradeError::InvalidConfig(
+                "tolerance_qty is NaN".into(),
+            ));
         }
         Ok(())
     }
 }
 
 impl Default for ReconcileTradeConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for ReconcileTradeConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ReconcileTradeConfig(tolerance_price={0:.4}, tolerance_qty={1:.4}, fuzzy_match={2}, auto_resolve={3})", self.tolerance_price, self.tolerance_qty, self.fuzzy_match, self.auto_resolve)
+        write!(
+            f,
+            "ReconcileTradeConfig(tolerance_price={0:.4}, tolerance_qty={1:.4}, fuzzy_match={2}, auto_resolve={3})",
+            self.tolerance_price, self.tolerance_qty, self.fuzzy_match, self.auto_resolve
+        )
     }
 }
 
@@ -129,7 +139,10 @@ pub struct ReconcileTrade {
 impl ReconcileTrade {
     pub fn new(config: ReconcileTradeConfig) -> Result<Self, ReconcileTradeError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -141,27 +154,45 @@ impl ReconcileTrade {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &ReconcileTradeConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &ReconcileTradeConfig {
+        &self.config
+    }
 
     /// Match internal vs external trades.
     pub fn match_trades(&self) -> Vec<MatchPair> {
-        self.data.iter().enumerate().map(|(i, &v)| MatchPair {
-            value: v, label: format!("item_{i}")
-        }).collect()
+        self.data
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| MatchPair {
+                value: v,
+                label: format!("item_{i}"),
+            })
+            .collect()
     }
 
     /// Find unmatched breaks.
     pub fn find_breaks(&self) -> Vec<Break> {
-        self.data.iter().enumerate().map(|(i, &v)| Break {
-            value: v, label: format!("item_{i}")
-        }).collect()
+        self.data
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| Break {
+                value: v,
+                label: format!("item_{i}"),
+            })
+            .collect()
     }
 
     /// Auto-resolution rate.
     pub fn resolution_rate(&self) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -171,7 +202,9 @@ impl ReconcileTrade {
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -183,7 +216,9 @@ impl ReconcileTrade {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -195,7 +230,11 @@ impl ReconcileTrade {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -268,7 +307,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = ReconcileTrade::new(ReconcileTradeConfig::new()).unwrap()
+        let e = ReconcileTrade::new(ReconcileTradeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -284,7 +324,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = ReconcileTrade::new(ReconcileTradeConfig::new()).unwrap()
+        let e = ReconcileTrade::new(ReconcileTradeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("ReconcileTrade"));
@@ -292,7 +333,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = ReconcileTrade::new(ReconcileTradeConfig::new()).unwrap()
+        let e = ReconcileTrade::new(ReconcileTradeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -303,7 +345,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = ReconcileTrade::new(ReconcileTradeConfig::new()).unwrap()
+        let e = ReconcileTrade::new(ReconcileTradeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -311,7 +354,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = ReconcileTrade::new(ReconcileTradeConfig::new()).unwrap()
+        let e = ReconcileTrade::new(ReconcileTradeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -328,7 +372,8 @@ mod tests {
 
     #[test]
     fn test_match_trades() {
-        let e = ReconcileTrade::new(ReconcileTradeConfig::new()).unwrap()
+        let e = ReconcileTrade::new(ReconcileTradeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.match_trades();
         assert!(!result.is_empty());
@@ -336,7 +381,8 @@ mod tests {
 
     #[test]
     fn test_find_breaks() {
-        let e = ReconcileTrade::new(ReconcileTradeConfig::new()).unwrap()
+        let e = ReconcileTrade::new(ReconcileTradeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.find_breaks();
         assert!(!result.is_empty());
@@ -344,7 +390,8 @@ mod tests {
 
     #[test]
     fn test_resolution_rate() {
-        let e = ReconcileTrade::new(ReconcileTradeConfig::new()).unwrap()
+        let e = ReconcileTrade::new(ReconcileTradeConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.resolution_rate();
         assert!(result.is_finite());

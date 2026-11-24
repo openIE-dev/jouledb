@@ -205,10 +205,7 @@ impl FormatRule for BracketAligner {
             let trimmed = line.trim();
 
             // Closing bracket: pop indent level
-            if trimmed.starts_with('}')
-                || trimmed.starts_with(')')
-                || trimmed.starts_with(']')
-            {
+            if trimmed.starts_with('}') || trimmed.starts_with(')') || trimmed.starts_with(']') {
                 indent_stack.pop();
             }
 
@@ -226,10 +223,7 @@ impl FormatRule for BracketAligner {
             }
 
             // Opening bracket: push indent level
-            if trimmed.ends_with('{')
-                || trimmed.ends_with('(')
-                || trimmed.ends_with('[')
-            {
+            if trimmed.ends_with('{') || trimmed.ends_with('(') || trimmed.ends_with('[') {
                 indent_stack.push(level + 1);
             }
         }
@@ -481,8 +475,7 @@ mod tests {
     fn sort_imports_rust() {
         let rule = SortImports::rust();
         let config = FormatConfig::default();
-        let input =
-            "use std::io;\nuse std::collections::HashMap;\nuse crate::foo;\n\nfn main() {}";
+        let input = "use std::io;\nuse std::collections::HashMap;\nuse crate::foo;\n\nfn main() {}";
         let result = rule.apply(input, &config);
         let lines: Vec<&str> = result.lines().collect();
         let crate_idx = lines.iter().position(|l| l.contains("crate::foo")).unwrap();

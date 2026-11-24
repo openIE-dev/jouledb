@@ -61,9 +61,7 @@ impl<K: Ord + Clone, V: Clone> ImmutableMap<K, V> {
 
     /// Whether the map contains the given key.
     pub fn contains_key(&self, key: &K) -> bool {
-        self.entries
-            .binary_search_by(|(k, _)| k.cmp(key))
-            .is_ok()
+        self.entries.binary_search_by(|(k, _)| k.cmp(key)).is_ok()
     }
 
     /// Iterate over keys.

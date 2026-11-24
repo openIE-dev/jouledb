@@ -30,18 +30,22 @@ pub enum CodecError {
 impl fmt::Display for CodecError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::BufferTooShort { need, have } =>
-                write!(f, "buffer too short: need {} bytes, have {}", need, have),
-            Self::VarintOverflow =>
-                write!(f, "varint overflow (more than 10 bytes)"),
-            Self::InvalidVersion { expected, got } =>
-                write!(f, "invalid version: expected {}, got {}", expected, got),
-            Self::ChecksumMismatch { expected, got } =>
-                write!(f, "checksum mismatch: expected 0x{:08x}, got 0x{:08x}", expected, got),
-            Self::InvalidUtf8 =>
-                write!(f, "invalid UTF-8 in string field"),
-            Self::FrameTooLarge { size, max } =>
-                write!(f, "frame too large: {} bytes, max {}", size, max),
+            Self::BufferTooShort { need, have } => {
+                write!(f, "buffer too short: need {} bytes, have {}", need, have)
+            }
+            Self::VarintOverflow => write!(f, "varint overflow (more than 10 bytes)"),
+            Self::InvalidVersion { expected, got } => {
+                write!(f, "invalid version: expected {}, got {}", expected, got)
+            }
+            Self::ChecksumMismatch { expected, got } => write!(
+                f,
+                "checksum mismatch: expected 0x{:08x}, got 0x{:08x}",
+                expected, got
+            ),
+            Self::InvalidUtf8 => write!(f, "invalid UTF-8 in string field"),
+            Self::FrameTooLarge { size, max } => {
+                write!(f, "frame too large: {} bytes, max {}", size, max)
+            }
         }
     }
 }
@@ -98,11 +102,17 @@ pub struct PacketWriter {
 
 impl PacketWriter {
     pub fn new(endian: Endian) -> Self {
-        Self { buf: Vec::new(), endian }
+        Self {
+            buf: Vec::new(),
+            endian,
+        }
     }
 
     pub fn with_capacity(endian: Endian, cap: usize) -> Self {
-        Self { buf: Vec::with_capacity(cap), endian }
+        Self {
+            buf: Vec::with_capacity(cap),
+            endian,
+        }
     }
 
     /// Current length of the written data.
@@ -204,7 +214,11 @@ pub struct PacketReader<'a> {
 
 impl<'a> PacketReader<'a> {
     pub fn new(buf: &'a [u8], endian: Endian) -> Self {
-        Self { buf, pos: 0, endian }
+        Self {
+            buf,
+            pos: 0,
+            endian,
+        }
     }
 
     /// Remaining bytes available to read.
@@ -219,7 +233,10 @@ impl<'a> PacketReader<'a> {
 
     fn need(&self, n: usize) -> Result<(), CodecError> {
         if self.remaining() < n {
-            Err(CodecError::BufferTooShort { need: n, have: self.remaining() })
+            Err(CodecError::BufferTooShort {
+                need: n,
+                have: self.remaining(),
+            })
         } else {
             Ok(())
         }
@@ -367,23 +384,37 @@ pub fn frame_decode(data: &[u8], config: &FrameConfig) -> Result<Vec<u8>, CodecE
 
     let version = r.read_u8()?;
     if version != config.version {
-        return Err(CodecError::InvalidVersion { expected: config.version, got: version });
+        return Err(CodecError::InvalidVersion {
+            expected: config.version,
+            got: version,
+        });
     }
 
     let length = r.read_u32()? as usize;
     if length > config.max_frame_size {
-        return Err(CodecError::FrameTooLarge { size: length, max: config.max_frame_size });
+        return Err(CodecError::FrameTooLarge {
+            size: length,
+            max: config.max_frame_size,
+        });
     }
 
     let payload = r.read_raw(length)?;
 
     if config.checksum {
         let stored_bytes = r.read_raw(4)?;
-        let stored = u32::from_be_bytes([stored_bytes[0], stored_bytes[1], stored_bytes[2], stored_bytes[3]]);
+        let stored = u32::from_be_bytes([
+            stored_bytes[0],
+            stored_bytes[1],
+            stored_bytes[2],
+            stored_bytes[3],
+        ]);
         let crc = Crc32::new();
         let computed = crc.checksum(&payload);
         if stored != computed {
-            return Err(CodecError::ChecksumMismatch { expected: computed, got: stored });
+            return Err(CodecError::ChecksumMismatch {
+                expected: computed,
+                got: stored,
+            });
         }
     }
 
@@ -573,7 +604,10 @@ mod tests {
 
     #[test]
     fn test_frame_no_checksum() {
-        let config = FrameConfig { checksum: false, ..Default::default() };
+        let config = FrameConfig {
+            checksum: false,
+            ..Default::default()
+        };
         let payload = b"no checksum";
         let frame = frame_encode(payload, &config).unwrap();
         let decoded = frame_decode(&frame, &config).unwrap();
@@ -584,7 +618,10 @@ mod tests {
     fn test_frame_version_mismatch() {
         let config = FrameConfig::default();
         let frame = frame_encode(b"data", &config).unwrap();
-        let config2 = FrameConfig { version: 2, ..Default::default() };
+        let config2 = FrameConfig {
+            version: 2,
+            ..Default::default()
+        };
         assert!(matches!(
             frame_decode(&frame, &config2),
             Err(CodecError::InvalidVersion { .. })
@@ -606,7 +643,10 @@ mod tests {
 
     #[test]
     fn test_frame_too_large() {
-        let config = FrameConfig { max_frame_size: 10, ..Default::default() };
+        let config = FrameConfig {
+            max_frame_size: 10,
+            ..Default::default()
+        };
         let big = vec![0u8; 20];
         assert!(matches!(
             frame_encode(&big, &config),

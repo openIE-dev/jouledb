@@ -160,9 +160,7 @@ impl PreflightCache {
         now_epoch_s: u64,
     ) -> Option<&PreflightEntry> {
         let key = Self::cache_key(origin, method, headers);
-        self.entries
-            .get(&key)
-            .filter(|e| e.is_valid(now_epoch_s))
+        self.entries.get(&key).filter(|e| e.is_valid(now_epoch_s))
     }
 
     pub fn evict_expired(&mut self, now_epoch_s: u64) {
@@ -196,10 +194,7 @@ impl Default for CorsPolicy {
         Self {
             allowed_origins: vec![OriginPattern::Any],
             allowed_methods: vec![CorsMethod::Get, CorsMethod::Post, CorsMethod::Options],
-            allowed_headers: vec![
-                "content-type".to_string(),
-                "authorization".to_string(),
-            ],
+            allowed_headers: vec!["content-type".to_string(), "authorization".to_string()],
             expose_headers: Vec::new(),
             max_age_seconds: 86400,
             allow_credentials: false,
@@ -246,8 +241,7 @@ impl CorsPolicy {
     }
 
     pub fn allow_header(mut self, header: &str) -> Self {
-        self.allowed_headers
-            .push(header.to_ascii_lowercase());
+        self.allowed_headers.push(header.to_ascii_lowercase());
         self
     }
 
@@ -269,10 +263,7 @@ impl CorsPolicy {
     /// Evaluate whether a request passes the CORS policy.
     pub fn evaluate(&self, req: &CorsRequest) -> CorsResult {
         // 1. Check origin.
-        let origin_ok = self
-            .allowed_origins
-            .iter()
-            .any(|p| p.matches(&req.origin));
+        let origin_ok = self.allowed_origins.iter().any(|p| p.matches(&req.origin));
         if !origin_ok {
             return CorsResult::OriginDenied;
         }
@@ -283,9 +274,10 @@ impl CorsPolicy {
         }
 
         // 3. Method check.
-        let method_ok = self.allowed_methods.iter().any(|m| {
-            m.as_str().eq_ignore_ascii_case(&req.method)
-        });
+        let method_ok = self
+            .allowed_methods
+            .iter()
+            .any(|m| m.as_str().eq_ignore_ascii_case(&req.method));
         if !method_ok {
             return CorsResult::MethodDenied;
         }
@@ -328,10 +320,7 @@ impl CorsPolicy {
                 .iter()
                 .any(|p| matches!(p, OriginPattern::Any));
             if has_any {
-                headers.push((
-                    "Access-Control-Allow-Origin".to_string(),
-                    "*".to_string(),
-                ));
+                headers.push(("Access-Control-Allow-Origin".to_string(), "*".to_string()));
             } else {
                 headers.push((
                     "Access-Control-Allow-Origin".to_string(),
@@ -378,9 +367,7 @@ mod tests {
     #[test]
     fn exact_origin_match() {
         let policy = CorsPolicy {
-            allowed_origins: vec![OriginPattern::Exact(
-                "https://example.com".to_string(),
-            )],
+            allowed_origins: vec![OriginPattern::Exact("https://example.com".to_string())],
             ..Default::default()
         };
         let req = CorsRequest {
@@ -459,10 +446,7 @@ mod tests {
             request_headers: vec!["X-Custom-Header".to_string()],
             with_credentials: false,
         };
-        assert!(matches!(
-            policy.evaluate(&req),
-            CorsResult::HeaderDenied(_)
-        ));
+        assert!(matches!(policy.evaluate(&req), CorsResult::HeaderDenied(_)));
     }
 
     #[test]
@@ -510,9 +494,13 @@ mod tests {
             .credentials(true)
             .expose_header("X-Request-Id");
         let headers = policy.response_headers("https://app.example.com");
-        let origin_hdr = headers.iter().find(|(k, _)| k == "Access-Control-Allow-Origin");
+        let origin_hdr = headers
+            .iter()
+            .find(|(k, _)| k == "Access-Control-Allow-Origin");
         assert_eq!(origin_hdr.unwrap().1, "https://app.example.com");
-        let cred_hdr = headers.iter().find(|(k, _)| k == "Access-Control-Allow-Credentials");
+        let cred_hdr = headers
+            .iter()
+            .find(|(k, _)| k == "Access-Control-Allow-Credentials");
         assert_eq!(cred_hdr.unwrap().1, "true");
     }
 
@@ -520,7 +508,9 @@ mod tests {
     fn response_headers_wildcard() {
         let policy = CorsPolicy::default(); // OriginPattern::Any
         let headers = policy.response_headers("https://whatever.com");
-        let origin_hdr = headers.iter().find(|(k, _)| k == "Access-Control-Allow-Origin");
+        let origin_hdr = headers
+            .iter()
+            .find(|(k, _)| k == "Access-Control-Allow-Origin");
         assert_eq!(origin_hdr.unwrap().1, "*");
     }
 
@@ -536,20 +526,10 @@ mod tests {
         };
         cache.insert(entry);
         assert_eq!(cache.len(), 1);
-        let found = cache.lookup(
-            "https://a.com",
-            "POST",
-            &["content-type".to_string()],
-            1500,
-        );
+        let found = cache.lookup("https://a.com", "POST", &["content-type".to_string()], 1500);
         assert!(found.is_some());
         // Expired
-        let found = cache.lookup(
-            "https://a.com",
-            "POST",
-            &["content-type".to_string()],
-            5000,
-        );
+        let found = cache.lookup("https://a.com", "POST", &["content-type".to_string()], 5000);
         assert!(found.is_none());
     }
 

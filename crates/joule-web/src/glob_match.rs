@@ -20,10 +20,13 @@ pub struct Glob {
 #[derive(Debug, Clone, PartialEq)]
 enum Token {
     Literal(String),
-    AnyExceptSep,      // *
-    AnyIncludingSep,    // **
-    SingleChar,         // ?
-    CharClass { chars: Vec<(char, char)>, negated: bool },
+    AnyExceptSep,    // *
+    AnyIncludingSep, // **
+    SingleChar,      // ?
+    CharClass {
+        chars: Vec<(char, char)>,
+        negated: bool,
+    },
     Alternation(Vec<Vec<Token>>),
 }
 
@@ -36,7 +39,10 @@ pub struct GlobOptions {
 
 impl Default for GlobOptions {
     fn default() -> Self {
-        Self { case_insensitive: false, separator: '/' }
+        Self {
+            case_insensitive: false,
+            separator: '/',
+        }
     }
 }
 
@@ -51,7 +57,12 @@ struct GlobParser {
 
 impl GlobParser {
     fn new(pattern: &str, separator: char, case_insensitive: bool) -> Self {
-        Self { chars: pattern.chars().collect(), pos: 0, separator, case_insensitive }
+        Self {
+            chars: pattern.chars().collect(),
+            pos: 0,
+            separator,
+            case_insensitive,
+        }
     }
 
     fn peek(&self) -> Option<char> {
@@ -60,7 +71,9 @@ impl GlobParser {
 
     fn advance(&mut self) -> Option<char> {
         let c = self.chars.get(self.pos).copied();
-        if c.is_some() { self.pos += 1; }
+        if c.is_some() {
+            self.pos += 1;
+        }
         c
     }
 
@@ -81,7 +94,10 @@ impl GlobParser {
                         tokens.push(Token::AnyExceptSep);
                     }
                 }
-                '?' => { self.advance(); tokens.push(Token::SingleChar); }
+                '?' => {
+                    self.advance();
+                    tokens.push(Token::SingleChar);
+                }
                 '[' => tokens.push(self.parse_class()),
                 '{' => tokens.push(self.parse_alternation()),
                 '}' | ',' => break, // End of alternation branch
@@ -113,15 +129,23 @@ impl GlobParser {
     fn parse_class(&mut self) -> Token {
         self.advance(); // eat '['
         let negated = if self.peek() == Some('!') || self.peek() == Some('^') {
-            self.advance(); true
+            self.advance();
+            true
         } else {
             false
         };
         let mut ranges = vec![];
         while let Some(c) = self.peek() {
-            if c == ']' { self.advance(); break; }
+            if c == ']' {
+                self.advance();
+                break;
+            }
             self.advance();
-            let ch = if c == '\\' { self.advance().unwrap_or('\\') } else { c };
+            let ch = if c == '\\' {
+                self.advance().unwrap_or('\\')
+            } else {
+                c
+            };
             if self.peek() == Some('-') {
                 self.advance();
                 if let Some(end) = self.advance() {
@@ -131,7 +155,10 @@ impl GlobParser {
                 ranges.push((ch, ch));
             }
         }
-        Token::CharClass { chars: ranges, negated }
+        Token::CharClass {
+            chars: ranges,
+            negated,
+        }
     }
 
     fn parse_alternation(&mut self) -> Token {
@@ -141,8 +168,13 @@ impl GlobParser {
             let branch = self.parse_tokens();
             branches.push(branch);
             match self.peek() {
-                Some(',') => { self.advance(); }
-                Some('}') => { self.advance(); break; }
+                Some(',') => {
+                    self.advance();
+                }
+                Some('}') => {
+                    self.advance();
+                    break;
+                }
                 _ => break,
             }
         }
@@ -167,7 +199,12 @@ impl Glob {
         };
         let mut parser = GlobParser::new(pat, opts.separator, opts.case_insensitive);
         let tokens = parser.parse_tokens();
-        Self { tokens, negated, case_insensitive: opts.case_insensitive, separator: opts.separator }
+        Self {
+            tokens,
+            negated,
+            case_insensitive: opts.case_insensitive,
+            separator: opts.separator,
+        }
     }
 
     /// Check if the input matches this glob pattern.
@@ -193,45 +230,65 @@ fn match_tokens(tokens: &[Token], text: &[char], pos: usize, sep: char) -> bool 
     match token {
         Token::Literal(s) => {
             let chars: Vec<char> = s.chars().collect();
-            if pos + chars.len() > text.len() { return false; }
+            if pos + chars.len() > text.len() {
+                return false;
+            }
             for (i, c) in chars.iter().enumerate() {
-                if text[pos + i] != *c { return false; }
+                if text[pos + i] != *c {
+                    return false;
+                }
             }
             match_tokens(rest, text, pos + chars.len(), sep)
         }
         Token::SingleChar => {
-            if pos >= text.len() { return false; }
-            if text[pos] == sep { return false; }
+            if pos >= text.len() {
+                return false;
+            }
+            if text[pos] == sep {
+                return false;
+            }
             match_tokens(rest, text, pos + 1, sep)
         }
         Token::AnyExceptSep => {
             // Try matching 0 to N chars (not separator)
             for end in pos..=text.len() {
-                if end > pos && text[end - 1] == sep { break; }
-                if match_tokens(rest, text, end, sep) { return true; }
+                if end > pos && text[end - 1] == sep {
+                    break;
+                }
+                if match_tokens(rest, text, end, sep) {
+                    return true;
+                }
             }
             false
         }
         Token::AnyIncludingSep => {
             // Try matching 0 to N chars (including separator)
             for end in pos..=text.len() {
-                if match_tokens(rest, text, end, sep) { return true; }
+                if match_tokens(rest, text, end, sep) {
+                    return true;
+                }
             }
             false
         }
         Token::CharClass { chars, negated } => {
-            if pos >= text.len() { return false; }
+            if pos >= text.len() {
+                return false;
+            }
             let c = text[pos];
             let in_class = chars.iter().any(|(lo, hi)| c >= *lo && c <= *hi);
             let matched = if *negated { !in_class } else { in_class };
-            if !matched { return false; }
+            if !matched {
+                return false;
+            }
             match_tokens(rest, text, pos + 1, sep)
         }
         Token::Alternation(branches) => {
             for branch in branches {
                 let mut combined = branch.clone();
                 combined.extend_from_slice(rest);
-                if match_tokens(&combined, text, pos, sep) { return true; }
+                if match_tokens(&combined, text, pos, sep) {
+                    return true;
+                }
             }
             false
         }
@@ -240,7 +297,12 @@ fn match_tokens(tokens: &[Token], text: &[char], pos: usize, sep: char) -> bool 
 
 impl fmt::Display for Glob {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Glob({} tokens{})", self.tokens.len(), if self.negated { ", negated" } else { "" })
+        write!(
+            f,
+            "Glob({} tokens{})",
+            self.tokens.len(),
+            if self.negated { ", negated" } else { "" }
+        )
     }
 }
 
@@ -314,7 +376,13 @@ mod tests {
 
     #[test]
     fn test_case_insensitive() {
-        let g = Glob::with_options("*.TXT", GlobOptions { case_insensitive: true, separator: '/' });
+        let g = Glob::with_options(
+            "*.TXT",
+            GlobOptions {
+                case_insensitive: true,
+                separator: '/',
+            },
+        );
         assert!(g.is_match("hello.txt"));
         assert!(g.is_match("hello.TXT"));
     }

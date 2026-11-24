@@ -233,15 +233,16 @@ impl InvariantChecker {
     /// Check a single invariant by name. Returns the check result.
     pub fn check_one(&mut self, name: &str, timestamp_us: u64) -> Option<CheckResult> {
         // Find the invariant and check it, collecting the result first
-        let check_data: Option<(String, InvariantSeverity, Option<String>, Result<(), String>)> = self
-            .invariants
-            .iter()
-            .find(|i| i.name == name)
-            .map(|inv| {
-                let result = inv.check();
-                let group = inv.group.clone();
-                (inv.name.clone(), inv.severity, group, result)
-            });
+        let check_data: Option<(
+            String,
+            InvariantSeverity,
+            Option<String>,
+            Result<(), String>,
+        )> = self.invariants.iter().find(|i| i.name == name).map(|inv| {
+            let result = inv.check();
+            let group = inv.group.clone();
+            (inv.name.clone(), inv.severity, group, result)
+        });
 
         match check_data {
             Some((inv_name, severity, group, result)) => {
@@ -279,7 +280,12 @@ impl InvariantChecker {
     /// Run all enabled invariants at a named checkpoint.
     pub fn checkpoint(&mut self, name: &str, timestamp_us: u64) -> CheckPointResult {
         // Collect check data for all enabled invariants
-        let check_data: Vec<(String, InvariantSeverity, Option<String>, Result<(), String>)> = self
+        let check_data: Vec<(
+            String,
+            InvariantSeverity,
+            Option<String>,
+            Result<(), String>,
+        )> = self
             .invariants
             .iter()
             .filter(|i| i.enabled)
@@ -341,7 +347,12 @@ impl InvariantChecker {
 
     /// Run only invariants in a specific group.
     pub fn check_group(&mut self, group: &str, timestamp_us: u64) -> CheckPointResult {
-        let check_data: Vec<(String, InvariantSeverity, Option<String>, Result<(), String>)> = self
+        let check_data: Vec<(
+            String,
+            InvariantSeverity,
+            Option<String>,
+            Result<(), String>,
+        )> = self
             .invariants
             .iter()
             .filter(|i| i.enabled && i.group.as_deref() == Some(group))
@@ -441,14 +452,15 @@ impl InvariantChecker {
         timestamp_us: u64,
         context: HashMap<String, String>,
     ) -> Result<(), Violation> {
-        let check_data: Option<(String, InvariantSeverity, Option<String>, Result<(), String>)> = self
-            .invariants
-            .iter()
-            .find(|i| i.name == name)
-            .map(|inv| {
-                let result = inv.check();
-                (inv.name.clone(), inv.severity, inv.group.clone(), result)
-            });
+        let check_data: Option<(
+            String,
+            InvariantSeverity,
+            Option<String>,
+            Result<(), String>,
+        )> = self.invariants.iter().find(|i| i.name == name).map(|inv| {
+            let result = inv.check();
+            (inv.name.clone(), inv.severity, inv.group.clone(), result)
+        });
 
         match check_data {
             Some((inv_name, severity, group, Err(msg))) => {
@@ -506,8 +518,8 @@ impl Default for InvariantChecker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     #[test]
     fn test_register_invariant() {
@@ -560,8 +572,12 @@ mod tests {
     #[test]
     fn test_checkpoint_all_pass() {
         let mut checker = InvariantChecker::new();
-        checker.register(InvariantDef::new("a", "", InvariantSeverity::Info, || Ok(())));
-        checker.register(InvariantDef::new("b", "", InvariantSeverity::Info, || Ok(())));
+        checker.register(InvariantDef::new("a", "", InvariantSeverity::Info, || {
+            Ok(())
+        }));
+        checker.register(InvariantDef::new("b", "", InvariantSeverity::Info, || {
+            Ok(())
+        }));
 
         let result = checker.checkpoint("init", 1000);
         assert!(result.all_passed());
@@ -573,7 +589,9 @@ mod tests {
     #[test]
     fn test_checkpoint_with_failure() {
         let mut checker = InvariantChecker::new();
-        checker.register(InvariantDef::new("ok", "", InvariantSeverity::Info, || Ok(())));
+        checker.register(InvariantDef::new("ok", "", InvariantSeverity::Info, || {
+            Ok(())
+        }));
         checker.register(InvariantDef::new(
             "bad",
             "",
@@ -607,7 +625,9 @@ mod tests {
     #[test]
     fn test_enable_invariant() {
         let mut checker = InvariantChecker::new();
-        checker.register(InvariantDef::new("x", "", InvariantSeverity::Info, || Ok(())));
+        checker.register(InvariantDef::new("x", "", InvariantSeverity::Info, || {
+            Ok(())
+        }));
         checker.disable("x");
         assert_eq!(checker.enabled_count(), 0);
         checker.enable("x");
@@ -640,7 +660,9 @@ mod tests {
         checker.register(
             InvariantDef::new("b", "", InvariantSeverity::Info, || Ok(())).with_group("g"),
         );
-        checker.register(InvariantDef::new("c", "", InvariantSeverity::Info, || Ok(())));
+        checker.register(InvariantDef::new("c", "", InvariantSeverity::Info, || {
+            Ok(())
+        }));
 
         checker.disable_group("g");
         assert_eq!(checker.enabled_count(), 1); // only "c"
@@ -664,10 +686,8 @@ mod tests {
             InvariantDef::new("a", "", InvariantSeverity::Info, || Ok(())).with_group("core"),
         );
         checker.register(
-            InvariantDef::new("b", "", InvariantSeverity::Info, || {
-                Err("fail".to_string())
-            })
-            .with_group("optional"),
+            InvariantDef::new("b", "", InvariantSeverity::Info, || Err("fail".to_string()))
+                .with_group("optional"),
         );
 
         let result = checker.check_group("core", 1000);
@@ -716,12 +736,9 @@ mod tests {
     #[test]
     fn test_violations_for_invariant() {
         let mut checker = InvariantChecker::new();
-        checker.register(InvariantDef::new(
-            "x",
-            "",
-            InvariantSeverity::Error,
-            || Err("fail".to_string()),
-        ));
+        checker.register(InvariantDef::new("x", "", InvariantSeverity::Error, || {
+            Err("fail".to_string())
+        }));
         checker.checkpoint("cp1", 1000);
         checker.checkpoint("cp2", 2000);
         assert_eq!(checker.violations_for("x").len(), 2);
@@ -730,12 +747,9 @@ mod tests {
     #[test]
     fn test_clear_violations() {
         let mut checker = InvariantChecker::new();
-        checker.register(InvariantDef::new(
-            "x",
-            "",
-            InvariantSeverity::Error,
-            || Err("fail".to_string()),
-        ));
+        checker.register(InvariantDef::new("x", "", InvariantSeverity::Error, || {
+            Err("fail".to_string())
+        }));
         checker.checkpoint("cp", 1000);
         assert_eq!(checker.violation_count(), 1);
         checker.clear_violations();
@@ -745,7 +759,9 @@ mod tests {
     #[test]
     fn test_assert_invariant_pass() {
         let mut checker = InvariantChecker::new();
-        checker.register(InvariantDef::new("ok", "", InvariantSeverity::Info, || Ok(())));
+        checker.register(InvariantDef::new("ok", "", InvariantSeverity::Info, || {
+            Ok(())
+        }));
         let result = checker.assert_invariant("ok", 1000, HashMap::new());
         assert!(result.is_ok());
     }
@@ -840,7 +856,9 @@ mod tests {
     #[test]
     fn test_checkpoint_history() {
         let mut checker = InvariantChecker::new();
-        checker.register(InvariantDef::new("a", "", InvariantSeverity::Info, || Ok(())));
+        checker.register(InvariantDef::new("a", "", InvariantSeverity::Info, || {
+            Ok(())
+        }));
         checker.checkpoint("cp1", 1000);
         checker.checkpoint("cp2", 2000);
         assert_eq!(checker.checkpoint_history().len(), 2);
@@ -850,8 +868,12 @@ mod tests {
     #[test]
     fn test_enable_disable_all() {
         let mut checker = InvariantChecker::new();
-        checker.register(InvariantDef::new("a", "", InvariantSeverity::Info, || Ok(())));
-        checker.register(InvariantDef::new("b", "", InvariantSeverity::Info, || Ok(())));
+        checker.register(InvariantDef::new("a", "", InvariantSeverity::Info, || {
+            Ok(())
+        }));
+        checker.register(InvariantDef::new("b", "", InvariantSeverity::Info, || {
+            Ok(())
+        }));
         checker.disable_all();
         assert_eq!(checker.enabled_count(), 0);
         checker.enable_all();

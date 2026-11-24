@@ -19,7 +19,9 @@ pub struct KeyframedValue {
 impl KeyframedValue {
     /// Create a static (non-animated) value.
     pub fn static_value(value: f64) -> Self {
-        Self { keyframes: vec![(0.0, value)] }
+        Self {
+            keyframes: vec![(0.0, value)],
+        }
     }
 
     /// Create from a list of (frame, value) pairs.
@@ -162,7 +164,10 @@ pub struct ShapeGroup {
 
 impl ShapeGroup {
     pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), shapes: Vec::new() }
+        Self {
+            name: name.into(),
+            shapes: Vec::new(),
+        }
     }
 
     pub fn add_shape(&mut self, shape: Shape) {
@@ -305,7 +310,11 @@ impl LottieComposition {
 
     /// Duration in seconds.
     pub fn duration_secs(&self) -> f64 {
-        if self.fps > 0.0 { self.total_frames / self.fps } else { 0.0 }
+        if self.fps > 0.0 {
+            self.total_frames / self.fps
+        } else {
+            0.0
+        }
     }
 
     /// Duration in milliseconds.
@@ -320,7 +329,8 @@ impl LottieComposition {
 
     /// Get all visible layers at a given frame, with their transform snapshots.
     pub fn layers_at_frame(&self, frame: f64) -> Vec<(&Layer, TransformSnapshot)> {
-        self.layers.iter()
+        self.layers
+            .iter()
             .filter(|l| l.is_visible_at(frame))
             .map(|l| (l, l.transform.at_frame(frame)))
             .collect()
@@ -340,14 +350,8 @@ mod tests {
 
     fn test_composition() -> LottieComposition {
         let mut transform = Transform::identity();
-        transform.position_x = KeyframedValue::from_keyframes(vec![
-            (0.0, 0.0),
-            (30.0, 100.0),
-        ]);
-        transform.opacity = KeyframedValue::from_keyframes(vec![
-            (0.0, 0.0),
-            (15.0, 100.0),
-        ]);
+        transform.position_x = KeyframedValue::from_keyframes(vec![(0.0, 0.0), (30.0, 100.0)]);
+        transform.opacity = KeyframedValue::from_keyframes(vec![(0.0, 0.0), (15.0, 100.0)]);
 
         let shape = Shape::Rect {
             x: KeyframedValue::static_value(0.0),
@@ -363,8 +367,7 @@ mod tests {
             .with_transform(transform)
             .with_shape_group(group);
 
-        LottieComposition::new(400.0, 300.0, 30.0, 30.0)
-            .with_layer(layer)
+        LottieComposition::new(400.0, 300.0, 30.0, 30.0).with_layer(layer)
     }
 
     #[test]

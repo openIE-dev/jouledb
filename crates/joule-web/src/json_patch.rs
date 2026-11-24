@@ -14,8 +14,16 @@ use std::fmt;
 pub enum PatchError {
     InvalidPath(String),
     PathNotFound(String),
-    TestFailed { path: String, expected: Value, actual: Value },
-    IndexOutOfBounds { path: String, index: usize, len: usize },
+    TestFailed {
+        path: String,
+        expected: Value,
+        actual: Value,
+    },
+    IndexOutOfBounds {
+        path: String,
+        index: usize,
+        len: usize,
+    },
     InvalidOperation(String),
 }
 
@@ -24,8 +32,15 @@ impl fmt::Display for PatchError {
         match self {
             Self::InvalidPath(p) => write!(f, "invalid path: {p}"),
             Self::PathNotFound(p) => write!(f, "path not found: {p}"),
-            Self::TestFailed { path, expected, actual } => {
-                write!(f, "test failed at {path}: expected {expected}, got {actual}")
+            Self::TestFailed {
+                path,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "test failed at {path}: expected {expected}, got {actual}"
+                )
             }
             Self::IndexOutOfBounds { path, index, len } => {
                 write!(f, "index {index} out of bounds (len {len}) at {path}")
@@ -72,10 +87,9 @@ impl PatchOp {
             }
             "remove" => Ok(PatchOp::Remove { path }),
             "replace" => {
-                let value = obj
-                    .get("value")
-                    .cloned()
-                    .ok_or_else(|| PatchError::InvalidOperation("replace: missing 'value'".into()))?;
+                let value = obj.get("value").cloned().ok_or_else(|| {
+                    PatchError::InvalidOperation("replace: missing 'value'".into())
+                })?;
                 Ok(PatchOp::Replace { path, value })
             }
             "move" => {
@@ -111,9 +125,7 @@ impl PatchOp {
             PatchOp::Add { path, value } => {
                 Value::Object(make_op_obj("add", path, Some(value.clone()), None))
             }
-            PatchOp::Remove { path } => {
-                Value::Object(make_op_obj("remove", path, None, None))
-            }
+            PatchOp::Remove { path } => Value::Object(make_op_obj("remove", path, None, None)),
             PatchOp::Replace { path, value } => {
                 Value::Object(make_op_obj("replace", path, Some(value.clone()), None))
             }
@@ -130,7 +142,12 @@ impl PatchOp {
     }
 }
 
-fn make_op_obj(op: &str, path: &str, value: Option<Value>, from: Option<&str>) -> Map<String, Value> {
+fn make_op_obj(
+    op: &str,
+    path: &str,
+    value: Option<Value>,
+    from: Option<&str>,
+) -> Map<String, Value> {
     let mut m = Map::new();
     m.insert("op".into(), Value::String(op.into()));
     if let Some(from_str) = from {
@@ -174,13 +191,11 @@ fn pointer_get<'a>(doc: &'a Value, path: &str) -> Result<&'a Value, PatchError> 
                 let idx: usize = seg
                     .parse()
                     .map_err(|_| PatchError::InvalidPath(path.into()))?;
-                cur = arr
-                    .get(idx)
-                    .ok_or_else(|| PatchError::IndexOutOfBounds {
-                        path: path.into(),
-                        index: idx,
-                        len: arr.len(),
-                    })?;
+                cur = arr.get(idx).ok_or_else(|| PatchError::IndexOutOfBounds {
+                    path: path.into(),
+                    index: idx,
+                    len: arr.len(),
+                })?;
             }
             _ => return Err(PatchError::PathNotFound(path.into())),
         }
@@ -426,21 +441,42 @@ mod tests {
     #[test]
     fn add_to_object() {
         let mut doc = json!({"a": 1});
-        apply(&mut doc, &[PatchOp::Add { path: "/b".into(), value: json!(2) }]).unwrap();
+        apply(
+            &mut doc,
+            &[PatchOp::Add {
+                path: "/b".into(),
+                value: json!(2),
+            }],
+        )
+        .unwrap();
         assert_eq!(doc, json!({"a": 1, "b": 2}));
     }
 
     #[test]
     fn add_to_array() {
         let mut doc = json!([1, 2, 3]);
-        apply(&mut doc, &[PatchOp::Add { path: "/1".into(), value: json!(99) }]).unwrap();
+        apply(
+            &mut doc,
+            &[PatchOp::Add {
+                path: "/1".into(),
+                value: json!(99),
+            }],
+        )
+        .unwrap();
         assert_eq!(doc, json!([1, 99, 2, 3]));
     }
 
     #[test]
     fn add_array_end() {
         let mut doc = json!([1]);
-        apply(&mut doc, &[PatchOp::Add { path: "/-".into(), value: json!(2) }]).unwrap();
+        apply(
+            &mut doc,
+            &[PatchOp::Add {
+                path: "/-".into(),
+                value: json!(2),
+            }],
+        )
+        .unwrap();
         assert_eq!(doc, json!([1, 2]));
     }
 
@@ -461,21 +497,42 @@ mod tests {
     #[test]
     fn replace_value() {
         let mut doc = json!({"a": 1});
-        apply(&mut doc, &[PatchOp::Replace { path: "/a".into(), value: json!(99) }]).unwrap();
+        apply(
+            &mut doc,
+            &[PatchOp::Replace {
+                path: "/a".into(),
+                value: json!(99),
+            }],
+        )
+        .unwrap();
         assert_eq!(doc, json!({"a": 99}));
     }
 
     #[test]
     fn replace_root() {
         let mut doc = json!(1);
-        apply(&mut doc, &[PatchOp::Replace { path: String::new(), value: json!(2) }]).unwrap();
+        apply(
+            &mut doc,
+            &[PatchOp::Replace {
+                path: String::new(),
+                value: json!(2),
+            }],
+        )
+        .unwrap();
         assert_eq!(doc, json!(2));
     }
 
     #[test]
     fn move_op() {
         let mut doc = json!({"a": 1, "b": {"c": 2}});
-        apply(&mut doc, &[PatchOp::Move { from: "/b/c".into(), path: "/d".into() }]).unwrap();
+        apply(
+            &mut doc,
+            &[PatchOp::Move {
+                from: "/b/c".into(),
+                path: "/d".into(),
+            }],
+        )
+        .unwrap();
         assert_eq!(doc["d"], json!(2));
         assert_eq!(doc["b"], json!({}));
     }
@@ -483,7 +540,14 @@ mod tests {
     #[test]
     fn copy_op() {
         let mut doc = json!({"a": [1, 2]});
-        apply(&mut doc, &[PatchOp::Copy { from: "/a".into(), path: "/b".into() }]).unwrap();
+        apply(
+            &mut doc,
+            &[PatchOp::Copy {
+                from: "/a".into(),
+                path: "/b".into(),
+            }],
+        )
+        .unwrap();
         assert_eq!(doc["b"], json!([1, 2]));
         assert_eq!(doc["a"], json!([1, 2])); // original untouched
     }
@@ -491,13 +555,26 @@ mod tests {
     #[test]
     fn test_op_pass() {
         let mut doc = json!({"a": 42});
-        apply(&mut doc, &[PatchOp::Test { path: "/a".into(), value: json!(42) }]).unwrap();
+        apply(
+            &mut doc,
+            &[PatchOp::Test {
+                path: "/a".into(),
+                value: json!(42),
+            }],
+        )
+        .unwrap();
     }
 
     #[test]
     fn test_op_fail() {
         let mut doc = json!({"a": 42});
-        let r = apply(&mut doc, &[PatchOp::Test { path: "/a".into(), value: json!(99) }]);
+        let r = apply(
+            &mut doc,
+            &[PatchOp::Test {
+                path: "/a".into(),
+                value: json!(99),
+            }],
+        );
         assert!(matches!(r, Err(PatchError::TestFailed { .. })));
     }
 
@@ -506,8 +583,13 @@ mod tests {
         let mut doc = json!({"a": 1, "b": 2});
         let original = doc.clone();
         let ops = vec![
-            PatchOp::Replace { path: "/a".into(), value: json!(99) },
-            PatchOp::Remove { path: "/nonexistent".into() }, // will fail
+            PatchOp::Replace {
+                path: "/a".into(),
+                value: json!(99),
+            },
+            PatchOp::Remove {
+                path: "/nonexistent".into(),
+            }, // will fail
         ];
         let r = apply(&mut doc, &ops);
         assert!(r.is_err());
@@ -538,16 +620,22 @@ mod tests {
     #[test]
     fn escape_sequences() {
         let mut doc = json!({"a/b": 1, "c~d": 2});
-        apply(&mut doc, &[PatchOp::Replace {
-            path: "/a~1b".into(),
-            value: json!(10),
-        }])
+        apply(
+            &mut doc,
+            &[PatchOp::Replace {
+                path: "/a~1b".into(),
+                value: json!(10),
+            }],
+        )
         .unwrap();
         assert_eq!(doc["a/b"], json!(10));
-        apply(&mut doc, &[PatchOp::Replace {
-            path: "/c~0d".into(),
-            value: json!(20),
-        }])
+        apply(
+            &mut doc,
+            &[PatchOp::Replace {
+                path: "/c~0d".into(),
+                value: json!(20),
+            }],
+        )
         .unwrap();
         assert_eq!(doc["c~d"], json!(20));
     }
@@ -599,9 +687,15 @@ mod tests {
     #[test]
     fn roundtrip_to_value() {
         let ops = vec![
-            PatchOp::Add { path: "/a".into(), value: json!(1) },
+            PatchOp::Add {
+                path: "/a".into(),
+                value: json!(1),
+            },
             PatchOp::Remove { path: "/b".into() },
-            PatchOp::Move { from: "/c".into(), path: "/d".into() },
+            PatchOp::Move {
+                from: "/c".into(),
+                path: "/d".into(),
+            },
         ];
         let arr: Vec<Value> = ops.iter().map(|o| o.to_value()).collect();
         let parsed = parse_patch(&Value::Array(arr)).unwrap();
@@ -611,10 +705,13 @@ mod tests {
     #[test]
     fn nested_array_operations() {
         let mut doc = json!({"items": [{"id": 1}, {"id": 2}]});
-        apply(&mut doc, &[PatchOp::Add {
-            path: "/items/1/name".into(),
-            value: json!("test"),
-        }])
+        apply(
+            &mut doc,
+            &[PatchOp::Add {
+                path: "/items/1/name".into(),
+                value: json!("test"),
+            }],
+        )
         .unwrap();
         assert_eq!(doc["items"][1]["name"], json!("test"));
     }
@@ -622,7 +719,13 @@ mod tests {
     #[test]
     fn index_out_of_bounds() {
         let mut doc = json!([1, 2]);
-        let r = apply(&mut doc, &[PatchOp::Add { path: "/5".into(), value: json!(3) }]);
+        let r = apply(
+            &mut doc,
+            &[PatchOp::Add {
+                path: "/5".into(),
+                value: json!(3),
+            }],
+        );
         assert!(matches!(r, Err(PatchError::IndexOutOfBounds { .. })));
     }
 
@@ -635,14 +738,26 @@ mod tests {
     #[test]
     fn add_to_root() {
         let mut doc = json!(null);
-        apply(&mut doc, &[PatchOp::Add { path: String::new(), value: json!({"new": "root"}) }]).unwrap();
+        apply(
+            &mut doc,
+            &[PatchOp::Add {
+                path: String::new(),
+                value: json!({"new": "root"}),
+            }],
+        )
+        .unwrap();
         assert_eq!(doc, json!({"new": "root"}));
     }
 
     #[test]
     fn remove_root_fails() {
         let mut doc = json!(42);
-        let r = apply(&mut doc, &[PatchOp::Remove { path: String::new() }]);
+        let r = apply(
+            &mut doc,
+            &[PatchOp::Remove {
+                path: String::new(),
+            }],
+        );
         assert!(r.is_err());
     }
 
@@ -650,10 +765,21 @@ mod tests {
     fn multiple_sequential_ops() {
         let mut doc = json!({"list": []});
         let ops = vec![
-            PatchOp::Add { path: "/list/-".into(), value: json!(1) },
-            PatchOp::Add { path: "/list/-".into(), value: json!(2) },
-            PatchOp::Add { path: "/list/-".into(), value: json!(3) },
-            PatchOp::Remove { path: "/list/1".into() },
+            PatchOp::Add {
+                path: "/list/-".into(),
+                value: json!(1),
+            },
+            PatchOp::Add {
+                path: "/list/-".into(),
+                value: json!(2),
+            },
+            PatchOp::Add {
+                path: "/list/-".into(),
+                value: json!(3),
+            },
+            PatchOp::Remove {
+                path: "/list/1".into(),
+            },
         ];
         apply(&mut doc, &ops).unwrap();
         assert_eq!(doc, json!({"list": [1, 3]}));

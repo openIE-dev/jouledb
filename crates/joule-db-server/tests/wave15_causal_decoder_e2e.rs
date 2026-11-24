@@ -100,10 +100,30 @@ fn write_synthetic_smollm_checkpoint(model_dir: &std::path::Path) -> std::path::
         let p = format!("model.layers.{l}");
         entries.extend([
             mk_1d(&format!("{p}.input_layernorm.weight"), d, 1.0),
-            mk_2d(&format!("{p}.self_attn.q_proj.weight"), d, d, 0.2 + l as f32),
-            mk_2d(&format!("{p}.self_attn.k_proj.weight"), kv_d, d, 0.3 + l as f32),
-            mk_2d(&format!("{p}.self_attn.v_proj.weight"), kv_d, d, 0.4 + l as f32),
-            mk_2d(&format!("{p}.self_attn.o_proj.weight"), d, d, 0.5 + l as f32),
+            mk_2d(
+                &format!("{p}.self_attn.q_proj.weight"),
+                d,
+                d,
+                0.2 + l as f32,
+            ),
+            mk_2d(
+                &format!("{p}.self_attn.k_proj.weight"),
+                kv_d,
+                d,
+                0.3 + l as f32,
+            ),
+            mk_2d(
+                &format!("{p}.self_attn.v_proj.weight"),
+                kv_d,
+                d,
+                0.4 + l as f32,
+            ),
+            mk_2d(
+                &format!("{p}.self_attn.o_proj.weight"),
+                d,
+                d,
+                0.5 + l as f32,
+            ),
             mk_1d(&format!("{p}.post_attention_layernorm.weight"), d, 1.0),
             mk_2d(&format!("{p}.mlp.gate_proj.weight"), ffn, d, 0.6 + l as f32),
             mk_2d(&format!("{p}.mlp.up_proj.weight"), ffn, d, 0.7 + l as f32),

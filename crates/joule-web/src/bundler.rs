@@ -75,7 +75,12 @@ pub struct BundleManifest {
 impl fmt::Display for BundleManifest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for chunk in &self.chunks {
-            writeln!(f, "chunk {:?}: {} modules", chunk.name, chunk.module_ids.len())?;
+            writeln!(
+                f,
+                "chunk {:?}: {} modules",
+                chunk.name,
+                chunk.module_ids.len()
+            )?;
         }
         Ok(())
     }

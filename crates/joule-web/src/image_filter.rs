@@ -18,12 +18,20 @@ pub struct GrayImage {
 
 impl GrayImage {
     pub fn new(width: u32, height: u32) -> Self {
-        Self { width, height, data: vec![0u8; width as usize * height as usize] }
+        Self {
+            width,
+            height,
+            data: vec![0u8; width as usize * height as usize],
+        }
     }
 
     pub fn from_data(width: u32, height: u32, data: Vec<u8>) -> Self {
         assert_eq!(data.len(), width as usize * height as usize);
-        Self { width, height, data }
+        Self {
+            width,
+            height,
+            data,
+        }
     }
 
     pub fn get(&self, x: u32, y: u32) -> u8 {
@@ -51,17 +59,30 @@ pub struct RgbaImage {
 
 impl RgbaImage {
     pub fn new(width: u32, height: u32) -> Self {
-        Self { width, height, data: vec![0u8; width as usize * height as usize * 4] }
+        Self {
+            width,
+            height,
+            data: vec![0u8; width as usize * height as usize * 4],
+        }
     }
 
     pub fn from_data(width: u32, height: u32, data: Vec<u8>) -> Self {
         assert_eq!(data.len(), width as usize * height as usize * 4);
-        Self { width, height, data }
+        Self {
+            width,
+            height,
+            data,
+        }
     }
 
     pub fn get_rgba(&self, x: u32, y: u32) -> [u8; 4] {
         let off = (y as usize * self.width as usize + x as usize) * 4;
-        [self.data[off], self.data[off + 1], self.data[off + 2], self.data[off + 3]]
+        [
+            self.data[off],
+            self.data[off + 1],
+            self.data[off + 2],
+            self.data[off + 3],
+        ]
     }
 
     pub fn set_rgba(&mut self, x: u32, y: u32, rgba: [u8; 4]) {
@@ -96,7 +117,12 @@ impl Kernel {
         assert_eq!(weights.len(), size * size);
         let divisor: f64 = weights.iter().sum();
         let divisor = if divisor.abs() < 1e-10 { 1.0 } else { divisor };
-        Self { size, weights, divisor, bias: 0.0 }
+        Self {
+            size,
+            weights,
+            divisor,
+            bias: 0.0,
+        }
     }
 
     pub fn with_divisor(mut self, d: f64) -> Self {
@@ -151,12 +177,16 @@ pub fn convolve_rgba(img: &RgbaImage, k: &Kernel) -> RgbaImage {
                 }
             }
             let orig = img.get_rgba(x, y);
-            out.set_rgba(x, y, [
-                (acc[0] / k.divisor + k.bias).clamp(0.0, 255.0) as u8,
-                (acc[1] / k.divisor + k.bias).clamp(0.0, 255.0) as u8,
-                (acc[2] / k.divisor + k.bias).clamp(0.0, 255.0) as u8,
-                orig[3],
-            ]);
+            out.set_rgba(
+                x,
+                y,
+                [
+                    (acc[0] / k.divisor + k.bias).clamp(0.0, 255.0) as u8,
+                    (acc[1] / k.divisor + k.bias).clamp(0.0, 255.0) as u8,
+                    (acc[2] / k.divisor + k.bias).clamp(0.0, 255.0) as u8,
+                    orig[3],
+                ],
+            );
         }
     }
     out
@@ -176,65 +206,37 @@ pub fn box_blur_5x5() -> Kernel {
 
 /// 3x3 gaussian blur (approximation).
 pub fn gaussian_blur_3x3() -> Kernel {
-    Kernel::new(3, vec![
-        1.0, 2.0, 1.0,
-        2.0, 4.0, 2.0,
-        1.0, 2.0, 1.0,
-    ]).with_divisor(16.0)
+    Kernel::new(3, vec![1.0, 2.0, 1.0, 2.0, 4.0, 2.0, 1.0, 2.0, 1.0]).with_divisor(16.0)
 }
 
 /// 3x3 sharpen kernel.
 pub fn sharpen_3x3() -> Kernel {
-    Kernel::new(3, vec![
-         0.0, -1.0,  0.0,
-        -1.0,  5.0, -1.0,
-         0.0, -1.0,  0.0,
-    ]).with_divisor(1.0)
+    Kernel::new(3, vec![0.0, -1.0, 0.0, -1.0, 5.0, -1.0, 0.0, -1.0, 0.0]).with_divisor(1.0)
 }
 
 /// Sobel edge detection (horizontal gradient).
 pub fn sobel_x() -> Kernel {
-    Kernel::new(3, vec![
-        -1.0, 0.0, 1.0,
-        -2.0, 0.0, 2.0,
-        -1.0, 0.0, 1.0,
-    ]).with_divisor(1.0)
+    Kernel::new(3, vec![-1.0, 0.0, 1.0, -2.0, 0.0, 2.0, -1.0, 0.0, 1.0]).with_divisor(1.0)
 }
 
 /// Sobel edge detection (vertical gradient).
 pub fn sobel_y() -> Kernel {
-    Kernel::new(3, vec![
-        -1.0, -2.0, -1.0,
-         0.0,  0.0,  0.0,
-         1.0,  2.0,  1.0,
-    ]).with_divisor(1.0)
+    Kernel::new(3, vec![-1.0, -2.0, -1.0, 0.0, 0.0, 0.0, 1.0, 2.0, 1.0]).with_divisor(1.0)
 }
 
 /// Prewitt edge detection (horizontal).
 pub fn prewitt_x() -> Kernel {
-    Kernel::new(3, vec![
-        -1.0, 0.0, 1.0,
-        -1.0, 0.0, 1.0,
-        -1.0, 0.0, 1.0,
-    ]).with_divisor(1.0)
+    Kernel::new(3, vec![-1.0, 0.0, 1.0, -1.0, 0.0, 1.0, -1.0, 0.0, 1.0]).with_divisor(1.0)
 }
 
 /// Prewitt edge detection (vertical).
 pub fn prewitt_y() -> Kernel {
-    Kernel::new(3, vec![
-        -1.0, -1.0, -1.0,
-         0.0,  0.0,  0.0,
-         1.0,  1.0,  1.0,
-    ]).with_divisor(1.0)
+    Kernel::new(3, vec![-1.0, -1.0, -1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0]).with_divisor(1.0)
 }
 
 /// Emboss kernel.
 pub fn emboss() -> Kernel {
-    Kernel::new(3, vec![
-        -2.0, -1.0, 0.0,
-        -1.0,  1.0, 1.0,
-         0.0,  1.0, 2.0,
-    ]).with_divisor(1.0)
+    Kernel::new(3, vec![-2.0, -1.0, 0.0, -1.0, 1.0, 1.0, 0.0, 1.0, 2.0]).with_divisor(1.0)
 }
 
 // ── Sobel magnitude ──────────────────────────────────────────────
@@ -331,11 +333,7 @@ mod tests {
     use super::*;
 
     fn make_gray_3x3() -> GrayImage {
-        GrayImage::from_data(3, 3, vec![
-            10, 20, 30,
-            40, 50, 60,
-            70, 80, 90,
-        ])
+        GrayImage::from_data(3, 3, vec![10, 20, 30, 40, 50, 60, 70, 80, 90])
     }
 
     fn make_rgba_2x2() -> RgbaImage {
@@ -449,11 +447,7 @@ mod tests {
 
     #[test]
     fn test_kernel_custom() {
-        let k = Kernel::new(3, vec![
-            0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0,
-        ]).with_divisor(1.0);
+        let k = Kernel::new(3, vec![0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]).with_divisor(1.0);
         let img = make_gray_3x3();
         let result = convolve_gray(&img, &k);
         // Identity kernel — should be same as input
@@ -462,13 +456,14 @@ mod tests {
 
     #[test]
     fn test_box_blur_5x5() {
-        let img = GrayImage::from_data(5, 5, vec![
-            10, 20, 30, 40, 50,
-            10, 20, 30, 40, 50,
-            10, 20, 30, 40, 50,
-            10, 20, 30, 40, 50,
-            10, 20, 30, 40, 50,
-        ]);
+        let img = GrayImage::from_data(
+            5,
+            5,
+            vec![
+                10, 20, 30, 40, 50, 10, 20, 30, 40, 50, 10, 20, 30, 40, 50, 10, 20, 30, 40, 50, 10,
+                20, 30, 40, 50,
+            ],
+        );
         let blurred = convolve_gray(&img, &box_blur_5x5());
         assert_eq!(blurred.width, 5);
     }

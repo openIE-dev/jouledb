@@ -54,7 +54,11 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
@@ -101,21 +105,33 @@ impl Vec3 {
 impl std::ops::Add for Vec3 {
     type Output = Self;
     fn add(self, rhs: Self) -> Self {
-        Self { x: self.x + rhs.x, y: self.y + rhs.y, z: self.z + rhs.z }
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+        }
     }
 }
 
 impl std::ops::Sub for Vec3 {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self {
-        Self { x: self.x - rhs.x, y: self.y - rhs.y, z: self.z - rhs.z }
+        Self {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            z: self.z - rhs.z,
+        }
     }
 }
 
 impl std::ops::Mul<f64> for Vec3 {
     type Output = Self;
     fn mul(self, s: f64) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 }
 
@@ -145,7 +161,13 @@ impl Body {
         if mass <= 0.0 {
             return Err(NBodyError::NonPositiveMass(mass));
         }
-        Ok(Self { id, mass, position, velocity, radius: 0.0 })
+        Ok(Self {
+            id,
+            mass,
+            position,
+            velocity,
+            radius: 0.0,
+        })
     }
 
     pub fn with_radius(mut self, r: f64) -> Result<Self, NBodyError> {
@@ -269,7 +291,10 @@ impl NBodySim {
 
     /// Remove a body by id.
     pub fn remove_body(&mut self, id: u64) -> Result<Body, NBodyError> {
-        let idx = self.bodies.iter().position(|b| b.id == id)
+        let idx = self
+            .bodies
+            .iter()
+            .position(|b| b.id == id)
             .ok_or(NBodyError::BodyNotFound(id))?;
         self.accelerations.remove(idx);
         let body = self.bodies.remove(idx);
@@ -349,11 +374,14 @@ impl NBodySim {
             for j in (i + 1)..self.bodies.len() {
                 let r2 = self.bodies[i].position.distance_sq(self.bodies[j].position) + eps2;
                 let r = r2.sqrt();
-                potential -= self.config.g_constant * self.bodies[i].mass
-                    * self.bodies[j].mass / r;
+                potential -= self.config.g_constant * self.bodies[i].mass * self.bodies[j].mass / r;
             }
         }
-        EnergyStats { kinetic, potential, total: kinetic + potential }
+        EnergyStats {
+            kinetic,
+            potential,
+            total: kinetic + potential,
+        }
     }
 
     /// Compute O(N^2) gravitational accelerations with softening.
@@ -480,8 +508,7 @@ impl NBodySim {
             self.bodies[i].radius = (r_i * r_i * r_i + r_j * r_j * r_j).cbrt();
         }
         // Remove merged bodies in reverse index order.
-        let mut to_remove: Vec<usize> =
-            merges.iter().map(|&(_, j)| j).collect();
+        let mut to_remove: Vec<usize> = merges.iter().map(|&(_, j)| j).collect();
         to_remove.sort_unstable();
         to_remove.dedup();
         for &idx in to_remove.iter().rev() {
@@ -558,7 +585,11 @@ mod tests {
         assert!(vec3_approx_eq(a + b, Vec3::new(5.0, 7.0, 9.0), 1e-10));
         assert!(vec3_approx_eq(a - b, Vec3::new(-3.0, -3.0, -3.0), 1e-10));
         assert!(approx_eq(a.dot(b), 32.0, 1e-10));
-        assert!(vec3_approx_eq(a.cross(b), Vec3::new(-3.0, 6.0, -3.0), 1e-10));
+        assert!(vec3_approx_eq(
+            a.cross(b),
+            Vec3::new(-3.0, 6.0, -3.0),
+            1e-10
+        ));
     }
 
     #[test]
@@ -586,9 +617,16 @@ mod tests {
 
     #[test]
     fn body_with_radius() {
-        let b = Body::new(0, 1.0, Vec3::ZERO, Vec3::ZERO).unwrap().with_radius(0.5);
+        let b = Body::new(0, 1.0, Vec3::ZERO, Vec3::ZERO)
+            .unwrap()
+            .with_radius(0.5);
         assert!(b.is_ok());
-        assert!(Body::new(0, 1.0, Vec3::ZERO, Vec3::ZERO).unwrap().with_radius(-1.0).is_err());
+        assert!(
+            Body::new(0, 1.0, Vec3::ZERO, Vec3::ZERO)
+                .unwrap()
+                .with_radius(-1.0)
+                .is_err()
+        );
     }
 
     #[test]
@@ -693,7 +731,8 @@ mod tests {
         let bodies = vec![Body::new(0, 1.0, Vec3::ZERO, Vec3::ZERO).unwrap()];
         let mut sim = NBodySim::new(bodies, NBodyConfig::default()).unwrap();
         assert_eq!(sim.body_count(), 1);
-        let new_id = sim.add_body(Body::new(99, 2.0, Vec3::new(5.0, 0.0, 0.0), Vec3::ZERO).unwrap());
+        let new_id =
+            sim.add_body(Body::new(99, 2.0, Vec3::new(5.0, 0.0, 0.0), Vec3::ZERO).unwrap());
         assert_eq!(sim.body_count(), 2);
         sim.remove_body(new_id).unwrap();
         assert_eq!(sim.body_count(), 1);
@@ -730,7 +769,11 @@ mod tests {
         let mut sim = NBodySim::new(bodies, NBodyConfig::default()).unwrap();
         sim.shift_to_com_frame();
         assert!(vec3_approx_eq(sim.center_of_mass(), Vec3::ZERO, 1e-10));
-        assert!(vec3_approx_eq(sim.center_of_mass_velocity(), Vec3::ZERO, 1e-10));
+        assert!(vec3_approx_eq(
+            sim.center_of_mass_velocity(),
+            Vec3::ZERO,
+            1e-10
+        ));
     }
 
     #[test]

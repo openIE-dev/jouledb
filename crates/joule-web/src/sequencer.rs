@@ -136,7 +136,11 @@ impl Pattern {
 
     /// Get all active steps with timing for a given track.
     /// Returns: (step_index, tick_offset, note, velocity, gate_ticks).
-    pub fn active_steps(&self, track_idx: usize, ticks_per_step: u32) -> Vec<(usize, u32, u8, u8, u32)> {
+    pub fn active_steps(
+        &self,
+        track_idx: usize,
+        ticks_per_step: u32,
+    ) -> Vec<(usize, u32, u8, u8, u32)> {
         let track = match self.tracks.get(track_idx) {
             Some(t) => t,
             None => return Vec::new(),
@@ -206,7 +210,10 @@ impl Song {
     /// Append a pattern to the arrangement.
     pub fn arrange(&mut self, pattern_index: usize, repeat_count: u32) {
         if pattern_index < self.patterns.len() {
-            self.arrangement.push(ArrangementEntry { pattern_index, repeat_count });
+            self.arrangement.push(ArrangementEntry {
+                pattern_index,
+                repeat_count,
+            });
         }
     }
 
@@ -350,7 +357,11 @@ pub struct SequencerEvent {
 }
 
 /// Render a pattern into a list of sequencer events.
-pub fn render_pattern(pattern: &Pattern, ticks_per_step: u32, start_tick: u64) -> Vec<SequencerEvent> {
+pub fn render_pattern(
+    pattern: &Pattern,
+    ticks_per_step: u32,
+    start_tick: u64,
+) -> Vec<SequencerEvent> {
     let audible = pattern.audible_tracks();
     let mut events = Vec::new();
 

@@ -126,7 +126,11 @@ pub struct PhyloTree {
 
 impl PhyloTree {
     pub fn new(topology: TreeTopology) -> Self {
-        Self { nodes: Vec::new(), root: None, topology }
+        Self {
+            nodes: Vec::new(),
+            root: None,
+            topology,
+        }
     }
 
     pub fn with_topology(mut self, topology: TreeTopology) -> Self {
@@ -173,12 +177,20 @@ impl PhyloTree {
 
     /// All leaf nodes.
     pub fn leaves(&self) -> Vec<usize> {
-        self.nodes.iter().filter(|n| n.is_leaf()).map(|n| n.id).collect()
+        self.nodes
+            .iter()
+            .filter(|n| n.is_leaf())
+            .map(|n| n.id)
+            .collect()
     }
 
     /// All internal (non-leaf) nodes.
     pub fn internal_nodes(&self) -> Vec<usize> {
-        self.nodes.iter().filter(|n| !n.is_leaf()).map(|n| n.id).collect()
+        self.nodes
+            .iter()
+            .filter(|n| !n.is_leaf())
+            .map(|n| n.id)
+            .collect()
     }
 
     /// Leaf count.
@@ -314,8 +326,11 @@ impl PhyloTree {
                 label.to_string()
             }
         } else {
-            let children: Vec<String> =
-                node.children.iter().map(|c| self.newick_recurse(*c)).collect();
+            let children: Vec<String> = node
+                .children
+                .iter()
+                .map(|c| self.newick_recurse(*c))
+                .collect();
             let inner = children.join(",");
             if node.branch_length > 0.0 {
                 format!("({inner}){label}:{:.6}", node.branch_length)
@@ -396,7 +411,11 @@ impl PhyloTree {
             let label_part = &s[..colon];
             let len_part = &s[colon + 1..];
             let bl = len_part.parse::<f64>().unwrap_or(0.0);
-            let label = if label_part.is_empty() { None } else { Some(label_part) };
+            let label = if label_part.is_empty() {
+                None
+            } else {
+                Some(label_part)
+            };
             (label, bl)
         } else if s.is_empty() {
             (None, 0.0)
@@ -469,7 +488,7 @@ mod tests {
     fn test_is_leaf() {
         let t = sample_tree();
         assert!(!t.node(0).unwrap().is_leaf()); // root
-        assert!(t.node(2).unwrap().is_leaf());  // B
+        assert!(t.node(2).unwrap().is_leaf()); // B
     }
 
     #[test]
@@ -559,7 +578,9 @@ mod tests {
 
     #[test]
     fn test_node_display() {
-        let node = PhyloNode::new(0).with_label("leaf").with_branch_length(0.05);
+        let node = PhyloNode::new(0)
+            .with_label("leaf")
+            .with_branch_length(0.05);
         assert_eq!(format!("{node}"), "leaf:0.050000");
     }
 

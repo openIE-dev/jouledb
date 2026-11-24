@@ -38,7 +38,8 @@ fn is_unreserved(b: u8) -> bool {
 
 /// Sub-delimiters: "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
 fn is_sub_delim(b: u8) -> bool {
-    matches!(b,
+    matches!(
+        b,
         b'!' | b'$' | b'&' | b'\'' | b'(' | b')' | b'*' | b'+' | b',' | b';' | b'='
     )
 }
@@ -51,18 +52,12 @@ fn needs_encoding(b: u8, set: EncodeSet) -> bool {
             !(is_unreserved(b) || is_sub_delim(b) || matches!(b, b':' | b'@' | b'/'))
         }
         EncodeSet::Query => {
-            !(is_unreserved(b)
-                || is_sub_delim(b)
-                || matches!(b, b':' | b'@' | b'/' | b'?'))
+            !(is_unreserved(b) || is_sub_delim(b) || matches!(b, b':' | b'@' | b'/' | b'?'))
         }
         EncodeSet::Fragment => {
-            !(is_unreserved(b)
-                || is_sub_delim(b)
-                || matches!(b, b':' | b'@' | b'/' | b'?'))
+            !(is_unreserved(b) || is_sub_delim(b) || matches!(b, b':' | b'@' | b'/' | b'?'))
         }
-        EncodeSet::UserInfo => {
-            !(is_unreserved(b) || is_sub_delim(b) || b == b':')
-        }
+        EncodeSet::UserInfo => !(is_unreserved(b) || is_sub_delim(b) || b == b':'),
     }
 }
 
@@ -145,10 +140,8 @@ pub fn decode_bytes(input: &[u8]) -> Result<Vec<u8>, PercentEncodeError> {
             if i + 2 >= input.len() {
                 return Err(PercentEncodeError::IncompleteSequence(i));
             }
-            let hi = hex_val(input[i + 1])
-                .ok_or(PercentEncodeError::InvalidSequence(i))?;
-            let lo = hex_val(input[i + 2])
-                .ok_or(PercentEncodeError::InvalidSequence(i))?;
+            let hi = hex_val(input[i + 1]).ok_or(PercentEncodeError::InvalidSequence(i))?;
+            let lo = hex_val(input[i + 2]).ok_or(PercentEncodeError::InvalidSequence(i))?;
             result.push((hi << 4) | lo);
             i += 3;
         } else {

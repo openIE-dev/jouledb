@@ -153,11 +153,7 @@ impl Fraction {
         }
         loop {
             let a = if d != 0 {
-                if n >= 0 {
-                    n / d
-                } else {
-                    (n - d + 1) / d
-                }
+                if n >= 0 { n / d } else { (n - d + 1) / d }
             } else {
                 break;
             };

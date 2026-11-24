@@ -31,6 +31,9 @@ pub mod enterprise;
 pub mod error;
 pub mod fabric;
 pub mod features_bridge;
+pub mod file_formats;
+#[cfg(feature = "flight-sql")]
+pub mod flight_sql;
 pub mod fts_analyzer;
 pub mod graphql_executor;
 pub mod gremlin_executor;
@@ -74,9 +77,6 @@ pub mod scale_to_zero;
 pub mod scram;
 pub mod security;
 pub mod sharding;
-pub mod file_formats;
-#[cfg(feature = "flight-sql")]
-pub mod flight_sql;
 pub mod sigql_executor;
 pub mod sparql_executor;
 pub mod subscription_hdc;
@@ -94,21 +94,21 @@ pub mod workflow;
 // Amorphic modules
 pub mod amorphic_adapter;
 pub mod certification_routes;
-pub mod gin_index;
-pub mod mcp_transport;
-pub mod mvcc_adapter;
-pub mod spatial_index;
-pub mod vector_index;
-pub mod vector_routes;
 pub mod ducklake;
 pub mod fabric_routes;
+pub mod gin_index;
+pub mod kube_control_plane;
 pub mod living_embodied_routes;
+pub mod mcp_agent_loop;
+pub mod mcp_transport;
+pub mod mvcc_adapter;
+pub mod pulse_mesh_routes;
+pub mod spatial_index;
 pub mod swot_capsule_routes;
 pub mod synapse_routes;
+pub mod vector_index;
+pub mod vector_routes;
 pub mod ward_openai_routes;
-pub mod pulse_mesh_routes;
-pub mod kube_control_plane;
-pub mod mcp_agent_loop;
 pub mod wasm_reducers;
 
 // Re-exports
@@ -871,10 +871,12 @@ impl Server {
             query_executor.clone(),
             &db_path,
         );
-        let synapse_runtime = Arc::new(synapse_routes::SynapseServerRuntime::with_executor_and_path(
-            query_executor.clone(),
-            &db_path,
-        ));
+        let synapse_runtime = Arc::new(
+            synapse_routes::SynapseServerRuntime::with_executor_and_path(
+                query_executor.clone(),
+                &db_path,
+            ),
+        );
         let ward_openai_runtime = ward_openai_routes::WardOpenAiRuntime::new_with_energy_snapshot(
             fabric_runtime.clone(),
             swot_capsule_runtime.clone(),
@@ -3975,7 +3977,12 @@ async fn export_table_handler(
             let bytes = file_formats::rows_to_batch(&response.columns, &response.rows)
                 .and_then(|b| file_formats::write_bytes(&b, fmt))
                 .map_err(|e| json_error(StatusCode::INTERNAL_SERVER_ERROR, e))?;
-            Ok((StatusCode::OK, [(header::CONTENT_TYPE, fmt.content_type())], bytes).into_response())
+            Ok((
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, fmt.content_type())],
+                bytes,
+            )
+                .into_response())
         }
         "csv" => {
             let mut csv_output = response.columns.join(",") + "\n";

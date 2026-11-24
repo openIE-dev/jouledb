@@ -52,7 +52,13 @@ pub struct ProfileSample {
 impl ProfileSample {
     /// At rest at a position.
     pub fn at_rest(pos: f64) -> Self {
-        Self { time: 0.0, position: pos, velocity: 0.0, acceleration: 0.0, jerk: 0.0 }
+        Self {
+            time: 0.0,
+            position: pos,
+            velocity: 0.0,
+            acceleration: 0.0,
+            jerk: 0.0,
+        }
     }
 }
 
@@ -219,7 +225,11 @@ impl TrapezoidalProfile {
 
 impl std::fmt::Display for TrapezoidalProfile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let shape = if self.is_triangular() { "triangular" } else { "trapezoidal" };
+        let shape = if self.is_triangular() {
+            "triangular"
+        } else {
+            "trapezoidal"
+        };
         write!(
             f,
             "TrapezoidalProfile({shape}, d={:.4}, v_peak={:.4}, T={:.4}s)",
@@ -310,7 +320,11 @@ impl ScurveProfile {
 
         // Cruise distance
         let d_cruise = (dist - d_ramps).max(0.0);
-        let tv = if v_reached > 1e-12 { d_cruise / v_reached } else { 0.0 };
+        let tv = if v_reached > 1e-12 {
+            d_cruise / v_reached
+        } else {
+            0.0
+        };
 
         let total_time = 2.0 * (2.0 * tj + ta) + tv;
 
@@ -360,7 +374,11 @@ impl ScurveProfile {
             };
         } else {
             // Deceleration half
-            let tau = if half > 1e-12 { (tc - half) / half } else { 0.0 };
+            let tau = if half > 1e-12 {
+                (tc - half) / half
+            } else {
+                0.0
+            };
             let s = 3.0 * tau * tau - 2.0 * tau * tau * tau;
             pos = self.distance * 0.5 + s * self.distance * 0.5;
             vel = if half > 1e-12 {
@@ -423,14 +441,21 @@ impl PolynomialProfile {
         let a1 = v0;
         let a2 = (3.0 * (p1 - p0) - (2.0 * v0 + v1) * tf) / tf2;
         let a3 = (-2.0 * (p1 - p0) + (v0 + v1) * tf) / tf3;
-        Ok(Self { coefficients: vec![a0, a1, a2, a3], duration, order: 3 })
+        Ok(Self {
+            coefficients: vec![a0, a1, a2, a3],
+            duration,
+            order: 3,
+        })
     }
 
     /// Quintic profile: position, velocity, and acceleration boundary conditions.
     pub fn quintic(
-        p0: f64, p1: f64,
-        v0: f64, v1: f64,
-        a0: f64, a1: f64,
+        p0: f64,
+        p1: f64,
+        v0: f64,
+        v1: f64,
+        a0: f64,
+        a1: f64,
         duration: f64,
     ) -> Result<Self, ProfileError> {
         if duration <= 0.0 {
@@ -447,7 +472,8 @@ impl PolynomialProfile {
         let c1 = v0;
         let c2 = a0 / 2.0;
         let c3 = (20.0 * dq - (8.0 * v1 + 12.0 * v0) * tf - (3.0 * a0 - a1) * tf2) / (2.0 * tf3);
-        let c4 = (-30.0 * dq + (14.0 * v1 + 16.0 * v0) * tf + (3.0 * a0 - 2.0 * a1) * tf2) / (2.0 * tf4);
+        let c4 =
+            (-30.0 * dq + (14.0 * v1 + 16.0 * v0) * tf + (3.0 * a0 - 2.0 * a1) * tf2) / (2.0 * tf4);
         let c5 = (12.0 * dq - 6.0 * (v1 + v0) * tf + (a1 - a0) * tf2) / (2.0 * tf5);
 
         Ok(Self {
@@ -475,12 +501,19 @@ impl PolynomialProfile {
                 acc += c * (i as f64) * ((i - 1) as f64) * tc.powi(i as i32 - 2);
             }
             if i >= 3 {
-                jerk += c * (i as f64) * ((i - 1) as f64) * ((i - 2) as f64) * tc.powi(i as i32 - 3);
+                jerk +=
+                    c * (i as f64) * ((i - 1) as f64) * ((i - 2) as f64) * tc.powi(i as i32 - 3);
             }
             tp *= tc;
         }
 
-        ProfileSample { time: tc, position: pos, velocity: vel, acceleration: acc, jerk }
+        ProfileSample {
+            time: tc,
+            position: pos,
+            velocity: vel,
+            acceleration: acc,
+            jerk,
+        }
     }
 
     /// Duration.
@@ -539,7 +572,13 @@ impl TimeOptimalProfile {
         let dist = distance.abs();
         let t_switch = (dist / a_max).sqrt();
         let total_time = 2.0 * t_switch;
-        Ok(Self { distance: dist, a_max, t_switch, total_time, sign })
+        Ok(Self {
+            distance: dist,
+            a_max,
+            t_switch,
+            total_time,
+            sign,
+        })
     }
 
     /// Duration.
@@ -604,11 +643,7 @@ impl SynchronizedProfiles {
     ///
     /// All axes share `v_max` and `a_max`.  The slowest axis determines the
     /// total duration, and faster axes are scaled down.
-    pub fn new(
-        distances: &[f64],
-        v_max: f64,
-        a_max: f64,
-    ) -> Result<Self, ProfileError> {
+    pub fn new(distances: &[f64], v_max: f64, a_max: f64) -> Result<Self, ProfileError> {
         if distances.is_empty() {
             return Err(ProfileError::Infeasible("no axes".into()));
         }
@@ -633,7 +668,10 @@ impl SynchronizedProfiles {
             profiles.push(TrapezoidalProfile::new(d, actual_v, a_max)?);
         }
 
-        Ok(Self { profiles, sync_time: max_time })
+        Ok(Self {
+            profiles,
+            sync_time: max_time,
+        })
     }
 
     /// Synchronized duration.

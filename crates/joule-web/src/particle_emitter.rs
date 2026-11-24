@@ -10,8 +10,16 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
-    pub const UP: Self = Self { x: 0.0, y: 1.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub const UP: Self = Self {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    };
 
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
@@ -26,7 +34,11 @@ impl Vec3 {
         if len < 1e-10 {
             Self::ZERO
         } else {
-            Self { x: self.x / len, y: self.y / len, z: self.z / len }
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+                z: self.z / len,
+            }
         }
     }
 
@@ -54,21 +66,33 @@ impl Vec3 {
 impl std::ops::Add for Vec3 {
     type Output = Self;
     fn add(self, rhs: Self) -> Self {
-        Self { x: self.x + rhs.x, y: self.y + rhs.y, z: self.z + rhs.z }
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+        }
     }
 }
 
 impl std::ops::Mul<f32> for Vec3 {
     type Output = Self;
     fn mul(self, s: f32) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 }
 
 impl std::ops::Sub for Vec3 {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self {
-        Self { x: self.x - rhs.x, y: self.y - rhs.y, z: self.z - rhs.z }
+        Self {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            z: self.z - rhs.z,
+        }
     }
 }
 
@@ -82,8 +106,18 @@ pub struct Color {
 }
 
 impl Color {
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
-    pub const RED: Self = Self { r: 1.0, g: 0.0, b: 0.0, a: 1.0 };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+        a: 1.0,
+    };
+    pub const RED: Self = Self {
+        r: 1.0,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
 
     pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }
@@ -146,14 +180,9 @@ pub enum EmitterShape {
         volume: bool,
     },
     /// Emit from an axis-aligned box.
-    Box {
-        half_extents: Vec3,
-    },
+    Box { half_extents: Vec3 },
     /// Emit along a line segment (edge).
-    Edge {
-        start: Vec3,
-        end: Vec3,
-    },
+    Edge { start: Vec3, end: Vec3 },
     /// Emit from triangles of a mesh surface.
     MeshSurface {
         /// Triangle vertices (each group of 3 is a triangle).
@@ -310,7 +339,11 @@ impl ParticleEmitter {
                 let r = if *volume { *radius * t } else { *radius };
                 (self.position + dir * r, dir)
             }
-            EmitterShape::Cone { angle, radius, volume } => {
+            EmitterShape::Cone {
+                angle,
+                radius,
+                volume,
+            } => {
                 let theta = t * std::f32::consts::TAU;
                 let cone_r = if *volume { *radius * t } else { *radius };
                 let spread = angle.sin() * cone_r;
@@ -319,7 +352,8 @@ impl ParticleEmitter {
                     angle.sin() * theta.cos(),
                     angle.cos(),
                     angle.sin() * theta.sin(),
-                ).normalized();
+                )
+                .normalized();
                 (self.position + local_pos, dir)
             }
             EmitterShape::Box { half_extents } => {
@@ -354,11 +388,19 @@ impl ParticleEmitter {
                 // Barycentric from t
                 let u = t.fract();
                 let v = (t * 3.7).fract();
-                let (u, v) = if u + v > 1.0 { (1.0 - u, 1.0 - v) } else { (u, v) };
+                let (u, v) = if u + v > 1.0 {
+                    (1.0 - u, 1.0 - v)
+                } else {
+                    (u, v)
+                };
                 let w = 1.0 - u - v;
                 let pos = v0 * w + v1 * u + v2 * v;
                 let normal = (v1 - v0).cross(v2 - v0).normalized();
-                let normal = if normal.length() < 0.5 { Vec3::UP } else { normal };
+                let normal = if normal.length() < 0.5 {
+                    Vec3::UP
+                } else {
+                    normal
+                };
                 (self.position + pos, normal)
             }
         }
@@ -402,7 +444,11 @@ impl ParticleEmitter {
         let bursts: Vec<u32> = self.burst_queue.drain(..).collect();
         for count in bursts {
             for i in 0..count {
-                let t = if count <= 1 { 0.5 } else { i as f32 / (count - 1) as f32 };
+                let t = if count <= 1 {
+                    0.5
+                } else {
+                    i as f32 / (count - 1) as f32
+                };
                 result.push(self.emit_one(t));
             }
         }
@@ -413,7 +459,11 @@ impl ParticleEmitter {
         self.emission_accumulator -= to_emit as f32;
 
         for i in 0..to_emit {
-            let t = if to_emit <= 1 { 0.5 } else { i as f32 / (to_emit - 1) as f32 };
+            let t = if to_emit <= 1 {
+                0.5
+            } else {
+                i as f32 / (to_emit - 1) as f32
+            };
             result.push(self.emit_one(t));
         }
 
@@ -481,7 +531,10 @@ mod tests {
     #[test]
     fn test_sphere_surface_shape() {
         let cfg = EmitterConfig {
-            shape: EmitterShape::Sphere { radius: 2.0, volume: false },
+            shape: EmitterShape::Sphere {
+                radius: 2.0,
+                volume: false,
+            },
             ..Default::default()
         };
         let emitter = ParticleEmitter::new(cfg);
@@ -493,7 +546,10 @@ mod tests {
     #[test]
     fn test_sphere_volume_shape() {
         let cfg = EmitterConfig {
-            shape: EmitterShape::Sphere { radius: 3.0, volume: true },
+            shape: EmitterShape::Sphere {
+                radius: 3.0,
+                volume: true,
+            },
             ..Default::default()
         };
         let emitter = ParticleEmitter::new(cfg);

@@ -402,10 +402,10 @@ mod tests {
     #[test]
     fn debouncer_delays() {
         let mut d = Debouncer::new(200);
-        assert!(d.call(0));      // first call fires immediately
-        assert!(!d.call(50));    // too soon
-        assert!(!d.call(100));   // still too soon
-        assert!(d.call(300));    // 200ms since last call (at 100)
+        assert!(d.call(0)); // first call fires immediately
+        assert!(!d.call(50)); // too soon
+        assert!(!d.call(100)); // still too soon
+        assert!(d.call(300)); // 200ms since last call (at 100)
     }
 
     #[test]

@@ -104,7 +104,10 @@ pub enum OrderStatus {
 impl OrderStatus {
     /// Whether this is a terminal state.
     pub fn is_terminal(self) -> bool {
-        matches!(self, Self::Filled | Self::Cancelled | Self::Rejected | Self::Expired)
+        matches!(
+            self,
+            Self::Filled | Self::Cancelled | Self::Rejected | Self::Expired
+        )
     }
 }
 
@@ -135,18 +138,38 @@ pub struct Fill {
 }
 
 impl Fill {
-    pub fn new(fill_id: u64, quantity: f64, price: f64, timestamp_ns: u64, counter_id: u64) -> Self {
-        Self { fill_id, quantity, price, timestamp_ns, counterparty_order_id: counter_id }
+    pub fn new(
+        fill_id: u64,
+        quantity: f64,
+        price: f64,
+        timestamp_ns: u64,
+        counter_id: u64,
+    ) -> Self {
+        Self {
+            fill_id,
+            quantity,
+            price,
+            timestamp_ns,
+            counterparty_order_id: counter_id,
+        }
     }
 
     /// Notional value of the fill.
-    pub fn notional(&self) -> f64 { self.quantity * self.price }
+    pub fn notional(&self) -> f64 {
+        self.quantity * self.price
+    }
 }
 
 impl fmt::Display for Fill {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Fill(id={}, {:.4}@{:.2}, notional={:.2})",
-            self.fill_id, self.quantity, self.price, self.notional())
+        write!(
+            f,
+            "Fill(id={}, {:.4}@{:.2}, notional={:.2})",
+            self.fill_id,
+            self.quantity,
+            self.price,
+            self.notional()
+        )
     }
 }
 
@@ -228,11 +251,16 @@ impl LimitOrder {
             return Err(LimitOrderError::InvalidPrice(format!("{}", self.price)));
         }
         if self.quantity <= 0.0 {
-            return Err(LimitOrderError::InvalidQuantity(format!("{}", self.quantity)));
+            return Err(LimitOrderError::InvalidQuantity(format!(
+                "{}",
+                self.quantity
+            )));
         }
         if self.min_quantity > self.quantity {
-            return Err(LimitOrderError::InvalidQuantity(
-                format!("min_quantity {} > quantity {}", self.min_quantity, self.quantity)));
+            return Err(LimitOrderError::InvalidQuantity(format!(
+                "min_quantity {} > quantity {}",
+                self.min_quantity, self.quantity
+            )));
         }
         Ok(())
     }
@@ -253,8 +281,10 @@ impl LimitOrder {
             return Err(LimitOrderError::AlreadyTerminal(self.order_id));
         }
         if fill.quantity > self.remaining + 1e-12 {
-            return Err(LimitOrderError::InsufficientFill(
-                format!("fill {} > remaining {}", fill.quantity, self.remaining)));
+            return Err(LimitOrderError::InsufficientFill(format!(
+                "fill {} > remaining {}",
+                fill.quantity, self.remaining
+            )));
         }
         self.remaining -= fill.quantity;
         if self.remaining < 1e-12 {
@@ -305,14 +335,22 @@ impl LimitOrder {
 
     /// Fill ratio as fraction.
     pub fn fill_ratio(&self) -> f64 {
-        if self.quantity <= 0.0 { 0.0 } else { self.filled_quantity() / self.quantity }
+        if self.quantity <= 0.0 {
+            0.0
+        } else {
+            self.filled_quantity() / self.quantity
+        }
     }
 
     /// Average fill price.
     pub fn avg_fill_price(&self) -> Option<f64> {
         let total_notional: f64 = self.fills.iter().map(|f| f.notional()).sum();
         let total_qty: f64 = self.fills.iter().map(|f| f.quantity).sum();
-        if total_qty > 1e-12 { Some(total_notional / total_qty) } else { None }
+        if total_qty > 1e-12 {
+            Some(total_notional / total_qty)
+        } else {
+            None
+        }
     }
 
     /// Total notional value of all fills.
@@ -330,16 +368,26 @@ impl LimitOrder {
 
     /// Whether TIF allows resting on book.
     pub fn can_rest(&self) -> bool {
-        matches!(self.time_in_force,
-            TimeInForce::GoodTillCancel | TimeInForce::GoodTillDate { .. } | TimeInForce::Day)
+        matches!(
+            self.time_in_force,
+            TimeInForce::GoodTillCancel | TimeInForce::GoodTillDate { .. } | TimeInForce::Day
+        )
     }
 }
 
 impl fmt::Display for LimitOrder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "LimitOrder(id={}, {} {:.4}@{:.2}, tif={}, status={}, filled={:.4})",
-            self.order_id, self.side, self.quantity, self.price,
-            self.time_in_force, self.status, self.filled_quantity())
+        write!(
+            f,
+            "LimitOrder(id={}, {} {:.4}@{:.2}, tif={}, status={}, filled={:.4})",
+            self.order_id,
+            self.side,
+            self.quantity,
+            self.price,
+            self.time_in_force,
+            self.status,
+            self.filled_quantity()
+        )
     }
 }
 

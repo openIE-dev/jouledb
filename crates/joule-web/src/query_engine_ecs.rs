@@ -69,7 +69,8 @@ impl QueryDescriptor {
     }
 
     pub fn added_since(mut self, tid: TypeId, tick: u64) -> Self {
-        self.change_filters.push((tid, ChangeFilterKind::Added, tick));
+        self.change_filters
+            .push((tid, ChangeFilterKind::Added, tick));
         self
     }
 
@@ -296,11 +297,7 @@ impl QueryEngine {
     }
 
     /// Register an archetype with a given set of component types and entities.
-    pub fn register_archetype(
-        &mut self,
-        types: &BTreeSet<TypeId>,
-        entities: Vec<u64>,
-    ) -> u64 {
+    pub fn register_archetype(&mut self, types: &BTreeSet<TypeId>, entities: Vec<u64>) -> u64 {
         let mask = self.mask_registry.mask_for(types);
         let id = self.next_archetype_id;
         self.next_archetype_id += 1;
@@ -349,16 +346,17 @@ impl QueryEngine {
                     result.extend(entities.iter().copied());
                 } else {
                     for &eid in entities {
-                        let passes = desc.change_filters.iter().all(|(tid, kind, tick)| {
-                            match kind {
-                                ChangeFilterKind::Added => {
-                                    self.change_tracker.was_added_since(eid, *tid, *tick)
-                                }
-                                ChangeFilterKind::Changed => {
-                                    self.change_tracker.was_changed_since(eid, *tid, *tick)
-                                }
-                            }
-                        });
+                        let passes =
+                            desc.change_filters
+                                .iter()
+                                .all(|(tid, kind, tick)| match kind {
+                                    ChangeFilterKind::Added => {
+                                        self.change_tracker.was_added_since(eid, *tid, *tick)
+                                    }
+                                    ChangeFilterKind::Changed => {
+                                        self.change_tracker.was_changed_since(eid, *tid, *tick)
+                                    }
+                                });
                         if passes {
                             result.push(eid);
                         }
@@ -471,8 +469,9 @@ mod tests {
     #[test]
     fn mask_registry_mask_for() {
         let mut reg = MaskRegistry::new();
-        let types: BTreeSet<TypeId> =
-            [TypeId::of::<Pos>(), TypeId::of::<Vel>()].into_iter().collect();
+        let types: BTreeSet<TypeId> = [TypeId::of::<Pos>(), TypeId::of::<Vel>()]
+            .into_iter()
+            .collect();
         let mask = reg.mask_for(&types);
         assert_eq!(mask.bit_count(), 2);
     }
@@ -516,8 +515,9 @@ mod tests {
     #[test]
     fn query_with_required() {
         let mut engine = QueryEngine::new();
-        let types_pv: BTreeSet<TypeId> =
-            [TypeId::of::<Pos>(), TypeId::of::<Vel>()].into_iter().collect();
+        let types_pv: BTreeSet<TypeId> = [TypeId::of::<Pos>(), TypeId::of::<Vel>()]
+            .into_iter()
+            .collect();
         let types_p: BTreeSet<TypeId> = [TypeId::of::<Pos>()].into_iter().collect();
         engine.register_archetype(&types_pv, vec![1, 2]);
         engine.register_archetype(&types_p, vec![3]);
@@ -530,15 +530,13 @@ mod tests {
     #[test]
     fn query_with_exclusion() {
         let mut engine = QueryEngine::new();
-        let types_ph: BTreeSet<TypeId> =
-            [TypeId::of::<Pos>(), TypeId::of::<Hp>()].into_iter().collect();
+        let types_ph: BTreeSet<TypeId> = [TypeId::of::<Pos>(), TypeId::of::<Hp>()]
+            .into_iter()
+            .collect();
         let types_p: BTreeSet<TypeId> = [TypeId::of::<Pos>()].into_iter().collect();
         engine.register_archetype(&types_ph, vec![1]);
         engine.register_archetype(&types_p, vec![2]);
-        let result = engine.query_filtered(
-            &[TypeId::of::<Pos>()],
-            &[TypeId::of::<Hp>()],
-        );
+        let result = engine.query_filtered(&[TypeId::of::<Pos>()], &[TypeId::of::<Hp>()]);
         assert_eq!(result, vec![2]);
     }
 
@@ -548,9 +546,15 @@ mod tests {
         let types: BTreeSet<TypeId> = [TypeId::of::<Pos>()].into_iter().collect();
         engine.register_archetype(&types, vec![1, 2, 3]);
         // Only entity 2 was added recently.
-        engine.change_tracker.record_added(1, TypeId::of::<Pos>(), 1);
-        engine.change_tracker.record_added(2, TypeId::of::<Pos>(), 5);
-        engine.change_tracker.record_added(3, TypeId::of::<Pos>(), 2);
+        engine
+            .change_tracker
+            .record_added(1, TypeId::of::<Pos>(), 1);
+        engine
+            .change_tracker
+            .record_added(2, TypeId::of::<Pos>(), 5);
+        engine
+            .change_tracker
+            .record_added(3, TypeId::of::<Pos>(), 2);
         let desc = QueryDescriptor::new()
             .with(TypeId::of::<Pos>())
             .added_since(TypeId::of::<Pos>(), 3);
@@ -599,8 +603,9 @@ mod tests {
     #[test]
     fn query_multiple_archetypes_match() {
         let mut engine = QueryEngine::new();
-        let types1: BTreeSet<TypeId> =
-            [TypeId::of::<Pos>(), TypeId::of::<Vel>()].into_iter().collect();
+        let types1: BTreeSet<TypeId> = [TypeId::of::<Pos>(), TypeId::of::<Vel>()]
+            .into_iter()
+            .collect();
         let types2: BTreeSet<TypeId> =
             [TypeId::of::<Pos>(), TypeId::of::<Vel>(), TypeId::of::<Hp>()]
                 .into_iter()
@@ -627,13 +632,22 @@ mod tests {
     #[test]
     fn change_filter_combined() {
         let mut engine = QueryEngine::new();
-        let types: BTreeSet<TypeId> =
-            [TypeId::of::<Pos>(), TypeId::of::<Vel>()].into_iter().collect();
+        let types: BTreeSet<TypeId> = [TypeId::of::<Pos>(), TypeId::of::<Vel>()]
+            .into_iter()
+            .collect();
         engine.register_archetype(&types, vec![1, 2]);
-        engine.change_tracker.record_added(1, TypeId::of::<Pos>(), 5);
-        engine.change_tracker.record_changed(1, TypeId::of::<Vel>(), 8);
-        engine.change_tracker.record_added(2, TypeId::of::<Pos>(), 5);
-        engine.change_tracker.record_changed(2, TypeId::of::<Vel>(), 3);
+        engine
+            .change_tracker
+            .record_added(1, TypeId::of::<Pos>(), 5);
+        engine
+            .change_tracker
+            .record_changed(1, TypeId::of::<Vel>(), 8);
+        engine
+            .change_tracker
+            .record_added(2, TypeId::of::<Pos>(), 5);
+        engine
+            .change_tracker
+            .record_changed(2, TypeId::of::<Vel>(), 3);
         let desc = QueryDescriptor::new()
             .with(TypeId::of::<Pos>())
             .changed_since(TypeId::of::<Vel>(), 5);

@@ -11,10 +11,19 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CsvError {
-    UnterminatedQuote { line: usize },
+    UnterminatedQuote {
+        line: usize,
+    },
     ColumnNotFound(String),
-    IndexOutOfBounds { index: usize, len: usize },
-    ParseError { row: usize, col: usize, message: String },
+    IndexOutOfBounds {
+        index: usize,
+        len: usize,
+    },
+    ParseError {
+        row: usize,
+        col: usize,
+        message: String,
+    },
     InvalidDialect(String),
 }
 
@@ -62,15 +71,24 @@ impl Default for CsvDialect {
 
 impl CsvDialect {
     pub fn tsv() -> Self {
-        Self { delimiter: '\t', ..Default::default() }
+        Self {
+            delimiter: '\t',
+            ..Default::default()
+        }
     }
 
     pub fn pipe() -> Self {
-        Self { delimiter: '|', ..Default::default() }
+        Self {
+            delimiter: '|',
+            ..Default::default()
+        }
     }
 
     pub fn semicolon() -> Self {
-        Self { delimiter: ';', ..Default::default() }
+        Self {
+            delimiter: ';',
+            ..Default::default()
+        }
     }
 }
 
@@ -155,9 +173,10 @@ impl CsvTable {
 
     /// Get a cell by row index and column name.
     pub fn get_by_name(&self, row: usize, col_name: &str) -> Result<&str, CsvError> {
-        let headers = self.headers.as_ref().ok_or_else(|| {
-            CsvError::ColumnNotFound(col_name.into())
-        })?;
+        let headers = self
+            .headers
+            .as_ref()
+            .ok_or_else(|| CsvError::ColumnNotFound(col_name.into()))?;
         let col_idx = headers
             .iter()
             .position(|h| h == col_name)
@@ -173,7 +192,11 @@ impl CsvTable {
                 len: self.col_count(),
             });
         }
-        Ok(self.rows.iter().filter_map(|r| r.get(col).map(|s| s.as_str())).collect())
+        Ok(self
+            .rows
+            .iter()
+            .filter_map(|r| r.get(col).map(|s| s.as_str()))
+            .collect())
     }
 
     /// Get a column by name.
@@ -436,7 +459,10 @@ mod tests {
 
     #[test]
     fn no_header() {
-        let dialect = CsvDialect { has_header: false, ..Default::default() };
+        let dialect = CsvDialect {
+            has_header: false,
+            ..Default::default()
+        };
         let input = "1,2\n3,4\n";
         let table = parse(input, &dialect).unwrap();
         assert!(table.headers.is_none());
@@ -597,8 +623,14 @@ mod tests {
     fn index_out_of_bounds() {
         let input = "a\n1\n";
         let table = parse(input, &CsvDialect::default()).unwrap();
-        assert!(matches!(table.get(5, 0), Err(CsvError::IndexOutOfBounds { .. })));
-        assert!(matches!(table.get(0, 5), Err(CsvError::IndexOutOfBounds { .. })));
+        assert!(matches!(
+            table.get(5, 0),
+            Err(CsvError::IndexOutOfBounds { .. })
+        ));
+        assert!(matches!(
+            table.get(0, 5),
+            Err(CsvError::IndexOutOfBounds { .. })
+        ));
     }
 
     #[test]
@@ -612,10 +644,7 @@ mod tests {
 
     #[test]
     fn build_table_helper() {
-        let table = build_table(
-            vec!["x", "y"],
-            vec![vec!["1", "2"], vec!["3", "4"]],
-        );
+        let table = build_table(vec!["x", "y"], vec![vec!["1", "2"], vec!["3", "4"]]);
         assert_eq!(table.row_count(), 2);
         assert_eq!(table.col_count(), 2);
     }

@@ -211,7 +211,11 @@ impl MultilateralNetResult {
 
 impl fmt::Display for MultilateralNetResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let dir = if self.net_cash >= 0.0 { "receives" } else { "pays" };
+        let dir = if self.net_cash >= 0.0 {
+            "receives"
+        } else {
+            "pays"
+        };
         write!(
             f,
             "{} {} {:.2}{}",
@@ -329,9 +333,9 @@ impl NettingEngine {
             .collect();
 
         if relevant.is_empty() {
-            return Err(NettingError::NettingSetEmpty(
-                format!("{party_a} <-> {party_b}"),
-            ));
+            return Err(NettingError::NettingSetEmpty(format!(
+                "{party_a} <-> {party_b}"
+            )));
         }
 
         let mut net_cash = 0.0f64;
@@ -363,10 +367,7 @@ impl NettingEngine {
     }
 
     /// Multilateral netting: compute net position for each participant.
-    pub fn multilateral_net(
-        &self,
-        currency: &str,
-    ) -> Vec<MultilateralNetResult> {
+    pub fn multilateral_net(&self, currency: &str) -> Vec<MultilateralNetResult> {
         let active: Vec<&Obligation> = self
             .obligations
             .iter()
@@ -408,11 +409,7 @@ impl NettingEngine {
     }
 
     /// Close-out netting: terminate all obligations with a defaulter.
-    pub fn close_out_net(
-        &mut self,
-        defaulter: &str,
-        currency: &str,
-    ) -> Vec<CloseOutResult> {
+    pub fn close_out_net(&mut self, defaulter: &str, currency: &str) -> Vec<CloseOutResult> {
         let mut results_map: HashMap<String, (usize, f64)> = HashMap::new();
 
         for o in &mut self.obligations {
@@ -462,9 +459,7 @@ impl NettingEngine {
             if !o.is_active || o.currency != currency {
                 continue;
             }
-            if (o.from == party_a && o.to == party_b)
-                || (o.from == party_b && o.to == party_a)
-            {
+            if (o.from == party_a && o.to == party_b) || (o.from == party_b && o.to == party_a) {
                 o.is_active = false;
             }
         }
@@ -479,7 +474,12 @@ impl NettingEngine {
         let novated = Obligation::cash(0, &from, &to, currency, amt);
         let id = self.add_obligation(novated);
 
-        Ok(self.obligations.iter().find(|o| o.id == id).unwrap().clone())
+        Ok(self
+            .obligations
+            .iter()
+            .find(|o| o.id == id)
+            .unwrap()
+            .clone())
     }
 
     /// Compute overall netting set statistics.
@@ -595,9 +595,11 @@ mod tests {
         let results = ne.close_out_net("A", "USD");
         assert!(!results.is_empty());
         // All A obligations should be deactivated
-        let active_a = ne.obligations().iter().filter(|o| {
-            o.is_active && (o.from == "A" || o.to == "A")
-        }).count();
+        let active_a = ne
+            .obligations()
+            .iter()
+            .filter(|o| o.is_active && (o.from == "A" || o.to == "A"))
+            .count();
         assert_eq!(active_a, 0);
     }
 
@@ -607,8 +609,12 @@ mod tests {
         let novated = ne.novation_net("A", "B", "USD").unwrap();
         assert!((novated.amount - 400.0).abs() < 1e-9);
         // Original obligations deactivated
-        let originals: Vec<_> = ne.obligations().iter()
-            .filter(|o| o.is_active && ((o.from == "A" && o.to == "B") || (o.from == "B" && o.to == "A")))
+        let originals: Vec<_> = ne
+            .obligations()
+            .iter()
+            .filter(|o| {
+                o.is_active && ((o.from == "A" && o.to == "B") || (o.from == "B" && o.to == "A"))
+            })
             .collect();
         // Only the novated one should remain active
         assert_eq!(originals.len(), 1);
@@ -633,8 +639,12 @@ mod tests {
     #[test]
     fn test_securities_obligation() {
         let mut ne = NettingEngine::new();
-        ne.add_obligation(Obligation::securities(0, "A", "B", "AAPL", 100.0, 15000.0, "USD"));
-        ne.add_obligation(Obligation::securities(0, "B", "A", "AAPL", 60.0, 9000.0, "USD"));
+        ne.add_obligation(Obligation::securities(
+            0, "A", "B", "AAPL", 100.0, 15000.0, "USD",
+        ));
+        ne.add_obligation(Obligation::securities(
+            0, "B", "A", "AAPL", 60.0, 9000.0, "USD",
+        ));
         let net = ne.bilateral_net("A", "B", "USD").unwrap();
         let aapl_net = net.security_nets.get("AAPL").copied().unwrap_or(0.0);
         assert!((aapl_net - 40.0).abs() < 1e-9);

@@ -16,7 +16,9 @@ pub struct Point3 {
 }
 
 impl Point3 {
-    pub fn new(id: u64, x: f64, y: f64, z: f64) -> Self { Self { id, x, y, z } }
+    pub fn new(id: u64, x: f64, y: f64, z: f64) -> Self {
+        Self { id, x, y, z }
+    }
 }
 
 /// Axis-aligned bounding box in 3D.
@@ -32,23 +34,43 @@ pub struct AABB {
 
 impl AABB {
     pub fn new(min_x: f64, min_y: f64, min_z: f64, max_x: f64, max_y: f64, max_z: f64) -> Self {
-        Self { min_x, min_y, min_z, max_x, max_y, max_z }
+        Self {
+            min_x,
+            min_y,
+            min_z,
+            max_x,
+            max_y,
+            max_z,
+        }
     }
 
     pub fn cube(cx: f64, cy: f64, cz: f64, half: f64) -> Self {
-        Self::new(cx - half, cy - half, cz - half, cx + half, cy + half, cz + half)
+        Self::new(
+            cx - half,
+            cy - half,
+            cz - half,
+            cx + half,
+            cy + half,
+            cz + half,
+        )
     }
 
     pub fn contains(&self, x: f64, y: f64, z: f64) -> bool {
-        x >= self.min_x && x < self.max_x
-            && y >= self.min_y && y < self.max_y
-            && z >= self.min_z && z < self.max_z
+        x >= self.min_x
+            && x < self.max_x
+            && y >= self.min_y
+            && y < self.max_y
+            && z >= self.min_z
+            && z < self.max_z
     }
 
     pub fn intersects(&self, other: &AABB) -> bool {
-        !(self.max_x <= other.min_x || other.max_x <= self.min_x
-            || self.max_y <= other.min_y || other.max_y <= self.min_y
-            || self.max_z <= other.min_z || other.max_z <= self.min_z)
+        !(self.max_x <= other.min_x
+            || other.max_x <= self.min_x
+            || self.max_y <= other.min_y
+            || other.max_y <= self.min_y
+            || self.max_z <= other.min_z
+            || other.max_z <= self.min_z)
     }
 
     pub fn center(&self) -> (f64, f64, f64) {
@@ -103,16 +125,32 @@ impl Ray {
     pub fn new(ox: f64, oy: f64, oz: f64, dx: f64, dy: f64, dz: f64) -> Self {
         let len = (dx * dx + dy * dy + dz * dz).sqrt();
         Self {
-            origin_x: ox, origin_y: oy, origin_z: oz,
-            dir_x: dx / len, dir_y: dy / len, dir_z: dz / len,
+            origin_x: ox,
+            origin_y: oy,
+            origin_z: oz,
+            dir_x: dx / len,
+            dir_y: dy / len,
+            dir_z: dz / len,
         }
     }
 
     /// Slab-based ray-AABB intersection. Returns (t_min, t_max) or None.
     fn intersect_aabb(&self, aabb: &AABB) -> Option<(f64, f64)> {
-        let inv_x = if self.dir_x.abs() > 1e-12 { 1.0 / self.dir_x } else { f64::INFINITY.copysign(self.dir_x) };
-        let inv_y = if self.dir_y.abs() > 1e-12 { 1.0 / self.dir_y } else { f64::INFINITY.copysign(self.dir_y) };
-        let inv_z = if self.dir_z.abs() > 1e-12 { 1.0 / self.dir_z } else { f64::INFINITY.copysign(self.dir_z) };
+        let inv_x = if self.dir_x.abs() > 1e-12 {
+            1.0 / self.dir_x
+        } else {
+            f64::INFINITY.copysign(self.dir_x)
+        };
+        let inv_y = if self.dir_y.abs() > 1e-12 {
+            1.0 / self.dir_y
+        } else {
+            f64::INFINITY.copysign(self.dir_y)
+        };
+        let inv_z = if self.dir_z.abs() > 1e-12 {
+            1.0 / self.dir_z
+        } else {
+            f64::INFINITY.copysign(self.dir_z)
+        };
 
         let t1 = (aabb.min_x - self.origin_x) * inv_x;
         let t2 = (aabb.max_x - self.origin_x) * inv_x;
@@ -124,7 +162,11 @@ impl Ray {
         let tmin = t1.min(t2).max(t3.min(t4)).max(t5.min(t6));
         let tmax = t1.max(t2).min(t3.max(t4)).min(t5.max(t6));
 
-        if tmax < 0.0 || tmin > tmax { None } else { Some((tmin.max(0.0), tmax)) }
+        if tmax < 0.0 || tmin > tmax {
+            None
+        } else {
+            Some((tmin.max(0.0), tmax))
+        }
     }
 }
 
@@ -189,7 +231,9 @@ impl Octree {
         }
         self.total_count += 1;
 
-        if self.children.is_none() && (self.points.len() < self.capacity || self.depth >= self.max_depth) {
+        if self.children.is_none()
+            && (self.points.len() < self.capacity || self.depth >= self.max_depth)
+        {
             self.points.push(point);
             return true;
         }
@@ -216,14 +260,78 @@ impl Octree {
         let d = self.depth + 1;
         let md = self.max_depth;
         let mut children = Box::new([
-            Octree { boundary: octs[0], capacity: cap, points: Vec::new(), children: None, total_count: 0, max_depth: md, depth: d },
-            Octree { boundary: octs[1], capacity: cap, points: Vec::new(), children: None, total_count: 0, max_depth: md, depth: d },
-            Octree { boundary: octs[2], capacity: cap, points: Vec::new(), children: None, total_count: 0, max_depth: md, depth: d },
-            Octree { boundary: octs[3], capacity: cap, points: Vec::new(), children: None, total_count: 0, max_depth: md, depth: d },
-            Octree { boundary: octs[4], capacity: cap, points: Vec::new(), children: None, total_count: 0, max_depth: md, depth: d },
-            Octree { boundary: octs[5], capacity: cap, points: Vec::new(), children: None, total_count: 0, max_depth: md, depth: d },
-            Octree { boundary: octs[6], capacity: cap, points: Vec::new(), children: None, total_count: 0, max_depth: md, depth: d },
-            Octree { boundary: octs[7], capacity: cap, points: Vec::new(), children: None, total_count: 0, max_depth: md, depth: d },
+            Octree {
+                boundary: octs[0],
+                capacity: cap,
+                points: Vec::new(),
+                children: None,
+                total_count: 0,
+                max_depth: md,
+                depth: d,
+            },
+            Octree {
+                boundary: octs[1],
+                capacity: cap,
+                points: Vec::new(),
+                children: None,
+                total_count: 0,
+                max_depth: md,
+                depth: d,
+            },
+            Octree {
+                boundary: octs[2],
+                capacity: cap,
+                points: Vec::new(),
+                children: None,
+                total_count: 0,
+                max_depth: md,
+                depth: d,
+            },
+            Octree {
+                boundary: octs[3],
+                capacity: cap,
+                points: Vec::new(),
+                children: None,
+                total_count: 0,
+                max_depth: md,
+                depth: d,
+            },
+            Octree {
+                boundary: octs[4],
+                capacity: cap,
+                points: Vec::new(),
+                children: None,
+                total_count: 0,
+                max_depth: md,
+                depth: d,
+            },
+            Octree {
+                boundary: octs[5],
+                capacity: cap,
+                points: Vec::new(),
+                children: None,
+                total_count: 0,
+                max_depth: md,
+                depth: d,
+            },
+            Octree {
+                boundary: octs[6],
+                capacity: cap,
+                points: Vec::new(),
+                children: None,
+                total_count: 0,
+                max_depth: md,
+                depth: d,
+            },
+            Octree {
+                boundary: octs[7],
+                capacity: cap,
+                points: Vec::new(),
+                children: None,
+                total_count: 0,
+                max_depth: md,
+                depth: d,
+            },
         ]);
         let old_points: Vec<Point3> = self.points.drain(..).collect();
         for p in old_points {
@@ -267,7 +375,9 @@ impl Octree {
     }
 
     fn query_range_inner(&self, range: &AABB, result: &mut Vec<Point3>) {
-        if !self.boundary.intersects(range) { return; }
+        if !self.boundary.intersects(range) {
+            return;
+        }
         for p in &self.points {
             if range.contains(p.x, p.y, p.z) {
                 result.push(*p);
@@ -290,10 +400,16 @@ impl Octree {
     fn ray_query_inner(&self, ray: &Ray, radius: f64, result: &mut Vec<Point3>) {
         // Expand AABB by radius for ray test.
         let expanded = AABB::new(
-            self.boundary.min_x - radius, self.boundary.min_y - radius, self.boundary.min_z - radius,
-            self.boundary.max_x + radius, self.boundary.max_y + radius, self.boundary.max_z + radius,
+            self.boundary.min_x - radius,
+            self.boundary.min_y - radius,
+            self.boundary.min_z - radius,
+            self.boundary.max_x + radius,
+            self.boundary.max_y + radius,
+            self.boundary.max_z + radius,
         );
-        if ray.intersect_aabb(&expanded).is_none() { return; }
+        if ray.intersect_aabb(&expanded).is_none() {
+            return;
+        }
 
         for p in &self.points {
             if point_ray_dist_sq(p, ray) <= radius * radius {
@@ -320,7 +436,9 @@ impl Octree {
             let closest_y = qy.clamp(self.boundary.min_y, self.boundary.max_y);
             let closest_z = qz.clamp(self.boundary.min_z, self.boundary.max_z);
             let d = dist3_sq(qx, qy, qz, closest_x, closest_y, closest_z);
-            if d > *bd { return; }
+            if d > *bd {
+                return;
+            }
         }
         for p in &self.points {
             let d = dist3_sq(qx, qy, qz, p.x, p.y, p.z);
@@ -343,7 +461,9 @@ impl Octree {
     }
 
     fn frustum_inner(&self, frustum: &Frustum, result: &mut Vec<Point3>) {
-        if !frustum.intersects_aabb(&self.boundary) { return; }
+        if !frustum.intersects_aabb(&self.boundary) {
+            return;
+        }
         for p in &self.points {
             if point_in_frustum(p, frustum) {
                 result.push(*p);
@@ -368,7 +488,9 @@ impl Octree {
         let closest_x = cx.clamp(self.boundary.min_x, self.boundary.max_x);
         let closest_y = cy.clamp(self.boundary.min_y, self.boundary.max_y);
         let closest_z = cz.clamp(self.boundary.min_z, self.boundary.max_z);
-        if dist3_sq(cx, cy, cz, closest_x, closest_y, closest_z) > r_sq { return; }
+        if dist3_sq(cx, cy, cz, closest_x, closest_y, closest_z) > r_sq {
+            return;
+        }
 
         for p in &self.points {
             if dist3_sq(cx, cy, cz, p.x, p.y, p.z) <= r_sq {
@@ -384,7 +506,13 @@ impl Octree {
 
     /// Level-of-detail: return points from nodes whose projected size exceeds
     /// `min_screen_size`. Nodes too far or too small are culled.
-    pub fn query_lod(&self, eye_x: f64, eye_y: f64, eye_z: f64, min_screen_size: f64) -> Vec<Point3> {
+    pub fn query_lod(
+        &self,
+        eye_x: f64,
+        eye_y: f64,
+        eye_z: f64,
+        min_screen_size: f64,
+    ) -> Vec<Point3> {
         let mut result = Vec::new();
         self.lod_inner(eye_x, eye_y, eye_z, min_screen_size, &mut result);
         result
@@ -418,8 +546,12 @@ impl Octree {
         }
     }
 
-    pub fn len(&self) -> usize { self.total_count }
-    pub fn is_empty(&self) -> bool { self.total_count == 0 }
+    pub fn len(&self) -> usize {
+        self.total_count
+    }
+    pub fn is_empty(&self) -> bool {
+        self.total_count == 0
+    }
 }
 
 fn dist3_sq(ax: f64, ay: f64, az: f64, bx: f64, by: f64, bz: f64) -> f64 {
@@ -531,9 +663,9 @@ mod tests {
         // Frustum that includes positive octant only.
         let frustum = Frustum {
             planes: [
-                (1.0, 0.0, 0.0, 0.0),  // x >= 0
-                (0.0, 1.0, 0.0, 0.0),  // y >= 0
-                (0.0, 0.0, 1.0, 0.0),  // z >= 0
+                (1.0, 0.0, 0.0, 0.0),   // x >= 0
+                (0.0, 1.0, 0.0, 0.0),   // y >= 0
+                (0.0, 0.0, 1.0, 0.0),   // z >= 0
                 (-1.0, 0.0, 0.0, 50.0), // x <= 50
                 (0.0, -1.0, 0.0, 50.0), // y <= 50
                 (0.0, 0.0, -1.0, 50.0), // z <= 50

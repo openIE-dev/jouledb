@@ -86,7 +86,10 @@ impl Orientation {
 
     /// Whether the image needs rotation to display correctly.
     pub fn needs_rotation(&self) -> bool {
-        !matches!(self, Self::Normal | Self::FlipHorizontal | Self::FlipVertical)
+        !matches!(
+            self,
+            Self::Normal | Self::FlipHorizontal | Self::FlipVertical
+        )
     }
 
     /// Whether the image dimensions are swapped (width/height swapped).
@@ -598,11 +601,7 @@ impl ImageMetadata {
             self.orientation.to_exif_value()
         );
         let _ = write!(out, "  \"hasThumbnail\": {},\n", self.has_thumbnail);
-        let _ = write!(
-            out,
-            "  \"megapixels\": {:.2}",
-            self.dimensions.megapixels()
-        );
+        let _ = write!(out, "  \"megapixels\": {:.2}", self.dimensions.megapixels());
 
         if let Some(date) = &self.creation_date {
             let _ = write!(out, ",\n  \"creationDate\": \"{}\"", json_escape(date));
@@ -738,8 +737,7 @@ mod tests {
 
     #[test]
     fn test_gps_from_dms() {
-        let gps = GpsCoordinates::from_dms(40.0, 42.0, 46.08, 'N', 74.0, 0.0, 21.6, 'W')
-            .unwrap();
+        let gps = GpsCoordinates::from_dms(40.0, 42.0, 46.08, 'N', 74.0, 0.0, 21.6, 'W').unwrap();
         assert!((gps.latitude - 40.7128).abs() < 0.001);
         assert!((gps.longitude + 74.006).abs() < 0.001);
     }
@@ -787,7 +785,10 @@ mod tests {
     #[test]
     fn test_image_format_magic_bytes_jpeg() {
         let jpeg_bytes = [0xFF, 0xD8, 0xFF, 0xE0];
-        assert_eq!(ImageFormat::from_magic_bytes(&jpeg_bytes), ImageFormat::Jpeg);
+        assert_eq!(
+            ImageFormat::from_magic_bytes(&jpeg_bytes),
+            ImageFormat::Jpeg
+        );
     }
 
     #[test]

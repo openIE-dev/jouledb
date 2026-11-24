@@ -18,8 +18,16 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
-    pub const UP: Self = Self { x: 0.0, y: 1.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub const UP: Self = Self {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    };
 
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
@@ -35,16 +43,30 @@ impl Vec3 {
 
     pub fn normalize(self) -> Self {
         let len = self.length();
-        if len < 1e-10 { return Self::ZERO; }
-        Self { x: self.x / len, y: self.y / len, z: self.z / len }
+        if len < 1e-10 {
+            return Self::ZERO;
+        }
+        Self {
+            x: self.x / len,
+            y: self.y / len,
+            z: self.z / len,
+        }
     }
 
     pub fn add(self, o: Self) -> Self {
-        Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z }
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
     }
 
     pub fn scale(self, s: f32) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     /// Reflect `self` about `normal`.
@@ -67,23 +89,43 @@ pub struct Color3 {
 }
 
 impl Color3 {
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0 };
-    pub const BLACK: Self = Self { r: 0.0, g: 0.0, b: 0.0 };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+    };
+    pub const BLACK: Self = Self {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+    };
 
     pub fn new(r: f32, g: f32, b: f32) -> Self {
         Self { r, g, b }
     }
 
     pub fn scale(self, s: f32) -> Self {
-        Self { r: self.r * s, g: self.g * s, b: self.b * s }
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
     }
 
     pub fn add(self, o: Self) -> Self {
-        Self { r: self.r + o.r, g: self.g + o.g, b: self.b + o.b }
+        Self {
+            r: self.r + o.r,
+            g: self.g + o.g,
+            b: self.b + o.b,
+        }
     }
 
     pub fn mul(self, o: Self) -> Self {
-        Self { r: self.r * o.r, g: self.g * o.g, b: self.b * o.b }
+        Self {
+            r: self.r * o.r,
+            g: self.g * o.g,
+            b: self.b * o.b,
+        }
     }
 
     pub fn luminance(&self) -> f32 {
@@ -265,13 +307,7 @@ impl ClearcoatMaterial {
     ///
     /// All vectors in world space, normalised.
     /// Returns the reflected radiance color (before multiplying by light intensity).
-    pub fn evaluate(
-        &self,
-        normal: Vec3,
-        view: Vec3,
-        light: Vec3,
-        light_color: Color3,
-    ) -> Color3 {
+    pub fn evaluate(&self, normal: Vec3, view: Vec3, light: Vec3, light_color: Color3) -> Color3 {
         let n = normal.normalize();
         let v = view.normalize();
         let l = light.normalize();
@@ -290,9 +326,12 @@ impl ClearcoatMaterial {
         let base_f0 = {
             let dielectric_f0 = Color3::new(0.04, 0.04, 0.04);
             Color3::new(
-                dielectric_f0.r * (1.0 - self.base.metallic) + self.base.color.r * self.base.metallic,
-                dielectric_f0.g * (1.0 - self.base.metallic) + self.base.color.g * self.base.metallic,
-                dielectric_f0.b * (1.0 - self.base.metallic) + self.base.color.b * self.base.metallic,
+                dielectric_f0.r * (1.0 - self.base.metallic)
+                    + self.base.color.r * self.base.metallic,
+                dielectric_f0.g * (1.0 - self.base.metallic)
+                    + self.base.color.g * self.base.metallic,
+                dielectric_f0.b * (1.0 - self.base.metallic)
+                    + self.base.color.b * self.base.metallic,
             )
         };
 
@@ -342,9 +381,15 @@ impl ClearcoatMaterial {
         let energy_loss = 1.0 - cc_fresnel;
 
         let combined = Color3::new(
-            (base_total.r * energy_loss + cc_specular * self.clearcoat.tint.r) * light_color.r * n_dot_l,
-            (base_total.g * energy_loss + cc_specular * self.clearcoat.tint.g) * light_color.g * n_dot_l,
-            (base_total.b * energy_loss + cc_specular * self.clearcoat.tint.b) * light_color.b * n_dot_l,
+            (base_total.r * energy_loss + cc_specular * self.clearcoat.tint.r)
+                * light_color.r
+                * n_dot_l,
+            (base_total.g * energy_loss + cc_specular * self.clearcoat.tint.g)
+                * light_color.g
+                * n_dot_l,
+            (base_total.b * energy_loss + cc_specular * self.clearcoat.tint.b)
+                * light_color.b
+                * n_dot_l,
         );
 
         combined
@@ -582,11 +627,9 @@ mod tests {
 
     #[test]
     fn test_orange_peel_normal() {
-        let mat = ClearcoatMaterial::new(
-            "orange_peel",
-            BaseLayer::default(),
-            ClearcoatLayer::new(),
-        ).with_clearcoat_normal(Vec3::new(0.1, 0.05, 0.99));
+        let mat =
+            ClearcoatMaterial::new("orange_peel", BaseLayer::default(), ClearcoatLayer::new())
+                .with_clearcoat_normal(Vec3::new(0.1, 0.05, 0.99));
         // The clearcoat normal should be normalised.
         let len = mat.clearcoat_normal.length();
         assert!((len - 1.0).abs() < 1e-3);

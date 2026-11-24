@@ -40,7 +40,11 @@ impl FlowNetwork {
             .entry(to)
             .or_insert(0.0) += cap;
         // Ensure reverse edge entry exists for residual graph
-        self.capacity.entry(to).or_default().entry(from).or_insert(0.0);
+        self.capacity
+            .entry(to)
+            .or_default()
+            .entry(from)
+            .or_insert(0.0);
         self.flow.entry(from).or_default().entry(to).or_insert(0.0);
         self.flow.entry(to).or_default().entry(from).or_insert(0.0);
     }
@@ -308,18 +312,18 @@ pub fn min_cut(network: &mut FlowNetwork, source: usize, sink: usize) -> MinCutR
 // ── Flow Decomposition ───────────────────────────────────────────────────────
 
 /// Decompose flow into source-to-sink paths.
-pub fn flow_decomposition(
-    network: &FlowNetwork,
-    source: usize,
-    sink: usize,
-) -> Vec<FlowPath> {
+pub fn flow_decomposition(network: &FlowNetwork, source: usize, sink: usize) -> Vec<FlowPath> {
     // Work on a copy of the flow
     let mut residual_flow: HashMap<usize, HashMap<usize, f64>> = HashMap::new();
     for (&from, neighbors) in &network.capacity {
         for (&to, _) in neighbors {
             let fl = network.flow_on(from, to);
             if fl > 0.0 {
-                *residual_flow.entry(from).or_default().entry(to).or_insert(0.0) += fl;
+                *residual_flow
+                    .entry(from)
+                    .or_default()
+                    .entry(to)
+                    .or_insert(0.0) += fl;
             }
         }
     }
@@ -359,7 +363,10 @@ pub fn flow_decomposition(
                     }
                 }
 
-                paths.push(FlowPath { path: p, flow: min_flow });
+                paths.push(FlowPath {
+                    path: p,
+                    flow: min_flow,
+                });
             }
             None => break,
         }
@@ -541,13 +548,21 @@ pub fn multi_source_multi_sink(
 
     // Connect super source to all sources
     for (i, &src) in sources.iter().enumerate() {
-        let cap = if i < source_caps.len() { source_caps[i] } else { f64::INFINITY };
+        let cap = if i < source_caps.len() {
+            source_caps[i]
+        } else {
+            f64::INFINITY
+        };
         network.add_edge(super_source, src, cap);
     }
 
     // Connect all sinks to super sink
     for (i, &snk) in sinks.iter().enumerate() {
-        let cap = if i < sink_caps.len() { sink_caps[i] } else { f64::INFINITY };
+        let cap = if i < sink_caps.len() {
+            sink_caps[i]
+        } else {
+            f64::INFINITY
+        };
         network.add_edge(snk, super_sink, cap);
     }
 
@@ -675,13 +690,8 @@ mod tests {
         orig.add_edge(1, 2, 3.0);
         orig.add_edge(2, 3, 8.0);
 
-        let (mut network, ss, st) = multi_source_multi_sink(
-            &orig,
-            &[0, 1],
-            &[3],
-            &[10.0, 10.0],
-            &[10.0],
-        );
+        let (mut network, ss, st) =
+            multi_source_multi_sink(&orig, &[0, 1], &[3], &[10.0, 10.0], &[10.0]);
         let result = edmonds_karp(&mut network, ss, st);
         assert_eq!(result.max_flow, 8.0);
     }

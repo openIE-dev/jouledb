@@ -15,7 +15,10 @@ pub struct Capability {
 
 impl Capability {
     pub fn new(name: impl Into<String>, version: u32) -> Self {
-        Self { name: name.into(), version }
+        Self {
+            name: name.into(),
+            version,
+        }
     }
 }
 
@@ -65,13 +68,21 @@ impl PeerInfo {
 
     /// Whether the peer has a capability with at least the given version.
     pub fn has_capability_version(&self, name: &str, min_version: u32) -> bool {
-        self.capabilities.iter().any(|c| c.name == name && c.version >= min_version)
+        self.capabilities
+            .iter()
+            .any(|c| c.name == name && c.version >= min_version)
     }
 }
 
 impl fmt::Display for PeerInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Peer({} @ {}, caps={})", self.id, self.address, self.capabilities.len())
+        write!(
+            f,
+            "Peer({} @ {}, caps={})",
+            self.id,
+            self.address,
+            self.capabilities.len()
+        )
     }
 }
 
@@ -92,8 +103,11 @@ impl fmt::Display for DiscoveryStats {
         write!(
             f,
             "DiscoveryStats(announces={}, queries={}, expired={}, exchanges={}, known={})",
-            self.total_announces, self.total_queries, self.total_expired,
-            self.total_exchanges, self.peers_known,
+            self.total_announces,
+            self.total_queries,
+            self.total_expired,
+            self.total_exchanges,
+            self.peers_known,
         )
     }
 }
@@ -186,8 +200,8 @@ impl DiscoveryService {
         for (id, addr) in &seeds {
             if id != &self.self_id && !self.peers.contains_key(id.as_str()) {
                 if self.peers.len() < self.config.max_peers {
-                    let info = PeerInfo::new(id.clone(), addr.clone())
-                        .with_last_seen(self.current_tick);
+                    let info =
+                        PeerInfo::new(id.clone(), addr.clone()).with_last_seen(self.current_tick);
                     self.peers.insert(id.clone(), info);
                     added += 1;
                 }
@@ -204,10 +218,13 @@ impl DiscoveryService {
         if self.peers.len() >= self.config.max_peers && !self.peers.contains_key(&info.id) {
             return false;
         }
-        self.peers.insert(info.id.clone(), PeerInfo {
-            last_seen: self.current_tick,
-            ..info
-        });
+        self.peers.insert(
+            info.id.clone(),
+            PeerInfo {
+                last_seen: self.current_tick,
+                ..info
+            },
+        );
         self.stats.peers_known = self.peers.len();
         true
     }
@@ -225,7 +242,10 @@ impl DiscoveryService {
     /// Query for peers matching a capability name.
     pub fn query_by_capability(&mut self, name: &str) -> Vec<&PeerInfo> {
         self.stats.total_queries += 1;
-        self.peers.values().filter(|p| p.has_capability(name)).collect()
+        self.peers
+            .values()
+            .filter(|p| p.has_capability(name))
+            .collect()
     }
 
     /// Query for peers matching a capability with minimum version.
@@ -352,7 +372,10 @@ mod tests {
 
     #[test]
     fn test_max_peers_limit() {
-        let cfg = DiscoveryConfig { max_peers: 2, ..Default::default() };
+        let cfg = DiscoveryConfig {
+            max_peers: 2,
+            ..Default::default()
+        };
         let mut ds = make_service().with_config(cfg);
         ds.register_peer(make_peer("a"));
         ds.register_peer(make_peer("b"));
@@ -382,7 +405,10 @@ mod tests {
 
     #[test]
     fn test_expire_stale_peers() {
-        let cfg = DiscoveryConfig { peer_ttl: 10, ..Default::default() };
+        let cfg = DiscoveryConfig {
+            peer_ttl: 10,
+            ..Default::default()
+        };
         let mut ds = make_service().with_config(cfg);
         ds.tick(5);
         ds.register_peer(make_peer("old"));
@@ -423,7 +449,10 @@ mod tests {
 
     #[test]
     fn test_peer_exchange_limit() {
-        let cfg = DiscoveryConfig { exchange_limit: 1, ..Default::default() };
+        let cfg = DiscoveryConfig {
+            exchange_limit: 1,
+            ..Default::default()
+        };
         let mut ds = make_service().with_config(cfg);
         ds.register_peer(make_peer("a"));
         ds.register_peer(make_peer("b"));

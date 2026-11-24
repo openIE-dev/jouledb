@@ -6,8 +6,8 @@
 //! pro-rata and time-priority allocation, and crossing session lifecycle
 //! management.
 
-use std::fmt;
 use std::collections::VecDeque;
+use std::fmt;
 
 // ── Core Types ──
 
@@ -147,8 +147,12 @@ impl CrossOrder {
 
     /// Whether this order is eligible at a given cross price.
     pub fn eligible_at(&self, cross_price: f64) -> bool {
-        if !self.is_active || self.remaining() < 1e-12 { return false; }
-        if self.limit_price < 1e-12 { return true; } // Market-type.
+        if !self.is_active || self.remaining() < 1e-12 {
+            return false;
+        }
+        if self.limit_price < 1e-12 {
+            return true;
+        } // Market-type.
         match self.side {
             CrossSide::Buy => cross_price <= self.limit_price,
             CrossSide::Sell => cross_price >= self.limit_price,
@@ -161,8 +165,12 @@ impl fmt::Display for CrossOrder {
         write!(
             f,
             "CrossOrder(#{} {} {} qty={:.2} rem={:.2} limit={:.2})",
-            self.id, self.side, self.symbol, self.quantity,
-            self.remaining(), self.limit_price,
+            self.id,
+            self.side,
+            self.symbol,
+            self.quantity,
+            self.remaining(),
+            self.limit_price,
         )
     }
 }
@@ -222,7 +230,11 @@ impl CrossResult {
 
     pub fn imbalance_ratio(&self) -> f64 {
         let total = self.buy_surplus + self.sell_surplus + self.total_volume * 2.0;
-        if total > 1e-12 { self.imbalance() / total } else { 0.0 }
+        if total > 1e-12 {
+            self.imbalance() / total
+        } else {
+            0.0
+        }
     }
 }
 
@@ -231,8 +243,11 @@ impl fmt::Display for CrossResult {
         write!(
             f,
             "CrossResult(session={} price={:.4} vol={:.2} fills={} imbal={:.2})",
-            self.session_id, self.cross_price, self.total_volume,
-            self.fills.len(), self.imbalance(),
+            self.session_id,
+            self.cross_price,
+            self.total_volume,
+            self.fills.len(),
+            self.imbalance(),
         )
     }
 }
@@ -289,7 +304,9 @@ impl CrossingEngine {
 
     /// Submit an order if the session is open.
     pub fn submit(&mut self, order: CrossOrder) -> bool {
-        if self.state != SessionState::Open { return false; }
+        if self.state != SessionState::Open {
+            return false;
+        }
         match order.side {
             CrossSide::Buy => self.buys.push_back(order),
             CrossSide::Sell => self.sells.push_back(order),
@@ -299,7 +316,9 @@ impl CrossingEngine {
 
     /// Cancel an order.
     pub fn cancel(&mut self, order_id: u64) -> bool {
-        if self.state != SessionState::Open { return false; }
+        if self.state != SessionState::Open {
+            return false;
+        }
         for o in self.buys.iter_mut().chain(self.sells.iter_mut()) {
             if o.id == order_id && o.is_active {
                 o.is_active = false;
@@ -317,7 +336,12 @@ impl CrossingEngine {
     }
 
     /// Execute the cross.
-    pub fn cross(&mut self, nbbo_bid: f64, nbbo_ask: f64, timestamp_ns: u64) -> Option<CrossResult> {
+    pub fn cross(
+        &mut self,
+        nbbo_bid: f64,
+        nbbo_ask: f64,
+        timestamp_ns: u64,
+    ) -> Option<CrossResult> {
         if self.state != SessionState::Open && self.state != SessionState::Locked {
             return None;
         }
@@ -333,10 +357,14 @@ impl CrossingEngine {
         let allocation = self.allocation;
 
         // Gather eligible orders.
-        let mut eligible_buys: Vec<&mut CrossOrder> = self.buys.iter_mut()
+        let mut eligible_buys: Vec<&mut CrossOrder> = self
+            .buys
+            .iter_mut()
             .filter(|o| o.eligible_at(cross_price))
             .collect();
-        let mut eligible_sells: Vec<&mut CrossOrder> = self.sells.iter_mut()
+        let mut eligible_sells: Vec<&mut CrossOrder> = self
+            .sells
+            .iter_mut()
             .filter(|o| o.eligible_at(cross_price))
             .collect();
 
@@ -352,9 +380,21 @@ impl CrossingEngine {
         let mut fills = Vec::new();
 
         // Allocate to buy side.
-        Self::allocate_fills_static(allocation, &mut eligible_buys, matched_volume, cross_price, &mut fills);
+        Self::allocate_fills_static(
+            allocation,
+            &mut eligible_buys,
+            matched_volume,
+            cross_price,
+            &mut fills,
+        );
         // Allocate to sell side.
-        Self::allocate_fills_static(allocation, &mut eligible_sells, matched_volume, cross_price, &mut fills);
+        Self::allocate_fills_static(
+            allocation,
+            &mut eligible_sells,
+            matched_volume,
+            cross_price,
+            &mut fills,
+        );
 
         let result = CrossResult {
             session_id: self.next_session_id,
@@ -405,14 +445,18 @@ impl CrossingEngine {
         fills: &mut Vec<CrossFill>,
     ) {
         let total_eligible: f64 = orders.iter().map(|o| o.remaining()).sum();
-        if total_eligible < 1e-12 { return; }
+        if total_eligible < 1e-12 {
+            return;
+        }
 
         let mut remaining = total;
 
         match allocation {
             AllocationMethod::TimePriority => {
                 for order in orders.iter_mut() {
-                    if remaining < 1e-12 { break; }
+                    if remaining < 1e-12 {
+                        break;
+                    }
                     let alloc = order.remaining().min(remaining);
                     order.filled_quantity += alloc;
                     remaining -= alloc;
@@ -429,7 +473,9 @@ impl CrossingEngine {
                 for order in orders.iter_mut() {
                     let share = order.remaining() / total_eligible;
                     let alloc = (total * share).min(order.remaining()).min(remaining);
-                    if alloc < 1e-12 { continue; }
+                    if alloc < 1e-12 {
+                        continue;
+                    }
                     order.filled_quantity += alloc;
                     remaining -= alloc;
                     fills.push(CrossFill {
@@ -452,24 +498,40 @@ impl CrossingEngine {
     }
 
     pub fn buy_interest(&self) -> f64 {
-        self.buys.iter().filter(|o| o.is_active).map(|o| o.remaining()).sum()
+        self.buys
+            .iter()
+            .filter(|o| o.is_active)
+            .map(|o| o.remaining())
+            .sum()
     }
 
     pub fn sell_interest(&self) -> f64 {
-        self.sells.iter().filter(|o| o.is_active).map(|o| o.remaining()).sum()
+        self.sells
+            .iter()
+            .filter(|o| o.is_active)
+            .map(|o| o.remaining())
+            .sum()
     }
 
     pub fn order_count(&self) -> usize {
-        self.buys.iter().chain(self.sells.iter()).filter(|o| o.is_active).count()
+        self.buys
+            .iter()
+            .chain(self.sells.iter())
+            .filter(|o| o.is_active)
+            .count()
     }
 
     /// Pre-cross indication of matching potential.
     pub fn indicative_volume(&self, price: f64) -> f64 {
-        let buy_qty: f64 = self.buys.iter()
+        let buy_qty: f64 = self
+            .buys
+            .iter()
             .filter(|o| o.eligible_at(price))
             .map(|o| o.remaining())
             .sum();
-        let sell_qty: f64 = self.sells.iter()
+        let sell_qty: f64 = self
+            .sells
+            .iter()
             .filter(|o| o.eligible_at(price))
             .map(|o| o.remaining())
             .sum();
@@ -482,8 +544,12 @@ impl fmt::Display for CrossingEngine {
         write!(
             f,
             "CrossingEngine({} state={} buys={:.0} sells={:.0} method={} sessions={})",
-            self.symbol, self.state, self.buy_interest(), self.sell_interest(),
-            self.price_method, self.session_count,
+            self.symbol,
+            self.state,
+            self.buy_interest(),
+            self.sell_interest(),
+            self.price_method,
+            self.session_count,
         )
     }
 }
@@ -535,7 +601,9 @@ mod tests {
         let result = e.cross(149.0, 151.0, 0).unwrap();
         assert!((result.total_volume - 200.0).abs() < 1e-9);
         // Buy fills should be pro-rata: 50 and 150.
-        let buy_fills: Vec<&CrossFill> = result.fills.iter()
+        let buy_fills: Vec<&CrossFill> = result
+            .fills
+            .iter()
             .filter(|f| f.side == CrossSide::Buy)
             .collect();
         assert_eq!(buy_fills.len(), 2);
@@ -548,7 +616,9 @@ mod tests {
         e.submit(CrossOrder::new(2, "AAPL", CrossSide::Buy, 100.0).with_timestamp(2));
         e.submit(CrossOrder::new(3, "AAPL", CrossSide::Sell, 150.0));
         let result = e.cross(149.0, 151.0, 0).unwrap();
-        let buy_fills: Vec<&CrossFill> = result.fills.iter()
+        let buy_fills: Vec<&CrossFill> = result
+            .fills
+            .iter()
             .filter(|f| f.side == CrossSide::Buy)
             .collect();
         assert!((buy_fills[0].quantity - 100.0).abs() < 1e-9); // First order filled fully.
@@ -620,8 +690,13 @@ mod tests {
     #[test]
     fn test_cross_result_display() {
         let r = CrossResult {
-            session_id: 1, cross_price: 150.0, total_volume: 100.0,
-            fills: Vec::new(), buy_surplus: 10.0, sell_surplus: 0.0, timestamp_ns: 0,
+            session_id: 1,
+            cross_price: 150.0,
+            total_volume: 100.0,
+            fills: Vec::new(),
+            buy_surplus: 10.0,
+            sell_surplus: 0.0,
+            timestamp_ns: 0,
         };
         let s = format!("{r}");
         assert!(s.contains("CrossResult"));
@@ -630,8 +705,11 @@ mod tests {
     #[test]
     fn test_cross_fill_notional() {
         let f = CrossFill {
-            order_id: 1, side: CrossSide::Buy, price: 150.0,
-            quantity: 100.0, participant_id: String::new(),
+            order_id: 1,
+            side: CrossSide::Buy,
+            price: 150.0,
+            quantity: 100.0,
+            participant_id: String::new(),
         };
         assert!((f.notional() - 15000.0).abs() < 1e-9);
     }
@@ -647,8 +725,13 @@ mod tests {
     #[test]
     fn test_imbalance_ratio() {
         let r = CrossResult {
-            session_id: 1, cross_price: 100.0, total_volume: 100.0,
-            fills: Vec::new(), buy_surplus: 50.0, sell_surplus: 0.0, timestamp_ns: 0,
+            session_id: 1,
+            cross_price: 100.0,
+            total_volume: 100.0,
+            fills: Vec::new(),
+            buy_surplus: 50.0,
+            sell_surplus: 0.0,
+            timestamp_ns: 0,
         };
         assert!(r.imbalance_ratio() > 0.0);
     }

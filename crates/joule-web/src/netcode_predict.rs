@@ -60,7 +60,13 @@ pub struct Input {
 
 impl Input {
     pub fn new(sequence: u64, tick: u64, move_x: f64, move_y: f64) -> Self {
-        Self { sequence, tick, move_x, move_y, action_flags: 0 }
+        Self {
+            sequence,
+            tick,
+            move_x,
+            move_y,
+            action_flags: 0,
+        }
     }
 
     pub fn with_action(mut self, flags: u32) -> Self {
@@ -71,7 +77,11 @@ impl Input {
 
 impl fmt::Display for Input {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Input(seq={}, tick={}, ({:.2},{:.2}))", self.sequence, self.tick, self.move_x, self.move_y)
+        write!(
+            f,
+            "Input(seq={}, tick={}, ({:.2},{:.2}))",
+            self.sequence, self.tick, self.move_x, self.move_y
+        )
     }
 }
 
@@ -87,13 +97,19 @@ pub struct InputBuffer {
 
 impl InputBuffer {
     pub fn new(capacity: usize) -> Self {
-        Self { inputs: VecDeque::with_capacity(capacity), capacity, next_sequence: 0 }
+        Self {
+            inputs: VecDeque::with_capacity(capacity),
+            capacity,
+            next_sequence: 0,
+        }
     }
 
     /// Push an input. Enforces ordering and capacity.
     pub fn push(&mut self, input: Input) -> Result<(), PredictError> {
         if self.inputs.len() >= self.capacity {
-            return Err(PredictError::BufferFull { capacity: self.capacity });
+            return Err(PredictError::BufferFull {
+                capacity: self.capacity,
+            });
         }
         if input.sequence < self.next_sequence {
             return Err(PredictError::OutOfOrder {
@@ -119,7 +135,10 @@ impl InputBuffer {
 
     /// Return all inputs after a given sequence number.
     pub fn inputs_after(&self, sequence: u64) -> Vec<&Input> {
-        self.inputs.iter().filter(|i| i.sequence > sequence).collect()
+        self.inputs
+            .iter()
+            .filter(|i| i.sequence > sequence)
+            .collect()
     }
 
     pub fn len(&self) -> usize {
@@ -162,11 +181,25 @@ pub struct PredictedState {
 
 impl PredictedState {
     pub fn new() -> Self {
-        Self { tick: 0, last_input_sequence: 0, pos_x: 0.0, pos_y: 0.0, vel_x: 0.0, vel_y: 0.0 }
+        Self {
+            tick: 0,
+            last_input_sequence: 0,
+            pos_x: 0.0,
+            pos_y: 0.0,
+            vel_x: 0.0,
+            vel_y: 0.0,
+        }
     }
 
     pub fn at(tick: u64, x: f64, y: f64) -> Self {
-        Self { tick, last_input_sequence: 0, pos_x: x, pos_y: y, vel_x: 0.0, vel_y: 0.0 }
+        Self {
+            tick,
+            last_input_sequence: 0,
+            pos_x: x,
+            pos_y: y,
+            vel_x: 0.0,
+            vel_y: 0.0,
+        }
     }
 
     /// Apply a single input to advance state by one tick.
@@ -222,7 +255,14 @@ pub struct AuthoritativeState {
 
 impl AuthoritativeState {
     pub fn new(tick: u64, seq: u64, x: f64, y: f64) -> Self {
-        Self { tick, last_processed_sequence: seq, pos_x: x, pos_y: y, vel_x: 0.0, vel_y: 0.0 }
+        Self {
+            tick,
+            last_processed_sequence: seq,
+            pos_x: x,
+            pos_y: y,
+            vel_x: 0.0,
+            vel_y: 0.0,
+        }
     }
 
     pub fn with_velocity(mut self, vx: f64, vy: f64) -> Self {
@@ -244,7 +284,11 @@ pub struct PredictionErrorTracker {
 
 impl PredictionErrorTracker {
     pub fn new(max_samples: usize) -> Self {
-        Self { errors: VecDeque::with_capacity(max_samples), max_samples, total: 0.0 }
+        Self {
+            errors: VecDeque::with_capacity(max_samples),
+            max_samples,
+            total: 0.0,
+        }
     }
 
     pub fn record(&mut self, error: f64) {
@@ -296,7 +340,10 @@ impl fmt::Display for ReconciliationResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Accurate { error } => write!(f, "accurate (err={error:.4})"),
-            Self::Corrected { error, replayed_inputs } => {
+            Self::Corrected {
+                error,
+                replayed_inputs,
+            } => {
                 write!(f, "corrected (err={error:.4}, replayed {replayed_inputs})")
             }
             Self::Failed(msg) => write!(f, "failed: {msg}"),
@@ -435,11 +482,12 @@ impl PredictionEngine {
 
         // Rewind to authoritative state and replay unacknowledged inputs.
         self.current_state = auth_as_predicted;
-        let unacked: Vec<Input> =
-            self.input_buffer.inputs_after(auth.last_processed_sequence)
-                .into_iter()
-                .cloned()
-                .collect();
+        let unacked: Vec<Input> = self
+            .input_buffer
+            .inputs_after(auth.last_processed_sequence)
+            .into_iter()
+            .cloned()
+            .collect();
         let replayed = unacked.len() as u32;
         for input in &unacked {
             self.current_state.apply_input(input, self.config.tick_dt);
@@ -448,7 +496,10 @@ impl PredictionEngine {
         // Rebuild state history from the corrected state.
         self.state_history.clear();
 
-        ReconciliationResult::Corrected { error, replayed_inputs: replayed }
+        ReconciliationResult::Corrected {
+            error,
+            replayed_inputs: replayed,
+        }
     }
 
     pub fn state(&self) -> &PredictedState {
@@ -504,7 +555,13 @@ mod tests {
         let mut buf = InputBuffer::new(8);
         buf.push(Input::new(5, 5, 0.0, 0.0)).unwrap();
         let err = buf.push(Input::new(3, 3, 0.0, 0.0)).unwrap_err();
-        assert_eq!(err, PredictError::OutOfOrder { expected: 6, got: 3 });
+        assert_eq!(
+            err,
+            PredictError::OutOfOrder {
+                expected: 6,
+                got: 3
+            }
+        );
     }
 
     #[test]
@@ -606,7 +663,9 @@ mod tests {
         let auth = AuthoritativeState::new(1, 0, 50.0, 50.0);
         let result = engine.reconcile(&auth);
         match result {
-            ReconciliationResult::Corrected { replayed_inputs, .. } => {
+            ReconciliationResult::Corrected {
+                replayed_inputs, ..
+            } => {
                 assert_eq!(replayed_inputs, 1);
             }
             _ => panic!("expected correction"),

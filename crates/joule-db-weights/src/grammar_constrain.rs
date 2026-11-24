@@ -197,7 +197,11 @@ fn parse_field_kind(spec: &JsonValue) -> Result<SchemaFieldKind, String> {
         }
         return Ok(SchemaFieldKind::Enum(opts));
     }
-    match spec.get("type").and_then(|t| t.as_str()).unwrap_or("string") {
+    match spec
+        .get("type")
+        .and_then(|t| t.as_str())
+        .unwrap_or("string")
+    {
         "string" => Ok(SchemaFieldKind::String),
         "integer" => Ok(SchemaFieldKind::Integer),
         "number" => Ok(SchemaFieldKind::Number),
@@ -394,7 +398,12 @@ pub fn generate_schema_constrained_json(
                     .split_whitespace()
                     .filter(|w| w.len() >= 3)
                     .take(3)
-                    .map(|w| JsonValue::String(w.trim_matches(|c: char| c.is_ascii_punctuation()).to_string()))
+                    .map(|w| {
+                        JsonValue::String(
+                            w.trim_matches(|c: char| c.is_ascii_punctuation())
+                                .to_string(),
+                        )
+                    })
                     .filter(|v| v.as_str().map(|s| !s.is_empty()).unwrap_or(false))
                     .collect();
                 JsonValue::Array(if words.is_empty() {
@@ -470,7 +479,9 @@ fn synthesize_grounded_string(
             let piece = bpe.decode(&[i], true);
             let clean = piece.trim();
             if !clean.is_empty()
-                && clean.chars().all(|c| !c.is_control() && c != '"' && c != '\\')
+                && clean
+                    .chars()
+                    .all(|c| !c.is_control() && c != '"' && c != '\\')
                 && sc > best_sc
             {
                 best_sc = sc;

@@ -21,7 +21,10 @@ pub enum SubscriptionError {
     /// Consumer group not found.
     ConsumerGroupNotFound(String),
     /// Consumer not found.
-    ConsumerNotFound { group_id: String, consumer_id: String },
+    ConsumerNotFound {
+        group_id: String,
+        consumer_id: String,
+    },
     /// Partition not found.
     PartitionNotFound { group_id: String, partition: u32 },
     /// Subscription is not active.
@@ -40,10 +43,16 @@ impl std::fmt::Display for SubscriptionError {
             Self::NotFound(id) => write!(f, "subscription not found: {id}"),
             Self::AlreadyExists(id) => write!(f, "subscription already exists: {id}"),
             Self::ConsumerGroupNotFound(id) => write!(f, "consumer group not found: {id}"),
-            Self::ConsumerNotFound { group_id, consumer_id } => {
+            Self::ConsumerNotFound {
+                group_id,
+                consumer_id,
+            } => {
                 write!(f, "consumer {consumer_id} not found in group {group_id}")
             }
-            Self::PartitionNotFound { group_id, partition } => {
+            Self::PartitionNotFound {
+                group_id,
+                partition,
+            } => {
                 write!(f, "partition {partition} not found in group {group_id}")
             }
             Self::NotActive(id) => write!(f, "subscription {id} is not active"),
@@ -228,10 +237,7 @@ pub struct PersistentSubscription {
 }
 
 impl PersistentSubscription {
-    pub fn new(
-        subscription_id: impl Into<String>,
-        mode: SubscriptionMode,
-    ) -> Self {
+    pub fn new(subscription_id: impl Into<String>, mode: SubscriptionMode) -> Self {
         let sid = subscription_id.into();
         let now = Utc::now();
         Self {
@@ -256,7 +262,9 @@ impl PersistentSubscription {
     /// Activate the subscription.
     pub fn activate(&mut self) -> Result<(), SubscriptionError> {
         if self.status == SubscriptionStatus::Active || self.status == SubscriptionStatus::Live {
-            return Err(SubscriptionError::AlreadyActive(self.subscription_id.clone()));
+            return Err(SubscriptionError::AlreadyActive(
+                self.subscription_id.clone(),
+            ));
         }
         self.status = match self.mode {
             SubscriptionMode::CatchUp | SubscriptionMode::CatchUpThenLive => {
@@ -299,9 +307,7 @@ impl PersistentSubscription {
     pub fn receive_events(&mut self, events: &[SubscriptionEvent]) -> Vec<SubscriptionEvent> {
         let is_active = matches!(
             self.status,
-            SubscriptionStatus::Active
-                | SubscriptionStatus::CatchingUp
-                | SubscriptionStatus::Live
+            SubscriptionStatus::Active | SubscriptionStatus::CatchingUp | SubscriptionStatus::Live
         );
         if !is_active {
             return Vec::new();
@@ -334,9 +340,7 @@ impl PersistentSubscription {
     pub fn is_receiving(&self) -> bool {
         matches!(
             self.status,
-            SubscriptionStatus::Active
-                | SubscriptionStatus::CatchingUp
-                | SubscriptionStatus::Live
+            SubscriptionStatus::Active | SubscriptionStatus::CatchingUp | SubscriptionStatus::Live
         )
     }
 }
@@ -402,7 +406,10 @@ impl ConsumerGroup {
 
     /// Remove a consumer and rebalance.
     pub fn remove_consumer(&mut self, consumer_id: &str) -> Option<Consumer> {
-        let pos = self.consumers.iter().position(|c| c.consumer_id == consumer_id);
+        let pos = self
+            .consumers
+            .iter()
+            .position(|c| c.consumer_id == consumer_id);
         if let Some(idx) = pos {
             let removed = self.consumers.remove(idx);
             self.rebalance();
@@ -426,9 +433,7 @@ impl ConsumerGroup {
         // Round-robin assignment.
         for p in 0..self.partition_count {
             let consumer_idx = (p as usize) % self.consumers.len();
-            self.consumers[consumer_idx]
-                .assigned_partitions
-                .push(p);
+            self.consumers[consumer_idx].assigned_partitions.push(p);
         }
     }
 
@@ -437,7 +442,9 @@ impl ConsumerGroup {
         if self.partition_count == 0 {
             return 0;
         }
-        let hash = stream_id.bytes().fold(0u64, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u64));
+        let hash = stream_id
+            .bytes()
+            .fold(0u64, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u64));
         (hash % (self.partition_count as u64)) as u32
     }
 
@@ -449,7 +456,11 @@ impl ConsumerGroup {
     }
 
     /// Checkpoint a partition.
-    pub fn checkpoint_partition(&mut self, partition: u32, position: u64) -> Result<(), SubscriptionError> {
+    pub fn checkpoint_partition(
+        &mut self,
+        partition: u32,
+        position: u64,
+    ) -> Result<(), SubscriptionError> {
         let checkpoint = self
             .partition_checkpoints
             .get_mut(&partition)
@@ -493,7 +504,11 @@ impl ConsumerGroup {
     }
 
     /// Record events processed by a consumer.
-    pub fn record_processed(&mut self, consumer_id: &str, count: u64) -> Result<(), SubscriptionError> {
+    pub fn record_processed(
+        &mut self,
+        consumer_id: &str,
+        count: u64,
+    ) -> Result<(), SubscriptionError> {
         let consumer = self
             .consumers
             .iter_mut()
@@ -529,7 +544,10 @@ impl SubscriptionManager {
         &mut self,
         subscription: PersistentSubscription,
     ) -> Result<(), SubscriptionError> {
-        if self.subscriptions.contains_key(&subscription.subscription_id) {
+        if self
+            .subscriptions
+            .contains_key(&subscription.subscription_id)
+        {
             return Err(SubscriptionError::AlreadyExists(
                 subscription.subscription_id.clone(),
             ));
@@ -550,7 +568,10 @@ impl SubscriptionManager {
     }
 
     /// Remove a subscription.
-    pub fn remove_subscription(&mut self, id: &str) -> Result<PersistentSubscription, SubscriptionError> {
+    pub fn remove_subscription(
+        &mut self,
+        id: &str,
+    ) -> Result<PersistentSubscription, SubscriptionError> {
         self.subscriptions
             .remove(id)
             .ok_or_else(|| SubscriptionError::NotFound(id.to_string()))
@@ -561,8 +582,7 @@ impl SubscriptionManager {
         if self.consumer_groups.contains_key(&group.group_id) {
             return Err(SubscriptionError::AlreadyExists(group.group_id.clone()));
         }
-        self.consumer_groups
-            .insert(group.group_id.clone(), group);
+        self.consumer_groups.insert(group.group_id.clone(), group);
         Ok(())
     }
 
@@ -620,7 +640,10 @@ impl SubscriptionManager {
 
     /// Count subscriptions by status.
     pub fn count_by_status(&self, status: SubscriptionStatus) -> usize {
-        self.subscriptions.values().filter(|s| s.status == status).count()
+        self.subscriptions
+            .values()
+            .filter(|s| s.status == status)
+            .count()
     }
 }
 
@@ -691,8 +714,8 @@ mod tests {
 
     #[test]
     fn test_subscription_filter_streams() {
-        let filter = SubscriptionFilter::new()
-            .with_streams(vec!["s1".to_string(), "s2".to_string()]);
+        let filter =
+            SubscriptionFilter::new().with_streams(vec!["s1".to_string(), "s2".to_string()]);
 
         assert!(filter.matches("s1", "E1"));
         assert!(filter.matches("s2", "E1"));
@@ -711,8 +734,8 @@ mod tests {
 
     #[test]
     fn test_subscription_filter_exclude() {
-        let filter = SubscriptionFilter::new()
-            .with_exclude_event_types(vec!["Heartbeat".to_string()]);
+        let filter =
+            SubscriptionFilter::new().with_exclude_event_types(vec!["Heartbeat".to_string()]);
 
         assert!(filter.matches("s1", "Created"));
         assert!(!filter.matches("s1", "Heartbeat"));
@@ -720,8 +743,7 @@ mod tests {
 
     #[test]
     fn test_subscription_filter_stream_prefix() {
-        let filter = SubscriptionFilter::new()
-            .with_stream_prefix("order-");
+        let filter = SubscriptionFilter::new().with_stream_prefix("order-");
 
         assert!(filter.matches("order-123", "E1"));
         assert!(filter.matches("order-456", "E1"));
@@ -743,10 +765,9 @@ mod tests {
 
     #[test]
     fn test_subscription_with_filter() {
-        let filter = SubscriptionFilter::new()
-            .with_event_types(vec!["Created".to_string()]);
-        let mut sub = PersistentSubscription::new("sub-1", SubscriptionMode::CatchUp)
-            .with_filter(filter);
+        let filter = SubscriptionFilter::new().with_event_types(vec!["Created".to_string()]);
+        let mut sub =
+            PersistentSubscription::new("sub-1", SubscriptionMode::CatchUp).with_filter(filter);
         sub.activate().unwrap();
 
         let events = vec![
@@ -885,8 +906,11 @@ mod tests {
     #[test]
     fn test_manager_duplicate_subscription() {
         let mut mgr = SubscriptionManager::new();
-        mgr.create_subscription(PersistentSubscription::new("sub-1", SubscriptionMode::CatchUp))
-            .unwrap();
+        mgr.create_subscription(PersistentSubscription::new(
+            "sub-1",
+            SubscriptionMode::CatchUp,
+        ))
+        .unwrap();
         let err = mgr
             .create_subscription(PersistentSubscription::new("sub-1", SubscriptionMode::Live))
             .unwrap_err();
@@ -913,8 +937,11 @@ mod tests {
     #[test]
     fn test_manager_remove_subscription() {
         let mut mgr = SubscriptionManager::new();
-        mgr.create_subscription(PersistentSubscription::new("sub-1", SubscriptionMode::CatchUp))
-            .unwrap();
+        mgr.create_subscription(PersistentSubscription::new(
+            "sub-1",
+            SubscriptionMode::CatchUp,
+        ))
+        .unwrap();
         let removed = mgr.remove_subscription("sub-1").unwrap();
         assert_eq!(removed.subscription_id, "sub-1");
         assert!(mgr.get_subscription("sub-1").is_none());
@@ -930,10 +957,16 @@ mod tests {
     #[test]
     fn test_manager_subscription_ids_sorted() {
         let mut mgr = SubscriptionManager::new();
-        mgr.create_subscription(PersistentSubscription::new("zulu", SubscriptionMode::CatchUp))
-            .unwrap();
-        mgr.create_subscription(PersistentSubscription::new("alpha", SubscriptionMode::CatchUp))
-            .unwrap();
+        mgr.create_subscription(PersistentSubscription::new(
+            "zulu",
+            SubscriptionMode::CatchUp,
+        ))
+        .unwrap();
+        mgr.create_subscription(PersistentSubscription::new(
+            "alpha",
+            SubscriptionMode::CatchUp,
+        ))
+        .unwrap();
         assert_eq!(mgr.subscription_ids(), vec!["alpha", "zulu"]);
     }
 

@@ -64,7 +64,12 @@ fn read_tag(data: &[u8], offset: usize) -> Result<[u8; 4], OtError> {
     if offset + 4 > data.len() {
         return Err(OtError::UnexpectedEof);
     }
-    Ok([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
+    Ok([
+        data[offset],
+        data[offset + 1],
+        data[offset + 2],
+        data[offset + 3],
+    ])
 }
 
 fn tag_to_string(tag: &[u8; 4]) -> String {
@@ -126,7 +131,12 @@ impl TableDirectory {
     /// Find a table record by tag string (e.g. "cmap", "head").
     pub fn find_table(&self, tag: &str) -> Option<&TableRecord> {
         let tag_bytes: [u8; 4] = if tag.len() >= 4 {
-            [tag.as_bytes()[0], tag.as_bytes()[1], tag.as_bytes()[2], tag.as_bytes()[3]]
+            [
+                tag.as_bytes()[0],
+                tag.as_bytes()[1],
+                tag.as_bytes()[2],
+                tag.as_bytes()[3],
+            ]
         } else {
             return None;
         };
@@ -297,7 +307,9 @@ impl CmapFormat4 {
     pub fn parse(data: &[u8]) -> Result<Self, OtError> {
         let format = read_u16(data, 0)?;
         if format != 4 {
-            return Err(OtError::InvalidFormat(format!("expected cmap format 4, got {format}")));
+            return Err(OtError::InvalidFormat(format!(
+                "expected cmap format 4, got {format}"
+            )));
         }
         let seg_count_x2 = read_u16(data, 6)?;
         let seg_count = (seg_count_x2 / 2) as usize;
@@ -600,10 +612,7 @@ mod tests {
 
     #[test]
     fn parse_table_directory() {
-        let data = make_table_directory_bytes(&[
-            (b"head", 100, 54),
-            (b"cmap", 200, 80),
-        ]);
+        let data = make_table_directory_bytes(&[(b"head", 100, 54), (b"cmap", 200, 80)]);
         let dir = TableDirectory::parse(&data).unwrap();
         assert_eq!(dir.num_tables, 2);
         assert_eq!(dir.records[0].tag_string(), "head");
@@ -612,10 +621,7 @@ mod tests {
 
     #[test]
     fn find_table() {
-        let data = make_table_directory_bytes(&[
-            (b"head", 100, 54),
-            (b"hhea", 160, 36),
-        ]);
+        let data = make_table_directory_bytes(&[(b"head", 100, 54), (b"hhea", 160, 36)]);
         let dir = TableDirectory::parse(&data).unwrap();
         assert!(dir.find_table("head").is_some());
         assert!(dir.find_table("hhea").is_some());
@@ -805,6 +811,10 @@ mod tests {
     #[test]
     fn error_display() {
         assert_eq!(OtError::UnexpectedEof.to_string(), "unexpected end of data");
-        assert!(OtError::InvalidFormat("bad".into()).to_string().contains("bad"));
+        assert!(
+            OtError::InvalidFormat("bad".into())
+                .to_string()
+                .contains("bad")
+        );
     }
 }

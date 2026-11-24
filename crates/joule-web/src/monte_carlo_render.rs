@@ -15,7 +15,11 @@ pub struct WelfordStats {
 
 impl WelfordStats {
     pub fn new() -> Self {
-        Self { count: 0, mean: 0.0, m2: 0.0 }
+        Self {
+            count: 0,
+            mean: 0.0,
+            m2: 0.0,
+        }
     }
 
     pub fn update(&mut self, value: f64) {
@@ -27,7 +31,9 @@ impl WelfordStats {
     }
 
     pub fn variance(&self) -> f64 {
-        if self.count < 2 { return 0.0; }
+        if self.count < 2 {
+            return 0.0;
+        }
         self.m2 / (self.count - 1) as f64
     }
 
@@ -36,18 +42,31 @@ impl WelfordStats {
     }
 
     pub fn standard_error(&self) -> f64 {
-        if self.count == 0 { return 0.0; }
+        if self.count == 0 {
+            return 0.0;
+        }
         self.std_dev() / (self.count as f64).sqrt()
     }
 
     pub fn merge(&self, other: &WelfordStats) -> WelfordStats {
-        if self.count == 0 { return other.clone(); }
-        if other.count == 0 { return self.clone(); }
+        if self.count == 0 {
+            return other.clone();
+        }
+        if other.count == 0 {
+            return self.clone();
+        }
         let total = self.count + other.count;
         let delta = other.mean - self.mean;
-        let new_mean = (self.mean * self.count as f64 + other.mean * other.count as f64) / total as f64;
-        let new_m2 = self.m2 + other.m2 + delta * delta * (self.count as f64 * other.count as f64) / total as f64;
-        WelfordStats { count: total, mean: new_mean, m2: new_m2 }
+        let new_mean =
+            (self.mean * self.count as f64 + other.mean * other.count as f64) / total as f64;
+        let new_m2 = self.m2
+            + other.m2
+            + delta * delta * (self.count as f64 * other.count as f64) / total as f64;
+        WelfordStats {
+            count: total,
+            mean: new_mean,
+            m2: new_m2,
+        }
     }
 
     pub fn reset(&mut self) {
@@ -59,7 +78,13 @@ impl WelfordStats {
 
 impl fmt::Display for WelfordStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "mean={:.6}, var={:.6}, n={}", self.mean, self.variance(), self.count)
+        write!(
+            f,
+            "mean={:.6}, var={:.6}, n={}",
+            self.mean,
+            self.variance(),
+            self.count
+        )
     }
 }
 
@@ -69,9 +94,16 @@ pub struct Rng {
 }
 
 impl Rng {
-    pub fn new(seed: u64) -> Self { Self { state: seed.wrapping_add(1) } }
+    pub fn new(seed: u64) -> Self {
+        Self {
+            state: seed.wrapping_add(1),
+        }
+    }
     pub fn next_f64(&mut self) -> f64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         (self.state >> 11) as f64 / (1u64 << 53) as f64
     }
 }
@@ -193,12 +225,7 @@ pub fn halton(index: usize, base: usize) -> f64 {
 }
 
 /// Quasi-Monte Carlo integration using Halton sequence over [a, b].
-pub fn quasi_mc_estimate<F>(
-    f_eval: F,
-    a: f64,
-    b: f64,
-    num_samples: usize,
-) -> (f64, WelfordStats)
+pub fn quasi_mc_estimate<F>(f_eval: F, a: f64, b: f64, num_samples: usize) -> (f64, WelfordStats)
 where
     F: Fn(f64) -> f64,
 {
@@ -249,7 +276,13 @@ pub struct AdaptiveSampler {
 }
 
 impl AdaptiveSampler {
-    pub fn new(width: usize, height: usize, min_samples: usize, max_samples: usize, variance_threshold: f64) -> Self {
+    pub fn new(
+        width: usize,
+        height: usize,
+        min_samples: usize,
+        max_samples: usize,
+        variance_threshold: f64,
+    ) -> Self {
         Self {
             width,
             height,
@@ -269,22 +302,32 @@ impl AdaptiveSampler {
 
     pub fn needs_more_samples(&self, x: usize, y: usize) -> bool {
         let idx = y * self.width + x;
-        if idx >= self.stats.len() { return false; }
+        if idx >= self.stats.len() {
+            return false;
+        }
         let s = &self.stats[idx];
-        if s.count < self.min_samples { return true; }
-        if s.count >= self.max_samples { return false; }
+        if s.count < self.min_samples {
+            return true;
+        }
+        if s.count >= self.max_samples {
+            return false;
+        }
         s.variance() > self.variance_threshold
     }
 
     pub fn get_estimate(&self, x: usize, y: usize) -> f64 {
         let idx = y * self.width + x;
-        if idx >= self.stats.len() { return 0.0; }
+        if idx >= self.stats.len() {
+            return 0.0;
+        }
         self.stats[idx].mean
     }
 
     pub fn get_variance(&self, x: usize, y: usize) -> f64 {
         let idx = y * self.width + x;
-        if idx >= self.stats.len() { return 0.0; }
+        if idx >= self.stats.len() {
+            return 0.0;
+        }
         self.stats[idx].variance()
     }
 
@@ -295,14 +338,17 @@ impl AdaptiveSampler {
     /// Check if all pixels have converged below threshold.
     pub fn is_converged(&self) -> bool {
         self.stats.iter().all(|s| {
-            s.count >= self.min_samples && (s.count >= self.max_samples || s.variance() <= self.variance_threshold)
+            s.count >= self.min_samples
+                && (s.count >= self.max_samples || s.variance() <= self.variance_threshold)
         })
     }
 }
 
 /// Check convergence: standard error below threshold.
 pub fn check_convergence(stats: &WelfordStats, threshold: f64) -> bool {
-    if stats.count < 2 { return false; }
+    if stats.count < 2 {
+        return false;
+    }
     stats.standard_error() < threshold
 }
 
@@ -310,7 +356,9 @@ pub fn check_convergence(stats: &WelfordStats, threshold: f64) -> bool {
 mod tests {
     use super::*;
 
-    fn approx_eq(a: f64, b: f64, eps: f64) -> bool { (a - b).abs() < eps }
+    fn approx_eq(a: f64, b: f64, eps: f64) -> bool {
+        (a - b).abs() < eps
+    }
 
     #[test]
     fn test_welford_single() {
@@ -354,9 +402,13 @@ mod tests {
     #[test]
     fn test_welford_merge() {
         let mut a = WelfordStats::new();
-        for v in [1.0, 2.0, 3.0] { a.update(v); }
+        for v in [1.0, 2.0, 3.0] {
+            a.update(v);
+        }
         let mut b = WelfordStats::new();
-        for v in [4.0, 5.0, 6.0] { b.update(v); }
+        for v in [4.0, 5.0, 6.0] {
+            b.update(v);
+        }
         let merged = a.merge(&b);
         assert_eq!(merged.count, 6);
         assert!(approx_eq(merged.mean, 3.5, 1e-9));
@@ -376,12 +428,7 @@ mod tests {
     fn test_mc_estimate_constant() {
         // Integrate f(x) = 3 over [0,1] with uniform pdf=1
         let mut rng = Rng::new(42);
-        let (est, stats) = mc_estimate(
-            |_x| 3.0,
-            |_x| 1.0,
-            &mut || rng.next_f64(),
-            1000,
-        );
+        let (est, stats) = mc_estimate(|_x| 3.0, |_x| 1.0, &mut || rng.next_f64(), 1000);
         assert!(approx_eq(est, 3.0, 1e-6));
         assert!(stats.variance() < 1e-10);
     }
@@ -391,12 +438,7 @@ mod tests {
         // Integrate f(x) = x over [0,1] with uniform pdf=1
         // True value = 0.5
         let mut rng = Rng::new(42);
-        let (est, _) = mc_estimate(
-            |x| x,
-            |_x| 1.0,
-            &mut || rng.next_f64(),
-            10000,
-        );
+        let (est, _) = mc_estimate(|x| x, |_x| 1.0, &mut || rng.next_f64(), 10000);
         assert!(approx_eq(est, 0.5, 0.02));
     }
 
@@ -406,7 +448,13 @@ mod tests {
         // Integrate over [-1,1]^2, area = 4, true = pi
         let mut rng = Rng::new(42);
         let (est, _) = mc_estimate_nd(
-            |x| if x[0] * x[0] + x[1] * x[1] < 1.0 { 4.0 } else { 0.0 },
+            |x| {
+                if x[0] * x[0] + x[1] * x[1] < 1.0 {
+                    4.0
+                } else {
+                    0.0
+                }
+            },
             |_x| 1.0,
             &mut || vec![rng.next_f64() * 2.0 - 1.0, rng.next_f64() * 2.0 - 1.0],
             50000,
@@ -431,13 +479,7 @@ mod tests {
     #[test]
     fn test_stratified_2d_area() {
         let mut rng = Rng::new(42);
-        let (est, _) = stratified_2d_estimate(
-            |_x, _y| 1.0,
-            (0.0, 2.0),
-            (0.0, 3.0),
-            20,
-            &mut rng,
-        );
+        let (est, _) = stratified_2d_estimate(|_x, _y| 1.0, (0.0, 2.0), (0.0, 3.0), 20, &mut rng);
         assert!(approx_eq(est, 6.0, 0.01));
     }
 
@@ -462,12 +504,7 @@ mod tests {
 
     #[test]
     fn test_quasi_mc_2d_area() {
-        let (est, _) = quasi_mc_2d_estimate(
-            |_x, _y| 1.0,
-            (0.0, 3.0),
-            (0.0, 4.0),
-            1000,
-        );
+        let (est, _) = quasi_mc_2d_estimate(|_x, _y| 1.0, (0.0, 3.0), (0.0, 4.0), 1000);
         assert!(approx_eq(est, 12.0, 0.01));
     }
 
@@ -537,12 +574,7 @@ mod tests {
         let mut rng2 = Rng::new(42);
 
         // Plain MC
-        let (_, stats_plain) = mc_estimate(
-            |x| x * x,
-            |_| 1.0,
-            &mut || rng1.next_f64(),
-            500,
-        );
+        let (_, stats_plain) = mc_estimate(|x| x * x, |_| 1.0, &mut || rng1.next_f64(), 500);
 
         // Stratified
         let (_, stats_strat) = stratified_estimate(|x| x * x, 0.0, 1.0, 500, &mut rng2);

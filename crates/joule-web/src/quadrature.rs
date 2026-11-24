@@ -29,11 +29,7 @@ impl fmt::Display for QuadratureResult {
                 "integral={:.10}, error~{:.2e}, evals={}",
                 self.value, e, self.fn_evals
             ),
-            None => write!(
-                f,
-                "integral={:.10}, evals={}",
-                self.value, self.fn_evals
-            ),
+            None => write!(f, "integral={:.10}, evals={}", self.value, self.fn_evals),
         }
     }
 }
@@ -261,7 +257,8 @@ pub fn adaptive_simpson(
     let mut evals = 0usize;
     let mut subdivisions = 0usize;
 
-    let value = adaptive_simpson_recursive(f, a, b, tol, max_depth, 0, &mut evals, &mut subdivisions);
+    let value =
+        adaptive_simpson_recursive(f, a, b, tol, max_depth, 0, &mut evals, &mut subdivisions);
 
     QuadratureResult {
         value,
@@ -306,8 +303,26 @@ fn adaptive_simpson_recursive(
         return combined + (combined - whole) / 15.0; // Richardson extrapolation
     }
 
-    let l = adaptive_simpson_recursive(f, a, mid, tol / 2.0, max_depth, depth + 1, evals, subdivisions);
-    let r = adaptive_simpson_recursive(f, mid, b, tol / 2.0, max_depth, depth + 1, evals, subdivisions);
+    let l = adaptive_simpson_recursive(
+        f,
+        a,
+        mid,
+        tol / 2.0,
+        max_depth,
+        depth + 1,
+        evals,
+        subdivisions,
+    );
+    let r = adaptive_simpson_recursive(
+        f,
+        mid,
+        b,
+        tol / 2.0,
+        max_depth,
+        depth + 1,
+        evals,
+        subdivisions,
+    );
     l + r
 }
 
@@ -424,11 +439,7 @@ pub fn double_integral(
 
 /// Integrate f on [a, infinity) by substitution x = a + t/(1-t), t in [0,1).
 /// Uses Gauss-Legendre on [0, 1-eps].
-pub fn improper_to_inf(
-    f: fn(f64) -> f64,
-    a: f64,
-    n: usize,
-) -> QuadratureResult {
+pub fn improper_to_inf(f: fn(f64) -> f64, a: f64, n: usize) -> QuadratureResult {
     // Use substitution: x = a + t/(1-t), dx = 1/(1-t)^2 dt
     // Integral becomes ∫₀¹ f(a + t/(1-t)) / (1-t)^2 dt
     let eps = 1e-8;
@@ -459,12 +470,7 @@ pub fn improper_to_inf(
 
 /// Integrate f on [a, b] where f may have integrable singularity at a.
 /// Uses x = a + (b-a)*t^2 substitution.
-pub fn improper_singularity_left(
-    f: fn(f64) -> f64,
-    a: f64,
-    b: f64,
-    n: usize,
-) -> QuadratureResult {
+pub fn improper_singularity_left(f: fn(f64) -> f64, a: f64, b: f64, n: usize) -> QuadratureResult {
     // Substitution: x = a + (b-a)*t^2, dx = 2*(b-a)*t dt
     let (nodes, weights) = gauss_legendre_nodes_weights(n);
     let mid = 0.5;

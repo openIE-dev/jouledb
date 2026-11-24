@@ -92,7 +92,12 @@ pub fn score_fcp(ms: f64) -> AuditResult {
     } else {
         0.0
     };
-    AuditResult::new("fcp", "First Contentful Paint", score, &format!("{:.1} s", ms / 1000.0))
+    AuditResult::new(
+        "fcp",
+        "First Contentful Paint",
+        score,
+        &format!("{:.1} s", ms / 1000.0),
+    )
 }
 
 /// Compute a score for Largest Contentful Paint (LCP) in milliseconds.
@@ -107,7 +112,12 @@ pub fn score_lcp(ms: f64) -> AuditResult {
     } else {
         0.0
     };
-    AuditResult::new("lcp", "Largest Contentful Paint", score, &format!("{:.1} s", ms / 1000.0))
+    AuditResult::new(
+        "lcp",
+        "Largest Contentful Paint",
+        score,
+        &format!("{:.1} s", ms / 1000.0),
+    )
 }
 
 /// Compute a score for Time to Interactive (TTI) in milliseconds.
@@ -122,7 +132,12 @@ pub fn score_tti(ms: f64) -> AuditResult {
     } else {
         0.0
     };
-    AuditResult::new("tti", "Time to Interactive", score, &format!("{:.1} s", ms / 1000.0))
+    AuditResult::new(
+        "tti",
+        "Time to Interactive",
+        score,
+        &format!("{:.1} s", ms / 1000.0),
+    )
 }
 
 /// Compute a score for Cumulative Layout Shift (CLS).
@@ -137,7 +152,12 @@ pub fn score_cls(value: f64) -> AuditResult {
     } else {
         0.0
     };
-    AuditResult::new("cls", "Cumulative Layout Shift", score, &format!("{:.3}", value))
+    AuditResult::new(
+        "cls",
+        "Cumulative Layout Shift",
+        score,
+        &format!("{:.3}", value),
+    )
 }
 
 /// Compute a score for Total Blocking Time (TBT) in milliseconds.
@@ -152,7 +172,12 @@ pub fn score_tbt(ms: f64) -> AuditResult {
     } else {
         0.0
     };
-    AuditResult::new("tbt", "Total Blocking Time", score, &format!("{:.0} ms", ms))
+    AuditResult::new(
+        "tbt",
+        "Total Blocking Time",
+        score,
+        &format!("{:.0} ms", ms),
+    )
 }
 
 // ── Report ───────────────────────────────────────────────────────
@@ -179,9 +204,11 @@ impl PerformanceReport {
             score_tbt(tbt_ms),
         ];
 
-        let categories = vec![
-            AuditCategory::new("Performance", 1.0, &["fcp", "lcp", "tti", "cls", "tbt"]),
-        ];
+        let categories = vec![AuditCategory::new(
+            "Performance",
+            1.0,
+            &["fcp", "lcp", "tti", "cls", "tbt"],
+        )];
 
         Self { audits, categories }
     }
@@ -213,7 +240,11 @@ impl PerformanceReport {
     /// Generate recommendations: suggest improving the lowest-scoring audits.
     pub fn recommendations(&self) -> Vec<String> {
         let mut sorted: Vec<&AuditResult> = self.audits.iter().collect();
-        sorted.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap_or(std::cmp::Ordering::Equal));
+        sorted.sort_by(|a, b| {
+            a.score
+                .partial_cmp(&b.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         sorted
             .iter()
@@ -298,7 +329,11 @@ mod tests {
     fn test_category_score() {
         let report = PerformanceReport::from_metrics(1000.0, 2000.0, 3000.0, 0.05, 100.0);
         let perf = report.category_score("Performance").unwrap();
-        assert!(perf >= 0.9, "all good metrics should give high score, got {}", perf);
+        assert!(
+            perf >= 0.9,
+            "all good metrics should give high score, got {}",
+            perf
+        );
     }
 
     #[test]

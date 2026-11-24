@@ -46,7 +46,9 @@ impl Point {
 
     pub fn normalize(self) -> Self {
         let m = self.magnitude();
-        if m < EPS { return Self::ORIGIN; }
+        if m < EPS {
+            return Self::ORIGIN;
+        }
         Self::new(self.x / m, self.y / m)
     }
 
@@ -105,8 +107,7 @@ impl Line {
 
     /// Distance from a point to this line.
     pub fn distance_to_point(&self, p: Point) -> f64 {
-        (self.a * p.x + self.b * p.y + self.c).abs()
-            / (self.a * self.a + self.b * self.b).sqrt()
+        (self.a * p.x + self.b * p.y + self.c).abs() / (self.a * self.a + self.b * self.b).sqrt()
     }
 
     /// Intersection of two lines. Returns None if parallel.
@@ -205,7 +206,10 @@ pub struct Circle {
 
 impl Circle {
     pub fn new(center: Point, radius: f64) -> Self {
-        Self { center, radius: radius.abs() }
+        Self {
+            center,
+            radius: radius.abs(),
+        }
     }
 
     pub fn area(&self) -> f64 {
@@ -245,10 +249,7 @@ impl Circle {
             vec![mid] // tangent
         } else {
             let perp = Point::new(-dir.y, dir.x);
-            vec![
-                mid.add(perp.scale(h)),
-                mid.sub(perp.scale(h)),
-            ]
+            vec![mid.add(perp.scale(h)), mid.sub(perp.scale(h))]
         }
     }
 
@@ -261,8 +262,10 @@ impl Circle {
 
         // Closest point on line to center
         let denom = line.a * line.a + line.b * line.b;
-        let cx = (line.b * (line.b * self.center.x - line.a * self.center.y) - line.a * line.c) / denom;
-        let cy = (line.a * (-(line.b * self.center.x) + line.a * self.center.y) - line.b * line.c) / denom;
+        let cx =
+            (line.b * (line.b * self.center.x - line.a * self.center.y) - line.a * line.c) / denom;
+        let cy = (line.a * (-(line.b * self.center.x) + line.a * self.center.y) - line.b * line.c)
+            / denom;
         let closest = Point::new(cx, cy);
 
         if (dist - self.radius).abs() < EPS {
@@ -296,7 +299,9 @@ impl Polygon {
     /// Signed area (positive if CCW, negative if CW).
     pub fn signed_area(&self) -> f64 {
         let n = self.vertices.len();
-        if n < 3 { return 0.0; }
+        if n < 3 {
+            return 0.0;
+        }
         let mut area = 0.0;
         for i in 0..n {
             let j = (i + 1) % n;
@@ -314,7 +319,9 @@ impl Polygon {
     /// Perimeter.
     pub fn perimeter(&self) -> f64 {
         let n = self.vertices.len();
-        if n < 2 { return 0.0; }
+        if n < 2 {
+            return 0.0;
+        }
         let mut p = 0.0;
         for i in 0..n {
             let j = (i + 1) % n;
@@ -326,14 +333,16 @@ impl Polygon {
     /// Centroid.
     pub fn centroid(&self) -> Point {
         let n = self.vertices.len();
-        if n == 0 { return Point::ORIGIN; }
+        if n == 0 {
+            return Point::ORIGIN;
+        }
         let mut cx = 0.0;
         let mut cy = 0.0;
         let mut a = 0.0;
         for i in 0..n {
             let j = (i + 1) % n;
-            let cross = self.vertices[i].x * self.vertices[j].y
-                - self.vertices[j].x * self.vertices[i].y;
+            let cross =
+                self.vertices[i].x * self.vertices[j].y - self.vertices[j].x * self.vertices[i].y;
             cx += (self.vertices[i].x + self.vertices[j].x) * cross;
             cy += (self.vertices[i].y + self.vertices[j].y) * cross;
             a += cross;
@@ -351,7 +360,9 @@ impl Polygon {
     /// Point-in-polygon test (ray casting).
     pub fn contains(&self, p: Point) -> bool {
         let n = self.vertices.len();
-        if n < 3 { return false; }
+        if n < 3 {
+            return false;
+        }
         let mut inside = false;
         let mut j = n - 1;
         for i in 0..n {
@@ -370,14 +381,18 @@ impl Polygon {
     /// Whether the polygon is convex.
     pub fn is_convex(&self) -> bool {
         let n = self.vertices.len();
-        if n < 3 { return false; }
+        if n < 3 {
+            return false;
+        }
         let mut sign = 0i32;
         for i in 0..n {
             let a = self.vertices[i];
             let b = self.vertices[(i + 1) % n];
             let c = self.vertices[(i + 2) % n];
             let cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
-            if cross.abs() < EPS { continue; }
+            if cross.abs() < EPS {
+                continue;
+            }
             let s = if cross > 0.0 { 1 } else { -1 };
             if sign == 0 {
                 sign = s;
@@ -414,7 +429,9 @@ pub fn convex_hull(points: &[Point]) -> Vec<Point> {
     pts[1..].sort_by(|a, b| {
         let angle_a = (a.y - pivot.y).atan2(a.x - pivot.x);
         let angle_b = (b.y - pivot.y).atan2(b.x - pivot.x);
-        angle_a.partial_cmp(&angle_b).unwrap_or(std::cmp::Ordering::Equal)
+        angle_a
+            .partial_cmp(&angle_b)
+            .unwrap_or(std::cmp::Ordering::Equal)
             .then_with(|| {
                 let da = pivot.distance_to(*a);
                 let db = pivot.distance_to(*b);
@@ -427,7 +444,8 @@ pub fn convex_hull(points: &[Point]) -> Vec<Point> {
         while hull.len() >= 2 {
             let top = hull[hull.len() - 1];
             let second = hull[hull.len() - 2];
-            let cross = (top.x - second.x) * (p.y - second.y) - (top.y - second.y) * (p.x - second.x);
+            let cross =
+                (top.x - second.x) * (p.y - second.y) - (top.y - second.y) * (p.x - second.x);
             if cross <= EPS {
                 hull.pop();
             } else {
@@ -449,10 +467,18 @@ const TOP: u8 = 8;
 
 fn compute_outcode(p: Point, x_min: f64, y_min: f64, x_max: f64, y_max: f64) -> u8 {
     let mut code = INSIDE;
-    if p.x < x_min { code |= LEFT; }
-    if p.x > x_max { code |= RIGHT; }
-    if p.y < y_min { code |= BOTTOM; }
-    if p.y > y_max { code |= TOP; }
+    if p.x < x_min {
+        code |= LEFT;
+    }
+    if p.x > x_max {
+        code |= RIGHT;
+    }
+    if p.y < y_min {
+        code |= BOTTOM;
+    }
+    if p.y > y_max {
+        code |= TOP;
+    }
     code
 }
 
@@ -460,7 +486,10 @@ fn compute_outcode(p: Point, x_min: f64, y_min: f64, x_max: f64, y_max: f64) -> 
 /// Returns the clipped segment, or None if entirely outside.
 pub fn clip_segment(
     seg: &Segment,
-    x_min: f64, y_min: f64, x_max: f64, y_max: f64,
+    x_min: f64,
+    y_min: f64,
+    x_max: f64,
+    y_max: f64,
 ) -> Option<Segment> {
     let mut x0 = seg.start.x;
     let mut y0 = seg.start.y;
@@ -520,7 +549,10 @@ pub struct VoronoiCell {
 /// perpendicular bisectors with all other sites against the bounding box.
 pub fn voronoi_diagram(
     sites: &[Point],
-    x_min: f64, y_min: f64, x_max: f64, y_max: f64,
+    x_min: f64,
+    y_min: f64,
+    x_max: f64,
+    y_max: f64,
 ) -> Vec<VoronoiCell> {
     let mut cells = Vec::new();
 
@@ -534,16 +566,23 @@ pub fn voronoi_diagram(
         ];
 
         for (j, &other) in sites.iter().enumerate() {
-            if i == j { continue; }
+            if i == j {
+                continue;
+            }
             // Clip poly against the half-plane closer to `site` than `other`.
             let mid = site.midpoint(other);
             // Normal pointing from other toward site
             let normal = Point::new(site.x - other.x, site.y - other.y);
             poly = clip_polygon_by_halfplane(&poly, mid, normal);
-            if poly.is_empty() { break; }
+            if poly.is_empty() {
+                break;
+            }
         }
 
-        cells.push(VoronoiCell { site, vertices: poly });
+        cells.push(VoronoiCell {
+            site,
+            vertices: poly,
+        });
     }
 
     cells
@@ -551,7 +590,9 @@ pub fn voronoi_diagram(
 
 /// Clip a convex polygon to the half-plane defined by: (p - point) . normal >= 0.
 fn clip_polygon_by_halfplane(poly: &[Point], point: Point, normal: Point) -> Vec<Point> {
-    if poly.is_empty() { return Vec::new(); }
+    if poly.is_empty() {
+        return Vec::new();
+    }
     let n = poly.len();
     let mut output = Vec::new();
 

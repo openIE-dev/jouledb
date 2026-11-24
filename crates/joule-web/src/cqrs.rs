@@ -17,9 +17,16 @@ pub enum CqrsError {
     /// Aggregate not found.
     AggregateNotFound(String),
     /// Version conflict (optimistic concurrency).
-    VersionConflict { aggregate_id: String, expected: u64, actual: u64 },
+    VersionConflict {
+        aggregate_id: String,
+        expected: u64,
+        actual: u64,
+    },
     /// Command rejected by aggregate.
-    CommandRejected { aggregate_id: String, reason: String },
+    CommandRejected {
+        aggregate_id: String,
+        reason: String,
+    },
     /// Event store error.
     StoreError(String),
     /// Snapshot not found.
@@ -34,10 +41,20 @@ impl std::fmt::Display for CqrsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::AggregateNotFound(id) => write!(f, "aggregate not found: {id}"),
-            Self::VersionConflict { aggregate_id, expected, actual } => {
-                write!(f, "version conflict for {aggregate_id}: expected {expected}, got {actual}")
+            Self::VersionConflict {
+                aggregate_id,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "version conflict for {aggregate_id}: expected {expected}, got {actual}"
+                )
             }
-            Self::CommandRejected { aggregate_id, reason } => {
+            Self::CommandRejected {
+                aggregate_id,
+                reason,
+            } => {
                 write!(f, "command rejected for {aggregate_id}: {reason}")
             }
             Self::StoreError(msg) => write!(f, "store error: {msg}"),
@@ -72,7 +89,11 @@ impl EventEnvelope {
         data: HashMap<String, String>,
     ) -> Self {
         Self {
-            event_id: format!("{}-{}", Utc::now().timestamp_nanos_opt().unwrap_or(0), version),
+            event_id: format!(
+                "{}-{}",
+                Utc::now().timestamp_nanos_opt().unwrap_or(0),
+                version
+            ),
             stream_id: stream_id.into(),
             event_type: event_type.into(),
             version,
@@ -198,14 +219,17 @@ impl EventStore {
         stream_id: &str,
         from_version: u64,
     ) -> Result<Vec<&EventEnvelope>, CqrsError> {
-        let stream = self.streams.get(stream_id)
+        let stream = self
+            .streams
+            .get(stream_id)
             .ok_or_else(|| CqrsError::StreamNotFound(stream_id.to_string()))?;
         Ok(stream.iter().filter(|e| e.version > from_version).collect())
     }
 
     /// Get the current version of a stream.
     pub fn stream_version(&self, stream_id: &str) -> u64 {
-        self.streams.get(stream_id)
+        self.streams
+            .get(stream_id)
             .and_then(|s| s.last())
             .map_or(0, |e| e.version)
     }
@@ -220,7 +244,8 @@ impl EventStore {
 
     /// Get the latest snapshot for an aggregate.
     pub fn latest_snapshot(&self, aggregate_id: &str) -> Option<&Snapshot> {
-        self.snapshots.get(aggregate_id)
+        self.snapshots
+            .get(aggregate_id)
             .and_then(|snaps| snaps.last())
     }
 
@@ -274,12 +299,7 @@ impl AggregateRoot {
 
     /// Emit a new event (not yet committed to store).
     pub fn emit(&mut self, event_type: impl Into<String>, data: HashMap<String, String>) {
-        let event = EventEnvelope::new(
-            self.id.clone(),
-            event_type,
-            self.version + 1,
-            data,
-        );
+        let event = EventEnvelope::new(self.id.clone(), event_type, self.version + 1, data);
         self.apply(&event);
         self.uncommitted_events.push(event);
     }
@@ -345,7 +365,8 @@ impl Projection {
         }
         entry.insert("_last_event".to_string(), event.event_type.clone());
         entry.insert("_version".to_string(), event.version.to_string());
-        self.last_processed_version.insert(event.stream_id.clone(), event.version);
+        self.last_processed_version
+            .insert(event.stream_id.clone(), event.version);
     }
 
     /// Replay all events from the store.
@@ -395,27 +416,41 @@ mod tests {
     #[test]
     fn test_version_conflict() {
         let mut store = EventStore::new();
-        store.append("s1", None, vec![make_event("s1", "E1", "k", "v")]).unwrap();
-        let err = store.append("s1", Some(0), vec![make_event("s1", "E2", "k", "v")]).unwrap_err();
+        store
+            .append("s1", None, vec![make_event("s1", "E1", "k", "v")])
+            .unwrap();
+        let err = store
+            .append("s1", Some(0), vec![make_event("s1", "E2", "k", "v")])
+            .unwrap_err();
         assert!(matches!(err, CqrsError::VersionConflict { .. }));
     }
 
     #[test]
     fn test_optimistic_concurrency() {
         let mut store = EventStore::new();
-        store.append("s1", Some(0), vec![make_event("s1", "E1", "k", "v1")]).unwrap();
-        store.append("s1", Some(1), vec![make_event("s1", "E2", "k", "v2")]).unwrap();
+        store
+            .append("s1", Some(0), vec![make_event("s1", "E1", "k", "v1")])
+            .unwrap();
+        store
+            .append("s1", Some(1), vec![make_event("s1", "E2", "k", "v2")])
+            .unwrap();
         assert_eq!(store.stream_version("s1"), 2);
     }
 
     #[test]
     fn test_read_from_version() {
         let mut store = EventStore::new();
-        store.append("s1", None, vec![
-            make_event("s1", "E1", "k", "v1"),
-            make_event("s1", "E2", "k", "v2"),
-            make_event("s1", "E3", "k", "v3"),
-        ]).unwrap();
+        store
+            .append(
+                "s1",
+                None,
+                vec![
+                    make_event("s1", "E1", "k", "v1"),
+                    make_event("s1", "E2", "k", "v2"),
+                    make_event("s1", "E3", "k", "v3"),
+                ],
+            )
+            .unwrap();
         let events = store.read_from_version("s1", 1).unwrap();
         assert_eq!(events.len(), 2);
     }
@@ -465,7 +500,9 @@ mod tests {
     #[test]
     fn test_snapshot_store() {
         let mut store = EventStore::new();
-        store.append("s1", None, vec![make_event("s1", "E1", "k", "v")]).unwrap();
+        store
+            .append("s1", None, vec![make_event("s1", "E1", "k", "v")])
+            .unwrap();
         store.save_snapshot(Snapshot {
             aggregate_id: "s1".into(),
             version: 1,
@@ -483,12 +520,20 @@ mod tests {
     #[test]
     fn test_projection() {
         let mut store = EventStore::new();
-        store.append("order-1", None, vec![
-            make_event("order-1", "OrderCreated", "status", "created"),
-        ]).unwrap();
-        store.append("order-1", Some(1), vec![
-            make_event("order-1", "OrderShipped", "status", "shipped"),
-        ]).unwrap();
+        store
+            .append(
+                "order-1",
+                None,
+                vec![make_event("order-1", "OrderCreated", "status", "created")],
+            )
+            .unwrap();
+        store
+            .append(
+                "order-1",
+                Some(1),
+                vec![make_event("order-1", "OrderShipped", "status", "shipped")],
+            )
+            .unwrap();
 
         let mut proj = Projection::new("orders");
         proj.replay(&store);
@@ -501,8 +546,12 @@ mod tests {
     #[test]
     fn test_projection_multiple_streams() {
         let mut store = EventStore::new();
-        store.append("s1", None, vec![make_event("s1", "E1", "x", "1")]).unwrap();
-        store.append("s2", None, vec![make_event("s2", "E1", "y", "2")]).unwrap();
+        store
+            .append("s1", None, vec![make_event("s1", "E1", "x", "1")])
+            .unwrap();
+        store
+            .append("s2", None, vec![make_event("s2", "E1", "y", "2")])
+            .unwrap();
 
         let mut proj = Projection::new("all");
         proj.replay(&store);
@@ -512,18 +561,29 @@ mod tests {
     #[test]
     fn test_global_event_count() {
         let mut store = EventStore::new();
-        store.append("s1", None, vec![make_event("s1", "E1", "k", "v")]).unwrap();
-        store.append("s2", None, vec![
-            make_event("s2", "E1", "k", "v"),
-            make_event("s2", "E2", "k", "v"),
-        ]).unwrap();
+        store
+            .append("s1", None, vec![make_event("s1", "E1", "k", "v")])
+            .unwrap();
+        store
+            .append(
+                "s2",
+                None,
+                vec![
+                    make_event("s2", "E1", "k", "v"),
+                    make_event("s2", "E2", "k", "v"),
+                ],
+            )
+            .unwrap();
         assert_eq!(store.event_count(), 3);
     }
 
     #[test]
     fn test_stream_not_found() {
         let store = EventStore::new();
-        assert!(matches!(store.read_stream("nope"), Err(CqrsError::StreamNotFound(_))));
+        assert!(matches!(
+            store.read_stream("nope"),
+            Err(CqrsError::StreamNotFound(_))
+        ));
     }
 
     #[test]

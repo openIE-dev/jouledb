@@ -433,17 +433,27 @@ impl PowerManager {
     }
 
     /// Request a state transition.
-    pub fn transition(&mut self, to: PowerState, reason: &str, now: DateTime<Utc>) -> Result<(), String> {
+    pub fn transition(
+        &mut self,
+        to: PowerState,
+        reason: &str,
+        now: DateTime<Utc>,
+    ) -> Result<(), String> {
         if self.state == to {
             return Ok(());
         }
 
         // Check if transition is allowed by rules.
-        let dwell = now.signed_duration_since(self.state_entered_at).num_seconds();
+        let dwell = now
+            .signed_duration_since(self.state_entered_at)
+            .num_seconds();
         let from = self.state;
 
         // Find applicable rule.
-        let rule = self.transition_rules.iter().find(|r| r.from == from && r.to == to);
+        let rule = self
+            .transition_rules
+            .iter()
+            .find(|r| r.from == from && r.to == to);
         if let Some(rule) = rule {
             if dwell < rule.min_dwell_secs {
                 return Err(format!(
@@ -498,22 +508,30 @@ impl PowerManager {
         }
 
         // Check if wake source is allowed for current state transition.
-        let applicable_rule = self.transition_rules.iter().find(|r| {
-            r.from == from && r.to == PowerState::Active
-        });
+        let applicable_rule = self
+            .transition_rules
+            .iter()
+            .find(|r| r.from == from && r.to == PowerState::Active);
 
         if let Some(rule) = applicable_rule {
             if !rule.allowed_wake_sources.is_empty() {
-                let allowed = rule.allowed_wake_sources.iter().any(|ws| {
-                    std::mem::discriminant(ws) == std::mem::discriminant(&source)
-                });
+                let allowed = rule
+                    .allowed_wake_sources
+                    .iter()
+                    .any(|ws| std::mem::discriminant(ws) == std::mem::discriminant(&source));
                 if !allowed {
-                    return Err(format!("wake source {} not allowed from {}", source.as_str(), from.as_str()));
+                    return Err(format!(
+                        "wake source {} not allowed from {}",
+                        source.as_str(),
+                        from.as_str()
+                    ));
                 }
             }
         }
 
-        let dwell = now.signed_duration_since(self.state_entered_at).num_seconds();
+        let dwell = now
+            .signed_duration_since(self.state_entered_at)
+            .num_seconds();
         if let Some(battery) = &mut self.battery {
             battery.discharge(dwell as f64);
             let power_mw = self.profile.power_for_state(PowerState::Active);
@@ -540,7 +558,9 @@ impl PowerManager {
 
     /// Check if the device should auto-transition based on idle/sleep timeouts.
     pub fn check_timeouts(&mut self, now: DateTime<Utc>) -> Option<PowerState> {
-        let dwell = now.signed_duration_since(self.state_entered_at).num_seconds();
+        let dwell = now
+            .signed_duration_since(self.state_entered_at)
+            .num_seconds();
 
         match self.state {
             PowerState::Active => {
@@ -709,7 +729,8 @@ mod tests {
     fn power_manager_transition() {
         let mut pm = PowerManager::new(1000.0);
         let now = Utc::now();
-        pm.transition(PowerState::Idle, "user inactive", now).unwrap();
+        pm.transition(PowerState::Idle, "user inactive", now)
+            .unwrap();
         assert_eq!(pm.state(), PowerState::Idle);
         assert_eq!(pm.transition_count(), 1);
     }
@@ -725,7 +746,9 @@ mod tests {
     #[test]
     fn power_manager_dwell_check() {
         let mut pm = PowerManager::new(1000.0);
-        pm.add_transition_rule(TransitionRule::new(PowerState::Active, PowerState::Sleep).with_min_dwell(60));
+        pm.add_transition_rule(
+            TransitionRule::new(PowerState::Active, PowerState::Sleep).with_min_dwell(60),
+        );
         let now = Utc::now();
         // Should fail — haven't dwelled long enough.
         let result = pm.transition(PowerState::Sleep, "too early", now);

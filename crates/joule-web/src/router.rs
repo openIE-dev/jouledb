@@ -456,10 +456,7 @@ mod tests {
         let mut router = Router::new();
         router.nested(
             "/api",
-            vec![
-                Route::new("/users", 10),
-                Route::new("/posts", 11),
-            ],
+            vec![Route::new("/users", 10), Route::new("/posts", 11)],
         );
         let m = router.resolve("/api/users").unwrap();
         assert_eq!(m.handler_id, 10);

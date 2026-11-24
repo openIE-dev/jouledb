@@ -87,7 +87,12 @@ impl MindmapNode {
         if self.children.is_empty() {
             0
         } else {
-            1 + self.children.iter().map(|c| c.max_depth()).max().unwrap_or(0)
+            1 + self
+                .children
+                .iter()
+                .map(|c| c.max_depth())
+                .max()
+                .unwrap_or(0)
         }
     }
 
@@ -132,7 +137,11 @@ impl MindmapNode {
         if self.collapsed {
             1
         } else {
-            1 + self.children.iter().map(|c| c.visible_count()).sum::<usize>()
+            1 + self
+                .children
+                .iter()
+                .map(|c| c.visible_count())
+                .sum::<usize>()
         }
     }
 
@@ -255,9 +264,20 @@ impl Mindmap {
         self.positions.clear();
         self.positions.insert(
             self.root.id.clone(),
-            MindmapPosition { x: center_x, y: center_y },
+            MindmapPosition {
+                x: center_x,
+                y: center_y,
+            },
         );
-        self.layout_children(&self.root.clone(), center_x, center_y, 0.0, 2.0 * PI, radius_step, 1);
+        self.layout_children(
+            &self.root.clone(),
+            center_x,
+            center_y,
+            0.0,
+            2.0 * PI,
+            radius_step,
+            1,
+        );
     }
 
     fn layout_children(
@@ -282,10 +302,8 @@ impl Mindmap {
             let angle = start_angle + angle_step * (i as f64 + 0.5);
             let x = parent_x + radius * angle.cos();
             let y = parent_y + radius * angle.sin();
-            self.positions.insert(
-                child.id.clone(),
-                MindmapPosition { x, y },
-            );
+            self.positions
+                .insert(child.id.clone(), MindmapPosition { x, y });
 
             // Subdivide the sector for grandchildren.
             let child_start = start_angle + angle_step * i as f64;
@@ -304,9 +322,9 @@ impl Mindmap {
             return;
         }
         // Already balanced if children are evenly split. Just sort by weight.
-        self.root.children.sort_by(|a, b| {
-            b.node_count().cmp(&a.node_count())
-        });
+        self.root
+            .children
+            .sort_by(|a, b| b.node_count().cmp(&a.node_count()));
 
         // Interleave large and small subtrees for visual balance.
         let mut balanced = Vec::with_capacity(n);

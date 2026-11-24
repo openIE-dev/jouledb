@@ -24,7 +24,13 @@ impl CellValue {
         match self {
             CellValue::Text(s) => s.clone(),
             CellValue::Number(n) => format!("{n:020.6}"),
-            CellValue::Bool(b) => if *b { "1".into() } else { "0".into() },
+            CellValue::Bool(b) => {
+                if *b {
+                    "1".into()
+                } else {
+                    "0".into()
+                }
+            }
             CellValue::Date(d) => d.clone(),
             CellValue::Empty => String::new(),
         }
@@ -131,7 +137,10 @@ pub struct Pagination {
 
 impl Default for Pagination {
     fn default() -> Self {
-        Self { page: 0, page_size: 50 }
+        Self {
+            page: 0,
+            page_size: 50,
+        }
     }
 }
 
@@ -174,7 +183,10 @@ impl DataGrid {
 
     /// Set sort on a single column.
     pub fn set_sort(&mut self, field: impl Into<String>, direction: SortDirection) {
-        self.sort = Some(GridSort { field: field.into(), direction });
+        self.sort = Some(GridSort {
+            field: field.into(),
+            direction,
+        });
     }
 
     /// Clear current sort.
@@ -251,9 +263,7 @@ impl DataGrid {
         } else {
             self.rows
                 .iter()
-                .filter(|row| {
-                    row.cells.values().any(|cv| cv.contains_text(needle))
-                })
+                .filter(|row| row.cells.values().any(|cv| cv.contains_text(needle)))
                 .collect()
         }
     }
@@ -302,18 +312,24 @@ mod tests {
             GridColumn::new("c3", "Active", "active"),
         ];
         let mut grid = DataGrid::new(cols);
-        grid.add_row(GridRow::new("r1")
-            .set("name", CellValue::Text("Alice".into()))
-            .set("age", CellValue::Number(30.0))
-            .set("active", CellValue::Bool(true)));
-        grid.add_row(GridRow::new("r2")
-            .set("name", CellValue::Text("Bob".into()))
-            .set("age", CellValue::Number(25.0))
-            .set("active", CellValue::Bool(false)));
-        grid.add_row(GridRow::new("r3")
-            .set("name", CellValue::Text("Charlie".into()))
-            .set("age", CellValue::Number(35.0))
-            .set("active", CellValue::Bool(true)));
+        grid.add_row(
+            GridRow::new("r1")
+                .set("name", CellValue::Text("Alice".into()))
+                .set("age", CellValue::Number(30.0))
+                .set("active", CellValue::Bool(true)),
+        );
+        grid.add_row(
+            GridRow::new("r2")
+                .set("name", CellValue::Text("Bob".into()))
+                .set("age", CellValue::Number(25.0))
+                .set("active", CellValue::Bool(false)),
+        );
+        grid.add_row(
+            GridRow::new("r3")
+                .set("name", CellValue::Text("Charlie".into()))
+                .set("age", CellValue::Number(35.0))
+                .set("active", CellValue::Bool(true)),
+        );
         grid.pagination.page_size = 10;
         grid
     }

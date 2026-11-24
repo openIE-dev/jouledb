@@ -27,8 +27,13 @@ impl Vec2 {
 
     pub fn normalize(self) -> Self {
         let len = self.length();
-        if len < 1e-10 { return Self::new(1.0, 0.0); }
-        Self { x: self.x / len, y: self.y / len }
+        if len < 1e-10 {
+            return Self::new(1.0, 0.0);
+        }
+        Self {
+            x: self.x / len,
+            y: self.y / len,
+        }
     }
 }
 
@@ -40,7 +45,11 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
@@ -64,20 +73,38 @@ impl Vec3 {
 
     pub fn normalize(self) -> Self {
         let len = self.length();
-        if len < 1e-10 { return Self::ZERO; }
-        Self { x: self.x / len, y: self.y / len, z: self.z / len }
+        if len < 1e-10 {
+            return Self::ZERO;
+        }
+        Self {
+            x: self.x / len,
+            y: self.y / len,
+            z: self.z / len,
+        }
     }
 
     pub fn scale(self, s: f32) -> Self {
-        Self { x: self.x * s, y: self.y * s, z: self.z * s }
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+            z: self.z * s,
+        }
     }
 
     pub fn add(self, o: Self) -> Self {
-        Self { x: self.x + o.x, y: self.y + o.y, z: self.z + o.z }
+        Self {
+            x: self.x + o.x,
+            y: self.y + o.y,
+            z: self.z + o.z,
+        }
     }
 
     pub fn sub(self, o: Self) -> Self {
-        Self { x: self.x - o.x, y: self.y - o.y, z: self.z - o.z }
+        Self {
+            x: self.x - o.x,
+            y: self.y - o.y,
+            z: self.z - o.z,
+        }
     }
 }
 
@@ -90,23 +117,43 @@ pub struct Color3 {
 }
 
 impl Color3 {
-    pub const WHITE: Self = Self { r: 1.0, g: 1.0, b: 1.0 };
-    pub const BLACK: Self = Self { r: 0.0, g: 0.0, b: 0.0 };
+    pub const WHITE: Self = Self {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+    };
+    pub const BLACK: Self = Self {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+    };
 
     pub fn new(r: f32, g: f32, b: f32) -> Self {
         Self { r, g, b }
     }
 
     pub fn scale(self, s: f32) -> Self {
-        Self { r: self.r * s, g: self.g * s, b: self.b * s }
+        Self {
+            r: self.r * s,
+            g: self.g * s,
+            b: self.b * s,
+        }
     }
 
     pub fn add(self, o: Self) -> Self {
-        Self { r: self.r + o.r, g: self.g + o.g, b: self.b + o.b }
+        Self {
+            r: self.r + o.r,
+            g: self.g + o.g,
+            b: self.b + o.b,
+        }
     }
 
     pub fn mul(self, o: Self) -> Self {
-        Self { r: self.r * o.r, g: self.g * o.g, b: self.b * o.b }
+        Self {
+            r: self.r * o.r,
+            g: self.g * o.g,
+            b: self.b * o.b,
+        }
     }
 
     pub fn luminance(&self) -> f32 {
@@ -208,7 +255,10 @@ impl AnisotropicParams {
     pub fn rotate_tangent_frame(&self, tangent: Vec3, bitangent: Vec3) -> (Vec3, Vec3) {
         let dir = self.direction.resolve();
         let t_new = tangent.scale(dir.x).add(bitangent.scale(dir.y)).normalize();
-        let b_new = tangent.scale(-dir.y).add(bitangent.scale(dir.x)).normalize();
+        let b_new = tangent
+            .scale(-dir.y)
+            .add(bitangent.scale(dir.x))
+            .normalize();
         (t_new, b_new)
     }
 }
@@ -226,33 +276,24 @@ impl Default for AnisotropicParams {
 /// `alpha_t` / `alpha_b` are roughness along tangent / bitangent.
 /// `t_dot_h`, `b_dot_h`, `n_dot_h` are dot products of half-vector
 /// with the tangent, bitangent, and normal respectively.
-pub fn ggx_aniso_ndf(
-    t_dot_h: f32,
-    b_dot_h: f32,
-    n_dot_h: f32,
-    alpha_t: f32,
-    alpha_b: f32,
-) -> f32 {
+pub fn ggx_aniso_ndf(t_dot_h: f32, b_dot_h: f32, n_dot_h: f32, alpha_t: f32, alpha_b: f32) -> f32 {
     let at2 = alpha_t * alpha_t;
     let ab2 = alpha_b * alpha_b;
-    let term = (t_dot_h * t_dot_h / at2)
-        + (b_dot_h * b_dot_h / ab2)
-        + (n_dot_h * n_dot_h);
+    let term = (t_dot_h * t_dot_h / at2) + (b_dot_h * b_dot_h / ab2) + (n_dot_h * n_dot_h);
     let denom = std::f32::consts::PI * alpha_t * alpha_b * term * term;
-    if denom.abs() < 1e-10 { return 0.0; }
+    if denom.abs() < 1e-10 {
+        return 0.0;
+    }
     1.0 / denom
 }
 
 /// Anisotropic Smith-GGX geometry term (single direction).
-fn geometry_aniso_ggx(
-    t_dot_v: f32,
-    b_dot_v: f32,
-    n_dot_v: f32,
-    alpha_t: f32,
-    alpha_b: f32,
-) -> f32 {
-    let lambda = ((alpha_t * t_dot_v).powi(2) + (alpha_b * b_dot_v).powi(2) + n_dot_v * n_dot_v).sqrt();
-    if lambda.abs() < 1e-10 { return 0.0; }
+fn geometry_aniso_ggx(t_dot_v: f32, b_dot_v: f32, n_dot_v: f32, alpha_t: f32, alpha_b: f32) -> f32 {
+    let lambda =
+        ((alpha_t * t_dot_v).powi(2) + (alpha_b * b_dot_v).powi(2) + n_dot_v * n_dot_v).sqrt();
+    if lambda.abs() < 1e-10 {
+        return 0.0;
+    }
     2.0 * n_dot_v / (n_dot_v + lambda)
 }
 
@@ -301,11 +342,15 @@ pub fn ward_aniso(
     alpha_b: f32,
 ) -> f32 {
     let denom_sqrt = (n_dot_l.max(0.0) * n_dot_v.max(0.0)).sqrt();
-    if denom_sqrt < 1e-7 { return 0.0; }
-    if n_dot_h < 1e-7 { return 0.0; }
+    if denom_sqrt < 1e-7 {
+        return 0.0;
+    }
+    if n_dot_h < 1e-7 {
+        return 0.0;
+    }
 
-    let exponent = -((t_dot_h / alpha_t).powi(2) + (b_dot_h / alpha_b).powi(2))
-        / (n_dot_h * n_dot_h);
+    let exponent =
+        -((t_dot_h / alpha_t).powi(2) + (b_dot_h / alpha_b).powi(2)) / (n_dot_h * n_dot_h);
 
     let coeff = 1.0 / (4.0 * std::f32::consts::PI * alpha_t * alpha_b * denom_sqrt);
     (coeff * exponent.exp()).max(0.0)
@@ -327,13 +372,21 @@ impl FlowMap {
         if data.len() != expected {
             return Err(format!("expected {} entries, got {}", expected, data.len()));
         }
-        Ok(Self { width, height, data })
+        Ok(Self {
+            width,
+            height,
+            data,
+        })
     }
 
     /// Uniform direction flowmap.
     pub fn uniform(width: u32, height: u32, dir: Vec2) -> Self {
         let count = (width as usize) * (height as usize);
-        Self { width, height, data: vec![dir.normalize(); count] }
+        Self {
+            width,
+            height,
+            data: vec![dir.normalize(); count],
+        }
     }
 
     /// Radial flowmap (directions point outward from centre).
@@ -354,7 +407,11 @@ impl FlowMap {
                 }
             }
         }
-        Self { width, height, data }
+        Self {
+            width,
+            height,
+            data,
+        }
     }
 
     /// Sample the flowmap at UV coordinates (nearest).
@@ -418,7 +475,9 @@ pub fn evaluate_aniso_brdf(
     let d = ggx_aniso_ndf(t_dot_h, b_dot_h, n_dot_h, alpha_t, alpha_b);
 
     // Geometry
-    let g = geometry_aniso_smith(t_dot_v, b_dot_v, n_dot_v, t_dot_l, b_dot_l, n_dot_l, alpha_t, alpha_b);
+    let g = geometry_aniso_smith(
+        t_dot_v, b_dot_v, n_dot_v, t_dot_l, b_dot_l, n_dot_l, alpha_t, alpha_b,
+    );
 
     // Fresnel
     let f0 = {
@@ -486,7 +545,9 @@ pub fn evaluate_ward_brdf(
     }
 
     let (alpha_t, alpha_b) = params.roughness_tb();
-    let spec = ward_aniso(t_dot_h, b_dot_h, n_dot_l, n_dot_v, n_dot_h, alpha_t, alpha_b);
+    let spec = ward_aniso(
+        t_dot_h, b_dot_h, n_dot_l, n_dot_v, n_dot_h, alpha_t, alpha_b,
+    );
 
     Color3::new(
         params.color.r * spec * light_color.r * n_dot_l,
@@ -507,7 +568,11 @@ pub struct AnisotropicMaterial {
 
 impl AnisotropicMaterial {
     pub fn new(name: impl Into<String>, params: AnisotropicParams) -> Self {
-        Self { name: name.into(), params, flowmap: None }
+        Self {
+            name: name.into(),
+            params,
+            flowmap: None,
+        }
     }
 
     pub fn with_flowmap(mut self, fm: FlowMap) -> Self {
@@ -610,8 +675,7 @@ mod tests {
 
     #[test]
     fn test_rotate_tangent_frame_identity() {
-        let p = AnisotropicParams::new(0.3, 0.5)
-            .with_direction(AnisotropyDirection::Angle(0.0));
+        let p = AnisotropicParams::new(0.3, 0.5).with_direction(AnisotropyDirection::Angle(0.0));
         let t = Vec3::new(1.0, 0.0, 0.0);
         let b = Vec3::new(0.0, 0.0, 1.0);
         let (nt, nb) = p.rotate_tangent_frame(t, b);
@@ -688,8 +752,7 @@ mod tests {
 
     #[test]
     fn test_evaluate_ward_brdf_positive() {
-        let params = AnisotropicParams::new(0.3, 0.5)
-            .with_color(Color3::new(0.5, 0.5, 0.5));
+        let params = AnisotropicParams::new(0.3, 0.5).with_color(Color3::new(0.5, 0.5, 0.5));
         let n = Vec3::new(0.0, 1.0, 0.0);
         let t = Vec3::new(1.0, 0.0, 0.0);
         let b = Vec3::new(0.0, 0.0, 1.0);
@@ -724,8 +787,7 @@ mod tests {
     #[test]
     fn test_material_with_flowmap() {
         let fm = FlowMap::uniform(4, 4, Vec2::new(0.0, 1.0));
-        let mat = AnisotropicMaterial::new("test", AnisotropicParams::default())
-            .with_flowmap(fm);
+        let mat = AnisotropicMaterial::new("test", AnisotropicParams::default()).with_flowmap(fm);
         let d = mat.direction_at(0.5, 0.5);
         assert!(approx(d.y, 1.0));
     }

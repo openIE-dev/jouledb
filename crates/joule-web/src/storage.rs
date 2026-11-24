@@ -5,7 +5,7 @@
 //! serialization, key prefixing, TTL expiration, and change tracking.
 
 use chrono::{DateTime, Utc};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::collections::HashMap;
 use thiserror::Error;
 
@@ -254,8 +254,7 @@ impl<B: StorageBackend> ExpiringStorage<B> {
         value: &str,
         ttl: chrono::Duration,
     ) -> Result<(), StorageError> {
-        let expires_at = Utc::now().timestamp_millis()
-            + ttl.num_milliseconds();
+        let expires_at = Utc::now().timestamp_millis() + ttl.num_milliseconds();
         let entry = ExpiringEntry {
             value: value.to_string(),
             expires_at,
@@ -532,10 +531,7 @@ mod tests {
 
         // The underlying key is "app:name"
         assert!(prefixed.contains_key("name").unwrap());
-        assert_eq!(
-            prefixed.get("name").unwrap(),
-            Some("value".to_string())
-        );
+        assert_eq!(prefixed.get("name").unwrap(), Some("value".to_string()));
     }
 
     #[test]

@@ -14,29 +14,31 @@ pub struct MaskPattern {
 
 impl MaskPattern {
     pub fn new(pattern: &str) -> Self {
-        Self { pattern: pattern.to_string() }
+        Self {
+            pattern: pattern.to_string(),
+        }
     }
 
     /// Format raw input according to the mask, inserting literals.
     pub fn apply(&self, input: &str) -> String {
         let chars: Vec<char> = self.pattern.chars().collect();
-        let mut input_iter = input.chars().filter(|c| !c.is_ascii_whitespace() || *c == ' ');
+        let mut input_iter = input
+            .chars()
+            .filter(|c| !c.is_ascii_whitespace() || *c == ' ');
         let mut out = String::with_capacity(chars.len());
 
         for &pc in &chars {
             match pc {
-                '9' | 'A' | 'a' | '*' => {
-                    loop {
-                        match input_iter.next() {
-                            Some(ic) if char_matches_slot(pc, ic) => {
-                                out.push(ic);
-                                break;
-                            }
-                            Some(_) => continue,
-                            None => return out,
+                '9' | 'A' | 'a' | '*' => loop {
+                    match input_iter.next() {
+                        Some(ic) if char_matches_slot(pc, ic) => {
+                            out.push(ic);
+                            break;
                         }
+                        Some(_) => continue,
+                        None => return out,
                     }
-                }
+                },
                 literal => {
                     out.push(literal);
                 }
@@ -72,13 +74,27 @@ impl MaskPattern {
 
     // ── Common masks ──────────────────────────────────────────
 
-    pub fn phone_us() -> Self { Self::new("(999) 999-9999") }
-    pub fn date() -> Self { Self::new("99/99/9999") }
-    pub fn time() -> Self { Self::new("99:99") }
-    pub fn ssn() -> Self { Self::new("999-99-9999") }
-    pub fn zip_code() -> Self { Self::new("99999") }
-    pub fn credit_card() -> Self { Self::new("9999 9999 9999 9999") }
-    pub fn ip_address() -> Self { Self::new("999.999.999.999") }
+    pub fn phone_us() -> Self {
+        Self::new("(999) 999-9999")
+    }
+    pub fn date() -> Self {
+        Self::new("99/99/9999")
+    }
+    pub fn time() -> Self {
+        Self::new("99:99")
+    }
+    pub fn ssn() -> Self {
+        Self::new("999-99-9999")
+    }
+    pub fn zip_code() -> Self {
+        Self::new("99999")
+    }
+    pub fn credit_card() -> Self {
+        Self::new("9999 9999 9999 9999")
+    }
+    pub fn ip_address() -> Self {
+        Self::new("999.999.999.999")
+    }
 }
 
 fn char_matches_slot(slot: char, c: char) -> bool {
@@ -107,7 +123,11 @@ pub struct MaskState {
 
 impl MaskState {
     pub fn new(pattern: MaskPattern) -> Self {
-        Self { pattern, value: String::new(), cursor: 0 }
+        Self {
+            pattern,
+            value: String::new(),
+            cursor: 0,
+        }
     }
 
     /// Insert a character at the current cursor, respecting mask rules.
@@ -145,7 +165,9 @@ impl MaskState {
 
     /// Delete the last character (and any trailing literals before it).
     pub fn delete_back(&mut self) -> bool {
-        if self.value.is_empty() { return false; }
+        if self.value.is_empty() {
+            return false;
+        }
         let pchars: Vec<char> = self.pattern.pattern.chars().collect();
 
         // Pop trailing literals first.

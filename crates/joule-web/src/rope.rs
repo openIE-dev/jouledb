@@ -54,11 +54,7 @@ impl Rope {
         } else {
             // Split at roughly the middle (on a char boundary)
             let mid = s.chars().count() / 2;
-            let byte_mid = s
-                .char_indices()
-                .nth(mid)
-                .map(|(i, _)| i)
-                .unwrap_or(s.len());
+            let byte_mid = s.char_indices().nth(mid).map(|(i, _)| i).unwrap_or(s.len());
             let left = Self::from_str(&s[..byte_mid]);
             let right = Self::from_str(&s[byte_mid..]);
             Self::concat(left, right)
@@ -252,9 +248,7 @@ impl Rope {
     pub fn depth(&self) -> usize {
         match &self.node {
             RopeNode::Leaf(_) => 0,
-            RopeNode::Branch { left, right, .. } => {
-                1 + left.depth().max(right.depth())
-            }
+            RopeNode::Branch { left, right, .. } => 1 + left.depth().max(right.depth()),
         }
     }
 

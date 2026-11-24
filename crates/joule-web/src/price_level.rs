@@ -63,7 +63,13 @@ pub struct QueuedOrder {
 
 impl QueuedOrder {
     pub fn new(order_id: u64, quantity: f64, timestamp_ns: u64) -> Self {
-        Self { order_id, quantity, remaining: quantity, timestamp_ns, is_hidden: false }
+        Self {
+            order_id,
+            quantity,
+            remaining: quantity,
+            timestamp_ns,
+            is_hidden: false,
+        }
     }
 
     pub fn with_hidden(mut self, hidden: bool) -> Self {
@@ -71,10 +77,16 @@ impl QueuedOrder {
         self
     }
 
-    pub fn is_filled(&self) -> bool { self.remaining <= 1e-12 }
+    pub fn is_filled(&self) -> bool {
+        self.remaining <= 1e-12
+    }
 
     pub fn fill_ratio(&self) -> f64 {
-        if self.quantity <= 0.0 { 0.0 } else { 1.0 - self.remaining / self.quantity }
+        if self.quantity <= 0.0 {
+            0.0
+        } else {
+            1.0 - self.remaining / self.quantity
+        }
     }
 
     /// Visible quantity (zero if hidden).
@@ -86,8 +98,11 @@ impl QueuedOrder {
 impl fmt::Display for QueuedOrder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let hidden = if self.is_hidden { " [hidden]" } else { "" };
-        write!(f, "Queued(id={}, rem={:.4}/{:.4}{hidden})",
-            self.order_id, self.remaining, self.quantity)
+        write!(
+            f,
+            "Queued(id={}, rem={:.4}/{:.4}{hidden})",
+            self.order_id, self.remaining, self.quantity
+        )
     }
 }
 
@@ -110,8 +125,11 @@ pub struct LevelStats {
 
 impl fmt::Display for LevelStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "LevelStats({} {:.2}: vol={:.4}, orders={}, notional={:.2})",
-            self.side, self.price, self.total_volume, self.order_count, self.notional)
+        write!(
+            f,
+            "LevelStats({} {:.2}: vol={:.4}, orders={}, notional={:.2})",
+            self.side, self.price, self.total_volume, self.order_count, self.notional
+        )
     }
 }
 
@@ -132,7 +150,13 @@ impl PriceLevel {
         if price <= 0.0 {
             return Err(PriceLevelError::InvalidPrice(format!("{price}")));
         }
-        Ok(Self { price, side, orders: Vec::new(), total_volume: 0.0, visible_volume: 0.0 })
+        Ok(Self {
+            price,
+            side,
+            orders: Vec::new(),
+            total_volume: 0.0,
+            visible_volume: 0.0,
+        })
     }
 
     pub fn with_price(mut self, price: f64) -> Self {
@@ -148,7 +172,10 @@ impl PriceLevel {
     /// Add an order to the end of the queue (time priority).
     pub fn add_order(&mut self, order: QueuedOrder) -> Result<(), PriceLevelError> {
         if order.remaining <= 0.0 {
-            return Err(PriceLevelError::InvalidQuantity(format!("{}", order.remaining)));
+            return Err(PriceLevelError::InvalidQuantity(format!(
+                "{}",
+                order.remaining
+            )));
         }
         if self.orders.iter().any(|o| o.order_id == order.order_id) {
             return Err(PriceLevelError::DuplicateOrder(order.order_id));
@@ -161,7 +188,10 @@ impl PriceLevel {
 
     /// Remove an order by id.
     pub fn remove_order(&mut self, order_id: u64) -> Result<QueuedOrder, PriceLevelError> {
-        let pos = self.orders.iter().position(|o| o.order_id == order_id)
+        let pos = self
+            .orders
+            .iter()
+            .position(|o| o.order_id == order_id)
             .ok_or(PriceLevelError::OrderNotFound(order_id))?;
         let order = self.orders.remove(pos);
         self.total_volume -= order.remaining;
@@ -190,7 +220,10 @@ impl PriceLevel {
 
     /// Reduce quantity of a specific order.
     pub fn fill_order(&mut self, order_id: u64, qty: f64) -> Result<f64, PriceLevelError> {
-        let order = self.orders.iter_mut().find(|o| o.order_id == order_id)
+        let order = self
+            .orders
+            .iter_mut()
+            .find(|o| o.order_id == order_id)
             .ok_or(PriceLevelError::OrderNotFound(order_id))?;
         let actual = qty.min(order.remaining);
         order.remaining -= actual;
@@ -205,13 +238,18 @@ impl PriceLevel {
     }
 
     /// Modify the quantity of an existing order.
-    pub fn modify_order(&mut self, order_id: u64, new_remaining: f64)
-        -> Result<f64, PriceLevelError>
-    {
+    pub fn modify_order(
+        &mut self,
+        order_id: u64,
+        new_remaining: f64,
+    ) -> Result<f64, PriceLevelError> {
         if new_remaining <= 0.0 {
             return Err(PriceLevelError::InvalidQuantity(format!("{new_remaining}")));
         }
-        let order = self.orders.iter_mut().find(|o| o.order_id == order_id)
+        let order = self
+            .orders
+            .iter_mut()
+            .find(|o| o.order_id == order_id)
             .ok_or(PriceLevelError::OrderNotFound(order_id))?;
         let old = order.remaining;
         let delta = new_remaining - old;
@@ -224,28 +262,44 @@ impl PriceLevel {
     }
 
     /// Price accessor.
-    pub fn price(&self) -> f64 { self.price }
+    pub fn price(&self) -> f64 {
+        self.price
+    }
 
     /// Side accessor.
-    pub fn side(&self) -> LevelSide { self.side }
+    pub fn side(&self) -> LevelSide {
+        self.side
+    }
 
     /// Total volume at this level.
-    pub fn total_volume(&self) -> f64 { self.total_volume }
+    pub fn total_volume(&self) -> f64 {
+        self.total_volume
+    }
 
     /// Visible volume (excludes hidden orders).
-    pub fn visible_volume(&self) -> f64 { self.visible_volume }
+    pub fn visible_volume(&self) -> f64 {
+        self.visible_volume
+    }
 
     /// Hidden volume.
-    pub fn hidden_volume(&self) -> f64 { self.total_volume - self.visible_volume }
+    pub fn hidden_volume(&self) -> f64 {
+        self.total_volume - self.visible_volume
+    }
 
     /// Number of orders at this level.
-    pub fn order_count(&self) -> usize { self.orders.len() }
+    pub fn order_count(&self) -> usize {
+        self.orders.len()
+    }
 
     /// Whether the level is empty.
-    pub fn is_empty(&self) -> bool { self.orders.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.orders.is_empty()
+    }
 
     /// Notional value (price * total volume).
-    pub fn notional(&self) -> f64 { self.price * self.total_volume }
+    pub fn notional(&self) -> f64 {
+        self.price * self.total_volume
+    }
 
     /// Front-of-queue order id.
     pub fn front_order_id(&self) -> Option<u64> {
@@ -273,8 +327,11 @@ impl PriceLevel {
             total_volume: self.total_volume,
             visible_volume: self.visible_volume,
             hidden_volume: self.hidden_volume(),
-            avg_order_size: if sizes.is_empty() { 0.0 }
-                else { sizes.iter().sum::<f64>() / sizes.len() as f64 },
+            avg_order_size: if sizes.is_empty() {
+                0.0
+            } else {
+                sizes.iter().sum::<f64>() / sizes.len() as f64
+            },
             max_order_size: sizes.iter().cloned().fold(0.0_f64, f64::max),
             min_order_size: sizes.iter().cloned().fold(f64::INFINITY, f64::min),
             notional: self.notional(),
@@ -282,13 +339,21 @@ impl PriceLevel {
     }
 
     /// Iterate over orders in queue order.
-    pub fn orders(&self) -> &[QueuedOrder] { &self.orders }
+    pub fn orders(&self) -> &[QueuedOrder] {
+        &self.orders
+    }
 }
 
 impl fmt::Display for PriceLevel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PriceLevel({} {:.2}: vol={:.4}, orders={})",
-            self.side, self.price, self.total_volume, self.orders.len())
+        write!(
+            f,
+            "PriceLevel({} {:.2}: vol={:.4}, orders={})",
+            self.side,
+            self.price,
+            self.total_volume,
+            self.orders.len()
+        )
     }
 }
 
@@ -417,7 +482,8 @@ mod tests {
     fn test_hidden_volume() {
         let mut lvl = PriceLevel::new(100.0, LevelSide::Ask).unwrap();
         lvl.add_order(QueuedOrder::new(1, 50.0, 1000)).unwrap();
-        lvl.add_order(QueuedOrder::new(2, 30.0, 2000).with_hidden(true)).unwrap();
+        lvl.add_order(QueuedOrder::new(2, 30.0, 2000).with_hidden(true))
+            .unwrap();
         assert!((lvl.visible_volume() - 50.0).abs() < 1e-6);
         assert!((lvl.hidden_volume() - 30.0).abs() < 1e-6);
         assert!((lvl.total_volume() - 80.0).abs() < 1e-6);

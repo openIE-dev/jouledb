@@ -426,7 +426,6 @@ async fn handle_connection<R: AsyncReadExt + Unpin, W: AsyncWriteExt + Unpin>(
     started_at: Instant,
     shutdown_tx: watch::Sender<bool>,
 ) -> std::io::Result<()> {
-
     let request: DaemonRequest = read_message(&mut reader).await?;
     let response = process_request(request, &manager, started_at, &shutdown_tx).await;
     write_message(&mut writer, &response).await?;

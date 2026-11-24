@@ -7,8 +7,8 @@
 
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::{BinaryHeap, HashMap};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap};
 
 // ── Errors ──────────────────────────────────────────────────────
 
@@ -150,16 +150,22 @@ impl CronSchedule {
             return Ok(CronField::Any);
         }
         if let Some(step) = field.strip_prefix("*/") {
-            return step.parse::<u32>()
+            return step
+                .parse::<u32>()
                 .map(CronField::Step)
                 .map_err(|_| SchedulerError::InvalidCron(field.to_string()));
         }
         if let Some((start, end)) = field.split_once('-') {
-            let s = start.parse::<u32>().map_err(|_| SchedulerError::InvalidCron(field.to_string()))?;
-            let e = end.parse::<u32>().map_err(|_| SchedulerError::InvalidCron(field.to_string()))?;
+            let s = start
+                .parse::<u32>()
+                .map_err(|_| SchedulerError::InvalidCron(field.to_string()))?;
+            let e = end
+                .parse::<u32>()
+                .map_err(|_| SchedulerError::InvalidCron(field.to_string()))?;
             return Ok(CronField::Range(s, e));
         }
-        field.parse::<u32>()
+        field
+            .parse::<u32>()
             .map(CronField::Value)
             .map_err(|_| SchedulerError::InvalidCron(field.to_string()))
     }
@@ -260,7 +266,8 @@ struct PriorityEntry {
 impl Ord for PriorityEntry {
     fn cmp(&self, other: &Self) -> Ordering {
         // Higher priority first, then earlier scheduled time.
-        self.priority.cmp(&other.priority)
+        self.priority
+            .cmp(&other.priority)
             .then_with(|| other.scheduled_at.cmp(&self.scheduled_at))
     }
 }
@@ -343,7 +350,9 @@ impl Scheduler {
             return Err(SchedulerError::DuplicateJob(job.id));
         }
         if self.queue.len() >= self.max_queue_size {
-            return Err(SchedulerError::QueueFull { capacity: self.max_queue_size });
+            return Err(SchedulerError::QueueFull {
+                capacity: self.max_queue_size,
+            });
         }
         let entry = PriorityEntry {
             job_id: job.id.clone(),
@@ -359,7 +368,10 @@ impl Scheduler {
     pub fn next_job(&mut self) -> Option<String> {
         while let Some(entry) = self.queue.pop() {
             if let Some(job) = self.jobs.get(&entry.job_id) {
-                if job.status == JobStatus::Pending || job.status == JobStatus::Scheduled || job.status == JobStatus::Retrying {
+                if job.status == JobStatus::Pending
+                    || job.status == JobStatus::Scheduled
+                    || job.status == JobStatus::Retrying
+                {
                     return Some(entry.job_id);
                 }
             }
@@ -369,7 +381,9 @@ impl Scheduler {
 
     /// Start a job (assign to worker).
     pub fn start_job(&mut self, job_id: &str, worker_id: &str) -> Result<(), SchedulerError> {
-        let job = self.jobs.get_mut(job_id)
+        let job = self
+            .jobs
+            .get_mut(job_id)
             .ok_or_else(|| SchedulerError::JobNotFound(job_id.to_string()))?;
         job.status = JobStatus::Running;
         job.started_at = Some(Utc::now());
@@ -384,7 +398,9 @@ impl Scheduler {
 
     /// Complete a job successfully.
     pub fn complete_job(&mut self, job_id: &str) -> Result<(), SchedulerError> {
-        let job = self.jobs.get_mut(job_id)
+        let job = self
+            .jobs
+            .get_mut(job_id)
             .ok_or_else(|| SchedulerError::JobNotFound(job_id.to_string()))?;
         let now = Utc::now();
         job.status = JobStatus::Completed;
@@ -427,7 +443,9 @@ impl Scheduler {
 
     /// Fail a job.
     pub fn fail_job(&mut self, job_id: &str, error: &str) -> Result<(), SchedulerError> {
-        let job = self.jobs.get_mut(job_id)
+        let job = self
+            .jobs
+            .get_mut(job_id)
             .ok_or_else(|| SchedulerError::JobNotFound(job_id.to_string()))?;
         let now = Utc::now();
 
@@ -475,7 +493,9 @@ impl Scheduler {
 
     /// Cancel a job.
     pub fn cancel_job(&mut self, job_id: &str) -> Result<(), SchedulerError> {
-        let job = self.jobs.get_mut(job_id)
+        let job = self
+            .jobs
+            .get_mut(job_id)
             .ok_or_else(|| SchedulerError::JobNotFound(job_id.to_string()))?;
         if job.status == JobStatus::Completed {
             return Err(SchedulerError::AlreadyCompleted(job_id.to_string()));
@@ -516,7 +536,9 @@ mod tests {
     #[test]
     fn test_submit_and_next() {
         let mut sched = Scheduler::new();
-        sched.submit(Job::new("j1", "Job 1", Schedule::Immediate)).unwrap();
+        sched
+            .submit(Job::new("j1", "Job 1", Schedule::Immediate))
+            .unwrap();
         let next = sched.next_job();
         assert_eq!(next, Some("j1".to_string()));
     }
@@ -524,7 +546,9 @@ mod tests {
     #[test]
     fn test_duplicate_job() {
         let mut sched = Scheduler::new();
-        sched.submit(Job::new("j1", "J", Schedule::Immediate)).unwrap();
+        sched
+            .submit(Job::new("j1", "J", Schedule::Immediate))
+            .unwrap();
         assert!(matches!(
             sched.submit(Job::new("j1", "J2", Schedule::Immediate)),
             Err(SchedulerError::DuplicateJob(_))
@@ -534,8 +558,12 @@ mod tests {
     #[test]
     fn test_priority_ordering() {
         let mut sched = Scheduler::new();
-        sched.submit(Job::new("low", "Low", Schedule::Immediate).with_priority(1)).unwrap();
-        sched.submit(Job::new("high", "High", Schedule::Immediate).with_priority(10)).unwrap();
+        sched
+            .submit(Job::new("low", "Low", Schedule::Immediate).with_priority(1))
+            .unwrap();
+        sched
+            .submit(Job::new("high", "High", Schedule::Immediate).with_priority(10))
+            .unwrap();
         let next = sched.next_job().unwrap();
         assert_eq!(next, "high");
     }
@@ -544,7 +572,9 @@ mod tests {
     fn test_job_lifecycle() {
         let mut sched = Scheduler::new();
         sched.register_worker(WorkerInfo::new("w1", "Worker 1", 5));
-        sched.submit(Job::new("j1", "J1", Schedule::Immediate)).unwrap();
+        sched
+            .submit(Job::new("j1", "J1", Schedule::Immediate))
+            .unwrap();
 
         let jid = sched.next_job().unwrap();
         sched.start_job(&jid, "w1").unwrap();
@@ -558,10 +588,14 @@ mod tests {
     #[test]
     fn test_retry_on_failure() {
         let mut sched = Scheduler::new();
-        sched.submit(
-            Job::new("j1", "J1", Schedule::Immediate)
-                .with_retry(RetryPolicy { max_attempts: 3, ..Default::default() }),
-        ).unwrap();
+        sched
+            .submit(
+                Job::new("j1", "J1", Schedule::Immediate).with_retry(RetryPolicy {
+                    max_attempts: 3,
+                    ..Default::default()
+                }),
+            )
+            .unwrap();
 
         sched.next_job().unwrap();
         sched.start_job("j1", "w").unwrap();
@@ -575,10 +609,14 @@ mod tests {
     #[test]
     fn test_max_retries_exceeded() {
         let mut sched = Scheduler::new();
-        sched.submit(
-            Job::new("j1", "J1", Schedule::Immediate)
-                .with_retry(RetryPolicy { max_attempts: 1, ..Default::default() }),
-        ).unwrap();
+        sched
+            .submit(
+                Job::new("j1", "J1", Schedule::Immediate).with_retry(RetryPolicy {
+                    max_attempts: 1,
+                    ..Default::default()
+                }),
+            )
+            .unwrap();
 
         sched.next_job().unwrap();
         sched.start_job("j1", "w").unwrap();
@@ -590,7 +628,9 @@ mod tests {
     #[test]
     fn test_cancel_job() {
         let mut sched = Scheduler::new();
-        sched.submit(Job::new("j1", "J1", Schedule::Immediate)).unwrap();
+        sched
+            .submit(Job::new("j1", "J1", Schedule::Immediate))
+            .unwrap();
         sched.cancel_job("j1").unwrap();
         assert_eq!(sched.jobs["j1"].status, JobStatus::Cancelled);
     }
@@ -598,17 +638,30 @@ mod tests {
     #[test]
     fn test_cancel_completed_fails() {
         let mut sched = Scheduler::new();
-        sched.submit(Job::new("j1", "J1", Schedule::Immediate)).unwrap();
+        sched
+            .submit(Job::new("j1", "J1", Schedule::Immediate))
+            .unwrap();
         sched.next_job().unwrap();
         sched.start_job("j1", "w").unwrap();
         sched.complete_job("j1").unwrap();
-        assert!(matches!(sched.cancel_job("j1"), Err(SchedulerError::AlreadyCompleted(_))));
+        assert!(matches!(
+            sched.cancel_job("j1"),
+            Err(SchedulerError::AlreadyCompleted(_))
+        ));
     }
 
     #[test]
     fn test_recurring_job() {
         let mut sched = Scheduler::new();
-        sched.submit(Job::new("j1", "J1", Schedule::Recurring { interval_seconds: 60 })).unwrap();
+        sched
+            .submit(Job::new(
+                "j1",
+                "J1",
+                Schedule::Recurring {
+                    interval_seconds: 60,
+                },
+            ))
+            .unwrap();
 
         sched.next_job().unwrap();
         sched.start_job("j1", "w").unwrap();
@@ -659,8 +712,12 @@ mod tests {
     #[test]
     fn test_jobs_by_status() {
         let mut sched = Scheduler::new();
-        sched.submit(Job::new("j1", "J1", Schedule::Immediate)).unwrap();
-        sched.submit(Job::new("j2", "J2", Schedule::Immediate)).unwrap();
+        sched
+            .submit(Job::new("j1", "J1", Schedule::Immediate))
+            .unwrap();
+        sched
+            .submit(Job::new("j2", "J2", Schedule::Immediate))
+            .unwrap();
         sched.next_job().unwrap();
         sched.start_job("j1", "w").unwrap();
 

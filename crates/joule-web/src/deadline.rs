@@ -211,13 +211,15 @@ impl DeadlineManager {
         // Cascade: expire children of expired deadlines.
         let mut cascade_queue: Vec<DeadlineId> = newly_expired.clone();
         while let Some(parent_id) = cascade_queue.pop() {
-            let children: Vec<DeadlineId> = self.deadlines
+            let children: Vec<DeadlineId> = self
+                .deadlines
                 .get(&parent_id)
                 .map(|e| e.children.clone())
                 .unwrap_or_default();
 
             for child_id in children {
-                let should_cascade = self.deadlines
+                let should_cascade = self
+                    .deadlines
                     .get(&child_id)
                     .map(|e| e.state == DeadlineState::Active)
                     .unwrap_or(false);
@@ -240,7 +242,8 @@ impl DeadlineManager {
 
     /// Cancel a deadline and all its children (cascading cancellation).
     pub fn cancel(&mut self, id: DeadlineId) -> bool {
-        let exists = self.deadlines
+        let exists = self
+            .deadlines
             .get(&id)
             .map(|e| e.state == DeadlineState::Active)
             .unwrap_or(false);
@@ -251,7 +254,8 @@ impl DeadlineManager {
 
         let mut queue = vec![id];
         while let Some(current) = queue.pop() {
-            let children: Vec<DeadlineId> = self.deadlines
+            let children: Vec<DeadlineId> = self
+                .deadlines
                 .get(&current)
                 .map(|e| e.children.clone())
                 .unwrap_or_default();

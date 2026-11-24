@@ -96,14 +96,21 @@ impl LimitDef {
         }
     }
 
-    pub fn with_warning_pct(mut self, pct: f64) -> Self { self.warning_pct = pct; self }
-    pub fn with_soft_breach_pct(mut self, pct: f64) -> Self { self.soft_breach_pct = pct; self }
+    pub fn with_warning_pct(mut self, pct: f64) -> Self {
+        self.warning_pct = pct;
+        self
+    }
+    pub fn with_soft_breach_pct(mut self, pct: f64) -> Self {
+        self.soft_breach_pct = pct;
+        self
+    }
 }
 
 impl fmt::Display for LimitDef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "Limit({} {} long={:.0} short={:.0})",
+            f,
+            "Limit({} {} long={:.0} short={:.0})",
             self.kind, self.key, self.max_long, self.max_short,
         )
     }
@@ -121,7 +128,13 @@ pub struct Exemption {
 }
 
 impl Exemption {
-    pub fn new(limit_key: &str, account_id: &str, multiplier: f64, expiry_day: u64, reason: &str) -> Self {
+    pub fn new(
+        limit_key: &str,
+        account_id: &str,
+        multiplier: f64,
+        expiry_day: u64,
+        reason: &str,
+    ) -> Self {
         Self {
             limit_key: limit_key.into(),
             account_id: account_id.into(),
@@ -139,7 +152,8 @@ impl Exemption {
 impl fmt::Display for Exemption {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "Exemption({} acct={} mult={:.2} exp={})",
+            f,
+            "Exemption({} acct={} mult={:.2} exp={})",
             self.limit_key, self.account_id, self.multiplier, self.expiry_day,
         )
     }
@@ -156,16 +170,28 @@ pub struct Position {
 
 impl Position {
     pub fn new(account_id: &str, instrument: &str, quantity: f64) -> Self {
-        Self { account_id: account_id.into(), instrument: instrument.into(), quantity }
+        Self {
+            account_id: account_id.into(),
+            instrument: instrument.into(),
+            quantity,
+        }
     }
 
-    pub fn is_long(&self) -> bool { self.quantity > 0.0 }
-    pub fn is_short(&self) -> bool { self.quantity < 0.0 }
+    pub fn is_long(&self) -> bool {
+        self.quantity > 0.0
+    }
+    pub fn is_short(&self) -> bool {
+        self.quantity < 0.0
+    }
 }
 
 impl fmt::Display for Position {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Pos({} {} {:.2})", self.account_id, self.instrument, self.quantity)
+        write!(
+            f,
+            "Pos({} {} {:.2})",
+            self.account_id, self.instrument, self.quantity
+        )
     }
 }
 
@@ -185,9 +211,14 @@ pub struct Breach {
 impl fmt::Display for Breach {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "Breach({} {} {} pos={:.0} lim={:.0} util={:.1}%)",
-            self.limit_key, self.kind, self.severity,
-            self.current_position, self.limit_value, self.utilisation_pct * 100.0,
+            f,
+            "Breach({} {} {} pos={:.0} lim={:.0} util={:.1}%)",
+            self.limit_key,
+            self.kind,
+            self.severity,
+            self.current_position,
+            self.limit_value,
+            self.utilisation_pct * 100.0,
         )
     }
 }
@@ -206,9 +237,13 @@ pub struct UtilisationReport {
 impl fmt::Display for UtilisationReport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "Util({} {} cur={:.0}/{:.0} {:.1}%)",
-            self.limit_key, self.kind, self.current_value,
-            self.max_value, self.utilisation_pct * 100.0,
+            f,
+            "Util({} {} cur={:.0}/{:.0} {:.1}%)",
+            self.limit_key,
+            self.kind,
+            self.current_value,
+            self.max_value,
+            self.utilisation_pct * 100.0,
         )
     }
 }
@@ -223,12 +258,22 @@ pub struct LimitEngine {
 
 impl LimitEngine {
     pub fn new(current_day: u64) -> Self {
-        Self { limits: Vec::new(), exemptions: Vec::new(), current_day }
+        Self {
+            limits: Vec::new(),
+            exemptions: Vec::new(),
+            current_day,
+        }
     }
 
-    pub fn add_limit(&mut self, limit: LimitDef) { self.limits.push(limit); }
-    pub fn add_exemption(&mut self, ex: Exemption) { self.exemptions.push(ex); }
-    pub fn limits(&self) -> &[LimitDef] { &self.limits }
+    pub fn add_limit(&mut self, limit: LimitDef) {
+        self.limits.push(limit);
+    }
+    pub fn add_exemption(&mut self, ex: Exemption) {
+        self.exemptions.push(ex);
+    }
+    pub fn limits(&self) -> &[LimitDef] {
+        &self.limits
+    }
 
     fn effective_limit(&self, limit: &LimitDef, account_id: &str) -> (f64, f64) {
         let mut long = limit.max_long;
@@ -273,9 +318,18 @@ impl LimitEngine {
             match limit.kind {
                 LimitKind::Instrument => {
                     for p in positions {
-                        if p.instrument != limit.key { continue; }
+                        if p.instrument != limit.key {
+                            continue;
+                        }
                         let (max_l, max_s) = self.effective_limit(limit, &p.account_id);
-                        self.check_one(p.quantity, max_l, max_s, limit, &p.account_id, &mut breaches);
+                        self.check_one(
+                            p.quantity,
+                            max_l,
+                            max_s,
+                            limit,
+                            &p.account_id,
+                            &mut breaches,
+                        );
                     }
                 }
                 LimitKind::Account => {
@@ -296,15 +350,22 @@ impl LimitEngine {
     }
 
     fn check_one(
-        &self, pos: f64, max_long: f64, max_short: f64,
-        limit: &LimitDef, account_id: &str, out: &mut Vec<Breach>,
+        &self,
+        pos: f64,
+        max_long: f64,
+        max_short: f64,
+        limit: &LimitDef,
+        account_id: &str,
+        out: &mut Vec<Breach>,
     ) {
         let (effective, limit_val) = if pos >= 0.0 {
             (pos, max_long)
         } else {
             (pos.abs(), max_short)
         };
-        if limit_val <= 0.0 { return; }
+        if limit_val <= 0.0 {
+            return;
+        }
         let util = effective / limit_val;
         let severity = if util >= 1.0 {
             Some(BreachSeverity::HardBreach)
@@ -335,17 +396,24 @@ impl LimitEngine {
         let mut reports = Vec::new();
         for limit in &self.limits {
             let current = match limit.kind {
-                LimitKind::Instrument => {
-                    positions.iter()
-                        .filter(|p| p.instrument == limit.key)
-                        .map(|p| p.quantity)
-                        .sum::<f64>()
-                }
+                LimitKind::Instrument => positions
+                    .iter()
+                    .filter(|p| p.instrument == limit.key)
+                    .map(|p| p.quantity)
+                    .sum::<f64>(),
                 LimitKind::Account => *acct_agg.get(&limit.key).unwrap_or(&0.0),
                 LimitKind::Firm => *firm_agg.get(&limit.key).unwrap_or(&0.0),
             };
-            let max_val = if current >= 0.0 { limit.max_long } else { limit.max_short };
-            let util = if max_val > 0.0 { current.abs() / max_val } else { 0.0 };
+            let max_val = if current >= 0.0 {
+                limit.max_long
+            } else {
+                limit.max_short
+            };
+            let util = if max_val > 0.0 {
+                current.abs() / max_val
+            } else {
+                0.0
+            };
             reports.push(UtilisationReport {
                 limit_key: limit.key.clone(),
                 kind: limit.kind,
@@ -361,8 +429,11 @@ impl LimitEngine {
 impl fmt::Display for LimitEngine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "LimitEngine(limits={} exemptions={} day={})",
-            self.limits.len(), self.exemptions.len(), self.current_day,
+            f,
+            "LimitEngine(limits={} exemptions={} day={})",
+            self.limits.len(),
+            self.exemptions.len(),
+            self.current_day,
         )
     }
 }
@@ -465,7 +536,10 @@ mod tests {
         let pos = vec![Position::new("ACCT1", "AAPL", 500.0)];
         let reports = e.utilisation_report(&pos);
         assert!(!reports.is_empty());
-        let inst_r = reports.iter().find(|r| r.kind == LimitKind::Instrument).unwrap();
+        let inst_r = reports
+            .iter()
+            .find(|r| r.kind == LimitKind::Instrument)
+            .unwrap();
         assert!((inst_r.utilisation_pct - 0.5).abs() < 1e-9);
     }
 
@@ -494,9 +568,13 @@ mod tests {
     #[test]
     fn test_display_breach() {
         let b = Breach {
-            limit_key: "AAPL".into(), kind: LimitKind::Instrument,
-            severity: BreachSeverity::HardBreach, current_position: 1100.0,
-            limit_value: 1000.0, utilisation_pct: 1.1, account_id: "A".into(),
+            limit_key: "AAPL".into(),
+            kind: LimitKind::Instrument,
+            severity: BreachSeverity::HardBreach,
+            current_position: 1100.0,
+            limit_value: 1000.0,
+            utilisation_pct: 1.1,
+            account_id: "A".into(),
         };
         assert!(format!("{b}").contains("HARD_BREACH"));
     }
@@ -522,8 +600,11 @@ mod tests {
     #[test]
     fn test_display_utilisation() {
         let u = UtilisationReport {
-            limit_key: "AAPL".into(), kind: LimitKind::Instrument,
-            max_value: 1000.0, current_value: 500.0, utilisation_pct: 0.5,
+            limit_key: "AAPL".into(),
+            kind: LimitKind::Instrument,
+            max_value: 1000.0,
+            current_value: 500.0,
+            utilisation_pct: 0.5,
         };
         assert!(format!("{u}").contains("50.0%"));
     }

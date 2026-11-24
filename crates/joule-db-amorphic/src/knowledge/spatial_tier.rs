@@ -45,9 +45,7 @@ use std::time::Instant;
 use joule_db_core::index::{KdTree3, Octree3, RTree3};
 use joule_db_core::types::spatial::{Bbox3, Point3};
 
-use super::materializer::{
-    EntropyLevel, MaterializeResult, Materializer, Source,
-};
+use super::materializer::{EntropyLevel, MaterializeResult, Materializer, Source};
 
 // ============================================================================
 // Scene
@@ -170,7 +168,11 @@ pub enum SpatialQuery {
 #[derive(Debug, Clone)]
 pub enum SpatialResult {
     /// `Nearest` / `NearestWithin` succeeded.
-    Hit { id: u32, label: String, distance: f64 },
+    Hit {
+        id: u32,
+        label: String,
+        distance: f64,
+    },
     /// k-NN or range query — list of `(id, label)` pairs in result order.
     Hits(Vec<(u32, String)>),
     /// Query did not match (e.g. `NearestWithin` outside `max_dist`).
@@ -214,7 +216,11 @@ impl SpatialScene {
                 Some((_, &id, distance)) => {
                     let label = self.labels[id as usize].clone();
                     (
-                        SpatialResult::Hit { id, label, distance },
+                        SpatialResult::Hit {
+                            id,
+                            label,
+                            distance,
+                        },
                         energy::KD_PROBE_J + energy::PER_ROW_J,
                     )
                 }
@@ -278,7 +284,11 @@ impl SpatialScene {
                     Some((_, &id, distance)) => {
                         let label = self.labels[id as usize].clone();
                         (
-                            SpatialResult::Hit { id, label, distance },
+                            SpatialResult::Hit {
+                                id,
+                                label,
+                                distance,
+                            },
                             energy::OCTREE_PROBE_J + energy::PER_ROW_J,
                         )
                     }
@@ -299,8 +309,15 @@ impl SpatialScene {
 /// `MaterializeResult` directly.
 fn format_spatial_result(scene_size: usize, r: &SpatialResult) -> String {
     match r {
-        SpatialResult::Hit { id, label, distance } => {
-            format!("nearest: id={} label={} distance={:.6}", id, label, distance)
+        SpatialResult::Hit {
+            id,
+            label,
+            distance,
+        } => {
+            format!(
+                "nearest: id={} label={} distance={:.6}",
+                id, label, distance
+            )
         }
         SpatialResult::Hits(hits) => {
             let summary: Vec<String> = hits
@@ -379,10 +396,7 @@ impl Materializer {
             verified: true,
             energy_joules: energy_j,
             elapsed_us: start.elapsed().as_micros() as u64,
-            receipt: super::energy_receipt::EnergyReceipt::for_tier(
-                Source::Spatial3d,
-                actual_pj,
-            ),
+            receipt: super::energy_receipt::EnergyReceipt::for_tier(Source::Spatial3d, actual_pj),
         };
 
         Some((result, mat_result))
@@ -434,9 +448,13 @@ mod tests {
     #[test]
     fn nearest_returns_closest_object() {
         let scene = demo_scene();
-        let (r, _) = scene.resolve(&SpatialQuery::Nearest { point: p(11.0, 10.0, 5.0) });
+        let (r, _) = scene.resolve(&SpatialQuery::Nearest {
+            point: p(11.0, 10.0, 5.0),
+        });
         match r {
-            SpatialResult::Hit { label, distance, .. } => {
+            SpatialResult::Hit {
+                label, distance, ..
+            } => {
                 assert_eq!(label, "mug");
                 assert!((distance - 1.0).abs() < 1e-9);
             }
@@ -447,7 +465,10 @@ mod tests {
     #[test]
     fn knn_returns_k_in_distance_order() {
         let scene = demo_scene();
-        let (r, _) = scene.resolve(&SpatialQuery::Knn { point: p(15.0, 10.0, 6.0), k: 2 });
+        let (r, _) = scene.resolve(&SpatialQuery::Knn {
+            point: p(15.0, 10.0, 6.0),
+            k: 2,
+        });
         match r {
             SpatialResult::Hits(hits) => {
                 assert_eq!(hits.len(), 2);
@@ -465,7 +486,9 @@ mod tests {
     fn boxes_containing_point_uses_rtree() {
         let scene = demo_scene();
         // (50, 50, 5) is inside the table bbox AND the lamp bbox (lamp z spans 0..60).
-        let (r, _) = scene.resolve(&SpatialQuery::BoxesContaining { point: p(50.0, 50.0, 5.0) });
+        let (r, _) = scene.resolve(&SpatialQuery::BoxesContaining {
+            point: p(50.0, 50.0, 5.0),
+        });
         match r {
             SpatialResult::Hits(hits) => {
                 let mut labels: Vec<&str> = hits.iter().map(|(_, l)| l.as_str()).collect();
@@ -516,7 +539,9 @@ mod tests {
     #[test]
     fn energy_per_probe_is_picojoule_scale() {
         let scene = demo_scene();
-        let (_, e) = scene.resolve(&SpatialQuery::Nearest { point: p(11.0, 10.0, 5.0) });
+        let (_, e) = scene.resolve(&SpatialQuery::Nearest {
+            point: p(11.0, 10.0, 5.0),
+        });
         // Single probe must be < 10 nJ — 10⁵× cheaper than 1 mJ LLM token.
         assert!(e < 10e-9, "spatial probe energy {} J too high", e);
         // And nonzero.
@@ -530,7 +555,9 @@ mod tests {
         assert!(m.has_spatial_scene());
 
         let (_, mat) = m
-            .materialize_spatial(&SpatialQuery::Nearest { point: p(11.0, 10.0, 5.0) })
+            .materialize_spatial(&SpatialQuery::Nearest {
+                point: p(11.0, 10.0, 5.0),
+            })
             .unwrap();
         assert_eq!(mat.source, Source::Spatial3d);
         assert_eq!(mat.entropy, EntropyLevel::Low);
@@ -546,7 +573,9 @@ mod tests {
     #[test]
     fn materialize_spatial_returns_none_without_scene() {
         let mut m = Materializer::new();
-        let r = m.materialize_spatial(&SpatialQuery::Nearest { point: p(0.0, 0.0, 0.0) });
+        let r = m.materialize_spatial(&SpatialQuery::Nearest {
+            point: p(0.0, 0.0, 0.0),
+        });
         assert!(r.is_none());
     }
 
@@ -584,9 +613,11 @@ mod tests {
         // 100 LLM tokens at 1 mJ each = 100 mJ = 0.1 J.
         // 100 spatial probes at <10 nJ each = <1 µJ = 1e-6 J.
         // → at least 5 orders of magnitude.
-        assert!(m.metrics.total_energy < 1e-5,
+        assert!(
+            m.metrics.total_energy < 1e-5,
             "total spatial energy {} J should be << 0.1 J LLM equivalent",
-            m.metrics.total_energy);
+            m.metrics.total_energy
+        );
 
         // Per-probe average must be in the picojoule–nanojoule range.
         let avg = m.metrics.total_energy / m.metrics.total as f64;

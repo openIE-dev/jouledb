@@ -197,8 +197,8 @@ pub fn mish(x: f64) -> f64 {
 pub fn mish_deriv(x: f64) -> f64 {
     let sp = softplus(x);
     let tsp = sp.tanh();
-    let omega = 4.0 * (x + 1.0) + 4.0 * x.exp().powi(2) + x.exp().powi(3)
-        + x.exp() * (4.0 * x + 6.0);
+    let omega =
+        4.0 * (x + 1.0) + 4.0 * x.exp().powi(2) + x.exp().powi(3) + x.exp() * (4.0 * x + 6.0);
     let delta = 2.0 * x.exp() + x.exp().powi(2) + 2.0;
     let delta_sq = delta * delta;
     if delta_sq.abs() < 1e-30 {
@@ -504,7 +504,10 @@ mod tests {
         assert_eq!(format!("{}", Activation::Relu), "relu");
         assert_eq!(format!("{}", Activation::Gelu), "gelu");
         assert_eq!(format!("{}", Activation::Swish), "swish");
-        assert_eq!(format!("{}", Activation::LeakyRelu(0.01)), "leaky_relu(0.01)");
+        assert_eq!(
+            format!("{}", Activation::LeakyRelu(0.01)),
+            "leaky_relu(0.01)"
+        );
     }
 
     #[test]

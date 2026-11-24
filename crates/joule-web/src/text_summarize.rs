@@ -63,7 +63,8 @@ fn split_sentences(text: &str) -> Vec<String> {
 
         if chars[i] == '.' || chars[i] == '!' || chars[i] == '?' {
             // Consume consecutive terminators.
-            while i + 1 < len && (chars[i + 1] == '.' || chars[i + 1] == '!' || chars[i + 1] == '?') {
+            while i + 1 < len && (chars[i + 1] == '.' || chars[i + 1] == '!' || chars[i + 1] == '?')
+            {
                 i += 1;
                 current.push(chars[i]);
             }
@@ -294,7 +295,8 @@ pub fn summarize(text: &str, config: &SummarizeConfig) -> Summary {
     let tfidf_scores = compute_tfidf_scores(&sentences);
     let position_scores = compute_position_scores(sentences.len());
     let length_scores = compute_length_scores(&sentences);
-    let textrank_scores = compute_textrank_scores(&sentences, config.textrank_iterations, config.damping);
+    let textrank_scores =
+        compute_textrank_scores(&sentences, config.textrank_iterations, config.damping);
 
     // Combine scores.
     let mut scored: Vec<ScoredSentence> = sentences
@@ -314,7 +316,11 @@ pub fn summarize(text: &str, config: &SummarizeConfig) -> Summary {
         .collect();
 
     // Sort by score descending.
-    scored.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    scored.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     // Select top sentences respecting limits.
     let mut selected = Vec::new();

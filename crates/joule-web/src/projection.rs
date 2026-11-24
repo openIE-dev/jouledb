@@ -19,13 +19,20 @@ pub enum ProjectionError {
     /// Projection already exists.
     AlreadyExists(String),
     /// Handler error during projection.
-    HandlerError { projection_id: String, event_type: String, reason: String },
+    HandlerError {
+        projection_id: String,
+        event_type: String,
+        reason: String,
+    },
     /// Projection is not running.
     NotRunning(String),
     /// Projection is already running.
     AlreadyRunning(String),
     /// No handler registered for event type.
-    NoHandler { projection_id: String, event_type: String },
+    NoHandler {
+        projection_id: String,
+        event_type: String,
+    },
     /// Invalid state.
     InvalidState(String),
 }
@@ -35,12 +42,22 @@ impl std::fmt::Display for ProjectionError {
         match self {
             Self::NotFound(id) => write!(f, "projection not found: {id}"),
             Self::AlreadyExists(id) => write!(f, "projection already exists: {id}"),
-            Self::HandlerError { projection_id, event_type, reason } => {
-                write!(f, "handler error in {projection_id} for {event_type}: {reason}")
+            Self::HandlerError {
+                projection_id,
+                event_type,
+                reason,
+            } => {
+                write!(
+                    f,
+                    "handler error in {projection_id} for {event_type}: {reason}"
+                )
             }
             Self::NotRunning(id) => write!(f, "projection {id} is not running"),
             Self::AlreadyRunning(id) => write!(f, "projection {id} is already running"),
-            Self::NoHandler { projection_id, event_type } => {
+            Self::NoHandler {
+                projection_id,
+                event_type,
+            } => {
                 write!(f, "no handler in {projection_id} for {event_type}")
             }
             Self::InvalidState(msg) => write!(f, "invalid projection state: {msg}"),
@@ -115,7 +132,10 @@ pub struct ProjectionHandler {
 impl ProjectionHandler {
     pub fn new(
         event_type: impl Into<String>,
-        handler_fn: fn(&mut HashMap<String, serde_json::Value>, &ProjectionEvent) -> Result<(), String>,
+        handler_fn: fn(
+            &mut HashMap<String, serde_json::Value>,
+            &ProjectionEvent,
+        ) -> Result<(), String>,
     ) -> Self {
         Self {
             event_type: event_type.into(),
@@ -253,10 +273,7 @@ impl Projection {
         let projection_id = self.id.clone();
 
         // Find handler.
-        let handler = self
-            .handlers
-            .iter()
-            .find(|h| h.event_type == event_type);
+        let handler = self.handlers.iter().find(|h| h.event_type == event_type);
 
         if let Some(handler) = handler {
             let result = handler.handle(&mut self.state, event);
@@ -381,7 +398,10 @@ impl ProjectionManager {
     }
 
     /// Dispatch an event to all running projections.
-    pub fn dispatch(&mut self, event: &ProjectionEvent) -> Vec<(String, Result<(), ProjectionError>)> {
+    pub fn dispatch(
+        &mut self,
+        event: &ProjectionEvent,
+    ) -> Vec<(String, Result<(), ProjectionError>)> {
         let ids: Vec<String> = self.projections.keys().cloned().collect();
         let mut results = Vec::new();
         for id in ids {
@@ -413,7 +433,10 @@ impl ProjectionManager {
 
     /// Count projections by status.
     pub fn count_by_status(&self, status: ProjectionStatus) -> usize {
-        self.projections.values().filter(|p| p.status == status).count()
+        self.projections
+            .values()
+            .filter(|p| p.status == status)
+            .count()
     }
 
     /// Start all projections.
@@ -459,10 +482,7 @@ mod tests {
         state: &mut HashMap<String, serde_json::Value>,
         _event: &ProjectionEvent,
     ) -> Result<(), String> {
-        let count = state
-            .get("count")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+        let count = state.get("count").and_then(|v| v.as_u64()).unwrap_or(0);
         state.insert("count".to_string(), serde_json::json!(count + 1));
         Ok(())
     }
@@ -476,10 +496,7 @@ mod tests {
             .get("amount")
             .and_then(|s| s.parse().ok())
             .unwrap_or(0);
-        let total = state
-            .get("total")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
+        let total = state.get("total").and_then(|v| v.as_i64()).unwrap_or(0);
         state.insert("total".to_string(), serde_json::json!(total + amount));
         Ok(())
     }
@@ -495,7 +512,13 @@ mod tests {
         ProjectionEvent::new(pos, stream, event_type, HashMap::new())
     }
 
-    fn make_event_with_data(pos: u64, stream: &str, event_type: &str, key: &str, val: &str) -> ProjectionEvent {
+    fn make_event_with_data(
+        pos: u64,
+        stream: &str,
+        event_type: &str,
+        key: &str,
+        val: &str,
+    ) -> ProjectionEvent {
         let mut data = HashMap::new();
         data.insert(key.to_string(), val.to_string());
         ProjectionEvent::new(pos, stream, event_type, data)
@@ -507,8 +530,10 @@ mod tests {
         proj.add_handler(ProjectionHandler::new("ItemAdded", count_handler));
         proj.start().unwrap();
 
-        proj.process_event(&make_event(0, "s1", "ItemAdded")).unwrap();
-        proj.process_event(&make_event(1, "s1", "ItemAdded")).unwrap();
+        proj.process_event(&make_event(0, "s1", "ItemAdded"))
+            .unwrap();
+        proj.process_event(&make_event(1, "s1", "ItemAdded"))
+            .unwrap();
 
         assert_eq!(proj.state().get("count").unwrap(), &serde_json::json!(2));
         assert_eq!(proj.events_processed, 2);
@@ -638,8 +663,10 @@ mod tests {
         proj.add_handler(ProjectionHandler::new("Deposit", sum_handler));
         proj.start().unwrap();
 
-        proj.process_event(&make_event_with_data(0, "s1", "Deposit", "amount", "100")).unwrap();
-        proj.process_event(&make_event_with_data(1, "s1", "Deposit", "amount", "50")).unwrap();
+        proj.process_event(&make_event_with_data(0, "s1", "Deposit", "amount", "100"))
+            .unwrap();
+        proj.process_event(&make_event_with_data(1, "s1", "Deposit", "amount", "50"))
+            .unwrap();
 
         assert_eq!(proj.state().get("total").unwrap(), &serde_json::json!(150));
     }
@@ -776,7 +803,10 @@ mod tests {
         let mut meta = HashMap::new();
         meta.insert("source".to_string(), "test".to_string());
         let event = ProjectionEvent::new(0, "s1", "E", HashMap::new()).with_metadata(meta);
-        assert_eq!(event.metadata.get("source").map(|s| s.as_str()), Some("test"));
+        assert_eq!(
+            event.metadata.get("source").map(|s| s.as_str()),
+            Some("test")
+        );
     }
 
     #[test]

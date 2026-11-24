@@ -462,22 +462,31 @@ impl ParametricEq {
     /// Add a band and return its index.
     pub fn add_band(&mut self, band: EqBand) -> usize {
         let filter = match band.filter_type {
-            FilterType::PeakingEq => BiquadFilter::peaking(
-                band.frequency,
-                band.q,
-                band.gain_db,
-                self.sample_rate,
-            ),
+            FilterType::PeakingEq => {
+                BiquadFilter::peaking(band.frequency, band.q, band.gain_db, self.sample_rate)
+            }
             FilterType::LowShelf => {
-                let mut f =
-                    BiquadFilter::new(FilterType::LowShelf, band.frequency, band.q, self.sample_rate);
-                f.coeffs =
-                    BiquadCoefficients::low_shelf(band.frequency, band.gain_db, 1.0, self.sample_rate);
+                let mut f = BiquadFilter::new(
+                    FilterType::LowShelf,
+                    band.frequency,
+                    band.q,
+                    self.sample_rate,
+                );
+                f.coeffs = BiquadCoefficients::low_shelf(
+                    band.frequency,
+                    band.gain_db,
+                    1.0,
+                    self.sample_rate,
+                );
                 f
             }
             FilterType::HighShelf => {
-                let mut f =
-                    BiquadFilter::new(FilterType::HighShelf, band.frequency, band.q, self.sample_rate);
+                let mut f = BiquadFilter::new(
+                    FilterType::HighShelf,
+                    band.frequency,
+                    band.q,
+                    self.sample_rate,
+                );
                 f.coeffs = BiquadCoefficients::high_shelf(
                     band.frequency,
                     band.gain_db,
@@ -503,12 +512,9 @@ impl ParametricEq {
             return;
         }
         let filter = match band.filter_type {
-            FilterType::PeakingEq => BiquadFilter::peaking(
-                band.frequency,
-                band.q,
-                band.gain_db,
-                self.sample_rate,
-            ),
+            FilterType::PeakingEq => {
+                BiquadFilter::peaking(band.frequency, band.q, band.gain_db, self.sample_rate)
+            }
             _ => BiquadFilter::new(band.filter_type, band.frequency, band.q, self.sample_rate),
         };
         self.bands[index] = band;
@@ -803,8 +809,7 @@ mod tests {
         blocker.process(&mut samples);
 
         // DC component should be largely removed at the end
-        let last_chunk_mean: f32 =
-            samples[40000..44000].iter().sum::<f32>() / 4000.0;
+        let last_chunk_mean: f32 = samples[40000..44000].iter().sum::<f32>() / 4000.0;
         assert!(
             last_chunk_mean.abs() < 0.1,
             "DC should be removed, got mean = {last_chunk_mean}"

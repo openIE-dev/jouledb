@@ -22,7 +22,10 @@ impl Complex {
         Self { re: 0.0, im: 0.0 }
     }
     pub fn from_polar(mag: f64, phase: f64) -> Self {
-        Self { re: mag * phase.cos(), im: mag * phase.sin() }
+        Self {
+            re: mag * phase.cos(),
+            im: mag * phase.sin(),
+        }
     }
     pub fn magnitude(&self) -> f64 {
         (self.re * self.re + self.im * self.im).sqrt()
@@ -31,20 +34,29 @@ impl Complex {
         self.im.atan2(self.re)
     }
     pub fn conjugate(&self) -> Self {
-        Self { re: self.re, im: -self.im }
+        Self {
+            re: self.re,
+            im: -self.im,
+        }
     }
 }
 
 impl std::ops::Add for Complex {
     type Output = Self;
     fn add(self, rhs: Self) -> Self {
-        Self { re: self.re + rhs.re, im: self.im + rhs.im }
+        Self {
+            re: self.re + rhs.re,
+            im: self.im + rhs.im,
+        }
     }
 }
 impl std::ops::Sub for Complex {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self {
-        Self { re: self.re - rhs.re, im: self.im - rhs.im }
+        Self {
+            re: self.re - rhs.re,
+            im: self.im - rhs.im,
+        }
     }
 }
 impl std::ops::Mul for Complex {
@@ -59,7 +71,10 @@ impl std::ops::Mul for Complex {
 impl std::ops::Mul<f64> for Complex {
     type Output = Self;
     fn mul(self, rhs: f64) -> Self {
-        Self { re: self.re * rhs, im: self.im * rhs }
+        Self {
+            re: self.re * rhs,
+            im: self.im * rhs,
+        }
     }
 }
 
@@ -89,11 +104,15 @@ fn bit_reverse(i: usize, log2_n: u32) -> usize {
 
 fn fft_in_place(data: &mut [Complex], inverse: bool) {
     let n = data.len();
-    if n <= 1 { return; }
+    if n <= 1 {
+        return;
+    }
     let log2_n = (n as f64).log2() as u32;
     for i in 0..n {
         let j = bit_reverse(i, log2_n);
-        if i < j { data.swap(i, j); }
+        if i < j {
+            data.swap(i, j);
+        }
     }
     let mut len = 2;
     while len <= n {
@@ -113,7 +132,9 @@ fn fft_in_place(data: &mut [Complex], inverse: bool) {
     }
     if inverse {
         let s = 1.0 / n as f64;
-        for d in data.iter_mut() { *d = *d * s; }
+        for d in data.iter_mut() {
+            *d = *d * s;
+        }
     }
 }
 
@@ -184,14 +205,22 @@ impl std::fmt::Display for StftError {
 }
 
 impl StftConfig {
-    pub fn new(window_size: usize, hop_size: usize, window_type: WindowType) -> Result<Self, StftError> {
+    pub fn new(
+        window_size: usize,
+        hop_size: usize,
+        window_type: WindowType,
+    ) -> Result<Self, StftError> {
         if !is_power_of_two(window_size) {
             return Err(StftError::WindowNotPowerOfTwo(window_size));
         }
         if hop_size > window_size || hop_size == 0 {
             return Err(StftError::HopSizeTooLarge);
         }
-        Ok(Self { window_size, hop_size, window_type })
+        Ok(Self {
+            window_size,
+            hop_size,
+            window_type,
+        })
     }
 
     pub fn overlap(&self) -> usize {
@@ -225,7 +254,10 @@ impl StftFrame {
     }
 
     pub fn power(&self) -> Vec<f64> {
-        self.spectrum.iter().map(|c| c.re * c.re + c.im * c.im).collect()
+        self.spectrum
+            .iter()
+            .map(|c| c.re * c.re + c.im * c.im)
+            .collect()
     }
 }
 
@@ -255,9 +287,10 @@ pub fn stft(signal: &[f64], config: &StftConfig) -> Result<Vec<StftFrame>, StftE
 pub fn spectrogram(signal: &[f64], config: &StftConfig) -> Result<Vec<Vec<f64>>, StftError> {
     let frames = stft(signal, config)?;
     let half = config.window_size / 2 + 1;
-    Ok(frames.iter().map(|f| {
-        f.spectrum[..half].iter().map(|c| c.magnitude()).collect()
-    }).collect())
+    Ok(frames
+        .iter()
+        .map(|f| f.spectrum[..half].iter().map(|c| c.magnitude()).collect())
+        .collect())
 }
 
 // ── Inverse STFT (Overlap-Add) ──────────────────────────────────
@@ -338,7 +371,9 @@ pub fn phase_vocoder(
             phase_accum[k] += true_freq * synthesis_hop as f64 / hop;
             new_spectrum[k] = Complex::from_polar(curr_mag[k], phase_accum[k]);
         }
-        out_frames.push(StftFrame { spectrum: new_spectrum });
+        out_frames.push(StftFrame {
+            spectrum: new_spectrum,
+        });
     }
 
     // Reconstruct with synthesis hop
@@ -374,8 +409,11 @@ pub fn griffin_lim(
         .map(|(f_idx, mag_row)| {
             let spectrum: Vec<Complex> = (0..n_bins)
                 .map(|k| {
-                    let m = if k < half { mag_row.get(k).copied().unwrap_or(0.0) }
-                            else { mag_row.get(n_bins - k).copied().unwrap_or(0.0) };
+                    let m = if k < half {
+                        mag_row.get(k).copied().unwrap_or(0.0)
+                    } else {
+                        mag_row.get(n_bins - k).copied().unwrap_or(0.0)
+                    };
                     // Deterministic initial phase
                     let init_phase = (f_idx * 17 + k * 31) as f64 * 0.1;
                     Complex::from_polar(m, init_phase)
@@ -398,22 +436,30 @@ pub fn griffin_lim(
             let start = f_idx * config.hop_size;
             let windowed: Vec<Complex> = (0..n_bins)
                 .map(|i| {
-                    let s = if start + i < signal.len() { signal[start + i] } else { 0.0 };
+                    let s = if start + i < signal.len() {
+                        signal[start + i]
+                    } else {
+                        0.0
+                    };
                     Complex::new(s * window[i], 0.0)
                 })
                 .collect();
             let spec = fft(&windowed);
 
             // Keep magnitude from input, take phase from reconstruction
-            let new_spec: Vec<Complex> = spec.iter().enumerate().map(|(k, c)| {
-                let target_mag = if k < half {
-                    magnitudes[f_idx].get(k).copied().unwrap_or(0.0)
-                } else {
-                    magnitudes[f_idx].get(n_bins - k).copied().unwrap_or(0.0)
-                };
-                let p = c.phase();
-                Complex::from_polar(target_mag, p)
-            }).collect();
+            let new_spec: Vec<Complex> = spec
+                .iter()
+                .enumerate()
+                .map(|(k, c)| {
+                    let target_mag = if k < half {
+                        magnitudes[f_idx].get(k).copied().unwrap_or(0.0)
+                    } else {
+                        magnitudes[f_idx].get(n_bins - k).copied().unwrap_or(0.0)
+                    };
+                    let p = c.phase();
+                    Complex::from_polar(target_mag, p)
+                })
+                .collect();
             frames[f_idx] = StftFrame { spectrum: new_spec };
         }
     }
@@ -527,7 +573,9 @@ mod tests {
     #[test]
     fn test_stft_istft_roundtrip_hann() {
         let cfg = StftConfig::new(16, 4, WindowType::Hann).unwrap();
-        let signal: Vec<f64> = (0..64).map(|i| (2.0 * PI * i as f64 / 16.0).sin()).collect();
+        let signal: Vec<f64> = (0..64)
+            .map(|i| (2.0 * PI * i as f64 / 16.0).sin())
+            .collect();
         let frames = stft(&signal, &cfg).unwrap();
         let recovered = istft(&frames, &cfg).unwrap();
         // Overlap-add with 75% overlap should reconstruct well
@@ -563,7 +611,12 @@ mod tests {
         let spec = spectrogram(&signal, &cfg).unwrap();
         // Bin 2 should have the largest magnitude
         for row in &spec {
-            let max_bin = row.iter().enumerate().max_by(|a, b| a.1.partial_cmp(b.1).unwrap()).unwrap().0;
+            let max_bin = row
+                .iter()
+                .enumerate()
+                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                .unwrap()
+                .0;
             assert_eq!(max_bin, 2);
         }
     }
@@ -572,7 +625,9 @@ mod tests {
     fn test_phase_vocoder_identity() {
         // Rate = 1.0 should produce signal close to original
         let cfg = StftConfig::new(16, 4, WindowType::Hann).unwrap();
-        let signal: Vec<f64> = (0..64).map(|i| (2.0 * PI * i as f64 / 16.0).sin()).collect();
+        let signal: Vec<f64> = (0..64)
+            .map(|i| (2.0 * PI * i as f64 / 16.0).sin())
+            .collect();
         let result = phase_vocoder(&signal, &cfg, 1.0).unwrap();
         assert!(!result.is_empty());
         // With rate=1.0, output length should be close to input
@@ -582,7 +637,9 @@ mod tests {
     #[test]
     fn test_phase_vocoder_stretch() {
         let cfg = StftConfig::new(16, 8, WindowType::Hann).unwrap();
-        let signal: Vec<f64> = (0..64).map(|i| (2.0 * PI * i as f64 / 16.0).sin()).collect();
+        let signal: Vec<f64> = (0..64)
+            .map(|i| (2.0 * PI * i as f64 / 16.0).sin())
+            .collect();
         let stretched = phase_vocoder(&signal, &cfg, 2.0).unwrap();
         // Stretched output should be longer
         assert!(stretched.len() > signal.len());
@@ -591,7 +648,9 @@ mod tests {
     #[test]
     fn test_griffin_lim_convergence() {
         let cfg = StftConfig::new(16, 4, WindowType::Hann).unwrap();
-        let signal: Vec<f64> = (0..64).map(|i| (2.0 * PI * i as f64 / 16.0).sin()).collect();
+        let signal: Vec<f64> = (0..64)
+            .map(|i| (2.0 * PI * i as f64 / 16.0).sin())
+            .collect();
         let spec = spectrogram(&signal, &cfg).unwrap();
         let reconstructed = griffin_lim(&spec, &cfg, 30).unwrap();
         assert!(!reconstructed.is_empty());
@@ -612,7 +671,8 @@ mod tests {
         let signal: Vec<f64> = (0..16).map(|i| i as f64).collect();
         let result = process_frames(&signal, &cfg, |_, _| {
             // No modification → should reconstruct
-        }).unwrap();
+        })
+        .unwrap();
         assert!(!result.is_empty());
     }
 
@@ -624,7 +684,8 @@ mod tests {
             for c in frame.spectrum.iter_mut() {
                 *c = Complex::zero();
             }
-        }).unwrap();
+        })
+        .unwrap();
         // All frames zeroed → output should be near zero
         for &s in &result {
             assert!(s.abs() < EPS);

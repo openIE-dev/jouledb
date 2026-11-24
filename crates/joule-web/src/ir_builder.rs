@@ -128,10 +128,7 @@ pub enum Instruction {
         operand: IrValue,
     },
     /// dest = src (copy / move)
-    Copy {
-        dest: IrValue,
-        src: IrValue,
-    },
+    Copy { dest: IrValue, src: IrValue },
     /// Unconditional jump to block.
     Jump(usize),
     /// Conditional branch: if cond goto true_block else false_block.
@@ -162,7 +159,12 @@ pub enum Instruction {
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::BinOp { dest, op, left, right } => {
+            Self::BinOp {
+                dest,
+                op,
+                left,
+                right,
+            } => {
                 write!(f, "  {dest} = {left} {op} {right}")
             }
             Self::UnaryOp { dest, op, operand } => {
@@ -170,7 +172,11 @@ impl fmt::Display for Instruction {
             }
             Self::Copy { dest, src } => write!(f, "  {dest} = {src}"),
             Self::Jump(target) => write!(f, "  jump BB{target}"),
-            Self::Branch { cond, true_block, false_block } => {
+            Self::Branch {
+                cond,
+                true_block,
+                false_block,
+            } => {
                 write!(f, "  branch {cond}, BB{true_block}, BB{false_block}")
             }
             Self::Return(val) => write!(f, "  return {val}"),
@@ -267,7 +273,10 @@ impl BasicBlock {
     /// Return the terminator instruction (last), if any.
     pub fn terminator(&self) -> Option<&Instruction> {
         self.instructions.last().filter(|i| {
-            matches!(i, Instruction::Jump(_) | Instruction::Branch { .. } | Instruction::Return(_))
+            matches!(
+                i,
+                Instruction::Jump(_) | Instruction::Branch { .. } | Instruction::Return(_)
+            )
         })
     }
 
@@ -349,7 +358,11 @@ impl Cfg {
                     Instruction::Jump(target) => {
                         edges.push((blk.id, *target));
                     }
-                    Instruction::Branch { true_block, false_block, .. } => {
+                    Instruction::Branch {
+                        true_block,
+                        false_block,
+                        ..
+                    } => {
                         edges.push((blk.id, *true_block));
                         edges.push((blk.id, *false_block));
                     }
@@ -584,7 +597,12 @@ pub fn constant_fold(cfg: &mut Cfg) {
 
 fn fold_instruction(instr: &Instruction) -> Instruction {
     match instr {
-        Instruction::BinOp { dest, op, left, right } => {
+        Instruction::BinOp {
+            dest,
+            op,
+            left,
+            right,
+        } => {
             if let Some(folded) = fold_binop(*op, left, right) {
                 Instruction::Copy {
                     dest: dest.clone(),
@@ -696,9 +714,7 @@ pub fn eliminate_dead_code(cfg: &mut Cfg) {
             let keep = match instr {
                 Instruction::BinOp { dest, .. }
                 | Instruction::UnaryOp { dest, .. }
-                | Instruction::Copy { dest, .. } => {
-                    used.contains(&format!("{dest}"))
-                }
+                | Instruction::Copy { dest, .. } => used.contains(&format!("{dest}")),
                 Instruction::Nop => false,
                 _ => true, // keep jumps, branches, returns, calls, phis
             };
@@ -770,14 +786,8 @@ pub fn insert_phi_nodes(cfg: &mut Cfg) {
                 IrValue::Var(var_name.clone())
             };
 
-            let sources: Vec<(usize, IrValue)> = preds
-                .iter()
-                .map(|p| (*p, dest.clone()))
-                .collect();
-            phi_instrs.push(Instruction::Phi {
-                dest,
-                sources,
-            });
+            let sources: Vec<(usize, IrValue)> = preds.iter().map(|p| (*p, dest.clone())).collect();
+            phi_instrs.push(Instruction::Phi { dest, sources });
         }
 
         // Prepend phi nodes to the block
@@ -805,11 +815,7 @@ mod tests {
     #[test]
     fn test_emit_binop() {
         let mut builder = IrBuilder::new();
-        let result = builder.emit_binop(
-            BinOp::Add,
-            IrValue::IntConst(1),
-            IrValue::IntConst(2),
-        );
+        let result = builder.emit_binop(BinOp::Add, IrValue::IntConst(1), IrValue::IntConst(2));
         assert_eq!(result, IrValue::Temp(0));
         assert_eq!(builder.cfg.blocks[0].instructions.len(), 1);
     }
@@ -895,14 +901,21 @@ mod tests {
         // The binop should have been folded to a copy
         assert!(matches!(
             &cfg.blocks[0].instructions[0],
-            Instruction::Copy { src: IrValue::IntConst(7), .. }
+            Instruction::Copy {
+                src: IrValue::IntConst(7),
+                ..
+            }
         ));
     }
 
     #[test]
     fn test_constant_fold_float() {
         let mut builder = IrBuilder::new();
-        builder.emit_binop(BinOp::Mul, IrValue::FloatConst(2.0), IrValue::FloatConst(3.0));
+        builder.emit_binop(
+            BinOp::Mul,
+            IrValue::FloatConst(2.0),
+            IrValue::FloatConst(3.0),
+        );
         let mut cfg = builder.build();
         constant_fold(&mut cfg);
         assert!(matches!(
@@ -914,12 +927,19 @@ mod tests {
     #[test]
     fn test_constant_fold_bool() {
         let mut builder = IrBuilder::new();
-        builder.emit_binop(BinOp::And, IrValue::BoolConst(true), IrValue::BoolConst(false));
+        builder.emit_binop(
+            BinOp::And,
+            IrValue::BoolConst(true),
+            IrValue::BoolConst(false),
+        );
         let mut cfg = builder.build();
         constant_fold(&mut cfg);
         assert!(matches!(
             &cfg.blocks[0].instructions[0],
-            Instruction::Copy { src: IrValue::BoolConst(false), .. }
+            Instruction::Copy {
+                src: IrValue::BoolConst(false),
+                ..
+            }
         ));
     }
 
@@ -931,7 +951,10 @@ mod tests {
         constant_fold(&mut cfg);
         assert!(matches!(
             &cfg.blocks[0].instructions[0],
-            Instruction::Copy { src: IrValue::IntConst(-5), .. }
+            Instruction::Copy {
+                src: IrValue::IntConst(-5),
+                ..
+            }
         ));
     }
 
@@ -1020,10 +1043,12 @@ mod tests {
         insert_phi_nodes(&mut cfg);
 
         // The join block should now have a phi node
-        assert!(cfg.blocks[join]
-            .instructions
-            .iter()
-            .any(|i| matches!(i, Instruction::Phi { .. })));
+        assert!(
+            cfg.blocks[join]
+                .instructions
+                .iter()
+                .any(|i| matches!(i, Instruction::Phi { .. }))
+        );
     }
 
     #[test]

@@ -45,7 +45,12 @@ impl ResizeObserver {
     }
 
     /// Update dimensions for a target. Returns a [`ResizeEntry`] if the size changed.
-    pub fn update(&mut self, id: impl Into<String>, width: f64, height: f64) -> Option<ResizeEntry> {
+    pub fn update(
+        &mut self,
+        id: impl Into<String>,
+        width: f64,
+        height: f64,
+    ) -> Option<ResizeEntry> {
         let id = id.into();
         if let Some(prev) = self.targets.get(&id) {
             if (prev.0 - width).abs() < f64::EPSILON && (prev.1 - height).abs() < f64::EPSILON {
@@ -110,9 +115,10 @@ impl BreakpointObserver {
     /// Update with the current viewport width.  Returns `(old, new)` breakpoint
     /// names if the active breakpoint changed.
     pub fn update(&mut self, width: f64) -> Option<(&str, &str)> {
-        let matched = self.breakpoints.iter().find(|bp| {
-            width >= bp.min_width && bp.max_width.map_or(true, |max| width < max)
-        });
+        let matched = self
+            .breakpoints
+            .iter()
+            .find(|bp| width >= bp.min_width && bp.max_width.map_or(true, |max| width < max));
 
         let new_name = matched.map(|bp| bp.name.clone());
 
@@ -166,9 +172,10 @@ impl BreakpointTracker {
     }
 
     pub fn update(&mut self, width: f64) -> Option<(&str, &str)> {
-        let matched = self.breakpoints.iter().find(|bp| {
-            width >= bp.min_width && bp.max_width.map_or(true, |max| width < max)
-        });
+        let matched = self
+            .breakpoints
+            .iter()
+            .find(|bp| width >= bp.min_width && bp.max_width.map_or(true, |max| width < max));
 
         let new_name = matched.map(|bp| bp.name.clone());
 
@@ -251,9 +258,21 @@ mod tests {
     #[test]
     fn breakpoint_transition() {
         let bps = vec![
-            Breakpoint { name: "sm".into(), min_width: 0.0, max_width: Some(768.0) },
-            Breakpoint { name: "md".into(), min_width: 768.0, max_width: Some(1024.0) },
-            Breakpoint { name: "lg".into(), min_width: 1024.0, max_width: None },
+            Breakpoint {
+                name: "sm".into(),
+                min_width: 0.0,
+                max_width: Some(768.0),
+            },
+            Breakpoint {
+                name: "md".into(),
+                min_width: 768.0,
+                max_width: Some(1024.0),
+            },
+            Breakpoint {
+                name: "lg".into(),
+                min_width: 1024.0,
+                max_width: None,
+            },
         ];
         let mut tracker = BreakpointTracker::new(bps);
 
@@ -271,9 +290,11 @@ mod tests {
 
     #[test]
     fn breakpoint_no_change() {
-        let bps = vec![
-            Breakpoint { name: "sm".into(), min_width: 0.0, max_width: Some(768.0) },
-        ];
+        let bps = vec![Breakpoint {
+            name: "sm".into(),
+            min_width: 0.0,
+            max_width: Some(768.0),
+        }];
         let mut tracker = BreakpointTracker::new(bps);
         tracker.update(400.0);
         assert!(tracker.update(500.0).is_none()); // still sm
@@ -281,9 +302,11 @@ mod tests {
 
     #[test]
     fn breakpoint_current() {
-        let bps = vec![
-            Breakpoint { name: "lg".into(), min_width: 1024.0, max_width: None },
-        ];
+        let bps = vec![Breakpoint {
+            name: "lg".into(),
+            min_width: 1024.0,
+            max_width: None,
+        }];
         let mut tracker = BreakpointTracker::new(bps);
         assert_eq!(tracker.current(), None);
         tracker.update(1200.0);

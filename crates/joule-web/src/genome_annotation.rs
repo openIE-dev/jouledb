@@ -5,8 +5,8 @@
 //! strand-aware indexing, annotation merging with conflict resolution,
 //! GFF3-style serialization, and interval overlap queries.
 
-use std::fmt;
 use std::collections::HashMap;
+use std::fmt;
 
 // ── Feature Kind ────────────────────────────────────────────────
 
@@ -130,7 +130,11 @@ impl GenomicFeature {
 
     /// Length of this feature in base pairs.
     pub fn length(&self) -> usize {
-        if self.end >= self.start { self.end - self.start + 1 } else { 0 }
+        if self.end >= self.start {
+            self.end - self.start + 1
+        } else {
+            0
+        }
     }
 
     /// Whether this feature overlaps the given interval.
@@ -150,7 +154,11 @@ impl GenomicFeature {
         }
         let overlap_len = (ov_end - ov_start + 1) as f64;
         let union_len = (self.length().max(other.length())) as f64;
-        if union_len == 0.0 { 0.0 } else { overlap_len / union_len }
+        if union_len == 0.0 {
+            0.0
+        } else {
+            overlap_len / union_len
+        }
     }
 }
 
@@ -209,12 +217,18 @@ impl AnnotationTrack {
 
     /// Find all features overlapping a query interval.
     pub fn query_overlap(&self, start: usize, end: usize) -> Vec<&GenomicFeature> {
-        self.features.iter().filter(|f| f.overlaps(start, end)).collect()
+        self.features
+            .iter()
+            .filter(|f| f.overlaps(start, end))
+            .collect()
     }
 
     /// Features on a specific strand.
     pub fn on_strand(&self, strand: Strand) -> Vec<&GenomicFeature> {
-        self.features.iter().filter(|f| f.strand == strand).collect()
+        self.features
+            .iter()
+            .filter(|f| f.strand == strand)
+            .collect()
     }
 
     /// Total base-pair coverage (simple sum, may double-count overlaps).
@@ -225,7 +239,13 @@ impl AnnotationTrack {
 
 impl fmt::Display for AnnotationTrack {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Track({}, {} features, kind={})", self.name, self.features.len(), self.kind)
+        write!(
+            f,
+            "Track({}, {} features, kind={})",
+            self.name,
+            self.features.len(),
+            self.kind
+        )
     }
 }
 
@@ -290,8 +310,8 @@ impl AnnotationSet {
 
     /// Merge two annotation sets using the configured strategy.
     pub fn merge(&self, other: &AnnotationSet) -> AnnotationSet {
-        let mut result = AnnotationSet::new(&self.assembly)
-            .with_merge_strategy(self.merge_strategy);
+        let mut result =
+            AnnotationSet::new(&self.assembly).with_merge_strategy(self.merge_strategy);
 
         // Collect features by kind
         let mut by_kind: HashMap<FeatureKind, Vec<GenomicFeature>> = HashMap::new();
@@ -507,9 +527,15 @@ mod tests {
     #[test]
     fn test_track_on_strand() {
         let mut track = AnnotationTrack::new("cds", FeatureKind::Cds);
-        track.add_feature(GenomicFeature::new("chr1", FeatureKind::Cds, 100, 200).with_strand(Strand::Forward));
-        track.add_feature(GenomicFeature::new("chr1", FeatureKind::Cds, 300, 400).with_strand(Strand::Reverse));
-        track.add_feature(GenomicFeature::new("chr1", FeatureKind::Cds, 500, 600).with_strand(Strand::Forward));
+        track.add_feature(
+            GenomicFeature::new("chr1", FeatureKind::Cds, 100, 200).with_strand(Strand::Forward),
+        );
+        track.add_feature(
+            GenomicFeature::new("chr1", FeatureKind::Cds, 300, 400).with_strand(Strand::Reverse),
+        );
+        track.add_feature(
+            GenomicFeature::new("chr1", FeatureKind::Cds, 500, 600).with_strand(Strand::Forward),
+        );
         assert_eq!(track.on_strand(Strand::Forward).len(), 2);
         assert_eq!(track.on_strand(Strand::Reverse).len(), 1);
     }
@@ -543,15 +569,23 @@ mod tests {
 
     #[test]
     fn test_annotation_set_merge_highest_score() {
-        let mut set_a = AnnotationSet::new("GRCh38")
-            .with_merge_strategy(MergeStrategy::HighestScore);
+        let mut set_a =
+            AnnotationSet::new("GRCh38").with_merge_strategy(MergeStrategy::HighestScore);
         let mut t = AnnotationTrack::new("g_a", FeatureKind::Gene);
-        t.add_feature(GenomicFeature::new("chr1", FeatureKind::Gene, 100, 200).with_id("a1").with_score(10.0));
+        t.add_feature(
+            GenomicFeature::new("chr1", FeatureKind::Gene, 100, 200)
+                .with_id("a1")
+                .with_score(10.0),
+        );
         set_a.add_track(t);
 
         let mut set_b = AnnotationSet::new("GRCh38");
         let mut t2 = AnnotationTrack::new("g_b", FeatureKind::Gene);
-        t2.add_feature(GenomicFeature::new("chr1", FeatureKind::Gene, 150, 250).with_id("b1").with_score(20.0));
+        t2.add_feature(
+            GenomicFeature::new("chr1", FeatureKind::Gene, 150, 250)
+                .with_id("b1")
+                .with_score(20.0),
+        );
         set_b.add_track(t2);
 
         let merged = set_a.merge(&set_b);
@@ -560,8 +594,7 @@ mod tests {
 
     #[test]
     fn test_annotation_set_merge_union() {
-        let mut set_a = AnnotationSet::new("GRCh38")
-            .with_merge_strategy(MergeStrategy::Union);
+        let mut set_a = AnnotationSet::new("GRCh38").with_merge_strategy(MergeStrategy::Union);
         let mut t = AnnotationTrack::new("g_a", FeatureKind::Gene);
         t.add_feature(GenomicFeature::new("chr1", FeatureKind::Gene, 100, 200).with_id("a1"));
         set_a.add_track(t);
@@ -582,7 +615,11 @@ mod tests {
     fn test_gff3_serialization() {
         let mut set = AnnotationSet::new("test");
         let mut t = AnnotationTrack::new("genes", FeatureKind::Gene);
-        t.add_feature(GenomicFeature::new("chr1", FeatureKind::Gene, 1, 100).with_id("g1").with_strand(Strand::Forward));
+        t.add_feature(
+            GenomicFeature::new("chr1", FeatureKind::Gene, 1, 100)
+                .with_id("g1")
+                .with_strand(Strand::Forward),
+        );
         set.add_track(t);
         let lines = to_gff3_lines(&set);
         assert_eq!(lines[0], "##gff-version 3");

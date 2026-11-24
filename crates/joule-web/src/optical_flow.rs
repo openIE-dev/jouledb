@@ -40,8 +40,15 @@ impl FlowVector {
 
 impl fmt::Display for FlowVector {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Flow({:.1},{:.1})->({:.2},{:.2}) mag={:.2}",
-               self.x, self.y, self.u, self.v, self.magnitude())
+        write!(
+            f,
+            "Flow({:.1},{:.1})->({:.2},{:.2}) mag={:.2}",
+            self.x,
+            self.y,
+            self.u,
+            self.v,
+            self.magnitude()
+        )
     }
 }
 
@@ -59,7 +66,12 @@ pub struct FlowField {
 impl FlowField {
     pub fn new(width: usize, height: usize) -> Self {
         let n = width * height;
-        Self { u: vec![0.0; n], v: vec![0.0; n], width, height }
+        Self {
+            u: vec![0.0; n],
+            v: vec![0.0; n],
+            width,
+            height,
+        }
     }
 
     pub fn get(&self, x: usize, y: usize) -> FlowVector {
@@ -76,8 +88,13 @@ impl FlowField {
     /// Mean flow magnitude across all pixels.
     pub fn mean_magnitude(&self) -> f64 {
         let n = self.u.len() as f64;
-        if n == 0.0 { return 0.0; }
-        let sum: f64 = self.u.iter().zip(self.v.iter())
+        if n == 0.0 {
+            return 0.0;
+        }
+        let sum: f64 = self
+            .u
+            .iter()
+            .zip(self.v.iter())
             .map(|(u, v)| (u * u + v * v).sqrt())
             .sum();
         sum / n
@@ -85,7 +102,9 @@ impl FlowField {
 
     /// Maximum flow magnitude.
     pub fn max_magnitude(&self) -> f64 {
-        self.u.iter().zip(self.v.iter())
+        self.u
+            .iter()
+            .zip(self.v.iter())
             .map(|(u, v)| (u * u + v * v).sqrt())
             .fold(0.0_f64, f64::max)
     }
@@ -93,8 +112,13 @@ impl FlowField {
 
 impl fmt::Display for FlowField {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "FlowField({}x{} mean_mag={:.3})",
-               self.width, self.height, self.mean_magnitude())
+        write!(
+            f,
+            "FlowField({}x{} mean_mag={:.3})",
+            self.width,
+            self.height,
+            self.mean_magnitude()
+        )
     }
 }
 
@@ -103,7 +127,10 @@ impl fmt::Display for FlowField {
 /// Compute spatial gradients (Ix, Iy) and temporal gradient (It)
 /// between two frames using central differences.
 fn compute_gradients(
-    prev: &[f64], curr: &[f64], width: usize, height: usize,
+    prev: &[f64],
+    curr: &[f64],
+    width: usize,
+    height: usize,
 ) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     let n = width * height;
     let mut ix = vec![0.0_f64; n];
@@ -114,14 +141,10 @@ fn compute_gradients(
         for c in 1..width - 1 {
             let idx = r * width + c;
             // Average gradient between two frames
-            ix[idx] = 0.25 * (
-                (prev[idx + 1] - prev[idx - 1])
-                + (curr[idx + 1] - curr[idx - 1])
-            );
-            iy[idx] = 0.25 * (
-                (prev[(r + 1) * width + c] - prev[(r - 1) * width + c])
-                + (curr[(r + 1) * width + c] - curr[(r - 1) * width + c])
-            );
+            ix[idx] = 0.25 * ((prev[idx + 1] - prev[idx - 1]) + (curr[idx + 1] - curr[idx - 1]));
+            iy[idx] = 0.25
+                * ((prev[(r + 1) * width + c] - prev[(r - 1) * width + c])
+                    + (curr[(r + 1) * width + c] - curr[(r - 1) * width + c]));
             it[idx] = curr[idx] - prev[idx];
         }
     }
@@ -172,15 +195,20 @@ impl LucasKanadeConfig {
 
 impl fmt::Display for LucasKanadeConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "LK(win={}, min_eig={:.1e}, iters={}, pyr={})",
-               self.window_size, self.min_eigenvalue, self.max_iterations, self.pyramid_levels)
+        write!(
+            f,
+            "LK(win={}, min_eig={:.1e}, iters={}, pyr={})",
+            self.window_size, self.min_eigenvalue, self.max_iterations, self.pyramid_levels
+        )
     }
 }
 
 /// Compute sparse Lucas-Kanade flow at given points.
 pub fn lucas_kanade_sparse(
-    prev: &[f64], curr: &[f64],
-    width: usize, height: usize,
+    prev: &[f64],
+    curr: &[f64],
+    width: usize,
+    height: usize,
     points: &[(f64, f64)],
     config: &LucasKanadeConfig,
 ) -> Vec<FlowVector> {
@@ -245,7 +273,10 @@ pub struct HornSchunckConfig {
 
 impl HornSchunckConfig {
     pub fn new() -> Self {
-        Self { alpha: 1.0, iterations: 100 }
+        Self {
+            alpha: 1.0,
+            iterations: 100,
+        }
     }
 
     pub fn with_alpha(mut self, alpha: f64) -> Self {
@@ -261,14 +292,20 @@ impl HornSchunckConfig {
 
 impl fmt::Display for HornSchunckConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "HornSchunck(alpha={}, iters={})", self.alpha, self.iterations)
+        write!(
+            f,
+            "HornSchunck(alpha={}, iters={})",
+            self.alpha, self.iterations
+        )
     }
 }
 
 /// Compute dense Horn-Schunck optical flow.
 pub fn horn_schunck(
-    prev: &[f64], curr: &[f64],
-    width: usize, height: usize,
+    prev: &[f64],
+    curr: &[f64],
+    width: usize,
+    height: usize,
     config: &HornSchunckConfig,
 ) -> FlowField {
     let (ix, iy, it) = compute_gradients(prev, curr, width, height);
@@ -284,14 +321,16 @@ pub fn horn_schunck(
                 let idx = r * width + c;
 
                 // Laplacian (4-connected average)
-                let u_avg = 0.25 * (
-                    u_prev[idx - 1] + u_prev[idx + 1]
-                    + u_prev[(r - 1) * width + c] + u_prev[(r + 1) * width + c]
-                );
-                let v_avg = 0.25 * (
-                    v_prev[idx - 1] + v_prev[idx + 1]
-                    + v_prev[(r - 1) * width + c] + v_prev[(r + 1) * width + c]
-                );
+                let u_avg = 0.25
+                    * (u_prev[idx - 1]
+                        + u_prev[idx + 1]
+                        + u_prev[(r - 1) * width + c]
+                        + u_prev[(r + 1) * width + c]);
+                let v_avg = 0.25
+                    * (v_prev[idx - 1]
+                        + v_prev[idx + 1]
+                        + v_prev[(r - 1) * width + c]
+                        + v_prev[(r + 1) * width + c]);
 
                 let gx = ix[idx];
                 let gy = iy[idx];
@@ -320,19 +359,23 @@ fn downsample_2x(src: &[f64], width: usize, height: usize) -> (Vec<f64>, usize, 
         for c in 0..new_w {
             let sr = r * 2;
             let sc = c * 2;
-            dst[r * new_w + c] = 0.25 * (
-                src[sr * width + sc]
-                + src[sr * width + sc + 1]
-                + src[(sr + 1) * width + sc]
-                + src[(sr + 1) * width + sc + 1]
-            );
+            dst[r * new_w + c] = 0.25
+                * (src[sr * width + sc]
+                    + src[sr * width + sc + 1]
+                    + src[(sr + 1) * width + sc]
+                    + src[(sr + 1) * width + sc + 1]);
         }
     }
     (dst, new_w, new_h)
 }
 
 /// Build a Gaussian image pyramid.
-pub fn build_pyramid(image: &[f64], width: usize, height: usize, levels: usize) -> Vec<(Vec<f64>, usize, usize)> {
+pub fn build_pyramid(
+    image: &[f64],
+    width: usize,
+    height: usize,
+    levels: usize,
+) -> Vec<(Vec<f64>, usize, usize)> {
     let mut pyramid = vec![(image.to_vec(), width, height)];
     for _ in 1..levels {
         let (prev_data, prev_w, prev_h) = pyramid.last().unwrap();
@@ -348,8 +391,10 @@ pub fn build_pyramid(image: &[f64], width: usize, height: usize, levels: usize) 
 /// Pyramid Lucas-Kanade: compute flow at coarsest level, then
 /// refine at each finer level.
 pub fn pyramid_lucas_kanade(
-    prev: &[f64], curr: &[f64],
-    width: usize, height: usize,
+    prev: &[f64],
+    curr: &[f64],
+    width: usize,
+    height: usize,
     points: &[(f64, f64)],
     config: &LucasKanadeConfig,
 ) -> Vec<FlowVector> {
@@ -367,11 +412,10 @@ pub fn pyramid_lucas_kanade(
         let (ref cdata, _, _) = curr_pyr[level];
 
         // Scale points and current flow to this level
-        let level_points: Vec<(f64, f64)> = points.iter()
+        let level_points: Vec<(f64, f64)> = points
+            .iter()
             .zip(flow.iter())
-            .map(|(&(px, py), &(fu, fv))| {
-                (px / scale + fu / scale, py / scale + fv / scale)
-            })
+            .map(|(&(px, py), &(fu, fv))| (px / scale + fu / scale, py / scale + fv / scale))
             .collect();
 
         let single_config = LucasKanadeConfig::new()
@@ -389,7 +433,8 @@ pub fn pyramid_lucas_kanade(
         }
     }
 
-    points.iter()
+    points
+        .iter()
         .zip(flow.iter())
         .map(|(&(px, py), &(fu, fv))| FlowVector::new(px, py, fu, fv))
         .collect()
@@ -586,7 +631,9 @@ mod tests {
         let pts = vec![(15.0, 15.0)];
         let flow = lucas_kanade_sparse(&prev, &curr, 30, 30, &pts, &cfg);
         // LK may detect motion in either direction depending on gradient quality
-        assert!(flow[0].magnitude() >= 0.0,
-                "should detect horizontal motion");
+        assert!(
+            flow[0].magnitude() >= 0.0,
+            "should detect horizontal motion"
+        );
     }
 }

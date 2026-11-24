@@ -183,10 +183,7 @@ impl CompressedSuffixArray {
 
     /// Approximate memory usage in bytes.
     pub fn size_bytes(&self) -> usize {
-        self.text.len()
-            + self.psi.len() * 8
-            + self.sa_samples.len() * 8
-            + 257 * 8
+        self.text.len() + self.psi.len() * 8 + self.sa_samples.len() * 8 + 257 * 8
     }
 
     /// Compression ratio compared to full suffix array.
@@ -487,10 +484,7 @@ mod tests {
 
     #[test]
     fn test_builder_with_sentinel() {
-        let csa = CsaBuilder::new()
-            .with_sentinel(b'$')
-            .build(b"ABC")
-            .unwrap();
+        let csa = CsaBuilder::new().with_sentinel(b'$').build(b"ABC").unwrap();
         assert!(csa.len() > 0);
     }
 

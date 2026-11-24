@@ -325,7 +325,14 @@ impl PersistentSegmentTree {
         self.combine(lv, rv)
     }
 
-    fn update_rec(&mut self, node: usize, start: usize, end: usize, pos: usize, value: i64) -> usize {
+    fn update_rec(
+        &mut self,
+        node: usize,
+        start: usize,
+        end: usize,
+        pos: usize,
+        value: i64,
+    ) -> usize {
         if start == end {
             return self.new_node(value, None, None);
         }
@@ -482,7 +489,7 @@ mod tests {
         let mut pst = PersistentSegmentTree::build(&data, Operation::Sum);
         let v1 = pst.update(0, 0, 10); // version 1: [10,1,1,1]
         let v2 = pst.update(v1, 3, 10); // version 2: [10,1,1,10]
-        let v3 = pst.update(0, 1, 5);   // version 3 from v0: [1,5,1,1]
+        let v3 = pst.update(0, 1, 5); // version 3 from v0: [1,5,1,1]
 
         assert_eq!(pst.query(0, 0, 3), 4);
         assert_eq!(pst.query(v1, 0, 3), 13);

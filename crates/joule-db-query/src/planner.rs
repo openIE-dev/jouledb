@@ -537,9 +537,9 @@ impl PlanNode {
             Self::Join { left, right, .. } | Self::SetOp { left, right, .. } => {
                 left.cascade_tier().max(right.cascade_tier())
             }
-            Self::RecursiveCte { base, recursive, .. } => {
-                base.cascade_tier().max(recursive.cascade_tier())
-            }
+            Self::RecursiveCte {
+                base, recursive, ..
+            } => base.cascade_tier().max(recursive.cascade_tier()),
             Self::WcojJoin { .. } => CascadeTier::Lookup,
         }
     }
@@ -549,7 +549,11 @@ impl PlanNode {
 fn is_unique_lookup(expr: &Expression) -> bool {
     use crate::ast::Operator;
     match expr {
-        Expression::Binary { left, op: Operator::Eq, right } => {
+        Expression::Binary {
+            left,
+            op: Operator::Eq,
+            right,
+        } => {
             matches!(
                 (left.as_ref(), right.as_ref()),
                 (Expression::Column(_), Expression::Literal(_))
@@ -558,7 +562,11 @@ fn is_unique_lookup(expr: &Expression) -> bool {
                     | (Expression::Literal(_), Expression::QualifiedColumn { .. })
             )
         }
-        Expression::Binary { left, op: Operator::And, right } => {
+        Expression::Binary {
+            left,
+            op: Operator::And,
+            right,
+        } => {
             // Both sides equality on a column — likely composite PK lookup.
             is_unique_lookup(left) && is_unique_lookup(right)
         }

@@ -87,10 +87,7 @@ impl<T: Clone> Lazy<T> {
     }
 
     /// Monadic flat_map.
-    pub fn flat_map<U: Clone + 'static>(
-        self,
-        f: impl FnOnce(T) -> Lazy<U> + 'static,
-    ) -> Lazy<U>
+    pub fn flat_map<U: Clone + 'static>(self, f: impl FnOnce(T) -> Lazy<U> + 'static) -> Lazy<U>
     where
         T: 'static,
     {
@@ -164,9 +161,7 @@ impl<T: 'static> LazyStream<T> {
     /// Create a stream from a generator function.
     /// The function receives the zero-based index and returns `None` to end.
     pub fn from_fn(f: impl Fn(usize) -> Option<T> + 'static) -> Self {
-        Self {
-            gen_fn: Rc::new(f),
-        }
+        Self { gen_fn: Rc::new(f) }
     }
 
     /// Create an infinite stream from a generator that never returns `None`.
@@ -499,18 +494,13 @@ mod tests {
 
     #[test]
     fn thunk_chain() {
-        let result = Thunk::value(10)
-            .chain(|x| x * 2)
-            .chain(|x| x + 1)
-            .force();
+        let result = Thunk::value(10).chain(|x| x * 2).chain(|x| x + 1).force();
         assert_eq!(result, 21);
     }
 
     #[test]
     fn thunk_flat_chain() {
-        let result = Thunk::value(5)
-            .flat_chain(|x| Thunk::value(x * 10))
-            .force();
+        let result = Thunk::value(5).flat_chain(|x| Thunk::value(x * 10)).force();
         assert_eq!(result, 50);
     }
 
@@ -623,10 +613,7 @@ mod tests {
             if *v >= 4 {
                 vec![]
             } else {
-                vec![
-                    LazyTree::leaf(v * 2),
-                    LazyTree::leaf(v * 2 + 1),
-                ]
+                vec![LazyTree::leaf(v * 2), LazyTree::leaf(v * 2 + 1)]
             }
         });
         let vals = t.collect_bfs(10);

@@ -21,21 +21,43 @@ impl Vec2 {
 
     pub fn normalized(self) -> Self {
         let l = self.length();
-        if l < 1e-10 { Self::ZERO } else { Self { x: self.x / l, y: self.y / l } }
+        if l < 1e-10 {
+            Self::ZERO
+        } else {
+            Self {
+                x: self.x / l,
+                y: self.y / l,
+            }
+        }
     }
 }
 
 impl std::ops::Add for Vec2 {
     type Output = Self;
-    fn add(self, r: Self) -> Self { Self { x: self.x + r.x, y: self.y + r.y } }
+    fn add(self, r: Self) -> Self {
+        Self {
+            x: self.x + r.x,
+            y: self.y + r.y,
+        }
+    }
 }
 impl std::ops::Sub for Vec2 {
     type Output = Self;
-    fn sub(self, r: Self) -> Self { Self { x: self.x - r.x, y: self.y - r.y } }
+    fn sub(self, r: Self) -> Self {
+        Self {
+            x: self.x - r.x,
+            y: self.y - r.y,
+        }
+    }
 }
 impl std::ops::Mul<f32> for Vec2 {
     type Output = Self;
-    fn mul(self, s: f32) -> Self { Self { x: self.x * s, y: self.y * s } }
+    fn mul(self, s: f32) -> Self {
+        Self {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
 }
 
 /// RGBA color.
@@ -48,9 +70,16 @@ pub struct Color {
 }
 
 impl Color {
-    pub const BLACK: Self = Self { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
+    pub const BLACK: Self = Self {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
 
-    pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self { Self { r, g, b, a } }
+    pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
+        Self { r, g, b, a }
+    }
 }
 
 /// Distortion source types.
@@ -122,9 +151,17 @@ impl ActiveDistortion {
         }
 
         let offset = match &self.source {
-            DistortionSource::HeatHaze { center, radius, frequency, amplitude, speed } => {
+            DistortionSource::HeatHaze {
+                center,
+                radius,
+                frequency,
+                amplitude,
+                speed,
+            } => {
                 let d = (pos - *center).length();
-                if d > *radius { return Vec2::ZERO; }
+                if d > *radius {
+                    return Vec2::ZERO;
+                }
                 let falloff = 1.0 - (d / radius);
                 let phase = pos.y * *frequency + self.time * *speed;
                 let dx = phase.sin() * *amplitude * falloff;
@@ -132,29 +169,49 @@ impl ActiveDistortion {
                 Vec2::new(dx, dy)
             }
             DistortionSource::Shockwave {
-                center, current_radius, ring_width, amplitude, ..
+                center,
+                current_radius,
+                ring_width,
+                amplitude,
+                ..
             } => {
                 let to_pos = pos - *center;
                 let d = to_pos.length();
                 let ring_dist = (d - *current_radius).abs();
                 let half_w = *ring_width * 0.5;
-                if ring_dist > half_w { return Vec2::ZERO; }
+                if ring_dist > half_w {
+                    return Vec2::ZERO;
+                }
                 let ring_factor = 1.0 - ring_dist / half_w;
                 let dir = to_pos.normalized();
                 dir * (*amplitude * ring_factor)
             }
-            DistortionSource::Refraction { center, radius, strength, pattern_frequency } => {
+            DistortionSource::Refraction {
+                center,
+                radius,
+                strength,
+                pattern_frequency,
+            } => {
                 let d = (pos - *center).length();
-                if d > *radius { return Vec2::ZERO; }
+                if d > *radius {
+                    return Vec2::ZERO;
+                }
                 let falloff = 1.0 - (d / radius);
                 let nx = (pos.x * *pattern_frequency).sin();
                 let ny = (pos.y * *pattern_frequency + 1.37).cos();
                 Vec2::new(nx * *strength * falloff, ny * *strength * falloff)
             }
-            DistortionSource::Portal { center, radius, twist_amount, falloff_power } => {
+            DistortionSource::Portal {
+                center,
+                radius,
+                twist_amount,
+                falloff_power,
+            } => {
                 let to_pos = pos - *center;
                 let d = to_pos.length();
-                if d > *radius || d < 1e-6 { return Vec2::ZERO; }
+                if d > *radius || d < 1e-6 {
+                    return Vec2::ZERO;
+                }
                 let norm_d = d / *radius;
                 let falloff = (1.0 - norm_d).powf(*falloff_power);
                 let angle = *twist_amount * falloff;
@@ -175,8 +232,12 @@ impl ActiveDistortion {
     pub fn update(&mut self, dt: f32) {
         self.time += dt;
         if let DistortionSource::Shockwave {
-            current_radius, expand_speed, max_radius, ..
-        } = &mut self.source {
+            current_radius,
+            expand_speed,
+            max_radius,
+            ..
+        } = &mut self.source
+        {
             *current_radius += *expand_speed * dt;
             if *current_radius > *max_radius {
                 self.active = false;
@@ -243,10 +304,7 @@ impl DistortionBuffer {
     pub fn apply_source(&mut self, source: &ActiveDistortion) {
         for y in 0..self.height {
             for x in 0..self.width {
-                let uv = Vec2::new(
-                    x as f32 / self.width as f32,
-                    y as f32 / self.height as f32,
-                );
+                let uv = Vec2::new(x as f32 / self.width as f32, y as f32 / self.height as f32);
                 let offset = source.sample(uv);
                 if offset.length() > 1e-8 {
                     self.add(x, y, offset);
@@ -271,7 +329,10 @@ impl DistortionBuffer {
 
     /// Maximum distortion magnitude in the buffer.
     pub fn max_distortion(&self) -> f32 {
-        self.offsets.iter().map(|o| o.length()).fold(0.0f32, f32::max)
+        self.offsets
+            .iter()
+            .map(|o| o.length())
+            .fold(0.0f32, f32::max)
     }
 }
 
@@ -283,7 +344,10 @@ pub struct DistortionCompositor {
 
 impl DistortionCompositor {
     pub fn new() -> Self {
-        Self { sources: Vec::new(), next_id: 0 }
+        Self {
+            sources: Vec::new(),
+            next_id: 0,
+        }
     }
 
     pub fn add_source(&mut self, source: DistortionSource) -> u64 {
@@ -386,13 +450,16 @@ mod tests {
 
     #[test]
     fn test_heat_haze_at_center() {
-        let src = ActiveDistortion::new(0, DistortionSource::HeatHaze {
-            center: Vec2::new(0.5, 0.5),
-            radius: 0.3,
-            frequency: 10.0,
-            amplitude: 0.05,
-            speed: 1.0,
-        });
+        let src = ActiveDistortion::new(
+            0,
+            DistortionSource::HeatHaze {
+                center: Vec2::new(0.5, 0.5),
+                radius: 0.3,
+                frequency: 10.0,
+                amplitude: 0.05,
+                speed: 1.0,
+            },
+        );
         let offset = src.sample(Vec2::new(0.5, 0.5));
         // At center, distance=0, falloff=1, so offset should be nonzero
         assert!(offset.length() > 0.0);
@@ -400,27 +467,33 @@ mod tests {
 
     #[test]
     fn test_heat_haze_outside_radius() {
-        let src = ActiveDistortion::new(0, DistortionSource::HeatHaze {
-            center: Vec2::new(0.5, 0.5),
-            radius: 0.1,
-            frequency: 10.0,
-            amplitude: 0.05,
-            speed: 1.0,
-        });
+        let src = ActiveDistortion::new(
+            0,
+            DistortionSource::HeatHaze {
+                center: Vec2::new(0.5, 0.5),
+                radius: 0.1,
+                frequency: 10.0,
+                amplitude: 0.05,
+                speed: 1.0,
+            },
+        );
         let offset = src.sample(Vec2::new(0.0, 0.0));
         assert!((offset.x).abs() < 1e-6);
     }
 
     #[test]
     fn test_shockwave_expands() {
-        let mut src = ActiveDistortion::new(0, DistortionSource::Shockwave {
-            center: Vec2::new(0.5, 0.5),
-            current_radius: 0.0,
-            expand_speed: 1.0,
-            ring_width: 0.1,
-            amplitude: 0.1,
-            max_radius: 0.5,
-        });
+        let mut src = ActiveDistortion::new(
+            0,
+            DistortionSource::Shockwave {
+                center: Vec2::new(0.5, 0.5),
+                current_radius: 0.0,
+                expand_speed: 1.0,
+                ring_width: 0.1,
+                amplitude: 0.1,
+                max_radius: 0.5,
+            },
+        );
         src.update(0.2);
         if let DistortionSource::Shockwave { current_radius, .. } = &src.source {
             assert!((*current_radius - 0.2).abs() < 1e-5);
@@ -430,28 +503,34 @@ mod tests {
 
     #[test]
     fn test_shockwave_deactivates() {
-        let mut src = ActiveDistortion::new(0, DistortionSource::Shockwave {
-            center: Vec2::new(0.5, 0.5),
-            current_radius: 0.0,
-            expand_speed: 1.0,
-            ring_width: 0.1,
-            amplitude: 0.1,
-            max_radius: 0.3,
-        });
+        let mut src = ActiveDistortion::new(
+            0,
+            DistortionSource::Shockwave {
+                center: Vec2::new(0.5, 0.5),
+                current_radius: 0.0,
+                expand_speed: 1.0,
+                ring_width: 0.1,
+                amplitude: 0.1,
+                max_radius: 0.3,
+            },
+        );
         src.update(0.5);
         assert!(!src.active);
     }
 
     #[test]
     fn test_shockwave_ring_distortion() {
-        let src = ActiveDistortion::new(0, DistortionSource::Shockwave {
-            center: Vec2::new(0.5, 0.5),
-            current_radius: 0.2,
-            expand_speed: 1.0,
-            ring_width: 0.1,
-            amplitude: 0.1,
-            max_radius: 1.0,
-        });
+        let src = ActiveDistortion::new(
+            0,
+            DistortionSource::Shockwave {
+                center: Vec2::new(0.5, 0.5),
+                current_radius: 0.2,
+                expand_speed: 1.0,
+                ring_width: 0.1,
+                amplitude: 0.1,
+                max_radius: 1.0,
+            },
+        );
         // Point on the ring
         let on_ring = src.sample(Vec2::new(0.7, 0.5));
         assert!(on_ring.length() > 0.01);
@@ -462,61 +541,76 @@ mod tests {
 
     #[test]
     fn test_refraction() {
-        let src = ActiveDistortion::new(0, DistortionSource::Refraction {
-            center: Vec2::new(0.5, 0.5),
-            radius: 0.3,
-            strength: 0.1,
-            pattern_frequency: 5.0,
-        });
+        let src = ActiveDistortion::new(
+            0,
+            DistortionSource::Refraction {
+                center: Vec2::new(0.5, 0.5),
+                radius: 0.3,
+                strength: 0.1,
+                pattern_frequency: 5.0,
+            },
+        );
         let offset = src.sample(Vec2::new(0.5, 0.5));
         assert!(offset.length() > 0.0);
     }
 
     #[test]
     fn test_refraction_outside() {
-        let src = ActiveDistortion::new(0, DistortionSource::Refraction {
-            center: Vec2::new(0.5, 0.5),
-            radius: 0.1,
-            strength: 0.1,
-            pattern_frequency: 5.0,
-        });
+        let src = ActiveDistortion::new(
+            0,
+            DistortionSource::Refraction {
+                center: Vec2::new(0.5, 0.5),
+                radius: 0.1,
+                strength: 0.1,
+                pattern_frequency: 5.0,
+            },
+        );
         let offset = src.sample(Vec2::new(0.0, 0.0));
         assert!((offset.x).abs() < 1e-6);
     }
 
     #[test]
     fn test_portal_swirl() {
-        let src = ActiveDistortion::new(0, DistortionSource::Portal {
-            center: Vec2::new(0.5, 0.5),
-            radius: 0.4,
-            twist_amount: 3.0,
-            falloff_power: 2.0,
-        });
+        let src = ActiveDistortion::new(
+            0,
+            DistortionSource::Portal {
+                center: Vec2::new(0.5, 0.5),
+                radius: 0.4,
+                twist_amount: 3.0,
+                falloff_power: 2.0,
+            },
+        );
         let offset = src.sample(Vec2::new(0.6, 0.5));
         assert!(offset.length() > 0.01);
     }
 
     #[test]
     fn test_portal_outside() {
-        let src = ActiveDistortion::new(0, DistortionSource::Portal {
-            center: Vec2::new(0.5, 0.5),
-            radius: 0.1,
-            twist_amount: 3.0,
-            falloff_power: 2.0,
-        });
+        let src = ActiveDistortion::new(
+            0,
+            DistortionSource::Portal {
+                center: Vec2::new(0.5, 0.5),
+                radius: 0.1,
+                twist_amount: 3.0,
+                falloff_power: 2.0,
+            },
+        );
         let offset = src.sample(Vec2::new(0.0, 0.0));
         assert!((offset.x).abs() < 1e-6);
     }
 
     #[test]
     fn test_inactive_source_zero() {
-        let mut src = ActiveDistortion::new(0, DistortionSource::HeatHaze {
-            center: Vec2::new(0.5, 0.5),
-            radius: 0.3,
-            frequency: 10.0,
-            amplitude: 0.05,
-            speed: 1.0,
-        });
+        let mut src = ActiveDistortion::new(
+            0,
+            DistortionSource::HeatHaze {
+                center: Vec2::new(0.5, 0.5),
+                radius: 0.3,
+                frequency: 10.0,
+                amplitude: 0.05,
+                speed: 1.0,
+            },
+        );
         src.active = false;
         let offset = src.sample(Vec2::new(0.5, 0.5));
         assert!((offset.x).abs() < 1e-6);
@@ -524,13 +618,16 @@ mod tests {
 
     #[test]
     fn test_zero_intensity() {
-        let mut src = ActiveDistortion::new(0, DistortionSource::HeatHaze {
-            center: Vec2::new(0.5, 0.5),
-            radius: 0.3,
-            frequency: 10.0,
-            amplitude: 0.05,
-            speed: 1.0,
-        });
+        let mut src = ActiveDistortion::new(
+            0,
+            DistortionSource::HeatHaze {
+                center: Vec2::new(0.5, 0.5),
+                radius: 0.3,
+                frequency: 10.0,
+                amplitude: 0.05,
+                speed: 1.0,
+            },
+        );
         src.intensity = 0.0;
         let offset = src.sample(Vec2::new(0.5, 0.5));
         assert!((offset.x).abs() < 1e-6);
@@ -598,9 +695,7 @@ mod tests {
     fn test_apply_to_scene() {
         let mut buf = DistortionBuffer::new(4, 4);
         buf.set(2, 2, Vec2::new(0.1, 0.0));
-        let color = buf.apply_to_scene(2, 2, |u, _v| {
-            Color::new(u, 0.0, 0.0, 1.0)
-        });
+        let color = buf.apply_to_scene(2, 2, |u, _v| Color::new(u, 0.0, 0.0, 1.0));
         // u = 2/4 + 0.1 = 0.6
         assert!((color.r - 0.6).abs() < 0.05);
     }
@@ -634,7 +729,11 @@ mod tests {
     fn test_compositor_clear() {
         let mut comp = DistortionCompositor::new();
         comp.add_source(DistortionSource::HeatHaze {
-            center: Vec2::ZERO, radius: 1.0, frequency: 1.0, amplitude: 0.1, speed: 0.0,
+            center: Vec2::ZERO,
+            radius: 1.0,
+            frequency: 1.0,
+            amplitude: 0.1,
+            speed: 0.0,
         });
         comp.clear();
         assert_eq!(comp.source_count(), 0);

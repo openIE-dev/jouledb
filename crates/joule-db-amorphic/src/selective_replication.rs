@@ -18,10 +18,7 @@ use std::time::Duration;
 #[derive(Debug, Clone)]
 pub enum ContentFilter {
     /// Top-k trending content in a time window
-    Trending {
-        window: TrendWindow,
-        k: usize,
-    },
+    Trending { window: TrendWindow, k: usize },
     /// Content in a specific category
     Category(String),
     /// Content licensed for a specific territory
@@ -61,12 +58,14 @@ impl ReplicationPolicy {
     }
 
     pub fn with_territory(mut self, territory: &str) -> Self {
-        self.filters.push(ContentFilter::Territory(territory.to_string()));
+        self.filters
+            .push(ContentFilter::Territory(territory.to_string()));
         self
     }
 
     pub fn with_category(mut self, category: &str) -> Self {
-        self.filters.push(ContentFilter::Category(category.to_string()));
+        self.filters
+            .push(ContentFilter::Category(category.to_string()));
         self
     }
 
@@ -208,7 +207,10 @@ impl EdgeRouter {
 
     /// Route a batch feature lookup.
     pub fn route_batch_lookup(&self, ids: &[RecordId]) -> QueryRoute {
-        let local_count = ids.iter().filter(|id| self.local_records.contains(id)).count();
+        let local_count = ids
+            .iter()
+            .filter(|id| self.local_records.contains(id))
+            .count();
         if local_count == ids.len() {
             QueryRoute::Local
         } else if local_count > ids.len() / 2 {
@@ -244,8 +246,7 @@ mod tests {
     #[test]
     fn test_selective_replication_explicit() {
         let store = AmorphicStore::new();
-        let policy = ReplicationPolicy::new("test")
-            .with_explicit(vec![1, 2, 3]);
+        let policy = ReplicationPolicy::new("test").with_explicit(vec![1, 2, 3]);
 
         let set = compute_replication_set(&store, &policy, None, None, 0);
         assert_eq!(set.len(), 3);

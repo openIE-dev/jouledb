@@ -51,7 +51,12 @@ pub struct Packet {
 
 impl Packet {
     pub fn new(sequence: u64, timestamp: f64, payload: Vec<u8>) -> Self {
-        Self { sequence, timestamp, arrival_time: 0.0, payload }
+        Self {
+            sequence,
+            timestamp,
+            arrival_time: 0.0,
+            payload,
+        }
     }
 
     pub fn with_arrival(mut self, arrival: f64) -> Self {
@@ -66,7 +71,13 @@ impl Packet {
 
 impl fmt::Display for Packet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Pkt(seq={}, ts={:.3}, {}B)", self.sequence, self.timestamp, self.payload.len())
+        write!(
+            f,
+            "Pkt(seq={}, ts={:.3}, {}B)",
+            self.sequence,
+            self.timestamp,
+            self.payload.len()
+        )
     }
 }
 
@@ -202,13 +213,21 @@ pub struct GapInfo {
 
 impl GapInfo {
     pub fn new(start: u64, end: u64) -> Self {
-        Self { start_sequence: start, end_sequence: end, missing_count: end - start - 1 }
+        Self {
+            start_sequence: start,
+            end_sequence: end,
+            missing_count: end - start - 1,
+        }
     }
 }
 
 impl fmt::Display for GapInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Gap({}-{}, {} missing)", self.start_sequence, self.end_sequence, self.missing_count)
+        write!(
+            f,
+            "Gap({}-{}, {} missing)",
+            self.start_sequence, self.end_sequence, self.missing_count
+        )
     }
 }
 
@@ -251,7 +270,9 @@ impl JitterBuffer {
         // Check duplicate.
         if self.buffer.contains_key(&packet.sequence) {
             self.stats.duplicates += 1;
-            return Err(JitterError::Duplicate { sequence: packet.sequence });
+            return Err(JitterError::Duplicate {
+                sequence: packet.sequence,
+            });
         }
 
         // Check too old.
@@ -267,7 +288,9 @@ impl JitterBuffer {
         // Check capacity.
         if self.buffer.len() >= self.config.max_capacity {
             self.stats.packets_dropped += 1;
-            return Err(JitterError::BufferFull { capacity: self.config.max_capacity });
+            return Err(JitterError::BufferFull {
+                capacity: self.config.max_capacity,
+            });
         }
 
         // Detect reorder.
@@ -292,8 +315,7 @@ impl JitterBuffer {
         }
         if packet.sequence > self.highest_received {
             if self.last_arrival_time > 0.0 {
-                self.last_expected_interval =
-                    packet.arrival_time - self.last_arrival_time;
+                self.last_expected_interval = packet.arrival_time - self.last_arrival_time;
             }
             self.last_arrival_time = packet.arrival_time;
             self.highest_received = packet.sequence;
@@ -441,7 +463,10 @@ mod tests {
 
     #[test]
     fn buffer_full() {
-        let config = JitterConfig::new().with_depth(1).with_capacity(2).with_adaptive(false);
+        let config = JitterConfig::new()
+            .with_depth(1)
+            .with_capacity(2)
+            .with_adaptive(false);
         let mut buf = JitterBuffer::new(config);
         buf.insert(pkt(0, 0.0)).unwrap();
         buf.insert(pkt(1, 0.016)).unwrap();

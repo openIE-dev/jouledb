@@ -23,7 +23,12 @@ pub struct PlaylistItem {
 }
 
 impl PlaylistItem {
-    pub fn new(id: impl Into<String>, title: impl Into<String>, duration: f64, uri: impl Into<String>) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        title: impl Into<String>,
+        duration: f64,
+        uri: impl Into<String>,
+    ) -> Self {
         Self {
             id: id.into(),
             title: title.into(),
@@ -310,7 +315,9 @@ impl Playlist {
         match self.mode {
             PlaybackMode::Sequential | PlaybackMode::RepeatAll => {
                 let prev = match self.current_index {
-                    Some(0) if self.mode == PlaybackMode::RepeatAll => self.items.len().saturating_sub(1),
+                    Some(0) if self.mode == PlaybackMode::RepeatAll => {
+                        self.items.len().saturating_sub(1)
+                    }
                     Some(ci) if ci > 0 => ci - 1,
                     _ => return None,
                 };
@@ -415,7 +422,12 @@ mod tests {
     fn shuffle_visits_all() {
         let mut pl = Playlist::with_seed(12345);
         for i in 0..10 {
-            pl.add(PlaylistItem::new(format!("{i}"), format!("Song {i}"), 100.0, format!("{i}.mp3")));
+            pl.add(PlaylistItem::new(
+                format!("{i}"),
+                format!("Song {i}"),
+                100.0,
+                format!("{i}.mp3"),
+            ));
         }
         pl.mode = PlaybackMode::Shuffle;
         let mut visited = std::collections::HashSet::new();
@@ -431,7 +443,8 @@ mod tests {
         let mut pl1 = Playlist::with_seed(42);
         let mut pl2 = Playlist::with_seed(42);
         for i in 0..5 {
-            let item = PlaylistItem::new(format!("{i}"), format!("S{i}"), 100.0, format!("{i}.mp3"));
+            let item =
+                PlaylistItem::new(format!("{i}"), format!("S{i}"), 100.0, format!("{i}.mp3"));
             pl1.add(item.clone());
             pl2.add(item);
         }

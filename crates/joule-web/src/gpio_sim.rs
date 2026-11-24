@@ -234,7 +234,11 @@ impl GpioController {
     pub fn set_pull(&mut self, pin: u8, pull: Pull) -> Result<(), GpioError> {
         let state = self.pins.get_mut(&pin).ok_or(GpioError::InvalidPin(pin))?;
         if state.mode != PinMode::Input {
-            return Err(GpioError::WrongMode { pin, expected: PinMode::Input, actual: state.mode });
+            return Err(GpioError::WrongMode {
+                pin,
+                expected: PinMode::Input,
+                actual: state.mode,
+            });
         }
         state.pull = pull;
         // If pull is set and level hasn't been explicitly driven, apply pull level.
@@ -251,7 +255,11 @@ impl GpioController {
         // Check mode first without holding mutable borrow.
         let mode = self.pins.get(&pin).ok_or(GpioError::InvalidPin(pin))?.mode;
         if mode != PinMode::Output {
-            return Err(GpioError::WrongMode { pin, expected: PinMode::Output, actual: mode });
+            return Err(GpioError::WrongMode {
+                pin,
+                expected: PinMode::Output,
+                actual: mode,
+            });
         }
 
         let old_level = self.pins[&pin].level;
@@ -289,7 +297,11 @@ impl GpioController {
     pub fn drive_input(&mut self, pin: u8, level: Level) -> Result<(), GpioError> {
         let mode = self.pins.get(&pin).ok_or(GpioError::InvalidPin(pin))?.mode;
         if mode != PinMode::Input {
-            return Err(GpioError::WrongMode { pin, expected: PinMode::Input, actual: mode });
+            return Err(GpioError::WrongMode {
+                pin,
+                expected: PinMode::Input,
+                actual: mode,
+            });
         }
 
         let old_level = self.pins[&pin].level;
@@ -355,7 +367,11 @@ impl GpioController {
     pub fn configure_pwm(&mut self, pin: u8, config: PwmConfig) -> Result<(), GpioError> {
         let state = self.pins.get_mut(&pin).ok_or(GpioError::InvalidPin(pin))?;
         if state.mode != PinMode::Output {
-            return Err(GpioError::WrongMode { pin, expected: PinMode::Output, actual: state.mode });
+            return Err(GpioError::WrongMode {
+                pin,
+                expected: PinMode::Output,
+                actual: state.mode,
+            });
         }
         state.pwm = Some(config);
         Ok(())
@@ -394,9 +410,12 @@ impl GpioController {
 
     /// Write the same level to all pins in a group.
     pub fn write_group(&mut self, group_name: &str, level: Level) -> Result<(), GpioError> {
-        let pins = self.groups.get(group_name)
+        let pins = self
+            .groups
+            .get(group_name)
             .ok_or(GpioError::InvalidGroup(group_name.to_string()))?
-            .pins.clone();
+            .pins
+            .clone();
         for pin in pins {
             // Only write to output pins — skip others silently.
             if let Some(state) = self.pins.get(&pin) {
@@ -410,7 +429,9 @@ impl GpioController {
 
     /// Read all pins in a group as a bit vector (LSB = first pin in group).
     pub fn read_group(&self, group_name: &str) -> Result<Vec<Level>, GpioError> {
-        let group = self.groups.get(group_name)
+        let group = self
+            .groups
+            .get(group_name)
             .ok_or(GpioError::InvalidGroup(group_name.to_string()))?;
         let mut levels = Vec::with_capacity(group.pins.len());
         for pin in &group.pins {
@@ -467,7 +488,11 @@ impl GpioController {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GpioError {
     InvalidPin(u8),
-    WrongMode { pin: u8, expected: PinMode, actual: PinMode },
+    WrongMode {
+        pin: u8,
+        expected: PinMode,
+        actual: PinMode,
+    },
     NoPwm(u8),
     InvalidGroup(String),
 }
@@ -476,8 +501,18 @@ impl std::fmt::Display for GpioError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidPin(p) => write!(f, "invalid pin: {}", p),
-            Self::WrongMode { pin, expected, actual } => {
-                write!(f, "pin {}: expected mode {}, got {}", pin, expected.as_str(), actual.as_str())
+            Self::WrongMode {
+                pin,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "pin {}: expected mode {}, got {}",
+                    pin,
+                    expected.as_str(),
+                    actual.as_str()
+                )
             }
             Self::NoPwm(p) => write!(f, "pin {} has no PWM configured", p),
             Self::InvalidGroup(g) => write!(f, "invalid group: {}", g),
@@ -562,7 +597,9 @@ mod tests {
         gpio.enable_interrupt(0, EdgeTrigger::Falling).unwrap();
         gpio.drive_input(0, Level::Low).unwrap();
         // Should have falling edge interrupt.
-        let falling: Vec<_> = gpio.interrupts().iter()
+        let falling: Vec<_> = gpio
+            .interrupts()
+            .iter()
             .filter(|i| i.trigger == EdgeTrigger::Falling)
             .collect();
         assert_eq!(falling.len(), 1);

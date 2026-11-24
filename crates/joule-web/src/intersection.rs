@@ -159,9 +159,12 @@ impl IntersectionObserver {
             let prev_intersecting = prev > 0.0;
             let now_intersecting = ratio > 0.0;
             let state_changed = prev_intersecting != now_intersecting;
-            let crossed = state_changed || self.config.thresholds.iter().any(|t| {
-                (prev < *t && ratio >= *t) || (prev >= *t && ratio < *t)
-            });
+            let crossed = state_changed
+                || self
+                    .config
+                    .thresholds
+                    .iter()
+                    .any(|t| (prev < *t && ratio >= *t) || (prev >= *t && ratio < *t));
 
             if crossed || prev < 0.0 {
                 self.entries.push(IntersectionEntry {
@@ -192,19 +195,13 @@ mod tests {
 
     #[test]
     fn fully_visible() {
-        let r = intersection_ratio(
-            &Rect::new(10.0, 10.0, 20.0, 20.0),
-            &root(),
-        );
+        let r = intersection_ratio(&Rect::new(10.0, 10.0, 20.0, 20.0), &root());
         assert!((r - 1.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn fully_outside() {
-        let r = intersection_ratio(
-            &Rect::new(200.0, 200.0, 20.0, 20.0),
-            &root(),
-        );
+        let r = intersection_ratio(&Rect::new(200.0, 200.0, 20.0, 20.0), &root());
         assert!((r - 0.0).abs() < f64::EPSILON);
     }
 
@@ -212,19 +209,13 @@ mod tests {
     fn partial_intersection() {
         // Target is 20x20 at (90,90), so only 10x10 = 100 sq px visible
         // out of 400 total = 0.25.
-        let r = intersection_ratio(
-            &Rect::new(90.0, 90.0, 20.0, 20.0),
-            &root(),
-        );
+        let r = intersection_ratio(&Rect::new(90.0, 90.0, 20.0, 20.0), &root());
         assert!((r - 0.25).abs() < f64::EPSILON);
     }
 
     #[test]
     fn half_visible() {
-        let r = intersection_ratio(
-            &Rect::new(50.0, 0.0, 100.0, 100.0),
-            &root(),
-        );
+        let r = intersection_ratio(&Rect::new(50.0, 0.0, 100.0, 100.0), &root());
         assert!((r - 0.5).abs() < f64::EPSILON);
     }
 

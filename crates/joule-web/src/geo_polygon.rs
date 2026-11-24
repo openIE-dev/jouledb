@@ -140,8 +140,8 @@ impl Polygon {
         let mut a = 0.0;
         for i in 0..n {
             let j = (i + 1) % n;
-            let cross = self.vertices[i].x * self.vertices[j].y
-                - self.vertices[j].x * self.vertices[i].y;
+            let cross =
+                self.vertices[i].x * self.vertices[j].y - self.vertices[j].x * self.vertices[i].y;
             cx += (self.vertices[i].x + self.vertices[j].x) * cross;
             cy += (self.vertices[i].y + self.vertices[j].y) * cross;
             a += cross;
@@ -168,10 +168,18 @@ impl Polygon {
         let mut max_x = f64::NEG_INFINITY;
         let mut max_y = f64::NEG_INFINITY;
         for v in &self.vertices {
-            if v.x < min_x { min_x = v.x; }
-            if v.y < min_y { min_y = v.y; }
-            if v.x > max_x { max_x = v.x; }
-            if v.y > max_y { max_y = v.y; }
+            if v.x < min_x {
+                min_x = v.x;
+            }
+            if v.y < min_y {
+                min_y = v.y;
+            }
+            if v.x > max_x {
+                max_x = v.x;
+            }
+            if v.y > max_y {
+                max_y = v.y;
+            }
         }
         (Point2::new(min_x, min_y), Point2::new(max_x, max_y))
     }
@@ -190,7 +198,12 @@ impl Polygon {
 
 impl fmt::Display for Polygon {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Polygon({} vertices, area={:.4})", self.vertices.len(), self.area())
+        write!(
+            f,
+            "Polygon({} vertices, area={:.4})",
+            self.vertices.len(),
+            self.area()
+        )
     }
 }
 
@@ -208,13 +221,16 @@ pub fn convex_hull(points: &[Point2]) -> Result<Polygon, PolygonError> {
         return Err(PolygonError::TooFewVertices(points.len()));
     }
     let mut pts: Vec<Point2> = points.to_vec();
-    pts.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap().then(a.y.partial_cmp(&b.y).unwrap()));
+    pts.sort_by(|a, b| {
+        a.x.partial_cmp(&b.x)
+            .unwrap()
+            .then(a.y.partial_cmp(&b.y).unwrap())
+    });
 
     // Build lower hull.
     let mut lower: Vec<Point2> = Vec::new();
     for &p in &pts {
-        while lower.len() >= 2 && cross(lower[lower.len() - 2], lower[lower.len() - 1], p) <= 0.0
-        {
+        while lower.len() >= 2 && cross(lower[lower.len() - 2], lower[lower.len() - 1], p) <= 0.0 {
             lower.pop();
         }
         lower.push(p);
@@ -223,8 +239,7 @@ pub fn convex_hull(points: &[Point2]) -> Result<Polygon, PolygonError> {
     // Build upper hull.
     let mut upper: Vec<Point2> = Vec::new();
     for &p in pts.iter().rev() {
-        while upper.len() >= 2 && cross(upper[upper.len() - 2], upper[upper.len() - 1], p) <= 0.0
-        {
+        while upper.len() >= 2 && cross(upper[upper.len() - 2], upper[upper.len() - 1], p) <= 0.0 {
             upper.pop();
         }
         upper.push(p);
@@ -313,10 +328,7 @@ pub fn simplify_polygon(poly: &Polygon, epsilon: f64) -> Result<Polygon, Polygon
 
 /// Clip `subject` polygon by the convex `clip` polygon using the
 /// Sutherland-Hodgman algorithm. Returns the clipped polygon.
-pub fn clip_polygon(
-    subject: &Polygon,
-    clip: &Polygon,
-) -> Result<Option<Polygon>, PolygonError> {
+pub fn clip_polygon(subject: &Polygon, clip: &Polygon) -> Result<Option<Polygon>, PolygonError> {
     let mut output = subject.vertices.clone();
     let cn = clip.vertices.len();
 
@@ -385,7 +397,9 @@ pub struct PolygonBuilder {
 
 impl PolygonBuilder {
     pub fn new() -> Self {
-        Self { vertices: Vec::new() }
+        Self {
+            vertices: Vec::new(),
+        }
     }
 
     pub fn with_vertex(mut self, x: f64, y: f64) -> Self {

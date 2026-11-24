@@ -520,9 +520,8 @@ impl CodeEmitter {
         let sec_idx = self.current_section;
         let offset = self.sections[sec_idx].size();
         self.reference_label(target);
-        self.fixups.push(
-            Fixup::new(sec_idx, offset, kind, target).with_addend(addend),
-        );
+        self.fixups
+            .push(Fixup::new(sec_idx, offset, kind, target).with_addend(addend));
     }
 
     /// Add a symbol.
@@ -540,9 +539,10 @@ impl CodeEmitter {
     pub fn resolve_fixups(&mut self) -> Result<(), EmitError> {
         let fixups = self.fixups.clone();
         for fixup in &fixups {
-            let label = self.labels.get(&fixup.target).ok_or_else(|| {
-                EmitError::UndefinedLabel(fixup.target.clone())
-            })?;
+            let label = self
+                .labels
+                .get(&fixup.target)
+                .ok_or_else(|| EmitError::UndefinedLabel(fixup.target.clone()))?;
 
             if !label.defined {
                 return Err(EmitError::UndefinedLabel(fixup.target.clone()));
@@ -564,15 +564,13 @@ impl CodeEmitter {
                     let bytes = val.to_le_bytes();
                     let sec = &mut self.sections[fixup.section_idx];
                     if fixup.offset + 8 <= sec.data.len() {
-                        sec.data[fixup.offset..fixup.offset + 8]
-                            .copy_from_slice(&bytes);
+                        sec.data[fixup.offset..fixup.offset + 8].copy_from_slice(&bytes);
                     }
                 }
                 FixupKind::Rel32 => {
                     let rel = target_addr as i64 - fixup_addr as i64 + fixup.addend;
                     let val = rel as i32;
-                    self.sections[fixup.section_idx]
-                        .patch_u32_le(fixup.offset, val as u32);
+                    self.sections[fixup.section_idx].patch_u32_le(fixup.offset, val as u32);
                 }
                 FixupKind::Rel8 => {
                     let rel = target_addr as i64 - fixup_addr as i64 + fixup.addend;
@@ -654,7 +652,9 @@ impl CodeEmitter {
         for section in &self.sections {
             out.push_str(&format!(
                 "Section {} (base=0x{:08X}, size={}):\n",
-                section.name, section.base_address, section.size()
+                section.name,
+                section.base_address,
+                section.size()
             ));
             // Hex dump first 64 bytes
             for (i, byte) in section.data.iter().take(64).enumerate() {

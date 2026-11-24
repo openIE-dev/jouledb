@@ -70,25 +70,37 @@ impl ToolpathPocketConfig {
 
     pub fn validate(&self) -> Result<(), ToolpathPocketError> {
         if self.tool_diameter.is_nan() {
-            return Err(ToolpathPocketError::InvalidConfig("tool_diameter is NaN".into()));
+            return Err(ToolpathPocketError::InvalidConfig(
+                "tool_diameter is NaN".into(),
+            ));
         }
         if self.stepover_pct.is_nan() {
-            return Err(ToolpathPocketError::InvalidConfig("stepover_pct is NaN".into()));
+            return Err(ToolpathPocketError::InvalidConfig(
+                "stepover_pct is NaN".into(),
+            ));
         }
         if self.depth_per_pass.is_nan() {
-            return Err(ToolpathPocketError::InvalidConfig("depth_per_pass is NaN".into()));
+            return Err(ToolpathPocketError::InvalidConfig(
+                "depth_per_pass is NaN".into(),
+            ));
         }
         Ok(())
     }
 }
 
 impl Default for ToolpathPocketConfig {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl fmt::Display for ToolpathPocketConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ToolpathPocketConfig(tool_diameter={0:.4}, stepover_pct={1:.4}, strategy={2}, depth_per_pass={3:.4})", self.tool_diameter, self.stepover_pct, self.strategy, self.depth_per_pass)
+        write!(
+            f,
+            "ToolpathPocketConfig(tool_diameter={0:.4}, stepover_pct={1:.4}, strategy={2}, depth_per_pass={3:.4})",
+            self.tool_diameter, self.stepover_pct, self.strategy, self.depth_per_pass
+        )
     }
 }
 
@@ -104,7 +116,10 @@ pub struct ToolpathPocket {
 impl ToolpathPocket {
     pub fn new(config: ToolpathPocketConfig) -> Result<Self, ToolpathPocketError> {
         config.validate()?;
-        Ok(Self { config, data: Vec::new() })
+        Ok(Self {
+            config,
+            data: Vec::new(),
+        })
     }
 
     pub fn with_data(mut self, data: Vec<f64>) -> Self {
@@ -116,31 +131,45 @@ impl ToolpathPocket {
         self.data.push(value);
     }
 
-    pub fn len(&self) -> usize { self.data.len() }
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-    pub fn config(&self) -> &ToolpathPocketConfig { &self.config }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn config(&self) -> &ToolpathPocketConfig {
+        &self.config
+    }
 
     /// Zigzag pocket toolpath.
     pub fn zigzag_pocket(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Spiral pocket toolpath.
     pub fn spiral_pocket(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Rest machining toolpath.
     pub fn rest_machining(&self) -> Vec<Vec<f64>> {
-        if self.data.is_empty() { return Vec::new(); }
+        if self.data.is_empty() {
+            return Vec::new();
+        }
         vec![self.data.clone()]
     }
 
     /// Summary statistics of loaded data.
     pub fn summary(&self) -> (f64, f64, f64, f64) {
-        if self.data.is_empty() { return (0.0, 0.0, 0.0, 0.0); }
+        if self.data.is_empty() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
         let n = self.data.len() as f64;
         let sum: f64 = self.data.iter().sum();
         let mean = sum / n;
@@ -152,7 +181,9 @@ impl ToolpathPocket {
 
     /// Percentile of the data (0.0–1.0).
     pub fn percentile(&self, p: f64) -> f64 {
-        if self.data.is_empty() { return 0.0; }
+        if self.data.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.data.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let idx = (p * (sorted.len() - 1) as f64).round() as usize;
@@ -164,7 +195,11 @@ impl ToolpathPocket {
         let mut result = Vec::with_capacity(self.data.len());
         let mut ewm = 0.0;
         for (i, &v) in self.data.iter().enumerate() {
-            if i == 0 { ewm = v; } else { ewm = decay * ewm + (1.0 - decay) * v; }
+            if i == 0 {
+                ewm = v;
+            } else {
+                ewm = decay * ewm + (1.0 - decay) * v;
+            }
             result.push(ewm);
         }
         result
@@ -237,7 +272,8 @@ mod tests {
 
     #[test]
     fn test_with_data() {
-        let e = ToolpathPocket::new(ToolpathPocketConfig::new()).unwrap()
+        let e = ToolpathPocket::new(ToolpathPocketConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert_eq!(e.len(), 10);
         assert!(!e.is_empty());
@@ -253,7 +289,8 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let e = ToolpathPocket::new(ToolpathPocketConfig::new()).unwrap()
+        let e = ToolpathPocket::new(ToolpathPocketConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let s = format!("{e}");
         assert!(s.contains("ToolpathPocket"));
@@ -261,7 +298,8 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let e = ToolpathPocket::new(ToolpathPocketConfig::new()).unwrap()
+        let e = ToolpathPocket::new(ToolpathPocketConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let (mean, std, min, max) = e.summary();
         assert!((mean - 5.5).abs() < 1e-9);
@@ -272,7 +310,8 @@ mod tests {
 
     #[test]
     fn test_percentile() {
-        let e = ToolpathPocket::new(ToolpathPocketConfig::new()).unwrap()
+        let e = ToolpathPocket::new(ToolpathPocketConfig::new())
+            .unwrap()
             .with_data(sample_data());
         assert!((e.percentile(0.0) - 1.0).abs() < 1e-9);
         assert!((e.percentile(1.0) - 10.0).abs() < 1e-9);
@@ -280,7 +319,8 @@ mod tests {
 
     #[test]
     fn test_ewm() {
-        let e = ToolpathPocket::new(ToolpathPocketConfig::new()).unwrap()
+        let e = ToolpathPocket::new(ToolpathPocketConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let ewm = e.ewm(0.9);
         assert_eq!(ewm.len(), 10);
@@ -297,7 +337,8 @@ mod tests {
 
     #[test]
     fn test_zigzag_pocket() {
-        let e = ToolpathPocket::new(ToolpathPocketConfig::new()).unwrap()
+        let e = ToolpathPocket::new(ToolpathPocketConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.zigzag_pocket();
         assert!(!result.is_empty());
@@ -305,7 +346,8 @@ mod tests {
 
     #[test]
     fn test_spiral_pocket() {
-        let e = ToolpathPocket::new(ToolpathPocketConfig::new()).unwrap()
+        let e = ToolpathPocket::new(ToolpathPocketConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.spiral_pocket();
         assert!(!result.is_empty());
@@ -313,7 +355,8 @@ mod tests {
 
     #[test]
     fn test_rest_machining() {
-        let e = ToolpathPocket::new(ToolpathPocketConfig::new()).unwrap()
+        let e = ToolpathPocket::new(ToolpathPocketConfig::new())
+            .unwrap()
             .with_data(sample_data());
         let result = e.rest_machining();
         assert!(!result.is_empty());

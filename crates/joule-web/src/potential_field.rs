@@ -40,33 +40,58 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
-    pub fn zero() -> Self { Self { x: 0.0, y: 0.0 } }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+    pub fn zero() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
 
-    pub fn magnitude(self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
+    pub fn magnitude(self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
 
     pub fn normalized(self) -> Self {
         let m = self.magnitude();
-        if m < 1e-12 { Self::zero() } else { Self { x: self.x / m, y: self.y / m } }
+        if m < 1e-12 {
+            Self::zero()
+        } else {
+            Self {
+                x: self.x / m,
+                y: self.y / m,
+            }
+        }
     }
 
     pub fn distance_to(self, other: Vec2) -> f64 {
         ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
     }
 
-    pub fn dot(self, other: Vec2) -> f64 { self.x * other.x + self.y * other.y }
+    pub fn dot(self, other: Vec2) -> f64 {
+        self.x * other.x + self.y * other.y
+    }
 
     pub fn add(self, other: Vec2) -> Vec2 {
-        Vec2 { x: self.x + other.x, y: self.y + other.y }
+        Vec2 {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
     }
 
     pub fn scale(self, s: f64) -> Vec2 {
-        Vec2 { x: self.x * s, y: self.y * s }
+        Vec2 {
+            x: self.x * s,
+            y: self.y * s,
+        }
     }
 
     pub fn clamp_magnitude(self, max: f64) -> Vec2 {
         let m = self.magnitude();
-        if m <= max { self } else { self.normalized().scale(max) }
+        if m <= max {
+            self
+        } else {
+            self.normalized().scale(max)
+        }
     }
 }
 
@@ -99,17 +124,11 @@ impl Obstacle {
                 if m < 1e-12 {
                     Vec2::new(center.x + radius, center.y)
                 } else {
-                    Vec2::new(
-                        center.x + d.x / m * radius,
-                        center.y + d.y / m * radius,
-                    )
+                    Vec2::new(center.x + d.x / m * radius, center.y + d.y / m * radius)
                 }
             }
             Obstacle::Rect { min, max } => {
-                Vec2::new(
-                    p.x.clamp(min.x, max.x),
-                    p.y.clamp(min.y, max.y),
-                )
+                Vec2::new(p.x.clamp(min.x, max.x), p.y.clamp(min.y, max.y))
             }
             Obstacle::Segment { a, b } => {
                 let ab = Vec2::new(b.x - a.x, b.y - a.y);
@@ -152,13 +171,22 @@ impl fmt::Display for Obstacle {
 
 // ── Simple LCG RNG ──────────────────────────────────────────────
 
-struct SimpleRng { state: u64 }
+struct SimpleRng {
+    state: u64,
+}
 
 impl SimpleRng {
-    fn new(seed: u64) -> Self { Self { state: seed.wrapping_add(1) } }
+    fn new(seed: u64) -> Self {
+        Self {
+            state: seed.wrapping_add(1),
+        }
+    }
 
     fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state = self
+            .state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.state
     }
 
@@ -166,7 +194,9 @@ impl SimpleRng {
         (self.next_u64() >> 11) as f64 / (1u64 << 53) as f64
     }
 
-    fn next_symmetric(&mut self) -> f64 { self.next_f64() * 2.0 - 1.0 }
+    fn next_symmetric(&mut self) -> f64 {
+        self.next_f64() * 2.0 - 1.0
+    }
 }
 
 // ── Potential Field Config ──────────────────────────────────────
@@ -202,16 +232,46 @@ impl PotentialFieldConfig {
         }
     }
 
-    pub fn with_attractive_gain(mut self, g: f64) -> Self { self.attractive_gain = g; self }
-    pub fn with_repulsive_gain(mut self, g: f64) -> Self { self.repulsive_gain = g; self }
-    pub fn with_influence_distance(mut self, d: f64) -> Self { self.influence_distance = d; self }
-    pub fn with_step_size(mut self, s: f64) -> Self { self.step_size = s; self }
-    pub fn with_goal_threshold(mut self, t: f64) -> Self { self.goal_threshold = t; self }
-    pub fn with_max_iterations(mut self, n: usize) -> Self { self.max_iterations = n; self }
-    pub fn with_max_force(mut self, f: f64) -> Self { self.max_force = f; self }
-    pub fn with_escape_perturbation(mut self, p: f64) -> Self { self.escape_perturbation = p; self }
-    pub fn with_escape_patience(mut self, p: usize) -> Self { self.escape_patience = p; self }
-    pub fn with_seed(mut self, s: u64) -> Self { self.seed = s; self }
+    pub fn with_attractive_gain(mut self, g: f64) -> Self {
+        self.attractive_gain = g;
+        self
+    }
+    pub fn with_repulsive_gain(mut self, g: f64) -> Self {
+        self.repulsive_gain = g;
+        self
+    }
+    pub fn with_influence_distance(mut self, d: f64) -> Self {
+        self.influence_distance = d;
+        self
+    }
+    pub fn with_step_size(mut self, s: f64) -> Self {
+        self.step_size = s;
+        self
+    }
+    pub fn with_goal_threshold(mut self, t: f64) -> Self {
+        self.goal_threshold = t;
+        self
+    }
+    pub fn with_max_iterations(mut self, n: usize) -> Self {
+        self.max_iterations = n;
+        self
+    }
+    pub fn with_max_force(mut self, f: f64) -> Self {
+        self.max_force = f;
+        self
+    }
+    pub fn with_escape_perturbation(mut self, p: f64) -> Self {
+        self.escape_perturbation = p;
+        self
+    }
+    pub fn with_escape_patience(mut self, p: usize) -> Self {
+        self.escape_patience = p;
+        self
+    }
+    pub fn with_seed(mut self, s: u64) -> Self {
+        self.seed = s;
+        self
+    }
 }
 
 impl fmt::Display for PotentialFieldConfig {
@@ -219,8 +279,7 @@ impl fmt::Display for PotentialFieldConfig {
         write!(
             f,
             "PotentialFieldConfig(k_att={:.1}, k_rep={:.1}, d0={:.1}, step={:.2})",
-            self.attractive_gain, self.repulsive_gain,
-            self.influence_distance, self.step_size,
+            self.attractive_gain, self.repulsive_gain, self.influence_distance, self.step_size,
         )
     }
 }
@@ -241,8 +300,11 @@ impl fmt::Display for PotentialFieldResult {
         write!(
             f,
             "PotentialFieldResult(points={}, dist={:.3}, iters={}, escapes={}, reached={})",
-            self.trajectory.len(), self.total_distance,
-            self.iterations, self.escapes, self.reached_goal,
+            self.trajectory.len(),
+            self.total_distance,
+            self.iterations,
+            self.escapes,
+            self.reached_goal,
         )
     }
 }
@@ -257,7 +319,10 @@ pub struct PotentialFieldPlanner {
 
 impl PotentialFieldPlanner {
     pub fn new(config: PotentialFieldConfig) -> Self {
-        Self { config, obstacles: Vec::new() }
+        Self {
+            config,
+            obstacles: Vec::new(),
+        }
     }
 
     pub fn with_obstacles(mut self, obs: Vec<Obstacle>) -> Self {
@@ -314,7 +379,11 @@ impl PotentialFieldPlanner {
     }
 
     /// Plan a path using gradient descent on the potential field.
-    pub fn plan(&self, start: Vec2, goal: Vec2) -> Result<PotentialFieldResult, PotentialFieldError> {
+    pub fn plan(
+        &self,
+        start: Vec2,
+        goal: Vec2,
+    ) -> Result<PotentialFieldResult, PotentialFieldError> {
         let mut rng = SimpleRng::new(self.config.seed);
         let mut pos = start;
         let mut trajectory = vec![start];
@@ -379,7 +448,9 @@ impl PotentialFieldPlanner {
         })
     }
 
-    pub fn obstacle_count(&self) -> usize { self.obstacles.len() }
+    pub fn obstacle_count(&self) -> usize {
+        self.obstacles.len()
+    }
 }
 
 impl fmt::Display for PotentialFieldPlanner {
@@ -387,7 +458,8 @@ impl fmt::Display for PotentialFieldPlanner {
         write!(
             f,
             "PotentialFieldPlanner(obstacles={}, {})",
-            self.obstacles.len(), self.config,
+            self.obstacles.len(),
+            self.config,
         )
     }
 }
@@ -398,7 +470,9 @@ impl fmt::Display for PotentialFieldPlanner {
 mod tests {
     use super::*;
 
-    fn approx(a: f64, b: f64) -> bool { (a - b).abs() < 1e-6 }
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < 1e-6
+    }
 
     #[test]
     fn test_vec2_magnitude() {
@@ -433,14 +507,20 @@ mod tests {
 
     #[test]
     fn test_obstacle_circle_distance() {
-        let obs = Obstacle::Circle { center: Vec2::new(5.0, 5.0), radius: 1.0 };
+        let obs = Obstacle::Circle {
+            center: Vec2::new(5.0, 5.0),
+            radius: 1.0,
+        };
         let d = obs.distance_to(Vec2::new(8.0, 5.0));
         assert!(approx(d, 2.0));
     }
 
     #[test]
     fn test_obstacle_circle_contains() {
-        let obs = Obstacle::Circle { center: Vec2::new(5.0, 5.0), radius: 1.0 };
+        let obs = Obstacle::Circle {
+            center: Vec2::new(5.0, 5.0),
+            radius: 1.0,
+        };
         assert!(obs.contains(Vec2::new(5.5, 5.0)));
         assert!(!obs.contains(Vec2::new(8.0, 5.0)));
     }
@@ -458,7 +538,10 @@ mod tests {
 
     #[test]
     fn test_obstacle_display() {
-        let obs = Obstacle::Circle { center: Vec2::new(1.0, 2.0), radius: 0.5 };
+        let obs = Obstacle::Circle {
+            center: Vec2::new(1.0, 2.0),
+            radius: 0.5,
+        };
         let s = format!("{obs}");
         assert!(s.contains("Circle"));
     }
@@ -475,7 +558,10 @@ mod tests {
     #[test]
     fn test_repulsive_force_pushes_away() {
         let cfg = PotentialFieldConfig::new().with_influence_distance(5.0);
-        let obs = vec![Obstacle::Circle { center: Vec2::new(5.0, 0.0), radius: 1.0 }];
+        let obs = vec![Obstacle::Circle {
+            center: Vec2::new(5.0, 0.0),
+            radius: 1.0,
+        }];
         let planner = PotentialFieldPlanner::new(cfg).with_obstacles(obs);
         let f = planner.repulsive_force(Vec2::new(3.0, 0.0));
         assert!(f.x < 0.0, "repulsive force should push away from obstacle");
@@ -488,7 +574,9 @@ mod tests {
             .with_goal_threshold(0.3)
             .with_max_iterations(2000);
         let planner = PotentialFieldPlanner::new(cfg);
-        let result = planner.plan(Vec2::new(0.0, 0.0), Vec2::new(5.0, 0.0)).unwrap();
+        let result = planner
+            .plan(Vec2::new(0.0, 0.0), Vec2::new(5.0, 0.0))
+            .unwrap();
         assert!(result.reached_goal);
         assert!(result.total_distance < 6.0);
     }
@@ -502,9 +590,14 @@ mod tests {
             .with_max_iterations(5000)
             .with_repulsive_gain(50.0)
             .with_influence_distance(2.0);
-        let obs = vec![Obstacle::Circle { center: Vec2::new(5.0, 0.5), radius: 1.0 }];
+        let obs = vec![Obstacle::Circle {
+            center: Vec2::new(5.0, 0.5),
+            radius: 1.0,
+        }];
         let planner = PotentialFieldPlanner::new(cfg).with_obstacles(obs);
-        let result = planner.plan(Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0)).unwrap();
+        let result = planner
+            .plan(Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0))
+            .unwrap();
         assert!(result.reached_goal);
         assert!(result.total_distance > 10.0); // must detour
     }

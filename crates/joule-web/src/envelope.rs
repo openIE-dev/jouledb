@@ -618,10 +618,7 @@ mod tests {
         let samples = gen_samples(&mut env, 1000);
         // Near end, should be at sustain level (~0.5)
         let last = samples[999];
-        assert!(
-            (last - 0.5).abs() < 0.05,
-            "expected ~0.5, got {last}"
-        );
+        assert!((last - 0.5).abs() < 0.05, "expected ~0.5, got {last}");
     }
 
     #[test]
@@ -642,10 +639,7 @@ mod tests {
         env.gate_off();
         let samples = gen_samples(&mut env, 1000);
         let last = samples[999];
-        assert!(
-            last < 0.01,
-            "should release to ~0, got {last}"
-        );
+        assert!(last < 0.01, "should release to ~0, got {last}");
     }
 
     #[test]

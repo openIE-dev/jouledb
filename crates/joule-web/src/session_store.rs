@@ -207,7 +207,10 @@ impl SessionStore {
 
         self.next_seed = self.next_seed.wrapping_add(1);
         let id = generate_session_id(self.next_seed);
-        self.next_seed = self.next_seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+        self.next_seed = self
+            .next_seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1);
         let token = generate_token(&id, self.next_seed);
         let now = Instant::now();
 
@@ -225,10 +228,7 @@ impl SessionStore {
         self.sessions.insert(id.clone(), session);
         self.token_index.insert(token, id.clone());
         if let Some(uid) = user_id {
-            self.user_sessions
-                .entry(uid)
-                .or_default()
-                .push(id.clone());
+            self.user_sessions.entry(uid).or_default().push(id.clone());
         }
         self.total_created += 1;
         Ok(id)
@@ -237,7 +237,10 @@ impl SessionStore {
     /// Get a session by ID, touching last_accessed.
     pub fn get(&mut self, session_id: &str) -> Result<&Session, SessionError> {
         let now = Instant::now();
-        let session = self.sessions.get_mut(session_id).ok_or(SessionError::NotFound)?;
+        let session = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or(SessionError::NotFound)?;
         if session.is_expired(now) {
             let sid = session_id.to_string();
             self.remove_session(&sid);
@@ -253,7 +256,10 @@ impl SessionStore {
     /// Get a mutable session by ID.
     pub fn get_mut(&mut self, session_id: &str) -> Result<&mut Session, SessionError> {
         let now = Instant::now();
-        let session = self.sessions.get_mut(session_id).ok_or(SessionError::NotFound)?;
+        let session = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or(SessionError::NotFound)?;
         if session.is_expired(now) {
             let sid = session_id.to_string();
             self.remove_session(&sid);
@@ -294,7 +300,10 @@ impl SessionStore {
 
     /// Renew with a specific TTL.
     pub fn renew_with_ttl(&mut self, session_id: &str, ttl: Duration) -> Result<(), SessionError> {
-        let session = self.sessions.get_mut(session_id).ok_or(SessionError::NotFound)?;
+        let session = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or(SessionError::NotFound)?;
         let now = Instant::now();
         session.created_at = now;
         session.last_accessed = now;
@@ -322,11 +331,7 @@ impl SessionStore {
 
     /// Destroy all sessions for a user.
     pub fn destroy_user_sessions(&mut self, user_id: &str) -> usize {
-        let session_ids: Vec<String> = self
-            .user_sessions
-            .get(user_id)
-            .cloned()
-            .unwrap_or_default();
+        let session_ids: Vec<String> = self.user_sessions.get(user_id).cloned().unwrap_or_default();
         let count = session_ids.len();
         for sid in &session_ids {
             self.remove_session_inner(sid);
@@ -509,9 +514,7 @@ mod tests {
         let mut store = SessionStore::new(Duration::from_millis(50), 5);
         let id = store.create(None).unwrap();
         // Renew extends the TTL.
-        store
-            .renew_with_ttl(&id, Duration::from_secs(60))
-            .unwrap();
+        store.renew_with_ttl(&id, Duration::from_secs(60)).unwrap();
         std::thread::sleep(Duration::from_millis(60));
         // Should still be valid after renewal.
         assert!(store.get(&id).is_ok());

@@ -226,9 +226,7 @@ async fn list_config(config: &Config, output: &Output) -> Result<()> {
 async fn show_path(output: &Output) -> Result<()> {
     let config_path = Config::default_config_path()?;
 
-    output.key_value(vec![
-        ("Config", config_path.display().to_string()),
-    ]);
+    output.key_value(vec![("Config", config_path.display().to_string())]);
 
     Ok(())
 }

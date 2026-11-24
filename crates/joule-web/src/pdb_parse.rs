@@ -105,7 +105,9 @@ impl fmt::Display for AtomRecord {
             self.res_name,
             self.chain,
             self.res_seq,
-            self.coords[0], self.coords[1], self.coords[2],
+            self.coords[0],
+            self.coords[1],
+            self.coords[2],
         )
     }
 }
@@ -123,7 +125,10 @@ pub struct Chain {
 
 impl Chain {
     pub fn new(id: char) -> Self {
-        Self { id, atoms: Vec::new() }
+        Self {
+            id,
+            atoms: Vec::new(),
+        }
     }
 
     /// Number of atoms.
@@ -144,7 +149,10 @@ impl Chain {
 
     /// Extract C-alpha atoms.
     pub fn ca_atoms(&self) -> Vec<&AtomRecord> {
-        self.atoms.iter().filter(|a| a.is_ca() && !a.is_hetatm).collect()
+        self.atoms
+            .iter()
+            .filter(|a| a.is_ca() && !a.is_hetatm)
+            .collect()
     }
 
     /// Extract C-alpha coordinates.
@@ -164,7 +172,13 @@ impl Chain {
 
 impl fmt::Display for Chain {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Chain {} ({} atoms, {} residues)", self.id, self.atom_count(), self.residue_count())
+        write!(
+            f,
+            "Chain {} ({} atoms, {} residues)",
+            self.id,
+            self.atom_count(),
+            self.residue_count()
+        )
     }
 }
 
@@ -211,12 +225,19 @@ impl PdbStructure {
         for a in &self.atoms {
             chain_map.entry(a.chain).or_default().push(a.clone());
         }
-        chain_map.into_iter().map(|(id, atoms)| Chain { id, atoms }).collect()
+        chain_map
+            .into_iter()
+            .map(|(id, atoms)| Chain { id, atoms })
+            .collect()
     }
 
     /// Get all C-alpha coordinates across all chains.
     pub fn all_ca_coordinates(&self) -> Vec<[f64; 3]> {
-        self.atoms.iter().filter(|a| a.is_ca()).map(|a| a.coords).collect()
+        self.atoms
+            .iter()
+            .filter(|a| a.is_ca())
+            .map(|a| a.coords)
+            .collect()
     }
 
     /// Center of mass of all ATOM records.
@@ -268,7 +289,11 @@ impl fmt::Display for PdbStructure {
         write!(
             f,
             "PDB({}, atoms={}, hetatm={}, chains={})",
-            if self.pdb_id.is_empty() { "????" } else { &self.pdb_id },
+            if self.pdb_id.is_empty() {
+                "????"
+            } else {
+                &self.pdb_id
+            },
             self.atoms.len(),
             self.hetatms.len(),
             self.chains().len(),
@@ -291,7 +316,11 @@ pub struct PdbParser {
 
 impl PdbParser {
     pub fn new() -> Self {
-        Self { first_model_only: true, skip_hetatm: false, skip_hydrogens: false }
+        Self {
+            first_model_only: true,
+            skip_hetatm: false,
+            skip_hydrogens: false,
+        }
     }
 
     pub fn with_all_models(mut self) -> Self {
@@ -371,27 +400,41 @@ impl PdbParser {
         let element = if line.len() >= 78 {
             line[76..78].trim().to_string()
         } else {
-            name.trim().chars().next().map(|c| c.to_string()).unwrap_or_default()
+            name.trim()
+                .chars()
+                .next()
+                .map(|c| c.to_string())
+                .unwrap_or_default()
         };
 
         if self.skip_hydrogens && (element == "H" || element == "D") {
             return Ok(None);
         }
 
-        let serial = line[6..11].trim().parse::<u32>()
+        let serial = line[6..11]
+            .trim()
+            .parse::<u32>()
             .map_err(|_| PdbError::ParseField("serial"))?;
         let alt_loc = line.as_bytes().get(16).map(|b| *b as char).unwrap_or(' ');
         let res_name = line[17..20].to_string();
         let chain = line.as_bytes().get(21).map(|b| *b as char).unwrap_or(' ');
-        let res_seq = line[22..26].trim().parse::<i32>()
+        let res_seq = line[22..26]
+            .trim()
+            .parse::<i32>()
             .map_err(|_| PdbError::ParseField("res_seq"))?;
         let ins_code = line.as_bytes().get(26).map(|b| *b as char).unwrap_or(' ');
 
-        let x = line[30..38].trim().parse::<f64>()
+        let x = line[30..38]
+            .trim()
+            .parse::<f64>()
             .map_err(|_| PdbError::ParseField("x"))?;
-        let y = line[38..46].trim().parse::<f64>()
+        let y = line[38..46]
+            .trim()
+            .parse::<f64>()
             .map_err(|_| PdbError::ParseField("y"))?;
-        let z = line[46..54].trim().parse::<f64>()
+        let z = line[46..54]
+            .trim()
+            .parse::<f64>()
             .map_err(|_| PdbError::ParseField("z"))?;
 
         let occupancy = if line.len() >= 60 {
@@ -407,8 +450,18 @@ impl PdbParser {
         };
 
         Ok(Some(AtomRecord {
-            serial, name, alt_loc, res_name, chain, res_seq, ins_code,
-            coords: [x, y, z], occupancy, b_factor, element, is_hetatm,
+            serial,
+            name,
+            alt_loc,
+            res_name,
+            chain,
+            res_seq,
+            ins_code,
+            coords: [x, y, z],
+            occupancy,
+            b_factor,
+            element,
+            is_hetatm,
         }))
     }
 }

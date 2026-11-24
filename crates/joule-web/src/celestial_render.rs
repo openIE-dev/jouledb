@@ -123,14 +123,26 @@ pub struct Star {
 }
 
 impl Star {
-    pub fn new(x: f64, y: f64, z: f64, luminosity: f64, temperature: f64) -> Result<Self, CelestialError> {
+    pub fn new(
+        x: f64,
+        y: f64,
+        z: f64,
+        luminosity: f64,
+        temperature: f64,
+    ) -> Result<Self, CelestialError> {
         if luminosity <= 0.0 {
             return Err(CelestialError::NonPositiveLuminosity(luminosity));
         }
         if temperature <= 0.0 {
             return Err(CelestialError::NonPositiveTemperature(temperature));
         }
-        Ok(Self { x, y, z, luminosity, temperature })
+        Ok(Self {
+            x,
+            y,
+            z,
+            luminosity,
+            temperature,
+        })
     }
 
     /// Get the color of the star from its temperature.
@@ -177,7 +189,13 @@ impl Planet {
         if albedo < 0.0 || albedo > 1.0 {
             return Err(CelestialError::InvalidAlbedo(albedo));
         }
-        Ok(Self { x, y, z, radius, albedo })
+        Ok(Self {
+            x,
+            y,
+            z,
+            radius,
+            albedo,
+        })
     }
 
     /// Apparent brightness factor given phase angle (radians).
@@ -199,8 +217,12 @@ impl Planet {
         let phase = self.phase_brightness(phase_angle);
         let cross_section = PI * self.radius * self.radius;
         star_luminosity * cross_section * phase
-            / (4.0 * PI * distance_from_star * distance_from_star
-                * distance_from_observer * distance_from_observer)
+            / (4.0
+                * PI
+                * distance_from_star
+                * distance_from_star
+                * distance_from_observer
+                * distance_from_observer)
     }
 }
 
@@ -253,7 +275,11 @@ pub struct Ecliptic {
 
 /// Convert equatorial to horizontal coordinates.
 /// `lat` is observer latitude in degrees, `lst` is local sidereal time in hours.
-pub fn equatorial_to_horizontal(eq: &Equatorial, lat_deg: f64, lst_hours: f64) -> Result<Horizontal, CelestialError> {
+pub fn equatorial_to_horizontal(
+    eq: &Equatorial,
+    lat_deg: f64,
+    lst_hours: f64,
+) -> Result<Horizontal, CelestialError> {
     if lat_deg < -90.0 || lat_deg > 90.0 {
         return Err(CelestialError::InvalidLatitude(lat_deg));
     }
@@ -306,7 +332,10 @@ pub fn precess(eq: &Equatorial, years: f64) -> Equatorial {
     let dec_shift = 20.0 / 3600.0 * years; // degrees (approximate, depends on position)
     let ra = (eq.ra + ra_shift) % 24.0;
     let dec = (eq.dec + dec_shift).clamp(-90.0, 90.0);
-    Equatorial { ra: if ra < 0.0 { ra + 24.0 } else { ra }, dec }
+    Equatorial {
+        ra: if ra < 0.0 { ra + 24.0 } else { ra },
+        dec,
+    }
 }
 
 // ── Constellation ───────────────────────────────────────────────
@@ -323,7 +352,11 @@ pub struct Constellation {
 
 impl Constellation {
     pub fn new(name: &str) -> Self {
-        Self { name: name.to_string(), star_indices: Vec::new(), connections: Vec::new() }
+        Self {
+            name: name.to_string(),
+            star_indices: Vec::new(),
+            connections: Vec::new(),
+        }
     }
 
     pub fn add_star(&mut self, index: usize) {
@@ -351,8 +384,7 @@ impl Constellation {
 /// `jd` is Julian date, `longitude_deg` is observer longitude (east positive).
 pub fn local_sidereal_time(jd: f64, longitude_deg: f64) -> f64 {
     let t = (jd - 2451545.0) / 36525.0;
-    let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0)
-        + 0.000387933 * t * t
+    let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * t * t
         - t * t * t / 38710000.0;
     let lst = (gmst + longitude_deg) % 360.0;
     let lst_hours = (if lst < 0.0 { lst + 360.0 } else { lst }) / 15.0;
@@ -368,9 +400,7 @@ pub fn julian_date(year: i32, month: u32, day: f64) -> f64 {
     };
     let a = (y as f64 / 100.0).floor();
     let b = 2.0 - a + (a / 4.0).floor();
-    (365.25 * (y as f64 + 4716.0)).floor()
-        + (30.6001 * (m as f64 + 1.0)).floor()
-        + day + b - 1524.5
+    (365.25 * (y as f64 + 4716.0)).floor() + (30.6001 * (m as f64 + 1.0)).floor() + day + b - 1524.5
 }
 
 // ── Tests ───────────────────────────────────────────────────────
@@ -492,7 +522,10 @@ mod tests {
 
     #[test]
     fn precession_forward_and_back() {
-        let eq = Equatorial { ra: 12.0, dec: 45.0 };
+        let eq = Equatorial {
+            ra: 12.0,
+            dec: 45.0,
+        };
         let p1 = precess(&eq, 50.0);
         let p2 = precess(&p1, -50.0);
         assert!(approx_eq(p2.ra, eq.ra, 0.01));

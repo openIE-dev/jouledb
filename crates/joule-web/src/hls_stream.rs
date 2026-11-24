@@ -158,8 +158,8 @@ fn parse_master(lines: &[&str]) -> Result<Playlist, ParseError> {
                 }
             });
             let codecs = parse_attributes_aware(attrs, "CODECS");
-            let frame_rate = parse_attributes_aware(attrs, "FRAME-RATE")
-                .and_then(|v| v.parse::<f64>().ok());
+            let frame_rate =
+                parse_attributes_aware(attrs, "FRAME-RATE").and_then(|v| v.parse::<f64>().ok());
             let name = parse_attributes_aware(attrs, "NAME");
             variants.push(Variant {
                 uri,
@@ -490,7 +490,10 @@ stream.m3u8
         let pl = parse_m3u8(input).unwrap();
         match pl {
             Playlist::Master(m) => {
-                assert_eq!(m.variants[0].codecs.as_deref(), Some("avc1.42e00a,mp4a.40.2"));
+                assert_eq!(
+                    m.variants[0].codecs.as_deref(),
+                    Some("avc1.42e00a,mp4a.40.2")
+                );
             }
             _ => panic!("expected master"),
         }

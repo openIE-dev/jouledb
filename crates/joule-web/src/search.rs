@@ -135,10 +135,12 @@ pub fn levenshtein_distance(a: &str, b: &str) -> usize {
     for i in 1..=m {
         curr[0] = i;
         for j in 1..=n {
-            let cost = if a_chars[i - 1] == b_chars[j - 1] { 0 } else { 1 };
-            curr[j] = (prev[j] + 1)
-                .min(curr[j - 1] + 1)
-                .min(prev[j - 1] + cost);
+            let cost = if a_chars[i - 1] == b_chars[j - 1] {
+                0
+            } else {
+                1
+            };
+            curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
         }
         std::mem::swap(&mut prev, &mut curr);
     }
@@ -286,7 +288,12 @@ impl<T> SearchIndex<T> {
                 };
 
                 let score = fuzzy_score(&q, &field_text);
-                let weight = self.config.field_weights.get(field_name).copied().unwrap_or(1.0);
+                let weight = self
+                    .config
+                    .field_weights
+                    .get(field_name)
+                    .copied()
+                    .unwrap_or(1.0);
                 let weighted = score / weight.max(0.001);
 
                 if weighted < best_score {
@@ -315,7 +322,11 @@ impl<T> SearchIndex<T> {
             }
         }
 
-        results.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            a.score
+                .partial_cmp(&b.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results.truncate(self.config.max_results);
         results
     }

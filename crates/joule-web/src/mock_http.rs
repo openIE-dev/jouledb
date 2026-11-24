@@ -457,7 +457,10 @@ mod tests {
         assert_eq!(server.request_count(), 1);
         let req = &server.recorded_requests()[0];
         assert_eq!(req.path, "/api/ping");
-        assert_eq!(req.headers.get("Authorization").map(|s| s.as_str()), Some("Bearer token123"));
+        assert_eq!(
+            req.headers.get("Authorization").map(|s| s.as_str()),
+            Some("Bearer token123")
+        );
     }
 
     #[test]

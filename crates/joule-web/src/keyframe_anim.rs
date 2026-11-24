@@ -187,7 +187,8 @@ impl KeyframeAnimation {
             while self.current_iteration < target_iter && self.current_iteration < max_iters {
                 self.current_iteration += 1;
                 if self.current_iteration < max_iters {
-                    self.events.push(AnimationEvent::Iteration(self.current_iteration));
+                    self.events
+                        .push(AnimationEvent::Iteration(self.current_iteration));
                 }
                 self.elapsed_ms -= self.duration_ms;
             }
@@ -283,7 +284,9 @@ impl KeyframeAnimation {
 
         // Collect all property names from both keyframes.
         let mut result = HashMap::new();
-        let all_keys: Vec<String> = before.properties.keys()
+        let all_keys: Vec<String> = before
+            .properties
+            .keys()
             .chain(after.properties.keys())
             .cloned()
             .collect::<std::collections::HashSet<_>>()
@@ -294,9 +297,15 @@ impl KeyframeAnimation {
             let v_before = before.properties.get(&key).copied();
             let v_after = after.properties.get(&key).copied();
             match (v_before, v_after) {
-                (Some(a), Some(b)) => { result.insert(key, a + (b - a) * local_t); }
-                (Some(a), None) => { result.insert(key, a); }
-                (None, Some(b)) => { result.insert(key, b); }
+                (Some(a), Some(b)) => {
+                    result.insert(key, a + (b - a) * local_t);
+                }
+                (Some(a), None) => {
+                    result.insert(key, a);
+                }
+                (None, Some(b)) => {
+                    result.insert(key, b);
+                }
                 (None, None) => {}
             }
         }
@@ -384,8 +393,7 @@ mod tests {
 
     #[test]
     fn finite_iterations() {
-        let mut anim = simple_anim()
-            .with_iteration_count(IterationCount::Finite(3));
+        let mut anim = simple_anim().with_iteration_count(IterationCount::Finite(3));
         // Run 3 full iterations.
         for _ in 0..3 {
             anim.tick(1000.0);

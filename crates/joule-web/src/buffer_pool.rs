@@ -547,13 +547,19 @@ mod tests {
     fn test_evict_pinned_fails() {
         let mut pool = BufferPool::new(4, 16);
         pool.fetch_page(1).unwrap(); // pinned
-        assert!(matches!(pool.evict_page(1), Err(BufferPoolError::PagePinned(1))));
+        assert!(matches!(
+            pool.evict_page(1),
+            Err(BufferPoolError::PagePinned(1))
+        ));
     }
 
     #[test]
     fn test_page_not_found() {
         let pool = BufferPool::new(4, 16);
-        assert!(matches!(pool.read_page(99), Err(BufferPoolError::PageNotFound(99))));
+        assert!(matches!(
+            pool.read_page(99),
+            Err(BufferPoolError::PageNotFound(99))
+        ));
     }
 
     #[test]

@@ -102,7 +102,12 @@ pub struct CalendarEvent {
 
 impl CalendarEvent {
     /// Create a new timed event.
-    pub fn new(id: impl Into<String>, title: impl Into<String>, start: NaiveDateTime, end: NaiveDateTime) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        title: impl Into<String>,
+        start: NaiveDateTime,
+        end: NaiveDateTime,
+    ) -> Self {
         Self {
             id: id.into(),
             title: title.into(),
@@ -173,7 +178,10 @@ impl EventStore {
 
     /// Events overlapping the given date range.
     pub fn events_in_range(&self, start: NaiveDate, end: NaiveDate) -> Vec<&CalendarEvent> {
-        self.events.iter().filter(|e| e.overlaps_range(start, end)).collect()
+        self.events
+            .iter()
+            .filter(|e| e.overlaps_range(start, end))
+            .collect()
     }
 
     /// Events on a specific date.
@@ -248,7 +256,10 @@ impl WeekView {
             }
             columns.push(WeekColumn { date, slots });
         }
-        Self { start_date, columns }
+        Self {
+            start_date,
+            columns,
+        }
     }
 
     /// Find the column for a given date.
@@ -278,8 +289,10 @@ mod tests {
     }
 
     fn dt(y: i32, m: u32, day: u32, h: u32, mi: u32) -> NaiveDateTime {
-        NaiveDate::from_ymd_opt(y, m, day).unwrap()
-            .and_hms_opt(h, mi, 0).unwrap()
+        NaiveDate::from_ymd_opt(y, m, day)
+            .unwrap()
+            .and_hms_opt(h, mi, 0)
+            .unwrap()
     }
 
     #[test]
@@ -349,7 +362,12 @@ mod tests {
 
     #[test]
     fn multi_day_event_range() {
-        let evt = CalendarEvent::new("1", "Conference", dt(2026, 3, 5, 9, 0), dt(2026, 3, 7, 17, 0));
+        let evt = CalendarEvent::new(
+            "1",
+            "Conference",
+            dt(2026, 3, 5, 9, 0),
+            dt(2026, 3, 7, 17, 0),
+        );
         assert!(evt.overlaps_range(d(2026, 3, 6), d(2026, 3, 6)));
         assert!(evt.overlaps_range(d(2026, 3, 1), d(2026, 3, 5)));
         assert!(!evt.overlaps_range(d(2026, 3, 8), d(2026, 3, 10)));
@@ -358,9 +376,24 @@ mod tests {
     #[test]
     fn event_store_range_query() {
         let mut store = EventStore::new();
-        store.add(CalendarEvent::new("1", "A", dt(2026, 3, 5, 9, 0), dt(2026, 3, 5, 10, 0)));
-        store.add(CalendarEvent::new("2", "B", dt(2026, 3, 10, 14, 0), dt(2026, 3, 10, 15, 0)));
-        store.add(CalendarEvent::new("3", "C", dt(2026, 3, 20, 8, 0), dt(2026, 3, 20, 9, 0)));
+        store.add(CalendarEvent::new(
+            "1",
+            "A",
+            dt(2026, 3, 5, 9, 0),
+            dt(2026, 3, 5, 10, 0),
+        ));
+        store.add(CalendarEvent::new(
+            "2",
+            "B",
+            dt(2026, 3, 10, 14, 0),
+            dt(2026, 3, 10, 15, 0),
+        ));
+        store.add(CalendarEvent::new(
+            "3",
+            "C",
+            dt(2026, 3, 20, 8, 0),
+            dt(2026, 3, 20, 9, 0),
+        ));
 
         let found = store.events_in_range(d(2026, 3, 1), d(2026, 3, 7));
         assert_eq!(found.len(), 1);
@@ -373,7 +406,12 @@ mod tests {
     #[test]
     fn event_store_remove() {
         let mut store = EventStore::new();
-        store.add(CalendarEvent::new("1", "A", dt(2026, 3, 5, 9, 0), dt(2026, 3, 5, 10, 0)));
+        store.add(CalendarEvent::new(
+            "1",
+            "A",
+            dt(2026, 3, 5, 9, 0),
+            dt(2026, 3, 5, 10, 0),
+        ));
         assert_eq!(store.len(), 1);
         let removed = store.remove("1");
         assert!(removed.is_some());
@@ -395,7 +433,10 @@ mod tests {
         assert_eq!(wv.columns.len(), 7);
         // 8:00 to 17:30 in 30-min slots = 20 slots per day.
         assert_eq!(wv.columns[0].slots.len(), 20);
-        assert_eq!(wv.columns[0].slots[0].time, NaiveTime::from_hms_opt(8, 0, 0).unwrap());
+        assert_eq!(
+            wv.columns[0].slots[0].time,
+            NaiveTime::from_hms_opt(8, 0, 0).unwrap()
+        );
     }
 
     #[test]

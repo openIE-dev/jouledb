@@ -89,11 +89,7 @@ impl OperationTimer {
     ///
     /// `power_mw_at_end`: current power draw for energy integration.
     /// `counterfactual_mj`: what it would have cost on a different device.
-    pub fn finish(
-        mut self,
-        power_mw_at_end: f64,
-        counterfactual_mj: Option<f64>,
-    ) -> OperationTag {
+    pub fn finish(mut self, power_mw_at_end: f64, counterfactual_mj: Option<f64>) -> OperationTag {
         self.finished = true;
         let duration = self.start.elapsed();
         let duration_ms = duration.as_secs_f64() * 1000.0;
@@ -203,10 +199,7 @@ impl OperationLog {
 
     /// Total counterfactual energy (what it would have cost without optimization).
     pub fn total_counterfactual_mj(&self) -> f64 {
-        self.tags
-            .iter()
-            .filter_map(|t| t.counterfactual_mj)
-            .sum()
+        self.tags.iter().filter_map(|t| t.counterfactual_mj).sum()
     }
 
     /// Overall savings percentage.
@@ -273,12 +266,8 @@ mod tests {
 
     #[test]
     fn test_operation_timer() {
-        let timer = OperationTimer::start(
-            1,
-            ProductivityTaskType::TextEdit,
-            DeviceTarget::Cpu,
-            5000.0,
-        );
+        let timer =
+            OperationTimer::start(1, ProductivityTaskType::TextEdit, DeviceTarget::Cpu, 5000.0);
         std::thread::sleep(std::time::Duration::from_millis(5));
         let tag = timer.finish(5000.0, Some(15000.0 * 0.005));
         assert!(tag.duration_ms > 0.0);

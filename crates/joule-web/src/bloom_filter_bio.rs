@@ -187,7 +187,9 @@ impl BloomFilter {
     /// Union with another filter (bitwise OR).
     pub fn union(&self, other: &BloomFilter) -> Result<BloomFilter, BloomError> {
         if self.num_bits != other.num_bits || self.num_hashes != other.num_hashes {
-            return Err(BloomError::InvalidSize("filters must have same parameters".into()));
+            return Err(BloomError::InvalidSize(
+                "filters must have same parameters".into(),
+            ));
         }
         let mut result = self.clone();
         for (a, b) in result.bits.iter_mut().zip(&other.bits) {

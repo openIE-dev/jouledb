@@ -88,7 +88,7 @@ impl ContentCounter {
     /// Values > 1.0 = accelerating (trending up), < 1.0 = decelerating.
     pub fn momentum(&self) -> f64 {
         let short = self.counts[0].load(Ordering::Relaxed) as f64; // 1min
-        let long = self.counts[2].load(Ordering::Relaxed) as f64;  // 1hr
+        let long = self.counts[2].load(Ordering::Relaxed) as f64; // 1hr
 
         if long == 0.0 {
             return if short > 0.0 { f64::INFINITY } else { 0.0 };
@@ -161,10 +161,8 @@ impl TrendingIndex {
     pub fn record_event(&mut self, content_id: &str, record_id: RecordId) {
         let now_ms = self.now_ms();
         if !self.counters.contains_key(content_id) {
-            self.counters.insert(
-                content_id.to_string(),
-                ContentCounter::new(record_id, None),
-            );
+            self.counters
+                .insert(content_id.to_string(), ContentCounter::new(record_id, None));
         }
         self.counters.get(content_id).unwrap().record_event(now_ms);
     }
@@ -183,13 +181,7 @@ impl TrendingIndex {
             .iter()
             .filter(|(_, counter)| {
                 category
-                    .map(|cat| {
-                        counter
-                            .category
-                            .as_ref()
-                            .map(|c| c == cat)
-                            .unwrap_or(false)
-                    })
+                    .map(|cat| counter.category.as_ref().map(|c| c == cat).unwrap_or(false))
                     .unwrap_or(true)
             })
             .map(|(content_id, counter)| TrendingItem {
@@ -202,7 +194,11 @@ impl TrendingIndex {
             .filter(|item| item.score > 0.0)
             .collect();
 
-        scored.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        scored.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         scored.truncate(k);
         scored
     }

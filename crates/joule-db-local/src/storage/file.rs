@@ -3,11 +3,11 @@
 //! Implements persistent storage using the local filesystem with
 //! write-ahead logging for crash recovery and durability.
 
+use parking_lot::{Mutex, RwLock};
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use parking_lot::{Mutex, RwLock};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use joule_db_core::error::StorageError;
@@ -251,9 +251,7 @@ impl FileBackend {
 
         // v1 detection: the first 4 bytes must match META_V1_MAGIC AND
         // the file must be at least header + crc bytes long.
-        if buf.len() >= META_V1_HEADER_SIZE + META_V1_CRC_SIZE
-            && buf[0..4] == META_V1_MAGIC
-        {
+        if buf.len() >= META_V1_HEADER_SIZE + META_V1_CRC_SIZE && buf[0..4] == META_V1_MAGIC {
             return Self::load_metadata_v1(&buf);
         }
 
@@ -415,9 +413,8 @@ impl FileBackend {
                 committed_root: 0,
             });
 
-            let mut buf = Vec::with_capacity(
-                META_V1_HEADER_SIZE + free_pages.len() * 8 + META_V1_CRC_SIZE,
-            );
+            let mut buf =
+                Vec::with_capacity(META_V1_HEADER_SIZE + free_pages.len() * 8 + META_V1_CRC_SIZE);
             buf.extend_from_slice(&META_V1_MAGIC);
             buf.extend_from_slice(&cm.format_version.to_le_bytes());
             buf.extend_from_slice(&cm.committed_version.to_le_bytes());
@@ -831,8 +828,7 @@ impl StorageBackend for FileBackend {
                 if let Some(m) = on_disk {
                     *self.committed_meta.write() = Some(m);
                 }
-                return Ok(on_disk
-                    .filter(|m| m.committed_root != 0 || m.committed_version != 0));
+                return Ok(on_disk.filter(|m| m.committed_root != 0 || m.committed_version != 0));
             }
         }
         // Fallback: in-memory mirror (filtered as before).
@@ -974,14 +970,15 @@ mod tests {
         // meta.wdb should exist and be readable.
         let meta = temp_dir.path().join(META_FILE);
         assert!(meta.exists(), "meta.wdb survived");
-        let (committed_meta, next_page_id, free_pages) =
-            FileBackend::load_metadata(&meta).unwrap();
+        let (committed_meta, next_page_id, free_pages) = FileBackend::load_metadata(&meta).unwrap();
         assert_eq!(next_page_id, 1); // nothing allocated yet
         assert_eq!(free_pages.len(), 64);
         // No commits ran in this test, so the v1 record stores a
         // sentinel CommittedMeta with version 0 / root 0.
         assert_eq!(
-            committed_meta.expect("v1 meta record present").committed_version,
+            committed_meta
+                .expect("v1 meta record present")
+                .committed_version,
             0
         );
 

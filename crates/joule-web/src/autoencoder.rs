@@ -26,7 +26,13 @@ impl Activation {
             Activation::ReLU => x.max(0.0),
             Activation::Sigmoid => 1.0 / (1.0 + (-x).exp()),
             Activation::Tanh => x.tanh(),
-            Activation::LeakyReLU(alpha) => if x >= 0.0 { x } else { alpha * x },
+            Activation::LeakyReLU(alpha) => {
+                if x >= 0.0 {
+                    x
+                } else {
+                    alpha * x
+                }
+            }
             Activation::Linear => x,
         }
     }
@@ -34,13 +40,25 @@ impl Activation {
     /// Derivative of the activation for backpropagation.
     pub fn derivative(&self, x: f64) -> f64 {
         match self {
-            Activation::ReLU => if x > 0.0 { 1.0 } else { 0.0 },
+            Activation::ReLU => {
+                if x > 0.0 {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
             Activation::Sigmoid => {
                 let s = self.forward(x);
                 s * (1.0 - s)
             }
             Activation::Tanh => 1.0 - x.tanh().powi(2),
-            Activation::LeakyReLU(alpha) => if x >= 0.0 { 1.0 } else { *alpha },
+            Activation::LeakyReLU(alpha) => {
+                if x >= 0.0 {
+                    1.0
+                } else {
+                    *alpha
+                }
+            }
             Activation::Linear => 1.0,
         }
     }
@@ -78,20 +96,26 @@ impl ReconstructionLoss {
         let n = original.len() as f64;
         match self {
             ReconstructionLoss::MSE => {
-                let sum: f64 = original.iter().zip(reconstructed.iter())
+                let sum: f64 = original
+                    .iter()
+                    .zip(reconstructed.iter())
                     .map(|(o, r)| (o - r).powi(2))
                     .sum();
                 sum / n
             }
             ReconstructionLoss::MAE => {
-                let sum: f64 = original.iter().zip(reconstructed.iter())
+                let sum: f64 = original
+                    .iter()
+                    .zip(reconstructed.iter())
                     .map(|(o, r)| (o - r).abs())
                     .sum();
                 sum / n
             }
             ReconstructionLoss::BinaryCrossEntropy => {
                 let eps = 1e-12;
-                let sum: f64 = original.iter().zip(reconstructed.iter())
+                let sum: f64 = original
+                    .iter()
+                    .zip(reconstructed.iter())
                     .map(|(o, r)| {
                         let r_clamped = r.clamp(eps, 1.0 - eps);
                         -(o * r_clamped.ln() + (1.0 - o) * (1.0 - r_clamped).ln())
@@ -106,24 +130,30 @@ impl ReconstructionLoss {
     pub fn gradient(&self, original: &[f64], reconstructed: &[f64]) -> Vec<f64> {
         let n = original.len() as f64;
         match self {
-            ReconstructionLoss::MSE => {
-                original.iter().zip(reconstructed.iter())
-                    .map(|(o, r)| 2.0 * (r - o) / n)
-                    .collect()
-            }
-            ReconstructionLoss::MAE => {
-                original.iter().zip(reconstructed.iter())
-                    .map(|(o, r)| {
-                        let diff = r - o;
-                        if diff > 0.0 { 1.0 / n }
-                        else if diff < 0.0 { -1.0 / n }
-                        else { 0.0 }
-                    })
-                    .collect()
-            }
+            ReconstructionLoss::MSE => original
+                .iter()
+                .zip(reconstructed.iter())
+                .map(|(o, r)| 2.0 * (r - o) / n)
+                .collect(),
+            ReconstructionLoss::MAE => original
+                .iter()
+                .zip(reconstructed.iter())
+                .map(|(o, r)| {
+                    let diff = r - o;
+                    if diff > 0.0 {
+                        1.0 / n
+                    } else if diff < 0.0 {
+                        -1.0 / n
+                    } else {
+                        0.0
+                    }
+                })
+                .collect(),
             ReconstructionLoss::BinaryCrossEntropy => {
                 let eps = 1e-12;
-                original.iter().zip(reconstructed.iter())
+                original
+                    .iter()
+                    .zip(reconstructed.iter())
                     .map(|(o, r)| {
                         let r_clamped = r.clamp(eps, 1.0 - eps);
                         (-o / r_clamped + (1.0 - o) / (1.0 - r_clamped)) / n
@@ -162,7 +192,9 @@ impl DenseLayer {
         let scale = (2.0 / (input_size + output_size) as f64).sqrt();
         let mut rng_state = seed;
         let mut next_rand = || -> f64 {
-            rng_state = rng_state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            rng_state = rng_state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let bits = (rng_state >> 33) as f64 / (1u64 << 31) as f64;
             (bits - 0.5) * 2.0 * scale
         };
@@ -172,7 +204,13 @@ impl DenseLayer {
             .collect();
         let biases = vec![0.0; output_size];
 
-        Self { weights, biases, activation, input_size, output_size }
+        Self {
+            weights,
+            biases,
+            activation,
+            input_size,
+            output_size,
+        }
     }
 
     /// Forward pass: output = activation(W * input + b).
@@ -180,9 +218,12 @@ impl DenseLayer {
         assert_eq!(input.len(), self.input_size);
         (0..self.output_size)
             .map(|j| {
-                let z: f64 = self.weights[j].iter().zip(input.iter())
+                let z: f64 = self.weights[j]
+                    .iter()
+                    .zip(input.iter())
                     .map(|(w, x)| w * x)
-                    .sum::<f64>() + self.biases[j];
+                    .sum::<f64>()
+                    + self.biases[j];
                 self.activation.forward(z)
             })
             .collect()
@@ -193,15 +234,22 @@ impl DenseLayer {
         assert_eq!(input.len(), self.input_size);
         (0..self.output_size)
             .map(|j| {
-                self.weights[j].iter().zip(input.iter())
+                self.weights[j]
+                    .iter()
+                    .zip(input.iter())
                     .map(|(w, x)| w * x)
-                    .sum::<f64>() + self.biases[j]
+                    .sum::<f64>()
+                    + self.biases[j]
             })
             .collect()
     }
 
-    pub fn input_size(&self) -> usize { self.input_size }
-    pub fn output_size(&self) -> usize { self.output_size }
+    pub fn input_size(&self) -> usize {
+        self.input_size
+    }
+    pub fn output_size(&self) -> usize {
+        self.output_size
+    }
 }
 
 // ── Autoencoder ───────────────────────────────────────────────
@@ -287,7 +335,12 @@ impl Autoencoder {
 
         // Build encoder hidden layers.
         for (i, &layer_size) in config.encoder_layers.iter().enumerate() {
-            encoder.push(DenseLayer::new(prev_size, layer_size, config.activation, seed_base + i as u64));
+            encoder.push(DenseLayer::new(
+                prev_size,
+                layer_size,
+                config.activation,
+                seed_base + i as u64,
+            ));
             prev_size = layer_size;
         }
         // Bottleneck layer.
@@ -318,7 +371,12 @@ impl Autoencoder {
             seed_base + 200,
         ));
 
-        Self { encoder, decoder, config, train_losses: Vec::new() }
+        Self {
+            encoder,
+            decoder,
+            config,
+            train_losses: Vec::new(),
+        }
     }
 
     /// Encode input to bottleneck representation.
@@ -390,7 +448,9 @@ impl Autoencoder {
 
     /// Train on a batch of samples for one epoch using simple gradient descent.
     pub fn train_epoch(&mut self, data: &[Vec<f64>]) -> f64 {
-        if data.is_empty() { return 0.0; }
+        if data.is_empty() {
+            return 0.0;
+        }
 
         let mut total_loss = 0.0;
         for sample in data {
@@ -413,7 +473,8 @@ impl Autoencoder {
                         let encoded = self.encode(sample);
                         encoded[k.min(encoded.len() - 1)]
                     };
-                    self.decoder[last_dec].weights[j][k] -= lr * grad[j.min(grad.len() - 1)] * input_val;
+                    self.decoder[last_dec].weights[j][k] -=
+                        lr * grad[j.min(grad.len() - 1)] * input_val;
                 }
             }
         }
@@ -435,10 +496,14 @@ impl Autoencoder {
 
     /// Total number of trainable parameters.
     pub fn param_count(&self) -> usize {
-        let enc: usize = self.encoder.iter()
+        let enc: usize = self
+            .encoder
+            .iter()
             .map(|l| l.weights.len() * l.weights[0].len() + l.biases.len())
             .sum();
-        let dec: usize = self.decoder.iter()
+        let dec: usize = self
+            .decoder
+            .iter()
             .map(|l| l.weights.len() * l.weights[0].len() + l.biases.len())
             .sum();
         enc + dec
@@ -485,27 +550,38 @@ impl DenoisingAutoencoder {
 
     /// Add Gaussian-like noise to input using Box-Muller approximation.
     pub fn add_noise(&mut self, input: &[f64]) -> Vec<f64> {
-        input.iter().map(|x| {
-            self.rng_state = self.rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
-            let u1 = (self.rng_state >> 33) as f64 / (1u64 << 31) as f64;
-            self.rng_state = self.rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
-            let u2 = (self.rng_state >> 33) as f64 / (1u64 << 31) as f64;
-            let u1 = u1.max(1e-10);
-            let noise = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
-            (x + self.noise_factor * noise).clamp(0.0, 1.0)
-        }).collect()
+        input
+            .iter()
+            .map(|x| {
+                self.rng_state = self
+                    .rng_state
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1);
+                let u1 = (self.rng_state >> 33) as f64 / (1u64 << 31) as f64;
+                self.rng_state = self
+                    .rng_state
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1);
+                let u2 = (self.rng_state >> 33) as f64 / (1u64 << 31) as f64;
+                let u1 = u1.max(1e-10);
+                let noise = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
+                (x + self.noise_factor * noise).clamp(0.0, 1.0)
+            })
+            .collect()
     }
 
     /// Train with noisy inputs, measuring loss against clean originals.
     pub fn train_denoising(&mut self, data: &[Vec<f64>]) -> f64 {
-        let noisy: Vec<Vec<f64>> = data.iter()
-            .map(|sample| self.add_noise(sample))
-            .collect();
+        let noisy: Vec<Vec<f64>> = data.iter().map(|sample| self.add_noise(sample)).collect();
 
         let mut total_loss = 0.0;
         for (noisy_sample, clean_sample) in noisy.iter().zip(data.iter()) {
             let reconstructed = self.inner.reconstruct(noisy_sample);
-            total_loss += self.inner.config.loss_fn.compute(clean_sample, &reconstructed);
+            total_loss += self
+                .inner
+                .config
+                .loss_fn
+                .compute(clean_sample, &reconstructed);
         }
         total_loss / data.len() as f64
     }
@@ -521,7 +597,11 @@ impl DenoisingAutoencoder {
 
 impl fmt::Display for DenoisingAutoencoder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "DenoisingAutoencoder(noise={:.3}, {})", self.noise_factor, self.inner)
+        write!(
+            f,
+            "DenoisingAutoencoder(noise={:.3}, {})",
+            self.noise_factor, self.inner
+        )
     }
 }
 
@@ -601,16 +681,14 @@ mod tests {
 
     #[test]
     fn test_autoencoder_build() {
-        let config = AutoencoderConfig::new(10, 3)
-            .with_encoder_layers(vec![8, 5]);
+        let config = AutoencoderConfig::new(10, 3).with_encoder_layers(vec![8, 5]);
         let ae = Autoencoder::build(config);
         assert_eq!(ae.bottleneck_dim(), 3);
     }
 
     #[test]
     fn test_autoencoder_reconstruct_shape() {
-        let config = AutoencoderConfig::new(6, 2)
-            .with_encoder_layers(vec![4]);
+        let config = AutoencoderConfig::new(6, 2).with_encoder_layers(vec![4]);
         let ae = Autoencoder::build(config);
         let input = vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6];
         let output = ae.reconstruct(&input);
@@ -654,8 +732,7 @@ mod tests {
 
     #[test]
     fn test_sparsity_penalty_enabled() {
-        let config = AutoencoderConfig::new(4, 2)
-            .with_sparsity(0.05, 0.1);
+        let config = AutoencoderConfig::new(4, 2).with_sparsity(0.05, 0.1);
         let ae = Autoencoder::build(config);
         let data = vec![vec![0.5; 4], vec![0.3; 4]];
         let penalty = ae.sparsity_penalty(&data);
@@ -664,8 +741,7 @@ mod tests {
 
     #[test]
     fn test_train_epoch_returns_loss() {
-        let config = AutoencoderConfig::new(4, 2)
-            .with_learning_rate(0.01);
+        let config = AutoencoderConfig::new(4, 2).with_learning_rate(0.01);
         let mut ae = Autoencoder::build(config);
         let data = vec![vec![0.1, 0.2, 0.3, 0.4], vec![0.5, 0.6, 0.7, 0.8]];
         let loss = ae.train_epoch(&data);
@@ -676,8 +752,7 @@ mod tests {
     #[test]
     fn test_denoising_autoencoder() {
         let config = AutoencoderConfig::new(4, 2);
-        let mut dae = DenoisingAutoencoder::new(config)
-            .with_noise_factor(0.2);
+        let mut dae = DenoisingAutoencoder::new(config).with_noise_factor(0.2);
         let data = vec![vec![0.5; 4]];
         let loss = dae.train_denoising(&data);
         assert!(loss >= 0.0);
@@ -686,13 +761,15 @@ mod tests {
     #[test]
     fn test_denoising_adds_noise() {
         let config = AutoencoderConfig::new(4, 2);
-        let mut dae = DenoisingAutoencoder::new(config)
-            .with_noise_factor(0.5);
+        let mut dae = DenoisingAutoencoder::new(config).with_noise_factor(0.5);
         let input = vec![0.5; 4];
         let noisy = dae.add_noise(&input);
         assert_eq!(noisy.len(), 4);
         // At least one value should differ from the original.
-        let any_different = noisy.iter().zip(input.iter()).any(|(n, o)| (n - o).abs() > 1e-10);
+        let any_different = noisy
+            .iter()
+            .zip(input.iter())
+            .any(|(n, o)| (n - o).abs() > 1e-10);
         assert!(any_different);
     }
 

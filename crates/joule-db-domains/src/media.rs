@@ -648,17 +648,9 @@ mod freq_encoder_tests {
         let encoder = FrequencyDomainEncoder::new(DIMENSION);
 
         // Low frequency image (smooth)
-        let smooth: Vec<(u32, u32, f32)> = vec![
-            (0, 0, 200.0),
-            (1, 0, 5.0),
-            (0, 1, 5.0),
-        ];
+        let smooth: Vec<(u32, u32, f32)> = vec![(0, 0, 200.0), (1, 0, 5.0), (0, 1, 5.0)];
         // High frequency image (textured)
-        let textured: Vec<(u32, u32, f32)> = vec![
-            (0, 0, 50.0),
-            (30, 30, 20.0),
-            (25, 25, 15.0),
-        ];
+        let textured: Vec<(u32, u32, f32)> = vec![(0, 0, 50.0), (30, 30, 20.0), (25, 25, 15.0)];
 
         let hv1 = encoder.encode_image_coefficients(&smooth, 64, 64);
         let hv2 = encoder.encode_image_coefficients(&textured, 64, 64);
@@ -676,11 +668,7 @@ mod freq_encoder_tests {
         let encoder = FrequencyDomainEncoder::new(DIMENSION);
 
         // Bass-heavy audio
-        let bass: Vec<(u32, u32, f32)> = vec![
-            (0, 5, 50.0),
-            (1, 3, 40.0),
-            (2, 7, 30.0),
-        ];
+        let bass: Vec<(u32, u32, f32)> = vec![(0, 5, 50.0), (1, 3, 40.0), (2, 7, 30.0)];
 
         let hv = encoder.encode_audio_coefficients(&bass, 1024);
         // Should produce a valid hologram

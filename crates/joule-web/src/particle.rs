@@ -30,7 +30,11 @@ impl Particle {
 
     /// Normalized age in [0, 1].
     pub fn normalized_age(&self) -> f64 {
-        if self.lifetime <= 0.0 { 1.0 } else { (self.age / self.lifetime).min(1.0) }
+        if self.lifetime <= 0.0 {
+            1.0
+        } else {
+            (self.age / self.lifetime).min(1.0)
+        }
     }
 
     /// Is this particle dead?
@@ -48,7 +52,9 @@ struct Rng {
 
 impl Rng {
     fn new(seed: u64) -> Self {
-        Self { state: if seed == 0 { 1 } else { seed } }
+        Self {
+            state: if seed == 0 { 1 } else { seed },
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -81,15 +87,9 @@ pub enum Affector {
     /// Drag coefficient — velocity *= (1 - drag * dt).
     Drag(f64),
     /// Lerp color from `start` to `end` over the particle's life.
-    ColorOverLife {
-        start: [f64; 4],
-        end: [f64; 4],
-    },
+    ColorOverLife { start: [f64; 4], end: [f64; 4] },
     /// Lerp size from `start` to `end` over the particle's life.
-    SizeOverLife {
-        start: f64,
-        end: f64,
-    },
+    SizeOverLife { start: f64, end: f64 },
 }
 
 impl Affector {
@@ -276,7 +276,11 @@ impl ParticleEmitter {
             let sin_spread = (1.0 - cos_spread * cos_spread).sqrt();
 
             // Find a perpendicular basis.
-            let up = if base.y.abs() < 0.99 { Vec3::up() } else { Vec3::right() };
+            let up = if base.y.abs() < 0.99 {
+                Vec3::up()
+            } else {
+                Vec3::right()
+            };
             let t = base.cross(&up).normalize();
             let b = base.cross(&t);
 
@@ -383,7 +387,10 @@ mod tests {
     fn size_over_life() {
         let mut p = Particle::new(Vec3::zero(), Vec3::zero(), 2.0);
         p.age = 2.0; // 100%
-        let aff = Affector::SizeOverLife { start: 2.0, end: 0.0 };
+        let aff = Affector::SizeOverLife {
+            start: 2.0,
+            end: 0.0,
+        };
         aff.apply(&mut p, 0.0);
         assert!((p.size).abs() < EPS);
     }
@@ -416,7 +423,10 @@ mod tests {
         emitter.lifetime_range = (10.0, 10.0);
         emitter.burst(100);
         // At least some particles should be offset from origin.
-        let any_offset = emitter.particles().iter().any(|p| p.position.length() > 0.01);
+        let any_offset = emitter
+            .particles()
+            .iter()
+            .any(|p| p.position.length() > 0.01);
         assert!(any_offset);
     }
 }

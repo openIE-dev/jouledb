@@ -802,7 +802,11 @@ mod tests {
         let mut tree = RedBlackTree::new();
         for i in 0..50 {
             tree.insert(i, i);
-            assert!(tree.validate().is_ok(), "Validation failed after inserting {}", i);
+            assert!(
+                tree.validate().is_ok(),
+                "Validation failed after inserting {}",
+                i
+            );
         }
     }
 
@@ -840,7 +844,11 @@ mod tests {
         }
         for i in (0..30).step_by(3) {
             tree.delete(&i);
-            assert!(tree.validate().is_ok(), "Validation failed after deleting {}", i);
+            assert!(
+                tree.validate().is_ok(),
+                "Validation failed after deleting {}",
+                i
+            );
         }
         assert_eq!(tree.len(), 20);
     }

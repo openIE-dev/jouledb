@@ -19,7 +19,7 @@ pub struct HistConfig {
     pub title: Option<String>,
     pub x_label: Option<String>,
     pub y_label: Option<String>,
-    pub density: bool,       // normalize to probability density
+    pub density: bool, // normalize to probability density
     pub cumulative: bool,
     pub orientation: Orientation,
 }
@@ -61,7 +61,9 @@ pub enum Orientation {
 /// Compute bin edges and counts.
 pub fn histogram_bins(data: &[f64], method: &BinMethod) -> (Vec<f64>, Vec<usize>) {
     let n = data.len();
-    if n == 0 { return (vec![], vec![]); }
+    if n == 0 {
+        return (vec![], vec![]);
+    }
 
     let mut sorted = data.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -80,7 +82,11 @@ pub fn histogram_bins(data: &[f64], method: &BinMethod) -> (Vec<f64>, Vec<usize>
         BinMethod::FreedmanDiaconis => {
             let iqr = percentile(&sorted, 0.75) - percentile(&sorted, 0.25);
             let bw = 2.0 * iqr / (n as f64).cbrt();
-            if bw > 0.0 { (range / bw).ceil() as usize } else { (n as f64).sqrt() as usize }
+            if bw > 0.0 {
+                (range / bw).ceil() as usize
+            } else {
+                (n as f64).sqrt() as usize
+            }
         }
         BinMethod::Auto => {
             // Use Freedman-Diaconis if IQR > 0, else Sturges
@@ -92,7 +98,8 @@ pub fn histogram_bins(data: &[f64], method: &BinMethod) -> (Vec<f64>, Vec<usize>
                 (1.0 + (n as f64).log2()).ceil() as usize
             }
         }
-    }.max(1);
+    }
+    .max(1);
 
     let bin_width = range / n_bins as f64;
     let edges: Vec<f64> = (0..=n_bins).map(|i| min + i as f64 * bin_width).collect();
@@ -110,7 +117,9 @@ pub fn histogram_bins(data: &[f64], method: &BinMethod) -> (Vec<f64>, Vec<usize>
 /// Render a histogram to SVG.
 pub fn histogram_svg(data: &[f64], config: &HistConfig) -> String {
     let (edges, counts) = histogram_bins(data, &config.bins);
-    if edges.is_empty() { return "<svg></svg>".to_string(); }
+    if edges.is_empty() {
+        return "<svg></svg>".to_string();
+    }
 
     let n_bins = counts.len();
     let max_count = *counts.iter().max().unwrap_or(&1) as f64;
@@ -171,7 +180,8 @@ pub fn histogram_svg(data: &[f64], config: &HistConfig) -> String {
     if let Some(xl) = &config.x_label {
         svg.push_str(&format!(
             "<text x=\"{}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"12\">{xl}</text>",
-            config.width / 2.0, config.height - 5.0
+            config.width / 2.0,
+            config.height - 5.0
         ));
     }
 
@@ -199,7 +209,15 @@ pub fn box_stats(data: &[f64]) -> BoxStats {
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let n = sorted.len();
     if n == 0 {
-        return BoxStats { min: 0.0, q1: 0.0, median: 0.0, q3: 0.0, max: 0.0, outliers: vec![], mean: None };
+        return BoxStats {
+            min: 0.0,
+            q1: 0.0,
+            median: 0.0,
+            q3: 0.0,
+            max: 0.0,
+            outliers: vec![],
+            mean: None,
+        };
     }
 
     let q1 = percentile(&sorted, 0.25);
@@ -209,16 +227,42 @@ pub fn box_stats(data: &[f64]) -> BoxStats {
     let lower_fence = q1 - 1.5 * iqr;
     let upper_fence = q3 + 1.5 * iqr;
 
-    let whisker_lo = sorted.iter().copied().find(|&v| v >= lower_fence).unwrap_or(sorted[0]);
-    let whisker_hi = sorted.iter().rev().copied().find(|&v| v <= upper_fence).unwrap_or(sorted[n - 1]);
-    let outliers: Vec<f64> = sorted.iter().copied().filter(|&v| v < lower_fence || v > upper_fence).collect();
+    let whisker_lo = sorted
+        .iter()
+        .copied()
+        .find(|&v| v >= lower_fence)
+        .unwrap_or(sorted[0]);
+    let whisker_hi = sorted
+        .iter()
+        .rev()
+        .copied()
+        .find(|&v| v <= upper_fence)
+        .unwrap_or(sorted[n - 1]);
+    let outliers: Vec<f64> = sorted
+        .iter()
+        .copied()
+        .filter(|&v| v < lower_fence || v > upper_fence)
+        .collect();
     let mean = Some(sorted.iter().sum::<f64>() / n as f64);
 
-    BoxStats { min: whisker_lo, q1, median, q3, max: whisker_hi, outliers, mean }
+    BoxStats {
+        min: whisker_lo,
+        q1,
+        median,
+        q3,
+        max: whisker_hi,
+        outliers,
+        mean,
+    }
 }
 
 /// Render boxplots to SVG.
-pub fn boxplot_svg(groups: &[(&str, &[f64])], width: f64, height: f64, title: Option<&str>) -> String {
+pub fn boxplot_svg(
+    groups: &[(&str, &[f64])],
+    width: f64,
+    height: f64,
+    title: Option<&str>,
+) -> String {
     let padding = 60.0;
     let plot_w = width - 2.0 * padding;
     let plot_h = height - 2.0 * padding;
@@ -228,8 +272,20 @@ pub fn boxplot_svg(groups: &[(&str, &[f64])], width: f64, height: f64, title: Op
 
     // Compute global range
     let stats: Vec<BoxStats> = groups.iter().map(|(_, d)| box_stats(d)).collect();
-    let global_min = stats.iter().map(|s| s.min.min(s.outliers.iter().copied().fold(f64::INFINITY, f64::min))).fold(f64::INFINITY, f64::min);
-    let global_max = stats.iter().map(|s| s.max.max(s.outliers.iter().copied().fold(f64::NEG_INFINITY, f64::max))).fold(f64::NEG_INFINITY, f64::max);
+    let global_min = stats
+        .iter()
+        .map(|s| {
+            s.min
+                .min(s.outliers.iter().copied().fold(f64::INFINITY, f64::min))
+        })
+        .fold(f64::INFINITY, f64::min);
+    let global_max = stats
+        .iter()
+        .map(|s| {
+            s.max
+                .max(s.outliers.iter().copied().fold(f64::NEG_INFINITY, f64::max))
+        })
+        .fold(f64::NEG_INFINITY, f64::max);
     let data_range = (global_max - global_min).max(1e-10);
     let y_min = global_min - data_range * 0.05;
     let y_max = global_max + data_range * 0.05;
@@ -237,7 +293,8 @@ pub fn boxplot_svg(groups: &[(&str, &[f64])], width: f64, height: f64, title: Op
 
     let to_y = |v: f64| -> f64 { padding + plot_h - (v - y_min) / y_range * plot_h };
 
-    let mut svg = format!("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\">");
+    let mut svg =
+        format!("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\">");
     svg.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
 
     if let Some(t) = title {
@@ -316,7 +373,12 @@ pub fn boxplot_svg(groups: &[(&str, &[f64])], width: f64, height: f64, title: Op
 // ── Violin plot ────────────────────────────────────────────────────
 
 /// Render violin plots to SVG (mirrored KDE + boxplot).
-pub fn violin_svg(groups: &[(&str, &[f64])], width: f64, height: f64, title: Option<&str>) -> String {
+pub fn violin_svg(
+    groups: &[(&str, &[f64])],
+    width: f64,
+    height: f64,
+    title: Option<&str>,
+) -> String {
     let padding = 60.0;
     let plot_w = width - 2.0 * padding;
     let plot_h = height - 2.0 * padding;
@@ -335,7 +397,8 @@ pub fn violin_svg(groups: &[(&str, &[f64])], width: f64, height: f64, title: Opt
 
     let to_y = |v: f64| -> f64 { padding + plot_h - (v - y_min) / y_range * plot_h };
 
-    let mut svg = format!("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\">");
+    let mut svg =
+        format!("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\">");
     svg.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
 
     if let Some(t) = title {
@@ -350,7 +413,9 @@ pub fn violin_svg(groups: &[(&str, &[f64])], width: f64, height: f64, title: Opt
 
         // KDE
         let n_eval = 50;
-        let eval_points: Vec<f64> = (0..n_eval).map(|j| y_min + (j as f64 / (n_eval - 1) as f64) * y_range).collect();
+        let eval_points: Vec<f64> = (0..n_eval)
+            .map(|j| y_min + (j as f64 / (n_eval - 1) as f64) * y_range)
+            .collect();
         let bw = kde_bandwidth(data);
         let densities: Vec<f64> = eval_points.iter().map(|&y| kde_at(data, y, bw)).collect();
         let max_density = densities.iter().copied().fold(0.0f64, f64::max).max(1e-10);
@@ -403,7 +468,9 @@ pub fn violin_svg(groups: &[(&str, &[f64])], width: f64, height: f64, title: Opt
 /// Silverman's rule of thumb for bandwidth.
 pub fn kde_bandwidth(data: &[f64]) -> f64 {
     let n = data.len() as f64;
-    if n < 2.0 { return 1.0; }
+    if n < 2.0 {
+        return 1.0;
+    }
     let std = std_dev(data);
     let mut sorted = data.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -417,15 +484,19 @@ pub fn kde_at(data: &[f64], x: f64, bandwidth: f64) -> f64 {
     let n = data.len() as f64;
     let inv_bw = 1.0 / bandwidth;
     let norm = 1.0 / (n * bandwidth * (2.0 * std::f64::consts::PI).sqrt());
-    data.iter().map(|&xi| {
-        let u = (x - xi) * inv_bw;
-        norm * (-0.5 * u * u).exp()
-    }).sum()
+    data.iter()
+        .map(|&xi| {
+            let u = (x - xi) * inv_bw;
+            norm * (-0.5 * u * u).exp()
+        })
+        .sum()
 }
 
 /// Evaluate KDE over a grid of points.
 pub fn kde_curve(data: &[f64], n_points: usize) -> (Vec<f64>, Vec<f64>) {
-    if data.is_empty() { return (vec![], vec![]); }
+    if data.is_empty() {
+        return (vec![], vec![]);
+    }
     let mut sorted = data.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let min = sorted[0];
@@ -433,7 +504,9 @@ pub fn kde_curve(data: &[f64], n_points: usize) -> (Vec<f64>, Vec<f64>) {
     let bw = kde_bandwidth(data);
     let pad = 3.0 * bw;
 
-    let xs: Vec<f64> = (0..n_points).map(|i| (min - pad) + (max - min + 2.0 * pad) * i as f64 / (n_points - 1) as f64).collect();
+    let xs: Vec<f64> = (0..n_points)
+        .map(|i| (min - pad) + (max - min + 2.0 * pad) * i as f64 / (n_points - 1) as f64)
+        .collect();
     let ys: Vec<f64> = xs.iter().map(|&x| kde_at(data, x, bw)).collect();
     (xs, ys)
 }
@@ -445,7 +518,9 @@ pub fn qq_svg(data: &[f64], width: f64, height: f64, title: Option<&str>) -> Str
     let mut sorted = data.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let n = sorted.len();
-    if n < 2 { return "<svg></svg>".to_string(); }
+    if n < 2 {
+        return "<svg></svg>".to_string();
+    }
 
     let mean = sorted.iter().sum::<f64>() / n as f64;
     let std = std_dev(data);
@@ -454,10 +529,12 @@ pub fn qq_svg(data: &[f64], width: f64, height: f64, title: Option<&str>) -> Str
     let plot_h = height - 2.0 * padding;
 
     // Theoretical quantiles (normal distribution via approximation)
-    let theoretical: Vec<f64> = (0..n).map(|i| {
-        let p = (i as f64 + 0.5) / n as f64;
-        normal_ppf(p) // standard normal quantile
-    }).collect();
+    let theoretical: Vec<f64> = (0..n)
+        .map(|i| {
+            let p = (i as f64 + 0.5) / n as f64;
+            normal_ppf(p) // standard normal quantile
+        })
+        .collect();
 
     let t_min = theoretical[0];
     let t_max = theoretical[n - 1];
@@ -465,9 +542,11 @@ pub fn qq_svg(data: &[f64], width: f64, height: f64, title: Option<&str>) -> Str
     let s_max = sorted[n - 1];
 
     let to_x = |t: f64| -> f64 { padding + (t - t_min) / (t_max - t_min) * plot_w };
-    let to_y = |s: f64| -> f64 { padding + plot_h - (s - s_min) / (s_max - s_min).max(1e-10) * plot_h };
+    let to_y =
+        |s: f64| -> f64 { padding + plot_h - (s - s_min) / (s_max - s_min).max(1e-10) * plot_h };
 
-    let mut svg = format!("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\">");
+    let mut svg =
+        format!("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\">");
     svg.push_str("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>");
 
     if let Some(t) = title {
@@ -489,7 +568,8 @@ pub fn qq_svg(data: &[f64], width: f64, height: f64, title: Option<&str>) -> Str
     for (i, (&t, &s)) in theoretical.iter().zip(sorted.iter()).enumerate() {
         svg.push_str(&format!(
             "<circle cx=\"{:.1}\" cy=\"{:.1}\" r=\"3\" fill=\"#4C78A8\" fill-opacity=\"0.7\"/>",
-            to_x(t), to_y(s)
+            to_x(t),
+            to_y(s)
         ));
     }
 
@@ -506,7 +586,9 @@ pub fn qq_svg(data: &[f64], width: f64, height: f64, title: Option<&str>) -> Str
 // ── Helpers ────────────────────────────────────────────────────────
 
 fn percentile(sorted: &[f64], p: f64) -> f64 {
-    if sorted.is_empty() { return 0.0; }
+    if sorted.is_empty() {
+        return 0.0;
+    }
     let idx = p * (sorted.len() - 1) as f64;
     let lo = idx.floor() as usize;
     let hi = idx.ceil() as usize;
@@ -516,7 +598,9 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
 
 fn std_dev(data: &[f64]) -> f64 {
     let n = data.len() as f64;
-    if n < 2.0 { return 0.0; }
+    if n < 2.0 {
+        return 0.0;
+    }
     let mean = data.iter().sum::<f64>() / n;
     let var = data.iter().map(|&x| (x - mean) * (x - mean)).sum::<f64>() / (n - 1.0);
     var.sqrt()
@@ -524,9 +608,15 @@ fn std_dev(data: &[f64]) -> f64 {
 
 /// Approximate inverse normal CDF (Abramowitz & Stegun rational approximation).
 fn normal_ppf(p: f64) -> f64 {
-    if p <= 0.0 { return -6.0; }
-    if p >= 1.0 { return 6.0; }
-    if (p - 0.5).abs() < 1e-15 { return 0.0; }
+    if p <= 0.0 {
+        return -6.0;
+    }
+    if p >= 1.0 {
+        return 6.0;
+    }
+    if (p - 0.5).abs() < 1e-15 {
+        return 0.0;
+    }
 
     let t = if p < 0.5 {
         (-2.0 * p.ln()).sqrt()
@@ -554,8 +644,10 @@ mod tests {
     use super::*;
 
     fn sample_data() -> Vec<f64> {
-        vec![2.3, 4.1, 3.7, 5.2, 1.8, 4.5, 3.2, 6.1, 2.9, 4.8,
-             3.5, 5.7, 2.1, 4.3, 3.9, 5.5, 1.5, 4.0, 3.3, 6.5]
+        vec![
+            2.3, 4.1, 3.7, 5.2, 1.8, 4.5, 3.2, 6.1, 2.9, 4.8, 3.5, 5.7, 2.1, 4.3, 3.9, 5.5, 1.5,
+            4.0, 3.3, 6.5,
+        ]
     }
 
     #[test]

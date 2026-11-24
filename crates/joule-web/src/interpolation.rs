@@ -21,11 +21,17 @@ pub enum Extrapolation {
 // ── Linear interpolation ─────────────────────────────────────────
 
 /// Linear interpolation between two values at parameter t in [0,1].
-pub fn lerp(a: f64, b: f64, t: f64) -> f64 { a + (b - a) * t }
+pub fn lerp(a: f64, b: f64, t: f64) -> f64 {
+    a + (b - a) * t
+}
 
 /// Inverse lerp: given value v in [a,b], returns t in [0,1].
 pub fn inverse_lerp(a: f64, b: f64, v: f64) -> f64 {
-    if (b - a).abs() < 1e-15 { 0.0 } else { (v - a) / (b - a) }
+    if (b - a).abs() < 1e-15 {
+        0.0
+    } else {
+        (v - a) / (b - a)
+    }
 }
 
 /// Piecewise linear interpolation on sorted (xs, ys) data.
@@ -36,15 +42,17 @@ pub fn linear_interp(xs: &[f64], ys: &[f64], x: f64, extrap: Extrapolation) -> f
     if x < xs[0] {
         return match extrap {
             Extrapolation::Clamp => ys[0],
-            Extrapolation::Linear => ys[0] + (ys[1]-ys[0])/(xs[1]-xs[0]) * (x-xs[0]),
+            Extrapolation::Linear => ys[0] + (ys[1] - ys[0]) / (xs[1] - xs[0]) * (x - xs[0]),
             Extrapolation::Nan => f64::NAN,
         };
     }
     let n = xs.len();
     if x > xs[n - 1] {
         return match extrap {
-            Extrapolation::Clamp => ys[n-1],
-            Extrapolation::Linear => ys[n-1] + (ys[n-1]-ys[n-2])/(xs[n-1]-xs[n-2]) * (x-xs[n-1]),
+            Extrapolation::Clamp => ys[n - 1],
+            Extrapolation::Linear => {
+                ys[n - 1] + (ys[n - 1] - ys[n - 2]) / (xs[n - 1] - xs[n - 2]) * (x - xs[n - 1])
+            }
             Extrapolation::Nan => f64::NAN,
         };
     }
@@ -57,10 +65,24 @@ pub fn linear_interp(xs: &[f64], ys: &[f64], x: f64, extrap: Extrapolation) -> f
 /// Find interval index i such that xs[i] <= x < xs[i+1].
 fn find_interval(xs: &[f64], x: f64) -> usize {
     let n = xs.len();
-    if x >= xs[n - 1] { return n - 2; }
+    if x >= xs[n - 1] {
+        return n - 2;
+    }
     match xs.binary_search_by(|v| v.partial_cmp(&x).unwrap()) {
-        Ok(i) => if i >= n - 1 { n - 2 } else { i },
-        Err(i) => if i == 0 { 0 } else { i - 1 },
+        Ok(i) => {
+            if i >= n - 1 {
+                n - 2
+            } else {
+                i
+            }
+        }
+        Err(i) => {
+            if i == 0 {
+                0
+            } else {
+                i - 1
+            }
+        }
     }
 }
 
@@ -85,39 +107,51 @@ impl CubicSpline {
 
         if n == 2 {
             let slope = (ys[1] - ys[0]) / (xs[1] - xs[0]);
-            return Self { xs: xs.to_vec(), a: vec![ys[0]], b: vec![slope], c: vec![0.0], d: vec![0.0] };
+            return Self {
+                xs: xs.to_vec(),
+                a: vec![ys[0]],
+                b: vec![slope],
+                c: vec![0.0],
+                d: vec![0.0],
+            };
         }
 
         let segs = n - 1;
         let mut h = vec![0.0; segs];
-        for i in 0..segs { h[i] = xs[i + 1] - xs[i]; }
+        for i in 0..segs {
+            h[i] = xs[i + 1] - xs[i];
+        }
 
         let mut alpha = vec![0.0; n];
         for i in 1..segs {
-            alpha[i] = 3.0/h[i]*(ys[i+1]-ys[i]) - 3.0/h[i-1]*(ys[i]-ys[i-1]);
+            alpha[i] = 3.0 / h[i] * (ys[i + 1] - ys[i]) - 3.0 / h[i - 1] * (ys[i] - ys[i - 1]);
         }
 
         let mut l = vec![1.0; n];
         let mut mu = vec![0.0; n];
         let mut z = vec![0.0; n];
         for i in 1..segs {
-            l[i] = 2.0*(xs[i+1]-xs[i-1]) - h[i-1]*mu[i-1];
+            l[i] = 2.0 * (xs[i + 1] - xs[i - 1]) - h[i - 1] * mu[i - 1];
             mu[i] = h[i] / l[i];
-            z[i] = (alpha[i] - h[i-1]*z[i-1]) / l[i];
+            z[i] = (alpha[i] - h[i - 1] * z[i - 1]) / l[i];
         }
 
         let mut c_coeff = vec![0.0; n];
         let mut b_coeff = vec![0.0; segs];
         let mut d_coeff = vec![0.0; segs];
         for j in (0..segs).rev() {
-            c_coeff[j] = z[j] - mu[j]*c_coeff[j+1];
-            b_coeff[j] = (ys[j+1]-ys[j])/h[j] - h[j]*(c_coeff[j+1]+2.0*c_coeff[j])/3.0;
-            d_coeff[j] = (c_coeff[j+1]-c_coeff[j])/(3.0*h[j]);
+            c_coeff[j] = z[j] - mu[j] * c_coeff[j + 1];
+            b_coeff[j] =
+                (ys[j + 1] - ys[j]) / h[j] - h[j] * (c_coeff[j + 1] + 2.0 * c_coeff[j]) / 3.0;
+            d_coeff[j] = (c_coeff[j + 1] - c_coeff[j]) / (3.0 * h[j]);
         }
 
         Self {
-            xs: xs.to_vec(), a: ys[..segs].to_vec(),
-            b: b_coeff, c: c_coeff[..segs].to_vec(), d: d_coeff,
+            xs: xs.to_vec(),
+            a: ys[..segs].to_vec(),
+            b: b_coeff,
+            c: c_coeff[..segs].to_vec(),
+            d: d_coeff,
         }
     }
 
@@ -127,19 +161,23 @@ impl CubicSpline {
         if x < self.xs[0] {
             return match extrap {
                 Extrapolation::Clamp => self.a[0],
-                Extrapolation::Linear => self.a[0] + self.b[0]*(x - self.xs[0]),
+                Extrapolation::Linear => self.a[0] + self.b[0] * (x - self.xs[0]),
                 Extrapolation::Nan => f64::NAN,
             };
         }
         if x > self.xs[n - 1] {
             let last = self.a.len() - 1;
-            let dx = self.xs[n-1] - self.xs[n-2];
-            let y_end = self.a[last]+self.b[last]*dx+self.c[last]*dx*dx+self.d[last]*dx*dx*dx;
+            let dx = self.xs[n - 1] - self.xs[n - 2];
+            let y_end = self.a[last]
+                + self.b[last] * dx
+                + self.c[last] * dx * dx
+                + self.d[last] * dx * dx * dx;
             return match extrap {
                 Extrapolation::Clamp => y_end,
                 Extrapolation::Linear => {
-                    let slope = self.b[last]+2.0*self.c[last]*dx+3.0*self.d[last]*dx*dx;
-                    y_end + slope*(x - self.xs[n-1])
+                    let slope =
+                        self.b[last] + 2.0 * self.c[last] * dx + 3.0 * self.d[last] * dx * dx;
+                    y_end + slope * (x - self.xs[n - 1])
                 }
                 Extrapolation::Nan => f64::NAN,
             };
@@ -147,7 +185,7 @@ impl CubicSpline {
 
         let i = find_interval(&self.xs, x);
         let dx = x - self.xs[i];
-        self.a[i] + self.b[i]*dx + self.c[i]*dx*dx + self.d[i]*dx*dx*dx
+        self.a[i] + self.b[i] * dx + self.c[i] * dx * dx + self.d[i] * dx * dx * dx
     }
 
     /// Evaluate derivative at x.
@@ -156,10 +194,12 @@ impl CubicSpline {
         let x_clamped = x.clamp(self.xs[0], self.xs[n - 1]);
         let i = find_interval(&self.xs, x_clamped);
         let dx = x_clamped - self.xs[i];
-        self.b[i] + 2.0*self.c[i]*dx + 3.0*self.d[i]*dx*dx
+        self.b[i] + 2.0 * self.c[i] * dx + 3.0 * self.d[i] * dx * dx
     }
 
-    pub fn segments(&self) -> usize { self.a.len() }
+    pub fn segments(&self) -> usize {
+        self.a.len()
+    }
 }
 
 // ── Lagrange polynomial ──────────────────────────────────────────
@@ -173,7 +213,9 @@ pub fn lagrange(xs: &[f64], ys: &[f64], x: f64) -> f64 {
     for i in 0..n {
         let mut basis = 1.0;
         for j in 0..n {
-            if i != j { basis *= (x - xs[j]) / (xs[i] - xs[j]); }
+            if i != j {
+                basis *= (x - xs[j]) / (xs[i] - xs[j]);
+            }
         }
         result += ys[i] * basis;
     }
@@ -211,7 +253,10 @@ impl NewtonInterp {
             coeffs.push(dd[j]);
         }
 
-        Self { xs: xs.to_vec(), coeffs }
+        Self {
+            xs: xs.to_vec(),
+            coeffs,
+        }
     }
 
     /// Evaluate the Newton polynomial at x using Horner's method.
@@ -226,7 +271,11 @@ impl NewtonInterp {
 
     /// Degree of the interpolating polynomial.
     pub fn degree(&self) -> usize {
-        if self.coeffs.is_empty() { 0 } else { self.coeffs.len() - 1 }
+        if self.coeffs.is_empty() {
+            0
+        } else {
+            self.coeffs.len() - 1
+        }
     }
 }
 
@@ -251,37 +300,47 @@ impl BilinearGrid {
         let ny = self.ys.len();
 
         let x_clamped = match extrap {
-            Extrapolation::Clamp => x.clamp(self.xs[0], self.xs[nx-1]),
+            Extrapolation::Clamp => x.clamp(self.xs[0], self.xs[nx - 1]),
             Extrapolation::Nan => {
-                if x < self.xs[0] || x > self.xs[nx-1] { return f64::NAN; }
+                if x < self.xs[0] || x > self.xs[nx - 1] {
+                    return f64::NAN;
+                }
                 x
             }
             Extrapolation::Linear => x,
         };
         let y_clamped = match extrap {
-            Extrapolation::Clamp => y.clamp(self.ys[0], self.ys[ny-1]),
+            Extrapolation::Clamp => y.clamp(self.ys[0], self.ys[ny - 1]),
             Extrapolation::Nan => {
-                if y < self.ys[0] || y > self.ys[ny-1] { return f64::NAN; }
+                if y < self.ys[0] || y > self.ys[ny - 1] {
+                    return f64::NAN;
+                }
                 y
             }
             Extrapolation::Linear => y,
         };
 
-        let xc = x_clamped.clamp(self.xs[0], self.xs[nx-1]);
-        let yc = y_clamped.clamp(self.ys[0], self.ys[ny-1]);
+        let xc = x_clamped.clamp(self.xs[0], self.xs[nx - 1]);
+        let yc = y_clamped.clamp(self.ys[0], self.ys[ny - 1]);
 
         let ix = find_interval(&self.xs, xc);
         let iy = find_interval(&self.ys, yc);
 
-        let tx = if (self.xs[ix+1]-self.xs[ix]).abs() < 1e-15 { 0.0 }
-                 else { (xc-self.xs[ix])/(self.xs[ix+1]-self.xs[ix]) };
-        let ty = if (self.ys[iy+1]-self.ys[iy]).abs() < 1e-15 { 0.0 }
-                 else { (yc-self.ys[iy])/(self.ys[iy+1]-self.ys[iy]) };
+        let tx = if (self.xs[ix + 1] - self.xs[ix]).abs() < 1e-15 {
+            0.0
+        } else {
+            (xc - self.xs[ix]) / (self.xs[ix + 1] - self.xs[ix])
+        };
+        let ty = if (self.ys[iy + 1] - self.ys[iy]).abs() < 1e-15 {
+            0.0
+        } else {
+            (yc - self.ys[iy]) / (self.ys[iy + 1] - self.ys[iy])
+        };
 
-        let c00 = self.values[iy*nx+ix];
-        let c10 = self.values[iy*nx+ix+1];
-        let c01 = self.values[(iy+1)*nx+ix];
-        let c11 = self.values[(iy+1)*nx+ix+1];
+        let c00 = self.values[iy * nx + ix];
+        let c10 = self.values[iy * nx + ix + 1];
+        let c01 = self.values[(iy + 1) * nx + ix];
+        let c11 = self.values[(iy + 1) * nx + ix + 1];
 
         lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty)
     }
@@ -296,7 +355,10 @@ pub fn nearest_neighbor(xs: &[f64], ys: &[f64], x: f64) -> f64 {
     let mut best_d = (x - xs[0]).abs();
     for i in 1..xs.len() {
         let d = (x - xs[i]).abs();
-        if d < best_d { best_d = d; best_i = i; }
+        if d < best_d {
+            best_d = d;
+            best_i = i;
+        }
     }
     ys[best_i]
 }
@@ -311,7 +373,10 @@ pub fn nearest_neighbor_multi(xs: &[f64], ys: &[f64], pts: &[f64]) -> Vec<f64> {
 pub fn hermite(p0: f64, m0: f64, p1: f64, m1: f64, t: f64) -> f64 {
     let t2 = t * t;
     let t3 = t2 * t;
-    (2.0*t3-3.0*t2+1.0)*p0 + (t3-2.0*t2+t)*m0 + (-2.0*t3+3.0*t2)*p1 + (t3-t2)*m1
+    (2.0 * t3 - 3.0 * t2 + 1.0) * p0
+        + (t3 - 2.0 * t2 + t) * m0
+        + (-2.0 * t3 + 3.0 * t2) * p1
+        + (t3 - t2) * m1
 }
 
 /// Piecewise Hermite interpolation with specified tangents.
@@ -336,12 +401,15 @@ impl HermiteSpline {
         assert!(n >= 2);
         let mut tangents = vec![0.0; n];
         if n == 2 {
-            let s = (ys[1]-ys[0])/(xs[1]-xs[0]);
-            tangents[0] = s; tangents[1] = s;
+            let s = (ys[1] - ys[0]) / (xs[1] - xs[0]);
+            tangents[0] = s;
+            tangents[1] = s;
         } else {
-            tangents[0] = (ys[1]-ys[0])/(xs[1]-xs[0]);
-            tangents[n-1] = (ys[n-1]-ys[n-2])/(xs[n-1]-xs[n-2]);
-            for i in 1..n-1 { tangents[i] = (ys[i+1]-ys[i-1])/(xs[i+1]-xs[i-1]); }
+            tangents[0] = (ys[1] - ys[0]) / (xs[1] - xs[0]);
+            tangents[n - 1] = (ys[n - 1] - ys[n - 2]) / (xs[n - 1] - xs[n - 2]);
+            for i in 1..n - 1 {
+                tangents[i] = (ys[i + 1] - ys[i - 1]) / (xs[i + 1] - xs[i - 1]);
+            }
         }
         Self { xs, ys, tangents }
     }
@@ -351,21 +419,29 @@ impl HermiteSpline {
         if x < self.xs[0] {
             return match extrap {
                 Extrapolation::Clamp => self.ys[0],
-                Extrapolation::Linear => self.ys[0]+self.tangents[0]*(x-self.xs[0]),
+                Extrapolation::Linear => self.ys[0] + self.tangents[0] * (x - self.xs[0]),
                 Extrapolation::Nan => f64::NAN,
             };
         }
-        if x > self.xs[n-1] {
+        if x > self.xs[n - 1] {
             return match extrap {
-                Extrapolation::Clamp => self.ys[n-1],
-                Extrapolation::Linear => self.ys[n-1]+self.tangents[n-1]*(x-self.xs[n-1]),
+                Extrapolation::Clamp => self.ys[n - 1],
+                Extrapolation::Linear => {
+                    self.ys[n - 1] + self.tangents[n - 1] * (x - self.xs[n - 1])
+                }
                 Extrapolation::Nan => f64::NAN,
             };
         }
         let i = find_interval(&self.xs, x);
-        let h = self.xs[i+1] - self.xs[i];
+        let h = self.xs[i + 1] - self.xs[i];
         let t = (x - self.xs[i]) / h;
-        hermite(self.ys[i], self.tangents[i]*h, self.ys[i+1], self.tangents[i+1]*h, t)
+        hermite(
+            self.ys[i],
+            self.tangents[i] * h,
+            self.ys[i + 1],
+            self.tangents[i + 1] * h,
+            t,
+        )
     }
 }
 
@@ -397,14 +473,21 @@ pub fn leave_one_out_error(xs: &[f64], ys: &[f64], method: InterpolationMethod) 
     assert!(n >= 3);
     let mut total_err = 0.0;
     for skip in 0..n {
-        let mut xs_sub = Vec::with_capacity(n-1);
-        let mut ys_sub = Vec::with_capacity(n-1);
+        let mut xs_sub = Vec::with_capacity(n - 1);
+        let mut ys_sub = Vec::with_capacity(n - 1);
         for j in 0..n {
-            if j != skip { xs_sub.push(xs[j]); ys_sub.push(ys[j]); }
+            if j != skip {
+                xs_sub.push(xs[j]);
+                ys_sub.push(ys[j]);
+            }
         }
         let predicted = match method {
-            InterpolationMethod::Linear => linear_interp(&xs_sub, &ys_sub, xs[skip], Extrapolation::Linear),
-            InterpolationMethod::CubicSpline => CubicSpline::new(&xs_sub, &ys_sub).eval(xs[skip], Extrapolation::Linear),
+            InterpolationMethod::Linear => {
+                linear_interp(&xs_sub, &ys_sub, xs[skip], Extrapolation::Linear)
+            }
+            InterpolationMethod::CubicSpline => {
+                CubicSpline::new(&xs_sub, &ys_sub).eval(xs[skip], Extrapolation::Linear)
+            }
             InterpolationMethod::Lagrange => lagrange(&xs_sub, &ys_sub, xs[skip]),
             InterpolationMethod::NearestNeighbor => nearest_neighbor(&xs_sub, &ys_sub, xs[skip]),
         };
@@ -419,7 +502,9 @@ pub fn leave_one_out_error(xs: &[f64], ys: &[f64], method: InterpolationMethod) 
 mod tests {
     use super::*;
 
-    fn approx_eq(a: f64, b: f64, tol: f64) -> bool { (a - b).abs() < tol }
+    fn approx_eq(a: f64, b: f64, tol: f64) -> bool {
+        (a - b).abs() < tol
+    }
 
     #[test]
     fn test_lerp() {
@@ -437,31 +522,59 @@ mod tests {
     fn test_linear_interp_basic() {
         let xs = vec![0.0, 1.0, 2.0, 3.0];
         let ys = vec![0.0, 1.0, 4.0, 9.0];
-        assert!(approx_eq(linear_interp(&xs, &ys, 0.5, Extrapolation::Clamp), 0.5, 1e-12));
-        assert!(approx_eq(linear_interp(&xs, &ys, 1.5, Extrapolation::Clamp), 2.5, 1e-12));
+        assert!(approx_eq(
+            linear_interp(&xs, &ys, 0.5, Extrapolation::Clamp),
+            0.5,
+            1e-12
+        ));
+        assert!(approx_eq(
+            linear_interp(&xs, &ys, 1.5, Extrapolation::Clamp),
+            2.5,
+            1e-12
+        ));
     }
 
     #[test]
     fn test_linear_interp_exact() {
         let xs = vec![0.0, 1.0, 2.0];
         let ys = vec![0.0, 2.0, 8.0];
-        assert!(approx_eq(linear_interp(&xs, &ys, 1.0, Extrapolation::Clamp), 2.0, 1e-12));
+        assert!(approx_eq(
+            linear_interp(&xs, &ys, 1.0, Extrapolation::Clamp),
+            2.0,
+            1e-12
+        ));
     }
 
     #[test]
     fn test_linear_extrap_clamp() {
         let xs = vec![0.0, 1.0, 2.0];
         let ys = vec![0.0, 1.0, 2.0];
-        assert!(approx_eq(linear_interp(&xs, &ys, -1.0, Extrapolation::Clamp), 0.0, 1e-12));
-        assert!(approx_eq(linear_interp(&xs, &ys, 5.0, Extrapolation::Clamp), 2.0, 1e-12));
+        assert!(approx_eq(
+            linear_interp(&xs, &ys, -1.0, Extrapolation::Clamp),
+            0.0,
+            1e-12
+        ));
+        assert!(approx_eq(
+            linear_interp(&xs, &ys, 5.0, Extrapolation::Clamp),
+            2.0,
+            1e-12
+        ));
     }
 
     #[test]
     fn test_linear_extrap_linear() {
         let xs = vec![0.0, 1.0, 2.0];
         let ys = vec![0.0, 1.0, 2.0];
-        assert!(approx_eq(linear_interp(&xs, &ys, -1.0, Extrapolation::Linear), -1.0, 1e-12));
-        assert!(approx_eq(linear_interp(&xs, &ys, 3.0, Extrapolation::Linear), 3.0, 1e-12));
+        assert!(approx_eq(
+            linear_interp(&xs, &ys, -1.0, Extrapolation::Linear),
+            -1.0,
+            1e-12
+        ));
+        assert!(approx_eq(
+            linear_interp(&xs, &ys, 3.0, Extrapolation::Linear),
+            3.0,
+            1e-12
+        ));
     }
 
     #[test]
@@ -476,17 +589,25 @@ mod tests {
         let xs = vec![0.0, 1.0, 2.0, 3.0];
         let ys = vec![0.0, 1.0, 0.0, 1.0];
         let spline = CubicSpline::new(&xs, &ys);
-        for i in 0..xs.len()-1 {
-            assert!(approx_eq(spline.eval(xs[i], Extrapolation::Clamp), ys[i], 1e-10));
+        for i in 0..xs.len() - 1 {
+            assert!(approx_eq(
+                spline.eval(xs[i], Extrapolation::Clamp),
+                ys[i],
+                1e-10
+            ));
         }
     }
 
     #[test]
     fn test_cubic_spline_smooth() {
         let xs = vec![0.0, 1.0, 2.0, 3.0, 4.0];
-        let ys: Vec<f64> = xs.iter().map(|x| x*x).collect();
+        let ys: Vec<f64> = xs.iter().map(|x| x * x).collect();
         let spline = CubicSpline::new(&xs, &ys);
-        assert!(approx_eq(spline.eval(0.5, Extrapolation::Clamp), 0.25, 0.15));
+        assert!(approx_eq(
+            spline.eval(0.5, Extrapolation::Clamp),
+            0.25,
+            0.15
+        ));
         assert!(approx_eq(spline.eval(2.5, Extrapolation::Clamp), 6.25, 0.1));
     }
 
@@ -494,7 +615,7 @@ mod tests {
     fn test_spline_derivative() {
         // y = x^2, derivative = 2x
         let xs = vec![0.0, 1.0, 2.0, 3.0, 4.0];
-        let ys: Vec<f64> = xs.iter().map(|x| x*x).collect();
+        let ys: Vec<f64> = xs.iter().map(|x| x * x).collect();
         let spline = CubicSpline::new(&xs, &ys);
         assert!(approx_eq(spline.eval_deriv(2.0), 4.0, 0.3));
     }
@@ -502,7 +623,11 @@ mod tests {
     #[test]
     fn test_cubic_spline_two_pts() {
         let spline = CubicSpline::new(&[0.0, 1.0], &[0.0, 1.0]);
-        assert!(approx_eq(spline.eval(0.5, Extrapolation::Clamp), 0.5, 1e-12));
+        assert!(approx_eq(
+            spline.eval(0.5, Extrapolation::Clamp),
+            0.5,
+            1e-12
+        ));
     }
 
     #[test]
@@ -554,22 +679,34 @@ mod tests {
 
     #[test]
     fn test_bilinear_grid() {
-        let grid = BilinearGrid::new(vec![0.0,1.0], vec![0.0,1.0], vec![0.0,1.0,1.0,2.0]);
-        assert!(approx_eq(grid.eval(0.5, 0.5, Extrapolation::Clamp), 1.0, 1e-12));
-        assert!(approx_eq(grid.eval(0.0, 0.0, Extrapolation::Clamp), 0.0, 1e-12));
-        assert!(approx_eq(grid.eval(1.0, 1.0, Extrapolation::Clamp), 2.0, 1e-12));
+        let grid = BilinearGrid::new(vec![0.0, 1.0], vec![0.0, 1.0], vec![0.0, 1.0, 1.0, 2.0]);
+        assert!(approx_eq(
+            grid.eval(0.5, 0.5, Extrapolation::Clamp),
+            1.0,
+            1e-12
+        ));
+        assert!(approx_eq(
+            grid.eval(0.0, 0.0, Extrapolation::Clamp),
+            0.0,
+            1e-12
+        ));
+        assert!(approx_eq(
+            grid.eval(1.0, 1.0, Extrapolation::Clamp),
+            2.0,
+            1e-12
+        ));
     }
 
     #[test]
     fn test_bilinear_clamp() {
-        let grid = BilinearGrid::new(vec![0.0,1.0], vec![0.0,1.0], vec![0.0,1.0,1.0,2.0]);
+        let grid = BilinearGrid::new(vec![0.0, 1.0], vec![0.0, 1.0], vec![0.0, 1.0, 1.0, 2.0]);
         let v = grid.eval(-1.0, 0.5, Extrapolation::Clamp);
         assert!(v.is_finite());
     }
 
     #[test]
     fn test_bilinear_nan() {
-        let grid = BilinearGrid::new(vec![0.0,1.0], vec![0.0,1.0], vec![0.0,1.0,1.0,2.0]);
+        let grid = BilinearGrid::new(vec![0.0, 1.0], vec![0.0, 1.0], vec![0.0, 1.0, 1.0, 2.0]);
         assert!(grid.eval(-0.1, 0.5, Extrapolation::Nan).is_nan());
     }
 
@@ -589,26 +726,40 @@ mod tests {
     #[test]
     fn test_hermite_spline() {
         let spline = HermiteSpline::new(
-            vec![0.0,1.0,2.0,3.0], vec![0.0,1.0,0.0,1.0], vec![1.0,0.0,-1.0,0.0],
+            vec![0.0, 1.0, 2.0, 3.0],
+            vec![0.0, 1.0, 0.0, 1.0],
+            vec![1.0, 0.0, -1.0, 0.0],
         );
-        assert!(approx_eq(spline.eval(0.0, Extrapolation::Clamp), 0.0, 1e-10));
-        assert!(approx_eq(spline.eval(1.0, Extrapolation::Clamp), 1.0, 1e-10));
+        assert!(approx_eq(
+            spline.eval(0.0, Extrapolation::Clamp),
+            0.0,
+            1e-10
+        ));
+        assert!(approx_eq(
+            spline.eval(1.0, Extrapolation::Clamp),
+            1.0,
+            1e-10
+        ));
     }
 
     #[test]
     fn test_catmull_rom() {
         let xs = vec![0.0, 1.0, 2.0, 3.0];
-        let ys: Vec<f64> = xs.iter().map(|x| x*x).collect();
+        let ys: Vec<f64> = xs.iter().map(|x| x * x).collect();
         let spline = HermiteSpline::catmull_rom(xs.clone(), ys.clone());
         for i in 0..xs.len() {
-            assert!(approx_eq(spline.eval(xs[i], Extrapolation::Clamp), ys[i], 1e-10));
+            assert!(approx_eq(
+                spline.eval(xs[i], Extrapolation::Clamp),
+                ys[i],
+                1e-10
+            ));
         }
     }
 
     #[test]
     fn test_leave_one_out() {
         let xs = vec![0.0, 1.0, 2.0, 3.0, 4.0];
-        let ys: Vec<f64> = xs.iter().map(|x| 2.0*x+1.0).collect();
+        let ys: Vec<f64> = xs.iter().map(|x| 2.0 * x + 1.0).collect();
         let err = leave_one_out_error(&xs, &ys, InterpolationMethod::Linear);
         assert!(err < 1e-10);
     }
@@ -620,7 +771,7 @@ mod tests {
 
     #[test]
     fn test_spline_segments() {
-        let spline = CubicSpline::new(&[0.0,1.0,2.0,3.0], &[0.0,1.0,0.0,1.0]);
+        let spline = CubicSpline::new(&[0.0, 1.0, 2.0, 3.0], &[0.0, 1.0, 0.0, 1.0]);
         assert_eq!(spline.segments(), 3);
     }
 }

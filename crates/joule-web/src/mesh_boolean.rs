@@ -35,7 +35,11 @@ impl Vec3 {
     }
     pub fn normalized(&self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::zero() } else { Self::new(self.x / len, self.y / len, self.z / len) }
+        if len < 1e-12 {
+            Self::zero()
+        } else {
+            Self::new(self.x / len, self.y / len, self.z / len)
+        }
     }
     pub fn cross(&self, o: &Self) -> Self {
         Self::new(
@@ -152,7 +156,14 @@ impl BspNode {
         let mut back_tris = Vec::new();
 
         for tri in triangles {
-            split_triangle(tri, &plane, &mut coplanar_front, &mut coplanar_back, &mut front_tris, &mut back_tris);
+            split_triangle(
+                tri,
+                &plane,
+                &mut coplanar_front,
+                &mut coplanar_back,
+                &mut front_tris,
+                &mut back_tris,
+            );
         }
 
         let mut coplanar = coplanar_front;
@@ -188,7 +199,14 @@ impl BspNode {
             let mut back = Vec::new();
             let mut coplanar_front = Vec::new();
             let mut coplanar_back = Vec::new();
-            split_triangle(tri, &self.plane, &mut coplanar_front, &mut coplanar_back, &mut front, &mut back);
+            split_triangle(
+                tri,
+                &self.plane,
+                &mut coplanar_front,
+                &mut coplanar_back,
+                &mut front,
+                &mut back,
+            );
             front_list.extend(front);
             front_list.extend(coplanar_front);
             back_list.extend(back);
@@ -413,17 +431,18 @@ impl CsgMesh {
             ]
         };
 
-        let mut get_or_insert = |v: Vec3, vertices: &mut Vec<Vec3>, map: &mut HashMap<[i64; 3], u32>| -> u32 {
-            let key = quantize(v);
-            if let Some(&idx) = map.get(&key) {
-                idx
-            } else {
-                let idx = vertices.len() as u32;
-                vertices.push(v);
-                map.insert(key, idx);
-                idx
-            }
-        };
+        let mut get_or_insert =
+            |v: Vec3, vertices: &mut Vec<Vec3>, map: &mut HashMap<[i64; 3], u32>| -> u32 {
+                let key = quantize(v);
+                if let Some(&idx) = map.get(&key) {
+                    idx
+                } else {
+                    let idx = vertices.len() as u32;
+                    vertices.push(v);
+                    map.insert(key, idx);
+                    idx
+                }
+            };
 
         for tri in triangles {
             let ia = get_or_insert(tri.a, &mut vertices, &mut vertex_map);
@@ -555,12 +574,18 @@ pub fn unit_cube() -> CsgMesh {
         Vec3::new(-0.5, 0.5, 0.5),
     ];
     let idx = vec![
-        [0, 2, 1], [0, 3, 2],
-        [4, 5, 6], [4, 6, 7],
-        [0, 1, 5], [0, 5, 4],
-        [2, 3, 7], [2, 7, 6],
-        [0, 4, 7], [0, 7, 3],
-        [1, 2, 6], [1, 6, 5],
+        [0, 2, 1],
+        [0, 3, 2],
+        [4, 5, 6],
+        [4, 6, 7],
+        [0, 1, 5],
+        [0, 5, 4],
+        [2, 3, 7],
+        [2, 7, 6],
+        [0, 4, 7],
+        [0, 7, 3],
+        [1, 2, 6],
+        [1, 6, 5],
     ];
     CsgMesh::new(v, idx)
 }

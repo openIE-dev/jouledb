@@ -56,7 +56,8 @@ pub fn parse_powermetrics(text: &str) -> Vec<PowerSample> {
                 .rfind("ms elapsed)")
                 .and_then(|end| {
                     let head = &line[..end];
-                    head.rfind('(').map(|start| head[start + 1..].trim().to_string())
+                    head.rfind('(')
+                        .map(|start| head[start + 1..].trim().to_string())
                 })
                 .and_then(|s| s.parse::<f64>().ok());
             continue;
@@ -67,14 +68,19 @@ pub fn parse_powermetrics(text: &str) -> Vec<PowerSample> {
                 .chars()
                 .take_while(|c| c.is_ascii_digit() || *c == '.')
                 .collect();
-            let Ok(value) = num.parse::<f64>() else { continue };
+            let Ok(value) = num.parse::<f64>() else {
+                continue;
+            };
             let mw = if rest.ends_with(" W") && !rest.ends_with("mW") {
                 value * 1000.0
             } else {
                 value
             };
             if let Some(ms) = elapsed {
-                out.push(PowerSample { elapsed_ms: ms, ane_mw: mw });
+                out.push(PowerSample {
+                    elapsed_ms: ms,
+                    ane_mw: mw,
+                });
             }
         }
     }
@@ -153,7 +159,9 @@ pub fn measure<E>(
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn();
-    let Ok(mut child) = child else { return Ok(None) };
+    let Ok(mut child) = child else {
+        return Ok(None);
+    };
     let stdout = child.stdout.take();
     let reader = std::thread::spawn(move || {
         let mut text = String::new();
@@ -217,7 +225,8 @@ fn measure_shared<E>(
     mut work: impl FnMut() -> Result<(), E>,
 ) -> Result<Option<PowerMeasurement>, E> {
     use std::time::{Duration, Instant};
-    let window = Duration::from_millis(u64::from(interval_ms) * u64::from(samples)).max(Duration::from_millis(200));
+    let window = Duration::from_millis(u64::from(interval_ms) * u64::from(samples))
+        .max(Duration::from_millis(200));
     let started = Instant::now();
     let mut predictions = 0u64;
     while started.elapsed() < window || predictions == 0 {
@@ -229,7 +238,9 @@ fn measure_shared<E>(
     }
     let ended = Instant::now();
     let wait = Duration::from_millis(u64::from(sampler.interval_ms) * 6 + 100);
-    let Some(w) = sampler.window(started, ended, wait) else { return Ok(None) };
+    let Some(w) = sampler.window(started, ended, wait) else {
+        return Ok(None);
+    };
     let reps = predictions as f64;
     Ok(Some(PowerMeasurement {
         source: "powermetrics",
@@ -269,7 +280,13 @@ Combined Power (CPU + GPU + ANE): 3100 mW
     fn parses_samples_and_integrates() {
         let s = parse_powermetrics(FIXTURE);
         assert_eq!(s.len(), 2);
-        assert_eq!(s[0], PowerSample { elapsed_ms: 20.51, ane_mw: 120.0 });
+        assert_eq!(
+            s[0],
+            PowerSample {
+                elapsed_ms: 20.51,
+                ane_mw: 120.0
+            }
+        );
         assert_eq!(s[1].ane_mw, 80.0);
         let w = mean_watts(&s).unwrap_or(0.0);
         let want = (120.0 * 20.51 + 80.0 * 19.49) / 40.0 / 1000.0;

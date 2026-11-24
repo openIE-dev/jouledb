@@ -45,21 +45,30 @@ impl Complex {
     }
 
     pub fn conjugate(&self) -> Self {
-        Self { re: self.re, im: -self.im }
+        Self {
+            re: self.re,
+            im: -self.im,
+        }
     }
 }
 
 impl std::ops::Add for Complex {
     type Output = Self;
     fn add(self, rhs: Self) -> Self {
-        Self { re: self.re + rhs.re, im: self.im + rhs.im }
+        Self {
+            re: self.re + rhs.re,
+            im: self.im + rhs.im,
+        }
     }
 }
 
 impl std::ops::Sub for Complex {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self {
-        Self { re: self.re - rhs.re, im: self.im - rhs.im }
+        Self {
+            re: self.re - rhs.re,
+            im: self.im - rhs.im,
+        }
     }
 }
 
@@ -76,7 +85,10 @@ impl std::ops::Mul for Complex {
 impl std::ops::Mul<f64> for Complex {
     type Output = Self;
     fn mul(self, rhs: f64) -> Self {
-        Self { re: self.re * rhs, im: self.im * rhs }
+        Self {
+            re: self.re * rhs,
+            im: self.im * rhs,
+        }
     }
 }
 
@@ -236,10 +248,7 @@ pub fn rfft(real_input: &[f64]) -> Result<Vec<Complex>, FftError> {
     if !is_power_of_two(n) {
         return Err(FftError::NotPowerOfTwo(n));
     }
-    let complex_input: Vec<Complex> = real_input
-        .iter()
-        .map(|r| Complex::new(*r, 0.0))
-        .collect();
+    let complex_input: Vec<Complex> = real_input.iter().map(|r| Complex::new(*r, 0.0)).collect();
     let full = fft(&complex_input)?;
     Ok(full[..n / 2 + 1].to_vec())
 }
@@ -349,7 +358,11 @@ impl FftEngine {
             twiddles_fwd.push(Complex::from_polar(1.0, angle));
             twiddles_inv.push(Complex::from_polar(1.0, -angle));
         }
-        Ok(Self { size, twiddles_fwd, twiddles_inv })
+        Ok(Self {
+            size,
+            twiddles_fwd,
+            twiddles_inv,
+        })
     }
 
     pub fn size(&self) -> usize {
@@ -359,7 +372,10 @@ impl FftEngine {
     /// Forward FFT using pre-computed twiddles.
     pub fn forward(&self, input: &[Complex]) -> Result<Vec<Complex>, FftError> {
         if input.len() != self.size {
-            return Err(FftError::LengthMismatch { expected: self.size, got: input.len() });
+            return Err(FftError::LengthMismatch {
+                expected: self.size,
+                got: input.len(),
+            });
         }
         let mut data = input.to_vec();
         self.fft_core(&mut data, &self.twiddles_fwd, false);
@@ -369,7 +385,10 @@ impl FftEngine {
     /// Inverse FFT using pre-computed twiddles.
     pub fn inverse(&self, input: &[Complex]) -> Result<Vec<Complex>, FftError> {
         if input.len() != self.size {
-            return Err(FftError::LengthMismatch { expected: self.size, got: input.len() });
+            return Err(FftError::LengthMismatch {
+                expected: self.size,
+                got: input.len(),
+            });
         }
         let mut data = input.to_vec();
         self.fft_core(&mut data, &self.twiddles_inv, true);
@@ -652,9 +671,7 @@ mod tests {
     #[test]
     fn test_fft_engine_roundtrip() {
         let engine = FftEngine::new(8).unwrap();
-        let input: Vec<Complex> = (0..8)
-            .map(|i| Complex::new(i as f64, 0.0))
-            .collect();
+        let input: Vec<Complex> = (0..8).map(|i| Complex::new(i as f64, 0.0)).collect();
         let spectrum = engine.forward(&input).unwrap();
         let recovered = engine.inverse(&spectrum).unwrap();
         for (a, b) in input.iter().zip(recovered.iter()) {
@@ -681,7 +698,11 @@ mod tests {
         let y: Vec<Complex> = (0..8).map(|i| Complex::new(0.0, i as f64 * 0.5)).collect();
         let a = 2.0;
         let b = 3.0;
-        let combined: Vec<Complex> = x.iter().zip(y.iter()).map(|(xi, yi)| *xi * a + *yi * b).collect();
+        let combined: Vec<Complex> = x
+            .iter()
+            .zip(y.iter())
+            .map(|(xi, yi)| *xi * a + *yi * b)
+            .collect();
         let fft_combined = fft(&combined).unwrap();
         let fft_x = fft(&x).unwrap();
         let fft_y = fft(&y).unwrap();

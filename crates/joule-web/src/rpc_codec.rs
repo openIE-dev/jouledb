@@ -24,34 +24,64 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn is_null(&self) -> bool { matches!(self, Self::Null) }
+    pub fn is_null(&self) -> bool {
+        matches!(self, Self::Null)
+    }
 
     pub fn as_bool(&self) -> Option<bool> {
-        if let Self::Bool(b) = self { Some(*b) } else { None }
+        if let Self::Bool(b) = self {
+            Some(*b)
+        } else {
+            None
+        }
     }
 
     pub fn as_int(&self) -> Option<i64> {
-        if let Self::Int(i) = self { Some(*i) } else { None }
+        if let Self::Int(i) = self {
+            Some(*i)
+        } else {
+            None
+        }
     }
 
     pub fn as_float(&self) -> Option<f64> {
-        if let Self::Float(f) = self { Some(*f) } else { None }
+        if let Self::Float(f) = self {
+            Some(*f)
+        } else {
+            None
+        }
     }
 
     pub fn as_str(&self) -> Option<&str> {
-        if let Self::Str(s) = self { Some(s) } else { None }
+        if let Self::Str(s) = self {
+            Some(s)
+        } else {
+            None
+        }
     }
 
     pub fn as_bytes(&self) -> Option<&[u8]> {
-        if let Self::Bytes(b) = self { Some(b) } else { None }
+        if let Self::Bytes(b) = self {
+            Some(b)
+        } else {
+            None
+        }
     }
 
     pub fn as_list(&self) -> Option<&[Value]> {
-        if let Self::List(l) = self { Some(l) } else { None }
+        if let Self::List(l) = self {
+            Some(l)
+        } else {
+            None
+        }
     }
 
     pub fn as_map(&self) -> Option<&[(String, Value)]> {
-        if let Self::Map(m) = self { Some(m) } else { None }
+        if let Self::Map(m) = self {
+            Some(m)
+        } else {
+            None
+        }
     }
 
     /// Approximate depth of nesting.
@@ -109,8 +139,9 @@ impl fmt::Display for CodecError {
             Self::UnexpectedEnd => write!(f, "unexpected end of data"),
             Self::InvalidTag(t) => write!(f, "invalid type tag: 0x{t:02x}"),
             Self::InvalidUtf8 => write!(f, "invalid UTF-8 in string"),
-            Self::NestingTooDeep { depth, limit } =>
-                write!(f, "nesting too deep: {depth} > {limit}"),
+            Self::NestingTooDeep { depth, limit } => {
+                write!(f, "nesting too deep: {depth} > {limit}")
+            }
             Self::VarIntOverflow => write!(f, "varint overflow"),
         }
     }
@@ -191,7 +222,10 @@ pub struct StringTable {
 
 impl StringTable {
     pub fn new() -> Self {
-        Self { strings: Vec::new(), lookup: HashMap::new() }
+        Self {
+            strings: Vec::new(),
+            lookup: HashMap::new(),
+        }
     }
 
     /// Intern a string, returning its index.
@@ -210,12 +244,18 @@ impl StringTable {
         self.strings.get(idx as usize).map(|s| s.as_str())
     }
 
-    pub fn len(&self) -> usize { self.strings.len() }
-    pub fn is_empty(&self) -> bool { self.strings.is_empty() }
+    pub fn len(&self) -> usize {
+        self.strings.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.strings.is_empty()
+    }
 }
 
 impl Default for StringTable {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Codec Statistics ───────────────────────────────────────────
@@ -280,8 +320,12 @@ impl RpcValueCodec {
         Ok((value, consumed))
     }
 
-    pub fn stats(&self) -> &CodecStats { &self.stats }
-    pub fn string_table(&self) -> &StringTable { &self.string_table }
+    pub fn stats(&self) -> &CodecStats {
+        &self.stats
+    }
+    pub fn string_table(&self) -> &StringTable {
+        &self.string_table
+    }
 
     /// Reset the string table (for a new encoding session).
     pub fn reset_string_table(&mut self) {
@@ -290,9 +334,17 @@ impl RpcValueCodec {
 
     // ── internal encoding ──
 
-    fn encode_value(&mut self, value: &Value, buf: &mut Vec<u8>, depth: usize) -> Result<(), CodecError> {
+    fn encode_value(
+        &mut self,
+        value: &Value,
+        buf: &mut Vec<u8>,
+        depth: usize,
+    ) -> Result<(), CodecError> {
         if depth > self.max_depth {
-            return Err(CodecError::NestingTooDeep { depth, limit: self.max_depth });
+            return Err(CodecError::NestingTooDeep {
+                depth,
+                limit: self.max_depth,
+            });
         }
         match value {
             Value::Null => buf.push(TAG_NULL),
@@ -358,7 +410,10 @@ impl RpcValueCodec {
 
     fn decode_value(&self, data: &[u8], depth: usize) -> Result<(Value, usize), CodecError> {
         if depth > self.max_depth {
-            return Err(CodecError::NestingTooDeep { depth, limit: self.max_depth });
+            return Err(CodecError::NestingTooDeep {
+                depth,
+                limit: self.max_depth,
+            });
         }
         if data.is_empty() {
             return Err(CodecError::UnexpectedEnd);
@@ -378,8 +433,7 @@ impl RpcValueCodec {
                     return Err(CodecError::UnexpectedEnd);
                 }
                 let bits = u64::from_be_bytes([
-                    rest[0], rest[1], rest[2], rest[3],
-                    rest[4], rest[5], rest[6], rest[7],
+                    rest[0], rest[1], rest[2], rest[3], rest[4], rest[5], rest[6], rest[7],
                 ]);
                 Ok((Value::Float(f64::from_bits(bits)), 9))
             }
@@ -394,7 +448,9 @@ impl RpcValueCodec {
             }
             TAG_STR_REF => {
                 let (idx, lc) = decode_len(rest)?;
-                let s = self.string_table.get(idx as u32)
+                let s = self
+                    .string_table
+                    .get(idx as u32)
                     .ok_or(CodecError::InvalidTag(TAG_STR_REF))?;
                 Ok((Value::Str(s.to_string()), 1 + lc))
             }
@@ -440,7 +496,9 @@ impl RpcValueCodec {
 }
 
 impl Default for RpcValueCodec {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ──────────────────────────────────────────────────────
@@ -458,34 +516,54 @@ mod tests {
     }
 
     #[test]
-    fn roundtrip_null() { roundtrip(Value::Null); }
+    fn roundtrip_null() {
+        roundtrip(Value::Null);
+    }
 
     #[test]
-    fn roundtrip_bool_true() { roundtrip(Value::Bool(true)); }
+    fn roundtrip_bool_true() {
+        roundtrip(Value::Bool(true));
+    }
 
     #[test]
-    fn roundtrip_bool_false() { roundtrip(Value::Bool(false)); }
+    fn roundtrip_bool_false() {
+        roundtrip(Value::Bool(false));
+    }
 
     #[test]
-    fn roundtrip_positive_int() { roundtrip(Value::Int(42)); }
+    fn roundtrip_positive_int() {
+        roundtrip(Value::Int(42));
+    }
 
     #[test]
-    fn roundtrip_negative_int() { roundtrip(Value::Int(-999)); }
+    fn roundtrip_negative_int() {
+        roundtrip(Value::Int(-999));
+    }
 
     #[test]
-    fn roundtrip_large_int() { roundtrip(Value::Int(i64::MAX)); }
+    fn roundtrip_large_int() {
+        roundtrip(Value::Int(i64::MAX));
+    }
 
     #[test]
-    fn roundtrip_float() { roundtrip(Value::Float(3.14159)); }
+    fn roundtrip_float() {
+        roundtrip(Value::Float(3.14159));
+    }
 
     #[test]
-    fn roundtrip_string() { roundtrip(Value::Str("hello world".to_string())); }
+    fn roundtrip_string() {
+        roundtrip(Value::Str("hello world".to_string()));
+    }
 
     #[test]
-    fn roundtrip_empty_string() { roundtrip(Value::Str(String::new())); }
+    fn roundtrip_empty_string() {
+        roundtrip(Value::Str(String::new()));
+    }
 
     #[test]
-    fn roundtrip_bytes() { roundtrip(Value::Bytes(vec![0xDE, 0xAD, 0xBE, 0xEF])); }
+    fn roundtrip_bytes() {
+        roundtrip(Value::Bytes(vec![0xDE, 0xAD, 0xBE, 0xEF]));
+    }
 
     #[test]
     fn roundtrip_list() {
@@ -506,12 +584,13 @@ mod tests {
 
     #[test]
     fn roundtrip_nested() {
-        roundtrip(Value::Map(vec![
-            ("items".to_string(), Value::List(vec![
+        roundtrip(Value::Map(vec![(
+            "items".to_string(),
+            Value::List(vec![
                 Value::Map(vec![("id".to_string(), Value::Int(1))]),
                 Value::Map(vec![("id".to_string(), Value::Int(2))]),
-            ])),
-        ]));
+            ]),
+        )]));
     }
 
     #[test]
@@ -543,7 +622,10 @@ mod tests {
         let mut codec = RpcValueCodec::new().with_max_depth(2);
         // depth 3 nesting should fail
         let deep = Value::List(vec![Value::List(vec![Value::List(vec![Value::Null])])]);
-        assert!(matches!(codec.encode(&deep), Err(CodecError::NestingTooDeep { .. })));
+        assert!(matches!(
+            codec.encode(&deep),
+            Err(CodecError::NestingTooDeep { .. })
+        ));
     }
 
     #[test]

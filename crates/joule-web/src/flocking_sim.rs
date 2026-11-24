@@ -18,31 +18,65 @@ pub struct Vec2 {
 impl Vec2 {
     pub const ZERO: Vec2 = Vec2 { x: 0.0, y: 0.0 };
 
-    pub fn new(x: f64, y: f64) -> Self { Self { x, y } }
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
 
-    pub fn length(&self) -> f64 { (self.x * self.x + self.y * self.y).sqrt() }
+    pub fn length(&self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
 
-    pub fn length_sq(&self) -> f64 { self.x * self.x + self.y * self.y }
+    pub fn length_sq(&self) -> f64 {
+        self.x * self.x + self.y * self.y
+    }
 
     pub fn normalized(&self) -> Self {
         let len = self.length();
-        if len < 1e-12 { Self::ZERO } else { Self { x: self.x / len, y: self.y / len } }
+        if len < 1e-12 {
+            Self::ZERO
+        } else {
+            Self {
+                x: self.x / len,
+                y: self.y / len,
+            }
+        }
     }
 
     pub fn truncate(&self, max_len: f64) -> Self {
         let len_sq = self.length_sq();
-        if len_sq <= max_len * max_len { *self }
-        else {
+        if len_sq <= max_len * max_len {
+            *self
+        } else {
             let len = len_sq.sqrt();
             let s = max_len / len;
-            Self { x: self.x * s, y: self.y * s }
+            Self {
+                x: self.x * s,
+                y: self.y * s,
+            }
         }
     }
 
-    pub fn add(&self, other: Vec2) -> Vec2 { Vec2 { x: self.x + other.x, y: self.y + other.y } }
-    pub fn sub(&self, other: Vec2) -> Vec2 { Vec2 { x: self.x - other.x, y: self.y - other.y } }
-    pub fn scale(&self, s: f64) -> Vec2 { Vec2 { x: self.x * s, y: self.y * s } }
-    pub fn dot(&self, other: Vec2) -> f64 { self.x * other.x + self.y * other.y }
+    pub fn add(&self, other: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+    pub fn sub(&self, other: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
+    }
+    pub fn scale(&self, s: f64) -> Vec2 {
+        Vec2 {
+            x: self.x * s,
+            y: self.y * s,
+        }
+    }
+    pub fn dot(&self, other: Vec2) -> f64 {
+        self.x * other.x + self.y * other.y
+    }
 
     pub fn dist(&self, other: Vec2) -> f64 {
         ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
@@ -52,7 +86,9 @@ impl Vec2 {
         (self.x - other.x).powi(2) + (self.y - other.y).powi(2)
     }
 
-    pub fn angle(&self) -> f64 { self.y.atan2(self.x) }
+    pub fn angle(&self) -> f64 {
+        self.y.atan2(self.x)
+    }
 }
 
 // ── Boid ────────────────────────────────────────────────────────
@@ -80,9 +116,13 @@ impl Boid {
         }
     }
 
-    pub fn heading(&self) -> Vec2 { self.velocity.normalized() }
+    pub fn heading(&self) -> Vec2 {
+        self.velocity.normalized()
+    }
 
-    pub fn speed(&self) -> f64 { self.velocity.length() }
+    pub fn speed(&self) -> f64 {
+        self.velocity.length()
+    }
 }
 
 // ── Obstacle ────────────────────────────────────────────────────
@@ -178,8 +218,10 @@ impl SpatialGrid {
     }
 
     fn cell_key(&self, pos: Vec2) -> (i32, i32) {
-        ((pos.x / self.cell_size).floor() as i32,
-         (pos.y / self.cell_size).floor() as i32)
+        (
+            (pos.x / self.cell_size).floor() as i32,
+            (pos.y / self.cell_size).floor() as i32,
+        )
     }
 
     /// Build the grid from boid positions.
@@ -361,9 +403,7 @@ pub fn flock_step(
     grid.build(boids);
 
     // Snapshot positions and velocities for neighbor queries
-    let snapshot: Vec<(Vec2, Vec2)> = boids.iter()
-        .map(|b| (b.position, b.velocity))
-        .collect();
+    let snapshot: Vec<(Vec2, Vec2)> = boids.iter().map(|b| (b.position, b.velocity)).collect();
 
     let mut total_energy = 0.0;
 
@@ -379,8 +419,12 @@ pub fn flock_step(
         let mut coh_neighbors: Vec<(usize, Vec2)> = Vec::new();
 
         for &j in &candidates {
-            if j == i { continue; }
-            if !is_visible(&boids[i], snapshot[j].0, config) { continue; }
+            if j == i {
+                continue;
+            }
+            if !is_visible(&boids[i], snapshot[j].0, config) {
+                continue;
+            }
             sep_neighbors.push((j, snapshot[j].0));
             align_neighbors.push((j, snapshot[j].0, snapshot[j].1));
             coh_neighbors.push((j, snapshot[j].0));
@@ -507,14 +551,22 @@ mod tests {
     #[test]
     fn test_visibility_front() {
         let boid = make_boid(0, 0.0, 0.0, 1.0, 0.0);
-        let config = FlockConfig { visual_range: 100.0, blind_spot_angle: 0.5, ..Default::default() };
+        let config = FlockConfig {
+            visual_range: 100.0,
+            blind_spot_angle: 0.5,
+            ..Default::default()
+        };
         assert!(is_visible(&boid, Vec2::new(10.0, 0.0), &config));
     }
 
     #[test]
     fn test_visibility_behind_blind_spot() {
         let boid = make_boid(0, 0.0, 0.0, 1.0, 0.0);
-        let config = FlockConfig { visual_range: 100.0, blind_spot_angle: 1.5, ..Default::default() };
+        let config = FlockConfig {
+            visual_range: 100.0,
+            blind_spot_angle: 1.5,
+            ..Default::default()
+        };
         // Behind the boid
         assert!(!is_visible(&boid, Vec2::new(-10.0, 0.0), &config));
     }
@@ -522,14 +574,20 @@ mod tests {
     #[test]
     fn test_visibility_out_of_range() {
         let boid = make_boid(0, 0.0, 0.0, 1.0, 0.0);
-        let config = FlockConfig { visual_range: 5.0, ..Default::default() };
+        let config = FlockConfig {
+            visual_range: 5.0,
+            ..Default::default()
+        };
         assert!(!is_visible(&boid, Vec2::new(100.0, 0.0), &config));
     }
 
     #[test]
     fn test_obstacle_avoidance() {
         let boid = make_boid(0, 0.0, 0.0, 1.0, 0.0);
-        let obstacles = vec![Obstacle { center: Vec2::new(10.0, 0.0), radius: 5.0 }];
+        let obstacles = vec![Obstacle {
+            center: Vec2::new(10.0, 0.0),
+            radius: 5.0,
+        }];
         let force = avoid_obstacles(&boid, &obstacles, 20.0);
         assert!(force.x < 0.0); // pushes away
     }
@@ -537,7 +595,12 @@ mod tests {
     #[test]
     fn test_boundary_containment() {
         let boid = make_boid(0, 5.0, 50.0, 0.0, 0.0);
-        let boundary = Boundary { min_x: 0.0, min_y: 0.0, max_x: 100.0, max_y: 100.0 };
+        let boundary = Boundary {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: 100.0,
+            max_y: 100.0,
+        };
         let force = contain(&boid, &boundary);
         assert!(force.x > 0.0); // pushes away from left boundary
     }
@@ -567,14 +630,18 @@ mod tests {
         let energy = flock_step(&mut boids, &config, &[], 0.1);
         assert!(energy >= 0.0);
         // Boids should have moved
-        assert!((boids[0].position.x - 50.0).abs() > 1e-6
-             || (boids[0].position.y - 50.0).abs() > 1e-6);
+        assert!(
+            (boids[0].position.x - 50.0).abs() > 1e-6 || (boids[0].position.y - 50.0).abs() > 1e-6
+        );
     }
 
     #[test]
     fn test_energy_decreases() {
         let mut boids = vec![make_boid(0, 0.0, 0.0, 3.0, 0.0)];
-        let config = FlockConfig { energy_cost_per_speed: 0.1, ..Default::default() };
+        let config = FlockConfig {
+            energy_cost_per_speed: 0.1,
+            ..Default::default()
+        };
         let initial_energy = boids[0].energy;
         flock_step(&mut boids, &config, &[], 1.0);
         assert!(boids[0].energy < initial_energy);
@@ -584,7 +651,12 @@ mod tests {
     fn test_flock_with_boundary() {
         let mut boids = vec![make_boid(0, 5.0, 5.0, -2.0, -2.0)];
         let config = FlockConfig {
-            boundary: Some(Boundary { min_x: 0.0, min_y: 0.0, max_x: 100.0, max_y: 100.0 }),
+            boundary: Some(Boundary {
+                min_x: 0.0,
+                min_y: 0.0,
+                max_x: 100.0,
+                max_y: 100.0,
+            }),
             boundary_weight: 5.0,
             ..Default::default()
         };

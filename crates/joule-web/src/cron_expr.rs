@@ -122,16 +122,25 @@ impl CronExpr {
                 dt = advance_to_next_month(dt)?;
                 continue;
             }
-            if !self.day_of_month.matches(dt.day()) || !self.day_of_week.matches(dt.weekday().num_days_from_sunday()) {
+            if !self.day_of_month.matches(dt.day())
+                || !self
+                    .day_of_week
+                    .matches(dt.weekday().num_days_from_sunday())
+            {
                 // Skip to next day.
                 dt = (dt.date() + chrono::Duration::days(1)).and_hms_opt(0, 0, 0)?;
                 continue;
             }
             if !self.hour.matches(dt.hour()) {
                 // Skip to next hour.
-                dt = dt.date().and_hms_opt(dt.hour() + 1, 0, 0).unwrap_or_else(|| {
-                    (dt.date() + chrono::Duration::days(1)).and_hms_opt(0, 0, 0).unwrap()
-                });
+                dt = dt
+                    .date()
+                    .and_hms_opt(dt.hour() + 1, 0, 0)
+                    .unwrap_or_else(|| {
+                        (dt.date() + chrono::Duration::days(1))
+                            .and_hms_opt(0, 0, 0)
+                            .unwrap()
+                    });
                 continue;
             }
             // Skip to next minute.
@@ -204,7 +213,10 @@ fn parse_field(s: &str, min: u32, max: u32) -> Result<CronField, CronError> {
 
     // List: "1,3,5"
     if s.contains(',') {
-        let items: Result<Vec<CronField>, _> = s.split(',').map(|part| parse_field(part, min, max)).collect();
+        let items: Result<Vec<CronField>, _> = s
+            .split(',')
+            .map(|part| parse_field(part, min, max))
+            .collect();
         return Ok(CronField::List(items?));
     }
 
@@ -212,26 +224,41 @@ fn parse_field(s: &str, min: u32, max: u32) -> Result<CronField, CronError> {
     if s.contains('/') {
         let parts: Vec<&str> = s.splitn(2, '/').collect();
         let base = parse_field(parts[0], min, max)?;
-        let step: u32 = parts[1].parse().map_err(|_| CronError::InvalidValue(parts[1].to_string()))?;
+        let step: u32 = parts[1]
+            .parse()
+            .map_err(|_| CronError::InvalidValue(parts[1].to_string()))?;
         if step == 0 {
             return Err(CronError::InvalidValue("step cannot be 0".into()));
         }
-        return Ok(CronField::Step { base: Box::new(base), step });
+        return Ok(CronField::Step {
+            base: Box::new(base),
+            step,
+        });
     }
 
     // Range: "1-5"
     if s.contains('-') {
         let parts: Vec<&str> = s.splitn(2, '-').collect();
-        let lo: u32 = parts[0].parse().map_err(|_| CronError::InvalidValue(parts[0].to_string()))?;
-        let hi: u32 = parts[1].parse().map_err(|_| CronError::InvalidValue(parts[1].to_string()))?;
+        let lo: u32 = parts[0]
+            .parse()
+            .map_err(|_| CronError::InvalidValue(parts[0].to_string()))?;
+        let hi: u32 = parts[1]
+            .parse()
+            .map_err(|_| CronError::InvalidValue(parts[1].to_string()))?;
         if lo > max || hi > max {
-            return Err(CronError::OutOfRange { value: hi.max(lo), min, max });
+            return Err(CronError::OutOfRange {
+                value: hi.max(lo),
+                min,
+                max,
+            });
         }
         return Ok(CronField::Range(lo, hi));
     }
 
     // Single value.
-    let v: u32 = s.parse().map_err(|_| CronError::InvalidValue(s.to_string()))?;
+    let v: u32 = s
+        .parse()
+        .map_err(|_| CronError::InvalidValue(s.to_string()))?;
     if v < min || v > max {
         return Err(CronError::OutOfRange { value: v, min, max });
     }
@@ -239,7 +266,11 @@ fn parse_field(s: &str, min: u32, max: u32) -> Result<CronField, CronError> {
 }
 
 fn advance_to_next_month(dt: NaiveDateTime) -> Option<NaiveDateTime> {
-    let (y, m) = if dt.month() == 12 { (dt.year() + 1, 1) } else { (dt.year(), dt.month() + 1) };
+    let (y, m) = if dt.month() == 12 {
+        (dt.year() + 1, 1)
+    } else {
+        (dt.year(), dt.month() + 1)
+    };
     NaiveDate::from_ymd_opt(y, m, 1)?.and_hms_opt(0, 0, 0)
 }
 
@@ -277,7 +308,11 @@ fn describe_day(dom: &CronField, month: &CronField, dow: &CronField) -> String {
         CronField::Any => {}
         CronField::Range(1, 5) => parts.push("on weekdays".to_string()),
         CronField::Range(lo, hi) => {
-            parts.push(format!("on {} through {}", weekday_name(*lo), weekday_name(*hi)));
+            parts.push(format!(
+                "on {} through {}",
+                weekday_name(*lo),
+                weekday_name(*hi)
+            ));
         }
         CronField::Value(d) => parts.push(format!("on {}", weekday_name(*d))),
         _ => parts.push(format!("on day-of-week {}", field_to_string(dow))),
@@ -304,7 +339,11 @@ fn field_to_string(f: &CronField) -> String {
         CronField::Value(v) => v.to_string(),
         CronField::Range(lo, hi) => format!("{lo}-{hi}"),
         CronField::Step { base, step } => format!("{}/{step}", field_to_string(base)),
-        CronField::List(items) => items.iter().map(field_to_string).collect::<Vec<_>>().join(","),
+        CronField::List(items) => items
+            .iter()
+            .map(field_to_string)
+            .collect::<Vec<_>>()
+            .join(","),
     }
 }
 
@@ -323,9 +362,18 @@ fn weekday_name(n: u32) -> &'static str {
 
 fn month_name(n: u32) -> &'static str {
     match n {
-        1 => "January", 2 => "February", 3 => "March", 4 => "April",
-        5 => "May", 6 => "June", 7 => "July", 8 => "August",
-        9 => "September", 10 => "October", 11 => "November", 12 => "December",
+        1 => "January",
+        2 => "February",
+        3 => "March",
+        4 => "April",
+        5 => "May",
+        6 => "June",
+        7 => "July",
+        8 => "August",
+        9 => "September",
+        10 => "October",
+        11 => "November",
+        12 => "December",
         _ => "Unknown",
     }
 }
@@ -362,7 +410,10 @@ mod tests {
     use super::*;
 
     fn dt(y: i32, m: u32, d: u32, h: u32, mi: u32) -> NaiveDateTime {
-        NaiveDate::from_ymd_opt(y, m, d).unwrap().and_hms_opt(h, mi, 0).unwrap()
+        NaiveDate::from_ymd_opt(y, m, d)
+            .unwrap()
+            .and_hms_opt(h, mi, 0)
+            .unwrap()
     }
 
     #[test]
@@ -464,7 +515,10 @@ mod tests {
 
     #[test]
     fn field_expand() {
-        let field = CronField::Step { base: Box::new(CronField::Any), step: 15 };
+        let field = CronField::Step {
+            base: Box::new(CronField::Any),
+            step: 15,
+        };
         let values = field.expand(0, 59);
         assert_eq!(values, [0, 15, 30, 45].into_iter().collect());
     }

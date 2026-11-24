@@ -108,7 +108,12 @@ pub enum BatchBreak {
     BufferFull,
 }
 
-fn detect_break(prev: &DrawCall, curr: &DrawCall, max_instances: usize, current_count: usize) -> BatchBreak {
+fn detect_break(
+    prev: &DrawCall,
+    curr: &DrawCall,
+    max_instances: usize,
+    current_count: usize,
+) -> BatchBreak {
     if current_count >= max_instances {
         return BatchBreak::BufferFull;
     }
@@ -191,7 +196,8 @@ impl DrawCallBatcher {
         let input_count = calls.len() as u32;
 
         calls.sort_by(|a, b| {
-            a.order.cmp(&b.order)
+            a.order
+                .cmp(&b.order)
                 .then(a.material_id.cmp(&b.material_id))
                 .then(a.mesh_id.cmp(&b.mesh_id))
         });
@@ -208,7 +214,12 @@ impl DrawCallBatcher {
                     triangle_count: last_batch.triangle_count,
                     order: last_batch.order,
                 };
-                detect_break(&prev_call, &call, self.max_instances_per_batch, last_batch.instance_count())
+                detect_break(
+                    &prev_call,
+                    &call,
+                    self.max_instances_per_batch,
+                    last_batch.instance_count(),
+                )
             } else {
                 BatchBreak::None
             };
@@ -223,7 +234,10 @@ impl DrawCallBatcher {
                         break_count += 1;
                     }
                     batches.push(InstancedBatch {
-                        key: BatchKey { material_id: call.material_id, mesh_id: call.mesh_id },
+                        key: BatchKey {
+                            material_id: call.material_id,
+                            mesh_id: call.mesh_id,
+                        },
                         instances: vec![call.instance],
                         triangle_count: call.triangle_count,
                         order: call.order,
@@ -250,7 +264,13 @@ impl DrawCallBatcher {
     // ── Static batching ─────────────────────────────────────────
 
     /// Register a pre-merged static batch (baked geometry).
-    pub fn add_static_batch(&mut self, material_id: u64, vertex_count: u32, tri_count: u32, transform: [f64; 16]) -> u64 {
+    pub fn add_static_batch(
+        &mut self,
+        material_id: u64,
+        vertex_count: u32,
+        tri_count: u32,
+        transform: [f64; 16],
+    ) -> u64 {
         let id = self.next_static_id;
         self.next_static_id += 1;
         self.static_batches.push(StaticBatch {
@@ -286,7 +306,10 @@ impl DrawCallBatcher {
 
         for sb in &self.static_batches {
             dynamic.push(InstancedBatch {
-                key: BatchKey { material_id: sb.material_id, mesh_id: 0 },
+                key: BatchKey {
+                    material_id: sb.material_id,
+                    mesh_id: 0,
+                },
                 instances: vec![InstanceData::from_transform(sb.transform)],
                 triangle_count: sb.merged_triangle_count,
                 order: i32::MAX, // render after dynamic
@@ -309,7 +332,10 @@ mod tests {
 
     fn identity() -> [f64; 16] {
         let mut m = [0.0; 16];
-        m[0] = 1.0; m[5] = 1.0; m[10] = 1.0; m[15] = 1.0;
+        m[0] = 1.0;
+        m[5] = 1.0;
+        m[10] = 1.0;
+        m[15] = 1.0;
         m
     }
 
@@ -450,7 +476,10 @@ mod tests {
     #[test]
     fn test_instanced_batch_total_triangles() {
         let batch = InstancedBatch {
-            key: BatchKey { material_id: 1, mesh_id: 1 },
+            key: BatchKey {
+                material_id: 1,
+                mesh_id: 1,
+            },
             instances: vec![
                 InstanceData::from_transform(identity()),
                 InstanceData::from_transform(identity()),

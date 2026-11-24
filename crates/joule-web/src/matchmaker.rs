@@ -14,7 +14,10 @@ use std::fmt;
 pub enum MatchError {
     PlayerAlreadyQueued(String),
     PlayerNotQueued(String),
-    PartyTooLarge { party_size: usize, match_size: usize },
+    PartyTooLarge {
+        party_size: usize,
+        match_size: usize,
+    },
     NoMatchFound,
     InvalidConfig(String),
     PoolEmpty,
@@ -25,7 +28,10 @@ impl fmt::Display for MatchError {
         match self {
             Self::PlayerAlreadyQueued(p) => write!(f, "already queued: {p}"),
             Self::PlayerNotQueued(p) => write!(f, "not queued: {p}"),
-            Self::PartyTooLarge { party_size, match_size } => {
+            Self::PartyTooLarge {
+                party_size,
+                match_size,
+            } => {
                 write!(f, "party size {party_size} exceeds match size {match_size}")
             }
             Self::NoMatchFound => write!(f, "no match found"),
@@ -232,7 +238,8 @@ impl MatchPool {
         }
 
         // Sort by skill for bracket matching.
-        self.requests.sort_by(|a, b| a.skill.partial_cmp(&b.skill).unwrap());
+        self.requests
+            .sort_by(|a, b| a.skill.partial_cmp(&b.skill).unwrap());
         self.rebuild_index();
 
         // Sliding window: find tightest group of match_size.
@@ -267,7 +274,8 @@ impl MatchPool {
         self.rebuild_index();
 
         let avg = matched.iter().map(|r| r.skill).sum::<f64>() / matched.len() as f64;
-        let variance = matched.iter().map(|r| (r.skill - avg).powi(2)).sum::<f64>() / matched.len() as f64;
+        let variance =
+            matched.iter().map(|r| (r.skill - avg).powi(2)).sum::<f64>() / matched.len() as f64;
         let quality = 1.0 / (1.0 + variance.sqrt() / 100.0);
 
         let mid = format!("match-{}", self.next_match_id);

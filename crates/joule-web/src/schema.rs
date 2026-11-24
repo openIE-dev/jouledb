@@ -3,8 +3,8 @@
 //! Replaces Zod, Yup, Joi with a pure-Rust builder API that validates
 //! `serde_json::Value` trees and collects dotted-path errors.
 
-use std::fmt;
 use serde_json::Value;
+use std::fmt;
 
 // ── Errors ──────────────────────────────────────────────────────
 
@@ -80,7 +80,11 @@ pub enum Schema {
 pub fn validate(schema: &Schema, value: &Value) -> Result<(), Vec<SchemaError>> {
     let mut errors = Vec::new();
     validate_inner(schema, value, "", &mut errors);
-    if errors.is_empty() { Ok(()) } else { Err(errors) }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
 fn validate_inner(schema: &Schema, value: &Value, path: &str, errors: &mut Vec<SchemaError>) {
@@ -104,7 +108,12 @@ fn validate_inner(schema: &Schema, value: &Value, path: &str, errors: &mut Vec<S
                 });
             }
         }
-        Schema::String_ { min_len, max_len, pattern, format } => {
+        Schema::String_ {
+            min_len,
+            max_len,
+            pattern,
+            format,
+        } => {
             if let Some(s) = value.as_str() {
                 if let Some(min) = min_len {
                     if s.len() < *min {
@@ -185,7 +194,11 @@ fn validate_inner(schema: &Schema, value: &Value, path: &str, errors: &mut Vec<S
                 });
             }
         }
-        Schema::Array { item, min_items, max_items } => {
+        Schema::Array {
+            item,
+            min_items,
+            max_items,
+        } => {
             if let Some(arr) = value.as_array() {
                 if let Some(min) = min_items {
                     if arr.len() < *min {
@@ -221,7 +234,10 @@ fn validate_inner(schema: &Schema, value: &Value, path: &str, errors: &mut Vec<S
                 });
             }
         }
-        Schema::Object { fields, allow_extra } => {
+        Schema::Object {
+            fields,
+            allow_extra,
+        } => {
             if let Some(obj) = value.as_object() {
                 for field in fields {
                     let child = if path.is_empty() {
@@ -325,23 +341,21 @@ fn check_format(fmt: &StringFormat, s: &str) -> bool {
         StringFormat::Url => s.starts_with("http://") || s.starts_with("https://"),
         StringFormat::Uuid => {
             s.len() == 36
-                && s.chars()
-                    .enumerate()
-                    .all(|(i, c)| match i {
-                        8 | 13 | 18 | 23 => c == '-',
-                        _ => c.is_ascii_hexdigit(),
-                    })
+                && s.chars().enumerate().all(|(i, c)| match i {
+                    8 | 13 | 18 | 23 => c == '-',
+                    _ => c.is_ascii_hexdigit(),
+                })
         }
         StringFormat::Date => {
             // YYYY-MM-DD
-            s.len() == 10 && s.as_bytes()[4] == b'-' && s.as_bytes()[7] == b'-'
+            s.len() == 10
+                && s.as_bytes()[4] == b'-'
+                && s.as_bytes()[7] == b'-'
                 && s[0..4].parse::<u16>().is_ok()
                 && s[5..7].parse::<u8>().is_ok()
                 && s[8..10].parse::<u8>().is_ok()
         }
-        StringFormat::DateTime => {
-            s.contains('T') && s.len() >= 19
-        }
+        StringFormat::DateTime => s.contains('T') && s.len() >= 19,
         StringFormat::Ip => {
             let parts: Vec<&str> = s.split('.').collect();
             parts.len() == 4 && parts.iter().all(|p| p.parse::<u8>().is_ok())
@@ -372,13 +386,11 @@ pub fn coerce(schema: &Schema, value: &Value) -> Value {
             }
             value.clone()
         }
-        Schema::String_ { .. } => {
-            match value {
-                Value::Number(n) => Value::String(n.to_string()),
-                Value::Bool(b) => Value::String(b.to_string()),
-                _ => value.clone(),
-            }
-        }
+        Schema::String_ { .. } => match value {
+            Value::Number(n) => Value::String(n.to_string()),
+            Value::Bool(b) => Value::String(b.to_string()),
+            _ => value.clone(),
+        },
         Schema::Array { item, .. } => {
             if let Some(arr) = value.as_array() {
                 Value::Array(arr.iter().map(|v| coerce(item, v)).collect())
@@ -387,7 +399,11 @@ pub fn coerce(schema: &Schema, value: &Value) -> Value {
             }
         }
         Schema::Optional(inner) => {
-            if value.is_null() { value.clone() } else { coerce(inner, value) }
+            if value.is_null() {
+                value.clone()
+            } else {
+                coerce(inner, value)
+            }
         }
         _ => value.clone(),
     }
@@ -414,12 +430,18 @@ impl Schema {
 
     pub fn number() -> SchemaBuilder {
         SchemaBuilder {
-            schema: Schema::Number { min: None, max: None, integer: false },
+            schema: Schema::Number {
+                min: None,
+                max: None,
+                integer: false,
+            },
         }
     }
 
     pub fn bool() -> SchemaBuilder {
-        SchemaBuilder { schema: Schema::Boolean }
+        SchemaBuilder {
+            schema: Schema::Boolean,
+        }
     }
 
     pub fn array(item: Schema) -> SchemaBuilder {
@@ -444,27 +466,44 @@ impl Schema {
 
 impl SchemaBuilder {
     pub fn min(mut self, n: f64) -> Self {
-        if let Schema::Number { ref mut min, .. } = self.schema { *min = Some(n); }
+        if let Schema::Number { ref mut min, .. } = self.schema {
+            *min = Some(n);
+        }
         self
     }
 
     pub fn max(mut self, n: f64) -> Self {
-        if let Schema::Number { ref mut max, .. } = self.schema { *max = Some(n); }
+        if let Schema::Number { ref mut max, .. } = self.schema {
+            *max = Some(n);
+        }
         self
     }
 
     pub fn min_length(mut self, n: usize) -> Self {
-        if let Schema::String_ { ref mut min_len, .. } = self.schema { *min_len = Some(n); }
+        if let Schema::String_ {
+            ref mut min_len, ..
+        } = self.schema
+        {
+            *min_len = Some(n);
+        }
         self
     }
 
     pub fn max_length(mut self, n: usize) -> Self {
-        if let Schema::String_ { ref mut max_len, .. } = self.schema { *max_len = Some(n); }
+        if let Schema::String_ {
+            ref mut max_len, ..
+        } = self.schema
+        {
+            *max_len = Some(n);
+        }
         self
     }
 
     pub fn pattern(mut self, regex: &str) -> Self {
-        if let Schema::String_ { ref mut pattern, .. } = self.schema {
+        if let Schema::String_ {
+            ref mut pattern, ..
+        } = self.schema
+        {
             *pattern = Some(regex.to_string());
         }
         self
@@ -478,7 +517,12 @@ impl SchemaBuilder {
     }
 
     pub fn integer(mut self) -> Self {
-        if let Schema::Number { ref mut integer, .. } = self.schema { *integer = true; }
+        if let Schema::Number {
+            ref mut integer, ..
+        } = self.schema
+        {
+            *integer = true;
+        }
         self
     }
 
@@ -487,12 +531,22 @@ impl SchemaBuilder {
     }
 
     pub fn min_items(mut self, n: usize) -> Self {
-        if let Schema::Array { ref mut min_items, .. } = self.schema { *min_items = Some(n); }
+        if let Schema::Array {
+            ref mut min_items, ..
+        } = self.schema
+        {
+            *min_items = Some(n);
+        }
         self
     }
 
     pub fn max_items(mut self, n: usize) -> Self {
-        if let Schema::Array { ref mut max_items, .. } = self.schema { *max_items = Some(n); }
+        if let Schema::Array {
+            ref mut max_items, ..
+        } = self.schema
+        {
+            *max_items = Some(n);
+        }
         self
     }
 
@@ -508,7 +562,13 @@ impl SchemaBuilder {
     }
 
     pub fn allow_extra(mut self) -> Self {
-        if let Schema::Object { ref mut allow_extra, .. } = self.schema { *allow_extra = true; }
+        if let Schema::Object {
+            ref mut allow_extra,
+            ..
+        } = self.schema
+        {
+            *allow_extra = true;
+        }
         self
     }
 
@@ -569,7 +629,10 @@ mod tests {
 
     #[test]
     fn array_min_max_items() {
-        let s = Schema::array(Schema::number().build()).min_items(1).max_items(3).build();
+        let s = Schema::array(Schema::number().build())
+            .min_items(1)
+            .max_items(3)
+            .build();
         assert!(validate(&s, &json!([1, 2])).is_ok());
         assert!(validate(&s, &json!([])).is_err());
         assert!(validate(&s, &json!([1, 2, 3, 4])).is_err());
@@ -603,10 +666,7 @@ mod tests {
 
     #[test]
     fn one_of_matches() {
-        let s = Schema::OneOf(vec![
-            Schema::string().build(),
-            Schema::number().build(),
-        ]);
+        let s = Schema::OneOf(vec![Schema::string().build(), Schema::number().build()]);
         assert!(validate(&s, &json!("hi")).is_ok());
         assert!(validate(&s, &json!(42)).is_ok());
         assert!(validate(&s, &json!(true)).is_err());
@@ -624,9 +684,7 @@ mod tests {
         let addr = Schema::object()
             .field("city", Schema::string().build(), true)
             .build();
-        let s = Schema::object()
-            .field("address", addr, true)
-            .build();
+        let s = Schema::object().field("address", addr, true).build();
         let errs = validate(&s, &json!({"address": {}})).unwrap_err();
         assert!(errs.iter().any(|e| e.path == "address.city"));
     }
@@ -649,7 +707,11 @@ mod tests {
     fn complex_nested_schema() {
         let item = Schema::object()
             .field("id", Schema::number().integer().build(), true)
-            .field("tags", Schema::array(Schema::string().build()).min_items(1).build(), true)
+            .field(
+                "tags",
+                Schema::array(Schema::string().build()).min_items(1).build(),
+                true,
+            )
             .build();
         let s = Schema::array(item).build();
         let good = json!([{"id": 1, "tags": ["a"]}, {"id": 2, "tags": ["b", "c"]}]);
