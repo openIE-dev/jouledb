@@ -9,12 +9,18 @@
 //! - Sharded locking patterns for reduced contention
 
 mod buffer_pool;
+pub mod elle_hermitage;
 mod latch;
 mod lockfree;
 mod mvcc;
 mod optimistic;
 
 pub use buffer_pool::{BufferPool, BufferPoolConfig};
+pub use elle_hermitage::{
+    AdyaEdge, AdyaEdgeKind, AnomalyWitness, ElleCheckReport, ElleOp, ElleTxn, ElleTxnStatus,
+    HermitageSuiteReceipt, IsolationAnomalyKind, analyze_elle_history, run_hermitage_ssi_suite,
+    to_elle_edn,
+};
 pub use latch::{LatchManager, LatchManagerConfig, LatchMode, LatchStats, MultiPageLatch};
 pub use lockfree::{LockFreeCounter, LockFreeSize, LockFreeStats};
 pub use mvcc::{

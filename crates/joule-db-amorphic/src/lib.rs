@@ -3012,6 +3012,23 @@ impl AmorphicStore {
         self.hologram.active()
     }
 
+    /// Number of active clean-SNR holographic segments/shards.
+    pub fn hologram_shard_count(&self) -> usize {
+        self.hologram.segment_count()
+    }
+
+    /// Query maximum cosine/Hamming resonance across all clean-SNR holographic segments.
+    pub fn query_sharded_hologram_resonance(&self, probe: &BinaryHV) -> f64 {
+        if self.records.is_empty() {
+            return 0.0;
+        }
+        self.hologram
+            .segment_holograms()
+            .iter()
+            .map(|hv| hv.similarity(probe) as f64)
+            .fold(0.0f64, f64::max)
+    }
+
     /// Changes whenever a record is ingested, updated, or deleted. Caches
     /// derived from records (e.g. the server's columnar table cache) key on
     /// (generation, len).

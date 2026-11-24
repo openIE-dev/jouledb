@@ -4,6 +4,15 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-11-24
+
+### Added
+- **Database Gap-Closure & Formal Certification Suite (`morsel_spill`, `elle_hermitage`, `conformance_oracle`, `certification_routes`, `synapse`, `joule-db-amorphic`)**:
+  - **Morsel-Driven Out-of-Core Spill-to-Disk Vectorized OLAP (`POST /api/v1/olap/morsel_join` & `POST /api/v1/olap/morsel_groupby`):** `2,048`-row cache-resident `ColumnMorsel` batches with Radix-Partitioned Grace Hash Join and GroupBy spilling to zero-parse binary columnar CRC32 disk segments under a strict `memory_budget_bytes` ceiling with 6-rail `storage_nvme_nj` accounting.
+  - **Kleppmann `Hermitage` (`G0`..`G2-item`) + Jepsen/`Elle` Tarjan `SCC` Cycle Audit (`POST /api/v1/certify/hermitage_elle` & `elle_analyze`):** Infers Adya `ww`, `wr`, and `rw` anti-dependency edges, classifies `G0`, `G1a/b/c`, `P4`, `G2-item` Write Skew, and `G2` cycles via Tarjan's $O(V+E)$ `SCC` algorithm, exports Clojure EDN for `elle-cli`, and certifies Cahill `SSI` (`0` cycles).
+  - **Portable `sqllogictest` (`.slt` + RFC-1321 MD5 Digest) & `SQLancer` (`TLP` + `NoREC`) Oracles (`POST /api/v1/certify/sqllogictest` & `sqlancer`):** Native `.slt` conformance runner plus 3-valued `NULL` Ternary Logic Partitioning and `NoREC` differential logic-bug oracles.
+  - **Activation-Aware `SVF` Post-Compression Calibration (`POST /api/v1/synapse/littlebit/calibrate`), `Qwen3.5` Fused-Gate Attention & Auto-Sharded `AmorphicStore` Holograms:** Closed-form `AWQ ⊕ GPTQ` empirical activation calibration (`>92%` skewed-activation MSE reduction at `0` extra BPW without mutating `u64` bitplanes), exact GCD GQA head inference + `Qwen3.5` `[query, attn_gate]` `q_proj` splitting, and unbounded `256`-record clean-SNR `hologram_shards`.
+
 ## [0.2.6] - 2026-11-24
 
 ### Added

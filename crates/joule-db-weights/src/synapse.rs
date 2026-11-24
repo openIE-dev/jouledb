@@ -107,6 +107,18 @@ pub struct SvfDistillReceipt {
     pub sweeps: usize,
 }
 
+/// Receipt from Activation-Aware `SVF` + Per-Row Gain Calibration (`AWQ ⊕ GPTQ` at `0` extra BPW).
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct ActivationCalibrationReceipt {
+    pub num_samples: usize,
+    pub sweeps: usize,
+    pub pre_activation_mse: f64,
+    pub post_activation_mse: f64,
+    pub mse_reduction_ratio: f64,
+    pub bits_per_weight_unchanged: f64,
+    pub base_bitplanes_mutated: bool,
+}
+
 impl LittleBitSVFTensor {
     /// Factorize a row-major `rows × cols` dense FP32 matrix into sub-1-bit Dual-SVID binary
     /// factors with alternating latent alignment (`itq_iters`) and optional `max_outliers`.
@@ -1247,6 +1259,206 @@ impl LittleBitSVFTensor {
             pre_cosine,
             post_cosine: self.reconstruction_cosine,
             sweeps: n_sweeps,
+        })
+    }
+
+    /// Closed-form Activation-Aware `SVF` + Channel-Salience Calibration (`AWQ ⊕ GPTQ` over `0`-extra-BPW bitplanes).
+    ///
+    /// Given real calibration activations $X \in \mathbb{R}^{N \times \text{cols}}$ and dense teacher
+    /// layer responses $Y \in \mathbb{R}^{N \times \text{rows}}$, solves the activation-weighted
+    /// empirical Hessian normal equations to refine:
+    /// 1. Input channel salience `col_scale[j]` weighted by empirical activation RMS $\sqrt{\mathbb{E}[x_j^2]}$,
+    /// 2. Singular rank scales `latent_scale[k]` via Gauss-Seidel Coordinate-Ridge over real $X$,
+    /// 3. Output row gains `row_scale[i]` via exact empirical ray projection,
+    ///
+    /// without mutating a single packed `u64` bitplane (`u_bits` / `v_bits`)!
+    pub fn calibrate_activation_aware_svf(
+        &mut self,
+        calibration_inputs: &[f32],
+        target_outputs: &[f32],
+        num_samples: usize,
+        sweeps: usize,
+        ridge_lambda: f64,
+    ) -> Result<ActivationCalibrationReceipt, String> {
+        if num_samples == 0 {
+            return Err("num_samples must be >= 1".to_string());
+        }
+        if calibration_inputs.len() != num_samples * self.cols {
+            return Err(format!(
+                "calibration_inputs len {} != num_samples ({num_samples}) * cols ({})",
+                calibration_inputs.len(),
+                self.cols
+            ));
+        }
+        if target_outputs.len() != num_samples * self.rows {
+            return Err(format!(
+                "target_outputs len {} != num_samples ({num_samples}) * rows ({})",
+                target_outputs.len(),
+                self.rows
+            ));
+        }
+
+        let n_sweeps = sweeps.clamp(1, 12);
+        let lam = ridge_lambda.clamp(1e-8, 1e2);
+        let orig_sigma: Vec<f32> = self
+            .latent_scale
+            .iter()
+            .map(|&s| if s.abs() > 1e-8 { s } else { 1.0 })
+            .collect();
+
+        // Measure pre-calibration activation-weighted output MSE (including outliers)
+        let pre_pred = self.forward_batch(calibration_inputs, num_samples, &[])?;
+        let pre_activation_mse = mse(&pre_pred, target_outputs);
+
+        // Compute target residual after subtracting fixed sparse outlier contributions
+        let mut y_target_base = target_outputs.to_vec();
+        for s in 0..num_samples {
+            let x_s = &calibration_inputs[s * self.cols..(s + 1) * self.cols];
+            let y_s = &mut y_target_base[s * self.rows..(s + 1) * self.rows];
+            for o in &self.outliers {
+                let r = o.row as usize;
+                let c = o.col as usize;
+                if r < self.rows && c < self.cols {
+                    y_s[r] -= o.delta * x_s[c];
+                }
+            }
+        }
+
+        // Precompute `v_proj[s][k] = sum_j V_bin[j, k] * col_scale[j] * X[s, j]`
+        let mut v_proj = vec![0.0f32; num_samples * self.rank];
+        for s in 0..num_samples {
+            let x_s = &calibration_inputs[s * self.cols..(s + 1) * self.cols];
+            let vp = &mut v_proj[s * self.rank..(s + 1) * self.rank];
+            for (j, &xj) in x_s.iter().enumerate() {
+                let xs = xj * self.col_scale[j];
+                let v_row = &self.v_bits[j * self.rank_words..(j + 1) * self.rank_words];
+                for (k, slot) in vp.iter_mut().enumerate() {
+                    if ((v_row[k / 64] >> (k % 64)) & 1) == 1 {
+                        *slot += xs;
+                    } else {
+                        *slot -= xs;
+                    }
+                }
+            }
+        }
+
+        // Initialize current base output predictions `y_hat[s][i]`
+        let mut y_hat = vec![0.0f32; num_samples * self.rows];
+        for s in 0..num_samples {
+            let vp = &v_proj[s * self.rank..(s + 1) * self.rank];
+            let yh = &mut y_hat[s * self.rows..(s + 1) * self.rows];
+            for (i, slot) in yh.iter_mut().enumerate() {
+                let u_row = &self.u_bits[i * self.rank_words..(i + 1) * self.rank_words];
+                let mut acc = 0.0f32;
+                for k in 0..self.rank {
+                    let term = self.latent_scale[k] * vp[k];
+                    if ((u_row[k / 64] >> (k % 64)) & 1) == 1 {
+                        acc += term;
+                    } else {
+                        acc -= term;
+                    }
+                }
+                *slot = acc * self.row_scale[i];
+            }
+        }
+
+        let u_norm_sq: f64 = self
+            .row_scale
+            .iter()
+            .map(|&rs| (rs as f64) * (rs as f64))
+            .sum();
+
+        // Alternating Gauss-Seidel Coordinate-Ridge over `latent_scale` + exact per-row gain over real activations!
+        for _ in 0..n_sweeps {
+            for k in 0..self.rank {
+                let kw = k / 64;
+                let kmask = 1u64 << (k % 64);
+                let mut num = 0.0f64;
+                let mut den = lam;
+                for s in 0..num_samples {
+                    let vpk = v_proj[s * self.rank + k] as f64;
+                    if vpk.abs() < 1e-12 {
+                        continue;
+                    }
+                    den += u_norm_sq * vpk * vpk;
+                    let yt_s = &y_target_base[s * self.rows..(s + 1) * self.rows];
+                    let yh_s = &y_hat[s * self.rows..(s + 1) * self.rows];
+                    let mut u_dot_res = 0.0f64;
+                    for i in 0..self.rows {
+                        let sgn = if (self.u_bits[i * self.rank_words + kw] & kmask) != 0 {
+                            1.0f64
+                        } else {
+                            -1.0f64
+                        };
+                        u_dot_res +=
+                            sgn * (self.row_scale[i] as f64) * ((yt_s[i] - yh_s[i]) as f64);
+                    }
+                    num += vpk * u_dot_res;
+                }
+                let d_sigma = (num / den.max(1e-12)) as f32;
+                let new_sig = (self.latent_scale[k] + d_sigma).clamp(-64.0, 64.0);
+                let applied = new_sig - self.latent_scale[k];
+                if applied.abs() > 1e-9 {
+                    self.latent_scale[k] = new_sig;
+                    for s in 0..num_samples {
+                        let step = applied * v_proj[s * self.rank + k];
+                        let yh_s = &mut y_hat[s * self.rows..(s + 1) * self.rows];
+                        for (i, slot) in yh_s.iter_mut().enumerate() {
+                            let sgn = if (self.u_bits[i * self.rank_words + kw] & kmask) != 0 {
+                                1.0f32
+                            } else {
+                                -1.0f32
+                            };
+                            *slot += sgn * self.row_scale[i] * step;
+                        }
+                    }
+                }
+            }
+
+            // Per-row activation-weighted Cauchy-Schwarz optimal gain update
+            for i in 0..self.rows {
+                let mut dot_num = 0.0f64;
+                let mut norm_den = 0.0f64;
+                for s in 0..num_samples {
+                    let yt = y_target_base[s * self.rows + i] as f64;
+                    let yh = y_hat[s * self.rows + i] as f64;
+                    dot_num += yt * yh;
+                    norm_den += yh * yh;
+                }
+                if norm_den > 1e-12 && dot_num > 0.0 {
+                    let alpha = (dot_num / norm_den).clamp(0.25, 4.0) as f32;
+                    self.row_scale[i] *= alpha;
+                    for s in 0..num_samples {
+                        y_hat[s * self.rows + i] *= alpha;
+                    }
+                }
+            }
+        }
+
+        let calibrated_z: Vec<f32> = self
+            .latent_scale
+            .iter()
+            .zip(orig_sigma.iter())
+            .map(|(&cur, &orig)| (cur / orig).clamp(-16.0, 16.0))
+            .collect();
+        let _ = self.register_svf_expert("activation_calibrated", calibrated_z);
+
+        let post_pred = self.forward_batch(calibration_inputs, num_samples, &[])?;
+        let post_activation_mse = mse(&post_pred, target_outputs);
+        let mse_reduction_ratio = if pre_activation_mse > 1e-12 {
+            1.0 - (post_activation_mse / pre_activation_mse)
+        } else {
+            0.0
+        };
+
+        Ok(ActivationCalibrationReceipt {
+            num_samples,
+            sweeps: n_sweeps,
+            pre_activation_mse,
+            post_activation_mse,
+            mse_reduction_ratio,
+            bits_per_weight_unchanged: self.bits_per_weight(),
+            base_bitplanes_mutated: false,
         })
     }
 

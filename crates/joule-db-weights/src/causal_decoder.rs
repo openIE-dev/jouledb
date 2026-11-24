@@ -921,35 +921,47 @@ fn silu(x: f32) -> f32 {
     x / (1.0 + (-x).exp())
 }
 
+fn gcd_usize(mut a: usize, mut b: usize) -> usize {
+    while b != 0 {
+        let r = a % b;
+        a = b;
+        b = r;
+    }
+    a.max(1)
+}
+
 fn infer_gqa_geometry(
     q_dim: usize,
     kv_dim: usize,
     meta: Option<&CausalModelMeta>,
 ) -> (usize, usize, usize) {
-    if let Some(m) = meta
-        && let (Some(nh), Some(nkv)) = (m.num_attention_heads, m.num_key_value_heads)
-        && nh > 0
-        && nkv > 0
-    {
-        let hd = m.head_dim.unwrap_or_else(|| (q_dim / nh).max(1));
-        return (nh, nkv, hd);
+    let q_d = q_dim.max(1);
+    let kv_d = kv_dim.max(1);
+    if let Some(m) = meta {
+        if let (Some(nh), Some(nkv)) = (m.num_attention_heads, m.num_key_value_heads)
+            && nh > 0
+            && nkv > 0
+        {
+            let hd = m.head_dim.unwrap_or_else(|| (q_d / nh).max(1)).max(1);
+            if nh * hd == q_d && nkv * hd == kv_d {
+                return (nh, nkv, hd);
+            }
+        }
+        if let Some(hd) = m.head_dim
+            && hd > 0
+            && q_d.is_multiple_of(hd)
+            && kv_d.is_multiple_of(hd)
+        {
+            return ((q_d / hd).max(1), (kv_d / hd).max(1), hd);
+        }
     }
-    let hd = if kv_dim >= 64 && kv_dim.is_multiple_of(64) && q_dim.is_multiple_of(64) {
-        64
-    } else if kv_dim >= 32 && kv_dim.is_multiple_of(32) && q_dim.is_multiple_of(32) {
-        32
-    } else if kv_dim >= 16 && kv_dim.is_multiple_of(16) && q_dim.is_multiple_of(16) {
-        16
-    } else if kv_dim >= 8 && kv_dim.is_multiple_of(8) && q_dim.is_multiple_of(8) {
-        8
-    } else if kv_dim >= 4 && kv_dim.is_multiple_of(4) && q_dim.is_multiple_of(4) {
-        4
-    } else {
-        kv_dim.max(1)
-    };
-    let nh = (q_dim / hd).max(1);
-    let nkv = (kv_dim / hd).max(1);
-    (nh, nkv, hd)
+    for d in [512usize, 256, 128, 96, 80, 64, 48, 32, 16, 8, 4] {
+        if kv_d >= d && kv_d.is_multiple_of(d) && q_d.is_multiple_of(d) {
+            return ((q_d / d).max(1), (kv_d / d).max(1), d);
+        }
+    }
+    let hd = gcd_usize(q_d, kv_d);
+    ((q_d / hd).max(1), (kv_d / hd).max(1), hd)
 }
 
 fn sample_next_token(
@@ -2040,16 +2052,17 @@ where
                     .vectors_1d
                     .get(&format!("{lp}.conv.conv.bias"))
                     .map(Vec::as_slice);
+                let c_dim = (bcx.len() / bsz.max(1) / 3).max(1);
                 let k_conv = dw
-                    .map(|w| (w.len() / hidden_dim.max(1)).max(1))
+                    .map(|w| (w.len() / c_dim).max(1))
                     .unwrap_or_else(|| meta.as_ref().map(|m| m.conv_l_cache).unwrap_or(3));
 
-                let mut gated_batch = vec![0.0f32; bsz * hidden_dim];
+                let mut gated_batch = vec![0.0f32; bsz * c_dim];
                 for bi in 0..bsz {
-                    let row3 = &bcx[bi * 3 * hidden_dim..(bi + 1) * 3 * hidden_dim];
-                    let b_gate = &row3[0..hidden_dim];
-                    let c_gate = &row3[hidden_dim..2 * hidden_dim];
-                    let x_val = &row3[2 * hidden_dim..3 * hidden_dim];
+                    let row3 = &bcx[bi * 3 * c_dim..(bi + 1) * 3 * c_dim];
+                    let b_gate = &row3[0..c_dim];
+                    let c_gate = &row3[c_dim..2 * c_dim];
+                    let x_val = &row3[2 * c_dim..3 * c_dim];
                     let bx: Vec<f32> = b_gate
                         .iter()
                         .zip(x_val.iter())
@@ -2057,8 +2070,8 @@ where
                         .collect();
                     conv_cache[l].push(bx);
                     let hist_len = conv_cache[l].len();
-                    let dst = &mut gated_batch[bi * hidden_dim..(bi + 1) * hidden_dim];
-                    for ch in 0..hidden_dim {
+                    let dst = &mut gated_batch[bi * c_dim..(bi + 1) * c_dim];
+                    for ch in 0..c_dim {
                         let mut acc = dw_bias.and_then(|b| b.get(ch)).copied().unwrap_or(0.0);
                         for tap in 0..k_conv {
                             // Causal window: tap `k_conv - 1` multiplies newest `hist_len - 1`
@@ -2379,11 +2392,27 @@ where
                         format!("{lp}.self_attn.k_layernorm.weight"),
                     ],
                 );
-                let q_rows = harness
+                let raw_q_rows = harness
                     .littlebit_tensors
                     .get(&q_key)
                     .map(|t| t.rows)
                     .unwrap_or(num_q_heads * head_dim);
+                let o_in_cols = harness
+                    .littlebit_tensors
+                    .get(&format!("{lp}.self_attn.o_proj.weight"))
+                    .or_else(|| {
+                        harness
+                            .littlebit_tensors
+                            .get(&format!("{lp}.self_attn.out_proj.weight"))
+                    })
+                    .map(|t| t.cols);
+                // `Qwen3.5` / `OmniEVIE` / `WeMM` full-attention layers fuse `[query, attn_gate]` (`2 * o_proj.cols`) inside `q_proj.weight`.
+                let q_has_fused_gate = o_in_cols.is_some_and(|oc| oc > 0 && raw_q_rows == 2 * oc);
+                let q_rows = if q_has_fused_gate {
+                    raw_q_rows / 2
+                } else {
+                    raw_q_rows
+                };
                 let mut shared_kv_src: Option<usize> = None;
                 let kv_rows = if let Some(kt) = harness.littlebit_tensors.get(&k_key) {
                     kt.rows
@@ -2423,7 +2452,7 @@ where
                 let q_dim = l_qh * l_hd;
                 let kv_dim = l_kvh * l_hd;
 
-                let mut q_batch = run_proj_batch(
+                let q_raw_batch = run_proj_batch(
                     &harness.littlebit_tensors,
                     &harness.vectors_1d,
                     &q_key,
@@ -2434,6 +2463,21 @@ where
                     g_disp,
                     proj_fn,
                 )?;
+                let (mut q_batch, fused_q_gate_opt) = if q_has_fused_gate {
+                    let mut qb = Vec::with_capacity(bsz * q_dim);
+                    let mut gb = Vec::with_capacity(bsz * q_dim);
+                    for bi in 0..bsz {
+                        let tok_qg = &q_raw_batch[bi * 2 * q_dim..(bi + 1) * 2 * q_dim];
+                        for qh in 0..l_qh {
+                            let h_pair = &tok_qg[qh * 2 * l_hd..(qh + 1) * 2 * l_hd];
+                            qb.extend_from_slice(&h_pair[0..l_hd]);
+                            gb.extend_from_slice(&h_pair[l_hd..2 * l_hd]);
+                        }
+                    }
+                    (qb, Some(gb))
+                } else {
+                    (q_raw_batch, None)
+                };
                 if has_own_k {
                     let mut k_batch = run_proj_batch(
                         &harness.littlebit_tensors,
@@ -2568,6 +2612,11 @@ where
                 };
 
                 // Per-head or elementwise Sigmoid Attention Gate (`Poolside Laguna`, `LiquidAI LFM3`)
+                if let Some(ref fg) = fused_q_gate_opt {
+                    for (ai, &gi) in attn_batch.iter_mut().zip(fg.iter()) {
+                        *ai *= 1.0 / (1.0 + (-gi).exp());
+                    }
+                }
                 if harness
                     .littlebit_tensors
                     .contains_key(&format!("{lp}.self_attn.attn_gate.weight"))

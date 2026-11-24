@@ -1595,6 +1595,10 @@ pub fn synapse_router(runtime: Arc<SynapseServerRuntime>) -> Router {
             post(handle_littlebit_svf_adapt),
         )
         .route(
+            "/api/v1/synapse/littlebit/calibrate",
+            post(handle_littlebit_calibrate),
+        )
+        .route(
             "/api/v1/synapse/titans/observe",
             post(handle_titans_observe),
         )
@@ -3498,6 +3502,63 @@ async fn handle_littlebit_svf_adapt(
                     "base_bitplanes_mutated": false,
                 })),
             )
+        }
+        Err(e) => bad_request(e),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct CalibrateLittleBitReq {
+    name: String,
+    calibration_inputs: Vec<f32>,
+    target_outputs: Vec<f32>,
+    num_samples: usize,
+    #[serde(default = "default_calibrate_sweeps")]
+    sweeps: usize,
+    #[serde(default = "default_calibrate_ridge")]
+    ridge_lambda: f64,
+}
+
+fn default_calibrate_sweeps() -> usize {
+    4
+}
+
+fn default_calibrate_ridge() -> f64 {
+    1e-4
+}
+
+async fn handle_littlebit_calibrate(
+    State(rt): State<Arc<SynapseServerRuntime>>,
+    Json(req): Json<CalibrateLittleBitReq>,
+) -> impl IntoResponse {
+    let outcome = {
+        let mut guard = match rt.inner.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        let Some(tensor) = guard.littlebit_tensors.get_mut(&req.name) else {
+            return bad_request(format!("LittleBit tensor '{}' not found", req.name));
+        };
+        let res = tensor.calibrate_activation_aware_svf(
+            &req.calibration_inputs,
+            &req.target_outputs,
+            req.num_samples,
+            req.sweeps,
+            req.ridge_lambda,
+        );
+        match res {
+            Ok(receipt) => {
+                let cloned = tensor.clone();
+                rt.persist_if_configured(&guard);
+                Ok((receipt, cloned))
+            }
+            Err(e) => Err(e),
+        }
+    };
+    match outcome {
+        Ok((receipt, updated_tensor)) => {
+            rt.cache_gpu_weights(&req.name, &updated_tensor);
+            (StatusCode::OK, Json(serde_json::json!(receipt)))
         }
         Err(e) => bad_request(e),
     }

@@ -50,6 +50,7 @@ pub mod timeseries;
 
 pub mod adaptive;
 pub mod columnar;
+pub mod conformance_oracle;
 pub mod dbsp;
 pub mod execution;
 pub mod executor;
@@ -58,6 +59,7 @@ pub mod geo;
 pub mod graph;
 pub mod hybrid_graphrag;
 pub mod jsonb;
+pub mod morsel_spill;
 pub mod planner;
 pub mod prepared;
 pub mod timeout;

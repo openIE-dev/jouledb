@@ -93,6 +93,7 @@ pub mod workflow;
 
 // Amorphic modules
 pub mod amorphic_adapter;
+pub mod certification_routes;
 pub mod gin_index;
 pub mod mcp_transport;
 pub mod mvcc_adapter;
@@ -1223,6 +1224,11 @@ impl Server {
             ))
             .merge(pulse_mesh_routes::pulse_mesh_router(
                 self.pulse_mesh_runtime.clone(),
+            ))
+            .merge(certification_routes::certification_router(
+                certification_routes::CertificationRuntime {
+                    query_executor: app_state.query_executor.clone(),
+                },
             ));
 
         // Merge ledger verification routes (if ledger is enabled)
