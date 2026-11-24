@@ -443,6 +443,14 @@ class Connection:
             },
         )
 
+    def evict_model(self, model_id: str) -> Dict[str, Any]:
+        """Evict a loaded JouleSynapse living-weights model from RAM and GPU bitplane cache."""
+        return self._json_request(
+            "POST",
+            "/api/v1/synapse/models/evict",
+            {"model_id": model_id},
+        )
+
     def kube_apply(
         self,
         manifest: str,

@@ -1581,6 +1581,7 @@ pub fn synapse_router(runtime: Arc<SynapseServerRuntime>) -> Router {
         .route("/api/v1/synapse/hf/export", post(handle_hf_export))
         .route("/api/v1/synapse/hf/pull", post(handle_hf_pull))
         .route("/api/v1/synapse/hf/catalog", get(handle_hf_catalog))
+        .route("/api/v1/synapse/models/evict", post(handle_evict_model))
         .route(
             "/api/v1/synapse/littlebit/factorize",
             post(handle_littlebit_factorize),
@@ -2264,14 +2265,14 @@ async fn handle_hf_pull(
             .clone()
             .or_else(|| std::env::var("HF_TOKEN").ok());
         let client = match reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(600))
+            .timeout(std::time::Duration::from_secs(1800))
             .build()
         {
             Ok(c) => c,
             Err(e) => return bad_request(format!("http client build: {e}")).into_response(),
         };
 
-        let fetch_file = |fname: String| {
+        let fetch_to_disk = |fname: String, dst: std::path::PathBuf| {
             let client = client.clone();
             let token = token.clone();
             let url = format!(
@@ -2285,22 +2286,28 @@ async fn handle_hf_pull(
                 if let Some(t) = token.as_deref().filter(|s| !s.trim().is_empty()) {
                     rb = rb.bearer_auth(t.trim());
                 }
-                let resp = rb.send().await.ok()?;
+                let mut resp = rb.send().await.ok()?;
                 if !resp.status().is_success() {
                     return None;
                 }
-                resp.bytes().await.ok()
+                if let Some(par) = dst.parent() {
+                    let _ = std::fs::create_dir_all(par);
+                }
+                let mut f = std::fs::File::create(&dst).ok()?;
+                use std::io::Write;
+                while let Some(chunk) = resp.chunk().await.ok()? {
+                    f.write_all(&chunk).ok()?;
+                }
+                f.flush().ok()?;
+                Some(dst)
             }
         };
 
         // 1. Fast path: pre-factorized `.jsyn` living-weights bundle on Hugging Face Hub!
+        let jsyn_dst = cache_dir.join("model.jsyn");
         if req.filename.is_none()
-            && let Some(jsyn_bytes) = fetch_file("model.jsyn".to_string()).await
+            && let Some(p) = fetch_to_disk("model.jsyn".to_string(), jsyn_dst).await
         {
-            let p = cache_dir.join("model.jsyn");
-            if let Err(e) = std::fs::write(&p, &jsyn_bytes) {
-                return bad_request(format!("write cached model.jsyn: {e}")).into_response();
-            }
             return match rt.import_jsyn_snapshot_path(&p, Some(&req.model_id)) {
                 Ok(v) => (StatusCode::OK, Json(v)).into_response(),
                 Err(e) => bad_request(e).into_response(),
@@ -2309,19 +2316,21 @@ async fn handle_hf_pull(
 
         // Pull sibling config & tokenizer metadata if present
         for aux in ["config.json", "tokenizer.json", "vocab.txt"] {
-            if let Some(b) = fetch_file(aux.to_string()).await {
-                let _ = std::fs::write(cache_dir.join(aux), &b);
-            }
+            let _ = fetch_to_disk(aux.to_string(), cache_dir.join(aux)).await;
         }
 
         // 2. Explicit `filename` or standard `model.safetensors`, or auto-discover sub-path/sharded `.safetensors` / `.gguf`!
         let mut target_rel_files: Vec<String> = Vec::new();
         if let Some(ref explicit_fn) = req.filename {
             target_rel_files.push(explicit_fn.trim_start_matches('/').to_string());
-        } else if let Some(st_bytes) = fetch_file("model.safetensors".to_string()).await {
-            if let Err(e) = std::fs::write(cache_dir.join("model.safetensors"), &st_bytes) {
-                return bad_request(format!("write cached model.safetensors: {e}")).into_response();
-            }
+        } else if fetch_to_disk(
+            "model.safetensors".to_string(),
+            cache_dir.join("model.safetensors"),
+        )
+        .await
+        .is_some()
+        {
+            // Already streamed directly to `cache_dir/model.safetensors`!
         } else {
             // Query Hugging Face Hub API for repo siblings (`checkpoints/*.safetensors`, shards, or `.gguf`)
             let api_url = format!(
@@ -2341,7 +2350,7 @@ async fn handle_hf_pull(
                 let mut gguf_sibs = Vec::new();
                 for s in sibs {
                     if let Some(rf) = s.get("rfilename").and_then(|x| x.as_str()) {
-                        if rf.ends_with(".safetensors") {
+                        if rf.ends_with(".safetensors") && rf != "mtp.safetensors" {
                             st_sibs.push(rf.to_string());
                         } else if rf.ends_with(".gguf") && !rf.contains("mmproj") {
                             gguf_sibs.push(rf.to_string());
@@ -2365,16 +2374,10 @@ async fn handle_hf_pull(
         }
 
         for rel in &target_rel_files {
-            let Some(raw_b) = fetch_file(rel.clone()).await else {
+            let dst = cache_dir.join(rel);
+            if fetch_to_disk(rel.clone(), dst).await.is_none() {
                 return bad_request(format!("failed to download '{rel}' from '{repo}'"))
                     .into_response();
-            };
-            let dst = cache_dir.join(rel);
-            if let Some(par) = dst.parent() {
-                let _ = std::fs::create_dir_all(par);
-            }
-            if let Err(e) = std::fs::write(&dst, &raw_b) {
-                return bad_request(format!("write cached '{rel}': {e}")).into_response();
             }
         }
         cache_dir
@@ -2684,6 +2687,281 @@ pub fn builtin_open_weight_catalog() -> Vec<CuratedOpenWeightModelEntry> {
             upstream_size_mb: 144,
             source_format: "safetensors",
         },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Thinking Machines Lab",
+            model_id: "inkling-2-mini",
+            upstream_repo: "thinkingmachines/Inkling-2-Mini",
+            openie_jsyn_repo: "dcharlot65-openie/Inkling-2-Mini-LittleBit",
+            architecture: "inkling2_loop_sconv_nvfp4_moe",
+            modality: "multimodal_reasoning_1m_ctx",
+            license: "apache-2.0",
+            upstream_size_mb: 20162,
+            source_format: "safetensors_nvfp4_mxfp8",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Thinking Machines Lab",
+            model_id: "tml-d24-varloop",
+            upstream_repo: "thinkingmachines/TML-d24-varloop-research",
+            openie_jsyn_repo: "dcharlot65-openie/TML-d24-VarLoop-LittleBit",
+            architecture: "inkling2_varloop_nvfp4_moe",
+            modality: "reasoning_research",
+            license: "apache-2.0",
+            upstream_size_mb: 20162,
+            source_format: "safetensors_nvfp4_mxfp8",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Thinking Machines Lab",
+            model_id: "inkling-2-mini-mtp",
+            upstream_repo: "thinkingmachines/Inkling-2-Mini",
+            openie_jsyn_repo: "dcharlot65-openie/Inkling-2-Mini-MTP-LittleBit",
+            architecture: "dflare_multi_token_prediction_3L",
+            modality: "speculative_mtp_head",
+            license: "apache-2.0",
+            upstream_size_mb: 636,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "NVIDIA",
+            model_id: "nemotron-3-nano-4b",
+            upstream_repo: "nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16",
+            openie_jsyn_repo: "dcharlot65-openie/NVIDIA-Nemotron-3-Nano-4B-LittleBit",
+            architecture: "nemotron_h_mamba2_gqa_relu2",
+            modality: "causal_text_reasoning_262k",
+            license: "nvidia-nemotron-open-model-license",
+            upstream_size_mb: 7947,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "NVIDIA",
+            model_id: "nemotron-nano-9b-v2-nvfp4",
+            upstream_repo: "nvidia/NVIDIA-Nemotron-Nano-9B-v2-NVFP4",
+            openie_jsyn_repo: "dcharlot65-openie/NVIDIA-Nemotron-Nano-9B-v2-LittleBit",
+            architecture: "nemotron_h_mamba2_nvfp4",
+            modality: "causal_text_reasoning",
+            license: "nvidia-open-model-license",
+            upstream_size_mb: 7835,
+            source_format: "safetensors_nvfp4",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "NVIDIA",
+            model_id: "nemotron-3.5-bolt-e4b",
+            upstream_repo: "nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB",
+            openie_jsyn_repo: "dcharlot65-openie/NVIDIA-Nemotron-3.5-Bolt-E4B-LittleBit",
+            architecture: "gemma4_bolt_edge",
+            modality: "causal_text_edge",
+            license: "nvidia-open-model-license",
+            upstream_size_mb: 6180,
+            source_format: "gguf",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "NVIDIA",
+            model_id: "nemotron-3-embed-1b",
+            upstream_repo: "nvidia/Nemotron-3-Embed-1B-BF16",
+            openie_jsyn_repo: "dcharlot65-openie/NVIDIA-Nemotron-3-Embed-1B-LittleBit",
+            architecture: "ministral3_bidirectional_embed",
+            modality: "text_embedding",
+            license: "openmdw-1.1",
+            upstream_size_mb: 2282,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "NVIDIA",
+            model_id: "llama-nemotron-embed-1b-v2",
+            upstream_repo: "nvidia/llama-nemotron-embed-1b-v2",
+            openie_jsyn_repo: "dcharlot65-openie/NVIDIA-Llama-Nemotron-Embed-1B-v2-LittleBit",
+            architecture: "llama_bidirectional_embed",
+            modality: "text_embedding",
+            license: "nvidia-open-model-license",
+            upstream_size_mb: 2472,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "NVIDIA",
+            model_id: "openmath-nemotron-1.5b",
+            upstream_repo: "nvidia/OpenMath-Nemotron-1.5B",
+            openie_jsyn_repo: "dcharlot65-openie/NVIDIA-OpenMath-Nemotron-1.5B-LittleBit",
+            architecture: "qwen2_math_reasoning",
+            modality: "math_reasoning",
+            license: "cc-by-4.0",
+            upstream_size_mb: 3088,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "NVIDIA",
+            model_id: "nemotron-parse-2.0",
+            upstream_repo: "nvidia/NVIDIA-Nemotron-Parse-2.0",
+            openie_jsyn_repo: "dcharlot65-openie/NVIDIA-Nemotron-Parse-2.0-LittleBit",
+            architecture: "nemotron_parse_vlm",
+            modality: "document_vision_language",
+            license: "openmdw-1.1",
+            upstream_size_mb: 3612,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "NVIDIA",
+            model_id: "segformer-b0-ade",
+            upstream_repo: "nvidia/segformer-b0-finetuned-ade-512-512",
+            openie_jsyn_repo: "dcharlot65-openie/NVIDIA-SegFormer-B0-LittleBit",
+            architecture: "segformer_hierarchical_vit",
+            modality: "vision_segmentation",
+            license: "nvidia-open-model-license",
+            upstream_size_mb: 15,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Google Gemma 4",
+            model_id: "embeddinggemma-2",
+            upstream_repo: "google/embeddinggemma-2",
+            openie_jsyn_repo: "dcharlot65-openie/EmbeddingGemma-2-LittleBit",
+            architecture: "gemma4_multimodal_embedding",
+            modality: "multimodal_embedding",
+            license: "apache-2.0",
+            upstream_size_mb: 1489,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Poolside",
+            model_id: "poolside-dflash",
+            upstream_repo: "poolside/spec-decoding-subfolder-fixture",
+            openie_jsyn_repo: "dcharlot65-openie/Poolside-DFlash-Draft-LittleBit",
+            architecture: "llama_dflash_speculative_drafter",
+            modality: "speculative_code_drafting",
+            license: "apache-2.0",
+            upstream_size_mb: 9,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Liquid AI",
+            model_id: "lfm2.5-230m-base",
+            upstream_repo: "LiquidAI/LFM2.5-230M-Base",
+            openie_jsyn_repo: "dcharlot65-openie/LFM2.5-230M-Base-LittleBit",
+            architecture: "lfm2_shortconv_gqa_swiglu",
+            modality: "causal_text",
+            license: "lfm1.0",
+            upstream_size_mb: 459,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Microsoft BitNet",
+            model_id: "bitnet-embedding-270m",
+            upstream_repo: "microsoft/bitnet-embedding-270m",
+            openie_jsyn_repo: "dcharlot65-openie/BitNet-Embedding-270M-LittleBit",
+            architecture: "gemma3_bitnet_i2s_ternary_embed",
+            modality: "text_embedding",
+            license: "mit",
+            upstream_size_mb: 368,
+            source_format: "gguf_i2_s",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Microsoft BitNet",
+            model_id: "bitnet-embedding-0.6b",
+            upstream_repo: "microsoft/bitnet-embedding-0.6b",
+            openie_jsyn_repo: "dcharlot65-openie/BitNet-Embedding-0.6B-LittleBit",
+            architecture: "gemma3_bitnet_i2s_ternary_embed",
+            modality: "text_embedding",
+            license: "mit",
+            upstream_size_mb: 428,
+            source_format: "gguf_i2_s",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "AllenAI OLMo",
+            model_id: "olmo-2-0425-1b-instruct",
+            upstream_repo: "allenai/OLMo-2-0425-1B-Instruct",
+            openie_jsyn_repo: "dcharlot65-openie/OLMo-2-1B-Instruct-LittleBit",
+            architecture: "olmo2_postnorm_qknorm_swiglu",
+            modality: "causal_text",
+            license: "apache-2.0",
+            upstream_size_mb: 2970,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Sakana AI",
+            model_id: "tinyswallow-1.5b-instruct",
+            upstream_repo: "SakanaAI/TinySwallow-1.5B-Instruct",
+            openie_jsyn_repo: "dcharlot65-openie/Sakana-TinySwallow-1.5B-LittleBit",
+            architecture: "qwen2_evolutionary_distilled",
+            modality: "causal_text",
+            license: "apache-2.0",
+            upstream_size_mb: 3088,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "PleIAs",
+            model_id: "pleias-monad",
+            upstream_repo: "PleIAs/Monad",
+            openie_jsyn_repo: "dcharlot65-openie/PleIAs-Monad-LittleBit",
+            architecture: "llama_commons_ultracompact",
+            modality: "causal_text",
+            license: "apache-2.0",
+            upstream_size_mb: 113,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "PleIAs",
+            model_id: "pleias-350m",
+            upstream_repo: "PleIAs/Pleias-350m-Preview",
+            openie_jsyn_repo: "dcharlot65-openie/PleIAs-350M-LittleBit",
+            architecture: "llama_commons_rag",
+            modality: "causal_text_rag",
+            license: "apache-2.0",
+            upstream_size_mb: 707,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "OpenBMB MiniCPM",
+            model_id: "minicpm5-1b",
+            upstream_repo: "openbmb/MiniCPM5-1B",
+            openie_jsyn_repo: "dcharlot65-openie/MiniCPM5-1B-LittleBit",
+            architecture: "minicpm5_gqa_swiglu",
+            modality: "causal_text",
+            license: "apache-2.0",
+            upstream_size_mb: 2161,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "PrimeIntellect",
+            model_id: "qwen3-moe-tiny",
+            upstream_repo: "PrimeIntellect/qwen3-moe-tiny",
+            openie_jsyn_repo: "dcharlot65-openie/Qwen3-MoE-Tiny-LittleBit",
+            architecture: "qwen3_sparse_moe_16e_top4",
+            modality: "causal_text_moe",
+            license: "apache-2.0",
+            upstream_size_mb: 1341,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "BAAI BGE",
+            model_id: "bge-small-en-v1.5",
+            upstream_repo: "BAAI/bge-small-en-v1.5",
+            openie_jsyn_repo: "dcharlot65-openie/BGE-Small-EN-v1.5-LittleBit",
+            architecture: "bert_bidirectional_encoder",
+            modality: "text_embedding",
+            license: "mit",
+            upstream_size_mb: 134,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Alibaba GTE",
+            model_id: "gte-modernbert-base",
+            upstream_repo: "Alibaba-NLP/gte-modernbert-base",
+            openie_jsyn_repo: "dcharlot65-openie/GTE-ModernBERT-Base-LittleBit",
+            architecture: "modernbert_wqkv_rope_geglu",
+            modality: "text_embedding",
+            license: "apache-2.0",
+            upstream_size_mb: 298,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Nomic AI",
+            model_id: "nomic-embed-text-v1.5",
+            upstream_repo: "nomic-ai/nomic-embed-text-v1.5",
+            openie_jsyn_repo: "dcharlot65-openie/Nomic-Embed-Text-v1.5-LittleBit",
+            architecture: "nomic_bert_rope_swiglu",
+            modality: "text_embedding",
+            license: "apache-2.0",
+            upstream_size_mb: 547,
+            source_format: "safetensors",
+        },
     ]
 }
 
@@ -2698,10 +2976,23 @@ fn resolve_model_license_metadata(
         .unwrap_or_else(|| {
             if lower_repo.starts_with("liquidai/") || lower_repo.contains("lfm") {
                 "lfm1.0".to_string()
-            } else if lower_repo.starts_with("poolside/") || lower_repo.contains("laguna") {
+            } else if lower_repo == "nvidia/nemotron-3-embed-1b-bf16"
+                || lower_repo.contains("nemotron-parse")
+                || (lower_repo.starts_with("poolside/") && lower_repo.contains("laguna-"))
+            {
                 "openmdw-1.1".to_string()
+            } else if lower_repo.starts_with("nvidia/openmath")
+                || lower_repo.starts_with("nvidia/parakeet")
+            {
+                "cc-by-4.0".to_string()
+            } else if lower_repo.starts_with("nvidia/nvidia-nemotron-3") {
+                "nvidia-nemotron-open-model-license".to_string()
+            } else if lower_repo.starts_with("nvidia/") {
+                "nvidia-open-model-license".to_string()
             } else if lower_repo == "cactus-compute/needle"
                 || lower_repo.starts_with("microsoft/bitnet")
+                || lower_repo.starts_with("microsoft/phi-")
+                || lower_repo.starts_with("baai/bge-")
                 || lower_repo.starts_with("openai/whisper")
             {
                 "mit".to_string()
@@ -2722,6 +3013,31 @@ Free for academic, research, and commercial deployment by entities under $10M US
 contact Liquid AI for commercial licensing. Built with Liquid AI LFM."
             ));
         (yaml, "lfm1.0".to_string(), notice)
+    } else if inferred == "nvidia-nemotron-open-model-license" {
+        let yaml = "license: other\nlicense_name: nvidia-nemotron-open-model-license\nlicense_link: https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-nemotron-open-model-license/".to_string();
+        let notice = explicit_notice.map(String::from).unwrap_or_else(|| format!(
+            "Adapted from `{base_repo}` by NVIDIA Corporation under the [**NVIDIA Nemotron Open Model License**](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-nemotron-open-model-license/). Built with NVIDIA Nemotron."
+        ));
+        (
+            yaml,
+            "nvidia-nemotron-open-model-license".to_string(),
+            notice,
+        )
+    } else if inferred == "nvidia-open-model-license" {
+        let yaml = "license: other\nlicense_name: nvidia-open-model-license\nlicense_link: https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/".to_string();
+        let notice = explicit_notice.map(String::from).unwrap_or_else(|| format!(
+            "Adapted from `{base_repo}` by NVIDIA Corporation under the [**NVIDIA Open Model License Agreement**](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/). Built with NVIDIA."
+        ));
+        (yaml, "nvidia-open-model-license".to_string(), notice)
+    } else if inferred == "cc-by-4.0" {
+        let notice = explicit_notice.map(String::from).unwrap_or_else(|| format!(
+            "Adapted from `{base_repo}` under the [**Creative Commons Attribution 4.0 International (CC-BY-4.0)**](https://creativecommons.org/licenses/by/4.0/) license."
+        ));
+        (
+            "license: cc-by-4.0".to_string(),
+            "cc-by-4.0".to_string(),
+            notice,
+        )
     } else if inferred == "openmdw-1.1" {
         let yaml = "license: other\nlicense_name: openmdw-1.1\nlicense_link: https://openmdw.ai/"
             .to_string();
@@ -2744,6 +3060,36 @@ contact Liquid AI for commercial licensing. Built with Liquid AI LFM."
             notice,
         )
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EvictSynapseModelReq {
+    pub model_id: String,
+}
+
+async fn handle_evict_model(
+    State(rt): State<Arc<SynapseServerRuntime>>,
+    Json(req): Json<EvictSynapseModelReq>,
+) -> impl IntoResponse {
+    let pfx = format!("{}::", req.model_id);
+    if let Ok(mut gcache) = rt.gpu_packed_cache.lock() {
+        gcache.retain(|k, _| !k.starts_with(&pfx));
+    }
+    let removed = {
+        let mut guard = match rt.inner.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        guard.evict_model(&req.model_id)
+    };
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "model_id": req.model_id,
+            "removed_entries": removed,
+        })),
+    )
 }
 
 async fn handle_hf_catalog() -> impl IntoResponse {

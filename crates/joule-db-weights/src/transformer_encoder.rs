@@ -299,7 +299,10 @@ pub fn detect_transformer_encoder(
         let mut layers = 0usize;
         while harness.littlebit_tensors.contains_key(&format!(
             "{pfx}encoder.layer.{layers}.attention.self.query.weight"
-        )) {
+        )) || harness
+            .littlebit_tensors
+            .contains_key(&format!("{pfx}encoder.layers.{layers}.attn.Wqkv.weight"))
+        {
             layers += 1;
         }
         if layers > 0 {
@@ -570,7 +573,199 @@ where
         });
     }
 
-    // Fast dispatch for Decoder-backbone Embedding models (e.g. `Qwen/Qwen3-Embedding-0.6B`)
+    // Fast dispatch for `NomicBertModel` (`nomic-ai/nomic-embed-text-v1.5` — `embeddings.word_embeddings.weight` + `encoder.layers.{l}.attn.Wqkv.weight`)
+    if harness
+        .littlebit_tensors
+        .contains_key(&format!("{pfx}encoder.layers.0.attn.Wqkv.weight"))
+        && let Some(word_emb) = harness
+            .littlebit_tensors
+            .get(&format!("{pfx}embeddings.word_embeddings.weight"))
+    {
+        let hidden_dim = word_emb.cols;
+        let num_heads = harness
+            .model_configs
+            .get(model_id)
+            .and_then(|c| c.num_attention_heads)
+            .unwrap_or_else(|| infer_num_heads(hidden_dim));
+        let head_dim = (hidden_dim / num_heads.max(1)).max(1);
+        let tokenizer = match harness.model_vocabs.get(model_id) {
+            Some(v_vec) if !v_vec.is_empty() => WordPieceTokenizer::from_vocab_list(v_vec),
+            _ => WordPieceTokenizer::fallback_for_vocab_size(word_emb.rows),
+        };
+        let token_ids = tokenizer.encode(text, max_seq_len);
+        let seq_len = token_ids.len().max(1);
+        let emb_ln_w = harness
+            .vectors_1d
+            .get(&format!("{pfx}emb_ln.weight"))
+            .map(Vec::as_slice);
+        let emb_ln_b = harness
+            .vectors_1d
+            .get(&format!("{pfx}emb_ln.bias"))
+            .map(Vec::as_slice);
+        let mut hs = Vec::with_capacity(seq_len);
+        for &tid in &token_ids {
+            let mut h = reconstruct_embedding_row(word_emb, tid.min(word_emb.rows - 1));
+            layer_norm_in_place(&mut h, emb_ln_w, emb_ln_b, 1e-12);
+            hs.push(h);
+        }
+        let mut bpw_sum = word_emb.bits_per_weight();
+        let mut bpw_cnt = 1usize;
+        let mut linear_ops = 0usize;
+        let inv_sqrt = 1.0 / (head_dim as f32).sqrt();
+        for l in 0..num_layers {
+            let lp = format!("{pfx}encoder.layers.{l}");
+            let wqkv_key = format!("{lp}.attn.Wqkv.weight");
+            let wqkv = harness
+                .littlebit_tensors
+                .get(&wqkv_key)
+                .ok_or_else(|| format!("missing '{wqkv_key}'"))?;
+            let out_key = format!("{lp}.attn.out_proj.weight");
+            let out_p = harness
+                .littlebit_tensors
+                .get(&out_key)
+                .ok_or_else(|| format!("missing '{out_key}'"))?;
+            let fc11_key = format!("{lp}.mlp.fc11.weight");
+            let fc11 = harness
+                .littlebit_tensors
+                .get(&fc11_key)
+                .ok_or_else(|| format!("missing '{fc11_key}'"))?;
+            let fc12_key = format!("{lp}.mlp.fc12.weight");
+            let fc12 = harness
+                .littlebit_tensors
+                .get(&fc12_key)
+                .ok_or_else(|| format!("missing '{fc12_key}'"))?;
+            let fc2_key = format!("{lp}.mlp.fc2.weight");
+            let fc2 = harness
+                .littlebit_tensors
+                .get(&fc2_key)
+                .ok_or_else(|| format!("missing '{fc2_key}'"))?;
+            bpw_sum += wqkv.bits_per_weight()
+                + out_p.bits_per_weight()
+                + fc11.bits_per_weight()
+                + fc12.bits_per_weight()
+                + fc2.bits_per_weight();
+            bpw_cnt += 5;
+            let mut qs = Vec::with_capacity(seq_len);
+            let mut ks = Vec::with_capacity(seq_len);
+            let mut vs = Vec::with_capacity(seq_len);
+            for (pos, h) in hs.iter().enumerate() {
+                linear_ops += 1;
+                let qkv = custom_linear_fn(&wqkv_key, wqkv, h)
+                    .map(Ok)
+                    .unwrap_or_else(|| wqkv.forward_vec(h, &[]))?;
+                let mut q = qkv[0..hidden_dim].to_vec();
+                let mut k = qkv[hidden_dim..2 * hidden_dim].to_vec();
+                let v = qkv[2 * hidden_dim..3 * hidden_dim].to_vec();
+                rope_rotate_in_place(&mut q, num_heads, head_dim, pos, 1_000.0);
+                rope_rotate_in_place(&mut k, num_heads, head_dim, pos, 1_000.0);
+                qs.push(q);
+                ks.push(k);
+                vs.push(v);
+            }
+            let n1_w = harness
+                .vectors_1d
+                .get(&format!("{lp}.norm1.weight"))
+                .map(Vec::as_slice);
+            let n1_b = harness
+                .vectors_1d
+                .get(&format!("{lp}.norm1.bias"))
+                .map(Vec::as_slice);
+            let n2_w = harness
+                .vectors_1d
+                .get(&format!("{lp}.norm2.weight"))
+                .map(Vec::as_slice);
+            let n2_b = harness
+                .vectors_1d
+                .get(&format!("{lp}.norm2.bias"))
+                .map(Vec::as_slice);
+            for t in 0..seq_len {
+                let mut a_cat = vec![0.0f32; hidden_dim];
+                for hd in 0..num_heads {
+                    let off = hd * head_dim;
+                    let end = (off + head_dim).min(hidden_dim);
+                    let qt = &qs[t][off..end];
+                    let mut scs = Vec::with_capacity(seq_len);
+                    let mut mx = f32::NEG_INFINITY;
+                    for ks_i in &ks {
+                        let dot: f32 = qt
+                            .iter()
+                            .zip(ks_i[off..end].iter())
+                            .map(|(a, b)| a * b)
+                            .sum();
+                        let sc = dot * inv_sqrt;
+                        if sc > mx {
+                            mx = sc;
+                        }
+                        scs.push(sc);
+                    }
+                    let mut den = 0.0f32;
+                    for sc in &mut scs {
+                        *sc = (*sc - mx).exp();
+                        den += *sc;
+                    }
+                    let inv_d = 1.0 / den.max(1e-12);
+                    let dst = &mut a_cat[off..end];
+                    for (s, &w) in scs.iter().enumerate() {
+                        let p = w * inv_d;
+                        for (d, &vv) in dst.iter_mut().zip(vs[s][off..end].iter()) {
+                            *d += p * vv;
+                        }
+                    }
+                }
+                linear_ops += 4;
+                let ao = custom_linear_fn(&out_key, out_p, &a_cat)
+                    .map(Ok)
+                    .unwrap_or_else(|| out_p.forward_vec(&a_cat, &[]))?;
+                for (hi, &ai) in hs[t].iter_mut().zip(ao.iter()) {
+                    *hi += ai;
+                }
+                layer_norm_in_place(&mut hs[t], n1_w, n1_b, 1e-12);
+                let g1 = custom_linear_fn(&fc11_key, fc11, &hs[t])
+                    .map(Ok)
+                    .unwrap_or_else(|| fc11.forward_vec(&hs[t], &[]))?;
+                let u1 = custom_linear_fn(&fc12_key, fc12, &hs[t])
+                    .map(Ok)
+                    .unwrap_or_else(|| fc12.forward_vec(&hs[t], &[]))?;
+                let sw: Vec<f32> = g1
+                    .iter()
+                    .zip(u1.iter())
+                    .map(|(&g, &u)| (g / (1.0 + (-g).exp())) * u)
+                    .collect();
+                let mo = custom_linear_fn(&fc2_key, fc2, &sw)
+                    .map(Ok)
+                    .unwrap_or_else(|| fc2.forward_vec(&sw, &[]))?;
+                for (hi, &mi) in hs[t].iter_mut().zip(mo.iter()) {
+                    *hi += mi;
+                }
+                layer_norm_in_place(&mut hs[t], n2_w, n2_b, 1e-12);
+            }
+        }
+        let mut pooled = vec![0.0f32; hidden_dim];
+        let inv_s = 1.0 / (seq_len as f32);
+        for h in &hs {
+            for (pi, &hi) in pooled.iter_mut().zip(h.iter()) {
+                *pi += hi * inv_s;
+            }
+        }
+        let norm = pooled.iter().map(|v| v * v).sum::<f32>().sqrt().max(1e-12);
+        for pi in &mut pooled {
+            *pi /= norm;
+        }
+        return Ok(TransformerEncoderReceipt {
+            model_id: model_id.to_string(),
+            num_layers,
+            num_heads,
+            hidden_dim,
+            token_ids,
+            embedding: pooled,
+            avg_bits_per_weight: bpw_sum / (bpw_cnt.max(1) as f64),
+            elapsed_ns: (t0.elapsed().as_nanos() as u64).max(1),
+            linear_projections_executed: linear_ops,
+        });
+    }
+
+    // Fast dispatch for Decoder-backbone Embedding models (`Qwen3-Embedding`, `NVIDIA Nemotron-3-Embed-1B`,
+    // `NVIDIA llama-nemotron-embed-1b-v2`, `Microsoft BitNet-Embedding`, `Google EmbeddingGemma-2`)
     if !harness
         .littlebit_tensors
         .contains_key(&format!("{pfx}embeddings.word_embeddings.weight"))
@@ -600,6 +795,13 @@ where
         let group = (num_heads / num_kv.max(1)).max(1);
         let rope_theta = cfg.map(|c| c.rope_theta).unwrap_or(1_000_000.0);
         let eps = cfg.map(|c| c.rms_norm_eps).unwrap_or(1e-6);
+        let gemma_off = cfg.map(|c| c.gemma_rms_norm_offset).unwrap_or(false);
+        let act_name = cfg.map(|c| c.hidden_act.as_str()).unwrap_or("silu");
+        let mtype = cfg.map(|c| c.model_type.as_str()).unwrap_or("");
+        let is_bidirec = mtype.contains("bidirec")
+            || mtype.contains("ministral")
+            || mtype.contains("embedding")
+            || gemma_off;
 
         let token_ids = if let Some(v_vec) = harness.model_vocabs.get(model_id)
             && !v_vec.is_empty()
@@ -616,9 +818,22 @@ where
                 .encode(text, max_seq_len.clamp(4, 512))
         };
         let seq_len = token_ids.len().max(1);
+        let emb_scale = if gemma_off {
+            (hidden_dim as f32).sqrt()
+        } else {
+            1.0
+        };
         let mut hs: Vec<Vec<f32>> = token_ids
             .iter()
-            .map(|&tid| reconstruct_embedding_row(dec_emb, tid.min(dec_emb.rows - 1)))
+            .map(|&tid| {
+                let mut r = reconstruct_embedding_row(dec_emb, tid.min(dec_emb.rows - 1));
+                if (emb_scale - 1.0).abs() > 1e-5 {
+                    for v in &mut r {
+                        *v *= emb_scale;
+                    }
+                }
+                r
+            })
             .collect();
         let mut bpw_sum = dec_emb.bits_per_weight();
         let mut bpw_cnt = 1usize;
@@ -628,7 +843,14 @@ where
             let inv = 1.0 / (ms + eps).sqrt();
             x.iter()
                 .enumerate()
-                .map(|(i, &v)| v * inv * w.and_then(|wv| wv.get(i)).copied().unwrap_or(1.0))
+                .map(|(i, &v)| {
+                    let wi = match w.and_then(|wv| wv.get(i)).copied() {
+                        Some(wt) if gemma_off => 1.0 + wt,
+                        Some(wt) => wt,
+                        None => 1.0,
+                    };
+                    v * inv * wi
+                })
                 .collect()
         };
         let inv_sqrt = 1.0 / (head_dim as f32).sqrt();
@@ -699,18 +921,34 @@ where
                 ks.push(k);
                 vs.push(v);
             }
+            let has_pre_ffw = harness
+                .vectors_1d
+                .contains_key(&format!("{lp}.pre_feedforward_layernorm.weight"));
+            let post_attn_ln = harness
+                .vectors_1d
+                .get(&format!("{lp}.post_attention_layernorm.weight"))
+                .map(Vec::as_slice);
+            let pre_ffw_ln = harness
+                .vectors_1d
+                .get(&format!("{lp}.pre_feedforward_layernorm.weight"))
+                .map(Vec::as_slice);
+            let post_ffw_ln = harness
+                .vectors_1d
+                .get(&format!("{lp}.post_feedforward_layernorm.weight"))
+                .map(Vec::as_slice);
             for t in 0..seq_len {
                 let mut a_out = vec![0.0f32; q_rows];
+                let s_lim = if is_bidirec { seq_len } else { t + 1 };
                 for qh in 0..num_heads {
                     let kvh = (qh / group).min(num_kv - 1);
                     let q_sl = &qs[t][qh * head_dim..(qh + 1) * head_dim];
                     let kv_off = kvh * head_dim;
-                    let mut scs = Vec::with_capacity(t + 1);
+                    let mut scs = Vec::with_capacity(s_lim);
                     let mut mx = f32::NEG_INFINITY;
-                    for s in 0..=t {
+                    for ks_s in ks.iter().take(s_lim) {
                         let dot: f32 = q_sl
                             .iter()
-                            .zip(ks[s][kv_off..kv_off + head_dim].iter())
+                            .zip(ks_s[kv_off..kv_off + head_dim].iter())
                             .map(|(a, b)| a * b)
                             .sum();
                         let sc = dot * inv_sqrt;
@@ -735,15 +973,21 @@ where
                     }
                 }
                 linear_ops += 4;
-                let o = o_t.forward_vec(&a_out, &[])?;
+                let mut o = o_t.forward_vec(&a_out, &[])?;
+                if has_pre_ffw && post_attn_ln.is_some() {
+                    o = rms(&o, post_attn_ln);
+                }
                 for (hi, &oi) in hs[t].iter_mut().zip(o.iter()) {
                     *hi += oi;
                 }
-                let post_ln = harness
-                    .vectors_1d
-                    .get(&format!("{lp}.post_attention_layernorm.weight"))
-                    .map(Vec::as_slice);
-                let hff = rms(&hs[t], post_ln);
+                let hff = rms(
+                    &hs[t],
+                    if has_pre_ffw {
+                        pre_ffw_ln
+                    } else {
+                        post_attn_ln
+                    },
+                );
                 let g_t = harness
                     .littlebit_tensors
                     .get(&format!("{lp}.mlp.gate_proj.weight"))
@@ -761,9 +1005,19 @@ where
                 let sw: Vec<f32> = g
                     .iter()
                     .zip(u.iter())
-                    .map(|(&gi, &ui)| (gi / (1.0 + (-gi).exp())) * ui)
+                    .map(|(&gi, &ui)| {
+                        let act_g = if act_name.contains("gelu") {
+                            gelu(gi)
+                        } else {
+                            gi / (1.0 + (-gi).exp())
+                        };
+                        act_g * ui
+                    })
                     .collect();
-                let dn = d_t.forward_vec(&sw, &[])?;
+                let mut dn = d_t.forward_vec(&sw, &[])?;
+                if post_ffw_ln.is_some() {
+                    dn = rms(&dn, post_ffw_ln);
+                }
                 for (hi, &di) in hs[t].iter_mut().zip(dn.iter()) {
                     *hi += di;
                 }
@@ -772,9 +1026,29 @@ where
         let final_ln = harness
             .vectors_1d
             .get(&format!("{pfx}norm.weight"))
+            .or_else(|| harness.vectors_1d.get(&format!("{model_id}::norm.weight")))
             .map(Vec::as_slice);
-        // `Qwen3-Embedding` uses EOS / last-token pooling -> unit L2 norm!
-        let mut pooled = rms(&hs[seq_len - 1], final_ln);
+        let mut pooled = if is_bidirec {
+            let mut mean = vec![0.0f32; hidden_dim];
+            let inv_s = 1.0 / (seq_len as f32);
+            for h in &hs {
+                let hn = rms(h, final_ln);
+                for (mi, &vi) in mean.iter_mut().zip(hn.iter()) {
+                    *mi += vi * inv_s;
+                }
+            }
+            mean
+        } else {
+            rms(&hs[seq_len - 1], final_ln)
+        };
+        if let Some(proj_t) = harness
+            .littlebit_tensors
+            .get(&format!("{pfx}embedding_projection.weight"))
+        {
+            linear_ops += 1;
+            pooled = proj_t.forward_vec(&pooled, &[])?;
+        }
+        let out_dim = pooled.len();
         let norm = pooled.iter().map(|v| v * v).sum::<f32>().sqrt().max(1e-12);
         for pi in &mut pooled {
             *pi /= norm;
@@ -783,7 +1057,7 @@ where
             model_id: model_id.to_string(),
             num_layers,
             num_heads,
-            hidden_dim,
+            hidden_dim: out_dim,
             token_ids,
             embedding: pooled,
             avg_bits_per_weight: bpw_sum / (bpw_cnt.max(1) as f64),

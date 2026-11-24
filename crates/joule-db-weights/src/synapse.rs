@@ -595,6 +595,71 @@ impl LittleBitSVFTensor {
         Ok(out)
     }
 
+    /// Evaluate ONLY a contiguous `[row_start .. row_start + row_len]` slice of `self` against `input`
+    /// without touching the remaining `(num_experts - 1)` experts' row bitplanes! Used by stacked 3D
+    /// Mixture-of-Experts (`Thinking Machines Lab Inkling-2`, `Qwen3-MoE`, `Poolside Laguna`).
+    pub fn forward_row_slice(
+        &self,
+        row_start: usize,
+        row_len: usize,
+        input: &[f32],
+    ) -> Result<Vec<f32>, String> {
+        if input.len() != self.cols {
+            return Err(format!(
+                "forward_row_slice input len {} != cols {}",
+                input.len(),
+                self.cols
+            ));
+        }
+        let end = row_start.saturating_add(row_len).min(self.rows);
+        if row_start >= end {
+            return Ok(Vec::new());
+        }
+        let eff_sigma = self.effective_latent_scales(&[]);
+        let mut lat = vec![0.0f32; self.rank];
+        for (j, &xj) in input.iter().enumerate() {
+            let xs = xj * self.col_scale[j];
+            let v_row = &self.v_bits[j * self.rank_words..(j + 1) * self.rank_words];
+            for (w_idx, &word) in v_row.iter().enumerate() {
+                let k_base = w_idx * 64;
+                if k_base >= self.rank {
+                    break;
+                }
+                let rem = (self.rank - k_base).min(64);
+                let mut bits = word;
+                for dk in 0..rem {
+                    let sgn = ((bits & 1) as f32) * 2.0 - 1.0;
+                    lat[k_base + dk] += sgn * xs;
+                    bits >>= 1;
+                }
+            }
+        }
+        for k in 0..self.rank {
+            lat[k] *= eff_sigma[k];
+        }
+        let mut out = vec![0.0f32; end - row_start];
+        for (local_i, i) in (row_start..end).enumerate() {
+            let u_row = &self.u_bits[i * self.rank_words..(i + 1) * self.rank_words];
+            let mut acc = 0.0f32;
+            for (k, &lk) in lat.iter().enumerate() {
+                if ((u_row[k / 64] >> (k % 64)) & 1) == 1 {
+                    acc += lk;
+                } else {
+                    acc -= lk;
+                }
+            }
+            out[local_i] = acc * self.row_scale[i];
+        }
+        for o in &self.outliers {
+            let r = o.row as usize;
+            let c = o.col as usize;
+            if r >= row_start && r < end && c < self.cols {
+                out[r - row_start] += o.delta * input[c];
+            }
+        }
+        Ok(out)
+    }
+
     /// Ultra-fast low-rank prefix projection (`draft_rank <= self.rank`, e.g. `draft_rank = 8` -> `0.04` BPW
     /// single-byte `T-MAC` LUT!) over the highest-energy singular bitplane channels for self-speculative drafting!
     pub fn forward_vec_truncated_rank(
@@ -1977,9 +2042,10 @@ pub struct HarnessCheckpoint {
     pub observation_count: usize,
 }
 
-/// Architectural metadata parsed from HuggingFace `config.json` or GGUF KV metadata for causal
-/// and hybrid decoder models (`Llama`, `SmolLM2`, `Qwen2.5`/`Qwen3`, `LiquidAI LFM2`/`LFM3`,
-/// `PrismML Bonsai`, `BitNet b1.58`, `Google Gemma 4`, `Cactus Needle`, `Poolside Laguna`).
+/// Architectural metadata parsed from HuggingFace `config.json` or GGUF KV metadata for causal,
+/// Sparse MoE, `Mamba-2` SSM, and hybrid decoder models (`Llama`, `SmolLM2`, `Qwen3`/`Qwen3-MoE`,
+/// `NVIDIA Nemotron-H`, `Thinking Machines Lab Inkling`, `LiquidAI LFM2`/`LFM3`, `PrismML Bonsai`,
+/// `BitNet b1.58`, `Google Gemma 4`, `AllenAI OLMo-2`, `Cactus Needle`, `Poolside Laguna`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CausalModelMeta {
     pub num_attention_heads: Option<usize>,
@@ -2004,6 +2070,22 @@ pub struct CausalModelMeta {
     pub final_logit_softcapping: Option<f32>,
     #[serde(default = "default_conv_l_cache")]
     pub conv_l_cache: usize,
+    #[serde(default)]
+    pub num_experts: Option<usize>,
+    #[serde(default)]
+    pub num_experts_per_tok: Option<usize>,
+    #[serde(default = "default_true_bool")]
+    pub norm_topk_prob: bool,
+    #[serde(default)]
+    pub mlp_hidden_act: Option<String>,
+    #[serde(default)]
+    pub mamba_num_heads: Option<usize>,
+    #[serde(default)]
+    pub mamba_head_dim: Option<usize>,
+    #[serde(default)]
+    pub mamba_n_groups: Option<usize>,
+    #[serde(default)]
+    pub mamba_d_state: Option<usize>,
 }
 
 fn default_conv_l_cache() -> usize {
@@ -2038,6 +2120,14 @@ impl Default for CausalModelMeta {
             gemma_rms_norm_offset: false,
             final_logit_softcapping: None,
             conv_l_cache: 3,
+            num_experts: None,
+            num_experts_per_tok: None,
+            norm_topk_prob: true,
+            mlp_hidden_act: None,
+            mamba_num_heads: None,
+            mamba_head_dim: None,
+            mamba_n_groups: None,
+            mamba_d_state: None,
         }
     }
 }
@@ -2090,6 +2180,20 @@ impl JouleHarnessEngine {
             next_obs_id: 1,
             next_ckpt_id: 1,
         })
+    }
+
+    /// Evict all resident `LittleBitSVFTensor` bitplanes, 1D vectors, vocabs, and configs belonging
+    /// to `model_id` from RAM, returning the total number of removed tensors + 1D vectors.
+    pub fn evict_model(&mut self, model_id: &str) -> usize {
+        let pfx = format!("{model_id}::");
+        let before_2d = self.littlebit_tensors.len();
+        let before_1d = self.vectors_1d.len();
+        self.littlebit_tensors.retain(|k, _| !k.starts_with(&pfx));
+        self.vectors_1d.retain(|k, _| !k.starts_with(&pfx));
+        self.model_vocabs.remove(model_id);
+        self.model_bpe_merges.remove(model_id);
+        self.model_configs.remove(model_id);
+        (before_2d - self.littlebit_tensors.len()) + (before_1d - self.vectors_1d.len())
     }
 
     /// Ingest noisy raw tool/sensor output: scrubs credentials, deduplicates full text in CAS,

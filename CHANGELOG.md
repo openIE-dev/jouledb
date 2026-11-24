@@ -4,6 +4,14 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-11-23
+
+### Added
+- **NVIDIA, Thinking Machines Lab & Sparse MoE / `Mamba-2` / `NVFP4` Frontier Fleet (`checkpoint_ingest`, `causal_decoder`, `transformer_encoder`, `synapse_routes`)**:
+  - **NVIDIA Blackwell `NVFP4` (`E2M1` + `F8_E4M3` Block Scale), `FP8` (`F8_E4M3`/`F8_E5M2`), 3D Stacked MoE & Microsoft `BitNet.cpp` `I2_S` (`type_id=36`) Unpackers:** Compiles `NVFP4`, scaled `FP8`, 3D `[E, R, C]` expert tensors, and GGUF `I2_S` 2-bit ternary checkpoints directly into sub-1-bit `LittleBit-2` bitplanes (`forward_row_slice` zero-copy expert execution), plus streaming constant-RAM disk downloads in `POST /api/v1/synapse/hf/pull` and RAM/VRAM eviction (`POST /api/v1/synapse/models/evict`).
+  - **Native `NVIDIA Nemotron-H` (`Mamba-2` Selective SSM + `GQA` + `ReLU²`), `Thinking Machines Lab Inkling` / `Inkling-2`, `Sparse MoE` (`Qwen3-MoE`, `GLM-4-MoE`), `Liquid AI LFM3`, `AllenAI OLMo-2` Post-Norm, `NomicBert`, `NVIDIA Nemotron-3-Embed`, & `Google EmbeddingGemma-2`:** Full multi-layer causal, hybrid SSM, sparse MoE, and bidirectional embedding execution directly over sub-1-bit bitplanes.
+  - **Expanded 47-Model `< 30 GB` Open-Weight Catalog & NVIDIA / CC-BY-4.0 License Preservation:** Expanded `GET /api/v1/synapse/hf/catalog` across 20 frontier ecosystems with automatic `nvidia-nemotron-open-model-license`, `nvidia-open-model-license`, `cc-by-4.0`, `openmdw-1.1`, `lfm1.0`, `mit`, and `apache-2.0` attribution.
+
 ## [0.2.4] - 2026-11-23
 
 ### Added

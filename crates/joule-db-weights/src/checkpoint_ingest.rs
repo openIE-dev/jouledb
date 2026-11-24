@@ -23,13 +23,16 @@ const MAX_TENSOR_ELEMENTS: usize = 1024 * 1024 * 1024;
 #[cfg(not(target_pointer_width = "64"))]
 const MAX_TENSOR_ELEMENTS: usize = 64 * 1024 * 1024;
 
-/// Supported `.safetensors` element types for ingestion and serialization (including MLX packed `U32`/`U16`).
+/// Supported `.safetensors` element types for ingestion and serialization (including MLX packed `U32`/`U16`
+/// and NVIDIA Blackwell / ModelOpt `F8_E4M3` / `F8_E5M2` / `NVFP4` `U8`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SafetensorDtype {
     F64,
     F32,
     F16,
     BF16,
+    F8E4M3,
+    F8E5M2,
     I64,
     I32,
     U32,
@@ -47,6 +50,8 @@ impl SafetensorDtype {
             Self::F32 => "F32",
             Self::F16 => "F16",
             Self::BF16 => "BF16",
+            Self::F8E4M3 => "F8_E4M3",
+            Self::F8E5M2 => "F8_E5M2",
             Self::I64 => "I64",
             Self::I32 => "I32",
             Self::U32 => "U32",
@@ -63,12 +68,15 @@ impl SafetensorDtype {
             Self::F64 | Self::I64 => 8,
             Self::F32 | Self::I32 | Self::U32 => 4,
             Self::F16 | Self::BF16 | Self::I16 | Self::U16 => 2,
-            Self::I8 | Self::U8 | Self::Bool => 1,
+            Self::F8E4M3 | Self::F8E5M2 | Self::I8 | Self::U8 | Self::Bool => 1,
         }
     }
 
     pub fn is_floating_point(self) -> bool {
-        matches!(self, Self::F64 | Self::F32 | Self::F16 | Self::BF16)
+        matches!(
+            self,
+            Self::F64 | Self::F32 | Self::F16 | Self::BF16 | Self::F8E4M3 | Self::F8E5M2
+        )
     }
 
     pub fn parse(s: &str) -> Result<Self, String> {
@@ -77,6 +85,8 @@ impl SafetensorDtype {
             "F32" => Ok(Self::F32),
             "F16" => Ok(Self::F16),
             "BF16" => Ok(Self::BF16),
+            "F8_E4M3" | "FLOAT8_E4M3FN" => Ok(Self::F8E4M3),
+            "F8_E5M2" | "FLOAT8_E5M2" => Ok(Self::F8E5M2),
             "I64" => Ok(Self::I64),
             "I32" => Ok(Self::I32),
             "U32" => Ok(Self::U32),
@@ -182,6 +192,16 @@ pub fn build_safetensors_bytes(
                 for &v in &entry.values_f32 {
                     let bf = (v.to_bits() >> 16) as u16;
                     data_buf.extend_from_slice(&bf.to_le_bytes());
+                }
+            }
+            SafetensorDtype::F8E4M3 => {
+                for &v in &entry.values_f32 {
+                    data_buf.push(f32_to_f8_e4m3(v));
+                }
+            }
+            SafetensorDtype::F8E5M2 => {
+                for &v in &entry.values_f32 {
+                    data_buf.push(f32_to_f8_e5m2(v));
                 }
             }
             SafetensorDtype::F64 => {
@@ -432,12 +452,24 @@ pub fn ingest_safetensors_with_options(
         let Some(pdesc) = desc_map.get(tname.as_str()).cloned() else {
             continue;
         };
-        // Skip standalone MLX `.scales` / `.biases` helper tensors when paired with a `U32` `.weight`
+        // Skip standalone MLX `.scales`/`.biases` and NVIDIA ModelOpt / Inkling `NVFP4`/`FP8`
+        // auxiliary scale/amax sidecar tensors when paired with their parent weight tensor!
         if let Some(stem) = tname
             .strip_suffix(".scales")
             .or_else(|| tname.strip_suffix(".biases"))
             && let Some(w_desc) = desc_map.get(&format!("{stem}.weight"))
             && w_desc.dtype == SafetensorDtype::U32
+        {
+            continue;
+        }
+        if tname.ends_with(".weight_scale")
+            || tname.ends_with(".weight_scale_2")
+            || tname.ends_with(".input_scale")
+            || tname.ends_with(".k_scale")
+            || tname.ends_with(".v_scale")
+            || tname.ends_with("_weight_scale")
+            || tname.ends_with("_weight_amax")
+            || tname.ends_with("_weight_outer_scale_denominator")
         {
             continue;
         }
@@ -447,7 +479,18 @@ pub fn ingest_safetensors_with_options(
         let mut elem_count = pdesc.elem_count;
         let mut source_dtype_label = dtype.as_str().to_string();
 
-        // Check for MLX packed affine quantized 2D tensor (`U32 [rows, u32_cols]` + `.scales` + optional `.biases`)
+        let scale_companion_key = tname
+            .strip_suffix(".weight")
+            .map(|st| format!("{st}.weight_scale"))
+            .filter(|k| desc_map.contains_key(k))
+            .or_else(|| {
+                let k2 = format!("{tname}_scale");
+                desc_map.contains_key(&k2).then_some(k2)
+            });
+
+        // 1. MLX packed affine quantized 2D tensor (`U32 [rows, u32_cols]` + `.scales` + optional `.biases`)
+        // 2. NVIDIA Blackwell / Thinking Machines Lab `NVFP4` (`U8` packed `E2M1` nibbles + `F8_E4M3` block scale)
+        // 3. NVIDIA ModelOpt `FP8` (`F8_E4M3` / `F8_E5M2` + block/tensor `weight_scale`)
         let decoded = if dtype == SafetensorDtype::U32
             && shape.len() == 2
             && let Some(stem) = tname.strip_suffix(".weight")
@@ -532,12 +575,96 @@ pub fn ingest_safetensors_with_options(
             elem_count = total_unpacked;
             source_dtype_label = format!("MLX_U32_{bits}BIT");
             unpacked
+        } else if dtype == SafetensorDtype::U8
+            && !shape.is_empty()
+            && let Some(ref sc_key) = scale_companion_key
+            && let Some(sc_desc) = desc_map.get(sc_key)
+        {
+            // NVIDIA Blackwell / ModelOpt / Thinking Machines Lab `NVFP4` (`E2M1` 2 nibbles/byte + `F8_E4M3` block scale)
+            let total_unpacked = elem_count
+                .checked_mul(2)
+                .filter(|&n| n <= MAX_TENSOR_ELEMENTS)
+                .ok_or_else(|| format!("NVFP4 unpacked tensor '{tname}' exceeds element bound"))?;
+            let scales_f32 = decode_tensor_to_f32(
+                &raw_bytes[sc_desc.abs_start..sc_desc.abs_end],
+                sc_desc.dtype,
+                sc_desc.elem_count,
+            );
+            let outer_mul = tname
+                .strip_suffix(".weight")
+                .and_then(|st| desc_map.get(&format!("{st}.weight_scale_2")))
+                .map(|d2| {
+                    decode_tensor_to_f32(
+                        &raw_bytes[d2.abs_start..d2.abs_end],
+                        d2.dtype,
+                        d2.elem_count,
+                    )
+                    .first()
+                    .copied()
+                    .unwrap_or(1.0)
+                })
+                .or_else(|| {
+                    desc_map
+                        .get(&format!("{tname}_outer_scale_denominator"))
+                        .map(|dd| {
+                            let denom = decode_tensor_to_f32(
+                                &raw_bytes[dd.abs_start..dd.abs_end],
+                                dd.dtype,
+                                dd.elem_count,
+                            )
+                            .first()
+                            .copied()
+                            .unwrap_or(1.0);
+                            if denom.abs() > 1e-12 {
+                                1.0 / denom
+                            } else {
+                                1.0
+                            }
+                        })
+                })
+                .unwrap_or(1.0);
+
+            let n_sc = scales_f32.len().max(1);
+            let group_size = (total_unpacked / n_sc).max(1);
+            let mut unpacked = Vec::with_capacity(total_unpacked);
+            for (byte_idx, &b) in raw_bytes[pdesc.abs_start..pdesc.abs_end].iter().enumerate() {
+                let idx0 = byte_idx * 2;
+                let idx1 = idx0 + 1;
+                let s0 = scales_f32[(idx0 / group_size).min(n_sc - 1)] * outer_mul;
+                let s1 = scales_f32[(idx1 / group_size).min(n_sc - 1)] * outer_mul;
+                unpacked.push(fp4_e2m1_to_f32(b & 0x0F) * s0);
+                unpacked.push(fp4_e2m1_to_f32(b >> 4) * s1);
+            }
+            if let Some(last_d) = shape.last_mut() {
+                *last_d *= 2;
+            }
+            dtype = SafetensorDtype::F16;
+            elem_count = total_unpacked;
+            source_dtype_label = "NVFP4_E2M1".to_string();
+            unpacked
         } else {
-            decode_tensor_to_f32(
+            let mut vals = decode_tensor_to_f32(
                 &raw_bytes[pdesc.abs_start..pdesc.abs_end],
                 dtype,
                 elem_count,
-            )
+            );
+            if matches!(dtype, SafetensorDtype::F8E4M3 | SafetensorDtype::F8E5M2)
+                && let Some(ref sc_key) = scale_companion_key
+                && let Some(sc_desc) = desc_map.get(sc_key)
+            {
+                let scales_f32 = decode_tensor_to_f32(
+                    &raw_bytes[sc_desc.abs_start..sc_desc.abs_end],
+                    sc_desc.dtype,
+                    sc_desc.elem_count,
+                );
+                let n_sc = scales_f32.len().max(1);
+                let group_size = (elem_count / n_sc).max(1);
+                for (i, v) in vals.iter_mut().enumerate() {
+                    *v *= scales_f32[(i / group_size).min(n_sc - 1)];
+                }
+                source_dtype_label = format!("{}_SCALED", dtype.as_str());
+            }
+            vals
         };
 
         let layer_idx = extract_layer_number(tname);
@@ -557,8 +684,14 @@ pub fn ingest_safetensors_with_options(
             && shape[0] >= 2
             && (elem_count / shape[0]) >= 2
         {
-            let rows = shape[0];
-            let cols = elem_count / rows;
+            // For 3D stacked Mixture-of-Experts tensors (`[num_experts, out_dim, in_dim]`, e.g.
+            // Thinking Machines Lab `Inkling-2` `mlp.experts.w13_weight`), fold `[E, R, C]` -> `[E * R, C]`
+            // so `cols == in_dim` and each expert `e` occupies contiguous rows `[e * R .. (e + 1) * R]`!
+            let (rows, cols) = if shape.len() == 3 && tname.contains("experts.") && shape[2] >= 2 {
+                (shape[0] * shape[1], shape[2])
+            } else {
+                (shape[0], elem_count / shape[0])
+            };
             let (lb, eff_rank, d_pre, d_post) = factorize_2d_with_adaptive_budget(
                 model_id,
                 tname,
@@ -919,6 +1052,7 @@ pub fn ingest_gguf_bytes_with_options(
             gemma_rms_norm_offset: arch.contains("gemma"),
             final_logit_softcapping: None,
             conv_l_cache: 3,
+            ..Default::default()
         },
     );
 
@@ -954,6 +1088,9 @@ pub fn ingest_gguf_bytes_with_options(
     }
 
     let data_section = pos.div_ceil(alignment) * alignment;
+    let has_post_attn_norm = theaders
+        .iter()
+        .any(|t| t.raw_name.ends_with(".post_attention_norm.weight"));
     let mut summaries = Vec::new();
     let mut factorized_2d_tensors = 0usize;
     let mut total_fp16_bytes = 0u64;
@@ -982,7 +1119,7 @@ pub fn ingest_gguf_bytes_with_options(
             .filter(|&e| e <= data.len())
             .ok_or_else(|| format!("GGUF tensor '{}' extends past EOF", th.raw_name))?;
 
-        let tname = canonicalize_gguf_tensor_name(&th.raw_name);
+        let tname = canonicalize_gguf_tensor_name(&th.raw_name, has_post_attn_norm);
         let decoded = dequantize_gguf_tensor(&data[start..end], elem_count, th.type_id)?;
         let dtype_label = gguf_type_label(th.type_id);
         let layer_idx = extract_layer_number(&tname);
@@ -1117,7 +1254,7 @@ pub fn ingest_gguf_bytes_with_options(
     })
 }
 
-fn canonicalize_gguf_tensor_name(raw: &str) -> String {
+fn canonicalize_gguf_tensor_name(raw: &str, has_post_attn_norm: bool) -> String {
     match raw {
         "token_embd.weight" => return "model.embed_tokens.weight".to_string(),
         "token_embd_norm.weight" => return "model.embedding_norm.weight".to_string(),
@@ -1141,6 +1278,7 @@ fn canonicalize_gguf_tensor_name(raw: &str) -> String {
             "attn_q_norm.weight" => "self_attn.q_norm.weight",
             "attn_k_norm.weight" => "self_attn.k_norm.weight",
             "attn_sub_norm.weight" => "self_attn.attn_sub_norm.weight",
+            "ffn_norm.weight" if has_post_attn_norm => "pre_feedforward_layernorm.weight",
             "ffn_norm.weight" => "post_attention_layernorm.weight",
             "post_attention_norm.weight" => "post_attention_layernorm.weight",
             "post_ffw_norm.weight" => "post_feedforward_layernorm.weight",
@@ -1170,6 +1308,7 @@ fn gguf_type_label(type_id: u32) -> &'static str {
         30 => "GGUF_BF16",
         34 => "GGUF_TQ1_0",
         35 => "GGUF_TQ2_0",
+        36 => "GGUF_I2_S",
         40 => "GGUF_Q1_0",
         41 => "GGUF_Q1_0_G128",
         _ => "GGUF_QUANT",
@@ -1177,6 +1316,14 @@ fn gguf_type_label(type_id: u32) -> &'static str {
 }
 
 fn gguf_tensor_byte_size(elem_count: usize, type_id: u32) -> Result<usize, String> {
+    if type_id == 36 {
+        if !elem_count.is_multiple_of(128) {
+            return Err(format!(
+                "GGUF I2_S elem_count {elem_count} not divisible by 128"
+            ));
+        }
+        return Ok(elem_count / 4 + 4);
+    }
     let (block_bytes, block_elems) = match type_id {
         0 => (4usize, 1usize),
         1 | 30 => (2, 1),
@@ -1353,6 +1500,29 @@ fn dequantize_gguf_tensor(raw: &[u8], elem_count: usize, type_id: u32) -> Result
                 }
             }
         }
+        36 => {
+            // Microsoft BitNet.cpp `I2_S` (`elem_count / 4` packed 2-bit bytes in 32B/128-elem interleaved blocks + 4B f32 scale)
+            let q_bytes = elem_count / 4;
+            if raw.len() < q_bytes + 4 {
+                return Err("GGUF I2_S buffer shorter than expected".to_string());
+            }
+            let d = f32::from_le_bytes([
+                raw[q_bytes],
+                raw[q_bytes + 1],
+                raw[q_bytes + 2],
+                raw[q_bytes + 3],
+            ]);
+            for blk in raw[0..q_bytes].chunks_exact(32) {
+                let mut sub = [0.0f32; 128];
+                for (j, &b) in blk.iter().enumerate() {
+                    sub[j] = (((b >> 6) & 0x03) as i32 - 1).clamp(-1, 1) as f32 * d;
+                    sub[32 + j] = (((b >> 4) & 0x03) as i32 - 1).clamp(-1, 1) as f32 * d;
+                    sub[64 + j] = (((b >> 2) & 0x03) as i32 - 1).clamp(-1, 1) as f32 * d;
+                    sub[96 + j] = ((b & 0x03) as i32 - 1).clamp(-1, 1) as f32 * d;
+                }
+                out.extend_from_slice(&sub);
+            }
+        }
         40 => {
             // Q1_0 (32-elem block: 2B f16 d + 4B bits)
             for blk in raw.chunks_exact(6) {
@@ -1479,6 +1649,16 @@ fn decode_tensor_to_f32(raw: &[u8], dtype: SafetensorDtype, elem_count: usize) -
                 out.push(f32::from_bits(bits));
             }
         }
+        SafetensorDtype::F8E4M3 => {
+            for &b in raw {
+                out.push(f8_e4m3_to_f32(b));
+            }
+        }
+        SafetensorDtype::F8E5M2 => {
+            for &b in raw {
+                out.push(f8_e5m2_to_f32(b));
+            }
+        }
         SafetensorDtype::I64 => {
             for chunk in raw.chunks_exact(8) {
                 let mut arr = [0u8; 8];
@@ -1585,6 +1765,57 @@ fn f16_bits_to_f32(h: u16) -> f32 {
         sign | ((exp + 127 - 15) << 23) | (mant << 13)
     };
     f32::from_bits(bits)
+}
+
+#[inline]
+fn fp4_e2m1_to_f32(nibble: u8) -> f32 {
+    const LUT: [f32; 8] = [0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0];
+    let mag = LUT[(nibble & 0x07) as usize];
+    if (nibble & 0x08) != 0 { -mag } else { mag }
+}
+
+#[inline]
+fn f8_e4m3_to_f32(b: u8) -> f32 {
+    let sign = if (b & 0x80) != 0 { -1.0f32 } else { 1.0f32 };
+    let exp = ((b >> 3) & 0x0F) as i32;
+    let mant = (b & 0x07) as f32;
+    if exp == 15 && (b & 0x07) == 7 {
+        0.0
+    } else if exp == 0 {
+        sign * (mant / 8.0) * 2.0f32.powi(-6)
+    } else {
+        sign * (1.0 + mant / 8.0) * 2.0f32.powi(exp - 7)
+    }
+}
+
+#[inline]
+fn f32_to_f8_e4m3(val: f32) -> u8 {
+    if !val.is_finite() || val == 0.0 {
+        return 0;
+    }
+    let sign = if val < 0.0 { 0x80u8 } else { 0u8 };
+    let a = val.abs().min(448.0);
+    let mut best_code = 0u8;
+    let mut best_err = f32::INFINITY;
+    for code in 0u8..127u8 {
+        let dec = f8_e4m3_to_f32(code);
+        let err = (dec - a).abs();
+        if err < best_err {
+            best_err = err;
+            best_code = code;
+        }
+    }
+    sign | best_code
+}
+
+#[inline]
+fn f8_e5m2_to_f32(b: u8) -> f32 {
+    f16_bits_to_f32((b as u16) << 8)
+}
+
+#[inline]
+fn f32_to_f8_e5m2(val: f32) -> u8 {
+    (f32_to_f16_bits(val) >> 8) as u8
 }
 
 #[cfg(test)]
