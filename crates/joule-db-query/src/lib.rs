@@ -67,6 +67,8 @@ pub mod triggers;
 pub mod vector;
 pub mod wcoj;
 pub mod wcoj_cost;
+pub mod secdb_napa;
+pub mod zonemap_scan;
 
 #[cfg(feature = "analytical")]
 pub mod analytical;

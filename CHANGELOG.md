@@ -4,6 +4,15 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-11-24
+
+### Added
+- **`TigerBeetle` `VOPR` Ledger, Goldman `SecDB` + Google `Napa` Reactive SLA, `ClickBench` `ZoneMap` Scanner & 7-Pillar Industry Benchmark Suite (`tiger_ledger`, `secdb_napa`, `zonemap_scan`, `certification_routes`)**:
+  - **`TigerBeetle`-Class Double-Entry Accounting & `VOPR` Fault Simulator (`POST /api/v1/certify/tiger_vopr`):** `128`-bit fixed-point accounts (`DebitsMustNotExceedCredits`), two-phase `PendingReserve`/`PostPending`/`VoidPending` partial settlement, atomic `linked` multi-leg transfer rollback, and multi-seed `VOPR` torn-WAL & 1-bit NAND bit-rot recovery conservation verification.
+  - **Goldman Sachs `SecDB` + Google `Napa` Reactive Risk & Freshness-SLA Engine (`POST /api/v1/secdb/napa_eval`):** Persisted topological dependency DAG recomputing strictly reachable dirty cones with early cutoff (`>99%` compute saved on unrelated books) paired with `Napa` `(max_staleness_ms, eager_budget_nj)` burst write coalescing.
+  - **`ClickBench` / `Vortex` `ZoneMap` + Late-Materialization Columnar Scanner (`POST /api/v1/olap/zonemap_scan`):** `1,024`-row granule min/max + 64-bit SplitMix Bloom pruning (`>97.9%` cold granule skip) and `SelectionVector` (`Vec<u16>`) late payload materialization.
+  - **Unified 7-Pillar 360° Industry Benchmark Runner (`POST /api/v1/bench/industry_suite`):** Single-call certification across `TPC-C SSI` (`100k+ TPS`), `ClickBench ZoneMap`, `TigerBeetle VOPR`, `SecDB + Napa`, `Big-ANN RaBitQ` filtered `POPCNT`, `Nexmark DBSP` streaming `ZSet`, and `Hermitage / Elle` `SSI`.
+
 ## [0.2.7] - 2026-11-24
 
 ### Added

@@ -80,6 +80,8 @@ pub mod resilience;
 pub mod snapshot;
 pub mod storage;
 pub mod temporal;
+/// `TigerBeetle`-class strictly serializable double-entry ledger & `VOPR` fault simulator.
+pub mod tiger_ledger;
 pub mod tx;
 pub mod types;
 
