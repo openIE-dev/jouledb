@@ -1,6 +1,6 @@
 # Introduction
 
-**JouleDB (`v0.2.9`)** is an open-source (`Apache-2.0 OR MIT`) thermodynamic database and living-weights (`.jsyn`) AI substrate written in safe Rust. Every query, CoW branch fork, causal `ASOF` sensor join, `JouleCapsule` container execution, `JouleKube` Kubernetes reconciliation, and sub-1-bit neural forward pass is metered in verifiable nanojoules (`nJ`).
+**JouleDB (`v0.3.0`)** is an open-source (`Apache-2.0 OR MIT`) thermodynamic database and living-weights (`.jsyn`) AI substrate written in safe Rust. Every query, CoW branch fork, causal `ASOF` sensor join, `JouleCapsule` container execution, `JouleKube` Kubernetes reconciliation, and sub-1-bit neural forward pass is metered in verifiable nanojoules (`nJ`).
 
 - **Website & Interactive Simulators:** [https://jouledb.org](https://jouledb.org)
 - **Source Repository:** [https://github.com/openIE-dev/jouledb](https://github.com/openIE-dev/jouledb)

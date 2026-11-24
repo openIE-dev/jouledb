@@ -1,10 +1,14 @@
 # Cookbook Recipes
 
-## 1. Run the 7-Pillar Formal Database Certification Suite
+## 1. Run the 17-Pillar Database (`7`) + Frontier AI Exam (`10`) Suites
 ```bash
 curl -s -X POST http://127.0.0.1:8080/api/v1/bench/industry_suite \
   -H "Content-Type: application/json" \
   -d '{"clickbench_rows":100000,"ann_vectors":2000,"tpcc_txns":500}'
+
+curl -s -X POST http://127.0.0.1:8080/api/v1/bench/frontier_exam \
+  -H "Content-Type: application/json" \
+  -d '{"mrcr_updates":4000}'
 ```
 
 ## 2. Evaluate an Out-of-Sample `.jsyn` Rank-Sweep (`r = 8 -> 128`)

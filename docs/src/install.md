@@ -9,16 +9,16 @@ cargo binstall jouledb
 jouledb --version
 ```
 
-Or download a signed release archive (`v0.2.9`) directly for macOS (`arm64`/`x86_64`), Linux (`x86_64`/`aarch64`), or Windows (`x86_64`):
+Or download a signed release archive (`v0.3.0`) directly for macOS (`arm64`/`x86_64`), Linux (`x86_64`/`aarch64`), or Windows (`x86_64`):
 
 ```bash
-curl -fsSL https://github.com/openIE-dev/jouledb/releases/download/v0.2.9/jouledb-0.2.9-aarch64-apple-darwin.tar.gz | tar xz
+curl -fsSL https://github.com/openIE-dev/jouledb/releases/download/v0.3.0/jouledb-0.3.0-aarch64-apple-darwin.tar.gz | tar xz
 ```
 
 ## 2. Docker / OCI (`GHCR`)
 
 ```bash
-docker run -p 8080-8083:8080-8083 -v jdb:/data ghcr.io/openie-dev/jouledb:0.2.9
+docker run -p 8080-8083:8080-8083 -v jdb:/data ghcr.io/openie-dev/jouledb:0.3.0
 ```
 
 ## 3. Build from Source

@@ -94,6 +94,7 @@ pub mod workflow;
 // Amorphic modules
 pub mod amorphic_adapter;
 pub mod certification_routes;
+pub mod frontier_exam_routes;
 pub mod ducklake;
 pub mod fabric_routes;
 pub mod gin_index;
@@ -1229,6 +1230,11 @@ impl Server {
             ))
             .merge(certification_routes::certification_router(
                 certification_routes::CertificationRuntime {
+                    query_executor: app_state.query_executor.clone(),
+                },
+            ))
+            .merge(frontier_exam_routes::frontier_exam_router(
+                frontier_exam_routes::FrontierExamRuntime {
                     query_executor: app_state.query_executor.clone(),
                 },
             ));

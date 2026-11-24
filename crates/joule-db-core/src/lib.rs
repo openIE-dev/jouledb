@@ -71,6 +71,8 @@ pub mod embodied;
 pub mod encryption;
 pub mod engine;
 pub mod error;
+/// Global Frontier Benchmark, Neurosymbolic Solver & Epistemic Calibration Engine (`HLE`, `ARC-AGI-2/3`, `SimpleQA`, `FaithEval`, `TAU-bench`, `MRCR`, `SafeVLA`).
+pub mod frontier_eval;
 pub mod index;
 /// Living Computing & Active-Inference substrate (`SurpriseGate`, `HomeostaticMetabolism`).
 pub mod living;
