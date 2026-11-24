@@ -479,6 +479,11 @@ pub fn parse_hf_causal_config_json(raw_json: &str) -> Result<CausalModelMeta, St
             cfg.get("rope_parameters")
                 .and_then(|rp| rp.get("rope_theta"))
         })
+        .or_else(|| {
+            cfg.get("rope_parameters")
+                .and_then(|rp| rp.get("sliding_attention"))
+                .and_then(|sa| sa.get("rope_theta"))
+        })
         .and_then(|x| x.as_f64())
         .map(|x| x as f32)
         .unwrap_or(10_000.0);
@@ -573,6 +578,22 @@ pub fn parse_hf_causal_config_json(raw_json: &str) -> Result<CausalModelMeta, St
             .or_else(|| cfg.get("d_state"))
             .and_then(|x| x.as_u64())
             .map(|x| x as usize),
+        embedding_multiplier: cfg
+            .get("embedding_multiplier")
+            .and_then(|x| x.as_f64())
+            .map(|x| x as f32),
+        attention_multiplier: cfg
+            .get("attention_multiplier")
+            .and_then(|x| x.as_f64())
+            .map(|x| x as f32),
+        residual_multiplier: cfg
+            .get("residual_multiplier")
+            .and_then(|x| x.as_f64())
+            .map(|x| x as f32),
+        logits_scaling: cfg
+            .get("logits_scaling")
+            .and_then(|x| x.as_f64())
+            .map(|x| x as f32),
     })
 }
 
@@ -700,6 +721,7 @@ pub fn detect_causal_decoder(
         format!("{model_id}::model.language_model."),
         format!("{model_id}::language_model.model."),
         format!("{model_id}::model.decoder."),
+        format!("{model_id}::encoder."),
     ] {
         let has_emb = resolve_embed_key(harness, model_id, &pfx).is_some();
         if !has_emb {
@@ -724,6 +746,15 @@ pub fn detect_causal_decoder(
             || harness
                 .littlebit_tensors
                 .contains_key(&format!("{pfx}layers.{layers}.attn.wq_du.weight"))
+            || harness
+                .littlebit_tensors
+                .contains_key(&format!("{pfx}layers.{layers}.mamba.in_proj.weight"))
+            || harness
+                .littlebit_tensors
+                .contains_key(&format!("{pfx}layers.{layers}.self_attn.qkv_proj.weight"))
+            || harness.littlebit_tensors.contains_key(&format!(
+                "{pfx}layers.{layers}.linear_attn.in_proj_qkv.weight"
+            ))
         {
             layers += 1;
         }
@@ -1082,6 +1113,15 @@ where
             .contains_key(&format!("{lp}.mixer.in_proj.weight"))
             || harness
                 .littlebit_tensors
+                .contains_key(&format!("{lp}.mamba.in_proj.weight"))
+            || harness
+                .littlebit_tensors
+                .contains_key(&format!("{lp}.self_attn.qkv_proj.weight"))
+            || harness
+                .littlebit_tensors
+                .contains_key(&format!("{lp}.linear_attn.in_proj_qkv.weight"))
+            || harness
+                .littlebit_tensors
                 .contains_key(&format!("{lp}.attn.wq_du.weight"))
         {
             has_ssm_state = true;
@@ -1293,11 +1333,17 @@ where
             .littlebit_tensors
             .get(&embed_key)
             .ok_or_else(|| "missing embed_tokens.weight".to_string())?;
-        let emb_scale = if gemma_norm_offset {
+        let emb_scale = if let Some(em) = meta.as_ref().and_then(|m| m.embedding_multiplier) {
+            em
+        } else if gemma_norm_offset {
             (hidden_dim as f32).sqrt()
         } else {
             1.0
         };
+        let res_mult = meta
+            .as_ref()
+            .and_then(|m| m.residual_multiplier)
+            .unwrap_or(1.0);
         let emb_ln = first_vec_1d(
             &harness.vectors_1d,
             &[
@@ -1347,16 +1393,29 @@ where
                 h_norm_batch.extend_from_slice(&h_batch);
             }
 
-            // Operator Branch M1: NVIDIA `Nemotron-H` / `Mamba-2` Selective State Space Mixer (`mixer.in_proj.weight`)
-            if harness
+            // Operator Branch M1: NVIDIA `Nemotron-H` (`mixer.*`), TII `Falcon-H1`, & Zyphra `Zamba2` (`mamba.*`)
+            // Selective State Space `Mamba-2` Mixer! Supports BOTH standalone (`Nemotron-H`, `Zamba2`) AND
+            // parallel `Mamba-2 + GQA` (`Falcon-H1`, where `self_attn.q_proj.weight` is ALSO present on layer `l`).
+            let mamba_sub = if harness
                 .littlebit_tensors
                 .contains_key(&format!("{lp}.mixer.in_proj.weight"))
             {
+                Some("mixer")
+            } else if harness
+                .littlebit_tensors
+                .contains_key(&format!("{lp}.mamba.in_proj.weight"))
+            {
+                Some("mamba")
+            } else {
+                None
+            };
+            let mut parallel_mamba_delta: Option<Vec<f32>> = None;
+            if let Some(msub) = mamba_sub {
                 let in_p = run_proj_batch(
                     &harness.littlebit_tensors,
                     &harness.vectors_1d,
-                    &format!("{lp}.mixer.in_proj.weight"),
-                    Some(&format!("{lp}.mixer.in_proj.bias")),
+                    &format!("{lp}.{msub}.in_proj.weight"),
+                    Some(&format!("{lp}.{msub}.in_proj.bias")),
                     &h_norm_batch,
                     bsz,
                     ops,
@@ -1365,12 +1424,12 @@ where
                 )?;
                 let out_t = harness
                     .littlebit_tensors
-                    .get(&format!("{lp}.mixer.out_proj.weight"))
-                    .ok_or_else(|| format!("missing '{lp}.mixer.out_proj.weight'"))?;
+                    .get(&format!("{lp}.{msub}.out_proj.weight"))
+                    .ok_or_else(|| format!("missing '{lp}.{msub}.out_proj.weight'"))?;
                 let d_inner = out_t.cols;
-                let a_log = harness.vectors_1d.get(&format!("{lp}.mixer.A_log"));
-                let d_skip = harness.vectors_1d.get(&format!("{lp}.mixer.D"));
-                let dt_bias = harness.vectors_1d.get(&format!("{lp}.mixer.dt_bias"));
+                let a_log = harness.vectors_1d.get(&format!("{lp}.{msub}.A_log"));
+                let d_skip = harness.vectors_1d.get(&format!("{lp}.{msub}.D"));
+                let dt_bias = harness.vectors_1d.get(&format!("{lp}.{msub}.dt_bias"));
                 let n_heads_m = a_log
                     .map(Vec::len)
                     .or_else(|| meta.as_ref().and_then(|m| m.mamba_num_heads))
@@ -1394,28 +1453,29 @@ where
                 }
                 let dw = harness
                     .vectors_1d
-                    .get(&format!("{lp}.mixer.conv1d.weight"))
+                    .get(&format!("{lp}.{msub}.conv1d.weight"))
                     .map(Vec::as_slice);
                 let dw_b = harness
                     .vectors_1d
-                    .get(&format!("{lp}.mixer.conv1d.bias"))
+                    .get(&format!("{lp}.{msub}.conv1d.bias"))
                     .map(Vec::as_slice);
                 let k_conv = dw.map(|w| (w.len() / conv_dim.max(1)).max(1)).unwrap_or(4);
                 let m_norm_w = harness
                     .vectors_1d
-                    .get(&format!("{lp}.mixer.norm.weight"))
+                    .get(&format!("{lp}.{msub}.norm.weight"))
                     .map(Vec::as_slice);
 
                 let mut y_gated_batch = vec![0.0f32; bsz * d_inner];
                 for bi in 0..bsz {
                     let row = &in_p[bi * in_proj_dim..(bi + 1) * in_proj_dim];
-                    let z_sl = &row[0..d_inner];
-                    let xbc_raw = &row[d_inner..d_inner + conv_dim];
-                    let dt_raw = &row[d_inner + conv_dim..in_proj_dim];
+                    let z_sl = &row[0..d_inner.min(in_proj_dim)];
+                    let xbc_raw =
+                        &row[d_inner.min(in_proj_dim)..(d_inner + conv_dim).min(in_proj_dim)];
+                    let dt_raw = &row[(d_inner + conv_dim).min(in_proj_dim)..in_proj_dim];
                     conv_cache[l].push(xbc_raw.to_vec());
                     let hlen = conv_cache[l].len();
-                    let mut xbc_act = vec![0.0f32; conv_dim];
-                    for ch in 0..conv_dim {
+                    let mut xbc_act = vec![0.0f32; xbc_raw.len()];
+                    for (ch, slot) in xbc_act.iter_mut().enumerate() {
                         let mut acc = dw_b.and_then(|b| b.get(ch)).copied().unwrap_or(0.0);
                         for tap in 0..k_conv {
                             let back = k_conv - 1 - tap;
@@ -1427,16 +1487,15 @@ where
                                 acc += wt * conv_cache[l][hlen - 1 - back][ch];
                             }
                         }
-                        xbc_act[ch] = silu(acc);
+                        *slot = silu(acc);
                     }
-                    let x_sl = &xbc_act[0..d_inner.min(conv_dim)];
-                    let b_off = d_inner.min(conv_dim);
-                    let c_off = (b_off + n_groups_m * d_state_m).min(conv_dim);
+                    let x_sl = &xbc_act[0..d_inner.min(xbc_act.len())];
+                    let b_off = d_inner.min(xbc_act.len());
+                    let c_off = (b_off + n_groups_m * d_state_m).min(xbc_act.len());
                     let mut y_tok = vec![0.0f32; d_inner];
                     for mh in 0..n_heads_m {
                         let dt_b = dt_bias.and_then(|v| v.get(mh)).copied().unwrap_or(0.0);
                         let dt_v = dt_raw.get(mh).copied().unwrap_or(0.0) + dt_b;
-                        // softplus(dt_v)
                         let dt = if dt_v > 20.0 {
                             dt_v
                         } else {
@@ -1446,12 +1505,12 @@ where
                         let da = (dt * a_val).exp();
                         let d_h = d_skip.and_then(|v| v.get(mh)).copied().unwrap_or(0.0);
                         let grp = (mh * n_groups_m / n_heads_m.max(1)).min(n_groups_m - 1);
-                        let b_grp = if b_off + (grp + 1) * d_state_m <= conv_dim {
+                        let b_grp = if b_off + (grp + 1) * d_state_m <= xbc_act.len() {
                             &xbc_act[b_off + grp * d_state_m..b_off + (grp + 1) * d_state_m]
                         } else {
                             &[]
                         };
-                        let c_grp = if c_off + (grp + 1) * d_state_m <= conv_dim {
+                        let c_grp = if c_off + (grp + 1) * d_state_m <= xbc_act.len() {
                             &xbc_act[c_off + grp * d_state_m..c_off + (grp + 1) * d_state_m]
                         } else {
                             &[]
@@ -1471,27 +1530,45 @@ where
                                 ssm_cache[l][st_base + s] = next_st;
                                 acc_y += cs * next_st;
                             }
-                            y_tok[idx_hp] = acc_y * silu(z_sl[idx_hp]);
+                            y_tok[idx_hp] = acc_y * silu(z_sl.get(idx_hp).copied().unwrap_or(0.0));
                         }
                     }
-                    let y_normed = rms_norm_cfg(&y_tok, m_norm_w, rms_eps, false);
+                    let y_normed = if m_norm_w.is_some() {
+                        rms_norm_cfg(&y_tok, m_norm_w, rms_eps, false)
+                    } else {
+                        y_tok
+                    };
                     y_gated_batch[bi * d_inner..(bi + 1) * d_inner].copy_from_slice(&y_normed);
                 }
                 let m_out = run_proj_batch(
                     &harness.littlebit_tensors,
                     &harness.vectors_1d,
-                    &format!("{lp}.mixer.out_proj.weight"),
-                    Some(&format!("{lp}.mixer.out_proj.bias")),
+                    &format!("{lp}.{msub}.out_proj.weight"),
+                    Some(&format!("{lp}.{msub}.out_proj.bias")),
                     &y_gated_batch,
                     bsz,
                     ops,
                     g_disp,
                     proj_fn,
                 )?;
-                for (hi, &mi) in h_batch.iter_mut().zip(m_out.iter()) {
-                    *hi += mi;
+                if msub == "mixer"
+                    || (!harness
+                        .littlebit_tensors
+                        .contains_key(&format!("{lp}.self_attn.q_proj.weight"))
+                        && !harness
+                            .littlebit_tensors
+                            .contains_key(&format!("{lp}.feed_forward.gate_proj.weight"))
+                        && !harness
+                            .littlebit_tensors
+                            .contains_key(&format!("{lp}.mlp.gate_proj.weight")))
+                {
+                    for (hi, &mi) in h_batch.iter_mut().zip(m_out.iter()) {
+                        *hi += mi * res_mult;
+                    }
+                    continue;
+                } else {
+                    parallel_mamba_delta = Some(m_out);
                 }
-                continue;
             }
 
             // Operator Branch M2: NVIDIA `Nemotron-H` standalone ReLU² MLP Mixer (`mixer.up_proj.weight`)
@@ -1646,6 +1723,25 @@ where
                                 *d += p * vv;
                             }
                         }
+                    }
+                }
+                if harness
+                    .littlebit_tensors
+                    .contains_key(&format!("{lp}.mixer.g_proj.weight"))
+                {
+                    let g_b = run_proj_batch(
+                        &harness.littlebit_tensors,
+                        &harness.vectors_1d,
+                        &format!("{lp}.mixer.g_proj.weight"),
+                        None,
+                        &h_norm_batch,
+                        bsz,
+                        ops,
+                        g_disp,
+                        proj_fn,
+                    )?;
+                    for (ai, &gi) in attn_all.iter_mut().zip(g_b.iter()) {
+                        *ai *= silu(gi);
                     }
                 }
                 let o_b = run_proj_batch(
@@ -1989,10 +2085,20 @@ where
                     g_disp,
                     proj_fn,
                 )?;
-                if let Some(post_op_ln) = harness
-                    .vectors_1d
-                    .get(&format!("{lp}.post_operator_norm.weight"))
-                {
+                if let Some(post_op_ln) = first_vec_1d(
+                    &harness.vectors_1d,
+                    &[
+                        format!("{lp}.post_operator_norm.weight"),
+                        if harness
+                            .vectors_1d
+                            .contains_key(&format!("{lp}.pre_feedforward_layernorm.weight"))
+                        {
+                            format!("{lp}.post_attention_layernorm.weight")
+                        } else {
+                            String::new()
+                        },
+                    ],
+                ) {
                     for bi in 0..bsz {
                         let sl = &mut conv_out[bi * hidden_dim..(bi + 1) * hidden_dim];
                         let normed = rms_norm_cfg(sl, Some(post_op_ln), rms_eps, false);
@@ -2000,63 +2106,265 @@ where
                     }
                 }
                 for (hi, &ci) in h_batch.iter_mut().zip(conv_out.iter()) {
-                    *hi += ci;
+                    *hi += ci * res_mult;
                 }
-            } else {
-                // Operator Branch B: Causal Grouped-Query Self-Attention (`RoPE` + `QK-Norm` + `SubLN`)
+            } else if (harness
+                .littlebit_tensors
+                .contains_key(&format!("{lp}.self_attn.qkv_proj.weight"))
+                && harness
+                    .littlebit_tensors
+                    .contains_key(&format!("{lp}.ssm.out_proj.weight")))
+                || (harness
+                    .littlebit_tensors
+                    .contains_key(&format!("{lp}.linear_attn.in_proj_qkv.weight"))
+                    && harness
+                        .littlebit_tensors
+                        .contains_key(&format!("{lp}.linear_attn.out_proj.weight")))
+            {
+                // Operator Branch GD: `Qwen3.5` (`.safetensors` `linear_attn.*` & GGUF `ssm.*`) / `PrismML Ternary-Bonsai-2` Gated DeltaNet!
+                let is_hf_la = harness
+                    .littlebit_tensors
+                    .contains_key(&format!("{lp}.linear_attn.in_proj_qkv.weight"));
+                let (qkv_k, qkv_bk, out_k, gate_k, alpha_k, beta_k, a_k, dt_k, norm_k, conv_k) =
+                    if is_hf_la {
+                        (
+                            format!("{lp}.linear_attn.in_proj_qkv.weight"),
+                            format!("{lp}.linear_attn.in_proj_qkv.bias"),
+                            format!("{lp}.linear_attn.out_proj.weight"),
+                            format!("{lp}.linear_attn.in_proj_z.weight"),
+                            format!("{lp}.linear_attn.in_proj_a.weight"),
+                            format!("{lp}.linear_attn.in_proj_b.weight"),
+                            format!("{lp}.linear_attn.A_log"),
+                            format!("{lp}.linear_attn.dt_bias"),
+                            format!("{lp}.linear_attn.norm.weight"),
+                            format!("{lp}.linear_attn.conv1d.weight"),
+                        )
+                    } else {
+                        (
+                            format!("{lp}.self_attn.qkv_proj.weight"),
+                            format!("{lp}.self_attn.qkv_proj.bias"),
+                            format!("{lp}.ssm.out_proj.weight"),
+                            format!("{lp}.self_attn.attn_gate.weight"),
+                            format!("{lp}.ssm.alpha_proj.weight"),
+                            format!("{lp}.ssm.beta_proj.weight"),
+                            format!("{lp}.ssm.a"),
+                            format!("{lp}.ssm.dt_bias"),
+                            format!("{lp}.ssm.norm.weight"),
+                            format!("{lp}.ssm.conv1d.weight"),
+                        )
+                    };
+                let qkv_b = run_proj_batch(
+                    &harness.littlebit_tensors,
+                    &harness.vectors_1d,
+                    &qkv_k,
+                    Some(&qkv_bk),
+                    &h_norm_batch,
+                    bsz,
+                    ops,
+                    g_disp,
+                    proj_fn,
+                )?;
+                let qkv_dim = qkv_b.len() / bsz.max(1);
+                let out_t = harness
+                    .littlebit_tensors
+                    .get(&out_k)
+                    .ok_or_else(|| format!("missing '{out_k}'"))?;
+                let v_dim = out_t.cols.max(1);
+                let qk_dim = qkv_dim.saturating_sub(v_dim) / 2;
+                let ssm_a = harness.vectors_1d.get(&a_k);
+                let ssm_dt_b = harness.vectors_1d.get(&dt_k);
+                let ssm_norm_w = harness.vectors_1d.get(&norm_k).map(Vec::as_slice);
+                let n_v_heads = ssm_a
+                    .map(Vec::len)
+                    .unwrap_or_else(|| (v_dim / 128).max(1))
+                    .max(1);
+                let hd_v = (v_dim / n_v_heads).max(1);
+                let hd_qk = ssm_norm_w.map(|w| w.len()).unwrap_or(hd_v).max(1);
+                let n_qk_heads = (qk_dim / hd_qk).max(1);
+                let dw = harness.vectors_1d.get(&conv_k).map(Vec::as_slice);
+                let k_conv = dw.map(|w| (w.len() / qkv_dim.max(1)).max(1)).unwrap_or(4);
+                let gate_b = if harness.littlebit_tensors.contains_key(&gate_k) {
+                    Some(run_proj_batch(
+                        &harness.littlebit_tensors,
+                        &harness.vectors_1d,
+                        &gate_k,
+                        None,
+                        &h_norm_batch,
+                        bsz,
+                        ops,
+                        g_disp,
+                        proj_fn,
+                    )?)
+                } else {
+                    None
+                };
+                let alpha_b = if harness.littlebit_tensors.contains_key(&alpha_k) {
+                    Some(run_proj_batch(
+                        &harness.littlebit_tensors,
+                        &harness.vectors_1d,
+                        &alpha_k,
+                        None,
+                        &h_norm_batch,
+                        bsz,
+                        ops,
+                        g_disp,
+                        proj_fn,
+                    )?)
+                } else {
+                    None
+                };
+                let beta_b = if harness.littlebit_tensors.contains_key(&beta_k) {
+                    Some(run_proj_batch(
+                        &harness.littlebit_tensors,
+                        &harness.vectors_1d,
+                        &beta_k,
+                        None,
+                        &h_norm_batch,
+                        bsz,
+                        ops,
+                        g_disp,
+                        proj_fn,
+                    )?)
+                } else {
+                    None
+                };
+                let state_elems = n_v_heads * hd_v * hd_qk;
+                if ssm_cache[l].len() != state_elems {
+                    ssm_cache[l] = vec![0.0f32; state_elems];
+                }
+                let mut gd_out_batch = vec![0.0f32; bsz * v_dim];
+                for bi in 0..bsz {
+                    let raw_qkv = &qkv_b[bi * qkv_dim..(bi + 1) * qkv_dim];
+                    conv_cache[l].push(raw_qkv.to_vec());
+                    let hlen = conv_cache[l].len();
+                    let mut qkv_act = vec![0.0f32; qkv_dim];
+                    for (ch, slot) in qkv_act.iter_mut().enumerate() {
+                        let mut acc = 0.0f32;
+                        for tap in 0..k_conv {
+                            let back = k_conv - 1 - tap;
+                            if hlen > back {
+                                let wt = dw
+                                    .and_then(|w| w.get(ch * k_conv + tap))
+                                    .copied()
+                                    .unwrap_or(if tap + 1 == k_conv { 1.0 } else { 0.0 });
+                                acc += wt * conv_cache[l][hlen - 1 - back][ch];
+                            }
+                        }
+                        *slot = silu(acc);
+                    }
+                    let q_all = &qkv_act[0..qk_dim];
+                    let k_all = &qkv_act[qk_dim..2 * qk_dim];
+                    let v_all = &qkv_act[2 * qk_dim..(2 * qk_dim + v_dim).min(qkv_dim)];
+                    let y_tok = &mut gd_out_batch[bi * v_dim..(bi + 1) * v_dim];
+                    for vh in 0..n_v_heads {
+                        let qkh = (vh * n_qk_heads / n_v_heads.max(1)).min(n_qk_heads - 1);
+                        let q_sl = &q_all[qkh * hd_qk..((qkh + 1) * hd_qk).min(q_all.len())];
+                        let k_sl = &k_all[qkh * hd_qk..((qkh + 1) * hd_qk).min(k_all.len())];
+                        let v_sl = &v_all[vh * hd_v..((vh + 1) * hd_v).min(v_all.len())];
+                        let q_nrm = (q_sl.iter().map(|x| x * x).sum::<f32>() + 1e-6)
+                            .sqrt()
+                            .recip()
+                            * (hd_qk as f32).sqrt().recip();
+                        let k_nrm = (k_sl.iter().map(|x| x * x).sum::<f32>() + 1e-6)
+                            .sqrt()
+                            .recip();
+                        let a_raw = alpha_b
+                            .as_ref()
+                            .and_then(|ab| ab.get(bi * n_v_heads + vh))
+                            .copied()
+                            .unwrap_or(0.0)
+                            + ssm_dt_b.and_then(|d| d.get(vh)).copied().unwrap_or(0.0);
+                        let sp = if a_raw > 20.0 {
+                            a_raw
+                        } else {
+                            (1.0 + a_raw.exp()).ln()
+                        };
+                        let a_base = ssm_a
+                            .and_then(|a| a.get(vh))
+                            .copied()
+                            .map(|v| if is_hf_la { v.exp() } else { v.abs() })
+                            .unwrap_or(1.0);
+                        let decay = (-a_base * sp).clamp(-20.0, 0.0).exp();
+                        let b_raw = beta_b
+                            .as_ref()
+                            .and_then(|bb| bb.get(bi * n_v_heads + vh))
+                            .copied()
+                            .unwrap_or(0.0);
+                        let beta = 1.0 / (1.0 + (-b_raw).exp());
+                        let st_off = vh * hd_v * hd_qk;
+                        let mut head_y = vec![0.0f32; hd_v];
+                        for vi in 0..v_sl.len() {
+                            let row_st =
+                                &mut ssm_cache[l][st_off + vi * hd_qk..st_off + (vi + 1) * hd_qk];
+                            let mut sk_dot = 0.0f32;
+                            for (ki, &kv) in k_sl.iter().enumerate() {
+                                row_st[ki] *= decay;
+                                sk_dot += row_st[ki] * (kv * k_nrm);
+                            }
+                            let delta_v = beta * (v_sl[vi] - sk_dot);
+                            let mut sq_dot = 0.0f32;
+                            for (ki, (&kv, &qv)) in k_sl.iter().zip(q_sl.iter()).enumerate() {
+                                row_st[ki] += delta_v * (kv * k_nrm);
+                                sq_dot += row_st[ki] * (qv * q_nrm);
+                            }
+                            head_y[vi] = sq_dot;
+                        }
+                        let mut normed_hy = if ssm_norm_w.is_some()
+                            && hd_v == ssm_norm_w.map(|w| w.len()).unwrap_or(0)
+                        {
+                            rms_norm_cfg(&head_y, ssm_norm_w, rms_eps, false)
+                        } else {
+                            head_y
+                        };
+                        if let Some(ref gb) = gate_b {
+                            let g_base = bi * v_dim + vh * hd_v;
+                            for (vi, yv) in normed_hy.iter_mut().enumerate() {
+                                if let Some(&gv) = gb.get(g_base + vi) {
+                                    *yv *= silu(gv);
+                                }
+                            }
+                        }
+                        y_tok[vh * hd_v..vh * hd_v + normed_hy.len()].copy_from_slice(&normed_hy);
+                    }
+                }
+                let mut gd_proj = run_proj_batch(
+                    &harness.littlebit_tensors,
+                    &harness.vectors_1d,
+                    &out_k,
+                    None,
+                    &gd_out_batch,
+                    bsz,
+                    ops,
+                    g_disp,
+                    proj_fn,
+                )?;
+                if harness
+                    .vectors_1d
+                    .contains_key(&format!("{lp}.pre_feedforward_layernorm.weight"))
+                    && let Some(post_attn_ln) = harness
+                        .vectors_1d
+                        .get(&format!("{lp}.post_attention_layernorm.weight"))
+                {
+                    for bi in 0..bsz {
+                        let sl = &mut gd_proj[bi * hidden_dim..(bi + 1) * hidden_dim];
+                        let normed =
+                            rms_norm_cfg(sl, Some(post_attn_ln), rms_eps, gemma_norm_offset);
+                        sl.copy_from_slice(&normed);
+                    }
+                }
+                for (hi, &gi) in h_batch.iter_mut().zip(gd_proj.iter()) {
+                    *hi += gi * res_mult;
+                }
+            } else if harness
+                .littlebit_tensors
+                .contains_key(&format!("{lp}.self_attn.q_proj.weight"))
+            {
+                // Operator Branch B: Causal Grouped-Query Self-Attention (`RoPE` + `QK-Norm` + `Gemma 4` heterogeneous/shared KV + `SubLN`)
                 let q_key = format!("{lp}.self_attn.q_proj.weight");
                 let k_key = format!("{lp}.self_attn.k_proj.weight");
                 let v_key = format!("{lp}.self_attn.v_proj.weight");
-                let q_rows = harness
-                    .littlebit_tensors
-                    .get(&q_key)
-                    .map(|t| t.rows)
-                    .unwrap_or(num_q_heads * head_dim);
-                let kv_rows = harness
-                    .littlebit_tensors
-                    .get(&k_key)
-                    .map(|t| t.rows)
-                    .unwrap_or(num_kv_heads * head_dim);
-                let (l_qh, l_kvh, l_hd) = infer_gqa_geometry(q_rows, kv_rows, meta.as_ref());
-                let l_group = (l_qh / l_kvh.max(1)).max(1);
-                let l_inv_sqrt = 1.0 / (l_hd as f32).sqrt();
-                let q_dim = l_qh * l_hd;
-                let kv_dim = l_kvh * l_hd;
-
-                let mut q_batch = run_proj_batch(
-                    &harness.littlebit_tensors,
-                    &harness.vectors_1d,
-                    &q_key,
-                    Some(&format!("{lp}.self_attn.q_proj.bias")),
-                    &h_norm_batch,
-                    bsz,
-                    ops,
-                    g_disp,
-                    proj_fn,
-                )?;
-                let mut k_batch = run_proj_batch(
-                    &harness.littlebit_tensors,
-                    &harness.vectors_1d,
-                    &k_key,
-                    Some(&format!("{lp}.self_attn.k_proj.bias")),
-                    &h_norm_batch,
-                    bsz,
-                    ops,
-                    g_disp,
-                    proj_fn,
-                )?;
-                let v_batch = run_proj_batch(
-                    &harness.littlebit_tensors,
-                    &harness.vectors_1d,
-                    &v_key,
-                    Some(&format!("{lp}.self_attn.v_proj.bias")),
-                    &h_norm_batch,
-                    bsz,
-                    ops,
-                    g_disp,
-                    proj_fn,
-                )?;
-
+                let has_own_k = harness.littlebit_tensors.contains_key(&k_key);
+                let has_own_v = harness.littlebit_tensors.contains_key(&v_key);
                 let q_norm_w = first_vec_1d(
                     &harness.vectors_1d,
                     &[
@@ -2071,17 +2379,131 @@ where
                         format!("{lp}.self_attn.k_layernorm.weight"),
                     ],
                 );
+                let q_rows = harness
+                    .littlebit_tensors
+                    .get(&q_key)
+                    .map(|t| t.rows)
+                    .unwrap_or(num_q_heads * head_dim);
+                let mut shared_kv_src: Option<usize> = None;
+                let kv_rows = if let Some(kt) = harness.littlebit_tensors.get(&k_key) {
+                    kt.rows
+                } else {
+                    let target_hd = q_norm_w
+                        .map(|w| w.len())
+                        .filter(|&d| d > 0 && q_rows.is_multiple_of(d))
+                        .unwrap_or(head_dim);
+                    let mut found_dim = num_kv_heads * target_hd;
+                    for prev_l in (0..l).rev() {
+                        if let Some(first_k) = k_cache[prev_l].first()
+                            && first_k.len() >= target_hd
+                            && first_k.len().is_multiple_of(target_hd)
+                        {
+                            shared_kv_src = Some(prev_l);
+                            found_dim = first_k.len();
+                            break;
+                        }
+                    }
+                    found_dim
+                };
+                let (l_qh, l_kvh, l_hd) = if let Some(qn) = q_norm_w
+                    && !qn.is_empty()
+                    && q_rows.is_multiple_of(qn.len())
+                    && kv_rows.is_multiple_of(qn.len())
+                {
+                    let hd_ovr = qn.len();
+                    ((q_rows / hd_ovr).max(1), (kv_rows / hd_ovr).max(1), hd_ovr)
+                } else {
+                    infer_gqa_geometry(q_rows, kv_rows, meta.as_ref())
+                };
+                let l_group = (l_qh / l_kvh.max(1)).max(1);
+                let l_inv_sqrt = meta
+                    .as_ref()
+                    .and_then(|m| m.attention_multiplier)
+                    .unwrap_or_else(|| 1.0 / (l_hd as f32).sqrt());
+                let q_dim = l_qh * l_hd;
+                let kv_dim = l_kvh * l_hd;
 
-                for bi in 0..bsz {
-                    let pos = start_pos + bi;
-                    let qs = &mut q_batch[bi * q_dim..(bi + 1) * q_dim];
-                    let ks = &mut k_batch[bi * kv_dim..(bi + 1) * kv_dim];
-                    apply_qk_norm_in_place(qs, l_qh, l_hd, q_norm_w, rms_eps, gemma_norm_offset);
-                    apply_qk_norm_in_place(ks, l_kvh, l_hd, k_norm_w, rms_eps, gemma_norm_offset);
-                    apply_rope_half_split_in_place(qs, l_qh, l_hd, pos, rope_theta);
-                    apply_rope_half_split_in_place(ks, l_kvh, l_hd, pos, rope_theta);
-                    k_cache[l].push(ks.to_vec());
-                    v_cache[l].push(v_batch[bi * kv_dim..(bi + 1) * kv_dim].to_vec());
+                let mut q_batch = run_proj_batch(
+                    &harness.littlebit_tensors,
+                    &harness.vectors_1d,
+                    &q_key,
+                    Some(&format!("{lp}.self_attn.q_proj.bias")),
+                    &h_norm_batch,
+                    bsz,
+                    ops,
+                    g_disp,
+                    proj_fn,
+                )?;
+                if has_own_k {
+                    let mut k_batch = run_proj_batch(
+                        &harness.littlebit_tensors,
+                        &harness.vectors_1d,
+                        &k_key,
+                        Some(&format!("{lp}.self_attn.k_proj.bias")),
+                        &h_norm_batch,
+                        bsz,
+                        ops,
+                        g_disp,
+                        proj_fn,
+                    )?;
+                    let v_batch = if has_own_v {
+                        run_proj_batch(
+                            &harness.littlebit_tensors,
+                            &harness.vectors_1d,
+                            &v_key,
+                            Some(&format!("{lp}.self_attn.v_proj.bias")),
+                            &h_norm_batch,
+                            bsz,
+                            ops,
+                            g_disp,
+                            proj_fn,
+                        )?
+                    } else {
+                        k_batch.clone()
+                    };
+                    for bi in 0..bsz {
+                        let pos = start_pos + bi;
+                        let qs = &mut q_batch[bi * q_dim..(bi + 1) * q_dim];
+                        let ks = &mut k_batch[bi * kv_dim..(bi + 1) * kv_dim];
+                        apply_qk_norm_in_place(
+                            qs,
+                            l_qh,
+                            l_hd,
+                            q_norm_w,
+                            rms_eps,
+                            gemma_norm_offset,
+                        );
+                        apply_qk_norm_in_place(
+                            ks,
+                            l_kvh,
+                            l_hd,
+                            k_norm_w,
+                            rms_eps,
+                            gemma_norm_offset,
+                        );
+                        apply_rope_half_split_in_place(qs, l_qh, l_hd, pos, rope_theta);
+                        apply_rope_half_split_in_place(ks, l_kvh, l_hd, pos, rope_theta);
+                        k_cache[l].push(ks.to_vec());
+                        v_cache[l].push(v_batch[bi * kv_dim..(bi + 1) * kv_dim].to_vec());
+                    }
+                } else {
+                    for bi in 0..bsz {
+                        let pos = start_pos + bi;
+                        let qs = &mut q_batch[bi * q_dim..(bi + 1) * q_dim];
+                        apply_qk_norm_in_place(
+                            qs,
+                            l_qh,
+                            l_hd,
+                            q_norm_w,
+                            rms_eps,
+                            gemma_norm_offset,
+                        );
+                        apply_rope_half_split_in_place(qs, l_qh, l_hd, pos, rope_theta);
+                    }
+                    if let Some(src_l) = shared_kv_src {
+                        k_cache[l] = k_cache[src_l].clone();
+                        v_cache[l] = v_cache[src_l].clone();
+                    }
                 }
 
                 let total_kv = k_cache[l].len();
@@ -2144,6 +2566,41 @@ where
                     }
                     attn_all
                 };
+
+                // Per-head or elementwise Sigmoid Attention Gate (`Poolside Laguna`, `LiquidAI LFM3`)
+                if harness
+                    .littlebit_tensors
+                    .contains_key(&format!("{lp}.self_attn.attn_gate.weight"))
+                {
+                    let g_b = run_proj_batch(
+                        &harness.littlebit_tensors,
+                        &harness.vectors_1d,
+                        &format!("{lp}.self_attn.attn_gate.weight"),
+                        None,
+                        &h_norm_batch,
+                        bsz,
+                        ops,
+                        g_disp,
+                        proj_fn,
+                    )?;
+                    let g_dim = g_b.len() / bsz.max(1);
+                    if g_dim == l_qh {
+                        for bi in 0..bsz {
+                            for qh in 0..l_qh {
+                                let sig = 1.0 / (1.0 + (-g_b[bi * l_qh + qh]).exp());
+                                let sl = &mut attn_batch
+                                    [bi * q_dim + qh * l_hd..bi * q_dim + (qh + 1) * l_hd];
+                                for v in sl {
+                                    *v *= sig;
+                                }
+                            }
+                        }
+                    } else if g_dim == q_dim {
+                        for (ai, &gi) in attn_batch.iter_mut().zip(g_b.iter()) {
+                            *ai *= 1.0 / (1.0 + (-gi).exp());
+                        }
+                    }
+                }
 
                 // Microsoft `BitNet b1.58` `attn_sub_norm` right before `o_proj`
                 if let Some(sub_ln) = harness
@@ -2222,12 +2679,17 @@ where
                 }
 
                 for (hi, &oi) in h_batch.iter_mut().zip(o_batch.iter()) {
-                    *hi += oi;
+                    *hi += oi * res_mult;
+                }
+            }
+            if let Some(ref m_delta) = parallel_mamba_delta {
+                for (hi, &mi) in h_batch.iter_mut().zip(m_delta.iter()) {
+                    *hi += mi * res_mult;
                 }
             }
 
-            // FFN / MLP / Sparse MoE Block (`SwiGLU`, `Qwen3-MoE`/`OLMoE`/`GLM-MoE`, `LFM2/LFM3 w1/w3/w2`,
-            // `Gemma 4 GeGLU`, `OLMo-2 Post-Norm`, `BitNet SubLN + ReLU²`, `Needle fc1/fc2`)
+            // FFN / MLP / Sparse MoE Block (`SwiGLU`, `Qwen3-MoE`/`OLMoE`/`GLM-MoE`, `Poolside Laguna` 3D MoE,
+            // `Falcon-H1` `feed_forward.*`, `LFM2/LFM3 w1/w3/w2`, `Gemma 4 GeGLU`, `OLMo-2 Post-Norm`, `BitNet SubLN + ReLU²`, `Needle fc1/fc2`)
             let ffn_ln = if in_ln.is_none() {
                 None
             } else {
@@ -2235,6 +2697,7 @@ where
                     &harness.vectors_1d,
                     &[
                         format!("{lp}.pre_feedforward_layernorm.weight"),
+                        format!("{lp}.pre_ff_layernorm.weight"),
                         format!("{lp}.post_attention_layernorm.weight"),
                         format!("{lp}.ffn_norm.weight"),
                         format!("{lp}.final_layer_norm.weight"),
@@ -2259,11 +2722,14 @@ where
             let mut down_batch = if harness
                 .littlebit_tensors
                 .contains_key(&format!("{lp}.mlp.gate.weight"))
-                && harness
+                && (harness
                     .littlebit_tensors
                     .contains_key(&format!("{lp}.mlp.experts.0.gate_proj.weight"))
+                    || harness
+                        .littlebit_tensors
+                        .contains_key(&format!("{lp}.mlp.experts.gate_proj.weight")))
             {
-                // Sparse Mixture-of-Experts (`Qwen3-MoE`, `OLMoE`, `GLM-4-MoE`, `Poolside Laguna`)
+                // Sparse Mixture-of-Experts (`Qwen3-MoE`, `OLMoE`, `GLM-4-MoE`, `Poolside Laguna` 3D Stacked MoE)
                 let router_t = harness
                     .littlebit_tensors
                     .get(&format!("{lp}.mlp.gate.weight"))
@@ -2277,6 +2743,17 @@ where
                     .max(1);
                 let norm_topk = meta.as_ref().map(|m| m.norm_topk_prob).unwrap_or(true);
                 let exp_bias = harness.vectors_1d.get(&format!("{lp}.mlp.expert_bias"));
+                let stacked_exps = (
+                    harness
+                        .littlebit_tensors
+                        .get(&format!("{lp}.mlp.experts.gate_proj.weight")),
+                    harness
+                        .littlebit_tensors
+                        .get(&format!("{lp}.mlp.experts.up_proj.weight")),
+                    harness
+                        .littlebit_tensors
+                        .get(&format!("{lp}.mlp.experts.down_proj.weight")),
+                );
                 let mut moe_out = vec![0.0f32; bsz * hidden_dim];
                 for bi in 0..bsz {
                     let hx = &h_ffn_batch[bi * hidden_dim..(bi + 1) * hidden_dim];
@@ -2305,29 +2782,46 @@ where
                     let dst = &mut moe_out[bi * hidden_dim..(bi + 1) * hidden_dim];
                     for &(e_idx, w_prob) in top {
                         let wt = w_prob / k_sum;
-                        let ep = format!("{lp}.mlp.experts.{e_idx}");
-                        if let (Some(gt), Some(ut), Some(dt)) = (
-                            harness
-                                .littlebit_tensors
-                                .get(&format!("{ep}.gate_proj.weight")),
-                            harness
-                                .littlebit_tensors
-                                .get(&format!("{ep}.up_proj.weight")),
-                            harness
-                                .littlebit_tensors
-                                .get(&format!("{ep}.down_proj.weight")),
-                        ) {
+                        if let (Some(g_st), Some(u_st), Some(d_st)) = stacked_exps {
+                            let inter_r = (g_st.rows / n_exp).max(1);
+                            let out_r = (d_st.rows / n_exp).max(1);
                             *ops += 3;
-                            let gv = gt.forward_vec(hx, &[])?;
-                            let uv = ut.forward_vec(hx, &[])?;
+                            let gv = g_st.forward_row_slice(e_idx * inter_r, inter_r, hx)?;
+                            let uv = u_st.forward_row_slice(e_idx * inter_r, inter_r, hx)?;
                             let sw: Vec<f32> = gv
                                 .iter()
                                 .zip(uv.iter())
                                 .map(|(&g, &u)| apply_gated_act(g, u, &hidden_act))
                                 .collect();
-                            let dv = dt.forward_vec(&sw, &[])?;
+                            let dv = d_st.forward_row_slice(e_idx * out_r, out_r, &sw)?;
                             for (d_i, &v) in dst.iter_mut().zip(dv.iter()) {
                                 *d_i += wt * v;
+                            }
+                        } else {
+                            let ep = format!("{lp}.mlp.experts.{e_idx}");
+                            if let (Some(gt), Some(ut), Some(dt)) = (
+                                harness
+                                    .littlebit_tensors
+                                    .get(&format!("{ep}.gate_proj.weight")),
+                                harness
+                                    .littlebit_tensors
+                                    .get(&format!("{ep}.up_proj.weight")),
+                                harness
+                                    .littlebit_tensors
+                                    .get(&format!("{ep}.down_proj.weight")),
+                            ) {
+                                *ops += 3;
+                                let gv = gt.forward_vec(hx, &[])?;
+                                let uv = ut.forward_vec(hx, &[])?;
+                                let sw: Vec<f32> = gv
+                                    .iter()
+                                    .zip(uv.iter())
+                                    .map(|(&g, &u)| apply_gated_act(g, u, &hidden_act))
+                                    .collect();
+                                let dv = dt.forward_vec(&sw, &[])?;
+                                for (d_i, &v) in dst.iter_mut().zip(dv.iter()) {
+                                    *d_i += wt * v;
+                                }
                             }
                         }
                     }
@@ -2427,6 +2921,49 @@ where
                 )?
             } else if harness
                 .littlebit_tensors
+                .contains_key(&format!("{lp}.feed_forward.gate_proj.weight"))
+            {
+                // TII `Falcon-H1` SwiGLU (`feed_forward.{gate_proj, up_proj, down_proj}`)
+                let g_b = run_proj_batch(
+                    &harness.littlebit_tensors,
+                    &harness.vectors_1d,
+                    &format!("{lp}.feed_forward.gate_proj.weight"),
+                    None,
+                    &h_ffn_batch,
+                    bsz,
+                    ops,
+                    g_disp,
+                    proj_fn,
+                )?;
+                let u_b = run_proj_batch(
+                    &harness.littlebit_tensors,
+                    &harness.vectors_1d,
+                    &format!("{lp}.feed_forward.up_proj.weight"),
+                    None,
+                    &h_ffn_batch,
+                    bsz,
+                    ops,
+                    g_disp,
+                    proj_fn,
+                )?;
+                let gated: Vec<f32> = g_b
+                    .iter()
+                    .zip(u_b.iter())
+                    .map(|(&g, &u)| apply_gated_act(g, u, &hidden_act))
+                    .collect();
+                run_proj_batch(
+                    &harness.littlebit_tensors,
+                    &harness.vectors_1d,
+                    &format!("{lp}.feed_forward.down_proj.weight"),
+                    None,
+                    &gated,
+                    bsz,
+                    ops,
+                    g_disp,
+                    proj_fn,
+                )?
+            } else if harness
+                .littlebit_tensors
                 .contains_key(&format!("{lp}.feed_forward.w1.weight"))
             {
                 // Liquid AI `LFM2` / `LFM2.5` / `LFM3` `SwiGLU` (`w2(silu(w1(x)) * w3(x))`)
@@ -2516,7 +3053,15 @@ where
                 }
             }
             for (hi, &di) in h_batch.iter_mut().zip(down_batch.iter()) {
-                *hi += di;
+                *hi += di * res_mult;
+            }
+            // Google `Gemma 4` (`E2B`, `E4B`) per-layer `layer_scalar` (`[1]`)
+            if let Some(lsc) = harness.vectors_1d.get(&format!("{lp}.layer_scalar"))
+                && let Some(&s0) = lsc.first()
+            {
+                for hi in &mut h_batch {
+                    *hi *= s0;
+                }
             }
         }
 
@@ -2631,7 +3176,16 @@ where
         .map(|t| t.rows)
         .unwrap_or(vocab_size);
 
+    let logits_div = meta
+        .as_ref()
+        .and_then(|m| m.logits_scaling)
+        .filter(|&s| s.abs() > 1e-6);
     let apply_softcap = |logits: &mut [f32]| {
+        if let Some(div) = logits_div {
+            for l in logits.iter_mut() {
+                *l /= div;
+            }
+        }
         if let Some(cap) = logit_softcap
             && cap > 0.0
         {

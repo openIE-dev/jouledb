@@ -133,7 +133,7 @@ impl LittleBitSVFTensor {
         }
         let eff_rank = rank.min(rows.min(cols)).clamp(1, 512);
         let rank_words = eff_rank.div_ceil(64);
-        let iters = itq_iters.clamp(2, 24);
+        let iters = itq_iters.clamp(1, 24);
 
         // Step 1: Dual-SVID multi-scale row & column RMS normalization so high-gain channels
         // do not dominate binary hypercube quantization.
@@ -182,14 +182,26 @@ impl LittleBitSVFTensor {
         let mut v_dots = vec![0.0f32; cols];
 
         for k in 0..eff_rank {
-            // Deterministic non-degenerate initialization seeded by residual rows
-            for (i, u_val) in u_sign.iter_mut().enumerate() {
-                let mut s = 0.0f32;
-                for j in 0..cols {
-                    let phase = if ((j + k) & 1) == 0 { 1.0 } else { -1.0 };
-                    s += residual[i * cols + j] * phase;
+            // Rank-orthogonal SplitMix64 Rademacher hypercube seed + 1-step continuous power projection
+            // onto the current deflated residual R^(k) (eliminating 2-periodic checkerboard degeneracy!).
+            let mut rng_st =
+                (0x9E37_79B9_7F4A_7C15u64).wrapping_mul((k as u64) + 1) ^ 0xBF58_476D_1CE4_E5B9;
+            for chunk in v_sign.chunks_mut(64) {
+                rng_st = rng_st
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                let bits = rng_st ^ (rng_st >> 31);
+                for (b_i, slot) in chunk.iter_mut().enumerate() {
+                    *slot = if ((bits >> b_i) & 1) == 0 { 1.0 } else { -1.0 };
                 }
-                *u_val = if s >= 0.0 { 1.0 } else { -1.0 };
+            }
+            for (i, u_val) in u_sign.iter_mut().enumerate() {
+                let row = &residual[i * cols..(i + 1) * cols];
+                let mut dot = 0.0f32;
+                for j in 0..cols {
+                    dot += row[j] * v_sign[j];
+                }
+                *u_val = if dot >= 0.0 { 1.0 } else { -1.0 };
             }
 
             // Alternating binary hypercube alignment (Joint-ITQ style, row-major SIMD streaming)
@@ -245,6 +257,56 @@ impl LittleBitSVFTensor {
                     let row = &mut residual[i * cols..(i + 1) * cols];
                     for j in 0..cols {
                         row[j] -= ui_s * v_sign[j];
+                    }
+                }
+            }
+        }
+
+        // Step 2b: Joint Binary Gram Gauss-Seidel Singular Refinement (`0` extra storage bits!).
+        // Because sequential binary vectors `(u_k, v_k)` have non-zero cross-inner-products, a cyclic
+        // coordinate pass over `residual` monotonically tightens `||W_norm - U_bin diag(sigma) V_bin^T||_F^2`.
+        if eff_rank >= 2 && total <= 36_000_000 {
+            let gs_sweeps = if total <= 4_200_000 { 2 } else { 1 };
+            let rc_f64 = (rows * cols) as f64;
+            for _ in 0..gs_sweeps {
+                for k in 0..eff_rank {
+                    let kw = k / 64;
+                    let km = 1u64 << (k % 64);
+                    for (j, slot) in v_sign.iter_mut().enumerate() {
+                        *slot = if (v_bits[j * rank_words + kw] & km) != 0 {
+                            1.0
+                        } else {
+                            -1.0
+                        };
+                    }
+                    let mut numer = 0.0f64;
+                    for i in 0..rows {
+                        let ui = if (u_bits[i * rank_words + kw] & km) != 0 {
+                            1.0f32
+                        } else {
+                            -1.0f32
+                        };
+                        u_sign[i] = ui;
+                        let row = &residual[i * cols..(i + 1) * cols];
+                        let mut r_dot = 0.0f32;
+                        for j in 0..cols {
+                            r_dot += row[j] * v_sign[j];
+                        }
+                        numer += (ui as f64) * (r_dot as f64);
+                    }
+                    let mut delta = (numer / rc_f64) as f32;
+                    if latent_scale[k] + delta < 0.0 {
+                        delta = -latent_scale[k];
+                    }
+                    if delta.abs() > 1e-6 {
+                        latent_scale[k] += delta;
+                        for (i, &ui) in u_sign.iter().enumerate() {
+                            let ui_d = ui * delta;
+                            let row = &mut residual[i * cols..(i + 1) * cols];
+                            for j in 0..cols {
+                                row[j] -= ui_d * v_sign[j];
+                            }
+                        }
                     }
                 }
             }
@@ -2086,6 +2148,14 @@ pub struct CausalModelMeta {
     pub mamba_n_groups: Option<usize>,
     #[serde(default)]
     pub mamba_d_state: Option<usize>,
+    #[serde(default)]
+    pub embedding_multiplier: Option<f32>,
+    #[serde(default)]
+    pub attention_multiplier: Option<f32>,
+    #[serde(default)]
+    pub residual_multiplier: Option<f32>,
+    #[serde(default)]
+    pub logits_scaling: Option<f32>,
 }
 
 fn default_conv_l_cache() -> usize {
@@ -2128,6 +2198,10 @@ impl Default for CausalModelMeta {
             mamba_head_dim: None,
             mamba_n_groups: None,
             mamba_d_state: None,
+            embedding_multiplier: None,
+            attention_multiplier: None,
+            residual_multiplier: None,
+            logits_scaling: None,
         }
     }
 }
@@ -2468,9 +2542,12 @@ impl JouleHarnessEngine {
         Ok(frame.len() as u64)
     }
 
-    /// Load and CRC32-verify a persisted `JSYN` snapshot from disk (enforcing a `256 MiB`
-    /// decompression ceiling against corrupted/hostile snapshots).
+    /// Load and CRC32-verify a persisted `JSYN` snapshot from disk (enforcing a `2 GiB` 64-bit
+    /// decompression ceiling for `< 30 GB` MoE models against corrupted/hostile snapshots).
     pub fn load_snapshot_verified(path: &std::path::Path) -> Result<Self, String> {
+        #[cfg(target_pointer_width = "64")]
+        const MAX_SNAPSHOT_UNCOMPRESSED: usize = 2 * 1024 * 1024 * 1024;
+        #[cfg(not(target_pointer_width = "64"))]
         const MAX_SNAPSHOT_UNCOMPRESSED: usize = 256 * 1024 * 1024;
 
         let raw = std::fs::read(path)

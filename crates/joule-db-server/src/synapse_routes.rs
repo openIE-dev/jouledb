@@ -23,7 +23,7 @@ use joule_db_weights::{
     },
     checkpoint_ingest::{
         ingest_gguf_bytes_with_options, ingest_gguf_file_with_options,
-        ingest_safetensors_with_options,
+        ingest_safetensors_file_with_options, ingest_safetensors_with_options,
     },
     grammar_constrain::{
         ConstrainedJsonReceipt, ConstrainedJsonSchema, ConstrainedToolCall, ToolSpec,
@@ -1697,7 +1697,7 @@ async fn handle_ingest_safetensors(
 ) -> impl IntoResponse {
     let mut sibling_vocab_raw: Option<String> = req.vocab_txt.clone();
     let mut sibling_cfg_raw: Option<String> = req.config_json.clone();
-    let mut gguf_file_path: Option<std::path::PathBuf> = None;
+    let mut mmap_ckpt_path: Option<(std::path::PathBuf, bool)> = None;
 
     let raw_bytes_opt = if let Some(ref b64) = req.bytes_base64 {
         match base64::engine::general_purpose::STANDARD.decode(b64) {
@@ -1709,6 +1709,9 @@ async fn handle_ingest_safetensors(
         let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
         if ext != "safetensors" && ext != "gguf" {
             return bad_request("file_path must end with .safetensors or .gguf");
+        }
+        if !p.exists() {
+            return bad_request(format!("failed to read '{}': file not found", p.display()));
         }
         for anc in [p.parent(), p.parent().and_then(|par| par.parent())]
             .into_iter()
@@ -1730,15 +1733,8 @@ async fn handle_ingest_safetensors(
                 }
             }
         }
-        if ext == "gguf" {
-            gguf_file_path = Some(p.to_path_buf());
-            None
-        } else {
-            match std::fs::read(p) {
-                Ok(b) => Some(b),
-                Err(e) => return bad_request(format!("failed to read '{}': {e}", p.display())),
-            }
-        }
+        mmap_ckpt_path = Some((p.to_path_buf(), ext == "gguf"));
+        None
     } else {
         return bad_request("must provide either bytes_base64 or file_path");
     };
@@ -1774,15 +1770,26 @@ async fn handle_ingest_safetensors(
             Ok(g) => g,
             Err(p) => p.into_inner(),
         };
-        let rep_res = if let Some(ref gp) = gguf_file_path {
-            ingest_gguf_file_with_options(
-                &req.model_id,
-                gp,
-                req.target_rank,
-                req.max_outliers,
-                req.distill_svf,
-                &mut guard,
-            )
+        let rep_res = if let Some((ref mp, is_gguf)) = mmap_ckpt_path {
+            if is_gguf {
+                ingest_gguf_file_with_options(
+                    &req.model_id,
+                    mp,
+                    req.target_rank,
+                    req.max_outliers,
+                    req.distill_svf,
+                    &mut guard,
+                )
+            } else {
+                ingest_safetensors_file_with_options(
+                    &req.model_id,
+                    mp,
+                    req.target_rank,
+                    req.max_outliers,
+                    req.distill_svf,
+                    &mut guard,
+                )
+            }
         } else if let Some(ref raw_bytes) = raw_bytes_opt {
             if raw_bytes.len() >= 4 && &raw_bytes[0..4] == b"GGUF" {
                 ingest_gguf_bytes_with_options(
@@ -2359,7 +2366,14 @@ async fn handle_hf_pull(
                 }
                 st_sibs.sort();
                 gguf_sibs.sort();
-                if !st_sibs.is_empty() {
+                let root_model_shards: Vec<String> = st_sibs
+                    .iter()
+                    .filter(|s| !s.contains('/') && s.starts_with("model"))
+                    .cloned()
+                    .collect();
+                if !root_model_shards.is_empty() {
+                    target_rel_files = root_model_shards;
+                } else if !st_sibs.is_empty() {
                     target_rel_files = st_sibs;
                 } else if let Some(first_g) = gguf_sibs.into_iter().next() {
                     target_rel_files.push(first_g);
@@ -2408,6 +2422,7 @@ async fn handle_hf_pull(
         .into_response();
     }
 
+    let is_temp_hf_cache = req.local_dir.is_none() && req.repo_id.is_some();
     let mut last_resp = None;
     for ckpt in ckpt_files {
         let ingest_req = IngestSafetensorsReq {
@@ -2425,6 +2440,9 @@ async fn handle_hf_pull(
                 .await
                 .into_response(),
         );
+        if is_temp_hf_cache {
+            let _ = std::fs::remove_file(&ckpt);
+        }
     }
     last_resp.unwrap_or_else(|| bad_request("no checkpoint ingested").into_response())
 }
@@ -2962,6 +2980,226 @@ pub fn builtin_open_weight_catalog() -> Vec<CuratedOpenWeightModelEntry> {
             upstream_size_mb: 547,
             source_format: "safetensors",
         },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Google Gemma 4",
+            model_id: "gemma-4-e2b-it",
+            upstream_repo: "google/gemma-4-E2B-it",
+            openie_jsyn_repo: "dcharlot65-openie/Gemma-4-E2B-IT-LittleBit",
+            architecture: "gemma4_omni_shared_kv_geglu",
+            modality: "multimodal_audio_vision_text",
+            license: "apache-2.0",
+            upstream_size_mb: 10247,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Google Gemma 4",
+            model_id: "gemma-4-e4b-it",
+            upstream_repo: "google/gemma-4-E4B-it",
+            openie_jsyn_repo: "dcharlot65-openie/Gemma-4-E4B-IT-LittleBit",
+            architecture: "gemma4_omni_shared_kv_geglu",
+            modality: "multimodal_audio_vision_text",
+            license: "apache-2.0",
+            upstream_size_mb: 15993,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "NVIDIA",
+            model_id: "nvidia-gemma-4-26b-a4b-nvfp4",
+            upstream_repo: "nvidia/Gemma-4-26B-A4B-NVFP4",
+            openie_jsyn_repo: "dcharlot65-openie/NVIDIA-Gemma-4-26B-A4B-LittleBit",
+            architecture: "gemma4_moe_nvfp4_shared_kv",
+            modality: "multimodal_reasoning_moe",
+            license: "apache-2.0",
+            upstream_size_mb: 18789,
+            source_format: "safetensors_nvfp4",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "NVIDIA",
+            model_id: "nemotron-3-nano-30b-a3b-nvfp4",
+            upstream_repo: "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4",
+            openie_jsyn_repo: "dcharlot65-openie/NVIDIA-Nemotron-3-Nano-30B-A3B-LittleBit",
+            architecture: "nemotron_h_mamba2_moe_nvfp4",
+            modality: "causal_text_reasoning_moe",
+            license: "nvidia-nemotron-open-model-license",
+            upstream_size_mb: 19363,
+            source_format: "safetensors_nvfp4",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "NVIDIA",
+            model_id: "cosmos-embed1-224p",
+            upstream_repo: "nvidia/Cosmos-Embed1-224p",
+            openie_jsyn_repo: "dcharlot65-openie/NVIDIA-Cosmos-Embed1-224p-LittleBit",
+            architecture: "cosmos_physical_ai_multimodal_embed",
+            modality: "physical_ai_video_vision_embed",
+            license: "nvidia-open-model-license",
+            upstream_size_mb: 2393,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "NVIDIA",
+            model_id: "parakeet-tdt-0.6b-v3",
+            upstream_repo: "nvidia/parakeet-tdt-0.6b-v3",
+            openie_jsyn_repo: "dcharlot65-openie/NVIDIA-Parakeet-TDT-0.6B-v3-LittleBit",
+            architecture: "fastconformer_tdt_asr",
+            modality: "audio_speech_to_text",
+            license: "cc-by-4.0",
+            upstream_size_mb: 2508,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "NVIDIA",
+            model_id: "nemotron-3.5-asr-0.6b",
+            upstream_repo: "nvidia/nemotron-3.5-asr-streaming-0.6b",
+            openie_jsyn_repo: "dcharlot65-openie/NVIDIA-Nemotron-3.5-ASR-0.6B-LittleBit",
+            architecture: "fastconformer_streaming_asr",
+            modality: "audio_speech_to_text",
+            license: "openmdw-1.1",
+            upstream_size_mb: 2552,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "NVIDIA",
+            model_id: "nemotron-3-diarization",
+            upstream_repo: "nvidia/Nemotron-3-Diarization",
+            openie_jsyn_repo: "dcharlot65-openie/NVIDIA-Nemotron-3-Diarization-LittleBit",
+            architecture: "sortformer_speaker_diarization",
+            modality: "audio_diarization",
+            license: "openmdw-1.1",
+            upstream_size_mb: 397,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "NVIDIA",
+            model_id: "gpt-oss-120b-eagle3",
+            upstream_repo: "nvidia/gpt-oss-120b-Eagle3-short-context",
+            openie_jsyn_repo: "dcharlot65-openie/NVIDIA-GPT-OSS-120B-Eagle3-LittleBit",
+            architecture: "eagle3_speculative_drafter",
+            modality: "speculative_draft_head",
+            license: "nvidia-open-model-license",
+            upstream_size_mb: 1989,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "NVIDIA",
+            model_id: "nemotron-diffusion-3b",
+            upstream_repo: "nvidia/Nemotron-Labs-Diffusion-3B",
+            openie_jsyn_repo: "dcharlot65-openie/NVIDIA-Nemotron-Diffusion-3B-LittleBit",
+            architecture: "nemotron_discrete_diffusion_llm",
+            modality: "diffusion_text_generation",
+            license: "nvidia-nemotron-open-model-license",
+            upstream_size_mb: 7663,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "PrismML",
+            model_id: "ternary-bonsai-2-2b",
+            upstream_repo: "prism-ml/Ternary-Bonsai-2-2B-gguf",
+            openie_jsyn_repo: "dcharlot65-openie/Ternary-Bonsai-2-2B-LittleBit",
+            architecture: "qwen35_gated_deltanet_pq2_0_ternary",
+            modality: "causal_text_reasoning",
+            license: "apache-2.0",
+            upstream_size_mb: 1140,
+            source_format: "gguf_pq2_0",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "PrismML",
+            model_id: "ternary-bonsai-2-4b",
+            upstream_repo: "prism-ml/Ternary-Bonsai-2-4B-gguf",
+            openie_jsyn_repo: "dcharlot65-openie/Ternary-Bonsai-2-4B-LittleBit",
+            architecture: "qwen35_gated_deltanet_pq2_0_ternary",
+            modality: "causal_text_reasoning",
+            license: "apache-2.0",
+            upstream_size_mb: 1147,
+            source_format: "gguf_pq2_0",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Liquid AI",
+            model_id: "lfm2.5-1.2b-instruct",
+            upstream_repo: "LiquidAI/LFM2.5-1.2B-Instruct",
+            openie_jsyn_repo: "dcharlot65-openie/LFM2.5-1.2B-Instruct-LittleBit",
+            architecture: "lfm2_shortconv_gqa_swiglu",
+            modality: "causal_text",
+            license: "lfm1.0",
+            upstream_size_mb: 2341,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Liquid AI",
+            model_id: "lfm3-omni-2b",
+            upstream_repo: "LiquidAI/LFM3-Omni-2B-GGUF",
+            openie_jsyn_repo: "dcharlot65-openie/LFM3-Omni-2B-LittleBit",
+            architecture: "lfm3_shortconv_gated_gqa_omni",
+            modality: "multimodal_omni",
+            license: "lfm1.0",
+            upstream_size_mb: 1846,
+            source_format: "gguf",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Poolside",
+            model_id: "laguna-xs-2.1",
+            upstream_repo: "poolside/Laguna-XS-2.1-GGUF",
+            openie_jsyn_repo: "dcharlot65-openie/Poolside-Laguna-XS-2.1-LittleBit",
+            architecture: "laguna_256e_stacked_moe_gated_gqa",
+            modality: "code_agentic_moe_33b",
+            license: "openmdw-1.1",
+            upstream_size_mb: 20274,
+            source_format: "gguf_q4_k_m",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "TII Falcon",
+            model_id: "falcon-h1-0.5b-base",
+            upstream_repo: "tiiuae/Falcon-H1-0.5B-Base",
+            openie_jsyn_repo: "dcharlot65-openie/Falcon-H1-0.5B-Base-LittleBit",
+            architecture: "falcon_h1_parallel_mamba2_gqa",
+            modality: "causal_text_hybrid",
+            license: "falcon-llm-license",
+            upstream_size_mb: 1043,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "Zyphra",
+            model_id: "zamba2-1.2b-instruct",
+            upstream_repo: "Zyphra/Zamba2-1.2B-instruct",
+            openie_jsyn_repo: "dcharlot65-openie/Zyphra-Zamba2-1.2B-Instruct-LittleBit",
+            architecture: "zamba2_mamba2_shared_transformer",
+            modality: "causal_text_hybrid",
+            license: "apache-2.0",
+            upstream_size_mb: 4860,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "HuggingFace VLA",
+            model_id: "smolvla-libero",
+            upstream_repo: "HuggingFaceVLA/smolvla_libero",
+            openie_jsyn_repo: "dcharlot65-openie/SmolVLA-Libero-LittleBit",
+            architecture: "smolvla_embodied_action_expert",
+            modality: "embodied_robotics_vla",
+            license: "apache-2.0",
+            upstream_size_mb: 1218,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "DeepSeek",
+            model_id: "deepseek-r1-distill-qwen-1.5b",
+            upstream_repo: "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+            openie_jsyn_repo: "dcharlot65-openie/DeepSeek-R1-Distill-Qwen-1.5B-LittleBit",
+            architecture: "qwen2_r1_reasoning_distill",
+            modality: "causal_text_reasoning",
+            license: "mit",
+            upstream_size_mb: 3554,
+            source_format: "safetensors",
+        },
+        CuratedOpenWeightModelEntry {
+            ecosystem: "IBM Granite",
+            model_id: "granite-4.1-3b",
+            upstream_repo: "ibm-granite/granite-4.1-3b",
+            openie_jsyn_repo: "dcharlot65-openie/Granite-4.1-3B-LittleBit",
+            architecture: "granite4_mup_gqa_swiglu",
+            modality: "causal_text_enterprise",
+            license: "apache-2.0",
+            upstream_size_mb: 6806,
+            source_format: "safetensors",
+        },
     ]
 }
 
@@ -3045,6 +3283,18 @@ contact Liquid AI for commercial licensing. Built with Liquid AI LFM."
             .map(String::from)
             .unwrap_or_else(|| format!("Adapted from `{base_repo}` under the permissive **OpenMDW-1.1** Open Model Weights License."));
         (yaml, "openmdw-1.1".to_string(), notice)
+    } else if inferred == "gemma" {
+        let notice = explicit_notice.map(String::from).unwrap_or_else(|| format!(
+            "Adapted from `{base_repo}` under the [**Gemma Terms of Use**](https://ai.google.dev/gemma/terms). \
+Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms."
+        ));
+        ("license: gemma".to_string(), "gemma".to_string(), notice)
+    } else if inferred == "falcon-llm-license" {
+        let yaml = "license: other\nlicense_name: falcon-llm-license\nlicense_link: https://falconllm.tii.ae/falcon-terms-and-conditions.html".to_string();
+        let notice = explicit_notice.map(String::from).unwrap_or_else(|| format!(
+            "Adapted from `{base_repo}` by Technology Innovation Institute (TII) under the [**TII Falcon-LLM License 2.0**](https://falconllm.tii.ae/falcon-terms-and-conditions.html)."
+        ));
+        (yaml, "falcon-llm-license".to_string(), notice)
     } else if inferred == "mit" {
         let notice = explicit_notice
             .map(String::from)

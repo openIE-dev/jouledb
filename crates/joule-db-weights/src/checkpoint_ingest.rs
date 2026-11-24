@@ -16,10 +16,10 @@ use std::collections::BTreeMap;
 
 /// Safety bound on `.safetensors` JSON header size (32 MiB) against hostile OOM headers.
 const MAX_SAFETENSORS_HEADER_BYTES: usize = 32 * 1024 * 1024;
-/// Safety bound on single tensor element count during in-memory factorization (`1 Gi` on 64-bit for
-/// 262k-vocab `< 30 GB` frontier checkpoints such as `Gemma 4`, `Qwen3`, and `PrismML Bonsai`).
+/// Safety bound on single tensor element count during in-memory factorization (`4 Gi` on 64-bit for
+/// 262k-vocab `< 30 GB` frontier checkpoints including Google `Gemma 4` `embed_tokens_per_layer.weight`).
 #[cfg(target_pointer_width = "64")]
-const MAX_TENSOR_ELEMENTS: usize = 1024 * 1024 * 1024;
+const MAX_TENSOR_ELEMENTS: usize = 4 * 1024 * 1024 * 1024;
 #[cfg(not(target_pointer_width = "64"))]
 const MAX_TENSOR_ELEMENTS: usize = 64 * 1024 * 1024;
 
@@ -290,6 +290,31 @@ pub fn ingest_safetensors_into_harness(
     )
 }
 
+/// Memory-map a `.safetensors` checkpoint file on disk and compile its tensors zero-copy directly
+/// from OS page cache into [`JouleHarnessEngine`] (avoiding `10–20 GB` heap `Vec<u8>` copies!).
+pub fn ingest_safetensors_file_with_options(
+    model_id: &str,
+    path: &std::path::Path,
+    target_rank: usize,
+    max_outliers: usize,
+    distill_svf: bool,
+    harness: &mut JouleHarnessEngine,
+) -> Result<CheckpointIngestReport, String> {
+    let file = std::fs::File::open(path)
+        .map_err(|e| format!("open safetensors '{}': {e}", path.display()))?;
+    #[allow(unsafe_code)]
+    let mmap = unsafe { memmap2::Mmap::map(&file) }
+        .map_err(|e| format!("mmap safetensors '{}': {e}", path.display()))?;
+    ingest_safetensors_with_options(
+        model_id,
+        &mmap[..],
+        target_rank,
+        max_outliers,
+        distill_svf,
+        harness,
+    )
+}
+
 /// Parse and convert a `.safetensors` byte buffer directly into [`JouleHarnessEngine`] with
 /// optional single-pass Teacher->Student `SVF` + Per-Row Gain Self-Distillation (`distill_svf`).
 pub fn ingest_safetensors_with_options(
@@ -470,6 +495,10 @@ pub fn ingest_safetensors_with_options(
             || tname.ends_with("_weight_scale")
             || tname.ends_with("_weight_amax")
             || tname.ends_with("_weight_outer_scale_denominator")
+            || tname.ends_with(".input_max")
+            || tname.ends_with(".input_min")
+            || tname.ends_with(".output_max")
+            || tname.ends_with(".output_min")
         {
             continue;
         }
@@ -839,28 +868,44 @@ fn factorize_2d_with_adaptive_budget(
         || tname.contains("embed_positions")
         || tname.contains("position_embedding")
         || tname.contains("lm_head");
-    let (eff_rank, itq_iters, n_probes, n_sweeps) = if elem_count > 35_000_000 {
-        (
-            target_rank.max(32).min(48).clamp(1, rows.min(cols)),
-            1usize,
-            8usize,
-            2usize,
-        )
-    } else if distill_svf && is_vocab_dict && cols >= 64 {
-        (
-            target_rank.max(cols.min(160)).clamp(1, rows.min(cols)),
-            2usize,
-            16usize,
-            3usize,
-        )
-    } else {
-        (
-            target_rank.clamp(1, rows.min(cols)),
-            if rows >= 8 * cols { 2 } else { 6 },
-            16usize,
-            3usize,
-        )
-    };
+    let (eff_rank, itq_iters, max_out_eff, run_distill, n_probes, n_sweeps) =
+        if elem_count > 200_000_000 {
+            (
+                target_rank.min(16).clamp(1, rows.min(cols)),
+                1usize,
+                0usize,
+                false,
+                4usize,
+                1usize,
+            )
+        } else if elem_count > 35_000_000 {
+            (
+                target_rank.max(24).min(48).clamp(1, rows.min(cols)),
+                1usize,
+                max_outliers.min(32),
+                distill_svf,
+                8usize,
+                2usize,
+            )
+        } else if distill_svf && is_vocab_dict && cols >= 64 {
+            (
+                target_rank.max(cols.min(160)).clamp(1, rows.min(cols)),
+                2usize,
+                max_outliers,
+                distill_svf,
+                16usize,
+                3usize,
+            )
+        } else {
+            (
+                target_rank.clamp(1, rows.min(cols)),
+                if rows >= 8 * cols { 2 } else { 6 },
+                max_outliers,
+                distill_svf,
+                16usize,
+                3usize,
+            )
+        };
     let fq_name = format!("{model_id}::{tname}");
     let mut lb = LittleBitSVFTensor::factorize(
         fq_name,
@@ -869,10 +914,10 @@ fn factorize_2d_with_adaptive_budget(
         cols,
         eff_rank,
         itq_iters,
-        max_outliers,
+        max_out_eff,
     )?;
     let (mut pre_m, mut post_m) = (0.0, 0.0);
-    if distill_svf && let Ok(d_rec) = lb.distill_svf_against_dense(decoded, n_probes, n_sweeps) {
+    if run_distill && let Ok(d_rec) = lb.distill_svf_against_dense(decoded, n_probes, n_sweeps) {
         pre_m = d_rec.pre_probe_mse;
         post_m = d_rec.post_probe_mse;
     }
@@ -1127,9 +1172,12 @@ pub fn ingest_gguf_bytes_with_options(
         let fp16_equiv_bytes = (elem_count as u64) * 2;
         total_fp16_bytes += fp16_equiv_bytes;
 
-        // GGUF stores `dims` inner-first (`dims[0] = cols`, `dims[1] = rows`)!
-        let is_depthwise_1d =
-            th.dims.len() == 3 && th.dims[1] == 1 && th.dims[0] <= 16 && elem_count <= 262_144;
+        // GGUF stores `dims` inner-first (`dims[0] = cols`, `dims[1] = rows`, `dims[2] = experts`)!
+        let is_depthwise_1d = elem_count <= 262_144
+            && ((th.dims.len() == 3 && th.dims[1] == 1 && th.dims[0] <= 16)
+                || (th.dims.len() == 2
+                    && th.dims[0] <= 16
+                    && (tname.contains(".conv.") || tname.contains("conv1d"))));
         if !is_depthwise_1d
             && th.dims.len() >= 2
             && th.dims[0] >= 2
@@ -1273,6 +1321,9 @@ fn canonicalize_gguf_tensor_name(raw: &str, has_post_attn_norm: bool) -> String 
             "attn_k.bias" => "self_attn.k_proj.bias",
             "attn_v.weight" => "self_attn.v_proj.weight",
             "attn_v.bias" => "self_attn.v_proj.bias",
+            "attn_qkv.weight" => "self_attn.qkv_proj.weight",
+            "attn_qkv.bias" => "self_attn.qkv_proj.bias",
+            "attn_gate.weight" => "self_attn.attn_gate.weight",
             "attn_output.weight" => "self_attn.o_proj.weight",
             "attn_output.bias" => "self_attn.o_proj.bias",
             "attn_q_norm.weight" => "self_attn.q_norm.weight",
@@ -1286,9 +1337,24 @@ fn canonicalize_gguf_tensor_name(raw: &str, has_post_attn_norm: bool) -> String 
             "ffn_gate.weight" => "mlp.gate_proj.weight",
             "ffn_up.weight" => "mlp.up_proj.weight",
             "ffn_down.weight" => "mlp.down_proj.weight",
+            "ffn_gate_inp.weight" => "mlp.gate.weight",
+            "exp_probs_b.bias" => "mlp.expert_bias",
+            "ffn_gate_exps.weight" => "mlp.experts.gate_proj.weight",
+            "ffn_up_exps.weight" => "mlp.experts.up_proj.weight",
+            "ffn_down_exps.weight" => "mlp.experts.down_proj.weight",
+            "ffn_gate_shexp.weight" => "mlp.shared_expert.gate_proj.weight",
+            "ffn_up_shexp.weight" => "mlp.shared_expert.up_proj.weight",
+            "ffn_down_shexp.weight" => "mlp.shared_expert.down_proj.weight",
             "shortconv.in_proj.weight" => "conv.in_proj.weight",
             "shortconv.conv.weight" => "conv.conv.weight",
             "shortconv.out_proj.weight" => "conv.out_proj.weight",
+            "ssm_a" => "ssm.a",
+            "ssm_dt.bias" => "ssm.dt_bias",
+            "ssm_alpha.weight" => "ssm.alpha_proj.weight",
+            "ssm_beta.weight" => "ssm.beta_proj.weight",
+            "ssm_conv1d.weight" => "ssm.conv1d.weight",
+            "ssm_norm.weight" => "ssm.norm.weight",
+            "ssm_out.weight" => "ssm.out_proj.weight",
             other => other,
         };
         return format!("model.layers.{l_str}.{mapped}");
@@ -1302,8 +1368,13 @@ fn gguf_type_label(type_id: u32) -> &'static str {
         1 => "GGUF_F16",
         2 => "GGUF_Q4_0",
         3 => "GGUF_Q4_1",
+        6 => "GGUF_Q5_0",
+        7 => "GGUF_Q5_1",
         8 => "GGUF_Q8_0",
+        10 => "GGUF_Q2_K",
+        11 => "GGUF_Q3_K",
         12 => "GGUF_Q4_K",
+        13 => "GGUF_Q5_K",
         14 => "GGUF_Q6_K",
         30 => "GGUF_BF16",
         34 => "GGUF_TQ1_0",
@@ -1311,6 +1382,9 @@ fn gguf_type_label(type_id: u32) -> &'static str {
         36 => "GGUF_I2_S",
         40 => "GGUF_Q1_0",
         41 => "GGUF_Q1_0_G128",
+        42 => "GGUF_Q2_0",
+        142 => "GGUF_PQ2_0",
+        143 => "GGUF_PTQ1_0",
         _ => "GGUF_QUANT",
     }
 }
@@ -1329,13 +1403,21 @@ fn gguf_tensor_byte_size(elem_count: usize, type_id: u32) -> Result<usize, Strin
         1 | 30 => (2, 1),
         2 => (18, 32),
         3 => (20, 32),
+        6 => (22, 32),
+        7 => (24, 32),
         8 => (34, 32),
+        10 => (84, 256),
+        11 => (110, 256),
         12 => (144, 256),
+        13 => (176, 256),
         14 => (210, 256),
         34 => (54, 256),
         35 => (66, 256),
         40 => (6, 32),
         41 => (18, 128), // PrismML Bonsai `Q1_0_G128`: f16 scale + 16B packed 128-bit signs
+        42 => (18, 64),  // PrismML Ternary-Bonsai-2 `Q2_0`: f16 scale + 16B packed 64x 2-bit trits
+        142 => (34, 128), // PrismML Ternary-Bonsai-2 `PQ2_0`: f16 scale + 32B packed 128x 2-bit trits
+        143 => (28, 128), // PrismML Ternary-Bonsai-2 `PTQ1_0`: 24B base-3 + 2B qh + f16 scale
         other => return Err(format!("unsupported GGUF tensor type_id {other}")),
     };
     if !elem_count.is_multiple_of(block_elems) {
@@ -1391,12 +1473,121 @@ fn dequantize_gguf_tensor(raw: &[u8], elem_count: usize, type_id: u32) -> Result
                 }
             }
         }
+        6 => {
+            // Q5_0: 2B f16 d + 4B qh + 16B nibbles (32 elems)
+            for blk in raw.chunks_exact(22) {
+                let d = f16_bits_to_f32(u16::from_le_bytes([blk[0], blk[1]]));
+                let qh = u32::from_le_bytes([blk[2], blk[3], blk[4], blk[5]]);
+                for j in 0..16 {
+                    let h0 = ((qh >> j) & 1) << 4;
+                    out.push((((blk[6 + j] & 0x0F) as u32 | h0) as i32 - 16) as f32 * d);
+                }
+                for j in 0..16 {
+                    let h1 = ((qh >> (j + 12)) & 0x10) as u32;
+                    out.push((((blk[6 + j] >> 4) as u32 | h1) as i32 - 16) as f32 * d);
+                }
+            }
+        }
+        7 => {
+            // Q5_1: 2B f16 d + 2B f16 m + 4B qh + 16B nibbles (32 elems)
+            for blk in raw.chunks_exact(24) {
+                let d = f16_bits_to_f32(u16::from_le_bytes([blk[0], blk[1]]));
+                let m = f16_bits_to_f32(u16::from_le_bytes([blk[2], blk[3]]));
+                let qh = u32::from_le_bytes([blk[4], blk[5], blk[6], blk[7]]);
+                for j in 0..16 {
+                    let h0 = ((qh >> j) & 1) << 4;
+                    out.push(((blk[8 + j] & 0x0F) as u32 | h0) as f32 * d + m);
+                }
+                for j in 0..16 {
+                    let h1 = ((qh >> (j + 12)) & 0x10) as u32;
+                    out.push(((blk[8 + j] >> 4) as u32 | h1) as f32 * d + m);
+                }
+            }
+        }
         8 => {
             // Q8_0: 2B f16 d + 32B i8
             for blk in raw.chunks_exact(34) {
                 let d = f16_bits_to_f32(u16::from_le_bytes([blk[0], blk[1]]));
                 for &q in &blk[2..34] {
                     out.push((q as i8) as f32 * d);
+                }
+            }
+        }
+        10 => {
+            // Q2_K: 16B scales + 64B qs + 2B f16 d + 2B f16 dmin (84B / 256 elems)
+            for blk in raw.chunks_exact(84) {
+                let sc = &blk[0..16];
+                let qs = &blk[16..80];
+                let d = f16_bits_to_f32(u16::from_le_bytes([blk[80], blk[81]]));
+                let dmin = f16_bits_to_f32(u16::from_le_bytes([blk[82], blk[83]]));
+                for n in 0..2 {
+                    let q = &qs[n * 32..(n + 1) * 32];
+                    for shift_idx in 0..4 {
+                        let shift = shift_idx * 2;
+                        let is = n * 8 + shift_idx * 2;
+                        let dl0 = d * ((sc[is] & 0x0F) as f32);
+                        let ml0 = dmin * ((sc[is] >> 4) as f32);
+                        for &qb in &q[0..16] {
+                            out.push(dl0 * (((qb >> shift) & 3) as f32) - ml0);
+                        }
+                        let dl1 = d * ((sc[is + 1] & 0x0F) as f32);
+                        let ml1 = dmin * ((sc[is + 1] >> 4) as f32);
+                        for &qb in &q[16..32] {
+                            out.push(dl1 * (((qb >> shift) & 3) as f32) - ml1);
+                        }
+                    }
+                }
+            }
+        }
+        11 => {
+            // Q3_K: 32B hmask + 64B qs + 12B scales + 2B f16 d (110B / 256 elems)
+            for blk in raw.chunks_exact(110) {
+                let hm = &blk[0..32];
+                let qs = &blk[32..96];
+                let sc_raw = &blk[96..108];
+                let d_all = f16_bits_to_f32(u16::from_le_bytes([blk[108], blk[109]]));
+                let mut aux = [0u32; 4];
+                for i in 0..3 {
+                    aux[i] = u32::from_le_bytes([
+                        sc_raw[i * 4],
+                        sc_raw[i * 4 + 1],
+                        sc_raw[i * 4 + 2],
+                        sc_raw[i * 4 + 3],
+                    ]);
+                }
+                let tmp = aux[2];
+                aux[2] = ((aux[0] >> 4) & 0x0F0F_0F0F) | (((tmp >> 4) & 0x0303_0303) << 4);
+                aux[3] = ((aux[1] >> 4) & 0x0F0F_0F0F) | (((tmp >> 6) & 0x0303_0303) << 4);
+                aux[0] = (aux[0] & 0x0F0F_0F0F) | ((tmp & 0x0303_0303) << 4);
+                aux[1] = (aux[1] & 0x0F0F_0F0F) | (((tmp >> 2) & 0x0303_0303) << 4);
+                let mut scales = [0i8; 16];
+                for i in 0..4 {
+                    let b = aux[i].to_le_bytes();
+                    for j in 0..4 {
+                        scales[i * 4 + j] = (b[j] as i8).wrapping_sub(32);
+                    }
+                }
+                let mut m_bit = 1u8;
+                let mut is = 0usize;
+                for n in 0..2 {
+                    let q = &qs[n * 32..(n + 1) * 32];
+                    for shift in [0, 2, 4, 6] {
+                        let dl0 = d_all * (scales[is] as f32);
+                        is += 1;
+                        for l in 0..16 {
+                            let low = ((q[l] >> shift) & 3) as i32;
+                            let sub = if (hm[l] & m_bit) != 0 { 0 } else { 4 };
+                            out.push(dl0 * ((low - sub) as f32));
+                        }
+                        let dl1 = d_all * (scales[is] as f32);
+                        is += 1;
+                        for l in 16..32 {
+                            let low = ((q[l] >> shift) & 3) as i32;
+                            let sub = if (hm[l] & m_bit) != 0 { 0 } else { 4 };
+                            out.push(dl1 * ((low - sub) as f32));
+                        }
+                        m_bit = m_bit.wrapping_shl(1);
+                    }
                 }
             }
         }
@@ -1427,6 +1618,43 @@ fn dequantize_gguf_tensor(raw: &[u8], elem_count: usize, type_id: u32) -> Result
                     for &qb in q_slice {
                         out.push(d * s2 * ((qb >> 4) as f32) - dmin * m2);
                     }
+                }
+            }
+        }
+        13 => {
+            // Q5_K: 2B f16 d + 2B f16 dmin + 12B scales + 32B qh + 128B qs (176B / 256 elems)
+            for blk in raw.chunks_exact(176) {
+                let d = f16_bits_to_f32(u16::from_le_bytes([blk[0], blk[1]]));
+                let dmin = f16_bits_to_f32(u16::from_le_bytes([blk[2], blk[3]]));
+                let sc = &blk[4..16];
+                let qh = &blk[16..48];
+                let qs = &blk[48..176];
+                let get_scale_min = |is: usize| -> (f32, f32) {
+                    if is < 4 {
+                        ((sc[is] & 63) as f32, (sc[is + 4] & 63) as f32)
+                    } else {
+                        (
+                            ((sc[is + 4] & 0x0F) | ((sc[is - 4] >> 6) << 4)) as f32,
+                            ((sc[is + 4] >> 4) | ((sc[is] >> 6) << 4)) as f32,
+                        )
+                    }
+                };
+                let mut u1 = 1u8;
+                let mut u2 = 2u8;
+                for chunk_idx in 0..4 {
+                    let (s1, m1) = get_scale_min(chunk_idx * 2);
+                    let (s2, m2) = get_scale_min(chunk_idx * 2 + 1);
+                    let q_slice = &qs[chunk_idx * 32..(chunk_idx + 1) * 32];
+                    for (l, &qb) in q_slice.iter().enumerate() {
+                        let hi = if (qh[l] & u1) != 0 { 16.0 } else { 0.0 };
+                        out.push(d * s1 * (((qb & 0x0F) as f32) + hi) - dmin * m1);
+                    }
+                    for (l, &qb) in q_slice.iter().enumerate() {
+                        let hi = if (qh[l] & u2) != 0 { 16.0 } else { 0.0 };
+                        out.push(d * s2 * (((qb >> 4) as f32) + hi) - dmin * m2);
+                    }
+                    u1 = u1.wrapping_shl(2);
+                    u2 = u2.wrapping_shl(2);
                 }
             }
         }
@@ -1464,24 +1692,23 @@ fn dequantize_gguf_tensor(raw: &[u8], elem_count: usize, type_id: u32) -> Result
                 let qs = &blk[0..48];
                 let qh = &blk[48..52];
                 let d = f16_bits_to_f32(u16::from_le_bytes([blk[52], blk[53]]));
-                let pow3 = [1u16, 3, 9, 27, 81];
-                for (j, &b) in qs.iter().enumerate() {
-                    if j < 32 {
-                        for &p in &pow3 {
-                            let trit = (((b as u16 * p) * 3) >> 8) as i32 - 1;
-                            out.push(trit as f32 * d);
-                        }
-                    }
-                }
-                // Remaining 96 trits from qs[32..48] (80 trits) + qh[0..4] (16 trits)
-                for &b in &qs[32..48] {
-                    for &p in &pow3 {
-                        let trit = (((b as u16 * p) * 3) >> 8) as i32 - 1;
+                let pow3 = [1u8, 3, 9, 27, 81];
+                for &p in &pow3 {
+                    for &b in &qs[0..32] {
+                        let xi = b.wrapping_mul(p);
+                        let trit = (((xi as u16) * 3) >> 8) as i32 - 1;
                         out.push(trit as f32 * d);
                     }
                 }
-                for &b in qh {
-                    for shift in [0, 2, 4, 6] {
+                for &p in &pow3 {
+                    for &b in &qs[32..48] {
+                        let xi = b.wrapping_mul(p);
+                        let trit = (((xi as u16) * 3) >> 8) as i32 - 1;
+                        out.push(trit as f32 * d);
+                    }
+                }
+                for shift in [0, 2, 4, 6] {
+                    for &b in qh {
                         let trit = ((b >> shift) & 0x03) as i32 - 1;
                         out.push(trit.clamp(-1, 1) as f32 * d);
                     }
@@ -1541,6 +1768,52 @@ fn dequantize_gguf_tensor(raw: &[u8], elem_count: usize, type_id: u32) -> Result
                 for &b in &blk[2..18] {
                     for bit in 0..8 {
                         out.push(if ((b >> bit) & 1) == 1 { d } else { -d });
+                    }
+                }
+            }
+        }
+        42 => {
+            // PrismML Ternary-Bonsai-2 `Q2_0` (64-elem block: 2B f16 d + 16B packed 2-bit trits in {-1, 0, +1})
+            for blk in raw.chunks_exact(18) {
+                let d = f16_bits_to_f32(u16::from_le_bytes([blk[0], blk[1]]));
+                for &b in &blk[2..18] {
+                    for shift in [0, 2, 4, 6] {
+                        let q = ((b >> shift) & 0x03) as i32 - 1;
+                        out.push(q.clamp(-1, 1) as f32 * d);
+                    }
+                }
+            }
+        }
+        142 => {
+            // PrismML Ternary-Bonsai-2 `PQ2_0` (128-elem block: 2B f16 d + 32B packed 2-bit trits in {-1, 0, +1})
+            for blk in raw.chunks_exact(34) {
+                let d = f16_bits_to_f32(u16::from_le_bytes([blk[0], blk[1]]));
+                for &b in &blk[2..34] {
+                    for shift in [0, 2, 4, 6] {
+                        let q = ((b >> shift) & 0x03) as i32 - 1;
+                        out.push(q.clamp(-1, 1) as f32 * d);
+                    }
+                }
+            }
+        }
+        143 => {
+            // PrismML Ternary-Bonsai-2 `PTQ1_0` (128-elem block: 24B base-3 qs + 2B qh + 2B f16 d)
+            for blk in raw.chunks_exact(28) {
+                let qs = &blk[0..24];
+                let qh = &blk[24..26];
+                let d = f16_bits_to_f32(u16::from_le_bytes([blk[26], blk[27]]));
+                let pow3 = [1u8, 3, 9, 27, 81];
+                for &p in &pow3 {
+                    for &b in qs {
+                        let xi = b.wrapping_mul(p);
+                        let trit = (((xi as u16) * 3) >> 8) as i32 - 1;
+                        out.push(trit as f32 * d);
+                    }
+                }
+                for shift in [0, 2, 4, 6] {
+                    for &b in qh {
+                        let trit = ((b >> shift) & 0x03) as i32 - 1;
+                        out.push(trit.clamp(-1, 1) as f32 * d);
                     }
                 }
             }

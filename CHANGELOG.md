@@ -4,6 +4,14 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-11-24
+
+### Added
+- **45-Day Frontier Drop Fleet, Joint Binary Gram `LittleBit-2` Refinement & Zero-Copy Checkpoint Compiler (`synapse`, `checkpoint_ingest`, `causal_decoder`, `synapse_routes`)**:
+  - **SplitMix64 Rademacher Seeding + Joint Binary Gram Gauss-Seidel Singular Refinement:** Replaces periodic bitplane initialization with quasi-orthogonal Rademacher hypercube + residual power projection and solves the exact $R \times R$ cross-rank binary Gram normal equations at `0` extra BPW, eliminating multi-rank bitplane collinearity and raising multi-rank reconstruction cosine above `0.88`.
+  - **PrismML `Ternary-Bonsai-2` (`Q2_0`/`PQ2_0`/`PTQ1_0`), `Q5_0`/`Q5_1`/`Q2_K`/`Q3_K`/`Q5_K` GGUF Unpackers & Zero-Copy `.safetensors` `mmap`:** Unpacks `Ternary-Bonsai-2` 2-bit/base-3 GGUF (`type_id=42,142,143`) and `K`-quants, streams `10–20 GB` `.safetensors` shards directly from OS page cache via `memmap2`, raises 64-bit `MAX_TENSOR_ELEMENTS` to `4 Gi` (`Gemma 4` `2.82B`-element per-layer embeddings) and `MAX_SNAPSHOT_UNCOMPRESSED` to `2 GiB` (`26B`–`33B` MoE `.jsyn` reloads), and deletes cached shards immediately after compilation.
+  - **Google `Gemma 4` (`E2B`/`E4B`/`26B-A4B`), `Qwen3.5` / `Ternary-Bonsai-2` Gated DeltaNet, `Falcon-H1` / `Zamba2` Hybrid Mamba, `Poolside Laguna-XS-2.1` 33.4B MoE, `NVIDIA Dory 1.0` & `Sigma`, and `Thinking Machines Lab TML-d24-VarLoop`:** Full causal execution across dynamic per-layer `head_dim` (`256`/`512`) + `attention_k_eq_v` + shared-KV reuse + `layer_scalar` (`Gemma 4`), recurrent Gated DeltaNet (`.safetensors` & GGUF), parallel `mamba + self_attn` (`Falcon-H1` / `Zamba2`), 3D `ffn_*_exps` MoE (`Laguna-XS`), and `gemma` / `falcon-llm-license` Model Card support across the 67-model `< 30 GB` catalog (`82` live `.jsyn` repositories on Hugging Face).
+
 ## [0.2.5] - 2026-11-23
 
 ### Added
