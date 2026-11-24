@@ -5,9 +5,10 @@
 
 [![Release](https://github.com/openIE-dev/jouledb/actions/workflows/release.yml/badge.svg)](https://github.com/openIE-dev/jouledb/releases)
 [![Quality](https://github.com/openIE-dev/jouledb/actions/workflows/quality.yml/badge.svg)](https://github.com/openIE-dev/jouledb/actions/workflows/quality.yml)
+[![Docs](https://github.com/openIE-dev/jouledb/actions/workflows/docs.yml/badge.svg)](https://openie-dev.github.io/jouledb)
 [![crates.io](https://img.shields.io/crates/v/jouledb.svg)](https://crates.io/crates/jouledb)
-[![Hugging Face Fleet](https://img.shields.io/badge/Hugging%20Face-82%20.jsyn%20Models-00E5FF)](https://huggingface.co/dcharlot65-openie)
-[![Website](https://img.shields.io/badge/Web-jouledb.org-0A0A0F)](https://jouledb.org)
+[![Hugging Face Fleet](https://img.shields.io/badge/Hugging%20Face-82%20.jsyn%20Models-0D9488)](https://huggingface.co/dcharlot65-openie)
+[![Website](https://img.shields.io/badge/Web-jouledb.org-2563EB)](https://jouledb.org)
 
 ---
 
@@ -26,9 +27,13 @@ Modern AI and data stacks split state and intelligence across a dozen disconnect
 
 Standard scalar quantizers (`Q4_K_M`, `NVFP4`, `BitNet b1.58`) quantize entry-by-entry, hitting a hard `1.0 bit/weight` (`16x`) floor. `.jsyn` (`crates/joule-db-weights`) decomposes 2D and folded 3D Mixture-of-Experts projections via **`LittleBit-2 ⊕ Sakana SVF ⊕ Sparse Outliers`**:
 
-$$W \approx \operatorname{diag}(s_{\text{row}}) \cdot \left( \sum_{k=1}^{r} \sigma_k z_k \, u_k v_k^\top \right) \cdot \operatorname{diag}(s_{\text{col}}) + S_{\text{outlier}}$$
+```text
+W ≈ diag(s_row) · [ Σ_{k=1..r} (σ_k · z_k) · u_k · v_kᵀ ] · diag(s_col) + S_outlier
+  where u_k ∈ {-1, +1}^m, v_k ∈ {-1, +1}^n (packed u64 FastLanes bitplanes)
+  BPW(m, n, r, K) = ((m + n)·r + 16·(m + n + r) + 48·K) / (m · n)
+```
 
-- **Zero-Decompression Forward Pass:** Evaluates $y = \hat{W}x$ directly over packed `u64` FastLanes sign bitplanes using L1-resident **`T-MAC` byte lookup tables** (CPU) or `wgpu` **`countOneBits` (`XNOR-POPCNT`)** compute shaders (Metal/Vulkan/WebGPU) in $O((m + n) \cdot r)$—and evaluates only active top-$k$ MoE slices in $O(k)$.
+- **Zero-Decompression Forward Pass:** Evaluates `y = W_hat · x` directly over packed `u64` FastLanes sign bitplanes using L1-resident **`T-MAC` byte lookup tables** (CPU) or `wgpu` **`countOneBits` (`XNOR-POPCNT`)** compute shaders (Metal/Vulkan/WebGPU) in `O((m + n) · r)`—and evaluates only active top-`k` MoE slices in `O(k)`.
 - **Exact Structural Fidelity + Live Plasticity:** Keeps 1D `RMSNorm`, `+1` Gemma offsets, `QK-Norm`, `Liquid ShortConv` `1x3` kernels, and `Mamba-2` SSM vectors in **exact `FP32`**, embeds BPE/SentencePiece tokenizers, calibrates channel skew via **`AWQ ⊕ GPTQ` Empirical-Bayes `SVF`** (`92.04%` MSE reduction at `0` extra bits), and supports **Google `Titans`** test-time plasticity with MVCC `rollback_to_lsn`.
 - **82 Permissive `< 30 GB` Models Ready on Hugging Face (`dcharlot65-openie`):** Spanning **Google `Gemma 4`** (`E2B`, `E4B`, `26B-A4B`, `EmbeddingGemma-2`), **Thinking Machines Lab** (`Inkling-2-Mini` & `TML-d24-VarLoop` `50.3 GB -> 89.8 MB = 560.5x`), **NVIDIA** (`Nemotron-3-Nano 4B/30B`, `Dory 1.0`, `Sigma-3B`, `Qwen3.5-Draft`, `Eagle3`, `Cosmos-Embed1`, `Parakeet-TDT`), **Poolside** (`Laguna-XS-2.1` `33.4B` MoE `63.8 GB -> 176.3 MB = 361.8x`), **Liquid AI** (`LFM3`, `LFM3-Omni`, `d1-2B`), **PrismML** (`Ternary-Bonsai-2`), **Cactus Compute**, **Microsoft `BitNet` & `Aion`**, **AllenAI `OLMo-2`**, **IBM `Granite 4.1`**, **Sakana AI**, and **HuggingFace `SmolVLA` / `SmolVLM2`**.
 - Full binary specification & rank-sweep theory: **[`docs/JSYN-LIVING-WEIGHTS-SPEC.md`](./docs/JSYN-LIVING-WEIGHTS-SPEC.md)**.
@@ -51,8 +56,8 @@ $$W \approx \operatorname{diag}(s_{\text{row}}) \cdot \left( \sum_{k=1}^{r} \sig
 - **7 Query Languages + Out-of-Core OLAP:** SQL, Cypher, CQL, GraphQL, Datalog, SPARQL, Gremlin (+ InfluxQL/PromQL + `SigQL` biosignals), `2,048`-row **Morsel Grace Out-of-Core Spill-to-Disk** joins/aggregates, **`ClickBench`/`Vortex` Granule `ZoneMap + SelectionVector`** (`97.96%` cold skip in `164 µs`), bit-exact `ALP + FSST` codecs, `Arrow Flight SQL` (`JDB_IPC1`), and `DuckLake` + `Iceberg v3` `AS OF` time-travel.
 - **Formally Verified ACID/SSI, Financial Ledger & Reactive DAGs:** Cahill `SSI` certified by **Kleppmann `Hermitage` (`6/6` clean in `1.13 ms`)** and **Jepsen/`Elle` Tarjan `SCC` cycle detector (`0` cycles)**, **`sqllogictest` MD5 + `SQLancer` (`TLP` & `NoREC`)** (`0` violations), **`TigerBeetle`-class `i128` linked two-phase accounting + `VOPR` torn-WAL/bit-rot simulator**, and **Goldman Sachs `SecDB` + Google `Napa`** dirty-cone freshness-SLA DAGs (`99.23%` compute saved).
 - **360° Hybrid GraphRAG & Neurosymbolic HDC:** `TriModal RRF` (`BM25 ⋈ RaBitQ 1-bit POPCNT ⋈ 15-Primitive HDC` at `32x` less vector RAM) + `ACORN` 2-hop filtered rescue + `HippoRAG` Personalized PageRank + `PathHD` (**`70.0%` `WN18RR` `Hits@1` at `10 µJ/pred`**, **`100%` `LongMemEval-60` at `~0.8 µJ/turn`**).
-- **Physical AI, Robotics & HMI:** `EctStore` (`HLC` + `LSL` sync), `kdb+`-class strictly causal `ASOF` joins (`0.63 µs/query`, `0` future leakage), `SE(3)` quaternion `SLERP` kinematic trees, active-inference `SurpriseGate`, and Feldera-class `DBSP` `ZSet<T>` $O(|\Delta|)$ incremental views.
-- **Post-Docker `JouleCapsule`, Post-Git `JouleSpace`, `JouleWard` & `JouleKube`:** Daemonless pure-Rust OCI v2 CAS + $O(1)$ CoW container+DB forks (`1.13 µs/branch`), `Jujutsu`/`Zed Delta` op-logs, RFC-2104 `ThermoCap` capability macaroons, and `kubectl`-native Kubernetes + CNCF AI-Conformance (`DRA`, `Kueue`, `LWS`, `InferencePool`, `agent-sandbox`, `Kagent`) backed by MVCC SQL (`0` `etcd`, `0.0W` warm pools).
+- **Physical AI, Robotics & HMI:** `EctStore` (`HLC` + `LSL` sync), `kdb+`-class strictly causal `ASOF` joins (`0.63 µs/query`, `0` future leakage), `SE(3)` quaternion `SLERP` kinematic trees, active-inference `SurpriseGate`, and Feldera-class `DBSP` `ZSet<T>` `O(|ΔD|)` incremental views.
+- **Post-Docker `JouleCapsule`, Post-Git `JouleSpace`, `JouleWard` & `JouleKube`:** Daemonless pure-Rust OCI v2 CAS + `O(1)` CoW container+DB forks (`1.13 µs/branch`), `Jujutsu`/`Zed Delta` op-logs, RFC-2104 `ThermoCap` capability macaroons, and `kubectl`-native Kubernetes + CNCF AI-Conformance (`DRA`, `Kueue`, `LWS`, `InferencePool`, `agent-sandbox`, `Kagent`) backed by MVCC SQL (`0` `etcd`, `0.0W` warm pools).
 - **Wire Surfaces:** Native `JWP`, PostgreSQL `pgwire`, Arrow Flight SQL, MCP 2026 Streamable HTTP, WebSocket, REST, OpenAI `/v1/*`, Anthropic `/v1/messages`, Ollama `/api/*`, and Kubernetes `/api/v1` + `/apis/*`.
 
 ---
@@ -101,6 +106,7 @@ cargo test  -p joule-db-server --test wave25_rank_sweep_pareto_and_svf_calibrati
 ## Documentation & Ecosystem Links
 
 - **Website & Interactive Simulators:** [https://jouledb.org](https://jouledb.org) ([`.jsyn` Models](https://jouledb.org/jsyn) · [Peer-Review Benchmarks](https://jouledb.org/benchmarks) · [Honest Engineering](https://jouledb.org/honest))
+- **Online Book (`mdBook`):** [https://openie-dev.github.io/jouledb](https://openie-dev.github.io/jouledb)
 - **OpenIE Hugging Face `.jsyn` Hub (`82` Models, Spaces & Benchmark Dataset):** [https://huggingface.co/dcharlot65-openie](https://huggingface.co/dcharlot65-openie)
 - **Whitepaper (`v0.3`, November 2026):** [`docs/WHITEPAPER-JOULEDB-2026-11.md`](./docs/WHITEPAPER-JOULEDB-2026-11.md)
 - **`.jsyn` Living-Weights Binary Spec:** [`docs/JSYN-LIVING-WEIGHTS-SPEC.md`](./docs/JSYN-LIVING-WEIGHTS-SPEC.md)

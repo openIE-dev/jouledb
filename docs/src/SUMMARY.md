@@ -5,21 +5,16 @@
 # Getting Started
 
 - [Install](./install.md)
-- [Hello, JouleDB](./hello.md)
+- [Hello, JouleDB & .jsyn](./hello.md)
+- [.jsyn Living Model Weights](./jsyn.md)
 
-# Tutorial
+# Guide & Reference
 
-- [Tutorial overview](./tutorial/index.md)
+- [Guided Tour](./tutorial/index.md)
+- [API, Query & Wire Reference](./reference/index.md)
+- [Cookbook Recipes](./cookbook/index.md)
 
-# Reference
-
-- [Reference overview](./reference/index.md)
-
-# Cookbook
-
-- [Recipes](./cookbook/index.md)
-
-# Design
+# Design & Ecosystem
 
 - [Why JouleDB](./design/why.md)
-- [How it fits the openIE ecosystem](./design/ecosystem.md)
+- [OpenIE Ecosystem](./design/ecosystem.md)

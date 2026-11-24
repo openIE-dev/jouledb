@@ -1,42 +1,37 @@
 # Install
 
-Every channel installs the same thing: the `jouledb` server binary (crate `joule-db-server`). It serves HTTP on `-p` (default 8080), TCP on +1, the Postgres wire protocol on +2, and JWP on +3.
+Every channel installs the `jouledb` server & CLI binary (`joule-db-server`), exposing HTTP REST / Arrow Flight / MCP / OpenAI `/v1/*` on `--port` (default `8080`), native TCP on `+1` (`8081`), PostgreSQL `pgwire` on `+2` (`8082`), and binary `JWP` on `+3` (`8083`).
 
-## From source (works today)
+## 1. Prebuilt Binary via `cargo-binstall` (Fastest)
 
 ```bash
-cargo install --locked --git https://github.com/openIE-dev/jouledb joule-db-server
+cargo binstall jouledb
 jouledb --version
 ```
 
-## Prebuilt binaries
-
-The Release workflow builds `jouledb-<version>-<target>.tar.gz` (plus `.sha256`) for `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`, and `aarch64-unknown-linux-gnu`. Windows is experimental. Once a version is tagged:
+Or download a signed release archive (`v0.2.9`) directly for macOS (`arm64`/`x86_64`), Linux (`x86_64`/`aarch64`), or Windows (`x86_64`):
 
 ```bash
-cargo binstall jouledb            # the crates.io `jouledb` stub points binstall at these archives
-# or
-curl -fsSL https://github.com/openIE-dev/jouledb/releases/download/v0.1.0/jouledb-0.1.0-aarch64-apple-darwin.tar.gz | tar xz
+curl -fsSL https://github.com/openIE-dev/jouledb/releases/download/v0.2.9/jouledb-0.2.9-aarch64-apple-darwin.tar.gz | tar xz
 ```
 
-Plain `cargo install jouledb` from crates.io only installs the stub, which prints these instructions. Use the `--git` form above to compile.
-
-## Homebrew
-
-`packaging/homebrew/jouledb.rb` is the tap formula. Before a release exists: `brew install --HEAD ./packaging/homebrew/jouledb.rb`.
-
-## Docker
+## 2. Docker / OCI (`GHCR`)
 
 ```bash
-docker build -t jouledb .
-docker run -e JOULEDB_JWT_SECRET=change-me -p 8080-8083:8080-8083 -v jdb:/data jouledb
+docker run -p 8080-8083:8080-8083 -v jdb:/data ghcr.io/openie-dev/jouledb:0.2.9
 ```
 
-## Run and connect
+## 3. Build from Source
 
 ```bash
-jouledb -d ./data                 # loopback only, trust auth, like a local Postgres
+git clone https://github.com/openIE-dev/jouledb.git
+cd jouledb
+cargo build --release -p joule-db-server --bin jouledb
+./target/release/jouledb --port 8080 --data ./joule-data
+```
+
+## 4. Connect Any PostgreSQL Client
+
+```bash
 psql "host=127.0.0.1 port=8082 user=postgres dbname=postgres sslmode=disable"
 ```
-
-Binding to a non-loopback address (`JOULEDB_BIND_HOST=0.0.0.0`, as the container does) always turns auth on. Set `JOULEDB_JWT_SECRET`, which is also the pgwire password. Drivers tested in CI: psql, psycopg 3, SQLAlchemy 2, node-postgres, and pgJDBC (see `tests/clients`).

@@ -1,28 +1,18 @@
 # Introduction
 
-**JouleDB**, JouleDB, energy-metered database, HDC primitives, joules per query.
+**JouleDB (`v0.2.9`)** is an open-source (`Apache-2.0 OR MIT`) thermodynamic database and living-weights (`.jsyn`) AI substrate written in safe Rust. Every query, CoW branch fork, causal `ASOF` sensor join, `JouleCapsule` container execution, `JouleKube` Kubernetes reconciliation, and sub-1-bit neural forward pass is metered in verifiable nanojoules (`nJ`).
 
-This is the official documentation for JouleDB. The full source code lives in the [private `-core` mirror](https://github.com/openIE-dev/jouledb-core); the public release surface is at [openIE-dev/jouledb](https://github.com/openIE-dev/jouledb).
+- **Website & Interactive Simulators:** [https://jouledb.org](https://jouledb.org)
+- **Source Repository:** [https://github.com/openIE-dev/jouledb](https://github.com/openIE-dev/jouledb)
+- **82 Public `.jsyn` Models on Hugging Face:** [https://huggingface.co/dcharlot65-openie](https://huggingface.co/dcharlot65-openie)
+- **Rust CLI Installer (`crates.io`):** [https://crates.io/crates/jouledb](https://crates.io/crates/jouledb)
 
-## What you'll find here
+## What You Will Find Here
 
-- **[Install](./install.md)**, get the `jouledb` binary on your machine
-- **[Hello, JouleDB](./hello.md)**, first program in 30 seconds
-- **[Tutorial](./tutorial/index.md)**, a 30-minute hands-on guided tour
-- **[Reference](./reference/index.md)**, every feature, every flag, every API
-- **[Cookbook](./cookbook/index.md)**, task-oriented recipes
-- **[Design](./design/why.md)**, why JouleDB exists and how it fits with the rest of openIE-dev
-
-## The openIE-dev ecosystem
-
-JouleDB is one of five public openIE-dev projects. All five share a common substrate (flowG) and energy-metering layer (substrate-energy):
-
-- **[flow-g](https://openie-dev.github.io/flow-g)**, the IR + runtime substrate
-- **[lux-lang](https://openie-dev.github.io/lux-lang)**, reactive language compiling to flowG
-- **[jmax](https://openie-dev.github.io/jmax)**, math-native language
-- **[joule-lang](https://openie-dev.github.io/joule-lang)**, energy-budgeted compiled language
-- **[jouledb](https://openie-dev.github.io/jouledb)**, energy-metered database
-
-## License
-
-JouleDB binaries, documentation and examples are licensed under MIT OR Apache-2.0 (see [COPYRIGHT](https://github.com/openIE-dev/jouledb/blob/main/COPYRIGHT)).
+- **[Install](./install.md)** — `cargo binstall jouledb`, Docker GHCR, prebuilt binaries, and source builds.
+- **[Hello, JouleDB & .jsyn](./hello.md)** — launch the server, run SQL, and pull a `.jsyn` model in 60 seconds.
+- **[.jsyn Living Model Weights](./jsyn.md)** — how `LittleBit-2 ⊕ Sakana SVF` shrinks `< 30 GB` models by `20x–560x` inside the database.
+- **[Guided Tour](./tutorial/index.md)** — SQL, `TriModal GraphRAG`, CoW branching, `JouleKube`, and 7-pillar certification.
+- **[API, Query & Wire Reference](./reference/index.md)** — 7 query languages, wire protocols, and REST/MCP/OpenAI routes.
+- **[Cookbook Recipes](./cookbook/index.md)** — copy-paste recipes for hybrid search, rank sweeps, and embodied `ASOF` joins.
+- **[Why JouleDB](./design/why.md)** — thermodynamic design principles and transparent engineering boundaries.
