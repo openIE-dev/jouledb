@@ -65,7 +65,10 @@ fn norm_conf(c: f64) -> f64 {
 }
 
 /// Computes `HLE` Hendrycks adaptive-bin `RMS-CE`, `ECE`, `Brier`, and Reasoning/Knowledge split accuracy.
-pub fn compute_hle_calibration(samples: &[CalibrationSample], min_bin_size: usize) -> CalibrationMetrics {
+pub fn compute_hle_calibration(
+    samples: &[CalibrationSample],
+    min_bin_size: usize,
+) -> CalibrationMetrics {
     if samples.is_empty() {
         return CalibrationMetrics {
             num_samples: 0,
@@ -109,11 +112,7 @@ pub fn compute_hle_calibration(samples: &[CalibrationSample], min_bin_size: usiz
 
     let total_acc = sorted.iter().map(|x| x.1).sum::<f64>() / (n as f64);
     let total_conf = sorted.iter().map(|x| x.0).sum::<f64>() / (n as f64);
-    let brier = sorted
-        .iter()
-        .map(|(c, y)| (y - c) * (y - c))
-        .sum::<f64>()
-        / (n as f64);
+    let brier = sorted.iter().map(|(c, y)| (y - c) * (y - c)).sum::<f64>() / (n as f64);
 
     let (mut r_ok, mut r_tot, mut k_ok, mut k_tot) = (0usize, 0usize, 0usize, 0usize);
     for s in samples {
@@ -137,8 +136,16 @@ pub fn compute_hle_calibration(samples: &[CalibrationSample], min_bin_size: usiz
         rms_calibration_error: sq_weighted.sqrt(),
         expected_calibration_error: abs_weighted,
         brier_score: brier,
-        reasoning_split_accuracy: if r_tot > 0 { r_ok as f64 / r_tot as f64 } else { total_acc },
-        knowledge_split_accuracy: if k_tot > 0 { k_ok as f64 / k_tot as f64 } else { total_acc },
+        reasoning_split_accuracy: if r_tot > 0 {
+            r_ok as f64 / r_tot as f64
+        } else {
+            total_acc
+        },
+        knowledge_split_accuracy: if k_tot > 0 {
+            k_ok as f64 / k_tot as f64
+        } else {
+            total_acc
+        },
     }
 }
 
@@ -273,7 +280,8 @@ pub fn evaluate_simpleqa_abstention(
     let pen = penalty_wrong.max(0.0);
     let threshold = if pen <= 0.0 { 0.0 } else { pen / (1.0 + pen) };
 
-    let (mut attempted, mut abstained, mut correct, mut incorrect) = (0usize, 0usize, 0usize, 0usize);
+    let (mut attempted, mut abstained, mut correct, mut incorrect) =
+        (0usize, 0usize, 0usize, 0usize);
     for (i, s) in samples.iter().enumerate() {
         let grounded = has_grounded_provenance.get(i).copied().unwrap_or(true);
         let p = match calibrator {
@@ -428,12 +436,74 @@ pub struct FaithfulMcPrediction {
 
 fn tokenize_content_words(text: &str) -> Vec<String> {
     const STOP: &[&str] = &[
-        "the", "a", "an", "of", "in", "on", "at", "to", "for", "with", "by", "from", "is", "are",
-        "was", "were", "be", "been", "being", "that", "this", "these", "those", "it", "its", "as",
-        "and", "or", "but", "if", "then", "than", "so", "such", "what", "which", "who", "whom",
-        "whose", "where", "when", "why", "how", "according", "passage", "context", "following",
-        "based", "text", "does", "did", "do", "has", "have", "had", "would", "could", "should",
-        "will", "can", "may", "might", "into", "about", "over", "after", "before", "between",
+        "the",
+        "a",
+        "an",
+        "of",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "with",
+        "by",
+        "from",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "that",
+        "this",
+        "these",
+        "those",
+        "it",
+        "its",
+        "as",
+        "and",
+        "or",
+        "but",
+        "if",
+        "then",
+        "than",
+        "so",
+        "such",
+        "what",
+        "which",
+        "who",
+        "whom",
+        "whose",
+        "where",
+        "when",
+        "why",
+        "how",
+        "according",
+        "passage",
+        "context",
+        "following",
+        "based",
+        "text",
+        "does",
+        "did",
+        "do",
+        "has",
+        "have",
+        "had",
+        "would",
+        "could",
+        "should",
+        "will",
+        "can",
+        "may",
+        "might",
+        "into",
+        "about",
+        "over",
+        "after",
+        "before",
+        "between",
     ];
     text.split(|c: char| !c.is_alphanumeric())
         .filter(|w| w.len() >= 2)
@@ -444,8 +514,22 @@ fn tokenize_content_words(text: &str) -> Vec<String> {
 
 fn contains_negation(tokens_raw: &[String]) -> bool {
     const NEG: &[&str] = &[
-        "not", "no", "never", "neither", "nor", "none", "without", "unable", "false", "untrue",
-        "instead", "unlikely", "impossible", "lack", "lacks", "lacked",
+        "not",
+        "no",
+        "never",
+        "neither",
+        "nor",
+        "none",
+        "without",
+        "unable",
+        "false",
+        "untrue",
+        "instead",
+        "unlikely",
+        "impossible",
+        "lack",
+        "lacks",
+        "lacked",
     ];
     tokens_raw.iter().any(|t| NEG.contains(&t.as_str()))
 }
@@ -533,9 +617,7 @@ pub fn audit_passage_faithfulness(
 
     let inconsistent = asserted_candidates.len() >= 2;
     let unanswerable = coverage < 0.25
-        || (!candidate_values.is_empty()
-            && asserted_candidates.is_empty()
-            && coverage < 0.45);
+        || (!candidate_values.is_empty() && asserted_candidates.is_empty() && coverage < 0.45);
 
     FaithfulPassageAudit {
         grounding_coverage: coverage,
@@ -673,11 +755,7 @@ pub fn score_faithful_mc_question(
             if lex_match > 0.0 {
                 // Polarity check: if question asks affirmative ("What IS...") and sentence negates
                 // the candidate ("is NOT X, it is Y"), penalize X!
-                let polarity_mult = if (s_neg ^ c_neg) != q_neg {
-                    0.30
-                } else {
-                    1.0
-                };
+                let polarity_mult = if (s_neg ^ c_neg) != q_neg { 0.30 } else { 1.0 };
                 let contrib = window_weights[si] * lex_match * polarity_mult;
                 best_sent_score = best_sent_score.max(contrib);
                 total_sent_score += 0.25 * contrib;
@@ -1001,9 +1079,18 @@ impl ArcOp {
     pub fn mdl_cost(&self) -> u32 {
         match self {
             Self::Identity => 1,
-            Self::Rot90 | Self::Rot180 | Self::Rot270 | Self::FlipH | Self::FlipV | Self::Transpose => 2,
-            Self::CropNonZeroBBox | Self::GravityDown | Self::GravityRight | Self::Shift { .. } => 3,
-            Self::CompleteHorizontalSymmetry | Self::CompleteVerticalSymmetry | Self::HollowInterior => 3,
+            Self::Rot90
+            | Self::Rot180
+            | Self::Rot270
+            | Self::FlipH
+            | Self::FlipV
+            | Self::Transpose => 2,
+            Self::CropNonZeroBBox | Self::GravityDown | Self::GravityRight | Self::Shift { .. } => {
+                3
+            }
+            Self::CompleteHorizontalSymmetry
+            | Self::CompleteVerticalSymmetry
+            | Self::HollowInterior => 3,
             Self::KeepLargestObject
             | Self::CropLargestObject
             | Self::KeepUniqueColorObject
@@ -1014,7 +1101,9 @@ impl ArcOp {
             | Self::TileRepeat { .. }
             | Self::DownsampleBlockMajority { .. }
             | Self::SplitPanelBool { .. } => 4,
-            Self::TileAlternatingFlipH { .. } | Self::KroneckerSelfTile | Self::FillEnclosedHoles { .. } => 5,
+            Self::TileAlternatingFlipH { .. }
+            | Self::KroneckerSelfTile
+            | Self::FillEnclosedHoles { .. } => 5,
             Self::RecolorMap(m) => 3 + m.len() as u32,
             Self::Compose(a, b) => 1 + a.mdl_cost() + b.mdl_cost(),
         }
@@ -1360,7 +1449,10 @@ impl ArcOp {
                         let v = g.cells[r][c];
                         if v != 0 {
                             if let Some((pc, pv)) = prev {
-                                if pv == v && c > pc + 1 && (pc + 1..c).all(|mc| g.cells[r][mc] == 0) {
+                                if pv == v
+                                    && c > pc + 1
+                                    && (pc + 1..c).all(|mc| g.cells[r][mc] == 0)
+                                {
                                     for mc in pc + 1..c {
                                         out[r][mc] = v;
                                     }
@@ -1377,7 +1469,10 @@ impl ArcOp {
                         let v = g.cells[r][c];
                         if v != 0 {
                             if let Some((pr, pv)) = prev {
-                                if pv == v && r > pr + 1 && (pr + 1..r).all(|mr| g.cells[mr][c] == 0) {
+                                if pv == v
+                                    && r > pr + 1
+                                    && (pr + 1..r).all(|mr| g.cells[mr][c] == 0)
+                                {
                                     for mr in pr + 1..r {
                                         out[mr][c] = v;
                                     }
@@ -1451,7 +1546,11 @@ impl ArcOp {
                 let out = g
                     .cells
                     .iter()
-                    .map(|row| row.iter().map(|&v| if v == 0 { *fg_color } else { 0 }).collect())
+                    .map(|row| {
+                        row.iter()
+                            .map(|&v| if v == 0 { *fg_color } else { 0 })
+                            .collect()
+                    })
                     .collect();
                 ArcGrid::new(out)
             }
@@ -1646,7 +1745,11 @@ pub fn synthesize_arc_program(
                     continue;
                 }
                 evaluated += 1;
-                if inter.iter().zip(train.iter()).all(|(mid, (_, y))| &b.apply(mid) == y) {
+                if inter
+                    .iter()
+                    .zip(train.iter())
+                    .all(|(mid, (_, y))| &b.apply(mid) == y)
+                {
                     let comp = ArcOp::Compose(Box::new(a.clone()), Box::new(b.clone()));
                     let cost = comp.mdl_cost();
                     if best.as_ref().is_none_or(|(bc, _)| cost < *bc) {
@@ -1933,7 +2036,10 @@ pub fn compute_pass_hat_k(num_trials: u64, num_successes: u64, k: u64) -> f64 {
     if k == 0 || num_trials == 0 || k > num_trials || num_successes < k {
         return 0.0;
     }
-    match (exact_binomial(num_successes, k), exact_binomial(num_trials, k)) {
+    match (
+        exact_binomial(num_successes, k),
+        exact_binomial(num_trials, k),
+    ) {
         (Some(num), Some(den)) if den > 0 => (num as f64) / (den as f64),
         _ => ((num_successes as f64) / (num_trials as f64)).powi(k as i32),
     }
@@ -1957,7 +2063,14 @@ impl MrcrBitemporalStore {
     }
 
     /// Appends a state update `(entity, attribute := value)` at `lsn` in `session_id`.
-    pub fn record_update(&mut self, lsn: u64, session_id: &str, entity: &str, attribute: &str, value: &str) {
+    pub fn record_update(
+        &mut self,
+        lsn: u64,
+        session_id: &str,
+        entity: &str,
+        attribute: &str,
+        value: &str,
+    ) {
         let key = (
             entity.trim().to_ascii_lowercase(),
             attribute.trim().to_ascii_lowercase(),
@@ -1968,7 +2081,12 @@ impl MrcrBitemporalStore {
     }
 
     /// Queries the active value `AS OF` `lsn` (`None` = latest state) in `O(log K)` binary search.
-    pub fn query_as_of(&self, entity: &str, attribute: &str, as_of_lsn: Option<u64>) -> Option<(u64, String)> {
+    pub fn query_as_of(
+        &self,
+        entity: &str,
+        attribute: &str,
+        as_of_lsn: Option<u64>,
+    ) -> Option<(u64, String)> {
         let key = (
             entity.trim().to_ascii_lowercase(),
             attribute.trim().to_ascii_lowercase(),
@@ -1989,7 +2107,12 @@ impl MrcrBitemporalStore {
     }
 
     /// Queries the exact `1-based` `k`-th historical occurrence (`OpenAI MRCR` multi-needle ordinal recall!).
-    pub fn query_kth_occurrence(&self, entity: &str, attribute: &str, ordinal_1based: usize) -> Option<(u64, String)> {
+    pub fn query_kth_occurrence(
+        &self,
+        entity: &str,
+        attribute: &str,
+        ordinal_1based: usize,
+    ) -> Option<(u64, String)> {
         if ordinal_1based == 0 {
             return None;
         }
@@ -1998,7 +2121,9 @@ impl MrcrBitemporalStore {
             attribute.trim().to_ascii_lowercase(),
         );
         let entries = self.timeline.get(&key)?;
-        entries.get(ordinal_1based - 1).map(|(l, _, v)| (*l, v.clone()))
+        entries
+            .get(ordinal_1based - 1)
+            .map(|(l, _, v)| (*l, v.clone()))
     }
 }
 
@@ -2305,11 +2430,23 @@ mod tests {
 
         let mut mem = MrcrBitemporalStore::new();
         for i in 1..=8u64 {
-            mem.record_update(i * 10, &format!("s{i}"), "Alice", "city", &format!("City_{i}"));
+            mem.record_update(
+                i * 10,
+                &format!("s{i}"),
+                "Alice",
+                "city",
+                &format!("City_{i}"),
+            );
         }
         assert_eq!(mem.query_as_of("alice", "city", None).unwrap().1, "City_8");
-        assert_eq!(mem.query_as_of("alice", "city", Some(35)).unwrap().1, "City_3");
-        assert_eq!(mem.query_kth_occurrence("alice", "city", 5).unwrap().1, "City_5");
+        assert_eq!(
+            mem.query_as_of("alice", "city", Some(35)).unwrap().1,
+            "City_3"
+        );
+        assert_eq!(
+            mem.query_kth_occurrence("alice", "city", 5).unwrap().1,
+            "City_5"
+        );
 
         let env = SafeVlaEnvelope {
             max_force_newtons: 15.0,
@@ -2320,7 +2457,8 @@ mod tests {
             pos_xyz: [0.10, 0.0, 0.0], // right inside obstacle!
             force_newtons: 28.0,       // exceeds 15 N!
         }];
-        let (_safe, raw_aud, safe_aud) = shield_and_audit_vla_trajectory([0.0, 0.0, 0.0], &raw, &env);
+        let (_safe, raw_aud, safe_aud) =
+            shield_and_audit_vla_trajectory([0.0, 0.0, 0.0], &raw, &env);
         assert!(raw_aud.violation_severity_index > 0.05);
         assert_eq!(safe_aud.violation_severity_index, 0.0);
         assert_eq!(safe_aud.interventions, 1);
@@ -2329,26 +2467,14 @@ mod tests {
     #[test]
     fn test_expanded_arc_panel_xor_ray_and_faithful_span_reader() {
         // 1. Split-panel XOR across vertical divider column `5` (`w = 2*2 + 1 = 5`)
-        let p_in = ArcGrid::new(vec![
-            vec![1, 0, 5, 1, 1],
-            vec![0, 1, 5, 0, 1],
-        ]);
-        let p_out = ArcGrid::new(vec![
-            vec![0, 3],
-            vec![0, 0],
-        ]);
+        let p_in = ArcGrid::new(vec![vec![1, 0, 5, 1, 1], vec![0, 1, 5, 0, 1]]);
+        let p_out = ArcGrid::new(vec![vec![0, 3], vec![0, 0]]);
         let syn = synthesize_arc_program(&[(p_in.clone(), p_out.clone())], false).unwrap();
         assert_eq!(syn.program.apply(&p_in), p_out);
 
         // 2. ConnectSameColorOrthogonal across `0` gap
-        let r_in = ArcGrid::new(vec![
-            vec![0, 4, 0, 0, 4],
-            vec![0, 0, 0, 0, 0],
-        ]);
-        let r_out = ArcGrid::new(vec![
-            vec![0, 4, 4, 4, 4],
-            vec![0, 0, 0, 0, 0],
-        ]);
+        let r_in = ArcGrid::new(vec![vec![0, 4, 0, 0, 4], vec![0, 0, 0, 0, 0]]);
+        let r_out = ArcGrid::new(vec![vec![0, 4, 4, 4, 4], vec![0, 0, 0, 0, 0]]);
         let syn_r = synthesize_arc_program(&[(r_in.clone(), r_out.clone())], false).unwrap();
         assert_eq!(syn_r.program.apply(&r_in), r_out);
 

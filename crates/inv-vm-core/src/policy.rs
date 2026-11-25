@@ -449,7 +449,7 @@ impl PolicyEvaluator {
         let energy_budget = policies
             .iter()
             .filter_map(|p| p.energy_budget)
-            .min_by(|a, b| a.as_f64().partial_cmp(&b.as_f64()).unwrap());
+            .min_by(|a, b| a.as_f64().total_cmp(&b.as_f64()));
 
         // Retention: smallest non-None from effective retention.
         let retention_days = policies.iter().filter_map(|p| p.retention_days).min();

@@ -842,6 +842,56 @@ fn dispatch_frontier_or_analytic_mcp_tool(
                 "beir_hybrid_rrf": beir,
             }))
         }
+        "amorphic.unsilo_morph" => {
+            let frags: Vec<joule_db_amorphic::unsilo::RawSiloFragment> = args
+                .get("fragments")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+            let intent: joule_db_viz::amorphic_display::ObserverIntent = args
+                .get("intent")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+            if frags.is_empty() {
+                let bench = joule_db_amorphic::unsilo::run_unsilo_benchmark_suite();
+                Some(serde_json::json!({ "benchmark_receipt": bench }))
+            } else {
+                let mut cont = joule_db_amorphic::unsilo::AmorphicSemanticContinuum::new();
+                for f in &frags {
+                    cont.ingest_fragment(f);
+                }
+                let disp: Vec<_> = cont
+                    .atoms
+                    .iter()
+                    .map(crate::pq_verifiable::bridge_atom_to_display)
+                    .collect();
+                let canvas = joule_db_viz::amorphic_display::AmorphicDisplaySynthesizer::synthesize(
+                    &disp, intent,
+                );
+                Some(serde_json::json!({
+                    "unified_entities": cont.materialize_unified_entities(),
+                    "canvas_spec": canvas,
+                }))
+            }
+        }
+        "sovereign.continual_plasticity" => {
+            let tasks = args.get("num_tasks").and_then(|v| v.as_u64()).unwrap_or(8) as usize;
+            joule_db_weights::continual_plasticity::run_continual_plasticity_suite(
+                32, 8, tasks, 250, 12,
+            )
+            .ok()
+            .map(|r| serde_json::json!(r))
+        }
+        "sovereign.relbench_rfm" => joule_db_query::rel_rfm::run_relbench_suite()
+            .ok()
+            .map(|(churn, ltv)| serde_json::json!({ "user_churn": churn, "user_ltv": ltv })),
+        "sovereign.pq_verifiable_attest" => {
+            crate::pq_verifiable::execute_wave28_global_sota_suite()
+                .ok()
+                .map(|v| v["b25_post_quantum_verifiable_sovereign"].clone())
+        }
+        "sovereign.global_mmlu_12script" => Some(serde_json::json!(
+            joule_db_core::multilingual_global::run_global_mmlu_12script_suite()
+        )),
         _ => None,
     }
 }
@@ -849,20 +899,82 @@ fn dispatch_frontier_or_analytic_mcp_tool(
 pub fn all_sota_tool_definitions() -> Vec<McpToolDef> {
     let mut tools = all_tool_definitions();
     for (name, desc) in [
-        ("db.branch_diff", "Compute 3-way structural file/KV diff vs parent"),
-        ("db.agentfs_write", "Write a virtual file into a branch-isolated JouleAgentFS workspace"),
-        ("db.agentfs_read", "Read a virtual file from a branch-isolated JouleAgentFS workspace"),
-        ("db.agentfs_list", "List virtual files under a directory prefix on a JouleAgentFS branch"),
-        ("db.memory_inhibit", "Record explicit negative knowledge / inhibit superseded facts"),
-        ("db.explain_energy", "Return pre-execution CascadeTier and microjoule estimate"),
-        ("frontier.sql_critic", "Repair cloud SQL dialect traps, NOT IN (NULL) bugs, and column typos"),
-        ("frontier.arc_synthesize", "Synthesize exact MDL 2D grid transformation programs for ARC-AGI-2"),
-        ("frontier.calibrate_abstention", "Compute HLE Hendrycks RMS-CE, Platt scaling, and SimpleQA abstention"),
-        ("frontier.faithful_context", "Evaluate counterfactual passages and detect multi-source conflicts"),
-        ("frontier.math_sat_verify", "Verify exact i128 CRT congruences and DPLL Boolean SAT witnesses"),
-        ("frontier.tau_policy_guard", "Pre-commit transactional policy guard for TAU-bench pass^k safety"),
-        ("frontier.safevla_stl_shield", "Project robotics VLA trajectories onto safe STL manifolds (VSI = 0)"),
-        ("db.analytic_suite", "Run ClickBench ALP/FSST, JOB Skewed WCOJ, TSBS/STAC-M3 NBBO, and BEIR"),
+        (
+            "db.branch_diff",
+            "Compute 3-way structural file/KV diff vs parent",
+        ),
+        (
+            "db.agentfs_write",
+            "Write a virtual file into a branch-isolated JouleAgentFS workspace",
+        ),
+        (
+            "db.agentfs_read",
+            "Read a virtual file from a branch-isolated JouleAgentFS workspace",
+        ),
+        (
+            "db.agentfs_list",
+            "List virtual files under a directory prefix on a JouleAgentFS branch",
+        ),
+        (
+            "db.memory_inhibit",
+            "Record explicit negative knowledge / inhibit superseded facts",
+        ),
+        (
+            "db.explain_energy",
+            "Return pre-execution CascadeTier and microjoule estimate",
+        ),
+        (
+            "frontier.sql_critic",
+            "Repair cloud SQL dialect traps, NOT IN (NULL) bugs, and column typos",
+        ),
+        (
+            "frontier.arc_synthesize",
+            "Synthesize exact MDL 2D grid transformation programs for ARC-AGI-2",
+        ),
+        (
+            "frontier.calibrate_abstention",
+            "Compute HLE Hendrycks RMS-CE, Platt scaling, and SimpleQA abstention",
+        ),
+        (
+            "frontier.faithful_context",
+            "Evaluate counterfactual passages and detect multi-source conflicts",
+        ),
+        (
+            "frontier.math_sat_verify",
+            "Verify exact i128 CRT congruences and DPLL Boolean SAT witnesses",
+        ),
+        (
+            "frontier.tau_policy_guard",
+            "Pre-commit transactional policy guard for TAU-bench pass^k safety",
+        ),
+        (
+            "frontier.safevla_stl_shield",
+            "Project robotics VLA trajectories onto safe STL manifolds (VSI = 0)",
+        ),
+        (
+            "db.analytic_suite",
+            "Run ClickBench ALP/FSST, JOB Skewed WCOJ, TSBS/STAC-M3 NBBO, and BEIR",
+        ),
+        (
+            "amorphic.unsilo_morph",
+            "Dissolve multi-silo JSON/CSV/Prose/Triples into 10,240-bit HDC continuum & 6 fluid visual lenses",
+        ),
+        (
+            "sovereign.continual_plasticity",
+            "Run Null-Space Orthogonal Titans continual learning with 0% forgetting & CoW canary poison guard",
+        ),
+        (
+            "sovereign.relbench_rfm",
+            "Execute RelBench v2 native multi-table temporal Relational Foundation Model (0 future leakage)",
+        ),
+        (
+            "sovereign.pq_verifiable_attest",
+            "Issue & verify NIST FIPS 203 ML-KEM-768 + FIPS 204 ML-DSA-65 Merkle-rooted execution proofs",
+        ),
+        (
+            "sovereign.global_mmlu_12script",
+            "Evaluate Cohere Global-MMLU / INCLUDE across 12 world scripts with 1.0x joule fairness",
+        ),
     ] {
         tools.push(McpToolDef {
             name: name.to_string(),

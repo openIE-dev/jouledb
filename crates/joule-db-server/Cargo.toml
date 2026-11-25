@@ -86,7 +86,10 @@ inv-auth = { workspace = true }
 jsonwebtoken = { workspace = true, features = ["rust_crypto"] }
 regex = { workspace = true }
 
-# Cryptography (for audit hashing, SCRAM-SHA-256, HRP write tokens)
+# Cryptography (for audit hashing, SCRAM-SHA-256, HRP write tokens, NIST FIPS 203/204 PQC)
+blake3 = { workspace = true }
+ed25519-dalek = { workspace = true }
+inv-pqcrypto = { workspace = true }
 sha2 = { workspace = true }
 hmac = { workspace = true }
 pbkdf2 = "0.12"

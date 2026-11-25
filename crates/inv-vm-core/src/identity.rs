@@ -47,7 +47,7 @@ impl NodeId {
 
     /// First 8 bytes as a u64 for compact wire representation.
     pub fn short_id(&self) -> u64 {
-        u64::from_be_bytes(self.0[..8].try_into().unwrap())
+        u64::from_be_bytes(self.0[..8].try_into().unwrap_or_default())
     }
 
     /// Reconstruct a partial NodeId from a short_id (first 8 bytes).

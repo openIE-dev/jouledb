@@ -63,6 +63,7 @@ pub mod jsonb;
 pub mod morsel_spill;
 pub mod planner;
 pub mod prepared;
+pub mod rel_rfm;
 pub mod secdb_napa;
 pub mod sql_critic;
 pub mod timeout;

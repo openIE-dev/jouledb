@@ -62,6 +62,8 @@ use thiserror::Error;
 
 // GPU acceleration module
 pub mod gpu;
+/// Un-Siloed Amorphous Semantic Continuum (`AmorphicSemanticContinuum`, `SemanticHologram10K`).
+pub mod unsilo;
 
 // Batch feature serving for content recommendation
 pub mod batch;

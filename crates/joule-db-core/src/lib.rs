@@ -76,6 +76,8 @@ pub mod frontier_eval;
 pub mod index;
 /// Living Computing & Active-Inference substrate (`SurpriseGate`, `HomeostaticMetabolism`).
 pub mod living;
+/// Script-Fair 12-Language Multilingual `Engram` & `Global-MMLU` / `INCLUDE` Sovereign Evaluator.
+pub mod multilingual_global;
 pub mod persistence;
 pub mod query;
 pub mod resilience;

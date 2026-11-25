@@ -158,7 +158,10 @@ pub fn diagnose_and_repair_sql(raw_sql: &str, known_columns: &[String]) -> SqlCr
     for fn_tok in ["IFNULL(", "ifnull(", "NVL(", "nvl("] {
         if sql.contains(fn_tok) {
             sql = sql.replace(fn_tok, "COALESCE(");
-            if !repairs.iter().any(|r| r == "normalized_ifnull_nvl_to_coalesce") {
+            if !repairs
+                .iter()
+                .any(|r| r == "normalized_ifnull_nvl_to_coalesce")
+            {
                 repairs.push("normalized_ifnull_nvl_to_coalesce".to_string());
             }
         }
@@ -176,8 +179,8 @@ pub fn diagnose_and_repair_sql(raw_sql: &str, known_columns: &[String]) -> SqlCr
             .collect();
         let reserved = [
             "SELECT", "FROM", "WHERE", "GROUP", "ORDER", "LIMIT", "HAVING", "COALESCE", "NULLIF",
-            "COUNT", "ROUND", "DISTINCT", "INNER", "LEFT", "RIGHT", "JOIN", "NULL", "TRUE", "FALSE",
-            "BETWEEN", "DESC", "CASE", "WHEN", "THEN", "ELSE",
+            "COUNT", "ROUND", "DISTINCT", "INNER", "LEFT", "RIGHT", "JOIN", "NULL", "TRUE",
+            "FALSE", "BETWEEN", "DESC", "CASE", "WHEN", "THEN", "ELSE",
         ];
         for tok in tokens {
             let up = tok.to_ascii_uppercase();

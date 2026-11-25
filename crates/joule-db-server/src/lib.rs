@@ -94,15 +94,16 @@ pub mod workflow;
 // Amorphic modules
 pub mod amorphic_adapter;
 pub mod certification_routes;
-pub mod frontier_exam_routes;
 pub mod ducklake;
 pub mod fabric_routes;
+pub mod frontier_exam_routes;
 pub mod gin_index;
 pub mod kube_control_plane;
 pub mod living_embodied_routes;
 pub mod mcp_agent_loop;
 pub mod mcp_transport;
 pub mod mvcc_adapter;
+pub mod pq_verifiable;
 pub mod pulse_mesh_routes;
 pub mod spatial_index;
 pub mod swot_capsule_routes;
@@ -1237,7 +1238,8 @@ impl Server {
                 frontier_exam_routes::FrontierExamRuntime {
                     query_executor: app_state.query_executor.clone(),
                 },
-            ));
+            ))
+            .merge(pq_verifiable::sovereign_and_amorphic_router());
 
         // Merge ledger verification routes (if ledger is enabled)
         let merged = if let Some(ref store) = self.ledger_store {

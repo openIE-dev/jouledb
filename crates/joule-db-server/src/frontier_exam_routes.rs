@@ -12,10 +12,10 @@ use joule_db_core::concurrency::MvccTransactionManager;
 use joule_db_core::frontier_eval::{
     ArcGrid, ArcOp, CalibrationSample, ContextFact, EpistemicCalibrator, FaithEvalOutcome,
     MrcrBitemporalStore, SafeVlaEnvelope, TauDomainPolicy, TauPolicyVerdict, TauToolProposal,
-    VlaStepSample, check_tau_policy, compute_hle_calibration, compute_pass_hat_k, exact_binomial,
-    evaluate_simpleqa_abstention, mod_pow, resolve_faithful_context, score_faithful_mc_question,
-    select_arc3_active_probe, shield_and_audit_vla_trajectory, solve_chinese_remainder,
-    solve_sat_dpll, synthesize_arc_program,
+    VlaStepSample, check_tau_policy, compute_hle_calibration, compute_pass_hat_k,
+    evaluate_simpleqa_abstention, exact_binomial, mod_pow, resolve_faithful_context,
+    score_faithful_mc_question, select_arc3_active_probe, shield_and_audit_vla_trajectory,
+    solve_chinese_remainder, solve_sat_dpll, synthesize_arc_program,
 };
 use joule_db_query::sql_critic::diagnose_and_repair_sql;
 use serde::{Deserialize, Serialize};
@@ -334,7 +334,11 @@ async fn handle_frontier_exam_suite(
     for i in 0..200usize {
         let is_reasoning = i < 100;
         // Closed-book standalone baseline: ~56% on Reasoning, ~28% on long-tail Knowledge, overconfident 0.88..0.96
-        let cb_ok = if is_reasoning { i % 100 < 56 } else { i % 100 < 28 };
+        let cb_ok = if is_reasoning {
+            i % 100 < 56
+        } else {
+            i % 100 < 28
+        };
         closed_book.push(CalibrationSample {
             correct: cb_ok,
             confidence: 0.88 + 0.0004 * (i as f64),
@@ -378,7 +382,8 @@ async fn handle_frontier_exam_suite(
 
     let sqa_closed = evaluate_simpleqa_abstention(&closed_book, None, 2.0, &[]);
     let _ = cal_closed;
-    let sqa_joule = evaluate_simpleqa_abstention(&jouledb_grounded, Some(&cal_joule), 2.0, &grounded_flags);
+    let sqa_joule =
+        evaluate_simpleqa_abstention(&jouledb_grounded, Some(&cal_joule), 2.0, &grounded_flags);
     let p1_us = p1_t0.elapsed().as_secs_f64() * 1e6;
 
     // ── Pillar 3: FaithEval (Counterfactual / Inconsistent / Unanswerable) + MultiChallenge ──
@@ -420,11 +425,16 @@ async fn handle_frontier_exam_suite(
             valid_from_lsn: 18,
         },
     ];
-    let cf_ok = resolve_faithful_context(&ctx_facts, Some("100"), "boiling_point_water", "celsius", None)
-        == FaithEvalOutcome::GroundedValue {
-            value: "42".into(),
-            lsn: 1,
-        };
+    let cf_ok = resolve_faithful_context(
+        &ctx_facts,
+        Some("100"),
+        "boiling_point_water",
+        "celsius",
+        None,
+    ) == FaithEvalOutcome::GroundedValue {
+        value: "42".into(),
+        lsn: 1,
+    };
     let inc_ok = matches!(
         resolve_faithful_context(&ctx_facts, Some("150"), "trial_drug_z", "dosage_mg", None),
         FaithEvalOutcome::InconsistentConflict { .. }
@@ -464,9 +474,12 @@ async fn handle_frontier_exam_suite(
     let syn3 = synthesize_arc_program(&[(arc_t3_in.clone(), arc_t3_out.clone())], true);
 
     let arc_solved = [
-        syn1.as_ref().is_some_and(|s| s.program.apply(&arc_t1_in) == arc_t1_out),
-        syn2.as_ref().is_some_and(|s| s.program.apply(&arc_t2_in) == arc_t2_out),
-        syn3.as_ref().is_some_and(|s| s.program.apply(&arc_t3_in) == arc_t3_out),
+        syn1.as_ref()
+            .is_some_and(|s| s.program.apply(&arc_t1_in) == arc_t1_out),
+        syn2.as_ref()
+            .is_some_and(|s| s.program.apply(&arc_t2_in) == arc_t2_out),
+        syn3.as_ref()
+            .is_some_and(|s| s.program.apply(&arc_t3_in) == arc_t3_out),
     ]
     .into_iter()
     .filter(|&b| b)
@@ -568,9 +581,8 @@ async fn handle_frontier_exam_suite(
         b"repo/src/lib.rs",
         b"pub fn fee(x: i64) -> i64 { (x.max(0) + 9) / 10 }",
     );
-    let swe_ok = base_ok
-        && pre_src == b"pub fn fee(x: i64) -> i64 { x / 10 }"
-        && cand_b.commit().is_ok();
+    let swe_ok =
+        base_ok && pre_src == b"pub fn fee(x: i64) -> i64 { x / 10 }" && cand_b.commit().is_ok();
     let p7_us = p7_t0.elapsed().as_secs_f64() * 1e6;
 
     // ── Pillar 8: TAU-bench / τ²-bench `pass^8` Transactional Policy Guard ──
@@ -601,8 +613,10 @@ async fn handle_frontier_exam_suite(
             tier: "flexible".into(),
             hours_since_booking: 12.0,
         };
-        if matches!(check_tau_policy(&tau_policy, &adversarial_call), TauPolicyVerdict::Blocked { .. })
-            && check_tau_policy(&tau_policy, &valid_call) == TauPolicyVerdict::Permitted
+        if matches!(
+            check_tau_policy(&tau_policy, &adversarial_call),
+            TauPolicyVerdict::Blocked { .. }
+        ) && check_tau_policy(&tau_policy, &valid_call) == TauPolicyVerdict::Permitted
         {
             safe_trials += 1;
         }
@@ -636,7 +650,9 @@ async fn handle_frontier_exam_suite(
     let third_ok = mrcr
         .query_kth_occurrence(&format!("researcher_{target_eid}"), "lab_location", 3)
         .is_some_and(|(_, v)| v == format!("Building_{target_eid}_Floor_3"));
-    let unans_mem_ok = mrcr.query_as_of("nonexistent_agent", "lab_location", None).is_none();
+    let unans_mem_ok = mrcr
+        .query_as_of("nonexistent_agent", "lab_location", None)
+        .is_none();
     let mrcr_ok = latest_ok && third_ok && unans_mem_ok;
     let p9_us = p9_t0.elapsed().as_secs_f64() * 1e6;
 
@@ -868,6 +884,9 @@ pub fn frontier_exam_router(rt: FrontierExamRuntime) -> Router {
         .route("/api/v1/bench/arc_synthesize", post(handle_arc_synthesize))
         .route("/api/v1/bench/sql_critic", post(handle_sql_critic))
         .route("/api/v1/bench/faithful_qa", post(handle_faithful_qa))
-        .route("/api/v1/bench/frontier_exam", post(handle_frontier_exam_suite))
+        .route(
+            "/api/v1/bench/frontier_exam",
+            post(handle_frontier_exam_suite),
+        )
         .with_state(rt)
 }

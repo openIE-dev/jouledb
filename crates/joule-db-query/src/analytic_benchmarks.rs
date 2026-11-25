@@ -130,17 +130,19 @@ pub fn run_clickbench_columnar_suite(num_rows: usize) -> ClickBenchSuiteReport {
             lo: 0,
             hi: hi_bound - 1,
         }),
-        Err(_) => return ClickBenchSuiteReport {
-            num_rows: n,
-            raw_bytes,
-            compressed_bytes: 1,
-            compression_ratio: 1.0,
-            alp_bit_exact_verified: false,
-            all_five_queries_exact: false,
-            q21_granule_skip_ratio: 0.0,
-            elapsed_us: 1,
-            energy_nj: 1,
-        },
+        Err(_) => {
+            return ClickBenchSuiteReport {
+                num_rows: n,
+                raw_bytes,
+                compressed_bytes: 1,
+                compression_ratio: 1.0,
+                alp_bit_exact_verified: false,
+                all_five_queries_exact: false,
+                q21_granule_skip_ratio: 0.0,
+                elapsed_us: 1,
+                energy_nj: 1,
+            };
+        }
     };
 
     // Q33: Top-10 Users by total spend
@@ -207,7 +209,10 @@ fn encode_u32_be(v: u32) -> Vec<u8> {
 /// Naive binary join (`cast_info ⋈ movie_companies` on `movie_id`) materializes `hub_fanout^2` dead-end
 /// pairs before filtering on `movie_keyword`, whereas Leapfrog `WCOJ` intersects `movie_id` across all
 /// relations simultaneously in `O(selective_matches)`!
-pub fn run_job_skewed_wcoj_suite(hub_fanout: usize, selective_matches: usize) -> JobSkewedWcojReport {
+pub fn run_job_skewed_wcoj_suite(
+    hub_fanout: usize,
+    selective_matches: usize,
+) -> JobSkewedWcojReport {
     let fan = hub_fanout.clamp(40, 500);
     let matches = selective_matches.clamp(4, 64);
 
@@ -235,7 +240,10 @@ pub fn run_job_skewed_wcoj_suite(hub_fanout: usize, selective_matches: usize) ->
     // Naive left-deep binary join step 1: `cast_info(M, P) ⋈ movie_companies(M, C)`
     let mut cast_by_m: HashMap<Vec<u8>, Vec<Vec<u8>>> = HashMap::new();
     for row in &cast_tuples {
-        cast_by_m.entry(row[0].clone()).or_default().push(row[1].clone());
+        cast_by_m
+            .entry(row[0].clone())
+            .or_default()
+            .push(row[1].clone());
     }
     let mut step1_pairs: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)> = Vec::new();
     for row in &mc_tuples {
@@ -452,7 +460,11 @@ pub fn run_tsbs_stac_m3_suite(ticks_per_venue: usize, num_trades: usize) -> Tsbs
         total_ticks_ingested: total_ticks,
         nbbo_trades_aligned: aligned.len(),
         future_leak_violations: future_leaks,
-        vwap_price: if vwap_den > 0.0 { vwap_num / vwap_den } else { 0.0 },
+        vwap_price: if vwap_den > 0.0 {
+            vwap_num / vwap_den
+        } else {
+            0.0
+        },
         mean_nbbo_spread: if spread_cnt > 0 {
             spread_sum / (spread_cnt as f64)
         } else {

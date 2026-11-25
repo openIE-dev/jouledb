@@ -19,6 +19,7 @@
 //! | `sonification` | no | Auditory data mapping |
 //! | `gpu` | no | GPU renderer stub (browser) |
 
+pub mod amorphic_display;
 pub mod column_classifier;
 pub mod data_profile;
 pub mod error;

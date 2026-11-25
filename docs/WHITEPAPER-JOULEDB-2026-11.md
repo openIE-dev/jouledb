@@ -1,11 +1,11 @@
 # JouleDB: The Thermodynamic Nervous System & Living-Weights Substrate for Intelligent Computing
 
-## Whitepaper Specification — Version 0.3.1 (`v0.3.1`, November 2026)
+## Whitepaper Specification — Version 0.4.0 (`v0.4.0`, November 2026)
 **Open Interface Engineering, Inc. (`OpenIE`)**  
 **Website:** [https://jouledb.org](https://jouledb.org) | **GitHub:** [openIE-dev/jouledb](https://github.com/openIE-dev/jouledb) | **Hugging Face Fleet (`82 .jsyn`):** [huggingface.co/dcharlot65-openie](https://huggingface.co/dcharlot65-openie)  
 **License:** `Apache-2.0 OR MIT`
 
-> Supersedes [WHITEPAPER-JOULEDB-2026-05.md](WHITEPAPER-JOULEDB-2026-05.md) (`v0.2`, May 2026) and [WHITEPAPER-JOULEDB-2026-04.md](WHITEPAPER-JOULEDB-2026-04.md) (`v0.1`). Documents the complete late-2026 architecture shipped through `v0.3.1`: **`.jsyn` (`JSYN-v1`) Sub-1-Bit Living Model Weights** (`82` public models on Hugging Face, `cosine = 1.00000000` cross-silicon determinism), **14-Computer Multi-OS Live Heterogeneous Fabric Mesh** (`macOS ARM64/x86_64`, `Linux Zen 5/NVIDIA RTX/EPYC/Edge`, `Windows 11`, `WASI p1/p2`), **`JouleKube`** (`0` `etcd`), **Post-Docker `JouleCapsule` & Post-Git `JouleSpace`**, **`JouleWard`** (`ThermoCap` macaroons & 6-rail `nJ` accounting), and **21 / 21 Certified Global Database + Frontier AI Benchmark Pillars**.
+> Supersedes `v0.3.1` and [WHITEPAPER-JOULEDB-2026-05.md](WHITEPAPER-JOULEDB-2026-05.md) (`v0.2`, May 2026). Documents the complete late-2026 architecture shipped through `v0.4.0`: **Un-Siloed `10,240`-Bit Amorphous Semantic Continuum & 6-Lens Fluid Display**, **Null-Space Orthogonal `Titans` Continual Plasticity (`0%` forgetting + CoW Canary Poison Guard)**, **Native `RelBench v2` Multi-Table Temporal RFM (`0` future leakage)**, **Post-Quantum `NIST FIPS 203 ML-KEM-768 + FIPS 204 ML-DSA-65` Verifiable Execution Proofs & Federated Mesh**, **Live 3-Tier `CXL 3.1 + Mooncake` Disaggregated Pool**, **12-Script `Cohere Global-MMLU` Sovereign Fairness**, **`.jsyn` (`JSYN-v1`) Sub-1-Bit Living Model Weights** (`82` public models on Hugging Face), and **26 / 26 Certified Global Database + Frontier AI Benchmark Pillars across 14 Multi-OS Computers**.
 
 ---
 
