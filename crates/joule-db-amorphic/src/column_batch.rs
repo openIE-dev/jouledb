@@ -14,6 +14,9 @@ use std::collections::HashMap;
 /// One column's values for every row of a batch.
 #[derive(Debug, Clone)]
 pub enum ColData {
+    Int8(Vec<i8>),
+    Int16(Vec<i16>),
+    Int32(Vec<i32>),
     Int(Vec<i64>),
     Float(Vec<f64>),
     Bool(Vec<bool>),
@@ -39,6 +42,17 @@ impl BatchColumn {
     }
 
     #[inline]
+    pub fn int_at(&self, i: usize) -> Option<i64> {
+        match &self.data {
+            ColData::Int8(v) => Some(v[i] as i64),
+            ColData::Int16(v) => Some(v[i] as i64),
+            ColData::Int32(v) => Some(v[i] as i64),
+            ColData::Int(v) => Some(v[i]),
+            _ => None,
+        }
+    }
+
+    #[inline]
     pub fn str_at(&self, i: usize) -> &str {
         match &self.data {
             ColData::Str { offsets, bytes } => {
@@ -56,6 +70,9 @@ impl BatchColumn {
             return Value::Null;
         }
         match &self.data {
+            ColData::Int8(v) => Value::Int(v[i] as i64),
+            ColData::Int16(v) => Value::Int(v[i] as i64),
+            ColData::Int32(v) => Value::Int(v[i] as i64),
             ColData::Int(v) => Value::Int(v[i]),
             ColData::Float(v) => Value::Float(v[i]),
             ColData::Bool(v) => Value::Bool(v[i]),
@@ -83,6 +100,9 @@ impl ColumnBatch {
     pub fn validate(&self) -> Result<(), String> {
         for c in &self.cols {
             let n = match &c.data {
+                ColData::Int8(v) => v.len(),
+                ColData::Int16(v) => v.len(),
+                ColData::Int32(v) => v.len(),
                 ColData::Int(v) => v.len(),
                 ColData::Float(v) => {
                     if v.iter()
@@ -189,6 +209,27 @@ impl ColumnBatch {
                 continue;
             }
             match &c.data {
+                ColData::Int8(v) => {
+                    out.push(crate::wal_codec::T_INT);
+                    all_present(&mut out);
+                    for &x in &v[from..to] {
+                        out.extend_from_slice(&(x as i64).to_le_bytes());
+                    }
+                }
+                ColData::Int16(v) => {
+                    out.push(crate::wal_codec::T_INT);
+                    all_present(&mut out);
+                    for &x in &v[from..to] {
+                        out.extend_from_slice(&(x as i64).to_le_bytes());
+                    }
+                }
+                ColData::Int32(v) => {
+                    out.push(crate::wal_codec::T_INT);
+                    all_present(&mut out);
+                    for &x in &v[from..to] {
+                        out.extend_from_slice(&(x as i64).to_le_bytes());
+                    }
+                }
                 ColData::Int(v) => {
                     out.push(crate::wal_codec::T_INT);
                     all_present(&mut out);

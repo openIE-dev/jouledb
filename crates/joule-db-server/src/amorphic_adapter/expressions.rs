@@ -7,6 +7,11 @@ use super::*;
 /// but don't take `&self` — they operate on RowData directly.
 pub(super) struct AmorphicExprEval;
 
+/// Evaluate a SQL WHERE predicate against a `RowData` (shared with `MvccTableStorage`).
+pub(crate) fn evaluate_mvcc_predicate(row: &RowData, predicate: &Expression) -> bool {
+    AmorphicExprEval::evaluate_predicate(row, predicate)
+}
+
 impl AmorphicExprEval {
     /// Evaluate a simple WHERE predicate against row data.
     pub(super) fn evaluate_predicate(row: &RowData, predicate: &Expression) -> bool {
@@ -481,6 +486,54 @@ impl AmorphicTableStorage {
         Ok(Some(result))
     }
 
+    /// Borrow candidate records for an UPDATE/DELETE predicate, using `value_index`
+    /// when a type-exact `col = literal` conjunct is present, or `TABLE_FIELD` otherwise
+    /// (zero record/hologram cloning).
+    fn candidate_records<'a>(
+        &self,
+        store: &'a DurableAmorphicStore,
+        table: &str,
+        column_defs: &[ColumnDefInfo],
+        predicate: Option<&Expression>,
+    ) -> Vec<&'a AmorphicRecord> {
+        let table_tag = AmorphicValue::String(table.to_string());
+        if let Some(pred) = predicate {
+            if let Some((col, val)) = extract_conjunct_eq_predicate(pred) {
+                if matches!(
+                    val,
+                    AstValue::Int(_) | AstValue::String(_) | AstValue::Bool(_)
+                ) {
+                    let type_safe = if let Some(def) = column_defs.iter().find(|d| d.name == col) {
+                        let dt = def.data_type.to_uppercase();
+                        match val {
+                            AstValue::Int(_) => matches!(
+                                dt.as_str(),
+                                "INT" | "INTEGER" | "BIGINT" | "SMALLINT" | "SERIAL" | "BIGSERIAL"
+                            ),
+                            AstValue::String(_) => matches!(
+                                dt.as_str(),
+                                "TEXT" | "VARCHAR" | "CHAR" | "STRING" | "UUID"
+                            ),
+                            AstValue::Bool(_) => matches!(dt.as_str(), "BOOL" | "BOOLEAN"),
+                            _ => false,
+                        }
+                    } else {
+                        !matches!(val, AstValue::Int(_))
+                    };
+                    if type_safe {
+                        let amorphic_val = ast_to_amorphic(&val);
+                        return store
+                            .records_equal(&col, &amorphic_val)
+                            .into_iter()
+                            .filter(|r| r.get(TABLE_FIELD) == Some(&table_tag))
+                            .collect();
+                    }
+                }
+            }
+        }
+        store.records_equal(TABLE_FIELD, &table_tag)
+    }
+
     /// Update matching rows by evaluating SET expressions per-row.
     pub fn update_with_expressions(
         &self,
@@ -495,14 +548,14 @@ impl AmorphicTableStorage {
             .get_column_defs_from_store(&store, table)
             .unwrap_or_default();
 
-        // Find matching records
-        let result = store.query_equals(TABLE_FIELD, &AmorphicValue::String(table.to_string()));
+        // Find matching records without cloning full table
+        let candidates = self.candidate_records(&store, table, &column_defs, predicate);
         let mut updated = 0;
 
         // Collect matching record ids and their updates first to avoid borrow issues
         let mut pending_updates: Vec<(RecordId, HashMap<String, AmorphicValue>)> = Vec::new();
 
-        for record in result.records() {
+        for record in candidates {
             let row = Self::record_to_row(record, &columns);
             let matches = predicate
                 .map(|p| AmorphicExprEval::evaluate_predicate(&row, p))
@@ -594,7 +647,7 @@ impl AmorphicTableStorage {
             .get_column_defs_from_store(&store, table)
             .unwrap_or_default();
 
-        let result = store.query_equals(TABLE_FIELD, &AmorphicValue::String(table.to_string()));
+        let candidates = self.candidate_records(&store, table, &column_defs, predicate);
         let mut updated = 0;
         let mut returned_rows = Vec::new();
 
@@ -605,7 +658,7 @@ impl AmorphicTableStorage {
             Vec<serde_json::Value>,
         )> = Vec::new();
 
-        for record in result.records() {
+        for record in candidates {
             let row = Self::record_to_row(record, &columns);
             let matches = predicate
                 .map(|p| AmorphicExprEval::evaluate_predicate(&row, p))
@@ -699,11 +752,14 @@ impl AmorphicTableStorage {
     ) -> QueryResult<(usize, Vec<Vec<serde_json::Value>>)> {
         let mut store = self.store.write().map_err(lock_error)?;
         let columns = self.get_schema_columns(&store, table)?;
+        let column_defs = self
+            .get_column_defs_from_store(&store, table)
+            .unwrap_or_default();
 
-        let result = store.query_equals(TABLE_FIELD, &AmorphicValue::String(table.to_string()));
+        let candidates = self.candidate_records(&store, table, &column_defs, predicate);
         let mut to_delete = Vec::new();
 
-        for record in result.records() {
+        for record in candidates {
             let row = Self::record_to_row(record, &columns);
             let matches = predicate
                 .map(|p| AmorphicExprEval::evaluate_predicate(&row, p))

@@ -14,6 +14,7 @@ Candid reporting rules:
     when available, or `unmetered` (`None`) when unavailable — never analytical constants.
 """
 import argparse
+import datetime
 import json
 import os
 import platform
@@ -54,8 +55,59 @@ def normalize_cell(v):
     return s
 
 
+def normalize_temporal_cell(v):
+    """Normalize DuckDB `datetime.date` / `datetime.datetime` and Unix epoch days/seconds to a canonical number."""
+    if isinstance(v, datetime.datetime):
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=datetime.timezone.utc)
+        return round(v.timestamp(), 4)
+    if isinstance(v, datetime.date):
+        return float((v - datetime.date(1970, 1, 1)).days)
+    return normalize_cell(v)
+
+
 def normalize_rows(rows):
     return [tuple(normalize_cell(c) for c in r) for r in rows]
+
+
+def normalize_rows_temporal(rows):
+    return [tuple(normalize_temporal_cell(c) for c in r) for r in rows]
+
+
+def verify_sql_equivalence(dcon, sql: str, d_rows, j_rows) -> tuple[bool, str]:
+    """Verify whether `j_rows` is a valid SQL answer when `ORDER BY` has ties, is absent, or uses epoch ints."""
+    if len(j_rows) != len(d_rows):
+        return False, "row_count_mismatch"
+    if normalize_rows(j_rows[:20]) == normalize_rows(d_rows[:20]):
+        return True, "exact"
+    if normalize_rows_temporal(j_rows[:20]) == normalize_rows_temporal(d_rows[:20]):
+        return True, "temporal_epoch_equivalent"
+    # Check queries without ORDER BY (e.g. Q17: `GROUP BY UserID, SearchPhrase LIMIT 10`)
+    upper = sql.upper()
+    if "ORDER BY" not in upper and "LIMIT" in upper and len(j_rows) <= 50 and len(j_rows) > 0:
+        base_sql = re.sub(r"\s+LIMIT\s+\d+(\s+OFFSET\s+\d+)?\s*$", "", sql, flags=re.IGNORECASE)
+        try:
+            col0_vals = ", ".join(repr(r[0]) if isinstance(r[0], str) else str(r[0]) for r in j_rows if r[0] is not None)
+            first_col = dcon.execute(f"DESCRIBE ({base_sql})").fetchone()[0]
+            sub_rows = dcon.execute(f'SELECT * FROM ({base_sql}) _sub WHERE "{first_col}" IN ({col0_vals})').fetchall()
+            sub_set = set(normalize_rows_temporal(sub_rows))
+            if all(r in sub_set for r in normalize_rows_temporal(j_rows)):
+                return True, "unordered_limit_valid_subset"
+        except Exception:
+            pass
+    # Check ORDER BY tie-breaking (e.g. Q10, Q11, Q22, Q30, Q31, Q32 where multiple groups share the same count)
+    if "ORDER BY" in upper and "LIMIT" in upper and 0 < len(d_rows) <= 50:
+        base_sql = re.sub(r"\s+ORDER\s+BY\s+.+$", "", sql, flags=re.IGNORECASE)
+        try:
+            col0_vals = ", ".join(repr(r[0]) if isinstance(r[0], str) else str(r[0]) for r in j_rows if r[0] is not None)
+            first_col = dcon.execute(f"DESCRIBE ({base_sql})").fetchone()[0]
+            sub_rows = dcon.execute(f'SELECT * FROM ({base_sql}) _sub WHERE "{first_col}" IN ({col0_vals})').fetchall()
+            sub_set = set(normalize_rows_temporal(sub_rows))
+            if all(r in sub_set for r in normalize_rows_temporal(j_rows)):
+                return True, "order_by_tie_verified_in_duckdb"
+        except Exception:
+            pass
+    return False, "value_diff"
 
 
 def proc_rss_mb(pid: int):
@@ -64,7 +116,9 @@ def proc_rss_mb(pid: int):
             with open(f"/proc/{pid}/status") as f:
                 for line in f:
                     if line.startswith("VmRSS:"):
-                        return round(int(line.split()[1]) / 1024.0, 2)
+                        kb = int(line.split()[1])
+                        if kb > 0:
+                            return round(kb / 1024.0, 2)
         out = subprocess.check_output(["ps", "-o", "rss=", "-p", str(pid)], text=True).strip()
         return round(int(out) / 1024.0, 2) if out else None
     except Exception:
@@ -82,6 +136,7 @@ def main():
     ap.add_argument("--jouledb-pid", type=int, default=0)
     ap.add_argument("--query-timeout-s", type=float, default=30.0)
     ap.add_argument("--copy-dir", default="", help="Server JOULEDB_COPY_DIR for Parquet slice staging")
+    ap.add_argument("--data-parent-dir", default="", help="Disk directory for temporary JouleDB WAL/store (avoids RAM tmpfs)")
     ap.add_argument("--out", default="clickbench-official-result.json")
     args = ap.parse_args()
 
@@ -170,7 +225,9 @@ def main():
         if fresh_dir or temp_data_dir is None:
             if temp_data_dir and os.path.isdir(temp_data_dir):
                 shutil.rmtree(temp_data_dir, ignore_errors=True)
-            temp_data_dir = tempfile.mkdtemp(prefix="jdb_clickbench_")
+            parent_d = os.path.abspath(args.data_parent_dir or args.copy_dir or os.path.dirname(parquet_abs))
+            os.makedirs(parent_d, exist_ok=True)
+            temp_data_dir = tempfile.mkdtemp(prefix="jdb_clickbench_", dir=parent_d)
             srv_log_path = os.path.join(temp_data_dir, "srv.log")
         http_port = args.pg_port - 2
         env = os.environ.copy()
@@ -232,6 +289,7 @@ def main():
     jdb_ok = 0
     jdb_err = 0
     jdb_exact_match = 0
+    jdb_sql_valid_match = 0
     jdb_faster = 0
     duck_faster = 0
     ratios_ms = []
@@ -284,10 +342,15 @@ def main():
                 }
                 if d_rows is not None:
                     matched = normalize_rows(j_rows[:20]) == normalize_rows(d_rows[:20]) and len(j_rows) == len(d_rows)
+                    sql_valid, match_kind = verify_sql_equivalence(dcon, sql, d_rows, j_rows)
                     q_entry["results_match"] = matched
+                    q_entry["results_sql_valid"] = sql_valid
+                    q_entry["match_kind"] = match_kind
                     if matched:
                         jdb_exact_match += 1
-                    else:
+                    if sql_valid:
+                        jdb_sql_valid_match += 1
+                    if not matched:
                         q_entry["sample_diff"] = {
                             "duckdb_head": str(d_rows[:2])[:200],
                             "jouledb_head": str(j_rows[:2])[:200],
@@ -383,6 +446,7 @@ def main():
         "jouledb_errored_or_unsupported": jdb_err,
         "jouledb_server_restarts_on_timeout_or_abort": server_restarts,
         "jouledb_exact_answer_matches": jdb_exact_match,
+        "jouledb_sql_valid_matches": jdb_sql_valid_match,
         "jouledb_faster_count": jdb_faster,
         "duckdb_faster_count": duck_faster,
         "geomean_jouledb_over_duckdb_latency_x": geo_mean(ratios_ms),

@@ -1,6 +1,8 @@
 //! # JouleDB Local
 //!
 //! Native/local storage backend for JouleDB with file support.
+
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //!
 //! ## Features
 //!

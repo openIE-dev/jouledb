@@ -1,4 +1,6 @@
 //! LLM weight storage for JouleDB.
+
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //!
 //! Stores model weight tensors in JouleDB using extent-based contiguous
 //! page allocation for fast sequential reads. Provides:

@@ -1,23 +1,23 @@
-# Install & Deployment Templates (`v0.6.0` Preview)
+# Install & Deployment Templates (`v0.7.0` Preview)
 
-All installation channels deliver the `jouledb` `v0.6.0` server and CLI binary (`crates/joule-db-server`), exposing HTTP REST & MCP on `--port` (default `8080`), native TCP on `+1` (`8081`), PostgreSQL `pgwire` on `+2` (`8082`), and binary `JWP` on `+3` (`8083`).
+All installation channels deliver the `jouledb` `v0.7.0` server and CLI binary (`crates/joule-db-server`), exposing HTTP REST & MCP on `--port` (default `8080`), native TCP on `+1` (`8081`), PostgreSQL `pgwire` on `+2` (`8082`), and binary `JWP` on `+3` (`8083`).
 
 ## 1. Prebuilt Binary via `cargo-binstall` or GitHub Releases
 
 > **Packaging & Linux `glibc` Portability Note:**
-> - The [`jouledb` crate on `crates.io`](https://crates.io/crates/jouledb) (`stubs/jouledb`, `v0.6.0`; `1.0.0` is yanked) is a small **`cargo-binstall` binary-fetcher stub** (`15 KB`). Running `cargo binstall jouledb` downloads the prebuilt release archive from GitHub Releases; plain `cargo install jouledb` prints source-build instructions and exits with status `2`.
-> - Starting in `v0.6.0`, `x86_64-unknown-linux-gnu` release binaries are built against **`glibc <= 2.36`** (`Debian 12` / `Ubuntu 22.04` baseline) and verified to start cleanly on **Ubuntu 24.04 LTS (`glibc 2.39`)**, fixing the `GLIBC_2.43 not found` error present in `v0.2.2`–`v1.0.0`.
+> - The [`jouledb` crate on `crates.io`](https://crates.io/crates/jouledb) (`stubs/jouledb`, `v0.7.0`; `1.0.0` is yanked) is a small **`cargo-binstall` binary-fetcher stub** (`15 KB`). Running `cargo binstall jouledb` downloads the prebuilt release archive from GitHub Releases; plain `cargo install jouledb` prints source-build instructions and exits with status `2`.
+> - `v0.7.0` `x86_64-unknown-linux-gnu` release binaries are built against **`GLIBC <= 2.35`** (`Debian 12` / `Ubuntu 22.04` baseline) and verified on **Ubuntu 24.04 LTS (`glibc 2.39`)**.
 
 ```bash
 cargo binstall jouledb
-jouledb --version   # jouledb 0.6.0
+jouledb --version   # jouledb 0.7.0
 ```
 
-Or download the `v0.6.0` release tarball directly for macOS (`aarch64` / `x86_64`) or Linux (`x86_64` / `aarch64`):
+Or download the `v0.7.0` release tarball directly for macOS (`aarch64` / `x86_64`) or Linux (`x86_64`):
 
 ```bash
-curl -fsSL https://github.com/openIE-dev/jouledb/releases/download/v0.6.0/jouledb-0.6.0-x86_64-unknown-linux-gnu.tar.gz | tar xz
-./jouledb-0.6.0-x86_64-unknown-linux-gnu/jouledb --version
+curl -fsSL https://github.com/openIE-dev/jouledb/releases/download/v0.7.0/jouledb-0.7.0-x86_64-unknown-linux-gnu.tar.gz | tar xz
+./jouledb-0.7.0-x86_64-unknown-linux-gnu/jouledb --version
 ```
 
 ## 2. Build from Source (`Apache-2.0 OR MIT`)
@@ -47,6 +47,6 @@ jouledb self-check
 
 ## 5. Package Registry Status Disclosure
 
-- **`crates.io` (`jouledb` `0.6.0`):** Published (`cargo-binstall` binary fetcher stub).
-- **GitHub Releases (`v0.6.0`):** Published (server tarballs + SHA-256 checksums + Python `.whl` wheels).
-- **PyPI (`jouledb`), npm (`@openie/jouledb`), NuGet (`OpenIE.JouleDB`):** **Not published** on public package registries as of `v0.6.0`. Install Python wheels from GitHub Releases or build from `python/` and `sdks/*` in-repo.
+- **`crates.io` (`jouledb` `0.7.0`):** Published (`cargo-binstall` binary fetcher stub).
+- **GitHub Releases (`v0.7.0`):** Published (macOS `aarch64`/`x86_64` & Linux `x86_64` server tarballs + `SHA256SUMS.txt`).
+- **PyPI (`jouledb`), npm (`@openie/jouledb`), NuGet (`OpenIE.JouleDB`):** **Not published** on public package registries as of `v0.7.0`. Build from `python/` and `sdks/*` in-repo.

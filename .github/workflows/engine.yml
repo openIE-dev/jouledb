@@ -78,6 +78,10 @@ jobs:
           rustup target add x86_64-pc-windows-gnu --toolchain "$RUST_TOOLCHAIN"
           cargo check -p joule-energy-rt --target x86_64-pc-windows-gnu --locked
 
+      # Blocking panic-safety gate across the 6 core crates with `deny(clippy::unwrap_used)`:
+      - name: cargo clippy (blocking unwrap_used gate on 6 core crates)
+        run: cargo clippy -p joule-db-core -p joule-db-branch -p joule-db-ledger -p joule-db-local -p joule-db-energy -p joule-db-weights --lib --locked
+
       # Not blocking yet: the existing tree has clippy findings. Shown so new
       # code does not add more; make it blocking once the backlog is cleared.
       - name: cargo clippy (non-blocking)

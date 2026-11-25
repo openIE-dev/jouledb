@@ -3374,7 +3374,7 @@ impl AmorphicStore {
         id: RecordId,
         updates: HashMap<String, Value>,
     ) -> AmorphicResult<()> {
-        self.catch_up_holograms(usize::MAX);
+        let is_deferred = self.deferred.contains(&id);
         // First, extract what we need from the record to avoid borrow conflicts
         let (old_values, updated_fields, old_hologram) = {
             let record = self
@@ -3392,46 +3392,53 @@ impl AmorphicStore {
                 record.fields.insert(field.clone(), new_value.clone());
             }
 
-            let updated_fields = record.fields.clone();
-            let old_hologram = record.hologram.clone();
+            let updated_fields = if is_deferred {
+                HashMap::new()
+            } else {
+                record.fields.clone()
+            };
+            let old_hologram = if is_deferred {
+                BinaryHV::zeros(DIMENSION)
+            } else {
+                record.hologram.clone()
+            };
 
             (old_values, updated_fields, old_hologram)
         };
 
-        // Re-encode the record hologram with updated fields
-        // Note: We re-encode the entire record because majority voting
-        // doesn't support true incremental updates. This is still faster
-        // than delete + re-insert because we don't need to update all indices.
-        let new_hologram = self.encode_record(&updated_fields);
+        if is_deferred {
+            // Record's hologram is still queued in `self.deferred` and will be
+            // encoded from the updated `record.fields` when `catch_up_holograms` runs.
+            // Bump `data_generation` so column caches observe the mutation.
+            self.data_generation = self.data_generation.wrapping_add(1);
+        } else {
+            // Re-encode only this record's hologram (do not force catch-up of unrelated records).
+            let new_hologram = self.encode_record(&updated_fields);
 
-        // Update the record's hologram
-        if let Some(record) = self.records.get_mut(&id) {
-            record.hologram = new_hologram.clone();
-        }
-
-        // Update hologram array
-        if (id as usize) <= self.hologram_array.len() {
-            self.hologram_array[(id - 1) as usize] = new_hologram.clone();
-        }
-
-        // Update global hologram: subtract old, add new
-        self.hologram.replace(id, &old_hologram, &new_hologram);
-
-        // Update LSH tables - compute hashes first to avoid borrow conflicts
-        let lsh_hashes_old: Vec<u64> = (0..self.lsh_bit_positions.len())
-            .map(|i| self.lsh_hash_for_table(&old_hologram, i))
-            .collect();
-        let lsh_hashes_new: Vec<u64> = (0..self.lsh_bit_positions.len())
-            .map(|i| self.lsh_hash_for_table(&new_hologram, i))
-            .collect();
-
-        for (table_idx, table) in self.lsh_tables.iter_mut().enumerate() {
-            // Remove from old hash bucket
-            if let Some(ids) = table.get_mut(&lsh_hashes_old[table_idx]) {
-                ids.retain(|&x| x != id);
+            if let Some(record) = self.records.get_mut(&id) {
+                record.hologram = new_hologram.clone();
             }
-            // Add to new hash bucket
-            table.entry(lsh_hashes_new[table_idx]).or_default().push(id);
+
+            if (id as usize) <= self.hologram_array.len() {
+                self.hologram_array[(id - 1) as usize] = new_hologram.clone();
+            }
+
+            // Update global hologram: subtract old, add new (also increments hologram generation)
+            self.hologram.replace(id, &old_hologram, &new_hologram);
+
+            let lsh_hashes_old: Vec<u64> = (0..self.lsh_bit_positions.len())
+                .map(|i| self.lsh_hash_for_table(&old_hologram, i))
+                .collect();
+            let lsh_hashes_new: Vec<u64> = (0..self.lsh_bit_positions.len())
+                .map(|i| self.lsh_hash_for_table(&new_hologram, i))
+                .collect();
+
+            for (table_idx, table) in self.lsh_tables.iter_mut().enumerate() {
+                if let Some(ids) = table.get_mut(&lsh_hashes_old[table_idx]) {
+                    ids.retain(|&x| x != id);
+                }
+                table.entry(lsh_hashes_new[table_idx]).or_default().push(id);
+            }
         }
 
         // Update indices for changed fields only

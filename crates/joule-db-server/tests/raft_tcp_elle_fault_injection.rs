@@ -314,17 +314,14 @@ async fn client_linearizable_read_register(
 ) -> Result<Option<u64>, RaftError> {
     rec.record(":invoke", proc_id, format!("[[:r :{reg_kw} nil]]"));
     match node
-        .propose_and_commit(Command::Noop, Duration::from_millis(900))
+        .read_linearizable(Duration::from_millis(900), |sm| {
+            sm.get(key_bytes)
+                .and_then(|b| std::str::from_utf8(b).ok())
+                .and_then(|s| s.parse::<u64>().ok())
+        })
         .await
     {
-        Ok(_) => {
-            let val = node
-                .with_state_machine(|sm| {
-                    sm.get(key_bytes)
-                        .and_then(|b| std::str::from_utf8(b).ok())
-                        .and_then(|s| s.parse::<u64>().ok())
-                })
-                .await;
+        Ok(val) => {
             let val_edn = val.map(|v| v.to_string()).unwrap_or_else(|| "nil".to_string());
             rec.record(":ok", proc_id, format!("[[:r :{reg_kw} {val_edn}]]"));
             Ok(val)
@@ -619,7 +616,7 @@ async fn test_real_5node_tcp_raft_fault_injection_and_export_elle_history() {
         "all_5_nodes_converged_y": final_y_values,
         "lost_committed_writes": 0,
         "candid_finding_unbarriered_local_sm_read_stale_during_partition": unbarriered_local_read_was_stale,
-        "candid_note": "RaftNode::propose appends asynchronously to the leader log without awaiting quorum commit; callers requiring linearizable durability across partitions must use RaftNode::propose_and_commit (added in v0.6.0). Similarly, RaftNode::with_state_machine reads local memory without a quorum round-trip unless preceded by a quorum barrier.",
+        "candid_note": "RaftNode::propose appends asynchronously to the leader log without awaiting quorum commit; callers requiring linearizable durability across partitions must use RaftNode::propose_and_commit (v0.6.0+). Linearizable reads use Raft §6.4 RaftNode::read_index / RaftNode::read_linearizable (v0.7.0+, zero WAL log writes); raw RaftNode::with_state_machine reads local memory without a quorum round-trip.",
         "elle_history_events": rec.len(),
         "elle_history_file": "bench/results/raft_tcp_elle_history.edn",
         "elapsed_ms": t_start.elapsed().as_millis() as u64,

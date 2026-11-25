@@ -35,6 +35,11 @@ fn next_timestamp() -> u64 {
     TIMESTAMP_ORACLE.fetch_add(1, Ordering::SeqCst)
 }
 
+/// Advance and return the next global MVCC timestamp (used to stamp external auto-commit writes).
+pub fn advance_mvcc_timestamp() -> u64 {
+    next_timestamp()
+}
+
 /// A single version in the version chain
 #[derive(Debug, Clone)]
 pub struct Version {
@@ -540,6 +545,76 @@ impl MvccTransaction {
         // Unregister as active
         self.store.unregister_active(self.id);
 
+        self.state = TxState::Committed;
+        Ok(())
+    }
+
+    /// Commit the transaction, invoking `persist_fn` under `commit_lock` ONLY AFTER
+    /// SI/SSI validation passes. `persist_fn` may return rewritten serialized payloads
+    /// `(key, new_bytes)` for newly inserted keys (e.g. populating durable record IDs)
+    /// before the committed versions are published.
+    pub fn commit_with_hook<F>(mut self, persist_fn: F) -> Result<(), TransactionError>
+    where
+        F: FnOnce(
+            &HashMap<Vec<u8>, Option<Vec<u8>>>,
+        ) -> Result<Vec<(Vec<u8>, Vec<u8>)>, String>,
+    {
+        if self.state != TxState::Active {
+            return Err(TransactionError::AlreadyCommitted { tx_id: self.id });
+        }
+
+        if self.write_set.is_empty() {
+            let commit_ts = next_timestamp();
+            self.commit_ts = Some(commit_ts);
+            self.store.unregister_active(self.id);
+            self.state = TxState::Committed;
+            return Ok(());
+        }
+
+        let commit_guard =
+            self.store
+                .commit_lock
+                .lock()
+                .map_err(|_| TransactionError::SerializationFailure {
+                    reason: "commit_lock poisoned".to_string(),
+                })?;
+
+        if let Some(conflict_reason) = self.validate()? {
+            drop(commit_guard);
+            self.state = TxState::Aborted;
+            self.store.unregister_active(self.id);
+            let keys: Vec<Vec<u8>> = self.write_set.keys().cloned().collect();
+            self.store.abort_transaction_keys(self.id, &keys)?;
+            return Err(TransactionError::SerializationFailure {
+                reason: conflict_reason.to_string(),
+            });
+        }
+
+        let rewritten = match persist_fn(&self.write_set) {
+            Ok(r) => r,
+            Err(reason) => {
+                drop(commit_guard);
+                self.state = TxState::Aborted;
+                self.store.unregister_active(self.id);
+                let keys: Vec<Vec<u8>> = self.write_set.keys().cloned().collect();
+                let _ = self.store.abort_transaction_keys(self.id, &keys);
+                return Err(TransactionError::SerializationFailure { reason });
+            }
+        };
+
+        if !rewritten.is_empty() {
+            self.store.update_uncommitted_data(self.id, &rewritten)?;
+        }
+
+        let commit_ts = next_timestamp();
+        self.commit_ts = Some(commit_ts);
+
+        let keys: Vec<Vec<u8>> = self.write_set.keys().cloned().collect();
+        self.store
+            .commit_transaction_with_ts_keys(self.id, commit_ts, &keys)?;
+        drop(commit_guard);
+
+        self.store.unregister_active(self.id);
         self.state = TxState::Committed;
         Ok(())
     }
@@ -1114,6 +1189,83 @@ impl MvccStore {
             _ => chain.cached_latest_committed_ts = Some(commit_ts),
         }
 
+        Ok(())
+    }
+
+    /// Seed a pre-committed version only if `key` has no version chain yet.
+    /// Returns `Ok(true)` if inserted, `Ok(false)` if `key` already existed.
+    pub fn insert_committed_if_absent(
+        &self,
+        key: &[u8],
+        value: Vec<u8>,
+        commit_ts: u64,
+    ) -> Result<bool, TransactionError> {
+        let mut chains =
+            self.chains
+                .write()
+                .map_err(|_| TransactionError::SerializationFailure {
+                    reason: "lock poisoned".to_string(),
+                })?;
+
+        if chains.contains_key(key) {
+            return Ok(false);
+        }
+        let mut chain = VersionChain::new();
+        let mut version = Version::new(Some(value), commit_ts, 0);
+        version.committed = true;
+        chain.add_version(version);
+        chain.cached_latest_committed_ts = Some(commit_ts);
+        chains.insert(key.to_vec(), chain);
+        Ok(true)
+    }
+
+    /// Append an externally committed version (or tombstone when `value` is `None`)
+    /// at `commit_ts` so active MVCC snapshots preserve historical visibility.
+    pub fn append_external_committed(
+        &self,
+        key: &[u8],
+        value: Option<Vec<u8>>,
+        commit_ts: u64,
+    ) -> Result<(), TransactionError> {
+        let mut chains =
+            self.chains
+                .write()
+                .map_err(|_| TransactionError::SerializationFailure {
+                    reason: "lock poisoned".to_string(),
+                })?;
+
+        let chain = chains.entry(key.to_vec()).or_insert_with(VersionChain::new);
+        let mut version = Version::new(value, commit_ts, 0);
+        version.committed = true;
+        chain.add_version(version);
+        match chain.cached_latest_committed_ts {
+            Some(cached) if cached >= commit_ts => {}
+            _ => chain.cached_latest_committed_ts = Some(commit_ts),
+        }
+        Ok(())
+    }
+
+    /// Update the serialized bytes of uncommitted intent versions belonging to `tx_id`
+    /// right before publishing `commit_ts`.
+    fn update_uncommitted_data(
+        &self,
+        tx_id: TxId,
+        updates: &[(Vec<u8>, Vec<u8>)],
+    ) -> Result<(), TransactionError> {
+        let mut chains =
+            self.chains
+                .write()
+                .map_err(|_| TransactionError::SerializationFailure {
+                    reason: "lock poisoned".to_string(),
+                })?;
+
+        for (key, new_bytes) in updates {
+            if let Some(chain) = chains.get_mut(key.as_slice()) {
+                if let Some(v) = chain.find_by_txn_mut(tx_id) {
+                    v.data = Some(new_bytes.clone());
+                }
+            }
+        }
         Ok(())
     }
 }

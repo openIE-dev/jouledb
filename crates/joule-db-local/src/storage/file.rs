@@ -312,10 +312,23 @@ impl FileBackend {
             )));
         }
 
-        let committed_version = u64::from_le_bytes(buf[8..16].try_into().unwrap());
-        let committed_root = u64::from_le_bytes(buf[16..24].try_into().unwrap());
-        let next_page_id = u64::from_le_bytes(buf[24..32].try_into().unwrap());
-        let free_pages_count = u32::from_le_bytes(buf[32..36].try_into().unwrap()) as usize;
+        let read_u64 = |slice: &[u8]| -> Result<u64, StorageError> {
+            let arr: [u8; 8] = slice
+                .try_into()
+                .map_err(|_| StorageError::Backend("meta.wdb v1 corrupt u64 slice".into()))?;
+            Ok(u64::from_le_bytes(arr))
+        };
+        let read_u32 = |slice: &[u8]| -> Result<u32, StorageError> {
+            let arr: [u8; 4] = slice
+                .try_into()
+                .map_err(|_| StorageError::Backend("meta.wdb v1 corrupt u32 slice".into()))?;
+            Ok(u32::from_le_bytes(arr))
+        };
+
+        let committed_version = read_u64(&buf[8..16])?;
+        let committed_root = read_u64(&buf[16..24])?;
+        let next_page_id = read_u64(&buf[24..32])?;
+        let free_pages_count = read_u32(&buf[32..36])? as usize;
 
         // Bounds-check: header + count*8 + crc must fit.
         let expected_len = META_V1_HEADER_SIZE + free_pages_count * 8 + META_V1_CRC_SIZE;
@@ -332,7 +345,7 @@ impl FileBackend {
         let base = META_V1_HEADER_SIZE;
         for i in 0..free_pages_count {
             let off = base + i * 8;
-            let page_id = u64::from_le_bytes(buf[off..off + 8].try_into().unwrap());
+            let page_id = read_u64(&buf[off..off + 8])?;
             free_pages.push(page_id);
         }
 

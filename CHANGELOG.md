@@ -9,6 +9,31 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-25
+
+### Added
+- **Vectorized Columnar Engine (`columnar_exec.rs`), Width-Adaptive Integer Columns (`I8..I64`) & Streaming Parquet `COPY` (`43 / 43` Official ClickBench up to `10,000,000` Rows)**:
+  - Added width-adaptive integer columns (`Ints::{I8, I16, I32, I64}`) and narrow `ColData::{Int8, Int16, Int32, Int}` batches (`crates/joule-db-amorphic/src/column_batch.rs`), plus bounded 4-row-group streaming Parquet `COPY ... FROM` (`crates/joule-db-server/src/{file_formats.rs, pgwire.rs}`).
+  - Extended `crates/joule-db-server/src/columnar_exec.rs` with precompiled `PrepPred` filters (`O(1)` dictionary equality, parallel `LIKE`/`IN` dictionary bitsets, Howard Hinnant ISO date/timestamp coercion with zone-map pruning), zero-materialization `VCol` virtual columns (`EXTRACT`, `DATE_TRUNC`, `STRLEN`, `REGEXP_REPLACE` dictionary remapping, lazy `CASE WHEN`), algebraic `SUM(col ± k)` scan sharing (single pass for `Q29`'s 90 sums), `MIN`/`MAX` over dictionary text, `HAVING`, inline `HKey::{K1, K2, K3}` group keys, and morsel-parallel Top-K `ORDER BY ... LIMIT` scans.
+  - Published reproducible Official ClickBench runs (`bench/results/clickbench_official_{100k,1m,10m}.json`) against DuckDB `2.0.1` over real TCP `pgwire` (`rapl-package` `reported_j`): **`43 / 43` queries succeeded (`0` timeouts, `100%` SQL-valid match)** at `100k` rows (`1.30×` geomean latency, median `0.80×`, beating DuckDB on `25 / 43` queries), `1M` rows (`9.34×` geomean), and **`10,000,000` official rows** (`42.0 GB` RSS, `9.74×` geomean latency, `7.50×` geomean `reported_j`).
+- **True Raft §6.4 `ReadIndex` Quorum Linearizable Reads (`RaftNode::read_index`, `RaftNode::read_linearizable`)**:
+  - Implemented quorum empty-`AppendEntries` leadership confirmation + `last_applied >= read_index` wait in `crates/joule-db-server/src/raft.rs`, delivering linearizable reads across partitions with **zero Raft log / WAL writes**, verified `{:valid? true}` (`rw-register`, `:strict-serializable`) by official Clojure `elle/elle 0.2.8`.
+- **Concurrent Multi-Client `pgwire` OLTP Benchmark (`bench/oltp_pgwire.py`)**:
+  - Added reproducible `100`-warehouse (`100,000`-account) multi-client OLTP benchmark across `1, 4, 8, 16` concurrent `psycopg` TCP workers (`50%` point read, `30%` durable `BEGIN..UPDATE..INSERT..COMMIT`, `20%` warehouse aggregate) with post-run balance & ledger conservation checks (`invariant_verified = true`, `605 -> 1,319 TPS` over TCP `pgwire` with `fsync` vs embedded SQLite WAL).
+
+### Fixed
+- **MVCC / `AmorphicTableStorage` Transactional Consistency, Contention & OLTP Indexing (`mvcc_adapter.rs`, `amorphic_adapter/*`)**:
+  - Fixed `MvccTableStorage` so tables populated after startup via `COPY ... FROM` or auto-commit `INSERT` are lazily seeded on demand via `O(1)` secondary-index equality lookup (`resolve_session_candidates`) or table scan, fixing silent `UPDATE 0` misses inside `BEGIN ... COMMIT` sessions.
+  - Replaced interleaved multi-lock `begin_batch` / `batch_*` / `commit_batch` calls with `MvccTransaction::commit_with_hook` + `AmorphicTableStorage::apply_atomic_batch_deferred`, validating SI/SSI conflicts before WAL writes, eliminating concurrent `"Batch already active"` commit errors, writing newly assigned `amorphic_id`s back onto inserted MVCC records (preventing duplicate rows on subsequent `UPDATE`), and coalescing `GroupSync` `fsync` outside `commit_lock`.
+  - Removed blocking `catch_up_holograms(usize::MAX)` from `AmorphicStore::update_fields` for deferred-hologram rows and added selective `O(k)` equality column slices (`try_selective_table_columns`) when `col_cache` is invalidated by concurrent OLTP writes.
+- **SQL Function & Grouping Compatibility (`functions.rs`, `query.rs`)**:
+  - Separated byte-level `STRLEN` / `OCTET_LENGTH` from codepoint `LENGTH` / `CHAR_LENGTH`, added POSIX `\1..\9` regex backreference normalization in `REGEXP_REPLACE`, and supported `GROUP BY <select_alias>`.
+
+### Changed
+- **Expanded `deny(clippy::unwrap_used)` to 6 Core Crates & Workspace Hygiene**:
+  - Enforced `#![cfg_attr(not(test), deny(clippy::unwrap_used))]` across **6 crates** (`joule-db-core`, `joule-db-branch`, `joule-db-ledger`, `joule-db-local`, `joule-db-energy`, `joule-db-weights`) with a blocking `cargo clippy` CI step in `.github/workflows/engine.yml`.
+  - Aligned all 41 workspace crates, `stubs/jouledb`, Python bindings, SDKs (`sdks/*`), and Helm/Terraform manifests to `0.7.0` (`SELECT version()` now reports `JouleDB 0.7.0`), and pruned 173 unused `[workspace.dependencies]`.
+
 ## [0.6.0] - 2026-11-25
 
 ### Changed
@@ -119,6 +144,7 @@ All notable changes to this release surface are documented here. Format follows 
 ### Added
 - Initial public release surface, runnable `examples/`, and `mdBook` documentation site at `openie-dev.github.io/jouledb`.
 
-[Unreleased]: https://github.com/openIE-dev/jouledb/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/openIE-dev/jouledb/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/openIE-dev/jouledb/releases/tag/v0.7.0
 [0.6.0]: https://github.com/openIE-dev/jouledb/releases/tag/v0.6.0
 [0.1.0]: https://github.com/openIE-dev/jouledb/releases/tag/v0.1.0

@@ -3848,7 +3848,8 @@ impl SimpleQueryExecutor {
                 let vec_on = *VEC_ON
                     .get_or_init(|| std::env::var("JOULEDB_VECTORIZED").map_or(true, |v| v != "0"));
                 if vec_on && session_id.is_none() && params.is_empty() {
-                    if let Some(response) = self.try_vectorized_select(query, start) {
+                    if let Some(response) = self.try_vectorized_select(query, request_limit, start)
+                    {
                         return Ok(response);
                     }
                 }
@@ -4569,14 +4570,18 @@ impl SimpleQueryExecutor {
                             )
                             .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?
                     } else {
-                        self.amorphic
+                        let res = self.amorphic
                             .update_with_expressions_returning(
                                 table_name,
                                 &update.assignments,
                                 update.where_clause.as_ref(),
                                 params,
                             )
-                            .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?
+                            .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?;
+                        if res.0 > 0 {
+                            self.mvcc.on_external_table_change(table_name);
+                        }
+                        res
                     };
                     let (cols, projected) =
                         project_returning(&update.returning, &table_columns, rows);
@@ -4593,14 +4598,18 @@ impl SimpleQueryExecutor {
                             )
                             .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?
                     } else {
-                        self.amorphic
+                        let cnt = self.amorphic
                             .update_with_expressions(
                                 table_name,
                                 &update.assignments,
                                 update.where_clause.as_ref(),
                                 params,
                             )
-                            .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?
+                            .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?;
+                        if cnt > 0 {
+                            self.mvcc.on_external_table_change(table_name);
+                        }
+                        cnt
                     };
                     (count, Vec::new(), Vec::new())
                 };
@@ -4737,9 +4746,13 @@ impl SimpleQueryExecutor {
                             .delete_returning(session_id, table_name, delete.where_clause.as_ref())
                             .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?
                     } else {
-                        self.amorphic
+                        let res = self.amorphic
                             .delete_returning(table_name, delete.where_clause.as_ref())
-                            .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?
+                            .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?;
+                        if res.0 > 0 {
+                            self.mvcc.on_external_table_change(table_name);
+                        }
+                        res
                     };
                     let (cols, projected) =
                         project_returning(&delete.returning, &table_columns, rows);
@@ -4750,9 +4763,13 @@ impl SimpleQueryExecutor {
                             .delete(session_id, table_name, delete.where_clause.as_ref())
                             .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?
                     } else {
-                        self.amorphic
+                        let cnt = self.amorphic
                             .delete(table_name, delete.where_clause.as_ref())
-                            .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?
+                            .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?;
+                        if cnt > 0 {
+                            self.mvcc.on_external_table_change(table_name);
+                        }
+                        cnt
                     };
                     (count, Vec::new(), Vec::new())
                 };
@@ -4997,6 +5014,10 @@ impl SimpleQueryExecutor {
 
                 if !dropped && !if_exists {
                     return Err(QueryErrorResponse::table_not_found(table_name));
+                }
+
+                if dropped {
+                    self.mvcc.on_external_table_change(table_name);
                 }
 
                 // Remove shard metadata if table was sharded
@@ -6704,7 +6725,10 @@ impl SimpleQueryExecutor {
                 }
                 let t = d.data_type.to_uppercase();
                 let coerced = match &c.data {
-                    ColData::Int(_) => matches!(
+                    ColData::Int8(_)
+                    | ColData::Int16(_)
+                    | ColData::Int32(_)
+                    | ColData::Int(_) => matches!(
                         &t[..],
                         "FLOAT"
                             | "DOUBLE"
@@ -6802,12 +6826,42 @@ impl SimpleQueryExecutor {
     /// Run a single-table analytic SELECT on cached typed columns
     /// (crate::columnar_exec). `None` means "not this shape": the general
     /// executor handles it with identical semantics.
-    fn try_vectorized_select(&self, query: &SqlQuery, start: Instant) -> Option<QueryResponse> {
+    fn try_vectorized_select(
+        &self,
+        query: &SqlQuery,
+        request_limit: Option<usize>,
+        start: Instant,
+    ) -> Option<QueryResponse> {
         let table = query.from.as_ref()?.table_name()?;
+        if self
+            .amorphic
+            .get_column_defs(table)
+            .is_ok_and(|ds| ds.iter().any(|d| d.computed_expr.is_some()))
+        {
+            return None;
+        }
         let t0 = Instant::now();
-        let cols = self.amorphic.table_columns(table)?;
+        let cols = match self.amorphic.cached_table_columns(table) {
+            Some(c) => c,
+            None => match self.amorphic.try_selective_table_columns(
+                table,
+                query.where_clause.as_ref(),
+                4096,
+            ) {
+                Some(c) => c,
+                None => self.amorphic.table_columns(table)?,
+            },
+        };
         let t1 = Instant::now();
-        let r = crate::columnar_exec::execute(query, &cols)?;
+        let mut r = crate::columnar_exec::execute(query, &cols)?;
+        let mut truncated = false;
+        if query.limit.is_none()
+            && let Some(req_lim) = request_limit
+            && r.rows.len() > req_lim
+        {
+            r.rows.truncate(req_lim);
+            truncated = true;
+        }
         if std::env::var_os("JOULEDB_VEC_TRACE").is_some() {
             eprintln!(
                 "vec cols={:?} exec={:?} since_start={:?}",
@@ -6821,7 +6875,7 @@ impl SimpleQueryExecutor {
             rows: r.rows,
             affected_rows: None,
             execution_time_ms: start.elapsed().as_millis() as u64,
-            truncated: false,
+            truncated,
             warnings: vec![],
             energy_joules: None,
             power_watts: None,
@@ -9766,6 +9820,7 @@ impl SimpleQueryExecutor {
         tables_for_having: &HashMap<String, (Vec<String>, Vec<Vec<serde_json::Value>>)>,
     ) -> (Vec<String>, Vec<Vec<serde_json::Value>>) {
         // Resolve GROUP BY ordinals (e.g., GROUP BY 1 → first SELECT column expr)
+        // and SELECT aliases (e.g., SELECT EXTRACT(MINUTE FROM ts) AS m ... GROUP BY m).
         let resolved_group_by: Vec<Expression> = query
             .group_by
             .iter()
@@ -9775,6 +9830,15 @@ impl SimpleQueryExecutor {
                     if idx >= 1 && idx <= query.columns.len() {
                         return query.columns[idx - 1].expr.clone();
                     }
+                }
+                if let Expression::Column(name) = expr
+                    && !columns.iter().any(|c| c.eq_ignore_ascii_case(name))
+                    && let Some(sc) = query
+                        .columns
+                        .iter()
+                        .find(|sc| sc.alias.as_ref().is_some_and(|a| a.eq_ignore_ascii_case(name)))
+                {
+                    return sc.expr.clone();
                 }
                 expr.clone()
             })

@@ -512,6 +512,37 @@ where
     }
 }
 
+/// Translate POSIX/PostgreSQL regex backreferences (`\1`..`\9`) into Rust `regex`
+/// capture-group syntax (`${1}`..`${9}`), preserving escaped `\\` sequences.
+pub fn normalize_posix_regex_replacement(repl: &str) -> String {
+    let mut out = String::with_capacity(repl.len() + 4);
+    let mut chars = repl.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            match chars.peek().copied() {
+                Some('\\') => {
+                    chars.next();
+                    out.push('\\');
+                }
+                Some(d @ '1'..='9') => {
+                    chars.next();
+                    out.push_str("${");
+                    out.push(d);
+                    out.push('}');
+                }
+                Some('0') => {
+                    chars.next();
+                    out.push_str("${0}");
+                }
+                _ => out.push('\\'),
+            }
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
 /// Evaluate a scalar SQL function by name.
 ///
 /// All ~100+ scalar functions are dispatched here. Aggregate functions
@@ -552,6 +583,13 @@ pub fn eval_scalar_function(
         "LOWER" => {
             if let Some(Value::String(s)) = args.first() {
                 Ok(Value::String(s.to_lowercase()))
+            } else {
+                Ok(Value::Null)
+            }
+        }
+        "STRLEN" | "OCTET_LENGTH" => {
+            if let Some(Value::String(s)) = args.first() {
+                Ok(Value::Int(s.len() as i64))
             } else {
                 Ok(Value::Null)
             }
@@ -1967,11 +2005,12 @@ pub fn eval_scalar_function(
                     } else {
                         false
                     };
+                    let rust_repl = normalize_posix_regex_replacement(replacement);
                     if let Ok(re) = regex::Regex::new(pattern) {
                         let result = if global {
-                            re.replace_all(s, replacement.as_str()).to_string()
+                            re.replace_all(s, rust_repl.as_str()).to_string()
                         } else {
-                            re.replace(s, replacement.as_str()).to_string()
+                            re.replace(s, rust_repl.as_str()).to_string()
                         };
                         return Ok(Value::String(result));
                     }

@@ -92,7 +92,7 @@ impl Default for PgWireConfig {
             bind_addr: "0.0.0.0:5433".to_string(),
             max_connections: 256,
             connection_timeout_secs: 300,
-            server_version: "16.0.0 JouleDB 0.1.0".to_string(),
+            server_version: concat!("16.0.0 JouleDB ", env!("CARGO_PKG_VERSION")).to_string(),
             auth_enabled: false,
             auth_password: None,
             rbac_manager: None,
@@ -1795,9 +1795,51 @@ fn copy_file(
         )
         .map_err(|e| (e.code, e.message))?;
         let p = copy_file_path(&path, false).map_err(bad)?;
+        let p_str = p.to_str().unwrap_or(&path);
         let t_read = std::time::Instant::now();
-        let batches =
-            crate::file_formats::read_file(p.to_str().unwrap_or(&path), fmt).map_err(bad)?;
+        if fmt == crate::file_formats::FileFormat::Parquet && conn_state.session_id.is_none() {
+            let mut total_inserted = 0usize;
+            let mut streamed = true;
+            let mut chunk_err: Option<(String, String)> = None;
+            crate::file_formats::for_each_parquet_batch_group(p_str, 4, |chunk| {
+                match executor.bulk_insert_arrow(&spec.target, &spec.columns, chunk) {
+                    Some(Ok(n)) => {
+                        total_inserted += n;
+                        Ok(true)
+                    }
+                    Some(Err(e)) => {
+                        chunk_err = Some((e.code, e.message));
+                        Ok(false)
+                    }
+                    None if total_inserted == 0 => {
+                        streamed = false;
+                        Ok(false)
+                    }
+                    None => {
+                        chunk_err = Some((
+                            "22000".to_string(),
+                            "Parquet row-group schema changed mid-stream".to_string(),
+                        ));
+                        Ok(false)
+                    }
+                }
+            })
+            .map_err(bad)?;
+            if let Some(e) = chunk_err {
+                return Err(e);
+            }
+            if streamed {
+                if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
+                    eprintln!(
+                        "copy_file parquet_stream total={:?} rows={}",
+                        t_read.elapsed(),
+                        total_inserted
+                    );
+                }
+                return Ok(total_inserted);
+            }
+        }
+        let batches = crate::file_formats::read_file(p_str, fmt).map_err(bad)?;
         if conn_state.session_id.is_none() {
             // Not in a transaction: typed columns straight into the store.
             let t_ins = std::time::Instant::now();

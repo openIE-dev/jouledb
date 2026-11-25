@@ -1,6 +1,8 @@
 //! # JouleDB Energy
 //!
 //! Energy profiling and hardware-aware execution engine.
+
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! Makes JouleDB the world's first energy-aware database.
 //!
 //! ## Features

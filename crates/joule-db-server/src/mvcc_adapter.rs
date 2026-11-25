@@ -6,36 +6,46 @@
 //!
 //! ## Design
 //!
-//! - **Auto-commit**: When `session_id` is `None`, each DML runs in an implicit
-//!   begin→execute→commit cycle (backward-compatible with pre-MVCC behavior).
-//! - **Explicit transactions**: `BEGIN` returns a UUID session ID; subsequent
-//!   DML with that session ID buffers writes in the MVCC transaction's write set.
-//!   `COMMIT` persists to the durable `AmorphicTableStorage`; `ROLLBACK` discards.
-//! - **Snapshot isolation**: Concurrent sessions see consistent snapshots.
-//!   Write-write conflicts are detected at `put` time (first-committer-wins).
+//! - **Auto-commit**: When `session_id` is `None`, each DML runs directly on
+//!   `AmorphicTableStorage` and keeps MVCC metadata synchronized for active snapshots.
+//! - **Lazy & Index-Assisted MVCC Seeding**: Pre-existing `AmorphicTableStorage` rows
+//!   (including rows loaded via streaming `COPY ... FROM` or auto-commit `INSERT` after
+//!   server startup) are seeded on demand—either per matching row via `O(1)` secondary
+//!   index lookup (`WHERE col = literal`) or per table on full-table scans.
+//! - **Atomic Group-Committed Durability**: `COMMIT` validates SI/SSI conflicts BEFORE
+//!   persisting, executes the WAL batch under a single exclusive store lock (preventing
+//!   concurrent `"Batch already active"` races), records durable `amorphic_id`s on newly
+//!   inserted MVCC records (preventing duplicate rows on subsequent `UPDATE`), and
+//!   coalesces hardware `fsync` across concurrent committers via `GroupSync`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use joule_db_core::concurrency::{
-    MvccTransaction, MvccTransactionManager, decode_record_id, encode_record_key,
-    encode_table_prefix,
+    MvccTransaction, MvccTransactionManager, advance_mvcc_timestamp, decode_record_id,
+    encode_record_key, encode_table_prefix,
 };
 use joule_db_query::ast::{Expression, Value as AstValue};
 use joule_db_query::error::{QueryError, QueryResult};
 use joule_db_query::executor::{RowData, TableStorage};
 
-use crate::amorphic_adapter::AmorphicTableStorage;
+use crate::amorphic_adapter::{
+    AmorphicTableStorage, AtomicBatchOp, DeferredBatchSync, evaluate_mvcc_predicate,
+};
+
+/// Base offset for temporary MVCC record IDs assigned to uncommitted `INSERT` rows,
+/// guaranteeing zero collision with `AmorphicStore` `RecordId`s (`1, 2, ...`).
+const NEW_RECORD_ID_BASE: u64 = 1u64 << 62;
 
 /// A serializable record stored as an MVCC value.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct MvccRecord {
     columns: Vec<String>,
     values: Vec<AstValue>,
-    /// Amorphic store RecordId — present for records bootstrapped from amorphic,
-    /// None for records created within an MVCC transaction (not yet persisted).
+    /// Amorphic store RecordId — present for records persisted in amorphic,
+    /// None only while an uncommitted INSERT has not yet been committed.
     #[serde(default)]
     amorphic_id: Option<u64>,
 }
@@ -54,8 +64,7 @@ impl MvccRecord {
     }
 }
 
-/// An active transaction session.
-/// Snapshot of transaction state at a savepoint
+/// Snapshot of transaction state at a savepoint.
 #[derive(Clone)]
 struct SavepointSnapshot {
     name: String,
@@ -69,12 +78,18 @@ pub struct ActiveSession {
     savepoints: Vec<SavepointSnapshot>,
 }
 
-/// MVCC-backed table storage with session management.
+/// MVCC-backed table storage with session management and lazy Amorphic synchronization.
 pub struct MvccTableStorage {
     tx_manager: MvccTransactionManager,
     amorphic: Arc<AmorphicTableStorage>,
     sessions: Mutex<HashMap<String, Mutex<ActiveSession>>>,
-    next_record_id: AtomicU64,
+    next_temp_id: AtomicU64,
+    /// Per-table mapping `amorphic_record_id -> mvcc_record_id` for all records seeded into MVCC.
+    table_id_map: Mutex<HashMap<String, HashMap<u64, u64>>>,
+    /// Per-table set of `mvcc_record_id`s deleted via MVCC (so older snapshots still find them).
+    mvcc_deleted_ids: Mutex<HashMap<String, HashSet<u64>>>,
+    /// Per-(table, column) set of `mvcc_record_id`s whose `column` value was modified via MVCC.
+    mvcc_col_updated_ids: Mutex<HashMap<(String, String), HashSet<u64>>>,
 }
 
 impl MvccTableStorage {
@@ -84,47 +99,257 @@ impl MvccTableStorage {
             tx_manager: MvccTransactionManager::new(),
             amorphic,
             sessions: Mutex::new(HashMap::new()),
-            next_record_id: AtomicU64::new(1),
+            next_temp_id: AtomicU64::new(NEW_RECORD_ID_BASE),
+            table_id_map: Mutex::new(HashMap::new()),
+            mvcc_deleted_ids: Mutex::new(HashMap::new()),
+            mvcc_col_updated_ids: Mutex::new(HashMap::new()),
         }
     }
 
-    /// Seed the MVCC store with all existing records from amorphic storage.
-    /// Call once at startup so that MVCC reads see pre-existing data.
-    /// Tracks amorphic RecordIds so that commit can map deletes/updates correctly.
+    /// Idempotently seed the MVCC store with all existing records from amorphic storage
+    /// for the specified tables.
     pub fn bootstrap_from_amorphic(&self, tables: &[String]) -> QueryResult<usize> {
-        let store = self.tx_manager.store();
         let mut total = 0usize;
-        let mut max_id = self.next_record_id.load(Ordering::Relaxed);
-
         for table in tables {
-            let rows_with_ids = self.amorphic.scan_with_ids(table)?;
-            let columns = self.amorphic.columns(table)?;
+            total += self.ensure_all_table_records_seeded(table)?;
+        }
+        Ok(total)
+    }
 
-            for (amorphic_record_id, row) in &rows_with_ids {
-                let record_id = self.next_record_id.fetch_add(1, Ordering::Relaxed);
-                if record_id >= max_id {
-                    max_id = record_id + 1;
-                }
-                let key = encode_record_key(table, record_id);
-                let mvcc_record = MvccRecord {
-                    columns: columns.clone(),
-                    values: row.values.clone(),
-                    amorphic_id: Some(*amorphic_record_id),
-                };
-                let value = serde_json::to_vec(&mvcc_record).map_err(|e| {
-                    QueryError::ExecutionError(format!("Serialize error during bootstrap: {}", e))
-                })?;
-                store.insert_committed(&key, value, 0).map_err(|e| {
-                    QueryError::ExecutionError(format!("MVCC bootstrap error: {}", e))
-                })?;
-                total += 1;
+    /// Ensure a single `(amorphic_record_id, row)` is present in `MvccStore` at `origin_ts`,
+    /// returning `(mvcc_record_id, was_newly_inserted)`.
+    fn ensure_single_record_seeded(
+        &self,
+        table: &str,
+        amorphic_record_id: u64,
+        row: &RowData,
+        origin_ts: u64,
+    ) -> QueryResult<(u64, bool)> {
+        {
+            let map = crate::lock_util::mutex_lock(&self.table_id_map);
+            if let Some(&existing_mvcc_id) = map.get(table).and_then(|m| m.get(&amorphic_record_id))
+            {
+                return Ok((existing_mvcc_id, false));
             }
         }
 
-        // Ensure next_record_id is past all bootstrapped IDs
-        self.next_record_id.store(max_id, Ordering::Relaxed);
+        let mvcc_id = amorphic_record_id;
+        let key = encode_record_key(table, mvcc_id);
+        let mvcc_record = MvccRecord {
+            columns: row.columns.clone(),
+            values: row.values.clone(),
+            amorphic_id: Some(amorphic_record_id),
+        };
+        let value = serde_json::to_vec(&mvcc_record).map_err(|e| {
+            QueryError::ExecutionError(format!("Serialize error during MVCC seed: {}", e))
+        })?;
 
-        Ok(total)
+        let mut map = crate::lock_util::mutex_lock(&self.table_id_map);
+        let table_entry = map.entry(table.to_string()).or_default();
+        if let Some(&existing_mvcc_id) = table_entry.get(&amorphic_record_id) {
+            return Ok((existing_mvcc_id, false));
+        }
+
+        let inserted = self
+            .tx_manager
+            .store()
+            .insert_committed_if_absent(&key, value, origin_ts)
+            .map_err(|e| QueryError::ExecutionError(format!("MVCC seed error: {}", e)))?;
+        table_entry.insert(amorphic_record_id, mvcc_id);
+        Ok((mvcc_id, inserted))
+    }
+
+    /// Ensure all rows currently stored in `AmorphicTableStorage` for `table` have
+    /// corresponding chains in `MvccStore` (used for full-table scans and non-indexed predicates).
+    fn ensure_all_table_records_seeded(&self, table: &str) -> QueryResult<usize> {
+        let rows_with_ids = match self.amorphic.scan_with_ids(table) {
+            Ok(r) => r,
+            Err(_) => return Ok(0),
+        };
+        let mut newly_seeded = 0usize;
+        for (amorphic_id, row) in &rows_with_ids {
+            let (_, added) = self.ensure_single_record_seeded(table, *amorphic_id, row, 0)?;
+            if added {
+                newly_seeded += 1;
+            }
+        }
+        Ok(newly_seeded)
+    }
+
+    /// Synchronize any already-seeded MVCC chains for `table` after an external
+    /// auto-commit `UPDATE`, `DELETE`, `TRUNCATE`, or `DROP TABLE` modified `AmorphicTableStorage`.
+    /// O(1) no-op if `table` has no seeded MVCC chains.
+    pub fn on_external_table_change(&self, table: &str) {
+        let seeded_pairs: Vec<(u64, u64)> = {
+            let map = crate::lock_util::mutex_lock(&self.table_id_map);
+            match map.get(table) {
+                Some(m) if !m.is_empty() => m.iter().map(|(&a, &m_id)| (a, m_id)).collect(),
+                _ => return,
+            }
+        };
+
+        let table_still_exists = self.amorphic.table_exists(table).unwrap_or(false);
+        let commit_ts = advance_mvcc_timestamp();
+        let store = self.tx_manager.store();
+        let mut removed_amorphic_ids = Vec::new();
+
+        for (amorphic_id, mvcc_id) in seeded_pairs {
+            let key = encode_record_key(table, mvcc_id);
+            let current_row = if table_still_exists {
+                self.amorphic
+                    .get_table_row_by_id(table, amorphic_id)
+                    .ok()
+                    .flatten()
+            } else {
+                None
+            };
+
+            match current_row {
+                Some(row) => {
+                    let changed = self
+                        .get_committed_value(&key)
+                        .and_then(|bytes| serde_json::from_slice::<MvccRecord>(&bytes).ok())
+                        .map(|prev| prev.values != row.values || prev.columns != row.columns)
+                        .unwrap_or(true);
+                    if changed {
+                        let updated_rec = MvccRecord {
+                            columns: row.columns,
+                            values: row.values,
+                            amorphic_id: Some(amorphic_id),
+                        };
+                        if let Ok(bytes) = serde_json::to_vec(&updated_rec) {
+                            let _ = store.append_external_committed(&key, Some(bytes), commit_ts);
+                        }
+                    }
+                }
+                None => {
+                    let _ = store.append_external_committed(&key, None, commit_ts);
+                    removed_amorphic_ids.push((amorphic_id, mvcc_id));
+                }
+            }
+        }
+
+        if !removed_amorphic_ids.is_empty() {
+            let mut map = crate::lock_util::mutex_lock(&self.table_id_map);
+            if !table_still_exists {
+                map.remove(table);
+            } else if let Some(tmap) = map.get_mut(table) {
+                for (aid, _) in &removed_amorphic_ids {
+                    tmap.remove(aid);
+                }
+            }
+            let mut del = crate::lock_util::mutex_lock(&self.mvcc_deleted_ids);
+            let del_set = del.entry(table.to_string()).or_default();
+            for (_, mid) in removed_amorphic_ids {
+                del_set.insert(mid);
+            }
+        }
+    }
+
+    /// Resolve visible `(mvcc_key, MvccRecord)` entries for `predicate` inside `session_id`:
+    /// - Uses `O(k)` secondary index lookup + point `tx.get(&key)` when `predicate` has a
+    ///   type-safe `col = literal` equality conjunct (avoiding 100k-row scans & false SSI
+    ///   prefix conflicts!).
+    /// - Falls back to `ensure_all_table_records_seeded` + `tx.scan_prefix` otherwise.
+    fn resolve_session_candidates(
+        &self,
+        session_id: &str,
+        table: &str,
+        predicate: Option<&Expression>,
+    ) -> QueryResult<Vec<(Vec<u8>, MvccRecord)>> {
+        if let Some(pred) = predicate {
+            if let Some((eq_col, eq_val)) =
+                crate::amorphic_adapter::extract_conjunct_eq_predicate(pred)
+            {
+                if let Some(indexed_rows) =
+                    self.amorphic.lookup_records_by_eq(table, &eq_col, &eq_val)?
+                {
+                    let mut candidate_mvcc_ids: Vec<u64> = Vec::with_capacity(indexed_rows.len() + 4);
+                    let mut seen_ids: HashSet<u64> = HashSet::with_capacity(indexed_rows.len() + 4);
+
+                    for (amorphic_id, row) in &indexed_rows {
+                        let (mvcc_id, _) =
+                            self.ensure_single_record_seeded(table, *amorphic_id, row, 0)?;
+                        if seen_ids.insert(mvcc_id) {
+                            candidate_mvcc_ids.push(mvcc_id);
+                        }
+                    }
+
+                    // Include any rows deleted via MVCC or whose `eq_col` was modified via MVCC
+                    {
+                        let del = crate::lock_util::mutex_lock(&self.mvcc_deleted_ids);
+                        if let Some(ids) = del.get(table) {
+                            for &id in ids {
+                                if seen_ids.insert(id) {
+                                    candidate_mvcc_ids.push(id);
+                                }
+                            }
+                        }
+                    }
+                    {
+                        let upd = crate::lock_util::mutex_lock(&self.mvcc_col_updated_ids);
+                        if let Some(ids) = upd.get(&(table.to_string(), eq_col)) {
+                            for &id in ids {
+                                if seen_ids.insert(id) {
+                                    candidate_mvcc_ids.push(id);
+                                }
+                            }
+                        }
+                    }
+
+                    let prefix = encode_table_prefix(table);
+                    return self.with_session(session_id, |tx| {
+                        // Also include any uncommitted keys for this table in `tx.write_set`
+                        let local_keys: Vec<Vec<u8>> = tx
+                            .write_set()
+                            .keys()
+                            .filter(|k| k.starts_with(&prefix))
+                            .cloned()
+                            .collect();
+                        for lk in local_keys {
+                            if let Some(mid) = decode_record_id(&lk, table) {
+                                if seen_ids.insert(mid) {
+                                    candidate_mvcc_ids.push(mid);
+                                }
+                            }
+                        }
+
+                        let mut out = Vec::with_capacity(candidate_mvcc_ids.len());
+                        for mid in candidate_mvcc_ids {
+                            let key = encode_record_key(table, mid);
+                            if let Some(data) = tx.get(&key).map_err(|e| {
+                                QueryError::ExecutionError(format!("MVCC get error: {}", e))
+                            })? {
+                                let record: MvccRecord =
+                                    serde_json::from_slice(&data).map_err(|e| {
+                                        QueryError::ExecutionError(format!(
+                                            "Deserialize error: {}",
+                                            e
+                                        ))
+                                    })?;
+                                out.push((key, record));
+                            }
+                        }
+                        Ok(out)
+                    });
+                }
+            }
+        }
+
+        // General path: seed full table if needed, then scan_prefix
+        self.ensure_all_table_records_seeded(table)?;
+        let prefix = encode_table_prefix(table);
+        let entries = self.with_session(session_id, |tx| {
+            tx.scan_prefix(&prefix)
+                .map_err(|e| QueryError::ExecutionError(format!("MVCC scan error: {}", e)))
+        })?;
+        let mut out = Vec::with_capacity(entries.len());
+        for (key, data) in entries {
+            let record: MvccRecord = serde_json::from_slice(&data)
+                .map_err(|e| QueryError::ExecutionError(format!("Deserialize error: {}", e)))?;
+            out.push((key, record));
+        }
+        Ok(out)
     }
 
     // ==================== Session management ====================
@@ -143,14 +368,14 @@ impl MvccTableStorage {
         session_id
     }
 
-    /// Commit a transaction. Persists all writes to the durable amorphic store
-    /// atomically via a WAL batch transaction, then commits the MVCC transaction.
-    ///
-    /// The WAL batch is committed BEFORE the MVCC commit. If the process crashes
-    /// after WAL commit but before MVCC commit, recovery will replay the WAL entries
-    /// and bootstrap_from_amorphic will seed the MVCC store correctly on restart.
+    /// Commit a transaction:
+    /// 1. Validates SI/SSI conflicts under `commit_lock` BEFORE touching `AmorphicTableStorage`.
+    /// 2. Persists all inserts/updates/deletes atomically under a single `AmorphicTableStorage`
+    ///    write lock (`apply_atomic_batch_deferred`) so concurrent sessions never collide on
+    ///    `"Batch already active"`.
+    /// 3. Records newly assigned `amorphic_id`s on inserted MVCC records and in `table_id_map`,
+    ///    publishes `commit_ts`, drops `commit_lock`, and waits on shared `GroupSync` `fsync`.
     pub fn commit_transaction(&self, session_id: &str) -> QueryResult<()> {
-        // Remove the session (acquires sessions lock first, then drops it)
         let session_mutex = {
             let mut sessions = crate::lock_util::mutex_lock(&self.sessions);
             sessions.remove(session_id).ok_or_else(|| {
@@ -166,128 +391,159 @@ impl MvccTableStorage {
             QueryError::ExecutionError("Transaction already consumed".to_string())
         })?;
 
-        // Snapshot the write set BEFORE commit (commit consumes the transaction)
-        let write_set: Vec<(Vec<u8>, Option<Vec<u8>>)> = tx
-            .write_set()
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
-
-        // If the write set is empty, just commit the MVCC transaction
-        if write_set.is_empty() {
+        if tx.write_set().is_empty() {
             tx.commit()
                 .map_err(|e| QueryError::ExecutionError(format!("MVCC commit failed: {}", e)))?;
             return Ok(());
         }
 
-        // Begin atomic WAL batch BEFORE MVCC commit
-        self.amorphic.begin_batch()?;
+        let mut pending_sync: Option<DeferredBatchSync> = None;
 
-        // Persist all writes within the batch
-        let mut batch_ok = true;
-        for (key, value) in &write_set {
-            if let Some(null_pos) = key.iter().position(|&b| b == 0) {
+        tx.commit_with_hook(|write_set| {
+            let mut ordered_keys: Vec<Vec<u8>> = Vec::with_capacity(write_set.len());
+            let mut parsed_inserts: Vec<(usize, String, u64, MvccRecord)> = Vec::new();
+            let mut deleted_tracking: Vec<(String, u64, Option<u64>)> = Vec::new();
+            let mut updated_col_tracking: Vec<(String, String, u64)> = Vec::new();
+            let mut batch_ops: Vec<AtomicBatchOp> = Vec::with_capacity(write_set.len());
+
+            for (key, value) in write_set {
+                let Some(null_pos) = key.iter().position(|&b| b == 0) else {
+                    continue;
+                };
                 let table = std::str::from_utf8(&key[..null_pos]).unwrap_or("");
                 if table.is_empty() {
                     continue;
                 }
+                let Some(mvcc_id) = decode_record_id(key, table) else {
+                    continue;
+                };
 
                 match value {
                     Some(data) => {
-                        // INSERT or UPDATE
-                        if let Ok(record) = serde_json::from_slice::<MvccRecord>(data) {
-                            let row = record.to_row_data();
-                            if let Some(existing_id) = record.amorphic_id {
-                                // UPDATE: update fields on existing amorphic record
-                                let updates: HashMap<String, joule_db_amorphic::Value> = row
-                                    .columns
-                                    .iter()
-                                    .zip(row.values.iter())
-                                    .map(|(col, val)| {
-                                        (
-                                            col.clone(),
-                                            crate::amorphic_adapter::ast_to_amorphic_value(val),
-                                        )
-                                    })
-                                    .collect();
-                                if let Err(e) =
-                                    self.amorphic.batch_update_record(existing_id, updates)
+                        let record = serde_json::from_slice::<MvccRecord>(data)
+                            .map_err(|e| format!("Corrupt MVCC record on commit: {e}"))?;
+                        let row = record.to_row_data();
+                        if let Some(existing_id) = record.amorphic_id {
+                            // Detect which columns actually changed relative to prior committed value
+                            if let Some(prev_bytes) = self.get_committed_value(key) {
+                                if let Ok(prev_rec) =
+                                    serde_json::from_slice::<MvccRecord>(&prev_bytes)
                                 {
-                                    eprintln!("WAL batch update error: {}", e);
-                                    batch_ok = false;
-                                    break;
-                                }
-                            } else {
-                                // INSERT: new record
-                                if let Err(e) = self.amorphic.batch_insert(table, &row) {
-                                    eprintln!("WAL batch insert error: {}", e);
-                                    batch_ok = false;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    None => {
-                        // DELETE (tombstone) — find the amorphic record ID from the
-                        // original MVCC value (before the delete was applied)
-                        let record_id_bytes = &key[null_pos + 1..];
-                        if record_id_bytes.len() == 8 {
-                            let mvcc_record_id =
-                                u64::from_be_bytes(record_id_bytes.try_into().unwrap_or([0; 8]));
-                            // Look up the original record to get the amorphic_id
-                            if let Some(original_data) = self.get_committed_value(key) {
-                                if let Ok(original) =
-                                    serde_json::from_slice::<MvccRecord>(&original_data)
-                                {
-                                    if let Some(amorphic_id) = original.amorphic_id {
-                                        if let Err(e) =
-                                            self.amorphic.batch_delete_record(amorphic_id)
-                                        {
-                                            eprintln!("WAL batch delete error: {}", e);
-                                            batch_ok = false;
-                                            break;
+                                    for ((col, new_v), old_v) in row
+                                        .columns
+                                        .iter()
+                                        .zip(row.values.iter())
+                                        .zip(prev_rec.values.iter())
+                                    {
+                                        if new_v != old_v {
+                                            updated_col_tracking.push((
+                                                table.to_string(),
+                                                col.clone(),
+                                                mvcc_id,
+                                            ));
                                         }
                                     }
                                 }
                             }
-                            let _ = mvcc_record_id; // suppress unused warning
+                            let updates: HashMap<String, joule_db_amorphic::Value> = row
+                                .columns
+                                .iter()
+                                .zip(row.values.iter())
+                                .map(|(col, val)| {
+                                    (
+                                        col.clone(),
+                                        crate::amorphic_adapter::ast_to_amorphic_value(val),
+                                    )
+                                })
+                                .collect();
+                            batch_ops.push(AtomicBatchOp::Update {
+                                id: existing_id,
+                                updates,
+                            });
+                        } else {
+                            let key_idx = ordered_keys.len();
+                            ordered_keys.push(key.clone());
+                            parsed_inserts.push((key_idx, table.to_string(), mvcc_id, record));
+                            batch_ops.push(AtomicBatchOp::Insert {
+                                key_idx,
+                                table: table.to_string(),
+                                row,
+                            });
+                        }
+                    }
+                    None => {
+                        let amorphic_id = self
+                            .get_committed_value(key)
+                            .and_then(|orig| serde_json::from_slice::<MvccRecord>(&orig).ok())
+                            .and_then(|r| r.amorphic_id);
+                        if let Some(aid) = amorphic_id {
+                            batch_ops.push(AtomicBatchOp::Delete { id: aid });
+                        }
+                        deleted_tracking.push((table.to_string(), mvcc_id, amorphic_id));
+                    }
+                }
+            }
+
+            let (assigned_ids, sync_handle) = self
+                .amorphic
+                .apply_atomic_batch_deferred(batch_ops)
+                .map_err(|e| format!("WAL batch error: {e}"))?;
+            pending_sync = Some(sync_handle);
+
+            // Rewrite newly inserted MVCC records so `amorphic_id` is populated before publish!
+            let mut rewritten: Vec<(Vec<u8>, Vec<u8>)> = Vec::with_capacity(assigned_ids.len());
+            if !assigned_ids.is_empty() {
+                let mut id_lookup: HashMap<usize, u64> = HashMap::with_capacity(assigned_ids.len());
+                for (k_idx, real_id) in assigned_ids {
+                    id_lookup.insert(k_idx, real_id);
+                }
+                let mut map = crate::lock_util::mutex_lock(&self.table_id_map);
+                for (k_idx, tbl, mvcc_id, mut rec) in parsed_inserts {
+                    if let Some(&real_id) = id_lookup.get(&k_idx) {
+                        rec.amorphic_id = Some(real_id);
+                        map.entry(tbl).or_default().insert(real_id, mvcc_id);
+                        if let Ok(bytes) = serde_json::to_vec(&rec) {
+                            rewritten.push((ordered_keys[k_idx].clone(), bytes));
                         }
                     }
                 }
             }
-        }
 
-        if !batch_ok {
-            // Rollback the WAL batch
-            let _ = self.amorphic.rollback_batch();
-            // Rollback the MVCC transaction
-            let _ = tx.rollback();
-            return Err(QueryError::ExecutionError(
-                "Transaction commit failed: WAL batch error".to_string(),
-            ));
-        }
+            if !deleted_tracking.is_empty() {
+                let mut map = crate::lock_util::mutex_lock(&self.table_id_map);
+                let mut del = crate::lock_util::mutex_lock(&self.mvcc_deleted_ids);
+                for (tbl, mid, aid_opt) in deleted_tracking {
+                    if let Some(aid) = aid_opt {
+                        if let Some(tmap) = map.get_mut(&tbl) {
+                            tmap.remove(&aid);
+                        }
+                    }
+                    del.entry(tbl).or_default().insert(mid);
+                }
+            }
 
-        // Commit the WAL batch (atomic durability point — fsync)
-        if let Err(e) = self.amorphic.commit_batch() {
-            let _ = self.amorphic.rollback_batch();
-            let _ = tx.rollback();
-            return Err(QueryError::ExecutionError(format!(
-                "Transaction commit failed: WAL commit error: {}",
-                e
-            )));
-        }
+            if !updated_col_tracking.is_empty() {
+                let mut upd = crate::lock_util::mutex_lock(&self.mvcc_col_updated_ids);
+                for (tbl, col, mid) in updated_col_tracking {
+                    upd.entry((tbl, col)).or_default().insert(mid);
+                }
+            }
 
-        // Now commit the MVCC transaction (in-memory finalize)
-        tx.commit().map_err(|e| {
-            // WAL is already committed, so data is durable.
-            // MVCC commit failure here is unexpected but data is safe.
-            QueryError::ExecutionError(format!("MVCC commit failed (data is durable): {}", e))
-        })?;
+            Ok(rewritten)
+        })
+        .map_err(|e| QueryError::ExecutionError(format!("MVCC commit failed: {}", e)))?;
+
+        // Wait for GroupSync fsync outside `commit_lock` so concurrent committers coalesce!
+        if let Some(sync_handle) = pending_sync {
+            sync_handle.wait_durable()?;
+        }
 
         Ok(())
     }
 
     /// Rollback a transaction, discarding all buffered writes.
+    /// Treats an already-aborted transaction (e.g. after a statement-level conflict) as `Ok(())`
+    /// to match PostgreSQL `ROLLBACK` semantics.
     pub fn rollback_transaction(&self, session_id: &str) -> QueryResult<()> {
         let session_mutex = {
             let mut sessions = crate::lock_util::mutex_lock(&self.sessions);
@@ -304,10 +560,13 @@ impl MvccTableStorage {
             QueryError::ExecutionError("Transaction already consumed".to_string())
         })?;
 
-        tx.rollback()
-            .map_err(|e| QueryError::ExecutionError(format!("MVCC rollback failed: {}", e)))?;
-
-        Ok(())
+        match tx.rollback() {
+            Ok(()) | Err(joule_db_core::error::TransactionError::AlreadyAborted { .. }) => Ok(()),
+            Err(e) => Err(QueryError::ExecutionError(format!(
+                "MVCC rollback failed: {}",
+                e
+            ))),
+        }
     }
 
     // ==================== Savepoint operations ====================
@@ -328,7 +587,6 @@ impl MvccTableStorage {
                 Err("No active transaction".to_string())
             }
         } else {
-            // No explicit transaction — savepoint is a no-op (auto-commit mode)
             Ok(())
         }
     }
@@ -338,23 +596,19 @@ impl MvccTableStorage {
         let sessions = crate::lock_util::mutex_lock(&self.sessions);
         if let Some(session_mutex) = sessions.get(session_id) {
             let mut session = crate::lock_util::mutex_lock(session_mutex);
-            // Find the savepoint (most recent with matching name)
             let idx = session
                 .savepoints
                 .iter()
                 .rposition(|sp| sp.name == name)
                 .ok_or_else(|| format!("SAVEPOINT '{}' not found", name))?;
-            // Clone the snapshot before truncating
             let snapshot = session.savepoints[idx].clone();
-            // Pop all savepoints after this one (they're invalidated)
             session.savepoints.truncate(idx + 1);
-            // Restore the transaction's write_set
             if let Some(ref mut tx) = session.tx {
                 tx.restore_write_set(snapshot.write_set_snapshot);
             }
             Ok(())
         } else {
-            Ok(()) // No explicit transaction
+            Ok(())
         }
     }
 
@@ -380,26 +634,30 @@ impl MvccTableStorage {
     /// Scan all rows for a table, respecting transaction isolation.
     pub fn scan(&self, session_id: Option<&str>, table: &str) -> QueryResult<Vec<RowData>> {
         match session_id {
-            Some(sid) => self.with_session(sid, |tx| {
-                let prefix = encode_table_prefix(table);
-                let entries = tx
-                    .scan_prefix(&prefix)
-                    .map_err(|e| QueryError::ExecutionError(format!("MVCC scan error: {}", e)))?;
-                let mut rows = Vec::with_capacity(entries.len());
-                for (_key, data) in entries {
-                    let record: MvccRecord = serde_json::from_slice(&data).map_err(|e| {
-                        QueryError::ExecutionError(format!("Deserialize error: {}", e))
+            Some(sid) => {
+                self.ensure_all_table_records_seeded(table)?;
+                self.with_session(sid, |tx| {
+                    let prefix = encode_table_prefix(table);
+                    let entries = tx.scan_prefix(&prefix).map_err(|e| {
+                        QueryError::ExecutionError(format!("MVCC scan error: {}", e))
                     })?;
-                    rows.push(record.to_row_data());
-                }
-                Ok(rows)
-            }),
+                    let mut rows = Vec::with_capacity(entries.len());
+                    for (_key, data) in entries {
+                        let record: MvccRecord = serde_json::from_slice(&data).map_err(|e| {
+                            QueryError::ExecutionError(format!("Deserialize error: {}", e))
+                        })?;
+                        rows.push(record.to_row_data());
+                    }
+                    Ok(rows)
+                })
+            }
             None => self.amorphic.scan(table),
         }
     }
 
     /// Time-travel scan: read rows visible at a specific MVCC timestamp.
     pub fn scan_at_timestamp(&self, table: &str, ts: u64) -> QueryResult<Vec<RowData>> {
+        self.ensure_all_table_records_seeded(table)?;
         let prefix = encode_table_prefix(table);
         let entries = self.tx_manager.scan_prefix_at(&prefix, ts).map_err(|e| {
             QueryError::ExecutionError(format!("MVCC time-travel scan error: {}", e))
@@ -417,7 +675,7 @@ impl MvccTableStorage {
     pub fn insert(&self, session_id: Option<&str>, table: &str, row: &RowData) -> QueryResult<()> {
         match session_id {
             Some(sid) => self.with_session(sid, |tx| {
-                let record_id = self.next_record_id.fetch_add(1, Ordering::Relaxed);
+                let record_id = self.next_temp_id.fetch_add(1, Ordering::Relaxed);
                 let key = encode_record_key(table, record_id);
                 let record = MvccRecord::from_row_data(row);
                 let data = serde_json::to_vec(&record)
@@ -426,7 +684,16 @@ impl MvccTableStorage {
                     .map_err(|e| QueryError::ExecutionError(format!("MVCC put error: {}", e)))?;
                 Ok(())
             }),
-            None => self.amorphic.insert(table, row),
+            None => {
+                let amorphic_id = self.amorphic.insert_returning_id(table, row)?;
+                // If an explicit MVCC session is concurrently active, stamp this auto-commit
+                // row at the current MVCC timestamp so older snapshots do not see it prematurely.
+                if self.active_session_count() > 0 {
+                    let ts = advance_mvcc_timestamp();
+                    let _ = self.ensure_single_record_seeded(table, amorphic_id, row, ts);
+                }
+                Ok(())
+            }
         }
     }
 
@@ -440,21 +707,12 @@ impl MvccTableStorage {
     ) -> QueryResult<usize> {
         match session_id {
             Some(sid) => {
-                // Scan, filter, update in MVCC
-                let prefix = encode_table_prefix(table);
-                let entries = self.with_session(sid, |tx| {
-                    tx.scan_prefix(&prefix)
-                        .map_err(|e| QueryError::ExecutionError(format!("MVCC scan error: {}", e)))
-                })?;
-
+                let candidates = self.resolve_session_candidates(sid, table, predicate)?;
                 let mut updated = 0;
-                for (key, data) in entries {
-                    let record: MvccRecord = serde_json::from_slice(&data).map_err(|e| {
-                        QueryError::ExecutionError(format!("Deserialize error: {}", e))
-                    })?;
+                for (key, record) in candidates {
                     let row = record.to_row_data();
                     let matches = predicate
-                        .map(|p| evaluate_predicate(&row, p))
+                        .map(|p| evaluate_mvcc_predicate(&row, p))
                         .unwrap_or(true);
 
                     if matches {
@@ -482,12 +740,17 @@ impl MvccTableStorage {
                 }
                 Ok(updated)
             }
-            None => self.amorphic.update(table, assignments, predicate),
+            None => {
+                let cnt = self.amorphic.update(table, assignments, predicate)?;
+                if cnt > 0 {
+                    self.on_external_table_change(table);
+                }
+                Ok(cnt)
+            }
         }
     }
 
     /// Update matching rows by evaluating SET expressions per-row.
-    /// This allows expressions like `SET age = age + 1` to reference column values.
     pub fn update_with_expressions(
         &self,
         session_id: Option<&str>,
@@ -498,31 +761,21 @@ impl MvccTableStorage {
     ) -> QueryResult<usize> {
         match session_id {
             Some(sid) => {
-                let prefix = encode_table_prefix(table);
-                let entries = self.with_session(sid, |tx| {
-                    tx.scan_prefix(&prefix)
-                        .map_err(|e| QueryError::ExecutionError(format!("MVCC scan error: {}", e)))
-                })?;
-
+                let candidates = self.resolve_session_candidates(sid, table, predicate)?;
                 let mut updated = 0;
-                for (key, data) in entries {
-                    let record: MvccRecord = serde_json::from_slice(&data).map_err(|e| {
-                        QueryError::ExecutionError(format!("Deserialize error: {}", e))
-                    })?;
+                for (key, record) in candidates {
                     let row = record.to_row_data();
                     let matches = predicate
-                        .map(|p| evaluate_predicate(&row, p))
+                        .map(|p| evaluate_mvcc_predicate(&row, p))
                         .unwrap_or(true);
 
                     if matches {
-                        // Convert row to json for expression evaluation
                         let json_row: Vec<serde_json::Value> = row
                             .values
                             .iter()
                             .map(|v| crate::json_ops::ast_value_to_json(v))
                             .collect();
 
-                        // Evaluate each SET expression with row context
                         let mut new_values = row.values.clone();
                         for (col, expr) in assignments {
                             if let Some(idx) = row.columns.iter().position(|c| c == col) {
@@ -554,9 +807,15 @@ impl MvccTableStorage {
                 }
                 Ok(updated)
             }
-            None => self
-                .amorphic
-                .update_with_expressions(table, assignments, predicate, params),
+            None => {
+                let cnt = self
+                    .amorphic
+                    .update_with_expressions(table, assignments, predicate, params)?;
+                if cnt > 0 {
+                    self.on_external_table_change(table);
+                }
+                Ok(cnt)
+            }
         }
     }
 
@@ -569,20 +828,12 @@ impl MvccTableStorage {
     ) -> QueryResult<usize> {
         match session_id {
             Some(sid) => {
-                let prefix = encode_table_prefix(table);
-                let entries = self.with_session(sid, |tx| {
-                    tx.scan_prefix(&prefix)
-                        .map_err(|e| QueryError::ExecutionError(format!("MVCC scan error: {}", e)))
-                })?;
-
+                let candidates = self.resolve_session_candidates(sid, table, predicate)?;
                 let mut deleted = 0;
-                for (key, data) in entries {
-                    let record: MvccRecord = serde_json::from_slice(&data).map_err(|e| {
-                        QueryError::ExecutionError(format!("Deserialize error: {}", e))
-                    })?;
+                for (key, record) in candidates {
                     let row = record.to_row_data();
                     let matches = predicate
-                        .map(|p| evaluate_predicate(&row, p))
+                        .map(|p| evaluate_mvcc_predicate(&row, p))
                         .unwrap_or(true);
 
                     if matches {
@@ -597,7 +848,13 @@ impl MvccTableStorage {
                 }
                 Ok(deleted)
             }
-            None => self.amorphic.delete(table, predicate),
+            None => {
+                let cnt = self.amorphic.delete(table, predicate)?;
+                if cnt > 0 {
+                    self.on_external_table_change(table);
+                }
+                Ok(cnt)
+            }
         }
     }
 
@@ -612,21 +869,13 @@ impl MvccTableStorage {
     ) -> QueryResult<(usize, Vec<Vec<serde_json::Value>>)> {
         match session_id {
             Some(sid) => {
-                let prefix = encode_table_prefix(table);
-                let entries = self.with_session(sid, |tx| {
-                    tx.scan_prefix(&prefix)
-                        .map_err(|e| QueryError::ExecutionError(format!("MVCC scan error: {}", e)))
-                })?;
-
+                let candidates = self.resolve_session_candidates(sid, table, predicate)?;
                 let mut updated = 0;
                 let mut returned_rows = Vec::new();
-                for (key, data) in entries {
-                    let record: MvccRecord = serde_json::from_slice(&data).map_err(|e| {
-                        QueryError::ExecutionError(format!("Deserialize error: {}", e))
-                    })?;
+                for (key, record) in candidates {
                     let row = record.to_row_data();
                     let matches = predicate
-                        .map(|p| evaluate_predicate(&row, p))
+                        .map(|p| evaluate_mvcc_predicate(&row, p))
                         .unwrap_or(true);
 
                     if matches {
@@ -673,12 +922,18 @@ impl MvccTableStorage {
                 }
                 Ok((updated, returned_rows))
             }
-            None => self.amorphic.update_with_expressions_returning(
-                table,
-                assignments,
-                predicate,
-                params,
-            ),
+            None => {
+                let res = self.amorphic.update_with_expressions_returning(
+                    table,
+                    assignments,
+                    predicate,
+                    params,
+                )?;
+                if res.0 > 0 {
+                    self.on_external_table_change(table);
+                }
+                Ok(res)
+            }
         }
     }
 
@@ -691,21 +946,13 @@ impl MvccTableStorage {
     ) -> QueryResult<(usize, Vec<Vec<serde_json::Value>>)> {
         match session_id {
             Some(sid) => {
-                let prefix = encode_table_prefix(table);
-                let entries = self.with_session(sid, |tx| {
-                    tx.scan_prefix(&prefix)
-                        .map_err(|e| QueryError::ExecutionError(format!("MVCC scan error: {}", e)))
-                })?;
-
+                let candidates = self.resolve_session_candidates(sid, table, predicate)?;
                 let mut deleted = 0;
                 let mut returned_rows = Vec::new();
-                for (key, data) in entries {
-                    let record: MvccRecord = serde_json::from_slice(&data).map_err(|e| {
-                        QueryError::ExecutionError(format!("Deserialize error: {}", e))
-                    })?;
+                for (key, record) in candidates {
                     let row = record.to_row_data();
                     let matches = predicate
-                        .map(|p| evaluate_predicate(&row, p))
+                        .map(|p| evaluate_mvcc_predicate(&row, p))
                         .unwrap_or(true);
 
                     if matches {
@@ -727,14 +974,19 @@ impl MvccTableStorage {
                 }
                 Ok((deleted, returned_rows))
             }
-            None => self.amorphic.delete_returning(table, predicate),
+            None => {
+                let res = self.amorphic.delete_returning(table, predicate)?;
+                if res.0 > 0 {
+                    self.on_external_table_change(table);
+                }
+                Ok(res)
+            }
         }
     }
 
     // ==================== Session reaper ====================
 
     /// Clean up sessions that have been idle longer than `timeout`.
-    /// Returns the number of sessions cleaned up.
     pub fn cleanup_stale_sessions(&self, timeout: std::time::Duration) -> usize {
         let mut sessions = crate::lock_util::mutex_lock(&self.sessions);
         let stale: Vec<String> = sessions
@@ -770,7 +1022,6 @@ impl MvccTableStorage {
     // ==================== Internal helpers ====================
 
     /// Look up the most recent committed value for a key in the MVCC store.
-    /// Used to find the amorphic_id for a record being deleted.
     fn get_committed_value(&self, key: &[u8]) -> Option<Vec<u8>> {
         self.tx_manager.get(key)
     }
@@ -787,43 +1038,11 @@ impl MvccTableStorage {
                 session_id,
             ))
         })?;
-        let mut session = crate::lock_util::mutex_lock(&session_mutex);
+        let mut session = crate::lock_util::mutex_lock(session_mutex);
         let tx = session.tx.as_mut().ok_or_else(|| {
             QueryError::ExecutionError("Transaction already consumed".to_string())
         })?;
         f(tx)
-    }
-}
-
-/// Minimal predicate evaluator for MVCC-side filtering.
-/// Handles column = literal comparisons and AND/OR.
-fn evaluate_predicate(row: &RowData, expr: &Expression) -> bool {
-    match expr {
-        Expression::Binary { left, op, right } => {
-            use joule_db_query::ast::Operator;
-            match op {
-                Operator::And => evaluate_predicate(row, left) && evaluate_predicate(row, right),
-                Operator::Or => evaluate_predicate(row, left) || evaluate_predicate(row, right),
-                _ => {
-                    let left_val = eval_expr(row, left);
-                    let right_val = eval_expr(row, right);
-                    match op {
-                        Operator::Eq => left_val == right_val,
-                        Operator::Ne => left_val != right_val,
-                        _ => true, // Other ops pass through
-                    }
-                }
-            }
-        }
-        _ => true,
-    }
-}
-
-fn eval_expr(row: &RowData, expr: &Expression) -> AstValue {
-    match expr {
-        Expression::Column(name) => row.get(name).cloned().unwrap_or(AstValue::Null),
-        Expression::Literal(v) => v.clone(),
-        _ => AstValue::Null,
     }
 }
 
@@ -854,16 +1073,14 @@ mod tests {
 
     #[test]
     fn test_auto_commit_insert_and_scan() {
-        let (_dir, amorphic, mvcc) = setup_with_table("users", &["name", "age"]);
+        let (_dir, _amorphic, mvcc) = setup_with_table("users", &["name", "age"]);
 
-        // Auto-commit insert (session_id = None)
         let row = RowData::new(
             vec!["name".into(), "age".into()],
             vec![AstValue::String("Alice".into()), AstValue::Int(30)],
         );
         mvcc.insert(None, "users", &row).unwrap();
 
-        // Auto-commit scan
         let rows = mvcc.scan(None, "users").unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].get("name"), Some(&AstValue::String("Alice".into())));
@@ -875,25 +1092,20 @@ mod tests {
 
         let sid = mvcc.begin_transaction();
 
-        // Insert within transaction
         let row = RowData::new(
             vec!["name".into(), "age".into()],
             vec![AstValue::String("Bob".into()), AstValue::Int(25)],
         );
         mvcc.insert(Some(&sid), "users", &row).unwrap();
 
-        // Visible within same session
         let rows = mvcc.scan(Some(&sid), "users").unwrap();
         assert_eq!(rows.len(), 1);
 
-        // Not visible via auto-commit (amorphic) until committed
         let amorphic_rows = amorphic.scan("users").unwrap();
         assert_eq!(amorphic_rows.len(), 0);
 
-        // Commit
         mvcc.commit_transaction(&sid).unwrap();
 
-        // Now visible via amorphic
         let amorphic_rows = amorphic.scan("users").unwrap();
         assert_eq!(amorphic_rows.len(), 1);
     }
@@ -907,14 +1119,11 @@ mod tests {
         let row = RowData::new(vec!["name".into()], vec![AstValue::String("Temp".into())]);
         mvcc.insert(Some(&sid), "users", &row).unwrap();
 
-        // Visible in session
         let rows = mvcc.scan(Some(&sid), "users").unwrap();
         assert_eq!(rows.len(), 1);
 
-        // Rollback
         mvcc.rollback_transaction(&sid).unwrap();
 
-        // Session gone
         assert!(mvcc.scan(Some(&sid), "users").is_err());
     }
 
@@ -922,27 +1131,19 @@ mod tests {
     fn test_snapshot_isolation() {
         let (_dir, _amorphic, mvcc) = setup_with_table("t", &["val"]);
 
-        // Insert initial data via auto-commit through amorphic
         let row = RowData::new(vec!["val".into()], vec![AstValue::Int(1)]);
         mvcc.insert(None, "t", &row).unwrap();
 
-        // Session A starts — sees 1 row (via amorphic since no MVCC data yet)
         let sid_a = mvcc.begin_transaction();
-
-        // Bootstrap MVCC so session A can see the data
         mvcc.bootstrap_from_amorphic(&["t".to_string()]).unwrap();
-
-        // Session B starts
         let sid_b = mvcc.begin_transaction();
 
-        // Session A inserts
         let row2 = RowData::new(vec!["val".into()], vec![AstValue::Int(2)]);
         mvcc.insert(Some(&sid_a), "t", &row2).unwrap();
         mvcc.commit_transaction(&sid_a).unwrap();
 
-        // Session B should NOT see session A's insert (snapshot isolation)
         let rows_b = mvcc.scan(Some(&sid_b), "t").unwrap();
-        assert_eq!(rows_b.len(), 1); // Only the bootstrapped row
+        assert_eq!(rows_b.len(), 1);
         assert_eq!(rows_b[0].get("val"), Some(&AstValue::Int(1)));
 
         mvcc.rollback_transaction(&sid_b).unwrap();
@@ -952,21 +1153,17 @@ mod tests {
     fn test_write_write_conflict() {
         let (_dir, _amorphic, mvcc) = setup_with_table("t", &["val"]);
 
-        // Bootstrap a record
         mvcc.bootstrap_from_amorphic(&["t".to_string()]).ok();
 
         let sid_a = mvcc.begin_transaction();
         let sid_b = mvcc.begin_transaction();
 
-        // Session A inserts
         let row = RowData::new(vec!["val".into()], vec![AstValue::Int(1)]);
         mvcc.insert(Some(&sid_a), "t", &row).unwrap();
 
-        // Session B inserts different key — no conflict (different record IDs)
         let row2 = RowData::new(vec!["val".into()], vec![AstValue::Int(2)]);
         mvcc.insert(Some(&sid_b), "t", &row2).unwrap();
 
-        // Both can commit (different keys)
         mvcc.commit_transaction(&sid_a).unwrap();
         mvcc.commit_transaction(&sid_b).unwrap();
     }
@@ -975,7 +1172,6 @@ mod tests {
     fn test_bootstrap_from_amorphic() {
         let (_dir, amorphic, mvcc) = setup_with_table("users", &["name", "age"]);
 
-        // Insert data via amorphic
         amorphic
             .insert(
                 "users",
@@ -995,13 +1191,17 @@ mod tests {
             )
             .unwrap();
 
-        // Bootstrap
         let count = mvcc
             .bootstrap_from_amorphic(&["users".to_string()])
             .unwrap();
         assert_eq!(count, 2);
+        // Second call is idempotent (0 duplicates)
+        assert_eq!(
+            mvcc.bootstrap_from_amorphic(&["users".to_string()])
+                .unwrap(),
+            0
+        );
 
-        // MVCC transaction should see bootstrapped data
         let sid = mvcc.begin_transaction();
         let rows = mvcc.scan(Some(&sid), "users").unwrap();
         assert_eq!(rows.len(), 2);
@@ -1017,7 +1217,6 @@ mod tests {
 
         assert_eq!(mvcc.active_session_count(), 2);
 
-        // With zero timeout, all sessions are stale
         let cleaned = mvcc.cleanup_stale_sessions(std::time::Duration::ZERO);
         assert_eq!(cleaned, 2);
         assert_eq!(mvcc.active_session_count(), 0);
@@ -1031,10 +1230,6 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // ==================== Durability tests ====================
-
-    /// Helper: create a fresh MvccTableStorage from an existing directory path
-    /// (simulates reopening after crash/restart).
     fn reopen_from_path(path: &std::path::Path) -> (Arc<AmorphicTableStorage>, MvccTableStorage) {
         let store = DurableAmorphicStore::open(path).unwrap();
         let amorphic = Arc::new(AmorphicTableStorage::new(store));
@@ -1046,7 +1241,6 @@ mod tests {
     fn test_explicit_tx_commit_durable() {
         let dir = TempDir::new().unwrap();
 
-        // Phase 1: BEGIN → INSERT → COMMIT
         {
             let store = DurableAmorphicStore::open(dir.path()).unwrap();
             let amorphic = Arc::new(AmorphicTableStorage::new(store));
@@ -1065,7 +1259,6 @@ mod tests {
             mvcc.commit_transaction(&sid).unwrap();
         }
 
-        // Phase 2: Reopen from same path → verify data present
         {
             let (amorphic, _mvcc) = reopen_from_path(dir.path());
             let rows = amorphic.scan("users").unwrap();
@@ -1079,7 +1272,6 @@ mod tests {
     fn test_explicit_tx_rollback_not_durable() {
         let dir = TempDir::new().unwrap();
 
-        // Phase 1: BEGIN → INSERT → ROLLBACK
         {
             let store = DurableAmorphicStore::open(dir.path()).unwrap();
             let amorphic = Arc::new(AmorphicTableStorage::new(store));
@@ -1093,7 +1285,6 @@ mod tests {
             mvcc.rollback_transaction(&sid).unwrap();
         }
 
-        // Phase 2: Reopen → verify data absent
         {
             let (amorphic, _mvcc) = reopen_from_path(dir.path());
             let rows = amorphic.scan("users").unwrap();
@@ -1105,7 +1296,6 @@ mod tests {
     fn test_crash_before_commit_loses_data() {
         let dir = TempDir::new().unwrap();
 
-        // Phase 1: BEGIN → INSERT (NO COMMIT) → drop (simulates crash)
         {
             let store = DurableAmorphicStore::open(dir.path()).unwrap();
             let amorphic = Arc::new(AmorphicTableStorage::new(store));
@@ -1116,10 +1306,8 @@ mod tests {
             let sid = mvcc.begin_transaction();
             let row = RowData::new(vec!["name".into()], vec![AstValue::String("Lost".into())]);
             mvcc.insert(Some(&sid), "users", &row).unwrap();
-            // NO COMMIT — drop simulates crash
         }
 
-        // Phase 2: Reopen → verify data absent
         {
             let (amorphic, _mvcc) = reopen_from_path(dir.path());
             let rows = amorphic.scan("users").unwrap();
@@ -1131,7 +1319,6 @@ mod tests {
     fn test_multi_row_transaction_atomicity() {
         let dir = TempDir::new().unwrap();
 
-        // Phase 1: BEGIN → INSERT 3 rows → COMMIT
         {
             let store = DurableAmorphicStore::open(dir.path()).unwrap();
             let amorphic = Arc::new(AmorphicTableStorage::new(store));
@@ -1152,7 +1339,6 @@ mod tests {
             mvcc.commit_transaction(&sid).unwrap();
         }
 
-        // Phase 2: Reopen → all 3 rows present
         {
             let (amorphic, _mvcc) = reopen_from_path(dir.path());
             let rows = amorphic.scan("items").unwrap();
@@ -1164,7 +1350,6 @@ mod tests {
     fn test_delete_in_transaction_durable() {
         let dir = TempDir::new().unwrap();
 
-        // Phase 1: Auto-commit INSERT → BEGIN → DELETE → COMMIT
         {
             let store = DurableAmorphicStore::open(dir.path()).unwrap();
             let amorphic = Arc::new(AmorphicTableStorage::new(store));
@@ -1172,17 +1357,13 @@ mod tests {
 
             amorphic.create_table("t", &["name".into()]).unwrap();
 
-            // Auto-commit insert (goes directly to amorphic)
             let row = RowData::new(
                 vec!["name".into()],
                 vec![AstValue::String("ToDelete".into())],
             );
             mvcc.insert(None, "t", &row).unwrap();
 
-            // Bootstrap MVCC from amorphic so transaction can see the row
-            mvcc.bootstrap_from_amorphic(&["t".to_string()]).unwrap();
-
-            // Now delete within a transaction
+            // Works even WITHOUT calling `bootstrap_from_amorphic` manually!
             let sid = mvcc.begin_transaction();
             let pred = Expression::Binary {
                 left: Box::new(Expression::Column("name".into())),
@@ -1194,7 +1375,6 @@ mod tests {
             mvcc.commit_transaction(&sid).unwrap();
         }
 
-        // Phase 2: Reopen → verify record deleted
         {
             let (amorphic, _mvcc) = reopen_from_path(dir.path());
             let rows = amorphic.scan("t").unwrap();
@@ -1206,7 +1386,6 @@ mod tests {
     fn test_update_in_transaction_durable() {
         let dir = TempDir::new().unwrap();
 
-        // Phase 1: Auto-commit INSERT → BEGIN → UPDATE → COMMIT
         {
             let store = DurableAmorphicStore::open(dir.path()).unwrap();
             let amorphic = Arc::new(AmorphicTableStorage::new(store));
@@ -1222,10 +1401,6 @@ mod tests {
             );
             mvcc.insert(None, "t", &row).unwrap();
 
-            // Bootstrap so transaction can see the row
-            mvcc.bootstrap_from_amorphic(&["t".to_string()]).unwrap();
-
-            // Update within transaction
             let sid = mvcc.begin_transaction();
             let mut assignments = HashMap::new();
             assignments.insert("val".to_string(), AstValue::Int(42));
@@ -1241,7 +1416,6 @@ mod tests {
             mvcc.commit_transaction(&sid).unwrap();
         }
 
-        // Phase 2: Reopen → verify updated values
         {
             let (amorphic, _mvcc) = reopen_from_path(dir.path());
             let rows = amorphic.scan("t").unwrap();
@@ -1254,7 +1428,6 @@ mod tests {
     fn test_multi_table_tx_atomicity() {
         let dir = TempDir::new().unwrap();
 
-        // Phase 1: BEGIN → INSERT into two tables → COMMIT
         {
             let store = DurableAmorphicStore::open(dir.path()).unwrap();
             let amorphic = Arc::new(AmorphicTableStorage::new(store));
@@ -1279,7 +1452,6 @@ mod tests {
             mvcc.commit_transaction(&sid).unwrap();
         }
 
-        // Phase 2: Reopen → both tables have data
         {
             let (amorphic, _mvcc) = reopen_from_path(dir.path());
             let orders = amorphic.scan("orders").unwrap();
@@ -1297,7 +1469,6 @@ mod tests {
     fn test_auto_commit_still_works() {
         let dir = TempDir::new().unwrap();
 
-        // Phase 1: INSERT without BEGIN → drop
         {
             let store = DurableAmorphicStore::open(dir.path()).unwrap();
             let amorphic = Arc::new(AmorphicTableStorage::new(store));
@@ -1309,7 +1480,6 @@ mod tests {
             mvcc.insert(None, "t", &row).unwrap();
         }
 
-        // Phase 2: Reopen → verify data present (regression test)
         {
             let (amorphic, _mvcc) = reopen_from_path(dir.path());
             let rows = amorphic.scan("t").unwrap();
@@ -1322,7 +1492,6 @@ mod tests {
     fn test_update_in_transaction() {
         let (_dir, _amorphic, mvcc) = setup_with_table("t", &["name", "val"]);
 
-        // Insert via transaction
         let sid = mvcc.begin_transaction();
         let row = RowData::new(
             vec!["name".into(), "val".into()],
@@ -1330,7 +1499,6 @@ mod tests {
         );
         mvcc.insert(Some(&sid), "t", &row).unwrap();
 
-        // Update within same transaction
         let mut assignments = HashMap::new();
         assignments.insert("val".to_string(), AstValue::Int(42));
         let pred = Expression::Binary {
@@ -1343,7 +1511,6 @@ mod tests {
             .unwrap();
         assert_eq!(updated, 1);
 
-        // Verify update visible in session
         let rows = mvcc.scan(Some(&sid), "t").unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].get("val"), Some(&AstValue::Int(42)));
@@ -1355,7 +1522,6 @@ mod tests {
     fn test_delete_in_transaction() {
         let (_dir, _amorphic, mvcc) = setup_with_table("t", &["name"]);
 
-        // Insert two rows
         let sid = mvcc.begin_transaction();
         mvcc.insert(
             Some(&sid),
@@ -1370,7 +1536,6 @@ mod tests {
         )
         .unwrap();
 
-        // Delete one
         let pred = Expression::Binary {
             left: Box::new(Expression::Column("name".into())),
             op: joule_db_query::ast::Operator::Eq,
@@ -1379,11 +1544,159 @@ mod tests {
         let deleted = mvcc.delete(Some(&sid), "t", Some(&pred)).unwrap();
         assert_eq!(deleted, 1);
 
-        // Verify
         let rows = mvcc.scan(Some(&sid), "t").unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].get("name"), Some(&AstValue::String("keep".into())));
 
         mvcc.commit_transaction(&sid).unwrap();
+    }
+
+    #[test]
+    fn test_insert_in_tx_then_update_in_later_tx_no_duplicate_row() {
+        let (_dir, amorphic, mvcc) = setup_with_table("accounts", &["id", "balance"]);
+
+        // TX 1 inserts row (id=1, balance=100)
+        let sid1 = mvcc.begin_transaction();
+        mvcc.insert(
+            Some(&sid1),
+            "accounts",
+            &RowData::new(
+                vec!["id".into(), "balance".into()],
+                vec![AstValue::Int(1), AstValue::Int(100)],
+            ),
+        )
+        .unwrap();
+        mvcc.commit_transaction(&sid1).unwrap();
+        assert_eq!(amorphic.scan("accounts").unwrap().len(), 1);
+
+        // TX 2 updates row (id=1) -> balance=250; must NOT create a duplicate row!
+        let sid2 = mvcc.begin_transaction();
+        let mut assignments = HashMap::new();
+        assignments.insert("balance".to_string(), AstValue::Int(250));
+        let pred = Expression::Binary {
+            left: Box::new(Expression::Column("id".into())),
+            op: joule_db_query::ast::Operator::Eq,
+            right: Box::new(Expression::Literal(AstValue::Int(1))),
+        };
+        assert_eq!(
+            mvcc.update(Some(&sid2), "accounts", &assignments, Some(&pred))
+                .unwrap(),
+            1
+        );
+        mvcc.commit_transaction(&sid2).unwrap();
+
+        let rows = amorphic.scan("accounts").unwrap();
+        assert_eq!(rows.len(), 1, "UPDATE after MVCC INSERT must not duplicate row");
+        assert_eq!(rows[0].get("balance"), Some(&AstValue::Int(250)));
+    }
+
+    #[test]
+    fn test_concurrent_multithread_commit_atomic_batch_conservation() {
+        use crate::query::{QueryExecutor, QueryRequest, SimpleQueryExecutor};
+
+        let dir = TempDir::new().unwrap();
+        let store = DurableAmorphicStore::open(dir.path()).unwrap();
+        let amorphic = Arc::new(AmorphicTableStorage::new(store));
+        let exec = Arc::new(SimpleQueryExecutor::with_amorphic(amorphic));
+
+        let run_sql = |e: &SimpleQueryExecutor, sql: &str, sid: Option<String>| {
+            e.execute(&QueryRequest {
+                sql: sql.to_string(),
+                session_id: sid,
+                ..Default::default()
+            })
+        };
+
+        run_sql(
+            &exec,
+            "CREATE TABLE accounts (id BIGINT, branch_id BIGINT, balance BIGINT)",
+            None,
+        )
+        .unwrap();
+        run_sql(
+            &exec,
+            "CREATE TABLE history (tx_seq BIGINT, acct_id BIGINT, delta BIGINT)",
+            None,
+        )
+        .unwrap();
+
+        // Populate 200 accounts via COPY / bulk_copy AFTER SimpleQueryExecutor startup!
+        let copy_rows: Vec<Vec<Option<String>>> = (1..=200)
+            .map(|i| {
+                vec![
+                    Some(i.to_string()),
+                    Some(((i - 1) / 20 + 1).to_string()),
+                    Some("1000".to_string()),
+                ]
+            })
+            .collect();
+        let copied = exec
+            .bulk_copy(
+                "accounts",
+                &["id".into(), "branch_id".into(), "balance".into()],
+                &copy_rows,
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(copied, 200);
+
+        // Spawn 8 concurrent workers updating disjoint account ranges via BEGIN..UPDATE..INSERT..COMMIT
+        let mut handles = Vec::new();
+        for w in 0..8i64 {
+            let ex = exec.clone();
+            handles.push(std::thread::spawn(move || {
+                let mut local_delta = 0i64;
+                for step in 0..15i64 {
+                    let aid = w * 25 + (step % 25) + 1;
+                    let delta = if step % 2 == 0 { 50i64 } else { -20i64 };
+                    let begin_resp = ex
+                        .execute(&QueryRequest {
+                            sql: "BEGIN".into(),
+                            ..Default::default()
+                        })
+                        .unwrap();
+                    let sid = begin_resp.session_id.clone().unwrap();
+                    let upd = ex
+                        .execute(&QueryRequest {
+                            sql: format!(
+                                "UPDATE accounts SET balance = balance + ({delta}) WHERE id = {aid}"
+                            ),
+                            session_id: Some(sid.clone()),
+                            ..Default::default()
+                        })
+                        .unwrap();
+                    assert_eq!(upd.affected_rows, Some(1));
+                    ex.execute(&QueryRequest {
+                        sql: format!(
+                            "INSERT INTO history (tx_seq, acct_id, delta) VALUES ({}, {aid}, {delta})",
+                            w * 100 + step
+                        ),
+                        session_id: Some(sid.clone()),
+                        ..Default::default()
+                    })
+                    .unwrap();
+                    ex.execute(&QueryRequest {
+                        sql: "COMMIT".into(),
+                        session_id: Some(sid),
+                        ..Default::default()
+                    })
+                    .unwrap();
+                    local_delta += delta;
+                }
+                local_delta
+            }));
+        }
+
+        let total_delta: i64 = handles.into_iter().map(|h| h.join().unwrap()).sum();
+        let check = run_sql(&exec, "SELECT COUNT(*), SUM(balance) FROM accounts", None).unwrap();
+        assert_eq!(check.rows[0][0], serde_json::json!(200));
+        assert_eq!(
+            check.rows[0][1],
+            serde_json::json!(200 * 1000 + total_delta),
+            "Exact balance conservation must hold across concurrent MVCC updates after COPY"
+        );
+        let hist = run_sql(&exec, "SELECT COUNT(*), SUM(delta) FROM history", None).unwrap();
+        assert_eq!(hist.rows[0][0], serde_json::json!(8 * 15));
+        assert_eq!(hist.rows[0][1], serde_json::json!(total_delta));
     }
 }

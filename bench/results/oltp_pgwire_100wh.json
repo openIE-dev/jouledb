@@ -1,0 +1,175 @@
+{
+  "benchmark": "Concurrent Multi-Client OLTP over TCP pgwire (50% Point Read / 30% Durable Balance Update+Insert / 20% Warehouse Aggregate)",
+  "warehouses": 100,
+  "accounts_per_warehouse": 1000,
+  "total_accounts": 100000,
+  "concurrencies_tested": [
+    1,
+    4,
+    8,
+    16
+  ],
+  "duration_per_level_s": 6.0,
+  "host": "framework-128gb-0000",
+  "platform": "Linux-7.0.0-43-generic-x86_64-with-glibc2.43",
+  "cpu_count": 32,
+  "energy_source": "rapl-package",
+  "energy_evidence": "reported_j",
+  "idle_watts": 106.68,
+  "engines": {
+    "jouledb_pgwire": {
+      "engine": "jouledb_pgwire",
+      "version": "PostgreSQL 16.0 (JouleDB 0.7.0) on x86_64-linux",
+      "protocol": "PostgreSQL v3 wire (psycopg TCP)",
+      "load_seconds": 0.6074,
+      "load_joules": 70.4622,
+      "invariant_verified": true,
+      "invariant_details": {
+        "accounts_count": 100000,
+        "expected_balance_sum": 100096250,
+        "actual_balance_sum": 100096250,
+        "committed_write_txns": 6431,
+        "history_rows": 6431
+      },
+      "concurrency_runs": {
+        "c1": {
+          "concurrency": 1,
+          "elapsed_s": 6.0003,
+          "transactions_ok": 3630,
+          "point_reads_ok": 1793,
+          "write_txns_ok": 1110,
+          "warehouse_aggs_ok": 727,
+          "errors": 0,
+          "tps": 604.97,
+          "p50_ms": 1.149,
+          "p95_ms": 5.829,
+          "p99_ms": 11.069,
+          "joules": 756.9413,
+          "mj_per_txn": 208.5238
+        },
+        "c4": {
+          "concurrency": 4,
+          "elapsed_s": 6.0092,
+          "transactions_ok": 4330,
+          "point_reads_ok": 2086,
+          "write_txns_ok": 1379,
+          "warehouse_aggs_ok": 865,
+          "errors": 0,
+          "tps": 720.57,
+          "p50_ms": 2.168,
+          "p95_ms": 24.336,
+          "p99_ms": 42.552,
+          "joules": 765.9831,
+          "mj_per_txn": 176.9014
+        },
+        "c8": {
+          "concurrency": 8,
+          "elapsed_s": 6.0162,
+          "transactions_ok": 5348,
+          "point_reads_ok": 2689,
+          "write_txns_ok": 1595,
+          "warehouse_aggs_ok": 1064,
+          "errors": 0,
+          "tps": 888.93,
+          "p50_ms": 2.989,
+          "p95_ms": 31.996,
+          "p99_ms": 44.715,
+          "joules": 779.2123,
+          "mj_per_txn": 145.7016
+        },
+        "c16": {
+          "concurrency": 16,
+          "elapsed_s": 6.0252,
+          "transactions_ok": 7945,
+          "point_reads_ok": 4006,
+          "write_txns_ok": 2347,
+          "warehouse_aggs_ok": 1592,
+          "errors": 1,
+          "tps": 1318.62,
+          "p50_ms": 3.522,
+          "p95_ms": 44.437,
+          "p99_ms": 60.821,
+          "joules": 774.6354,
+          "mj_per_txn": 97.4997
+        }
+      }
+    },
+    "sqlite3_wal": {
+      "engine": "sqlite3_wal",
+      "version": "SQLite 3.53.1 (WAL, synchronous=NORMAL, embedded in-process baseline)",
+      "protocol": "Embedded in-process C API (no TCP wire overhead)",
+      "load_seconds": 0.0988,
+      "load_joules": 12.9666,
+      "invariant_verified": true,
+      "invariant_details": {
+        "accounts_count": 100000,
+        "expected_balance_sum": 103586890,
+        "actual_balance_sum": 103586890,
+        "committed_write_txns": 251303,
+        "history_rows": 251303
+      },
+      "concurrency_runs": {
+        "c1": {
+          "concurrency": 1,
+          "elapsed_s": 6.0395,
+          "transactions_ok": 113269,
+          "point_reads_ok": 56589,
+          "write_txns_ok": 34095,
+          "warehouse_aggs_ok": 22585,
+          "errors": 0,
+          "tps": 18754.83,
+          "p50_ms": 0.007,
+          "p95_ms": 0.086,
+          "p99_ms": 0.095,
+          "joules": 767.7899,
+          "mj_per_txn": 6.7785
+        },
+        "c4": {
+          "concurrency": 4,
+          "elapsed_s": 6.1829,
+          "transactions_ok": 219696,
+          "point_reads_ok": 109811,
+          "write_txns_ok": 65755,
+          "warehouse_aggs_ok": 44130,
+          "errors": 0,
+          "tps": 35532.94,
+          "p50_ms": 0.01,
+          "p95_ms": 0.089,
+          "p99_ms": 1.201,
+          "joules": 786.417,
+          "mj_per_txn": 3.5796
+        },
+        "c8": {
+          "concurrency": 8,
+          "elapsed_s": 6.2637,
+          "transactions_ok": 227204,
+          "point_reads_ok": 113847,
+          "write_txns_ok": 67892,
+          "warehouse_aggs_ok": 45465,
+          "errors": 0,
+          "tps": 36273.26,
+          "p50_ms": 0.01,
+          "p95_ms": 0.096,
+          "p99_ms": 3.255,
+          "joules": 782.0856,
+          "mj_per_txn": 3.4422
+        },
+        "c16": {
+          "concurrency": 16,
+          "elapsed_s": 6.1763,
+          "transactions_ok": 278812,
+          "point_reads_ok": 139394,
+          "write_txns_ok": 83561,
+          "warehouse_aggs_ok": 55857,
+          "errors": 0,
+          "tps": 45142.2,
+          "p50_ms": 0.009,
+          "p95_ms": 0.117,
+          "p99_ms": 6.111,
+          "joules": 700.7711,
+          "mj_per_txn": 2.5134
+        }
+      }
+    }
+  }
+}

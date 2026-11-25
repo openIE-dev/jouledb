@@ -196,6 +196,50 @@ pub fn write_file(
     Ok(batch.num_rows())
 }
 
+/// Stream a Parquet file's row groups in bounded chunks (`groups_per_chunk` row groups
+/// decoded in parallel per step) so multi-GB files (`10M–100M` rows) never materialize
+/// every Arrow `RecordBatch` in RAM simultaneously.
+pub fn for_each_parquet_batch_group<F>(
+    path: &str,
+    groups_per_chunk: usize,
+    mut on_chunk: F,
+) -> Result<(), String>
+where
+    F: FnMut(&[RecordBatch]) -> Result<bool, String>,
+{
+    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder as B;
+    use rayon::prelude::*;
+    let f = File::open(path).map_err(|e| format!("{path}: {e}"))?;
+    let groups = B::try_new(f).map_err(err)?.metadata().num_row_groups();
+    if groups == 0 {
+        return Ok(());
+    }
+    let step = groups_per_chunk.max(1);
+    let mut g0 = 0usize;
+    while g0 < groups {
+        let g1 = (g0 + step).min(groups);
+        let parts: Vec<Vec<RecordBatch>> = (g0..g1)
+            .into_par_iter()
+            .map(|g| {
+                let f = File::open(path).map_err(|e| format!("{path}: {e}"))?;
+                let rd = B::try_new(f)
+                    .map_err(err)?
+                    .with_row_groups(vec![g])
+                    .with_batch_size(65536)
+                    .build()
+                    .map_err(err)?;
+                rd.collect::<Result<Vec<_>, _>>().map_err(err)
+            })
+            .collect::<Result<_, String>>()?;
+        let chunk: Vec<RecordBatch> = parts.into_iter().flatten().collect();
+        if !chunk.is_empty() && !on_chunk(&chunk)? {
+            return Ok(());
+        }
+        g0 = g1;
+    }
+    Ok(())
+}
+
 /// Read every batch of a Parquet or Arrow IPC file.
 pub fn read_file(path: &str, fmt: FileFormat) -> Result<Vec<RecordBatch>, String> {
     let f = File::open(path).map_err(|e| format!("{path}: {e}"))?;
@@ -376,23 +420,23 @@ pub fn batches_to_columns(
                 }
                 v
             });
-            macro_rules! ints {
-                ($t:ty) => {{
+            macro_rules! ints_as {
+                ($arr_ty:ty, $dst_ty:ty, $variant:ident) => {{
                     let mut v = Vec::with_capacity(total);
                     for a in &arrays {
-                        v.extend(a.as_primitive::<$t>().values().iter().map(|&x| x as i64));
+                        v.extend(a.as_primitive::<$arr_ty>().values().iter().map(|&x| x as $dst_ty));
                     }
-                    ColData::Int(v)
+                    ColData::$variant(v)
                 }};
             }
             let data = match dt {
-                DataType::Int8 => ints!(Int8Type),
-                DataType::Int16 => ints!(Int16Type),
-                DataType::Int32 => ints!(Int32Type),
-                DataType::Int64 => ints!(Int64Type),
-                DataType::UInt8 => ints!(UInt8Type),
-                DataType::UInt16 => ints!(UInt16Type),
-                DataType::UInt32 => ints!(UInt32Type),
+                DataType::Int8 => ints_as!(Int8Type, i8, Int8),
+                DataType::Int16 => ints_as!(Int16Type, i16, Int16),
+                DataType::Int32 => ints_as!(Int32Type, i32, Int32),
+                DataType::Int64 => ints_as!(Int64Type, i64, Int),
+                DataType::UInt8 => ints_as!(UInt8Type, i16, Int16),
+                DataType::UInt16 => ints_as!(UInt16Type, i32, Int32),
+                DataType::UInt32 => ints_as!(UInt32Type, i64, Int),
                 DataType::Float32 => {
                     let mut v = Vec::with_capacity(total);
                     for a in &arrays {

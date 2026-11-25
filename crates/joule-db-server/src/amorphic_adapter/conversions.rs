@@ -355,17 +355,50 @@ pub(super) fn extract_eq_predicate(expr: &Expression) -> Option<(String, AstValu
             right,
         } => {
             if let Expression::Column(col) = left.as_ref() {
-                if let Expression::Literal(val) = right.as_ref() {
-                    return Some((col.clone(), val.clone()));
+                if let Some(val) = extract_scalar_literal(right.as_ref()) {
+                    return Some((col.clone(), val));
                 }
             }
             if let Expression::Column(col) = right.as_ref() {
-                if let Expression::Literal(val) = left.as_ref() {
-                    return Some((col.clone(), val.clone()));
+                if let Some(val) = extract_scalar_literal(left.as_ref()) {
+                    return Some((col.clone(), val));
                 }
             }
             None
         }
+        _ => None,
+    }
+}
+
+/// Extract a `field = literal` condition from either a direct equality or an `AND` conjunction.
+pub(crate) fn extract_conjunct_eq_predicate(expr: &Expression) -> Option<(String, AstValue)> {
+    if let Some(eq) = extract_eq_predicate(expr) {
+        return Some(eq);
+    }
+    if let Expression::Binary {
+        left,
+        op: Operator::And,
+        right,
+    } = expr
+    {
+        return extract_conjunct_eq_predicate(left)
+            .or_else(|| extract_conjunct_eq_predicate(right));
+    }
+    None
+}
+
+fn extract_scalar_literal(expr: &Expression) -> Option<AstValue> {
+    match expr {
+        Expression::Literal(AstValue::Null) => None,
+        Expression::Literal(val) => Some(val.clone()),
+        Expression::Unary {
+            op: UnaryOperator::Neg,
+            expr: inner,
+        } => match inner.as_ref() {
+            Expression::Literal(AstValue::Int(i)) => Some(AstValue::Int(i.wrapping_neg())),
+            Expression::Literal(AstValue::Float(f)) => Some(AstValue::Float(-*f)),
+            _ => None,
+        },
         _ => None,
     }
 }

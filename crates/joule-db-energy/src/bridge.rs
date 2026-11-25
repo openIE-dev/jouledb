@@ -92,7 +92,7 @@ impl EnergyAccountant for JouleDbAccountant {
         let snap = self.current_snapshot();
         self.operations
             .write()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .insert(id, (label.to_string(), Instant::now(), snap.power_watts));
         OperationId(id)
     }
@@ -101,7 +101,7 @@ impl EnergyAccountant for JouleDbAccountant {
         let (label, start, power_at_start) = self
             .operations
             .write()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .remove(&id.0)
             .ok_or(EnergyError::UnknownOperation(id))?;
 

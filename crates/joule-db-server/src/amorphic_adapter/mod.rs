@@ -34,6 +34,9 @@ use joule_db_query::sql::SqlColumnDef;
 
 // Re-export public items that external code references
 pub use conversions::{ast_to_amorphic_value, ast_to_json, expression_to_sql};
+pub(crate) use conversions::extract_conjunct_eq_predicate;
+pub use crud::{AtomicBatchOp, DeferredBatchSync};
+pub(crate) use expressions::evaluate_mvcc_predicate;
 
 /// Reserved field name that identifies which SQL table a record belongs to
 pub(super) const TABLE_FIELD: &str = "__table__";
@@ -565,6 +568,34 @@ impl HoloLock {
         self.write_inner(true)
     }
 
+    /// Acquire the exclusive write lock while returning a cloned `GroupSync` handle
+    /// instead of waiting on `Drop` inside the caller's critical section.
+    pub(crate) fn write_deferred_sync(
+        &self,
+    ) -> std::sync::LockResult<(
+        std::sync::RwLockWriteGuard<'_, DurableAmorphicStore>,
+        Option<std::sync::Arc<joule_db_local::storage::wal::GroupSync>>,
+    )> {
+        let sync = self.sync.clone();
+        self.writers_waiting
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let w = self.inner.write();
+        self.writers_waiting
+            .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+        match w {
+            Ok(g) if sync.as_ref().is_some_and(|s| s.has_failed()) => {
+                Err(std::sync::PoisonError::new((g, None)))
+            }
+            Ok(mut g) => {
+                if self.cols_pending.load(std::sync::atomic::Ordering::Acquire) {
+                    self.settle_locked(&mut g);
+                }
+                Ok((g, sync))
+            }
+            Err(p) => Err(std::sync::PoisonError::new((p.into_inner(), sync))),
+        }
+    }
+
     fn write_inner(&self, settle: bool) -> std::sync::LockResult<SyncWriteGuard<'_>> {
         let sync = self.sync.as_deref();
         self.writers_waiting
@@ -681,6 +712,88 @@ impl AmorphicTableStorage {
     pub(crate) fn materialize_columns(&self, max: usize) -> usize {
         let mut g = self.store.write_bulk().unwrap();
         g.materialize_pending(max).unwrap()
+    }
+
+    /// Return `Some(cols)` ONLY if `col_cache` already holds a snapshot matching
+    /// the current store generation (never rebuilds or settles columns).
+    pub fn cached_table_columns(
+        &self,
+        table: &str,
+    ) -> Option<std::sync::Arc<crate::columnar_exec::TableColumns>> {
+        if self.get_view(table).is_some() {
+            return None;
+        }
+        let store = self.store.read_columns().ok()?;
+        let generation = store.generation();
+        if let Some((g, t)) = self.col_cache.lock().ok()?.get(table) {
+            if *g == generation {
+                return Some(t.clone());
+            }
+        }
+        None
+    }
+
+    /// When `col_cache` missed (e.g. during OLTP writes), check whether `where_clause`
+    /// contains a type-exact `col = literal` equality conjunct matching at most `max_rows`
+    /// records via `AmorphicStore::records_equal`, and if so build a small ephemeral
+    /// `TableColumns` over just those `<= max_rows` borrowed records in O(k) instead of
+    /// rebuilding the entire table.
+    pub fn try_selective_table_columns(
+        &self,
+        table: &str,
+        where_clause: Option<&Expression>,
+        max_rows: usize,
+    ) -> Option<std::sync::Arc<crate::columnar_exec::TableColumns>> {
+        if self.get_view(table).is_some() {
+            return None;
+        }
+        let pred = where_clause?;
+        let (col, val) = conversions::extract_conjunct_eq_predicate(pred)?;
+        if !matches!(
+            val,
+            AstValue::Int(_) | AstValue::String(_) | AstValue::Bool(_)
+        ) {
+            return None;
+        }
+        let store = self.store.read_primary().ok()?;
+        let columns = self.get_schema_columns(&store, table).ok()?;
+        if !columns.iter().any(|c| c == &col) {
+            return None;
+        }
+        if let Ok(defs) = self.get_column_defs_from_store(&store, table) {
+            if let Some(def) = defs.iter().find(|d| d.name == col) {
+                let dt = def.data_type.to_uppercase();
+                let type_ok = match val {
+                    AstValue::Int(_) => matches!(
+                        dt.as_str(),
+                        "INT" | "INTEGER" | "BIGINT" | "SMALLINT" | "SERIAL" | "BIGSERIAL"
+                    ),
+                    AstValue::String(_) => {
+                        matches!(dt.as_str(), "TEXT" | "VARCHAR" | "CHAR" | "STRING" | "UUID")
+                    }
+                    AstValue::Bool(_) => matches!(dt.as_str(), "BOOL" | "BOOLEAN"),
+                    _ => false,
+                };
+                if !type_ok && !dt.is_empty() {
+                    return None;
+                }
+            } else if matches!(val, AstValue::Int(_)) {
+                return None;
+            }
+        }
+        let amorphic_val = conversions::ast_to_amorphic(&val);
+        let table_tag = AmorphicValue::String(table.to_string());
+        let recs: Vec<&AmorphicRecord> = store
+            .records_equal(&col, &amorphic_val)
+            .into_iter()
+            .filter(|r| r.get(TABLE_FIELD) == Some(&table_tag))
+            .collect();
+        if recs.len() > max_rows {
+            return None;
+        }
+        Some(std::sync::Arc::new(
+            crate::columnar_exec::TableColumns::build(&columns, &recs),
+        ))
     }
 
     /// Typed column vectors for `table`, rebuilt only when the store changed.

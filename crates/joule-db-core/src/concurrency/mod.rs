@@ -25,6 +25,6 @@ pub use latch::{LatchManager, LatchManagerConfig, LatchMode, LatchStats, MultiPa
 pub use lockfree::{LockFreeCounter, LockFreeSize, LockFreeStats};
 pub use mvcc::{
     IsolationLevel, MvccStats, MvccStore, MvccTransaction, MvccTransactionManager, Version,
-    VersionChain, decode_record_id, encode_record_key, encode_table_prefix,
+    VersionChain, advance_mvcc_timestamp, decode_record_id, encode_record_key, encode_table_prefix,
 };
 pub use optimistic::{OccTransaction, OccTransactionManager};

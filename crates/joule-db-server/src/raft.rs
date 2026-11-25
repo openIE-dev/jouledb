@@ -1910,6 +1910,142 @@ impl<S: StateMachine + 'static, T: RaftTransport + 'static> RaftNode<S, T> {
         }
     }
 
+    /// Confirm leadership in the current term via a quorum heartbeat round-trip WITHOUT
+    /// appending a WAL log entry (Raft dissertation §6.4 `ReadIndex`), wait until all
+    /// entries up to the captured `read_index` are applied to the local state machine,
+    /// and return `read_index`.
+    pub async fn read_index(&self, timeout: Duration) -> Result<LogIndex, RaftError> {
+        let wait_res = tokio::time::timeout(timeout, async {
+            if !self.is_leader().await {
+                return Err(RaftError::NotLeader(self.leader_id().await));
+            }
+            let read_term = self.current_term().await;
+
+            // Step 1 (§6.4): Leader must have committed at least one entry from `read_term`
+            // (its initial `become_leader` Noop) so `commit_index` reflects all prior terms.
+            let mut commit_rx = self.commit_notify.subscribe();
+            let read_index = loop {
+                if !self.is_leader().await || self.current_term().await != read_term {
+                    return Err(RaftError::NotLeader(self.leader_id().await));
+                }
+                let ci = self.commit_index().await;
+                let term_at_ci = self.persistent.read().await.get_term(ci);
+                if ci > 0 && term_at_ci == Some(read_term) {
+                    break ci;
+                }
+                self.replication_notify.notify_one();
+                tokio::select! {
+                    _ = commit_rx.recv() => {}
+                    _ = tokio::time::sleep(Duration::from_millis(20)) => {}
+                }
+            };
+
+            // Step 2 (§6.4): Confirm leadership with a voting quorum via empty AppendEntries
+            // heartbeats initiated AFTER `read_index` was recorded (zero WAL writes).
+            let (config_snapshot, peers, requests) = {
+                let persistent = self.persistent.read().await;
+                let leader_state = self.leader_state.read().await;
+                let Some(ref leader) = *leader_state else {
+                    return Err(RaftError::NotLeader(self.leader_id().await));
+                };
+                if persistent.current_term != read_term {
+                    return Err(RaftError::NotLeader(self.leader_id().await));
+                }
+                let cluster_config = self.cluster_config.read().await;
+                let cfg = cluster_config.clone();
+                let peers: Vec<NodeId> = cfg
+                    .voting_members()
+                    .into_iter()
+                    .filter(|id| id != &self.config.node_id)
+                    .collect();
+                let mut reqs = Vec::with_capacity(peers.len());
+                for peer in &peers {
+                    let next_index = *leader.next_index.get(peer).unwrap_or(&1);
+                    let prev_log_index = next_index.saturating_sub(1);
+                    let prev_log_term = persistent.get_term(prev_log_index).unwrap_or(0);
+                    reqs.push(AppendEntriesRequest {
+                        term: read_term,
+                        leader_id: self.config.node_id.clone(),
+                        prev_log_index,
+                        prev_log_term,
+                        entries: Vec::new(),
+                        leader_commit: read_index,
+                        energy_state: Some(self.get_energy_state()),
+                    });
+                }
+                (cfg, peers, reqs)
+            };
+
+            let mut acked: HashSet<NodeId> = HashSet::new();
+            acked.insert(self.config.node_id.clone());
+
+            if !config_snapshot.has_quorum(&acked) {
+                let mut futs = Vec::with_capacity(peers.len());
+                for (peer, req) in peers.into_iter().zip(requests) {
+                    let transport = self.transport.clone();
+                    self.stats
+                        .append_entries_sent
+                        .fetch_add(1, Ordering::Relaxed);
+                    futs.push(async move {
+                        let res = transport.send_append_entries(&peer, req).await;
+                        (peer, res)
+                    });
+                }
+                let results = futures::future::join_all(futs).await;
+
+                if !self.is_leader().await || self.current_term().await != read_term {
+                    return Err(RaftError::NotLeader(self.leader_id().await));
+                }
+
+                for (peer, res) in results {
+                    if let Ok(resp) = res {
+                        if resp.term > read_term {
+                            self.become_follower(resp.term, None).await;
+                            return Err(RaftError::NotLeader(None));
+                        }
+                        if resp.term == read_term {
+                            acked.insert(peer);
+                        }
+                    }
+                }
+
+                if !config_snapshot.has_quorum(&acked) {
+                    return Err(RaftError::ProposalFailed(format!(
+                        "ReadIndex quorum not reached (got {} acks)",
+                        acked.len()
+                    )));
+                }
+            }
+
+            // Step 3 (§6.4): Ensure local state machine has applied at least through `read_index`.
+            while self.last_applied().await < read_index {
+                self.apply_committed_entries().await;
+                if self.last_applied().await >= read_index {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+
+            Ok(read_index)
+        })
+        .await;
+
+        match wait_res {
+            Ok(inner) => inner,
+            Err(_) => Err(RaftError::Timeout),
+        }
+    }
+
+    /// Execute a linearizable read closure against the state machine using Raft §6.4 `ReadIndex`
+    /// (confirming quorum leadership without appending a `Noop` log entry).
+    pub async fn read_linearizable<F, R>(&self, timeout: Duration, f: F) -> Result<R, RaftError>
+    where
+        F: FnOnce(&S) -> R,
+    {
+        self.read_index(timeout).await?;
+        Ok(self.with_state_machine(f).await)
+    }
+
     /// Internal propose (doesn't check leadership)
     async fn propose_internal(&self, command: Command) -> Result<LogIndex, RaftError> {
         let mut persistent = self.persistent.write().await;

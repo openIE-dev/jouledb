@@ -8,7 +8,7 @@
 - [Hello, JouleDB & .jsyn](./hello.md)
 - [Multi-Format Import & Reconciliation (`jouledb migrate`)](./migration.md)
 
-# Core Architecture (`v0.6.0` Preview)
+# Core Architecture (`v0.7.0` Preview)
 
 - [Amorphous Continuum, MorphRules & Visual Lenses](./amorphic.md)
 - [.jsyn Experimental Bitplanes & Fidelity Boundaries](./jsyn.md)

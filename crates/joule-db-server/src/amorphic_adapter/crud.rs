@@ -3,6 +3,44 @@
 use super::conversions::*;
 use super::*;
 
+/// Single operation inside an atomic MVCC-to-WAL commit batch.
+pub enum AtomicBatchOp {
+    Insert {
+        key_idx: usize,
+        table: String,
+        row: RowData,
+    },
+    Update {
+        id: RecordId,
+        updates: HashMap<String, AmorphicValue>,
+    },
+    Delete {
+        id: RecordId,
+    },
+}
+
+/// Group-commit durability waiter returned after releasing the store write lock.
+pub struct DeferredBatchSync {
+    pub(crate) sync: Option<std::sync::Arc<joule_db_local::storage::wal::GroupSync>>,
+    pub(crate) lsn: Option<u64>,
+}
+
+impl DeferredBatchSync {
+    /// Wait for the batch's WAL LSN to become power-loss durable (shared fsync).
+    pub fn wait_durable(self) -> QueryResult<()> {
+        if let (Some(g), Some(lsn)) = (self.sync, self.lsn) {
+            if let Err(e) = g.wait_durable(lsn) {
+                tracing::error!("commit durability: {e}");
+                SYNC_FAILURES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                return Err(QueryError::ExecutionError(format!(
+                    "commit not durable: {e}"
+                )));
+            }
+        }
+        Ok(())
+    }
+}
+
 impl AmorphicTableStorage {
     // ==================== Direct amorphic API (for REST endpoints) ====================
 
@@ -255,6 +293,135 @@ impl AmorphicTableStorage {
         let mut store = self.store.write().map_err(lock_error)?;
         store.rollback_batch().map_err(amorphic_error)?;
         Ok(())
+    }
+
+    /// Execute an entire batch of inserts, updates, and deletes atomically under a
+    /// single exclusive store lock, releasing the lock before returning a
+    /// [`DeferredBatchSync`] handle so concurrent committers coalesce into a single
+    /// `GroupSync::wait_durable` fsync.
+    pub fn apply_atomic_batch_deferred(
+        &self,
+        ops: Vec<AtomicBatchOp>,
+    ) -> QueryResult<(Vec<(usize, RecordId)>, DeferredBatchSync)> {
+        let (mut guard, sync_arc) = self.store.write_deferred_sync().map_err(lock_error)?;
+        guard.begin_batch().map_err(amorphic_error)?;
+
+        let mut assigned_ids = Vec::new();
+        for op in ops {
+            let step_res: QueryResult<()> = match op {
+                AtomicBatchOp::Insert {
+                    key_idx,
+                    table,
+                    row,
+                } => {
+                    let mut fields = serde_json::Map::new();
+                    fields.insert(
+                        TABLE_FIELD.to_string(),
+                        serde_json::Value::String(table),
+                    );
+                    for (col, val) in row.columns.iter().zip(row.values.iter()) {
+                        fields.insert(col.clone(), ast_to_json(val));
+                    }
+                    let json = serde_json::Value::Object(fields).to_string();
+                    match guard.batch_ingest_json(&json) {
+                        Ok(id) => {
+                            assigned_ids.push((key_idx, id));
+                            Ok(())
+                        }
+                        Err(e) => Err(amorphic_error(e)),
+                    }
+                }
+                AtomicBatchOp::Update { id, updates } => {
+                    guard.batch_update_fields(id, updates).map_err(amorphic_error)
+                }
+                AtomicBatchOp::Delete { id } => guard.batch_delete(id).map_err(amorphic_error),
+            };
+            if let Err(e) = step_res {
+                let _ = guard.rollback_batch();
+                return Err(e);
+            }
+        }
+
+        if let Err(e) = guard.commit_batch() {
+            let _ = guard.rollback_batch();
+            return Err(amorphic_error(e));
+        }
+
+        let lsn = sync_arc.as_ref().map(|g| g.committed_lsn());
+        drop(guard);
+        Ok((
+            assigned_ids,
+            DeferredBatchSync {
+                sync: sync_arc,
+                lsn,
+            },
+        ))
+    }
+
+    /// Look up rows in `table` matching `col == val` using `AmorphicStore`'s secondary
+    /// field index in O(k), returning `None` if `col` is a floating-point column or `val`
+    /// is `Float`/`Null`/`Array`/`Object` (so cross-type numeric equality falls back safely).
+    pub fn lookup_records_by_eq(
+        &self,
+        table: &str,
+        col: &str,
+        val: &AstValue,
+    ) -> QueryResult<Option<Vec<(RecordId, RowData)>>> {
+        if !matches!(
+            val,
+            AstValue::Int(_) | AstValue::String(_) | AstValue::Bool(_)
+        ) {
+            return Ok(None);
+        }
+        let store = self.store.read().map_err(lock_error)?;
+        let columns = self.get_schema_columns(&store, table)?;
+        if !columns.iter().any(|c| c == col) {
+            return Ok(None);
+        }
+        if let Ok(defs) = self.get_column_defs_from_store(&store, table) {
+            if let Some(def) = defs.iter().find(|d| d.name == col) {
+                let dt = def.data_type.to_uppercase();
+                let type_ok = match val {
+                    AstValue::Int(_) => matches!(
+                        dt.as_str(),
+                        "INT" | "INTEGER" | "BIGINT" | "SMALLINT" | "SERIAL" | "BIGSERIAL"
+                    ),
+                    AstValue::String(_) => {
+                        matches!(dt.as_str(), "TEXT" | "VARCHAR" | "CHAR" | "STRING" | "UUID")
+                    }
+                    AstValue::Bool(_) => matches!(dt.as_str(), "BOOL" | "BOOLEAN"),
+                    _ => false,
+                };
+                if !type_ok && !dt.is_empty() {
+                    return Ok(None);
+                }
+            } else if matches!(val, AstValue::Int(_)) {
+                // Untyped schema: avoid missing Float(42.0) == Int(42)
+                return Ok(None);
+            }
+        }
+        let amorphic_val = ast_to_amorphic(val);
+        let table_tag = AmorphicValue::String(table.to_string());
+        let rows = store
+            .records_equal(col, &amorphic_val)
+            .into_iter()
+            .filter(|r| r.get(TABLE_FIELD) == Some(&table_tag))
+            .map(|r| (r.id, Self::record_to_row(r, &columns)))
+            .collect();
+        Ok(Some(rows))
+    }
+
+    /// Fetch a single row of `table` by its amorphic `RecordId`.
+    pub fn get_table_row_by_id(&self, table: &str, id: RecordId) -> QueryResult<Option<RowData>> {
+        let store = self.store.read().map_err(lock_error)?;
+        let columns = self.get_schema_columns(&store, table)?;
+        let Some(rec) = store.get(id) else {
+            return Ok(None);
+        };
+        if rec.get(TABLE_FIELD) != Some(&AmorphicValue::String(table.to_string())) {
+            return Ok(None);
+        }
+        Ok(Some(Self::record_to_row(rec, &columns)))
     }
 
     /// Check if the WAL needs a checkpoint and perform one if so.
