@@ -62,6 +62,10 @@ use thiserror::Error;
 
 // GPU acceleration module
 pub mod gpu;
+/// Programmable user-authored semantic morphing rules & algebraic VSA role unbinding.
+pub mod morph_rules;
+/// Bounded-memory multi-gigabyte streaming amorphous continuum & LSH hologram index.
+pub mod streaming_continuum;
 /// Un-Siloed Amorphous Semantic Continuum (`AmorphicSemanticContinuum`, `SemanticHologram10K`).
 pub mod unsilo;
 

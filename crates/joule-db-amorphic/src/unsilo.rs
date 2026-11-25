@@ -120,6 +120,41 @@ impl SemanticHologram10K {
             .sum();
         (matching_bits as f64) / ((HOLO_WORDS * 64) as f64)
     }
+
+    /// Algebraic Kanerva VSA Role Unbinding (`H_bundle ⊗ H_role` -> noisy `H_filler`) ranked against
+    /// candidate filler symbols in `[0.0, 1.0]` Hamming resonance.
+    pub fn unbind_probe(
+        &self,
+        role_symbol: &str,
+        candidate_fillers: &[String],
+    ) -> Vec<(String, f64)> {
+        let role_hv = Self::from_symbol(role_symbol);
+        let unbound = self.bind(&role_hv);
+        let mut scored: Vec<(String, f64)> = candidate_fillers
+            .iter()
+            .map(|cand| {
+                let cand_hv = Self::from_symbol(cand);
+                (cand.clone(), unbound.resonance(&cand_hv))
+            })
+            .collect();
+        scored.sort_by(|a, b| b.1.total_cmp(&a.1));
+        scored
+    }
+
+    /// Extract a 16-bit Locality-Sensitive SimHash signature from deterministic bit positions.
+    pub fn lsh_bucket_16(&self) -> u16 {
+        let mut sig = 0u16;
+        for bit in 0..16usize {
+            let w_idx = (bit * 9) % self.words.len().max(1);
+            let b_idx = (bit * 13) % 64;
+            if let Some(&w) = self.words.get(w_idx)
+                && ((w >> b_idx) & 1) == 1
+            {
+                sig |= 1u16 << bit;
+            }
+        }
+        sig
+    }
 }
 
 /// Raw schema-less digital fragment fed into the Amorphous Continuum.
@@ -251,6 +286,66 @@ impl AmorphicSemanticContinuum {
             self.record_fragment_hologram(&frag.silo_name, &anchor, std::slice::from_ref(&atom));
             self.atoms.push(atom);
             return self.atoms.len() - start_len;
+        }
+
+        // 2b. Try XML snippet `<record><field>val</field>...</record>`
+        if trimmed.starts_with('<') && trimmed.contains("</") && !trimmed.starts_with("<http") {
+            let xml_pairs = parse_xml_leaf_tags(trimmed);
+            if !xml_pairs.is_empty() {
+                let mut map = serde_json::Map::new();
+                for (k, v) in xml_pairs {
+                    if let Ok(i) = v.parse::<i64>() {
+                        map.insert(k, JsonValue::Number(i.into()));
+                    } else if let Ok(f) = v.parse::<f64>()
+                        && let Some(n) = serde_json::Number::from_f64(f)
+                    {
+                        map.insert(k, JsonValue::Number(n));
+                    } else {
+                        map.insert(k, JsonValue::String(v));
+                    }
+                }
+                self.ingest_json_map(&frag.silo_name, &map);
+                return self.atoms.len() - start_len;
+            }
+        }
+
+        // 2c. Try Multi-Line CSV (`header\nrow1\nrow2...`)
+        if trimmed.contains('\n') && trimmed.contains(',') && !trimmed.contains('{') {
+            let mut lines = trimmed.lines().map(str::trim).filter(|l| !l.is_empty());
+            if let Some(hdr_line) = lines.next() {
+                let headers: Vec<&str> = hdr_line
+                    .split(',')
+                    .map(|h| h.trim().trim_matches('"'))
+                    .collect();
+                if headers.len() >= 2 && !hdr_line.contains('=') {
+                    let mut rows_ingested = 0usize;
+                    for row_line in lines {
+                        let mut map = serde_json::Map::new();
+                        for (h, cell_raw) in headers.iter().zip(row_line.split(',')) {
+                            let v = cell_raw.trim().trim_matches('"');
+                            if v.is_empty() {
+                                continue;
+                            }
+                            if let Ok(i) = v.parse::<i64>() {
+                                map.insert((*h).to_string(), JsonValue::Number(i.into()));
+                            } else if let Ok(f) = v.parse::<f64>()
+                                && let Some(n) = serde_json::Number::from_f64(f)
+                            {
+                                map.insert((*h).to_string(), JsonValue::Number(n));
+                            } else {
+                                map.insert((*h).to_string(), JsonValue::String(v.to_string()));
+                            }
+                        }
+                        if !map.is_empty() {
+                            self.ingest_json_map(&frag.silo_name, &map);
+                            rows_ingested += 1;
+                        }
+                    }
+                    if rows_ingested > 0 {
+                        return self.atoms.len() - start_len;
+                    }
+                }
+            }
         }
 
         // 3. Try `key=value` comma/space-separated structured log or CSV-with-keys line
@@ -846,6 +941,42 @@ fn parse_kv_pairs(line: &str) -> Vec<(String, String)> {
     out
 }
 
+fn parse_xml_leaf_tags(xml: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let mut cursor = xml;
+    while let Some(lt) = cursor.find('<') {
+        let after = &cursor[lt + 1..];
+        if after.starts_with('/') || after.starts_with('?') || after.starts_with('!') {
+            let Some(gt) = after.find('>') else {
+                break;
+            };
+            cursor = &after[gt + 1..];
+            continue;
+        }
+        let Some(gt) = after.find('>') else {
+            break;
+        };
+        let tag = after[..gt].split_whitespace().next().unwrap_or("");
+        let rest = &after[gt + 1..];
+        let close_tag = format!("</{tag}>");
+        if let Some(cpos) = rest.find(&close_tag) {
+            let inner = rest[..cpos].trim();
+            if !inner.contains('<') {
+                if !inner.is_empty() {
+                    out.push((tag.to_string(), inner.to_string()));
+                }
+                cursor = &rest[cpos + close_tag.len()..];
+            } else {
+                // Parent container tag: step inside `rest` to visit nested leaf tags!
+                cursor = rest;
+            }
+        } else {
+            cursor = rest;
+        }
+    }
+    out
+}
+
 fn parse_inline_physical_or_money_token(tok: &str) -> Option<(String, f64, String)> {
     if let Some(rest) = tok.strip_prefix('$') {
         let clean = rest.replace(',', "");
@@ -861,18 +992,51 @@ fn parse_inline_physical_or_money_token(tok: &str) -> Option<(String, f64, Strin
             return Some(("money.usd".into(), v * mult, "USD".into()));
         }
     }
+    // Affine temperature harmonization (`°C`, `°F`, `K` -> exact Kelvin `K`)
+    if let Some(c_s) = tok.strip_suffix("°C").or_else(|| tok.strip_suffix("degC"))
+        && let Ok(v) = c_s.replace(',', "").parse::<f64>()
+    {
+        return Some(("temperature.kelvin".into(), v + 273.15, "K".into()));
+    }
+    if let Some(f_s) = tok.strip_suffix("°F").or_else(|| tok.strip_suffix("degF"))
+        && let Ok(v) = f_s.replace(',', "").parse::<f64>()
+    {
+        return Some((
+            "temperature.kelvin".into(),
+            (v - 32.0) * (5.0 / 9.0) + 273.15,
+            "K".into(),
+        ));
+    }
+    if let Some(k_s) = tok.strip_suffix('K')
+        && !k_s.is_empty()
+        && k_s.as_bytes()[0].is_ascii_digit()
+        && let Ok(v) = k_s.replace(',', "").parse::<f64>()
+    {
+        return Some(("temperature.kelvin".into(), v, "K".into()));
+    }
+
     let lower = tok.to_lowercase();
     for (suffix, concept, scale, unit) in [
-        ("ms", "duration.seconds", 1e-3, "s"),
-        ("us", "duration.seconds", 1e-6, "s"),
-        ("µs", "duration.seconds", 1e-6, "s"),
+        ("kwh", "energy.joules", 3_600_000.0, "J"),
         ("kj", "energy.joules", 1e3, "J"),
         ("mj", "energy.joules", 1e-3, "J"),
         ("uj", "energy.joules", 1e-6, "J"),
         ("nj", "energy.joules", 1e-9, "J"),
-        ("kwh", "energy.joules", 3_600_000.0, "J"),
+        ("ms", "duration.seconds", 1e-3, "s"),
+        ("us", "duration.seconds", 1e-6, "s"),
+        ("µs", "duration.seconds", 1e-6, "s"),
+        ("nm", "length.meters", 1e-9, "m"),
+        ("um", "length.meters", 1e-6, "m"),
+        ("µm", "length.meters", 1e-6, "m"),
+        ("mm", "length.meters", 1e-3, "m"),
+        ("mg", "mass.kilograms", 1e-6, "kg"),
+        ("ug", "mass.kilograms", 1e-9, "kg"),
+        ("µg", "mass.kilograms", 1e-9, "kg"),
+        ("kg", "mass.kilograms", 1.0, "kg"),
+        ("g", "mass.kilograms", 1e-3, "kg"),
     ] {
         if let Some(num_s) = lower.strip_suffix(suffix)
+            && !num_s.is_empty()
             && let Ok(v) = num_s.replace(',', "").parse::<f64>()
         {
             return Some((concept.into(), v * scale, unit.into()));

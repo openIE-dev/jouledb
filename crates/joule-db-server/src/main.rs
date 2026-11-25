@@ -110,6 +110,40 @@ enum Commands {
         #[arg(long)]
         fabric: bool,
     },
+    /// Zero-DDL Amorphous Semantic Continuum, Programmable Morph Rules & Multi-GB Streaming CLI
+    Amorphic {
+        #[command(subcommand)]
+        action: AmorphicAction,
+    },
+    /// Universal Ecosystem Compatibility Bridge (10 DB protocols + 7 AI protocols)
+    Bridge,
+    /// Universal Trust, Compliance (SOC2 / HIPAA / GDPR / FedRAMP / MLS) & CycloneDX SBOM CLI
+    Trust {
+        /// Output CycloneDX v1.6 SBOM + AI-BOM instead of running the compliance audit
+        #[arg(long)]
+        sbom: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum AmorphicAction {
+    /// Stream an existing heterogeneous directory (or synthesize + stream `--generate-bytes`) in O(E) bounded RAM
+    StreamCorpus {
+        /// Directory path containing `.jsonl`, `.csv`, `.xml`, `.kv`, `.log`, `.nt` files
+        #[arg(short, long)]
+        dir: String,
+        /// Optional target raw byte count to synthesize across 6 silos before streaming
+        #[arg(long, default_value_t = 0)]
+        generate_bytes: u64,
+        /// Number of distinct entities when synthesizing (`--generate-bytes > 0`)
+        #[arg(long, default_value_t = 1024)]
+        entities: usize,
+        /// Remove generated files after streaming receipt is computed
+        #[arg(long)]
+        cleanup: bool,
+    },
+    /// Run the programmable MorphRule DSL + VSA algebraic unbinding + Custom Lens certification suite
+    MorphSuite,
 }
 
 #[derive(Subcommand)]
@@ -267,6 +301,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             url,
             fabric,
         }) => run_cascade_cli(&url, &model, &prompt, fabric).await,
+        Some(Commands::Amorphic { action }) => run_amorphic_cli(action),
+        Some(Commands::Bridge) => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &joule_db_server::universal_bridge::run_universal_bridge_certification()
+                )?
+            );
+            Ok(())
+        }
+        Some(Commands::Trust { sbom }) => {
+            let val = if sbom {
+                joule_db_server::trust_compliance::generate_cyclonedx_sbom_and_aibom()
+            } else {
+                joule_db_server::trust_compliance::execute_full_trust_and_compliance_suite()?
+            };
+            println!("{}", serde_json::to_string_pretty(&val)?);
+            Ok(())
+        }
         None => {
             run_server(
                 cli.port,
@@ -940,6 +993,43 @@ async fn run_cascade_cli(
         .json()
         .await?;
     println!("{}", serde_json::to_string_pretty(&out)?);
+    Ok(())
+}
+
+fn run_amorphic_cli(
+    action: AmorphicAction,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    match action {
+        AmorphicAction::StreamCorpus {
+            dir,
+            generate_bytes,
+            entities,
+            cleanup,
+        } => {
+            let p = std::path::Path::new(&dir);
+            let rec = if generate_bytes > 0 {
+                let r = joule_db_amorphic::streaming_continuum::generate_and_stream_heterogeneous_corpus(
+                    p,
+                    generate_bytes,
+                    entities,
+                    &[],
+                )?;
+                if cleanup {
+                    let _ = std::fs::remove_dir_all(p);
+                }
+                r
+            } else {
+                let mut eng =
+                    joule_db_amorphic::streaming_continuum::StreamingAmorphicContinuum::new();
+                eng.ingest_directory(p)?
+            };
+            println!("{}", serde_json::to_string_pretty(&rec)?);
+        }
+        AmorphicAction::MorphSuite => {
+            let morph_rec = joule_db_amorphic::morph_rules::run_programmable_morph_suite()?;
+            println!("{}", serde_json::to_string_pretty(&morph_rec)?);
+        }
+    }
     Ok(())
 }
 

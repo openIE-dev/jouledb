@@ -108,6 +108,8 @@ pub mod pulse_mesh_routes;
 pub mod spatial_index;
 pub mod swot_capsule_routes;
 pub mod synapse_routes;
+pub mod trust_compliance;
+pub mod universal_bridge;
 pub mod vector_index;
 pub mod vector_routes;
 pub mod ward_openai_routes;
@@ -1239,7 +1241,13 @@ impl Server {
                     query_executor: app_state.query_executor.clone(),
                 },
             ))
-            .merge(pq_verifiable::sovereign_and_amorphic_router());
+            .merge(pq_verifiable::sovereign_and_amorphic_router())
+            .merge(universal_bridge::universal_bridge_router(
+                universal_bridge::UniversalBridgeRuntime::new(),
+            ))
+            .merge(trust_compliance::trust_compliance_router(
+                trust_compliance::TrustComplianceRuntime::new(),
+            ));
 
         // Merge ledger verification routes (if ledger is enabled)
         let merged = if let Some(ref store) = self.ledger_store {

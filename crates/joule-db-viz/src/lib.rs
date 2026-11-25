@@ -21,6 +21,7 @@
 
 pub mod amorphic_display;
 pub mod column_classifier;
+pub mod custom_lens;
 pub mod data_profile;
 pub mod error;
 pub mod hint;

@@ -491,6 +491,28 @@ pub struct UnsiloMorphReq {
 }
 
 #[derive(Debug, Default, Deserialize)]
+pub struct MorphRulesAndLensReq {
+    #[serde(default)]
+    pub fragments: Vec<RawSiloFragment>,
+    #[serde(default)]
+    pub morph_dsl: Option<String>,
+    #[serde(default)]
+    pub custom_lens_dsl: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct StreamCorpusScaleReq {
+    #[serde(default)]
+    pub dir_path: Option<String>,
+    #[serde(default)]
+    pub target_bytes: Option<u64>,
+    #[serde(default)]
+    pub num_unique_entities: Option<usize>,
+    #[serde(default)]
+    pub seed_fragments: Vec<RawSiloFragment>,
+}
+
+#[derive(Debug, Default, Deserialize)]
 pub struct ContinualAdaptSuiteReq {
     #[serde(default = "default_d_in")]
     pub d_in: usize,
@@ -911,12 +933,153 @@ async fn handle_global_sota_suite() -> impl IntoResponse {
     }
 }
 
-/// Mount all Wave 28 (`v0.4.0`) Amorphic Un-Silo, Continual Plasticity, RelBench RFM, PQC & Global-MMLU routes.
+async fn handle_morph_rules_and_lens(Json(req): Json<MorphRulesAndLensReq>) -> impl IntoResponse {
+    let t0 = Instant::now();
+    if req.fragments.is_empty() && req.morph_dsl.is_none() && req.custom_lens_dsl.is_none() {
+        match joule_db_amorphic::morph_rules::run_programmable_morph_suite() {
+            Ok(bench) => {
+                return (
+                    StatusCode::OK,
+                    Json(serde_json::json!({
+                        "ok": true,
+                        "morph_benchmark_receipt": bench,
+                        "elapsed_us": t0.elapsed().as_secs_f64() * 1e6,
+                    })),
+                );
+            }
+            Err(e) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({ "ok": false, "error": e })),
+                );
+            }
+        }
+    }
+
+    let mut cont = AmorphicSemanticContinuum::new();
+    for f in &req.fragments {
+        cont.ingest_fragment(f);
+    }
+
+    let rules = if let Some(ref dsl) = req.morph_dsl {
+        match joule_db_amorphic::morph_rules::MorphRuleEngine::parse_dsl(dsl) {
+            Ok(r) => r,
+            Err(e) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({ "ok": false, "error": e })),
+                );
+            }
+        }
+    } else {
+        Vec::new()
+    };
+
+    let (morphed_atoms, morph_report) =
+        joule_db_amorphic::morph_rules::MorphRuleEngine::apply_rules(&cont.atoms, &rules);
+    let disp_atoms: Vec<SemanticDisplayAtom> =
+        morphed_atoms.iter().map(bridge_atom_to_display).collect();
+
+    let custom_lens = if let Some(ref lens_dsl) = req.custom_lens_dsl {
+        match joule_db_viz::custom_lens::CustomLensCompiler::parse_dsl(lens_dsl) {
+            Ok(spec) => Some(joule_db_viz::custom_lens::CustomLensCompiler::compile(
+                &disp_atoms,
+                &spec,
+            )),
+            Err(e) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({ "ok": false, "error": e })),
+                );
+            }
+        }
+    } else {
+        None
+    };
+
+    let default_canvas =
+        AmorphicDisplaySynthesizer::synthesize(&disp_atoms, ObserverIntent::AutoOptimal);
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "morph_report": morph_report,
+            "custom_lens": custom_lens,
+            "canvas_spec": default_canvas,
+            "elapsed_us": t0.elapsed().as_secs_f64() * 1e6,
+        })),
+    )
+}
+
+async fn handle_stream_corpus_scale(Json(req): Json<StreamCorpusScaleReq>) -> impl IntoResponse {
+    let t0 = Instant::now();
+    if let Some(ref dir) = req.dir_path {
+        let mut engine = joule_db_amorphic::streaming_continuum::StreamingAmorphicContinuum::new();
+        match engine.ingest_directory(std::path::Path::new(dir)) {
+            Ok(rec) => {
+                return (
+                    StatusCode::OK,
+                    Json(serde_json::json!({
+                        "ok": true,
+                        "streaming_receipt": rec,
+                        "elapsed_us": t0.elapsed().as_secs_f64() * 1e6,
+                    })),
+                );
+            }
+            Err(e) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({ "ok": false, "error": e })),
+                );
+            }
+        }
+    }
+
+    let target_bytes = req.target_bytes.unwrap_or(4_000_000);
+    let n_ent = req.num_unique_entities.unwrap_or(128);
+    let scratch_dir = std::env::temp_dir().join(format!(
+        "jouledb_stream_scale_{}_{}",
+        std::process::id(),
+        t0.elapsed().as_nanos()
+    ));
+    let res = joule_db_amorphic::streaming_continuum::generate_and_stream_heterogeneous_corpus(
+        &scratch_dir,
+        target_bytes,
+        n_ent,
+        &req.seed_fragments,
+    );
+    let _ = std::fs::remove_dir_all(&scratch_dir);
+    match res {
+        Ok(rec) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "streaming_receipt": rec,
+                "elapsed_us": t0.elapsed().as_secs_f64() * 1e6,
+            })),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "ok": false, "error": e })),
+        ),
+    }
+}
+
+/// Mount all Wave 28–29 (`v0.4.0`–`v0.5.0`) Amorphic Un-Silo, Morph Rules, Custom Lens, Streaming Scale, Continual Plasticity, RelBench RFM, PQC & Global-MMLU routes.
 pub fn sovereign_and_amorphic_router() -> Router {
     Router::new()
         .route(
             "/api/v1/amorphic/unsilo_morph",
             post(handle_amorphic_unsilo_morph),
+        )
+        .route(
+            "/api/v1/amorphic/morph_rules_and_lens",
+            post(handle_morph_rules_and_lens),
+        )
+        .route(
+            "/api/v1/amorphic/stream_corpus_scale",
+            post(handle_stream_corpus_scale),
         )
         .route(
             "/api/v1/sovereign/continual_adapt",

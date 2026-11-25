@@ -892,6 +892,81 @@ fn dispatch_frontier_or_analytic_mcp_tool(
         "sovereign.global_mmlu_12script" => Some(serde_json::json!(
             joule_db_core::multilingual_global::run_global_mmlu_12script_suite()
         )),
+        "amorphic.morph_rules_and_lens" => {
+            let frags: Vec<joule_db_amorphic::unsilo::RawSiloFragment> = args
+                .get("fragments")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+            let morph_dsl = args.get("morph_dsl").and_then(|v| v.as_str());
+            let lens_dsl = args.get("custom_lens_dsl").and_then(|v| v.as_str());
+            if frags.is_empty() && morph_dsl.is_none() {
+                Some(serde_json::json!({
+                    "morph_benchmark_receipt": joule_db_amorphic::morph_rules::run_programmable_morph_suite().ok()
+                }))
+            } else {
+                let mut cont = joule_db_amorphic::unsilo::AmorphicSemanticContinuum::new();
+                for f in &frags {
+                    cont.ingest_fragment(f);
+                }
+                let rules = morph_dsl
+                    .and_then(|d| {
+                        joule_db_amorphic::morph_rules::MorphRuleEngine::parse_dsl(d).ok()
+                    })
+                    .unwrap_or_default();
+                let (morphed, rep) = joule_db_amorphic::morph_rules::MorphRuleEngine::apply_rules(
+                    &cont.atoms,
+                    &rules,
+                );
+                let disp: Vec<_> = morphed
+                    .iter()
+                    .map(crate::pq_verifiable::bridge_atom_to_display)
+                    .collect();
+                let compiled_lens = lens_dsl
+                    .and_then(|ld| {
+                        joule_db_viz::custom_lens::CustomLensCompiler::parse_dsl(ld).ok()
+                    })
+                    .map(|spec| {
+                        joule_db_viz::custom_lens::CustomLensCompiler::compile(&disp, &spec)
+                    });
+                Some(serde_json::json!({
+                    "morph_report": rep,
+                    "custom_lens": compiled_lens,
+                }))
+            }
+        }
+        "amorphic.stream_corpus_scale" => {
+            let target_bytes = args
+                .get("target_bytes")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(2_500_000);
+            let n_ent = args
+                .get("num_unique_entities")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(64) as usize;
+            let scratch =
+                std::env::temp_dir().join(format!("jouledb_mcp_stream_{}", std::process::id()));
+            let rec =
+                joule_db_amorphic::streaming_continuum::generate_and_stream_heterogeneous_corpus(
+                    &scratch,
+                    target_bytes,
+                    n_ent,
+                    &[],
+                )
+                .ok();
+            let _ = std::fs::remove_dir_all(&scratch);
+            Some(serde_json::json!({ "streaming_receipt": rec }))
+        }
+        "bridge.ecosystem_certify" => {
+            Some(crate::universal_bridge::run_universal_bridge_certification())
+        }
+        "trust.compliance_audit" => {
+            crate::trust_compliance::execute_full_trust_and_compliance_suite()
+                .ok()
+                .map(|v| serde_json::json!(v))
+        }
+        "trust.sbom_cyclonedx" => {
+            Some(crate::trust_compliance::generate_cyclonedx_sbom_and_aibom())
+        }
         _ => None,
     }
 }
@@ -974,6 +1049,26 @@ pub fn all_sota_tool_definitions() -> Vec<McpToolDef> {
         (
             "sovereign.global_mmlu_12script",
             "Evaluate Cohere Global-MMLU / INCLUDE across 12 world scripts with 1.0x joule fairness",
+        ),
+        (
+            "amorphic.morph_rules_and_lens",
+            "Execute user-authored declarative MorphRule DSL, Kanerva VSA role unbinding, and Custom Semantic Lenses (Pareto/Sankey/Radar)",
+        ),
+        (
+            "amorphic.stream_corpus_scale",
+            "Stream multi-format / multi-gigabyte heterogeneous corpora (JSONL/CSV/XML/k=v/Prose/Triples) in bounded O(E) memory",
+        ),
+        (
+            "bridge.ecosystem_certify",
+            "Certify drop-in compatibility across 10 database protocols (Postgres/Elastic/Mongo/Qdrant/Pinecone/Influx/CDC) and 7 AI protocols (OpenAI/Anthropic/Gemini/Ollama/MCP/A2A/Rerank)",
+        ),
+        (
+            "trust.compliance_audit",
+            "Execute continuous SOC 2 Type II, ISO 27001, HIPAA, GDPR Art.17 Crypto-Shredding, PCI-DSS Luhn, SEC 17a-4f WORM, IEC 62443 & FedRAMP/CNSA-2.0 Bell-LaPadula MLS attestation",
+        ),
+        (
+            "trust.sbom_cyclonedx",
+            "Generate CycloneDX v1.6 Software & .jsyn AI Bill of Materials (SBOM + AI-BOM) with SLSA provenance metadata",
         ),
     ] {
         tools.push(McpToolDef {
