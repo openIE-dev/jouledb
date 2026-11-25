@@ -1,11 +1,11 @@
 # JouleDB: The Thermodynamic Nervous System & Living-Weights Substrate for Intelligent Computing
 
-## Whitepaper Specification — Version 0.4.0 (`v0.4.0`, November 2026)
+## Whitepaper Specification — Version 1.0.0 GA (`v1.0.0`, November 2026)
 **Open Interface Engineering, Inc. (`OpenIE`)**  
-**Website:** [https://jouledb.org](https://jouledb.org) | **GitHub:** [openIE-dev/jouledb](https://github.com/openIE-dev/jouledb) | **Hugging Face Fleet (`82 .jsyn`):** [huggingface.co/dcharlot65-openie](https://huggingface.co/dcharlot65-openie)  
+**Website:** [https://jouledb.org](https://jouledb.org) | **Docs Book:** [https://openie-dev.github.io/jouledb](https://openie-dev.github.io/jouledb) | **GitHub:** [openIE-dev/jouledb](https://github.com/openIE-dev/jouledb) | **Hugging Face Fleet (`82 .jsyn`):** [huggingface.co/dcharlot65-openie](https://huggingface.co/dcharlot65-openie)  
 **License:** `Apache-2.0 OR MIT`
 
-> Supersedes `v0.3.1` and [WHITEPAPER-JOULEDB-2026-05.md](WHITEPAPER-JOULEDB-2026-05.md) (`v0.2`, May 2026). Documents the complete late-2026 architecture shipped through `v0.4.0`: **Un-Siloed `10,240`-Bit Amorphous Semantic Continuum & 6-Lens Fluid Display**, **Null-Space Orthogonal `Titans` Continual Plasticity (`0%` forgetting + CoW Canary Poison Guard)**, **Native `RelBench v2` Multi-Table Temporal RFM (`0` future leakage)**, **Post-Quantum `NIST FIPS 203 ML-KEM-768 + FIPS 204 ML-DSA-65` Verifiable Execution Proofs & Federated Mesh**, **Live 3-Tier `CXL 3.1 + Mooncake` Disaggregated Pool**, **12-Script `Cohere Global-MMLU` Sovereign Fairness**, **`.jsyn` (`JSYN-v1`) Sub-1-Bit Living Model Weights** (`82` public models on Hugging Face), and **26 / 26 Certified Global Database + Frontier AI Benchmark Pillars across 14 Multi-OS Computers**.
+> Supersedes `v0.5.0`, `v0.4.0`, `v0.3.1`, and [WHITEPAPER-JOULEDB-2026-05.md](WHITEPAPER-JOULEDB-2026-05.md) (`v0.2`, May 2026). Documents the complete **`JouleDB v1.0.0` GA ("Global Database Powerhouse")** architecture across **`36 / 36` Certified Pillars** and **`54` MCP 2026 Tools**: **`JouleDB-ABI-1.0.0` Forward/Backward TLV Stability & Microsecond `PITR` (`RPO = 0`)**, **Zero-Downtime `jouledb migrate` Multiset `BLAKE3` + Shadow-Traffic Parity**, **Enterprise `SQL:2023` Window/`CUBE`/Recursive-CTE + Runtime `AQE` (`>1,000×` Skew Probe Savings)**, **5-Node 3-Region Geo-Raft + `Jepsen` Nemeses**, **Un-Siloed `10,240`-Bit Amorphous Semantic Continuum (`MorphRule` DSL + `1.35 GB` in `57.6 MB` RAM + 8 Fluid Lenses)**, **Universal 10-DB + 7-AI Ecosystem Bridges**, **Progressive Maker-to-Defense Trust (`SOC 2` -> `HIPAA` -> `SEC 17a-4(f)` WORM -> `FedRAMP / CNSA 2.0 Bell-LaPadula MLS`)**, **First-Party Polyglot SDKs (`13+` Languages) + `Helm`/`Terraform` IaC**, and **`.jsyn` (`JSYN-v1`) Sub-1-Bit Living Model Weights** (`82` public models on Hugging Face).
 
 ---
 

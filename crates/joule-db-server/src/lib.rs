@@ -108,6 +108,8 @@ pub mod pulse_mesh_routes;
 pub mod spatial_index;
 pub mod swot_capsule_routes;
 pub mod synapse_routes;
+pub mod distributed_jepsen_consensus;
+pub mod live_migration;
 pub mod trust_compliance;
 pub mod universal_bridge;
 pub mod vector_index;
@@ -1247,7 +1249,9 @@ impl Server {
             ))
             .merge(trust_compliance::trust_compliance_router(
                 trust_compliance::TrustComplianceRuntime::new(),
-            ));
+            ))
+            .merge(live_migration::live_migration_router())
+            .merge(distributed_jepsen_consensus::v1_powerhouse_router());
 
         // Merge ledger verification routes (if ledger is enabled)
         let merged = if let Some(ref store) = self.ledger_store {

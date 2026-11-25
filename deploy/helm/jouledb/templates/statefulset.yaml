@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-jouledb
+  labels:
+    app.kubernetes.io/name: jouledb
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    jouledb.org/trust-tier: {{ .Values.trustTier | quote }}
+spec:
+  serviceName: {{ .Release.Name }}-jouledb-headless
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jouledb
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jouledb
+        jouledb.org/trust-tier: {{ .Values.trustTier | quote }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        fsGroup: 65532
+      containers:
+        - name: jouledb
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["--port", "{{ .Values.ports.http }}", "--data", "/var/lib/jouledb"]
+          env:
+            - name: JOULEDB_BIND_HOST
+              value: "0.0.0.0"
+            - name: JOULEDB_TRUST_TIER
+              value: {{ .Values.trustTier | quote }}
+            - name: JOULEDB_LEDGER_ENABLED
+              value: "true"
+          ports:
+            - name: http
+              containerPort: {{ .Values.ports.http }}
+            - name: tcp
+              containerPort: {{ .Values.ports.tcp }}
+            - name: pgwire
+              containerPort: {{ .Values.ports.pgwire }}
+            - name: jwp
+              containerPort: {{ .Values.ports.jwp }}
+            - name: flightsql
+              containerPort: {{ .Values.ports.flightsql }}
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/jouledb
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}

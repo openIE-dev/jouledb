@@ -88,6 +88,8 @@ pub mod temporal;
 pub mod tiger_ledger;
 pub mod tx;
 pub mod types;
+/// `v1.0.0` Wire/Storage ABI Stability Envelope, Continuous WAL Archiving & Microsecond `PITR`.
+pub mod v1_stability_and_pitr;
 
 #[cfg(test)]
 mod proptest_verify;

@@ -967,6 +967,27 @@ fn dispatch_frontier_or_analytic_mcp_tool(
         "trust.sbom_cyclonedx" => {
             Some(crate::trust_compliance::generate_cyclonedx_sbom_and_aibom())
         }
+        "migrate.shadow_cutover" => {
+            Some(crate::live_migration::run_all_ecosystems_migration_certification())
+        }
+        "core.v1_abi_and_pitr" => {
+            joule_db_core::v1_stability_and_pitr::certify_v1_abi_stability_and_pitr()
+                .ok()
+                .map(|r| serde_json::json!(r))
+        }
+        "query.sql2023_aqe_suite" => Some(serde_json::json!(
+            joule_db_query::sql2023_powerhouse::run_sql2023_powerhouse_certification()
+        )),
+        "cluster.jepsen_geo_raft" => Some(serde_json::json!(
+            crate::distributed_jepsen_consensus::run_geo_raft_jepsen_certification()
+        )),
+        "deploy.iac_blueprint" => {
+            let tier = args.get("tier").and_then(|v| v.as_u64()).unwrap_or(5) as u8;
+            Some(crate::distributed_jepsen_consensus::generate_iac_compliance_blueprint(tier))
+        }
+        "bench.v1_powerhouse_36" => {
+            Some(crate::distributed_jepsen_consensus::run_v1_global_powerhouse_suite())
+        }
         _ => None,
     }
 }
@@ -1069,6 +1090,30 @@ pub fn all_sota_tool_definitions() -> Vec<McpToolDef> {
         (
             "trust.sbom_cyclonedx",
             "Generate CycloneDX v1.6 Software & .jsyn AI Bill of Materials (SBOM + AI-BOM) with SLSA provenance metadata",
+        ),
+        (
+            "migrate.shadow_cutover",
+            "Execute zero-downtime polyglot DB migration, multiset BLAKE3 reconciliation, CoW shadow-traffic parity & ML-DSA-65 cutover certificate",
+        ),
+        (
+            "core.v1_abi_and_pitr",
+            "Certify v1.0.0 wire/storage ABI forward/backward TLV compatibility, CRC-32 bit-rot protection & microsecond Point-in-Time Recovery (PITR)",
+        ),
+        (
+            "query.sql2023_aqe_suite",
+            "Execute SQL:2023 Window Frames, 3D OLAP CUBE, Cycle-Safe Recursive BOM CTE & Runtime Adaptive Query Execution (AQE)",
+        ),
+        (
+            "cluster.jepsen_geo_raft",
+            "Run 5-node 3-region Geo-Partitioned Raft linearizability, bounded-staleness follower reads & Jepsen split-brain/clock-skew nemeses",
+        ),
+        (
+            "deploy.iac_blueprint",
+            "Generate Helm Chart & Terraform compliance posture blueprint across Trust Tiers 0..5 (Maker -> FedRAMP/MLS)",
+        ),
+        (
+            "bench.v1_powerhouse_36",
+            "Execute the master JouleDB v1.0.0 Global Database Powerhouse certification across all 36 pillars",
         ),
     ] {
         tools.push(McpToolDef {

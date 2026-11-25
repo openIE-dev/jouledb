@@ -1,16 +1,14 @@
 [book]
-title = "JouleDB"
+title = "JouleDB v1.0.0"
 authors = ["David Charlot <david@openie.dev>"]
-description = "JouleDB — energy-metered database, HDC primitives, joules per query."
+description = "JouleDB v1.0.0 — Global Thermodynamic Database, Amorphous Semantic Continuum, .jsyn Living Model Weights, 10-DB/7-AI Bridges, and Maker-to-Defense Sovereign Trust."
 language = "en"
-multilingual = false
 src = "src"
 
 [output.html]
 default-theme = "navy"
 preferred-dark-theme = "navy"
 git-repository-url = "https://github.com/openIE-dev/jouledb"
-git-repository-icon = "fa-github"
 edit-url-template = "https://github.com/openIE-dev/jouledb/edit/main/docs/{path}"
 site-url = "/jouledb/"
 

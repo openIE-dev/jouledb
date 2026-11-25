@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-jouledb
+  labels:
+    app.kubernetes.io/name: jouledb
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: jouledb
+  ports:
+    - name: http
+      port: {{ .Values.ports.http }}
+      targetPort: http
+    - name: tcp
+      port: {{ .Values.ports.tcp }}
+      targetPort: tcp
+    - name: pgwire
+      port: {{ .Values.ports.pgwire }}
+      targetPort: pgwire
+    - name: jwp
+      port: {{ .Values.ports.jwp }}
+      targetPort: jwp
+    - name: flightsql
+      port: {{ .Values.ports.flightsql }}
+      targetPort: flightsql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-jouledb-headless
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: jouledb
+  ports:
+    - name: http
+      port: {{ .Values.ports.http }}

@@ -1,30 +1,32 @@
-# Cookbook Recipes
+# Cookbook Recipes (`v1.0.0`)
 
-## 1. Run the 17-Pillar Database (`7`) + Frontier AI Exam (`10`) Suites
+## 1. Run the Master 36-Pillar `JouleDB v1.0.0` Powerhouse Suite
 ```bash
-curl -s -X POST http://127.0.0.1:8080/api/v1/bench/industry_suite \
-  -H "Content-Type: application/json" \
-  -d '{"clickbench_rows":100000,"ann_vectors":2000,"tpcc_txns":500}'
-
-curl -s -X POST http://127.0.0.1:8080/api/v1/bench/frontier_exam \
-  -H "Content-Type: application/json" \
-  -d '{"mrcr_updates":4000}'
+jouledb powerhouse
+# or over HTTP:
+curl -s -X POST http://127.0.0.1:8080/api/v1/bench/v1_powerhouse | jq '.all_36_pillars_passed'
 ```
 
-## 2. Evaluate an Out-of-Sample `.jsyn` Rank-Sweep (`r = 8 -> 128`)
+## 2. Zero-Downtime SQLite / PostgreSQL Migration with `ML-DSA-65` Certificate
+```bash
+sqlite3 /tmp/demo.db "CREATE TABLE items(id INT PRIMARY KEY, name TEXT); INSERT INTO items VALUES (1,'laser-532nm');"
+jouledb migrate --from sqlite --input /tmp/demo.db
+```
+
+## 3. Stream a Heterogeneous Multi-Format Corpus in Bounded $O(E)$ Memory
+```bash
+jouledb amorphic stream-corpus --dir /tmp/unsilo_demo --generate-bytes 50000000 --entities 512 --cleanup
+```
+
+## 4. Evaluate an Out-of-Sample `.jsyn` Rank-Sweep (`r = 8 -> 128`)
 ```bash
 curl -s -X POST http://127.0.0.1:8080/api/v1/synapse/bench/rank_sweep \
   -H "Content-Type: application/json" \
   -d '{"rows":512,"cols":512,"ranks":[8,32,64,128],"svf_sweeps":6}'
 ```
 
-## 3. Store & Recall Exact Long-Tail Facts in `Engram` (`O(1)`, `220 nJ`)
+## 5. Continuous `SOC 2` / `HIPAA` / `GDPR` / `FedRAMP-MLS` Audit & `CycloneDX 1.6` SBOM
 ```bash
-curl -s -X POST http://127.0.0.1:8080/api/v1/synapse/engram/upsert \
-  -H "Content-Type: application/json" \
-  -d '{"phrase":"landauer limit 300k","embedding":[1.0,0.0],"fact_payload":"2.87e-21 Joules/bit"}'
-
-curl -s -X POST http://127.0.0.1:8080/api/v1/synapse/engram/lookup \
-  -H "Content-Type: application/json" \
-  -d '{"phrase":"Landauer Limit 300K"}'
+jouledb trust
+jouledb trust --sbom > sbom-v1.0.0.cdx.json
 ```

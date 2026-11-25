@@ -1,10 +1,14 @@
-# JouleDB MCP Reference
+# JouleDB MCP 2026 Reference (`v1.0.0` GA — `54` Tools)
 
-**Version 1.0 — 2026-05-18**
+**Version 1.0.0 — 2026-11-25**
 **Source:** [`crates/joule-db-server/src/mcp_bridge.rs`](../../crates/joule-db-server/src/mcp_bridge.rs), [`crates/joule-db-server/src/mcp_transport.rs`](../../crates/joule-db-server/src/mcp_transport.rs)
-**Distinct from:** [`MGAI-MCP-REFERENCE.md`](MCP-JOULEDB.md) — that doc covers the `ask-mcp` (askdavidc.ai) MCP server. This doc covers the **JouleDB-side MCP bridge** built into `joule-db-server`.
 
-`joule-db-server` exposes Model Context Protocol tools so AI agents (Claude Code, Cursor, Xcode 26.3, OpenAI Agents, etc.) can talk to a JouleDB instance directly. Transport: stdio JSON-RPC or HTTP SSE.
+`joule-db-server` (`v1.0.0`) exposes **`54` Model Context Protocol (`MCP 2026`) tools** over Streamable HTTP (`POST /mcp`, `GET /mcp/sse`, `POST /mcp/messages`) and `stdio`:
+- **`24` Core `db.*` Tools** (`tools/list` default): SQL, KV, DDL, CoW branching (`db.branch_*`), vector search (`db.vector_*`), multi-tenant quotas, bitemporal agent memory (`db.memory_*`), durable workflows, queues, and energy budgets.
+- **`30` SOTA & `v1.0.0` Powerhouse Extensions** (`tools/list` with `{"includeAgenticExtensions": true}`):
+  - **Migration, ABI/PITR, Warehouse & Geo-Raft (`v1.0.0`):** `migrate.shadow_cutover`, `core.v1_abi_and_pitr`, `query.sql2023_aqe_suite`, `cluster.jepsen_geo_raft`, `deploy.iac_blueprint`, `bench.v1_powerhouse_36`
+  - **Amorphic, Bridges & Trust:** `amorphic.unsilo_morph`, `amorphic.morph_rules_and_lens`, `amorphic.stream_corpus_scale`, `bridge.ecosystem_certify`, `trust.compliance_audit`, `trust.sbom_cyclonedx`
+  - **Sovereign & Frontier Solvers:** `sovereign.continual_plasticity`, `sovereign.relbench_rfm`, `sovereign.pq_verifiable_attest`, `sovereign.global_mmlu_12script`, `frontier.sql_critic`, `frontier.arc_synthesize`, `frontier.calibrate_abstention`, `frontier.faithful_context`, `frontier.math_sat_verify`, `frontier.tau_policy_guard`, `frontier.safevla_stl_shield`, `db.analytic_suite`, `db.agentfs_*`.
 
 ---
 

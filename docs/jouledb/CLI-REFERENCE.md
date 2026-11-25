@@ -1,8 +1,22 @@
-# JouleDB CLI Reference
+# JouleDB CLI Reference (`v1.0.0` GA)
 
-**Version 1.0 — 2026-05-18**
-**Binaries:** `joule` (`joule-cli`), `jouledb` (`joule-db-server` daemon), `joule-db-recover` (forensic), `scholar-recover` (Scholar-specific forensic)
-**Sister docs:** [`MGAI-CLI-REFERENCE.md`](CLI-REFERENCE.md), [`MGAI-JWP-PROTOCOL.md`](../MGAI-JWP-PROTOCOL.md), `MGAI-ACP-REFERENCE.md`
+**Version 1.0.0 — 2026-11-25**
+**Primary Binary:** `jouledb` (`crates/joule-db-server`), plus `joule-db-recover` (forensic B-tree walker)
+
+### Quick `jouledb v1.0.0` Subcommands
+
+| Command | Purpose |
+|---|---|
+| `jouledb --port 8080 --data ./data` | Start unified server (`HTTP :8080`, `TCP :8081`, `PgWire :8082`, `JWP :8083`, `FlightSQL :8084`) |
+| `jouledb query "<SQL>"` | Execute one-shot SQL query with 6-rail nanojoule receipt |
+| `jouledb shell` | Interactive SQL REPL |
+| `jouledb migrate --from sqlite\|postgres\|mongo\|elastic\|csv [-i <file>]` | Zero-downtime polyglot migration, 256-bit Multiset `BLAKE3` reconciliation, CoW shadow-traffic parity & `ML-DSA-65` cutover certificate |
+| `jouledb amorphic stream-corpus --dir <path>` | Stream multi-gigabyte heterogeneous corpora in bounded $O(E)$ RAM |
+| `jouledb amorphic morph-suite` | Certify `MorphRule` SI algebra, Kanerva VSA unbinding & 8 fluid lenses |
+| `jouledb bridge` | Certify all 10 DB protocols + 7 AI protocol bridges |
+| `jouledb trust [--sbom]` | Run 8-framework `SOC 2` / `HIPAA` / `GDPR` / `SEC 17a-4(f)` / `FedRAMP-MLS` audit or output `CycloneDX v1.6 SBOM + AI-BOM` |
+| `jouledb powerhouse` | Run the Master `36 / 36` Global Database Powerhouse certification suite |
+| `jouledb capsule ...` / `synapse ...` / `ward ...` / `fabric` | Daemonless OCI containers, `.jsyn` living weights, `ThermoCap` sandboxes & silicon routing |
 
 This is the JouleDB-specific CLI reference — separate from `MGAI-CLI-REFERENCE.md` which covers the user-facing `askdavidc` / `jmax` / `ask-server` binaries. The two are linked; this one is database-side.
 

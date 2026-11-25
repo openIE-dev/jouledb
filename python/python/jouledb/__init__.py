@@ -26,7 +26,7 @@ from ._native import __version__ as _native_version
 from ._native import decode as _decode
 
 __all__ = ["connect", "Connection", "Result", "JouleDBError", "__version__"]
-__version__ = "0.2.9"
+__version__ = "1.0.0"
 
 
 class JouleDBError(RuntimeError):
@@ -499,6 +499,86 @@ class Connection:
             f"/api/v1/kube/agents/{namespace}/{agent_name}/invoke",
             {"goal": goal, "max_turns": max_turns},
         )
+
+    def unsilo(
+        self,
+        fragments: Optional[List[Dict[str, Any]]] = None,
+        intent: str = "BalancedOverview",
+    ) -> Dict[str, Any]:
+        """Dissolve multi-silo JSON/CSV/XML/Prose/Triples into the 10,240-bit Amorphic Continuum."""
+        return self._json_request(
+            "POST",
+            "/api/v1/amorphic/unsilo",
+            {"fragments": fragments or [], "intent": intent},
+        )
+
+    def morph_rules(
+        self,
+        fragments: List[Dict[str, Any]],
+        morph_dsl: str,
+        custom_lens_dsl: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Execute programmable MorphRule DSL + Custom Semantic Lens compilation."""
+        return self._json_request(
+            "POST",
+            "/api/v1/amorphic/morph_rules",
+            {
+                "fragments": fragments,
+                "morph_dsl": morph_dsl,
+                "custom_lens_dsl": custom_lens_dsl,
+            },
+        )
+
+    def bridge_matrix(self) -> Dict[str, Any]:
+        """Inspect the 10-DB + 7-AI Universal Ecosystem Compatibility Bridge matrix."""
+        return self._json_request("GET", "/api/v1/bridge/matrix")
+
+    def trust_audit(self) -> Dict[str, Any]:
+        """Execute continuous SOC2, HIPAA, GDPR Art.17, SEC 17a-4(f), IEC 62443 & FedRAMP/MLS trust checks."""
+        return self._json_request("POST", "/api/v1/trust/compliance_audit", {})
+
+    def sbom(self) -> Dict[str, Any]:
+        """Fetch CycloneDX v1.6 SBOM + .jsyn AI-BOM."""
+        return self._json_request("GET", "/api/v1/trust/sbom")
+
+    def migrate_run(
+        self,
+        source_format: str,
+        payload: str,
+        collection_or_table: str = "migrated_records",
+        cdc_events: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        """Run zero-downtime migration with multiset BLAKE3 reconciliation & ML-DSA-65 cutover certificate."""
+        return self._json_request(
+            "POST",
+            "/api/v1/migrate/run",
+            {
+                "source_format": source_format,
+                "collection_or_table": collection_or_table,
+                "payload": payload,
+                "cdc_events": cdc_events or [],
+            },
+        )
+
+    def migrate_certify(self) -> Dict[str, Any]:
+        """Certify zero-downtime migration across PostgreSQL, MongoDB, Elasticsearch & CSV."""
+        return self._json_request("POST", "/api/v1/migrate/certify", {})
+
+    def v1_abi_pitr(self) -> Dict[str, Any]:
+        """Certify v1.0.0 wire/storage ABI stability, CRC-32 bit-rot protection & microsecond PITR."""
+        return self._json_request("POST", "/api/v1/certify/v1_abi_pitr", {})
+
+    def sql2023_powerhouse(self) -> Dict[str, Any]:
+        """Run SQL:2023 Window Frames, 3D OLAP CUBE, Recursive BOM CTE & Runtime AQE certification."""
+        return self._json_request("POST", "/api/v1/bench/sql2023_powerhouse", {})
+
+    def geo_raft_jepsen(self) -> Dict[str, Any]:
+        """Run 5-node 3-region Geo-Raft linearizability, follower reads & Jepsen nemesis certification."""
+        return self._json_request("POST", "/api/v1/certify/geo_raft_jepsen", {})
+
+    def v1_powerhouse_suite(self) -> Dict[str, Any]:
+        """Execute the Master JouleDB v1.0.0 36-Pillar Global Database Powerhouse suite."""
+        return self._json_request("POST", "/api/v1/bench/v1_powerhouse", {})
 
     def close(self) -> None:  # stateless HTTP; kept for DB-API-style use
         pass

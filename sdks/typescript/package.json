@@ -1,0 +1,31 @@
+{
+  "name": "@openie/jouledb",
+  "version": "1.0.0",
+  "description": "Official zero-dependency TypeScript / JavaScript / Deno / Bun / Edge SDK for JouleDB v1.0.0 — SQL, Amorphic Continuum, .jsyn Living Weights, Zero-Downtime Migration, SOC2/MLS Trust, and 6-Rail Nanojoule Receipts.",
+  "license": "Apache-2.0 OR MIT",
+  "type": "module",
+  "main": "./index.mjs",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.mjs"
+    }
+  },
+  "files": [
+    "index.mjs",
+    "index.d.ts",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/sdk.test.mjs"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/openIE-dev/jouledb.git",
+    "directory": "sdks/typescript"
+  }
+}

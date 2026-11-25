@@ -1,0 +1,38 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-jouledb-zero-trust
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: jouledb
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.ports.http }}
+        - protocol: TCP
+          port: {{ .Values.ports.pgwire }}
+        - protocol: TCP
+          port: {{ .Values.ports.jwp }}
+        - protocol: TCP
+          port: {{ .Values.ports.flightsql }}
+  {{- if .Values.networkPolicy.airgapEgress }}
+  egress: []
+  {{- end }}
+{{- end }}
+---
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-jouledb-pdb
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jouledb
+{{- end }}

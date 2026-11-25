@@ -123,6 +123,17 @@ enum Commands {
         #[arg(long)]
         sbom: bool,
     },
+    /// Zero-Downtime Polyglot Database Migration, Multiset BLAKE3 Reconciliation & Shadow-Traffic Validator
+    Migrate {
+        /// Source ecosystem (`postgres`, `sqlite`, `mysql`, `mongo`, `elastic`, `csv`, `jsonl`)
+        #[arg(long, default_value = "postgres")]
+        from: String,
+        /// Optional path to a real `.db`/`.sqlite`, `.sql`, `.jsonl`, `_bulk`, or `.csv` file (omit to run full multi-DB certification)
+        #[arg(short, long)]
+        input: Option<String>,
+    },
+    /// Execute the Master `JouleDB v1.0.0` 36-Pillar Global Database Powerhouse Certification Suite
+    Powerhouse,
 }
 
 #[derive(Subcommand)]
@@ -318,6 +329,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 joule_db_server::trust_compliance::execute_full_trust_and_compliance_suite()?
             };
             println!("{}", serde_json::to_string_pretty(&val)?);
+            Ok(())
+        }
+        Some(Commands::Migrate { from, input }) => {
+            if let Some(path_str) = input {
+                let fmt = joule_db_server::live_migration::MigrationSourceFormat::parse_str(&from);
+                let records = joule_db_server::live_migration::load_migration_source_from_path(
+                    fmt,
+                    std::path::Path::new(&path_str),
+                )
+                .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+                    Box::new(std::io::Error::other(e))
+                })?;
+                let cert = joule_db_server::live_migration::execute_zero_downtime_migration(
+                    "cli-live-migration",
+                    fmt,
+                    records,
+                    &[],
+                );
+                println!("{}", serde_json::to_string_pretty(&cert)?);
+            } else {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(
+                        &joule_db_server::live_migration::run_all_ecosystems_migration_certification()
+                    )?
+                );
+            }
+            Ok(())
+        }
+        Some(Commands::Powerhouse) => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &joule_db_server::distributed_jepsen_consensus::run_v1_global_powerhouse_suite()
+                )?
+            );
             Ok(())
         }
         None => {
