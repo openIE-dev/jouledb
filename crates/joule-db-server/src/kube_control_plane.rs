@@ -1258,7 +1258,7 @@ pub async fn handle_kube_version() -> impl IntoResponse {
         Json(json!({
             "major": "1",
             "minor": "32+",
-            "gitVersion": "v1.32.0+jouledb-0.2.9",
+            "gitVersion": concat!("v1.32.0+jouledb-", env!("CARGO_PKG_VERSION")),
             "gitCommit": "joulekube-mvcc-thermodynamic",
             "buildDate": "2026-11-23T00:00:00Z",
             "goVersion": "rust1.94.1-jouledb",
@@ -1422,7 +1422,7 @@ pub async fn handle_kube_status(State(rt): State<Arc<PulseMeshRuntime>>) -> impl
         StatusCode::OK,
         Json(json!({
             "ok": true,
-            "git_version": "v1.32.0+jouledb-0.2.9",
+            "git_version": concat!("v1.32.0+jouledb-", env!("CARGO_PKG_VERSION")),
             "etcd_disintermediated": true,
             "containerd_disintermediated": true,
             "sql_backing_table": "_jouledb_kube_objects",

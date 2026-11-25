@@ -49,6 +49,7 @@ pub mod gremlin;
 pub mod timeseries;
 
 pub mod adaptive;
+pub mod analytic_benchmarks;
 pub mod columnar;
 pub mod conformance_oracle;
 pub mod dbsp;

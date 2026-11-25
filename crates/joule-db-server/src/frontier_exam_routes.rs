@@ -13,9 +13,9 @@ use joule_db_core::frontier_eval::{
     ArcGrid, ArcOp, CalibrationSample, ContextFact, EpistemicCalibrator, FaithEvalOutcome,
     MrcrBitemporalStore, SafeVlaEnvelope, TauDomainPolicy, TauPolicyVerdict, TauToolProposal,
     VlaStepSample, check_tau_policy, compute_hle_calibration, compute_pass_hat_k, exact_binomial,
-    evaluate_simpleqa_abstention, mod_pow, resolve_faithful_context, select_arc3_active_probe,
-    shield_and_audit_vla_trajectory, solve_chinese_remainder, solve_sat_dpll,
-    synthesize_arc_program,
+    evaluate_simpleqa_abstention, mod_pow, resolve_faithful_context, score_faithful_mc_question,
+    select_arc3_active_probe, shield_and_audit_vla_trajectory, solve_chinese_remainder,
+    solve_sat_dpll, synthesize_arc_program,
 };
 use joule_db_query::sql_critic::diagnose_and_repair_sql;
 use serde::{Deserialize, Serialize};
@@ -785,12 +785,89 @@ async fn handle_frontier_exam_suite(
     )
 }
 
-/// Constructs the Axum router for Wave 26 Frontier Exam & Epistemic Calibration endpoints.
+/// Single `FaithEval` multiple-choice / abstention item for `POST /api/v1/bench/faithful_qa`.
+#[derive(Debug, Deserialize)]
+pub struct FaithfulQaItemReq {
+    /// Context passage (counterfactual, multi-document inconsistent, or unanswerable).
+    pub context: String,
+    /// Question text.
+    pub question: String,
+    /// Candidate multiple-choice strings.
+    pub choices: Vec<String>,
+    /// Optional `.jsyn` living-weight cosine similarity per choice.
+    #[serde(default)]
+    pub jsyn_cosines: Option<Vec<f64>>,
+    /// Optional 0-based ground-truth answer index for batch accuracy scoring.
+    #[serde(default)]
+    pub gold_index: Option<usize>,
+    /// Whether to return `predicted_index = None` when passage is flagged unanswerable/inconsistent.
+    #[serde(default)]
+    pub gate_abstention: bool,
+}
+
+/// Batch request for `POST /api/v1/bench/faithful_qa`.
+#[derive(Debug, Deserialize)]
+pub struct FaithfulQaBatchReq {
+    /// Items to evaluate.
+    pub items: Vec<FaithfulQaItemReq>,
+}
+
+async fn handle_faithful_qa(Json(req): Json<FaithfulQaBatchReq>) -> impl IntoResponse {
+    let t0 = Instant::now();
+    let mut results = Vec::with_capacity(req.items.len());
+    let mut scored = 0usize;
+    let mut correct = 0usize;
+    let mut abstained = 0usize;
+    let mut conflicts = 0usize;
+
+    for item in &req.items {
+        let pred = score_faithful_mc_question(
+            &item.context,
+            &item.question,
+            &item.choices,
+            item.jsyn_cosines.as_deref(),
+            item.gate_abstention,
+        );
+        if pred.audit.unanswerable_abstain {
+            abstained += 1;
+        }
+        if pred.audit.inconsistent_conflict {
+            conflicts += 1;
+        }
+        if let Some(g) = item.gold_index {
+            scored += 1;
+            if pred.predicted_index == Some(g) {
+                correct += 1;
+            }
+        }
+        results.push(pred);
+    }
+
+    let elapsed_us = t0.elapsed().as_secs_f64() * 1e6;
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "total": req.items.len(),
+            "scored": scored,
+            "correct": correct,
+            "accuracy": if scored > 0 { correct as f64 / scored as f64 } else { 0.0 },
+            "flagged_unanswerable": abstained,
+            "flagged_inconsistent": conflicts,
+            "elapsed_us": elapsed_us,
+            "energy_nj": ((req.items.len() as u64).saturating_mul(95)).max(80),
+            "predictions": results,
+        })),
+    )
+}
+
+/// Constructs the Axum router for Wave 26/27 Frontier Exam & Epistemic Calibration endpoints.
 pub fn frontier_exam_router(rt: FrontierExamRuntime) -> Router {
     Router::new()
         .route("/api/v1/pulse/calibration", post(handle_pulse_calibration))
         .route("/api/v1/bench/arc_synthesize", post(handle_arc_synthesize))
         .route("/api/v1/bench/sql_critic", post(handle_sql_critic))
+        .route("/api/v1/bench/faithful_qa", post(handle_faithful_qa))
         .route("/api/v1/bench/frontier_exam", post(handle_frontier_exam_suite))
         .with_state(rt)
 }

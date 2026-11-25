@@ -1,6 +1,6 @@
 [package]
 name = "jouledb"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 rust-version = "1.74"
 description = "Thermodynamic database & living-weights (.jsyn) AI engine — SSI MVCC, GraphRAG, Embodied ASOF, JouleKube, and nanojoule receipts. `cargo binstall jouledb` fetches the binary."

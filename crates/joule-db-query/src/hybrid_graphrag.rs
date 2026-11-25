@@ -318,13 +318,13 @@ impl TriModalRrfIndex {
                 let (r_hd, s_hd) = hdc_ranks.get(&id).copied().unwrap_or((10_000, 0.5));
 
                 let mut rrf = 0.0;
-                if !q_terms.is_empty() {
+                if !q_terms.is_empty() && s_bm > 0.0 {
                     rrf += cfg.bm25_weight / (cfg.rrf_k + r_bm as f64);
                 }
-                if query_embedding.is_some() {
+                if query_embedding.is_some() && s_rq > 0.05 && r_rq <= 32 {
                     rrf += cfg.rabitq_weight / (cfg.rrf_k + r_rq as f64);
                 }
-                if q_hdc.is_some() {
+                if q_hdc.is_some() && s_hd > 0.55 && r_hd <= 32 {
                     rrf += cfg.hdc_weight / (cfg.rrf_k + r_hd as f64);
                 }
 
@@ -342,6 +342,19 @@ impl TriModalRrfIndex {
         fused.sort_by(|a, b| b.rrf_score.total_cmp(&a.rrf_score));
         fused.truncate(top_k);
         fused
+    }
+
+    /// Re-centers the underlying 1-bit `RaBitQ` index around the empirical corpus centroid
+    /// (`Gao & Long, SIGMOD 2024`), eliminating anisotropic embedding cone collapse.
+    pub fn recalibrate_rabitq_centroid(&mut self) {
+        let items: Vec<(u64, Vec<f32>)> = self
+            .docs
+            .values()
+            .map(|d| (d.id, d.embedding.clone()))
+            .collect();
+        if !items.is_empty() {
+            self.rabitq = RaBitQIndex::build_batch(RaBitQConfig::new(self.dim), &items);
+        }
     }
 }
 

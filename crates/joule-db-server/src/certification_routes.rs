@@ -17,10 +17,15 @@ use joule_db_core::concurrency::{
 };
 use joule_db_core::index::rabitq::{RaBitQConfig, RaBitQIndex};
 use joule_db_core::tiger_ledger::run_vopr_deterministic_fault_campaign;
+use joule_db_query::analytic_benchmarks::{
+    BeirQueryItem, evaluate_beir_hybrid_retrieval, run_clickbench_columnar_suite,
+    run_job_skewed_wcoj_suite, run_synthetic_beir_suite, run_tsbs_stac_m3_suite,
+};
 use joule_db_query::conformance_oracle::{
     run_sqlancer_tlp_and_norec_suite, run_sqllogictest_script,
 };
 use joule_db_query::dbsp::{IncrementalEquiJoin, IncrementalGroupSum, ZSet};
+use joule_db_query::hybrid_graphrag::HybridDocument;
 use joule_db_query::morsel_spill::{
     ColumnMorsel, MORSEL_ROWS, SpillAggSpec, chunk_into_morsels, execute_spilling_hash_aggregate,
     execute_spilling_hash_join,
@@ -642,5 +647,67 @@ pub fn certification_router(rt: CertificationRuntime) -> Router {
         .route("/api/v1/olap/zonemap_scan", post(handle_zonemap_scan))
         .route("/api/v1/secdb/napa_eval", post(handle_secdb_napa))
         .route("/api/v1/bench/industry_suite", post(handle_industry_suite))
+        .route("/api/v1/bench/analytic_suite", post(handle_analytic_suite))
+        .route("/api/v1/bench/beir_eval", post(handle_beir_eval))
         .with_state(rt)
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct AnalyticSuiteReq {
+    #[serde(default)]
+    pub clickbench_rows: Option<usize>,
+    #[serde(default)]
+    pub job_hub_fanout: Option<usize>,
+    #[serde(default)]
+    pub stac_ticks_per_venue: Option<usize>,
+    #[serde(default)]
+    pub beir_docs: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BeirEvalReq {
+    pub embedding_dim: usize,
+    pub docs: Vec<HybridDocument>,
+    pub queries: Vec<BeirQueryItem>,
+}
+
+async fn handle_analytic_suite(Json(req): Json<AnalyticSuiteReq>) -> impl IntoResponse {
+    let t0 = Instant::now();
+    let cb = run_clickbench_columnar_suite(req.clickbench_rows.unwrap_or(8_192));
+    let job = run_job_skewed_wcoj_suite(req.job_hub_fanout.unwrap_or(120), 12);
+    let stac = run_tsbs_stac_m3_suite(req.stac_ticks_per_venue.unwrap_or(1_000), 200);
+    let beir = run_synthetic_beir_suite(req.beir_docs.unwrap_or(96));
+
+    let all_ok = cb.alp_bit_exact_verified
+        && cb.all_five_queries_exact
+        && job.exact_parity
+        && job.intermediate_blowup_reduction_x > 10.0
+        && stac.future_leak_violations == 0
+        && beir.trimodal_rrf.ndcg_at_10 >= beir.bm25_only.ndcg_at_10;
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "all_four_analytic_pillars_certified": all_ok,
+            "total_elapsed_ms": t0.elapsed().as_secs_f64() * 1000.0,
+            "clickbench_columnar": cb,
+            "job_skewed_wcoj": job,
+            "tsbs_stac_m3": stac,
+            "beir_hybrid_rrf": beir,
+        })),
+    )
+}
+
+async fn handle_beir_eval(Json(req): Json<BeirEvalReq>) -> impl IntoResponse {
+    let t0 = Instant::now();
+    let report = evaluate_beir_hybrid_retrieval(req.embedding_dim, &req.docs, &req.queries);
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "ok": true,
+            "elapsed_ms": t0.elapsed().as_secs_f64() * 1000.0,
+            "report": report,
+        })),
+    )
 }

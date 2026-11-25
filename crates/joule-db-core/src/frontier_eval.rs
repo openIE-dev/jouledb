@@ -402,9 +402,356 @@ pub fn resolve_faithful_context(
     }
 }
 
+/// Passage-level faithfulness audit for `FaithEval` (*Counterfactual*, *Inconsistent*, *Unanswerable*).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FaithfulPassageAudit {
+    /// Fraction of salient question content tokens grounded in the provided passage (`[0.0, 1.0]`).
+    pub grounding_coverage: f64,
+    /// True when core question entities/predicates are absent from the context (`FaithEval-Unanswerable`).
+    pub unanswerable_abstain: bool,
+    /// True when distinct passage segments/documents assert conflicting predications (`FaithEval-Inconsistent`).
+    pub inconsistent_conflict: bool,
+    /// Distinct conflicting candidate spans detected across passage segments, if any.
+    pub conflicting_spans: Vec<String>,
+}
+
+/// Scored multiple-choice prediction from [`score_faithful_mc_question`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FaithfulMcPrediction {
+    /// Winning 0-based choice index (`None` if abstaining due to unanswerable/inconsistent context when gated).
+    pub predicted_index: Option<usize>,
+    /// Per-choice neurosymbolic span + polarity + optional `.jsyn` RRF scores.
+    pub choice_scores: Vec<f64>,
+    /// Passage-level grounding and contradiction audit.
+    pub audit: FaithfulPassageAudit,
+}
+
+fn tokenize_content_words(text: &str) -> Vec<String> {
+    const STOP: &[&str] = &[
+        "the", "a", "an", "of", "in", "on", "at", "to", "for", "with", "by", "from", "is", "are",
+        "was", "were", "be", "been", "being", "that", "this", "these", "those", "it", "its", "as",
+        "and", "or", "but", "if", "then", "than", "so", "such", "what", "which", "who", "whom",
+        "whose", "where", "when", "why", "how", "according", "passage", "context", "following",
+        "based", "text", "does", "did", "do", "has", "have", "had", "would", "could", "should",
+        "will", "can", "may", "might", "into", "about", "over", "after", "before", "between",
+    ];
+    text.split(|c: char| !c.is_alphanumeric())
+        .filter(|w| w.len() >= 2)
+        .map(|w| w.to_ascii_lowercase())
+        .filter(|w| !STOP.contains(&w.as_str()))
+        .collect()
+}
+
+fn contains_negation(tokens_raw: &[String]) -> bool {
+    const NEG: &[&str] = &[
+        "not", "no", "never", "neither", "nor", "none", "without", "unable", "false", "untrue",
+        "instead", "unlikely", "impossible", "lack", "lacks", "lacked",
+    ];
+    tokens_raw.iter().any(|t| NEG.contains(&t.as_str()))
+}
+
+fn raw_words_lower(text: &str) -> Vec<String> {
+    text.split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .map(|w| w.to_ascii_lowercase())
+        .collect()
+}
+
+fn split_sentences(context: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    for ch in context.chars() {
+        cur.push(ch);
+        if matches!(ch, '.' | '!' | '?' | '\n') {
+            let trimmed = cur.trim();
+            if trimmed.len() >= 4 {
+                out.push(trimmed.to_string());
+            }
+            cur.clear();
+        }
+    }
+    let rem = cur.trim();
+    if rem.len() >= 4 {
+        out.push(rem.to_string());
+    }
+    if out.is_empty() && !context.trim().is_empty() {
+        out.push(context.trim().to_string());
+    }
+    out
+}
+
+/// Audits an unstructured passage + question for `FaithEval-Unanswerable` missing grounding
+/// and `FaithEval-Inconsistent` multi-document/multi-sentence contradictions.
+pub fn audit_passage_faithfulness(
+    context: &str,
+    question: &str,
+    candidate_values: &[String],
+) -> FaithfulPassageAudit {
+    let q_toks = tokenize_content_words(question);
+    let ctx_toks: std::collections::HashSet<String> =
+        tokenize_content_words(context).into_iter().collect();
+
+    let matched = q_toks.iter().filter(|t| ctx_toks.contains(*t)).count();
+    let coverage = if q_toks.is_empty() {
+        1.0
+    } else {
+        matched as f64 / q_toks.len() as f64
+    };
+
+    // Detect conflicting assertions across sentences/documents on high-focus sentences
+    let sents = split_sentences(context);
+    let mut asserted_candidates: Vec<String> = Vec::new();
+    for sent in &sents {
+        let s_toks: std::collections::HashSet<String> =
+            tokenize_content_words(sent).into_iter().collect();
+        let q_overlap = q_toks.iter().filter(|t| s_toks.contains(*t)).count();
+        if q_overlap == 0 && !q_toks.is_empty() {
+            continue;
+        }
+        let s_raw = raw_words_lower(sent);
+        if contains_negation(&s_raw) {
+            continue;
+        }
+        let s_low = sent.to_ascii_lowercase();
+        for cand in candidate_values {
+            let c_trim = cand.trim();
+            if c_trim.is_empty() {
+                continue;
+            }
+            let c_low = c_trim.to_ascii_lowercase();
+            let c_toks = tokenize_content_words(&c_low);
+            let hit = if c_toks.is_empty() {
+                s_raw.contains(&c_low)
+            } else {
+                s_low.contains(&c_low) || c_toks.iter().all(|ct| s_toks.contains(ct))
+            };
+            if hit && !asserted_candidates.contains(&c_trim.to_string()) {
+                asserted_candidates.push(c_trim.to_string());
+            }
+        }
+    }
+
+    let inconsistent = asserted_candidates.len() >= 2;
+    let unanswerable = coverage < 0.25
+        || (!candidate_values.is_empty()
+            && asserted_candidates.is_empty()
+            && coverage < 0.45);
+
+    FaithfulPassageAudit {
+        grounding_coverage: coverage,
+        unanswerable_abstain: unanswerable,
+        inconsistent_conflict: inconsistent,
+        conflicting_spans: if inconsistent {
+            asserted_candidates
+        } else {
+            Vec::new()
+        },
+    }
+}
+
+/// Neurosymbolic `FaithEval` local-span, negation-polarity, and optional `.jsyn` cosine RRF reader.
+///
+/// Unlike standalone bi-encoder cosine similarity (which averages the entire passage and suffers from
+/// parametric distraction), this reader weights sentences by IDF-scaled question-focus overlap,
+/// evaluates a tight `±1` sentence window around the counterfactual predication, penalizes negated
+/// distractors, and optionally fuses `.jsyn` living-weight cosine scores.
+pub fn score_faithful_mc_question(
+    context: &str,
+    question: &str,
+    choices: &[String],
+    optional_jsyn_cosines: Option<&[f64]>,
+    gate_abstention: bool,
+) -> FaithfulMcPrediction {
+    let audit = audit_passage_faithfulness(context, question, choices);
+    if choices.is_empty() {
+        return FaithfulMcPrediction {
+            predicted_index: None,
+            choice_scores: Vec::new(),
+            audit,
+        };
+    }
+
+    let sents = split_sentences(context);
+    let sent_toks: Vec<Vec<String>> = sents.iter().map(|s| tokenize_content_words(s)).collect();
+    let mut df: HashMap<String, usize> = HashMap::new();
+    for st in &sent_toks {
+        let mut uniq = st.clone();
+        uniq.sort();
+        uniq.dedup();
+        for tok in uniq {
+            *df.entry(tok).or_insert(0) += 1;
+        }
+    }
+    let n_sents = sents.len().max(1) as f64;
+    let idf = |t: &str| -> f64 {
+        let d = *df.get(t).unwrap_or(&0) as f64;
+        ((n_sents + 1.0) / (d + 1.0)).ln() + 1.0
+    };
+
+    let q_toks = tokenize_content_words(question);
+    let q_neg = contains_negation(&raw_words_lower(question));
+
+    // Score each sentence's relevance to the question
+    let prefix5_eq = |a: &str, b: &str| -> bool {
+        let mut ca = a.chars();
+        let mut cb = b.chars();
+        for _ in 0..5 {
+            match (ca.next(), cb.next()) {
+                (Some(xa), Some(xb)) if xa == xb => {}
+                _ => return false,
+            }
+        }
+        true
+    };
+
+    let mut sent_q_weights = vec![0.0f64; sents.len()];
+    for (si, st) in sent_toks.iter().enumerate() {
+        let mut w = 0.15;
+        for qt in &q_toks {
+            if st.iter().any(|x| x == qt) {
+                w += idf(qt);
+            } else if qt.chars().count() >= 5 && st.iter().any(|x| prefix5_eq(x, qt)) {
+                w += 0.65 * idf(qt);
+            }
+        }
+        sent_q_weights[si] = w;
+    }
+
+    // Smooth ±1 neighboring sentences for coreference ("It...", "Instead, this...")
+    let mut window_weights = sent_q_weights.clone();
+    for i in 0..sents.len() {
+        if i > 0 {
+            window_weights[i] += 0.35 * sent_q_weights[i - 1];
+        }
+        if i + 1 < sents.len() {
+            window_weights[i] += 0.35 * sent_q_weights[i + 1];
+        }
+    }
+
+    let mut scores = vec![0.0f64; choices.len()];
+    for (ci, choice) in choices.iter().enumerate() {
+        let c_low = choice.trim().to_ascii_lowercase();
+        let c_toks: Vec<String> = tokenize_content_words(choice)
+            .into_iter()
+            .filter(|t| !q_toks.contains(t))
+            .collect();
+        let effective_toks = if c_toks.is_empty() {
+            raw_words_lower(choice)
+        } else {
+            c_toks
+        };
+        let c_neg = contains_negation(&raw_words_lower(choice));
+
+        let mut best_sent_score = 0.0f64;
+        let mut total_sent_score = 0.0f64;
+        for (si, sent) in sents.iter().enumerate() {
+            let s_low = sent.to_ascii_lowercase();
+            let s_raw = raw_words_lower(sent);
+            let s_neg = contains_negation(&s_raw);
+
+            let mut lex_match = 0.0f64;
+            if !c_low.is_empty() && c_low.len() >= 3 && s_low.contains(&c_low) {
+                lex_match += 3.0;
+            }
+            if !effective_toks.is_empty() {
+                let mut hit_sum = 0.0;
+                let mut norm_sum = 0.0;
+                for ct in &effective_toks {
+                    let w_idf = idf(ct);
+                    norm_sum += w_idf;
+                    if s_raw.iter().any(|x| x == ct) {
+                        hit_sum += w_idf;
+                    } else if ct.chars().count() >= 5 && s_raw.iter().any(|x| prefix5_eq(x, ct)) {
+                        hit_sum += 0.7 * w_idf;
+                    }
+                }
+                if norm_sum > 0.0 {
+                    lex_match += 2.5 * (hit_sum / norm_sum);
+                }
+            }
+
+            if lex_match > 0.0 {
+                // Polarity check: if question asks affirmative ("What IS...") and sentence negates
+                // the candidate ("is NOT X, it is Y"), penalize X!
+                let polarity_mult = if (s_neg ^ c_neg) != q_neg {
+                    0.30
+                } else {
+                    1.0
+                };
+                let contrib = window_weights[si] * lex_match * polarity_mult;
+                best_sent_score = best_sent_score.max(contrib);
+                total_sent_score += 0.25 * contrib;
+            }
+        }
+
+        let mut final_score = best_sent_score + total_sent_score;
+        if let Some(jsyn) = optional_jsyn_cosines {
+            if let Some(&cos) = jsyn.get(ci) {
+                final_score += 2.2 * cos;
+            }
+        }
+        scores[ci] = final_score;
+    }
+
+    // Apply authoritative meta-choice precedence after computing base span scores so an explicit
+    // "conflict / inconsistent" or "unanswerable / unknown" option strictly beats partial spans.
+    let max_span_score = scores.iter().copied().fold(0.0_f64, f64::max);
+    for (ci, choice) in choices.iter().enumerate() {
+        let c_low = choice.trim().to_ascii_lowercase();
+        if audit.unanswerable_abstain
+            && (c_low.contains("unknown")
+                || c_low.contains("unanswerable")
+                || c_low.contains("cannot be determined")
+                || c_low.contains("not enough information"))
+        {
+            scores[ci] = max_span_score + 10.0;
+        }
+        if audit.inconsistent_conflict
+            && (c_low.contains("conflict")
+                || c_low.contains("contradict")
+                || c_low.contains("inconsistent"))
+        {
+            scores[ci] = max_span_score + 10.0;
+        }
+    }
+
+    if gate_abstention && (audit.unanswerable_abstain || audit.inconsistent_conflict) {
+        return FaithfulMcPrediction {
+            predicted_index: None,
+            choice_scores: scores,
+            audit,
+        };
+    }
+
+    let best_idx = scores
+        .iter()
+        .enumerate()
+        .max_by(|a, b| a.1.total_cmp(b.1))
+        .map(|(idx, _)| idx);
+
+    FaithfulMcPrediction {
+        predicted_index: best_idx,
+        choice_scores: scores,
+        audit,
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 3. ARC-AGI-2 PROGRAM SYNTHESIS DSL & ARC-AGI-3 ACTIVE PROBE ENGINE
 // ═══════════════════════════════════════════════════════════════════════════
+
+/// Boolean operator applied across split subgrid panels in `ARC-AGI` tasks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PanelLogicKind {
+    /// Cell-wise exclusive-OR `(a != 0) ^ (b != 0)`.
+    Xor,
+    /// Cell-wise conjunction `(a != 0) && (b != 0)`.
+    And,
+    /// Cell-wise disjunction `(a != 0) || (b != 0)`.
+    Or,
+    /// Cell-wise joint denial `(a == 0) && (b == 0)`.
+    Nor,
+}
 
 /// 2D palette grid (`0..=9`) for `ARC-AGI-2` and `ARC-AGI-3` abstract reasoning tasks.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -492,10 +839,161 @@ pub enum ArcOp {
     CompleteHorizontalSymmetry,
     /// Completes vertical mirror symmetry (`g[r][c] | g[H-1-r][c]`).
     CompleteVerticalSymmetry,
+    /// Retains only the largest 4-connected non-zero object (zeros smaller distractor components).
+    KeepLargestObject,
+    /// Crops to the minimal bounding box of the largest 4-connected non-zero object.
+    CropLargestObject,
+    /// Retains only pixels belonging to the rarest non-zero palette color in the grid.
+    KeepUniqueColorObject,
+    /// Crops to the minimal bounding box of the rarest non-zero palette color in the grid.
+    CropUniqueColorObject,
+    /// Connects orthogonally aligned pixels of the same non-zero color across `0` background gaps.
+    ConnectSameColorOrthogonal,
+    /// Splits a grid across a uniform separator row/col (or exact halves) and applies boolean panel logic.
+    SplitPanelBool {
+        /// Boolean operator (`Xor`, `And`, `Or`, `Nor`).
+        op: PanelLogicKind,
+        /// Foreground palette color written where the boolean predicate holds.
+        output_color: u8,
+    },
+    /// Summarizes each `(row_factor x col_factor)` block by its majority non-zero color (`Downsample`).
+    DownsampleBlockMajority {
+        /// Vertical block height.
+        row_factor: usize,
+        /// Horizontal block width.
+        col_factor: usize,
+    },
+    /// Swaps background `0` and non-zero foreground (`0 -> fg_color`, `non-zero -> 0`).
+    InvertBinary {
+        /// Palette color assigned to former `0` cells.
+        fg_color: u8,
+    },
     /// Applies palette color substitution table.
     RecolorMap(Vec<(u8, u8)>),
     /// Sequential composition `second(first(grid))`.
     Compose(Box<ArcOp>, Box<ArcOp>),
+}
+
+#[derive(Clone)]
+struct ConnectedComp {
+    pixels: Vec<(usize, usize, u8)>,
+    r0: usize,
+    r1: usize,
+    c0: usize,
+    c1: usize,
+}
+
+fn extract_4connected_components(g: &ArcGrid) -> Vec<ConnectedComp> {
+    let (h, w) = (g.height(), g.width());
+    let mut vis = vec![vec![false; w]; h];
+    let mut comps = Vec::new();
+    for r in 0..h {
+        for c in 0..w {
+            if g.cells[r][c] != 0 && !vis[r][c] {
+                let mut q = VecDeque::new();
+                vis[r][c] = true;
+                q.push_back((r, c));
+                let mut pixels = Vec::new();
+                let (mut r0, mut r1, mut c0, mut c1) = (r, r, c, c);
+                while let Some((cr, cc)) = q.pop_front() {
+                    pixels.push((cr, cc, g.cells[cr][cc]));
+                    r0 = r0.min(cr);
+                    r1 = r1.max(cr);
+                    c0 = c0.min(cc);
+                    c1 = c1.max(cc);
+                    let nbrs = [
+                        (cr.wrapping_sub(1), cc),
+                        (cr + 1, cc),
+                        (cr, cc.wrapping_sub(1)),
+                        (cr, cc + 1),
+                    ];
+                    for (nr, nc) in nbrs {
+                        if nr < h && nc < w && g.cells[nr][nc] != 0 && !vis[nr][nc] {
+                            vis[nr][nc] = true;
+                            q.push_back((nr, nc));
+                        }
+                    }
+                }
+                comps.push(ConnectedComp {
+                    pixels,
+                    r0,
+                    r1,
+                    c0,
+                    c1,
+                });
+            }
+        }
+    }
+    comps
+}
+
+fn rarest_nonzero_color(g: &ArcGrid) -> Option<u8> {
+    let mut counts = [0usize; 256];
+    for row in &g.cells {
+        for &v in row {
+            if v != 0 {
+                counts[v as usize] += 1;
+            }
+        }
+    }
+    (1u8..=9)
+        .filter(|&c| counts[c as usize] > 0)
+        .min_by_key(|&c| counts[c as usize])
+}
+
+fn dominant_nonzero_color(g: &ArcGrid) -> Option<u8> {
+    let mut counts = [0usize; 256];
+    for row in &g.cells {
+        for &v in row {
+            if v != 0 {
+                counts[v as usize] += 1;
+            }
+        }
+    }
+    (1u8..=9)
+        .filter(|&c| counts[c as usize] > 0)
+        .max_by_key(|&c| counts[c as usize])
+}
+
+fn split_two_panels(g: &ArcGrid) -> Option<(ArcGrid, ArcGrid)> {
+    let (h, w) = (g.height(), g.width());
+    if h == 0 || w == 0 {
+        return None;
+    }
+    // Check vertical separator column at exact center `w = 2 * sub_w + 1`
+    if w >= 3 && w % 2 == 1 {
+        let mid = w / 2;
+        let sep = g.cells[0][mid];
+        if sep != 0 && (0..h).all(|r| g.cells[r][mid] == sep) {
+            let left: Vec<Vec<u8>> = (0..h).map(|r| g.cells[r][..mid].to_vec()).collect();
+            let right: Vec<Vec<u8>> = (0..h).map(|r| g.cells[r][mid + 1..].to_vec()).collect();
+            return Some((ArcGrid::new(left), ArcGrid::new(right)));
+        }
+    }
+    // Check horizontal separator row at exact center `h = 2 * sub_h + 1`
+    if h >= 3 && h % 2 == 1 {
+        let mid = h / 2;
+        let sep = g.cells[mid][0];
+        if sep != 0 && (0..w).all(|c| g.cells[mid][c] == sep) {
+            let top = g.cells[..mid].to_vec();
+            let bot = g.cells[mid + 1..].to_vec();
+            return Some((ArcGrid::new(top), ArcGrid::new(bot)));
+        }
+    }
+    // Fallback: exact even split without divider if `w >= 2 * h` or `h >= 2 * w`
+    if w >= 2 && w % 2 == 0 && w >= h * 2 {
+        let mid = w / 2;
+        let left: Vec<Vec<u8>> = (0..h).map(|r| g.cells[r][..mid].to_vec()).collect();
+        let right: Vec<Vec<u8>> = (0..h).map(|r| g.cells[r][mid..].to_vec()).collect();
+        return Some((ArcGrid::new(left), ArcGrid::new(right)));
+    }
+    if h >= 2 && h % 2 == 0 && h >= w * 2 {
+        let mid = h / 2;
+        let top = g.cells[..mid].to_vec();
+        let bot = g.cells[mid..].to_vec();
+        return Some((ArcGrid::new(top), ArcGrid::new(bot)));
+    }
+    None
 }
 
 impl ArcOp {
@@ -506,7 +1004,16 @@ impl ArcOp {
             Self::Rot90 | Self::Rot180 | Self::Rot270 | Self::FlipH | Self::FlipV | Self::Transpose => 2,
             Self::CropNonZeroBBox | Self::GravityDown | Self::GravityRight | Self::Shift { .. } => 3,
             Self::CompleteHorizontalSymmetry | Self::CompleteVerticalSymmetry | Self::HollowInterior => 3,
-            Self::ScaleUp { .. } | Self::TileRepeat { .. } => 4,
+            Self::KeepLargestObject
+            | Self::CropLargestObject
+            | Self::KeepUniqueColorObject
+            | Self::CropUniqueColorObject
+            | Self::ConnectSameColorOrthogonal
+            | Self::InvertBinary { .. } => 4,
+            Self::ScaleUp { .. }
+            | Self::TileRepeat { .. }
+            | Self::DownsampleBlockMajority { .. }
+            | Self::SplitPanelBool { .. } => 4,
             Self::TileAlternatingFlipH { .. } | Self::KroneckerSelfTile | Self::FillEnclosedHoles { .. } => 5,
             Self::RecolorMap(m) => 3 + m.len() as u32,
             Self::Compose(a, b) => 1 + a.mdl_cost() + b.mdl_cost(),
@@ -785,6 +1292,169 @@ impl ArcOp {
                 }
                 ArcGrid::new(out)
             }
+            Self::KeepLargestObject => {
+                let comps = extract_4connected_components(g);
+                let Some(best) = comps.into_iter().max_by_key(|c| c.pixels.len()) else {
+                    return g.clone();
+                };
+                let mut out = vec![vec![0u8; w]; h];
+                for (r, c, col) in best.pixels {
+                    out[r][c] = col;
+                }
+                ArcGrid::new(out)
+            }
+            Self::CropLargestObject => {
+                let comps = extract_4connected_components(g);
+                let Some(best) = comps.into_iter().max_by_key(|c| c.pixels.len()) else {
+                    return g.clone();
+                };
+                let mut out = vec![vec![0u8; best.c1 - best.c0 + 1]; best.r1 - best.r0 + 1];
+                for (r, c, col) in best.pixels {
+                    out[r - best.r0][c - best.c0] = col;
+                }
+                ArcGrid::new(out)
+            }
+            Self::KeepUniqueColorObject => {
+                let Some(rc) = rarest_nonzero_color(g) else {
+                    return g.clone();
+                };
+                let out = g
+                    .cells
+                    .iter()
+                    .map(|row| row.iter().map(|&v| if v == rc { v } else { 0 }).collect())
+                    .collect();
+                ArcGrid::new(out)
+            }
+            Self::CropUniqueColorObject => {
+                let Some(rc) = rarest_nonzero_color(g) else {
+                    return g.clone();
+                };
+                let (mut r0, mut r1, mut c0, mut c1) = (h, 0usize, w, 0usize);
+                let mut found = false;
+                for r in 0..h {
+                    for c in 0..w {
+                        if g.cells[r][c] == rc {
+                            found = true;
+                            r0 = r0.min(r);
+                            r1 = r1.max(r);
+                            c0 = c0.min(c);
+                            c1 = c1.max(c);
+                        }
+                    }
+                }
+                if !found {
+                    return g.clone();
+                }
+                let mut out = Vec::with_capacity(r1 - r0 + 1);
+                for r in r0..=r1 {
+                    out.push(g.cells[r][c0..=c1].to_vec());
+                }
+                ArcGrid::new(out)
+            }
+            Self::ConnectSameColorOrthogonal => {
+                let mut out = g.cells.clone();
+                // Horizontal bridges across `0` cells between matching non-zero endpoints
+                for r in 0..h {
+                    let mut prev: Option<(usize, u8)> = None;
+                    for c in 0..w {
+                        let v = g.cells[r][c];
+                        if v != 0 {
+                            if let Some((pc, pv)) = prev {
+                                if pv == v && c > pc + 1 && (pc + 1..c).all(|mc| g.cells[r][mc] == 0) {
+                                    for mc in pc + 1..c {
+                                        out[r][mc] = v;
+                                    }
+                                }
+                            }
+                            prev = Some((c, v));
+                        }
+                    }
+                }
+                // Vertical bridges across `0` cells between matching non-zero endpoints
+                for c in 0..w {
+                    let mut prev: Option<(usize, u8)> = None;
+                    for r in 0..h {
+                        let v = g.cells[r][c];
+                        if v != 0 {
+                            if let Some((pr, pv)) = prev {
+                                if pv == v && r > pr + 1 && (pr + 1..r).all(|mr| g.cells[mr][c] == 0) {
+                                    for mr in pr + 1..r {
+                                        out[mr][c] = v;
+                                    }
+                                }
+                            }
+                            prev = Some((r, v));
+                        }
+                    }
+                }
+                ArcGrid::new(out)
+            }
+            Self::SplitPanelBool { op, output_color } => {
+                let Some((a, b)) = split_two_panels(g) else {
+                    return g.clone();
+                };
+                if a.height() != b.height() || a.width() != b.width() {
+                    return g.clone();
+                }
+                let (ph, pw) = (a.height(), a.width());
+                let mut out = vec![vec![0u8; pw]; ph];
+                for r in 0..ph {
+                    for c in 0..pw {
+                        let av = a.cells[r][c] != 0;
+                        let bv = b.cells[r][c] != 0;
+                        let bit = match op {
+                            PanelLogicKind::Xor => av ^ bv,
+                            PanelLogicKind::And => av && bv,
+                            PanelLogicKind::Or => av || bv,
+                            PanelLogicKind::Nor => !av && !bv,
+                        };
+                        if bit {
+                            out[r][c] = *output_color;
+                        }
+                    }
+                }
+                ArcGrid::new(out)
+            }
+            Self::DownsampleBlockMajority {
+                row_factor,
+                col_factor,
+            } => {
+                let rf = (*row_factor).max(1);
+                let cf = (*col_factor).max(1);
+                if h < rf || w < cf || h % rf != 0 || w % cf != 0 {
+                    return g.clone();
+                }
+                let (oh, ow) = (h / rf, w / cf);
+                let mut out = vec![vec![0u8; ow]; oh];
+                for br in 0..oh {
+                    for bc in 0..ow {
+                        let mut counts = [0usize; 256];
+                        for dr in 0..rf {
+                            for dc in 0..cf {
+                                let v = g.cells[br * rf + dr][bc * cf + dc];
+                                if v != 0 {
+                                    counts[v as usize] += 1;
+                                }
+                            }
+                        }
+                        if let Some(best_c) = (1u8..=9)
+                            .filter(|&c| counts[c as usize] > 0)
+                            .max_by_key(|&c| counts[c as usize])
+                        {
+                            out[br][bc] = best_c;
+                        }
+                    }
+                }
+                ArcGrid::new(out)
+            }
+            Self::InvertBinary { fg_color } => {
+                let out = g
+                    .cells
+                    .iter()
+                    .map(|row| row.iter().map(|&v| if v == 0 { *fg_color } else { 0 }).collect())
+                    .collect();
+                ArcGrid::new(out)
+            }
             Self::RecolorMap(mapping) => {
                 let mut lut = [0u8; 256];
                 for (i, slot) in lut.iter_mut().enumerate() {
@@ -868,6 +1538,11 @@ pub fn synthesize_arc_program(
         ArcOp::CompleteHorizontalSymmetry,
         ArcOp::CompleteVerticalSymmetry,
         ArcOp::KroneckerSelfTile,
+        ArcOp::KeepLargestObject,
+        ArcOp::CropLargestObject,
+        ArcOp::KeepUniqueColorObject,
+        ArcOp::CropUniqueColorObject,
+        ArcOp::ConnectSameColorOrthogonal,
     ];
 
     for fc in 1u8..=9 {
@@ -881,9 +1556,23 @@ pub fn synthesize_arc_program(
         }
     }
 
-    // Infer exact ratio candidates from the first demonstration pair
+    // Infer exact ratio & panel candidates from the first demonstration pair
     let (in0, out0) = &train[0];
-    if in0.height() > 0 && in0.width() > 0 {
+    if let Some(dom_c) = dominant_nonzero_color(out0) {
+        base_ops.push(ArcOp::InvertBinary { fg_color: dom_c });
+        for kind in [
+            PanelLogicKind::Xor,
+            PanelLogicKind::And,
+            PanelLogicKind::Or,
+            PanelLogicKind::Nor,
+        ] {
+            base_ops.push(ArcOp::SplitPanelBool {
+                op: kind,
+                output_color: dom_c,
+            });
+        }
+    }
+    if in0.height() > 0 && in0.width() > 0 && out0.height() > 0 && out0.width() > 0 {
         if out0.height() % in0.height() == 0 && out0.width() % in0.width() == 0 {
             let rr = out0.height() / in0.height();
             let cr = out0.width() / in0.width();
@@ -899,6 +1588,16 @@ pub fn synthesize_arc_program(
                 if rr == cr {
                     base_ops.push(ArcOp::ScaleUp { factor: rr });
                 }
+            }
+        }
+        if in0.height() % out0.height() == 0 && in0.width() % out0.width() == 0 {
+            let rf = in0.height() / out0.height();
+            let cf = in0.width() / out0.width();
+            if rf >= 1 && cf >= 1 && (rf > 1 || cf > 1) && rf <= 8 && cf <= 8 {
+                base_ops.push(ArcOp::DownsampleBlockMajority {
+                    row_factor: rf,
+                    col_factor: cf,
+                });
             }
         }
     }
@@ -1625,5 +2324,64 @@ mod tests {
         assert!(raw_aud.violation_severity_index > 0.05);
         assert_eq!(safe_aud.violation_severity_index, 0.0);
         assert_eq!(safe_aud.interventions, 1);
+    }
+
+    #[test]
+    fn test_expanded_arc_panel_xor_ray_and_faithful_span_reader() {
+        // 1. Split-panel XOR across vertical divider column `5` (`w = 2*2 + 1 = 5`)
+        let p_in = ArcGrid::new(vec![
+            vec![1, 0, 5, 1, 1],
+            vec![0, 1, 5, 0, 1],
+        ]);
+        let p_out = ArcGrid::new(vec![
+            vec![0, 3],
+            vec![0, 0],
+        ]);
+        let syn = synthesize_arc_program(&[(p_in.clone(), p_out.clone())], false).unwrap();
+        assert_eq!(syn.program.apply(&p_in), p_out);
+
+        // 2. ConnectSameColorOrthogonal across `0` gap
+        let r_in = ArcGrid::new(vec![
+            vec![0, 4, 0, 0, 4],
+            vec![0, 0, 0, 0, 0],
+        ]);
+        let r_out = ArcGrid::new(vec![
+            vec![0, 4, 4, 4, 4],
+            vec![0, 0, 0, 0, 0],
+        ]);
+        let syn_r = synthesize_arc_program(&[(r_in.clone(), r_out.clone())], false).unwrap();
+        assert_eq!(syn_r.program.apply(&r_in), r_out);
+
+        // 3. FaithfulSpanReader: counterfactual override + negation awareness
+        let ctx = "Researchers studied atmospheric optics on Planet Zorg. Unlike Earth, the sky on Planet Zorg is not blue; instead, dense methane crystals turn the sky emerald green at noon.";
+        let pred = score_faithful_mc_question(
+            ctx,
+            "What color is the sky on Planet Zorg at noon?",
+            &[
+                "blue".to_string(),
+                "emerald green".to_string(),
+                "crimson red".to_string(),
+                "violet".to_string(),
+            ],
+            None,
+            false,
+        );
+        assert_eq!(pred.predicted_index, Some(1));
+
+        // 4. FaithfulSpanReader: inconsistent multi-document detection & unanswerable detection
+        let inc_ctx = "Document 1: Project Apollo launched on Friday. Document 2: Project Apollo launched on Tuesday.";
+        let inc_audit = audit_passage_faithfulness(
+            inc_ctx,
+            "On which day did Project Apollo launch?",
+            &["Friday".into(), "Tuesday".into(), "Sunday".into()],
+        );
+        assert!(inc_audit.inconsistent_conflict);
+
+        let unans_audit = audit_passage_faithfulness(
+            "Bananas are rich in potassium and grow in tropical climates.",
+            "What was the GDP growth rate of Switzerland in 2024?",
+            &["1.2%".into(), "2.5%".into()],
+        );
+        assert!(unans_audit.unanswerable_abstain);
     }
 }

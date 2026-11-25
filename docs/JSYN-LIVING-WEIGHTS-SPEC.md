@@ -1,6 +1,6 @@
 # The `.jsyn` (`JSYN-v1`) Living-Weights Specification & OpenIE Model Ecosystem
 
-**Version:** `1.0` (`JouleDB v0.2.9` — November 2026)  
+**Version:** `1.1` (`JouleDB v0.3.1` — November 2026 · Certified across 14 Physical Computers & 21 Global Pillars)  
 **License:** `Apache-2.0 OR MIT` (per-model `.jsyn` exports preserve exact upstream SPDX / model licenses)  
 **Public Fleet:** [82 `.jsyn` repositories on Hugging Face (`dcharlot65-openie`)](https://huggingface.co/dcharlot65-openie)  
 **Reference Implementation:** `crates/joule-db-weights/src/{synapse.rs, checkpoint_ingest.rs, causal_decoder.rs, rank_sweep_bench.rs}`

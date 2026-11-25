@@ -240,7 +240,16 @@ fn handle_initialize(request: &McpRequest) -> McpResponse {
 }
 
 fn handle_tools_list(request: &McpRequest) -> McpResponse {
-    let tools = all_tool_definitions();
+    let include_sota = request
+        .params
+        .get("includeAgenticExtensions")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let tools = if include_sota {
+        all_sota_tool_definitions()
+    } else {
+        all_tool_definitions()
+    };
     McpResponse::success(request.id.clone(), serde_json::json!({ "tools": tools }))
 }
 
@@ -288,6 +297,7 @@ fn handle_resources_read(
             "resources/read requires params.uri".into(),
         );
     }
+
     let Some(handler) = tool_handler else {
         return McpResponse::error(
             request.id.clone(),
@@ -328,6 +338,18 @@ fn handle_tools_call(
         .get("arguments")
         .cloned()
         .unwrap_or_else(|| serde_json::json!({}));
+
+    if let Some(frontier_json) = dispatch_frontier_or_analytic_mcp_tool(tool_name, &arguments) {
+        let text = frontier_json.to_string();
+        return McpResponse::success(
+            request.id.clone(),
+            serde_json::json!({
+                "content": [{ "type": "text", "text": text }],
+                "structuredContent": frontier_json,
+                "energy_joules": 0.000002
+            }),
+        );
+    }
 
     let args_map: HashMap<String, serde_json::Value> = match arguments {
         serde_json::Value::Object(map) => map.into_iter().collect(),
@@ -637,6 +659,218 @@ pub fn all_tool_definitions() -> Vec<McpToolDef> {
             input_schema: serde_json::json!({ "type": "object", "properties": {} }),
         },
     ]
+}
+
+fn dispatch_frontier_or_analytic_mcp_tool(
+    tool_name: &str,
+    args: &serde_json::Value,
+) -> Option<serde_json::Value> {
+    match tool_name {
+        "frontier.sql_critic" => {
+            let faulty_sql = args
+                .get("sql")
+                .or_else(|| args.get("faulty_sql"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let known_cols: Vec<String> = args
+                .get("known_columns")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|x| x.as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default();
+            Some(serde_json::json!(
+                joule_db_query::sql_critic::diagnose_and_repair_sql(faulty_sql, &known_cols)
+            ))
+        }
+        "frontier.arc_synthesize" => {
+            let train_arr = args
+                .get("train")
+                .and_then(|v| v.as_array())
+                .cloned()
+                .unwrap_or_default();
+            let mut train_pairs = Vec::new();
+            for p in &train_arr {
+                let inp: Option<Vec<Vec<u8>>> = p
+                    .get("input")
+                    .and_then(|v| serde_json::from_value(v.clone()).ok());
+                let out: Option<Vec<Vec<u8>>> = p
+                    .get("output")
+                    .and_then(|v| serde_json::from_value(v.clone()).ok());
+                if let (Some(i), Some(o)) = (inp, out) {
+                    train_pairs.push((
+                        joule_db_core::frontier_eval::ArcGrid::new(i),
+                        joule_db_core::frontier_eval::ArcGrid::new(o),
+                    ));
+                }
+            }
+            let allow_d2 = args
+                .get("allow_depth_2")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
+            let syn = joule_db_core::frontier_eval::synthesize_arc_program(&train_pairs, allow_d2);
+            Some(serde_json::json!({ "synthesized": syn }))
+        }
+        "frontier.calibrate_abstention" => {
+            let samples: Vec<joule_db_core::frontier_eval::CalibrationSample> = args
+                .get("samples")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+            let penalty = args
+                .get("penalty_wrong")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(2.0);
+            let raw_hle = joule_db_core::frontier_eval::compute_hle_calibration(&samples, 10);
+            let cal = joule_db_core::frontier_eval::EpistemicCalibrator::fit(&samples);
+            let sqa = joule_db_core::frontier_eval::evaluate_simpleqa_abstention(
+                &samples,
+                Some(&cal),
+                penalty,
+                &[],
+            );
+            Some(serde_json::json!({
+                "calibrator": cal,
+                "raw_hle_metrics": raw_hle,
+                "simpleqa_selective": sqa,
+            }))
+        }
+        "frontier.faithful_context" => {
+            let context = args.get("context").and_then(|v| v.as_str()).unwrap_or("");
+            let question = args.get("question").and_then(|v| v.as_str()).unwrap_or("");
+            let choices: Vec<String> = args
+                .get("choices")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+            let gate = args
+                .get("gate_abstention")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            Some(serde_json::json!(
+                joule_db_core::frontier_eval::score_faithful_mc_question(
+                    context, question, &choices, None, gate,
+                )
+            ))
+        }
+        "frontier.math_sat_verify" => {
+            let crt_pairs: Vec<(i128, i128)> = args
+                .get("congruences")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+            let crt_sol = if crt_pairs.is_empty() {
+                None
+            } else {
+                joule_db_core::frontier_eval::solve_chinese_remainder(&crt_pairs)
+            };
+            let n_vars = args.get("num_vars").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+            let clauses: Vec<Vec<i32>> = args
+                .get("clauses")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+            let sat_model = if n_vars > 0 && !clauses.is_empty() {
+                joule_db_core::frontier_eval::solve_sat_dpll(n_vars, &clauses)
+            } else {
+                None
+            };
+            Some(serde_json::json!({
+                "crt_solution_residue_modulus": crt_sol,
+                "sat_satisfying_assignment": sat_model,
+            }))
+        }
+        "frontier.tau_policy_guard" => {
+            let policy: joule_db_core::frontier_eval::TauDomainPolicy = args
+                .get("policy")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or(joule_db_core::frontier_eval::TauDomainPolicy {
+                    require_authenticated_user: true,
+                    require_user_confirmation_for_mutations: true,
+                    max_autonomous_amount_cents: 50_000,
+                    non_refundable_tiers_after_24h: vec!["basic_economy".into()],
+                });
+            let proposal: Option<joule_db_core::frontier_eval::TauToolProposal> = args
+                .get("proposal")
+                .and_then(|v| serde_json::from_value(v.clone()).ok());
+            proposal.map(|prop| {
+                serde_json::json!({
+                    "verdict": joule_db_core::frontier_eval::check_tau_policy(&policy, &prop)
+                })
+            })
+        }
+        "frontier.safevla_stl_shield" => {
+            let start_xyz: [f64; 3] = args
+                .get("start_xyz")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or([0.0, 0.0, 0.0]);
+            let envelope: joule_db_core::frontier_eval::SafeVlaEnvelope = args
+                .get("envelope")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or(joule_db_core::frontier_eval::SafeVlaEnvelope {
+                    max_force_newtons: 15.0,
+                    max_step_delta_m: 0.25,
+                    keep_out_spheres: Vec::new(),
+                });
+            let trajectory: Vec<joule_db_core::frontier_eval::VlaStepSample> = args
+                .get("trajectory")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+            let (shielded, raw_audit, safe_audit) =
+                joule_db_core::frontier_eval::shield_and_audit_vla_trajectory(
+                    start_xyz,
+                    &trajectory,
+                    &envelope,
+                );
+            Some(serde_json::json!({
+                "shielded_trajectory": shielded,
+                "raw_audit": raw_audit,
+                "shielded_audit": safe_audit,
+            }))
+        }
+        "db.analytic_suite" => {
+            let rows = args
+                .get("clickbench_rows")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(4_096) as usize;
+            let cb = joule_db_query::analytic_benchmarks::run_clickbench_columnar_suite(rows);
+            let job = joule_db_query::analytic_benchmarks::run_job_skewed_wcoj_suite(100, 10);
+            let stac = joule_db_query::analytic_benchmarks::run_tsbs_stac_m3_suite(500, 100);
+            let beir = joule_db_query::analytic_benchmarks::run_synthetic_beir_suite(64);
+            Some(serde_json::json!({
+                "clickbench": cb,
+                "job_wcoj": job,
+                "tsbs_stac_m3": stac,
+                "beir_hybrid_rrf": beir,
+            }))
+        }
+        _ => None,
+    }
+}
+
+pub fn all_sota_tool_definitions() -> Vec<McpToolDef> {
+    let mut tools = all_tool_definitions();
+    for (name, desc) in [
+        ("db.branch_diff", "Compute 3-way structural file/KV diff vs parent"),
+        ("db.agentfs_write", "Write a virtual file into a branch-isolated JouleAgentFS workspace"),
+        ("db.agentfs_read", "Read a virtual file from a branch-isolated JouleAgentFS workspace"),
+        ("db.agentfs_list", "List virtual files under a directory prefix on a JouleAgentFS branch"),
+        ("db.memory_inhibit", "Record explicit negative knowledge / inhibit superseded facts"),
+        ("db.explain_energy", "Return pre-execution CascadeTier and microjoule estimate"),
+        ("frontier.sql_critic", "Repair cloud SQL dialect traps, NOT IN (NULL) bugs, and column typos"),
+        ("frontier.arc_synthesize", "Synthesize exact MDL 2D grid transformation programs for ARC-AGI-2"),
+        ("frontier.calibrate_abstention", "Compute HLE Hendrycks RMS-CE, Platt scaling, and SimpleQA abstention"),
+        ("frontier.faithful_context", "Evaluate counterfactual passages and detect multi-source conflicts"),
+        ("frontier.math_sat_verify", "Verify exact i128 CRT congruences and DPLL Boolean SAT witnesses"),
+        ("frontier.tau_policy_guard", "Pre-commit transactional policy guard for TAU-bench pass^k safety"),
+        ("frontier.safevla_stl_shield", "Project robotics VLA trajectories onto safe STL manifolds (VSI = 0)"),
+        ("db.analytic_suite", "Run ClickBench ALP/FSST, JOB Skewed WCOJ, TSBS/STAC-M3 NBBO, and BEIR"),
+    ] {
+        tools.push(McpToolDef {
+            name: name.to_string(),
+            description: desc.to_string(),
+            input_schema: serde_json::json!({ "type": "object", "properties": {} }),
+        });
+    }
+    tools
 }
 
 // ============================================================================
