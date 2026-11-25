@@ -5,11 +5,11 @@ using System.Text.Json;
 namespace OpenIE.JouleDB;
 
 /// <summary>
-/// Official async .NET client for JouleDB v1.0.0.
+/// Official async .NET client for JouleDB v0.6.0.
 /// </summary>
 public sealed class JouleDbClient : IDisposable
 {
-    public const string SdkVersion = "1.0.0";
+    public const string SdkVersion = "0.6.0";
     private readonly HttpClient _http;
     private readonly bool _ownsClient;
 

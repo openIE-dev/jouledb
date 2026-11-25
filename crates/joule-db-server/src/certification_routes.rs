@@ -582,47 +582,53 @@ async fn handle_industry_suite(Json(req): Json<IndustrySuiteReq>) -> impl IntoRe
     (
         StatusCode::OK,
         Json(serde_json::json!({
-            "all_seven_pillars_certified": all_certified,
+            "workload_kind": "synthetic_in_memory_smoke_suite",
+            "energy_evidence": "est_j",
+            "disclaimer": "Runs 7 fast in-memory deterministic algorithm smoke checks (1,000-txn single-threaded SSI counter loop, synthetic ZoneMap array, in-memory ledger simulator, reactive DAG, synthetic RaBitQ vectors, DBSP ZSet step, and 6-scenario Hermitage SSI check). Not official TPC-C, ClickBench, Big-ANN, or Nexmark datasets.",
+            "all_seven_smoke_checks_passed": all_certified,
             "total_elapsed_ms": suite_t0.elapsed().as_secs_f64() * 1000.0,
-            "tpcc_ssi": {
+            "ssi_counter_conservation_smoke": {
+                "note": "Single-threaded in-memory loop over 1 counter + 16 keys (not TPC-C)",
                 "committed_txns": tpcc_committed,
                 "ops_per_sec": (tpcc_committed as f64) * 1_000_000.0 / (tpcc_us as f64),
                 "ytd_conserved": final_ytd == expected_ytd,
                 "elapsed_us": tpcc_us,
             },
-            "clickbench_zonemap": {
+            "synthetic_zonemap_smoke": {
                 "rows": cb_rows,
                 "granule_skip_ratio": cb_rec.granule_skip_ratio,
                 "matched_rows": cb_rec.matched_rows,
-                "energy_nj": cb_rec.energy_nj,
+                "est_energy_nj": cb_rec.energy_nj,
+                "energy_evidence": "est_j",
                 "elapsed_us": cb_us,
             },
-            "tigerbeetle_vopr": {
+            "double_entry_fault_sim_smoke": {
                 "transfers_simulated": vopr_rec.total_transfers_simulated,
                 "invariant_clean": vopr_rec.invariant_clean,
                 "torn_tails_detected": vopr_rec.torn_tails_detected,
                 "bit_flips_detected": vopr_rec.bit_flips_detected,
                 "elapsed_us": tb_us,
             },
-            "secdb_napa_dag": {
+            "reactive_dirty_cone_dag_smoke": {
                 "total_nodes": sec_rec.total_nodes,
                 "nodes_recomputed": sec_rec.nodes_recomputed,
                 "compute_saved_ratio": sec_rec.compute_saved_ratio,
-                "energy_nj": sec_rec.energy_nj,
+                "est_energy_nj": sec_rec.energy_nj,
+                "energy_evidence": "est_j",
                 "elapsed_us": sec_us,
             },
-            "big_ann_rabitq_filtered": {
+            "synthetic_rabitq_filtered_smoke": {
                 "vectors": n_vec,
                 "compression_ratio_vs_fp32": rabitq.compression_ratio(),
                 "selective_recall_hit": top10_hit,
                 "elapsed_us": ann_us,
             },
-            "nexmark_dbsp_stream": {
+            "incremental_dbsp_zset_smoke": {
                 "delta_bids": 64,
                 "updated_categories": changed_cats.len(),
                 "elapsed_us": nex_us,
             },
-            "hermitage_elle_ssi": {
+            "hermitage_elle_ssi_unit": {
                 "scenarios_passed": herm_rec.scenarios_passed,
                 "elle_cycles": herm_rec.elle_report.scc_cycles_found,
                 "serializable_clean": herm_rec.elle_report.serializable_clean,
@@ -689,12 +695,15 @@ async fn handle_analytic_suite(Json(req): Json<AnalyticSuiteReq>) -> impl IntoRe
         StatusCode::OK,
         Json(serde_json::json!({
             "ok": true,
-            "all_four_analytic_pillars_certified": all_ok,
+            "workload_kind": "synthetic_in_memory_smoke_suite",
+            "energy_evidence": "est_j",
+            "disclaimer": "Synthetic in-memory codec, skewed-join, ASOF, and 64-500 doc RRF smoke tests. Not official ClickBench, IMDb JOB, STAC-M3, or BEIR datasets.",
+            "all_four_synthetic_smoke_checks_passed": all_ok,
             "total_elapsed_ms": t0.elapsed().as_secs_f64() * 1000.0,
-            "clickbench_columnar": cb,
-            "job_skewed_wcoj": job,
-            "tsbs_stac_m3": stac,
-            "beir_hybrid_rrf": beir,
+            "synthetic_columnar_codec_smoke": cb,
+            "synthetic_skewed_wcoj_smoke": job,
+            "synthetic_asof_tick_smoke": stac,
+            "synthetic_hybrid_rrf_smoke": beir,
         })),
     )
 }

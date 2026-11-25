@@ -1,14 +1,8 @@
-//! Stub package for `cargo install` / `cargo binstall`.
+//! Installer hint stub for `cargo binstall jouledb`.
 //!
-//! When invoked via `cargo binstall <name>`, cargo-binstall reads the
-//! `[package.metadata.binstall]` table in Cargo.toml, fetches the
-//! prebuilt binary from GitHub Releases, and replaces this stub with
-//! the real tool — no compilation required.
-//!
-//! When invoked via `cargo install <name>`, cargo compiles this stub
-//! and the resulting binary just prints a hint pointing the user at
-//! the faster paths. The real tool is the binary published to GitHub
-//! Releases, not this stub.
+//! When invoked via `cargo binstall jouledb`, cargo-binstall reads the
+//! `[package.metadata.binstall]` table in Cargo.toml and installs the
+//! prebuilt `jouledb` server binary directly from GitHub Releases.
 
 fn main() {
     let name = env!("CARGO_PKG_NAME");
@@ -17,18 +11,20 @@ fn main() {
 
     eprintln!(
         "\
-{name} v{version}
+{name} v{version} (crates.io installer stub)
 
-This is the stub installer. To install the real binary fast, use:
+To install the prebuilt `{name}` server binary without compiling from source:
 
     cargo binstall {name}
 
-Or download a prebuilt binary directly from:
+Or download a prebuilt archive (macOS ARM64/x86_64, Linux GLIBC <= 2.35) from:
 
-    {repo}/releases/latest
+    {repo}/releases/tag/v{version}
 
-If you really want to compile from source, the source mirror is linked
-from {repo}.
+To compile the full server from source:
+
+    git clone {repo}
+    cd jouledb && cargo build --release --locked -p joule-db-server --bin jouledb
 "
     );
     std::process::exit(2);

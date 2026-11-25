@@ -71,12 +71,12 @@ pub mod embodied;
 pub mod encryption;
 pub mod engine;
 pub mod error;
-/// Global Frontier Benchmark, Neurosymbolic Solver & Epistemic Calibration Engine (`HLE`, `ARC-AGI-2/3`, `SimpleQA`, `FaithEval`, `TAU-bench`, `MRCR`, `SafeVLA`).
+/// Epistemic calibration metrics (RMS-CE, ECE, Brier, Platt scaling), 2D grid DSL, CRT/DPLL solvers & STL clamping.
 pub mod frontier_eval;
 pub mod index;
 /// Living Computing & Active-Inference substrate (`SurpriseGate`, `HomeostaticMetabolism`).
 pub mod living;
-/// Script-Fair 12-Language Multilingual `Engram` & `Global-MMLU` / `INCLUDE` Sovereign Evaluator.
+/// Script-normalized 12-language UTF-8 span tokenizer and analytical (`est_j`) token-fertility model.
 pub mod multilingual_global;
 pub mod persistence;
 pub mod query;
@@ -84,11 +84,11 @@ pub mod resilience;
 pub mod snapshot;
 pub mod storage;
 pub mod temporal;
-/// `TigerBeetle`-class strictly serializable double-entry ledger & `VOPR` fault simulator.
+/// Strictly serializable 128-bit double-entry ledger & deterministic fault simulator.
 pub mod tiger_ledger;
 pub mod tx;
 pub mod types;
-/// `v1.0.0` Wire/Storage ABI Stability Envelope, Continuous WAL Archiving & Microsecond `PITR`.
+/// Binary TLV/CRC-32 framing envelope, hash-chained WAL archiving & LSN/timestamp PITR primitives.
 pub mod v1_stability_and_pitr;
 
 #[cfg(test)]

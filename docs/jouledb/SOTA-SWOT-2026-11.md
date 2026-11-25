@@ -2,7 +2,7 @@
 
 **Date:** November 22, 2026
 **License:** `Apache-2.0 OR MIT`
-**Scope-A Purity:** 40 standalone crates (`0` private dependencies, `#![deny(unsafe_code)]` in `joule-db-core`, `deny(clippy::unwrap_used)` across all 6 core crates)
+**Scope-A Purity:** 41 workspace crates (`0` private dependencies, `#![deny(unsafe_code)]` in `joule-db-core` with 1 `#![allow(unsafe_code)]` mmap module `storage/mmap_extent.rs`, `deny(clippy::unwrap_used)` across 3 crates: `joule-db-core`, `joule-db-branch`, `joule-db-ledger`)
 
 ---
 
@@ -139,7 +139,7 @@ Rather than falling into a US-vs-China blind spot, `JouleSynapse` and `JouleHarn
 
 ## 10. Verification & Fleet Certification Summary
 
-- **Core Safety & Lint Gate:** `0` `unsafe` blocks in `joule-db-core`; `0` non-test `.unwrap()`s across **7** core crates (`joule-db-core`, `joule-db-local`, `joule-db-weights`, `joule-db-branch`, `joule-db-ledger`, `joule-db-query`, and `joule-db-server`).
+- **Core Safety & Lint Gate:** `#![deny(unsafe_code)]` in `joule-db-core` (with 1 `#![allow(unsafe_code)]` module `crates/joule-db-core/src/storage/mmap_extent.rs`); `deny(clippy::unwrap_used)` active in **3** crates (`joule-db-core`, `joule-db-branch`, and `joule-db-ledger`; workspace lint is `warn`).
 - **Unit, E2E, Adversarial, Jepsen, Living-Weight & JouleWard Suites:**
   - `joule-db-server --lib` (release): **`6,239 / 6,239` passed**
   - `joule-db-query --lib`: **`583 / 583` passed** (incl. `dbsp` + `hybrid_graphrag`)

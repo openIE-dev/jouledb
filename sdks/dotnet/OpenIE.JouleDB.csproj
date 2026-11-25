@@ -6,9 +6,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>OpenIE.JouleDB</PackageId>
-    <Version>1.0.0</Version>
+    <Version>0.6.0</Version>
     <Authors>Open Interface Engineering, Inc.</Authors>
-    <Description>Official .NET / C# SDK for JouleDB v1.0.0 — SQL, Amorphic Continuum, Zero-Downtime Migration, SOC2/MLS Trust, and 6-Rail Nanojoule Receipts.</Description>
+    <Description>Official .NET / C# SDK for JouleDB v0.6.0 — SQL, Amorphic Continuum, Zero-Downtime Migration, SOC2/MLS Trust, and 6-Rail Nanojoule Receipts.</Description>
     <PackageLicenseExpression>Apache-2.0 OR MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/openIE-dev/jouledb</RepositoryUrl>
   </PropertyGroup>

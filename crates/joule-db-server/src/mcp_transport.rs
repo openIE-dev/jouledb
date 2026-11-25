@@ -666,7 +666,7 @@ fn dispatch_frontier_or_analytic_mcp_tool(
     args: &serde_json::Value,
 ) -> Option<serde_json::Value> {
     match tool_name {
-        "frontier.sql_critic" => {
+        "sql.dialect_repair" => {
             let faulty_sql = args
                 .get("sql")
                 .or_else(|| args.get("faulty_sql"))
@@ -685,119 +685,7 @@ fn dispatch_frontier_or_analytic_mcp_tool(
                 joule_db_query::sql_critic::diagnose_and_repair_sql(faulty_sql, &known_cols)
             ))
         }
-        "frontier.arc_synthesize" => {
-            let train_arr = args
-                .get("train")
-                .and_then(|v| v.as_array())
-                .cloned()
-                .unwrap_or_default();
-            let mut train_pairs = Vec::new();
-            for p in &train_arr {
-                let inp: Option<Vec<Vec<u8>>> = p
-                    .get("input")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok());
-                let out: Option<Vec<Vec<u8>>> = p
-                    .get("output")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok());
-                if let (Some(i), Some(o)) = (inp, out) {
-                    train_pairs.push((
-                        joule_db_core::frontier_eval::ArcGrid::new(i),
-                        joule_db_core::frontier_eval::ArcGrid::new(o),
-                    ));
-                }
-            }
-            let allow_d2 = args
-                .get("allow_depth_2")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(true);
-            let syn = joule_db_core::frontier_eval::synthesize_arc_program(&train_pairs, allow_d2);
-            Some(serde_json::json!({ "synthesized": syn }))
-        }
-        "frontier.calibrate_abstention" => {
-            let samples: Vec<joule_db_core::frontier_eval::CalibrationSample> = args
-                .get("samples")
-                .and_then(|v| serde_json::from_value(v.clone()).ok())
-                .unwrap_or_default();
-            let penalty = args
-                .get("penalty_wrong")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(2.0);
-            let raw_hle = joule_db_core::frontier_eval::compute_hle_calibration(&samples, 10);
-            let cal = joule_db_core::frontier_eval::EpistemicCalibrator::fit(&samples);
-            let sqa = joule_db_core::frontier_eval::evaluate_simpleqa_abstention(
-                &samples,
-                Some(&cal),
-                penalty,
-                &[],
-            );
-            Some(serde_json::json!({
-                "calibrator": cal,
-                "raw_hle_metrics": raw_hle,
-                "simpleqa_selective": sqa,
-            }))
-        }
-        "frontier.faithful_context" => {
-            let context = args.get("context").and_then(|v| v.as_str()).unwrap_or("");
-            let question = args.get("question").and_then(|v| v.as_str()).unwrap_or("");
-            let choices: Vec<String> = args
-                .get("choices")
-                .and_then(|v| serde_json::from_value(v.clone()).ok())
-                .unwrap_or_default();
-            let gate = args
-                .get("gate_abstention")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
-            Some(serde_json::json!(
-                joule_db_core::frontier_eval::score_faithful_mc_question(
-                    context, question, &choices, None, gate,
-                )
-            ))
-        }
-        "frontier.math_sat_verify" => {
-            let crt_pairs: Vec<(i128, i128)> = args
-                .get("congruences")
-                .and_then(|v| serde_json::from_value(v.clone()).ok())
-                .unwrap_or_default();
-            let crt_sol = if crt_pairs.is_empty() {
-                None
-            } else {
-                joule_db_core::frontier_eval::solve_chinese_remainder(&crt_pairs)
-            };
-            let n_vars = args.get("num_vars").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-            let clauses: Vec<Vec<i32>> = args
-                .get("clauses")
-                .and_then(|v| serde_json::from_value(v.clone()).ok())
-                .unwrap_or_default();
-            let sat_model = if n_vars > 0 && !clauses.is_empty() {
-                joule_db_core::frontier_eval::solve_sat_dpll(n_vars, &clauses)
-            } else {
-                None
-            };
-            Some(serde_json::json!({
-                "crt_solution_residue_modulus": crt_sol,
-                "sat_satisfying_assignment": sat_model,
-            }))
-        }
-        "frontier.tau_policy_guard" => {
-            let policy: joule_db_core::frontier_eval::TauDomainPolicy = args
-                .get("policy")
-                .and_then(|v| serde_json::from_value(v.clone()).ok())
-                .unwrap_or(joule_db_core::frontier_eval::TauDomainPolicy {
-                    require_authenticated_user: true,
-                    require_user_confirmation_for_mutations: true,
-                    max_autonomous_amount_cents: 50_000,
-                    non_refundable_tiers_after_24h: vec!["basic_economy".into()],
-                });
-            let proposal: Option<joule_db_core::frontier_eval::TauToolProposal> = args
-                .get("proposal")
-                .and_then(|v| serde_json::from_value(v.clone()).ok());
-            proposal.map(|prop| {
-                serde_json::json!({
-                    "verdict": joule_db_core::frontier_eval::check_tau_policy(&policy, &prop)
-                })
-            })
-        }
-        "frontier.safevla_stl_shield" => {
+        "robotics.stl_trajectory_clamp" => {
             let start_xyz: [f64; 3] = args
                 .get("start_xyz")
                 .and_then(|v| serde_json::from_value(v.clone()).ok())
@@ -826,9 +714,10 @@ fn dispatch_frontier_or_analytic_mcp_tool(
                 "shielded_audit": safe_audit,
             }))
         }
-        "db.analytic_suite" => {
+        "db.synthetic_columnar_smoke" => {
             let rows = args
-                .get("clickbench_rows")
+                .get("rows")
+                .or_else(|| args.get("clickbench_rows"))
                 .and_then(|v| v.as_u64())
                 .unwrap_or(4_096) as usize;
             let cb = joule_db_query::analytic_benchmarks::run_clickbench_columnar_suite(rows);
@@ -836,10 +725,12 @@ fn dispatch_frontier_or_analytic_mcp_tool(
             let stac = joule_db_query::analytic_benchmarks::run_tsbs_stac_m3_suite(500, 100);
             let beir = joule_db_query::analytic_benchmarks::run_synthetic_beir_suite(64);
             Some(serde_json::json!({
-                "clickbench": cb,
-                "job_wcoj": job,
-                "tsbs_stac_m3": stac,
-                "beir_hybrid_rrf": beir,
+                "workload_kind": "synthetic_in_memory_smoke_test",
+                "energy_evidence": "est_j",
+                "synthetic_columnar_codec": cb,
+                "synthetic_skewed_wcoj": job,
+                "synthetic_asof_ticks": stac,
+                "synthetic_hybrid_rrf": beir,
             }))
         }
         "amorphic.unsilo_morph" => {
@@ -881,17 +772,19 @@ fn dispatch_frontier_or_analytic_mcp_tool(
             .ok()
             .map(|r| serde_json::json!(r))
         }
-        "sovereign.relbench_rfm" => joule_db_query::rel_rfm::run_relbench_suite()
+        "sovereign.temporal_graph_smoke" => joule_db_query::rel_rfm::run_relbench_suite()
             .ok()
-            .map(|(churn, ltv)| serde_json::json!({ "user_churn": churn, "user_ltv": ltv })),
+            .map(|(churn, ltv)| serde_json::json!({ "synthetic_only": true, "user_churn": churn, "user_ltv": ltv })),
         "sovereign.pq_verifiable_attest" => {
             crate::pq_verifiable::execute_wave28_global_sota_suite()
                 .ok()
                 .map(|v| v["b25_post_quantum_verifiable_sovereign"].clone())
         }
-        "sovereign.global_mmlu_12script" => Some(serde_json::json!(
-            joule_db_core::multilingual_global::run_global_mmlu_12script_suite()
-        )),
+        "sovereign.multilingual_span_smoke" => Some(serde_json::json!({
+            "synthetic_only": true,
+            "energy_evidence": "est_j",
+            "report": joule_db_core::multilingual_global::run_global_mmlu_12script_suite()
+        })),
         "amorphic.morph_rules_and_lens" => {
             let frags: Vec<joule_db_amorphic::unsilo::RawSiloFragment> = args
                 .get("fragments")
@@ -956,10 +849,10 @@ fn dispatch_frontier_or_analytic_mcp_tool(
             let _ = std::fs::remove_dir_all(&scratch);
             Some(serde_json::json!({ "streaming_receipt": rec }))
         }
-        "bridge.ecosystem_certify" => {
+        "bridge.entity_merge_smoke" => {
             Some(crate::universal_bridge::run_universal_bridge_certification())
         }
-        "trust.compliance_audit" => {
+        "trust.security_controls_self_test" => {
             crate::trust_compliance::execute_full_trust_and_compliance_suite()
                 .ok()
                 .map(|v| serde_json::json!(v))
@@ -970,22 +863,22 @@ fn dispatch_frontier_or_analytic_mcp_tool(
         "migrate.shadow_cutover" => {
             Some(crate::live_migration::run_all_ecosystems_migration_certification())
         }
-        "core.v1_abi_and_pitr" => {
+        "core.tlv_and_pitr_smoke" => {
             joule_db_core::v1_stability_and_pitr::certify_v1_abi_stability_and_pitr()
                 .ok()
                 .map(|r| serde_json::json!(r))
         }
-        "query.sql2023_aqe_suite" => Some(serde_json::json!(
+        "query.window_cube_aqe_smoke" => Some(serde_json::json!(
             joule_db_query::sql2023_powerhouse::run_sql2023_powerhouse_certification()
         )),
-        "cluster.jepsen_geo_raft" => Some(serde_json::json!(
+        "cluster.in_memory_partition_sim" => Some(serde_json::json!(
             crate::distributed_jepsen_consensus::run_geo_raft_jepsen_certification()
         )),
         "deploy.iac_blueprint" => {
             let tier = args.get("tier").and_then(|v| v.as_u64()).unwrap_or(5) as u8;
             Some(crate::distributed_jepsen_consensus::generate_iac_compliance_blueprint(tier))
         }
-        "bench.v1_powerhouse_36" => {
+        "bench.subsystem_smoke" => {
             Some(crate::distributed_jepsen_consensus::run_v1_global_powerhouse_suite())
         }
         _ => None,
@@ -1017,103 +910,83 @@ pub fn all_sota_tool_definitions() -> Vec<McpToolDef> {
         ),
         (
             "db.explain_energy",
-            "Return pre-execution CascadeTier and microjoule estimate",
+            "Return pre-execution CascadeTier and analytical energy estimate (est_j)",
         ),
         (
-            "frontier.sql_critic",
-            "Repair cloud SQL dialect traps, NOT IN (NULL) bugs, and column typos",
+            "sql.dialect_repair",
+            "Rewrite SQL dialect helpers (SAFE_DIVIDE, IFNULL), NOT IN (NULL) guards, and column typos",
         ),
         (
-            "frontier.arc_synthesize",
-            "Synthesize exact MDL 2D grid transformation programs for ARC-AGI-2",
+            "robotics.stl_trajectory_clamp",
+            "Clamp 3D trajectory points against force, step-delta, and keep-out sphere constraints",
         ),
         (
-            "frontier.calibrate_abstention",
-            "Compute HLE Hendrycks RMS-CE, Platt scaling, and SimpleQA abstention",
-        ),
-        (
-            "frontier.faithful_context",
-            "Evaluate counterfactual passages and detect multi-source conflicts",
-        ),
-        (
-            "frontier.math_sat_verify",
-            "Verify exact i128 CRT congruences and DPLL Boolean SAT witnesses",
-        ),
-        (
-            "frontier.tau_policy_guard",
-            "Pre-commit transactional policy guard for TAU-bench pass^k safety",
-        ),
-        (
-            "frontier.safevla_stl_shield",
-            "Project robotics VLA trajectories onto safe STL manifolds (VSI = 0)",
-        ),
-        (
-            "db.analytic_suite",
-            "Run ClickBench ALP/FSST, JOB Skewed WCOJ, TSBS/STAC-M3 NBBO, and BEIR",
+            "db.synthetic_columnar_smoke",
+            "Run synthetic in-memory ALP/FSST codec, skewed WCOJ, ASOF, and hybrid RRF smoke checks",
         ),
         (
             "amorphic.unsilo_morph",
-            "Dissolve multi-silo JSON/CSV/Prose/Triples into 10,240-bit HDC continuum & 6 fluid visual lenses",
+            "Extract semantic atoms from JSON/CSV/Prose/Triples into 10,240-bit HDC vectors & visual lenses",
         ),
         (
             "sovereign.continual_plasticity",
-            "Run Null-Space Orthogonal Titans continual learning with 0% forgetting & CoW canary poison guard",
+            "Run synthetic small-matrix orthogonal continual update & CoW rollback smoke check",
         ),
         (
-            "sovereign.relbench_rfm",
-            "Execute RelBench v2 native multi-table temporal Relational Foundation Model (0 future leakage)",
+            "sovereign.temporal_graph_smoke",
+            "Run synthetic temporal relational graph chronological-filter smoke check",
         ),
         (
             "sovereign.pq_verifiable_attest",
-            "Issue & verify NIST FIPS 203 ML-KEM-768 + FIPS 204 ML-DSA-65 Merkle-rooted execution proofs",
+            "Issue & verify hybrid Ed25519 + NIST FIPS 204 ML-DSA-65 Merkle-rooted execution envelopes",
         ),
         (
-            "sovereign.global_mmlu_12script",
-            "Evaluate Cohere Global-MMLU / INCLUDE across 12 world scripts with 1.0x joule fairness",
+            "sovereign.multilingual_span_smoke",
+            "Run 12-script UTF-8 span tokenization & analytical (est_j) token-fertility smoke check",
         ),
         (
             "amorphic.morph_rules_and_lens",
-            "Execute user-authored declarative MorphRule DSL, Kanerva VSA role unbinding, and Custom Semantic Lenses (Pareto/Sankey/Radar)",
+            "Execute declarative MorphRule DSL unit harmonization, VSA role unbinding, and custom chart specs",
         ),
         (
             "amorphic.stream_corpus_scale",
-            "Stream multi-format / multi-gigabyte heterogeneous corpora (JSONL/CSV/XML/k=v/Prose/Triples) in bounded O(E) memory",
+            "Stream multi-format heterogeneous records (JSONL/CSV/XML/k=v/Prose/Triples) in bounded memory",
         ),
         (
-            "bridge.ecosystem_certify",
-            "Certify drop-in compatibility across 10 database protocols (Postgres/Elastic/Mongo/Qdrant/Pinecone/Influx/CDC) and 7 AI protocols (OpenAI/Anthropic/Gemini/Ollama/MCP/A2A/Rerank)",
+            "bridge.entity_merge_smoke",
+            "Run in-process 5-fragment entity merge and 4D vector lookup smoke check",
         ),
         (
-            "trust.compliance_audit",
-            "Execute continuous SOC 2 Type II, ISO 27001, HIPAA, GDPR Art.17 Crypto-Shredding, PCI-DSS Luhn, SEC 17a-4f WORM, IEC 62443 & FedRAMP/CNSA-2.0 Bell-LaPadula MLS attestation",
+            "trust.security_controls_self_test",
+            "Run self-tests of implemented technical security controls (hash chain, WORM flag, DEK zeroization, Luhn redaction, MAC lattice; unaudited)",
         ),
         (
             "trust.sbom_cyclonedx",
-            "Generate CycloneDX v1.6 Software & .jsyn AI Bill of Materials (SBOM + AI-BOM) with SLSA provenance metadata",
+            "Generate CycloneDX v1.6 JSON SBOM and loaded model manifest",
         ),
         (
             "migrate.shadow_cutover",
-            "Execute zero-downtime polyglot DB migration, multiset BLAKE3 reconciliation, CoW shadow-traffic parity & ML-DSA-65 cutover certificate",
+            "Run multi-format record import and multiset BLAKE3 reconciliation smoke check",
         ),
         (
-            "core.v1_abi_and_pitr",
-            "Certify v1.0.0 wire/storage ABI forward/backward TLV compatibility, CRC-32 bit-rot protection & microsecond Point-in-Time Recovery (PITR)",
+            "core.tlv_and_pitr_smoke",
+            "Run binary TLV/CRC-32 framing and WAL LSN/timestamp point-in-time recovery smoke check",
         ),
         (
-            "query.sql2023_aqe_suite",
-            "Execute SQL:2023 Window Frames, 3D OLAP CUBE, Cycle-Safe Recursive BOM CTE & Runtime Adaptive Query Execution (AQE)",
+            "query.window_cube_aqe_smoke",
+            "Run SQL window frames, 3D CUBE, recursive CTE, and runtime AQE join-switch unit check",
         ),
         (
-            "cluster.jepsen_geo_raft",
-            "Run 5-node 3-region Geo-Partitioned Raft linearizability, bounded-staleness follower reads & Jepsen split-brain/clock-skew nemeses",
+            "cluster.in_memory_partition_sim",
+            "Run scripted 5-struct in-memory partition and HLC monotonicity unit simulation (not TCP Raft or Jepsen)",
         ),
         (
             "deploy.iac_blueprint",
-            "Generate Helm Chart & Terraform compliance posture blueprint across Trust Tiers 0..5 (Maker -> FedRAMP/MLS)",
+            "Return starter Helm & Terraform configuration flags for control profiles 0..5 (unaudited)",
         ),
         (
-            "bench.v1_powerhouse_36",
-            "Execute the master JouleDB v1.0.0 Global Database Powerhouse certification across all 36 pillars",
+            "bench.subsystem_smoke",
+            "Run the 6 fast in-process deterministic subsystem smoke checks (v0.6.0)",
         ),
     ] {
         tools.push(McpToolDef {

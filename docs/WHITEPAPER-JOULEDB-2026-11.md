@@ -1,62 +1,63 @@
-# JouleDB: The Thermodynamic Nervous System & Living-Weights Substrate for Intelligent Computing
+# JouleDB: An Energy-Metered Multi-Model Database & Sub-1-Bit Weights Research Substrate
 
-## Whitepaper Specification — Version 1.0.0 GA (`v1.0.0`, November 2026)
+## Architecture & Empirical Status Paper — Version `0.6.0` (Pre-1.0 Research Preview, November 2026)
 **Open Interface Engineering, Inc. (`OpenIE`)**  
-**Website:** [https://jouledb.org](https://jouledb.org) | **Docs Book:** [https://openie-dev.github.io/jouledb](https://openie-dev.github.io/jouledb) | **GitHub:** [openIE-dev/jouledb](https://github.com/openIE-dev/jouledb) | **Hugging Face Fleet (`82 .jsyn`):** [huggingface.co/dcharlot65-openie](https://huggingface.co/dcharlot65-openie)  
+**Website:** [https://jouledb.org](https://jouledb.org) | **Docs Book:** [https://openie-dev.github.io/jouledb](https://openie-dev.github.io/jouledb) | **GitHub:** [openIE-dev/jouledb](https://github.com/openIE-dev/jouledb) | **Hugging Face (`.jsyn` Embedder & Raw Benchmarks):** [huggingface.co/dcharlot65-openie](https://huggingface.co/dcharlot65-openie)  
 **License:** `Apache-2.0 OR MIT`
 
-> Supersedes `v0.5.0`, `v0.4.0`, `v0.3.1`, and [WHITEPAPER-JOULEDB-2026-05.md](WHITEPAPER-JOULEDB-2026-05.md) (`v0.2`, May 2026). Documents the complete **`JouleDB v1.0.0` GA ("Global Database Powerhouse")** architecture across **`36 / 36` Certified Pillars** and **`54` MCP 2026 Tools**: **`JouleDB-ABI-1.0.0` Forward/Backward TLV Stability & Microsecond `PITR` (`RPO = 0`)**, **Zero-Downtime `jouledb migrate` Multiset `BLAKE3` + Shadow-Traffic Parity**, **Enterprise `SQL:2023` Window/`CUBE`/Recursive-CTE + Runtime `AQE` (`>1,000×` Skew Probe Savings)**, **5-Node 3-Region Geo-Raft + `Jepsen` Nemeses**, **Un-Siloed `10,240`-Bit Amorphous Semantic Continuum (`MorphRule` DSL + `1.35 GB` in `57.6 MB` RAM + 8 Fluid Lenses)**, **Universal 10-DB + 7-AI Ecosystem Bridges**, **Progressive Maker-to-Defense Trust (`SOC 2` -> `HIPAA` -> `SEC 17a-4(f)` WORM -> `FedRAMP / CNSA 2.0 Bell-LaPadula MLS`)**, **First-Party Polyglot SDKs (`13+` Languages) + `Helm`/`Terraform` IaC**, and **`.jsyn` (`JSYN-v1`) Sub-1-Bit Living Model Weights** (`82` public models on Hugging Face).
+> **Revision & Audit Errata Note (`v0.6.0`, 2026-11-25):** Following an external source-level audit, OpenIE retracted the premature `v1.0.0` GA tag (`crates.io` `1.0.0` yanked), removed the unrelated `1.11M`-line `joule-web` crate, deleted synthetic frontier AI exam endpoints (`frontier_exam_routes.rs`), retracted 81 unverified low-BPW causal LLM exports from Hugging Face, and aligned all crate counts, lint scopes, compliance disclaimers, and energy provenance tags (`reported_j` vs `est_j`). This document describes the **`41`-crate (`724,986` LOC, `12,265` tests) `v0.6.0` codebase** and reports reproducible external evaluations on **Official ClickBench vs. DuckDB** and **5-Node Real TCP Raft + Official Clojure `elle 0.2.8`**.
 
 ---
 
 ## Abstract
 
-For fifty years, software infrastructure separated state and intelligence into disconnected silos: a relational OLTP database, an analytical warehouse, a vector index, a graph store, a streaming engine, a Docker/Kubernetes container daemon, and a multi-gigabyte frozen neural checkpoint server. Data movement across those boundaries burns orders of magnitude more physical energy and latency than arithmetic.
-
-**JouleDB** collapses the entire stack into **one panic-hardened Rust substrate** (`#![deny(unsafe_code)]` in `joule-db-core`, `deny(clippy::unwrap_used)` across all 7 core crates) where **every byte, row, vector, hypervector, kinematic pose, container rootfs, Kubernetes manifest, and neural weight bitplane** shares a single Copy-on-Write (`CoW`) Serializable Snapshot Isolation (`SSI`) engine—and every operation produces a cryptographically verifiable 6-rail nanojoule (`nJ`) receipt.
+Modern data and AI stacks partition state across separate OLTP databases, analytical engines, vector indexes, container sandboxes, and neural inference runtimes. **JouleDB (`v0.6.0`)** explores unifying these workloads inside a single open-source Rust workspace where Copy-on-Write (`CoW`) Serializable Snapshot Isolation (`SSI`) tables, PostgreSQL `pgwire` SQL, 5-node TCP Raft consensus, `10,240`-bit Hyperdimensional Computing (`Amorphic`) holograms, and sub-1-bit factorized sentence-embedding bitplanes (`.jsyn`) share one storage and energy-accounting substrate. Every energy figure is tagged by measurement provenance: **`reported_j`** from bare-metal OS hardware counters (Linux RAPL, macOS IOKit SMC) over multi-millisecond windows, or **`est_j`** from analytical cost models for sub-millisecond operations.
 
 ---
 
-## 1. Five Unified Organs of JouleDB (`v0.3.1`)
+## 1. Core Subsystems in `v0.6.0` (`41` Workspace Crates)
 
-1. **ACID/SSI Multi-Model, Out-of-Core OLAP & Financial Ledger Core (`joule-db-core`, `joule-db-query`):**
-   - Lock-free positional `pread`/`pwrite`, `IoRingEngine` extent coalescing, and full Cahill `SSI` (`rw`-antidependency detection) formally verified by **Kleppmann `Hermitage` (`6/6` anomalies clean in `1.13 ms`)** and **Jepsen/`Elle` Tarjan $O(V+E)$ `SCC` cycle analysis (`0` cycles)**.
-   - **Morsel-Driven Out-of-Core Grace Hash Join & GroupBy** (`2,048`-row `ColumnMorsel` batches spilling binary CRC32 `JMSB` partitions under strict RAM caps), **`ClickBench`/`Vortex` Granule `ZoneMap` + `SelectionVector`** (`97.96%` cold granule skip in `164 µs`), bit-exact **`ALP` + `FSST`** codecs (`>6.4x`), **`Arrow Flight SQL` (`JDB_IPC1`)**, **`DuckLake` + `Iceberg v3`** `AS OF` snapshots, and **`sqllogictest` MD5 + `SQLancer` (`TLP` & `NoREC`)** differential logic-bug verification (`0` violations).
-   - **`TigerBeetle`-Class Linked Two-Phase Double-Entry Accounting + `VOPR` Deterministic Fault Simulator** (`i128` accounts, `PendingReserve`/`PostPending`/`VoidPending` partial settlement, atomic `linked` rollback, torn-WAL + 1-bit NAND bit-rot conservation) and **Goldman Sachs `SecDB` Dirty-Cone DAG + Google `Napa` Freshness-SLA Controller** (`99.23%` compute saved via early cutoff + burst write coalescing).
-2. **360° Retrieval, Neurosymbolic HDC & Zero-Tax Agent Memory (`joule-db-amorphic`, `joule-db-hdc`):**
-   - **`TriModal RRF`** (`Okapi BM25 ⋈ RaBitQ 1-bit SIMD POPCNT ⋈ 15-Primitive HDC` at `~32x` smaller vector RAM than `FP32` HNSW) + **`ACORN` 2-hop filtered bridge rescue** + **`HippoRAG` Personalized PageRank** + auto-sharded unbounded `AmorphicStore` holograms.
-   - **`PathHD` 3-Hop GHRR Link Prediction:** **`70.0%` `Hits@1` / `88.1%` `Hits@10` (`MRR = 0.7628`) on `WN18RR`** at **`10 µJ/prediction`** (`0` gradient descent), and **`100.0%` (`5/5`) on `LongMemEval-60`** bitemporal contradiction/abstention recall in **`277.4 µs/probe` (`~0.8 µJ/turn`)**.
-   - **Declarative `LOTUS`-Class `SEM_*` SQL & Governed `SemanticCatalog`:** Thompson-sampled Pareto bandit cascade (`LSN LangCache -> Engram -> HDC/TriModal -> .jsyn`) + deterministic BFS foreign-key join & row-level tenant compiler (`0%` join hallucination).
-3. **`.jsyn` (`JSYN-v1`) Living Model Weights & Native AI Harness (`joule-db-weights`, `joule-db-gpu`):**
-   - Compiles `.safetensors` (`FP32`/`FP16`/`BF16`/`FP8`/`NVFP4`/MLX `U32`/3D MoE) and `.gguf` (`Q1_0_G128`, `I2_S`, `PQ2_0`, `TQ1_0`, `K`-quants) checkpoints into SQL-queryable sub-1-bit **`LittleBit-2 ⊕ Sakana SVF`** bitplanes (`0.02–0.50 BPW`, **`20x–560x` smaller than `FP16`**), published across **[82 public `.jsyn` repositories on Hugging Face](https://huggingface.co/dcharlot65-openie)**.
-   - Executes causal LLMs (`Llama-3`, `Gemma 4`, `Qwen3/3.5`, `Thinking Machines Inkling-2 & TML-d24-VarLoop`, `NVIDIA Nemotron-H Mamba-2 / Dory / Sigma`, `Liquid AI LFM3 ShortConv`, `PrismML Ternary-Bonsai-2`, `Poolside Laguna-XS-2.1`, `BitNet b1.58`), bidirectional embedders (`MiniLM`, `ModernBERT`, `EmbeddingGemma-2`), vision (`SigLIP`), and speech (`Whisper` 400-FFT Seq2Seq) in **pure safe Rust + `wgpu` Metal/Vulkan/WebGPU `XNOR-POPCNT` shaders**—with **zero PyTorch, `llama.cpp`, or ONNX Runtime**.
-   - Includes **Empirical-Bayes `AWQ ⊕ GPTQ` Activation-Aware `SVF` Calibration** (`92.04%` skewed-activation MSE reduction at `0` extra bits), **Google `Titans`** surprise-gated fast weights with MVCC `rollback_to_lsn`, **`Engram`** $O(1)$ factual memory, **`Mooncake`** Radix KV prefix caching, lossless self-speculative **`T-MAC`** decoding, and **`XGrammar`** zero-hallucination JSON/tool DFAs.
-   - See [JSYN-LIVING-WEIGHTS-SPEC.md](JSYN-LIVING-WEIGHTS-SPEC.md) for the complete binary specification and rank-sweep (`r = 8 -> 32 -> 64 -> 128`) Pareto analysis.
-4. **Embodied AI, HMI Biosignals & Living Metabolism (`embodied.rs`, `living.rs`, `sigql`):**
-   - Entity-Component-Time (`EctStore`) with `HLC` + `LSL` clock calibration, `kdb+`-class strictly causal `ASOF` sensor alignment (`1,000` joins over `50,000` `400 Hz` ticks in `633 µs`, `0` future leakage), `ROS2 tf2`-class `SE(3)` quaternion `SLERP` `TransformTree`, `SigQL` FFT/Butterworth/Hilbert biosignal queries, active-inference `SurpriseGate`, and Feldera-class `DBSP` `ZSet<T>` $O(|\Delta|)$ incremental views.
-5. **Post-Docker `JouleCapsule`, Post-Git `JouleSpace`, `JouleKube` & 6-Rail Energy Fabric (`joule-db-branch`, `joule-db-energy`, `joule-db-ledger`):**
-   - Daemonless pure-Rust OCI v2 image pulls + $O(1)$ CoW container+DB branching (`1.13 µs/branch` across `1,000` sandboxes), `Jujutsu`/`Zed Delta` continuous op-logs + LiveKit-class `turn_epoch` barge-in rooms, `JouleWard` RFC-2104 `ThermoCap` macaroons (`Seatbelt`/`Landlock`/`WASI 0.2`), and **`JouleKube`** (`kubectl`-compatible Kubernetes + CNCF AI-Conformance `DRA`/`Kueue`/`LWS`/`InferencePool`/`agent-sandbox`/`Kagent` backed by MVCC SQL `_jouledb_kube_objects` at `0.0W` warm-pool standby).
-   - Certified live on **Apple M5 Max Metal GPU** (`104.47 µJ` vs `541.07 µJ` CPU = **`5.18x` hardware joule savings**) and across 11 hardware/runtime targets (`macOS ARM64/x86_64`, `Linux CUDA/ROCm-RADV/ARM64`, `Windows 11`, `Android Snapdragon`, `wasm32-wasip2`, Browser `OPFS+WebGPU`, C99 FFI, and `#![no_std]` edge).
+1. **Storage, `SSI` Concurrency & Recovery (`joule-db-core`, `joule-db-local`):**
+   - Lock-free positional `pread`/`pwrite`, `IoRingEngine` extent coalescing, Cahill `SSI` (`rw`-antidependency cycle prevention), `CRC-32` torn-WAL truncation, LSN-ordered replay, `ALP + FSST` columnar codecs, `RaBitQ` 1-bit `POPCNT` vector quantization, and double-entry `i128` ledger primitives (`tiger_ledger`).
+   - **Compiler Safety Scope:** `#![deny(unsafe_code)]` in `joule-db-core` with **1** `#![allow(unsafe_code)]` module (`crates/joule-db-core/src/storage/mmap_extent.rs`); `deny(clippy::unwrap_used)` active in **3** crates (`joule-db-core`, `joule-db-branch`, `joule-db-ledger`), with `warn` across the remaining workspace crates.
+2. **Query Execution, `pgwire` & Incremental Views (`joule-db-query`, `joule-db-server`):**
+   - PostgreSQL v3 wire server (`pgwire` on `port + 2`), Parquet `COPY` loader, parallel morsel `columnar_exec` aggregate engine, `DBSP` `ZSet<T>` incremental view maintenance, `Arrow Flight SQL` (`JDB_IPC1`), `DuckLake` / `Iceberg v3` metadata structures, and experimental Cypher, Datalog, SPARQL, Gremlin, and `SigQL` biosignal frontends.
+3. **5-Node Real TCP Raft Consensus (`raft.rs`, `raft_server.rs`, `raft_transport.rs`):**
+   - Quorum replication via `RaftNode::propose_and_commit` (verifying `commit_index >= index` and Raft §5.4.2 current-term safety), `CRC-32` durable `raft.wal` persistence, and 2PC participant/coordinator recovery logs.
+4. **`.jsyn` (`JSYN-v1`) Sub-1-Bit Weights & `Amorphic` Continuum (`joule-db-weights`, `joule-db-amorphic`, `joule-db-gpu`):**
+   - Compiles `.safetensors` and `.gguf` checkpoints into packed `u64` sign bitplanes (`LittleBit-2 ⊕ Sakana SVF`) executed via CPU `T-MAC` byte lookup tables or `wgpu` `countOneBits` shaders (`0` PyTorch / `llama.cpp` / ONNX Runtime).
+   - Dissolves heterogeneous JSON, CSV, XML, `k=v`, prose logs, and N-Triples into `10,240`-bit Kanerva VSA holograms (`StreamingAmorphicContinuum` + `MorphRule` SI unit normalization).
+5. **Confinement, Branching & Energy Ledger (`joule-db-branch`, `joule-db-energy`, `joule-db-ledger`):**
+   - $O(1)$ CoW workspace/table branching (`JouleAgentFS`, `JouleCapsule` daemonless OCI v2 layer CAS), `HMAC-SHA256` `ThermoCap` capability tokens, technical security-control primitives (`trust_compliance.rs`), and Merkle-anchored energy receipts (`reported_j` / `est_j`).
 
 ---
 
-## 2. Unified 21-Pillar Global Database + Frontier AI Certification Across 14 Fleet Computers (`v0.3.1`)
+## 2. Reproducible External Evaluations (`bench/`)
 
-| Pillar Group | Industry / Frontier Standard | Verified 14-Computer Fleet Result (`v0.3.1`) |
-| :--- | :--- | :--- |
-| **1. OLTP Concurrency** | `TPC-C` under Cahill `SSI` | **`1,031,992 TPS` peak** (`Ryzen AI Max+ 395` / `1.00M TPS` `M5 Max`), `ytd_conserved = true` |
-| **2. Columnar & Out-of-Core OLAP** | `ClickBench ALP+FSST+ZoneMap` + `Morsel` Spill | **`4.08x` lossless `ALP+FSST`**, **`97.96%` granule skip**, `15k ⋈ 3k` spill under `16 KiB` RAM |
-| **3. Skewed Multi-Way Joins** | `JOB` (`Join Order Benchmark`) Leapfrog `WCOJ` | **`186x–330.7x` intermediate tuple blowup reduction**, `100%` exact parity |
-| **4. Financial & HFT Streams** | `TigerBeetle VOPR` + `STAC-M3 NBBO` + `SecDB/Napa` | **`16.06M ticks/sec`** (`0` future leaks), `0` `VOPR` errors, **`99.23%` DAG compute saved** |
-| **5. Hybrid Retrieval & Streaming** | `BEIR SciFact` `TriModal RRF` + `Nexmark DBSP` | **`72.3%` `Recall@10` (`237 µs`)** with `1.95 MB` `.jsyn` + `171 µs` $O(|\Delta|)$ `DBSP` |
-| **6. Formal Isolation & Logic** | Kleppmann `Hermitage` + Jepsen/`Elle` + `SQLancer` | **`6 / 6` `Hermitage` clean (`1.13 ms`)**, **`0` `Elle` `SCC` cycles**, **`0` `SQLancer` bugs** |
-| **7. Frontier AI & Agentic (10 Pillars)** | `HLE-Diamond`, `SimpleQA`, `FaithEval`, `ARC-AGI-2`, `TAU-bench`, `MRCR`, `SafeVLA` | **`22/22` `ARC-AGI-2` (`100%` test exact)**, **`81.4%` `FaithEval`**, **`SimpleQA` `0` hallucinations (`RMS-CE = 0.0`)**, **`pass^8 = 1.0`**, **`VSI = 0.0`** |
-| **8. Live 14-Node Multi-OS Mesh** | `macOS ARM64/x86`, `Linux Zen5/RTX/EPYC/Edge`, `Win11`, `WASI` | **`14 / 14` nodes `21/21` certified**, `9%` battery `Legion Go -> M3 Ultra` GPU offload (`65.2 ms`), `.jsyn` `cos = 1.00000000` |
+### 2.1 Official ClickBench (`hits.parquet`, 105 Columns, 43 Queries) vs. DuckDB `2.0.1`
+
+Evaluated via [`bench/clickbench_official.py`](../bench/clickbench_official.py) on `framework-128gb-0000` (`AMD Ryzen AI Max+ 395`, 32 threads, `128 GB` RAM, Linux `rapl-package` **`reported_j`**, `10 s` query timeout) over real `pgwire` (`psycopg 3.3.9`):
+
+| Slice of Official `14.78 GB` `hits.parquet` | Load (`DuckDB` vs `JouleDB`) | JouleDB RSS | Queries `< 10s` | Exact Row Match | Faster (`JouleDB` / `DuckDB`) | Geomean Latency (`JouleDB / DuckDB`) | Geomean Energy (`reported_j`) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **`100,000` rows** | `0.192 s` vs `0.203 s` | `722.2 MB` | **`42 / 43`** (`0` panics) | `33 / 43` | `10` / `32` | **`26.37×` slower** (`median 17.03×`) | **`44.96×` more J** |
+| **`1,000,000` rows** | `0.153 s` vs `1.125 s` | `4,177.2 MB` | **`23 / 43`** (`20` timeouts) | `18 / 23` | `2` / `21` | **`10.19×` slower** *(23 completed)* | **`12.76×` more J** *(23 completed)* |
+
+### 2.2 5-Node Real TCP Raft Fault-Injection + Official Clojure `elle 0.2.8`
+
+Evaluated via [`crates/joule-db-server/tests/raft_tcp_elle_fault_injection.rs`](../crates/joule-db-server/tests/raft_tcp_elle_fault_injection.rs) and [`bench/elle_check.clj`](../bench/elle_check.clj):
+- **Faults Injected:** 5 `RaftNode<KvStateMachine, TcpRaftTransport>` servers across a 20-link socket-severing `TcpPartitionMatrix`; asymmetric `2/5` vs `3/5` split isolating initial leader -> minority write/quorum-read rejection -> `3/5` higher-term leader election -> follower stop + disk `raft.wal` restart -> partition heal & 5-node convergence (`x = [17; 5]`, `y = [18; 5]`, `lost_committed_writes = 0`).
+- **Official `elle 0.2.8` Verdict:** **`{:valid? true}`** (`rw-register`, `:strict-serializable`, `76` events).
+
+### 2.3 `.jsyn` Compression vs. Fidelity Boundaries
+
+- **Verified High-Fidelity Encoder (`0.4378 BPW`):** [`dcharlot65-openie/all-MiniLM-L6-v2-LittleBit`](https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit) (`Apache-2.0`, `1.95 MB`, `22.23×` smaller than `FP16`) achieves **`0.9441` mean sentence-embedding cosine similarity** against upstream `FP32`.
+- **Degraded Ultra-Low-BPW Causal LLMs (`0.02–0.17 BPW`, Retracted):** Out-of-sample rank sweeps (`r = 8..128`) on `Gemma-4-E2B` (`q_proj`) and `Inkling-2-Mini` (`128`-Exp MoE) yield **`0.113–0.455` output cosine** (`KL = 2.59–3.87`, `65.6%` Top-5 agreement at `r = 128`). Because models at that fidelity do not behave like their upstream counterparts, all 81 unverified causal LLM checkpoints were deleted from Hugging Face in `v0.6.0`.
 
 ---
 
-## 3. Honest Engineering Boundaries
+## 3. Explicit Engineering & Governance Boundaries
 
-1. **Self-hosted open-source engine, not a managed SaaS SLA:** Multi-node Raft, 2PC, `JouleKube`, and Heterogeneous Fabric ship in code; OpenIE does not operate a commercial hosted cloud from this repository.
-2. **Eckart–Young rank bounds on `.jsyn`:** Ultra-compact `r = 8..16` (`0.02–0.44 BPW`) `.jsyn` checkpoints preserve principal singular subspaces while delegating encyclopedic fact storage to MVCC SQL + `Engram` + `TriModal GraphRAG`; higher standalone open-domain generation fidelity scales continuously via `target_rank = 32..256` + `AWQ ⊕ GPTQ SVF` calibration.
-3. **OS kernel sandbox primitives:** Full `cgroups v2` / `Landlock` / `seccomp-bpf` isolation requires Linux; macOS uses `Seatbelt` SBPL + unprivileged CoW VFS confinement; portable targets use `WASI 0.2` fuel/memory caps.
+1. **Pre-1.0 Research Preview (`v0.6.0`):** In-memory Parquet column caching (`~4.18 KB/row` across 105 columns), row-AST fallback timeouts on complex analytical SQL at `1M+` rows, and an open `AVG` accumulator bug on `Q32` remain active engineering work items prior to any future `1.0` candidacy.
+2. **No Third-Party Compliance Certifications:** `trust_compliance.rs` implements technical controls (SHA-256 hash-chained audit logs, WORM retention locks, per-subject DEK zeroization, Luhn redaction, `CycloneDX v1.6` SBOM, Bell-LaPadula lattice labels, and unvalidated Rust `ML-KEM-768`/`ML-DSA-65` signatures). **No SOC 2, ISO 27001, HIPAA, PCI-DSS, NIST CMVP, or FedRAMP audit has been performed.**
+3. **In-Tree SDKs & Portable Binaries:** Prebuilt `v0.6.0` server binaries target macOS (`aarch64`/`x86_64`) and Linux (`GLIBC <= 2.35`, verified on Ubuntu 24.04 LTS & Debian 12). Client SDKs (`sdks/*`, `python/`) live in-tree in this repository and are not yet published to PyPI, npm, or NuGet.

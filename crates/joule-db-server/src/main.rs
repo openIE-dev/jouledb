@@ -115,25 +115,26 @@ enum Commands {
         #[command(subcommand)]
         action: AmorphicAction,
     },
-    /// Universal Ecosystem Compatibility Bridge (10 DB protocols + 7 AI protocols)
+    /// Inspect HTTP/wire compatibility adapters and run in-process entity-merge smoke check
     Bridge,
-    /// Universal Trust, Compliance (SOC2 / HIPAA / GDPR / FedRAMP / MLS) & CycloneDX SBOM CLI
+    /// Run technical security-control self-tests (unaudited) or emit CycloneDX v1.6 SBOM
     Trust {
-        /// Output CycloneDX v1.6 SBOM + AI-BOM instead of running the compliance audit
+        /// Output CycloneDX v1.6 SBOM + model manifest JSON instead of running control self-tests
         #[arg(long)]
         sbom: bool,
     },
-    /// Zero-Downtime Polyglot Database Migration, Multiset BLAKE3 Reconciliation & Shadow-Traffic Validator
+    /// Multi-format import & multiset BLAKE3 reconciliation tool (SQLite, SQL dump, JSONL, _bulk, CSV)
     Migrate {
         /// Source ecosystem (`postgres`, `sqlite`, `mysql`, `mongo`, `elastic`, `csv`, `jsonl`)
         #[arg(long, default_value = "postgres")]
         from: String,
-        /// Optional path to a real `.db`/`.sqlite`, `.sql`, `.jsonl`, `_bulk`, or `.csv` file (omit to run full multi-DB certification)
+        /// Optional path to a `.db`/`.sqlite`, `.sql`, `.jsonl`, `_bulk`, or `.csv` file (omit to run in-process parser smoke check)
         #[arg(short, long)]
         input: Option<String>,
     },
-    /// Execute the Master `JouleDB v1.0.0` 36-Pillar Global Database Powerhouse Certification Suite
-    Powerhouse,
+    /// Execute the 6 fast in-process subsystem smoke checks (not an external benchmark suite)
+    #[command(alias = "powerhouse")]
+    SelfCheck,
 }
 
 #[derive(Subcommand)]
@@ -358,7 +359,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             }
             Ok(())
         }
-        Some(Commands::Powerhouse) => {
+        Some(Commands::SelfCheck) => {
             println!(
                 "{}",
                 serde_json::to_string_pretty(

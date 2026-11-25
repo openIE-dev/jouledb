@@ -4,31 +4,31 @@
 
 # Getting Started
 
-- [Install, Helm & Terraform](./install.md)
+- [Install & Deployment Templates](./install.md)
 - [Hello, JouleDB & .jsyn](./hello.md)
-- [Zero-Downtime Migration (`jouledb migrate`)](./migration.md)
+- [Multi-Format Import & Reconciliation (`jouledb migrate`)](./migration.md)
 
-# Core Architecture (`v1.0.0`)
+# Core Architecture (`v0.6.0` Preview)
 
-- [Amorphous Continuum, MorphRules & 8 Fluid Lenses](./amorphic.md)
-- [.jsyn Living Model Weights & Continual Plasticity](./jsyn.md)
-- [v1.0 ABI Stability, WAL Archiving & Microsecond PITR](./pitr-and-abi.md)
-- [SQL:2023 Warehouse, Runtime AQE & Geo-Raft Jepsen](./sql-and-consensus.md)
+- [Amorphous Continuum, MorphRules & Visual Lenses](./amorphic.md)
+- [.jsyn Experimental Bitplanes & Fidelity Boundaries](./jsyn.md)
+- [TLV Envelope Framing, WAL Archiving & PITR](./pitr-and-abi.md)
+- [SQL Window/CUBE/AQE & TCP Raft Consensus](./sql-and-consensus.md)
 
-# Bridges, SDKs & Sovereign Trust
+# Adapters, Client Wrappers & Security Controls
 
-- [Universal Bridges (10 DBs + 7 AI Protocols)](./bridges.md)
-- [Polyglot First-Party SDKs (13+ Languages)](./sdks.md)
-- [Progressive Trust: Maker to SOC 2, HIPAA & FedRAMP/MLS](./trust.md)
+- [Wire & HTTP Compatibility Adapters](./bridges.md)
+- [Client Libraries & Minimal HTTP Wrappers](./sdks.md)
+- [Implemented Security Controls (Unaudited)](./trust.md)
 
 # Guide, Reference & Benchmarks
 
 - [Guided Tour](./tutorial/index.md)
-- [API, Query & 54-Tool MCP Reference](./reference/index.md)
+- [API, Query & 49-Tool MCP Reference](./reference/index.md)
 - [Cookbook Recipes](./cookbook/index.md)
-- [36-Pillar Global Benchmark Encyclopedia](./benchmarks.md)
+- [Empirical Benchmarks: ClickBench, TCP Raft + Elle & Smoke Tests](./benchmarks.md)
 
 # Design & Ecosystem
 
-- [Why JouleDB & Honest Boundaries](./design/why.md)
+- [Why JouleDB & Honest Engineering Boundaries](./design/why.md)
 - [OpenIE Ecosystem](./design/ecosystem.md)

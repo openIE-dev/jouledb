@@ -1863,6 +1863,9 @@ fn aggregate(
             }
         };
         let ng = part.first.len();
+        if ng == 0 {
+            return Some(part);
+        }
         part.accs = (0..ng).flat_map(|_| proto.iter().cloned()).collect();
         for (oi, kind) in kinds.iter().enumerate() {
             let Some(kind) = kind else { continue };

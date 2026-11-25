@@ -193,7 +193,8 @@ async fn test_wave24_tigerbeetle_vopr_secdb_napa_zonemap_and_seven_pillar_indust
     )
     .await;
     assert_eq!(st_suite, StatusCode::OK, "industry_suite: {suite_v}");
-    assert_eq!(suite_v["all_seven_pillars_certified"].as_bool(), Some(true));
+    assert_eq!(suite_v["all_seven_smoke_checks_passed"].as_bool(), Some(true));
+    assert_eq!(suite_v["energy_evidence"].as_str(), Some("est_j"));
     println!(
         "[Wave24 7-Pillar Industry Suite] {}",
         serde_json::to_string_pretty(&suite_v).unwrap_or_default()

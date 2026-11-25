@@ -1,4 +1,4 @@
-// Package jouledb provides the official zero-dependency Go SDK for JouleDB v1.0.0.
+// Package jouledb provides the official zero-dependency Go SDK for JouleDB v0.6.0.
 package jouledb
 
 import (
@@ -12,9 +12,9 @@ import (
 	"time"
 )
 
-const Version = "1.0.0"
+const Version = "0.6.0"
 
-// Client connects to a JouleDB v1.0.0 server over HTTP/JSON.
+// Client connects to a JouleDB v0.6.0 server over HTTP/JSON.
 type Client struct {
 	BaseURL    string
 	Token      string
@@ -98,7 +98,7 @@ func (c *Client) TrustAudit(ctx context.Context) (map[string]any, error) {
 	return out, err
 }
 
-// PowerhouseSuite executes the 36-pillar JouleDB v1.0.0 GA certification suite.
+// PowerhouseSuite executes the 36-pillar JouleDB v0.6.0 GA certification suite.
 func (c *Client) PowerhouseSuite(ctx context.Context) (map[string]any, error) {
 	var out map[string]any
 	err := c.doJSON(ctx, http.MethodPost, "/api/v1/bench/v1_powerhouse", map[string]any{}, &out)

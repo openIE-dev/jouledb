@@ -1841,7 +1841,11 @@ impl<S: StateMachine + 'static, T: RaftTransport + 'static> RaftNode<S, T> {
     // Log Replication
     // ========================================================================
 
-    /// Propose a command to be replicated
+    /// Propose a command to be appended to the leader's log and trigger async replication.
+    ///
+    /// NOTE: `propose` returns as soon as the entry is persisted to the local leader WAL and
+    /// replication is signaled; it does NOT wait for majority commit. Callers requiring linearizable
+    /// durability across network partitions MUST call [`Self::propose_and_commit`].
     pub async fn propose(&self, command: Command) -> Result<LogIndex, RaftError> {
         if !self.is_leader().await {
             let leader = self.leader_id().await;
@@ -1849,6 +1853,61 @@ impl<S: StateMachine + 'static, T: RaftTransport + 'static> RaftNode<S, T> {
         }
 
         self.propose_internal(command).await
+    }
+
+    /// Propose a command and block until a cluster quorum commits it in the same Raft term
+    /// (Raft §5.3 / §5.4.2) and applies it to the local state machine, or `timeout` elapses.
+    pub async fn propose_and_commit(
+        &self,
+        command: Command,
+        timeout: Duration,
+    ) -> Result<LogIndex, RaftError> {
+        if !self.is_leader().await {
+            return Err(RaftError::NotLeader(self.leader_id().await));
+        }
+
+        let mut commit_rx = self.commit_notify.subscribe();
+        let (index, proposed_term) = {
+            let mut persistent = self.persistent.write().await;
+            if *self.state.read().await != RaftState::Leader {
+                return Err(RaftError::NotLeader(self.leader_id().await));
+            }
+            let term = persistent.current_term;
+            let idx = persistent.last_log_index() + 1;
+            let entry = LogEntry::new(term, idx, command);
+            persistent.log.push(entry);
+            self.persist_state_sync(&persistent, 1)?;
+            self.replication_notify.notify_one();
+            (idx, term)
+        };
+
+        let wait_res = tokio::time::timeout(timeout, async {
+            loop {
+                if self.commit_index().await >= index {
+                    let entry_term = self.persistent.read().await.get_term(index);
+                    if entry_term != Some(proposed_term) {
+                        return Err(RaftError::ProposalFailed(format!(
+                            "Log index {index} overwritten (expected term {proposed_term}, got {entry_term:?})"
+                        )));
+                    }
+                    self.apply_committed_entries().await;
+                    return Ok(index);
+                }
+                if !self.is_leader().await || self.current_term().await != proposed_term {
+                    return Err(RaftError::NotLeader(self.leader_id().await));
+                }
+                tokio::select! {
+                    _ = commit_rx.recv() => {}
+                    _ = tokio::time::sleep(Duration::from_millis(20)) => {}
+                }
+            }
+        })
+        .await;
+
+        match wait_res {
+            Ok(inner) => inner,
+            Err(_) => Err(RaftError::Timeout),
+        }
     }
 
     /// Internal propose (doesn't check leadership)

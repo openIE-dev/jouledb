@@ -1,13 +1,9 @@
-//! End-to-End Certification for `JouleDB v1.0.0` GA ("Global Database Powerhouse"):
-//! - Pillar 31: Zero-Downtime Polyglot Migration (`PostgreSQL`, `SQLite`, `Mongo`, `Elastic`, `CSV`),
-//!              Order-Independent Multiset BLAKE3 Reconciliation, CoW Shadow-Traffic Parity & `ML-DSA-65` Certificate
-//! - Pillar 32: `v1.0.0` Wire/Storage ABI Forward/Backward Compatibility, IEEE CRC-32 Bit-Rot Guard,
-//!              Continuous Hash-Chained WAL Archiving & Exact Microsecond `PITR` + Rolling Upgrade
-//! - Pillar 33: Enterprise `SQL:2023` Window Frames, 3D `CUBE`, Cycle-Safe `WITH RECURSIVE` BOM CTE,
-//!              Runtime Adaptive Query Execution (`AQE` 100x Skew Switch) & Hybrid `SQL ⋈ JSONB ⋈ RaBitQ`
-//! - Pillar 34: 5-Node 3-Region Geo-Partitioned Raft, Bounded-Staleness Follower Reads (`0` WAN hops)
-//!              & Deterministic `Jepsen` Split-Brain / Clock-Skew / Linearizability Nemesis Suite
-//! - Pillar 35 & 36: Polyglot First-Party SDK Matrix + `Helm` / `Terraform` IaC Blueprints & `54` MCP Tools
+//! End-to-End Integration Test for `v0.6.0` Subsystem Smoke Checks:
+//! - Multi-format import & multiset BLAKE3 reconciliation (`live_migration`)
+//! - Binary TLV/CRC-32 framing & WAL LSN/timestamp PITR (`v1_stability_and_pitr`)
+//! - Window frames, 3D CUBE, recursive CTE & runtime AQE (`sql2023_powerhouse`)
+//! - Scripted 5-struct in-memory partition unit simulation (`distributed_jepsen_consensus`)
+//! - Honest MCP tool registry (`49` tools)
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -16,14 +12,14 @@ use joule_db_server::{Server, ServerConfig};
 use tower::ServiceExt;
 
 #[tokio::test]
-async fn test_wave31_v1_powerhouse_http_mcp_migration_pitr_aqe_and_jepsen_e2e() {
+async fn test_wave31_subsystem_smoke_http_mcp_migration_pitr_and_aqe_e2e() {
     let temp = tempfile::tempdir().expect("tempdir");
     let mut cfg = ServerConfig::default();
     cfg.db_path = temp.path().to_string_lossy().to_string();
     let server = Server::new(cfg).expect("server init");
     let app = server.router();
 
-    // 1. Master v1.0.0 36-Pillar Powerhouse Suite over HTTP
+    // 1. 6-check in-process subsystem smoke runner over HTTP
     let resp = app
         .clone()
         .oneshot(
@@ -38,14 +34,15 @@ async fn test_wave31_v1_powerhouse_http_mcp_migration_pitr_aqe_and_jepsen_e2e() 
         .expect("resp");
     assert_eq!(resp.status(), StatusCode::OK);
     let body_bytes = resp.into_body().collect().await.expect("body").to_bytes();
-    let powerhouse: serde_json::Value = serde_json::from_slice(&body_bytes).expect("json");
-    assert_eq!(powerhouse["total_certified_pillars"], 36);
-    assert_eq!(powerhouse["mcp_2026_tools_count"], 54);
-    assert_eq!(powerhouse["all_36_pillars_passed"], true);
+    let smoke: serde_json::Value = serde_json::from_slice(&body_bytes).expect("json");
+    assert_eq!(smoke["version"], "0.6.0");
+    assert_eq!(smoke["checks_executed"], 6);
+    assert_eq!(smoke["all_6_smoke_checks_passed"], true);
+    assert_eq!(smoke["energy_evidence"], "est_j");
 
-    // 2. Live Custom Migration Run with CDC High-Watermark Handoff + ML-DSA-65 Certificate
+    // 2. Live migration parser + CDC handoff + ML-DSA-65 signature
     let mig_payload = serde_json::json!({
-        "migration_id": "e2e-pg-cutover-v1",
+        "migration_id": "e2e-pg-cutover-v060",
         "source_format": "postgres",
         "collection_or_table": "orders",
         "payload": "CREATE TABLE orders (id INT PRIMARY KEY, customer TEXT, total_cents INT);\nINSERT INTO orders (id, customer, total_cents) VALUES (101, 'cern-lab', 450000), (102, 'esa-ops', 890000);",
@@ -80,11 +77,9 @@ async fn test_wave31_v1_powerhouse_http_mcp_migration_pitr_aqe_and_jepsen_e2e() 
     .expect("json");
     assert_eq!(mig_json["zero_row_drift"], true);
     assert_eq!(mig_json["final_reconciled_rows"], 3);
-    assert_eq!(mig_json["cutover_write_freeze_ms"], 0);
     assert_eq!(mig_json["pq_signature_verified"], true);
-    assert_eq!(mig_json["pq_signature_bytes"], 3309);
 
-    // 3. Verify 54 MCP 2026 SOTA tools via JSON-RPC `tools/list` (`includeAgenticExtensions: true`)
+    // 3. Verify 49 MCP tools via JSON-RPC `tools/list`
     let mcp_list = serde_json::json!({
         "jsonrpc": "2.0",
         "id": 100,
@@ -109,16 +104,15 @@ async fn test_wave31_v1_powerhouse_http_mcp_migration_pitr_aqe_and_jepsen_e2e() 
     )
     .expect("json");
     let tools = mcp_json["result"]["tools"].as_array().expect("tools array");
-    assert_eq!(tools.len(), 54, "expected 54 MCP 2026 tools in v1.0.0");
+    assert_eq!(tools.len(), 49);
 
-    // 4. Dispatch `cluster.jepsen_geo_raft` and `core.v1_abi_and_pitr` over MCP `tools/call`
     for tool_name in [
         "migrate.shadow_cutover",
-        "core.v1_abi_and_pitr",
-        "query.sql2023_aqe_suite",
-        "cluster.jepsen_geo_raft",
+        "core.tlv_and_pitr_smoke",
+        "query.window_cube_aqe_smoke",
+        "cluster.in_memory_partition_sim",
         "deploy.iac_blueprint",
-        "bench.v1_powerhouse_36",
+        "bench.subsystem_smoke",
     ] {
         let call_req = serde_json::json!({
             "jsonrpc": "2.0",

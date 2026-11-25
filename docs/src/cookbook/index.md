@@ -1,32 +1,31 @@
-# Cookbook Recipes (`v1.0.0`)
+# Cookbook Recipes (`v0.6.0`)
 
-## 1. Run the Master 36-Pillar `JouleDB v1.0.0` Powerhouse Suite
+## 1. Run the 5-Node Networked TCP Raft Fault-Injection Suite + Official `elle` (`0.2.8`)
 ```bash
-jouledb powerhouse
-# or over HTTP:
-curl -s -X POST http://127.0.0.1:8080/api/v1/bench/v1_powerhouse | jq '.all_36_pillars_passed'
+cargo test -p joule-db-server --test raft_tcp_elle_fault_injection
+clojure -Sdeps '{:mvn/repos {"clojars" {:url "https://repo.clojars.org/"}} :deps {elle/elle {:mvn/version "0.2.8"} spootnik/unilog {:mvn/version "0.7.31"}}}' \
+  -M bench/elle_check.clj bench/results/raft_tcp_elle_history.edn rw-register
 ```
 
-## 2. Zero-Downtime SQLite / PostgreSQL Migration with `ML-DSA-65` Certificate
+## 2. Run Official ClickBench Queries Against DuckDB (`pgwire` + Hardware RAPL / `powermetrics`)
+```bash
+./target/release/jouledb -p 28080 -d /tmp/jdb-cb &
+python3 bench/clickbench_official.py --parquet /path/to/hits.parquet --queries /path/to/queries.sql --pg-port 28082
+```
+
+## 3. Import a SQLite Database with Multiset `BLAKE3` Verification
 ```bash
 sqlite3 /tmp/demo.db "CREATE TABLE items(id INT PRIMARY KEY, name TEXT); INSERT INTO items VALUES (1,'laser-532nm');"
 jouledb migrate --from sqlite --input /tmp/demo.db
 ```
 
-## 3. Stream a Heterogeneous Multi-Format Corpus in Bounded $O(E)$ Memory
+## 4. Stream a Multi-Format Directory in Bounded Memory
 ```bash
 jouledb amorphic stream-corpus --dir /tmp/unsilo_demo --generate-bytes 50000000 --entities 512 --cleanup
 ```
 
-## 4. Evaluate an Out-of-Sample `.jsyn` Rank-Sweep (`r = 8 -> 128`)
-```bash
-curl -s -X POST http://127.0.0.1:8080/api/v1/synapse/bench/rank_sweep \
-  -H "Content-Type: application/json" \
-  -d '{"rows":512,"cols":512,"ranks":[8,32,64,128],"svf_sweeps":6}'
-```
-
-## 5. Continuous `SOC 2` / `HIPAA` / `GDPR` / `FedRAMP-MLS` Audit & `CycloneDX 1.6` SBOM
+## 5. Run Technical Security-Control Self-Tests (Unaudited) & Export CycloneDX SBOM
 ```bash
 jouledb trust
-jouledb trust --sbom > sbom-v1.0.0.cdx.json
+jouledb trust --sbom > sbom-v0.6.0.cdx.json
 ```

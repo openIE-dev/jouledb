@@ -1,8 +1,8 @@
 # The `.jsyn` (`JSYN-v1`) Living-Weights Specification & OpenIE Model Ecosystem
 
-**Version:** `1.1` (`JouleDB v0.3.1` — November 2026 · Certified across 14 Physical Computers & 21 Global Pillars)  
+**Version:** `1.2` (`JouleDB v0.6.0` Pre-1.0 Research Preview — November 2026)  
 **License:** `Apache-2.0 OR MIT` (per-model `.jsyn` exports preserve exact upstream SPDX / model licenses)  
-**Public Fleet:** [82 `.jsyn` repositories on Hugging Face (`dcharlot65-openie`)](https://huggingface.co/dcharlot65-openie)  
+**Public Model on Hugging Face:** [`dcharlot65-openie/all-MiniLM-L6-v2-LittleBit`](https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit) (`Apache-2.0`, `0.44 BPW`, `1.95 MB`, measured sentence-embedding cosine `0.9441` vs upstream `FP32`; 81 unverified low-BPW causal LLM exports retracted in `v0.6.0`)  
 **Reference Implementation:** `crates/joule-db-weights/src/{synapse.rs, checkpoint_ingest.rs, causal_decoder.rs, rank_sweep_bench.rs}`
 
 ---
@@ -93,15 +93,14 @@ Real Transformer activations exhibit extreme channel skew (`~1–2%` of channels
 
 ---
 
-## 5. Transparent Information-Theoretic Boundary (For External Reviewers)
+## 5. Transparent Information-Theoretic Boundary & Measured Fidelity
 
-- **What Ultra-Low-Rank (`r = 8..16`) Does Best:** Semantic embeddings (`cos = 0.9441` on `all-MiniLM-L6-v2` at `1.95 MB`), lossless speculative drafting (`DFlash`, `Eagle3`, `Qwen3.5-Draft`, half-rank self-speculation — mathematically `100%` exact when target-verified), `XGrammar` DFA-constrained JSON/SQL tool calling, multimodal `SigLIP`/`Whisper` feature extraction, and `SEM_*` cascade routing.
-- **What Ultra-Low-Rank Cannot Do Standalone:** By the Eckart–Young–Mirsky theorem, truncating to `r = 8..16` drops tail FFN singular values where ungrounded LLMs store obscure open-domain trivia.
-- **How JouleDB Solves Both:** Factual recall is served by `Engram` (`O(1)`, `220 nJ`, `100%` exact match) + `TriModal GraphRAG` + MVCC SQL, while standalone generation fidelity scales smoothly up the rank curve (`target_rank = 32 -> 64 -> 128 -> 256`) + `SVF` calibration.
+- **Where Sub-1-Bit `.jsyn` Works Well (`>= 0.40 BPW` Encoders):** Bidirectional sentence embeddings (`dcharlot65-openie/all-MiniLM-L6-v2-LittleBit` at `0.4378 BPW` / `1.95 MB`, achieving **`0.9441` sentence-embedding cosine similarity** against upstream `FP32` `sentence-transformers/all-MiniLM-L6-v2`), semantic routing, and retrieval candidate generation.
+- **Where Extreme Low-Rank (`0.02–0.17 BPW`, `r = 8..128`) Degrades Severely:** On multi-billion-parameter causal LLMs (`Gemma-4-E2B`, `Inkling-2-Mini`, `SmolLM2-135M`), out-of-sample rank sweeps (`POST /api/v1/synapse/bench/rank_sweep`) show held-out output cosine of **`0.271–0.455`**, Softmax `KL = 2.72–3.87`, and **`65.6%` Top-5 logit agreement** at `r = 128` (`0.166 BPW`). At that fidelity, `.jsyn` causal checkpoints **do not function as drop-in replacements for the upstream models**, and speculative drafting is only lossless when verified against an unquantized dense target model (not self-verified against a low-rank `.jsyn` target). For this reason, OpenIE retracted the 81 unverified low-BPW causal LLM exports from Hugging Face in `v0.6.0`.
 
 ---
 
-## 6. Supported Source Formats & Architectures (82 Public Models)
+## 6. Supported Checkpoint Ingest Formats & Experimental Operator Coverage
 
 `checkpoint_ingest` compiles checkpoints directly via zero-copy `mmap`:
 - **`.safetensors`:** `F32`, `F16`, `BF16`, scaled `FP8` (`E4M3`/`E5M2`), NVIDIA Blackwell / Thinking Machines `NVFP4` (`E2M1` + `F8_E4M3` block scale + `weight_scale_2`), MLX packed affine `U32` (`1/2/4/8`-bit), and 3D stacked MoE `[E, R, C]`.

@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import { connect, VERSION } from "../index.mjs";
 
-test("@openie/jouledb v1.0.0 client query, migration & powerhouse roundtrip", async () => {
-  assert.equal(VERSION, "1.0.0");
+test("@openie/jouledb v0.6.0 client query, migration & powerhouse roundtrip", async () => {
+  assert.equal(VERSION, "0.6.0");
   const liveUrl = process.env.JOULEDB_URL;
   if (liveUrl) {
     const db = connect(liveUrl);

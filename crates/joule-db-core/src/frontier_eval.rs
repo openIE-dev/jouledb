@@ -1,23 +1,10 @@
-//! # Global Frontier Benchmark, Neurosymbolic Solver & Epistemic Calibration Engine
+//! # Calibration Metrics, Neurosymbolic Solvers & Trajectory Safety Primitives
 //!
-//! Native safe-Rust engines addressing the 2025–2026 frontier AI & agentic benchmark ecosystems:
-//! 1. **`HLE` / `HLE-Diamond` (`lastexam.ai`) & `SimpleQA` (`OpenAI`)**: Hendrycks adaptive-bin
-//!    `RMS-CE` calibration error, temperature scaling, harmonic `SimpleQA` F-score, and
-//!    Bayes-optimal risk-controlled abstention.
-//! 2. **`FaithEval` (`Salesforce`) & `MultiChallenge` (`Scale SEAL`)**: Snapshot-authoritative
-//!    counterfactual adherence, multi-source contradiction detection, and bitemporal instruction
-//!    versioning.
-//! 3. **`ARC-AGI-2` & `ARC-AGI-3` (`ARC Prize`)**: 2D grid algebra, 18-primitive compositional
-//!    `MDL` program synthesis, and Shannon entropy-maximizing interactive hypothesis probing.
-//! 4. **`FrontierMath` (`Epoch AI`), `MathArena` (`AIME`), `PutnamBench` & `LiveBench-Reasoning`**:
-//!    Exact `i128` number theory (`CRT`, `ext_gcd`, `mod_pow`, `euler_totient`) and `DPLL` SAT
-//!    witness verification.
-//! 5. **`TAU-bench` / `τ²-bench` (`Sierra`)**: Declarative transactional tool policy guards
-//!    guaranteeing `pass^k` invariant safety across multi-trial episodes.
-//! 6. **`MRCR` (`OpenAI`), `LoCoMo` & `LongMemEval`**: Bitemporal multi-needle coreference state
-//!    tracking in `O(log K)` time with exact `AS OF` recall and unanswerable abstention.
-//! 7. **`SafeVLA-Bench` / `VSI-Bench`**: Quantitative Signal Temporal Logic (`STL`) robustness
-//!    and action-projection safety shield achieving `Violation Severity Index (VSI) = 0.0`.
+//! Pure-Rust utility primitives for calibration error computation (`RMS-CE`, `ECE`, `Brier`, Platt scaling),
+//! risk-controlled abstention thresholds, multi-source span conflict checks, 2D grid transformation synthesis,
+//! exact `i128` modular arithmetic (`CRT`, `ext_gcd`, `mod_pow`) + `DPLL` Boolean SAT, declarative tool-call
+//! preconditions, bitemporal key-value history lookup, and Signal Temporal Logic (`STL`) trajectory clamping.
+//! Note: These are standalone library algorithms, not benchmark dataset evaluations.
 
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, VecDeque};

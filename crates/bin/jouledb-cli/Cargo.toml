@@ -50,5 +50,4 @@ uuid = { workspace = true }
 joule-db-client = { workspace = true }
 joule-runtime   = { workspace = true }
 joule-db-energy = { workspace = true }
-joule-web       = { workspace = true }
 

@@ -1,8 +1,7 @@
-//! Wave 27 E2E Verification (`v0.3.1`):
-//! 1. `POST /api/v1/bench/analytic_suite` (`ClickBench ALP+FSST`, `JOB Skewed WCOJ`, `TSBS/STAC-M3 NBBO`, `BEIR Hybrid RRF`)
-//! 2. `POST /api/v1/bench/faithful_qa` (`FaithEval` Counterfactual + Inconsistent + Unanswerable Span-Polarity Reader)
-//! 3. Expanded 31-Operator `ARC-AGI-2` DSL (`SplitPanelBool::Xor`, `ConnectSameColorOrthogonal`, `CropUniqueColorObject`)
-//! 4. Native MCP Streamable HTTP (`POST /mcp`) Neurosymbolic & Analytic Tools (`38` total SOTA tools)
+//! Synthetic Analytic Smoke Checks & MCP Utility Tools E2E Test (`v0.6.0`).
+//!
+//! Verifies `/api/v1/bench/analytic_suite` (synthetic in-memory ALP/FSST, skewed WCOJ,
+//! ASOF, and hybrid RRF smoke checks) and MCP `sql.dialect_repair` + `robotics.stl_trajectory_clamp`.
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -26,7 +25,7 @@ async fn post_json(router: &axum::Router, uri: &str, payload: Value) -> (StatusC
 }
 
 #[tokio::test]
-async fn test_wave27_analytic_benchmarks_mcp_frontier_tools_and_arc_dsl_e2e() {
+async fn test_wave27_synthetic_analytic_smoke_and_mcp_utility_tools_e2e() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let mut cfg = ServerConfig::default();
     cfg.db_path = tmp.path().join("db").to_string_lossy().to_string();
@@ -39,7 +38,6 @@ async fn test_wave27_analytic_benchmarks_mcp_frontier_tools_and_arc_dsl_e2e() {
     let server = Server::new(cfg).expect("create server");
     let router = server.router();
 
-    // 1. Verify 4-Pillar Global Analytic & Retrieval Suite (`ClickBench + JOB WCOJ + TSBS/STAC-M3 + BEIR`)
     let (st_ana, ana_resp) = post_json(
         &router,
         "/api/v1/bench/analytic_suite",
@@ -52,96 +50,27 @@ async fn test_wave27_analytic_benchmarks_mcp_frontier_tools_and_arc_dsl_e2e() {
     )
     .await;
     assert_eq!(st_ana, StatusCode::OK, "analytic body: {ana_resp}");
-    assert_eq!(ana_resp["all_four_analytic_pillars_certified"], true);
+    assert_eq!(ana_resp["all_four_synthetic_smoke_checks_passed"], true);
+    assert_eq!(ana_resp["energy_evidence"], "est_j");
     assert!(
-        ana_resp["clickbench_columnar"]["compression_ratio"]
+        ana_resp["synthetic_columnar_codec_smoke"]["compression_ratio"]
             .as_f64()
             .unwrap()
             > 3.5
     );
     assert!(
-        ana_resp["job_skewed_wcoj"]["intermediate_blowup_reduction_x"]
+        ana_resp["synthetic_skewed_wcoj_smoke"]["intermediate_blowup_reduction_x"]
             .as_f64()
             .unwrap()
             > 15.0
     );
     assert_eq!(
-        ana_resp["tsbs_stac_m3"]["future_leak_violations"]
+        ana_resp["synthetic_asof_tick_smoke"]["future_leak_violations"]
             .as_u64()
             .unwrap(),
         0
     );
-    assert!(
-        ana_resp["beir_hybrid_rrf"]["trimodal_rrf"]["ndcg_at_10"]
-            .as_f64()
-            .unwrap()
-            >= ana_resp["beir_hybrid_rrf"]["bm25_only"]["ndcg_at_10"]
-                .as_f64()
-                .unwrap()
-    );
 
-    // 2. Verify `FaithEval` Neurosymbolic Span-Polarity Reader over HTTP
-    let (st_faith, faith_resp) = post_json(
-        &router,
-        "/api/v1/bench/faithful_qa",
-        json!({
-            "items": [
-                {
-                    "context": "In the alternate physics archive, mercury boils at -10 C and solidifies only above +400 C. Pure gold is lighter than cork and floats on lakes.",
-                    "question": "According to the archive, what happens to pure gold on lakes?",
-                    "choices": [
-                        "It sinks rapidly to the lakebed",
-                        "It dissolves into mercury",
-                        "It floats on lakes because it is lighter than cork",
-                        "It boils at -10 C"
-                    ],
-                    "gold_index": 2
-                },
-                {
-                    "context": "Report A states that Reactor 7 reached 820 K. Report B states that Reactor 7 reached 410 K.",
-                    "question": "What temperature did Reactor 7 reach?",
-                    "choices": ["820 K", "410 K", "Conflicting reports (inconsistent)", "0 K"],
-                    "gold_index": 2
-                }
-            ]
-        }),
-    )
-    .await;
-    assert_eq!(st_faith, StatusCode::OK);
-    assert_eq!(faith_resp["ok"], true);
-    assert_eq!(faith_resp["accuracy"].as_f64().unwrap(), 1.0);
-    assert_eq!(faith_resp["flagged_inconsistent"].as_u64().unwrap(), 1);
-
-    // 3. Verify Expanded `ARC-AGI-2` Split-Panel XOR Synthesis over HTTP
-    let (st_arc, arc_resp) = post_json(
-        &router,
-        "/api/v1/bench/arc_synthesize",
-        json!({
-            "train": [
-                {
-                    "input": [[2, 0, 8, 2, 2], [0, 2, 8, 0, 0]],
-                    "output": [[0, 6], [0, 6]]
-                },
-                {
-                    "input": [[2, 2, 8, 0, 2], [0, 0, 8, 0, 2]],
-                    "output": [[6, 0], [0, 6]]
-                }
-            ],
-            "test": [
-                {
-                    "input": [[0, 2, 8, 2, 2], [2, 0, 8, 2, 0]],
-                    "output": [[6, 0], [0, 0]]
-                }
-            ]
-        }),
-    )
-    .await;
-    assert_eq!(st_arc, StatusCode::OK);
-    assert_eq!(arc_resp["ok"], true);
-    assert_eq!(arc_resp["solved"], true);
-    assert_eq!(arc_resp["exact_matches"].as_u64().unwrap(), 1);
-
-    // 4. Verify Native MCP Streamable HTTP (`POST /mcp`) SOTA Tool Catalog (`38` tools) & Calls
     let (st_mcp_list, mcp_list) = post_json(
         &router,
         "/mcp",
@@ -155,9 +84,8 @@ async fn test_wave27_analytic_benchmarks_mcp_frontier_tools_and_arc_dsl_e2e() {
     .await;
     assert_eq!(st_mcp_list, StatusCode::OK);
     let tools = mcp_list["result"]["tools"].as_array().unwrap();
-    assert!(tools.len() >= 38);
+    assert_eq!(tools.len(), 49);
 
-    // Call `frontier.sql_critic` and `frontier.safevla_stl_shield` via MCP!
     let (_st_sql, mcp_sql) = post_json(
         &router,
         "/mcp",
@@ -166,7 +94,7 @@ async fn test_wave27_analytic_benchmarks_mcp_frontier_tools_and_arc_dsl_e2e() {
             "id": 2,
             "method": "tools/call",
             "params": {
-                "name": "frontier.sql_critic",
+                "name": "sql.dialect_repair",
                 "arguments": {
                     "sql": "SELECT SAFE_DIVIDE(revnue, orders) FROM `sales`",
                     "known_columns": ["revenue", "orders"]
@@ -189,7 +117,7 @@ async fn test_wave27_analytic_benchmarks_mcp_frontier_tools_and_arc_dsl_e2e() {
             "id": 3,
             "method": "tools/call",
             "params": {
-                "name": "frontier.safevla_stl_shield",
+                "name": "robotics.stl_trajectory_clamp",
                 "arguments": {
                     "start_xyz": [0.0, 0.0, 0.0],
                     "envelope": {

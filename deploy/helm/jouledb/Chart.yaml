@@ -1,9 +1,9 @@
 apiVersion: v2
 name: jouledb
-description: Production Helm Chart for JouleDB v1.0.0 — Thermodynamic Multi-Model & .jsyn Living-Weights Database with Progressive SOC2/HIPAA/GDPR/FedRAMP-MLS Compliance Tiers
+description: Starter Helm Chart for JouleDB v0.6.0 (pre-1.0 preview) — Multi-Model Rust Database (unaudited control profiles)
 type: application
-version: 1.0.0
-appVersion: "1.0.0"
+version: 0.6.0
+appVersion: "0.6.0"
 home: https://jouledb.org
 sources:
   - https://github.com/openIE-dev/jouledb

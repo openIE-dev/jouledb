@@ -1,9 +1,11 @@
-//! Multi-Region Geo-Partitioned Raft + Bounded-Staleness Follower Reads + Deterministic `Jepsen`
-//! Split-Brain / Asymmetric Partition / Clock-Skew Nemesis Certification (`Pillar 34`)
-//! & Master `JouleDB v1.0.0` 36-Pillar Global Powerhouse Aggregator (`Pillars 1..36`).
+//! Scripted In-Memory 5-Struct Partition, HLC Monotonicity & Bounded-Staleness Read Unit Simulation,
+//! plus Starter Deployment Templates & 6-Check In-Process Subsystem Smoke Runner (`v0.6.0`).
 //!
-//! Rivals `CockroachDB`, `Google Spanner`, `TiDB`, and `FoundationDB` on distributed consensus
-//! linearizability, zero-WAN-hop bounded-staleness follower reads, and formal nemesis resilience.
+//! IMPORTANT DISCLOSURE: This module tests deterministic in-memory state transitions over five
+//! `GeoRaftReplica` structs in a `Vec`. It does NOT invoke the networked TCP `RaftNode` engine
+//! (`crates/joule-db-server/src/raft.rs` + `raft_server.rs`) and is NOT a Jepsen test.
+//! For real multi-process TCP Raft fault injection and external `jepsen.elle` history verification,
+//! see `bench/raft_fault_injection.py` and `crates/joule-db-server/tests/raft_tcp_elle_fault_injection.rs`.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Instant;
@@ -125,13 +127,18 @@ pub struct FollowerReadReceipt {
     pub served_locally_zero_wan_hops: bool,
     pub fallback_to_quorum_leader: bool,
     pub observed_value: Option<String>,
-    pub wire_energy_nj: u64,
+    /// Analytical wire-cost model constant (`est_j`), NOT a hardware energy counter reading.
+    pub est_wire_energy_nj: u64,
+    pub energy_evidence: &'static str,
 }
 
-/// Complete `Jepsen` Geo-Raft Nemesis & Linearizability Certification Receipt (`Pillar 34`).
+/// Receipt for the scripted 5-struct in-memory partition & HLC monotonicity unit simulation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeoRaftJepsenReceipt {
-    pub pillar: String,
+    pub test_kind: String,
+    pub simulation_only: bool,
+    pub uses_tcp_raft_engine: bool,
+    pub energy_evidence: String,
     pub cluster_nodes: usize,
     pub regions: Vec<String>,
     pub split_brain_minority_writes_blocked: usize,
@@ -141,11 +148,11 @@ pub struct GeoRaftJepsenReceipt {
     pub all_5_replicas_converged_blake3: String,
     pub replicas_bit_identical_after_heal: bool,
     pub hlc_clock_skew_250ms_monotonic: bool,
-    pub follower_read_fresh_local_nj: u64,
+    pub est_follower_read_fresh_local_nj: u64,
     pub follower_read_lagging_rerouted_to_quorum: bool,
     pub linearizability_history_events: usize,
     pub linearizability_violations: usize,
-    pub rpo_lost_committed_writes: usize,
+    pub lost_committed_writes_in_sim: usize,
     pub elapsed_us: u64,
     pub all_passed: bool,
 }
@@ -312,7 +319,10 @@ pub fn run_geo_raft_jepsen_certification() -> GeoRaftJepsenReceipt {
         && linearizability_violations == 0;
 
     GeoRaftJepsenReceipt {
-        pillar: "Pillar 34 — 5-Node 3-Region Geo-Raft, Bounded-Staleness Follower Reads & Jepsen Nemesis Certification".to_string(),
+        test_kind: "scripted_in_memory_5_struct_partition_and_hlc_unit_test".to_string(),
+        simulation_only: true,
+        uses_tcp_raft_engine: false,
+        energy_evidence: "est_j".to_string(),
         cluster_nodes: nodes.len(),
         regions: vec![
             "us-east-1".to_string(),
@@ -326,11 +336,11 @@ pub fn run_geo_raft_jepsen_certification() -> GeoRaftJepsenReceipt {
         all_5_replicas_converged_blake3: converged_hash,
         replicas_bit_identical_after_heal,
         hlc_clock_skew_250ms_monotonic,
-        follower_read_fresh_local_nj: fresh_follower.wire_energy_nj,
+        est_follower_read_fresh_local_nj: fresh_follower.est_wire_energy_nj,
         follower_read_lagging_rerouted_to_quorum: lagging_follower.fallback_to_quorum_leader,
         linearizability_history_events: history.len(),
         linearizability_violations,
-        rpo_lost_committed_writes: 0,
+        lost_committed_writes_in_sim: 0,
         elapsed_us: t0.elapsed().as_micros() as u64,
         all_passed,
     }
@@ -415,14 +425,16 @@ fn bounded_staleness_follower_read(
             served_locally_zero_wan_hops: true,
             fallback_to_quorum_leader: false,
             observed_value: follower.state_machine.get(key).cloned(),
-            wire_energy_nj: 12, // local loopback / UMA read (~12 nJ vs ~7,800 nJ cross-ocean WAN)
+            est_wire_energy_nj: 12, // analytical model constant (est_j), not measured hardware counter
+            energy_evidence: "est_j",
         }
     } else {
         FollowerReadReceipt {
             served_locally_zero_wan_hops: false,
             fallback_to_quorum_leader: true,
             observed_value: quorum_leader.state_machine.get(key).cloned(),
-            wire_energy_nj: 7_800,
+            est_wire_energy_nj: 7_800, // analytical model constant (est_j)
+            energy_evidence: "est_j",
         }
     }
 }
@@ -476,88 +488,85 @@ fn verify_register_linearizability(history: &[LinearizableHistoryEvent]) -> usiz
     violations
 }
 
-/// Generates a validated Infrastructure-as-Code (`Helm` + `Terraform` + `JouleKube`) blueprint for any Trust Tier (`0..5`).
+/// Generates a starter Infrastructure-as-Code (`Helm` + `Terraform`) configuration summary (`0..5`).
 pub fn generate_iac_compliance_blueprint(tier: u8) -> serde_json::Value {
-    let (tier_name, replicas, worm_pvc, airgap_netpol, pqc_mls) = match tier {
-        0 => ("maker", 1, false, false, false),
-        1 => ("consumer-gdpr", 1, false, false, false),
-        2 => ("enterprise-soc2", 3, false, true, false),
-        3 => ("regulated-hipaa-sec17a4", 3, true, true, false),
-        4 => ("industrial-iec62443", 3, true, true, false),
-        _ => ("sovereign-fedramp-mls", 5, true, true, true),
+    let (profile_name, replicas, worm_pvc, airgap_netpol, pqc_mls) = match tier {
+        0 => ("local-dev", 1, false, false, false),
+        1 => ("privacy-controls", 1, false, false, false),
+        2 => ("enterprise-controls-unaudited", 3, false, true, false),
+        3 => ("retention-controls-unaudited", 3, true, true, false),
+        4 => ("industrial-controls-unaudited", 3, true, true, false),
+        _ => ("mac-pqc-controls-unaudited", 5, true, true, true),
     };
     serde_json::json!({
-        "pillar": "Pillar 36 — Production Helm Chart & Terraform Compliance IaC Modules (v1.0.0)",
+        "kind": "starter_iac_template_summary",
+        "version": "0.6.0",
+        "external_audit_performed": false,
         "chart_path": "deploy/helm/jouledb",
         "terraform_module_path": "deploy/terraform/jouledb",
-        "selected_trust_tier": tier_name,
+        "selected_control_profile": profile_name,
         "statefulset_replicas": replicas,
         "pod_disruption_budget_min_available": if replicas >= 3 { replicas - 1 } else { 1 },
-        "sec_17a4_worm_pvc_enabled": worm_pvc,
-        "zero_trust_network_policy_enabled": airgap_netpol,
-        "fips_203_204_pqc_and_bell_lapadula_mls": pqc_mls,
-        "sdks_shipped_v1": [
-            "Rust (crates/joule-db-client + crates.io/crates/jouledb 1.0.0)",
-            "Python (python/ jouledb 1.0.0 PyO3 + Arrow/Polars/Pandas)",
-            "TypeScript / Node / Deno / Bun (sdks/typescript @openie/jouledb 1.0.0)",
-            "Go (sdks/go github.com/openIE-dev/jouledb/sdks/go v1.0.0)",
-            "C# / .NET (sdks/dotnet OpenIE.JouleDB 1.0.0)",
-            "Swift 6 (sdks/swift JouleDBKit 1.0.0)",
-            "Java 17+ (sdks/java dev.openie:jouledb-client:1.0.0)",
-            "C99 / C++20 Single-Header + FFI (sdks/c/jouledb_universal.h)",
-            "WASM / WASI 0.2 (wasm32-wasip1, wasm32-wasip2, Browser WebGPU)"
+        "worm_pvc_flag": worm_pvc,
+        "network_policy_flag": airgap_netpol,
+        "hybrid_pqc_and_mac_flag": pqc_mls,
+        "in_repo_http_client_wrappers": [
+            "Rust (crates/joule-db-client; CLI installer stub on crates.io jouledb 0.6.0)",
+            "Python (python/ PyO3 + HTTP bindings — wheels on GitHub Releases; not on PyPI)",
+            "TypeScript minimal HTTP wrapper (sdks/typescript — in-repo source, not on npm)",
+            "Go minimal HTTP wrapper (sdks/go — in-repo source)",
+            "C# minimal HTTP wrapper (sdks/dotnet — in-repo source, not on NuGet)",
+            "Swift minimal HTTP wrapper (sdks/swift — in-repo source)",
+            "Java 17+ minimal HTTP wrapper (sdks/java — in-repo source)",
+            "C99 header wrapper (sdks/c/jouledb_universal.h — in-repo source)"
         ],
     })
 }
 
-/// Runs the Master `JouleDB v1.0.0` Global Powerhouse Certification across Pillars 31–36
-/// and summarizes all `36 / 36` certified database, analytical, AI, amorphic, bridge, trust, and consensus pillars.
+/// Runs the 6 in-process deterministic subsystem smoke checks (migration parser/hash, TLV/PITR,
+/// SQL window/CUBE/AQE, scripted 5-struct partition unit check, in-process 5-fragment merge, and
+/// technical security control self-tests).
 pub fn run_v1_global_powerhouse_suite() -> serde_json::Value {
     let t0 = Instant::now();
     let migration = crate::live_migration::run_all_ecosystems_migration_certification();
     let abi_pitr = joule_db_core::v1_stability_and_pitr::certify_v1_abi_stability_and_pitr()
         .ok();
     let sql2023 = joule_db_query::sql2023_powerhouse::run_sql2023_powerhouse_certification();
-    let geo_raft = run_geo_raft_jepsen_certification();
+    let partition_sim = run_geo_raft_jepsen_certification();
     let bridge = crate::universal_bridge::run_universal_bridge_certification();
     let trust = crate::trust_compliance::execute_full_trust_and_compliance_suite().ok();
     let iac = generate_iac_compliance_blueprint(5);
 
-    let p31_ok = migration["all_passed"].as_bool().unwrap_or(false);
-    let p32_ok = abi_pitr.as_ref().map(|r| r.all_passed).unwrap_or(false);
-    let p33_ok = sql2023.all_passed;
-    let p34_ok = geo_raft.all_passed;
-    let bridge_ok = bridge["all_ecosystems_bridged"].as_bool().unwrap_or(false);
-    let trust_ok = trust
+    let c1_ok = migration["all_passed"].as_bool().unwrap_or(false);
+    let c2_ok = abi_pitr.as_ref().map(|r| r.all_passed).unwrap_or(false);
+    let c3_ok = sql2023.all_passed;
+    let c4_ok = partition_sim.all_passed;
+    let c5_ok = bridge["in_process_entity_merge_smoke_passed"].as_bool().unwrap_or(false);
+    let c6_ok = trust
         .as_ref()
-        .and_then(|v| v["all_8_global_compliance_frameworks_certified"].as_bool())
+        .and_then(|v| v["implemented_technical_controls_self_test_passed"].as_bool())
         .unwrap_or(false);
 
-    let all_v1_pillars_passed =
-        p31_ok && p32_ok && p33_ok && p34_ok && bridge_ok && trust_ok;
+    let all_6_passed = c1_ok && c2_ok && c3_ok && c4_ok && c5_ok && c6_ok;
 
     serde_json::json!({
-        "release": "JouleDB v1.0.0 GA — Global Database Powerhouse",
-        "total_certified_pillars": 36,
-        "mcp_2026_tools_count": 54,
-        "all_36_pillars_passed": all_v1_pillars_passed,
+        "version": "0.6.0",
+        "release_stage": "pre-1.0-research-preview",
+        "suite_kind": "in_process_subsystem_smoke_checks",
+        "disclaimer": "Runs 6 fast in-process deterministic unit/smoke checks. Not an external benchmark run and not a third-party compliance audit. For real external benchmarks see bench/ (ClickBench & multi-process TCP Raft + Elle).",
+        "checks_executed": 6,
+        "all_6_smoke_checks_passed": all_6_passed,
+        "energy_evidence": "est_j",
         "elapsed_us": t0.elapsed().as_micros() as u64,
-        "v1_ga_gap_closure_pillars": {
-            "pillar_31_zero_downtime_migration": migration,
-            "pillar_32_v1_abi_stability_and_pitr": abi_pitr,
-            "pillar_33_sql2023_and_runtime_aqe": sql2023,
-            "pillar_34_geo_raft_jepsen_consensus": geo_raft,
-            "pillar_35_polyglot_first_party_sdks": iac["sdks_shipped_v1"],
-            "pillar_36_helm_and_terraform_iac": iac,
+        "smoke_checks": {
+            "migration_multiset_reconciliation_smoke": migration,
+            "tlv_envelope_and_pitr_smoke": abi_pitr,
+            "sql_window_cube_aqe_smoke": sql2023,
+            "in_memory_5struct_partition_sim": partition_sim,
+            "in_process_entity_merge_smoke": bridge,
+            "security_controls_self_test": trust,
         },
-        "bridge_summary_10db_7ai": {
-            "all_passed": bridge_ok,
-            "database_protocols": bridge["database_ecosystems_supported"].as_array().map(|a| a.len()).unwrap_or(10),
-            "ai_protocols": bridge["ai_ecosystems_supported"].as_array().map(|a| a.len()).unwrap_or(7),
-        },
-        "trust_summary_8_frameworks": {
-            "all_passed": trust_ok,
-        }
+        "starter_templates_metadata": iac,
     })
 }
 
@@ -604,13 +613,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_geo_raft_jepsen_and_v1_powerhouse_suite() {
+    fn test_in_memory_partition_sim_and_subsystem_smoke_suite() {
         let raft = run_geo_raft_jepsen_certification();
-        assert!(raft.all_passed, "Geo-Raft Jepsen failed: {raft:?}");
+        assert!(raft.all_passed, "partition sim failed: {raft:?}");
+        assert!(raft.simulation_only);
+        assert!(!raft.uses_tcp_raft_engine);
         assert_eq!(raft.linearizability_violations, 0);
-        assert_eq!(raft.rpo_lost_committed_writes, 0);
+        assert_eq!(raft.lost_committed_writes_in_sim, 0);
 
         let full = run_v1_global_powerhouse_suite();
-        assert_eq!(full["all_36_pillars_passed"], serde_json::json!(true));
+        assert_eq!(full["all_6_smoke_checks_passed"], serde_json::json!(true));
+        assert_eq!(full["checks_executed"], serde_json::json!(6));
     }
 }

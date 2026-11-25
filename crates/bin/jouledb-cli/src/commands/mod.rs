@@ -11,4 +11,3 @@ pub mod query;
 pub mod run;
 pub mod server;
 pub mod status;
-pub mod web;

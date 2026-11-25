@@ -4,8 +4,8 @@ Data movement across disconnected infrastructure silos—OLTP database, columnar
 vector index, property-graph engine, container daemon, and external LLM weight servers—consumes
 orders of magnitude more joules and tail latency than arithmetic inside an ALU. JouleDB
 consolidates transactional storage, hybrid retrieval, and sub-1-bit `.jsyn` neural execution
-onto a single Copy-on-Write Serializable Snapshot Isolation (`SSI`) substrate written in safe
-Rust (`40` crates in [`crates/`](https://github.com/openIE-dev/jouledb/tree/main/crates)).
+onto a single Copy-on-Write Serializable Snapshot Isolation (`SSI`) substrate written in
+Rust (`41` workspace member crates / `724,986` LOC in [`crates/`](https://github.com/openIE-dev/jouledb/tree/main/crates), `v0.6.0` pre-1.0 preview).
 
 This chapter states the prior art JouleDB builds on, where established systems outperform
 JouleDB, the exact `1..15` hyperdimensional computing (`HDC`) primitives, benchmark protocols
@@ -51,10 +51,10 @@ JouleDB targets three cross-layer regimes outside single-engine SQL plan selecti
    (BM25 ⋈ RaBitQ 1-bit POPCNT ⋈ HDC, ~1–10 µJ) -> .jsyn Living Bitplanes (mJ–J)`.
    Short-circuiting repeated or exact factual lookups at `O(1)` avoids waking GPU/NPU rails
    at all—reducing work by $10^3\times$–$10^6\times$ rather than tuning operator watts by 10%.
-3. **Sub-1-bit `.jsyn` (`LittleBit-2 ⊕ Sakana SVF`) Memory-Traffic Reduction:** Offloading
-   exact world facts to MVCC SQL + `Engram` lets `.jsyn` neural checkpoints compress `< 30 GB`
-   open-weight models by `20x–560x` (`0.02–0.50` bits/weight), keeping working sets inside
-   last-level SRAM / unified cache instead of streaming tens of gigabytes across DRAM per token.
+3. **Sub-1-bit `.jsyn` (`LittleBit-2 ⊕ Sakana SVF`) Memory-Traffic Reduction (Within Rank Limits):**
+   Compressing compact bidirectional encoders (`all-MiniLM-L6-v2-LittleBit` at `0.44 BPW`, `22.2×` smaller)
+   preserves `0.9441` cosine similarity, whereas ultra-low `0.02–0.17 BPW` settings severely degrade
+   autoregressive LLMs (`cos = 0.27–0.45`) and are not drop-in LLM replacements.
 
 ---
 
@@ -160,7 +160,7 @@ constraints over `PathHD` candidates.
 ## 5. Licensing, `crates.io` Packaging & Repository Availability Disclosure
 
 1. **Complete Open-Source Workspace in `github.com/openIE-dev/jouledb` (`Apache-2.0 OR MIT`):**
-   All **40 Rust crates** (`crates/*`), Python bindings (`python/`), examples, and docs in this
+   All **41 Rust workspace member crates** (`crates/*`, `724,986` LOC after removing the unrelated `joule-web` crate in `v0.6.0`), Python bindings (`python/`), examples, and docs in this
    repository are dual-licensed under **`Apache-2.0 OR MIT`** ([`LICENSE-APACHE`](https://github.com/openIE-dev/jouledb/blob/main/LICENSE-APACHE),
    [`LICENSE-MIT`](https://github.com/openIE-dev/jouledb/blob/main/LICENSE-MIT),
    [`COPYRIGHT`](https://github.com/openIE-dev/jouledb/blob/main/COPYRIGHT)) with zero
@@ -170,9 +170,9 @@ constraints over `PathHD` candidates.
    cargo test --workspace --locked
    ```
 2. **What the `crates.io` `jouledb` Crate (`stubs/jouledb`) Does:**
-   Because the 40 internal workspace crates are not yet published individually on `crates.io`,
+   Because the 41 internal workspace crates are not yet published individually on `crates.io`,
    the top-level `jouledb` package on `crates.io` ([`stubs/jouledb/`](https://github.com/openIE-dev/jouledb/tree/main/stubs/jouledb),
-   also `MIT OR Apache-2.0`) is a **`cargo-binstall` binary-fetcher stub**:
+   `v0.6.0`, `MIT OR Apache-2.0`; `1.0.0` yanked) is a **`cargo-binstall` binary-fetcher stub**:
    - `cargo binstall jouledb` downloads the signed release archive built from this repository
      by [`.github/workflows/release.yml`](https://github.com/openIE-dev/jouledb/blob/main/.github/workflows/release.yml).
    - Plain `cargo install jouledb` compiles `stubs/jouledb/src/main.rs`, which prints install

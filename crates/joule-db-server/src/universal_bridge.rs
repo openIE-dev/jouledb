@@ -898,13 +898,17 @@ async fn handle_rerank(Json(req): Json<JsonValue>) -> impl IntoResponse {
         Json(json!({
             "id": "rerank_jouledb_hdc",
             "results": results,
-            "meta": { "api_version": { "version": "1" }, "energy_nj": 190 + (docs.len() as u64) * 18 },
+            "meta": {
+                "api_version": { "version": "1" },
+                "est_energy_nj": 190 + (docs.len() as u64) * 18,
+                "energy_evidence": "est_j"
+            },
         })),
     )
 }
 
 // ============================================================================
-// 6. Self-Certifying Global Compatibility Matrix (`GET/POST /api/v1/bridge/*`)
+// 6. In-Process Compatibility Adapter Smoke Check (`GET/POST /api/v1/bridge/*`)
 // ============================================================================
 
 pub fn run_universal_bridge_certification() -> JsonValue {
@@ -965,38 +969,31 @@ pub fn run_universal_bridge_certification() -> JsonValue {
 
     json!({
         "ok": true,
-        "all_ecosystems_bridged": all_bridged,
-        "database_ecosystems_supported": [
-            "PostgreSQL v3 Wire (pgwire / psql / JDBC / psycopg / Npgsql)",
-            "Redis & Valkey Wire (RESP2 / RESP3)",
-            "Apache Arrow Flight SQL + Parquet + Arrow IPC (DuckDB / Polars / PyArrow)",
-            "DuckLake Transactional Lakehouse Catalog & Iceberg REST",
-            "SQLite3 & C99 / ODBC Native Embedded Bridge (libjoule_db_c / joule-db-odbc)",
-            "Elasticsearch & OpenSearch REST (_doc / _bulk / _search)",
-            "MongoDB Atlas Data API (insertOne / insertMany / find / aggregate)",
-            "Qdrant & Pinecone Vector Stores (points / upsert / search / query)",
-            "InfluxDB v2 Line Protocol & OpenTelemetry (OTLP Traces / Metrics / Logs)",
-            "Debezium Multi-DB CDC (PostgreSQL / MySQL / Oracle / SQL Server / MongoDB)"
+        "in_process_entity_merge_smoke_passed": all_bridged,
+        "test_scope": "In-process 5-fragment JSON/line-protocol entity merge + 4D vector lookup unit smoke check. External live client tests (psql, psycopg3, node-pg, JDBC, SQLAlchemy) are in tests/clients/.",
+        "http_and_wire_adapters_implemented": [
+            "PostgreSQL v3 Wire subset (pgwire — tested in tests/clients/)",
+            "Redis RESP2/RESP3 subset",
+            "Apache Arrow IPC / Parquet COPY",
+            "DuckLake REST catalog routes",
+            "C99 FFI / ODBC experimental crate",
+            "Elasticsearch-style HTTP adapter (/_compat/elastic/{index}/_doc|_bulk|_search)",
+            "MongoDB Data API-style HTTP adapter (/_compat/mongo/action/*)",
+            "Qdrant & Pinecone-style HTTP vector adapters (/_compat/qdrant/*, /_compat/pinecone/*)",
+            "InfluxDB v2 line-protocol & OTLP JSON HTTP adapters",
+            "Debezium JSON envelope HTTP ingest (/api/v1/bridge/cdc_ingest)"
         ],
-        "ai_ecosystems_supported": [
-            "OpenAI (/v1/chat/completions, /v1/embeddings, /v1/models)",
-            "Anthropic Messages (/v1/messages)",
-            "Google Gemini (/v1beta/models/{model}:generateContent)",
-            "Ollama (/api/generate, /api/tags)",
-            "Model Context Protocol MCP 2026 (/mcp — 48 SOTA Tools)",
-            "Google Agent-to-Agent A2A v1.0 (/.well-known/agent.json, /a2a)",
-            "Cohere / Jina / Voyage Rerank (/v1/rerank) & LangGraph Checkpoints"
+        "ai_http_adapters_implemented": [
+            "OpenAI-compatible HTTP subset (/v1/chat/completions, /v1/embeddings, /v1/models)",
+            "Anthropic Messages HTTP adapter (/v1/messages)",
+            "Gemini generateContent HTTP adapter (/v1beta/models/{model}:generateContent)",
+            "Ollama HTTP adapter (/api/generate, /api/tags)",
+            "MCP JSON-RPC HTTP/stdio transport (/mcp)",
+            "A2A JSON-RPC HTTP adapter (/.well-known/agent.json, /a2a)",
+            "Lexical/HDC Rerank HTTP adapter (/v1/rerank)"
         ],
-        "os_and_runtime_targets_supported": [
-            "macOS ARM64 (Apple Silicon Metal / CoreML / UMA)",
-            "macOS x86_64 (Intel Xeon / AVX2)",
-            "Linux x86_64 & ARM64 (AMD Zen 5 / EPYC / NVIDIA CUDA / Vulkan / Raspberry Pi SBC)",
-            "Windows 11 x86_64 MSVC",
-            "WebAssembly WASI Preview 1 & Preview 2 (wasm32-wasip1 / wasm32-wasip2)",
-            "Browser WebGPU & WASM + Kubernetes Control Plane (0 etcd) + OCI JouleCapsule (0 dockerd)"
-        ],
-        "unified_5db_entity_silos": entities.first().map(|e| e.source_silos.len()).unwrap_or(0),
-        "cross_db_holographic_resonance": same_res,
+        "unified_5fragment_entity_silos": entities.first().map(|e| e.source_silos.len()).unwrap_or(0),
+        "cross_fragment_holographic_resonance": same_res,
         "elapsed_us": t0.elapsed().as_secs_f64() * 1e6,
     })
 }
@@ -1058,7 +1055,7 @@ mod tests {
     #[test]
     fn test_universal_bridge_unifies_5_databases_and_vector_stores() {
         let rep = run_universal_bridge_certification();
-        assert_eq!(rep["all_ecosystems_bridged"], true);
-        assert_eq!(rep["unified_5db_entity_silos"], 5);
+        assert_eq!(rep["in_process_entity_merge_smoke_passed"], true);
+        assert_eq!(rep["unified_5fragment_entity_silos"], 5);
     }
 }

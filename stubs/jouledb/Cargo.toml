@@ -1,9 +1,9 @@
 [package]
 name = "jouledb"
-version = "1.0.0"
+version = "0.6.0"
 edition = "2021"
 rust-version = "1.74"
-description = "Thermodynamic database & living-weights (.jsyn) AI powerhouse — SSI MVCC, Amorphic Continuum, 10-DB/7-AI Bridges, SOC2/MLS Trust, and nanojoule receipts. `cargo binstall jouledb` fetches the binary."
+description = "Energy-metered multi-model Rust database (0.6.0 pre-1.0 preview) — SSI MVCC, PostgreSQL pgwire, TCP Raft, Parquet/DuckLake, and hardware RAPL/powermetrics receipts. `cargo binstall jouledb` fetches the binary."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/openIE-dev/jouledb"
 homepage = "https://jouledb.org"
@@ -20,7 +20,7 @@ name = "jouledb"
 path = "src/main.rs"
 
 [package.metadata.binstall]
-pkg-url = "{ repo }/releases/download/v{ version }/jouledb-{ version }-{ target }.{ archive-suffix }"
+pkg-url = "{ repo }/releases/download/v{ version }/jouledb-{ version }-{ target }{ archive-suffix }"
 pkg-fmt = "tgz"
 bin-dir = "jouledb-{ version }-{ target }/{ bin }{ binary-ext }"
 

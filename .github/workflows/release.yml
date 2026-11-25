@@ -34,7 +34,8 @@ jobs:
           - { target: aarch64-apple-darwin,      os: macos-15 }
           # Intel macOS runners are retired; cross-compile on Apple silicon.
           - { target: x86_64-apple-darwin,       os: macos-15 }
-          - { target: x86_64-unknown-linux-gnu,  os: ubuntu-latest }
+          # Build Linux x86_64 on ubuntu-22.04 (glibc 2.35) so binaries start cleanly on Ubuntu 22.04, Ubuntu 24.04 LTS (glibc 2.39), Debian 12 (glibc 2.36), and RHEL 9+.
+          - { target: x86_64-unknown-linux-gnu,  os: ubuntu-22.04 }
           - { target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm }
           # Experimental: joule-db-server uses tokio::net::UnixListener without a cfg(unix) gate.
           - { target: x86_64-pc-windows-msvc,    os: windows-latest, experimental: true }
@@ -62,6 +63,14 @@ jobs:
             softwareupdate --install-rosetta --agree-to-license || { file "$BIN" | grep -q x86_64 && exit 0; }
           fi
           "$BIN" --version
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            echo "Checking max GLIBC symbol requirement (must run on Ubuntu 24.04 glibc 2.39):"
+            objdump -T "$BIN" | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sort -uV | tail -5
+            if objdump -T "$BIN" | grep -qE 'GLIBC_2\.(4[0-9]|[5-9][0-9])'; then
+              echo "ERROR: Binary requires GLIBC >= 2.40, which breaks Ubuntu 24.04 LTS!"
+              exit 1
+            fi
+          fi
           "$BIN" -p 18080 -d "$RUNNER_TEMP/jdb" > "$RUNNER_TEMP/srv.log" 2>&1 &
           for i in $(seq 60); do curl -fsS http://127.0.0.1:18080/health && break; sleep 1; done
           curl -fsS http://127.0.0.1:18080/health

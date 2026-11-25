@@ -161,30 +161,39 @@ async fn test_data_survives_leader_kill() {
         assert!(leader.is_some(), "Leader should be elected");
         let leader_idx = leader.unwrap();
 
-        // Propose a command to the leader
+        // Propose and wait for real quorum commit before killing leader
         let cmd = Command::Set {
             key: b"important_key".to_vec(),
             value: b"important_value".to_vec(),
         };
-        let _result = nodes[leader_idx].propose(cmd).await;
-
-        // Give time for replication
-        tokio::time::sleep(Duration::from_millis(500)).await;
-
-        // Check data on a follower before killing leader
-        let follower_idx = (0..3).find(|&i| i != leader_idx).unwrap();
-        let has_key = nodes[follower_idx]
-            .with_state_machine(|sm| sm.data().contains_key("important_key"))
-            .await;
+        nodes[leader_idx]
+            .propose_and_commit(cmd, Duration::from_secs(3))
+            .await
+            .expect("quorum commit before leader kill");
 
         // Kill the leader
         rpc_handles[leader_idx].abort();
         loop_handles[leader_idx].abort();
 
-        // Data was replicated to at least one follower (allow for timing)
+        // Wait for remaining 2/3 majority to elect a new leader and apply committed log
+        let remaining: Vec<_> = (0..3)
+            .filter(|&i| i != leader_idx)
+            .map(|i| nodes[i].clone())
+            .collect();
+        let new_leader = wait_for_leader(&remaining, Duration::from_secs(5))
+            .await
+            .expect("new leader after kill");
+        remaining[new_leader]
+            .propose_and_commit(Command::Noop, Duration::from_secs(3))
+            .await
+            .expect("new leader noop barrier");
+        let has_key = remaining[new_leader]
+            .with_state_machine(|sm| sm.data().contains_key("important_key"))
+            .await;
+
         assert!(
-            has_key || true, // Allow for timing — data may not have replicated yet
-            "Data should survive leader kill"
+            has_key,
+            "Quorum-committed data MUST survive leader kill without `|| true` bypass"
         );
 
         abort_all(&rpc_handles);

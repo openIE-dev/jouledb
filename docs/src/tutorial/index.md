@@ -1,11 +1,10 @@
-# Guided Tour (`v1.0.0`)
+# Guided Tour (`v0.6.0` Preview)
 
-Explore JouleDB `v1.0.0`'s unified organs in seven 60-second steps:
+Explore JouleDB `v0.6.0` locally in six steps:
 
-1. **ACID/SSI Relational & `SQL:2023` Warehouse:** Run OLTP transactions (`1.03M TPS`), partitioned window frames, 3D `CUBE` rollups, and runtime `AQE` joins via `jouledb query` or `psql -h 127.0.0.1 -p 8082`.
-2. **Zero-Downtime Migration (`jouledb migrate`):** Import existing `PostgreSQL`, `SQLite`, `MongoDB`, `Elasticsearch`, or `CSV` data into a CoW branch with 256-bit Multiset `BLAKE3` reconciliation and an `ML-DSA-65` signed cutover certificate.
-3. **Un-Siloed Amorphous Continuum:** Stream heterogeneous JSON, CSV, XML, prose logs, and RDF triples (`jouledb amorphic stream-corpus`) in bounded $O(E)$ RAM (`57.6 MB` for `1.35 GB`) and project 8 visual lenses at [jouledb.org/amorphic](https://jouledb.org/amorphic).
-4. **Universal 10-DB + 7-AI Bridges:** Point unmodified `Elasticsearch`, `Mongo`, `Qdrant`, `Pinecone`, `InfluxDB/OTLP`, `OpenAI`, `Anthropic`, `Gemini`, or `MCP` (`54` tools) clients directly at `:8080`.
-5. **`.jsyn` Living Model Weights:** Pull any of the [82 public `.jsyn` models](https://huggingface.co/dcharlot65-openie) (`20×–560×` smaller than `FP16`) with `Titans` null-space continual plasticity (`0%` forgetting).
-6. **Progressive Maker-to-Defense Trust:** Run `jouledb trust` and `jouledb trust --sbom` to audit `SOC 2`, `HIPAA`, `GDPR Art. 17` crypto-shredding, `SEC 17a-4(f)` WORM, and `FedRAMP / CNSA 2.0 Bell-LaPadula MLS`.
-7. **`JouleKube` & Multi-Region Geo-Raft:** Apply Kubernetes + CNCF AI-Conformance manifests (`POST /api/v1/kube/apply`, `0` `etcd`) and certify 5-node 3-region Geo-Raft linearizability (`POST /api/v1/certify/geo_raft_jepsen`).
+1. **SQL & PostgreSQL `pgwire` (`:8082`):** Start `jouledb --port 8080 --data ./jdb` and run SQL via `jouledb query` or `psql -h 127.0.0.1 -p 8082 -U postgres`.
+2. **Official ClickBench vs. DuckDB Harness (`bench/`):** Run `python3 bench/harness.py` or `python3 bench/clickbench_official.py` to compare `JouleDB` (`pgwire`) against `DuckDB` with hardware RAPL / `powermetrics` joules (`reported_j`), including queries where `DuckDB` wins.
+3. **5-Node TCP Raft Fault Injection + `elle` (`0.2.8`):** Run `cargo test -p joule-db-server --test raft_tcp_elle_fault_injection` and verify the exported history (`bench/results/raft_tcp_elle_history.edn`) with official Clojure `elle/elle 0.2.8` (`bench/elle_check.clj`).
+4. **Multi-Format Import (`jouledb migrate`):** Import a local SQLite `.db`, `.sql`, `.jsonl`, `_bulk`, or `.csv` file with order-independent `BLAKE3` multiset verification.
+5. **Amorphous Continuum (`jouledb amorphic`):** Stream mixed-format records (`JSONL`, `CSV`, `XML`, `k=v`, prose, triples) into `10,240`-bit hypervectors with SI unit normalization.
+6. **Verified `.jsyn` Sentence Embedder:** Pull [`dcharlot65-openie/all-MiniLM-L6-v2-LittleBit`](https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit) (`1.95 MB`, `0.44 BPW`, `cos = 0.9441` vs upstream FP32) and inspect `synapse_tensors` in SQL.

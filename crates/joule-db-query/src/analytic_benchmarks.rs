@@ -1,22 +1,11 @@
-//! Global Analytical, Skewed-Join, HFT Market-Tick & `BEIR` Zero-Shot Retrieval Benchmark Suite (`v0.3.1`).
+//! Synthetic In-Memory Columnar Codec (`ALP`/`FSST`/`ZoneMap`), Skewed `WCOJ`, `ASOF` Tick Alignment,
+//! and Hybrid `BM25 + RaBitQ + HDC` Retrieval Smoke Checks.
 //!
-//! Closes the remaining four industry benchmark rows (`B6 ClickBench`, `B7 JOB`, `B13/B14 TSBS + STAC-M3`,
-//! and `B16 BEIR`) from the 2026 Global Database Taxonomy:
-//! 1. **`ClickBench` Columnar `ALP + FSST + MonotonicTimestamp + ZoneMap` Web-Analytics Suite**:
-//!    Verifies bit-exact lossless floating-point (`AlpCodec`), delta-of-delta timestamp
-//!    (`MonotonicTimestampCodec`), and symbol-dictionary (`SymbolDictCodec`) compression alongside
-//!    5 canonical `ClickBench` analytical query shapes (`Q1`, `Q7`, `Q14`, `Q21`, `Q33`).
-//! 2. **`JOB` (Join Order Benchmark) Skewed Star/Cyclic `WCOJ` Optimizer Suite**:
-//!    Demonstrates Leapfrog TrieJoin (`execute_wcoj_with_order`) eliminating intermediate tuple
-//!    explosion (`>15x` fewer intermediate bindings) vs. naive left-deep pair-hash-joins on highly
-//!    skewed IMDb-style celebrity/company keys with `100%` exact output parity.
-//! 3. **`TSBS` IoT Rollups + `STAC-M3` Multi-Venue `NBBO` & `VWAP` Tick Suite**:
-//!    Executes multi-venue (`NASDAQ`, `NYSE`, `BATS`, `IEX`) strictly causal `ASOF` National Best
-//!    Bid & Offer (`NBBO`) alignment (`0` future tick leakage), rolling `VWAP`, and `TSBS` 1-second
-//!    host telemetry rollups over `EctStore` + `HybridLogicalClock`.
-//! 4. **`BEIR` Zero-Shot Hybrid Information Retrieval Suite (`nDCG@10`, `Recall@10`, `MRR@10`)**:
-//!    Benchmarks Lexical `BM25`-only vs. Quantized `RaBitQ` 1-bit Vector-only vs. JouleDB
-//!    `TriModal RRF` (`BM25 ⋈ RaBitQ ⋈ HDC`).
+//! IMPORTANT: All functions in this module generate small deterministic synthetic arrays in memory
+//! (`2k–250k` rows, `40–500` synthetic documents) and compute analytical energy estimates (`est_j`).
+//! They do NOT load the official 100M-row ClickBench dataset, IMDb JOB, STAC-M3, or BEIR corpora.
+//! For real end-to-end ClickBench evaluation against DuckDB with hardware RAPL/powermetrics joules,
+//! see `bench/` in the repository root.
 
 use crate::hybrid_graphrag::{HybridDocument, RrfConfig, TriModalRrfIndex};
 use crate::wcoj::{Atom, Relation, Tuple, WcojQuery, execute_wcoj_with_order};

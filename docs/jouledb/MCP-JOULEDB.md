@@ -1,14 +1,14 @@
-# JouleDB MCP 2026 Reference (`v1.0.0` GA — `54` Tools)
+# JouleDB MCP Reference (`v0.6.0` Pre-1.0 — `49` Tools)
 
-**Version 1.0.0 — 2026-11-25**
+**Version 0.6.0 — 2026-11-25**
 **Source:** [`crates/joule-db-server/src/mcp_bridge.rs`](../../crates/joule-db-server/src/mcp_bridge.rs), [`crates/joule-db-server/src/mcp_transport.rs`](../../crates/joule-db-server/src/mcp_transport.rs)
 
-`joule-db-server` (`v1.0.0`) exposes **`54` Model Context Protocol (`MCP 2026`) tools** over Streamable HTTP (`POST /mcp`, `GET /mcp/sse`, `POST /mcp/messages`) and `stdio`:
+`joule-db-server` (`v0.6.0`) exposes **`49` Model Context Protocol (`MCP`) tools** over Streamable HTTP (`POST /mcp`, `GET /mcp/sse`, `POST /mcp/messages`) and `stdio`:
 - **`24` Core `db.*` Tools** (`tools/list` default): SQL, KV, DDL, CoW branching (`db.branch_*`), vector search (`db.vector_*`), multi-tenant quotas, bitemporal agent memory (`db.memory_*`), durable workflows, queues, and energy budgets.
-- **`30` SOTA & `v1.0.0` Powerhouse Extensions** (`tools/list` with `{"includeAgenticExtensions": true}`):
-  - **Migration, ABI/PITR, Warehouse & Geo-Raft (`v1.0.0`):** `migrate.shadow_cutover`, `core.v1_abi_and_pitr`, `query.sql2023_aqe_suite`, `cluster.jepsen_geo_raft`, `deploy.iac_blueprint`, `bench.v1_powerhouse_36`
-  - **Amorphic, Bridges & Trust:** `amorphic.unsilo_morph`, `amorphic.morph_rules_and_lens`, `amorphic.stream_corpus_scale`, `bridge.ecosystem_certify`, `trust.compliance_audit`, `trust.sbom_cyclonedx`
-  - **Sovereign & Frontier Solvers:** `sovereign.continual_plasticity`, `sovereign.relbench_rfm`, `sovereign.pq_verifiable_attest`, `sovereign.global_mmlu_12script`, `frontier.sql_critic`, `frontier.arc_synthesize`, `frontier.calibrate_abstention`, `frontier.faithful_context`, `frontier.math_sat_verify`, `frontier.tau_policy_guard`, `frontier.safevla_stl_shield`, `db.analytic_suite`, `db.agentfs_*`.
+- **`25` Optional Engine & Self-Check Extensions** (`tools/list` with `{"includeAgenticExtensions": true}`):
+  - **Migration, ABI/PITR, SQL & Raft Smoke Checks:** `migrate.shadow_cutover`, `core.abi_and_pitr`, `query.sql2023_aqe_smoke`, `cluster.raft_simulation_smoke`, `deploy.iac_blueprint`, `bench.engine_smoke_suite`
+  - **Amorphic, Bridges & Security Controls Self-Tests:** `amorphic.unsilo_morph`, `amorphic.morph_rules_and_lens`, `amorphic.stream_corpus_scale`, `bridge.smoke_check`, `trust.controls_self_test`, `trust.sbom_cyclonedx`
+  - **Neurosymbolic Utilities & Operator Smoke Suites:** `synapse.continual_plasticity`, `graph.temporal_neighbor_smoke`, `crypto.pq_receipt_attest`, `text.multilingual_12script_smoke`, `eval.sql_dialect_repair`, `eval.grid_dsl_synthesize`, `eval.calibrate_abstention`, `eval.context_conflict_check`, `eval.math_sat_solver`, `eval.idempotency_policy_guard`, `eval.stl_safety_filter`, `db.operator_smoke_suite`, `db.agentfs_snapshot`.
 
 ---
 

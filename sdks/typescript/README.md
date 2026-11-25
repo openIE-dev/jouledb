@@ -1,6 +1,6 @@
-# `@openie/jouledb` (`v1.0.0`)
+# `@openie/jouledb` (`v0.6.0`)
 
-Official zero-dependency TypeScript / JavaScript / Deno / Bun / Edge SDK for **[JouleDB v1.0.0](https://jouledb.org)**.
+Official zero-dependency TypeScript / JavaScript / Deno / Bun / Edge SDK for **[JouleDB v0.6.0](https://jouledb.org)**.
 
 ```js
 import { connect } from "@openie/jouledb";

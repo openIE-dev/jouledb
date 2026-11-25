@@ -2,7 +2,7 @@
 
 Un-siloing the digital world requires **maintaining exact semantic meaning while ditching arbitrary rigid structure**.
 
-Traditional databases force a false choice: rigid relational DDL (requiring brittle ETL pipelines whenever schemas drift) or untyped JSON blobs (losing units, identity, and algebraic queryability). `JouleDB v1.0.0` (`crates/joule-db-amorphic` & `crates/joule-db-viz`, Pillars `22`, `27`, `28`) replaces both with the **Amorphous Semantic Continuum**.
+Traditional databases force a false choice: rigid relational DDL (requiring brittle ETL pipelines whenever schemas drift) or untyped JSON blobs (losing units, identity, and algebraic queryability). `JouleDB v0.6.0` (`crates/joule-db-amorphic` & `crates/joule-db-viz`) explores an experimental alternative: the **Amorphous Semantic Continuum**.
 
 ---
 
@@ -36,7 +36,7 @@ LINK WHEN entity.kelvin > 310.0 -> ALERT "thermal_excursion"
 
 `jouledb amorphic stream-corpus` ingests multi-gigabyte heterogeneous directories in strictly bounded $O(E)$ RAM using 64 KiB streaming readers, reservoir sampling, and 16-bit SimHash LSH hologram buckets:
 
-- **Verified Single-Node Proof (`Apple M5 Max`):** **`1.35 GB` (`47,488,952` semantic atoms across `.jsonl`, `.csv`, `.xml`, `.kv`, `.log`, `.nt`)** streamed in **`57.64 MB` OS Peak RSS** (**`699.5×` RAM expansion avoided**).
+- **Single-Node Streaming Run (`Apple M5 Max`):** **`1.35 GB` (`47,488,952` semantic atoms across `.jsonl`, `.csv`, `.xml`, `.kv`, `.log`, `.nt`)** streamed in **`57.64 MB` OS Peak RSS**.
 - **Cross-OS Bit-Exact Determinism:** Produces identical 128-bit FNV-1a stream fingerprints (`de6330b34ee42a9985a74261f86b431b`) across `macOS`, `Linux`, and `Windows 11`.
 
 ---

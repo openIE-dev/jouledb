@@ -1,19 +1,9 @@
 # OpenIE Ecosystem
 
-JouleDB integrates across the Open Interface Engineering (`OpenIE`) thermodynamic computing stack:
+JouleDB is part of Open Interface Engineering (`OpenIE`):
 
-```text
-    joule-lang          pattern-lang          synthesis
-         \                   |                   /
-          \                  |                  /
-           v                 v                 v
-    JouleDB (SSI MVCC + GraphRAG + Embodied ASOF + .jsyn Living Weights)
-                             |
-              6-Rail Silicon Energy Ledger (nJ)
-```
-
-- **[JouleDB (`jouledb.org`)](https://jouledb.org):** Thermodynamic database, `JouleKube` control plane, and `.jsyn` living-weights runtime.
-- **[Hugging Face Fleet (`dcharlot65-openie`)](https://huggingface.co/dcharlot65-openie):** 82 public sub-1-bit `.jsyn` models, interactive Explorer Space, and peer-review benchmark dataset.
-- **[Joule Language (`joule-lang.dev`)](https://joule-lang.dev):** Energy-budgeted systems & kernel programming language.
-- **[Pattern-lang (`pattern-lang.ai`)](https://pattern-lang.ai):** Neurosymbolic structural specification & verification.
-- **[OpenIE (`openie.dev`)](https://openie.dev):** Open Interface Engineering research & open-source infrastructure.
+- **[JouleDB (`jouledb.org`)](https://jouledb.org):** Multi-model Rust database (`v0.6.0` pre-1.0 preview), PostgreSQL `pgwire` server, TCP Raft consensus, Amorphous VSA store, and experimental `.jsyn` low-bitwidth tensor runtime.
+- **[OpenIE Research Hub (`research.openie.dev`)](https://research.openie.dev):** Empirical studies enforcing strict `measured_j ⊥ reported_j ⊥ est_j ⊥ unmetered` energy evidence labels (not journal peer-reviewed finals).
+- **[Hugging Face (`dcharlot65-openie`)](https://huggingface.co/dcharlot65-openie):** Verified [`all-MiniLM-L6-v2-LittleBit`](https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit) sentence embedder (`cos = 0.9441`), rank-sweep fidelity trade-off explorer, and raw benchmark artifacts.
+- **[Joule Language (`joule-lang.dev`)](https://joule-lang.dev)** & **[Pattern-lang (`pattern-lang.ai`)](https://pattern-lang.ai):** Sibling experimental language projects.
+- **[OpenIE (`openie.dev`)](https://openie.dev):** Open Interface Engineering, Inc.

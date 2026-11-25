@@ -1,30 +1,28 @@
-# `SQL:2023` Warehouse, Runtime `AQE` & Geo-Raft `Jepsen` Consensus
+# SQL Window/CUBE/AQE & Networked TCP Raft Consensus
 
-`JouleDB v1.0.0` matches both analytical cloud warehouses (`Snowflake`, `Databricks Photon`, `DuckDB`, `ClickHouse`, `Umbra`) and globally distributed transactional databases (`CockroachDB`, `Google Spanner`, `TiDB`, `FoundationDB`).
-
----
-
-## 1. Enterprise `SQL:2023` Analytical Engine & Runtime `AQE` (`Pillar 33`)
-
-Implemented in `crates/joule-db-query/src/sql2023_powerhouse.rs` alongside `morsel_spill.rs`, `zonemap_scan.rs`, and `wcoj.rs`:
-
-- **`SQL:2023` Window Functions & Sliding Frames:** Multi-key `PARTITION BY ... ORDER BY ...` supporting `ROW_NUMBER()`, `RANK()`, `DENSE_RANK()`, `LAG()`, `LEAD()`, `CUME_DIST()`, and bounded `ROWS BETWEEN k PRECEDING AND m FOLLOWING` sliding `SUM` / `AVG` frames.
-- **Single-Pass 3D OLAP `CUBE` / `ROLLUP` / `GROUPING SETS`:** Computes all $2^d$ multi-dimensional sub-totals and grand totals in one scan with exact `GROUPING_ID` bitmasks.
-- **Cycle-Guarded `WITH RECURSIVE` Bill-of-Materials / Graph CTE:** Semi-naive fixpoint traversal with built-in cycle pruning (`cycles_detected_and_pruned`) so dirty cyclic hierarchies terminate in $O(V + E)$.
-- **Runtime Adaptive Query Execution (`AQE`):** When UDFs or correlated filters cause runtime build cardinalities to exceed static estimates (`>4×` skew), `AQE` switches mid-flight at the shuffle stage boundary from `BroadcastNestedLoop` to `RadixHashJoinWithSkewSplit` and splits heavy-hitter keys—avoiding **`>1,000×` join probe comparisons**.
-- **Fused `Relational ⋈ JSONB ⋈ RaBitQ 1-Bit Vector` Lateral Top-K:** Evaluates tenant RBAC predicates, nested JSONB paths, and `SIMD POPCNT` vector similarity in a single operator pass.
+This chapter separates JouleDB's **in-process query operators** from its **networked TCP Raft consensus engine** and states what each test actually exercises.
 
 ---
 
-## 2. 5-Node, 3-Region Geo-Partitioned Raft & `Jepsen` Nemeses (`Pillar 34`)
+## 1. Analytical SQL Operators (`sql2023_powerhouse.rs`, `morsel_spill.rs`, `zonemap_scan.rs`)
 
-Implemented in `crates/joule-db-server/src/distributed_jepsen_consensus.rs` alongside `raft.rs` and `elle_hermitage.rs`:
+- **Partitioned Window Functions & Frames:** `ROW_NUMBER`, `RANK`, `DENSE_RANK`, `LAG`, `LEAD`, `CUME_DIST`, and bounded `ROWS BETWEEN` sliding `SUM` / `AVG` frames.
+- **3D `CUBE` / `ROLLUP`:** Single-pass multi-dimensional grouping with `GROUPING_ID` bitmasks.
+- **Cycle-Pruned Recursive CTE:** Semi-naive fixpoint traversal with cycle detection (`cycles_detected_and_pruned`).
+- **Runtime Adaptive Join Switch (`AQE`):** Switches from nested-loop broadcast to radix-partitioned hash join with heavy-hitter key splitting when observed build cardinality exceeds static estimates on skewed synthetic inputs.
+- **Out-of-Core Morsel Spill (`morsel_spill.rs`):** `2,048`-row columnar morsels spilling `CRC-32`-checked `JMSB` partitions to disk when hash state exceeds `memory_budget_bytes`.
 
-- **Quorum `ReadIndex` Linearizability (`0` Split-Brain):** When a network partition isolates an old-term leader in a minority (`2 / 5` nodes), `JouleDB` blocks both minority writes and stale `ReadIndex` reads while the `3 / 5` majority elects a new term leader and continues committing (`RPO = 0`).
-- **Zero-WAN-Hop Bounded-Staleness Follower Reads:** Regional replicas (`us-east-1`, `eu-central-1`, `ap-northeast-1`) serve `AS OF SYSTEM TIME '-50ms'` reads locally in **`~12 nJ`** (`0` cross-ocean hops) whenever `now - safe_closed_ts <= max_staleness_ms`, and automatically reroute to the quorum leader if partitioned/lagging.
-- **`+250 ms` `HLC` Clock-Skew Immunity & Wing–Gong Linearizability Proof:** Hybrid Logical Clocks `(physical_ms, logical_seq)` maintain strict causal monotonicity across forward/backward NTP jumps, verified with `0` Wing–Gong register linearizability violations and bit-identical `BLAKE3` state convergence across all 5 replicas upon partition heal.
+---
 
-```bash
-curl -s -X POST http://127.0.0.1:8080/api/v1/bench/sql2023_powerhouse
-curl -s -X POST http://127.0.0.1:8080/api/v1/certify/geo_raft_jepsen
-```
+## 2. Networked TCP Raft Consensus (`raft.rs`, `raft_server.rs`, `raft_transport.rs`)
+
+JouleDB contains **two distinct consensus code paths** that must not be conflated:
+
+1. **Production Networked TCP Raft Engine (`crates/joule-db-server/src/{raft.rs, raft_server.rs, raft_transport.rs}` — `5,269` combined lines + TLA+ spec):**
+   - Full Ongaro & Ousterhout Raft state machine (`Follower`, `Candidate`, `Leader`), `RequestVote`, `AppendEntries`, `InstallSnapshot` (with optional Reed-Solomon erasure shards), joint-consensus membership changes, and `CRC-32` on-disk `RaftWal` recovery.
+   - **`RaftNode::propose` vs `RaftNode::propose_and_commit` (`v0.6.0` fix):** `propose()` appends to the local leader WAL and notifies background replication asynchronously without waiting for a majority; callers requiring linearizable durability across network partitions **must** call `propose_and_commit(cmd, timeout)`, which awaits `commit_index >= index` and verifies Raft §5.4.2 term preservation before returning.
+   - **Real Fault-Injection + Official `elle` (`0.2.8`) Verification (`tests/raft_tcp_elle_fault_injection.rs` & `bench/elle_check.clj`):** Boots 5 real `RaftNode<KvStateMachine, TcpRaftTransport>` servers with separate on-disk `raft.wal` directories across a 20-link TCP socket-severing proxy (`TcpPartitionMatrix`), injects an asymmetric `2/5` vs `3/5` partition isolating the initial leader, stops and restarts a node from disk WAL, heals the network, verifies 5-way state convergence with `0` lost committed writes, and checks the exported 76-event EDN history (`bench/results/raft_tcp_elle_history.edn`) with Kyle Kingsbury's official Clojure `elle/elle 0.2.8` (`rw-register`, `:strict-serializable` -> `{:valid? true}`).
+   - **Candid Limitation:** `RaftNode::with_state_machine` reads local memory without an automatic `ReadIndex` round-trip, so linearizable reads must execute a quorum barrier (`propose_and_commit(Command::Noop, ...)`). In addition, `raft_tcp_elle_fault_injection.rs` runs 5 TCP servers over loopback in one multi-threaded test process rather than across 5 separate physical hosts.
+
+2. **Fast Scripted In-Memory Unit Simulation (`distributed_jepsen_consensus.rs`):**
+   - Simulates 5 `GeoRaftReplica` structs in a `Vec` to unit-test `HlcStamp` monotonicity and staleness-bound arithmetic (`est_wire_energy_nj = 12` analytical constant, `energy_evidence = "est_j"`). **It is a deterministic unit check (`simulation_only: true`), not a networked Raft or Jepsen run.**

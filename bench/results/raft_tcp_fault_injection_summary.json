@@ -1,0 +1,37 @@
+{
+  "all_5_nodes_converged_x": [
+    17,
+    17,
+    17,
+    17,
+    17
+  ],
+  "all_5_nodes_converged_y": [
+    18,
+    18,
+    18,
+    18,
+    18
+  ],
+  "candid_finding_unbarriered_local_sm_read_stale_during_partition": true,
+  "candid_note": "RaftNode::propose appends asynchronously to the leader log without awaiting quorum commit; callers requiring linearizable durability across partitions must use RaftNode::propose_and_commit (added in v0.6.0). Similarly, RaftNode::with_state_machine reads local memory without a quorum round-trip unless preceded by a quorum barrier.",
+  "cluster_nodes": 5,
+  "elapsed_ms": 5490,
+  "elle_history_events": 76,
+  "elle_history_file": "bench/results/raft_tcp_elle_history.edn",
+  "engine_tested": "crates/joule-db-server/src/{raft.rs, raft_server.rs, raft_transport.rs}",
+  "faults_injected": [
+    "Asymmetric 2/5 vs 3/5 TCP socket severing isolating initial leader",
+    "Minority write & quorum-read rejection/timeout under partition",
+    "Majority 3/5 leader election over TCP at higher term",
+    "Follower stop + restart from on-disk raft.wal + partition heal"
+  ],
+  "harness": "raft_tcp_elle_fault_injection",
+  "initial_leader": "raft-tcp-4",
+  "initial_term": 2,
+  "lost_committed_writes": 0,
+  "new_majority_leader": "raft-tcp-1",
+  "new_majority_term": 3,
+  "transport": "Real TCP loopback sockets via 20-link TcpPartitionMatrix fault-injection proxy",
+  "wal_persistence": "On-disk RaftWal per node (CRC-32 records + restart recovery)"
+}

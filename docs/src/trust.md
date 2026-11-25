@@ -1,28 +1,30 @@
-# Progressive Trust & Compliance: Maker to `SOC 2`, `HIPAA` & `FedRAMP/MLS`
+# Implemented Security Controls (`trust_compliance.rs` — Unaudited)
 
-Universal trust should never punish hobbyists with enterprise ceremony—nor force regulated institutions to bolt security on via external proxies. `JouleDB v1.0.0` (`crates/joule-db-server/src/trust_compliance.rs`, Pillar `30`) implements **6 progressive Trust Tiers** certified across **8 global compliance frameworks**.
-
----
-
-## Progressive 6-Tier Compliance Ladder
-
-| Tier | Profile (`JOULEDB_TRUST_TIER`) | Target Domain | Active Cryptographic & Policy Controls |
-| :---: | :--- | :--- | :--- |
-| **`0`** | `maker` | Hobbyist, Maker, Raspberry Pi, MCU, Local Dev | Zero ceremony; loopback trust auth; hardware/modeled `nJ` telemetry |
-| **`1`** | `consumer` | Consumer SaaS, Mobile & Edge Apps | **`GDPR Art. 17` / `CCPA` $O(1)$ Per-Subject Crypto-Shredding** (`AES-256-GCM` key destruction renders ciphertext permanently unrecoverable) + **$\varepsilon$-Differential Privacy (`Laplace`)** budget guard |
-| **`2`** | `soc2` | Enterprise B2B & FinTech | **`SOC 2 Type II` (`CC6.1`–`CC8.1`) + `ISO 27001`** append-only `SHA-256` hash-chained tamper-evident audit log + **`PCI-DSS v4.0`** Luhn PAN masking |
-| **`3`** | `regulated` | Healthcare, Biotech & Capital Markets | **`HIPAA` + `FDA 21 CFR Part 11`** PHI redaction & electronic signatures + **`SEC Rule 17a-4(f)` WORM** retention locks (blocking `DELETE`/`OVERWRITE` until retention expiry) |
-| **`4`** | `industrial` | Robotics, Energy Grids, OT/ICS | **`IEC 62443` + `EU Cyber Resilience Act` / `EO 14028`** airgap confinement + live **`CycloneDX v1.6 SBOM + .jsyn AI-BOM`** (`GET /api/v1/trust/sbom`) |
-| **`5`** | `sovereign-mls` | Government, Defense & Intelligence | **`FedRAMP High` / `NIST 800-53r5` + `CNSA 2.0` (`FIPS 203 ML-KEM-768` + `FIPS 204 ML-DSA-65`)** + Mandatory **`Bell-LaPadula` Multi-Level Security (`MLS`)** (`No Read Up` + `No Write Down` exfiltration prevention + Compartments `NATO`/`CRYPTO`/`NUCLEAR`) |
+> **Mandatory Compliance Disclosure:** Software cannot self-certify or cryptographically attest compliance with `SOC 2 Type II`, `ISO/IEC 27001`, `HIPAA`, `PCI-DSS`, `CMVP FIPS 140-3`, or `FedRAMP`. **No third-party audit, certification, CMVP validation, or agency authorization has been performed on JouleDB.** This chapter documents only the technical security primitives implemented in `crates/joule-db-server/src/trust_compliance.rs` and `crates/inv-pqcrypto`.
 
 ---
 
-## Run Continuous Trust Audit & Export `SBOM + AI-BOM`
+## Implemented Technical Primitives
+
+| Control Area | What the Code Actually Implements | Verification Endpoint / Test |
+| :--- | :--- | :--- |
+| **Hash-Chained Audit Log** | Append-only in-engine log where each entry hashes `(seq, ts_ms, actor, control_ref, action, prev_hash)` with `SHA-256`; single-character mutation fails `verify_audit_chain()` | `POST /api/v1/trust/compliance_audit` |
+| **Retention-Lock Flag (WORM Guard)** | Optional `worm_retain_until_ms` timestamp on audit records; `attempt_delete_worm_protected` rejects deletion prior to that timestamp | Unit & HTTP self-test in `trust_compliance.rs` |
+| **Per-Subject DEK Zeroization** | Encrypts per-subject byte payloads under a per-subject `AES-256-GCM` key; `POST /api/v1/trust/crypto_shred` overwrites and drops the in-memory key entry | `POST /api/v1/trust/crypto_shred` |
+| **Regex & Luhn Text Redaction** | Scans strings for Luhn-valid payment card numbers, `NNN-NN-NNNN` patterns, email addresses, and `sk-*` tokens, replacing matches with salted hashes | `POST /api/v1/trust/redact` |
+| **Laplace Noise Budget Counter** | Adds calibrated `Laplace(sensitivity / epsilon)` noise to scalar aggregates and decrements a per-tenant `epsilon` counter | `evaluate_dp_laplace` in `trust_compliance.rs` |
+| **Bell-LaPadula Lattice Check** | Pure function checking clearance level dominance and compartment subset inclusion (`No Read Up` / `No Write Down`) on labeled requests | `POST /api/v1/trust/mls_guard` |
+| **Hybrid `Ed25519 + ML-DSA-65` Signing** | Signs JSON digests/manifests using `ed25519-dalek` and `fips204` (`ML-DSA-65`, non-CMVP Rust crate) | `crates/inv-pqcrypto` |
+| **CycloneDX v1.6 JSON Manifest** | Emits a JSON Software & loaded-model Bill of Materials summary | `GET /api/v1/trust/sbom` / `jouledb trust --sbom` |
+
+---
+
+## Running the Technical Control Self-Tests
 
 ```bash
-# Run all 8 compliance frameworks (SOC2, ISO27001, HIPAA, GDPR, PCI-DSS, SEC 17a-4f, IEC 62443, FedRAMP/MLS)
+# Run the in-process unit self-tests for the primitives above (returns external_audit_performed: false)
 jouledb trust
 
-# Generate CycloneDX v1.6 Software + .jsyn AI Bill of Materials
-jouledb trust --sbom > jouledb-v1.0.0.cdx.json
+# Emit CycloneDX v1.6 JSON summary
+jouledb trust --sbom > sbom-v0.6.0.cdx.json
 ```

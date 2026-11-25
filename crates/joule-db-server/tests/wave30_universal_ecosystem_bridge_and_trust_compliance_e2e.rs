@@ -40,7 +40,7 @@ async fn send_req(
 
 #[tokio::test]
 async fn test_wave30_universal_ecosystem_bridge_and_trust_compliance_e2e() {
-    assert_eq!(all_sota_tool_definitions().len(), 48);
+    assert_eq!(all_sota_tool_definitions().len(), 49);
 
     let tmp = tempfile::tempdir().expect("tempdir");
     let mut cfg = ServerConfig::default();
@@ -233,7 +233,8 @@ async fn test_wave30_universal_ecosystem_bridge_and_trust_compliance_e2e() {
     )
     .await;
     assert_eq!(st_tr, StatusCode::OK);
-    assert_eq!(tr_v["all_8_global_compliance_frameworks_certified"], true);
+    assert_eq!(tr_v["implemented_technical_controls_self_test_passed"], true);
+    assert_eq!(tr_v["external_audit_performed"], false);
     assert_eq!(
         tr_v["controls_verified"]["bell_lapadula_no_write_down_exfiltration_blocked"],
         true

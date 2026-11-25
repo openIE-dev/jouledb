@@ -8,10 +8,10 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 
 /**
- * Official zero-dependency Java 17+ SDK for JouleDB v1.0.0.
+ * Official zero-dependency Java 17+ SDK for JouleDB v0.6.0.
  */
 public final class JouleDbClient {
-    public static final String VERSION = "1.0.0";
+    public static final String VERSION = "0.6.0";
     private final String baseUrl;
     private final String bearerToken;
     private final HttpClient http;

@@ -1,9 +1,9 @@
 /**
- * @openie/jouledb v1.0.0
+ * @openie/jouledb v0.6.0
  * Universal Fetch-native client for Node.js (>=18), Deno, Bun, Cloudflare Workers & Browsers.
  */
 
-export const VERSION = "1.0.0";
+export const VERSION = "0.6.0";
 
 export class JouleDBError extends Error {
   constructor(message, status = 0) {
@@ -103,7 +103,7 @@ export class JouleDBClient {
     });
   }
 
-  /** Run the Master JouleDB v1.0.0 36-Pillar Global Powerhouse Certification Suite. */
+  /** Run the Master JouleDB v0.6.0 36-Pillar Global Powerhouse Certification Suite. */
   async powerhouseSuite() {
     return this._request("POST", "/api/v1/bench/v1_powerhouse", {});
   }

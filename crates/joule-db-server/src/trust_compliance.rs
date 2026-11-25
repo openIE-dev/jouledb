@@ -709,26 +709,28 @@ pub fn execute_full_trust_and_compliance_suite() -> Result<JsonValue, String> {
 
     Ok(json!({
         "ok": true,
-        "all_8_global_compliance_frameworks_certified": all_passed,
-        "deployment_tiers_covered": [
-            "Tier 0: Maker / Hobbyist / Tinker (Zero-Config Loopback, 0 Telemetry, SBC-Ready)",
-            "Tier 1: Consumer Local-First Privacy (GDPR Art. 17 & CCPA O(1) Crypto-Shredding)",
-            "Tier 2: Enterprise Cloud & SaaS (SOC 2 Type II CC1-CC9, ISO/IEC 27001:2022, PCI-DSS v4.0)",
-            "Tier 3: Regulated Healthcare & Finance (HIPAA 45 CFR 164.312, FDA 21 CFR Part 11, SEC 17a-4f WORM)",
-            "Tier 4: Industrial, Energy & Robotics (IEC 62443 SL-3, SafeVLA STL VSI=0, CycloneDX 1.6 SBOM + AI-BOM)",
-            "Tier 5: Sovereign Government, Intelligence & Military (FedRAMP High, NIST 800-53r5, CNSA 2.0 FIPS 203/204, Bell-LaPadula MLS Airgap)"
+        "implemented_technical_controls_self_test_passed": all_passed,
+        "external_audit_performed": false,
+        "compliance_disclaimer": "Self-test of implemented software security controls only (SHA-256 hash-chained log, retention-lock flag, per-subject DEK zeroization, regex/Luhn redaction, Laplace noise budget, Bell-LaPadula lattice check, and ML-DSA-65 signature). No third-party SOC 2, ISO 27001, HIPAA, PCI-DSS, CMVP FIPS 140-3, or FedRAMP audit or authorization has been performed.",
+        "control_profiles_configured": [
+            "Profile 0 (Local Dev): Loopback trust mode, zero outbound telemetry",
+            "Profile 1 (Privacy Controls): Per-subject DEK zeroization (crypto-shredding) & Laplace differential-privacy budget counter",
+            "Profile 2 (Audit & Redaction Controls): SHA-256 hash-chained append log & Luhn PAN / SSN / token text redaction",
+            "Profile 3 (Retention Controls): In-engine WORM retention-timestamp delete guard",
+            "Profile 4 (Supply-Chain Metadata): CycloneDX v1.6 JSON SBOM & model manifest generator",
+            "Profile 5 (MAC & Lattice Signatures): Bell-LaPadula clearance/compartment check & hybrid Ed25519 + ML-DSA-65 signing"
         ],
         "controls_verified": {
-            "soc2_cc7_hash_chain_valid": chain_valid,
+            "audit_hash_chain_valid": chain_valid,
             "audit_entries_verified": chain_len + 1,
             "tamper_mutation_caught": tampered_caught,
-            "sec_17a4_worm_retention_enforced": worm_delete_blocked,
-            "gdpr_art17_crypto_shred_certificate": shred_cert,
-            "hipaa_pci_luhn_redaction_clean": redaction_clean,
+            "worm_retention_guard_enforced": worm_delete_blocked,
+            "per_subject_crypto_shred_receipt": shred_cert,
+            "pii_luhn_redaction_clean": redaction_clean,
             "differential_privacy_budget_enforced": dp_exhaustion_blocked,
             "bell_lapadula_no_read_up_enforced": no_read_up_enforced,
             "bell_lapadula_no_write_down_exfiltration_blocked": no_write_down_enforced,
-            "cnsa2_fips204_mldsa65_attestation_verified": pq_verified,
+            "hybrid_ed25519_mldsa65_signature_verified": pq_verified,
             "mldsa65_signature_bytes": pq_sig_len,
         },
         "elapsed_ms": t0.elapsed().as_secs_f64() * 1e3,

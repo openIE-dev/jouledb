@@ -39,19 +39,18 @@ members = [
     "crates/joule-runtime/runtime/joule-energy-rt",
     "crates/joule-runtime/runtime/joule-metal-rt",
     "crates/joule-runtime/runtime/joule-ane-rt",
-    "crates/joule-web",
     "crates/jpb-core",
     "crates/jwp",
     "crates/sigql",
 ]
 
 [workspace.package]
-version      = "1.0.0"
+version      = "0.6.0"
 edition      = "2024"
 rust-version = "1.94.1"
 authors      = ["David Charlot <david@joulesperbit.com>"]
 license      = "MIT OR Apache-2.0"
-repository   = "https://github.com/joulesperbit/jouledb"
+repository   = "https://github.com/openIE-dev/jouledb"
 
 [workspace.dependencies]
 # ── Capability Registry (Reality Code Engine) ────────────────
@@ -93,9 +92,8 @@ joule-db-langgraph  = { path = "crates/joule-db-langgraph" }
 joule-db-client     = { path = "crates/joule-db-client" }
 sigql               = { path = "crates/sigql" }
 
-# ── Workspace crates (Productivity) ──────────────────────────
+# ── Workspace crates (Energy) ────────────────────────────────
 joule-energy          = { path = "crates/joule-energy" }
-joule-web             = { path = "crates/joule-web" }
 
 # ── Verity Training (ML framework) ────────────────────────────
 

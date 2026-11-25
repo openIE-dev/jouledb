@@ -1,25 +1,17 @@
-# `.jsyn` (`JSYN-v1`) Living Model Weights
+# `.jsyn` (`JSYN-v1`) Experimental Low-Rank Bitplanes & Fidelity Boundaries
 
-A `.safetensors` or `.gguf` file is a frozen matrix slab that forces dense FFN parameters to act as a lossy key-value encyclopedia. **JouleDB** separates **stored facts** (MVCC SQL + `Engram` `O(1)` memory + `TriModal GraphRAG`) from **neural circuits** (`.jsyn` sub-1-bit bitplanes).
+`.jsyn` (`crates/joule-db-weights`) is JouleDB's experimental low-bitwidth tensor container. It decomposes 2D weight projections via coupled binary sign bitplanes (`u_bits`, `v_bits`), `FP16` row/column/singular scales (`SVF`), and sparse outlier entries, while storing 1D normalization/bias vectors in exact `FP32`.
 
-## Binary Layout & Factorization
+---
 
-Every `.jsyn` snapshot carries an IEEE `CRC-32` checksummed `JSYN` v1 header and `zstd` payload containing:
-- **`littlebit_tensors`:** Coupled multi-scale binary low-rank factors `u_bits`, `v_bits` (`u64` FastLanes words), continuous `row_scale`/`col_scale`/`latent_scale`, sparse heavy-tailed `outliers`, and **Sakana `SVF`** adaptation vectors.
-- **`vectors_1d`:** Exact `FP32` `RMSNorm`, `+1` Gemma offsets, `QK-Norm`, `Liquid ShortConv`, and `Mamba-2` SSM vectors (`0%` lossy compression).
-- **`model_vocabs` + `model_configs` + `engram`:** Self-contained BPE/SentencePiece tokenizer, architecture graph, and `O(1)` conditional memory.
+## Candid Quality vs. Compression Findings
 
-## Apple M5 Max Rank-Sweep Proof (`POST /api/v1/synapse/bench/rank_sweep`)
+Compression arithmetic alone (`20x–560x` smaller files) does not mean a compressed neural network behaves like the upstream model. Empirical quality depends strongly on architecture and bits-per-weight (`BPW`):
 
-| Model / Layer | Rank | `BPW` | Shrink | Latency | UMA Energy | Quality (`cos` / `KL`) |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **`Gemma-4-E2B`** `q_proj` (`BF16`) | `8` | `0.028` | **`564.2×`** | `385 µs` | `49.8 nJ` (**`562×`**) | `0.271` / `3.87` |
-| **`Gemma-4-E2B`** `q_proj` (`BF16`) | `32` | `0.056` | **`286.6×`** | `831 µs` | `108.5 nJ` (**`258×`**) | `0.341` / `3.69` |
-| **`Gemma-4-E2B`** `q_proj` (`BF16`) | `64` | `0.092` | **`173.1×`** | `1,723 µs` | `186.7 nJ` (**`150×`**) | `0.392` / `3.37` |
-| **`Gemma-4-E2B`** `q_proj` (`BF16`) | `128` | `0.166` | **`96.6×`** | `3,193 µs` | `343.2 nJ` (**`82×`**) | `0.455` / `2.72` |
-| **`Inkling-2-Mini`** (`128`-Exp `NVFP4`) | `8 → 128` | `0.023–0.134` | **`701× → 120×`** | `466–4,156 µs` | `60–416 nJ` (**`699×`**) | `0.113 → 0.350` |
-| **`SmolLM2-135M`** (`30L` Causal LLM) | `8 → 128` | `0.125–0.388` | **`65.2× → 27.4×`** | **`58.4–31.3 tok/s`** | `3.93–9.35 MB` | `w_cos 0.19 → 0.62` |
+| Model Class | Representative Checkpoint | Avg `BPW` | Size (`FP16 -> .jsyn`) | Measured Fidelity vs Original | Practical Usability |
+| :--- | :--- | :---: | :---: | :--- | :--- |
+| **6L Bidirectional Sentence Encoder** | [`all-MiniLM-L6-v2-LittleBit`](https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit) (`Apache-2.0`) | **`0.4378`** | `43.32 MB -> 1.95 MB` (`22.2×`) | **`cos = 0.9441`** mean sentence-embedding cosine | **Usable** for compact CPU/edge semantic retrieval (`BM25 + RaBitQ + HDC`) |
+| **Single Dense Projection (`BF16 q_proj`)** | Rank-sweep ablation (`rank = 8 -> 128`) | `0.028 -> 0.166` | `564× -> 96.6×` | Output `cos = 0.271 -> 0.455`, `KL = 3.87 -> 2.72` (`65.6%` Top-5) | **Degraded** — demonstrates Eckart-Young rank trade-off, not lossless LLM compression |
+| **30L Autoregressive Causal LLM** | `SmolLM2-135M` rank sweep (`rank = 8 -> 128`) | `0.125 -> 0.388` | `65.2× -> 27.4×` | Mean weight `cos = 0.19 -> 0.62` | **Not a drop-in replacement** for the upstream instruct LLM |
 
-## 82 Public Models & Interactive Explorer
-
-Browse all **82 adapted `< 30 GB` open-weight models** at **[huggingface.co/dcharlot65-openie](https://huggingface.co/dcharlot65-openie)**, explore interactive rank-sweep (`r = 8 → 32 → 64 → 128` + `AWQ ⊕ GPTQ SVF`) curves at **[jouledb.org/benchmarks](https://jouledb.org/benchmarks)**, and read the full binary specification in [`docs/JSYN-LIVING-WEIGHTS-SPEC.md`](https://github.com/openIE-dev/jouledb/blob/main/docs/JSYN-LIVING-WEIGHTS-SPEC.md).
+> **November 2026 Hugging Face Cleanup:** 81 unverified ultra-low-BPW (`0.013–0.25 BPW`) and non-standard vendor-licensed `.jsyn` repositories were removed from `huggingface.co/dcharlot65-openie`. Only checkpoints with permissive licenses (`Apache-2.0` / `MIT`) and verified `>= 0.85` task fidelity (currently [`all-MiniLM-L6-v2-LittleBit`](https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit)) are published publicly.

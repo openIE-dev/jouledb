@@ -1,25 +1,28 @@
-# Install, Helm & Terraform (`v1.0.0`)
+# Install & Deployment Templates (`v0.6.0` Preview)
 
-Every installation channel delivers the unified `jouledb` `v1.0.0` server & CLI binary (`crates/joule-db-server`), exposing HTTP REST / Universal Bridges / MCP / OpenAI `/v1/*` on `--port` (default `8080`), native TCP on `+1` (`8081`), PostgreSQL `pgwire` on `+2` (`8082`), binary `JWP` on `+3` (`8083`), and Arrow Flight SQL on `+4` (`8084`).
+All installation channels deliver the `jouledb` `v0.6.0` server and CLI binary (`crates/joule-db-server`), exposing HTTP REST & MCP on `--port` (default `8080`), native TCP on `+1` (`8081`), PostgreSQL `pgwire` on `+2` (`8082`), and binary `JWP` on `+3` (`8083`).
 
 ## 1. Prebuilt Binary via `cargo-binstall` or GitHub Releases
 
-> **Packaging note:** The [`jouledb` crate on `crates.io`](https://crates.io/crates/jouledb) (`stubs/jouledb`, `v1.0.0`) is a `cargo-binstall` binary-fetcher stub. Run **`cargo binstall jouledb`** (plain `cargo install jouledb` prints this hint and exits with code `2`) or compile directly from the workspace below.
+> **Packaging & Linux `glibc` Portability Note:**
+> - The [`jouledb` crate on `crates.io`](https://crates.io/crates/jouledb) (`stubs/jouledb`, `v0.6.0`; `1.0.0` is yanked) is a small **`cargo-binstall` binary-fetcher stub** (`15 KB`). Running `cargo binstall jouledb` downloads the prebuilt release archive from GitHub Releases; plain `cargo install jouledb` prints source-build instructions and exits with status `2`.
+> - Starting in `v0.6.0`, `x86_64-unknown-linux-gnu` release binaries are built against **`glibc <= 2.36`** (`Debian 12` / `Ubuntu 22.04` baseline) and verified to start cleanly on **Ubuntu 24.04 LTS (`glibc 2.39`)**, fixing the `GLIBC_2.43 not found` error present in `v0.2.2`–`v1.0.0`.
 
 ```bash
 cargo binstall jouledb
-jouledb --version   # jouledb 1.0.0
+jouledb --version   # jouledb 0.6.0
 ```
 
-Or download a signed `v1.0.0` release archive directly for macOS (`arm64` / `x86_64`), Linux (`x86_64` / `aarch64`), or Windows (`x86_64`):
+Or download the `v0.6.0` release tarball directly for macOS (`aarch64` / `x86_64`) or Linux (`x86_64` / `aarch64`):
 
 ```bash
-curl -fsSL https://github.com/openIE-dev/jouledb/releases/download/v1.0.0/jouledb-1.0.0-aarch64-apple-darwin.tar.gz | tar xz
+curl -fsSL https://github.com/openIE-dev/jouledb/releases/download/v0.6.0/jouledb-0.6.0-x86_64-unknown-linux-gnu.tar.gz | tar xz
+./jouledb-0.6.0-x86_64-unknown-linux-gnu/jouledb --version
 ```
 
-## 2. Build from Source (`Apache-2.0 OR MIT` Workspace)
+## 2. Build from Source (`Apache-2.0 OR MIT`)
 
-All 40 Rust workspace crates, first-party polyglot SDKs (`sdks/*`, `python/`), and deployment modules (`deploy/*`) ship in this repository (`rust-version = "1.94.1"`):
+All `41` Rust workspace crates ship in this repository:
 
 ```bash
 git clone https://github.com/openIE-dev/jouledb.git
@@ -28,38 +31,22 @@ cargo build --release --locked -p joule-db-server --bin jouledb
 ./target/release/jouledb --port 8080 --data ./joule-data
 ```
 
-## 3. Docker / OCI (`GHCR`)
+## 3. Connect Standard PostgreSQL Clients & Run Self-Checks
 
 ```bash
-docker run -p 8080-8084:8080-8084 -v jdb:/data ghcr.io/openie-dev/jouledb:1.0.0
-```
-
-## 4. Production Kubernetes `Helm` Chart (`deploy/helm/jouledb`)
-
-Deploy a 3-node (`soc2` / `regulated`) or 5-node (`sovereign-mls`) StatefulSet with `PodDisruptionBudget`, zero-trust `NetworkPolicy`, and optional `SEC 17a-4(f)` WORM retention:
-
-```bash
-helm upgrade --install jouledb ./deploy/helm/jouledb \
-  --namespace jouledb --create-namespace \
-  --set trustTier=soc2 \
-  --set replicaCount=3 \
-  --set persistence.size=200Gi
-```
-
-## 5. `Terraform` Compliance Module (`deploy/terraform/jouledb`)
-
-```bash
-cd deploy/terraform/jouledb
-terraform init
-terraform apply -var="cluster_name=jouledb-prod-v1" -var="trust_tier=sovereign-mls"
-```
-
-## 6. Connect Standard Clients Immediately (`0` Code Changes)
-
-```bash
-# PostgreSQL CLI / SQLAlchemy / psycopg / JDBC
+# Connect psql, psycopg3, SQLAlchemy, node-pg, or JDBC over pgwire (:8082)
 psql "host=127.0.0.1 port=8082 user=postgres dbname=postgres sslmode=disable"
 
-# Master 36-Pillar v1.0.0 Self-Certification
-jouledb powerhouse
+# Run the 6 fast in-process subsystem smoke checks (not an external benchmark)
+jouledb self-check
 ```
+
+## 4. Starter `Helm` & `Terraform` Templates (`deploy/`)
+
+`deploy/helm/jouledb` (`5` files, `~198` lines) and `deploy/terraform/jouledb` (`main.tf`, `52` lines) provide minimal starter templates for Kubernetes `StatefulSet` deployment and configuration flags. They are **starter infrastructure templates**, not externally audited compliance modules.
+
+## 5. Package Registry Status Disclosure
+
+- **`crates.io` (`jouledb` `0.6.0`):** Published (`cargo-binstall` binary fetcher stub).
+- **GitHub Releases (`v0.6.0`):** Published (server tarballs + SHA-256 checksums + Python `.whl` wheels).
+- **PyPI (`jouledb`), npm (`@openie/jouledb`), NuGet (`OpenIE.JouleDB`):** **Not published** on public package registries as of `v0.6.0`. Install Python wheels from GitHub Releases or build from `python/` and `sdks/*` in-repo.
