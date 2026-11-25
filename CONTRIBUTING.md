@@ -1,25 +1,22 @@
 # Contributing
 
-This repository hosts the **public release surface** for an Open Interface Engineering (openIE) project. The source lives in a private mirror; contributions to this repository follow these rules:
+This repository hosts the **open-source (`Apache-2.0 OR MIT`) 40-crate Rust workspace, Python SDK, documentation, and release workflows** for JouleDB (`crates/`, `python/`, `docs/`, `examples/`).
 
-## What we accept
+*(Historical note: During `v0.1` prior to `v0.2.0`, this repository served only as a binary release mirror; starting in `v0.2.0`, the full Rust workspace source lives directly in `crates/` under `MIT OR Apache-2.0`.)*
 
-- **Bug reports**, open an issue describing the problem, environment, and reproduction steps
-- **Documentation fixes**, typos, clarifications, broken links: open a PR directly
-- **Example improvements**, bug fixes or new examples in `examples/`: open a PR
+## What We Welcome
 
-## What we don't accept here
+- **Bug reports & benchmark replications:** Open an issue with exact reproduction steps, OS/CPU details, and logs.
+- **Documentation & benchmark clarity fixes:** Typos, protocol clarifications, broken links, and prior-art additions—open a PR directly against `docs/` or `examples/`.
+- **Targeted engine/SDK fixes:** Focused, well-tested PRs against `crates/` or `python/` that pass `cargo test --workspace --locked` and maintain `#![deny(unsafe_code)]` in `joule-db-core` and `deny(clippy::unwrap_used)` across core crates.
 
-- **Source code changes**, the source is private; the binaries and examples in this repository are mirrors of internal work. We can't merge source PRs.
-- **Feature requests outside our roadmap**, feature ideas are welcome as issues, but we may close them if they don't fit.
-
-## Reporting issues
+## Reporting Issues
 
 When filing a bug:
 
 - Use the issue templates in `.github/ISSUE_TEMPLATE/`
-- Include the exact version (`<tool> --version`)
-- Include OS + architecture (`uname -a` or equivalent)
+- Include the exact version (`jouledb --version` or commit SHA)
+- Include OS + architecture (`uname -m -r -s` or equivalent)
 - Include a minimal reproduction
 - Attach logs with `RUST_LOG=debug` if relevant
 
@@ -33,4 +30,4 @@ By participating in this project, you agree to abide by the [Code of Conduct](./
 
 ## License
 
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this repository is dual licensed under MIT OR Apache-2.0, without any additional terms or conditions.
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this repository is dual-licensed under `MIT OR Apache-2.0` ([`LICENSE-MIT`](./LICENSE-MIT) and [`LICENSE-APACHE`](./LICENSE-APACHE)), without any additional terms or conditions.
