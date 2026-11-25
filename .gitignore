@@ -4,3 +4,4 @@
 *.bak
 *.tmp
 .DS_Store
+classes/
